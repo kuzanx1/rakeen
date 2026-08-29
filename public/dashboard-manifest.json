@@ -1,0 +1,16 @@
+{
+  "name": "ركين | لوحة التحكم",
+  "short_name": "ركين",
+  "description": "لوحة تحكم ركين — مبيعاتك ومخزونك وتنبيهاتك بمكان واحد.",
+  "start_url": "/dashboard",
+  "scope": "/dashboard",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#111111",
+  "theme_color": "#111111",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    { "src": "/pos-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

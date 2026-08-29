@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>اختبار سرعة</title>
+</head>
+<body style="font-family:sans-serif; text-align:center; padding:40px;">
+<h1>اختبار بسيط</h1>
+<p>اضغط الزر وشوف الرقم يتغير فوراً ولا فيه تأخير</p>
+<button id="btn" style="font-size:32px; padding:20px 40px;">اضغط هنا (0)</button>
+<p id="timing" style="font-size:20px; color:green;"></p>
+<script>
+  var count = 0;
+  var btn = document.getElementById('btn');
+  var timing = document.getElementById('timing');
+  btn.addEventListener('click', function () {
+    var start = performance.now();
+    count++;
+    btn.textContent = 'اضغط هنا (' + count + ')';
+    requestAnimationFrame(function () {
+      var ms = Math.round(performance.now() - start);
+      timing.textContent = 'آخر ضغطة استغرقت: ' + ms + ' ميلي ثانية';
+    });
+  });
+</script>
+</body>
+</html>

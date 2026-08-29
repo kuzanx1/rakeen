@@ -1,0 +1,462 @@
+/* Additive layer for rakeen-pos.css — kept separate so the original
+   stylesheet stays untouched. Covers the real-auth screens (provisioning +
+   cashier PIN login), which don't exist in the original prototype, plus
+   small-viewport breakpoints. */
+
+.hidden { display: none !important; }
+
+.pos-auth-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--canvas);
+  padding: 20px;
+}
+.pos-auth-card {
+  width: 360px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  padding: 36px 30px 30px;
+  box-shadow: var(--shadow-panel);
+}
+.pos-auth-title {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 7px;
+}
+.pos-auth-sub {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 22px;
+  line-height: 1.65;
+}
+.pos-auth-field {
+  width: 100%;
+  margin-bottom: 11px;
+  text-align: start;
+}
+.pos-auth-field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.pos-auth-field input,
+.pos-auth-field select {
+  width: 100%;
+  padding: 13px 15px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surf1);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+}
+.pos-auth-field input:focus,
+.pos-auth-field select:focus {
+  outline: none;
+  border-color: var(--lime-deep);
+}
+.pos-auth-error {
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.pos-auth-reprovision {
+  display: inline-block;
+  margin-top: 18px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+}
+.auth-util-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surf1);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.pos-staff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  width: 100%;
+}
+.pos-staff-btn {
+  width: 100%;
+  padding: 15px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surf1);
+  color: var(--text);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color .12s ease, background .12s ease;
+}
+.pos-staff-btn:active { background: var(--lime); color: var(--flag-green-deep); border-color: var(--lime); }
+
+.channel-row {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surf1);
+  border-radius: var(--r-full);
+  margin-top: 8px;
+}
+.channel-btn {
+  flex: 1;
+  padding: 8px 4px;
+  border-radius: var(--r-full);
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background .12s ease, color .12s ease;
+}
+.channel-btn.active { background: var(--lime); color: var(--flag-green-deep); box-shadow: 0 4px 12px rgba(var(--lime-deep-rgb), 0.3); }
+.platform-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.platform-btn {
+  flex: 1 1 calc(33.333% - 6px);
+  min-width: 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 6px;
+  border-radius: var(--r-md);
+  border: 1.5px solid var(--line);
+  background: var(--surf1);
+  color: var(--text);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+.platform-btn img { width: 30px; height: 30px; border-radius: 8px; object-fit: cover; }
+.platform-btn-initial {
+  width: 30px; height: 30px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 13px; color: rgba(255,255,255,0.92);
+}
+.platform-btn.active {
+  border-color: var(--platform-color, var(--lime-deep));
+  box-shadow: var(--shadow-sm);
+}
+
+/* Merged Orders+Delivery "جارية" tab — active delivery orders as small ring
+   cards packed into a grid (so a busy branch with many concurrent orders
+   doesn't turn into a long one-per-row scroll), sitting above the plain
+   held-order rows in the same list. */
+.dorder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.dorder-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 3px;
+  padding: 16px 10px 12px;
+  border-radius: var(--r-lg);
+  background: linear-gradient(165deg, var(--surf1), var(--card-bg) 65%);
+  box-shadow: var(--shadow-sm);
+  border: 1.5px solid var(--line);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: transform .1s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.dorder-card::before {
+  content: '';
+  position: absolute; inset: 0 0 auto; height: 2.5px;
+  background: linear-gradient(90deg, var(--lime-deep), var(--lime));
+  opacity: 0; transition: opacity .15s ease;
+}
+.dorder-card:hover::before { opacity: 1; }
+.dorder-card:active { transform: scale(0.97); }
+.dorder-ring-wrap {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--lime-rgb), 0.1), transparent 70%);
+}
+.dorder-ring { display: block; }
+.dorder-ring-time {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 800;
+}
+.dorder-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.dorder-logo, .dorder-logo-initial {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  object-fit: cover;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+}
+.dorder-logo-initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 10px;
+  color: rgba(255,255,255,0.92);
+}
+.dorder-id { font-weight: 800; font-size: 12px; }
+.dorder-platform {
+  font-size: 10px; font-weight: 600; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
+}
+.dorder-total {
+  font-weight: 800; font-size: 13.5px; margin-top: 3px; padding-top: 6px;
+  width: 100%; border-top: 1px dashed var(--line); color: var(--lime-deep);
+}
+[data-theme="dark"] .dorder-total { color: var(--lime); }
+.dorder-ready-btn {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 0;
+  border-radius: var(--r-full);
+  border: none;
+  background: linear-gradient(155deg, var(--lime), var(--lime-deep));
+  color: var(--flag-green-deep);
+  font-weight: 800;
+  font-size: 11px;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(var(--lime-deep-rgb), 0.28);
+}
+
+/* Urgency pulse — an order past the 5-min warning or fully expired stands
+   out even packed tightly in the grid, so the cashier can spot the late
+   order at a glance without reading every timer. */
+@keyframes dorderPulseWarn {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--amber-rgb), 0.45); }
+  50% { box-shadow: 0 0 0 6px rgba(var(--amber-rgb), 0); }
+}
+@keyframes dorderPulseUrgent {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--danger-rgb), 0.5); }
+  50% { box-shadow: 0 0 0 7px rgba(var(--danger-rgb), 0); }
+}
+.dorder-card.warn {
+  border-color: var(--amber);
+  animation: dorderPulseWarn 1.6s ease-in-out infinite;
+}
+.dorder-card.urgent {
+  border-color: var(--danger);
+  animation: dorderPulseUrgent 1.2s ease-in-out infinite;
+}
+
+/* Ready and handed to the delivery rep — no more prep countdown (that
+   deadline no longer applies), just how long it's been waiting for the
+   cashier to confirm the rep actually dropped it off. */
+.dorder-card.out-for-delivery { border-color: var(--lime-deep); }
+.dorder-out-icon {
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  background: radial-gradient(circle, rgba(var(--lime-rgb), 0.15), transparent 70%);
+}
+.dorder-out-waiting {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--lime-deep);
+  margin-top: 2px;
+}
+[data-theme="dark"] .dorder-out-waiting { color: var(--lime); }
+.dorder-delivered-btn {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 0;
+  border-radius: var(--r-full);
+  border: none;
+  background: linear-gradient(155deg, var(--lime), var(--lime-deep));
+  color: var(--flag-green-deep);
+  font-weight: 800;
+  font-size: 11px;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(var(--lime-deep-rgb), 0.28);
+}
+
+/* Responsive: the 3-zone layout (cat-rail | products | order-panel 360px)
+   plus the sidebar icon-rail (rakeen-pos.css, ≥761px) targets 11-12" tablets
+   and wider. Below that the sidebar reverts to a bottom tab bar and the
+   layout stacks into a single scrollable column. */
+@media (max-width: 1100px) and (min-width: 761px) {
+  .order-panel { width: 300px; }
+}
+
+@media (max-width: 760px) {
+  body { overflow: auto; height: auto; min-height: 100vh; padding: 0; }
+  .app { height: auto; min-height: 100vh; border-radius: 0; box-shadow: none; border: none; }
+  .screens { overflow: visible; }
+  .screen.active { position: static; height: auto; }
+
+  .status-group, .tb-clock { display: none; }
+  .topbar { gap: 8px; padding: 0 12px; height: 58px; }
+  .identity-branch { display: none; }
+  .identity-cluster, .user-cluster { min-width: 0; }
+  .identity-text { min-width: 0; }
+  .identity-name { max-width: 68px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .identity-cluster .identity-text { display: none; }
+  .user-cluster { padding-inline-start: 8px; gap: 6px; }
+
+  .home-zones { flex-direction: column; overflow: visible; }
+
+  .products-zone { overflow: visible; }
+  .product-grid { overflow-y: visible; max-height: 60vh; grid-template-columns: repeat(auto-fill, minmax(122px,1fr)); gap: 10px; }
+  .product-icon { height: 72px; }
+
+  .order-panel {
+    width: 100%; border-inline-start: none; border-top: 8px solid var(--surf1); overflow: visible;
+  }
+  .order-items { max-height: 40vh; }
+
+  .modal-card, .modifier-card { width: 94vw; }
+}
+
+/* ============ Incoming online-order accept/reject popup ============
+   Deliberately non-dismissible: no .modal-close button is rendered for
+   #incomingOrderModal and no backdrop-click listener is wired for it in JS
+   — the only way out is Accept or Reject. The pulsing border keeps it
+   visually distinct from the app's other, dismissible modals. */
+.incoming-order-overlay { z-index: 9999; }
+.incoming-order-card { border: 2px solid var(--lime-deep); animation: incoming-order-pulse 1.6s ease-in-out infinite; }
+@keyframes incoming-order-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(199,255,77,0.5); }
+  50% { box-shadow: 0 0 0 14px rgba(199,255,77,0); }
+}
+.incoming-order-call {
+  display: block;
+  text-align: center;
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--lime-deep);
+  text-decoration: none;
+  padding: 10px;
+  margin: 4px 0 10px;
+  background: var(--surf2);
+  border-radius: var(--r-md);
+}
+.incoming-order-actions { display: flex; gap: 10px; margin-top: 14px; }
+.incoming-order-actions .confirm-pay-btn,
+.incoming-order-actions .clear-btn { flex: 1; width: auto; }
+.reject-reason-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px; }
+.reject-reason-chip {
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surf2);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* Table reservations — table-card is now a div (not a button) so it can
+   hold a real nested button for "حجز" without invalid button-in-button
+   markup; the card's own click-to-cycle-status handler ignores clicks that
+   land on either nested control. */
+.table-card { position: relative; }
+.table-reserve-btn {
+  position: absolute;
+  top: 6px;
+  inset-inline-end: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surf1);
+  color: var(--muted);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+.table-reservation-badge {
+  margin-top: 2px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(224, 184, 74, 0.16);
+  color: var(--amber);
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.table-turn-timer {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.table-turn-timer.ok { color: var(--flag-green); }
+.table-turn-timer.warn { color: var(--amber); }
+.table-turn-timer.over { color: var(--danger); }
+.pos-modal-hint {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 2px 0 14px;
+}
+.reject-reason-chip.active { background: var(--lime-deep); color: var(--flag-green-deep); border-color: var(--lime-deep); }

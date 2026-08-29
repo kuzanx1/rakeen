@@ -1,0 +1,101 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "main": "worker-entrypoint.js",
+  "name": "rakeen",
+  "compatibility_date": "2024-12-30",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "rakeenapp.com", "zone_name": "rakeenapp.com", "custom_domain": true },
+    { "pattern": "www.rakeenapp.com", "zone_name": "rakeenapp.com", "custom_domain": true },
+    // Per-business online menu subdomains (e.g. hbiah.rakeenapp.com) — wildcards
+    // aren't allowed on custom_domain routes, so this is a plain zone route.
+    // Requires a proxied wildcard DNS record (*.rakeenapp.com) to exist in the
+    // zone — not something this route config can create by itself.
+    { "pattern": "*.rakeenapp.com/*", "zone_name": "rakeenapp.com" }
+  ],
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "rakeen"
+    }
+  ],
+  // Product/business/loyalty branding images — moved here from Supabase
+  // Storage because R2 has zero egress fees (Supabase bills cached egress
+  // and a handful of unoptimized photos blew through the free tier). Public
+  // reads go straight from media.rakeenapp.com to the browser via R2's own
+  // CDN, never touching this Worker; only uploads go through it.
+  "r2_buckets": [
+    {
+      "binding": "MEDIA_BUCKET",
+      "bucket_name": "rakeen-media"
+    }
+  ],
+  // "0 6 * * *": once daily — checks every business with win-back alerts
+  // enabled for customers who've gone quiet and pushes them a free reminder.
+  // "0 7 * * 1": once weekly (Mondays) — checks real Supabase/Cloudflare
+  // usage against each service's free-tier limits and pushes the platform
+  // admin a warning at 70%, before it becomes a bill instead of after (see
+  // app/api/cron/usage-check). worker-entrypoint.js's scheduled() handler
+  // branches on event.cron to route each schedule to its own endpoint.
+  "triggers": {
+    // "0 21 * * *" is 00:00 Asia/Riyadh (UTC+3, no DST) — the automatic
+    // end-of-day report (app/api/cron/daily-report).
+    "crons": ["0 6 * * *", "0 7 * * 1", "0 21 * * *"]
+  },
+  // Report emailing (app/api/reports/send-email/route.ts). The binding
+  // works the moment it's deployed, but actually SENDING needs a real
+  // domain onboarded to Cloudflare Email Service first:
+  //   npx wrangler email sending enable yourdomain.com
+  // then update EMAIL_FROM_ADDRESS below to an address on that domain.
+  // Until then, sends fail with a clear "not connected yet" error — nothing
+  // else in the app depends on this.
+  "send_email": [{ "name": "EMAIL" }],
+  // Edge-layer rate limiting (security hardening phase 2, H3) for our own
+  // Next.js API routes — the routes below all pass through this Worker, so
+  // this is real protection for them (unlike the anon-callable Postgres
+  // RPCs, which never touch Cloudflare at all and are rate-limited inside
+  // Postgres itself — see supabase/migrations/20260819081000_*). One
+  // binding per sensitivity tier since each binding's limit/period is
+  // fixed at deploy time, not something a route can parametrize per call.
+  // `period` is Cloudflare's own constraint — only 10 or 60 seconds.
+  "ratelimits": [
+    { "name": "RL_AUTH", "namespace_id": "1001", "simple": { "limit": 5, "period": 60 } },
+    { "name": "RL_ADMIN_SENSITIVE", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } },
+    { "name": "RL_UPLOAD", "namespace_id": "1003", "simple": { "limit": 15, "period": 60 } },
+    { "name": "RL_EMAIL", "namespace_id": "1004", "simple": { "limit": 5, "period": 60 } },
+    { "name": "RL_PUSH", "namespace_id": "1005", "simple": { "limit": 20, "period": 60 } },
+    { "name": "RL_ADMIN_GENERAL", "namespace_id": "1006", "simple": { "limit": 60, "period": 60 } },
+    { "name": "RL_WEBHOOK", "namespace_id": "1007", "simple": { "limit": 120, "period": 60 } },
+    // H5 — cashier PIN login. Loose (10/60s) since a real cashier fat-
+    // fingering the 4-digit PIN a few times is normal; the real defense
+    // against brute-forcing the 10,000-combination PIN space is the
+    // per-branch progressive lockout in app/api/pos/login (DB-backed,
+    // survives across edge nodes, unlike this binding alone would).
+    { "name": "RL_POS_LOGIN", "namespace_id": "1008", "simple": { "limit": 10, "period": 60 } },
+    // Geidea card-payment session creation (storefront checkout) and
+    // credentials save (dashboard Settings) — 20/60s, generous for a real
+    // checkout burst, hard-stops a script.
+    { "name": "RL_PAYMENT", "namespace_id": "1009", "simple": { "limit": 20, "period": 60 } }
+  ],
+  // GEIDEA_MASTER_KEY (32 raw bytes, base64-encoded) encrypts every
+  // restaurant's own Geidea apiPassword at rest (lib/geidea.ts). Provision
+  // with: npx wrangler secret put GEIDEA_MASTER_KEY — never add it here,
+  // this block is plaintext config, not secrets.
+  "vars": {
+    "EMAIL_FROM_ADDRESS": "reports@your-domain-here.com",
+    // Comma-separated list of Supabase Auth emails allowed into /admin (the
+    // platform-owner console — separate from any restaurant's own
+    // owner/staff accounts). Checked server-side in every app/api/admin/*
+    // route against the caller's verified session email; never trust a
+    // client-supplied "is admin" flag.
+    "PLATFORM_ADMIN_EMAILS": "kuzanx1@gmail.com"
+  }
+}

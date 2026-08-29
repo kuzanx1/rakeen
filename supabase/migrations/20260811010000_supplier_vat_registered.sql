@@ -1,0 +1,11 @@
+-- suppliers.vat_number exists but nothing in the app ever collects it — the
+-- owner correctly pointed out that requiring a real 15-digit tax ID before
+-- ANY purchase counted toward input VAT would make the invoice VAT figure
+-- always show zero, and typing that ID per supplier is exactly the kind of
+-- friction the owner explicitly asked to avoid. Real supplier invoices in
+-- Saudi Arabia are VAT-inclusive totals just like this restaurant's own menu
+-- prices (owner confirmed: every invoice they actually receive already has
+-- tax baked into the total) — so a simple yes/no per supplier is enough to
+-- gate the auto-derived VAT calculation, defaulting to true since that
+-- matches the owner's stated reality for their supplier base.
+alter table suppliers add column vat_registered boolean not null default true;

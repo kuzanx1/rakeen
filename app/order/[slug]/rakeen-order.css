@@ -1,0 +1,417 @@
+@import url('https://fonts.googleapis.com/css2?family=Alexandria:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap');
+
+:root{
+  --brand:#C7FF4D; --brand-ink:#16281B;
+  --ink:#18170F; --muted:#8a8375; --line:rgba(24,20,10,0.08); --surf:#F7F5EF; --card:#ffffff;
+  --r-md:16px; --r-lg:22px; --r-xl:28px; --r-full:999px;
+  --shadow-sm:0 2px 14px rgba(30,24,10,0.06); --shadow-md:0 18px 40px rgba(30,24,10,0.12);
+}
+*{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+html,body{background:var(--surf);}
+body{
+  font-family:'Alexandria', sans-serif; color:var(--ink); direction:rtl;
+  -webkit-font-smoothing:antialiased; min-height:100dvh;
+}
+.mono{font-family:'IBM Plex Mono', monospace; direction:ltr; unicode-bidi:isolate;}
+button{font-family:inherit; cursor:pointer; color:inherit; border:none; background:none;}
+input,textarea{font-family:inherit; color:inherit;}
+svg{display:block;}
+img{max-width:100%; display:block;}
+
+.om-shell{max-width:640px; margin:0 auto;}
+.om-app{min-height:100dvh; background:var(--surf); position:relative;}
+
+/* ===== Header — plain and minimal, no colored band. Identity lives in the
+   hero card below, so the header's only job is staying out of the way while
+   remaining reachable when the page is scrolled deep into a long menu. ===== */
+.om-header{
+  position:sticky; top:0; z-index:30;
+  background:color-mix(in srgb, var(--card) 42%, transparent);
+  backdrop-filter:blur(26px);
+  padding:calc(13px + env(safe-area-inset-top)) 18px 13px;
+  border-bottom:1px solid transparent;
+  transition:box-shadow .3s ease, border-color .3s ease, background .3s ease;
+  animation:om-header-in .5s cubic-bezier(.22,1,.36,1);
+}
+/* once the page has scrolled past the hero, the glass gets a touch denser
+   and a real shadow separates it from the menu sliding underneath — a bare
+   sticky bar with no feedback at all reads as static, not premium.
+   Deliberately NOT changing padding/logo size here (that used to shrink the
+   header on scroll) — .om-cat-rail below has a hardcoded sticky top:64px
+   that assumed a fixed header height, and a shrinking header broke that
+   assumption, causing a visible seam/gap at the boundary. Keep the header's
+   height constant across scroll states; only vary background/blur/shadow. */
+.om-header.scrolled{
+  border-bottom-color:var(--line);
+  box-shadow:0 10px 30px rgba(24,20,10,0.10);
+  background:color-mix(in srgb, var(--card) 62%, transparent);
+}
+@keyframes om-header-in{from{transform:translateY(-100%);}to{transform:translateY(0);}}
+.om-header-inner{display:flex; align-items:center; gap:11px;}
+.om-logo{
+  width:34px; height:34px; border-radius:var(--r-md); background:var(--brand); color:var(--brand-ink);
+  display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; flex-shrink:0; overflow:hidden;
+  box-shadow:0 0 0 4px color-mix(in srgb, var(--brand) 18%, transparent);
+}
+.om-logo img{width:100%; height:100%; object-fit:cover;}
+.om-brand-text{display:flex; flex-direction:column; gap:1px; min-width:0;}
+.om-brand-name{font-weight:800; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.om-brand-tag{font-size:10.5px; font-weight:600; color:var(--muted);}
+
+/* ===== Hero — a real cover photo when the owner has uploaded one (the
+   Hungerstation/Jahez/Keeta restaurant-page pattern: banner photo, then an
+   identity card overlapping its lower edge). With no banner uploaded, the
+   card just sits flat under the header on a solid brand-tint panel — no
+   gradient placeholder pretending to be a photo. ===== */
+.om-hero{position:relative;}
+.om-hero-banner{width:100%; height:0; background-size:cover; background-position:center; background-color:var(--surf); overflow:hidden;}
+.om-hero.has-banner .om-hero-banner{height:176px;}
+.om-hero:not(.has-banner){background:color-mix(in srgb, var(--brand) 16%, var(--surf)); padding-top:22px;}
+.om-hero-card{
+  margin:14px 18px 0; background:var(--card); border-radius:var(--r-xl);
+  box-shadow:var(--shadow-sm); padding:16px 18px; position:relative; z-index:2;
+  display:flex; align-items:center; gap:14px;
+}
+.om-hero.has-banner .om-hero-card{margin-top:-30px; box-shadow:var(--shadow-md);}
+.om-hero-logo{
+  width:58px; height:58px; border-radius:50%; background:var(--brand); color:var(--brand-ink); flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-weight:800; font-size:22px; overflow:hidden;
+  border:3px solid var(--card); box-shadow:0 0 0 1px var(--line);
+}
+.om-hero-logo img{width:100%; height:100%; object-fit:cover;}
+.om-hero-info{flex:1; min-width:0;}
+.om-hero-name{font-weight:800; font-size:19px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.om-hero-chips{display:flex; gap:7px; flex-wrap:wrap; margin-top:8px;}
+.om-hero-chip{
+  background:color-mix(in srgb, var(--brand) 20%, var(--card)); color:var(--brand-ink); font-weight:700; font-size:11px;
+  padding:5px 12px; border-radius:var(--r-full);
+}
+
+/* ===== Toolbar (channel + branch + search) ===== */
+.om-toolbar{padding:18px 18px 4px;}
+.om-channel-row{display:flex; gap:5px; background:var(--card); border:1px solid var(--line); border-radius:var(--r-full); padding:4px; box-shadow:var(--shadow-sm);}
+.om-channel-btn{
+  flex:1; padding:11px 8px; border-radius:var(--r-full); display:flex; align-items:center; justify-content:center; gap:6px;
+  font-weight:700; font-size:13px; color:var(--muted); transition:background .15s ease, color .15s ease;
+}
+.om-channel-btn.active{background:var(--brand); color:var(--brand-ink);}
+.om-branch-note{
+  display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; padding:9px 13px;
+  background:color-mix(in srgb, var(--brand) 14%, var(--card)); border-radius:var(--r-md); font-size:11.5px; font-weight:700;
+  color:var(--brand-ink);
+}
+.om-branch-note button{color:var(--brand-ink); text-decoration:underline; font-weight:800; font-size:11.5px; flex-shrink:0;}
+.om-branch-switch-link{display:block; margin:-4px 0 14px; font-size:11.5px; font-weight:700; color:var(--muted); text-decoration:underline;}
+.om-search-box{position:relative; margin-top:12px;}
+.om-search-box input{
+  width:100%; padding:13px 16px 13px 42px; border-radius:var(--r-full); border:1px solid var(--line); background:var(--card);
+  color:var(--ink); font-size:13.5px; font-weight:600; box-shadow:var(--shadow-sm);
+}
+.om-search-box input::placeholder{color:var(--muted);}
+.om-search-box input:focus{outline:none; border-color:var(--brand);}
+.om-search-box svg{position:absolute; left:15px; top:50%; transform:translateY(-50%); width:16px; height:16px; color:var(--muted);}
+
+/* ===== Category rail ===== */
+/* top must match the header's real rendered height (13px pad + 34px logo +
+   13px pad + 1px border = 61px) PLUS its own safe-area-inset-top padding —
+   a bare "64px" ignored the safe-area term entirely, so on any phone with a
+   notch/dynamic-island the real header was taller than 64px and this rail
+   ended up sticking partway UNDER it instead of cleanly below it. */
+.om-cat-rail{
+  display:flex; gap:8px; overflow-x:auto; padding:16px 18px 12px; position:sticky; top:calc(61px + env(safe-area-inset-top)); z-index:20;
+  background:color-mix(in srgb, var(--surf) 94%, transparent); backdrop-filter:blur(6px); scrollbar-width:none;
+}
+.om-cat-rail::-webkit-scrollbar{display:none;}
+.om-cat-chip{
+  flex-shrink:0; padding:9px 16px; border-radius:var(--r-full); border:1px solid var(--line); background:var(--card);
+  font-weight:700; font-size:12.5px; color:var(--muted); white-space:nowrap; transition:background .12s ease, color .12s ease;
+}
+.om-cat-chip.active{
+  background:var(--brand); color:var(--brand-ink); border-color:var(--brand);
+  box-shadow:0 5px 16px color-mix(in srgb, var(--brand) 45%, transparent);
+}
+
+/* ===== Menu ===== */
+.om-menu{padding:4px 18px 100px;}
+.om-cat-section{margin-bottom:28px; scroll-margin-top:130px;}
+.om-cat-title{font-size:16.5px; font-weight:800; margin-bottom:12px; display:flex; align-items:center; gap:8px;}
+.om-cat-title::before{content:''; width:6px; height:6px; border-radius:50%; background:var(--brand); flex-shrink:0;}
+.om-product-list{display:flex; flex-direction:column; gap:11px;}
+.om-product-card{
+  display:flex; gap:13px; align-items:stretch; background:var(--card); border-radius:var(--r-lg);
+  padding:11px; box-shadow:var(--shadow-sm); text-align:start; position:relative; transition:transform .12s ease, box-shadow .12s ease;
+}
+.om-product-card:active{transform:scale(0.98);}
+.om-product-name{transition:color .12s ease;}
+.om-product-card:active .om-product-name{color:var(--brand-ink);}
+.om-product-card[disabled]{opacity:0.55; cursor:not-allowed;}
+.om-product-photo{
+  width:90px; height:90px; border-radius:var(--r-md); flex-shrink:0; overflow:hidden; position:relative;
+  background:color-mix(in srgb, var(--brand) 14%, var(--surf));
+  display:flex; align-items:center; justify-content:center; color:color-mix(in srgb, var(--brand-ink) 40%, transparent);
+}
+.om-product-photo img{width:100%; height:100%; object-fit:cover;}
+.om-product-photo svg{width:30px; height:30px;}
+.om-product-info{flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center; gap:4px;}
+.om-product-name{font-weight:700; font-size:14.5px;}
+.om-product-badge{display:inline-block; width:fit-content; font-size:10px; font-weight:700; color:var(--brand-ink); background:color-mix(in srgb, var(--brand) 20%, var(--card)); padding:2px 9px; border-radius:var(--r-full);}
+.om-product-price{font-weight:800; font-size:14px; color:var(--brand-ink); margin-top:2px; font-family:'IBM Plex Mono',monospace; direction:ltr; unicode-bidi:isolate; text-align:start;}
+/* the + and qty badge float on the PHOTO's own corners, not the whole card —
+   pinning them to the card previously let them land on top of the price
+   whenever the text column happened to sit on that side (RTL puts the photo
+   on the right, the price on the left, right where "left:10px" pointed) */
+.om-product-add{
+  position:absolute; bottom:6px; inset-inline-start:6px; width:30px; height:30px; border-radius:50%; background:var(--brand); color:var(--brand-ink);
+  display:flex; align-items:center; justify-content:center; box-shadow:var(--shadow-sm); font-weight:800; font-size:17px;
+}
+.om-product-qty-badge{
+  position:absolute; top:6px; inset-inline-start:6px; min-width:20px; height:20px; padding:0 5px; border-radius:var(--r-full); background:var(--brand-ink); color:var(--brand);
+  display:flex; align-items:center; justify-content:center; font-weight:800; font-size:11px;
+}
+.om-menu-empty{text-align:center; padding:60px 20px; color:var(--muted); font-weight:600; font-size:13.5px;}
+
+/* ===== Floating cart bar (mobile only — desktop uses the persistent panel) ===== */
+.om-cart-bar{
+  position:fixed; bottom:calc(16px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); z-index:40;
+  width:calc(100% - 36px); max-width:604px; background:var(--brand-ink); color:var(--brand); border-radius:var(--r-full);
+  padding:14px 20px; display:flex; align-items:center; gap:10px; box-shadow:var(--shadow-md);
+}
+.om-cart-count{
+  width:26px; height:26px; border-radius:50%; background:var(--brand); color:var(--brand-ink);
+  display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12.5px; flex-shrink:0;
+}
+.om-cart-label{font-weight:700; font-size:13.5px; flex:1; text-align:start;}
+.om-cart-total{font-weight:800; font-size:14px;}
+
+/* ===== Persistent desktop cart panel (hidden on mobile) ===== */
+.om-desktop-cart{display:none;}
+
+/* ===== Bottom sheets (mobile) ===== */
+.om-sheet-overlay{
+  position:fixed; inset:0; background:rgba(20,18,10,0.5); z-index:100; display:flex; align-items:flex-end; justify-content:center;
+  opacity:0; pointer-events:none; transition:opacity .2s ease;
+}
+.om-sheet-overlay.show{opacity:1; pointer-events:auto;}
+.om-sheet{
+  width:100%; max-width:640px; max-height:88dvh; background:var(--card); border-radius:24px 24px 0 0; overflow-y:auto;
+  transform:translateY(100%); transition:transform .22s cubic-bezier(.22,1,.36,1); box-shadow:0 -20px 50px rgba(0,0,0,0.2);
+}
+.om-sheet-overlay.show .om-sheet{transform:translateY(0);}
+.om-sheet-head{position:sticky; top:0; background:var(--card); padding:18px 20px 10px; display:flex; align-items:center; justify-content:space-between; z-index:2;}
+.om-sheet-head h3{font-size:16.5px; font-weight:800;}
+.om-sheet-close{width:30px; height:30px; border-radius:50%; background:var(--surf); display:flex; align-items:center; justify-content:center;}
+.om-sheet-close svg{width:13px; height:13px;}
+.om-sheet-body{padding:6px 20px calc(24px + env(safe-area-inset-bottom));}
+
+/* the customize/box sheets open with the dish itself front and center —
+   a real photo + name, not a bare list of choices the way a cashier's
+   terminal shows it. Falls back gracefully (no broken layout) when a
+   product has no uploaded photo yet — the icon placeholder just fills
+   the same frame. */
+.om-sheet-hero{text-align:center; padding:4px 4px 14px;}
+.om-sheet-hero-photo{
+  width:100%; height:92px; border-radius:var(--r-lg); overflow:hidden; margin-bottom:10px;
+  background:color-mix(in srgb, var(--brand) 16%, var(--surf));
+  display:flex; align-items:center; justify-content:center; color:color-mix(in srgb, var(--brand-ink) 40%, transparent);
+}
+.om-sheet-hero-photo img{width:100%; height:100%; object-fit:cover;}
+.om-sheet-hero-photo svg{width:44px; height:44px;}
+.om-sheet-hero-name{font-weight:800; font-size:18px;}
+.om-sheet-hero-sub{font-size:12px; font-weight:600; color:var(--muted); margin-top:4px;}
+
+/* modifier options inside sheet — plain flat rows, selected state reads as
+   a filled tint + a solid dot, not a border-plus-background combo doing
+   the same job twice */
+.om-mod-group{margin-bottom:22px;}
+.om-mod-group-name{display:flex; align-items:center; gap:9px; font-weight:800; font-size:14px; margin-bottom:11px;}
+.om-mod-step{
+  width:20px; height:20px; border-radius:50%; background:var(--brand); color:var(--brand-ink); flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800;
+}
+.om-mod-options{display:flex; flex-direction:column; gap:8px;}
+.om-mod-chip{
+  width:100%; display:flex; align-items:center; gap:12px; padding:14px 16px; border-radius:var(--r-md);
+  border:none; background:var(--surf); font-weight:600; font-size:13.5px; text-align:start;
+  transition:background .12s ease, padding .12s ease;
+}
+.om-mod-radio{width:19px; height:19px; border-radius:50%; border:2px solid var(--line); flex-shrink:0; background:var(--card); position:relative; transition:width .12s ease, height .12s ease;}
+.om-mod-chip.selected .om-mod-radio{border-color:var(--brand-ink); background:var(--brand);}
+.om-mod-chip.selected .om-mod-radio::after{content:''; position:absolute; inset:4px; border-radius:50%; background:var(--brand-ink);}
+/* long option lists (many sizes/add-ons at once) eat the whole screen at
+   full size on a phone — once a group crosses a handful of options every
+   row shrinks a notch so the list still fits without turning into an
+   endless scroll of oversized rows */
+.om-mod-options.compact{gap:6px;}
+.om-mod-options.compact .om-mod-chip{padding:10px 14px; font-size:12.5px; gap:10px;}
+.om-mod-options.compact .om-mod-radio{width:16px; height:16px;}
+.om-mod-options.compact .om-mod-chip.selected .om-mod-radio::after{inset:3.5px;}
+.om-mod-chip-name{flex:1;}
+.om-mod-chip-price{font-size:12px; font-weight:800; color:var(--brand-ink); direction:ltr; unicode-bidi:isolate; flex-shrink:0;}
+.om-mod-chip.selected{background:color-mix(in srgb, var(--brand) 20%, var(--surf)); font-weight:700;}
+.om-mod-qty-row{display:flex; align-items:center; justify-content:center; gap:16px; margin:18px 0;}
+.om-mod-qty-btn{width:36px; height:36px; border-radius:50%; background:var(--surf); font-weight:800; font-size:16px;}
+.om-mod-qty-val{font-weight:800; font-size:16px; min-width:20px; text-align:center;}
+.om-mod-confirm{width:100%; padding:15px; border-radius:var(--r-md); background:var(--brand); color:var(--brand-ink); font-weight:800; font-size:14px;}
+.om-mod-confirm:disabled{background:var(--line); color:var(--muted);}
+
+/* box builder */
+.om-box-progress-wrap{background:var(--surf); border-radius:var(--r-lg); padding:10px 14px; margin-bottom:12px;}
+.om-box-progress-label{text-align:center; font-weight:700; font-size:12.5px; color:var(--muted); margin-bottom:6px;}
+.om-box-progress-label .mono{font-weight:800; color:var(--ink); font-size:14px;}
+.om-box-progress{height:8px; border-radius:var(--r-full); background:var(--line); overflow:hidden;}
+.om-box-progress-bar{height:100%; background:var(--brand); border-radius:var(--r-full); transition:width .25s ease;}
+.om-box-items{display:flex; flex-direction:column; gap:6px; margin-bottom:10px;}
+.om-box-item{display:flex; justify-content:space-between; align-items:center; padding:11px 14px; border-radius:var(--r-md); background:var(--surf); font-weight:600; font-size:13px; transition:background .12s ease, padding .12s ease;}
+.om-box-item.has-qty{background:color-mix(in srgb, var(--brand) 16%, var(--surf)); font-weight:700;}
+.om-box-item-qty{display:flex; align-items:center; gap:12px;}
+.om-box-item-qty button{width:30px; height:30px; border-radius:50%; background:var(--card); box-shadow:var(--shadow-sm); font-weight:800;}
+.om-box-item-qty button:disabled{opacity:0.4;}
+/* long build-your-own lists (many eligible items at once) get the same
+   long-list-compacting treatment already shipped for .om-mod-options.compact */
+.om-box-items.compact{gap:5px;}
+.om-box-items.compact .om-box-item{padding:9px 13px; font-size:12.5px;}
+.om-box-items.compact .om-box-item-qty{gap:9px;}
+.om-box-items.compact .om-box-item-qty button{width:27px; height:27px;}
+
+/* branch picker (reuses the modifier sheet) */
+.om-branch-list{display:flex; flex-direction:column; gap:8px;}
+.om-branch-item{display:flex; flex-direction:column; align-items:flex-start; gap:3px; padding:13px 15px; border-radius:var(--r-md); background:var(--surf); text-align:start;}
+.om-branch-item.selected{background:color-mix(in srgb, var(--brand) 20%, var(--surf));}
+.om-branch-name{font-weight:800; font-size:13.5px;}
+.om-branch-address{font-size:11px; color:var(--muted); font-weight:600;}
+
+/* payment method chips */
+.om-payment-methods{display:flex; gap:8px;}
+.om-payment-chip{
+  flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; padding:13px 6px; border-radius:var(--r-md);
+  background:var(--surf); font-weight:700; font-size:11.5px; position:relative;
+}
+.om-payment-chip.selected{background:color-mix(in srgb, var(--brand) 20%, var(--surf)); color:var(--brand-ink); font-weight:800;}
+.om-payment-chip.disabled{opacity:0.5; cursor:not-allowed;}
+.om-soon-badge{position:absolute; top:-7px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; font-size:8.5px; font-weight:800; padding:2px 7px; border-radius:var(--r-full); white-space:nowrap;}
+
+/* cart rows (shared by sheet + desktop panel) */
+.om-cart-item{display:flex; align-items:center; gap:10px; padding:13px 0; border-bottom:1px solid var(--line);}
+.om-cart-item-info{flex:1; min-width:0;}
+.om-cart-item-name{font-weight:700; font-size:13px;}
+.om-cart-item-mods{font-size:10.5px; color:var(--muted); margin-top:2px;}
+.om-cart-item-price{font-size:11px; color:var(--muted); margin-top:3px; font-family:'IBM Plex Mono',monospace;}
+.om-cart-qty{display:flex; align-items:center; gap:8px; background:var(--surf); border-radius:var(--r-full); padding:3px; flex-shrink:0;}
+.om-cart-qty button{width:24px; height:24px; border-radius:50%; background:var(--card); box-shadow:var(--shadow-sm); font-weight:800;}
+.om-cart-summary{padding:14px 0 4px; display:flex; flex-direction:column; gap:6px;}
+.om-cart-sum-row{display:flex; justify-content:space-between; font-size:12.5px; color:var(--muted); font-weight:600;}
+.om-cart-sum-row .mono{color:var(--ink); font-weight:700;}
+.om-cart-sum-row.total{font-size:16px; font-weight:800; color:var(--ink); padding-top:10px; border-top:1px dashed var(--line);}
+.om-cart-sum-row.total .mono{color:var(--brand-ink); font-size:19px;}
+.om-cart-checkout-btn{width:100%; padding:16px; border-radius:var(--r-md); background:var(--brand); color:var(--brand-ink); font-weight:800; font-size:14.5px; margin-top:14px;}
+.om-cart-empty{text-align:center; padding:50px 10px; color:var(--muted); font-weight:600; font-size:13px;}
+
+/* checkout sheet */
+.om-field{margin-bottom:14px;}
+.om-field label{display:block; font-size:11.5px; font-weight:700; color:var(--muted); margin-bottom:6px;}
+.om-field input, .om-field textarea{
+  width:100%; padding:13px 14px; border-radius:var(--r-md); border:1px solid var(--line); background:var(--surf);
+  color:var(--ink); font-size:13.5px; font-weight:600;
+}
+.om-field input:focus, .om-field textarea:focus{outline:none; border-color:var(--brand);}
+.om-field textarea{resize:none; min-height:70px;}
+.om-checkout-total{text-align:center; padding:16px 0; background:var(--surf); border-radius:var(--r-lg); margin-bottom:16px;}
+.om-checkout-total-label{font-size:11px; font-weight:700; color:var(--muted);}
+.om-checkout-total-amount{font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:28px; margin-top:4px;}
+.om-confirm-order-btn{width:100%; padding:16px; border-radius:var(--r-md); background:var(--brand); color:var(--brand-ink); font-weight:800; font-size:14.5px;}
+.om-confirm-order-btn:disabled{background:var(--line); color:var(--muted);}
+
+/* pickup time picker (checkout, pickup channel only) */
+.om-time-toggle{display:flex; gap:6px;}
+.om-time-chip{flex:1; padding:10px 8px; border-radius:var(--r-full); background:var(--surf); font-weight:700; font-size:11.5px; text-align:center; color:var(--muted); transition:background .12s ease, color .12s ease;}
+.om-time-chip.active{background:var(--brand); color:var(--brand-ink);}
+.om-time-picker-row{margin-top:8px;}
+.om-time-picker-row input[type="time"]{width:100%; padding:12px 14px; border-radius:var(--r-md); border:1px solid var(--line); background:var(--surf); color:var(--ink); font-weight:700; font-size:13.5px;}
+.om-pickup-estimate{font-size:11px; font-weight:700; color:var(--muted); margin-top:8px;}
+
+/* location pin — always visible inline once the browser hands over
+   coordinates, no button/modal needed to reveal it. Real composited
+   OpenStreetMap tiles (proxied through /api/map-tile) with a fixed-center
+   crosshair; dragging the map underneath it corrects the pin, saved the
+   instant the drag ends — no separate confirm step either. */
+.om-pin-block{margin-top:10px;}
+.om-pin-viewport{
+  position:relative; width:100%; height:180px; border-radius:var(--r-lg); overflow:hidden;
+  background:var(--surf); touch-action:none; cursor:grab;
+}
+.om-pin-viewport.dragging{cursor:grabbing;}
+.om-pin-tiles{position:absolute; width:768px; height:768px; will-change:transform;}
+.om-pin-tiles img{position:absolute; width:256px; height:256px; user-select:none; -webkit-user-drag:none; pointer-events:none;}
+.om-pin-crosshair{
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-100%); width:28px; height:28px;
+  pointer-events:none; z-index:2; filter:drop-shadow(0 3px 6px rgba(0,0,0,0.35));
+}
+.om-pin-address{font-size:11.5px; font-weight:800; color:var(--brand-ink); margin-top:9px; line-height:1.6;}
+.om-pin-hint{font-size:10px; font-weight:600; color:var(--muted); margin-top:2px;}
+
+/* phone-confirm step */
+.om-confirm-phone-box{background:var(--surf); border-radius:var(--r-lg); padding:20px 18px; text-align:center; margin-bottom:16px;}
+.om-confirm-phone-note{font-size:12.5px; font-weight:700; color:var(--muted); margin-bottom:14px; line-height:1.7;}
+.om-confirm-phone-row{display:flex; align-items:center; justify-content:center; gap:12px;}
+.om-confirm-phone-row .mono{font-size:17px; font-weight:800;}
+.om-confirm-phone-row button{font-size:11.5px; font-weight:800; color:var(--brand-ink); text-decoration:underline; flex-shrink:0;}
+.om-confirm-phone-row input[type="tel"]{flex:1; padding:11px 12px; border-radius:var(--r-md); border:1px solid var(--line); background:var(--card); font-weight:700; font-size:14px; text-align:center;}
+.om-confirm-back-btn{width:100%; text-align:center; padding:12px; font-size:12.5px; font-weight:700; color:var(--muted); margin-top:6px;}
+
+/* toast */
+.om-toast{
+  position:fixed; bottom:calc(90px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%) translateY(10px);
+  background:var(--ink); color:#fff; padding:12px 20px; border-radius:var(--r-md); font-weight:700; font-size:13px; z-index:200;
+  opacity:0; transition:opacity .2s ease, transform .2s ease; pointer-events:none; display:flex; align-items:center; gap:8px;
+  box-shadow:var(--shadow-md); max-width:calc(100% - 36px); text-align:center;
+}
+.om-toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+.om-toast-dot{width:6px; height:6px; border-radius:50%; background:var(--brand); flex-shrink:0;}
+
+.om-loading, .om-unavailable{min-height:100dvh; display:flex; align-items:center; justify-content:center; padding:24px; text-align:center;}
+.om-unavailable p{font-weight:700; color:var(--muted); font-size:14px; line-height:1.8;}
+.om-loading{padding:80px 20px;}
+.om-spinner{width:30px; height:30px; border-radius:50%; border:3px solid var(--line); border-top-color:var(--brand); animation:om-spin .7s linear infinite;}
+@keyframes om-spin{to{transform:rotate(360deg);}}
+
+/* ===================== Tablet ======================
+   Between the phone width and the 1024px desktop split, the shell was
+   simply centering at its 640px mobile cap — a single stretched column
+   of cards with empty margins on both sides instead of using the extra
+   width. Two columns of the same horizontal card fill it properly. */
+@media (min-width:640px) and (max-width:1023px){
+  .om-shell{max-width:760px;}
+  .om-product-list{display:grid; grid-template-columns:repeat(2,1fr); gap:12px;}
+}
+
+/* ===================== Desktop layout ======================
+   Below 1024px this is a single-column mobile storefront with the
+   bottom cart bar + sheets. From 1024px up it becomes a real two-column
+   web layout — menu on the wide side, a persistent cart panel on the
+   other — same information, no bottom sheet needed for the cart itself
+   (the product-customize / branch-picker sheets still slide up as
+   centered modals). */
+@media (min-width:1024px){
+  body{background:var(--surf);}
+  .om-shell{max-width:1180px; display:grid; grid-template-columns:1fr 380px; gap:28px; align-items:start; padding:24px 24px 60px;}
+  .om-app{min-height:0; border-radius:var(--r-xl); overflow:hidden; box-shadow:var(--shadow-md);}
+  .om-header{position:static;}
+  .om-cat-rail{position:sticky; top:0;}
+  .om-cart-bar{display:none !important;}
+  .om-desktop-cart{
+    display:block; position:sticky; top:24px; background:var(--card); border-radius:var(--r-xl);
+    box-shadow:var(--shadow-md); max-height:calc(100dvh - 48px); display:flex; flex-direction:column; overflow:hidden;
+  }
+  .om-desktop-cart-head{font-weight:800; font-size:15px; padding:20px 22px 14px; border-bottom:1px solid var(--line);}
+  .om-desktop-cart-body{padding:6px 22px 22px; overflow-y:auto;}
+  .om-product-list{display:grid; grid-template-columns:repeat(2,1fr); gap:14px;}
+  .om-product-card{flex-direction:column; align-items:stretch;}
+  .om-product-photo{width:100%; height:130px;}
+  .om-product-card:hover{transform:translateY(-2px); box-shadow:var(--shadow-md);}
+
+  /* sheets become centered modal cards on desktop instead of bottom sheets
+     (branch picker / product customize / checkout) */
+  .om-sheet-overlay{align-items:center;}
+  .om-sheet{max-width:460px; border-radius:var(--r-xl); transform:scale(0.96) translateY(0); max-height:82dvh;}
+  .om-sheet-overlay.show .om-sheet{transform:scale(1) translateY(0);}
+}

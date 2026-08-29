@@ -1,0 +1,272 @@
+<title>دراسة جدوى ركين</title>
+<style>
+  :root {
+    --paper: #FBFAF5;
+    --paper-raised: #FFFFFF;
+    --ink: #171717;
+    --muted: #8A8375;
+    --line: rgba(23,23,23,0.10);
+    --line-strong: rgba(23,23,23,0.16);
+    --lime: #C4FF2B;
+    --lime-deep: #7BAD0F;
+    --good: #4C7A0A;
+    --good-bg: #E9F5D6;
+    --warn: #A8650F;
+    --warn-bg: #FBF0DE;
+    --bad: #B0402C;
+    --bad-bg: #FBEDEA;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #17160F;
+      --paper-raised: #211F16;
+      --ink: #F3F1E6;
+      --muted: #A79E8C;
+      --line: rgba(243,241,230,0.12);
+      --line-strong: rgba(243,241,230,0.20);
+      --lime: #C4FF2B;
+      --lime-deep: #9CDA1F;
+      --good: #8FCB3F;
+      --good-bg: rgba(143,203,63,0.14);
+      --warn: #E0A94C;
+      --warn-bg: rgba(224,169,76,0.14);
+      --bad: #E27B65;
+      --bad-bg: rgba(226,123,101,0.14);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #17160F;
+    --paper-raised: #211F16;
+    --ink: #F3F1E6;
+    --muted: #A79E8C;
+    --line: rgba(243,241,230,0.12);
+    --line-strong: rgba(243,241,230,0.20);
+    --lime: #C4FF2B;
+    --lime-deep: #9CDA1F;
+    --good: #8FCB3F;
+    --good-bg: rgba(143,203,63,0.14);
+    --warn: #E0A94C;
+    --warn-bg: rgba(224,169,76,0.14);
+    --bad: #E27B65;
+    --bad-bg: rgba(226,123,101,0.14);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    direction: rtl;
+    font-family: "Segoe UI", Tahoma, "Noto Sans Arabic", Arial, sans-serif;
+    line-height: 1.75;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 56px 24px 100px; }
+  .kicker {
+    font-size: 11.5px; font-weight: 800; letter-spacing: 0.08em; color: var(--lime-deep);
+    text-transform: uppercase; margin-bottom: 10px;
+  }
+  h1 { font-size: 30px; font-weight: 800; line-height: 1.3; margin: 0 0 14px; text-wrap: balance; }
+  .lede { font-size: 15.5px; color: var(--muted); font-weight: 500; max-width: 62ch; margin: 0 0 32px; }
+  h2 {
+    font-size: 20px; font-weight: 800; margin: 56px 0 16px; padding-top: 20px;
+    border-top: 1px solid var(--line);
+  }
+  h2:first-of-type { border-top: none; padding-top: 0; margin-top: 40px; }
+  h3 { font-size: 16px; font-weight: 800; margin: 32px 0 10px; }
+  p { font-size: 14.5px; margin: 0 0 14px; }
+  strong { font-weight: 800; }
+
+  .verdict-key { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 8px; }
+  .vk-item { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--muted); }
+  .vk-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .vk-dot.ready { background: var(--good); }
+  .vk-dot.partial { background: var(--warn); }
+  .vk-dot.missing { background: var(--bad); }
+
+  .table-wrap { overflow-x: auto; border-radius: 14px; border: 1px solid var(--line); margin: 8px 0 28px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; background: var(--paper-raised); }
+  th, td { padding: 12px 14px; text-align: start; vertical-align: middle; }
+  th { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { border-bottom: 1px solid var(--line); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+
+  .pill { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+  .pill.ready { background: var(--good-bg); color: var(--good); }
+  .pill.partial { background: var(--warn-bg); color: var(--warn); }
+  .pill.missing { background: var(--bad-bg); color: var(--bad); }
+
+  .card {
+    background: var(--paper-raised); border: 1px solid var(--line); border-radius: 16px;
+    padding: 22px 24px; margin: 0 0 22px;
+  }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; flex-wrap: wrap; }
+  .card-head h3 { margin: 0; }
+  .field-label { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 16px 0 6px; }
+  .field-label:first-of-type { margin-top: 4px; }
+
+  .stat-callout {
+    background: var(--lime); color: var(--ink); border-radius: 14px; padding: 18px 22px; margin: 24px 0;
+    font-size: 14.5px; font-weight: 700; line-height: 1.7;
+  }
+  .stat-callout b { font-family: inherit; }
+  .mono { font-family: "Consolas", "SFMono-Regular", monospace; direction: ltr; unicode-bidi: isolate; }
+
+  .divider-note {
+    border-inline-start: 3px solid var(--lime-deep); background: var(--paper-raised);
+    border-radius: 0 12px 12px 0; padding: 14px 18px; margin: 20px 0; font-size: 13.5px; color: var(--muted); font-weight: 600;
+  }
+
+  footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+</style>
+
+<div class="wrap">
+  <div class="kicker">دراسة جدوى داخلية</div>
+  <h1>هل ركين فعلاً عمود أساسي لكل قطاع يخدمه؟</h1>
+  <p class="lede">
+    كل قطاع تحته — حطيت نفسي صاحب المشروع فعلياً: وش أحتاجه أنجح، مو وش سهل تقنياً. كل حكم مبني على منافس حقيقي تحقق منه بالبحث، مو تخمين. المعيار الوحيد: هل هذا شي يستاهل العميل يدفع عليه وينبسط — مو يدفع ويرميه بالزبالة.
+  </p>
+
+  <div class="verdict-key">
+    <span class="vk-item"><span class="vk-dot ready"></span> جاهز فعلاً</span>
+    <span class="vk-item"><span class="vk-dot partial"></span> يشتغل، بثغرة حقيقية</span>
+    <span class="vk-item"><span class="vk-dot missing"></span> غير جاهز بعد</span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>القطاع</th><th>الحالة</th><th>أكبر ثغرة</th><th>المنافس</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>مطعم بجلسات وحجوزات</td><td><span class="pill ready">جاهز</span></td><td>لا شي حرج</td><td>Foodics</td></tr>
+        <tr><td>مطعم سريع / مقهى سريع / مطبخ سحابي</td><td><span class="pill ready">جاهز</span></td><td>لا شي حرج</td><td>Foodics</td></tr>
+        <tr><td>مغسلة بفرع ثابت</td><td><span class="pill partial">جزئي</span></td><td>بدون حجز ذاتي أونلاين ولا بوابة دفع</td><td>Rekaz</td></tr>
+        <tr><td>مغسلة متنقلة (سيارة/سيارتين)</td><td><span class="pill partial">جزئي</span></td><td>نفس ثغرة الحجز + بدون توزيع مسارات</td><td>لا يوجد منافس مباشر واضح</td></tr>
+        <tr><td>صالون (رجالي/نسائي)</td><td><span class="pill partial">جزئي</span></td><td>نفس ثغرة الحجز + بيع منتجات مع الخدمة</td><td>Rekaz</td></tr>
+        <tr><td>عيادة / مركز تجميل</td><td><span class="pill partial">جزئي</span></td><td>نفس ثغرة الحجز</td><td>Rekaz</td></tr>
+        <tr><td>مشغل تفصيل</td><td><span class="pill partial">جزئي</span></td><td>بدون حالة "قيد التنفيذ/جاهز"</td><td>—</td></tr>
+        <tr><td>متجر تجزئة / بقالة</td><td><span class="pill missing">غير جاهز</span></td><td>بدون باركود ولا وضع كاشير سريع</td><td>Tijarah360 وغيرهم</td></tr>
+        <tr><td>فندق</td><td><span class="pill missing">غير جاهز</span></td><td>نموذج بيانات مختلف كلياً</td><td>أنظمة PMS متخصصة</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>القطاعات الجاهزة</h2>
+
+  <div class="card">
+    <div class="card-head"><h3>مطعم بجلسات وحجوزات + مطعم سريع / مقهى / مطبخ سحابي</h3><span class="pill ready">جاهز</span></div>
+    <div class="field-label">صاحب المشروع يحتاج</div>
+    <p>إدارة صالة، موظفين وشفتات، مطبخ، مخزون وتكلفة دقيقة، توصيل ومطابقة عمولات، ولاء، محاسبة وضريبة.</p>
+    <div class="field-label">ركين عنده اليوم</div>
+    <p>كل هذا، مبني ومُختبر بعمق طوال هذي الجلسة — طاولات وأقسام، قائمة انتظار، شاشة مطبخ، مطابقة عمولات لكل منصة توصيل، تكلفة وصفات دقيقة، إقرار ضريبي كامل.</p>
+    <div class="field-label">المنافس — Foodics</div>
+    <p>١٩٨ مليون دولار تمويل، +٤٠٪ من سوق نقاط بيع المطاعم السحابية بالسعودية، بوابة دفع خاصة (Foodics Pay). لاعب مهيمن فعلياً.</p>
+    <div class="field-label">الحكم</div>
+    <p>ركين منتج حقيقي وكامل هنا، بس ينافس لاعب ضخم. الفرصة الواقعية مو منافسته على نفس الملعب — هي خدمة المطاعم المستقلة الصغيرة اللي فودكس ما يهتم فيها اقتصادياً، بعلاقة شخصية وسرعة استجابة وتكلفة أقل بكثير.</p>
+  </div>
+
+  <h2>القطاعات الجزئية — تشتغل، بثغرة حقيقية موحّدة</h2>
+
+  <div class="stat-callout">
+    اكتشاف مهم: مغسلة، صالون، وعيادة كلهم يصطدمون بنفس الثغرتين بالضبط — لأن كلهم ينافسون نفس الشركة.
+  </div>
+
+  <p><strong>المنافس المشترك — Rekaz (ركاز):</strong> شركة سعودية تأسست ٢٠٢٤ بالرياض، تخدم <strong>+٣٠ ألف منشأة</strong> و<strong class="mono">+1,000,000</strong> حجز واشتراك بالخليج، تسعيرها يبدأ من <strong class="mono">99</strong> ريال شهرياً. عندها: صفحة حجز عامة لكل منشأة (العميل يحجز لحاله)، تحصيل دفع (مدى، Apple Pay، بطاقات)، تذكيرات واتساب تلقائية، شاشة كاشير بسيطة، تطبيق موظفين، ١٢ تقرير تحليلي.</p>
+
+  <div class="divider-note">
+    <strong>الثغرة الأولى — حجز ذاتي أونلاين:</strong> ركين اليوم الحجز يدخله الموظف بس. Rekaz يعطي العميل نفسه صفحة يحجز منها بدون اتصال. فجوة حقيقية وكبيرة.
+    <br><br>
+    <strong>الثغرة الثانية — بوابة دفع:</strong> Rekaz يحصّل الدفع أونلاين وقت الحجز. ركين ما عنده بوابة دفع مربوطة بعد.
+    <br><br>
+    <strong>اكتشاف إيجابي:</strong> بحثت بعمق موقع Rekaz — <strong>لا يوجد دليل إنهم يدعمون بيع منتجات فعلية (شامبو، معطرات) بجانب الخدمة بمخزون حقيقي</strong>. فرصة تمايز حقيقية — نظام المخزون والتكلفة الدقيق موجود أصلاً بركين للمطاعم.
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>مغسلة سيارات — فرع ثابت</h3><span class="pill partial">جزئي</span></div>
+    <div class="field-label">صاحب المشروع يحتاج</div>
+    <p>جدولة باي بدون تعارض، موظف مناسب، تقليل الغياب عن الموعد، باقات/اشتراكات، محاسبة وضريبة.</p>
+    <div class="field-label">ركين عنده</div>
+    <p>الباي = نفس منطق الطاولة، يشتغل فعلياً اليوم. الموظف المناسب، الولاء بنمط "زيارات" (يغطي فكرة الباقات)، تذكير واتساب مجاني (زر يفتح واتساب الموظف الشخصي، صفر تكلفة).</p>
+    <div class="field-label">الثغرة</div>
+    <p>حجز ذاتي وبوابة دفع، وبيع منتجات إضافية بنفس الفاتورة.</p>
+    <div class="field-label">الحكم</div>
+    <p>عمود أساسي حقيقي اليوم — بدونه يدير كل شي بدفتر. ناقصه خطوتين يلحق فيهم Rekaz.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>مغسلة سيارات — متنقلة (بدون فرع)</h3><span class="pill partial">جزئي</span></div>
+    <div class="field-label">صاحب المشروع يحتاج</div>
+    <p>نفس اللي فوق، بس المورد "فريق/سيارة" مو مكان ثابت — موقع العميل هو المتغير.</p>
+    <div class="field-label">ركين عنده</div>
+    <p>نظام "طلب توصيل" الموجود أصلاً للمطاعم (يلتقط موقع العميل، يحسب ضريبة، يربط موظف) قابل لإعادة الاستخدام مباشرة — بدل توصيل أكل، توصيل خدمة. البنية موجودة، ما جربناها فعلياً بعد.</p>
+    <div class="field-label">الثغرة الحقيقية</div>
+    <p>أكثر من فريق/سيارة بحجوزات متفرقة بنفس اليوم — ركين ما يرتب أفضل مسار ولا يمنع تعارض المواقع تلقائياً. "تحسين المسارات" مجال هندسي مستقل وصعب، ما أبنيه بثقة الآن.</p>
+    <div class="field-label">الحكم</div>
+    <p>لمغسلة متنقلة صغيرة (سيارة أو سيارتين)، ركين عمود حقيقي. لأسطول كبير، يغطي التسجيل والمحاسبة بس — حد صادق لازم تعرفه.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>صالون (رجالي/نسائي)</h3><span class="pill partial">جزئي</span></div>
+    <div class="field-label">صاحب المشروع يحتاج</div>
+    <p>حجز بالموظف/الموظفة المناسبة، باقات، ولاء، وغالباً بيع منتجات وقت الدفع.</p>
+    <div class="field-label">ركين عنده</div>
+    <p>محرك الحجز والخدمات كامل ومُختبر — بنيناه هذي الجلسة، جرّبناه حي بحساب حقيقي.</p>
+    <div class="field-label">الثغرة</div>
+    <p>نفس ثغرتي الحجز الذاتي والدفع، إضافة لبيع المنتجات — وهذي بالذات فرصة تمايز حقيقية، مو بس نقص.</p>
+    <div class="field-label">الحكم</div>
+    <p>جزئي بس واعد — العمق التقني موجود، الناقص واجهة العميل والدفع.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>عيادة / مركز تجميل</h3><span class="pill partial">جزئي</span></div>
+    <div class="field-label">صاحب المشروع يحتاج</div>
+    <p>نفس الصالون تقريباً، بس أحياناً يحتاج ملاحظات جلسة/تاريخ علاج.</p>
+    <div class="field-label">ركين عنده</div>
+    <p>نفس محرك الصالون مباشرة.</p>
+    <div class="field-label">الثغرة</div>
+    <p>نفس الثغرتين المشتركتين. ملاحظات طبية/تاريخ مرضي تركتها عمداً — بيانات حساسة قانونياً (نظام حماية البيانات الشخصية)، ما أبنيها تخميناً.</p>
+    <div class="field-label">الحكم</div>
+    <p>جزئي، نفس وضع الصالون بالضبط.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>مشغل تفصيل (خياطة)</h3><span class="pill partial">جزئي</span></div>
+    <div class="field-label">صاحب المشروع يحتاج</div>
+    <p>استلام طلب تفصيل اليوم، تسليمه بعد أيام — مو حجز بجلسة واحدة.</p>
+    <div class="field-label">ركين عنده</div>
+    <p>يقدر يسجل موعد "قياس/تفصيل" عبر محرك الصالون، بدون حالة "قيد التنفيذ ← جاهز للاستلام" الحقيقية.</p>
+    <div class="field-label">الحكم</div>
+    <p>جزئي، يحتاج إضافة صغيرة (حقل حالة طلب) قبل ما يصير مناسب فعلاً.</p>
+  </div>
+
+  <h2>القطاعات غير الجاهزة — بصراحة كاملة</h2>
+
+  <div class="card">
+    <div class="card-head"><h3>متجر تجزئة / بقالة</h3><span class="pill missing">غير جاهز</span></div>
+    <div class="field-label">صاحب المشروع يحتاج</div>
+    <p>كاشير سريع بالباركود (مئات الأصناف)، تتبع صلاحية، محاسبة وضريبة.</p>
+    <div class="field-label">ركين عنده</div>
+    <p>محرك ضريبة ومحاسبة جاهز، ونظام أصناف "تكلفة مباشرة" قد يصلح كأساس — بدون باركود وبدون وضع كاشير مسح سريع فعلياً بعد.</p>
+    <div class="field-label">الحكم</div>
+    <p>غير جاهز اليوم بصراحة — لو سجل صاحب بقالة الآن، ما فيه شي يقدر يستخدمه فعلياً.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>فندق</h3><span class="pill missing">غير جاهز</span></div>
+    <div class="field-label">صاحب المشروع يحتاج</div>
+    <p>إقامة متعددة الليالي بسعر متغير، حالة تنظيف غرفة منفصلة، تقويم أسعار.</p>
+    <div class="field-label">ركين عنده</div>
+    <p>لا شي — نموذج بيانات مختلف كلياً عن "مورد يُحجز لخدمة واحدة"، يحتاج جدول جديد بالكامل.</p>
+    <div class="field-label">الحكم</div>
+    <p>غير جاهز، وما راح يكون جاهز بسرعة — أثقل قطاع بالقائمة.</p>
+  </div>
+
+  <h2>الخلاصة — وش يخلي ركين يستاهل الفلوس فعلاً</h2>
+  <p>
+    النمط اللي طلع من الدراسة كلها واضح: <strong>ركين قوي جداً بالعمق التقني</strong> (محاسبة، ضريبة، مخزون، محرك حجز مرن يتوسع بسهولة) <strong>بس ضعيف بواجهة العميل النهائي</strong> (حجز ذاتي أونلاين، دفع مباشر) — بينما المنافسين (Foodics، Rekaz) عكس هذا تقريباً: واجهة عميل قوية وناضجة، بعمق تشغيلي أقل وضوحاً (خصوصاً بيع المنتجات مع الخدمات).
+  </p>
+  <div class="stat-callout">
+    الأولوية الحقيقية بعد هذي الدراسة مو قطاع سابع أو ثامن — هي سد الثغرتين المشتركتين (حجز ذاتي + بوابة دفع). سدّهم مرة وحدة يرفع كل قطاع من "جزئي" إلى "جاهز" دفعة وحدة.
+  </div>
+
+  <footer>دراسة داخلية — ركين، أغسطس ٢٠٢٦. مصادر المنافسين: مواقعهم الرسمية وتقارير سوق منشورة.</footer>
+</div>

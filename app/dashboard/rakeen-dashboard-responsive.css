@@ -1,0 +1,2151 @@
+/* Additive layer for rakeen-dashboard.css — kept in a separate file on purpose so
+   the original stylesheet stays byte-for-byte untouched. Covers small-viewport
+   breakpoints (the original has none) plus a couple of elements added for the
+   real-auth login flow. */
+
+/* Systemic fix, not a one-off: found the SAME bug three separate times this
+   session (.sales-range-custom input, .menu-search-toolbar input, and now
+   .ai-input-row input) — an <input> with flex:1 next to a sibling button,
+   where the input's browser-default min-width:auto (based on its intrinsic
+   content size, not its flex-basis) silently overrides flex-shrink, so the
+   BUTTON gets pushed off-canvas instead of the input shrinking. Applying
+   min-width:0 to every input/select/textarea globally rather than patching
+   each instance as it's individually found — this is always the desired
+   behavior inside a flex/grid layout and never changes anything for an
+   input that isn't a shrinking flex child, so it's safe at every viewport,
+   not just mobile. */
+input,
+select,
+textarea {
+  min-width: 0;
+}
+
+/* Loyalty screen: was one long vertical stack (نظرة عامة → بطاقات →
+   مستويات → إعداد البرنامج → التصميم → التواصل) — real scroll fatigue on
+   a phone. Same pill-tab visual language as .report-type-chips, applied
+   at all viewport sizes (a long page benefits from tabs on desktop too,
+   not just mobile) — horizontally-scrollable strip if the tab labels
+   ever don't fit, same contained-scroll pattern already used for
+   .seg-tabs/.settings-tabs elsewhere. */
+.loyalty-tab-panel {
+  display: none;
+}
+.loyalty-tab-panel.active {
+  display: block;
+}
+.loyalty-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.loyalty-tabs::-webkit-scrollbar {
+  display: none;
+}
+.loyalty-tab {
+  flex-shrink: 0;
+  padding: 11px 18px;
+  min-height: 44px;
+  border-radius: var(--r-full, 999px);
+  border: 1.5px solid var(--line);
+  background: var(--card-bg);
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.loyalty-tab.active {
+  background: var(--graphite);
+  border-color: var(--graphite);
+  color: var(--lime);
+}
+
+.auth-error {
+  color: var(--danger, #a3402c);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* A failed save validation (missing supplier name, etc.) used to be
+   signaled by a toast alone — easy to miss mid-workflow. This stays on
+   the offending field itself until the user actually fixes it (cleared
+   on input — see the listener next to each field's validation check). */
+.mtr-negative-warning {
+  margin-top: 4px;
+  padding: 4px 8px;
+  border-radius: var(--r-sm, 6px);
+  background: rgba(163, 64, 44, 0.1);
+  color: var(--danger, #a3402c);
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-block;
+}
+
+input.field-invalid,
+select.field-invalid {
+  border-color: var(--danger, #a3402c);
+  box-shadow: 0 0 0 3px rgba(163, 64, 44, 0.15);
+}
+
+/* "Did you mean X?" suggestion shown while typing a brand-new stock item
+   or supplier name — every duplicate traced today came from this exact
+   gap (no exact match found, so a new record got created silently). Not
+   a blocker: ignoring it and continuing to type is always allowed. */
+.inv-line-similar-suggestion,
+.inv-block-supplier-suggestion {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm, 6px);
+  background: var(--surf1);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.8;
+}
+.inv-line-suggest-btn,
+.inv-block-supplier-suggest-btn {
+  display: inline-block;
+  margin: 2px 3px;
+  padding: 4px 10px;
+  border-radius: var(--r-full, 999px);
+  border: 1px solid var(--lime-deep, #8fbf1f);
+  background: var(--card-bg);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.inv-line-suggest-btn:hover,
+.inv-block-supplier-suggest-btn:hover {
+  background: var(--surf2);
+}
+
+.rk-hamburger-btn {
+  display: none;
+  position: fixed;
+  top: 14px;
+  inset-inline-start: 14px;
+  z-index: 520;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-sm, 8px);
+  border: 1px solid var(--line, rgba(17, 17, 17, 0.09));
+  background: var(--card-bg, #fff);
+  box-shadow: var(--shadow-sm, 0 2px 10px rgba(17, 17, 17, 0.05));
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.rk-hamburger-btn span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--text, #111);
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.rk-hamburger-btn.rk-open span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.rk-hamburger-btn.rk-open span:nth-child(2) { opacity: 0; }
+.rk-hamburger-btn.rk-open span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+.rk-sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 495;
+  background: rgba(17, 17, 17, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.rk-sidebar-backdrop.rk-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Bottom nav (Home/Orders/Inventory/Purchases/More) + context-aware FAB —
+   mobile-only, same body[data-stage="dashboard"] + 900px gating as the
+   hamburger. Hidden while the drawer is open so there's only ever one
+   navigation surface visible at a time. */
+.rk-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  inset-inline: 0;
+  z-index: 510;
+  background: var(--card-bg, #fff);
+  border-top: 1px solid var(--line, rgba(17, 17, 17, 0.09));
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.rk-bn-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 56px;
+  padding: 8px 4px 6px;
+  background: none;
+  border: none;
+  color: var(--muted, #5a5a5a);
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.rk-bn-item svg {
+  width: 22px;
+  height: 22px;
+}
+.rk-bn-item.active {
+  color: var(--graphite, #111);
+}
+.rk-bn-item.active svg {
+  stroke-width: 2.4;
+}
+
+.rk-fab {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  inset-inline-end: 16px;
+  z-index: 511;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-full, 999px);
+  border: none;
+  background: var(--lime, #C4FF2B);
+  color: var(--graphite, #111);
+  box-shadow: var(--shadow-md, 0 16px 40px rgba(17, 17, 17, 0.08));
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.rk-fab svg {
+  width: 26px;
+  height: 26px;
+}
+.rk-fab.hidden {
+  display: none !important;
+}
+
+@media (max-width: 900px) {
+  body[data-stage="dashboard"] .rk-hamburger-btn {
+    display: flex;
+  }
+  body[data-stage="dashboard"] .rk-sidebar-backdrop.rk-open {
+    display: block;
+  }
+  body[data-stage="dashboard"] .rk-bottom-nav {
+    display: flex;
+  }
+  body[data-stage="dashboard"] .rk-fab:not(.hidden) {
+    display: flex;
+  }
+  body[data-stage="dashboard"].rk-sidebar-open .rk-bottom-nav,
+  body[data-stage="dashboard"].rk-sidebar-open .rk-fab {
+    display: none;
+  }
+  .rk-fab {
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 16px);
+  }
+  body[data-stage="dashboard"] .content {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 20px);
+  }
+
+  /* Spot-verification of the already-card-based screens (Staff/Loyalty/
+     Sales/Customers) found two fixed-column grids nobody had accounted
+     for: a 3-up employee grid and the generic 2-column row wrapper used
+     across many panels app-wide (charts, breakdown pairs). Both were
+     falling back to .content's own overflow-x:auto — the sideways-scroll
+     default this pass is meant to eliminate — instead of stacking. */
+  .row-2col {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .emp-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* Same fixed-column-grid bug, missed in the earlier pass: "توصية تدريب
+     من ركين" (Staff) and "ملاحظة ركين" (Customers) each render through
+     .decision-cards, a 3-column grid — with the typical 1 real card, that
+     squeezed a whole paragraph into a ~110px-wide column, wrapping almost
+     one word per line. Real, reported bug, not hypothetical. */
+  .decision-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* A full sweep for the same pattern (fixed repeat(N,1fr) with real
+     text content, no mobile override) turned up four more: channel
+     performance cards, ops-status cards, delivery-platform cards, and
+     order-status counts — the last one is exactly the original "054 /
+     454% / 5459" garbled-numbers complaint from the very first mobile
+     audit request this session. .heatmap-cells (5 columns of plain color
+     swatches, no text) is deliberately left alone — that's a real,
+     functional dense-heatmap pattern, not this bug. */
+  .channel-cards,
+  .order-status-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-shell {
+    position: relative;
+  }
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    inset-inline-start: 0;
+    z-index: 500;
+    transform: translateX(-100%);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-top: 72px;
+  }
+  html[dir="rtl"] .sidebar {
+    transform: translateX(100%);
+  }
+  body.rk-sidebar-open .sidebar {
+    transform: translateX(0);
+  }
+
+  /* Touch targets: raised at the shared-class level so one rule fixes every
+     instance across every screen (audit found icon-only close buttons as
+     small as 25x25, edit/toggle buttons around 28-33px tall — well under
+     the ~44px minimum a thumb can reliably hit). Desktop keeps the tighter
+     original sizing; these are mobile-only overrides. */
+  .tdp-close {
+    width: 44px;
+    height: 44px;
+  }
+  .mtr-edit-btn,
+  .u-toggle-btn {
+    min-height: 44px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+  /* Found by a full touch-target sweep, not the original audit — three
+     more sub-44px buttons that had never been individually flagged:
+     Home's "أعطنا انتباه" action chips, Purchases' primary add-invoice
+     button (39px, just short), and the AI advisor's suggested-question
+     chips. */
+  .attention-action {
+    min-height: 44px;
+  }
+  .menu-add-btn-primary {
+    min-height: 44px;
+  }
+  .ai-suggest-chip {
+    min-height: 44px;
+  }
+  /* A checkbox+label toggle row (win-back settings, notification prefs) —
+     the raw checkbox measures ~17px, and while the whole <label> text is
+     already clickable (wider hit area than the box alone), it had no
+     explicit height, so the *tall* dimension of the tap target was still
+     only as big as the text's line-height. */
+  .notif-pref-row {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .menu-add-btn {
+    min-height: 44px;
+  }
+  /* .menu-toggle is a visual on/off switch (38×22px) — shrinking the
+     switch itself to hit 44px would look oversized/wrong for what it is,
+     so the tap target is expanded via ::before instead of resizing the
+     visible control (::after is already the sliding knob — reusing it
+     here would silently break the knob's own positioning/background). A
+     click anywhere on this expanded area still lands on .menu-toggle
+     itself (it's the pseudo-element's own ancestor), so no JS change
+     is needed. */
+  .menu-toggle::before {
+    content: '';
+    position: absolute;
+    inset: -11px -3px;
+  }
+
+  /* Header compression: the full-width "ابحث أو اكتب أمر... ⌘K" search bar
+     was eating most of a 375px row by itself, forcing the title onto its
+     own line and pushing total header height to ~138px (17% of an 812px
+     screen) before any real content appeared. Icon-only search here frees
+     enough width that the title and search fit one line together, and the
+     44px touch target is kept via explicit sizing, not padding. */
+  .cmdk-trigger {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-inline-start: 0;
+  }
+  .cmdk-trigger span {
+    display: none;
+  }
+  .report-type-chips button {
+    min-height: 44px;
+  }
+
+  .topbar {
+    padding-inline-start: 64px;
+    padding-inline-end: 16px;
+    gap: 10px;
+  }
+  .topbar h1 {
+    font-size: 15px;
+    min-width: 0;
+    flex-shrink: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .content {
+    padding: 18px 16px;
+    overflow-x: auto;
+  }
+
+  .auth-panel-illustration {
+    display: none;
+  }
+  .auth-panel-form {
+    width: 100%;
+    padding: 28px 22px;
+  }
+
+  .cmdk-modal {
+    width: 94vw;
+  }
+
+  /* Every form in the app (invoice, product, stock item, expense, order
+     detail) goes through .modal-overlay/.modal-card, so this one change is
+     the highest-leverage "feels native, not a shrunk desktop dialog" fix —
+     a slide-up sheet anchored to the bottom edge, rounded top corners only,
+     near-full height with its own internal scroll, instead of a centered
+     box. Overrides any modal-specific width (e.g. .product-edit-modal-card)
+     since this file loads after the base stylesheet at equal specificity. */
+  .modal-overlay {
+    align-items: flex-end;
+  }
+  .modal-card {
+    width: 100%;
+    max-width: 100%;
+    max-height: 88vh;
+    border-radius: var(--r-lg, 20px) var(--r-lg, 20px) 0 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    transform: translateY(16px);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .modal-overlay.show .modal-card {
+    transform: translateY(0);
+  }
+  /* Purely visual drag-handle affordance — no actual drag-to-dismiss
+     gesture wired up, but it reads as "this sheet can be dismissed" the
+     same way native bottom sheets do. */
+  .modal-card::before {
+    content: "";
+    display: block;
+    flex-shrink: 0;
+    width: 36px;
+    height: 4px;
+    margin: 10px auto 0;
+    border-radius: var(--r-full, 999px);
+    background: var(--line, rgba(17, 17, 17, 0.09));
+  }
+}
+
+@media (max-width: 560px) {
+  .topbar {
+    height: auto;
+    min-height: 64px;
+    flex-wrap: wrap;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  .cmdk-trigger {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .report-table {
+    font-size: 11px;
+  }
+}
+
+/* Orders screen: widened to fit a stacked date+time (was time-only) now that
+   the list can span a selectable range up to a year, not just today. */
+.order-row {
+  grid-template-columns: 90px 92px 1fr 90px 90px 90px 90px;
+}
+
+#orderDateRangeSelect {
+  min-width: 130px;
+}
+
+/* Report history panel */
+.report-history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border, rgba(250,250,245,0.08));
+  font-size: 12.5px;
+}
+.report-history-row:last-child {
+  border-bottom: none;
+}
+.report-history-main {
+  font-weight: 700;
+}
+.report-history-meta {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 11.5px;
+  margin-top: 2px;
+}
+.report-history-badge {
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(196,255,43,0.12);
+  color: var(--accent, #C4FF2B);
+}
+.report-history-row-clickable {
+  cursor: pointer;
+  margin: 0 -8px;
+  padding-inline: 8px;
+  border-radius: var(--r-sm, 8px);
+}
+.report-history-row-clickable:hover {
+  background: var(--surf1);
+}
+
+/* Mobile "Save as PDF" bug, round 2 — confirmed from two real PDFs exported
+   off an iPhone. First fix (dropping position:fixed) solved the "crammed
+   into a tiny corner" version. What's left: iOS Safari's print pipeline
+   lays out @media print content against its OWN internal viewport width
+   (not the true A4 printable width), so `width:auto`/percentages resolve
+   against the wrong containing block and the content sits narrow on the
+   left with the rest of the page blank. Fix: stop relying on auto/percent
+   resolution entirely — give the root an explicit physical width in mm
+   that maps directly to the page regardless of what "viewport" Safari used
+   internally. Also moves the page margin from @page onto the root's own
+   padding (@page margin: 0) — some print engines only omit their injected
+   URL/date/page-number footer when there's no page-margin gutter to put it
+   in. Not guaranteed on every device (browser/OS print headers are
+   deliberately outside a webpage's control by spec) but this is the
+   standard mitigation and doesn't cost anything if it doesn't help. */
+@media print {
+  @page {
+    margin: 0;
+  }
+  .print-report-root {
+    position: static !important;
+    inset: auto !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    min-height: 297mm;
+    height: auto !important;
+    overflow: visible !important;
+    margin: 0 auto !important;
+    padding: 16mm 14mm !important;
+    box-sizing: border-box !important;
+  }
+}
+
+/* Reports screen — export bar + email row need to wrap/stack on phones, and
+   report tables (especially the 6-column shift-closing one) need to scroll
+   horizontally instead of squeezing illegibly. */
+.report-export-bar {
+  flex-wrap: wrap;
+}
+.report-email-row {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.report-email-row .menu-add-field {
+  flex: 1;
+  min-width: 200px;
+}
+@media (max-width: 640px) {
+  .report-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Orders table (.order-row: id/date/type/items/total/payment/status in a
+     90px 70px 1fr 90px 90px 90px 90px grid) was measuring 627px wide inside
+     a 297px container — the single most-used screen during a shift. Same
+     column order every render (renderOrdersTable in rakeen-dashboard.js),
+     so nth-child targeting is safe without touching the JS template. */
+  .order-row.head { display: none; }
+  /* Re-paired so each row groups things that actually belong together —
+     "when + through which channel" then "how many + how paid" — instead of
+     the previous id-order pairing (type+items, date+payment) that made the
+     card read like scattered, unrelated fields. Same 7 spans, same JS. */
+  .order-row {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "id      status"
+      "type    date"
+      "items   payment"
+      "total   total";
+    gap: 9px 14px;
+    background: var(--card-bg);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md, 12px);
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .order-row > span:nth-child(1) { grid-area: id; font-size: 15px; font-weight: 800; }
+  .order-row > span:nth-child(2) { grid-area: date; font-size: 12px; justify-self: end; text-align: end; }
+  .order-row > span:nth-child(3) { grid-area: type; font-size: 12.5px; }
+  .order-row > span:nth-child(4) { grid-area: items; font-size: 12.5px; }
+  .order-row > span:nth-child(5) {
+    grid-area: total; font-size: 18px; font-weight: 800; justify-self: end;
+    padding-top: 10px; margin-top: 1px; border-top: 1px dashed var(--line);
+  }
+  .order-row > span:nth-child(5)::after { content: " ر.س"; font-size: 11px; font-weight: 700; color: var(--muted); }
+  .order-row > span:nth-child(6) { grid-area: payment; font-size: 12.5px; justify-self: end; text-align: end; }
+  .order-row > span:nth-child(7) { grid-area: status; justify-self: end; }
+  .order-row > span:nth-child(2)::before,
+  .order-row > span:nth-child(3)::before,
+  .order-row > span:nth-child(4)::before,
+  .order-row > span:nth-child(6)::before {
+    display: block;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+  .order-row > span:nth-child(2)::before { content: "التاريخ"; }
+  .order-row > span:nth-child(3)::before { content: "النوع"; }
+  .order-row > span:nth-child(4)::before { content: "الأصناف"; }
+  .order-row > span:nth-child(6)::before { content: "الدفع"; }
+
+  /* Floor-plan tiles were sized for a comfortable tap target at desktop
+     density (100px min) — on a phone that renders 3 huge squares that push
+     everything else off-screen. Shrink the grid + type scale together; the
+     tap target is still ~64px, well above the 44px minimum. */
+  .tables-floor-grid { grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 8px; }
+  .floor-table { border-radius: 12px; padding: 4px; gap: 1px; }
+  .floor-table .ft-num { font-size: 14px; }
+  .floor-table .ft-status { font-size: 7.5px; }
+  .ft-meta { font-size: 7px; }
+  .ft-live-dot { width: 6px; height: 6px; top: 5px; inset-inline-end: 5px; }
+
+  /* Donut legend: side-by-side with a 120px circle left the name column
+     fighting the circle + value for space — long channel names (delivery
+     platforms, "زبون مباشر (بدون تطبيق)") could get squeezed down to almost
+     nothing. Stack instead: full-width chart on top, full-width legend
+     below, so every name always has the whole row to itself and can wrap
+     instead of being crushed or ellipsis-truncated. */
+  .donut-wrap { flex-direction: column; align-items: center; gap: 16px; }
+  .donut-svg { width: 150px; height: 150px; }
+  .donut-legend { width: 100%; gap: 12px; }
+  .donut-legend-row { font-size: 13px; }
+  .donut-legend-name { white-space: normal; line-height: 1.35; }
+
+  /* Orders' status-filter row (5 chips + search + date select) wraps as a
+     whole (.order-filters already has flex-wrap) but the chip strip itself
+     doesn't, so it was overflowing on its own. A horizontally-scrolling
+     chip strip is a standard, expected mobile pattern (unlike a data table
+     forced sideways) — keep it a single row with its own contained scroll
+     instead of wrapping every chip onto its own line. */
+  .order-filters { flex-direction: column; align-items: stretch; }
+  .seg-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .seg-tabs::-webkit-scrollbar { display: none; }
+  .seg-tab { flex-shrink: 0; min-height: 44px; }
+
+  /* Settings' tab row (نظرة عامة/المصروفات العامة/المصاريف الثابتة/...,
+     ~10 tabs on some sub-screens) was overflow-x:visible + nowrap — tabs
+     spilled past the container and got caught by .content's page-level
+     overflow-x:auto fallback instead of staying contained. Same
+     horizontally-scrolling chip-strip treatment as .seg-tabs above. */
+  .settings-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .settings-tabs::-webkit-scrollbar { display: none; }
+  .settings-tabs button { flex-shrink: 0; min-height: 40px; }
+
+  /* Menu/Modifier-groups search toolbar: the search <input> has flex:1 but
+     inputs default to min-width:auto (sized to their intrinsic content),
+     which silently overrides flex-shrink — the "+ إضافة" button was getting
+     pushed off the left edge (negative x) instead of the input shrinking. */
+  .menu-search-toolbar input { min-width: 0; }
+
+  /* Bulk-import trigger sits next to "+ إضافة" in the same toolbar row on
+     Inventory/Menu/Modifiers — two buttons (plus an input on Inventory/Menu)
+     don't fit on one line at phone widths, so wrap and let the secondary
+     action take a full row of its own instead of shrinking to icon-only. */
+  .menu-search-toolbar { flex-wrap: wrap; }
+  .menu-search-toolbar .bulk-import-trigger { flex: 1 1 100%; text-align: center; }
+
+  .bulk-import-modal-card { width: 100%; }
+  .bulk-import-step { padding: 14px 0; gap: 10px; }
+
+  .order-filters input,
+  .order-filters select {
+    width: 100%;
+  }
+
+  /* Menu/Inventory/Modifier-groups table (.menu-table-row, shared by all
+     three screens — stockRowHtml/renderMenuProductTable/
+     renderModifierGroupsTable in rakeen-dashboard.js) squeezed the product
+     name column down to ~30px once every fixed-width column (price 90px,
+     margin 90px, stock-bar 150px, etc.) claimed its space first. Each
+     column already carries its own semantic class in all three contexts,
+     so this targets those classes directly rather than nth-child. */
+  .menu-table-head-row { display: none; }
+  .menu-table-row {
+    flex-wrap: wrap;
+    background: var(--card-bg);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md, 12px);
+    padding: 14px;
+    margin: 0 0 10px;
+    gap: 10px 16px;
+  }
+  .menu-table-row:last-child { margin-bottom: 0; }
+  .mtr-product { flex: 1 1 100%; }
+  .mtr-name { font-size: 14.5px; }
+
+  .mtr-price,
+  .mtr-margin,
+  .mth-col-modtype,
+  .mth-col-modused {
+    width: auto;
+    flex: 1 1 auto;
+    min-width: 100px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .mtr-price::before { content: "السعر"; }
+  .mtr-margin::before { content: "الهامش"; }
+  .mth-col-modtype::before { content: "النوع"; }
+  .mth-col-modused::before { content: "الاستخدام"; }
+  .mtr-price::before,
+  .mtr-margin::before,
+  .mth-col-modtype::before,
+  .mth-col-modused::before {
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .mtr-stock-bar-cell {
+    width: auto;
+    flex: 1 1 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+  .mtr-stock-bar-cell::before {
+    content: "المخزون";
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .mtr-stock-bar-cell .stock-bar-track { width: 100%; }
+
+  .mtr-status,
+  .mtr-action {
+    width: auto;
+    margin-inline-start: auto;
+  }
+
+  /* Menu's product list was redesigned as its own single-line list row
+     (see #menuProductTable rules in rakeen-dashboard.css) — the shared
+     collapse above (built for Inventory/Modifier-groups' real multi-field
+     tables) was still wrapping it into a stacked field+label card and
+     injecting "السعر"/"الهامش" labels via ::before, fighting the new
+     layout. Scoped by #id so it wins regardless of source order. */
+  #menuProductTable .menu-table-row { flex-wrap: nowrap; }
+  #menuProductTable .mtr-product { flex: 1 1 auto; min-width: 0; }
+  #menuProductTable .mtr-price,
+  #menuProductTable .mtr-margin {
+    flex: 0 0 auto; min-width: 0; flex-direction: row; gap: 0;
+  }
+  #menuProductTable .mtr-price::before,
+  #menuProductTable .mtr-margin::before { content: none; }
+  #menuProductTable .mtr-status { margin-inline-start: 0; }
+
+  /* Settings → Team (.users-table-row: name/role/status + 1-4 variable
+     action buttons depending on role) had zero mobile handling at all —
+     a plain flex row with no wrap, name/role/status/buttons all on one
+     line. The row and its wrapper (.team-member-block) both carry inline
+     styles from the JS template (border-bottom/padding) which beat any
+     external stylesheet rule regardless of specificity — !important here
+     is overriding those specific inline styles, not fighting the cascade. */
+  .team-member-block {
+    border: 1px solid var(--line) !important;
+    border-radius: var(--r-md, 12px);
+    padding: 14px !important;
+    margin-bottom: 10px;
+  }
+  .users-table-row {
+    border-bottom: none !important;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    padding: 0;
+  }
+  .users-table-row .u-name { flex: 1 1 100%; font-size: 14.5px; }
+  .users-table-row .u-role { width: auto; }
+  .users-table-row .u-status { width: auto; margin-inline-start: auto; }
+  .users-table-row .u-toggle-btn { flex: 1 1 auto; }
+  .users-table-row .stock-qty-helper { flex: 1 1 100%; }
+}
+
+/* ============ Reports screen — full redesign ============
+   Was a flat stack of generic .panel blocks (type chips, then a range
+   panel, then a plain preview panel, then export buttons) — functional but
+   felt like a settings form, not "أفخم صفحة عندي". Now: report types live
+   in a real sidebar as icon cards (scannable at a glance, one active state
+   instead of a wall of equal-weight pills), and the preview itself wears the
+   exact same letterhead as the exported PDF/email — light document surface
+   floating on the dark app chrome, so what's on screen honestly is what
+   gets exported, not an approximation of it. */
+.reports-hero { margin-bottom: 20px; }
+.reports-hero-title { font-size: 22px; font-weight: 800; color: var(--text); }
+.reports-hero-sub { font-size: 12.5px; font-weight: 600; color: var(--muted); margin-top: 4px; }
+
+.reports-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+.reports-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.report-type-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg, 14px);
+  padding: 8px;
+}
+.report-type-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: var(--r-md, 10px);
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 12.5px;
+  text-align: start;
+  width: 100%;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.report-type-card svg { flex-shrink: 0; opacity: 0.7; }
+.report-type-card:hover { background: var(--surf1); color: var(--text); }
+.report-type-card.active { background: var(--graphite); color: var(--lime); }
+.report-type-card.active svg { opacity: 1; }
+
+.reports-range-card { padding: 14px; }
+.reports-range-label {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 10px;
+}
+.reports-range-card .sales-range-custom { margin-top: 14px; }
+
+.reports-main { min-width: 0; }
+.report-preview-doc {
+  background: #FDFCFA;
+  color: #171717;
+  border-radius: var(--r-lg, 14px);
+  padding: 28px 26px;
+  box-shadow: var(--shadow-md, 0 8px 24px rgba(0,0,0,0.14));
+  min-height: 320px;
+}
+.report-doc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 3px solid var(--lime, #C4FF2B);
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.report-doc-brand { display: flex; align-items: center; gap: 12px; }
+.report-doc-logo { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; flex-shrink: 0; }
+.report-doc-logo-fallback {
+  width: 40px; height: 40px; border-radius: 10px;
+  background: #171717; color: var(--lime, #C4FF2B);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 900; font-size: 17px; flex-shrink: 0;
+}
+.report-doc-brand-name { font-size: 15px; font-weight: 800; }
+.report-doc-brand-sub { font-size: 10.5px; color: #8a8477; font-weight: 700; margin-top: 2px; }
+.report-doc-meta { font-size: 10.5px; color: #8a8477; font-weight: 700; }
+
+/* the per-type builder functions in rakeen-dashboard.js still emit the same
+   .panel-title/.report-stat-row/.report-table classes used elsewhere in the
+   dark-themed app — re-themed here for the light document surface instead
+   of duplicating every builder function */
+.report-preview-doc .panel-title { color: #171717; font-size: 16px; }
+.report-preview-doc .report-stat-row { color: #5b564c; border-bottom-color: #eee; }
+.report-preview-doc .report-stat-row .mono { color: #171717; }
+.report-preview-doc .report-stat-row.total .mono { color: #2f6b3a; }
+.report-preview-doc .report-subtitle { color: #8a8477; }
+.report-preview-doc .report-breakdown-track { background: #eee; }
+.report-preview-doc .report-table th { color: #8a8477; border-bottom-color: #ddd; }
+.report-preview-doc .report-table td { border-bottom-color: #eee; }
+.report-preview-doc .orders-empty { color: #8a8477; text-align: center; padding: 34px 0; }
+
+.report-export-action.primary {
+  background: var(--graphite);
+  border-color: var(--graphite);
+  color: var(--lime);
+}
+.report-export-action.primary:hover { background: #000; }
+
+@media (max-width: 900px) {
+  .reports-layout { grid-template-columns: minmax(0, 1fr); }
+  .report-type-list {
+    flex-direction: row;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .report-type-card {
+    flex-direction: column;
+    gap: 4px;
+    min-width: 82px;
+    text-align: center;
+    font-size: 10px;
+    padding: 10px 8px;
+  }
+  .report-type-card span { white-space: nowrap; }
+  .report-preview-doc { padding: 20px 16px; }
+}
+
+/* Reports: cards by default on mobile, .report-table only inside the
+   explicit "عرض كجدول" full-screen escape hatch — never horizontal scroll
+   as the default. .report-cards-mobile/.report-view-table-btn are built by
+   the same *ReportHtml() functions (rakeen-dashboard.js) that build the
+   table, from the same row data — not a separate fetch/format pass. */
+.report-cards-mobile { display: none; }
+.report-view-table-btn {
+  display: none;
+  margin: 4px 0 14px;
+  padding: 9px 16px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--card-bg);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 12px;
+  min-height: 44px;
+}
+.report-preview-doc .report-view-table-btn { border-color: #ddd; color: #5b564c; }
+
+.report-item-card {
+  background: var(--surf1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md, 12px);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.report-item-card:last-child { margin-bottom: 0; }
+.ric-title { font-weight: 800; font-size: 13.5px; margin-bottom: 6px; }
+.ric-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.ric-row .mono { color: var(--text); font-weight: 700; direction: ltr; unicode-bidi: isolate; }
+.ric-row.total {
+  border-top: 1px dashed var(--line);
+  margin-top: 4px;
+  padding-top: 9px;
+  font-weight: 800;
+  color: var(--text);
+}
+.ric-row.total .mono { color: var(--success-text); font-size: 14px; }
+.ric-label { font-weight: 600; }
+
+.report-preview-doc .report-item-card { background: #f7f6f2; border-color: #eee; }
+.report-preview-doc .ric-title { color: #171717; }
+.report-preview-doc .ric-row { color: #8a8477; }
+.report-preview-doc .ric-row .mono { color: #171717; }
+.report-preview-doc .ric-row.total { border-top-color: #ddd; color: #171717; }
+.report-preview-doc .ric-row.total .mono { color: #2f6b3a; }
+
+.report-table-overlay {
+  display: none;
+  flex-direction: column;
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  background: var(--card-bg);
+}
+.report-table-overlay.show { display: flex; }
+.report-table-overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  padding: 14px 16px;
+  padding-top: calc(14px + env(safe-area-inset-top, 0px));
+  border-bottom: 1px solid var(--line);
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--text);
+}
+.report-table-overlay-body {
+  flex: 1;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
+}
+.report-table-overlay-body .report-table {
+  min-width: 480px;
+}
+
+@media (max-width: 640px) {
+  .report-cards-mobile { display: block; }
+  .report-view-table-btn { display: inline-block; }
+  .report-preview-doc .report-table { display: none; }
+}
+
+/* Print-to-PDF report letterhead — a dedicated offscreen view created only at
+   export time (see generateReportPdf in rakeen-dashboard.js) so the printed
+   output never fights the app's own dark sidebar/nav layout. window.print()
+   picks it up via the @media print rule below, which hides everything else. */
+.print-report-root {
+  display: none;
+}
+@media print {
+  body > *:not(.print-report-root) {
+    display: none !important;
+  }
+  .print-report-root {
+    display: block !important;
+  }
+  @page {
+    size: A4;
+    margin: 16mm 14mm;
+  }
+}
+.print-report-root {
+  direction: rtl;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  color: #111;
+  background: #fff;
+  padding: 24px;
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  overflow: auto;
+}
+.print-report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 3px solid #C4FF2B;
+  padding-bottom: 14px;
+  margin-bottom: 22px;
+}
+.print-report-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.print-report-logo {
+  width: 54px;
+  height: 54px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+.print-report-logo-fallback {
+  width: 54px;
+  height: 54px;
+  border-radius: 12px;
+  background: #111;
+  color: #C4FF2B;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 22px;
+}
+.print-report-brand-name {
+  font-size: 18px;
+  font-weight: 900;
+}
+.print-report-brand-sub {
+  font-size: 11px;
+  color: #777;
+  font-weight: 700;
+  margin-top: 3px;
+}
+.print-report-meta {
+  text-align: left;
+  font-size: 11px;
+  color: #777;
+  font-weight: 700;
+  line-height: 1.6;
+}
+.print-report-title {
+  font-size: 19px;
+  font-weight: 900;
+  margin-bottom: 18px;
+}
+.print-report-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px 26px;
+  margin-bottom: 24px;
+}
+.print-report-stat {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.print-report-stat.total {
+  border-bottom: 2px solid #111;
+  font-weight: 900;
+  font-size: 14px;
+  grid-column: 1 / -1;
+}
+.print-report-stat span:last-child {
+  font-family: 'IBM Plex Mono', monospace;
+  direction: ltr;
+}
+.print-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-bottom: 20px;
+}
+.print-report-table th {
+  background: #111;
+  color: #fff;
+  padding: 8px 10px;
+  text-align: right;
+  font-weight: 800;
+}
+.print-report-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #eee;
+}
+.print-report-table td.mono {
+  font-family: 'IBM Plex Mono', monospace;
+  direction: ltr;
+  text-align: left;
+}
+.print-report-table tr:nth-child(even) td {
+  background: #fafafa;
+}
+.print-report-footer {
+  margin-top: 26px;
+  padding-top: 12px;
+  border-top: 1px solid #ddd;
+  font-size: 10px;
+  color: #999;
+  text-align: center;
+}
+.print-report-close-btn {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 100000;
+  background: #111;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+@media print {
+  .print-report-close-btn {
+    display: none !important;
+  }
+}
+
+/* Sales screen date-range picker — compact by default. The presets
+   (اليوم/أمس/...) and the custom from/to + apply row were sized like
+   full standalone controls when they're really a secondary, occasional
+   affordance; standard/small sizing keeps them from competing with the
+   KPI numbers for visual weight. */
+.sales-range-panel {
+  margin-bottom: 14px;
+}
+#salesRangePresets {
+  margin-bottom: 10px;
+  gap: 5px;
+}
+#salesRangePresets button {
+  padding: 5px 9px;
+  font-size: 10px;
+}
+.sales-range-custom {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.sales-range-custom .menu-add-field {
+  flex: 1 1 0;
+  min-width: 84px;
+  gap: 3px;
+}
+.sales-range-custom .menu-add-field label {
+  font-size: 9.5px;
+  white-space: nowrap;
+}
+.sales-range-custom .menu-add-field input {
+  min-width: 0;
+  width: 100%;
+  padding: 6px 6px;
+  font-size: 9.5px;
+  box-sizing: border-box;
+}
+.sales-range-apply-btn {
+  flex: 0 0 auto;
+  padding: 8px 16px;
+  font-size: 11px;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+/* 3 headline sales stats, hero-weighted: إجمالي المبيعات carries the most
+   information (it's the number an owner checks first) so it gets its own
+   full-width hero card up top; عدد الطلبات + صافي الأرباح share a row
+   beneath as secondary, lighter-weight cards. This hierarchy — one thing
+   dominant, the rest supporting — is what a flat 1-of-N grid can't do. */
+.sales-range-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+.sales-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+/* Fixed dark cards don't adapt — that's exactly why they clashed against a
+   light page (and would've looked wrong the other way round in dark mode
+   too). The identity move that actually respects the theme: the card stays
+   on the page's own surface color, and graphite + lime show up as two
+   precise, deliberate accents — a solid graphite icon chip (the brand mark)
+   and a lime accent dot — instead of painting the whole card one fixed
+   color. Both tokens already adapt per theme, so this is correct in light
+   and dark without any hardcoded hex. The hero card pushes the same
+   language further (bigger chip, top hairline, faint corner sheen) rather
+   than switching approach. */
+.sales-kpi-card {
+  border-radius: 20px; border: 1px solid var(--line);
+  padding: 16px 15px 14px; position: relative; overflow: hidden;
+  display: flex; flex-direction: column; min-height: 92px;
+  background: var(--card-bg);
+  box-shadow: 0 1px 2px rgba(17,17,17,0.05), 0 10px 22px rgba(17,17,17,0.06);
+  animation: kpiCardIn .45s cubic-bezier(.2,.8,.2,1) backwards;
+}
+.sales-kpi-row .sales-kpi-card:nth-child(2){ animation-delay: .06s; }
+@keyframes kpiCardIn { from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:translateY(0); } }
+.sales-kpi-icon {
+  width: 36px; height: 36px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
+  margin-bottom: 10px; flex-shrink: 0;
+  background: var(--graphite); color: var(--lime);
+  box-shadow: 0 4px 10px rgba(17,17,17,0.18);
+}
+.sales-kpi-icon svg { width: 17px; height: 17px; }
+.sales-kpi-label { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sales-kpi-label::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--lime-deep); flex-shrink: 0; }
+.sales-kpi-value {
+  font-size: clamp(14px, 4vw, 20px); font-weight: 800; margin-top: auto; padding-top: 6px; letter-spacing: -0.01em;
+  direction: ltr; unicode-bidi: isolate; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--text);
+}
+.sales-kpi-value.negative { color: var(--danger); }
+
+/* Hero card: same tokens, turned up — bigger badge, a lime hairline top
+   edge (the one place a "full" lime touch is earned, since it's a 3px
+   line, not a fill), and a barely-there radial sheen for depth instead of
+   a flat block. Still zero hardcoded hex on the surface itself. */
+.sales-kpi-hero {
+  min-height: 128px;
+  padding: 20px 20px 18px;
+  background:
+    radial-gradient(120% 160% at 100% 0%, rgba(196,255,43,0.07), transparent 55%),
+    var(--card-bg);
+  box-shadow: 0 1px 2px rgba(17,17,17,0.06), 0 16px 32px rgba(17,17,17,0.09);
+}
+.sales-kpi-hero::before {
+  content: "";
+  position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--lime), var(--lime-deep));
+}
+.sales-kpi-hero-top {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+}
+.sales-kpi-hero .sales-kpi-icon {
+  width: 46px; height: 46px; border-radius: 13px; margin-bottom: 14px;
+  box-shadow: 0 6px 14px rgba(17,17,17,0.22);
+}
+.sales-kpi-hero .sales-kpi-icon svg { width: 21px; height: 21px; }
+.sales-kpi-hero .sales-kpi-label { font-size: 12px; }
+.sales-kpi-hero-value {
+  font-size: clamp(22px, 7.5vw, 32px);
+  font-weight: 800;
+}
+.sales-kpi-hero-delta {
+  display: flex; align-items: center; gap: 3px; flex-shrink: 0;
+  font-size: 11px; font-weight: 800; padding: 5px 9px 5px 7px; border-radius: 999px;
+  direction: ltr; unicode-bidi: isolate;
+}
+.sales-kpi-hero-delta svg { width: 11px; height: 11px; }
+.sales-kpi-hero-delta.up { background: var(--graphite); color: var(--lime); }
+.sales-kpi-hero-delta.down { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+@media (max-width: 480px) {
+  .sales-kpi-row { gap: 8px; }
+  .sales-kpi-hero { padding: 18px 16px 16px; }
+}
+@media (max-width: 560px) {
+  .sales-range-custom {
+    width: 100%;
+  }
+}
+
+/* Owner notification preferences (Settings → الإشعارات) */
+.notif-pref-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line, rgba(250,250,245,0.08));
+  font-size: 13px;
+  font-weight: 700;
+}
+.notif-pref-row:last-of-type {
+  border-bottom: none;
+}
+.notif-pref-row label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.notif-pref-row input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--lime, #C4FF2B);
+  cursor: pointer;
+}
+.notif-pref-num {
+  width: 72px;
+  padding: 7px 10px;
+  border-radius: var(--r-sm, 8px);
+  border: 1px solid var(--line);
+  background: var(--surf1);
+  color: var(--text);
+  font-size: 12.5px;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* status banner — replaces the old plain attention-list-in-a-box treatment */
+.status-banner {
+  border-radius: var(--r-lg);
+  padding: 20px 24px;
+  margin-bottom: 18px;
+  border: 1px solid var(--line);
+  background: var(--card-bg);
+}
+.status-banner.tier-critical { border-color: rgba(163,64,44,0.35); background: rgba(163,64,44,0.06); }
+.status-banner.tier-attention { border-color: rgba(125,90,20,0.3); background: rgba(125,90,20,0.06); }
+.status-banner.tier-clear {
+  background: linear-gradient(135deg, rgba(196,255,43,0.12), rgba(196,255,43,0.02));
+  border-color: rgba(196,255,43,0.3);
+  text-align: center;
+  padding: 26px 24px;
+}
+.status-banner-head { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 14.5px; margin-bottom: 4px; }
+.status-banner.tier-critical .status-banner-head { color: var(--danger); }
+.status-banner.tier-attention .status-banner-head { color: var(--amber); }
+.status-banner-reason { font-size: 12.5px; color: var(--muted); font-weight: 600; margin-bottom: 12px; }
+.status-banner.tier-clear .status-banner-reason { margin-bottom: 0; }
+/* The detailed alert list is real content, not the headline — the reason
+   line above already names the single most urgent item, so the full list
+   stays collapsed behind this toggle instead of always expanded. */
+.attention-toggle {
+  display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%;
+  padding: 9px; border-radius: var(--r-sm); border: 1px dashed var(--line-strong, var(--line));
+  background: transparent; color: var(--text); font-weight: 700; font-size: 11.5px; min-height: 40px;
+}
+.status-banner.tier-critical .attention-toggle { color: var(--danger); border-color: rgba(163,64,44,0.3); }
+.status-banner.tier-attention .attention-toggle { color: var(--amber); border-color: rgba(125,90,20,0.3); }
+.attention-toggle svg { width: 14px; height: 14px; transition: transform .15s ease; }
+.attention-toggle.open svg { transform: rotate(180deg); }
+.attention-list { margin-top: 8px; }
+.status-clear-emoji { font-size: 30px; margin-bottom: 8px; }
+.status-clear-title { font-size: 15px; font-weight: 800; color: var(--success-text); margin-bottom: 4px; }
+
+/* أبطال اليوم — real recognition, not a duplicate of Sales screen's list */
+.heroes-row { margin-bottom: 18px; }
+.hero-spotlight-card { display: flex; align-items: center; gap: 14px; padding: 20px; }
+.hero-spotlight-medal {
+  line-height: 1; flex-shrink: 0; width: 44px; height: 44px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.hero-spotlight-medal svg { width: 20px; height: 20px; }
+#heroProductCard .hero-spotlight-medal { background: var(--acc-res-bg); color: var(--acc-res); }
+#heroStaffCard .hero-spotlight-medal { background: var(--acc-team-bg); color: var(--acc-team); }
+.hero-spotlight-body { flex: 1; min-width: 0; }
+.hero-spotlight-kicker { font-size: 10px; font-weight: 700; color: var(--muted); }
+.hero-spotlight-name { font-size: 13.5px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 3px; }
+.hero-spotlight-meta { font-size: 10px; font-weight: 700; color: var(--lime-deep); margin-top: 3px; font-family: 'IBM Plex Mono', monospace; direction: ltr; unicode-bidi: isolate; }
+
+@media (max-width: 560px) {
+  /* Small, simple cards — keep them side by side even on mobile instead of
+     stacking to full width, which just wastes vertical space for content
+     this short. */
+  .heroes-row.row-2col { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .hero-spotlight-card { flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px; }
+  .hero-spotlight-medal { width: 32px; height: 32px; }
+  .hero-spotlight-medal svg { width: 15px; height: 15px; }
+  .hero-spotlight-name { white-space: normal; }
+  .emp-cards { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ============ Loyalty card design panel — real live preview so "did the
+   banner fit" is answered by looking, not guessing (matches the customer
+   card's own inline styles pixel-for-pixel; see app/loyalty-card/[token] if
+   either needs to change — they aren't shared code, keep them in sync). */
+.loyalty-design-grid {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 28px;
+  align-items: start;
+}
+.loyalty-icon-picker { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.loyalty-icon-choice {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--r-sm);
+  border: 1.5px solid var(--line);
+  background: var(--surf1);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.loyalty-icon-choice.active { background: var(--graphite); border-color: var(--graphite); color: var(--lime); }
+.loyalty-design-preview-label { font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 10px; }
+.loyalty-preview-card {
+  width: 100%;
+  max-width: 280px;
+  margin: 0 auto;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 16px 40px rgba(17,17,17,0.18);
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+.loyalty-preview-header { padding: 18px 18px 15px; }
+.loyalty-preview-header-top { display: flex; align-items: center; gap: 8px; }
+.loyalty-preview-logo { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 2px solid rgba(255,255,255,0.5); }
+.loyalty-preview-logo-fallback { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex-shrink: 0; }
+.loyalty-preview-brand { flex: 1; min-width: 0; font-weight: 800; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.loyalty-preview-tier-chip { flex-shrink: 0; font-size: 9.5px; font-weight: 800; padding: 3px 8px; border-radius: 999px; }
+.loyalty-preview-customer-name { font-weight: 800; font-size: 17px; margin-top: 14px; }
+.loyalty-preview-middle { background: #F7F4EF; min-height: 130px; padding: 20px 16px; display: flex; align-items: center; justify-content: center; }
+.loyalty-preview-stamp-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 220px; }
+.loyalty-preview-points-block { position: relative; text-align: center; }
+.loyalty-preview-points-halo { position: absolute; width: 140px; height: 140px; border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 0; pointer-events: none; }
+.loyalty-preview-points-sparkle { position: relative; z-index: 1; display: block; margin: 0 auto 4px; }
+.loyalty-preview-points-label { position: relative; z-index: 1; font-size: 10px; font-weight: 700; color: #8a8477; text-transform: uppercase; letter-spacing: 0.06em; }
+.loyalty-preview-points-value { position: relative; z-index: 1; font-size: 42px; font-weight: 800; margin-top: 4px; }
+.loyalty-preview-footer { padding: 16px 18px 18px; }
+.loyalty-preview-stats-row { display: flex; align-items: center; margin-bottom: 14px; }
+.loyalty-preview-stat { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.loyalty-preview-stat-label { font-size: 9.5px; font-weight: 700; opacity: 0.75; }
+.loyalty-preview-stat-value { font-size: 21px; font-weight: 800; }
+.loyalty-preview-qr { background: #FAFAF5; border-radius: 10px; padding: 10px; width: 84px; margin: 0 auto; }
+.loyalty-preview-qr img { width: 100%; height: auto; display: block; }
+.loyalty-preview-powered { text-align: center; font-size: 8.5px; font-weight: 700; opacity: 0.45; margin-top: 10px; }
+.loyalty-preview-tenure { font-size: 10.5px; font-weight: 600; margin-top: 3px; }
+.loyalty-preview-saved-badge { display: flex; align-items: center; justify-content: center; gap: 5px; width: fit-content; padding: 5px 12px; border-radius: 999px; font-size: 10.5px; font-weight: 700; margin: 0 auto 12px; }
+
+/* minimal theme: light throughout, accent used sparingly */
+.loyalty-preview-minimal { background: #FDFCFA; }
+.loyalty-preview-minimal-bar { height: 4px; }
+.loyalty-preview-minimal-header { display: flex; align-items: center; gap: 10px; padding: 16px 18px 0; }
+.loyalty-preview-minimal .loyalty-preview-middle { background: #FDFCFA; }
+
+/* bold theme: accent washes the whole card, content floats on a white block */
+.loyalty-preview-bold { display: flex; flex-direction: column; padding-bottom: 16px; }
+.loyalty-preview-bold-card { background: #FDFCFA; border-radius: 16px; margin: 14px 16px; padding: 16px; box-shadow: 0 10px 24px rgba(0,0,0,0.14); }
+.loyalty-preview-bold .loyalty-preview-middle { min-height: auto; background: transparent; }
+
+/* pattern swatches reuse .loyalty-icon-choice's base square/circle button —
+   just tinted via inline style instead of holding an SVG icon */
+.loyalty-pattern-swatch { background-color: var(--surf1); background-repeat: repeat; }
+
+.loyalty-suggested-colors { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.loyalty-color-swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--surf0);
+  box-shadow: 0 0 0 1.5px var(--line);
+  cursor: pointer;
+  padding: 0;
+}
+.loyalty-color-swatch.active { box-shadow: 0 0 0 2px var(--graphite); }
+
+.loyalty-section-heading {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 28px 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1.5px solid var(--line);
+}
+.loyalty-section-heading:first-child { margin-top: 0; }
+
+.loyalty-design-subheading {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--graphite);
+  margin: 18px 0 10px;
+}
+.loyalty-design-subheading:first-child { margin-top: 0; }
+
+.loyalty-master-toggle-panel { margin-bottom: 4px; }
+.loyalty-disabled-notice {
+  text-align: center;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 13px;
+  padding: 28px 20px;
+}
+
+@media (max-width: 900px) {
+  .loyalty-design-grid { grid-template-columns: minmax(0, 1fr); }
+  .loyalty-design-preview { order: -1; }
+}
+
+/* Accounting waterfall (.waterfall-row: label col 220px + bar + amount
+   110px, all on one line — never had a mobile override) was guaranteed to
+   overflow/cram on a phone: the two fixed columns alone (330px) already
+   exceed a 375px screen before the bar gets any room. Same root cause as
+   the very first "054/454%/5459" garbled-numbers complaint this session,
+   just in a chart this pass hadn't reached yet. Label+amount pair on one
+   line (how they're actually read together), full-width bar underneath. */
+@media (max-width: 640px) {
+  .waterfall-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "label amount" "bar bar";
+    gap: 6px 10px;
+    align-items: center;
+  }
+  .wf-label-col { grid-area: label; width: auto; }
+  .wf-amount { grid-area: amount; width: auto; }
+  .wf-bar-track { grid-area: bar; }
+
+  /* تسوية منصات التوصيل — a real 7-column financial table with no mobile
+     handling, same collapse pattern used for Orders/Menu/Inventory. */
+  #deliveryReconSummary .report-table thead { display: none; }
+  #deliveryReconSummary .report-table,
+  #deliveryReconSummary .report-table tbody,
+  #deliveryReconSummary .report-table tr,
+  #deliveryReconSummary .report-table td { display: block; width: 100%; }
+  #deliveryReconSummary .report-table { overflow-x: visible; white-space: normal; }
+  #deliveryReconSummary .report-table tr {
+    border: 1px solid var(--line); border-radius: var(--r-md, 12px);
+    padding: 12px 14px; margin-bottom: 10px;
+  }
+  #deliveryReconSummary .report-table tr:last-child { margin-bottom: 0; }
+  #deliveryReconSummary .report-table td {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 5px 0; border: none; font-size: 12.5px;
+  }
+  #deliveryReconSummary .report-table td:first-child { font-weight: 800; font-size: 13.5px; padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1px dashed var(--line); }
+  #deliveryReconSummary .report-table td:nth-child(2)::before { content: "عدد الطلبات"; color: var(--muted); font-weight: 600; }
+  #deliveryReconSummary .report-table td:nth-child(3)::before { content: "إجمالي الطلبات"; color: var(--muted); font-weight: 600; }
+  #deliveryReconSummary .report-table td:nth-child(4)::before { content: "عمولة المنصة"; color: var(--muted); font-weight: 600; }
+  #deliveryReconSummary .report-table td:nth-child(5)::before { content: "رسوم التوصيل"; color: var(--muted); font-weight: 600; }
+  #deliveryReconSummary .report-table td:nth-child(6)::before { content: "تعويضات مفترضة"; color: var(--muted); font-weight: 600; }
+  #deliveryReconSummary .report-table td:nth-child(7)::before { content: "صافي المستحق"; color: var(--muted); font-weight: 700; }
+  #deliveryReconSummary .report-table td:nth-child(7) { border-top: 1px dashed var(--line); margin-top: 4px; padding-top: 8px; font-weight: 800; }
+}
+
+/* Multi-item purchase invoice form — one supplier + several stock-item lines,
+   entered together and saved as one invoice_group_id. */
+.inv-scan-wrap {
+  position: relative;
+  margin-bottom: 10px;
+}
+/* This one button is the whole point of the feature — scan a photo, skip
+   typing a line-item table by hand — so it gets the most emphasis in the
+   form: bigger, a soft lime glow, a real two-line hero label instead of one
+   long run-on sentence. Manual entry is still one tap away below, just
+   visually secondary. */
+.inv-scan-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 16px 14px;
+  border-radius: 16px;
+  border: none;
+  background: var(--graphite);
+  color: var(--lime, #C4FF2B);
+  cursor: pointer;
+  text-align: center;
+  box-shadow: 0 8px 22px rgba(196, 255, 43, 0.16), 0 2px 6px rgba(17, 17, 17, 0.18);
+}
+.inv-scan-btn:hover { background: #000; }
+.inv-scan-btn:disabled { opacity: 0.6; cursor: default; }
+.inv-scan-btn svg { flex-shrink: 0; }
+.inv-scan-btn-text { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: start; }
+.inv-scan-btn-title { font-weight: 800; font-size: 14px; }
+.inv-scan-btn-sub { font-weight: 600; font-size: 10.5px; color: rgba(196, 255, 43, 0.75); }
+.inv-scan-or {
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+  margin: 10px 0 14px;
+}
+
+/* Calm, standing reminder — not a toast that vanishes, not a warning-red
+   alert. Shows the moment a scan is picked (before results even land) so
+   it's already there, quietly, by the time there's something to check. */
+.inv-review-notice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  margin: -4px 0 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--lime) 12%, var(--surf1));
+  color: var(--text);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.inv-review-notice svg { flex-shrink: 0; color: var(--lime-deep, #8FCB17); }
+
+/* Persistent reconciliation status — 🟢 the AI's numbers add up correctly
+   vs 🟡 they don't and need a manual check, replacing what used to be a
+   toast that vanished after 2 seconds with a badge that stays on screen
+   until the block is saved or re-scanned. */
+.inv-review-notice.ok { background: color-mix(in srgb, var(--lime) 16%, var(--surf1)); }
+.inv-review-notice.ok svg { color: var(--lime-deep, #8FCB17); }
+.inv-review-notice.warn { background: color-mix(in srgb, var(--amber) 18%, var(--surf1)); color: var(--text); }
+.inv-review-notice.warn svg { color: var(--amber); }
+
+/* The number the whole form has been building toward — closes the flow on
+   the same graphite+lime note it opened on with the scan button, instead
+   of trailing off in the same neutral box every other total in the app
+   uses. */
+.inv-grand-total {
+  background: var(--graphite);
+  border-radius: 16px;
+  padding: 16px 18px;
+}
+.inv-grand-total .cpb-row.total {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0;
+  color: rgba(196, 255, 43, 0.75);
+  font-size: 12.5px;
+}
+.inv-grand-total .cpb-row.total .mono {
+  color: var(--lime, #C4FF2B);
+  font-size: 18px;
+}
+
+.inv-scan-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 16px;
+  background: var(--graphite);
+  color: var(--lime, #C4FF2B);
+}
+.inv-scan-spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(196, 255, 43, 0.25);
+  border-top-color: var(--lime, #C4FF2B);
+  animation: inv-scan-spin 0.8s linear infinite;
+}
+@keyframes inv-scan-spin { to { transform: rotate(360deg); } }
+.inv-scan-overlay-text { font-size: 11.5px; font-weight: 700; }
+
+.inv-lines-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  margin: 4px 0 8px;
+}
+.inv-lines-label::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--lime-deep, #8FCB17);
+  flex-shrink: 0;
+}
+.inv-line-headers {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr 0.8fr 28px;
+  gap: 8px;
+  padding: 0 2px;
+  margin-bottom: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.inv-line-row {
+  margin-bottom: 8px;
+}
+.inv-line-main {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr 0.8fr 28px;
+  gap: 8px;
+  align-items: center;
+}
+.inv-line-main select,
+.inv-line-main input {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 11px;
+  border: 1px solid var(--line, rgba(17, 17, 17, 0.12));
+  background: var(--card-bg, #fff);
+  font-size: 12.5px;
+  color: var(--text);
+  transition: border-color .12s ease;
+}
+.inv-line-main select:focus,
+.inv-line-main input:focus {
+  outline: none;
+  border-color: var(--lime-deep, #8FCB17);
+}
+.inv-line-new-fields {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 8px;
+  border-radius: var(--r-sm, 8px);
+  background: var(--surf1);
+}
+.inv-line-new-fields input,
+.inv-line-new-fields select {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: var(--r-sm, 8px);
+  border: 1px solid var(--lime, #C4FF2B);
+  background: var(--card-bg, #fff);
+  font-size: 12px;
+  color: var(--text);
+}
+.inv-line-raw-caption {
+  margin-top: 4px;
+  padding: 0 2px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.inv-line-caption-warn {
+  color: var(--danger, #a3402c);
+  font-weight: 700;
+}
+.inv-line-remove {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  border: none;
+  background: var(--surf2);
+  color: var(--danger, #a3402c);
+  cursor: pointer;
+  font-size: 13px;
+}
+.inv-add-line-btn {
+  display: block;
+  width: 100%;
+  padding: 11px;
+  margin: 4px 0 14px;
+  border-radius: 12px;
+  border: 1px dashed var(--line, rgba(17, 17, 17, 0.18));
+  background: transparent;
+  color: var(--graphite);
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+}
+.inv-add-line-btn:hover { background: var(--surf1); }
+
+@media (max-width: 560px) {
+  .inv-line-headers { display: none; }
+  .inv-line-main {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas: "item item" "qty total" "remove remove";
+    background: var(--card-bg);
+    border: 1px solid var(--line, rgba(17, 17, 17, 0.1));
+    border-radius: 14px;
+    padding: 12px;
+  }
+  .inv-line-new-fields { grid-template-columns: minmax(0, 1fr); }
+  .inv-line-main select { grid-area: item; }
+  .inv-line-main .inv-line-qty { grid-area: qty; }
+  .inv-line-main .inv-line-total { grid-area: total; }
+  .inv-line-main .inv-line-remove {
+    grid-area: remove;
+    width: 100%;
+    height: 32px;
+  }
+}
+
+/* Multi-supplier invoice blocks — one repeatable "inv-block" per physical
+   invoice inside a single add-invoice session (fix: buying from 2-3
+   suppliers in one sitting used to need 2-3 separate modal round-trips). */
+.inv-block {
+  padding: 16px;
+  margin-bottom: 14px;
+  border-radius: 18px;
+  border: 1px solid var(--line, rgba(17, 17, 17, 0.12));
+  background: var(--surf1);
+}
+.inv-block-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.inv-block-remove {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  margin-top: 22px;
+  border-radius: 7px;
+  border: none;
+  background: var(--surf2);
+  color: var(--danger, #a3402c);
+  cursor: pointer;
+  font-size: 13px;
+}
+.inv-block-subtotal {
+  margin-top: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: left;
+}
+.inv-add-block-btn {
+  display: block;
+  width: 100%;
+  padding: 13px;
+  margin-bottom: 10px;
+  border-radius: 14px;
+  border: 1.5px dashed var(--graphite);
+  background: transparent;
+  color: var(--graphite);
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.inv-add-block-btn:hover { background: var(--surf1); }
+
+/* Accounting → Expenses tab progressive disclosure: today's stat strip is
+   always visible, comparison/general-expenses panels stay collapsed until
+   tapped, so the frequent daily task (log today's purchases) isn't buried
+   under reference material the owner only needs occasionally. */
+.acct-today-stat {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.acct-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 700;
+}
+.acct-stat-row.acct-stat-empty {
+  color: var(--muted);
+  justify-content: center;
+}
+
+.acct-collapsible { padding: 0; overflow: hidden; }
+.acct-collapsible-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 16px 20px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 800;
+  cursor: pointer;
+  text-align: right;
+}
+.acct-collapsible-chevron {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+.acct-collapsible-toggle.open .acct-collapsible-chevron {
+  transform: rotate(180deg);
+}
+.acct-collapsible-body {
+  padding: 0 20px 18px;
+}
+.acct-collapsible-body.hidden { display: none; }
+
+/* Purchase history — "what did I log today" list, one card per invoice
+   (grouped by invoice_group_id), with edit/delete. Line-item detail stays
+   hidden until the card is tapped — answers "وش المسجل بالفاتورة" one tap
+   away without cluttering the default list view. */
+.purchase-history-card {
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line, rgba(17, 17, 17, 0.1));
+}
+.purchase-history-card:last-child { border-bottom: none; }
+.purchase-history-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.purchase-history-info { flex: 1; min-width: 0; cursor: pointer; }
+.purchase-history-supplier {
+  font-size: 12.5px;
+  font-weight: 800;
+}
+.purchase-history-meta {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.purchase-history-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.purchase-history-edit-btn,
+.purchase-history-delete-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  border: none;
+  background: var(--surf2);
+  cursor: pointer;
+  font-size: 13px;
+}
+.purchase-history-detail {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: var(--r-sm, 8px);
+  background: var(--surf1);
+}
+.purchase-history-detail.hidden { display: none; }
+.purchase-history-detail-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.purchase-history-detail-line + .purchase-history-detail-line {
+  border-top: 1px solid var(--line, rgba(17, 17, 17, 0.08));
+}
+
+/* Report document themes — 3 selectable designs, applied identically to the
+   live on-screen preview (.report-preview-doc) and the printed/exported PDF
+   (.print-report-root) so what the owner picks is exactly what comes out.
+   Backgrounds must survive print, which browsers strip by default. */
+.report-preview-doc,
+.print-report-root {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.reports-theme-card { padding: 14px; }
+.report-theme-picker {
+  display: flex;
+  gap: 10px;
+}
+.report-theme-swatch {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-radius: var(--r-md, 10px);
+  border: 1.5px solid var(--line, rgba(17,17,17,0.1));
+  background: transparent;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.report-theme-swatch.active {
+  border-color: var(--lime, #C4FF2B);
+  color: var(--text);
+  background: var(--surf1);
+}
+.report-theme-swatch-preview {
+  display: block;
+  width: 100%;
+  height: 34px;
+  border-radius: 6px;
+  border: 1px solid rgba(17,17,17,0.08);
+}
+.report-theme-swatch-preview.theme-classic {
+  background: linear-gradient(180deg, #FDFCFA 0%, #FDFCFA 60%, #C4FF2B 60%, #C4FF2B 100%);
+}
+.report-theme-swatch-preview.theme-dark {
+  background: linear-gradient(180deg, #171717 0%, #171717 60%, #C4FF2B 60%, #C4FF2B 100%);
+}
+.report-theme-swatch-preview.theme-formal {
+  background: linear-gradient(180deg, #0f3d3e 0%, #0f3d3e 40%, #ffffff 40%, #ffffff 100%);
+}
+
+/* Theme: classic (default) — the original cream/lime document look, already
+   styled by the base .report-preview-doc / .print-report-* rules above, so
+   theme-classic needs no overrides of its own. */
+
+/* Theme: dark elegant — matches the app's own dark UI chrome. */
+.report-preview-doc.theme-dark {
+  background: #171717;
+  color: #f2f2ed;
+}
+.report-preview-doc.theme-dark .report-doc-brand-name { color: #f2f2ed; }
+.report-preview-doc.theme-dark .report-doc-brand-sub,
+.report-preview-doc.theme-dark .report-doc-meta { color: #9a9a90; }
+.report-preview-doc.theme-dark .report-doc-logo-fallback { background: var(--lime, #C4FF2B); color: #171717; }
+.report-preview-doc.theme-dark .panel-title { color: #f2f2ed; }
+.report-preview-doc.theme-dark .report-stat-row { color: #c9c8c0; border-bottom-color: #303028; }
+.report-preview-doc.theme-dark .report-stat-row .mono { color: #f2f2ed; }
+.report-preview-doc.theme-dark .report-stat-row.total .mono { color: var(--lime, #C4FF2B); }
+.report-preview-doc.theme-dark .report-subtitle { color: #9a9a90; }
+.report-preview-doc.theme-dark .report-breakdown-track { background: #2a2a24; }
+.report-preview-doc.theme-dark .report-table th { color: #9a9a90; border-bottom-color: #303028; }
+.report-preview-doc.theme-dark .report-table td { border-bottom-color: #262620; }
+.report-preview-doc.theme-dark .orders-empty { color: #9a9a90; }
+
+.print-report-root.theme-dark { background: #171717; color: #f2f2ed; }
+.print-report-root.theme-dark .print-report-header { border-bottom-color: #C4FF2B; }
+.print-report-root.theme-dark .print-report-brand-sub,
+.print-report-root.theme-dark .print-report-meta { color: #9a9a90; }
+.print-report-root.theme-dark .print-report-logo-fallback { background: #C4FF2B; color: #171717; }
+.print-report-root.theme-dark .print-report-stat { border-bottom-color: #303028; }
+.print-report-root.theme-dark .print-report-stat.total { border-bottom-color: #C4FF2B; }
+.print-report-root.theme-dark .print-report-table th { background: #C4FF2B; color: #171717; }
+.print-report-root.theme-dark .print-report-table td { border-bottom-color: #262620; }
+.print-report-root.theme-dark .print-report-table tr:nth-child(even) td { background: #1e1e1a; }
+.print-report-root.theme-dark .print-report-footer { border-top-color: #303028; color: #767670; }
+.print-report-root.theme-dark .print-report-close-btn { background: #C4FF2B; color: #171717; }
+
+/* Theme: formal — a bold official-statement look: solid color header band,
+   grid-lined table, no lime branding accent. */
+.report-preview-doc.theme-formal { background: #fff; color: #1a1a1a; }
+.report-preview-doc.theme-formal .report-doc-header {
+  background: #0f3d3e;
+  color: #fff;
+  margin: -28px -26px 20px -26px;
+  padding: 24px 26px;
+  border-bottom: none;
+  border-radius: var(--r-lg, 14px) var(--r-lg, 14px) 0 0;
+}
+.report-preview-doc.theme-formal .report-doc-brand-name { color: #fff; }
+.report-preview-doc.theme-formal .report-doc-brand-sub,
+.report-preview-doc.theme-formal .report-doc-meta { color: #bcd4d0; }
+.report-preview-doc.theme-formal .report-doc-logo-fallback { background: #fff; color: #0f3d3e; }
+.report-preview-doc.theme-formal .panel-title { color: #0f3d3e; border-bottom: 2px solid #0f3d3e; padding-bottom: 8px; }
+.report-preview-doc.theme-formal .report-stat-row.total .mono { color: #0f3d3e; }
+.report-preview-doc.theme-formal .report-table th { background: #0f3d3e; color: #fff; }
+
+.print-report-root.theme-formal { background: #fff; color: #1a1a1a; }
+.print-report-root.theme-formal .print-report-header {
+  background: #0f3d3e;
+  color: #fff;
+  margin: -24px -24px 22px -24px;
+  padding: 22px 24px;
+  border-bottom: none;
+}
+.print-report-root.theme-formal .print-report-brand-name { color: #fff; }
+.print-report-root.theme-formal .print-report-brand-sub,
+.print-report-root.theme-formal .print-report-meta { color: #bcd4d0; }
+.print-report-root.theme-formal .print-report-logo-fallback { background: #fff; color: #0f3d3e; }
+.print-report-root.theme-formal .print-report-title { border-bottom: 2px solid #0f3d3e; padding-bottom: 10px; }
+.print-report-root.theme-formal .print-report-stat.total { border-bottom-color: #0f3d3e; color: #0f3d3e; }
+.print-report-root.theme-formal .print-report-table { border: 1px solid #0f3d3e; }
+.print-report-root.theme-formal .print-report-table th { background: #0f3d3e; color: #fff; }
+.print-report-root.theme-formal .print-report-footer { color: #0f3d3e; font-weight: 700; }
+
+@media (max-width: 900px) {
+  .report-theme-swatch { font-size: 9.5px; }
+}

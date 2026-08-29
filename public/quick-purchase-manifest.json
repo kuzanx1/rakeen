@@ -1,0 +1,16 @@
+{
+  "name": "مشتريات ركين — إضافة سريعة",
+  "short_name": "مشتريات ركين",
+  "description": "سجّل فاتورة مشتريات بسرعة، من غير ما تدخل لوحة التحكم كاملة.",
+  "start_url": "/dashboard/quick-purchase",
+  "scope": "/dashboard",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#111111",
+  "theme_color": "#111111",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    { "src": "/quick-purchase-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

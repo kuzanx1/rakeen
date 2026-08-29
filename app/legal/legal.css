@@ -1,0 +1,20 @@
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap');
+
+.legal-page{background:#FBFAF5; color:#171717; min-height:100vh; font-family:'Tajawal', sans-serif; line-height:1.9;}
+.legal-top{max-width:720px; margin:0 auto; padding:28px 24px 0;}
+.legal-back{display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:700; color:rgba(23,23,23,.55); text-decoration:none; transition:color .2s ease;}
+.legal-back:hover{color:#171717;}
+.legal-back svg{width:15px; height:15px;}
+.legal-logo{height:20px; width:auto; display:block; margin-top:22px;}
+.legal-article{max-width:720px; margin:0 auto; padding:26px 24px 100px;}
+.legal-title{font-size:clamp(24px,4vw,32px); font-weight:800; margin-bottom:6px;}
+.legal-updated{font-size:12.5px; font-weight:600; color:rgba(23,23,23,.5); margin-bottom:36px;}
+.legal-article h2{font-size:16.5px; font-weight:800; margin:34px 0 10px;}
+.legal-article p, .legal-article li{font-size:14px; font-weight:500; color:rgba(23,23,23,.82);}
+.legal-article ul{margin:10px 0; padding-inline-start:20px; display:flex; flex-direction:column; gap:6px;}
+.legal-article a{color:#7BAD0F; font-weight:700; text-decoration:underline; text-underline-offset:2px;}
+.legal-note{margin-top:40px; padding:16px 18px; border-radius:14px; background:rgba(196,255,43,.14); border:1px solid rgba(123,173,15,.25); font-size:12.5px; font-weight:600; color:rgba(23,23,23,.75);}
+@media (max-width:640px){
+  .legal-top{padding:20px 18px 0;}
+  .legal-article{padding:18px 18px 70px;}
+}
