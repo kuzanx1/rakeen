@@ -502,6 +502,7 @@ svg{display:block;}
 .mod-group-badge.required{color:var(--danger); background:rgba(224,138,106,0.14);}
 .mod-group-badge.optional{color:var(--muted); background:var(--surf2);}
 .mod-options{display:flex; flex-wrap:wrap; gap:9px;}
+.mod-group-empty-hint{font-size:11.5px; font-weight:600; color:var(--muted); opacity:0.85; line-height:1.6;}
 .mod-chip{
   padding:11px 16px; border-radius:var(--r-full); border:1.5px solid var(--line); background:var(--surf1);
   font-weight:700; font-size:12.5px; color:var(--text); display:flex; align-items:center; gap:6px; min-height:42px;

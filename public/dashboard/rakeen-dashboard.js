@@ -15,6 +15,25 @@ function escapeHtml(value){
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+// Overnight QA finding: every settings save on this page did
+// `supabase.from('businesses').update(...).eq('id', businessId)` and only
+// checked `error` — but when RLS's USING clause silently excludes the row
+// (e.g. a manager account, which the UI otherwise treats as fully trusted —
+// see screenAllowed()/has_permission() — hitting the owner-only
+// businesses_update policy), Supabase's client returns `error: null` with
+// zero rows affected, NOT an error. Every call site here was reporting
+// "تم الحفظ" (saved!) on a complete no-op. This wrapper makes that
+// unrepresentable: it selects the row back and throws a clear, catchable
+// error whenever nothing actually changed, so the existing per-panel
+// catch(err) blocks surface a real failure instead of a false success.
+async function updateCurrentBusiness(updates){
+  const { data, error } = await window.supabaseClient.from('businesses')
+    .update(updates).eq('id', CURRENT_PROFILE.business_id).select('id').maybeSingle();
+  if(error) throw error;
+  if(!data) throw new Error('تعذر الحفظ — تأكد إن عندك صلاحية كافية لتعديل إعدادات المطعم (يتطلب حساب المالك لبعض الإعدادات)');
+  return data;
+}
+
 /* ============ DATA — same schema the POS's real sales tracking produces ============
    In production this comes from the connected POS terminals via the backend.
    Seeded here with realistic representative data so the computation logic is genuine
@@ -1715,6 +1734,7 @@ async function deleteStockItem(){
   const item = STOCK_ITEMS.find(s=>s.id===editingStockId);
   const usedBy = getUsedInMap()[item.name];
   if(usedBy && usedBy.length){ showToast('ما تقدر تحذفه — مستخدم بوصفة ' + usedBy.length + ' منتج. شيله من الوصفة أول.'); return; }
+  if(!window.confirm('متأكد إنك تبي تحذف "' + item.name + '" من المخزون؟ هذا يحذف سجله وتكلفته نهائيًا.')) return;
   try {
     const { error } = await window.supabaseClient.from('stock_items').delete().eq('id', editingStockId);
     if(error) throw error;
@@ -4402,9 +4422,10 @@ document.getElementById('loyaltyTabs').addEventListener('click', (e)=>{
 document.getElementById('loyaltyEnabledToggle').addEventListener('change', async (e)=>{
   const enabled = e.target.checked;
   renderLoyaltyEnabledState(enabled);
-  const { error } = await window.supabaseClient.from('businesses').update({ loyalty_enabled: enabled }).eq('id', CURRENT_PROFILE.business_id);
-  if(error){
-    showToast('تعذر الحفظ: ' + error.message);
+  try {
+    await updateCurrentBusiness({ loyalty_enabled: enabled });
+  } catch(err){
+    showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
     renderLoyaltyEnabledState(!enabled);
     return;
   }
@@ -4434,8 +4455,7 @@ document.getElementById('winBackSaveBtn').addEventListener('click', async ()=>{
       win_back_inactive_days: Math.max(1, parseInt(document.getElementById('winBackDaysInput').value, 10) || 30),
       win_back_message: document.getElementById('winBackMessageInput').value.trim() || 'مشتقنالك! زورنا قريب — عندنا شي يسعدك 🎁'
     };
-    const { error } = await window.supabaseClient.from('businesses').update(updates).eq('id', CURRENT_PROFILE.business_id);
-    if(error) throw error;
+    await updateCurrentBusiness(updates);
     logDashboardAudit('حدّث إعدادات استرجاع العملاء الخاملين');
     showToast('تم حفظ إعدادات الاسترجاع');
   } catch(err){
@@ -4770,8 +4790,7 @@ document.getElementById('loyaltyBrandingSaveBtn').addEventListener('click', asyn
       updates.loyalty_banner_url = null;
     }
 
-    const { error } = await window.supabaseClient.from('businesses').update(updates).eq('id', CURRENT_PROFILE.business_id);
-    if(error) throw error;
+    await updateCurrentBusiness(updates);
     await loadLoyaltyBranding();
     renderLoyaltyBrandingPreview();
     logDashboardAudit('حدّث تصميم بطاقة الولاء');
@@ -4852,8 +4871,7 @@ document.getElementById('loyaltyRateSaveBtn').addEventListener('click', async ()
 
   btn.disabled = true;
   try {
-    const { error } = await window.supabaseClient.from('businesses').update(updates).eq('id', CURRENT_PROFILE.business_id);
-    if(error) throw error;
+    await updateCurrentBusiness(updates);
     if(systemType === 'points'){
       LOYALTY_RATE = updates.loyalty_points_divisor;
       renderLoyaltyKpis();
@@ -5956,9 +5974,14 @@ function wireDailyReportConfigForm(){
       update['daily_report_'+cb.dataset.key] = cb.checked;
     });
     btn.disabled = true;
-    const { error } = await window.supabaseClient.from('businesses').update(update).eq('id', CURRENT_PROFILE.business_id);
+    try {
+      await updateCurrentBusiness(update);
+    } catch(err){
+      btn.disabled = false;
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+      return;
+    }
     btn.disabled = false;
-    if(error){ showToast('تعذر الحفظ: ' + error.message); return; }
     DAILY_REPORT_CONFIG = { ...DAILY_REPORT_CONFIG, ...update };
     showToast('تم الحفظ — يطبّق من أول تقرير قادم');
   });
@@ -6796,8 +6819,7 @@ async function renderNotificationsSettings(){
         notify_delivery_prep_expired: document.getElementById('notifyDeliveryPrepExpired').checked,
         notify_sound_enabled: document.getElementById('notifySoundEnabled').checked,
       };
-      const { error } = await window.supabaseClient.from('businesses').update(updates).eq('id', CURRENT_PROFILE.business_id);
-      if(error) throw error;
+      await updateCurrentBusiness(updates);
       NOTIFY_SOUND_ENABLED = updates.notify_sound_enabled;
       logDashboardAudit('عدّل تفضيلات الإشعارات');
       showToast('تم حفظ التفضيلات');
@@ -7475,8 +7497,7 @@ async function renderPosSettings(){
     const msg = document.getElementById('settingsReceiptMessage').value.trim();
     receiptMessageSaveBtn.disabled = true;
     try {
-      const { error } = await window.supabaseClient.from('businesses').update({ receipt_custom_message: msg || null }).eq('id', CURRENT_PROFILE.business_id);
-      if(error) throw error;
+      await updateCurrentBusiness({ receipt_custom_message: msg || null });
       RECEIPT_CUSTOM_MESSAGE = msg;
       logDashboardAudit('عدّل رسالة الفاتورة');
       showToast('تم حفظ رسالة الفاتورة');
@@ -7500,12 +7521,11 @@ async function renderPosSettings(){
     if(mode === 'auto' && !(minutes >= 1 && minutes <= 120)){ showToast('الوقت التلقائي لازم يكون بين ١ و١٢٠ دقيقة'); return; }
     kitchenSettingsSaveBtn.disabled = true;
     try {
-      const { error } = await window.supabaseClient.from('businesses').update({
+      await updateCurrentBusiness({
         kitchen_ready_mode: mode,
         kitchen_auto_ready_minutes: minutes || 15,
         kitchen_new_order_sound_enabled: soundEnabled
-      }).eq('id', CURRENT_PROFILE.business_id);
-      if(error) throw error;
+      });
       logDashboardAudit('عدّل إعدادات شاشة المطبخ');
       showToast('تم حفظ إعدادات المطبخ');
     } catch(err){
@@ -7519,13 +7539,12 @@ async function renderPosSettings(){
   if(autoReadySaveBtn) autoReadySaveBtn.addEventListener('click', async ()=>{
     autoReadySaveBtn.disabled = true;
     try {
-      const { error } = await window.supabaseClient.from('businesses').update({
+      await updateCurrentBusiness({
         auto_ready_dine_in: document.getElementById('autoReadyDineInToggle').checked,
         auto_ready_pickup: document.getElementById('autoReadyPickupToggle').checked,
         auto_ready_delivery_platform: document.getElementById('autoReadyDeliveryPlatformToggle').checked,
         auto_ready_delivery_online: document.getElementById('autoReadyDeliveryOnlineToggle').checked
-      }).eq('id', CURRENT_PROFILE.business_id);
-      if(error) throw error;
+      });
       logDashboardAudit('عدّل إعدادات تخطي مرحلة الجاهزية');
       showToast('تم الحفظ');
     } catch(err){
@@ -7540,8 +7559,7 @@ async function renderPosSettings(){
     const timing = document.getElementById('dineInPayTimingSelect').value;
     dineInPayTimingSaveBtn.disabled = true;
     try {
-      const { error } = await window.supabaseClient.from('businesses').update({ dine_in_pay_timing: timing }).eq('id', CURRENT_PROFILE.business_id);
-      if(error) throw error;
+      await updateCurrentBusiness({ dine_in_pay_timing: timing });
       logDashboardAudit('عدّل توقيت الدفع للطاولات إلى ' + (timing === 'after' ? 'بعد الأكل' : 'قبل الأكل'));
       showToast('تم الحفظ');
     } catch(err){
@@ -7576,7 +7594,7 @@ async function renderPosSettings(){
     if(turnEnabled && !(turnMinutes >= 1 && turnMinutes <= 600)){ showToast('مدة الجلسة لازم تكون بين ١ و٦٠٠ دقيقة'); return; }
     resSettingsSaveBtn.disabled = true;
     try {
-      const { error } = await window.supabaseClient.from('businesses').update({
+      await updateCurrentBusiness({
         tables_reservations_enabled: enabled,
         tables_reservation_deposit_enabled: depositEnabled,
         tables_reservation_deposit_percent: depositPercent || 20,
@@ -7584,8 +7602,7 @@ async function renderPosSettings(){
         tables_turn_time_minutes: turnMinutes || 45,
         tables_reservation_conflict_warning_enabled: conflictWarning,
         tables_specific_booking_enabled: specificBooking
-      }).eq('id', CURRENT_PROFILE.business_id);
-      if(error) throw error;
+      });
       logDashboardAudit('عدّل إعدادات حجوزات الطاولات');
       showToast('تم حفظ إعدادات الحجوزات');
     } catch(err){
@@ -7642,6 +7659,11 @@ async function renderPosSettings(){
 
   panel.querySelectorAll('.staff-remove-btn').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
+      // Overnight QA finding: this button removed a cashier from the branch
+      // on a single click with no confirmation — unlike every other
+      // delete/remove action in this same panel (tables, sections). One
+      // misclick silently dropped a staff member from the POS staff list.
+      if(!window.confirm('تأكيد حذف هذا الموظف من قائمة الكاشير؟')) return;
       try {
         const { error } = await window.supabaseClient.from('staff_members').update({active:false}).eq('id', btn.dataset.id);
         if(error) throw error;
@@ -7981,8 +8003,7 @@ function wireRestaurantSettings(){
       if(logoFile){
         updates.logo_url = await uploadMediaFile(logoFile, 'business-branding', 'logo');
       }
-      const { error } = await window.supabaseClient.from('businesses').update(updates).eq('id', CURRENT_PROFILE.business_id);
-      if(error) throw error;
+      await updateCurrentBusiness(updates);
       RESTAURANT_INFO.name = name;
       VAT_REGISTERED = vatRegistered;
       BUSINESS_VAT_RATE = updates.vat_rate;
@@ -8025,8 +8046,7 @@ function wireRestaurantSettings(){
       } else if(bannerClear && bannerClear.checked){
         updates.online_banner_url = null;
       }
-      const { error } = await window.supabaseClient.from('businesses').update(updates).eq('id', CURRENT_PROFILE.business_id);
-      if(error) throw error;
+      await updateCurrentBusiness(updates);
       ONLINE_THEME_COLOR = updates.online_theme_color;
       if('online_banner_url' in updates) ONLINE_BANNER_URL = updates.online_banner_url || '';
       ONLINE_OFFERS_DELIVERY = updates.online_offers_delivery;
@@ -8061,8 +8081,7 @@ function wireRestaurantSettings(){
     bookingSaveBtn.disabled = true;
     try {
       const enabled = document.getElementById('settingsOnlineBookingEnabled').checked;
-      const { error } = await window.supabaseClient.from('businesses').update({ online_booking_enabled: enabled }).eq('id', CURRENT_PROFILE.business_id);
-      if(error) throw error;
+      await updateCurrentBusiness({ online_booking_enabled: enabled });
       ONLINE_BOOKING_ENABLED = enabled;
       renderSettingsPanel();
       showToast(enabled ? 'تم تفعيل الحجز الذاتي' : 'تم إيقاف الحجز الذاتي'); logDashboardAudit('عدّل إعداد الحجز الذاتي عبر الإنترنت');
@@ -9049,6 +9068,7 @@ async function saveProductEdit(){
 async function deleteProductFromModal(){
   if(!editingProductId) return;
   const item = MENU_ITEMS.find(m=>m.id===editingProductId);
+  if(!window.confirm('متأكد إنك تبي تحذف "' + (item ? item.name : 'هذا المنتج') + '" من القائمة؟')) return;
   const sb = window.supabaseClient;
   try {
     // capture this product's modifier groups before the link row cascades
@@ -9354,6 +9374,7 @@ async function deleteModGroup(){
   const group = MODIFIER_GROUPS.find(g=>g.id===editingModGroupId);
   const usedBy = MENU_ITEMS.filter(m=>m.modifierGroupIds.includes(editingModGroupId));
   if(usedBy.length > 0){ showToast('ما تقدر تحذفها — مستخدمة في ' + usedBy.length + ' منتج. شيلها من المنتج أول.'); return; }
+  if(!window.confirm('متأكد إنك تبي تحذف مجموعة "' + (group ? group.name : 'الخيارات') + '"؟')) return;
   try {
     const { error } = await window.supabaseClient.from('modifier_groups').delete().eq('id', editingModGroupId);
     if(error) throw error;
@@ -9940,6 +9961,7 @@ async function saveServiceEdit(){
 async function deleteServiceFromModal(){
   if(!editingServiceId) return;
   const service = SERVICES.find(s=>s.id===editingServiceId);
+  if(!window.confirm('متأكد إنك تبي تحذف خدمة "' + (service ? service.name : 'هذي الخدمة') + '"؟')) return;
   const sb = window.supabaseClient;
   try {
     const { error } = await sb.from('services').delete().eq('id', editingServiceId);
@@ -10147,6 +10169,7 @@ async function saveRoomEdit(){
 async function deleteRoomFromModal(){
   if(!editingRoomId) return;
   const room = HOTEL_ROOMS.find(r=>r.id===editingRoomId);
+  if(!window.confirm('متأكد إنك تبي تحذف غرفة "' + (room ? room.roomNumber : '') + '"؟')) return;
   try {
     const { error } = await window.supabaseClient.from('hotel_rooms').update({active:false}).eq('id', editingRoomId);
     if(error) throw error;
@@ -10517,10 +10540,16 @@ function showToast(msg){
 }
 
 /* ============ Audit Trail — footer bar on every page + full drawer.
-   Starts empty (no fake prior history) — real entries accumulate as this
-   session's real owner/manager/employee takes settings/menu/order actions.
-   No real client IP is obtainable from the browser without an external
-   lookup service, so that field is dropped rather than faked. */
+   Persisted server-side in dashboard_audit_log (see migration
+   20260829160000) via the log_dashboard_audit() RPC — a prior version of
+   this kept entries only in a JS array, so the "سجل التدقيق الكامل" (full
+   audit log) button showed nothing at all after any reload, and a staff
+   member who changed something and closed the tab left zero trace. The
+   local array below is now just an instant-feedback cache for the footer
+   line between the write and the next drawer fetch; the drawer itself
+   always reads the real persisted log. No real client IP is obtainable
+   from the browser without an external lookup service, so that field is
+   dropped rather than faked. */
 let DASHBOARD_AUDIT_LOG = [];
 function logDashboardAudit(action){
   DASHBOARD_AUDIT_LOG.unshift({
@@ -10528,6 +10557,9 @@ function logDashboardAudit(action){
     action, time: new Date().toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'})
   });
   updateAuditFooter();
+  window.supabaseClient.rpc('log_dashboard_audit', { p_action: action }).then(({ error })=>{
+    if(error) console.error('audit log write failed:', error.message);
+  });
 }
 function updateAuditFooter(){
   const el = document.getElementById('auditFooterItem1');
@@ -10535,14 +10567,28 @@ function updateAuditFooter(){
   const latest = DASHBOARD_AUDIT_LOG[0];
   el.textContent = latest.user + ' — ' + latest.action + ' — ' + latest.time;
 }
-function renderAuditDrawer(){
-  document.getElementById('auditDrawerBody').innerHTML = DASHBOARD_AUDIT_LOG.length
-    ? DASHBOARD_AUDIT_LOG.map(a=>
-        `<div class="audit-log-row"><span class="audit-log-user">${a.user}</span> — ${a.action}
-          <div class="audit-log-meta">${a.time}</div>
+async function renderAuditDrawer(){
+  const body = document.getElementById('auditDrawerBody');
+  body.innerHTML = '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p>';
+  const { data, error } = await window.supabaseClient.rpc('get_dashboard_audit_log', { p_limit: 100 });
+  if(error){
+    // Fall back to this session's in-memory entries rather than showing nothing.
+    body.innerHTML = DASHBOARD_AUDIT_LOG.length
+      ? DASHBOARD_AUDIT_LOG.map(a=>
+          `<div class="audit-log-row"><span class="audit-log-user">${a.user}</span> — ${a.action}
+            <div class="audit-log-meta">${a.time}</div>
+          </div>`
+        ).join('')
+      : '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">تعذر تحميل السجل — لا يوجد اتصال أو ما فيه نشاط مسجّل بعد.</p>';
+    return;
+  }
+  body.innerHTML = (data||[]).length
+    ? data.map(a=>
+        `<div class="audit-log-row"><span class="audit-log-user">${a.user_name || 'مستخدم'}</span> — ${a.action}
+          <div class="audit-log-meta">${new Date(a.created_at).toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'numeric', month:'numeric'})}</div>
         </div>`
       ).join('')
-    : '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">ما فيه نشاط مسجّل بعد بهالجلسة.</p>';
+    : '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">ما فيه نشاط مسجّل بعد.</p>';
 }
 document.getElementById('auditFooterViewAll').addEventListener('click', ()=>{
   renderAuditDrawer();

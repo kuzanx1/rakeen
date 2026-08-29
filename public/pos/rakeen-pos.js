@@ -482,8 +482,15 @@ function buildDefaultConfig(modDef){
   const config = {};
   modDef.groups.forEach(g=>{
     if(g.type === 'single'){
+      // A required group can legitimately have zero options for a moment —
+      // a manager adds the group to a menu item before adding any options to
+      // it. Without this guard, the very next tap on that product threw here
+      // (reading .id off undefined) and the product became unusable until
+      // reload. null just means "nothing selected yet"; every consumer of
+      // config (lineUnitPrice/computeConfigPrice/formatConfigLabels) already
+      // treats an unmatched option id as a no-op price/label contribution.
       const def = g.options.find(o=>o.default) || g.options[0];
-      config[g.id] = def.id;
+      config[g.id] = def ? def.id : null;
     } else {
       config[g.id] = g.options.filter(o=>o.default).map(o=>o.id);
     }
@@ -631,6 +638,11 @@ function renderGroupModifiers(){
     html += `<div class="mod-group">
       <div class="mod-group-head"><span class="mod-group-name">${g.name}</span><span class="mod-group-badge ${g.required?'required':'optional'}">${badge}</span></div>
       <div class="mod-options">`;
+    if(g.options.length === 0){
+      // Mirrors the box builder's own empty-state message below — a group
+      // with no options yet shouldn't crash the modal, just say so.
+      html += `<p class="mod-group-empty-hint">ما فيه خيارات مضافة لهذه المجموعة بعد — أضفها من لوحة التحكم.</p>`;
+    }
     g.options.forEach(o=>{
       const isSel = selectedArr.includes(o.id);
       html += `<button class="mod-chip ${isSel?'selected':''} ${o.critical?'critical':''}" data-group="${g.id}" data-opt="${o.id}" data-type="${g.type}">
@@ -1236,6 +1248,9 @@ function closePaymentModalNow(){
   modalStepStack = [];
   if(activeAutoResetTimer) clearInterval(activeAutoResetTimer);
   if(loyaltyPollTimer) clearInterval(loyaltyPollTimer);
+  // Re-drive any incoming online order(s) that arrived while this modal had
+  // the screen — see the guard in showNextIncomingOrder for why it backed off.
+  if(incomingOrderQueue.length && !incomingOrderModalBusy) showNextIncomingOrder();
 }
 function modalGoBack(){
   if(modalStepStack.length > 1){
@@ -1639,7 +1654,8 @@ async function sendOrderToServer(payload){
     p_payment_method: payload.payment_method, p_cash_amount: payload.cash_amount, p_items: payload.items,
     p_channel: payload.channel, p_delivery_platform_id: payload.delivery_platform_id,
     p_table_id: payload.table_id, p_staff_member_id: payload.staff_member_id,
-    p_platform_invoice_last4: payload.platform_invoice_last4
+    p_platform_invoice_last4: payload.platform_invoice_last4,
+    p_customer_id: payload.customer_id
   });
   if(error) throw error;
   return data;
@@ -1734,6 +1750,7 @@ function buildOrderPayload(totals){
     staff_member_id: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.id : null,
     customer_name: state.customer ? state.customer.name : null,
     customer_phone: state.customer ? state.customer.phone : null,
+    customer_id: state.customer ? (state.customer.id || null) : null,
     subtotal: totals.subtotal, discount_pct: state.discountPct, discount_amount: totals.discount,
     vat_amount: totals.vat, total: totals.total,
     payment_method: state.activePaymentMethod,
@@ -1770,7 +1787,14 @@ async function registerTableOrder(){
     modifiers_total: 0, line_total: lineUnitPrice(item) * item.qty, note: item.note || null,
     selected_modifiers: formatConfigLabels(item.productId, item.config).map(l=>({text:l.text})),
     stock_decrements: computeLineStockDecrements(item),
-    box_selections: computeLineBoxSelections(item)
+    box_selections: computeLineBoxSelections(item),
+    // Was missing entirely on this path — a points-redeemed item added to a
+    // dine-in table order (unlike pickup/delivery, which go through
+    // buildOrderPayload/sendOrderToServer instead) silently lost both flags
+    // here, so register_dine_in_order had nothing to charge the redemption
+    // against no matter what the RPC itself did with them.
+    is_points_redemption: !!item.isPointsRedemption,
+    points_cost: item.isPointsRedemption ? (MENU_ITEM_META[item.productId].pointsRedeemPrice || 0) : 0
   }));
   const {subtotal} = cartTotals();
   const clientOrderUuid = (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random().toString(36).slice(2)));
@@ -1780,6 +1804,7 @@ async function registerTableOrder(){
     p_shift_id: CURRENT_SHIFT ? CURRENT_SHIFT.id : null,
     p_customer_name: state.customer ? state.customer.name : null,
     p_customer_phone: state.customer ? state.customer.phone : null,
+    p_customer_id: state.customer ? (state.customer.id || null) : null,
     p_subtotal: subtotal,
     p_discount_pct: state.discountPct,
     p_items: items,
@@ -1806,12 +1831,13 @@ async function submitOrder(totals){
         : null,
       customer_name: state.customer ? state.customer.name : null,
       customer_phone: state.customer ? state.customer.phone : null,
+      customer_id: state.customer ? (state.customer.id || null) : null,
       orderId: null
     };
     try {
       const { error } = await window.supabaseClient.rpc('pay_dine_in_order', {
         p_order_id: state.resumingOrder.id, p_payment_method: payload.payment_method, p_cash_amount: payload.cash_amount,
-        p_customer_name: payload.customer_name, p_customer_phone: payload.customer_phone
+        p_customer_name: payload.customer_name, p_customer_phone: payload.customer_phone, p_customer_id: payload.customer_id
       });
       if(error) throw error;
       payload.orderId = state.resumingOrder.id;
@@ -1837,7 +1863,7 @@ async function submitOrder(totals){
       const orderId = await registerTableOrder();
       const { error } = await window.supabaseClient.rpc('pay_dine_in_order', {
         p_order_id: orderId, p_payment_method: payload.payment_method, p_cash_amount: payload.cash_amount,
-        p_customer_name: payload.customer_name, p_customer_phone: payload.customer_phone
+        p_customer_name: payload.customer_name, p_customer_phone: payload.customer_phone, p_customer_id: payload.customer_id
       });
       if(error) throw error;
       payload.orderId = orderId;
@@ -2263,15 +2289,16 @@ async function loadZatcaQrImage(receipt){
     const resp = await fetch('/api/qr?data=' + encodeURIComponent(payload));
     if(!resp.ok) return null;
     const svgText = await resp.text();
-    const blob = new Blob([svgText], {type:'image/svg+xml'});
-    const url = URL.createObjectURL(blob);
-    try {
-      const img = new Image();
-      await new Promise((resolve, reject)=>{ img.onload = resolve; img.onerror = reject; img.src = url; });
-      return img;
-    } finally {
-      URL.revokeObjectURL(url);
-    }
+    // Was a blob: object URL — silently blocked by this site's own CSP
+    // (img-src 'self' data: https:, no blob:), so every single receipt for
+    // every VAT-registered business was printing/showing with NO ZATCA QR at
+    // all (caught by the catch below, which exists for genuine network
+    // failures, not this). A data: URI carries the same SVG bytes and is
+    // already allowed by that policy — same image, zero CSP dependency.
+    const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText);
+    const img = new Image();
+    await new Promise((resolve, reject)=>{ img.onload = resolve; img.onerror = reject; img.src = dataUrl; });
+    return img;
   } catch (e) { return null; }
 }
 
@@ -2966,20 +2993,29 @@ async function openOrderDetail(orderId){
   });
   const refundBtn = document.getElementById('refundOrderBtn');
   if(refundBtn){
-    refundBtn.addEventListener('click', async ()=>{
+    refundBtn.addEventListener('click', ()=>{
       if(!window.confirm('متأكد إنك تبي تسترجع مبلغ هذا الطلب؟')) return;
-      refundBtn.disabled = true;
-      try {
-        const { error } = await window.supabaseClient.rpc('refund_pos_order', { p_order_id: orderId });
-        if(error) throw error;
-        showToast('تم استرجاع مبلغ الطلب');
-        sendOwnerPush('refund_cancel', 'استرجاع طلب', `تم استرجاع مبلغ ${Number(order.total).toFixed(2)} ر.س (طلب #${orderId}).`);
-        openOrderDetail(orderId);
-        renderOrdersList();
-      } catch(err){
-        showToast('تعذر الاسترجاع: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-        refundBtn.disabled = false;
-      }
+      // Manager-PIN gated — same stated convention as voiding an unpaid
+      // dine-in order (see the comment above confirmCancelOrder: "same
+      // convention as shift close and refunds"). This button used to go
+      // straight from a plain confirm() to the RPC — refund_pos_order only
+      // checks pos:register (every shared branch PIN has it), so any
+      // cashier could solo-refund a completed sale with no manager
+      // involved at all, contradicting that documented policy.
+      openPinModal(async () => {
+        refundBtn.disabled = true;
+        try {
+          const { error } = await window.supabaseClient.rpc('refund_pos_order', { p_order_id: orderId });
+          if(error) throw error;
+          showToast('تم استرجاع مبلغ الطلب');
+          sendOwnerPush('refund_cancel', 'استرجاع طلب', `تم استرجاع مبلغ ${Number(order.total).toFixed(2)} ر.س (طلب #${orderId}).`);
+          openOrderDetail(orderId);
+          renderOrdersList();
+        } catch(err){
+          showToast('تعذر الاسترجاع: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+          refundBtn.disabled = false;
+        }
+      });
     });
   }
 }
@@ -5343,6 +5379,17 @@ function enqueueIncomingOrder(orderId){
 
 async function showNextIncomingOrder(){
   if(incomingOrderQueue.length === 0){ stopIncomingOrderSound(); return; }
+  // paymentModal is the one shell behind checkout, the loyalty-redemption
+  // wait/picker steps, order detail, shift close, settings... all of it.
+  // It and incomingOrderModal sit at the exact same z-index, so whichever is
+  // later in the DOM (incomingOrderModal) simply paints over the other —
+  // and since this modal has deliberately no backdrop-dismiss, a payment
+  // already in progress (a real customer's loyalty confirmation is even
+  // running a 2-minute countdown, see renderLoyaltyWaitStep) would be
+  // completely buried with no visual cue anything was stuck underneath.
+  // Defer instead: leave the order queued, don't mark ourselves busy, and
+  // let closePaymentModalNow() re-drive the queue once that modal clears.
+  if(paymentModal.classList.contains('show')) return;
   incomingOrderModalBusy = true;
   const orderId = incomingOrderQueue[0];
   const [{data: order}, {data: items}] = await Promise.all([

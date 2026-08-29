@@ -1,0 +1,25 @@
+-- CRITICAL security fix found in overnight QA. delete_business_completely()
+-- (20260814050000) is a security-definer function with zero internal
+-- authorization check — it trusts entirely on its own comment claiming
+-- "Deliberately NOT granted to anon/authenticated... reachable only from
+-- trusted server-side admin code." That comment was never backed by an
+-- actual `revoke`. PostgreSQL grants EXECUTE on every newly created
+-- function to PUBLIC by default, and Supabase's `anon` and `authenticated`
+-- roles inherit PUBLIC grants — so the function was, in production, right
+-- now, callable by:
+--   * any authenticated dashboard/POS user of ANY business, targeting ANY
+--     other business_id (including business_id=1, the one real paying
+--     customer), and
+--   * a fully unauthenticated request using only the public anon key —
+--     no login at all.
+-- Verified directly against the live database with
+-- has_function_privilege('anon'|'authenticated', ..., 'EXECUTE') = true
+-- for this function before this migration (see scratch/pgtool/check_grant.js
+-- run during this QA pass). This is the same class of exposure the project
+-- already knew to close for encrypt_recipe_qty/decrypt_recipe_qty
+-- (20260827150000) — this function was simply missed.
+--
+-- Fix: revoke exactly like those two, leaving only service_role (used by
+-- app/api/admin/businesses/[id]/route.ts, which already gates on
+-- PLATFORM_ADMIN_EMAILS before calling this) able to execute it.
+revoke execute on function delete_business_completely(bigint) from public, anon, authenticated;

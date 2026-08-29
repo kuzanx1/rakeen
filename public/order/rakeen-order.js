@@ -189,12 +189,22 @@ if (!window.__rakeenOrderBooted) {
     let biz, error;
     try {
       const res = await sb.from('businesses')
-        .select('id, name, logo_url, online_banner_url, online_theme_color, online_offers_delivery, online_offers_pickup, online_delivery_fee, online_pickup_prep_minutes, vat_rate, prices_include_vat, vat_registered, online_order_free_count, online_subscribed, online_order_free_limit, is_active, geidea_connected')
+        .select('id, name, logo_url, online_banner_url, online_theme_color, online_offers_delivery, online_offers_pickup, online_delivery_fee, online_pickup_prep_minutes, vat_rate, prices_include_vat, vat_registered, online_order_free_count, online_subscribed, online_order_free_limit, is_active, geidea_connected, verification_status')
         .eq('online_menu_slug', SLUG).eq('online_ordering_enabled', true).maybeSingle();
       biz = res.data; error = res.error;
     } catch (e) { error = e; }
 
     if (error || !biz || !biz.is_active) {
+      document.getElementById('omApp').style.display = 'none';
+      document.body.insertAdjacentHTML('beforeend', `<div class="om-unavailable"><p>هذا المطعم مو متاح للطلب الإلكتروني حاليًا.</p></div>`);
+      return;
+    }
+    if (biz.verification_status === 'pending') {
+      document.getElementById('omApp').style.display = 'none';
+      document.body.insertAdjacentHTML('beforeend', `<div class="om-unavailable"><p>هذا المتجر قيد المراجعة من فريق ركين حالياً — يتفعّل قريباً.</p></div>`);
+      return;
+    }
+    if (biz.verification_status === 'rejected') {
       document.getElementById('omApp').style.display = 'none';
       document.body.insertAdjacentHTML('beforeend', `<div class="om-unavailable"><p>هذا المطعم مو متاح للطلب الإلكتروني حاليًا.</p></div>`);
       return;

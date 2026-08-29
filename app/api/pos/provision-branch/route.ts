@@ -106,16 +106,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, reset: true });
   }
 
+  // See create-team-member/route.ts for why this goes through a single-use
+  // invite token rather than raw business_id/user_type in signup metadata —
+  // the trigger that consumes it (handle_new_auth_user) also fires for
+  // Supabase's public self-serve signup endpoint, which anyone can call with
+  // arbitrary metadata using only the public anon key.
+  const { data: invite, error: inviteError } = await admin
+    .from("staff_invite_tokens")
+    .insert({ business_id: callerProfile.business_id, user_type: "employee", created_by: callerProfile.id, branch_id: branchId })
+    .select("token")
+    .single();
+  if (inviteError || !invite) {
+    console.error("provision-branch: invite issuance failed", inviteError);
+    return NextResponse.json({ error: "تعذر إنشاء الحساب" }, { status: 500 });
+  }
+
   const { data: created, error: createError } = await admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
     user_metadata: {
-      business_id: callerProfile.business_id,
-      branch_id: branchId,
-      user_type: "employee",
+      invite_token: invite.token,
       full_name: `نقطة بيع — ${branch.name}`,
-      created_by: callerProfile.id,
     },
   });
   if (createError || !created.user) {

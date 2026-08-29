@@ -70,15 +70,33 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "محاولات كثيرة، حاول بعد شوي" }, { status: 429 });
   }
 
+  // Issue a short-lived, single-use invite token instead of putting
+  // business_id/user_type/created_by directly into signup metadata.
+  // handle_new_auth_user() (the DB trigger that provisions the profiles row)
+  // used to trust that metadata verbatim — but the SAME trigger also fires
+  // for Supabase's public self-serve signup endpoint, which anyone can call
+  // with the public anon key and arbitrary metadata. A raw business_id there
+  // was a full cross-tenant account-takeover path (see
+  // 20260829180000_fix_signup_tenant_takeover.sql). The invite token is
+  // opaque, expires in 10 minutes, and is consumed exactly once by the
+  // trigger — it carries no attacker-controllable authorization decision.
+  const { data: invite, error: inviteError } = await admin
+    .from("staff_invite_tokens")
+    .insert({ business_id: callerProfile.business_id, user_type: userType, created_by: callerProfile.id })
+    .select("token")
+    .single();
+  if (inviteError || !invite) {
+    console.error("create-team-member: invite issuance failed", inviteError);
+    return NextResponse.json({ error: "تعذر إنشاء الحساب" }, { status: 500 });
+  }
+
   const { data: created, error: createError } = await admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
     user_metadata: {
-      business_id: callerProfile.business_id,
+      invite_token: invite.token,
       full_name: fullName,
-      user_type: userType,
-      created_by: callerProfile.id,
     },
   });
   if (createError || !created.user) {
