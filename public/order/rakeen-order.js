@@ -117,6 +117,14 @@ if (!window.__rakeenOrderBooted) {
   function loadDisplayMode() {
     try { DISPLAY_MODE = localStorage.getItem(LS_DISPLAY_MODE) === '1'; } catch { DISPLAY_MODE = false; }
   }
+  // The ordering-specific taglines ("order direct, no app commission") stop
+  // making sense once nobody can actually order from this screen.
+  function updateTaglinesForDisplayMode() {
+    const brandTag = document.getElementById('omBrandTag');
+    if (brandTag) brandTag.textContent = DISPLAY_MODE ? 'المنيو' : 'اطلب مباشرة من المطعم';
+    const heroChip = document.getElementById('omHeroChip');
+    if (heroChip) heroChip.textContent = DISPLAY_MODE ? 'تصفح قائمة الطعام' : 'طلب مباشر بدون عمولة تطبيقات';
+  }
   function updateChannelRowVisibility() {
     const channelRow = document.getElementById('omChannelRow');
     if (!channelRow) return;
@@ -149,6 +157,7 @@ if (!window.__rakeenOrderBooted) {
     try { localStorage.setItem(LS_DISPLAY_MODE, on ? '1' : '0'); } catch {}
     updateChannelRowVisibility();
     updateCartVisibilityForDisplayMode();
+    updateTaglinesForDisplayMode();
     renderMenu();
     renderDisplayModeToggle();
   }
@@ -313,6 +322,7 @@ if (!window.__rakeenOrderBooted) {
     renderDesktopCart();
     updateChannelRowVisibility();
     updateCartVisibilityForDisplayMode();
+    updateTaglinesForDisplayMode();
     renderDisplayModeToggle();
     wireEvents();
     renderBranchNote();

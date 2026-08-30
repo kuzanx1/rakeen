@@ -9,7 +9,7 @@ export const orderMarkup = `
           <div class="om-logo" id="omLogo">ر</div>
           <div class="om-brand-text">
             <span class="om-brand-name" id="omBrandName">—</span>
-            <span class="om-brand-tag">اطلب مباشرة من المطعم</span>
+            <span class="om-brand-tag" id="omBrandTag">اطلب مباشرة من المطعم</span>
           </div>
         </div>
       </div>
@@ -22,7 +22,7 @@ export const orderMarkup = `
         <div class="om-hero-info">
           <div class="om-hero-name" id="omHeroName">—</div>
           <div class="om-hero-chips">
-            <span class="om-hero-chip">طلب مباشر بدون عمولة تطبيقات</span>
+            <span class="om-hero-chip" id="omHeroChip">طلب مباشر بدون عمولة تطبيقات</span>
           </div>
         </div>
       </div>
