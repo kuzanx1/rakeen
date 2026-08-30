@@ -170,6 +170,16 @@ img{max-width:100%; display:block;}
 }
 .om-menu-empty{text-align:center; padding:60px 20px; color:var(--muted); font-weight:600; font-size:13.5px;}
 
+/* Deliberately quiet — a staff-only control for restaurants that mount this
+   page on a display screen (menu board, not self-order kiosk). A regular
+   customer scrolling their own phone shouldn't notice it; it needs no
+   visual weight since nobody is meant to reach for it by accident. */
+.om-display-mode-toggle{text-align:center; padding:18px 20px 28px;}
+.om-display-mode-link{
+  background:none; border:none; padding:4px 8px; font-size:10.5px; font-weight:600; color:var(--muted);
+  opacity:.45; text-decoration:underline; text-underline-offset:2px;
+}
+
 /* ===== Floating cart bar (mobile only — desktop uses the persistent panel) ===== */
 .om-cart-bar{
   position:fixed; bottom:calc(16px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); z-index:40;

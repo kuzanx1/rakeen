@@ -11,6 +11,14 @@ if (!window.__rakeenOrderBooted) {
   const sb = window.supabaseClient;
   const SLUG = window.RAKEEN_ORDER_SLUG;
   const LS_IDENTITY = 'rakeen_order_identity_' + SLUG;
+  const LS_DISPLAY_MODE = 'rakeen_order_display_mode_' + SLUG;
+
+  // "Display mode" — a per-device, staff-only setting (stored on this
+  // browser only, never touches the business's real settings) for a
+  // restaurant that mounts this same page on a screen at the counter purely
+  // to show the menu, with no ordering. Persists across reloads on that one
+  // device via localStorage; every other customer's own phone is unaffected.
+  let DISPLAY_MODE = false;
 
   let BUSINESS = null;
   let CATEGORIES = [];
@@ -104,6 +112,46 @@ if (!window.__rakeenOrderBooted) {
   }
 
   function money(n) { return Number(n || 0).toFixed(2); }
+
+  // ============ Display mode (staff-only, per-device, view-only menu) ============
+  function loadDisplayMode() {
+    try { DISPLAY_MODE = localStorage.getItem(LS_DISPLAY_MODE) === '1'; } catch { DISPLAY_MODE = false; }
+  }
+  function updateChannelRowVisibility() {
+    const channelRow = document.getElementById('omChannelRow');
+    if (!channelRow) return;
+    const hasChannelChoice = channelRow.children.length > 1;
+    channelRow.style.display = (DISPLAY_MODE || !hasChannelChoice) ? 'none' : '';
+  }
+  function updateCartVisibilityForDisplayMode() {
+    const desktopCart = document.getElementById('omDesktopCart');
+    if (DISPLAY_MODE) {
+      document.getElementById('omCartBar').style.display = 'none';
+      if (desktopCart) desktopCart.style.display = 'none';
+    } else {
+      if (desktopCart) desktopCart.style.display = '';
+      renderCartBar();
+    }
+  }
+  function renderDisplayModeToggle() {
+    const el = document.getElementById('omDisplayModeToggle');
+    if (!el) return;
+    el.innerHTML = DISPLAY_MODE
+      ? `<button type="button" class="om-display-mode-link" id="omExitDisplayModeBtn">إنهاء وضع العرض</button>`
+      : `<button type="button" class="om-display-mode-link" id="omEnterDisplayModeBtn">وضع العرض فقط</button>`;
+    const enterBtn = document.getElementById('omEnterDisplayModeBtn');
+    if (enterBtn) enterBtn.addEventListener('click', () => setDisplayMode(true));
+    const exitBtn = document.getElementById('omExitDisplayModeBtn');
+    if (exitBtn) exitBtn.addEventListener('click', () => setDisplayMode(false));
+  }
+  function setDisplayMode(on) {
+    DISPLAY_MODE = on;
+    try { localStorage.setItem(LS_DISPLAY_MODE, on ? '1' : '0'); } catch {}
+    updateChannelRowVisibility();
+    updateCartVisibilityForDisplayMode();
+    renderMenu();
+    renderDisplayModeToggle();
+  }
 
   // ============ Pickup time ============
   function pickupEarliestEstimate() { return new Date(Date.now() + PICKUP_PREP_MINUTES * 60000); }
@@ -257,11 +305,15 @@ if (!window.__rakeenOrderBooted) {
       document.getElementById('omMenu').innerHTML = `<div class="om-menu-empty">تعذر تحميل المنيو — حدّث الصفحة وحاول مرة ثانية.</div>`;
       return;
     }
+    loadDisplayMode();
     renderCatRail();
     renderMenu();
     loadCartFromStorage();
     renderCartBar();
     renderDesktopCart();
+    updateChannelRowVisibility();
+    updateCartVisibilityForDisplayMode();
+    renderDisplayModeToggle();
     wireEvents();
     renderBranchNote();
     if (state.channel === 'delivery') locateNearestBranch();
@@ -367,8 +419,8 @@ if (!window.__rakeenOrderBooted) {
             return `<button class="om-product-card" data-id="${p.id}" ${isBoxIncomplete ? 'disabled' : ''}>
               <div class="om-product-photo">
                 ${p.image ? `<img src="${p.image}" alt="" loading="lazy" decoding="async">` : PLACEHOLDER_SVG}
-                ${qtyInCart > 0 ? `<span class="om-product-qty-badge">${qtyInCart}</span>` : ''}
-                <span class="om-product-add">+</span>
+                ${qtyInCart > 0 && !DISPLAY_MODE ? `<span class="om-product-qty-badge">${qtyInCart}</span>` : ''}
+                ${!DISPLAY_MODE ? `<span class="om-product-add">+</span>` : ''}
               </div>
               <div class="om-product-info">
                 <div class="om-product-name">${p.name}</div>
@@ -392,7 +444,10 @@ if (!window.__rakeenOrderBooted) {
     const product = PRODUCTS.find(p => p.id === productId);
     if (product.costMode === 'box') { openBoxBuilder(product); return; }
     const modDef = MODIFIER_PRODUCTS[productId];
-    if (!modDef) { addToCart(product, null, 1); showToast('أُضيف — ' + product.name); return; }
+    if (!modDef) {
+      if (DISPLAY_MODE) return; // nothing to browse beyond the card itself, and never add to cart
+      addToCart(product, null, 1); showToast('أُضيف — ' + product.name); return;
+    }
     const config = {};
     modDef.groups.forEach(g => {
       const def = g.options.find(o => o.default) || g.options[0];
@@ -436,14 +491,16 @@ if (!window.__rakeenOrderBooted) {
       </div>
     `).join('');
     const unitPrice = computeConfigPrice(product, config, modDef);
-    html += `
-      <div class="om-mod-qty-row">
-        <button class="om-mod-qty-btn" id="omModQtyDec">−</button>
-        <span class="om-mod-qty-val">${qty}</span>
-        <button class="om-mod-qty-btn" id="omModQtyInc">+</button>
-      </div>
-      <button class="om-mod-confirm" id="omModConfirm">أضف للسلة — <span class="mono">${money(unitPrice * qty)}</span> ر.س</button>
-    `;
+    if (!DISPLAY_MODE) {
+      html += `
+        <div class="om-mod-qty-row">
+          <button class="om-mod-qty-btn" id="omModQtyDec">−</button>
+          <span class="om-mod-qty-val">${qty}</span>
+          <button class="om-mod-qty-btn" id="omModQtyInc">+</button>
+        </div>
+        <button class="om-mod-confirm" id="omModConfirm">أضف للسلة — <span class="mono">${money(unitPrice * qty)}</span> ر.س</button>
+      `;
+    }
     document.getElementById('omModifierBody').innerHTML = html;
     document.querySelectorAll('.om-mod-chip').forEach(chip => {
       chip.addEventListener('click', () => {
@@ -451,9 +508,12 @@ if (!window.__rakeenOrderBooted) {
         renderModifierSheet();
       });
     });
-    document.getElementById('omModQtyDec').addEventListener('click', () => { modifierState.qty = Math.max(1, modifierState.qty - 1); renderModifierSheet(); });
-    document.getElementById('omModQtyInc').addEventListener('click', () => { modifierState.qty += 1; renderModifierSheet(); });
-    document.getElementById('omModConfirm').addEventListener('click', () => {
+    const qtyDec = document.getElementById('omModQtyDec');
+    if (qtyDec) qtyDec.addEventListener('click', () => { modifierState.qty = Math.max(1, modifierState.qty - 1); renderModifierSheet(); });
+    const qtyInc = document.getElementById('omModQtyInc');
+    if (qtyInc) qtyInc.addEventListener('click', () => { modifierState.qty += 1; renderModifierSheet(); });
+    const confirmBtn = document.getElementById('omModConfirm');
+    if (confirmBtn) confirmBtn.addEventListener('click', () => {
       const label = modDef.groups.map(g => g.options.find(o => o.id === config[g.id])?.name).filter(Boolean).join('، ');
       addToCart(product, { ...config }, qty, label);
       document.getElementById('omModifierOverlay').classList.remove('show');
@@ -491,9 +551,11 @@ if (!window.__rakeenOrderBooted) {
           </div>
         `).join('')}
       </div>
-      <button class="om-mod-confirm" id="omBoxConfirm" ${total === boxDef.slots ? '' : 'disabled'}>
-        ${total === boxDef.slots ? `أضف للسلة — <span class="mono">${money(product.price)}</span> ر.س` : `اختر ${boxDef.slots - total} قطعة كمان`}
-      </button>
+      ${!DISPLAY_MODE ? `
+        <button class="om-mod-confirm" id="omBoxConfirm" ${total === boxDef.slots ? '' : 'disabled'}>
+          ${total === boxDef.slots ? `أضف للسلة — <span class="mono">${money(product.price)}</span> ر.س` : `اختر ${boxDef.slots - total} قطعة كمان`}
+        </button>
+      ` : ''}
     `;
     document.getElementById('omModifierBody').innerHTML = html;
     document.querySelectorAll('[data-inc]').forEach(btn => btn.addEventListener('click', () => {
@@ -504,7 +566,7 @@ if (!window.__rakeenOrderBooted) {
       if (selections[btn.dataset.dec] > 0) { selections[btn.dataset.dec]--; renderBoxSheet(); }
     }));
     const confirmBtn = document.getElementById('omBoxConfirm');
-    if (total === boxDef.slots) {
+    if (confirmBtn && total === boxDef.slots) {
       confirmBtn.addEventListener('click', () => {
         const label = boxDef.items.filter(it => selections[it.id] > 0).map(it => `${it.name} ×${selections[it.id]}`).join('، ');
         addToCart(product, null, 1, label, { ...selections });

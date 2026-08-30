@@ -49,6 +49,8 @@ export const orderMarkup = `
     <nav class="om-cat-rail" id="omCatRail"></nav>
 
     <main class="om-menu" id="omMenu"></main>
+
+    <div class="om-display-mode-toggle" id="omDisplayModeToggle"></div>
   </div>
 
   <aside class="om-desktop-cart" id="omDesktopCart">
