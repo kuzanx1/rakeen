@@ -52,7 +52,14 @@ unless actually run and confirmed.
 - Checkpoint 4: 🟢 Verified (cart/pricing math + modifier query shape,
   real execution, real backend) / 🟡 Ready for Testing (the screen
   itself, CI green on both platforms). See `05-checkpoint-4-cart.md`.
-- Checkpoints 5-16: not started.
+- Checkpoint 5: 🟢 Verified (order-creation RPC correctness/idempotency
+  against the live backend across regular/pickup/delivery/dine-in/round-
+  append; the queue algorithm including no-head-of-line-blocking) /
+  🟡 Ready for Testing (real SQLite storage + screen, CI green on both
+  platforms including real op-sqlite native compilation) / 🔴 Needs
+  Hardware (true offline persistence + crash recovery). See
+  `06-checkpoint-5-order-creation.md`.
+- Checkpoints 6-16: not started.
 
 **Permanent rule recorded this checkpoint**: the PWA/Web POS is not being
 replaced — see `00-protection-and-rollback.md`'s new section.

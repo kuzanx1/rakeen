@@ -77,8 +77,11 @@ OK only the due item is dispatched; the backing-off item is skipped this pass
 This directly proves **requirement 8** (a failed order does not block
 another) at the algorithm level.
 
-Real CI: both platforms — see roadmap status for confirmed outcome as of
-this doc.
+Real CI: both platforms green on the **first attempt**
+(`macos-15`/Xcode 16.4, `ubuntu-latest`) — including the new
+`@op-engineering/op-sqlite` native dependency, which requires real
+native compilation (C++/Obj-C on iOS, Kotlin/JNI on Android) on both
+platforms, not just a JS package install.
 
 ## FAILED
 
@@ -130,5 +133,6 @@ real iOS/Android runtime, not just CI compilation.
 (regular/pickup/delivery/dine-in/round-append, all against the live
 backend) and the queue algorithm (including the no-head-of-line-blocking
 property) / 🟡 Ready for Testing for the real SQLite storage layer and the
-screen itself / 🔴 Needs Hardware for true offline persistence and
-crash-recovery behavior.
+screen itself (CI green on both platforms, including real native
+compilation of op-sqlite) / 🔴 Needs Hardware for true offline persistence
+and crash-recovery behavior.
