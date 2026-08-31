@@ -26,7 +26,7 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
     override func capacitorDidLoad() {
         super.capacitorDidLoad()
 
-        guard let webView = self.bridge?.webView else {
+        guard let webView = self.webView else {
             // Should never happen post-capacitorDidLoad — if it does, the
             // page will simply see printerBridgeAvailable()/
             // cashDrawerBridgeAvailable() return false, same as today's
@@ -83,7 +83,7 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
     }
 
     private func respond(callbackId: String, ok: Bool, error: String?, jsCallback: String) {
-        guard let webView = self.bridge?.webView else { return }
+        guard let webView = self.webView else { return }
         let resultJSON: String
         if ok {
             resultJSON = "{ok:true}"
@@ -93,7 +93,7 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
         }
         let js = "window.\(jsCallback) && window.\(jsCallback)('\(callbackId)', \(resultJSON));"
         DispatchQueue.main.async {
-            webView.evaluateJavaScript(js, completionHandler: nil)
+            webView.evaluateJavaScript(js, completionHandler: { (_: Any?, _: Error?) in })
         }
     }
 

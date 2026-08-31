@@ -99,7 +99,11 @@ summarized here:
    applied and diffable, but its correctness can only be confirmed by
    opening the project in Xcode.
 2. `MainViewController.capacitorDidLoad()` reaches into
-   `self.bridge?.webView?.configuration.userContentController` and:
+   `self.webView?.configuration.userContentController` and: (corrected —
+   an earlier draft used `self.bridge?.webView`, which a real compile on
+   GitHub Actions rejected with "value of type 'MainViewController' has no
+   member 'bridge'"; `webView` is a direct property on
+   `CAPBridgeViewController` itself in this Capacitor version)
    - registers two `WKScriptMessageHandler` channels
      (`androidPrintBridge`, `nativeCashDrawerBridge`)
    - injects a `WKUserScript` (`.atDocumentStart`) that defines
