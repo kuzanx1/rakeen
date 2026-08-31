@@ -40,10 +40,13 @@ unless actually run and confirmed.
 
 ## Current status (updated as checkpoints progress)
 
-- Checkpoint 1: 🟡 in progress — architecture/contracts exist and compile
-  (inherited from the POC, being revised now for the drawer-idempotency/
-  error-code/PrinterProfile requirements below); no real screen yet.
-- Checkpoints 2-16: not started.
+- Checkpoint 1: 🟡 Ready for Testing — architecture/contracts revised for
+  the drawer-idempotency/error-code/PrinterProfile requirements, real CI
+  green on both platforms after the change. See `02-checkpoint-1-shell-architecture.md`.
+- Checkpoint 2: 🟢 Verified (auth logic, against the live backend) /
+  🟡 Ready for Testing (the screen itself, not yet run on a device). See
+  `03-checkpoint-2-authentication.md`.
+- Checkpoints 3-16: not started.
 
 See `00-protection-and-rollback.md` for the safety rules this roadmap
 operates under, and `02-authentication.md` onward for per-checkpoint
