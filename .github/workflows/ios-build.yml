@@ -43,13 +43,13 @@ jobs:
         run: npx cap sync ios
 
       - name: List available schemes (diagnostic — confirms the real scheme name)
-        run: xcodebuild -list -workspace ios/App/App.xcworkspace
+        run: xcodebuild -list -project ios/App/App.xcodeproj
 
       - name: Resolve Swift Package Manager dependencies
         run: |
           set -o pipefail
           xcodebuild -resolvePackageDependencies \
-            -workspace ios/App/App.xcworkspace \
+            -project ios/App/App.xcodeproj \
             -scheme App \
             | tee spm-resolve.log
 
@@ -57,7 +57,7 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild build \
-            -workspace ios/App/App.xcworkspace \
+            -project ios/App/App.xcodeproj \
             -scheme App \
             -sdk iphonesimulator \
             -configuration Debug \

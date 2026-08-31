@@ -13,11 +13,19 @@ need Xcode/a Mac and have not been attempted from here.
    — ✅ ran successfully, produced `capacitor.config.ts` (since hand-edited
    further — see below).
 3. **`npx cap add ios`** — ✅ ran successfully, produced the full `ios/App/`
-   Xcode project (`.xcodeproj`, `.xcworkspace`, `AppDelegate.swift`,
-   `SceneDelegate.swift`, `Info.plist`, storyboards, `CapApp-SPM/Package.swift`).
+   Xcode project (`.xcodeproj`, `AppDelegate.swift`, `SceneDelegate.swift`,
+   `Info.plist`, storyboards, `CapApp-SPM/Package.swift`).
    No CocoaPods/`Podfile` involved — this Capacitor version uses Swift
    Package Manager exclusively, confirmed by the absence of any `Podfile`
-   and the presence of `CapApp-SPM/Package.swift`.
+   and the presence of `CapApp-SPM/Package.swift`. **Correction (found via
+   the actual CI build, not assumed in advance)**: this SPM-only setup does
+   NOT generate a separate `.xcworkspace` the way a CocoaPods-based
+   Capacitor project would — `ios/App/App.xcworkspace` does not exist
+   anywhere in this repo. The thing to open/build is `ios/App/App.xcodeproj`
+   directly; SPM package references are resolved inside the `.xcodeproj`
+   itself. An earlier draft of this guide assumed the workspace convention
+   and was wrong — corrected once a real `xcodebuild` run on GitHub Actions
+   surfaced `xcodebuild: error: 'ios/App/App.xcworkspace' does not exist.`
 4. **`npx cap sync ios`** — ✅ ran successfully (copies `public/` into
    `ios/App/App/public` — mostly irrelevant since `server.url` is set, see
    below — and regenerates `Package.swift`'s plugin list).
@@ -48,11 +56,14 @@ Windows. What follows genuinely cannot be done here.
 ### 9. Open the project
 
 ```
-open ios/App/App.xcworkspace
+open ios/App/App.xcodeproj
 ```
 
-Open the **`.xcworkspace`**, not the `.xcodeproj` — Capacitor's SPM
-integration (`CapApp-SPM`) is wired through the workspace.
+There is no `.xcworkspace` in this project (see the correction note above) —
+open the `.xcodeproj` directly. Capacitor's SPM integration
+(`CapApp-SPM`) is wired in as a local Swift package reference inside the
+`.xcodeproj` itself — see `docs/windows-complete-mac-required.md` for
+whether a real build against this structure has actually succeeded.
 
 ### 10. Let Swift Package Manager resolve
 
