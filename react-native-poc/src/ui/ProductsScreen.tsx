@@ -9,6 +9,9 @@ import {
   View,
 } from 'react-native';
 import { loadCatalog, getBusinessType, getFinancialSettings, CatalogResult } from '../application/catalogService';
+import { submitOrder } from '../application/orderService';
+import { getDeviceConfig } from '../application/authService';
+import { buildOrderPayload, buildDineInRegisterPayload } from '../domain/order';
 import type { Product } from '../domain/catalog';
 import type { OrderChannel } from '../domain/cart';
 import type { CashierProfile } from '../domain/auth';
@@ -23,14 +26,15 @@ const CHANNEL_LABELS: Record<OrderChannel, string> = {
 };
 
 /**
- * Checkpoint 3 screen extended for Checkpoint 4 (Cart) -- real categories/
- * products (unchanged from Checkpoint 3) plus a real cart: modifier
- * groups, quantities, percentage discount, order channel, and the exact
- * subtotal/discount/VAT/total math from domain/cart.ts. Order submission/
- * payment is a later checkpoint -- the "إتمام الطلب" button below is
- * intentionally a dead end for now (disabled with a note), per the
- * explicit instruction not to move to payment before Cart has functional
- * parity.
+ * Checkpoint 3 (Products/Categories) + Checkpoint 4 (Cart) + Checkpoint 5
+ * (Order Creation) in one screen. The submit button creates a REAL order
+ * against the real backend (queue-first via application/orderService.ts)
+ * -- but this is ORDER CREATION, not Payment (Checkpoint 7): dine-in calls
+ * register_dine_in_order (genuinely payment-free); pickup/delivery use
+ * complete_pos_order with a fixed cash/full-amount default since that RPC
+ * is the only order-creation mechanism the real backend has for those
+ * channels (see domain/order.ts's OrderPayload doc comment) -- no payment
+ * method selection, split payment, or receipt/confirmation UI exists yet.
  */
 export default function ProductsScreen({ cashier }: { cashier: CashierProfile }) {
   const [loading, setLoading] = useState(true);
@@ -87,6 +91,73 @@ export default function ProductsScreen({ cashier }: { cashier: CashierProfile })
       setModifierTarget(product);
     } else {
       cart.addProduct(product.id);
+    }
+  };
+
+  const [submitStatus, setSubmitStatus] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  /**
+   * Checkpoint 5 (Order Creation) -- NOT Payment. For dine_in this calls
+   * register_dine_in_order only (genuinely payment-free in the real
+   * system too). For pickup/delivery, complete_pos_order is the ONLY
+   * order-creation mechanism the real backend has -- it creates and pays
+   * atomically -- so this defaults payment_method to 'cash'/full amount
+   * (see domain/order.ts's own doc comment) rather than building any real
+   * payment UI, which is explicitly out of scope until Checkpoint 7.
+   *
+   * shift_id/staff_member_id are null here -- shift tracking and the
+   * staff picker are separate, not-yet-built checkpoints; a real gap,
+   * disclosed, not silently worked around.
+   */
+  const handleSubmitOrder = async () => {
+    if (cart.cart.length === 0 || !catalog) return;
+    setSubmitting(true);
+    setSubmitStatus('');
+    try {
+      const device = await getDeviceConfig();
+      if (device.branchId == null) {
+        setSubmitStatus('🔴 لا يوجد فرع مرتبط بهذا الجهاز — أعد تجهيز الجهاز');
+        return;
+      }
+      const ctx = {
+        branchId: device.branchId,
+        shiftId: null,
+        staffMemberId: null,
+        customerName: null,
+        customerPhone: null,
+        customerId: null,
+        discountPct: cart.discountPct,
+        discountAmount: cart.totals.discount,
+        vatAmount: cart.totals.vat,
+        total: cart.totals.total,
+        subtotal: cart.totals.subtotal,
+        channel: cart.orderChannel,
+        deliveryPlatformId: null,
+        platformInvoiceLast4: null,
+        tableId: null,
+      };
+
+      const payload =
+        cart.orderChannel === 'dine_in'
+          ? buildDineInRegisterPayload(cart.cart, productsById, catalog.modifiersByProductId, cart.unitPriceOf, {
+              ...ctx,
+              existingOrderId: null,
+            })
+          : buildOrderPayload(cart.cart, productsById, catalog.modifiersByProductId, cart.unitPriceOf, ctx);
+
+      const result = await submitOrder(payload);
+      if (result.immediate) {
+        setSubmitStatus(`✅ تم إنشاء الطلب (client_order_uuid=${payload.client_order_uuid.slice(0, 8)}...)`);
+        cart.clearCart();
+      } else {
+        setSubmitStatus(`⏳ محفوظ محليًا، سيُرسل تلقائيًا عند توفر الاتصال (${result.error})`);
+        cart.clearCart(); // the order is safe in the SQLite queue regardless -- clearing the cart matches the real app's own behavior of moving on once an order is queued, not waiting on the network
+      }
+    } catch (e) {
+      setSubmitStatus(`🔴 خطأ غير متوقع: ${String(e)}`);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -232,8 +303,18 @@ export default function ProductsScreen({ cashier }: { cashier: CashierProfile })
             </View>
           </View>
 
-          <TouchableOpacity style={styles.checkoutButton} disabled>
-            <Text style={styles.checkoutButtonText}>إتمام الطلب (Checkpoint 5-7)</Text>
+          {!!submitStatus && <Text style={styles.submitStatus}>{submitStatus}</Text>}
+          <TouchableOpacity
+            style={[styles.checkoutButton, cart.cart.length > 0 && styles.checkoutButtonActive]}
+            onPress={handleSubmitOrder}
+            disabled={cart.cart.length === 0 || submitting}>
+            <Text style={styles.checkoutButtonText}>
+              {submitting
+                ? 'جارٍ الإرسال...'
+                : cart.orderChannel === 'dine_in'
+                ? 'تسجيل الطلب (بدون دفع بعد)'
+                : 'إنشاء الطلب (بدون دفع بعد)'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -342,5 +423,7 @@ const styles = StyleSheet.create({
   totalsLabelFinal: { fontSize: 14, fontWeight: '800' },
   totalsValueFinal: { fontSize: 14, fontWeight: '800', color: '#2e7d32' },
   checkoutButton: { backgroundColor: '#ccc', padding: 14, alignItems: 'center', margin: 12, borderRadius: 10 },
+  checkoutButtonActive: { backgroundColor: '#8bc34a' },
   checkoutButtonText: { color: '#666', fontWeight: '700', fontSize: 12 },
+  submitStatus: { fontSize: 11, textAlign: 'center', paddingHorizontal: 12, color: '#444' },
 });
