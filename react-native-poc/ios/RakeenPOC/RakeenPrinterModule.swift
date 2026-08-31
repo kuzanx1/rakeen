@@ -21,24 +21,29 @@ class RakeenPrinterModule: NSObject {
     @objc
     static func requiresMainQueueSetup() -> Bool { return false }
 
-    /// job: { host: String, port: Int, escPosBase64: String, timeoutMs: Int }
-    /// Matches PrintJob/PrinterTarget in src/platform/printer.ts exactly —
-    /// port is required, never defaulted to 9100 here.
+    /// Matches the target.host/target.port/escPosBase64/timeoutMs shape
+    /// PrintJob in src/platform/printer.ts sends — port is required, never
+    /// defaulted to 9100 here. Also accepts the flat {host,port,...} shape
+    /// for backward compatibility with the original POC screen.
     @objc
     func print(_ job: NSDictionary, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-        guard let host = job["host"] as? String,
-              let portNumber = job["port"] as? NSNumber,
-              let base64 = job["escPosBase64"] as? String,
-              let bytes = Data(base64Encoded: base64) else {
-            resolve(["ok": false, "error": "invalid_target"])
+        let targetDict = (job["target"] as? NSDictionary) ?? job
+        guard let host = targetDict["host"] as? String,
+              let portNumber = targetDict["port"] as? NSNumber,
+              let base64 = job["escPosBase64"] as? String else {
+            resolve(["ok": false, "error": "INVALID_TARGET"])
+            return
+        }
+        guard let bytes = Data(base64Encoded: base64) else {
+            resolve(["ok": false, "error": "RENDER_FAILED"])
             return
         }
         let port = UInt16(truncating: portNumber)
-        transport.send(bytes: bytes, host: host, port: port) { ok, error in
+        transport.send(bytes: bytes, host: host, port: port) { ok, errorDetail in
             if ok {
                 resolve(["ok": true])
             } else {
-                resolve(["ok": false, "error": error ?? "unknown_error"])
+                resolve(["ok": false, "error": "PRINTER_CONNECTION_FAILED", "errorDetail": errorDetail ?? "unknown_error"])
             }
         }
     }
@@ -48,14 +53,17 @@ class RakeenPrinterModule: NSObject {
     func testConnection(_ target: NSDictionary, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         guard let host = target["host"] as? String,
               let portNumber = target["port"] as? NSNumber else {
-            resolve(["reachable": false, "error": "invalid_target"])
+            resolve(["reachable": false, "error": "INVALID_TARGET"])
             return
         }
         let port = UInt16(truncating: portNumber)
-        transport.testConnection(host: host, port: port) { reachable, latencyMs, error in
+        transport.testConnection(host: host, port: port) { reachable, latencyMs, errorDetail in
             var result: [String: Any] = ["reachable": reachable]
             if let latencyMs = latencyMs { result["latencyMs"] = latencyMs }
-            if let error = error { result["error"] = error }
+            if let errorDetail = errorDetail {
+                result["error"] = "PRINTER_CONNECTION_FAILED"
+                result["errorDetail"] = errorDetail
+            }
             resolve(result)
         }
     }
@@ -71,7 +79,7 @@ class RakeenPrinterModule: NSObject {
     }
 
     @objc
-    func capabilities(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    func getCapabilities(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         resolve([
             "supportedTransports": ["network"],
             "supportsCut": true,

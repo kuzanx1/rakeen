@@ -52,6 +52,41 @@ export interface PrinterCapabilities {
   paperWidthPx: number;
 }
 
+/**
+ * Per-model drawer behavior override. Most real setups wire the drawer
+ * through the receipt printer's own RJ11 port and the standard ESC/POS
+ * kick command works — `kickCommandBase64` exists so a confirmed-different
+ * real model has somewhere to override it, not because any model has
+ * actually required one yet.
+ */
+export interface DrawerCapabilities {
+  supported: boolean;
+  kickCommandBase64?: string;
+}
+
+/**
+ * A configured printer, extensible per the migration's explicit
+ * requirement (docs/react-native-migration — never assume one brand,
+ * model, port, ESC/POS behavior, or drawer command). Not yet backed by a
+ * real Settings UI or persisted anywhere — this is the shape a future
+ * printer-configuration screen will populate; `PrinterTarget` above
+ * remains the minimal thing actually passed to `Printer.print()` today.
+ */
+export interface PrinterProfile {
+  brand?: string;
+  model?: string;
+  transport: PrinterTransportKind;
+  /** IP address or resolvable hostname — network transport only. */
+  host?: string;
+  /** Never defaulted here. A Settings UI may pre-fill 9100 as a
+   *  convenience value, but this contract never assumes it. */
+  port?: number;
+  protocol: 'escpos';
+  paperWidthPx?: number;
+  capabilities: PrinterCapabilities;
+  drawerCapabilities: DrawerCapabilities;
+}
+
 export interface PrintJob {
   target: PrinterTarget;
   /** Complete, pre-built ESC/POS byte stream (raster image + init + cut),
@@ -68,19 +103,31 @@ export interface PrintJob {
   timeoutMs: number;
 }
 
-export type PrinterErrorCode =
-  | 'invalid_target'
-  | 'invalid_port'
-  | 'connection_refused'
-  | 'connection_timeout'
-  | 'host_unreachable'
-  | 'unsupported_transport'
-  | 'render_failed'
-  | string; // native code may report a more specific string; never coerced
+/**
+ * Two-tier error model, per the migration's explicit "no fake success"
+ * rule (docs/react-native-migration/00-protection-and-rollback.md):
+ *
+ * - `error` is one of a small set of RESERVED, exact-string categories the
+ *   cashier-facing UI is allowed to branch on: `PRINTER_UNAVAILABLE` (no
+ *   native transport exists at all for this platform/build — the honest
+ *   equivalent of the old `printerBridgeAvailable() === false`),
+ *   `PRINTER_CONNECTION_FAILED` (a transport exists but couldn't reach
+ *   this specific target), `INVALID_TARGET`, `RENDER_FAILED`.
+ * - `errorDetail` carries the specific real technical reason (e.g.
+ *   `connection_refused`/`connection_timeout`/`host_unreachable`) for
+ *   Diagnostics/support — never shown to the cashier as the primary
+ *   message, never silently dropped either.
+ */
+export type PrinterErrorCategory =
+  | 'PRINTER_UNAVAILABLE'
+  | 'PRINTER_CONNECTION_FAILED'
+  | 'INVALID_TARGET'
+  | 'RENDER_FAILED';
 
 export interface PrintResult {
   ok: boolean;
-  error?: PrinterErrorCode;
+  error?: PrinterErrorCategory;
+  errorDetail?: string;
 }
 
 export interface ConnectionTestResult {
@@ -89,7 +136,8 @@ export interface ConnectionTestResult {
    *  screen's "Test Printer" button so a slow/flaky LAN is visible, not
    *  just a boolean. */
   latencyMs?: number;
-  error?: PrinterErrorCode;
+  error?: PrinterErrorCategory;
+  errorDetail?: string;
 }
 
 export type PrinterStatusKind =
@@ -101,14 +149,15 @@ export type PrinterStatusKind =
 
 export interface PrinterStatus {
   status: PrinterStatusKind;
-  lastError?: PrinterErrorCode;
+  lastError?: PrinterErrorCategory;
+  lastErrorDetail?: string;
 }
 
 export interface PrinterAPI {
   print(job: PrintJob): Promise<PrintResult>;
   testConnection(target: PrinterTarget): Promise<ConnectionTestResult>;
   getStatus(): Promise<PrinterStatus>;
-  capabilities(): Promise<PrinterCapabilities>;
+  getCapabilities(): Promise<PrinterCapabilities>;
 }
 
 /**
@@ -121,3 +170,18 @@ export interface PrinterAPI {
  * an honest "not available," never a crash.
  */
 export const Printer: PrinterAPI | undefined = NativeModules.RakeenPrinterModule;
+
+/**
+ * Thin wrapper enforcing the "no fake success" rule at the one place every
+ * print attempt passes through: if `Printer` itself doesn't exist (no
+ * native module linked on this platform/build), this returns
+ * `PRINTER_UNAVAILABLE` honestly instead of the caller having to remember
+ * to check `Printer === undefined` every time — the same discipline the
+ * old web app's `printerBridgeAvailable()` enforced for `window.AndroidPrint`.
+ */
+export async function printReceipt(job: PrintJob): Promise<PrintResult> {
+  if (!Printer) {
+    return { ok: false, error: 'PRINTER_UNAVAILABLE' };
+  }
+  return Printer.print(job);
+}

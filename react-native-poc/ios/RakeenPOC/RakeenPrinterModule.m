@@ -13,7 +13,7 @@ RCT_EXTERN_METHOD(testConnection:(NSDictionary *)target
 RCT_EXTERN_METHOD(getStatus:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
-RCT_EXTERN_METHOD(capabilities:(RCTPromiseResolveBlock)resolve
+RCT_EXTERN_METHOD(getCapabilities:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
 @end

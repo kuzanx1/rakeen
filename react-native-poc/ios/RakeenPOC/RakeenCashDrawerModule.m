@@ -6,7 +6,7 @@ RCT_EXTERN_METHOD(open:(NSDictionary *)options
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
-RCT_EXTERN_METHOD(capabilities:(RCTPromiseResolveBlock)resolve
+RCT_EXTERN_METHOD(getCapabilities:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
 @end

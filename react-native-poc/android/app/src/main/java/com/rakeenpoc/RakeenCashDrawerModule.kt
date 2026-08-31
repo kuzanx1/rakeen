@@ -23,7 +23,12 @@ class RakeenCashDrawerModule(reactContext: ReactApplicationContext) :
 
     override fun getName() = "RakeenCashDrawerModule"
 
-    /** options: { target: { host, port }, kickCommandBase64?: String } */
+    /** options: { target: { host, port }, kickCommandBase64?: String,
+     *  operationId: String, timeoutMs: Int }. `operationId` is accepted but
+     *  intentionally NOT used for dedup here -- double-kick protection is
+     *  enforced JS-side in openCashDrawer()
+     *  (react-native-poc/src/platform/cashDrawer.ts); this native method
+     *  always executes exactly one kick per invocation. */
     @ReactMethod
     fun open(options: ReadableMap, promise: Promise) {
         val target = if (options.hasKey("target")) options.getMap("target") else null
@@ -33,7 +38,7 @@ class RakeenCashDrawerModule(reactContext: ReactApplicationContext) :
         if (host == null || port <= 0) {
             val result = Arguments.createMap()
             result.putBoolean("ok", false)
-            result.putString("error", "invalid_target")
+            result.putString("error", "INVALID_TARGET")
             promise.resolve(result)
             return
         }
@@ -48,16 +53,19 @@ class RakeenCashDrawerModule(reactContext: ReactApplicationContext) :
             DEFAULT_KICK_COMMAND
         }
 
-        transport.send(host, port, bytes) { ok, error ->
+        transport.send(host, port, bytes) { ok, errorDetail ->
             val result = Arguments.createMap()
             result.putBoolean("ok", ok)
-            if (error != null) result.putString("error", error)
+            if (errorDetail != null) {
+                result.putString("error", "PRINTER_CONNECTION_FAILED")
+                result.putString("errorDetail", errorDetail)
+            }
             promise.resolve(result)
         }
     }
 
     @ReactMethod
-    fun capabilities(promise: Promise) {
+    fun getCapabilities(promise: Promise) {
         val result = Arguments.createMap()
         result.putBoolean("supported", true)
         promise.resolve(result)

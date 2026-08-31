@@ -18,13 +18,19 @@ class RakeenCashDrawerModule: NSObject {
     @objc
     static func requiresMainQueueSetup() -> Bool { return false }
 
-    /// options: { target: { host, port }, kickCommandBase64?: String }
+    /// options: { target: { host, port }, kickCommandBase64?: String,
+    /// operationId: String, timeoutMs: Int }. `operationId` is accepted
+    /// but intentionally NOT used for dedup here -- double-kick protection
+    /// is enforced JS-side in openCashDrawer()
+    /// (react-native-poc/src/platform/cashDrawer.ts), since this native
+    /// method has no concept of "the same logical operation" across calls;
+    /// it only ever executes exactly one kick per invocation.
     @objc
     func open(_ options: NSDictionary, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         guard let target = options["target"] as? NSDictionary,
               let host = target["host"] as? String,
               let portNumber = target["port"] as? NSNumber else {
-            resolve(["ok": false, "error": "invalid_target"])
+            resolve(["ok": false, "error": "INVALID_TARGET"])
             return
         }
         let port = UInt16(truncating: portNumber)
@@ -37,17 +43,17 @@ class RakeenCashDrawerModule: NSObject {
             bytes = Data(defaultKickCommand)
         }
 
-        transport.send(bytes: bytes, host: host, port: port) { ok, error in
+        transport.send(bytes: bytes, host: host, port: port) { ok, errorDetail in
             if ok {
                 resolve(["ok": true])
             } else {
-                resolve(["ok": false, "error": error ?? "unknown_error"])
+                resolve(["ok": false, "error": "PRINTER_CONNECTION_FAILED", "errorDetail": errorDetail ?? "unknown_error"])
             }
         }
     }
 
     @objc
-    func capabilities(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    func getCapabilities(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         resolve(["supported": true])
     }
 }

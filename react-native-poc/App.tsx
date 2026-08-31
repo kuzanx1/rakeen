@@ -23,8 +23,8 @@ import {
   useColorScheme,
 } from 'react-native';
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
-import { Printer } from './src/platform/printer';
-import { CashDrawer } from './src/platform/cashDrawer';
+import { Printer, printReceipt } from './src/platform/printer';
+import { CashDrawer, openCashDrawer } from './src/platform/cashDrawer';
 import { getDeviceInfo, DeviceInfo } from './src/platform/device';
 
 /** React Native's Hermes runtime has no global `btoa` (unlike a browser) —
@@ -121,35 +121,48 @@ function App(): React.JSX.Element {
   };
 
   const handlePrintTestReceipt = async () => {
-    if (!Printer) {
-      appendLog('Print Test Receipt: NativeModules.RakeenPrinterModule is undefined');
-      return;
-    }
+    // printReceipt() (not Printer.print() directly) enforces the "no fake
+    // success" rule -- honestly reports PRINTER_UNAVAILABLE if no native
+    // module is linked, rather than every call site needing to remember
+    // to check `Printer` first.
     appendLog(`Print Test Receipt: sending to ${host}:${portNumber}...`);
     try {
-      const result = await Printer.print({
+      const result = await printReceipt({
         target: { transport: 'network', host, port: portNumber },
         escPosBase64: buildTestReceiptBase64(),
         timeoutMs: 8000,
       });
-      appendLog(result.ok ? 'Print Test Receipt: ok' : `Print Test Receipt: failed — ${result.error}`);
+      appendLog(
+        result.ok
+          ? 'Print Test Receipt: ok'
+          : `Print Test Receipt: failed — ${result.error}${result.errorDetail ? ` (${result.errorDetail})` : ''}`,
+      );
     } catch (e) {
       appendLog(`Print Test Receipt: threw — ${String(e)}`);
     }
   };
 
   const handleOpenDrawer = async () => {
-    if (!CashDrawer) {
-      appendLog('Open Cash Drawer: NativeModules.RakeenCashDrawerModule is undefined');
-      return;
-    }
-    appendLog(`Open Cash Drawer: sending kick to ${host}:${portNumber}...`);
+    // One operationId per logical drawer-open attempt -- a real screen
+    // would reuse the same client_order_uuid as the order/payment itself,
+    // per docs/react-native-migration's cash-drawer idempotency
+    // requirement. A fresh ID each button tap here means each POC tap is
+    // treated as its own logical operation (rapid-double-tap dedup is
+    // exercised by tapping fast enough to overlap two calls with the
+    // SAME id, not by tapping this button twice).
+    const operationId = `poc-drawer-${Date.now()}`;
+    appendLog(`Open Cash Drawer: sending kick to ${host}:${portNumber}... (operationId=${operationId})`);
     try {
-      const result = await CashDrawer.open({
+      const result = await openCashDrawer({
         target: { transport: 'network', host, port: portNumber },
         timeoutMs: 8000,
+        operationId,
       });
-      appendLog(result.ok ? 'Open Cash Drawer: ok' : `Open Cash Drawer: failed — ${result.error}`);
+      appendLog(
+        result.ok
+          ? 'Open Cash Drawer: ok'
+          : `Open Cash Drawer: failed — ${result.error}${result.errorDetail ? ` (${result.errorDetail})` : ''}`,
+      );
     } catch (e) {
       appendLog(`Open Cash Drawer: threw — ${String(e)}`);
     }

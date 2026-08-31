@@ -1,0 +1,50 @@
+# React Native Migration — Checkpoints
+
+Exact checkpoint list and order as directed. Do not advance to the next
+checkpoint while the previous one is broken. Every checkpoint gets its own
+status doc in this folder (`0N-<name>.md`) once started, classified
+🟢 Verified / 🟡 Ready for Testing / 🔴 Needs Hardware — never "Works"
+unless actually run and confirmed.
+
+1. **React Native shell + architecture** — project structure, layering
+   (UI → Application Logic → Domain Logic → Infrastructure → Native/
+   Storage/Network), shared TypeScript contracts, Swift + Kotlin native
+   modules wired in, both platforms building in CI.
+2. **Authentication** — real Supabase auth (owner/manager session +
+   cashier PIN), ported from `rakeen-pos.js`'s actual logic, decoupled
+   from DOM.
+3. **Products / Categories**
+4. **Cart**
+5. **Order creation**
+6. **Dine-in / Tables**
+7. **Payments**
+8. **Offline Storage** — SQLite/MMKV foundation (validated against actual
+   usage, not assumed from the POC's recommendation alone).
+9. **Offline Queue + Sync** — retry/backoff/circuit-breaker/idempotency,
+   ported design from the current `pending_orders` store.
+10. **Print Queue** — same concept/behavior as today: persistence, retry,
+    exponential backoff, max attempts, manual retry, duplicate protection,
+    recovery after restart, print state machine.
+11. **Network Printer** — `PrinterManager` → `PrinterTransport` →
+    `NetworkPrinterTransport`, real ESC/POS bytes, port never assumed.
+12. **Cash Drawer** — core requirement, not optional; idempotent per
+    operation ID; honest error codes; no Internet/Cloud dependency.
+13. **Diagnostics** — Internet vs. Cloud vs. LAN vs. Printer vs. Native
+    Bridge, distinguished explicitly, not collapsed into one signal.
+14. **iOS build** — full app, all prior checkpoints integrated, real
+    `xcodebuild` success.
+15. **Android build** — same, real Gradle success.
+16. **Hardware Acceptance Test** — the 8-scenario test matrix in
+    `docs/react-native-migration/23-hardware-acceptance-test.md`, on real
+    iPad + Android device + real network printer + real cash drawer.
+
+## Current status (updated as checkpoints progress)
+
+- Checkpoint 1: 🟡 in progress — architecture/contracts exist and compile
+  (inherited from the POC, being revised now for the drawer-idempotency/
+  error-code/PrinterProfile requirements below); no real screen yet.
+- Checkpoints 2-16: not started.
+
+See `00-protection-and-rollback.md` for the safety rules this roadmap
+operates under, and `02-authentication.md` onward for per-checkpoint
+detail as they're executed.

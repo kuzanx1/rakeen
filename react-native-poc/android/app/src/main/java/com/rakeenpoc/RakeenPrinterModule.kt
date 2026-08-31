@@ -26,19 +26,23 @@ class RakeenPrinterModule(reactContext: ReactApplicationContext) :
 
     override fun getName() = "RakeenPrinterModule"
 
-    /** job: { host: String, port: Int, escPosBase64: String, timeoutMs: Int }
+    /** job: { target: { host, port }, escPosBase64: String, timeoutMs: Int }
      *  port is required -- never defaulted to 9100 here, matching the iOS
-     *  side and docs/ios-native-bridge-interfaces.md section 4a's rule. */
+     *  side. Two-tier error model: `error` is a reserved category
+     *  (INVALID_TARGET/RENDER_FAILED/PRINTER_CONNECTION_FAILED) the
+     *  cashier-facing UI branches on; `errorDetail` carries the specific
+     *  technical reason for Diagnostics. */
     @ReactMethod
     fun print(job: ReadableMap, promise: Promise) {
-        val host = if (job.hasKey("host")) job.getString("host") else null
-        val port = if (job.hasKey("port")) job.getInt("port") else -1
+        val target = if (job.hasKey("target")) job.getMap("target") else job
+        val host = target?.let { if (it.hasKey("host")) it.getString("host") else null }
+        val port = target?.let { if (it.hasKey("port")) it.getInt("port") else -1 } ?: -1
         val base64 = if (job.hasKey("escPosBase64")) job.getString("escPosBase64") else null
 
         if (host == null || port <= 0 || base64 == null) {
             val result = Arguments.createMap()
             result.putBoolean("ok", false)
-            result.putString("error", "invalid_target")
+            result.putString("error", "INVALID_TARGET")
             promise.resolve(result)
             return
         }
@@ -48,15 +52,18 @@ class RakeenPrinterModule(reactContext: ReactApplicationContext) :
         } catch (e: IllegalArgumentException) {
             val result = Arguments.createMap()
             result.putBoolean("ok", false)
-            result.putString("error", "render_failed")
+            result.putString("error", "RENDER_FAILED")
             promise.resolve(result)
             return
         }
 
-        transport.send(host, port, bytes) { ok, error ->
+        transport.send(host, port, bytes) { ok, errorDetail ->
             val result = Arguments.createMap()
             result.putBoolean("ok", ok)
-            if (error != null) result.putString("error", error)
+            if (errorDetail != null) {
+                result.putString("error", "PRINTER_CONNECTION_FAILED")
+                result.putString("errorDetail", errorDetail)
+            }
             promise.resolve(result)
         }
     }
@@ -70,16 +77,19 @@ class RakeenPrinterModule(reactContext: ReactApplicationContext) :
         if (host == null || port <= 0) {
             val result = Arguments.createMap()
             result.putBoolean("reachable", false)
-            result.putString("error", "invalid_target")
+            result.putString("error", "INVALID_TARGET")
             promise.resolve(result)
             return
         }
 
-        transport.testConnection(host, port) { reachable, latencyMs, error ->
+        transport.testConnection(host, port) { reachable, latencyMs, errorDetail ->
             val result = Arguments.createMap()
             result.putBoolean("reachable", reachable)
             if (latencyMs != null) result.putDouble("latencyMs", latencyMs)
-            if (error != null) result.putString("error", error)
+            if (errorDetail != null) {
+                result.putString("error", "PRINTER_CONNECTION_FAILED")
+                result.putString("errorDetail", errorDetail)
+            }
             promise.resolve(result)
         }
     }
@@ -95,7 +105,7 @@ class RakeenPrinterModule(reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
-    fun capabilities(promise: Promise) {
+    fun getCapabilities(promise: Promise) {
         val result = Arguments.createMap()
         val transports = Arguments.createArray()
         transports.pushString("network")
