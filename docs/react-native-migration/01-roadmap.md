@@ -51,7 +51,7 @@ unless actually run and confirmed.
   CI green on both platforms). See `04-checkpoint-3-products-categories.md`.
 - Checkpoint 4: 🟢 Verified (cart/pricing math + modifier query shape,
   real execution, real backend) / 🟡 Ready for Testing (the screen
-  itself). See `05-checkpoint-4-cart.md`.
+  itself, CI green on both platforms). See `05-checkpoint-4-cart.md`.
 - Checkpoints 5-16: not started.
 
 **Permanent rule recorded this checkpoint**: the PWA/Web POS is not being

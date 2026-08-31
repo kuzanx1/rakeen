@@ -63,7 +63,8 @@ OK qty hits 0 -> line removed
 OK service product (negative id) prices identically to a menu_item
 ```
 
-Real CI: see roadmap status for confirmed outcome.
+Real CI: both platforms green (`macos-15`/Xcode 16.4 and `ubuntu-latest`),
+native module compile verification passed on both.
 
 ## What failed / what was fixed
 
@@ -95,5 +96,5 @@ Nothing in this checkpoint.
 
 **Status: 🟢 Verified** for the cart/pricing math and the modifier query
 shape (real execution, real assertions, real backend) / 🟡 Ready for
-Testing for the screen itself, pending CI confirmation and a real device
-run.
+Testing for the screen itself (CI green on both platforms), not yet run
+on a real device.
