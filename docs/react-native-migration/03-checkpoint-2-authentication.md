@@ -87,7 +87,8 @@ Nothing failed. This checkpoint had no compile or runtime errors to fix.
 
 Nothing in this checkpoint — no printer/drawer interaction.
 
-**Status: 🟡 Ready for Testing** for the screen itself (compiles, not yet
-run on a device/simulator) / **🟢 Verified** for the underlying
-authentication logic and backend contract (actually executed against the
-live backend, real result, not assumed).
+**Status: 🟡 Ready for Testing** for the screen itself (compiles — real CI
+green on both `macos-15`/Xcode 16.4 and `ubuntu-latest` after adding
+Supabase/AsyncStorage — not yet run on a device/simulator) / **🟢 Verified**
+for the underlying authentication logic and backend contract (actually
+executed against the live backend, real result, not assumed).
