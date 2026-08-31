@@ -1,15 +1,76 @@
 # Getting a Trial Build Onto a Real iPad — Distribution Options
 
 Written to prepare the Taif hardware session (iPad + SUNMI/Goodics NT310)
-in advance. Two real, standard Apple-sanctioned paths exist; which one
-makes sense depends on one fact only this environment can't determine on
-its own: **whether a paid Apple Developer Program membership ($99/year)
-already exists for this project.** Nothing below has been executed —
-distribution/signing needs real Apple credentials this environment
-neither has nor should ever hold (see the "what I can/can't do" note at
-the end).
+in advance.
 
-## Path A — Free "Personal Team" direct install via Xcode (recommended for the Taif session)
+## The real constraint: no Mac locally, no paid Apple Developer account
+
+Both of Apple's own official non-App-Store distribution channels —
+**TestFlight and Ad Hoc** — require a paid Apple Developer Program
+membership ($99/year); this is confirmed directly from Apple's own
+documentation, not assumed. Neither has a free-tier path. If a Mac can't
+be physically present with the iPad either (ruling out plain
+Xcode-over-USB), there is no *Apple-official* zero-cost, zero-local-Mac
+path.
+
+**The real, working answer for exactly this situation is SideStore**
+(an actively maintained, open-source fork of AltStore — not a jailbreak,
+not piracy; a legitimate community tool built specifically for free-Apple-ID
+sideloading), confirmed against its own official documentation
+(docs.sidestore.io):
+- A computer is needed **only once** — to install SideStore itself onto
+  the iPad. This can happen at any point before the iPad travels to Taif
+  (e.g. with the Riyadh Mac), or with any computer available at all.
+- **After that one-time setup, installing/updating apps happens entirely
+  from the iPad itself** — no computer, no Xcode, no cable, from Taif or
+  anywhere else. SideStore re-signs whatever `.ipa` it's given using the
+  free Apple ID's own certificate; the `.ipa` doesn't need to be signed by
+  anything else beforehand.
+- **Real limitations, stated plainly**: a free Apple ID can have at most 3
+  apps installed via SideStore at once (including SideStore itself), and
+  at most 10 different app installs per rolling week. Apps still need a
+  background refresh roughly every 7 days (SideStore automates this on its
+  own). SideStore is in public beta, unofficial (no Apple support), and
+  there's a documented real risk of Apple ID lockout tied to older
+  "Anisette servers" it depends on for device authentication.
+
+## 1. SideStore — recommended for the actual "iPad in Taif, no Mac" scenario
+
+**Cost**: $0, no Apple Developer account. **Needs**: a free Apple ID, the
+iPad, and a computer **once** (any OS — doesn't have to be a Mac; SideStore
+itself has a Windows/macOS/Linux companion installer for that one-time
+step) to install SideStore onto the iPad before it travels to Taif.
+
+**A real, working, correctly-structured unsigned `.ipa` for Rakeen Cashier
+is already built and proven in CI** — GitHub Actions run
+[33430839073](https://github.com/kuzanx1/rakeen/actions/runs/33430839073),
+job `device-ipa`, artifact `rakeen-cashier-unsigned-ipa`. Downloaded and
+inspected directly: 18.7MB, real `Payload/App.app/App` binary, storyboards
+compiled, resources bundled — exactly the shape SideStore expects to
+re-sign and install. **Not yet confirmed that SideStore itself accepts and
+installs it** — that step genuinely needs the real iPad with SideStore on
+it; everything provable from CI has been proven.
+
+Steps:
+1. (One-time, needs a computer) Install SideStore on the iPad following
+   docs.sidestore.io's own setup guide, signed in with a free Apple ID.
+2. Download `rakeen-cashier-unsigned.ipa` from the GitHub Actions run above
+   (or trigger a fresh run — this workflow re-runs on every push touching
+   `ios/**`) directly onto the iPad (Files app, AirDrop, email — anything
+   that gets the file onto the device).
+3. Open it with SideStore, let it sign and install. From this point on,
+   updating to a newer build is the same two steps, entirely from the
+   iPad, no computer involved.
+
+**Real limitations, stated plainly**: max 3 apps installed via SideStore
+at once (including SideStore itself) on a free Apple ID, max 10 different
+app installs per week, ~7-day background refresh (automated by SideStore),
+beta/unofficial status, and a documented Apple-ID-lockout risk from older
+"Anisette servers" — see docs.sidestore.io's own FAQ for the current, most
+accurate detail on all of this, since it's third-party tooling this
+project doesn't control.
+
+## 2. Free "Personal Team" direct install via Xcode — only if a Mac happens to be on-site anyway
 
 **Cost**: $0. **Needs**: a Mac with Xcode, a free Apple ID, the iPad, and a
 USB cable or same-Wi-Fi wireless debugging (already required anyway — the
@@ -47,11 +108,12 @@ Steps (for whoever has the Mac + iPad in Taif):
 - No TestFlight, no remote install — the Mac must be physically connected
   (once) to that specific iPad.
 
-This is the right choice for the Taif session specifically: it needs zero
-Apple Developer Program enrollment, zero waiting, zero cost, and the Mac
-is already required to be there for Web Inspector debugging anyway.
+Only relevant if a Mac ends up physically present anyway (e.g. for Web
+Inspector debugging during the actual printer test) — in that case this
+is simpler than SideStore for that one session, but doesn't solve
+"install without a Mac," which is the real constraint stated for Taif.
 
-## Path B — TestFlight via a paid Apple Developer Program membership
+## 3. TestFlight via a paid Apple Developer Program membership
 
 **Cost**: $99/year, and requires Apple's own identity-verification
 enrollment (can take anywhere from minutes to a couple of days). **Needed
@@ -95,13 +157,14 @@ will never obtain or guess on its own:
 
 ## Recommendation
 
-Use **Path A** for the Taif iPad + NT310 session — it needs nothing this
-environment or the user doesn't already have, and the existing hardware
-test plan already assumes a Mac is present for Web Inspector regardless.
-Treat **Path B** as the natural next step once broader testing (without a
-Mac on-site) or an eventual App Store release is the actual goal — at that
-point, tell me whether a paid Developer Program membership exists, and I
-can prepare the actual signed-archive-and-upload GitHub Actions workflow
-against it (the secrets themselves still have to come from the account
-owner, added directly in GitHub's own Settings → Secrets UI, not through
-this chat).
+Use **§1, SideStore** for getting the trial build onto the iPad in Taif —
+it's the only path that actually matches the stated constraint (no Mac
+locally, no paid account), a real unsigned `.ipa` is already built and
+ready, and the one-time SideStore setup can happen whenever a computer is
+next available, independent of the Taif trip itself. Treat **§3,
+TestFlight** as the natural next step once broader/remote testing or an
+eventual App Store release is the actual goal — at that point, tell me
+whether a paid Developer Program membership exists, and I can prepare the
+actual signed-archive-and-upload GitHub Actions workflow against it (the
+secrets themselves still have to come from the account owner, added
+directly in GitHub's own Settings → Secrets UI, not through this chat).
