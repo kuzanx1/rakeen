@@ -77,5 +77,6 @@ writing — see roadmap status for the confirmed outcome.)
 Nothing in this checkpoint.
 
 **Status: 🟢 Verified** for the catalog-loading logic (real backend, real
-data, real RLS) / 🟡 Ready for Testing for the screen itself pending CI
-confirmation and a real device/simulator run.
+data, real RLS) / 🟡 Ready for Testing for the screen itself — CI
+confirmed green on both platforms (`macos-15`/Xcode 16.4 and
+`ubuntu-latest`), not yet run on a real device/simulator.

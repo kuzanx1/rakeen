@@ -48,7 +48,7 @@ unless actually run and confirmed.
   `03-checkpoint-2-authentication.md`.
 - Checkpoint 3: 🟢 Verified (catalog-loading logic, real data, real RLS,
   against the live backend) / 🟡 Ready for Testing (the screen itself,
-  CI result pending). See `04-checkpoint-3-products-categories.md`.
+  CI green on both platforms). See `04-checkpoint-3-products-categories.md`.
 - Checkpoints 4-16: not started.
 
 **Permanent rule recorded this checkpoint**: the PWA/Web POS is not being
