@@ -65,6 +65,16 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             | tee xcodebuild.log
 
+      - name: Verify the native bridge files were actually compiled
+        # A file can exist on disk without being registered in
+        # project.pbxproj's target — Xcode then silently skips it and the
+        # build still succeeds. This step failed once for real (both files
+        # were missing from the project) before being added to the target;
+        # keeping it here so that regression can't reappear silently.
+        run: |
+          grep -q "MainViewController.swift" xcodebuild.log
+          grep -q "PrinterBridge.swift" xcodebuild.log
+
       - name: Upload build logs
         if: always()
         uses: actions/upload-artifact@v4
