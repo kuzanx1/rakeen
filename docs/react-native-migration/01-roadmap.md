@@ -46,7 +46,13 @@ unless actually run and confirmed.
 - Checkpoint 2: 🟢 Verified (auth logic, against the live backend) /
   🟡 Ready for Testing (the screen itself, not yet run on a device). See
   `03-checkpoint-2-authentication.md`.
-- Checkpoints 3-16: not started.
+- Checkpoint 3: 🟢 Verified (catalog-loading logic, real data, real RLS,
+  against the live backend) / 🟡 Ready for Testing (the screen itself,
+  CI result pending). See `04-checkpoint-3-products-categories.md`.
+- Checkpoints 4-16: not started.
+
+**Permanent rule recorded this checkpoint**: the PWA/Web POS is not being
+replaced — see `00-protection-and-rollback.md`'s new section.
 
 See `00-protection-and-rollback.md` for the safety rules this roadmap
 operates under, and `02-authentication.md` onward for per-checkpoint
