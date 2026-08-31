@@ -153,3 +153,67 @@ jobs:
             app-sim.log
             sim-screenshot.png
             App_*.ips
+
+  # Builds a real-device (not Simulator) .app with code signing disabled,
+  # then packages it into a plain, UNSIGNED .ipa. No Apple Developer
+  # Program membership involved anywhere in this job — the point is that a
+  # free-Apple-ID sideloading tool (SideStore/AltStore, see
+  # docs/ios-distribution-options.md) re-signs whatever binary it's given
+  # with the device's own paired free certificate; it does not need this
+  # CI job to have signed it first. This has NOT been confirmed to actually
+  # install via SideStore — that needs the real iPad — this job only
+  # proves the unsigned device .ipa can be built at all.
+  device-ipa:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+
+      - name: npm ci
+        run: npm ci
+
+      - name: npx cap sync ios
+        run: npx cap sync ios
+
+      - name: Build for a real iOS device, unsigned
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -sdk iphoneos \
+            -configuration Debug \
+            -destination "generic/platform=iOS" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | tee xcodebuild-device.log
+
+      - name: Package the built .app into an unsigned .ipa
+        run: |
+          set -o pipefail
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "App.app" -path "*iphoneos*" | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Could not find a built device App.app."
+            exit 1
+          fi
+          echo "APP_PATH=$APP_PATH"
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
+          zip -r RakeenCashier-unsigned.ipa Payload
+          echo "Built RakeenCashier-unsigned.ipa:"
+          ls -la RakeenCashier-unsigned.ipa
+
+      - name: Upload the unsigned device IPA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rakeen-cashier-unsigned-ipa
+          path: |
+            xcodebuild-device.log
+            RakeenCashier-unsigned.ipa
