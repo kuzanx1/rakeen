@@ -27,6 +27,7 @@ import { Printer, printReceipt } from './src/platform/printer';
 import { CashDrawer, openCashDrawer } from './src/platform/cashDrawer';
 import { getDeviceInfo, DeviceInfo } from './src/platform/device';
 import LoginScreen from './src/ui/LoginScreen';
+import ProductsScreen from './src/ui/ProductsScreen';
 import type { CashierProfile } from './src/domain/auth';
 import { logout } from './src/application/authService';
 
@@ -92,24 +93,22 @@ function App(): React.JSX.Element {
 
   return (
     <SafeAreaView style={styles.root}>
-      <View style={styles.loggedInContainer}>
-        <Text style={styles.title}>مرحبًا، {cashier.full_name || 'بدون اسم'}</Text>
-        <Text style={styles.subtitle}>
-          تسجيل الدخول الحقيقي عبر Supabase + /api/pos/login نجح فعليًا (Checkpoint 2).
-          شاشات POS الحقيقية (المنتجات/السلة/الطلبات) قادمة في الـCheckpoints التالية.
-        </Text>
-        <TouchableOpacity style={styles.button} onPress={() => setShowHardwareTools(true)}>
-          <Text style={styles.buttonText}>أدوات اختبار الطابعة/الدرج</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.button, styles.secondaryButton]}
-          onPress={async () => {
-            await logout();
-            setCashier(null);
-          }}>
-          <Text style={styles.buttonText}>تسجيل الخروج</Text>
-        </TouchableOpacity>
+      <View style={styles.topBar}>
+        <Text style={styles.topBarTitle}>{cashier.full_name || 'بدون اسم'}</Text>
+        <View style={styles.topBarActions}>
+          <TouchableOpacity onPress={() => setShowHardwareTools(true)}>
+            <Text style={styles.link}>أدوات الطابعة</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={async () => {
+              await logout();
+              setCashier(null);
+            }}>
+            <Text style={styles.link}>خروج</Text>
+          </TouchableOpacity>
+        </View>
       </View>
+      <ProductsScreen cashier={cashier} />
     </SafeAreaView>
   );
 }
@@ -321,6 +320,18 @@ const styles = StyleSheet.create({
   loggedInContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   secondaryButton: { backgroundColor: '#ddd', marginTop: 20 },
   link: { color: '#666', textDecorationLine: 'underline', marginBottom: 8 },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  topBarTitle: { fontSize: 15, fontWeight: '700' },
+  topBarActions: { flexDirection: 'row', gap: 16 },
 });
 
 export default App;

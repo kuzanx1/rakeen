@@ -51,6 +51,46 @@ afterward — never the other way around.
    a commit/tag that represents "this milestone's replacement is not yet
    trusted, `master` is still the thing actually serving cashiers."
 
+## Permanent architectural rule: the PWA is not being replaced
+
+Stated explicitly by the user and binding indefinitely, not just for this
+migration's duration:
+
+- **The existing Rakeen PWA/Web POS (`public/pos/rakeen-pos.js`,
+  `app/pos/*`) remains a supported production client.** React Native is
+  an *additional* native client for iOS/Android — not a replacement.
+- Do NOT delete the PWA, deprecate it, rewrite it into React Native,
+  remove any of its existing functionality, or make it depend on iOS/
+  Android Native Modules.
+- Target end-state:
+
+  ```
+                   Rakeen Backend
+                         │
+               ┌─────────┴─────────┐
+               │                   │
+              PWA            React Native
+               │                   │
+         Web POS/Desktop       iOS / Android
+                                   │
+                            Native Bridge
+                              │       │
+                            Swift   Kotlin
+                              │       │
+                         Printer + Drawer
+  ```
+
+  Two supported clients sharing the same backend/domain contracts where
+  appropriate — the Capacitor WKWebView wrapper is what React Native
+  supersedes for native app-store distribution specifically; the PWA
+  itself, served directly to a browser, is unaffected and keeps working
+  exactly as it does today, indefinitely.
+- Practically: nothing in this migration ever edits
+  `public/pos/rakeen-pos.js`, `app/pos/*`, or removes a PWA capability.
+  Everything happens in `react-native-poc/` (the RN app) and, where
+  strictly necessary, in shared backend code that both clients already
+  depend on identically (never breaking the PWA's use of it).
+
 ## What "done" means for the migration, per milestone
 
 Every milestone in `docs/react-native-migration/01-roadmap.md` gets the
