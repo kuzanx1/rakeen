@@ -77,6 +77,84 @@ jobs:
           grep -q "NetworkPrinterTransport.swift" xcodebuild.log
           grep -q "PrinterManager.swift" xcodebuild.log
 
+      - name: Boot an iOS Simulator
+        # Picks whatever iPad simulator this runner's Xcode image already
+        # has provisioned (falls back to any iOS device) rather than
+        # hardcoding a device-type/runtime identifier this environment
+        # can't confirm in advance — those strings vary by Xcode version
+        # and this environment has no way to check them ahead of time.
+        run: |
+          set -o pipefail
+          xcrun simctl list devices available
+          SIM_UDID=$(xcrun simctl list devices available -j | python3 -c "
+import json, sys
+data = json.load(sys.stdin)['devices']
+ipad = None
+any_ios = None
+for runtime, devices in data.items():
+    if 'iOS' not in runtime:
+        continue
+    for d in devices:
+        if not d.get('isAvailable', True):
+            continue
+        if ipad is None and 'iPad' in d['name']:
+            ipad = d['udid']
+        if any_ios is None:
+            any_ios = d['udid']
+print(ipad or any_ios or '')
+")
+          if [ -z "$SIM_UDID" ]; then
+            echo "No available iOS simulator found on this runner — cannot proceed with the Simulator smoke test."
+            exit 1
+          fi
+          echo "Selected simulator UDID: $SIM_UDID"
+          echo "SIM_UDID=$SIM_UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$SIM_UDID" || true
+          xcrun simctl bootstatus "$SIM_UDID" -b
+
+      - name: Install and launch the app on the Simulator
+        run: |
+          set -o pipefail
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "App.app" -path "*iphonesimulator*" | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Could not find a built App.app for the simulator — the build step above should have produced one."
+            exit 1
+          fi
+          echo "APP_PATH=$APP_PATH"
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP_PATH/Info.plist")
+          echo "BUNDLE_ID=$BUNDLE_ID" >> "$GITHUB_ENV"
+          echo "Resolved bundle id: $BUNDLE_ID"
+          xcrun simctl install "$SIM_UDID" "$APP_PATH"
+          xcrun simctl launch "$SIM_UDID" "$BUNDLE_ID"
+          # Generous wait: cold Simulator boot + real network fetch of the
+          # live rakeenapp.com/pos page + JS boot (Supabase client, script
+          # load, service worker registration) all happen before anything
+          # meaningful renders — this is genuinely fetching over the real
+          # internet from a GitHub-hosted runner, not a local/mocked page.
+          sleep 20
+
+      - name: Check the app didn't crash, capture its system log
+        run: |
+          xcrun simctl spawn "$SIM_UDID" log show --style compact --last 60s \
+            --predicate 'process == "App"' > app-sim.log || true
+          tail -100 app-sim.log || true
+          CRASH_DIR="$HOME/Library/Logs/DiagnosticReports"
+          if ls "$CRASH_DIR"/App_*.ips >/dev/null 2>&1; then
+            echo "::error::A crash report was found for the App process — see uploaded artifacts."
+            cp "$CRASH_DIR"/App_*.ips . || true
+            exit 1
+          fi
+          RUNNING=$(xcrun simctl spawn "$SIM_UDID" launchctl list | grep "$BUNDLE_ID" || true)
+          if [ -z "$RUNNING" ]; then
+            echo "::error::App process is not listed as running after launch — it likely crashed or exited immediately."
+            exit 1
+          fi
+          echo "App is running, no crash report found."
+
+      - name: Screenshot the running app
+        if: always()
+        run: xcrun simctl io "$SIM_UDID" screenshot sim-screenshot.png || true
+
       - name: Upload build logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -85,3 +163,6 @@ jobs:
           path: |
             spm-resolve.log
             xcodebuild.log
+            app-sim.log
+            sim-screenshot.png
+            App_*.ips
