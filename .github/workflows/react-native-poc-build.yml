@@ -17,7 +17,13 @@ on:
 
 jobs:
   ios:
-    runs-on: macos-14
+    # This React Native version requires Xcode >= 16.1 (confirmed via a
+    # real CocoaPods error on macos-14, which only has Xcode 15.4) --
+    # macos-15 is needed for a new-enough bundled Xcode. The separate
+    # Capacitor project's CI (.github/workflows/ios-build.yml) stays on
+    # macos-14/Xcode 15.4 since that combination is already proven there;
+    # this is a different project with a different minimum requirement.
+    runs-on: macos-15
     defaults:
       run:
         working-directory: react-native-poc
