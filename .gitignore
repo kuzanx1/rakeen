@@ -45,3 +45,15 @@ cloudflare-env.d.ts
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# iOS / Xcode — build artifacts and per-developer state only. The Xcode
+# project itself (App.xcodeproj/xcworkspace, Info.plist, storyboards,
+# Swift sources, CapApp-SPM/Package.swift) IS committed — these are the
+# things `cap sync`/Xcode regenerate or that are purely local machine state.
+ios/App/App/public/
+ios/**/xcuserdata/
+ios/**/*.xcuserstate
+ios/DerivedData/
+ios/.build/
+ios/App/Pods/
+ios/App/*.xcworkspace/xcuserdata/

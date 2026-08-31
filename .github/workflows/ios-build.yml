@@ -1,0 +1,75 @@
+name: iOS Xcode Build (Simulator, no signing)
+
+# Purpose: prove the existing Capacitor iOS project actually compiles on a
+# real macOS/Xcode toolchain. Builds for the Simulator SDK only — no
+# Apple Developer account, signing, or real device needed for this. Does
+# NOT run on a physical iPad, does NOT touch a printer/cash drawer, does
+# NOT do anything App Store/TestFlight related. See docs/windows-complete-
+# mac-required.md and docs/ios-xcode-guide.md for the full context this
+# workflow exists to unblock.
+
+on:
+  workflow_dispatch: {}
+  push:
+    paths:
+      - "ios/**"
+      - "capacitor.config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/ios-build.yml"
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show environment (macOS / Xcode / Swift versions)
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+
+      - name: npm ci
+        run: npm ci
+
+      - name: npx cap sync ios
+        run: npx cap sync ios
+
+      - name: List available schemes (diagnostic — confirms the real scheme name)
+        run: xcodebuild -list -workspace ios/App/App.xcworkspace
+
+      - name: Resolve Swift Package Manager dependencies
+        run: |
+          set -o pipefail
+          xcodebuild -resolvePackageDependencies \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            | tee spm-resolve.log
+
+      - name: Build for iOS Simulator (no code signing)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee xcodebuild.log
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-logs
+          path: |
+            spm-resolve.log
+            xcodebuild.log
