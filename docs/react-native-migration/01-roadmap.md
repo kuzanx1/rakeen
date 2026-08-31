@@ -49,7 +49,10 @@ unless actually run and confirmed.
 - Checkpoint 3: 🟢 Verified (catalog-loading logic, real data, real RLS,
   against the live backend) / 🟡 Ready for Testing (the screen itself,
   CI green on both platforms). See `04-checkpoint-3-products-categories.md`.
-- Checkpoints 4-16: not started.
+- Checkpoint 4: 🟢 Verified (cart/pricing math + modifier query shape,
+  real execution, real backend) / 🟡 Ready for Testing (the screen
+  itself). See `05-checkpoint-4-cart.md`.
+- Checkpoints 5-16: not started.
 
 **Permanent rule recorded this checkpoint**: the PWA/Web POS is not being
 replaced — see `00-protection-and-rollback.md`'s new section.
