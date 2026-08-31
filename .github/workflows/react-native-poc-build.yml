@@ -1,0 +1,140 @@
+name: React Native POC Build (iOS Swift + Android Kotlin)
+
+# Proves the React Native POC (react-native-poc/) actually compiles on
+# both platforms -- real Xcode/Swift build on a macOS runner, real
+# Gradle/Kotlin build on a Linux runner. No Apple Developer account, no
+# signing anywhere in this workflow -- Simulator SDK for iOS, an unsigned
+# debug APK for Android. Does NOT touch the separate Capacitor iOS project
+# (.github/workflows/ios-build.yml) or a real printer/drawer. See
+# docs/react-native-poc/ for the full POC writeup.
+
+on:
+  workflow_dispatch: {}
+  push:
+    paths:
+      - "react-native-poc/**"
+      - ".github/workflows/react-native-poc-build.yml"
+
+jobs:
+  ios:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: react-native-poc
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show environment
+        run: |
+          sw_vers
+          xcodebuild -version
+          ruby -v
+          pod --version || true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+
+      - name: npm ci
+        run: npm ci
+
+      - name: Install CocoaPods dependencies
+        working-directory: react-native-poc/ios
+        run: |
+          bundle install
+          bundle exec pod install
+
+      - name: List available schemes (diagnostic)
+        working-directory: react-native-poc/ios
+        run: xcodebuild -list -workspace RakeenPOC.xcworkspace
+
+      - name: Build for iOS Simulator (no code signing)
+        working-directory: react-native-poc/ios
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -workspace RakeenPOC.xcworkspace \
+            -scheme RakeenPOC \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee xcodebuild-rn-ios.log
+
+      - name: Verify the native modules were actually compiled
+        # Same lesson as the Capacitor project's CI: a file existing on
+        # disk proves nothing on its own -- only a real SwiftCompile log
+        # line does.
+        working-directory: react-native-poc/ios
+        run: |
+          grep -q "RakeenPrinterModule.swift" xcodebuild-rn-ios.log
+          grep -q "RakeenCashDrawerModule.swift" xcodebuild-rn-ios.log
+          grep -q "RakeenDeviceModule.swift" xcodebuild-rn-ios.log
+          grep -q "NetworkPrinterTransport.swift" xcodebuild-rn-ios.log
+
+      - name: Upload iOS build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rn-poc-ios-build-log
+          path: react-native-poc/ios/xcodebuild-rn-ios.log
+
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: react-native-poc
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: npm ci
+        run: npm ci
+
+      - name: Build debug APK (unsigned)
+        working-directory: react-native-poc/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace | tee gradle-build.log
+
+      - name: Verify the native modules were actually compiled
+        # Same lesson as the Capacitor/iOS CI: don't trust "the build
+        # succeeded" alone -- confirm the actual .class files exist in the
+        # build output, the same way the iOS job greps for a real
+        # SwiftCompile log line rather than trusting a green build alone.
+        working-directory: react-native-poc/android
+        run: |
+          set -e
+          for module in RakeenPrinterModule RakeenCashDrawerModule RakeenDeviceModule RakeenPackage NetworkPrinterTransport; do
+            if ! find app/build -name "${module}.class" | grep -q .; then
+              echo "::error::${module}.class not found anywhere in app/build -- it was not compiled."
+              exit 1
+            fi
+          done
+          echo "All Kotlin native module classes confirmed present in build output."
+
+      - name: Find the built APK
+        working-directory: react-native-poc/android
+        run: find app/build/outputs -name "*.apk"
+
+      - name: Upload Android build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rn-poc-android-apk
+          path: |
+            react-native-poc/android/gradle-build.log
+            react-native-poc/android/app/build/outputs/apk/**/*.apk
