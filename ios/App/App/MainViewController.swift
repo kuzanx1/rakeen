@@ -74,10 +74,17 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
             }
 
         case "nativeCashDrawerBridge":
-            // Standard ESC/POS drawer-kick sequence (see
-            // docs/ios-native-bridge-interfaces.md §2's "minimum viable fix"
-            // note) — sent as its own short byte sequence to the same
-            // ip:port a printer would use.
+            // Standard ESC/POS drawer-kick sequence (pin 2, ~25ms/250ms
+            // timing) — see docs/ios-native-bridge-interfaces.md §2's
+            // "minimum viable fix" note — sent as its own short byte
+            // sequence to the same ip:port a printer would use. This is
+            // the near-universal default across ESC/POS-compatible
+            // drawers, hardcoded here rather than guessed-then-changed —
+            // if real hardware testing ever shows a specific drawer model
+            // needs different bytes (e.g. pin 5, different timing), that
+            // becomes a per-`PrinterProfile` override (see
+            // PrinterTransport.swift's `PrinterCapabilities`), not a change
+            // to this default.
             let kickBytes = Data([0x1B, 0x70, 0x00, 0x19, 0xFA])
             printerManager.send(bytes: kickBytes, ip: ip, port: UInt16(port)) { [weak self] ok, error in
                 self?.respond(callbackId: callbackId, ok: ok, error: error, jsCallback: "__nativeCashDrawerCallback")

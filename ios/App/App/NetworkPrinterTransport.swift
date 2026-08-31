@@ -20,6 +20,23 @@ import Network
 /// **Ready for Testing**, not Verified, until confirmed against the real
 /// unit — see docs/ios-native-bridge-interfaces.md §4 and
 /// docs/ios-nt310-test-plan.md.
+///
+/// **Not tied to port 9100 or to any specific brand.** `port` always comes
+/// from `target.port` (which traces back to `DEVICE.printerPort`/
+/// `kitchenPrinterPort` in rakeen-pos.js, both user-configurable — 9100 is
+/// only ever a UI default value, never assumed here). Any network printer
+/// of any brand/model that accepts raw ESC/POS bytes on a TCP socket works
+/// through this exact class unchanged — nothing about it reads or branches
+/// on a model/brand.
+///
+/// **Known limitation, not addressed here**: `send(...)` reports success
+/// once the OS confirms the bytes were handed off at the TCP layer — it
+/// does not read back a real-time status response (ESC/POS defines a
+/// `DLE EOT n` real-time status transmission command many printers
+/// support) to confirm the printer wasn't out of paper or had its cover
+/// open at the moment of printing. A socket write can succeed even when
+/// the physical print did not. Reading real-time status back would be a
+/// genuine future native enhancement — not implemented, not claimed here.
 final class NetworkPrinterTransport: PrinterTransport {
 
     /// Per-attempt timeout. The web side already imposes its own 8s timeout

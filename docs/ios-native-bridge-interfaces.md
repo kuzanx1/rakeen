@@ -233,15 +233,45 @@ Bluetooth/USB". Adding that later is a **future, additive** change to the
 rewrite — everything upstream of `PrinterManager` (the queue, retry,
 backoff, dedup, persistence logic) stays exactly as it is.
 
-**Why no per-model "capabilities profile" beyond `PrinterProfile`'s minimal
-shape**: the web layer (`renderReceiptCanvas`/`canvasToEscPosRaster` in
-`rakeen-pos.js`) already rasterizes the entire receipt — Arabic text
-included — into a bitmap before handing bytes to the native side. For any
-ESC/POS-compatible printer, the native layer has nothing model-specific
-left to decide; it only needs to know how to *reach* the device and
-whether that transport is actually implemented and tested. A model that
-needs genuinely different native behavior (not ESC/POS at all) would need
-its own `PrinterTransport` conformance, not a flag on this struct.
+`PrinterProfile`/`PrinterProtocolKind`/`PrinterCapabilities` (in
+`PrinterTransport.swift`) give this an extensible shape — Brand, Model,
+Transport, host, Port, paper width, protocol, capabilities — but **none of
+it is constructed or consumed in the live code path today**.
+`PrinterManager.send(bytes:ip:port:completion:)` (the one real entry point,
+matching `DEVICE.printerIp`/`printerPort` exactly) doesn't take a profile
+and doesn't need to yet — see §4a below for why, printer by printer,
+concern by concern.
+
+## 4a. Multi-Printer Readiness — ESC/POS differences reviewed
+
+Requested explicitly: confirm adding a second network printer of a
+different brand/model needs no `PrintQueue` change, and review where real
+ESC/POS printers actually differ from each other.
+
+**Confirmed: a second (or third, fourth...) network printer needs zero
+`PrintQueue`/native code changes today.** `rakeen-pos.js` already
+configures two independent network printer endpoints — `DEVICE.printerIp`/
+`printerPort` (receipt) and `DEVICE.kitchenPrinterIp`/`kitchenPrinterPort`
+(kitchen) — both calling the same `window.AndroidPrint.printRaw(base64, ip,
+port, callbackId)`. On the native side, `PrinterManager`/
+`NetworkPrinterTransport` never brand-check or model-check anything — any
+printer that accepts raw ESC/POS bytes on a TCP socket works unchanged.
+The only thing that would need a small **additive** change is
+`rakeen-pos.js`'s Settings UI, if a business ever needs a *third* named
+printer slot beyond receipt/kitchen — that's a UI field addition, not a
+queue or transport redesign.
+
+Per-concern review:
+
+| Concern | Where it's actually handled | Multi-printer readiness |
+|---|---|---|
+| Arabic text / image rendering | Web (`renderReceiptCanvas` rasterizes to a bitmap before any bytes reach native code) | **Fully printer-agnostic already** — native code never sees text, fonts, or codepages, only opaque pixels-as-bytes. No per-brand difference possible here. |
+| Paper width (58mm/80mm) | Web (`DEVICE.printerPaperWidth`, already a Settings UI option, sets the canvas width in `renderReceiptCanvas`/`canvasToEscPosRaster`) | **Already configurable** — but it's one global setting reused for both the receipt and kitchen canvases; a business with a 58mm kitchen printer *and* an 80mm receipt printer can't express both widths independently today. Pre-existing web-layer scope, not something this native pass changed — noted, not fixed here (would be a small, additive web-side Settings change, not a native concern). |
+| Cut command | Web (baked into the end of the ESC/POS byte stream `renderReceiptCanvas`/`canvasToEscPosRaster` build) | **Printer-agnostic already** — the standard ESC/POS cut command is close to universal; native code never adds or knows about it, just transports whatever bytes it's given. |
+| Cash drawer command | Native (`MainViewController`'s `nativeCashDrawerBridge` case hardcodes the standard `0x1B 0x70 0x00 0x19 0xFA` pin-2 kick sequence) | **One hardcoded default today**, documented as such rather than silently assumed universal. `PrinterCapabilities.supportsCashDrawerKick` exists as a place a future per-model override could live if real hardware testing ever shows a drawer needing different bytes — not changed speculatively. |
+| Encoding (codepages, etc.) | Nowhere in the native layer — never applicable, since native code only ever transports pre-rendered opaque bytes | **Zero risk by construction** — there is no text encoding decision anywhere between `PrinterManager` and the socket. |
+| Printer status/errors | Native (`NetworkPrinterTransport` reports only *transport*-level outcomes: `connection_refused`, `host_unreachable`, `connection_timeout`, or success) | **Known gap, not addressed in this pass**: a successful socket write is reported as success even if the physical printer was out of paper or had its cover open — there's no read-back of ESC/POS's real-time status command (`DLE EOT n`). Flagged as a genuine future native enhancement, not implemented (no way to test it without hardware, and no printer-status complaint has actually been observed yet). |
+| Port | Web (`DEVICE.printerPort`/`kitchenPrinterPort`, user-configurable per printer; 9100 is only ever a UI *default value*) + Native (`NetworkPrinterTransport` always uses `target.port`, verified — no hardcoded port anywhere in the Swift code) | **Confirmed never assumed** — checked directly in both layers. |
 
 ## 5. Hardware Compatibility Matrix
 
