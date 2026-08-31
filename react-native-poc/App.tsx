@@ -26,6 +26,9 @@ import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 import { Printer, printReceipt } from './src/platform/printer';
 import { CashDrawer, openCashDrawer } from './src/platform/cashDrawer';
 import { getDeviceInfo, DeviceInfo } from './src/platform/device';
+import LoginScreen from './src/ui/LoginScreen';
+import type { CashierProfile } from './src/domain/auth';
+import { logout } from './src/application/authService';
 
 /** React Native's Hermes runtime has no global `btoa` (unlike a browser) —
  *  a minimal base64 encoder, since pulling in a whole polyfill package for
@@ -67,7 +70,51 @@ function buildTestReceiptBase64(): string {
   return bytesToBase64(bytes);
 }
 
+/**
+ * Real top-level app: real login (Checkpoint 2) is the primary screen,
+ * per the explicit instruction to start with the real POS, not a demo.
+ * The hardware POC tools (Test Printer / Print Test Receipt / Open Cash
+ * Drawer -- Checkpoints 10-12's foundation) stay reachable, not deleted,
+ * since they're still the only way to exercise the printer/drawer path
+ * until a real order/payment screen exists.
+ */
 function App(): React.JSX.Element {
+  const [cashier, setCashier] = useState<CashierProfile | null>(null);
+  const [showHardwareTools, setShowHardwareTools] = useState(false);
+
+  if (showHardwareTools) {
+    return <HardwareToolsScreen onBack={() => setShowHardwareTools(false)} />;
+  }
+
+  if (!cashier) {
+    return <LoginScreen onLoggedIn={setCashier} />;
+  }
+
+  return (
+    <SafeAreaView style={styles.root}>
+      <View style={styles.loggedInContainer}>
+        <Text style={styles.title}>مرحبًا، {cashier.full_name || 'بدون اسم'}</Text>
+        <Text style={styles.subtitle}>
+          تسجيل الدخول الحقيقي عبر Supabase + /api/pos/login نجح فعليًا (Checkpoint 2).
+          شاشات POS الحقيقية (المنتجات/السلة/الطلبات) قادمة في الـCheckpoints التالية.
+        </Text>
+        <TouchableOpacity style={styles.button} onPress={() => setShowHardwareTools(true)}>
+          <Text style={styles.buttonText}>أدوات اختبار الطابعة/الدرج</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.button, styles.secondaryButton]}
+          onPress={async () => {
+            await logout();
+            setCashier(null);
+          }}>
+          <Text style={styles.buttonText}>تسجيل الخروج</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+function HardwareToolsScreen({ onBack }: { onBack: () => void }): React.JSX.Element {
   const isDarkMode = useColorScheme() === 'dark';
 
   const [host, setHost] = useState('192.168.1.50');
@@ -172,10 +219,13 @@ function App(): React.JSX.Element {
     <SafeAreaView style={[styles.root, isDarkMode && styles.rootDark]}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>Rakeen — React Native POC</Text>
+        <TouchableOpacity onPress={onBack}>
+          <Text style={styles.link}>‹ رجوع</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>أدوات اختبار الطابعة/الدرج</Text>
         <Text style={styles.subtitle}>
           يثبت مسار واحد كامل: RN UI → JS → NativeModules → Swift/Kotlin → Socket حقيقي.
-          ليس إعادة بناء للكاشير — راجع docs/react-native-poc/phase7-poc-screen.md
+          راجع docs/react-native-poc/phase7-poc-screen.md
         </Text>
 
         <View style={styles.card}>
@@ -268,6 +318,9 @@ const styles = StyleSheet.create({
   },
   buttonText: { fontWeight: '700', color: '#1a1a1a' },
   logLine: { fontSize: 11, color: '#555', marginBottom: 2 },
+  loggedInContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  secondaryButton: { backgroundColor: '#ddd', marginTop: 20 },
+  link: { color: '#666', textDecorationLine: 'underline', marginBottom: 8 },
 });
 
 export default App;
