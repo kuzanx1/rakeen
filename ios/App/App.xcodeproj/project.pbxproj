@@ -17,7 +17,9 @@
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
 		AA11223344556677889900A1 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11223344556677889900A2 /* MainViewController.swift */; };
-		AA11223344556677889900B1 /* PrinterBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11223344556677889900B2 /* PrinterBridge.swift */; };
+		CC00112233445566778899C1 /* PrinterTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00112233445566778899C2 /* PrinterTransport.swift */; };
+		CC00112233445566778899D1 /* NetworkPrinterTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00112233445566778899D2 /* NetworkPrinterTransport.swift */; };
+		CC00112233445566778899E1 /* PrinterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00112233445566778899E2 /* PrinterManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -33,7 +35,9 @@
 		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		AA11223344556677889900A2 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
-		AA11223344556677889900B2 /* PrinterBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrinterBridge.swift; sourceTree = "<group>"; };
+		CC00112233445566778899C2 /* PrinterTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrinterTransport.swift; sourceTree = "<group>"; };
+		CC00112233445566778899D2 /* NetworkPrinterTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPrinterTransport.swift; sourceTree = "<group>"; };
+		CC00112233445566778899E2 /* PrinterManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrinterManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -70,7 +74,9 @@
 			children = (
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
 				AA11223344556677889900A2 /* MainViewController.swift */,
-				AA11223344556677889900B2 /* PrinterBridge.swift */,
+				CC00112233445566778899C2 /* PrinterTransport.swift */,
+				CC00112233445566778899D2 /* NetworkPrinterTransport.swift */,
+				CC00112233445566778899E2 /* PrinterManager.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -167,7 +173,9 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 				AA11223344556677889900A1 /* MainViewController.swift in Sources */,
-				AA11223344556677889900B1 /* PrinterBridge.swift in Sources */,
+				CC00112233445566778899C1 /* PrinterTransport.swift in Sources */,
+				CC00112233445566778899D1 /* NetworkPrinterTransport.swift in Sources */,
+				CC00112233445566778899E1 /* PrinterManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

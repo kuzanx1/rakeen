@@ -1,20 +1,26 @@
 import Foundation
 import Network
 
-/// UNVERIFIED DRAFT — written on Windows, never compiled, never run against
-/// a real printer or on a real device. Implements the raw-TCP-socket
-/// transport described in docs/ios-native-bridge-interfaces.md §1 ("What
-/// actually needs to be true in the Swift/Capacitor implementation"):
-/// Network.framework, NOT a third-party ESC/POS SDK, since the web side
-/// already finishes 100% of the ESC/POS byte encoding (including the
-/// rasterized, pre-shaped Arabic receipt image) before handing bytes here.
+/// The one real, implemented `PrinterTransport` — raw ESC/POS bytes over a
+/// plain TCP socket, using `Network.framework` (not a third-party ESC/POS
+/// SDK), since the web side already finishes 100% of the ESC/POS byte
+/// encoding before handing bytes here. This is the same logic that
+/// compiled successfully in CI as `PrinterBridge` before this refactor
+/// (docs/windows-complete-mac-required.md) — only reshaped to conform to
+/// `PrinterTransport` so `PrinterManager` can address it uniformly
+/// alongside future Bluetooth/USB transports. No behavior change.
 ///
-/// Shared by both the printer bridge and the cash-drawer bridge — a drawer
-/// kick is just a 5-byte ESC/POS command sent to the same ip:port as a
-/// receipt printer (see MainViewController's "nativeCashDrawerBridge" case),
-/// so one transport class covers both per the doc's "minimum viable fix"
-/// note in §2.
-final class PrinterBridge {
+/// First real hardware target: SUNMI/Goodics NT310 (80mm kitchen cloud
+/// printer), reachable via its Ethernet/LAN port. Port 9100 is the
+/// industry-standard raw/JetDirect ESC/POS printing port and is what a
+/// real third-party POS integration guide documents for the NT310's sibling
+/// model (NT311, same product family/firmware line) — Sunmi's own NT310
+/// manual confirms LAN/TCP-IP connectivity and an ESC/POS-compatible
+/// self-test report but does not itself state the port number. Classified
+/// **Ready for Testing**, not Verified, until confirmed against the real
+/// unit — see docs/ios-native-bridge-interfaces.md §4 and
+/// docs/ios-nt310-test-plan.md.
+final class NetworkPrinterTransport: PrinterTransport {
 
     /// Per-attempt timeout. The web side already imposes its own 8s timeout
     /// per docs/ios-native-bridge-interfaces.md §1, and tolerates a late
@@ -23,14 +29,22 @@ final class PrinterBridge {
     /// layer's own timer.
     private let connectTimeoutSeconds: TimeInterval = 6
 
-    func send(bytes: Data, ip: String, port: UInt16, completion: @escaping (Bool, String?) -> Void) {
+    func send(bytes: Data, to target: PrinterTarget, completion: @escaping (Bool, String?) -> Void) {
+        guard target.transport == .network else {
+            completion(false, "unsupported_transport")
+            return
+        }
+        guard let ip = target.ip, let port = target.port else {
+            completion(false, "invalid_target")
+            return
+        }
         guard let nwPort = NWEndpoint.Port(rawValue: port) else {
             completion(false, "invalid_port")
             return
         }
 
         let connection = NWConnection(host: NWEndpoint.Host(ip), port: nwPort, using: .tcp)
-        let queue = DispatchQueue(label: "com.rakeen.cashier.printerbridge")
+        let queue = DispatchQueue(label: "com.rakeen.cashier.printertransport.network")
 
         var finished = false
         let finish: (Bool, String?) -> Void = { ok, error in
@@ -51,14 +65,14 @@ final class PrinterBridge {
                 connection.send(content: bytes, completion: .contentProcessed({ error in
                     timeoutWorkItem.cancel()
                     if let error = error {
-                        finish(false, PrinterBridge.describeError(error))
+                        finish(false, NetworkPrinterTransport.describeError(error))
                     } else {
                         finish(true, nil)
                     }
                 }))
             case .failed(let error):
                 timeoutWorkItem.cancel()
-                finish(false, PrinterBridge.describeError(error))
+                finish(false, NetworkPrinterTransport.describeError(error))
             case .cancelled:
                 timeoutWorkItem.cancel()
                 // If we reach here without `finished` already being true,

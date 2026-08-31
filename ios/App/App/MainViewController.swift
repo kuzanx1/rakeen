@@ -19,9 +19,15 @@ import Capacitor
 /// defines the exact same global shape keeps the web contract byte-for-byte
 /// identical to what already ships today, and to what's mock-tested in the
 /// print queue.
+///
+/// Delegates the actual byte delivery to `PrinterManager`
+/// (see PrinterTransport.swift/PrinterManager.swift) rather than opening a
+/// socket itself — this view controller only ever knows "here are bytes,
+/// an ip, and a port", never how they're actually transported, so adding a
+/// second transport (Bluetooth/USB) later never touches this file.
 class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
 
-    private let printerBridge = PrinterBridge()
+    private let printerManager = PrinterManager()
 
     override func capacitorDidLoad() {
         super.capacitorDidLoad()
@@ -63,7 +69,7 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
                 self.respond(callbackId: callbackId, ok: false, error: "render_failed", jsCallback: "__androidPrintCallback")
                 return
             }
-            printerBridge.send(bytes: bytes, ip: ip, port: UInt16(port)) { [weak self] ok, error in
+            printerManager.send(bytes: bytes, ip: ip, port: UInt16(port)) { [weak self] ok, error in
                 self?.respond(callbackId: callbackId, ok: ok, error: error, jsCallback: "__androidPrintCallback")
             }
 
@@ -73,7 +79,7 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
             // note) — sent as its own short byte sequence to the same
             // ip:port a printer would use.
             let kickBytes = Data([0x1B, 0x70, 0x00, 0x19, 0xFA])
-            printerBridge.send(bytes: kickBytes, ip: ip, port: UInt16(port)) { [weak self] ok, error in
+            printerManager.send(bytes: kickBytes, ip: ip, port: UInt16(port)) { [weak self] ok, error in
                 self?.respond(callbackId: callbackId, ok: ok, error: error, jsCallback: "__nativeCashDrawerCallback")
             }
 

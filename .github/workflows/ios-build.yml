@@ -73,7 +73,9 @@ jobs:
         # keeping it here so that regression can't reappear silently.
         run: |
           grep -q "MainViewController.swift" xcodebuild.log
-          grep -q "PrinterBridge.swift" xcodebuild.log
+          grep -q "PrinterTransport.swift" xcodebuild.log
+          grep -q "NetworkPrinterTransport.swift" xcodebuild.log
+          grep -q "PrinterManager.swift" xcodebuild.log
 
       - name: Upload build logs
         if: always()

@@ -8,16 +8,20 @@ called for real by `public/pos/rakeen-pos.js` today —
 return false in any build that doesn't inject these globals, and the web
 layer reports that honestly instead of faking success.
 
-A draft native implementation was written on Windows — see
-`ios/App/App/MainViewController.swift` and `ios/App/App/PrinterBridge.swift`
-— matching this contract as closely as this environment allows to prove.
-**It has never been compiled** (no Swift toolchain exists on Windows —
-verified: `swiftc`/`swift` are not present in this environment) and never
-run against a real bridge, WKWebView, or printer. Treat every line of it as
-🟡 prepared, not ✅ verified, until it has at least compiled in Xcode — see
-`docs/windows-complete-mac-required.md` for the full status legend. The goal
-remains that when a Mac becomes available, the Xcode phase is "does this
-draft compile and work" rather than "design this from scratch."
+**Update — real compile proof exists.** A GitHub Actions workflow builds
+this project on a real macOS/Xcode runner (see
+`docs/windows-complete-mac-required.md`); as of the transport-abstraction
+refactor below, `ios/App/App/MainViewController.swift`,
+`ios/App/App/PrinterManager.swift`, `ios/App/App/PrinterTransport.swift`,
+and `ios/App/App/NetworkPrinterTransport.swift` (the code that implements
+this contract) all compile successfully as part of the real `App` target —
+confirmed via the actual build log, not assumed. **This proves the Swift
+compiles. It does not prove printing works** — nothing here has run against
+a real WKWebView on a device or a real printer yet. Treat every claim below
+as 🟢 compiles / 🟡 Ready for Testing, never "the printer works," until
+confirmed on real hardware — see `docs/windows-complete-mac-required.md`
+for the full status legend and §4/§5 below for the transport design and
+hardware matrix.
 
 ## 1. Print Bridge — `window.AndroidPrint` (existing contract)
 
@@ -203,46 +207,87 @@ anything not in that first group identically (retry with backoff), so there
 is no reason to lie about the specific cause, and a precise string shows up
 directly in Diagnostics' "آخر خطأ طباعة" row for support purposes.
 
-## 4. Hardware Compatibility Matrix
+## 4. Native Transport Abstraction (PrintQueue → PrinterManager → Transport → Printer)
+
+Rakeen's merchants use printers from different brands, models, and
+connection types — this is NOT a single-printer system, and the native
+layer is deliberately structured so a second/third transport is an
+addition, not a rewrite:
+
+```
+PrintQueue (web, unchanged)
+   → window.AndroidPrint.printRaw(base64, ip, port, callbackId)
+   → MainViewController (WKScriptMessageHandler)
+   → PrinterManager                       (ios/App/App/PrinterManager.swift)
+   → PrinterTransport protocol            (ios/App/App/PrinterTransport.swift)
+   → NetworkPrinterTransport              (ios/App/App/NetworkPrinterTransport.swift) — the only real one today
+   → physical printer
+```
+
+`PrinterManager` is the only thing that decides which transport handles a
+job. Today that decision is trivial — every job is `.network` — because the
+web-side bridge contract above only ever sends `ip`/`port`; there is
+currently no way for `rakeen-pos.js` to express "this printer is
+Bluetooth/USB". Adding that later is a **future, additive** change to the
+`printRaw`/`kick` message shape (new optional fields), not a Print Queue
+rewrite — everything upstream of `PrinterManager` (the queue, retry,
+backoff, dedup, persistence logic) stays exactly as it is.
+
+**Why no per-model "capabilities profile" beyond `PrinterProfile`'s minimal
+shape**: the web layer (`renderReceiptCanvas`/`canvasToEscPosRaster` in
+`rakeen-pos.js`) already rasterizes the entire receipt — Arabic text
+included — into a bitmap before handing bytes to the native side. For any
+ESC/POS-compatible printer, the native layer has nothing model-specific
+left to decide; it only needs to know how to *reach* the device and
+whether that transport is actually implemented and tested. A model that
+needs genuinely different native behavior (not ESC/POS at all) would need
+its own `PrinterTransport` conformance, not a flag on this struct.
+
+## 5. Hardware Compatibility Matrix
 
 Per the explicit "do not fake compatibility" requirement — this is the
-honest state, not an aspirational one. "Tested" means verified against real
-hardware or a faithful mock in this session; "Untested" means the code path
-may exist but has never touched real hardware; "Not implemented" means the
-capability doesn't exist in any form yet.
+honest state, not an aspirational one, using exactly the three-way
+classification the project uses everywhere else in this phase:
+**Verified** (confirmed against real hardware), **Ready for Testing**
+(code exists, reasoning/vendor docs support it, never run against the real
+unit), **Unsupported** (not implemented, or known/likely impossible on
+this platform).
 
-| Printer/Drawer type | Transport | Status | Notes |
-|---|---|---|---|
-| Network ESC/POS printer (WiFi/Ethernet) | Raw TCP socket, port 9100 | **Code exists, mock-tested** | `printRaw(base64, ip, port, cb)` — this is the ONLY transport the web layer's print bytes assume. No real hardware has confirmed this session; retry/queue/backoff logic around it is real-tested via a JS mock of the same interface. |
-| Drawer wired through a network printer's RJ11 port | Same TCP socket as above + ESC/POS kick bytes | **Not implemented** | See §2 — button is currently cosmetic; fix is a small addition once `printRaw` has a real native backing. |
-| Bluetooth Classic printer | Requires MFi (Apple's "Made for iPhone/iPad" accessory program) or a BLE-based printer instead | **Not implemented, not evaluated** | iOS does not expose raw Bluetooth Classic sockets to third-party apps outside the MFi `ExternalAccessory` framework — a non-MFi-certified Bluetooth Classic printer is very likely **impossible** to support on iOS without the manufacturer's own MFi-certified SDK. Must be confirmed per exact printer model — do not promise support before checking. |
-| BLE (Bluetooth Low Energy) printer | `CoreBluetooth` | **Not implemented, not evaluated** | Technically reachable from a native Swift layer (`CoreBluetooth` is a public framework, no MFi needed for BLE) — but NOT reachable from Web Bluetooth inside WKWebView; Apple does not support the Web Bluetooth API in WebKit at all, on any iOS browser, including inside a Capacitor/WKWebView shell. A BLE printer therefore **requires** a genuine native Swift plugin — this cannot be bridged through more JavaScript. |
-| USB printer | Lightning/USB-C accessory framework, or MFi | **Not implemented, not evaluated** | iPadOS has broader USB accessory support than iPhone; still requires native `ExternalAccessory`/USB framework code, not reachable from web. |
-| AirPrint | `UIPrintInteractionController` (native) or CSS print media (web, unreliable for ESC/POS raster+cut) | **Not implemented** | Would be a genuinely different code path (system print dialog, not a raw socket) — useful only as a manual fallback for receipt printers that expose AirPrint, not for kitchen tickets needing an auto-cut. |
+| Printer / Transport | Status | Notes |
+|---|---|---|
+| **SUNMI/Goodics NT310** (80mm kitchen cloud printer) via **Ethernet/LAN** | **Ready for Testing** | First real hardware target. `NetworkPrinterTransport` (raw TCP via `Network.framework`) is the implementation. Port **9100** is the industry-standard raw/JetDirect ESC/POS port; Sunmi's own NT310 manual confirms LAN/TCP-IP connectivity and ESC/POS support but does not itself state the port number — a real third-party POS integration guide for the NT311 (same product family/firmware line, one shared Sunmi quick-start guide covers NT310/311/312/313) explicitly documents "TCP/IP, port 9100" for that sibling model. Classified Ready for Testing, not Verified, until confirmed against the real NT310 unit — see `docs/ios-nt310-test-plan.md`. |
+| Any other network/Ethernet/WiFi ESC/POS printer (port 9100) | **Ready for Testing** | Same `NetworkPrinterTransport` — nothing in it is NT310-specific. Any printer that accepts raw ESC/POS bytes on a TCP socket fits this transport unchanged. |
+| Drawer wired through a network printer's RJ11 port | **Ready for Testing** | Same `NetworkPrinterTransport`, sent the standard 5-byte ESC/POS kick command (see §2) instead of a full receipt. |
+| Bluetooth Classic printer | **Unsupported** | Requires MFi (Apple's "Made for iPhone/iPad" accessory program) — iOS does not expose raw Bluetooth Classic sockets to third-party apps otherwise. A non-MFi-certified Bluetooth Classic printer is very likely **impossible** to support on iOS. Confirm per exact model before promising support. No `PrinterTransport` conformance exists for this. |
+| BLE (Bluetooth Low Energy) printer | **Unsupported** | Technically reachable from native Swift (`CoreBluetooth`, no MFi needed for BLE) but NOT reachable from Web Bluetooth inside WKWebView — Apple does not support the Web Bluetooth API in WebKit at all. Would need a genuine native `PrinterTransport` conformance (e.g. `BluetoothPrinterTransport`) plus a bridge-contract extension so the web layer can address it; neither exists yet. |
+| USB printer | **Unsupported** | iPadOS has broader USB accessory support than iPhone; still needs native `ExternalAccessory`/USB framework code behind a new `PrinterTransport` conformance — not reachable from web, not implemented. |
+| AirPrint | **Unsupported** | Would be a genuinely different code path (system print dialog via `UIPrintInteractionController`, not a raw socket) — useful only as a manual fallback, not for kitchen tickets needing an auto-cut. Not implemented. |
 
-**The one thing this session can say with confidence**: the ESC/POS raster
+**The one thing this phase can say with confidence**: the ESC/POS raster
 encoding, Arabic-shaping-via-canvas, and the print queue's retry/dedup/
-persistence logic are all transport-agnostic — they hand a native bridge a
-finished byte array and an ip:port and don't care how those bytes actually
-reach the printer. Adding BLE/USB/MFi support later means writing a new
-native transport that implements the SAME `printRaw`-shaped contract; it
-does not require touching the web layer's print queue, ESC/POS encoding, or
-Arabic rendering at all.
+persistence logic are all transport-agnostic already — nothing about them
+changed to support this abstraction. Adding BLE/USB/MFi support later means
+writing a new `PrinterTransport` conformance; it does not require touching
+the web layer's print queue, ESC/POS encoding, Arabic rendering, or
+`MainViewController`'s message handling at all.
 
-## 5. What this means for the Xcode phase specifically
+## 6. What this means for the Xcode phase specifically
 
 When a Mac is available, the actual native work is:
-1. Implement `AndroidPrintBridge` for network printers first (§1) — this
-   alone makes every already-built, already-tested print-queue behavior
-   (retry, backoff, dedup, persistence, manual retry from Diagnostics) real
-   instead of `skipped_no_printer` on every attempt.
-2. Implement `NativeCashDrawer` (§2) — the web side already calls it
-   correctly and shows an honest status either way; this is purely a native
-   addition, no web-side change needed.
-3. Evaluate BLE/MFi/USB support PER ACTUAL PRINTER MODEL the business owns
+1. Confirm `NetworkPrinterTransport` against the real SUNMI/Goodics NT310
+   over LAN (§5, `docs/ios-nt310-test-plan.md`) — this alone makes every
+   already-built, already-tested print-queue behavior (retry, backoff,
+   dedup, persistence, manual retry from Diagnostics) real instead of
+   `skipped_no_printer` on every attempt, for this specific unit.
+2. Confirm the cash-drawer kick against the same unit if a drawer is
+   wired through it — the web side already calls it correctly and shows an
+   honest status either way; this is purely a native/hardware confirmation,
+   no web-side change needed.
+3. Evaluate BLE/MFi/USB support PER ACTUAL PRINTER MODEL a merchant owns
    before claiming any of it works — none of it has been evaluated yet, and
-   the honest matrix above should be updated (not guessed) once real
-   hardware is in hand.
+   the matrix above should be updated (not guessed) once real hardware is
+   in hand for a given model.
 4. None of steps 1–3 require any change to `public/pos/rakeen-pos.js`'s
-   print-queue/ESC-POS/Arabic-rendering logic — only the native bridge
-   object itself needs to exist and match the contracts above.
+   print-queue/ESC-POS/Arabic-rendering logic — only `PrinterManager`/the
+   relevant `PrinterTransport` needs to exist and match the contracts
+   above.

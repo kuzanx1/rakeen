@@ -16,7 +16,7 @@ guess presented as settled.
 <string>يحتاج التطبيق الوصول للشبكة المحلية للاتصال بالطابعة الحرارية ودرج النقود المتصلين عبر نفس شبكة الواي فاي.</string>
 ```
 
-Required because `PrinterBridge.swift` opens a raw `NWConnection` to a LAN
+Required because `NetworkPrinterTransport.swift` opens a raw `NWConnection` to a LAN
 IP (the receipt printer / drawer controller) — iOS 14+ shows a one-time
 system permission prompt ("Rakeen Cashier would like to find and connect to
 devices on your local network") the first time any local-network socket is
@@ -42,7 +42,7 @@ No ATS exception has been added, and none should be needed:
   (`capacitor.config.ts`'s `server.url`), which already has a valid TLS
   certificate via Cloudflare — this is exactly what ATS's default policy
   allows with zero configuration.
-- The printer/drawer transport (`PrinterBridge.swift`) uses `Network.framework`
+- The printer/drawer transport (`NetworkPrinterTransport.swift`, behind `PrinterManager`) uses `Network.framework`
   (`NWConnection`) directly, **not** `URLSession`/`WKWebView` — ATS only
   governs HTTP(S) requests made through Apple's URL-loading APIs. A raw TCP
   socket to a LAN printer's IP:port is entirely outside ATS's scope by
@@ -90,7 +90,8 @@ behavior change, not just config:
 ## 5. How the native bridge is wired into the WKWebView
 
 Documented in full in the Swift files themselves
-(`ios/App/App/MainViewController.swift`, `ios/App/App/PrinterBridge.swift`);
+(`ios/App/App/MainViewController.swift`, `ios/App/App/PrinterManager.swift`,
+`ios/App/App/PrinterTransport.swift`, `ios/App/App/NetworkPrinterTransport.swift`);
 summarized here:
 
 1. `Base.lproj/Main.storyboard`'s root view controller's `customClass` was
@@ -113,7 +114,8 @@ summarized here:
      (`window.__androidPrintCallback`, `window.__nativeCashDrawerCallback`)
      that `rakeen-pos.js` already calls today.
 3. `printRaw`/`kick` calls from JS post a message to native; native opens an
-   `NWConnection` via `PrinterBridge.send(...)` and calls back into JS via
+   `NWConnection` via `PrinterManager.send(...)` (which routes to
+   `NetworkPrinterTransport`) and calls back into JS via
    `webView.evaluateJavaScript(...)`.
 
 **Why not a standard Capacitor plugin**: a Capacitor plugin surfaces as
@@ -123,5 +125,10 @@ calls — explicitly out of scope per the instruction not to touch the web
 contract. The `WKUserScript` approach keeps the web layer byte-for-byte
 unchanged.
 
-**Everything in this section is 🟡 prepared, not ✅ verified** — it has
-never been compiled (no Swift toolchain on Windows) or run in a WKWebView.
+**Compile status**: this wiring compiles successfully as part of the real
+`App` target, confirmed via a real GitHub Actions macOS/Xcode build (see
+`docs/windows-complete-mac-required.md`). **It has never run in an actual
+WKWebView on a device** — whether the injected `window.AndroidPrint`/
+`window.NativeCashDrawer` globals are actually reachable once the page
+loads a remote `server.url` origin is still unconfirmed; see
+`docs/ios-xcode-guide.md` step 13 for the first real check.

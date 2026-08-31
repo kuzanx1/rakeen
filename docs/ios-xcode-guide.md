@@ -1,11 +1,12 @@
 # Xcode Guide — From `npx cap add ios` to Running on a Real iPad
 
-This is written for whoever has the Mac. Steps 1–4 have already happened on
-Windows and are committed to this repo — they're listed for context, marked
-done, not to be re-run unless something looks wrong. Steps 5+ genuinely
-need Xcode/a Mac and have not been attempted from here.
+This is written for whoever has the Mac. Steps 1–9 have already happened —
+some on Windows, one for real on a GitHub Actions macOS runner — and are
+committed to this repo; they're listed for context, marked done, not to be
+re-run unless something looks wrong. Steps 10+ genuinely need a local
+Mac/Xcode and physical hardware, and have not been attempted from here.
 
-## Already done (on Windows, in this repo)
+## Already done
 
 1. **`npm install @capacitor/core @capacitor/cli @capacitor/ios`** — ✅ ran
    successfully, packages are in `package.json`/`package-lock.json`.
@@ -23,9 +24,7 @@ need Xcode/a Mac and have not been attempted from here.
    Capacitor project would — `ios/App/App.xcworkspace` does not exist
    anywhere in this repo. The thing to open/build is `ios/App/App.xcodeproj`
    directly; SPM package references are resolved inside the `.xcodeproj`
-   itself. An earlier draft of this guide assumed the workspace convention
-   and was wrong — corrected once a real `xcodebuild` run on GitHub Actions
-   surfaced `xcodebuild: error: 'ios/App/App.xcworkspace' does not exist.`
+   itself.
 4. **`npx cap sync ios`** — ✅ ran successfully (copies `public/` into
    `ios/App/App/public` — mostly irrelevant since `server.url` is set, see
    below — and regenerates `Package.swift`'s plugin list).
@@ -43,17 +42,39 @@ need Xcode/a Mac and have not been attempted from here.
    controller's `customClass` is `MainViewController` (ours) instead of
    `CAPBridgeViewController` (Capacitor's default) — see
    `docs/ios-configuration.md` §5.
-8. **`ios/App/App/MainViewController.swift`** and
-   **`ios/App/App/PrinterBridge.swift`** written from scratch, implementing
-   `docs/ios-native-bridge-interfaces.md` §1/§2 — **never compiled**.
+8. **The native bridge implementation** — `ios/App/App/MainViewController.swift`,
+   `ios/App/App/PrinterManager.swift`, `ios/App/App/PrinterTransport.swift`,
+   and `ios/App/App/NetworkPrinterTransport.swift` — implements
+   `docs/ios-native-bridge-interfaces.md` §1/§2 behind a small transport
+   abstraction (§4 of that doc): PrintQueue (web) → `PrinterManager` →
+   `PrinterTransport` → physical printer, so a second transport
+   (Bluetooth/USB) can be added later without touching the web layer or
+   `MainViewController`.
+9. **A GitHub Actions workflow** (`.github/workflows/ios-build.yml`) builds
+   this project on a real `macos-14` runner (Xcode 15.4, Swift 5.10) on
+   every push touching `ios/**`/`capacitor.config.ts`/`package.json`. As of
+   this writing it has run to a real **`** BUILD SUCCEEDED **`**, with all
+   four Swift files above confirmed compiled into the real `App` target
+   (not just present on disk — an earlier run caught exactly that failure
+   mode: two files existed but weren't registered in `project.pbxproj`'s
+   Sources build phase, so Xcode silently skipped them; a CI step now greps
+   the build log for every bridge filename so that can't regress silently).
+   Three rounds of *real* compiler errors were found and fixed this way
+   (wrong workspace path, missing project registration, a wrong Capacitor
+   API property name) — see `docs/windows-complete-mac-required.md` for the
+   full list. **This proves the Swift compiles — it does not prove printing
+   works.** Nothing has run against a real WKWebView on a device or a real
+   printer.
 
-None of the above required Xcode or macOS to produce — `cap` CLI commands
-and hand-editing plain-text/XML files both ran/were done directly on
-Windows. What follows genuinely cannot be done here.
+None of the above required a local Xcode/macOS to produce, including the CI
+build itself — GitHub's macOS runners did the actual compiling; every step
+that produced or fixed a file was still just editing plain text (Swift
+source, XML, YAML) from Windows, guided by real compiler errors read back
+from the CI logs. What follows genuinely cannot be done from here.
 
 ## From here on — needs a Mac
 
-### 9. Open the project
+### 10. Open the project
 
 ```
 open ios/App/App.xcodeproj
@@ -62,42 +83,37 @@ open ios/App/App.xcodeproj
 There is no `.xcworkspace` in this project (see the correction note above) —
 open the `.xcodeproj` directly. Capacitor's SPM integration
 (`CapApp-SPM`) is wired in as a local Swift package reference inside the
-`.xcodeproj` itself — see `docs/windows-complete-mac-required.md` for
-whether a real build against this structure has actually succeeded.
+`.xcodeproj` itself.
 
-### 10. Let Swift Package Manager resolve
+### 11. Let Swift Package Manager resolve
 
 Xcode should automatically resolve `CapApp-SPM/Package.swift`'s
 dependencies (Capacitor's own Swift packages) on first open — this needs
-network access and is the first genuinely Mac-only step. Watch the "Swift
-Package Manager" status in Xcode's activity area; resolve any errors before
-proceeding (a common one is an outdated Xcode/Swift toolset version —
-Capacitor publishes a minimum-supported Xcode version per Capacitor major
-version, check `@capacitor/ios`'s installed version against
-Capacitor's own compatibility table).
+network access and is the first genuinely Mac-only step (the CI build
+already does this successfully on GitHub's runner, so it should resolve
+the same way locally; if it doesn't, something differs between the two
+environments and is worth understanding before debugging further). Watch
+the "Swift Package Manager" status in Xcode's activity area.
 
-### 11. Fix the Bundle Identifier
+### 12. Fix the Bundle Identifier
 
 In the App target → Signing & Capabilities tab, replace the placeholder
 `com.rakeen.cashier` with the real registered bundle ID (see
 `docs/ios-configuration.md` §3) if a different one has been chosen. Set the
 Team to the correct Apple Developer account/team.
 
-### 12. First build — confirm it compiles at all
+### 13. First local build — should just work, but confirm it
 
-Build for a Simulator first (e.g. "iPad Pro 13-inch"), not a real device —
-this is the fastest way to catch:
-- Swift syntax errors in `MainViewController.swift`/`PrinterBridge.swift`
-  (written on Windows with no compiler available to check them — see
-  `docs/windows-complete-mac-required.md`'s 🔴 items)
-- Any `Network`/`WebKit`/`Capacitor` API mismatch against the actual
-  installed SDK version (this draft was written against training-data
-  knowledge of these frameworks, not verified against a real SDK)
+Build for a Simulator first (e.g. "iPad Pro 13-inch"), not a real device.
+The CI build already proves this project compiles cleanly on a real
+macOS/Xcode toolchain (`docs/windows-complete-mac-required.md`) — this step
+is mainly to confirm the local Mac's Xcode/SDK setup produces the same
+result, not to discover fresh compile errors. If it *doesn't* build cleanly
+locally, compare the local Xcode/SDK version against what CI used
+(Xcode 15.4, iOS 17.5 SDK) — a version mismatch is the most likely cause of
+any divergence, not a code problem.
 
-Fix anything the compiler flags — this is expected, normal Xcode-phase work,
-not a sign the architecture was wrong.
-
-### 13. Run on Simulator — verify the bridge is even reachable
+### 14. Run on Simulator — verify the bridge is even reachable
 
 Once it builds, run on Simulator and check (via Safari's Web Inspector,
 attached to the Simulator's WKWebView — Safari → Develop → Simulator →
@@ -117,29 +133,33 @@ storyboard's `customClass` wiring didn't take — check
 
 The Simulator **cannot** test an actual printer connection (no real LAN
 printer reachable in the same way, and Simulator networking doesn't perfectly
-mirror a real device's local-network permission prompt) — that needs step 15.
+mirror a real device's local-network permission prompt) — that needs step 16.
 
-### 14. Local Network permission prompt — first real-device-only check
+### 15. Local Network permission prompt — first real-device-only check
 
-Run on a real iPad connected to the same Wi-Fi as (eventually) the printer.
-The first time `printRaw`/`kick` actually opens an `NWConnection`, iOS
-should show the local-network permission prompt (see
-`docs/ios-configuration.md` §1). Confirm it appears, confirm accepting it
-lets a real connection attempt proceed, and confirm declining it produces a
-clean `connection_refused`/`connection_error`-style failure through the
-existing print-queue retry UI rather than a crash.
+Run on a real iPad connected to the same Wi-Fi as the printer. The first
+time `printRaw`/`kick` actually opens an `NWConnection`, iOS should show
+the local-network permission prompt (see `docs/ios-configuration.md` §1).
+Confirm it appears, confirm accepting it lets a real connection attempt
+proceed, and confirm declining it produces a clean
+`connection_refused`/`connection_error`-style failure through the existing
+print-queue retry UI rather than a crash.
 
-### 15. Real printer / drawer testing
+### 16. Real printer / drawer testing
 
-See `docs/ios-hardware-test-plan.md` for the full test matrix — this is the
-first point where actual ESC/POS output, Arabic rendering, cut, and drawer
-kick can be judged against reality instead of a mock.
+The first real hardware target is a **SUNMI/Goodics NT310** (80mm kitchen
+cloud printer) over Ethernet/LAN — see `docs/ios-nt310-test-plan.md` for
+the model-specific test plan, and `docs/ios-hardware-test-plan.md` for the
+general printer/drawer/offline-first test matrix. This is the first point
+where actual ESC/POS output, Arabic rendering, cut, and drawer kick can be
+judged against reality instead of a mock.
 
-### 16. Everything after that
+### 17. Everything after that
 
 Local Network permission across app reinstall, backgrounding/termination
-behavior, offline/airplane-mode testing, Bluetooth/USB evaluation once the
-printer model is known, full Hardware Acceptance Test, then signing/
-TestFlight/App Store — all per the user's original 12-step plan, now backed
-by a project that already exists and a bridge draft that already compiles-or-
-doesn't rather than needing to be designed from a blank Xcode project.
+behavior, offline/airplane-mode testing, Bluetooth/USB evaluation once a
+second printer model is in hand, full Hardware Acceptance Test, then
+signing/TestFlight/App Store — all per the user's original 12-step plan,
+now backed by a project that already exists and compiles, and a transport
+abstraction (`docs/ios-native-bridge-interfaces.md` §4) designed so
+supporting more printer models later doesn't mean redesigning any of this.
