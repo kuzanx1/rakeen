@@ -104,8 +104,15 @@ reading the actual code:
   with zero migration — confirmed by reading the actual `put()`/
   `getAll()` implementation against the actual `QueuedPayload` type as it
   exists today, not assumed from Checkpoint 5's original design intent.
-- CI: **pending** at the time of writing — this section will be updated
-  the moment the run completes, not assumed green.
+- CI: **confirmed green on both platforms** (run 33473623307) —
+  `android` in 12m40s, `ios` in 4m51s (`macos-15`/Xcode 16.4), on the
+  FIRST attempt, including the "verify the native modules were actually
+  compiled" safeguard step on both (checking the project's own
+  RakeenPrinterModule/RakeenCashDrawerModule/RakeenDeviceModule classes —
+  `react-native-mmkv` itself autolinks and isn't individually grepped for,
+  same as every other third-party dependency; a green `pod install`/
+  `gradle assembleDebug` is what proves ITS native code compiled and
+  linked).
 
 ## FAILED
 
@@ -141,8 +148,6 @@ call sites or the validated queue code.
   restart, does it actually beat AsyncStorage's performance, does
   autolinking correctly resolve on a real device rather than just in
   CI's build step — needs real hardware.
-- **CI result** for the new native dependency — pending, to be appended
-  here once the run completes.
 - **The retry-columns-unused observation** on `sqliteOrderQueue.ts` (see
   WHAT CHANGED) is disclosed as a valid future optimization, not
   something this checkpoint changed or was asked to change.
@@ -159,6 +164,7 @@ core requirement, LAN independence) are unaffected by this checkpoint.
 
 **Status: 🟡 Ready for Testing** — the storage-engine swap compiles
 cleanly, is architecturally sound (validated against real Checkpoint
-5–7 usage, not assumed), and CI compilation proof is pending / 🔴 Needs
-Hardware for actual on-device read/write/persistence behavior. Do not
-advance to Checkpoint 9 until CI is confirmed green.
+5–7 usage, not assumed), and CI is confirmed green on both platforms on
+the first attempt / 🔴 Needs Hardware for actual on-device read/write/
+persistence behavior — that remains genuinely unverified and is not
+being claimed. Cleared to advance to Checkpoint 9.

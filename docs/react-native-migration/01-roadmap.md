@@ -83,8 +83,17 @@ unless actually run and confirmed.
   See `08-checkpoint-7-dine-in-tables.md`. 🟡 Ready for Testing for the
   screen itself / 🔴 Needs Hardware for on-device behavior and real-time
   sync. Cleared to advance.
-- Checkpoint 8 (Offline Storage): implemented, CI result pending
-  confirmation. See `09-checkpoint-8-offline-storage.md`.
+- Checkpoint 8 (Offline Storage): 🟡 Ready for Testing — MMKV added for
+  the flat `kv_cache` analogs (device config, cashier profile cache,
+  catalog offline snapshot, printer target), replacing AsyncStorage;
+  `react-native-mmkv@3.3.3` chosen over 4.x to avoid an unnecessary
+  second native-module system (Nitro Modules). The SQLite order-queue
+  side (Checkpoint 5) was re-validated against Checkpoint 6/7's actual
+  added usage and confirmed to still hold up with zero schema change.
+  CI green on both platforms on the first attempt. 🔴 Needs Hardware for
+  actual on-device MMKV read/write/persistence (confirmed impossible to
+  run under Node — no Node-runnable entry point exists at all). See
+  `09-checkpoint-8-offline-storage.md`. Cleared to advance.
 - Checkpoints 9-16: not started.
 
 **Permanent rule recorded this checkpoint**: the PWA/Web POS is not being
