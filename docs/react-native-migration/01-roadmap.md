@@ -111,7 +111,11 @@ unless actually run and confirmed.
   both platforms on the first attempt. 🔴 Needs Hardware for on-device
   persistence and physical print output. See
   `11-checkpoint-10-print-queue.md`. Cleared to advance.
-- Checkpoints 11-16: not started.
+- Checkpoint 11 (Printer Configuration + Hardware Abstraction
+  readiness): implemented (real Settings flow replacing the Checkpoint
+  6 placeholder, wired into payment/print dispatch), CI result pending
+  confirmation. See `12-checkpoint-11-printer-configuration.md`.
+- Checkpoints 12-16: not started.
 
 **Permanent rule recorded this checkpoint**: the PWA/Web POS is not being
 replaced — see `00-protection-and-rollback.md`'s new section.
