@@ -344,30 +344,48 @@ export default function ProductsScreen({
         // values (dineInOrderTotal is fetched fresh in
         // handleOpenDineInPayment) -- a disclosed, narrower receipt for
         // this one path, not a mocked one.
-        const device = await getDeviceConfig();
-        const profile = device.businessId != null ? await getReceiptBusinessProfile(device.businessId) : null;
-        const printerProfileForReceipt = await getPrinterProfile();
-        // Feature Parity Pass -- Printing Configuration: gated on the
-        // real DEVICE.printCustomerReceipt toggle (defaults ON, matching
-        // the PWA) instead of always printing.
-        if (shouldPrintCustomerReceipt(printerProfileForReceipt)) {
-          enqueuePrintJob('receipt', {
-            orderId: lastRegisteredDineInOrderId,
-            lines: [],
-            subtotal: dineInOrderTotal,
-            discount: 0,
-            vat: 0,
-            total: dineInOrderTotal,
-            paymentMethod: method,
-            change: method === 'cash' && cashAmount != null ? Math.max(0, cashAmount - dineInOrderTotal) : 0,
-            businessName: device.businessName ?? undefined,
-            branchName: device.branchName ?? undefined,
-            vatNumber: profile?.vatNumber || undefined,
-            logoUrl: shouldPrintReceiptLogo(printerProfileForReceipt) ? profile?.logoUrl || undefined : undefined,
-            customMessage: profile?.customMessage || undefined,
-            createdAtISO: new Date().toISOString(),
-            metaLabel: CHANNEL_LABELS.dine_in + (selectedTable ? ` — طاولة ${selectedTable.number}` : ''),
-          } satisfies ReceiptData).catch(() => {});
+        //
+        // Isolated in its own try/catch on purpose -- a real bug found
+        // during the TestFlight-readiness audit: getReceiptBusinessProfile
+        // is a network call, and this whole block used to run unguarded
+        // inside the same try as completePaymentOperation. Payment had
+        // ALREADY succeeded (offline-safe, queue-first) by this point; a
+        // network hiccup fetching the VAT number/logo for the receipt
+        // must never be allowed to fall into the outer catch and (a)
+        // overwrite the correct "دفع: PAYMENT_COMPLETED" status with a
+        // false "unexpected error", or (b) skip clearing
+        // lastRegisteredDineInOrderId/selectedCustomer below, which would
+        // leave the UI thinking this table's order is still open even
+        // though it was genuinely just paid.
+        try {
+          const device = await getDeviceConfig();
+          const profile = device.businessId != null ? await getReceiptBusinessProfile(device.businessId) : null;
+          const printerProfileForReceipt = await getPrinterProfile();
+          // Feature Parity Pass -- Printing Configuration: gated on the
+          // real DEVICE.printCustomerReceipt toggle (defaults ON, matching
+          // the PWA) instead of always printing.
+          if (shouldPrintCustomerReceipt(printerProfileForReceipt)) {
+            enqueuePrintJob('receipt', {
+              orderId: lastRegisteredDineInOrderId,
+              lines: [],
+              subtotal: dineInOrderTotal,
+              discount: 0,
+              vat: 0,
+              total: dineInOrderTotal,
+              paymentMethod: method,
+              change: method === 'cash' && cashAmount != null ? Math.max(0, cashAmount - dineInOrderTotal) : 0,
+              businessName: device.businessName ?? undefined,
+              branchName: device.branchName ?? undefined,
+              vatNumber: profile?.vatNumber || undefined,
+              logoUrl: shouldPrintReceiptLogo(printerProfileForReceipt) ? profile?.logoUrl || undefined : undefined,
+              customMessage: profile?.customMessage || undefined,
+              createdAtISO: new Date().toISOString(),
+              metaLabel: CHANNEL_LABELS.dine_in + (selectedTable ? ` — طاولة ${selectedTable.number}` : ''),
+            } satisfies ReceiptData).catch(() => {});
+          }
+        } catch {
+          // Never let a receipt-metadata fetch failure look like the sale
+          // itself failed -- the payment above already succeeded.
         }
         setLastRegisteredDineInOrderId(null);
         setSelectedCustomer(null); // transaction fully settled -- start clean for the next table/customer
@@ -430,26 +448,39 @@ export default function ProductsScreen({
         // this path yet (a disclosed gap, same category as the dine-in
         // one Checkpoint 6 fixed for its own path) -- the receipt shows
         // "Order (offline)" until a future checkpoint closes that gap.
-        const profile = device.businessId != null ? await getReceiptBusinessProfile(device.businessId) : null;
-        const printerProfileForReceipt = await getPrinterProfile();
-        if (shouldPrintCustomerReceipt(printerProfileForReceipt)) {
-          enqueuePrintJob('receipt', {
-            orderId: null,
-            lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
-            subtotal: cart.totals.subtotal,
-            discount: cart.totals.discount,
-            vat: cart.totals.vat,
-            total: cart.totals.total,
-            paymentMethod: method,
-            change: method === 'cash' && cashAmount != null ? Math.max(0, cashAmount - cart.totals.total) : 0,
-            businessName: device.businessName ?? undefined,
-            branchName: device.branchName ?? undefined,
-            vatNumber: profile?.vatNumber || undefined,
-            logoUrl: shouldPrintReceiptLogo(printerProfileForReceipt) ? profile?.logoUrl || undefined : undefined,
-            customMessage: profile?.customMessage || undefined,
-            createdAtISO: new Date().toISOString(),
-            metaLabel: CHANNEL_LABELS[cart.orderChannel] || cart.orderChannel,
-          } satisfies ReceiptData).catch(() => {});
+        //
+        // Isolated in its own try/catch -- same real bug and same fix as
+        // handlePayDineInOrder above: this branch explicitly includes
+        // PAYMENT_SYNC_PENDING (still offline, order safely queued
+        // locally) specifically BECAUSE printing must never wait on
+        // Internet/Cloud. A network call here throwing into the outer
+        // catch would contradict that by turning an offline-but-successful
+        // sale into a false "unexpected error" and skip clearing the cart.
+        try {
+          const profile = device.businessId != null ? await getReceiptBusinessProfile(device.businessId) : null;
+          const printerProfileForReceipt = await getPrinterProfile();
+          if (shouldPrintCustomerReceipt(printerProfileForReceipt)) {
+            enqueuePrintJob('receipt', {
+              orderId: null,
+              lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
+              subtotal: cart.totals.subtotal,
+              discount: cart.totals.discount,
+              vat: cart.totals.vat,
+              total: cart.totals.total,
+              paymentMethod: method,
+              change: method === 'cash' && cashAmount != null ? Math.max(0, cashAmount - cart.totals.total) : 0,
+              businessName: device.businessName ?? undefined,
+              branchName: device.branchName ?? undefined,
+              vatNumber: profile?.vatNumber || undefined,
+              logoUrl: shouldPrintReceiptLogo(printerProfileForReceipt) ? profile?.logoUrl || undefined : undefined,
+              customMessage: profile?.customMessage || undefined,
+              createdAtISO: new Date().toISOString(),
+              metaLabel: CHANNEL_LABELS[cart.orderChannel] || cart.orderChannel,
+            } satisfies ReceiptData).catch(() => {});
+          }
+        } catch {
+          // Never let a receipt-metadata fetch failure look like the sale
+          // itself failed -- the payment above already succeeded/queued.
         }
         cart.clearCart(); // safe in the SQLite queue either way, per Checkpoint 5
         setSelectedCustomer(null); // transaction fully settled -- start clean for the next customer
