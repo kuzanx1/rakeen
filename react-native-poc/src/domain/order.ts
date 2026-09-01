@@ -72,7 +72,12 @@ export interface OrderPayload extends Partial<PaymentTracking> {
   staff_member_id: number | null;
   customer_name: string | null;
   customer_phone: string | null;
-  customer_id: string | null;
+  // Real DB column/RPC parameter is `bigint`, not text -- a real,
+  // load-bearing type bug found during the Feature Parity Pass (this
+  // was `string | null` and had never been wired to a real customer,
+  // so it was never actually exercised). Fixed here, before customer
+  // attachment is wired for real.
+  customer_id: number | null;
   subtotal: number;
   discount_pct: number;
   discount_amount: number;
@@ -99,7 +104,7 @@ export interface DineInRegisterPayload extends Partial<PaymentTracking> {
   shift_id: number | null;
   customer_name: string | null;
   customer_phone: string | null;
-  customer_id: string | null;
+  customer_id: number | null; // see OrderPayload's own doc comment on this field
   subtotal: number;
   discount_pct: number;
   items: OrderItemPayload[];
@@ -130,7 +135,7 @@ export interface DineInPayPayload extends Partial<PaymentTracking> {
   cash_amount: number | null;
   customer_name: string | null;
   customer_phone: string | null;
-  customer_id: string | null;
+  customer_id: number | null; // see OrderPayload's own doc comment on this field
   retry_count?: number;
   next_retry_at?: number;
   stuck?: boolean;
@@ -179,7 +184,7 @@ export function buildDineInPayPayload(
   cashAmount: number | null,
   customerName: string | null,
   customerPhone: string | null,
-  customerId: string | null,
+  customerId: number | null,
 ): DineInPayPayload {
   return {
     type: 'dine_in_pay',
@@ -221,7 +226,7 @@ export interface OrderBuildContext {
   staffMemberId: number | null;
   customerName: string | null;
   customerPhone: string | null;
-  customerId: string | null;
+  customerId: number | null;
   discountPct: number;
   discountAmount: number;
   vatAmount: number;

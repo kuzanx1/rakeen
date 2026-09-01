@@ -22,6 +22,8 @@ import type { CashierProfile } from '../domain/auth';
 import { useCart } from './useCart';
 import ModifierModal from './ModifierModal';
 import PaymentModal from './PaymentModal';
+import CustomerPickerModal from './CustomerPickerModal';
+import type { Customer } from '../domain/customer';
 
 const DISCOUNT_OPTIONS = [0, 5, 10, 15, 20];
 const CHANNEL_LABELS: Record<OrderChannel, string> = {
@@ -148,6 +150,8 @@ export default function ProductsScreen({
     selectedTable?.activeOrderId ?? null,
   );
   const [dineInOrderTotal, setDineInOrderTotal] = useState(0);
+  const [selectedCustomer, setSelectedCustomer] = useState<{ id: number | null; name: string; phone: string | null } | null>(null);
+  const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
 
   /** Fetches the order's REAL current total from the server right before
    *  showing the payment modal -- the local cart's total is stale once
@@ -182,9 +186,9 @@ export default function ProductsScreen({
         branchId: device.branchId,
         shiftId: null,
         staffMemberId: null,
-        customerName: null,
-        customerPhone: null,
-        customerId: null,
+        customerName: selectedCustomer?.name ?? null,
+        customerPhone: selectedCustomer?.phone ?? null,
+        customerId: selectedCustomer?.id ?? null,
         discountPct: cart.discountPct,
         discountAmount: cart.totals.discount,
         vatAmount: cart.totals.vat,
@@ -245,7 +249,14 @@ export default function ProductsScreen({
     if (lastRegisteredDineInOrderId == null) return;
     setSubmitting(true);
     try {
-      const payload = buildDineInPayPayload(lastRegisteredDineInOrderId, method, cashAmount, null, null, null);
+      const payload = buildDineInPayPayload(
+        lastRegisteredDineInOrderId,
+        method,
+        cashAmount,
+        selectedCustomer?.name ?? null,
+        selectedCustomer?.phone ?? null,
+        selectedCustomer?.id ?? null,
+      );
       const outcome = await completePaymentOperation(payload, { openDrawer: method === 'cash' });
       setSubmitStatus(
         `دفع: ${outcome.paymentState}${outcome.paymentError ? ` (${outcome.paymentError})` : ''} — درج: ${outcome.drawerState}${outcome.drawerError ? ` (${outcome.drawerError})` : ''}`,
@@ -270,6 +281,7 @@ export default function ProductsScreen({
           paymentMethod: method,
         } satisfies ReceiptData).catch(() => {});
         setLastRegisteredDineInOrderId(null);
+        setSelectedCustomer(null); // transaction fully settled -- start clean for the next table/customer
         // pay_dine_in_order already flipped the table to 'cleaning'
         // server-side (Checkpoint 6) -- return to the floor view.
         if (selectedTable) onExitTableContext?.();
@@ -301,9 +313,9 @@ export default function ProductsScreen({
         branchId: device.branchId,
         shiftId: null,
         staffMemberId: null,
-        customerName: null,
-        customerPhone: null,
-        customerId: null,
+        customerName: selectedCustomer?.name ?? null,
+        customerPhone: selectedCustomer?.phone ?? null,
+        customerId: selectedCustomer?.id ?? null,
         discountPct: cart.discountPct,
         discountAmount: cart.totals.discount,
         vatAmount: cart.totals.vat,
@@ -339,6 +351,7 @@ export default function ProductsScreen({
           paymentMethod: method,
         } satisfies ReceiptData).catch(() => {});
         cart.clearCart(); // safe in the SQLite queue either way, per Checkpoint 5
+        setSelectedCustomer(null); // transaction fully settled -- start clean for the next customer
       }
     } catch (e) {
       setSubmitStatus(`🔴 خطأ غير متوقع: ${String(e)}`);
@@ -478,6 +491,17 @@ export default function ProductsScreen({
             ))}
           </ScrollView>
 
+          <TouchableOpacity style={styles.customerRow} onPress={() => setCustomerPickerOpen(true)}>
+            <Text style={styles.customerRowLabel}>
+              {selectedCustomer ? `${selectedCustomer.name}${selectedCustomer.phone ? ` — ${selectedCustomer.phone}` : ''}` : 'إضافة عميل (اختياري)'}
+            </Text>
+            {selectedCustomer && (
+              <TouchableOpacity onPress={() => setSelectedCustomer(null)}>
+                <Text style={styles.customerRowClear}>إزالة</Text>
+              </TouchableOpacity>
+            )}
+          </TouchableOpacity>
+
           <View style={styles.totalsBox}>
             <View style={styles.totalsRow}>
               <Text style={styles.totalsLabel}>المجموع الفرعي</Text>
@@ -539,6 +563,16 @@ export default function ProductsScreen({
         onConfirm={(method, cashAmount) =>
           cart.orderChannel === 'dine_in' ? handlePayDineInOrder(method, cashAmount) : handlePayOrder(method, cashAmount)
         }
+      />
+
+      <CustomerPickerModal
+        visible={customerPickerOpen}
+        businessId={cashier.business_id}
+        onCancel={() => setCustomerPickerOpen(false)}
+        onSelect={customer => {
+          setSelectedCustomer(customer);
+          setCustomerPickerOpen(false);
+        }}
       />
 
       {modifierTarget && catalog.modifiersByProductId[modifierTarget.id] && (
@@ -647,6 +681,16 @@ const styles = StyleSheet.create({
   discountChipActive: { backgroundColor: '#ff9800' },
   discountChipText: { fontSize: 11, color: '#444' },
   discountChipTextActive: { color: '#fff', fontWeight: '700' },
+  customerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#f2f5f0',
+  },
+  customerRowLabel: { fontSize: 12, color: '#333', fontWeight: '600' },
+  customerRowClear: { fontSize: 11, color: '#c0392b' },
   totalsBox: { padding: 12, borderTopWidth: 1, borderTopColor: '#e0e0e0' },
   totalsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   totalsRowFinal: { marginTop: 4, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#eee' },
