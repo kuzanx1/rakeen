@@ -31,6 +31,7 @@ import ProductsScreen, { SelectedTableContext } from './src/ui/ProductsScreen';
 import TablesScreen from './src/ui/TablesScreen';
 import type { CashierProfile } from './src/domain/auth';
 import { logout, getDeviceConfig } from './src/application/authService';
+import { startAutoSync } from './src/application/syncScheduler';
 
 /** React Native's Hermes runtime has no global `btoa` (unlike a browser) —
  *  a minimal base64 encoder, since pulling in a whole polyfill package for
@@ -104,6 +105,16 @@ function App(): React.JSX.Element {
       const device = await getDeviceConfig();
       setBranchId(device.branchId);
     })();
+  }, [cashier]);
+
+  // Checkpoint 9 (Offline Queue + Sync) -- the queue/algorithm/storage
+  // all existed since Checkpoint 5, but nothing ever triggered it
+  // automatically. Starts on login (also flushes anything queued from a
+  // previous session), stops on logout -- syncing while logged out would
+  // just fail every RPC's has_permission() check anyway.
+  useEffect(() => {
+    if (!cashier) return;
+    return startAutoSync();
   }, [cashier]);
 
   if (showHardwareTools) {
