@@ -67,7 +67,20 @@ unless actually run and confirmed.
   drawer action) / 🟡 Ready for Testing (the screen itself, CI green on
   both platforms) / 🔴 Needs Hardware (drawer success path, offline
   persistence, crash recovery). See `07-checkpoint-6-payment.md`.
-- Checkpoints 7-16: not started.
+- Checkpoint 7 (Dine-in/Tables, executed under this name per the user's
+  live "Continue to Checkpoint 7" directive — the roadmap's original
+  numbering had this as Checkpoint 6, done here after Payment since the
+  user's Checkpoint 6 directive front-loaded Payment): 🟡 Ready for
+  Testing — table lifecycle logic verified in isolation (21/21 pure
+  assertions, including a real bug caught before backend involvement)
+  and against the live backend (full lifecycle, move, cancel-with-table
+  all passed) / blocked: cancellation of a TABLELESS dine-in order hit
+  the same null-table_id RPC bug already found and fixed once in
+  Checkpoint 6's `pay_dine_in_order` — fix written for
+  `cancel_dine_in_order`, committed, not yet deployed. See
+  `08-checkpoint-7-dine-in-tables.md`. **Not yet cleared to advance** —
+  same bar as Checkpoint 6: deploy and re-verify the fix first.
+- Checkpoints 8-16: not started.
 
 **Permanent rule recorded this checkpoint**: the PWA/Web POS is not being
 replaced — see `00-protection-and-rollback.md`'s new section.
