@@ -1,5 +1,12 @@
 import { NativeModules } from 'react-native';
 import type { PrinterTarget, PrinterErrorCategory } from './printer';
+import {
+  shouldAttemptNativeKick,
+  isAlreadySucceeded,
+  isInFlight,
+  nextStatusAfterAttempt,
+  DrawerOperationStatus,
+} from '../domain/drawerIdempotency';
 
 /**
  * Deliberately does NOT assume every drawer uses the same kick command.
@@ -74,18 +81,41 @@ export const CashDrawer: CashDrawerAPI | undefined =
  * restart. paymentService.ts checks that persisted state BEFORE ever
  * calling `openCashDrawer()` at all; this in-memory map is a second,
  * belt-and-suspenders layer on top, same dedup shape as the print queue's
- * `activePrintJobByContentKey` (public/pos/rakeen-pos.js).
+ * `activePrintJobByContentKey` (public/pos/rakeen-pos.js). Checkpoint 12
+ * extracted the actual succeeded/in_flight/none DECISION this Map/Set
+ * pair implements into domain/drawerIdempotency.ts, a pure module —
+ * same behavior, same states, now independently testable (importing
+ * this file itself under Node fails, since NativeModules pulls in
+ * react-native's own Flow-typed index.js).
  */
 const drawerOperations = new Map<string, Promise<CashDrawerResult>>();
 const succeededOperations = new Set<string>();
 
+/** The actual state-lookup feeding the pure decision functions in
+ *  domain/drawerIdempotency.ts -- the Map/Set ARE the real, stateful
+ *  storage (unchanged from before this checkpoint); this just reports
+ *  what they currently say about one operationId, as the 3-state enum
+ *  the pure module reasons about. */
+function statusFor(operationId: string): DrawerOperationStatus {
+  if (succeededOperations.has(operationId)) return 'succeeded';
+  if (drawerOperations.has(operationId)) return 'in_flight';
+  return 'none';
+}
+
 export async function openCashDrawer(options: CashDrawerOpenOptions): Promise<CashDrawerResult> {
-  if (succeededOperations.has(options.operationId)) {
+  const status = statusFor(options.operationId);
+
+  if (isAlreadySucceeded(status)) {
     return { ok: true };
   }
-  const inFlight = drawerOperations.get(options.operationId);
-  if (inFlight) {
-    return inFlight;
+  if (isInFlight(status)) {
+    return drawerOperations.get(options.operationId)!;
+  }
+  if (!shouldAttemptNativeKick(status)) {
+    // Unreachable given the 3-state enum above (every status is one of
+    // succeeded/in_flight/none) -- kept so the pure predicate, not an
+    // assumption here, is what actually gates the native call.
+    return { ok: false, error: 'CASH_DRAWER_UNAVAILABLE' };
   }
 
   if (!CashDrawer) {
@@ -94,7 +124,7 @@ export async function openCashDrawer(options: CashDrawerOpenOptions): Promise<Ca
 
   const attempt = CashDrawer.open(options).then(result => {
     drawerOperations.delete(options.operationId);
-    if (result.ok) {
+    if (nextStatusAfterAttempt(result.ok) === 'succeeded') {
       succeededOperations.add(options.operationId);
     }
     return result;

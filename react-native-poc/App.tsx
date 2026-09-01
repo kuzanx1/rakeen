@@ -36,6 +36,9 @@ import { startPrintQueueAutoProcess } from './src/application/printQueueSchedule
 import { resetInterruptedPrintJobsOnBoot } from './src/infrastructure/sqlitePrintQueue';
 import PrintQueueScreen from './src/ui/PrintQueueScreen';
 import PrinterSettingsScreen from './src/ui/PrinterSettingsScreen';
+import uuid from 'react-native-uuid';
+import { getPrinterProfile } from './src/infrastructure/printerProfileStore';
+import { profileToPrinterTarget, drawerKickCommandFor, isDrawerSupported } from './src/domain/printerProfile';
 
 /** React Native's Hermes runtime has no global `btoa` (unlike a browser) —
  *  a minimal base64 encoder, since pulling in a whole polyfill package for
@@ -106,6 +109,8 @@ function App(): React.JSX.Element {
   const [showHardwareTools, setShowHardwareTools] = useState(false);
   const [screen, setScreen] = useState<Screen>({ name: 'products', table: null });
   const [branchId, setBranchId] = useState<number | null>(null);
+  const [drawerBusy, setDrawerBusy] = useState(false);
+  const [drawerStatus, setDrawerStatus] = useState('');
 
   useEffect(() => {
     if (!cashier) return;
@@ -147,6 +152,59 @@ function App(): React.JSX.Element {
     };
   }, [cashier]);
 
+  /**
+   * Checkpoint 12 (Cash Drawer) -- the real manual "فتح الدرج" quick
+   * action, ported from the PWA's own QUICK_ACTIONS/openCashDrawer()
+   * (public/pos/rakeen-pos.js): a single tap, reachable independent of
+   * any active order/payment, with the same three honest outcomes the
+   * source reports (real success, native bridge unavailable, any other
+   * real failure) -- never a fake "تم فتح الدرج" unless the native
+   * layer genuinely confirms it. Uses the REAL configured PrinterProfile
+   * (Checkpoint 11), not the Hardware Tools screen's manual host/port
+   * entry. A fresh operationId per tap is the correct idempotency
+   * key here (this is a deliberate, standalone action, not tied to a
+   * specific payment's client_order_uuid) -- `drawerBusy` disables the
+   * button while a request is in flight, which is what actually
+   * prevents a rapid double-tap from firing two logical operations in
+   * the first place; if one somehow still reached openCashDrawer()
+   * twice for the SAME operationId, platform/cashDrawer.ts's own
+   * dedup (Checkpoint 1, now backed by the pure, tested
+   * domain/drawerIdempotency.ts) guarantees only one real native kick.
+   */
+  const handleOpenDrawerManually = async () => {
+    setDrawerBusy(true);
+    setDrawerStatus('');
+    try {
+      const profile = await getPrinterProfile();
+      if (!isDrawerSupported(profile)) {
+        setDrawerStatus('⚠ فتح الدرج غير متاح — لا توجد طابعة مُعدة بدرج (راجع إعدادات الطابعة)');
+        return;
+      }
+      const target = profileToPrinterTarget(profile);
+      if (!target) {
+        setDrawerStatus('⚠ فتح الدرج غير متاح — الإعداد الحالي غير صالح (راجع إعدادات الطابعة)');
+        return;
+      }
+      const result = await openCashDrawer({
+        target,
+        kickCommandBase64: drawerKickCommandFor(profile),
+        timeoutMs: 8000,
+        operationId: `manual-${uuid.v4()}`,
+      });
+      if (result.ok) {
+        setDrawerStatus('✅ تم فتح الدرج');
+      } else if (result.error === 'CASH_DRAWER_UNAVAILABLE') {
+        setDrawerStatus('⚠ فتح الدرج غير متاح بعد — لا توجد وحدة درج أصلية على هذا الجهاز');
+      } else {
+        setDrawerStatus(`⚠ تعذّر فتح الدرج — تحقق من الاتصال${result.errorDetail ? ` (${result.errorDetail})` : ''}`);
+      }
+    } catch (e) {
+      setDrawerStatus(`⚠ خطأ غير متوقع: ${String(e)}`);
+    } finally {
+      setDrawerBusy(false);
+    }
+  };
+
   if (showHardwareTools) {
     return <HardwareToolsScreen onBack={() => setShowHardwareTools(false)} />;
   }
@@ -172,6 +230,9 @@ function App(): React.JSX.Element {
           <TouchableOpacity onPress={() => setScreen({ name: 'printerSettings' })}>
             <Text style={styles.link}>إعدادات الطابعة</Text>
           </TouchableOpacity>
+          <TouchableOpacity onPress={handleOpenDrawerManually} disabled={drawerBusy}>
+            <Text style={styles.link}>{drawerBusy ? 'جارٍ الفتح...' : 'فتح الدرج'}</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => setShowHardwareTools(true)}>
             <Text style={styles.link}>أدوات الطابعة</Text>
           </TouchableOpacity>
@@ -184,6 +245,11 @@ function App(): React.JSX.Element {
           </TouchableOpacity>
         </View>
       </View>
+      {!!drawerStatus && (
+        <View style={styles.drawerStatusBanner}>
+          <Text style={styles.drawerStatusText}>{drawerStatus}</Text>
+        </View>
+      )}
       {screen.name === 'tables' && branchId != null ? (
         <TablesScreen
           branchId={branchId}
@@ -424,6 +490,8 @@ const styles = StyleSheet.create({
   },
   topBarTitle: { fontSize: 15, fontWeight: '700' },
   topBarActions: { flexDirection: 'row', gap: 16 },
+  drawerStatusBanner: { backgroundColor: '#eef1ec', paddingVertical: 8, paddingHorizontal: 14 },
+  drawerStatusText: { fontSize: 12, textAlign: 'center', color: '#333' },
 });
 
 export default App;
