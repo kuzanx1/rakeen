@@ -25,6 +25,10 @@ export interface Product {
   isService: boolean;
   imageUrl: string | null;
   durationMinutes?: number;
+  /** menu_items.barcode -- always null for services (PWA's own
+   *  BARCODE_TO_PRODUCT_ID comment: "empty for service businesses,
+   *  which have no barcodes"). Feature Parity Pass -- Barcode. */
+  barcode: string | null;
 }
 
 /** Same list as SERVICE_BUSINESS_TYPES in rakeen-pos.js -- a service
@@ -47,4 +51,14 @@ export const SERVICE_BUSINESS_TYPES = [
 
 export function isServiceBusinessType(businessType: string): boolean {
   return SERVICE_BUSINESS_TYPES.includes(businessType);
+}
+
+/** Same list as RETAIL_BUSINESS_TYPES in rakeen-pos.js -- gates the
+ *  "no product with this barcode" toast (only a retail business scans
+ *  unrecognized codes expecting a hit; other business types silently
+ *  fall through to normal text search instead, matching the source). */
+export const RETAIL_BUSINESS_TYPES = ['retail'];
+
+export function isRetailBusinessType(businessType: string): boolean {
+  return RETAIL_BUSINESS_TYPES.includes(businessType);
 }

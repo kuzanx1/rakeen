@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -19,6 +20,7 @@ import { supabase } from '../infrastructure/supabaseClient';
 import { buildOrderPayload, buildDineInRegisterPayload, buildDineInPayPayload } from '../domain/order';
 import type { ReceiptData, KitchenTicketData, ReceiptLine } from '../domain/receipt';
 import type { Product } from '../domain/catalog';
+import { isRetailBusinessType } from '../domain/catalog';
 import type { CartLine, ModifierDefinition, OrderChannel } from '../domain/cart';
 import type { CashierProfile } from '../domain/auth';
 import { useCart } from './useCart';
@@ -120,13 +122,16 @@ export default function ProductsScreen({
   const [financial, setFinancial] = useState({ vatRegistered: true, vatRate: 0.15, pricesIncludeVat: true });
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [modifierTarget, setModifierTarget] = useState<Product | null>(null);
+  const [businessType, setBusinessType] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     (async () => {
       try {
-        const businessType = await getBusinessType(cashier.business_id);
+        const type = await getBusinessType(cashier.business_id);
+        setBusinessType(type);
         const [result, settings] = await Promise.all([
-          loadCatalog(cashier.business_id, businessType),
+          loadCatalog(cashier.business_id, type),
           getFinancialSettings(cashier.business_id),
         ]);
         setCatalog(result);
@@ -158,9 +163,40 @@ export default function ProductsScreen({
 
   const visibleProducts = useMemo<Product[]>(() => {
     if (!catalog) return [];
-    if (!activeCategoryId) return catalog.products;
-    return catalog.products.filter(p => p.categoryId === activeCategoryId);
-  }, [catalog, activeCategoryId]);
+    const byCategory = !activeCategoryId ? catalog.products : catalog.products.filter(p => p.categoryId === activeCategoryId);
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return byCategory;
+    // Feature Parity Pass -- Barcode/Search. Ported from the PWA's real
+    // search-box filtering (name substring match) -- barcode matching
+    // itself happens separately, on Enter, in handleSearchSubmit below,
+    // exactly matching the source's own split between the 'input' and
+    // 'keydown' listeners on the same field.
+    return byCategory.filter(p => p.name.toLowerCase().includes(q) || (p.nameEn || '').toLowerCase().includes(q));
+  }, [catalog, activeCategoryId, searchQuery]);
+
+  /** Feature Parity Pass -- Barcode. Ported from the PWA's real
+   *  searchInput 'keydown' handler (a USB/Bluetooth barcode scanner
+   *  types the code into whatever field is focused, then sends Enter --
+   *  same combined search+scan field here). An exact barcode match adds
+   *  straight to cart (going through the same handleTapProduct every
+   *  grid tap already uses, so modifier-required products still open
+   *  their modal -- never silently skipped); no match shows the same
+   *  "no product with this barcode" toast, but ONLY for a retail
+   *  business, matching isRetailBusiness()'s real gate -- other business
+   *  types just keep their typed text as a plain (now unmatched) search
+   *  term. */
+  const handleSearchSubmit = () => {
+    const raw = searchQuery.trim();
+    if (!raw || !catalog) return;
+    const product = catalog.products.find(p => p.barcode === raw);
+    if (product) {
+      handleTapProduct(product);
+      setSearchQuery('');
+      setSubmitStatus(`أُضيف: ${product.name}`);
+    } else if (isRetailBusinessType(businessType)) {
+      setSubmitStatus('ما فيه منتج بهذا الباركود');
+    }
+  };
 
   const handleTapProduct = (product: Product) => {
     const modDef = catalog?.modifiersByProductId[product.id];
@@ -467,6 +503,14 @@ export default function ProductsScreen({
 
       <View style={styles.mainRow}>
         <View style={styles.productsCol}>
+          <TextInput
+            style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onSubmitEditing={handleSearchSubmit}
+            placeholder="ابحث أو امسح باركود..."
+            returnKeyType="search"
+          />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryBar}>
             {catalog.categories.map(cat => (
               <TouchableOpacity
@@ -674,6 +718,16 @@ const styles = StyleSheet.create({
   mainRow: { flex: 1, flexDirection: 'row' },
   productsCol: { flex: 2 },
   cartCol: { flex: 1, backgroundColor: '#fff', borderLeftWidth: 1, borderLeftColor: '#e0e0e0' },
+  searchInput: {
+    marginHorizontal: 12,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 10,
+    padding: 10,
+    fontSize: 14,
+    backgroundColor: '#fff',
+  },
   categoryBar: { flexGrow: 0, paddingHorizontal: 8, paddingVertical: 10 },
   categoryTab: {
     paddingHorizontal: 16,
