@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<!-- Real xcodebuild -exportArchive options for a TestFlight upload.
-	     TEAM_ID below is a placeholder -- fill in the real 10-character
+	     teamID below is a placeholder; fill in the real 10-character
 	     Apple Developer Team ID before this is usable. Everything else
 	     here is a standard, correct TestFlight/App Store export config,
 	     not a guess. -->
