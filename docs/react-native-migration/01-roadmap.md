@@ -132,11 +132,14 @@ unless actually run and confirmed.
   confirmed via direct status poll). 🔴 Needs Hardware for any physical
   drawer operation. See `13-checkpoint-12-cash-drawer.md`. Cleared to
   advance.
-- Checkpoint 13 (Diagnostics, final roadmap checkpoint): implemented
-  (Internet/Cloud/Printer Bridge/Printer config/Drawer Bridge kept
-  explicitly separate, cloud signal piggybacks on real sync attempts,
-  two bulk retry actions reusing already-verified mechanisms), CI
-  result pending confirmation. See `14-checkpoint-13-diagnostics.md`.
+- Checkpoint 13 (Diagnostics, final roadmap checkpoint): 🟡 Ready for
+  Testing — Internet/Cloud/Printer Bridge/Printer config/Drawer Bridge
+  kept explicitly separate (12/12 pure assertions), cloud signal
+  piggybacks on real sync attempts rather than a dedicated ping, two
+  bulk retry actions reusing already-verified mechanisms. CI green both
+  platforms (33485560085, confirmed via direct status poll). 🔴 Needs
+  Hardware for on-device signal delivery. See
+  `14-checkpoint-13-diagnostics.md`.
 - Checkpoints 14-16 (iOS build / Android build / Hardware Acceptance
   Test): per the user's explicit instruction, Checkpoint 13 is treated
   as the final engineering checkpoint for this session — see the

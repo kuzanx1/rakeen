@@ -95,8 +95,12 @@ no bridge WITH trouble print jobs -> still diagnosed as the bridge
 internet+cloud+bridge all fine, no print trouble -> no problem reported
 ```
 
-CI: **pending at the time of writing** — will be updated once confirmed
-via a direct status poll, not assumed.
+CI: **confirmed green on both platforms** (run 33485560085) — `ios` in
+5m35s, `android` in 15m17s (`macos-15`/Xcode 16.4), including the
+"verify the native modules were actually compiled" safeguard step on
+both. Confirmed via a direct `gh run view --json status,conclusion,jobs`
+poll (`"status":"completed"`, `"conclusion":"success"` for both jobs).
+No new native dependency this checkpoint.
 
 ## FAILED
 
@@ -111,7 +115,6 @@ Nothing needed fixing.
 
 ## REMAINS (honest gaps, not glossed over)
 
-- **CI result** — pending, to be appended once confirmed.
 - **The Diagnostics screen itself is untested on a real device** — same
   category as every screen since Checkpoint 3.
 - **The "Cloud" signal only updates when there's something real to
@@ -133,9 +136,10 @@ already disclosed (drawer/printer physical operation remains unverified
 throughout).
 
 **Status: 🟡 Ready for Testing** — the diagnostics classification logic
-is pure-logic-verified (12/12 assertions) and the real signal-gathering/
+is pure-logic-verified (12/12 assertions), the real signal-gathering/
 screen correctly reuse every already-verified mechanism from
-Checkpoints 1–12 without redesigning any of them; CI result pending /
-🔴 Needs Hardware for on-device signal delivery and screen behavior.
-This is the final roadmap checkpoint — see the consolidated final report
-for overall engineering-readiness status.
+Checkpoints 1–12 without redesigning any of them, and CI is confirmed
+green on both platforms via a direct status poll / 🔴 Needs Hardware
+for on-device signal delivery and screen behavior. This is the final
+roadmap checkpoint — see the consolidated final report for overall
+engineering-readiness status.
