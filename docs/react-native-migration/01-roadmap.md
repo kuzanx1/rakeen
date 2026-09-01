@@ -122,7 +122,10 @@ unless actually run and confirmed.
   run watch` proved unreliable mid-run). 🔴 Needs Hardware for the
   screen itself and any real printer/drawer operation. See
   `12-checkpoint-11-printer-configuration.md`. Cleared to advance.
-- Checkpoints 12-16: not started.
+- Checkpoint 12 (Cash Drawer): implemented (real manual quick action,
+  operationId dedup logic extracted to pure/tested code), CI result
+  pending confirmation. See `13-checkpoint-12-cash-drawer.md`.
+- Checkpoints 13-16: not started.
 
 **Permanent rule recorded this checkpoint**: the PWA/Web POS is not being
 replaced — see `00-protection-and-rollback.md`'s new section.
