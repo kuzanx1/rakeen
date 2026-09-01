@@ -39,7 +39,29 @@ const CHANNEL_LABELS: Record<OrderChannel, string> = {
  * channels (see domain/order.ts's OrderPayload doc comment) -- no payment
  * method selection, split payment, or receipt/confirmation UI exists yet.
  */
-export default function ProductsScreen({ cashier }: { cashier: CashierProfile }) {
+export interface SelectedTableContext {
+  id: number;
+  number: number;
+  activeOrderId: number | null;
+}
+
+export default function ProductsScreen({
+  cashier,
+  selectedTable = null,
+  onExitTableContext,
+}: {
+  cashier: CashierProfile;
+  /** Checkpoint 7 (Dine-in / Tables) -- when set, this screen's cart is
+   *  attached to a real table (see ui/TablesScreen.tsx). Registering an
+   *  order sends the table's real id instead of null, and an existing
+   *  active_order_id (a table already 'serving'/'awaiting_payment')
+   *  seeds the Pay/Add-Round state immediately instead of requiring a
+   *  fresh registration first. When null, dine-in still works exactly as
+   *  Checkpoints 5/6 built it (table_id: null, an explicitly supported
+   *  "dine-in without a table" case). */
+  selectedTable?: SelectedTableContext | null;
+  onExitTableContext?: () => void;
+}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [catalog, setCatalog] = useState<CatalogResult | null>(null);
@@ -100,7 +122,9 @@ export default function ProductsScreen({ cashier }: { cashier: CashierProfile })
   const [submitStatus, setSubmitStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [lastRegisteredDineInOrderId, setLastRegisteredDineInOrderId] = useState<number | null>(null);
+  const [lastRegisteredDineInOrderId, setLastRegisteredDineInOrderId] = useState<number | null>(
+    selectedTable?.activeOrderId ?? null,
+  );
   const [dineInOrderTotal, setDineInOrderTotal] = useState(0);
 
   /** Fetches the order's REAL current total from the server right before
@@ -147,7 +171,7 @@ export default function ProductsScreen({ cashier }: { cashier: CashierProfile })
         channel: 'dine_in',
         deliveryPlatformId: null,
         platformInvoiceLast4: null,
-        tableId: null,
+        tableId: selectedTable ? selectedTable.id : null,
         existingOrderId: lastRegisteredDineInOrderId, // adding a round to the SAME order if one was already registered this session
       });
       const result = await submitOrder(payload);
@@ -158,6 +182,11 @@ export default function ProductsScreen({ cashier }: { cashier: CashierProfile })
         if (result.orderId != null) setLastRegisteredDineInOrderId(result.orderId);
         setSubmitStatus(`✅ تم تسجيل الطلب (بدون دفع بعد)`);
         cart.clearCart();
+        // register_dine_in_order already flipped the table to 'serving'
+        // server-side -- return to the floor view so that's visible
+        // immediately, matching submitTableOrderRegistration's own
+        // navigation in the PWA.
+        if (selectedTable) onExitTableContext?.();
       } else {
         // Queued offline: no order id is known yet (the RPC hasn't run),
         // so this session honestly can't offer "Pay Order #X" until it
@@ -190,7 +219,12 @@ export default function ProductsScreen({ cashier }: { cashier: CashierProfile })
       setSubmitStatus(
         `دفع: ${outcome.paymentState}${outcome.paymentError ? ` (${outcome.paymentError})` : ''} — درج: ${outcome.drawerState}${outcome.drawerError ? ` (${outcome.drawerError})` : ''}`,
       );
-      if (outcome.paymentState === 'PAYMENT_COMPLETED') setLastRegisteredDineInOrderId(null);
+      if (outcome.paymentState === 'PAYMENT_COMPLETED') {
+        setLastRegisteredDineInOrderId(null);
+        // pay_dine_in_order already flipped the table to 'cleaning'
+        // server-side (Checkpoint 6) -- return to the floor view.
+        if (selectedTable) onExitTableContext?.();
+      }
     } catch (e) {
       setSubmitStatus(`🔴 خطأ غير متوقع: ${String(e)}`);
     } finally {
@@ -273,6 +307,16 @@ export default function ProductsScreen({ cashier }: { cashier: CashierProfile })
 
   return (
     <View style={styles.root}>
+      {selectedTable && (
+        <View style={styles.tableBanner}>
+          <Text style={styles.tableBannerText}>طاولة {selectedTable.number}</Text>
+          {!!onExitTableContext && (
+            <TouchableOpacity onPress={onExitTableContext}>
+              <Text style={styles.tableBannerLink}>‹ الطاولات</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
       {catalog.usingOfflineSnapshot && (
         <View style={styles.offlineBanner}>
           <Text style={styles.offlineBannerText}>لا يوجد اتصال — يعمل بمنيو محفوظ محليًا</Text>
@@ -454,6 +498,16 @@ const styles = StyleSheet.create({
   error: { color: '#c0392b', fontSize: 14, textAlign: 'center' },
   offlineBanner: { backgroundColor: '#fff3cd', padding: 8 },
   offlineBannerText: { fontSize: 12, color: '#856404', textAlign: 'center' },
+  tableBanner: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#e8eaf6',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  tableBannerText: { fontSize: 13, fontWeight: '700', color: '#3f51b5' },
+  tableBannerLink: { fontSize: 13, color: '#3f51b5', fontWeight: '700' },
   mainRow: { flex: 1, flexDirection: 'row' },
   productsCol: { flex: 2 },
   cartCol: { flex: 1, backgroundColor: '#fff', borderLeftWidth: 1, borderLeftColor: '#e0e0e0' },

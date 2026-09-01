@@ -27,9 +27,10 @@ import { Printer, printReceipt } from './src/platform/printer';
 import { CashDrawer, openCashDrawer } from './src/platform/cashDrawer';
 import { getDeviceInfo, DeviceInfo } from './src/platform/device';
 import LoginScreen from './src/ui/LoginScreen';
-import ProductsScreen from './src/ui/ProductsScreen';
+import ProductsScreen, { SelectedTableContext } from './src/ui/ProductsScreen';
+import TablesScreen from './src/ui/TablesScreen';
 import type { CashierProfile } from './src/domain/auth';
-import { logout } from './src/application/authService';
+import { logout, getDeviceConfig } from './src/application/authService';
 
 /** React Native's Hermes runtime has no global `btoa` (unlike a browser) —
  *  a minimal base64 encoder, since pulling in a whole polyfill package for
@@ -79,9 +80,31 @@ function buildTestReceiptBase64(): string {
  * since they're still the only way to exercise the printer/drawer path
  * until a real order/payment screen exists.
  */
+/**
+ * Checkpoint 7 (Dine-in / Tables) -- a minimal screen switcher, no
+ * navigation library (matches the rest of this app's zero-dependency
+ * approach; a real nav stack is not something this checkpoint's scope
+ * requires). 'products' is keyed by the selected table's id so React
+ * remounts ProductsScreen fresh (fresh cart, fresh
+ * lastRegisteredDineInOrderId seeded from that table's real
+ * active_order_id) every time a different table is opened, instead of
+ * carrying over stale per-table state across navigations.
+ */
+type Screen = { name: 'tables' } | { name: 'products'; table: SelectedTableContext | null };
+
 function App(): React.JSX.Element {
   const [cashier, setCashier] = useState<CashierProfile | null>(null);
   const [showHardwareTools, setShowHardwareTools] = useState(false);
+  const [screen, setScreen] = useState<Screen>({ name: 'products', table: null });
+  const [branchId, setBranchId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!cashier) return;
+    (async () => {
+      const device = await getDeviceConfig();
+      setBranchId(device.branchId);
+    })();
+  }, [cashier]);
 
   if (showHardwareTools) {
     return <HardwareToolsScreen onBack={() => setShowHardwareTools(false)} />;
@@ -96,6 +119,12 @@ function App(): React.JSX.Element {
       <View style={styles.topBar}>
         <Text style={styles.topBarTitle}>{cashier.full_name || 'بدون اسم'}</Text>
         <View style={styles.topBarActions}>
+          <TouchableOpacity onPress={() => setScreen({ name: 'products', table: null })}>
+            <Text style={styles.link}>الكاشير</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setScreen({ name: 'tables' })}>
+            <Text style={styles.link}>الطاولات</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => setShowHardwareTools(true)}>
             <Text style={styles.link}>أدوات الطابعة</Text>
           </TouchableOpacity>
@@ -108,7 +137,19 @@ function App(): React.JSX.Element {
           </TouchableOpacity>
         </View>
       </View>
-      <ProductsScreen cashier={cashier} />
+      {screen.name === 'tables' && branchId != null ? (
+        <TablesScreen
+          branchId={branchId}
+          onBeginOrderForTable={table => setScreen({ name: 'products', table })}
+        />
+      ) : (
+        <ProductsScreen
+          key={screen.name === 'products' ? screen.table?.id ?? 'no-table' : 'no-table'}
+          cashier={cashier}
+          selectedTable={screen.name === 'products' ? screen.table : null}
+          onExitTableContext={() => setScreen({ name: 'tables' })}
+        />
+      )}
     </SafeAreaView>
   );
 }
