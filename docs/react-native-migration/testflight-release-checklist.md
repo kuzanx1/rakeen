@@ -157,14 +157,15 @@ have and shouldn't attempt).
    needs an App ID capability, only an Info.plist usage description, which is already set.
 5. Continue → Register.
 
-### Step 3 — Apple Developer portal: create the App Store provisioning profile
-[developer.apple.com/account/resources/profiles/list](https://developer.apple.com/account/resources/profiles/list)
-1. Profiles → click **+**.
-2. Under "Distribution", select **App Store Connect** → Continue.
-3. App ID: select `com.rakeen.pos` (from step 2) → Continue.
-4. Certificates: select the Distribution certificate from step 1 → Continue.
-5. Profile Name: any label (e.g. `Rakeen POS App Store`) → Generate → **Download**. It saves as a
-   `.mobileprovision` file.
+### Step 3 — Apple Developer portal: create the App Store provisioning profile ✅ done
+Real profile generated (`Rakeen POS App Store`, UUID `f9fdd497-c79e-4644-add4-9f9aa240517e`).
+Verified before use, not just trusted: the profile's Apple signature checked out cryptographically
+(`openssl smime -verify` → "Verification successful"), and its embedded entitlements confirm
+`application-identifier: 7ZZ8RKB973.com.rakeen.pos` and App Store distribution type — exactly
+right. Base64-encoded and sent to you.
+- `IOS_PROVISIONING_PROFILE_BASE64` = contents of the `.b64.txt` file already sent to you.
+
+3 of 6 secrets are ready now.
 
 ### Step 4 — App Store Connect: create the app record
 This has to exist before a build can be uploaded to it.
@@ -179,19 +180,16 @@ This has to exist before a build can be uploaded to it.
    shown publicly.
 7. User Access: Full Access → Create.
 
-### Step 5 — Build the remaining 2 files (certificate half already done above)
-Once you have the `.mobileprovision` (step 3) and the `.p8` API key (step 6), base64-encode them
-the same way the certificate was already done:
+### Step 5 — Build the remaining file (certificate and profile already done above)
+Once you have the `.p8` API key (step 6), base64-encode it the same way the other two were done:
 
 **Git Bash / WSL / any bash shell:**
 ```bash
-base64 -w0 YOUR_PROFILE_NAME.mobileprovision > profile.b64.txt
 base64 -w0 AuthKey_XXXXXXXXXX.p8 > asckey.b64.txt
 ```
 
 **PowerShell:**
 ```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("YOUR_PROFILE_NAME.mobileprovision")) | Set-Content -NoNewline profile.b64.txt
 [Convert]::ToBase64String([IO.File]::ReadAllBytes("AuthKey_XXXXXXXXXX.p8")) | Set-Content -NoNewline asckey.b64.txt
 ```
 
@@ -219,7 +217,7 @@ once for each row:
 |---|---|---|
 | `IOS_DISTRIBUTION_CERTIFICATE_BASE64` | contents of the `.b64.txt` file already sent to you | ✅ Step 1, done |
 | `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD` | the password already sent to you alongside it | ✅ Step 1, done |
-| `IOS_PROVISIONING_PROFILE_BASE64` | contents of `profile.b64.txt` | Step 5 |
+| `IOS_PROVISIONING_PROFILE_BASE64` | contents of the `.b64.txt` file already sent to you | ✅ Step 3, done |
 | `ASC_KEY_ID` | the Key ID | Step 6 |
 | `ASC_ISSUER_ID` | the Issuer ID | Step 6 |
 | `ASC_KEY_CONTENT_BASE64` | contents of `asckey.b64.txt` | Step 5 (encoding the file from Step 6) |
