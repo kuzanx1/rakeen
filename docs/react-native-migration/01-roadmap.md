@@ -94,10 +94,15 @@ unless actually run and confirmed.
   actual on-device MMKV read/write/persistence (confirmed impossible to
   run under Node — no Node-runnable entry point exists at all). See
   `09-checkpoint-8-offline-storage.md`. Cleared to advance.
-- Checkpoint 9 (Offline Queue + Sync): implemented (real auto-sync
-  trigger, wiring the already-verified Checkpoint 5 algorithm/storage
-  that nothing previously called), CI result pending confirmation. See
-  `10-checkpoint-9-offline-queue-sync.md`.
+- Checkpoint 9 (Offline Queue + Sync): 🟡 Ready for Testing — real
+  auto-sync trigger (NetInfo reconnect + 30s interval, ported from the
+  PWA's own mechanism) wiring the already-verified Checkpoint 5
+  algorithm/storage that nothing previously called. 4/4 pure assertions
+  + a new 10/10 real-backend integration test (the real algorithm
+  driving real RPCs across simulated repeated trigger passes). CI green
+  on both platforms on the first attempt. 🔴 Needs Hardware for
+  on-device delivery/lifecycle behavior. See
+  `10-checkpoint-9-offline-queue-sync.md`. Cleared to advance.
 - Checkpoints 10-16: not started.
 
 **Permanent rule recorded this checkpoint**: the PWA/Web POS is not being

@@ -116,8 +116,10 @@ introduces (the verified algorithm + real dispatch + realistic repeated
 trigger cadence) actually holds up against the live backend, not just
 in isolation with a fake dispatch.
 
-CI: **pending at the time of writing** — will be updated here once
-confirmed, not assumed.
+CI: **confirmed green on both platforms** (run 33475137406) — `android`
+in 17m9s, `ios` in 6m54s (`macos-15`/Xcode 16.4), including the "verify
+the native modules were actually compiled" safeguard step on both. No
+new native dependency this checkpoint.
 
 ## FAILED
 
@@ -150,7 +152,6 @@ already-verified queue/storage it's built on.
 
 ## REMAINS (honest gaps, not glossed over)
 
-- **CI result** — pending, to be appended once the run completes.
 - **Real on-device behavior of the auto-sync loop is entirely
   unverified** — does `NetInfo.addEventListener` actually fire reliably
   on a real reconnect on iOS/Android, does the interval keep running
@@ -176,6 +177,6 @@ none of which Windows can provide.
 **Status: 🟡 Ready for Testing** — the missing sync trigger is now
 real and wired, verified in isolation (pure predicate) and against the
 live backend (algorithm + real RPCs, multiple realistic sequential
-passes, no new idempotency surface) / CI result pending / 🔴 Needs
-Hardware for actual on-device delivery and lifecycle behavior. Do not
-advance to Checkpoint 10 until CI is confirmed green.
+passes, no new idempotency surface), CI confirmed green on both
+platforms on the first attempt / 🔴 Needs Hardware for actual on-device
+delivery and lifecycle behavior. Cleared to advance to Checkpoint 10.
