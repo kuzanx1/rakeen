@@ -94,7 +94,11 @@ unless actually run and confirmed.
   actual on-device MMKV read/write/persistence (confirmed impossible to
   run under Node — no Node-runnable entry point exists at all). See
   `09-checkpoint-8-offline-storage.md`. Cleared to advance.
-- Checkpoints 9-16: not started.
+- Checkpoint 9 (Offline Queue + Sync): implemented (real auto-sync
+  trigger, wiring the already-verified Checkpoint 5 algorithm/storage
+  that nothing previously called), CI result pending confirmation. See
+  `10-checkpoint-9-offline-queue-sync.md`.
+- Checkpoints 10-16: not started.
 
 **Permanent rule recorded this checkpoint**: the PWA/Web POS is not being
 replaced — see `00-protection-and-rollback.md`'s new section.
