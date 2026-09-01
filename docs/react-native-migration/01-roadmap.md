@@ -59,16 +59,14 @@ unless actually run and confirmed.
   platforms including real op-sqlite native compilation) / 🔴 Needs
   Hardware (true offline persistence + crash recovery). See
   `06-checkpoint-5-order-creation.md`.
-- Checkpoint 6: 🟡 Ready for Testing (payment orchestration, state
-  machine, and idempotency mechanics — verified in isolation and against
-  the live backend for regular/pickup/delivery cash payment; dine-in
-  payment blocked on a real backend bug fix found during testing, fix
-  written and disclosed, deployment pending) / 🔴 Needs Hardware (drawer
-  success path, offline persistence, crash recovery). See
-  `07-checkpoint-6-payment.md`. **Not yet cleared to advance to
-  Checkpoint 7** — dine-in payment (J/E) must be re-verified against the
-  deployed backend fix first, per the checkpoint's own requirement not to
-  proceed until Payment is verified at the software/logic level.
+- Checkpoint 6: 🟢 Verified (payment orchestration, state machine, and
+  idempotency mechanics against the live backend — regular/pickup/
+  delivery cash payment and dine-in payment on a real tableless order,
+  including a real production RPC bug found, fixed, deployed, and
+  re-verified with 14/14 assertions and no duplicate payment/order/
+  drawer action) / 🟡 Ready for Testing (the screen itself, CI green on
+  both platforms) / 🔴 Needs Hardware (drawer success path, offline
+  persistence, crash recovery). See `07-checkpoint-6-payment.md`.
 - Checkpoints 7-16: not started.
 
 **Permanent rule recorded this checkpoint**: the PWA/Web POS is not being

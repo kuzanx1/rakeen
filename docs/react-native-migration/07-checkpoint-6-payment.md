@@ -130,17 +130,20 @@ order created, id 259, `total=50`.
 second call returned the identical order id as the first — no duplicate
 order, no duplicate charge.
 
-Real CI: **in progress at the time of writing** — no new native
-dependencies were added this checkpoint (Payment reuses the existing
-Checkpoint 1 printer/drawer native modules unchanged), so this is a
-lower-risk push than Checkpoint 5's op-sqlite addition. Will be updated
-here once the run completes; not claimed green until confirmed.
+Real CI: **confirmed green on both platforms** (run 33470071441) —
+`android` in 11m47s, `ios` in 4m10s (`macos-15`/Xcode 16.4), including
+the "verify the native modules were actually compiled" safeguard step on
+both. No new native dependencies were added this checkpoint (Payment
+reuses the existing Checkpoint 1 printer/drawer native modules
+unchanged), so this confirms no regression rather than proving new
+native code.
 
-## FAILED (then reconciled — see FIXED)
+## FAILED (initially — then fixed and re-verified, see FIXED)
 
-**J — Dine-in existing order (255, no table) + CASH**: `pay_dine_in_order`
-returned `"order not found or already paid"` even though order 255 was
-genuinely unpaid. Reading the deployed RPC
+**J — Dine-in existing order (255, no table) + CASH**: on the first
+attempt, `pay_dine_in_order` returned `"order not found or already
+paid"` even though order 255 was genuinely unpaid. Reading the deployed
+RPC
 (`supabase/migrations/20260829200000_fix_pos_checkout_points_and_customer_id.sql:363-375`)
 showed why: it detects "no row matched" by checking
 `if v_table_id is null` on the `UPDATE ... RETURNING table_id` result —
@@ -152,17 +155,61 @@ exception aborts the whole function call, the payment update **rolled
 back entirely**. Re-querying order 255 confirmed it was still
 `payment_status: 'unpaid'` after the "successful-looking" attempt.
 
-This is a **real, pre-existing production bug**, not something the RN
+This was a **real, pre-existing production bug**, not something the RN
 migration introduced: it's the exact same RPC the current PWA calls.
 Any dine-in order with no table could never actually be paid through
-this RPC in production.
+this RPC in production. **Now fixed and confirmed — see FIXED and
+PASSED (post-fix re-verification) below.**
 
-**E — Same payment retried**: correctly could not be distinguished from
-J's failure while J itself was broken (both hit the same "order not
-found or already paid" — for E this is actually the *intended* error,
-for J it's the bug). Once J is fixed, E needs re-verification to confirm
-it's *only* triggered by a genuinely-already-paid order, not the
-tableless-order false negative.
+**E — Same payment retried**: on the first attempt this could not be
+distinguished from J's failure while J itself was broken (both hit the
+same "order not found or already paid" message). **Re-verified after
+the fix — see PASSED below.**
+
+## PASSED — post-fix re-verification (2026-09-01, against production)
+
+The user deployed the migration directly via the Supabase Dashboard SQL
+Editor. Immediately after, ran a fresh temporary verification script
+(deleted after, confirmed via `git status`) against the live backend,
+logged in as the real cashier PIN account (branch 24):
+
+```
+Order 255 before J: { id: 255, total: 130, payment_status: 'unpaid',
+  payment_method: null, cash_amount: null, table_id: null }
+PASS: Order 255 is a genuine tableless dine-in order (table_id is null)
+PASS: Order 255 is unpaid before this run
+
+PASS: Test J (post-fix): pay_dine_in_order on a TABLELESS dine-in order succeeds
+Order 255 after J: { id: 255, total: 130, payment_status: 'paid',
+  payment_method: 'cash', cash_amount: 130, table_id: null }
+PASS: Test J: order 255 is now genuinely paid
+PASS: Test J: payment_method recorded as cash
+PASS: Test J: cash_amount recorded matches the order total (no silent recalculation)
+PASS: Test J: total is UNCHANGED by payment (130 SAR, matches Checkpoint 5 total)
+
+Test E raw retry error: "order not found or already paid"
+PASS: Test E: retried payment on already-paid order is rejected (not a silent second charge)
+PASS: Test E: retry error message matches the client's tolerance pattern (/already paid/i)
+Order 255 after retried E: { id: 255, total: 130, payment_status: 'paid',
+  payment_method: 'cash', cash_amount: 130, table_id: null }
+PASS: Test E: NO DUPLICATE PAYMENT -- total still unchanged after the rejected retry
+PASS: Test E: NO DUPLICATE PAYMENT -- cash_amount still the single original value, not doubled
+PASS: Test E: order id is still 255 -- retry did not create a second/duplicate order
+PASS: Test E: payment_status remains paid (single settlement, not reverted or re-triggered)
+
+PASS: Control: order 259 (paid in an earlier session) untouched by this run
+```
+
+**14/14 passed.** This confirms, against the real production database:
+the tableless dine-in payment path now genuinely settles the order (not
+just returns success while silently rolling back); a second call against
+an already-paid order is rejected outright — no double-charge, no second
+order, no drawer action would be re-triggered since the RPC-level guard
+(`payment_status = 'unpaid'` in the `WHERE` clause, now correctly
+detected via `FOUND`) rejects the retry before any state changes; and
+the fix touched only the one order under test — order 259 from the
+earlier session, and the wider migration-history bookkeeping, were
+confirmed unaffected.
 
 ## FIXED
 
@@ -172,19 +219,18 @@ tableless-order false negative.
   replacing the nullable-column check with Postgres's `FOUND` (set by
   the preceding `UPDATE`), which correctly distinguishes "no row
   matched" from "row matched, column happens to be NULL." Committed to
-  the branch. **Deployment status: pending** — this changes a live
-  payment RPC used by the production PWA across the whole multi-tenant
-  platform, so per this session's action-safety rules I flagged it and
-  asked before touching production. The user approved deploying, but
-  every attempted deployment path (`supabase db push`, `supabase
-  migration repair`, and a direct one-off Postgres connection) was
-  denied by this sandbox's own auto-approval classifier — this appears
-  to be a categorical guard on production-database writes from this
-  environment, not something specific to this migration. The exact SQL
-  has been handed to the user to run directly (Supabase Dashboard → SQL
-  Editor). Tests J and E will be re-run against the live backend the
-  moment the fix is confirmed deployed, and this section will be updated
-  with the real result — not assumed passing.
+  the branch. **Deployed to production 2026-09-01** — this changes a
+  live payment RPC used by the production PWA across the whole
+  multi-tenant platform, so per this session's action-safety rules it
+  was flagged and confirmed with the user before touching production.
+  Every CLI/scripted deployment path attempted from this sandbox
+  (`supabase db push`, `supabase migration repair`, a direct one-off
+  Postgres connection) was denied by this sandbox's own auto-approval
+  classifier — a categorical guard on production-database writes from
+  this environment, not specific to this migration. The exact SQL was
+  handed to the user, who applied it directly via the Supabase Dashboard
+  SQL Editor. **Confirmed deployed and working** — see the post-fix
+  re-verification under PASSED above.
 - Incidentally discovered and safely reconciled: the Supabase CLI's own
   migration-history tracking table was out of sync with production (47
   migrations dated 2026-08-27 onward were already live but unrecorded by
@@ -199,8 +245,6 @@ tableless-order false negative.
 
 ## REMAINS (honest gaps, not glossed over)
 
-- **J, E**: blocked on the production RPC fix being deployed (see FIXED
-  above). Not claimed passing.
 - **B — Online non-cash (card) payment**: not yet run against the live
   backend this pass (A/D covered cash; the RPC path for card is
   identical — same `complete_pos_order` call with `p_payment_method:
@@ -227,15 +271,22 @@ tableless-order false negative.
   `openCashDrawer()` is ever called, and is checked against the
   persisted, not in-memory, state) — not yet verified against a real
   native drawer kick on hardware.
-- **K — Dine-in + added round + CASH**: depends on J being fixed first
-  (same order, same RPC).
+- **K — Dine-in + added round + CASH**: order 255 was created across two
+  rounds in Checkpoint 5 (idempotency-tested there) and paid successfully
+  in this checkpoint's J — confirming payment works on a
+  round-accumulated order. Not separately re-tested with a *new*
+  round added in this same session (would have meant an additional,
+  unrequested production mutation); the underlying mechanism (payment
+  operates on `orders.total`, independent of how many rounds built it
+  up) is the same one J just verified.
 - **L — Payment totals match Cart/server totals**: verified for the
   regular/pickup/delivery path (payment amount is the exact `cart.totals`
   the already-verified Checkpoint 4 math produced, never recalculated).
-  For dine-in, verified structurally (`handleOpenDineInPayment` fetches
+  For dine-in, verified end-to-end: `handleOpenDineInPayment` fetches
   `orders.total` directly from the server right before showing the
-  modal) but not yet end-to-end confirmed against a live paid order,
-  since J is blocked.
+  modal, and J's re-verification confirmed the paid order's `total`
+  (130) matched the pre-payment `orders.total` exactly, untouched by the
+  payment RPC.
 
 ## NEEDS HARDWARE
 
@@ -247,11 +298,15 @@ categories) is verified in code; physical drawer operation is NOT
 verified, and the drawer must never be described as actually opening
 until it is tested on real hardware.**
 
-**Status: 🟡 Ready for Testing** — payment orchestration logic, state
-machine, and idempotency mechanics are verified in isolation and against
-the live backend for the non-dine-in path; dine-in payment is blocked on
-the production RPC fix (written, disclosed, deployment pending) / 🔴
-Needs Hardware for any drawer success path, offline persistence, and
-crash-recovery behavior. Do not advance to Checkpoint 7 until J/E are
-re-verified against the deployed fix and CI is confirmed green — CI
-result and J/E result to be appended here once known, not assumed.
+**Status: 🟢 Verified** for payment orchestration logic, state machine,
+idempotency mechanics, and RPC correctness against the live backend —
+including regular/pickup/delivery cash payment (A/D) and dine-in payment
+on a real tableless order (J/E, post-fix, 14/14 assertions passed, no
+duplicate payment/order/drawer action introduced) — plus a real
+production bug found and fixed along the way (`pay_dine_in_order`'s
+false-negative on tableless orders) / 🟡 Ready for Testing for the
+screen itself (CI green on both platforms, run 33470071441) / 🔴 Needs
+Hardware for any drawer success path, offline persistence, and
+crash-recovery behavior — those remain genuinely unverified until real
+iOS/Android hardware with a real network printer and drawer is
+available. Cleared to advance to Checkpoint 7.
