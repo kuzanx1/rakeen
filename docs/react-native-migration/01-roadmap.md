@@ -103,7 +103,10 @@ unless actually run and confirmed.
   on both platforms on the first attempt. 🔴 Needs Hardware for
   on-device delivery/lifecycle behavior. See
   `10-checkpoint-9-offline-queue-sync.md`. Cleared to advance.
-- Checkpoints 10-16: not started.
+- Checkpoint 10 (Print Queue): implemented (real state machine/backoff/
+  dedupe/manual-retry, wired to real enqueue points), CI result pending
+  confirmation. See `11-checkpoint-10-print-queue.md`.
+- Checkpoints 11-16: not started.
 
 **Permanent rule recorded this checkpoint**: the PWA/Web POS is not being
 replaced — see `00-protection-and-rollback.md`'s new section.
