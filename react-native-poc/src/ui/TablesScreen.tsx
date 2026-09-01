@@ -19,6 +19,7 @@ import {
   routeTableTap,
   elapsedMinutes,
 } from '../domain/tables';
+import ManagerPinModal from './ManagerPinModal';
 
 const STATUS_COLORS: Record<RestaurantTable['status'], string> = {
   available: '#8bc34a',
@@ -63,6 +64,13 @@ export default function TablesScreen({
   const [cancelConfirmFor, setCancelConfirmFor] = useState<RestaurantTable | null>(null);
   const [toast, setToast] = useState('');
   const [busy, setBusy] = useState(false);
+  // Feature Parity Pass -- Refunds/Void/Cancellation. Voiding an unpaid
+  // dine-in order writes off real money -- ported from the PWA's own
+  // manager-PIN gate in front of the exact same cancel_dine_in_order RPC
+  // call (confirmCancelOrder's own doc comment: "same convention as shift
+  // close and refunds"). Holds the pending cancel action until the PIN is
+  // approved; cancelling the PIN modal performs nothing.
+  const [pendingCancel, setPendingCancel] = useState<{ table: RestaurantTable; stillOccupied: boolean } | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -169,17 +177,29 @@ export default function TablesScreen({
     }
   };
 
-  const handleCancelOrder = async (table: RestaurantTable, stillOccupied: boolean) => {
+  /** Only requests manager approval -- the real RPC call happens in
+   *  performCancelOrder, once ManagerPinModal's onApprove fires. */
+  const handleCancelOrder = (table: RestaurantTable, stillOccupied: boolean) => {
     if (table.active_order_id == null) return;
+    setCancelConfirmFor(null);
+    setPendingCancel({ table, stillOccupied });
+  };
+
+  const performCancelOrder = async () => {
+    if (!pendingCancel || pendingCancel.table.active_order_id == null) {
+      setPendingCancel(null);
+      return;
+    }
+    const { table, stillOccupied } = pendingCancel;
+    setPendingCancel(null);
     setBusy(true);
     try {
-      await cancelDineInOrder(table.active_order_id, stillOccupied);
+      await cancelDineInOrder(table.active_order_id as number, stillOccupied);
       await refresh();
     } catch (e) {
       showToast(`تعذر الإلغاء: ${String(e)}`);
     } finally {
       setBusy(false);
-      setCancelConfirmFor(null);
       closeSheet();
     }
   };
@@ -336,9 +356,7 @@ export default function TablesScreen({
           <View style={styles.sheetOverlay}>
             <View style={styles.sheet}>
               <Text style={styles.sheetTitle}>إلغاء طلب طاولة {cancelConfirmFor.number}؟</Text>
-              <Text style={styles.sheetNote}>
-                لا يمكن التراجع عن هذا. لا يُطلب رمز مدير هنا حاليًا (فجوة معروفة — راجع تقرير المرحلة 7).
-              </Text>
+              <Text style={styles.sheetNote}>لا يمكن التراجع عن هذا. يتطلب موافقة المدير.</Text>
               <SheetButton label="إلغاء الطلب — الطاولة لا تزال مشغولة" danger onPress={() => handleCancelOrder(cancelConfirmFor, true)} />
               <SheetButton label="إلغاء الطلب — إفراغ الطاولة" danger onPress={() => handleCancelOrder(cancelConfirmFor, false)} />
               <SheetButton label="تراجع" muted onPress={() => setCancelConfirmFor(null)} />
@@ -346,6 +364,8 @@ export default function TablesScreen({
           </View>
         </Modal>
       )}
+
+      <ManagerPinModal visible={pendingCancel != null} onApprove={performCancelOrder} onCancel={() => setPendingCancel(null)} />
     </View>
   );
 }

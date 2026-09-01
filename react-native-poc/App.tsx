@@ -41,6 +41,7 @@ import { getPrinterProfile } from './src/infrastructure/printerProfileStore';
 import { profileToPrinterTarget, drawerKickCommandFor, isDrawerSupported } from './src/domain/printerProfile';
 import { startDiagnosticsTracking } from './src/application/diagnosticsService';
 import DiagnosticsScreen from './src/ui/DiagnosticsScreen';
+import OrderHistoryScreen from './src/ui/OrderHistoryScreen';
 
 /** React Native's Hermes runtime has no global `btoa` (unlike a browser) —
  *  a minimal base64 encoder, since pulling in a whole polyfill package for
@@ -105,6 +106,7 @@ type Screen =
   | { name: 'printQueue' }
   | { name: 'printerSettings' }
   | { name: 'diagnostics' }
+  | { name: 'orderHistory' }
   | { name: 'products'; table: SelectedTableContext | null };
 
 function App(): React.JSX.Element {
@@ -237,6 +239,9 @@ function App(): React.JSX.Element {
           <TouchableOpacity onPress={() => setScreen({ name: 'tables' })}>
             <Text style={styles.link}>الطاولات</Text>
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => setScreen({ name: 'orderHistory' })}>
+            <Text style={styles.link}>الطلبات السابقة</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => setScreen({ name: 'printQueue' })}>
             <Text style={styles.link}>قائمة الطباعة</Text>
           </TouchableOpacity>
@@ -277,6 +282,8 @@ function App(): React.JSX.Element {
         <PrinterSettingsScreen />
       ) : screen.name === 'diagnostics' ? (
         <DiagnosticsScreen />
+      ) : screen.name === 'orderHistory' && branchId != null ? (
+        <OrderHistoryScreen branchId={branchId} />
       ) : (
         <ProductsScreen
           key={screen.name === 'products' ? screen.table?.id ?? 'no-table' : 'no-table'}
