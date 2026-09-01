@@ -1,7 +1,7 @@
 import uuid from 'react-native-uuid';
 import { sqlitePrintQueueStorage } from '../infrastructure/sqlitePrintQueue';
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
-import { profileToPrinterTarget } from '../domain/printerProfile';
+import { profileToPrinterTarget, profileToKitchenPrinterTarget } from '../domain/printerProfile';
 import { printReceipt } from '../platform/printer';
 import {
   PrintJobRecord,
@@ -33,7 +33,11 @@ const activeJobIdByContentKey = new Map<string, string>();
 
 async function doDispatch(job: PrintJobRecord): Promise<{ ok: boolean; error?: string }> {
   const profile = await getPrinterProfile();
-  const target = profileToPrinterTarget(profile);
+  // Kitchen tickets target their own printer when one's configured
+  // (falls back to the main target otherwise) -- ported from the PWA's
+  // real sendKitchenTicketToPrinter() fallback, see
+  // domain/printerProfile.ts's profileToKitchenPrinterTarget doc comment.
+  const target = job.type === 'kitchen' ? profileToKitchenPrinterTarget(profile) : profileToPrinterTarget(profile);
   if (!target) {
     return { ok: false, error: 'PRINTER_UNAVAILABLE' };
   }

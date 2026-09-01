@@ -88,6 +88,43 @@ export function profileToPrinterTarget(profile: PrinterProfile | null): PrinterT
 }
 
 /**
+ * The kitchen ticket's own print target -- ported from the PWA's real
+ * sendKitchenTicketToPrinter() fallback (`ip || DEVICE.printerIp`,
+ * `port || DEVICE.printerPort`): a kitchen printer is only a REAL
+ * override when both a host and port are explicitly set; otherwise
+ * kitchen tickets go to the same target the customer receipt does
+ * (one physical printer serving both, the common small-shop setup).
+ * Same "never fabricate a target" honesty as profileToPrinterTarget --
+ * returns null when even the main target isn't valid.
+ */
+export function profileToKitchenPrinterTarget(profile: PrinterProfile | null): PrinterTarget | null {
+  if (!profile) return null;
+  if (profile.kitchenHost && profile.kitchenHost.trim() && profile.kitchenPort != null) {
+    return { transport: 'network', host: profile.kitchenHost, port: profile.kitchenPort };
+  }
+  return profileToPrinterTarget(profile);
+}
+
+/** Same defaults as the PWA's real DEVICE toggles -- customer receipt
+ *  printing is opt-OUT (`!== false`), kitchen ticket printing is
+ *  opt-IN (`=== true`), the receipt logo is opt-OUT (`!== false`). An
+ *  already-persisted profile from before this pass has these fields
+ *  `undefined`, which these helpers resolve to the same defaults the
+ *  PWA itself would for a fresh DEVICE object -- never a silent
+ *  behavior change for an existing installation. */
+export function shouldPrintCustomerReceipt(profile: PrinterProfile | null): boolean {
+  return profile?.printCustomerReceipt !== false;
+}
+
+export function shouldPrintKitchenTicket(profile: PrinterProfile | null): boolean {
+  return profile?.printKitchenTicket === true;
+}
+
+export function shouldPrintReceiptLogo(profile: PrinterProfile | null): boolean {
+  return profile?.printReceiptLogo !== false;
+}
+
+/**
  * The drawer kick override, if this profile's hardware has been
  * confirmed to need one. Returns undefined (not a fabricated default)
  * when the drawer isn't marked supported at all -- callers must treat
@@ -128,5 +165,10 @@ export function emptyPrinterProfile(): PrinterProfile {
       paperWidthPx: 576,
     },
     drawerCapabilities: { supported: true },
+    printCustomerReceipt: true,
+    printKitchenTicket: false,
+    printReceiptLogo: true,
+    kitchenHost: '',
+    kitchenPort: undefined,
   };
 }

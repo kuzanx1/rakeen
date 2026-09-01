@@ -85,6 +85,26 @@ export interface PrinterProfile {
   paperWidthPx?: number;
   capabilities: PrinterCapabilities;
   drawerCapabilities: DrawerCapabilities;
+  /** Feature Parity Pass -- Printing Configuration. Ported verbatim from
+   *  the PWA's real DEVICE.printCustomerReceipt/printKitchenTicket/
+   *  printReceiptLogo (public/pos/rakeen-pos.js's openPosSettingsModal),
+   *  same defaults: customer receipt on by default, kitchen ticket OFF
+   *  by default (`=== true`, not `!== false`, in the source), logo on
+   *  by default. Absent (undefined) on any already-persisted profile
+   *  from before this pass -- domain/printerProfile.ts's own read
+   *  helpers apply these exact defaults, never silently assume the
+   *  opposite. */
+  printCustomerReceipt?: boolean;
+  printKitchenTicket?: boolean;
+  printReceiptLogo?: boolean;
+  /** A separate kitchen printer target -- ported from the PWA's real
+   *  DEVICE.kitchenPrinterIp/kitchenPrinterPort, which itself falls back
+   *  to the main printerIp/printerPort when left blank (some kitchens
+   *  share one printer with the counter, some don't). Network-only,
+   *  same as the main target -- no separate transport kind, since
+   *  bluetooth/usb have no real implementation for either target. */
+  kitchenHost?: string;
+  kitchenPort?: number;
 }
 
 export interface PrintJob {

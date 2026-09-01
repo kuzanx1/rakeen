@@ -173,6 +173,44 @@ export default function PrinterSettingsScreen() {
         />
       </Section>
 
+      <Section title="خيارات الطباعة">
+        <SwitchRow
+          label="طباعة إيصال العميل"
+          value={profile.printCustomerReceipt !== false}
+          onChange={v => update({ printCustomerReceipt: v })}
+        />
+        <SwitchRow
+          label="طباعة تذكرة المطبخ"
+          value={profile.printKitchenTicket === true}
+          onChange={v => update({ printKitchenTicket: v })}
+        />
+        <SwitchRow
+          label="طباعة شعار المنشأة على الإيصال"
+          value={profile.printReceiptLogo !== false}
+          onChange={v => update({ printReceiptLogo: v })}
+        />
+        {profile.printKitchenTicket === true && (
+          <>
+            <FieldLabel>عنوان IP لطابعة المطبخ (اختياري — فارغ يعني نفس طابعة العميل)</FieldLabel>
+            <TextInput
+              style={styles.input}
+              value={profile.kitchenHost || ''}
+              onChangeText={t => update({ kitchenHost: t })}
+              placeholder="192.168.1.51"
+              autoCapitalize="none"
+            />
+            <FieldLabel>منفذ طابعة المطبخ</FieldLabel>
+            <TextInput
+              style={styles.input}
+              value={profile.kitchenPort != null ? String(profile.kitchenPort) : ''}
+              onChangeText={t => update({ kitchenPort: t ? parseInt(t, 10) : undefined })}
+              placeholder="9100"
+              keyboardType="number-pad"
+            />
+          </>
+        )}
+      </Section>
+
       <Section title="درج الكاش">
         <SwitchRow
           label="هذه الطابعة موصولة بدرج كاش"

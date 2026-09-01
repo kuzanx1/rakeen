@@ -13,6 +13,8 @@ import { submitOrder } from '../application/orderService';
 import { completePaymentOperation } from '../application/paymentService';
 import { getDeviceConfig } from '../application/authService';
 import { enqueuePrintJob } from '../application/printService';
+import { getPrinterProfile } from '../infrastructure/printerProfileStore';
+import { shouldPrintCustomerReceipt, shouldPrintKitchenTicket, shouldPrintReceiptLogo } from '../domain/printerProfile';
 import { supabase } from '../infrastructure/supabaseClient';
 import { buildOrderPayload, buildDineInRegisterPayload, buildDineInPayPayload } from '../domain/order';
 import type { ReceiptData, KitchenTicketData, ReceiptLine } from '../domain/receipt';
@@ -234,17 +236,21 @@ export default function ProductsScreen({
         if (result.orderId != null) setLastRegisteredDineInOrderId(result.orderId);
         setSubmitStatus(`✅ تم تسجيل الطلب (بدون دفع بعد)`);
         // Real kitchen-ticket enqueue -- matches submitTableOrderRegistration's
-        // own "prints kitchen ticket" step in the PWA. Unconditional (no
-        // per-device print-toggle exists yet in DeviceConfig -- a real,
-        // disclosed gap, not silently assumed always-on).
-        enqueuePrintJob('kitchen', {
-          orderId: result.orderId ?? null,
-          tableNumber: selectedTable?.number ?? null,
-          lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
-          branchName: device.branchName ?? undefined,
-          createdAtISO: new Date().toISOString(),
-          metaLabel: CHANNEL_LABELS.dine_in + (selectedTable ? ` — طاولة ${selectedTable.number}` : ''),
-        } satisfies KitchenTicketData).catch(() => {});
+        // own "prints kitchen ticket" step in the PWA, now gated on the
+        // real per-device DEVICE.printKitchenTicket toggle (Feature
+        // Parity Pass -- Printing Configuration), which defaults OFF
+        // just like the PWA's own default.
+        const printerProfileForKitchen = await getPrinterProfile();
+        if (shouldPrintKitchenTicket(printerProfileForKitchen)) {
+          enqueuePrintJob('kitchen', {
+            orderId: result.orderId ?? null,
+            tableNumber: selectedTable?.number ?? null,
+            lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
+            branchName: device.branchName ?? undefined,
+            createdAtISO: new Date().toISOString(),
+            metaLabel: CHANNEL_LABELS.dine_in + (selectedTable ? ` — طاولة ${selectedTable.number}` : ''),
+          } satisfies KitchenTicketData).catch(() => {});
+        }
         cart.clearCart();
         // register_dine_in_order already flipped the table to 'serving'
         // server-side -- return to the floor view so that's visible
@@ -302,23 +308,29 @@ export default function ProductsScreen({
         // this one path, not a mocked one.
         const device = await getDeviceConfig();
         const profile = device.businessId != null ? await getReceiptBusinessProfile(device.businessId) : null;
-        enqueuePrintJob('receipt', {
-          orderId: lastRegisteredDineInOrderId,
-          lines: [],
-          subtotal: dineInOrderTotal,
-          discount: 0,
-          vat: 0,
-          total: dineInOrderTotal,
-          paymentMethod: method,
-          change: method === 'cash' && cashAmount != null ? Math.max(0, cashAmount - dineInOrderTotal) : 0,
-          businessName: device.businessName ?? undefined,
-          branchName: device.branchName ?? undefined,
-          vatNumber: profile?.vatNumber || undefined,
-          logoUrl: profile?.logoUrl || undefined,
-          customMessage: profile?.customMessage || undefined,
-          createdAtISO: new Date().toISOString(),
-          metaLabel: CHANNEL_LABELS.dine_in + (selectedTable ? ` — طاولة ${selectedTable.number}` : ''),
-        } satisfies ReceiptData).catch(() => {});
+        const printerProfileForReceipt = await getPrinterProfile();
+        // Feature Parity Pass -- Printing Configuration: gated on the
+        // real DEVICE.printCustomerReceipt toggle (defaults ON, matching
+        // the PWA) instead of always printing.
+        if (shouldPrintCustomerReceipt(printerProfileForReceipt)) {
+          enqueuePrintJob('receipt', {
+            orderId: lastRegisteredDineInOrderId,
+            lines: [],
+            subtotal: dineInOrderTotal,
+            discount: 0,
+            vat: 0,
+            total: dineInOrderTotal,
+            paymentMethod: method,
+            change: method === 'cash' && cashAmount != null ? Math.max(0, cashAmount - dineInOrderTotal) : 0,
+            businessName: device.businessName ?? undefined,
+            branchName: device.branchName ?? undefined,
+            vatNumber: profile?.vatNumber || undefined,
+            logoUrl: shouldPrintReceiptLogo(printerProfileForReceipt) ? profile?.logoUrl || undefined : undefined,
+            customMessage: profile?.customMessage || undefined,
+            createdAtISO: new Date().toISOString(),
+            metaLabel: CHANNEL_LABELS.dine_in + (selectedTable ? ` — طاولة ${selectedTable.number}` : ''),
+          } satisfies ReceiptData).catch(() => {});
+        }
         setLastRegisteredDineInOrderId(null);
         setSelectedCustomer(null); // transaction fully settled -- start clean for the next table/customer
         // pay_dine_in_order already flipped the table to 'cleaning'
@@ -381,23 +393,26 @@ export default function ProductsScreen({
         // one Checkpoint 6 fixed for its own path) -- the receipt shows
         // "Order (offline)" until a future checkpoint closes that gap.
         const profile = device.businessId != null ? await getReceiptBusinessProfile(device.businessId) : null;
-        enqueuePrintJob('receipt', {
-          orderId: null,
-          lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
-          subtotal: cart.totals.subtotal,
-          discount: cart.totals.discount,
-          vat: cart.totals.vat,
-          total: cart.totals.total,
-          paymentMethod: method,
-          change: method === 'cash' && cashAmount != null ? Math.max(0, cashAmount - cart.totals.total) : 0,
-          businessName: device.businessName ?? undefined,
-          branchName: device.branchName ?? undefined,
-          vatNumber: profile?.vatNumber || undefined,
-          logoUrl: profile?.logoUrl || undefined,
-          customMessage: profile?.customMessage || undefined,
-          createdAtISO: new Date().toISOString(),
-          metaLabel: CHANNEL_LABELS[cart.orderChannel] || cart.orderChannel,
-        } satisfies ReceiptData).catch(() => {});
+        const printerProfileForReceipt = await getPrinterProfile();
+        if (shouldPrintCustomerReceipt(printerProfileForReceipt)) {
+          enqueuePrintJob('receipt', {
+            orderId: null,
+            lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
+            subtotal: cart.totals.subtotal,
+            discount: cart.totals.discount,
+            vat: cart.totals.vat,
+            total: cart.totals.total,
+            paymentMethod: method,
+            change: method === 'cash' && cashAmount != null ? Math.max(0, cashAmount - cart.totals.total) : 0,
+            businessName: device.businessName ?? undefined,
+            branchName: device.branchName ?? undefined,
+            vatNumber: profile?.vatNumber || undefined,
+            logoUrl: shouldPrintReceiptLogo(printerProfileForReceipt) ? profile?.logoUrl || undefined : undefined,
+            customMessage: profile?.customMessage || undefined,
+            createdAtISO: new Date().toISOString(),
+            metaLabel: CHANNEL_LABELS[cart.orderChannel] || cart.orderChannel,
+          } satisfies ReceiptData).catch(() => {});
+        }
         cart.clearCart(); // safe in the SQLite queue either way, per Checkpoint 5
         setSelectedCustomer(null); // transaction fully settled -- start clean for the next customer
       }
