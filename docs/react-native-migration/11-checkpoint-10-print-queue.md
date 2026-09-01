@@ -147,8 +147,10 @@ Receipt/kitchen-ticket builders return non-empty strings and never
   not a crash)
 ```
 
-CI: **pending at the time of writing** — will be updated here once
-confirmed, not assumed.
+CI: **confirmed green on both platforms** (run 33477386215) — `android`
+in 14m36s, `ios` in 4m40s (`macos-15`/Xcode 16.4), including the
+"verify the native modules were actually compiled" safeguard step on
+both. No new native dependency this checkpoint.
 
 ## FAILED
 
@@ -169,7 +171,6 @@ existing behavior.
 
 ## REMAINS (honest gaps, not glossed over)
 
-- **CI result** — pending, to be appended once the run completes.
 - **Real on-device print queue behavior is entirely unverified** — same
   category as every SQLite/native-module checkpoint since Checkpoint 5:
   does a job survive a real app kill mid-print, does the boot-time
@@ -204,7 +205,7 @@ unverified on real hardware and must not be claimed as working.**
 **Status: 🟡 Ready for Testing** — the print queue mechanism (state
 machine, backoff, dedupe, manual retry, boot recovery, no
 head-of-line-blocking) is verified in isolation with real pure-logic
-assertions and wired to real enqueue points in the actual POS flow; CI
-result pending / 🔴 Needs Hardware for actual on-device persistence,
-real printer dispatch, and physical output. Do not advance to
-Checkpoint 11 until CI is confirmed green.
+assertions and wired to real enqueue points in the actual POS flow, CI
+confirmed green on both platforms on the first attempt / 🔴 Needs
+Hardware for actual on-device persistence, real printer dispatch, and
+physical output. Cleared to advance to Checkpoint 11.

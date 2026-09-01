@@ -103,9 +103,14 @@ unless actually run and confirmed.
   on both platforms on the first attempt. 🔴 Needs Hardware for
   on-device delivery/lifecycle behavior. See
   `10-checkpoint-9-offline-queue-sync.md`. Cleared to advance.
-- Checkpoint 10 (Print Queue): implemented (real state machine/backoff/
-  dedupe/manual-retry, wired to real enqueue points), CI result pending
-  confirmation. See `11-checkpoint-10-print-queue.md`.
+- Checkpoint 10 (Print Queue): 🟡 Ready for Testing — real state
+  machine/backoff/dedupe/manual-retry (own independent constants from
+  the order queue: 5 retries/2min cap/base-2s backoff vs. 10/5min/
+  base-1s), 28/28 pure assertions, wired to real enqueue points
+  (kitchen ticket on registration, receipt on payment). CI green on
+  both platforms on the first attempt. 🔴 Needs Hardware for on-device
+  persistence and physical print output. See
+  `11-checkpoint-10-print-queue.md`. Cleared to advance.
 - Checkpoints 11-16: not started.
 
 **Permanent rule recorded this checkpoint**: the PWA/Web POS is not being
