@@ -12,10 +12,12 @@ import { loadCatalog, getBusinessType, getFinancialSettings, CatalogResult } fro
 import { submitOrder } from '../application/orderService';
 import { completePaymentOperation } from '../application/paymentService';
 import { getDeviceConfig } from '../application/authService';
+import { enqueuePrintJob } from '../application/printService';
 import { supabase } from '../infrastructure/supabaseClient';
 import { buildOrderPayload, buildDineInRegisterPayload, buildDineInPayPayload } from '../domain/order';
+import type { ReceiptData, KitchenTicketData, ReceiptLine } from '../domain/receipt';
 import type { Product } from '../domain/catalog';
-import type { OrderChannel } from '../domain/cart';
+import type { CartLine, OrderChannel } from '../domain/cart';
 import type { CashierProfile } from '../domain/auth';
 import { useCart } from './useCart';
 import ModifierModal from './ModifierModal';
@@ -27,6 +29,26 @@ const CHANNEL_LABELS: Record<OrderChannel, string> = {
   pickup: 'استلام',
   delivery: 'توصيل',
 };
+
+/** Checkpoint 10 (Print Queue) -- builds real receipt line data from the
+ *  cart, using each line's already-verified unit price (domain/cart.ts's
+ *  own math, Checkpoint 4) rather than recalculating anything. */
+function cartToReceiptLines(
+  cart: CartLine[],
+  productsById: Map<number, Product>,
+  unitPriceOf: (item: CartLine) => number,
+): ReceiptLine[] {
+  return cart.map(item => {
+    const product = productsById.get(item.productId);
+    const unitPrice = unitPriceOf(item);
+    return {
+      name: product?.nameEn || product?.name || `#${item.productId}`,
+      qty: item.qty,
+      unitPrice,
+      lineTotal: unitPrice * item.qty,
+    };
+  });
+}
 
 /**
  * Checkpoint 3 (Products/Categories) + Checkpoint 4 (Cart) + Checkpoint 5
@@ -181,6 +203,15 @@ export default function ProductsScreen({
         // captured so "Pay Order #X" / add-a-round can target it.
         if (result.orderId != null) setLastRegisteredDineInOrderId(result.orderId);
         setSubmitStatus(`✅ تم تسجيل الطلب (بدون دفع بعد)`);
+        // Real kitchen-ticket enqueue -- matches submitTableOrderRegistration's
+        // own "prints kitchen ticket" step in the PWA. Unconditional (no
+        // per-device print-toggle exists yet in DeviceConfig -- a real,
+        // disclosed gap, not silently assumed always-on).
+        enqueuePrintJob('kitchen', {
+          orderId: result.orderId ?? null,
+          tableNumber: selectedTable?.number ?? null,
+          lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf),
+        } satisfies KitchenTicketData).catch(() => {});
         cart.clearCart();
         // register_dine_in_order already flipped the table to 'serving'
         // server-side -- return to the floor view so that's visible
@@ -220,6 +251,24 @@ export default function ProductsScreen({
         `دفع: ${outcome.paymentState}${outcome.paymentError ? ` (${outcome.paymentError})` : ''} — درج: ${outcome.drawerState}${outcome.drawerError ? ` (${outcome.drawerError})` : ''}`,
       );
       if (outcome.paymentState === 'PAYMENT_COMPLETED') {
+        // Real receipt enqueue -- minimal content for this path
+        // specifically: the cart is already empty by the time a dine-in
+        // order is paid (cleared at registration), and fetching real
+        // order_items here would need an extra join this checkpoint's
+        // own scope (the print QUEUE, not receipt-data fidelity) doesn't
+        // require. Order id + total are both real, server-confirmed
+        // values (dineInOrderTotal is fetched fresh in
+        // handleOpenDineInPayment) -- a disclosed, narrower receipt for
+        // this one path, not a mocked one.
+        enqueuePrintJob('receipt', {
+          orderId: lastRegisteredDineInOrderId,
+          lines: [],
+          subtotal: dineInOrderTotal,
+          discount: 0,
+          vat: 0,
+          total: dineInOrderTotal,
+          paymentMethod: method,
+        } satisfies ReceiptData).catch(() => {});
         setLastRegisteredDineInOrderId(null);
         // pay_dine_in_order already flipped the table to 'cleaning'
         // server-side (Checkpoint 6) -- return to the floor view.
@@ -272,6 +321,23 @@ export default function ProductsScreen({
         `دفع: ${outcome.paymentState}${outcome.paymentError ? ` (${outcome.paymentError})` : ''} — درج: ${outcome.drawerState}${outcome.drawerError ? ` (${outcome.drawerError})` : ''}`,
       );
       if (outcome.paymentState === 'PAYMENT_COMPLETED' || outcome.paymentState === 'PAYMENT_SYNC_PENDING') {
+        // Real receipt enqueue -- matches autoPrintOnCheckout's own
+        // customer-receipt step in the PWA. Printing never waits on cloud
+        // confirmation (queue-first): PAYMENT_SYNC_PENDING still prints,
+        // matching "LAN printer independent of Internet/Cloud." Real
+        // order id isn't surfaced back by completePaymentOperation for
+        // this path yet (a disclosed gap, same category as the dine-in
+        // one Checkpoint 6 fixed for its own path) -- the receipt shows
+        // "Order (offline)" until a future checkpoint closes that gap.
+        enqueuePrintJob('receipt', {
+          orderId: null,
+          lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf),
+          subtotal: cart.totals.subtotal,
+          discount: cart.totals.discount,
+          vat: cart.totals.vat,
+          total: cart.totals.total,
+          paymentMethod: method,
+        } satisfies ReceiptData).catch(() => {});
         cart.clearCart(); // safe in the SQLite queue either way, per Checkpoint 5
       }
     } catch (e) {

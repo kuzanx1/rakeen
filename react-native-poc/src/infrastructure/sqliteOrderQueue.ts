@@ -1,4 +1,5 @@
-import { open, type DB } from '@op-engineering/op-sqlite';
+import type { DB } from '@op-engineering/op-sqlite';
+import { getSharedDb } from './sqliteDb';
 import type { QueuedPayload } from '../domain/order';
 import type { QueueStorage } from '../domain/orderQueue';
 
@@ -28,15 +29,15 @@ import type { QueueStorage } from '../domain/orderQueue';
  * runtime.
  */
 
-const DB_NAME = 'rakeen_pos_queue.sqlite';
 const TABLE = 'pending_orders';
 
-let dbInstance: DB | null = null;
+let initialized = false;
 
 function getDb(): DB {
-  if (!dbInstance) {
-    dbInstance = open({ name: DB_NAME });
-    dbInstance.execute(`
+  const db = getSharedDb();
+  if (!initialized) {
+    initialized = true;
+    db.execute(`
       CREATE TABLE IF NOT EXISTS ${TABLE} (
         client_order_uuid TEXT PRIMARY KEY,
         payload_json TEXT NOT NULL,
@@ -47,7 +48,7 @@ function getDb(): DB {
       );
     `);
   }
-  return dbInstance;
+  return db;
 }
 
 export const sqliteOrderQueueStorage: QueueStorage = {

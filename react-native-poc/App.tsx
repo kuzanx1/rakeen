@@ -32,6 +32,9 @@ import TablesScreen from './src/ui/TablesScreen';
 import type { CashierProfile } from './src/domain/auth';
 import { logout, getDeviceConfig } from './src/application/authService';
 import { startAutoSync } from './src/application/syncScheduler';
+import { startPrintQueueAutoProcess } from './src/application/printQueueScheduler';
+import { resetInterruptedPrintJobsOnBoot } from './src/infrastructure/sqlitePrintQueue';
+import PrintQueueScreen from './src/ui/PrintQueueScreen';
 
 /** React Native's Hermes runtime has no global `btoa` (unlike a browser) —
  *  a minimal base64 encoder, since pulling in a whole polyfill package for
@@ -91,7 +94,7 @@ function buildTestReceiptBase64(): string {
  * active_order_id) every time a different table is opened, instead of
  * carrying over stale per-table state across navigations.
  */
-type Screen = { name: 'tables' } | { name: 'products'; table: SelectedTableContext | null };
+type Screen = { name: 'tables' } | { name: 'printQueue' } | { name: 'products'; table: SelectedTableContext | null };
 
 function App(): React.JSX.Element {
   const [cashier, setCashier] = useState<CashierProfile | null>(null);
@@ -117,6 +120,28 @@ function App(): React.JSX.Element {
     return startAutoSync();
   }, [cashier]);
 
+  // Checkpoint 10 (Print Queue) -- same shape: reset anything left
+  // stuck mid-flight from a previous killed session BEFORE the
+  // scheduler's first pass (ported from the PWA's
+  // resetInterruptedPrintJobsOnBoot), then start the real auto-process
+  // loop (NetInfo reconnect + 20s interval). Stops on logout for the
+  // same reason startAutoSync does -- has_permission() needs a valid
+  // session, and printerConfig.ts's target lookup has no reason to run
+  // for a logged-out device.
+  useEffect(() => {
+    if (!cashier) return;
+    let stopScheduler: (() => void) | undefined;
+    let cancelled = false;
+    (async () => {
+      await resetInterruptedPrintJobsOnBoot();
+      if (!cancelled) stopScheduler = startPrintQueueAutoProcess();
+    })();
+    return () => {
+      cancelled = true;
+      stopScheduler?.();
+    };
+  }, [cashier]);
+
   if (showHardwareTools) {
     return <HardwareToolsScreen onBack={() => setShowHardwareTools(false)} />;
   }
@@ -136,6 +161,9 @@ function App(): React.JSX.Element {
           <TouchableOpacity onPress={() => setScreen({ name: 'tables' })}>
             <Text style={styles.link}>الطاولات</Text>
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => setScreen({ name: 'printQueue' })}>
+            <Text style={styles.link}>قائمة الطباعة</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => setShowHardwareTools(true)}>
             <Text style={styles.link}>أدوات الطابعة</Text>
           </TouchableOpacity>
@@ -153,6 +181,8 @@ function App(): React.JSX.Element {
           branchId={branchId}
           onBeginOrderForTable={table => setScreen({ name: 'products', table })}
         />
+      ) : screen.name === 'printQueue' ? (
+        <PrintQueueScreen />
       ) : (
         <ProductsScreen
           key={screen.name === 'products' ? screen.table?.id ?? 'no-table' : 'no-table'}
