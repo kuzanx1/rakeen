@@ -10,13 +10,16 @@ import {
 } from 'react-native';
 import { loadCatalog, getBusinessType, getFinancialSettings, CatalogResult } from '../application/catalogService';
 import { submitOrder } from '../application/orderService';
+import { completePaymentOperation } from '../application/paymentService';
 import { getDeviceConfig } from '../application/authService';
-import { buildOrderPayload, buildDineInRegisterPayload } from '../domain/order';
+import { supabase } from '../infrastructure/supabaseClient';
+import { buildOrderPayload, buildDineInRegisterPayload, buildDineInPayPayload } from '../domain/order';
 import type { Product } from '../domain/catalog';
 import type { OrderChannel } from '../domain/cart';
 import type { CashierProfile } from '../domain/auth';
 import { useCart } from './useCart';
 import ModifierModal from './ModifierModal';
+import PaymentModal from './PaymentModal';
 
 const DISCOUNT_OPTIONS = [0, 5, 10, 15, 20];
 const CHANNEL_LABELS: Record<OrderChannel, string> = {
@@ -96,21 +99,30 @@ export default function ProductsScreen({ cashier }: { cashier: CashierProfile })
 
   const [submitStatus, setSubmitStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [lastRegisteredDineInOrderId, setLastRegisteredDineInOrderId] = useState<number | null>(null);
+  const [dineInOrderTotal, setDineInOrderTotal] = useState(0);
+
+  /** Fetches the order's REAL current total from the server right before
+   *  showing the payment modal -- the local cart's total is stale once
+   *  rounds have been added and the cart cleared, and requirement 8
+   *  ("payment totals MUST match Cart/server totals") means this must be
+   *  the server's authoritative number, not a re-derived local guess. */
+  const handleOpenDineInPayment = async () => {
+    if (lastRegisteredDineInOrderId == null) return;
+    const { data } = await supabase.from('orders').select('total').eq('id', lastRegisteredDineInOrderId).single();
+    setDineInOrderTotal(data ? Number(data.total) : 0);
+    setPaymentModalOpen(true);
+  };
 
   /**
-   * Checkpoint 5 (Order Creation) -- NOT Payment. For dine_in this calls
-   * register_dine_in_order only (genuinely payment-free in the real
-   * system too). For pickup/delivery, complete_pos_order is the ONLY
-   * order-creation mechanism the real backend has -- it creates and pays
-   * atomically -- so this defaults payment_method to 'cash'/full amount
-   * (see domain/order.ts's own doc comment) rather than building any real
-   * payment UI, which is explicitly out of scope until Checkpoint 7.
-   *
-   * shift_id/staff_member_id are null here -- shift tracking and the
-   * staff picker are separate, not-yet-built checkpoints; a real gap,
-   * disclosed, not silently worked around.
+   * Checkpoint 5 behavior, unchanged: dine_in still only REGISTERS
+   * (register_dine_in_order), genuinely payment-free in the real system
+   * too. Payment for a dine-in order is a separate action
+   * (handlePayDineInOrder below), matching how the real PWA treats
+   * "register a round" and "settle the table" as distinct operations.
    */
-  const handleSubmitOrder = async () => {
+  const handleRegisterDineInOrder = async () => {
     if (cart.cart.length === 0 || !catalog) return;
     setSubmitting(true);
     setSubmitStatus('');
@@ -120,7 +132,89 @@ export default function ProductsScreen({ cashier }: { cashier: CashierProfile })
         setSubmitStatus('🔴 لا يوجد فرع مرتبط بهذا الجهاز — أعد تجهيز الجهاز');
         return;
       }
-      const ctx = {
+      const payload = buildDineInRegisterPayload(cart.cart, productsById, catalog.modifiersByProductId, cart.unitPriceOf, {
+        branchId: device.branchId,
+        shiftId: null,
+        staffMemberId: null,
+        customerName: null,
+        customerPhone: null,
+        customerId: null,
+        discountPct: cart.discountPct,
+        discountAmount: cart.totals.discount,
+        vatAmount: cart.totals.vat,
+        total: cart.totals.total,
+        subtotal: cart.totals.subtotal,
+        channel: 'dine_in',
+        deliveryPlatformId: null,
+        platformInvoiceLast4: null,
+        tableId: null,
+        existingOrderId: lastRegisteredDineInOrderId, // adding a round to the SAME order if one was already registered this session
+      });
+      const result = await submitOrder(payload);
+      if (result.immediate) {
+        // register_dine_in_order returns the real order id -- Checkpoint
+        // 5 already proved this via a live scratch test; now actually
+        // captured so "Pay Order #X" / add-a-round can target it.
+        if (result.orderId != null) setLastRegisteredDineInOrderId(result.orderId);
+        setSubmitStatus(`✅ تم تسجيل الطلب (بدون دفع بعد)`);
+        cart.clearCart();
+      } else {
+        // Queued offline: no order id is known yet (the RPC hasn't run),
+        // so this session honestly can't offer "Pay Order #X" until it
+        // syncs -- a real, disclosed scope limit, not a silent gap.
+        setSubmitStatus(`⏳ محفوظ محليًا، سيُرسل تلقائيًا (${result.error})`);
+        cart.clearCart();
+      }
+    } catch (e) {
+      setSubmitStatus(`🔴 خطأ غير متوقع: ${String(e)}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  /**
+   * Checkpoint 6 (Payment) -- pays an order that was already registered
+   * this session (see the "Dine-in Payment" requirement: paying an
+   * existing open table order, including after rounds were added). This
+   * app has no Tables/Orders list screen yet (a separate checkpoint) to
+   * pick an arbitrary open order from, so this operates on the order this
+   * exact session most recently registered -- a real, honest, disclosed
+   * scope limit, not a redesign of the RPC or its idempotency.
+   */
+  const handlePayDineInOrder = async (method: 'cash' | 'card', cashAmount: number | null) => {
+    if (lastRegisteredDineInOrderId == null) return;
+    setSubmitting(true);
+    try {
+      const payload = buildDineInPayPayload(lastRegisteredDineInOrderId, method, cashAmount, null, null, null);
+      const outcome = await completePaymentOperation(payload, { openDrawer: method === 'cash' });
+      setSubmitStatus(
+        `دفع: ${outcome.paymentState}${outcome.paymentError ? ` (${outcome.paymentError})` : ''} — درج: ${outcome.drawerState}${outcome.drawerError ? ` (${outcome.drawerError})` : ''}`,
+      );
+      if (outcome.paymentState === 'PAYMENT_COMPLETED') setLastRegisteredDineInOrderId(null);
+    } catch (e) {
+      setSubmitStatus(`🔴 خطأ غير متوقع: ${String(e)}`);
+    } finally {
+      setSubmitting(false);
+      setPaymentModalOpen(false);
+    }
+  };
+
+  /** Checkpoint 6 (Payment) for pickup/delivery -- complete_pos_order is
+   *  the ONLY order-creation mechanism for these channels (see
+   *  domain/order.ts), so "Payment" here means: real payment method,
+   *  drawer kick attempted for cash (independent of the network result),
+   *  honest state reporting. Never "تم فتح الدرج" unless drawerState is
+   *  genuinely DRAWER_COMPLETED. */
+  const handlePayOrder = async (method: 'cash' | 'card', cashAmount: number | null) => {
+    if (cart.cart.length === 0 || !catalog) return;
+    setSubmitting(true);
+    try {
+      const device = await getDeviceConfig();
+      if (device.branchId == null) {
+        setSubmitStatus('🔴 لا يوجد فرع مرتبط بهذا الجهاز — أعد تجهيز الجهاز');
+        return;
+      }
+      const payload = buildOrderPayload(cart.cart, productsById, catalog.modifiersByProductId, cart.unitPriceOf, {
         branchId: device.branchId,
         shiftId: null,
         staffMemberId: null,
@@ -136,23 +230,15 @@ export default function ProductsScreen({ cashier }: { cashier: CashierProfile })
         deliveryPlatformId: null,
         platformInvoiceLast4: null,
         tableId: null,
-      };
-
-      const payload =
-        cart.orderChannel === 'dine_in'
-          ? buildDineInRegisterPayload(cart.cart, productsById, catalog.modifiersByProductId, cart.unitPriceOf, {
-              ...ctx,
-              existingOrderId: null,
-            })
-          : buildOrderPayload(cart.cart, productsById, catalog.modifiersByProductId, cart.unitPriceOf, ctx);
-
-      const result = await submitOrder(payload);
-      if (result.immediate) {
-        setSubmitStatus(`✅ تم إنشاء الطلب (client_order_uuid=${payload.client_order_uuid.slice(0, 8)}...)`);
-        cart.clearCart();
-      } else {
-        setSubmitStatus(`⏳ محفوظ محليًا، سيُرسل تلقائيًا عند توفر الاتصال (${result.error})`);
-        cart.clearCart(); // the order is safe in the SQLite queue regardless -- clearing the cart matches the real app's own behavior of moving on once an order is queued, not waiting on the network
+        paymentMethod: method,
+        cashAmount,
+      });
+      const outcome = await completePaymentOperation(payload, { openDrawer: method === 'cash' });
+      setSubmitStatus(
+        `دفع: ${outcome.paymentState}${outcome.paymentError ? ` (${outcome.paymentError})` : ''} — درج: ${outcome.drawerState}${outcome.drawerError ? ` (${outcome.drawerError})` : ''}`,
+      );
+      if (outcome.paymentState === 'PAYMENT_COMPLETED' || outcome.paymentState === 'PAYMENT_SYNC_PENDING') {
+        cart.clearCart(); // safe in the SQLite queue either way, per Checkpoint 5
       }
     } catch (e) {
       setSubmitStatus(`🔴 خطأ غير متوقع: ${String(e)}`);
@@ -304,20 +390,46 @@ export default function ProductsScreen({ cashier }: { cashier: CashierProfile })
           </View>
 
           {!!submitStatus && <Text style={styles.submitStatus}>{submitStatus}</Text>}
-          <TouchableOpacity
-            style={[styles.checkoutButton, cart.cart.length > 0 && styles.checkoutButtonActive]}
-            onPress={handleSubmitOrder}
-            disabled={cart.cart.length === 0 || submitting}>
-            <Text style={styles.checkoutButtonText}>
-              {submitting
-                ? 'جارٍ الإرسال...'
-                : cart.orderChannel === 'dine_in'
-                ? 'تسجيل الطلب (بدون دفع بعد)'
-                : 'إنشاء الطلب (بدون دفع بعد)'}
-            </Text>
-          </TouchableOpacity>
+
+          {cart.orderChannel === 'dine_in' ? (
+            <>
+              <TouchableOpacity
+                style={[styles.checkoutButton, cart.cart.length > 0 && styles.checkoutButtonActive]}
+                onPress={handleRegisterDineInOrder}
+                disabled={cart.cart.length === 0 || submitting}>
+                <Text style={styles.checkoutButtonText}>
+                  {submitting ? 'جارٍ الإرسال...' : lastRegisteredDineInOrderId ? 'إضافة جولة' : 'تسجيل الطلب (بدون دفع)'}
+                </Text>
+              </TouchableOpacity>
+              {lastRegisteredDineInOrderId != null && (
+                <TouchableOpacity
+                  style={[styles.checkoutButton, styles.checkoutButtonActive]}
+                  onPress={handleOpenDineInPayment}
+                  disabled={submitting}>
+                  <Text style={styles.checkoutButtonText}>دفع الطلب #{lastRegisteredDineInOrderId}</Text>
+                </TouchableOpacity>
+              )}
+            </>
+          ) : (
+            <TouchableOpacity
+              style={[styles.checkoutButton, cart.cart.length > 0 && styles.checkoutButtonActive]}
+              onPress={() => setPaymentModalOpen(true)}
+              disabled={cart.cart.length === 0 || submitting}>
+              <Text style={styles.checkoutButtonText}>{submitting ? 'جارٍ الإرسال...' : 'الدفع'}</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
+
+      <PaymentModal
+        visible={paymentModalOpen}
+        total={cart.orderChannel === 'dine_in' ? dineInOrderTotal : cart.totals.total}
+        submitting={submitting}
+        onCancel={() => setPaymentModalOpen(false)}
+        onConfirm={(method, cashAmount) =>
+          cart.orderChannel === 'dine_in' ? handlePayDineInOrder(method, cashAmount) : handlePayOrder(method, cashAmount)
+        }
+      />
 
       {modifierTarget && catalog.modifiersByProductId[modifierTarget.id] && (
         <ModifierModal

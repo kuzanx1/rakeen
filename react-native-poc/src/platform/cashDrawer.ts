@@ -62,16 +62,19 @@ export const CashDrawer: CashDrawerAPI | undefined =
 
 /**
  * Tracks in-flight and completed drawer operations by `operationId` for
- * this app session. A successful kick is remembered so a later retry for
- * the SAME operationId short-circuits to `{ok:true}` without sending
- * another kick — mirrors the print queue's `activePrintJobByContentKey`
- * dedup pattern (public/pos/rakeen-pos.js) rather than inventing a
- * different approach. Deliberately in-memory only: a drawer kick is a
- * one-shot physical action tied to the current app session opening it,
- * not something that needs to survive an app restart the way the offline
- * order/print queues do (if the app restarts mid-payment, the cashier can
- * see the drawer is already open — the danger this guards against is
- * rapid double-taps within one session, not cross-restart replay).
+ * this app session — a fast-path guard against rapid double-taps
+ * overlapping within milliseconds, before either call even reaches a
+ * SQLite round-trip. This is NOT the sole source of truth for
+ * cross-restart idempotency (an earlier version of this comment claimed
+ * it didn't need to be — the migration's Payment checkpoint made that
+ * requirement explicit, and it was wrong not to plan for it): the
+ * PERSISTED `drawer_state` on the payment record
+ * (application/paymentService.ts, backed by
+ * infrastructure/sqliteOrderQueue.ts) is what actually survives an app
+ * restart. paymentService.ts checks that persisted state BEFORE ever
+ * calling `openCashDrawer()` at all; this in-memory map is a second,
+ * belt-and-suspenders layer on top, same dedup shape as the print queue's
+ * `activePrintJobByContentKey` (public/pos/rakeen-pos.js).
  */
 const drawerOperations = new Map<string, Promise<CashDrawerResult>>();
 const succeededOperations = new Set<string>();

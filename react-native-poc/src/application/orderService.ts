@@ -1,6 +1,6 @@
 import { supabase } from '../infrastructure/supabaseClient';
 import { sqliteOrderQueueStorage } from '../infrastructure/sqliteOrderQueue';
-import { QueuedPayload, OrderPayload, DineInRegisterPayload } from '../domain/order';
+import { QueuedPayload, OrderPayload, DineInRegisterPayload, DineInPayPayload } from '../domain/order';
 import { syncQueuedOrders, SyncOutcome } from '../domain/orderQueue';
 
 /**
@@ -56,9 +56,35 @@ async function sendDineInRegisterToServer(payload: DineInRegisterPayload): Promi
   return data;
 }
 
-function dispatchQueuedPayload(payload: QueuedPayload): Promise<unknown> {
+/**
+ * pay_dine_in_order has no idempotency key of its own -- it doesn't need
+ * one. Its own WHERE clause (payment_status = 'unpaid') already makes a
+ * second call against an order this exact call already paid a clean
+ * no-op at the DB level; it surfaces as the "already paid" exception
+ * instead of silently succeeding twice. A retry treats that specific
+ * message as success (already applied), not a real failure -- anything
+ * else still fails normally and stays queued. Exact same tolerance as
+ * public/pos/rakeen-pos.js's real sendDineInPayToServer.
+ */
+export async function sendDineInPayToServer(payload: DineInPayPayload): Promise<unknown> {
+  const { error } = await supabase.rpc('pay_dine_in_order', {
+    p_order_id: payload.order_id,
+    p_payment_method: payload.payment_method,
+    p_cash_amount: payload.cash_amount,
+    p_customer_name: payload.customer_name,
+    p_customer_phone: payload.customer_phone,
+    p_customer_id: payload.customer_id,
+  });
+  if (error && !/already paid/i.test(error.message || '')) throw error;
+  return payload.order_id;
+}
+
+export function dispatchQueuedPayload(payload: QueuedPayload): Promise<unknown> {
   if (payload.type === 'dine_in_register') {
     return sendDineInRegisterToServer(payload);
+  }
+  if (payload.type === 'dine_in_pay') {
+    return sendDineInPayToServer(payload);
   }
   return sendOrderToServer(payload as OrderPayload);
 }
@@ -72,12 +98,12 @@ function dispatchQueuedPayload(payload: QueuedPayload): Promise<unknown> {
  * whether the immediate attempt succeeded, but the order is safe in the
  * queue either way.
  */
-export async function submitOrder(payload: QueuedPayload): Promise<{ immediate: boolean; error?: string }> {
+export async function submitOrder(payload: QueuedPayload): Promise<{ immediate: boolean; orderId?: number; error?: string }> {
   await sqliteOrderQueueStorage.put(payload);
   try {
-    await dispatchQueuedPayload(payload);
+    const result = await dispatchQueuedPayload(payload);
     await sqliteOrderQueueStorage.remove(payload.client_order_uuid);
-    return { immediate: true };
+    return { immediate: true, orderId: typeof result === 'number' ? result : undefined };
   } catch (e) {
     return { immediate: false, error: e instanceof Error ? e.message : String(e) };
   }

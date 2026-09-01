@@ -11,6 +11,25 @@
 import uuid from 'react-native-uuid';
 import { CartLine, OrderChannel, ModifierDefinition } from './cart';
 import type { Product } from './catalog';
+import type { PaymentMethod, PaymentState, DrawerState } from './payment';
+
+/** Every queued payload carries its own payment/drawer state -- reuses
+ *  the SAME SQLite-backed queue already built in Checkpoint 5
+ *  (infrastructure/sqliteOrderQueue.ts) rather than a parallel payment
+ *  table, per the explicit "build on top of the already verified
+ *  architecture" instruction. */
+export interface PaymentTracking {
+  payment_state: PaymentState;
+  drawer_state: DrawerState;
+  /** Stable per payment attempt -- reused across retries so a drawer kick
+   *  is never repeated for the same logical operation. For a fresh order
+   *  (OrderPayload/DineInRegisterPayload) this is the same value as
+   *  client_order_uuid; for DineInPayPayload (paying an EXISTING order,
+   *  which pay_dine_in_order addresses by order_id, not a uuid -- see
+   *  that RPC's own idempotency note in application/paymentService.ts)
+   *  it's a stable, order-id-derived id instead. */
+  operation_id: string;
+}
 
 export interface OrderItemPayload {
   menu_item_id: number | null;
@@ -45,7 +64,7 @@ export interface OrderItemPayload {
  *  payment-method selection UI -- no card/split logic, no payment screen,
  *  exists yet. This is a documented, deliberate scope decision, not
  *  something to mistake for Payment (Checkpoint 7) being done. */
-export interface OrderPayload {
+export interface OrderPayload extends Partial<PaymentTracking> {
   type?: 'simple';
   client_order_uuid: string;
   branch_id: number;
@@ -73,7 +92,7 @@ export interface OrderPayload {
   last_error?: string;
 }
 
-export interface DineInRegisterPayload {
+export interface DineInRegisterPayload extends Partial<PaymentTracking> {
   type: 'dine_in_register';
   client_order_uuid: string;
   branch_id: number;
@@ -93,7 +112,32 @@ export interface DineInRegisterPayload {
   last_error?: string;
 }
 
-export type QueuedPayload = OrderPayload | DineInRegisterPayload;
+/**
+ * Paying an ALREADY-registered dine-in order -- what pay_dine_in_order
+ * expects. No client_order_uuid of its own on purpose, matching the real
+ * RPC's own idempotency design (see application/paymentService.ts's doc
+ * comment on sendDineInPayToServer): its WHERE clause
+ * (payment_status='unpaid') already makes a retry a safe no-op at the DB
+ * level. `client_order_uuid` here is a LOCAL-ONLY queue key (this app's
+ * SQLite table still needs a primary key per queued item) -- it is never
+ * sent to the server.
+ */
+export interface DineInPayPayload extends Partial<PaymentTracking> {
+  type: 'dine_in_pay';
+  client_order_uuid: string; // local queue key only, see doc comment above
+  order_id: number;
+  payment_method: PaymentMethod;
+  cash_amount: number | null;
+  customer_name: string | null;
+  customer_phone: string | null;
+  customer_id: string | null;
+  retry_count?: number;
+  next_retry_at?: number;
+  stuck?: boolean;
+  last_error?: string;
+}
+
+export type QueuedPayload = OrderPayload | DineInRegisterPayload | DineInPayPayload;
 
 function generateClientOrderUuid(): string {
   // Real, load-bearing difference from rakeen-pos.js's own fallback
@@ -107,6 +151,49 @@ function generateClientOrderUuid(): string {
   // RFC4122 v4 generator that actually runs on Hermes, used here for
   // exactly that reason, not as an arbitrary library choice.
   return uuid.v4() as string;
+}
+
+/** Local-only key, never sent to the server -- see DineInPayPayload's doc
+ *  comment. Uses the same UUID generator as client_order_uuid for
+ *  consistency, not because the server cares about its format here. */
+export function generateLocalQueueKey(): string {
+  return uuid.v4() as string;
+}
+
+/** Stable per logical drawer/payment operation, reused across retries --
+ *  see PaymentTracking's doc comment. For a brand-new order this is just
+ *  its own client_order_uuid; for paying an EXISTING dine-in order it's
+ *  derived from the real, stable order_id instead (an order can only ever
+ *  be paid once, so `order_id` alone is already a safe, stable key -- no
+ *  need for a separate generated id). */
+export function operationIdForOrder(clientOrderUuid: string): string {
+  return clientOrderUuid;
+}
+export function operationIdForDineInPay(orderId: number): string {
+  return `dine_in_pay:${orderId}`;
+}
+
+export function buildDineInPayPayload(
+  orderId: number,
+  paymentMethod: PaymentMethod,
+  cashAmount: number | null,
+  customerName: string | null,
+  customerPhone: string | null,
+  customerId: string | null,
+): DineInPayPayload {
+  return {
+    type: 'dine_in_pay',
+    client_order_uuid: generateLocalQueueKey(),
+    order_id: orderId,
+    payment_method: paymentMethod,
+    cash_amount: cashAmount,
+    customer_name: customerName,
+    customer_phone: customerPhone,
+    customer_id: customerId,
+    payment_state: 'PAYMENT_PENDING',
+    drawer_state: 'DRAWER_PENDING',
+    operation_id: operationIdForDineInPay(orderId),
+  };
 }
 
 export function formatConfigLabels(
@@ -144,6 +231,12 @@ export interface OrderBuildContext {
   deliveryPlatformId: string | null;
   platformInvoiceLast4: string | null;
   tableId: number | null;
+  /** Real payment method selection (Checkpoint 6) -- defaults to 'cash'
+   *  with the full total only when the caller doesn't pass one, matching
+   *  Checkpoint 5's original documented default for backward
+   *  compatibility with any existing caller that hasn't been updated. */
+  paymentMethod?: PaymentMethod;
+  cashAmount?: number | null;
 }
 
 function buildItems(
@@ -177,8 +270,11 @@ export function buildOrderPayload(
   unitPriceOf: (item: CartLine) => number,
   ctx: OrderBuildContext,
 ): OrderPayload {
+  const clientOrderUuid = generateClientOrderUuid();
+  const paymentMethod = ctx.paymentMethod || 'cash';
+  const cashAmount = ctx.cashAmount !== undefined ? ctx.cashAmount : ctx.channel === 'dine_in' ? null : ctx.total;
   return {
-    client_order_uuid: generateClientOrderUuid(),
+    client_order_uuid: clientOrderUuid,
     branch_id: ctx.branchId,
     shift_id: ctx.shiftId,
     staff_member_id: ctx.staffMemberId,
@@ -190,13 +286,16 @@ export function buildOrderPayload(
     discount_amount: ctx.discountAmount,
     vat_amount: ctx.vatAmount,
     total: ctx.total,
-    payment_method: 'cash', // see OrderPayload's own doc comment -- deliberate, documented scope limit
-    cash_amount: ctx.channel === 'dine_in' ? null : ctx.total,
+    payment_method: paymentMethod,
+    cash_amount: cashAmount,
     channel: ctx.channel,
     delivery_platform_id: ctx.channel === 'delivery' ? ctx.deliveryPlatformId : null,
     platform_invoice_last4: null,
     table_id: ctx.channel === 'dine_in' ? ctx.tableId : null,
     items: buildItems(cart, productsById, modifiersByProductId, unitPriceOf),
+    payment_state: 'PAYMENT_PENDING',
+    drawer_state: 'DRAWER_PENDING',
+    operation_id: operationIdForOrder(clientOrderUuid),
   };
 }
 
