@@ -116,19 +116,74 @@ Last updated after the release-candidate audit pass (2026-09-01).
   Arabic receipt glyph shaping — all real, compiled, CI-linked implementations whose actual
   behavior can only be confirmed on physical Rakeen hardware.
 
-## Exact next steps from here, in order
+## Getting the first build into TestFlight from Windows — no Mac needed
 
-1. ~~Fill in the real Team ID~~ — done (`7ZZ8RKB973`, wired into `ExportOptions.plist` and all 4
-   Xcode build configs).
-2. Confirm the CI quota is resolved; push the held commits (several are queued locally, including
-   this Team ID wiring); get a fresh green build.
-3. On a real Mac: open the project in Xcode with your Apple ID signed in once, let Automatic
-   signing provision the App ID.
-4. Register the app in App Store Connect with bundle ID `com.rakeen.pos`,
-   fill out the privacy questionnaire and export-compliance answer (already pre-answered via
-   Info.plist, but App Store Connect may still ask once per app).
-5. Archive, export with `ExportOptions.plist`, upload to TestFlight.
-6. In parallel: apply `keystore.properties` (already generated, sent to you) if you want an
-   Android release/internal-testing build too; `./gradlew bundleRelease` for a Play-ready AAB.
-7. Begin real-device acceptance testing (printers, drawer, Bluetooth/USB) — the one thing that
-   was never claimed as done from this environment.
+You have no local Mac. The real, no-new-service answer: **GitHub's own hosted macOS runners** —
+the same Actions infrastructure already running this project's CI, not a separate paid cloud-Mac
+rental. A new workflow, `.github/workflows/ios-testflight-release.yml`, is already written and
+committed (held, not pushed yet) — it's `workflow_dispatch`-only, meaning it **never runs
+automatically on a push**, only when you click "Run workflow" on GitHub.com. It won't touch your
+Actions quota until you deliberately trigger it.
+
+It builds and uploads via **Fastlane** (`react-native-poc/ios/fastlane/Fastfile`, lane `beta`),
+authenticating with an App Store Connect API key — no Apple ID password, no 2FA prompt, works
+non-interactively in CI. It needs 5 GitHub repository secrets first. Here is exactly how to get
+each one, all achievable without a Mac:
+
+### 1. Distribution certificate (started for you)
+A real private key + CSR were generated with `openssl` (no Mac required — this sandbox doesn't
+have one either) and sent to you as two files. Do this:
+1. Go to [developer.apple.com](https://developer.apple.com) → Certificates, Identifiers & Profiles
+   → Certificates → **+** → choose **Apple Distribution**.
+2. Upload `ios_distribution.csr` when asked for a CSR.
+3. Download the resulting certificate (a `.cer` file).
+4. Convert it alongside the private key you were sent (needs `openssl`, already installed if
+   you're on a machine with Git for Windows — same toolchain used to generate the CSR):
+   ```bash
+   openssl x509 -in distribution.cer -inform DER -out distribution.pem -outform PEM
+   openssl pkcs12 -export -inkey ios_distribution.key -in distribution.pem \
+     -out distribution.p12 -password pass:CHOOSE_A_PASSWORD_HERE
+   base64 -w0 distribution.p12 > distribution.p12.base64.txt
+   ```
+5. `IOS_DISTRIBUTION_CERTIFICATE_BASE64` = the contents of `distribution.p12.base64.txt`.
+   `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD` = whatever you chose above.
+
+### 2. App ID + provisioning profile
+1. Apple Developer portal → Identifiers → **+** → App IDs → register `com.rakeen.pos`.
+2. Profiles → **+** → **App Store** distribution → select the `com.rakeen.pos` App ID → select
+   the distribution certificate from step 1 → download the resulting `.mobileprovision`.
+3. `IOS_PROVISIONING_PROFILE_BASE64` = `base64 -w0 the-profile.mobileprovision`.
+
+### 3. App Store Connect API key
+1. [appstoreconnect.apple.com](https://appstoreconnect.apple.com) → Users and Access →
+   Integrations → App Store Connect API → **Generate API Key** (Admin or App Manager role).
+2. Download the `.p8` file **immediately** — Apple only lets you download it once.
+3. `ASC_KEY_ID` = the Key ID shown on that page. `ASC_ISSUER_ID` = the Issuer ID shown above the
+   key list. `ASC_KEY_CONTENT_BASE64` = `base64 -w0 AuthKey_XXXXXXXXXX.p8`.
+
+### 4. Add the 5 secrets and run it
+GitHub repo → Settings → Secrets and variables → Actions → New repository secret, once for each
+of: `IOS_DISTRIBUTION_CERTIFICATE_BASE64`, `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD`,
+`IOS_PROVISIONING_PROFILE_BASE64`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_CONTENT_BASE64`.
+
+Then: confirm your Actions quota is resolved, push the held commits (this new workflow among
+them), go to the Actions tab → "iOS TestFlight Release" → **Run workflow**. That single run
+builds a real signed archive and uploads it straight to TestFlight — no Mac, no Xcode UI, ever
+required on your end.
+
+**Disclosed honestly**: this Fastfile/workflow is written to the well-established, standard
+Fastlane CI pattern, carefully reviewed, but genuinely **unverified** — there's no Ruby/fastlane
+runtime available in this sandbox to test it, and it's never been run for real. The first
+`workflow_dispatch` run is also its first real test; if it fails, the uploaded build log artifact
+will show exactly where.
+
+## After that
+
+1. In parallel, for Android: `keystore.properties` is already generated and sent to you —
+   `./gradlew bundleRelease` locally or via a similar manually-triggered Actions workflow produces
+   a signed, Play-ready AAB whenever you want one (not yet built — say the word if you want this
+   same workflow_dispatch treatment for Android too).
+2. Fill out the App Store Connect privacy questionnaire and Google Play's Data Safety form
+   (manual, one-time, web-only steps neither Fastlane nor this repo can do for you).
+3. Begin real-device acceptance testing (printers, drawer, Bluetooth/USB) — the one thing that
+   was never claimed as done from this environment, and still isn't.

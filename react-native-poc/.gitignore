@@ -34,6 +34,11 @@ local.properties
 *.keystore
 !debug.keystore
 keystore.properties
+
+# iOS distribution signing material -- generated locally, never committed.
+ios/certs/
+*.p12
+*.mobileprovision
 .kotlin/
 
 # node.js

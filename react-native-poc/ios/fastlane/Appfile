@@ -1,0 +1,9 @@
+app_identifier("com.rakeen.pos")
+team_id("7ZZ8RKB973")
+
+# apple_id and itc_team_id are deliberately NOT set here -- authentication
+# for CI runs through an App Store Connect API key instead (see the
+# Fastfile's app_store_connect_api_key call), which needs no Apple ID
+# email/password and no interactive 2FA prompt. A local, interactive
+# `fastlane` run will ask for these once and can cache them; nothing
+# here needs to change for that to work too.

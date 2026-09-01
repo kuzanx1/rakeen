@@ -1,0 +1,66 @@
+name: iOS TestFlight Release
+
+# Deliberately workflow_dispatch ONLY -- never runs on push, never
+# consumes Actions minutes automatically, and never uploads a build to
+# App Store Connect without someone explicitly clicking "Run workflow"
+# (Actions tab -> this workflow -> Run workflow, on GitHub.com). This is
+# the real path to get a signed TestFlight build from a Windows machine
+# with no local Mac: GitHub's own hosted macOS runners, not a separate
+# paid cloud-Mac service, using the same Actions minutes already
+# available on this repo.
+#
+# Requires 5 repository secrets (Settings -> Secrets and variables ->
+# Actions -> New repository secret) before this can run --
+# see docs/react-native-migration/testflight-release-checklist.md for
+# exactly how to obtain each one:
+#   IOS_DISTRIBUTION_CERTIFICATE_BASE64   -- base64 of a .p12 export of your Apple Distribution certificate
+#   IOS_DISTRIBUTION_CERTIFICATE_PASSWORD -- the password you set when exporting that .p12
+#   IOS_PROVISIONING_PROFILE_BASE64       -- base64 of the App Store provisioning profile for com.rakeen.pos
+#   ASC_KEY_ID                            -- App Store Connect API key ID
+#   ASC_ISSUER_ID                         -- App Store Connect API issuer ID
+#   ASC_KEY_CONTENT_BASE64                -- base64 of the downloaded .p8 API key file
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  release:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: react-native-poc
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+
+      - name: npm ci
+        run: npm ci
+
+      - name: Install CocoaPods dependencies
+        working-directory: react-native-poc/ios
+        run: |
+          bundle install
+          bundle exec pod install
+
+      - name: Build and upload to TestFlight
+        working-directory: react-native-poc/ios
+        env:
+          IOS_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          IOS_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_CONTENT_BASE64: ${{ secrets.ASC_KEY_CONTENT_BASE64 }}
+        run: bundle exec fastlane beta
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-testflight-release-log
+          path: react-native-poc/ios/build/*.txt
