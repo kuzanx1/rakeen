@@ -183,6 +183,18 @@ export function addToCartWithConfig(
   return [...cart, { lineId: nextLineId(), productId, qty, note: '', config }];
 }
 
+/** Feature Parity Pass -- Loyalty. Ported verbatim from the PWA's real
+ *  addPointsRedemptionToCart() -- always a fresh qty-1 line with no
+ *  config/note, never merged into an existing identical-product line
+ *  (a paid item and a points-redeemed one must stay visually and
+ *  financially distinct on the receipt, never summed together). Its
+ *  points cost is intentionally NOT stored here -- domain/order.ts's
+ *  buildItems() looks it up from the product's own pointsRedeemPrice at
+ *  checkout time, exactly matching the source's MENU_ITEM_META lookup. */
+export function addPointsRedemptionToCart(cart: CartLine[], productId: number, nextLineId: () => number): CartLine[] {
+  return [...cart, { lineId: nextLineId(), productId, qty: 1, note: '', config: null, isPointsRedemption: true }];
+}
+
 export function changeQty(cart: CartLine[], lineId: number, delta: number): CartLine[] {
   const next = cart.map(i => (i.lineId === lineId ? { ...i, qty: i.qty + delta } : i));
   return next.filter(i => i.qty > 0);

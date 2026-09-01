@@ -23,7 +23,7 @@ export default function CustomerPickerModal({
   visible: boolean;
   businessId: number;
   onCancel: () => void;
-  onSelect: (customer: { id: number | null; name: string; phone: string | null }) => void;
+  onSelect: (customer: { id: number | null; name: string; phone: string | null; points: number }) => void;
 }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Customer[]>([]);
@@ -83,7 +83,7 @@ export default function CustomerPickerModal({
     // customer_id stays null -- complete_pos_order/register_dine_in_order
     // find-or-create by phone server-side (real RPC behavior, not
     // something this client re-implements).
-    onSelect({ id: null, name: newName.trim(), phone: newPhone.trim() });
+    onSelect({ id: null, name: newName.trim(), phone: newPhone.trim(), points: 0 });
   };
 
   return (
@@ -105,7 +105,7 @@ export default function CustomerPickerModal({
                 <TouchableOpacity
                   key={c.id}
                   style={styles.resultRow}
-                  onPress={() => onSelect({ id: c.id, name: c.name, phone: c.phone })}>
+                  onPress={() => onSelect({ id: c.id, name: c.name, phone: c.phone, points: c.points })}>
                   <Text style={styles.resultName}>{c.name}</Text>
                   <Text style={styles.resultPhone}>{c.phone || ''}</Text>
                   {c.points > 0 && <Text style={styles.resultPoints}>{c.points} نقطة</Text>}

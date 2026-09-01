@@ -142,6 +142,7 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
         imageUrl: null,
         durationMinutes: s.duration_minutes,
         barcode: null,
+        pointsRedeemPrice: null,
       }))
     : [];
 
@@ -154,6 +155,7 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
     isService: false,
     imageUrl: m.image_url || null,
     barcode: m.barcode || null,
+    pointsRedeemPrice: m.points_redeem_price != null ? Number(m.points_redeem_price) : null,
   }));
 
   // Ported from loadPosData()'s MODIFIER_PRODUCTS construction -- same

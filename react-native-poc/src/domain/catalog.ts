@@ -29,6 +29,11 @@ export interface Product {
    *  BARCODE_TO_PRODUCT_ID comment: "empty for service businesses,
    *  which have no barcodes"). Feature Parity Pass -- Barcode. */
   barcode: string | null;
+  /** menu_items.points_redeem_price -- the loyalty-points cost to redeem
+   *  this item for free; null means not redeemable. Always null for
+   *  services (PWA's real MENU_ITEM_META is built only from menu_items).
+   *  Feature Parity Pass -- Loyalty. */
+  pointsRedeemPrice: number | null;
 }
 
 /** Same list as SERVICE_BUSINESS_TYPES in rakeen-pos.js -- a service

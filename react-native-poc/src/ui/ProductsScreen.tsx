@@ -27,6 +27,7 @@ import { useCart } from './useCart';
 import ModifierModal from './ModifierModal';
 import PaymentModal from './PaymentModal';
 import CustomerPickerModal from './CustomerPickerModal';
+import LoyaltyRedeemModal from './LoyaltyRedeemModal';
 import type { Customer } from '../domain/customer';
 
 const DISCOUNT_OPTIONS = [0, 5, 10, 15, 20];
@@ -214,7 +215,8 @@ export default function ProductsScreen({
     selectedTable?.activeOrderId ?? null,
   );
   const [dineInOrderTotal, setDineInOrderTotal] = useState(0);
-  const [selectedCustomer, setSelectedCustomer] = useState<{ id: number | null; name: string; phone: string | null } | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<{ id: number | null; name: string; phone: string | null; points: number } | null>(null);
+  const [loyaltyRedeemOpen, setLoyaltyRedeemOpen] = useState(false);
   const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
 
   /** Fetches the order's REAL current total from the server right before
@@ -609,6 +611,15 @@ export default function ProductsScreen({
             )}
           </TouchableOpacity>
 
+          {/* Feature Parity Pass -- Loyalty. Only for an existing customer
+              with a real id -- a brand-new customer typed at checkout has
+              no real balance to redeem yet, matching the PWA's own rule. */}
+          {selectedCustomer?.id != null && (
+            <TouchableOpacity style={styles.loyaltyRow} onPress={() => setLoyaltyRedeemOpen(true)}>
+              <Text style={styles.loyaltyRowText}>🎁 استبدال بالنقاط ({selectedCustomer.points} نقطة)</Text>
+            </TouchableOpacity>
+          )}
+
           <View style={styles.totalsBox}>
             <View style={styles.totalsRow}>
               <Text style={styles.totalsLabel}>المجموع الفرعي</Text>
@@ -681,6 +692,18 @@ export default function ProductsScreen({
           setCustomerPickerOpen(false);
         }}
       />
+
+      {selectedCustomer?.id != null && (
+        <LoyaltyRedeemModal
+          visible={loyaltyRedeemOpen}
+          customerId={selectedCustomer.id}
+          customerName={selectedCustomer.name}
+          customerPoints={selectedCustomer.points}
+          redeemableProducts={catalog.products.filter(p => p.pointsRedeemPrice != null)}
+          onRedeem={productId => cart.addPointsRedemptionProduct(productId)}
+          onClose={() => setLoyaltyRedeemOpen(false)}
+        />
+      )}
 
       {modifierTarget && catalog.modifiersByProductId[modifierTarget.id] && (
         <ModifierModal
@@ -808,6 +831,8 @@ const styles = StyleSheet.create({
   },
   customerRowLabel: { fontSize: 12, color: '#333', fontWeight: '600' },
   customerRowClear: { fontSize: 11, color: '#c0392b' },
+  loyaltyRow: { backgroundColor: '#fff3e0', borderRadius: 10, padding: 10, marginBottom: 10, alignItems: 'center' },
+  loyaltyRowText: { fontSize: 12, fontWeight: '700', color: '#e65100' },
   totalsBox: { padding: 12, borderTopWidth: 1, borderTopColor: '#e0e0e0' },
   totalsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   totalsRowFinal: { marginTop: 4, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#eee' },

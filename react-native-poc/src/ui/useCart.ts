@@ -4,6 +4,7 @@ import {
   CartLineConfig,
   ModifierDefinition,
   OrderChannel,
+  addPointsRedemptionToCart,
   addToCartWithConfig,
   buildDefaultConfig,
   cartTotals,
@@ -66,6 +67,15 @@ export function useCart(
     [nextLineId],
   );
 
+  /** Feature Parity Pass -- Loyalty. Always a fresh free line -- see
+   *  domain/cart.ts's addPointsRedemptionToCart doc comment. */
+  const addPointsRedemptionProduct = useCallback(
+    (productId: number) => {
+      setCart(prev => addPointsRedemptionToCart(prev, productId, nextLineId));
+    },
+    [nextLineId],
+  );
+
   const changeQty = useCallback((lineId: number, delta: number) => {
     setCart(prev => changeQtyPure(prev, lineId, delta));
   }, []);
@@ -93,6 +103,7 @@ export function useCart(
     setOrderChannel,
     addProduct,
     addWithConfig,
+    addPointsRedemptionProduct,
     changeQty,
     removeFromCart,
     clearCart,

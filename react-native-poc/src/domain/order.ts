@@ -264,7 +264,12 @@ function buildItems(
     stock_decrements: [],
     box_selections: [],
     is_points_redemption: !!item.isPointsRedemption,
-    points_cost: 0, // points redemption isn't ported this checkpoint -- see catalogService's own deferrals
+    // Feature Parity Pass -- Loyalty. Looked up from the product's own
+    // pointsRedeemPrice at build time, exactly matching the PWA's real
+    // MENU_ITEM_META[item.productId].pointsRedeemPrice lookup (not
+    // stored on the cart line itself -- see domain/cart.ts's
+    // addPointsRedemptionToCart doc comment).
+    points_cost: item.isPointsRedemption ? productsById.get(item.productId)?.pointsRedeemPrice || 0 : 0,
   }));
 }
 
