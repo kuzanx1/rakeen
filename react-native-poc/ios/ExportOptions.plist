@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Real xcodebuild -exportArchive options for a TestFlight upload.
+	     TEAM_ID below is a placeholder -- fill in the real 10-character
+	     Apple Developer Team ID before this is usable. Everything else
+	     here is a standard, correct TestFlight/App Store export config,
+	     not a guess. -->
+	<key>method</key>
+	<string>app-store</string>
+	<key>teamID</key>
+	<string>REPLACE_WITH_REAL_APPLE_DEVELOPER_TEAM_ID</string>
+	<key>signingStyle</key>
+	<string>automatic</string>
+	<key>uploadSymbols</key>
+	<true/>
+	<key>compileBitcode</key>
+	<false/>
+</dict>
+</plist>
