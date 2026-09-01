@@ -1,5 +1,6 @@
 import NetInfo from '@react-native-community/netinfo';
 import { syncQueuedOrdersNow } from './orderService';
+import { reportCloudSyncOutcome } from './diagnosticsService';
 import { shouldTriggerSyncOnNetChange, SYNC_POLL_INTERVAL_MS } from '../domain/sync';
 
 export { SYNC_POLL_INTERVAL_MS, shouldTriggerSyncOnNetChange } from '../domain/sync';
@@ -36,11 +37,21 @@ export { SYNC_POLL_INTERVAL_MS, shouldTriggerSyncOnNetChange } from '../domain/s
  */
 export function startAutoSync(): () => void {
   const trigger = () => {
-    syncQueuedOrdersNow().catch(() => {
-      // syncQueuedOrdersNow() itself never throws (see its own doc
-      // comment) -- this catch exists only in case a future change adds
-      // one, so a background trigger can never crash the app.
-    });
+    syncQueuedOrdersNow()
+      .then(outcome => {
+        // Checkpoint 13 (Diagnostics) -- piggyback on this REAL sync
+        // round-trip's outcome to report the "Cloud" signal, exactly
+        // like the PWA's own reportCloudResult (never a separate
+        // dedicated health-check ping). outcome is null if another
+        // call was already in flight (syncQueuedOrdersNow's own
+        // overlapping-run guard) -- nothing to report in that case.
+        if (outcome) reportCloudSyncOutcome(outcome.anySucceeded, outcome.anyFailed, outcome.lastFailure);
+      })
+      .catch(() => {
+        // syncQueuedOrdersNow() itself never throws (see its own doc
+        // comment) -- this catch exists only in case a future change adds
+        // one, so a background trigger can never crash the app.
+      });
   };
 
   // Immediate pass on start -- flushes anything queued from a previous

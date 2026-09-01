@@ -39,6 +39,8 @@ import PrinterSettingsScreen from './src/ui/PrinterSettingsScreen';
 import uuid from 'react-native-uuid';
 import { getPrinterProfile } from './src/infrastructure/printerProfileStore';
 import { profileToPrinterTarget, drawerKickCommandFor, isDrawerSupported } from './src/domain/printerProfile';
+import { startDiagnosticsTracking } from './src/application/diagnosticsService';
+import DiagnosticsScreen from './src/ui/DiagnosticsScreen';
 
 /** React Native's Hermes runtime has no global `btoa` (unlike a browser) —
  *  a minimal base64 encoder, since pulling in a whole polyfill package for
@@ -102,6 +104,7 @@ type Screen =
   | { name: 'tables' }
   | { name: 'printQueue' }
   | { name: 'printerSettings' }
+  | { name: 'diagnostics' }
   | { name: 'products'; table: SelectedTableContext | null };
 
 function App(): React.JSX.Element {
@@ -150,6 +153,16 @@ function App(): React.JSX.Element {
       cancelled = true;
       stopScheduler?.();
     };
+  }, [cashier]);
+
+  // Checkpoint 13 (Diagnostics, final checkpoint) -- tracks the real
+  // Internet signal for the Diagnostics screen; the Cloud signal is
+  // reported separately by syncScheduler.ts's own real sync attempts
+  // (see diagnosticsService.ts's own doc comment for why this is
+  // deliberately NOT a dedicated health-check ping).
+  useEffect(() => {
+    if (!cashier) return;
+    return startDiagnosticsTracking();
   }, [cashier]);
 
   /**
@@ -233,6 +246,9 @@ function App(): React.JSX.Element {
           <TouchableOpacity onPress={handleOpenDrawerManually} disabled={drawerBusy}>
             <Text style={styles.link}>{drawerBusy ? 'جارٍ الفتح...' : 'فتح الدرج'}</Text>
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => setScreen({ name: 'diagnostics' })}>
+            <Text style={styles.link}>تشخيص النظام</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => setShowHardwareTools(true)}>
             <Text style={styles.link}>أدوات الطابعة</Text>
           </TouchableOpacity>
@@ -259,6 +275,8 @@ function App(): React.JSX.Element {
         <PrintQueueScreen />
       ) : screen.name === 'printerSettings' ? (
         <PrinterSettingsScreen />
+      ) : screen.name === 'diagnostics' ? (
+        <DiagnosticsScreen />
       ) : (
         <ProductsScreen
           key={screen.name === 'products' ? screen.table?.id ?? 'no-table' : 'no-table'}
