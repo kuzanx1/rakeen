@@ -35,6 +35,7 @@ import { startAutoSync } from './src/application/syncScheduler';
 import { startPrintQueueAutoProcess } from './src/application/printQueueScheduler';
 import { resetInterruptedPrintJobsOnBoot } from './src/infrastructure/sqlitePrintQueue';
 import PrintQueueScreen from './src/ui/PrintQueueScreen';
+import PrinterSettingsScreen from './src/ui/PrinterSettingsScreen';
 
 /** React Native's Hermes runtime has no global `btoa` (unlike a browser) —
  *  a minimal base64 encoder, since pulling in a whole polyfill package for
@@ -94,7 +95,11 @@ function buildTestReceiptBase64(): string {
  * active_order_id) every time a different table is opened, instead of
  * carrying over stale per-table state across navigations.
  */
-type Screen = { name: 'tables' } | { name: 'printQueue' } | { name: 'products'; table: SelectedTableContext | null };
+type Screen =
+  | { name: 'tables' }
+  | { name: 'printQueue' }
+  | { name: 'printerSettings' }
+  | { name: 'products'; table: SelectedTableContext | null };
 
 function App(): React.JSX.Element {
   const [cashier, setCashier] = useState<CashierProfile | null>(null);
@@ -126,7 +131,7 @@ function App(): React.JSX.Element {
   // resetInterruptedPrintJobsOnBoot), then start the real auto-process
   // loop (NetInfo reconnect + 20s interval). Stops on logout for the
   // same reason startAutoSync does -- has_permission() needs a valid
-  // session, and printerConfig.ts's target lookup has no reason to run
+  // session, and printerProfileStore.ts's target lookup has no reason to run
   // for a logged-out device.
   useEffect(() => {
     if (!cashier) return;
@@ -164,6 +169,9 @@ function App(): React.JSX.Element {
           <TouchableOpacity onPress={() => setScreen({ name: 'printQueue' })}>
             <Text style={styles.link}>قائمة الطباعة</Text>
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => setScreen({ name: 'printerSettings' })}>
+            <Text style={styles.link}>إعدادات الطابعة</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => setShowHardwareTools(true)}>
             <Text style={styles.link}>أدوات الطابعة</Text>
           </TouchableOpacity>
@@ -183,6 +191,8 @@ function App(): React.JSX.Element {
         />
       ) : screen.name === 'printQueue' ? (
         <PrintQueueScreen />
+      ) : screen.name === 'printerSettings' ? (
+        <PrinterSettingsScreen />
       ) : (
         <ProductsScreen
           key={screen.name === 'products' ? screen.table?.id ?? 'no-table' : 'no-table'}

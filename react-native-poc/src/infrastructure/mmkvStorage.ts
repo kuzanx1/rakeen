@@ -6,7 +6,8 @@ import { MMKV } from 'react-native-mmkv';
  * docs/react-native-poc/phase8-offline-storage.md's own evaluation calls
  * "kv_cache": the offline catalog snapshot, device config, cashier
  * profile cache, and printer target config (see application/authService.ts,
- * application/catalogService.ts, infrastructure/printerConfig.ts). That
+ * application/catalogService.ts, infrastructure/printerProfileStore.ts).
+ * That
  * evaluation's actual reasoning (memory-mapped, fsync-backed durability;
  * "fastest... synchronous, JSI" vs. AsyncStorage's historically
  * SQLite-table-of-everything bottleneck on Android) is what's being acted

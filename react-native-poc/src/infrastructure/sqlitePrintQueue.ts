@@ -63,7 +63,7 @@ export const sqlitePrintQueueStorage: PrintQueueStorage = {
  * Call once at app start, before the print queue scheduler's first
  * pass -- same reasoning as the source, minus its DEVICE-not-ready
  * timing concern (this app has no such boot-ordering constraint since
- * printerConfig.ts's target is read fresh on every dispatch attempt,
+ * printerProfileStore.ts's target is read fresh on every dispatch attempt,
  * not cached into a global at boot).
  */
 export async function resetInterruptedPrintJobsOnBoot(): Promise<void> {

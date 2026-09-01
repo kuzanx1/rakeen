@@ -1,6 +1,7 @@
 import uuid from 'react-native-uuid';
 import { sqlitePrintQueueStorage } from '../infrastructure/sqlitePrintQueue';
-import { getPrinterTarget } from '../infrastructure/printerConfig';
+import { getPrinterProfile } from '../infrastructure/printerProfileStore';
+import { profileToPrinterTarget } from '../domain/printerProfile';
 import { printReceipt } from '../platform/printer';
 import {
   PrintJobRecord,
@@ -30,8 +31,9 @@ import { buildReceiptEscPosBase64, buildKitchenTicketEscPosBase64, ReceiptData, 
 const activeJobIdByContentKey = new Map<string, string>();
 
 async function doDispatch(job: PrintJobRecord): Promise<{ ok: boolean; error?: string }> {
-  const target = await getPrinterTarget();
-  if (!target.host || !target.port) {
+  const profile = await getPrinterProfile();
+  const target = profileToPrinterTarget(profile);
+  if (!target) {
     return { ok: false, error: 'PRINTER_UNAVAILABLE' };
   }
   const escPosBase64 =
@@ -39,7 +41,7 @@ async function doDispatch(job: PrintJobRecord): Promise<{ ok: boolean; error?: s
       ? buildReceiptEscPosBase64(job.data as unknown as ReceiptData)
       : buildKitchenTicketEscPosBase64(job.data as unknown as KitchenTicketData);
   const result = await printReceipt({
-    target: { transport: 'network', host: target.host, port: target.port },
+    target,
     escPosBase64,
     timeoutMs: 8000,
   });

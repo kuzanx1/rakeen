@@ -1,9 +1,10 @@
 import { sqliteOrderQueueStorage } from '../infrastructure/sqliteOrderQueue';
-import { getPrinterTarget } from '../infrastructure/printerConfig';
+import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { openCashDrawer } from '../platform/cashDrawer';
 import { dispatchQueuedPayload } from './orderService';
 import { QueuedPayload } from '../domain/order';
 import { PaymentState, DrawerState, drawerAlreadyCompleted } from '../domain/payment';
+import { profileToPrinterTarget, drawerKickCommandFor, isDrawerSupported } from '../domain/printerProfile';
 
 /**
  * Checkpoint 6 (Payment) orchestration -- built strictly on top of
@@ -19,10 +20,10 @@ import { PaymentState, DrawerState, drawerAlreadyCompleted } from '../domain/pay
  *
  * The drawer step never depends on the network step's outcome or timing
  * -- it's attempted right after local persistence, before the network
- * call, using whatever printer target is configured (see
- * infrastructure/printerConfig.ts -- honestly empty until Checkpoint 11
- * builds real Settings, which correctly makes every drawer attempt today
- * report an honest "not available" rather than a fake success).
+ * call, using whatever printer profile is actually configured (see
+ * infrastructure/printerProfileStore.ts, Checkpoint 11 -- with nothing
+ * configured yet, or a profile that declares no drawer, this correctly
+ * reports DRAWER_UNAVAILABLE rather than a fake success).
  */
 
 export interface PaymentOutcome {
@@ -57,13 +58,22 @@ export async function completePaymentOperation(
   // the drawer succeeding and this function ever getting to run again),
   // not just platform/cashDrawer.ts's in-memory guard.
   if (options.openDrawer && !drawerAlreadyCompleted(payload.drawer_state)) {
-    const target = await getPrinterTarget();
-    if (!target.host || !target.port) {
+    const profile = await getPrinterProfile();
+    const target = profileToPrinterTarget(profile);
+    if (!isDrawerSupported(profile)) {
+      // A configured printer with no drawer (or no printer at all) is
+      // the same honest outcome -- the profile explicitly declares
+      // whether ITS hardware has a drawer, independent of whether a
+      // target is reachable at all.
+      drawerState = 'DRAWER_UNAVAILABLE';
+      drawerError = 'drawer_not_supported_by_configured_printer';
+    } else if (!target) {
       drawerState = 'DRAWER_UNAVAILABLE';
       drawerError = 'no_printer_configured';
     } else {
       const result = await openCashDrawer({
-        target: { transport: 'network', host: target.host, port: target.port },
+        target,
+        kickCommandBase64: drawerKickCommandFor(profile),
         timeoutMs: 8000,
         operationId: payload.operation_id || payload.client_order_uuid,
       });
