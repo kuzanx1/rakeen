@@ -5,19 +5,22 @@ Last updated after the release-candidate audit pass (2026-09-01).
 
 ## Blocked on your input — the only things standing in the way
 
-- [ ] **Apple Developer Team ID** (10 characters, Apple Developer account → Membership).
-      Goes into `react-native-poc/ios/ExportOptions.plist`'s `teamID` key (currently the
-      placeholder `REPLACE_WITH_REAL_APPLE_DEVELOPER_TEAM_ID`) and Xcode's own signing UI once
-      opened with a real Apple ID signed in (already set to Automatic signing —
-      `CODE_SIGN_STYLE = Automatic` — so Xcode will prompt for the team the first time it's
-      opened).
+- [x] **Apple Developer Team ID** — received (`7ZZ8RKB973`), wired into
+      `react-native-poc/ios/ExportOptions.plist`'s `teamID` key and `DEVELOPMENT_TEAM` on all 4
+      Xcode build configurations (project- and target-level, Debug and Release). iOS signing
+      config is now fully complete in code.
 - [ ] **Confirm or override the bundle identifier / applicationId** — both platforms now use
       `com.rakeenpoc` (iOS's `PRODUCT_BUNDLE_IDENTIFIER` was changed from the React Native
       template default to match Android's existing `applicationId`, as a reasonable default, not
       a final decision made on your behalf). Trivial to change now; permanent on both App Store
       Connect and Google Play the moment either gets its first real upload.
 - [ ] **GitHub Actions quota** — still exhausted; no further CI-triggering pushes will happen
-      until you confirm it's resolved.
+      until you confirm it's resolved. This is now the only thing between here and a real,
+      CI-verified, fully-signed archive build.
+- [ ] **A real Mac with Xcode** to actually run `xcodebuild archive` /
+      `-exportArchive` / upload — this sandbox is Windows and has never been able to do this part
+      regardless of Team ID; every prior CI run here only ever produced an unsigned Simulator
+      build, by design, to prove the code compiles.
 - [ ] **The two backend migrations already deployed** — confirmed, no action needed here anymore.
       The one remaining migration (orphaned-RPC cleanup, see below) is deliberately held per your
       instruction, not urgent.
@@ -41,13 +44,15 @@ Last updated after the release-candidate audit pass (2026-09-01).
       your instruction) — the change is additive-only and inert without a real
       `keystore.properties` present, reviewed carefully, but not yet CI-verified.
 
-## iOS — configured except for signing identity
+## iOS — fully configured in code, nothing left to do without a Mac
 
 - [x] Real app icons for every required size (was completely missing before this pass — a
       guaranteed App Store Connect rejection).
 - [x] `CODE_SIGN_STYLE = Automatic` set at both project and target level (was entirely unset).
 - [x] Real `ExportOptions.plist` for `xcodebuild -exportArchive` (method=app-store, automatic
-      signing, symbol upload on) — only `teamID` still needs the real value.
+      signing, symbol upload on), now with the real `teamID`.
+- [x] `DEVELOPMENT_TEAM = 7ZZ8RKB973` set on all 4 build configurations (project- and
+      target-level, Debug and Release).
 - [x] `ITSAppUsesNonExemptEncryption = false` added — the app only uses standard HTTPS/TLS, so
       this answers Apple's export-compliance question once instead of on every build upload.
 - [x] Removed a blank, unused `NSLocationWhenInUseUsageDescription` (the app requests no location
@@ -57,11 +62,12 @@ Last updated after the release-candidate audit pass (2026-09-01).
       the new `ExportOptions.plist` had `--` inside an XML comment, which is invalid per the XML
       spec — caught by actually parsing both files, not assumed correct. Would have been a
       confusing Xcode build failure the moment either file was touched by a real build.
-- [ ] Once the Team ID is in hand: open the project in Xcode once with a real Apple ID signed in
-      (Automatic signing will offer to create the App ID / provisioning profile itself), then
+- [ ] Everything left from here needs a real Mac with Xcode (this sandbox is Windows and was
+      never going to be able to do this part): open the project once with your Apple ID signed
+      in (Automatic signing will offer to create the App ID / provisioning profile itself), then
       `xcodebuild archive` → `xcodebuild -exportArchive -exportOptionsPlist ExportOptions.plist` →
-      upload via Transporter or `xcrun altool`/`xcrun notarytool` as appropriate — standard flow,
-      nothing project-specific left to figure out.
+      upload via Transporter or `xcrun altool`/`xcrun notarytool`. Standard flow, nothing
+      project-specific left to figure out in code.
 
 ## Backend
 
@@ -109,12 +115,14 @@ Last updated after the release-candidate audit pass (2026-09-01).
   Arabic receipt glyph shaping — all real, compiled, CI-linked implementations whose actual
   behavior can only be confirmed on physical Rakeen hardware.
 
-## Once your Team ID arrives — exact next steps, in order
+## Exact next steps from here, in order
 
-1. Fill in the real Team ID in `react-native-poc/ios/ExportOptions.plist`.
-2. Confirm the CI quota is resolved; push the held commits; get a fresh green build.
-3. Open the project in Xcode with your Apple ID signed in once, let Automatic signing provision
-   the App ID.
+1. ~~Fill in the real Team ID~~ — done (`7ZZ8RKB973`, wired into `ExportOptions.plist` and all 4
+   Xcode build configs).
+2. Confirm the CI quota is resolved; push the held commits (several are queued locally, including
+   this Team ID wiring); get a fresh green build.
+3. On a real Mac: open the project in Xcode with your Apple ID signed in once, let Automatic
+   signing provision the App ID.
 4. Register the app in App Store Connect (bundle ID `com.rakeenpoc` unless you've changed it),
    fill out the privacy questionnaire and export-compliance answer (already pre-answered via
    Info.plist, but App Store Connect may still ask once per app).
