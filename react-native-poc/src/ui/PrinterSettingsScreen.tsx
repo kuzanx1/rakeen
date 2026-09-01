@@ -7,14 +7,17 @@ import {
   emptyPrinterProfile,
   PAPER_WIDTH_PRESETS,
   SUPPORTED_TRANSPORTS,
+  profileToPrinterTarget,
 } from '../domain/printerProfile';
-import type { PrinterProfile, PrinterTransportKind } from '../platform/printer';
+import type { PrinterProfile, PrinterTransportKind, DiscoveredDevice } from '../platform/printer';
 
 const TRANSPORT_LABELS: Record<PrinterTransportKind, string> = {
   network: 'شبكة (Network)',
-  bluetooth: 'بلوتوث (غير مدعوم بعد)',
-  usb: 'USB (غير مدعوم بعد)',
+  bluetooth: 'بلوتوث (Bluetooth)',
+  usb: 'USB',
 };
+
+const SCAN_TIMEOUT_MS = 6000;
 
 /**
  * Checkpoint 11 (Printer Configuration + Hardware Abstraction) -- the
@@ -34,6 +37,8 @@ export default function PrinterSettingsScreen() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState('');
   const [saveStatus, setSaveStatus] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<{ devices: DiscoveredDevice[]; error?: string } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -51,6 +56,35 @@ export default function PrinterSettingsScreen() {
   const updateCapabilities = (patch: Partial<PrinterProfile['capabilities']>) =>
     setProfile(prev => ({ ...prev, capabilities: { ...prev.capabilities, ...patch } }));
 
+  /** Feature Parity Pass -- Bluetooth/USB. Real device discovery -- never
+   *  a text field for typing a MAC/UUID/device id, so a profile can only
+   *  ever point at a device this scan actually found. */
+  const handleScanDevices = async (transport: 'bluetooth' | 'usb') => {
+    setScanning(true);
+    setScanResult(null);
+    try {
+      if (!Printer) {
+        setScanResult({ devices: [], error: 'لا توجد وحدة طابعة حقيقية على هذا الجهاز/البناء' });
+        return;
+      }
+      const result = await Printer.scanDevices(transport, SCAN_TIMEOUT_MS);
+      setScanResult(result);
+    } catch (e) {
+      setScanResult({ devices: [], error: String(e) });
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const selectDevice = (transport: 'bluetooth' | 'usb', device: DiscoveredDevice) => {
+    if (transport === 'bluetooth') {
+      update({ bluetoothId: device.id, bluetoothName: device.name ?? undefined });
+    } else {
+      update({ usbAccessoryId: device.id, usbAccessoryName: device.name ?? undefined });
+    }
+    setScanResult(null);
+  };
+
   const handleTestConnection = async () => {
     setTesting(true);
     setTestResult('');
@@ -59,14 +93,15 @@ export default function PrinterSettingsScreen() {
         setTestResult('🔴 لا توجد وحدة طابعة حقيقية على هذا الجهاز/البناء');
         return;
       }
-      if (profile.transport !== 'network' || !profile.host || !profile.port) {
-        setTestResult('🔴 أدخل عنوان ومنفذ صحيحين أولاً');
+      const target = profileToPrinterTarget(profile);
+      if (!target) {
+        setTestResult('🔴 أكمل إعداد الطابعة أولًا (عنوان/منفذ صحيحين، أو اختر جهاز بلوتوث/USB)');
         return;
       }
-      const result = await Printer.testConnection({ transport: 'network', host: profile.host, port: profile.port });
+      const result = await Printer.testConnection(target);
       setTestResult(
         result.reachable
-          ? `🟢 متصل (${result.latencyMs?.toFixed(0)}ms) — هذا يثبت الوصول الحقيقي عبر الشبكة فقط، وليس نجاح طباعة فعلي`
+          ? `🟢 متصل (${result.latencyMs?.toFixed(0)}ms) — هذا يثبت الوصول الحقيقي فقط، وليس نجاح طباعة فعلي`
           : `🔴 غير متصل — ${result.error}${result.errorDetail ? ` (${result.errorDetail})` : ''}`,
       );
     } catch (e) {
@@ -151,6 +186,18 @@ export default function PrinterSettingsScreen() {
               keyboardType="number-pad"
             />
           </>
+        )}
+
+        {(profile.transport === 'bluetooth' || profile.transport === 'usb') && (
+          <DeviceScanSection
+            transport={profile.transport}
+            selectedId={profile.transport === 'bluetooth' ? profile.bluetoothId : profile.usbAccessoryId}
+            selectedName={profile.transport === 'bluetooth' ? profile.bluetoothName : profile.usbAccessoryName}
+            scanning={scanning}
+            scanResult={scanResult}
+            onScan={() => handleScanDevices(profile.transport as 'bluetooth' | 'usb')}
+            onSelect={device => selectDevice(profile.transport as 'bluetooth' | 'usb', device)}
+          />
         )}
       </Section>
 
@@ -279,6 +326,52 @@ function SwitchRow({ label, value, onChange }: { label: string; value: boolean; 
   );
 }
 
+/** Feature Parity Pass -- Bluetooth/USB. Real device discovery UI --
+ *  never a free-text field for an id, per requirement 13 ("do not create
+ *  fake implementations"): a profile can only point at a device this
+ *  scan genuinely found and the cashier tapped. */
+function DeviceScanSection({
+  transport,
+  selectedId,
+  selectedName,
+  scanning,
+  scanResult,
+  onScan,
+  onSelect,
+}: {
+  transport: 'bluetooth' | 'usb';
+  selectedId?: string;
+  selectedName?: string;
+  scanning: boolean;
+  scanResult: { devices: DiscoveredDevice[]; error?: string } | null;
+  onScan: () => void;
+  onSelect: (device: DiscoveredDevice) => void;
+}) {
+  return (
+    <View style={styles.deviceScanBlock}>
+      <FieldLabel>{transport === 'bluetooth' ? 'جهاز البلوتوث' : 'جهاز USB'}</FieldLabel>
+      {selectedId ? (
+        <Text style={styles.selectedDeviceText}>✅ محدد: {selectedName || selectedId}</Text>
+      ) : (
+        <Text style={styles.selectedDeviceText}>لم يُحدد جهاز بعد</Text>
+      )}
+      <TouchableOpacity style={styles.scanButton} onPress={onScan} disabled={scanning}>
+        <Text style={styles.scanButtonText}>{scanning ? 'جارٍ البحث...' : 'البحث عن الأجهزة'}</Text>
+      </TouchableOpacity>
+      {scanResult?.error && <Text style={styles.errorText}>خطأ: {scanResult.error}</Text>}
+      {scanResult && !scanResult.error && scanResult.devices.length === 0 && (
+        <Text style={styles.selectedDeviceText}>لم يتم العثور على أجهزة.</Text>
+      )}
+      {scanResult?.devices.map(device => (
+        <TouchableOpacity key={device.id} style={styles.deviceRow} onPress={() => onSelect(device)}>
+          <Text style={styles.deviceRowText}>{device.name || device.id}</Text>
+          {device.rssi != null && <Text style={styles.deviceRowRssi}>{device.rssi} dBm</Text>}
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#f2f5f0' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -309,4 +402,19 @@ const styles = StyleSheet.create({
   saveButtonDisabled: { backgroundColor: '#ccc' },
   saveButtonText: { fontWeight: '700', color: '#1a1a1a' },
   saveStatus: { fontSize: 12, textAlign: 'center', marginBottom: 20 },
+  deviceScanBlock: { marginTop: 4 },
+  selectedDeviceText: { fontSize: 12, color: '#333', marginBottom: 8 },
+  scanButton: { backgroundColor: '#3f51b5', borderRadius: 8, padding: 10, alignItems: 'center', marginBottom: 8 },
+  scanButtonText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  deviceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: '#f2f5f0',
+    marginBottom: 6,
+  },
+  deviceRowText: { fontSize: 12, fontWeight: '700', color: '#333', flex: 1 },
+  deviceRowRssi: { fontSize: 11, color: '#666' },
 });

@@ -16,4 +16,9 @@ RCT_EXTERN_METHOD(getStatus:(RCTPromiseResolveBlock)resolve
 RCT_EXTERN_METHOD(getCapabilities:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(scanDevices:(NSString *)transportKind
+                  timeoutMs:(nonnull NSNumber *)timeoutMs
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 @end

@@ -9,15 +9,20 @@ import type { PrinterProfile, PrinterTarget, PrinterTransportKind } from '../pla
  */
 
 /**
- * Only 'network' has a real implementation anywhere in this app's
- * native modules (see platform/printer.ts's own PrinterCapabilities
- * doc comment: `supportedTransports` reports what actually has native
- * code, not what's aspirationally possible). Bluetooth/USB are kept in
- * the PrinterTransportKind type for a real future implementation, but
- * deliberately rejected here rather than pretending they work --
- * requirement 13's explicit instruction.
+ * Feature Parity Pass -- Bluetooth/USB now have a real, CI-compiled
+ * native implementation on at least one platform each (iOS: BLE via
+ * CoreBluetooth; Android: classic Bluetooth + USB host) -- see
+ * ios/RakeenPOC/BluetoothPrinterTransport.swift and
+ * android/.../BluetoothClassicPrinterTransport.kt /
+ * UsbPrinterTransport.kt. All three are allowed to be SELECTED here;
+ * a transport genuinely unsupported on the running platform/build
+ * (iOS has no USB host access for a non-MFi accessory -- a real Apple
+ * restriction, not an oversight) fails honestly at the native call
+ * (TRANSPORT_NOT_SUPPORTED), per platform/printer.ts's own
+ * PrinterCapabilities doc comment: `supportedTransports` is what a
+ * given running build actually reports, not a static allowlist here.
  */
-export const SUPPORTED_TRANSPORTS: readonly PrinterTransportKind[] = ['network'];
+export const SUPPORTED_TRANSPORTS: readonly PrinterTransportKind[] = ['network', 'bluetooth', 'usb'];
 
 export interface ValidationResult {
   valid: boolean;
@@ -53,6 +58,16 @@ export function validatePrinterProfile(profile: PrinterProfile): ValidationResul
     }
   }
 
+  // Feature Parity Pass -- Bluetooth/USB. A device must actually be
+  // SELECTED (via a real scanDevices() result, never guessed/typed) --
+  // no "just enter an ID" text field exists for either, on purpose.
+  if (profile.transport === 'bluetooth' && (!profile.bluetoothId || !profile.bluetoothId.trim())) {
+    errors.push('اختر جهاز بلوتوث أولًا عبر البحث عن الأجهزة القريبة.');
+  }
+  if (profile.transport === 'usb' && (!profile.usbAccessoryId || !profile.usbAccessoryId.trim())) {
+    errors.push('اختر جهاز USB أولًا عبر البحث عن الأجهزة المتصلة.');
+  }
+
   if (profile.protocol !== 'escpos') {
     errors.push(`البروتوكول '${profile.protocol}' غير مدعوم — ESC/POS فقط مطبّق.`);
   }
@@ -84,7 +99,13 @@ export function profileToPrinterTarget(profile: PrinterProfile | null): PrinterT
   if (profile.transport === 'network') {
     return { transport: 'network', host: profile.host as string, port: profile.port as number };
   }
-  return null; // bluetooth/usb: no real implementation, never fabricate a target
+  if (profile.transport === 'bluetooth') {
+    return { transport: 'bluetooth', bluetoothId: profile.bluetoothId as string };
+  }
+  if (profile.transport === 'usb') {
+    return { transport: 'usb', usbAccessoryId: profile.usbAccessoryId as string };
+  }
+  return null;
 }
 
 /**

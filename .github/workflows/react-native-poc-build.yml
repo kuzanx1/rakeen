@@ -79,6 +79,7 @@ jobs:
           grep -q "RakeenCashDrawerModule.swift" xcodebuild-rn-ios.log
           grep -q "RakeenDeviceModule.swift" xcodebuild-rn-ios.log
           grep -q "NetworkPrinterTransport.swift" xcodebuild-rn-ios.log
+          grep -q "BluetoothPrinterTransport.swift" xcodebuild-rn-ios.log
 
       - name: Upload iOS build log
         if: always()
@@ -124,7 +125,7 @@ jobs:
         working-directory: react-native-poc/android
         run: |
           set -e
-          for module in RakeenPrinterModule RakeenCashDrawerModule RakeenDeviceModule RakeenPackage NetworkPrinterTransport; do
+          for module in RakeenPrinterModule RakeenCashDrawerModule RakeenDeviceModule RakeenPackage NetworkPrinterTransport BluetoothClassicPrinterTransport UsbPrinterTransport; do
             if ! find app/build -name "${module}.class" | grep -q .; then
               echo "::error::${module}.class not found anywhere in app/build -- it was not compiled."
               exit 1

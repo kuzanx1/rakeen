@@ -85,6 +85,15 @@ export interface PrinterProfile {
   paperWidthPx?: number;
   capabilities: PrinterCapabilities;
   drawerCapabilities: DrawerCapabilities;
+  /** Feature Parity Pass -- Bluetooth/USB. The selected device's
+   *  reconnect identifier (see DiscoveredDevice.id's own doc comment)
+   *  and a persisted display name, so PrinterSettingsScreen can show
+   *  "Selected: XPrinter XP-58" without re-scanning every time the
+   *  screen opens. Only meaningful when transport is 'bluetooth'/'usb'. */
+  bluetoothId?: string;
+  bluetoothName?: string;
+  usbAccessoryId?: string;
+  usbAccessoryName?: string;
   /** Feature Parity Pass -- Printing Configuration. Ported verbatim from
    *  the PWA's real DEVICE.printCustomerReceipt/printKitchenTicket/
    *  printReceiptLogo (public/pos/rakeen-pos.js's openPosSettingsModal),
@@ -142,7 +151,21 @@ export type PrinterErrorCategory =
   | 'PRINTER_UNAVAILABLE'
   | 'PRINTER_CONNECTION_FAILED'
   | 'INVALID_TARGET'
-  | 'RENDER_FAILED';
+  | 'RENDER_FAILED'
+  /** Feature Parity Pass -- Bluetooth/USB. A real, honest category for
+   *  "the OS declined to grant Bluetooth/USB access" -- Android's
+   *  BLUETOOTH_SCAN/BLUETOOTH_CONNECT runtime permissions or a declined
+   *  UsbManager.requestPermission() dialog. Never silently retried as a
+   *  connection failure -- the cashier needs to know this is a
+   *  permission problem, not a hardware one. */
+  | 'PERMISSION_DENIED'
+  /** The requested transport has no real implementation on THIS
+   *  platform/build (e.g. USB on iOS -- a genuine Apple platform
+   *  restriction, ExternalAccessory/ MFi-only, not buildable for a
+   *  generic non-MFi printer). Distinct from PRINTER_UNAVAILABLE (no
+   *  native module at all) -- here the module exists and other
+   *  transports on it work fine. */
+  | 'TRANSPORT_NOT_SUPPORTED';
 
 export interface PrintResult {
   ok: boolean;
@@ -173,11 +196,60 @@ export interface PrinterStatus {
   lastErrorDetail?: string;
 }
 
+/**
+ * One nearby/paired device found by scanDevices(). Deliberately generic
+ * -- `id` is whatever the platform's own transport uses to reconnect
+ * later (a CoreBluetooth peripheral UUID on iOS BLE, a MAC address for
+ * Android classic Bluetooth, a UsbDevice's deviceId on Android USB) and
+ * is stored as `bluetoothId`/`usbAccessoryId` on PrinterProfile once
+ * selected. `name` can legitimately be null (many BLE peripherals don't
+ * advertise a local name) -- callers must handle that, never assume one.
+ */
+export interface DiscoveredDevice {
+  id: string;
+  name: string | null;
+  /** BLE only -- signal strength in dBm, useful for picking the closest
+   *  device when several appear. Absent for classic Bluetooth/USB. */
+  rssi?: number;
+}
+
 export interface PrinterAPI {
   print(job: PrintJob): Promise<PrintResult>;
   testConnection(target: PrinterTarget): Promise<ConnectionTestResult>;
   getStatus(): Promise<PrinterStatus>;
   getCapabilities(): Promise<PrinterCapabilities>;
+  /**
+   * Feature Parity Pass -- Bluetooth/USB. Real device discovery:
+   * - 'bluetooth' on iOS: CoreBluetooth central-manager scan for nearby
+   *   BLE peripherals (generic -- no vendor/service-UUID assumption, see
+   *   ios/RakeenPOC/BluetoothPrinterTransport.swift's own doc comment).
+   * - 'bluetooth' on Android: classic Bluetooth (BluetoothAdapter) --
+   *   returns already-BONDED (paired via Android's own Bluetooth
+   *   settings) devices immediately, then appends newly-discovered ones
+   *   as startDiscovery() finds them until `timeoutMs` elapses.
+   * - 'usb' on Android: enumerates currently-attached USB devices whose
+   *   interface class is 0x07 (USB Printer Class) -- standards-based,
+   *   not a vendor allowlist.
+   * - 'usb' on iOS, 'network' on either platform: always resolves to an
+   *   empty array (network has no "discovery" concept here -- a host/
+   *   port is typed in directly; iOS has no USB host API for a
+   *   non-MFi-certified accessory at all -- a genuine platform
+   *   restriction, not an oversight).
+   */
+  scanDevices(transport: PrinterTransportKind, timeoutMs: number): Promise<ScanDevicesResult>;
+}
+
+/**
+ * `error` distinguishes "genuinely found nothing nearby" (empty
+ * `devices`, no `error`) from "couldn't scan at all" (Bluetooth is
+ * off/unauthorized, a runtime permission was declined, etc.) --
+ * collapsing those into a silent empty array would tell a cashier who
+ * denied the permission prompt the exact same nothing as one standing
+ * next to a printer that's simply switched off.
+ */
+export interface ScanDevicesResult {
+  devices: DiscoveredDevice[];
+  error?: PrinterErrorCategory;
 }
 
 /**
