@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as kvStorage from '../infrastructure/mmkvStorage';
 import { supabase } from '../infrastructure/supabaseClient';
 import { Category, Product, isServiceBusinessType } from '../domain/catalog';
 import { ModifierDefinition } from '../domain/cart';
@@ -169,7 +169,7 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
   };
 
   try {
-    await AsyncStorage.setItem(CATALOG_CACHE_PREFIX + businessId, JSON.stringify(result));
+    await kvStorage.setItem(CATALOG_CACHE_PREFIX + businessId, JSON.stringify(result));
   } catch {
     // Cache write failure is never fatal -- next offline boot just won't have this fallback.
   }
@@ -179,7 +179,7 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
 
 async function readCache(businessId: number): Promise<CatalogResult | null> {
   try {
-    const raw = await AsyncStorage.getItem(CATALOG_CACHE_PREFIX + businessId);
+    const raw = await kvStorage.getItem(CATALOG_CACHE_PREFIX + businessId);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;

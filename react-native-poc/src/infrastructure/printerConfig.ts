@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as kvStorage from './mmkvStorage';
 
 /**
  * Minimal placeholder for printer/drawer target configuration --
@@ -9,7 +9,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  * correctly fail rather than pretend a target exists. Not a stub that
  * fakes success -- a stub that faithfully represents "not configured
  * yet", the same way printerBridgeAvailable() in the current PWA honestly
- * reports unavailable rather than guessing.
+ * reports unavailable rather than guessing. Storage engine is MMKV as of
+ * Checkpoint 8 (Offline Storage) -- was AsyncStorage; see
+ * infrastructure/mmkvStorage.ts's own doc comment for why.
  */
 const PRINTER_TARGET_KEY = 'rakeen_pos_printer_target';
 
@@ -20,7 +22,7 @@ export interface PrinterTargetConfig {
 
 export async function getPrinterTarget(): Promise<PrinterTargetConfig> {
   try {
-    const raw = await AsyncStorage.getItem(PRINTER_TARGET_KEY);
+    const raw = await kvStorage.getItem(PRINTER_TARGET_KEY);
     return raw ? JSON.parse(raw) : { host: null, port: null };
   } catch {
     return { host: null, port: null };
@@ -28,5 +30,5 @@ export async function getPrinterTarget(): Promise<PrinterTargetConfig> {
 }
 
 export async function savePrinterTarget(config: PrinterTargetConfig): Promise<void> {
-  await AsyncStorage.setItem(PRINTER_TARGET_KEY, JSON.stringify(config));
+  await kvStorage.setItem(PRINTER_TARGET_KEY, JSON.stringify(config));
 }

@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as kvStorage from '../infrastructure/mmkvStorage';
 import { supabase, RAKEEN_API_BASE_URL } from '../infrastructure/supabaseClient';
 import {
   DeviceConfig,
@@ -9,7 +9,9 @@ import {
 
 /**
  * Application layer: orchestrates Supabase + the real `/api/pos/login`
- * route + AsyncStorage. Ported logic from public/pos/rakeen-pos.js
+ * route + MMKV (Checkpoint 8 -- was AsyncStorage; see
+ * infrastructure/mmkvStorage.ts's own doc comment for why). Ported logic
+ * from public/pos/rakeen-pos.js
  * (device provisioning around its "provSubmitBtn" handler,
  * `attemptCashierLogin`/`loadCashierProfile`) — same backend contract,
  * same business rules, decoupled from every `document.*` call the
@@ -24,7 +26,7 @@ const CASHIER_PROFILE_CACHE_PREFIX = 'rakeen_pos_profile_cache:';
 
 export async function getDeviceConfig(): Promise<DeviceConfig> {
   try {
-    const raw = await AsyncStorage.getItem(DEVICE_CONFIG_KEY);
+    const raw = await kvStorage.getItem(DEVICE_CONFIG_KEY);
     if (!raw) return EMPTY_DEVICE_CONFIG;
     return { ...EMPTY_DEVICE_CONFIG, ...JSON.parse(raw) };
   } catch {
@@ -33,11 +35,11 @@ export async function getDeviceConfig(): Promise<DeviceConfig> {
 }
 
 async function saveDeviceConfig(config: DeviceConfig): Promise<void> {
-  await AsyncStorage.setItem(DEVICE_CONFIG_KEY, JSON.stringify(config));
+  await kvStorage.setItem(DEVICE_CONFIG_KEY, JSON.stringify(config));
 }
 
 export async function clearDeviceConfig(): Promise<void> {
-  await AsyncStorage.removeItem(DEVICE_CONFIG_KEY);
+  await kvStorage.removeItem(DEVICE_CONFIG_KEY);
 }
 
 export type ProvisionResult =
@@ -185,7 +187,7 @@ async function loadCashierProfile(userId: string): Promise<CashierProfile | null
 
   if (error || !profile) {
     try {
-      const cached = await AsyncStorage.getItem(CASHIER_PROFILE_CACHE_PREFIX + userId);
+      const cached = await kvStorage.getItem(CASHIER_PROFILE_CACHE_PREFIX + userId);
       return cached ? JSON.parse(cached) : null;
     } catch {
       return null;
@@ -193,7 +195,7 @@ async function loadCashierProfile(userId: string): Promise<CashierProfile | null
   }
 
   try {
-    await AsyncStorage.setItem(CASHIER_PROFILE_CACHE_PREFIX + userId, JSON.stringify(profile));
+    await kvStorage.setItem(CASHIER_PROFILE_CACHE_PREFIX + userId, JSON.stringify(profile));
   } catch {
     // Cache write failure is never fatal -- next offline boot just won't have this fallback.
   }
