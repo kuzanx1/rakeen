@@ -18,6 +18,7 @@
 		3729E3CE299BC6EE13D3701B /* RakeenCashDrawerModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 0FF7B18E8F0011C788DE8FCD /* RakeenCashDrawerModule.m */; };
 		9DF0DBF7F1933E5FB6F01158 /* RakeenDeviceModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54B9D1A52ADC7341967C0670 /* RakeenDeviceModule.swift */; };
 		2A3B03D879D67E8A1B1A0F94 /* RakeenDeviceModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 4E939A575CD0FE5502E9349A /* RakeenDeviceModule.m */; };
+		470C0A52DAE01D17EB26C4B9 /* BluetoothPrinterTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBF61DB704909C0546AC8F99 /* BluetoothPrinterTransport.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -38,6 +39,7 @@
 		0FF7B18E8F0011C788DE8FCD /* RakeenCashDrawerModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = RakeenCashDrawerModule.m; path = RakeenPOC/RakeenCashDrawerModule.m; sourceTree = "<group>"; };
 		54B9D1A52ADC7341967C0670 /* RakeenDeviceModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RakeenDeviceModule.swift; path = RakeenPOC/RakeenDeviceModule.swift; sourceTree = "<group>"; };
 		4E939A575CD0FE5502E9349A /* RakeenDeviceModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = RakeenDeviceModule.m; path = RakeenPOC/RakeenDeviceModule.m; sourceTree = "<group>"; };
+		CBF61DB704909C0546AC8F99 /* BluetoothPrinterTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BluetoothPrinterTransport.swift; path = RakeenPOC/BluetoothPrinterTransport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -67,6 +69,7 @@
 				0FF7B18E8F0011C788DE8FCD /* RakeenCashDrawerModule.m */,
 				54B9D1A52ADC7341967C0670 /* RakeenDeviceModule.swift */,
 				4E939A575CD0FE5502E9349A /* RakeenDeviceModule.m */,
+				CBF61DB704909C0546AC8F99 /* BluetoothPrinterTransport.swift */,
 			);
 			name = RakeenPOC;
 			sourceTree = "<group>";
@@ -273,6 +276,7 @@
 				3729E3CE299BC6EE13D3701B /* RakeenCashDrawerModule.m in Sources */,
 				9DF0DBF7F1933E5FB6F01158 /* RakeenDeviceModule.swift in Sources */,
 				2A3B03D879D67E8A1B1A0F94 /* RakeenDeviceModule.m in Sources */,
+				470C0A52DAE01D17EB26C4B9 /* BluetoothPrinterTransport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
