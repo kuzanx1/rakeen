@@ -117,7 +117,10 @@ machinery beyond what was asked. The cancel-confirmation sheet in
    `restaurant_tables`/`orders` rows. Temporary script deleted after.
 3. `npx tsc --noEmit` — clean.
 4. Real CI on both platforms (`macos-15`/Xcode 16.4, `ubuntu-latest`) —
-   no new native dependencies this checkpoint.
+   **confirmed green** (run 33472237478): `ios` in 4m55s, `android` in
+   11m55s, including the "verify the native modules were actually
+   compiled" safeguard step on both. No new native dependencies this
+   checkpoint (Tables is pure JS/TSX + existing Supabase RPCs).
 
 ## PASSED
 
