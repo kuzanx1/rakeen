@@ -127,49 +127,118 @@ Actions quota until you deliberately trigger it.
 
 It builds and uploads via **Fastlane** (`react-native-poc/ios/fastlane/Fastfile`, lane `beta`),
 authenticating with an App Store Connect API key — no Apple ID password, no 2FA prompt, works
-non-interactively in CI. It needs 5 GitHub repository secrets first. Here is exactly how to get
-each one, all achievable without a Mac:
+non-interactively in CI. It needs **6** GitHub repository secrets (verified by grepping both the
+Fastfile and the workflow file directly — an earlier draft of this doc said 5, which was wrong).
 
-### 1. Distribution certificate (started for you)
-A real private key + CSR were generated with `openssl` (no Mac required — this sandbox doesn't
-have one either) and sent to you as two files. Do this:
-1. Go to [developer.apple.com](https://developer.apple.com) → Certificates, Identifiers & Profiles
-   → Certificates → **+** → choose **Apple Distribution**.
-2. Upload `ios_distribution.csr` when asked for a CSR.
-3. Download the resulting certificate (a `.cer` file).
-4. Convert it alongside the private key you were sent (needs `openssl`, already installed if
-   you're on a machine with Git for Windows — same toolchain used to generate the CSR):
-   ```bash
-   openssl x509 -in distribution.cer -inform DER -out distribution.pem -outform PEM
-   openssl pkcs12 -export -inkey ios_distribution.key -in distribution.pem \
-     -out distribution.p12 -password pass:CHOOSE_A_PASSWORD_HERE
-   base64 -w0 distribution.p12 > distribution.p12.base64.txt
-   ```
-5. `IOS_DISTRIBUTION_CERTIFICATE_BASE64` = the contents of `distribution.p12.base64.txt`.
-   `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD` = whatever you chose above.
+Every step below is sequential — do them in this order. Every field value is exact; none of them
+require a judgment call except the two passwords you invent yourself in step 5.
 
-### 2. App ID + provisioning profile
-1. Apple Developer portal → Identifiers → **+** → App IDs → register `com.rakeen.pos`.
-2. Profiles → **+** → **App Store** distribution → select the `com.rakeen.pos` App ID → select
-   the distribution certificate from step 1 → download the resulting `.mobileprovision`.
-3. `IOS_PROVISIONING_PROFILE_BASE64` = `base64 -w0 the-profile.mobileprovision`.
+### Step 1 — Apple Developer portal: create the Distribution Certificate
+Go to [developer.apple.com/account](https://developer.apple.com/account/resources/certificates/list).
+1. Certificates → click **+**.
+2. Under "Software", select **Apple Distribution** → Continue.
+3. When asked for a CSR file, upload `ios_distribution.csr` (already generated for you, sent
+   earlier this session — real 2048-bit RSA key, no Mac needed to make it).
+4. Continue → **Download** the certificate. It saves as a `.cer` file (e.g. `distribution.cer` or
+   similar — the exact filename doesn't matter, you'll reference it by path in step 5).
 
-### 3. App Store Connect API key
-1. [appstoreconnect.apple.com](https://appstoreconnect.apple.com) → Users and Access →
-   Integrations → App Store Connect API → **Generate API Key** (Admin or App Manager role).
-2. Download the `.p8` file **immediately** — Apple only lets you download it once.
-3. `ASC_KEY_ID` = the Key ID shown on that page. `ASC_ISSUER_ID` = the Issuer ID shown above the
-   key list. `ASC_KEY_CONTENT_BASE64` = `base64 -w0 AuthKey_XXXXXXXXXX.p8`.
+### Step 2 — Apple Developer portal: register the App ID
+[developer.apple.com/account/resources/identifiers/list](https://developer.apple.com/account/resources/identifiers/list)
+1. Identifiers → click **+** → select **App IDs** → Continue → select **App** (not App Clip) → Continue.
+2. Description: any label you want (e.g. `Rakeen POS`).
+3. Bundle ID: select **Explicit**, enter exactly `com.rakeen.pos`.
+4. Capabilities: leave everything unchecked — nothing this build uses (Bluetooth, network sockets)
+   needs an App ID capability, only an Info.plist usage description, which is already set.
+5. Continue → Register.
 
-### 4. Add the 5 secrets and run it
-GitHub repo → Settings → Secrets and variables → Actions → New repository secret, once for each
-of: `IOS_DISTRIBUTION_CERTIFICATE_BASE64`, `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD`,
-`IOS_PROVISIONING_PROFILE_BASE64`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_CONTENT_BASE64`.
+### Step 3 — Apple Developer portal: create the App Store provisioning profile
+[developer.apple.com/account/resources/profiles/list](https://developer.apple.com/account/resources/profiles/list)
+1. Profiles → click **+**.
+2. Under "Distribution", select **App Store Connect** → Continue.
+3. App ID: select `com.rakeen.pos` (from step 2) → Continue.
+4. Certificates: select the Distribution certificate from step 1 → Continue.
+5. Profile Name: any label (e.g. `Rakeen POS App Store`) → Generate → **Download**. It saves as a
+   `.mobileprovision` file.
 
-Then: confirm your Actions quota is resolved, push the held commits (this new workflow among
-them), go to the Actions tab → "iOS TestFlight Release" → **Run workflow**. That single run
-builds a real signed archive and uploads it straight to TestFlight — no Mac, no Xcode UI, ever
-required on your end.
+### Step 4 — App Store Connect: create the app record
+This has to exist before a build can be uploaded to it.
+[appstoreconnect.apple.com/apps](https://appstoreconnect.apple.com/apps)
+1. My Apps → click **+** → **New App**.
+2. Platforms: check **iOS**.
+3. Name: your choice (this is the public-facing App Store name, changeable later).
+4. Primary Language: your choice (e.g. Arabic (Saudi Arabia) or English).
+5. Bundle ID: select `com.rakeen.pos` from the dropdown — it only appears here because step 2
+   already registered it; if it's missing, step 2 didn't save correctly.
+6. SKU: any unique string you choose (e.g. `rakeenpos001`) — internal to App Store Connect, never
+   shown publicly.
+7. User Access: Full Access → Create.
+
+### Step 5 — Your machine: build the 3 files these secrets need
+You'll have by now: `distribution.cer` (step 1), `ios_distribution.key` (sent to you earlier,
+the private half of that same certificate), and the `.mobileprovision` file (step 3). Open a
+terminal in the folder with all three.
+
+**If using Git Bash / WSL / any bash shell** (this sandbox verified all of these commands work
+on Windows via Git Bash, including `openssl` and GNU `base64`):
+```bash
+# Convert Apple's downloaded certificate to PEM
+openssl x509 -in distribution.cer -inform DER -out distribution.pem -outform PEM
+
+# Combine with the private key into a .p12 -- CHOOSE_A_PASSWORD_HERE is a password
+# YOU invent right now; write it down, it's one of the 6 secret values below.
+openssl pkcs12 -export -inkey ios_distribution.key -in distribution.pem \
+  -out distribution.p12 -password pass:CHOOSE_A_PASSWORD_HERE
+
+# Base64-encode all 3 files, one line each, ready to paste as secrets
+base64 -w0 distribution.p12 > distribution.p12.b64.txt
+base64 -w0 YOUR_PROFILE_NAME.mobileprovision > profile.b64.txt
+base64 -w0 AuthKey_XXXXXXXXXX.p8 > asckey.b64.txt
+```
+
+**If using PowerShell instead**, the same 3 base64 conversions (do the `openssl` commands above
+in Git Bash first, PowerShell has no built-in equivalent to `openssl pkcs12 -export`):
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("distribution.p12")) | Set-Content -NoNewline distribution.p12.b64.txt
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("YOUR_PROFILE_NAME.mobileprovision")) | Set-Content -NoNewline profile.b64.txt
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("AuthKey_XXXXXXXXXX.p8")) | Set-Content -NoNewline asckey.b64.txt
+```
+
+### Step 6 — App Store Connect: create the API key (gives you the 3 remaining values)
+Requires the **Account Holder or Admin** role — if that's not you, whoever is Admin needs to do
+this one step.
+[appstoreconnect.apple.com/access/api](https://appstoreconnect.apple.com/access/integrations/api)
+1. Users and Access → **Integrations** tab → App Store Connect API.
+2. Click **Generate API Key** (or **+**).
+3. Name: any label (e.g. `Rakeen CI`).
+4. Access: select **App Manager** (sufficient to upload builds; Admin also works if you prefer).
+5. Generate → **Download API Key immediately** — Apple shows the `.p8` file download link
+   exactly once, on this screen, and it cannot be re-downloaded later. If you miss it, you must
+   revoke this key and generate a new one.
+6. On the same page, note down (both stay visible on this page afterward, unlike the key file):
+   - the **Key ID** shown in that key's row
+   - the **Issuer ID** shown at the top of the page, above the key list (same value for every
+     key on this account, not per-key)
+
+### Step 7 — The exact 6 GitHub secrets, name by name
+GitHub repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**,
+once for each row:
+
+| Secret name | Value | Source |
+|---|---|---|
+| `IOS_DISTRIBUTION_CERTIFICATE_BASE64` | contents of `distribution.p12.b64.txt` | Step 5 |
+| `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD` | the password you invented in step 5's `pass:` argument | You chose it in Step 5 |
+| `IOS_PROVISIONING_PROFILE_BASE64` | contents of `profile.b64.txt` | Step 5 |
+| `ASC_KEY_ID` | the Key ID | Step 6 |
+| `ASC_ISSUER_ID` | the Issuer ID | Step 6 |
+| `ASC_KEY_CONTENT_BASE64` | contents of `asckey.b64.txt` | Step 5 (encoding the file from Step 6) |
+
+### Step 8 — Run it
+Confirm your Actions quota is resolved → tell me, I'll push the held commits (including this
+workflow) → GitHub repo → **Actions** tab → **iOS TestFlight Release** (left sidebar) →
+**Run workflow** button → confirm on the default branch → Run.
+
+That single run builds a real signed archive and uploads it straight to TestFlight. No Mac, no
+Xcode UI, at any point in this whole sequence.
 
 **Disclosed honestly**: this Fastfile/workflow is written to the well-established, standard
 Fastlane CI pattern, carefully reviewed, but genuinely **unverified** — there's no Ruby/fastlane

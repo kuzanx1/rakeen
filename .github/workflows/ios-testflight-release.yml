@@ -9,7 +9,7 @@ name: iOS TestFlight Release
 # paid cloud-Mac service, using the same Actions minutes already
 # available on this repo.
 #
-# Requires 5 repository secrets (Settings -> Secrets and variables ->
+# Requires 6 repository secrets (Settings -> Secrets and variables ->
 # Actions -> New repository secret) before this can run --
 # see docs/react-native-migration/testflight-release-checklist.md for
 # exactly how to obtain each one:
