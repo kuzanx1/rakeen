@@ -132,7 +132,20 @@ unless actually run and confirmed.
   confirmed via direct status poll). 🔴 Needs Hardware for any physical
   drawer operation. See `13-checkpoint-12-cash-drawer.md`. Cleared to
   advance.
-- Checkpoints 13-16: not started.
+- Checkpoint 13 (Diagnostics, final roadmap checkpoint): implemented
+  (Internet/Cloud/Printer Bridge/Printer config/Drawer Bridge kept
+  explicitly separate, cloud signal piggybacks on real sync attempts,
+  two bulk retry actions reusing already-verified mechanisms), CI
+  result pending confirmation. See `14-checkpoint-13-diagnostics.md`.
+- Checkpoints 14-16 (iOS build / Android build / Hardware Acceptance
+  Test): per the user's explicit instruction, Checkpoint 13 is treated
+  as the final engineering checkpoint for this session — see the
+  consolidated final report delivered directly to the user rather than
+  a further per-checkpoint doc. iOS/Android build checkpoints are
+  already continuously proven by every checkpoint's real CI (both
+  platforms, every push, since Checkpoint 1); Hardware Acceptance Test
+  (item 16) remains explicitly blocked on real iPad/Android/printer/
+  drawer hardware that has never been available in this environment.
 
 **Permanent rule recorded this checkpoint**: the PWA/Web POS is not being
 replaced — see `00-protection-and-rollback.md`'s new section.
