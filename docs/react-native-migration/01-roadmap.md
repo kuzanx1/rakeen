@@ -122,9 +122,16 @@ unless actually run and confirmed.
   run watch` proved unreliable mid-run). 🔴 Needs Hardware for the
   screen itself and any real printer/drawer operation. See
   `12-checkpoint-11-printer-configuration.md`. Cleared to advance.
-- Checkpoint 12 (Cash Drawer): implemented (real manual quick action,
-  operationId dedup logic extracted to pure/tested code), CI result
-  pending confirmation. See `13-checkpoint-12-cash-drawer.md`.
+- Checkpoint 12 (Cash Drawer): 🟡 Ready for Testing — real manual
+  "فتح الدرج" quick action ported from the PWA (was missing from any
+  real POS screen, only in an isolated test screen before), operationId
+  dedup logic extracted to a pure module and given its first real
+  executable test (18/18 assertions, including a direct double-tap ->
+  exactly-one-kick simulation). Payment-flow drawer/network independence
+  re-confirmed unchanged. CI green both platforms (33483751954,
+  confirmed via direct status poll). 🔴 Needs Hardware for any physical
+  drawer operation. See `13-checkpoint-12-cash-drawer.md`. Cleared to
+  advance.
 - Checkpoints 13-16: not started.
 
 **Permanent rule recorded this checkpoint**: the PWA/Web POS is not being

@@ -114,9 +114,13 @@ Fail-then-retry simulation: a real hardware failure does NOT
   the successful retry)
 ```
 
-CI: **pending at the time of writing** — will be updated here once
-confirmed via a direct status poll, not assumed from any single
-command's exit code (see the note below).
+CI: **confirmed green on both platforms** (run 33483751954) — `ios` in
+4m30s, `android` in 11m32s (`macos-15`/Xcode 16.4), including the
+"verify the native modules were actually compiled" safeguard step on
+both. Confirmed via a direct `gh run view --json status,conclusion,jobs`
+poll (`"status":"completed"`, `"conclusion":"success"` for both jobs),
+not from a single command's exit code alone, per the lesson from
+Checkpoint 11.
 
 ## FAILED
 
@@ -136,7 +140,6 @@ change no external behavior (the same three checks, same order, same
 
 ## REMAINS (honest gaps, not glossed over)
 
-- **CI result** — pending, to be appended once confirmed.
 - **The manual drawer action is entirely untested on a real device** —
   same category as every UI/native-module checkpoint since Checkpoint 1.
 - **No real printer/drawer hardware has ever been used.** Every real
@@ -162,8 +165,8 @@ idempotency, and orchestration logic around it is verified.
 **Status: 🟡 Ready for Testing** — the drawer's core idempotency
 mechanism is now genuinely pure-logic-tested (not just reasoned about
 from reading code), the real manual quick action exists and is wired to
-the actual configured hardware profile, and the existing payment-flow
-drawer/network independence was re-confirmed unchanged; CI result
-pending / 🔴 Needs Hardware for any physical drawer operation. Do not
-advance to Checkpoint 13 until CI is confirmed green via a direct status
-check.
+the actual configured hardware profile, the existing payment-flow
+drawer/network independence was re-confirmed unchanged, and CI is
+confirmed green on both platforms via a direct status poll / 🔴 Needs
+Hardware for any physical drawer operation. Cleared to advance to
+Checkpoint 13.
