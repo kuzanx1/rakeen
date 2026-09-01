@@ -65,6 +65,32 @@ export async function getFinancialSettings(businessId: number): Promise<Financia
   };
 }
 
+/** Feature Parity Pass -- Real Receipt Rendering. The subset of
+ *  loadPosData()'s businesses query needed to print a real ZATCA-QR/
+ *  logo/custom-message receipt (BUSINESS_VAT_NUMBER/BUSINESS_LOGO_URL/
+ *  RECEIPT_CUSTOM_MESSAGE globals in rakeen-pos.js) -- fetched
+ *  separately from getFinancialSettings() rather than folded into it,
+ *  since that function's own doc comment deliberately scopes it to
+ *  "just the three fields Cart's totals math needs." */
+export interface ReceiptBusinessProfile {
+  vatNumber: string;
+  logoUrl: string;
+  customMessage: string;
+}
+
+export async function getReceiptBusinessProfile(businessId: number): Promise<ReceiptBusinessProfile> {
+  const { data } = await supabase
+    .from('businesses')
+    .select('vat_number, logo_url, receipt_custom_message')
+    .eq('id', businessId)
+    .single();
+  return {
+    vatNumber: data?.vat_number || '',
+    logoUrl: data?.logo_url || '',
+    customMessage: data?.receipt_custom_message || '',
+  };
+}
+
 export async function loadCatalog(businessId: number, businessType: string): Promise<CatalogResult> {
   const isService = isServiceBusinessType(businessType);
 

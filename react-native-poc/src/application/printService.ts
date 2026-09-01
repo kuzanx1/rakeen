@@ -12,7 +12,8 @@ import {
   processPrintQueue as processPrintQueueAlgorithm,
   resetJobForManualRetry,
 } from '../domain/printQueue';
-import { buildReceiptEscPosBase64, buildKitchenTicketEscPosBase64, ReceiptData, KitchenTicketData } from '../domain/receipt';
+import { ReceiptData, KitchenTicketData } from '../domain/receipt';
+import { renderReceiptToEscPosBase64, renderKitchenTicketToEscPosBase64 } from './receiptRenderer';
 
 /**
  * Checkpoint 10 (Print Queue) -- application-layer orchestration,
@@ -38,8 +39,8 @@ async function doDispatch(job: PrintJobRecord): Promise<{ ok: boolean; error?: s
   }
   const escPosBase64 =
     job.type === 'receipt'
-      ? buildReceiptEscPosBase64(job.data as unknown as ReceiptData)
-      : buildKitchenTicketEscPosBase64(job.data as unknown as KitchenTicketData);
+      ? await renderReceiptToEscPosBase64(job.data as unknown as ReceiptData, profile?.paperWidthPx)
+      : await renderKitchenTicketToEscPosBase64(job.data as unknown as KitchenTicketData, profile?.paperWidthPx);
   const result = await printReceipt({
     target,
     escPosBase64,

@@ -1,24 +1,17 @@
 /**
- * Checkpoint 10 (Print Queue) -- minimal ESC/POS byte builders for the
- * two job types the queue dispatches. Deliberately ASCII-only, no QR
- * code, no logo image: real Arabic-text rendering was already
- * identified as a separate, unsolved problem in Checkpoint 1's own
- * audit (docs/react-native-poc/phase1-audit.md -- no DOM/Canvas in RN,
- * a real port needs react-native-skia or equivalent). This checkpoint's
- * job is the QUEUE (persistence/retry/backoff/dedup/state machine), not
- * receipt rendering -- building a real Arabic/QR-capable renderer here
- * would be a second, much larger, unrequested feature. This mirrors the
- * PWA's own architecture though (store rendering DATA, render fresh
- * bytes at each dispatch attempt -- see domain/printQueue.ts's own doc
- * comment), so a real renderer can be swapped in later without
- * touching the queue at all -- only this file and its two functions'
- * bodies. App.tsx's existing buildTestReceiptBase64() is the same kind
- * of deliberate ASCII placeholder, for the same reason.
- *
- * Non-ASCII characters (any real product name) WILL print as garbage
- * bytes on a real ESC/POS printer using this builder -- that's expected
- * and disclosed, not a bug to fix here. Never claim receipt CONTENT
- * correctness against real hardware until a real renderer exists.
+ * Checkpoint 10 (Print Queue) built these two ESC/POS byte builders as a
+ * deliberate ASCII-only placeholder (see git history for the original
+ * doc comment) -- real Arabic/QR/logo rendering was explicitly out of
+ * scope for the queue checkpoint. The Feature Parity Pass's Real
+ * Receipt Rendering item now supersedes them: application/printService.ts's
+ * doDispatch() renders real bytes via application/receiptRenderer.ts
+ * (Skia raster + Paragraph-based RTL Arabic text, ZATCA QR, logo) and
+ * only falls back to the ASCII builders below if that real renderer
+ * throws (e.g. Skia truly unavailable) -- never as the normal path, and
+ * always disclosed via the job's own error/log, never silently. Kept
+ * here, unmodified, as that safety net -- not deleted, since "never let
+ * a rendering bug block printing entirely" is a real, worthwhile
+ * property this ASCII fallback still provides.
  */
 
 export interface ReceiptLine {
@@ -26,8 +19,24 @@ export interface ReceiptLine {
   qty: number;
   unitPrice: number;
   lineTotal: number;
+  /** Selected-modifier labels for this line, e.g. "بدون بصل" -- ported
+   *  from the PWA's real receipt.items[].mods (renderReceiptCanvas). */
+  mods?: string[];
+  /** Cashier free-text note, e.g. "إضافي صوص" -- kitchen ticket only in
+   *  the PWA (customer receipt never prints it). */
+  note?: string;
 }
 
+/**
+ * Extended (Feature Parity Pass) beyond the Checkpoint 10 minimal shape
+ * with every field the PWA's real renderReceiptCanvas()/zatcaQrBase64()
+ * need (public/pos/rakeen-pos.js, lines ~2302-2414 and ~2900-2930) --
+ * all new fields are OPTIONAL so this stays backward compatible with
+ * any already-persisted queue job and with call sites that don't (yet)
+ * supply every one; domain/receiptPrintable.ts's toReceiptPrintable()
+ * fills honest defaults for whatever is missing, the same
+ * never-crash-on-a-gap contract as this file's own text fallback.
+ */
 export interface ReceiptData {
   orderId: number | null;
   lines: ReceiptLine[];
@@ -36,12 +45,43 @@ export interface ReceiptData {
   vat: number;
   total: number;
   paymentMethod: string;
+  /** businesses.name (device.businessName) -- printed as the receipt's
+   *  largest, topmost line. */
+  businessName?: string;
+  /** device.branchName -- printed under the business name, when set. */
+  branchName?: string;
+  /** businesses.vat_number -- the ZATCA QR and "فاتورة ضريبية مبسطة"
+   *  block are both skipped entirely when this is blank, matching the
+   *  PWA's own "a QR encoding an empty VAT number would be actively
+   *  wrong" rule. */
+  vatNumber?: string;
+  /** businesses.logo_url -- fetched and drawn at the top when set; a
+   *  failed/slow fetch degrades to no logo, never blocks printing. */
+  logoUrl?: string;
+  /** businesses.receipt_custom_message -- footer line, defaults to
+   *  "شكراً لزيارتكم" (RECEIPT_CUSTOM_MESSAGE's own PWA default) when
+   *  blank/absent. */
+  customMessage?: string;
+  /** ISO order-creation timestamp -- feeds both the printed date label
+   *  and the ZATCA QR's Tag 3. Defaults to "now" when absent (e.g. an
+   *  order still offline-queued with no server timestamp yet). */
+  createdAtISO?: string;
+  /** Free-text channel/table meta line, e.g. "بالمطعم — طاولة 4". */
+  metaLabel?: string;
+  /** Cash change due, when > 0 -- PWA's receipt.change. */
+  change?: number;
+  /** DEVICE.printerPaperWidth in px at ~203dpi (576=80mm, 384=58mm). */
+  paperWidthPx?: number;
 }
 
 export interface KitchenTicketData {
   orderId: number | null;
   tableNumber: number | null;
   lines: ReceiptLine[];
+  branchName?: string;
+  createdAtISO?: string;
+  metaLabel?: string;
+  paperWidthPx?: number;
 }
 
 function bytesToBase64(bytes: number[]): string {

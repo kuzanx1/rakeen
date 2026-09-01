@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { loadCatalog, getBusinessType, getFinancialSettings, CatalogResult } from '../application/catalogService';
+import { loadCatalog, getBusinessType, getFinancialSettings, getReceiptBusinessProfile, CatalogResult } from '../application/catalogService';
 import { submitOrder } from '../application/orderService';
 import { completePaymentOperation } from '../application/paymentService';
 import { getDeviceConfig } from '../application/authService';
@@ -17,7 +17,7 @@ import { supabase } from '../infrastructure/supabaseClient';
 import { buildOrderPayload, buildDineInRegisterPayload, buildDineInPayPayload } from '../domain/order';
 import type { ReceiptData, KitchenTicketData, ReceiptLine } from '../domain/receipt';
 import type { Product } from '../domain/catalog';
-import type { CartLine, OrderChannel } from '../domain/cart';
+import type { CartLine, ModifierDefinition, OrderChannel } from '../domain/cart';
 import type { CashierProfile } from '../domain/auth';
 import { useCart } from './useCart';
 import ModifierModal from './ModifierModal';
@@ -32,13 +32,37 @@ const CHANNEL_LABELS: Record<OrderChannel, string> = {
   delivery: 'توصيل',
 };
 
+/** Feature Parity Pass (Real Receipt Rendering) -- turns a cart line's
+ *  `config` (groupId -> selected option id(s), domain/cart.ts's real
+ *  shape) into the human-readable modifier labels the PWA's receipt
+ *  prints per item (receipt.items[].mods). Looks the option up in the
+ *  SAME ModifierDefinition already loaded for cart pricing/editing --
+ *  not a second, redefined modifier model. */
+function cartLineToModLabels(item: CartLine, modifiersByProductId: Record<number, ModifierDefinition>): string[] {
+  const def = modifiersByProductId[item.productId];
+  if (!def || !item.config) return [];
+  const labels: string[] = [];
+  for (const group of def.groups) {
+    const selected = item.config[group.id];
+    const ids = Array.isArray(selected) ? selected : selected != null ? [selected] : [];
+    for (const id of ids) {
+      const option = group.options.find(o => o.id === id);
+      if (option) labels.push(option.name);
+    }
+  }
+  return labels;
+}
+
 /** Checkpoint 10 (Print Queue) -- builds real receipt line data from the
  *  cart, using each line's already-verified unit price (domain/cart.ts's
- *  own math, Checkpoint 4) rather than recalculating anything. */
+ *  own math, Checkpoint 4) rather than recalculating anything.
+ *  Feature Parity Pass extended this with real mods/note (previously
+ *  always blank placeholders the ASCII renderer never printed anyway). */
 function cartToReceiptLines(
   cart: CartLine[],
   productsById: Map<number, Product>,
   unitPriceOf: (item: CartLine) => number,
+  modifiersByProductId: Record<number, ModifierDefinition> = {},
 ): ReceiptLine[] {
   return cart.map(item => {
     const product = productsById.get(item.productId);
@@ -48,6 +72,8 @@ function cartToReceiptLines(
       qty: item.qty,
       unitPrice,
       lineTotal: unitPrice * item.qty,
+      mods: cartLineToModLabels(item, modifiersByProductId),
+      note: item.note || undefined,
     };
   });
 }
@@ -214,7 +240,10 @@ export default function ProductsScreen({
         enqueuePrintJob('kitchen', {
           orderId: result.orderId ?? null,
           tableNumber: selectedTable?.number ?? null,
-          lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf),
+          lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
+          branchName: device.branchName ?? undefined,
+          createdAtISO: new Date().toISOString(),
+          metaLabel: CHANNEL_LABELS.dine_in + (selectedTable ? ` — طاولة ${selectedTable.number}` : ''),
         } satisfies KitchenTicketData).catch(() => {});
         cart.clearCart();
         // register_dine_in_order already flipped the table to 'serving'
@@ -271,6 +300,8 @@ export default function ProductsScreen({
         // values (dineInOrderTotal is fetched fresh in
         // handleOpenDineInPayment) -- a disclosed, narrower receipt for
         // this one path, not a mocked one.
+        const device = await getDeviceConfig();
+        const profile = device.businessId != null ? await getReceiptBusinessProfile(device.businessId) : null;
         enqueuePrintJob('receipt', {
           orderId: lastRegisteredDineInOrderId,
           lines: [],
@@ -279,6 +310,14 @@ export default function ProductsScreen({
           vat: 0,
           total: dineInOrderTotal,
           paymentMethod: method,
+          change: method === 'cash' && cashAmount != null ? Math.max(0, cashAmount - dineInOrderTotal) : 0,
+          businessName: device.businessName ?? undefined,
+          branchName: device.branchName ?? undefined,
+          vatNumber: profile?.vatNumber || undefined,
+          logoUrl: profile?.logoUrl || undefined,
+          customMessage: profile?.customMessage || undefined,
+          createdAtISO: new Date().toISOString(),
+          metaLabel: CHANNEL_LABELS.dine_in + (selectedTable ? ` — طاولة ${selectedTable.number}` : ''),
         } satisfies ReceiptData).catch(() => {});
         setLastRegisteredDineInOrderId(null);
         setSelectedCustomer(null); // transaction fully settled -- start clean for the next table/customer
@@ -341,14 +380,23 @@ export default function ProductsScreen({
         // this path yet (a disclosed gap, same category as the dine-in
         // one Checkpoint 6 fixed for its own path) -- the receipt shows
         // "Order (offline)" until a future checkpoint closes that gap.
+        const profile = device.businessId != null ? await getReceiptBusinessProfile(device.businessId) : null;
         enqueuePrintJob('receipt', {
           orderId: null,
-          lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf),
+          lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
           subtotal: cart.totals.subtotal,
           discount: cart.totals.discount,
           vat: cart.totals.vat,
           total: cart.totals.total,
           paymentMethod: method,
+          change: method === 'cash' && cashAmount != null ? Math.max(0, cashAmount - cart.totals.total) : 0,
+          businessName: device.businessName ?? undefined,
+          branchName: device.branchName ?? undefined,
+          vatNumber: profile?.vatNumber || undefined,
+          logoUrl: profile?.logoUrl || undefined,
+          customMessage: profile?.customMessage || undefined,
+          createdAtISO: new Date().toISOString(),
+          metaLabel: CHANNEL_LABELS[cart.orderChannel] || cart.orderChannel,
         } satisfies ReceiptData).catch(() => {});
         cart.clearCart(); // safe in the SQLite queue either way, per Checkpoint 5
         setSelectedCustomer(null); // transaction fully settled -- start clean for the next customer

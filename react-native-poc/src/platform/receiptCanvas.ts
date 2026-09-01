@@ -37,8 +37,17 @@ export interface ReceiptSurface {
   /** Reads back the drawn pixels as a plain RGBA buffer, ready for
    *  domain/escposRaster.ts's pure rgbaToEscPosRaster() -- the actual
    *  ESC/POS byte packing is NOT Skia-specific, by design, so it stays
-   *  in the zero-I/O domain layer and stays testable there. */
-  toRgba(): RgbaBuffer;
+   *  in the zero-I/O domain layer and stays testable there.
+   *
+   *  `contentHeightPx` crops the readback to just the top N rows -- the
+   *  PWA's real renderReceiptCanvas() allocates a generously-tall
+   *  scratch canvas up front (Skia surfaces, like DOM canvases, can't be
+   *  resized after creation) then blits only the actually-used height
+   *  into a second, exact-size canvas before rasterizing, so a short
+   *  receipt never prints a page of blank paper. Same two-step here:
+   *  render into a tall surface while tracking a running Y cursor, then
+   *  read back only that cursor's final height. */
+  toRgba(contentHeightPx?: number): RgbaBuffer;
 }
 
 export function createReceiptSurface(widthPx: number, heightPx: number): ReceiptSurface {
@@ -52,12 +61,13 @@ export function createReceiptSurface(widthPx: number, heightPx: number): Receipt
     widthPx,
     heightPx,
     canvas,
-    toRgba(): RgbaBuffer {
+    toRgba(contentHeightPx?: number): RgbaBuffer {
+      const readHeight = Math.max(1, Math.min(contentHeightPx ?? heightPx, heightPx));
       surface.flush();
       const image = surface.makeImageSnapshot();
       const pixels = image.readPixels(0, 0, {
         width: widthPx,
-        height: heightPx,
+        height: readHeight,
         alphaType: AlphaType.Unpremul,
         colorType: ColorType.RGBA_8888,
       });
@@ -68,7 +78,7 @@ export function createReceiptSurface(widthPx: number, heightPx: number): Receipt
       // RGBA_8888) -- NOT an object wrapping a .buffer. Confirmed by
       // reading the installed package's own type declaration
       // (Image.ts's readPixels signature), not assumed.
-      return { width: widthPx, height: heightPx, data: pixels as Uint8Array };
+      return { width: widthPx, height: readHeight, data: pixels as Uint8Array };
     },
   };
 }
