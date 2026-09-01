@@ -112,9 +112,16 @@ unless actually run and confirmed.
   persistence and physical print output. See
   `11-checkpoint-10-print-queue.md`. Cleared to advance.
 - Checkpoint 11 (Printer Configuration + Hardware Abstraction
-  readiness): implemented (real Settings flow replacing the Checkpoint
-  6 placeholder, wired into payment/print dispatch), CI result pending
-  confirmation. See `12-checkpoint-11-printer-configuration.md`.
+  readiness): 🟡 Ready for Testing — real Settings flow replacing the
+  Checkpoint 6 placeholder (brand/model/transport/host/port/protocol/
+  paper width/drawer capabilities/drawer command, never assuming port
+  9100 or any brand, Bluetooth/USB shown but disabled not pretended),
+  wired into payment/print dispatch without touching their
+  idempotency/orchestration logic. 29/29 pure assertions. CI green both
+  platforms (33479402784 — confirmed via direct status poll after `gh
+  run watch` proved unreliable mid-run). 🔴 Needs Hardware for the
+  screen itself and any real printer/drawer operation. See
+  `12-checkpoint-11-printer-configuration.md`. Cleared to advance.
 - Checkpoints 12-16: not started.
 
 **Permanent rule recorded this checkpoint**: the PWA/Web POS is not being

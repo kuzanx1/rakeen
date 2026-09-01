@@ -123,8 +123,15 @@ isDrawerSupported/drawerKickCommandFor: correctly honor
   used
 ```
 
-CI: **pending at the time of writing** — will be updated here once
-confirmed, not assumed.
+CI: **confirmed green on both platforms** (run 33479402784) — `ios` in
+5m28s, `android` in 14m8s (`macos-15`/Xcode 16.4), including the
+"verify the native modules were actually compiled" safeguard step on
+both. No new native dependency this checkpoint. Note: `gh run watch`
+hit a transient network error partway through polling and exited
+misleadingly early (code 0, before Android had actually finished) — the
+final result here is from a direct `gh run view --json status,conclusion`
+poll confirming `"status":"completed"`/`"conclusion":"success"` for
+both jobs, not from trusting that first exit code.
 
 ## FAILED
 
@@ -142,7 +149,6 @@ Nothing needed fixing this checkpoint.
 
 ## REMAINS (honest gaps, not glossed over)
 
-- **CI result** — pending, to be appended once the run completes.
 - **The Settings screen itself is untested on a real device** — form
   behavior, the "Test Connection" button's real network round-trip, and
   MMKV persistence surviving a real app restart are all unverified from
@@ -175,6 +181,8 @@ around them is verified.**
 **Status: 🟡 Ready for Testing** — the printer configuration domain
 logic and Settings UI are implemented and pure-logic-verified (29/29
 assertions), correctly wired into the existing, untouched payment/print
-orchestration; CI result pending / 🔴 Needs Hardware for the screen
-itself, MMKV persistence on a real device, and any real printer/drawer
-operation. Do not advance to Checkpoint 12 until CI is confirmed green.
+orchestration, CI confirmed green on both platforms (verified via a
+direct status poll after `gh run watch` itself proved unreliable) /
+🔴 Needs Hardware for the screen itself, MMKV persistence on a real
+device, and any real printer/drawer operation. Cleared to advance to
+Checkpoint 12.
