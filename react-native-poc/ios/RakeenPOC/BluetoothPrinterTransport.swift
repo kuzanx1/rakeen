@@ -29,7 +29,7 @@ import CoreBluetooth
 /// mechanics but never claims to have proven the actual printing behavior.
 final class BluetoothPrinterTransport: NSObject {
 
-    enum TransportError: String {
+    enum TransportError: String, Error {
         case bluetoothUnavailable = "bluetooth_unavailable" // powered off / unsupported / unauthorized
         case permissionDenied = "permission_denied"
         case deviceNotFound = "device_not_found"
