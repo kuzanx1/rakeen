@@ -305,7 +305,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.rakeenpoc;
+				PRODUCT_BUNDLE_IDENTIFIER = com.rakeen.pos;
 				PRODUCT_NAME = RakeenPOC;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -336,7 +336,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.rakeenpoc;
+				PRODUCT_BUNDLE_IDENTIFIER = com.rakeen.pos;
 				PRODUCT_NAME = RakeenPOC;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_VERSION = 5.0;

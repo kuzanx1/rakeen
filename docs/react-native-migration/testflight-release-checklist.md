@@ -9,11 +9,11 @@ Last updated after the release-candidate audit pass (2026-09-01).
       `react-native-poc/ios/ExportOptions.plist`'s `teamID` key and `DEVELOPMENT_TEAM` on all 4
       Xcode build configurations (project- and target-level, Debug and Release). iOS signing
       config is now fully complete in code.
-- [ ] **Confirm or override the bundle identifier / applicationId** — both platforms now use
-      `com.rakeenpoc` (iOS's `PRODUCT_BUNDLE_IDENTIFIER` was changed from the React Native
-      template default to match Android's existing `applicationId`, as a reasonable default, not
-      a final decision made on your behalf). Trivial to change now; permanent on both App Store
-      Connect and Google Play the moment either gets its first real upload.
+- [x] **iOS bundle identifier finalized**: `com.rakeen.pos` (your decision, not a default) —
+      `PRODUCT_BUNDLE_IDENTIFIER` set on all 4 Xcode build configurations. Android keeps its own,
+      separate, already-confirmed `applicationId` of `com.rakeenpoc` — the two platforms
+      deliberately use different identifiers now, per your instruction; this is fine, App Store
+      Connect and Google Play each only care about their own platform's identifier.
 - [ ] **GitHub Actions quota** — still exhausted; no further CI-triggering pushes will happen
       until you confirm it's resolved. This is now the only thing between here and a real,
       CI-verified, fully-signed archive build.
@@ -57,7 +57,8 @@ Last updated after the release-candidate audit pass (2026-09-01).
       this answers Apple's export-compliance question once instead of on every build upload.
 - [x] Removed a blank, unused `NSLocationWhenInUseUsageDescription` (the app requests no location
       permission anywhere) — a real rejection reason on its own.
-- [x] Bundle identifier changed from the RN template default to `com.rakeenpoc` (see above).
+- [x] Bundle identifier finalized as `com.rakeen.pos` (your decision, see above) — no longer the
+      RN template default.
 - [x] Found and fixed a real, separate bug while validating these changes: both `Info.plist` and
       the new `ExportOptions.plist` had `--` inside an XML comment, which is invalid per the XML
       spec — caught by actually parsing both files, not assumed correct. Would have been a
@@ -123,7 +124,7 @@ Last updated after the release-candidate audit pass (2026-09-01).
    this Team ID wiring); get a fresh green build.
 3. On a real Mac: open the project in Xcode with your Apple ID signed in once, let Automatic
    signing provision the App ID.
-4. Register the app in App Store Connect (bundle ID `com.rakeenpoc` unless you've changed it),
+4. Register the app in App Store Connect with bundle ID `com.rakeen.pos`,
    fill out the privacy questionnaire and export-compliance answer (already pre-answered via
    Info.plist, but App Store Connect may still ask once per app).
 5. Archive, export with `ExportOptions.plist`, upload to TestFlight.
