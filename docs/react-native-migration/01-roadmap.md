@@ -83,7 +83,9 @@ unless actually run and confirmed.
   See `08-checkpoint-7-dine-in-tables.md`. 🟡 Ready for Testing for the
   screen itself / 🔴 Needs Hardware for on-device behavior and real-time
   sync. Cleared to advance.
-- Checkpoints 8-16: not started.
+- Checkpoint 8 (Offline Storage): implemented, CI result pending
+  confirmation. See `09-checkpoint-8-offline-storage.md`.
+- Checkpoints 9-16: not started.
 
 **Permanent rule recorded this checkpoint**: the PWA/Web POS is not being
 replaced — see `00-protection-and-rollback.md`'s new section.
