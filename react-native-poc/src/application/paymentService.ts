@@ -31,6 +31,14 @@ export interface PaymentOutcome {
   drawerState: DrawerState;
   drawerError?: string;
   paymentError?: string;
+  /** The real, server-assigned order id when the RPC ran immediately
+   *  (PAYMENT_COMPLETED) -- undefined when queued offline
+   *  (PAYMENT_SYNC_PENDING), same "no id until it syncs" honesty
+   *  submitOrder() already uses for order registration. A real bug found
+   *  during the Feature Parity audit: this was always discarded here,
+   *  so completed pickup/delivery sales printed "Order (offline)" on the
+   *  receipt even when a real id existed the whole time. */
+  orderId?: number;
 }
 
 /**
@@ -101,8 +109,10 @@ export async function completePaymentOperation(
   // states).
   let paymentState: PaymentState;
   let paymentError: string | undefined;
+  let orderId: number | undefined;
   try {
-    await dispatchQueuedPayload(afterDrawer);
+    const result = await dispatchQueuedPayload(afterDrawer);
+    orderId = typeof result === 'number' ? result : undefined;
     paymentState = 'PAYMENT_COMPLETED';
     await sqliteOrderQueueStorage.remove(afterDrawer.client_order_uuid);
   } catch (e) {
@@ -111,5 +121,5 @@ export async function completePaymentOperation(
     await sqliteOrderQueueStorage.put({ ...afterDrawer, payment_state: paymentState, last_error: paymentError });
   }
 
-  return { paymentState, drawerState, drawerError, paymentError };
+  return { paymentState, drawerState, drawerError, paymentError, orderId };
 }

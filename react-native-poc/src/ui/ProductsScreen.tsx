@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { loadCatalog, getBusinessType, getFinancialSettings, getReceiptBusinessProfile, CatalogResult } from '../application/catalogService';
+import { getOrderHistoryDetail } from '../application/orderHistoryService';
 import { submitOrder } from '../application/orderService';
 import { completePaymentOperation } from '../application/paymentService';
 import { getDeviceConfig } from '../application/authService';
@@ -73,7 +74,13 @@ function cartToReceiptLines(
     const product = productsById.get(item.productId);
     const unitPrice = unitPriceOf(item);
     return {
-      name: product?.nameEn || product?.name || `#${item.productId}`,
+      // Real bug found during the Feature Parity audit: this preferred
+      // nameEn, so any product with an English name populated printed in
+      // English regardless of the cashier's UI language. The PWA's real
+      // receipt/kitchen builders always use the primary Arabic name
+      // (p.name) unconditionally -- receipts are never English, even
+      // when the POS UI itself is toggled to English.
+      name: product?.name || `#${item.productId}`,
       qty: item.qty,
       unitPrice,
       lineTotal: unitPrice * item.qty,
@@ -335,16 +342,6 @@ export default function ProductsScreen({
         `دفع: ${outcome.paymentState}${outcome.paymentError ? ` (${outcome.paymentError})` : ''} — درج: ${outcome.drawerState}${outcome.drawerError ? ` (${outcome.drawerError})` : ''}`,
       );
       if (outcome.paymentState === 'PAYMENT_COMPLETED') {
-        // Real receipt enqueue -- minimal content for this path
-        // specifically: the cart is already empty by the time a dine-in
-        // order is paid (cleared at registration), and fetching real
-        // order_items here would need an extra join this checkpoint's
-        // own scope (the print QUEUE, not receipt-data fidelity) doesn't
-        // require. Order id + total are both real, server-confirmed
-        // values (dineInOrderTotal is fetched fresh in
-        // handleOpenDineInPayment) -- a disclosed, narrower receipt for
-        // this one path, not a mocked one.
-        //
         // Isolated in its own try/catch on purpose -- a real bug found
         // during the TestFlight-readiness audit: getReceiptBusinessProfile
         // is a network call, and this whole block used to run unguarded
@@ -361,19 +358,38 @@ export default function ProductsScreen({
           const device = await getDeviceConfig();
           const profile = device.businessId != null ? await getReceiptBusinessProfile(device.businessId) : null;
           const printerProfileForReceipt = await getPrinterProfile();
+          // Real order subtotal/discount/vat/items -- a real bug found
+          // during the Feature Parity audit: this used to hardcode
+          // `lines: [], discount: 0, vat: 0` with a comment claiming the
+          // extra query was out of scope. That meant every dine-in
+          // settlement receipt printed a WRONG (zero) VAT amount, which
+          // also fed the ZATCA QR -- a real compliance/data-correctness
+          // bug for any VAT-registered business, not just a cosmetic
+          // gap. pay_dine_in_order has already written the real,
+          // authoritative totals to the orders row by this point, so
+          // fetching them (the same query Order History's detail view
+          // already uses) is both correct and cheap.
+          const orderDetail = await getOrderHistoryDetail(lastRegisteredDineInOrderId);
           // Feature Parity Pass -- Printing Configuration: gated on the
           // real DEVICE.printCustomerReceipt toggle (defaults ON, matching
           // the PWA) instead of always printing.
           if (shouldPrintCustomerReceipt(printerProfileForReceipt)) {
             enqueuePrintJob('receipt', {
               orderId: lastRegisteredDineInOrderId,
-              lines: [],
-              subtotal: dineInOrderTotal,
-              discount: 0,
-              vat: 0,
-              total: dineInOrderTotal,
+              lines: (orderDetail?.items ?? []).map(it => ({
+                name: it.name,
+                qty: it.qty,
+                unitPrice: it.unitPrice,
+                lineTotal: it.lineTotal,
+                mods: it.mods,
+                note: it.note || undefined,
+              })),
+              subtotal: orderDetail?.subtotal ?? dineInOrderTotal,
+              discount: orderDetail?.discountAmount ?? 0,
+              vat: orderDetail?.vatAmount ?? 0,
+              total: orderDetail?.total ?? dineInOrderTotal,
               paymentMethod: method,
-              change: method === 'cash' && cashAmount != null ? Math.max(0, cashAmount - dineInOrderTotal) : 0,
+              change: method === 'cash' && cashAmount != null ? Math.max(0, cashAmount - (orderDetail?.total ?? dineInOrderTotal)) : 0,
               businessName: device.businessName ?? undefined,
               branchName: device.branchName ?? undefined,
               vatNumber: profile?.vatNumber || undefined,
@@ -444,10 +460,9 @@ export default function ProductsScreen({
         // customer-receipt step in the PWA. Printing never waits on cloud
         // confirmation (queue-first): PAYMENT_SYNC_PENDING still prints,
         // matching "LAN printer independent of Internet/Cloud." Real
-        // order id isn't surfaced back by completePaymentOperation for
-        // this path yet (a disclosed gap, same category as the dine-in
-        // one Checkpoint 6 fixed for its own path) -- the receipt shows
-        // "Order (offline)" until a future checkpoint closes that gap.
+        // order id now comes from outcome.orderId (paymentService.ts fix,
+        // Feature Parity audit) when the RPC ran immediately; still
+        // correctly null/"Order (offline)" when genuinely queued offline.
         //
         // Isolated in its own try/catch -- same real bug and same fix as
         // handlePayDineInOrder above: this branch explicitly includes
@@ -461,7 +476,7 @@ export default function ProductsScreen({
           const printerProfileForReceipt = await getPrinterProfile();
           if (shouldPrintCustomerReceipt(printerProfileForReceipt)) {
             enqueuePrintJob('receipt', {
-              orderId: null,
+              orderId: outcome.orderId ?? null,
               lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
               subtotal: cart.totals.subtotal,
               discount: cart.totals.discount,
@@ -477,6 +492,23 @@ export default function ProductsScreen({
               createdAtISO: new Date().toISOString(),
               metaLabel: CHANNEL_LABELS[cart.orderChannel] || cart.orderChannel,
             } satisfies ReceiptData).catch(() => {});
+          }
+          // Real bug found during the Feature Parity audit: a kitchen
+          // ticket was only ever enqueued from handleRegisterDineInOrder
+          // -- pickup/delivery checkout never printed one at all, even
+          // with the toggle on. PWA's real autoPrintOnCheckout prints a
+          // kitchen ticket for EVERY channel except a resumed dine-in tab
+          // close (`!wasResumingOrder`) -- this IS a fresh order, not a
+          // resume, so it belongs here exactly like dine-in registration.
+          if (shouldPrintKitchenTicket(printerProfileForReceipt)) {
+            enqueuePrintJob('kitchen', {
+              orderId: outcome.orderId ?? null,
+              tableNumber: null,
+              lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
+              branchName: device.branchName ?? undefined,
+              createdAtISO: new Date().toISOString(),
+              metaLabel: CHANNEL_LABELS[cart.orderChannel] || cart.orderChannel,
+            } satisfies KitchenTicketData).catch(() => {});
           }
         } catch {
           // Never let a receipt-metadata fetch failure look like the sale

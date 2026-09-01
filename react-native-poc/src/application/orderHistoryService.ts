@@ -73,6 +73,22 @@ export async function getOrderHistoryDetail(orderId: number): Promise<OrderHisto
     supabase.from('order_items').select('*').eq('order_id', orderId),
   ]);
   if (!order) return null;
+
+  // Real product/service names, not "#123" -- ported from the PWA's own
+  // openOrderDetail (PRODUCTS.find(p=>p.id===it.menu_item_id) -> product
+  // ? product.name : 'منتج #' + id). This screen has no full catalog
+  // loaded, so instead of requiring one, it looks up just the ids this
+  // ONE order actually references -- same user-visible result (real
+  // names), without pulling in the whole menu.
+  const menuItemIds = Array.from(new Set((items || []).map((it: any) => it.menu_item_id).filter((id: any) => id != null)));
+  const serviceIds = Array.from(new Set((items || []).map((it: any) => it.service_id).filter((id: any) => id != null)));
+  const [menuItemsRes, servicesRes] = await Promise.all([
+    menuItemIds.length > 0 ? supabase.from('menu_items').select('id, name').in('id', menuItemIds) : Promise.resolve({ data: [] as any[] }),
+    serviceIds.length > 0 ? supabase.from('services').select('id, name').in('id', serviceIds) : Promise.resolve({ data: [] as any[] }),
+  ]);
+  const menuItemNames = new Map<number, string>((menuItemsRes.data || []).map((m: any) => [m.id, m.name]));
+  const serviceNames = new Map<number, string>((servicesRes.data || []).map((s: any) => [s.id, s.name]));
+
   return {
     id: order.id,
     status: order.status,
@@ -88,7 +104,12 @@ export async function getOrderHistoryDetail(orderId: number): Promise<OrderHisto
     tableNumber: order.restaurant_tables?.number ?? null,
     items: (items || []).map((it: any) => ({
       menuItemId: it.menu_item_id,
-      name: it.menu_item_id != null ? `#${it.menu_item_id}` : it.service_id != null ? `#${it.service_id}` : 'صنف',
+      name:
+        it.menu_item_id != null
+          ? menuItemNames.get(it.menu_item_id) || `منتج #${it.menu_item_id}`
+          : it.service_id != null
+            ? serviceNames.get(it.service_id) || `خدمة #${it.service_id}`
+            : 'صنف',
       qty: Number(it.qty),
       unitPrice: Number(it.unit_price),
       lineTotal: Number(it.line_total),

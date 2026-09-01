@@ -9,6 +9,12 @@ import {
   OrderHistoryStatus,
 } from '../application/orderHistoryService';
 import ManagerPinModal from './ManagerPinModal';
+import { enqueuePrintJob } from '../application/printService';
+import { getDeviceConfig } from '../application/authService';
+import { getReceiptBusinessProfile } from '../application/catalogService';
+import { getPrinterProfile } from '../infrastructure/printerProfileStore';
+import { shouldPrintCustomerReceipt, shouldPrintReceiptLogo } from '../domain/printerProfile';
+import type { ReceiptData } from '../domain/receipt';
 
 const STATUS_TABS: { value: OrderHistoryStatus; label: string }[] = [
   { value: 'completed', label: 'مكتملة' },
@@ -36,6 +42,8 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
   const [refundBusy, setRefundBusy] = useState(false);
   const [refundStatus, setRefundStatus] = useState('');
   const [pinPendingRefund, setPinPendingRefund] = useState(false);
+  const [reprintBusy, setReprintBusy] = useState(false);
+  const [reprintStatus, setReprintStatus] = useState('');
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -57,11 +65,62 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
   const openDetail = async (orderId: number) => {
     setDetailLoading(true);
     setRefundStatus('');
+    setReprintStatus('');
     try {
       const d = await getOrderHistoryDetail(orderId);
       setDetail(d);
     } finally {
       setDetailLoading(false);
+    }
+  };
+
+  /** Feature Parity Pass -- Refunds/Void/Cancellation audit. Ported from
+   *  the PWA's real reprintBtn (rakeen-pos.js's order-detail sheet,
+   *  ~3549-3561, buildHistoricalReceiptData) -- a real, existing PWA
+   *  capability that wasn't ported when this screen was first built.
+   *  Reuses the same real order data already fetched for the detail view
+   *  (real names/mods/totals/VAT, not a placeholder). */
+  const handleReprint = async () => {
+    if (!detail) return;
+    setReprintBusy(true);
+    setReprintStatus('');
+    try {
+      const device = await getDeviceConfig();
+      const profile = device.businessId != null ? await getReceiptBusinessProfile(device.businessId) : null;
+      const printerProfile = await getPrinterProfile();
+      if (!shouldPrintCustomerReceipt(printerProfile)) {
+        setReprintStatus('⚪ طباعة إيصال العميل معطّلة من الإعدادات');
+        return;
+      }
+      await enqueuePrintJob('receipt', {
+        orderId: detail.id,
+        lines: detail.items.map(it => ({
+          name: it.name,
+          qty: it.qty,
+          unitPrice: it.unitPrice,
+          lineTotal: it.lineTotal,
+          mods: it.mods,
+          note: it.note || undefined,
+        })),
+        subtotal: detail.subtotal,
+        discount: detail.discountAmount,
+        vat: detail.vatAmount,
+        total: detail.total,
+        paymentMethod: detail.paymentMethod,
+        change: 0,
+        businessName: device.businessName ?? undefined,
+        branchName: device.branchName ?? undefined,
+        vatNumber: profile?.vatNumber || undefined,
+        logoUrl: shouldPrintReceiptLogo(printerProfile) ? profile?.logoUrl || undefined : undefined,
+        customMessage: profile?.customMessage || undefined,
+        createdAtISO: detail.createdAt,
+        metaLabel: (CHANNEL_LABELS[detail.channel] || detail.channel) + (detail.tableNumber != null ? ` — طاولة ${detail.tableNumber}` : ''),
+      } satisfies ReceiptData);
+      setReprintStatus('🟢 أُضيفت الطباعة إلى قائمة الانتظار');
+    } catch (e) {
+      setReprintStatus(`🔴 تعذرت الطباعة: ${String(e)}`);
+    } finally {
+      setReprintBusy(false);
     }
   };
 
@@ -158,6 +217,11 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
                 </View>
                 <Text style={styles.sheetMeta}>الدفع: {PAYMENT_METHOD_LABELS[detail.paymentMethod] || detail.paymentMethod}</Text>
 
+                <TouchableOpacity style={styles.reprintButton} disabled={reprintBusy} onPress={handleReprint}>
+                  <Text style={styles.reprintButtonText}>{reprintBusy ? 'جارٍ الإضافة...' : 'إعادة طباعة'}</Text>
+                </TouchableOpacity>
+                {!!reprintStatus && <Text style={styles.refundStatus}>{reprintStatus}</Text>}
+
                 {detail.status === 'completed' && (
                   <TouchableOpacity
                     style={styles.refundButton}
@@ -227,6 +291,8 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: '#e0e0e0', marginVertical: 8 },
   refundButton: { backgroundColor: '#c0392b', borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 14 },
   refundButtonText: { color: '#fff', fontWeight: '700' },
+  reprintButton: { backgroundColor: '#3f51b5', borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 14 },
+  reprintButtonText: { color: '#fff', fontWeight: '700' },
   refundStatus: { textAlign: 'center', marginTop: 10, fontSize: 12 },
   closeButton: { padding: 14, alignItems: 'center', marginTop: 8 },
   closeButtonText: { color: '#666', fontWeight: '700' },
