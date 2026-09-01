@@ -70,16 +70,19 @@ unless actually run and confirmed.
 - Checkpoint 7 (Dine-in/Tables, executed under this name per the user's
   live "Continue to Checkpoint 7" directive — the roadmap's original
   numbering had this as Checkpoint 6, done here after Payment since the
-  user's Checkpoint 6 directive front-loaded Payment): 🟡 Ready for
-  Testing — table lifecycle logic verified in isolation (21/21 pure
-  assertions, including a real bug caught before backend involvement)
-  and against the live backend (full lifecycle, move, cancel-with-table
-  all passed) / blocked: cancellation of a TABLELESS dine-in order hit
-  the same null-table_id RPC bug already found and fixed once in
-  Checkpoint 6's `pay_dine_in_order` — fix written for
-  `cancel_dine_in_order`, committed, not yet deployed. See
-  `08-checkpoint-7-dine-in-tables.md`. **Not yet cleared to advance** —
-  same bar as Checkpoint 6: deploy and re-verify the fix first.
+  user's Checkpoint 6 directive front-loaded Payment): 🟢 Verified —
+  table lifecycle logic verified in isolation (21/21 pure assertions,
+  including a real bug caught before backend involvement) and against
+  the live backend (36 assertions across two runs: full lifecycle, move,
+  pay-after-move, and cancellation in both with-table variants and the
+  tableless case). Found, fixed, deployed, and re-verified a second
+  instance of Checkpoint 6's null-table_id RPC bug, this time in
+  `cancel_dine_in_order`. Also disclosed a separate, pre-existing,
+  NOT-yet-fixed idempotency gap: `cancel_dine_in_order` has no
+  retry-rejection boundary at all (unrelated to this checkpoint's fix).
+  See `08-checkpoint-7-dine-in-tables.md`. 🟡 Ready for Testing for the
+  screen itself / 🔴 Needs Hardware for on-device behavior and real-time
+  sync. Cleared to advance.
 - Checkpoints 8-16: not started.
 
 **Permanent rule recorded this checkpoint**: the PWA/Web POS is not being

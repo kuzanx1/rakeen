@@ -178,15 +178,67 @@ cancel_dine_in_order on a TABLELESS order: reproduced the exact same
 - **Backend**: wrote
   `supabase/migrations/20260901010000_fix_cancel_dine_in_order_null_table_id.sql`
   (same `FOUND`-based fix as Checkpoint 6's `pay_dine_in_order` fix).
-  Committed to the branch. **Not yet deployed** — awaiting the same
-  confirm-then-manual-deploy step used last checkpoint.
+  **Deployed to production 2026-09-01** by the user via the Supabase
+  Dashboard SQL Editor, then re-verified — see PASSED (post-fix
+  re-verification) below.
+
+## PASSED — post-fix re-verification (2026-09-01, against production)
+
+Re-ran the full backend suite (36 assertions this time — the original 28
+plus a `still_occupied=false` with-table variant and an explicit retry
+probe, added specifically to answer "does normal cancellation behavior
+stay unchanged"):
+
+```
+Full table lifecycle, seat-race guard, move_table_order, and
+  pay_dine_in_order-after-move: all re-confirmed passing, unchanged from
+  the pre-fix run (35/36 -- see the one non-regression finding below)
+cancel_dine_in_order WITH a table, still_occupied=true: unchanged --
+  order cancelled, table -> awaiting_order
+cancel_dine_in_order WITH a table, still_occupied=false (newly added
+  this pass): order cancelled, table -> cleaning -- confirms the fix
+  did not alter the with-table branch's behavior in either variant
+cancel_dine_in_order on the TABLELESS order (262, reused from the
+  pre-fix bug-probe run): NOW SUCCEEDS -- returns null (no table to
+  report, correctly), order.status flips to 'cancelled'. This is the
+  exact case the fix targeted, confirmed fixed against production.
+```
+
+**35/36 passed.** The one "failure" is not a bug in the deployed fix —
+it's a real, pre-existing characteristic the fix's success made visible
+for the first time (a tableless cancel always errored before, so nobody
+had ever been able to retry one). See REMAINS below for the honest
+account of what it is and why it isn't being silently patched.
 
 ## REMAINS (honest gaps, not glossed over)
 
-- **Cancel-with-table bug fix**: written, not deployed, not
-  re-verified against production yet — this section will be updated the
-  moment that happens, mirroring exactly how Checkpoint 6's report was
-  updated after its fix was deployed.
+- **`cancel_dine_in_order` has no retry-idempotency boundary at all** —
+  a genuinely new finding, pre-existing and NOT introduced or changed by
+  this checkpoint's fix. `pay_dine_in_order`'s idempotency comes from its
+  `WHERE ... payment_status = 'unpaid'` clause: paying an order flips
+  `payment_status` to `'paid'`, so a retry's WHERE clause simply no
+  longer matches. `cancel_dine_in_order` uses the SAME `payment_status =
+  'unpaid'` guard, but cancelling an order only ever sets `orders.status
+  = 'cancelled'` — it never touches `payment_status`, which stays
+  `'unpaid'` forever. That means a SECOND call to `cancel_dine_in_order`
+  on an already-cancelled order also matches the WHERE clause and
+  "succeeds" again (a harmless no-op for a tableless order, since
+  `orders.table_id` is also never cleared by this RPC — but for a
+  WITH-TABLE order, a stray retry with a *different* `still_occupied`
+  value could re-run the `restaurant_tables` update and flip a table's
+  status/`active_order_id` even after a NEW order may already have been
+  registered on that table in the meantime). Confirmed via direct test:
+  retrying `cancel_dine_in_order` on the just-cancelled tableless order
+  262 returned no error. This is unrelated to the null-table_id fix
+  (verified by re-reading the pre-fix RPC source: the original code had
+  the identical `payment_status='unpaid'` WHERE clause and never cleared
+  it either — a retry on a WITH-TABLE order would have hit the exact
+  same non-rejection before this checkpoint's fix, since `table_id`
+  staying non-null there always satisfied the old buggy null-check).
+  **Not fixed here** — this is a separate, real gap from the one this
+  checkpoint was asked to fix, and per the standing "don't make
+  additional production changes without asking" rule, it's disclosed for
+  a future, explicitly-approved fix rather than silently patched.
 - **Manager-PIN gate on cancellation** — genuinely absent, disclosed
   above and in the cancel sheet's own UI copy. Not silently built this
   checkpoint since no PIN-modal mechanism exists anywhere in this app
@@ -204,14 +256,13 @@ cancel_dine_in_order on a TABLELESS order: reproduced the exact same
   wiring) — compiles cleanly and CI is green, but has not been run on a
   real device/simulator; layout, touch targets, and the sheet/modal flows
   are unverified visually.
-- Left two pieces of real, isolated test data in the shared test
-  business (`__test_salon_mvp__`, business_id=20) as disclosed, reusable
-  fixtures, matching this session's established pattern (e.g. order 255
-  left unpaid after Checkpoint 5 for later reuse): a second real table
-  (id 40, "table 2", branch 24, currently `available`) for future
-  move-table testing, and a real tableless dine-in order (id 262,
-  `payment_status: unpaid`) that is the direct, ready-made target for
-  re-verifying the `cancel_dine_in_order` fix once deployed.
+- Left real, isolated test data in the shared test business
+  (`__test_salon_mvp__`, business_id=20), matching this session's
+  established pattern: a second real table (id 40, "table 2", branch 24,
+  currently `available`) reused across both the pre-fix and post-fix
+  test runs, and order 262 (tableless, now genuinely `status: cancelled`,
+  `payment_status: unpaid`) — the real, live artifact proving the fix
+  works, left as-is rather than further mutated.
 
 ## NEEDS HARDWARE
 
@@ -220,10 +271,13 @@ sync delivery, and anything involving the printer/drawer bridge (not
 touched this checkpoint) — same category as every prior checkpoint's
 device-only gaps.
 
-**Status: 🟡 Ready for Testing** — table lifecycle logic (pure and
-against the live backend) is verified for every transition except one,
-which is blocked on a disclosed backend fix (written, not yet deployed)
-/ 🔴 Needs Hardware for the screen itself and real-time sync. CI result
-to be appended once the run completes. Do not advance to the next
-checkpoint until the cancel-order fix is deployed and re-verified,
-matching the same bar Checkpoint 6 was held to.
+**Status: 🟢 Verified** for table lifecycle logic and RPC correctness
+against the live backend — full lifecycle, seat-race guard, move,
+pay-after-move, and cancellation (both with-table variants and the
+tableless case, pre- and post-fix) all confirmed against production,
+including a real backend bug found, fixed, deployed, and re-verified,
+plus a separately-disclosed pre-existing idempotency gap in
+`cancel_dine_in_order` that this checkpoint did not introduce and was
+not asked to fix / 🟡 Ready for Testing for the screen itself (CI result
+below) / 🔴 Needs Hardware for the screen's on-device behavior and
+real-time sync delivery. Cleared to advance to Checkpoint 8.
