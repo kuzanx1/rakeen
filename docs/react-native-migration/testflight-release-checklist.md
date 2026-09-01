@@ -133,14 +133,20 @@ Fastfile and the workflow file directly — an earlier draft of this doc said 5,
 Every step below is sequential — do them in this order. Every field value is exact; none of them
 require a judgment call except the two passwords you invent yourself in step 5.
 
-### Step 1 — Apple Developer portal: create the Distribution Certificate
-Go to [developer.apple.com/account](https://developer.apple.com/account/resources/certificates/list).
-1. Certificates → click **+**.
-2. Under "Software", select **Apple Distribution** → Continue.
-3. When asked for a CSR file, upload `ios_distribution.csr` (already generated for you, sent
-   earlier this session — real 2048-bit RSA key, no Mac needed to make it).
-4. Continue → **Download** the certificate. It saves as a `.cer` file (e.g. `distribution.cer` or
-   similar — the exact filename doesn't matter, you'll reference it by path in step 5).
+### Step 1 — Apple Developer portal: create the Distribution Certificate ✅ done
+Real certificate downloaded and verified: issued by Apple's real WWDR CA, subject matches Team ID
+`7ZZ8RKB973` (`Apple Distribution: Ammar AL-THAGAFI (7ZZ8RKB973)`), valid Sep 2026 – Sep 2027, and
+its public key was confirmed to match the private key exactly before use.
+
+**Step 5's certificate half is also done as a result**: the `.p12` was built (legacy PKCS12
+format, for maximum compatibility with macOS's keychain import) and sent to you along with its
+password.
+- `IOS_DISTRIBUTION_CERTIFICATE_BASE64` = contents of the `.b64.txt` file sent to you.
+- `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD` = the password sent alongside it.
+
+2 of 6 secrets are ready now. Steps 2–4 and 6 still need your own action on Apple's/App Store
+Connect's website (they require your Apple ID login in a browser, which this session doesn't
+have and shouldn't attempt).
 
 ### Step 2 — Apple Developer portal: register the App ID
 [developer.apple.com/account/resources/identifiers/list](https://developer.apple.com/account/resources/identifiers/list)
@@ -173,32 +179,18 @@ This has to exist before a build can be uploaded to it.
    shown publicly.
 7. User Access: Full Access → Create.
 
-### Step 5 — Your machine: build the 3 files these secrets need
-You'll have by now: `distribution.cer` (step 1), `ios_distribution.key` (sent to you earlier,
-the private half of that same certificate), and the `.mobileprovision` file (step 3). Open a
-terminal in the folder with all three.
+### Step 5 — Build the remaining 2 files (certificate half already done above)
+Once you have the `.mobileprovision` (step 3) and the `.p8` API key (step 6), base64-encode them
+the same way the certificate was already done:
 
-**If using Git Bash / WSL / any bash shell** (this sandbox verified all of these commands work
-on Windows via Git Bash, including `openssl` and GNU `base64`):
+**Git Bash / WSL / any bash shell:**
 ```bash
-# Convert Apple's downloaded certificate to PEM
-openssl x509 -in distribution.cer -inform DER -out distribution.pem -outform PEM
-
-# Combine with the private key into a .p12 -- CHOOSE_A_PASSWORD_HERE is a password
-# YOU invent right now; write it down, it's one of the 6 secret values below.
-openssl pkcs12 -export -inkey ios_distribution.key -in distribution.pem \
-  -out distribution.p12 -password pass:CHOOSE_A_PASSWORD_HERE
-
-# Base64-encode all 3 files, one line each, ready to paste as secrets
-base64 -w0 distribution.p12 > distribution.p12.b64.txt
 base64 -w0 YOUR_PROFILE_NAME.mobileprovision > profile.b64.txt
 base64 -w0 AuthKey_XXXXXXXXXX.p8 > asckey.b64.txt
 ```
 
-**If using PowerShell instead**, the same 3 base64 conversions (do the `openssl` commands above
-in Git Bash first, PowerShell has no built-in equivalent to `openssl pkcs12 -export`):
+**PowerShell:**
 ```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("distribution.p12")) | Set-Content -NoNewline distribution.p12.b64.txt
 [Convert]::ToBase64String([IO.File]::ReadAllBytes("YOUR_PROFILE_NAME.mobileprovision")) | Set-Content -NoNewline profile.b64.txt
 [Convert]::ToBase64String([IO.File]::ReadAllBytes("AuthKey_XXXXXXXXXX.p8")) | Set-Content -NoNewline asckey.b64.txt
 ```
@@ -225,8 +217,8 @@ once for each row:
 
 | Secret name | Value | Source |
 |---|---|---|
-| `IOS_DISTRIBUTION_CERTIFICATE_BASE64` | contents of `distribution.p12.b64.txt` | Step 5 |
-| `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD` | the password you invented in step 5's `pass:` argument | You chose it in Step 5 |
+| `IOS_DISTRIBUTION_CERTIFICATE_BASE64` | contents of the `.b64.txt` file already sent to you | ✅ Step 1, done |
+| `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD` | the password already sent to you alongside it | ✅ Step 1, done |
 | `IOS_PROVISIONING_PROFILE_BASE64` | contents of `profile.b64.txt` | Step 5 |
 | `ASC_KEY_ID` | the Key ID | Step 6 |
 | `ASC_ISSUER_ID` | the Issuer ID | Step 6 |
