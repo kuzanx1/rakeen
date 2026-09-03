@@ -14,12 +14,14 @@
  * (:2104, :2193) -- reports already branch on 'split' (:5404). So they are
  * real, accepted values, not future work.
  *
- * 'delivery_platform' still isn't a cashier-selected method at all: the
- * delivery channel replaces the whole tab strip with a prepaid
- * confirmation and an invoice-last-4 field (:1616).
+ * 'delivery_platform' is not cashier-SELECTED -- there is no tab for it --
+ * but it is still a stored value: proceedFromCustomerStep() assigns it
+ * outright for the delivery channel (:1293), which then replaces the whole
+ * tab strip with a prepaid confirmation and an invoice-last-4 field
+ * (:1616). So it belongs in this union even though no tab produces it.
  */
 
-export type PaymentMethod = 'cash' | 'card' | 'split' | 'loyalty';
+export type PaymentMethod = 'cash' | 'card' | 'split' | 'loyalty' | 'delivery_platform';
 
 /**
  * PAYMENT_PENDING: persisted locally, no network attempt made yet.

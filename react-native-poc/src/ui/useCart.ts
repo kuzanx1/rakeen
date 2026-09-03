@@ -84,6 +84,13 @@ export function useCart(
     setCart(prev => removeFromCartPure(prev, lineId));
   }, []);
 
+  /** .oi-note-input's blur handler (rakeen-pos.js:1058): the typed value
+   *  is TRIMMED before it is stored, so a note of only spaces clears the
+   *  line back to showing the "+ ملاحظة" link rather than an empty tag. */
+  const setLineNote = useCallback((lineId: number, note: string) => {
+    setCart(prev => prev.map(l => (l.lineId === lineId ? { ...l, note: note.trim() } : l)));
+  }, []);
+
   const clearCart = useCallback(() => {
     setCart([]);
     setDiscountPct(0);
@@ -106,6 +113,7 @@ export function useCart(
     addPointsRedemptionProduct,
     changeQty,
     removeFromCart,
+    setLineNote,
     clearCart,
     unitPriceOf,
   };

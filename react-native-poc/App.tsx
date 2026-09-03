@@ -46,6 +46,7 @@ import DiagnosticsScreen from './src/ui/DiagnosticsScreen';
 import OrderHistoryScreen from './src/ui/OrderHistoryScreen';
 import { createStyles, fonts, radii, spacing, ThemeProvider, useTheme } from './src/ui/theme';
 import { ShellProvider, TOPBAR_FALLBACK_HEIGHT, useShell } from './src/ui/shell';
+import Topbar from './src/ui/Topbar';
 
 /** React Native's Hermes runtime has no global `btoa` (unlike a browser) —
  *  a minimal base64 encoder, since pulling in a whole polyfill package for
@@ -150,6 +151,17 @@ function App(): React.JSX.Element {
   const [showHardwareTools, setShowHardwareTools] = useState(false);
   const [screen, setScreen] = useState<Screen>({ name: 'products', table: null });
   const [branchId, setBranchId] = useState<number | null>(null);
+  /** #posBusinessName / #posBranchName -- .identity-cluster's two lines,
+   *  shown only at >=761px (the phone rule hides .identity-text). */
+  const [businessName, setBusinessName] = useState<string | null>(null);
+  const [branchName, setBranchName] = useState<string | null>(null);
+  /** #connStatus. NetInfo is the same signal diagnosticsService already
+   *  listens to; a second listener here keeps the pill live without
+   *  coupling the topbar to the Diagnostics screen's snapshot cadence. */
+  const [online, setOnline] = useState(true);
+  /** #printerStatus. The source shows "بدون طابعة شبكة" until a network
+   *  printer is actually configured, then the host it will print to. */
+  const [printerLabel, setPrinterLabel] = useState('بدون طابعة شبكة');
   const [drawerBusy, setDrawerBusy] = useState(false);
   const [drawerStatus, setDrawerStatus] = useState('');
 
@@ -158,6 +170,19 @@ function App(): React.JSX.Element {
     (async () => {
       const device = await getDeviceConfig();
       setBranchId(device.branchId);
+      setBusinessName(device.businessName);
+      setBranchName(device.branchName);
+      try {
+        const printer = await getPrinterProfile();
+        setPrinterLabel(
+          printer?.transport === 'network' && printer.host
+            ? `${printer.host}${printer.port ? `:${printer.port}` : ''}`
+            : 'بدون طابعة شبكة',
+        );
+      } catch {
+        // an unreadable profile is indistinguishable from an unset one
+        // as far as this label is concerned
+      }
       // NOTIFY_SOUND_ENABLED (rakeen-pos.js:5889) -- read once per
       // session out of the same businesses row loadPosData() reads it
       // from. Failure leaves the default (on) in place rather than
@@ -214,6 +239,12 @@ function App(): React.JSX.Element {
     if (!cashier) return;
     return startDiagnosticsTracking();
   }, [cashier]);
+
+  // #connStatus's own live source.
+  useEffect(
+    () => NetInfo.addEventListener(st => setOnline(!!st.isConnected)),
+    [],
+  );
 
   /**
    * Checkpoint 12 (Cash Drawer) -- the real manual "فتح الدرج" quick
@@ -292,38 +323,25 @@ function App(): React.JSX.Element {
           can reach the true top and bottom edges; on Home they also stop
           short by the panel's width. Below that they are ordinary
           siblings, exactly as the source has them. */}
-      <View
-        style={[
-          styles.topBar,
-          sideBySide && [styles.barAbsolute, { top: 0, end: homeActive ? orderPanelWidth : 0 }],
-        ]}
-        onLayout={e => setTopbarHeight(e.nativeEvent.layout.height)}>
-        <Text style={styles.topBarTitle}>{cashier.full_name || 'بدون اسم'}</Text>
-        {/* .theme-toggle (rakeen-pos.css:123) -- 30px circle, surf1 fill,
-            line border, muted icon. Shows the moon (.icon-dark) while dark
-            is active and the sun (.icon-light) while light is, exactly as
-            the [data-theme="light"] display rules swap them. Session-only,
-            like the source's own handler. */}
-        <TouchableOpacity onPress={toggle} style={styles.themeToggle} accessibilityLabel="تبديل المظهر">
-          <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={2}>
-            {mode === 'dark' ? (
-              <Path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-            ) : (
-              <>
-                <Circle cx={12} cy={12} r={5} />
-                <Line x1={12} y1={1} x2={12} y2={3} />
-                <Line x1={12} y1={21} x2={12} y2={23} />
-                <Line x1={4.22} y1={4.22} x2={5.64} y2={5.64} />
-                <Line x1={18.36} y1={18.36} x2={19.78} y2={19.78} />
-                <Line x1={1} y1={12} x2={3} y2={12} />
-                <Line x1={21} y1={12} x2={23} y2={12} />
-                <Line x1={4.22} y1={19.78} x2={5.64} y2={18.36} />
-                <Line x1={18.36} y1={5.64} x2={19.78} y2={4.22} />
-              </>
-            )}
-          </Svg>
-        </TouchableOpacity>
-      </View>
+      <Topbar
+        style={sideBySide ? [styles.barAbsolute, { top: 0, end: homeActive ? orderPanelWidth : 0 }] : undefined}
+        onLayout={setTopbarHeight}
+        businessName={businessName}
+        branchName={branchName}
+        online={online}
+        printerLabel={printerLabel}
+        unreadNotifications={false}
+        onSwitchStaff={() => {
+          // The source's ↺ drops the STAFF session and returns to the PIN
+          // step; it does not unpair the device. logout() here does both,
+          // so wiring this to it would silently unpair a paired till.
+          // Left inert until a staff-only re-auth exists.
+        }}
+        onLogout={async () => {
+          await logout();
+          setCashier(null);
+        }}
+      />
       {/* RN-only chrome (the PWA surfaces this through showToast()). Once
           the screen area is absolutely positioned it would paint over a
           normal-flow banner, so at >=761px this floats just under the
@@ -746,28 +764,6 @@ const useStyles = createStyles(colors =>
   screenAreaBehindBars: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
   // shared by .topbar and .bottom-nav once they leave normal flow
   barAbsolute: { position: 'absolute', start: 0, zIndex: 2 },
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing[4],
-    paddingVertical: spacing[3],
-    backgroundColor: colors.cardBg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
-  },
-  topBarTitle: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.text },
-  // .theme-toggle
-  themeToggle: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surf1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   drawerStatusBanner: { backgroundColor: colors.surf2, paddingVertical: spacing[2], paddingHorizontal: spacing[4] },
   drawerStatusText: { fontFamily: fonts.sansSemiBold, fontSize: 12, textAlign: 'center', color: colors.text },
   // .bottom-nav (rakeen-pos.css:351)

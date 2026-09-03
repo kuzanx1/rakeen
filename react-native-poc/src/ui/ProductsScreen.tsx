@@ -183,6 +183,12 @@ export default function ProductsScreen({
   /** .discount-panel is `display:none` until .discount-toggle opens it. */
   const [discountPanelOpen, setDiscountPanelOpen] = useState(false);
 
+  /** Which line currently has its .oi-note-input revealed. The source
+   *  tracks this in the DOM by toggling `.open` on that one input; a
+   *  single id is the same thing without the DOM. */
+  const [editingNote, setEditingNote] = useState<number | null>(null);
+  const [noteDraft, setNoteDraft] = useState('');
+
   /** .clear-btn's arm/confirm flag, plus the 3s timer that drops it --
    *  `let clearArmed = false, clearArmTimer` (rakeen-pos.js:1416). The
    *  timer lives in a ref, not state, because re-arming has to cancel the
@@ -853,23 +859,6 @@ export default function ProductsScreen({
         </View>
 
         <View style={[styles.cartCol, isNarrow ? styles.cartColNarrow : { width: orderPanelWidth }]}>
-          <View style={styles.channelRow}>
-            {(Object.keys(CHANNEL_LABELS) as OrderChannel[]).map(ch => {
-              const active = cart.orderChannel === ch;
-              return (
-                <TouchableOpacity
-                  key={ch}
-                  style={[styles.channelTab, active && styles.channelTabActive]}
-                  onPress={() => cart.setOrderChannel(ch)}
-                  activeOpacity={0.8}>
-                  <Text style={[styles.channelTabText, active && styles.channelTabTextActive]}>
-                    {CHANNEL_LABELS[ch]}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
           {/* .order-items -- `flex:1; min-height:110px; padding:6px 18px` */}
           <ScrollView
             style={styles.cartLines}
@@ -908,10 +897,14 @@ export default function ProductsScreen({
               cart.cart.map(line => {
                 const product = productsById.get(line.productId);
                 const unitPrice = cart.unitPriceOf(line);
+                const modLabels = cartLineToModLabels(line, catalog.modifiersByProductId);
                 return (
                   // .order-item > .oi-row -- child order is qty stepper,
                   // info, line total, remove.
+                  // .order-item wraps .oi-row plus the config chips and
+                  // the note affordances underneath it.
                   <View key={line.lineId} style={styles.cartLine}>
+                    <View style={styles.oiRow}>
                     {/* .oi-qty -- a surf1 pill wrapping the two buttons */}
                     <View style={styles.qtyControls}>
                       <TouchableOpacity onPress={() => cart.changeQty(line.lineId, -1)} style={styles.qtyButton}>
@@ -948,13 +941,77 @@ export default function ProductsScreen({
                     ) : (
                       <Money value={unitPrice * line.qty} size={12.5} style={styles.cartLineTotalBox} />
                     )}
-                    {/* .oi-remove */}
-                    <TouchableOpacity onPress={() => cart.removeFromCart(line.lineId)} style={styles.cartLineRemove} hitSlop={6}>
-                      <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={2} strokeLinecap="round">
-                        <Line x1={18} y1={6} x2={6} y2={18} />
-                        <Line x1={6} y1={6} x2={18} y2={18} />
-                      </Svg>
-                    </TouchableOpacity>
+                      {/* .oi-remove */}
+                      <TouchableOpacity onPress={() => cart.removeFromCart(line.lineId)} style={styles.cartLineRemove} hitSlop={6}>
+                        <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={2} strokeLinecap="round">
+                          <Line x1={18} y1={6} x2={6} y2={18} />
+                          <Line x1={6} y1={6} x2={18} y2={18} />
+                        </Svg>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* .oi-config -- the chosen modifier options as chips
+                        under the line. formatConfigLabels() also returns a
+                        `critical` flag driving .oi-config-tag.critical (an
+                        amber variant), but loadPosData()'s option mapper
+                        (rakeen-pos.js:6005) builds each option as
+                        {id, name, price, default} and never sets
+                        `critical` -- so `!!opt.critical` is false for every
+                        real product and the amber variant cannot fire.
+                        Rendered without it rather than inventing a source
+                        for a flag production never populates. */}
+                    {modLabels.length > 0 && (
+                      <View style={styles.oiConfig}>
+                        {modLabels.map((label, i) => (
+                          <View key={`${label}-${i}`} style={styles.oiConfigTag}>
+                            <Text style={styles.oiConfigTagText}>{label}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Once a note exists the link is REPLACED by the text
+                        (`i.note ? <div class="oi-note-text"> : <button
+                        class="oi-note-link">`), so they are never both on
+                        screen. The input itself is `display:none` until
+                        .open is added by the link's own handler. */}
+                    {line.note ? (
+                      <TouchableOpacity
+                        onPress={() => {
+                          setNoteDraft(line.note);
+                          setEditingNote(line.lineId);
+                        }}
+                        activeOpacity={0.7}>
+                        <Text style={styles.oiNoteText}>📝 {line.note}</Text>
+                      </TouchableOpacity>
+                    ) : editingNote !== line.lineId ? (
+                      <TouchableOpacity
+                        onPress={() => {
+                          setNoteDraft('');
+                          setEditingNote(line.lineId);
+                        }}
+                        style={styles.oiNoteLink}
+                        activeOpacity={0.7}>
+                        <Text style={styles.oiNoteLinkText}>+ ملاحظة</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                    {editingNote === line.lineId && (
+                      <TextInput
+                        style={styles.oiNoteInput}
+                        value={noteDraft}
+                        onChangeText={setNoteDraft}
+                        placeholder="بدون بصل، إضافي صوص..."
+                        placeholderTextColor={colors.muted}
+                        autoFocus
+                        // The source saves on BLUR, not on every keystroke.
+                        // RN's blur event carries only `target`, so the
+                        // value is held in a draft alongside the open id.
+                        onBlur={() => {
+                          cart.setLineNote(line.lineId, noteDraft);
+                          setEditingNote(null);
+                        }}
+                      />
+                    )}
                   </View>
                 );
               })
@@ -1000,28 +1057,18 @@ export default function ProductsScreen({
             )}
           </View>
 
-          <TouchableOpacity
-            style={[styles.customerRow, !!selectedCustomer && styles.customerRowSet]}
-            onPress={() => setCustomerPickerOpen(true)}
-            activeOpacity={0.8}>
-            <Text style={[styles.customerRowLabel, !!selectedCustomer && styles.customerRowLabelSet]} numberOfLines={1}>
-              {selectedCustomer ? `${selectedCustomer.name}${selectedCustomer.phone ? ` — ${selectedCustomer.phone}` : ''}` : 'إضافة عميل (اختياري)'}
-            </Text>
-            {selectedCustomer && (
-              <TouchableOpacity onPress={() => setSelectedCustomer(null)}>
-                <Text style={styles.customerRowClear}>إزالة</Text>
-              </TouchableOpacity>
-            )}
-          </TouchableOpacity>
-
-          {/* Feature Parity Pass -- Loyalty. Only for an existing customer
-              with a real id -- a brand-new customer typed at checkout has
-              no real balance to redeem yet, matching the PWA's own rule. */}
-          {selectedCustomer?.id != null && (
-            <TouchableOpacity style={styles.loyaltyRow} onPress={() => setLoyaltyRedeemOpen(true)}>
-              <Text style={styles.loyaltyRowText}>🎁 استبدال بالنقاط ({selectedCustomer.points} نقطة)</Text>
-            </TouchableOpacity>
-          )}
+          {/* The order panel has NO customer chip and NO points-redeem
+              strip. rakeen-pos.css defines .customer-chip but nothing ever
+              renders it (confirmed live: customerChipExists === false), the
+              customer is attached in the payment popup's own step, and
+              updatePointsRedeemStrip() is a deliberate no-op whose comment
+              gives the reason: the one-tap redeem picker "let a cashier open
+              the redeem picker with one tap and no real cardholder consent".
+              openPointsRedeemModal() is still defined but has no call site
+              anywhere in the source. Redemption's sanctioned path is the
+              الولاء payment tab, which requires the customer's own
+              confirmation. Both rows removed rather than kept as a
+              convenience the source specifically withdrew. */}
 
           {/* .order-summary. renderOrder() (rakeen-pos.js:1120) emits these
               rows in exactly this order, and the first one -- the item
@@ -1107,15 +1154,20 @@ export default function ProductsScreen({
         </View>
       </View>
 
+      {/* The modal now owns the channel and customer steps, because that
+          is where the source puts them -- #pmChannelRow and
+          renderCustomerStep() are both frames of this popup's own step
+          stack, not controls on the Home screen. */}
       <PaymentModal
         visible={paymentModalOpen}
         total={cart.orderChannel === 'dine_in' ? dineInOrderTotal : cart.totals.total}
         submitting={submitting}
         onCancel={() => setPaymentModalOpen(false)}
-        // `state.customer && state.customer.id && state.customer.points > 0`
-        // -- the same gate renderPaymentStep() uses before appending the
-        // الولاء tab (rakeen-pos.js:1641).
-        loyaltyAvailable={selectedCustomer?.id != null && selectedCustomer.points > 0}
+        businessId={cashier.business_id}
+        channel={cart.orderChannel}
+        onChannelChange={cart.setOrderChannel}
+        customer={selectedCustomer}
+        onCustomerChange={setSelectedCustomer}
         onConfirm={(method, cashAmount) =>
           cart.orderChannel === 'dine_in' ? handlePayDineInOrder(method, cashAmount) : handlePayOrder(method, cashAmount)
         }
@@ -1622,13 +1674,38 @@ const useStyles = createStyles((colors, shadows) =>
   clearBtnText: { fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.muted },
   clearBtnTextArmed: { color: colors.danger },
   // .order-item (`padding:8px 0; border-bottom`) + .oi-row (`gap:8px`)
+  // .order-item -- `padding:8px 0; border-bottom:1px solid var(--line)`
   cartLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[2],
     paddingVertical: spacing[2],
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
+  },
+  // .oi-row -- `display:flex; align-items:center; gap:8px`
+  oiRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
+  // .oi-config -- `flex-wrap:wrap; gap:4px; margin-top:4px`
+  oiConfig: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 },
+  // .oi-config-tag
+  oiConfigTag: { paddingVertical: 2, paddingHorizontal: 8, borderRadius: radii.full, backgroundColor: colors.surf2 },
+  oiConfigTagText: { fontFamily: fonts.sansBold, fontSize: 9.5, color: colors.muted },
+  // .oi-note-link -- `padding-inline-start:0`, so it sits flush
+  oiNoteLink: { marginTop: 3, alignSelf: 'flex-start' },
+  oiNoteLinkText: { fontFamily: fonts.sansMedium, fontSize: 10, color: colors.muted },
+  // .oi-note-text -- `opacity:0.7` on the normal text colour
+  oiNoteText: { fontFamily: fonts.sansSemiBold, fontSize: 10, color: colors.text, opacity: 0.7, marginTop: 3 },
+  // .oi-note-input
+  oiNoteInput: {
+    width: '100%',
+    marginTop: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surf1,
+    color: colors.text,
+    fontFamily: fonts.sansMedium,
+    fontSize: 11.5,
+    textAlign: 'right',
   },
   // .oi-info -- `flex:1; min-width:0`
   cartLineInfo: { flex: 1, minWidth: 0 },
