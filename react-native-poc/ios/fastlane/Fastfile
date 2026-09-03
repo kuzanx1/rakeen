@@ -64,6 +64,22 @@ platform :ios do
       in_house: false,
     )
 
+    # CURRENT_PROJECT_VERSION is a hardcoded 9 in the pbxproj, so every run
+    # archived the SAME build number and App Store Connect rejected the
+    # upload: "The bundle version must be higher than the previously
+    # uploaded version: '9'" -- after a full, successful 6-minute archive.
+    # Asking TestFlight what it actually has and adding one is
+    # self-correcting: it needs no commit to bump, it cannot drift from
+    # reality, and it stays right even if a build is uploaded from
+    # somewhere else. initial_build_number covers the app having no builds
+    # at all yet, where the action would otherwise raise.
+    build_number = latest_testflight_build_number(
+      api_key: api_key,
+      app_identifier: "com.rakeen.pos",
+      initial_build_number: 0,
+    ) + 1
+    UI.message("Archiving as build #{build_number}")
+
     build_app(
       workspace: "RakeenPOC.xcworkspace",
       scheme: "RakeenPOC",
@@ -85,7 +101,7 @@ platform :ios do
       # this lane already imported, or `xcodebuild archive` fails with
       # "No profiles for 'com.rakeen.pos' were found" even though the
       # right profile is sitting right there in ~/Library/MobileDevice.
-      xcargs: "DEVELOPMENT_TEAM=7ZZ8RKB973 CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=\"Apple Distribution\" PROVISIONING_PROFILE_SPECIFIER=#{profile_uuid}",
+      xcargs: "DEVELOPMENT_TEAM=7ZZ8RKB973 CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=\"Apple Distribution\" PROVISIONING_PROFILE_SPECIFIER=#{profile_uuid} CURRENT_PROJECT_VERSION=#{build_number}",
     )
 
     upload_to_testflight(
