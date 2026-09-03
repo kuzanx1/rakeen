@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { requestLoyaltyRedemption, getLoyaltyRedemptionStatus } from '../application/loyaltyRedemptionService';
 import type { Product } from '../domain/catalog';
+import { colors, fonts, radii, spacing } from './theme';
 
 const REQUEST_TIMEOUT_MS = 2 * 60 * 1000;
 const POLL_INTERVAL_MS = 2000;
@@ -17,6 +18,11 @@ type Phase = 'waiting' | 'picking' | 'error';
  * real points balance (items priced above it shown disabled, same as
  * the source's `affordable` check) -> tapping one calls onRedeem and
  * closes. Cancelling at any point aborts the poll and does nothing.
+ *
+ * Visuals: .loyalty-wait-step/-text/-sub/-timer match rakeen-pos.css
+ * value-for-value. The redeemable-item picker reuses the same
+ * customer-suggest-row language as CustomerPickerModal since no
+ * dedicated PWA class exists for it.
  */
 export default function LoyaltyRedeemModal({
   visible,
@@ -106,7 +112,7 @@ export default function LoyaltyRedeemModal({
         <View style={styles.sheet}>
           {phase === 'waiting' && (
             <View style={styles.waitBlock}>
-              <ActivityIndicator size="large" />
+              <ActivityIndicator size="large" color={colors.limeDeep} />
               <Text style={styles.waitTitle}>بانتظار تأكيد {customerName || 'العميل'}...</Text>
               <Text style={styles.waitSub}>اطلب منه يفتح بطاقة الولاء ويضغط تأكيد</Text>
               <Text style={styles.waitTimer}>{secondsLeft} ثانية متبقية</Text>
@@ -139,9 +145,12 @@ export default function LoyaltyRedeemModal({
                       key={product.id}
                       style={[styles.productRow, !affordable && styles.productRowDisabled]}
                       disabled={!affordable}
-                      onPress={() => handlePick(product.id)}>
+                      onPress={() => handlePick(product.id)}
+                      activeOpacity={0.8}>
                       <Text style={styles.productName}>{product.name}</Text>
-                      <Text style={styles.productPrice}>{product.pointsRedeemPrice} نقطة</Text>
+                      <View style={styles.productPricePill}>
+                        <Text style={styles.productPrice}>{product.pointsRedeemPrice} نقطة</Text>
+                      </View>
                     </TouchableOpacity>
                   );
                 })
@@ -158,28 +167,35 @@ export default function LoyaltyRedeemModal({
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, maxHeight: '80%' },
-  waitBlock: { alignItems: 'center', paddingVertical: 20 },
-  waitTitle: { fontSize: 15, fontWeight: '700', marginTop: 16, textAlign: 'center' },
-  waitSub: { fontSize: 12, color: '#666', marginTop: 6, textAlign: 'center' },
-  waitTimer: { fontSize: 13, fontWeight: '700', color: '#3f51b5', marginTop: 12 },
-  errorText: { color: '#c0392b', fontSize: 13, textAlign: 'center', marginBottom: 10 },
-  title: { fontSize: 16, fontWeight: '800', marginBottom: 4, textAlign: 'center' },
-  subtitle: { fontSize: 12, color: '#666', marginBottom: 14, textAlign: 'center' },
-  empty: { textAlign: 'center', color: '#666', marginBottom: 14 },
+  overlay: { flex: 1, backgroundColor: 'rgba(6,16,10,0.78)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: colors.cardBg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing[5], maxHeight: '80%' },
+  // .loyalty-wait-step
+  waitBlock: { alignItems: 'center', paddingTop: 20, paddingBottom: 6, paddingHorizontal: 10, gap: 6 },
+  // .loyalty-wait-text
+  waitTitle: { fontFamily: fonts.sansBold, fontSize: 14.5, color: colors.text, marginTop: 16, textAlign: 'center' },
+  // .loyalty-wait-sub
+  waitSub: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted, marginTop: 6, textAlign: 'center' },
+  // .loyalty-wait-timer
+  waitTimer: { fontFamily: fonts.monoMedium, fontSize: 11.5, color: colors.muted, marginTop: 12, writingDirection: 'ltr' },
+  errorText: { fontFamily: fonts.sansBold, color: colors.danger, fontSize: 13, textAlign: 'center', marginBottom: spacing[2] },
+  title: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, marginBottom: 4, textAlign: 'center' },
+  subtitle: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted, marginBottom: spacing[4], textAlign: 'center' },
+  empty: { fontFamily: fonts.sansSemiBold, textAlign: 'center', color: colors.muted, marginBottom: spacing[4] },
+  // .customer-suggest reused for the redeemable-item row
   productRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 14,
-    borderRadius: 10,
-    backgroundColor: '#f2f5f0',
-    marginBottom: 8,
+    padding: spacing[4],
+    borderRadius: radii.md,
+    backgroundColor: colors.surf2,
+    marginBottom: spacing[2],
   },
   productRowDisabled: { opacity: 0.4 },
-  productName: { fontSize: 13, fontWeight: '700', color: '#333', flex: 1 },
-  productPrice: { fontSize: 12, fontWeight: '700', color: '#8bc34a' },
+  productName: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.text, flex: 1 },
+  // .customer-suggest-points
+  productPricePill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: radii.full, backgroundColor: colors.lime },
+  productPrice: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.flagGreenDeep },
   cancelButton: { padding: 14, alignItems: 'center', marginTop: 6 },
-  cancelText: { color: '#666', fontWeight: '700' },
+  cancelText: { fontFamily: fonts.sansBold, color: colors.muted },
 });

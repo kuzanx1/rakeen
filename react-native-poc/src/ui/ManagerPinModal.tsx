@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { verifyManagerPin } from '../application/managerPinService';
+import { colors, fonts, radii, spacing } from './theme';
 
 const PIN_LENGTH = 4;
 
@@ -13,6 +14,9 @@ const PIN_LENGTH = 4;
  * keyboard via TextInput's keyboardType, not the PWA's custom on-screen
  * keypad grid -- same underlying verify_pos_manager_pin call and PIN length,
  * a styling difference only, not a functional gap.
+ *
+ * Visuals: .modal-overlay/.modal-card/.pin-dots match rakeen-pos.css
+ * value-for-value (same tokens as LoginScreen's own PIN dots).
  */
 export default function ManagerPinModal({
   visible,
@@ -58,7 +62,7 @@ export default function ManagerPinModal({
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onCancel}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={styles.card}>
           <Text style={styles.title}>موافقة المدير مطلوبة</Text>
           <View style={styles.dotsRow}>
             {Array.from({ length: PIN_LENGTH }).map((_, i) => (
@@ -75,7 +79,7 @@ export default function ManagerPinModal({
             maxLength={PIN_LENGTH}
             editable={!checking}
           />
-          {checking && <ActivityIndicator style={styles.spinner} />}
+          {checking && <ActivityIndicator style={styles.spinner} color={colors.lime} />}
           {!!error && <Text style={styles.errorText}>{error}</Text>}
           <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
             <Text style={styles.cancelText}>إلغاء</Text>
@@ -87,20 +91,18 @@ export default function ManagerPinModal({
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  sheet: { backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '80%', alignItems: 'center' },
-  title: { fontSize: 16, fontWeight: '800', marginBottom: 16, textAlign: 'center' },
-  dotsRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
-  dot: { width: 16, height: 16, borderRadius: 8, borderWidth: 1, borderColor: '#999' },
-  dotFilled: { backgroundColor: '#3f51b5', borderColor: '#3f51b5' },
-  hiddenInput: {
-    position: 'absolute',
-    opacity: 0,
-    height: 1,
-    width: '100%',
-  },
-  spinner: { marginBottom: 10 },
-  errorText: { color: '#c0392b', fontSize: 12, textAlign: 'center', marginBottom: 10 },
-  cancelButton: { padding: 12, marginTop: 6 },
-  cancelText: { color: '#666', fontWeight: '700' },
+  // .modal-overlay
+  overlay: { flex: 1, backgroundColor: 'rgba(6,16,10,0.78)', justifyContent: 'center', alignItems: 'center' },
+  // .pos-auth-card
+  card: { backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing[6], width: '80%', alignItems: 'center' },
+  title: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, marginBottom: spacing[4], textAlign: 'center' },
+  // .pin-dots / .pin-dot
+  dotsRow: { flexDirection: 'row', gap: 13, marginBottom: spacing[4] },
+  dot: { width: 13, height: 13, borderRadius: 7, borderWidth: 1.5, borderColor: colors.line },
+  dotFilled: { backgroundColor: colors.lime, borderColor: colors.lime },
+  hiddenInput: { position: 'absolute', opacity: 0, height: 1, width: '100%' },
+  spinner: { marginBottom: spacing[2] },
+  errorText: { fontFamily: fonts.sansBold, color: colors.danger, fontSize: 12, textAlign: 'center', marginBottom: spacing[2] },
+  cancelButton: { padding: spacing[3], marginTop: 6 },
+  cancelText: { fontFamily: fonts.sansBold, color: colors.muted },
 });

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View, ScrollView } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import { ModifierDefinition, CartLineConfig, buildDefaultConfig } from '../domain/cart';
+import { colors, fonts, gradients, radii, spacing } from './theme';
 
 /**
  * The real "customize" flow for a product with modifier groups (single-
@@ -8,6 +10,11 @@ import { ModifierDefinition, CartLineConfig, buildDefaultConfig } from '../domai
  * customize path. Box/meal products are out of scope this checkpoint
  * (see domain/cart.ts) -- this modal only ever receives a standard
  * ModifierDefinition.
+ *
+ * Visuals: .mod-group/.mod-group-badge/.mod-chip/.modifier-add-btn match
+ * rakeen-pos.css value-for-value. Matches PaymentModal's pattern of a
+ * single full-width gradient CTA instead of a 50/50 cancel/confirm row --
+ * closing is a corner X, same as every other real PWA modal.
  */
 export default function ModifierModal({
   visible,
@@ -48,48 +55,58 @@ export default function ModifierModal({
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onCancel}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>{productName}</Text>
+          <View style={styles.head}>
+            <Text style={styles.title}>{productName}</Text>
+            <TouchableOpacity onPress={onCancel} style={styles.closeCircle}>
+              <Text style={styles.closeCircleText}>✕</Text>
+            </TouchableOpacity>
+          </View>
           <ScrollView>
             {modDef.groups.map(group => (
               <View key={group.id} style={styles.group}>
-                <Text style={styles.groupTitle}>
-                  {group.name} {group.required ? '(مطلوب)' : ''}
-                </Text>
-                {group.options.map(opt => {
-                  const selected =
-                    group.type === 'single'
-                      ? config[group.id] === opt.id
-                      : Array.isArray(config[group.id]) && (config[group.id] as string[]).includes(opt.id);
-                  return (
-                    <TouchableOpacity
-                      key={opt.id}
-                      style={[styles.option, selected && styles.optionSelected]}
-                      onPress={() =>
-                        group.type === 'single'
-                          ? selectSingle(group.id, opt.id)
-                          : toggleMulti(group.id, opt.id, group.max)
-                      }>
-                      <Text style={styles.optionText}>{opt.name}</Text>
-                      {opt.price !== 0 && (
-                        <Text style={styles.optionPrice}>
-                          {opt.price > 0 ? '+' : ''}
-                          {opt.price.toFixed(2)}
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
+                <View style={styles.groupHead}>
+                  <Text style={styles.groupTitle}>{group.name}</Text>
+                  <View style={[styles.groupBadge, group.required && styles.groupBadgeRequired]}>
+                    <Text style={[styles.groupBadgeText, group.required && styles.groupBadgeTextRequired]}>
+                      {group.required ? 'مطلوب' : 'اختياري'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.options}>
+                  {group.options.map(opt => {
+                    const selected =
+                      group.type === 'single'
+                        ? config[group.id] === opt.id
+                        : Array.isArray(config[group.id]) && (config[group.id] as string[]).includes(opt.id);
+                    return (
+                      <TouchableOpacity
+                        key={opt.id}
+                        style={[styles.chip, selected && styles.chipSelected]}
+                        onPress={() =>
+                          group.type === 'single'
+                            ? selectSingle(group.id, opt.id)
+                            : toggleMulti(group.id, opt.id, group.max)
+                        }
+                        activeOpacity={0.8}>
+                        <Text style={styles.chipText}>{opt.name}</Text>
+                        {opt.price !== 0 && (
+                          <Text style={styles.chipPrice}>
+                            {opt.price > 0 ? '+' : ''}
+                            {opt.price.toFixed(2)}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
             ))}
           </ScrollView>
-          <View style={styles.actions}>
-            <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
-              <Text style={styles.cancelText}>إلغاء</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.confirmButton} onPress={() => onConfirm(config)}>
+          <TouchableOpacity onPress={() => onConfirm(config)} activeOpacity={0.85}>
+            <LinearGradient colors={gradients.payButton.colors} start={gradients.payButton.start} end={gradients.payButton.end} style={styles.confirmButton}>
               <Text style={styles.confirmText}>إضافة</Text>
-            </TouchableOpacity>
-          </View>
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>
@@ -97,26 +114,40 @@ export default function ModifierModal({
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, maxHeight: '80%' },
-  title: { fontSize: 16, fontWeight: '800', marginBottom: 12 },
-  group: { marginBottom: 14 },
-  groupTitle: { fontSize: 13, fontWeight: '700', marginBottom: 6, color: '#333' },
-  option: {
+  overlay: { flex: 1, backgroundColor: 'rgba(6,16,10,0.78)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: colors.cardBg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing[4], maxHeight: '80%' },
+  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[3] },
+  title: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text },
+  closeCircle: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surf2, alignItems: 'center', justifyContent: 'center' },
+  closeCircleText: { color: colors.muted, fontSize: 13 },
+  // .mod-group
+  group: { marginBottom: spacing[5] },
+  groupHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[2] },
+  groupTitle: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.text },
+  // .mod-group-badge
+  groupBadge: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: radii.full, backgroundColor: colors.surf2 },
+  groupBadgeRequired: { backgroundColor: `rgba(${colors.dangerRgb},0.14)` },
+  groupBadgeText: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.muted },
+  groupBadgeTextRequired: { color: colors.danger },
+  // .mod-options
+  options: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
+  // .mod-chip
+  chip: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    marginBottom: 6,
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 42,
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    borderRadius: radii.full,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    backgroundColor: colors.surf1,
   },
-  optionSelected: { borderColor: '#8bc34a', backgroundColor: '#f1f8e9' },
-  optionText: { fontSize: 13 },
-  optionPrice: { fontSize: 12, color: '#2e7d32' },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 10 },
-  cancelButton: { flex: 1, padding: 14, alignItems: 'center', backgroundColor: '#eee', borderRadius: 10 },
-  cancelText: { fontWeight: '700', color: '#444' },
-  confirmButton: { flex: 1, padding: 14, alignItems: 'center', backgroundColor: '#8bc34a', borderRadius: 10 },
-  confirmText: { fontWeight: '700', color: '#1a1a1a' },
+  chipSelected: { borderColor: colors.limeDeep, backgroundColor: `rgba(${colors.limeRgb},0.13)` },
+  chipText: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.text },
+  chipPrice: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.lime, writingDirection: 'ltr' },
+  // .modifier-add-btn
+  confirmButton: { paddingVertical: 15, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', marginTop: spacing[2] },
+  confirmText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.flagGreenDeep },
 });

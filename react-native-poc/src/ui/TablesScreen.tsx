@@ -20,14 +20,18 @@ import {
   elapsedMinutes,
 } from '../domain/tables';
 import ManagerPinModal from './ManagerPinModal';
+import { colors, fonts, radii, spacing } from './theme';
 
-const STATUS_COLORS: Record<RestaurantTable['status'], string> = {
-  available: '#8bc34a',
-  awaiting_order: '#ffb300',
-  serving: '#3f51b5',
-  awaiting_payment: '#e64a19',
-  cleaning: '#9e9e9e',
-  reserved: '#795548',
+// .table-card.<status> (rakeen-pos.css:469-478) -- border/background pairs,
+// verbatim. `reserved`/`occupied`/`maintenance` in CSS aren't reachable
+// through this domain's actual status union, so only the 6 real ones.
+const STATUS_STYLE: Record<RestaurantTable['status'], { border: string; bg: string; text: string }> = {
+  available: { border: colors.line, bg: colors.surf1, text: colors.muted },
+  awaiting_order: { border: colors.amber, bg: `rgba(${colors.amberRgb},0.08)`, text: colors.amber },
+  serving: { border: colors.limeDeep, bg: `rgba(${colors.limeRgb},0.1)`, text: colors.lime },
+  awaiting_payment: { border: colors.danger, bg: `rgba(${colors.dangerRgb},0.09)`, text: colors.danger },
+  cleaning: { border: colors.muted, bg: colors.surf2, text: colors.muted },
+  reserved: { border: colors.amber, bg: `rgba(${colors.amberRgb},0.08)`, text: colors.amber },
 };
 
 export interface SelectedTableContext {
@@ -47,6 +51,12 @@ export interface SelectedTableContext {
  * free/clean) and the two management RPCs (move/cancel), then hands off
  * to ProductsScreen (via onBeginOrderForTable) for anything involving the
  * cart/order/payment.
+ *
+ * Visuals: .table-card / .table-num / .table-status match rakeen-pos.css
+ * value-for-value (see STATUS_STYLE above); the action sheet reuses the
+ * same dark-canvas/card-bg/lime-cta language as every other screen since
+ * no dedicated PWA class exists for it (the PWA's own table actions are a
+ * simple browser confirm()/inline buttons, not a bottom sheet).
  */
 export default function TablesScreen({
   branchId,
@@ -221,8 +231,8 @@ export default function TablesScreen({
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator />
+      <View style={[styles.root, styles.center]}>
+        <ActivityIndicator color={colors.lime} />
       </View>
     );
   }
@@ -248,16 +258,16 @@ export default function TablesScreen({
             <View style={styles.grid}>
               {group.tables.map(table => {
                 const mins = elapsedMinutes(table.status_changed_at);
+                const st = STATUS_STYLE[table.status];
                 return (
                   <TouchableOpacity
                     key={table.id}
-                    style={[styles.card, { borderColor: STATUS_COLORS[table.status] }]}
+                    style={[styles.card, { borderColor: st.border, backgroundColor: st.bg }]}
                     onPress={() => handleTablePress(table)}
-                    disabled={busy}>
+                    disabled={busy}
+                    activeOpacity={0.8}>
                     <Text style={styles.cardNumber}>طاولة {table.number}</Text>
-                    <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[table.status] }]}>
-                      <Text style={styles.statusBadgeText}>{TABLE_STATUS_LABELS[table.status]}</Text>
-                    </View>
+                    <Text style={[styles.statusText, { color: st.text }]}>{TABLE_STATUS_LABELS[table.status]}</Text>
                     <Text style={styles.elapsed}>منذ {mins} د</Text>
                   </TouchableOpacity>
                 );
@@ -384,53 +394,62 @@ function SheetButton({
   return (
     <TouchableOpacity
       style={[styles.sheetButton, danger && styles.sheetButtonDanger, muted && styles.sheetButtonMuted]}
-      onPress={onPress}>
-      <Text style={[styles.sheetButtonText, danger && styles.sheetButtonTextDanger]}>{label}</Text>
+      onPress={onPress}
+      activeOpacity={0.8}>
+      <Text style={[styles.sheetButtonText, danger && styles.sheetButtonTextDanger, muted && styles.sheetButtonTextMuted]}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f2f5f0' },
+  root: { flex: 1, backgroundColor: colors.canvas },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 14,
-    backgroundColor: '#fff',
+    padding: spacing[4],
+    backgroundColor: colors.cardBg,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: colors.line,
   },
-  title: { fontSize: 17, fontWeight: '800' },
-  refreshLink: { color: '#3f51b5', fontWeight: '700' },
-  error: { color: '#c0392b', textAlign: 'center', padding: 8 },
-  toast: { backgroundColor: '#333', padding: 10, alignItems: 'center' },
-  toastText: { color: '#fff', fontSize: 13 },
-  scroll: { padding: 14 },
-  sectionBlock: { marginBottom: 18 },
-  sectionTitle: { fontSize: 14, fontWeight: '700', marginBottom: 8, color: '#333' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  title: { fontFamily: fonts.sansBold, fontSize: 17, color: colors.text },
+  refreshLink: { fontFamily: fonts.sansBold, color: colors.limeDeep },
+  error: { fontFamily: fonts.sansBold, color: colors.danger, textAlign: 'center', padding: spacing[2] },
+  toast: { backgroundColor: colors.surf2, padding: spacing[3], alignItems: 'center' },
+  toastText: { fontFamily: fonts.sansSemiBold, color: colors.text, fontSize: 13 },
+  scroll: { padding: spacing[4] },
+  sectionBlock: { marginBottom: spacing[5] },
+  sectionTitle: { fontFamily: fonts.sansBold, fontSize: 14, marginBottom: spacing[2], color: colors.muted },
+  // .tables-grid (grid-template-columns:repeat(auto-fill,minmax(114px,1fr)))
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[3] },
+  // .table-card
   card: {
-    width: 110,
-    padding: 10,
-    borderRadius: 12,
-    borderWidth: 2,
-    backgroundColor: '#fff',
+    width: 114,
+    minHeight: 100,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderRadius: radii.lg,
+    borderWidth: 1.5,
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
   },
-  cardNumber: { fontSize: 14, fontWeight: '800', marginBottom: 6 },
-  statusBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, marginBottom: 4 },
-  statusBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  elapsed: { fontSize: 10, color: '#777' },
-  empty: { textAlign: 'center', color: '#777', padding: 20 },
-  sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 },
-  sheetTitle: { fontSize: 16, fontWeight: '800', marginBottom: 6, textAlign: 'center' },
-  sheetNote: { fontSize: 12, color: '#777', marginBottom: 14, textAlign: 'center' },
-  sheetButton: { backgroundColor: '#eef1ec', borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 8 },
-  sheetButtonDanger: { backgroundColor: '#fdecea' },
-  sheetButtonMuted: { backgroundColor: '#f5f5f5', marginTop: 4 },
-  sheetButtonText: { fontWeight: '700', color: '#333' },
-  sheetButtonTextDanger: { color: '#c0392b' },
+  // .table-num
+  cardNumber: { fontFamily: fonts.sansBold, fontSize: 18, color: colors.text },
+  // .table-status
+  statusText: { fontFamily: fonts.sansBold, fontSize: 10 },
+  elapsed: { fontFamily: fonts.sansSemiBold, fontSize: 10, color: colors.muted },
+  empty: { fontFamily: fonts.sansSemiBold, textAlign: 'center', color: colors.muted, padding: spacing[6] },
+  sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: colors.cardBg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing[5] },
+  sheetTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, marginBottom: 6, textAlign: 'center' },
+  sheetNote: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted, marginBottom: 14, textAlign: 'center' },
+  // .pos-staff-btn reused as the generic sheet-action-button look
+  sheetButton: { backgroundColor: colors.surf1, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, padding: 14, alignItems: 'center', marginBottom: spacing[2] },
+  sheetButtonDanger: { backgroundColor: `rgba(${colors.dangerRgb},0.12)`, borderColor: colors.danger },
+  sheetButtonMuted: { backgroundColor: 'transparent', borderColor: 'transparent', marginTop: 4 },
+  sheetButtonText: { fontFamily: fonts.sansBold, color: colors.text },
+  sheetButtonTextDanger: { color: colors.danger },
+  sheetButtonTextMuted: { color: colors.muted },
 });

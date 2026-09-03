@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import type { PaymentMethod } from '../domain/payment';
 import { computeCashChange } from '../domain/payment';
+import { colors, fonts, gradients, radii, spacing } from './theme';
 
 /**
  * Checkpoint 6 (Payment) -- cash and card only this checkpoint (split/
@@ -9,6 +11,12 @@ import { computeCashChange } from '../domain/payment';
  * SAME total Cart already computed (domain/cart.ts's cartTotals) --
  * financial values are never recalculated here, only displayed and, for
  * cash, compared against the amount tendered.
+ *
+ * Visuals: .modal-card/.pm-tabs/.pm-tab/.due-display/.cash-input-row/
+ * .change-row/.confirm-pay-btn match rakeen-pos.css value-for-value. The
+ * PWA closes this modal via a corner X (.modal-close), not a text
+ * "إلغاء" button in a 50/50 row -- matched here with a plain close link
+ * instead of the old two-button Material row.
  */
 export default function PaymentModal({
   visible,
@@ -34,19 +42,29 @@ export default function PaymentModal({
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onCancel}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>الدفع</Text>
-          <Text style={styles.dueLabel}>المبلغ المطلوب</Text>
-          <Text style={styles.dueAmount}>{total.toFixed(2)} ر.س</Text>
+          <View style={styles.head}>
+            <Text style={styles.title}>الدفع</Text>
+            <TouchableOpacity onPress={onCancel} disabled={submitting} style={styles.closeCircle}>
+              <Text style={styles.closeCircleText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.dueDisplay}>
+            <Text style={styles.dueLabel}>المبلغ المطلوب</Text>
+            <Text style={styles.dueAmount}>{total.toFixed(2)} ر.س</Text>
+          </View>
 
           <View style={styles.methodTabs}>
             <TouchableOpacity
               style={[styles.methodTab, method === 'cash' && styles.methodTabActive]}
-              onPress={() => setMethod('cash')}>
+              onPress={() => setMethod('cash')}
+              activeOpacity={0.8}>
               <Text style={[styles.methodTabText, method === 'cash' && styles.methodTabTextActive]}>كاش</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.methodTab, method === 'card' && styles.methodTabActive]}
-              onPress={() => setMethod('card')}>
+              onPress={() => setMethod('card')}
+              activeOpacity={0.8}>
               <Text style={[styles.methodTabText, method === 'card' && styles.methodTabTextActive]}>بطاقة</Text>
             </TouchableOpacity>
           </View>
@@ -67,20 +85,22 @@ export default function PaymentModal({
           )}
 
           {method === 'card' && (
-            <Text style={styles.cardNote}>تأكيد بعد إتمام العملية على جهاز الدفع الخارجي</Text>
+            <View style={styles.cardTapState}>
+              <Text style={styles.cardNote}>تأكيد بعد إتمام العملية على جهاز الدفع الخارجي</Text>
+            </View>
           )}
 
-          <View style={styles.actions}>
-            <TouchableOpacity style={styles.cancelButton} onPress={onCancel} disabled={submitting}>
-              <Text style={styles.cancelText}>إلغاء</Text>
+          {canConfirm && !submitting ? (
+            <TouchableOpacity onPress={() => onConfirm(method, method === 'cash' ? cashAmount : null)} activeOpacity={0.85}>
+              <LinearGradient colors={gradients.payButton.colors} start={gradients.payButton.start} end={gradients.payButton.end} style={styles.confirmButton}>
+                <Text style={styles.confirmText}>تأكيد الدفع</Text>
+              </LinearGradient>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.confirmButton, !canConfirm && styles.confirmButtonDisabled]}
-              onPress={() => onConfirm(method, method === 'cash' ? cashAmount : null)}
-              disabled={!canConfirm || submitting}>
-              {submitting ? <ActivityIndicator color="#1a1a1a" /> : <Text style={styles.confirmText}>تأكيد الدفع</Text>}
-            </TouchableOpacity>
-          </View>
+          ) : (
+            <View style={[styles.confirmButton, styles.confirmButtonDisabled]}>
+              {submitting ? <ActivityIndicator color={colors.muted} /> : <Text style={[styles.confirmText, styles.confirmTextDisabled]}>تأكيد الدفع</Text>}
+            </View>
+          )}
         </View>
       </View>
     </Modal>
@@ -88,25 +108,51 @@ export default function PaymentModal({
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 },
-  title: { fontSize: 16, fontWeight: '800', marginBottom: 10, textAlign: 'center' },
-  dueLabel: { fontSize: 12, color: '#666', textAlign: 'center' },
-  dueAmount: { fontSize: 24, fontWeight: '800', textAlign: 'center', color: '#2e7d32', marginBottom: 16 },
-  methodTabs: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  methodTab: { flex: 1, padding: 12, alignItems: 'center', borderRadius: 10, backgroundColor: '#f2f5f0' },
-  methodTabActive: { backgroundColor: '#3f51b5' },
-  methodTabText: { fontWeight: '700', color: '#444' },
-  methodTabTextActive: { color: '#fff' },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 10, padding: 12, fontSize: 18, textAlign: 'center' },
-  changeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, paddingHorizontal: 4 },
-  changeLabel: { fontSize: 13, color: '#666' },
-  changeValue: { fontSize: 13, fontWeight: '700' },
-  cardNote: { fontSize: 12, color: '#666', textAlign: 'center', paddingVertical: 20 },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  cancelButton: { flex: 1, padding: 14, alignItems: 'center', backgroundColor: '#eee', borderRadius: 10 },
-  cancelText: { fontWeight: '700', color: '#444' },
-  confirmButton: { flex: 1, padding: 14, alignItems: 'center', backgroundColor: '#8bc34a', borderRadius: 10 },
-  confirmButtonDisabled: { backgroundColor: '#ccc' },
-  confirmText: { fontWeight: '700', color: '#1a1a1a' },
+  // .modal-overlay
+  overlay: { flex: 1, backgroundColor: 'rgba(6,16,10,0.78)', justifyContent: 'flex-end' },
+  // .modal-card
+  sheet: { backgroundColor: colors.cardBg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing[5] },
+  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[3] },
+  // .modal-head h3
+  title: { fontFamily: fonts.sansBold, fontSize: 16.5, color: colors.text },
+  // .modal-close
+  closeCircle: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surf2, alignItems: 'center', justifyContent: 'center' },
+  closeCircleText: { color: colors.muted, fontSize: 13 },
+  // .due-display / .due-label / .due-amount
+  dueDisplay: { alignItems: 'center', paddingVertical: 16, backgroundColor: colors.surf1, borderRadius: radii.lg, marginBottom: spacing[4] },
+  dueLabel: { fontFamily: fonts.sansBold, fontSize: 10.5, color: colors.muted },
+  dueAmount: { fontFamily: fonts.monoBold, fontSize: 30, color: colors.text, marginTop: 5, writingDirection: 'ltr' },
+  // .pm-tabs / .pm-tab
+  methodTabs: { flexDirection: 'row', gap: 8, marginBottom: spacing[4] },
+  methodTab: { flex: 1, paddingVertical: 14, paddingHorizontal: 6, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surf1, alignItems: 'center' },
+  methodTabActive: { borderColor: colors.limeDeep, backgroundColor: `rgba(${colors.limeRgb},0.12)` },
+  methodTabText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.muted },
+  methodTabTextActive: { color: colors.lime },
+  // .cash-input-row input
+  input: {
+    width: '100%',
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surf1,
+    color: colors.text,
+    fontFamily: fonts.monoBold,
+    fontSize: 15,
+    textAlign: 'center',
+    marginBottom: spacing[3],
+  },
+  // .change-row
+  changeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 15, backgroundColor: `rgba(${colors.limeRgb},0.12)`, borderRadius: radii.md, marginBottom: spacing[4] },
+  changeLabel: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: colors.muted },
+  changeValue: { fontFamily: fonts.monoBold, fontSize: 13, color: colors.text, writingDirection: 'ltr' },
+  // .card-tap-state
+  cardTapState: { alignItems: 'center', paddingVertical: 26 },
+  cardNote: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.muted, textAlign: 'center' },
+  // .confirm-pay-btn
+  confirmButton: { width: '100%', paddingVertical: 16, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
+  confirmButtonDisabled: { backgroundColor: colors.surf2 },
+  confirmText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.flagGreenDeep },
+  confirmTextDisabled: { color: colors.muted },
 });

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import {
   listOrderHistory,
   getOrderHistoryDetail,
@@ -15,6 +16,7 @@ import { getReceiptBusinessProfile } from '../application/catalogService';
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { shouldPrintCustomerReceipt, shouldPrintReceiptLogo } from '../domain/printerProfile';
 import type { ReceiptData } from '../domain/receipt';
+import { colors, fonts, gradients, radii, spacing } from './theme';
 
 const STATUS_TABS: { value: OrderHistoryStatus; label: string }[] = [
   { value: 'completed', label: 'مكتملة' },
@@ -25,12 +27,30 @@ const STATUS_TABS: { value: OrderHistoryStatus; label: string }[] = [
 const CHANNEL_LABELS: Record<string, string> = { dine_in: 'بالمطعم', pickup: 'استلام', delivery: 'توصيل' };
 const PAYMENT_METHOD_LABELS: Record<string, string> = { cash: 'كاش', card: 'بطاقة', split: 'تقسيم دفع', delivery_platform: 'مدفوع عبر التطبيق' };
 
+// .order-row-badge.<status> (rakeen-pos.css:456-458). This screen's own
+// tabs are completed/cancelled/refunded, not the PWA's running/completed/
+// cancelled set -- refunded has no direct badge rule in the source, so it
+// reuses the closest semantic match (danger, same as cancelled) rather
+// than inventing a new color.
+const ROW_BADGE_COLOR: Record<OrderHistoryStatus, string> = {
+  completed: colors.muted,
+  cancelled: colors.danger,
+  refunded: colors.danger,
+};
+
 /**
  * Feature Parity Pass -- Refunds/Void/Cancellation. Ported from the PWA's
  * real Orders screen "completed"/"cancelled" tabs + order-detail sheet +
  * refundOrderBtn (public/pos/rakeen-pos.js, ~3303-3589). Refund is
  * manager-PIN gated (ManagerPinModal, same as TablesScreen.tsx's void
  * flow) before ever calling refund_pos_order -- never a bare confirm().
+ *
+ * Visuals: .orders-list/.order-row/.order-row-badge/.order-row-total match
+ * rakeen-pos.css value-for-value. The status tabs and detail-sheet action
+ * buttons reuse the same channel-tab/pay-btn/danger-button language
+ * already established elsewhere (no dedicated PWA class exists for either
+ * — see ROW_BADGE_COLOR above for the one place that required a judgment
+ * call).
  */
 export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
   const [status, setStatus] = useState<OrderHistoryStatus>('completed');
@@ -142,27 +162,33 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
   return (
     <View style={styles.root}>
       <View style={styles.tabsRow}>
-        {STATUS_TABS.map(tab => (
-          <TouchableOpacity
-            key={tab.value}
-            style={[styles.tab, status === tab.value && styles.tabActive]}
-            onPress={() => setStatus(tab.value)}>
-            <Text style={[styles.tabText, status === tab.value && styles.tabTextActive]}>{tab.label}</Text>
-          </TouchableOpacity>
-        ))}
+        {STATUS_TABS.map(tab => {
+          const active = status === tab.value;
+          return (
+            <TouchableOpacity
+              key={tab.value}
+              style={[styles.tab, active && styles.tabActive]}
+              onPress={() => setStatus(tab.value)}
+              activeOpacity={0.8}>
+              <Text style={[styles.tabText, active && styles.tabTextActive]}>{tab.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {loading ? (
-        <ActivityIndicator style={styles.center} />
+        <ActivityIndicator style={styles.center} color={colors.lime} />
       ) : error ? (
         <Text style={styles.error}>{error}</Text>
       ) : (
         <FlatList
           data={rows}
           keyExtractor={r => String(r.id)}
+          contentContainerStyle={styles.list}
           ListEmptyComponent={<Text style={styles.empty}>لا يوجد طلبات.</Text>}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.row} onPress={() => openDetail(item.id)}>
+            <TouchableOpacity style={styles.row} onPress={() => openDetail(item.id)} activeOpacity={0.8}>
+              <View style={[styles.rowBadge, { backgroundColor: ROW_BADGE_COLOR[status] }]} />
               <View style={styles.rowInfo}>
                 <Text style={styles.rowTitle}>#{item.id} — {item.customerName || CHANNEL_LABELS[item.channel] || item.channel}</Text>
                 <Text style={styles.rowMeta}>{new Date(item.createdAt).toLocaleString('ar-SA')}</Text>
@@ -177,7 +203,7 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
         <View style={styles.overlay}>
           <View style={styles.sheet}>
             {detailLoading && !detail ? (
-              <ActivityIndicator />
+              <ActivityIndicator color={colors.lime} />
             ) : detail ? (
               <>
                 <Text style={styles.sheetTitle}>طلب #{detail.id}</Text>
@@ -217,20 +243,23 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
                 </View>
                 <Text style={styles.sheetMeta}>الدفع: {PAYMENT_METHOD_LABELS[detail.paymentMethod] || detail.paymentMethod}</Text>
 
-                <TouchableOpacity style={styles.reprintButton} disabled={reprintBusy} onPress={handleReprint}>
-                  <Text style={styles.reprintButtonText}>{reprintBusy ? 'جارٍ الإضافة...' : 'إعادة طباعة'}</Text>
+                <TouchableOpacity disabled={reprintBusy} onPress={handleReprint} activeOpacity={0.85}>
+                  <LinearGradient colors={gradients.payButton.colors} start={gradients.payButton.start} end={gradients.payButton.end} style={styles.reprintButton}>
+                    <Text style={styles.reprintButtonText}>{reprintBusy ? 'جارٍ الإضافة...' : 'إعادة طباعة'}</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
-                {!!reprintStatus && <Text style={styles.refundStatus}>{reprintStatus}</Text>}
+                {!!reprintStatus && <Text style={styles.statusText}>{reprintStatus}</Text>}
 
                 {detail.status === 'completed' && (
                   <TouchableOpacity
                     style={styles.refundButton}
                     disabled={refundBusy}
-                    onPress={() => setPinPendingRefund(true)}>
+                    onPress={() => setPinPendingRefund(true)}
+                    activeOpacity={0.8}>
                     <Text style={styles.refundButtonText}>{refundBusy ? 'جارٍ الاسترجاع...' : 'استرجاع مبلغ'}</Text>
                   </TouchableOpacity>
                 )}
-                {!!refundStatus && <Text style={styles.refundStatus}>{refundStatus}</Text>}
+                {!!refundStatus && <Text style={styles.statusText}>{refundStatus}</Text>}
 
                 <TouchableOpacity style={styles.closeButton} onPress={() => setDetail(null)}>
                   <Text style={styles.closeButtonText}>إغلاق</Text>
@@ -254,46 +283,61 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f2f5f0' },
-  tabsRow: { flexDirection: 'row', padding: 12, gap: 8 },
-  tab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e0e0e0' },
-  tabActive: { backgroundColor: '#3f51b5', borderColor: '#3f51b5' },
-  tabText: { fontSize: 13, fontWeight: '700', color: '#333' },
-  tabTextActive: { color: '#fff' },
+  root: { flex: 1, backgroundColor: colors.canvas },
+  // channel-row/channel-btn pattern reused for the status segmented control
+  tabsRow: { flexDirection: 'row', gap: 4, margin: spacing[4], padding: 4, backgroundColor: colors.surf1, borderRadius: radii.full },
+  tab: { flex: 1, paddingVertical: 8, borderRadius: radii.full, alignItems: 'center' },
+  tabActive: { backgroundColor: colors.lime },
+  tabText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.muted },
+  tabTextActive: { color: colors.flagGreenDeep },
   center: { marginTop: 40 },
-  error: { color: '#c0392b', textAlign: 'center', marginTop: 20 },
-  empty: { textAlign: 'center', color: '#666', marginTop: 20 },
+  error: { fontFamily: fonts.sansBold, color: colors.danger, textAlign: 'center', marginTop: 20 },
+  empty: { fontFamily: fonts.sansSemiBold, textAlign: 'center', color: colors.muted, marginTop: 20 },
+  list: { paddingHorizontal: spacing[4], paddingBottom: spacing[4] },
+  // .order-row
   row: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    marginHorizontal: 12,
-    marginBottom: 8,
-    padding: 14,
-    borderRadius: 10,
+    gap: 14,
+    backgroundColor: colors.surf1,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: colors.line,
+    borderRadius: radii.lg,
+    padding: spacing[4],
+    marginBottom: spacing[2],
   },
-  rowInfo: { flex: 1 },
-  rowTitle: { fontWeight: '700', fontSize: 13, color: '#333' },
-  rowMeta: { fontSize: 11, color: '#666', marginTop: 2 },
-  rowTotal: { fontWeight: '800', fontSize: 14, color: '#333' },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, maxHeight: '85%' },
-  sheetTitle: { fontSize: 16, fontWeight: '800', marginBottom: 6, textAlign: 'center' },
-  sheetMeta: { fontSize: 12, color: '#666', marginBottom: 10, textAlign: 'center' },
+  // .order-row-badge
+  rowBadge: { width: 9, height: 9, borderRadius: 5, flexShrink: 0 },
+  rowInfo: { flex: 1, minWidth: 0 },
+  // .order-row-title
+  rowTitle: { fontFamily: fonts.sansBold, fontSize: 13.5, color: colors.text },
+  // .order-row-meta
+  rowMeta: { fontFamily: fonts.sansSemiBold, fontSize: 11, color: colors.muted, marginTop: 2 },
+  // .order-row-total
+  rowTotal: { fontFamily: fonts.monoBold, fontSize: 14.5, color: colors.text, writingDirection: 'ltr' },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: colors.cardBg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing[5], maxHeight: '85%' },
+  sheetTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, marginBottom: 6, textAlign: 'center' },
+  sheetMeta: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted, marginBottom: 10, textAlign: 'center' },
   itemRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  itemName: { fontSize: 13, color: '#333', flex: 1 },
-  itemTotal: { fontSize: 13, color: '#333' },
-  itemNameBold: { fontSize: 15, fontWeight: '800', color: '#333', flex: 1 },
-  itemTotalBold: { fontSize: 15, fontWeight: '800', color: '#333' },
-  divider: { height: 1, backgroundColor: '#e0e0e0', marginVertical: 8 },
-  refundButton: { backgroundColor: '#c0392b', borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 14 },
-  refundButtonText: { color: '#fff', fontWeight: '700' },
-  reprintButton: { backgroundColor: '#3f51b5', borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 14 },
-  reprintButtonText: { color: '#fff', fontWeight: '700' },
-  refundStatus: { textAlign: 'center', marginTop: 10, fontSize: 12 },
-  closeButton: { padding: 14, alignItems: 'center', marginTop: 8 },
-  closeButtonText: { color: '#666', fontWeight: '700' },
+  itemName: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: colors.text, flex: 1 },
+  itemTotal: { fontFamily: fonts.monoMedium, fontSize: 13, color: colors.text, writingDirection: 'ltr' },
+  itemNameBold: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.text, flex: 1 },
+  itemTotalBold: { fontFamily: fonts.monoBold, fontSize: 15, color: colors.lime, writingDirection: 'ltr' },
+  divider: { height: 1, backgroundColor: colors.line, marginVertical: spacing[2] },
+  refundButton: {
+    backgroundColor: `rgba(${colors.dangerRgb},0.12)`,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    borderRadius: radii.md,
+    padding: 14,
+    alignItems: 'center',
+    marginTop: spacing[4],
+  },
+  refundButtonText: { fontFamily: fonts.sansBold, color: colors.danger },
+  reprintButton: { borderRadius: radii.md, padding: 14, alignItems: 'center', marginTop: spacing[4] },
+  reprintButtonText: { fontFamily: fonts.sansBold, color: colors.flagGreenDeep },
+  statusText: { fontFamily: fonts.sansSemiBold, textAlign: 'center', marginTop: 10, fontSize: 12, color: colors.muted },
+  closeButton: { padding: 14, alignItems: 'center', marginTop: spacing[2] },
+  closeButtonText: { fontFamily: fonts.sansBold, color: colors.muted },
 });

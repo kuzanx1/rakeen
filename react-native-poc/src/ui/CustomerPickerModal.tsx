@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import { searchCustomers } from '../application/customerService';
 import { validateNewCustomerDraft, looksLikePhoneNumber, Customer } from '../domain/customer';
+import { colors, fonts, gradients, radii, spacing } from './theme';
 
 /**
  * Feature Parity Pass -- Customer Management. Ported from the PWA's
@@ -13,6 +15,9 @@ import { validateNewCustomerDraft, looksLikePhoneNumber, Customer } from '../dom
  * customer directory -- that quick action is a real, disclosed
  * placeholder in the PWA itself (a toast, not a screen), so nothing to
  * port there.
+ *
+ * Visuals: .customer-panel input / .customer-suggest(-avatar/-name/-phone/
+ * -points/-new) match rakeen-pos.css value-for-value.
  */
 export default function CustomerPickerModal({
   visible,
@@ -95,25 +100,39 @@ export default function CustomerPickerModal({
               <Text style={styles.title}>اختر عميلًا</Text>
               <TextInput
                 style={styles.input}
+                placeholderTextColor={colors.muted}
                 value={query}
                 onChangeText={setQuery}
                 placeholder="ابحث بالاسم أو رقم الجوال"
                 autoFocus
               />
-              {searching && <ActivityIndicator style={styles.spinner} />}
+              {searching && <ActivityIndicator style={styles.spinner} color={colors.lime} />}
               {results.map(c => (
                 <TouchableOpacity
                   key={c.id}
-                  style={styles.resultRow}
-                  onPress={() => onSelect({ id: c.id, name: c.name, phone: c.phone, points: c.points })}>
-                  <Text style={styles.resultName}>{c.name}</Text>
-                  <Text style={styles.resultPhone}>{c.phone || ''}</Text>
-                  {c.points > 0 && <Text style={styles.resultPoints}>{c.points} نقطة</Text>}
+                  style={styles.suggest}
+                  onPress={() => onSelect({ id: c.id, name: c.name, phone: c.phone, points: c.points })}
+                  activeOpacity={0.8}>
+                  <View style={styles.suggestAvatar}>
+                    <Text style={styles.suggestAvatarText}>{c.name.trim().charAt(0) || '؟'}</Text>
+                  </View>
+                  <View style={styles.suggestInfo}>
+                    <Text style={styles.suggestName} numberOfLines={1}>{c.name}</Text>
+                    {!!c.phone && <Text style={styles.suggestPhone}>{c.phone}</Text>}
+                  </View>
+                  {c.points > 0 && (
+                    <View style={styles.suggestPoints}>
+                      <Text style={styles.suggestPointsText}>{c.points} نقطة</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               ))}
               {query.trim().length >= 2 && (
-                <TouchableOpacity style={styles.newRow} onPress={openNewForm}>
-                  <Text style={styles.newRowText}>+ إضافة عميل جديد</Text>
+                <TouchableOpacity style={[styles.suggest, styles.suggestNew]} onPress={openNewForm} activeOpacity={0.8}>
+                  <View style={[styles.suggestAvatar, styles.suggestAvatarNew]}>
+                    <Text style={styles.suggestAvatarText}>+</Text>
+                  </View>
+                  <Text style={styles.newRowText}>إضافة عميل جديد</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
@@ -123,9 +142,10 @@ export default function CustomerPickerModal({
           ) : (
             <>
               <Text style={styles.title}>عميل جديد</Text>
-              <TextInput style={styles.input} value={newName} onChangeText={setNewName} placeholder="الاسم" />
+              <TextInput style={styles.input} placeholderTextColor={colors.muted} value={newName} onChangeText={setNewName} placeholder="الاسم" />
               <TextInput
                 style={styles.input}
+                placeholderTextColor={colors.muted}
                 value={newPhone}
                 onChangeText={setNewPhone}
                 placeholder="رقم الجوال"
@@ -135,15 +155,20 @@ export default function CustomerPickerModal({
                 <Text style={styles.errorText}>{validation.errors.join(' — ')}</Text>
               )}
               <View style={styles.actions}>
-                <TouchableOpacity style={styles.cancelButton} onPress={() => setShowNewForm(false)}>
+                <TouchableOpacity style={styles.backButton} onPress={() => setShowNewForm(false)}>
                   <Text style={styles.cancelText}>رجوع</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.confirmButton, !validation.valid && styles.confirmButtonDisabled]}
-                  onPress={handleCreateNew}
-                  disabled={!validation.valid}>
-                  <Text style={styles.confirmText}>متابعة</Text>
-                </TouchableOpacity>
+                {validation.valid ? (
+                  <TouchableOpacity style={styles.confirmWrap} onPress={handleCreateNew} activeOpacity={0.85}>
+                    <LinearGradient colors={gradients.payButton.colors} start={gradients.payButton.start} end={gradients.payButton.end} style={styles.confirmButton}>
+                      <Text style={styles.confirmText}>متابعة</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={[styles.confirmButton, styles.confirmButtonDisabled]}>
+                    <Text style={[styles.confirmText, styles.confirmTextDisabled]}>متابعة</Text>
+                  </View>
+                )}
               </View>
             </>
           )}
@@ -154,30 +179,45 @@ export default function CustomerPickerModal({
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, maxHeight: '80%' },
-  title: { fontSize: 16, fontWeight: '800', marginBottom: 12, textAlign: 'center' },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 10, padding: 12, fontSize: 14, marginBottom: 10 },
-  spinner: { marginBottom: 10 },
-  resultRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 10,
-    backgroundColor: '#f2f5f0',
-    marginBottom: 6,
+  overlay: { flex: 1, backgroundColor: 'rgba(6,16,10,0.78)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: colors.cardBg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing[5], maxHeight: '80%' },
+  title: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, marginBottom: spacing[3], textAlign: 'center' },
+  // .customer-panel input
+  input: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surf1,
+    color: colors.text,
+    padding: 10,
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 12.5,
+    marginBottom: spacing[2],
+    textAlign: 'right',
   },
-  resultName: { fontWeight: '700', fontSize: 13, flex: 1 },
-  resultPhone: { fontSize: 12, color: '#666', marginEnd: 8 },
-  resultPoints: { fontSize: 11, color: '#8bc34a', fontWeight: '700' },
-  newRow: { padding: 12, alignItems: 'center', marginTop: 4, marginBottom: 10 },
-  newRowText: { color: '#3f51b5', fontWeight: '700' },
-  errorText: { color: '#c0392b', fontSize: 12, marginBottom: 10 },
-  actions: { flexDirection: 'row', gap: 10 },
-  cancelButton: { flex: 1, padding: 14, alignItems: 'center', backgroundColor: '#eee', borderRadius: 10 },
-  cancelText: { fontWeight: '700', color: '#444' },
-  confirmButton: { flex: 1, padding: 14, alignItems: 'center', backgroundColor: '#8bc34a', borderRadius: 10 },
-  confirmButtonDisabled: { backgroundColor: '#ccc' },
-  confirmText: { fontWeight: '700', color: '#1a1a1a' },
+  spinner: { marginBottom: spacing[2] },
+  // .customer-suggest
+  suggest: { flexDirection: 'row', alignItems: 'center', gap: 10, width: '100%', padding: 8, borderRadius: radii.md, backgroundColor: colors.surf2, marginBottom: 6 },
+  suggestNew: { backgroundColor: 'transparent', borderWidth: 1, borderStyle: 'dashed', borderColor: colors.line },
+  // .customer-suggest-avatar
+  suggestAvatar: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: `rgba(${colors.limeRgb},0.22)` },
+  suggestAvatarNew: { backgroundColor: colors.surf1 },
+  suggestAvatarText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.flagGreenDeep },
+  suggestInfo: { flex: 1, minWidth: 0, gap: 1 },
+  suggestName: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.text },
+  suggestPhone: { fontFamily: fonts.sansSemiBold, fontSize: 10.5, color: colors.muted },
+  // .customer-suggest-points
+  suggestPoints: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: radii.full, backgroundColor: colors.lime },
+  suggestPointsText: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.flagGreenDeep },
+  newRowText: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.muted },
+  errorText: { fontFamily: fonts.sansBold, color: colors.danger, fontSize: 12, marginBottom: spacing[2] },
+  actions: { flexDirection: 'row', gap: 10, marginTop: spacing[2] },
+  backButton: { flex: 1, padding: 14, alignItems: 'center', backgroundColor: colors.surf1, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md },
+  cancelButton: { padding: 14, alignItems: 'center', marginTop: 4 },
+  cancelText: { fontFamily: fonts.sansBold, color: colors.muted },
+  confirmWrap: { flex: 1 },
+  confirmButton: { flex: 1, padding: 14, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md },
+  confirmButtonDisabled: { backgroundColor: colors.surf2 },
+  confirmText: { fontFamily: fonts.sansBold, color: colors.flagGreenDeep },
+  confirmTextDisabled: { color: colors.muted },
 });
