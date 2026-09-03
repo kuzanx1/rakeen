@@ -362,7 +362,12 @@ const useStyles = createStyles((colors, shadows) =>
       ...shadows.panel,
     },
     // .brand-avatar inline style: height:28px; width:auto; margin-bottom:14px
-    wordmark: { height: 28, width: 132, marginBottom: 14 },
+    // Measured off the live PWA at 375px: the wordmark box is 64.9x28,
+    // not the 132 previously assumed here. `.pos-wordmark{height:28px}`
+    // sets only the height; the width is whatever the SVG's own aspect
+    // ratio yields, and at 2x wide it rendered the mark cartoonishly
+    // oversized against the auth card.
+    wordmark: { height: 28, width: 65, marginBottom: 14 },
     // .pos-auth-title
     title: { fontFamily: fonts.sansBold, fontSize: 18, color: colors.text, marginBottom: 7, textAlign: 'center' },
     // .pos-auth-sub -- line-height 1.65 * 12.5px

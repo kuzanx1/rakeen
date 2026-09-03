@@ -5,17 +5,21 @@
  * merged enum can't express "payment confirmed, drawer still pending"
  * without an ambiguous or combinatorial state name.
  *
- * Payment methods: 'cash' and 'card' only this checkpoint. 'split'
- * (cash+card) and 'loyalty' (points redemption) exist in the real PWA
- * (public/pos/rakeen-pos.js's real payment method tabs) but are
- * deliberately deferred -- same incremental-scope discipline as earlier
- * checkpoints (e.g. box/meal modifiers in Checkpoint 4), not silently
- * dropped. 'delivery_platform' isn't a cashier-selected method at all in
- * the source (set automatically for delivery orders, no cash/card
- * collected by the cashier) and isn't part of this checkpoint either.
+ * Payment methods: all four the PWA's own .pm-tabs offer. 'split' and
+ * 'loyalty' were previously deferred here as "not part of this
+ * checkpoint"; the live-runtime audit showed renderPaymentStep()
+ * (rakeen-pos.js:1635) renders تقسيم as a standard third tab and الولاء as
+ * a fourth whenever a saved customer has points, and that both values go
+ * to the server verbatim as `payment_method: state.activePaymentMethod`
+ * (:2104, :2193) -- reports already branch on 'split' (:5404). So they are
+ * real, accepted values, not future work.
+ *
+ * 'delivery_platform' still isn't a cashier-selected method at all: the
+ * delivery channel replaces the whole tab strip with a prepaid
+ * confirmation and an invoice-last-4 field (:1616).
  */
 
-export type PaymentMethod = 'cash' | 'card';
+export type PaymentMethod = 'cash' | 'card' | 'split' | 'loyalty';
 
 /**
  * PAYMENT_PENDING: persisted locally, no network attempt made yet.

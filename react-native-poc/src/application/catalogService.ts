@@ -80,6 +80,27 @@ export async function getNotifySoundEnabled(businessId: number): Promise<boolean
   return data ? data.notify_sound_enabled !== false : true;
 }
 
+/** businesses.pos_hide_product_images, read exactly the way loadPosData()
+ *  reads it (rakeen-pos.js:5833):
+ *
+ *    POS_HIDE_PRODUCT_IMAGES = res.data ? res.data.pos_hide_product_images !== false : true
+ *
+ *  Note the polarity: this defaults to HIDDEN, both for a business that
+ *  never set the column and for a row that can't be read at all. The
+ *  source's own reasoning, verbatim from its declaration (:5664): real
+ *  photos are "the slowest thing this grid renders, and a plain icon is
+ *  guaranteed to paint instantly regardless of device/network". So a tile
+ *  showing a category icon rather than the uploaded photo is the correct,
+ *  intended default -- not a missing-image bug. */
+export async function getHideProductImages(businessId: number): Promise<boolean> {
+  const { data } = await supabase
+    .from('businesses')
+    .select('pos_hide_product_images')
+    .eq('id', businessId)
+    .single();
+  return data ? data.pos_hide_product_images !== false : true;
+}
+
 /** Feature Parity Pass -- Real Receipt Rendering. The subset of
  *  loadPosData()'s businesses query needed to print a real ZATCA-QR/
  *  logo/custom-message receipt (BUSINESS_VAT_NUMBER/BUSINESS_LOGO_URL/
@@ -155,6 +176,7 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
         price: Number(s.price),
         isService: true,
         imageUrl: null,
+        imageThumbUrl: null,
         durationMinutes: s.duration_minutes,
         barcode: null,
         pointsRedeemPrice: null,
@@ -169,6 +191,7 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
     price: Number(m.price),
     isService: false,
     imageUrl: m.image_url || null,
+    imageThumbUrl: m.image_thumb_url || null,
     barcode: m.barcode || null,
     pointsRedeemPrice: m.points_redeem_price != null ? Number(m.points_redeem_price) : null,
   }));

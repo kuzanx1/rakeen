@@ -65,6 +65,8 @@
 	<key>UIAppFonts</key>
 	<array>
 		<string>IBMPlexMono-Bold.ttf</string>
+		<string>SaudiRiyal-Regular.ttf</string>
+		<string>SaudiRiyal-Bold.ttf</string>
 		<string>IBMPlexMono-Medium.ttf</string>
 		<string>IBMPlexMono-SemiBold.ttf</string>
 		<string>IBMPlexSansArabic-Bold.ttf</string>

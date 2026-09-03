@@ -24,6 +24,11 @@ export interface Product {
   price: number;
   isService: boolean;
   imageUrl: string | null;
+  /** menu_items.image_thumb_url -- the tile-sized variant renderProducts()
+   *  actually prefers: `<img src="${p.imageThumb || p.image}">`
+   *  (rakeen-pos.js:603). Always null for services, whose own PWA mapping
+   *  has no image at all. */
+  imageThumbUrl: string | null;
   durationMinutes?: number;
   /** menu_items.barcode -- always null for services (PWA's own
    *  BARCODE_TO_PRODUCT_ID comment: "empty for service businesses,

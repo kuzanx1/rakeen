@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,11 +12,19 @@ import {
 } from 'react-native';
 import { Pressable, TouchableOpacity } from './tappable';
 import LinearGradient from 'react-native-linear-gradient';
-import Svg, { Circle, Line, Polygon, Polyline } from 'react-native-svg';
+import Svg, { Circle, Line, Path, Polygon, Polyline } from 'react-native-svg';
 import { createStyles, fonts, gradients, layout, radii, spacing, useTheme } from './theme';
 import { CategoryIcon, iconForCategoryName } from './categoryIcons';
+import Money from './Money';
 import { useShell } from './shell';
-import { loadCatalog, getBusinessType, getFinancialSettings, getReceiptBusinessProfile, CatalogResult } from '../application/catalogService';
+import {
+  loadCatalog,
+  getBusinessType,
+  getFinancialSettings,
+  getHideProductImages,
+  getReceiptBusinessProfile,
+  CatalogResult,
+} from '../application/catalogService';
 import { getOrderHistoryDetail } from '../application/orderHistoryService';
 import { submitOrder } from '../application/orderService';
 import { completePaymentOperation } from '../application/paymentService';
@@ -34,6 +43,7 @@ import type { CashierProfile } from '../domain/auth';
 import { useCart } from './useCart';
 import ModifierModal from './ModifierModal';
 import PaymentModal from './PaymentModal';
+import type { PaymentMethod } from '../domain/payment';
 import CustomerPickerModal from './CustomerPickerModal';
 import LoyaltyRedeemModal from './LoyaltyRedeemModal';
 import type { Customer } from '../domain/customer';
@@ -164,6 +174,37 @@ export default function ProductsScreen({
   // #favToggle / .fav-star -- both session-scoped, see toggleFavourite.
   const [showFavOnly, setShowFavOnly] = useState(false);
   const [favIds, setFavIds] = useState<Set<number>>(() => new Set());
+  /** POS_HIDE_PRODUCT_IMAGES. Initialised to the source's own default of
+   *  true so the very first paint matches what loadPosData() would have
+   *  had -- starting at false would flash real photos onto every tile and
+   *  then pull them back once the businesses row arrives. */
+  const [hideImages, setHideImages] = useState(true);
+
+  /** .discount-panel is `display:none` until .discount-toggle opens it. */
+  const [discountPanelOpen, setDiscountPanelOpen] = useState(false);
+
+  /** .clear-btn's arm/confirm flag, plus the 3s timer that drops it --
+   *  `let clearArmed = false, clearArmTimer` (rakeen-pos.js:1416). The
+   *  timer lives in a ref, not state, because re-arming has to cancel the
+   *  PREVIOUS timeout: a value captured in a render closure would leave
+   *  the stale one running and disarm the button early. */
+  const [clearArmed, setClearArmed] = useState(false);
+  const clearArmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** state.lastTransaction -- the sale just completed, shown on the empty
+   *  cart so the cashier can reprint without leaving Home. Session-only
+   *  in the source too: it is a plain `state` field, never persisted. */
+  const [lastTransaction, setLastTransaction] = useState<{ total: number; time: string } | null>(null);
+
+
+  useEffect(
+    () => () => {
+      if (clearArmTimer.current) clearTimeout(clearArmTimer.current);
+    },
+    [],
+  );
+
+
 
   /**
    * The same breakpoint pair the PWA uses, not an approximation:
@@ -215,12 +256,14 @@ export default function ProductsScreen({
       try {
         const type = await getBusinessType(cashier.business_id);
         setBusinessType(type);
-        const [result, settings] = await Promise.all([
+        const [result, settings, hideImgs] = await Promise.all([
           loadCatalog(cashier.business_id, type),
           getFinancialSettings(cashier.business_id),
+          getHideProductImages(cashier.business_id),
         ]);
         setCatalog(result);
         setFinancial(settings);
+        setHideImages(hideImgs);
         if (result.categories.length > 0) {
           setActiveCategoryId(result.categories[0].id);
         }
@@ -245,6 +288,34 @@ export default function ProductsScreen({
     financial.vatRate,
     financial.pricesIncludeVat,
   );
+
+
+  /** #lastTxReprint. The source's own handler is a toast and nothing
+   *  more (`showToast('تمت إعادة الطباعة')`, rakeen-pos.js:1012) -- it
+   *  does NOT re-enqueue a print job, because by that point the receipt
+   *  payload has already been discarded with the cart. Reproduced as-is
+   *  rather than "improved" into a real reprint, which would be new
+   *  behaviour this app's source does not have. */
+  const handleReprintLast = useCallback(() => {
+    setSubmitStatus('تمت إعادة الطباعة');
+  }, []);
+
+  /** clearOrderBtn's two-tap arm/confirm (rakeen-pos.js:1417). */
+  const handleClearOrder = useCallback(() => {
+    if (cart.cart.length === 0) return;
+    if (!clearArmed) {
+      setClearArmed(true);
+      clearArmTimer.current = setTimeout(() => setClearArmed(false), 3000);
+      return;
+    }
+    if (clearArmTimer.current) clearTimeout(clearArmTimer.current);
+    setClearArmed(false);
+    // clearCart() already zeroes discountPct (useCart.ts:87), matching
+    // the source's own `state.cart = []; state.discountPct = 0`.
+    cart.clearCart();
+    setDiscountPanelOpen(false);
+    setSubmitStatus('\u062a\u0645 \u0625\u0641\u0631\u0627\u063a \u0627\u0644\u0637\u0644\u0628');
+  }, [cart, clearArmed]);
 
   const visibleProducts = useMemo<Product[]>(() => {
     if (!catalog) return [];
@@ -432,7 +503,7 @@ export default function ProductsScreen({
    * exact session most recently registered -- a real, honest, disclosed
    * scope limit, not a redesign of the RPC or its idempotency.
    */
-  const handlePayDineInOrder = async (method: 'cash' | 'card', cashAmount: number | null) => {
+  const handlePayDineInOrder = async (method: PaymentMethod, cashAmount: number | null) => {
     if (lastRegisteredDineInOrderId == null) return;
     setSubmitting(true);
     try {
@@ -530,7 +601,7 @@ export default function ProductsScreen({
    *  drawer kick attempted for cash (independent of the network result),
    *  honest state reporting. Never "تم فتح الدرج" unless drawerState is
    *  genuinely DRAWER_COMPLETED. */
-  const handlePayOrder = async (method: 'cash' | 'card', cashAmount: number | null) => {
+  const handlePayOrder = async (method: PaymentMethod, cashAmount: number | null) => {
     if (cart.cart.length === 0 || !catalog) return;
     setSubmitting(true);
     try {
@@ -621,7 +692,17 @@ export default function ProductsScreen({
           // Never let a receipt-metadata fetch failure look like the sale
           // itself failed -- the payment above already succeeded/queued.
         }
+        // state.lastTransaction, recorded just BEFORE the cart is wiped
+        // (rakeen-pos.js:3257) -- the empty panel's .last-tx-card reads
+        // from it, so capturing it after the clear would always store 0.
+        setLastTransaction({
+          total: cart.totals.total,
+          time: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+        });
         cart.clearCart(); // safe in the SQLite queue either way, per Checkpoint 5
+        // `document.getElementById('discountToggle').textContent = '+ خصم'`
+        // (:3269) -- the toggle's label AND its panel go back to rest.
+        setDiscountPanelOpen(false);
         setSelectedCustomer(null); // transaction fully settled -- start clean for the next customer
       }
     } catch (e) {
@@ -760,6 +841,7 @@ export default function ProductsScreen({
                 categoryName={catalog.categories.find(c => c.id === item.categoryId)?.name ?? ''}
                 hasMods={!!catalog.modifiersByProductId[item.id]}
                 isFav={favIds.has(item.id)}
+                hideImages={hideImages}
                 onPress={() => handleTapProduct(item)}
                 onLongPress={() => handleTapProduct(item, true)}
                 onToggleFav={() => toggleFavourite(item.id)}
@@ -788,62 +870,134 @@ export default function ProductsScreen({
             })}
           </View>
 
-          <ScrollView style={styles.cartLines}>
-            {cart.cart.length === 0 && <Text style={styles.subtitle}>السلة فارغة</Text>}
-            {cart.cart.map(line => {
-              const product = productsById.get(line.productId);
-              return (
-                // .order-item > .oi-row -- child order is qty stepper,
-                // info, line total, remove. This screen previously had
-                // info first, no line total and no remove button.
-                <View key={line.lineId} style={styles.cartLine}>
-                  {/* .oi-qty -- a surf1 pill wrapping the two buttons */}
-                  <View style={styles.qtyControls}>
-                    <TouchableOpacity onPress={() => cart.changeQty(line.lineId, -1)} style={styles.qtyButton}>
-                      <Text style={styles.qtyButtonText}>-</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.qtyValue}>{line.qty}</Text>
-                    <TouchableOpacity onPress={() => cart.changeQty(line.lineId, 1)} style={styles.qtyButton}>
-                      <Text style={styles.qtyButtonText}>+</Text>
+          {/* .order-items -- `flex:1; min-height:110px; padding:6px 18px` */}
+          <ScrollView
+            style={styles.cartLines}
+            contentContainerStyle={cart.cart.length === 0 ? styles.cartLinesEmpty : undefined}>
+            {cart.cart.length === 0 ? (
+              /* .order-empty -- renderOrder()'s own empty branch
+                 (rakeen-pos.js:1054): a 38x38 half-opacity shopping-cart
+                 glyph over the line "اضغط منتج عشان يضاف". This screen
+                 previously showed a bare "السلة فارغة" string that exists
+                 nowhere in the source. */
+              <View style={styles.orderEmpty}>
+                <Svg width={38} height={38} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={1.5} opacity={0.5}>
+                  <Circle cx={9} cy={21} r={1} />
+                  <Circle cx={20} cy={21} r={1} />
+                  <Path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+                </Svg>
+                <Text style={styles.orderEmptyText}>اضغط منتج عشان يضاف</Text>
+                {/* .last-tx-card -- only when a previous sale exists in
+                    this session, exactly as `state.lastTransaction ? ... : ''`. */}
+                {lastTransaction && (
+                  <View style={styles.lastTxCard}>
+                    <View style={styles.lastTxInfo}>
+                      <Text style={styles.lastTxLabel}>آخر عملية</Text>
+                      <View style={styles.lastTxValue}>
+                        <Money value={lastTransaction.total} size={11} />
+                        <Text style={styles.lastTxTime}> — {lastTransaction.time}</Text>
+                      </View>
+                    </View>
+                    <TouchableOpacity style={styles.lastTxReprint} onPress={handleReprintLast} activeOpacity={0.8}>
+                      <Text style={styles.lastTxReprintText}>إعادة طباعة</Text>
                     </TouchableOpacity>
                   </View>
-                  {/* .oi-info */}
-                  <View style={styles.cartLineInfo}>
-                    <Text style={styles.cartLineName} numberOfLines={2}>
-                      {product?.name || '—'}
-                    </Text>
-                    {/* .oi-unit */}
-                    <Text style={styles.cartLinePrice}>{cart.unitPriceOf(line).toFixed(2)} ر.س</Text>
+                )}
+              </View>
+            ) : (
+              cart.cart.map(line => {
+                const product = productsById.get(line.productId);
+                const unitPrice = cart.unitPriceOf(line);
+                return (
+                  // .order-item > .oi-row -- child order is qty stepper,
+                  // info, line total, remove.
+                  <View key={line.lineId} style={styles.cartLine}>
+                    {/* .oi-qty -- a surf1 pill wrapping the two buttons */}
+                    <View style={styles.qtyControls}>
+                      <TouchableOpacity onPress={() => cart.changeQty(line.lineId, -1)} style={styles.qtyButton}>
+                        {/* U+2212 MINUS SIGN, as in the source markup --
+                            not a hyphen, which renders visibly shorter
+                            and sits off-centre against the "+". */}
+                        <Text style={styles.qtyButtonText}>{'\u2212'}</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.qtyValue}>{line.qty}</Text>
+                      <TouchableOpacity onPress={() => cart.changeQty(line.lineId, 1)} style={styles.qtyButton}>
+                        <Text style={styles.qtyButtonText}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                    {/* .oi-info */}
+                    <View style={styles.cartLineInfo}>
+                      <Text style={styles.cartLineName} numberOfLines={2}>
+                        {product?.name || '—'}
+                        {line.isPointsRedemption ? ' 🎁' : ''}
+                      </Text>
+                      {/* .oi-unit -- rendered ONLY at qty > 1 and never
+                          for a points redemption, and reading
+                          "<price> / حبة", not a bare price. */}
+                      {line.qty > 1 && !line.isPointsRedemption && (
+                        <View style={styles.cartLinePrice}>
+                          <Money value={unitPrice} size={10} color={colors.muted} />
+                          <Text style={styles.cartLineUnitSuffix}> / حبة</Text>
+                        </View>
+                      )}
+                    </View>
+                    {/* .oi-total -- "نقاط" instead of a figure for a
+                        points redemption, which costs no money. */}
+                    {line.isPointsRedemption ? (
+                      <Text style={styles.cartLineTotal}>نقاط</Text>
+                    ) : (
+                      <Money value={unitPrice * line.qty} size={12.5} style={styles.cartLineTotalBox} />
+                    )}
+                    {/* .oi-remove */}
+                    <TouchableOpacity onPress={() => cart.removeFromCart(line.lineId)} style={styles.cartLineRemove} hitSlop={6}>
+                      <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={2} strokeLinecap="round">
+                        <Line x1={18} y1={6} x2={6} y2={18} />
+                        <Line x1={6} y1={6} x2={18} y2={18} />
+                      </Svg>
+                    </TouchableOpacity>
                   </View>
-                  {/* .oi-total */}
-                  <Text style={styles.cartLineTotal}>{(cart.unitPriceOf(line) * line.qty).toFixed(2)}</Text>
-                  {/* .oi-remove */}
-                  <TouchableOpacity onPress={() => cart.removeFromCart(line.lineId)} style={styles.cartLineRemove} hitSlop={6}>
-                    <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={2} strokeLinecap="round">
-                      <Line x1={18} y1={6} x2={6} y2={18} />
-                      <Line x1={6} y1={6} x2={18} y2={18} />
-                    </Svg>
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
+                );
+              })
+            )}
           </ScrollView>
 
-          <View style={styles.discountBar}>
-            {DISCOUNT_OPTIONS.map(pct => {
-              const active = cart.discountPct === pct;
-              return (
-                <TouchableOpacity
-                  key={pct}
-                  style={[styles.discountChip, active && styles.discountChipActive]}
-                  onPress={() => cart.setDiscountPct(pct)}
-                  activeOpacity={0.8}>
-                  <Text style={[styles.discountChipText, active && styles.discountChipTextActive]}>
-                    {pct === 0 ? 'بدون خصم' : `${pct}%`}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+          {/* .op-discount-row -- a dashed toggle that EXPANDS the options,
+              which are hidden until then (`.discount-panel{display:none}`
+              / `.open{display:flex}`). This screen previously showed all
+              five percentages permanently, which is a different control. */}
+          <View style={styles.opDiscountRow}>
+            <TouchableOpacity
+              style={styles.discountToggle}
+              onPress={() => setDiscountPanelOpen(o => !o)}
+              activeOpacity={0.8}>
+              {/* The toggle's own label carries the active state -- the
+                  source rewrites its textContent on pick (:1144). */}
+              <Text style={styles.discountToggleText}>
+                {cart.discountPct > 0 ? `خصم ${cart.discountPct}٪ مفعّل` : '+ خصم'}
+              </Text>
+            </TouchableOpacity>
+            {discountPanelOpen && (
+              <View style={styles.discountPanel}>
+                {DISCOUNT_OPTIONS.map(pct => {
+                  const active = pct > 0 && cart.discountPct === pct;
+                  return (
+                    <TouchableOpacity
+                      key={pct}
+                      style={[styles.discountChip, active && styles.discountChipActive]}
+                      onPress={() => {
+                        cart.setDiscountPct(pct);
+                        // The panel closes on any pick, إلغاء included.
+                        setDiscountPanelOpen(false);
+                      }}
+                      activeOpacity={0.8}>
+                      <Text style={[styles.discountChipText, active && styles.discountChipTextActive]}>
+                        {pct === 0 ? 'إلغاء' : `${pct}٪`}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
           </View>
 
           <TouchableOpacity
@@ -869,47 +1023,87 @@ export default function ProductsScreen({
             </TouchableOpacity>
           )}
 
+          {/* .order-summary. renderOrder() (rakeen-pos.js:1120) emits these
+              rows in exactly this order, and the first one -- the item
+              COUNT, `state.cart.reduce((s,i)=>s+i.qty,0)` -- was missing
+              here entirely. */}
           <View style={styles.totalsBox}>
             <View style={styles.totalsRow}>
+              <Text style={styles.totalsLabel}>عدد الأصناف</Text>
+              <Text style={styles.totalsValue}>{cart.cart.reduce((n, i) => n + i.qty, 0)}</Text>
+            </View>
+            <View style={styles.totalsRow}>
               <Text style={styles.totalsLabel}>المجموع الفرعي</Text>
-              <Text style={styles.totalsValue}>{cart.totals.subtotal.toFixed(2)}</Text>
+              <Money value={cart.totals.subtotal} size={11.5} />
             </View>
             {cart.totals.discount > 0 && (
+              // .sum-row.discount -- the label carries the percentage,
+              // and the figure is NEGATIVE (`rkMoney(-discount)`).
               <View style={styles.totalsRow}>
-                <Text style={styles.totalsLabel}>الخصم</Text>
-                <Text style={[styles.totalsValue, styles.totalsValueDiscount]}>-{cart.totals.discount.toFixed(2)}</Text>
+                <Text style={styles.totalsLabel}>{`خصم (${cart.discountPct}٪)`}</Text>
+                <Money value={-cart.totals.discount} size={11.5} color={colors.accentText} />
               </View>
             )}
             <View style={styles.totalsRow}>
-              <Text style={styles.totalsLabel}>ضريبة القيمة المضافة</Text>
-              <Text style={styles.totalsValue}>{cart.totals.vat.toFixed(2)}</Text>
+              {/* The VAT label gains "(شاملة ضمن الإجمالي)" when prices
+                  are VAT-inclusive, so the figure is not read as an
+                  addition on top of the total. */}
+              <Text style={styles.totalsLabel}>
+                ضريبة القيمة المضافة{financial?.pricesIncludeVat ? ' (شاملة ضمن الإجمالي)' : ''}
+              </Text>
+              <Money value={cart.totals.vat} size={11.5} />
             </View>
             <View style={[styles.totalsRow, styles.totalsRowFinal]}>
               <Text style={styles.totalsLabelFinal}>الإجمالي</Text>
-              <Text style={styles.totalsValueFinal}>{cart.totals.total.toFixed(2)} ر.س</Text>
+              <Money value={cart.totals.total} size={17} color={colors.accentText} />
             </View>
           </View>
 
           {!!submitStatus && <Text style={styles.submitStatus}>{submitStatus}</Text>}
 
-          {cart.orderChannel === 'dine_in' ? (
-            <>
+          {/* .order-actions -- `padding:8px 18px 14px; gap:6px`, holding
+              the pay button and, under it, .clear-btn. */}
+          <View style={styles.orderActions}>
+            {cart.orderChannel === 'dine_in' ? (
+              <>
+                <PayButton
+                  label={submitting ? 'جارٍ الإرسال...' : lastRegisteredDineInOrderId ? 'إضافة للطلب' : 'تسجيل الطلب'}
+                  onPress={handleRegisterDineInOrder}
+                  disabled={cart.cart.length === 0 || submitting}
+                />
+                {lastRegisteredDineInOrderId != null && (
+                  <PayButton
+                    label={`دفع الطلب #${lastRegisteredDineInOrderId}`}
+                    onPress={handleOpenDineInPayment}
+                    disabled={submitting}
+                  />
+                )}
+              </>
+            ) : (
+              /* #payBtn is a two-part label -- #payBtnLabel then
+                 #payBtnAmount (rakeen-pos.js:1126-1128) -- so it reads
+                 "ادفع — 12.50", never a bare "الدفع". */
               <PayButton
-                label={submitting ? 'جارٍ الإرسال...' : lastRegisteredDineInOrderId ? 'إضافة جولة' : 'تسجيل الطلب (بدون دفع)'}
-                onPress={handleRegisterDineInOrder}
+                label={submitting ? 'جارٍ الإرسال...' : 'ادفع'}
+                amount={submitting ? undefined : cart.totals.total}
+                onPress={() => setPaymentModalOpen(true)}
                 disabled={cart.cart.length === 0 || submitting}
               />
-              {lastRegisteredDineInOrderId != null && (
-                <PayButton label={`دفع الطلب #${lastRegisteredDineInOrderId}`} onPress={handleOpenDineInPayment} disabled={submitting} />
-              )}
-            </>
-          ) : (
-            <PayButton
-              label={submitting ? 'جارٍ الإرسال...' : 'الدفع'}
-              onPress={() => setPaymentModalOpen(true)}
-              disabled={cart.cart.length === 0 || submitting}
-            />
-          )}
+            )}
+
+            {/* .clear-btn -- a two-tap arm/confirm with no blocking
+                dialog, and a 3s timeout that disarms it (:1417). The
+                armed state restyles the button (.armed) AND swaps its
+                label. Was missing from this screen entirely. */}
+            <TouchableOpacity
+              style={[styles.clearBtn, clearArmed && styles.clearBtnArmed]}
+              onPress={handleClearOrder}
+              activeOpacity={0.8}>
+              <Text style={[styles.clearBtnText, clearArmed && styles.clearBtnTextArmed]}>
+                {clearArmed ? 'اضغط مرة ثانية للتأكيد' : 'إفراغ الطلب'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -918,6 +1112,10 @@ export default function ProductsScreen({
         total={cart.orderChannel === 'dine_in' ? dineInOrderTotal : cart.totals.total}
         submitting={submitting}
         onCancel={() => setPaymentModalOpen(false)}
+        // `state.customer && state.customer.id && state.customer.points > 0`
+        // -- the same gate renderPaymentStep() uses before appending the
+        // الولاء tab (rakeen-pos.js:1641).
+        loyaltyAvailable={selectedCustomer?.id != null && selectedCustomer.points > 0}
         onConfirm={(method, cashAmount) =>
           cart.orderChannel === 'dine_in' ? handlePayDineInOrder(method, cashAmount) : handlePayOrder(method, cashAmount)
         }
@@ -983,6 +1181,7 @@ function ProductCard({
   categoryName,
   hasMods,
   isFav,
+  hideImages,
   onPress,
   onLongPress,
   onToggleFav,
@@ -991,12 +1190,14 @@ function ProductCard({
   categoryName: string;
   hasMods: boolean;
   isFav: boolean;
+  hideImages: boolean;
   onPress: () => void;
   onLongPress: () => void;
   onToggleFav: () => void;
 }) {
   const { colors } = useTheme();
   const styles = useStyles();
+  const imageSrc = !hideImages ? product.imageThumbUrl || product.imageUrl : null;
   const meta = product.isService && product.durationMinutes
     ? `${product.durationMinutes} د${categoryName ? ` · ${categoryName}` : ''}`
     : categoryName;
@@ -1014,10 +1215,32 @@ function ProductCard({
         start={gradients.productIcon.start}
         end={gradients.productIcon.end}
         style={styles.productIcon}>
+        {/* renderProducts() (rakeen-pos.js:603) picks exactly one of these
+            two as .product-icon's content:
+              (p.image && !POS_HIDE_PRODUCT_IMAGES)
+                ? `<img src="${p.imageThumb || p.image}">`
+                : ICONS[p.icon]
+            -- the thumb preferred over the full-size photo, and the
+            category icon whenever the business hides photos (which is the
+            default; see getHideProductImages). The tile was previously an
+            empty gradient in both cases. */}
+        {imageSrc ? (
+          // .product-icon img -- 100%/100%, object-fit:cover, r-md.
+          <Image source={{ uri: imageSrc }} style={styles.productImage} resizeMode="cover" />
+        ) : (
+          // .product-icon svg -- a flat 26x26, inheriting the tile's
+          // `color` (flagGreenDeep in light, lime in dark).
+          <CategoryIcon
+            name={iconForCategoryName(categoryName)}
+            width={26}
+            height={26}
+            stroke={colors.productIconInk}
+          />
+        )}
         {/* .product-price sits inside .product-icon, which is the
             position:relative ancestor it is anchored to. */}
         <View style={styles.productPriceChip}>
-          <Text style={styles.productPrice}>{product.price.toFixed(2)} ر.س</Text>
+          <Money value={product.price} size={11} color={colors.accentText} />
         </View>
       </LinearGradient>
       <Text style={styles.productName} numberOfLines={2}>
@@ -1057,19 +1280,45 @@ function ProductCard({
   );
 }
 
-function PayButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled: boolean }) {
+/**
+ * #payBtn is two spans, not one string: #payBtnLabel then #payBtnAmount,
+ * the latter written with `innerHTML = rkMoney(total)`
+ * (rakeen-pos.js:1126-1128). So `amount` is passed as a NUMBER and drawn
+ * by <Money>, giving it the same fraction/riyal treatment as every other
+ * figure -- interpolating it into `label` would flatten it back to a
+ * plain string.
+ */
+function PayButton({
+  label,
+  amount,
+  onPress,
+  disabled,
+}: {
+  label: string;
+  amount?: number;
+  onPress: () => void;
+  disabled: boolean;
+}) {
+  const { colors } = useTheme();
   const styles = useStyles();
+  const content = (
+    <>
+      <Text style={[styles.payButtonText, disabled && styles.payButtonTextDisabled]}>{label}</Text>
+      {amount != null && (
+        <>
+          <Text style={[styles.payButtonText, disabled && styles.payButtonTextDisabled]}>{' \u2014 '}</Text>
+          <Money value={amount} size={15} color={disabled ? colors.muted : colors.flagGreenDeep} />
+        </>
+      )}
+    </>
+  );
   if (disabled) {
-    return (
-      <View style={[styles.payButton, styles.payButtonDisabled]}>
-        <Text style={[styles.payButtonText, styles.payButtonTextDisabled]}>{label}</Text>
-      </View>
-    );
+    return <View style={[styles.payButton, styles.payButtonDisabled]}>{content}</View>;
   }
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
       <LinearGradient colors={gradients.payButton.colors} start={gradients.payButton.start} end={gradients.payButton.end} style={styles.payButton}>
-        <Text style={styles.payButtonText}>{label}</Text>
+        {content}
       </LinearGradient>
     </TouchableOpacity>
   );
@@ -1297,7 +1546,81 @@ const useStyles = createStyles((colors, shadows) =>
   },
   channelTabText: { fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.muted },
   channelTabTextActive: { color: colors.flagGreenDeep },
-  cartLines: { flex: 1, paddingHorizontal: spacing[4] },
+  // .product-icon img
+  productImage: { width: '100%', height: '100%', borderRadius: radii.md },
+  // .order-items -- `flex:1; min-height:110px; overflow-y:auto; padding:6px 18px`
+  cartLines: { flex: 1, minHeight: 110, paddingHorizontal: 18, paddingVertical: 6 },
+  // .order-empty is `height:100%`, which only centres if the scroll
+  // content is allowed to fill the viewport -- hence flexGrow on the
+  // container rather than a height on the child.
+  cartLinesEmpty: { flexGrow: 1 },
+  // .order-empty -- `height:100%; gap:12px; padding:20px`, centred
+  orderEmpty: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    padding: 20,
+  },
+  // .order-empty p
+  orderEmptyText: { fontFamily: fonts.sansSemiBold, fontSize: 12.5, color: colors.muted, textAlign: 'center' },
+  // .last-tx-card
+  lastTxCard: {
+    marginTop: 6,
+    width: '100%',
+    padding: 14,
+    borderRadius: radii.md,
+    backgroundColor: colors.surf1,
+    borderWidth: 1,
+    borderColor: colors.line,
+    gap: 8,
+  },
+  // .last-tx-info -- `justify-content:space-between`
+  lastTxInfo: { flexDirection: 'row', justifyContent: 'space-between' },
+  lastTxLabel: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.text },
+  // the amount half is .mono in the source markup
+  // .last-tx-info's second span -- an rkMoney box followed by the time
+  lastTxValue: { flexDirection: 'row', alignItems: 'baseline' },
+  lastTxTime: { fontFamily: fonts.monoBold, fontSize: 11, color: colors.text },
+  // .last-tx-reprint
+  lastTxReprint: {
+    padding: 8,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: 'center',
+  },
+  lastTxReprintText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.muted },
+  // .op-discount-row -- `padding:12px 18px 0`
+  opDiscountRow: { paddingTop: 12, paddingHorizontal: 18 },
+  // .discount-toggle -- a DASHED, borderless-background full-width button
+  discountToggle: {
+    width: '100%',
+    padding: 10,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  discountToggleText: { fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.muted },
+  // .discount-panel.open -- `margin-top:8px; gap:6px; display:flex`
+  discountPanel: { flexDirection: 'row', gap: 6, marginTop: 8 },
+  // .order-actions -- `padding:8px 18px 14px; gap:6px`
+  orderActions: { paddingTop: 8, paddingHorizontal: 18, paddingBottom: 14, gap: 6 },
+  // .clear-btn
+  clearBtn: {
+    width: '100%',
+    padding: 8,
+    borderRadius: radii.md,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+  },
+  // .clear-btn.armed -- a literal rgba(224,138,106,0.15), not a token
+  clearBtnArmed: { backgroundColor: 'rgba(224,138,106,0.15)' },
+  clearBtnText: { fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.muted },
+  clearBtnTextArmed: { color: colors.danger },
   // .order-item (`padding:8px 0; border-bottom`) + .oi-row (`gap:8px`)
   cartLine: {
     flexDirection: 'row',
@@ -1312,9 +1635,11 @@ const useStyles = createStyles((colors, shadows) =>
   // .oi-name -- 2-line clamp, line-height 1.3 * 12.5px
   cartLineName: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.text, lineHeight: 16 },
   // .oi-unit
-  cartLinePrice: { fontFamily: fonts.monoMedium, fontSize: 10, color: colors.muted, marginTop: 1, writingDirection: 'ltr' },
+  cartLinePrice: { flexDirection: 'row', alignItems: 'baseline', marginTop: 1 },
+  cartLineUnitSuffix: { fontFamily: fonts.monoMedium, fontSize: 10, color: colors.muted },
   // .oi-total -- mono, 800, 12.5px, flex-shrink:0
-  cartLineTotal: { fontFamily: fonts.monoBold, fontSize: 12.5, color: colors.text, flexShrink: 0, writingDirection: 'ltr' },
+  cartLineTotal: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.text, flexShrink: 0 },
+  cartLineTotalBox: { flexShrink: 0 },
   // .oi-remove -- 20px, muted, 12px glyph
   cartLineRemove: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   // .oi-qty -- `gap:4px; flex-shrink:0; background:var(--surf1);
@@ -1341,8 +1666,6 @@ const useStyles = createStyles((colors, shadows) =>
   qtyButtonText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text },
   // .qty-val
   qtyValue: { fontFamily: fonts.sansBold, fontSize: 11.5, minWidth: 16, textAlign: 'center', color: colors.text },
-  // .discount-panel.open (shown persistently here rather than toggled)
-  discountBar: { flexDirection: 'row', gap: 6, paddingHorizontal: spacing[4], paddingTop: spacing[2] },
   // .disc-btn
   discountChip: {
     flex: 1,
@@ -1395,7 +1718,8 @@ const useStyles = createStyles((colors, shadows) =>
   },
   loyaltyRowText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.amber },
   // .order-summary / .sum-row
-  totalsBox: { paddingHorizontal: spacing[4], paddingVertical: spacing[2] },
+  // .order-summary -- `padding:6px 18px; gap:2px`
+  totalsBox: { paddingHorizontal: 18, paddingVertical: 6, gap: 2 },
   totalsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 },
   totalsRowFinal: { marginTop: 2, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.line, borderStyle: 'dashed' },
   totalsLabel: { fontFamily: fonts.sansSemiBold, fontSize: 11.5, color: colors.muted },
@@ -1405,15 +1729,25 @@ const useStyles = createStyles((colors, shadows) =>
   // .sum-row.total .mono -- --lime-deep, overridden to --lime in dark
   totalsValueFinal: { fontFamily: fonts.monoBold, fontSize: 17, color: colors.accentText, writingDirection: 'ltr' },
   // .pay-btn, inside .order-actions's own padding:8px 18px 14px
+  // .pay-btn -- `width:100%; padding:13px; border-radius:var(--r-md);
+  // box-shadow:0 10px 24px rgba(var(--lime-deep-rgb), 0.35)`. The inline
+  // margins that used to sit here are gone: .order-actions now supplies
+  // the 18px padding and the 6px gap, so keeping them doubled the inset.
   payButton: {
-    paddingVertical: 13,
+    flexDirection: 'row',
+    width: '100%',
+    padding: 13,
     borderRadius: radii.md,
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: spacing[4],
-    marginTop: spacing[2],
+    shadowColor: colors.limeDeep,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    elevation: 6,
   },
-  payButtonDisabled: { backgroundColor: colors.surf2 },
+  // .pay-btn:disabled drops the shadow along with the gradient.
+  payButtonDisabled: { backgroundColor: colors.surf2, shadowOpacity: 0, elevation: 0 },
   payButtonText: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.flagGreenDeep },
   payButtonTextDisabled: { color: colors.muted },
   submitStatus: { fontFamily: fonts.sansSemiBold, fontSize: 11, textAlign: 'center', paddingHorizontal: spacing[4], color: colors.muted },

@@ -81,6 +81,16 @@ export interface Palette {
    * .pin-dot.filled and .more-item svg.
    */
   accentText: string;
+  /**
+   * .product-icon's own `color`, which its 26x26 category SVG inherits.
+   * A SECOND, differently-valued lime-swap rule -- not accentText: the
+   * base is flag-green-deep, not lime-deep
+   * (`.product-icon{ ... color:var(--flag-green-deep) }`,
+   * rakeen-pos.css:212-217), and only the dark override
+   * (`[data-theme="dark"] .product-icon{color:var(--lime)}`, :218) lands
+   * on the same lime both tokens share.
+   */
+  productIconInk: string;
 }
 
 /** [data-theme="light"] block, rakeen-pos.css:30-38 (plus the brand ramp
@@ -100,6 +110,7 @@ export const LIGHT: Palette = {
   dangerRgb: '192,82,58',
   amberRgb: '168,122,30',
   accentText: BRAND.limeDeep,
+  productIconInk: BRAND.flagGreenDeep,
 };
 
 /** `:root, [data-theme="dark"]` block, rakeen-pos.css:13-28. */
@@ -118,6 +129,7 @@ export const DARK: Palette = {
   dangerRgb: '224,138,106',
   amberRgb: '224,184,74',
   accentText: BRAND.lime,
+  productIconInk: BRAND.lime,
 };
 
 export interface Shadow {

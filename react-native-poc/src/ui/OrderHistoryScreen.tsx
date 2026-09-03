@@ -26,6 +26,7 @@ import { shouldPrintCustomerReceipt, shouldPrintReceiptLogo } from '../domain/pr
 import type { ReceiptData } from '../domain/receipt';
 import { createStyles, fonts, gradients, Palette, radii, spacing, useTheme } from './theme';
 import { useShell } from './shell';
+import Money from './Money';
 
 const STATUS_TABS: { value: OrderHistoryStatus; label: string }[] = [
   { value: 'completed', label: 'مكتملة' },
@@ -210,7 +211,7 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
                 <Text style={styles.rowTitle}>#{item.id} — {item.customerName || CHANNEL_LABELS[item.channel] || item.channel}</Text>
                 <Text style={styles.rowMeta}>{new Date(item.createdAt).toLocaleString('ar-SA')}</Text>
               </View>
-              <Text style={styles.rowTotal}>{item.total.toFixed(2)} ر.س</Text>
+              <Money value={item.total} size={14.5} />
             </TouchableOpacity>
           )}
         />
@@ -236,27 +237,27 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
                       {it.qty} × {it.name}
                       {it.mods.length > 0 ? ` (${it.mods.join('، ')})` : ''}
                     </Text>
-                    <Text style={styles.itemTotal}>{it.lineTotal.toFixed(2)}</Text>
+                    <Money value={it.lineTotal} size={11.5} />
                   </View>
                 ))}
                 <View style={styles.divider} />
                 <View style={styles.itemRow}>
                   <Text style={styles.itemName}>المجموع الفرعي</Text>
-                  <Text style={styles.itemTotal}>{detail.subtotal.toFixed(2)}</Text>
+                  <Money value={detail.subtotal} size={11.5} />
                 </View>
                 {detail.discountAmount > 0 && (
                   <View style={styles.itemRow}>
                     <Text style={styles.itemName}>الخصم</Text>
-                    <Text style={styles.itemTotal}>-{detail.discountAmount.toFixed(2)}</Text>
+                    <Money value={-detail.discountAmount} size={11.5} />
                   </View>
                 )}
                 <View style={styles.itemRow}>
                   <Text style={styles.itemName}>الضريبة</Text>
-                  <Text style={styles.itemTotal}>{detail.vatAmount.toFixed(2)}</Text>
+                  <Money value={detail.vatAmount} size={11.5} />
                 </View>
                 <View style={styles.itemRow}>
                   <Text style={styles.itemNameBold}>الإجمالي</Text>
-                  <Text style={styles.itemTotalBold}>{detail.total.toFixed(2)}</Text>
+                  <Money value={detail.total} size={13.5} />
                 </View>
                 <Text style={styles.sheetMeta}>الدفع: {PAYMENT_METHOD_LABELS[detail.paymentMethod] || detail.paymentMethod}</Text>
 

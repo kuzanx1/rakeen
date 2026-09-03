@@ -104,10 +104,15 @@ export default function ModifierModal({
                         }
                         activeOpacity={0.8}>
                         <Text style={styles.chipText}>{opt.name}</Text>
+                        {/* .mod-chip-price is one of the few money-ish
+                            figures the source does NOT put through
+                            rkMoney(): it prints the RAW number with a sign
+                            and no riyal mark (rakeen-pos.js:856), so a +2
+                            delta reads "+2", not "+2.00". */}
                         {opt.price !== 0 && (
                           <Text style={styles.chipPrice}>
                             {opt.price > 0 ? '+' : ''}
-                            {opt.price.toFixed(2)}
+                            {opt.price}
                           </Text>
                         )}
                       </TouchableOpacity>
