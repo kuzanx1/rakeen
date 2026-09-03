@@ -66,6 +66,16 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
     job.type === 'receipt'
       ? await renderReceiptToEscPosBase64(job.data as unknown as ReceiptData, profile?.paperWidthPx)
       : await renderKitchenTicketToEscPosBase64(job.data as unknown as KitchenTicketData, profile?.paperWidthPx);
+  const bytes = base64ByteLength(escPosBase64);
+  // An empty render is the one way this path could report a genuine
+  // "printed" while the printer produces nothing: the native module takes
+  // Data(base64Encoded: "") as valid EMPTY data, the transport connects,
+  // writes zero bytes, and .contentProcessed reports success. Caught here
+  // rather than in Swift so it needs no native change -- and it is a real
+  // RENDER_FAILED, not a connection problem.
+  if (bytes === 0) {
+    return { ok: false, error: 'RENDER_FAILED', target: describeTarget(target), bytes: 0 };
+  }
   const result = await printReceipt({
     target,
     escPosBase64,
@@ -79,7 +89,7 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
     // actual reason (connection_refused / connection_timeout / ...).
     errorDetail: result.errorDetail,
     target: describeTarget(target),
-    bytes: base64ByteLength(escPosBase64),
+    bytes,
   };
 }
 
