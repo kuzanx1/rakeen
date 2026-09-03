@@ -89,13 +89,15 @@
   // restaurant's own Geidea apiPassword at rest (lib/geidea.ts). Provision
   // with: npx wrangler secret put GEIDEA_MASTER_KEY — never add it here,
   // this block is plaintext config, not secrets.
+  // Comma-separated list of Supabase Auth emails allowed into /admin (the
+  // platform-owner console — separate from any restaurant's own
+  // owner/staff accounts). Checked server-side in every app/api/admin/*
+  // route against the caller's verified session email; never trust a
+  // client-supplied "is admin" flag. Moved out of plaintext "vars" into a
+  // real secret (`npx wrangler secret put PLATFORM_ADMIN_EMAILS`) so this
+  // repo can safely go public without naming who holds platform-admin
+  // rights.
   "vars": {
-    "EMAIL_FROM_ADDRESS": "reports@your-domain-here.com",
-    // Comma-separated list of Supabase Auth emails allowed into /admin (the
-    // platform-owner console — separate from any restaurant's own
-    // owner/staff accounts). Checked server-side in every app/api/admin/*
-    // route against the caller's verified session email; never trust a
-    // client-supplied "is admin" flag.
-    "PLATFORM_ADMIN_EMAILS": "kuzanx1@gmail.com"
+    "EMAIL_FROM_ADDRESS": "reports@your-domain-here.com"
   }
 }
