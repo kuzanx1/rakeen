@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { listPrintJobs, retryPrintJob, retryAllFailedPrintJobs } from '../application/printService';
 import { PrintJobRecord, PrintJobStatus } from '../domain/printQueue';
+import { colors, fonts, radii, spacing } from './theme';
 
 const STATUS_LABELS: Record<PrintJobStatus, string> = {
   queued: 'بانتظار الطباعة',
@@ -12,13 +13,17 @@ const STATUS_LABELS: Record<PrintJobStatus, string> = {
   failed: 'تعذرت الطباعة',
 };
 
+// No PWA equivalent exists for this screen at all -- it's a native-only
+// capability (see the audit's gap table). Status colors reuse the same
+// theme semantics as everywhere else (lime=success, amber=pending-retry,
+// danger=failed, muted=neutral) rather than inventing new ones.
 const STATUS_COLORS: Record<PrintJobStatus, string> = {
-  queued: '#9e9e9e',
-  printing: '#3f51b5',
-  printed: '#8bc34a',
-  skipped_no_printer: '#9e9e9e',
-  retrying: '#ffb300',
-  failed: '#c0392b',
+  queued: colors.muted,
+  printing: colors.limeDeep,
+  printed: colors.lime,
+  skipped_no_printer: colors.muted,
+  retrying: colors.amber,
+  failed: colors.danger,
 };
 
 /**
@@ -70,8 +75,8 @@ export default function PrintQueueScreen() {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator />
+      <View style={[styles.root, styles.center]}>
+        <ActivityIndicator color={colors.lime} />
       </View>
     );
   }
@@ -95,14 +100,14 @@ export default function PrintQueueScreen() {
           <View style={styles.card}>
             <View style={styles.cardRow}>
               <Text style={styles.cardTitle}>{item.type === 'kitchen' ? 'تذكرة مطبخ' : 'إيصال'}</Text>
-              <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[item.status] }]}>
-                <Text style={styles.statusBadgeText}>{STATUS_LABELS[item.status]}</Text>
+              <View style={[styles.statusBadge, { backgroundColor: `${STATUS_COLORS[item.status]}26` }]}>
+                <Text style={[styles.statusBadgeText, { color: STATUS_COLORS[item.status] }]}>{STATUS_LABELS[item.status]}</Text>
               </View>
             </View>
             {!!item.last_error && <Text style={styles.errorText}>{item.last_error}</Text>}
             <Text style={styles.meta}>محاولات: {item.retry_count}</Text>
             {item.status === 'failed' && (
-              <TouchableOpacity style={styles.retryButton} onPress={() => handleRetry(item.id)} disabled={busy}>
+              <TouchableOpacity style={styles.retryButton} onPress={() => handleRetry(item.id)} disabled={busy} activeOpacity={0.8}>
                 <Text style={styles.retryButtonText}>إعادة المحاولة</Text>
               </TouchableOpacity>
             )}
@@ -114,35 +119,35 @@ export default function PrintQueueScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f2f5f0' },
+  root: { flex: 1, backgroundColor: colors.canvas },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 14,
-    backgroundColor: '#fff',
+    padding: spacing[4],
+    backgroundColor: colors.cardBg,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: colors.line,
   },
-  title: { fontSize: 17, fontWeight: '800' },
-  retryAllLink: { color: '#3f51b5', fontWeight: '700' },
-  list: { padding: 14 },
-  empty: { textAlign: 'center', color: '#777', padding: 20 },
+  title: { fontFamily: fonts.sansBold, fontSize: 17, color: colors.text },
+  retryAllLink: { fontFamily: fonts.sansBold, color: colors.limeDeep },
+  list: { padding: spacing[4] },
+  empty: { fontFamily: fonts.sansSemiBold, textAlign: 'center', color: colors.muted, padding: spacing[5] },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 10,
+    backgroundColor: colors.surf1,
+    borderRadius: radii.lg,
+    padding: spacing[3],
+    marginBottom: spacing[2],
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: colors.line,
   },
   cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  cardTitle: { fontSize: 14, fontWeight: '700' },
-  statusBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  statusBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  errorText: { fontSize: 11, color: '#c0392b', marginBottom: 4 },
-  meta: { fontSize: 11, color: '#777', marginBottom: 6 },
-  retryButton: { backgroundColor: '#8bc34a', borderRadius: 8, padding: 10, alignItems: 'center' },
-  retryButtonText: { fontWeight: '700', color: '#1a1a1a' },
+  cardTitle: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.text },
+  statusBadge: { borderRadius: radii.sm, paddingHorizontal: 8, paddingVertical: 3 },
+  statusBadgeText: { fontFamily: fonts.sansBold, fontSize: 11 },
+  errorText: { fontFamily: fonts.sansSemiBold, fontSize: 11, color: colors.danger, marginBottom: 4 },
+  meta: { fontFamily: fonts.sansSemiBold, fontSize: 11, color: colors.muted, marginBottom: spacing[2] },
+  retryButton: { backgroundColor: colors.surf2, borderRadius: radii.sm, padding: spacing[2], alignItems: 'center' },
+  retryButtonText: { fontFamily: fonts.sansBold, color: colors.text },
 });

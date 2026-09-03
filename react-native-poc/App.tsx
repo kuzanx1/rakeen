@@ -20,8 +20,8 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  useColorScheme,
 } from 'react-native';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 import { Printer, printReceipt } from './src/platform/printer';
 import { CashDrawer, openCashDrawer } from './src/platform/cashDrawer';
@@ -42,6 +42,7 @@ import { profileToPrinterTarget, drawerKickCommandFor, isDrawerSupported } from 
 import { startDiagnosticsTracking } from './src/application/diagnosticsService';
 import DiagnosticsScreen from './src/ui/DiagnosticsScreen';
 import OrderHistoryScreen from './src/ui/OrderHistoryScreen';
+import { colors, fonts, radii, spacing } from './src/ui/theme';
 
 /** React Native's Hermes runtime has no global `btoa` (unlike a browser) —
  *  a minimal base64 encoder, since pulling in a whole polyfill package for
@@ -100,6 +101,15 @@ function buildTestReceiptBase64(): string {
  * lastRegisteredDineInOrderId seeded from that table's real
  * active_order_id) every time a different table is opened, instead of
  * carrying over stale per-table state across navigations.
+ *
+ * Visual-parity pass: replaced the old top-of-screen row of 8 text
+ * links (never anything in the real PWA) with the PWA's actual
+ * navigation shape -- a 4-tab .bottom-nav (Home/Orders/Tables/More),
+ * same SVG icon paths as pos-markup.ts, same active-color rule. Items
+ * that don't map to one of those 4 real PWA tabs (print queue/printer
+ * settings/diagnostics/hardware tools/logout) live under "المزيد"
+ * (More), matching the PWA's own screen-more as the place secondary
+ * actions belong.
  */
 type Screen =
   | { name: 'tables' }
@@ -107,7 +117,26 @@ type Screen =
   | { name: 'printerSettings' }
   | { name: 'diagnostics' }
   | { name: 'orderHistory' }
+  | { name: 'more' }
   | { name: 'products'; table: SelectedTableContext | null };
+
+type NavTab = 'home' | 'orders' | 'tables' | 'more';
+
+function screenToTab(screen: Screen): NavTab {
+  switch (screen.name) {
+    case 'orderHistory':
+      return 'orders';
+    case 'tables':
+      return 'tables';
+    case 'printQueue':
+    case 'printerSettings':
+    case 'diagnostics':
+    case 'more':
+      return 'more';
+    default:
+      return 'home';
+  }
+}
 
 function App(): React.JSX.Element {
   const [cashier, setCashier] = useState<CashierProfile | null>(null);
@@ -228,77 +257,186 @@ function App(): React.JSX.Element {
     return <LoginScreen onLoggedIn={setCashier} />;
   }
 
+  const activeTab = screenToTab(screen);
+
   return (
     <SafeAreaView style={styles.root}>
       <View style={styles.topBar}>
         <Text style={styles.topBarTitle}>{cashier.full_name || 'بدون اسم'}</Text>
-        <View style={styles.topBarActions}>
-          <TouchableOpacity onPress={() => setScreen({ name: 'products', table: null })}>
-            <Text style={styles.link}>الكاشير</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setScreen({ name: 'tables' })}>
-            <Text style={styles.link}>الطاولات</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setScreen({ name: 'orderHistory' })}>
-            <Text style={styles.link}>الطلبات السابقة</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setScreen({ name: 'printQueue' })}>
-            <Text style={styles.link}>قائمة الطباعة</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setScreen({ name: 'printerSettings' })}>
-            <Text style={styles.link}>إعدادات الطابعة</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleOpenDrawerManually} disabled={drawerBusy}>
-            <Text style={styles.link}>{drawerBusy ? 'جارٍ الفتح...' : 'فتح الدرج'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setScreen({ name: 'diagnostics' })}>
-            <Text style={styles.link}>تشخيص النظام</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowHardwareTools(true)}>
-            <Text style={styles.link}>أدوات الطابعة</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={async () => {
-              await logout();
-              setCashier(null);
-            }}>
-            <Text style={styles.link}>خروج</Text>
-          </TouchableOpacity>
-        </View>
       </View>
       {!!drawerStatus && (
         <View style={styles.drawerStatusBanner}>
           <Text style={styles.drawerStatusText}>{drawerStatus}</Text>
         </View>
       )}
-      {screen.name === 'tables' && branchId != null ? (
-        <TablesScreen
-          branchId={branchId}
-          onBeginOrderForTable={table => setScreen({ name: 'products', table })}
+      <View style={styles.screenArea}>
+        {screen.name === 'tables' && branchId != null ? (
+          <TablesScreen
+            branchId={branchId}
+            onBeginOrderForTable={table => setScreen({ name: 'products', table })}
+          />
+        ) : screen.name === 'more' ? (
+          <MoreScreen
+            onOpenPrintQueue={() => setScreen({ name: 'printQueue' })}
+            onOpenPrinterSettings={() => setScreen({ name: 'printerSettings' })}
+            onOpenDiagnostics={() => setScreen({ name: 'diagnostics' })}
+            onOpenHardwareTools={() => setShowHardwareTools(true)}
+            onOpenDrawer={handleOpenDrawerManually}
+            drawerBusy={drawerBusy}
+            onLogout={async () => {
+              await logout();
+              setCashier(null);
+            }}
+          />
+        ) : screen.name === 'printQueue' ? (
+          <PrintQueueScreen />
+        ) : screen.name === 'printerSettings' ? (
+          <PrinterSettingsScreen />
+        ) : screen.name === 'diagnostics' ? (
+          <DiagnosticsScreen />
+        ) : screen.name === 'orderHistory' && branchId != null ? (
+          <OrderHistoryScreen branchId={branchId} />
+        ) : (
+          <ProductsScreen
+            key={screen.name === 'products' ? screen.table?.id ?? 'no-table' : 'no-table'}
+            cashier={cashier}
+            selectedTable={screen.name === 'products' ? screen.table : null}
+            onExitTableContext={() => setScreen({ name: 'tables' })}
+          />
+        )}
+      </View>
+
+      {/* .bottom-nav / .nav-tab (rakeen-pos.css:351-354) -- same 4 tabs,
+          same SVG icon paths, same active-color rule as pos-markup.ts. */}
+      <View style={styles.bottomNav}>
+        <NavTabButton
+          active={activeTab === 'home'}
+          label="الرئيسية"
+          onPress={() => setScreen({ name: 'products', table: null })}
+          icon={<Path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />}
         />
-      ) : screen.name === 'printQueue' ? (
-        <PrintQueueScreen />
-      ) : screen.name === 'printerSettings' ? (
-        <PrinterSettingsScreen />
-      ) : screen.name === 'diagnostics' ? (
-        <DiagnosticsScreen />
-      ) : screen.name === 'orderHistory' && branchId != null ? (
-        <OrderHistoryScreen branchId={branchId} />
-      ) : (
-        <ProductsScreen
-          key={screen.name === 'products' ? screen.table?.id ?? 'no-table' : 'no-table'}
-          cashier={cashier}
-          selectedTable={screen.name === 'products' ? screen.table : null}
-          onExitTableContext={() => setScreen({ name: 'tables' })}
+        <NavTabButton
+          active={activeTab === 'orders'}
+          label="الطلبات"
+          onPress={() => setScreen({ name: 'orderHistory' })}
+          icon={
+            <>
+              <Path d="M9 11l3 3L22 4" />
+              <Path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+            </>
+          }
         />
-      )}
+        <NavTabButton
+          active={activeTab === 'tables'}
+          label="الطاولات"
+          onPress={() => setScreen({ name: 'tables' })}
+          icon={
+            <>
+              <Rect x={3} y={3} width={7} height={7} />
+              <Rect x={14} y={3} width={7} height={7} />
+              <Rect x={3} y={14} width={7} height={7} />
+              <Rect x={14} y={14} width={7} height={7} />
+            </>
+          }
+        />
+        <NavTabButton
+          active={activeTab === 'more'}
+          label="المزيد"
+          onPress={() => setScreen({ name: 'more' })}
+          icon={
+            <>
+              <Circle cx={12} cy={12} r={1} />
+              <Circle cx={19} cy={12} r={1} />
+              <Circle cx={5} cy={12} r={1} />
+            </>
+          }
+        />
+      </View>
     </SafeAreaView>
   );
 }
 
-function HardwareToolsScreen({ onBack }: { onBack: () => void }): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+function NavTabButton({
+  active,
+  label,
+  icon,
+  onPress,
+}: {
+  active: boolean;
+  label: string;
+  icon: React.ReactNode;
+  onPress: () => void;
+}) {
+  const tint = active ? colors.lime : colors.muted;
+  return (
+    <TouchableOpacity style={styles.navTab} onPress={onPress} activeOpacity={0.7}>
+      <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={tint} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        {icon}
+      </Svg>
+      <Text style={[styles.navTabLabel, { color: tint }]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
 
+/**
+ * .screen-more equivalent -- houses everything that isn't one of the 4
+ * real bottom-nav destinations: print queue, printer settings,
+ * diagnostics, the manual drawer-kick quick action, the RN-only hardware
+ * POC tools, and logout.
+ */
+function MoreScreen({
+  onOpenPrintQueue,
+  onOpenPrinterSettings,
+  onOpenDiagnostics,
+  onOpenHardwareTools,
+  onOpenDrawer,
+  drawerBusy,
+  onLogout,
+}: {
+  onOpenPrintQueue: () => void;
+  onOpenPrinterSettings: () => void;
+  onOpenDiagnostics: () => void;
+  onOpenHardwareTools: () => void;
+  onOpenDrawer: () => void;
+  drawerBusy: boolean;
+  onLogout: () => void;
+}) {
+  return (
+    <ScrollView style={styles.moreRoot} contentContainerStyle={styles.moreScroll}>
+      <MoreRow label="فتح الدرج" onPress={onOpenDrawer} disabled={drawerBusy} busyLabel="جارٍ الفتح..." busy={drawerBusy} />
+      <MoreRow label="قائمة الطباعة" onPress={onOpenPrintQueue} />
+      <MoreRow label="إعدادات الطابعة" onPress={onOpenPrinterSettings} />
+      <MoreRow label="تشخيص النظام" onPress={onOpenDiagnostics} />
+      <MoreRow label="أدوات الطابعة" onPress={onOpenHardwareTools} />
+      <View style={styles.moreDivider} />
+      <MoreRow label="خروج" onPress={onLogout} danger />
+    </ScrollView>
+  );
+}
+
+function MoreRow({
+  label,
+  onPress,
+  disabled,
+  danger,
+  busy,
+  busyLabel,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+  busy?: boolean;
+  busyLabel?: string;
+}) {
+  return (
+    <TouchableOpacity style={styles.moreRow} onPress={onPress} disabled={disabled} activeOpacity={0.8}>
+      <Text style={[styles.moreRowText, danger && styles.moreRowTextDanger]}>{busy && busyLabel ? busyLabel : label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function HardwareToolsScreen({ onBack }: { onBack: () => void }): React.JSX.Element {
   const [host, setHost] = useState('192.168.1.50');
   const [port, setPort] = useState('9100'); // a UI default only — never assumed by the contract itself
   const [network, setNetwork] = useState<NetInfoState | null>(null);
@@ -398,8 +536,8 @@ function HardwareToolsScreen({ onBack }: { onBack: () => void }): React.JSX.Elem
   };
 
   return (
-    <SafeAreaView style={[styles.root, isDarkMode && styles.rootDark]}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+    <SafeAreaView style={styles.root}>
+      <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.scroll}>
         <TouchableOpacity onPress={onBack}>
           <Text style={styles.link}>‹ رجوع</Text>
@@ -428,6 +566,7 @@ function HardwareToolsScreen({ onBack }: { onBack: () => void }): React.JSX.Elem
           <Text style={styles.cardTitle}>Printer Target</Text>
           <TextInput
             style={styles.input}
+            placeholderTextColor={colors.muted}
             value={host}
             onChangeText={setHost}
             placeholder="192.168.1.50"
@@ -435,6 +574,7 @@ function HardwareToolsScreen({ onBack }: { onBack: () => void }): React.JSX.Elem
           />
           <TextInput
             style={styles.input}
+            placeholderTextColor={colors.muted}
             value={port}
             onChangeText={setPort}
             placeholder="9100 (default UI value only, never assumed by the contract)"
@@ -443,13 +583,13 @@ function HardwareToolsScreen({ onBack }: { onBack: () => void }): React.JSX.Elem
           <Text style={styles.value}>Printer Status: {printerStatus}</Text>
         </View>
 
-        <TouchableOpacity style={styles.button} onPress={handleTestPrinter}>
+        <TouchableOpacity style={styles.button} onPress={handleTestPrinter} activeOpacity={0.8}>
           <Text style={styles.buttonText}>Test Printer</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.button} onPress={handlePrintTestReceipt}>
+        <TouchableOpacity style={styles.button} onPress={handlePrintTestReceipt} activeOpacity={0.8}>
           <Text style={styles.buttonText}>Print Test Receipt</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.button} onPress={handleOpenDrawer}>
+        <TouchableOpacity style={styles.button} onPress={handleOpenDrawer} activeOpacity={0.8}>
           <Text style={styles.buttonText}>Open Cash Drawer</Text>
         </TouchableOpacity>
 
@@ -468,55 +608,68 @@ function HardwareToolsScreen({ onBack }: { onBack: () => void }): React.JSX.Elem
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f2f5f0' },
-  rootDark: { backgroundColor: '#111111' },
-  scroll: { padding: 16 },
-  title: { fontSize: 20, fontWeight: '800', marginBottom: 4 },
-  subtitle: { fontSize: 12, color: '#666', marginBottom: 16 },
+  root: { flex: 1, backgroundColor: colors.canvas },
+  scroll: { padding: spacing[4] },
+  title: { fontFamily: fonts.sansBold, fontSize: 20, color: colors.text, marginBottom: 4 },
+  subtitle: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted, marginBottom: spacing[4] },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
+    backgroundColor: colors.cardBg,
+    borderRadius: radii.lg,
+    padding: spacing[4],
+    marginBottom: spacing[3],
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: colors.line,
   },
-  cardTitle: { fontSize: 13, fontWeight: '700', marginBottom: 6, color: '#333' },
-  value: { fontSize: 13, color: '#444' },
+  cardTitle: { fontFamily: fonts.sansBold, fontSize: 13, marginBottom: 6, color: colors.text },
+  value: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: colors.muted },
   input: {
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
+    borderColor: colors.line,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surf1,
+    color: colors.text,
     padding: 10,
-    marginBottom: 8,
+    marginBottom: spacing[2],
+    fontFamily: fonts.sansSemiBold,
     fontSize: 14,
   },
   button: {
-    backgroundColor: '#8bc34a',
-    borderRadius: 10,
-    padding: 14,
+    backgroundColor: colors.surf1,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radii.md,
+    padding: spacing[4],
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: spacing[2],
   },
-  buttonText: { fontWeight: '700', color: '#1a1a1a' },
-  logLine: { fontSize: 11, color: '#555', marginBottom: 2 },
-  loggedInContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  secondaryButton: { backgroundColor: '#ddd', marginTop: 20 },
-  link: { color: '#666', textDecorationLine: 'underline', marginBottom: 8 },
+  buttonText: { fontFamily: fonts.sansBold, color: colors.text },
+  logLine: { fontFamily: fonts.sansSemiBold, fontSize: 11, color: colors.muted, marginBottom: 2 },
+  link: { fontFamily: fonts.sansBold, color: colors.muted, marginBottom: spacing[2] },
+  screenArea: { flex: 1 },
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: '#fff',
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3],
+    backgroundColor: colors.cardBg,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: colors.line,
   },
-  topBarTitle: { fontSize: 15, fontWeight: '700' },
-  topBarActions: { flexDirection: 'row', gap: 16 },
-  drawerStatusBanner: { backgroundColor: '#eef1ec', paddingVertical: 8, paddingHorizontal: 14 },
-  drawerStatusText: { fontSize: 12, textAlign: 'center', color: '#333' },
+  topBarTitle: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.text },
+  drawerStatusBanner: { backgroundColor: colors.surf2, paddingVertical: spacing[2], paddingHorizontal: spacing[4] },
+  drawerStatusText: { fontFamily: fonts.sansSemiBold, fontSize: 12, textAlign: 'center', color: colors.text },
+  // .bottom-nav (rakeen-pos.css:351)
+  bottomNav: { height: 68, flexDirection: 'row', borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg },
+  // .nav-tab
+  navTab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5 },
+  navTabLabel: { fontFamily: fonts.sansBold, fontSize: 10.5 },
+  moreRoot: { flex: 1, backgroundColor: colors.canvas },
+  moreScroll: { padding: spacing[4] },
+  moreRow: { backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, padding: spacing[4], marginBottom: spacing[2] },
+  moreRowText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.text, textAlign: 'center' },
+  moreRowTextDanger: { color: colors.danger },
+  moreDivider: { height: spacing[3] },
 });
 
 export default App;

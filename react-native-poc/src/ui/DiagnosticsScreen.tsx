@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { getDiagnosticsSnapshot, retryStuckOrders, retryAllFailedPrintJobs, DiagnosticsSnapshot } from '../application/diagnosticsService';
+import { colors, fonts, radii, spacing } from './theme';
 
-const OK = '#8bc34a';
-const BAD = '#c0392b';
-const UNKNOWN = '#9e9e9e';
+const OK = colors.lime;
+const BAD = colors.danger;
+const UNKNOWN = colors.muted;
 
 function triColor(v: boolean | null): string {
   return v === true ? OK : v === false ? BAD : UNKNOWN;
@@ -23,6 +24,12 @@ function triLabel(v: boolean | null, okText: string, badText: string, unknownTex
  * plus the live queue/print-job counts and the same two real bulk
  * retry actions the source has (reusing Checkpoint 9/10's already-
  * verified retry mechanisms, not new logic).
+ *
+ * Visuals: no dedicated diagnostics CSS class exists in the PWA (this
+ * body is plain rows of label+value) -- rows reuse .shift-stat-row's
+ * label/mono-value/border-bottom language from rakeen-pos.css, and the
+ * status tri-color scheme reuses the same lime/danger/muted tokens used
+ * everywhere else instead of Material green/red/gray.
  */
 export default function DiagnosticsScreen() {
   const [snapshot, setSnapshot] = useState<DiagnosticsSnapshot | null>(null);
@@ -67,8 +74,8 @@ export default function DiagnosticsScreen() {
 
   if (!snapshot) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator />
+      <View style={[styles.root, styles.center]}>
+        <ActivityIndicator color={colors.lime} />
       </View>
     );
   }
@@ -79,7 +86,7 @@ export default function DiagnosticsScreen() {
       <View
         style={[
           styles.diagnosisBanner,
-          { backgroundColor: snapshot.diagnosis.bad ? '#fdecea' : '#eef7e6' },
+          { backgroundColor: snapshot.diagnosis.bad ? `rgba(${colors.dangerRgb},0.14)` : `rgba(${colors.limeRgb},0.14)` },
         ]}>
         <Text style={[styles.diagnosisText, { color: snapshot.diagnosis.bad ? BAD : OK }]}>{snapshot.diagnosis.text}</Text>
       </View>
@@ -92,7 +99,7 @@ export default function DiagnosticsScreen() {
           value={triLabel(snapshot.cloud, '🟢 تعمل', '🔴 تعذر الوصول', '⚪ لم تُختبر بعد')}
         />
         {!!snapshot.lastCloudError && <Text style={styles.errorDetail}>آخر خطأ سحابة: {snapshot.lastCloudError}</Text>}
-        <Row label="آخر مزامنة ناجحة" color={UNKNOWN} value={snapshot.lastSuccessfulSyncAt ? new Date(snapshot.lastSuccessfulSyncAt).toLocaleTimeString() : '—'} />
+        <Row label="آخر مزامنة ناجحة" color={UNKNOWN} value={snapshot.lastSuccessfulSyncAt ? new Date(snapshot.lastSuccessfulSyncAt).toLocaleTimeString() : '—'} last />
       </Section>
 
       <Section title="الطابعة">
@@ -105,6 +112,7 @@ export default function DiagnosticsScreen() {
           label="إعداد الطابعة"
           color={snapshot.printerConfigured ? OK : UNKNOWN}
           value={snapshot.printerConfigured ? snapshot.printerTargetLabel! : '⚪ غير معدّة (راجع إعدادات الطابعة)'}
+          last
         />
       </Section>
 
@@ -113,30 +121,31 @@ export default function DiagnosticsScreen() {
           label="درج النقدية (جسر Native)"
           color={snapshot.cashDrawerBridgeAvailable ? OK : UNKNOWN}
           value={snapshot.cashDrawerBridgeAvailable ? '🟢 متاح' : '⚪ غير متاح على هذا الجهاز/البناء'}
+          last
         />
       </Section>
 
       <Section title="طلبات بانتظار المزامنة">
         <Row label="إجمالي الطلبات المحفوظة محليًا" color={snapshot.queuedOrdersCount === 0 ? OK : UNKNOWN} value={String(snapshot.queuedOrdersCount)} />
-        <Row label="طلبات عالقة (تحتاج تدخّل)" color={snapshot.stuckOrdersCount === 0 ? OK : BAD} value={String(snapshot.stuckOrdersCount)} />
+        <Row label="طلبات عالقة (تحتاج تدخّل)" color={snapshot.stuckOrdersCount === 0 ? OK : BAD} value={String(snapshot.stuckOrdersCount)} last />
       </Section>
 
       <Section title="قائمة الطباعة">
         <Row label="قيد الانتظار/الإعادة/جارٍ الطباعة" color={UNKNOWN} value={String(snapshot.printQueueCounts.queued + snapshot.printQueueCounts.retrying + snapshot.printQueueCounts.printing)} />
-        <Row label="طباعات فاشلة نهائيًا" color={snapshot.printQueueCounts.failed === 0 ? OK : BAD} value={String(snapshot.printQueueCounts.failed)} />
+        <Row label="طباعات فاشلة نهائيًا" color={snapshot.printQueueCounts.failed === 0 ? OK : BAD} value={String(snapshot.printQueueCounts.failed)} last />
       </Section>
 
       <View style={styles.actionsRow}>
-        <TouchableOpacity style={styles.refreshButton} onPress={refresh} disabled={busy}>
+        <TouchableOpacity style={styles.refreshButton} onPress={refresh} disabled={busy} activeOpacity={0.8}>
           <Text style={styles.refreshButtonText}>تحديث</Text>
         </TouchableOpacity>
         {snapshot.failedPrintCount > 0 && (
-          <TouchableOpacity style={styles.retryButton} onPress={handleRetryFailedPrints} disabled={busy}>
+          <TouchableOpacity style={styles.retryButton} onPress={handleRetryFailedPrints} disabled={busy} activeOpacity={0.8}>
             <Text style={styles.retryButtonText}>إعادة محاولة الطباعات الفاشلة ({snapshot.failedPrintCount})</Text>
           </TouchableOpacity>
         )}
         {snapshot.stuckOrdersCount > 0 && (
-          <TouchableOpacity style={styles.retryButton} onPress={handleRetryStuckOrders} disabled={busy}>
+          <TouchableOpacity style={styles.retryButton} onPress={handleRetryStuckOrders} disabled={busy} activeOpacity={0.8}>
             <Text style={styles.retryButtonText}>إعادة محاولة الطلبات العالقة ({snapshot.stuckOrdersCount})</Text>
           </TouchableOpacity>
         )}
@@ -155,9 +164,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Row({ label, value, color }: { label: string; value: string; color: string }) {
+// .shift-stat-row (rakeen-pos.css:578-583)
+function Row({ label, value, color, last }: { label: string; value: string; color: string; last?: boolean }) {
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, last && styles.rowLast]}>
       <Text style={styles.rowLabel}>{label}</Text>
       <Text style={[styles.rowValue, { color }]}>{value}</Text>
     </View>
@@ -165,22 +175,27 @@ function Row({ label, value, color }: { label: string; value: string; color: str
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f2f5f0' },
+  root: { flex: 1, backgroundColor: colors.canvas },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  scroll: { padding: 16 },
-  title: { fontSize: 18, fontWeight: '800', marginBottom: 10 },
-  diagnosisBanner: { borderRadius: 10, padding: 12, marginBottom: 14 },
-  diagnosisText: { fontSize: 13, fontWeight: '700', textAlign: 'center' },
-  section: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#e0e0e0' },
-  sectionTitle: { fontSize: 13, fontWeight: '700', marginBottom: 8, color: '#333' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
-  rowLabel: { fontSize: 12, color: '#555' },
-  rowValue: { fontSize: 12, fontWeight: '700' },
-  errorDetail: { fontSize: 10.5, color: BAD, marginTop: 2, marginBottom: 4 },
-  actionsRow: { gap: 8, marginTop: 4, marginBottom: 12 },
-  refreshButton: { backgroundColor: '#3f51b5', borderRadius: 10, padding: 12, alignItems: 'center' },
-  refreshButtonText: { color: '#fff', fontWeight: '700' },
-  retryButton: { backgroundColor: '#8bc34a', borderRadius: 10, padding: 12, alignItems: 'center' },
-  retryButtonText: { fontWeight: '700', color: '#1a1a1a' },
-  actionStatus: { textAlign: 'center', fontSize: 12, marginBottom: 20, color: '#333' },
+  scroll: { padding: spacing[4] },
+  title: { fontFamily: fonts.sansBold, fontSize: 18, color: colors.text, marginBottom: spacing[2] },
+  diagnosisBanner: { borderRadius: radii.md, padding: spacing[3], marginBottom: spacing[4] },
+  diagnosisText: { fontFamily: fonts.sansBold, fontSize: 13, textAlign: 'center' },
+  section: { backgroundColor: colors.cardBg, borderRadius: radii.lg, padding: spacing[4], marginBottom: spacing[3], borderWidth: 1, borderColor: colors.line },
+  sectionTitle: { fontFamily: fonts.sansBold, fontSize: 13, marginBottom: spacing[2], color: colors.text },
+  // .shift-stat-row
+  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.line },
+  rowLast: { borderBottomWidth: 0 },
+  rowLabel: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted },
+  // Mixed content (Arabic status text and plain numbers/timestamps) --
+  // unlike a pure money/mono value, forcing writingDirection:'ltr' here
+  // would break the Arabic strings, so it's left at the default.
+  rowValue: { fontFamily: fonts.sansBold, fontSize: 12 },
+  errorDetail: { fontFamily: fonts.sansSemiBold, fontSize: 10.5, color: BAD, marginTop: 2, marginBottom: 4 },
+  actionsRow: { gap: spacing[2], marginTop: 4, marginBottom: spacing[3] },
+  refreshButton: { backgroundColor: colors.surf1, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, padding: spacing[3], alignItems: 'center' },
+  refreshButtonText: { fontFamily: fonts.sansBold, color: colors.text },
+  retryButton: { backgroundColor: colors.surf2, borderRadius: radii.md, padding: spacing[3], alignItems: 'center' },
+  retryButtonText: { fontFamily: fonts.sansBold, color: colors.text },
+  actionStatus: { fontFamily: fonts.sansSemiBold, textAlign: 'center', fontSize: 12, marginBottom: spacing[5], color: colors.muted },
 });
