@@ -1813,7 +1813,15 @@ const useStyles = createStyles((colors, shadows) =>
   // .oi-info -- `flex:1; min-width:0`
   cartLineInfo: { flex: 1, minWidth: 0 },
   // .oi-name -- 2-line clamp, line-height 1.3 * 12.5px
-  cartLineName: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.text, lineHeight: 16 },
+  // Explicitly start-aligned, and this is not decoration. index.js sets
+  // I18nManager.swapLeftAndRightInRTL(false) on purpose (so ported
+  // physical `left`/`right` values keep meaning literal sides, as they do
+  // in rakeen-pos.css) -- but that also stops a Text's default
+  // `textAlign:'auto'` from following the RTL layout direction, so Arabic
+  // inside any STRETCHED box lands on the left. In a row where the label
+  // fills the free space and the amount is pinned at the other end, that
+  // reads as the price colliding with the end of the name.
+  cartLineName: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.text, lineHeight: 16, textAlign: 'right' },
   // .oi-unit
   cartLinePrice: { flexDirection: 'row', alignItems: 'baseline', marginTop: 1 },
   cartLineUnitSuffix: { fontFamily: fonts.monoMedium, fontSize: 10, color: colors.muted },

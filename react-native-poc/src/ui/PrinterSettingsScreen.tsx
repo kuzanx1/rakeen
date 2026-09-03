@@ -58,16 +58,33 @@ export default function PrinterSettingsScreen() {
   const [saveStatus, setSaveStatus] = useState('');
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState<{ devices: DiscoveredDevice[]; error?: string } | null>(null);
+  /**
+   * What is actually PERSISTED, kept beside the editable form.
+   *
+   * "اختبار الاتصال" probes the target derived from the form -- i.e. the
+   * values on screen right now. Every real print job and every cash-drawer
+   * kick instead reads the SAVED profile (printService.doDispatch ->
+   * getPrinterProfile()). Those are the same thing only after a
+   * successful save, so a green test result proves nothing about where a
+   * receipt will actually go while an edit is still unsaved. Showing the
+   * difference is the only way that stays visible to the cashier.
+   */
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       const existing = await getPrinterProfile();
       if (existing) setProfile(existing);
+      setSavedSnapshot(existing ? JSON.stringify(existing) : null);
       setLoading(false);
     })();
   }, []);
 
   const validation = validatePrinterProfile(profile);
+  const savedTarget = savedSnapshot
+    ? profileToPrinterTarget(JSON.parse(savedSnapshot) as PrinterProfile)
+    : null;
+  const unsaved = savedSnapshot !== JSON.stringify(profile);
 
   const update = (patch: Partial<PrinterProfile>) => setProfile(prev => ({ ...prev, ...patch }));
   const updateDrawer = (patch: Partial<PrinterProfile['drawerCapabilities']>) =>
@@ -118,10 +135,11 @@ export default function PrinterSettingsScreen() {
         return;
       }
       const result = await Printer.testConnection(target);
+      const where = target.transport === 'network' ? `${target.host}:${target.port}` : target.transport;
       setTestResult(
         result.reachable
-          ? `🟢 متصل (${result.latencyMs?.toFixed(0)}ms) — هذا يثبت الوصول الحقيقي فقط، وليس نجاح طباعة فعلي`
-          : `🔴 غير متصل — ${result.error}${result.errorDetail ? ` (${result.errorDetail})` : ''}`,
+          ? `🟢 متصل بـ ${where} (${result.latencyMs?.toFixed(0)}ms) — يثبت الوصول فقط، لا نجاح طباعة`
+          : `🔴 غير متصل بـ ${where} — ${result.error}${result.errorDetail ? ` (${result.errorDetail})` : ''}`,
       );
     } catch (e) {
       setTestResult(`🔴 خطأ غير متوقع: ${String(e)}`);
@@ -140,6 +158,7 @@ export default function PrinterSettingsScreen() {
         capabilities: { ...profile.capabilities, paperWidthPx: profile.paperWidthPx ?? profile.capabilities.paperWidthPx },
       };
       await savePrinterProfile(withCapabilities);
+      setSavedSnapshot(JSON.stringify(withCapabilities));
       setSaveStatus('✅ تم الحفظ محليًا على هذا الجهاز');
     } catch (e) {
       setSaveStatus(`🔴 تعذر الحفظ: ${String(e)}`);
@@ -322,6 +341,19 @@ export default function PrinterSettingsScreen() {
         <Text style={styles.testButtonText}>{testing ? 'جارٍ الاختبار...' : 'اختبار الاتصال'}</Text>
       </TouchableOpacity>
       {!!testResult && <Text style={styles.testResult}>{testResult}</Text>}
+      {/* The gap between what was just tested and what will actually be
+          used. Without this, a green test on freshly-typed values reads
+          as proof that printing is configured, while jobs keep going to
+          the previously-saved target (or nowhere at all). */}
+      {unsaved && (
+        <View style={styles.unsavedBox}>
+          <Text style={styles.unsavedText}>
+            {savedTarget
+              ? `تعديلات غير محفوظة. الطباعة الفعلية وفتح الدرج ما زالا يستخدمان: ${savedTarget.transport === 'network' ? `${savedTarget.host}:${savedTarget.port}` : savedTarget.transport}`
+              : 'تعديلات غير محفوظة، وما فيه إعداد طابعة محفوظ — أي طلب راح يُسجَّل كـ«تم التخطي: لا طابعة». اضغط «حفظ الإعدادات».'}
+          </Text>
+        </View>
+      )}
 
       {validation.valid && !saving ? (
         <TouchableOpacity onPress={handleSave} activeOpacity={0.85}>
@@ -457,6 +489,13 @@ const useStyles = createStyles(colors =>
   saveButtonDisabled: { backgroundColor: colors.surf2 },
   saveButtonText: { fontFamily: fonts.sansBold, color: colors.flagGreenDeep },
   saveButtonTextDisabled: { color: colors.muted },
+  unsavedBox: {
+    backgroundColor: `rgba(${colors.amberRgb},0.15)`,
+    borderRadius: radii.sm,
+    padding: spacing[3],
+    marginBottom: spacing[3],
+  },
+  unsavedText: { fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.amber, lineHeight: 17 },
   saveStatus: { fontFamily: fonts.sansSemiBold, fontSize: 12, textAlign: 'center', marginBottom: spacing[5], color: colors.muted },
   deviceScanBlock: { marginTop: 4 },
   selectedDeviceText: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.text, marginBottom: spacing[2] },

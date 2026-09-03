@@ -58,6 +58,26 @@ export interface PrintJobRecord {
   next_retry_at: number; // epoch ms; 0 = eligible immediately
   last_error: string | null;
   created_at: number;
+  /**
+   * What the last attempt ACTUALLY did, recorded so a "printed" badge can
+   * be checked instead of trusted. A TestFlight build has no Metro
+   * console, so a job that reports success while nothing arrives at the
+   * printer is otherwise indistinguishable from one that really printed.
+   *
+   * - last_target: the resolved destination, e.g. "192.168.100.6:9100".
+   *   This is derived from the SAVED profile at dispatch time, which is
+   *   not necessarily what the Settings screen's "Test Connection" button
+   *   probed -- that one tests the values currently typed in the form.
+   * - last_bytes: how many ESC/POS bytes were handed to the transport.
+   *   0 means the receipt rendered empty, which the native side would
+   *   still report as a successful send.
+   * - last_error_detail: the transport's specific reason
+   *   (connection_refused / connection_timeout / host_unreachable), which
+   *   platform/printer.ts has always returned and this queue used to drop.
+   */
+  last_target?: string | null;
+  last_bytes?: number | null;
+  last_error_detail?: string | null;
 }
 
 /** Ported from enqueuePrintJob's contentKey -- type + a hash of the
@@ -101,6 +121,10 @@ const NON_ERROR_TERMINAL_CODES = new Set(['PRINTER_UNAVAILABLE']);
 export interface PrintAttemptOutcome {
   ok: boolean;
   error?: string;
+  errorDetail?: string;
+  /** See PrintJobRecord.last_target / last_bytes. */
+  target?: string | null;
+  bytes?: number | null;
 }
 
 /**
@@ -113,18 +137,26 @@ export function applyPrintAttemptResult(
   outcome: PrintAttemptOutcome,
   now: number,
 ): PrintJobRecord {
+  // Recorded on every branch, success included -- a job that says
+  // "printed" has to be able to say WHERE it printed and how much.
+  const trace = {
+    last_target: outcome.target ?? null,
+    last_bytes: outcome.bytes ?? null,
+    last_error_detail: outcome.errorDetail ?? null,
+  };
   if (outcome.ok) {
-    return { ...job, status: 'printed', last_error: null };
+    return { ...job, ...trace, status: 'printed', last_error: null };
   }
   if (outcome.error && NON_ERROR_TERMINAL_CODES.has(outcome.error)) {
-    return { ...job, status: 'skipped_no_printer', last_error: outcome.error };
+    return { ...job, ...trace, status: 'skipped_no_printer', last_error: outcome.error };
   }
   const retryCount = job.retry_count + 1;
   if (retryCount >= PRINT_MAX_RETRIES) {
-    return { ...job, status: 'failed', retry_count: retryCount, last_error: outcome.error || 'unknown_error', next_retry_at: 0 };
+    return { ...job, ...trace, status: 'failed', retry_count: retryCount, last_error: outcome.error || 'unknown_error', next_retry_at: 0 };
   }
   return {
     ...job,
+    ...trace,
     status: 'retrying',
     retry_count: retryCount,
     last_error: outcome.error || 'unknown_error',
@@ -147,6 +179,9 @@ export interface PrintQueueStorage {
 export interface PrintDispatchResult {
   ok: boolean;
   error?: string;
+  errorDetail?: string;
+  target?: string | null;
+  bytes?: number | null;
 }
 
 export interface PrintQueueOutcome {

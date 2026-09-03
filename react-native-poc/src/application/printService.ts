@@ -3,7 +3,9 @@ import { sqlitePrintQueueStorage } from '../infrastructure/sqlitePrintQueue';
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { profileToPrinterTarget, profileToKitchenPrinterTarget } from '../domain/printerProfile';
 import { printReceipt } from '../platform/printer';
+import type { PrinterTarget } from '../platform/printer';
 import {
+  PrintDispatchResult,
   PrintJobRecord,
   PrintJobType,
   PrintQueueOutcome,
@@ -31,7 +33,23 @@ import { renderReceiptToEscPosBase64, renderKitchenTicketToEscPosBase64 } from '
  *  always creates a fresh job). */
 const activeJobIdByContentKey = new Map<string, string>();
 
-async function doDispatch(job: PrintJobRecord): Promise<{ ok: boolean; error?: string }> {
+/** "192.168.100.6:9100" / "BLE <id>" / "USB <id>" -- what actually got
+ *  dialled, for the Print Queue's own trace line. */
+function describeTarget(target: PrinterTarget): string {
+  if (target.transport === 'network') return `${target.host}:${target.port}`;
+  if (target.transport === 'bluetooth') return `BLE ${target.bluetoothId}`;
+  return `USB ${target.usbAccessoryId}`;
+}
+
+/** Byte count of a base64 payload without decoding it. 0 here means the
+ *  receipt rendered to nothing -- which the native transport would still
+ *  send (and report as success) as an empty write. */
+function base64ByteLength(base64: string): number {
+  const body = base64.replace(/=+$/, '');
+  return Math.floor((body.length * 3) / 4);
+}
+
+async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
   const profile = await getPrinterProfile();
   // Kitchen tickets target their own printer when one's configured
   // (falls back to the main target otherwise) -- ported from the PWA's
@@ -39,7 +57,10 @@ async function doDispatch(job: PrintJobRecord): Promise<{ ok: boolean; error?: s
   // domain/printerProfile.ts's profileToKitchenPrinterTarget doc comment.
   const target = job.type === 'kitchen' ? profileToKitchenPrinterTarget(profile) : profileToPrinterTarget(profile);
   if (!target) {
-    return { ok: false, error: 'PRINTER_UNAVAILABLE' };
+    // No SAVED profile (or a saved one that fails its own validation).
+    // Note this is the saved profile, not whatever the Settings screen
+    // currently has typed into it -- those can differ.
+    return { ok: false, error: 'PRINTER_UNAVAILABLE', target: null, bytes: null };
   }
   const escPosBase64 =
     job.type === 'receipt'
@@ -50,7 +71,16 @@ async function doDispatch(job: PrintJobRecord): Promise<{ ok: boolean; error?: s
     escPosBase64,
     timeoutMs: 8000,
   });
-  return { ok: result.ok, error: result.error };
+  return {
+    ok: result.ok,
+    error: result.error,
+    // errorDetail was previously dropped here, so the queue could only
+    // ever show "PRINTER_CONNECTION_FAILED" and never the transport's
+    // actual reason (connection_refused / connection_timeout / ...).
+    errorDetail: result.errorDetail,
+    target: describeTarget(target),
+    bytes: base64ByteLength(escPosBase64),
+  };
 }
 
 /**

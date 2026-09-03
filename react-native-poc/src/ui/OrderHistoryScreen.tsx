@@ -341,9 +341,17 @@ const useStyles = createStyles(colors =>
   sheetTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, marginBottom: 6, textAlign: 'center' },
   sheetMeta: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted, marginBottom: 10, textAlign: 'center' },
   itemRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  itemName: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: colors.text, flex: 1 },
+  // Explicitly start-aligned, and this is not decoration. index.js sets
+  // I18nManager.swapLeftAndRightInRTL(false) on purpose (so ported
+  // physical `left`/`right` values keep meaning literal sides, as they do
+  // in rakeen-pos.css) -- but that also stops a Text's default
+  // `textAlign:'auto'` from following the RTL layout direction, so Arabic
+  // inside any STRETCHED box lands on the left. In a row where the label
+  // fills the free space and the amount is pinned at the other end, that
+  // reads as the price colliding with the end of the name.
+  itemName: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: colors.text, flex: 1, textAlign: 'right' },
   itemTotal: { fontFamily: fonts.monoMedium, fontSize: 13, color: colors.text, writingDirection: 'ltr' },
-  itemNameBold: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.text, flex: 1 },
+  itemNameBold: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.text, flex: 1, textAlign: 'right' },
   itemTotalBold: { fontFamily: fonts.monoBold, fontSize: 15, color: colors.accentText, writingDirection: 'ltr' },
   divider: { height: 1, backgroundColor: colors.line, marginVertical: spacing[2] },
   refundButton: {

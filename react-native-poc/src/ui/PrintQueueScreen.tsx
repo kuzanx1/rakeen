@@ -116,7 +116,22 @@ export default function PrintQueueScreen() {
                 <Text style={[styles.statusBadgeText, { color: STATUS_COLORS[item.status] }]}>{STATUS_LABELS[item.status]}</Text>
               </View>
             </View>
-            {!!item.last_error && <Text style={styles.errorText}>{item.last_error}</Text>}
+            {!!item.last_error && (
+              <Text style={styles.errorText}>
+                {item.last_error}
+                {item.last_error_detail ? ` (${item.last_error_detail})` : ''}
+              </Text>
+            )}
+            {/* What the attempt actually did. A "تمت الطباعة" badge on its
+                own says only that the transport reported success -- this
+                line says WHERE it sent and HOW MUCH, which is the part
+                that can be checked against the printer. */}
+            {(item.last_target != null || item.last_bytes != null) && (
+              <Text style={styles.trace}>
+                {item.last_target ?? 'لا توجد طابعة محفوظة'}
+                {item.last_bytes != null ? ` · ${item.last_bytes} بايت` : ''}
+              </Text>
+            )}
             <Text style={styles.meta}>محاولات: {item.retry_count}</Text>
             {item.status === 'failed' && (
               <TouchableOpacity style={styles.retryButton} onPress={() => handleRetry(item.id)} disabled={busy} activeOpacity={0.8}>
@@ -161,6 +176,9 @@ const useStyles = createStyles(colors =>
   statusBadgeText: { fontFamily: fonts.sansBold, fontSize: 11 },
   errorText: { fontFamily: fonts.sansSemiBold, fontSize: 11, color: colors.danger, marginBottom: 4 },
   meta: { fontFamily: fonts.sansSemiBold, fontSize: 11, color: colors.muted, marginBottom: spacing[2] },
+  // Monospaced so a host:port and a byte count stay readable, and LTR so
+  // "192.168.100.6:9100" is not reordered by the RTL paragraph direction.
+  trace: { fontFamily: fonts.monoBold, fontSize: 11, color: colors.text, marginBottom: 4, writingDirection: 'ltr', textAlign: 'left' },
   retryButton: { backgroundColor: colors.surf2, borderRadius: radii.sm, padding: spacing[2], alignItems: 'center' },
   retryButtonText: { fontFamily: fonts.sansBold, color: colors.text },
   }),
