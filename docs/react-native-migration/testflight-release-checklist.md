@@ -14,13 +14,15 @@ Last updated after the release-candidate audit pass (2026-09-01).
       separate, already-confirmed `applicationId` of `com.rakeenpoc` — the two platforms
       deliberately use different identifiers now, per your instruction; this is fine, App Store
       Connect and Google Play each only care about their own platform's identifier.
+- [x] **All 6 iOS signing secrets prepared and verified** — real Apple Distribution certificate,
+      provisioning profile, and App Store Connect API key, each independently verified
+      (signature/curve/format checked, not just trusted) before being handed over. See the
+      "Getting the first build into TestFlight" section below for the exact name-by-name list.
+      No local Mac needed for any of this, or for the actual build — see below.
 - [ ] **GitHub Actions quota** — still exhausted; no further CI-triggering pushes will happen
-      until you confirm it's resolved. This is now the only thing between here and a real,
-      CI-verified, fully-signed archive build.
-- [ ] **A real Mac with Xcode** to actually run `xcodebuild archive` /
-      `-exportArchive` / upload — this sandbox is Windows and has never been able to do this part
-      regardless of Team ID; every prior CI run here only ever produced an unsigned Simulator
-      build, by design, to prove the code compiles.
+      until you confirm it's resolved. This is now the **only** remaining blocker: add the 6
+      secrets to GitHub, confirm the quota, and the very next step is a real signed build landing
+      in TestFlight.
 - [ ] **The two backend migrations already deployed** — confirmed, no action needed here anymore.
       The one remaining migration (orphaned-RPC cleanup, see below) is deliberately held per your
       instruction, not urgent.
@@ -167,60 +169,34 @@ right. Base64-encoded and sent to you.
 
 3 of 6 secrets are ready now.
 
-### Step 4 — App Store Connect: create the app record
-This has to exist before a build can be uploaded to it.
-[appstoreconnect.apple.com/apps](https://appstoreconnect.apple.com/apps)
-1. My Apps → click **+** → **New App**.
-2. Platforms: check **iOS**.
-3. Name: your choice (this is the public-facing App Store name, changeable later).
-4. Primary Language: your choice (e.g. Arabic (Saudi Arabia) or English).
-5. Bundle ID: select `com.rakeen.pos` from the dropdown — it only appears here because step 2
-   already registered it; if it's missing, step 2 didn't save correctly.
-6. SKU: any unique string you choose (e.g. `rakeenpos001`) — internal to App Store Connect, never
-   shown publicly.
-7. User Access: Full Access → Create.
+### Step 4 — App Store Connect: create the app record ✅ done
+App record exists (App Store Connect app id `6808202307`, "iOS App Version 1.0", Prepare for
+Submission state). The Screenshots/Description/Keywords/App Review Information on that page are
+for full App Store review submission later — none of it is needed for a TestFlight build, and
+nothing there needs to be touched right now.
 
-### Step 5 — Build the remaining file (certificate and profile already done above)
-Once you have the `.p8` API key (step 6), base64-encode it the same way the other two were done:
+### Step 5 — Build the remaining file ✅ done
+### Step 6 — App Store Connect: create the API key ✅ done
+Real key verified before use: genuine P-256 elliptic-curve private key (Apple's exact ES256
+App Store Connect API format), Key ID and Issuer ID both matched the expected real formats.
+Base64-encoded and sent.
 
-**Git Bash / WSL / any bash shell:**
-```bash
-base64 -w0 AuthKey_XXXXXXXXXX.p8 > asckey.b64.txt
-```
-
-**PowerShell:**
-```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("AuthKey_XXXXXXXXXX.p8")) | Set-Content -NoNewline asckey.b64.txt
-```
-
-### Step 6 — App Store Connect: create the API key (gives you the 3 remaining values)
-Requires the **Account Holder or Admin** role — if that's not you, whoever is Admin needs to do
-this one step.
-[appstoreconnect.apple.com/access/api](https://appstoreconnect.apple.com/access/integrations/api)
-1. Users and Access → **Integrations** tab → App Store Connect API.
-2. Click **Generate API Key** (or **+**).
-3. Name: any label (e.g. `Rakeen CI`).
-4. Access: select **App Manager** (sufficient to upload builds; Admin also works if you prefer).
-5. Generate → **Download API Key immediately** — Apple shows the `.p8` file download link
-   exactly once, on this screen, and it cannot be re-downloaded later. If you miss it, you must
-   revoke this key and generate a new one.
-6. On the same page, note down (both stay visible on this page afterward, unlike the key file):
-   - the **Key ID** shown in that key's row
-   - the **Issuer ID** shown at the top of the page, above the key list (same value for every
-     key on this account, not per-key)
+**All 6 of 6 secrets are now ready.**
 
 ### Step 7 — The exact 6 GitHub secrets, name by name
 GitHub repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**,
-once for each row:
+once for each row. All 6 values have already been sent to you this session (as files, or as the
+Key ID/Issuer ID text you provided directly) — this table is just the exact name-to-source
+mapping so nothing needs guessing:
 
-| Secret name | Value | Source |
+| Secret name | Value | Status |
 |---|---|---|
-| `IOS_DISTRIBUTION_CERTIFICATE_BASE64` | contents of the `.b64.txt` file already sent to you | ✅ Step 1, done |
-| `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD` | the password already sent to you alongside it | ✅ Step 1, done |
-| `IOS_PROVISIONING_PROFILE_BASE64` | contents of the `.b64.txt` file already sent to you | ✅ Step 3, done |
-| `ASC_KEY_ID` | the Key ID | Step 6 |
-| `ASC_ISSUER_ID` | the Issuer ID | Step 6 |
-| `ASC_KEY_CONTENT_BASE64` | contents of `asckey.b64.txt` | Step 5 (encoding the file from Step 6) |
+| `IOS_DISTRIBUTION_CERTIFICATE_BASE64` | contents of the certificate `.b64.txt` file sent to you | ✅ ready |
+| `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD` | the password sent alongside it | ✅ ready |
+| `IOS_PROVISIONING_PROFILE_BASE64` | contents of the profile `.b64.txt` file sent to you | ✅ ready |
+| `ASC_KEY_ID` | `VHM64NX42J` | ✅ ready |
+| `ASC_ISSUER_ID` | `1fb24b47-7fe5-48d0-acb0-db8fd91df77a` | ✅ ready |
+| `ASC_KEY_CONTENT_BASE64` | contents of the API-key `.b64.txt` file sent to you | ✅ ready |
 
 ### Step 8 — Run it
 Confirm your Actions quota is resolved → tell me, I'll push the held commits (including this
