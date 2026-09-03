@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Pressable, TouchableOpacity } from './tappable';
 import LinearGradient from 'react-native-linear-gradient';
-import Svg, { Circle, Line, Polygon } from 'react-native-svg';
+import Svg, { Circle, Line, Polygon, Polyline } from 'react-native-svg';
 import { createStyles, fonts, gradients, layout, radii, spacing, useTheme } from './theme';
 import { CategoryIcon, iconForCategoryName } from './categoryIcons';
 import { loadCatalog, getBusinessType, getFinancialSettings, getReceiptBusinessProfile, CatalogResult } from '../application/catalogService';
@@ -138,6 +138,24 @@ export default function ProductsScreen({
   const [modifierTarget, setModifierTarget] = useState<Product | null>(null);
   const [businessType, setBusinessType] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  /**
+   * searchInput's 'input' listener debounces the grid re-render by 200ms
+   * (rakeen-pos.js:1049) -- its own comment: a full grid re-render is
+   * real work on weak hardware because every card repaints its shadow and
+   * gradient, so it happens once per typing pause rather than once per
+   * keystroke. The field itself stays instant; only the value the grid
+   * filters on lags, which is exactly what the source does.
+   *
+   * handleSearchSubmit deliberately reads searchQuery, not this: the
+   * source's Enter/barcode path reads e.target.value directly and never
+   * waits for the debounce.
+   */
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery), 200);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const { colors } = useTheme();
   const styles = useStyles();
@@ -220,7 +238,7 @@ export default function ProductsScreen({
     // renderProductGrid()'s own filter order: category, then favourites,
     // then the search term.
     const byFav = showFavOnly ? byCategory.filter(p => favIds.has(p.id)) : byCategory;
-    const q = searchQuery.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     if (!q) return byFav;
     // Feature Parity Pass -- Barcode/Search. Ported from the PWA's real
     // search-box filtering (name substring match) -- barcode matching
@@ -228,7 +246,7 @@ export default function ProductsScreen({
     // exactly matching the source's own split between the 'input' and
     // 'keydown' listeners on the same field.
     return byFav.filter(p => p.name.toLowerCase().includes(q) || (p.nameEn || '').toLowerCase().includes(q));
-  }, [catalog, activeCategoryId, searchQuery, showFavOnly, favIds]);
+  }, [catalog, activeCategoryId, debouncedQuery, showFavOnly, favIds]);
 
   /** Feature Parity Pass -- Barcode. Ported from the PWA's real
    *  searchInput 'keydown' handler (a USB/Bluetooth barcode scanner
@@ -629,8 +647,14 @@ export default function ProductsScreen({
         <View style={styles.tableBanner}>
           <Text style={styles.tableBannerText}>طاولة {selectedTable.number}</Text>
           {!!onExitTableContext && (
-            <TouchableOpacity onPress={onExitTableContext}>
-              <Text style={styles.tableBannerLink}>‹ الطاولات</Text>
+            <TouchableOpacity onPress={onExitTableContext} style={styles.tableBannerBack}>
+              {/* .modal-back's chevron -- points RIGHT, because "back" in
+                  an RTL layout goes toward the inline start (the right
+                  edge). A left-pointing glyph here was an LTR habit. */}
+              <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={colors.accentText} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                <Polyline points="9 18 15 12 9 6" />
+              </Svg>
+              <Text style={styles.tableBannerLink}>الطاولات</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -755,13 +779,11 @@ export default function ProductsScreen({
             {cart.cart.map(line => {
               const product = productsById.get(line.productId);
               return (
+                // .order-item > .oi-row -- child order is qty stepper,
+                // info, line total, remove. This screen previously had
+                // info first, no line total and no remove button.
                 <View key={line.lineId} style={styles.cartLine}>
-                  <View style={styles.cartLineInfo}>
-                    <Text style={styles.cartLineName} numberOfLines={2}>
-                      {product?.name || '—'}
-                    </Text>
-                    <Text style={styles.cartLinePrice}>{cart.unitPriceOf(line).toFixed(2)} ر.س</Text>
-                  </View>
+                  {/* .oi-qty -- a surf1 pill wrapping the two buttons */}
                   <View style={styles.qtyControls}>
                     <TouchableOpacity onPress={() => cart.changeQty(line.lineId, -1)} style={styles.qtyButton}>
                       <Text style={styles.qtyButtonText}>-</Text>
@@ -771,6 +793,23 @@ export default function ProductsScreen({
                       <Text style={styles.qtyButtonText}>+</Text>
                     </TouchableOpacity>
                   </View>
+                  {/* .oi-info */}
+                  <View style={styles.cartLineInfo}>
+                    <Text style={styles.cartLineName} numberOfLines={2}>
+                      {product?.name || '—'}
+                    </Text>
+                    {/* .oi-unit */}
+                    <Text style={styles.cartLinePrice}>{cart.unitPriceOf(line).toFixed(2)} ر.س</Text>
+                  </View>
+                  {/* .oi-total */}
+                  <Text style={styles.cartLineTotal}>{(cart.unitPriceOf(line) * line.qty).toFixed(2)}</Text>
+                  {/* .oi-remove */}
+                  <TouchableOpacity onPress={() => cart.removeFromCart(line.lineId)} style={styles.cartLineRemove} hitSlop={6}>
+                    <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={2} strokeLinecap="round">
+                      <Line x1={18} y1={6} x2={6} y2={18} />
+                      <Line x1={6} y1={6} x2={18} y2={18} />
+                    </Svg>
+                  </TouchableOpacity>
                 </View>
               );
             })}
@@ -1046,6 +1085,7 @@ const useStyles = createStyles((colors, shadows) =>
     paddingVertical: spacing[2],
   },
   tableBannerText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.text },
+  tableBannerBack: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   tableBannerLink: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accentText },
   // .home-zones -- `flex:1; display:flex` (row), column at <=760px
   homeZones: { flex: 1, flexDirection: 'row' },
@@ -1244,6 +1284,7 @@ const useStyles = createStyles((colors, shadows) =>
   channelTabText: { fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.muted },
   channelTabTextActive: { color: colors.flagGreenDeep },
   cartLines: { flex: 1, paddingHorizontal: spacing[4] },
+  // .order-item (`padding:8px 0; border-bottom`) + .oi-row (`gap:8px`)
   cartLine: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1252,12 +1293,27 @@ const useStyles = createStyles((colors, shadows) =>
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
   },
+  // .oi-info -- `flex:1; min-width:0`
   cartLineInfo: { flex: 1, minWidth: 0 },
-  // .oi-name
+  // .oi-name -- 2-line clamp, line-height 1.3 * 12.5px
   cartLineName: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.text, lineHeight: 16 },
   // .oi-unit
   cartLinePrice: { fontFamily: fonts.monoMedium, fontSize: 10, color: colors.muted, marginTop: 1, writingDirection: 'ltr' },
-  qtyControls: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  // .oi-total -- mono, 800, 12.5px, flex-shrink:0
+  cartLineTotal: { fontFamily: fonts.monoBold, fontSize: 12.5, color: colors.text, flexShrink: 0, writingDirection: 'ltr' },
+  // .oi-remove -- 20px, muted, 12px glyph
+  cartLineRemove: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  // .oi-qty -- `gap:4px; flex-shrink:0; background:var(--surf1);
+  // border-radius:var(--r-full); padding:2px`
+  qtyControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 0,
+    backgroundColor: colors.surf1,
+    borderRadius: radii.full,
+    padding: 2,
+  },
   // .qty-btn
   qtyButton: {
     width: 22,

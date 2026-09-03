@@ -381,6 +381,11 @@ const useStyles = createStyles((colors, shadows) =>
       color: colors.text,
       fontFamily: fonts.sansSemiBold,
       fontSize: 14,
+      // The source sets no text-align: the field simply inherits the
+      // document's dir="rtl", so even a Latin value (an email) sits
+      // against the right edge. RN's 'auto' would flip to left as soon
+      // as Latin characters are typed, so it is pinned explicitly.
+      textAlign: 'right',
     },
     // #provBranchField rows -- field box styling, .pos-staff-btn:active tint when chosen
     branchOption: {

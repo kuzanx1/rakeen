@@ -45,6 +45,13 @@ export default function PaymentModal({
   const [method, setMethod] = useState<PaymentMethod>('cash');
   const [cashInput, setCashInput] = useState(total.toFixed(2));
 
+  /** renderPaymentStep()'s own expression, unchanged. */
+  const quickAmounts = React.useMemo(
+    () =>
+      [...new Set([total, Math.ceil(total / 10) * 10, Math.ceil(total / 50) * 50, Math.ceil(total / 100) * 100].map(n => n.toFixed(2)))].slice(0, 4),
+    [total],
+  );
+
   const cashAmount = parseFloat(cashInput) || 0;
   const change = computeCashChange(cashAmount, total);
   const canConfirm = method === 'card' || cashAmount >= total;
@@ -90,6 +97,18 @@ export default function PaymentModal({
 
           {method === 'cash' && (
             <>
+              {/* .quick-amounts / .qa-btn -- the source's own option set:
+                  the exact total, then rounded up to the next 10, 50 and
+                  100, de-duplicated on the FORMATTED string (so a total
+                  that is already a round number collapses instead of
+                  repeating) and capped at four. */}
+              <View style={styles.quickAmounts}>
+                {quickAmounts.map(v => (
+                  <TouchableOpacity key={v} style={styles.qaBtn} onPress={() => setCashInput(v)} activeOpacity={0.8}>
+                    <Text style={styles.qaBtnText}>{v}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
               <TextInput
                 style={styles.input}
                 keyboardType="decimal-pad"
@@ -149,6 +168,20 @@ const useStyles = createStyles(colors =>
   methodTabText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.muted },
   // .pm-tab.active -- --lime-deep, overridden to --lime in dark
   methodTabTextActive: { color: colors.accentText },
+  // .quick-amounts -- `repeat(4,1fr); gap:7px; margin-bottom:12px`
+  quickAmounts: { flexDirection: 'row', gap: 7, marginBottom: spacing[3] },
+  // .qa-btn
+  qaBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surf1,
+    alignItems: 'center',
+  },
+  qaBtnText: { fontFamily: fonts.monoBold, fontSize: 12, color: colors.text, writingDirection: 'ltr' },
   // .cash-input-row input
   input: {
     width: '100%',

@@ -21,7 +21,7 @@ import {
   View,
 } from 'react-native';
 import { TouchableOpacity } from './src/ui/tappable';
-import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
+import Svg, { Circle, Line, Path, Polyline, Rect } from 'react-native-svg';
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 import { Printer, printReceipt } from './src/platform/printer';
 import { CashDrawer, openCashDrawer } from './src/platform/cashDrawer';
@@ -586,8 +586,13 @@ function HardwareToolsScreen({ onBack }: { onBack: () => void }): React.JSX.Elem
     <SafeAreaView style={styles.root}>
       <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <TouchableOpacity onPress={onBack}>
-          <Text style={styles.link}>‹ رجوع</Text>
+        <TouchableOpacity onPress={onBack} style={styles.backRow}>
+          {/* .modal-back's chevron points RIGHT: in RTL, "back" travels
+              toward the inline start, which is the right edge. */}
+          <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+            <Polyline points="9 18 15 12 9 6" />
+          </Svg>
+          <Text style={styles.link}>رجوع</Text>
         </TouchableOpacity>
         <Text style={styles.title}>أدوات اختبار الطابعة/الدرج</Text>
         <Text style={styles.subtitle}>
@@ -692,7 +697,8 @@ const useStyles = createStyles(colors =>
   },
   buttonText: { fontFamily: fonts.sansBold, color: colors.text },
   logLine: { fontFamily: fonts.sansSemiBold, fontSize: 11, color: colors.muted, marginBottom: 2 },
-  link: { fontFamily: fonts.sansBold, color: colors.muted, marginBottom: spacing[2] },
+  link: { fontFamily: fonts.sansBold, color: colors.muted },
+  backRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing[2] },
   screenArea: { flex: 1 },
   topBar: {
     flexDirection: 'row',
