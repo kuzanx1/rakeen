@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Pressable, TouchableOpacity } from './tappable';
 import LinearGradient from 'react-native-linear-gradient';
-import Svg, { Circle, Line } from 'react-native-svg';
+import Svg, { Circle, Line, Polygon } from 'react-native-svg';
 import { createStyles, fonts, gradients, layout, radii, spacing, useTheme } from './theme';
 import { CategoryIcon, iconForCategoryName } from './categoryIcons';
 import { loadCatalog, getBusinessType, getFinancialSettings, getReceiptBusinessProfile, CatalogResult } from '../application/catalogService';
@@ -27,6 +27,7 @@ import { buildOrderPayload, buildDineInRegisterPayload, buildDineInPayPayload } 
 import type { ReceiptData, KitchenTicketData, ReceiptLine } from '../domain/receipt';
 import type { Product } from '../domain/catalog';
 import { isRetailBusinessType } from '../domain/catalog';
+import { buildDefaultConfig } from '../domain/cart';
 import type { CartLine, ModifierDefinition, OrderChannel } from '../domain/cart';
 import type { CashierProfile } from '../domain/auth';
 import { useCart } from './useCart';
@@ -141,6 +142,10 @@ export default function ProductsScreen({
   const { colors } = useTheme();
   const styles = useStyles();
 
+  // #favToggle / .fav-star -- both session-scoped, see toggleFavourite.
+  const [showFavOnly, setShowFavOnly] = useState(false);
+  const [favIds, setFavIds] = useState<Set<number>>(() => new Set());
+
   /**
    * The same breakpoint pair the PWA uses, not an approximation:
    *  - `@media (min-width:761px)` (rakeen-pos.css:375) is where the order
@@ -152,10 +157,26 @@ export default function ProductsScreen({
    * `width:360px; flex-shrink:0`), never flex:1, which is why it has to
    * be a real width here too rather than an equal share of the row.
    */
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isNarrow = windowWidth < layout.sideBySideMinWidth;
   const orderPanelWidth =
     windowWidth <= layout.narrowPanelMaxWidth ? layout.orderPanelWidthNarrow : layout.orderPanelWidth;
+
+  /**
+   * `.product-grid`'s `repeat(auto-fill, minmax(128px,1fr))` -- 122px at
+   * <=760px (rakeen-pos-additions.css:488). FlatList takes a fixed
+   * numColumns, so auto-fill is reproduced by dividing the real available
+   * width (viewport minus the category rail, the order panel and the
+   * grid's own 20px side padding) by that minimum tile width.
+   */
+  const gridColumns = useMemo(() => {
+    const minTile = isNarrow ? 122 : 128;
+    const sidePadding = 20 * 2;
+    const available = isNarrow
+      ? windowWidth - sidePadding
+      : windowWidth - layout.catSidebarWidth - orderPanelWidth - sidePadding;
+    return Math.max(1, Math.floor(available / minTile));
+  }, [isNarrow, windowWidth, orderPanelWidth]);
 
   useEffect(() => {
     (async () => {
@@ -196,15 +217,18 @@ export default function ProductsScreen({
   const visibleProducts = useMemo<Product[]>(() => {
     if (!catalog) return [];
     const byCategory = !activeCategoryId ? catalog.products : catalog.products.filter(p => p.categoryId === activeCategoryId);
+    // renderProductGrid()'s own filter order: category, then favourites,
+    // then the search term.
+    const byFav = showFavOnly ? byCategory.filter(p => favIds.has(p.id)) : byCategory;
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return byCategory;
+    if (!q) return byFav;
     // Feature Parity Pass -- Barcode/Search. Ported from the PWA's real
     // search-box filtering (name substring match) -- barcode matching
     // itself happens separately, on Enter, in handleSearchSubmit below,
     // exactly matching the source's own split between the 'input' and
     // 'keydown' listeners on the same field.
-    return byCategory.filter(p => p.name.toLowerCase().includes(q) || (p.nameEn || '').toLowerCase().includes(q));
-  }, [catalog, activeCategoryId, searchQuery]);
+    return byFav.filter(p => p.name.toLowerCase().includes(q) || (p.nameEn || '').toLowerCase().includes(q));
+  }, [catalog, activeCategoryId, searchQuery, showFavOnly, favIds]);
 
   /** Feature Parity Pass -- Barcode. Ported from the PWA's real
    *  searchInput 'keydown' handler (a USB/Bluetooth barcode scanner
@@ -230,13 +254,40 @@ export default function ProductsScreen({
     }
   };
 
-  const handleTapProduct = (product: Product) => {
+  /**
+   * openProductFlow(productId, forceCustomize) -- rakeen-pos.js:791.
+   *
+   * A plain tap does NOT open the modifier modal just because a product
+   * has modifiers: the source only customises when the definition says
+   * `alwaysCustomize` (derived identically here and there as "has a
+   * required group") or when the interaction was a long press. Otherwise
+   * it adds the product with its DEFAULT configuration, which is what
+   * makes tapping a drink with a size group a one-tap sale instead of a
+   * modal every time. This used to open the modal unconditionally.
+   */
+  const handleTapProduct = (product: Product, forceCustomize = false) => {
     const modDef = catalog?.modifiersByProductId[product.id];
-    if (modDef) {
-      setModifierTarget(product);
-    } else {
-      cart.addProduct(product.id);
+    if (!modDef) {
+      cart.addProduct(product.id); // simple product -- always instant
+      return;
     }
+    if (modDef.alwaysCustomize || forceCustomize) {
+      setModifierTarget(product);
+      return;
+    }
+    cart.addWithConfig(product.id, buildDefaultConfig(modDef), 1);
+  };
+
+  /** .fav-star's click handler: toggles in memory and re-renders. Session
+   *  -scoped on purpose -- loadPosData() sets `fav:false` on every product
+   *  each boot, so the PWA's favourites never survive a reload either. */
+  const toggleFavourite = (productId: number) => {
+    setFavIds(prev => {
+      const next = new Set(prev);
+      if (next.has(productId)) next.delete(productId);
+      else next.add(productId);
+      return next;
+    });
   };
 
   const [submitStatus, setSubmitStatus] = useState('');
@@ -590,74 +641,94 @@ export default function ProductsScreen({
         </View>
       )}
 
-      <View style={[styles.mainRow, isNarrow && styles.mainRowNarrow]}>
-        <View style={[styles.productsCol, isNarrow && styles.productsColNarrow]}>
-          <View style={styles.searchBox}>
-            {/* .search-box svg (rakeen-pos.css) -- same circle+line magnifier, ported path-for-path */}
-            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={2} strokeLinecap="round" style={styles.searchIcon}>
-              <Circle cx={11} cy={11} r={7} />
-              <Line x1={21} y1={21} x2={16.65} y2={16.65} />
-            </Svg>
-            <TextInput
-              style={styles.searchInput}
-              placeholderTextColor={colors.muted}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              onSubmitEditing={handleSearchSubmit}
-              placeholder="ابحث أو امسح باركود..."
-              returnKeyType="search"
-            />
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryBar} contentContainerStyle={styles.categoryBarContent}>
-            {catalog.categories.map(cat => {
-              const active = activeCategoryId === cat.id;
-              const tint = active ? colors.flagGreenDeep : colors.muted;
-              return (
-                <Pressable
-                  key={cat.id}
-                  style={({ pressed }) => [styles.categoryTab, active && styles.categoryTabActive, !active && pressed && styles.categoryTabPressed]}
-                  onPress={() => setActiveCategoryId(cat.id)}>
-                  {/* .cat-btn .ci (rakeen-pos.css:170-171) -- icon derived
-                      from the category name via the same keyword rules as
-                      iconForCategory() in rakeen-pos.js, not stored data. */}
-                  <CategoryIcon name={iconForCategoryName(cat.name)} width={17} height={17} stroke={tint} />
-                  <Text style={[styles.categoryTabText, active && styles.categoryTabTextActive]}>{cat.name}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+      {/* .home-zones -- source order is cat-sidebar, products-zone,
+          order-panel. The category rail comes BEFORE the search toolbar,
+          which is why it stacks above it (not below) on a phone. */}
+      <View style={[styles.homeZones, isNarrow && styles.homeZonesNarrow]}>
+        {/* .cat-sidebar: an 84px vertical rail at >=761px, a horizontal
+            scrolling strip of pills below that (additions.css:475-478). */}
+        <ScrollView
+          horizontal={isNarrow}
+          showsHorizontalScrollIndicator={false}
+          showsVerticalScrollIndicator={false}
+          style={[styles.catSidebar, isNarrow && styles.catSidebarNarrow]}
+          contentContainerStyle={[styles.catSidebarContent, isNarrow && styles.catSidebarContentNarrow]}>
+          {catalog.categories.map(cat => {
+            const active = activeCategoryId === cat.id;
+            const tint = active ? colors.flagGreenDeep : colors.muted;
+            const iconSize = isNarrow ? 15 : 17;
+            return (
+              <Pressable
+                key={cat.id}
+                style={({ pressed }) => [
+                  styles.catBtn,
+                  isNarrow && styles.catBtnNarrow,
+                  active && styles.catBtnActive,
+                  !active && pressed && styles.catBtnPressed,
+                ]}
+                onPress={() => setActiveCategoryId(cat.id)}>
+                {/* .cat-btn .ci -- icon derived from the category name by
+                    the same keyword rules as iconForCategory(). */}
+                <CategoryIcon name={iconForCategoryName(cat.name)} width={iconSize} height={iconSize} stroke={tint} />
+                <Text style={[styles.catBtnText, active && styles.catBtnTextActive]} numberOfLines={isNarrow ? 1 : 2}>
+                  {cat.name}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
 
+        {/* .products-zone */}
+        <View style={[styles.productsZone, isNarrow && styles.productsZoneNarrow]}>
+          {/* .products-toolbar -- search box + favourites toggle, in that order */}
+          <View style={styles.productsToolbar}>
+            <View style={styles.searchBox}>
+              {/* .search-box svg -- same circle+line magnifier, ported path-for-path */}
+              <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={2} strokeLinecap="round" style={styles.searchIcon}>
+                <Circle cx={11} cy={11} r={7} />
+                <Line x1={21} y1={21} x2={16.65} y2={16.65} />
+              </Svg>
+              <TextInput
+                style={styles.searchInput}
+                placeholderTextColor={colors.muted}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                onSubmitEditing={handleSearchSubmit}
+                placeholder="ابحث أو امسح باركود..."
+                returnKeyType="search"
+              />
+            </View>
+            {/* .fav-toggle -- 48px pill beside the search box */}
+            <TouchableOpacity
+              style={[styles.favToggle, showFavOnly && styles.favToggleActive]}
+              onPress={() => setShowFavOnly(v => !v)}
+              activeOpacity={0.8}>
+              <Text style={[styles.favToggleText, showFavOnly && styles.favToggleTextActive]}>★</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* .product-grid */}
           <FlatList
-            style={[isNarrow && styles.gridListNarrow]}
+            key={`grid-${gridColumns}`}
+            style={isNarrow ? { maxHeight: windowHeight * 0.6 } : undefined}
             data={visibleProducts}
             keyExtractor={p => String(p.id)}
-            numColumns={2}
+            numColumns={gridColumns}
+            columnWrapperStyle={gridColumns > 1 ? styles.gridRow : undefined}
             contentContainerStyle={styles.grid}
             renderItem={({ item }) => (
-              <TouchableOpacity style={styles.productCard} onPress={() => handleTapProduct(item)} activeOpacity={0.85}>
-                <LinearGradient
-                  colors={gradients.productIcon.colors}
-                  locations={gradients.productIcon.locations}
-                  start={gradients.productIcon.start}
-                  end={gradients.productIcon.end}
-                  style={styles.productIcon}
-                />
-                <Text style={styles.productName} numberOfLines={2}>
-                  {item.name}
-                </Text>
-                {item.isService && item.durationMinutes ? (
-                  <Text style={styles.productMeta}>{item.durationMinutes} د</Text>
-                ) : null}
-                {/* .product-price (rakeen-pos.css:222): position:absolute;
-                    bottom:5px; inset-inline-end:5px -- in this app's
-                    Arabic/RTL layout, "inline-end" resolves to the LEFT
-                    edge, not the right, so the badge sits bottom-left. */}
-                <View style={styles.productPriceChip}>
-                  <Text style={styles.productPrice}>{item.price.toFixed(2)} ر.س</Text>
-                </View>
-              </TouchableOpacity>
+              <ProductCard
+                product={item}
+                categoryName={catalog.categories.find(c => c.id === item.categoryId)?.name ?? ''}
+                hasMods={!!catalog.modifiersByProductId[item.id]}
+                isFav={favIds.has(item.id)}
+                onPress={() => handleTapProduct(item)}
+                onLongPress={() => handleTapProduct(item, true)}
+                onToggleFav={() => toggleFavourite(item.id)}
+              />
             )}
-            ListEmptyComponent={<Text style={styles.subtitle}>لا يوجد منتجات في هذا التصنيف.</Text>}
+            // .grid-empty
+            ListEmptyComponent={<Text style={styles.gridEmpty}>ما فيه نتائج مطابقة</Text>}
           />
         </View>
 
@@ -839,6 +910,100 @@ export default function ProductsScreen({
 
 /** .pay-btn (rakeen-pos.css:342) -- lime gradient, disabled state swaps to
  *  a flat surf2/muted look instead of the gradient (":disabled" rule). */
+/**
+ * .product-card, structured exactly as renderProductGrid() builds it:
+ *
+ *   .fav-star        top / inline-start, toggles the favourite
+ *   .customize-dot   top / inline-end, ONLY when the product has modifiers
+ *   .product-icon    the gradient tile -- and .product-price lives INSIDE
+ *                    it (bottom / inline-end of the tile, not the card)
+ *   .product-name
+ *   .product-cat     category name, or "<n> د · <category>" for a service
+ *
+ * Long press is the source's 480ms timer that opens the customise flow;
+ * a plain tap runs the normal one. Tapping the star must NOT also add to
+ * cart, which the source enforces with an early `closest('.fav-star')`
+ * check -- here the star is simply its own touchable above the card.
+ */
+function ProductCard({
+  product,
+  categoryName,
+  hasMods,
+  isFav,
+  onPress,
+  onLongPress,
+  onToggleFav,
+}: {
+  product: Product;
+  categoryName: string;
+  hasMods: boolean;
+  isFav: boolean;
+  onPress: () => void;
+  onLongPress: () => void;
+  onToggleFav: () => void;
+}) {
+  const { colors } = useTheme();
+  const styles = useStyles();
+  const meta = product.isService && product.durationMinutes
+    ? `${product.durationMinutes} د${categoryName ? ` · ${categoryName}` : ''}`
+    : categoryName;
+  return (
+    <TouchableOpacity
+      style={styles.productCard}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      // rakeen-pos.js's pressTimer fires at 480ms
+      delayLongPress={480}
+      activeOpacity={0.85}>
+      <LinearGradient
+        colors={gradients.productIcon.colors}
+        locations={gradients.productIcon.locations}
+        start={gradients.productIcon.start}
+        end={gradients.productIcon.end}
+        style={styles.productIcon}>
+        {/* .product-price sits inside .product-icon, which is the
+            position:relative ancestor it is anchored to. */}
+        <View style={styles.productPriceChip}>
+          <Text style={styles.productPrice}>{product.price.toFixed(2)} ر.س</Text>
+        </View>
+      </LinearGradient>
+      <Text style={styles.productName} numberOfLines={2}>
+        {product.name}
+      </Text>
+      {!!meta && <Text style={styles.productCat}>{meta}</Text>}
+
+      {/* .fav-star */}
+      <TouchableOpacity
+        style={[styles.favStar, isFav && styles.favStarOn]}
+        onPress={onToggleFav}
+        hitSlop={6}
+        activeOpacity={0.7}>
+        <Svg
+          width={13}
+          height={13}
+          viewBox="0 0 24 24"
+          fill={isFav ? colors.limeDeep : 'none'}
+          stroke={isFav ? colors.limeDeep : colors.ivory}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          opacity={isFav ? 1 : 0.75}>
+          <Polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+        </Svg>
+      </TouchableOpacity>
+
+      {/* .customize-dot -- only for products that have modifier groups */}
+      {hasMods && (
+        <View style={styles.customizeDot}>
+          <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={colors.graphite} strokeWidth={2.5} strokeLinecap="round">
+            <Line x1={12} y1={5} x2={12} y2={19} />
+            <Line x1={5} y1={12} x2={19} y2={12} />
+          </Svg>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
 function PayButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled: boolean }) {
   const styles = useStyles();
   if (disabled) {
@@ -882,11 +1047,12 @@ const useStyles = createStyles((colors, shadows) =>
   },
   tableBannerText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.text },
   tableBannerLink: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accentText },
-  mainRow: { flex: 1, flexDirection: 'row' },
-  mainRowNarrow: { flexDirection: 'column' },
-  productsCol: { flex: 2 },
-  productsColNarrow: { flex: 0, height: '52%' },
-  gridListNarrow: { flex: 1 },
+  // .home-zones -- `flex:1; display:flex` (row), column at <=760px
+  homeZones: { flex: 1, flexDirection: 'row' },
+  homeZonesNarrow: { flexDirection: 'column' },
+  // .products-zone -- `flex:1; min-width:0`
+  productsZone: { flex: 1, minWidth: 0 },
+  productsZoneNarrow: { flex: 0 },
   // .order-panel -- `width:360px; flex-shrink:0` (the live width is set
   // inline from the breakpoint, see orderPanelWidth). `border-inline-start`
   // in an RTL document resolves to the panel's RIGHT edge, which is what
@@ -894,9 +1060,11 @@ const useStyles = createStyles((colors, shadows) =>
   cartCol: { flexShrink: 0, backgroundColor: colors.cardBg, borderStartWidth: 1, borderStartColor: colors.line },
   // @media (max-width:760px): `width:100%; border-inline-start:none;
   // border-top:8px solid var(--surf1)`
-  cartColNarrow: { width: '100%', flexShrink: 1, borderStartWidth: 0, borderTopWidth: 8, borderTopColor: colors.surf1 },
-  // .search-box
-  searchBox: { position: 'relative', marginHorizontal: spacing[4], marginTop: spacing[3] },
+  cartColNarrow: { width: '100%', flex: 1, borderStartWidth: 0, borderTopWidth: 8, borderTopColor: colors.surf1 },
+  // .products-toolbar -- `display:flex; gap:10px; padding:18px 20px 12px`
+  productsToolbar: { flexDirection: 'row', gap: 10, paddingTop: 18, paddingHorizontal: 20, paddingBottom: 12 },
+  // .search-box -- `flex:1; position:relative`
+  searchBox: { flex: 1, position: 'relative' },
   searchIcon: { position: 'absolute', left: 15, top: '50%', marginTop: -8, zIndex: 1 },
   // .search-box input
   searchInput: {
@@ -912,13 +1080,50 @@ const useStyles = createStyles((colors, shadows) =>
     fontSize: 13.5,
     textAlign: 'right',
   },
-  // .cat-sidebar (mobile row variant, rakeen-pos-additions.css)
-  categoryBar: { flexGrow: 0, paddingVertical: spacing[3] },
-  categoryBarContent: { paddingHorizontal: spacing[3], gap: spacing[2] },
-  // .cat-btn
-  categoryTab: {
+  // .fav-toggle -- `width:48px; flex-shrink:0; border-radius:var(--r-full)`
+  favToggle: {
+    width: 48,
+    flexShrink: 0,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surf1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  favToggleActive: { backgroundColor: colors.lime, borderColor: colors.lime },
+  favToggleText: { fontSize: 18, color: colors.muted },
+  favToggleTextActive: { color: colors.flagGreenDeep },
+  // .cat-sidebar -- `width:84px; flex-shrink:0; flex-direction:column;
+  // gap:6px; padding:14px 8px; border-inline-end:1px solid var(--line);
+  // background:var(--surf1)`
+  catSidebar: {
+    width: layout.catSidebarWidth,
+    flexGrow: 0,
+    flexShrink: 0,
+    borderEndWidth: 1,
+    borderEndColor: colors.line,
+    backgroundColor: colors.surf1,
+  },
+  catSidebarContent: { gap: 6, paddingVertical: 14, paddingHorizontal: 8 },
+  // additions.css:475 -- `width:100%; flex-direction:row; overflow-x:auto;
+  // border-inline-end:none; border-bottom:1px solid var(--line);
+  // padding:10px 12px; background:none`
+  catSidebarNarrow: {
+    width: '100%',
+    flexGrow: 0,
+    borderEndWidth: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+    backgroundColor: 'transparent',
+  },
+  catSidebarContentNarrow: { gap: 6, paddingVertical: 10, paddingHorizontal: 12 },
+  // .cat-btn -- `padding:10px 4px; border-radius:var(--r-md); gap:5px;
+  // font-weight:700; font-size:10px; line-height:1.25`
+  catBtn: {
+    flexShrink: 0,
     paddingVertical: 10,
-    paddingHorizontal: spacing[3],
+    paddingHorizontal: 4,
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
@@ -927,8 +1132,12 @@ const useStyles = createStyles((colors, shadows) =>
     justifyContent: 'center',
     gap: 5,
   },
-  categoryTabPressed: { backgroundColor: colors.surf2 },
-  categoryTabActive: {
+  // additions.css:476 -- `flex-direction:row; padding:8px 14px;
+  // border-radius:var(--r-full); white-space:nowrap; width:auto`
+  catBtnNarrow: { flexDirection: 'row', paddingVertical: 8, paddingHorizontal: 14, borderRadius: radii.full },
+  catBtnPressed: { backgroundColor: colors.surf2 },
+  // .cat-btn.active -- lime fill plus `0 6px 16px rgba(lime-deep, .35)`
+  catBtnActive: {
     backgroundColor: colors.lime,
     borderColor: colors.lime,
     shadowColor: colors.limeDeep,
@@ -937,16 +1146,28 @@ const useStyles = createStyles((colors, shadows) =>
     shadowRadius: 16,
     elevation: 4,
   },
-  categoryTabText: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.muted, textAlign: 'center' },
-  categoryTabTextActive: { color: colors.flagGreenDeep },
-  // .product-grid
-  grid: { padding: spacing[2] },
+  catBtnText: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.muted, textAlign: 'center', lineHeight: 13 },
+  catBtnTextActive: { color: colors.flagGreenDeep },
+  // .product-grid -- `padding:4px 20px 22px; gap:10px`
+  grid: { paddingTop: 4, paddingHorizontal: 20, paddingBottom: 22, gap: 10 },
+  gridRow: { gap: 10 },
+  // .grid-empty
+  gridEmpty: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 13,
+    color: colors.muted,
+    textAlign: 'center',
+    paddingVertical: 50,
+    paddingHorizontal: 20,
+  },
   // .product-card
   productCard: {
+    // `1fr` grid track: the row's gap already provides the 10px spacing,
+    // so the card must not add a margin of its own on top of it.
     flex: 1,
-    margin: 5,
     position: 'relative',
-    overflow: 'hidden',
+    // NOT overflow:hidden -- .fav-star/.customize-dot sit at the card's
+    // very edge and the source lets them paint there.
     backgroundColor: colors.cardBg,
     borderRadius: radii.lg,
     borderWidth: 1,
@@ -956,12 +1177,43 @@ const useStyles = createStyles((colors, shadows) =>
     paddingBottom: 12,
     ...shadows.sm,
   },
-  // .product-icon
-  productIcon: { width: '100%', height: 72, borderRadius: radii.md, marginBottom: 7 },
+  // .product-icon -- `position:relative` so .product-price anchors to it
+  productIcon: { width: '100%', height: 72, borderRadius: radii.md, marginBottom: 7, position: 'relative' },
   // .product-name
   productName: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text, lineHeight: 16 },
-  // .product-cat / duration meta
-  productMeta: { fontFamily: fonts.sansSemiBold, fontSize: 10, color: colors.muted, marginTop: 1 },
+  // .product-cat -- `font-size:10px; font-weight:600; margin-top:1px`
+  productCat: { fontFamily: fonts.sansSemiBold, fontSize: 10, color: colors.muted, marginTop: 1 },
+  // .fav-star -- `top:8px; inset-inline-start:8px; 24px circle`
+  favStar: {
+    position: 'absolute',
+    top: 8,
+    start: 8,
+    zIndex: 2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(5,15,10,0.5)',
+  },
+  favStarOn: { backgroundColor: `rgba(${colors.limeDeepRgb},0.3)` },
+  // .customize-dot -- `top:8px; inset-inline-end:8px; 22px circle;
+  // background:var(--sand); box-shadow:0 0 0 2px var(--card-bg)`
+  customizeDot: {
+    position: 'absolute',
+    top: 8,
+    end: 8,
+    zIndex: 2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.sand,
+    // the CSS spread-only shadow is a 2px ring in the card colour
+    borderWidth: 2,
+    borderColor: colors.cardBg,
+  },
   // .product-price -- absolutely positioned chip, bottom-LEFT in this RTL
   // app (inset-inline-end resolves to left, not right -- see JSX comment).
   productPriceChip: {
