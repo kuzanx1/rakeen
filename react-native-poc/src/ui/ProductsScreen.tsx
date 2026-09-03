@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Circle, Line } from 'react-native-svg';
-import { colors, fonts, gradients, radii, shadows, spacing } from './theme';
+import { createStyles, fonts, gradients, layout, radii, spacing, useTheme } from './theme';
 import { CategoryIcon, iconForCategoryName } from './categoryIcons';
 import { loadCatalog, getBusinessType, getFinancialSettings, getReceiptBusinessProfile, CatalogResult } from '../application/catalogService';
 import { getOrderHistoryDetail } from '../application/orderHistoryService';
@@ -139,13 +139,24 @@ export default function ProductsScreen({
   const [businessType, setBusinessType] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // The web PWA switches this same screen from a side-by-side products+cart
-  // layout to a stacked one at max-width:760px (rakeen-pos-additions.css) --
-  // this app runs on phones almost exclusively, so without the same
-  // breakpoint the cart column was rendering at a sliver of its real width,
-  // clipping every price/button in it. Mirrors that breakpoint here.
+  const { colors } = useTheme();
+  const styles = useStyles();
+
+  /**
+   * The same breakpoint pair the PWA uses, not an approximation:
+   *  - `@media (min-width:761px)` (rakeen-pos.css:375) is where the order
+   *    panel appears beside the grid at all; below it,
+   *    rakeen-pos-additions.css:434 stacks .home-zones into a column.
+   *  - `@media (max-width:1100px) and (min-width:761px)` (additions:416)
+   *    narrows that panel from 360px to 300px.
+   * The panel is a FIXED-width column in the source (.order-panel:252 --
+   * `width:360px; flex-shrink:0`), never flex:1, which is why it has to
+   * be a real width here too rather than an equal share of the row.
+   */
   const { width: windowWidth } = useWindowDimensions();
-  const isNarrow = windowWidth < 760;
+  const isNarrow = windowWidth < layout.sideBySideMinWidth;
+  const orderPanelWidth =
+    windowWidth <= layout.narrowPanelMaxWidth ? layout.orderPanelWidthNarrow : layout.orderPanelWidth;
 
   useEffect(() => {
     (async () => {
@@ -541,7 +552,7 @@ export default function ProductsScreen({
   if (loading) {
     return (
       <View style={[styles.root, styles.center]}>
-        <ActivityIndicator color={colors.lime} />
+        <ActivityIndicator color={colors.accentText} />
       </View>
     );
   }
@@ -651,7 +662,7 @@ export default function ProductsScreen({
           />
         </View>
 
-        <View style={[styles.cartCol, isNarrow && styles.cartColNarrow]}>
+        <View style={[styles.cartCol, isNarrow ? styles.cartColNarrow : { width: orderPanelWidth }]}>
           <View style={styles.channelRow}>
             {(Object.keys(CHANNEL_LABELS) as OrderChannel[]).map(ch => {
               const active = cart.orderChannel === ch;
@@ -830,6 +841,7 @@ export default function ProductsScreen({
 /** .pay-btn (rakeen-pos.css:342) -- lime gradient, disabled state swaps to
  *  a flat surf2/muted look instead of the gradient (":disabled" rule). */
 function PayButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled: boolean }) {
+  const styles = useStyles();
   if (disabled) {
     return (
       <View style={[styles.payButton, styles.payButtonDisabled]}>
@@ -848,7 +860,8 @@ function PayButton({ label, onPress, disabled }: { label: string; onPress: () =>
 
 // Every rule below is annotated with the exact rakeen-pos.css / additions
 // selector it ports -- see theme.ts's own header for the sourcing rule.
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors, shadows) =>
+  StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.canvas },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing[6] },
   subtitle: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted, textAlign: 'center', padding: spacing[3] },
@@ -869,15 +882,20 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[2],
   },
   tableBannerText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.text },
-  tableBannerLink: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.limeDeep },
+  tableBannerLink: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accentText },
   mainRow: { flex: 1, flexDirection: 'row' },
   mainRowNarrow: { flexDirection: 'column' },
   productsCol: { flex: 2 },
   productsColNarrow: { flex: 0, height: '52%' },
   gridListNarrow: { flex: 1 },
-  // .order-panel
-  cartCol: { flex: 1, backgroundColor: colors.cardBg, borderLeftWidth: 1, borderLeftColor: colors.line },
-  cartColNarrow: { borderLeftWidth: 0, borderTopWidth: 8, borderTopColor: colors.canvas },
+  // .order-panel -- `width:360px; flex-shrink:0` (the live width is set
+  // inline from the breakpoint, see orderPanelWidth). `border-inline-start`
+  // in an RTL document resolves to the panel's RIGHT edge, which is what
+  // borderStart maps to once I18nManager RTL is on.
+  cartCol: { flexShrink: 0, backgroundColor: colors.cardBg, borderStartWidth: 1, borderStartColor: colors.line },
+  // @media (max-width:760px): `width:100%; border-inline-start:none;
+  // border-top:8px solid var(--surf1)`
+  cartColNarrow: { width: '100%', flexShrink: 1, borderStartWidth: 0, borderTopWidth: 8, borderTopColor: colors.surf1 },
   // .search-box
   searchBox: { position: 'relative', marginHorizontal: spacing[4], marginTop: spacing[3] },
   searchIcon: { position: 'absolute', left: 15, top: '50%', marginTop: -8, zIndex: 1 },
@@ -950,13 +968,16 @@ const styles = StyleSheet.create({
   productPriceChip: {
     position: 'absolute',
     bottom: 5,
-    left: 5,
+    // `inset-inline-end:5px` -- `end` is RN's auto-flipping counterpart,
+    // so this resolves to the left edge under RTL exactly as the CSS does.
+    end: 5,
     backgroundColor: colors.priceChipBg,
     borderRadius: radii.full,
     paddingVertical: 2,
     paddingHorizontal: 6,
   },
-  productPrice: { fontFamily: fonts.monoBold, fontSize: 11, color: colors.lime, writingDirection: 'ltr' },
+  // .product-price -- --lime-deep, overridden to --lime in dark
+  productPrice: { fontFamily: fonts.monoBold, fontSize: 11, color: colors.accentText, writingDirection: 'ltr' },
   // .channel-row
   channelRow: { flexDirection: 'row', gap: 4, padding: 4, backgroundColor: colors.surf1, borderRadius: radii.full, marginHorizontal: spacing[4], marginTop: spacing[3] },
   // .channel-btn
@@ -1060,7 +1081,8 @@ const styles = StyleSheet.create({
   totalsValue: { fontFamily: fonts.monoMedium, fontSize: 11.5, color: colors.muted, writingDirection: 'ltr' },
   totalsValueDiscount: { color: colors.limeDeep },
   totalsLabelFinal: { fontFamily: fonts.sansBold, fontSize: 13.5, color: colors.text },
-  totalsValueFinal: { fontFamily: fonts.monoBold, fontSize: 17, color: colors.lime, writingDirection: 'ltr' },
+  // .sum-row.total .mono -- --lime-deep, overridden to --lime in dark
+  totalsValueFinal: { fontFamily: fonts.monoBold, fontSize: 17, color: colors.accentText, writingDirection: 'ltr' },
   // .pay-btn, inside .order-actions's own padding:8px 18px 14px
   payButton: {
     paddingVertical: 13,
@@ -1074,4 +1096,5 @@ const styles = StyleSheet.create({
   payButtonText: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.flagGreenDeep },
   payButtonTextDisabled: { color: colors.muted },
   submitStatus: { fontFamily: fonts.sansSemiBold, fontSize: 11, textAlign: 'center', paddingHorizontal: spacing[4], color: colors.muted },
-});
+  }),
+);

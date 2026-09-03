@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { listPrintJobs, retryPrintJob, retryAllFailedPrintJobs } from '../application/printService';
 import { PrintJobRecord, PrintJobStatus } from '../domain/printQueue';
-import { colors, fonts, radii, spacing } from './theme';
+import { createStyles, fonts, Palette, radii, spacing, useTheme } from './theme';
 
 const STATUS_LABELS: Record<PrintJobStatus, string> = {
   queued: 'بانتظار الطباعة',
@@ -16,15 +16,17 @@ const STATUS_LABELS: Record<PrintJobStatus, string> = {
 // No PWA equivalent exists for this screen at all -- it's a native-only
 // capability (see the audit's gap table). Status colors reuse the same
 // theme semantics as everywhere else (lime=success, amber=pending-retry,
-// danger=failed, muted=neutral) rather than inventing new ones.
-const STATUS_COLORS: Record<PrintJobStatus, string> = {
+// danger=failed, muted=neutral) rather than inventing new ones. Derived
+// from the live palette rather than frozen at import, so it follows the
+// light/dark toggle like everything else.
+const statusColors = (colors: Palette): Record<PrintJobStatus, string> => ({
   queued: colors.muted,
-  printing: colors.limeDeep,
-  printed: colors.lime,
+  printing: colors.accentText,
+  printed: colors.accentText,
   skipped_no_printer: colors.muted,
   retrying: colors.amber,
   failed: colors.danger,
-};
+});
 
 /**
  * Checkpoint 10 (Print Queue) -- the real manual-retry surface the
@@ -35,6 +37,9 @@ const STATUS_COLORS: Record<PrintJobStatus, string> = {
  * retry + "retry all failed", not a full Diagnostics screen.
  */
 export default function PrintQueueScreen() {
+  const { colors } = useTheme();
+  const styles = useStyles();
+  const STATUS_COLORS = statusColors(colors);
   const [jobs, setJobs] = useState<PrintJobRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -76,7 +81,7 @@ export default function PrintQueueScreen() {
   if (loading) {
     return (
       <View style={[styles.root, styles.center]}>
-        <ActivityIndicator color={colors.lime} />
+        <ActivityIndicator color={colors.accentText} />
       </View>
     );
   }
@@ -118,7 +123,8 @@ export default function PrintQueueScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles(colors =>
+  StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.canvas },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: {
@@ -131,7 +137,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.line,
   },
   title: { fontFamily: fonts.sansBold, fontSize: 17, color: colors.text },
-  retryAllLink: { fontFamily: fonts.sansBold, color: colors.limeDeep },
+  retryAllLink: { fontFamily: fonts.sansBold, color: colors.accentText },
   list: { padding: spacing[4] },
   empty: { fontFamily: fonts.sansSemiBold, textAlign: 'center', color: colors.muted, padding: spacing[5] },
   card: {
@@ -150,4 +156,5 @@ const styles = StyleSheet.create({
   meta: { fontFamily: fonts.sansSemiBold, fontSize: 11, color: colors.muted, marginBottom: spacing[2] },
   retryButton: { backgroundColor: colors.surf2, borderRadius: radii.sm, padding: spacing[2], alignItems: 'center' },
   retryButtonText: { fontFamily: fonts.sansBold, color: colors.text },
-});
+  }),
+);

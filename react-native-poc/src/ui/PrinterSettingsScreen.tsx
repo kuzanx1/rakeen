@@ -11,7 +11,7 @@ import {
   profileToPrinterTarget,
 } from '../domain/printerProfile';
 import type { PrinterProfile, PrinterTransportKind, DiscoveredDevice } from '../platform/printer';
-import { colors, fonts, gradients, radii, spacing } from './theme';
+import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
 
 const TRANSPORT_LABELS: Record<PrinterTransportKind, string> = {
   network: 'شبكة (Network)',
@@ -40,6 +40,8 @@ const SCAN_TIMEOUT_MS = 6000;
  * cards use the same card-bg/line/radii tokens as everything else.
  */
 export default function PrinterSettingsScreen() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const [profile, setProfile] = useState<PrinterProfile>(emptyPrinterProfile());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -141,7 +143,7 @@ export default function PrinterSettingsScreen() {
   if (loading) {
     return (
       <View style={[styles.root, styles.center]}>
-        <ActivityIndicator color={colors.lime} />
+        <ActivityIndicator color={colors.accentText} />
       </View>
     );
   }
@@ -330,6 +332,7 @@ export default function PrinterSettingsScreen() {
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const styles = useStyles();
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -339,6 +342,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
+  const styles = useStyles();
   return <Text style={styles.fieldLabel}>{children}</Text>;
 }
 
@@ -346,6 +350,7 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 // lime-filled checkbox, not an OS Switch, matching the PWA's own
 // replacement for native checkboxes everywhere in Settings.
 function PosCheck({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+  const styles = useStyles();
   return (
     <TouchableOpacity style={styles.posCheck} onPress={() => onChange(!value)} activeOpacity={0.8}>
       <View style={[styles.posCheckBox, value && styles.posCheckBoxChecked]}>
@@ -377,6 +382,7 @@ function DeviceScanSection({
   onScan: () => void;
   onSelect: (device: DiscoveredDevice) => void;
 }) {
+  const styles = useStyles();
   return (
     <View style={styles.deviceScanBlock}>
       <FieldLabel>{transport === 'bluetooth' ? 'جهاز البلوتوث' : 'جهاز USB'}</FieldLabel>
@@ -402,7 +408,8 @@ function DeviceScanSection({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles(colors =>
+  StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.canvas },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: spacing[4] },
@@ -457,4 +464,5 @@ const styles = StyleSheet.create({
   },
   deviceRowText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text, flex: 1 },
   deviceRowRssi: { fontFamily: fonts.sansSemiBold, fontSize: 11, color: colors.muted },
-});
+  }),
+);

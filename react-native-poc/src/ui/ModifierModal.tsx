@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View, ScrollView } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { ModifierDefinition, CartLineConfig, buildDefaultConfig } from '../domain/cart';
-import { colors, fonts, gradients, radii, spacing } from './theme';
+import { createStyles, fonts, gradients, radii, spacing } from './theme';
 
 /**
  * The real "customize" flow for a product with modifier groups (single-
@@ -35,6 +35,7 @@ export default function ModifierModal({
   onConfirm: (config: CartLineConfig, qty: number) => void;
   onCancel: () => void;
 }) {
+  const styles = useStyles();
   const [config, setConfig] = useState<CartLineConfig>(() => buildDefaultConfig(modDef) || {});
   const [qty, setQty] = useState(1);
 
@@ -132,8 +133,9 @@ export default function ModifierModal({
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(6,16,10,0.78)', justifyContent: 'flex-end' },
+const useStyles = createStyles(colors =>
+  StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: colors.modalOverlay, justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.cardBg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing[4], maxHeight: '80%' },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[3] },
   title: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text },
@@ -165,7 +167,8 @@ const styles = StyleSheet.create({
   },
   chipSelected: { borderColor: colors.limeDeep, backgroundColor: `rgba(${colors.limeRgb},0.13)` },
   chipText: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.text },
-  chipPrice: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.lime, writingDirection: 'ltr' },
+  // .mod-chip-price -- --lime-deep, overridden to --lime in dark
+  chipPrice: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.accentText, writingDirection: 'ltr' },
   // .modifier-footer
   footer: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: spacing[2], paddingTop: 18, borderTopWidth: 1, borderTopColor: colors.line },
   // .modifier-qty
@@ -178,4 +181,5 @@ const styles = StyleSheet.create({
   confirmWrap: { flex: 1 },
   confirmButton: { paddingVertical: 15, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
   confirmText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.flagGreenDeep },
-});
+  }),
+);

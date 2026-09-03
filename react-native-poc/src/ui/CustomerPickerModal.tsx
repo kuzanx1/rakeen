@@ -3,7 +3,7 @@ import { ActivityIndicator, Modal, StyleSheet, Text, TextInput, TouchableOpacity
 import LinearGradient from 'react-native-linear-gradient';
 import { searchCustomers } from '../application/customerService';
 import { validateNewCustomerDraft, looksLikePhoneNumber, Customer } from '../domain/customer';
-import { colors, fonts, gradients, radii, spacing } from './theme';
+import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
 
 /**
  * Feature Parity Pass -- Customer Management. Ported from the PWA's
@@ -30,6 +30,8 @@ export default function CustomerPickerModal({
   onCancel: () => void;
   onSelect: (customer: { id: number | null; name: string; phone: string | null; points: number }) => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Customer[]>([]);
   const [searching, setSearching] = useState(false);
@@ -106,7 +108,7 @@ export default function CustomerPickerModal({
                 placeholder="ابحث بالاسم أو رقم الجوال"
                 autoFocus
               />
-              {searching && <ActivityIndicator style={styles.spinner} color={colors.lime} />}
+              {searching && <ActivityIndicator style={styles.spinner} color={colors.accentText} />}
               {results.map(c => (
                 <TouchableOpacity
                   key={c.id}
@@ -178,8 +180,9 @@ export default function CustomerPickerModal({
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(6,16,10,0.78)', justifyContent: 'flex-end' },
+const useStyles = createStyles(colors =>
+  StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: colors.modalOverlay, justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.cardBg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing[5], maxHeight: '80%' },
   title: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, marginBottom: spacing[3], textAlign: 'center' },
   // .customer-panel input
@@ -220,4 +223,5 @@ const styles = StyleSheet.create({
   confirmButtonDisabled: { backgroundColor: colors.surf2 },
   confirmText: { fontFamily: fonts.sansBold, color: colors.flagGreenDeep },
   confirmTextDisabled: { color: colors.muted },
-});
+  }),
+);

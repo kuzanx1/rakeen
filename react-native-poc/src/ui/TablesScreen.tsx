@@ -20,19 +20,22 @@ import {
   elapsedMinutes,
 } from '../domain/tables';
 import ManagerPinModal from './ManagerPinModal';
-import { colors, fonts, radii, spacing } from './theme';
+import { createStyles, fonts, Palette, radii, spacing, useTheme } from './theme';
 
-// .table-card.<status> (rakeen-pos.css:469-478) -- border/background pairs,
-// verbatim. `reserved`/`occupied`/`maintenance` in CSS aren't reachable
+// .table-card.<status> (rakeen-pos.css:469-489) -- border/background/text
+// triples, verbatim. `occupied`/`maintenance` in the CSS aren't reachable
 // through this domain's actual status union, so only the 6 real ones.
-const STATUS_STYLE: Record<RestaurantTable['status'], { border: string; bg: string; text: string }> = {
+// Built from the live palette so it follows the light/dark toggle: the
+// serving row in particular is --lime-deep in light and --lime in dark,
+// which is exactly what accentText encodes.
+const statusStyle = (colors: Palette): Record<RestaurantTable['status'], { border: string; bg: string; text: string }> => ({
   available: { border: colors.line, bg: colors.surf1, text: colors.muted },
   awaiting_order: { border: colors.amber, bg: `rgba(${colors.amberRgb},0.08)`, text: colors.amber },
-  serving: { border: colors.limeDeep, bg: `rgba(${colors.limeRgb},0.1)`, text: colors.lime },
+  serving: { border: colors.limeDeep, bg: `rgba(${colors.limeRgb},0.1)`, text: colors.accentText },
   awaiting_payment: { border: colors.danger, bg: `rgba(${colors.dangerRgb},0.09)`, text: colors.danger },
   cleaning: { border: colors.muted, bg: colors.surf2, text: colors.muted },
   reserved: { border: colors.amber, bg: `rgba(${colors.amberRgb},0.08)`, text: colors.amber },
-};
+});
 
 export interface SelectedTableContext {
   id: number;
@@ -65,6 +68,9 @@ export default function TablesScreen({
   branchId: number;
   onBeginOrderForTable: (table: SelectedTableContext) => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
+  const STATUS_STYLE = statusStyle(colors);
   const [tables, setTables] = useState<RestaurantTable[]>([]);
   const [sections, setSections] = useState<TableSection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -232,7 +238,7 @@ export default function TablesScreen({
   if (loading) {
     return (
       <View style={[styles.root, styles.center]}>
-        <ActivityIndicator color={colors.lime} />
+        <ActivityIndicator color={colors.accentText} />
       </View>
     );
   }
@@ -391,6 +397,7 @@ function SheetButton({
   danger?: boolean;
   muted?: boolean;
 }) {
+  const styles = useStyles();
   return (
     <TouchableOpacity
       style={[styles.sheetButton, danger && styles.sheetButtonDanger, muted && styles.sheetButtonMuted]}
@@ -401,7 +408,8 @@ function SheetButton({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles(colors =>
+  StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.canvas },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: {
@@ -414,7 +422,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.line,
   },
   title: { fontFamily: fonts.sansBold, fontSize: 17, color: colors.text },
-  refreshLink: { fontFamily: fonts.sansBold, color: colors.limeDeep },
+  refreshLink: { fontFamily: fonts.sansBold, color: colors.accentText },
   error: { fontFamily: fonts.sansBold, color: colors.danger, textAlign: 'center', padding: spacing[2] },
   toast: { backgroundColor: colors.surf2, padding: spacing[3], alignItems: 'center' },
   toastText: { fontFamily: fonts.sansSemiBold, color: colors.text, fontSize: 13 },
@@ -442,7 +450,7 @@ const styles = StyleSheet.create({
   elapsed: { fontFamily: fonts.sansSemiBold, fontSize: 10, color: colors.muted },
   empty: { fontFamily: fonts.sansSemiBold, textAlign: 'center', color: colors.muted, padding: spacing[6] },
   // .modal-overlay
-  sheetOverlay: { flex: 1, backgroundColor: 'rgba(6,16,10,0.78)', justifyContent: 'flex-end' },
+  sheetOverlay: { flex: 1, backgroundColor: colors.modalOverlay, justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.cardBg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing[5] },
   sheetTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, marginBottom: 6, textAlign: 'center' },
   sheetNote: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted, marginBottom: 14, textAlign: 'center' },
@@ -453,4 +461,5 @@ const styles = StyleSheet.create({
   sheetButtonText: { fontFamily: fonts.sansBold, color: colors.text },
   sheetButtonTextDanger: { color: colors.danger },
   sheetButtonTextMuted: { color: colors.muted },
-});
+  }),
+);

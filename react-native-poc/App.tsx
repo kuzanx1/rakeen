@@ -21,7 +21,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 import { Printer, printReceipt } from './src/platform/printer';
 import { CashDrawer, openCashDrawer } from './src/platform/cashDrawer';
@@ -42,7 +42,7 @@ import { profileToPrinterTarget, drawerKickCommandFor, isDrawerSupported } from 
 import { startDiagnosticsTracking } from './src/application/diagnosticsService';
 import DiagnosticsScreen from './src/ui/DiagnosticsScreen';
 import OrderHistoryScreen from './src/ui/OrderHistoryScreen';
-import { colors, fonts, radii, spacing } from './src/ui/theme';
+import { createStyles, fonts, radii, spacing, ThemeProvider, useTheme } from './src/ui/theme';
 
 /** React Native's Hermes runtime has no global `btoa` (unlike a browser) —
  *  a minimal base64 encoder, since pulling in a whole polyfill package for
@@ -139,6 +139,8 @@ function screenToTab(screen: Screen): NavTab {
 }
 
 function App(): React.JSX.Element {
+  const { colors, mode, toggle } = useTheme();
+  const styles = useStyles();
   const [cashier, setCashier] = useState<CashierProfile | null>(null);
   const [showHardwareTools, setShowHardwareTools] = useState(false);
   const [screen, setScreen] = useState<Screen>({ name: 'products', table: null });
@@ -263,6 +265,30 @@ function App(): React.JSX.Element {
     <SafeAreaView style={styles.root}>
       <View style={styles.topBar}>
         <Text style={styles.topBarTitle}>{cashier.full_name || 'بدون اسم'}</Text>
+        {/* .theme-toggle (rakeen-pos.css:123) -- 30px circle, surf1 fill,
+            line border, muted icon. Shows the moon (.icon-dark) while dark
+            is active and the sun (.icon-light) while light is, exactly as
+            the [data-theme="light"] display rules swap them. Session-only,
+            like the source's own handler. */}
+        <TouchableOpacity onPress={toggle} style={styles.themeToggle} accessibilityLabel="تبديل المظهر">
+          <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={2}>
+            {mode === 'dark' ? (
+              <Path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            ) : (
+              <>
+                <Circle cx={12} cy={12} r={5} />
+                <Line x1={12} y1={1} x2={12} y2={3} />
+                <Line x1={12} y1={21} x2={12} y2={23} />
+                <Line x1={4.22} y1={4.22} x2={5.64} y2={5.64} />
+                <Line x1={18.36} y1={18.36} x2={19.78} y2={19.78} />
+                <Line x1={1} y1={12} x2={3} y2={12} />
+                <Line x1={21} y1={12} x2={23} y2={12} />
+                <Line x1={4.22} y1={19.78} x2={5.64} y2={18.36} />
+                <Line x1={18.36} y1={5.64} x2={19.78} y2={4.22} />
+              </>
+            )}
+          </Svg>
+        </TouchableOpacity>
       </View>
       {!!drawerStatus && (
         <View style={styles.drawerStatusBanner}>
@@ -367,7 +393,10 @@ function NavTabButton({
   icon: React.ReactNode;
   onPress: () => void;
 }) {
-  const tint = active ? colors.lime : colors.muted;
+  const { colors } = useTheme();
+  const styles = useStyles();
+  // .nav-tab.active -- --lime-deep, overridden to --lime in dark
+  const tint = active ? colors.accentText : colors.muted;
   return (
     <TouchableOpacity style={styles.navTab} onPress={onPress} activeOpacity={0.7}>
       <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={tint} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -401,6 +430,7 @@ function MoreScreen({
   drawerBusy: boolean;
   onLogout: () => void;
 }) {
+  const styles = useStyles();
   return (
     <ScrollView style={styles.moreRoot} contentContainerStyle={styles.moreScroll}>
       <MoreRow label="فتح الدرج" onPress={onOpenDrawer} disabled={drawerBusy} busyLabel="جارٍ الفتح..." busy={drawerBusy} />
@@ -429,6 +459,7 @@ function MoreRow({
   busy?: boolean;
   busyLabel?: string;
 }) {
+  const styles = useStyles();
   return (
     <TouchableOpacity style={styles.moreRow} onPress={onPress} disabled={disabled} activeOpacity={0.8}>
       <Text style={[styles.moreRowText, danger && styles.moreRowTextDanger]}>{busy && busyLabel ? busyLabel : label}</Text>
@@ -437,6 +468,8 @@ function MoreRow({
 }
 
 function HardwareToolsScreen({ onBack }: { onBack: () => void }): React.JSX.Element {
+  const { colors, mode } = useTheme();
+  const styles = useStyles();
   const [host, setHost] = useState('192.168.1.50');
   const [port, setPort] = useState('9100'); // a UI default only — never assumed by the contract itself
   const [network, setNetwork] = useState<NetInfoState | null>(null);
@@ -537,7 +570,7 @@ function HardwareToolsScreen({ onBack }: { onBack: () => void }): React.JSX.Elem
 
   return (
     <SafeAreaView style={styles.root}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <TouchableOpacity onPress={onBack}>
           <Text style={styles.link}>‹ رجوع</Text>
@@ -607,7 +640,8 @@ function HardwareToolsScreen({ onBack }: { onBack: () => void }): React.JSX.Elem
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles(colors =>
+  StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.canvas },
   scroll: { padding: spacing[4] },
   title: { fontFamily: fonts.sansBold, fontSize: 20, color: colors.text, marginBottom: 4 },
@@ -657,6 +691,17 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.line,
   },
   topBarTitle: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.text },
+  // .theme-toggle
+  themeToggle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surf1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   drawerStatusBanner: { backgroundColor: colors.surf2, paddingVertical: spacing[2], paddingHorizontal: spacing[4] },
   drawerStatusText: { fontFamily: fonts.sansSemiBold, fontSize: 12, textAlign: 'center', color: colors.text },
   // .bottom-nav (rakeen-pos.css:351)
@@ -670,6 +715,18 @@ const styles = StyleSheet.create({
   moreRowText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.text, textAlign: 'center' },
   moreRowTextDanger: { color: colors.danger },
   moreDivider: { height: spacing[3] },
-});
+  }),
+);
 
-export default App;
+/**
+ * The whole tree has to sit under ThemeProvider for useTheme()/createStyles
+ * to resolve, and the provider starts on light -- matching POSPage.tsx's
+ * unconditional `data-theme="light"` on mount. See theme.ts's header.
+ */
+export default function Root(): React.JSX.Element {
+  return (
+    <ThemeProvider>
+      <App />
+    </ThemeProvider>
+  );
+}

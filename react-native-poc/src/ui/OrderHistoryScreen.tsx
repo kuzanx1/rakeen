@@ -16,7 +16,7 @@ import { getReceiptBusinessProfile } from '../application/catalogService';
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { shouldPrintCustomerReceipt, shouldPrintReceiptLogo } from '../domain/printerProfile';
 import type { ReceiptData } from '../domain/receipt';
-import { colors, fonts, gradients, radii, spacing } from './theme';
+import { createStyles, fonts, gradients, Palette, radii, spacing, useTheme } from './theme';
 
 const STATUS_TABS: { value: OrderHistoryStatus; label: string }[] = [
   { value: 'completed', label: 'مكتملة' },
@@ -32,11 +32,11 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = { cash: 'كاش', card: '�
 // cancelled set -- refunded has no direct badge rule in the source, so it
 // reuses the closest semantic match (danger, same as cancelled) rather
 // than inventing a new color.
-const ROW_BADGE_COLOR: Record<OrderHistoryStatus, string> = {
+const rowBadgeColor = (colors: Palette): Record<OrderHistoryStatus, string> => ({
   completed: colors.muted,
   cancelled: colors.danger,
   refunded: colors.danger,
-};
+});
 
 /**
  * Feature Parity Pass -- Refunds/Void/Cancellation. Ported from the PWA's
@@ -53,6 +53,9 @@ const ROW_BADGE_COLOR: Record<OrderHistoryStatus, string> = {
  * call).
  */
 export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
+  const ROW_BADGE_COLOR = rowBadgeColor(colors);
   const [status, setStatus] = useState<OrderHistoryStatus>('completed');
   const [rows, setRows] = useState<OrderHistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -177,7 +180,7 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
       </View>
 
       {loading ? (
-        <ActivityIndicator style={styles.center} color={colors.lime} />
+        <ActivityIndicator style={styles.center} color={colors.accentText} />
       ) : error ? (
         <Text style={styles.error}>{error}</Text>
       ) : (
@@ -203,7 +206,7 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
         <View style={styles.overlay}>
           <View style={styles.sheet}>
             {detailLoading && !detail ? (
-              <ActivityIndicator color={colors.lime} />
+              <ActivityIndicator color={colors.accentText} />
             ) : detail ? (
               <>
                 <Text style={styles.sheetTitle}>طلب #{detail.id}</Text>
@@ -282,7 +285,8 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles(colors =>
+  StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.canvas },
   // channel-row/channel-btn pattern reused for the status segmented control
   tabsRow: { flexDirection: 'row', gap: 4, margin: spacing[4], padding: 4, backgroundColor: colors.surf1, borderRadius: radii.full },
@@ -316,7 +320,7 @@ const styles = StyleSheet.create({
   // .order-row-total
   rowTotal: { fontFamily: fonts.monoBold, fontSize: 14.5, color: colors.text, writingDirection: 'ltr' },
   // .modal-overlay
-  overlay: { flex: 1, backgroundColor: 'rgba(6,16,10,0.78)', justifyContent: 'flex-end' },
+  overlay: { flex: 1, backgroundColor: colors.modalOverlay, justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.cardBg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing[5], maxHeight: '85%' },
   sheetTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, marginBottom: 6, textAlign: 'center' },
   sheetMeta: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted, marginBottom: 10, textAlign: 'center' },
@@ -324,7 +328,7 @@ const styles = StyleSheet.create({
   itemName: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: colors.text, flex: 1 },
   itemTotal: { fontFamily: fonts.monoMedium, fontSize: 13, color: colors.text, writingDirection: 'ltr' },
   itemNameBold: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.text, flex: 1 },
-  itemTotalBold: { fontFamily: fonts.monoBold, fontSize: 15, color: colors.lime, writingDirection: 'ltr' },
+  itemTotalBold: { fontFamily: fonts.monoBold, fontSize: 15, color: colors.accentText, writingDirection: 'ltr' },
   divider: { height: 1, backgroundColor: colors.line, marginVertical: spacing[2] },
   refundButton: {
     backgroundColor: `rgba(${colors.dangerRgb},0.12)`,
@@ -341,4 +345,5 @@ const styles = StyleSheet.create({
   statusText: { fontFamily: fonts.sansSemiBold, textAlign: 'center', marginTop: 10, fontSize: 12, color: colors.muted },
   closeButton: { padding: 14, alignItems: 'center', marginTop: spacing[2] },
   closeButtonText: { fontFamily: fonts.sansBold, color: colors.muted },
-});
+  }),
+);

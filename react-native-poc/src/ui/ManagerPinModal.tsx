@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { verifyManagerPin } from '../application/managerPinService';
-import { colors, fonts, radii, spacing } from './theme';
+import { createStyles, fonts, radii, spacing, useTheme } from './theme';
 
 const PIN_LENGTH = 4;
 
@@ -27,6 +27,8 @@ export default function ManagerPinModal({
   onApprove: () => void;
   onCancel: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
@@ -79,7 +81,7 @@ export default function ManagerPinModal({
             maxLength={PIN_LENGTH}
             editable={!checking}
           />
-          {checking && <ActivityIndicator style={styles.spinner} color={colors.lime} />}
+          {checking && <ActivityIndicator style={styles.spinner} color={colors.accentText} />}
           {!!error && <Text style={styles.errorText}>{error}</Text>}
           <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
             <Text style={styles.cancelText}>إلغاء</Text>
@@ -90,19 +92,22 @@ export default function ManagerPinModal({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles(colors =>
+  StyleSheet.create({
   // .modal-overlay
-  overlay: { flex: 1, backgroundColor: 'rgba(6,16,10,0.78)', justifyContent: 'center', alignItems: 'center' },
+  overlay: { flex: 1, backgroundColor: colors.modalOverlay, justifyContent: 'center', alignItems: 'center' },
   // .pos-auth-card
   card: { backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing[6], width: '80%', alignItems: 'center' },
   title: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, marginBottom: spacing[4], textAlign: 'center' },
   // .pin-dots / .pin-dot
   dotsRow: { flexDirection: 'row', gap: 13, marginBottom: spacing[4] },
   dot: { width: 13, height: 13, borderRadius: 7, borderWidth: 1.5, borderColor: colors.line },
-  dotFilled: { backgroundColor: colors.lime, borderColor: colors.lime },
+  // .pin-dot.filled uses --lime-deep, overridden to --lime in dark
+  dotFilled: { backgroundColor: colors.accentText, borderColor: colors.accentText },
   hiddenInput: { position: 'absolute', opacity: 0, height: 1, width: '100%' },
   spinner: { marginBottom: spacing[2] },
   errorText: { fontFamily: fonts.sansBold, color: colors.danger, fontSize: 12, textAlign: 'center', marginBottom: spacing[2] },
   cancelButton: { padding: spacing[3], marginTop: 6 },
   cancelText: { fontFamily: fonts.sansBold, color: colors.muted },
-});
+  }),
+);

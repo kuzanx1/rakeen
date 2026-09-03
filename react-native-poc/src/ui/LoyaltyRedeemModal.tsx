@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { requestLoyaltyRedemption, getLoyaltyRedemptionStatus } from '../application/loyaltyRedemptionService';
 import type { Product } from '../domain/catalog';
-import { colors, fonts, radii, spacing } from './theme';
+import { createStyles, fonts, radii, spacing, useTheme } from './theme';
 
 const REQUEST_TIMEOUT_MS = 2 * 60 * 1000;
 const POLL_INTERVAL_MS = 2000;
@@ -41,6 +41,8 @@ export default function LoyaltyRedeemModal({
   onRedeem: (productId: number) => void;
   onClose: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const [phase, setPhase] = useState<Phase>('waiting');
   const [secondsLeft, setSecondsLeft] = useState(120);
   const [errorMsg, setErrorMsg] = useState('');
@@ -112,7 +114,7 @@ export default function LoyaltyRedeemModal({
         <View style={styles.sheet}>
           {phase === 'waiting' && (
             <View style={styles.waitBlock}>
-              <ActivityIndicator size="large" color={colors.limeDeep} />
+              <ActivityIndicator size="large" color={colors.accentText} />
               <Text style={styles.waitTitle}>بانتظار تأكيد {customerName || 'العميل'}...</Text>
               <Text style={styles.waitSub}>اطلب منه يفتح بطاقة الولاء ويضغط تأكيد</Text>
               <Text style={styles.waitTimer}>{secondsLeft} ثانية متبقية</Text>
@@ -166,8 +168,9 @@ export default function LoyaltyRedeemModal({
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(6,16,10,0.78)', justifyContent: 'flex-end' },
+const useStyles = createStyles(colors =>
+  StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: colors.modalOverlay, justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.cardBg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing[5], maxHeight: '80%' },
   // .loyalty-wait-step
   waitBlock: { alignItems: 'center', paddingTop: 20, paddingBottom: 6, paddingHorizontal: 10, gap: 6 },
@@ -201,4 +204,5 @@ const styles = StyleSheet.create({
   productPrice: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.flagGreenDeep },
   cancelButton: { padding: 14, alignItems: 'center', marginTop: 6 },
   cancelText: { fontFamily: fonts.sansBold, color: colors.muted },
-});
+  }),
+);
