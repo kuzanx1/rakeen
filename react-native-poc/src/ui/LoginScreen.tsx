@@ -280,6 +280,9 @@ function Wordmark({ styles }: { styles: Styles }) {
  * `31% * 3 + 22px` overflowed the card and pushed every third key onto
  * its own line -- which is what made the entered code look jumbled.
  * Three flex:1 children in a gap:11 row reproduce `repeat(3,1fr)` exactly.
+ *
+ * Digit ORDER is intentionally not the PWA's -- see .pinRow's own note:
+ * 1 sits top-left here, iPhone-style, instead of top-right.
  */
 function PinPad({ styles, onKey }: { styles: Styles; onKey: (key: string) => void }) {
   const rows: string[][] = [];
@@ -419,7 +422,17 @@ const useStyles = createStyles((colors, shadows) =>
     pinDotFilled: { backgroundColor: colors.accentText, borderColor: colors.accentText },
     // .pin-pad -- repeat(3,1fr) with an 11px gap, as real rows (see PinPad)
     pinPad: { width: '100%', gap: 11 },
-    pinRow: { flexDirection: 'row', gap: 11 },
+    /**
+   * `direction:'ltr'` is a DELIBERATE divergence from the PWA, asked for
+   * directly. The web .pin-pad is a plain `repeat(3,1fr)` grid inside an
+   * RTL document, so its cells lay out right-to-left and "1" lands in the
+   * top-RIGHT corner. Every numeric keypad a cashier already knows -- the
+   * iPhone passcode screen, an ATM, a calculator -- puts 1 at the top
+   * LEFT regardless of language, because digits themselves are LTR. Yoga
+   * honours `direction` per-node, so forcing it here flips just these
+   * three cells without touching the RTL layout around them.
+   */
+  pinRow: { flexDirection: 'row', gap: 11, direction: 'ltr' },
     // .pin-key
     pinKey: {
       flex: 1,

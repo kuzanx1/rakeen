@@ -299,6 +299,23 @@ function App(): React.JSX.Element {
     }
   };
 
+  const activeTab = screenToTab(screen);
+
+  // `.app.home-active` is what narrows the two bars, so the shell has to
+  // know which tab is showing.
+  //
+  // These two hooks MUST stay above the conditional returns below. They
+  // used to sit under them, which meant the login render ran N hooks and
+  // the first render after a successful login ran N+2 -- React throws
+  // "Rendered more hooks than during the previous render", and with no
+  // error boundary anywhere in this app a release build just closes.
+  // That is exactly the crash reported right after entering the branch
+  // code: the login screen itself was fine, the very next render was not.
+  const setHomeActive = React.useContext(HomeActiveContext);
+  useEffect(() => {
+    setHomeActive(activeTab === 'home');
+  }, [activeTab, setHomeActive]);
+
   if (showHardwareTools) {
     return <HardwareToolsScreen onBack={() => setShowHardwareTools(false)} />;
   }
@@ -306,15 +323,6 @@ function App(): React.JSX.Element {
   if (!cashier) {
     return <LoginScreen onLoggedIn={setCashier} />;
   }
-
-  const activeTab = screenToTab(screen);
-
-  // `.app.home-active` is what narrows the two bars, so the shell has to
-  // know which tab is showing.
-  const setHomeActive = React.useContext(HomeActiveContext);
-  useEffect(() => {
-    setHomeActive(activeTab === 'home');
-  }, [activeTab, setHomeActive]);
 
   return (
     <SafeAreaView style={styles.root}>

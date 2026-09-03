@@ -7,7 +7,8 @@
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "start": "react-native start",
-    "test": "jest"
+    "test": "jest",
+    "lint:hooks": "eslint --config ./eslint.hooks.config.mjs --no-config-lookup App.tsx index.js src"
   },
   "dependencies": {
     "@op-engineering/op-sqlite": "^18.1.4",
