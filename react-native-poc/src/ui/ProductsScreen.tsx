@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,6 +11,9 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import Svg, { Circle, Line } from 'react-native-svg';
+import { colors, fonts, gradients, radii, shadows, spacing } from './theme';
 import { loadCatalog, getBusinessType, getFinancialSettings, getReceiptBusinessProfile, CatalogResult } from '../application/catalogService';
 import { getOrderHistoryDetail } from '../application/orderHistoryService';
 import { submitOrder } from '../application/orderService';
@@ -535,15 +539,15 @@ export default function ProductsScreen({
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator />
+      <View style={[styles.root, styles.center]}>
+        <ActivityIndicator color={colors.lime} />
       </View>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.center}>
+      <View style={[styles.root, styles.center]}>
         <Text style={styles.error}>{error}</Text>
       </View>
     );
@@ -551,7 +555,7 @@ export default function ProductsScreen({
 
   if (!catalog || catalog.categories.length === 0) {
     return (
-      <View style={styles.center}>
+      <View style={[styles.root, styles.center]}>
         <Text style={styles.subtitle}>لا يوجد منتجات لهذا المشروع.</Text>
       </View>
     );
@@ -577,26 +581,34 @@ export default function ProductsScreen({
 
       <View style={[styles.mainRow, isNarrow && styles.mainRowNarrow]}>
         <View style={[styles.productsCol, isNarrow && styles.productsColNarrow]}>
-          <TextInput
-            style={styles.searchInput}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onSubmitEditing={handleSearchSubmit}
-            placeholder="ابحث أو امسح باركود..."
-            returnKeyType="search"
-          />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryBar}>
-            {catalog.categories.map(cat => (
-              <TouchableOpacity
-                key={cat.id}
-                style={[styles.categoryTab, activeCategoryId === cat.id && styles.categoryTabActive]}
-                onPress={() => setActiveCategoryId(cat.id)}>
-                <Text
-                  style={[styles.categoryTabText, activeCategoryId === cat.id && styles.categoryTabTextActive]}>
-                  {cat.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.searchBox}>
+            {/* .search-box svg (rakeen-pos.css) -- same circle+line magnifier, ported path-for-path */}
+            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={2} strokeLinecap="round" style={styles.searchIcon}>
+              <Circle cx={11} cy={11} r={7} />
+              <Line x1={21} y1={21} x2={16.65} y2={16.65} />
+            </Svg>
+            <TextInput
+              style={styles.searchInput}
+              placeholderTextColor={colors.muted}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onSubmitEditing={handleSearchSubmit}
+              placeholder="ابحث أو امسح باركود..."
+              returnKeyType="search"
+            />
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryBar} contentContainerStyle={styles.categoryBarContent}>
+            {catalog.categories.map(cat => {
+              const active = activeCategoryId === cat.id;
+              return (
+                <Pressable
+                  key={cat.id}
+                  style={({ pressed }) => [styles.categoryTab, active && styles.categoryTabActive, !active && pressed && styles.categoryTabPressed]}
+                  onPress={() => setActiveCategoryId(cat.id)}>
+                  <Text style={[styles.categoryTabText, active && styles.categoryTabTextActive]}>{cat.name}</Text>
+                </Pressable>
+              );
+            })}
           </ScrollView>
 
           <FlatList
@@ -606,14 +618,27 @@ export default function ProductsScreen({
             numColumns={2}
             contentContainerStyle={styles.grid}
             renderItem={({ item }) => (
-              <TouchableOpacity style={styles.productCard} onPress={() => handleTapProduct(item)}>
+              <TouchableOpacity style={styles.productCard} onPress={() => handleTapProduct(item)} activeOpacity={0.85}>
+                <LinearGradient
+                  colors={gradients.productIcon.colors}
+                  locations={gradients.productIcon.locations}
+                  start={gradients.productIcon.start}
+                  end={gradients.productIcon.end}
+                  style={styles.productIcon}
+                />
                 <Text style={styles.productName} numberOfLines={2}>
                   {item.name}
                 </Text>
-                <Text style={styles.productPrice}>{item.price.toFixed(2)} ر.س</Text>
                 {item.isService && item.durationMinutes ? (
                   <Text style={styles.productMeta}>{item.durationMinutes} د</Text>
                 ) : null}
+                {/* .product-price (rakeen-pos.css:222): position:absolute;
+                    bottom:5px; inset-inline-end:5px -- in this app's
+                    Arabic/RTL layout, "inline-end" resolves to the LEFT
+                    edge, not the right, so the badge sits bottom-left. */}
+                <View style={styles.productPriceChip}>
+                  <Text style={styles.productPrice}>{item.price.toFixed(2)} ر.س</Text>
+                </View>
               </TouchableOpacity>
             )}
             ListEmptyComponent={<Text style={styles.subtitle}>لا يوجد منتجات في هذا التصنيف.</Text>}
@@ -621,18 +646,22 @@ export default function ProductsScreen({
         </View>
 
         <View style={[styles.cartCol, isNarrow && styles.cartColNarrow]}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.channelBar}>
-            {(Object.keys(CHANNEL_LABELS) as OrderChannel[]).map(ch => (
-              <TouchableOpacity
-                key={ch}
-                style={[styles.channelTab, cart.orderChannel === ch && styles.channelTabActive]}
-                onPress={() => cart.setOrderChannel(ch)}>
-                <Text style={[styles.channelTabText, cart.orderChannel === ch && styles.channelTabTextActive]}>
-                  {CHANNEL_LABELS[ch]}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <View style={styles.channelRow}>
+            {(Object.keys(CHANNEL_LABELS) as OrderChannel[]).map(ch => {
+              const active = cart.orderChannel === ch;
+              return (
+                <TouchableOpacity
+                  key={ch}
+                  style={[styles.channelTab, active && styles.channelTabActive]}
+                  onPress={() => cart.setOrderChannel(ch)}
+                  activeOpacity={0.8}>
+                  <Text style={[styles.channelTabText, active && styles.channelTabTextActive]}>
+                    {CHANNEL_LABELS[ch]}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           <ScrollView style={styles.cartLines}>
             {cart.cart.length === 0 && <Text style={styles.subtitle}>السلة فارغة</Text>}
@@ -640,8 +669,8 @@ export default function ProductsScreen({
               const product = productsById.get(line.productId);
               return (
                 <View key={line.lineId} style={styles.cartLine}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.cartLineName} numberOfLines={1}>
+                  <View style={styles.cartLineInfo}>
+                    <Text style={styles.cartLineName} numberOfLines={2}>
                       {product?.name || '—'}
                     </Text>
                     <Text style={styles.cartLinePrice}>{cart.unitPriceOf(line).toFixed(2)} ر.س</Text>
@@ -660,21 +689,28 @@ export default function ProductsScreen({
             })}
           </ScrollView>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.discountBar}>
-            {DISCOUNT_OPTIONS.map(pct => (
-              <TouchableOpacity
-                key={pct}
-                style={[styles.discountChip, cart.discountPct === pct && styles.discountChipActive]}
-                onPress={() => cart.setDiscountPct(pct)}>
-                <Text style={[styles.discountChipText, cart.discountPct === pct && styles.discountChipTextActive]}>
-                  {pct === 0 ? 'بدون خصم' : `${pct}%`}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <View style={styles.discountBar}>
+            {DISCOUNT_OPTIONS.map(pct => {
+              const active = cart.discountPct === pct;
+              return (
+                <TouchableOpacity
+                  key={pct}
+                  style={[styles.discountChip, active && styles.discountChipActive]}
+                  onPress={() => cart.setDiscountPct(pct)}
+                  activeOpacity={0.8}>
+                  <Text style={[styles.discountChipText, active && styles.discountChipTextActive]}>
+                    {pct === 0 ? 'بدون خصم' : `${pct}%`}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
-          <TouchableOpacity style={styles.customerRow} onPress={() => setCustomerPickerOpen(true)}>
-            <Text style={styles.customerRowLabel}>
+          <TouchableOpacity
+            style={[styles.customerRow, !!selectedCustomer && styles.customerRowSet]}
+            onPress={() => setCustomerPickerOpen(true)}
+            activeOpacity={0.8}>
+            <Text style={[styles.customerRowLabel, !!selectedCustomer && styles.customerRowLabelSet]} numberOfLines={1}>
               {selectedCustomer ? `${selectedCustomer.name}${selectedCustomer.phone ? ` — ${selectedCustomer.phone}` : ''}` : 'إضافة عميل (اختياري)'}
             </Text>
             {selectedCustomer && (
@@ -701,7 +737,7 @@ export default function ProductsScreen({
             {cart.totals.discount > 0 && (
               <View style={styles.totalsRow}>
                 <Text style={styles.totalsLabel}>الخصم</Text>
-                <Text style={styles.totalsValue}>-{cart.totals.discount.toFixed(2)}</Text>
+                <Text style={[styles.totalsValue, styles.totalsValueDiscount]}>-{cart.totals.discount.toFixed(2)}</Text>
               </View>
             )}
             <View style={styles.totalsRow}>
@@ -718,30 +754,21 @@ export default function ProductsScreen({
 
           {cart.orderChannel === 'dine_in' ? (
             <>
-              <TouchableOpacity
-                style={[styles.checkoutButton, cart.cart.length > 0 && styles.checkoutButtonActive]}
+              <PayButton
+                label={submitting ? 'جارٍ الإرسال...' : lastRegisteredDineInOrderId ? 'إضافة جولة' : 'تسجيل الطلب (بدون دفع)'}
                 onPress={handleRegisterDineInOrder}
-                disabled={cart.cart.length === 0 || submitting}>
-                <Text style={styles.checkoutButtonText}>
-                  {submitting ? 'جارٍ الإرسال...' : lastRegisteredDineInOrderId ? 'إضافة جولة' : 'تسجيل الطلب (بدون دفع)'}
-                </Text>
-              </TouchableOpacity>
+                disabled={cart.cart.length === 0 || submitting}
+              />
               {lastRegisteredDineInOrderId != null && (
-                <TouchableOpacity
-                  style={[styles.checkoutButton, styles.checkoutButtonActive]}
-                  onPress={handleOpenDineInPayment}
-                  disabled={submitting}>
-                  <Text style={styles.checkoutButtonText}>دفع الطلب #{lastRegisteredDineInOrderId}</Text>
-                </TouchableOpacity>
+                <PayButton label={`دفع الطلب #${lastRegisteredDineInOrderId}`} onPress={handleOpenDineInPayment} disabled={submitting} />
               )}
             </>
           ) : (
-            <TouchableOpacity
-              style={[styles.checkoutButton, cart.cart.length > 0 && styles.checkoutButtonActive]}
+            <PayButton
+              label={submitting ? 'جارٍ الإرسال...' : 'الدفع'}
               onPress={() => setPaymentModalOpen(true)}
-              disabled={cart.cart.length === 0 || submitting}>
-              <Text style={styles.checkoutButtonText}>{submitting ? 'جارٍ الإرسال...' : 'الدفع'}</Text>
-            </TouchableOpacity>
+              disabled={cart.cart.length === 0 || submitting}
+            />
           )}
         </View>
       </View>
@@ -794,131 +821,243 @@ export default function ProductsScreen({
   );
 }
 
+/** .pay-btn (rakeen-pos.css:342) -- lime gradient, disabled state swaps to
+ *  a flat surf2/muted look instead of the gradient (":disabled" rule). */
+function PayButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled: boolean }) {
+  if (disabled) {
+    return (
+      <View style={[styles.payButton, styles.payButtonDisabled]}>
+        <Text style={[styles.payButtonText, styles.payButtonTextDisabled]}>{label}</Text>
+      </View>
+    );
+  }
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
+      <LinearGradient colors={gradients.payButton.colors} start={gradients.payButton.start} end={gradients.payButton.end} style={styles.payButton}>
+        <Text style={styles.payButtonText}>{label}</Text>
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+}
+
+// Every rule below is annotated with the exact rakeen-pos.css / additions
+// selector it ports -- see theme.ts's own header for the sourcing rule.
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f2f5f0' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  subtitle: { fontSize: 13, color: '#666', textAlign: 'center', padding: 12 },
-  error: { color: '#c0392b', fontSize: 14, textAlign: 'center' },
-  offlineBanner: { backgroundColor: '#fff3cd', padding: 8 },
-  offlineBannerText: { fontSize: 12, color: '#856404', textAlign: 'center' },
+  root: { flex: 1, backgroundColor: colors.canvas },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing[6] },
+  subtitle: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted, textAlign: 'center', padding: spacing[3] },
+  error: { fontFamily: fonts.sansBold, color: colors.danger, fontSize: 13, textAlign: 'center' },
+  offlineBanner: { backgroundColor: `rgba(${colors.amberRgb},0.15)`, padding: spacing[2] },
+  offlineBannerText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.amber, textAlign: 'center' },
+  // No direct PWA equivalent (dine-in table context banner is RN-only
+  // chrome) -- built from the same surf/line/lime tokens as everything else
+  // rather than inventing new colors.
   tableBanner: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#e8eaf6',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    backgroundColor: colors.surf2,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[2],
   },
-  tableBannerText: { fontSize: 13, fontWeight: '700', color: '#3f51b5' },
-  tableBannerLink: { fontSize: 13, color: '#3f51b5', fontWeight: '700' },
+  tableBannerText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.text },
+  tableBannerLink: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.limeDeep },
   mainRow: { flex: 1, flexDirection: 'row' },
   mainRowNarrow: { flexDirection: 'column' },
   productsCol: { flex: 2 },
   productsColNarrow: { flex: 0, height: '52%' },
   gridListNarrow: { flex: 1 },
-  cartCol: { flex: 1, backgroundColor: '#fff', borderLeftWidth: 1, borderLeftColor: '#e0e0e0' },
-  cartColNarrow: { borderLeftWidth: 0, borderTopWidth: 8, borderTopColor: '#f2f5f0' },
+  // .order-panel
+  cartCol: { flex: 1, backgroundColor: colors.cardBg, borderLeftWidth: 1, borderLeftColor: colors.line },
+  cartColNarrow: { borderLeftWidth: 0, borderTopWidth: 8, borderTopColor: colors.canvas },
+  // .search-box
+  searchBox: { position: 'relative', marginHorizontal: spacing[4], marginTop: spacing[3] },
+  searchIcon: { position: 'absolute', left: 15, top: '50%', marginTop: -8, zIndex: 1 },
+  // .search-box input
   searchInput: {
-    marginHorizontal: 12,
-    marginTop: 10,
+    paddingVertical: 13,
+    paddingLeft: 42,
+    paddingRight: 16,
+    borderRadius: radii.full,
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 10,
-    padding: 10,
-    fontSize: 14,
-    backgroundColor: '#fff',
+    borderColor: colors.line,
+    backgroundColor: colors.surf1,
+    color: colors.text,
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 13.5,
+    textAlign: 'right',
   },
-  categoryBar: { flexGrow: 0, paddingHorizontal: 8, paddingVertical: 10 },
+  // .cat-sidebar (mobile row variant, rakeen-pos-additions.css)
+  categoryBar: { flexGrow: 0, paddingVertical: spacing[3] },
+  categoryBarContent: { paddingHorizontal: spacing[3], gap: spacing[2] },
+  // .cat-btn
   categoryTab: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#fff',
-    marginHorizontal: 4,
+    paddingVertical: 10,
+    paddingHorizontal: spacing[3],
+    borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  categoryTabActive: { backgroundColor: '#8bc34a', borderColor: '#8bc34a' },
-  categoryTabText: { fontSize: 13, color: '#444' },
-  categoryTabTextActive: { color: '#1a1a1a', fontWeight: '700' },
-  grid: { padding: 8 },
-  productCard: {
-    flex: 1,
-    margin: 6,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 14,
-    minHeight: 90,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  productName: { fontSize: 14, fontWeight: '700', marginBottom: 6 },
-  productPrice: { fontSize: 13, color: '#2e7d32', fontWeight: '600' },
-  productMeta: { fontSize: 11, color: '#888', marginTop: 4 },
-  channelBar: { flexGrow: 0, padding: 8 },
-  channelTab: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: '#f2f5f0',
-    marginHorizontal: 3,
-  },
-  channelTabActive: { backgroundColor: '#3f51b5' },
-  channelTabText: { fontSize: 11, color: '#444' },
-  channelTabTextActive: { color: '#fff', fontWeight: '700' },
-  cartLines: { flex: 1, paddingHorizontal: 10 },
-  cartLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  cartLineName: { fontSize: 13, fontWeight: '600' },
-  cartLinePrice: { fontSize: 11, color: '#666' },
-  qtyControls: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  qtyButton: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#eee',
+    borderColor: colors.line,
+    backgroundColor: colors.cardBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  qtyButtonText: { fontSize: 15, fontWeight: '700' },
-  qtyValue: { fontSize: 13, minWidth: 18, textAlign: 'center' },
-  discountBar: { flexGrow: 0, paddingHorizontal: 8, paddingTop: 6 },
-  discountChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    backgroundColor: '#f2f5f0',
-    marginHorizontal: 3,
+  categoryTabPressed: { backgroundColor: colors.surf2 },
+  categoryTabActive: {
+    backgroundColor: colors.lime,
+    borderColor: colors.lime,
+    shadowColor: colors.limeDeep,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 4,
   },
-  discountChipActive: { backgroundColor: '#ff9800' },
-  discountChipText: { fontSize: 11, color: '#444' },
-  discountChipTextActive: { color: '#fff', fontWeight: '700' },
+  categoryTabText: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.muted, textAlign: 'center' },
+  categoryTabTextActive: { color: colors.flagGreenDeep },
+  // .product-grid
+  grid: { padding: spacing[2] },
+  // .product-card
+  productCard: {
+    flex: 1,
+    margin: 5,
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: colors.cardBg,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingTop: 10,
+    paddingHorizontal: 10,
+    paddingBottom: 12,
+    ...shadows.sm,
+  },
+  // .product-icon
+  productIcon: { width: '100%', height: 72, borderRadius: radii.md, marginBottom: 7 },
+  // .product-name
+  productName: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text, lineHeight: 16 },
+  // .product-cat / duration meta
+  productMeta: { fontFamily: fonts.sansSemiBold, fontSize: 10, color: colors.muted, marginTop: 1 },
+  // .product-price -- absolutely positioned chip, bottom-LEFT in this RTL
+  // app (inset-inline-end resolves to left, not right -- see JSX comment).
+  productPriceChip: {
+    position: 'absolute',
+    bottom: 5,
+    left: 5,
+    backgroundColor: colors.priceChipBg,
+    borderRadius: radii.full,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+  },
+  productPrice: { fontFamily: fonts.monoBold, fontSize: 11, color: colors.lime, writingDirection: 'ltr' },
+  // .channel-row
+  channelRow: { flexDirection: 'row', gap: 4, padding: 4, backgroundColor: colors.surf1, borderRadius: radii.full, marginHorizontal: spacing[4], marginTop: spacing[3] },
+  // .channel-btn
+  channelTab: { flex: 1, paddingVertical: 8, paddingHorizontal: 4, borderRadius: radii.full, alignItems: 'center' },
+  channelTabActive: {
+    backgroundColor: colors.lime,
+    shadowColor: colors.limeDeep,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  channelTabText: { fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.muted },
+  channelTabTextActive: { color: colors.flagGreenDeep },
+  cartLines: { flex: 1, paddingHorizontal: spacing[4] },
+  cartLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+    paddingVertical: spacing[2],
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  cartLineInfo: { flex: 1, minWidth: 0 },
+  // .oi-name
+  cartLineName: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.text, lineHeight: 16 },
+  // .oi-unit
+  cartLinePrice: { fontFamily: fonts.monoMedium, fontSize: 10, color: colors.muted, marginTop: 1, writingDirection: 'ltr' },
+  qtyControls: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  // .qty-btn
+  qtyButton: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.cardBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.sm,
+  },
+  qtyButtonText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text },
+  // .qty-val
+  qtyValue: { fontFamily: fonts.sansBold, fontSize: 11.5, minWidth: 16, textAlign: 'center', color: colors.text },
+  // .discount-panel.open (shown persistently here rather than toggled)
+  discountBar: { flexDirection: 'row', gap: 6, paddingHorizontal: spacing[4], paddingTop: spacing[2] },
+  // .disc-btn
+  discountChip: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surf1,
+    alignItems: 'center',
+  },
+  discountChipActive: { backgroundColor: colors.lime, borderColor: colors.lime },
+  discountChipText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text },
+  discountChipTextActive: { color: colors.flagGreenDeep },
+  // .customer-chip
   customerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#f2f5f0',
+    gap: spacing[2],
+    borderRadius: radii.full,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surf1,
+    paddingVertical: 7,
+    paddingHorizontal: spacing[3],
+    marginHorizontal: spacing[4],
+    marginTop: spacing[2],
   },
-  customerRowLabel: { fontSize: 12, color: '#333', fontWeight: '600' },
-  customerRowClear: { fontSize: 11, color: '#c0392b' },
-  loyaltyRow: { backgroundColor: '#fff3e0', borderRadius: 10, padding: 10, marginBottom: 10, alignItems: 'center' },
-  loyaltyRowText: { fontSize: 12, fontWeight: '700', color: '#e65100' },
-  totalsBox: { padding: 12, borderTopWidth: 1, borderTopColor: '#e0e0e0' },
-  totalsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  totalsRowFinal: { marginTop: 4, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#eee' },
-  totalsLabel: { fontSize: 12, color: '#666' },
-  totalsValue: { fontSize: 12, color: '#333' },
-  totalsLabelFinal: { fontSize: 14, fontWeight: '800' },
-  totalsValueFinal: { fontSize: 14, fontWeight: '800', color: '#2e7d32' },
-  checkoutButton: { backgroundColor: '#ccc', padding: 14, alignItems: 'center', margin: 12, borderRadius: 10 },
-  checkoutButtonActive: { backgroundColor: '#8bc34a' },
-  checkoutButtonText: { color: '#666', fontWeight: '700', fontSize: 12 },
-  submitStatus: { fontSize: 11, textAlign: 'center', paddingHorizontal: 12, color: '#444' },
+  customerRowSet: { borderColor: colors.limeDeep, backgroundColor: `rgba(${colors.limeRgb},0.08)` },
+  customerRowLabel: { flex: 1, fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.muted },
+  customerRowLabelSet: { color: colors.text },
+  customerRowClear: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.danger },
+  // No dedicated PWA class found for the loyalty-redeem strip -- built from
+  // the same amber token used for other "attention, optional action" UI.
+  loyaltyRow: {
+    backgroundColor: `rgba(${colors.amberRgb},0.12)`,
+    borderRadius: radii.md,
+    padding: spacing[3],
+    marginHorizontal: spacing[4],
+    marginTop: spacing[2],
+    alignItems: 'center',
+  },
+  loyaltyRowText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.amber },
+  // .order-summary / .sum-row
+  totalsBox: { paddingHorizontal: spacing[4], paddingVertical: spacing[2] },
+  totalsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 },
+  totalsRowFinal: { marginTop: 2, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.line, borderStyle: 'dashed' },
+  totalsLabel: { fontFamily: fonts.sansSemiBold, fontSize: 11.5, color: colors.muted },
+  totalsValue: { fontFamily: fonts.monoMedium, fontSize: 11.5, color: colors.muted, writingDirection: 'ltr' },
+  totalsValueDiscount: { color: colors.limeDeep },
+  totalsLabelFinal: { fontFamily: fonts.sansBold, fontSize: 13.5, color: colors.text },
+  totalsValueFinal: { fontFamily: fonts.monoBold, fontSize: 17, color: colors.lime, writingDirection: 'ltr' },
+  // .pay-btn, inside .order-actions's own padding:8px 18px 14px
+  payButton: {
+    paddingVertical: 13,
+    borderRadius: radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: spacing[4],
+    marginTop: spacing[2],
+  },
+  payButtonDisabled: { backgroundColor: colors.surf2 },
+  payButtonText: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.flagGreenDeep },
+  payButtonTextDisabled: { color: colors.muted },
+  submitStatus: { fontFamily: fonts.sansSemiBold, fontSize: 11, textAlign: 'center', paddingHorizontal: spacing[4], color: colors.muted },
 });

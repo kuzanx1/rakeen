@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -8,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import {
   getDeviceConfig,
   provisionDevice,
@@ -17,6 +20,7 @@ import {
 } from '../application/authService';
 import type { DeviceConfig, BranchOption, CashierProfile } from '../domain/auth';
 import { EMPTY_DEVICE_CONFIG } from '../domain/auth';
+import { colors, fonts, gradients, radii, shadows, spacing } from './theme';
 
 /**
  * Checkpoint 2 (docs/react-native-migration/01-roadmap.md) — the first
@@ -25,11 +29,12 @@ import { EMPTY_DEVICE_CONFIG } from '../domain/auth';
  * (email/password -> pick a branch if more than one), then day-to-day
  * login is the 4-digit branch PIN via the same rate-limited
  * /api/pos/login route. Same backend, same business rules, same
- * lockout/rate-limit behavior -- only the UI and the language it's
- * written in changed.
+ * lockout/rate-limit behavior.
  *
- * UI is intentionally plain -- functional parity first, per the explicit
- * instruction not to redesign the UI before the logic is proven real.
+ * Visuals match app/pos/rakeen-pos-additions.css's `.pos-auth-*` /
+ * `.pin-dots` / `.pin-pad` / `.pos-staff-btn` rules value-for-value (see
+ * theme.ts) — this used to be an intentionally plain placeholder UI; a
+ * full visual-parity pass replaced it with the real design.
  */
 export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: CashierProfile) => void }) {
   const [loading, setLoading] = useState(true);
@@ -115,8 +120,10 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator />
+      <View style={styles.screen}>
+        <View style={styles.center}>
+          <ActivityIndicator color={colors.lime} />
+        </View>
       </View>
     );
   }
@@ -125,103 +132,196 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
   if (device.branchId == null) {
     if (branches) {
       return (
-        <ScrollView contentContainerStyle={styles.container}>
-          <Text style={styles.title}>اختر الفرع</Text>
-          {branches.map(b => (
-            <TouchableOpacity key={b.id} style={styles.button} onPress={() => handlePickBranch(b)} disabled={busy}>
-              <Text style={styles.buttonText}>{b.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        <View style={styles.screen}>
+          <ScrollView contentContainerStyle={styles.center}>
+            <View style={styles.card}>
+              <Image source={require('../../assets/brand/rakeen-wordmark.png')} style={styles.wordmark} resizeMode="contain" />
+              <Text style={styles.title}>اختر الفرع</Text>
+              <View style={styles.staffList}>
+                {branches.map(b => (
+                  <PressableStaffButton key={b.id} label={b.name} onPress={() => handlePickBranch(b)} disabled={busy} />
+                ))}
+              </View>
+            </View>
+          </ScrollView>
+        </View>
       );
     }
     return (
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>تجهيز هذا الجهاز</Text>
-        <Text style={styles.subtitle}>سجّل دخولك كمدير أو مالك مرة وحدة، عشان نربط هذا التابلت بفرعك.</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="البريد الإلكتروني"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="كلمة المرور"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
-        {!!error && <Text style={styles.error}>{error}</Text>}
-        <TouchableOpacity style={styles.button} onPress={handleProvision} disabled={busy}>
-          {busy ? <ActivityIndicator color="#1a1a1a" /> : <Text style={styles.buttonText}>ربط الجهاز</Text>}
-        </TouchableOpacity>
-      </ScrollView>
+      <View style={styles.screen}>
+        <ScrollView contentContainerStyle={styles.center}>
+          <View style={styles.card}>
+            <Image source={require('../../assets/brand/rakeen-wordmark.png')} style={styles.wordmark} resizeMode="contain" />
+            <Text style={styles.title}>تجهيز هذا الجهاز</Text>
+            <Text style={styles.subtitle}>سجّل دخولك كمدير أو مالك مرة وحدة، عشان نربط هذا التابلت بفرعك.</Text>
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>البريد الإلكتروني</Text>
+              <TextInput
+                style={styles.input}
+                placeholderTextColor={colors.muted}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                value={email}
+                onChangeText={setEmail}
+              />
+            </View>
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>كلمة المرور</Text>
+              <TextInput
+                style={styles.input}
+                placeholderTextColor={colors.muted}
+                secureTextEntry
+                value={password}
+                onChangeText={setPassword}
+              />
+            </View>
+            {!!error && <Text style={styles.error}>{error}</Text>}
+            <TouchableOpacity onPress={handleProvision} disabled={busy} activeOpacity={0.85} style={styles.primaryButtonWrap}>
+              <LinearGradient colors={gradients.payButton.colors} start={gradients.payButton.start} end={gradients.payButton.end} style={styles.primaryButton}>
+                {busy ? <ActivityIndicator color={colors.flagGreenDeep} /> : <Text style={styles.primaryButtonText}>ربط الجهاز</Text>}
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
     );
   }
 
   // Step 2: device provisioned -- day-to-day cashier PIN login.
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{device.branchName}</Text>
-      <Text style={styles.subtitle}>أدخل رمز الفرع</Text>
-      <View style={styles.pinDots}>
-        {[0, 1, 2, 3].map(i => (
-          <View key={i} style={[styles.pinDot, i < pin.length && styles.pinDotFilled]} />
-        ))}
-      </View>
-      {!!error && <Text style={styles.error}>{error}</Text>}
-      <View style={styles.pinPad}>
-        {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'].map((key, i) =>
-          key ? (
-            <TouchableOpacity key={i} style={styles.pinKey} onPress={() => handlePinKey(key)} disabled={busy}>
-              <Text style={styles.pinKeyText}>{key}</Text>
-            </TouchableOpacity>
+    <View style={styles.screen}>
+      <View style={styles.center}>
+        <View style={styles.card}>
+          <Image source={require('../../assets/brand/rakeen-wordmark.png')} style={styles.wordmark} resizeMode="contain" />
+          <Text style={styles.title}>{device.branchName}</Text>
+          <Text style={styles.subtitle}>أدخل رمز الفرع</Text>
+          <View style={styles.pinDots}>
+            {[0, 1, 2, 3].map(i => (
+              <View key={i} style={[styles.pinDot, i < pin.length && styles.pinDotFilled]} />
+            ))}
+          </View>
+          {!!error && <Text style={styles.error}>{error}</Text>}
+          {busy ? (
+            <View style={styles.pinVerifying}>
+              <ActivityIndicator color={colors.lime} size="small" />
+              <Text style={styles.pinVerifyingText}>جارٍ التحقق من الرمز...</Text>
+            </View>
           ) : (
-            <View key={i} style={styles.pinKey} />
-          ),
-        )}
+            <View style={styles.pinPad}>
+              {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'].map((key, i) =>
+                key ? (
+                  <PinKey key={i} label={key} onPress={() => handlePinKey(key)} disabled={busy} />
+                ) : (
+                  <View key={i} style={styles.pinKeySpacer} />
+                ),
+              )}
+            </View>
+          )}
+          <TouchableOpacity onPress={handleReprovision}>
+            <Text style={styles.link}>إعادة تجهيز الجهاز</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-      <TouchableOpacity onPress={handleReprovision}>
-        <Text style={styles.link}>إعادة تجهيز الجهاز</Text>
-      </TouchableOpacity>
     </View>
   );
 }
 
+function PinKey({ label, onPress, disabled }: { label: string; onPress: () => void; disabled: boolean }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => [styles.pinKey, pressed && styles.pinKeyActive]}>
+      <Text style={styles.pinKeyText}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function PressableStaffButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled: boolean }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => [styles.staffButton, pressed && styles.staffButtonActive]}>
+      {({ pressed }) => <Text style={[styles.staffButtonText, pressed && styles.staffButtonTextActive]}>{label}</Text>}
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  container: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: '#f2f5f0' },
-  title: { fontSize: 20, fontWeight: '800', marginBottom: 6, textAlign: 'center' },
-  subtitle: { fontSize: 13, color: '#666', marginBottom: 16, textAlign: 'center' },
+  // .pos-auth-screen
+  screen: { flex: 1, backgroundColor: colors.canvas },
+  center: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: spacing[5] },
+  // .pos-auth-card
+  card: {
+    width: 360,
+    maxWidth: '100%',
+    alignItems: 'center',
+    backgroundColor: colors.cardBg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radii.xl,
+    paddingTop: 36,
+    paddingHorizontal: 30,
+    paddingBottom: 30,
+    ...shadows.panel,
+  },
+  wordmark: { height: 28, width: 140, marginBottom: 14 },
+  // .pos-auth-title
+  title: { fontFamily: fonts.sansBold, fontSize: 18, color: colors.text, marginBottom: 7, textAlign: 'center' },
+  // .pos-auth-sub
+  subtitle: { fontFamily: fonts.sansSemiBold, fontSize: 12.5, color: colors.muted, marginBottom: 22, textAlign: 'center', lineHeight: 20 },
+  // .pos-auth-field
+  field: { width: '100%', marginBottom: 11 },
+  fieldLabel: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.muted, marginBottom: 6, textAlign: 'right' },
+  // .pos-auth-field input
   input: {
     width: '100%',
-    maxWidth: 320,
+    paddingVertical: 13,
+    paddingHorizontal: 15,
+    borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 10,
-    backgroundColor: '#fff',
+    borderColor: colors.line,
+    backgroundColor: colors.surf1,
+    color: colors.text,
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 14,
+    textAlign: 'right',
   },
-  error: { color: '#c0392b', fontSize: 13, marginBottom: 10, textAlign: 'center' },
-  button: {
-    width: '100%',
-    maxWidth: 320,
-    backgroundColor: '#8bc34a',
-    borderRadius: 10,
-    padding: 14,
+  // .pos-auth-error
+  error: { fontFamily: fonts.sansBold, color: colors.danger, fontSize: 12, marginBottom: 10, textAlign: 'center' },
+  // .pay-btn, reused here as the app's one primary-CTA style
+  primaryButtonWrap: { width: '100%', marginTop: 6 },
+  primaryButton: { width: '100%', paddingVertical: 13, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
+  primaryButtonText: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.flagGreenDeep },
+  // .pos-staff-list / .pos-staff-btn
+  staffList: { width: '100%', gap: 9 },
+  staffButton: { width: '100%', paddingVertical: 15, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surf1, alignItems: 'center' },
+  staffButtonActive: { backgroundColor: colors.lime, borderColor: colors.lime },
+  staffButtonText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.text },
+  staffButtonTextActive: { color: colors.flagGreenDeep },
+  // .pin-dots / .pin-dot
+  pinDots: { flexDirection: 'row', gap: 13, marginBottom: 24 },
+  pinDot: { width: 13, height: 13, borderRadius: 7, borderWidth: 1.5, borderColor: colors.line },
+  pinDotFilled: { backgroundColor: colors.lime, borderColor: colors.lime },
+  // .pin-pad / .pin-key
+  pinPad: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 11 },
+  pinKey: {
+    width: '31%',
+    paddingVertical: 17,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surf1,
     alignItems: 'center',
-    marginTop: 6,
+    justifyContent: 'center',
   },
-  buttonText: { fontWeight: '700', color: '#1a1a1a' },
-  pinDots: { flexDirection: 'row', gap: 12, marginVertical: 16 },
-  pinDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1, borderColor: '#8bc34a' },
-  pinDotFilled: { backgroundColor: '#8bc34a' },
-  pinPad: { flexDirection: 'row', flexWrap: 'wrap', width: 260, justifyContent: 'space-between' },
-  pinKey: { width: 76, height: 60, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  pinKeyText: { fontSize: 22, fontWeight: '700' },
-  link: { color: '#666', marginTop: 20, textDecorationLine: 'underline' },
+  pinKeyActive: { backgroundColor: colors.surf2 },
+  pinKeySpacer: { width: '31%' },
+  pinKeyText: { fontFamily: fonts.monoBold, fontSize: 17, color: colors.text },
+  // .pin-verifying
+  pinVerifying: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 22 },
+  pinVerifyingText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.muted },
+  // .pos-auth-reprovision
+  link: { fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.muted, marginTop: 18 },
 });
