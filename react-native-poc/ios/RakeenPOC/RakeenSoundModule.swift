@@ -1,4 +1,12 @@
 import Foundation
+// RCTPromiseResolveBlock / RCTPromiseRejectBlock are React typedefs, not
+// Foundation ones. Every other native module here already imports React
+// for exactly that reason (RakeenPrinterModule, RakeenCashDrawerModule,
+// RakeenDeviceModule); this file was the one that used the types without
+// it, which only surfaced on a real macOS archive -- tsc and the JS
+// bundle never touch Swift, so it built clean locally and failed at
+// "EmitSwiftModule normal arm64" in CI.
+import React
 import AVFoundation
 
 /**
