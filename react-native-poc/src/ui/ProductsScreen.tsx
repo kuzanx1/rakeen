@@ -7,6 +7,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { loadCatalog, getBusinessType, getFinancialSettings, getReceiptBusinessProfile, CatalogResult } from '../application/catalogService';
@@ -132,6 +133,14 @@ export default function ProductsScreen({
   const [modifierTarget, setModifierTarget] = useState<Product | null>(null);
   const [businessType, setBusinessType] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // The web PWA switches this same screen from a side-by-side products+cart
+  // layout to a stacked one at max-width:760px (rakeen-pos-additions.css) --
+  // this app runs on phones almost exclusively, so without the same
+  // breakpoint the cart column was rendering at a sliver of its real width,
+  // clipping every price/button in it. Mirrors that breakpoint here.
+  const { width: windowWidth } = useWindowDimensions();
+  const isNarrow = windowWidth < 760;
 
   useEffect(() => {
     (async () => {
@@ -566,8 +575,8 @@ export default function ProductsScreen({
         </View>
       )}
 
-      <View style={styles.mainRow}>
-        <View style={styles.productsCol}>
+      <View style={[styles.mainRow, isNarrow && styles.mainRowNarrow]}>
+        <View style={[styles.productsCol, isNarrow && styles.productsColNarrow]}>
           <TextInput
             style={styles.searchInput}
             value={searchQuery}
@@ -591,6 +600,7 @@ export default function ProductsScreen({
           </ScrollView>
 
           <FlatList
+            style={[isNarrow && styles.gridListNarrow]}
             data={visibleProducts}
             keyExtractor={p => String(p.id)}
             numColumns={2}
@@ -610,7 +620,7 @@ export default function ProductsScreen({
           />
         </View>
 
-        <View style={styles.cartCol}>
+        <View style={[styles.cartCol, isNarrow && styles.cartColNarrow]}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.channelBar}>
             {(Object.keys(CHANNEL_LABELS) as OrderChannel[]).map(ch => (
               <TouchableOpacity
@@ -802,8 +812,12 @@ const styles = StyleSheet.create({
   tableBannerText: { fontSize: 13, fontWeight: '700', color: '#3f51b5' },
   tableBannerLink: { fontSize: 13, color: '#3f51b5', fontWeight: '700' },
   mainRow: { flex: 1, flexDirection: 'row' },
+  mainRowNarrow: { flexDirection: 'column' },
   productsCol: { flex: 2 },
+  productsColNarrow: { flex: 0, height: '52%' },
+  gridListNarrow: { flex: 1 },
   cartCol: { flex: 1, backgroundColor: '#fff', borderLeftWidth: 1, borderLeftColor: '#e0e0e0' },
+  cartColNarrow: { borderLeftWidth: 0, borderTopWidth: 8, borderTopColor: '#f2f5f0' },
   searchInput: {
     marginHorizontal: 12,
     marginTop: 10,
