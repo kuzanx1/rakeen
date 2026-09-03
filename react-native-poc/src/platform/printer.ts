@@ -171,10 +171,19 @@ export interface PrintResult {
   ok: boolean;
   error?: PrinterErrorCategory;
   errorDetail?: string;
+  /** Timestamped trace of what the native transport actually did --
+   *  every NWConnection state, the endpoint iOS really bound, the
+   *  interface it used, and the send completion. Present on success as
+   *  well as failure: a successful `.contentProcessed` means the network
+   *  stack accepted the bytes, NOT that the printer received them, so a
+   *  successful send still needs its trace to be worth anything. */
+  diagnostics?: string[];
 }
 
 export interface ConnectionTestResult {
   reachable: boolean;
+  /** See PrintResult.diagnostics. */
+  diagnostics?: string[];
   /** Round-trip time to open the socket, if reachable — useful in the POC
    *  screen's "Test Printer" button so a slow/flaky LAN is visible, not
    *  just a boolean. */
@@ -273,7 +282,7 @@ export const Printer: PrinterAPI | undefined = NativeModules.RakeenPrinterModule
  */
 export async function printReceipt(job: PrintJob): Promise<PrintResult> {
   if (!Printer) {
-    return { ok: false, error: 'PRINTER_UNAVAILABLE' };
+    return { ok: false, error: 'PRINTER_UNAVAILABLE', diagnostics: ['no native printer module linked'] };
   }
   return Printer.print(job);
 }

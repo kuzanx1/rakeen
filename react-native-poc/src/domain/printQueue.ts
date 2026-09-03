@@ -78,6 +78,9 @@ export interface PrintJobRecord {
   last_target?: string | null;
   last_bytes?: number | null;
   last_error_detail?: string | null;
+  /** The native transport's own trace for the last attempt -- see
+   *  platform/printer.ts's PrintResult.diagnostics. */
+  last_trace?: string[] | null;
 }
 
 /** Ported from enqueuePrintJob's contentKey -- type + a hash of the
@@ -125,6 +128,7 @@ export interface PrintAttemptOutcome {
   /** See PrintJobRecord.last_target / last_bytes. */
   target?: string | null;
   bytes?: number | null;
+  trace?: string[] | null;
 }
 
 /**
@@ -143,6 +147,7 @@ export function applyPrintAttemptResult(
     last_target: outcome.target ?? null,
     last_bytes: outcome.bytes ?? null,
     last_error_detail: outcome.errorDetail ?? null,
+    last_trace: outcome.trace ?? null,
   };
   if (outcome.ok) {
     return { ...job, ...trace, status: 'printed', last_error: null };
@@ -182,6 +187,7 @@ export interface PrintDispatchResult {
   errorDetail?: string;
   target?: string | null;
   bytes?: number | null;
+  trace?: string[] | null;
 }
 
 export interface PrintQueueOutcome {

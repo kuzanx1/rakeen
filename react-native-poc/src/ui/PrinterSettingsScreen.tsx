@@ -55,6 +55,11 @@ export default function PrinterSettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState('');
+  /** The native transport's trace for the probe -- the endpoint iOS
+   *  actually bound and the interface it used. A latency in the seconds
+   *  on a same-subnet LAN is not a normal TCP handshake, and this is
+   *  what says where it really went. */
+  const [testTrace, setTestTrace] = useState<string[]>([]);
   const [saveStatus, setSaveStatus] = useState('');
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState<{ devices: DiscoveredDevice[]; error?: string } | null>(null);
@@ -124,6 +129,7 @@ export default function PrinterSettingsScreen() {
   const handleTestConnection = async () => {
     setTesting(true);
     setTestResult('');
+    setTestTrace([]);
     try {
       if (!Printer) {
         setTestResult('🔴 لا توجد وحدة طابعة حقيقية على هذا الجهاز/البناء');
@@ -135,6 +141,7 @@ export default function PrinterSettingsScreen() {
         return;
       }
       const result = await Printer.testConnection(target);
+      setTestTrace(result.diagnostics ?? []);
       const where = target.transport === 'network' ? `${target.host}:${target.port}` : target.transport;
       setTestResult(
         result.reachable
@@ -341,6 +348,15 @@ export default function PrinterSettingsScreen() {
         <Text style={styles.testButtonText}>{testing ? 'جارٍ الاختبار...' : 'اختبار الاتصال'}</Text>
       </TouchableOpacity>
       {!!testResult && <Text style={styles.testResult}>{testResult}</Text>}
+      {testTrace.length > 0 && (
+        <View style={styles.traceBox}>
+          {testTrace.map((line, i) => (
+            <Text key={i} style={styles.traceLine} selectable>
+              {line}
+            </Text>
+          ))}
+        </View>
+      )}
       {/* The gap between what was just tested and what will actually be
           used. Without this, a green test on freshly-typed values reads
           as proof that printing is configured, while jobs keep going to
@@ -489,6 +505,8 @@ const useStyles = createStyles(colors =>
   saveButtonDisabled: { backgroundColor: colors.surf2 },
   saveButtonText: { fontFamily: fonts.sansBold, color: colors.flagGreenDeep },
   saveButtonTextDisabled: { color: colors.muted },
+  traceBox: { backgroundColor: colors.surf1, borderRadius: radii.sm, padding: spacing[2], marginBottom: spacing[3] },
+  traceLine: { fontFamily: fonts.monoMedium, fontSize: 9.5, color: colors.muted, writingDirection: 'ltr', textAlign: 'left', lineHeight: 14 },
   unsavedBox: {
     backgroundColor: `rgba(${colors.amberRgb},0.15)`,
     borderRadius: radii.sm,

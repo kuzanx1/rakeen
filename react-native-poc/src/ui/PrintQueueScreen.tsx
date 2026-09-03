@@ -132,6 +132,19 @@ export default function PrintQueueScreen() {
                 {item.last_bytes != null ? ` · ${item.last_bytes} بايت` : ''}
               </Text>
             )}
+            {/* The native transport's own account of the attempt. This is
+                the part that separates "the printer received it" from
+                "the network stack accepted it" -- read `remote=` and
+                `iface=` on the state=ready line. */}
+            {!!item.last_trace?.length && (
+              <View style={styles.traceBox}>
+                {item.last_trace.map((line, i) => (
+                  <Text key={i} style={styles.traceLine} selectable>
+                    {line}
+                  </Text>
+                ))}
+              </View>
+            )}
             <Text style={styles.meta}>محاولات: {item.retry_count}</Text>
             {item.status === 'failed' && (
               <TouchableOpacity style={styles.retryButton} onPress={() => handleRetry(item.id)} disabled={busy} activeOpacity={0.8}>
@@ -178,6 +191,9 @@ const useStyles = createStyles(colors =>
   meta: { fontFamily: fonts.sansSemiBold, fontSize: 11, color: colors.muted, marginBottom: spacing[2] },
   // Monospaced so a host:port and a byte count stay readable, and LTR so
   // "192.168.100.6:9100" is not reordered by the RTL paragraph direction.
+  traceBox: { backgroundColor: colors.surf1, borderRadius: radii.sm, padding: spacing[2], marginBottom: 6 },
+  // selectable + LTR so the endpoint lines can be read and copied as-is.
+  traceLine: { fontFamily: fonts.monoMedium, fontSize: 9.5, color: colors.muted, writingDirection: 'ltr', textAlign: 'left', lineHeight: 14 },
   trace: { fontFamily: fonts.monoBold, fontSize: 11, color: colors.text, marginBottom: 4, writingDirection: 'ltr', textAlign: 'left' },
   retryButton: { backgroundColor: colors.surf2, borderRadius: radii.sm, padding: spacing[2], alignItems: 'center' },
   retryButtonText: { fontFamily: fonts.sansBold, color: colors.text },

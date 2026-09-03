@@ -68,11 +68,11 @@ class RakeenCashDrawerModule: NSObject {
                 return
             }
             let port = UInt16(truncating: portNumber)
-            transport.send(bytes: bytes, host: host, port: port) { ok, errorDetail in
+            transport.send(bytes: bytes, host: host, port: port) { ok, errorDetail, diagnostics in
                 if ok {
-                    resolve(["ok": true])
+                    resolve(["ok": true, "diagnostics": diagnostics])
                 } else {
-                    resolve(["ok": false, "error": "PRINTER_CONNECTION_FAILED", "errorDetail": errorDetail ?? "unknown_error"])
+                    resolve(["ok": false, "error": "PRINTER_CONNECTION_FAILED", "errorDetail": errorDetail ?? "unknown_error", "diagnostics": diagnostics])
                 }
             }
         }

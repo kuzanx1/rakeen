@@ -63,11 +63,16 @@ class RakeenPrinterModule: NSObject {
                 return
             }
             let port = UInt16(truncating: portNumber)
-            transport.send(bytes: bytes, host: host, port: port) { ok, errorDetail in
+            transport.send(bytes: bytes, host: host, port: port) { ok, errorDetail, diagnostics in
+                // The trace comes back on BOTH paths. On the failing path
+                // it explains why; on the succeeding path it is the only
+                // way to tell "the printer received this" apart from "the
+                // network stack accepted it" -- which is exactly the case
+                // this was added for.
                 if ok {
-                    resolve(["ok": true])
+                    resolve(["ok": true, "diagnostics": diagnostics])
                 } else {
-                    resolve(["ok": false, "error": "PRINTER_CONNECTION_FAILED", "errorDetail": errorDetail ?? "unknown_error"])
+                    resolve(["ok": false, "error": "PRINTER_CONNECTION_FAILED", "errorDetail": errorDetail ?? "unknown_error", "diagnostics": diagnostics])
                 }
             }
         }
@@ -100,8 +105,8 @@ class RakeenPrinterModule: NSObject {
                 return
             }
             let port = UInt16(truncating: portNumber)
-            transport.testConnection(host: host, port: port) { reachable, latencyMs, errorDetail in
-                var result: [String: Any] = ["reachable": reachable]
+            transport.testConnection(host: host, port: port) { reachable, latencyMs, errorDetail, diagnostics in
+                var result: [String: Any] = ["reachable": reachable, "diagnostics": diagnostics]
                 if let latencyMs = latencyMs { result["latencyMs"] = latencyMs }
                 if let errorDetail = errorDetail {
                     result["error"] = "PRINTER_CONNECTION_FAILED"

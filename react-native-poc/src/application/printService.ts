@@ -90,6 +90,7 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
     errorDetail: result.errorDetail,
     target: describeTarget(target),
     bytes,
+    trace: result.diagnostics ?? null,
   };
 }
 
