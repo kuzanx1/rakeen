@@ -13,7 +13,7 @@ socket على منفذ `9100` تبتلع البايتات اللي توصلها 
 **١. شغّل المستمع**
 
 ```bash
-python tools/fake-printer.py
+cd react-native-poc && python tools/fake-printer.py
 ```
 
 بيطبع عنوان جهازك على الشبكة والمنفذ — استخدمهما في الخطوة ٣.
