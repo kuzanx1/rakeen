@@ -43,6 +43,16 @@
 	</dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>يستخدم التطبيق البلوتوث للاتصال بطابعة الإيصالات اللاسلكية.</string>
+	<!-- Required since iOS 14 for ANY connection to a device on the local
+	     network, including a raw TCP socket to a printer at 192.168.x.x:9100.
+	     Without this key the system denies the connection outright and never
+	     shows the user a permission prompt, so NWConnection just fails - which
+	     would have made every network print attempt fail on a real device
+	     with a generic error. NSAllowsLocalNetworking above is a different
+	     thing entirely (it exempts local hosts from ATS, which governs URL
+	     loading, not Network.framework sockets) and does not cover this. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>يستخدم التطبيق الشبكة المحلية للاتصال بطابعة الإيصالات وفتح درج النقد.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
