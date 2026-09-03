@@ -1,5 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { TouchableOpacity } from './tappable';
 import LinearGradient from 'react-native-linear-gradient';
 import { getPrinterProfile, savePrinterProfile } from '../infrastructure/printerProfileStore';
 import { Printer } from '../platform/printer';

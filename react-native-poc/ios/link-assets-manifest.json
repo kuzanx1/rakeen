@@ -28,6 +28,18 @@
     {
       "path": "assets/fonts/IBMPlexSansArabic-SemiBold.ttf",
       "sha1": "b5b6771896d7ce879fd34af44722d70866ab0cb8"
+    },
+    {
+      "path": "assets/sounds/notify_general.mp3",
+      "sha1": "cd4faa683fb384053fb511360d19558658de687a"
+    },
+    {
+      "path": "assets/sounds/notify_prep_expired.mp3",
+      "sha1": "f2e18a96a7fb45fa0a95a03b437a34c5d7e60e15"
+    },
+    {
+      "path": "assets/sounds/notify_prep_warning.mp3",
+      "sha1": "bf8133f93172a89342c28b07065ce8619df010e9"
     }
   ]
 }

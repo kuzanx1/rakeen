@@ -1,5 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Modal,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { TouchableOpacity } from './tappable';
 import { verifyManagerPin } from '../application/managerPinService';
 import { createStyles, fonts, radii, spacing, useTheme } from './theme';
 

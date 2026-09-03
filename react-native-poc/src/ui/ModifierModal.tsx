@@ -1,5 +1,12 @@
 import React, { useState } from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View, ScrollView } from 'react-native';
+import {
+  Modal,
+  StyleSheet,
+  Text,
+  View,
+  ScrollView,
+} from 'react-native';
+import { TouchableOpacity } from './tappable';
 import LinearGradient from 'react-native-linear-gradient';
 import { ModifierDefinition, CartLineConfig, buildDefaultConfig } from '../domain/cart';
 import { createStyles, fonts, gradients, radii, spacing } from './theme';

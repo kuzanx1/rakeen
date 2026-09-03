@@ -1,5 +1,13 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Modal,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { TouchableOpacity } from './tappable';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Circle, Line, Rect } from 'react-native-svg';
 import type { PaymentMethod } from '../domain/payment';

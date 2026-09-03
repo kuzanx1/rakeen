@@ -1,5 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Modal,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { TouchableOpacity } from './tappable';
 import LinearGradient from 'react-native-linear-gradient';
 import { searchCustomers } from '../application/customerService';
 import { validateNewCustomerDraft, looksLikePhoneNumber, Customer } from '../domain/customer';

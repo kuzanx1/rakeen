@@ -65,6 +65,21 @@ export async function getFinancialSettings(businessId: number): Promise<Financia
   };
 }
 
+/** businesses.notify_sound_enabled -- the gate every playAlertSound()
+ *  call site in rakeen-pos.js checks. Same default as the source's own
+ *  `notify_sound_enabled !== false` (:5889): on unless explicitly off,
+ *  and on when the row can't be read at all. Kept out of
+ *  getFinancialSettings() for the same reason ReceiptBusinessProfile is:
+ *  that function is deliberately scoped to Cart's totals math. */
+export async function getNotifySoundEnabled(businessId: number): Promise<boolean> {
+  const { data } = await supabase
+    .from('businesses')
+    .select('notify_sound_enabled')
+    .eq('id', businessId)
+    .single();
+  return data ? data.notify_sound_enabled !== false : true;
+}
+
 /** Feature Parity Pass -- Real Receipt Rendering. The subset of
  *  loadPosData()'s businesses query needed to print a real ZATCA-QR/
  *  logo/custom-message receipt (BUSINESS_VAT_NUMBER/BUSINESS_LOGO_URL/

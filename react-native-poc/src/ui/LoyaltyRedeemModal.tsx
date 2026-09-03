@@ -1,5 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Modal,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { TouchableOpacity } from './tappable';
 import { requestLoyaltyRedemption, getLoyaltyRedemptionStatus } from '../application/loyaltyRedemptionService';
 import type { Product } from '../domain/catalog';
 import { createStyles, fonts, radii, spacing, useTheme } from './theme';

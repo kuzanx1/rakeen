@@ -18,9 +18,9 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
+import { TouchableOpacity } from './src/ui/tappable';
 import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 import { Printer, printReceipt } from './src/platform/printer';
@@ -40,6 +40,8 @@ import uuid from 'react-native-uuid';
 import { getPrinterProfile } from './src/infrastructure/printerProfileStore';
 import { profileToPrinterTarget, drawerKickCommandFor, isDrawerSupported } from './src/domain/printerProfile';
 import { startDiagnosticsTracking } from './src/application/diagnosticsService';
+import { getNotifySoundEnabled } from './src/application/catalogService';
+import { setNotifySoundEnabled } from './src/application/soundService';
 import DiagnosticsScreen from './src/ui/DiagnosticsScreen';
 import OrderHistoryScreen from './src/ui/OrderHistoryScreen';
 import { createStyles, fonts, radii, spacing, ThemeProvider, useTheme } from './src/ui/theme';
@@ -153,6 +155,18 @@ function App(): React.JSX.Element {
     (async () => {
       const device = await getDeviceConfig();
       setBranchId(device.branchId);
+      // NOTIFY_SOUND_ENABLED (rakeen-pos.js:5889) -- read once per
+      // session out of the same businesses row loadPosData() reads it
+      // from. Failure leaves the default (on) in place rather than
+      // silencing alerts, matching the source's own fallback.
+      if (device.businessId != null) {
+        try {
+          setNotifySoundEnabled(await getNotifySoundEnabled(device.businessId));
+        } catch {
+          // keep the default -- a POS that silently stops alerting
+          // because one settings read failed is worse than a stray beep
+        }
+      }
     })();
   }, [cashier]);
 

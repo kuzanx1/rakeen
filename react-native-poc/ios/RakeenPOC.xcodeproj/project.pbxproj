@@ -16,16 +16,21 @@
 		9096B0C7DEE545D5739851B9 /* RakeenPrinterModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 7640D99AB191423D91B595C9 /* RakeenPrinterModule.m */; };
 		9DAD3E4EED32A2066A333119 /* RakeenCashDrawerModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8C263CCDC9D63491D03607E /* RakeenCashDrawerModule.swift */; };
 		3729E3CE299BC6EE13D3701B /* RakeenCashDrawerModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 0FF7B18E8F0011C788DE8FCD /* RakeenCashDrawerModule.m */; };
+		BD1311459C484863AFA4EB2F /* RakeenSoundModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B390AEF2A1B43FFBCD0F1DB /* RakeenSoundModule.swift */; };
+		33262049B8BE4929B3F23D3C /* RakeenSoundModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 09AA6AC6B10C4A1C8C3D1045 /* RakeenSoundModule.m */; };
 		9DF0DBF7F1933E5FB6F01158 /* RakeenDeviceModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54B9D1A52ADC7341967C0670 /* RakeenDeviceModule.swift */; };
 		2A3B03D879D67E8A1B1A0F94 /* RakeenDeviceModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 4E939A575CD0FE5502E9349A /* RakeenDeviceModule.m */; };
 		470C0A52DAE01D17EB26C4B9 /* BluetoothPrinterTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBF61DB704909C0546AC8F99 /* BluetoothPrinterTransport.swift */; };
-		3B7DD397E5F449D18838BAF3 /* IBMPlexMono-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 76BD6CBFECDF4457895AD6B3 /* IBMPlexMono-Bold.ttf */; };
-		212F4F8ED8BF454AA903E53E /* IBMPlexMono-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 4F4B78D4E51248B597FFF810 /* IBMPlexMono-Medium.ttf */; };
-		39AF36B3A1FF412BB3E116AE /* IBMPlexMono-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 85BDD40ED8424841A80B2707 /* IBMPlexMono-SemiBold.ttf */; };
-		E184B271C7464AB08AFFC4DD /* IBMPlexSansArabic-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3F1FBFBB3B1746338019FDF0 /* IBMPlexSansArabic-Bold.ttf */; };
-		05C6A289CD04489982BAD915 /* IBMPlexSansArabic-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 71AA9C27FBDB441F97B691A3 /* IBMPlexSansArabic-Medium.ttf */; };
-		484088A3036E4110BEFB5844 /* IBMPlexSansArabic-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F7E11C4DC4A34E3395E97E90 /* IBMPlexSansArabic-Regular.ttf */; };
-		5B476619E75E4559A281257B /* IBMPlexSansArabic-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 1D966293E578421EA9D8BE4E /* IBMPlexSansArabic-SemiBold.ttf */; };
+		EBB80A71162441AE98DFB69A /* IBMPlexMono-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AD82CCFE8EFF4B88901F9491 /* IBMPlexMono-Bold.ttf */; };
+		5BE0D936E8214E199118B1F9 /* IBMPlexMono-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 127F94BF3FD7469AB972A1F5 /* IBMPlexMono-Medium.ttf */; };
+		7A19559CA7F54CF9AB18AA36 /* IBMPlexMono-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 948F3110276F46CC99E44175 /* IBMPlexMono-SemiBold.ttf */; };
+		E9B3396E049C4702AD08804B /* IBMPlexSansArabic-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 5B2AABED470A4526A9DC2E44 /* IBMPlexSansArabic-Bold.ttf */; };
+		B317F3EE5CFC4BACA80E85AC /* IBMPlexSansArabic-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = BACC7797B1FE4450BA10658E /* IBMPlexSansArabic-Medium.ttf */; };
+		2982F3FA51434D9BADD427C9 /* IBMPlexSansArabic-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B2BC133726E34914AFF679A9 /* IBMPlexSansArabic-Regular.ttf */; };
+		CF71CD4750A04BBB96CDAECE /* IBMPlexSansArabic-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 0AEB79AC241F463BBA7A62BE /* IBMPlexSansArabic-SemiBold.ttf */; };
+		04E41B521EBF4F009FA1810C /* notify_general.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 223D0A9500974FE4BA3E05C0 /* notify_general.mp3 */; };
+		CA8A3BCE80924ADBB717294A /* notify_prep_expired.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 23C32E5CE1014EBAB1E6AE99 /* notify_prep_expired.mp3 */; };
+		C96261ACAB554E2AB2759D26 /* notify_prep_warning.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 54808879A453459E9B9EDF7B /* notify_prep_warning.mp3 */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -44,16 +49,21 @@
 		7640D99AB191423D91B595C9 /* RakeenPrinterModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = RakeenPrinterModule.m; path = RakeenPOC/RakeenPrinterModule.m; sourceTree = "<group>"; };
 		A8C263CCDC9D63491D03607E /* RakeenCashDrawerModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RakeenCashDrawerModule.swift; path = RakeenPOC/RakeenCashDrawerModule.swift; sourceTree = "<group>"; };
 		0FF7B18E8F0011C788DE8FCD /* RakeenCashDrawerModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = RakeenCashDrawerModule.m; path = RakeenPOC/RakeenCashDrawerModule.m; sourceTree = "<group>"; };
+		7B390AEF2A1B43FFBCD0F1DB /* RakeenSoundModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RakeenSoundModule.swift; path = RakeenPOC/RakeenSoundModule.swift; sourceTree = "<group>"; };
+		09AA6AC6B10C4A1C8C3D1045 /* RakeenSoundModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = RakeenSoundModule.m; path = RakeenPOC/RakeenSoundModule.m; sourceTree = "<group>"; };
 		54B9D1A52ADC7341967C0670 /* RakeenDeviceModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RakeenDeviceModule.swift; path = RakeenPOC/RakeenDeviceModule.swift; sourceTree = "<group>"; };
 		4E939A575CD0FE5502E9349A /* RakeenDeviceModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = RakeenDeviceModule.m; path = RakeenPOC/RakeenDeviceModule.m; sourceTree = "<group>"; };
 		CBF61DB704909C0546AC8F99 /* BluetoothPrinterTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BluetoothPrinterTransport.swift; path = RakeenPOC/BluetoothPrinterTransport.swift; sourceTree = "<group>"; };
-		76BD6CBFECDF4457895AD6B3 /* IBMPlexMono-Bold.ttf */ = {isa = PBXFileReference; name = "IBMPlexMono-Bold.ttf"; path = "../assets/fonts/IBMPlexMono-Bold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		4F4B78D4E51248B597FFF810 /* IBMPlexMono-Medium.ttf */ = {isa = PBXFileReference; name = "IBMPlexMono-Medium.ttf"; path = "../assets/fonts/IBMPlexMono-Medium.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		85BDD40ED8424841A80B2707 /* IBMPlexMono-SemiBold.ttf */ = {isa = PBXFileReference; name = "IBMPlexMono-SemiBold.ttf"; path = "../assets/fonts/IBMPlexMono-SemiBold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		3F1FBFBB3B1746338019FDF0 /* IBMPlexSansArabic-Bold.ttf */ = {isa = PBXFileReference; name = "IBMPlexSansArabic-Bold.ttf"; path = "../assets/fonts/IBMPlexSansArabic-Bold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		71AA9C27FBDB441F97B691A3 /* IBMPlexSansArabic-Medium.ttf */ = {isa = PBXFileReference; name = "IBMPlexSansArabic-Medium.ttf"; path = "../assets/fonts/IBMPlexSansArabic-Medium.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		F7E11C4DC4A34E3395E97E90 /* IBMPlexSansArabic-Regular.ttf */ = {isa = PBXFileReference; name = "IBMPlexSansArabic-Regular.ttf"; path = "../assets/fonts/IBMPlexSansArabic-Regular.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		1D966293E578421EA9D8BE4E /* IBMPlexSansArabic-SemiBold.ttf */ = {isa = PBXFileReference; name = "IBMPlexSansArabic-SemiBold.ttf"; path = "../assets/fonts/IBMPlexSansArabic-SemiBold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		AD82CCFE8EFF4B88901F9491 /* IBMPlexMono-Bold.ttf */ = {isa = PBXFileReference; name = "IBMPlexMono-Bold.ttf"; path = "../assets/fonts/IBMPlexMono-Bold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		127F94BF3FD7469AB972A1F5 /* IBMPlexMono-Medium.ttf */ = {isa = PBXFileReference; name = "IBMPlexMono-Medium.ttf"; path = "../assets/fonts/IBMPlexMono-Medium.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		948F3110276F46CC99E44175 /* IBMPlexMono-SemiBold.ttf */ = {isa = PBXFileReference; name = "IBMPlexMono-SemiBold.ttf"; path = "../assets/fonts/IBMPlexMono-SemiBold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		5B2AABED470A4526A9DC2E44 /* IBMPlexSansArabic-Bold.ttf */ = {isa = PBXFileReference; name = "IBMPlexSansArabic-Bold.ttf"; path = "../assets/fonts/IBMPlexSansArabic-Bold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		BACC7797B1FE4450BA10658E /* IBMPlexSansArabic-Medium.ttf */ = {isa = PBXFileReference; name = "IBMPlexSansArabic-Medium.ttf"; path = "../assets/fonts/IBMPlexSansArabic-Medium.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		B2BC133726E34914AFF679A9 /* IBMPlexSansArabic-Regular.ttf */ = {isa = PBXFileReference; name = "IBMPlexSansArabic-Regular.ttf"; path = "../assets/fonts/IBMPlexSansArabic-Regular.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		0AEB79AC241F463BBA7A62BE /* IBMPlexSansArabic-SemiBold.ttf */ = {isa = PBXFileReference; name = "IBMPlexSansArabic-SemiBold.ttf"; path = "../assets/fonts/IBMPlexSansArabic-SemiBold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		223D0A9500974FE4BA3E05C0 /* notify_general.mp3 */ = {isa = PBXFileReference; name = "notify_general.mp3"; path = "../assets/sounds/notify_general.mp3"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		23C32E5CE1014EBAB1E6AE99 /* notify_prep_expired.mp3 */ = {isa = PBXFileReference; name = "notify_prep_expired.mp3"; path = "../assets/sounds/notify_prep_expired.mp3"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		54808879A453459E9B9EDF7B /* notify_prep_warning.mp3 */ = {isa = PBXFileReference; name = "notify_prep_warning.mp3"; path = "../assets/sounds/notify_prep_warning.mp3"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -81,6 +91,8 @@
 				7640D99AB191423D91B595C9 /* RakeenPrinterModule.m */,
 				A8C263CCDC9D63491D03607E /* RakeenCashDrawerModule.swift */,
 				0FF7B18E8F0011C788DE8FCD /* RakeenCashDrawerModule.m */,
+				7B390AEF2A1B43FFBCD0F1DB /* RakeenSoundModule.swift */,
+				09AA6AC6B10C4A1C8C3D1045 /* RakeenSoundModule.m */,
 				54B9D1A52ADC7341967C0670 /* RakeenDeviceModule.swift */,
 				4E939A575CD0FE5502E9349A /* RakeenDeviceModule.m */,
 				CBF61DB704909C0546AC8F99 /* BluetoothPrinterTransport.swift */,
@@ -139,13 +151,16 @@
 		E5BFC6D8EA304D7BAB1DC494 /* Resources */ = {
 			isa = "PBXGroup";
 			children = (
-				76BD6CBFECDF4457895AD6B3 /* IBMPlexMono-Bold.ttf */,
-				4F4B78D4E51248B597FFF810 /* IBMPlexMono-Medium.ttf */,
-				85BDD40ED8424841A80B2707 /* IBMPlexMono-SemiBold.ttf */,
-				3F1FBFBB3B1746338019FDF0 /* IBMPlexSansArabic-Bold.ttf */,
-				71AA9C27FBDB441F97B691A3 /* IBMPlexSansArabic-Medium.ttf */,
-				F7E11C4DC4A34E3395E97E90 /* IBMPlexSansArabic-Regular.ttf */,
-				1D966293E578421EA9D8BE4E /* IBMPlexSansArabic-SemiBold.ttf */,
+				AD82CCFE8EFF4B88901F9491 /* IBMPlexMono-Bold.ttf */,
+				127F94BF3FD7469AB972A1F5 /* IBMPlexMono-Medium.ttf */,
+				948F3110276F46CC99E44175 /* IBMPlexMono-SemiBold.ttf */,
+				5B2AABED470A4526A9DC2E44 /* IBMPlexSansArabic-Bold.ttf */,
+				BACC7797B1FE4450BA10658E /* IBMPlexSansArabic-Medium.ttf */,
+				B2BC133726E34914AFF679A9 /* IBMPlexSansArabic-Regular.ttf */,
+				0AEB79AC241F463BBA7A62BE /* IBMPlexSansArabic-SemiBold.ttf */,
+				223D0A9500974FE4BA3E05C0 /* notify_general.mp3 */,
+				23C32E5CE1014EBAB1E6AE99 /* notify_prep_expired.mp3 */,
+				54808879A453459E9B9EDF7B /* notify_prep_warning.mp3 */,
 			);
 			name = Resources;
 			sourceTree = "<group>";
@@ -213,13 +228,16 @@
 			files = (
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
-				3B7DD397E5F449D18838BAF3 /* IBMPlexMono-Bold.ttf in Resources */,
-				212F4F8ED8BF454AA903E53E /* IBMPlexMono-Medium.ttf in Resources */,
-				39AF36B3A1FF412BB3E116AE /* IBMPlexMono-SemiBold.ttf in Resources */,
-				E184B271C7464AB08AFFC4DD /* IBMPlexSansArabic-Bold.ttf in Resources */,
-				05C6A289CD04489982BAD915 /* IBMPlexSansArabic-Medium.ttf in Resources */,
-				484088A3036E4110BEFB5844 /* IBMPlexSansArabic-Regular.ttf in Resources */,
-				5B476619E75E4559A281257B /* IBMPlexSansArabic-SemiBold.ttf in Resources */,
+				EBB80A71162441AE98DFB69A /* IBMPlexMono-Bold.ttf in Resources */,
+				5BE0D936E8214E199118B1F9 /* IBMPlexMono-Medium.ttf in Resources */,
+				7A19559CA7F54CF9AB18AA36 /* IBMPlexMono-SemiBold.ttf in Resources */,
+				E9B3396E049C4702AD08804B /* IBMPlexSansArabic-Bold.ttf in Resources */,
+				B317F3EE5CFC4BACA80E85AC /* IBMPlexSansArabic-Medium.ttf in Resources */,
+				2982F3FA51434D9BADD427C9 /* IBMPlexSansArabic-Regular.ttf in Resources */,
+				CF71CD4750A04BBB96CDAECE /* IBMPlexSansArabic-SemiBold.ttf in Resources */,
+				04E41B521EBF4F009FA1810C /* notify_general.mp3 in Resources */,
+				CA8A3BCE80924ADBB717294A /* notify_prep_expired.mp3 in Resources */,
+				C96261ACAB554E2AB2759D26 /* notify_prep_warning.mp3 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -311,6 +329,8 @@
 				9096B0C7DEE545D5739851B9 /* RakeenPrinterModule.m in Sources */,
 				9DAD3E4EED32A2066A333119 /* RakeenCashDrawerModule.swift in Sources */,
 				3729E3CE299BC6EE13D3701B /* RakeenCashDrawerModule.m in Sources */,
+				BD1311459C484863AFA4EB2F /* RakeenSoundModule.swift in Sources */,
+				33262049B8BE4929B3F23D3C /* RakeenSoundModule.m in Sources */,
 				9DF0DBF7F1933E5FB6F01158 /* RakeenDeviceModule.swift in Sources */,
 				2A3B03D879D67E8A1B1A0F94 /* RakeenDeviceModule.m in Sources */,
 				470C0A52DAE01D17EB26C4B9 /* BluetoothPrinterTransport.swift in Sources */,
