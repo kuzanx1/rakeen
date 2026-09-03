@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useMemo } from 'react';
 import { useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { layout } from './theme';
 
 /**
@@ -45,8 +46,11 @@ export interface Shell {
   orderPanelWidth: number;
   /** Measured --topbar-h. */
   topbarHeight: number;
-  /** .bottom-nav is a flat 68px at every width -- the source notes it
-   *  "never varies", so its clearance is a constant, not a measurement. */
+  /** .bottom-nav's 68px, PLUS the bottom safe-area inset the bar stretches
+   *  itself over (App.tsx). The CSS can treat 68 as a constant because a
+   *  browser page has no home indicator to clear; a native bar does, and a
+   *  screen that reserved only the 68 would leave its last row under the
+   *  strip the bar now covers. */
   bottomNavHeight: number;
   /** Space a screen must reserve for the absolutely-positioned bars.
    *  Zero below 761px, where both bars are back in normal flow. */
@@ -74,8 +78,10 @@ export function ShellProvider({
   children: React.ReactNode;
 }) {
   const { width } = useWindowDimensions();
+  const { bottom: safeBottom } = useSafeAreaInsets();
   const value = useMemo<Shell>(() => {
     const sideBySide = width >= layout.sideBySideMinWidth;
+    const bottomNavHeight = layout.bottomNavHeight + safeBottom;
     const orderPanelWidth =
       width <= layout.narrowPanelMaxWidth ? layout.orderPanelWidthNarrow : layout.orderPanelWidth;
     return {
@@ -83,11 +89,11 @@ export function ShellProvider({
       homeActive,
       orderPanelWidth,
       topbarHeight,
-      bottomNavHeight: layout.bottomNavHeight,
+      bottomNavHeight,
       insetTop: sideBySide ? topbarHeight : 0,
-      insetBottom: sideBySide ? layout.bottomNavHeight : 0,
+      insetBottom: sideBySide ? bottomNavHeight : 0,
     };
-  }, [width, homeActive, topbarHeight]);
+  }, [width, homeActive, topbarHeight, safeBottom]);
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;
 }
 

@@ -8,7 +8,7 @@ import {
   View,
 } from 'react-native';
 import { TouchableOpacity } from './tappable';
-import LinearGradient from 'react-native-linear-gradient';
+import GradientFill from './GradientFill';
 import { searchCustomers } from '../application/customerService';
 import { validateNewCustomerDraft, looksLikePhoneNumber, Customer } from '../domain/customer';
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
@@ -170,9 +170,10 @@ export default function CustomerPickerModal({
                 </TouchableOpacity>
                 {validation.valid ? (
                   <TouchableOpacity style={styles.confirmWrap} onPress={handleCreateNew} activeOpacity={0.85}>
-                    <LinearGradient colors={gradients.payButton.colors} start={gradients.payButton.start} end={gradients.payButton.end} style={styles.confirmButton}>
+                    <View style={styles.confirmButton}>
+                      <GradientFill gradient={gradients.payButton} radius={radii.md} />
                       <Text style={styles.confirmText}>متابعة</Text>
-                    </LinearGradient>
+                    </View>
                   </TouchableOpacity>
                 ) : (
                   <View style={[styles.confirmButton, styles.confirmButtonDisabled]}>
@@ -227,7 +228,7 @@ const useStyles = createStyles(colors =>
   cancelButton: { padding: 14, alignItems: 'center', marginTop: 4 },
   cancelText: { fontFamily: fonts.sansBold, color: colors.muted },
   confirmWrap: { flex: 1 },
-  confirmButton: { flex: 1, padding: 14, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md },
+  confirmButton: { flex: 1, padding: 14, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, backgroundColor: colors.lime },
   confirmButtonDisabled: { backgroundColor: colors.surf2 },
   confirmText: { fontFamily: fonts.sansBold, color: colors.flagGreenDeep },
   confirmTextDisabled: { color: colors.muted },

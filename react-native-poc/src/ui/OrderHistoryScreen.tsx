@@ -8,7 +8,7 @@ import {
   View,
 } from 'react-native';
 import { TouchableOpacity } from './tappable';
-import LinearGradient from 'react-native-linear-gradient';
+import GradientFill from './GradientFill';
 import {
   listOrderHistory,
   getOrderHistoryDetail,
@@ -262,9 +262,10 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
                 <Text style={styles.sheetMeta}>الدفع: {PAYMENT_METHOD_LABELS[detail.paymentMethod] || detail.paymentMethod}</Text>
 
                 <TouchableOpacity disabled={reprintBusy} onPress={handleReprint} activeOpacity={0.85}>
-                  <LinearGradient colors={gradients.payButton.colors} start={gradients.payButton.start} end={gradients.payButton.end} style={styles.reprintButton}>
+                  <View style={styles.reprintButton}>
+                    <GradientFill gradient={gradients.payButton} radius={radii.md} />
                     <Text style={styles.reprintButtonText}>{reprintBusy ? 'جارٍ الإضافة...' : 'إعادة طباعة'}</Text>
-                  </LinearGradient>
+                  </View>
                 </TouchableOpacity>
                 {!!reprintStatus && <Text style={styles.statusText}>{reprintStatus}</Text>}
 
@@ -355,7 +356,7 @@ const useStyles = createStyles(colors =>
     marginTop: spacing[4],
   },
   refundButtonText: { fontFamily: fonts.sansBold, color: colors.danger },
-  reprintButton: { borderRadius: radii.md, padding: 14, alignItems: 'center', marginTop: spacing[4] },
+  reprintButton: { borderRadius: radii.md, padding: 14, alignItems: 'center', marginTop: spacing[4], backgroundColor: colors.lime },
   reprintButtonText: { fontFamily: fonts.sansBold, color: colors.flagGreenDeep },
   statusText: { fontFamily: fonts.sansSemiBold, textAlign: 'center', marginTop: 10, fontSize: 12, color: colors.muted },
   closeButton: { padding: 14, alignItems: 'center', marginTop: spacing[2] },

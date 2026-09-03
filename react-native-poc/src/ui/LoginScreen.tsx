@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Pressable, TouchableOpacity } from './tappable';
-import LinearGradient from 'react-native-linear-gradient';
+import GradientFill from './GradientFill';
 import {
   getDeviceConfig,
   provisionDevice,
@@ -332,13 +332,10 @@ function ConfirmPayButton({
   }
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.confirmButtonWrap}>
-      <LinearGradient
-        colors={gradients.payButton.colors}
-        start={gradients.payButton.start}
-        end={gradients.payButton.end}
-        style={styles.confirmButton}>
+      <View style={styles.confirmButton}>
+        <GradientFill gradient={gradients.payButton} radius={radii.md} />
         <Text style={styles.confirmButtonText}>{label}</Text>
-      </LinearGradient>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -413,7 +410,7 @@ const useStyles = createStyles((colors, shadows) =>
     error: { fontFamily: fonts.sansBold, color: colors.danger, fontSize: 12, marginBottom: 10, textAlign: 'center' },
     // .confirm-pay-btn
     confirmButtonWrap: { width: '100%' },
-    confirmButton: { width: '100%', paddingVertical: 16, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
+    confirmButton: { width: '100%', paddingVertical: 16, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.lime },
     confirmButtonDisabled: { backgroundColor: colors.surf2 },
     confirmButtonText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.flagGreenDeep },
     // .pin-dots / .pin-dot / .pin-dot.filled

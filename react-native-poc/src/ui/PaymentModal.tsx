@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { TouchableOpacity } from './tappable';
-import LinearGradient from 'react-native-linear-gradient';
+import GradientFill from './GradientFill';
 import Svg, { Circle, Line, Path, Polyline, Rect } from 'react-native-svg';
 import type { PaymentMethod } from '../domain/payment';
 import { computeCashChange } from '../domain/payment';
@@ -320,13 +320,10 @@ export default function PaymentModal({
                 </View>
                 {/* #channelNextBtn -- `style="margin-top:18px"` */}
                 <TouchableOpacity onPress={advanceFromChannel} activeOpacity={0.85} style={styles.nextWrap}>
-                  <LinearGradient
-                    colors={gradients.payButton.colors}
-                    start={gradients.payButton.start}
-                    end={gradients.payButton.end}
-                    style={styles.confirmButton}>
+                  <View style={styles.confirmButton}>
+                    <GradientFill gradient={gradients.payButton} radius={radii.md} />
                     <Text style={styles.confirmText}>التالي</Text>
-                  </LinearGradient>
+                  </View>
                 </TouchableOpacity>
               </>
             )}
@@ -374,13 +371,10 @@ export default function PaymentModal({
                 {/* The label really does change: متابعة once a customer is
                     attached, تخطي while none is. */}
                 <TouchableOpacity onPress={proceedToPayment} activeOpacity={0.85} style={styles.nextWrapTight}>
-                  <LinearGradient
-                    colors={gradients.payButton.colors}
-                    start={gradients.payButton.start}
-                    end={gradients.payButton.end}
-                    style={styles.confirmButton}>
+                  <View style={styles.confirmButton}>
+                    <GradientFill gradient={gradients.payButton} radius={radii.md} />
                     <Text style={styles.confirmText}>{customer ? 'متابعة' : 'تخطي'}</Text>
-                  </LinearGradient>
+                  </View>
                 </TouchableOpacity>
               </>
             )}
@@ -511,15 +505,12 @@ export default function PaymentModal({
                   <TouchableOpacity
                     onPress={() => onConfirm(method, method === 'cash' ? cashAmount : null)}
                     activeOpacity={0.85}>
-                    <LinearGradient
-                      colors={gradients.payButton.colors}
-                      start={gradients.payButton.start}
-                      end={gradients.payButton.end}
-                      style={styles.confirmButton}>
+                    <View style={styles.confirmButton}>
+                      <GradientFill gradient={gradients.payButton} radius={radii.md} />
                       <Text style={styles.confirmText}>
                         {channel === 'delivery' ? 'تأكيد الطلب' : method === 'split' ? 'تأكيد الدفع المقسّم' : 'تأكيد الدفع'}
                       </Text>
-                    </LinearGradient>
+                    </View>
                   </TouchableOpacity>
                 ) : (
                   <View style={[styles.confirmButton, styles.confirmButtonDisabled]}>
@@ -682,7 +673,7 @@ const useStyles = createStyles(colors =>
   cardTapIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.surf2, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   cardNote: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.muted, textAlign: 'center' },
   // .confirm-pay-btn
-  confirmButton: { width: '100%', paddingVertical: 16, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
+  confirmButton: { width: '100%', paddingVertical: 16, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.lime },
   confirmButtonDisabled: { backgroundColor: colors.surf2 },
   confirmText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.flagGreenDeep },
   confirmTextDisabled: { color: colors.muted },

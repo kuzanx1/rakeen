@@ -12,7 +12,6 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -44,6 +43,7 @@ import { getNotifySoundEnabled } from './src/application/catalogService';
 import { setNotifySoundEnabled } from './src/application/soundService';
 import DiagnosticsScreen from './src/ui/DiagnosticsScreen';
 import OrderHistoryScreen from './src/ui/OrderHistoryScreen';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createStyles, fonts, radii, spacing, ThemeProvider, useTheme } from './src/ui/theme';
 import { ShellProvider, TOPBAR_FALLBACK_HEIGHT, useShell } from './src/ui/shell';
 import Topbar from './src/ui/Topbar';
@@ -145,7 +145,7 @@ function screenToTab(screen: Screen): NavTab {
 function App(): React.JSX.Element {
   const { colors, mode, toggle } = useTheme();
   const styles = useStyles();
-  const { sideBySide, homeActive, orderPanelWidth, topbarHeight } = useShell();
+  const { sideBySide, homeActive, orderPanelWidth, topbarHeight, bottomNavHeight } = useShell();
   const setTopbarHeight = useSetTopbarHeight();
   const [cashier, setCashier] = useState<CashierProfile | null>(null);
   const [showHardwareTools, setShowHardwareTools] = useState(false);
@@ -315,6 +315,9 @@ function App(): React.JSX.Element {
   useEffect(() => {
     setHomeActive(activeTab === 'home');
   }, [activeTab, setHomeActive]);
+  // Same rule -- this one belongs to .bottom-nav below, not to anything
+  // above the returns, but it is a hook so it lives up here regardless.
+  const insets = useSafeAreaInsets();
 
   if (showHardwareTools) {
     return <HardwareToolsScreen onBack={() => setShowHardwareTools(false)} />;
@@ -325,7 +328,15 @@ function App(): React.JSX.Element {
   }
 
   return (
-    <SafeAreaView style={styles.root}>
+    /* Every edge EXCEPT the bottom. The source does not inset the page for
+       the home indicator either -- it stretches .bottom-nav over that strip
+       (`height: calc(68px + env(safe-area-inset-bottom)); padding-bottom:
+       env(safe-area-inset-bottom)`, rakeen-pos-additions.css:457-461) so the
+       nav's own background reaches the true bottom edge. Insetting the ROOT
+       instead, which is all react-native's own SafeAreaView can do, left the
+       nav floating above a 34pt band of bare canvas -- visible as an empty
+       strip under the tabs on any device with a home indicator. */
+    <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
       {/* At >=761px both bars leave normal flow (position:absolute) so the
           screen area spans the full height behind them and .order-panel
           can reach the true top and bottom edges; on Home they also stop
@@ -411,6 +422,7 @@ function App(): React.JSX.Element {
       <View
         style={[
           styles.bottomNav,
+          { height: bottomNavHeight, paddingBottom: insets.bottom },
           sideBySide && [styles.barAbsolute, { bottom: 0, end: homeActive ? orderPanelWidth : 0 }],
         ]}>
         <NavTabButton
@@ -823,8 +835,10 @@ const HomeActiveContext = React.createContext<(active: boolean) => void>(() => {
 
 export default function Root(): React.JSX.Element {
   return (
-    <ThemeProvider>
-      <Shell />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <Shell />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

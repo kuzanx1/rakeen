@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Pressable, TouchableOpacity } from './tappable';
-import LinearGradient from 'react-native-linear-gradient';
+import GradientFill from './GradientFill';
 import Svg, { Circle, Line, Path, Polygon, Polyline } from 'react-native-svg';
 import { createStyles, fonts, gradients, layout, radii, spacing, useTheme } from './theme';
 import { CategoryIcon, iconForCategoryName } from './categoryIcons';
@@ -1328,12 +1328,8 @@ function ProductCard({
       // rakeen-pos.js's pressTimer fires at 480ms
       delayLongPress={480}
       activeOpacity={0.85}>
-      <LinearGradient
-        colors={gradients.productIcon.colors}
-        locations={gradients.productIcon.locations}
-        start={gradients.productIcon.start}
-        end={gradients.productIcon.end}
-        style={styles.productIcon}>
+      <View style={styles.productIcon}>
+        <GradientFill gradient={gradients.productIcon} radius={radii.md} />
         {/* renderProducts() (rakeen-pos.js:603) picks exactly one of these
             two as .product-icon's content:
               (p.image && !POS_HIDE_PRODUCT_IMAGES)
@@ -1361,7 +1357,7 @@ function ProductCard({
         <View style={styles.productPriceChip}>
           <Money value={product.price} size={11} color={colors.accentText} />
         </View>
-      </LinearGradient>
+      </View>
       <Text style={styles.productName} numberOfLines={2}>
         {product.name}
       </Text>
@@ -1436,9 +1432,10 @@ function PayButton({
   }
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
-      <LinearGradient colors={gradients.payButton.colors} start={gradients.payButton.start} end={gradients.payButton.end} style={styles.payButton}>
+      <View style={styles.payButton}>
+        <GradientFill gradient={gradients.payButton} radius={radii.md} />
         {content}
-      </LinearGradient>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -1917,6 +1914,11 @@ const useStyles = createStyles((colors, shadows) =>
   // margins that used to sit here are gone: .order-actions now supplies
   // the 18px padding and the 6px gap, so keeping them doubled the inset.
   payButton: {
+    // Solid fallback under the GradientFill layer: if the gradient ever
+    // fails to paint, the button degrades to flat lime at the right
+    // size instead of vanishing. It also gives iOS an opaque layer to
+    // derive the shadow from. The disabled style overrides it.
+    backgroundColor: colors.lime,
     flexDirection: 'row',
     width: '100%',
     padding: 13,

@@ -8,7 +8,7 @@ import {
   View,
 } from 'react-native';
 import { TouchableOpacity } from './tappable';
-import LinearGradient from 'react-native-linear-gradient';
+import GradientFill from './GradientFill';
 import { getPrinterProfile, savePrinterProfile } from '../infrastructure/printerProfileStore';
 import { Printer } from '../platform/printer';
 import {
@@ -325,9 +325,10 @@ export default function PrinterSettingsScreen() {
 
       {validation.valid && !saving ? (
         <TouchableOpacity onPress={handleSave} activeOpacity={0.85}>
-          <LinearGradient colors={gradients.payButton.colors} start={gradients.payButton.start} end={gradients.payButton.end} style={styles.saveButton}>
+          <View style={styles.saveButton}>
+            <GradientFill gradient={gradients.payButton} radius={radii.md} />
             <Text style={styles.saveButtonText}>حفظ الإعدادات</Text>
-          </LinearGradient>
+          </View>
         </TouchableOpacity>
       ) : (
         <View style={[styles.saveButton, styles.saveButtonDisabled]}>
@@ -452,7 +453,7 @@ const useStyles = createStyles(colors =>
   testButton: { backgroundColor: colors.surf1, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, padding: spacing[4], alignItems: 'center', marginBottom: spacing[2] },
   testButtonText: { fontFamily: fonts.sansBold, color: colors.text },
   testResult: { fontFamily: fonts.sansSemiBold, fontSize: 12, textAlign: 'center', marginBottom: spacing[3], color: colors.muted },
-  saveButton: { borderRadius: radii.md, padding: spacing[4], alignItems: 'center', justifyContent: 'center', marginBottom: 30 },
+  saveButton: { borderRadius: radii.md, padding: spacing[4], alignItems: 'center', justifyContent: 'center', marginBottom: 30, backgroundColor: colors.lime },
   saveButtonDisabled: { backgroundColor: colors.surf2 },
   saveButtonText: { fontFamily: fonts.sansBold, color: colors.flagGreenDeep },
   saveButtonTextDisabled: { color: colors.muted },

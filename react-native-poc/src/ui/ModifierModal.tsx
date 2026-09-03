@@ -7,7 +7,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { TouchableOpacity } from './tappable';
-import LinearGradient from 'react-native-linear-gradient';
+import GradientFill from './GradientFill';
 import { ModifierDefinition, CartLineConfig, buildDefaultConfig } from '../domain/cart';
 import { createStyles, fonts, gradients, radii, spacing } from './theme';
 
@@ -134,9 +134,10 @@ export default function ModifierModal({
               </TouchableOpacity>
             </View>
             <TouchableOpacity style={styles.confirmWrap} onPress={() => onConfirm(config, qty)} activeOpacity={0.85}>
-              <LinearGradient colors={gradients.payButton.colors} start={gradients.payButton.start} end={gradients.payButton.end} style={styles.confirmButton}>
+              <View style={styles.confirmButton}>
+                <GradientFill gradient={gradients.payButton} radius={radii.md} />
                 <Text style={styles.confirmText}>إضافة</Text>
-              </LinearGradient>
+              </View>
             </TouchableOpacity>
           </View>
         </View>
@@ -191,7 +192,7 @@ const useStyles = createStyles(colors =>
   qtyValue: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.text, minWidth: 16, textAlign: 'center' },
   // .modifier-footer .modifier-add-btn
   confirmWrap: { flex: 1 },
-  confirmButton: { paddingVertical: 15, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
+  confirmButton: { paddingVertical: 15, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.lime },
   confirmText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.flagGreenDeep },
   }),
 );
