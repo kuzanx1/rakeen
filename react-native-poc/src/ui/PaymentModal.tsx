@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -267,7 +269,17 @@ export default function PaymentModal({
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={goBack}>
-      <View style={styles.overlay}>
+      {/* The cash step focuses a decimal-pad TextInput, and the keyboard
+          that comes up covers the bottom ~290pt of the screen -- which on
+          a phone is exactly where the centred card's confirm button sits.
+          A browser handles this for free (the visual viewport shrinks and
+          the focused field is scrolled into view); RN does not, so the
+          overlay has to shrink by the keyboard's height itself. The card
+          is height-capped and its body scrolls, so shrinking the overlay
+          is enough to keep every control reachable. */}
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={[styles.card, shadows.md]}>
           {/* .modal-head -- the back circle only exists above the first
               step, matching modalStepStack's own depth check. */}
@@ -524,7 +536,7 @@ export default function PaymentModal({
             )}
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -552,7 +564,15 @@ const useStyles = createStyles(colors =>
   headCircle: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surf2, alignItems: 'center', justifyContent: 'center' },
   closeGlyph: { color: colors.text, fontSize: 13 },
   // .modal-body -- `padding:18px 22px 22px`
-  body: { flexGrow: 0 },
+  //
+  // flexShrink is 1 in CSS but 0 in Yoga, and that difference matters
+  // here: the card is capped at 88% of the screen, so a body that cannot
+  // shrink keeps its full content height and is simply CLIPPED by the
+  // card's overflow:hidden -- the scroll view never scrolls, because as
+  // far as it knows it already fits. Letting it shrink is what turns the
+  // cap into a scroll instead of a truncation (iPhone landscape caps the
+  // card at ~343pt, well under the cash step's natural height).
+  body: { flexGrow: 0, flexShrink: 1 },
   bodyContent: { paddingTop: 18, paddingHorizontal: 22, paddingBottom: 22 },
 
   // .channel-row / .channel-btn

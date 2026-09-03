@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { Pressable, TouchableOpacity } from './tappable';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Circle, Line, Path, Polygon, Polyline } from 'react-native-svg';
@@ -122,6 +123,62 @@ export interface SelectedTableContext {
   id: number;
   number: number;
   activeOrderId: number | null;
+}
+
+/**
+ * `.home-zones`, whose scroll model flips at the breakpoint.
+ *
+ * At >=761px the shell is a fixed 100vh frame: `.screens{flex:1;
+ * overflow:hidden}` and `.home-zones{flex:1; overflow:hidden}`
+ * (rakeen-pos.css:144,149), so the three zones divide one screenful and
+ * nothing scrolls except each zone's own list.
+ *
+ * At <=760px the source deliberately gives that up and lets the PAGE
+ * scroll instead (rakeen-pos-additions.css:435-448):
+ *
+ *   body { overflow:auto; height:auto; min-height:100vh }
+ *   .app  { height:auto; min-height:100vh;
+ *           padding-bottom: calc(68px + env(safe-area-inset-bottom)) }
+ *   .screens, .home-zones, .products-zone, .order-panel { overflow:visible }
+ *
+ * -- because the stacked phone layout (grid, then the whole cart under
+ * it) does not fit in one screenful and is not meant to. The bars go
+ * position:fixed and `.app` reserves the bottom nav's 68px so the last
+ * control still clears it.
+ *
+ * A React Native tree has no page scroll to inherit, and an RN View
+ * neither clips nor scrolls its overflow -- so porting only the sizes
+ * and not the scroll model left the order panel squeezed into whatever
+ * the grid did not take and painting the rest straight off the bottom of
+ * the screen, behind the bottom nav. That is the bug this wrapper fixes:
+ * on a phone the column becomes a real scroller, exactly as the page is
+ * in the source. The bottom nav is an ordinary flex sibling at this width
+ * (App.tsx), so it bounds this ScrollView instead of overlapping it --
+ * which is what `.app`'s padding-bottom buys in CSS.
+ */
+function HomeZones({
+  narrow,
+  style,
+  contentContainerStyle,
+  children,
+}: {
+  narrow: boolean;
+  style: StyleProp<ViewStyle>;
+  contentContainerStyle: StyleProp<ViewStyle>;
+  children: React.ReactNode;
+}) {
+  if (!narrow) {
+    return <View style={style}>{children}</View>;
+  }
+  return (
+    <ScrollView
+      style={style}
+      contentContainerStyle={contentContainerStyle}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}>
+      {children}
+    </ScrollView>
+  );
 }
 
 export default function ProductsScreen({
@@ -769,7 +826,10 @@ export default function ProductsScreen({
       {/* .home-zones -- source order is cat-sidebar, products-zone,
           order-panel. The category rail comes BEFORE the search toolbar,
           which is why it stacks above it (not below) on a phone. */}
-      <View style={[styles.homeZones, isNarrow && styles.homeZonesNarrow]}>
+      <HomeZones
+        narrow={isNarrow}
+        style={isNarrow ? styles.homeZonesNarrow : styles.homeZones}
+        contentContainerStyle={styles.homeZonesNarrowContent}>
         {/* .cat-sidebar: an 84px vertical rail at >=761px, a horizontal
             scrolling strip of pills below that (additions.css:475-478). */}
         <ScrollView
@@ -836,6 +896,7 @@ export default function ProductsScreen({
           <FlatList
             key={`grid-${gridColumns}`}
             style={isNarrow ? { maxHeight: windowHeight * 0.6 } : undefined}
+            nestedScrollEnabled={isNarrow}
             data={visibleProducts}
             keyExtractor={p => String(p.id)}
             numColumns={gridColumns}
@@ -861,7 +922,13 @@ export default function ProductsScreen({
         <View style={[styles.cartCol, isNarrow ? styles.cartColNarrow : { width: orderPanelWidth }]}>
           {/* .order-items -- `flex:1; min-height:110px; padding:6px 18px` */}
           <ScrollView
-            style={styles.cartLines}
+            style={[
+              styles.cartLines,
+              // `.order-items{flex:1}` at >=761px; `max-height:40vh` at
+              // <=760px (rakeen-pos-additions.css:497), where the panel is
+              // sized by its content rather than by a leftover flex share.
+              isNarrow ? { flexGrow: 1, flexBasis: 'auto', maxHeight: windowHeight * 0.4 } : styles.cartLinesWide,
+            ]}
             contentContainerStyle={cart.cart.length === 0 ? styles.cartLinesEmpty : undefined}>
             {cart.cart.length === 0 ? (
               /* .order-empty -- renderOrder()'s own empty branch
@@ -1152,7 +1219,7 @@ export default function ProductsScreen({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </HomeZones>
 
       {/* The modal now owns the channel and customer steps, because that
           is where the source puts them -- #pmChannelRow and
@@ -1404,7 +1471,13 @@ const useStyles = createStyles((colors, shadows) =>
   tableBannerLink: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accentText },
   // .home-zones -- `flex:1; display:flex` (row), column at <=760px
   homeZones: { flex: 1, flexDirection: 'row' },
-  homeZonesNarrow: { flexDirection: 'column' },
+  // At <=760px this is the page scroller (see HomeZones): it fills
+  // .screens, and its CONTENT is the stacked column that may be taller.
+  homeZonesNarrow: { flex: 1 },
+  // `.app{min-height:100vh}` -- when the stack is shorter than the screen
+  // the order panel takes up the slack instead of leaving a bare strip;
+  // when it is taller, flexGrow does nothing and the column scrolls.
+  homeZonesNarrowContent: { flexGrow: 1 },
   // .products-zone -- `flex:1; min-width:0`
   productsZone: { flex: 1, minWidth: 0 },
   productsZoneNarrow: { flex: 0 },
@@ -1412,10 +1485,35 @@ const useStyles = createStyles((colors, shadows) =>
   // inline from the breakpoint, see orderPanelWidth). `border-inline-start`
   // in an RTL document resolves to the panel's RIGHT edge, which is what
   // borderStart maps to once I18nManager RTL is on.
-  cartCol: { flexShrink: 0, backgroundColor: colors.cardBg, borderStartWidth: 1, borderStartColor: colors.line },
+  cartCol: {
+    flexShrink: 0,
+    backgroundColor: colors.cardBg,
+    borderStartWidth: 1,
+    borderStartColor: colors.line,
+    // `.order-panel{overflow:hidden}` (rakeen-pos.css:252). RN Views do
+    // not clip by default, so without this an overflowing child paints
+    // outside the column -- over the absolutely-positioned bottom nav at
+    // >=761px, and off the bottom of the screen below it.
+    overflow: 'hidden',
+  },
   // @media (max-width:760px): `width:100%; border-inline-start:none;
   // border-top:8px solid var(--surf1)`
-  cartColNarrow: { width: '100%', flex: 1, borderStartWidth: 0, borderTopWidth: 8, borderTopColor: colors.surf1 },
+  // flexGrow (not flex:1) is the difference between "take the slack if
+  // there is any" and "take exactly the leftover, content be damned" --
+  // the latter is what pushed the pay button off the bottom of a phone.
+  // flexShrink stays 0, so the panel can never be compressed below the
+  // height its own controls need.
+  // `.order-panel{...; overflow:visible}` at <=760px -- the clip above is
+  // a >=761px measure (a fixed-height column); here the panel is sized by
+  // its own content inside the page scroller and has nothing to clip.
+  cartColNarrow: {
+    width: '100%',
+    flexGrow: 1,
+    borderStartWidth: 0,
+    borderTopWidth: 8,
+    borderTopColor: colors.surf1,
+    overflow: 'visible',
+  },
   // .products-toolbar -- `display:flex; gap:10px; padding:18px 20px 12px`
   productsToolbar: { flexDirection: 'row', gap: 10, paddingTop: 18, paddingHorizontal: 20, paddingBottom: 12 },
   // .search-box -- `flex:1; position:relative`
@@ -1601,7 +1699,15 @@ const useStyles = createStyles((colors, shadows) =>
   // .product-icon img
   productImage: { width: '100%', height: '100%', borderRadius: radii.md },
   // .order-items -- `flex:1; min-height:110px; overflow-y:auto; padding:6px 18px`
-  cartLines: { flex: 1, minHeight: 110, paddingHorizontal: 18, paddingVertical: 6 },
+  //
+  // min-height is deliberately NOT ported. In CSS it is a floor for an
+  // empty cart on a roomy screen; in RN it is a hard Yoga constraint that
+  // wins over flexShrink, so on a short viewport (iPhone landscape: a
+  // 390pt-tall order panel) it kept 110pt for the item list and pushed
+  // the totals and the pay button out through the bottom of the panel.
+  // The empty state renders ~110pt of its own content anyway.
+  cartLines: { minHeight: 0, paddingHorizontal: 18, paddingVertical: 6 },
+  cartLinesWide: { flex: 1 },
   // .order-empty is `height:100%`, which only centres if the scroll
   // content is allowed to fill the viewport -- hence flexGrow on the
   // container rather than a height on the child.
