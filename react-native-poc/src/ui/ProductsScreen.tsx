@@ -817,8 +817,8 @@ export default function ProductsScreen({
           productName={modifierTarget.name}
           modDef={catalog.modifiersByProductId[modifierTarget.id]}
           onCancel={() => setModifierTarget(null)}
-          onConfirm={config => {
-            cart.addWithConfig(modifierTarget.id, config, 1);
+          onConfirm={(config, qty) => {
+            cart.addWithConfig(modifierTarget.id, config, qty);
             setModifierTarget(null);
           }}
         />
@@ -1015,7 +1015,14 @@ const styles = StyleSheet.create({
   discountChipActive: { backgroundColor: colors.lime, borderColor: colors.lime },
   discountChipText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text },
   discountChipTextActive: { color: colors.flagGreenDeep },
-  // .customer-chip
+  // NOTE: rakeen-pos.css defines a .customer-chip rule, but it's dead CSS
+  // -- the real PWA never renders it. Its actual customer-attach flow is
+  // a step INSIDE the payment modal (renderCustomerStep(), triggered by
+  // "الدفع"), not a persistent button in the cart panel like this. That's
+  // a flow/UX placement difference, not a styling one -- moving it would
+  // mean restructuring the payment sequence, so it's left as-is here and
+  // flagged rather than silently changed. Values below reuse this file's
+  // own surf1/line/full-pill language for consistency, not a real class.
   customerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

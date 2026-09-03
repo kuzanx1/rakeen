@@ -11,10 +11,16 @@ import { colors, fonts, gradients, radii, spacing } from './theme';
  * (see domain/cart.ts) -- this modal only ever receives a standard
  * ModifierDefinition.
  *
- * Visuals: .mod-group/.mod-group-badge/.mod-chip/.modifier-add-btn match
- * rakeen-pos.css value-for-value. Matches PaymentModal's pattern of a
- * single full-width gradient CTA instead of a 50/50 cancel/confirm row --
+ * Visuals: .mod-group/.mod-group-badge/.mod-chip/.modifier-footer/
+ * .modifier-qty/.mqty-btn/.modifier-add-btn match rakeen-pos.css
+ * value-for-value. Matches PaymentModal's pattern of a single
+ * full-width gradient CTA instead of a 50/50 cancel/confirm row --
  * closing is a corner X, same as every other real PWA modal.
+ *
+ * The qty stepper was a real, disclosed gap found in this pass: the
+ * confirm handler always hardcoded qty=1 even though useCart's own
+ * addWithConfig(productId, config, qty) already accepts a real
+ * quantity -- only the UI to choose one was missing, not the plumbing.
  */
 export default function ModifierModal({
   visible,
@@ -26,10 +32,11 @@ export default function ModifierModal({
   visible: boolean;
   productName: string;
   modDef: ModifierDefinition;
-  onConfirm: (config: CartLineConfig) => void;
+  onConfirm: (config: CartLineConfig, qty: number) => void;
   onCancel: () => void;
 }) {
   const [config, setConfig] = useState<CartLineConfig>(() => buildDefaultConfig(modDef) || {});
+  const [qty, setQty] = useState(1);
 
   const selectSingle = (groupId: string, optionId: string) => {
     setConfig(prev => ({ ...prev, [groupId]: optionId }));
@@ -102,11 +109,23 @@ export default function ModifierModal({
               </View>
             ))}
           </ScrollView>
-          <TouchableOpacity onPress={() => onConfirm(config)} activeOpacity={0.85}>
-            <LinearGradient colors={gradients.payButton.colors} start={gradients.payButton.start} end={gradients.payButton.end} style={styles.confirmButton}>
-              <Text style={styles.confirmText}>إضافة</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+          <View style={styles.footer}>
+            {/* .modifier-qty / .mqty-btn */}
+            <View style={styles.qtyStepper}>
+              <TouchableOpacity style={styles.qtyBtn} onPress={() => setQty(q => Math.max(1, q - 1))} activeOpacity={0.8}>
+                <Text style={styles.qtyBtnText}>-</Text>
+              </TouchableOpacity>
+              <Text style={styles.qtyValue}>{qty}</Text>
+              <TouchableOpacity style={styles.qtyBtn} onPress={() => setQty(q => q + 1)} activeOpacity={0.8}>
+                <Text style={styles.qtyBtnText}>+</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity style={styles.confirmWrap} onPress={() => onConfirm(config, qty)} activeOpacity={0.85}>
+              <LinearGradient colors={gradients.payButton.colors} start={gradients.payButton.start} end={gradients.payButton.end} style={styles.confirmButton}>
+                <Text style={styles.confirmText}>إضافة</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>
@@ -147,7 +166,16 @@ const styles = StyleSheet.create({
   chipSelected: { borderColor: colors.limeDeep, backgroundColor: `rgba(${colors.limeRgb},0.13)` },
   chipText: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.text },
   chipPrice: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.lime, writingDirection: 'ltr' },
-  // .modifier-add-btn
-  confirmButton: { paddingVertical: 15, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', marginTop: spacing[2] },
+  // .modifier-footer
+  footer: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: spacing[2], paddingTop: 18, borderTopWidth: 1, borderTopColor: colors.line },
+  // .modifier-qty
+  qtyStepper: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7, paddingHorizontal: 11, borderRadius: radii.full, backgroundColor: colors.surf1, borderWidth: 1, borderColor: colors.line },
+  // .mqty-btn
+  qtyBtn: { width: 27, height: 27, borderRadius: 14, backgroundColor: colors.surf2, alignItems: 'center', justifyContent: 'center' },
+  qtyBtnText: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.text },
+  qtyValue: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.text, minWidth: 16, textAlign: 'center' },
+  // .modifier-footer .modifier-add-btn
+  confirmWrap: { flex: 1 },
+  confirmButton: { paddingVertical: 15, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
   confirmText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.flagGreenDeep },
 });

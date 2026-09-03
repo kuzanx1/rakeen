@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import Svg, { Circle, Line, Rect } from 'react-native-svg';
 import type { PaymentMethod } from '../domain/payment';
 import { computeCashChange } from '../domain/payment';
 import { colors, fonts, gradients, radii, spacing } from './theme';
@@ -59,12 +60,20 @@ export default function PaymentModal({
               style={[styles.methodTab, method === 'cash' && styles.methodTabActive]}
               onPress={() => setMethod('cash')}
               activeOpacity={0.8}>
+              <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={method === 'cash' ? colors.lime : colors.muted} strokeWidth={2}>
+                <Rect x={2} y={6} width={20} height={12} rx={2} />
+                <Circle cx={12} cy={12} r={3} />
+              </Svg>
               <Text style={[styles.methodTabText, method === 'cash' && styles.methodTabTextActive]}>كاش</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.methodTab, method === 'card' && styles.methodTabActive]}
               onPress={() => setMethod('card')}
               activeOpacity={0.8}>
+              <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={method === 'card' ? colors.lime : colors.muted} strokeWidth={2}>
+                <Rect x={2} y={5} width={20} height={14} rx={2} />
+                <Line x1={2} y1={10} x2={22} y2={10} />
+              </Svg>
               <Text style={[styles.methodTabText, method === 'card' && styles.methodTabTextActive]}>بطاقة</Text>
             </TouchableOpacity>
           </View>
@@ -124,7 +133,7 @@ const styles = StyleSheet.create({
   dueAmount: { fontFamily: fonts.monoBold, fontSize: 30, color: colors.text, marginTop: 5, writingDirection: 'ltr' },
   // .pm-tabs / .pm-tab
   methodTabs: { flexDirection: 'row', gap: 8, marginBottom: spacing[4] },
-  methodTab: { flex: 1, paddingVertical: 14, paddingHorizontal: 6, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surf1, alignItems: 'center' },
+  methodTab: { flex: 1, paddingVertical: 14, paddingHorizontal: 6, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surf1, alignItems: 'center', gap: 6 },
   methodTabActive: { borderColor: colors.limeDeep, backgroundColor: `rgba(${colors.limeRgb},0.12)` },
   methodTabText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.muted },
   methodTabTextActive: { color: colors.lime },
