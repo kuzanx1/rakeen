@@ -315,7 +315,8 @@ const styles = StyleSheet.create({
   rowMeta: { fontFamily: fonts.sansSemiBold, fontSize: 11, color: colors.muted, marginTop: 2 },
   // .order-row-total
   rowTotal: { fontFamily: fonts.monoBold, fontSize: 14.5, color: colors.text, writingDirection: 'ltr' },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  // .modal-overlay
+  overlay: { flex: 1, backgroundColor: 'rgba(6,16,10,0.78)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.cardBg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing[5], maxHeight: '85%' },
   sheetTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, marginBottom: 6, textAlign: 'center' },
   sheetMeta: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted, marginBottom: 10, textAlign: 'center' },

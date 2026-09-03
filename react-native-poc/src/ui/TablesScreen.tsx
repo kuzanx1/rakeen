@@ -441,7 +441,8 @@ const styles = StyleSheet.create({
   statusText: { fontFamily: fonts.sansBold, fontSize: 10 },
   elapsed: { fontFamily: fonts.sansSemiBold, fontSize: 10, color: colors.muted },
   empty: { fontFamily: fonts.sansSemiBold, textAlign: 'center', color: colors.muted, padding: spacing[6] },
-  sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  // .modal-overlay
+  sheetOverlay: { flex: 1, backgroundColor: 'rgba(6,16,10,0.78)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.cardBg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing[5] },
   sheetTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, marginBottom: 6, textAlign: 'center' },
   sheetNote: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted, marginBottom: 14, textAlign: 'center' },

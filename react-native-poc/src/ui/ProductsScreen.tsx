@@ -14,6 +14,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Circle, Line } from 'react-native-svg';
 import { colors, fonts, gradients, radii, shadows, spacing } from './theme';
+import { CategoryIcon, iconForCategoryName } from './categoryIcons';
 import { loadCatalog, getBusinessType, getFinancialSettings, getReceiptBusinessProfile, CatalogResult } from '../application/catalogService';
 import { getOrderHistoryDetail } from '../application/orderHistoryService';
 import { submitOrder } from '../application/orderService';
@@ -600,11 +601,16 @@ export default function ProductsScreen({
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryBar} contentContainerStyle={styles.categoryBarContent}>
             {catalog.categories.map(cat => {
               const active = activeCategoryId === cat.id;
+              const tint = active ? colors.flagGreenDeep : colors.muted;
               return (
                 <Pressable
                   key={cat.id}
                   style={({ pressed }) => [styles.categoryTab, active && styles.categoryTabActive, !active && pressed && styles.categoryTabPressed]}
                   onPress={() => setActiveCategoryId(cat.id)}>
+                  {/* .cat-btn .ci (rakeen-pos.css:170-171) -- icon derived
+                      from the category name via the same keyword rules as
+                      iconForCategory() in rakeen-pos.js, not stored data. */}
+                  <CategoryIcon name={iconForCategoryName(cat.name)} width={17} height={17} stroke={tint} />
                   <Text style={[styles.categoryTabText, active && styles.categoryTabTextActive]}>{cat.name}</Text>
                 </Pressable>
               );
@@ -902,6 +908,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cardBg,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 5,
   },
   categoryTabPressed: { backgroundColor: colors.surf2 },
   categoryTabActive: {

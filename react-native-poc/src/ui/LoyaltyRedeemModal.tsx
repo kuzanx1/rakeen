@@ -175,8 +175,11 @@ const styles = StyleSheet.create({
   waitTitle: { fontFamily: fonts.sansBold, fontSize: 14.5, color: colors.text, marginTop: 16, textAlign: 'center' },
   // .loyalty-wait-sub
   waitSub: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted, marginTop: 6, textAlign: 'center' },
-  // .loyalty-wait-timer
-  waitTimer: { fontFamily: fonts.monoMedium, fontSize: 11.5, color: colors.muted, marginTop: 12, writingDirection: 'ltr' },
+  // .loyalty-wait-timer -- mixed content ("{n} ثانية متبقية"), not a pure
+  // money/mono value, so unlike this file's other mono styles this one
+  // does NOT force writingDirection:'ltr' (the source CSS rule doesn't
+  // either) -- that would garble the trailing Arabic words.
+  waitTimer: { fontFamily: fonts.monoMedium, fontSize: 11.5, color: colors.muted, marginTop: 12 },
   errorText: { fontFamily: fonts.sansBold, color: colors.danger, fontSize: 13, textAlign: 'center', marginBottom: spacing[2] },
   title: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, marginBottom: 4, textAlign: 'center' },
   subtitle: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted, marginBottom: spacing[4], textAlign: 'center' },
