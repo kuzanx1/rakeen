@@ -25,7 +25,10 @@ on:
 
 jobs:
   release:
-    runs-on: macos-15
+    # macos-26 (Xcode 26+) is required, not just preferred: Apple has mandated
+    # the iOS 26 SDK for all App Store Connect uploads since 2026-04-28, and
+    # macos-15 only ships Xcode 16.4, which altool rejects outright.
+    runs-on: macos-26
     defaults:
       run:
         working-directory: react-native-poc
