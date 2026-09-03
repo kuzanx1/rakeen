@@ -14,6 +14,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Circle, Line, Polygon, Polyline } from 'react-native-svg';
 import { createStyles, fonts, gradients, layout, radii, spacing, useTheme } from './theme';
 import { CategoryIcon, iconForCategoryName } from './categoryIcons';
+import { useShell } from './shell';
 import { loadCatalog, getBusinessType, getFinancialSettings, getReceiptBusinessProfile, CatalogResult } from '../application/catalogService';
 import { getOrderHistoryDetail } from '../application/orderHistoryService';
 import { submitOrder } from '../application/orderService';
@@ -176,9 +177,22 @@ export default function ProductsScreen({
    * be a real width here too rather than an equal share of the row.
    */
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const isNarrow = windowWidth < layout.sideBySideMinWidth;
-  const orderPanelWidth =
-    windowWidth <= layout.narrowPanelMaxWidth ? layout.orderPanelWidthNarrow : layout.orderPanelWidth;
+  const { sideBySide, orderPanelWidth, insetTop, insetBottom } = useShell();
+  const isNarrow = !sideBySide;
+
+  /**
+   * At >=761px the topbar and bottom nav are absolutely positioned and
+   * `.screens` runs full height behind them, so each of Home's own
+   * columns pushes itself clear (rakeen-pos.css:440-442):
+   *   .cat-sidebar     padding-top: --topbar-h + 14, padding-bottom: 14 + 68
+   *   .products-toolbar padding-top: --topbar-h + 18
+   *   .product-grid    padding-bottom: 22 + 68
+   * .order-panel is deliberately left alone -- that is the entire reason
+   * the bars stop short of it, so it reaches the true top and bottom.
+   */
+  const catRailInset = sideBySide ? { paddingTop: insetTop + 14, paddingBottom: 14 + insetBottom } : null;
+  const toolbarInset = sideBySide ? { paddingTop: insetTop + 18 } : null;
+  const gridInset = sideBySide ? { paddingBottom: 22 + insetBottom } : null;
 
   /**
    * `.product-grid`'s `repeat(auto-fill, minmax(128px,1fr))` -- 122px at
@@ -676,7 +690,7 @@ export default function ProductsScreen({
           showsHorizontalScrollIndicator={false}
           showsVerticalScrollIndicator={false}
           style={[styles.catSidebar, isNarrow && styles.catSidebarNarrow]}
-          contentContainerStyle={[styles.catSidebarContent, isNarrow && styles.catSidebarContentNarrow]}>
+          contentContainerStyle={[styles.catSidebarContent, isNarrow && styles.catSidebarContentNarrow, catRailInset]}>
           {catalog.categories.map(cat => {
             const active = activeCategoryId === cat.id;
             const tint = active ? colors.flagGreenDeep : colors.muted;
@@ -705,7 +719,7 @@ export default function ProductsScreen({
         {/* .products-zone */}
         <View style={[styles.productsZone, isNarrow && styles.productsZoneNarrow]}>
           {/* .products-toolbar -- search box + favourites toggle, in that order */}
-          <View style={styles.productsToolbar}>
+          <View style={[styles.productsToolbar, toolbarInset]}>
             <View style={styles.searchBox}>
               {/* .search-box svg -- same circle+line magnifier, ported path-for-path */}
               <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={2} strokeLinecap="round" style={styles.searchIcon}>
@@ -739,7 +753,7 @@ export default function ProductsScreen({
             keyExtractor={p => String(p.id)}
             numColumns={gridColumns}
             columnWrapperStyle={gridColumns > 1 ? styles.gridRow : undefined}
-            contentContainerStyle={styles.grid}
+            contentContainerStyle={[styles.grid, gridInset]}
             renderItem={({ item }) => (
               <ProductCard
                 product={item}

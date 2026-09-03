@@ -29,6 +29,7 @@ import {
 } from '../domain/tables';
 import ManagerPinModal from './ManagerPinModal';
 import { createStyles, fonts, Palette, radii, spacing, useTheme } from './theme';
+import { useShell } from './shell';
 
 // .table-card.<status> (rakeen-pos.css:469-489) -- border/background/text
 // triples, verbatim. `occupied`/`maintenance` in the CSS aren't reachable
@@ -78,6 +79,12 @@ export default function TablesScreen({
 }) {
   const { colors } = useTheme();
   const styles = useStyles();
+  const { sideBySide, insetTop, insetBottom } = useShell();
+  // rakeen-pos.css:433/435 -- .screen-head clears the absolutely-positioned
+  // topbar (--topbar-h + 20) and .tables-grid clears the bottom nav
+  // (20 + 68). Both are zero below 761px, where the bars are in flow.
+  const headInset = sideBySide ? { paddingTop: insetTop + 20 } : null;
+  const gridInset = sideBySide ? { paddingBottom: 20 + insetBottom } : null;
   const STATUS_STYLE = statusStyle(colors);
   const [tables, setTables] = useState<RestaurantTable[]>([]);
   const [sections, setSections] = useState<TableSection[]>([]);
@@ -253,7 +260,7 @@ export default function TablesScreen({
 
   return (
     <View style={styles.root}>
-      <View style={styles.header}>
+      <View style={[styles.header, headInset]}>
         <Text style={styles.title}>الطاولات</Text>
         <TouchableOpacity onPress={refresh} disabled={busy}>
           <Text style={styles.refreshLink}>تحديث</Text>
@@ -265,7 +272,7 @@ export default function TablesScreen({
           <Text style={styles.toastText}>{toast}</Text>
         </View>
       )}
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, gridInset]}>
         {groups.map((group, gi) => (
           <View key={group.section?.id ?? `unsectioned-${gi}`} style={styles.sectionBlock}>
             {group.section && <Text style={styles.sectionTitle}>{group.section.name}</Text>}

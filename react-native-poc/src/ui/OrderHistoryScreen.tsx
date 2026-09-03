@@ -25,6 +25,7 @@ import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { shouldPrintCustomerReceipt, shouldPrintReceiptLogo } from '../domain/printerProfile';
 import type { ReceiptData } from '../domain/receipt';
 import { createStyles, fonts, gradients, Palette, radii, spacing, useTheme } from './theme';
+import { useShell } from './shell';
 
 const STATUS_TABS: { value: OrderHistoryStatus; label: string }[] = [
   { value: 'completed', label: 'مكتملة' },
@@ -63,6 +64,11 @@ const rowBadgeColor = (colors: Palette): Record<OrderHistoryStatus, string> => (
 export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
   const { colors } = useTheme();
   const styles = useStyles();
+  const { sideBySide, insetTop, insetBottom } = useShell();
+  // rakeen-pos.css:433/434 -- .screen-head clears the topbar
+  // (--topbar-h + 20), .orders-list clears the bottom nav (16 + 68).
+  const headInset = sideBySide ? { paddingTop: insetTop + 20 } : null;
+  const listInset = sideBySide ? { paddingBottom: 16 + insetBottom } : null;
   const ROW_BADGE_COLOR = rowBadgeColor(colors);
   const [status, setStatus] = useState<OrderHistoryStatus>('completed');
   const [rows, setRows] = useState<OrderHistoryRow[]>([]);
@@ -172,7 +178,7 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
 
   return (
     <View style={styles.root}>
-      <View style={styles.tabsRow}>
+      <View style={[styles.tabsRow, headInset]}>
         {STATUS_TABS.map(tab => {
           const active = status === tab.value;
           return (
@@ -195,7 +201,7 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
         <FlatList
           data={rows}
           keyExtractor={r => String(r.id)}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, listInset]}
           ListEmptyComponent={<Text style={styles.empty}>لا يوجد طلبات.</Text>}
           renderItem={({ item }) => (
             <TouchableOpacity style={styles.row} onPress={() => openDetail(item.id)} activeOpacity={0.8}>

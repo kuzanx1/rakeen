@@ -45,6 +45,7 @@ import { setNotifySoundEnabled } from './src/application/soundService';
 import DiagnosticsScreen from './src/ui/DiagnosticsScreen';
 import OrderHistoryScreen from './src/ui/OrderHistoryScreen';
 import { createStyles, fonts, radii, spacing, ThemeProvider, useTheme } from './src/ui/theme';
+import { ShellProvider, TOPBAR_FALLBACK_HEIGHT, useShell } from './src/ui/shell';
 
 /** React Native's Hermes runtime has no global `btoa` (unlike a browser) —
  *  a minimal base64 encoder, since pulling in a whole polyfill package for
@@ -143,6 +144,8 @@ function screenToTab(screen: Screen): NavTab {
 function App(): React.JSX.Element {
   const { colors, mode, toggle } = useTheme();
   const styles = useStyles();
+  const { sideBySide, homeActive, orderPanelWidth, topbarHeight } = useShell();
+  const setTopbarHeight = useSetTopbarHeight();
   const [cashier, setCashier] = useState<CashierProfile | null>(null);
   const [showHardwareTools, setShowHardwareTools] = useState(false);
   const [screen, setScreen] = useState<Screen>({ name: 'products', table: null });
@@ -275,9 +278,26 @@ function App(): React.JSX.Element {
 
   const activeTab = screenToTab(screen);
 
+  // `.app.home-active` is what narrows the two bars, so the shell has to
+  // know which tab is showing.
+  const setHomeActive = React.useContext(HomeActiveContext);
+  useEffect(() => {
+    setHomeActive(activeTab === 'home');
+  }, [activeTab, setHomeActive]);
+
   return (
     <SafeAreaView style={styles.root}>
-      <View style={styles.topBar}>
+      {/* At >=761px both bars leave normal flow (position:absolute) so the
+          screen area spans the full height behind them and .order-panel
+          can reach the true top and bottom edges; on Home they also stop
+          short by the panel's width. Below that they are ordinary
+          siblings, exactly as the source has them. */}
+      <View
+        style={[
+          styles.topBar,
+          sideBySide && [styles.barAbsolute, { top: 0, end: homeActive ? orderPanelWidth : 0 }],
+        ]}
+        onLayout={e => setTopbarHeight(e.nativeEvent.layout.height)}>
         <Text style={styles.topBarTitle}>{cashier.full_name || 'بدون اسم'}</Text>
         {/* .theme-toggle (rakeen-pos.css:123) -- 30px circle, surf1 fill,
             line border, muted icon. Shows the moon (.icon-dark) while dark
@@ -304,12 +324,26 @@ function App(): React.JSX.Element {
           </Svg>
         </TouchableOpacity>
       </View>
+      {/* RN-only chrome (the PWA surfaces this through showToast()). Once
+          the screen area is absolutely positioned it would paint over a
+          normal-flow banner, so at >=761px this floats just under the
+          topbar on the same layer as the bars instead. */}
       {!!drawerStatus && (
-        <View style={styles.drawerStatusBanner}>
+        <View
+          style={[
+            styles.drawerStatusBanner,
+            sideBySide && {
+              position: 'absolute',
+              top: topbarHeight,
+              start: 0,
+              end: homeActive ? orderPanelWidth : 0,
+              zIndex: 3,
+            },
+          ]}>
           <Text style={styles.drawerStatusText}>{drawerStatus}</Text>
         </View>
       )}
-      <View style={styles.screenArea}>
+      <View style={[styles.screenArea, sideBySide && styles.screenAreaBehindBars]}>
         {screen.name === 'tables' && branchId != null ? (
           <TablesScreen
             branchId={branchId}
@@ -348,7 +382,11 @@ function App(): React.JSX.Element {
 
       {/* .bottom-nav / .nav-tab (rakeen-pos.css:351-354) -- same 4 tabs,
           same SVG icon paths, same active-color rule as pos-markup.ts. */}
-      <View style={styles.bottomNav}>
+      <View
+        style={[
+          styles.bottomNav,
+          sideBySide && [styles.barAbsolute, { bottom: 0, end: homeActive ? orderPanelWidth : 0 }],
+        ]}>
         <NavTabButton
           active={activeTab === 'home'}
           label="الرئيسية"
@@ -445,8 +483,12 @@ function MoreScreen({
   onLogout: () => void;
 }) {
   const styles = useStyles();
+  const { sideBySide, insetTop, insetBottom } = useShell();
+  // .more-scroll -- padding-bottom: 28 + 68 (rakeen-pos.css:436). It has
+  // no .screen-head, so it also takes the topbar clearance itself.
+  const inset = sideBySide ? { paddingTop: insetTop + 16, paddingBottom: 28 + insetBottom } : null;
   return (
-    <ScrollView style={styles.moreRoot} contentContainerStyle={styles.moreScroll}>
+    <ScrollView style={styles.moreRoot} contentContainerStyle={[styles.moreScroll, inset]}>
       <MoreRow label="فتح الدرج" onPress={onOpenDrawer} disabled={drawerBusy} busyLabel="جارٍ الفتح..." busy={drawerBusy} />
       <MoreRow label="قائمة الطباعة" onPress={onOpenPrintQueue} />
       <MoreRow label="إعدادات الطابعة" onPress={onOpenPrinterSettings} />
@@ -700,6 +742,10 @@ const useStyles = createStyles(colors =>
   link: { fontFamily: fonts.sansBold, color: colors.muted },
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing[2] },
   screenArea: { flex: 1 },
+  // `.screens` spanning the full height behind both bars at >=761px
+  screenAreaBehindBars: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
+  // shared by .topbar and .bottom-nav once they leave normal flow
+  barAbsolute: { position: 'absolute', start: 0, zIndex: 2 },
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -743,10 +789,38 @@ const useStyles = createStyles(colors =>
  * to resolve, and the provider starts on light -- matching POSPage.tsx's
  * unconditional `data-theme="light"` on mount. See theme.ts's header.
  */
+/**
+ * Lets App report its measured topbar height back up to the provider that
+ * feeds it to every screen -- the equivalent of the source's
+ * ResizeObserver writing --topbar-h. Kept as its own tiny context so App
+ * doesn't have to be split in two just to sit under ShellProvider.
+ */
+const SetTopbarHeightContext = React.createContext<(h: number) => void>(() => {});
+function useSetTopbarHeight() {
+  return React.useContext(SetTopbarHeightContext);
+}
+
+function Shell(): React.JSX.Element {
+  const [topbarHeight, setTopbarHeight] = useState(TOPBAR_FALLBACK_HEIGHT);
+  const [homeActive, setHomeActive] = useState(true);
+  return (
+    <HomeActiveContext.Provider value={setHomeActive}>
+      <SetTopbarHeightContext.Provider value={setTopbarHeight}>
+        <ShellProvider homeActive={homeActive} topbarHeight={topbarHeight}>
+          <App />
+        </ShellProvider>
+      </SetTopbarHeightContext.Provider>
+    </HomeActiveContext.Provider>
+  );
+}
+
+/** `.app.home-active` -- only Home reserves the order-panel column. */
+const HomeActiveContext = React.createContext<(active: boolean) => void>(() => {});
+
 export default function Root(): React.JSX.Element {
   return (
     <ThemeProvider>
-      <App />
+      <Shell />
     </ThemeProvider>
   );
 }
