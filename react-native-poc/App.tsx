@@ -47,6 +47,7 @@ import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-
 import { createStyles, fonts, radii, spacing, ThemeProvider, useTheme } from './src/ui/theme';
 import { ShellProvider, TOPBAR_FALLBACK_HEIGHT, useShell } from './src/ui/shell';
 import Topbar from './src/ui/Topbar';
+import ManagerPinModal from './src/ui/ManagerPinModal';
 
 /** React Native's Hermes runtime has no global `btoa` (unlike a browser) —
  *  a minimal base64 encoder, since pulling in a whole polyfill package for
@@ -148,7 +149,6 @@ function App(): React.JSX.Element {
   const { sideBySide, homeActive, orderPanelWidth, topbarHeight, bottomNavHeight } = useShell();
   const setTopbarHeight = useSetTopbarHeight();
   const [cashier, setCashier] = useState<CashierProfile | null>(null);
-  const [showHardwareTools, setShowHardwareTools] = useState(false);
   const [screen, setScreen] = useState<Screen>({ name: 'products', table: null });
   const [branchId, setBranchId] = useState<number | null>(null);
   /** #posBusinessName / #posBranchName -- .identity-cluster's two lines,
@@ -163,7 +163,9 @@ function App(): React.JSX.Element {
    *  printer is actually configured, then the host it will print to. */
   const [printerLabel, setPrinterLabel] = useState('بدون طابعة شبكة');
   const [drawerBusy, setDrawerBusy] = useState(false);
-  const [drawerStatus, setDrawerStatus] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
+  /** موافقة مدير -- openPinModal() in the source (rakeen-pos.js:5157). */
+  const [managerPinOpen, setManagerPinOpen] = useState(false);
 
   useEffect(() => {
     if (!cashier) return;
@@ -267,16 +269,16 @@ function App(): React.JSX.Element {
    */
   const handleOpenDrawerManually = async () => {
     setDrawerBusy(true);
-    setDrawerStatus('');
+    setStatusMessage('');
     try {
       const profile = await getPrinterProfile();
       if (!isDrawerSupported(profile)) {
-        setDrawerStatus('⚠ فتح الدرج غير متاح — لا توجد طابعة مُعدة بدرج (راجع إعدادات الطابعة)');
+        setStatusMessage('ما فيه درج مربوط — اضبطه من إعدادات الطباعة');
         return;
       }
       const target = profileToPrinterTarget(profile);
       if (!target) {
-        setDrawerStatus('⚠ فتح الدرج غير متاح — الإعداد الحالي غير صالح (راجع إعدادات الطابعة)');
+        setStatusMessage('إعدادات الدرج ناقصة — راجعها من إعدادات الطباعة');
         return;
       }
       const result = await openCashDrawer({
@@ -286,14 +288,14 @@ function App(): React.JSX.Element {
         operationId: `manual-${uuid.v4()}`,
       });
       if (result.ok) {
-        setDrawerStatus('✅ تم فتح الدرج');
+        setStatusMessage('تم فتح الدرج');
       } else if (result.error === 'CASH_DRAWER_UNAVAILABLE') {
-        setDrawerStatus('⚠ فتح الدرج غير متاح بعد — لا توجد وحدة درج أصلية على هذا الجهاز');
+        setStatusMessage('هذا الجهاز ما يدعم فتح الدرج');
       } else {
-        setDrawerStatus(`⚠ تعذّر فتح الدرج — تحقق من الاتصال${result.errorDetail ? ` (${result.errorDetail})` : ''}`);
+        setStatusMessage('تعذّر فتح الدرج — تأكد أن الطابعة موصولة وشغّالة');
       }
     } catch (e) {
-      setDrawerStatus(`⚠ خطأ غير متوقع: ${String(e)}`);
+      setStatusMessage('تعذّر فتح الدرج — جرّب مرة ثانية');
     } finally {
       setDrawerBusy(false);
     }
@@ -318,10 +320,6 @@ function App(): React.JSX.Element {
   // Same rule -- this one belongs to .bottom-nav below, not to anything
   // above the returns, but it is a hook so it lives up here regardless.
   const insets = useSafeAreaInsets();
-
-  if (showHardwareTools) {
-    return <HardwareToolsScreen onBack={() => setShowHardwareTools(false)} />;
-  }
 
   if (!cashier) {
     return <LoginScreen onLoggedIn={setCashier} />;
@@ -365,10 +363,22 @@ function App(): React.JSX.Element {
           the screen area is absolutely positioned it would paint over a
           normal-flow banner, so at >=761px this floats just under the
           topbar on the same layer as the bars instead. */}
-      {!!drawerStatus && (
+      {/* موافقة مدير -- openPinModal() with no callback (rakeen-pos.js:5557)
+          is a standalone supervisor check: it verifies the manager's code
+          and reports "تمت موافقة المدير", with nothing else attached. */}
+      <ManagerPinModal
+        visible={managerPinOpen}
+        onApprove={() => {
+          setManagerPinOpen(false);
+          setStatusMessage('تمت موافقة المدير');
+        }}
+        onCancel={() => setManagerPinOpen(false)}
+      />
+
+      {!!statusMessage && (
         <View
           style={[
-            styles.drawerStatusBanner,
+            styles.statusBanner,
             sideBySide && {
               position: 'absolute',
               top: topbarHeight,
@@ -377,7 +387,7 @@ function App(): React.JSX.Element {
               zIndex: 3,
             },
           ]}>
-          <Text style={styles.drawerStatusText}>{drawerStatus}</Text>
+          <Text style={styles.statusBannerText}>{statusMessage}</Text>
         </View>
       )}
       <View style={[styles.screenArea, sideBySide && styles.screenAreaBehindBars]}>
@@ -391,13 +401,12 @@ function App(): React.JSX.Element {
             onOpenPrintQueue={() => setScreen({ name: 'printQueue' })}
             onOpenPrinterSettings={() => setScreen({ name: 'printerSettings' })}
             onOpenDiagnostics={() => setScreen({ name: 'diagnostics' })}
-            onOpenHardwareTools={() => setShowHardwareTools(true)}
             onOpenDrawer={handleOpenDrawerManually}
+            // Both tiles land on the same place for the same reason the
+            // source does it: the cashier has to pick WHICH order first.
+            onOpenCompletedOrders={() => setScreen({ name: 'orderHistory' })}
+            onRequestManagerApproval={() => setManagerPinOpen(true)}
             drawerBusy={drawerBusy}
-            onLogout={async () => {
-              await logout();
-              setCashier(null);
-            }}
           />
         ) : screen.name === 'printQueue' ? (
           <PrintQueueScreen />
@@ -503,38 +512,130 @@ function NavTabButton({
  * diagnostics, the manual drawer-kick quick action, the RN-only hardware
  * POC tools, and logout.
  */
+/**
+ * #screen-more (pos-markup.ts). Two LABELLED SECTIONS of icon tiles, not a
+ * list of text rows:
+ *
+ *   "إجراءات سريعة — وقت الخدمة"   QUICK_ACTIONS  (rakeen-pos.js:5136)
+ *   "الوردية"                        SHIFT_ACTIONS  (:5144)
+ *
+ * .more-grid is `repeat(auto-fill, minmax(154px,1fr))` with a 12px gap, and
+ * each .more-item is a centred column: a 24px lime glyph over a 12.5/700
+ * label, on surf1 with a hairline border and the large radius.
+ *
+ * This screen was a stack of full-width text rows with no icons and no
+ * sections at all.
+ *
+ * Four of the source's ten tiles are not rendered yet because the features
+ * behind them do not exist in this app: مسح باركود (needs the camera),
+ * and the three shift ones -- ملخص الوردية, إغلاق الوردية,
+ * طباعة آخر موازنة -- which are a whole shift-management feature,
+ * not buttons. A tile that looks live and does nothing when a cashier taps
+ * it mid-service is worse than one that is not there yet, so they wait
+ * until the feature does.
+ */
 function MoreScreen({
   onOpenPrintQueue,
   onOpenPrinterSettings,
   onOpenDiagnostics,
-  onOpenHardwareTools,
   onOpenDrawer,
+  onOpenCompletedOrders,
+  onRequestManagerApproval,
   drawerBusy,
-  onLogout,
 }: {
   onOpenPrintQueue: () => void;
   onOpenPrinterSettings: () => void;
   onOpenDiagnostics: () => void;
-  onOpenHardwareTools: () => void;
   onOpenDrawer: () => void;
+  /** إعادة طباعة and استرجاع مبلغ both just send the cashier to
+   *  the completed-orders list to pick the order (rakeen-pos.js:5158). */
+  onOpenCompletedOrders: (purpose: 'reprint' | 'refund') => void;
+  onRequestManagerApproval: () => void;
   drawerBusy: boolean;
-  onLogout: () => void;
 }) {
+  const { colors } = useTheme();
   const styles = useStyles();
   const { sideBySide, insetTop, insetBottom } = useShell();
-  // .more-scroll -- padding-bottom: 28 + 68 (rakeen-pos.css:436). It has
-  // no .screen-head, so it also takes the topbar clearance itself.
-  const inset = sideBySide ? { paddingTop: insetTop + 16, paddingBottom: 28 + insetBottom } : null;
+  // .more-scroll -- `padding:18px 24px 28px`, plus the bar clearances at
+  // >=761px where both bars are out of normal flow.
+  const inset = sideBySide ? { paddingTop: insetTop + 18, paddingBottom: 28 + insetBottom } : null;
+
+  const ink = colors.accentText;
   return (
     <ScrollView style={styles.moreRoot} contentContainerStyle={[styles.moreScroll, inset]}>
-      <MoreRow label="فتح الدرج" onPress={onOpenDrawer} disabled={drawerBusy} busyLabel="جارٍ الفتح..." busy={drawerBusy} />
-      <MoreRow label="قائمة الطباعة" onPress={onOpenPrintQueue} />
-      <MoreRow label="إعدادات الطابعة" onPress={onOpenPrinterSettings} />
-      <MoreRow label="تشخيص النظام" onPress={onOpenDiagnostics} />
-      <MoreRow label="أدوات الطابعة" onPress={onOpenHardwareTools} />
-      <View style={styles.moreDivider} />
-      <MoreRow label="خروج" onPress={onLogout} danger />
+      <Text style={[styles.moreSectionLabel, styles.moreSectionLabelFirst]}>إجراءات سريعة — وقت الخدمة</Text>
+      <View style={styles.moreGrid}>
+        <MoreTile label={drawerBusy ? 'جارٍ الفتح...' : 'فتح الدرج'} onPress={onOpenDrawer} disabled={drawerBusy}>
+          <Rect x={2} y={7} width={20} height={14} rx={2} stroke={ink} />
+          <Path d="M2 7l4-4h12l4 4" stroke={ink} />
+          <Line x1={12} y1={12} x2={12} y2={16} stroke={ink} />
+        </MoreTile>
+        <MoreTile label="استرجاع مبلغ" onPress={() => onOpenCompletedOrders('refund')}>
+          <Polyline points="9 14 4 9 9 4" stroke={ink} />
+          <Path d="M20 20v-7a4 4 0 0 0-4-4H4" stroke={ink} />
+        </MoreTile>
+        <MoreTile label="موافقة مدير" onPress={onRequestManagerApproval}>
+          <Rect x={3} y={11} width={18} height={11} rx={2} stroke={ink} />
+          <Path d="M7 11V7a5 5 0 0 1 10 0v4" stroke={ink} />
+        </MoreTile>
+        <MoreTile label="إعادة طباعة" onPress={() => onOpenCompletedOrders('reprint')}>
+          <Polyline points="6 9 6 2 18 2 18 9" stroke={ink} />
+          <Path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" stroke={ink} />
+          <Rect x={6} y={14} width={12} height={8} stroke={ink} />
+        </MoreTile>
+      </View>
+
+      <Text style={styles.moreSectionLabel}>الوردية</Text>
+      <View style={styles.moreGrid}>
+        <MoreTile label="إعدادات الطباعة" onPress={onOpenPrinterSettings}>
+          <Circle cx={12} cy={12} r={3} stroke={ink} />
+          <Path
+            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+            stroke={ink}
+          />
+        </MoreTile>
+        {/* Not one of the source's ten. Kept because the queue screen is
+            real and this is its only way in -- the PWA surfaces the same
+            information on the receipt screen instead. */}
+        <MoreTile label="قائمة الطباعة" onPress={onOpenPrintQueue}>
+          <Polyline points="6 9 6 2 18 2 18 9" stroke={ink} />
+          <Path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" stroke={ink} />
+          <Rect x={6} y={14} width={12} height={8} stroke={ink} />
+        </MoreTile>
+        <MoreTile label="تشخيص النظام" onPress={onOpenDiagnostics}>
+          <Path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke={ink} />
+        </MoreTile>
+      </View>
     </ScrollView>
+  );
+}
+
+/** .more-item -- `padding:22px 14px; border-radius:var(--r-lg);
+ *  background:var(--surf1); border:1px solid var(--line)`, a centred
+ *  column with an 11px gap, a 24px glyph and a 12.5/700 label. */
+function MoreTile({
+  label,
+  onPress,
+  disabled,
+  children,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  const styles = useStyles();
+  return (
+    <TouchableOpacity
+      style={[styles.moreItem, disabled && styles.moreItemDisabled]}
+      onPress={onPress}
+      disabled={disabled}
+      activeOpacity={0.8}>
+      <Svg width={24} height={24} viewBox="0 0 24 24" fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        {children}
+      </Svg>
+      <Text style={styles.moreItemText}>{label}</Text>
+    </TouchableOpacity>
   );
 }
 
@@ -558,184 +659,6 @@ function MoreRow({
     <TouchableOpacity style={styles.moreRow} onPress={onPress} disabled={disabled} activeOpacity={0.8}>
       <Text style={[styles.moreRowText, danger && styles.moreRowTextDanger]}>{busy && busyLabel ? busyLabel : label}</Text>
     </TouchableOpacity>
-  );
-}
-
-function HardwareToolsScreen({ onBack }: { onBack: () => void }): React.JSX.Element {
-  const { colors, mode } = useTheme();
-  const styles = useStyles();
-  const [host, setHost] = useState('192.168.1.50');
-  const [port, setPort] = useState('9100'); // a UI default only — never assumed by the contract itself
-  const [network, setNetwork] = useState<NetInfoState | null>(null);
-  const [printerStatus, setPrinterStatus] = useState('لم يُختبر بعد');
-  const [bridgeStatus, setBridgeStatus] = useState('جارٍ الفحص...');
-  const [log, setLog] = useState<string[]>([]);
-
-  const appendLog = (line: string) =>
-    setLog(prev => [`${new Date().toLocaleTimeString()} — ${line}`, ...prev].slice(0, 20));
-
-  useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener(state => setNetwork(state));
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      const info: DeviceInfo = await getDeviceInfo();
-      setBridgeStatus(
-        info.bridgeReachable
-          ? `متصل — ${info.platform} (RakeenDeviceModule يرد فعليًا)`
-          : `غير متصل — لا يوجد رد حقيقي من ${info.nativeModuleName}`,
-      );
-    })();
-  }, []);
-
-  const portNumber = parseInt(port, 10);
-
-  const handleTestPrinter = async () => {
-    if (!Printer) {
-      setPrinterStatus('🔴 RakeenPrinterModule غير موجود على هذا الجهاز');
-      appendLog('Test Printer: NativeModules.RakeenPrinterModule is undefined');
-      return;
-    }
-    appendLog(`Test Printer: connecting to ${host}:${portNumber}...`);
-    try {
-      const result = await Printer.testConnection({ transport: 'network', host, port: portNumber });
-      if (result.reachable) {
-        setPrinterStatus(`🟢 متصل (${result.latencyMs?.toFixed(0)}ms)`);
-        appendLog(`Test Printer: reachable in ${result.latencyMs?.toFixed(0)}ms`);
-      } else {
-        setPrinterStatus(`🔴 غير متصل — ${result.error}`);
-        appendLog(`Test Printer: unreachable — ${result.error}`);
-      }
-    } catch (e) {
-      setPrinterStatus('🔴 خطأ غير متوقع');
-      appendLog(`Test Printer: threw — ${String(e)}`);
-    }
-  };
-
-  const handlePrintTestReceipt = async () => {
-    // printReceipt() (not Printer.print() directly) enforces the "no fake
-    // success" rule -- honestly reports PRINTER_UNAVAILABLE if no native
-    // module is linked, rather than every call site needing to remember
-    // to check `Printer` first.
-    appendLog(`Print Test Receipt: sending to ${host}:${portNumber}...`);
-    try {
-      const result = await printReceipt({
-        target: { transport: 'network', host, port: portNumber },
-        escPosBase64: buildTestReceiptBase64(),
-        timeoutMs: 8000,
-      });
-      appendLog(
-        result.ok
-          ? 'Print Test Receipt: ok'
-          : `Print Test Receipt: failed — ${result.error}${result.errorDetail ? ` (${result.errorDetail})` : ''}`,
-      );
-    } catch (e) {
-      appendLog(`Print Test Receipt: threw — ${String(e)}`);
-    }
-  };
-
-  const handleOpenDrawer = async () => {
-    // One operationId per logical drawer-open attempt -- a real screen
-    // would reuse the same client_order_uuid as the order/payment itself,
-    // per docs/react-native-migration's cash-drawer idempotency
-    // requirement. A fresh ID each button tap here means each POC tap is
-    // treated as its own logical operation (rapid-double-tap dedup is
-    // exercised by tapping fast enough to overlap two calls with the
-    // SAME id, not by tapping this button twice).
-    const operationId = `poc-drawer-${Date.now()}`;
-    appendLog(`Open Cash Drawer: sending kick to ${host}:${portNumber}... (operationId=${operationId})`);
-    try {
-      const result = await openCashDrawer({
-        target: { transport: 'network', host, port: portNumber },
-        timeoutMs: 8000,
-        operationId,
-      });
-      appendLog(
-        result.ok
-          ? 'Open Cash Drawer: ok'
-          : `Open Cash Drawer: failed — ${result.error}${result.errorDetail ? ` (${result.errorDetail})` : ''}`,
-      );
-    } catch (e) {
-      appendLog(`Open Cash Drawer: threw — ${String(e)}`);
-    }
-  };
-
-  return (
-    <SafeAreaView style={styles.root}>
-      <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <TouchableOpacity onPress={onBack} style={styles.backRow}>
-          {/* .modal-back's chevron points RIGHT: in RTL, "back" travels
-              toward the inline start, which is the right edge. */}
-          <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-            <Polyline points="9 18 15 12 9 6" />
-          </Svg>
-          <Text style={styles.link}>رجوع</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>أدوات اختبار الطابعة/الدرج</Text>
-        <Text style={styles.subtitle}>
-          يثبت مسار واحد كامل: RN UI → JS → NativeModules → Swift/Kotlin → Socket حقيقي.
-          راجع docs/react-native-poc/phase7-poc-screen.md
-        </Text>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Native Bridge</Text>
-          <Text style={styles.value}>{bridgeStatus}</Text>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Network Status</Text>
-          <Text style={styles.value}>
-            {network
-              ? `${network.type} — ${network.isConnected ? 'متصل' : 'غير متصل'} — internetReachable: ${String(network.isInternetReachable)}`
-              : 'جارٍ الفحص...'}
-          </Text>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Printer Target</Text>
-          <TextInput
-            style={styles.input}
-            placeholderTextColor={colors.muted}
-            value={host}
-            onChangeText={setHost}
-            placeholder="192.168.1.50"
-            autoCapitalize="none"
-          />
-          <TextInput
-            style={styles.input}
-            placeholderTextColor={colors.muted}
-            value={port}
-            onChangeText={setPort}
-            placeholder="9100 (default UI value only, never assumed by the contract)"
-            keyboardType="number-pad"
-          />
-          <Text style={styles.value}>Printer Status: {printerStatus}</Text>
-        </View>
-
-        <TouchableOpacity style={styles.button} onPress={handleTestPrinter} activeOpacity={0.8}>
-          <Text style={styles.buttonText}>Test Printer</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.button} onPress={handlePrintTestReceipt} activeOpacity={0.8}>
-          <Text style={styles.buttonText}>Print Test Receipt</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.button} onPress={handleOpenDrawer} activeOpacity={0.8}>
-          <Text style={styles.buttonText}>Open Cash Drawer</Text>
-        </TouchableOpacity>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Log</Text>
-          {log.length === 0 && <Text style={styles.value}>لا يوجد نشاط بعد.</Text>}
-          {log.map((line, i) => (
-            <Text key={i} style={styles.logLine}>
-              {line}
-            </Text>
-          ))}
-        </View>
-      </ScrollView>
-    </SafeAreaView>
   );
 }
 
@@ -784,15 +707,48 @@ const useStyles = createStyles(colors =>
   screenAreaBehindBars: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
   // shared by .topbar and .bottom-nav once they leave normal flow
   barAbsolute: { position: 'absolute', start: 0, zIndex: 2 },
-  drawerStatusBanner: { backgroundColor: colors.surf2, paddingVertical: spacing[2], paddingHorizontal: spacing[4] },
-  drawerStatusText: { fontFamily: fonts.sansSemiBold, fontSize: 12, textAlign: 'center', color: colors.text },
+  statusBanner: { backgroundColor: colors.surf2, paddingVertical: spacing[2], paddingHorizontal: spacing[4] },
+  statusBannerText: { fontFamily: fonts.sansSemiBold, fontSize: 12, textAlign: 'center', color: colors.text },
   // .bottom-nav (rakeen-pos.css:351)
   bottomNav: { height: 68, flexDirection: 'row', borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg },
   // .nav-tab
   navTab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5 },
   navTabLabel: { fontFamily: fonts.sansBold, fontSize: 10.5 },
   moreRoot: { flex: 1, backgroundColor: colors.canvas },
-  moreScroll: { padding: spacing[4] },
+  // .more-scroll -- `padding:18px 24px 28px`
+  moreScroll: { paddingTop: 18, paddingHorizontal: 24, paddingBottom: 28 },
+  // .more-section-label
+  moreSectionLabel: {
+    fontFamily: fonts.sansBold,
+    fontSize: 11,
+    color: colors.muted,
+    letterSpacing: 0.44,
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  // .more-section-label:first-child
+  moreSectionLabelFirst: { marginTop: 0 },
+  /* .more-grid is `repeat(auto-fill, minmax(154px,1fr))` with gap 12. RN
+     has no auto-fill, so this wraps instead and each tile takes a minimum
+     of 154 while still growing to share the row -- the same result at
+     every width the app actually runs at. */
+  moreGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  // .more-item
+  moreItem: {
+    flexGrow: 1,
+    flexBasis: 154,
+    paddingVertical: 22,
+    paddingHorizontal: 14,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surf1,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: 'center',
+    gap: 11,
+  },
+  moreItemDisabled: { opacity: 0.5 },
+  // .more-item span
+  moreItemText: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.text, textAlign: 'center' },
   moreRow: { backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, padding: spacing[4], marginBottom: spacing[2] },
   moreRowText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.text, textAlign: 'center' },
   moreRowTextDanger: { color: colors.danger },
