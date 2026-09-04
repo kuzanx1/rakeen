@@ -46,7 +46,7 @@ const I18N_EN = {
   'الطابعة جاهزة': 'Printer ready', 'تنبيهات التوصيل': 'Delivery alerts', 'تبديل المظهر': 'Toggle theme',
   'ابحث أو امسح باركود...': 'Search or scan barcode...', 'المفضّلة': 'Favorites',
   'الأكثر طلبًا': 'Popular', 'الكل': 'All', 'ما فيه نتائج مطابقة': 'No matching results',
-  'الطلب الحالي': 'Current order', 'علّق': 'Hold', 'اضغط منتج عشان يضاف': 'Tap a product to add it',
+  'الطلب الحالي': 'Current order', 'اضغط منتج عشان يضاف': 'Tap a product to add it',
   'عدد الأصناف': 'Items', 'المجموع الفرعي': 'Subtotal', 'ضريبة القيمة المضافة': 'VAT',
   '(شاملة ضمن الإجمالي)': '(included in total)', 'الإجمالي': 'Total', 'ادفع': 'Pay',
   'إفراغ الطلب': 'Clear order', '+ خصم': '+ Discount', 'إضافة للطلب': 'Add to order',
@@ -443,12 +443,6 @@ function applyLang(){
   if(themeToggle) themeToggle.setAttribute('aria-label', t('تبديل المظهر'));
   const opTitle = document.querySelector('.op-title');
   if(opTitle) opTitle.textContent = t('الطلب الحالي');
-  // holdOrderBtn has TWO text-node children around its svg icon (leading
-  // whitespace from the markup's own indentation, then the real label) —
-  // matching "first text node" grabbed the whitespace one by mistake and
-  // left the actual label untouched. Match on non-whitespace content instead.
-  const holdBtnEl = document.getElementById('holdOrderBtn');
-  if(holdBtnEl) for(const node of holdBtnEl.childNodes){ if(node.nodeType === 3 && node.nodeValue.trim()){ node.nodeValue = node.nodeValue.replace(node.nodeValue.trim(), t('علّق')); break; } }
   // Only reset the discount button's label when it's showing its default
   // "+ خصم" state — once a discount is active it reads "خصم ١٠٪ مفعّل" (see
   // the discountPanel click handler below), which this must not clobber.
@@ -669,7 +663,7 @@ const DELIVERY_PLATFORMS = ['هنقرستيشن','جاهز','ذا شفز','ToYou
 let state = {
   activeCat: 'popular', searchQuery: '', showFavOnly:false,
   cart: [], customer: null, discountPct: 0,
-  heldOrders: [], activePaymentMethod: 'cash', cashAmount: 0,
+  activePaymentMethod: 'cash', cashAmount: 0,
   friendsSplitOpen: false, friendsSplitCount: null,
   pinEntry: '', pinTargetLength: 4,
   orderChannel: 'dine_in', deliveryPlatformId: null, selectedTableId: null, selectedOrderId: null, resumingOrder: null, platformInvoiceLast4: ''
@@ -1755,14 +1749,6 @@ document.getElementById('clearOrderBtn').addEventListener('click', function(){
 });
 
 /* ============ Hold order ============ */
-document.getElementById('holdOrderBtn').addEventListener('click', ()=>{
-  if(state.cart.length === 0) return;
-  const {total} = cartTotals();
-  state.heldOrders.push({id:Date.now(), cart:JSON.parse(JSON.stringify(state.cart)), total, time:new Date().toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'})});
-  state.cart = []; state.discountPct = 0;
-  renderOrder();
-  showToast('تم تعليق الطلب — تقدر تسترجعه من "الطلبات"');
-});
 
 /* ============ Payment modal ============ */
 const paymentModal = document.getElementById('paymentModal');
@@ -3875,7 +3861,6 @@ async function renderOrdersList(){
     // order and an active delivery order are both "جارية" in the same real
     // sense, and the countdown ring already communicates delivery urgency
     // without needing its own tab/screen.
-    const held = state.heldOrders.map(h=>({id:'معلّق', meta:'علّق الساعة '+h.time, total:h.total, heldId:h.id}));
     // Not-ready orders (still racing the prep-timeout countdown) sort by
     // urgency; ready-but-undelivered orders come after, oldest-waiting-first
     // — those are two different questions ("what's about to be late?" vs
@@ -3928,18 +3913,6 @@ async function renderOrdersList(){
     });
     el.querySelectorAll('.pickup-delivered-btn').forEach(btn=>{
       btn.addEventListener('click', (e)=>{ e.stopPropagation(); markPickupOrderDelivered(parseInt(btn.dataset.orderId, 10)); });
-    });
-    el.querySelectorAll('[data-held]').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const id = parseInt(btn.dataset.held);
-        const heldOrder = state.heldOrders.find(h=>h.id===id);
-        if(!heldOrder) return;
-        state.cart = heldOrder.cart;
-        state.heldOrders = state.heldOrders.filter(h=>h.id!==id);
-        renderOrder();
-        document.querySelector('.nav-tab[data-screen="home"]').click();
-        showToast('تم استرجاع الطلب');
-      });
     });
     return;
   }
@@ -6207,7 +6180,6 @@ let TABLES_CACHE = []; // last-loaded restaurant_tables — lets the order-panel
 let DINE_IN_PAY_TIMING = 'before'; // businesses.dine_in_pay_timing — whether a table's order is paid the moment it's registered, or later when the guest asks for the bill
 let POS_HIDE_POPULAR_TAB = false; // businesses.pos_hide_popular_tab — drops the "الأكثر طلبًا" shortcut category
 let POS_HIDE_SEARCH = false;      // businesses.pos_hide_search — hides the search box (also the barcode-scanner input — only meant for businesses that don't scan barcodes)
-let POS_HIDE_HOLD = false;        // businesses.pos_hide_hold — hides the "علّق" hold-order button on the order panel
 let POS_HIDE_PRODUCT_IMAGES = true; // businesses.pos_hide_product_images — shows the plain category icon instead of the uploaded photo on every product tile; defaults true (real photos are the slowest thing this grid renders, and a plain icon is guaranteed to paint instantly regardless of device/network)
 let POS_HIDE_NOTIF_BELL = false; // businesses.pos_hide_notif_bell — the delivery-prep-timing alert bell; only meaningful for businesses that run their own delivery
 let TABLES_SPECIFIC_BOOKING_ENABLED = false; // businesses.tables_specific_booking_enabled — lets the add-to-waitlist form book an exact table in advance, separate from the general FIFO queue
@@ -6312,7 +6284,7 @@ async function loadPosData(){
     sb.from('stock_items').select('id, name, unit'),
     sb.from('delivery_platforms').select('id, name, prep_timeout_minutes, logo_url, brand_color').eq('business_id', businessId).eq('active', true).order('name'),
     sb.from('menu_item_platform_prices').select('*'),
-    sb.from('businesses').select('business_type, loyalty_enabled, notify_delivery_prep_warning, notify_delivery_prep_expired, notify_sound_enabled, dine_in_enabled, vat_number, vat_rate, prices_include_vat, vat_registered, logo_url, receipt_custom_message, kitchen_display_enabled, tables_reservations_enabled, tables_reservation_deposit_enabled, tables_reservation_deposit_percent, tables_turn_time_enabled, tables_turn_time_minutes, tables_reservation_conflict_warning_enabled, dine_in_pay_timing, tables_specific_booking_enabled, pos_hide_popular_tab, pos_hide_search, pos_hide_hold, pos_hide_product_images, pos_hide_notif_bell').eq('id', businessId).single(),
+    sb.from('businesses').select('business_type, loyalty_enabled, notify_delivery_prep_warning, notify_delivery_prep_expired, notify_sound_enabled, dine_in_enabled, vat_number, vat_rate, prices_include_vat, vat_registered, logo_url, receipt_custom_message, kitchen_display_enabled, tables_reservations_enabled, tables_reservation_deposit_enabled, tables_reservation_deposit_percent, tables_turn_time_enabled, tables_turn_time_minutes, tables_reservation_conflict_warning_enabled, dine_in_pay_timing, tables_specific_booking_enabled, pos_hide_popular_tab, pos_hide_search, pos_hide_product_images, pos_hide_notif_bell').eq('id', businessId).single(),
     sb.from('table_sections').select('id, name, sort_order').eq('branch_id', DEVICE.branchId).order('sort_order'),
     // Only ever non-empty for a business_type='salon' business — a
     // restaurant's services table is always empty (RLS-scoped by
@@ -6399,17 +6371,12 @@ async function loadPosData(){
   }
   POS_HIDE_POPULAR_TAB = loyaltyRes.data ? loyaltyRes.data.pos_hide_popular_tab === true : false;
   POS_HIDE_SEARCH = loyaltyRes.data ? loyaltyRes.data.pos_hide_search === true : false;
-  POS_HIDE_HOLD = loyaltyRes.data ? loyaltyRes.data.pos_hide_hold === true : false;
   POS_HIDE_PRODUCT_IMAGES = loyaltyRes.data ? loyaltyRes.data.pos_hide_product_images !== false : true;
   POS_HIDE_NOTIF_BELL = loyaltyRes.data ? loyaltyRes.data.pos_hide_notif_bell === true : false;
   if(POS_HIDE_POPULAR_TAB && state.activeCat === 'popular') state.activeCat = 'all';
   if(POS_HIDE_SEARCH){
     const searchBox = document.querySelector('.search-box');
     if(searchBox) searchBox.style.display = 'none';
-  }
-  if(POS_HIDE_HOLD){
-    const holdBtn = document.getElementById('holdOrderBtn');
-    if(holdBtn) holdBtn.style.display = 'none';
   }
   if(POS_HIDE_NOTIF_BELL){
     const notifBtn = document.getElementById('notifBellBtn');

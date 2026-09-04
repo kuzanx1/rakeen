@@ -596,3 +596,97 @@
 .pager-field label{display:block; font-size:11px; font-weight:800; color:var(--muted); margin-bottom:6px;}
 .pager-field input{width:100%; padding:12px 14px; border-radius:var(--r-md); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:18px; font-weight:700; text-align:center; letter-spacing:2px;}
 .pager-field input:focus{outline:none; border-color:var(--lime-deep); background:var(--card-bg);}
+
+/* ============================================================
+   Craft pass — feel, not decoration.
+
+   Ground rule, inherited from --shadow-* in rakeen-pos.css: no new
+   blur-heavy shadows. Large-blur box-shadows measured 1-3s on a
+   full-page style change on the hardware this ships to. Everything
+   below is transform, opacity, colour or typography — the properties
+   the compositor handles without repainting.
+   ============================================================ */
+
+/* --- 1. Numbers stop wiggling ------------------------------------
+   Digits in a proportional face have different widths, so a total
+   going 48.00 -> 49.00 -> 148.00 shifts its neighbours a pixel or two
+   on every tap. On a screen whose whole job is showing an amount that
+   changes constantly, that reads as instability. Tabular figures make
+   every digit the same width, so a changing number stays put. */
+.mono, .oi-total, .op-total-val, .pay-btn, .qa-btn, .qty-val,
+.receipt-total, .change-row, .pager-field input, .cash-input-row input,
+.rk-money, .sum-val, .ord-total{
+  font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1;
+}
+
+/* --- 2. The press ------------------------------------------------
+   A cashier touches these thousands of times a day and gets no
+   physical travel from glass. A 40ms dip on press is the whole
+   difference between a surface that acknowledges a touch and one that
+   feels dead. transform only: composited, never repaints. */
+.product-card, .cat-btn, .qty-btn, .pay-btn, .clear-btn, .confirm-pay-btn,
+.nav-tab, .seg-tab, .disc-btn, .qa-btn, .pm-tab, .receipt-action-btn,
+.more-btn, .table-card, .fav-toggle, .modal-close, .modal-back{
+  -webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none; user-select:none;
+  transition:transform .04s ease-out, background .12s ease, border-color .12s ease, color .12s ease;
+}
+.product-card:active, .cat-btn:active, .qty-btn:active, .disc-btn:active,
+.qa-btn:active, .pm-tab:active, .seg-tab:active, .nav-tab:active,
+.receipt-action-btn:active, .more-btn:active, .table-card:active,
+.fav-toggle:active, .modal-close:active, .modal-back:active{
+  transform:scale(0.965);
+}
+/* The two commit buttons dip less: a big surface scaling as much as a
+   small one looks like it moved rather than like it was pressed. */
+.pay-btn:active:not(:disabled), .confirm-pay-btn:active:not(:disabled),
+.clear-btn:active{ transform:scale(0.985); }
+
+/* --- 3. The amount is the hero ----------------------------------
+   The pay button carries the number the cashier reads out loud. It
+   should look like the most important thing on the panel, which means
+   tighter tracking and a touch more weight — not a bigger box. */
+.pay-btn{ letter-spacing:-0.2px; }
+#payBtnAmount{ font-weight:800; letter-spacing:-0.3px; }
+
+/* --- 4. Modals arrive, they do not appear -----------------------
+   140ms of scale and fade. Long enough to read as motion, short
+   enough that a cashier reaching for the keypad never waits on it. */
+.modal-overlay{ transition:opacity .14s ease; }
+.modal-overlay .modal-card{
+  transform:scale(0.97); opacity:0;
+  transition:transform .14s cubic-bezier(.2,.8,.2,1), opacity .14s ease;
+}
+.modal-overlay.show .modal-card{ transform:scale(1); opacity:1; }
+
+/* --- 5. A real focus ring --------------------------------------
+   Barcode scanners and keyboards drive this screen too. The browser
+   default ring is invisible on a dark surface; outline costs nothing
+   to paint and never shifts layout. */
+.product-card:focus-visible, .cat-btn:focus-visible, .qty-btn:focus-visible,
+.pay-btn:focus-visible, .confirm-pay-btn:focus-visible, .nav-tab:focus-visible,
+.seg-tab:focus-visible, .pm-tab:focus-visible, .disc-btn:focus-visible,
+input:focus-visible, select:focus-visible, button:focus-visible{
+  outline:2px solid var(--lime); outline-offset:2px;
+}
+
+/* --- 6. Panels keep their scroll to themselves -----------------
+   Reaching the end of the order list should not start scrolling the
+   page behind it. */
+.order-items, .product-grid, .orders-list, .more-scroll, .modal-body,
+.waitlist-list, .tables-grid{ overscroll-behavior:contain; }
+
+/* --- 7. Disabled means disabled --------------------------------
+   A pay button that cannot be pressed should not invite the press. */
+.pay-btn:disabled, .confirm-pay-btn:disabled{ opacity:.45; cursor:not-allowed; }
+
+/* --- 8. Respect the system setting -----------------------------
+   Anyone who has asked for less motion gets none of the above. */
+@media (prefers-reduced-motion: reduce){
+  .product-card, .cat-btn, .qty-btn, .pay-btn, .clear-btn, .confirm-pay-btn,
+  .nav-tab, .seg-tab, .disc-btn, .qa-btn, .pm-tab, .receipt-action-btn,
+  .more-btn, .table-card, .fav-toggle, .modal-close, .modal-back,
+  .modal-overlay, .modal-overlay .modal-card{
+    transition:none !important; transform:none !important;
+  }
+}
