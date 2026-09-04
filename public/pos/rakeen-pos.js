@@ -97,6 +97,178 @@ const I18N_EN = {
   // The discount buttons carry Arabic-indic numerals, which stay unreadable
   // to an English reader even though every letter around them changed.
   '٥٪': '5%', '١٠٪': '10%', '١٥٪': '15%',
+  'عنوان الطابعة في الشبكة (نفس شبكة الواي فاي)': 'Printer address on the network (same Wi-Fi)',
+  'المنفذ': 'Port number',
+  'عنوان الطابعة — مثال: 192.168.1.51': 'Printer address — e.g. 192.168.1.51',
+  'مثال: 192.168.1.50': 'e.g. 192.168.1.50',
+  '٠٠٠٠': '0000',
+  // The rest of the cashier: orders, payment, customers, tables,
+  // shift close, hotel and printer settings.
+
+  'الحالة': 'Status',
+  'الوقت': 'Time',
+  'الطاولة': 'Table',
+  'الفرع': 'Branch',
+  'الاسم': 'Name',
+  'الموقع': 'Location',
+  'النشاط': 'Business',
+  'إجمالي الطلب': 'Order total',
+  'إجمالي الطلب حتى الآن': 'Order total so far',
+  'إجمالي المبيعات': 'Total sales',
+  'عدد الطلبات': 'Orders',
+  'جاهز': 'Ready',
+  'جاهز للاستلام': 'Ready for pickup',
+  'متأخر': 'Late',
+  'مشغولة': 'Occupied',
+  'صيانة': 'Maintenance',
+  'خرج للتوصيل': 'Out for delivery',
+  'تسليم للعميل': 'Hand to customer',
+  'تم التسليم ✅': 'Delivered ✅',
+  'تم توصيله ✅': 'Delivered ✅',
+  'قبول ✅': 'Accept ✅',
+  'رفض ❌': 'Reject ❌',
+  'اختر سبب الرفض': 'Choose a rejection reason',
+  'تأكيد الرفض': 'Confirm rejection',
+  'سبب آخر': 'Another reason',
+  'اكتب السبب...': 'Type the reason...',
+  'إلغاء الطلب': 'Cancel order',
+  'استرجاع': 'Refund',
+  'استرجاع مبلغ': 'Refund an amount',
+  'طلب جديد الآن': 'New order now',
+  'وقت لاحق': 'Later',
+  'يكمل الطلب:': 'Completed by:',
+  'يبدأ طلب جديد تلقائيًا خلال': 'A new order starts automatically in',
+  '🌐 طلب إلكتروني — من متجر المطعم': '🌐 Online order — from the restaurant\'s store',
+  '⏰ العميل اختار وقت استلام لاحق —': '⏰ The customer chose a later pickup time —',
+  'تعذر تحميل الطلب.': 'Could not load the order.',
+  'ما فيه طلبات جارية حاليًا': 'No orders in progress right now',
+  'ما فيه طلبات هنا حاليًا': 'Nothing here right now',
+  'طريقة الدفع': 'Payment method',
+  'تأكيد الدفع': 'Confirm payment',
+  'تأكيد الطلب': 'Confirm order',
+  'متابعة الدفع': 'Continue to payment',
+  'المبلغ المطلوب': 'Amount due',
+  'المدفوع': 'Paid',
+  'الباقي': 'Change',
+  'الخصم': 'Discount',
+  'الضريبة': 'VAT',
+  'المبلغ كاش': 'Cash amount',
+  'المبلغ عبر الشبكة (بطاقة)': 'Card amount',
+  'تأكيد الدفع المقسّم': 'Confirm split payment',
+  '÷ قسّم بين الأصحاب': '÷ Split between friends',
+  'كل واحد يدفع': 'Each person pays',
+  'تقسيم': 'Split',
+  'بطاقة / Apple Pay': 'Card / Apple Pay',
+  'مرّر أو قرّب البطاقة على الجهاز': 'Swipe or tap the card on the terminal',
+  'منصة التوصيل': 'Delivery app',
+  'رسوم التوصيل': 'Delivery fee',
+  'توصيل — مدفوع عبر التطبيق': 'Delivery — paid through the app',
+  'إجمالي الطلب — مدفوع مسبقًا عبر التطبيق': 'Order total — prepaid through the app',
+  'آخر ٤ أرقام الفاتورة': 'Last 4 digits of the invoice',
+  'آخر ٤ أرقام من فاتورة تطبيق التوصيل': 'Last 4 digits from the delivery app invoice',
+  'تمت العملية بنجاح': 'Done',
+  'تخطي': 'Skip',
+  'التالي': 'Next',
+  'متابعة': 'Continue',
+  'تغيير': 'Change',
+  'الآن': 'Now',
+  'اسم العميل': 'Customer name',
+  'جوال العميل': 'Customer mobile',
+  'رقم الجوال': 'Mobile number',
+  'رقم الجوال (اختياري)': 'Mobile number (optional)',
+  'الجوال:': 'Mobile:',
+  'إضافة عميل جديد': 'Add a new customer',
+  'اكتب اسم أو جوال...': 'Type a name or mobile...',
+  'جارٍ البحث...': 'Searching...',
+  'متابعة بدون اسم': 'Continue without a name',
+  'مسح بطاقة العميل': 'Scan the customer\'s card',
+  'قرّب باركود البطاقة من الكاميرا': 'Hold the card barcode up to the camera',
+  'اطلب منه يفتح بطاقة الولاء ويضغط تأكيد': 'Ask them to open their loyalty card and tap confirm',
+  'امسح لإضافة بطاقة الولاء لجوالك': 'Scan to add the loyalty card to your phone',
+  'ما فيه منتجات قابلة للاستبدال بالنقاط حاليًا.': 'Nothing can be redeemed with points right now.',
+  'اختر الطاولة': 'Choose a table',
+  'تغيير الطاولة': 'Change table',
+  'متابعة بدون طاولة': 'Continue without a table',
+  'إفراغ الطاولة': 'Clear table',
+  'جلّسه': 'Seat them',
+  'لم يحضر': 'No-show',
+  'عدد الأشخاص': 'Party size',
+  'يفضّل قسم (اختياري)': 'Preferred section (optional)',
+  'بدون تفضيل': 'No preference',
+  'إضافة للقائمة': 'Add to the list',
+  'رقم الجوال (اختياري — للتواصل عند توفر طاولة)': 'Mobile number (optional — to call when a table frees up)',
+  'حجز مسبق': 'Advance booking',
+  'تأكيد الحجز': 'Confirm booking',
+  'إلغاء الحجز': 'Cancel booking',
+  'حجز طاولة محددة؟': 'Book a specific table?',
+  'نعم — طاولة معينة': 'Yes — a specific table',
+  'لا — قائمة انتظار عادية': 'No — the normal waitlist',
+  'حجز فوري أو لوقت لاحق؟': 'Right now or for later?',
+  'تم التذكير ✓': 'Reminded ✓',
+  'ما فيه أحد بقائمة الانتظار الآن.': 'Nobody is on the waitlist right now.',
+  'ما فيه أحد يحتاج تذكير الآن.': 'Nobody needs a reminder right now.',
+  'ما فيه حجوزات حالياً.': 'No bookings right now.',
+  'ما فيه طاولات متاحة الحين.': 'No tables are free right now.',
+  'ما فيه طاولات مسجّلة لهذا الفرع.': 'No tables are set up for this branch.',
+  'هذي الطاولة محجوزة يدويًا (حالة قديمة).': 'This table was reserved by hand (an old state).',
+  '🧹 هذي الطاولة تحتاج تنظيف': '🧹 This table needs cleaning',
+  'عدّ الكاش الموجود بالدرج': 'Count the cash in the drawer',
+  'اكتب المبلغ اللي عدّيته — الفرق يظهر بالخطوة الجاية': 'Enter what you counted — the difference is shown on the next step',
+  'المعدود فعليًا': 'Actually counted',
+  'المتوقع': 'Expected',
+  'الفرق': 'Difference',
+  'كاش (شامل الرصيد الافتتاحي)': 'Cash (including the opening float)',
+  'تأكيد إغلاق الوردية': 'Confirm closing the shift',
+  'اسم النزيل': 'Guest name',
+  'نوع الغرفة': 'Room type',
+  'تاريخ الوصول': 'Check-in date',
+  'تاريخ المغادرة': 'Check-out date',
+  'تسجيل الوصول': 'Check in',
+  'تسجيل المغادرة': 'Check out',
+  'تحقق من التوفر': 'Check availability',
+  'بدء الجلسة': 'Start session',
+  'بدء الجلسة الآن': 'Start the session now',
+  'ما فيه غرف متاحة من هذا النوع الحين.': 'No rooms of this type are free right now.',
+  'ما فيه غرف مسجّلة لهذا الفرع — أضفها من لوحة التحكم.': 'No rooms are set up for this branch — add them from the dashboard.',
+  'ما فيه أنواع غرف مضافة بعد — أضفها من "الخدمات" باللوحة أولاً.': 'No room types yet — add them under "Services" in the dashboard first.',
+  'الطابعة': 'Printer',
+  'طابعة الفواتير': 'Receipt printer',
+  'حالة الاتصال': 'Connection',
+  'الموظف الحالي': 'Current staff member',
+  'طباعة': 'Print',
+  'طباعة اختبار': 'Test print',
+  'جاري الطباعة...': 'Printing...',
+  'تعذرت الطباعة —': 'Printing failed —',
+  'حفظ إعدادات الطابعة': 'Save printer settings',
+  'تحديث واختبار الاتصال': 'Refresh and test the connection',
+  'عرض الورق': 'Paper width',
+  '80مم (الأشيع)': '80mm (most common)',
+  '58مم': '58mm',
+  'شكل الفاتورة عند الدفع': 'What to print on payment',
+  'طابعة مطبخ منفصلة (اختياري)': 'Separate kitchen printer (optional)',
+  'إعادة تجهيز هذا الجهاز': 'Re-provision this device',
+  'طباعات قيد الانتظار/الإعادة': 'Prints waiting or retrying',
+  'آخر خطأ طباعة': 'Last printing error',
+  'آخر خطأ مزامنة': 'Last sync error',
+  'آخر مزامنة ناجحة': 'Last successful sync',
+  'إعادة المحاولة': 'Retry',
+  'اتصال': 'Connection',
+  '+ إضافة أصناف': '+ Add items',
+  'وقت الاستلام': 'Pickup time',
+  'وقت التجهيز': 'Prep time',
+  'عنوان التوصيل': 'Delivery address',
+  'فتح بخرائط جوجل': 'Open in Google Maps',
+  '📍 فتح الموقع على الخريطة': '📍 Open the location on the map',
+  '📍 موقع العميل — للمندوب': '📍 Customer location — for the driver',
+  '📱 إرسال تحديث عبر واتساب': '📱 Send an update on WhatsApp',
+  'واتساب': 'WhatsApp',
+  'جاري التحميل...': 'Loading...',
+  'جارٍ التحميل...': 'Loading...',
+  'جارٍ تجهيز الكاشير...': 'Getting the till ready...',
+  'بدون بصل، إضافي صوص...': 'No onion, extra sauce...',
+  'ما فيه خيارات مضافة لهذه المجموعة بعد — أضفها من لوحة التحكم.': 'This group has no options yet — add them from the dashboard.',
+  'ما فيه موظفين مضافين لهذا الفرع بعد — أضفهم من الإعدادات بالداشبورد.': 'No staff added for this branch yet — add them from the dashboard settings.',
+  'هذا البوكس ما له أصناف محددة بعد — لازم تحدد الأصناف اللي يقدر العميل يختار منها الأول.': 'This box has no items chosen yet — pick what the customer may choose from first.',
 };
 
 /* ============ Generic translation pass ============
@@ -122,7 +294,36 @@ const I18N_EN = {
    so switching back is a restore rather than a reverse lookup — which
    would be ambiguous the moment two Arabic strings share one English
    translation. */
-const I18N_SKIP = '#productGrid, #catRail, #orderSummary, #ordersList, #tablesGrid, .toast, [data-no-i18n]';
+// Only the containers that paint CATALOGUE names are skipped. Those three
+// render product and category names through the name_en path, which a fixed
+// table cannot know about and must not fight.
+//
+// The orders and tables lists are deliberately NOT skipped: their dynamic
+// parts are customer names, table numbers and order ids, none of which can
+// collide with a dictionary key, because a key only ever matches a text
+// node's WHOLE trimmed value. Skipping them would have meant hand-wrapping
+// every label they render — the exact cost this pass exists to remove.
+const I18N_SKIP = '#productGrid, #catRail, #orderSummary, .toast, [data-no-i18n]';
+
+/* Newly rendered content translates itself.
+   Screens here are built by assigning innerHTML, so a language applied once
+   at boot would be undone by the next render. Watching for added nodes
+   keeps a renderer from having to know that translation exists at all.
+   The guard flag matters: translateTree edits text nodes, which would
+   otherwise re-enter this observer through its own mutations. */
+let i18nApplying = false;
+const i18nObserver = new MutationObserver(records => {
+  if(LANG !== 'en' || i18nApplying) return;
+  i18nApplying = true;
+  try {
+    for(const rec of records){
+      for(const node of rec.addedNodes){
+        if(node.nodeType === 1) translateTree(node);
+      }
+    }
+  } catch {} finally { i18nApplying = false; }
+});
+try { i18nObserver.observe(document.body, { childList: true, subtree: true }); } catch {}
 
 function translateTree(root){
   if(!root) return;
@@ -219,7 +420,8 @@ function applyLang(){
   // of them carry real logic (the discount button's active state, the hold
   // button's whitespace-sharing text node) that a blind substitution must
   // not clobber.
-  try { translateTree(document.body); } catch {}
+  i18nApplying = true;
+  try { translateTree(document.body); } catch {} finally { i18nApplying = false; }
 
   const setText = (sel, ar) => { const el = document.querySelector(sel); if(el) el.textContent = t(ar); };
   setText('.nav-tab[data-screen="home"] span', 'الرئيسية');
@@ -5390,12 +5592,12 @@ function openPosSettingsModal(){
 
     <div class="shift-stat-row" style="margin-top:14px;"><span>طابعة الفواتير</span><span class="mono">${bridgeOn ? '✓ تطبيق الطباعة متاح' : '⚠ افتح من تطبيق الكاشير المثبّت للطباعة'}</span></div>
     <div class="pos-auth-field" style="margin-top:8px;">
-      <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px;">عنوان IP للطابعة (على نفس شبكة الواي فاي)</label>
+      <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px;">عنوان الطابعة في الشبكة (نفس شبكة الواي فاي)</label>
       <input type="text" id="printerIpInput" placeholder="مثال: 192.168.1.50" value="${DEVICE.printerIp || ''}" style="width:100%;">
     </div>
     <div class="pos-auth-field" style="margin-top:10px; display:flex; gap:10px;">
       <div style="flex:1;">
-        <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px;">المنفذ (Port)</label>
+        <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px;">المنفذ</label>
         <input type="number" id="printerPortInput" placeholder="9100" value="${DEVICE.printerPort || 9100}" style="width:100%;">
       </div>
       <div style="flex:1;">
@@ -5415,7 +5617,7 @@ function openPosSettingsModal(){
     <div class="pos-auth-field" style="margin-top:10px;">
       <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px;">طابعة مطبخ منفصلة (اختياري)</label>
       <div style="display:flex; gap:8px;">
-        <input type="text" id="kitchenPrinterIpInput" placeholder="عنوان IP — مثال: 192.168.1.51" value="${DEVICE.kitchenPrinterIp || ''}" style="flex:2;">
+        <input type="text" id="kitchenPrinterIpInput" placeholder="عنوان الطابعة — مثال: 192.168.1.51" value="${DEVICE.kitchenPrinterIp || ''}" style="flex:2;">
         <input type="number" id="kitchenPrinterPortInput" placeholder="9100" value="${DEVICE.kitchenPrinterPort || ''}" style="flex:1;">
       </div>
       <p class="stock-qty-helper" style="margin-top:6px;">اتركه فارغ لو نفس طابعة الكاشير تطبع فاتورة المطبخ برضو. عبّيه فقط لو عندكم طابعة ثانية منفصلة (مثلاً بالمطبخ بالدور الأول وطابعة الكاشير بالدور الثاني) — لازم تكون على نفس شبكة الواي فاي.</p>
