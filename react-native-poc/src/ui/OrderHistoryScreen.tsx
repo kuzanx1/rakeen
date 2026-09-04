@@ -28,10 +28,25 @@ import { createStyles, fonts, gradients, Palette, radii, spacing, useTheme } fro
 import { useShell } from './shell';
 import Svg, { Path, Polyline, Rect } from 'react-native-svg';
 import Money from './Money';
+import RunningOrdersList from './RunningOrdersList';
 
-const STATUS_TABS: { value: OrderHistoryStatus; label: string }[] = [
+/**
+ * "جارية" first, matching the source's own tab order and for the same
+ * reason: it is the only tab with work waiting in it. The other three are
+ * history.
+ *
+ * 'running' is not an orders.status -- an accepted order is already
+ * `completed` -- so it is a view over "paid but not yet handed over"
+ * rather than a status filter, and is rendered by its own component.
+ */
+type OrdersTab = 'running' | OrderHistoryStatus;
+
+const STATUS_TABS: { value: OrdersTab; label: string }[] = [
+  { value: 'running', label: 'جارية' },
   { value: 'completed', label: 'مكتملة' },
   { value: 'cancelled', label: 'ملغاة' },
+  // Not in the source's three, kept because a refund is a real outcome a
+  // cashier needs to look up and it has nowhere else to be listed.
   { value: 'refunded', label: 'مسترجعة' },
 ];
 
@@ -92,7 +107,7 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
   const headInset = sideBySide ? { paddingTop: insetTop + 20 } : null;
   const listInset = sideBySide ? { paddingBottom: 16 + insetBottom } : null;
   const ROW_BADGE_COLOR = rowBadgeColor(colors);
-  const [status, setStatus] = useState<OrderHistoryStatus>('completed');
+  const [status, setStatus] = useState<OrdersTab>('running');
   const [rows, setRows] = useState<OrderHistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -105,6 +120,9 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
   const [reprintStatus, setReprintStatus] = useState('');
 
   const refresh = useCallback(async () => {
+    // 'running' has its own component and its own query -- it is a view
+    // over undelivered orders, not a status to filter history by.
+    if (status === 'running') return;
     setLoading(true);
     setError('');
     try {
@@ -215,7 +233,9 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
         })}
       </View>
 
-      {loading ? (
+      {status === 'running' ? (
+        <RunningOrdersList branchId={branchId} />
+      ) : loading ? (
         <ActivityIndicator style={styles.center} color={colors.accentText} />
       ) : error ? (
         <Text style={styles.error}>{error}</Text>
@@ -227,7 +247,7 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
           ListEmptyComponent={<Text style={styles.empty}>لا يوجد طلبات.</Text>}
           renderItem={({ item }) => (
             <TouchableOpacity style={styles.row} onPress={() => openDetail(item.id)} activeOpacity={0.8}>
-              <View style={[styles.rowBadge, { backgroundColor: ROW_BADGE_COLOR[status] }]} />
+              <View style={[styles.rowBadge, { backgroundColor: ROW_BADGE_COLOR[status as OrderHistoryStatus] }]} />
               <View style={styles.rowInfo}>
                 <Text style={styles.rowTitle}>#{item.id} — {item.customerName || CHANNEL_LABELS[item.channel] || item.channel}</Text>
                 <Text style={styles.rowMeta}>{new Date(item.createdAt).toLocaleString('ar-SA')}</Text>
