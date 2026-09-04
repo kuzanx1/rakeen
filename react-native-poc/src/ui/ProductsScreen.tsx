@@ -45,6 +45,7 @@ import type { CashierProfile } from '../domain/auth';
 import { useCart } from './useCart';
 import ModifierModal from './ModifierModal';
 import PaymentModal from './PaymentModal';
+import type { PaymentResult } from './PaymentModal';
 import type { PaymentMethod } from '../domain/payment';
 import CustomerPickerModal from './CustomerPickerModal';
 import LoyaltyRedeemModal from './LoyaltyRedeemModal';
@@ -264,6 +265,17 @@ export default function ProductsScreen({
    *  single id is the same thing without the DOM. */
   const [editingNote, setEditingNote] = useState<number | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
+
+  /** Something to run once the payment popup closes, not the moment the
+   *  sale settles -- used for the dine-in return to the floor view, which
+   *  would otherwise unmount the popup mid-receipt. */
+  const afterCloseRef = useRef<(() => void) | null>(null);
+  const closePaymentModal = useCallback(() => {
+    setPaymentModalOpen(false);
+    const pending = afterCloseRef.current;
+    afterCloseRef.current = null;
+    pending?.();
+  }, []);
 
   /** .clear-btn's arm/confirm flag, plus the 3s timer that drops it --
    *  `let clearArmed = false, clearArmTimer` (rakeen-pos.js:1416). The
@@ -604,9 +616,11 @@ export default function ProductsScreen({
    * exact session most recently registered -- a real, honest, disclosed
    * scope limit, not a redesign of the RPC or its idempotency.
    */
-  const handlePayDineInOrder = async (method: PaymentMethod, cashAmount: number | null) => {
-    if (lastRegisteredDineInOrderId == null) return;
+  const handlePayDineInOrder = async (method: PaymentMethod, cashAmount: number | null): Promise<PaymentResult> => {
+    if (lastRegisteredDineInOrderId == null) return { ok: false, paid: 0, change: 0, printJobId: null };
     setSubmitting(true);
+    const soldTotal = dineInOrderTotal;
+    let receiptJobId: string | null = null;
     try {
       const payload = buildDineInPayPayload(
         lastRegisteredDineInOrderId,
@@ -651,7 +665,7 @@ export default function ProductsScreen({
           // real DEVICE.printCustomerReceipt toggle (defaults ON, matching
           // the PWA) instead of always printing.
           if (shouldPrintCustomerReceipt(printerProfileForReceipt)) {
-            enqueuePrintJob('receipt', {
+            receiptJobId = await enqueuePrintJob('receipt', {
               orderId: lastRegisteredDineInOrderId,
               lines: (orderDetail?.items ?? []).map(it => ({
                 name: it.name,
@@ -674,7 +688,7 @@ export default function ProductsScreen({
               customMessage: profile?.customMessage || undefined,
               createdAtISO: new Date().toISOString(),
               metaLabel: CHANNEL_LABELS.dine_in + (selectedTable ? ` — طاولة ${selectedTable.number}` : ''),
-            } satisfies ReceiptData).catch(() => {});
+            } satisfies ReceiptData).catch(() => null);
           }
         } catch {
           // Never let a receipt-metadata fetch failure look like the sale
@@ -684,13 +698,27 @@ export default function ProductsScreen({
         setSelectedCustomer(null); // transaction fully settled -- start clean for the next table/customer
         // pay_dine_in_order already flipped the table to 'cleaning'
         // server-side (Checkpoint 6) -- return to the floor view.
-        if (selectedTable) onExitTableContext?.();
+        // Deferred rather than run now: leaving for the floor view here
+        // would unmount this screen -- and the popup with it -- before the
+        // cashier ever saw the receipt. It runs when the popup closes.
+        if (selectedTable) afterCloseRef.current = () => onExitTableContext?.();
+        return {
+          ok: true,
+          paid: method === 'cash' && cashAmount != null ? cashAmount : soldTotal,
+          change: method === 'cash' && cashAmount != null ? Math.max(0, cashAmount - soldTotal) : 0,
+          printJobId: receiptJobId,
+        };
       }
+      return { ok: false, paid: 0, change: 0, printJobId: null };
     } catch (e) {
       setSubmitStatus('صار خطأ غير متوقع — جرّب مرة ثانية');
+      return { ok: false, paid: 0, change: 0, printJobId: null };
     } finally {
+      // No setPaymentModalOpen(false) here any more: closing in `finally`
+      // ran on success too, which is exactly what hid the receipt screen
+      // on this path. The popup now closes from its own "طلب جديد الآن"
+      // button or its 4-second timer.
       setSubmitting(false);
-      setPaymentModalOpen(false);
     }
   };
 
@@ -700,14 +728,21 @@ export default function ProductsScreen({
    *  drawer kick attempted for cash (independent of the network result),
    *  honest state reporting. Never "تم فتح الدرج" unless drawerState is
    *  genuinely DRAWER_COMPLETED. */
-  const handlePayOrder = async (method: PaymentMethod, cashAmount: number | null) => {
-    if (cart.cart.length === 0 || !catalog) return;
+  /** Reports the sale's outcome so the popup can show its receipt screen.
+   *  It used to return nothing and the popup closed on confirm, which is
+   *  why the PWA's "تمت العملية بنجاح" screen never appeared here. */
+  const handlePayOrder = async (method: PaymentMethod, cashAmount: number | null): Promise<PaymentResult> => {
+    if (cart.cart.length === 0 || !catalog) return { ok: false, paid: 0, change: 0, printJobId: null };
     setSubmitting(true);
+    // Captured before the cart is cleared below -- the receipt screen shows
+    // THIS sale's numbers, and by the time it renders the cart is empty.
+    const soldTotal = cart.totals.total;
+    let receiptJobId: string | null = null;
     try {
       const device = await getDeviceConfig();
       if (device.branchId == null) {
         setSubmitStatus('ما فيه فرع مرتبط بهذا الجهاز — أعد تجهيز الجهاز');
-        return;
+        return { ok: false, paid: 0, change: 0, printJobId: null };
       }
       const payload = buildOrderPayload(cart.cart, productsById, catalog.modifiersByProductId, cart.unitPriceOf, {
         branchId: device.branchId,
@@ -750,7 +785,7 @@ export default function ProductsScreen({
           const profile = device.businessId != null ? await getReceiptBusinessProfile(device.businessId) : null;
           const printerProfileForReceipt = await getPrinterProfile();
           if (shouldPrintCustomerReceipt(printerProfileForReceipt)) {
-            enqueuePrintJob('receipt', {
+            receiptJobId = await enqueuePrintJob('receipt', {
               orderId: outcome.orderId ?? null,
               lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
               subtotal: cart.totals.subtotal,
@@ -766,7 +801,7 @@ export default function ProductsScreen({
               customMessage: profile?.customMessage || undefined,
               createdAtISO: new Date().toISOString(),
               metaLabel: CHANNEL_LABELS[cart.orderChannel] || cart.orderChannel,
-            } satisfies ReceiptData).catch(() => {});
+            } satisfies ReceiptData).catch(() => null);
           }
           // Real bug found during the Feature Parity audit: a kitchen
           // ticket was only ever enqueued from handleRegisterDineInOrder
@@ -801,9 +836,21 @@ export default function ProductsScreen({
         // (:3269) -- the toggle's label AND its panel go back to rest.
         setDiscountPanelOpen(false);
         setSelectedCustomer(null); // transaction fully settled -- start clean for the next customer
+        return {
+          ok: true,
+          // "المدفوع" is what was handed over: the tendered cash, or simply
+          // the total for every other method.
+          paid: method === 'cash' && cashAmount != null ? cashAmount : soldTotal,
+          change: method === 'cash' && cashAmount != null ? Math.max(0, cashAmount - soldTotal) : 0,
+          printJobId: receiptJobId,
+        };
       }
+      // Payment did not settle. submitStatus already says why, and the
+      // popup stays on its payment step rather than claiming success.
+      return { ok: false, paid: 0, change: 0, printJobId: null };
     } catch (e) {
       setSubmitStatus('صار خطأ غير متوقع — جرّب مرة ثانية');
+      return { ok: false, paid: 0, change: 0, printJobId: null };
     } finally {
       setSubmitting(false);
     }
@@ -1263,7 +1310,7 @@ export default function ProductsScreen({
         visible={paymentModalOpen}
         total={registerMode ? dineInOrderTotal : cart.totals.total}
         submitting={submitting}
-        onCancel={() => setPaymentModalOpen(false)}
+        onCancel={closePaymentModal}
         businessId={cashier.business_id}
         channel={cart.orderChannel}
         onChannelChange={cart.setOrderChannel}
