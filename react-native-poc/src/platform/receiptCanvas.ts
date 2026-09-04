@@ -83,13 +83,36 @@ export function createReceiptSurface(widthPx: number, heightPx: number): Receipt
   };
 }
 
+/**
+ * الصورة المفكوكة الأخيرة ورابطها.
+ *
+ * كانت تُجلب من الشبكة مع **كل فاتورة**: رحلة إلى التخزين قبل أن تتحرك
+ * الطابعة، داخل مسار الطباعة نفسه. والشعار لا يتغيّر بين فاتورة وأخرى.
+ *
+ * مدخل واحد يكفي: الجهاز الواحد يطبع لمنشأة واحدة، فمفتاح أكبر من ذلك
+ * يحمل تعقيداً بلا مقابل. تغيّر الرابط يُبطل المخزون من نفسه.
+ */
+let cachedLogoUrl: string | null = null;
+let cachedLogoImage: ReturnType<typeof Skia.Image.MakeImageFromEncoded> | null = null;
+
+export function clearRemoteImageCache(): void {
+  cachedLogoUrl = null;
+  cachedLogoImage = null;
+}
+
 export async function loadRemoteImage(url: string): Promise<ReturnType<typeof Skia.Image.MakeImageFromEncoded> | null> {
+  if (cachedLogoUrl === url && cachedLogoImage) return cachedLogoImage;
   try {
     const response = await fetch(url);
     if (!response.ok) return null;
     const arrayBuffer = await response.arrayBuffer();
     const data = Skia.Data.fromBytes(new Uint8Array(arrayBuffer));
-    return Skia.Image.MakeImageFromEncoded(data);
+    const image = Skia.Image.MakeImageFromEncoded(data);
+    if (image) {
+      cachedLogoUrl = url;
+      cachedLogoImage = image;
+    }
+    return image;
   } catch {
     // A missing/slow logo must never block printing -- same "never
     // throw, resolve null" contract as the PWA's own loadLogoImage().

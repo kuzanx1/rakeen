@@ -484,18 +484,29 @@ export default function PrinterSettingsScreen({
         />
       </Section>
 
-      <Section title="سرعة الطباعة">
+      <Section title="طريقة الطباعة">
         <View style={styles.rasterCards}>
           {([
-            ['modern', 'سريعة', 'الطريقة الحديثة. جرّبها أولًا — على أغلب الطابعات تختصر وقت الطباعة كثيرًا.'],
-            ['legacy', 'متوافقة', 'الطريقة القديمة. أبطأ، لكن تعرفها كل الطابعات. استخدمها فقط لو ما طلعت الفاتورة أصلًا بالسريعة.'],
+            ['text', 'نص — الأسرع',
+             'الطابعة تكتب الحروف بنفسها. أسرع بمراتب. جرّب أولًا زر «اختبار الطباعة النصية» تحت وتأكد إن العربي طلع متصل ومن اليمين.'],
+            ['modern', 'صورة سريعة',
+             'نرسم الفاتورة عندنا ونرسلها صورة، بالطريقة الحديثة. مضمونة على أي طابعة، لكن أبطأ من النص.'],
+            ['legacy', 'صورة متوافقة',
+             'نفس الصورة بالطريقة القديمة. الأبطأ — استخدمها فقط لو ما طلعت الفاتورة أصلًا بالخيارين فوق.'],
           ] as const).map(([id, name, desc]) => {
-            const active = (profile.rasterCommand ?? 'modern') === id;
+            const current = profile.receiptMode === 'text' ? 'text' : (profile.rasterCommand ?? 'modern');
+            const active = current === id;
             return (
               <TouchableOpacity
                 key={id}
                 style={[styles.rasterCard, active && styles.rasterCardActive]}
-                onPress={() => setProfile({ ...profile, rasterCommand: id })}
+                onPress={() =>
+                  setProfile(
+                    id === 'text'
+                      ? { ...profile, receiptMode: 'text' }
+                      : { ...profile, receiptMode: 'image', rasterCommand: id },
+                  )
+                }
                 activeOpacity={0.8}>
                 <Text style={styles.rasterCardName}>{name}</Text>
                 <Text style={styles.rasterCardDesc}>{desc}</Text>

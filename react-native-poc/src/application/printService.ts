@@ -1,6 +1,10 @@
 import uuid from 'react-native-uuid';
 import { sqlitePrintQueueStorage } from '../infrastructure/sqlitePrintQueue';
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
+import { PrintTimer } from './printTiming';
+import { buildTextReceipt } from '../domain/escposTextReceipt';
+import { toReceiptPrintable } from '../domain/receiptPrintable';
+import { bytesToBase64 } from '../domain/escposText';
 import { profileToPrinterTarget, profileToKitchenPrinterTarget } from '../domain/printerProfile';
 import { printReceipt } from '../platform/printer';
 import type { PrinterTarget } from '../platform/printer';
@@ -57,7 +61,11 @@ function base64ByteLength(base64: string): number {
 }
 
 async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
-  const profile = await getPrinterProfile();
+  // كل رقم قيل عن أداء هذا المسار حتى الآن -- بما فيه كلامي -- كان
+  // استنتاجاً. النقل وحده كان مقيساً، ولهذا كان "٢٠ ملّي ثانية" حقيقة
+  // بينما "التصيير سريع" دعوى. هذا يُنهي الفرق.
+  const timer = new PrintTimer();
+  const profile = await timer.stage('profileRead', () => getPrinterProfile());
   // Kitchen tickets target their own printer when one's configured
   // (falls back to the main target otherwise) -- ported from the PWA's
   // real sendKitchenTicketToPrinter() fallback, see
@@ -69,7 +77,19 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
     // currently has typed into it -- those can differ.
     return { ok: false, error: 'PRINTER_UNAVAILABLE', target: null, bytes: null };
   }
-  const escPosBase64 =
+  // الوضع النصي يتجاوز التصيير كله: لا Skia، ولا قراءة بكسل، ولا صورة.
+  // من نموذج الفاتورة إلى بايتات مباشرة.
+  const useText = profile?.receiptMode === 'text' && job.type === 'receipt';
+  const escPosBase64 = useText
+    ? await timer.stage('escposBuild', () => {
+        const printable = toReceiptPrintable(
+          profile?.paperWidthPx != null
+            ? { ...(job.data as unknown as ReceiptData), paperWidthPx: profile.paperWidthPx }
+            : (job.data as unknown as ReceiptData),
+        );
+        return bytesToBase64(buildTextReceipt(printable));
+      })
+    :
     job.type === 'receipt'
       ? await renderReceiptToEscPosBase64(
           job.data as unknown as ReceiptData,
@@ -78,13 +98,15 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
           // already is: a job queued before the owner changed the theme
           // should print in the theme that is current when it actually
           // reaches paper.
-          await getReceiptThemeForPrinting(),
+          await timer.stage('themeRead', () => getReceiptThemeForPrinting()),
           profile?.rasterCommand,
+          timer,
         )
       : job.type === 'shiftReport'
-        ? await renderShiftReportToEscPosBase64(job.data as unknown as ClosingReport, profile?.paperWidthPx, profile?.rasterCommand)
-        : await renderKitchenTicketToEscPosBase64(job.data as unknown as KitchenTicketData, profile?.paperWidthPx, profile?.rasterCommand);
+        ? await renderShiftReportToEscPosBase64(job.data as unknown as ClosingReport, profile?.paperWidthPx, profile?.rasterCommand, timer)
+        : await renderKitchenTicketToEscPosBase64(job.data as unknown as KitchenTicketData, profile?.paperWidthPx, profile?.rasterCommand, timer);
   const bytes = base64ByteLength(escPosBase64);
+  timer.bytes(bytes);
   // An empty render is the one way this path could report a genuine
   // "printed" while the printer produces nothing: the native module takes
   // Data(base64Encoded: "") as valid EMPTY data, the transport connects,
@@ -94,11 +116,14 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
   if (bytes === 0) {
     return { ok: false, error: 'RENDER_FAILED', target: describeTarget(target), bytes: 0 };
   }
-  const result = await printReceipt({
+  const result = await timer.stage('transport', () => printReceipt({
     target,
     escPosBase64,
     timeoutMs: 8000,
-  });
+  }));
+  // الملخّص أولاً ثم أثر النقل: الترتيب هو ترتيب الحدوث، فمن يقرأ من
+  // فوق لتحت يرى أين ذهب الوقت قبل أن يرى تفاصيل الاتصال.
+  const diagnostics = [...timer.summary(), ...(result.diagnostics ?? [])];
   return {
     ok: result.ok,
     error: result.error,
@@ -108,7 +133,7 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
     errorDetail: result.errorDetail,
     target: describeTarget(target),
     bytes,
-    trace: result.diagnostics ?? null,
+    trace: diagnostics,
   };
 }
 

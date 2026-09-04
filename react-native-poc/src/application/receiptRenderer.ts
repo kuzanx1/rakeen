@@ -3,6 +3,7 @@ import { createReceiptSurface, loadRemoteImage } from '../platform/receiptCanvas
 import { loadReceiptTypefaces } from '../platform/receiptFonts';
 import { buildReceiptFontProvider, paintText, measureAndWrapText } from '../platform/receiptText';
 import { rgbaToEscPosRaster, rgbaToEscPosRasterLegacy, RgbaBuffer } from '../domain/escposRaster';
+import type { PrintTimer } from './printTiming';
 import { bytesToBase64 } from '../domain/escposText';
 import { zatcaQrBase64 } from '../domain/zatca';
 import { buildQrMatrix } from '../domain/qrMatrix';
@@ -184,6 +185,7 @@ export async function renderReceiptToEscPosBase64(
   printerPaperWidthPx?: number,
   themeId?: string | null,
   rasterCommand?: 'modern' | 'legacy',
+  timer?: PrintTimer,
 ): Promise<string> {
   try {
     // Spacing, type scale and rules come from the theme; the ZATCA fields
@@ -193,8 +195,14 @@ export async function renderReceiptToEscPosBase64(
     const gap = (n: number) => LINE_H * n * th.density;
     const sz = (n: number) => Math.round(n * th.typeScale);
     const receipt = toReceiptPrintable(printerPaperWidthPx != null ? { ...data, paperWidthPx: printerPaperWidthPx } : data);
-    const provider = await buildFontProviderReady();
-    const logoImage = data.logoUrl ? await loadRemoteImage(data.logoUrl) : null;
+    const provider = timer
+      ? await timer.stage('fontsReady', () => buildFontProviderReady())
+      : await buildFontProviderReady();
+    const logoImage = data.logoUrl
+      ? timer
+        ? await timer.stage('logoLoad', () => loadRemoteImage(data.logoUrl as string))
+        : await loadRemoteImage(data.logoUrl)
+      : null;
 
     const width = receipt.paperWidthPx;
     const contentWidth = width - PAD * 2;
@@ -330,9 +338,12 @@ export async function renderReceiptToEscPosBase64(
     y += PAD;
 
     const finalHeight = Math.min(Math.ceil(y), maxHeight);
-    const raster = encodeRaster(surface.toRgba(finalHeight), rasterCommand);
+    const rgba = timer ? await timer.stage('pixelsRead', () => surface.toRgba(finalHeight)) : surface.toRgba(finalHeight);
+    const raster = timer
+      ? await timer.stage('escposBuild', () => encodeRaster(rgba, rasterCommand))
+      : encodeRaster(rgba, rasterCommand);
     const bytes = [0x1b, 0x40, ...raster, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00];
-    return bytesToBase64(bytes);
+    return timer ? await timer.stage('base64', () => bytesToBase64(bytes)) : bytesToBase64(bytes);
   } catch (e) {
     // Never let a rendering bug silently fail to print at all -- falls
     // back to the ASCII placeholder (domain/receipt.ts), a real
@@ -360,6 +371,7 @@ export async function renderShiftReportToEscPosBase64(
   report: ClosingReport,
   printerPaperWidthPx?: number,
   rasterCommand?: 'modern' | 'legacy',
+  timer?: PrintTimer,
 ): Promise<string> {
   const width = printerPaperWidthPx ?? 576;
   const provider = await buildFontProviderReady();
@@ -413,7 +425,7 @@ export async function renderShiftReportToEscPosBase64(
   return bytesToBase64(bytes);
 }
 
-export async function renderKitchenTicketToEscPosBase64(data: KitchenTicketData, printerPaperWidthPx?: number, rasterCommand?: 'modern' | 'legacy'): Promise<string> {
+export async function renderKitchenTicketToEscPosBase64(data: KitchenTicketData, printerPaperWidthPx?: number, rasterCommand?: 'modern' | 'legacy', timer?: PrintTimer): Promise<string> {
   try {
     const ticket = toKitchenTicketPrintable(printerPaperWidthPx != null ? { ...data, paperWidthPx: printerPaperWidthPx } : data);
     const provider = await buildFontProviderReady();
@@ -466,9 +478,12 @@ export async function renderKitchenTicketToEscPosBase64(data: KitchenTicketData,
     y += KITCHEN_LINE_H * 0.6 + PAD;
 
     const finalHeight = Math.min(Math.ceil(y), maxHeight);
-    const raster = encodeRaster(surface.toRgba(finalHeight), rasterCommand);
+    const rgba = timer ? await timer.stage('pixelsRead', () => surface.toRgba(finalHeight)) : surface.toRgba(finalHeight);
+    const raster = timer
+      ? await timer.stage('escposBuild', () => encodeRaster(rgba, rasterCommand))
+      : encodeRaster(rgba, rasterCommand);
     const bytes = [0x1b, 0x40, ...raster, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00];
-    return bytesToBase64(bytes);
+    return timer ? await timer.stage('base64', () => bytesToBase64(bytes)) : bytesToBase64(bytes);
   } catch (e) {
     console.error('[receiptRenderer] real kitchen-ticket rendering failed, falling back to ASCII ticket:', e);
     return buildKitchenTicketEscPosBase64(data);
