@@ -1,12 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Modal,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, FlatList, Modal, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
 import {

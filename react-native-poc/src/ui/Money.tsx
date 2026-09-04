@@ -1,5 +1,6 @@
 import React from 'react';
-import { I18nManager, StyleSheet, Text, View } from 'react-native';
+import { I18nManager, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import type { StyleProp, TextStyle, ViewStyle } from 'react-native';
 import { fonts, useTheme } from './theme';
 

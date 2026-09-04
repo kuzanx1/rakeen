@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { TouchableOpacity } from './tappable';
 import Svg, { Circle, Line, Path, Polyline, Rect } from 'react-native-svg';

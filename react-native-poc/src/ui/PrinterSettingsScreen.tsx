@@ -1,12 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from './Text';
 import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
 import { getPrinterProfile, savePrinterProfile } from '../infrastructure/printerProfileStore';

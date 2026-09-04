@@ -393,7 +393,7 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
   const categories: Category[] = (catRes.data || []).map((c: any) => ({
     id: String(c.id),
     name: c.name,
-    nameEn: c.name_en || c.name,
+    nameEn: c.name_en || null,
   }));
 
   const serviceProducts: Product[] = isService

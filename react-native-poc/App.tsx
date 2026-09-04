@@ -11,16 +11,8 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  AppState,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, AppState, ScrollView, StatusBar, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from './src/ui/Text';
 import type { AppStateStatus } from 'react-native';
 import { TouchableOpacity } from './src/ui/tappable';
 import Svg, { Circle, Line, Path, Polyline, Rect } from 'react-native-svg';

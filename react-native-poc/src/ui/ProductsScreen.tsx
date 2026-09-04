@@ -1,15 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { ActivityIndicator, FlatList, Image, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Text, TextInput } from './Text';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Pressable, TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
@@ -413,10 +404,10 @@ export default function ProductsScreen({
     () => [
       ...(hidePopularTab ? [] : [{ id: 'popular', name: t('الأكثر طلبًا'), glyph: '★' }]),
       { id: 'all', name: t('الكل'), glyph: '▦' },
-      // Real category names come from the business's own menu, so they are
-      // its own text -- the source translates `c.nameEn || t(c.name)`, and
-      // menu_categories has no English column in this app's schema.
-      ...(catalog?.categories ?? []).map(c => ({ id: c.id, name: c.name, glyph: '' })),
+      // Real category names are the business's own text, so displayName
+      // decides: its English column first, then the UI dictionary, then the
+      // Arabic. Reading c.name raw is why every category stayed Arabic.
+      ...(catalog?.categories ?? []).map(c => ({ id: c.id, name: displayName(c, lang), glyph: '' })),
     ],
     [catalog, hidePopularTab, t],
   );

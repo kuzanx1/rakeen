@@ -1,5 +1,6 @@
 import React from 'react';
-import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
 import { createStyles, fonts, gradients, radii } from './theme';

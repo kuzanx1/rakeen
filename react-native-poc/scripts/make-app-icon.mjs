@@ -6,16 +6,21 @@
 // keeps this off the generic near-black + neon-green shelf the house
 // rules warn about — the ramp reads as Saudi, not as a terminal.
 //
-// Everything an icon has to survive is decided here: one mark, no text,
-// no screenshot, no badge, and margins wide enough that the 60pt render
+// Everything an icon has to survive is decided here: one lockup, no
+// screenshot, no badge, and margins wide enough that the 60pt render
 // still has air around it.
 import sharp from 'sharp';
-import fs from 'node:fs';
 import path from 'node:path';
 
 const OUT = path.resolve('react-native-poc/ios/RakeenPOC/Images.xcassets/AppIcon.appiconset');
 const WORDMARK = path.resolve('public/brand/rakeen-wordmark.png');
+// The product's own type. A second typeface for three Latin letters is
+// how a mark starts looking assembled rather than drawn.
+const FONT = path.resolve('react-native-poc/ios/RakeenPOC/Fonts/IBMPlexSansArabic-Bold.ttf');
 const S = 1024;
+
+const IVORY = '#FBFAF4';
+const LIME = '#C7FF4D';
 
 // The glow sits low and off-centre, the way light falls on a card rather
 // than the way a lamp points at a wall. A perfectly centred radial reads
@@ -33,17 +38,13 @@ const bg = Buffer.from(`
          the icon; a linear ramp reads as the surface itself being lit.
          Straight from brand lime to transparent — a mid-green stop in
          between mixes to olive, which is what made the first passes
-         muddy.
-
-         Reaching to 88% rather than 68%: at the shorter ramp the icon
-         was mostly dark with a bright corner, which sat off-balance
-         against the mark instead of carrying it. -->
+         muddy. -->
     <linearGradient id="glow" x1="0.06" y1="1.02" x2="0.72" y2="-0.04">
-      <stop offset="0%"   stop-color="#D9FF7A" stop-opacity="1"/>
-      <stop offset="14%"  stop-color="#C7FF4D" stop-opacity="0.92"/>
-      <stop offset="34%"  stop-color="#9DE83F" stop-opacity="0.60"/>
-      <stop offset="58%"  stop-color="#4FC24B" stop-opacity="0.26"/>
-      <stop offset="88%"  stop-color="#0B6B3A" stop-opacity="0"/>
+      <stop offset="0%"   stop-color="#D9FF7A" stop-opacity="0.85"/>
+      <stop offset="12%"  stop-color="#C7FF4D" stop-opacity="0.50"/>
+      <stop offset="30%"  stop-color="#9DE83F" stop-opacity="0.21"/>
+      <stop offset="55%"  stop-color="#4FC24B" stop-opacity="0.07"/>
+      <stop offset="80%"  stop-color="#0B6B3A" stop-opacity="0"/>
     </linearGradient>
     <!-- A single soft highlight along the top edge. Depth on a real card
          comes from one light source, not from an outline on every side. -->
@@ -60,9 +61,8 @@ const bg = Buffer.from(`
 // The wordmark ships lime on transparent. Its alpha is the shape, so the
 // shape is lifted out and refilled with ivory — the mark has to stay the
 // brightest thing in the frame, and lime on a lime glow would not.
-const src = sharp(WORDMARK);
-const meta = await src.metadata();
-const markW = Math.round(S * 0.50);
+const meta = await sharp(WORDMARK).metadata();
+const markW = Math.round(S * 0.58);
 const markH = Math.round((meta.height / meta.width) * markW);
 
 const alpha = await sharp(WORDMARK)
@@ -73,19 +73,53 @@ const alpha = await sharp(WORDMARK)
   .toBuffer();
 
 const mark = await sharp({
-  create: { width: markW, height: markH, channels: 3, background: '#FBFAF4' },
+  create: { width: markW, height: markH, channels: 3, background: IVORY },
 })
   .joinChannel(alpha)
   .png()
   .toBuffer();
 
-// Optically centred, not mathematically: the glow weights the lower half,
-// so a mark on the true centre line looks like it has sagged.
-const top = Math.round((S - markH) / 2 - S * 0.045);
-const left = Math.round((S - markW) / 2);
+// "POS", set in the product's own type and widely tracked.
+//
+// It is lime rather than ivory for one reason: at this size a second
+// ivory line reads as a subtitle competing with the wordmark, while the
+// brand accent reads as a mark OF the wordmark. It also puts the lime
+// somewhere other than the corner glow, which is what stopped the ramp
+// from looking like decoration hung off one edge.
+//
+// Trimmed because Pango leaves the tracking hanging off the final S; the
+// untrimmed box centres three letters plus an invisible fourth space.
+const pos = await sharp({
+  text: {
+    text: `<span letter_spacing="26000" foreground="${LIME}">POS</span>`,
+    fontfile: FONT,
+    font: 'IBM Plex Sans Arabic Bold',
+    dpi: 620,
+    rgba: true,
+  },
+})
+  .png()
+  .toBuffer()
+  .then(b => sharp(b).trim({ threshold: 1 }).png().toBuffer({ resolveWithObject: true }));
+
+const posW = pos.info.width;
+const posH = pos.info.height;
+
+// Wordmark and POS are placed as ONE object, then that object is centred.
+// The previous icon centred the wordmark alone and then lifted it 4.5%
+// of the frame to compensate for the glow's weight — 46px, enough to
+// read as "not centred" rather than as optical correction. The lockup
+// carries its own lower half now, so the frame only needs the small lift
+// that a bright lower-left corner actually justifies.
+const gap = Math.round(S * 0.052);
+const lockH = markH + gap + posH;
+const lockTop = Math.round((S - lockH) / 2 - S * 0.012);
 
 const base = await sharp(bg)
-  .composite([{ input: mark, top, left }])
+  .composite([
+    { input: mark, top: lockTop, left: Math.round((S - markW) / 2) },
+    { input: pos.data, top: lockTop + markH + gap, left: Math.round((S - posW) / 2) },
+  ])
   .png()
   .toBuffer();
 
@@ -110,4 +144,5 @@ for (const [file, px] of Object.entries(sizes)) {
 }
 
 console.log('wrote', Object.keys(sizes).length, 'icons to', OUT);
-console.log('mark:', markW + '×' + markH, 'at', left + ',' + top);
+console.log('wordmark:', markW + '×' + markH, '| POS:', posW + '×' + posH);
+console.log('lockup height:', lockH, 'top:', lockTop, '| bottom margin:', S - lockTop - lockH);

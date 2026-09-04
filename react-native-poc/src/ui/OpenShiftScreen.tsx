@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from './Text';
 import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
 import { openShift } from '../application/shiftService';

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
 import { listBranchStaff, rememberStaff } from '../application/staffService';

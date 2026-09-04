@@ -1,12 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Modal,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Modal, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from './Text';
 import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
 import { searchCustomers } from '../application/customerService';

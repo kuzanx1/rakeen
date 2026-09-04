@@ -1,11 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import { listPrintJobs, retryPrintJob, retryAllFailedPrintJobs } from '../application/printService';
 import { PrintJobRecord, PrintJobStatus } from '../domain/printQueue';

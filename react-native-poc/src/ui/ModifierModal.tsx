@@ -1,11 +1,6 @@
 import React, { useState } from 'react';
-import {
-  Modal,
-  StyleSheet,
-  Text,
-  View,
-  ScrollView,
-} from 'react-native';
+import { Modal, StyleSheet, View, ScrollView } from 'react-native';
+import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
 import { ModifierDefinition, CartLineConfig, buildDefaultConfig } from '../domain/cart';

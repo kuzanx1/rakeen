@@ -1,13 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from './Text';
 import { Pressable, TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
 import {

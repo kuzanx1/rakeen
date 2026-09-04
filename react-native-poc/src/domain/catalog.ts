@@ -12,7 +12,10 @@
 export interface Category {
   id: string;
   name: string;
-  nameEn: string;
+  /** Null when the business left the English column empty -- NOT the Arabic
+   *  name. displayName() falls back to the UI dictionary and then to Arabic,
+   *  and it can only do that if a missing name arrives as missing. */
+  nameEn: string | null;
 }
 
 export interface Product {

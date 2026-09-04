@@ -1,11 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Modal,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Modal, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import { requestLoyaltyRedemption, getLoyaltyRedemptionStatus } from '../application/loyaltyRedemptionService';
 import type { Product } from '../domain/catalog';
