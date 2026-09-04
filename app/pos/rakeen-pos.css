@@ -246,7 +246,18 @@ svg{display:block;}
 .fav-star.on{background:rgba(var(--lime-deep-rgb),0.3);}
 .fav-star.on svg{fill:var(--lime-deep); stroke:var(--lime-deep); opacity:1;}
 .fav-star:active{transform:scale(0.85);}
-.grid-empty{grid-column:1/-1; text-align:center; padding:50px 20px; color:var(--muted); font-weight:600; font-size:13px;}
+/* An empty result is a state the product is in, not an error message. It
+   gets the same composure as any other state: room around it, a settled
+   line, and nothing shouting. */
+.grid-empty{
+  grid-column:1/-1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:10px; padding:64px 24px; text-align:center;
+  color:var(--muted); font-weight:600; font-size:13px;
+}
+.grid-empty::before{
+  content:''; width:44px; height:44px; border-radius:50%;
+  background:var(--surf1); border:1px solid var(--line);
+}
 
 /* RIGHT: order panel */
 .order-panel{width:360px; flex-shrink:0; border-inline-start:1px solid var(--line); display:flex; flex-direction:column; overflow:hidden; background:var(--card-bg);}
@@ -330,12 +341,30 @@ svg{display:block;}
 .disc-btn{flex:1; padding:10px 4px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--surf1); font-weight:800; font-size:12px;}
 .disc-btn.active{background:var(--lime); color:var(--flag-green-deep); border-color:var(--lime);}
 
-.order-summary{padding:6px 18px; display:flex; flex-direction:column; gap:2px;}
-.sum-row{display:flex; justify-content:space-between; font-size:11.5px; font-weight:600; color:var(--muted);}
+/* The total is the number a cashier reads out loud, and it used to sit a
+   couple of points above the VAT line with a dashed rule over it — near
+   enough in weight that the eye had to search the block for it. It now
+   has its own field: the supporting lines recede, and the figure they add
+   up to is the thing you see first.
+
+   Field, not shadow. A tinted surface with a hairline border costs one
+   paint; the large-blur shadow that would give the same lift is the
+   effect --shadow-* in this file already warns about. */
+.order-summary{padding:10px 18px 4px; display:flex; flex-direction:column; gap:5px;}
+.sum-row{display:flex; justify-content:space-between; font-size:11px; font-weight:600; color:var(--muted);}
 .sum-row .mono{color:var(--text); font-weight:700;}
+.sum-row .rk-money{opacity:.82;}
 .sum-row.discount .mono{color:var(--lime-deep);}
-.sum-row.total{font-size:13.5px; font-weight:800; color:var(--text); padding-top:6px; margin-top:2px; border-top:1px dashed var(--line);}
-.sum-row.total .mono{font-size:17px; color:var(--lime-deep);}
+.sum-row.total{
+  align-items:center; margin-top:9px; padding:11px 13px;
+  font-size:12.5px; font-weight:800; color:var(--text);
+  background:rgba(var(--lime-rgb), 0.055);
+  border:1px solid rgba(var(--lime-deep-rgb), 0.28);
+  border-radius:14px;
+}
+.sum-row.total .rk-money{opacity:1; font-size:23px; letter-spacing:-.5px; color:var(--lime-deep);}
+.sum-row.total .rk-money-frac{font-size:.6em;}
+[data-theme="dark"] .sum-row.total .rk-money{color:var(--lime);}
 [data-theme="dark"] .sum-row.total .mono{color:var(--lime);}
 
 .order-actions{padding:8px 18px 14px; display:flex; flex-direction:column; gap:6px;}
