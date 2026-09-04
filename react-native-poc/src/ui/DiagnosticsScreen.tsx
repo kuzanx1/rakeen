@@ -110,7 +110,7 @@ export default function DiagnosticsScreen() {
       <Section title="الاتصال">
         <Row label="الإنترنت" color={triColor(tri, snapshot.internet)} value={triLabel(snapshot.internet, '🟢 متصل', '🔴 غير متصل', '⚪ غير معروف بعد')} />
         <Row
-          label="السحابة (Supabase)"
+          label="الاتصال بالسحابة"
           color={triColor(tri, snapshot.cloud)}
           value={triLabel(snapshot.cloud, '🟢 تعمل', '🔴 تعذر الوصول', '⚪ لم تُختبر بعد')}
         />
@@ -120,7 +120,7 @@ export default function DiagnosticsScreen() {
 
       <Section title="الطابعة">
         <Row
-          label="طابعة (جسر Native)"
+          label="الطابعة"
           color={snapshot.printerBridgeAvailable ? OK : BAD}
           value={snapshot.printerBridgeAvailable ? '🟢 متاح' : '🔴 غير متاح على هذا الجهاز/البناء'}
         />
@@ -134,7 +134,7 @@ export default function DiagnosticsScreen() {
 
       <Section title="درج النقدية">
         <Row
-          label="درج النقدية (جسر Native)"
+          label="درج النقدية"
           color={snapshot.cashDrawerBridgeAvailable ? OK : UNKNOWN}
           value={snapshot.cashDrawerBridgeAvailable ? '🟢 متاح' : '⚪ غير متاح على هذا الجهاز/البناء'}
           last
@@ -147,7 +147,7 @@ export default function DiagnosticsScreen() {
       </Section>
 
       <Section title="قائمة الطباعة">
-        <Row label="قيد الانتظار/الإعادة/جارٍ الطباعة" color={UNKNOWN} value={String(snapshot.printQueueCounts.queued + snapshot.printQueueCounts.retrying + snapshot.printQueueCounts.printing)} />
+        <Row label="قيد الطباعة أو الانتظار" color={UNKNOWN} value={String(snapshot.printQueueCounts.queued + snapshot.printQueueCounts.retrying + snapshot.printQueueCounts.printing)} />
         <Row label="طباعات فاشلة نهائيًا" color={snapshot.printQueueCounts.failed === 0 ? OK : BAD} value={String(snapshot.printQueueCounts.failed)} last />
       </Section>
 

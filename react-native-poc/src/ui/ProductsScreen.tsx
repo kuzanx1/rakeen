@@ -23,6 +23,7 @@ import {
   getBusinessType,
   getFinancialSettings,
   getHideProductImages,
+  getDineInPayTiming,
   getReceiptBusinessProfile,
   CatalogResult,
 } from '../application/catalogService';
@@ -181,6 +182,20 @@ function HomeZones({
   );
 }
 
+/**
+ * A cashier never sees a state name. The payment/drawer state machines
+ * (domain/payment.ts) are how this app reasons about an operation; they
+ * are not language, and the source has no equivalent of printing them on
+ * screen -- it shows a success step instead. Anything unrecognised falls
+ * back to a neutral line rather than leaking the raw value.
+ */
+function paymentOutcomeText(state: string): string {
+  if (state === 'PAYMENT_COMPLETED') return 'تمت العملية بنجاح';
+  if (state === 'PAYMENT_SYNC_PENDING') return 'تم الدفع — بانتظار المزامنة';
+  if (state === 'PAYMENT_FAILED') return 'تعذّر إتمام الدفع';
+  return 'جارٍ إتمام العملية...';
+}
+
 export default function ProductsScreen({
   cashier,
   selectedTable = null,
@@ -202,6 +217,10 @@ export default function ProductsScreen({
   const [error, setError] = useState('');
   const [catalog, setCatalog] = useState<CatalogResult | null>(null);
   const [financial, setFinancial] = useState({ vatRegistered: true, vatRate: 0.15, pricesIncludeVat: true });
+  // businesses.dine_in_pay_timing. 'before' is the source's own default
+  // (rakeen-pos.js:5660) and the only safe one: it means the pay button
+  // stays a pay button.
+  const [dineInPayTiming, setDineInPayTiming] = useState<'before' | 'after'>('before');
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [modifierTarget, setModifierTarget] = useState<Product | null>(null);
   const [businessType, setBusinessType] = useState('');
@@ -319,14 +338,16 @@ export default function ProductsScreen({
       try {
         const type = await getBusinessType(cashier.business_id);
         setBusinessType(type);
-        const [result, settings, hideImgs] = await Promise.all([
+        const [result, settings, hideImgs, payTiming] = await Promise.all([
           loadCatalog(cashier.business_id, type),
           getFinancialSettings(cashier.business_id),
           getHideProductImages(cashier.business_id),
+          getDineInPayTiming(cashier.business_id),
         ]);
         setCatalog(result);
         setFinancial(settings);
         setHideImages(hideImgs);
+        setDineInPayTiming(payTiming);
         if (result.categories.length > 0) {
           setActiveCategoryId(result.categories[0].id);
         }
@@ -456,6 +477,23 @@ export default function ProductsScreen({
     });
   };
 
+  /**
+   * registerMode (rakeen-pos.js:1127) -- ALL THREE, not just the channel:
+   *
+   *   state.selectedTableId && state.orderChannel === 'dine_in'
+   *     && DINE_IN_PAY_TIMING === 'after'
+   *
+   * Only then does the pay button become "تسجيل الطلب" / "إضافة للطلب"
+   * (:1128). This screen was testing the channel alone -- and the channel
+   * DEFAULTS to dine_in (:360) -- so an ordinary counter sale, with no
+   * table chosen and on a business that settles up front, was being shown
+   * a register-the-order step that does not exist in the source. The pay
+   * button is a pay button unless a table is actually open on a business
+   * whose own setting says the bill is settled later.
+   */
+  const registerMode =
+    selectedTable != null && cart.orderChannel === 'dine_in' && dineInPayTiming === 'after';
+
   const [submitStatus, setSubmitStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -493,7 +531,7 @@ export default function ProductsScreen({
     try {
       const device = await getDeviceConfig();
       if (device.branchId == null) {
-        setSubmitStatus('🔴 لا يوجد فرع مرتبط بهذا الجهاز — أعد تجهيز الجهاز');
+        setSubmitStatus('ما فيه فرع مرتبط بهذا الجهاز — أعد تجهيز الجهاز');
         return;
       }
       const payload = buildDineInRegisterPayload(cart.cart, productsById, catalog.modifiersByProductId, cart.unitPriceOf, {
@@ -520,7 +558,7 @@ export default function ProductsScreen({
         // 5 already proved this via a live scratch test; now actually
         // captured so "Pay Order #X" / add-a-round can target it.
         if (result.orderId != null) setLastRegisteredDineInOrderId(result.orderId);
-        setSubmitStatus(`✅ تم تسجيل الطلب (بدون دفع بعد)`);
+        setSubmitStatus('تم تسجيل الطلب');
         // Real kitchen-ticket enqueue -- matches submitTableOrderRegistration's
         // own "prints kitchen ticket" step in the PWA, now gated on the
         // real per-device DEVICE.printKitchenTicket toggle (Feature
@@ -547,11 +585,11 @@ export default function ProductsScreen({
         // Queued offline: no order id is known yet (the RPC hasn't run),
         // so this session honestly can't offer "Pay Order #X" until it
         // syncs -- a real, disclosed scope limit, not a silent gap.
-        setSubmitStatus(`⏳ محفوظ محليًا، سيُرسل تلقائيًا (${result.error})`);
+        setSubmitStatus('محفوظ على الجهاز، وبيُرسل تلقائيًا أول ما يرجع الاتصال');
         cart.clearCart();
       }
     } catch (e) {
-      setSubmitStatus(`🔴 خطأ غير متوقع: ${String(e)}`);
+      setSubmitStatus('صار خطأ غير متوقع — جرّب مرة ثانية');
     } finally {
       setSubmitting(false);
     }
@@ -579,9 +617,7 @@ export default function ProductsScreen({
         selectedCustomer?.id ?? null,
       );
       const outcome = await completePaymentOperation(payload, { openDrawer: method === 'cash' });
-      setSubmitStatus(
-        `دفع: ${outcome.paymentState}${outcome.paymentError ? ` (${outcome.paymentError})` : ''} — درج: ${outcome.drawerState}${outcome.drawerError ? ` (${outcome.drawerError})` : ''}`,
-      );
+      setSubmitStatus(paymentOutcomeText(outcome.paymentState));
       if (outcome.paymentState === 'PAYMENT_COMPLETED') {
         // Isolated in its own try/catch on purpose -- a real bug found
         // during the TestFlight-readiness audit: getReceiptBusinessProfile
@@ -651,7 +687,7 @@ export default function ProductsScreen({
         if (selectedTable) onExitTableContext?.();
       }
     } catch (e) {
-      setSubmitStatus(`🔴 خطأ غير متوقع: ${String(e)}`);
+      setSubmitStatus('صار خطأ غير متوقع — جرّب مرة ثانية');
     } finally {
       setSubmitting(false);
       setPaymentModalOpen(false);
@@ -670,7 +706,7 @@ export default function ProductsScreen({
     try {
       const device = await getDeviceConfig();
       if (device.branchId == null) {
-        setSubmitStatus('🔴 لا يوجد فرع مرتبط بهذا الجهاز — أعد تجهيز الجهاز');
+        setSubmitStatus('ما فيه فرع مرتبط بهذا الجهاز — أعد تجهيز الجهاز');
         return;
       }
       const payload = buildOrderPayload(cart.cart, productsById, catalog.modifiersByProductId, cart.unitPriceOf, {
@@ -693,9 +729,7 @@ export default function ProductsScreen({
         cashAmount,
       });
       const outcome = await completePaymentOperation(payload, { openDrawer: method === 'cash' });
-      setSubmitStatus(
-        `دفع: ${outcome.paymentState}${outcome.paymentError ? ` (${outcome.paymentError})` : ''} — درج: ${outcome.drawerState}${outcome.drawerError ? ` (${outcome.drawerError})` : ''}`,
-      );
+      setSubmitStatus(paymentOutcomeText(outcome.paymentState));
       if (outcome.paymentState === 'PAYMENT_COMPLETED' || outcome.paymentState === 'PAYMENT_SYNC_PENDING') {
         // Real receipt enqueue -- matches autoPrintOnCheckout's own
         // customer-receipt step in the PWA. Printing never waits on cloud
@@ -769,7 +803,7 @@ export default function ProductsScreen({
         setSelectedCustomer(null); // transaction fully settled -- start clean for the next customer
       }
     } catch (e) {
-      setSubmitStatus(`🔴 خطأ غير متوقع: ${String(e)}`);
+      setSubmitStatus('صار خطأ غير متوقع — جرّب مرة ثانية');
     } finally {
       setSubmitting(false);
     }
@@ -1178,7 +1212,7 @@ export default function ProductsScreen({
           {/* .order-actions -- `padding:8px 18px 14px; gap:6px`, holding
               the pay button and, under it, .clear-btn. */}
           <View style={styles.orderActions}>
-            {cart.orderChannel === 'dine_in' ? (
+            {registerMode ? (
               <>
                 <PayButton
                   label={submitting ? 'جارٍ الإرسال...' : lastRegisteredDineInOrderId ? 'إضافة للطلب' : 'تسجيل الطلب'}
@@ -1227,7 +1261,7 @@ export default function ProductsScreen({
           stack, not controls on the Home screen. */}
       <PaymentModal
         visible={paymentModalOpen}
-        total={cart.orderChannel === 'dine_in' ? dineInOrderTotal : cart.totals.total}
+        total={registerMode ? dineInOrderTotal : cart.totals.total}
         submitting={submitting}
         onCancel={() => setPaymentModalOpen(false)}
         businessId={cashier.business_id}
@@ -1236,7 +1270,7 @@ export default function ProductsScreen({
         customer={selectedCustomer}
         onCustomerChange={setSelectedCustomer}
         onConfirm={(method, cashAmount) =>
-          cart.orderChannel === 'dine_in' ? handlePayDineInOrder(method, cashAmount) : handlePayOrder(method, cashAmount)
+          registerMode ? handlePayDineInOrder(method, cashAmount) : handlePayOrder(method, cashAmount)
         }
       />
 

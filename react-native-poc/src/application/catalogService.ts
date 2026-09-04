@@ -71,6 +71,25 @@ export async function getFinancialSettings(businessId: number): Promise<Financia
  *  and on when the row can't be read at all. Kept out of
  *  getFinancialSettings() for the same reason ReceiptBusinessProfile is:
  *  that function is deliberately scoped to Cart's totals math. */
+/**
+ * businesses.dine_in_pay_timing -- 'before' (pay the moment the order is
+ * registered) or 'after' (register now, settle when the guest asks for the
+ * bill). rakeen-pos.js:5660 declares it `let DINE_IN_PAY_TIMING = 'before'`
+ * and only ever raises it to 'after' on an explicit match (:5897), so
+ * anything unreadable or unset stays 'before'.
+ *
+ * It exists because the pay button's whole meaning depends on it -- see
+ * registerMode in ProductsScreen.
+ */
+export async function getDineInPayTiming(businessId: number): Promise<'before' | 'after'> {
+  const { data } = await supabase
+    .from('businesses')
+    .select('dine_in_pay_timing')
+    .eq('id', businessId)
+    .single();
+  return data && data.dine_in_pay_timing === 'after' ? 'after' : 'before';
+}
+
 export async function getNotifySoundEnabled(businessId: number): Promise<boolean> {
   const { data } = await supabase
     .from('businesses')
