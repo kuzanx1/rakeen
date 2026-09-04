@@ -22,9 +22,12 @@ export default function KitchenPage() {
 
     container.innerHTML = kitchenMarkup;
 
+    // Named cookie: keeps the kitchen display's own session isolated from
+    // /dashboard and /pos. See the matching note in DashboardPage.tsx.
     window.supabaseClient = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookieOptions: { name: 'sb-rakeen-kitchen-auth' } }
     );
 
     const script = document.createElement("script");

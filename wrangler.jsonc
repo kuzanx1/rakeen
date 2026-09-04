@@ -48,7 +48,13 @@
   "triggers": {
     // "0 21 * * *" is 00:00 Asia/Riyadh (UTC+3, no DST) — the automatic
     // end-of-day report (app/api/cron/daily-report).
-    "crons": ["0 6 * * *", "0 7 * * 1", "0 21 * * *"]
+    // "*/2 * * * *": every 2 minutes — sweeps online pickup orders whose
+    // promised ready-by time has passed and auto-marks them ready unless a
+    // cashier already did (app/api/cron/auto-ready-pickup).
+    // "0 5 * * *": once daily — recomputes HR compliance_items.status from
+    // manually-entered expiry dates (iqama/contract/etc.), no external
+    // government API involved (app/api/cron/compliance-check).
+    "crons": ["0 6 * * *", "0 7 * * 1", "0 21 * * *", "*/2 * * * *", "0 5 * * *"]
   },
   // Report emailing (app/api/reports/send-email/route.ts). The binding
   // works the moment it's deployed, but actually SENDING needs a real

@@ -1,6 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import KitchenPage from "./KitchenPage";
 
+// See app/pos/page.tsx for why: this shell would otherwise be statically
+// prerendered with a very long edge cache, and a device stuck on a stale
+// copy can end up requesting JS/CSS chunk files a newer deploy removed.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "ركين | شاشة المطبخ",
   description: "شاشة عرض المطبخ لركين — لأي جهاز/تابلت رخيص.",

@@ -34,6 +34,12 @@ async function serveMediaBucket(request, env) {
   object.writeHttpMetadata(headers);
   headers.set("etag", object.httpEtag);
   headers.set("cache-control", "public, max-age=31536000, immutable");
+  // @font-face (unlike <img>/background-image) enforces CORS even for a
+  // same-site-looking cross-origin font load — the online storefront's
+  // self-hosted Thmanyah font otherwise silently fails to load with no
+  // console signal beyond a CORS error. Every object in this bucket is
+  // already fully public, so a blanket allow-origin costs nothing.
+  headers.set("access-control-allow-origin", "*");
 
   if (!object.body) return new Response(null, { status: 304, headers });
   return new Response(request.method === "HEAD" ? null : object.body, { headers });
@@ -52,6 +58,8 @@ export default {
     const path =
       event.cron === "0 7 * * 1" ? "/api/cron/usage-check" :
       event.cron === "0 21 * * *" ? "/api/cron/daily-report" :
+      event.cron === "*/2 * * * *" ? "/api/cron/auto-ready-pickup" :
+      event.cron === "0 5 * * *" ? "/api/cron/compliance-check" :
       "/api/cron/win-back";
     ctx.waitUntil(
       env.WORKER_SELF_REFERENCE.fetch(`https://internal${path}`, {

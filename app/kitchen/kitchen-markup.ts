@@ -8,7 +8,7 @@ export const kitchenMarkup = `<body>
 
 <div class="pos-auth-screen" id="kdsProvisionScreen">
   <div class="pos-auth-card">
-    <div class="brand-avatar" style="width:44px;height:44px;font-size:19px;margin-bottom:14px;">ر</div>
+    <img class="brand-avatar" src="/brand/rakeen-wordmark.png" alt="ركين" style="height:28px;width:auto;margin-bottom:14px;">
     <h2 class="pos-auth-title">تجهيز شاشة المطبخ</h2>
     <p class="pos-auth-sub">سجّل دخولك كمدير أو مالك مرة وحدة بس، عشان نربط هذه الشاشة بفرعك.</p>
     <div class="pos-auth-field"><input type="email" id="kdsProvEmail" placeholder="البريد الإلكتروني" autocomplete="username"></div>
@@ -21,7 +21,7 @@ export const kitchenMarkup = `<body>
 
 <div class="pos-auth-screen hidden" id="kdsLoginScreen">
   <div class="pos-auth-card">
-    <div class="brand-avatar" style="width:44px;height:44px;font-size:19px;margin-bottom:14px;">ر</div>
+    <img class="brand-avatar" src="/brand/rakeen-wordmark.png" alt="ركين" style="height:28px;width:auto;margin-bottom:14px;">
     <h2 class="pos-auth-title">رمز الفرع</h2>
     <p class="pos-auth-sub" id="kdsLoginBranchLabel">أدخل رمز نقطة البيع لهذا الفرع</p>
     <div class="pin-dots" id="kdsLoginPinDots"></div>
@@ -34,7 +34,7 @@ export const kitchenMarkup = `<body>
 <div class="kds-app hidden" id="kdsApp">
   <div class="kds-topbar">
     <div class="kds-identity">
-      <div class="brand-avatar" style="width:36px;height:36px;font-size:15px;">ر</div>
+      <img class="brand-avatar" src="/brand/rakeen-wordmark.png" alt="ركين" style="height:22px;width:auto;">
       <div class="kds-identity-text">
         <div class="kds-identity-name" id="kdsBusinessName"></div>
         <div class="kds-identity-branch" id="kdsBranchName"></div>

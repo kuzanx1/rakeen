@@ -86,7 +86,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "محاولات كثيرة، حاول بعد شوي" }, { status: 429 });
   }
 
-  const formData = await request.formData().catch(() => null);
+  // See the identical comment in app/api/admin/businesses/[id]/branding/route.ts
+  // — @types/node vs lib.dom FormData typing ambiguity, not a runtime issue.
+  const formData = (await request.formData().catch(() => null)) as { get(name: string): string | File | null } | null;
   const file = formData?.get("file");
   const folder = formData?.get("folder");
   const prefix = formData?.get("prefix");

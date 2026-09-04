@@ -14,6 +14,19 @@ if (!window.__rakeenBookBooted) {
   const SLUG = window.RAKEEN_BOOK_SLUG;
   const LS_IDENTITY = 'rakeen_book_identity_' + SLUG;
 
+  // Real reported bug: the phone field's digit-strip used /\D/g, which in
+  // JS only matches ASCII 0-9 — a customer typing on an Arabic keyboard
+  // (Arabic-Indic ٠-٩, common default in this market) got every character
+  // of their number silently wiped instead of converted. Convert both
+  // Arabic-Indic and Eastern Arabic-Indic (Persian) digits to Western
+  // digits FIRST, before any \D stripping.
+  function toWesternDigits(str){
+    return String(str).replace(/[٠-٩۰-۹]/g, ch=>{
+      const code = ch.charCodeAt(0);
+      return String(code >= 0x06F0 ? code - 0x06F0 : code - 0x0660);
+    });
+  }
+
   const RESOURCE_LABELS = {
     salon: { service: 'خدمة', staff: 'الكوافير' },
     ladies_salon: { service: 'خدمة', staff: 'الكوافيرة' },
@@ -434,7 +447,7 @@ if (!window.__rakeenBookBooted) {
       </div>
       <div class="bk-error" id="bkFormError"></div>
       <div class="bk-field"><label>الاسم</label><input type="text" id="bkNameInput" placeholder="اسمك" value="${sel.name.replace(/"/g, '&quot;')}"></div>
-      <div class="bk-field"><label>رقم الجوال</label><input type="tel" inputmode="numeric" class="mono" id="bkPhoneInput" placeholder="05xxxxxxxx" value="${sel.phone}"></div>
+      <div class="bk-field"><label>رقم الجوال</label><input type="tel" inputmode="numeric" class="mono" id="bkPhoneInput" placeholder="05xxxxxxxx" maxlength="10" value="${sel.phone}"></div>
       ${isMobileCarWash() ? `
         ${sel.customerLat != null ? `
         <div class="bk-field">
@@ -456,18 +469,24 @@ if (!window.__rakeenBookBooted) {
       ` : ''}
     `;
     if (isMobileCarWash() && sel.customerLat != null) renderPinBlock();
+    // Only enforced a minimum length before (>=9 digits, no cap) — same
+    // maxlength+strip pattern as the online-order checkout's #omPhone field.
+    const bkPhoneEl = $('bkPhoneInput');
+    if (bkPhoneEl) bkPhoneEl.addEventListener('input', (e) => {
+      e.target.value = toWesternDigits(e.target.value).replace(/\D/g, '').slice(0, 10);
+    });
     renderBottomBar(() => submitBooking(), () => { step = 2; renderStep(); }, 'تأكيد الحجز');
   }
 
   async function submitBooking() {
     if (submitting) return;
     const name = $('bkNameInput').value.trim();
-    const phone = $('bkPhoneInput').value.trim();
+    const phone = toWesternDigits($('bkPhoneInput').value.trim());
     const errEl = $('bkFormError');
     errEl.classList.remove('show');
 
     if (!name) { errEl.textContent = 'اكتب اسمك'; errEl.classList.add('show'); return; }
-    if (phone.replace(/\D/g, '').length < 9) { errEl.textContent = 'رقم جوال غير صحيح'; errEl.classList.add('show'); return; }
+    if (!/^05\d{8}$/.test(phone.replace(/\D/g, ''))) { errEl.textContent = 'اكتب رقم جوال سعودي صحيح (05xxxxxxxx)'; errEl.classList.add('show'); return; }
 
     const addressInput = $('bkAddressInput');
     if (addressInput) sel.addressText = addressInput.value.trim();

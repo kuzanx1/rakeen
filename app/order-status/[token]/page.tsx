@@ -7,7 +7,10 @@ export type OrderStatus = {
   channel: "dine_in" | "pickup" | "delivery";
   status: "pending" | "completed" | "cancelled" | "refunded" | "rejected" | "awaiting_payment";
   ready_at: string | null;
+  out_for_delivery_at: string | null;
+  delivered_at: string | null;
   scheduled_for: string | null;
+  scheduled_by_customer: boolean;
   created_at: string;
   total: number;
   customer_name: string;
@@ -18,6 +21,16 @@ export type OrderStatus = {
   rejection_reason: string | null;
   online_customer_note: string | null;
   items: { name: string; qty: number; line_total: number; note: string | null }[];
+  branch_name: string | null;
+  branch_address: string | null;
+  branch_lat: number | null;
+  branch_lng: number | null;
+  payment_method: "cash" | "card";
+  payment_status: "unpaid" | "paid";
+  subtotal: number;
+  vat_amount: number;
+  business_vat_number: string | null;
+  vat_registered: boolean;
 };
 
 async function getOrderStatus(token: string): Promise<OrderStatus | null> {
@@ -56,6 +69,11 @@ export default async function OrderStatusPage({ params }: { params: Promise<{ to
   return (
     <>
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alexandria:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@600;700;800&display=swap" />
+      {/* Official Saudi Riyal sign (U+20C1) — self-hosted, same as the
+          dashboard/POS's rkMoney(); almost no system font ships this glyph
+          yet (added Unicode 17.0, Sept 2025). This route had never loaded
+          it, so the receipt fell back to plain "ر.س" text. */}
+      <style>{`@font-face{font-family:'saudi_riyal'; src:url('/fonts/saudi-riyal/saudi_riyal_bold.woff2') format('woff2'); font-weight:700; font-display:swap;}`}</style>
       <OrderStatusActions token={token} initial={order} />
     </>
   );

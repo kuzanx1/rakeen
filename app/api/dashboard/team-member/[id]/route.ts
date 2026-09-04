@@ -4,8 +4,8 @@ import { checkDbRateLimit } from "@/lib/dbRateLimit";
 
 const PERMISSION_KEYS = new Set([
   "screen:home", "screen:sales", "screen:orders", "screen:purchases", "screen:menu", "screen:inventory",
-  "screen:staff", "screen:customers", "screen:loyalty", "screen:accounting",
-  "screen:reports", "screen:settings", "view_profit",
+  "screen:customers", "screen:loyalty", "screen:accounting", "screen:hr",
+  "screen:reports", "screen:settings", "view_profit", "view_salary",
 ]);
 
 // Edit/delete a real team member (manager or employee) — same caller

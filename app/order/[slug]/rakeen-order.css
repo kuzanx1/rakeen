@@ -1,15 +1,31 @@
 @import url('https://fonts.googleapis.com/css2?family=Alexandria:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap');
 
+/* The online storefront offers exactly two typefaces, merchant-picked in
+   the dashboard's "المنيو الإلكتروني" design tab — never add a third without
+   updating that picker too. Self-hosted (not a font-service import) since
+   Thmanyah isn't on Google Fonts. */
+@font-face{font-family:'ThmanyahSans'; src:url('https://media.rakeenapp.com/fonts/thmanyah/ThmanyahSans-Regular.otf') format('opentype'); font-weight:400; font-display:swap;}
+@font-face{font-family:'ThmanyahSans'; src:url('https://media.rakeenapp.com/fonts/thmanyah/ThmanyahSans-Medium.otf') format('opentype'); font-weight:500; font-display:swap;}
+@font-face{font-family:'ThmanyahSans'; src:url('https://media.rakeenapp.com/fonts/thmanyah/ThmanyahSans-Bold.otf') format('opentype'); font-weight:700; font-display:swap;}
+@font-face{font-family:'ThmanyahSans'; src:url('https://media.rakeenapp.com/fonts/thmanyah/ThmanyahSans-Black.otf') format('opentype'); font-weight:800; font-display:swap;}
+
 :root{
   --brand:#C7FF4D; --brand-ink:#16281B;
-  --ink:#18170F; --muted:#8a8375; --line:rgba(24,20,10,0.08); --surf:#F7F5EF; --card:#ffffff;
+  --ink:#18170F; --muted:#8a8375; --surf:#F7F5EF; --card:#ffffff;
+  /* derived, not stored/merchant-set — stays coherent with whatever ink
+     color is in play instead of drifting out of sync as its own field */
+  --line:color-mix(in srgb, var(--ink) 8%, transparent);
   --r-md:16px; --r-lg:22px; --r-xl:28px; --r-full:999px;
   --shadow-sm:0 2px 14px rgba(30,24,10,0.06); --shadow-md:0 18px 40px rgba(30,24,10,0.12);
+  --font-body:'Alexandria', sans-serif; --font-display:'Alexandria', sans-serif;
+}
+html[data-font="thmanyah"]{
+  --font-body:'ThmanyahSans', 'Alexandria', sans-serif; --font-display:'ThmanyahSans', 'Alexandria', sans-serif;
 }
 *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
 html,body{background:var(--surf);}
 body{
-  font-family:'Alexandria', sans-serif; color:var(--ink); direction:rtl;
+  font-family:var(--font-body); color:var(--ink); direction:rtl;
   -webkit-font-smoothing:antialiased; min-height:100dvh;
 }
 .mono{font-family:'IBM Plex Mono', monospace; direction:ltr; unicode-bidi:isolate;}
@@ -18,7 +34,16 @@ input,textarea{font-family:inherit; color:inherit;}
 svg{display:block;}
 img{max-width:100%; display:block;}
 
-.om-shell{max-width:640px; margin:0 auto;}
+/* Hidden until boot() has fetched the business row and applied its theme —
+   the shell's own default colors/layout (this file's :root, no data-theme)
+   are Rakeen's generic classic/lime look, so without this a merchant with
+   custom colors or the luxury theme sees a real flash of the WRONG theme
+   (and "—" placeholder name/logo) for as long as that fetch takes, then a
+   jarring swap. Revealed by adding .om-ready once identity is set — see
+   rakeen-order.js boot(). Not gated on the menu items themselves finishing,
+   since #omMenu already shows its own spinner for that. */
+.om-shell{max-width:640px; margin:0 auto; opacity:0;}
+.om-shell.om-ready{opacity:1; transition:opacity .2s ease;}
 .om-app{min-height:100dvh; background:var(--surf); position:relative;}
 
 /* ===== Header — plain and minimal, no colored band. Identity lives in the
@@ -28,11 +53,26 @@ img{max-width:100%; display:block;}
   position:sticky; top:0; z-index:30;
   background:color-mix(in srgb, var(--card) 42%, transparent);
   backdrop-filter:blur(26px);
-  padding:calc(13px + env(safe-area-inset-top)) 18px 13px;
+  padding:calc(16px + env(safe-area-inset-top)) 18px 12px;
   border-bottom:1px solid transparent;
   transition:box-shadow .3s ease, border-color .3s ease, background .3s ease;
   animation:om-header-in .5s cubic-bezier(.22,1,.36,1);
 }
+/* A simple, quiet brand-color stripe across the very top edge. */
+.om-header::before{
+  content:''; position:absolute; top:0; inset-inline:0; height:3px; background:var(--brand);
+}
+/* Compact — sits in the header's own row opposite the brand, not a full
+   second row underneath it. Grows a little on focus so typing isn't cramped. */
+.om-header-search{position:relative; flex-shrink:0; width:96px; transition:width .25s ease;}
+.om-header-search:focus-within{width:150px;}
+.om-header-search input{
+  width:100%; padding:7px 12px 7px 32px; border-radius:var(--r-full); border:1px solid var(--line); background:var(--card);
+  color:var(--ink); font-size:16px; font-weight:600; box-shadow:var(--shadow-sm);
+}
+.om-header-search input::placeholder{color:var(--muted); font-size:12.5px;}
+.om-header-search input:focus{outline:none; border-color:var(--brand);}
+.om-header-search svg{position:absolute; left:11px; top:50%; transform:translateY(-50%); width:13px; height:13px; color:var(--muted); pointer-events:none;}
 /* once the page has scrolled past the hero, the glass gets a touch denser
    and a real shadow separates it from the menu sliding underneath — a bare
    sticky bar with no feedback at all reads as static, not premium.
@@ -47,7 +87,11 @@ img{max-width:100%; display:block;}
   background:color-mix(in srgb, var(--card) 62%, transparent);
 }
 @keyframes om-header-in{from{transform:translateY(-100%);}to{transform:translateY(0);}}
-.om-header-inner{display:flex; align-items:center; gap:11px;}
+.om-header-inner{display:flex; align-items:center; justify-content:space-between; gap:11px;}
+/* Without this, .om-logo and .om-brand-text (its only children) stack as
+   plain block-level divs instead of sitting side by side — the name/tagline
+   rendering under the logo instead of beside it. */
+.om-brand{display:flex; align-items:center; gap:10px; min-width:0; flex:1;}
 .om-logo{
   width:34px; height:34px; border-radius:var(--r-md); background:var(--brand); color:var(--brand-ink);
   display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; flex-shrink:0; overflow:hidden;
@@ -86,6 +130,12 @@ img{max-width:100%; display:block;}
   background:color-mix(in srgb, var(--brand) 20%, var(--card)); color:var(--brand-ink); font-weight:700; font-size:11px;
   padding:5px 12px; border-radius:var(--r-full);
 }
+.om-hero-social{display:flex; gap:14px; margin-top:10px;}
+.om-social-link{
+  width:20px; height:20px; display:flex; align-items:center; justify-content:center;
+  color:var(--brand); transition:transform .12s ease, opacity .12s ease;
+}
+.om-social-link:active{transform:scale(0.88); opacity:0.75;}
 
 /* ===== Toolbar (channel + branch + search) ===== */
 .om-toolbar{padding:18px 18px 4px;}
@@ -102,33 +152,31 @@ img{max-width:100%; display:block;}
 }
 .om-branch-note button{color:var(--brand-ink); text-decoration:underline; font-weight:800; font-size:11.5px; flex-shrink:0;}
 .om-branch-switch-link{display:block; margin:-4px 0 14px; font-size:11.5px; font-weight:700; color:var(--muted); text-decoration:underline;}
-.om-search-box{position:relative; margin-top:12px;}
-.om-search-box input{
-  width:100%; padding:13px 16px 13px 42px; border-radius:var(--r-full); border:1px solid var(--line); background:var(--card);
-  color:var(--ink); font-size:13.5px; font-weight:600; box-shadow:var(--shadow-sm);
-}
-.om-search-box input::placeholder{color:var(--muted);}
-.om-search-box input:focus{outline:none; border-color:var(--brand);}
-.om-search-box svg{position:absolute; left:15px; top:50%; transform:translateY(-50%); width:16px; height:16px; color:var(--muted);}
 
 /* ===== Category rail ===== */
-/* top must match the header's real rendered height (13px pad + 34px logo +
-   13px pad + 1px border = 61px) PLUS its own safe-area-inset-top padding —
-   a bare "64px" ignored the safe-area term entirely, so on any phone with a
-   notch/dynamic-island the real header was taller than 64px and this rail
-   ended up sticking partway UNDER it instead of cleanly below it. */
+/* top must match the header's real rendered height PLUS its own
+   safe-area-inset-top padding — a bare pixel value ignoring the safe-area
+   term left this rail sticking partway UNDER the header on any phone with a
+   notch/dynamic-island instead of cleanly below it. Re-measure and update
+   this value (all 3 occurrences) if the header's contents ever change
+   height again (measured 69px with the search box merged into the brand row). */
 .om-cat-rail{
-  display:flex; gap:8px; overflow-x:auto; padding:16px 18px 12px; position:sticky; top:calc(61px + env(safe-area-inset-top)); z-index:20;
+  display:flex; gap:8px; overflow-x:auto; padding:16px 18px 12px; position:sticky; top:calc(69px + env(safe-area-inset-top)); z-index:20;
   background:color-mix(in srgb, var(--surf) 94%, transparent); backdrop-filter:blur(6px); scrollbar-width:none;
 }
 .om-cat-rail::-webkit-scrollbar{display:none;}
 .om-cat-chip{
-  flex-shrink:0; padding:9px 16px; border-radius:var(--r-full); border:1px solid var(--line); background:var(--card);
-  font-weight:700; font-size:12.5px; color:var(--muted); white-space:nowrap; transition:background .12s ease, color .12s ease;
+  flex-shrink:0; padding:5px 10px; border-radius:var(--r-full); border:1px solid var(--line); background:var(--card);
+  font-weight:700; font-size:10px; color:var(--muted); white-space:nowrap;
+  transition:background .12s ease, color .12s ease, box-shadow .3s ease, transform .38s cubic-bezier(.34,1.56,.64,1);
 }
+/* A little springy overshoot (the cubic-bezier above dips past 1.0 before
+   settling) reads as a livelier "pop" than a plain ease-out scale — worth
+   the slightly longer duration since it only plays on the one chip that
+   just became active. */
 .om-cat-chip.active{
-  background:var(--brand); color:var(--brand-ink); border-color:var(--brand);
-  box-shadow:0 5px 16px color-mix(in srgb, var(--brand) 45%, transparent);
+  background:var(--brand); color:var(--brand-ink); border-color:var(--brand); font-weight:800; transform:scale(1.22);
+  box-shadow:0 6px 18px color-mix(in srgb, var(--brand) 55%, transparent);
 }
 
 /* ===== Menu ===== */
@@ -136,7 +184,28 @@ img{max-width:100%; display:block;}
 .om-cat-section{margin-bottom:28px; scroll-margin-top:130px;}
 .om-cat-title{font-size:16.5px; font-weight:800; margin-bottom:12px; display:flex; align-items:center; gap:8px;}
 .om-cat-title::before{content:''; width:6px; height:6px; border-radius:50%; background:var(--brand); flex-shrink:0;}
-.om-product-list{display:flex; flex-direction:column; gap:11px;}
+.om-product-list{display:flex; flex-direction:column; gap:11px; margin-bottom:4px;}
+
+/* A category with subcategories gets an editorial moment instead of the
+   plain inline title: bigger display-font heading, centered, no bullet —
+   then a scrollable underline-tab row to switch between "الكل" and each
+   subcategory. Scoped to .has-subcats only, so a business with a flat
+   category list (no nesting) sees zero visual change here. */
+.om-cat-section.has-subcats{margin-bottom:34px;}
+.om-cat-section.has-subcats .om-cat-title{
+  display:block; text-align:center; font-family:var(--font-display); font-size:26px; font-weight:700;
+  margin-bottom:18px;
+}
+.om-cat-section.has-subcats .om-cat-title::before{display:none;}
+.om-subcat-tabs{
+  display:flex; gap:22px; overflow-x:auto; justify-content:center; padding:0 4px; margin-bottom:20px; scrollbar-width:none;
+}
+.om-subcat-tabs::-webkit-scrollbar{display:none;}
+.om-subcat-tab{
+  flex-shrink:0; padding:2px 2px 9px; font-weight:700; font-size:13.5px; color:var(--muted);
+  border-bottom:2px solid transparent; transition:color .15s ease, border-color .15s ease;
+}
+.om-subcat-tab.active{color:var(--ink); border-color:var(--brand);}
 .om-product-card{
   display:flex; gap:13px; align-items:stretch; background:var(--card); border-radius:var(--r-lg);
   padding:11px; box-shadow:var(--shadow-sm); text-align:start; position:relative; transition:transform .12s ease, box-shadow .12s ease;
@@ -153,22 +222,91 @@ img{max-width:100%; display:block;}
 .om-product-photo img{width:100%; height:100%; object-fit:cover;}
 .om-product-photo svg{width:30px; height:30px;}
 .om-product-info{flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center; gap:4px;}
-.om-product-name{font-weight:700; font-size:14.5px;}
+.om-product-name{display:flex; flex-direction:column; gap:1px;}
+/* An Arabic-only name that happens to fit on one line was rendering
+   noticeably shorter than a bilingual (English + Arabic) name, which is
+   always two lines — same grid cell, same photo size, but the shorter name
+   let justify-content:center on .om-product-info shift everything up,
+   which read as "this product's photo is bigger" even though the photo
+   itself never changed size. Reserving the same two-line height regardless
+   fixes the rhythm. Luxury gets its own value below (different font sizes
+   for the two lines mean a different natural height). */
+.om-shell:not([data-theme="luxury"]) .om-product-name{min-height:42px;}
+/* text-align:end (not start) so the English line lands on the SAME edge as
+   the Arabic line below it — both are full-width flex-column children by
+   default (stretch), and "start" for an explicitly ltr-direction element is
+   physically the opposite edge from the Arabic line's inherited rtl "start",
+   which pulled the two lines to opposite sides of a wide container (looked
+   fine in a narrow product-card column, badly split in a wide cart row). */
+.om-product-name-en{font-weight:700; font-size:14.5px; direction:ltr; unicode-bidi:isolate; text-align:end;}
+.om-product-name-ar{font-weight:700; font-size:14.5px;}
+.om-product-name-ar.om-name-sub{font-weight:600; font-size:12px; color:var(--muted);}
 .om-product-badge{display:inline-block; width:fit-content; font-size:10px; font-weight:700; color:var(--brand-ink); background:color-mix(in srgb, var(--brand) 20%, var(--card)); padding:2px 9px; border-radius:var(--r-full);}
-.om-product-price{font-weight:800; font-size:14px; color:var(--brand-ink); margin-top:2px; font-family:'IBM Plex Mono',monospace; direction:ltr; unicode-bidi:isolate; text-align:start;}
+/* Flush corner "flag" — fused to the photo's own corner radius rather than
+   floating on top of it, with a rounded notch on the inner corner for a
+   deliberate ribbon-like silhouette. Reverted back to this from a plain
+   pill per merchant feedback — this reads as more premium/distinctive. */
+.om-product-tag{
+  position:absolute; top:0; inset-inline-start:0; font-size:9.5px; font-weight:800; color:#fff; letter-spacing:.2px;
+  padding:5px 12px; border-start-start-radius:var(--r-md); border-end-end-radius:14px;
+}
+.om-shell[data-theme="luxury"] .om-product-tag{border-start-start-radius:var(--r-lg);}
+.om-product-price{
+  font-weight:800; font-size:14px; color:var(--brand-ink); margin-top:2px; font-family:'IBM Plex Mono',monospace;
+  direction:ltr; unicode-bidi:isolate; text-align:start; position:relative; display:inline-block; padding-bottom:7px;
+}
+/* inset-inline-start (not left) so the accent sits under the START of the
+   price digits in THIS element's own ltr direction — that's physically
+   left, same side the numbers themselves start from. */
+.om-product-price::after{
+  content:''; position:absolute; bottom:0; inset-inline-start:0; width:20px; height:2.5px; border-radius:2px; background:var(--brand);
+}
 /* the + and qty badge float on the PHOTO's own corners, not the whole card —
    pinning them to the card previously let them land on top of the price
    whenever the text column happened to sit on that side (RTL puts the photo
    on the right, the price on the left, right where "left:10px" pointed) */
+/* Flat, solid brand fill, no gradient/shadow/animation — a press/hover
+   scale was here (merchant asked for that too, initially) but adding a
+   product re-renders the WHOLE #omMenu grid (renderMenu() replaces its
+   innerHTML to refresh every card's qty badge), which destroys and
+   recreates this exact button on every tap. With a CSS transition attached,
+   that instant swap became a visible flash/flicker (the old, mid-animation
+   button vanishing and a fresh unanimated one appearing in the same spot) —
+   worse than having no animation at all. Static only, no transition. */
 .om-product-add{
-  position:absolute; bottom:6px; inset-inline-start:6px; width:30px; height:30px; border-radius:50%; background:var(--brand); color:var(--brand-ink);
-  display:flex; align-items:center; justify-content:center; box-shadow:var(--shadow-sm); font-weight:800; font-size:17px;
+  position:absolute; bottom:6px; inset-inline-start:6px; width:34px; height:34px; border-radius:50%;
+  background:var(--brand); color:var(--brand-ink);
+  display:flex; align-items:center; justify-content:center;
 }
+.om-product-add svg{width:16px; height:16px;}
 .om-product-qty-badge{
   position:absolute; top:6px; inset-inline-start:6px; min-width:20px; height:20px; padding:0 5px; border-radius:var(--r-full); background:var(--brand-ink); color:var(--brand);
   display:flex; align-items:center; justify-content:center; font-weight:800; font-size:11px;
 }
 .om-menu-empty{text-align:center; padding:60px 20px; color:var(--muted); font-weight:600; font-size:13.5px;}
+
+.om-footer{
+  padding:24px 20px 22px; margin-top:8px; border-top:1px solid var(--line); text-align:center;
+  display:flex; flex-direction:column; align-items:center; gap:16px;
+}
+.om-footer-locations{width:100%; max-width:420px; display:flex; flex-direction:column; gap:14px;}
+.om-footer-location-card{
+  background:var(--card); border-radius:var(--r-lg); box-shadow:var(--shadow-sm); overflow:hidden; text-align:start;
+}
+.om-footer-location-head{display:flex; align-items:center; gap:8px; padding:12px 14px 10px;}
+.om-footer-location-head svg{flex-shrink:0; color:var(--brand-ink);}
+.om-footer-location-name{font-size:12.5px; font-weight:800; flex:1; min-width:0;}
+.om-footer-location-address{font-size:11px; font-weight:600; color:var(--muted); padding:0 14px 10px; margin-top:-6px;}
+.om-footer-location-map{display:block; width:100%; height:150px; border:none;}
+/* direction:ltr so "Made by" (first DOM child) sits on the LEFT and the
+   logo (second child) on the RIGHT, reading naturally left-to-right —
+   without this the page's inherited direction:rtl flips a plain flex row,
+   placing the logo before "Made by" instead of after it. */
+.om-footer-credit{
+  display:inline-flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700; color:var(--muted); letter-spacing:.2px;
+  direction:ltr;
+}
+.om-footer-credit-logo{height:14px; width:auto; display:block;}
 
 /* Deliberately quiet — a staff-only control for restaurants that mount this
    page on a display screen (menu board, not self-order kiosk). A regular
@@ -192,6 +330,19 @@ img{max-width:100%; display:block;}
 }
 .om-cart-label{font-weight:700; font-size:13.5px; flex:1; text-align:start;}
 .om-cart-total{font-weight:800; font-size:14px;}
+
+/* ===== Floating "your order" shortcut — replaces the old hard redirect back
+   to /order-status on every return visit (customers disliked being stuck on
+   that page). Only shown when a still-relevant order exists (see
+   getActiveOrderInfo() in the JS); pinned near the top so it never collides
+   with the bottom cart bar. */
+.om-track-order-fab{
+  position:fixed; top:calc(78px + env(safe-area-inset-top)); inset-inline-end:14px; z-index:35;
+  display:flex; align-items:center; gap:7px; background:var(--brand); color:var(--brand-ink); border:none;
+  border-radius:var(--r-full); padding:9px 16px; font-weight:800; font-size:12.5px;
+  box-shadow:var(--shadow-md);
+}
+.om-track-order-fab svg{width:17px; height:17px; flex-shrink:0;}
 
 /* ===== Persistent desktop cart panel (hidden on mobile) ===== */
 .om-desktop-cart{display:none;}
@@ -226,8 +377,35 @@ img{max-width:100%; display:block;}
 }
 .om-sheet-hero-photo img{width:100%; height:100%; object-fit:cover;}
 .om-sheet-hero-photo svg{width:44px; height:44px;}
-.om-sheet-hero-name{font-weight:800; font-size:18px;}
+.om-sheet-hero-name{display:flex; flex-direction:column; align-items:center; gap:2px;}
+.om-sheet-hero-name .om-product-name-en{font-size:18px; font-weight:800;}
+.om-sheet-hero-name .om-product-name-ar{font-size:18px; font-weight:800;}
+.om-sheet-hero-name .om-product-name-ar.om-name-sub{font-size:13px; font-weight:600; color:var(--muted);}
 .om-sheet-hero-sub{font-size:12px; font-weight:600; color:var(--muted); margin-top:4px;}
+
+/* Display-mode "quick view" — a plain product with nothing to customize has
+   nothing else worth showing besides a proper look at the photo, so this
+   gets a real full-width square image instead of the customize sheet's
+   small 92px preview strip. */
+/* max-width caps the aspect-ratio:1/1 photo's size too (it's width:100% of
+   this container) — without it, on any screen where the sheet itself is
+   wide (iPad, where this sheet deliberately stays full-bleed instead of
+   becoming a narrow desktop modal), the photo grew to match the viewport's
+   full width, i.e. taller than most tablets' viewport HEIGHT, pushing the
+   name/price below the fold with no visual hint to scroll for them. */
+.om-quickview{text-align:center; padding:4px 4px 18px; max-width:420px; margin-inline:auto;}
+.om-quickview-photo{
+  width:100%; aspect-ratio:1/1; border-radius:var(--r-lg); overflow:hidden; margin-bottom:16px;
+  background:color-mix(in srgb, var(--brand) 16%, var(--surf));
+  display:flex; align-items:center; justify-content:center; color:color-mix(in srgb, var(--brand-ink) 40%, transparent);
+}
+.om-quickview-photo img{width:100%; height:100%; object-fit:cover;}
+.om-quickview-photo svg{width:64px; height:64px;}
+.om-quickview-name{display:flex; flex-direction:column; align-items:center; gap:3px;}
+.om-quickview-name .om-product-name-en{font-size:20px; font-weight:800;}
+.om-quickview-name .om-product-name-ar{font-size:20px; font-weight:800;}
+.om-quickview-name .om-product-name-ar.om-name-sub{font-size:14px; font-weight:600; color:var(--muted);}
+.om-quickview-price{margin-top:10px; font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:17px; color:var(--brand-ink); direction:ltr; unicode-bidi:isolate;}
 
 /* modifier options inside sheet — plain flat rows, selected state reads as
    a filled tint + a solid dot, not a border-plus-background combo doing
@@ -301,9 +479,18 @@ img{max-width:100%; display:block;}
 .om-soon-badge{position:absolute; top:-7px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; font-size:8.5px; font-weight:800; padding:2px 7px; border-radius:var(--r-full); white-space:nowrap;}
 
 /* cart rows (shared by sheet + desktop panel) */
-.om-cart-item{display:flex; align-items:center; gap:10px; padding:13px 0; border-bottom:1px solid var(--line);}
+/* align-items:flex-start (not center) — .om-cart-item-info is a 2-3 line
+   stack (name + optional mods + price) while .om-cart-qty is a single short
+   row; centering the two against each other left the price line visually
+   drifting away from its own product name whenever the stack was tall
+   enough, since the shorter qty control centered against the MIDDLE of the
+   stack rather than lining up with its top. */
+.om-cart-item{display:flex; align-items:flex-start; gap:10px; padding:13px 0; border-bottom:1px solid var(--line);}
 .om-cart-item-info{flex:1; min-width:0;}
-.om-cart-item-name{font-weight:700; font-size:13px;}
+.om-cart-item-name{display:flex; flex-direction:column; gap:1px;}
+.om-cart-item-name .om-product-name-en{font-size:13px; font-weight:700;}
+.om-cart-item-name .om-product-name-ar{font-size:13px; font-weight:700;}
+.om-cart-item-name .om-product-name-ar.om-name-sub{font-size:11px; font-weight:600; color:var(--muted);}
 .om-cart-item-mods{font-size:10.5px; color:var(--muted); margin-top:2px;}
 .om-cart-item-price{font-size:11px; color:var(--muted); margin-top:3px; font-family:'IBM Plex Mono',monospace;}
 .om-cart-qty{display:flex; align-items:center; gap:8px; background:var(--surf); border-radius:var(--r-full); padding:3px; flex-shrink:0;}
@@ -393,6 +580,14 @@ img{max-width:100%; display:block;}
   .om-shell{max-width:760px;}
   .om-product-list{display:grid; grid-template-columns:repeat(2,1fr); gap:12px;}
 }
+/* Category chips: the mobile size (10px/5px-10px padding) reads as too small
+   once there's real tablet/desktop width to work with — bump it back up from
+   640px onward. Classic only (:not luxury) — luxury's text-tab chip gets its
+   own bump alongside its other >=768px tablet/desktop rules below, since its
+   base rule already has higher specificity than a bare .om-cat-chip here. */
+@media (min-width:640px){
+  .om-shell:not([data-theme="luxury"]) .om-cat-chip{font-size:12.5px; padding:7px 15px;}
+}
 
 /* ===================== Desktop layout ======================
    Below 1024px this is a single-column mobile storefront with the
@@ -401,27 +596,245 @@ img{max-width:100%; display:block;}
    other — same information, no bottom sheet needed for the cart itself
    (the product-customize / branch-picker sheets still slide up as
    centered modals). */
+/* :not([data-theme="luxury"]) throughout — luxury has its own, much wider
+   threshold for this same sidebar-cart switch (see the luxury section
+   further down) because real iPads (even 12.9" Pro, ~1366px landscape) are
+   WIDER than this 1024px breakpoint, and the merchant explicitly wants
+   iPad, any size/orientation, to stay on the single-column mobile-style
+   layout with the bottom cart bar — never the boxed sidebar shown here. */
 @media (min-width:1024px){
   body{background:var(--surf);}
-  .om-shell{max-width:1180px; display:grid; grid-template-columns:1fr 380px; gap:28px; align-items:start; padding:24px 24px 60px;}
-  .om-app{min-height:0; border-radius:var(--r-xl); overflow:hidden; box-shadow:var(--shadow-md);}
-  .om-header{position:static;}
-  .om-cat-rail{position:sticky; top:0;}
-  .om-cart-bar{display:none !important;}
-  .om-desktop-cart{
+  .om-shell:not([data-theme="luxury"]){max-width:1180px; display:grid; grid-template-columns:1fr 380px; gap:28px; align-items:start; padding:24px 24px 60px;}
+  /* no overflow:hidden here — an ancestor with any overflow other than
+     visible silently breaks position:sticky on descendants (a real CSS
+     limitation, not an oversight), which is what kept the header from
+     sticking at this breakpoint. The header carries its own matching
+     top-corner radius below instead, so the card still reads as rounded.
+     min-width:0 replaces it for the OTHER thing overflow:hidden was quietly
+     doing: a grid item's automatic minimum size defaults to its content's
+     min-content width when overflow is visible, and the category rail's
+     unwrapped row of chips has a huge min-content width — without this the
+     whole column (and the sticky header inside it) blew out to fit it. */
+  .om-shell:not([data-theme="luxury"]) .om-app{min-height:0; min-width:0; border-radius:var(--r-xl); box-shadow:var(--shadow-md);}
+  .om-shell:not([data-theme="luxury"]) .om-header{border-radius:var(--r-xl) var(--r-xl) 0 0;}
+  .om-shell:not([data-theme="luxury"]) .om-cat-rail{position:sticky; top:calc(69px + env(safe-area-inset-top));}
+  /* .om-cart-bar is a SIBLING of .om-shell in the markup, not a descendant —
+     targeted via html[data-theme] instead (set alongside #omShell's own
+     data-theme in boot()), same as the two sheet selectors below. */
+  html:not([data-theme="luxury"]) .om-cart-bar{display:none !important;}
+  .om-shell:not([data-theme="luxury"]) .om-desktop-cart{
     display:block; position:sticky; top:24px; background:var(--card); border-radius:var(--r-xl);
     box-shadow:var(--shadow-md); max-height:calc(100dvh - 48px); display:flex; flex-direction:column; overflow:hidden;
   }
-  .om-desktop-cart-head{font-weight:800; font-size:15px; padding:20px 22px 14px; border-bottom:1px solid var(--line);}
-  .om-desktop-cart-body{padding:6px 22px 22px; overflow-y:auto;}
-  .om-product-list{display:grid; grid-template-columns:repeat(2,1fr); gap:14px;}
-  .om-product-card{flex-direction:column; align-items:stretch;}
-  .om-product-photo{width:100%; height:130px;}
-  .om-product-card:hover{transform:translateY(-2px); box-shadow:var(--shadow-md);}
+  .om-shell:not([data-theme="luxury"]) .om-desktop-cart-head{font-weight:800; font-size:15px; padding:20px 22px 14px; border-bottom:1px solid var(--line);}
+  .om-shell:not([data-theme="luxury"]) .om-desktop-cart-body{padding:6px 22px 22px; overflow-y:auto;}
+  .om-shell:not([data-theme="luxury"]) .om-product-list{display:grid; grid-template-columns:repeat(2,1fr); gap:14px;}
+  .om-shell:not([data-theme="luxury"]) .om-product-card{flex-direction:column; align-items:stretch;}
+  .om-shell:not([data-theme="luxury"]) .om-product-photo{width:100%; height:130px;}
+  .om-shell:not([data-theme="luxury"]) .om-product-card:hover{transform:translateY(-2px); box-shadow:var(--shadow-md);}
 
   /* sheets become centered modal cards on desktop instead of bottom sheets
-     (branch picker / product customize / checkout) */
-  .om-sheet-overlay{align-items:center;}
-  .om-sheet{max-width:460px; border-radius:var(--r-xl); transform:scale(0.96) translateY(0); max-height:82dvh;}
-  .om-sheet-overlay.show .om-sheet{transform:scale(1) translateY(0);}
+     (branch picker / product customize / checkout) — also siblings, see the
+     .om-cart-bar comment above. */
+  html:not([data-theme="luxury"]) .om-sheet-overlay{align-items:center;}
+  html:not([data-theme="luxury"]) .om-sheet{max-width:460px; border-radius:var(--r-xl); transform:scale(0.96) translateY(0); max-height:82dvh;}
+  html:not([data-theme="luxury"]) .om-sheet-overlay.show .om-sheet{transform:scale(1) translateY(0);}
+}
+
+/* ===================== Theme 2 — "luxury" =====================
+   A second, opt-in storefront skin (businesses.online_theme_style === 'luxury',
+   set via #omShell[data-theme]). Editorial, not boxy: no card chrome around
+   products, a real full-bleed hero banner, quiet serif-flavoured Kufi display
+   type for names/titles, underline tabs instead of pill chips. Everything
+   that isn't overridden here (buttons, checkout sheets, cart) keeps working
+   unchanged because it still reads var(--brand)/var(--card)/etc — only the
+   TOKENS and the browsing surface (header/hero/rail/product cards) change. */
+.om-shell[data-theme="luxury"]{
+  --surf:#FFFAEE; --card:#FFFFFF; --ink:#2A1D12; --muted:#A0876D;
+  --line:color-mix(in srgb, var(--ink) 9%, transparent);
+  --shadow-sm:0 2px 16px rgba(70,45,20,0.07); --shadow-md:0 20px 44px rgba(60,38,18,0.14);
+}
+.om-shell[data-theme="luxury"] .om-brand-name,
+.om-shell[data-theme="luxury"] .om-hero-name,
+.om-shell[data-theme="luxury"] .om-cat-title,
+.om-shell[data-theme="luxury"] .om-checkout-title,
+.om-shell[data-theme="luxury"] #omModifierTitle{
+  font-family:var(--font-display);
+}
+
+/* header: a real frosted-glass bar, not a flat card — the 88%/96% opacity
+   this used to carry left almost no transparency for backdrop-filter to
+   actually blur, so it read as a plain solid bar with no glass effect at
+   any scroll position. Brought down to match the classic theme's visible
+   glass ratio (translucent at rest, a touch denser once scrolled) and the
+   blur bumped up for a softer, more premium look. */
+.om-shell[data-theme="luxury"] .om-header{
+  background:color-mix(in srgb, var(--surf) 52%, transparent); backdrop-filter:blur(22px);
+}
+.om-shell[data-theme="luxury"] .om-header.scrolled{background:color-mix(in srgb, var(--surf) 70%, transparent);}
+.om-shell[data-theme="luxury"] .om-brand-name{font-size:15.5px; letter-spacing:.2px;}
+.om-shell[data-theme="luxury"] .om-logo{border-radius:50%;}
+
+/* hero: a real full-bleed banner (taller — this IS the storefront's "بطل")
+   with the identity card floating quietly on top, no white box/shadow —
+   it should read as one photograph, not a card sitting on a photo. */
+.om-shell[data-theme="luxury"] .om-hero.has-banner .om-hero-banner{height:190px;}
+.om-shell[data-theme="luxury"] .om-hero:not(.has-banner){
+  background:linear-gradient(180deg, color-mix(in srgb, var(--brand) 22%, var(--surf)), var(--surf));
+  padding-top:40px;
+}
+.om-shell[data-theme="luxury"] .om-hero-card{
+  background:transparent; box-shadow:none; padding:0 22px; margin:20px 0 0; gap:16px;
+}
+/* deliberately NOT overlapping the card onto the banner like the classic
+   theme does — that trick needs a white card to guarantee text contrast,
+   and this theme's whole point is dropping the card chrome. Sitting the
+   identity row on the plain cream surface below the photo keeps --ink
+   text readable without hardcoding a "light text over photo" special case. */
+.om-shell[data-theme="luxury"] .om-hero-logo{
+  width:66px; height:66px; border-width:4px; box-shadow:0 6px 22px rgba(30,18,8,0.22);
+}
+.om-shell[data-theme="luxury"] .om-hero-name{font-size:22px;}
+.om-shell[data-theme="luxury"] .om-hero-chip{
+  background:color-mix(in srgb, var(--card) 88%, transparent); box-shadow:var(--shadow-sm); color:var(--ink);
+}
+/* --brand-ink is only contrast-checked against a SOLID var(--brand) fill —
+   every one of these instead sits on a light tint of --card/--surf, so if a
+   merchant's brand color happens to resolve to white ink (common for medium
+   browns like this one), the text disappears against its own near-white
+   pill. Re-pointing them at --ink (always dark) fixes it without touching
+   the classic theme, which has the same latent bug but no reason to risk
+   a visual change on businesses already live with it looking fine today. */
+.om-shell[data-theme="luxury"] .om-product-badge,
+.om-shell[data-theme="luxury"] .om-branch-note,
+.om-shell[data-theme="luxury"] .om-branch-note button,
+.om-shell[data-theme="luxury"] .om-payment-chip.selected,
+.om-shell[data-theme="luxury"] .om-cart-sum-row.total .mono,
+.om-shell[data-theme="luxury"] .om-pin-address,
+.om-shell[data-theme="luxury"] .om-confirm-phone-row button,
+.om-shell[data-theme="luxury"] .om-mod-chip-price,
+.om-shell[data-theme="luxury"] .om-product-card:active .om-product-name{
+  color:var(--ink);
+}
+
+/* toolbar: quieter, no boxed channel pills — underline-style like the rest */
+.om-shell[data-theme="luxury"] .om-channel-row{
+  background:transparent; border:none; box-shadow:none; padding:0; gap:22px; justify-content:center; margin-top:6px;
+}
+.om-shell[data-theme="luxury"] .om-channel-btn{
+  flex:none; padding:6px 2px; border-bottom:2px solid transparent; border-radius:0; color:var(--muted);
+}
+.om-shell[data-theme="luxury"] .om-channel-btn.active{background:none; color:var(--ink); border-bottom-color:var(--brand);}
+
+/* category rail: text tabs + underline, centered, generously spaced */
+.om-shell[data-theme="luxury"] .om-cat-rail{
+  background:color-mix(in srgb, var(--surf) 92%, transparent); gap:22px; padding:18px 18px 14px; justify-content:flex-start;
+}
+.om-shell[data-theme="luxury"] .om-cat-chip{
+  background:none; border:none; border-radius:0; padding:4px 0 10px; font-size:10px; letter-spacing:.3px;
+  border-bottom:2px solid transparent; box-shadow:none; transform:none;
+}
+.om-shell[data-theme="luxury"] .om-cat-chip.active{
+  background:none; color:var(--ink); border-color:var(--brand); box-shadow:none; font-weight:800; transform:scale(1.28);
+}
+.om-shell[data-theme="luxury"] .om-cat-title{font-size:19px; letter-spacing:.2px;}
+.om-shell[data-theme="luxury"] .om-cat-title::before{display:none;}
+
+/* product cards: the editorial swap — photo first, name + price centred
+   underneath, no card box/shadow at all. Two per row on a phone (four read
+   as tiny/cramped in practice), three per row from tablet width up. */
+.om-shell[data-theme="luxury"] .om-product-list{display:grid; grid-template-columns:repeat(2,1fr); gap:22px 14px;}
+.om-shell[data-theme="luxury"] .om-product-card{
+  flex-direction:column; align-items:stretch; background:none; box-shadow:none; padding:0; gap:8px;
+}
+.om-shell[data-theme="luxury"] .om-product-card:active{transform:none;}
+.om-shell[data-theme="luxury"] .om-product-photo{
+  width:100%; height:auto; aspect-ratio:1/1; border-radius:var(--r-lg);
+  /* this theme has no card boxes anywhere else, so the "خلفية الكروت" color
+     picker would otherwise have almost nothing visible to actually show —
+     the product photo frame (every item, the single biggest visual area on
+     the page) is what it controls here instead. */
+  background:var(--card);
+}
+.om-shell[data-theme="luxury"] .om-product-info{align-items:center; text-align:center; gap:4px;}
+/* Same fixed-height reservation as the non-luxury rule above, sized to this
+   theme's own (smaller) font sizes so a bilingual name's natural height
+   isn't stretched taller than it needs to be. */
+.om-shell[data-theme="luxury"] .om-product-name{min-height:38px;}
+/* the line-clamp trick only makes sense for a single (Arabic-only) line of
+   text — once an English name is added, the name is naturally two lines
+   already (EN over AR) and clamping further would just cut off the Arabic
+   line, so it's scoped to the no-English-name case via :has(). */
+.om-shell[data-theme="luxury"] .om-product-name:not(:has(.om-product-name-en)){
+  line-height:1.25; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.om-shell[data-theme="luxury"] .om-product-name:not(:has(.om-product-name-en)) .om-product-name-ar{
+  font-size:13.5px; font-weight:600; color:inherit;
+}
+.om-shell[data-theme="luxury"] .om-product-name-en{font-size:13px; font-weight:600;}
+.om-shell[data-theme="luxury"] .om-product-name-ar.om-name-sub{font-size:11px; font-weight:500; color:var(--muted);}
+.om-shell[data-theme="luxury"] .om-product-price{font-size:12px; font-weight:700; color:var(--ink);}
+.om-shell[data-theme="luxury"] .om-product-badge{align-self:center;}
+.om-shell[data-theme="luxury"] .om-product-add{
+  inset-inline-start:auto; inset-inline-end:7px; bottom:7px; width:30px; height:30px;
+}
+.om-shell[data-theme="luxury"] .om-product-add svg{width:14px; height:14px;}
+.om-shell[data-theme="luxury"] .om-product-qty-badge{inset-inline-start:auto; inset-inline-end:7px; top:7px;}
+
+/* tablet (iPad portrait and up) and desktop: three per row — a bit more
+   room per photo than mobile's two, not a growing column count. */
+@media (min-width:640px){
+  .om-shell[data-theme="luxury"] .om-product-list{grid-template-columns:repeat(3,1fr); gap:26px 18px;}
+}
+
+/* iPad, any size or orientation, stays on the SAME single-column mobile
+   layout (sticky header, bottom cart bar, continuous scroll) as phones —
+   just stretched to actually use the extra width instead of centering a
+   narrow phone-width column in a sea of empty margins. Explicitly NOT the
+   boxed sidebar-cart desktop layout here per merchant feedback: it read as
+   cramped and put the cart somewhere unexpected on an iPad. That layout is
+   reserved for real desktop-monitor widths — see the >=1367px block below,
+   a threshold chosen specifically to sit above every current iPad's
+   landscape width (12.9" iPad Pro is ~1366px), not just the common ones. */
+@media (min-width:768px){
+  .om-shell[data-theme="luxury"]{max-width:1040px;}
+  .om-shell[data-theme="luxury"] .om-product-list{grid-template-columns:repeat(4,1fr); gap:22px 16px;}
+  .om-shell[data-theme="luxury"] .om-cat-chip{font-size:13px;}
+}
+
+/* Real desktop only (see the comment above for why this isn't 1024px like
+   the shared/classic-theme breakpoint) — the boxed sidebar-cart layout,
+   otherwise identical in spirit to the shared >=1024px block. */
+@media (min-width:1367px){
+  .om-shell[data-theme="luxury"]{
+    max-width:1180px; display:grid; grid-template-columns:1fr 380px; gap:24px; align-items:start; padding:20px 20px 48px;
+  }
+  /* no overflow:hidden — see the shared >=1024px block's comment on why
+     (breaks position:sticky on the header, and min-width:0 replaces its
+     grid-sizing side effect). */
+  .om-shell[data-theme="luxury"] .om-app{min-height:0; min-width:0; border-radius:var(--r-xl); box-shadow:none; background:var(--surf);}
+  .om-shell[data-theme="luxury"] .om-header{border-radius:var(--r-xl) var(--r-xl) 0 0;}
+  .om-shell[data-theme="luxury"] .om-cat-rail{position:sticky; top:calc(69px + env(safe-area-inset-top));}
+  /* .om-cart-bar is a SIBLING of .om-shell, not a descendant — see the
+     identical comment on the shared >=1024px block. */
+  html[data-theme="luxury"] .om-cart-bar{display:none !important;}
+  .om-shell[data-theme="luxury"] .om-product-list{grid-template-columns:repeat(2,1fr);}
+  .om-shell[data-theme="luxury"] .om-desktop-cart{
+    display:flex; position:sticky; top:20px; background:var(--card); border-radius:var(--r-xl);
+    box-shadow:var(--shadow-sm); border:1px solid var(--line); max-height:calc(100dvh - 40px); flex-direction:column; overflow:hidden;
+  }
+  .om-shell[data-theme="luxury"] .om-desktop-cart-head{font-weight:800; font-size:15px; padding:20px 22px 14px; border-bottom:1px solid var(--line);}
+  .om-shell[data-theme="luxury"] .om-desktop-cart-body{padding:6px 22px 22px; overflow-y:auto;}
+  html[data-theme="luxury"] .om-sheet-overlay{align-items:center;}
+  html[data-theme="luxury"] .om-sheet{max-width:460px; border-radius:var(--r-xl); transform:scale(0.96) translateY(0); max-height:82dvh;}
+  html[data-theme="luxury"] .om-sheet-overlay.show .om-sheet{transform:scale(1) translateY(0);}
+}
+
+@media (min-width:1024px){
+  /* column count for this width range now lives solely in the >=768px
+     block above (4 columns, "wide mobile" iPad layout) — this used to also
+     force 3 columns here, silently overriding that rule for anything
+     >=1024px (including every iPad in the 768–1366px range this session's
+     iPad relayout specifically targets) since it comes later in the file. */
+  .om-shell[data-theme="luxury"] .om-hero.has-banner .om-hero-banner{height:300px;}
 }

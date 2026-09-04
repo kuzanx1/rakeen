@@ -24,6 +24,9 @@ type Card = {
   loyalty_custom_icon_url: string | null;
   customer_since: string;
   total_saved: number;
+  loyalty_banner_overlay: number;
+  loyalty_icon_size: number;
+  loyalty_tagline: string | null;
 };
 
 const TIER_META: Record<string, { emoji: string; label: string }> = {
@@ -219,10 +222,15 @@ export default async function LoyaltyCardPage({ params }: { params: Promise<{ to
   const tier = TIER_META[card.loyalty_tier] || TIER_META.Bronze;
   const qrSvg = await QRCode.toString(cardUrl, { type: "svg", margin: 1, color: { dark: "#171717", light: "#00000000" } });
   const pattern = card.banner_url ? {} : patternBackground(card.loyalty_pattern_style, accent, customIconUrl ? "" : iconPath);
+  // loyalty_banner_overlay is a 0-100 owner-controlled knob (default 80, the
+  // original hardcoded value) — 0 shows the banner photo untouched, 100
+  // washes it out almost entirely so the stamps/points stay readable on a
+  // busy photo.
+  const overlayAlpha = Math.max(0, Math.min(100, card.loyalty_banner_overlay ?? 80)) / 100;
   const middleBg: React.CSSProperties = {
     ...pattern,
     ...(card.banner_url
-      ? { backgroundImage: `linear-gradient(rgba(247,244,239,.8),rgba(247,244,239,.8)), url(${card.banner_url})`, backgroundSize: "cover", backgroundPosition: "center" }
+      ? { backgroundImage: `linear-gradient(rgba(247,244,239,${overlayAlpha}),rgba(247,244,239,${overlayAlpha})), url(${card.banner_url})`, backgroundSize: "cover", backgroundPosition: "center" }
       : {}),
   };
   const tenure = tenureLabel(card.customer_since);
@@ -274,6 +282,7 @@ function ClassicTheme({ card, accent, onAccent, isVisits, iconPath, customIconUr
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={styles.brandName}>{card.business_name}</div>
+            {card.loyalty_tagline && <div style={{ ...styles.taglineLine, color: `${onAccent}b3` }}>{card.loyalty_tagline}</div>}
           </div>
           <div style={{ ...styles.tierChip, background: `${onAccent}22` }}>
             <span>{tier.emoji}</span>
@@ -285,7 +294,7 @@ function ClassicTheme({ card, accent, onAccent, isVisits, iconPath, customIconUr
       </div>
 
       <div style={{ ...styles.middleBand, ...middleBg }}>
-        <StampOrPoints card={card} isVisits={isVisits} iconPath={iconPath} customIconUrl={customIconUrl} accent={accent} stampSize={30} />
+        <StampOrPoints card={card} isVisits={isVisits} iconPath={iconPath} customIconUrl={customIconUrl} accent={accent} stampSize={card.loyalty_icon_size || 30} />
       </div>
 
       <div style={{ ...styles.footerBand, background: accent, color: onAccent }}>
@@ -332,6 +341,7 @@ function MinimalTheme({ card, accent, isVisits, iconPath, customIconUrl, tier, t
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ ...styles.brandName, color: "#171717" }}>{card.business_name}</div>
+          {card.loyalty_tagline && <div style={{ ...styles.taglineLine, color: "#8a8477" }}>{card.loyalty_tagline}</div>}
           <div style={{ ...styles.tierChip, background: "transparent", padding: 0, color: accent }}>
             <span>{tier.emoji} {tier.label}</span>
           </div>
@@ -344,7 +354,7 @@ function MinimalTheme({ card, accent, isVisits, iconPath, customIconUrl, tier, t
       </div>
 
       <div style={{ ...styles.minimalMiddle, ...middleBg }}>
-        <StampOrPoints card={card} isVisits={isVisits} iconPath={iconPath} customIconUrl={customIconUrl} accent={accent} stampSize={28} />
+        <StampOrPoints card={card} isVisits={isVisits} iconPath={iconPath} customIconUrl={customIconUrl} accent={accent} stampSize={card.loyalty_icon_size || 28} />
       </div>
 
       {savedLabel && (
@@ -392,6 +402,7 @@ function BoldTheme({ card, accent, onAccent, isVisits, iconPath, customIconUrl, 
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ ...styles.brandName, color: onAccent }}>{card.business_name}</div>
+          {card.loyalty_tagline && <div style={{ ...styles.taglineLine, color: `${onAccent}b3` }}>{card.loyalty_tagline}</div>}
         </div>
         <div style={{ ...styles.tierChip, background: `${onAccent}26`, color: onAccent }}>
           <span>{tier.emoji}</span>
@@ -402,7 +413,7 @@ function BoldTheme({ card, accent, onAccent, isVisits, iconPath, customIconUrl, 
       {tenure && <div style={{ ...styles.tenureLine, color: `${onAccent}b3`, textAlign: "center" }}>{tenure}</div>}
 
       <div style={styles.boldCard}>
-        <StampOrPoints card={card} isVisits={isVisits} iconPath={iconPath} customIconUrl={customIconUrl} accent={accent} stampSize={30} />
+        <StampOrPoints card={card} isVisits={isVisits} iconPath={iconPath} customIconUrl={customIconUrl} accent={accent} stampSize={card.loyalty_icon_size || 30} />
         {savedLabel && (
           <div style={{ ...styles.savedBadge, background: `${accent}14`, color: "#171717" }}>
             <span>💰</span>
@@ -476,6 +487,14 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     fontSize: "15.5px",
     letterSpacing: "0.01em",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  taglineLine: {
+    fontSize: "10.5px",
+    fontWeight: 600,
+    marginTop: "1px",
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",

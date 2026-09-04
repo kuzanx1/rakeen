@@ -66,7 +66,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "معرّف غير صالح" }, { status: 400 });
   }
 
-  const formData = await request.formData().catch(() => null);
+  // @types/node's DOM-lib-aware FormData shim and lib.dom's own FormData
+  // interface disagree on shape in this project's tsconfig (lib:["dom",...]
+  // + @types/node together) — a known TS ecosystem ambiguity, not a runtime
+  // issue (FormData.get genuinely exists at runtime everywhere this route
+  // runs). Narrow-cast to the two members this route actually uses.
+  const formData = (await request.formData().catch(() => null)) as { get(name: string): string | File | null } | null;
   const field = formData?.get("field");
   const file = formData?.get("file");
   if (typeof field !== "string" || !FIELD_TO_UPLOAD[field]) {

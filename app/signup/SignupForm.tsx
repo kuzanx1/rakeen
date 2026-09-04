@@ -91,6 +91,19 @@ const BUSINESS_TYPES: BusinessTypeDef[] = [
   { value: "other", label: "نشاط آخر", live: false, gets: [] },
 ];
 
+// Real reported bug: phone digit-stripping across the app used /\D/g,
+// which only matches ASCII 0-9 — a customer typing on an Arabic keyboard
+// (Arabic-Indic ٠-٩, common default in this market) got every character of
+// their number silently wiped instead of converted. Convert both
+// Arabic-Indic and Eastern Arabic-Indic (Persian) digits to Western digits
+// FIRST, before any \D stripping.
+function toWesternDigits(str: string): string {
+  return str.replace(/[٠-٩۰-۹]/g, (ch) => {
+    const code = ch.charCodeAt(0);
+    return String(code >= 0x06f0 ? code - 0x06f0 : code - 0x0660);
+  });
+}
+
 export default function SignupForm() {
   const [businessType, setBusinessType] = useState("restaurant");
   const [businessName, setBusinessName] = useState("");
@@ -140,7 +153,7 @@ export default function SignupForm() {
               ? "ركين لسا يجهّز نظام مخصص لنشاطك — فريقنا بيتواصل معك قريبًا لتفعيله. سجّل دخولك وخل حسابك جاهز بالانتظار."
               : isServiceBased
               ? "سجّل دخولك وابدأ تضيف خدماتك الحين. فريق ركين بيراجع حسابك خلال وقت قصير، وبعدها يقدر عملاؤك يحجزون فعليًا."
-              : "سجّل دخولك وابدأ تجهّز منيوك الحين. فريق ركين بيراجع حسابك خلال وقت قصير، وبعدها يقدر عملاؤك يطلبون فعليًا — أول ٣٥٠ طلب مجانًا."}
+              : "سجّل دخولك وابدأ تجهّز المنيو عندك الحين. فريق ركين بيراجع حسابك خلال وقت قصير، وبعدها يقدر عملاؤك يطلبون فعليًا — أول ٣٥٠ طلب مجانًا."}
           </p>
           <a href="/dashboard" style={styles.submitBtn}>
             تسجيل الدخول
@@ -200,7 +213,15 @@ export default function SignupForm() {
         <input style={styles.input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required />
 
         <label style={styles.label}>رقم الجوال (اختياري)</label>
-        <input style={styles.input} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="05xxxxxxxx" />
+        <input
+          style={styles.input}
+          type="tel"
+          inputMode="tel"
+          maxLength={10}
+          value={phone}
+          onChange={(e) => setPhone(toWesternDigits(e.target.value).replace(/\D/g, "").slice(0, 10))}
+          placeholder="05xxxxxxxx"
+        />
 
         <label style={styles.label}>كلمة المرور</label>
         <input style={styles.input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="٦ أحرف على الأقل" required minLength={6} />

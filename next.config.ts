@@ -7,8 +7,12 @@ import type { NextConfig } from "next";
 // Supabase: NEXT_PUBLIC_SUPABASE_URL, used for both REST/RPC calls (fetch)
 // and Realtime (wss). Map tiles/QR: proxied through our own /api routes
 // (same-origin), never fetched client-side directly.
+// Media: the R2 bucket's public custom domain — menu photos/logos/banners,
+// and (since the online storefront's font picker) self-hosted @font-face
+// files for the "Thmanyah" option, which isn't on Google Fonts.
 const SUPABASE_ORIGIN = "https://jgrlefclttoazamzvwca.supabase.co";
 const SUPABASE_WS_ORIGIN = "wss://jgrlefclttoazamzvwca.supabase.co";
+const MEDIA_ORIGIN = "https://media.rakeenapp.com";
 
 // script-src/style-src still need 'unsafe-inline': the hand-authored
 // POS/dashboard/kitchen JS uses inline onclick= handlers and inline
@@ -24,9 +28,16 @@ const CSP = [
   // without our code doing anything), only whether to let it load.
   "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com",
-  "img-src 'self' data: https:",
+  `font-src 'self' https://fonts.gstatic.com ${MEDIA_ORIGIN}`,
+  // blob: is required for client-side previews before upload completes —
+  // the crop tool's own preview image and every "show the picked file
+  // immediately" listener both render via URL.createObjectURL(file), which
+  // CSP was silently blocking (no thrown JS error, the <img> just never
+  // loads) until this was added.
+  "img-src 'self' data: blob: https:",
   `connect-src 'self' ${SUPABASE_ORIGIN} ${SUPABASE_WS_ORIGIN} https://cloudflareinsights.com`,
+  // Storefront footer/order-status branch map embeds (iframe to Google Maps).
+  "frame-src https://www.google.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

@@ -158,7 +158,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "محاولات كثيرة، حاول بعد شوي" }, { status: 429 });
   }
 
-  const formData = await request.formData();
+  // See the identical comment in app/api/admin/businesses/[id]/branding/route.ts
+  // — @types/node vs lib.dom FormData typing ambiguity, not a runtime issue.
+  const formData = (await request.formData()) as { get(name: string): string | File | null };
   const file = formData.get("image");
   const ocrText = formData.get("ocrText");
 
