@@ -1,7 +1,7 @@
 import { supabase } from '../infrastructure/supabaseClient';
 import { getItem, setItem } from '../infrastructure/mmkvStorage';
 import { computeShiftTotals, EMPTY_SHIFT_TOTALS } from '../domain/shift';
-import type { ClosingReport, Shift, ShiftOrderRow, ShiftTotals } from '../domain/shift';
+import type { CashMovement, ClosingReport, Shift, ShiftOrderRow, ShiftTotals } from '../domain/shift';
 
 /**
  * The shift lifecycle, ported from rakeen-pos.js's own (findOpenShift at
@@ -92,6 +92,50 @@ export async function openShift(input: OpenShiftInput): Promise<{ shift: Shift |
  * hands, and the cashier would be asked to account for cash nobody had
  * handed over yet.
  */
+export interface RecordCashMovementInput {
+  shift: Shift;
+  direction: 'in' | 'out';
+  amount: number;
+  reason: string;
+  staffMemberId: number | null;
+}
+
+/** Insert-only by design (see the migration): a movement is part of the
+ *  audit trail behind a signed-off balance, so a mistake is corrected by
+ *  recording the opposite movement, not by editing history. */
+export async function recordCashMovement(
+  input: RecordCashMovementInput,
+): Promise<{ ok: boolean; error: string | null }> {
+  const { data: userData } = await supabase.auth.getUser();
+  const createdBy = userData?.user?.id;
+  if (!createdBy) return { ok: false, error: 'انتهت الجلسة — سجّل الدخول مرة ثانية' };
+  const { error } = await supabase.from('shift_cash_movements').insert({
+    shift_id: input.shift.id,
+    business_id: input.shift.business_id,
+    branch_id: input.shift.branch_id,
+    direction: input.direction,
+    amount: Math.abs(input.amount),
+    reason: input.reason.trim(),
+    staff_member_id: input.staffMemberId,
+    created_by: createdBy,
+  });
+  if (error) return { ok: false, error: 'تعذر تسجيل الحركة — تحقق من الاتصال وجرّب مرة ثانية' };
+  return { ok: true, error: null };
+}
+
+export async function listCashMovements(shiftId: number): Promise<CashMovement[]> {
+  const { data } = await supabase
+    .from('shift_cash_movements')
+    .select('direction, amount, reason')
+    .eq('shift_id', shiftId)
+    .order('created_at');
+  return (data || []).map((m: any) => ({
+    direction: m.direction === 'in' ? 'in' : 'out',
+    amount: Number(m.amount) || 0,
+    reason: String(m.reason || ''),
+  }));
+}
+
 export async function loadShiftTotals(shift: Shift | null): Promise<ShiftTotals> {
   if (!shift) return EMPTY_SHIFT_TOTALS;
   const { data } = await supabase
@@ -109,7 +153,10 @@ export async function loadShiftTotals(shift: Shift | null): Promise<ShiftTotals>
     // 'cancelled' needs no exclusion: cancel_dine_in_order only matches
     // payment_status='unpaid', so those never reach this query.
     .neq('status', 'refunded');
-  return computeShiftTotals((data as ShiftOrderRow[]) || [], Number(shift.opening_cash));
+  // A missing table (migration not run yet) must not stop a shift being
+  // read or closed -- it just means no movements are recorded.
+  const movements = await listCashMovements(shift.id).catch(() => [] as CashMovement[]);
+  return computeShiftTotals((data as ShiftOrderRow[]) || [], Number(shift.opening_cash), movements);
 }
 
 /** branches.closing_time, for the stale check. Null when unset. */
@@ -219,6 +266,10 @@ export async function getLastClosingReport(
     salesTotal: Number(row.sales_total) || 0,
     cardTotal: Number(row.card_total) || 0,
     deliveryPlatformTotal: Number(row.delivery_platform_total) || 0,
+    // Not stored on the report row -- an older slip simply reprints
+    // without these two lines rather than inventing figures for them.
+    cashIn: 0,
+    cashOut: 0,
     cashExpected: Number(row.cash_expected) || 0,
     cashCounted: Number(row.cash_counted) || 0,
     cashVariance: Number(row.cash_variance) || 0,

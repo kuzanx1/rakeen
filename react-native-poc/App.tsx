@@ -76,6 +76,7 @@ import type { Shift } from './src/domain/shift';
 import { isShiftStale } from './src/domain/shift';
 import StaleShiftScreen from './src/ui/StaleShiftScreen';
 import ShiftClosedScreen from './src/ui/ShiftClosedScreen';
+import CashMovementModal from './src/ui/CashMovementModal';
 import type { ClosingReport } from './src/domain/shift';
 
 /** React Native's Hermes runtime has no global `btoa` (unlike a browser) —
@@ -214,6 +215,7 @@ function App(): React.JSX.Element {
   const [closedReportJobId, setClosedReportJobId] = useState<string | null>(null);
   /** businesses.pos_require_manager_pin_for_close. */
   const [requireManagerPin, setRequireManagerPin] = useState(true);
+  const [cashMovementOpen, setCashMovementOpen] = useState(false);
 
   /** CURRENT_STAFF_MEMBER. `staffPicked` separates "nobody on duty" from
    *  "not asked yet" -- the source lets a branch with no staff carry on
@@ -773,6 +775,14 @@ function App(): React.JSX.Element {
         onReject={handleRejectIncoming}
       />
 
+      <CashMovementModal
+        visible={cashMovementOpen}
+        shift={shift}
+        staffMemberId={staffMember?.id ?? null}
+        onClose={() => setCashMovementOpen(false)}
+        onRecorded={setStatusMessage}
+      />
+
       <ShiftSummaryModal visible={shiftSummaryOpen} shift={shift} onClose={() => setShiftSummaryOpen(false)} />
 
       <CloseShiftModal
@@ -846,6 +856,13 @@ function App(): React.JSX.Element {
             // source does it: the cashier has to pick WHICH order first.
             onOpenCompletedOrders={() => setScreen({ name: 'orderHistory' })}
             onRequestManagerApproval={() => setManagerPinOpen(true)}
+            onOpenCashMovement={() => {
+              if (!shift) {
+                setStatusMessage('ما فيه وردية مفتوحة');
+                return;
+              }
+              setCashMovementOpen(true);
+            }}
             onOpenShiftSummary={() => setShiftSummaryOpen(true)}
             onCloseShift={() => {
               if (!shift) {
@@ -989,6 +1006,7 @@ function MoreScreen({
   onOpenDrawer,
   onOpenCompletedOrders,
   onRequestManagerApproval,
+  onOpenCashMovement,
   onOpenShiftSummary,
   onCloseShift,
   onReprintLastClosing,
@@ -1002,6 +1020,8 @@ function MoreScreen({
    *  the completed-orders list to pick the order (rakeen-pos.js:5158). */
   onOpenCompletedOrders: (purpose: 'reprint' | 'refund') => void;
   onRequestManagerApproval: () => void;
+  /** Cash in/out of the drawer that is not a sale. */
+  onOpenCashMovement: () => void;
   onOpenShiftSummary: () => void;
   onCloseShift: () => void;
   onReprintLastClosing: () => void;
@@ -1023,6 +1043,10 @@ function MoreScreen({
           <Rect x={2} y={7} width={20} height={14} rx={2} stroke={ink} />
           <Path d="M2 7l4-4h12l4 4" stroke={ink} />
           <Line x1={12} y1={12} x2={12} y2={16} stroke={ink} />
+        </MoreTile>
+        <MoreTile label="حركة نقدية" onPress={onOpenCashMovement}>
+          <Path d="M12 1v22" stroke={ink} />
+          <Path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke={ink} />
         </MoreTile>
         <MoreTile label="استرجاع مبلغ" onPress={() => onOpenCompletedOrders('refund')}>
           <Polyline points="9 14 4 9 9 4" stroke={ink} />

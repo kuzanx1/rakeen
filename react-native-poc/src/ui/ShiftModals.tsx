@@ -102,6 +102,11 @@ export function ShiftSummaryModal({
               <Text style={styles.statCount}>{totals.ordersCount}</Text>
             </View>
             <StatRow label="إجمالي المبيعات" value={totals.salesTotal} />
+            {/* Broken out so the expected figure can be READ rather than
+                just trusted: a cashier who paid a supplier from the till
+                can see exactly where it went. */}
+            {totals.cashInTotal > 0 && <StatRow label="إيداع بالدرج" value={totals.cashInTotal} />}
+            {totals.cashOutTotal > 0 && <StatRow label="سحب من الدرج" value={-totals.cashOutTotal} />}
             <StatRow label="كاش (شامل الرصيد الافتتاحي)" value={totals.cashTotal} />
             <StatRow label="بطاقة / Apple Pay" value={totals.cardTotal} />
             <StatRow label="توصيل — مدفوع عبر التطبيق" value={totals.deliveryPlatformTotal} total />
@@ -187,6 +192,8 @@ export function CloseShiftModal({
       salesTotal: totals.salesTotal,
       cardTotal: totals.cardTotal,
       deliveryPlatformTotal: totals.deliveryPlatformTotal,
+      cashIn: totals.cashInTotal,
+      cashOut: totals.cashOutTotal,
       cashExpected: totals.cashTotal,
       cashCounted: countedNum,
       cashVariance: variance,

@@ -29,14 +29,30 @@ export interface ShiftOrderRow {
   cash_amount: number | string | null;
 }
 
+/** A non-sale movement of cash in or out of the drawer. */
+export interface CashMovement {
+  direction: 'in' | 'out';
+  amount: number;
+  reason: string;
+}
+
 export interface ShiftTotals {
   ordersCount: number;
   salesTotal: number;
-  /** Opening float PLUS cash sales -- this is what should be in the
-   *  drawer, not the day's cash takings on their own. */
+  /**
+   * What should physically be in the drawer:
+   *   opening float + cash sales + paid-in - paid-out
+   *
+   * Not the day's cash takings. Leaving the movements out is what makes a
+   * supplier paid from the till look like a shortfall.
+   */
   cashTotal: number;
   cardTotal: number;
   deliveryPlatformTotal: number;
+  /** Shown separately on the summary so the expected figure can be read
+   *  rather than just trusted. */
+  cashInTotal: number;
+  cashOutTotal: number;
 }
 
 export const EMPTY_SHIFT_TOTALS: ShiftTotals = {
@@ -45,6 +61,8 @@ export const EMPTY_SHIFT_TOTALS: ShiftTotals = {
   cashTotal: 0,
   cardTotal: 0,
   deliveryPlatformTotal: 0,
+  cashInTotal: 0,
+  cashOutTotal: 0,
 };
 
 /**
@@ -57,7 +75,11 @@ export const EMPTY_SHIFT_TOTALS: ShiftTotals = {
  * unaccounted for -- which shows up as a phantom surplus at closing, on
  * exactly the number a manager is being asked to sign off.
  */
-export function computeShiftTotals(orders: ShiftOrderRow[], openingCash: number): ShiftTotals {
+export function computeShiftTotals(
+  orders: ShiftOrderRow[],
+  openingCash: number,
+  movements: CashMovement[] = [],
+): ShiftTotals {
   let cashSales = 0;
   let cardSales = 0;
   let deliveryPlatformSales = 0;
@@ -77,12 +99,24 @@ export function computeShiftTotals(orders: ShiftOrderRow[], openingCash: number)
     }
   }
 
+  let cashIn = 0;
+  let cashOut = 0;
+  for (const m of movements) {
+    const amount = Math.abs(Number(m.amount) || 0);
+    if (m.direction === 'in') cashIn += amount;
+    else cashOut += amount;
+  }
+
   return {
     ordersCount: orders.length,
+    // Sales only. A float taken from the safe is not revenue, so movements
+    // deliberately do NOT touch this figure -- only the drawer's.
     salesTotal: cashSales + cardSales + deliveryPlatformSales,
-    cashTotal: (Number(openingCash) || 0) + cashSales,
+    cashTotal: (Number(openingCash) || 0) + cashSales + cashIn - cashOut,
     cardTotal: cardSales,
     deliveryPlatformTotal: deliveryPlatformSales,
+    cashInTotal: cashIn,
+    cashOutTotal: cashOut,
   };
 }
 
@@ -96,6 +130,10 @@ export interface ClosingReport {
   salesTotal: number;
   cardTotal: number;
   deliveryPlatformTotal: number;
+  /** Non-sale cash movements, printed as their own lines so the expected
+   *  figure on the slip can be reconstructed by whoever reads it. */
+  cashIn: number;
+  cashOut: number;
   cashExpected: number;
   cashCounted: number;
   cashVariance: number;

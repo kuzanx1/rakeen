@@ -252,6 +252,8 @@ export async function renderShiftReportToEscPosBase64(
   drawDivider(canvas, width, y);
   y += LINE_H * 0.6;
 
+  if (report.cashIn > 0) y = drawRow(ctx, y, report.cashIn.toFixed(2), 'إيداع بالدرج', 18, false);
+  if (report.cashOut > 0) y = drawRow(ctx, y, '-' + report.cashOut.toFixed(2), 'سحب من الدرج', 18, false);
   y = drawRow(ctx, y, report.cashExpected.toFixed(2), 'الكاش المتوقع', 18, false);
   y = drawRow(ctx, y, report.cashCounted.toFixed(2), 'الكاش المعدود', 18, false);
   // The variance keeps its sign: a surplus and a shortfall are different
