@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>بوابة الدفع — معاينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap">
+<!-- نفس ملف ستايل لوحة التحكم الحقيقي بالإنتاج (app/dashboard/rakeen-dashboard.css) -->
+<link rel="stylesheet" href="/help/previews/rakeen-dashboard.css">
+<style>
+  /* منسوخ حرفيًا من geideaPanelHtml داخل public/dashboard/rakeen-dashboard.js —
+     قسم "بوابة الدفع" بإعدادات المتجر (يبان بس لو المتجر الإلكتروني مفعّل). */
+  html,body{ height:auto; min-height:100%; overflow:visible; display:block; }
+  body{ padding:24px; }
+  .rk-page{ max-width:560px; margin-inline:auto; }
+  input, button{ pointer-events:none; }
+</style>
+</head>
+<body>
+
+<div class="rk-page">
+  <div class="rk-section">
+    <div class="rk-section-head">
+      <div class="rk-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div>
+      <div>
+        <div class="rk-section-title">بوابة الدفع</div>
+        <div class="rk-section-sub">اربط حساب Geidea الخاص فيك عشان يقدر عملاؤك يدفعون بالبطاقة مباشرة من صفحة الطلب الإلكتروني. سجّل عندهم بنفسك، وهنا بس تدخل بيانات الاتصال.</div>
+      </div>
+    </div>
+    <div class="rk-grid-2">
+      <div class="rk-field"><label>المفتاح العام (Merchant Public Key)</label><input type="text"></div>
+      <div class="rk-field"><label>كلمة مرور الـAPI (API Password)</label><input type="password" value="••••••••"></div>
+    </div>
+    <p class="stock-qty-helper" style="margin-top:14px;">تحصل عليهم من حساب Geidea الخاص فيك بعد التسجيل — نتحقق منهم فورًا قبل الحفظ.</p>
+    <button class="rk-btn rk-btn-primary rk-btn-md" style="margin-top:4px;">حفظ وتفعيل</button>
+  </div>
+</div>
+
+</body>
+</html>

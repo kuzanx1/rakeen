@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>رمز الفرع — معاينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap">
+<!-- نفس ملفات ستايل الكاشير الحقيقي بالإنتاج — بدون أي نسخة مستقلة -->
+<link rel="stylesheet" href="/help/previews/rakeen-pos.css">
+<link rel="stylesheet" href="/help/previews/rakeen-pos-additions.css">
+<style>
+  /* تحجيم المعاينة فقط — صفر تعديلات على قواعد الكاشير نفسها */
+  html,body{ height:auto; min-height:100%; overflow:visible; background:var(--canvas); }
+  body{ display:flex; align-items:center; justify-content:center; padding:28px 12px; }
+</style>
+</head>
+<body>
+
+<div class="pos-auth-screen" id="posLoginScreen" style="position:static; display:flex;">
+  <div class="pos-auth-card">
+    <img class="brand-avatar" src="/brand/rakeen-wordmark.png" alt="ركين" style="height:28px;width:auto;margin-bottom:14px;">
+    <h2 class="pos-auth-title">رمز الفرع</h2>
+    <p class="pos-auth-sub" id="posLoginBranchLabel">أدخل رمز نقطة البيع لهذا الفرع</p>
+    <div class="pin-dots" id="loginPinDots">
+      <span class="pin-dot filled"></span>
+      <span class="pin-dot filled"></span>
+      <span class="pin-dot"></span>
+      <span class="pin-dot"></span>
+    </div>
+    <div class="pin-pad" id="loginPinPad">
+      <button class="pin-key">1</button><button class="pin-key">2</button><button class="pin-key">3</button>
+      <button class="pin-key">4</button><button class="pin-key">5</button><button class="pin-key">6</button>
+      <button class="pin-key">7</button><button class="pin-key">8</button><button class="pin-key">9</button>
+      <span></span><button class="pin-key">0</button><button class="pin-key">⌫</button>
+    </div>
+    <div class="pos-auth-error" style="display:none;"></div>
+    <a class="pos-auth-reprovision">إعادة تجهيز الجهاز</a>
+  </div>
+</div>
+
+</body>
+</html>

@@ -8299,9 +8299,6 @@ const rkPosHidePopularStatus = c => c
 const rkPosHideSearchStatus = c => c
   ? {text:'⚠ مخفي — الكاشير ما يقدر يبحث أو يمسح باركود، لازم يتصفح يدويًا', tone:'warn'}
   : {text:'ظاهر — الكاشير يقدر يبحث أو يمسح باركود لإضافة صنف بسرعة', tone:'ok'};
-const rkPosHideHoldStatus = c => c
-  ? {text:'⚠ مخفي — الكاشير ما يقدر يعلّق طلب ويرجع له لاحقًا', tone:'warn'}
-  : {text:'ظاهر — الكاشير يقدر يعلّق طلب مؤقتًا ويرجع له', tone:'ok'};
 const rkPosHideImagesStatus = c => c
   ? {text:'مخفية — تظهر أيقونة عادية بدل صورة كل منتج (أسرع تحميل)', tone:''}
   : {text:'ظاهرة — يشوف الكاشير صورة كل منتج فعليًا', tone:'ok'};
@@ -8410,26 +8407,157 @@ function receiptPreviewHtml(){
     </div>`;
 }
 
+/* حالة جاهزية الكاشير — تُملأ داخل renderPosSettings من نفس الدفعة. */
+let POS_READINESS = { managerPinSet: false, tillByBranch: {}, branches: [] };
+
+/**
+ * الصف الواحد في شريط الجاهزية.
+ *
+ * الحالة أولاً ثم ما تعنيه، لأن الحالة هي السؤال. والنبرة من نفس
+ * مفردات الصفحة: ok/warn الموجودتان في rk-switch-desc، بلا لون جديد.
+ */
+function posReadyRow(label, ready, readyText, notReadyText, actionLabel, tab, focusSel){
+  return `
+    <button type="button" class="pos-ready-row pos-ready-go ${ready ? 'is-ready' : ''}"
+            data-tab="${tab}" data-focus="${focusSel}">
+      <span class="pos-ready-mark">${ready ? '✓' : '!'}</span>
+      <span class="pos-ready-text">
+        <span class="pos-ready-label">${label}</span>
+        <span class="pos-ready-state">${ready ? readyText : notReadyText}</span>
+      </span>
+      <span class="pos-ready-action">${actionLabel}</span>
+      <span class="pos-ready-arrow">←</span>
+    </button>`;
+}
+
+/**
+ * يجعل المفاتيح تقول الحقيقة، ويُظهر ما لم يُحفظ بعد.
+ *
+ * الترميز المُعاد بناؤه يحمل حالة القاعدة في السمة `checked`. لكن
+ * المتصفح يستعيد ما ضغطه المستخدم قبل قليل لعنصر بنفس الـid في نفس
+ * الصفحة، فتُكتب الخاصية فوق الحقيقة: القاعدة false والسمة غائبة
+ * والشاشة تعرض "مفعّل". إعادة الخاصية من السمة تُصلح ذلك، وتخزين
+ * القيمة المحفوظة يسمح بمعرفة ما تغيّر بعدها.
+ */
+function posSnapshotSwitches(root){
+  const scoped = root && root !== document;
+  (root || document).querySelectorAll('#posSettingsPanelBody input[type="checkbox"]').forEach(el=>{
+    // بعد حفظ ناجح: المعروض صار هو المحفوظ. عند إعادة البناء: المحفوظ
+    // هو ما جاء من القاعدة، أي السمة — لا الخاصية، لأن المتصفح يعيد
+    // فيها ضغطة المستخدم غير المحفوظة.
+    el.dataset.saved = String(scoped ? el.checked : el.hasAttribute('checked'));
+  });
+  posRefreshDirty();
+}
+
+/** قسم فيه تغيير لم يُحفظ يقول ذلك، بدل أن يسكت. */
+function posRefreshDirty(){
+  document.querySelectorAll('#posSettingsPanelBody .rk-section').forEach(sec=>{
+    const dirty = [...sec.querySelectorAll('input[type="checkbox"]')]
+      .some(el => el.dataset.saved !== undefined && el.dataset.saved !== String(el.checked));
+    sec.classList.toggle('has-unsaved', dirty);
+    // العلامة تُحقن هنا لا في القوالب: القوالب اثنا عشر، وهذا موضع واحد.
+    let note = sec.querySelector('.pos-unsaved-note');
+    if(dirty && !note){
+      note = document.createElement('div');
+      note.className = 'pos-unsaved-note';
+      note.textContent = 'فيه تغيير ما انحفظ — اضغط الزر تحت';
+      sec.appendChild(note);
+    } else if(!dirty && note){ note.remove(); }
+  });
+}
+
+function renderPosReadiness(){
+  const el = document.getElementById('posReadiness');
+  if(!el) return;
+  const r = POS_READINESS;
+  const fmt = iso => { try { return new Date(iso).toLocaleDateString('ar-SA', {day:'numeric', month:'long'}); } catch(_){ return ''; } };
+
+  const rows = [
+    posReadyRow(
+      'كلمة سر المدير',
+      r.managerPinSet,
+      'معيّنة — الكاشير يقدر يعتمد الإغلاق والاسترجاع',
+      'ما تعيّنت — الكاشير ما يقدر يقفل وردية ولا يسترجع مبلغ',
+      r.managerPinSet ? 'تغييرها' : 'تعيينها',
+      'branches', '#managerPinInput'),
+    ...r.branches.map(b => {
+      const at = r.tillByBranch[b.id];
+      return posReadyRow(
+        'جهاز الكاشير — ' + b.name,
+        !!at,
+        'مقترن منذ ' + fmt(at),
+        'ما اقترن بعد — ما يفتح أي جهاز على هذا الفرع',
+        at ? 'تغيير الرمز' : 'اقتران الجهاز',
+        // اقتباس مفرد داخل السمة: data-focus نفسها بمزدوج، والمزدوج
+        // الداخلي كان يقفلها مبكراً فيصل المحدِّد مبتوراً.
+        'branches', ".pos-pin-input[data-branch=" + "'" + b.id + "'" + "]");
+    }),
+  ];
+  const pending = (r.managerPinSet ? 0 : 1) + r.branches.filter(b => !r.tillByBranch[b.id]).length;
+
+  el.innerHTML = `
+    <div class="rk-section pos-ready">
+      ${rkSectionHead('crosshair', 'جاهزية الكاشير',
+        pending ? 'ناقص ' + pending + ' عشان يشتغل جهاز الكاشير' : 'كل شي مضبوط — الباقي تحت تفضيلات')}
+      <div class="pos-ready-rows">${rows.join('')}</div>
+    </div>`;
+
+  el.querySelectorAll('.pos-ready-go').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tabBtn = document.querySelector('#posSettingsTabs button[data-tab="' + btn.dataset.tab + '"]');
+      if(!tabBtn) return;
+      tabBtn.click();
+      // اللوحة تُبنى بعد جلب غير متزامن، فالتركيز ينتظر ظهور الحقل
+      // بدل تخمين مهلة.
+      let tries = 0;
+      const seek = setInterval(() => {
+        const target = document.querySelector(btn.dataset.focus);
+        if(target){ clearInterval(seek); target.focus(); target.scrollIntoView({block:'center'}); }
+        else if(++tries > 40) clearInterval(seek);
+      }, 100);
+    });
+  });
+}
+
 async function renderPosSettings(){
   const panel = document.getElementById('posSettingsPanelBody');
   panel.innerHTML = '<div class="panel"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>';
-  RECEIPT_THEME = await loadReceiptTheme();
-  const svc = await loadServiceSettings();
+  // كل هذي كانت await وراء await — أربع رحلات متتابعة تتكرر مع كل ضغطة
+  // تبويب، فالتبويب يتأخر بقدر مجموعها لا بقدر أطولها. ولا واحدة منها
+  // تعتمد على الأخرى.
+  const sb = window.supabaseClient;
+  const bizId = CURRENT_PROFILE.business_id;
+  const [themeRes, svc, branchesRes, tablesRes, sectionsRes, kitchenRes, pinRes, tillRes] = await Promise.all([
+    loadReceiptTheme(),
+    loadServiceSettings(),
+    sb.from('branches').select('id, name').eq('business_id', bizId).order('id'),
+    sb.from('restaurant_tables').select('id, branch_id, number, active_order_id, section_id').eq('business_id', bizId).order('number'),
+    sb.from('table_sections').select('id, branch_id, name, sort_order').eq('business_id', bizId).order('sort_order'),
+    sb.from('businesses').select('kitchen_ready_mode, kitchen_auto_ready_minutes, kitchen_new_order_sound_enabled, tables_reservations_enabled, tables_reservation_deposit_enabled, tables_reservation_deposit_percent, tables_turn_time_enabled, tables_turn_time_minutes, tables_reservation_conflict_warning_enabled, dine_in_pay_timing, tables_specific_booking_enabled, auto_ready_dine_in, auto_ready_pickup, auto_ready_delivery_platform, auto_ready_delivery_online, pos_hide_popular_tab, pos_hide_search, pos_hide_product_images, pos_hide_notif_bell').eq('id', bizId).single(),
+    // هل كلمة سر المدير معيّنة؟ الترشيح على العمود دون اختياره — تتم
+    // المقارنة في الخادم، والبصمة نفسها لا تغادر قاعدة البيانات.
+    sb.from('businesses').select('id').eq('id', bizId).not('pos_manager_pin_hash', 'is', null),
+    // جهاز كل فرع = حساب الكاشير المشترك الذي ينشئه provision-branch.
+    // وجود الصف هو الاقتران، و created_at هو تاريخه.
+    sb.from('profiles').select('branch_id, created_at').eq('business_id', bizId).eq('user_type', 'employee'),
+  ]);
+  RECEIPT_THEME = themeRes;
   DINE_IN_MODE = svc.mode;
   POS_PAGER_ENABLED = svc.pager;
   KITCHEN_TICKET_MODE = svc.kitchen;
-  const { data: branches } = await window.supabaseClient
-    .from('branches').select('id, name').eq('business_id', CURRENT_PROFILE.business_id).order('id');
-  const { data: tables } = await window.supabaseClient
-    .from('restaurant_tables').select('id, branch_id, number, active_order_id, section_id').eq('business_id', CURRENT_PROFILE.business_id).order('number');
-  const { data: tableSections } = await window.supabaseClient
-    .from('table_sections').select('id, branch_id, name, sort_order').eq('business_id', CURRENT_PROFILE.business_id).order('sort_order');
-  const { data: kitchenSettings } = await window.supabaseClient
-    .from('businesses').select('kitchen_ready_mode, kitchen_auto_ready_minutes, kitchen_new_order_sound_enabled, tables_reservations_enabled, tables_reservation_deposit_enabled, tables_reservation_deposit_percent, tables_turn_time_enabled, tables_turn_time_minutes, tables_reservation_conflict_warning_enabled, dine_in_pay_timing, tables_specific_booking_enabled, auto_ready_dine_in, auto_ready_pickup, auto_ready_delivery_platform, auto_ready_delivery_online, pos_hide_popular_tab, pos_hide_search, pos_hide_hold, pos_hide_product_images, pos_hide_notif_bell')
-    .eq('id', CURRENT_PROFILE.business_id).single();
+  const branches = branchesRes.data;
+  const tables = tablesRes.data;
+  const tableSections = sectionsRes.data;
+  const kitchenSettings = kitchenRes.data;
+  POS_READINESS = {
+    managerPinSet: !!(pinRes.data && pinRes.data.length),
+    tillByBranch: (tillRes.data || []).reduce((m, r) => { m[r.branch_id] = r.created_at; return m; }, {}),
+    branches: branches || [],
+  };
+  renderPosReadiness();
   const hidePopular = !!(kitchenSettings && kitchenSettings.pos_hide_popular_tab);
   const hideSearch = !!(kitchenSettings && kitchenSettings.pos_hide_search);
-  const hideHold = !!(kitchenSettings && kitchenSettings.pos_hide_hold);
   const hideImages = !kitchenSettings || kitchenSettings.pos_hide_product_images !== false;
   const hideBell = !!(kitchenSettings && kitchenSettings.pos_hide_notif_bell);
   const kMode = kitchenSettings && kitchenSettings.kitchen_ready_mode === 'auto' ? 'auto' : 'manual';
@@ -8568,11 +8696,14 @@ async function renderPosSettings(){
   const managerPinPanel = `
     <div class="rk-section">
       <div class="rk-section-head"><div class="rk-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${LOCK_ICON}</svg></div><div><div class="rk-section-title">كلمة سر المدير</div><div class="rk-section-sub">رمز عام يطلبه جهاز الكاشير قبل إغلاق الوردية ومطابقة الكاش — مختلف عن رمز فتح الجهاز نفسه لكل فرع بالأسفل</div></div></div>
+      <div class="pos-code-state rk-switch-desc ${POS_READINESS.managerPinSet ? 'ok' : 'warn'}">${POS_READINESS.managerPinSet
+        ? 'معيّنة الآن. الرمز نفسه ما يُعرض — اكتب رمزاً جديداً لتغييره.'
+        : 'ما تعيّنت بعد.'}</div>
       <div class="rk-field" style="max-width:200px;">
-        <label>رمز اعتماد العمليات الحساسة (٤ أرقام)</label>
+        <label>${POS_READINESS.managerPinSet ? 'رمز جديد (٤ أرقام)' : 'رمز اعتماد العمليات الحساسة (٤ أرقام)'}</label>
         <input type="text" maxlength="4" inputmode="numeric" id="managerPinInput" placeholder="١٢٣٤">
       </div>
-      <button class="rk-btn rk-btn-primary rk-btn-md" id="managerPinSaveBtn" style="margin-top:10px;">تعيين / تحديث</button>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="managerPinSaveBtn" style="margin-top:10px;">${POS_READINESS.managerPinSet ? 'تغيير الرمز' : 'تعيين الرمز'}</button>
       <p class="stock-qty-helper" style="margin-top:10px;">أعطِه لك أو لمن تثق فيه فقط. غيّره في أي وقت من هنا.</p>
       <div class="rk-subblock">
         ${rkSwitchRow('requireManagerPinToggle', REQUIRE_MANAGER_PIN_FOR_CLOSE, 'اطلب كلمة سر المدير عند إغلاق الوردية', 'أطفئه لو اللي يقفل الوردية هو المدير نفسه. الجرد والفرق والسجل ما يتغير شي فيهم — يتغير بس مين يعتمد الإغلاق. إلغاء الطلبات والاسترجاع يظلان يطلبان الرمز.')}
@@ -8585,7 +8716,6 @@ async function renderPosSettings(){
       ${rkSectionHead('sliders', 'تبسيط واجهة الكاشير', 'لو المنيو عندك صغير أو مطعمك يعتمد أسلوب بسيط، هذي الخيارات تخفي أجزاء من شاشة الكاشير ما تحتاجها — ترجعها أي وقت')}
       ${rkSwitchRow('posHidePopularToggle', hidePopular, 'إخفاء تبويب "الأكثر طلبًا" من شريط الأقسام', null, rkPosHidePopularStatus)}
       ${rkSwitchRow('posHideSearchToggle', hideSearch, 'إخفاء شريط البحث/مسح الباركود', null, rkPosHideSearchStatus)}
-      ${rkSwitchRow('posHideHoldToggle', hideHold, 'إخفاء زر "تعليق الطلب"', null, rkPosHideHoldStatus)}
       ${rkSwitchRow('posHideImagesToggle', hideImages, 'إخفاء صور المنتجات', null, rkPosHideImagesStatus)}
       ${rkSwitchRow('posHideBellToggle', hideBell, 'إخفاء جرس تنبيهات التوصيل', null, rkPosHideBellStatus)}
       <button class="rk-btn rk-btn-primary rk-btn-md" id="posSimplifySaveBtn" style="margin-top:16px;">حفظ</button>
@@ -8603,11 +8733,16 @@ async function renderPosSettings(){
     return `
     <div class="rk-section">
       ${rkSectionHead('mapPin', b.name, 'رمز الجهاز لهذا الفرع')}
+      ${(() => { const at = POS_READINESS.tillByBranch[b.id];
+        let when = ''; try { when = at ? new Date(at).toLocaleDateString('ar-SA', {day:'numeric', month:'long', year:'numeric'}) : ''; } catch(_){}
+        return `<div class="pos-code-state rk-switch-desc ${at ? 'ok' : 'warn'}">${at
+          ? 'الجهاز مقترن منذ ' + when + '. الرمز نفسه ما يُعرض — اكتب رمزاً جديداً لتغييره.'
+          : 'ما اقترن أي جهاز بهذا الفرع بعد.'}</div>`; })()}
       <div class="rk-field" style="max-width:260px;">
-        <label>رمز نقطة البيع لهذا الفرع (٤ أرقام)</label>
+        <label>${POS_READINESS.tillByBranch[b.id] ? 'رمز جديد (٤ أرقام)' : 'رمز نقطة البيع لهذا الفرع (٤ أرقام)'}</label>
         <input type="text" maxlength="4" inputmode="numeric" class="pos-pin-input" data-branch="${b.id}" placeholder="١٢٣٤">
       </div>
-      <button class="rk-btn rk-btn-secondary rk-btn-sm pos-pin-save" data-branch="${b.id}" style="margin-top:8px;">تعيين / تحديث</button>
+      <button class="rk-btn rk-btn-secondary rk-btn-sm pos-pin-save" data-branch="${b.id}" style="margin-top:8px;">${POS_READINESS.tillByBranch[b.id] ? 'تغيير الرمز' : 'اقتران الجهاز'}</button>
       <p class="stock-qty-helper" style="margin-top:8px;">هذا الرمز يفتح جهاز الكاشير لهذا الفرع بس — كل الموظفين يستخدمونه، وبعده يختارون اسمهم من القائمة. إدارة الأسماء نفسها من شاشة "الموظفون".</p>
     </div>`;
   }).join('') || '<div class="rk-section"><p>ما فيه فروع بعد.</p></div>';
@@ -8725,6 +8860,8 @@ async function renderPosSettings(){
     branches: managerPinPanel + branchSecurityPanelsHtml,
   };
   panel.innerHTML = POS_SETTINGS_TABS_HTML[activePosSettingsTab] || POS_SETTINGS_TABS_HTML.tables;
+  posSnapshotSwitches();
+  panel.addEventListener('change', posRefreshDirty);
 
   rkWireSwitchStatus('posDineInToggle', rkDineInStatus);
   const posDineInToggle = document.getElementById('posDineInToggle');
@@ -8736,6 +8873,9 @@ async function renderPosSettings(){
     try {
       await updateCurrentBusiness({ dine_in_enabled: enabled });
       DINE_IN_ENABLED = enabled;
+      // هذا المفتاح يحفظ نفسه، فما ينبغي أن يُعلَّم "غير محفوظ".
+      posDineInToggle.dataset.saved = String(enabled);
+      posRefreshDirty();
       logDashboardAudit(enabled ? 'فعّل خدمة الطاولات' : 'عطّل خدمة الطاولات');
     } catch(err){
       posDineInToggle.checked = !enabled;
@@ -8748,7 +8888,6 @@ async function renderPosSettings(){
 
   rkWireSwitchStatus('posHidePopularToggle', rkPosHidePopularStatus);
   rkWireSwitchStatus('posHideSearchToggle', rkPosHideSearchStatus);
-  rkWireSwitchStatus('posHideHoldToggle', rkPosHideHoldStatus);
   rkWireSwitchStatus('posHideImagesToggle', rkPosHideImagesStatus);
   rkWireSwitchStatus('posHideBellToggle', rkPosHideBellStatus);
 
@@ -8759,7 +8898,6 @@ async function renderPosSettings(){
       await updateCurrentBusiness({
         pos_hide_popular_tab: document.getElementById('posHidePopularToggle').checked,
         pos_hide_search: document.getElementById('posHideSearchToggle').checked,
-        pos_hide_hold: document.getElementById('posHideHoldToggle').checked,
         pos_hide_product_images: document.getElementById('posHideImagesToggle').checked,
         pos_hide_notif_bell: document.getElementById('posHideBellToggle').checked,
       });
@@ -9276,6 +9414,9 @@ function rkBtnSuccess(btn, label){
   btn.disabled = false;
   btn.dataset.successLabel = label || '✓ تم';
   btn.classList.add('is-success');
+  // بعد حفظ ناجح داخل شاشة الكاشير، القيم المعروضة صارت هي المحفوظة.
+  const posSection = btn.closest('#posSettingsPanelBody .rk-section');
+  if(posSection && typeof posSnapshotSwitches === 'function') posSnapshotSwitches(posSection);
   setTimeout(()=>{
     btn.classList.remove('is-success');
   }, 1100);

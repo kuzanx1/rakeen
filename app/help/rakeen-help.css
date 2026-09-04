@@ -1,0 +1,198 @@
+/* Type system: same self-hosted Thmanyah trio + Tajawal fallback used across
+   the landing page (see rakeen-landing.css) — the help center is a public,
+   brand-facing surface, not an operational screen, so it follows landing's
+   type system rather than the dashboard's. */
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=IBM+Plex+Mono:wght@500;600;700&display=swap');
+
+@font-face{ font-family:'Thmanyah Sans'; src:url('/fonts/thmanyah-sans/thmanyahsans-Regular.woff2') format('woff2'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face{ font-family:'Thmanyah Sans'; src:url('/fonts/thmanyah-sans/thmanyahsans-Medium.woff2') format('woff2'); font-weight:500; font-style:normal; font-display:swap; }
+@font-face{ font-family:'Thmanyah Sans'; src:url('/fonts/thmanyah-sans/thmanyahsans-Bold.woff2') format('woff2'); font-weight:700; font-style:normal; font-display:swap; }
+@font-face{ font-family:'Thmanyah Sans'; src:url('/fonts/thmanyah-sans/thmanyahsans-Black.woff2') format('woff2'); font-weight:800 900; font-style:normal; font-display:swap; }
+@font-face{ font-family:'Thmanyah Serif Text'; src:url('/fonts/thmanyah-serif-text/thmanyahseriftext-Bold.woff2') format('woff2'); font-weight:700; font-style:normal; font-display:swap; }
+@font-face{ font-family:'Thmanyah Serif Text'; src:url('/fonts/thmanyah-serif-text/thmanyahseriftext-Medium.woff2') format('woff2'); font-weight:500; font-style:normal; font-display:swap; }
+
+:root{
+  --paper:#FBFAF5; --ink:#171717; --lime:#C4FF2B; --lime-deep:#7BAD0F; --stone:#EFEEE7;
+  --line:rgba(23,23,23,0.1); --line-soft:rgba(23,23,23,0.06); --muted:rgba(23,23,23,0.55); --danger:#B0402C;
+  --font-sans:'Thmanyah Sans', 'Tajawal', sans-serif;
+  --font-serif-text:'Thmanyah Serif Text', 'Thmanyah Sans', 'Tajawal', serif;
+}
+
+.help-root{
+  background:var(--paper); color:var(--ink); font-family:var(--font-sans);
+  direction:rtl; text-align:right; line-height:1.75; min-height:100vh;
+}
+.help-root *{ box-sizing:border-box; }
+.help-root .mono{ font-family:'IBM Plex Mono',monospace; direction:ltr; unicode-bidi:isolate; font-variant-numeric:tabular-nums; }
+.help-wrap{ max-width:980px; margin:0 auto; padding:0 20px 100px; }
+
+/* ---------- Masthead ---------- */
+.help-masthead{ padding:52px 20px 30px; border-bottom:1px solid var(--line); }
+.help-masthead .help-wrap{ padding:0; }
+.help-eyebrow{
+  display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:700;
+  letter-spacing:.04em; color:var(--lime-deep); background:rgba(196,255,43,.14);
+  border:1px solid rgba(196,255,43,.4); padding:5px 12px; border-radius:999px; margin-bottom:16px;
+}
+.help-masthead h1{
+  font-family:var(--font-serif-text); font-weight:700; font-size:clamp(28px,4.6vw,40px);
+  line-height:1.3; text-wrap:balance; margin:0;
+}
+.help-masthead p{ margin:14px 0 0; max-width:58ch; color:var(--muted); font-size:16px; }
+
+/* ---------- Search ---------- */
+.help-search{ position:relative; max-width:520px; margin-top:24px; }
+.help-search-box{
+  display:flex; align-items:center; gap:10px; background:var(--paper); border:1.5px solid var(--line);
+  border-radius:14px; padding:13px 16px; transition:border-color .12s ease, box-shadow .12s ease;
+}
+.help-search-box:focus-within{ border-color:var(--lime-deep); box-shadow:0 0 0 3px rgba(196,255,43,.22); }
+.help-search-box svg{ flex-shrink:0; color:var(--muted); width:18px; height:18px; }
+.help-search-box input{
+  flex:1; min-width:0; border:none; outline:none; background:none; color:var(--ink);
+  font-family:var(--font-sans); font-size:14.5px;
+}
+.help-search-box input::placeholder{ color:var(--muted); }
+.help-search-clear{
+  flex-shrink:0; border:none; background:var(--stone); color:var(--muted); width:22px; height:22px;
+  border-radius:50%; font-size:12px; line-height:1; cursor:pointer;
+}
+.help-search-results{
+  position:absolute; top:calc(100% + 8px); right:0; left:0; z-index:20;
+  background:var(--paper); border:1px solid var(--line); border-radius:14px;
+  box-shadow:0 16px 40px -12px rgba(23,23,23,.25); overflow:hidden; max-height:70vh; overflow-y:auto;
+}
+.help-search-result{
+  display:block; padding:12px 16px; text-decoration:none; color:var(--ink); border-bottom:1px solid var(--line-soft);
+}
+.help-search-result:last-child{ border-bottom:none; }
+.help-search-result:hover, .help-search-result.active{ background:var(--stone); }
+.help-search-result-kicker{ font-size:10.5px; font-weight:700; color:var(--lime-deep); letter-spacing:.03em; }
+.help-search-result-title{ font-size:13.6px; font-weight:700; margin-top:2px; }
+.help-search-result-snippet{ font-size:12px; color:var(--muted); margin-top:3px; line-height:1.5; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; }
+.help-search-empty{ padding:16px; font-size:13px; color:var(--muted); text-align:center; }
+
+/* ---------- Section topic nav ---------- */
+.help-nav{ display:flex; flex-wrap:wrap; gap:8px; margin-top:26px; }
+.help-nav a{
+  display:inline-flex; align-items:center; gap:6px; font-size:13.5px; font-weight:600;
+  color:var(--ink); background:var(--stone); border:1px solid var(--line); border-radius:999px;
+  padding:8px 15px; text-decoration:none;
+}
+.help-nav a.soon{ color:var(--muted); }
+.help-nav a.soon span.dot{ width:5px; height:5px; border-radius:50%; background:var(--muted); }
+
+/* ---------- Feature block (headline pattern from the landing page) ---------- */
+.help-feat{ padding:52px 0; border-bottom:1px solid var(--line-soft); }
+.help-feat:last-of-type{ border-bottom:none; }
+.help-feat-kicker{ font-size:12.5px; font-weight:700; color:var(--lime-deep); letter-spacing:.04em; margin-bottom:10px; display:block; }
+.help-feat h2{
+  font-family:var(--font-serif-text); font-weight:700; font-size:clamp(21px,3.2vw,27px);
+  text-wrap:balance; margin:0;
+}
+.help-feat p.sub{ margin:10px 0 0; color:var(--muted); font-size:15px; max-width:60ch; }
+
+/* ---------- Order-state chips (the real channel/source taxonomy) ---------- */
+.help-states{ margin-top:20px; display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; }
+.state-chip{
+  display:flex; gap:10px; align-items:flex-start; background:var(--stone); border:1px solid var(--line);
+  border-radius:14px; padding:13px 15px;
+}
+.state-chip .glyph{ font-size:18px; line-height:1.4; flex-shrink:0; }
+.state-chip b{ display:block; font-size:13.6px; font-weight:700; margin-bottom:2px; }
+.state-chip span{ font-size:12.6px; color:var(--muted); line-height:1.55; }
+.help-note{
+  margin-top:12px; font-size:12.8px; color:var(--muted); background:transparent;
+  border-inline-start:2px solid var(--line); padding-inline-start:12px;
+}
+
+/* ---------- Device frame (real screens, embedded verbatim via iframe) ----------
+   Each preview's iframe is authored at a fixed "design" pixel size (matching
+   the real screen it snapshots — e.g. 1040x640 for the POS/kitchen tablet
+   layout) and then visually shrunk as ONE whole via a container-query-driven
+   transform:scale(), rather than left to reflow at whatever narrow width the
+   device-frame happens to render at. Two real mobile bugs this fixes:
+   1. Without this, a 1040px-wide POS layout squeezed into a 340px phone
+      column would either overflow sideways or hit the real POS/dashboard
+      CSS's OWN responsive breakpoints (designed for their real app shells,
+      not a small embedded snapshot) and reflow into something broken.
+      Scaling the fixed-size box down keeps it a faithful, readable miniature
+      instead — exactly like a shrunk screenshot.
+   2. `pointer-events:none` on every preview iframe stops a phone's
+      touch-scroll gesture from ever being captured by the iframe's OWN
+      internal scroll (a real bug: a finger landing on a preview mid-scroll
+      would scroll the preview a few pixels instead of the help page). These
+      previews are frozen, non-interactive snapshots — nothing inside them
+      needs pointer events. */
+.device-frame{
+  margin-top:26px; border-radius:22px; background:#101012; padding:14px;
+  box-shadow:0 1px 2px rgba(23,23,23,.06), 0 24px 48px -28px rgba(23,23,23,.35);
+}
+.device-frame .device-cam{
+  width:52px; height:6px; border-radius:99px; background:rgba(245,245,247,.14); margin:0 auto 10px;
+}
+.frame-view{ position:relative; overflow:hidden; border-radius:12px; background:#fff; container-type:inline-size; }
+.frame-view iframe{
+  position:absolute; left:0; top:0; border:none; pointer-events:none; transform-origin:top left;
+}
+.device-frame.tablet .frame-view{ aspect-ratio:1040/640; }
+.device-frame.tablet .frame-view iframe{ width:1040px; height:640px; transform:scale(calc(100cqw / 1040px)); }
+
+.device-frame.compact{ max-width:420px; }
+.device-frame.compact .frame-view{ aspect-ratio:420/620; }
+.device-frame.compact .frame-view iframe{ width:420px; height:620px; transform:scale(calc(100cqw / 420px)); }
+.device-frame.compact.wide-compact{ max-width:480px; }
+.device-frame.compact.wide-compact .frame-view{ aspect-ratio:480/900; }
+.device-frame.compact.wide-compact .frame-view iframe{ width:480px; height:900px; transform:scale(calc(100cqw / 480px)); }
+
+/* Desktop-browser variant — the dashboard is a desktop tool, not a tablet
+   app, so its previews sit in a flat window chrome instead of the device
+   bezel used for POS/kitchen. */
+.device-frame.browser{ background:var(--stone); padding:0; border:1px solid var(--line); overflow:hidden; }
+.device-frame.browser .browser-bar{
+  display:flex; gap:7px; align-items:center; padding:11px 14px; background:var(--paper); border-bottom:1px solid var(--line);
+}
+.device-frame.browser .browser-bar .dot{ width:10px; height:10px; border-radius:50%; }
+.device-frame.browser .browser-bar .dot.r{ background:#EC6A5E; }
+.device-frame.browser .browser-bar .dot.y{ background:#F4BF4F; }
+.device-frame.browser .browser-bar .dot.g{ background:#61C554; }
+.device-frame.browser .frame-view{ border-radius:0; aspect-ratio:960/720; }
+.device-frame.browser .frame-view iframe{ width:960px; height:720px; transform:scale(calc(100cqw / 960px)); }
+.device-frame.browser.wide .frame-view{ aspect-ratio:960/560; }
+.device-frame.browser.wide .frame-view iframe{ width:960px; height:560px; transform:scale(calc(100cqw / 960px)); }
+.device-caption{
+  display:flex; align-items:center; gap:7px; margin-top:12px; font-size:12px; color:var(--muted);
+}
+.device-caption .dot{ width:6px; height:6px; border-radius:50%; background:var(--lime-deep); flex-shrink:0; }
+
+/* ---------- Plain-language step list ---------- */
+.help-steps{ margin-top:22px; display:grid; gap:10px; padding:0; list-style:none; }
+.help-steps li{
+  display:grid; grid-template-columns:24px 1fr; gap:12px; font-size:14.5px; color:var(--ink); align-items:baseline;
+}
+.help-steps li .n{ font-family:'IBM Plex Mono',monospace; color:var(--lime-deep); font-weight:700; font-size:13px; }
+.help-steps li b{ font-weight:600; }
+.help-steps li span.d{ color:var(--muted); }
+
+.help-callouts{ margin-top:22px; display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; }
+.callout{
+  background:var(--stone); border:1px solid var(--line); border-radius:14px; padding:14px 16px; font-size:13.3px; color:var(--muted);
+}
+.callout b{ display:block; color:var(--ink); font-size:13.6px; font-weight:600; margin-bottom:3px; }
+
+/* ---------- Coming soon sections ---------- */
+.soon-grid{ margin-top:22px; display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px; }
+.soon-card{
+  border:1px dashed var(--line); border-radius:16px; padding:20px; background:transparent;
+}
+.soon-card .glyph{ font-size:22px; display:block; margin-bottom:10px; opacity:.7; }
+.soon-card b{ display:block; font-size:14.5px; font-weight:600; margin-bottom:5px; }
+.soon-card span{ font-size:12.8px; color:var(--muted); }
+.soon-tag{
+  display:inline-block; margin-top:10px; font-size:10.5px; font-weight:700; letter-spacing:.03em;
+  color:var(--muted); background:var(--paper); border:1px solid var(--line); border-radius:999px; padding:2px 9px;
+}
+
+@media (max-width:640px){
+  .device-frame.tablet iframe{ aspect-ratio:640/760; }
+}

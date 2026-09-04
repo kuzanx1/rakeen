@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>آلية شاشة المطبخ — معاينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap">
+<!-- نفس ملف ستايل لوحة التحكم الحقيقي بالإنتاج (app/dashboard/rakeen-dashboard.css) -->
+<link rel="stylesheet" href="/help/previews/rakeen-dashboard.css">
+<style>
+  /* منسوخ حرفيًا من kitchenPanel داخل public/dashboard/rakeen-dashboard.js —
+     قسم "آلية شاشة المطبخ" ضمن تبويب "شاشة المطبخ" بإعدادات الكاشير. */
+  html,body{ height:auto; min-height:100%; overflow:visible; display:block; }
+  body{ padding:24px; }
+  .rk-page{ max-width:560px; margin-inline:auto; }
+  input, select, button{ pointer-events:none; }
+</style>
+</head>
+<body>
+
+<div class="rk-page">
+  <div class="settings-tabs">
+    <button>أنواع الطلبات</button>
+    <button>الفاتورة والطباعة</button>
+    <button>واجهة الكاشير</button>
+    <button class="active">شاشة المطبخ</button>
+    <button>الفروع والأمان</button>
+  </div>
+
+  <div class="rk-section">
+    <div class="rk-section-head">
+      <div class="rk-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></div>
+      <div>
+        <div class="rk-section-title">آلية شاشة المطبخ</div>
+        <div class="rk-section-sub">كيف تنتهي فاتورة الطلب من شاشة المطبخ</div>
+      </div>
+    </div>
+    <div class="rk-field">
+      <label>كيف تنتهي الطلبات من شاشة المطبخ؟</label>
+      <select><option>تلقائي — تختفي الفاتورة بعد وقت محدد بدون ضغط</option></select>
+    </div>
+    <div class="rk-field" style="margin-top:12px; max-width:160px;">
+      <label>الوقت التلقائي (بالدقائق)</label>
+      <input type="number" value="12">
+    </div>
+    <div class="rk-switch-row" style="margin-top:8px;">
+      <div class="rk-switch-text"><label class="rk-switch-label">صوت تنبيه بشاشة المطبخ عند وصول طلب جديد</label></div>
+      <label class="rk-switch"><input type="checkbox" checked><span class="rk-switch-track"></span></label>
+    </div>
+    <button class="rk-btn rk-btn-primary rk-btn-md" style="margin-top:14px;">حفظ إعدادات المطبخ</button>
+  </div>
+</div>
+
+</body>
+</html>

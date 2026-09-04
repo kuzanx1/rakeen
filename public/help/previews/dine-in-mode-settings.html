@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>الطلب المحلي — معاينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap">
+<!-- نفس ملف ستايل لوحة التحكم الحقيقي بالإنتاج (app/dashboard/rakeen-dashboard.css) -->
+<link rel="stylesheet" href="/help/previews/rakeen-dashboard.css">
+<style>
+  /* منسوخ حرفيًا من renderPosSettings داخل public/dashboard/rakeen-dashboard.js —
+     قسم "الطلب المحلي" ضمن تبويب "أنواع الطلبات" بإعدادات الكاشير. */
+  html,body{ height:auto; min-height:100%; overflow:visible; display:block; }
+  body{ padding:24px; }
+  .rk-page{ max-width:640px; margin-inline:auto; }
+  input, button{ pointer-events:none; }
+</style>
+</head>
+<body>
+
+<div class="rk-page">
+  <div class="settings-tabs">
+    <button class="active">أنواع الطلبات</button>
+    <button>الفاتورة والطباعة</button>
+    <button>واجهة الكاشير</button>
+    <button>شاشة المطبخ</button>
+    <button>الفروع والأمان</button>
+  </div>
+
+  <div class="rk-section">
+    <div class="rk-section-head">
+      <div class="rk-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></div>
+      <div>
+        <div class="rk-section-title">الطلب المحلي</div>
+        <div class="rk-section-sub">الفرق عن السفري إن المطبخ يجهّزه بصحون بدل أكياس — وتحتها تختار كيف تديره</div>
+      </div>
+    </div>
+    <div class="rk-switch-row">
+      <div class="rk-switch-text">
+        <label class="rk-switch-label">تفعيل الطلب المحلي</label>
+      </div>
+      <label class="rk-switch"><input type="checkbox" checked><span class="rk-switch-track"></span></label>
+    </div>
+    <div class="rk-subblock">
+      <div class="rk-theme-cards">
+        <button type="button" class="rk-theme-card">
+          <span class="rk-theme-card-name">محلي بسيط</span>
+          <span class="rk-theme-card-desc">العميل يطلب من الكاشير ويجلس أي مكان ويستلم بنفسه. ما فيه أرقام طاولات ولا حجوزات — بس المطبخ يعرف إنه بصحون.</span>
+        </button>
+        <button type="button" class="rk-theme-card selected">
+          <span class="rk-theme-card-name">خدمة طاولات كاملة</span>
+          <span class="rk-theme-card-desc">أرقام طاولات، فتح وإقفال حساب لكل طاولة، أقسام، وحجوزات.</span>
+        </button>
+      </div>
+      <button class="rk-btn rk-btn-secondary rk-btn-md" style="margin-top:12px;">حفظ نظام المحلي</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,3 +1,4 @@
+/* Snapshot copy of app/dashboard/rakeen-dashboard.css for the help center's static screen previews (public/help/previews/) — served as a real static file since Next.js only bundles the app/dashboard/ source, not exposes it at a URL. Re-copy if the real dashboard stylesheet changes; these previews are documentation, not live app code. */
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap');
 
 /* Used only inside the "المنيو الإلكتروني" design tab's live preview mockup,
@@ -1849,56 +1850,3 @@ select:not([class]){min-width:150px;}
    and packed, explicitly below the 44px floor used for real controls.
    Left alone. A measurement flags a candidate; it does not overrule a
    decision someone already made on purpose. */
-
-/* ============ شاشة الكاشير — شريط الجاهزية ============
-   السؤال الذي فُتحت الصفحة لأجله: هل جهاز الكاشير صالح للاستعمال، ومن
-   يقدر يعتمد الاسترجاع؟ الجواب فوق التبويبات، لا داخل آخر واحد منها.
-   البطاقة هي .rk-section نفسها بلا استثناء، والإيقاع هو إيقاع
-   .rk-switch-row: حشو ١٣px فوق وتحت، وخط فاصل بين الأشقاء فقط — لا خط
-   تحت الأخير لأنه يُقرأ صفاً ناقصاً. */
-.pos-ready .rk-section-head{margin-bottom:14px;}
-.pos-ready-rows{display:flex; flex-direction:column; gap:8px;}
-/* هندسة .onboard-step: علامة، نص يتمدد، سهم. الصف كله هو الهدف، فما
-   فيه زر صغير يتيم على الحافة الأخرى. */
-.pos-ready-row{
-  display:flex; align-items:center; gap:14px; width:100%; text-align:start;
-  padding:14px 16px; border-radius:var(--r-md);
-  background:var(--surf1); border:1px solid var(--line);
-  font-family:inherit; cursor:pointer; transition:border-color .12s ease, background .12s ease;
-}
-.pos-ready-row:hover{border-color:var(--lime-deep);}
-.pos-ready-row:focus-visible{outline:2px solid var(--lime-deep); outline-offset:2px;}
-.pos-ready-mark{
-  width:28px; height:28px; border-radius:50%; flex-shrink:0;
-  display:flex; align-items:center; justify-content:center;
-  font-weight:800; font-size:13px;
-  background:var(--card-bg); border:1.5px solid var(--amber); color:var(--amber);
-}
-/* الليمي وحده يصلح تعبئة: فاتح في الثيمين، فالجرافيت فوقه يُقرأ في
-   الاثنين — وهو ما تفعله .onboard-step.done نفسها. */
-.pos-ready-row.is-ready .pos-ready-mark{
-  background:var(--lime); border-color:var(--lime); color:var(--graphite);
-}
-.pos-ready-text{flex:1; min-width:0; display:flex; flex-direction:column; gap:2px;}
-.pos-ready-label{font-size:13px; font-weight:800; color:var(--text);}
-.pos-ready-state{font-size:11px; font-weight:600; color:var(--muted); line-height:1.5;}
-.pos-ready-row:not(.is-ready) .pos-ready-state{color:var(--amber); font-weight:700;}
-.pos-ready-action{font-size:11.5px; font-weight:800; color:var(--lime-deep); flex-shrink:0;}
-.pos-ready-arrow{color:var(--lime-deep); font-size:15px; font-weight:800; flex-shrink:0;}
-/* على الجوال يسقط نص الإجراء ويبقى السهم — الصف كله مضغوط أصلاً. */
-@media (max-width:560px){ .pos-ready-action{display:none;} }
-
-/* حالة الرمز داخل قسمه — نفس نبرة ok/warn الموجودة، فوق الحقل مباشرة
-   لأنها تجيب على "هل أكتب رمزاً؟" قبل أن يُسأل السؤال. */
-.pos-code-state{margin:-8px 0 14px;}
-
-/* تغيير لم يُحفظ بعد. الحدّ الشعري وحده يكفي — لا ظل، ولا خلفية ليمية:
-   الليمي لهجة لا سطح. */
-#posSettingsPanelBody .rk-section.has-unsaved{border-color:var(--amber);}
-.pos-unsaved-note{
-  display:flex; align-items:center; gap:7px; margin-top:12px;
-  font-size:11.5px; font-weight:700; color:var(--amber);
-}
-.pos-unsaved-note::before{
-  content:''; width:7px; height:7px; border-radius:50%; background:var(--amber); flex-shrink:0;
-}

@@ -1,0 +1,693 @@
+/* Snapshot copy of app/pos/rakeen-pos-additions.css for the help center's static screen previews (public/help/previews/) — served as a real static file since Next.js only bundles the app/pos/ source, not exposes it at a URL. Re-copy if the real POS stylesheet changes; these previews are documentation, not live app code. */
+/* Additive layer for rakeen-pos.css — kept separate so the original
+   stylesheet stays untouched. Covers the real-auth screens (provisioning +
+   cashier PIN login), which don't exist in the original prototype, plus
+   small-viewport breakpoints. */
+
+.hidden { display: none !important; }
+
+.pos-auth-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--canvas);
+  padding: 20px;
+}
+.pos-auth-card {
+  width: 360px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  padding: 36px 30px 30px;
+  box-shadow: var(--shadow-panel);
+}
+.pos-auth-title {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 7px;
+}
+.pos-auth-sub {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 22px;
+  line-height: 1.65;
+}
+.pos-auth-field {
+  width: 100%;
+  margin-bottom: 11px;
+  text-align: start;
+}
+/* :not(.pos-check) — same collision class as the width:100% fix above:
+   ".pos-auth-field label" (1 class + 1 element) beats ".pos-check" (1 class)
+   on specificity alone regardless of source order, so without this exception
+   every .pos-check row silently lost its flex layout to this block-display
+   reset and stacked the checkbox above its label text instead of beside it. */
+.pos-auth-field label:not(.pos-check) {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+/* Real reported bug: this used to match every <input> including the
+   type="checkbox" rows further down (printCustomerReceiptToggle etc) —
+   width:100% stretched a native checkbox to fill the whole row, squeezing
+   its label text into a single narrow multi-line sliver next to it. Text
+   inputs/selects still get the full-width treatment; checkboxes get their
+   own sizing via .pos-check below instead. */
+.pos-auth-field input:not([type="checkbox"]),
+.pos-auth-field select {
+  width: 100%;
+  padding: 13px 15px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surf1);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+}
+/* Rakeen-identity checkbox (mirrors the dashboard's rk-check, POS-flavored)
+   — replaces every bare native checkbox in Settings, whose default OS
+   styling (blue checkmark, arbitrary browser sizing) read as un-styled and
+   off-brand next to the rest of the app. */
+.pos-check {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 2px;
+  cursor: pointer;
+}
+.pos-check input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.pos-check-box {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  border-radius: 6px;
+  border: 1.5px solid var(--line);
+  background: var(--surf1);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .12s ease, border-color .12s ease;
+}
+.pos-check-box svg { width: 13px; height: 13px; opacity: 0; transition: opacity .1s ease; }
+.pos-check input:checked + .pos-check-box { background: var(--lime); border-color: var(--lime); }
+.pos-check input:checked + .pos-check-box svg { opacity: 1; color: var(--flag-green-deep); }
+.pos-check input:focus-visible + .pos-check-box { box-shadow: 0 0 0 3px rgba(var(--lime-deep-rgb), 0.35); }
+.pos-check-label { font-size: 12.5px; font-weight: 700; line-height: 1.5; }
+.pos-auth-field input:focus,
+.pos-auth-field select:focus {
+  outline: none;
+  border-color: var(--lime-deep);
+}
+.pos-auth-error {
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.pos-auth-reprovision {
+  display: inline-block;
+  margin-top: 18px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+}
+.auth-util-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surf1);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.pos-staff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  width: 100%;
+}
+.pos-staff-btn {
+  width: 100%;
+  padding: 15px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surf1);
+  color: var(--text);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color .12s ease, background .12s ease;
+}
+.pos-staff-btn:active { background: var(--lime); color: var(--flag-green-deep); border-color: var(--lime); }
+
+.channel-row {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surf1);
+  border-radius: var(--r-full);
+  margin-top: 8px;
+}
+.channel-btn {
+  flex: 1;
+  padding: 8px 4px;
+  border-radius: var(--r-full);
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background .12s ease, color .12s ease;
+}
+.channel-btn.active { background: var(--lime); color: var(--flag-green-deep); box-shadow: 0 4px 12px rgba(var(--lime-deep-rgb), 0.3); }
+.platform-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.platform-btn {
+  flex: 1 1 calc(33.333% - 6px);
+  min-width: 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 6px;
+  border-radius: var(--r-md);
+  border: 1.5px solid var(--line);
+  background: var(--surf1);
+  color: var(--text);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+.platform-btn img { width: 30px; height: 30px; border-radius: 8px; object-fit: cover; }
+.platform-btn-initial {
+  width: 30px; height: 30px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 13px; color: rgba(255,255,255,0.92);
+}
+.platform-btn.active {
+  border-color: var(--platform-color, var(--lime-deep));
+  box-shadow: var(--shadow-sm);
+}
+
+/* Merged Orders+Delivery "جارية" tab — active delivery orders as small ring
+   cards packed into a grid (so a busy branch with many concurrent orders
+   doesn't turn into a long one-per-row scroll), sitting above the plain
+   held-order rows in the same list. */
+.dorder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  grid-auto-rows: min-content; /* see .product-grid in rakeen-pos.css for why */
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.dorder-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 3px;
+  padding: 16px 10px 12px;
+  border-radius: var(--r-lg);
+  background: linear-gradient(165deg, var(--surf1), var(--card-bg) 65%);
+  box-shadow: var(--shadow-sm);
+  border: 1.5px solid var(--line);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: transform .1s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.dorder-card::before {
+  content: '';
+  position: absolute; inset: 0 0 auto; height: 2.5px;
+  background: linear-gradient(90deg, var(--lime-deep), var(--lime));
+  opacity: 0; transition: opacity .15s ease;
+}
+.dorder-card:hover::before { opacity: 1; }
+.dorder-card:active { transform: scale(0.97); }
+.dorder-ring-wrap {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--lime-rgb), 0.1), transparent 70%);
+}
+.dorder-ring { display: block; }
+.dorder-ring-time {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 800;
+}
+.dorder-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.dorder-logo, .dorder-logo-initial {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  object-fit: cover;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+}
+.dorder-logo-initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 10px;
+  color: rgba(255,255,255,0.92);
+}
+.dorder-id { font-weight: 800; font-size: 12px; }
+.dorder-platform {
+  font-size: 10px; font-weight: 600; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
+}
+.dorder-total {
+  font-weight: 800; font-size: 13.5px; margin-top: 3px; padding-top: 6px;
+  width: 100%; border-top: 1px dashed var(--line); color: var(--lime-deep);
+}
+[data-theme="dark"] .dorder-total { color: var(--lime); }
+.dorder-ready-btn, .pickup-ready-btn {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 0;
+  border-radius: var(--r-full);
+  border: none;
+  background: linear-gradient(155deg, var(--lime), var(--lime-deep));
+  color: var(--flag-green-deep);
+  font-weight: 800;
+  font-size: 11px;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(var(--lime-deep-rgb), 0.28);
+}
+
+/* Urgency pulse — an order past the 5-min warning or fully expired stands
+   out even packed tightly in the grid, so the cashier can spot the late
+   order at a glance without reading every timer. */
+@keyframes dorderPulseWarn {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--amber-rgb), 0.45); }
+  50% { box-shadow: 0 0 0 6px rgba(var(--amber-rgb), 0); }
+}
+@keyframes dorderPulseUrgent {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--danger-rgb), 0.5); }
+  50% { box-shadow: 0 0 0 7px rgba(var(--danger-rgb), 0); }
+}
+.dorder-card.warn {
+  border-color: var(--amber);
+  animation: dorderPulseWarn 1.6s ease-in-out infinite;
+}
+.dorder-card.urgent {
+  border-color: var(--danger);
+  animation: dorderPulseUrgent 1.2s ease-in-out infinite;
+}
+
+/* Ready and handed to the delivery rep — no more prep countdown (that
+   deadline no longer applies), just how long it's been waiting for the
+   cashier to confirm the rep actually dropped it off. */
+.dorder-card.out-for-delivery { border-color: var(--lime-deep); }
+.dorder-out-icon {
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  background: radial-gradient(circle, rgba(var(--lime-rgb), 0.15), transparent 70%);
+}
+.dorder-out-waiting {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--lime-deep);
+  margin-top: 2px;
+}
+[data-theme="dark"] .dorder-out-waiting { color: var(--lime); }
+.dorder-delivered-btn, .pickup-delivered-btn {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 0;
+  border-radius: var(--r-full);
+  border: none;
+  background: linear-gradient(155deg, var(--lime), var(--lime-deep));
+  color: var(--flag-green-deep);
+  font-weight: 800;
+  font-size: 11px;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(var(--lime-deep-rgb), 0.28);
+}
+/* Optional secondary milestone — smaller/quieter than the primary
+   delivered button so it doesn't compete with it visually. */
+.dorder-out-btn {
+  width: 100%;
+  margin-top: 6px;
+  padding: 7px 0;
+  border-radius: var(--r-full);
+  border: 1.5px solid var(--lime-deep);
+  background: transparent;
+  color: var(--lime-deep);
+  font-weight: 800;
+  font-size: 11px;
+  cursor: pointer;
+}
+[data-theme="dark"] .dorder-out-btn { color: var(--lime); border-color: var(--lime); }
+
+/* Customer-picked-a-later-time alert — loud on purpose, so the cashier
+   registers it's not a normal ASAP order at a glance (see pickupTimeNoteHtml). */
+.pickup-scheduled-alert {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(var(--amber-rgb), 0.16);
+  border: 1.5px solid var(--amber);
+  color: var(--amber);
+  font-weight: 800;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* Responsive: the 3-zone layout (cat-rail | products | order-panel 360px)
+   plus the sidebar icon-rail (rakeen-pos.css, ≥761px) targets 11-12" tablets
+   and wider. Below that the sidebar reverts to a bottom tab bar and the
+   layout stacks into a single scrollable column. */
+@media (max-width: 1100px) and (min-width: 761px) {
+  .order-panel { width: 300px; }
+  .app.home-active > .topbar { inset-inline-end: 300px; } /* keep matching .order-panel's narrower width here */
+  .app.home-active > .bottom-nav { inset-inline-end: 300px; } /* same */
+  /* Squeezed down to just the products column at this width, the topbar's
+     full content (business identity + status pills + staff avatar + theme/
+     lang/notif icons + clock) no longer fits on one line — it was silently
+     overflowing past the topbar's own left edge and landing on top of the
+     order panel (an iPad-portrait-width bug, caught directly on a real
+     login: measured .tb-clock rendering at x:-23..26 while the topbar box
+     itself started at x:315). Wrapping keeps every piece of info intact
+     instead of picking something to delete — however many lines it takes,
+     --topbar-h (rakeen-pos.js) measures the real result and everything
+     else (.cat-sidebar/.products-toolbar/.bottom-nav, in rakeen-pos.css)
+     reads that instead of a second hardcoded guess here. */
+  .app.home-active > .topbar { flex-wrap:wrap; height:auto; min-height:88px; padding-block:8px; align-content:center; }
+}
+
+@media (max-width: 760px) {
+  body { overflow: auto; height: auto; min-height: 100vh; padding: 0; }
+  /* Real reported bug: the topbar and bottom-nav are normal-flow flex
+     children of .app on desktop (a fixed 100vh shell, never needs page
+     scroll). Here .app grows to fit all content instead (needed so Home's
+     stacked mobile layout — grid then cart below it — has somewhere to
+     scroll to), which means both bars just sit once at their natural flow
+     position and scroll away with everything else instead of staying
+     docked — exactly the "bottom nav disappears" / tabs seem to "move"
+     complaint (what actually moved was the whole page under them). Pinning
+     them to the viewport and padding .app to clear their height fixes both
+     without touching the "whole page scrolls" strategy Home's layout relies
+     on. */
+  .app { height: auto; min-height: 100vh; border-radius: 0; box-shadow: none; border: none; padding-top: calc(58px + env(safe-area-inset-top, 0px)); padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px)); }
+  .screens { overflow: visible; }
+  .screen.active { position: static; height: auto; }
+
+  .status-group, .tb-clock { display: none; }
+  .topbar {
+    position: fixed; top: 0; inset-inline: 0; z-index: 30;
+    padding-top: env(safe-area-inset-top, 0px);
+    gap: 8px; padding-inline: 12px; height: calc(58px + env(safe-area-inset-top, 0px));
+  }
+  .bottom-nav {
+    position: fixed; bottom: 0; inset-inline: 0; z-index: 30;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    height: calc(68px + env(safe-area-inset-bottom, 0px));
+  }
+  .identity-branch { display: none; }
+  .identity-cluster, .user-cluster { min-width: 0; }
+  .identity-text { min-width: 0; }
+  .identity-name { max-width: 68px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .identity-cluster .identity-text { display: none; }
+  .user-cluster { padding-inline-start: 8px; gap: 6px; }
+
+  .home-zones { flex-direction: column; overflow: visible; }
+
+  /* The vertical category sidebar (rakeen-pos.css) works great on tablet+
+     widths where there's room to spare, but on a narrow phone dedicating a
+     whole column to it leaves barely anything for products — revert to a
+     horizontal scrolling strip here instead, same as it always was. */
+  .cat-sidebar { width: 100%; flex-direction: row; overflow-x: auto; overflow-y: visible; border-inline-end: none; border-bottom: 1px solid var(--line); padding: 10px 12px; background: none; }
+  .cat-sidebar .cat-btn { flex-direction: row; padding: 8px 14px; border-radius: var(--r-full); white-space: nowrap; width: auto; }
+  .cat-sidebar .cat-btn .ci { font-size: 14px; }
+  .cat-sidebar .cat-btn .ci svg { width: 15px; height: 15px; }
+
+  .products-zone { overflow: visible; }
+  /* Real reported bug: overflow-y:visible on a max-height-capped grid doesn't
+     clip or scroll — it just paints past its own box. Every .product-card is
+     position:relative (the star/dot/price badges need it as their anchor),
+     so those overflowing cards were painting ON TOP of .order-panel right
+     after it in the stacking order, hiding the cart underneath the menu.
+     Scrolling internally within the grid's own 60vh cap keeps the cart
+     always visible below it without needing that. */
+  .product-grid { overflow-y: auto; -webkit-overflow-scrolling: touch; max-height: 60vh; grid-template-columns: repeat(auto-fill, minmax(122px,1fr)); gap: 10px; }
+  .product-icon { height: 72px; }
+
+  .order-panel {
+    width: 100%; border-inline-start: none; border-top: 8px solid var(--surf1); overflow: visible;
+  }
+  .order-items { max-height: 40vh; }
+
+  .modal-card, .modifier-card { width: 94vw; }
+}
+
+/* ============ Incoming online-order accept/reject popup ============
+   Deliberately non-dismissible: no .modal-close button is rendered for
+   #incomingOrderModal and no backdrop-click listener is wired for it in JS
+   — the only way out is Accept or Reject. The pulsing border keeps it
+   visually distinct from the app's other, dismissible modals. */
+.incoming-order-overlay { z-index: 9999; }
+.incoming-order-card { border: 2px solid var(--lime-deep); animation: incoming-order-pulse 1.6s ease-in-out infinite; }
+@keyframes incoming-order-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(199,255,77,0.5); }
+  50% { box-shadow: 0 0 0 14px rgba(199,255,77,0); }
+}
+.incoming-order-call {
+  display: block;
+  text-align: center;
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--lime-deep);
+  text-decoration: none;
+  padding: 10px;
+  margin: 4px 0 10px;
+  background: var(--surf2);
+  border-radius: var(--r-md);
+}
+.incoming-order-actions { display: flex; gap: 10px; margin-top: 14px; }
+.incoming-order-actions .confirm-pay-btn,
+.incoming-order-actions .clear-btn { flex: 1; width: auto; }
+.reject-reason-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px; }
+.reject-reason-chip {
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surf2);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* Table reservations — table-card is now a div (not a button) so it can
+   hold a real nested button for "حجز" without invalid button-in-button
+   markup; the card's own click-to-cycle-status handler ignores clicks that
+   land on either nested control. */
+.table-card { position: relative; }
+.table-reserve-btn {
+  position: absolute;
+  top: 6px;
+  inset-inline-end: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surf1);
+  color: var(--muted);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+.table-reservation-badge {
+  margin-top: 2px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(224, 184, 74, 0.16);
+  color: var(--amber);
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.table-turn-timer {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.table-turn-timer.ok { color: var(--flag-green); }
+.table-turn-timer.warn { color: var(--amber); }
+.table-turn-timer.over { color: var(--danger); }
+.pos-modal-hint {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 2px 0 14px;
+}
+.reject-reason-chip.active { background: var(--lime-deep); color: var(--flag-green-deep); border-color: var(--lime-deep); }
+
+/* Call-buzzer number on the payment step. A wide, centred, mono field:
+   it is a number read back off a physical device, so it should look like
+   the number on that device rather than like a text input. */
+.pager-field{margin-bottom:14px;}
+.pager-field label{display:block; font-size:11px; font-weight:800; color:var(--muted); margin-bottom:6px;}
+.pager-field input{width:100%; padding:12px 14px; border-radius:var(--r-md); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:18px; font-weight:700; text-align:center; letter-spacing:2px;}
+.pager-field input:focus{outline:none; border-color:var(--lime-deep); background:var(--card-bg);}
+
+/* ============================================================
+   Craft pass — feel, not decoration.
+
+   Ground rule, inherited from --shadow-* in rakeen-pos.css: no new
+   blur-heavy shadows. Large-blur box-shadows measured 1-3s on a
+   full-page style change on the hardware this ships to. Everything
+   below is transform, opacity, colour or typography — the properties
+   the compositor handles without repainting.
+   ============================================================ */
+
+/* --- 1. Numbers stop wiggling ------------------------------------
+   Digits in a proportional face have different widths, so a total
+   going 48.00 -> 49.00 -> 148.00 shifts its neighbours a pixel or two
+   on every tap. On a screen whose whole job is showing an amount that
+   changes constantly, that reads as instability. Tabular figures make
+   every digit the same width, so a changing number stays put. */
+.mono, .oi-total, .op-total-val, .pay-btn, .qa-btn, .qty-val,
+.receipt-total, .change-row, .pager-field input, .cash-input-row input,
+.rk-money, .sum-val, .ord-total{
+  font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1;
+}
+
+/* --- 2. The press ------------------------------------------------
+   A cashier touches these thousands of times a day and gets no
+   physical travel from glass. A 40ms dip on press is the whole
+   difference between a surface that acknowledges a touch and one that
+   feels dead. transform only: composited, never repaints. */
+.product-card, .cat-btn, .qty-btn, .pay-btn, .clear-btn, .confirm-pay-btn,
+.nav-tab, .seg-tab, .disc-btn, .qa-btn, .pm-tab, .receipt-action-btn,
+.more-btn, .table-card, .fav-toggle, .modal-close, .modal-back{
+  -webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none; user-select:none;
+  transition:transform .04s ease-out, background .12s ease, border-color .12s ease, color .12s ease;
+}
+.product-card:active, .cat-btn:active, .qty-btn:active, .disc-btn:active,
+.qa-btn:active, .pm-tab:active, .seg-tab:active, .nav-tab:active,
+.receipt-action-btn:active, .more-btn:active, .table-card:active,
+.fav-toggle:active, .modal-close:active, .modal-back:active{
+  transform:scale(0.965);
+}
+/* The two commit buttons dip less: a big surface scaling as much as a
+   small one looks like it moved rather than like it was pressed. */
+.pay-btn:active:not(:disabled), .confirm-pay-btn:active:not(:disabled),
+.clear-btn:active{ transform:scale(0.985); }
+
+/* --- 3. The amount is the hero ----------------------------------
+   The pay button carries the number the cashier reads out loud. It
+   should look like the most important thing on the panel, which means
+   tighter tracking and a touch more weight — not a bigger box. */
+.pay-btn{ letter-spacing:-0.2px; }
+#payBtnAmount{ font-weight:800; letter-spacing:-0.3px; }
+
+/* --- 4. Modals arrive, they do not appear -----------------------
+   140ms of scale and fade. Long enough to read as motion, short
+   enough that a cashier reaching for the keypad never waits on it. */
+.modal-overlay{ transition:opacity .14s ease; }
+.modal-overlay .modal-card{
+  transform:scale(0.97); opacity:0;
+  transition:transform .14s cubic-bezier(.2,.8,.2,1), opacity .14s ease;
+}
+.modal-overlay.show .modal-card{ transform:scale(1); opacity:1; }
+
+/* --- 5. A real focus ring --------------------------------------
+   Barcode scanners and keyboards drive this screen too. The browser
+   default ring is invisible on a dark surface; outline costs nothing
+   to paint and never shifts layout. */
+.product-card:focus-visible, .cat-btn:focus-visible, .qty-btn:focus-visible,
+.pay-btn:focus-visible, .confirm-pay-btn:focus-visible, .nav-tab:focus-visible,
+.seg-tab:focus-visible, .pm-tab:focus-visible, .disc-btn:focus-visible,
+input:focus-visible, select:focus-visible, button:focus-visible{
+  outline:2px solid var(--lime); outline-offset:2px;
+}
+
+/* --- 6. Panels keep their scroll to themselves -----------------
+   Reaching the end of the order list should not start scrolling the
+   page behind it. */
+.order-items, .product-grid, .orders-list, .more-scroll, .modal-body,
+.waitlist-list, .tables-grid{ overscroll-behavior:contain; }
+
+/* --- 7. Disabled means disabled --------------------------------
+   A pay button that cannot be pressed should not invite the press. */
+.pay-btn:disabled, .confirm-pay-btn:disabled{ opacity:.45; cursor:not-allowed; }
+
+/* --- 8. Respect the system setting -----------------------------
+   Anyone who has asked for less motion gets none of the above. */
+@media (prefers-reduced-motion: reduce){
+  .product-card, .cat-btn, .qty-btn, .pay-btn, .clear-btn, .confirm-pay-btn,
+  .nav-tab, .seg-tab, .disc-btn, .qa-btn, .pm-tab, .receipt-action-btn,
+  .more-btn, .table-card, .fav-toggle, .modal-close, .modal-back,
+  .modal-overlay, .modal-overlay .modal-card{
+    transition:none !important; transform:none !important;
+  }
+}

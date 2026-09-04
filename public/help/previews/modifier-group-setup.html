@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>مجموعة خيارات — معاينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap">
+<!-- نفس ملفات ستايل لوحة التحكم الحقيقي بالإنتاج -->
+<link rel="stylesheet" href="/help/previews/rakeen-dashboard.css">
+<link rel="stylesheet" href="/help/previews/rakeen-dashboard-responsive.css">
+<style>
+  /* منسوخ حرفيًا من modGroupModalBodyHtml/renderMgOptionRows داخل
+     public/dashboard/rakeen-dashboard.js — نموذج "مجموعة خيارات" بشاشة المنتجات. */
+  html,body{ height:auto; min-height:100%; overflow:visible; display:block; }
+  body{ padding:24px; }
+  .rk-page{ max-width:480px; margin-inline:auto; background:var(--card-bg); border:1px solid var(--line); border-radius:var(--r-lg); padding:20px; }
+  input, select, button{ pointer-events:none; }
+</style>
+</head>
+<body>
+
+<div class="rk-page">
+  <div class="menu-add-field" style="margin-bottom:16px;"><label>عنوان المجموعة</label><input type="text" value="إضافات"></div>
+
+  <div class="panel-subtitle" style="margin-top:0;">نوع الاختيار</div>
+  <select class="pe-select" style="margin-bottom:16px;"><option>اختيار متعدد — مثال: إضافات، مقبلات جانبية</option></select>
+
+  <div class="panel-subtitle">الخيارات</div>
+  <div class="mg-option-card">
+    <div class="mg-option-identity-row">
+      <span class="mg-option-badge">1</span>
+      <input type="text" class="mg-opt-name" value="جبن إضافي">
+    </div>
+    <div class="mg-field-block"><label>السعر الإضافي على العميل (ر.س)</label><input type="number" value="5"></div>
+    <div class="mg-cost-divider"><span class="field-label-row">تكلفتك الحقيقية (لك أنت، مو للعميل)</span></div>
+    <div class="mg-cost-mode-row">
+      <button class="mg-cost-mode-btn">تكلفة بسيطة (رقم تكتبه)</button>
+      <button class="mg-cost-mode-btn active">من المخزون (يُحسب تلقائيًا)</button>
+    </div>
+  </div>
+  <div class="mg-option-card">
+    <div class="mg-option-identity-row">
+      <span class="mg-option-badge">2</span>
+      <input type="text" class="mg-opt-name" value="بدون بصل">
+    </div>
+    <div class="mg-field-block"><label>السعر الإضافي على العميل (ر.س)</label><input type="number" value="0"></div>
+    <div class="mg-cost-divider"><span class="field-label-row">تكلفتك الحقيقية (لك أنت، مو للعميل)</span></div>
+    <div class="mg-cost-mode-row">
+      <button class="mg-cost-mode-btn active">تكلفة بسيطة (رقم تكتبه)</button>
+      <button class="mg-cost-mode-btn">من المخزون (يُحسب تلقائيًا)</button>
+    </div>
+    <div class="mg-field-block"><label>مبلغ التكلفة (ر.س)</label><input type="number" value="0"></div>
+  </div>
+  <button class="add-row-btn">+ أضف خيار</button>
+</div>
+
+</body>
+</html>

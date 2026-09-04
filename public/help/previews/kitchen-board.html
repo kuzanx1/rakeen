@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>شاشة المطبخ — معاينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap">
+<!-- نفس ملف ستايل شاشة المطبخ الحقيقي بالإنتاج (app/kitchen/rakeen-kitchen.css) -->
+<link rel="stylesheet" href="/help/previews/rakeen-kitchen.css">
+<style>
+  /* المعاينة مجمّدة على ٣ طلبات واقعية — بدون تشغيل rakeen-kitchen.js نفسه
+     (يحتاج جلسة Supabase حقيقية). كل class هنا منسوخ حرفيًا من renderCard/
+     renderBoard داخل public/kitchen/rakeen-kitchen.js، بنفس منطق الألوان:
+     أخضر = بوقتها، كهرماني = قربت تتأخر، أحمر = تجاوزت الوقت المتوقع. */
+  html,body{ height:auto; min-height:100%; }
+  .kds-board{ min-height:520px; }
+</style>
+</head>
+<body>
+
+<div class="kds-app" id="kdsApp">
+  <div class="kds-topbar">
+    <div class="kds-identity">
+      <img class="brand-avatar" src="/brand/rakeen-wordmark.png" alt="ركين" style="height:22px;width:auto;">
+      <div class="kds-identity-text">
+        <div class="kds-identity-name">مطعم عنوب</div>
+        <div class="kds-identity-branch">فرع النخيل</div>
+      </div>
+    </div>
+    <div class="kds-tb-spacer"></div>
+    <div class="kds-count-pill"><span>3</span> طلب جاري</div>
+    <div class="kds-clock mono">12:41</div>
+  </div>
+
+  <div class="kds-board" id="kdsBoard">
+    <div class="kds-card" data-order="479">
+      <div class="kds-card-head">
+        <div class="kds-card-title">طاولة 3</div>
+        <div class="kds-card-time mono">04:12</div>
+      </div>
+      <div class="kds-card-badge"><span>بالمطعم</span></div>
+      <div class="kds-items">
+        <div class="kds-item-row"><div class="kds-item-main">1 × بوكس وسط مشكّل</div><div class="kds-item-note">📝 بدون بصل</div></div>
+      </div>
+      <button class="kds-ready-btn">تم التجهيز</button>
+    </div>
+
+    <div class="kds-card warn" data-order="482">
+      <div class="kds-card-head">
+        <div class="kds-card-title">هنقرستيشن</div>
+        <div class="kds-card-time mono warn">11:07</div>
+      </div>
+      <div class="kds-card-badge"><img src="https://jgrlefclttoazamzvwca.supabase.co/storage/v1/object/public/business-branding/1/platform-8-logo-1786303119681.png" alt="" class="kds-card-logo"><span>#482</span></div>
+      <div class="kds-items">
+        <div class="kds-item-row"><div class="kds-item-main">1 × بوكس كبير مشكّل</div></div>
+        <div class="kds-item-row"><div class="kds-item-main">2 × حامض عنُوب</div></div>
+      </div>
+      <button class="kds-ready-btn">تم التجهيز</button>
+    </div>
+
+    <div class="kds-card urgent" data-order="475">
+      <div class="kds-card-head">
+        <div class="kds-card-title">استلام</div>
+        <div class="kds-card-time mono urgent">18:42</div>
+      </div>
+      <div class="kds-card-badge"><span>استلام — سلطان</span></div>
+      <div class="kds-items">
+        <div class="kds-item-row"><div class="kds-item-main">1 × بوكس رول مسخن</div></div>
+      </div>
+      <div class="kds-auto-note">يختفي تلقائيًا خلال 00:00</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

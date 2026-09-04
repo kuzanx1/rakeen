@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>الأرباح والضريبة — معاينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap">
+<!-- نفس ملف ستايل لوحة التحكم الحقيقي بالإنتاج (app/dashboard/rakeen-dashboard.css) -->
+<link rel="stylesheet" href="/help/previews/rakeen-dashboard.css">
+<style>
+  /* المعاينة مجمّدة على بيانات يوم مبيعات واقعي — بدون تشغيل rakeen-dashboard.js
+     نفسه (يحتاج جلسة Supabase حقيقية). كل class هنا منسوخ حرفيًا من
+     renderAcctHeroProfit / renderWaterfall / renderVatAndMargin. */
+  html,body{ height:auto; min-height:100%; overflow:visible; display:block; }
+  body{ padding:24px; }
+  .rk-page{ max-width:820px; margin-inline:auto; }
+  button{ pointer-events:none; }
+</style>
+</head>
+<body>
+
+<div class="rk-page">
+  <div class="loyalty-tabs" id="acctScreenTabs">
+    <button class="loyalty-tab active">نظرة عامة</button>
+    <button class="loyalty-tab">المصروفات العامة</button>
+    <button class="loyalty-tab">المصاريف الثابتة</button>
+    <button class="loyalty-tab">تسوية منصات التوصيل</button>
+  </div>
+
+  <div class="acct-hero-profit pos">
+    <div class="acct-hero-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16v5"/><path d="M16 14.639V21"/><path d="M20 10.656V21"/><path d="m22 3-8.646 8.646a.5.5 0 0 1-.708 0L9.354 8.354a.5.5 0 0 0-.707 0L2 15"/><path d="M4 18.463V21"/><path d="M8 14.656V21"/></svg>
+    </div>
+    <div class="acct-hero-body">
+      <div class="acct-hero-label">صافي الربح اليوم</div>
+      <div class="acct-hero-value mono">303.24 ر.س</div>
+      <div class="acct-hero-sub">هامش 14٪ من إجمالي مبيعات 2,140.00 ر.س</div>
+    </div>
+  </div>
+
+  <div class="rk-section">
+    <div class="rk-section-head">
+      <div class="rk-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg></div>
+      <div>
+        <div class="rk-section-title">من الإيرادات لصافي الربح</div>
+        <div class="rk-section-sub">كل خطوة توضح وين راح كل ريال — من أول عملية بيع لآخر مصروف ثابت.</div>
+      </div>
+    </div>
+    <div class="waterfall">
+      <div class="waterfall-row">
+        <div class="wf-label-col"><div class="wf-label">الإيرادات</div><div class="wf-explain">إجمالي المبيعات قبل أي خصم</div></div>
+        <div class="wf-bar-track"><div class="wf-bar-fill pos" style="width:100%"></div></div>
+        <div class="wf-amount mono">2140.00</div>
+      </div>
+      <div class="waterfall-row">
+        <div class="wf-label-col"><div class="wf-label">الخصومات</div><div class="wf-explain">خصومات مطبّقة على الطلبات</div></div>
+        <div class="wf-bar-track"><div class="wf-bar-fill neg" style="width:2%"></div></div>
+        <div class="wf-amount neg mono">−45.00</div>
+      </div>
+      <div class="waterfall-row">
+        <div class="wf-label-col"><div class="wf-label">صافي المبيعات</div><div class="wf-explain">بعد الخصم — نفس رقم "الربح الحقيقي" بالرئيسية</div></div>
+        <div class="wf-bar-track"><div class="wf-bar-fill pos" style="width:98%"></div></div>
+        <div class="wf-amount mono">2095.00</div>
+      </div>
+      <div class="waterfall-row">
+        <div class="wf-label-col"><div class="wf-label">ضريبة القيمة المضافة</div><div class="wf-explain">15٪ محتسبة من صافي المبيعات</div></div>
+        <div class="wf-bar-track"><div class="wf-bar-fill neg" style="width:13%"></div></div>
+        <div class="wf-amount neg mono">−273.26</div>
+      </div>
+      <div class="waterfall-row">
+        <div class="wf-label-col"><div class="wf-label">تكلفة البضاعة المباعة</div><div class="wf-explain">التكلفة الحقيقية لمكونات وتغليف كل ما بيع اليوم</div></div>
+        <div class="wf-bar-track"><div class="wf-bar-fill neg" style="width:30%"></div></div>
+        <div class="wf-amount neg mono">−642.00</div>
+      </div>
+      <div class="waterfall-row">
+        <div class="wf-label-col"><div class="wf-label">عمولات ورسوم تطبيقات التوصيل</div><div class="wf-explain">عمولة كل منصة + رسوم توصيلها لطلبات اليوم عبر تطبيقات التوصيل</div></div>
+        <div class="wf-bar-track"><div class="wf-bar-fill neg" style="width:5%"></div></div>
+        <div class="wf-amount neg mono">−96.50</div>
+      </div>
+      <div class="waterfall-row">
+        <div class="wf-label-col"><div class="wf-label">مجمل الربح</div><div class="wf-explain">المبيعات بعد خصم تكلفة البضاعة وعمولات التوصيل</div></div>
+        <div class="wf-bar-track"><div class="wf-bar-fill pos" style="width:51%"></div></div>
+        <div class="wf-amount mono">1083.24</div>
+      </div>
+      <div class="waterfall-row">
+        <div class="wf-label-col"><div class="wf-label">المصاريف التشغيلية</div><div class="wf-explain">المصاريف الثابتة الشهرية موزّعة على اليوم + مصاريف اليوم الإضافية</div></div>
+        <div class="wf-bar-track"><div class="wf-bar-fill neg" style="width:36%"></div></div>
+        <div class="wf-amount neg mono">−780.00</div>
+      </div>
+      <div class="waterfall-row">
+        <div class="wf-label-col"><div class="wf-label">صافي الربح</div><div class="wf-explain">نفس رقم "الربح الحقيقي" بالضبط — كل شي متطابق</div></div>
+        <div class="wf-bar-track"><div class="wf-bar-fill final" style="width:14%"></div></div>
+        <div class="wf-amount final mono">303.24</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row-2col">
+    <div class="panel acct-stat-panel">
+      <div class="acct-stat-icon acct-stat-icon-vat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 7h6"/><path d="M9 11h6"/><path d="M13 15h-4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/></svg></div>
+      <div class="acct-stat-body">
+        <div class="acct-stat-label">ضريبة القيمة المضافة المستحقة</div>
+        <div class="acct-stat-value mono">273.26 ر.س</div>
+        <div class="acct-stat-note">يُجمّع تلقائيًا لتقرير الزكاة والضريبة — لا حاجة لحساب يدوي.</div>
+      </div>
+    </div>
+    <div class="panel acct-stat-panel">
+      <div class="acct-stat-icon acct-stat-icon-margin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></div>
+      <div class="acct-stat-body">
+        <div class="acct-stat-label">هامش التشغيل الصافي</div>
+        <div class="acct-stat-value mono">14.5٪</div>
+        <div class="acct-stat-note">صافي الربح مقابل صافي المبيعات — بعد كل التكاليف والضريبة.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

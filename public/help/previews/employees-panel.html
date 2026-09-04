@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>قائمة الموظفين — معاينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap">
+<!-- نفس ملف ستايل لوحة التحكم الحقيقي بالإنتاج (app/dashboard/rakeen-dashboard.css) -->
+<link rel="stylesheet" href="/help/previews/rakeen-dashboard.css">
+<style>
+  /* المعاينة مجمّدة على بيانات واقعية — بدون تشغيل rakeen-dashboard.js نفسه
+     (يحتاج جلسة Supabase حقيقية). كل class هنا منسوخ حرفيًا من
+     renderHrEmployeesTab داخل public/dashboard/rakeen-dashboard.js —
+     نفس منطق hrFact/expiryChip/EMP_STATUS_LABELS/EMP_TYPE_LABELS. */
+  html,body{ height:auto; min-height:100%; overflow:visible; display:block; }
+  body{ padding:24px; }
+  .rk-section{ max-width:900px; margin-inline:auto; }
+  button{ pointer-events:none; }
+</style>
+</head>
+<body>
+
+<div class="rk-section">
+  <div class="rk-section-head">
+    <div class="rk-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div>
+    <div>
+      <div class="rk-section-title">قائمة الموظفين</div>
+      <div class="rk-section-sub">سجل موظفين حقيقي — راتب، تاريخ تعيين، إقامة/هوية، ومستنداتهم — ونفس المكان لتفعيل دخولهم لجهاز الكاشير.</div>
+    </div>
+    <button class="rk-btn rk-btn-primary rk-btn-sm rk-section-head-actions"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>إضافة موظف</button>
+  </div>
+
+  <div class="hr-emp-grid">
+    <div class="hr-emp-card">
+      <div class="hr-emp-head">
+        <div class="hr-emp-avatar">س</div>
+        <div class="hr-emp-id">
+          <span class="hr-emp-name">سلطان المطيري</span>
+          <span class="hr-emp-role">كاشير · التشغيل</span>
+        </div>
+        <span class="u-status-badge active">نشط</span>
+      </div>
+      <div class="hr-emp-facts">
+        <div class="hr-fact"><span class="hr-fact-label">الفرع</span><span class="hr-fact-value">فرع النخيل</span></div>
+        <div class="hr-fact"><span class="hr-fact-label">نوع الدوام</span><span class="hr-fact-value">دوام كامل</span></div>
+        <div class="hr-fact"><span class="hr-fact-label">تاريخ التعيين</span><span class="hr-fact-value mono">2026-02-01</span></div>
+        <div class="hr-fact"><span class="hr-fact-label">الجوال</span><span class="hr-fact-value"><a class="mono hr-link" href="#">0501234567</a></span></div>
+        <div class="hr-fact"><span class="hr-fact-label">الجنسية</span><span class="hr-fact-value">سعودي</span></div>
+        <div class="hr-fact"><span class="hr-fact-label">الهوية / الإقامة</span><span class="hr-fact-value mono">1xxxxxxxxx</span></div>
+      </div>
+      <div class="hr-emp-foot">
+        <span class="hr-chip lime">كاشير · فرع النخيل</span>
+        <div class="hr-emp-actions">
+          <button class="rk-btn rk-btn-secondary rk-btn-sm">تعديل</button>
+          <button class="rk-btn rk-btn-secondary rk-btn-sm">حذف</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="hr-emp-card">
+      <div class="hr-emp-head">
+        <div class="hr-emp-avatar">ب</div>
+        <div class="hr-emp-id">
+          <span class="hr-emp-name">بدور العتيبي</span>
+          <span class="hr-emp-role">مدير فرع · الإدارة</span>
+        </div>
+        <span class="u-status-badge active">نشط</span>
+      </div>
+      <div class="hr-emp-facts">
+        <div class="hr-fact"><span class="hr-fact-label">الفرع</span><span class="hr-fact-value">فرع الملقا</span></div>
+        <div class="hr-fact"><span class="hr-fact-label">نوع الدوام</span><span class="hr-fact-value">دوام كامل</span></div>
+        <div class="hr-fact"><span class="hr-fact-label">تاريخ التعيين</span><span class="hr-fact-value mono">2025-11-15</span></div>
+        <div class="hr-fact"><span class="hr-fact-label">الجوال</span><span class="hr-fact-value"><a class="mono hr-link" href="#">0559876543</a></span></div>
+        <div class="hr-fact"><span class="hr-fact-label">الجنسية</span><span class="hr-fact-value">مصرية</span></div>
+        <div class="hr-fact"><span class="hr-fact-label">الهوية / الإقامة</span><span class="hr-fact-value mono">2xxxxxxxxx</span></div>
+        <div class="hr-fact"><span class="hr-fact-label">انتهاء الإقامة</span><span class="hr-fact-value"><span class="hr-chip warn">تنتهي بعد 18 يوم</span></span></div>
+      </div>
+      <div class="hr-emp-foot">
+        <span></span>
+        <div class="hr-emp-actions">
+          <button class="rk-btn rk-btn-secondary rk-btn-sm">تعديل</button>
+          <button class="rk-btn rk-btn-secondary rk-btn-sm">حذف</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="hr-emp-card">
+      <div class="hr-emp-head">
+        <div class="hr-emp-avatar">م</div>
+        <div class="hr-emp-id">
+          <span class="hr-emp-name">ماجد الحربي</span>
+          <span class="hr-emp-role">طباخ · المطبخ</span>
+        </div>
+        <span class="u-status-badge active">نشط</span>
+      </div>
+      <div class="hr-emp-facts">
+        <div class="hr-fact"><span class="hr-fact-label">الفرع</span><span class="hr-fact-value">فرع النخيل</span></div>
+        <div class="hr-fact"><span class="hr-fact-label">نوع الدوام</span><span class="hr-fact-value">دوام كامل</span></div>
+        <div class="hr-fact"><span class="hr-fact-label">تاريخ التعيين</span><span class="hr-fact-value mono">2026-05-20</span></div>
+        <div class="hr-fact"><span class="hr-fact-label">الجنسية</span><span class="hr-fact-value">يمني</span></div>
+        <div class="hr-fact"><span class="hr-fact-label">الهوية / الإقامة</span><span class="hr-fact-value mono">2xxxxxxxxx</span></div>
+        <div class="hr-fact"><span class="hr-fact-label">انتهاء الإقامة</span><span class="hr-fact-value"><span class="hr-chip">سارية · 240 يوم</span></span></div>
+      </div>
+      <div class="hr-emp-foot">
+        <span></span>
+        <div class="hr-emp-actions">
+          <button class="rk-btn rk-btn-secondary rk-btn-sm">تعديل</button>
+          <button class="rk-btn rk-btn-secondary rk-btn-sm">حذف</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

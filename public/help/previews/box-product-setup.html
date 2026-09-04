@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>إعداد منتج بوكس — معاينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap">
+<!-- نفس ملف ستايل لوحة التحكم الحقيقي بالإنتاج (app/dashboard/rakeen-dashboard.css) -->
+<link rel="stylesheet" href="/help/previews/rakeen-dashboard.css">
+<style>
+  /* منسوخ حرفيًا من نموذج إضافة/تعديل منتج (costMode==='box') داخل
+     public/dashboard/rakeen-dashboard.js — نفس منتج "بوكس وسط مشكّل" الحقيقي. */
+  html,body{ height:auto; min-height:100%; overflow:visible; display:block; }
+  body{ padding:24px; }
+  .rk-page{ max-width:560px; margin-inline:auto; background:var(--card-bg); border:1px solid var(--line); border-radius:var(--r-lg); padding:22px; }
+  input, select, button{ pointer-events:none; }
+</style>
+</head>
+<body>
+
+<div class="rk-page">
+  <div class="pe-step-label">١. كيف تحسب تكلفة هذا المنتج؟</div>
+  <select class="pe-select"><option>بوكس / تركيبة متغيرة — العميل يختار المحتوى</option></select>
+
+  <div class="pe-step-label">٢. التفاصيل</div>
+  <div class="panel-subtitle">التغليف الثابت (نفسه بكل طلب)</div>
+  <div class="stock-qty-helper">الكرتون والكيس — نفس الشي بكل طلب مهما كان المحتوى بالداخل.</div>
+  <div class="recipe-row">
+    <select style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--line);"><option>علبة بوكس وسط</option></select>
+    <input type="number" value="1" style="width:70px; padding:10px; border-radius:8px; border:1px solid var(--line);">
+    <span style="width:44px; font-size:10.5px; color:var(--muted); font-weight:700;">حبة</span>
+  </div>
+
+  <div class="panel-subtitle" style="margin-top:16px;">محتوى المنتج (يتغيّر حسب اختيار العميل)</div>
+  <div class="stock-qty-helper">مثال: بوكس فيه ١٨ قطعة، والعميل يقدر يوزّعها بين سمبوسة دجاج، سمبوسة لحم، وورق عنب — السعر ثابت، لكن التكلفة تختلف حسب اختياره. ركين يحسب لك أفضل حالة وأسوأ حالة، مو رقم واحد وهمي.</div>
+  <div class="menu-add-field" style="max-width:200px; margin-top:10px;"><label>كم قطعة بالمنتج كامل؟</label><input type="number" value="18"></div>
+
+  <div class="panel-subtitle" style="margin-top:16px;">العناصر اللي يقدر يختارها العميل</div>
+  <label class="attach-group-item rk-check">
+    <input type="checkbox" checked><span class="rk-check-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+    <span class="ag-name">سمبوسة دجاج</span><span class="ag-meta">1.20 ر.س/حبة — من المخزون</span>
+  </label>
+  <label class="attach-group-item rk-check">
+    <input type="checkbox" checked><span class="rk-check-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+    <span class="ag-name">سمبوسة لحم</span><span class="ag-meta">1.60 ر.س/حبة — من المخزون</span>
+  </label>
+  <label class="attach-group-item rk-check">
+    <input type="checkbox" checked><span class="rk-check-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+    <span class="ag-name">ورق عنب</span><span class="ag-meta">0.90 ر.س/حبة — من المخزون</span>
+  </label>
+
+  <div class="panel-subtitle" style="margin-top:16px;">التركيبة المعتادة (تُستخدم لحساب الهامش الأساسي المعروض)</div>
+  <div class="recipe-row">
+    <select style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--line);"><option>سمبوسة دجاج</option></select>
+    <input type="number" value="6" style="width:70px; padding:10px; border-radius:8px; border:1px solid var(--line);">
+    <span style="width:44px; font-size:10.5px; color:var(--muted); font-weight:700;">حبة</span>
+  </div>
+  <div class="recipe-row">
+    <select style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--line);"><option>سمبوسة لحم</option></select>
+    <input type="number" value="6" style="width:70px; padding:10px; border-radius:8px; border:1px solid var(--line);">
+    <span style="width:44px; font-size:10.5px; color:var(--muted); font-weight:700;">حبة</span>
+  </div>
+  <div class="recipe-row">
+    <select style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--line);"><option>ورق عنب</option></select>
+    <input type="number" value="6" style="width:70px; padding:10px; border-radius:8px; border:1px solid var(--line);">
+    <span style="width:44px; font-size:10.5px; color:var(--muted); font-weight:700;">حبة</span>
+  </div>
+  <div class="stock-qty-helper">مجموع التركيبة: <b style="color:var(--success-text);">18</b> من أصل 18 قطعة ✓</div>
+</div>
+
+</body>
+</html>

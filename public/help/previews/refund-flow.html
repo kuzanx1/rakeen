@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>استرجاع مبلغ — معاينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap">
+<!-- نفس ملفات ستايل الكاشير الحقيقي بالإنتاج -->
+<link rel="stylesheet" href="/help/previews/rakeen-pos.css">
+<link rel="stylesheet" href="/help/previews/rakeen-pos-additions.css">
+<style>
+  /* منسوخ حرفيًا من refundOrderBtn/openPinModal داخل public/pos/rakeen-pos.js —
+     زر "استرجاع مبلغ" بتفاصيل طلب سابق، ونافذة "موافقة المدير" اللي تفتح فوقه. */
+  html,body{ height:auto; min-height:100%; overflow:visible; background:var(--canvas); }
+  body{ display:flex; align-items:center; justify-content:center; padding:28px 12px; }
+  button, input{ pointer-events:none; }
+</style>
+</head>
+<body>
+
+<div class="modal-card" style="opacity:0.45;">
+  <div class="modal-head"><h3>تفاصيل الطلب #479</h3></div>
+  <div class="modal-body">
+    <div class="receipt-success">
+      <h3>محلي — طاولة 3</h3>
+      <div class="receipt-total"><span class="rk-money mono">148<span class="rk-money-frac">.00</span> <span class="rk-riyal">⃁</span></span></div>
+      <div class="receipt-detail-row"><span>طريقة الدفع</span><span class="mono">كاش</span></div>
+      <div class="receipt-detail-row"><span>الحالة</span><span class="mono">مكتمل</span></div>
+      <div class="receipt-actions">
+        <button class="receipt-action-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>إعادة طباعة</button>
+        <button class="receipt-action-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>استرجاع مبلغ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay show" style="position:fixed;">
+  <div class="modal-card">
+    <div class="modal-head"><h3>موافقة المدير</h3><button class="modal-close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="modal-body">
+      <div class="pin-dots">
+        <span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span>
+      </div>
+      <div class="pin-pad">
+        <button class="pin-key">1</button><button class="pin-key">2</button><button class="pin-key">3</button>
+        <button class="pin-key">4</button><button class="pin-key">5</button><button class="pin-key">6</button>
+        <button class="pin-key">7</button><button class="pin-key">8</button><button class="pin-key">9</button>
+        <span></span><button class="pin-key">0</button><button class="pin-key">⌫</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

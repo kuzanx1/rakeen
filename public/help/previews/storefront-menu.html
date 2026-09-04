@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>المتجر الإلكتروني — معاينة</title>
+<!-- نفس ملف ستايل المتجر الحقيقي بالإنتاج (app/order/[slug]/rakeen-order.css) — يجيب خط Alexandria بنفسه عبر @import -->
+<link rel="stylesheet" href="/help/previews/rakeen-order.css">
+<style>
+  /* المعاينة مجمّدة على منيو مطعم عنوب الحقيقي بأسعار المتجر الفعلية —
+     بدون تشغيل rakeen-order.js نفسه (يحتاج قراءة قاعدة بيانات حقيقية).
+     كل class هنا منسوخ حرفيًا من order-markup.ts وdom الصفحة الحية على
+     anoob.rakeenapp.com. */
+  html,body{ height:auto; min-height:100%; overflow:visible; background:var(--surf,#F4F3EE); }
+  .om-shell{ opacity:1 !important; }
+  button, input{ pointer-events:none; }
+</style>
+</head>
+<body>
+
+<div class="om-shell om-ready" id="omShell" data-theme="default">
+  <div class="om-app" id="omApp">
+    <header class="om-header" id="omHeader">
+      <div class="om-header-inner">
+        <div class="om-brand">
+          <div class="om-logo" id="omLogo"><img src="https://media.rakeenapp.com/business-branding/1/logo-1786835086242.png" alt=""></div>
+          <div class="om-brand-text">
+            <span class="om-brand-name">عنوب | Anoob</span>
+            <span class="om-brand-tag">اطلب مباشرة من المطعم</span>
+          </div>
+        </div>
+        <div class="om-header-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" placeholder="ابحث..." readonly>
+        </div>
+      </div>
+    </header>
+
+    <div class="om-hero" id="omHero">
+      <div class="om-hero-banner" style="background-image:url('https://media.rakeenapp.com/business-branding/1/online-banner-1786338777541.jpeg');"></div>
+      <div class="om-hero-card">
+        <div class="om-hero-logo"><img src="https://media.rakeenapp.com/business-branding/1/logo-1786835086242.png" alt=""></div>
+        <div class="om-hero-info">
+          <div class="om-hero-name">عنوب | Anoob</div>
+          <div class="om-hero-chips">
+            <span class="om-hero-chip">طلب مباشر بدون عمولة تطبيقات</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="om-toolbar">
+      <div class="om-channel-row" id="omChannelRow">
+        <button class="om-channel-btn active" data-channel="delivery">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+          توصيل
+        </button>
+        <button class="om-channel-btn" data-channel="pickup">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          استلام
+        </button>
+      </div>
+      <div class="om-branch-note">أقرب فرع — فرع النخيل</div>
+    </div>
+
+    <nav class="om-cat-rail" id="omCatRail">
+      <button class="om-cat-chip active" data-cat="البوكسات">البوكسات</button>
+      <button class="om-cat-chip" data-cat="صوصات عنُوب">صوصات عنُوب</button>
+      <button class="om-cat-chip" data-cat="المشروبات">المشروبات</button>
+    </nav>
+
+    <main class="om-menu" id="omMenu">
+      <section class="om-cat-section" id="cat-البوكسات" data-cat="البوكسات">
+        <div class="om-cat-title">البوكسات</div>
+        <div class="om-product-list">
+          <button class="om-product-card" data-id="37">
+            <div class="om-product-photo">
+              <img src="https://media.rakeenapp.com/menu-item-images/1/37-1786203511961.png" alt="" loading="lazy">
+              <span class="om-product-add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></span>
+            </div>
+            <div class="om-product-info">
+              <div class="om-product-name"><span class="om-product-name-ar">بوكس وسط مشكّل</span></div>
+              <div class="om-product-badge">تركيبة حرة — 3 قطعة</div>
+              <div class="om-product-price">39 SAR</div>
+            </div>
+          </button>
+          <button class="om-product-card" data-id="38">
+            <div class="om-product-photo">
+              <img src="https://media.rakeenapp.com/menu-item-images/1/38-1786204226614.jpeg" alt="" loading="lazy">
+              <span class="om-product-add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></span>
+            </div>
+            <div class="om-product-info">
+              <div class="om-product-name"><span class="om-product-name-ar">بوكس كبير مشكّل</span></div>
+              <div class="om-product-badge">تركيبة حرة — 4 قطعة</div>
+              <div class="om-product-price">79 SAR</div>
+            </div>
+          </button>
+          <button class="om-product-card" data-id="42">
+            <div class="om-product-photo">
+              <img src="https://media.rakeenapp.com/menu-item-images/1/42-1786204272084.jpeg" alt="" loading="lazy">
+              <span class="om-product-add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></span>
+            </div>
+            <div class="om-product-info">
+              <div class="om-product-name"><span class="om-product-name-ar">بوكس رول مسخن</span></div>
+              <div class="om-product-price">39 SAR</div>
+            </div>
+          </button>
+          <button class="om-product-card" data-id="51">
+            <div class="om-product-photo">
+              <img src="https://media.rakeenapp.com/menu-item-images/1/51-1786205870515.jpeg" alt="" loading="lazy">
+              <span class="om-product-add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></span>
+            </div>
+            <div class="om-product-info">
+              <div class="om-product-name"><span class="om-product-name-ar">بوكس سمبوسة</span></div>
+              <div class="om-product-price">33 SAR</div>
+            </div>
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="om-footer" id="omFooter">
+      <a class="om-footer-credit" href="https://rakeenapp.com" target="_blank" rel="noopener noreferrer">
+        <span>Made by</span>
+        <img class="om-footer-credit-logo" src="/brand/rakeen-wordmark-soft.png" alt="ركين">
+      </a>
+    </footer>
+  </div>
+</div>
+
+<button class="om-cart-bar" id="omCartBar" style="display:flex;">
+  <span class="om-cart-count">2</span>
+  <span class="om-cart-label">عرض السلة</span>
+  <span class="om-cart-total mono">118.00 ر.س</span>
+</button>
+
+</body>
+</html>

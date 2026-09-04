@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>إعدادات الفروع — معاينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap">
+<!-- نفس ملف ستايل لوحة التحكم الحقيقي بالإنتاج (app/dashboard/rakeen-dashboard.css) -->
+<link rel="stylesheet" href="/help/previews/rakeen-dashboard.css">
+<style>
+  /* المعاينة مجمّدة على بيانات واقعية — بدون تشغيل rakeen-dashboard.js نفسه
+     (يحتاج جلسة Supabase حقيقية). كل class هنا منسوخ حرفيًا من
+     renderBranchesSettings داخل public/dashboard/rakeen-dashboard.js. */
+  html,body{ height:auto; min-height:100%; overflow:visible; display:block; }
+  body{ padding:24px; }
+  .rk-section{ max-width:640px; margin-inline:auto; }
+  input, select, button{ pointer-events:none; }
+</style>
+</head>
+<body>
+
+<div class="rk-section">
+  <div class="rk-section-head">
+    <div class="rk-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></div>
+    <div>
+      <div class="rk-section-title">الفروع <span class="rk-badge">2 من 3</span></div>
+      <div class="rk-section-sub">موقع كل فرع يُستخدم بالمتجر الإلكتروني — يختار العميل فرع الاستلام، وللتوصيل يتحدد أقرب فرع لموقعه تلقائيًا.</div>
+    </div>
+  </div>
+
+  <div class="rk-subcard" data-branch="1">
+    <div class="rk-subcard-title">فرع النخيل</div>
+    <div class="rk-field" style="margin-bottom:14px;"><label>العنوان</label><input type="text" value="حي النخيل، الرياض" readonly></div>
+    <div class="rk-grid-2" style="margin-bottom:14px;">
+      <div class="rk-field"><label>خط العرض (Lat)</label><input type="number" value="24.712345" readonly></div>
+      <div class="rk-field"><label>خط الطول (Lng)</label><input type="number" value="46.674321" readonly></div>
+    </div>
+    <button class="rk-btn rk-btn-secondary rk-btn-sm" type="button" style="margin-bottom:14px;"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>استخدم موقعي الحالي</button>
+    <div class="rk-grid-2">
+      <div class="rk-field"><label>وقت الفتح</label><input type="time" value="11:00" readonly></div>
+      <div class="rk-field"><label>وقت الإغلاق</label><input type="time" value="23:30" readonly></div>
+    </div>
+    <button class="rk-btn rk-btn-primary rk-btn-sm" style="margin-top:14px;">حفظ موقع الفرع</button>
+  </div>
+
+  <div class="rk-subcard" data-branch="2">
+    <div class="rk-subcard-title">فرع الملقا</div>
+    <div class="rk-field" style="margin-bottom:14px;"><label>العنوان</label><input type="text" value="حي الملقا، الرياض" readonly></div>
+    <div class="rk-grid-2" style="margin-bottom:14px;">
+      <div class="rk-field"><label>خط العرض (Lat)</label><input type="number" value="24.784112" readonly></div>
+      <div class="rk-field"><label>خط الطول (Lng)</label><input type="number" value="46.619876" readonly></div>
+    </div>
+    <button class="rk-btn rk-btn-secondary rk-btn-sm" type="button" style="margin-bottom:14px;"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>استخدم موقعي الحالي</button>
+    <div class="rk-grid-2">
+      <div class="rk-field"><label>وقت الفتح</label><input type="time" value="12:00" readonly></div>
+      <div class="rk-field"><label>وقت الإغلاق</label><input type="time" value="00:00" readonly></div>
+    </div>
+    <button class="rk-btn rk-btn-primary rk-btn-sm" style="margin-top:14px;">حفظ موقع الفرع</button>
+  </div>
+
+  <div style="display:flex; gap:10px; align-items:flex-end; margin-top:18px;">
+    <div class="rk-field" style="flex:1; margin-bottom:0;"><label>اسم الفرع الجديد</label><input type="text" placeholder="مثال: فرع العليا"></div>
+    <button class="rk-btn rk-btn-primary rk-btn-md" style="flex-shrink:0;"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>إضافة</button>
+  </div>
+</div>
+
+</body>
+</html>

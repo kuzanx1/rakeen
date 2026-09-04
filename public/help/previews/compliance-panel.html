@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>الامتثال والوثائق — معاينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap">
+<!-- نفس ملف ستايل لوحة التحكم الحقيقي بالإنتاج (app/dashboard/rakeen-dashboard.css) -->
+<link rel="stylesheet" href="/help/previews/rakeen-dashboard.css">
+<style>
+  /* منسوخ حرفيًا من renderHrComplianceTab / openComplianceModal داخل
+     public/dashboard/rakeen-dashboard.js — تبويب "الامتثال والوثائق" بشاشة الموظفين. */
+  html,body{ height:auto; min-height:100%; overflow:visible; display:block; }
+  body{ padding:24px; }
+  .rk-page{ max-width:640px; margin-inline:auto; }
+  button{ pointer-events:none; }
+</style>
+</head>
+<body>
+
+<div class="rk-page">
+  <div class="loyalty-tabs">
+    <button class="loyalty-tab">نظرة عامة</button>
+    <button class="loyalty-tab">الموظفون</button>
+    <button class="loyalty-tab active">الامتثال والوثائق</button>
+    <button class="loyalty-tab">الأقسام</button>
+  </div>
+
+  <div class="rk-section" style="margin-top:16px;">
+    <div class="rk-section-head">
+      <div class="rk-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
+      <div>
+        <div class="rk-section-title">الامتثال والوثائق</div>
+        <div class="rk-section-sub">تواريخ انتهاء الإقامات والعقود والشهادات — تنبيه داخلي قبل الانتهاء، بدون أي ربط مباشر مع أنظمة حكومية.</div>
+      </div>
+      <button class="rk-btn rk-btn-primary rk-btn-sm rk-section-head-actions">+ إضافة وثيقة</button>
+    </div>
+    <div>
+      <div class="users-table-row">
+        <div class="users-table-identity">
+          <span class="u-name">بدور العتيبي — إقامة</span>
+          <span class="u-role">2xxxxxxxxx · ينتهي 2026-09-22</span>
+          <span class="u-status"><span class="u-status-badge" style="color:var(--danger);">قارب على الانتهاء</span></span>
+        </div>
+        <div class="users-table-actions">
+          <button class="rk-btn rk-btn-secondary rk-btn-sm">تعديل</button>
+          <button class="rk-btn rk-btn-secondary rk-btn-sm" style="color:var(--danger); border-color:var(--danger);">حذف</button>
+        </div>
+      </div>
+      <div class="users-table-row">
+        <div class="users-table-identity">
+          <span class="u-name">ماجد الحربي — شهادة صحية</span>
+          <span class="u-role">SH-4471 · ينتهي 2027-01-10</span>
+          <span class="u-status"><span class="u-status-badge active">ساري</span></span>
+        </div>
+        <div class="users-table-actions">
+          <button class="rk-btn rk-btn-secondary rk-btn-sm">تعديل</button>
+          <button class="rk-btn rk-btn-secondary rk-btn-sm" style="color:var(--danger); border-color:var(--danger);">حذف</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rk-page" style="margin-top:16px; background:var(--card-bg); border:1px solid var(--line); border-radius:var(--r-lg); padding:22px; max-width:100%;">
+    <div class="rk-field" style="margin-bottom:14px;"><label>تنبيهني قبل الانتهاء بـ (أيام)</label><input type="number" value="30" style="pointer-events:none; padding:11px 14px; border-radius:8px; border:1px solid var(--line); background:var(--surf1); color:var(--text); width:140px;"></div>
+    <p class="stock-qty-helper">هذا الرقم قابل للتعديل لكل وثيقة على حدة — وثيقة حساسة تقدر تخليها تنبّهك قبل ٩٠ يوم بدل ٣٠.</p>
+  </div>
+</div>
+
+</body>
+</html>

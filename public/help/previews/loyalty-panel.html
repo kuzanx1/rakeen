@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>الولاء — معاينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap">
+<!-- نفس ملف ستايل لوحة التحكم الحقيقي بالإنتاج (app/dashboard/rakeen-dashboard.css) -->
+<link rel="stylesheet" href="/help/previews/rakeen-dashboard.css">
+<style>
+  /* المعاينة مجمّدة على بيانات واقعية — بدون تشغيل rakeen-dashboard.js نفسه
+     (يحتاج جلسة Supabase حقيقية). كل class هنا منسوخ حرفيًا من
+     renderLoyaltyKpis / renderLoyaltyCards / renderLoyaltyTiers، وقيم
+     المستويات الافتراضية الحقيقية (LOYALTY_TIERS) من نفس الملف. */
+  html,body{ height:auto; min-height:100%; overflow:visible; display:block; }
+  body{ padding:24px; }
+  .rk-page{ max-width:820px; margin-inline:auto; }
+  input, button{ pointer-events:none; }
+</style>
+</head>
+<body>
+
+<div class="rk-page">
+  <div class="rk-section loyalty-master-toggle-panel" style="margin-bottom:16px;">
+    <div class="rk-section-head">
+      <div class="rk-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 9 2"></polygon></svg></div>
+      <div>
+        <div class="rk-section-title">نظام الولاء</div>
+        <div class="rk-section-sub">نقاط أو زيارات تكافئ عملاءك المتكررين — تظهر لهم ببطاقة رقمية وبشاشة الكاشير</div>
+      </div>
+    </div>
+    <div class="rk-switch-row">
+      <div class="rk-switch-text">
+        <label class="rk-switch-label">فعّل نظام الولاء لهذا المطعم</label>
+        <span class="rk-switch-desc ok">مفعّل — يظهر لعملائك بالكاشير وبطاقتهم الرقمية</span>
+      </div>
+      <label class="rk-switch"><input type="checkbox" checked><span class="rk-switch-track"></span></label>
+    </div>
+  </div>
+
+  <div class="loyalty-tabs">
+    <button class="loyalty-tab active">نظرة عامة</button>
+    <button class="loyalty-tab">التواصل مع العملاء</button>
+    <button class="loyalty-tab">برنامج الولاء</button>
+    <button class="loyalty-tab">المستويات</button>
+  </div>
+
+  <div class="kpi-grid" style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:16px 0;">
+    <div class="kpi-card"><div class="kpi-label">نقاط مصدرة اليوم</div><div class="kpi-value mono">210</div></div>
+    <div class="kpi-card"><div class="kpi-label">إجمالي الأعضاء</div><div class="kpi-value mono">128</div></div>
+    <div class="kpi-card"><div class="kpi-label">أعضاء تفاعلوا اليوم</div><div class="kpi-value mono">9</div></div>
+    <div class="kpi-card"><div class="kpi-label">متوسط نقاط العميل</div><div class="kpi-value mono">76</div></div>
+  </div>
+
+  <div class="rk-section">
+    <div class="rk-section-title" style="margin-bottom:12px;">أبرز العملاء</div>
+    <div>
+      <div class="loy-row">
+        <div class="loy-avatar tier-gold">ع</div>
+        <div class="loy-info">
+          <div class="loy-name">عبدالله<span class="loy-tier-badge tier-gold">Gold — خصم 15٪</span></div>
+          <div class="loy-meta">180 نقطة</div>
+        </div>
+        <button class="loy-card-btn" title="فتح البطاقة الرقمية"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></button>
+      </div>
+      <div class="loy-row">
+        <div class="loy-avatar tier-platinum">س</div>
+        <div class="loy-info">
+          <div class="loy-name">سلمى<span class="loy-tier-badge tier-platinum">Platinum — خصم 20٪</span></div>
+          <div class="loy-meta">420 نقطة</div>
+        </div>
+        <button class="loy-card-btn" title="فتح البطاقة الرقمية"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></button>
+      </div>
+      <div class="loy-row">
+        <div class="loy-avatar tier-silver">ن</div>
+        <div class="loy-info">
+          <div class="loy-name">نورة<span class="loy-tier-badge tier-silver">Silver — خصم 10٪</span></div>
+          <div class="loy-meta">96 نقطة</div>
+        </div>
+        <button class="loy-card-btn" title="فتح البطاقة الرقمية"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></button>
+      </div>
+      <div class="loy-row">
+        <div class="loy-avatar tier-bronze">ف</div>
+        <div class="loy-info">
+          <div class="loy-name">فيصل<span class="loy-tier-badge tier-bronze">Bronze — خصم 5٪</span></div>
+          <div class="loy-meta">34 نقطة</div>
+        </div>
+        <button class="loy-card-btn" title="فتح البطاقة الرقمية"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="rk-section">
+    <div class="rk-section-title" style="margin-bottom:12px;">مستويات العضوية</div>
+    <div class="loyalty-tiers-grid">
+      <div class="loyalty-tier-card bronze">
+        <div class="ltc-name">Bronze</div>
+        <div class="ltc-range">0 – 999 ر.س</div>
+        <div class="ltc-discount">5٪</div>
+        <div class="ltc-discount-label">خصم دائم</div>
+      </div>
+      <div class="loyalty-tier-card silver">
+        <div class="ltc-name">Silver</div>
+        <div class="ltc-range">1,000 – 4,999 ر.س</div>
+        <div class="ltc-discount">10٪</div>
+        <div class="ltc-discount-label">خصم دائم</div>
+      </div>
+      <div class="loyalty-tier-card gold">
+        <div class="ltc-name">Gold</div>
+        <div class="ltc-range">5,000 – 9,999 ر.س</div>
+        <div class="ltc-discount">15٪</div>
+        <div class="ltc-discount-label">خصم دائم</div>
+      </div>
+      <div class="loyalty-tier-card platinum">
+        <div class="ltc-name">Platinum</div>
+        <div class="ltc-range">10,000+ ر.س</div>
+        <div class="ltc-discount">20٪</div>
+        <div class="ltc-discount-label">خصم دائم</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>كلمة سر المدير — معاينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap">
+<!-- نفس ملف ستايل لوحة التحكم الحقيقي بالإنتاج (app/dashboard/rakeen-dashboard.css) -->
+<link rel="stylesheet" href="/help/previews/rakeen-dashboard.css">
+<style>
+  /* منسوخ حرفيًا من managerPinPanel / branchSecurityPanelsHtml داخل
+     public/dashboard/rakeen-dashboard.js — تبويب "الفروع والأمان" بإعدادات الكاشير. */
+  html,body{ height:auto; min-height:100%; overflow:visible; display:block; }
+  body{ padding:24px; }
+  .rk-page{ max-width:640px; margin-inline:auto; }
+  input, button{ pointer-events:none; }
+</style>
+</head>
+<body>
+
+<div class="rk-page">
+  <div class="settings-tabs">
+    <button>أنواع الطلبات</button>
+    <button>الفاتورة والطباعة</button>
+    <button>واجهة الكاشير</button>
+    <button>شاشة المطبخ</button>
+    <button class="active">الفروع والأمان</button>
+  </div>
+
+  <div class="rk-section">
+    <div class="rk-section-head">
+      <div class="rk-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+      <div>
+        <div class="rk-section-title">كلمة سر المدير</div>
+        <div class="rk-section-sub">رمز عام يطلبه جهاز الكاشير قبل إغلاق الوردية ومطابقة الكاش — مختلف عن رمز فتح الجهاز نفسه لكل فرع بالأسفل</div>
+      </div>
+    </div>
+    <div class="rk-field" style="max-width:200px;">
+      <label>رمز اعتماد العمليات الحساسة (٤ أرقام)</label>
+      <input type="text" maxlength="4" value="••••">
+    </div>
+    <button class="rk-btn rk-btn-primary rk-btn-md" style="margin-top:10px;">تعيين / تحديث</button>
+    <p class="stock-qty-helper" style="margin-top:10px;">أعطِه لك أو لمن تثق فيه فقط. غيّره في أي وقت من هنا.</p>
+    <div class="rk-subblock">
+      <div class="rk-switch-row">
+        <div class="rk-switch-text">
+          <label class="rk-switch-label">اطلب كلمة سر المدير عند إغلاق الوردية</label>
+          <span class="rk-switch-desc">أطفئه لو اللي يقفل الوردية هو المدير نفسه. إلغاء الطلبات والاسترجاع يظلان يطلبان الرمز دائمًا.</span>
+        </div>
+        <label class="rk-switch"><input type="checkbox" checked><span class="rk-switch-track"></span></label>
+      </div>
+      <button class="rk-btn rk-btn-secondary rk-btn-md" style="margin-top:10px;">حفظ</button>
+    </div>
+  </div>
+
+  <div class="rk-section">
+    <div class="rk-section-head">
+      <div class="rk-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></div>
+      <div>
+        <div class="rk-section-title">فرع النخيل</div>
+        <div class="rk-section-sub">رمز الجهاز لهذا الفرع</div>
+      </div>
+    </div>
+    <div class="rk-field" style="max-width:260px;">
+      <label>رمز نقطة البيع لهذا الفرع (٤ أرقام)</label>
+      <input type="text" maxlength="4" value="••••">
+    </div>
+    <button class="rk-btn rk-btn-secondary rk-btn-sm" style="margin-top:8px;">تعيين / تحديث</button>
+    <p class="stock-qty-helper" style="margin-top:8px;">هذا الرمز يفتح جهاز الكاشير لهذا الفرع بس — كل الموظفين يستخدمونه، وبعده يختارون اسمهم من القائمة.</p>
+  </div>
+</div>
+
+</body>
+</html>

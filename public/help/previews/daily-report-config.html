@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>التقرير اليومي التلقائي — معاينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap">
+<!-- نفس ملف ستايل لوحة التحكم الحقيقي بالإنتاج (app/dashboard/rakeen-dashboard.css) -->
+<link rel="stylesheet" href="/help/previews/rakeen-dashboard.css">
+<style>
+  /* منسوخ حرفيًا من dailyReportConfigHtml داخل public/dashboard/rakeen-dashboard.js —
+     إعداد محتوى التقرير اليومي التلقائي بشاشة التقارير. */
+  html,body{ height:auto; min-height:100%; overflow:visible; display:block; }
+  body{ padding:24px; }
+  .rk-page{ max-width:560px; margin-inline:auto; }
+  input, button, select{ pointer-events:none; }
+</style>
+</head>
+<body>
+
+<div class="rk-page">
+  <div class="rk-section">
+    <div class="rk-section-head">
+      <div class="rk-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/></svg></div>
+      <div>
+        <div class="rk-section-title">محتوى التقرير اليومي</div>
+        <div class="rk-section-sub">اختر وش يظهر بالتقرير التلقائي اللي يتولد كل ليلة الساعة ١٢</div>
+      </div>
+    </div>
+    <div class="rk-check-grid" style="grid-template-columns:repeat(2,1fr); margin-bottom:14px;">
+      <label class="rk-check"><input type="checkbox" checked><span class="rk-check-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>الملخص المالي (صافي الربح والتكاليف)</span></label>
+      <label class="rk-check"><input type="checkbox" checked><span class="rk-check-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>المبيعات</span></label>
+      <label class="rk-check"><input type="checkbox" checked><span class="rk-check-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>المنتجات</span></label>
+      <label class="rk-check"><input type="checkbox"><span class="rk-check-box"></span><span>أرباح تطبيقات التوصيل</span></label>
+      <label class="rk-check"><input type="checkbox" checked><span class="rk-check-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>طرق الدفع</span></label>
+      <label class="rk-check"><input type="checkbox" checked><span class="rk-check-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>الضريبة</span></label>
+    </div>
+    <button class="rk-btn rk-btn-primary rk-btn-md">حفظ</button>
+  </div>
+  <div class="rk-field" style="max-width:280px;">
+    <label>اختر يوم</label>
+    <select><option>الخميس، ٤ سبتمبر ٢٠٢٦</option></select>
+  </div>
+</div>
+
+</body>
+</html>

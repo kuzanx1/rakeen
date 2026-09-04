@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>الإقرار الضريبي — معاينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap">
+<!-- نفس ملفات ستايل لوحة التحكم الحقيقي بالإنتاج -->
+<link rel="stylesheet" href="/help/previews/rakeen-dashboard.css">
+<link rel="stylesheet" href="/help/previews/rakeen-dashboard-responsive.css">
+<style>
+  /* منسوخ حرفيًا من vatReturnReportHtml/loadVatReturnInputData داخل
+     public/dashboard/rakeen-dashboard.js — نوع تقرير "الإقرار الضريبي". */
+  html,body{ height:auto; min-height:100%; overflow:visible; display:block; }
+  body{ padding:24px; }
+  .rk-page{ max-width:600px; margin-inline:auto; }
+  button{ pointer-events:none; }
+</style>
+</head>
+<body>
+
+<div class="rk-page">
+  <div class="report-type-list" style="display:flex; flex-wrap:wrap;">
+    <button class="report-type-card"><span>تقرير المبيعات</span></button>
+    <button class="report-type-card"><span>تقرير الضريبة</span></button>
+    <button class="report-type-card active"><span>الإقرار الضريبي</span></button>
+  </div>
+
+  <div class="report-preview-doc" style="margin-top:16px; background:var(--card-bg); border:1px solid var(--line); border-radius:var(--r-lg); padding:20px;">
+    <div class="panel-title">الإقرار الضريبي (VAT Return) — 1 - 30 سبتمبر 2026</div>
+    <div class="report-stat-row"><span>ضريبة المخرجات (على المبيعات)</span><span class="mono">8,214.50 ر.س</span></div>
+    <div class="report-stat-row"><span>ضريبة المدخلات (على مشتريات المخزون من موردين مسجّلين بالضريبة)</span><span class="mono">2,340.75 ر.س</span></div>
+    <div class="report-stat-row total"><span>صافي الضريبة المستحقة لهيئة الزكاة والضريبة والجمارك</span><span class="mono">5,873.75 ر.س</span></div>
+    <p class="stock-qty-helper" style="margin-top:10px;">ملاحظة: هذا الرقم لا يشمل ضريبة المدخلات على المصاريف العامة (إيجار، تسويق، رواتب...) — راجعها مع محاسبك لو تبي تحتسبها ضمن الاسترداد. المشتريات من موردين غير مسجّلين بالضريبة غير محتسبة ضمن ضريبة المدخلات لأنها غير قابلة للاسترداد نظامًا.</p>
+  </div>
+</div>
+
+</body>
+</html>

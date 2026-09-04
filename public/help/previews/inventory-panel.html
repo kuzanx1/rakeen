@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>المخزون — معاينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap">
+<!-- نفس ملف ستايل لوحة التحكم الحقيقي بالإنتاج (app/dashboard/rakeen-dashboard.css) -->
+<link rel="stylesheet" href="/help/previews/rakeen-dashboard.css">
+<style>
+  /* المعاينة مجمّدة على بيانات واقعية — بدون تشغيل rakeen-dashboard.js نفسه
+     (يحتاج جلسة Supabase حقيقية). كل class هنا منسوخ حرفيًا من
+     renderStockTable / renderWasteAndFoodCost داخل public/dashboard/rakeen-dashboard.js. */
+  html,body{ height:auto; min-height:100%; overflow:visible; display:block; }
+  body{ padding:24px; }
+  .rk-page{ max-width:820px; margin-inline:auto; }
+  input, button{ pointer-events:none; }
+</style>
+</head>
+<body>
+
+<div class="rk-page">
+  <div class="row-2col inv-top-row">
+    <div class="panel inv-hero-panel critical" id="stockValuePanel">
+      <div class="inv-hero-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 14h.01"/><path d="M7 7h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14"/></svg></div>
+      <div class="inv-hero-body">
+        <div class="inv-hero-label">قيمة المخزون الحالي</div>
+        <div class="inv-hero-value mono">972.50 ر.س</div>
+        <div class="inv-hero-detail">3 أصناف منخفضة تحتاج انتباه</div>
+      </div>
+    </div>
+    <div class="panel inv-hero-panel ok" id="foodCostPanel">
+      <div class="inv-hero-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M7 7m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M19 5l-14 14"/></svg></div>
+      <div class="inv-hero-body">
+        <div class="inv-hero-label">نسبة تكلفة الطعام</div>
+        <div class="inv-hero-value mono">31٪</div>
+        <div class="inv-hero-detail">ضمن المعدل الصحي لمطاعم الكوفي (28-33٪)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="menu-search-toolbar">
+    <input type="text" placeholder="دوّر عن صنف...">
+    <button class="menu-add-btn menu-add-btn-primary">+ إضافة صنف جديد</button>
+  </div>
+  <div class="report-type-chips">
+    <button class="active">كل الأصناف</button>
+    <button>يحتاج انتباه <span>(3)</span></button>
+  </div>
+
+  <div id="stockTable">
+    <div class="stock-cat-group">
+      <button type="button" class="stock-cat-toggle" data-cat="raw">
+        <span>مواد خام أساسية <span class="stock-cat-count">3</span></span>
+        <svg class="stock-cat-chevron open" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
+      <div class="stock-cat-body">
+        <div class="menu-table-row">
+          <div class="mtr-product"><div class="mtr-name-col">
+            <div class="mtr-name">أرز بسمتي</div>
+            <div class="mtr-meta">45 من 50 كجم متبقي — استهلك اليوم 3.20 كجم (4 طلب)</div>
+          </div></div>
+          <div class="mtr-price mono">8.50 / كجم</div>
+          <div class="mtr-stock-bar-cell">
+            <div class="stock-bar-track"><div class="stock-bar-fill ok" style="width:90%"></div></div>
+            <span class="mtr-stock-pct mono">90٪</span>
+          </div>
+          <div class="mth-col-modused"><span class="mtr-mod-used" title="بوكس وسط مشكّل، بوكس كبير مشكّل">بوكس وسط مشكّل، بوكس كبير مشكّل</span></div>
+        </div>
+        <div class="menu-table-row">
+          <div class="mtr-product"><div class="mtr-name-col">
+            <div class="mtr-name">لحم غنم</div>
+            <div class="mtr-meta">6 من 40 كجم متبقي — استهلك اليوم 2.10 كجم (2 طلب)</div>
+          </div></div>
+          <div class="mtr-price mono">45.00 / كجم</div>
+          <div class="mtr-stock-bar-cell">
+            <div class="stock-bar-track"><div class="stock-bar-fill critical" style="width:15%"></div></div>
+            <span class="mtr-stock-pct mono">15٪</span>
+          </div>
+          <div class="mth-col-modused"><span class="mtr-mod-used" title="بوكس كبير مشكّل">بوكس كبير مشكّل</span></div>
+        </div>
+        <div class="menu-table-row">
+          <div class="mtr-product"><div class="mtr-name-col">
+            <div class="mtr-name">زيت زيتون</div>
+            <div class="mtr-meta">8 من 20 لتر متبقي</div>
+          </div></div>
+          <div class="mtr-price mono">22.00 / لتر</div>
+          <div class="mtr-stock-bar-cell">
+            <div class="stock-bar-track"><div class="stock-bar-fill warn" style="width:40%"></div></div>
+            <span class="mtr-stock-pct mono">40٪</span>
+          </div>
+          <div class="mth-col-modused"><span class="mtr-mod-used" title="حامض عنُوب">حامض عنُوب</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="stock-cat-group">
+      <button type="button" class="stock-cat-toggle" data-cat="packaging">
+        <span>تغليف ومستلزمات <span class="stock-cat-count">1</span></span>
+        <svg class="stock-cat-chevron open" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
+      <div class="stock-cat-body">
+        <div class="menu-table-row">
+          <div class="mtr-product"><div class="mtr-name-col">
+            <div class="mtr-name">علبة بوكس كبير</div>
+            <div class="mtr-meta">120 من 300 حبة متبقي</div>
+          </div></div>
+          <div class="mtr-price mono">1.20 / حبة</div>
+          <div class="mtr-stock-bar-cell">
+            <div class="stock-bar-track"><div class="stock-bar-fill warn" style="width:40%"></div></div>
+            <span class="mtr-stock-pct mono">40٪</span>
+          </div>
+          <div class="mth-col-modused"><span class="mtr-mod-used" title="بوكس كبير مشكّل">بوكس كبير مشكّل</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

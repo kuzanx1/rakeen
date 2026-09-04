@@ -36,13 +36,24 @@ const CSP = [
   // loads) until this was added.
   "img-src 'self' data: blob: https:",
   `connect-src 'self' ${SUPABASE_ORIGIN} ${SUPABASE_WS_ORIGIN} https://cloudflareinsights.com`,
-  // Storefront footer/order-status branch map embeds (iframe to Google Maps).
-  "frame-src https://www.google.com",
+  // Storefront footer/order-status branch map embeds (iframe to Google Maps);
+  // 'self' additionally covers the help center's real-screen previews
+  // (app/help — static snapshots under public/help/previews/ reusing the
+  // actual POS/dashboard CSS+markup, embedded via same-origin <iframe>).
+  "frame-src 'self' https://www.google.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
 ].join('; ');
+
+// The site-wide frame-ancestors 'none' + X-Frame-Options: DENY above is a
+// real clickjacking defense and stays the default everywhere — but it also
+// blocks the help center (app/help) from framing its own same-origin
+// preview snapshots under public/help/previews/. Header overriding in
+// Next.js is last-match-wins per path (see headers() docs), so this second,
+// more specific rule only loosens framing for that one static subtree.
+const PREVIEW_CSP = CSP.replace("frame-ancestors 'none'", "frame-ancestors 'self'");
 
 const nextConfig: NextConfig = {
   turbopack: {
@@ -59,6 +70,13 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+        ],
+      },
+      {
+        source: "/help/previews/:path*",
+        headers: [
+          { key: "Content-Security-Policy", value: PREVIEW_CSP },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
         ],
       },
     ];

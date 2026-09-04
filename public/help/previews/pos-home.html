@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>الشاشة الرئيسية — معاينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap">
+<!-- نفس ملفات ستايل الكاشير الحقيقي بالإنتاج — بدون أي نسخة مستقلة -->
+<link rel="stylesheet" href="/help/previews/rakeen-pos.css">
+<link rel="stylesheet" href="/help/previews/rakeen-pos-additions.css">
+<style>
+  /* المعاينة مجمّدة على بيانات مطعم عنوب الحقيقية — بدون تشغيل rakeen-pos.js
+     نفسه (يحتاج جلسة Supabase حقيقية). كل class هنا منسوخ حرفيًا من
+     renderCatRail / renderProductGrid / renderOrder داخل public/pos/rakeen-pos.js */
+  .bottom-nav{ display:none; } /* المعاينة مقصوصة على شاشة home فقط */
+</style>
+</head>
+<body>
+
+<div class="app home-active" id="posApp">
+  <header class="topbar">
+    <div class="identity-cluster">
+      <img class="brand-avatar" src="/brand/rakeen-wordmark.png" alt="ركين" style="height:20px;width:auto;">
+      <div class="identity-text">
+        <span class="identity-name">مطعم عنوب</span>
+        <span class="identity-branch">فرع النخيل</span>
+      </div>
+    </div>
+    <div class="status-group">
+      <span class="status-pill online"><span class="status-dot"></span>متصل</span>
+      <span class="status-pill"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>الطابعة جاهزة</span>
+    </div>
+    <button class="notif-bell" aria-label="تنبيهات التوصيل" title="تنبيهات التوصيل">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    </button>
+    <button class="theme-toggle" aria-label="تبديل المظهر">
+      <svg class="icon-dark" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg class="icon-light" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+    </button>
+    <button class="lang-toggle" title="Language / اللغة">EN</button>
+    <div class="tb-clock">12:41</div>
+  </header>
+
+  <div class="screens">
+    <section class="screen active" id="screen-home">
+      <div class="home-zones">
+        <div class="cat-sidebar" id="catRail">
+          <button class="cat-btn"><span class="ci">★</span>الأكثر طلبًا</button>
+          <button class="cat-btn active"><span class="ci">▦</span>الكل</button>
+          <button class="cat-btn"><span class="ci">📦</span>البوكسات</button>
+          <button class="cat-btn"><span class="ci">🥣</span>صوصات عنوب</button>
+        </div>
+        <div class="products-zone">
+          <div class="products-toolbar">
+            <div class="search-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" placeholder="ابحث أو امسح باركود..." readonly>
+            </div>
+            <button class="fav-toggle" title="المفضّلة">★</button>
+          </div>
+          <div class="product-grid" id="productGrid">
+            <button class="product-card">
+              <span class="fav-star on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>
+              <div class="product-icon"><img src="https://media.rakeenapp.com/menu-item-images/1/37-1786203511961.png" alt="" loading="lazy"><span class="rk-money mono product-price">49<span class="rk-money-frac">.00</span> <span class="rk-riyal">⃁</span></span></div>
+              <div class="product-name">بوكس وسط مشكّل</div>
+              <div class="product-cat">البوكسات</div>
+            </button>
+            <button class="product-card">
+              <span class="fav-star"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>
+              <span class="customize-dot" title="فيه خيارات — اضغط مطولًا للتخصيص"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+              <div class="product-icon"><img src="https://media.rakeenapp.com/menu-item-images/1/38-1786204226614.jpeg" alt="" loading="lazy"><span class="rk-money mono product-price">99<span class="rk-money-frac">.00</span> <span class="rk-riyal">⃁</span></span></div>
+              <div class="product-name">بوكس كبير مشكّل</div>
+              <div class="product-cat">البوكسات</div>
+            </button>
+            <button class="product-card">
+              <span class="fav-star"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>
+              <div class="product-icon"><img src="https://media.rakeenapp.com/menu-item-images/1/42-1786204272084.jpeg" alt="" loading="lazy"><span class="rk-money mono product-price">49<span class="rk-money-frac">.00</span> <span class="rk-riyal">⃁</span></span></div>
+              <div class="product-name">بوكس رول مسخن</div>
+              <div class="product-cat">البوكسات</div>
+            </button>
+            <button class="product-card">
+              <span class="fav-star"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>
+              <div class="product-icon"><img src="https://media.rakeenapp.com/menu-item-images/1/57-1786341048546.png" alt="" loading="lazy"><span class="rk-money mono product-price">2<span class="rk-money-frac">.00</span> <span class="rk-riyal">⃁</span></span></div>
+              <div class="product-name">حامض عنُوب</div>
+              <div class="product-cat">صوصات عنوب</div>
+            </button>
+          </div>
+        </div>
+        <div class="order-panel">
+          <div class="op-head">
+            <div class="op-head-top">
+              <span class="op-title">الطلب الحالي</span>
+            </div>
+          </div>
+          <div class="order-items" id="orderItems">
+            <div class="order-item">
+              <div class="oi-row">
+                <div class="oi-qty"><button class="qty-btn">−</button><span class="qty-val">1</span><button class="qty-btn">+</button></div>
+                <div class="oi-info"><div class="oi-name">بوكس وسط مشكّل</div></div>
+                <div class="oi-total"><span class="rk-money mono">49<span class="rk-money-frac">.00</span> <span class="rk-riyal">⃁</span></span></div>
+                <button class="oi-remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              </div>
+              <button class="oi-note-link">+ ملاحظة</button>
+            </div>
+            <div class="order-item">
+              <div class="oi-row">
+                <div class="oi-qty"><button class="qty-btn">−</button><span class="qty-val">2</span><button class="qty-btn">+</button></div>
+                <div class="oi-info"><div class="oi-name">حامض عنُوب</div><div class="oi-unit"><span class="rk-money mono">2<span class="rk-money-frac">.00</span> <span class="rk-riyal">⃁</span></span> / حبة</div></div>
+                <div class="oi-total"><span class="rk-money mono">4<span class="rk-money-frac">.00</span> <span class="rk-riyal">⃁</span></span></div>
+                <button class="oi-remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              </div>
+              <div class="oi-note-text">📝 بدون بصل</div>
+            </div>
+          </div>
+          <div class="op-discount-row">
+            <button class="discount-toggle">+ خصم</button>
+          </div>
+          <div class="order-summary" id="orderSummary">
+            <div class="sum-row"><span>عدد الأصناف</span><span class="mono">3</span></div>
+            <div class="sum-row"><span>المجموع الفرعي</span><span class="rk-money mono">53<span class="rk-money-frac">.00</span> <span class="rk-riyal">⃁</span></span></div>
+            <div class="sum-row"><span>ضريبة القيمة المضافة</span><span class="rk-money mono">7<span class="rk-money-frac">.95</span> <span class="rk-riyal">⃁</span></span></div>
+            <div class="sum-row total"><span>الإجمالي</span><span class="rk-money mono">60<span class="rk-money-frac">.95</span> <span class="rk-riyal">⃁</span></span></div>
+          </div>
+          <div class="order-actions">
+            <button class="pay-btn">ادفع — <span class="rk-money mono">60<span class="rk-money-frac">.95</span> <span class="rk-riyal">⃁</span></span></button>
+            <button class="clear-btn">إفراغ الطلب</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+</body>
+</html>

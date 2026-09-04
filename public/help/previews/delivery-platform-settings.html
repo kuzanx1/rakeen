@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>منصات التوصيل — معاينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap">
+<!-- نفس ملف ستايل لوحة التحكم الحقيقي بالإنتاج (app/dashboard/rakeen-dashboard.css) -->
+<link rel="stylesheet" href="/help/previews/rakeen-dashboard.css">
+<style>
+  /* منسوخ حرفيًا من renderDeliveryPlatformsSettings داخل
+     public/dashboard/rakeen-dashboard.js — تبويب منصات التوصيل بالأرباح. */
+  html,body{ height:auto; min-height:100%; overflow:visible; display:block; }
+  body{ padding:24px; }
+  .rk-page{ max-width:640px; margin-inline:auto; }
+  input, select, button{ pointer-events:none; }
+</style>
+</head>
+<body>
+
+<div class="rk-page">
+  <div class="rk-subcard">
+    <div class="rk-subcard-title">هنقرستيشن</div>
+    <div class="rk-grid-2" style="margin-bottom:14px;">
+      <div class="rk-field"><label>نسبة عمولة المنصة (٪)</label><input type="number" value="22"></div>
+      <div class="rk-field"><label>تحسب العمولة من</label><select><option>الإجمالي شامل الضريبة</option></select></div>
+    </div>
+    <div class="rk-field" style="margin-bottom:14px; max-width:280px;">
+      <label>نموذج رسوم التوصيل</label>
+      <select><option>يتدرّج حسب قيمة الطلب</option></select>
+    </div>
+    <div class="rk-field" style="margin-bottom:14px; max-width:280px;">
+      <label>رسم ثابت إضافي لكل طلب (اختياري)</label>
+      <input type="number" value="2.00">
+      <p class="stock-qty-helper" style="margin-top:6px;">يُضاف فوق رسم الشريحة في كل طلب — مثال: هنقرستيشن تاخذ رسم شريحة + 2 ر.س ثابتة لكل طلب.</p>
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="font-size:11.5px; font-weight:700; color:var(--muted);">درجات الرسوم — الرسم يطبّق لأعلى حد أدنى تحقق قيمة الطلب</label>
+      <div style="margin-top:8px;">
+        <div style="display:flex; gap:10px; align-items:flex-end; margin-bottom:8px;">
+          <div class="rk-field" style="flex:1;"><label>الطلب من (ر.س)</label><input type="number" value="0"></div>
+          <div class="rk-field" style="flex:1;"><label>رسم التوصيل (ر.س)</label><input type="number" value="12"></div>
+        </div>
+        <div style="display:flex; gap:10px; align-items:flex-end;">
+          <div class="rk-field" style="flex:1;"><label>الطلب من (ر.س)</label><input type="number" value="80"></div>
+          <div class="rk-field" style="flex:1;"><label>رسم التوصيل (ر.س)</label><input type="number" value="6"></div>
+        </div>
+      </div>
+    </div>
+    <div class="rk-grid-2" style="margin-bottom:14px;">
+      <div class="rk-field"><label>نسبة تعويضات/استرجاعات مفترضة (٪)</label><input type="number" value="1.5"></div>
+      <div class="rk-field"><label>الحد الأقصى لتجهيز طلب توصيل (دقيقة)</label><input type="number" value="20"></div>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="rk-btn rk-btn-primary rk-btn-sm">حفظ إعدادات هنقرستيشن</button>
+      <button class="rk-btn rk-btn-secondary rk-btn-sm">تعطيل المنصة</button>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:10px; align-items:flex-end; margin-top:12px;">
+    <div class="rk-field" style="flex:1; margin-bottom:0;"><label>منصة توصيل جديدة</label><input type="text" placeholder="مثال: جاهز"></div>
+    <button class="rk-btn rk-btn-primary rk-btn-md" style="flex-shrink:0;">+ إضافة</button>
+  </div>
+</div>
+
+</body>
+</html>

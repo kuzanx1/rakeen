@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>مسح فاتورة مورّد — معاينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap">
+<!-- نفس ملفات ستايل لوحة التحكم الحقيقي بالإنتاج -->
+<link rel="stylesheet" href="/help/previews/rakeen-dashboard.css">
+<link rel="stylesheet" href="/help/previews/rakeen-dashboard-responsive.css">
+<style>
+  /* منسوخ حرفيًا من invBlockHtml/invLineRowHtml داخل public/dashboard/rakeen-dashboard.js
+     — شاشة المخزون والمشتريات ← تسجيل فاتورة مورّد. */
+  html,body{ height:auto; min-height:100%; overflow:visible; display:block; }
+  body{ padding:24px; }
+  .rk-page{ max-width:520px; margin-inline:auto; background:var(--card-bg); border:1px solid var(--line); border-radius:var(--r-lg); padding:20px; }
+  input, select, button{ pointer-events:none; }
+</style>
+</head>
+<body>
+
+<div class="rk-page">
+  <div class="inv-block">
+    <div class="inv-block-header">
+      <div class="menu-add-field" style="margin-bottom:10px; flex:1;">
+        <label>اسم المورد</label>
+        <input type="text" value="مزرعة الشرق">
+      </div>
+    </div>
+    <div class="menu-add-field" style="margin-bottom:10px;">
+      <label>رقم الفاتورة (اختياري)</label>
+      <input type="text" value="INV-1029">
+    </div>
+    <div class="inv-scan-wrap">
+      <button type="button" class="inv-scan-btn inv-scan-btn-ai">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18 9l-4.1 1.4L12 15l-1.9-4.6L6 9l4.1-1.4L12 3z"/><path d="M5 15l.9 2.1L8 18l-2.1.9L5 21l-.9-2.1L2 18l2.1-.9L5 15z"/></svg>
+        <span class="inv-scan-btn-text">
+          <span class="inv-scan-btn-title">صوّر الفاتورة</span>
+          <span class="inv-scan-btn-sub">تُقرأ تلقائيًا — الأصناف والمورد والإجمالي</span>
+        </span>
+      </button>
+    </div>
+    <div class="inv-scan-or">أو أدخلها يدويًا</div>
+    <div class="inv-review-notice warn">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M21 21l-6-6"/></svg>
+      <span>القراءة الذكية سريعة، بس راجع الكميات والأسعار قبل ما تحفظ.</span>
+    </div>
+    <label class="inv-lines-label">أصناف الفاتورة</label>
+    <div class="inv-line-headers"><span>الصنف</span><span>الكمية</span><span>السعر</span><span></span></div>
+    <div>
+      <div class="inv-line-row">
+        <div class="inv-line-main">
+          <select><option>أرز بسمتي</option></select>
+          <input type="number" value="25">
+          <input type="number" value="212.50">
+          <button type="button" style="border:none; background:none; color:var(--muted);">✕</button>
+        </div>
+      </div>
+      <div class="inv-line-row">
+        <div class="inv-line-main">
+          <select><option>لحم غنم</option></select>
+          <input type="number" value="10">
+          <input type="number" value="450.00">
+          <button type="button" style="border:none; background:none; color:var(--muted);">✕</button>
+        </div>
+      </div>
+    </div>
+    <button type="button" class="inv-add-line-btn">+ إضافة صنف آخر لنفس الفاتورة</button>
+  </div>
+</div>
+
+</body>
+</html>

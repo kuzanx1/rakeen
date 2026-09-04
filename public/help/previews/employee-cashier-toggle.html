@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>تفعيل الكاشير لموظف — معاينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap">
+<!-- نفس ملف ستايل لوحة التحكم الحقيقي بالإنتاج (app/dashboard/rakeen-dashboard.css) -->
+<link rel="stylesheet" href="/help/previews/rakeen-dashboard.css">
+<style>
+  /* منسوخ حرفيًا من openEmployeeModal داخل public/dashboard/rakeen-dashboard.js —
+     الجزء الخاص بربط الموظف بجهاز الكاشير، ضمن نموذج "إضافة/تعديل موظف". */
+  html,body{ height:auto; min-height:100%; overflow:visible; display:block; }
+  body{ padding:24px; }
+  .rk-page{ max-width:520px; margin-inline:auto; background:var(--card-bg); border:1px solid var(--line); border-radius:var(--r-lg); padding:22px; }
+  input, select, button{ pointer-events:none; }
+</style>
+</head>
+<body>
+
+<div class="rk-page">
+  <div class="rk-field" style="margin-bottom:14px;"><label>الاسم الكامل</label><input type="text" value="سلطان المطيري"></div>
+  <div class="menu-add-row" style="margin-bottom:14px;">
+    <div class="menu-add-field"><label>الفرع</label><select><option>فرع النخيل</option></select></div>
+    <div class="menu-add-field"><label>نوع الدوام</label><select><option>دوام كامل</option></select></div>
+  </div>
+
+  <div style="border-top:1px solid var(--line); margin:4px 0 14px; padding-top:12px;">
+    <div class="rk-switch-row">
+      <div class="rk-switch-text">
+        <label class="rk-switch-label">تفعيل الكاشير لهذا الموظف</label>
+        <span class="rk-switch-desc">يقدر يسجّل حضوره بجهاز الكاشير بالفرع المحدد فوق، ويظهر بمبيعات اليوم بتبويب "نظرة عامة".</span>
+      </div>
+      <label class="rk-switch"><input type="checkbox" checked><span class="rk-switch-track"></span></label>
+    </div>
+    <div style="margin-top:10px;">
+      <div class="rk-field" style="margin-bottom:12px;">
+        <label>ربط باسم كاشير موجود (اختياري)</label>
+        <select><option>— إنشاء اسم جديد باسم الموظف —</option><option>فرع النخيل — اسم كاشير قديم #12</option></select>
+        <p class="stock-qty-helper" style="margin-top:6px;">لو هذا الموظف مسجّل مسبقًا بجهاز الكاشير باسم قديم، اربطه هنا بدل ما تسوي له اسم مكرر.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
