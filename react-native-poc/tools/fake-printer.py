@@ -143,18 +143,42 @@ def main() -> int:
     os.makedirs(OUT_DIR, exist_ok=True)
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    # NOT SO_REUSEADDR on Windows. There, SO_REUSEADDR does not mean what
+    # it means on Unix: it lets a SECOND process bind a port that is
+    # already bound, and incoming connections then go to one of them.
+    # That is how a whole debugging session got spent on a print job the
+    # app really did deliver -- an older listener owned the port and was
+    # writing every receipt to disk, while the window being watched showed
+    # nothing but its own banner. SO_EXCLUSIVEADDRUSE makes the second
+    # instance fail loudly instead, which is the only useful behaviour for
+    # a tool whose entire job is to tell you what arrived.
+    if hasattr(socket, 'SO_EXCLUSIVEADDRUSE'):
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+    else:
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
         server.bind(('0.0.0.0', PORT))
     except OSError as e:
         print(f'Could not listen on port {PORT}: {e}')
-        print('Something else may already be using it.')
+        print('Another listener already owns it. Find out which:')
+        print('  PowerShell:  Get-NetTCPConnection -LocalPort 9100 -State Listen |')
+        print('               Select-Object OwningProcess')
+        print('  then:        Get-CimInstance Win32_Process -Filter "ProcessId = <pid>" |')
+        print('               Select-Object CommandLine, CreationDate')
+        print('THAT process is the one receiving your print jobs, not this window.')
         return 1
     server.listen(5)
 
     print('=' * 62)
     print('  Fake ESC/POS printer is listening'.center(62))
     print('=' * 62)
+    # Identify the window. With several terminals open it is otherwise
+    # impossible to tell which one actually owns the socket -- and a
+    # listener that is not the owner looks exactly like a printer that
+    # never received anything.
+    print('')
+    print(f'  PID {os.getpid()} -- THIS window owns port {PORT}.')
+    print(f'  Jobs are saved to {OUT_DIR}')
     ips = local_ips()
     if ips:
         print('\n  In the app: Settings -> Printer')
