@@ -59,9 +59,13 @@ textarea {
   white-space: nowrap;
 }
 .loyalty-tab.active {
-  background: var(--graphite);
+  background: linear-gradient(135deg, var(--graphite), #262626);
   border-color: var(--graphite);
   color: var(--lime);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+[data-theme="dark"] .loyalty-tab.active {
+  background: linear-gradient(135deg, #232323, #171717);
 }
 
 .auth-error {
@@ -128,7 +132,12 @@ select.field-invalid {
 .rk-hamburger-btn {
   display: none;
   position: fixed;
-  top: 14px;
+  /* Same gap as .topbar and .rk-bottom-nav's own safe-area handling below —
+     this button is independently fixed-positioned (not inside .topbar), so
+     it needs its own env() clearance or it floats under the status bar on
+     a device that overlays one (translucent status bar / home-screen web
+     app — see appleWebApp.statusBarStyle in dashboard/page.tsx). */
+  top: calc(14px + env(safe-area-inset-top, 0px));
   inset-inline-start: 14px;
   z-index: 520;
   width: 40px;
@@ -142,6 +151,13 @@ select.field-invalid {
   justify-content: center;
   gap: 4px;
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.rk-hamburger-btn:hover {
+  border-color: var(--lime-deep, #8fcb17);
+}
+.rk-hamburger-btn:active {
+  transform: scale(0.93);
 }
 .rk-hamburger-btn span {
   display: block;
@@ -192,7 +208,7 @@ select.field-invalid {
   justify-content: center;
   gap: 3px;
   min-height: 56px;
-  padding: 8px 4px 6px;
+  padding: 6px 4px;
   background: none;
   border: none;
   color: var(--muted, #5a5a5a);
@@ -200,15 +216,35 @@ select.field-invalid {
   font-size: 10.5px;
   font-weight: 700;
   cursor: pointer;
+  transition: color 0.15s ease;
 }
 .rk-bn-item svg {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
+}
+/* Active indicator is a lime chip behind the icon, not just a color swap —
+   Lime Green is meant to read as "this is the active/selected thing"
+   everywhere in the nav (sidebar rows use the same idea via their dark
+   pill), so the bottom nav should say it the same way. */
+.rk-bn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 26px;
+  border-radius: var(--r-md, 14px);
+  transition: background 0.18s ease, transform 0.15s ease;
+}
+.rk-bn-item:active .rk-bn-icon {
+  transform: scale(0.88);
 }
 .rk-bn-item.active {
   color: var(--graphite, #111);
 }
-.rk-bn-item.active svg {
+.rk-bn-item.active .rk-bn-icon {
+  background: var(--lime, #c4ff2b);
+}
+.rk-bn-item.active .rk-bn-icon svg {
   stroke-width: 2.4;
 }
 
@@ -260,6 +296,12 @@ select.field-invalid {
   body[data-stage="dashboard"] .content {
     padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 20px);
   }
+  /* Same 56px bottom-nav height the FAB and .content already clear — a
+     save/error toast at the base bottom:28px sat squarely behind/inside
+     the nav bar's own footprint, not just under it in stacking order. */
+  body[data-stage="dashboard"] .dash-toast {
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 16px);
+  }
 
   /* Spot-verification of the already-card-based screens (Staff/Loyalty/
      Sales/Customers) found two fixed-column grids nobody had accounted
@@ -269,6 +311,23 @@ select.field-invalid {
      default this pass is meant to eliminate — instead of stacking. */
   .row-2col {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .rk-grid-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* Same fixed-column-grid bug as .rk-grid-2 above: 3 equal columns left
+     longer permission labels ("الرئيسية والمبيعات", "المنيو الإلكتروني")
+     wrapping to two lines at ~110px each, cramped and uneven next to the
+     single-line ones. One column reads as a clean checklist instead. */
+  .rk-check-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* .users-table-identity's 130px+70px fixed role/status columns (a desktop
+     table-alignment nicety) leave almost nothing for the name at mobile
+     widths — same fixed-column-on-narrow-screen bug as the two above. */
+  .users-table-identity .u-role,
+  .users-table-identity .u-status {
+    width: auto;
   }
   .emp-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -292,9 +351,16 @@ select.field-invalid {
      audit request this session. .heatmap-cells (5 columns of plain color
      swatches, no text) is deliberately left alone — that's a real,
      functional dense-heatmap pattern, not this bug. */
-  .channel-cards,
-  .order-status-grid {
+  .channel-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* 3 real cards now (voided card removed — it could never show anything but
+     0, see rakeen-dashboard.js). 3 equal columns fit fine even at 375px
+     given how compact these are; a 2-col split would leave an awkward lone
+     3rd card on its own row for no reason. This rule is the sole authority
+     for .order-status-grid at ≤900px — no matching rule in the base file. */
+  .order-status-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .app-shell {
@@ -307,15 +373,88 @@ select.field-invalid {
     inset-inline-start: 0;
     z-index: 500;
     transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding-top: 72px;
+    padding-top: calc(72px + env(safe-area-inset-top, 0px));
   }
   html[dir="rtl"] .sidebar {
     transform: translateX(100%);
   }
   body.rk-sidebar-open .sidebar {
     transform: translateX(0);
+  }
+  /* Desktop-only feature (see .sidebar.collapsed in rakeen-dashboard.css) —
+     neutralized here so a collapsed flag carried over from a live window
+     resize (desktop -> phone width) never leaves the mobile drawer stuck
+     as an icon-only rail with no way to reach it (the collapse toggle
+     itself is hidden below, so there'd be no way back). */
+  .sidebar.collapsed {
+    width: 230px;
+    padding-inline: 14px;
+  }
+  .sidebar.collapsed .sidebar-top {
+    justify-content: space-between;
+    padding-inline: 4px;
+  }
+  .sidebar.collapsed .sidebar-logo-full {
+    display: block;
+  }
+  .sidebar.collapsed .sidebar-logo-mark {
+    display: none;
+  }
+  .sidebar.collapsed .nav-section-label {
+    justify-content: flex-start;
+    padding-inline: 12px;
+    font-size: 10px;
+  }
+  .sidebar.collapsed .nav-item {
+    justify-content: flex-start;
+    padding-inline: 12px;
+  }
+  .sidebar.collapsed .nav-label,
+  .sidebar.collapsed .soon-badge {
+    display: inline;
+  }
+  .sidebar.collapsed .sidebar-owner {
+    justify-content: flex-start;
+    padding: 12px;
+  }
+  .sidebar.collapsed .owner-text,
+  .sidebar.collapsed .auth-util-btn {
+    display: flex;
+  }
+  .sidebar-collapse-btn {
+    display: none;
+  }
+
+  /* Owner-reported: tapping into ANY text field on a phone made the whole
+     page zoom in, as if pinch-zoomed, with no way to trigger it back down
+     except zooming back out by hand. This is Safari/Chrome's own built-in
+     behavior, not a bug in the page's zoom/scale — every mobile browser
+     auto-zooms to a focused input if its computed font-size is under 16px
+     (this codebase's inputs mostly run 11-13px for density). The fix is the
+     standard one: never let a real text-entry control render under 16px on
+     a touch viewport. !important is deliberate — dozens of more-specific
+     selectors set smaller sizes for visual density (.rk-field input,
+     .rk-inline-num, #aiInput, etc.) and all of them need to lose to this,
+     everywhere, not just the ones found so far. Desktop is untouched;
+     desktop browsers don't auto-zoom on focus, so there's nothing to fix
+     there and no reason to touch the tighter density that works fine there. */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="search"],
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="url"],
+  input:not([type]),
+  textarea,
+  select {
+    font-size: 16px !important;
   }
 
   /* Touch targets: raised at the shared-class level so one rule fixes every
@@ -336,16 +475,61 @@ select.field-invalid {
   /* Found by a full touch-target sweep, not the original audit — three
      more sub-44px buttons that had never been individually flagged:
      Home's "أعطنا انتباه" action chips, Purchases' primary add-invoice
-     button (39px, just short), and the AI advisor's suggested-question
-     chips. */
+     button (39px, just short). (The AI advisor's suggested-question chips
+     used to be in this group too — owner explicitly asked for them smaller
+     and tighter instead, see the dedicated compact sizing below.) */
   .attention-action {
     min-height: 44px;
   }
   .menu-add-btn-primary {
     min-height: 44px;
   }
-  .ai-suggest-chip {
+  /* Online store's design tab: a fixed "1fr 300px" grid (main form + a
+     300px live-preview sidebar) — the 300px alone left almost nothing for
+     the 1fr column at 375px, forcing 798px of real content width and a
+     full-page horizontal scroll. Inline style wins the cascade over a plain
+     class rule, hence !important here specifically. */
+  /* Two overlapping grid gotchas here, both the same root cause: a plain
+     "1fr" track never shrinks below the max-content width of what's inside
+     it (a grid item's default min-width is "auto", not 0) — so a single
+     "1fr" column, or a 2-column "1fr 1fr", still overflows its own parent
+     if anything inside is wide. minmax(0, 1fr) is the actual fix, not just
+     reducing the column count. */
+  .online-menu-design-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .online-color-swatch-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  /* Layout-style and font pickers: two flex:1 cards side by side had the
+     same default min-width:auto problem, plus at ~170px each on a real
+     phone the cards were too cramped to read anyway — stacked instead of
+     just unbroken, which is the better outcome here, not just the safe one. */
+  .online-radio-card-row {
+    flex-direction: column;
+  }
+  .rk-field-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .online-color-field-row {
     min-height: 44px;
+  }
+  /* Menu screen's product-modal checklists (box-eligible items, attach-a-
+     modifier-group) — measured 40.75px during the Menu redesign's own
+     mobile touch-target check. */
+  .attach-group-item {
+    min-height: 44px;
+  }
+  /* Owner's explicit call: these read as too big/spaced-out on a phone —
+     wants them small and packed close together, not full touch-target
+     sized. Deliberately smaller than the 44px floor used elsewhere. */
+  .ai-suggested-questions {
+    gap: 6px;
+  }
+  .ai-suggest-chip {
+    min-height: 30px;
+    padding: 6px 11px;
+    font-size: 11px;
   }
   /* A checkbox+label toggle row (win-back settings, notification prefs) —
      the raw checkbox measures ~17px, and while the whole <label> text is
@@ -372,6 +556,29 @@ select.field-invalid {
     content: '';
     position: absolute;
     inset: -11px -3px;
+  }
+
+  /* Same touch-target sweep, applied to the New Style (rk-*) system now
+     that it's shipping on real screens — .rk-btn-sm/md measured 35-39px,
+     the settings tab pills 40px, all under the 44px minimum. */
+  .rk-btn-sm,
+  .rk-btn-md,
+  .settings-tabs button {
+    min-height: 44px;
+  }
+  /* .rk-switch (42x25) and .rk-check's box (18x18) are real controls with
+     their own visible size language — same reasoning as .menu-toggle above,
+     expand the tap target via ::before on the actual clickable ancestor
+     (the <label>) instead of resizing the visible switch/checkbox. */
+  .rk-switch::before {
+    content: '';
+    position: absolute;
+    inset: -11px -9px;
+  }
+  .rk-check::before {
+    content: '';
+    position: absolute;
+    inset: -6px 0;
   }
 
   /* Header compression: the full-width "ابحث أو اكتب أمر... ⌘K" search bar
@@ -471,7 +678,11 @@ select.field-invalid {
     height: auto;
     min-height: 64px;
     flex-wrap: wrap;
-    padding-top: 10px;
+    /* base 10px PLUS the safe-area inset, not instead of it — a plain
+       10px here was overriding the base rule's env(safe-area-inset-top)
+       on every phone, which is exactly where a real inset (translucent
+       status bar overlay) is most likely to be nonzero. */
+    padding-top: calc(10px + env(safe-area-inset-top, 0px));
     padding-bottom: 10px;
   }
   .cmdk-trigger {
@@ -578,9 +789,10 @@ select.field-invalid {
   flex-wrap: wrap;
   margin-top: 12px;
 }
-.report-email-row .menu-add-field {
+.report-email-row .rk-field {
   flex: 1;
   min-width: 200px;
+  margin-bottom: 0 !important;
 }
 @media (max-width: 640px) {
   .report-table {
@@ -596,16 +808,19 @@ select.field-invalid {
      column order every render (renderOrdersTable in rakeen-dashboard.js),
      so nth-child targeting is safe without touching the JS template. */
   .order-row.head { display: none; }
-  /* Re-paired so each row groups things that actually belong together —
-     "when + through which channel" then "how many + how paid" — instead of
-     the previous id-order pairing (type+items, date+payment) that made the
-     card read like scattered, unrelated fields. Same 7 spans, same JS. */
+  /* Channel type moved out of plain text into its own colored tag (see
+     .order-channel-tag) — grouped with status on its own row now, since both
+     are "badge" elements at a glance, not data fields that need a label.
+     Re-paired the rest so each row groups things that actually belong
+     together — "when + how paid" — instead of scattered unrelated fields.
+     Same 7 spans, same JS (renderOrdersTable in rakeen-dashboard.js). */
   .order-row {
     grid-template-columns: 1fr 1fr;
     grid-template-areas:
       "id      status"
-      "type    date"
-      "items   payment"
+      "tags    tags"
+      "date    payment"
+      "items   items"
       "total   total";
     gap: 9px 14px;
     background: var(--card-bg);
@@ -615,18 +830,16 @@ select.field-invalid {
     margin-bottom: 10px;
   }
   .order-row > span:nth-child(1) { grid-area: id; font-size: 15px; font-weight: 800; }
-  .order-row > span:nth-child(2) { grid-area: date; font-size: 12px; justify-self: end; text-align: end; }
-  .order-row > span:nth-child(3) { grid-area: type; font-size: 12.5px; }
+  .order-row > span:nth-child(2) { grid-area: date; font-size: 12px; }
+  .order-row > span:nth-child(3) { grid-area: tags; font-size: 12.5px; }
   .order-row > span:nth-child(4) { grid-area: items; font-size: 12.5px; }
   .order-row > span:nth-child(5) {
-    grid-area: total; font-size: 18px; font-weight: 800; justify-self: end;
+    grid-area: total; font-size: 19px; font-weight: 800; justify-self: end;
     padding-top: 10px; margin-top: 1px; border-top: 1px dashed var(--line);
   }
-  .order-row > span:nth-child(5)::after { content: " ر.س"; font-size: 11px; font-weight: 700; color: var(--muted); }
   .order-row > span:nth-child(6) { grid-area: payment; font-size: 12.5px; justify-self: end; text-align: end; }
   .order-row > span:nth-child(7) { grid-area: status; justify-self: end; }
   .order-row > span:nth-child(2)::before,
-  .order-row > span:nth-child(3)::before,
   .order-row > span:nth-child(4)::before,
   .order-row > span:nth-child(6)::before {
     display: block;
@@ -636,7 +849,6 @@ select.field-invalid {
     margin-bottom: 2px;
   }
   .order-row > span:nth-child(2)::before { content: "التاريخ"; }
-  .order-row > span:nth-child(3)::before { content: "النوع"; }
   .order-row > span:nth-child(4)::before { content: "الأصناف"; }
   .order-row > span:nth-child(6)::before { content: "الدفع"; }
 
@@ -690,7 +902,7 @@ select.field-invalid {
     scrollbar-width: none;
   }
   .settings-tabs::-webkit-scrollbar { display: none; }
-  .settings-tabs button { flex-shrink: 0; min-height: 40px; }
+  .settings-tabs button { flex-shrink: 0; min-height: 44px; }
 
   /* Menu/Modifier-groups search toolbar: the search <input> has flex:1 but
      inputs default to min-width:auto (sized to their intrinsic content),
@@ -874,8 +1086,25 @@ select.field-invalid {
 .report-type-card:hover { background: var(--surf1); color: var(--text); }
 .report-type-card.active { background: var(--graphite); color: var(--lime); }
 .report-type-card.active svg { opacity: 1; }
+/* Groups 11 flat report types into 4 scannable clusters (was one long list
+   with no way to tell "تقرير الضريبة" and "الإقرار الضريبي" are related
+   without reading every label). Desktop-only — on the mobile horizontal
+   scroll strip (below) a text label wedged between chips would just look
+   broken, so it's hidden there instead of forced in. */
+.report-type-group-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 10px 12px 4px;
+}
+.report-type-group-label:first-child { padding-top: 4px; }
 
-.reports-range-card { padding: 14px; }
+.reports-range-card,
+.reports-type-card {
+  padding: 14px;
+}
 .reports-range-label {
   font-size: 10.5px;
   font-weight: 800;
@@ -955,6 +1184,7 @@ select.field-invalid {
   }
   .report-type-card span { white-space: nowrap; }
   .report-preview-doc { padding: 20px 16px; }
+  .report-type-group-label { display: none; }
 }
 
 /* Reports: cards by default on mobile, .report-table only inside the
@@ -1250,6 +1480,7 @@ select.field-invalid {
 }
 .sales-range-apply-btn {
   flex: 0 0 auto;
+  min-height: 44px;
   padding: 8px 16px;
   font-size: 11px;
   white-space: nowrap;
@@ -1350,7 +1581,23 @@ select.field-invalid {
   .sales-kpi-hero { padding: 18px 16px 16px; }
 }
 @media (max-width: 560px) {
+  /* Was a 3-up row (from-date + to-date + apply) squeezed into ~109px
+     per date field — a native <input type=date> renders its OWN text
+     using the DEVICE's date format, not ours (iOS Safari in particular
+     spells out "Sep 3, 2026", far wider than a compact "09/03/2026"), so
+     at that width the value gets clipped or the row wraps and the apply
+     button collides with whatever's next. Stacking removes the width
+     constraint entirely instead of chasing whatever the OS renders. */
   .sales-range-custom {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .sales-range-custom .menu-add-field {
+    width: 100%;
+    min-width: 0;
+  }
+  .sales-range-apply-btn {
     width: 100%;
   }
 }
@@ -1401,32 +1648,23 @@ select.field-invalid {
 }
 .status-banner.tier-critical { border-color: rgba(163,64,44,0.35); background: rgba(163,64,44,0.06); }
 .status-banner.tier-attention { border-color: rgba(125,90,20,0.3); background: rgba(125,90,20,0.06); }
-.status-banner.tier-clear {
-  background: linear-gradient(135deg, rgba(196,255,43,0.12), rgba(196,255,43,0.02));
-  border-color: rgba(196,255,43,0.3);
-  text-align: center;
-  padding: 26px 24px;
-}
 .status-banner-head { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 14.5px; margin-bottom: 4px; }
 .status-banner.tier-critical .status-banner-head { color: var(--danger); }
 .status-banner.tier-attention .status-banner-head { color: var(--amber); }
 .status-banner-reason { font-size: 12.5px; color: var(--muted); font-weight: 600; margin-bottom: 12px; }
-.status-banner.tier-clear .status-banner-reason { margin-bottom: 0; }
 /* The detailed alert list is real content, not the headline — the reason
    line above already names the single most urgent item, so the full list
    stays collapsed behind this toggle instead of always expanded. */
 .attention-toggle {
   display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%;
   padding: 9px; border-radius: var(--r-sm); border: 1px dashed var(--line-strong, var(--line));
-  background: transparent; color: var(--text); font-weight: 700; font-size: 11.5px; min-height: 40px;
+  background: transparent; color: var(--text); font-weight: 700; font-size: 11.5px; min-height: 44px;
 }
 .status-banner.tier-critical .attention-toggle { color: var(--danger); border-color: rgba(163,64,44,0.3); }
 .status-banner.tier-attention .attention-toggle { color: var(--amber); border-color: rgba(125,90,20,0.3); }
 .attention-toggle svg { width: 14px; height: 14px; transition: transform .15s ease; }
 .attention-toggle.open svg { transform: rotate(180deg); }
 .attention-list { margin-top: 8px; }
-.status-clear-emoji { font-size: 30px; margin-bottom: 8px; }
-.status-clear-title { font-size: 15px; font-weight: 800; color: var(--success-text); margin-bottom: 4px; }
 
 /* أبطال اليوم — real recognition, not a duplicate of Sales screen's list */
 .heroes-row { margin-bottom: 18px; }
@@ -1467,8 +1705,8 @@ select.field-invalid {
 }
 .loyalty-icon-picker { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .loyalty-icon-choice {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border-radius: var(--r-sm);
   border: 1.5px solid var(--line);
   background: var(--surf1);
@@ -1511,6 +1749,7 @@ select.field-invalid {
 .loyalty-preview-qr img { width: 100%; height: auto; display: block; }
 .loyalty-preview-powered { text-align: center; font-size: 8.5px; font-weight: 700; opacity: 0.45; margin-top: 10px; }
 .loyalty-preview-tenure { font-size: 10.5px; font-weight: 600; margin-top: 3px; }
+.loyalty-preview-tagline { font-size: 10px; font-weight: 600; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .loyalty-preview-saved-badge { display: flex; align-items: center; justify-content: center; gap: 5px; width: fit-content; padding: 5px 12px; border-radius: 999px; font-size: 10.5px; font-weight: 700; margin: 0 auto 12px; }
 
 /* minimal theme: light throughout, accent used sparingly */
@@ -1934,32 +2173,8 @@ select.field-invalid {
   justify-content: center;
 }
 
-.acct-collapsible { padding: 0; overflow: hidden; }
-.acct-collapsible-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 16px 20px;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  font-size: 13.5px;
-  font-weight: 800;
-  cursor: pointer;
-  text-align: right;
-}
-.acct-collapsible-chevron {
-  flex-shrink: 0;
-  transition: transform 0.2s ease;
-}
-.acct-collapsible-toggle.open .acct-collapsible-chevron {
-  transform: rotate(180deg);
-}
-.acct-collapsible-body {
-  padding: 0 20px 18px;
-}
-.acct-collapsible-body.hidden { display: none; }
+/* Moved to rakeen-dashboard.css (base) — was duplicated here with no
+   scoping difference from the base copy. */
 
 /* Purchase history — "what did I log today" list, one card per invoice
    (grouped by invoice_group_id), with edit/delete. Line-item detail stays
@@ -1991,16 +2206,9 @@ select.field-invalid {
   gap: 6px;
   flex-shrink: 0;
 }
-.purchase-history-edit-btn,
-.purchase-history-delete-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 7px;
-  border: none;
-  background: var(--surf2);
-  cursor: pointer;
-  font-size: 13px;
-}
+/* Moved to rakeen-dashboard.css (base) and bumped to a 44px touch target —
+   this copy was overriding it back down to 30px on pure load-order, since
+   this file always loads after the base one. */
 .purchase-history-detail {
   margin-top: 10px;
   padding: 10px;

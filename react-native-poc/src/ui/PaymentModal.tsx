@@ -142,7 +142,14 @@ export default function PaymentModal({
   onCancel: () => void;
   /** Closes the popup AND starts the next order -- the source's own
    *  startNewOrder() is just closePaymentModalNow(). */
-  onConfirm: (method: PaymentMethod, cashAmount: number | null) => Promise<PaymentResult>;
+  /** pagerNumber is the buzzer handed over with this sale, or null. It is
+   *  passed in rather than looked up afterwards so the kitchen ticket —
+   *  queued inside this call — can carry it. */
+  onConfirm: (
+    method: PaymentMethod,
+    cashAmount: number | null,
+    pagerNumber: number | null,
+  ) => Promise<PaymentResult>;
   submitting: boolean;
   businessId: number;
   /** Buzzer numbers only collide within a branch: two branches can each
@@ -452,7 +459,7 @@ export default function PaymentModal({
     // Read before awaiting: onConfirm empties the cart, and `total` is
     // derived from it.
     const captured = total;
-    const outcome = await onConfirm(method, method === 'cash' ? cashAmount : null);
+    const outcome = await onConfirm(method, method === 'cash' ? cashAmount : null, pager);
     if (!outcome.ok) return;
     // Best-effort, and deliberately after the sale is banked: a buzzer
     // that fails to record is a note lost, not money lost, and must never

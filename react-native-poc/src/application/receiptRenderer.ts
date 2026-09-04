@@ -362,6 +362,14 @@ export async function renderKitchenTicketToEscPosBase64(data: KitchenTicketData,
     if (ticket.branchName) y = drawKitchenCenterLine(ctx, y, ticket.branchName, 18, false);
     y = drawKitchenCenterLine(ctx, y, ticket.dateLabel, 16, false);
     y = drawKitchenCenterLine(ctx, y, ticket.metaLabel, 20, true);
+    // The buzzer number, bigger than anything else on the ticket. Whoever
+    // finishes the order reads it off this paper and types it into the
+    // base station -- so it has to be legible across a hot kitchen at a
+    // glance, not hunted for among the item lines.
+    if (ticket.pagerNumber != null) {
+      y += KITCHEN_LINE_H * 0.2;
+      y = drawKitchenCenterLine(ctx, y, `جهاز النداء  ${ticket.pagerNumber}`, 40, true);
+    }
     drawDivider(canvas, width, y);
     y += KITCHEN_LINE_H * 0.6;
 

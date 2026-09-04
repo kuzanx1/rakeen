@@ -75,6 +75,8 @@ export interface ReceiptData {
 }
 
 export interface KitchenTicketData {
+  /** Call-buzzer number, when the shop hands them out. */
+  pagerNumber?: number | null;
   orderId: number | null;
   tableNumber: number | null;
   lines: ReceiptLine[];

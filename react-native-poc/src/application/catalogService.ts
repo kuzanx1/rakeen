@@ -226,22 +226,26 @@ export async function getPosFeatureFlags(businessId: number): Promise<PosFeature
 export interface ServiceSettings {
   dineInMode: 'simple' | 'tables';
   pagerEnabled: boolean;
+  /** 'brief' — items, quantities and notes only. 'copy' — a second
+   *  identical print of the customer receipt. */
+  kitchenTicketMode: 'brief' | 'copy';
 }
 
 export async function getServiceSettings(businessId: number): Promise<ServiceSettings> {
   try {
     const { data, error } = await supabase
       .from('businesses')
-      .select('dine_in_mode, pos_pager_enabled')
+      .select('dine_in_mode, pos_pager_enabled, kitchen_ticket_mode')
       .eq('id', businessId)
       .single();
-    if (error || !data) return { dineInMode: 'simple', pagerEnabled: false };
+    if (error || !data) return { dineInMode: 'simple', pagerEnabled: false, kitchenTicketMode: 'brief' };
     return {
       dineInMode: data.dine_in_mode === 'tables' ? 'tables' : 'simple',
       pagerEnabled: data.pos_pager_enabled === true,
+      kitchenTicketMode: data.kitchen_ticket_mode === 'copy' ? 'copy' : 'brief',
     };
   } catch {
-    return { dineInMode: 'simple', pagerEnabled: false };
+    return { dineInMode: 'simple', pagerEnabled: false, kitchenTicketMode: 'brief' };
   }
 }
 

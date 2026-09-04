@@ -317,9 +317,14 @@ export default function ProductsScreen({
    * table management, no buzzers. 'tables' would be the wrong guess — it
    * would put a café with no tables into a table workflow.
    */
-  const [service, setService] = useState<{ dineInMode: 'simple' | 'tables'; pagerEnabled: boolean }>({
+  const [service, setService] = useState<{
+    dineInMode: 'simple' | 'tables';
+    pagerEnabled: boolean;
+    kitchenTicketMode: 'brief' | 'copy';
+  }>({
     dineInMode: 'simple',
     pagerEnabled: false,
+    kitchenTicketMode: 'brief',
   });
 
   /** .discount-panel is `display:none` until .discount-toggle opens it. */
@@ -930,7 +935,11 @@ export default function ProductsScreen({
   /** Reports the sale's outcome so the popup can show its receipt screen.
    *  It used to return nothing and the popup closed on confirm, which is
    *  why the PWA's "تمت العملية بنجاح" screen never appeared here. */
-  const handlePayOrder = async (method: PaymentMethod, cashAmount: number | null): Promise<PaymentResult> => {
+  const handlePayOrder = async (
+    method: PaymentMethod,
+    cashAmount: number | null,
+    pagerNumber: number | null = null,
+  ): Promise<PaymentResult> => {
     if (cart.cart.length === 0 || !catalog) return { ok: false, paid: 0, change: 0, printJobId: null };
     setSubmitting(true);
     // Captured before the cart is cleared below -- the receipt screen shows
@@ -989,8 +998,7 @@ export default function ProductsScreen({
         try {
           const profile = device.businessId != null ? await getReceiptBusinessProfile(device.businessId) : null;
           const printerProfileForReceipt = await getPrinterProfile();
-          if (shouldPrintCustomerReceipt(printerProfileForReceipt)) {
-            receiptJobId = await enqueuePrintJob('receipt', {
+          const customerReceipt = {
               orderId: outcome.orderId ?? null,
               lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
               subtotal: cart.totals.subtotal,
@@ -1006,7 +1014,9 @@ export default function ProductsScreen({
               customMessage: profile?.customMessage || undefined,
               createdAtISO: new Date().toISOString(),
               metaLabel: CHANNEL_LABELS[cart.orderChannel] || cart.orderChannel,
-            } satisfies ReceiptData).catch(() => null);
+          } satisfies ReceiptData;
+          if (shouldPrintCustomerReceipt(printerProfileForReceipt)) {
+            receiptJobId = await enqueuePrintJob('receipt', customerReceipt).catch(() => null);
           }
           // Real bug found during the Feature Parity audit: a kitchen
           // ticket was only ever enqueued from handleRegisterDineInOrder
@@ -1016,14 +1026,24 @@ export default function ProductsScreen({
           // close (`!wasResumingOrder`) -- this IS a fresh order, not a
           // resume, so it belongs here exactly like dine-in registration.
           if (shouldPrintKitchenTicket(printerProfileForReceipt)) {
-            enqueuePrintJob('kitchen', {
-              orderId: outcome.orderId ?? null,
-              tableNumber: null,
-              lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
-              branchName: device.branchName ?? undefined,
-              createdAtISO: new Date().toISOString(),
-              metaLabel: CHANNEL_LABELS[cart.orderChannel] || cart.orderChannel,
-            } satisfies KitchenTicketData).catch(() => {});
+            // 'copy' mode queues a SECOND customer receipt rather than a
+            // kitchen-shaped ticket. Doing it here, at enqueue time, is
+            // what makes the two genuinely identical -- a renderer flag
+            // would be two code paths that have to be kept looking the
+            // same, which is the thing this mode exists to avoid.
+            if (service.kitchenTicketMode === 'copy') {
+              enqueuePrintJob('receipt', customerReceipt).catch(() => {});
+            } else {
+              enqueuePrintJob('kitchen', {
+                orderId: outcome.orderId ?? null,
+                tableNumber: null,
+                lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
+                branchName: device.branchName ?? undefined,
+                createdAtISO: new Date().toISOString(),
+                metaLabel: CHANNEL_LABELS[cart.orderChannel] || cart.orderChannel,
+                pagerNumber,
+              } satisfies KitchenTicketData).catch(() => {});
+            }
           }
         } catch {
           // Never let a receipt-metadata fetch failure look like the sale
@@ -1567,8 +1587,10 @@ export default function ProductsScreen({
           setPaymentModalOpen(false);
           setLoyaltyRedeemOpen(true);
         }}
-        onConfirm={(method, cashAmount) =>
-          registerMode ? handlePayDineInOrder(method, cashAmount) : handlePayOrder(method, cashAmount)
+        onConfirm={(method, cashAmount, pagerNumber) =>
+          registerMode
+            ? handlePayDineInOrder(method, cashAmount)
+            : handlePayOrder(method, cashAmount, pagerNumber)
         }
       />
 

@@ -1658,3 +1658,11 @@ body.quickadd-mode .rk-sidebar-backdrop{display:none !important;}
 .rk-weekhours-closed{display:flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; color:var(--muted); cursor:pointer; min-width:64px;}
 .rk-weekhours-row input[type="time"]{padding:7px 9px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-size:12px; font-family:inherit;}
 .rk-weekhours-row input[type="time"]:disabled{opacity:.4;}
+
+/* Order-type map — the three types stated once at the top of the tab, so
+   the switches below read as adjustments to something already understood
+   rather than as the explanation itself. */
+.rk-typemap{display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:10px;}
+.rk-typemap-item{display:flex; flex-direction:column; gap:5px; padding:13px 15px; border-radius:var(--r-md); background:var(--surf1); border:1px solid var(--line);}
+.rk-typemap-name{font-weight:800; font-size:13px; color:var(--text);}
+.rk-typemap-desc{font-size:11.5px; color:var(--muted); line-height:1.6;}

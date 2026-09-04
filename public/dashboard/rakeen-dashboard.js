@@ -7496,7 +7496,8 @@ document.getElementById('settingsTabs').addEventListener('click', (e)=>{
   renderSettingsPanel();
 });
 
-let activePosSettingsTab = 'receipt';
+// Order types first: it is the decision every other tab depends on.
+let activePosSettingsTab = 'tables';
 document.getElementById('posSettingsTabs').addEventListener('click', (e)=>{
   const b = e.target.closest('button'); if(!b) return;
   document.querySelectorAll('#posSettingsTabs button').forEach(x=>x.classList.remove('active'));
@@ -7526,17 +7527,22 @@ let ONLINE_CARD_ENABLED = true;
 let REQUIRE_MANAGER_PIN_FOR_CLOSE = true;
 let DINE_IN_MODE = 'simple';
 let POS_PAGER_ENABLED = false;
+let KITCHEN_TICKET_MODE = 'brief';
 
 // Own query, same reason as the flags above: these columns do not exist
 // until the migration runs, and one unknown column fails the whole select.
 async function loadServiceSettings(){
   try {
     const { data, error } = await window.supabaseClient
-      .from('businesses').select('dine_in_mode, pos_pager_enabled')
+      .from('businesses').select('dine_in_mode, pos_pager_enabled, kitchen_ticket_mode')
       .eq('id', CURRENT_PROFILE.business_id).single();
-    if(error || !data) return { mode:'simple', pager:false };
-    return { mode: data.dine_in_mode === 'tables' ? 'tables' : 'simple', pager: data.pos_pager_enabled === true };
-  } catch(_){ return { mode:'simple', pager:false }; }
+    if(error || !data) return { mode:'simple', pager:false, kitchen:'brief' };
+    return {
+      mode: data.dine_in_mode === 'tables' ? 'tables' : 'simple',
+      pager: data.pos_pager_enabled === true,
+      kitchen: data.kitchen_ticket_mode === 'copy' ? 'copy' : 'brief',
+    };
+  } catch(_){ return { mode:'simple', pager:false, kitchen:'brief' }; }
 }
 
 // Its own query, NOT a field on the big business select: PostgREST fails an
@@ -8350,6 +8356,7 @@ async function renderPosSettings(){
   const svc = await loadServiceSettings();
   DINE_IN_MODE = svc.mode;
   POS_PAGER_ENABLED = svc.pager;
+  KITCHEN_TICKET_MODE = svc.kitchen;
   const { data: branches } = await window.supabaseClient
     .from('branches').select('id, name').eq('business_id', CURRENT_PROFILE.business_id).order('id');
   const { data: tables } = await window.supabaseClient
@@ -8379,6 +8386,22 @@ async function renderPosSettings(){
   const autoReadyPickup = !!(kitchenSettings && kitchenSettings.auto_ready_pickup);
   const autoReadyDeliveryPlatform = !!(kitchenSettings && kitchenSettings.auto_ready_delivery_platform);
   const autoReadyDeliveryOnline = !!(kitchenSettings && kitchenSettings.auto_ready_delivery_online);
+
+  const kitchenTicketPanel = `
+    <div class="rk-section">
+      ${rkSectionHead('coffee', 'نسخة المطبخ', 'شكل الورقة اللي تروح للمطبخ — تشغيلها وتحديد طابعتها من إعدادات كل جهاز كاشير')}
+      <div class="rk-theme-cards">
+        <button type="button" class="rk-theme-card ${KITCHEN_TICKET_MODE === 'brief' ? 'selected' : ''}" data-kitchenmode="brief">
+          <span class="rk-theme-card-name">تذكرة مطبخ</span>
+          <span class="rk-theme-card-desc">الأصناف والكميات والملاحظات فقط — بدون أسعار ولا ضريبة ولا رمز. ما فيها شي ما يحتاجه الشيف.</span>
+        </button>
+        <button type="button" class="rk-theme-card ${KITCHEN_TICKET_MODE === 'copy' ? 'selected' : ''}" data-kitchenmode="copy">
+          <span class="rk-theme-card-name">نسخة من فاتورة العميل</span>
+          <span class="rk-theme-card-desc">نفس الفاتورة تنطبع مرتين — وحدة للعميل ووحدة تنحط على الكيس أو الممر. الورقتان متطابقتان.</span>
+        </button>
+      </div>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="kitchenTicketSaveBtn" style="margin-top:12px;">حفظ نسخة المطبخ</button>
+    </div>`;
 
   const receiptMessagePanel = `
     <div class="rk-section">
@@ -8583,9 +8606,28 @@ async function renderPosSettings(){
   // restaurant without dine-in shouldn't be shown table/section/reservation
   // config at all — same business.dine_in_enabled flag Settings already
   // writes, surfaced here so it's not buried in a different screen.
+  const orderTypesIntro = `
+    <div class="rk-section">
+      ${rkSectionHead('bag', 'أنواع الطلبات', 'الثلاثة اللي يقدر الكاشير يسجّل فيها — والفرق بينها يوصل للمطبخ')}
+      <div class="rk-typemap">
+        <div class="rk-typemap-item">
+          <span class="rk-typemap-name">سفري</span>
+          <span class="rk-typemap-desc">يتجهّز بأكياس. شغّال دايم، ما له إعدادات.</span>
+        </div>
+        <div class="rk-typemap-item">
+          <span class="rk-typemap-name">محلي</span>
+          <span class="rk-typemap-desc">يتجهّز بصحون. تحته تختار: بسيط أو خدمة طاولات.</span>
+        </div>
+        <div class="rk-typemap-item">
+          <span class="rk-typemap-name">تطبيقات التوصيل</span>
+          <span class="rk-typemap-desc">ما يظهر بالكاشير إلا لو أضفت تطبيق توصيل واحد على الأقل.</span>
+        </div>
+      </div>
+    </div>`;
+
   const dineInMasterPanel = `
     <div class="rk-section">
-      ${rkSectionHead('grid', 'الطلب المحلي (الأكل بالمقهى)', 'الفرق عن السفري إن المطبخ يجهّزه بصحون بدل أكياس — تحتها تختار هل عندك خدمة طاولات كاملة أو لا')}
+      ${rkSectionHead('grid', 'الطلب المحلي', 'الفرق عن السفري إن المطبخ يجهّزه بصحون بدل أكياس — وتحتها تختار كيف تديره')}
       ${rkSwitchRow('posDineInToggle', DINE_IN_ENABLED, 'تفعيل الطلب المحلي', null, rkDineInStatus)}
       <div id="dineInModeBlock" style="margin-top:14px; ${DINE_IN_ENABLED ? '' : 'display:none;'}">
         <div class="rk-theme-cards">
@@ -8615,13 +8657,13 @@ async function renderPosSettings(){
     </div>`;
 
   const POS_SETTINGS_TABS_HTML = {
-    receipt: receiptPreviewHtml() + receiptMessagePanel,
+    receipt: receiptPreviewHtml() + receiptMessagePanel + kitchenTicketPanel,
     interface: simplifyPanel,
-    tables: dineInMasterPanel + tablesGatedContent,
+    tables: orderTypesIntro + dineInMasterPanel + tablesGatedContent,
     kitchen: kitchenPanel + autoReadyPanel,
     branches: managerPinPanel + branchSecurityPanelsHtml,
   };
-  panel.innerHTML = POS_SETTINGS_TABS_HTML[activePosSettingsTab] || POS_SETTINGS_TABS_HTML.receipt;
+  panel.innerHTML = POS_SETTINGS_TABS_HTML[activePosSettingsTab] || POS_SETTINGS_TABS_HTML.tables;
 
   rkWireSwitchStatus('posDineInToggle', rkDineInStatus);
   const posDineInToggle = document.getElementById('posDineInToggle');
@@ -8765,6 +8807,27 @@ async function renderPosSettings(){
       rkBtnSuccess(requireManagerPinSaveBtn, '✓ تم الحفظ');
     } catch(err){
       rkBtnLoading(requireManagerPinSaveBtn, false);
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
+  });
+
+  let pendingKitchenMode = KITCHEN_TICKET_MODE;
+  document.querySelectorAll('[data-kitchenmode]').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      pendingKitchenMode = card.dataset.kitchenmode;
+      document.querySelectorAll('[data-kitchenmode]').forEach(c=>c.classList.toggle('selected', c === card));
+    });
+  });
+  const kitchenTicketSaveBtn = document.getElementById('kitchenTicketSaveBtn');
+  if(kitchenTicketSaveBtn) kitchenTicketSaveBtn.addEventListener('click', async ()=>{
+    rkBtnLoading(kitchenTicketSaveBtn, true);
+    try {
+      await updateCurrentBusiness({ kitchen_ticket_mode: pendingKitchenMode });
+      KITCHEN_TICKET_MODE = pendingKitchenMode;
+      logDashboardAudit('غيّر نسخة المطبخ إلى ' + (pendingKitchenMode === 'copy' ? 'نسخة من فاتورة العميل' : 'تذكرة مطبخ'));
+      rkBtnSuccess(kitchenTicketSaveBtn, '✓ تم الحفظ');
+    } catch(err){
+      rkBtnLoading(kitchenTicketSaveBtn, false);
       showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
     }
   });

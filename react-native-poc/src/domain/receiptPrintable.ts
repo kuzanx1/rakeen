@@ -50,6 +50,10 @@ export interface KitchenTicketItemPrintable {
 }
 
 export interface KitchenTicketPrintable {
+  /** The call-buzzer handed to this customer. Printed large, because on a
+   *  kitchen ticket it is the one number somebody has to read off the
+   *  paper and type into the base station to call them over. */
+  pagerNumber: number | null;
   branchName: string;
   dateLabel: string;
   metaLabel: string;
@@ -133,6 +137,7 @@ export function toKitchenTicketPrintable(data: KitchenTicketData): KitchenTicket
       data.metaLabel ??
       (data.tableNumber != null ? `طاولة ${data.tableNumber}` : '') + (data.orderId != null ? ` — #${data.orderId}` : ''),
     items: data.lines.map(line => ({ name: line.name, mods: line.mods ?? [], qty: line.qty, note: line.note ?? '' })),
+    pagerNumber: data.pagerNumber ?? null,
     paperWidthPx: data.paperWidthPx ?? 576,
   };
 }
