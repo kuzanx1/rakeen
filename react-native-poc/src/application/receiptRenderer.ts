@@ -3,6 +3,7 @@ import { createReceiptSurface, loadRemoteImage } from '../platform/receiptCanvas
 import { loadReceiptTypefaces } from '../platform/receiptFonts';
 import { buildReceiptFontProvider, paintText, measureAndWrapText } from '../platform/receiptText';
 import { rgbaToEscPosRaster } from '../domain/escposRaster';
+import { bytesToBase64 } from '../domain/escposText';
 import { zatcaQrBase64 } from '../domain/zatca';
 import { buildQrMatrix } from '../domain/qrMatrix';
 import { toReceiptPrintable, toKitchenTicketPrintable, ReceiptPrintable, KitchenTicketPrintable } from '../domain/receiptPrintable';
@@ -32,20 +33,6 @@ const PAD = 16;
 const LINE_H = 32;
 const KITCHEN_LINE_H = 36;
 
-function bytesToBase64(bytes: number[]): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-  let result = '';
-  for (let i = 0; i < bytes.length; i += 3) {
-    const b0 = bytes[i];
-    const b1 = i + 1 < bytes.length ? bytes[i + 1] : undefined;
-    const b2 = i + 2 < bytes.length ? bytes[i + 2] : undefined;
-    result += chars[b0 >> 2];
-    result += chars[((b0 & 3) << 4) | (b1 !== undefined ? b1 >> 4 : 0)];
-    result += b1 !== undefined ? chars[((b1 & 15) << 2) | (b2 !== undefined ? b2 >> 6 : 0)] : '=';
-    result += b2 !== undefined ? chars[b2 & 63] : '=';
-  }
-  return result;
-}
 
 /** Draws a QR bit-matrix as a grid of filled black squares -- the same
  *  visual result as the PWA's SVG QR image, just built directly out of
