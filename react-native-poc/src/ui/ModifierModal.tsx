@@ -12,6 +12,7 @@ import { ModifierDefinition, CartLineConfig, buildDefaultConfig } from '../domai
 import type { BoxDefinition } from '../domain/cart';
 import Money from './Money';
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
+import { useI18n } from './i18n';
 
 /**
  * The real "customize" flow for a product with modifier groups (single-
@@ -50,6 +51,7 @@ export default function ModifierModal({
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
+  const { t } = useI18n();
   const [config, setConfig] = useState<CartLineConfig>(() => buildDefaultConfig(modDef) || {});
   const [qty, setQty] = useState(1);
 
@@ -219,7 +221,7 @@ export default function ModifierModal({
                   <View style={styles.confirmButton}>
                     <GradientFill gradient={gradients.payButton} radius={radii.md} />
                     <View style={styles.confirmRow}>
-                      <Text style={styles.confirmText}>أضف — </Text>
+                      <Text style={styles.confirmText}>{t('أضف')} — </Text>
                       <Money value={basePrice} size={14} color={colors.flagGreenDeep} />
                     </View>
                   </View>

@@ -1281,7 +1281,7 @@ export default function ProductsScreen({
                     {/* .oi-total -- "نقاط" instead of a figure for a
                         points redemption, which costs no money. */}
                     {line.isPointsRedemption ? (
-                      <Text style={styles.cartLineTotal}>نقاط</Text>
+                      <Text style={styles.cartLineTotal}>{t('نقاط')}</Text>
                     ) : (
                       <Money value={unitPrice * line.qty} size={12.5} style={styles.cartLineTotalBox} />
                     )}
@@ -1458,7 +1458,7 @@ export default function ProductsScreen({
             {registerMode ? (
               <>
                 <PayButton
-                  label={submitting ? 'جارٍ الإرسال...' : lastRegisteredDineInOrderId ? 'إضافة للطلب' : 'تسجيل الطلب'}
+                  label={submitting ? 'جارٍ الإرسال...' : lastRegisteredDineInOrderId ? t('إضافة للطلب') : t('تسجيل الطلب')}
                   onPress={handleRegisterDineInOrder}
                   disabled={cart.cart.length === 0 || submitting}
                 />
@@ -1475,7 +1475,7 @@ export default function ProductsScreen({
                  #payBtnAmount (rakeen-pos.js:1126-1128) -- so it reads
                  "ادفع — 12.50", never a bare "الدفع". */
               <PayButton
-                label={submitting ? 'جارٍ الإرسال...' : 'ادفع'}
+                label={submitting ? 'جارٍ الإرسال...' : t('ادفع')}
                 amount={submitting ? undefined : cart.totals.total}
                 onPress={() => setPaymentModalOpen(true)}
                 disabled={cart.cart.length === 0 || submitting}
