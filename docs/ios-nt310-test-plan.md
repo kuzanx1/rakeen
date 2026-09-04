@@ -30,6 +30,19 @@ physical quick-start card that shipped with it (Sunmi ships one combined
 guide for NT310/311/312/313, so the exact button/gesture may differ by
 which variant this unit actually is) — don't guess.
 
+### 1b. Pin that IP before configuring anything against it
+
+The app stores a literal host in the saved printer profile
+(`PrinterProfile.host`, MMKV, per device) — it does no discovery and no
+mDNS lookup, on purpose. So a DHCP lease that moves the printer to a
+different address silently breaks every print from then on, with the
+honest-but-unhelpful symptom of a connection timeout on a till that
+worked yesterday.
+
+Give the printer a **DHCP reservation** on the router (or a static
+address from its own network settings) before step 5, and note it
+somewhere other than the app.
+
 ### 2. Confirm the printer is reachable on the LAN at all
 
 From a laptop/phone on the **same LAN** (same Wi-Fi/switch as the printer's
@@ -113,6 +126,25 @@ Fresh install (or reset Local Network permission via iOS Settings →
 Privacy → Local Network → Rakeen Cashier). Trigger a print. **Pass**: the
 iOS system prompt appears, accepting lets the print proceed, declining
 produces a clean failure through the existing retry UI, not a crash.
+
+## Known code-level risk: the whole receipt is one `GS v 0`
+
+`domain/escposRaster.ts` emits a single raster command for the entire
+receipt — one `1D 76 30 00 xL xH yL yH` header followed by the complete
+bitmap, with no banding. A real captured job measured 576x670px = 48240
+bytes of pixels in one command, and a longer order reached 61072 bytes.
+
+That is valid ESC/POS and the fake printer accepts it, but a printer's
+input buffer is finite and some firmware caps the height a single `GS v 0`
+may carry. The classic symptom is a receipt that prints correctly down to
+a fixed point and is then truncated or turns to noise — **always at the
+same height**, regardless of content.
+
+If that appears on the NT310, it is not a transport bug and not worth
+debugging in `NetworkPrinterTransport.swift`: the fix is to split the
+bitmap into bands (a few dozen rows each, one `GS v 0` per band) in
+`escposRaster.ts`. Confirm the pattern first — a truncation that varies
+with content is a different problem.
 
 ## After this test plan runs
 
