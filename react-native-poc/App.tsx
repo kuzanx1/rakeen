@@ -52,6 +52,16 @@ import Topbar from './src/ui/Topbar';
 import ManagerPinModal from './src/ui/ManagerPinModal';
 import OpenShiftScreen from './src/ui/OpenShiftScreen';
 import StaffPickScreen from './src/ui/StaffPickScreen';
+import IncomingOrderModal from './src/ui/IncomingOrderModal';
+import {
+  listPendingOnlineOrders,
+  subscribeToIncomingOnlineOrders,
+  getIncomingOrder,
+  acceptOnlineOrder,
+  rejectOnlineOrder,
+} from './src/application/incomingOrderService';
+import type { IncomingOrder } from './src/application/incomingOrderService';
+import { startIncomingOrderSound, stopIncomingOrderSound } from './src/application/soundService';
 import { loadRememberedStaff, rememberStaff } from './src/application/staffService';
 import type { StaffMember } from './src/application/staffService';
 import { ShiftSummaryModal, CloseShiftModal } from './src/ui/ShiftModals';
@@ -188,6 +198,151 @@ function App(): React.JSX.Element {
    *  unnamed, so null is a legitimate ANSWER, not just an empty slot. */
   const [staffMember, setStaffMember] = useState<StaffMember | null>(null);
   const [staffPicked, setStaffPicked] = useState(false);
+  /**
+   * The incoming online-order queue.
+   *
+   * FIFO, de-duplicated: a second order arriving while the first is being
+   * reviewed waits its turn rather than overwriting it.
+   */
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [incomingQueue, setIncomingQueue] = useState<number[]>([]);
+  const [incomingOrder, setIncomingOrder] = useState<IncomingOrder | null>(null);
+  const [incomingLoading, setIncomingLoading] = useState(false);
+  const [incomingBusy, setIncomingBusy] = useState(false);
+  const [incomingError, setIncomingError] = useState('');
+
+  const enqueueIncoming = useCallback((orderId: number) => {
+    setIncomingQueue(q => (q.includes(orderId) ? q : [...q, orderId]));
+  }, []);
+
+  // Boot poll + realtime, together. The subscription only sees orders from
+  // the moment it connects, so without the poll every order that arrived
+  // while this device was asleep, offline or restarting is lost; without
+  // the subscription nothing arrives live. Both, or orders go missing.
+  useEffect(() => {
+    if (!cashier || branchId == null) return;
+    let cancelled = false;
+    (async () => {
+      const pending = await listPendingOnlineOrders(branchId);
+      if (!cancelled) pending.forEach(enqueueIncoming);
+    })();
+    const unsubscribe = subscribeToIncomingOnlineOrders(branchId, enqueueIncoming);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [cashier, branchId, enqueueIncoming]);
+
+  /**
+   * Loads the head of the queue -- but DEFERS while the payment popup is
+   * open. The source's reasoning, which is a real trap: both modals sit at
+   * the same level, this one deliberately cannot be dismissed, and a
+   * checkout already in progress (a loyalty confirmation is even running a
+   * two-minute countdown) would be buried underneath with no way back to
+   * it. Leaving it queued means it simply shows the moment the popup
+   * clears.
+   */
+  useEffect(() => {
+    if (checkoutOpen || incomingOrder || incomingQueue.length === 0) return;
+    const orderId = incomingQueue[0];
+    let cancelled = false;
+    setIncomingLoading(true);
+    (async () => {
+      const detail = await getIncomingOrder(orderId);
+      if (cancelled) return;
+      setIncomingLoading(false);
+      if (!detail) {
+        // Already answered from another device, or gone. Drop it.
+        setIncomingQueue(q => q.filter(id => id !== orderId));
+        return;
+      }
+      setIncomingError('');
+      setIncomingOrder(detail);
+      startIncomingOrderSound();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [incomingQueue, incomingOrder, checkoutOpen]);
+
+  const finishIncoming = useCallback((orderId: number) => {
+    stopIncomingOrderSound();
+    setIncomingOrder(null);
+    setIncomingBusy(false);
+    setIncomingQueue(q => q.filter(id => id !== orderId));
+  }, []);
+
+  const handleAcceptIncoming = useCallback(async () => {
+    if (!incomingOrder) return;
+    const orderId = incomingOrder.id;
+    setIncomingBusy(true);
+    setIncomingError('');
+    const result = await acceptOnlineOrder(orderId);
+    if (!result.ok) {
+      setIncomingBusy(false);
+      setIncomingError(result.error ?? 'تعذر قبول الطلب');
+      return;
+    }
+    // Kitchen ticket FIRST, receipt SECOND, and both unconditionally --
+    // NOT gated by the per-device auto-print toggles that govern normal
+    // checkout. An accepted online order has to reach the kitchen.
+    try {
+      const device = await getDeviceConfig();
+      const lines = incomingOrder.items.map(it => ({
+        qty: it.qty,
+        name: it.name,
+        lineTotal: it.lineTotal,
+        mods: it.mods,
+        note: it.note ?? undefined,
+      }));
+      await enqueuePrintJob('kitchen', {
+        orderId,
+        tableNumber: null,
+        lines,
+        branchName: device.branchName ?? undefined,
+        createdAtISO: new Date().toISOString(),
+        metaLabel: 'طلب إلكتروني',
+      });
+      await enqueuePrintJob('receipt', {
+        orderId,
+        lines,
+        subtotal: incomingOrder.total,
+        discount: 0,
+        vat: 0,
+        total: incomingOrder.total,
+        paymentMethod: incomingOrder.paymentMethod,
+        change: 0,
+        businessName: device.businessName ?? undefined,
+        branchName: device.branchName ?? undefined,
+        createdAtISO: new Date().toISOString(),
+        metaLabel: 'طلب إلكتروني',
+      });
+    } catch {
+      // The order is accepted either way; a print failure is the queue's
+      // problem to retry, not a reason to leave the customer unanswered.
+    }
+    setStatusMessage(`تم قبول الطلب #${orderId}`);
+    finishIncoming(orderId);
+  }, [incomingOrder, finishIncoming]);
+
+  const handleRejectIncoming = useCallback(
+    async (reason: string) => {
+      if (!incomingOrder) return;
+      const orderId = incomingOrder.id;
+      setIncomingBusy(true);
+      setIncomingError('');
+      const result = await rejectOnlineOrder(orderId, reason);
+      if (!result.ok) {
+        setIncomingBusy(false);
+        setIncomingError(result.error ?? 'تعذر رفض الطلب');
+        return;
+      }
+      setStatusMessage(`تم رفض الطلب #${orderId}`);
+      finishIncoming(orderId);
+    },
+    [incomingOrder, finishIncoming],
+  );
+
   const [shiftSummaryOpen, setShiftSummaryOpen] = useState(false);
   const [closeShiftOpen, setCloseShiftOpen] = useState(false);
 
@@ -507,6 +662,15 @@ function App(): React.JSX.Element {
       {/* موافقة مدير -- openPinModal() with no callback (rakeen-pos.js:5557)
           is a standalone supervisor check: it verifies the manager's code
           and reports "تمت موافقة المدير", with nothing else attached. */}
+      <IncomingOrderModal
+        order={incomingOrder}
+        loading={incomingLoading}
+        busy={incomingBusy}
+        error={incomingError}
+        onAccept={handleAcceptIncoming}
+        onReject={handleRejectIncoming}
+      />
+
       <ShiftSummaryModal visible={shiftSummaryOpen} shift={shift} onClose={() => setShiftSummaryOpen(false)} />
 
       <CloseShiftModal
@@ -598,6 +762,7 @@ function App(): React.JSX.Element {
             cashier={cashier}
             shift={shift}
             staffMember={staffMember}
+            onCheckoutOpenChange={setCheckoutOpen}
             selectedTable={screen.name === 'products' ? screen.table : null}
             onExitTableContext={() => setScreen({ name: 'tables' })}
           />

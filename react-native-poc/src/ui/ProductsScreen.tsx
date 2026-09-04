@@ -206,6 +206,7 @@ export default function ProductsScreen({
   cashier,
   shift,
   staffMember,
+  onCheckoutOpenChange,
   selectedTable = null,
   onExitTableContext,
 }: {
@@ -222,6 +223,10 @@ export default function ProductsScreen({
    *  RPC both carried the column -- so no sale could ever be attributed
    *  to a person in the dashboard. */
   staffMember: { id: number; name: string } | null;
+  /** Reports whether checkout is on screen. App needs it to hold an
+   *  incoming online order back rather than burying a payment in progress
+   *  under a modal that cannot be dismissed. */
+  onCheckoutOpenChange?: (open: boolean) => void;
   /** Checkpoint 7 (Dine-in / Tables) -- when set, this screen's cart is
    *  attached to a real table (see ui/TablesScreen.tsx). Registering an
    *  order sends the table's real id instead of null, and an existing
@@ -570,6 +575,10 @@ export default function ProductsScreen({
   const [submitStatus, setSubmitStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+
+  useEffect(() => {
+    onCheckoutOpenChange?.(paymentModalOpen);
+  }, [paymentModalOpen, onCheckoutOpenChange]);
   const [lastRegisteredDineInOrderId, setLastRegisteredDineInOrderId] = useState<number | null>(
     selectedTable?.activeOrderId ?? null,
   );
