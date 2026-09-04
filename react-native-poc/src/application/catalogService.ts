@@ -120,6 +120,18 @@ export async function getHideProductImages(businessId: number): Promise<boolean>
   return data ? data.pos_hide_product_images !== false : true;
 }
 
+/** businesses.pos_hide_popular_tab (rakeen-pos.js:5830). Note the OPPOSITE
+ *  polarity to getHideProductImages: `=== true`, so the tab is SHOWN unless
+ *  the business explicitly hid it, and an unreadable row leaves it shown. */
+export async function getHidePopularTab(businessId: number): Promise<boolean> {
+  const { data } = await supabase
+    .from('businesses')
+    .select('pos_hide_popular_tab')
+    .eq('id', businessId)
+    .single();
+  return data ? data.pos_hide_popular_tab === true : false;
+}
+
 /** Feature Parity Pass -- Real Receipt Rendering. The subset of
  *  loadPosData()'s businesses query needed to print a real ZATCA-QR/
  *  logo/custom-message receipt (BUSINESS_VAT_NUMBER/BUSINESS_LOGO_URL/

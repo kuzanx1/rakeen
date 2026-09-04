@@ -23,6 +23,7 @@ import {
   getBusinessType,
   getFinancialSettings,
   getHideProductImages,
+  getHidePopularTab,
   getDineInPayTiming,
   getReceiptBusinessProfile,
   CatalogResult,
@@ -51,6 +52,9 @@ import type { PaymentMethod } from '../domain/payment';
 import CustomerPickerModal from './CustomerPickerModal';
 import LoyaltyRedeemModal from './LoyaltyRedeemModal';
 import type { Customer } from '../domain/customer';
+
+/** `.slice(0,8)` in renderProductGrid's popular branch. */
+const POPULAR_TAB_SIZE = 8;
 
 const DISCOUNT_OPTIONS = [0, 5, 10, 15, 20];
 const CHANNEL_LABELS: Record<OrderChannel, string> = {
@@ -231,7 +235,10 @@ export default function ProductsScreen({
   // (rakeen-pos.js:5660) and the only safe one: it means the pay button
   // stays a pay button.
   const [dineInPayTiming, setDineInPayTiming] = useState<'before' | 'after'>('before');
-  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  /** state.activeCat (rakeen-pos.js:355) -- 'popular' by default, falling
+   *  back to 'all' when the business hides the popular tab (:5835). Real
+   *  category ids are strings, so these two shortcut ids cannot collide. */
+  const [activeCategoryId, setActiveCategoryId] = useState<string>('popular');
   const [modifierTarget, setModifierTarget] = useState<Product | null>(null);
   const [businessType, setBusinessType] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -265,6 +272,10 @@ export default function ProductsScreen({
    *  had -- starting at false would flash real photos onto every tile and
    *  then pull them back once the businesses row arrives. */
   const [hideImages, setHideImages] = useState(true);
+
+  /** businesses.pos_hide_popular_tab (rakeen-pos.js:5661) -- defaults to
+   *  SHOWN, unlike pos_hide_product_images which defaults to hidden. */
+  const [hidePopularTab, setHidePopularTab] = useState(false);
 
   /** .discount-panel is `display:none` until .discount-toggle opens it. */
   const [discountPanelOpen, setDiscountPanelOpen] = useState(false);
@@ -345,6 +356,18 @@ export default function ProductsScreen({
    * width (viewport minus the category rail, the order panel and the
    * grid's own 20px side padding) by that minimum tile width.
    */
+  /** The rail's real contents: the two shortcut tabs, then the business's
+   *  own categories. `glyph` marks a shortcut so it renders a character
+   *  instead of a category icon. */
+  const railCategories = useMemo(
+    () => [
+      ...(hidePopularTab ? [] : [{ id: 'popular', name: 'الأكثر طلبًا', glyph: '★' }]),
+      { id: 'all', name: 'الكل', glyph: '▦' },
+      ...(catalog?.categories ?? []).map(c => ({ id: c.id, name: c.name, glyph: '' })),
+    ],
+    [catalog, hidePopularTab],
+  );
+
   const gridColumns = useMemo(() => {
     const minTile = isNarrow ? 122 : 128;
     const sidePadding = 20 * 2;
@@ -359,19 +382,24 @@ export default function ProductsScreen({
       try {
         const type = await getBusinessType(cashier.business_id);
         setBusinessType(type);
-        const [result, settings, hideImgs, payTiming] = await Promise.all([
+        const [result, settings, hideImgs, payTiming, hidePopular] = await Promise.all([
           loadCatalog(cashier.business_id, type),
           getFinancialSettings(cashier.business_id),
           getHideProductImages(cashier.business_id),
           getDineInPayTiming(cashier.business_id),
+          getHidePopularTab(cashier.business_id),
         ]);
         setCatalog(result);
         setFinancial(settings);
         setHideImages(hideImgs);
+        setHidePopularTab(hidePopular);
+        // :5835 -- when the business hides the popular tab the default
+        // lands on 'all', not on a tab that is not rendered.
+        if (hidePopular) setActiveCategoryId('all');
         setDineInPayTiming(payTiming);
-        if (result.categories.length > 0) {
-          setActiveCategoryId(result.categories[0].id);
-        }
+        // No jump to the first real category any more: the source opens
+        // on its own shortcut tab, and landing on "قهوة" (or whatever
+        // happens to sort first) hid every other product behind a tap.
       } catch (e) {
         setError('تعذر تحميل المنتجات — تحقق من الاتصال.');
       } finally {
@@ -424,7 +452,25 @@ export default function ProductsScreen({
 
   const visibleProducts = useMemo<Product[]>(() => {
     if (!catalog) return [];
-    const byCategory = !activeCategoryId ? catalog.products : catalog.products.filter(p => p.categoryId === activeCategoryId);
+    /**
+     * renderProductGrid() (rakeen-pos.js:585):
+     *   'popular' -> the 8 highest-`pop` products
+     *   'all'     -> everything
+     *   otherwise -> that category
+     *
+     * A note on 'popular': loadPosData() sets `pop: 0` on every real
+     * product (:5957) -- the non-zero values live only in the hardcoded
+     * demo array. So on real data this sorts nothing and shows an
+     * arbitrary eight. Ported as-is because it is what the PWA does, and
+     * the business-level pos_hide_popular_tab flag is the source's own
+     * way of turning it off.
+     */
+    const byCategory =
+      activeCategoryId === 'all'
+        ? catalog.products
+        : activeCategoryId === 'popular'
+          ? catalog.products.slice(0, POPULAR_TAB_SIZE)
+          : catalog.products.filter(p => p.categoryId === activeCategoryId);
     // renderProductGrid()'s own filter order: category, then favourites,
     // then the search term.
     const byFav = showFavOnly ? byCategory.filter(p => favIds.has(p.id)) : byCategory;
@@ -928,7 +974,10 @@ export default function ProductsScreen({
           showsVerticalScrollIndicator={false}
           style={[styles.catSidebar, isNarrow && styles.catSidebarNarrow]}
           contentContainerStyle={[styles.catSidebarContent, isNarrow && styles.catSidebarContentNarrow, catRailInset]}>
-          {catalog.categories.map(cat => {
+          {/* `[...(hidePopular ? [] : [popular]), all, ...CATEGORIES]`
+              (rakeen-pos.js:572). Both shortcut tabs were missing entirely,
+              so there was no way to see every product at once. */}
+          {railCategories.map(cat => {
             const active = activeCategoryId === cat.id;
             const tint = active ? colors.flagGreenDeep : colors.muted;
             const iconSize = isNarrow ? 15 : 17;
@@ -944,7 +993,14 @@ export default function ProductsScreen({
                 onPress={() => setActiveCategoryId(cat.id)}>
                 {/* .cat-btn .ci -- icon derived from the category name by
                     the same keyword rules as iconForCategory(). */}
-                <CategoryIcon name={iconForCategoryName(cat.name)} width={iconSize} height={iconSize} stroke={tint} />
+                {cat.glyph ? (
+                  // `ICONS[c.icon] || c.icon` -- 'popular' and 'all' carry
+                  // ★ and ▦, which are not in the icon set, so the source
+                  // falls through and prints the character itself.
+                  <Text style={[styles.catGlyph, { color: tint, fontSize: iconSize + 1 }]}>{cat.glyph}</Text>
+                ) : (
+                  <CategoryIcon name={iconForCategoryName(cat.name)} width={iconSize} height={iconSize} stroke={tint} />
+                )}
                 <Text style={[styles.catBtnText, active && styles.catBtnTextActive]} numberOfLines={isNarrow ? 1 : 2}>
                   {cat.name}
                 </Text>
@@ -1631,6 +1687,7 @@ const useStyles = createStyles((colors, shadows) =>
     alignItems: 'center',
     justifyContent: 'center',
   },
+  catGlyph: { fontFamily: fonts.sansBold, textAlign: 'center' },
   favToggleActive: { backgroundColor: colors.lime, borderColor: colors.lime },
   favToggleText: { fontSize: 18, color: colors.muted },
   favToggleTextActive: { color: colors.flagGreenDeep },

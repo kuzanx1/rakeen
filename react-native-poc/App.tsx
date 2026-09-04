@@ -433,6 +433,10 @@ function App(): React.JSX.Element {
         online={online}
         printerLabel={printerLabel}
         unreadNotifications={false}
+        // notifBellBtn's whole handler (rakeen-pos.js:4933) is a jump to
+        // the Orders screen. It was rendered here with no handler at all,
+        // so tapping it did nothing.
+        onPressBell={() => setScreen({ name: 'orderHistory' })}
         onSwitchStaff={() => {
           // The source's ↺ drops the STAFF session and returns to the PIN
           // step; it does not unpair the device. logout() here does both,

@@ -18,6 +18,7 @@ import { computeCashChange } from '../domain/payment';
 import type { OrderChannel } from '../domain/cart';
 import type { Customer } from '../domain/customer';
 import { searchCustomers } from '../application/customerService';
+import { normalisePhoneInput, validateNewCustomerDraft } from '../domain/customer';
 import { listPrintJobs, retryPrintJob } from '../application/printService';
 import { isPrintJobTerminal } from '../domain/printQueue';
 import type { PrintJobStatus } from '../domain/printQueue';
@@ -56,7 +57,7 @@ import { createStyles, fonts, gradients, radii, spacing, useTheme } from './them
  * rgba(6,16,10,0.78) overlay -- not the bottom sheet this used to be.
  */
 
-type Step = 'channel' | 'customer' | 'payment' | 'success';
+type Step = 'channel' | 'customer' | 'newCustomer' | 'payment' | 'success';
 
 /** What onConfirm reports back so the success step can show real numbers
  *  and a real print status instead of inventing either. */
@@ -92,6 +93,7 @@ const CHANNELS: { id: OrderChannel; label: string }[] = [
 const STEP_TITLE: Record<Step, string> = {
   channel: 'نوع الطلب',
   customer: 'العميل',
+  newCustomer: 'عميل جديد',
   payment: 'الدفع',
   success: 'تمت العملية',
 };
@@ -151,6 +153,10 @@ export default function PaymentModal({
   const [countdown, setCountdown] = useState(AUTO_RESET_SECONDS);
   const [sentWhatsapp, setSentWhatsapp] = useState(false);
 
+  /** renderNewCustomerStep()'s two fields. */
+  const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+
   // Reserved for the loyalty card QR, which the source shows only when a
   // customer phone was captured on this order. Wired as a flag first
   // because it also decides whether the 4-second auto-reset runs at all.
@@ -168,6 +174,8 @@ export default function PaymentModal({
     setFriendsCount(null);
     setQuery('');
     setSuggestions(null);
+    setNewName('');
+    setNewPhone('');
     setResult(null);
     setPrintStatus(null);
     setPrintRetries(0);
@@ -314,6 +322,7 @@ export default function PaymentModal({
     // 'success' is deliberately absent: the sale is done and its cart is
     // already cleared, so stepping back into it would show an empty order.
     if (step === 'payment') setStep(loyaltyEnabled ? 'customer' : 'channel');
+    else if (step === 'newCustomer') setStep('customer');
     else if (step === 'customer') setStep('channel');
     else onCancel();
   };
@@ -329,6 +338,10 @@ export default function PaymentModal({
       ].slice(0, 4),
     [total],
   );
+
+  const newCustomerCheck = validateNewCustomerDraft({ name: newName, phone: newPhone });
+  const newCustomerValid = newCustomerCheck.valid;
+  const newCustomerErrors = newCustomerCheck.errors;
 
   const cashAmount = parseFloat(cashInput) || 0;
   const change = computeCashChange(cashAmount, total);
@@ -487,10 +500,45 @@ export default function PaymentModal({
                       {searching && <Text style={styles.suggestLoading}>جارٍ البحث...</Text>}
                       {!searching &&
                         suggestions?.map(c => (
-                          <CustomerRow key={String(c.id)} c={c} onPress={() => onCustomerChange(c)} />
+                          <CustomerRow
+                            key={String(c.id)}
+                            c={c}
+                            onPress={() => {
+                              // The source advances the moment a customer
+                              // is picked -- it does not wait for متابعة.
+                              onCustomerChange(c);
+                              proceedToPayment();
+                            }}
+                          />
                         ))}
-                      {!searching && suggestions?.length === 0 && (
-                        <Text style={styles.suggestLoading}>ما فيه نتائج</Text>
+                      {/* .customer-suggest-new -- the source's own comment:
+                          surface adding this typed text as a real, VISIBLE
+                          row instead of a hidden Enter-key shortcut. This
+                          app had no way at all to register a new customer
+                          once the panel's picker was removed. */}
+                      {!searching && suggestions != null && (
+                        <TouchableOpacity
+                          style={[styles.customerSuggest, styles.customerSuggestNew]}
+                          onPress={() => {
+                            const q = query.trim();
+                            const isPhone = /^[0-9+\s-]{6,}$/.test(q);
+                            setNewName(isPhone ? '' : q);
+                            setNewPhone(isPhone ? normalisePhoneInput(q) : '');
+                            setStep('newCustomer');
+                          }}
+                          activeOpacity={0.8}>
+                          <View style={[styles.customerAvatar, styles.customerAvatarNew]}>
+                            <Text style={styles.customerAvatarNewText}>+</Text>
+                          </View>
+                          <View style={styles.customerInfo}>
+                            <Text style={styles.customerName}>إضافة عميل جديد</Text>
+                            <Text style={styles.customerPhone}>
+                              {/^[0-9+\s-]{6,}$/.test(query.trim())
+                                ? query.trim()
+                                : `باسم "${query.trim()}"`}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
                       )}
                     </View>
                   </>
@@ -503,6 +551,72 @@ export default function PaymentModal({
                     <Text style={styles.confirmText}>{customer ? 'متابعة' : 'تخطي'}</Text>
                   </View>
                 </TouchableOpacity>
+              </>
+            )}
+
+            {step === 'newCustomer' && (
+              <>
+                {/* renderNewCustomerStep() (rakeen-pos.js:1166). BOTH fields
+                    are required, and the source explains why in a comment
+                    worth keeping: complete_pos_order() only creates a real
+                    customers row when a phone is present (find-or-create by
+                    phone). Without one this "customer" is free text on the
+                    order -- never a loyalty member, never found again on a
+                    repeat visit, never in the dashboard's customer list. */}
+                <Text style={styles.splitLabel}>\u0627\u0644\u0627\u0633\u0645</Text>
+                <TextInput
+                  style={[styles.input, styles.newCustomerInput]}
+                  placeholder="\u0627\u0633\u0645 \u0627\u0644\u0639\u0645\u064a\u0644"
+                  placeholderTextColor={colors.muted}
+                  value={newName}
+                  onChangeText={setNewName}
+                  autoFocus={!!newPhone}
+                />
+                <Text style={styles.splitLabel}>\u0631\u0642\u0645 \u0627\u0644\u062c\u0648\u0627\u0644</Text>
+                <TextInput
+                  style={[styles.input, styles.newCustomerInput]}
+                  placeholder="05xxxxxxxx"
+                  placeholderTextColor={colors.muted}
+                  keyboardType="phone-pad"
+                  value={newPhone}
+                  // Rewrites the field on every keystroke exactly as the
+                  // source does: Arabic-Indic digits folded to Western,
+                  // everything non-numeric dropped, capped at 10 -- so what
+                  // the cashier sees is always what will be stored.
+                  onChangeText={t => setNewPhone(normalisePhoneInput(t))}
+                  maxLength={10}
+                  autoFocus={!newPhone}
+                />
+
+                {newCustomerValid ? (
+                  <TouchableOpacity
+                    onPress={() => {
+                      onCustomerChange({
+                        // No id: this customer has no row yet.
+                        // complete_pos_order() creates one from the phone.
+                        id: null,
+                        name: newName.trim(),
+                        phone: newPhone,
+                        points: 0,
+                      });
+                      proceedToPayment();
+                    }}
+                    activeOpacity={0.85}>
+                    <View style={styles.confirmButton}>
+                      <GradientFill gradient={gradients.payButton} radius={radii.md} />
+                      <Text style={styles.confirmText}>\u0645\u062a\u0627\u0628\u0639\u0629</Text>
+                    </View>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={[styles.confirmButton, styles.confirmButtonDisabled]}>
+                    <Text style={[styles.confirmText, styles.confirmTextDisabled]}>\u0645\u062a\u0627\u0628\u0639\u0629</Text>
+                  </View>
+                )}
+                {/* Says WHY it is disabled rather than leaving the cashier
+                    guessing at a dead button. */}
+                {!newCustomerValid && (newName.trim() !== '' || newPhone !== '') && (
+                  <Text style={styles.newCustomerHint}>{newCustomerErrors[0]}</Text>
+                )}
               </>
             )}
 
@@ -842,6 +956,13 @@ const useStyles = createStyles(colors =>
   customerPhone: { fontFamily: fonts.monoMedium, fontSize: 10.5, color: colors.muted },
   customerPoints: { flexShrink: 0, paddingVertical: 3, paddingHorizontal: 8, borderRadius: radii.full, backgroundColor: colors.lime },
   customerPointsText: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.flagGreenDeep },
+  // .customer-suggest-new -- transparent with a dashed outline, so it
+  // reads as "create" rather than as another result.
+  customerSuggestNew: { backgroundColor: 'transparent', borderWidth: 1, borderStyle: 'dashed', borderColor: colors.line },
+  customerAvatarNew: { backgroundColor: colors.surf1, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.line },
+  customerAvatarNewText: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.muted },
+  newCustomerInput: { textAlign: 'right', fontFamily: fonts.sansSemiBold, marginBottom: 12 },
+  newCustomerHint: { fontFamily: fonts.sansSemiBold, fontSize: 11.5, color: colors.muted, textAlign: 'center', marginTop: 10 },
   // .loyalty-otp-back
   textLink: { padding: 10, alignSelf: 'flex-start', marginTop: 8 },
   textLinkText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.muted },
