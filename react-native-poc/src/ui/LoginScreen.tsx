@@ -371,7 +371,7 @@ const useStyles = createStyles((colors, shadows) =>
     // .pos-auth-title
     title: { fontFamily: fonts.sansBold, fontSize: 18, color: colors.text, marginBottom: 7, textAlign: 'center' },
     // .pos-auth-sub -- line-height 1.65 * 12.5px
-    sub: { fontFamily: fonts.sansSemiBold, fontSize: 12.5, color: colors.muted, marginBottom: 22, textAlign: 'center', lineHeight: 21 },
+    sub: { fontFamily: fonts.sansSemiBold, fontSize: 12.5, color: colors.muted, marginBottom: 22, textAlign: 'center', lineHeight: 20.625 },
     // .pos-auth-field
     field: { width: '100%', marginBottom: 11 },
     // .pos-auth-field input
@@ -417,8 +417,19 @@ const useStyles = createStyles((colors, shadows) =>
     pinDots: { flexDirection: 'row', justifyContent: 'center', gap: 13, marginBottom: 24 },
     pinDot: { width: 13, height: 13, borderRadius: 7, borderWidth: 1.5, borderColor: colors.line },
     pinDotFilled: { backgroundColor: colors.accentText, borderColor: colors.accentText },
-    // .pin-pad -- repeat(3,1fr) with an 11px gap, as real rows (see PinPad)
-    pinPad: { width: '100%', gap: 11 },
+    /**
+     * .pin-pad is `display:grid; grid-template-columns:repeat(3,1fr)` --
+     * but it sits in `.pos-auth-card`, which is a flex COLUMN with
+     * `align-items:center`. A flex item there shrinks to its content, so
+     * the grid never gets free space to distribute and each 1fr column
+     * collapses to max-content. Measured on the real page: the pad is
+     * 181px wide inside a 300px-wide card interior, keys 53x55, centred.
+     *
+     * This was `width:'100%'` with `flex:1` keys, which stretched the pad
+     * across the whole card and made every key ~92px -- a visibly
+     * different keypad from the source's.
+     */
+    pinPad: { alignSelf: 'center', gap: 11 },
     /**
    * `direction:'ltr'` is a DELIBERATE divergence from the PWA, asked for
    * directly. The web .pin-pad is a plain `repeat(3,1fr)` grid inside an
@@ -432,8 +443,12 @@ const useStyles = createStyles((colors, shadows) =>
   pinRow: { flexDirection: 'row', gap: 11, direction: 'ltr' },
     // .pin-key
     pinKey: {
-      flex: 1,
+      // 53 is the measured column width, not a guess: with no free space
+      // every 1fr column resolves to the same max-content width, so all
+      // three are equal and the widest glyph (the backspace) sets it.
+      width: 53,
       paddingVertical: 17,
+      paddingHorizontal: 17,
       borderRadius: radii.md,
       borderWidth: 1,
       borderColor: colors.line,
@@ -442,7 +457,7 @@ const useStyles = createStyles((colors, shadows) =>
       justifyContent: 'center',
     },
     pinKeyActive: { backgroundColor: colors.surf2 },
-    pinKeySpacer: { flex: 1 },
+    pinKeySpacer: { width: 53 },
     pinKeyText: { fontFamily: fonts.monoBold, fontSize: 17, color: colors.text },
     // .pin-verifying
     pinVerifying: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 22 },
