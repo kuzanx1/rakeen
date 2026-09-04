@@ -20,6 +20,8 @@ import type { OrderChannel } from '../domain/cart';
 import type { Customer } from '../domain/customer';
 import { searchCustomers } from '../application/customerService';
 import type { DeliveryPlatform } from '../application/catalogService';
+import { isPagerNumberBusy } from '../application/catalogService';
+import { setOrderPager } from '../application/activeOrderService';
 import { normalisePhoneInput, validateNewCustomerDraft } from '../domain/customer';
 import { listPrintJobs, retryPrintJob } from '../application/printService';
 import { isPrintJobTerminal } from '../domain/printQueue';
@@ -74,6 +76,10 @@ export interface PaymentResult {
    *  the source hides the whole row in that case rather than showing a
    *  spinner that will never resolve. */
   printJobId: string | null;
+  /** The order just created, so a buzzer number can be attached to it.
+   *  Null when the sale queued offline and has no server id yet — a
+   *  buzzer cannot be recorded against a row that does not exist. */
+  orderId?: number | null;
 }
 
 /** state.customer. `id` is nullable because a customer typed at checkout
@@ -112,12 +118,15 @@ export default function PaymentModal({
   onConfirm,
   submitting,
   businessId,
+  branchId,
   channel,
   onChannelChange,
   customer,
   onCustomerChange,
   dineInEnabled = true,
   loyaltyEnabled = true,
+  dineInMode = 'simple',
+  pagerEnabled = false,
   onLoyaltySelected,
   deliveryPlatforms,
   deliveryPlatformId,
@@ -136,6 +145,9 @@ export default function PaymentModal({
   onConfirm: (method: PaymentMethod, cashAmount: number | null) => Promise<PaymentResult>;
   submitting: boolean;
   businessId: number;
+  /** Buzzer numbers only collide within a branch: two branches can each
+   *  have a 20 out at the same moment and neither is wrong. */
+  branchId: number;
   channel: OrderChannel;
   onChannelChange: (c: OrderChannel) => void;
   customer: AttachedCustomer | null;
@@ -144,6 +156,15 @@ export default function PaymentModal({
   dineInEnabled?: boolean;
   /** LOYALTY_ENABLED -- when false the customer step is skipped whole. */
   loyaltyEnabled?: boolean;
+  /**
+   * 'simple' — the customer orders at the till and sits wherever; there is
+   * no table to pick and none to close later. The kitchen still needs to
+   * know it is dine-in, because it is plated rather than bagged.
+   * 'tables' — full table service, the existing behaviour.
+   */
+  dineInMode?: 'simple' | 'tables';
+  /** Hand out a numbered call-buzzer on till orders. */
+  pagerEnabled?: boolean;
   /** Picking الولاء hands off to the redemption flow instead of tendering.
    *  renderPaymentStep() does exactly this: `renderLoyaltyWaitStep();
    *  return;` -- the loyalty method never reaches the tender UI at all. */
@@ -187,6 +208,16 @@ export default function PaymentModal({
    * line that showed the real figure.
    */
   const [paidTotal, setPaidTotal] = useState(0);
+
+  /**
+   * The buzzer handed to this customer.
+   *
+   * Only asked for where the customer walks away and comes back: takeaway,
+   * and simple dine-in. A table-service order already has a table number
+   * doing this job, and a delivery order has no customer standing here.
+   */
+  const [pagerInput, setPagerInput] = useState('');
+  const [pagerError, setPagerError] = useState('');
   const [printStatus, setPrintStatus] = useState<PrintJobStatus | null>(null);
   const [printRetries, setPrintRetries] = useState(0);
   const [countdown, setCountdown] = useState(AUTO_RESET_SECONDS);
@@ -225,6 +256,8 @@ export default function PaymentModal({
     setSplitCardInput('');
     setFriendsOpen(false);
     setFriendsCount(null);
+    setPagerInput('');
+    setPagerError('');
     setQuery('');
     setSuggestions(null);
     setNewName('');
@@ -344,9 +377,13 @@ export default function PaymentModal({
    * asked for. A single row of choices does not need a confirm step; the
    * tap is the confirmation.
    */
+  /** Only full table service asks which table; simple dine-in has none. */
+  const needsTable = (id: OrderChannel) =>
+    id === 'dine_in' && dineInMode === 'tables' && !hasTable;
+
   const chooseChannel = (id: OrderChannel) => {
     onChannelChange(id);
-    if (id === 'dine_in' && !hasTable) setStep('tablePicker');
+    if (needsTable(id)) setStep('tablePicker');
     else advanceToCustomer();
   };
 
@@ -355,7 +392,7 @@ export default function PaymentModal({
     // the Tables screen). This step exists for the other case: the cart was
     // built from Home and "بالمطعم" is being chosen here for the first
     // time -- without it the order is filed with no table at all.
-    if (channel === 'dine_in' && !hasTable) setStep('tablePicker');
+    if (needsTable(channel)) setStep('tablePicker');
     else advanceToCustomer();
   };
 
@@ -394,12 +431,36 @@ export default function PaymentModal({
    *  close -- it swaps its body for the receipt screen. Closing here is
    *  what this app used to do, which is why the confirmation the PWA shows
    *  after every sale never appeared. */
+  /** Takeaway, or dine-in without tables. */
+  const wantsPager = channel === 'pickup' || (channel === 'dine_in' && dineInMode === 'simple');
+
   const handleConfirm = async () => {
+    // A buzzer number is reused all day, so the same one must never be out
+    // with two open orders — buzzing it would call the wrong customer to
+    // the counter, and nothing downstream could tell that it happened. The
+    // database has a unique index that makes it impossible; this check is
+    // what refuses it while the cashier can still grab a different buzzer,
+    // instead of failing after the customer has walked off with it.
+    const pager = pagerEnabled && wantsPager && pagerInput ? Number(pagerInput) : null;
+    if (pager != null) {
+      if (await isPagerNumberBusy(branchId, pager)) {
+        setPagerError(`جهاز ${pager} مع طلب ثاني الحين — اختر رقم غيره`);
+        return;
+      }
+    }
+
     // Read before awaiting: onConfirm empties the cart, and `total` is
     // derived from it.
     const captured = total;
     const outcome = await onConfirm(method, method === 'cash' ? cashAmount : null);
     if (!outcome.ok) return;
+    // Best-effort, and deliberately after the sale is banked: a buzzer
+    // that fails to record is a note lost, not money lost, and must never
+    // roll back a completed payment.
+    if (pager != null && outcome.orderId != null) {
+      const saved = await setOrderPager(outcome.orderId, pager);
+      if (!saved.ok) setPagerError('انحفظ الطلب، بس ما انسجّل رقم الجهاز');
+    }
     setPaidTotal(captured);
     setResult(outcome);
     setPrintStatus(outcome.printJobId ? 'queued' : null);
@@ -428,7 +489,7 @@ export default function PaymentModal({
     // already cleared, so stepping back into it would show an empty order.
     if (step === 'payment') setStep(loyaltyEnabled ? 'customer' : 'channel');
     else if (step === 'newCustomer') setStep('customer');
-    else if (step === 'customer') setStep(channel === 'dine_in' && !hasTable ? 'tablePicker' : 'channel');
+    else if (step === 'customer') setStep(needsTable(channel) ? 'tablePicker' : 'channel');
     else if (step === 'tablePicker') setStep('channel');
     else onCancel();
   };
@@ -508,7 +569,7 @@ export default function PaymentModal({
     if (channel !== only) onChannelChange(only);
     // Dine-in with no table still needs one; every other single channel
     // goes straight on to the customer step.
-    if (only === 'dine_in' && !hasTable) setStep('tablePicker');
+    if (only === 'dine_in' && dineInMode === 'tables' && !hasTable) setStep('tablePicker');
     else advanceToCustomer();
     // advanceToCustomer is recreated each render; depending on it would
     // re-run this on every render and fight the step it just set.
@@ -1006,6 +1067,32 @@ export default function PaymentModal({
                   </View>
                 )}
 
+                {/* The buzzer, asked for only where the customer walks
+                    away and comes back. A table-service order already has
+                    a table number doing this job; a delivery order has
+                    nobody standing here to hand one to. */}
+                {pagerEnabled && wantsPager && (
+                  <View style={styles.pagerBox}>
+                    <Text style={styles.pagerLabel}>رقم جهاز النداء</Text>
+                    <TextInput
+                      style={[styles.input, styles.pagerInput, !!pagerError && styles.pagerInputError]}
+                      value={pagerInput}
+                      onChangeText={t => {
+                        setPagerInput(t.replace(/[^0-9]/g, '').slice(0, 3));
+                        setPagerError('');
+                      }}
+                      placeholder="مثال: 20"
+                      placeholderTextColor={colors.muted}
+                      keyboardType="number-pad"
+                      maxLength={3}
+                    />
+                    <Text style={styles.pagerHint}>
+                      اتركه فاضي لو ما أعطيته جهاز.
+                    </Text>
+                    {!!pagerError && <Text style={styles.pagerErrorText}>{pagerError}</Text>}
+                  </View>
+                )}
+
                 {canConfirm && !submitting ? (
                   <TouchableOpacity
                     onPress={handleConfirm}
@@ -1275,6 +1362,13 @@ const useStyles = createStyles(colors =>
   methodTabTextActive: { color: colors.accentText },
   tabEmoji: { fontSize: 18 },
   // .friends-split
+  pagerBox: { marginBottom: spacing[4] },
+  pagerLabel: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text, marginBottom: 6 },
+  pagerInput: { textAlign: 'center', fontFamily: fonts.monoBold, fontSize: 18, letterSpacing: 2 },
+  pagerInputError: { borderColor: colors.danger },
+  pagerHint: { fontFamily: fonts.sansMedium, fontSize: 10.5, color: colors.muted, marginTop: 5 },
+  pagerErrorText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.danger, marginTop: 5 },
+
   friendsSplit: { marginBottom: spacing[4] },
   // A bordered pill, not a bare line of muted text: unstyled it sat
   // directly under the amount and read as a section heading, so nobody

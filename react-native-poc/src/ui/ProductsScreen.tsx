@@ -27,6 +27,7 @@ import {
   getHideProductImages,
   getHidePopularTab,
   getPosFeatureFlags,
+  getServiceSettings,
   subscribeToBusinessSettings,
   getDineInPayTiming,
   getReceiptBusinessProfile,
@@ -309,6 +310,18 @@ export default function ProductsScreen({
     hideNotifBell: false,
   });
 
+  /**
+   * How this shop serves dine-in, and whether buzzers are in use.
+   *
+   * Defaults describe a shop that has configured nothing: dine-in without
+   * table management, no buzzers. 'tables' would be the wrong guess — it
+   * would put a café with no tables into a table workflow.
+   */
+  const [service, setService] = useState<{ dineInMode: 'simple' | 'tables'; pagerEnabled: boolean }>({
+    dineInMode: 'simple',
+    pagerEnabled: false,
+  });
+
   /** .discount-panel is `display:none` until .discount-toggle opens it. */
   const [discountPanelOpen, setDiscountPanelOpen] = useState(false);
 
@@ -433,19 +446,21 @@ export default function ProductsScreen({
       try {
         const type = await getBusinessType(cashier.business_id);
         setBusinessType(type);
-        const [result, settings, hideImgs, payTiming, hidePopular, posFlags] = await Promise.all([
+        const [result, settings, hideImgs, payTiming, hidePopular, posFlags, svc] = await Promise.all([
           loadCatalog(cashier.business_id, type),
           getFinancialSettings(cashier.business_id),
           getHideProductImages(cashier.business_id),
           getDineInPayTiming(cashier.business_id),
           getHidePopularTab(cashier.business_id),
           getPosFeatureFlags(cashier.business_id),
+          getServiceSettings(cashier.business_id),
         ]);
         setCatalog(result);
         setFinancial(settings);
         setHideImages(hideImgs);
         setHidePopularTab(hidePopular);
         setFlags(posFlags);
+        setService(svc);
         // :5835 -- when the business hides the popular tab the default
         // lands on 'all', not on a tab that is not rendered.
         if (hidePopular) setActiveCategoryId('all');
@@ -888,6 +903,9 @@ export default function ProductsScreen({
           paid: method === 'cash' && cashAmount != null ? cashAmount : soldTotal,
           change: method === 'cash' && cashAmount != null ? Math.max(0, cashAmount - soldTotal) : 0,
           printJobId: receiptJobId,
+          // Null when the sale queued offline: there is no server row yet
+          // to hang a buzzer number on.
+          orderId: outcome.orderId ?? null,
         };
       }
       return { ok: false, paid: 0, change: 0, printJobId: null };
@@ -1030,6 +1048,9 @@ export default function ProductsScreen({
           paid: method === 'cash' && cashAmount != null ? cashAmount : soldTotal,
           change: method === 'cash' && cashAmount != null ? Math.max(0, cashAmount - soldTotal) : 0,
           printJobId: receiptJobId,
+          // Null when the sale queued offline: there is no server row yet
+          // to hang a buzzer number on.
+          orderId: outcome.orderId ?? null,
         };
       }
       // Payment did not settle. submitStatus already says why, and the
@@ -1524,7 +1545,10 @@ export default function ProductsScreen({
         // These two props existed and were never fed, so turning either
         // switch off in the dashboard did nothing at all on the till.
         loyaltyEnabled={flags.loyaltyEnabled}
+        branchId={cashier.branch_id ?? 0}
         dineInEnabled={flags.dineInEnabled}
+        dineInMode={service.dineInMode}
+        pagerEnabled={service.pagerEnabled}
         deliveryPlatforms={deliveryPlatforms}
         deliveryPlatformId={deliveryPlatformId}
         onDeliveryPlatformChange={setDeliveryPlatformId}

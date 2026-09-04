@@ -211,6 +211,66 @@ export async function getPosFeatureFlags(businessId: number): Promise<PosFeature
  * Defaults to REQUIRED. An unreadable answer must not be the one that
  * removes a control on the drawer.
  */
+/**
+ * How this shop serves dine-in, and whether it hands out call-buzzers.
+ *
+ * Their own query, for the same reason as the flag above: neither column
+ * exists until the migration runs, and one unknown column fails the whole
+ * select.
+ *
+ * Both defaults are the shape of a shop that has configured nothing:
+ * dine-in without table management, and no buzzers. Falling back to
+ * 'tables' would put a café that has no tables into a table workflow, and
+ * defaulting buzzers on would ask for a number nobody has.
+ */
+export interface ServiceSettings {
+  dineInMode: 'simple' | 'tables';
+  pagerEnabled: boolean;
+}
+
+export async function getServiceSettings(businessId: number): Promise<ServiceSettings> {
+  try {
+    const { data, error } = await supabase
+      .from('businesses')
+      .select('dine_in_mode, pos_pager_enabled')
+      .eq('id', businessId)
+      .single();
+    if (error || !data) return { dineInMode: 'simple', pagerEnabled: false };
+    return {
+      dineInMode: data.dine_in_mode === 'tables' ? 'tables' : 'simple',
+      pagerEnabled: data.pos_pager_enabled === true,
+    };
+  } catch {
+    return { dineInMode: 'simple', pagerEnabled: false };
+  }
+}
+
+/**
+ * Is this buzzer number already out with another open order?
+ *
+ * The database has a partial unique index that makes a duplicate
+ * impossible, but a rejected insert after the cashier has already handed
+ * the buzzer over is a bad way to find out. This is the check that lets
+ * the number be refused while it can still be swapped.
+ */
+export async function isPagerNumberBusy(branchId: number, pager: number): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('branch_id', branchId)
+      .eq('pager_number', pager)
+      .is('delivered_at', null)
+      .limit(1);
+    if (error) return false;
+    return (data || []).length > 0;
+  } catch {
+    // A failed check must not block a sale. The unique index is still
+    // there as the real guarantee.
+    return false;
+  }
+}
+
 export async function getRequireManagerPinForClose(businessId: number): Promise<boolean> {
   try {
     const { data, error } = await supabase

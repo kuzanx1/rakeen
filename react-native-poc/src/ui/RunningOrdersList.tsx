@@ -193,6 +193,16 @@ export default function RunningOrdersList({
               <Money value={order.total} size={14.5} />
             </View>
 
+            {/* The buzzer number, given the most weight on the card: this
+                is the one thing someone has to read off it and type into
+                the base station to call the customer over. */}
+            {order.pagerNumber != null && (
+              <View style={styles.pagerPill}>
+                <Text style={styles.pagerPillLabel}>جهاز النداء</Text>
+                <Text style={styles.pagerPillNum}>{order.pagerNumber}</Text>
+              </View>
+            )}
+
             {order.isCod && (
               <View style={styles.codPill}>
                 <Text style={styles.codText}>
@@ -313,6 +323,19 @@ const useStyles = createStyles((colors, shadows) =>
     timerLate: { backgroundColor: 'rgba(224,138,106,0.20)' },
     timerText: { fontFamily: fonts.monoBold, fontSize: 12.5, color: colors.muted },
     timerTextAlert: { color: colors.text },
+
+    pagerPill: {
+      alignSelf: 'flex-start',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 5,
+      paddingHorizontal: 12,
+      borderRadius: radii.full,
+      backgroundColor: colors.surf2,
+    },
+    pagerPillLabel: { fontFamily: fonts.sansSemiBold, fontSize: 11, color: colors.muted },
+    pagerPillNum: { fontFamily: fonts.monoBold, fontSize: 17, color: colors.text },
 
     codPill: {
       alignSelf: 'flex-start',

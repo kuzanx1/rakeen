@@ -28,6 +28,8 @@ export interface ActiveOrder {
   readyAt: Date | null;
   outForDeliveryAt: Date | null;
   customerName: string | null;
+  /** The call-buzzer handed to this customer, if any. */
+  pagerNumber: number | null;
   /** Minutes the platform allows for preparation. Delivery only. */
   prepTimeoutMinutes: number;
   /**
@@ -66,7 +68,7 @@ export async function listActiveOrders(branchId: number): Promise<ActiveOrder[]>
   const { data } = await supabase
     .from('orders')
     .select(
-      'id, total, created_at, ready_at, out_for_delivery_at, channel, source, customer_name, payment_method, payment_status, delivery_platform_id, platform_invoice_last4, delivery_platforms(name, prep_timeout_minutes)',
+      'id, total, created_at, ready_at, out_for_delivery_at, channel, source, customer_name, pager_number, payment_method, payment_status, delivery_platform_id, platform_invoice_last4, delivery_platforms(name, prep_timeout_minutes)',
     )
     .eq('branch_id', branchId)
     // A till pickup order does NOT belong here.
@@ -81,7 +83,11 @@ export async function listActiveOrders(branchId: number): Promise<ActiveOrder[]>
     // Delivery is different at any source: a delivery-app order is prepared
     // now and collected by a rider later, so the stages are real events
     // somebody has to record.
-    .or('channel.eq.delivery,and(channel.eq.pickup,source.eq.online)')
+    // ...and a till order that went out with a call-buzzer. Handing over a
+    // buzzer IS the statement that the customer walked away and someone
+    // has to call them back, which is the same gap online orders have.
+    // Without a buzzer there is no gap: the customer waits at the counter.
+    .or('channel.eq.delivery,and(channel.eq.pickup,source.eq.online),pager_number.not.is.null')
     .is('delivered_at', null)
     // Paid orders, PLUS cash-on-delivery ones that are still unpaid --
     // those are exactly the orders waiting for someone to collect the
@@ -114,6 +120,7 @@ export async function listActiveOrders(branchId: number): Promise<ActiveOrder[]>
       customerName: o.customer_name ?? null,
       prepTimeoutMinutes: Number(platform?.prep_timeout_minutes) || DEFAULT_PREP_TIMEOUT_MINUTES,
       isCod: o.payment_method === 'cash' && o.payment_status === 'unpaid',
+      pagerNumber: o.pager_number != null ? Number(o.pager_number) : null,
     };
   });
 }
@@ -156,6 +163,23 @@ export function sortActiveOrders(orders: ActiveOrder[], now: number = Date.now()
 async function callStage(rpc: string, orderId: number, failure: string) {
   const { error } = await supabase.rpc(rpc, { p_order_id: orderId });
   if (error) return { ok: false, error: failure };
+  return { ok: true, error: null };
+}
+
+/**
+ * Attach a call-buzzer to a finished sale.
+ *
+ * Called after the order exists rather than as part of creating it: the
+ * buzzer is handed over at the counter once the money is taken, and it is
+ * irrelevant to how the sale was paid. Failing to record it must never
+ * undo a completed sale, so the caller treats this as best-effort.
+ */
+export async function setOrderPager(orderId: number, pagerNumber: number) {
+  const { error } = await supabase.rpc('set_order_pager', {
+    p_order_id: orderId,
+    p_pager_number: pagerNumber,
+  });
+  if (error) return { ok: false, error: error.message };
   return { ok: true, error: null };
 }
 

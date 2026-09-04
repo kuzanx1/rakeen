@@ -7524,6 +7524,20 @@ let RECEIPT_THEME = 'classic';
 let ONLINE_COD_ENABLED = true;
 let ONLINE_CARD_ENABLED = true;
 let REQUIRE_MANAGER_PIN_FOR_CLOSE = true;
+let DINE_IN_MODE = 'simple';
+let POS_PAGER_ENABLED = false;
+
+// Own query, same reason as the flags above: these columns do not exist
+// until the migration runs, and one unknown column fails the whole select.
+async function loadServiceSettings(){
+  try {
+    const { data, error } = await window.supabaseClient
+      .from('businesses').select('dine_in_mode, pos_pager_enabled')
+      .eq('id', CURRENT_PROFILE.business_id).single();
+    if(error || !data) return { mode:'simple', pager:false };
+    return { mode: data.dine_in_mode === 'tables' ? 'tables' : 'simple', pager: data.pos_pager_enabled === true };
+  } catch(_){ return { mode:'simple', pager:false }; }
+}
 
 // Its own query, NOT a field on the big business select: PostgREST fails an
 // entire select over one unknown column, and this one would blank the whole
@@ -8333,6 +8347,9 @@ async function renderPosSettings(){
   const panel = document.getElementById('posSettingsPanelBody');
   panel.innerHTML = '<div class="panel"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>';
   RECEIPT_THEME = await loadReceiptTheme();
+  const svc = await loadServiceSettings();
+  DINE_IN_MODE = svc.mode;
+  POS_PAGER_ENABLED = svc.pager;
   const { data: branches } = await window.supabaseClient
     .from('branches').select('id, name').eq('business_id', CURRENT_PROFILE.business_id).order('id');
   const { data: tables } = await window.supabaseClient
@@ -8568,11 +8585,30 @@ async function renderPosSettings(){
   // writes, surfaced here so it's not buried in a different screen.
   const dineInMasterPanel = `
     <div class="rk-section">
-      ${rkSectionHead('grid', 'خدمة الطاولات (الجلوس بالمطعم)', 'يتحكم بكل الإعدادات تحت — توقيت الدفع، الأقسام، الطاولات، والحجوزات')}
-      ${rkSwitchRow('posDineInToggle', DINE_IN_ENABLED, 'تفعيل خدمة الطاولات', null, rkDineInStatus)}
+      ${rkSectionHead('grid', 'الطلب المحلي (الأكل بالمقهى)', 'الفرق عن السفري إن المطبخ يجهّزه بصحون بدل أكياس — تحتها تختار هل عندك خدمة طاولات كاملة أو لا')}
+      ${rkSwitchRow('posDineInToggle', DINE_IN_ENABLED, 'تفعيل الطلب المحلي', null, rkDineInStatus)}
+      <div id="dineInModeBlock" style="margin-top:14px; ${DINE_IN_ENABLED ? '' : 'display:none;'}">
+        <div class="rk-theme-cards">
+          <button type="button" class="rk-theme-card ${DINE_IN_MODE === 'simple' ? 'selected' : ''}" data-dinemode="simple">
+            <span class="rk-theme-card-name">محلي بسيط</span>
+            <span class="rk-theme-card-desc">العميل يطلب من الكاشير ويجلس أي مكان ويستلم بنفسه. ما فيه أرقام طاولات ولا حجوزات — بس المطبخ يعرف إنه بصحون.</span>
+          </button>
+          <button type="button" class="rk-theme-card ${DINE_IN_MODE === 'tables' ? 'selected' : ''}" data-dinemode="tables">
+            <span class="rk-theme-card-name">خدمة طاولات كاملة</span>
+            <span class="rk-theme-card-desc">أرقام طاولات، فتح وإقفال حساب لكل طاولة، أقسام، وحجوزات.</span>
+          </button>
+        </div>
+        <button class="rk-btn rk-btn-secondary rk-btn-md" id="dineInModeSaveBtn" style="margin-top:12px;">حفظ نظام المحلي</button>
+      </div>
+    </div>
+
+    <div class="rk-section">
+      ${rkSectionHead('bell', 'أجهزة النداء', 'الأجهزة اللي تعطيها للعميل وترن لما يجهز طلبه')}
+      ${rkSwitchRow('posPagerToggle', POS_PAGER_ENABLED, 'نستخدم أجهزة نداء', 'الجهاز نفسه مستقل عن الكاشير — الموظف يدخل الرقم على القاعدة بيده. الكاشير بس يسجّل أي جهاز راح مع أي طلب، ويطبعه على فاتورة المطبخ.')}
+      <button class="rk-btn rk-btn-secondary rk-btn-md" id="posPagerSaveBtn" style="margin-top:10px;">حفظ</button>
     </div>`;
   const tablesGatedContent = `
-    <div id="posTablesGatedContent" style="${DINE_IN_ENABLED ? '' : 'display:none;'}">
+    <div id="posTablesGatedContent" style="${DINE_IN_ENABLED && DINE_IN_MODE === 'tables' ? '' : 'display:none;'}">
       ${payTimingPanel}
       ${branchTablesPanelsHtml}
       ${reservationsPanel}
@@ -8674,6 +8710,46 @@ async function renderPosSettings(){
       rkBtnSuccess(receiptThemeSaveBtn, '✓ تم الحفظ');
     } catch(err){
       rkBtnLoading(receiptThemeSaveBtn, false);
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
+  });
+
+  let pendingDineInMode = DINE_IN_MODE;
+  document.querySelectorAll('[data-dinemode]').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      pendingDineInMode = card.dataset.dinemode;
+      document.querySelectorAll('[data-dinemode]').forEach(c=>c.classList.toggle('selected', c === card));
+    });
+  });
+  const dineInModeSaveBtn = document.getElementById('dineInModeSaveBtn');
+  if(dineInModeSaveBtn) dineInModeSaveBtn.addEventListener('click', async ()=>{
+    rkBtnLoading(dineInModeSaveBtn, true);
+    try {
+      await updateCurrentBusiness({ dine_in_mode: pendingDineInMode });
+      DINE_IN_MODE = pendingDineInMode;
+      // The tables settings below only apply to one of the two modes, so
+      // they appear and disappear with it rather than sitting there inert.
+      const gated = document.getElementById('posTablesGatedContent');
+      if(gated) gated.style.display = (DINE_IN_ENABLED && DINE_IN_MODE === 'tables') ? '' : 'none';
+      logDashboardAudit('غيّر نظام الطلب المحلي إلى ' + (pendingDineInMode === 'tables' ? 'خدمة طاولات' : 'محلي بسيط'));
+      rkBtnSuccess(dineInModeSaveBtn, '✓ تم الحفظ');
+    } catch(err){
+      rkBtnLoading(dineInModeSaveBtn, false);
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
+  });
+
+  const posPagerSaveBtn = document.getElementById('posPagerSaveBtn');
+  if(posPagerSaveBtn) posPagerSaveBtn.addEventListener('click', async ()=>{
+    const on = document.getElementById('posPagerToggle').checked;
+    rkBtnLoading(posPagerSaveBtn, true);
+    try {
+      await updateCurrentBusiness({ pos_pager_enabled: on });
+      POS_PAGER_ENABLED = on;
+      logDashboardAudit(on ? 'فعّل أجهزة النداء' : 'أوقف أجهزة النداء');
+      rkBtnSuccess(posPagerSaveBtn, '✓ تم الحفظ');
+    } catch(err){
+      rkBtnLoading(posPagerSaveBtn, false);
       showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
     }
   });
