@@ -2394,3 +2394,13 @@ select.field-invalid {
   margin-top:5px; font-size:10.5px; font-weight:700; color:var(--muted);
 }
 .sales-kpi-peak .sales-kpi-value{letter-spacing:-.3px;}
+
+/* الرابط داخل ملاحظة المؤشر — زر لأنه إجراء، بمظهر نص لأنه ليس الإجراء
+   الرئيسي في البطاقة. */
+.sales-kpi-note-link{
+  background:none; border:0; padding:0; font:inherit; cursor:pointer;
+  color:var(--text); font-weight:800; text-decoration:underline;
+  text-underline-offset:2px;
+}
+.sales-kpi-note-link:hover{opacity:.8;}
+.sales-kpi-note-link:focus-visible{outline:2px solid var(--lime-deep); outline-offset:2px; border-radius:3px;}

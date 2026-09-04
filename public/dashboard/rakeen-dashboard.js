@@ -308,7 +308,7 @@ let CHANNEL_PERF = [
    the page"), matching exactly what Rakeen needs configured to calculate margins correctly. */
 function getOnboardingSteps(){
   return [
-    {label:'حدد مصاريفك الثابتة الشهرية', desc:'إيجار، رواتب، فواتير — عشان ركين يحسب هامش ربح دقيق لكل منتج', screen:'accounting', tab:'fixedcosts', done: getMonthlyFixedCostsTotal() > 0},
+    {label:'حدد مصاريفك الثابتة الشهرية', desc:'إيجار، رواتب، فواتير — عشان ركين يحسب هامش ربح دقيق لكل منتج', screen:'accounting', tab:'fixedcosts', done: FIXED_COSTS_SET},
     {label:'سجّل أصناف مخزونك', desc:'المواد الخام والتغليف اللي تستخدمها بمنتجاتك', screen:'inventory', done: STOCK_ITEMS.length > 0},
     {label:'أضف منتجات قائمتك وحدد تكلفتها', desc:'مباشرة، وصفة، أو بوكس — عشان يطلع هامش ربح كل صنف', screen:'menu', done: MENU_ITEMS.some(m=>m.linkProfit)},
     {label:'اربط منتجاتك بالمخزون', desc:'عشان يُخصم المخزون تلقائيًا كل ما تبيع، بدون ما تحسبها يدوي', screen:'menu', done: MENU_ITEMS.some(m=>m.linkInventory)}
@@ -350,18 +350,22 @@ function renderOnboardingChecklist(){
     </div>
   `;
   el.querySelectorAll('.onboard-step:not(.done)').forEach(step=>{
-    step.addEventListener('click', ()=>{
-      const screen = step.dataset.screen;
-      document.querySelector('.nav-item[data-screen="'+screen+'"]').click();
-      const tabName = step.dataset.tab;
-      if(tabName){
-        setTimeout(()=>{
-          const tabBtn = document.querySelector('#acctScreenTabs button[data-tab="'+tabName+'"]');
-          if(tabBtn) tabBtn.click();
-        }, 30);
-      }
-    });
+    step.addEventListener('click', ()=> goToScreenTab(step.dataset.screen, step.dataset.tab));
   });
+}
+
+/* The accounting tabs only exist once their screen has rendered, hence the
+   deferral. Shared with the Home profit card's "حدّدها" so both land in the
+   same place. */
+function goToScreenTab(screen, tabName){
+  const nav = document.querySelector('.nav-item[data-screen="'+screen+'"]');
+  if(!nav) return;
+  nav.click();
+  if(!tabName) return;
+  setTimeout(()=>{
+    const tabBtn = document.querySelector('#acctScreenTabs button[data-tab="'+tabName+'"]');
+    if(tabBtn) tabBtn.click();
+  }, 30);
 }
 
 /* ============ Real attention items + overall status — one source of truth
@@ -888,9 +892,27 @@ function renderSalesRangeSummary(data){
         <div class="sales-kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${profitUp?trendUpIcon:trendDownIcon}</svg></div>
         <div class="sales-kpi-label">صافي الأرباح</div>
         <div class="sales-kpi-value mono${profitUp?'':' negative'}" title="${profit.toFixed(2)} ر.س">${profit.toFixed(2)} ر.س</div>
+        ${FIXED_COSTS_SET ? '' : '<div class="sales-kpi-note">قبل الإيجار والرواتب — <button type="button" class="sales-kpi-note-link" data-goto-fixedcosts>حدّدها</button></div>'}
       </div>
     </div>
     ${secondRow}`;
+
+  const fixedLink = el.querySelector('[data-goto-fixedcosts]');
+  if(fixedLink) fixedLink.addEventListener('click', ()=> goToScreenTab('accounting', 'fixedcosts'));
+}
+
+/* Today's numbers, assembled in one place. Three call sites used to build
+   this object inline and each of them left `hourly` out, which is why the
+   peak-hour tile showed "—" until the range picker was touched. */
+function renderTodaySalesSummary(){
+  renderSalesRangeSummary({
+    netSales: TODAY.netSales,
+    ordersCount: TODAY.ordersCount,
+    avgTicket: TODAY.avgTicket,
+    profit: TODAY.profit,
+    hourly: typeof HOURLY_SALES !== 'undefined' ? HOURLY_SALES : null,
+    salesDelta: YESTERDAY.netSales > 0 ? (TODAY.netSales - YESTERDAY.netSales) / YESTERDAY.netSales * 100 : null,
+  });
 }
 
 function isTodayRange(from, to){
@@ -901,14 +923,7 @@ function isTodayRange(from, to){
 async function applySalesRange(from, to){
   if(isTodayRange(from, to)){
     renderBestWorstSellers(); renderCategoryPerf(); renderChannelCards(); renderPaymentBreakdown();
-    renderSalesRangeSummary({
-      netSales: TODAY.netSales, ordersCount: TODAY.ordersCount, avgTicket: TODAY.avgTicket,
-      profit: TODAY.profit,
-      // HOURLY_SALES is what TODAY is derived from in the first place (see
-      // the comment at the top of this file: hourly is the source of truth).
-      hourly: typeof HOURLY_SALES !== 'undefined' ? HOURLY_SALES : null,
-      salesDelta: YESTERDAY.netSales > 0 ? (TODAY.netSales - YESTERDAY.netSales) / YESTERDAY.netSales * 100 : null,
-    });
+    renderTodaySalesSummary();
     return;
   }
   const data = await loadSalesRangeData(from, to);
@@ -6206,6 +6221,7 @@ async function loadBusinessData(){
 
   if(fixedRes.data){
     FIXED_COSTS = {rent:Number(fixedRes.data.rent), salaries:Number(fixedRes.data.salaries), utilities:Number(fixedRes.data.utilities), other:Number(fixedRes.data.other)};
+    FIXED_COSTS_SET = true;
   }
 
   SUPPLIER_ID_BY_NAME = {};
@@ -6311,7 +6327,7 @@ function subscribeToOrdersLiveSync(){
       renderStatusHero();
       renderTodayHeroes();
       renderHourGrid();
-      renderSalesRangeSummary({netSales: TODAY.netSales, ordersCount: TODAY.ordersCount, avgTicket: TODAY.avgTicket, profit: TODAY.profit, salesDelta: YESTERDAY.netSales > 0 ? (TODAY.netSales - YESTERDAY.netSales) / YESTERDAY.netSales * 100 : null});
+      renderTodaySalesSummary();
     })
     .subscribe();
 }
@@ -6346,13 +6362,14 @@ async function renderPhase1Screens(){
   recomputeAccounting();
   await loadWeekTrend();
   renderStatusHero();
+  renderOnboardingChecklist();
   renderTodayHeroes();
   renderHourGrid();
   renderBestWorstSellers();
   renderMovers();
   renderCategoryPerf();
   renderChannelCards();
-  renderSalesRangeSummary({netSales: TODAY.netSales, ordersCount: TODAY.ordersCount, avgTicket: TODAY.avgTicket, profit: TODAY.profit, salesDelta: YESTERDAY.netSales > 0 ? (TODAY.netSales - YESTERDAY.netSales) / YESTERDAY.netSales * 100 : null});
+  renderTodaySalesSummary();
   renderWaterfall();
   renderOpexBreakdown();
   renderVatAndMargin();
@@ -10196,10 +10213,10 @@ function fixedCostsSettingsHtml(){
     <div class="rk-section">
       ${rkSectionHead('sliders', 'المصاريف الثابتة', 'مصاريف تدفعها كل شهر بغض النظر عن مبيعاتك — إيجار، رواتب، فواتير. ركين يوزّعها تلقائيًا على كل منتج حسب عدد القطع المباعة، عشان يطلع لك صافي ربح دقيق لكل صنف — هذا الرقم بالضبط اللي يظهر بكل منتج تحت "حصة المصاريف الثابتة"')}
       <div class="rk-field-grid" style="display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px;">
-        <div class="rk-field"><label>الإيجار الشهري (ر.س) ${helpIcon('إيجار المحل أو الفرع شهريًا.')}</label><input type="number" id="fcRent" value="${FIXED_COSTS.rent}"></div>
-        <div class="rk-field"><label>الرواتب الشهرية (ر.س) ${helpIcon('إجمالي رواتب كل الموظفين شهريًا.')}</label><input type="number" id="fcSalaries" value="${FIXED_COSTS.salaries}"></div>
-        <div class="rk-field"><label>الفواتير والخدمات (ر.س) ${helpIcon('كهرباء، ماء، إنترنت، اشتراكات — كل شي يتكرر شهريًا بغض النظر عن المبيعات.')}</label><input type="number" id="fcUtilities" value="${FIXED_COSTS.utilities}"></div>
-        <div class="rk-field"><label>مصاريف أخرى (ر.س) ${helpIcon('أي شي ثابت شهري ما يندرج تحت الفئات فوق — صيانة، تأمين، وغيرها.')}</label><input type="number" id="fcOther" value="${FIXED_COSTS.other}"></div>
+        <div class="rk-field"><label>الإيجار الشهري (ر.س) ${helpIcon('إيجار المحل أو الفرع شهريًا.')}</label><input type="number" id="fcRent" value="${FIXED_COSTS_SET ? FIXED_COSTS.rent : ''}" placeholder="0.00"></div>
+        <div class="rk-field"><label>الرواتب الشهرية (ر.س) ${helpIcon('إجمالي رواتب كل الموظفين شهريًا.')}</label><input type="number" id="fcSalaries" value="${FIXED_COSTS_SET ? FIXED_COSTS.salaries : ''}" placeholder="0.00"></div>
+        <div class="rk-field"><label>الفواتير والخدمات (ر.س) ${helpIcon('كهرباء، ماء، إنترنت، اشتراكات — كل شي يتكرر شهريًا بغض النظر عن المبيعات.')}</label><input type="number" id="fcUtilities" value="${FIXED_COSTS_SET ? FIXED_COSTS.utilities : ''}" placeholder="0.00"></div>
+        <div class="rk-field"><label>مصاريف أخرى (ر.س) ${helpIcon('أي شي ثابت شهري ما يندرج تحت الفئات فوق — صيانة، تأمين، وغيرها.')}</label><input type="number" id="fcOther" value="${FIXED_COSTS_SET ? FIXED_COSTS.other : ''}" placeholder="0.00"></div>
       </div>
 
       <div class="cost-preview-box" id="fcPreviewBox" style="margin-top:16px;"></div>
@@ -10235,6 +10252,7 @@ function wireFixedCostsSettings(){
         .upsert({business_id: CURRENT_PROFILE.business_id, rent, salaries, utilities, other, updated_at: new Date().toISOString()});
       if(error) throw error;
       FIXED_COSTS.rent = rent; FIXED_COSTS.salaries = salaries; FIXED_COSTS.utilities = utilities; FIXED_COSTS.other = other;
+      FIXED_COSTS_SET = true;
       logDashboardAudit('حدّث المصاريف الثابتة الشهرية إلى ' + getMonthlyFixedCostsTotal().toFixed(2) + ' ر.س');
       rkBtnSuccess(saveBtn, '✓ تم الحفظ');
       // Fixed costs feed today's opex directly (recomputeAccounting) — without
@@ -10245,6 +10263,7 @@ function wireFixedCostsSettings(){
       renderWaterfall();
       renderOpexBreakdown();
       renderVatAndMargin();
+      renderTodaySalesSummary();
       if(typeof renderMenuProductTable === 'function') renderMenuProductTable();
       if(typeof renderOnboardingChecklist === 'function') renderOnboardingChecklist();
     } catch(err){
@@ -10338,9 +10357,16 @@ let editingProductId = null; // null = adding new, otherwise editing existing
 /* ============ Fixed Costs (المصاريف الثابتة) — genuinely editable monthly amounts, used for
    product costing decisions (standard/budgeted costing). Distinct from today's already-recorded
    ACCOUNTING P&L (a historical fact) — this is your forward-looking monthly overhead rate.
-   Seeded to exactly match the fixed-cost-per-unit already used throughout (5.67), verified via
-   Python before implementation, so editing this is additive — it changes nothing until touched. */
-let FIXED_COSTS = {rent:8294.40, salaries:21427.20, utilities:3110.40, other:1728.00};
+
+   Zero until the business enters its own. These were previously seeded to one restaurant's
+   real overheads (34,560/month) so the per-unit allocation would match a figure used elsewhere.
+   The loader only overwrites them when a fixed_costs row EXISTS, so a business that had never
+   entered any was told "صافي الأرباح: −1152 ر.س" on its first screen — a stranger's rent,
+   prorated, presented as its own loss. A number nobody entered must not be spent. */
+let FIXED_COSTS = {rent:0, salaries:0, utilities:0, other:0};
+/* Whether the business has actually answered. Distinct from a total of zero, which is a legitimate
+   answer somebody could give — the checklist and the forms need to tell "not asked yet" from "nil". */
+let FIXED_COSTS_SET = false;
 function getMonthlyFixedCostsTotal(){
   return FIXED_COSTS.rent + FIXED_COSTS.salaries + FIXED_COSTS.utilities + FIXED_COSTS.other;
 }
@@ -14106,7 +14132,7 @@ renderBestWorstSellers();
 renderCategoryPerf();
 renderPaymentBreakdown();
 renderChannelCards();
-renderSalesRangeSummary({netSales: TODAY.netSales, ordersCount: TODAY.ordersCount, avgTicket: TODAY.avgTicket, profit: TODAY.profit, salesDelta: YESTERDAY.netSales > 0 ? (TODAY.netSales - YESTERDAY.netSales) / YESTERDAY.netSales * 100 : null});
+renderTodaySalesSummary();
 renderOrderStatusGrid(); // real order rows/table statuses render post-login (renderPhase1Screens) once fetched
 renderOrdersByType();
 renderOrdersBySource();
