@@ -51,7 +51,7 @@ const STATUS_TABS: { value: OrdersTab; label: string }[] = [
   { value: 'refunded', label: 'مسترجعة' },
 ];
 
-const CHANNEL_LABELS: Record<string, string> = { dine_in: 'بالمطعم', pickup: 'استلام', delivery: 'توصيل' };
+const CHANNEL_LABELS: Record<string, string> = { dine_in: 'محلي', pickup: 'سفري', delivery: 'تطبيقات التوصيل' };
 const PAYMENT_METHOD_LABELS: Record<string, string> = { cash: 'كاش', card: 'بطاقة', split: 'تقسيم دفع', delivery_platform: 'مدفوع عبر التطبيق' };
 /** ORDER_STATUS_LABELS_POS (rakeen-pos.js:3671). */
 const ORDER_STATUS_LABELS: Record<string, string> = {

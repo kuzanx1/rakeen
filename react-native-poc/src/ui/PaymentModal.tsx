@@ -87,8 +87,8 @@ export interface AttachedCustomer {
 }
 
 const CHANNELS: { id: OrderChannel; label: string }[] = [
-  { id: 'dine_in', label: '🍽️ بالمطعم' },
-  { id: 'pickup', label: '📦 استلام' },
+  { id: 'dine_in', label: '🍽️ محلي' },
+  { id: 'pickup', label: '📦 سفري' },
   { id: 'delivery', label: '🛵 تطبيقات التوصيل' },
 ];
 

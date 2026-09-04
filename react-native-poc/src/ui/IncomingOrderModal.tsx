@@ -8,7 +8,7 @@ import type { IncomingOrder } from '../application/incomingOrderService';
 import { createStyles, fonts, gradients, radii, useTheme } from './theme';
 import { formatArabicTime } from '../domain/arabicDate';
 
-const CHANNEL_LABELS: Record<string, string> = { dine_in: 'بالمطعم', pickup: 'استلام', delivery: 'توصيل' };
+const CHANNEL_LABELS: Record<string, string> = { dine_in: 'محلي', pickup: 'سفري', delivery: 'تطبيقات التوصيل' };
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   cash: 'كاش',
   card: 'بطاقة',

@@ -67,9 +67,9 @@ const POPULAR_TAB_SIZE = 8;
 
 const DISCOUNT_OPTIONS = [0, 5, 10, 15, 20];
 const CHANNEL_LABELS: Record<OrderChannel, string> = {
-  dine_in: 'بالمطعم',
-  pickup: 'استلام',
-  delivery: 'توصيل',
+  dine_in: 'محلي',
+  pickup: 'سفري',
+  delivery: 'تطبيقات التوصيل',
 };
 
 /** Feature Parity Pass (Real Receipt Rendering) -- turns a cart line's

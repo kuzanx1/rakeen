@@ -186,7 +186,7 @@ export default function RunningOrdersList({
             <View style={styles.cardHead}>
               <View style={styles.cardHeadInfo}>
                 <Text style={styles.cardTitle}>
-                  #{order.id} · {isDelivery ? order.platformName : 'استلام'}
+                  #{order.id} · {isDelivery ? order.platformName : 'سفري'}
                 </Text>
                 {!!order.customerName && <Text style={styles.cardMeta}>{order.customerName}</Text>}
               </View>

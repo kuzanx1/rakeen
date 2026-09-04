@@ -97,6 +97,10 @@ const I18N_EN = {
   // The discount buttons carry Arabic-indic numerals, which stay unreadable
   // to an English reader even though every letter around them changed.
   '٥٪': '5%', '١٠٪': '10%', '١٥٪': '15%',
+  // Renamed channels: pickup IS takeaway, and the cashier's delivery is a
+  // delivery-app order.
+  'سفري': 'Takeaway', 'محلي': 'Dine-in', '📦 سفري': '📦 Takeaway',
+  '🍽️ محلي': '🍽️ Dine-in', '🛵 تطبيقات التوصيل': '🛵 Delivery apps',
   'عنوان الطابعة في الشبكة (نفس شبكة الواي فاي)': 'Printer address on the network (same Wi-Fi)',
   'المنفذ': 'Port number',
   'عنوان الطابعة — مثال: 192.168.1.51': 'Printer address — e.g. 192.168.1.51',
@@ -1841,8 +1845,8 @@ paymentModal.addEventListener('click', (e)=>{ if(e.target===paymentModal) closeP
 function renderChannelStep(){
   document.getElementById('paymentModalTitle').textContent = 'نوع الطلب';
   const channels = [
-    {id:'dine_in', label:'🍽️ بالمطعم'},
-    {id:'pickup', label:'📦 استلام'},
+    {id:'dine_in', label:'🍽️ محلي'},
+    {id:'pickup', label:'📦 سفري'},
     {id:'delivery', label:'🛵 تطبيقات التوصيل'}
   ].filter(c => {
     if(c.id === 'dine_in') return DINE_IN_ENABLED;
@@ -4051,7 +4055,7 @@ async function openOrderDetail(orderId){
   }
 }
 const ORDER_STATUS_LABELS_POS = {pending:'بانتظار القبول', completed:'مكتمل', cancelled:'ملغى', refunded:'مسترجع', rejected:'مرفوض'};
-const CHANNEL_LABELS = {dine_in:'بالمطعم', pickup:'استلام', delivery:'توصيل'};
+const CHANNEL_LABELS = {dine_in:'محلي', pickup:'سفري', delivery:'تطبيقات التوصيل'};
 const PAYMENT_METHOD_LABELS_POS = {cash:'كاش', card:'بطاقة', split:'تقسيم دفع', delivery_platform:'مدفوع عبر التطبيق'};
 
 /* ============ TABLES screen — real restaurant_tables, grouped by owner-
