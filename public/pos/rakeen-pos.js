@@ -6826,6 +6826,14 @@ async function loadPosData(){
   }));
   PRODUCTS = [...serviceProducts, ...menuItemProducts];
 
+  // فئة ما بقي فيها منتج بعد الترشيح ما تُعرض. المنتجات فوق مُرشَّحة
+  // أصلاً (active و visible_pos و hidden_until)، فالفئة التي أُخفي كل
+  // ما فيها كانت تبقى تبويباً يفتح على شبكة فاضية — والكاشير يضغطه
+  // أمام الزبون ولا يجد شيئاً. الخدمات داخلة في نفس القائمة، فصالون
+  // بخدمات فقط ما تختفي فئاته.
+  const catsWithProducts = new Set(PRODUCTS.map(p => p.cat));
+  CATEGORIES = CATEGORIES.filter(c => catsWithProducts.has(c.id));
+
   BARCODE_TO_PRODUCT_ID = {};
   menuItemProducts.forEach(p=>{ if(p.barcode) BARCODE_TO_PRODUCT_ID[p.barcode] = p.id; });
 

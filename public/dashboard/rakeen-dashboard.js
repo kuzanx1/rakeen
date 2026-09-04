@@ -10314,8 +10314,17 @@ async function addNewSubcategory(parentId, rawName, input){
 async function deleteCategoryFromHierarchy(catId){
   const cat = CATEGORY_ROWS.find(c=>c.id===catId);
   if(!cat) return;
-  const productCount = MENU_ITEMS.filter(m=>m.category===cat.name && !m.name.includes('(مؤرشف)')).length;
-  if(productCount > 0){ showToast('فيه ' + productCount + ' منتج بفئة "' + cat.name + '" — انقلها لفئة ثانية أول عشان تقدر تحذفها'); return; }
+  const inCat = MENU_ITEMS.filter(m=>m.category===cat.name && !m.name.includes('(مؤرشف)'));
+  // منتج موقوف أو مخفي عن الكاشير والمتجر لا يظهر في القائمة التي
+  // ينظر إليها المالك، فالمنع كان يبدو بلا سبب. الرسالة تسمّيه.
+  const hiddenInCat = inCat.filter(m => !m.active || (!m.visiblePos && !m.visibleOnline));
+  if(inCat.length > 0){
+    const tail = hiddenInCat.length === inCat.length
+      ? (inCat.length === 1 ? ' — وهو مخفي، عشان كذا ما يظهر لك بالقائمة' : ' — كلها مخفية، عشان كذا ما تظهر لك بالقائمة')
+      : (hiddenInCat.length ? ' (منها ' + hiddenInCat.length + ' مخفي)' : '');
+    showToast('فيه ' + inCat.length + ' منتج بفئة "' + cat.name + '"' + tail + ' — انقلها لفئة ثانية أو احذفها أول');
+    return;
+  }
   if(CATEGORY_ROWS.some(c=>c.parentId===catId)){ showToast('هذي فئة رئيسية ولها فئات فرعية — شيل الربط عنها أول'); return; }
   if(!window.confirm('حذف فئة "' + cat.name + '"؟')) return;
   try {

@@ -425,6 +425,14 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
     pointsRedeemPrice: m.points_redeem_price != null ? Number(m.points_redeem_price) : null,
   }));
 
+  // فئة ما بقي فيها منتج معروض ما تُعرض -- نفس قاعدة الـPWA بالحرف.
+  // المنتجات مُرشَّحة في الاستعلام، فبقاء صفر منتج بعده يعني أن كل ما
+  // فيها مخفي أو موقوف، والتبويب يفتح على فراغ.
+  const catIdsWithProducts = new Set(
+    [...serviceProducts, ...menuItemProducts].map(p => String(p.categoryId)),
+  );
+  const visibleCategories = categories.filter(c => catIdsWithProducts.has(String(c.id)));
+
   // Ported from loadPosData()'s MODIFIER_PRODUCTS construction -- same
   // group/option shape (price_delta -> price), same "no groups -> simple
   // product" fallthrough, and now the same handling of cost_mode='box'
@@ -499,7 +507,7 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
   });
 
   const result: CatalogResult = {
-    categories,
+    categories: visibleCategories,
     products: [...serviceProducts, ...menuItemProducts],
     modifiersByProductId,
     optionStock,

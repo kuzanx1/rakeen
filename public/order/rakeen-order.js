@@ -600,6 +600,9 @@ if (!window.__rakeenOrderBooted) {
     // Only top-level categories get a rail chip/anchor — a sub-category
     // renders as a heading nested inside its parent's section instead (see
     // renderMenu), so it doesn't need its own top-level jump target.
+    // فئة بلا منتج معروض ما تظهر في الشريط. وهنا الفئة الرئيسية تُحسب
+    // بما تحته أيضاً: قسمها يضم فئاتها الفرعية، فتُعرض إذا بقي منتج في
+    // أي منها. يُحسب بعد PRODUCTS أدناه.
     CATEGORIES = CATEGORY_ROWS.filter(c => !c.parentId).map(c => c.name);
 
     PRODUCTS = (itemsRes.data || []).map(m => ({
@@ -607,6 +610,12 @@ if (!window.__rakeenOrderBooted) {
       image: m.image_url || null, costMode: m.cost_mode, totalPieces: m.total_pieces || 0,
       tagLabel: m.online_tag_label || '', tagColor: m.online_tag_color || '#3E7BFA',
     }));
+
+    const onlineCatIdsWithProducts = new Set(PRODUCTS.map(p => String(p.categoryId)));
+    const onlineCatHasProduct = cat =>
+      onlineCatIdsWithProducts.has(String(cat.id)) ||
+      CATEGORY_ROWS.some(k => k.parentId === cat.id && onlineCatIdsWithProducts.has(String(k.id)));
+    CATEGORIES = CATEGORY_ROWS.filter(c => !c.parentId && onlineCatHasProduct(c)).map(c => c.name);
 
     const itemIds = PRODUCTS.map(p => p.id);
     const groupIds = (groupRes.data || []).map(g => g.id);
