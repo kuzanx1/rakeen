@@ -2,7 +2,7 @@ import { Skia, PaintStyle } from '@shopify/react-native-skia';
 import { createReceiptSurface, loadRemoteImage } from '../platform/receiptCanvas';
 import { loadReceiptTypefaces } from '../platform/receiptFonts';
 import { buildReceiptFontProvider, paintText, measureAndWrapText } from '../platform/receiptText';
-import { rgbaToEscPosRaster } from '../domain/escposRaster';
+import { rgbaToEscPosRaster, rgbaToEscPosRasterLegacy, RgbaBuffer } from '../domain/escposRaster';
 import { bytesToBase64 } from '../domain/escposText';
 import { zatcaQrBase64 } from '../domain/zatca';
 import { buildQrMatrix } from '../domain/qrMatrix';
@@ -28,6 +28,12 @@ import { bi, receiptTheme } from '../domain/receiptTheme';
  * text shaping/rasterization/printing can only be confirmed on real
  * iOS/Android hardware. Never claim printing "works" from this alone.
  */
+
+/** يختار المُرمِّز حسب إعداد الطابعة المحفوظ. الافتراضي الحديث، لأنه
+ *  المُصلح المتوقع؛ والقديم مخرج طوارئ يقلبه المالك بنفسه. */
+function encodeRaster(buffer: RgbaBuffer, command?: 'modern' | 'legacy'): number[] {
+  return command === 'legacy' ? rgbaToEscPosRasterLegacy(buffer) : rgbaToEscPosRaster(buffer);
+}
 
 const PAD = 16;
 const LINE_H = 32;
@@ -177,6 +183,7 @@ export async function renderReceiptToEscPosBase64(
   data: ReceiptData,
   printerPaperWidthPx?: number,
   themeId?: string | null,
+  rasterCommand?: 'modern' | 'legacy',
 ): Promise<string> {
   try {
     // Spacing, type scale and rules come from the theme; the ZATCA fields
@@ -323,7 +330,7 @@ export async function renderReceiptToEscPosBase64(
     y += PAD;
 
     const finalHeight = Math.min(Math.ceil(y), maxHeight);
-    const raster = rgbaToEscPosRaster(surface.toRgba(finalHeight));
+    const raster = encodeRaster(surface.toRgba(finalHeight), rasterCommand);
     const bytes = [0x1b, 0x40, ...raster, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00];
     return bytesToBase64(bytes);
   } catch (e) {
@@ -352,6 +359,7 @@ export async function renderReceiptToEscPosBase64(
 export async function renderShiftReportToEscPosBase64(
   report: ClosingReport,
   printerPaperWidthPx?: number,
+  rasterCommand?: 'modern' | 'legacy',
 ): Promise<string> {
   const width = printerPaperWidthPx ?? 576;
   const provider = await buildFontProviderReady();
@@ -400,12 +408,12 @@ export async function renderShiftReportToEscPosBase64(
   y += PAD;
 
   const finalHeight = Math.min(Math.ceil(y), 1800);
-  const raster = rgbaToEscPosRaster(surface.toRgba(finalHeight));
+  const raster = encodeRaster(surface.toRgba(finalHeight), rasterCommand);
   const bytes = [0x1b, 0x40, ...raster, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00];
   return bytesToBase64(bytes);
 }
 
-export async function renderKitchenTicketToEscPosBase64(data: KitchenTicketData, printerPaperWidthPx?: number): Promise<string> {
+export async function renderKitchenTicketToEscPosBase64(data: KitchenTicketData, printerPaperWidthPx?: number, rasterCommand?: 'modern' | 'legacy'): Promise<string> {
   try {
     const ticket = toKitchenTicketPrintable(printerPaperWidthPx != null ? { ...data, paperWidthPx: printerPaperWidthPx } : data);
     const provider = await buildFontProviderReady();
@@ -458,7 +466,7 @@ export async function renderKitchenTicketToEscPosBase64(data: KitchenTicketData,
     y += KITCHEN_LINE_H * 0.6 + PAD;
 
     const finalHeight = Math.min(Math.ceil(y), maxHeight);
-    const raster = rgbaToEscPosRaster(surface.toRgba(finalHeight));
+    const raster = encodeRaster(surface.toRgba(finalHeight), rasterCommand);
     const bytes = [0x1b, 0x40, ...raster, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00];
     return bytesToBase64(bytes);
   } catch (e) {

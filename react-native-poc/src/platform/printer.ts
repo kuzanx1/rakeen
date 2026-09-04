@@ -91,6 +91,18 @@ export interface PrinterProfile {
    *  "Selected: XPrinter XP-58" without re-scanning every time the
    *  screen opens. Only meaningful when transport is 'bluetooth'/'usb'. */
   bluetoothId?: string;
+  /**
+   * أي أمر رسم يُرسَل للطابعة.
+   *
+   * 'modern' = `GS 8 L` fn112 + `GS ( L` fn50، وهو الأمر الحالي في
+   * مواصفة ESC/POS، و`GS v 0` مصنّف مهجوراً عند Epson نفسها مع تسمية
+   * هذا بديلاً له. القياس على NT310: ٦٩٤ سطراً بالأمر القديم = ٤٥
+   * ثانية = ٦٥ ملّي ثانية للسطر، والمدى الفيزيائي ٥–٢٠ ملّي.
+   *
+   * 'legacy' موجود لأن الحديث ليس عالمياً: طابعة لا تعرفه لا تطبع
+   * شيئاً بدل أن تطبع ببطء. مخرج طوارئ بيد المالك لا بيدي.
+   */
+  rasterCommand?: 'modern' | 'legacy';
   bluetoothName?: string;
   usbAccessoryId?: string;
   usbAccessoryName?: string;

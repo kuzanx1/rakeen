@@ -1,54 +1,45 @@
 /**
- * Feature Parity Pass -- Real Receipt Rendering. Ported from the real
- * PWA's canvasToEscPosRaster() (public/pos/rakeen-pos.js): converts a
- * rendered RGBA pixel buffer into an ESC/POS `GS v 0` raster image
- * command. Pure function -- takes raw pixels in, bytes out, no canvas/
- * Skia dependency at all -- so it's independently testable with a
- * synthetic pixel buffer, the same way the PWA's real algorithm can be
- * (and was) reasoned about without a browser.
+ * A rendered RGBA pixel buffer as an ESC/POS raster image.
  *
- * Same thresholding as the source: luminance = 0.299R + 0.587G + 0.114B,
- * a pixel is "dark" (bit set) when luminance < 160 AND alpha > 10 (a
- * fully/mostly transparent pixel is never printed as ink, matching how
- * the PWA's canvas has a transparent, not white, background before
- * anything is drawn on it).
+ * Uses `GS 8 L` function 112 (store graphics) followed by `GS ( L`
+ * function 50 (print), which is the CURRENT graphics command. `GS v 0`,
+ * which this replaces, is marked obsolete in Epson's own ESC/POS
+ * reference with `GS ( L` named as its replacement.
+ *
+ * That is not a style preference — it is the measurement. On a SUNMI
+ * NT310 at Hbiah, a 694-row receipt sent as `GS v 0` took 45 seconds.
+ * Thermal printing runs 5–20ms per dot row, so 694 rows should cost 3.5
+ * to 14 seconds at the very worst; 45 seconds is 65ms per row, three to
+ * thirteen times outside the physical range. And Foodics on the SAME
+ * printer prints a receipt of roughly the same dot-row count in about a
+ * second. Same rows, same paper, same hardware, 45x the time — so the
+ * cost was never "images are heavy", it was this command taking a slow
+ * path through the firmware.
+ *
+ * The transport was never involved: the trace shows 20ms from connect to
+ * the printer closing the stream itself.
+ *
+ * ONE PIECE, deliberately. An earlier attempt split the image into 128-row
+ * bands on the theory that a huge single command was choking the firmware.
+ * It did not help, and the reasoning was backwards: fragmenting a raster
+ * into many separately-printed parts is a documented CAUSE of slow image
+ * printing, not a cure. The band loop is gone.
  */
 
 export interface RgbaBuffer {
   width: number;
   height: number;
-  /** Length must be width*height*4, RGBA, one byte per channel, row-major. */
-  data: Uint8Array | Uint8ClampedArray;
+  data: Uint8Array;
 }
 
-const LUMINANCE_THRESHOLD = 160;
-const ALPHA_THRESHOLD = 10;
-
-export function isPixelDark(r: number, g: number, b: number, a: number): boolean {
-  const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-  return luminance < LUMINANCE_THRESHOLD && a > ALPHA_THRESHOLD;
+/** Any pixel dark enough to be worth heat. Alpha counts: a transparent
+ *  pixel is paper, whatever its colour channels say. */
+function isPixelDark(r: number, g: number, b: number, a: number): boolean {
+  if (a < 128) return false;
+  return (r * 299 + g * 587 + b * 114) / 1000 < 160;
 }
 
-/**
- * Returns ESC/POS raster bytes: a SEQUENCE of `GS v 0` commands, one per
- * horizontal band of RASTER_BAND_ROWS rows. Each carries the 8-byte
- * header (`1D 76 30 00 xL xH yL yH`, x = bytes-per-row, y = that band's
- * height, both little-endian 16-bit) followed by that band's packed
- * 1-bpp bitmap, MSB-first within each byte (bit 7 = leftmost pixel).
- *
- * Was a single command spanning the whole receipt. See RASTER_BAND_ROWS
- * for the hardware measurement that changed it.
- */
-/**
- * عدد الأسطر النقطية في الشريحة الواحدة.
- *
- * ١٢٨ سطراً ≈ ١٦ مم من الورق ≈ ٩ كيلوبايت بعرض ٥٧٦ نقطة. الرقم قابل
- * للضبط: لو بقيت الطباعة بطيئة على عتاد ما فالمحاولة التالية أصغر
- * (٦٤ أو ٢٤)، ولو لم يتغيّر شيء فالسبب ليس هنا.
- */
-export const RASTER_BAND_ROWS = 128;
-
-export function rgbaToEscPosRaster(buffer: RgbaBuffer): number[] {
+function packBitmap(buffer: RgbaBuffer): { bitmap: Uint8Array; bytesPerRow: number } {
   const { width, height, data } = buffer;
   const bytesPerRow = Math.ceil(width / 8);
   const bitmap = new Uint8Array(bytesPerRow * height);
@@ -56,34 +47,70 @@ export function rgbaToEscPosRaster(buffer: RgbaBuffer): number[] {
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const pixelIndex = (y * width + x) * 4;
-      const r = data[pixelIndex];
-      const g = data[pixelIndex + 1];
-      const b = data[pixelIndex + 2];
-      const a = data[pixelIndex + 3];
-      if (isPixelDark(r, g, b, a)) {
-        const byteIndex = y * bytesPerRow + (x >> 3);
-        const bitPosition = 7 - (x & 7);
-        bitmap[byteIndex] |= 1 << bitPosition;
+      if (isPixelDark(data[pixelIndex], data[pixelIndex + 1], data[pixelIndex + 2], data[pixelIndex + 3])) {
+        bitmap[y * bytesPerRow + (x >> 3)] |= 1 << (7 - (x & 7));
       }
     }
   }
+  return { bitmap, bytesPerRow };
+}
 
-  // شريحة شريحة، لا كتلة واحدة. قياس على NT310 حقيقي: فاتورة ٨٧ مم
-  // بأمر واحد ارتفاعه ٦٩٤ سطراً استغرقت ٣٠ ثانية (٣ مم/ث) بينما
-  // الطابعة تطبع ٢٠٠+ مم/ث ونصيبنا من الوقت ٢٠ ملّي ثانية فقط. الصورة
-  // على الورق واحدة؛ الفرق أن البرنامج الثابت يعالج شريحة صغيرة في
-  // مساره السريع بدل بلع الصورة كلها.
-  const out: number[] = [];
-  const xL = bytesPerRow & 0xff;
-  const xH = (bytesPerRow >> 8) & 0xff;
+/**
+ * `GS 8 L` fn112 + `GS ( L` fn50 — store the graphics, then print them.
+ *
+ * Layout of the store command, in order:
+ *   1D 38 4C  p1 p2 p3 p4  30 70 30  bx by c  xL xH  yL yH  <data>
+ *
+ *   p1..p4  little-endian 32-bit byte count of everything after it,
+ *           i.e. 10 header bytes + the bitmap.
+ *   30 70 30  m = 48, fn = 112 ('p'), a = 48.
+ *   bx by   horizontal and vertical zoom, 1 each — the image is already
+ *           rendered at the printer's own resolution, so scaling here
+ *           would only blur it.
+ *   c       49, single-colour.
+ *   xL xH   width in DOTS (not bytes), little-endian.
+ *   yL yH   height in dots, little-endian.
+ *
+ * `GS 8 L` rather than `GS ( L` for the store: its length field is 32-bit,
+ * so a full-length receipt cannot overflow it. The print that follows is
+ * the short `GS ( L` form, which takes no data.
+ */
+export function rgbaToEscPosRaster(buffer: RgbaBuffer): number[] {
+  const { width, height } = buffer;
+  const { bitmap, bytesPerRow } = packBitmap(buffer);
 
-  for (let top = 0; top < height; top += RASTER_BAND_ROWS) {
-    const rows = Math.min(RASTER_BAND_ROWS, height - top);
-    out.push(0x1d, 0x76, 0x30, 0x00, xL, xH, rows & 0xff, (rows >> 8) & 0xff);
-    const from = top * bytesPerRow;
-    const to = from + rows * bytesPerRow;
-    for (let i = from; i < to; i++) out.push(bitmap[i]);
-  }
+  const p = 10 + bitmap.length;
+  const out: number[] = [
+    0x1d, 0x38, 0x4c,
+    p & 0xff, (p >> 8) & 0xff, (p >> 16) & 0xff, (p >> 24) & 0xff,
+    0x30, 0x70, 0x30,
+    0x01, 0x01, 0x31,
+    width & 0xff, (width >> 8) & 0xff,
+    height & 0xff, (height >> 8) & 0xff,
+  ];
+  for (let i = 0; i < bitmap.length; i++) out.push(bitmap[i]);
 
+  // fn50: print what was just stored.
+  out.push(0x1d, 0x28, 0x4c, 0x02, 0x00, 0x30, 0x32);
+
+  void bytesPerRow;
   return out;
+}
+
+/**
+ * The previous encoder, kept for one reason: `GS ( L` is the modern
+ * command but not a universal one, and a printer that ignores it prints
+ * nothing at all rather than printing slowly. If that happens on some
+ * unit in the field, this is the one-line fallback — not dead code, a
+ * documented escape hatch with a known trigger.
+ */
+export function rgbaToEscPosRasterLegacy(buffer: RgbaBuffer): number[] {
+  const { height } = buffer;
+  const { bitmap, bytesPerRow } = packBitmap(buffer);
+  return [
+    0x1d, 0x76, 0x30, 0x00,
+    bytesPerRow & 0xff, (bytesPerRow >> 8) & 0xff,
+    height & 0xff, (height >> 8) & 0xff,
+    ...Array.from(bitmap),
+  ];
 }

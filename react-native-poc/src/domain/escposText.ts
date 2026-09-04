@@ -110,6 +110,13 @@ export class EscPosText {
     return this.line('-'.repeat(columns));
   }
 
+  /** بايتات جاهزة كما هي — لأوامر لا تمر بالنص، مثل رمز QR الأصلي.
+   *  وجودها هنا يغني عن كسر التغليف من الخارج. */
+  raw(bytes: number[]): this {
+    this.bytes.push(...bytes);
+    return this;
+  }
+
   feed(n: number): this {
     for (let i = 0; i < n; i++) this.bytes.push(0x0a);
     return this;

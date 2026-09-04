@@ -484,6 +484,27 @@ export default function PrinterSettingsScreen({
         />
       </Section>
 
+      <Section title="سرعة الطباعة">
+        <View style={styles.rasterCards}>
+          {([
+            ['modern', 'سريعة', 'الطريقة الحديثة. جرّبها أولًا — على أغلب الطابعات تختصر وقت الطباعة كثيرًا.'],
+            ['legacy', 'متوافقة', 'الطريقة القديمة. أبطأ، لكن تعرفها كل الطابعات. استخدمها فقط لو ما طلعت الفاتورة أصلًا بالسريعة.'],
+          ] as const).map(([id, name, desc]) => {
+            const active = (profile.rasterCommand ?? 'modern') === id;
+            return (
+              <TouchableOpacity
+                key={id}
+                style={[styles.rasterCard, active && styles.rasterCardActive]}
+                onPress={() => setProfile({ ...profile, rasterCommand: id })}
+                activeOpacity={0.8}>
+                <Text style={styles.rasterCardName}>{name}</Text>
+                <Text style={styles.rasterCardDesc}>{desc}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </Section>
+
       <Section title="خيارات الطباعة">
         <PosCheck
           label="طباعة إيصال العميل"
@@ -790,6 +811,14 @@ const useStyles = createStyles(colors =>
 
   traceBox: { backgroundColor: colors.surf1, borderRadius: radii.sm, padding: spacing[2], marginBottom: spacing[3] },
   traceLine: { fontFamily: fonts.monoMedium, fontSize: 9.5, color: colors.muted, writingDirection: 'ltr', textAlign: 'left', lineHeight: 14 },
+  rasterCards: { gap: 8 },
+  rasterCard: {
+    borderWidth: 1, borderColor: colors.line, borderRadius: radii.md,
+    backgroundColor: colors.surf1, padding: 14, gap: 4,
+  },
+  rasterCardActive: { borderColor: colors.accentText, backgroundColor: colors.surf2 },
+  rasterCardName: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.text },
+  rasterCardDesc: { fontFamily: fonts.sansRegular, fontSize: 11.5, lineHeight: 17, color: colors.muted },
   unsavedBox: {
     backgroundColor: `rgba(${colors.amberRgb},0.15)`,
     borderRadius: radii.sm,

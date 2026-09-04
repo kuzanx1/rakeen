@@ -79,10 +79,11 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
           // should print in the theme that is current when it actually
           // reaches paper.
           await getReceiptThemeForPrinting(),
+          profile?.rasterCommand,
         )
       : job.type === 'shiftReport'
-        ? await renderShiftReportToEscPosBase64(job.data as unknown as ClosingReport, profile?.paperWidthPx)
-        : await renderKitchenTicketToEscPosBase64(job.data as unknown as KitchenTicketData, profile?.paperWidthPx);
+        ? await renderShiftReportToEscPosBase64(job.data as unknown as ClosingReport, profile?.paperWidthPx, profile?.rasterCommand)
+        : await renderKitchenTicketToEscPosBase64(job.data as unknown as KitchenTicketData, profile?.paperWidthPx, profile?.rasterCommand);
   const bytes = base64ByteLength(escPosBase64);
   // An empty render is the one way this path could report a genuine
   // "printed" while the printer produces nothing: the native module takes
