@@ -1828,3 +1828,24 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible{
    so the deliberately narrow ones (.recipe-unit-select is 64px on purpose)
    keep the width they were given. */
 select:not([class]){min-width:150px;}
+
+/* ============================================================
+   Touch targets, measured on a real 375px viewport across every
+   reachable screen. Two things came up, and only two — the rest of the
+   dashboard already cleared the bar, and nothing overflowed horizontally
+   on any screen, which is why neither is a layout change.
+   ============================================================ */
+
+/* The switch's hidden checkbox sat exactly on the 42x25 track, so the
+   tappable area WAS 42x25 — under the 44px a finger needs, on 27
+   switches. The input is stretched past the track instead; the track is
+   pointer-events:none and painted separately, so the switch still looks
+   the same size while the area you can hit is comfortable. */
+.rk-switch input{inset:-10px -6px;}
+
+/* The AI suggestion chips also measured under the bar (31px), but that
+   one is deliberate: the responsive stylesheet sets it to 30px with a
+   stated reason — they are a scannable list of prompts, meant to be small
+   and packed, explicitly below the 44px floor used for real controls.
+   Left alone. A measurement flags a candidate; it does not overrule a
+   decision someone already made on purpose. */
