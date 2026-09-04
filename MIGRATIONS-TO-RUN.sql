@@ -83,6 +83,7 @@ alter table shift_cash_movements enable row level security;
 
 -- Read: anyone who can work the till or see the staff screen, same as
 -- shifts_select, since this is part of the same reconciliation picture.
+drop policy if exists shift_cash_movements_select on shift_cash_movements;
 create policy shift_cash_movements_select on shift_cash_movements for select
   using (
     business_id = current_business_id()
@@ -93,6 +94,7 @@ create policy shift_cash_movements_select on shift_cash_movements for select
 -- A recorded movement is part of the audit trail behind a signed-off
 -- closing balance; correcting one means recording the opposite movement,
 -- exactly as a ledger works, not editing history.
+drop policy if exists shift_cash_movements_insert on shift_cash_movements;
 create policy shift_cash_movements_insert on shift_cash_movements for insert
   with check (
     business_id = current_business_id()
@@ -184,10 +186,12 @@ alter table branch_weekly_hours enable row level security;
 
 -- Read: the same audience as the branch itself, since the POS needs it to
 -- work out whether a shift has outlived its trading day.
+drop policy if exists branch_weekly_hours_select on branch_weekly_hours;
 create policy branch_weekly_hours_select on branch_weekly_hours for select
   using (business_id = current_business_id());
 
 -- Write: whoever administers branches from the dashboard.
+drop policy if exists branch_weekly_hours_write on branch_weekly_hours;
 create policy branch_weekly_hours_write on branch_weekly_hours for all
   using (business_id = current_business_id() and has_permission('screen:settings'))
   with check (business_id = current_business_id() and has_permission('screen:settings'));
