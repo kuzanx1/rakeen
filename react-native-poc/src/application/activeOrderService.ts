@@ -69,7 +69,19 @@ export async function listActiveOrders(branchId: number): Promise<ActiveOrder[]>
       'id, total, created_at, ready_at, out_for_delivery_at, channel, source, customer_name, payment_method, payment_status, delivery_platform_id, platform_invoice_last4, delivery_platforms(name, prep_timeout_minutes)',
     )
     .eq('branch_id', branchId)
-    .in('channel', ['delivery', 'pickup'])
+    // A till pickup order does NOT belong here.
+    //
+    // The customer is standing at the counter: they paid and took the bag,
+    // and there is no gap between "made" and "handed over" for anyone to
+    // record. Tracking it forced the cashier through جاهز then استلمه
+    // العميل for a sale that was already finished, which is what the source
+    // avoids by scoping pickup tracking to source = 'online'
+    // (rakeen-pos.js:5439).
+    //
+    // Delivery is different at any source: a delivery-app order is prepared
+    // now and collected by a rider later, so the stages are real events
+    // somebody has to record.
+    .or('channel.eq.delivery,and(channel.eq.pickup,source.eq.online)')
     .is('delivered_at', null)
     // Paid orders, PLUS cash-on-delivery ones that are still unpaid --
     // those are exactly the orders waiting for someone to collect the

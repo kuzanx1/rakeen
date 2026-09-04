@@ -178,6 +178,15 @@ export default function PaymentModal({
 
   /** Filled in by onConfirm; drives everything the success step shows. */
   const [result, setResult] = useState<PaymentResult | null>(null);
+  /**
+   * The order total, captured the instant the sale is confirmed.
+   *
+   * The success screen used to read the live `total` prop, but by the time
+   * it renders the parent has already cleared the cart — so the headline
+   * amount was 0.00 on every completed sale, sitting above a "المدفوع"
+   * line that showed the real figure.
+   */
+  const [paidTotal, setPaidTotal] = useState(0);
   const [printStatus, setPrintStatus] = useState<PrintJobStatus | null>(null);
   const [printRetries, setPrintRetries] = useState(0);
   const [countdown, setCountdown] = useState(AUTO_RESET_SECONDS);
@@ -205,7 +214,11 @@ export default function PaymentModal({
 
   useEffect(() => {
     if (!visible) return;
-    // resetModalStack(renderChannelStep) -- every open starts at step 1.
+    // resetModalStack(renderChannelStep) -- every open starts at step 1,
+    // EXCEPT when there is only one order type to pick. A shop with no
+    // dine-in and no delivery apps has nothing to choose here, and a step
+    // with a single button is a tap asking permission to do the only thing
+    // possible. The channel is set to that one type and the step skipped.
     setStep('channel');
     setMethod('cash');
     setCashInput('');
@@ -321,6 +334,22 @@ export default function PaymentModal({
     else setStep('customer');
   };
 
+  /**
+   * Picking a channel advances straight away.
+   *
+   * There used to be a "التالي" button under the row, which meant the step
+   * could be completed without choosing anything: `channel` carries a
+   * default, so tapping Next with nothing selected silently filed the order
+   * as dine-in and jumped to the table picker — a screen the cashier never
+   * asked for. A single row of choices does not need a confirm step; the
+   * tap is the confirmation.
+   */
+  const chooseChannel = (id: OrderChannel) => {
+    onChannelChange(id);
+    if (id === 'dine_in' && !hasTable) setStep('tablePicker');
+    else advanceToCustomer();
+  };
+
   const advanceFromChannel = () => {
     // Most dine-in orders already carry a table (started by tapping one on
     // the Tables screen). This step exists for the other case: the cart was
@@ -366,8 +395,12 @@ export default function PaymentModal({
    *  what this app used to do, which is why the confirmation the PWA shows
    *  after every sale never appeared. */
   const handleConfirm = async () => {
+    // Read before awaiting: onConfirm empties the cart, and `total` is
+    // derived from it.
+    const captured = total;
     const outcome = await onConfirm(method, method === 'cash' ? cashAmount : null);
     if (!outcome.ok) return;
+    setPaidTotal(captured);
     setResult(outcome);
     setPrintStatus(outcome.printJobId ? 'queued' : null);
     setCountdown(AUTO_RESET_SECONDS);
@@ -456,6 +489,31 @@ export default function PaymentModal({
     if (c.id === 'delivery') return deliveryPlatforms.length > 0;
     return true;
   });
+
+  /**
+   * One order type means there is nothing to ask.
+   *
+   * A takeaway-only shop — no dine-in, no delivery apps — was still shown a
+   * step containing a single button, which is a tap requesting permission
+   * to do the only possible thing. The channel is set to it and the step
+   * skipped.
+   *
+   * Placed after `channels` rather than in the open/reset effect above so
+   * the list it depends on is defined before it, instead of being reached
+   * across the whole component body.
+   */
+  useEffect(() => {
+    if (!visible || step !== 'channel' || channels.length !== 1) return;
+    const only = channels[0].id;
+    if (channel !== only) onChannelChange(only);
+    // Dine-in with no table still needs one; every other single channel
+    // goes straight on to the customer step.
+    if (only === 'dine_in' && !hasTable) setStep('tablePicker');
+    else advanceToCustomer();
+    // advanceToCustomer is recreated each render; depending on it would
+    // re-run this on every render and fight the step it just set.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, step, channels.length, channel, hasTable, onChannelChange]);
   const methods: { id: PaymentMethod; label: string }[] = [
     { id: 'cash', label: 'كاش' },
     { id: 'card', label: 'بطاقة' },
@@ -492,10 +550,30 @@ export default function PaymentModal({
     return <Text style={styles.tabEmoji}>🎁</Text>;
   };
 
+  /**
+   * Does what was typed already name a customer on screen?
+   *
+   * Phones compare normalised, so 0501234567 and +966 50 123 4567 are
+   * recognised as the same person rather than as two.
+   */
+  const trimmedQuery = query.trim();
+  const queryIsPhone = /^[0-9+\s-]{6,}$/.test(trimmedQuery);
+  const queryMatchesExisting = (suggestions || []).some(c =>
+    queryIsPhone
+      ? normalisePhoneInput(c.phone || '') === normalisePhoneInput(trimmedQuery)
+      : (c.name || '').trim().toLowerCase() === trimmedQuery.toLowerCase(),
+  );
+
   const CustomerRow = ({ c, onPress }: { c: AttachedCustomer; onPress?: () => void }) => (
     <TouchableOpacity style={styles.customerSuggest} onPress={onPress} disabled={!onPress} activeOpacity={0.8}>
+      {/* A person mark, not the first letter of the name. The letter tile
+          looked like a profile photo the shop was supposed to have, and a
+          customer known only by phone number got a digit in a circle. */}
       <View style={styles.customerAvatar}>
-        <Text style={styles.customerAvatarText}>{(c.name || c.phone || '؟').charAt(0)}</Text>
+        <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <Path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <Circle cx="12" cy="7" r="4" />
+        </Svg>
       </View>
       <View style={styles.customerInfo}>
         <Text style={styles.customerName} numberOfLines={1}>
@@ -555,7 +633,7 @@ export default function PaymentModal({
                       <TouchableOpacity
                         key={c.id}
                         style={[styles.channelBtn, active && styles.channelBtnActive]}
-                        onPress={() => onChannelChange(c.id)}
+                        onPress={() => chooseChannel(c.id)}
                         activeOpacity={0.8}>
                         <Text style={[styles.channelBtnText, active && styles.channelBtnTextActive]}>{c.label}</Text>
                       </TouchableOpacity>
@@ -596,13 +674,6 @@ export default function PaymentModal({
                   </View>
                 )}
 
-                {/* #channelNextBtn -- `style="margin-top:18px"` */}
-                <TouchableOpacity onPress={advanceFromChannel} activeOpacity={0.85} style={styles.nextWrap}>
-                  <View style={styles.confirmButton}>
-                    <GradientFill gradient={gradients.payButton} radius={radii.md} />
-                    <Text style={styles.confirmText}>التالي</Text>
-                  </View>
-                </TouchableOpacity>
               </>
             )}
 
@@ -680,7 +751,13 @@ export default function PaymentModal({
                           row instead of a hidden Enter-key shortcut. This
                           app had no way at all to register a new customer
                           once the panel's picker was removed. */}
-                      {!searching && suggestions != null && (
+                      {/* Offered only when the typed text matches nobody.
+                          Typing the number of a customer who is already
+                          saved used to show "إضافة عميل جديد" with that
+                          same number underneath, inviting a duplicate
+                          record for one person — and duplicates split
+                          their loyalty points across two rows. */}
+                      {!searching && suggestions != null && !queryMatchesExisting && (
                         <TouchableOpacity
                           style={[styles.customerSuggest, styles.customerSuggestNew]}
                           onPress={() => {
@@ -837,7 +914,9 @@ export default function PaymentModal({
                 {channel !== 'delivery' && method !== 'loyalty' && (
                   <View style={styles.friendsSplit}>
                     <TouchableOpacity onPress={() => setFriendsOpen(o => !o)} style={styles.friendsToggle} activeOpacity={0.7}>
-                      <Text style={styles.friendsToggleText}>÷ قسّم بين الأصحاب</Text>
+                      <Text style={styles.friendsToggleText}>
+                        {friendsOpen ? '−' : '+'}  قسّم الفاتورة بين الأصحاب
+                      </Text>
                     </TouchableOpacity>
                     {friendsOpen && (
                       <View style={styles.friendsBody}>
@@ -963,7 +1042,7 @@ export default function PaymentModal({
                 </View>
 
                 <Text style={styles.successTitle}>تمت العملية بنجاح</Text>
-                <Money value={total} size={26} style={styles.receiptTotal} />
+                <Money value={paidTotal} size={26} style={styles.receiptTotal} />
 
                 {/* .receipt-detail-row -- المدفوع is what was HANDED OVER, which
                     for a card sale is simply the total. */}
@@ -982,31 +1061,28 @@ export default function PaymentModal({
                     entirely when no receipt job was queued, exactly as
                     autoPrintOnCheckout() hides it when customer receipts
                     are switched off. */}
-                {result.printJobId != null && (
+                {/* Only a settled outcome. A spinner here read as a stuck
+                    screen: this modal closes itself after a few seconds, so
+                    "جاري الطباعة..." was usually still turning when the
+                    whole thing vanished. Nothing to say while a job is in
+                    flight — the paper arriving is the feedback — and a real
+                    failure still gets a line and a retry. */}
+                {result.printJobId != null && (printStatus === 'printed' || printStatus === 'failed') && (
                   <View style={[styles.receiptRow, styles.printStatusRow]}>
                     <Text style={styles.receiptRowLabel}>الطابعة</Text>
                     <View style={styles.printStatusLabel}>
-                      {printStatus === 'printed' || printStatus === 'skipped_no_printer' ? (
+                      {printStatus === 'printed' ? (
                         <>
                           <Text style={styles.printCheck}>✓</Text>
                           <Text style={styles.printStatusText}>تمت الطباعة</Text>
                         </>
-                      ) : printStatus === 'failed' ? (
+                      ) : (
                         <>
                           <Text style={styles.printWarn}>⚠</Text>
                           <Text style={styles.printStatusText}>تعذرت الطباعة — </Text>
                           <TouchableOpacity onPress={handleReprint}>
                             <Text style={styles.printRetryLink}>إعادة المحاولة</Text>
                           </TouchableOpacity>
-                        </>
-                      ) : (
-                        <>
-                          <ActivityIndicator size="small" color={colors.accentText} />
-                          <Text style={styles.printStatusText}>
-                            {printStatus === 'retrying'
-                              ? `إعادة محاولة (${printRetries})...`
-                              : 'جاري الطباعة...'}
-                          </Text>
                         </>
                       )}
                     </View>
@@ -1200,8 +1276,19 @@ const useStyles = createStyles(colors =>
   tabEmoji: { fontSize: 18 },
   // .friends-split
   friendsSplit: { marginBottom: spacing[4] },
-  friendsToggle: { paddingVertical: 4, paddingHorizontal: 2, alignSelf: 'flex-start' },
-  friendsToggleText: { fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.muted },
+  // A bordered pill, not a bare line of muted text: unstyled it sat
+  // directly under the amount and read as a section heading, so nobody
+  // knew splitting was something you could tap.
+  friendsToggle: {
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    alignSelf: 'flex-start',
+    borderRadius: radii.full,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surf1,
+  },
+  friendsToggleText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text },
   friendsBody: { marginTop: 8, padding: 12, borderRadius: radii.md, backgroundColor: colors.surf1, borderWidth: 1, borderColor: colors.line },
   friendsCounts: { flexDirection: 'row', gap: 6 },
   fscBtn: { flex: 1, paddingVertical: 9, borderRadius: radii.full, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surf2, alignItems: 'center' },

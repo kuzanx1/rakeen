@@ -2133,7 +2133,13 @@ const useStyles = createStyles((colors, shadows) =>
     textAlign: 'right',
   },
   // .oi-info -- `flex:1; min-width:0`
-  cartLineInfo: { flex: 1, minWidth: 0 },
+  // alignItems, not textAlign. The totals rows below place their labels
+  // purely with flex and land correctly; this box stretched itself and then
+  // relied on textAlign:'right' to pull the name back, which left the name
+  // marooned at the far end with a gap between it and the quantity pill.
+  // Letting flex place a shrink-to-content child is the pattern that works
+  // in this file.
+  cartLineInfo: { flex: 1, minWidth: 0, alignItems: 'flex-start' },
   // .oi-name -- 2-line clamp, line-height 1.3 * 12.5px
   // Explicitly start-aligned, and this is not decoration. index.js sets
   // I18nManager.swapLeftAndRightInRTL(false) on purpose (so ported

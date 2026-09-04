@@ -89,12 +89,26 @@ const rowBadgeColor = (colors: Palette): Record<OrderHistoryStatus, string> => (
  */
 /** .receipt-detail-row -- the one row shape the whole sheet is built
  *  from: a muted label on one side, its value on the other. */
-function DetailRow({ label, text, mono }: { label: string; text: string; mono?: boolean }) {
+function DetailRow({
+  label,
+  text,
+  mono,
+  last,
+}: {
+  label: string;
+  text: string;
+  mono?: boolean;
+  /** Drops the rule under the final row, so the box closes on its border
+   *  rather than on a line that looks like a missing row. */
+  last?: boolean;
+}) {
   const styles = useStyles();
   return (
-    <View style={styles.itemRow}>
+    <View style={[styles.itemRow, styles.detailMetaRow, last && styles.detailMetaRowLast]}>
       <Text style={styles.itemName}>{label}</Text>
-      <Text style={mono ? styles.detailValueMono : styles.detailValue}>{text}</Text>
+      <Text style={mono ? styles.detailValueMono : styles.detailValue} numberOfLines={2}>
+        {text}
+      </Text>
     </View>
   );
 }
@@ -328,17 +342,33 @@ export default function OrderHistoryScreen({
                   <Money value={detail.vatAmount} size={11.5} />
                 </View>
 
-                <DetailRow
-                  label="طريقة الدفع"
-                  text={PAYMENT_METHOD_LABELS[detail.paymentMethod] || detail.paymentMethod}
-                />
-                {/* Both of these are rows in the source and were missing
-                    from this sheet entirely. */}
-                <DetailRow label="الحالة" text={ORDER_STATUS_LABELS[detail.status] || String(detail.status)} />
-                {!!detail.customerPhone && <DetailRow label="جوال العميل" text={detail.customerPhone} mono />}
-                {!!detail.deliveryAddress && (
-                  <DetailRow label="عنوان التوصيل" text={detail.deliveryAddress} />
-                )}
+                {/* The order's facts, in their own ruled box. Loose under
+                    the totals they merged into one block of grey text with
+                    no edge between a line and the next. */}
+                <View style={styles.detailMeta}>
+                  <DetailRow
+                    label="طريقة الدفع"
+                    text={PAYMENT_METHOD_LABELS[detail.paymentMethod] || detail.paymentMethod}
+                  />
+                  {/* Both of these are rows in the source and were missing
+                      from this sheet entirely. */}
+                  <DetailRow
+                    label="الحالة"
+                    text={ORDER_STATUS_LABELS[detail.status] || String(detail.status)}
+                    last={!detail.customerPhone && !detail.deliveryAddress}
+                  />
+                  {!!detail.customerPhone && (
+                    <DetailRow
+                      label="جوال العميل"
+                      text={detail.customerPhone}
+                      mono
+                      last={!detail.deliveryAddress}
+                    />
+                  )}
+                  {!!detail.deliveryAddress && (
+                    <DetailRow label="عنوان التوصيل" text={detail.deliveryAddress} last />
+                  )}
+                </View>
 
                 {/* .receipt-actions -- a ROW of equal buttons, not a
                     stack. استرجاع مبلغ only exists on a completed order. */}
@@ -435,7 +465,17 @@ const useStyles = createStyles(colors =>
   overlay: { flex: 1, backgroundColor: colors.modalOverlay, justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.cardBg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing[5], maxHeight: '85%' },
   sheetTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, marginBottom: 6, textAlign: 'center' },
-  itemRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  // space-between does the placing; the label must NOT also stretch.
+  // With flex:1 on the label plus a physical textAlign, the text ended up
+  // pinned against the value with nothing between them, which is why the
+  // sheet read as "طريقة الدفعكاش" and "الحالةمكتمل" — one run of letters.
+  itemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: spacing[4],
+    paddingVertical: 5,
+  },
   // Explicitly start-aligned, and this is not decoration. index.js sets
   // I18nManager.swapLeftAndRightInRTL(false) on purpose (so ported
   // physical `left`/`right` values keep meaning literal sides, as they do
@@ -444,12 +484,25 @@ const useStyles = createStyles(colors =>
   // inside any STRETCHED box lands on the left. In a row where the label
   // fills the free space and the amount is pinned at the other end, that
   // reads as the price colliding with the end of the name.
-  itemName: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: colors.text, flex: 1, textAlign: 'right' },
+  itemName: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: colors.text, flexShrink: 1 },
   sheetOrderNo: { fontFamily: fonts.sansBold, fontSize: 16.5, color: colors.text, textAlign: 'center', marginBottom: 6 },
   // .receipt-total -- the amount as the sheet's headline figure
   sheetTotal: { alignSelf: 'center', marginBottom: 16 },
-  detailValue: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text },
-  detailValueMono: { fontFamily: fonts.monoBold, fontSize: 12, color: colors.text, writingDirection: 'ltr' },
+  // The order's facts, boxed and ruled. Loose rows under the item list ran
+  // together into one grey block with no way to see where a line ended.
+  detailMeta: {
+    marginTop: spacing[3],
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surf1,
+    paddingHorizontal: spacing[3],
+    paddingVertical: 2,
+  },
+  detailMetaRow: { borderBottomWidth: 1, borderBottomColor: colors.line },
+  detailMetaRowLast: { borderBottomWidth: 0 },
+  detailValue: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text, flexShrink: 1, textAlign: 'left' },
+  detailValueMono: { fontFamily: fonts.monoBold, fontSize: 12, color: colors.text, writingDirection: 'ltr', textAlign: 'left' },
   // .receipt-actions / .receipt-action-btn
   detailActions: { flexDirection: 'row', gap: 8, marginTop: spacing[4], marginBottom: 10 },
   detailActionBtn: {
