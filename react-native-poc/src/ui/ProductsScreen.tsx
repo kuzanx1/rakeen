@@ -379,13 +379,29 @@ export default function ProductsScreen({
     [catalog, hidePopularTab],
   );
 
-  const gridColumns = useMemo(() => {
+  const { gridColumns, gridTileWidth } = useMemo(() => {
     const minTile = isNarrow ? 122 : 128;
     const sidePadding = 20 * 2;
+    const gap = 10;
     const available = isNarrow
       ? windowWidth - sidePadding
       : windowWidth - layout.catSidebarWidth - orderPanelWidth - sidePadding;
-    return Math.max(1, Math.floor(available / minTile));
+    const columns = Math.max(1, Math.floor(available / minTile));
+    /**
+     * A real track width, not `flex: 1`.
+     *
+     * `1fr` tracks are fixed by the GRID, so a last row holding fewer
+     * items than there are columns leaves the spare tracks empty and every
+     * tile keeps its size. `flex: 1` inside a FlatList row does the
+     * opposite: the surviving items share the whole row, so a category
+     * ending on one product rendered that product at full width -- a tile
+     * visibly bigger than all the others, which is exactly what shows up
+     * on a phone where the grid is only two columns wide.
+     *
+     * The row's own gaps come out of the width first, matching how a grid
+     * subtracts `gap` before dividing the remainder into tracks.
+     */
+    return { gridColumns: columns, gridTileWidth: (available - gap * (columns - 1)) / columns };
   }, [isNarrow, windowWidth, orderPanelWidth]);
 
   useEffect(() => {
@@ -1065,6 +1081,7 @@ export default function ProductsScreen({
             contentContainerStyle={[styles.grid, gridInset]}
             renderItem={({ item }) => (
               <ProductCard
+                width={gridTileWidth}
                 product={item}
                 categoryName={catalog.categories.find(c => c.id === item.categoryId)?.name ?? ''}
                 hasMods={!!catalog.modifiersByProductId[item.id]}
@@ -1465,6 +1482,7 @@ export default function ProductsScreen({
  * check -- here the star is simply its own touchable above the card.
  */
 function ProductCard({
+  width,
   product,
   categoryName,
   hasMods,
@@ -1474,6 +1492,9 @@ function ProductCard({
   onLongPress,
   onToggleFav,
 }: {
+  /** The computed grid track. Fixed rather than flexed so a short last row
+   *  cannot blow its tiles up to fill the width. */
+  width: number;
   product: Product;
   categoryName: string;
   hasMods: boolean;
@@ -1491,7 +1512,7 @@ function ProductCard({
     : categoryName;
   return (
     <TouchableOpacity
-      style={styles.productCard}
+      style={[styles.productCard, { width }]}
       onPress={onPress}
       onLongPress={onLongPress}
       // rakeen-pos.js's pressTimer fires at 480ms
@@ -1527,6 +1548,12 @@ function ProductCard({
           <Money value={product.price} size={11} color={colors.accentText} />
         </View>
       </View>
+      {/* Two lines ALWAYS, not "up to two". .product-name has no line
+          clamp in the source, so a long name simply wraps and CSS grid
+          then stretches every tile in that row to match the tallest.
+          FlatList has no equivalent stretch across a row, so reserving
+          the second line here is what keeps neighbouring tiles the same
+          height instead of one standing taller than the rest. */}
       <Text style={styles.productName} numberOfLines={2}>
         {product.name}
       </Text>
@@ -1782,9 +1809,9 @@ const useStyles = createStyles((colors, shadows) =>
   },
   // .product-card
   productCard: {
-    // `1fr` grid track: the row's gap already provides the 10px spacing,
-    // so the card must not add a margin of its own on top of it.
-    flex: 1,
+    // Width comes from the computed track (see gridTileWidth); the row's
+    // gap already provides the 10px spacing, so the card must not add a
+    // margin of its own on top of it.
     position: 'relative',
     // NOT overflow:hidden -- .fav-star/.customize-dot sit at the card's
     // very edge and the source lets them paint there.
@@ -1800,7 +1827,8 @@ const useStyles = createStyles((colors, shadows) =>
   // .product-icon -- `position:relative` so .product-price anchors to it
   productIcon: { width: '100%', height: 72, borderRadius: radii.md, marginBottom: 7, position: 'relative' },
   // .product-name
-  productName: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text, lineHeight: 16 },
+  // 12px at line-height 1.3 = 15.6, reserved for two lines.
+  productName: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text, lineHeight: 15.6, height: 31.2 },
   // .product-cat -- `font-size:10px; font-weight:600; margin-top:1px`
   productCat: { fontFamily: fonts.sansSemiBold, fontSize: 10, color: colors.muted, marginTop: 1 },
   // .fav-star -- `top:8px; inset-inline-start:8px; 24px circle`
