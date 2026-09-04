@@ -25,6 +25,10 @@ import { getItem, setItem } from '../infrastructure/mmkvStorage';
  */
 
 const I18N_EN: Record<string, string> = {
+  // Mirrors the table in public/pos/rakeen-pos.js. Keep them in step:
+  // the same business runs both, and a label that reads one way on the
+  // tablet and another on the phone is exactly the drift this migration
+  // exists to remove.
   'الرئيسية': 'Home',
   'الطلبات': 'Orders',
   'الطاولات': 'Tables',
@@ -60,6 +64,50 @@ const I18N_EN: Record<string, string> = {
   '+ ملاحظة': '+ Note',
   'أضف': 'Add',
   'فيه خيارات — اضغط مطولًا للتخصيص': 'Has options — hold to customize',
+  'تجهيز هذا الجهاز': 'Set up this device',
+  'ربط الجهاز': 'Link device',
+  'رمز الفرع': 'Branch code',
+  'أدخل رمز نقطة البيع لهذا الفرع': 'Enter this branch\u2019s POS code',
+  'سجّل دخولك كمدير أو مالك مرة وحدة بس، عشان نربط هذا التابلت بفرعك.': 'Sign in as a manager or owner once, to link this tablet to your branch.',
+  'جارٍ التحقق من الرمز...': 'Checking the code...',
+  'جارٍ التحقق...': 'Checking...',
+  'إعادة تجهيز الجهاز': 'Re-provision device',
+  'البريد الإلكتروني': 'Email',
+  'كلمة المرور': 'Password',
+  'مين اللي مداوم؟': 'Who is on shift?',
+  'اختر اسمك عشان تتسجل الطلبات باسمك': 'Pick your name so orders are recorded under it',
+  'كاشير': 'Cashier',
+  'تبديل الموظف': 'Switch staff member',
+  'تسجيل خروج': 'Sign out',
+  'الوردية': 'Shift',
+  'بدء الوردية': 'Start shift',
+  'الرصيد الافتتاحي (ر.س)': 'Opening float (SAR)',
+  'أدخل المبلغ النقدي الموجود بالدرج عشان تبدأ الوردية': 'Enter the cash in the drawer to start the shift',
+  'موافقة المدير': 'Manager approval',
+  'جارية': 'In progress',
+  'مكتملة': 'Completed',
+  'ملغاة': 'Cancelled',
+  'بانتظار الدفع': 'Awaiting payment',
+  'بانتظار الطلب': 'Awaiting order',
+  'قيد التقديم': 'Being served',
+  'طلب إلكتروني جديد 🌐': 'New online order 🌐',
+  'متاحة': 'Available',
+  'تنظيف': 'Cleaning',
+  'قائمة الانتظار': 'Waitlist',
+  '+ إضافة لقائمة الانتظار': '+ Add to waitlist',
+  'تذكيرات': 'Reminders',
+  'إجراءات سريعة — وقت الخدمة': 'Quick actions \u2014 service time',
+  'إلغاء طلب الطاولة': 'Cancel table order',
+  'الدفع': 'Payment',
+  'تخصيص المنتج': 'Customize item',
+  'إلغاء': 'Cancel',
+  'متصل': 'Online',
+  '؟': '?',
+  'دوّر بالاسم أو الجوال...': 'Search by name or mobile...',
+  'رجوع': 'Back',
+  '٥٪': '5%',
+  '١٠٪': '10%',
+  '١٥٪': '15%',
 };
 
 export type Lang = 'ar' | 'en';
@@ -105,6 +153,27 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   );
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
+}
+
+/**
+ * The display name for a catalogue row that carries its own English name.
+ *
+ * Separate from t(): t() substitutes UI chrome from a fixed dictionary,
+ * while this reads a per-row column the business filled in. Falls back to
+ * the Arabic name whenever the English one is missing, so a half-translated
+ * menu shows real names rather than blanks.
+ *
+ * Deliberately NOT used when building a receipt or kitchen ticket. Those
+ * always print the primary Arabic name regardless of the cashier's UI
+ * language -- a previous audit found this exact bug going the other way,
+ * with English names printing on receipts because the builder preferred
+ * nameEn. The paper is not the UI.
+ */
+export function displayName(
+  row: { name: string; nameEn?: string | null },
+  lang: Lang,
+): string {
+  return lang === 'en' ? row.nameEn || row.name : row.name;
 }
 
 export function useI18n(): I18n {

@@ -18,7 +18,7 @@ import { createStyles, fonts, gradients, layout, radii, spacing, useTheme } from
 import { CategoryIcon, iconForCategoryName } from './categoryIcons';
 import Money from './Money';
 import { useShell } from './shell';
-import { useI18n } from './i18n';
+import { displayName, useI18n } from './i18n';
 import { useToast } from './Toast';
 import {
   loadCatalog,
@@ -282,7 +282,7 @@ export default function ProductsScreen({
   }, [searchQuery]);
 
   const { colors } = useTheme();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const styles = useStyles();
 
   // #favToggle / .fav-star -- both session-scoped, see toggleFavourite.
@@ -566,7 +566,7 @@ export default function ProductsScreen({
     if (product) {
       handleTapProduct(product);
       setSearchQuery('');
-      setSubmitStatus(`أُضيف: ${product.name}`);
+      setSubmitStatus(`${t('أُضيف')}: ${displayName(product, lang)}`);
     } else if (isRetailBusinessType(businessType)) {
       setSubmitStatus('ما فيه منتج بهذا الباركود');
     }
@@ -1134,7 +1134,7 @@ export default function ProductsScreen({
                   <CategoryIcon name={iconForCategoryName(cat.name)} width={iconSize} height={iconSize} stroke={tint} />
                 )}
                 <Text style={[styles.catBtnText, active && styles.catBtnTextActive]} numberOfLines={isNarrow ? 1 : 2}>
-                  {cat.name}
+                  {displayName(cat, lang)}
                 </Text>
               </Pressable>
             );
@@ -1573,7 +1573,7 @@ export default function ProductsScreen({
       {modifierTarget && catalog.modifiersByProductId[modifierTarget.id] && (
         <ModifierModal
           visible
-          productName={modifierTarget.name}
+          productName={displayName(modifierTarget, lang)}
           modDef={catalog.modifiersByProductId[modifierTarget.id]}
           basePrice={modifierTarget.price}
           onCancel={() => setModifierTarget(null)}
@@ -1629,6 +1629,7 @@ function ProductCard({
 }) {
   const { colors } = useTheme();
   const styles = useStyles();
+  const { lang } = useI18n();
   const imageSrc = !hideImages ? product.imageThumbUrl || product.imageUrl : null;
   const meta = product.isService && product.durationMinutes
     ? `${product.durationMinutes} د${categoryName ? ` · ${categoryName}` : ''}`
@@ -1678,7 +1679,7 @@ function ProductCard({
           the second line here is what keeps neighbouring tiles the same
           height instead of one standing taller than the rest. */}
       <Text style={styles.productName} numberOfLines={2}>
-        {product.name}
+        {displayName(product, lang)}
       </Text>
       {!!meta && <Text style={styles.productCat}>{meta}</Text>}
 

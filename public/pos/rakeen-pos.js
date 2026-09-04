@@ -54,7 +54,110 @@ const I18N_EN = {
   'حبة': 'item', 'نقاط': 'Points', 'آخر عملية': 'Last transaction', 'إعادة طباعة': 'Reprint',
   '+ ملاحظة': '+ Note', 'أضف': 'Add',
   'فيه خيارات — اضغط مطولًا للتخصيص': 'Has options — hold to customize',
+
+  // Provisioning and sign-in.
+  'تجهيز هذا الجهاز': 'Set up this device', 'ربط الجهاز': 'Link device',
+  'رمز الفرع': 'Branch code', 'أدخل رمز نقطة البيع لهذا الفرع': 'Enter this branch\u2019s POS code',
+  'سجّل دخولك كمدير أو مالك مرة وحدة بس، عشان نربط هذا التابلت بفرعك.':
+    'Sign in as a manager or owner once, to link this tablet to your branch.',
+  'جارٍ التحقق من الرمز...': 'Checking the code...', 'جارٍ التحقق...': 'Checking...',
+  'إعادة تجهيز الجهاز': 'Re-provision device', 'البريد الإلكتروني': 'Email',
+  'كلمة المرور': 'Password',
+
+  // Staff picker.
+  'مين اللي مداوم؟': 'Who is on shift?',
+  'اختر اسمك عشان تتسجل الطلبات باسمك': 'Pick your name so orders are recorded under it',
+  'كاشير': 'Cashier', 'تبديل الموظف': 'Switch staff member', 'تسجيل خروج': 'Sign out',
+
+  // Shift.
+  'الوردية': 'Shift', 'بدء الوردية': 'Start shift',
+  'الرصيد الافتتاحي (ر.س)': 'Opening float (SAR)',
+  'أدخل المبلغ النقدي الموجود بالدرج عشان تبدأ الوردية':
+    'Enter the cash in the drawer to start the shift',
+  'موافقة المدير': 'Manager approval',
+
+  // Orders screen tabs and states.
+  'جارية': 'In progress', 'مكتملة': 'Completed', 'ملغاة': 'Cancelled',
+  'بانتظار الدفع': 'Awaiting payment', 'بانتظار الطلب': 'Awaiting order',
+  'قيد التقديم': 'Being served', 'طلب إلكتروني جديد 🌐': 'New online order 🌐',
+
+  // Tables screen.
+  'متاحة': 'Available', 'تنظيف': 'Cleaning',
+  'قائمة الانتظار': 'Waitlist', '+ إضافة لقائمة الانتظار': '+ Add to waitlist',
+  'تذكيرات': 'Reminders', 'إجراءات سريعة — وقت الخدمة': 'Quick actions \u2014 service time',
+  'إلغاء طلب الطاولة': 'Cancel table order',
+
+  // Payment.
+  'الدفع': 'Payment', 'تخصيص المنتج': 'Customize item', 'إلغاء': 'Cancel',
+  'متصل': 'Online', '؟': '?',
+
+  // Attribute-only strings.
+  'دوّر بالاسم أو الجوال...': 'Search by name or mobile...', 'رجوع': 'Back',
+
+  // The discount buttons carry Arabic-indic numerals, which stay unreadable
+  // to an English reader even though every letter around them changed.
+  '٥٪': '5%', '١٠٪': '10%', '١٥٪': '15%',
 };
+
+/* ============ Generic translation pass ============
+   applyLang() used to carry one hand-written setText() line per element,
+   which is why coverage stalled at the Home screen: every new string meant
+   another line, and anything anyone forgot silently stayed Arabic.
+
+   This walks the static markup instead and substitutes any text node or
+   attribute whose FULL trimmed value is a dictionary key. Adding an entry
+   above now translates every place that string appears, with no wiring.
+
+   Two rules keep it safe:
+
+   1. Exact whole-value matches only. A product called "برجر" is never
+      touched because no partial substitution ever happens.
+   2. Renderer-owned containers are skipped entirely. Those hold product
+      and customer names, order numbers and toasts — dynamic text that its
+      own renderer already translates (and which knows about name_en,
+      something a UI dictionary cannot). Translating them here would fight
+      that renderer and could rewrite a real product's name.
+
+   The Arabic original is stashed on the node the first time it is touched,
+   so switching back is a restore rather than a reverse lookup — which
+   would be ambiguous the moment two Arabic strings share one English
+   translation. */
+const I18N_SKIP = '#productGrid, #catRail, #orderSummary, #ordersList, #tablesGrid, .toast, [data-no-i18n]';
+
+function translateTree(root){
+  if(!root) return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node){
+      if(!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      const el = node.parentElement;
+      if(!el || el.closest(I18N_SKIP)) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  const nodes = [];
+  while(walker.nextNode()) nodes.push(walker.currentNode);
+  for(const node of nodes){
+    if(node.__rkAr === undefined) node.__rkAr = node.nodeValue;
+    const original = node.__rkAr;
+    const key = original.trim();
+    const en = I18N_EN[key];
+    // Replacing only the trimmed part preserves the surrounding whitespace
+    // the markup's own indentation put there, which some buttons rely on
+    // to keep a gap between an icon and its label.
+    node.nodeValue = (LANG === 'en' && en) ? original.replace(key, en) : original;
+  }
+  for(const el of root.querySelectorAll('[placeholder], [title], [aria-label]')){
+    if(el.closest(I18N_SKIP)) continue;
+    for(const attr of ['placeholder', 'title', 'aria-label']){
+      if(!el.hasAttribute(attr)) continue;
+      const stash = 'rkAr' + attr.replace('-', '');
+      if(el.dataset[stash] === undefined) el.dataset[stash] = el.getAttribute(attr);
+      const original = el.dataset[stash];
+      const en = I18N_EN[original.trim()];
+      el.setAttribute(attr, (LANG === 'en' && en) ? en : original);
+    }
+  }
+}
 function t(ar){ return LANG === 'en' ? (I18N_EN[ar] || ar) : ar; }
 
 // Real reported bug: every phone field's digit-strip used /\D/g, which in
@@ -111,6 +214,12 @@ function applyLang(){
   document.documentElement.lang = LANG;
   const langBtn = document.getElementById('langToggle');
   if(langBtn) langBtn.textContent = LANG === 'en' ? 'ع' : 'EN';
+
+  // The generic pass first; the hand-written lines below stay because a few
+  // of them carry real logic (the discount button's active state, the hold
+  // button's whitespace-sharing text node) that a blind substitution must
+  // not clobber.
+  try { translateTree(document.body); } catch {}
 
   const setText = (sel, ar) => { const el = document.querySelector(sel); if(el) el.textContent = t(ar); };
   setText('.nav-tab[data-screen="home"] span', 'الرئيسية');
