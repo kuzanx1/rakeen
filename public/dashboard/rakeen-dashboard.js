@@ -10821,35 +10821,6 @@ const ONLINE_TAG_PRESETS = {
   'جديد': '#3E7BFA', 'مميز': '#7C5CFC', 'الأكثر مبيعاً': '#E0862E', 'موسمي': '#1FA6A6',
 };
 
-// Fills the target name field from the source field via the free translate
-// proxy (see app/api/dashboard/translate) — never blocks: if it fails for
-// any reason, the merchant still has the field to type into themselves.
-function wireTranslateButton(btnId, fromId, toId, target){
-  document.getElementById(btnId).addEventListener('click', async ()=>{
-    const btn = document.getElementById(btnId);
-    const text = document.getElementById(fromId).value.trim();
-    if(!text){ showToast('اكتب الاسم بالطرف الثاني أولاً'); return; }
-    btn.disabled = true;
-    const original = btn.textContent;
-    btn.textContent = '...';
-    try {
-      const res = await fetch('/api/dashboard/translate', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({text, target}),
-      });
-      const data = await res.json();
-      if(!res.ok || !data.translated) throw new Error('translate failed');
-      const toInput = document.getElementById(toId);
-      toInput.value = data.translated;
-      toInput.dispatchEvent(new Event('input', {bubbles:true}));
-    } catch {
-      showToast('تعذرت الترجمة التلقائية — اكتبها بنفسك');
-    } finally {
-      btn.disabled = false;
-      btn.textContent = original;
-    }
-  });
-}
 
 function productEditOnlineTagHtml(){
   const label = productModalState.onlineTagLabel || '';
@@ -10912,20 +10883,14 @@ function productEditBodyHtml(){
       <div class="menu-add-row" style="margin-bottom:12px;">
         <div class="menu-add-field">
           <label>الاسم بالعربي</label>
-          <div style="display:flex; gap:6px;">
-            <input type="text" id="pfName" value="${productModalState.name}" placeholder="مثال: موكا" style="flex:1;">
-            <button type="button" class="mtr-edit-btn" id="pfTranslateToAr" title="ترجمة من الإنجليزي">AR ⟵</button>
-          </div>
+          <input type="text" id="pfName" value="${productModalState.name}" placeholder="مثال: موكا">
         </div>
         <div class="menu-add-field">
           <label>English Name</label>
-          <div style="display:flex; gap:6px;">
-            <input type="text" id="pfNameEn" value="${productModalState.nameEn||''}" placeholder="e.g: Mocha" dir="ltr" style="flex:1;">
-            <button type="button" class="mtr-edit-btn" id="pfTranslateToEn" title="ترجمة من العربي">⟶ EN</button>
-          </div>
+          <input type="text" id="pfNameEn" value="${productModalState.nameEn||''}" placeholder="e.g: Mocha" dir="ltr">
         </div>
       </div>
-      <p class="stock-qty-helper" style="margin-top:-8px; margin-bottom:12px;">اكتب أي وحد منهم واضغط زر الترجمة عشان يعبّي الثاني تلقائيًا — أو اكتبهم بنفسك بدون ترجمة.</p>
+      <p class="stock-qty-helper" style="margin-top:-8px; margin-bottom:12px;">الاسم الإنجليزي اختياري — يظهر بالمتجر الإلكتروني وبالكاشير لما تكون لغته إنجليزي.</p>
       <div class="menu-add-row" style="margin-bottom:4px;">
         <div class="menu-add-field"><label>السعر (ر.س) ${helpIcon('هذا السعر عمومًا مرتبط بإعداد "أسعار المنيو شاملة الضريبة" اللي تتحكم فيه من الإعدادات ← الضريبة والفوترة — التوضيح تحت الحقل يعكس إعدادك الحالي.')}</label><input type="number" id="pfPrice" value="${productModalState.price}"></div>
         <div class="menu-add-field"><label>التصنيف</label><select id="pfCategory">${MENU_CATEGORIES.map(c=>`<option value="${c}" ${productModalState.category===c?'selected':''}>${c}</option>`).join('')}</select></div>
@@ -11107,8 +11072,6 @@ function renderProductEditBody(){
   });
   document.getElementById('pfName').addEventListener('input', (e)=> productModalState.name = e.target.value);
   document.getElementById('pfNameEn').addEventListener('input', (e)=> productModalState.nameEn = e.target.value);
-  wireTranslateButton('pfTranslateToEn', 'pfName', 'pfNameEn', 'en');
-  wireTranslateButton('pfTranslateToAr', 'pfNameEn', 'pfName', 'ar');
   document.getElementById('pfPrice').addEventListener('input', (e)=>{ productModalState.price = parseFloat(e.target.value)||0; updateCostPreview(); updatePfPriceVatNote(); });
   updatePfPriceVatNote();
   document.getElementById('pfCategory').addEventListener('change', (e)=> productModalState.category = e.target.value);
