@@ -98,7 +98,11 @@ export interface OrderPayload extends Partial<PaymentTracking> {
   payment_method: string;
   cash_amount: number | null;
   channel: OrderChannel;
-  delivery_platform_id: string | null;
+  /** orders.delivery_platform_id is a bigint referencing
+   *  delivery_platforms(id), and complete_pos_order takes
+   *  p_delivery_platform_id bigint. It was typed `string` here, which only
+   *  went unnoticed because it was always null -- nothing ever set it. */
+  delivery_platform_id: number | null;
   platform_invoice_last4: string | null;
   table_id: number | null;
   items: OrderItemPayload[];
@@ -249,7 +253,7 @@ export interface OrderBuildContext {
   total: number;
   subtotal: number;
   channel: OrderChannel;
-  deliveryPlatformId: string | null;
+  deliveryPlatformId: number | null;
   platformInvoiceLast4: string | null;
   tableId: number | null;
   /** Real payment method selection (Checkpoint 6) -- defaults to 'cash'

@@ -151,6 +151,30 @@ export interface ReceiptBusinessProfile {
   customMessage: string;
 }
 
+/** DELIVERY_PLATFORMS_LIST -- the delivery apps this branch works with
+ *  (Jahez, HungerStation, ...). A delivery order that does not name one
+ *  cannot be split by platform in the dashboard's reports. */
+export interface DeliveryPlatform {
+  id: number;
+  name: string;
+  logoUrl: string | null;
+  brandColor: string | null;
+}
+
+export async function listDeliveryPlatforms(businessId: number): Promise<DeliveryPlatform[]> {
+  const { data } = await supabase
+    .from('delivery_platforms')
+    .select('id, name, logo_url, brand_color')
+    .eq('business_id', businessId)
+    .order('id');
+  return (data || []).map((p: any) => ({
+    id: Number(p.id),
+    name: String(p.name),
+    logoUrl: p.logo_url || null,
+    brandColor: p.brand_color || null,
+  }));
+}
+
 export async function getReceiptBusinessProfile(businessId: number): Promise<ReceiptBusinessProfile> {
   const { data } = await supabase
     .from('businesses')

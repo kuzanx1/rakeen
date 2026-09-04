@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { TouchableOpacity } from './tappable';
+import { Image } from 'react-native';
 import GradientFill from './GradientFill';
 import Svg, { Circle, Line, Path, Polyline, Rect } from 'react-native-svg';
 import type { PaymentMethod } from '../domain/payment';
@@ -18,6 +19,7 @@ import { computeCashChange } from '../domain/payment';
 import type { OrderChannel } from '../domain/cart';
 import type { Customer } from '../domain/customer';
 import { searchCustomers } from '../application/customerService';
+import type { DeliveryPlatform } from '../application/catalogService';
 import { normalisePhoneInput, validateNewCustomerDraft } from '../domain/customer';
 import { listPrintJobs, retryPrintJob } from '../application/printService';
 import { isPrintJobTerminal } from '../domain/printQueue';
@@ -57,7 +59,7 @@ import { createStyles, fonts, gradients, radii, spacing, useTheme } from './them
  * rgba(6,16,10,0.78) overlay -- not the bottom sheet this used to be.
  */
 
-type Step = 'channel' | 'customer' | 'newCustomer' | 'payment' | 'success';
+type Step = 'channel' | 'tablePicker' | 'customer' | 'newCustomer' | 'payment' | 'success';
 
 /** What onConfirm reports back so the success step can show real numbers
  *  and a real print status instead of inventing either. */
@@ -92,6 +94,7 @@ const CHANNELS: { id: OrderChannel; label: string }[] = [
 
 const STEP_TITLE: Record<Step, string> = {
   channel: 'نوع الطلب',
+  tablePicker: 'اختر الطاولة',
   customer: 'العميل',
   newCustomer: 'عميل جديد',
   payment: 'الدفع',
@@ -116,6 +119,14 @@ export default function PaymentModal({
   dineInEnabled = true,
   loyaltyEnabled = true,
   onLoyaltySelected,
+  deliveryPlatforms,
+  deliveryPlatformId,
+  onDeliveryPlatformChange,
+  invoiceLast4,
+  onInvoiceLast4Change,
+  availableTables,
+  onClaimTable,
+  hasTable,
 }: {
   visible: boolean;
   total: number;
@@ -137,6 +148,20 @@ export default function PaymentModal({
    *  renderPaymentStep() does exactly this: `renderLoyaltyWaitStep();
    *  return;` -- the loyalty method never reaches the tender UI at all. */
   onLoyaltySelected: () => void;
+  /** The branch's delivery apps. A delivery order that names none cannot
+   *  be split by platform in the dashboard's reports. */
+  deliveryPlatforms: DeliveryPlatform[];
+  deliveryPlatformId: number | null;
+  onDeliveryPlatformChange: (id: number) => void;
+  /** orders.platform_invoice_last4 -- required before a delivery order can
+   *  be confirmed, since that is what reconciles it against the platform's
+   *  own statement. */
+  invoiceLast4: string;
+  onInvoiceLast4Change: (v: string) => void;
+  /** Free tables for the picker, and the guarded claim. */
+  availableTables: { id: number; number: string | number }[];
+  onClaimTable: (tableId: number) => Promise<boolean>;
+  hasTable: boolean;
 }) {
   const { colors, shadows } = useTheme();
   const styles = useStyles();
@@ -280,10 +305,34 @@ export default function PaymentModal({
     setStep('payment');
   };
 
-  const advanceFromChannel = () => {
+  const advanceToCustomer = () => {
     // `if(!LOYALTY_ENABLED){ proceedFromCustomerStep(); return; }`
     if (!loyaltyEnabled) proceedToPayment();
     else setStep('customer');
+  };
+
+  const advanceFromChannel = () => {
+    // Most dine-in orders already carry a table (started by tapping one on
+    // the Tables screen). This step exists for the other case: the cart was
+    // built from Home and "بالمطعم" is being chosen here for the first
+    // time -- without it the order is filed with no table at all.
+    if (channel === 'dine_in' && !hasTable) setStep('tablePicker');
+    else advanceToCustomer();
+  };
+
+  const [claimError, setClaimError] = useState('');
+  const claimAndContinue = async (tableId: number, label: string) => {
+    setClaimError('');
+    const claimed = await onClaimTable(tableId);
+    if (!claimed) {
+      // A guarded available -> awaiting_order transition: if another till
+      // took the table a second earlier, the update matches no row and
+      // this is how the cashier finds out, rather than two orders landing
+      // on the same table.
+      setClaimError(`طاولة ${label} انشغلت للتو`);
+      return;
+    }
+    advanceToCustomer();
   };
 
   /** `state.activePaymentMethod = ...; state.cashAmount=0;
@@ -336,7 +385,8 @@ export default function PaymentModal({
     // already cleared, so stepping back into it would show an empty order.
     if (step === 'payment') setStep(loyaltyEnabled ? 'customer' : 'channel');
     else if (step === 'newCustomer') setStep('customer');
-    else if (step === 'customer') setStep('channel');
+    else if (step === 'customer') setStep(channel === 'dine_in' && !hasTable ? 'tablePicker' : 'channel');
+    else if (step === 'tablePicker') setStep('channel');
     else onCancel();
   };
 
@@ -362,7 +412,13 @@ export default function PaymentModal({
   const splitCash = Math.max(0, Number((total - splitCard).toFixed(2)));
   const validSplit = splitCard > 0 && splitCash > 0;
   const canConfirm =
-    method === 'cash' ? cashAmount >= total : method === 'split' ? validSplit : true;
+    channel === 'delivery'
+      ? /^\d{4}$/.test(invoiceLast4)
+      : method === 'cash'
+        ? cashAmount >= total
+        : method === 'split'
+          ? validSplit
+          : true;
 
   const channels = CHANNELS.filter(c => c.id !== 'dine_in' || dineInEnabled);
   const methods: { id: PaymentMethod; label: string }[] = [
@@ -471,12 +527,72 @@ export default function PaymentModal({
                     );
                   })}
                 </View>
+                {/* .platform-btn-row -- only for delivery, and only when
+                    the business actually has platforms configured. Without
+                    it every delivery order is filed with no platform and
+                    the dashboard cannot split sales by app. */}
+                {channel === 'delivery' && deliveryPlatforms.length > 0 && (
+                  <View style={styles.platformRow}>
+                    {deliveryPlatforms.map(pf => {
+                      const active = pf.id === deliveryPlatformId;
+                      return (
+                        <TouchableOpacity
+                          key={pf.id}
+                          style={[
+                            styles.platformBtn,
+                            active && styles.platformBtnActive,
+                            active && pf.brandColor ? { borderColor: pf.brandColor } : null,
+                          ]}
+                          onPress={() => onDeliveryPlatformChange(pf.id)}
+                          activeOpacity={0.8}>
+                          {pf.logoUrl ? (
+                            <Image source={{ uri: pf.logoUrl }} style={styles.platformLogo} resizeMode="contain" />
+                          ) : (
+                            <View style={[styles.platformInitial, { backgroundColor: pf.brandColor || colors.surf2 }]}>
+                              <Text style={styles.platformInitialText}>{(pf.name || '\u061f').charAt(0)}</Text>
+                            </View>
+                          )}
+                          <Text style={styles.platformName} numberOfLines={1}>
+                            {pf.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+
                 {/* #channelNextBtn -- `style="margin-top:18px"` */}
                 <TouchableOpacity onPress={advanceFromChannel} activeOpacity={0.85} style={styles.nextWrap}>
                   <View style={styles.confirmButton}>
                     <GradientFill gradient={gradients.payButton} radius={radii.md} />
                     <Text style={styles.confirmText}>التالي</Text>
                   </View>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {step === 'tablePicker' && (
+              <>
+                {availableTables.length === 0 ? (
+                  <Text style={styles.sub}>\u0645\u0627 \u0641\u064a\u0647 \u0637\u0627\u0648\u0644\u0627\u062a \u0645\u062a\u0627\u062d\u0629 \u0627\u0644\u062d\u064a\u0646.</Text>
+                ) : (
+                  <View style={styles.tableGrid}>
+                    {availableTables.map(tb => (
+                      <TouchableOpacity
+                        key={tb.id}
+                        style={styles.tableBtn}
+                        onPress={() => claimAndContinue(tb.id, String(tb.number))}
+                        activeOpacity={0.8}>
+                        <Text style={styles.tableBtnText}>{tb.number}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+                {!!claimError && <Text style={styles.error}>{claimError}</Text>}
+                {/* Skipping is allowed: dine-in without a table is a real,
+                    supported case, not a mistake to block. */}
+                <TouchableOpacity onPress={advanceToCustomer} style={styles.textLink}>
+                  <Text style={styles.textLinkText}>\u0645\u062a\u0627\u0628\u0639\u0629 \u0628\u062f\u0648\u0646 \u0637\u0627\u0648\u0644\u0629</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -661,6 +777,27 @@ export default function PaymentModal({
                   </Text>
                   <Money value={total} size={30} style={styles.dueAmount} />
                 </View>
+
+                {/* The delivery branch (rakeen-pos.js:1616) is not a
+                    tender screen: the customer already paid inside the
+                    platform's app. What it needs instead is the invoice's
+                    last four digits, which is what reconciles this order
+                    against the platform's own statement -- and تأكيد الطلب
+                    stays disabled until all four are entered. */}
+                {channel === 'delivery' && (
+                  <View style={styles.splitInputs}>
+                    <Text style={styles.splitLabel}>\u0622\u062e\u0631 \u0664 \u0623\u0631\u0642\u0627\u0645 \u0645\u0646 \u0641\u0627\u062a\u0648\u0631\u0629 \u062a\u0637\u0628\u064a\u0642 \u0627\u0644\u062a\u0648\u0635\u064a\u0644</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="\u0660\u0660\u0660\u0660"
+                      placeholderTextColor={colors.muted}
+                      keyboardType="number-pad"
+                      maxLength={4}
+                      value={invoiceLast4}
+                      onChangeText={onInvoiceLast4Change}
+                    />
+                  </View>
+                )}
 
                 {channel !== 'delivery' && method !== 'loyalty' && (
                   <View style={styles.friendsSplit}>
@@ -935,6 +1072,41 @@ const useStyles = createStyles(colors =>
   channelBtnText: { fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.muted },
   channelBtnTextActive: { color: colors.flagGreenDeep },
   nextWrap: { marginTop: 18 },
+  sub: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.muted, textAlign: 'center', marginBottom: 14 },
+  error: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.danger, textAlign: 'center', marginTop: 10 },
+  // .platform-btn-row / .platform-btn
+  platformRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  platformBtn: {
+    flexGrow: 1,
+    flexBasis: 96,
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surf1,
+  },
+  platformBtnActive: { backgroundColor: `rgba(${colors.limeRgb},0.12)`, borderColor: colors.limeDeep },
+  platformLogo: { width: 28, height: 28 },
+  // .platform-btn-initial -- a coloured disc when the app has no logo
+  platformInitial: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  platformInitialText: { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff' },
+  platformName: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.text },
+  // .table-picker-grid / .table-picker-btn
+  tableGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tableBtn: {
+    width: 62,
+    height: 62,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surf1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tableBtnText: { fontFamily: fonts.sansBold, fontSize: 17, color: colors.text },
   nextWrapTight: { marginTop: 16 },
 
   // .customer-suggest and friends

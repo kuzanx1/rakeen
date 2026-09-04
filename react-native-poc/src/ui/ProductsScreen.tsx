@@ -30,6 +30,10 @@ import {
   CatalogResult,
 } from '../application/catalogService';
 import { getOrderHistoryDetail } from '../application/orderHistoryService';
+import { listDeliveryPlatforms } from '../application/catalogService';
+import type { DeliveryPlatform } from '../application/catalogService';
+import { listTables, seatWalkIn } from '../application/tableService';
+import { toWesternDigits } from '../domain/customer';
 import { submitOrder } from '../application/orderService';
 import { completePaymentOperation } from '../application/paymentService';
 import { getDeviceConfig } from '../application/authService';
@@ -606,6 +610,55 @@ export default function ProductsScreen({
   const [dineInOrderTotal, setDineInOrderTotal] = useState(0);
   const [selectedCustomer, setSelectedCustomer] = useState<{ id: number | null; name: string; phone: string | null; points: number } | null>(null);
   const [loyaltyRedeemOpen, setLoyaltyRedeemOpen] = useState(false);
+
+  /** DELIVERY_PLATFORMS_LIST and state.deliveryPlatformId. */
+  const [deliveryPlatforms, setDeliveryPlatforms] = useState<DeliveryPlatform[]>([]);
+  const [deliveryPlatformId, setDeliveryPlatformId] = useState<number | null>(null);
+  /** state.platformInvoiceLast4. */
+  const [invoiceLast4, setInvoiceLast4] = useState('');
+  /** Free tables for the picker step. */
+  const [availableTables, setAvailableTables] = useState<{ id: number; number: string | number }[]>([]);
+  /** The table claimed inside the popup, when the cart did not start from
+   *  the Tables screen. */
+  const [pickedTableId, setPickedTableId] = useState<number | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const list = await listDeliveryPlatforms(cashier.business_id);
+        setDeliveryPlatforms(list);
+        // renderPlatformButtons() preselects the first one, so a delivery
+        // order always names a platform even if the cashier never taps.
+        if (list.length > 0) setDeliveryPlatformId(prev => prev ?? list[0].id);
+      } catch {
+        // No platforms just means no picker; delivery still sells.
+      }
+    })();
+  }, [cashier.business_id]);
+
+  // Loaded when the popup opens rather than held live: the picker only
+  // ever appears for a cart that has no table yet, and a list fetched
+  // minutes ago would offer tables another till has since taken.
+  useEffect(() => {
+    if (!paymentModalOpen) return;
+    let cancelled = false;
+    (async () => {
+      const device = await getDeviceConfig();
+      if (device.branchId == null) return;
+      try {
+        const tables = await listTables(device.branchId);
+        if (cancelled) return;
+        setAvailableTables(
+          tables.filter(tb => tb.status === 'available').map(tb => ({ id: tb.id, number: tb.number })),
+        );
+      } catch {
+        if (!cancelled) setAvailableTables([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [paymentModalOpen]);
   const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
 
   /** Fetches the order's REAL current total from the server right before
@@ -656,7 +709,7 @@ export default function ProductsScreen({
         channel: 'dine_in',
         deliveryPlatformId: null,
         platformInvoiceLast4: null,
-        tableId: selectedTable ? selectedTable.id : null,
+        tableId: selectedTable ? selectedTable.id : pickedTableId,
         existingOrderId: lastRegisteredDineInOrderId, // adding a round to the SAME order if one was already registered this session
       });
       const result = await submitOrder(payload);
@@ -856,9 +909,11 @@ export default function ProductsScreen({
         total: cart.totals.total,
         subtotal: cart.totals.subtotal,
         channel: cart.orderChannel,
-        deliveryPlatformId: null,
-        platformInvoiceLast4: null,
-        tableId: null,
+        deliveryPlatformId: cart.orderChannel === 'delivery' ? deliveryPlatformId : null,
+        platformInvoiceLast4: cart.orderChannel === 'delivery' ? invoiceLast4 || null : null,
+        // A table claimed inside the popup counts too, not just one the
+        // cart was started from.
+        tableId: pickedTableId,
         paymentMethod: method,
         cashAmount,
       });
@@ -1430,6 +1485,20 @@ export default function ProductsScreen({
         // source does (addPointsRedemptionToCart then closePaymentModalNow):
         // the redeemed item lands in the cart as a points line and the
         // cashier reopens payment for whatever is left to pay.
+        deliveryPlatforms={deliveryPlatforms}
+        deliveryPlatformId={deliveryPlatformId}
+        onDeliveryPlatformChange={setDeliveryPlatformId}
+        invoiceLast4={invoiceLast4}
+        // Digits only, capped at four, folding Arabic-Indic first -- the
+        // same treatment the phone field gets, and for the same reason.
+        onInvoiceLast4Change={v => setInvoiceLast4(toWesternDigits(v).replace(/\D/g, '').slice(0, 4))}
+        availableTables={availableTables}
+        hasTable={selectedTable != null || pickedTableId != null}
+        onClaimTable={async tableId => {
+          const claimed = await seatWalkIn(tableId);
+          if (claimed) setPickedTableId(tableId);
+          return claimed;
+        }}
         onLoyaltySelected={() => {
           setPaymentModalOpen(false);
           setLoyaltyRedeemOpen(true);
