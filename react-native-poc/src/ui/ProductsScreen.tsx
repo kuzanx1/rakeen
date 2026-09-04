@@ -26,6 +26,7 @@ import {
   getHideProductImages,
   getHidePopularTab,
   getPosFeatureFlags,
+  subscribeToBusinessSettings,
   getDineInPayTiming,
   getReceiptBusinessProfile,
   CatalogResult,
@@ -293,6 +294,8 @@ export default function ProductsScreen({
 
   /** businesses.pos_hide_popular_tab (rakeen-pos.js:5661) -- defaults to
    *  SHOWN, unlike pos_hide_product_images which defaults to hidden. */
+  /** Bumped by the settings subscription to re-run the load. */
+  const [settingsVersion, setSettingsVersion] = useState(0);
   const [hidePopularTab, setHidePopularTab] = useState(false);
 
   /** The owner's POS switches. Defaults match each flag's own polarity so
@@ -454,7 +457,18 @@ export default function ProductsScreen({
         setLoading(false);
       }
     })();
-  }, [cashier.business_id]);
+  }, [cashier.business_id, settingsVersion]);
+
+  /**
+   * Re-read the settings when the owner changes them, instead of waiting
+   * for the next restart. Bumping a counter re-runs the load above rather
+   * than duplicating the fetch here, so there is one place that knows how
+   * to read them.
+   */
+  useEffect(
+    () => subscribeToBusinessSettings(cashier.business_id, () => setSettingsVersion(v => v + 1)),
+    [cashier.business_id],
+  );
 
   const productsById = useMemo(() => {
     const map = new Map<number, Product>();

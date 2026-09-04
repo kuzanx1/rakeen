@@ -187,6 +187,32 @@ export async function getPosFeatureFlags(businessId: number): Promise<PosFeature
   };
 }
 
+/**
+ * Fires when the owner changes anything on this business's row.
+ *
+ * Event-driven, not polling: nothing is sent until a settings row actually
+ * changes, so a till that runs all day with no dashboard edits exchanges
+ * no traffic at all. It also shares the one websocket every other channel
+ * in this app already uses, so it adds no connection.
+ *
+ * Neither the PWA nor this app had it -- settings were read once at boot,
+ * so flipping a switch in the dashboard did nothing until the till was
+ * restarted.
+ */
+export function subscribeToBusinessSettings(businessId: number, onChange: () => void): () => void {
+  const channel = supabase
+    .channel(`pos-business-settings:${businessId}`)
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'businesses', filter: `id=eq.${businessId}` },
+      () => onChange(),
+    )
+    .subscribe();
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+
 /** DELIVERY_PLATFORMS_LIST -- the delivery apps this branch works with
  *  (Jahez, HungerStation, ...). A delivery order that does not name one
  *  cannot be split by platform in the dashboard's reports. */

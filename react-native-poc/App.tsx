@@ -39,7 +39,7 @@ import PrintQueueScreen from './src/ui/PrintQueueScreen';
 import PrinterSettingsScreen from './src/ui/PrinterSettingsScreen';
 import uuid from 'react-native-uuid';
 import { getPrinterProfile } from './src/infrastructure/printerProfileStore';
-import { getPosFeatureFlags } from './src/application/catalogService';
+import { getPosFeatureFlags, subscribeToBusinessSettings } from './src/application/catalogService';
 import { profileToPrinterTarget, drawerKickCommandFor, isDrawerSupported } from './src/domain/printerProfile';
 import { startDiagnosticsTracking } from './src/application/diagnosticsService';
 import { getNotifySoundEnabled } from './src/application/catalogService';
@@ -504,6 +504,20 @@ function App(): React.JSX.Element {
     () => NetInfo.addEventListener(st => setOnline(!!st.isConnected)),
     [],
   );
+
+  // The bell flag lives up here rather than in ProductsScreen, so it needs
+  // its own re-read when the owner changes it.
+  useEffect(() => {
+    if (cashier == null) return;
+    return subscribeToBusinessSettings(cashier.business_id, async () => {
+      try {
+        setHideNotifBell((await getPosFeatureFlags(cashier.business_id)).hideNotifBell);
+      } catch {
+        // Keep whatever is showing rather than removing a control on a
+        // failed read.
+      }
+    });
+  }, [cashier]);
 
   /**
    * Checkpoint 12 (Cash Drawer) -- the real manual "فتح الدرج" quick
