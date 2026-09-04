@@ -205,6 +205,7 @@ function paymentOutcomeText(state: string): string {
 export default function ProductsScreen({
   cashier,
   shift,
+  staffMember,
   selectedTable = null,
   onExitTableContext,
 }: {
@@ -216,6 +217,11 @@ export default function ProductsScreen({
    *  would have read zero orders and zero sales no matter how much was
    *  actually sold. */
   shift: Shift | null;
+  /** CURRENT_STAFF_MEMBER. Like shiftId before it, staffMemberId was
+   *  hardcoded null at BOTH order call sites while the payload and the
+   *  RPC both carried the column -- so no sale could ever be attributed
+   *  to a person in the dashboard. */
+  staffMember: { id: number; name: string } | null;
   /** Checkpoint 7 (Dine-in / Tables) -- when set, this screen's cart is
    *  attached to a real table (see ui/TablesScreen.tsx). Registering an
    *  order sends the table's real id instead of null, and an existing
@@ -604,7 +610,7 @@ export default function ProductsScreen({
       const payload = buildDineInRegisterPayload(cart.cart, productsById, catalog.modifiersByProductId, cart.unitPriceOf, {
         branchId: device.branchId,
         shiftId: shift?.id ?? null,
-        staffMemberId: null,
+        staffMemberId: staffMember?.id ?? null,
         customerName: selectedCustomer?.name ?? null,
         customerPhone: selectedCustomer?.phone ?? null,
         customerId: selectedCustomer?.id ?? null,
@@ -802,7 +808,7 @@ export default function ProductsScreen({
       const payload = buildOrderPayload(cart.cart, productsById, catalog.modifiersByProductId, cart.unitPriceOf, {
         branchId: device.branchId,
         shiftId: shift?.id ?? null,
-        staffMemberId: null,
+        staffMemberId: staffMember?.id ?? null,
         customerName: selectedCustomer?.name ?? null,
         customerPhone: selectedCustomer?.phone ?? null,
         customerId: selectedCustomer?.id ?? null,

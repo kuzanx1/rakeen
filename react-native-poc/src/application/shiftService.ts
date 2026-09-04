@@ -55,6 +55,9 @@ export interface OpenShiftInput {
   businessId: number;
   branchId: number;
   cashierId: string;
+  /** shifts.staff_member_id. The cashier_id is the SHARED branch account,
+   *  so this is the only column saying which human opened the drawer. */
+  staffMemberId: number | null;
   openingCash: number;
 }
 
@@ -65,6 +68,7 @@ export async function openShift(input: OpenShiftInput): Promise<{ shift: Shift |
       business_id: input.businessId,
       branch_id: input.branchId,
       cashier_id: input.cashierId,
+      staff_member_id: input.staffMemberId,
       opening_cash: input.openingCash,
     })
     .select()

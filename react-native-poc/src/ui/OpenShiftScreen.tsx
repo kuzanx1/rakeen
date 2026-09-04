@@ -24,11 +24,14 @@ export default function OpenShiftScreen({
   businessId,
   branchId,
   cashierId,
+  staffMemberId,
   onOpened,
 }: {
   businessId: number;
   branchId: number;
   cashierId: string;
+  /** shifts.staff_member_id -- who was on duty when it opened. */
+  staffMemberId: number | null;
   onOpened: (shift: Shift) => void;
 }) {
   const { colors } = useTheme();
@@ -49,7 +52,7 @@ export default function OpenShiftScreen({
     }
     setBusy(true);
     try {
-      const result = await openShift({ businessId, branchId, cashierId, openingCash });
+      const result = await openShift({ businessId, branchId, cashierId, staffMemberId, openingCash });
       if (result.shift) onOpened(result.shift);
       else setError(result.error ?? 'تعذر بدء الوردية.');
     } finally {

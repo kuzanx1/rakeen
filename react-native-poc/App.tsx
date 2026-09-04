@@ -51,6 +51,9 @@ import { ShellProvider, TOPBAR_FALLBACK_HEIGHT, useShell } from './src/ui/shell'
 import Topbar from './src/ui/Topbar';
 import ManagerPinModal from './src/ui/ManagerPinModal';
 import OpenShiftScreen from './src/ui/OpenShiftScreen';
+import StaffPickScreen from './src/ui/StaffPickScreen';
+import { loadRememberedStaff, rememberStaff } from './src/application/staffService';
+import type { StaffMember } from './src/application/staffService';
 import { ShiftSummaryModal, CloseShiftModal } from './src/ui/ShiftModals';
 import { findOpenShift, getLastClosingReport } from './src/application/shiftService';
 import type { Shift } from './src/domain/shift';
@@ -179,6 +182,12 @@ function App(): React.JSX.Element {
    *  one running. */
   const [shift, setShift] = useState<Shift | null>(null);
   const [shiftChecked, setShiftChecked] = useState(false);
+
+  /** CURRENT_STAFF_MEMBER. `staffPicked` separates "nobody on duty" from
+   *  "not asked yet" -- the source lets a branch with no staff carry on
+   *  unnamed, so null is a legitimate ANSWER, not just an empty slot. */
+  const [staffMember, setStaffMember] = useState<StaffMember | null>(null);
+  const [staffPicked, setStaffPicked] = useState(false);
   const [shiftSummaryOpen, setShiftSummaryOpen] = useState(false);
   const [closeShiftOpen, setCloseShiftOpen] = useState(false);
 
@@ -244,6 +253,29 @@ function App(): React.JSX.Element {
    * declaring what is in the drawer, which is the whole basis for the
    * closing count.
    */
+  /** applyStaffMember()'s persisted pick (rakeen-pos.js:6204). Restored
+   *  before the picker is shown so a device restart does not force a
+   *  re-pick of who is on duty. */
+  useEffect(() => {
+    if (!cashier) {
+      setStaffMember(null);
+      setStaffPicked(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const remembered = await loadRememberedStaff();
+      if (cancelled) return;
+      if (remembered) {
+        setStaffMember(remembered);
+        setStaffPicked(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [cashier]);
+
   useEffect(() => {
     if (!cashier) {
       setShift(null);
@@ -382,6 +414,21 @@ function App(): React.JSX.Element {
     return <LoginScreen onLoggedIn={setCashier} />;
   }
 
+  // afterStaffReady() (rakeen-pos.js:6206) runs the shift check only AFTER
+  // a name is chosen -- the branch PIN is a shared account, so this is the
+  // one moment the app learns who is actually on the till.
+  if (branchId != null && !staffPicked) {
+    return (
+      <StaffPickScreen
+        branchId={branchId}
+        onPicked={member => {
+          setStaffMember(member);
+          setStaffPicked(true);
+        }}
+      />
+    );
+  }
+
   // branchId comes from the device config effect, so "not loaded yet" and
   // "genuinely unpaired" both read as null here; waiting for the shift
   // check AND the config keeps the open-shift screen from being skipped
@@ -397,6 +444,9 @@ function App(): React.JSX.Element {
   if (!shift && branchId != null) {
     return (
       <OpenShiftScreen
+        // shifts.staff_member_id exists and the source fills it; without
+        // it a shift report cannot name who was on duty.
+        staffMemberId={staffMember?.id ?? null}
         businessId={cashier.business_id}
         // DEVICE.branchId, not the profile's. The shift belongs to the
         // till this device is paired to; a cashier's own profile branch
@@ -437,11 +487,13 @@ function App(): React.JSX.Element {
         // the Orders screen. It was rendered here with no handler at all,
         // so tapping it did nothing.
         onPressBell={() => setScreen({ name: 'orderHistory' })}
-        onSwitchStaff={() => {
-          // The source's ↺ drops the STAFF session and returns to the PIN
-          // step; it does not unpair the device. logout() here does both,
-          // so wiring this to it would silently unpair a paired till.
-          // Left inert until a staff-only re-auth exists.
+        onSwitchStaff={async () => {
+          // posSwitchStaffBtn -- swap who is on duty WITHOUT unpairing the
+          // device or ending the shift. Now that the picker exists this is
+          // exactly a return to it.
+          await rememberStaff(null);
+          setStaffMember(null);
+          setStaffPicked(false);
         }}
         onLogout={async () => {
           await logout();
@@ -462,7 +514,9 @@ function App(): React.JSX.Element {
         shift={shift}
         businessName={businessName ?? ''}
         branchName={branchName ?? ''}
-        staffName={cashier.full_name ?? ''}
+        // The staff member on duty, not the shared PIN account's own
+        // profile name -- that is the same string for everyone on the till.
+        staffName={staffMember?.name ?? ''}
         onClose={() => setCloseShiftOpen(false)}
         onClosed={async (report, warning) => {
           setCloseShiftOpen(false);
@@ -543,6 +597,7 @@ function App(): React.JSX.Element {
             key={screen.name === 'products' ? screen.table?.id ?? 'no-table' : 'no-table'}
             cashier={cashier}
             shift={shift}
+            staffMember={staffMember}
             selectedTable={screen.name === 'products' ? screen.table : null}
             onExitTableContext={() => setScreen({ name: 'tables' })}
           />
