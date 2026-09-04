@@ -4,10 +4,10 @@
    smaller stylesheet: no cart/payment/menu-grid concepts here at all. */
 :root, [data-theme="dark"]{
   --lime:#C7FF4D; --lime-deep:#8FCB17; --flag-green:#0B6B3A; --flag-green-deep:#053E22;
-  --sand:#E8C77A; --graphite:#0A1710; --ivory:#FBFAF4;
-  --canvas:#050C08; --bg:#0E1F16; --text:#F4F8F0; --card-bg:#16291F;
-  --surf1:rgba(244,248,240,0.05); --surf2:rgba(244,248,240,0.09); --line:rgba(244,248,240,0.1);
-  --muted:rgba(244,248,240,0.55); --danger:#e08a6a; --amber:#e0b84a;
+  --sand:#E8C77A; --graphite:#101012; --ivory:#FBFAF4;
+  --canvas:#0A0A0B; --bg:#101012; --text:#F5F5F7; --card-bg:#18181B;
+  --surf1:rgba(245,245,247,0.045); --surf2:rgba(245,245,247,0.08); --line:rgba(245,245,247,0.095);
+  --muted:rgba(245,245,247,0.56); --danger:#e08a6a; --amber:#e0b84a;
   --lime-rgb:199,255,77; --lime-deep-rgb:143,203,23; --flag-green-rgb:11,107,58; --danger-rgb:224,138,106; --amber-rgb:224,184,74;
   --shadow-sm:0 2px 6px rgba(0,0,0,0.3); --shadow-md:0 6px 14px rgba(0,0,0,0.38);
   --shadow-panel:0 10px 22px rgba(0,0,0,0.45);
@@ -32,11 +32,9 @@ button{font-family:inherit; cursor:pointer; color:inherit;}
 input{font-family:inherit; color:inherit;}
 svg{display:block;}
 .hidden{display:none !important;}
-.brand-avatar{
-  border-radius:var(--r-md); background:linear-gradient(155deg, var(--lime), var(--lime-deep)); color:var(--flag-green-deep);
-  display:flex; align-items:center; justify-content:center; font-weight:800; flex-shrink:0;
-  box-shadow:0 4px 12px rgba(var(--lime-deep-rgb), 0.4);
-}
+/* Real wordmark logo, shown plain — was a "ر" placeholder in a colored box
+   that never got wired to the actual brand mark. */
+.brand-avatar{display:block; flex-shrink:0;}
 
 /* ===== Auth screens — identical to the POS's (app/pos/rakeen-pos-additions.css) ===== */
 .pos-auth-screen{position:fixed; inset:0; z-index:200; display:flex; align-items:center; justify-content:center; background:var(--canvas); padding:20px;}

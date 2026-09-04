@@ -8327,7 +8327,7 @@ function receiptPreviewHtml(){
       ${rkSectionHead('fileText', 'شكل الفاتورة', 'اختر الشكل وشوف المعاينة تتغير على طول — احفظ لما يعجبك')}
       <div class="rk-theme-cards">
         ${RECEIPT_THEMES.map(t => `
-          <button type="button" class="rk-theme-card ${t.id === RECEIPT_THEME ? 'selected' : ''}" data-theme="${t.id}">
+          <button type="button" class="rk-theme-card ${t.id === RECEIPT_THEME ? 'selected' : ''}" data-receipttheme="${t.id}">
             <span class="rk-theme-card-name">${t.label}</span>
             <span class="rk-theme-card-desc">${t.desc}</span>
           </button>`).join('')}
@@ -8732,10 +8732,10 @@ async function renderPosSettings(){
   // is held in a local until Save, so backing out costs nothing — closing
   // the tab leaves the business on whatever it had.
   let pendingTheme = RECEIPT_THEME;
-  document.querySelectorAll('.rk-theme-card').forEach(card=>{
+  document.querySelectorAll('[data-receipttheme]').forEach(card=>{
     card.addEventListener('click', ()=>{
-      pendingTheme = card.dataset.theme;
-      document.querySelectorAll('.rk-theme-card').forEach(c=>c.classList.toggle('selected', c === card));
+      pendingTheme = card.dataset.receipttheme;
+      document.querySelectorAll('[data-receipttheme]').forEach(c=>c.classList.toggle('selected', c === card));
       const row = document.getElementById('rkReceiptPreviewRow');
       const old = document.getElementById('rkReceiptPreviewCard');
       if(row && old) old.outerHTML = customerReceiptPreviewHtml(pendingTheme);

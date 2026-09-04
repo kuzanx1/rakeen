@@ -12,10 +12,10 @@
    ============================================================ */
 :root, [data-theme="dark"]{
   --lime:#C7FF4D; --lime-deep:#8FCB17; --flag-green:#0B6B3A; --flag-green-deep:#053E22;
-  --sand:#E8C77A; --graphite:#0A1710; --ivory:#FBFAF4;
-  --canvas:#050C08; --bg:#0E1F16; --text:#F4F8F0; --card-bg:#16291F;
-  --surf1:rgba(244,248,240,0.05); --surf2:rgba(244,248,240,0.09); --line:rgba(244,248,240,0.1);
-  --muted:rgba(244,248,240,0.55); --danger:#e08a6a; --amber:#e0b84a;
+  --sand:#E8C77A; --graphite:#101012; --ivory:#FBFAF4;
+  --canvas:#0A0A0B; --bg:#101012; --text:#F5F5F7; --card-bg:#18181B;
+  --surf1:rgba(245,245,247,0.045); --surf2:rgba(245,245,247,0.08); --line:rgba(245,245,247,0.095);
+  --muted:rgba(245,245,247,0.56); --danger:#e08a6a; --amber:#e0b84a;
   --lime-rgb:199,255,77; --lime-deep-rgb:143,203,23; --flag-green-rgb:11,107,58; --danger-rgb:224,138,106; --amber-rgb:224,184,74;
   /* blur radii kept small on purpose — large-blur box-shadows are one of the
      most expensive things to paint on a weak/no-dedicated-GPU device, and
@@ -222,7 +222,7 @@ svg{display:block;}
 .product-price{
   position:absolute; bottom:5px; inset-inline-end:5px; font-weight:800; font-size:11px; color:var(--lime-deep);
   font-family:'IBM Plex Mono',monospace; direction:ltr; unicode-bidi:isolate;
-  background:rgba(5,15,10,0.72); padding:2px 6px; border-radius:var(--r-full); line-height:1.5;
+  background:rgba(10,10,11,0.74); padding:2px 6px; border-radius:var(--r-full); line-height:1.5;
 }
 [data-theme="dark"] .product-price{color:var(--lime);}
 /* Both badges used to be a bare "★" glyph and an unlabeled colored dot —
@@ -240,7 +240,7 @@ svg{display:block;}
 .fav-star{
   position:absolute; top:8px; inset-inline-start:8px; z-index:2;
   width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-  background:rgba(5,15,10,0.5); transition:background .15s ease, transform .12s ease;
+  background:rgba(10,10,11,0.55); transition:background .15s ease, transform .12s ease;
 }
 .fav-star svg{width:13px; height:13px; stroke:var(--ivory); fill:none; opacity:0.75; transition:fill .15s ease, stroke .15s ease, opacity .15s ease;}
 .fav-star.on{background:rgba(var(--lime-deep-rgb),0.3);}
