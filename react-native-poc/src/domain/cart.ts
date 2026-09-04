@@ -108,6 +108,67 @@ export function computeLineStockDecrements(
   return decrements;
 }
 
+/**
+ * A "box" product: one price, and the customer picks what goes in it.
+ *
+ * A 12-piece pastry box at 60 riyals where the customer chooses 4 cheese,
+ * 4 zaatar, 4 meat. The price never changes with the mix -- but the STOCK
+ * decrement does, which is the whole reason the picks have to be recorded.
+ *
+ * `slots` is menu_items.total_pieces; `items` are the eligible choices the
+ * owner allowed, keyed by their own box_eligible_items row id (NOT the
+ * stock item id -- a 'simple' choice has no stock item at all, so the row
+ * id is the only key that works for every option).
+ */
+export interface BoxDefinition {
+  isBox: true;
+  alwaysCustomize: true;
+  slots: number;
+  items: { id: string; name: string }[];
+}
+
+/** How many of each eligible item the customer picked. */
+export interface BoxConfig {
+  selections: Record<string, number>;
+}
+
+export interface BoxSelectionPayload {
+  eligible_item_id: number;
+  qty: number;
+}
+
+/**
+ * computeLineBoxSelections() (rakeen-pos.js:2066).
+ *
+ * Sends only WHICH eligible row was chosen and how many pieces -- both
+ * already shown to the customer at checkout. The server looks up what each
+ * pick actually decrements from its own recipe data, so this never carries
+ * a stock_item_id, a unit cost, or an ingredient name.
+ */
+export function computeLineBoxSelections(
+  line: { qty: number; config: unknown },
+  isBox: boolean,
+): BoxSelectionPayload[] {
+  if (!isBox) return [];
+  const selections = (line.config as BoxConfig | null)?.selections;
+  if (!selections) return [];
+  return Object.entries(selections)
+    .filter(([, pieceQty]) => pieceQty > 0)
+    .map(([eligibleId, pieceQty]) => ({ eligible_item_id: parseInt(eligibleId, 10), qty: pieceQty }));
+}
+
+/** The box branch of formatConfigLabels() -- "جبن ×4" per chosen item. */
+export function formatBoxLabels(config: unknown, box: BoxDefinition): string[] {
+  const selections = (config as BoxConfig | null)?.selections;
+  if (!selections) return [];
+  return Object.entries(selections)
+    .filter(([, qty]) => qty > 0)
+    .map(([id, qty]) => {
+      const item = box.items.find(i => i.id === id);
+      return `${item ? item.name : id} ×${qty}`;
+    });
+}
+
 export interface ModifierDefinition {
   groups: ModifierGroup[];
   alwaysCustomize: boolean;
@@ -141,6 +202,11 @@ export function configsEqual(a: CartLineConfig | null, b: CartLineConfig | null)
 
 export function buildDefaultConfig(modDef: ModifierDefinition | undefined): CartLineConfig | null {
   if (!modDef) return null;
+  // A box has no `groups` at all -- iterating them would throw. Its own
+  // default is an empty pick set, which the builder fills in.
+  if ((modDef as unknown as { isBox?: boolean }).isBox) {
+    return { selections: {} } as unknown as CartLineConfig;
+  }
   const config: CartLineConfig = {};
   modDef.groups.forEach(g => {
     if (g.type === 'single') {

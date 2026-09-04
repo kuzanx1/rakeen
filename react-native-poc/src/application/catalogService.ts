@@ -167,7 +167,7 @@ export async function getReceiptBusinessProfile(businessId: number): Promise<Rec
 export async function loadCatalog(businessId: number, businessType: string): Promise<CatalogResult> {
   const isService = isServiceBusinessType(businessType);
 
-  const [catRes, itemsRes, servicesRes, groupRes, optRes, itemModRes, stockRes] = await Promise.all([
+  const [catRes, itemsRes, servicesRes, groupRes, optRes, itemModRes, stockRes, boxEligRes] = await Promise.all([
     supabase.from('menu_categories').select('*').eq('business_id', businessId).order('sort_order'),
     supabase
       .from('menu_items')
@@ -183,7 +183,8 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
     supabase.from('modifier_groups').select('*').eq('business_id', businessId).order('id'),
     supabase.from('modifier_options').select('*'),
     supabase.from('menu_item_modifier_groups').select('*'),
-    supabase.from('stock_items').select('id, unit').eq('business_id', businessId),
+    supabase.from('stock_items').select('id, unit, name').eq('business_id', businessId),
+    supabase.from('menu_item_box_eligible_items').select('*'),
   ]);
 
   // supabase-js resolves a network failure as {data:null, error} rather
@@ -235,9 +236,10 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
   }));
 
   // Ported from loadPosData()'s MODIFIER_PRODUCTS construction -- same
-  // group/option shape (price_delta -> price), same exclusion of
-  // cost_mode='box' items (a materially different, larger feature, see
-  // domain/cart.ts), same "no groups -> simple product" fallthrough.
+  // group/option shape (price_delta -> price), same "no groups -> simple
+  // product" fallthrough, and now the same handling of cost_mode='box'
+  // items, which used to be dropped entirely (so a business selling boxes
+  // simply could not see them on the till).
   const groupIdsByItem: Record<number, number[]> = {};
   (itemModRes.data || []).forEach((r: any) => {
     (groupIdsByItem[r.menu_item_id] ||= []).push(r.modifier_group_id);
@@ -245,11 +247,34 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
   const modifiersByProductId: Record<number, ModifierDefinition> = {};
   const optionStock: ModifierOptionStockMap = {};
   const stockUnitById: Record<number, string> = {};
+  const stockNameById: Record<number, string> = {};
   (stockRes.data || []).forEach((row: any) => {
     stockUnitById[Number(row.id)] = String(row.unit);
+    stockNameById[Number(row.id)] = String(row.name);
+  });
+
+  const boxEligibleByItem: Record<number, any[]> = {};
+  (boxEligRes.data || []).forEach((r: any) => {
+    (boxEligibleByItem[Number(r.menu_item_id)] ||= []).push(r);
   });
   (itemsRes.data || []).forEach((m: any) => {
-    if (m.cost_mode === 'box') return; // deferred -- see domain/cart.ts
+    if (m.cost_mode === 'box') {
+      // Eligible choices key off their OWN row id, not the stock item id:
+      // a 'simple' choice tracks no inventory and has no stock_item_id at
+      // all, so the row id is the only key that works for every option.
+      const eligibleItems = (boxEligibleByItem[Number(m.id)] || []).map((r: any) => ({
+        id: String(r.id),
+        name: r.cost_mode === 'simple' ? String(r.name) : stockNameById[Number(r.stock_item_id)] || '—',
+      }));
+      modifiersByProductId[m.id] = {
+        isBox: true,
+        alwaysCustomize: true,
+        slots: Number(m.total_pieces) || 0,
+        items: eligibleItems,
+      } as unknown as ModifierDefinition;
+      return;
+    }
+
     const groupIds = groupIdsByItem[m.id] || [];
     if (groupIds.length === 0) return;
     const groups = groupIds

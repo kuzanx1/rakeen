@@ -9,7 +9,9 @@ import {
 import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
 import { ModifierDefinition, CartLineConfig, buildDefaultConfig } from '../domain/cart';
-import { createStyles, fonts, gradients, radii, spacing } from './theme';
+import type { BoxDefinition } from '../domain/cart';
+import Money from './Money';
+import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
 
 /**
  * The real "customize" flow for a product with modifier groups (single-
@@ -33,18 +35,51 @@ export default function ModifierModal({
   visible,
   productName,
   modDef,
+  basePrice = 0,
   onConfirm,
   onCancel,
 }: {
   visible: boolean;
   productName: string;
   modDef: ModifierDefinition;
+  /** The box's own price. It never changes with the mix, so the add
+   *  button can show it up front. */
+  basePrice?: number;
   onConfirm: (config: CartLineConfig, qty: number) => void;
   onCancel: () => void;
 }) {
   const styles = useStyles();
+  const { colors } = useTheme();
   const [config, setConfig] = useState<CartLineConfig>(() => buildDefaultConfig(modDef) || {});
   const [qty, setQty] = useState(1);
+
+  /**
+   * renderBoxBuilder() (rakeen-pos.js:902). A box is not a set of modifier
+   * GROUPS -- it is one pool of eligible items with a piece budget, so it
+   * gets its own body rather than being forced through the chip UI.
+   */
+  const box = modDef as unknown as BoxDefinition;
+  const isBox = box.isBox === true;
+  const [picks, setPicks] = useState<Record<string, number>>({});
+  const pickedTotal = Object.values(picks).reduce((a, b) => a + b, 0);
+  const slotsLeft = box.slots - pickedTotal;
+  const boxComplete = isBox && pickedTotal === box.slots;
+  const [boxNotice, setBoxNotice] = useState('');
+
+  const bumpPick = (id: string, delta: number) => {
+    setBoxNotice('');
+    if (delta > 0 && pickedTotal >= box.slots) {
+      // The source toasts rather than silently ignoring the tap, so the
+      // cashier knows the box is full and not that the button is broken.
+      setBoxNotice(`البوكس مكتمل — ${box.slots} اختيار`);
+      return;
+    }
+    setPicks(prev => {
+      const next = (prev[id] || 0) + delta;
+      if (next < 0) return prev;
+      return { ...prev, [id]: next };
+    });
+  };
 
   const selectSingle = (groupId: string, optionId: string) => {
     setConfig(prev => ({ ...prev, [groupId]: optionId }));
@@ -77,7 +112,54 @@ export default function ModifierModal({
             </TouchableOpacity>
           </View>
           <ScrollView>
-            {modDef.groups.map(group => (
+            {isBox ? (
+              box.items.length === 0 ? (
+                // The owner has not chosen what may go in this box yet.
+                // Says where to fix it rather than showing an empty grid.
+                <View style={styles.boxEmpty}>
+                  <Text style={styles.boxEmptyText}>
+                    هذا البوكس ما له أصناف محددة بعد — لازم تحدد الأصناف اللي يقدر العميل يختار منها الأول.
+                  </Text>
+                  <Text style={styles.boxEmptyHint}>
+                    من لوحة التحكم: القائمة ← عدّل هذا المنتج ← تبويب "التكلفة والمخزون" ← حدد الأصناف المؤهلة.
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.boxProgressLabel}>
+                    {pickedTotal} / {box.slots} اختيار
+                  </Text>
+                  <View style={styles.boxProgress}>
+                    <View
+                      style={[
+                        styles.boxProgressBar,
+                        { width: `${Math.min(100, Math.round((pickedTotal / (box.slots || 1)) * 100))}%` },
+                      ]}
+                    />
+                  </View>
+                  <View style={styles.boxGrid}>
+                    {box.items.map(it => (
+                      <View key={it.id} style={styles.boxItem}>
+                        <Text style={styles.boxItemName} numberOfLines={2}>
+                          {it.name}
+                        </Text>
+                        <View style={styles.boxItemQty}>
+                          <TouchableOpacity style={styles.qtyBtn} onPress={() => bumpPick(it.id, -1)}>
+                            <Text style={styles.qtyBtnText}>{'\u2212'}</Text>
+                          </TouchableOpacity>
+                          <Text style={styles.qtyVal}>{picks[it.id] || 0}</Text>
+                          <TouchableOpacity style={styles.qtyBtn} onPress={() => bumpPick(it.id, 1)}>
+                            <Text style={styles.qtyBtnText}>+</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                  {!!boxNotice && <Text style={styles.boxNotice}>{boxNotice}</Text>}
+                </>
+              )
+            ) : (
+            modDef.groups.map(group => (
               <View key={group.id} style={styles.group}>
                 <View style={styles.groupHead}>
                   <Text style={styles.groupTitle}>{group.name}</Text>
@@ -120,8 +202,39 @@ export default function ModifierModal({
                   })}
                 </View>
               </View>
-            ))}
+            )))}
           </ScrollView>
+          {/* A box has no quantity stepper: the source adds exactly one
+              box, because the pieces INSIDE it are the quantity. Its add
+              button stays disabled until every slot is filled -- a
+              half-filled box would decrement stock for a product the
+              customer did not actually get. */}
+          {isBox ? (
+            <View style={styles.footer}>
+              {boxComplete ? (
+                <TouchableOpacity
+                  style={styles.confirmWrap}
+                  onPress={() => onConfirm({ selections: picks } as unknown as CartLineConfig, 1)}
+                  activeOpacity={0.85}>
+                  <View style={styles.confirmButton}>
+                    <GradientFill gradient={gradients.payButton} radius={radii.md} />
+                    <View style={styles.confirmRow}>
+                      <Text style={styles.confirmText}>أضف — </Text>
+                      <Money value={basePrice} size={14} color={colors.flagGreenDeep} />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                <View style={[styles.confirmWrap, styles.confirmButton, styles.confirmDisabled]}>
+                  <Text style={[styles.confirmText, styles.confirmTextDisabled]}>
+                    {box.items.length === 0
+                      ? 'ما فيه أصناف متاحة'
+                      : `اكمل باقي الاختيارات (${slotsLeft} متبقي)`}
+                  </Text>
+                </View>
+              )}
+            </View>
+          ) : (
           <View style={styles.footer}>
             {/* .modifier-qty / .mqty-btn */}
             <View style={styles.qtyStepper}>
@@ -140,6 +253,7 @@ export default function ModifierModal({
               </View>
             </TouchableOpacity>
           </View>
+          )}
         </View>
       </View>
     </Modal>
@@ -151,6 +265,38 @@ const useStyles = createStyles(colors =>
   overlay: { flex: 1, backgroundColor: colors.modalOverlay, justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.cardBg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing[4], maxHeight: '80%' },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[3] },
+  // .box-progress-label
+  boxProgressLabel: { textAlign: 'center', fontFamily: fonts.sansBold, fontSize: 15, color: colors.text, marginBottom: 9 },
+  // .box-progress / .box-progress-bar
+  boxProgress: { height: 9, borderRadius: radii.full, backgroundColor: colors.surf2, overflow: 'hidden', marginBottom: 20 },
+  boxProgressBar: { height: '100%', borderRadius: radii.full, backgroundColor: colors.limeDeep },
+  // .box-items-grid -- a column, despite the name
+  boxGrid: { flexDirection: 'column', gap: 10, marginBottom: 16 },
+  // .box-item
+  boxItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 13,
+    paddingHorizontal: 15,
+    borderRadius: radii.md,
+    backgroundColor: colors.surf1,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  boxItemName: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.text, flex: 1 },
+  // .box-item-qty
+  boxItemQty: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 0 },
+  qtyVal: { fontFamily: fonts.monoBold, fontSize: 13, color: colors.text, minWidth: 18, textAlign: 'center' },
+  // the full-box notice, shown inline instead of as a toast
+  boxNotice: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted, textAlign: 'center', marginBottom: 10 },
+  // .box-empty-state
+  boxEmpty: { alignItems: 'center', paddingVertical: 26, paddingHorizontal: 10 },
+  boxEmptyText: { fontFamily: fonts.sansBold, fontSize: 13, lineHeight: 20.8, color: colors.muted, textAlign: 'center', marginBottom: 10 },
+  boxEmptyHint: { fontFamily: fonts.sansSemiBold, fontSize: 11.5, color: colors.muted, opacity: 0.85, textAlign: 'center' },
+  confirmRow: { flexDirection: 'row', alignItems: 'center' },
+  confirmDisabled: { backgroundColor: colors.surf2 },
+  confirmTextDisabled: { color: colors.muted },
   title: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text },
   closeCircle: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surf2, alignItems: 'center', justifyContent: 'center' },
   closeCircleText: { color: colors.muted, fontSize: 13 },

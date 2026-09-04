@@ -1466,6 +1466,7 @@ export default function ProductsScreen({
           visible
           productName={modifierTarget.name}
           modDef={catalog.modifiersByProductId[modifierTarget.id]}
+          basePrice={modifierTarget.price}
           onCancel={() => setModifierTarget(null)}
           onConfirm={(config, qty) => {
             cart.addWithConfig(modifierTarget.id, config, qty);

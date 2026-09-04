@@ -9,8 +9,8 @@
  */
 
 import uuid from 'react-native-uuid';
-import { CartLine, OrderChannel, ModifierDefinition, computeLineStockDecrements } from './cart';
-import type { ModifierOptionStockMap, StockDecrement } from './cart';
+import { CartLine, OrderChannel, ModifierDefinition, computeLineStockDecrements, computeLineBoxSelections, formatBoxLabels } from './cart';
+import type { ModifierOptionStockMap, StockDecrement, BoxSelectionPayload, BoxDefinition } from './cart';
 import type { Product } from './catalog';
 import type { PaymentMethod, PaymentState, DrawerState } from './payment';
 
@@ -55,9 +55,13 @@ export interface OrderItemPayload {
    * room count never moved.
    */
   stock_decrements: StockDecrement[];
-  /** Box picks. Still [] -- cost_mode='box' products are excluded from the
-   *  catalog, so no payload built here can contain one. */
-  box_selections: never[];
+  /**
+   * The customer's box picks: which eligible ROW and how many pieces,
+   * both already shown to them at checkout. The server resolves what each
+   * pick actually decrements from its own recipe data, so this never
+   * carries a stock_item_id, a unit cost, or an ingredient name.
+   */
+  box_selections: BoxSelectionPayload[];
   is_points_redemption: boolean;
   points_cost: number;
 }
@@ -214,6 +218,10 @@ export function formatConfigLabels(
   modDef: ModifierDefinition | undefined,
 ): { text: string }[] {
   if (!modDef || !config) return [];
+  // A box has no groups -- its labels come from the piece counts, so the
+  // group loop below would produce nothing for one.
+  const box = modDef as unknown as BoxDefinition;
+  if (box.isBox) return formatBoxLabels(config, box).map(text => ({ text }));
   const labels: { text: string }[] = [];
   modDef.groups.forEach(g => {
     const sel = config[g.id];
@@ -283,7 +291,10 @@ function buildItems(
       optionStock,
       stockUnitById,
     ),
-    box_selections: [],
+    box_selections: computeLineBoxSelections(
+      item,
+      (modifiersByProductId[item.productId] as unknown as { isBox?: boolean })?.isBox === true,
+    ),
     is_points_redemption: !!item.isPointsRedemption,
     // Feature Parity Pass -- Loyalty. Looked up from the product's own
     // pointsRedeemPrice at build time, exactly matching the PWA's real
