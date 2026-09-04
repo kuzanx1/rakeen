@@ -1,7 +1,7 @@
 import * as kvStorage from '../infrastructure/mmkvStorage';
 import { supabase } from '../infrastructure/supabaseClient';
 import { Category, Product, isServiceBusinessType } from '../domain/catalog';
-import { ModifierDefinition } from '../domain/cart';
+import { ModifierDefinition, ModifierOptionStockMap } from '../domain/cart';
 
 /**
  * Ported from public/pos/rakeen-pos.js's loadPosData() -- scoped to
@@ -27,6 +27,12 @@ export interface CatalogResult {
    *  which the current PWA uses to show a "working from saved menu"
    *  banner rather than pretending the data is fresh. */
   usingOfflineSnapshot: boolean;
+  /** MODIFIER_OPTION_STOCK -- `${groupId}_${optionId}` -> its stock link.
+   *  Only options with cost_mode='stock' and a stock_item_id appear. */
+  optionStock: ModifierOptionStockMap;
+  /** STOCK_UNIT_BY_ID -- each stock item's own tracking unit, which a
+   *  recipe's unit has to be converted INTO before decrementing. */
+  stockUnitById: Record<number, string>;
 }
 
 /**
@@ -161,7 +167,7 @@ export async function getReceiptBusinessProfile(businessId: number): Promise<Rec
 export async function loadCatalog(businessId: number, businessType: string): Promise<CatalogResult> {
   const isService = isServiceBusinessType(businessType);
 
-  const [catRes, itemsRes, servicesRes, groupRes, optRes, itemModRes] = await Promise.all([
+  const [catRes, itemsRes, servicesRes, groupRes, optRes, itemModRes, stockRes] = await Promise.all([
     supabase.from('menu_categories').select('*').eq('business_id', businessId).order('sort_order'),
     supabase
       .from('menu_items')
@@ -177,6 +183,7 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
     supabase.from('modifier_groups').select('*').eq('business_id', businessId).order('id'),
     supabase.from('modifier_options').select('*'),
     supabase.from('menu_item_modifier_groups').select('*'),
+    supabase.from('stock_items').select('id, unit').eq('business_id', businessId),
   ]);
 
   // supabase-js resolves a network failure as {data:null, error} rather
@@ -236,6 +243,11 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
     (groupIdsByItem[r.menu_item_id] ||= []).push(r.modifier_group_id);
   });
   const modifiersByProductId: Record<number, ModifierDefinition> = {};
+  const optionStock: ModifierOptionStockMap = {};
+  const stockUnitById: Record<number, string> = {};
+  (stockRes.data || []).forEach((row: any) => {
+    stockUnitById[Number(row.id)] = String(row.unit);
+  });
   (itemsRes.data || []).forEach((m: any) => {
     if (m.cost_mode === 'box') return; // deferred -- see domain/cart.ts
     const groupIds = groupIdsByItem[m.id] || [];
@@ -246,12 +258,23 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
         if (!g) return null;
         const options = (optRes.data || [])
           .filter((o: any) => o.group_id === gid)
-          .map((o: any, i: number) => ({
-            id: String(o.id),
-            name: o.name,
-            price: Number(o.price_delta) || 0,
-            default: i === 0 && g.type === 'single',
-          }));
+          .map((o: any, i: number) => {
+            // Only a 'stock' option actually draws from inventory; the
+            // rest are price changes with no stock consequence.
+            if (o.cost_mode === 'stock' && o.stock_item_id) {
+              optionStock[`${gid}_${o.id}`] = {
+                stockItemId: Number(o.stock_item_id),
+                qty: Number(o.stock_qty),
+                unit: o.stock_unit,
+              };
+            }
+            return {
+              id: String(o.id),
+              name: o.name,
+              price: Number(o.price_delta) || 0,
+              default: i === 0 && g.type === 'single',
+            };
+          });
         return { id: String(g.id), name: g.name, type: g.type, required: g.type === 'single', max: g.max_select, options };
       })
       .filter(Boolean) as ModifierDefinition['groups'];
@@ -264,6 +287,8 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
     categories,
     products: [...serviceProducts, ...menuItemProducts],
     modifiersByProductId,
+    optionStock,
+    stockUnitById,
     usingOfflineSnapshot: false,
   };
 
@@ -279,7 +304,22 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
 async function readCache(businessId: number): Promise<CatalogResult | null> {
   try {
     const raw = await kvStorage.getItem(CATALOG_CACHE_PREFIX + businessId);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<CatalogResult>;
+    // A cache written before optionStock/stockUnitById existed has neither
+    // key, and computeLineStockDecrements indexes straight into them. An
+    // offline boot on a stale entry would crash the first time a modifier
+    // line was priced, so they are defaulted rather than trusted -- an
+    // older snapshot simply decrements nothing extra, which is exactly
+    // what it recorded when it was written.
+    return {
+      categories: parsed.categories ?? [],
+      products: parsed.products ?? [],
+      modifiersByProductId: parsed.modifiersByProductId ?? {},
+      optionStock: parsed.optionStock ?? {},
+      stockUnitById: parsed.stockUnitById ?? {},
+      usingOfflineSnapshot: false,
+    };
   } catch {
     return null;
   }

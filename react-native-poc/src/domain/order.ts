@@ -9,7 +9,8 @@
  */
 
 import uuid from 'react-native-uuid';
-import { CartLine, OrderChannel, ModifierDefinition } from './cart';
+import { CartLine, OrderChannel, ModifierDefinition, computeLineStockDecrements } from './cart';
+import type { ModifierOptionStockMap, StockDecrement } from './cart';
 import type { Product } from './catalog';
 import type { PaymentMethod, PaymentState, DrawerState } from './payment';
 
@@ -40,15 +41,22 @@ export interface OrderItemPayload {
   line_total: number;
   note: string | null;
   selected_modifiers: { text: string }[];
-  // stock_decrements / box_selections are always [] in this checkpoint --
-  // both require MENU_ITEM_META/BOX_ELIGIBLE_META data this checkpoint
-  // doesn't load (see application/catalogService.ts's own deferrals for
-  // box-mode products); the server tolerates an empty array identically
-  // to "nothing to decrement", so this is a real, safe subset, not a
-  // silent behavior change for any product this checkpoint can even
-  // build a payload for (box products are excluded from modifiersByProductId
-  // already).
-  stock_decrements: never[];
+  /**
+   * Stock drawn by this line's modifier EXTRAS -- "extra cheese" taking
+   * 20g off the cheese in the store room.
+   *
+   * Recipe lines and box picks are deliberately NOT here: the server
+   * resolves those from the menu item's own stored recipe, so the till
+   * never has to know an ingredient name, quantity or unit cost to ring up
+   * a sale. This carries only what the customer actually chose, which was
+   * already shown to them at checkout.
+   *
+   * Was hardcoded [] -- so a cheese extra could sell all day and the store
+   * room count never moved.
+   */
+  stock_decrements: StockDecrement[];
+  /** Box picks. Still [] -- cost_mode='box' products are excluded from the
+   *  catalog, so no payload built here can contain one. */
   box_selections: never[];
   is_points_redemption: boolean;
   points_cost: number;
@@ -242,6 +250,12 @@ export interface OrderBuildContext {
    *  compatibility with any existing caller that hasn't been updated. */
   paymentMethod?: PaymentMethod;
   cashAmount?: number | null;
+  /** MODIFIER_OPTION_STOCK and STOCK_UNIT_BY_ID, from the loaded catalog.
+   *  On the context rather than as more positional arguments because
+   *  every caller already builds one of these and both maps travel
+   *  together with the rest of the order's environment. */
+  optionStock: ModifierOptionStockMap;
+  stockUnitById: Record<number, string>;
 }
 
 function buildItems(
@@ -249,6 +263,8 @@ function buildItems(
   productsById: Map<number, Product>,
   modifiersByProductId: Record<number, ModifierDefinition>,
   unitPriceOf: (item: CartLine) => number,
+  optionStock: ModifierOptionStockMap,
+  stockUnitById: Record<number, string>,
 ): OrderItemPayload[] {
   return cart.map(item => ({
     // A service's virtual product id is always negative (see domain/catalog.ts) --
@@ -261,7 +277,12 @@ function buildItems(
     line_total: unitPriceOf(item) * item.qty,
     note: item.note || null,
     selected_modifiers: formatConfigLabels(item.config, modifiersByProductId[item.productId]),
-    stock_decrements: [],
+    stock_decrements: computeLineStockDecrements(
+      item,
+      modifiersByProductId[item.productId],
+      optionStock,
+      stockUnitById,
+    ),
     box_selections: [],
     is_points_redemption: !!item.isPointsRedemption,
     // Feature Parity Pass -- Loyalty. Looked up from the product's own
@@ -302,7 +323,7 @@ export function buildOrderPayload(
     delivery_platform_id: ctx.channel === 'delivery' ? ctx.deliveryPlatformId : null,
     platform_invoice_last4: null,
     table_id: ctx.channel === 'dine_in' ? ctx.tableId : null,
-    items: buildItems(cart, productsById, modifiersByProductId, unitPriceOf),
+    items: buildItems(cart, productsById, modifiersByProductId, unitPriceOf, ctx.optionStock, ctx.stockUnitById),
     payment_state: 'PAYMENT_PENDING',
     drawer_state: 'DRAWER_PENDING',
     operation_id: operationIdForOrder(clientOrderUuid),
@@ -326,7 +347,7 @@ export function buildDineInRegisterPayload(
     customer_id: ctx.customerId,
     subtotal: ctx.subtotal,
     discount_pct: ctx.discountPct,
-    items: buildItems(cart, productsById, modifiersByProductId, unitPriceOf),
+    items: buildItems(cart, productsById, modifiersByProductId, unitPriceOf, ctx.optionStock, ctx.stockUnitById),
     table_id: ctx.tableId as number,
     staff_member_id: ctx.staffMemberId,
     existing_order_id: ctx.existingOrderId,

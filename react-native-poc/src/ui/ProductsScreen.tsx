@@ -639,6 +639,10 @@ export default function ProductsScreen({
       }
       const payload = buildDineInRegisterPayload(cart.cart, productsById, catalog.modifiersByProductId, cart.unitPriceOf, {
         branchId: device.branchId,
+        // The catalog's own stock maps, so a modifier extra actually
+        // decrements what it draws from.
+        optionStock: catalog.optionStock,
+        stockUnitById: catalog.stockUnitById,
         shiftId: shift?.id ?? null,
         staffMemberId: staffMember?.id ?? null,
         customerName: selectedCustomer?.name ?? null,
@@ -837,6 +841,10 @@ export default function ProductsScreen({
       }
       const payload = buildOrderPayload(cart.cart, productsById, catalog.modifiersByProductId, cart.unitPriceOf, {
         branchId: device.branchId,
+        // The catalog's own stock maps, so a modifier extra actually
+        // decrements what it draws from.
+        optionStock: catalog.optionStock,
+        stockUnitById: catalog.stockUnitById,
         shiftId: shift?.id ?? null,
         staffMemberId: staffMember?.id ?? null,
         customerName: selectedCustomer?.name ?? null,

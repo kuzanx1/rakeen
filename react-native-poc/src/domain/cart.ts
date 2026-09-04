@@ -40,6 +40,74 @@ export interface ModifierGroup {
 /** Only the standard-group shape is modeled here -- isBox/isMeal products
  *  are excluded at the catalogService layer for this checkpoint (see file
  *  header) rather than given a half-built representation here. */
+/**
+ * A modifier option that draws from a real stock item -- "extra cheese"
+ * taking 20g off the cheese in the store room.
+ *
+ * Only options with `cost_mode = 'stock'` AND a stock_item_id have one.
+ * Everything else is a price change with no inventory consequence.
+ */
+export interface ModifierOptionStockLink {
+  stockItemId: number;
+  qty: number;
+  /** The unit the RECIPE is written in, which need not be the unit the
+   *  stock item is tracked in. */
+  unit: string;
+}
+
+/** Keyed `${groupId}_${optionId}`, matching the source's own map. */
+export type ModifierOptionStockMap = Record<string, ModifierOptionStockLink>;
+
+/**
+ * convertToUnit() (rakeen-pos.js:5720), verbatim.
+ *
+ * Only g<->kg convert. Anything else passes through unchanged, which is
+ * correct rather than lazy: a recipe written in pieces against an item
+ * tracked in pieces needs no conversion, and inventing a litre/kg factor
+ * would mean guessing a density.
+ */
+export function convertToUnit(qty: number, fromUnit: string, toUnit: string): number {
+  if (fromUnit === toUnit) return qty;
+  if (fromUnit === 'g' && toUnit === 'kg') return qty / 1000;
+  if (fromUnit === 'kg' && toUnit === 'g') return qty * 1000;
+  return qty;
+}
+
+export interface StockDecrement {
+  stock_item_id: number;
+  qty: number;
+}
+
+/**
+ * computeLineStockDecrements() (rakeen-pos.js:2041).
+ *
+ * ONLY modifier extras. Recipe lines and box picks are resolved
+ * server-side from the menu item's own stored recipe, so the till never
+ * needs to know an ingredient name, quantity or unit cost to ring up a
+ * sale -- it only reports the extras the customer actually chose, which
+ * were already shown to them at checkout.
+ */
+export function computeLineStockDecrements(
+  line: { productId: number; qty: number; config: Record<string, string | string[]> | null },
+  modDef: ModifierDefinition | undefined,
+  optionStock: ModifierOptionStockMap,
+  stockUnitById: Record<number, string>,
+): StockDecrement[] {
+  const decrements: StockDecrement[] = [];
+  if (!modDef || !line.config) return decrements;
+  for (const group of modDef.groups) {
+    const selected = line.config[group.id];
+    const ids = Array.isArray(selected) ? selected : selected != null ? [selected] : [];
+    for (const optId of ids) {
+      const link = optionStock[`${group.id}_${optId}`];
+      if (!link) continue;
+      const qtyInStockUnit = convertToUnit(link.qty, link.unit, stockUnitById[link.stockItemId] || link.unit);
+      decrements.push({ stock_item_id: link.stockItemId, qty: qtyInStockUnit * line.qty });
+    }
+  }
+  return decrements;
+}
+
 export interface ModifierDefinition {
   groups: ModifierGroup[];
   alwaysCustomize: boolean;
