@@ -115,6 +115,56 @@ function drawCenterLine(ctx: RenderContext, y: number, text: string, size: numbe
  *  downloaded for this pass), so the amount column uses the same
  *  Arabic-family digits -- fully correct information, just not the
  *  PWA's exact monospace typeface; a disclosed, minor simplification. */
+/**
+ * أعمدة صف الصنف، محسوبة من عرض الورق لا بأرقام ثابتة — الورق ٥٨ مم
+ * يصغّرها بنفس النسب بدل أن تتداخل.
+ */
+function itemColumns(contentWidth: number) {
+  const qty = Math.round(contentWidth * 0.1);
+  const price = Math.round(contentWidth * 0.24);
+  const gutter = 8;
+  return { qty, price, name: contentWidth - qty - price - gutter * 2, gutter };
+}
+
+/**
+ * صنف واحد في سطر واحد: الكمية يميناً، الاسم وسطاً، السعر يساراً.
+ *
+ * كان الاسم في سطر والسعر في السطر التالي، فالعين لا تربط بينهما
+ * والورقة تطول بلا سبب. ثلاثة صناديق على نفس الـy تحلّ الاثنين معاً.
+ */
+function drawItemLine(
+  ctx: RenderContext,
+  y: number,
+  qtyText: string,
+  nameLines: string[],
+  priceText: string,
+  size: number,
+  bold: boolean,
+  color?: string,
+): number {
+  const col = itemColumns(ctx.contentWidth);
+  const nameX = PAD + col.price + col.gutter;
+  const qtyX = ctx.width - PAD - col.qty;
+
+  nameLines.forEach((line, i) => {
+    paintText(ctx.canvas, ctx.provider, line, nameX, y + i * LINE_H * 0.82, col.name, {
+      size, bold, align: 'right', direction: 'rtl', color,
+    });
+  });
+  // الكمية والسعر مع السطر الأول من الاسم فقط.
+  if (qtyText) {
+    paintText(ctx.canvas, ctx.provider, qtyText, qtyX, y, col.qty, {
+      size, bold: false, align: 'right', direction: 'ltr', color,
+    });
+  }
+  if (priceText) {
+    paintText(ctx.canvas, ctx.provider, priceText, PAD, y, col.price, {
+      size, bold, align: 'left', direction: 'ltr', color,
+    });
+  }
+  return y + Math.max(1, nameLines.length) * LINE_H * 0.82;
+}
+
 function drawRow(ctx: RenderContext, y: number, leftMono: string, rightArabic: string, size: number, bold: boolean): number {
   paintText(ctx.canvas, ctx.provider, rightArabic, PAD, y, ctx.contentWidth, { size, bold, align: 'right', direction: 'rtl' });
   if (leftMono) {
@@ -200,24 +250,49 @@ export async function renderReceiptToEscPosBase64(
     drawDivider(canvas, width, y);
     y += gap(0.6);
 
+    // عناوين الأعمدة: تقول ما هي الأرقام قبل أن تبدأ. سطر واحد صغير
+    // يغني عن تخمين القارئ.
+    const cols = itemColumns(contentWidth);
+    y = drawItemLine(
+      ctx, y,
+      bi('الكمية', 'Qty'),
+      [bi('المنتج', 'Item')],
+      bi('السعر', 'Price'),
+      sz(14), false, '#555555',
+    );
+    y += gap(0.18);
+    drawDivider(canvas, width, y);
+    y += gap(0.35);
+
     receipt.items.forEach((item, index) => {
-      for (const line of measureAndWrapText(provider, item.name, contentWidth, sz(21), true)) {
-        paintText(canvas, provider, line, PAD, y, contentWidth, { size: sz(21), bold: true, align: 'right', direction: 'rtl' });
-        y += gap(0.85);
+      const nameLines = measureAndWrapText(provider, item.name, cols.name, sz(20), true);
+      y = drawItemLine(
+        ctx, y,
+        String(item.qty),
+        nameLines,
+        item.lineTotal.toFixed(2),
+        sz(20), true,
+      );
+      // سعر الوحدة يُذكر فقط حين تتعدد الكمية — عند الواحدة يكرر السعر
+      // المكتوب يمينه ولا يضيف شيئاً غير سطر يطيل الورقة.
+      if (item.qty > 1) {
+        y = drawItemLine(
+          ctx, y, '',
+          [`${item.unitPrice.toFixed(2)} × ${item.qty}`],
+          '', sz(14), false, '#555555',
+        );
       }
       for (const modText of item.mods) {
-        for (const line of measureAndWrapText(provider, modText, contentWidth, sz(15), false)) {
-          paintText(canvas, provider, line, PAD, y, contentWidth, { size: sz(15), bold: false, align: 'right', direction: 'rtl', color: '#333333' });
-          y += gap(0.7);
+        for (const line of measureAndWrapText(provider, modText, cols.name, sz(14), false)) {
+          y = drawItemLine(ctx, y, '', [line], '', sz(14), false, '#555555');
         }
       }
-      y = drawRow(ctx, y, item.lineTotal.toFixed(2), `${item.qty} × ${item.unitPrice.toFixed(2)}`, sz(18), false);
-      // A hairline under each item turns the list into a table instead of
-      // a run of text. Skipped after the last one -- the section rule
-      // below already closes it.
       if (th.ruleBetweenItems && index < receipt.items.length - 1) {
+        y += gap(0.2);
         drawDivider(canvas, width, y);
-        y += gap(0.35);
+        y += gap(0.3);
+      } else {
+        y += gap(0.22);
       }
     });
     drawDivider(canvas, width, y);

@@ -17,7 +17,7 @@ import {
   SUPPORTED_TRANSPORTS,
   profileToPrinterTarget,
 } from '../domain/printerProfile';
-import type { PrinterProfile, PrinterTransportKind, DiscoveredDevice } from '../platform/printer';
+import type { PrinterProfile, PrinterTransportKind, DiscoveredDevice, PrinterTarget } from '../platform/printer';
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
 
 const TRANSPORT_LABELS: Record<PrinterTransportKind, string> = {
@@ -54,6 +54,44 @@ const SCAN_TIMEOUT_MS = 6000;
  * outside the reference CSS this app was audited against) -- section
  * cards use the same card-bg/line/radii tokens as everything else.
  */
+/**
+ * ما الذي تستعمله الطباعة فعلاً الآن — بالمنفذ.
+ *
+ * كان يُطبع العنوان وحده، فتغييرُ المنفذ وحده يجعل التحذير يعرض نصاً
+ * مطابقاً لما يكتبه المالك في النموذج: "لسه يستخدمان 192.168.8.163"
+ * بينما هو غيّر 9001 إلى 9100. التحذير الذي لا يُظهر ما اختلف يُقرأ
+ * تأكيداً لا تحذيراً — وهذا ما حصل في تجربة حية.
+ */
+function describeSavedTarget(t: PrinterTarget): string {
+  if (t.transport !== 'network') return TRANSPORT_SENTENCE[t.transport];
+  return t.port ? `${t.host}:${t.port}` : t.host || '';
+}
+
+/**
+ * السبب الحقيقي بدل جملة واحدة لكل الأعطال.
+ *
+ * الطبقة الأصلية تميّز الأسباب بدقة (NetworkPrinterTransport.describeError)
+ * والواجهة كانت ترميها وتقول "تأكد إنها مشغّلة وعلى نفس شبكة الواي فاي"
+ * حتى حين تكون الطابعة قد ردّت بالفعل ورفضت المنفذ. كل جملة هنا تنتهي
+ * بالإجراء الذي يخصّ سببها، لا بفحص عام.
+ */
+function failureSentence(detail?: string): string {
+  switch (detail) {
+    case 'connection_refused':
+      return 'الطابعة ردّت لكن رفضت هذا المنفذ — الرقم غلط. المعتاد 9100، والرقم الصحيح مكتوب في تقرير الشبكة اللي تطبعه الطابعة نفسها.';
+    case 'permission_denied_local_network':
+      return 'النظام مانع التطبيق من الشبكة المحلية — من إعدادات الجهاز: ركين ← فعّل «الشبكة المحلية».';
+    case 'host_unreachable':
+      return 'العنوان مو على شبكتك — تأكد إن الجهاز والطابعة على نفس الراوتر.';
+    case 'connection_timeout':
+      return 'ما رد أحد على هذا العنوان — تأكد إن الطابعة مشغّلة وموصولة، وإن ما فيه تطبيق ثاني ماسك الطابعة.';
+    case 'invalid_port':
+      return 'رقم المنفذ غير صالح.';
+    default:
+      return 'ما قدرنا نوصل للطابعة — تأكد إنها مشغّلة وعلى نفس الشبكة.';
+  }
+}
+
 export default function PrinterSettingsScreen({
   online,
   staffName,
@@ -181,7 +219,7 @@ export default function PrinterSettingsScreen({
       setTestResult(
         result.reachable
           ? `🟢 وصلنا للطابعة (${where}) — للتأكد إنها تطبع فعلًا اضغط «طباعة اختبار».`
-          : `🔴 ما قدرنا نوصل للطابعة (${where}) — تأكد إنها مشغّلة وعلى نفس شبكة الواي فاي.`,
+          : `🔴 ${failureSentence(result.errorDetail)} (${where})`,
       );
     } catch (e) {
       setTestResult('🔴 خطأ غير متوقع — جرّب مرة ثانية');
@@ -298,9 +336,7 @@ export default function PrinterSettingsScreen({
           label="الطابعة"
           value={
             savedTarget
-              ? savedTarget.transport === 'network'
-                ? `${savedTarget.host} · محفوظة`
-                : `${TRANSPORT_SENTENCE[savedTarget.transport]} · محفوظة`
+              ? `${describeSavedTarget(savedTarget)} · محفوظة`
               : 'ما فيه طابعة محفوظة'
           }
         />
@@ -502,7 +538,7 @@ export default function PrinterSettingsScreen({
         <View style={styles.unsavedBox}>
           <Text style={styles.unsavedText}>
             {savedTarget
-              ? `فيه تعديلات ما انحفظت. الطباعة وفتح الدرج لسه يستخدمان: ${savedTarget.transport === 'network' ? savedTarget.host : TRANSPORT_SENTENCE[savedTarget.transport]}`
+              ? `فيه تعديلات ما انحفظت. الطباعة وفتح الدرج لسه يستخدمان: ${describeSavedTarget(savedTarget)}`
               : 'فيه تعديلات ما انحفظت، وما فيه طابعة محفوظة — أي طلب ما راح تطلع فاتورته. اضغط «حفظ الإعدادات».'}
           </Text>
         </View>

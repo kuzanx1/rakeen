@@ -30,11 +30,24 @@ export function isPixelDark(r: number, g: number, b: number, a: number): boolean
 }
 
 /**
- * Returns the full ESC/POS raster command bytes: the 8-byte `GS v 0`
- * header (`1D 76 30 00 xL xH yL yH`, x = bytes-per-row, y = height, both
- * little-endian 16-bit) followed by the packed 1-bpp bitmap, MSB-first
- * within each byte (bit 7 = leftmost pixel of that byte's 8-pixel run).
+ * Returns ESC/POS raster bytes: a SEQUENCE of `GS v 0` commands, one per
+ * horizontal band of RASTER_BAND_ROWS rows. Each carries the 8-byte
+ * header (`1D 76 30 00 xL xH yL yH`, x = bytes-per-row, y = that band's
+ * height, both little-endian 16-bit) followed by that band's packed
+ * 1-bpp bitmap, MSB-first within each byte (bit 7 = leftmost pixel).
+ *
+ * Was a single command spanning the whole receipt. See RASTER_BAND_ROWS
+ * for the hardware measurement that changed it.
  */
+/**
+ * عدد الأسطر النقطية في الشريحة الواحدة.
+ *
+ * ١٢٨ سطراً ≈ ١٦ مم من الورق ≈ ٩ كيلوبايت بعرض ٥٧٦ نقطة. الرقم قابل
+ * للضبط: لو بقيت الطباعة بطيئة على عتاد ما فالمحاولة التالية أصغر
+ * (٦٤ أو ٢٤)، ولو لم يتغيّر شيء فالسبب ليس هنا.
+ */
+export const RASTER_BAND_ROWS = 128;
+
 export function rgbaToEscPosRaster(buffer: RgbaBuffer): number[] {
   const { width, height, data } = buffer;
   const bytesPerRow = Math.ceil(width / 8);
@@ -55,11 +68,22 @@ export function rgbaToEscPosRaster(buffer: RgbaBuffer): number[] {
     }
   }
 
+  // شريحة شريحة، لا كتلة واحدة. قياس على NT310 حقيقي: فاتورة ٨٧ مم
+  // بأمر واحد ارتفاعه ٦٩٤ سطراً استغرقت ٣٠ ثانية (٣ مم/ث) بينما
+  // الطابعة تطبع ٢٠٠+ مم/ث ونصيبنا من الوقت ٢٠ ملّي ثانية فقط. الصورة
+  // على الورق واحدة؛ الفرق أن البرنامج الثابت يعالج شريحة صغيرة في
+  // مساره السريع بدل بلع الصورة كلها.
+  const out: number[] = [];
   const xL = bytesPerRow & 0xff;
   const xH = (bytesPerRow >> 8) & 0xff;
-  const yL = height & 0xff;
-  const yH = (height >> 8) & 0xff;
-  const header = [0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH];
 
-  return [...header, ...bitmap];
+  for (let top = 0; top < height; top += RASTER_BAND_ROWS) {
+    const rows = Math.min(RASTER_BAND_ROWS, height - top);
+    out.push(0x1d, 0x76, 0x30, 0x00, xL, xH, rows & 0xff, (rows >> 8) & 0xff);
+    const from = top * bytesPerRow;
+    const to = from + rows * bytesPerRow;
+    for (let i = from; i < to; i++) out.push(bitmap[i]);
+  }
+
+  return out;
 }
