@@ -7538,11 +7538,18 @@ async function loadOnlineCodEnabled(){
 // business select above: PostgREST fails an entire select over one
 // unknown column, so adding it there would blank the whole settings
 // screen on any deployment where the migration has not run yet.
+// The same numbers the two renderers use (public/pos/rakeen-pos.js and the
+// app's src/domain/receiptTheme.ts), so the preview below is a real preview
+// and not a drawing of one.
 const RECEIPT_THEMES = [
-  { id: 'classic', label: 'كلاسيكي', desc: 'متوازن، مع الشعار وخطوط تفصل الأقسام. الافتراضي.' },
-  { id: 'compact', label: 'مضغوط', desc: 'يوفّر ورق — بدون شعار، سطور أقرب وخط أصغر. أقصر بحوالي الثلث.' },
-  { id: 'elegant', label: 'أنيق', desc: 'اسم المنشأة بين خطين، وخط رفيع تحت كل صنف، والإجمالي داخل إطار.' },
+  { id: 'classic', label: 'كلاسيكي', desc: 'متوازن، مع الشعار وخطوط تفصل الأقسام. الافتراضي.',
+    density:1,    typeScale:1,    showLogo:true,  ruleBetweenItems:false, headerBand:false, boxedTotal:false, qrSize:110 },
+  { id: 'compact', label: 'مضغوط', desc: 'يوفّر ورق — بدون شعار، سطور أقرب وخط أصغر. أقصر بحوالي الثلث.',
+    density:0.68, typeScale:0.88, showLogo:false, ruleBetweenItems:false, headerBand:false, boxedTotal:false, qrSize:85 },
+  { id: 'elegant', label: 'أنيق', desc: 'اسم المنشأة بين خطين، وخط رفيع تحت كل صنف، والإجمالي داخل إطار.',
+    density:1.15, typeScale:1.04, showLogo:true,  ruleBetweenItems:true,  headerBand:true,  boxedTotal:true,  qrSize:110 },
 ];
+function rkReceiptTheme(id){ return RECEIPT_THEMES.find(t=>t.id===id) || RECEIPT_THEMES[0]; }
 
 async function loadReceiptTheme(){
   try {
@@ -8146,31 +8153,56 @@ const rkPosHideBellStatus = c => c
   ? {text:'⚠ مخفي — ما يوصل الكاشير أي تذكير قبل انتهاء وقت تجهيز طلب توصيل', tone:'warn'}
   : {text:'ظاهر — ينبّه الكاشير قبل ما ينتهي وقت تجهيز طلب التوصيل', tone:'ok'};
 
-function receiptPreviewHtml(){
+function customerReceiptPreviewHtml(themeId){
+  const t = rkReceiptTheme(themeId);
   const hasVat = !!BUSINESS_VAT_NUMBER;
   const qrPayload = hasVat ? zatcaQrBase64ForPreview(RESTAURANT_INFO.name || 'ركين', BUSINESS_VAT_NUMBER, new Date().toISOString(), '113.85', '14.85') : null;
+  // One place converts the theme's numbers into CSS, so the preview cannot
+  // drift from the renderer by someone tweaking a literal here.
+  const sz = n => (n * t.typeScale).toFixed(1) + 'px';
+  const mb = n => 'margin-bottom:' + (n * t.density).toFixed(1) + 'px;';
+  const rule = 'border-top:1px dashed #ccc; margin:' + (10 * t.density).toFixed(1) + 'px 0;';
+  const hair = t.ruleBetweenItems ? 'border-bottom:1px solid #e6e6e6; padding-bottom:3px;' : '';
+  const band = 'border-top:1.5px solid #111; border-bottom:1.5px solid #111; padding:' + (5 * t.density).toFixed(1) + 'px 0;';
+  const item = (name, price, last) =>
+    '<div style="display:flex; justify-content:space-between; font-size:' + sz(11.5) + '; ' + mb(4) + (last ? '' : hair) + '"><span>' + name + '</span><span style="font-family:monospace;">' + price + '</span></div>';
+  return [
+    '<div id="rkReceiptPreviewCard" style="flex:1; min-width:220px; max-width:280px; background:#fff; color:#111; border-radius:10px; padding:16px; font-family:\'IBM Plex Sans Arabic\',sans-serif;">',
+      (t.showLogo && BUSINESS_LOGO_URL) ? '<div style="text-align:center; ' + mb(8) + '"><img src="' + BUSINESS_LOGO_URL + '" alt="" style="width:46px; height:46px; border-radius:50%; object-fit:cover;"></div>' : '',
+      '<div style="text-align:center; font-weight:800; font-size:' + sz(15) + '; ' + (t.headerBand ? band + 'letter-spacing:1.5px;' : '') + '">' + escapeHtml(RESTAURANT_INFO.name || 'ركين') + '</div>',
+      '<div style="text-align:center; font-size:' + sz(11) + '; color:#555; margin-top:4px;">١٠/٠٨/٢٠٢٦ ٥:٤٢ م</div>',
+      '<div style="text-align:center; font-weight:800; font-size:' + sz(11.5) + '; margin-top:6px;">رقم الطلب · Order: #58</div>',
+      hasVat
+        ? '<div style="text-align:center; font-weight:800; font-size:' + sz(11.5) + '; margin-top:8px;">فاتورة ضريبية مبسطة · Simplified Tax Invoice</div><div style="text-align:center; font-size:' + sz(10.5) + '; color:#555;">الرقم الضريبي · VAT No: ' + escapeHtml(BUSINESS_VAT_NUMBER) + '</div>'
+        : '<div style="text-align:center; font-size:10.5px; color:#a87a1e; margin-top:8px;">⚠ بدون رقم ضريبي — ما راح يطبع رمز QR</div>',
+      '<div style="' + rule + '"></div>',
+      item('2 × برجر لحم مشوي', '70.00', false),
+      item('1 × بطاطس مقلية', '29.00', true),
+      '<div style="' + rule + '"></div>',
+      '<div style="display:flex; justify-content:space-between; font-size:' + sz(11.5) + ';"><span>المجموع الفرعي · Subtotal</span><span style="font-family:monospace;">99.00</span></div>',
+      '<div style="display:flex; justify-content:space-between; font-size:' + sz(11.5) + ';"><span>ضريبة القيمة المضافة · VAT</span><span style="font-family:monospace;">14.85</span></div>',
+      '<div style="display:flex; justify-content:space-between; font-weight:800; font-size:' + sz(14) + '; margin-top:4px; ' + (t.boxedTotal ? 'border:1.5px solid #111; border-radius:4px; padding:5px 7px;' : '') + '"><span>الإجمالي · Total</span><span style="font-family:monospace;">113.85</span></div>',
+      qrPayload ? '<div style="text-align:center; margin-top:' + (12 * t.density).toFixed(1) + 'px;"><img src="/api/qr?data=' + encodeURIComponent(qrPayload) + '" alt="QR" style="width:' + t.qrSize + 'px; height:' + t.qrSize + 'px;"></div>' : '',
+      '<div style="text-align:center; font-size:' + sz(10.5) + '; color:#555; margin-top:10px;">' + escapeHtml(RECEIPT_CUSTOM_MESSAGE || 'شكراً لزيارتكم') + '</div>',
+      '<div style="text-align:center; font-size:9.5px; color:#999; margin-top:6px;">— فاتورة العميل —</div>',
+    '</div>'
+  ].join('');
+}
+
+function receiptPreviewHtml(){
   return `
     <div class="rk-section" style="margin-bottom:16px;">
-      ${rkSectionHead('fileText', 'شكل الفاتورة', 'هذا شكل الفاتورتين اللي يطبعهما جهاز الكاشير — مو تعديل، بس عشان تشوفها بدون ما تروح للجهاز فعليًا')}
-      <div style="display:flex; gap:16px; flex-wrap:wrap;">
-        <div style="flex:1; min-width:220px; max-width:280px; background:#fff; color:#111; border-radius:10px; padding:16px; font-family:'IBM Plex Sans Arabic',sans-serif;">
-          ${BUSINESS_LOGO_URL ? `<div style="text-align:center; margin-bottom:8px;"><img src="${BUSINESS_LOGO_URL}" alt="" style="width:46px; height:46px; border-radius:50%; object-fit:cover;"></div>` : ''}
-          <div style="text-align:center; font-weight:800; font-size:15px;">${RESTAURANT_INFO.name || 'ركين'}</div>
-          <div style="text-align:center; font-size:11px; color:#555; margin-top:4px;">١٠/٠٨/٢٠٢٦ ٥:٤٢ م</div>
-          <div style="text-align:center; font-weight:800; font-size:11.5px; margin-top:6px;">رقم الطلب: #58</div>
-          ${hasVat ? `<div style="text-align:center; font-weight:800; font-size:11.5px; margin-top:8px;">فاتورة ضريبية مبسطة</div>
-          <div style="text-align:center; font-size:10.5px; color:#555;">الرقم الضريبي: ${BUSINESS_VAT_NUMBER}</div>` : `<div style="text-align:center; font-size:10.5px; color:#a87a1e; margin-top:8px;">⚠ بدون رقم ضريبي — ما راح يطبع رمز QR</div>`}
-          <div style="border-top:1px dashed #ccc; margin:10px 0;"></div>
-          <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:4px;"><span>2 × برجر لحم مشوي</span><span style="font-family:monospace;">70.00</span></div>
-          <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:4px;"><span>1 × بطاطس مقلية</span><span style="font-family:monospace;">29.00</span></div>
-          <div style="border-top:1px dashed #ccc; margin:10px 0;"></div>
-          <div style="display:flex; justify-content:space-between; font-size:11.5px;"><span>المجموع الفرعي</span><span style="font-family:monospace;">99.00</span></div>
-          <div style="display:flex; justify-content:space-between; font-size:11.5px;"><span>ضريبة القيمة المضافة</span><span style="font-family:monospace;">14.85</span></div>
-          <div style="display:flex; justify-content:space-between; font-weight:800; font-size:14px; margin-top:4px;"><span>الإجمالي</span><span style="font-family:monospace;">113.85</span></div>
-          ${qrPayload ? `<div style="text-align:center; margin-top:12px;"><img src="/api/qr?data=${encodeURIComponent(qrPayload)}" alt="QR" style="width:110px; height:110px;"></div>` : ''}
-          <div style="text-align:center; font-size:10.5px; color:#555; margin-top:10px;">${RECEIPT_CUSTOM_MESSAGE || 'شكراً لزيارتكم'}</div>
-          <div style="text-align:center; font-size:9.5px; color:#999; margin-top:6px;">— فاتورة العميل —</div>
-        </div>
+      ${rkSectionHead('fileText', 'شكل الفاتورة', 'اختر الشكل وشوف المعاينة تتغير على طول — احفظ لما يعجبك')}
+      <div class="rk-theme-cards">
+        ${RECEIPT_THEMES.map(t => `
+          <button type="button" class="rk-theme-card ${t.id === RECEIPT_THEME ? 'selected' : ''}" data-theme="${t.id}">
+            <span class="rk-theme-card-name">${t.label}</span>
+            <span class="rk-theme-card-desc">${t.desc}</span>
+          </button>`).join('')}
+      </div>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="receiptThemeSaveBtn" style="margin-top:12px;">حفظ الشكل</button>
+      <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:16px;" id="rkReceiptPreviewRow">
+        ${customerReceiptPreviewHtml(RECEIPT_THEME)}
         <div style="flex:1; min-width:220px; max-width:280px; background:#fff; color:#111; border-radius:10px; padding:16px; font-family:'IBM Plex Sans Arabic',sans-serif;">
           <div style="text-align:center; font-weight:800; font-size:18px;">طلب مطبخ</div>
           <div style="text-align:center; font-size:11px; color:#555; margin-top:4px;">طاولة ٤ — طلب #58</div>
@@ -8218,19 +8250,6 @@ async function renderPosSettings(){
   const autoReadyPickup = !!(kitchenSettings && kitchenSettings.auto_ready_pickup);
   const autoReadyDeliveryPlatform = !!(kitchenSettings && kitchenSettings.auto_ready_delivery_platform);
   const autoReadyDeliveryOnline = !!(kitchenSettings && kitchenSettings.auto_ready_delivery_online);
-
-  const receiptThemePanel = `
-    <div class="rk-section">
-      ${rkSectionHead('fileText', 'شكل الفاتورة المطبوعة', 'يطبّق على كل أجهزة الكاشير — كل الأشكال تطبع فاتورة ضريبية مبسطة معتمدة')}
-      <div class="rk-field">
-        <label>اختر الشكل</label>
-        <select id="receiptThemeSelect">
-          ${RECEIPT_THEMES.map(t => `<option value=\"${t.id}\" ${RECEIPT_THEME === t.id ? 'selected' : ''}>${t.label}</option>`).join('')}
-        </select>
-      </div>
-      <p class="stock-qty-helper" id="receiptThemeDesc" style="margin-top:8px;">${(RECEIPT_THEMES.find(t => t.id === RECEIPT_THEME) || RECEIPT_THEMES[0]).desc}</p>
-      <button class="rk-btn rk-btn-primary rk-btn-md" id="receiptThemeSaveBtn" style="margin-top:6px;">حفظ الشكل</button>
-    </div>`;
 
   const receiptMessagePanel = `
     <div class="rk-section">
@@ -8444,7 +8463,7 @@ async function renderPosSettings(){
     </div>`;
 
   const POS_SETTINGS_TABS_HTML = {
-    receipt: receiptPreviewHtml() + receiptThemePanel + receiptMessagePanel,
+    receipt: receiptPreviewHtml() + receiptMessagePanel,
     interface: simplifyPanel,
     tables: dineInMasterPanel + tablesGatedContent,
     kitchen: kitchenPanel + autoReadyPanel,
@@ -8515,19 +8534,26 @@ async function renderPosSettings(){
     }
   });
 
-  const receiptThemeSelect = document.getElementById('receiptThemeSelect');
-  if(receiptThemeSelect) receiptThemeSelect.addEventListener('change', ()=>{
-    const desc = document.getElementById('receiptThemeDesc');
-    const found = RECEIPT_THEMES.find(t => t.id === receiptThemeSelect.value);
-    if(desc && found) desc.textContent = found.desc;
+  // Selecting a card repaints the receipt beside it immediately. The pick
+  // is held in a local until Save, so backing out costs nothing — closing
+  // the tab leaves the business on whatever it had.
+  let pendingTheme = RECEIPT_THEME;
+  document.querySelectorAll('.rk-theme-card').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      pendingTheme = card.dataset.theme;
+      document.querySelectorAll('.rk-theme-card').forEach(c=>c.classList.toggle('selected', c === card));
+      const row = document.getElementById('rkReceiptPreviewRow');
+      const old = document.getElementById('rkReceiptPreviewCard');
+      if(row && old) old.outerHTML = customerReceiptPreviewHtml(pendingTheme);
+    });
   });
+
   const receiptThemeSaveBtn = document.getElementById('receiptThemeSaveBtn');
   if(receiptThemeSaveBtn) receiptThemeSaveBtn.addEventListener('click', async ()=>{
-    const theme = document.getElementById('receiptThemeSelect').value;
     rkBtnLoading(receiptThemeSaveBtn, true);
     try {
-      await updateCurrentBusiness({ receipt_theme: theme });
-      RECEIPT_THEME = theme;
+      await updateCurrentBusiness({ receipt_theme: pendingTheme });
+      RECEIPT_THEME = pendingTheme;
       logDashboardAudit('غيّر شكل الفاتورة المطبوعة');
       rkBtnSuccess(receiptThemeSaveBtn, '✓ تم الحفظ');
     } catch(err){

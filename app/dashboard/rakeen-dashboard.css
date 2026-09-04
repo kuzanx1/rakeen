@@ -1,5 +1,18 @@
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700;800&display=swap');
 
+/* Used only inside the "المنيو الإلكتروني" design tab's live preview mockup,
+   to show the storefront's "Thmanyah" font option accurately — the
+   dashboard itself always renders in IBM Plex Sans Arabic above. */
+@font-face{font-family:'ThmanyahSansPreview'; src:url('https://media.rakeenapp.com/fonts/thmanyah/ThmanyahSans-Regular.otf') format('opentype'); font-weight:400; font-display:swap;}
+@font-face{font-family:'ThmanyahSansPreview'; src:url('https://media.rakeenapp.com/fonts/thmanyah/ThmanyahSans-Bold.otf') format('opentype'); font-weight:700; font-display:swap;}
+
+/* Official Saudi Riyal sign (U+20C1) — self-hosted, since almost no system
+   font ships a glyph for it yet (added Unicode 17.0, Sept 2025). Any text
+   node rendering that character MUST sit inside .rk-riyal or it shows as a
+   tofu box on most devices. */
+@font-face{font-family:'saudi_riyal'; src:url('/fonts/saudi-riyal/saudi_riyal.woff2') format('woff2'); font-weight:400; font-display:swap;}
+@font-face{font-family:'saudi_riyal'; src:url('/fonts/saudi-riyal/saudi_riyal_bold.woff2') format('woff2'); font-weight:700; font-display:swap;}
+
 :root, [data-theme="light"]{
   --lime:#C4FF2B; --lime-deep:#8FCB17; --graphite:#111111; --ivory:#FAFAF5;
   --bg:#FAFAF5; --text:#111111; --card-bg:#FFFFFF;
@@ -29,22 +42,32 @@
 }
 :root{
   --r-sm:8px; --r-md:14px; --r-lg:20px; --r-full:999px;
+  --sidebar-w:236px; --sidebar-w-collapsed:76px;
 }
 *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
 html,body{height:100%;}
 body{
   font-family:'IBM Plex Sans Arabic', sans-serif; background:var(--bg); color:var(--text);
-  -webkit-font-smoothing:antialiased; overflow:hidden; height:100vh; display:flex;
+  -webkit-font-smoothing:antialiased; overflow:hidden; height:100vh; height:100dvh; display:flex;
   transition:background .2s ease, color .2s ease;
 }
 .mono{font-family:'IBM Plex Mono', monospace; direction:ltr; unicode-bidi:isolate;}
 button{font-family:inherit; cursor:pointer;}
 
 /* ===== Sidebar ===== */
-.sidebar{width:230px; flex-shrink:0; background:var(--card-bg); border-inline-end:1px solid var(--line); display:flex; flex-direction:column; padding:18px 14px;}
-.sidebar-logo{display:flex; align-items:center; gap:9px; padding:8px 10px 20px;}
+.sidebar{position:relative; width:var(--sidebar-w); flex-shrink:0; background:var(--card-bg); border-inline-end:1px solid var(--line); display:flex; flex-direction:column; padding:18px 14px; transition:width .22s cubic-bezier(.4,0,.2,1);}
+.sidebar-top{display:flex; align-items:center; justify-content:space-between; gap:6px; padding:8px 10px 20px 4px;}
+.sidebar-logo{display:flex; align-items:center; gap:9px; min-width:0;}
 .sidebar-logo img{height:22px; width:auto; display:block;}
-.nav-section-label{font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; padding:14px 12px 8px; display:flex; align-items:center; gap:7px;}
+.sidebar-logo-mark{display:none; width:30px; height:30px; border-radius:var(--r-sm); background:var(--lime); color:var(--graphite); align-items:center; justify-content:center; font-weight:800; font-size:14px; flex-shrink:0;}
+.sidebar-collapse-btn{display:flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:var(--r-sm); border:none; background:none; color:var(--muted); flex-shrink:0; transition:background .15s ease, color .15s ease;}
+.sidebar-collapse-btn:hover{background:var(--surf1); color:var(--text);}
+.sidebar-collapse-btn svg{width:15px; height:15px; transition:transform .2s ease;}
+/* Section dividers double as a hard-earned, at-a-glance "map" of the sidebar —
+   each group's dot reuses the same domain-accent tokens as its charts/badges
+   elsewhere, so the sidebar itself teaches the color coding instead of just
+   using it. */
+.nav-section-label{font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; padding:14px 12px 8px; display:flex; align-items:center; gap:7px; white-space:nowrap; overflow:hidden;}
 .nav-section-label::before{content:""; width:6px; height:6px; border-radius:50%; background:var(--muted); flex-shrink:0;}
 .nav-sec-ops::before{background:var(--acc-ops);}
 .nav-sec-res::before{background:var(--acc-res);}
@@ -55,21 +78,58 @@ button{font-family:inherit; cursor:pointer;}
   color:var(--muted); font-weight:700; font-size:13px; width:100%; text-align:start; margin-bottom:2px;
   transition:background .15s ease, color .15s ease;
 }
-.nav-item svg{width:17px; height:17px; flex-shrink:0;}
+.nav-item svg{width:17px; height:17px; flex-shrink:0; transition:transform .15s ease;}
+.nav-label{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .nav-item.active{background:linear-gradient(135deg, var(--graphite), #262626); color:var(--lime); box-shadow:0 4px 14px rgba(0,0,0,0.18);}
 [data-theme="dark"] .nav-item.active{background:linear-gradient(135deg, #232323, #171717);}
 .nav-item:not(.active):hover{background:var(--surf1); color:var(--text);}
+.nav-item:not(.active):hover svg{transform:scale(1.08);}
 .nav-item .soon-badge{margin-inline-start:auto; font-size:9px; font-weight:700; opacity:0.5; background:var(--surf2); padding:2px 6px; border-radius:var(--r-full);}
 .sidebar-spacer{flex:1;}
 .sidebar-owner{display:flex; align-items:center; gap:10px; padding:12px; border-radius:var(--r-md); background:var(--surf1);}
 .owner-avatar{width:34px; height:34px; border-radius:50%; background:var(--lime); color:var(--graphite); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; flex-shrink:0;}
-.owner-text{display:flex; flex-direction:column; line-height:1.3;}
-.owner-name{font-weight:800; font-size:12px;}
-.owner-role{font-size:10.5px; color:var(--muted); font-weight:600;}
+.owner-text{display:flex; flex-direction:column; line-height:1.3; min-width:0;}
+.owner-name{font-weight:800; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.owner-role{font-size:10.5px; color:var(--muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+
+/* Collapsed desktop rail — a persisted per-browser preference (see
+   initSidebarCollapse() in rakeen-dashboard.js), never applied under 900px:
+   the mobile sidebar is an off-canvas drawer, either fully open or fully
+   hidden, so "collapsed" has no meaning there (neutralized defensively in
+   rakeen-dashboard-responsive.css in case the class persists across a
+   live window resize). */
+.sidebar.collapsed{width:var(--sidebar-w-collapsed); padding-inline:10px;}
+.sidebar.collapsed .sidebar-top{justify-content:center; padding-inline:0;}
+.sidebar.collapsed .sidebar-logo-full{display:none;}
+.sidebar.collapsed .sidebar-logo-mark{display:flex;}
+.sidebar.collapsed .sidebar-collapse-btn{position:absolute; inset-inline-start:calc(var(--sidebar-w-collapsed) - 13px); top:22px; background:var(--card-bg); border:1px solid var(--line); box-shadow:var(--shadow-sm); width:24px; height:24px; z-index:1;}
+.sidebar.collapsed .sidebar-collapse-btn svg{transform:scaleX(-1);}
+.sidebar.collapsed .nav-section-label{justify-content:center; padding-inline:0; font-size:0;}
+.sidebar.collapsed .nav-item{justify-content:center; padding-inline:0;}
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .soon-badge{display:none;}
+.sidebar.collapsed .sidebar-owner{justify-content:center; padding:10px;}
+.sidebar.collapsed .owner-text,
+.sidebar.collapsed .auth-util-btn{display:none;}
+
+/* ===== Topbar notifications — mirrors the real Home status banner
+   (computeRealAttentionItems in rakeen-dashboard.js), reachable from any
+   screen instead of only from Home. Never a separate/fake alert source. */
+.topbar-notif-btn{position:relative; display:flex; align-items:center; justify-content:center; width:38px; height:38px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--card-bg); color:var(--muted); flex-shrink:0; transition:background .15s ease, color .15s ease, border-color .15s ease;}
+.topbar-notif-btn:hover{background:var(--surf1); color:var(--text); border-color:var(--lime-deep);}
+.topbar-notif-btn svg{width:17px; height:17px;}
+.topbar-notif-badge{position:absolute; top:-4px; inset-inline-end:-4px; min-width:16px; height:16px; padding:0 4px; border-radius:var(--r-full); background:var(--danger); color:#fff; font-size:9.5px; font-weight:800; display:flex; align-items:center; justify-content:center; line-height:1; border:2px solid var(--card-bg);}
+.topbar-notif-badge.tier-attention{background:var(--amber);}
 
 /* ===== Main ===== */
 .main{flex:1; display:flex; flex-direction:column; overflow:hidden;}
-.topbar{height:64px; flex-shrink:0; display:flex; align-items:center; gap:16px; padding:0 28px; border-bottom:1px solid var(--line); background:var(--card-bg);}
+/* min-height (not height) + a safe-area padding-top: on a device that
+   overlays a translucent status bar on top of the page (installed as a
+   home-screen web app — see appleWebApp.statusBarStyle in dashboard/page.tsx
+   — or any browser context that reports a real inset), the bar grows
+   downward to clear it instead of the title/hamburger rendering underneath
+   it; everywhere else env() resolves to 0 and this is a no-op. */
+.topbar{min-height:64px; padding-top:env(safe-area-inset-top, 0px); flex-shrink:0; display:flex; align-items:center; gap:16px; padding-inline:28px; border-bottom:1px solid var(--line); background:var(--card-bg);}
 .topbar h1{font-size:17px; font-weight:800;}
 .topbar-spacer{flex:1;}
 .content{flex:1; overflow-y:auto; padding:28px 32px;}
@@ -125,8 +185,19 @@ button{font-family:inherit; cursor:pointer;}
 .kpi-delta.down{color:var(--danger);}
 
 /* ===== Two-column: trend + top products ===== */
-.row-2col{display:grid; grid-template-columns:1.4fr 1fr; gap:16px;}
-.panel{background:var(--card-bg); border:1px solid var(--line); border-radius:var(--r-lg); padding:22px;}
+/* Same class of bug as .panel/.menu-table-panel above: the base utility
+   itself never had a margin-bottom — it only ever looked spaced because
+   every instance so far happened to carry a modifier class (.inv-top-row,
+   .heroes-row) that added its own. Two bare .row-2col rows back to back
+   (Home screen) had zero gap between them and the section right after. */
+.row-2col{display:grid; grid-template-columns:1.4fr 1fr; gap:16px; margin-bottom:16px;}
+/* margin-bottom was missing entirely — .panel itself had zero spacing, so
+   any two bare .panel blocks stacked directly (no other element with its
+   own margin between them) rendered glued together with no visible gap at
+   all. Real, reported bug (Purchases: "سجل المشتريات" panel touching
+   "مقارنة أسعار الموردين" right under it) once the panel that used to sit
+   between them was removed. */
+.panel{background:var(--card-bg); border:1px solid var(--line); border-radius:var(--r-lg); padding:22px; margin-bottom:16px;}
 .panel-title{font-size:13.5px; font-weight:800; margin-bottom:18px;}
 
 /* ===== Home: real day × hour sales grid ===== */
@@ -212,9 +283,15 @@ button{font-family:inherit; cursor:pointer;}
 .attention-action{flex-shrink:0; padding:8px 13px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--card-bg); font-weight:700; font-size:11px; color:var(--text);}
 .attention-empty{padding:20px; text-align:center; font-size:12px; font-weight:600; color:var(--muted);}
 
-/* ===== AI Decision Cards ===== */
+/* ===== AI Decision Cards — both real call sites (Customers' "ملاحظة ركين",
+   Staff's training tip) ever render exactly one .decision-card, never more,
+   so a 3-column grid always left 2 empty thirds on desktop and (before the
+   mobile override already fixed this at small widths) squeezed the one real
+   card's paragraph into a ~110px column, wrapping almost one word per line.
+   Single column at every width — there's nothing to actually distribute
+   across columns. */
 .decision-panel{margin-bottom:16px;}
-.decision-cards{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
+.decision-cards{display:grid; grid-template-columns:minmax(0,1fr); gap:14px;}
 .decision-card{padding:16px; border-radius:var(--r-md); background:var(--surf1); border:1px solid var(--line);}
 .decision-what{font-size:13px; font-weight:800; line-height:1.5; margin-bottom:8px;}
 .decision-why{font-size:11px; font-weight:600; color:var(--muted); line-height:1.6; padding-inline-start:14px; position:relative;}
@@ -240,6 +317,27 @@ button{font-family:inherit; cursor:pointer;}
 .modal-overlay.show .modal-card{transform:scale(1);}
 .modal-head{display:flex; justify-content:space-between; align-items:center; padding:18px 22px 0; font-weight:800; font-size:14.5px;}
 
+/* ===== Image crop-on-upload modal — reused by every branding image upload
+   (loyalty logo/banner/icon, business logo, storefront logo/banner) so a
+   merchant can recompose an arbitrarily-shaped photo into the exact slot it
+   will render in, instead of hoping CSS object-fit crops it acceptably. */
+.crop-modal-card{width:380px; max-width:92vw;}
+.crop-viewport-wrap{display:flex; justify-content:center; padding:18px 22px 0;}
+.crop-viewport{position:relative; overflow:hidden; border-radius:12px; background:#111; cursor:grab; touch-action:none; max-width:100%;}
+.crop-viewport.dragging{cursor:grabbing;}
+/* max-width:none overrides Tailwind Preflight's global `img{max-width:100%}`
+   (app/globals.css) — without it, the browser silently clamped this image's
+   rendered width to the viewport's width no matter what JS set img.style.width
+   to, so zooming only ever moved the translate() offset with no visible size
+   change: looked exactly like panning, never zooming. */
+.crop-viewport img{position:absolute; top:0; left:0; max-width:none; transform-origin:0 0; user-select:none; pointer-events:none; will-change:transform;}
+.crop-zoom-row{display:flex; align-items:center; gap:10px; padding:16px 22px 0; color:var(--muted);}
+.crop-zoom-row input[type="range"]{flex:1; padding:0; border:none; background:none; accent-color:var(--lime); height:20px;}
+.crop-hint{font-size:11px; font-weight:600; color:var(--muted); text-align:center; padding:8px 22px 0;}
+.crop-actions{display:flex; gap:10px; padding:16px 22px 20px;}
+.crop-cancel-btn{flex:1; padding:11px 16px; border-radius:var(--r-sm); border:1px solid var(--line); background:transparent; color:var(--text); font-weight:700; font-size:12.5px;}
+.crop-actions .menu-add-btn-primary{flex:1;}
+
 .cmdk-overlay{position:fixed; inset:0; z-index:600; background:rgba(17,17,17,0.4); display:flex; align-items:flex-start; justify-content:center; padding-top:14vh; opacity:0; pointer-events:none; transition:opacity .15s ease;}
 .cmdk-overlay.show{opacity:1; pointer-events:auto;}
 .cmdk-modal{width:560px; max-width:90vw; background:var(--card-bg); border-radius:var(--r-lg); box-shadow:var(--shadow-md); overflow:hidden; transform:scale(0.97); transition:transform .15s ease;}
@@ -261,7 +359,11 @@ button{font-family:inherit; cursor:pointer;}
 .seller-row{display:flex; align-items:center; gap:10px; padding:8px 6px; border-radius:8px; transition:background .12s ease;}
 .seller-row:hover{background:var(--surf1);}
 .seller-rank{width:22px; height:22px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; background:var(--surf2); color:var(--muted);}
-.seller-rank.best{font-size:12px;}
+.seller-rank svg{width:12px; height:12px;}
+.order-online-badge{display:inline-flex; vertical-align:middle;}
+.order-online-badge svg{width:12px; height:12px;}
+.oh-inline-icon{display:inline-flex; flex-shrink:0;}
+.oh-inline-icon svg{width:14px; height:14px;}
 #bestSellersList .seller-row:first-child .seller-rank{background:var(--lime); color:var(--graphite);}
 .seller-info{flex:1; min-width:0;}
 .seller-name{font-weight:700; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
@@ -313,10 +415,10 @@ button{font-family:inherit; cursor:pointer;}
    actual room. Distinct on purpose from Home's neutral-card/graphite-lime
    language — Orders is about scanning state at a glance mid-shift, not
    reading a single trusted number, so it leans on bold semantic color
-   instead. Reuses the same 4 status tokens (success/danger/amber/muted)
+   instead. Reuses the same 3 status tokens (success/danger/amber)
    everywhere on this screen — grid, tags, floor tiles — for one coherent
    read. */
-.order-status-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px;}
+.order-status-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px;}
 .order-status-card{
   display:flex; align-items:center; gap:12px;
   padding:14px; border-radius:16px; border:1px solid color-mix(in srgb, var(--stat-color) 20%, transparent);
@@ -325,31 +427,35 @@ button{font-family:inherit; cursor:pointer;}
 .order-status-card.completed{ --stat-color:var(--success-text); }
 .order-status-card.cancelled{ --stat-color:var(--danger); }
 .order-status-card.refunded{ --stat-color:var(--amber); }
-.order-status-card.voided{ --stat-color:var(--muted); }
 .osc-icon{
   width:38px; height:38px; border-radius:11px; flex-shrink:0;
   display:flex; align-items:center; justify-content:center;
   background:var(--stat-color); color:#fff;
 }
 .osc-icon svg{width:18px; height:18px;}
-/* Voided is the deliberately quiet one — flat chip instead of solid-fill,
-   since it's the least-consequential status on this screen and shouldn't
-   compete for attention with completed/cancelled/refunded. */
-.order-status-card.voided .osc-icon{background:var(--surf2); color:var(--text);}
 .osc-count{font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:20px; line-height:1;}
 .osc-label{font-size:10.5px; font-weight:700; color:var(--muted); margin-top:3px;}
-@media (max-width:640px){ .order-status-grid{grid-template-columns:repeat(2,1fr);} }
+/* Column count at ≤900px comes from rakeen-dashboard-responsive.css (loads
+   after this file and is the sole authority there) — just size tweaks here. */
+@media (max-width:640px){ .order-status-grid{gap:8px;} .order-status-card{padding:10px; gap:8px;} .osc-icon{width:32px; height:32px;} .osc-count{font-size:16px;} }
 /* Dark theme's success/danger/amber values are much lighter (built to read
    as text on a dark page) — white icons on top of them as a solid fill
    drop to ~2:1 contrast, nearly invisible. Verified per-pair: light-theme
    values want white (~6:1), dark-theme values want graphite (~7–10:1). */
-[data-theme="dark"] .order-status-card:not(.voided) .osc-icon{color:var(--graphite);}
+[data-theme="dark"] .order-status-card .osc-icon{color:var(--graphite);}
 
 .panel-top-row{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px;}
 .order-filters{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
-.seg-tabs{display:flex; gap:3px; background:var(--surf1); border-radius:var(--r-sm); padding:3px;}
-.seg-tab{padding:7px 12px; border-radius:6px; border:none; background:none; color:var(--muted); font-weight:700; font-size:11.5px;}
-.seg-tab.active{background:var(--card-bg); color:var(--text); box-shadow:0 1px 3px rgba(17,17,17,0.1);}
+/* Unified with .settings-tabs' pill treatment — this was the one holdout
+   still using a flat white/text active state (box+square corners, no lime,
+   no dark pill) instead of the dark-gradient-pill language every other
+   tab/chip group in the app already uses for "this one's selected". */
+.seg-tabs{display:flex; gap:3px; background:var(--surf1); border-radius:var(--r-full); padding:4px; width:fit-content; max-width:100%; overflow-x:auto;}
+.seg-tab{min-height:44px; padding:9px 16px; border-radius:var(--r-full); border:none; background:none; color:var(--muted); font-weight:700; font-size:11.5px; white-space:nowrap; flex-shrink:0; box-sizing:border-box; transition:background .15s ease, color .15s ease, box-shadow .15s ease;}
+.seg-tab:hover:not(.active){background:rgba(17,17,17,0.05); color:var(--text);}
+[data-theme="dark"] .seg-tab:hover:not(.active){background:rgba(250,250,245,0.07);}
+.seg-tab.active{background:linear-gradient(135deg, var(--graphite), #262626); color:var(--lime); box-shadow:0 4px 14px rgba(0,0,0,0.18);}
+[data-theme="dark"] .seg-tab.active{background:linear-gradient(135deg, #232323, #171717);}
 .order-filters input{padding:8px 12px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-size:12px; font-family:inherit; width:180px;}
 
 .orders-table{display:flex; flex-direction:column;}
@@ -411,8 +517,20 @@ button{font-family:inherit; cursor:pointer;}
 .order-status-tag.completed{background:color-mix(in srgb, var(--success-text) 15%, transparent); color:var(--success-text);}
 .order-status-tag.cancelled{background:color-mix(in srgb, var(--danger) 15%, transparent); color:var(--danger);}
 .order-status-tag.refunded{background:color-mix(in srgb, var(--amber) 15%, transparent); color:var(--amber);}
-.order-status-tag.voided{background:var(--surf2); color:var(--muted);}
 .orders-empty{padding:30px; text-align:center; font-size:12.5px; font-weight:600; color:var(--muted);}
+
+/* Which channel an order came through, as a colored tag — same treatment as
+   .order-status-tag, reusing the app's existing 5-way categorical palette
+   (--acc-*) so it doesn't invent a 4th color language on one screen. */
+.order-channel-tags{display:flex; flex-wrap:wrap; align-items:center; gap:5px;}
+.order-channel-tag{display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:800; padding:4px 9px; border-radius:var(--r-full); width:fit-content;}
+.order-channel-tag svg{width:11px; height:11px; flex-shrink:0;}
+.order-channel-tag.dine_in{background:var(--acc-ops-bg); color:var(--acc-ops);}
+.order-channel-tag.pickup{background:var(--acc-team-bg); color:var(--acc-team);}
+.order-channel-tag.delivery{background:var(--acc-res-bg); color:var(--acc-res);}
+.order-online-tag{display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:800; padding:4px 9px; border-radius:var(--r-full); width:fit-content; background:color-mix(in srgb, var(--lime, #C4FF2B) 20%, transparent); color:var(--lime-deep, #7BAD0F);}
+.order-online-tag svg{width:11px; height:11px; flex-shrink:0;}
+.order-branch-note{font-size:10.5px; font-weight:600; color:var(--muted);}
 
 /* ===== Inventory screen — resource-health identity: the same 3-tier
    ok/warn/critical language the stock bars already use, carried up into
@@ -433,6 +551,14 @@ button{font-family:inherit; cursor:pointer;}
 .inv-hero-label{font-size:11.5px; font-weight:700; color:var(--muted);}
 .inv-hero-value{font-size:19px; font-weight:800; margin-top:2px;}
 .inv-hero-detail{font-size:10.5px; font-weight:600; color:var(--muted); margin-top:3px;}
+
+/* Two cross-nav/guidance hints used to be two bare .menu-search-toolbar rows
+   with no box around them — plain floating text that read as an empty,
+   broken toolbar rather than intentional guidance. One bordered card now,
+   consistent with every other hint on this screen. */
+.inv-hints-box{display:flex; flex-direction:column; gap:10px; margin-bottom:16px;}
+.inv-hints-row{display:flex; align-items:center; gap:10px; padding-top:10px; border-top:1px solid var(--line);}
+.inv-hints-row span{flex:1;}
 
 .stock-list{display:flex; flex-direction:column; gap:12px;}
 .stock-row{display:flex; align-items:center; gap:14px;}
@@ -455,7 +581,6 @@ button{font-family:inherit; cursor:pointer;}
 .mover-badge.slow{background:rgba(168,122,30,0.14); color:var(--amber);}
 
 /* ===== Accounting screen ===== */
-.acct-toggle-btn{padding:8px 14px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-weight:700; font-size:11.5px;}
 /* Net profit — the single most important number on this screen, given the
    same hero-card treatment as Home's KPI row so the brand identity carries
    across screens instead of every page inventing its own "important number"
@@ -494,8 +619,6 @@ button{font-family:inherit; cursor:pointer;}
 .wf-amount.neg{color:var(--danger);}
 .wf-amount.final{color:var(--success-text); font-size:16px;}
 
-.acct-detail-panel{margin-top:16px; margin-bottom:16px;}
-.acct-detail-panel.hidden{display:none;}
 .acct-subtitle{font-size:11.5px; font-weight:700; color:var(--muted); margin-bottom:12px;}
 .recon-note{padding:14px; border-radius:var(--r-md); background:rgba(143,203,23,0.1); font-size:12.5px; font-weight:700; color:var(--success-text); line-height:1.7;}
 
@@ -548,13 +671,12 @@ button{font-family:inherit; cursor:pointer;}
 .cust-info{flex:1; min-width:0;}
 .cust-name{font-weight:700; font-size:13px; display:flex; align-items:center; gap:7px; flex-wrap:wrap; row-gap:4px;}
 .cust-vip-badge{font-size:9px; font-weight:800; padding:2px 7px; border-radius:var(--r-full); background:color-mix(in srgb, var(--lime) 16%, transparent); color:var(--success-text);}
-.cust-note-badge{font-size:9px; font-weight:800; padding:2px 7px; border-radius:var(--r-full); background:color-mix(in srgb, var(--amber) 16%, transparent); color:var(--amber);}
 .cust-meta{font-size:10.5px; color:var(--muted); font-weight:600; margin-top:2px;}
 .cust-end{display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;}
 .cust-spend{font-weight:800; font-size:13px; direction:ltr; unicode-bidi:isolate;}
 .cust-call-btn{
-  width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-  background:var(--surf2); color:var(--text); flex-shrink:0;
+  width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background:var(--surf2); color:var(--text); flex-shrink:0; box-sizing:border-box;
 }
 .cust-call-btn:hover{background:var(--lime-deep); color:var(--graphite);}
 
@@ -593,23 +715,41 @@ button{font-family:inherit; cursor:pointer;}
 .cust-rfm-tag.lost{background:color-mix(in srgb, var(--danger) 12%, transparent); color:var(--danger);}
 .cust-rfm-tag.potential, .cust-rfm-tag.new{background:var(--surf2); color:var(--muted);}
 
-/* ===== Loyalty screen ===== */
-.loyalty-cards-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:14px;}
-.loyalty-card{border-radius:20px; padding:18px; color:#fff; position:relative; overflow:hidden; box-shadow:0 10px 24px rgba(17,17,17,0.16);}
-.loyalty-card.tier-bronze{background:linear-gradient(135deg,#8a6a4a,#6b4f37);}
-.loyalty-card.tier-silver{background:linear-gradient(135deg,#9aa0a6,#6e7378);}
-.loyalty-card.tier-gold{background:linear-gradient(135deg,#c9a227,#8a6f19);}
-.loyalty-card.tier-platinum{background:linear-gradient(135deg,#3a3a3a,#111);}
-.lc-top{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;}
-.lc-tier-label{font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; opacity:0.85;}
-.lc-name{font-weight:800; font-size:14px; margin-top:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-.lc-points{font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:26px; margin-top:4px; direction:ltr; unicode-bidi:isolate;}
-.lc-points-label{font-size:9.5px; opacity:0.75; font-weight:700;}
-.lc-bottom{display:flex; align-items:center; gap:10px; margin-top:18px;}
-.lc-qr{width:52px; height:52px; border-radius:10px; background:#fff; padding:5px; flex-shrink:0; display:flex; align-items:center; justify-content:center;}
-.lc-qr img{width:100%; height:100%; display:block;}
-.lc-card-link-btn{flex:1; height:52px; border-radius:12px; border:1.5px solid rgba(255,255,255,0.35); background:rgba(255,255,255,0.1); color:#fff; font-weight:700; font-size:11.5px; white-space:normal; line-height:1.3; padding:0 10px;}
-.lc-card-link-btn:hover{background:rgba(255,255,255,0.18);}
+/* ===== Loyalty screen — "أبرز الأعضاء" =====
+   Used to be a grid of full physical-card replicas, one per member — at real
+   scale (hundreds of members, almost all still Bronze since tiers only
+   unlock at real spend thresholds) that's a wall of near-identical heavy
+   brown gradient cards, not a usable member list. Reworked as a compact,
+   scannable row list — same visual language as Customers' .cust-row, so the
+   two "list of people" screens in the app read as one system — with tier
+   shown as a small colored badge instead of the row's entire background. */
+.loyalty-cards-grid{display:flex; flex-direction:column;}
+.loy-row{display:flex; align-items:center; gap:14px; padding:12px 14px; border:1px solid var(--line); border-radius:14px; margin-bottom:8px; transition:border-color .12s ease;}
+.loy-row:last-child{margin-bottom:0;}
+.loy-row:hover{border-color:var(--lime-deep);}
+.loy-avatar{width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; flex-shrink:0;}
+.loy-info{flex:1; min-width:0;}
+.loy-name{font-weight:700; font-size:13px; display:flex; align-items:center; gap:7px; flex-wrap:wrap; row-gap:4px;}
+.loy-tier-badge{font-size:9px; font-weight:800; padding:2px 8px; border-radius:var(--r-full); flex-shrink:0; text-transform:uppercase; letter-spacing:0.04em;}
+.loy-meta{font-size:10.5px; color:var(--muted); font-weight:600; margin-top:2px;}
+.loy-card-btn{
+  width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  background:var(--surf2); color:var(--text); box-sizing:border-box;
+}
+.loy-card-btn:hover{background:var(--lime-deep); color:var(--graphite);}
+.loy-avatar.tier-bronze, .loy-tier-badge.tier-bronze{background:color-mix(in srgb, #8a6a4a 16%, transparent); color:#8a6a4a;}
+.loy-avatar.tier-silver, .loy-tier-badge.tier-silver{background:color-mix(in srgb, #6e7378 16%, transparent); color:#6e7378;}
+.loy-avatar.tier-gold, .loy-tier-badge.tier-gold{background:color-mix(in srgb, #c9a227 18%, transparent); color:#a3821e;}
+.loy-avatar.tier-platinum, .loy-tier-badge.tier-platinum{background:var(--graphite); color:var(--lime);}
+[data-theme="dark"] .loy-avatar.tier-platinum, [data-theme="dark"] .loy-tier-badge.tier-platinum{background:#262626; color:var(--lime);}
+
+/* "المستويات" tab — one editable row per tier (real owner feedback: this
+   ladder used to be fixed, no way to set your own thresholds/discounts). */
+.loy-tier-edit-row{display:flex; align-items:flex-end; gap:12px; padding:12px 0; border-bottom:1px solid var(--line); flex-wrap:wrap;}
+.loy-tier-edit-row:last-child{border-bottom:none;}
+.loy-tier-edit-label{display:flex; align-items:center; gap:8px; width:84px; flex-shrink:0; font-weight:800; font-size:12.5px; padding-bottom:11px;}
+.loy-tier-edit-dot{width:10px; height:10px; border-radius:50%; flex-shrink:0;}
+.loy-tier-edit-row .rk-field{flex:1; min-width:120px;}
 
 /* Tier cards reuse the exact metallic gradients the loyalty cards above use
    — same identity, so "Gold" reads as the same gold everywhere on this
@@ -619,7 +759,13 @@ button{font-family:inherit; cursor:pointer;}
 .loyalty-tier-card.bronze{background:linear-gradient(135deg,#8a6a4a,#6b4f37);}
 .loyalty-tier-card.silver{background:linear-gradient(135deg,#9aa0a6,#6e7378);}
 .loyalty-tier-card.gold{background:linear-gradient(135deg,#c9a227,#8a6f19);}
-.loyalty-tier-card.platinum{background:linear-gradient(135deg,#3a3a3a,#111);}
+/* Platinum is the top tier — echo the same dark+lime "this is the active/
+   premium one" language the rest of the app already uses (.nav-item.active,
+   .seg-tab.active, etc.) instead of a plain black gradient with no Rakeen
+   identity in it at all. Real owner feedback: bring the brand's own lime
+   accent out more on this screen. */
+.loyalty-tier-card.platinum{background:linear-gradient(135deg, var(--graphite), #262626);}
+.loyalty-tier-card.platinum .ltc-discount{color:var(--lime);}
 .ltc-name{font-weight:800; font-size:14px;}
 .ltc-range{font-size:10.5px; font-weight:600; opacity:0.85; margin-top:4px;}
 .ltc-discount{font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:20px; margin-top:12px; direction:ltr; unicode-bidi:isolate;}
@@ -631,8 +777,9 @@ button{font-family:inherit; cursor:pointer;}
 
 /* ===== Reports screen ===== */
 .report-type-chips{display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap;}
-.report-type-chips button{padding:10px 16px; border-radius:var(--r-full); border:1.5px solid var(--line); background:var(--card-bg); color:var(--muted); font-weight:700; font-size:12.5px;}
-.report-type-chips button.active{background:var(--graphite); border-color:var(--graphite); color:var(--lime);}
+.report-type-chips button{padding:10px 16px; min-height:44px; box-sizing:border-box; border-radius:var(--r-full); border:1.5px solid var(--line); background:var(--card-bg); color:var(--muted); font-weight:700; font-size:12.5px;}
+.report-type-chips button.active{background:linear-gradient(135deg, var(--graphite), #262626); border-color:var(--graphite); color:var(--lime); box-shadow:0 4px 14px rgba(0,0,0,0.18);}
+[data-theme="dark"] .report-type-chips button.active{background:linear-gradient(135deg, #232323, #171717);}
 .report-stat-row{display:flex; justify-content:space-between; padding:11px 0; border-bottom:1px solid var(--line); font-size:13px; font-weight:600; color:var(--muted);}
 .report-stat-row .mono{color:var(--text); font-weight:700;}
 .report-stat-row.total{border-bottom:none; font-weight:800; color:var(--text); padding-top:13px;}
@@ -650,7 +797,10 @@ button{font-family:inherit; cursor:pointer;}
 .report-export-bar{display:flex; gap:10px; margin-top:16px;}
 .report-export-action{display:flex; align-items:center; gap:8px; padding:11px 18px; border-radius:var(--r-md); border:1px solid var(--line); background:var(--card-bg); color:var(--text); font-weight:700; font-size:12.5px;}
 .report-export-action:hover{background:var(--surf1);}
-.dash-toast{position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(10px); background:var(--graphite); color:var(--ivory); padding:12px 22px; border-radius:var(--r-md); font-weight:700; font-size:13px; z-index:300; opacity:0; transition:opacity .2s ease, transform .2s ease; pointer-events:none;}
+/* z-index was 300 — under the mobile bottom nav (510), FAB (511) and
+   hamburger (520), so on any phone the toast rendered fully hidden behind
+   the (opaque) nav bar instead of on top of it. 600 clears all three. */
+.dash-toast{position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(10px); background:var(--graphite); color:var(--ivory); padding:12px 22px; border-radius:var(--r-md); font-weight:700; font-size:13px; z-index:600; opacity:0; transition:opacity .2s ease, transform .2s ease; pointer-events:none;}
 .dash-toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
 
 /* ===== Delivery Platforms screen ===== */
@@ -672,31 +822,214 @@ button{font-family:inherit; cursor:pointer;}
 .platform-note{font-size:10.5px; color:var(--muted); font-weight:600; line-height:1.6; margin-top:8px;}
 
 /* ===== AI Advisor screen ===== */
-.ai-chat-panel{display:flex; flex-direction:column; height:calc(100vh - 160px);}
-.ai-chat-greeting{display:flex; align-items:flex-start; gap:14px; margin-bottom:18px;}
-.ai-avatar-lg{width:44px; height:44px; border-radius:50%; background:var(--lime); color:var(--graphite); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:18px; flex-shrink:0;}
+/* No more free-text input (see below — this is a fixed-answer picker now,
+   not a chat you type into), so no more internal fixed-height/scroll panel
+   fighting the outer .content scroll for room either: that combination was
+   the real source of two separate real-device bugs (iOS's 100vh-vs-toolbar
+   mismatch, and the greeting block visually competing with the answer log
+   for the same space). It now flows in normal document flow exactly like
+   every other dashboard screen — .content is the only scroll container. */
+.ai-chat-panel{display:flex; flex-direction:column;}
+.ai-chat-greeting{display:flex; align-items:center; gap:14px; margin-bottom:18px;}
+/* The real wordmark (a wide cursive "ركين") doesn't survive being cropped
+   into a small square/circle badge — shown plain instead, same treatment
+   as .sidebar-logo and .auth-logo-row use elsewhere on this exact page. */
+.ai-avatar-lg{height:32px; width:auto; flex-shrink:0;}
 .ai-greeting-title{font-weight:800; font-size:14.5px; margin-bottom:5px;}
 .ai-greeting-sub{font-size:12px; color:var(--muted); font-weight:600; line-height:1.6; max-width:480px;}
-.ai-suggested-questions{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px;}
-.ai-suggest-chip{padding:9px 15px; border-radius:var(--r-full); border:1.5px solid var(--line); background:var(--card-bg); color:var(--text); font-weight:700; font-size:12px;}
-.ai-suggest-chip:hover{border-color:var(--lime-deep); background:rgba(196,255,43,0.06);}
-.ai-conversation{flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:14px; margin-bottom:14px;}
+/* Always visible, never collapses — this is the only way left to ask
+   something, so it has to stay reachable for a second and third question
+   the same way the first one was asked. */
+.ai-suggested-questions{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px;}
+.ai-suggest-chip{padding:9px 15px; border-radius:var(--r-full); border:1.5px solid var(--line); background:var(--card-bg); color:var(--text); font-weight:700; font-size:12px; transition:border-color .15s ease, background .2s cubic-bezier(.34,1.56,.64,1), color .2s ease, transform .15s cubic-bezier(.34,1.56,.64,1); animation:ai-chip-in .35s cubic-bezier(.16,1,.3,1) both;}
+.ai-suggest-chip:nth-child(1){animation-delay:.02s;}
+.ai-suggest-chip:nth-child(2){animation-delay:.06s;}
+.ai-suggest-chip:nth-child(3){animation-delay:.1s;}
+.ai-suggest-chip:nth-child(4){animation-delay:.14s;}
+.ai-suggest-chip:nth-child(5){animation-delay:.18s;}
+.ai-suggest-chip:nth-child(6){animation-delay:.22s;}
+.ai-suggest-chip:nth-child(7){animation-delay:.26s;}
+@keyframes ai-chip-in{from{opacity:0; transform:translateY(6px) scale(.92);}to{opacity:1; transform:translateY(0) scale(1);}}
+.ai-suggest-chip:hover{border-color:var(--lime-deep); background:rgba(196,255,43,0.06); transform:translateY(-1px);}
+.ai-suggest-chip:active{transform:translateY(0) scale(0.93);}
+.ai-suggest-chip.active{background:var(--graphite); border-color:var(--graphite); color:var(--lime); transform:scale(1.04);}
+.ai-conversation{display:flex; flex-direction:column; gap:14px;}
 .ai-msg{max-width:78%; padding:12px 16px; border-radius:var(--r-md); font-size:12.5px; font-weight:600; line-height:1.7;}
 .ai-msg.user{align-self:flex-end; background:var(--graphite); color:var(--ivory); border-bottom-end-radius:4px;}
 .ai-msg.bot{align-self:flex-start; background:var(--surf1); border:1px solid var(--line); border-bottom-start-radius:4px;}
-.ai-input-row{display:flex; gap:10px; padding-top:14px; border-top:1px solid var(--line);}
-.ai-input-row input{flex:1; padding:12px 16px; border-radius:var(--r-full); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-size:12.5px;}
-.ai-input-row button{padding:12px 22px; border-radius:var(--r-full); border:none; background:var(--lime); color:var(--graphite); font-weight:800; font-size:12.5px;}
+.ai-typing{align-self:flex-start; display:flex; align-items:center; gap:4px; padding:14px 16px; border-radius:var(--r-md); border-bottom-start-radius:4px; background:var(--surf1); border:1px solid var(--line);}
+.ai-typing span{width:6px; height:6px; border-radius:50%; background:var(--muted); animation:ai-typing-bounce 1.2s ease-in-out infinite;}
+.ai-typing span:nth-child(2){animation-delay:.15s;}
+.ai-typing span:nth-child(3){animation-delay:.3s;}
+@keyframes ai-typing-bounce{0%,60%,100%{transform:translateY(0); opacity:.5;}30%{transform:translateY(-4px); opacity:1;}}
 
 /* ===== Settings screen ===== */
-.settings-tabs{display:flex; gap:8px; margin-bottom:18px;}
-.settings-tabs button{padding:10px 16px; border-radius:var(--r-full); border:1.5px solid var(--line); background:var(--card-bg); color:var(--muted); font-weight:700; font-size:12.5px;}
-.settings-tabs button.active{background:var(--graphite); border-color:var(--graphite); color:var(--lime);}
+/* A padded "track" holding the pills, not bare buttons floating on the page
+   background — reads as one control (mutually-exclusive views of the same
+   panel) rather than a loose row of independent buttons. Active state keeps
+   the exact dark-gradient+lime formula .nav-item.active already uses in the
+   sidebar, so "selected" means the same thing everywhere in the app. */
+.settings-tabs{display:flex; gap:3px; margin-bottom:20px; padding:4px; background:var(--surf1); border-radius:var(--r-full); width:fit-content; max-width:100%; overflow-x:auto;}
+.settings-tabs button{display:flex; align-items:center; gap:7px; min-height:44px; padding:9px 18px; border-radius:var(--r-full); border:none; background:transparent; color:var(--muted); font-weight:700; font-size:12.5px; white-space:nowrap; flex-shrink:0; box-sizing:border-box; transition:background .15s ease, color .15s ease, box-shadow .15s ease;}
+.settings-tabs button svg{width:15px; height:15px; flex-shrink:0;}
+.settings-tabs button:hover:not(.active){background:rgba(17,17,17,0.05); color:var(--text);}
+[data-theme="dark"] .settings-tabs button:hover:not(.active){background:rgba(250,250,245,0.07);}
+.settings-tabs button.active{background:linear-gradient(135deg, var(--graphite), #262626); color:var(--lime); box-shadow:0 4px 14px rgba(0,0,0,0.18);}
+[data-theme="dark"] .settings-tabs button.active{background:linear-gradient(135deg, #232323, #171717);}
 .settings-field-row{display:flex; flex-direction:column; gap:6px; margin-bottom:16px; max-width:360px;}
 .settings-field-row label{font-size:11.5px; font-weight:700; color:var(--muted);}
 .settings-field-row input{padding:11px 14px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-size:13px;}
+.settings-field-row input[type="range"]{padding:0; border:none; background:none; accent-color:var(--lime); height:20px;}
+.loyalty-range-value{font-weight:800; color:var(--text); margin-inline-start:4px;}
 .settings-save-btn{padding:11px 22px; border-radius:var(--r-sm); border:none; background:var(--lime); color:var(--graphite); font-weight:800; font-size:12.5px;}
 .settings-identity-preview{display:flex; align-items:center; gap:12px; margin-bottom:22px; padding:16px; border-radius:var(--r-md); background:var(--surf1);}
+
+/* ===== "New Style" settings system (rk-*) — the reusable button/switch/
+   section language every settings & options surface migrates to, page by
+   page. Starts on Settings → معلومات المطعم; do not fork a second variant
+   elsewhere, extend these. */
+
+/* Button scale — replaces one-off .settings-save-btn width/padding
+   overrides scattered per-usage with three real, composable sizes and
+   two real weights. */
+.rk-btn{position:relative; display:inline-flex; align-items:center; justify-content:center; gap:7px; border-radius:var(--r-sm); font-weight:800; border:none; white-space:nowrap; transition:background .15s ease, border-color .15s ease, color .15s ease, transform .1s ease, box-shadow .15s ease;}
+.rk-btn:active:not(:disabled){transform:scale(0.97);}
+.rk-btn svg{width:14px; height:14px; flex-shrink:0;}
+.rk-btn:disabled{opacity:0.5; cursor:default; transform:none;}
+.rk-btn-lg{padding:13px 26px; font-size:13px;}
+.rk-btn-md{padding:10px 18px; font-size:12.5px;}
+.rk-btn-sm{padding:8px 14px; font-size:11.5px;}
+.rk-btn-primary{background:var(--lime); color:var(--graphite);}
+.rk-btn-primary:hover:not(:disabled){background:var(--lime-deep); box-shadow:0 6px 16px rgba(143,203,23,0.35); transform:translateY(-1px);}
+.rk-btn-primary:active:not(:disabled){box-shadow:0 2px 8px rgba(143,203,23,0.3);}
+.rk-btn-secondary{background:var(--card-bg); color:var(--text); border:1.5px solid var(--line);}
+.rk-btn-secondary:hover:not(:disabled){border-color:var(--lime-deep); color:var(--success-text); background:rgba(196,255,43,0.06);}
+.rk-btn-ghost{background:transparent; color:var(--muted); padding-inline:10px;}
+.rk-btn-ghost:hover:not(:disabled){color:var(--text); background:var(--surf1);}
+.rk-btn:focus-visible{outline:none; box-shadow:0 0 0 3px rgba(143,203,23,0.35);}
+
+/* Loading — swaps the label for a spinner without reflowing the button
+   (label goes transparent instead of removed, so width holds steady).
+   Success — a brief self-reverting confirmation state so "حفظ" reads as
+   having actually happened, not just stopped being disabled. */
+.rk-btn.is-loading{color:transparent !important; pointer-events:none;}
+.rk-btn.is-loading::after{content:''; position:absolute; inset:0; margin:auto; width:15px; height:15px; border-radius:50%; border:2px solid rgba(17,17,17,0.2); border-top-color:var(--graphite); animation:rk-spin .6s linear infinite;}
+.rk-btn-secondary.is-loading::after{border-color:rgba(17,17,17,0.15); border-top-color:var(--text);}
+[data-theme="dark"] .rk-btn-secondary.is-loading::after{border-color:rgba(250,250,245,0.2); border-top-color:var(--text);}
+@keyframes rk-spin{to{transform:rotate(360deg);}}
+/* content:attr() overlay instead of overwriting textContent — keeps any
+   icon child intact underneath (invisible, not deleted) rather than losing
+   it the first time a button with an icon reaches a success state. */
+.rk-btn.is-success{background:var(--success-text) !important; color:transparent !important; box-shadow:none; transform:none; pointer-events:none;}
+.rk-btn.is-success::after{content:attr(data-success-label); position:absolute; inset:0; display:flex; align-items:center; justify-content:center; gap:7px; color:#fff; font-weight:800; font-size:inherit;}
+
+/* Section card — one icon+title+subtitle header, repeated identically for
+   every logical group instead of a flat stack of unrelated fields. */
+.rk-section{background:var(--card-bg); border:1px solid var(--line); border-radius:var(--r-lg); padding:22px; margin-bottom:16px;}
+.rk-section-head{display:flex; align-items:flex-start; gap:12px; margin-bottom:20px;}
+.rk-section-icon{width:34px; height:34px; border-radius:var(--r-sm); background:var(--surf2); color:var(--graphite); display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+[data-theme="dark"] .rk-section-icon{color:var(--text);}
+.rk-section-icon svg{width:17px; height:17px;}
+.rk-section-title{font-size:13.5px; font-weight:800; color:var(--text); display:flex; align-items:center; gap:8px;}
+.rk-section-sub{font-size:11.5px; font-weight:600; color:var(--muted); margin-top:2px; line-height:1.5;}
+.rk-section-head-actions{margin-inline-start:auto; flex-shrink:0;}
+
+/* Small pill for a count/status next to a section title — e.g. "٢ من ٣". */
+.rk-badge{display:inline-flex; align-items:center; font-size:10.5px; font-weight:700; color:var(--muted); background:var(--surf2); padding:3px 9px; border-radius:var(--r-full);}
+.rk-badge.warn{color:var(--amber); background:rgba(224,134,46,0.12);}
+
+/* Shared money display — build every new amount with rkMoney() in JS rather
+   than a bare .toFixed(2). Halalas render smaller than the whole riyals
+   (matches printed receipts), and the real currency sign replaces "ر.س"
+   text. .rk-riyal MUST carry the saudi_riyal font-family — the character it
+   renders (U+20C1) is a tofu box in every other font. */
+.rk-money{direction:ltr; unicode-bidi:isolate; display:inline-flex; align-items:baseline; gap:3px; font-family:'IBM Plex Mono',monospace;}
+.rk-money-frac{font-size:0.72em; opacity:0.82;}
+/* Real reported bug: the self-hosted glyph in this webfont renders mirrored
+   compared to the real symbol (checked directly against iOS's own
+   rendering) — flip it back on display rather than needing a corrected
+   font file. */
+.rk-riyal{font-family:'saudi_riyal', sans-serif; font-weight:inherit; font-style:normal; display:inline-block; transform:scaleX(-1);}
+
+/* Nested sub-card — one distinct item inside an .rk-section (a branch, a
+   row that needs its own border/heading/save action) without the heavier
+   weight of a full second .rk-section. */
+.rk-subcard{background:var(--surf1); border:1px solid var(--line); border-radius:var(--r-md); padding:16px;}
+.rk-subcard + .rk-subcard{margin-top:12px;}
+.rk-subcard-title{font-weight:800; font-size:13px; margin-bottom:12px;}
+
+/* Field grid — real two-column layout on desktop instead of one 360px
+   column stretching the page into an artificially long scroll. */
+/* Same latent bug as .row-2col above — fixed preemptively here even though
+   the live sweep found no current instance missing a gap, since it's the
+   same "grid utility with no margin-bottom of its own" shape that already
+   bit twice elsewhere. */
+.rk-grid-2{display:grid; grid-template-columns:1fr 1fr; gap:16px 18px; margin-bottom:16px;}
+.rk-field{display:flex; flex-direction:column; gap:6px;}
+.rk-field.span-2{grid-column:1 / -1;}
+.rk-field label{display:flex; align-items:center; font-size:11.5px; font-weight:700; color:var(--muted);}
+.rk-field input, .rk-field select{padding:11px 14px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-size:13px; font-family:inherit; width:100%; transition:border-color .12s ease, background .12s ease, box-shadow .12s ease;}
+.rk-field input:hover:not(:focus):not(:read-only), .rk-field select:hover:not(:focus){border-color:color-mix(in srgb, var(--line) 40%, var(--muted));}
+.rk-field input:focus, .rk-field select:focus{outline:none; border-color:var(--lime-deep); background:var(--card-bg); box-shadow:0 0 0 3px rgba(143,203,23,0.18);}
+.rk-field input:read-only{color:var(--muted);}
+.rk-field input:read-only:focus{box-shadow:none;}
+
+/* Switch — a real accessible checkbox underneath (keyboard + focus-visible
+   both work), styled as ركين's lime on/off pill so options read as
+   deliberate controls, not stock browser checkboxes. */
+.rk-switch-row{display:flex; align-items:center; justify-content:space-between; gap:14px; padding:13px 0;}
+.rk-switch-row + .rk-switch-row{border-top:1px solid var(--line);}
+.rk-switch-text{display:flex; flex-direction:column; gap:2px; min-width:0;}
+.rk-switch-label{font-size:12.5px; font-weight:700; color:var(--text); display:flex; align-items:center;}
+.rk-switch-desc{font-size:11px; font-weight:600; color:var(--muted); line-height:1.5; transition:color .15s ease;}
+.rk-switch-desc.ok{color:var(--success-text);}
+.rk-switch-desc.warn{color:var(--amber); font-weight:700;}
+.rk-switch{position:relative; flex-shrink:0; width:42px; height:25px;}
+.rk-switch input{position:absolute; inset:0; opacity:0; margin:0; cursor:pointer; z-index:1;}
+.rk-switch-track{position:absolute; inset:0; border-radius:var(--r-full); background:var(--surf2); border:1px solid var(--line); transition:background .15s ease, border-color .15s ease, box-shadow .15s ease; pointer-events:none;}
+.rk-switch-track::after{content:''; position:absolute; top:2px; inset-inline-start:2px; width:19px; height:19px; border-radius:50%; background:var(--card-bg); box-shadow:0 1px 3px rgba(17,17,17,0.25); transition:inset-inline-start .15s ease, width .1s ease, top .1s ease;}
+.rk-switch input:hover:not(:checked) + .rk-switch-track{border-color:var(--lime-deep);}
+.rk-switch input:checked + .rk-switch-track{background:var(--lime-deep); border-color:var(--lime-deep);}
+.rk-switch input:checked + .rk-switch-track::after{inset-inline-start:19px;}
+.rk-switch input:active + .rk-switch-track::after{width:22px; top:1.5px;}
+.rk-switch input:checked:active + .rk-switch-track::after{inset-inline-start:16px;}
+.rk-switch input:focus-visible + .rk-switch-track{box-shadow:0 0 0 3px rgba(143,203,23,0.35);}
+
+/* Checkbox — for picking several from a list (screen access), as opposed
+   to .rk-switch's one immediate on/off action. */
+.rk-check-grid{display:grid; grid-template-columns:repeat(3, 1fr); gap:2px 10px;}
+.rk-check{position:relative; display:flex; align-items:center; gap:9px; min-height:44px; padding:7px 6px; border-radius:var(--r-sm); font-size:12px; font-weight:600; color:var(--text); cursor:pointer; transition:background .12s ease; box-sizing:border-box;}
+.rk-check:hover{background:var(--surf1);}
+.rk-check input{position:absolute; inset:0; opacity:0; margin:0; cursor:pointer;}
+.rk-check-box{width:18px; height:18px; border-radius:6px; border:1.5px solid var(--line); background:var(--card-bg); flex-shrink:0; display:flex; align-items:center; justify-content:center; transition:background .12s ease, border-color .12s ease;}
+.rk-check-box svg{width:12px; height:12px; opacity:0; transition:opacity .1s ease;}
+.rk-check input:checked + .rk-check-box{background:var(--lime); border-color:var(--lime);}
+.rk-check input:checked + .rk-check-box svg{opacity:1; color:var(--graphite);}
+.rk-check input:focus-visible + .rk-check-box{box-shadow:0 0 0 3px rgba(143,203,23,0.35);}
+
+/* Avatar badge — the identity-preview fallback when no logo is uploaded
+   yet; built on this file's own tokens (rakeen-pos.css's .brand-avatar
+   relies on --flag-green-deep/--lime-deep-rgb, neither of which exist
+   here, so reusing that class rendered unstyled). */
+.rk-avatar{border-radius:50%; background:linear-gradient(155deg, var(--lime), var(--lime-deep)); color:var(--graphite); display:flex; align-items:center; justify-content:center; font-weight:800; flex-shrink:0;}
+
+/* A number field embedded mid-sentence in a switch label (e.g. "ينزل عن ▢٪") — not part of .rk-field, so kept separate from .rk-check/.rk-switch's click targets. */
+.rk-inline-num{width:56px; padding:6px 8px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-size:12.5px; font-family:inherit; text-align:center; margin:0 4px; transition:border-color .12s ease, box-shadow .12s ease;}
+.rk-inline-num:focus{outline:none; border-color:var(--lime-deep); background:var(--card-bg); box-shadow:0 0 0 3px rgba(143,203,23,0.18);}
+
+/* Sound-preview tiles — an icon badge that pulses lime on click doubles as
+   the only feedback a "play a sound" button can give (no async result to
+   show a spinner/success state for), instead of two plain full-width
+   secondary buttons with a bare emoji. */
+.rk-sound-test-row{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:14px;}
+.rk-sound-test-btn{display:flex; align-items:center; gap:12px; padding:14px 16px; border-radius:var(--r-md); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-weight:700; font-size:12.5px; text-align:start; transition:border-color .15s ease, background .15s ease, transform .1s ease, box-shadow .15s ease;}
+.rk-sound-test-btn:hover{border-color:var(--lime-deep); background:rgba(196,255,43,0.06); box-shadow:0 6px 16px rgba(143,203,23,0.15); transform:translateY(-1px);}
+.rk-sound-test-btn:active{transform:translateY(0) scale(0.98);}
+.rk-sound-test-icon{width:36px; height:36px; border-radius:50%; background:var(--card-bg); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; flex-shrink:0; color:var(--graphite); transition:background .15s ease, border-color .15s ease, transform .15s ease;}
+[data-theme="dark"] .rk-sound-test-icon{color:var(--text);}
+.rk-sound-test-icon svg{width:16px; height:16px;}
+.rk-sound-test-btn.is-playing .rk-sound-test-icon{background:var(--lime-deep); border-color:var(--lime-deep); color:var(--graphite); animation:rk-pulse .5s ease;}
+@keyframes rk-pulse{0%{transform:scale(1);}50%{transform:scale(1.18);}100%{transform:scale(1);}}
 
 .menu-add-row{display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap; align-items:flex-end;}
 
@@ -705,22 +1038,57 @@ button{font-family:inherit; cursor:pointer;}
 
 /* ===== Menu screen: simple category tabs + clean product table + one unified edit modal ===== */
 .menu-search-toolbar{display:flex; gap:10px; margin-bottom:16px;}
-.menu-search-toolbar input{flex:1; padding:11px 16px; border-radius:var(--r-full); border:1px solid var(--line); background:var(--card-bg); color:var(--text); font-size:12.5px;}
+.menu-search-toolbar input{flex:1; padding:11px 16px; min-height:44px; box-sizing:border-box; border-radius:var(--r-full); border:1px solid var(--line); background:var(--card-bg); color:var(--text); font-size:12.5px;}
 .menu-add-btn-primary{padding:11px 20px; font-size:13px; flex-shrink:0;}
 
 .menu-cat-tabs-row{display:flex; align-items:center; gap:10px; margin-bottom:8px;}
 .menu-cat-tabs{display:flex; gap:6px; flex-wrap:wrap; flex:1;}
 .menu-cat-tab{display:flex; align-items:center; gap:7px; padding:9px 8px 9px 14px; border-radius:var(--r-full); border:1.5px solid var(--line); background:var(--card-bg); color:var(--muted); font-weight:700; font-size:12px;}
-.menu-cat-tab.active{background:var(--graphite); border-color:var(--graphite); color:var(--lime);}
+.menu-cat-tab.active{background:linear-gradient(135deg, var(--graphite), #262626); border-color:var(--graphite); color:var(--lime); box-shadow:0 4px 14px rgba(0,0,0,0.18);}
+[data-theme="dark"] .menu-cat-tab.active{background:linear-gradient(135deg, #232323, #171717);}
 .menu-cat-tab .mct-count{opacity:0.7; font-size:10.5px;}
 .menu-cat-tab .mct-rename{width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.12); flex-shrink:0;}
 .menu-cat-tab:not(.active) .mct-rename{background:var(--surf2);}
 .menu-cat-tab-rename-input{padding:8px 12px; border-radius:var(--r-full); border:1.5px solid var(--lime-deep); background:var(--card-bg); color:var(--text); font-weight:700; font-size:12px; width:140px;}
 
+/* Category management list — one clean horizontal row per category, mirrors
+   .menu-table-row's list styling (bordered box, hover, dividers) rather than
+   .settings-field-row (a vertical label-over-input form field — wrong shape
+   entirely for a list of rows with several inline controls each). */
+.cat-mgmt-list{border:1px solid var(--line); border-radius:var(--r-md); overflow:hidden;}
+.cat-mgmt-group{border-bottom:1px solid var(--line);}
+.cat-mgmt-group:last-child{border-bottom:none;}
+.cat-mgmt-row{display:flex; align-items:center; gap:10px; padding:10px 14px; transition:background .12s ease;}
+.cat-mgmt-row:hover{background:var(--surf1);}
+.cat-mgmt-row-child{padding-inline-start:34px;}
+.cat-mgmt-branch{color:var(--muted); font-weight:700; font-size:13px; flex-shrink:0;}
+.cat-mgmt-move{display:flex; flex-direction:column; gap:2px; flex-shrink:0;}
+.cat-mgmt-name{flex:1; font-weight:700; font-size:13px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.cat-mgmt-row-child .cat-mgmt-name{font-weight:600;}
+.cat-mgmt-badge{font-size:11px; font-weight:700; color:var(--muted); flex-shrink:0;}
+
+/* Rakeen's own accent (lime pill) for the one genuinely "positive" action in
+   this list — everything else (move/delete/unlink) stays neutral gray so
+   the one thing worth drawing the eye to is "add a subcategory". */
+.cat-mgmt-add-row{display:flex; align-items:center; gap:8px; padding:10px 14px 14px 34px; flex-wrap:wrap;}
+.cat-add-sub-input{flex:1; min-width:150px; padding:7px 12px; border-radius:var(--r-full); border:1px dashed var(--line); background:var(--card-bg); color:var(--text); font-size:12px;}
+.cat-add-sub-btn{padding:7px 16px; border-radius:var(--r-full); background:var(--lime); color:var(--graphite); font-weight:800; font-size:11.5px; flex-shrink:0;}
+.cat-add-sub-btn:hover{background:var(--lime-deep);}
+.cat-mgmt-or{font-size:11px; font-weight:700; color:var(--muted); flex-shrink:0;}
+.cat-link-existing-select{padding:7px 10px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-size:12px; flex-shrink:0;}
+.cat-unlink-btn{font-size:11px; font-weight:700; color:var(--muted); padding:5px 12px; border-radius:var(--r-full); background:var(--surf2); flex-shrink:0;}
+.cat-unlink-btn:hover{background:var(--line); color:var(--text);}
+
+.cat-move-btn{width:22px; height:16px; display:flex; align-items:center; justify-content:center; border-radius:5px; background:var(--surf2); color:var(--muted); flex-shrink:0;}
+.cat-move-btn:disabled{opacity:0.3; cursor:default;}
+.cat-move-btn:not(:disabled):hover{background:var(--line); color:var(--text);}
+.cat-delete-btn{width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:8px; color:var(--muted); flex-shrink:0;}
+.cat-delete-btn:hover{background:#fde8e8; color:#c0392b;}
+
 .add-category-inline{display:flex; gap:6px; margin-bottom:14px;}
 .add-category-inline input{flex:1; max-width:240px; padding:9px 12px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-size:12px;}
 
-.menu-table-panel{background:var(--card-bg); border:1px solid var(--line); border-radius:var(--r-lg); overflow:hidden;}
+.menu-table-panel{background:var(--card-bg); border:1px solid var(--line); border-radius:var(--r-lg); overflow:hidden; margin-bottom:16px;}
 .menu-table-head-row{display:flex; align-items:center; gap:14px; padding:12px 18px; background:var(--surf1); font-size:10.5px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em;}
 .mth-col-product{flex:1;}
 .mth-col-price{width:90px;}
@@ -733,7 +1101,7 @@ button{font-family:inherit; cursor:pointer;}
 .mtr-mod-type-badge{font-size:10px; font-weight:700; padding:4px 10px; border-radius:var(--r-full); background:var(--surf2); color:var(--muted);}
 .mtr-mod-chips{display:flex; flex-wrap:wrap; gap:5px; margin-top:3px;}
 .mtr-mod-chip{font-size:9.5px; font-weight:700; padding:2px 8px; border-radius:var(--r-full); background:rgba(196,255,43,0.08); border:1px solid rgba(143,203,23,0.25); color:var(--success-text);}
-.mtr-mod-used{font-size:11px; color:var(--muted); font-weight:600;}
+.mtr-mod-used{font-size:11px; color:var(--muted); font-weight:600; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .mtr-mod-used b{color:var(--text); font-weight:800;}
 
 .mtr-negative-warning{display:flex; align-items:center; gap:5px; margin-top:4px; font-size:10.5px; font-weight:700; color:var(--danger);}
@@ -770,7 +1138,13 @@ button{font-family:inherit; cursor:pointer;}
 .supcomp-verdict-calc{font-size:12px; font-weight:600; color:var(--muted); margin-bottom:10px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;}
 .supcomp-verdict-calc b{color:var(--success-text); font-size:14px;}
 .supcomp-qty-input{width:64px; padding:6px 8px; border-radius:6px; border:1px solid var(--line); background:var(--card-bg); color:var(--text); font-family:'IBM Plex Mono',monospace; font-weight:700; text-align:center;}
-.supcomp-use-btn{padding:9px 16px; border-radius:8px; border:none; background:var(--success-text); color:#fff; font-weight:800; font-size:12px;}
+/* Was defined twice in this file (here and again ~11 lines down) with two
+   different sizes — no scoping difference between them, so the second,
+   smaller definition (padding 6px 12px, 10.5px font) was silently winning
+   on pure source order over this one, shrinking what's actually the primary
+   "adopt this cheaper price" call-to-action button below 44px. One
+   definition now. */
+.supcomp-use-btn{padding:9px 16px; min-height:44px; box-sizing:border-box; border-radius:8px; border:none; background:var(--success-text); color:#fff; font-weight:800; font-size:12px;}
 .supcomp-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;}
 .supcomp-item-name{font-weight:800; font-size:13.5px;}
 .supcomp-current{font-size:10.5px; color:var(--muted); font-weight:600;}
@@ -781,10 +1155,32 @@ button{font-family:inherit; cursor:pointer;}
 .supcomp-supplier{flex:1; font-weight:700; font-size:12.5px;}
 .supcomp-meta{font-size:10px; color:var(--muted); font-weight:600;}
 .supcomp-unit-price{font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:13px; width:90px; text-align:end;}
-.supcomp-use-btn{padding:6px 12px; border-radius:7px; border:none; background:var(--success-text); color:#fff; font-weight:700; font-size:10.5px; flex-shrink:0;}
 .supcomp-empty{padding:40px 20px; text-align:center; color:var(--muted); font-weight:600; font-size:12.5px; background:var(--card-bg); border:1px solid var(--line); border-radius:var(--r-lg);}
+.expense-row-delete-btn{width:44px; height:44px; flex-shrink:0; display:flex; align-items:center; justify-content:center; border:none; border-radius:var(--r-sm); background:transparent; color:var(--muted); cursor:pointer;}
+.expense-row-delete-btn svg{width:16px; height:16px;}
+.expense-row-delete-btn:hover{background:color-mix(in srgb, var(--danger) 14%, var(--surf2)); color:var(--danger);}
 
-.stock-qty-helper{font-size:11.5px; color:var(--muted); font-weight:600; line-height:1.6; margin-bottom:10px; background:var(--surf1); border-radius:8px; padding:9px 12px;}
+.stock-qty-helper{font-size:12.5px; color:var(--muted); font-weight:600; line-height:1.6; margin-bottom:10px; background:var(--surf1); border:1px solid var(--line); border-radius:8px; padding:9px 12px;}
+
+/* A labeled cluster of controls inside one .rk-section — for cards that pack
+   several distinct concerns together (e.g. a branch's PIN + staff + tables).
+   Without this, sub-groups only had margin-top between them and read as one
+   run-on block; the top border gives the eye a real stopping point. */
+.rk-subsection{margin-top:18px; padding-top:16px; border-top:1px solid var(--line);}
+.rk-subhead{display:block; font-size:12px; font-weight:800; color:var(--text); margin-bottom:8px;}
+
+/* .checklist/.check-item had no rules at all before this — a bare <div> per
+   row rendered with zero border/padding/background, so it looked like
+   broken/unstyled markup next to the rk-* controls around it. Same for the
+   plain-name inputs in these rows (staff/section add-forms): they were
+   unstyled native <input> boxes, not matching .rk-field's look. */
+.checklist{display:flex; flex-direction:column; gap:6px;}
+.checklist:empty{display:none;}
+.check-item{display:flex; align-items:center; gap:10px; min-height:44px; box-sizing:border-box; padding:8px 12px; border:1px solid var(--line); border-radius:var(--r-sm); background:var(--surf1); font-size:12.5px; font-weight:700; color:var(--text);}
+.check-item .mtr-edit-btn{min-height:32px;}
+.staff-name-input, .section-name-input{flex:1; padding:11px 14px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-size:13px; font-family:inherit; min-height:44px; box-sizing:border-box; transition:border-color .12s ease, background .12s ease, box-shadow .12s ease;}
+.staff-name-input:focus, .section-name-input:focus{outline:none; border-color:var(--lime-deep); background:var(--card-bg); box-shadow:0 0 0 3px rgba(143,203,23,0.18);}
+.table-section-select{padding:5px 8px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--card-bg); color:var(--text); font-weight:700; cursor:pointer;}
 
 /* ===== Purchases screen — our own identity (graphite + lime, same brand
    pair Home's KPI cards use), not a one-off accent color. Both tokens are
@@ -819,11 +1215,30 @@ button.purchases-hero-btn{
 .purchase-history-edit-btn,
 .purchase-history-delete-btn{
   display:flex; align-items:center; justify-content:center;
-  color:var(--muted);
+  width:44px; height:44px; flex-shrink:0; box-sizing:border-box;
+  border:none; background:var(--surf2); border-radius:7px;
+  color:var(--muted); cursor:pointer; font-size:13px;
 }
 .purchase-history-edit-btn svg,
 .purchase-history-delete-btn svg{width:15px; height:15px;}
 .purchase-history-delete-btn:hover{background:color-mix(in srgb, var(--danger) 14%, var(--surf2)); color:var(--danger);}
+
+/* .acct-collapsible-toggle/-body/-chevron ("مقارنة أسعار الموردين") was
+   defined once, unconditionally, but living in rakeen-dashboard-responsive.css
+   rather than here — centralized to this file (its only real usage now,
+   after removing the invoice-scan-metrics collapsible above) and bumped to
+   a real 44px touch target; the old copy there had none. */
+.acct-collapsible{padding:0; overflow:hidden;}
+.acct-collapsible-toggle{
+  display:flex; align-items:center; justify-content:space-between; width:100%;
+  min-height:44px; box-sizing:border-box; padding:16px 20px; border:none;
+  background:transparent; color:var(--text); font-size:13.5px; font-weight:800;
+  cursor:pointer; text-align:start; font-family:inherit;
+}
+.acct-collapsible-chevron{flex-shrink:0; transition:transform .2s ease;}
+.acct-collapsible-toggle.open .acct-collapsible-chevron{transform:rotate(180deg);}
+.acct-collapsible-body{padding:0 20px 18px;}
+.acct-collapsible-body.hidden{display:none;}
 
 /* ===== Reusable help icon: click a "؟" to reveal a plain-language explanation ===== */
 .help-icon{display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; background:var(--surf2); color:var(--muted); font-size:10px; font-weight:800; cursor:pointer; flex-shrink:0; margin-inline-start:4px; position:relative; vertical-align:middle;}
@@ -838,6 +1253,7 @@ button.purchases-hero-btn{
 .stock-cat-group:last-child{margin-bottom:0;}
 .stock-cat-toggle{
   display:flex; align-items:center; justify-content:space-between; width:100%;
+  min-height:44px; box-sizing:border-box;
   padding:10px 4px; border:none; background:none; cursor:pointer;
   font-size:11.5px; font-weight:800; color:var(--muted); letter-spacing:0.02em; text-align:start;
 }
@@ -864,6 +1280,7 @@ button.purchases-hero-btn{
 .menu-table-row:last-child{border-bottom:none;}
 .menu-table-row:hover{background:var(--surf1);}
 .menu-table-row.inactive{opacity:0.45;}
+.mtr-move{display:flex; flex-direction:column; gap:2px; flex-shrink:0;}
 .mtr-product{flex:1; display:flex; align-items:center; gap:12px; min-width:0;}
 .mtr-thumb{width:38px; height:38px; border-radius:8px; background:var(--surf1); display:flex; align-items:center; justify-content:center; color:var(--muted); flex-shrink:0; overflow:hidden;}
 .mtr-thumb img{width:100%; height:100%; object-fit:cover;}
@@ -874,8 +1291,21 @@ button.purchases-hero-btn{
 .mtr-price{width:90px; font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:12.5px;}
 .mtr-margin{width:90px;}
 .mtr-status{width:70px;}
+.mtr-status-wide{width:112px;}
+.mtr-hide-select{
+  width:100%; font-size:10.5px; font-weight:700; padding:5px 6px; border-radius:var(--r-sm);
+  border:1px solid var(--line); background:var(--card-bg); color:var(--text); cursor:pointer;
+}
 .mtr-action{width:80px; text-align:end;}
 .mtr-edit-btn{padding:7px 14px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--card-bg); color:var(--text); font-weight:700; font-size:11px;}
+/* Scoped rather than raised on the base class: .mtr-edit-btn also sits
+   inline in dense single-line rows elsewhere (POS branch staff/table
+   checklists) where a taller button would look mismatched — see
+   .check-item .mtr-edit-btn's own 32px override there. The standalone
+   "تعديل" action column in a real data table row (Menu/Orders/Purchases/
+   Inventory) has the vertical room and is the one that's actually tapped
+   most, so it gets the full touch target. */
+.mtr-action .mtr-edit-btn{min-height:44px; padding-inline:16px; box-sizing:border-box;}
 .menu-table-row:hover .mtr-edit-btn{border-color:var(--lime-deep); color:var(--success-text);}
 .menu-table-empty{padding:40px 20px; text-align:center; color:var(--muted); font-weight:600; font-size:12.5px;}
 
@@ -1025,8 +1455,8 @@ button.purchases-hero-btn{
 .cpb-row.total.bad .mono{color:var(--danger);}
 .menu-add-field{display:flex; flex-direction:column; gap:5px;}
 .menu-add-field label{font-size:10.5px; font-weight:700; color:var(--muted);}
-.menu-add-field input, .menu-add-field select{padding:10px 12px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-size:12.5px; min-width:130px;}
-.menu-add-btn{padding:10px 20px; border-radius:var(--r-sm); border:none; background:var(--lime); color:var(--graphite); font-weight:800; font-size:12.5px;}
+.menu-add-field input, .menu-add-field select{padding:10px 12px; min-height:44px; box-sizing:border-box; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-size:12.5px; min-width:130px;}
+.menu-add-btn{padding:10px 20px; min-height:44px; box-sizing:border-box; display:inline-flex; align-items:center; justify-content:center; border-radius:var(--r-sm); border:none; background:var(--lime); color:var(--graphite); font-weight:800; font-size:12.5px;}
 .menu-row{display:flex; align-items:center; gap:14px; padding:12px 0; border-bottom:1px solid var(--line);}
 .menu-row:last-child{border-bottom:none;}
 
@@ -1082,6 +1512,20 @@ body.quickadd-mode .rk-sidebar-backdrop{display:none !important;}
 
 /* ============ Auth screens (login + welcome) ============ */
 .auth-screen{position:fixed; inset:0; z-index:400; display:flex; background:var(--bg);}
+
+/* Session-check — shown the instant the page paints, before we even know
+   whether there's a valid session. Replaces what used to be the login form
+   showing by default every time (even for a returning, already-signed-in
+   owner refreshing the dashboard) — a real "logged in, then bounced through
+   the login screen, then back in" flash on every reload. Deliberately
+   minimal per the owner's own ask: wordmark + a thin spinner, nothing else,
+   so a fast connection barely notices it before restoreSession() swaps it
+   out for either the dashboard or (only if there's genuinely no session)
+   the login form. */
+.rk-loading-screen{align-items:center; justify-content:center;}
+.rk-loading-inner{display:flex; flex-direction:column; align-items:center; gap:22px;}
+.rk-loading-logo{height:30px; width:auto; opacity:0.92;}
+.rk-loading-ring{width:24px; height:24px; border-radius:50%; border:2.5px solid var(--line); border-top-color:var(--lime-deep); animation:rk-spin .8s linear infinite;}
 .auth-utility-bar{position:absolute; top:20px; left:20px; z-index:10; display:flex; gap:8px;}
 .auth-util-btn{width:36px; height:36px; border-radius:50%; border:1px solid var(--line); background:var(--card-bg); color:var(--muted); font-weight:800; font-size:11px; display:flex; align-items:center; justify-content:center;}
 .auth-util-btn .icon-light{display:none;}
@@ -1090,6 +1534,12 @@ body.quickadd-mode .rk-sidebar-backdrop{display:none !important;}
 
 .auth-panel-illustration{flex:1; background:var(--graphite); color:var(--ivory); display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;}
 .auth-illust-content{text-align:center; padding:40px; max-width:380px; position:relative; z-index:2;}
+/* Real wordmark, shown plain (no colored box) — was a "ر" placeholder
+   badge that never got wired to the actual logo (.brand-avatar itself is
+   used correctly elsewhere in this file, for the tenant restaurant's own
+   initial-letter avatar, so this needed its own class rather than reusing
+   or restyling that one). */
+.rakeen-mark{display:inline-block;}
 .auth-illust-content h2{font-size:22px; font-weight:800; margin-top:20px;}
 .auth-illust-content p{font-size:13px; font-weight:600; color:rgba(250,250,245,0.6); margin-top:10px; line-height:1.7;}
 .auth-illust-svg{width:100%; height:auto; margin-top:36px;}
@@ -1132,11 +1582,21 @@ body.quickadd-mode .rk-sidebar-backdrop{display:none !important;}
 .perm-check{width:16px; height:16px; border-radius:4px; display:inline-flex; align-items:center; justify-content:center;}
 .perm-check.yes{background:rgba(196,255,43,0.18); color:var(--success-text);}
 .perm-check.no{background:var(--surf2); color:var(--muted);}
-.users-table-row{display:flex; align-items:center; gap:14px; padding:12px 0; border-bottom:1px solid var(--line); font-size:12.5px;}
+/* Two grouped children (identity, actions) instead of flat siblings — lets
+   the action buttons wrap together as one unit on narrow screens instead of
+   free-flowing and interleaving with the name/role/status text between them
+   in whatever order happens to fit each line. */
+.users-table-row{display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px 16px; padding:14px 0; border-bottom:1px solid var(--line); font-size:12.5px;}
 .users-table-row:last-child{border-bottom:none;}
-.users-table-row .u-name{flex:1; font-weight:700;}
-.users-table-row .u-role{width:130px; color:var(--muted); font-weight:600; font-size:11px;}
-.users-table-row .u-status{width:70px; flex-shrink:0;}
+.users-table-identity{display:flex; align-items:center; gap:8px 16px; flex:1; min-width:220px; flex-wrap:wrap;}
+.users-table-identity .u-name{flex:1 1 130px; min-width:0; font-weight:800; font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.users-table-identity .u-role{width:auto; color:var(--muted); font-weight:600; font-size:11.5px; flex-shrink:0;}
+/* Not a fixed column. This started as a 70px slot holding one status
+   badge; it now carries up to three (status, cashier+branch, salary), and
+   at 70px they stacked one per line and squeezed the row into a block of
+   crushed text. Content-sized, wrapping as a group. */
+.users-table-identity .u-status{width:auto; flex-shrink:0; display:flex; align-items:center; flex-wrap:wrap; gap:6px;}
+.users-table-actions{display:flex; align-items:center; gap:8px; flex-wrap:wrap; flex-shrink:0;}
 .u-status-badge{font-size:10px; font-weight:800; padding:3px 9px; border-radius:var(--r-full);}
 .u-status-badge.active{background:rgba(196,255,43,0.15); color:var(--success-text);}
 .u-status-badge.disabled{background:var(--surf2); color:var(--muted);}
@@ -1173,3 +1633,13 @@ body.quickadd-mode .rk-sidebar-backdrop{display:none !important;}
 .welcome-lines .ai-line{font-size:14px; text-align:start;}
 .welcome-continue-btn{padding:15px 32px; border-radius:var(--r-full); border:none; background:var(--lime); color:var(--graphite); font-weight:800; font-size:13.5px; display:inline-flex; align-items:center; gap:10px;}
 .welcome-continue-btn .mono{opacity:0.6; font-size:11.5px;}
+
+/* Receipt theme picker — cards, not a <select>: the native dropdown
+   rendered its options unreadably here, and a receipt shape is something
+   you judge by looking at it, not by reading an option label. */
+.rk-theme-cards{display:flex; gap:10px; flex-wrap:wrap;}
+.rk-theme-card{flex:1; min-width:180px; text-align:start; display:flex; flex-direction:column; gap:4px; padding:12px 14px; border-radius:var(--r-md); border:1.5px solid var(--line); background:var(--surf1); color:var(--text); cursor:pointer; font-family:inherit; transition:border-color .12s ease, background .12s ease, box-shadow .12s ease;}
+.rk-theme-card:hover{border-color:color-mix(in srgb, var(--line) 40%, var(--muted));}
+.rk-theme-card.selected{border-color:var(--lime-deep); background:var(--card-bg); box-shadow:0 0 0 3px rgba(143,203,23,0.18);}
+.rk-theme-card-name{font-weight:800; font-size:13px;}
+.rk-theme-card-desc{font-size:11.5px; color:var(--muted); line-height:1.5;}

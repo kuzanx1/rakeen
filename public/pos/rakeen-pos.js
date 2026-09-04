@@ -2388,11 +2388,38 @@ function updatePrinterStatusPill(){
   pill.innerHTML = icon + (ready ? 'الطابعة جاهزة' : printerBridgeAvailable() ? 'الطابعة غير معدّة' : 'بدون طابعة شبكة');
 }
 
+// Receipt themes. A thermal printer gives one ink colour, one paper width
+// and a roll that costs money, so a "theme" here is a set of decisions
+// about density and hierarchy — not a palette.
+//
+// Kept numerically identical to the app's src/domain/receiptTheme.ts: the
+// same business prints from both, and a receipt that changed shape
+// depending on which till rang it up would be worse than having no themes.
+//
+// Every theme prints the full ZATCA Phase 1 simplified tax invoice — the
+// heading, the seller's VAT number, the timestamp, the total, the VAT
+// amount and the TLV QR. A theme may change spacing and type; it may never
+// change what a tax invoice must contain.
+const RECEIPT_THEMES = {
+  classic: { density:1,    typeScale:1,    showLogo:true,  ruleBetweenItems:false, headerBand:false, boxedTotal:false, qrMaxSize:220 },
+  compact: { density:0.68, typeScale:0.88, showLogo:false, ruleBetweenItems:false, headerBand:false, boxedTotal:false, qrMaxSize:170 },
+  elegant: { density:1.15, typeScale:1.04, showLogo:true,  ruleBetweenItems:true,  headerBand:true,  boxedTotal:true,  qrMaxSize:220 }
+};
+let RECEIPT_THEME = 'classic';
+function receiptTheme(id){ return RECEIPT_THEMES[id] || RECEIPT_THEMES.classic; }
+
+// A bilingual label — the receipt is read by customers and by auditors.
+function bi(ar, en){ return ar + ' · ' + en; }
+
 function renderReceiptCanvas(receipt, qrImage, logoImage){
   const width = DEVICE.printerPaperWidth || 576; // 80mm≈576px, 58mm≈384px at ~203dpi
   const pad = 16, lineH = 32;
-  const qrSize = Math.min(220, width - pad * 2);
-  const logoSize = logoImage ? Math.min(90, Math.round(width * 0.18)) : 0;
+  const th = receiptTheme(RECEIPT_THEME);
+  // Spacing and type come from the theme; the ZATCA fields never do.
+  const gap = n => lineH * n * th.density;
+  const sz = n => Math.round(n * th.typeScale);
+  const qrSize = Math.min(220, th.qrMaxSize, width - pad * 2);
+  const logoSize = (logoImage && th.showLogo) ? Math.min(90, Math.round(width * 0.18)) : 0;
   const maxHeight = 2400 + receipt.items.length * 200 + (qrImage ? qrSize + 120 : 0) + (logoImage ? logoSize + 40 : 0);
   const scratch = document.createElement('canvas');
   scratch.width = width; scratch.height = maxHeight;
@@ -2420,7 +2447,7 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
     ctx.font = (bold ? '800 ' : '600 ') + size + 'px "IBM Plex Sans Arabic", sans-serif';
     ctx.direction = 'rtl'; ctx.textAlign = 'center';
     ctx.fillText(text, width / 2, y);
-    y += lineH * (size > 22 ? 1.3 : 1);
+    y += gap(size > 22 ? 1.3 : 1);
   };
   const rowText = (leftMono, rightArabic, size, bold)=>{
     ctx.font = (bold ? '800 ' : '600 ') + size + 'px "IBM Plex Sans Arabic", sans-serif';
@@ -2429,58 +2456,85 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
     ctx.font = '500 ' + size + 'px "IBM Plex Mono", monospace';
     ctx.direction = 'ltr'; ctx.textAlign = 'left';
     ctx.fillText(leftMono, pad, y);
-    y += lineH;
+    y += gap(1);
   };
   const divider = ()=>{
     ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(width - pad, y); ctx.stroke();
-    y += lineH * 0.6;
+    y += gap(0.6);
+  };
+  // A hairline, lighter than a section divider: it groups items into a
+  // table without competing with the rules that separate the sections.
+  const hairline = ()=>{
+    ctx.strokeStyle = '#888'; ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(width - pad, y); ctx.stroke();
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
+    y += gap(0.35);
   };
 
-  if(logoImage){
+  if(logoImage && th.showLogo){
     ctx.drawImage(logoImage, (width - logoSize) / 2, y - logoSize / 2, logoSize, logoSize);
     y += logoSize + lineH * 0.3;
   }
-  centerText(receipt.businessName || 'ركين', 30, true);
-  if(receipt.branchName) centerText(receipt.branchName, 19, false);
-  centerText(receipt.dateLabel, 16, false);
+  // The elegant theme frames the name between two rules; the others just
+  // print it.
+  if(th.headerBand){ divider(); }
+  centerText(receipt.businessName || 'ركين', sz(30), true);
+  if(th.headerBand){ divider(); }
+  if(receipt.branchName) centerText(receipt.branchName, sz(19), false);
+  centerText(receipt.dateLabel, sz(16), false);
   // its own clearly-labeled line, always present — this used to be folded
   // into metaLabel ("بالمطعم — طلب #58") and silently disappeared whenever
   // orderId wasn't available yet (e.g. printed while the order was still
   // offline-queued, before the real server id existed) — a customer with no
   // order number has no way to ask about their order at all.
   centerText('رقم الطلب: ' + receipt.orderNumber, 18, true);
-  if(receipt.metaLabel) centerText(receipt.metaLabel, 15, false);
+  if(receipt.metaLabel) centerText(receipt.metaLabel, sz(15), false);
+  // ZATCA Phase 1: the heading and the seller's VAT number are mandatory
+  // on a simplified tax invoice, in every theme.
   if(receipt.vatNumber){
-    centerText('فاتورة ضريبية مبسطة', 17, true);
-    centerText('الرقم الضريبي: ' + receipt.vatNumber, 15, false);
+    centerText(bi('فاتورة ضريبية مبسطة', 'Simplified Tax Invoice'), sz(17), true);
+    centerText(bi('الرقم الضريبي', 'VAT No') + ': ' + receipt.vatNumber, sz(15), false);
   }
   divider();
 
-  receipt.items.forEach(it=>{
-    wrapLine(it.name, '700 21px "IBM Plex Sans Arabic", sans-serif').forEach(line=>{
-      ctx.font = '700 21px "IBM Plex Sans Arabic", sans-serif';
+  receipt.items.forEach((it, idx)=>{
+    const nameFont = '700 ' + sz(21) + 'px "IBM Plex Sans Arabic", sans-serif';
+    wrapLine(it.name, nameFont).forEach(line=>{
+      ctx.font = nameFont;
       ctx.direction = 'rtl'; ctx.textAlign = 'right';
       ctx.fillText(line, width - pad, y);
-      y += lineH * 0.85;
+      y += gap(0.85);
     });
+    const modFont = '500 ' + sz(15) + 'px "IBM Plex Sans Arabic", sans-serif';
     (it.mods || []).forEach(modText=>{
-      wrapLine(modText, '500 15px "IBM Plex Sans Arabic", sans-serif').forEach(line=>{
+      wrapLine(modText, modFont).forEach(line=>{
         ctx.fillStyle = '#333';
-        ctx.font = '500 15px "IBM Plex Sans Arabic", sans-serif';
+        ctx.font = modFont;
         ctx.direction = 'rtl'; ctx.textAlign = 'right';
         ctx.fillText(line, width - pad, y);
         ctx.fillStyle = '#000';
-        y += lineH * 0.7;
+        y += gap(0.7);
       });
     });
-    rowText(it.lineTotal.toFixed(2), it.qty + ' × ' + it.unitPrice.toFixed(2), 18, false);
+    rowText(it.lineTotal.toFixed(2), it.qty + ' × ' + it.unitPrice.toFixed(2), sz(18), false);
+    // Skipped after the last item — the section rule below already closes
+    // the list, and two lines together would read as a mistake.
+    if(th.ruleBetweenItems && idx < receipt.items.length - 1) hairline();
   });
   divider();
-  rowText(receipt.subtotal.toFixed(2), 'المجموع الفرعي', 18, false);
-  if(receipt.discount > 0) rowText('-' + receipt.discount.toFixed(2), 'الخصم', 18, false);
-  rowText(receipt.vat.toFixed(2), 'ضريبة القيمة المضافة', 18, false);
-  rowText(receipt.total.toFixed(2), 'الإجمالي', 24, true);
+  rowText(receipt.subtotal.toFixed(2), bi('المجموع الفرعي', 'Subtotal'), sz(18), false);
+  if(receipt.discount > 0) rowText('-' + receipt.discount.toFixed(2), bi('الخصم', 'Discount'), sz(18), false);
+  // ZATCA: the VAT amount is a mandatory line, in every theme.
+  rowText(receipt.vat.toFixed(2), bi('ضريبة القيمة المضافة', 'VAT'), sz(18), false);
+  const totalTop = y - lineH * 0.55;
+  rowText(receipt.total.toFixed(2), bi('الإجمالي', 'Total'), sz(24), true);
+  if(th.boxedTotal){
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(pad * 0.6, totalTop, width - pad * 1.2, y - totalTop - lineH * 0.15);
+    ctx.lineWidth = 1;
+    y += gap(0.35);
+  }
   divider();
   rowText('', receipt.paymentMethodLabel, 17, false);
   if(receipt.change > 0) rowText(receipt.change.toFixed(2), 'الباقي', 17, false);
@@ -5894,6 +5948,15 @@ async function loadPosData(){
   VAT_REGISTERED = loyaltyRes.data ? loyaltyRes.data.vat_registered !== false : true;
   BUSINESS_LOGO_URL = loyaltyRes.data ? (loyaltyRes.data.logo_url || '') : '';
   RECEIPT_CUSTOM_MESSAGE = loyaltyRes.data ? (loyaltyRes.data.receipt_custom_message || '') : '';
+  // Its own query rather than a field on the select above: PostgREST fails
+  // an entire select over one unknown column, and this one would take the
+  // whole cashier offline on any deploy that landed before the migration.
+  // Anything unrecognised falls back to classic, so a till on the old
+  // schema prints exactly what it printed before.
+  try {
+    const themeRes = await sb.from('businesses').select('receipt_theme').eq('id', businessId).single();
+    RECEIPT_THEME = (themeRes.data && themeRes.data.receipt_theme) || 'classic';
+  } catch(_){ RECEIPT_THEME = 'classic'; }
   POS_HIDE_POPULAR_TAB = loyaltyRes.data ? loyaltyRes.data.pos_hide_popular_tab === true : false;
   POS_HIDE_SEARCH = loyaltyRes.data ? loyaltyRes.data.pos_hide_search === true : false;
   POS_HIDE_HOLD = loyaltyRes.data ? loyaltyRes.data.pos_hide_hold === true : false;
