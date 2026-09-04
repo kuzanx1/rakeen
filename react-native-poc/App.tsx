@@ -13,6 +13,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -20,6 +21,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import type { AppStateStatus } from 'react-native';
 import { TouchableOpacity } from './src/ui/tappable';
 import Svg, { Circle, Line, Path, Polyline, Rect } from 'react-native-svg';
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
@@ -54,7 +56,7 @@ import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-
 import { createStyles, fonts, radii, spacing, ThemeProvider, useTheme } from './src/ui/theme';
 import { ShellProvider, TOPBAR_FALLBACK_HEIGHT, useShell } from './src/ui/shell';
 import { I18nProvider, useI18n } from './src/ui/i18n';
-import { ToastProvider } from './src/ui/Toast';
+import { ToastProvider, useToast } from './src/ui/Toast';
 import Topbar from './src/ui/Topbar';
 import ManagerPinModal from './src/ui/ManagerPinModal';
 import OpenShiftScreen from './src/ui/OpenShiftScreen';
@@ -198,7 +200,11 @@ function App(): React.JSX.Element {
   /** POS_HIDE_NOTIF_BELL -- the owner can remove the bell entirely. */
   const [hideNotifBell, setHideNotifBell] = useState(false);
   const [drawerBusy, setDrawerBusy] = useState(false);
-  const [statusMessage, setStatusMessage] = useState('');
+  // The same floating toast every other screen uses, instead of a banner
+  // of this component own: a confirmation that follows a deliberate tap
+  // should not look like a different class of event from every other
+  // message in the app.
+  const { showToast: setStatusMessage } = useToast();
   /** موافقة مدير -- openPinModal() in the source (rakeen-pos.js:5157). */
   const [managerPinOpen, setManagerPinOpen] = useState(false);
 
@@ -237,6 +243,24 @@ function App(): React.JSX.Element {
   const [incomingBusy, setIncomingBusy] = useState(false);
   const [incomingError, setIncomingError] = useState('');
 
+  /**
+   * Bumped every time the app comes back to the foreground.
+   *
+   * iOS suspends sockets in the background, and a resumed socket can
+   * report itself joined while the server dropped the subscription long
+   * ago — so its state cannot be trusted and the channel is rebuilt
+   * instead. Feeding this into the subscription effect's deps re-runs
+   * BOTH halves: the catch-up poll for whatever arrived while away, and
+   * a fresh subscription for whatever comes next.
+   */
+  const [resumeTick, setResumeTick] = useState(0);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      if (next === 'active') setResumeTick(t => t + 1);
+    });
+    return () => sub.remove();
+  }, []);
+
   const enqueueIncoming = useCallback((orderId: number) => {
     setIncomingQueue(q => (q.includes(orderId) ? q : [...q, orderId]));
   }, []);
@@ -257,7 +281,11 @@ function App(): React.JSX.Element {
       cancelled = true;
       unsubscribe();
     };
-  }, [cashier, branchId, enqueueIncoming]);
+    // resumeTick: re-runs this whole effect when the app returns to the
+    // foreground. Without it a backgrounded till received nothing until it
+    // was force-quit, because neither the poll nor the subscription ever
+    // ran again.
+  }, [cashier, branchId, enqueueIncoming, resumeTick]);
 
   /**
    * Loads the head of the queue -- but DEFERS while the payment popup is
@@ -827,21 +855,6 @@ function App(): React.JSX.Element {
         onCancel={() => setManagerPinOpen(false)}
       />
 
-      {!!statusMessage && (
-        <View
-          style={[
-            styles.statusBanner,
-            sideBySide && {
-              position: 'absolute',
-              top: topbarHeight,
-              start: 0,
-              end: homeActive ? orderPanelWidth : 0,
-              zIndex: 3,
-            },
-          ]}>
-          <Text style={styles.statusBannerText}>{statusMessage}</Text>
-        </View>
-      )}
       <View style={[styles.screenArea, sideBySide && styles.screenAreaBehindBars]}>
         {screen.name === 'tables' && branchId != null ? (
           <TablesScreen
@@ -1117,6 +1130,7 @@ function MoreTile({
   disabled?: boolean;
   children: React.ReactNode;
 }) {
+  const { t } = useI18n();
   const styles = useStyles();
   return (
     <TouchableOpacity
@@ -1127,7 +1141,10 @@ function MoreTile({
       <Svg width={24} height={24} viewBox="0 0 24 24" fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
         {children}
       </Svg>
-      <Text style={styles.moreItemText}>{label}</Text>
+      {/* Translated here rather than at each call site: every tile on this
+          screen carries a label, and one of them being missed is exactly
+          how a screen ends up half-English. */}
+      <Text style={styles.moreItemText}>{t(label)}</Text>
     </TouchableOpacity>
   );
 }
@@ -1147,10 +1164,13 @@ function MoreRow({
   busy?: boolean;
   busyLabel?: string;
 }) {
+  const { t } = useI18n();
   const styles = useStyles();
   return (
     <TouchableOpacity style={styles.moreRow} onPress={onPress} disabled={disabled} activeOpacity={0.8}>
-      <Text style={[styles.moreRowText, danger && styles.moreRowTextDanger]}>{busy && busyLabel ? busyLabel : label}</Text>
+      <Text style={[styles.moreRowText, danger && styles.moreRowTextDanger]}>
+        {busy && busyLabel ? t(busyLabel) : t(label)}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -1200,8 +1220,6 @@ const useStyles = createStyles(colors =>
   screenAreaBehindBars: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
   // shared by .topbar and .bottom-nav once they leave normal flow
   barAbsolute: { position: 'absolute', start: 0, zIndex: 2 },
-  statusBanner: { backgroundColor: colors.surf2, paddingVertical: spacing[2], paddingHorizontal: spacing[4] },
-  statusBannerText: { fontFamily: fonts.sansSemiBold, fontSize: 12, textAlign: 'center', color: colors.text },
   // .bottom-nav (rakeen-pos.css:351)
   bottomNav: { height: 68, flexDirection: 'row', borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg },
   // .nav-tab

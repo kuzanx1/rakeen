@@ -32,7 +32,9 @@ const BRAND = {
   flagGreen: '#0B6B3A',
   flagGreenDeep: '#053E22',
   sand: '#E8C77A',
-  graphite: '#0A1710',
+  // A near-black used behind lime, neutralised with the rest of the dark
+  // surfaces so it stops tinting green against them.
+  graphite: '#101012',
   ivory: '#FBFAF4',
   limeRgb: '199,255,77',
   limeDeepRgb: '143,203,23',
@@ -116,14 +118,19 @@ export const LIGHT: Palette = {
 /** `:root, [data-theme="dark"]` block, rakeen-pos.css:13-28. */
 export const DARK: Palette = {
   ...BRAND,
-  canvas: '#050C08',
-  bg: '#0E1F16',
-  text: '#F4F8F0',
-  cardBg: '#16291F',
-  surf1: 'rgba(244,248,240,0.05)',
-  surf2: 'rgba(244,248,240,0.09)',
-  line: 'rgba(244,248,240,0.1)',
-  muted: 'rgba(244,248,240,0.55)',
+  // Matched to the PWA's dark theme, which moved off dark GREEN for a
+  // reason worth keeping here: lime on green has nothing to be an accent
+  // against, so the one colour that means "this is the action" read as a
+  // lighter piece of the background. A neutral ground is not a colour, so
+  // whatever sits on it is the colour.
+  canvas: '#0A0A0B',
+  bg: '#101012',
+  text: '#F5F5F7',
+  cardBg: '#18181B',
+  surf1: 'rgba(245,245,247,0.045)',
+  surf2: 'rgba(245,245,247,0.08)',
+  line: 'rgba(245,245,247,0.095)',
+  muted: 'rgba(245,245,247,0.56)',
   danger: '#e08a6a',
   amber: '#e0b84a',
   dangerRgb: '224,138,106',

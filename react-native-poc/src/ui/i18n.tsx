@@ -44,7 +44,6 @@ const I18N_EN: Record<string, string> = {
   'الكل': 'All',
   'ما فيه نتائج مطابقة': 'No matching results',
   'الطلب الحالي': 'Current order',
-  'علّق': 'Hold',
   'اضغط منتج عشان يضاف': 'Tap a product to add it',
   'عدد الأصناف': 'Items',
   'المجموع الفرعي': 'Subtotal',
@@ -108,6 +107,24 @@ const I18N_EN: Record<string, string> = {
   '٥٪': '5%',
   '١٠٪': '10%',
   '١٥٪': '15%',
+  'حركة نقدية': 'Cash movement',
+  'قائمة الطباعة': 'Print queue',
+  'الحلويات': 'Desserts',
+  'المشروبات': 'Drinks',
+  'مشروبات باردة': 'Cold drinks',
+  'مشروبات ساخنة': 'Hot drinks',
+  'الشوكليت': 'Chocolate',
+  'الماتشا': 'Matcha',
+  'الموهيتو': 'Mojito',
+  'القهوة المقطرة': 'Filter coffee',
+  'مشروبات أخرى': 'Other drinks',
+  'مشروبات الإسبريسو الحارة': 'Hot espresso drinks',
+  'مشروبات الإسبريسو الباردة': 'Iced espresso drinks',
+  'وجبات': 'Meals',
+  'سندويتشات': 'Sandwiches',
+  'سلطات': 'Salads',
+  'مقبلات': 'Starters',
+  'عصائر': 'Juices',
   'سفري': 'Takeaway',
   'محلي': 'Dine-in',
   '📦 سفري': '📦 Takeaway',
@@ -347,7 +364,13 @@ export function displayName(
   row: { name: string; nameEn?: string | null },
   lang: Lang,
 ): string {
-  return lang === 'en' ? row.nameEn || row.name : row.name;
+  if (lang !== 'en') return row.name;
+  // The source's own order: the row's English name first, then the UI
+  // dictionary, then the Arabic. The middle step was missing here, which
+  // is why a category called "الحلويات" stayed Arabic in English mode even
+  // though the word is in the table — a business only fills name_en for
+  // products, almost never for categories.
+  return row.nameEn || I18N_EN[row.name] || row.name;
 }
 
 export function useI18n(): I18n {

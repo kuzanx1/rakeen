@@ -414,7 +414,11 @@ const useStyles = createStyles((colors, shadows) =>
     confirmButtonDisabled: { backgroundColor: colors.surf2 },
     confirmButtonText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.flagGreenDeep },
     // .pin-dots / .pin-dot / .pin-dot.filled
-    pinDots: { flexDirection: 'row', justifyContent: 'center', gap: 13, marginBottom: 24 },
+    // row-reverse, which under forceRTL lays out LEFT to right: the dots
+    // fill the way a passcode does on the phone itself, from the left.
+    // Plain 'row' filled from the right, which reads as the code being
+    // entered backwards.
+    pinDots: { flexDirection: 'row-reverse', justifyContent: 'center', gap: 13, marginBottom: 24 },
     pinDot: { width: 13, height: 13, borderRadius: 7, borderWidth: 1.5, borderColor: colors.line },
     pinDotFilled: { backgroundColor: colors.accentText, borderColor: colors.accentText },
     /**

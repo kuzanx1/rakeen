@@ -97,6 +97,28 @@ const I18N_EN = {
   // The discount buttons carry Arabic-indic numerals, which stay unreadable
   // to an English reader even though every letter around them changed.
   '٥٪': '5%', '١٠٪': '10%', '١٥٪': '15%',
+
+  // More-screen tiles, and the section names a café actually uses —
+  // displayName falls through here when a category has no name_en, which
+  // is almost always, since businesses fill that for products only.
+  'حركة نقدية': 'Cash movement',
+  'قائمة الطباعة': 'Print queue',
+  'الحلويات': 'Desserts',
+  'المشروبات': 'Drinks',
+  'مشروبات باردة': 'Cold drinks',
+  'مشروبات ساخنة': 'Hot drinks',
+  'الشوكليت': 'Chocolate',
+  'الماتشا': 'Matcha',
+  'الموهيتو': 'Mojito',
+  'القهوة المقطرة': 'Filter coffee',
+  'مشروبات أخرى': 'Other drinks',
+  'مشروبات الإسبريسو الحارة': 'Hot espresso drinks',
+  'مشروبات الإسبريسو الباردة': 'Iced espresso drinks',
+  'وجبات': 'Meals',
+  'سندويتشات': 'Sandwiches',
+  'سلطات': 'Salads',
+  'مقبلات': 'Starters',
+  'عصائر': 'Juices',
   // Renamed channels: pickup IS takeaway, and the cashier's delivery is a
   // delivery-app order.
   'سفري': 'Takeaway', 'محلي': 'Dine-in', '📦 سفري': '📦 Takeaway',
