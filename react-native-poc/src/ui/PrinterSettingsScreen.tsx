@@ -10,6 +10,11 @@ import {
 import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
 import { getPrinterProfile, savePrinterProfile } from '../infrastructure/printerProfileStore';
+import { getDeviceConfig } from '../application/authService';
+import { getReceiptBusinessProfile, getReceiptTheme } from '../application/catalogService';
+import { enqueuePrintJob, listPrintJobs, processPrintQueueNow } from '../application/printService';
+import { receiptTheme } from '../domain/receiptTheme';
+import type { DeviceConfig } from '../domain/auth';
 import { Printer } from '../platform/printer';
 import {
   validatePrinterProfile,
@@ -22,9 +27,17 @@ import type { PrinterProfile, PrinterTransportKind, DiscoveredDevice } from '../
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
 
 const TRANSPORT_LABELS: Record<PrinterTransportKind, string> = {
-  network: 'شبكة (Network)',
-  bluetooth: 'بلوتوث (Bluetooth)',
-  usb: 'USB',
+  network: 'شبكة الواي فاي',
+  bluetooth: 'بلوتوث',
+  usb: 'سلك USB',
+};
+
+/** The same labels for the sentence that names where printing actually
+ *  goes -- so a cashier is never shown the internal word 'network'. */
+const TRANSPORT_SENTENCE: Record<PrinterTransportKind, string> = {
+  network: 'الشبكة',
+  bluetooth: 'البلوتوث',
+  usb: 'السلك',
 };
 
 const SCAN_TIMEOUT_MS = 6000;
@@ -47,7 +60,15 @@ const SCAN_TIMEOUT_MS = 6000;
  * outside the reference CSS this app was audited against) -- section
  * cards use the same card-bg/line/radii tokens as everything else.
  */
-export default function PrinterSettingsScreen() {
+export default function PrinterSettingsScreen({
+  online,
+  staffName,
+}: {
+  /** The connection pill the PWA settings modal shows beside the branch. */
+  online: boolean;
+  /** The staff member currently on the till, not the paired device account. */
+  staffName: string | null;
+}) {
   const { colors } = useTheme();
   const styles = useStyles();
   const [profile, setProfile] = useState<PrinterProfile>(emptyPrinterProfile());
@@ -76,11 +97,27 @@ export default function PrinterSettingsScreen() {
    */
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
 
+  /** The context block the PWA prints above the printer fields: which
+   *  business and branch this till is paired to, who is on it, and
+   *  whether it can currently reach the server. A cashier phoning for
+   *  help is asked all four, and without them the answer is a guess. */
+  const [device, setDevice] = useState<DeviceConfig | null>(null);
+  const [themeId, setThemeId] = useState<string>('classic');
+  const [printingTest, setPrintingTest] = useState(false);
+  const [testPrintStatus, setTestPrintStatus] = useState('');
+  /** The cash-drawer command is a field nobody fills in by hand; it is
+   *  here for a printer whose kick sequence differs from the standard
+   *  one. Collapsed so it is not the fifth thing a cashier reads. */
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
   useEffect(() => {
     (async () => {
       const existing = await getPrinterProfile();
       if (existing) setProfile(existing);
       setSavedSnapshot(existing ? JSON.stringify(existing) : null);
+      const cfg = await getDeviceConfig();
+      setDevice(cfg);
+      if (cfg.businessId != null) setThemeId(await getReceiptTheme(cfg.businessId));
       setLoading(false);
     })();
   }, []);
@@ -105,7 +142,7 @@ export default function PrinterSettingsScreen() {
     setScanResult(null);
     try {
       if (!Printer) {
-        setScanResult({ devices: [], error: 'لا توجد وحدة طابعة حقيقية على هذا الجهاز/البناء' });
+        setScanResult({ devices: [], error: 'الطباعة غير متاحة على هذا الجهاز' });
         return;
       }
       const result = await Printer.scanDevices(transport, SCAN_TIMEOUT_MS);
@@ -132,26 +169,92 @@ export default function PrinterSettingsScreen() {
     setTestTrace([]);
     try {
       if (!Printer) {
-        setTestResult('🔴 لا توجد وحدة طابعة حقيقية على هذا الجهاز/البناء');
+        setTestResult('🔴 الطباعة غير متاحة على هذا الجهاز');
         return;
       }
       const target = profileToPrinterTarget(profile);
       if (!target) {
-        setTestResult('🔴 أكمل إعداد الطابعة أولًا (عنوان/منفذ صحيحين، أو اختر جهاز بلوتوث/USB)');
+        setTestResult('🔴 أكمل إعدادات الطابعة فوق أولًا');
         return;
       }
       const result = await Printer.testConnection(target);
       setTestTrace(result.diagnostics ?? []);
-      const where = target.transport === 'network' ? `${target.host}:${target.port}` : target.transport;
+      const where = target.transport === 'network' ? target.host : TRANSPORT_SENTENCE[target.transport];
+      // Reaching the printer is not the same as printing on it -- a
+      // printer that answers with an empty paper roll passes this and
+      // produces nothing. Saying so keeps "اختبار الاتصال" from being
+      // read as "الطباعة شغالة".
       setTestResult(
         result.reachable
-          ? `🟢 متصل بـ ${where} (${result.latencyMs?.toFixed(0)}ms) — يثبت الوصول فقط، لا نجاح طباعة`
-          : `🔴 غير متصل بـ ${where} — ${result.error}${result.errorDetail ? ` (${result.errorDetail})` : ''}`,
+          ? `🟢 وصلنا للطابعة (${where}) — للتأكد إنها تطبع فعلًا اضغط «طباعة اختبار».`
+          : `🔴 ما قدرنا نوصل للطابعة (${where}) — تأكد إنها مشغّلة وعلى نفس شبكة الواي فاي.`,
       );
     } catch (e) {
       setTestResult('🔴 خطأ غير متوقع — جرّب مرة ثانية');
     } finally {
       setTesting(false);
+    }
+  };
+
+  /**
+   * A real receipt, through the real queue.
+   *
+   * Deliberately NOT a shortcut straight to the transport: it goes
+   * through enqueuePrintJob -> processPrintQueueNow, the exact path a
+   * paid order takes. A test that used a private path could pass while
+   * every real receipt still failed, which is the one thing a test
+   * print exists to rule out.
+   *
+   * It uses the SAVED profile, like every real job does -- so it is
+   * refused outright while there are unsaved edits, rather than quietly
+   * testing a target the cashier is no longer looking at.
+   */
+  const handleTestPrint = async () => {
+    if (unsaved) {
+      setTestPrintStatus('احفظ الإعدادات أولًا — الطباعة تستخدم الإعداد المحفوظ.');
+      return;
+    }
+    setPrintingTest(true);
+    setTestPrintStatus('');
+    try {
+      const profileInfo = device?.businessId != null ? await getReceiptBusinessProfile(device.businessId) : null;
+      const jobId = await enqueuePrintJob('receipt', {
+        orderId: null,
+        lines: [{ name: 'صنف تجريبي', qty: 1, unitPrice: 10, lineTotal: 10, mods: [] }],
+        subtotal: 10,
+        discount: 0,
+        vat: 1.5,
+        total: 11.5,
+        paymentMethod: 'اختبار',
+        change: 0,
+        businessName: device?.businessName ?? undefined,
+        branchName: device?.branchName ?? undefined,
+        vatNumber: profileInfo?.vatNumber || undefined,
+        logoUrl: profile.printReceiptLogo !== false ? profileInfo?.logoUrl || undefined : undefined,
+        customMessage: profileInfo?.customMessage || undefined,
+        createdAtISO: new Date().toISOString(),
+        metaLabel: 'طباعة اختبار',
+      });
+      await processPrintQueueNow();
+      // The outcome flags (anySucceeded/anyFailed) describe the whole
+      // pass, so an unrelated job queued behind a real order could set
+      // either one. Reading THIS job's own final status is the only
+      // answer that is actually about the test print.
+      const job = (await listPrintJobs()).find(j => j.id === jobId);
+      if (job?.status === 'printed') {
+        setTestPrintStatus('🟢 طلعت فاتورة الاختبار — الطابعة جاهزة.');
+      } else if (job?.status === 'skipped_no_printer') {
+        setTestPrintStatus('🔴 ما فيه طابعة محفوظة — أكمل الإعدادات فوق واحفظها.');
+      } else if (job?.status === 'failed') {
+        setTestPrintStatus('🔴 ما طلعت الفاتورة — تأكد إن الطابعة شغالة وفيها ورق وعلى نفس الشبكة.');
+      } else {
+        // Still queued or retrying: not a failure yet, and not a success.
+        setTestPrintStatus('الفاتورة بالانتظار — بتنطبع أول ما توصل الطابعة.');
+      }
+    } catch {
+      setTestPrintStatus('🔴 تعذرت الطباعة — جرّب مرة ثانية.');
+    } finally {
+      setPrintingTest(false);
     }
   };
 
@@ -166,7 +269,7 @@ export default function PrinterSettingsScreen() {
       };
       await savePrinterProfile(withCapabilities);
       setSavedSnapshot(JSON.stringify(withCapabilities));
-      setSaveStatus('✅ تم الحفظ محليًا على هذا الجهاز');
+      setSaveStatus('✅ تم الحفظ على هذا الجهاز');
     } catch (e) {
       setSaveStatus('🔴 تعذر الحفظ — جرّب مرة ثانية');
     } finally {
@@ -184,10 +287,43 @@ export default function PrinterSettingsScreen() {
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.scroll}>
-      <Text style={styles.title}>إعدادات الطابعة</Text>
+      <Text style={styles.title}>إعدادات الطباعة</Text>
       <Text style={styles.subtitle}>
-        هذا الإعداد خاص بهذا الجهاز فقط، ولا يفترض طرازًا أو منفذًا معينًا — يجب إدخال القيم الحقيقية لطابعتك.
+        هذي الإعدادات خاصة بهذا الجهاز وحده — كل جهاز عنده طابعته وإعداداتها.
       </Text>
+
+      <Section title="الوضع الحالي">
+        <StatRow label="النشاط" value={device?.businessName || '—'} />
+        <StatRow label="الفرع" value={device?.branchName || '—'} />
+        <StatRow label="الموظف الحالي" value={staffName || '—'} />
+        <StatRow
+          label="حالة الاتصال"
+          value={online ? '🟢 متصل' : '🔴 غير متصل'}
+        />
+        <StatRow
+          label="الطابعة"
+          value={
+            savedTarget
+              ? savedTarget.transport === 'network'
+                ? `${savedTarget.host} · محفوظة`
+                : `${TRANSPORT_SENTENCE[savedTarget.transport]} · محفوظة`
+              : 'ما فيه طابعة محفوظة'
+          }
+        />
+      </Section>
+
+      {/* Set once for the whole business, so it is shown here and changed
+          from the dashboard -- a till cannot write it (only an owner can
+          update the business row), and a per-device copy would let two
+          tills print two different-looking receipts for the same shop. */}
+      <Section title="شكل الفاتورة">
+        <View style={styles.themeBox}>
+          <Text style={styles.themeName}>{receiptTheme(themeId).label}</Text>
+          <Text style={styles.themeHint}>
+            يُختار من لوحة التحكم ويطبّق على كل الأجهزة. كل الأشكال تطبع فاتورة ضريبية مبسطة معتمدة من هيئة الزكاة والضريبة.
+          </Text>
+        </View>
+      </Section>
 
       <Section title="الطابعة">
         <FieldLabel>العلامة التجارية (اختياري)</FieldLabel>
@@ -196,7 +332,7 @@ export default function PrinterSettingsScreen() {
         <TextInput style={styles.input} placeholderTextColor={colors.muted} value={profile.model} onChangeText={t => update({ model: t })} placeholder="مثال: TM-T88VI" />
       </Section>
 
-      <Section title="النقل (Transport)">
+      <Section title="طريقة التوصيل">
         <View style={styles.row}>
           {(['network', 'bluetooth', 'usb'] as PrinterTransportKind[]).map(t => {
             const supported = SUPPORTED_TRANSPORTS.includes(t);
@@ -216,7 +352,7 @@ export default function PrinterSettingsScreen() {
 
         {profile.transport === 'network' && (
           <>
-            <FieldLabel>عنوان IP / المضيف</FieldLabel>
+            <FieldLabel>عنوان الطابعة في الشبكة</FieldLabel>
             <TextInput
               style={styles.input}
               placeholderTextColor={colors.muted}
@@ -225,13 +361,13 @@ export default function PrinterSettingsScreen() {
               placeholder="192.168.1.50"
               autoCapitalize="none"
             />
-            <FieldLabel>المنفذ (Port) — لا يوجد افتراضي</FieldLabel>
+            <FieldLabel>المنفذ</FieldLabel>
             <TextInput
               style={styles.input}
               placeholderTextColor={colors.muted}
               value={profile.port != null ? String(profile.port) : ''}
               onChangeText={t => update({ port: t ? parseInt(t, 10) : undefined })}
-              placeholder="أدخل المنفذ الحقيقي لطابعتك"
+              placeholder="من ورقة إعدادات طابعتك"
               keyboardType="number-pad"
             />
           </>
@@ -250,7 +386,7 @@ export default function PrinterSettingsScreen() {
         )}
       </Section>
 
-      <Section title="الورق والقدرات">
+      <Section title="الورق">
         <FieldLabel>عرض الورق</FieldLabel>
         <View style={styles.row}>
           {PAPER_WIDTH_PRESETS.map(preset => {
@@ -291,7 +427,7 @@ export default function PrinterSettingsScreen() {
         />
         {profile.printKitchenTicket === true && (
           <>
-            <FieldLabel>عنوان IP لطابعة المطبخ (اختياري — فارغ يعني نفس طابعة العميل)</FieldLabel>
+            <FieldLabel>عنوان طابعة المطبخ (اتركه فارغ لو نفس طابعة الكاشير تطبع للمطبخ)</FieldLabel>
             <TextInput
               style={styles.input}
               placeholderTextColor={colors.muted}
@@ -321,13 +457,13 @@ export default function PrinterSettingsScreen() {
         />
         {profile.drawerCapabilities.supported && (
           <>
-            <FieldLabel>أمر فتح الدرج المخصص (اختياري، Base64)</FieldLabel>
+            <FieldLabel>أمر فتح الدرج الخاص بطابعتك</FieldLabel>
             <TextInput
               style={styles.input}
               placeholderTextColor={colors.muted}
               value={profile.drawerCapabilities.kickCommandBase64 || ''}
               onChangeText={t => updateDrawer({ kickCommandBase64: t || undefined })}
-              placeholder="اتركه فارغًا لاستخدام أمر ESC/POS القياسي"
+              placeholder="اتركه فارغ — النظام يستخدم الأمر المعتاد"
               autoCapitalize="none"
             />
           </>
@@ -349,6 +485,13 @@ export default function PrinterSettingsScreen() {
       </TouchableOpacity>
       {!!testResult && <Text style={styles.testResult}>{testResult}</Text>}
       {testTrace.length > 0 && (
+        <TouchableOpacity onPress={() => setAdvancedOpen(v => !v)} activeOpacity={0.7}>
+          <Text style={styles.advancedToggle}>
+            {advancedOpen ? 'إخفاء تفاصيل الدعم الفني' : 'تفاصيل للدعم الفني'}
+          </Text>
+        </TouchableOpacity>
+      )}
+      {testTrace.length > 0 && advancedOpen && (
         <View style={styles.traceBox}>
           {testTrace.map((line, i) => (
             <Text key={i} style={styles.traceLine} selectable>
@@ -365,8 +508,8 @@ export default function PrinterSettingsScreen() {
         <View style={styles.unsavedBox}>
           <Text style={styles.unsavedText}>
             {savedTarget
-              ? `تعديلات غير محفوظة. الطباعة الفعلية وفتح الدرج ما زالا يستخدمان: ${savedTarget.transport === 'network' ? `${savedTarget.host}:${savedTarget.port}` : savedTarget.transport}`
-              : 'تعديلات غير محفوظة، وما فيه إعداد طابعة محفوظ — أي طلب راح يُسجَّل كـ«تم التخطي: لا طابعة». اضغط «حفظ الإعدادات».'}
+              ? `فيه تعديلات ما انحفظت. الطباعة وفتح الدرج لسه يستخدمان: ${savedTarget.transport === 'network' ? savedTarget.host : TRANSPORT_SENTENCE[savedTarget.transport]}`
+              : 'فيه تعديلات ما انحفظت، وما فيه طابعة محفوظة — أي طلب ما راح تطلع فاتورته. اضغط «حفظ الإعدادات».'}
           </Text>
         </View>
       )}
@@ -384,7 +527,33 @@ export default function PrinterSettingsScreen() {
         </View>
       )}
       {!!saveStatus && <Text style={styles.saveStatus}>{saveStatus}</Text>}
+
+      {/* Below the save button on purpose: it prints from the SAVED
+          profile, so it only means anything once saving has happened. */}
+      <TouchableOpacity
+        style={styles.testButton}
+        onPress={handleTestPrint}
+        disabled={printingTest}
+        activeOpacity={0.8}>
+        <Text style={styles.testButtonText}>
+          {printingTest ? 'جارٍ الطباعة...' : 'طباعة اختبار'}
+        </Text>
+      </TouchableOpacity>
+      {!!testPrintStatus && <Text style={styles.testResult}>{testPrintStatus}</Text>}
     </ScrollView>
+  );
+}
+
+/** The PWA's .shift-stat-row: label at one end, value at the other. */
+function StatRow({ label, value }: { label: string; value: string }) {
+  const styles = useStyles();
+  return (
+    <View style={styles.statRow}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue} numberOfLines={1}>
+        {value}
+      </Text>
+    </View>
   );
 }
 
@@ -505,6 +674,31 @@ const useStyles = createStyles(colors =>
   saveButtonDisabled: { backgroundColor: colors.surf2 },
   saveButtonText: { fontFamily: fonts.sansBold, color: colors.flagGreenDeep },
   saveButtonTextDisabled: { color: colors.muted },
+  statRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing[2],
+    paddingVertical: spacing[2],
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  statLabel: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted },
+  statValue: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.text, flexShrink: 1, textAlign: 'left' },
+
+  themeBox: { backgroundColor: colors.surf1, borderRadius: radii.sm, padding: spacing[3], gap: spacing[1] },
+  themeName: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.text },
+  themeHint: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.muted, lineHeight: 17 },
+
+  advancedToggle: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 11,
+    color: colors.muted,
+    textAlign: 'center',
+    paddingVertical: spacing[2],
+    marginBottom: spacing[1],
+  },
+
   traceBox: { backgroundColor: colors.surf1, borderRadius: radii.sm, padding: spacing[2], marginBottom: spacing[3] },
   traceLine: { fontFamily: fonts.monoMedium, fontSize: 9.5, color: colors.muted, writingDirection: 'ltr', textAlign: 'left', lineHeight: 14 },
   unsavedBox: {

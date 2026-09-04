@@ -44,17 +44,17 @@ export function validatePrinterProfile(profile: PrinterProfile): ValidationResul
   const errors: string[] = [];
 
   if (!SUPPORTED_TRANSPORTS.includes(profile.transport)) {
-    errors.push(`النقل '${profile.transport}' غير مدعوم حاليًا — الشبكة (network) فقط مطبّقة.`);
+    errors.push('هذه الطريقة غير متاحة حاليًا — الوصل عبر شبكة الواي فاي فقط.');
   }
 
   if (profile.transport === 'network') {
     if (!profile.host || !profile.host.trim()) {
-      errors.push('عنوان IP/المضيف مطلوب لطابعة الشبكة.');
+      errors.push('اكتب عنوان الطابعة في الشبكة.');
     }
     if (profile.port == null) {
-      errors.push('المنفذ (Port) مطلوب — لا يُفترض 9100 تلقائيًا.');
+      errors.push('اكتب رقم المنفذ الموجود في ورقة إعدادات طابعتك.');
     } else if (!Number.isInteger(profile.port) || profile.port < 1 || profile.port > 65535) {
-      errors.push('المنفذ يجب أن يكون رقمًا صحيحًا بين 1 و 65535.');
+      errors.push('رقم المنفذ يجب أن يكون بين ١ و ٦٥٥٣٥.');
     }
   }
 
@@ -62,23 +62,23 @@ export function validatePrinterProfile(profile: PrinterProfile): ValidationResul
   // SELECTED (via a real scanDevices() result, never guessed/typed) --
   // no "just enter an ID" text field exists for either, on purpose.
   if (profile.transport === 'bluetooth' && (!profile.bluetoothId || !profile.bluetoothId.trim())) {
-    errors.push('اختر جهاز بلوتوث أولًا عبر البحث عن الأجهزة القريبة.');
+    errors.push('ابحث عن الأجهزة القريبة واختر طابعتك.');
   }
   if (profile.transport === 'usb' && (!profile.usbAccessoryId || !profile.usbAccessoryId.trim())) {
-    errors.push('اختر جهاز USB أولًا عبر البحث عن الأجهزة المتصلة.');
+    errors.push('ابحث عن الأجهزة الموصولة واختر طابعتك.');
   }
 
   if (profile.protocol !== 'escpos') {
-    errors.push(`البروتوكول '${profile.protocol}' غير مدعوم — ESC/POS فقط مطبّق.`);
+    errors.push('نوع الطابعة هذا غير مدعوم — طابعات الفواتير الحرارية فقط.');
   }
 
   if (profile.paperWidthPx != null && profile.paperWidthPx <= 0) {
-    errors.push('عرض الورق يجب أن يكون رقمًا موجبًا.');
+    errors.push('اختر عرض الورق.');
   }
 
   if (profile.drawerCapabilities.supported && profile.drawerCapabilities.kickCommandBase64) {
     if (!isValidBase64(profile.drawerCapabilities.kickCommandBase64)) {
-      errors.push('أمر فتح الدرج المخصص يجب أن يكون Base64 صالحًا.');
+      errors.push('صيغة أمر فتح الدرج غير صحيحة.');
     }
   }
 
@@ -162,8 +162,8 @@ export function isDrawerSupported(profile: PrinterProfile | null): boolean {
 }
 
 export const PAPER_WIDTH_PRESETS: readonly { label: string; px: number }[] = [
-  { label: '58mm', px: 384 },
-  { label: '80mm', px: 576 },
+  { label: '80مم (الأشيع)', px: 576 },
+  { label: '58مم', px: 384 },
 ];
 
 /** A real, honest "nothing configured yet" starting point for the

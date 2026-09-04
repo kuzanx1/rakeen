@@ -107,7 +107,7 @@ export default function PrintQueueScreen() {
         data={jobs}
         keyExtractor={j => j.id}
         contentContainerStyle={styles.list}
-        ListEmptyComponent={<Text style={styles.empty}>لا توجد مهام طباعة.</Text>}
+        ListEmptyComponent={<Text style={styles.empty}>ما فيه فواتير بانتظار الطباعة.</Text>}
         renderItem={({ item }) => (
           <View style={styles.card}>
             <View style={styles.cardRow}>

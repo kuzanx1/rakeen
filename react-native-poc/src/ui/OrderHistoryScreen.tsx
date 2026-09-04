@@ -99,7 +99,15 @@ function DetailRow({ label, text, mono }: { label: string; text: string; mono?: 
   );
 }
 
-export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
+export default function OrderHistoryScreen({
+  branchId,
+  shiftId,
+}: {
+  branchId: number;
+  /** Passed through to the running list: a collected cash payment has to
+   *  land in the shift that is open right now. */
+  shiftId: number | null;
+}) {
   const { colors } = useTheme();
   const styles = useStyles();
   const { sideBySide, insetTop, insetBottom } = useShell();
@@ -235,7 +243,7 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
       </View>
 
       {status === 'running' ? (
-        <RunningOrdersList branchId={branchId} />
+        <RunningOrdersList branchId={branchId} shiftId={shiftId} />
       ) : loading ? (
         <ActivityIndicator style={styles.center} color={colors.accentText} />
       ) : error ? (

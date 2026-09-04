@@ -30,20 +30,20 @@ export function diagnoseProblem(
   troublePrintCount: number,
 ): Diagnosis {
   if (internet === false) {
-    return { text: 'المشكلة: الإنترنت — الجهاز غير متصل بالشبكة إطلاقًا.', bad: true };
+    return { text: 'المشكلة: الجهاز مو متصل بالإنترنت إطلاقًا.', bad: true };
   }
   if (cloud === false) {
-    return { text: 'المشكلة: الاتصال بالسحابة (Supabase) — الإنترنت شغال لكن السيرفر ما يرد.', bad: true };
+    return { text: 'المشكلة: الإنترنت شغال لكن ما نقدر نوصل لحساب المطعم — جرّب بعد شوي.', bad: true };
   }
   if (!bridgeAvailable) {
     return {
-      text: 'ملاحظة: ما فيه جسر طباعة أصلي مثبّت على هذا الجهاز — الطباعة الفعلية تنتظر تطبيق حقيقي على جهاز حقيقي.',
+      text: 'ملاحظة: الطباعة غير متاحة على هذا الجهاز.',
       bad: false,
     };
   }
   if (troublePrintCount > 0) {
     return {
-      text: 'المشكلة: الطابعة نفسها — الجسر موجود لكن الطباعة تفشل (تحقق من الاتصال/الطاقة/عنوان IP).',
+      text: 'المشكلة: الطابعة — تأكد إنها مشغّلة، وفيها ورق، وعلى نفس شبكة الواي فاي.',
       bad: true,
     };
   }

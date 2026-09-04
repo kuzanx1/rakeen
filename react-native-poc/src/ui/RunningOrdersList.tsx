@@ -12,6 +12,7 @@ import {
   markDeliveryDelivered,
   markPickupReady,
   markPickupCollected,
+  confirmCodCollected,
 } from '../application/activeOrderService';
 import type { ActiveOrder } from '../application/activeOrderService';
 import { createStyles, fonts, gradients, radii, useTheme } from './theme';
@@ -47,7 +48,16 @@ function formatMmSs(totalSeconds: number): string {
   return `${sign}${pad2(Math.floor(abs / 60))}:${pad2(abs % 60)}`;
 }
 
-export default function RunningOrdersList({ branchId }: { branchId: number }) {
+export default function RunningOrdersList({
+  branchId,
+  shiftId,
+}: {
+  branchId: number;
+  /** The open shift a collected cash payment belongs to. Null when no
+   *  shift is open, which is why the collect button refuses rather than
+   *  banking the money nowhere. */
+  shiftId: number | null;
+}) {
   const { colors } = useTheme();
   const styles = useStyles();
   const [orders, setOrders] = useState<ActiveOrder[] | null>(null);
@@ -79,6 +89,28 @@ export default function RunningOrdersList({ branchId }: { branchId: number }) {
   const advance = async (order: ActiveOrder, step: 'ready' | 'out' | 'done') => {
     setBusyId(order.id);
     setError('');
+
+    // For a cash order the final step IS the payment, so it takes the
+    // collection path instead of the plain handover one. Refused outright
+    // with no open shift: the money would otherwise be marked received
+    // and belong to no shift's drawer, which is the failure this whole
+    // flow exists to prevent.
+    if (step === 'done' && order.isCod) {
+      if (shiftId == null) {
+        setBusyId(null);
+        setError('افتح وردية أولًا عشان يتسجل المبلغ فيها.');
+        return;
+      }
+      const collected = await confirmCodCollected(order.id, shiftId);
+      setBusyId(null);
+      if (!collected.ok) {
+        setError(collected.error ?? 'تعذر تسجيل استلام المبلغ');
+        return;
+      }
+      await load();
+      return;
+    }
+
     const run =
       order.channel === 'delivery'
         ? step === 'ready'
@@ -161,6 +193,14 @@ export default function RunningOrdersList({ branchId }: { branchId: number }) {
               <Money value={order.total} size={14.5} />
             </View>
 
+            {order.isCod && (
+              <View style={styles.codPill}>
+                <Text style={styles.codText}>
+                  الدفع عند الاستلام — المبلغ ما تحصّل بعد
+                </Text>
+              </View>
+            )}
+
             {remaining != null && (
               <View style={[styles.timer, late && styles.timerLate, soon && styles.timerSoon]}>
                 <Text style={[styles.timerText, (late || soon) && styles.timerTextAlert]}>
@@ -212,7 +252,9 @@ export default function RunningOrdersList({ branchId }: { branchId: number }) {
                   style={[styles.actionHalf, styles.secondary]}
                   onPress={() => advance(order, 'done')}
                   activeOpacity={0.8}>
-                  <Text style={styles.secondaryText}>تم التسليم</Text>
+                  <Text style={styles.secondaryText}>
+                    {order.isCod ? 'سُلّم واستلمت المبلغ' : 'تم التسليم'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             ) : (
@@ -220,7 +262,13 @@ export default function RunningOrdersList({ branchId }: { branchId: number }) {
                 <View style={styles.action}>
                   <GradientFill gradient={gradients.payButton} radius={radii.md} />
                   <Text style={styles.actionText}>
-                    {isDelivery ? 'تم التسليم' : 'استلمه العميل'}
+                    {order.isCod
+                      ? isDelivery
+                        ? 'تم التسليم واستلمت المبلغ'
+                        : 'استلمه العميل ودفع'
+                      : isDelivery
+                        ? 'تم التسليم'
+                        : 'استلمه العميل'}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -265,6 +313,15 @@ const useStyles = createStyles((colors, shadows) =>
     timerLate: { backgroundColor: 'rgba(224,138,106,0.20)' },
     timerText: { fontFamily: fonts.monoBold, fontSize: 12.5, color: colors.muted },
     timerTextAlert: { color: colors.text },
+
+    codPill: {
+      alignSelf: 'flex-start',
+      paddingVertical: 4,
+      paddingHorizontal: 10,
+      borderRadius: radii.full,
+      backgroundColor: 'rgba(224,184,74,0.20)',
+    },
+    codText: { fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.text },
 
     stage: { alignSelf: 'flex-start' },
     stageText: { fontFamily: fonts.sansSemiBold, fontSize: 11.5, color: colors.muted },

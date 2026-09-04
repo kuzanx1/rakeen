@@ -12,6 +12,7 @@ if (!window.__rakeenOrderBooted) {
   const SLUG = window.RAKEEN_ORDER_SLUG;
   const LS_IDENTITY = 'rakeen_order_identity_' + SLUG;
   const LS_DISPLAY_MODE = 'rakeen_order_display_mode_' + SLUG;
+  const LS_LAST_ORDER_TOKEN = 'rakeen_order_last_token_' + SLUG;
 
   // "Display mode" — a per-device, staff-only setting (stored on this
   // browser only, never touches the business's real settings) for a
@@ -20,8 +21,22 @@ if (!window.__rakeenOrderBooted) {
   // device via localStorage; every other customer's own phone is unaffected.
   let DISPLAY_MODE = false;
 
+  // Real reported bug: the phone field's digit-strip used /\D/g, which in
+  // JS only matches ASCII 0-9 — a customer typing on an Arabic keyboard
+  // (Arabic-Indic ٠-٩, common default in this market) got every character
+  // of their number silently wiped instead of converted, since \D treats
+  // them as "non-digit" too. Convert both Arabic-Indic and Eastern
+  // Arabic-Indic (Persian) digits to Western digits FIRST.
+  function toWesternDigits(str){
+    return String(str).replace(/[٠-٩۰-۹]/g, ch=>{
+      const code = ch.charCodeAt(0);
+      return String(code >= 0x06F0 ? code - 0x06F0 : code - 0x0660);
+    });
+  }
+
   let BUSINESS = null;
-  let CATEGORIES = [];
+  let CATEGORIES = []; // top-level category names only — drives the quick-jump rail
+  let CATEGORY_ROWS = []; // {id, name, parentId} for every category, top-level and sub
   let PRODUCTS = [];
   let MODIFIER_PRODUCTS = {}; // menu_item_id -> {groups:[{id,name,type,options:[{id,name,price}]}]}
   let BOX_PRODUCTS = {}; // menu_item_id -> {slots, items:[{id,name}]}
@@ -80,6 +95,39 @@ if (!window.__rakeenOrderBooted) {
     const changeBtn = document.getElementById('omChangeBranchBtn');
     if (changeBtn) changeBtn.addEventListener('click', openBranchPicker);
   }
+  // Pickup only — a delivery order's branch is just internal routing info,
+  // not somewhere the customer needs to go themselves. Shows every branch
+  // that has a location set (not just the currently selected one) — this is
+  // "where are you" info for the whole business, not tied to one order.
+  // The embed uses Google's plain iframe form (?output=embed) rather than
+  // the JS Maps API, which needs a billed API key this project has none of.
+  function renderFooterLocation() {
+    const container = document.getElementById('omFooterLocations');
+    if (!container) return;
+    // A staff-mounted kiosk screen has no reason to show directions to
+    // itself — same reasoning as hiding the channel row / cart in display
+    // mode.
+    if (DISPLAY_MODE) { container.style.display = 'none'; return; }
+    if (state.channel !== 'pickup') { container.style.display = 'none'; return; }
+    const branches = BRANCHES.filter(b => b.lat != null || b.address);
+    if (!branches.length) { container.style.display = 'none'; return; }
+    container.style.display = 'flex';
+    container.innerHTML = branches.map(b => {
+      const mapQuery = b.lat != null && b.lng != null ? `${b.lat},${b.lng}` : b.address;
+      const mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`;
+      const embedSrc = `https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed`;
+      return `
+        <div class="om-footer-location-card">
+          <a class="om-footer-location-head" href="${mapsLink}" target="_blank" rel="noopener noreferrer">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <span class="om-footer-location-name">${b.name}</span>
+          </a>
+          ${b.address ? `<div class="om-footer-location-address">${b.address}</div>` : ''}
+          <iframe class="om-footer-location-map" src="${embedSrc}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+        </div>
+      `;
+    }).join('');
+  }
   function openBranchPicker() {
     const overlay = document.getElementById('omModifierOverlay');
     document.getElementById('omModifierTitle').textContent = 'اختر الفرع';
@@ -97,6 +145,7 @@ if (!window.__rakeenOrderBooted) {
         state.branchAutoPicked = false;
         overlay.classList.remove('show');
         renderBranchNote();
+        renderFooterLocation();
         if (CART.length > 0) openCheckout();
       });
     });
@@ -111,19 +160,32 @@ if (!window.__rakeenOrderBooted) {
     showToast._t = setTimeout(() => t.classList.remove('show'), 2600);
   }
 
-  function money(n) { return Number(n || 0).toFixed(2); }
+  function formatPrice(n) {
+    let s = Number(n || 0).toFixed(2);
+    s = s.replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+    return s + ' SAR';
+  }
 
   // ============ Display mode (staff-only, per-device, view-only menu) ============
   function loadDisplayMode() {
     try { DISPLAY_MODE = localStorage.getItem(LS_DISPLAY_MODE) === '1'; } catch { DISPLAY_MODE = false; }
   }
-  // The ordering-specific taglines ("order direct, no app commission") stop
-  // making sense once nobody can actually order from this screen.
+  // Used to swap in fixed kiosk labels ("المنيو"/"تصفح قائمة الطعام") whenever
+  // DISPLAY_MODE was on, on the theory that the ordering-specific taglines
+  // stop making sense once nobody can actually order from this screen. The
+  // merchant explicitly asked for the opposite: their own header/hero
+  // tagline is their brand identity and must stay put regardless of display
+  // mode, not flip to generic kiosk text every time this runs (boot() calls
+  // it unconditionally, so any device that had display mode toggled on even
+  // once — the setting persists in localStorage — would show the real
+  // tagline for an instant and then visibly snap to the kiosk one on every
+  // single load). Kept as its own function (called from setDisplayMode() and
+  // boot()) since it's still the single place that (re)applies the tagline
+  // whenever either of those change, just without the mode branch anymore.
   function updateTaglinesForDisplayMode() {
-    const brandTag = document.getElementById('omBrandTag');
-    if (brandTag) brandTag.textContent = DISPLAY_MODE ? 'المنيو' : 'اطلب مباشرة من المطعم';
-    const heroChip = document.getElementById('omHeroChip');
-    if (heroChip) heroChip.textContent = DISPLAY_MODE ? 'تصفح قائمة الطعام' : 'طلب مباشر بدون عمولة تطبيقات';
+    if (!BUSINESS) return;
+    applyTagline('omBrandTag', BUSINESS.online_tagline_header, DEFAULT_TAGLINE_HEADER);
+    applyTagline('omHeroChip', BUSINESS.online_tagline_hero, DEFAULT_TAGLINE_HERO);
   }
   function updateChannelRowVisibility() {
     const channelRow = document.getElementById('omChannelRow');
@@ -158,13 +220,37 @@ if (!window.__rakeenOrderBooted) {
     updateChannelRowVisibility();
     updateCartVisibilityForDisplayMode();
     updateTaglinesForDisplayMode();
+    renderFooterLocation();
     renderMenu();
     renderDisplayModeToggle();
   }
 
   // ============ Pickup time ============
-  function pickupEarliestEstimate() { return new Date(Date.now() + PICKUP_PREP_MINUTES * 60000); }
+  // Frozen once per checkout attempt (state.asapTargetTime, set in
+  // openCheckout()) rather than recomputed fresh on every call — otherwise
+  // the live countdown shown to the customer would silently drift from the
+  // actual scheduled_for value submitted at confirm time (a few minutes
+  // could pass while they fill in phone/name/notes).
+  function pickupEarliestEstimate() { return state.asapTargetTime || new Date(Date.now() + PICKUP_PREP_MINUTES * 60000); }
   function timeStrToMinutes(t) { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; }
+  function formatTimeStrLabel(t) {
+    const [h, m] = String(t).split(':').map(Number);
+    const d = new Date(); d.setHours(h, m, 0, 0);
+    return d.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+  }
+  // Business hours were only ever used to bound the "later" time picker —
+  // nothing stopped an "ASAP" pickup order from being placed while the
+  // branch is already closed (e.g. ordering at 3am against 15:00–02:00
+  // hours). Handles the overnight-span case (closing time earlier than
+  // opening time) the same way pickupWindow() does.
+  function isBranchOpenNow(branch) {
+    if (!branch || !branch.opening_time || !branch.closing_time) return true;
+    const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+    const openMin = timeStrToMinutes(branch.opening_time);
+    const closeMin = timeStrToMinutes(branch.closing_time);
+    if (closeMin > openMin) return nowMin >= openMin && nowMin < closeMin;
+    return nowMin >= openMin || nowMin < closeMin;
+  }
   function toTimeValue(d) { return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
   // Returns {earliest, closesAt} bounding the pickup-time picker, or null if
   // the branch has no operating hours configured — in that case the page
@@ -209,7 +295,7 @@ if (!window.__rakeenOrderBooted) {
       <div class="om-field">
         <label>وقت الاستلام</label>
         <div class="om-time-toggle">
-          <button type="button" class="om-time-chip ${state.pickupTimeMode !== 'later' ? 'active' : ''}" data-mode="asap">بأقرب وقت (${earliestLabel})</button>
+          <button type="button" class="om-time-chip ${state.pickupTimeMode !== 'later' ? 'active' : ''}" data-mode="asap">الآن</button>
           <button type="button" class="om-time-chip ${state.pickupTimeMode === 'later' ? 'active' : ''}" data-mode="later">وقت لاحق</button>
         </div>
         ${state.pickupTimeMode === 'later' ? `<div class="om-time-picker-row"><input type="time" id="omPickupTimeInput" value="${state.scheduledForTimeValue || toTimeValue(win.earliest)}" min="${toTimeValue(win.earliest)}" max="${toTimeValue(win.closesAt)}"></div>` : ''}
@@ -217,6 +303,11 @@ if (!window.__rakeenOrderBooted) {
       </div>
     `;
   }
+  // No ticking countdown here on purpose — a live "جاهزة خلال ٠٠:٠٠" clock
+  // before the order is even confirmed implies a promise that hasn't been
+  // made yet. The real countdown only starts once the order is placed and
+  // accepted, tied to the actual scheduled_for stored on the row — see the
+  // "قيد التجهيز" step on the order-status page.
   function renderPickupTimeBlock() {
     const container = document.getElementById('omPickupTimeBlock');
     if (!container) return;
@@ -240,13 +331,95 @@ if (!window.__rakeenOrderBooted) {
     return yiq >= 150 ? '#16281B' : '#FDFCF7';
   }
 
+  const DEFAULT_TAGLINE_HEADER = 'اطلب مباشرة من المطعم';
+  const DEFAULT_TAGLINE_HERO = 'طلب مباشر بدون عمولة تطبيقات';
+  // null = never customized (show the built-in default), '' = merchant
+  // explicitly cleared it to hide it, any other string = custom text.
+  function resolveTagline(value, fallback) {
+    if (value === '') return '';
+    return value || fallback;
+  }
+  function applyTagline(elId, value, fallback) {
+    const el = document.getElementById(elId);
+    const resolved = resolveTagline(value, fallback);
+    if (!resolved) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    el.textContent = resolved;
+  }
+
+  const SOCIAL_ICONS = {
+    whatsapp: '<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M12.04 2c-5.5 0-9.96 4.46-9.96 9.96 0 1.76.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.5 0 9.96-4.46 9.96-9.96S17.54 2 12.04 2zm5.8 14.24c-.24.68-1.4 1.3-1.93 1.34-.5.05-.98.24-3.3-.7-2.8-1.13-4.6-3.97-4.74-4.15-.14-.19-1.13-1.5-1.13-2.86s.71-2.03.96-2.3c.24-.28.53-.35.71-.35h.5c.16 0 .38-.03.58.44.24.56.8 1.94.87 2.08.07.14.12.3.02.49-.1.19-.15.3-.29.47-.14.16-.3.36-.43.48-.14.14-.29.29-.13.57.17.28.75 1.24 1.62 2.01 1.12.99 2.05 1.3 2.34 1.44.29.14.46.12.63-.07.17-.2.72-.83.91-1.12.19-.28.38-.23.63-.14.26.1 1.63.77 1.91.91.29.14.48.21.55.33.07.12.07.68-.17 1.36z"/></svg>',
+    instagram: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1"/></svg>',
+    tiktok: '<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M16.6 2h-3.3v13.9c0 1.6-1.3 2.9-2.9 2.9a2.9 2.9 0 0 1-2.9-2.9 2.9 2.9 0 0 1 2.9-2.9c.3 0 .6.05.9.13v-3.35a6.25 6.25 0 0 0-.9-.07 6.25 6.25 0 0 0-6.25 6.25 6.25 6.25 0 0 0 6.25 6.25 6.25 6.25 0 0 0 6.25-6.25V8.6a8.1 8.1 0 0 0 4.65 1.47V6.75a4.85 4.85 0 0 1-4.65-4.75z"/></svg>',
+    twitter: '<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M18.9 3H22l-7.35 8.4L23 21h-6.8l-5.3-6.9L4.7 21H1.6l7.85-8.98L1 3h6.95l4.8 6.35zM17.7 19h1.9L7.4 4.9H5.4z"/></svg>',
+  };
+  function renderSocialLinks(biz) {
+    const links = [
+      biz.online_contact_whatsapp ? { key: 'whatsapp', url: 'https://wa.me/' + biz.online_contact_whatsapp.replace(/[^0-9]/g, '') } : null,
+      biz.online_social_instagram ? { key: 'instagram', url: biz.online_social_instagram } : null,
+      biz.online_social_tiktok ? { key: 'tiktok', url: biz.online_social_tiktok } : null,
+      biz.online_social_twitter ? { key: 'twitter', url: biz.online_social_twitter } : null,
+    ].filter(Boolean);
+    const el = document.getElementById('omHeroSocial');
+    if (!links.length) { el.style.display = 'none'; return; }
+    el.style.display = 'flex';
+    el.innerHTML = links.map(l => `<a class="om-social-link" href="${l.url}" target="_blank" rel="noopener noreferrer">${SOCIAL_ICONS[l.key]}</a>`).join('');
+  }
+
+  // ============ Persistent order tracking (return-visit shortcut) ============
+  // Set once at successful checkout (submitOrder(), LS_LAST_ORDER_TOKEN
+  // writes above) — never read back until now. This USED to hard-redirect a
+  // returning customer straight to /order-status, stranding them there with
+  // no way back to the menu — owner feedback: "الفاتورة تقعد معلقة بالجوال،
+  // الغيها". Now it just shows a small floating "طلبك" shortcut over the
+  // normal menu, so the customer sees the shop first and taps through only
+  // if they want to. The shortcut disappears half an hour past whatever time
+  // is actually relevant to the customer: the scheduled pickup/delivery time
+  // if they chose one, otherwise half an hour after the order was placed —
+  // by then it's either been handled or checking back here won't help.
+  const ACTIVE_ORDER_TERMINAL_STATUSES = ['cancelled', 'rejected', 'refunded'];
+  const TRACK_FAB_WINDOW_MS = 30 * 60 * 1000;
+  async function checkTrackOrderFab() {
+    const fab = document.getElementById('omTrackOrderFab');
+    let token;
+    try { token = localStorage.getItem(LS_LAST_ORDER_TOKEN); } catch { return; }
+    if (!token) { fab.style.display = 'none'; return; }
+    try {
+      const { data, error } = await sb.rpc('get_order_status', { p_token: token }).maybeSingle();
+      if (error || !data) { try { localStorage.removeItem(LS_LAST_ORDER_TOKEN); } catch {} fab.style.display = 'none'; return; }
+      const isTerminal = ACTIVE_ORDER_TERMINAL_STATUSES.includes(data.status);
+      // delivered_at is the real "customer has it in hand" signal — once
+      // that's set there's nothing left to track, regardless of the window.
+      const isDone = isTerminal || data.delivered_at != null;
+      // scheduled_for is populated even for an ASAP order (it's also used as
+      // the internal ready-time estimate) — scheduled_by_customer is the
+      // real signal for "the customer picked this time on purpose", which is
+      // the only case that should anchor the window to it instead of when
+      // the order was placed.
+      const relevantTimeMs = (data.scheduled_by_customer && data.scheduled_for)
+        ? new Date(data.scheduled_for).getTime()
+        : new Date(data.created_at).getTime();
+      const expired = Date.now() >= relevantTimeMs + TRACK_FAB_WINDOW_MS;
+      if (isDone || expired) {
+        try { localStorage.removeItem(LS_LAST_ORDER_TOKEN); } catch {}
+        fab.style.display = 'none';
+        return;
+      }
+      fab.style.display = 'flex';
+      fab.onclick = () => { window.location.href = '/order-status/' + token; };
+    } catch {
+      fab.style.display = 'none';
+    }
+  }
+
   async function boot() {
+    checkTrackOrderFab();
     document.getElementById('omMenu').innerHTML = `<div class="om-loading"><div class="om-spinner"></div></div>`;
 
     let biz, error;
     try {
       const res = await sb.from('businesses')
-        .select('id, name, logo_url, online_banner_url, online_theme_color, online_offers_delivery, online_offers_pickup, online_delivery_fee, online_pickup_prep_minutes, vat_rate, prices_include_vat, vat_registered, online_order_free_count, online_subscribed, online_order_free_limit, is_active, geidea_connected, verification_status')
+        .select('id, name, logo_url, online_banner_url, online_theme_color, online_theme_style, online_font_family, online_color_surf, online_color_card, online_color_ink, online_color_muted, online_offers_delivery, online_offers_pickup, online_delivery_fee, online_pickup_prep_minutes, vat_rate, prices_include_vat, vat_registered, online_order_free_count, online_subscribed, online_order_free_limit, is_active, geidea_connected, verification_status, online_contact_whatsapp, online_social_instagram, online_social_tiktok, online_social_twitter, online_tagline_header, online_tagline_hero')
         .eq('online_menu_slug', SLUG).eq('online_ordering_enabled', true).maybeSingle();
       biz = res.data; error = res.error;
     } catch (e) { error = e; }
@@ -273,10 +446,51 @@ if (!window.__rakeenOrderBooted) {
     }
     BUSINESS = biz;
     PICKUP_PREP_MINUTES = Number(biz.online_pickup_prep_minutes) || 20;
-    document.title = biz.name + ' — اطلب مباشرة';
+    const titleTagline = resolveTagline(biz.online_tagline_hero, DEFAULT_TAGLINE_HERO);
+    document.title = titleTagline ? `${biz.name} - ${titleTagline}` : biz.name;
+    if (biz.logo_url) {
+      let favicon = document.querySelector('link[rel="icon"]');
+      if (!favicon) { favicon = document.createElement('link'); favicon.rel = 'icon'; document.head.appendChild(favicon); }
+      favicon.href = biz.logo_url;
+    }
+    const omShell = document.getElementById('omShell');
+    const themeName = biz.online_theme_style === 'luxury' ? 'luxury' : 'classic';
+    omShell.setAttribute('data-theme', themeName);
+    // ALSO on <html> — the cart bar and every bottom sheet (cart/checkout/
+    // modifier/branch-picker) are siblings of #omShell in order-markup.ts,
+    // not descendants of it, so a `.om-shell[data-theme=...] .om-cart-bar`
+    // selector can never match them no matter how it's written. This was a
+    // real, previously-undetected bug (the bottom cart bar was showing
+    // alongside the desktop sidebar cart whenever the cart had items) — CSS
+    // now targets those specific siblings via `html[data-theme=...]` instead.
+    document.documentElement.setAttribute('data-theme', themeName);
+    // Applied on #omShell itself (not just documentElement) — the luxury
+    // theme's own CSS sets --surf/--card/--ink/--muted on this exact
+    // selector, and a property set higher up (documentElement) only reaches
+    // #omShell's descendants by INHERITANCE, which any rule actually
+    // matching #omShell (including that theme rule) wins over regardless of
+    // specificity. Setting it here too means a merchant's custom color
+    // always wins over the theme default inside #omShell, in every theme.
+    //
+    // It's ALSO applied on documentElement, because the cart bar and every
+    // bottom sheet (cart/checkout/modifier/branch-picker) are siblings of
+    // #omShell in order-markup.ts, not descendants of it — an override set
+    // only on #omShell never reaches them via inheritance at all, so without
+    // this they silently keep Rakeen's own default colors instead of the
+    // merchant's. No theme-scoped rule targets those sibling elements (the
+    // luxury selector above only ever matches things under #omShell), so
+    // there's no cascade fight to worry about for them.
     const themeColor = biz.online_theme_color || '#C7FF4D';
+    const themeInk = inkColorFor(themeColor);
     document.documentElement.style.setProperty('--brand', themeColor);
-    document.documentElement.style.setProperty('--brand-ink', inkColorFor(themeColor));
+    document.documentElement.style.setProperty('--brand-ink', themeInk);
+    omShell.style.setProperty('--brand', themeColor);
+    omShell.style.setProperty('--brand-ink', themeInk);
+    if (biz.online_color_surf) { document.documentElement.style.setProperty('--surf', biz.online_color_surf); omShell.style.setProperty('--surf', biz.online_color_surf); }
+    if (biz.online_color_card) { document.documentElement.style.setProperty('--card', biz.online_color_card); omShell.style.setProperty('--card', biz.online_color_card); }
+    if (biz.online_color_ink) { document.documentElement.style.setProperty('--ink', biz.online_color_ink); omShell.style.setProperty('--ink', biz.online_color_ink); }
+    if (biz.online_color_muted) { document.documentElement.style.setProperty('--muted', biz.online_color_muted); omShell.style.setProperty('--muted', biz.online_color_muted); }
+    document.documentElement.setAttribute('data-font', biz.online_font_family === 'thmanyah' ? 'thmanyah' : 'rakeen');
 
     document.getElementById('omBrandName').textContent = biz.name;
     if (biz.logo_url) {
@@ -292,6 +506,12 @@ if (!window.__rakeenOrderBooted) {
       heroEl.classList.add('has-banner');
       document.getElementById('omHeroBanner').style.backgroundImage = `url("${biz.online_banner_url}")`;
     }
+    renderSocialLinks(biz);
+    applyTagline('omBrandTag', biz.online_tagline_header, DEFAULT_TAGLINE_HEADER);
+    applyTagline('omHeroChip', biz.online_tagline_hero, DEFAULT_TAGLINE_HERO);
+    // Only reveal the shell once its real theme/branding is in place — see
+    // the .om-shell{opacity:0} comment in rakeen-order.css for why.
+    omShell.classList.add('om-ready');
 
     const channelRow = document.getElementById('omChannelRow');
     if (!biz.online_offers_delivery) channelRow.querySelector('[data-channel="delivery"]').remove();
@@ -326,6 +546,7 @@ if (!window.__rakeenOrderBooted) {
     renderDisplayModeToggle();
     wireEvents();
     renderBranchNote();
+    renderFooterLocation();
     if (state.channel === 'delivery') locateNearestBranch();
   }
 
@@ -339,16 +560,19 @@ if (!window.__rakeenOrderBooted) {
     // modifier/box data on every single storefront page load.
     const [catRes, itemsRes, groupRes] = await Promise.all([
       sb.from('menu_categories').select('*').eq('business_id', businessId).order('sort_order'),
-      sb.from('menu_items').select('id, category_id, name, price, image_url, cost_mode, total_pieces').eq('business_id', businessId).eq('active', true).order('id'),
+      sb.from('menu_items').select('id, category_id, name, name_en, price, online_price, image_url, cost_mode, total_pieces, online_tag_label, online_tag_color').eq('business_id', businessId).eq('active', true).eq('visible_online', true).or(`hidden_until.is.null,hidden_until.lt.${new Date().toISOString()}`).order('sort_order').order('id'),
       sb.from('modifier_groups').select('*').eq('business_id', businessId),
     ]);
-    const catNameById = {};
-    (catRes.data || []).forEach(c => { catNameById[c.id] = c.name; });
-    CATEGORIES = (catRes.data || []).map(c => c.name);
+    CATEGORY_ROWS = (catRes.data || []).map(c => ({ id: c.id, name: c.name, parentId: c.online_parent_category_id || null }));
+    // Only top-level categories get a rail chip/anchor — a sub-category
+    // renders as a heading nested inside its parent's section instead (see
+    // renderMenu), so it doesn't need its own top-level jump target.
+    CATEGORIES = CATEGORY_ROWS.filter(c => !c.parentId).map(c => c.name);
 
     PRODUCTS = (itemsRes.data || []).map(m => ({
-      id: m.id, name: m.name, price: Number(m.price), category: catNameById[m.category_id] || '',
+      id: m.id, name: m.name, nameEn: m.name_en || '', price: Number(m.online_price != null ? m.online_price : m.price), categoryId: m.category_id,
       image: m.image_url || null, costMode: m.cost_mode, totalPieces: m.total_pieces || 0,
+      tagLabel: m.online_tag_label || '', tagColor: m.online_tag_color || '#3E7BFA',
     }));
 
     const itemIds = PRODUCTS.map(p => p.id);
@@ -410,6 +634,27 @@ if (!window.__rakeenOrderBooted) {
     return PRODUCTS.filter(p => p.name.toLowerCase().includes(q));
   }
 
+  function productCardHtml(p) {
+    const qtyInCart = CART.filter(l => l.productId === p.id).reduce((s, l) => s + l.qty, 0);
+    const isBoxIncomplete = p.costMode === 'box' && BOX_PRODUCTS[p.id] && BOX_PRODUCTS[p.id].items.length === 0;
+    return `<button class="om-product-card" data-id="${p.id}" ${isBoxIncomplete ? 'disabled' : ''}>
+      <div class="om-product-photo">
+        ${p.image ? `<img src="${p.image}" alt="" loading="lazy" decoding="async">` : PLACEHOLDER_SVG}
+        ${p.tagLabel ? `<span class="om-product-tag" style="background:${p.tagColor}">${p.tagLabel}</span>` : ''}
+        ${qtyInCart > 0 && !DISPLAY_MODE ? `<span class="om-product-qty-badge">${qtyInCart}</span>` : ''}
+        ${!DISPLAY_MODE ? `<span class="om-product-add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>` : ''}
+      </div>
+      <div class="om-product-info">
+        <div class="om-product-name">
+          ${p.nameEn ? `<span class="om-product-name-en">${p.nameEn}</span>` : ''}
+          <span class="om-product-name-ar ${p.nameEn ? 'om-name-sub' : ''}">${p.name}</span>
+        </div>
+        ${p.costMode === 'box' ? `<div class="om-product-badge">تركيبة حرة — ${p.totalPieces} قطعة</div>` : ''}
+        <div class="om-product-price">${formatPrice(p.price)}</div>
+      </div>
+    </button>`;
+  }
+
   function renderMenu() {
     const el = document.getElementById('omMenu');
     const products = visibleProducts();
@@ -417,34 +662,86 @@ if (!window.__rakeenOrderBooted) {
       el.innerHTML = `<div class="om-menu-empty">${state.search ? 'ما فيه نتائج مطابقة' : 'المنيو غير متاح حاليًا'}.</div>`;
       return;
     }
-    const byCat = {};
-    products.forEach(p => { (byCat[p.category] ||= []).push(p); });
-    el.innerHTML = Object.entries(byCat).map(([cat, items]) => `
-      <section class="om-cat-section" id="cat-${CSS.escape(cat)}">
-        <div class="om-cat-title">${cat || 'أخرى'}</div>
-        <div class="om-product-list">
-          ${items.map(p => {
-            const qtyInCart = CART.filter(l => l.productId === p.id).reduce((s, l) => s + l.qty, 0);
-            const isBoxIncomplete = p.costMode === 'box' && BOX_PRODUCTS[p.id] && BOX_PRODUCTS[p.id].items.length === 0;
-            return `<button class="om-product-card" data-id="${p.id}" ${isBoxIncomplete ? 'disabled' : ''}>
-              <div class="om-product-photo">
-                ${p.image ? `<img src="${p.image}" alt="" loading="lazy" decoding="async">` : PLACEHOLDER_SVG}
-                ${qtyInCart > 0 && !DISPLAY_MODE ? `<span class="om-product-qty-badge">${qtyInCart}</span>` : ''}
-                ${!DISPLAY_MODE ? `<span class="om-product-add">+</span>` : ''}
-              </div>
-              <div class="om-product-info">
-                <div class="om-product-name">${p.name}</div>
-                ${p.costMode === 'box' ? `<div class="om-product-badge">تركيبة حرة — ${p.totalPieces} قطعة</div>` : ''}
-                <div class="om-product-price">${money(p.price)} ر.س</div>
-              </div>
-            </button>`;
-          }).join('')}
-        </div>
+    const byCatId = {};
+    products.forEach(p => { (byCatId[p.categoryId] ||= []).push(p); });
+    // A category counts as top-level either because it has no parent, or its
+    // parent no longer exists (defensive — shouldn't happen with the FK's ON
+    // DELETE SET NULL, but never silently drop a whole section over it).
+    const idExists = id => CATEGORY_ROWS.some(c => c.id === id);
+    const topCats = CATEGORY_ROWS.filter(c => !c.parentId || !idExists(c.parentId));
+    const childrenByParent = {};
+    CATEGORY_ROWS.forEach(c => { if (c.parentId && idExists(c.parentId)) (childrenByParent[c.parentId] ||= []).push(c); });
+    const uncategorized = products.filter(p => !CATEGORY_ROWS.some(c => c.id === p.categoryId));
+
+    el.innerHTML = topCats.map(top => {
+      const direct = byCatId[top.id] || [];
+      const kids = (childrenByParent[top.id] || []).filter(k => (byCatId[k.id] || []).length);
+      if (!direct.length && !kids.length) return '';
+
+      if (!kids.length) {
+        return `
+          <section class="om-cat-section" id="cat-${CSS.escape(top.name)}" data-cat="${top.name}">
+            <div class="om-cat-title">${top.name}</div>
+            <div class="om-product-list">${direct.map(productCardHtml).join('')}</div>
+          </section>
+        `;
+      }
+
+      // Has subcategories — an editorial title plus an underline-tab row to
+      // switch between "الكل" and each one, instead of a long scroll of
+      // stacked sub-headings (see the .has-subcats CSS for the visual).
+      const views = [
+        { id: '__all', name: 'الكل', items: [...direct, ...kids.flatMap(k => byCatId[k.id] || [])] },
+        ...kids.map(k => ({ id: String(k.id), name: k.name, items: byCatId[k.id] || [] })),
+      ];
+      return `
+        <section class="om-cat-section has-subcats" id="cat-${CSS.escape(top.name)}" data-cat="${top.name}">
+          <div class="om-cat-title">${top.name}</div>
+          <div class="om-subcat-tabs">
+            ${views.map((v, i) => `<button class="om-subcat-tab ${i === 0 ? 'active' : ''}" data-view="${v.id}">${v.name}</button>`).join('')}
+          </div>
+          ${views.map((v, i) => `<div class="om-subcat-view" data-view="${v.id}" ${i === 0 ? '' : 'style="display:none;"'}><div class="om-product-list">${v.items.map(productCardHtml).join('')}</div></div>`).join('')}
+        </section>
+      `;
+    }).join('') + (uncategorized.length ? `
+      <section class="om-cat-section" id="cat-أخرى">
+        <div class="om-cat-title">أخرى</div>
+        <div class="om-product-list">${uncategorized.map(productCardHtml).join('')}</div>
       </section>
-    `).join('');
+    ` : '');
+
     el.querySelectorAll('.om-product-card:not([disabled])').forEach(card => {
       card.addEventListener('click', () => openProduct(parseInt(card.dataset.id, 10)));
     });
+    el.querySelectorAll('.om-cat-section.has-subcats').forEach(section => {
+      section.querySelectorAll('.om-subcat-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          section.querySelectorAll('.om-subcat-tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          section.querySelectorAll('.om-subcat-view').forEach(v => { v.style.display = v.dataset.view === tab.dataset.view ? '' : 'none'; });
+        });
+      });
+    });
+    setupCatRailScrollSpy();
+  }
+
+  // Keeps the rail chip in sync with whichever section is actually in view
+  // while scrolling, not just right after a chip is clicked — a band near
+  // the top of the viewport (not the dead center) reads as "this is the
+  // section you're currently looking at" the way a sticky-nav should.
+  let catRailObserver = null;
+  function setupCatRailScrollSpy() {
+    if (catRailObserver) catRailObserver.disconnect();
+    const sections = document.querySelectorAll('.om-cat-section[data-cat]');
+    if (!sections.length) return;
+    catRailObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        const cat = entry.target.dataset.cat;
+        document.querySelectorAll('.om-cat-chip').forEach(chip => chip.classList.toggle('active', chip.dataset.cat === cat));
+      });
+    }, { rootMargin: '-15% 0px -75% 0px', threshold: 0 });
+    sections.forEach(sec => catRailObserver.observe(sec));
   }
 
   // ============ Modifier / box sheet ============
@@ -455,7 +752,7 @@ if (!window.__rakeenOrderBooted) {
     if (product.costMode === 'box') { openBoxBuilder(product); return; }
     const modDef = MODIFIER_PRODUCTS[productId];
     if (!modDef) {
-      if (DISPLAY_MODE) return; // nothing to browse beyond the card itself, and never add to cart
+      if (DISPLAY_MODE) { openDisplayQuickView(product); return; }
       addToCart(product, null, 1); showToast('أُضيف — ' + product.name); return;
     }
     const config = {};
@@ -466,6 +763,24 @@ if (!window.__rakeenOrderBooted) {
     modifierState = { product, modDef, config, qty: 1 };
     document.getElementById('omModifierTitle').textContent = 'خصّص طلبك';
     renderModifierSheet();
+    document.getElementById('omModifierOverlay').classList.add('show');
+  }
+  // Display-only screens (a TV/tablet menu with no ordering) have nothing
+  // else to show for a plain product with no modifiers — reuses the same
+  // sheet/close/backdrop machinery as the customize sheet, just with a
+  // bigger photo and no cart controls, purely to browse.
+  function openDisplayQuickView(product) {
+    document.getElementById('omModifierTitle').textContent = 'تفاصيل المنتج';
+    document.getElementById('omModifierBody').innerHTML = `
+      <div class="om-quickview">
+        <div class="om-quickview-photo">${product.image ? `<img src="${product.image}" alt="">` : PLACEHOLDER_SVG}</div>
+        <div class="om-quickview-name">
+          ${product.nameEn ? `<span class="om-product-name-en">${product.nameEn}</span>` : ''}
+          <span class="om-product-name-ar ${product.nameEn ? 'om-name-sub' : ''}">${product.name}</span>
+        </div>
+        <div class="om-quickview-price">${formatPrice(product.price)}</div>
+      </div>
+    `;
     document.getElementById('omModifierOverlay').classList.add('show');
   }
   function computeConfigPrice(product, config, modDef) {
@@ -480,7 +795,10 @@ if (!window.__rakeenOrderBooted) {
     return `
       <div class="om-sheet-hero">
         <div class="om-sheet-hero-photo">${product.image ? `<img src="${product.image}" alt="">` : PLACEHOLDER_SVG}</div>
-        <div class="om-sheet-hero-name">${product.name}</div>
+        <div class="om-sheet-hero-name">
+          ${product.nameEn ? `<span class="om-product-name-en">${product.nameEn}</span>` : ''}
+          <span class="om-product-name-ar ${product.nameEn ? 'om-name-sub' : ''}">${product.name}</span>
+        </div>
         ${subtitle ? `<div class="om-sheet-hero-sub">${subtitle}</div>` : ''}
       </div>
     `;
@@ -495,7 +813,7 @@ if (!window.__rakeenOrderBooted) {
           ${g.options.map(o => `<button class="om-mod-chip ${config[g.id] === o.id ? 'selected' : ''}" data-group="${g.id}" data-opt="${o.id}">
             <span class="om-mod-radio"></span>
             <span class="om-mod-chip-name">${o.name}</span>
-            ${o.price ? `<span class="om-mod-chip-price mono">${o.price > 0 ? '+' : ''}${money(o.price)}</span>` : ''}
+            ${o.price ? `<span class="om-mod-chip-price mono">${o.price > 0 ? '+' : ''}${formatPrice(o.price)}</span>` : ''}
           </button>`).join('')}
         </div>
       </div>
@@ -508,7 +826,7 @@ if (!window.__rakeenOrderBooted) {
           <span class="om-mod-qty-val">${qty}</span>
           <button class="om-mod-qty-btn" id="omModQtyInc">+</button>
         </div>
-        <button class="om-mod-confirm" id="omModConfirm">أضف للسلة — <span class="mono">${money(unitPrice * qty)}</span> ر.س</button>
+        <button class="om-mod-confirm" id="omModConfirm">أضف للسلة — <span class="mono">${formatPrice(unitPrice * qty)}</span></button>
       `;
     }
     document.getElementById('omModifierBody').innerHTML = html;
@@ -563,7 +881,7 @@ if (!window.__rakeenOrderBooted) {
       </div>
       ${!DISPLAY_MODE ? `
         <button class="om-mod-confirm" id="omBoxConfirm" ${total === boxDef.slots ? '' : 'disabled'}>
-          ${total === boxDef.slots ? `أضف للسلة — <span class="mono">${money(product.price)}</span> ر.س` : `اختر ${boxDef.slots - total} قطعة كمان`}
+          ${total === boxDef.slots ? `أضف للسلة — <span class="mono">${formatPrice(product.price)}</span>` : `اختر ${boxDef.slots - total} قطعة كمان`}
         </button>
       ` : ''}
     `;
@@ -593,7 +911,7 @@ if (!window.__rakeenOrderBooted) {
     const key = product.id + '_' + JSON.stringify(config || boxSelections || {});
     const existing = CART.find(l => l.key === key);
     if (existing) existing.qty += qty;
-    else CART.push({ lineId: lineIdCounter++, key, productId: product.id, name: product.name, qty, config, boxSelections, unitPrice, label: label || null });
+    else CART.push({ lineId: lineIdCounter++, key, productId: product.id, name: product.name, nameEn: product.nameEn || '', qty, config, boxSelections, unitPrice, label: label || null });
     saveCartToStorage();
     renderCartBar();
     renderDesktopCart();
@@ -627,16 +945,16 @@ if (!window.__rakeenOrderBooted) {
     if (count === 0) { bar.style.display = 'none'; return; }
     bar.style.display = 'flex';
     document.getElementById('omCartCount').textContent = count;
-    document.getElementById('omCartTotal').textContent = money(cartTotals().total) + ' ر.س';
+    document.getElementById('omCartTotal').textContent = formatPrice(cartTotals().total);
   }
   function cartRowsHtml() {
     const { subtotal, deliveryFee, vat, total } = cartTotals();
     return CART.map(l => `
       <div class="om-cart-item" data-line="${l.lineId}">
         <div class="om-cart-item-info">
-          <div class="om-cart-item-name">${l.name}</div>
+          <div class="om-cart-item-name">${l.nameEn ? `<span class="om-product-name-en">${l.nameEn}</span>` : ''}<span class="om-product-name-ar ${l.nameEn ? 'om-name-sub' : ''}">${l.name}</span></div>
           ${l.label ? `<div class="om-cart-item-mods">${l.label}</div>` : ''}
-          <div class="om-cart-item-price mono">${money(l.unitPrice)} ر.س</div>
+          <div class="om-cart-item-price mono">${formatPrice(l.unitPrice)}</div>
         </div>
         <div class="om-cart-qty">
           <button data-action="dec" data-line="${l.lineId}">−</button>
@@ -646,10 +964,10 @@ if (!window.__rakeenOrderBooted) {
       </div>
     `).join('') + `
       <div class="om-cart-summary">
-        <div class="om-cart-sum-row"><span>المجموع الفرعي</span><span class="mono">${money(subtotal)}</span></div>
-        ${deliveryFee > 0 ? `<div class="om-cart-sum-row"><span>رسوم التوصيل</span><span class="mono">${money(deliveryFee)}</span></div>` : ''}
-        <div class="om-cart-sum-row"><span>ضريبة القيمة المضافة</span><span class="mono">${money(vat)}</span></div>
-        <div class="om-cart-sum-row total"><span>الإجمالي</span><span class="mono">${money(total)}</span></div>
+        <div class="om-cart-sum-row"><span>المجموع الفرعي</span><span class="mono">${formatPrice(subtotal)}</span></div>
+        ${deliveryFee > 0 ? `<div class="om-cart-sum-row"><span>رسوم التوصيل</span><span class="mono">${formatPrice(deliveryFee)}</span></div>` : ''}
+        <div class="om-cart-sum-row"><span>ضريبة القيمة المضافة</span><span class="mono">${formatPrice(vat)}</span></div>
+        <div class="om-cart-sum-row total"><span>الإجمالي</span><span class="mono">${formatPrice(total)}</span></div>
       </div>
     `;
   }
@@ -706,21 +1024,51 @@ if (!window.__rakeenOrderBooted) {
   // boot() resolves — a business that hasn't connected Geidea always sees
   // this as disabled, byte-for-byte identical to before this feature
   // existed. 'applepay' stays disabled/out of scope for this pass.
+  // businesses.online_cod_enabled, fetched on its own rather than added to
+  // boot()'s column list: PostgREST fails an entire select over one unknown
+  // column, and putting it there would take the whole public storefront
+  // down on any deploy that landed before the migration. Null means "not
+  // asked yet"; anything but an explicit false leaves cash on, so a failed
+  // fetch degrades to exactly today's behaviour instead of blocking orders.
+  let COD_ENABLED = null;
+
+  async function loadCodEnabled() {
+    if (COD_ENABLED !== null) return COD_ENABLED;
+    try {
+      const { data, error } = await sb
+        .from('businesses').select('online_cod_enabled').eq('id', BUSINESS.id).single();
+      COD_ENABLED = (error || !data) ? true : data.online_cod_enabled !== false;
+    } catch { COD_ENABLED = true; }
+    return COD_ENABLED;
+  }
+
   function getPaymentMethods() {
     return [
-      { id: 'cash', label: 'نقدًا', icon: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg>', enabled: true },
+      { id: 'cash', label: 'نقدًا عند الاستلام', icon: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg>', enabled: COD_ENABLED !== false },
       { id: 'applepay', label: 'Apple Pay', icon: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20.5c-4 0-7-3.5-7-8 0-2.5 1.2-4.5 3-5.5"/><path d="M12 6.5c1 0 2 .5 2.5 1.5"/></svg>', enabled: false },
       { id: 'card', label: 'بطاقة', icon: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>', enabled: BUSINESS && BUSINESS.geidea_connected === true },
     ];
   }
   let checkoutPaymentMethod = 'cash';
 
-  function openCheckout() {
+  async function openCheckout() {
     document.getElementById('omCartOverlay').classList.remove('show');
+    await loadCodEnabled();
+    // A store that turned cash off must not leave it preselected.
+    if (COD_ENABLED === false && checkoutPaymentMethod === 'cash') {
+      const firstOn = getPaymentMethods().find(m => m.enabled);
+      checkoutPaymentMethod = firstOn ? firstOn.id : 'card';
+    }
     if (BRANCHES.length > 1 && !state.branchId) { openBranchPicker(); return; }
+    const openBranch = BRANCHES.find(b => b.id === state.branchId) || (BRANCHES.length === 1 ? BRANCHES[0] : null);
+    if (state.channel === 'pickup' && openBranch && !isBranchOpenNow(openBranch)) {
+      showToast('الفرع مغلق حاليًا — يفتح الساعة ' + formatTimeStrLabel(openBranch.opening_time));
+      return;
+    }
     checkoutPaymentMethod = 'cash';
     state.pickupTimeMode = 'asap';
     state.scheduledForTimeValue = null;
+    state.asapTargetTime = new Date(Date.now() + PICKUP_PREP_MINUTES * 60000);
     const identity = getIdentity() || {};
     const { total } = cartTotals();
     const branch = BRANCHES.find(b => b.id === state.branchId);
@@ -728,10 +1076,10 @@ if (!window.__rakeenOrderBooted) {
     document.getElementById('omCheckoutBody').innerHTML = `
       <div class="om-checkout-total">
         <div class="om-checkout-total-label">الإجمالي${branch ? ' — ' + (state.channel === 'delivery' ? 'من فرع ' : 'استلام من ') + branch.name : ''}</div>
-        <div class="om-checkout-total-amount mono">${money(total)}</div>
+        <div class="om-checkout-total-amount mono">${formatPrice(total)}</div>
       </div>
       ${BRANCHES.length > 1 ? `<button class="om-branch-switch-link" id="omSwitchBranchBtn" type="button">${state.channel === 'pickup' ? 'تغيير فرع الاستلام' : 'تغيير الفرع'}</button>` : ''}
-      <div class="om-field"><label>رقم الجوال</label><input type="tel" id="omPhone" inputmode="tel" placeholder="05xxxxxxxx" value="${identity.phone || ''}"></div>
+      <div class="om-field"><label>رقم الجوال</label><input type="tel" id="omPhone" inputmode="tel" placeholder="05xxxxxxxx" maxlength="10" value="${identity.phone || ''}"></div>
       <div class="om-field"><label>الاسم</label><input type="text" id="omName" placeholder="اسمك" value="${identity.name || ''}"></div>
       ${state.channel === 'pickup' ? `<div id="omPickupTimeBlock"></div>` : ''}
       ${state.channel === 'delivery' && state.customerLat != null ? `
@@ -765,6 +1113,9 @@ if (!window.__rakeenOrderBooted) {
     if (state.channel === 'pickup') renderPickupTimeBlock();
     if (state.channel === 'delivery' && state.customerLat != null) renderPinBlock();
     document.getElementById('omConfirmOrderBtn').addEventListener('click', proceedToPhoneConfirm);
+    document.getElementById('omPhone').addEventListener('input', (e) => {
+      e.target.value = toWesternDigits(e.target.value).replace(/\D/g, '').slice(0, 10);
+    });
     const switchBtn = document.getElementById('omSwitchBranchBtn');
     if (switchBtn) switchBtn.addEventListener('click', openBranchPicker);
     document.querySelectorAll('.om-payment-chip:not(.disabled)').forEach(chip => {
@@ -789,7 +1140,7 @@ if (!window.__rakeenOrderBooted) {
   function proceedToPhoneConfirm() {
     const phone = document.getElementById('omPhone').value.trim();
     const name = document.getElementById('omName').value.trim();
-    if (!/^[0-9+\s-]{6,}$/.test(phone)) { showToast('اكتب رقم جوال صحيح'); return; }
+    if (!/^05\d{8}$/.test(phone)) { showToast('اكتب رقم جوال سعودي صحيح (05xxxxxxxx)'); return; }
     if (!name) { showToast('اكتب اسمك'); return; }
     pendingOrder = {
       phone, name,
@@ -819,10 +1170,13 @@ if (!window.__rakeenOrderBooted) {
     `;
     document.getElementById('omChangePhoneBtn').addEventListener('click', () => {
       const row = document.getElementById('omConfirmPhoneRow');
-      row.innerHTML = `<input type="tel" id="omEditPhoneInput" inputmode="tel" value="${pendingOrder.phone}"><button type="button" id="omSavePhoneBtn">حفظ</button>`;
+      row.innerHTML = `<input type="tel" id="omEditPhoneInput" inputmode="tel" maxlength="10" value="${pendingOrder.phone}"><button type="button" id="omSavePhoneBtn">حفظ</button>`;
+      document.getElementById('omEditPhoneInput').addEventListener('input', (e) => {
+        e.target.value = toWesternDigits(e.target.value).replace(/\D/g, '').slice(0, 10);
+      });
       document.getElementById('omSavePhoneBtn').addEventListener('click', () => {
         const val = document.getElementById('omEditPhoneInput').value.trim();
-        if (!/^[0-9+\s-]{6,}$/.test(val)) { showToast('اكتب رقم جوال صحيح'); return; }
+        if (!/^05\d{8}$/.test(val)) { showToast('اكتب رقم جوال سعودي صحيح (05xxxxxxxx)'); return; }
         pendingOrder.phone = val;
         renderPhoneConfirmStep();
       });
@@ -850,6 +1204,7 @@ if (!window.__rakeenOrderBooted) {
       p_scheduled_for: pendingOrder.scheduledFor ? pendingOrder.scheduledFor.toISOString() : null,
       p_client_order_uuid: pendingOrder.clientUuid,
       p_payment_method: checkoutPaymentMethod,
+      p_scheduled_by_customer: state.channel === 'pickup' && state.pickupTimeMode === 'later',
     });
 
     if (error) {
@@ -880,7 +1235,7 @@ if (!window.__rakeenOrderBooted) {
         return;
       }
       saveIdentity(pendingOrder.name, pendingOrder.phone);
-      try { localStorage.setItem('rakeen_order_last_token_' + SLUG, result.tracking_token); } catch {}
+      try { localStorage.setItem(LS_LAST_ORDER_TOKEN, result.tracking_token); } catch {}
       CART = [];
       saveCartToStorage();
       window.location.href = sessionPayload.redirectUrl; // Geidea's hosted checkout page
@@ -888,7 +1243,7 @@ if (!window.__rakeenOrderBooted) {
     }
 
     saveIdentity(pendingOrder.name, pendingOrder.phone);
-    try { localStorage.setItem('rakeen_order_last_token_' + SLUG, result.tracking_token); } catch {}
+    try { localStorage.setItem(LS_LAST_ORDER_TOKEN, result.tracking_token); } catch {}
     CART = [];
     saveCartToStorage();
     // Straight to the tracking page — no "تتبع طلبك" tap required. The
@@ -1037,6 +1392,7 @@ if (!window.__rakeenOrderBooted) {
       renderCartBar(); renderDesktopCart();
       if (state.channel === 'delivery') locateNearestBranch();
       else renderBranchNote();
+      renderFooterLocation();
     });
     document.getElementById('omCartBar').addEventListener('click', () => { renderCartSheet(); document.getElementById('omCartOverlay').classList.add('show'); });
     document.getElementById('omCartClose').addEventListener('click', () => document.getElementById('omCartOverlay').classList.remove('show'));

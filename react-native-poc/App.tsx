@@ -883,7 +883,7 @@ function App(): React.JSX.Element {
         ) : screen.name === 'diagnostics' ? (
           <DiagnosticsScreen />
         ) : screen.name === 'orderHistory' && branchId != null ? (
-          <OrderHistoryScreen branchId={branchId} />
+          <OrderHistoryScreen branchId={branchId} shiftId={shift?.id ?? null} />
         ) : (
           <ProductsScreen
             key={screen.name === 'products' ? screen.table?.id ?? 'no-table' : 'no-table'}

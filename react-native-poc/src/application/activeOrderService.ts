@@ -30,6 +30,12 @@ export interface ActiveOrder {
   customerName: string | null;
   /** Minutes the platform allows for preparation. Delivery only. */
   prepTimeoutMinutes: number;
+  /**
+   * Cash on delivery: the customer pays at handover, and nobody has been
+   * paid yet. These are the only orders on this list whose final button
+   * moves money, so the button has to know.
+   */
+  isCod: boolean;
 }
 
 /** The source's own default when a platform has no timeout configured. */
@@ -60,12 +66,18 @@ export async function listActiveOrders(branchId: number): Promise<ActiveOrder[]>
   const { data } = await supabase
     .from('orders')
     .select(
-      'id, total, created_at, ready_at, out_for_delivery_at, channel, source, customer_name, delivery_platform_id, platform_invoice_last4, delivery_platforms(name, prep_timeout_minutes)',
+      'id, total, created_at, ready_at, out_for_delivery_at, channel, source, customer_name, payment_method, payment_status, delivery_platform_id, platform_invoice_last4, delivery_platforms(name, prep_timeout_minutes)',
     )
     .eq('branch_id', branchId)
     .in('channel', ['delivery', 'pickup'])
     .is('delivered_at', null)
-    .eq('payment_status', 'paid')
+    // Paid orders, PLUS cash-on-delivery ones that are still unpaid --
+    // those are exactly the orders waiting for someone to collect the
+    // money, so this list is where that happens. Written as a precise OR
+    // rather than by dropping the filter: an online CARD order the
+    // customer abandoned at the payment page is also unpaid, and it must
+    // stay off a list of orders being worked.
+    .or('payment_status.eq.paid,and(payment_method.eq.cash,payment_status.eq.unpaid)')
     .neq('status', 'cancelled')
     .neq('status', 'refunded')
     .neq('status', 'rejected')
@@ -89,6 +101,7 @@ export async function listActiveOrders(branchId: number): Promise<ActiveOrder[]>
       outForDeliveryAt: o.out_for_delivery_at ? new Date(o.out_for_delivery_at) : null,
       customerName: o.customer_name ?? null,
       prepTimeoutMinutes: Number(platform?.prep_timeout_minutes) || DEFAULT_PREP_TIMEOUT_MINUTES,
+      isCod: o.payment_method === 'cash' && o.payment_status === 'unpaid',
     };
   });
 }
@@ -152,6 +165,23 @@ export function markDeliveryDelivered(orderId: number) {
 /** Pickup: prepared and waiting on the counter. */
 export function markPickupReady(orderId: number) {
   return callStage('mark_order_ready', orderId, 'تعذر تسجيل الطلب جاهز');
+}
+
+/**
+ * Cash on delivery: the customer has just handed over the money.
+ *
+ * Replaces the plain delivered/collected call for a cash order, because
+ * for those two the handover and the payment are the same event. One RPC
+ * marks it paid, attaches it to the open shift, and records the handover
+ * together -- so the cash cannot end up banked against no shift.
+ */
+export async function confirmCodCollected(orderId: number, shiftId: number) {
+  const { error } = await supabase.rpc('confirm_cod_collected', {
+    p_order_id: orderId,
+    p_shift_id: shiftId,
+  });
+  if (error) return { ok: false, error: error.message || 'تعذر تسجيل استلام المبلغ' };
+  return { ok: true, error: null };
 }
 
 /** Pickup: collected by the customer. */

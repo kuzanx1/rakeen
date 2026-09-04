@@ -15,6 +15,32 @@ function escapeHtml(value){
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+// Real reported bug: phone digit-stripping used /\D/g, which only matches
+// ASCII 0-9 — a customer typing on an Arabic keyboard (Arabic-Indic ٠-٩,
+// common default in this market) got every character of their number
+// silently wiped instead of converted. Convert both Arabic-Indic and
+// Eastern Arabic-Indic (Persian) digits to Western digits FIRST.
+function toWesternDigits(str){
+  return String(str).replace(/[٠-٩۰-۹]/g, ch=>{
+    const code = ch.charCodeAt(0);
+    return String(code >= 0x06F0 ? code - 0x06F0 : code - 0x0660);
+  });
+}
+// Official Saudi Riyal sign, Unicode U+20C1 — most system fonts don't carry
+// a glyph for it yet (added in Unicode 17.0, Sept 2025), so it only renders
+// correctly inside the bundled "saudi_riyal" webfont (.rk-riyal in CSS),
+// never as bare text.
+const RK_RIYAL_CHAR = '⃁';
+// Shared money formatting: halalas render smaller than the whole riyals
+// (matches how printed/POS receipts already read), and the amount always
+// carries the real currency sign instead of "ر.س" text. Every new money
+// display should go through this rather than a bare `.toFixed(2)`.
+function rkMoney(amount){
+  const n = Number(amount) || 0;
+  const sign = n < 0 ? '-' : '';
+  const [whole, frac] = Math.abs(n).toFixed(2).split('.');
+  return `<span class="rk-money mono">${sign}${whole}<span class="rk-money-frac">.${frac}</span> <span class="rk-riyal">${RK_RIYAL_CHAR}</span></span>`;
+}
 // Overnight QA finding: every settings save on this page did
 // `supabase.from('businesses').update(...).eq('id', businessId)` and only
 // checked `error` — but when RLS's USING clause silently excludes the row
@@ -85,15 +111,10 @@ let WEEK_HOUR_GRID = []; // [{day, total, hours:{0..23:{total,count}}}] — real
    5 separate Home-screen widgets. Replaced by computeRealAttentionItems() /
    computeOverallStatus() below, feeding one consolidated real panel. */
 
-const DELIVERY_PLATFORMS_STATUS = [
-  {name:'هنقرستيشن', online:true}, {name:'جاهز', online:true}, {name:'ذا شفز', online:true},
-  {name:'ToYou', online:false}, {name:'مرسول', online:true}, {name:'كيتا', online:true}
-];
-
 /* ============ Orders screen — status counts computed for real from RECENT_ORDERS
    (see computeOrderStatusCounts()) once real orders are fetched; this is just the
    pre-login placeholder shown before loadOrdersAndTables() runs. */
-let ORDER_STATUS_COUNTS = { completed: 0, cancelled: 0, refunded: 0, voided: 0 };
+let ORDER_STATUS_COUNTS = { completed: 0, cancelled: 0, refunded: 0 };
 let RECENT_ORDERS = [
   {id:'#1096', time:'٩:٤٢ م', type:'داخل المطعم', items:3, total:86.50, payment:'بطاقة', status:'completed'},
   {id:'#1095', time:'٩:٣٨ م', type:'توصيل', items:2, total:64.00, payment:'كاش', status:'completed'},
@@ -442,13 +463,14 @@ function renderStatusHero(){
   const banner = document.getElementById('statusBanner');
   if(!banner) return;
 
+  // An "everything's fine" banner is still a banner — real estate and
+  // visual weight at the very top of Home, every single day, for a state
+  // that by definition needs no action. Owner feedback: only show this
+  // block at all when there's actually something to say.
   if(items.length === 0){
-    banner.className = 'status-banner tier-clear';
-    banner.innerHTML = `
-      <div class="status-clear-emoji">🎉</div>
-      <div class="status-clear-title">كل شي تمام اليوم</div>
-      <div class="status-banner-reason">${status.reason}</div>
-    `;
+    banner.className = 'status-banner hidden';
+    banner.innerHTML = '';
+    syncHeaderNotifBadge(0);
     return;
   }
 
@@ -492,6 +514,7 @@ function renderStatusHero(){
     list.hidden = open;
     toggle.classList.toggle('open', !open);
   });
+  syncHeaderNotifBadge(items.length, status.tier);
 }
 
 /* ============ Render: hero money card — the one number that matters most,
@@ -979,14 +1002,23 @@ function renderBestWorstSellers(sellers){
     return;
   }
   const sorted = [...sellers].sort((a,b)=>b.revenue-a.revenue);
-  const best = sorted.slice(0,4);
-  const worst = sorted.slice(-4).reverse();
+  // With 8+ distinct sellers today, a genuine top-4/bottom-4 split never
+  // overlaps. Below that (very common for a small cafe, or just a slow
+  // day) slice(0,4) and slice(-4) share items — a product would show up
+  // simultaneously as "best selling" AND "worst selling", which is both
+  // confusing and undermines trust in the whole panel. Splitting the
+  // already-sorted list exactly down the middle instead guarantees the two
+  // lists never share a product, whatever the count.
+  const half = Math.ceil(sorted.length / 2);
+  const bestCount = Math.min(4, sorted.length >= 8 ? 4 : half);
+  const best = sorted.slice(0, bestCount);
+  const worst = sorted.length >= 8 ? sorted.slice(-4).reverse() : sorted.slice(bestCount).reverse();
   document.getElementById('bestSellersList').innerHTML = best.map((p,i)=>
-    `<div class="seller-row"><div class="seller-rank best">${i===0?'🏆':i+1}</div><div class="seller-info"><div class="seller-name">${p.name}</div><div class="seller-meta">${p.qty} طلب — ${p.cat}</div></div><div class="seller-value mono">${p.revenue.toFixed(2)}</div></div>`
+    `<div class="seller-row"><div class="seller-rank best">${i===0?rkIcon('award'):i+1}</div><div class="seller-info"><div class="seller-name">${p.name}</div><div class="seller-meta">${p.qty} طلب — ${p.cat}</div></div><div class="seller-value mono">${p.revenue.toFixed(2)}</div></div>`
   ).join('');
-  document.getElementById('worstSellersList').innerHTML = worst.map((p,i)=>
+  document.getElementById('worstSellersList').innerHTML = worst.length ? worst.map((p,i)=>
     `<div class="seller-row"><div class="seller-rank low">${i+1}</div><div class="seller-info"><div class="seller-name">${p.name}</div><div class="seller-meta">${p.qty} طلب — ${p.cat}</div></div><div class="seller-value low mono">${p.revenue.toFixed(2)}</div></div>`
-  ).join('');
+  ).join('') : '<div class="orders-empty">ما فيه تنوع كافٍ بالمبيعات لعرض قائمة منفصلة</div>';
 }
 
 function renderCategoryPerf(categoryPerf){
@@ -1070,29 +1102,45 @@ function renderChannelCards(channelPerf){
 
 /* ============ Operations Center ============ */
 /* ============ Orders screen ============ */
-const ORDER_STATUS_LABELS = {completed:'مكتمل', cancelled:'ملغى', refunded:'مسترجع', voided:'ملغى صنف'};
+const ORDER_STATUS_LABELS = {completed:'مكتمل', cancelled:'ملغى', refunded:'مسترجع'};
 let orderStatusFilter = 'all', orderSearchQuery = '';
 let orderDateRange = '7d';
 
+// Which channel an order came through used to be plain text buried in a
+// table cell — same visual weight as "6 أصناف". A colored tag reads at a
+// glance the same way the status column already does, and the online badge
+// gets promoted to its own tag instead of a tiny inline icon.
+const ORDER_CHANNEL_TAG_META = {
+  dine_in: {label:'داخل المطعم', icon:'home'},
+  pickup: {label:'سفري', icon:'bag'},
+  delivery: {label:'توصيل', icon:'truck'}
+};
+function orderChannelTagsHtml(channel, isOnline){
+  const meta = ORDER_CHANNEL_TAG_META[channel] || {label:channel, icon:'crosshair'};
+  return `<span class="order-channel-tag ${channel}">${rkIcon(meta.icon)}${meta.label}</span>`
+    + (isOnline ? `<span class="order-online-tag">${rkIcon('globe')}إلكتروني</span>` : '');
+}
+
 /* orders.status in the DB only ever holds completed/cancelled/refunded — there is
-   no per-order "voided" status (that concept is item-level, not modeled yet), so
-   the voided card is real but will always read 0 until that's built. */
+   no per-order "voided" concept anywhere in the schema (no column, no migration
+   ever added one). The 4th "ملغاة الصنف" card that used to sit here was
+   structurally incapable of ever showing anything but 0, on every business,
+   forever — removed rather than left as a permanent fake zero. */
 function computeOrderStatusCounts(){
-  const counts = { completed: 0, cancelled: 0, refunded: 0, voided: 0 };
+  const counts = { completed: 0, cancelled: 0, refunded: 0 };
   RECENT_ORDERS.forEach(o=>{ if(counts[o.status] !== undefined) counts[o.status]++; });
   ORDER_STATUS_COUNTS = counts;
 }
 
 function renderOrderStatusGrid(){
   // Orders' own visual language: status = color, not a neutral card with an
-  // accent border. Same 4 semantic tokens the status tags already use
-  // (success/danger/amber/muted), just carried through boldly here so the
+  // accent border. Same 3 semantic tokens the status tags already use
+  // (success/danger/amber), just carried through boldly here so the
   // grid reads at a glance like a traffic light, not a stat sheet.
   const cards = [
     {key:'completed', label:'مكتملة', icon:'<path d="M9 12l2 2l4 -4"/><path d="M21 12a9 9 0 1 1 -18 0a9 9 0 0 1 18 0"/>'},
     {key:'cancelled', label:'ملغاة', icon:'<path d="M21 12a9 9 0 1 1 -18 0a9 9 0 0 1 18 0"/><path d="M10 10l4 4m0 -4l-4 4"/>'},
-    {key:'refunded', label:'مسترجعة', icon:'<path d="M9 13l-4 -4l4 -4"/><path d="M5 9h7a4 4 0 1 1 0 8h-1"/>'},
-    {key:'voided', label:'ملغاة الصنف', icon:'<path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M5.7 5.7l12.6 12.6"/>'}
+    {key:'refunded', label:'مسترجعة', icon:'<path d="M9 13l-4 -4l4 -4"/><path d="M5 9h7a4 4 0 1 1 0 8h-1"/>'}
   ];
   document.getElementById('orderStatusGrid').innerHTML = cards.map(c=>
     `<div class="order-status-card ${c.key}">
@@ -1131,9 +1179,9 @@ function renderOrdersTable(){
     `<div class="order-row" data-order-id="${o.id.replace('#','')}" style="cursor:pointer;">
       <span class="order-id mono">${o.id}</span>
       <span class="mono" style="line-height:1.4;">${o.date}<br><span style="color:var(--muted); font-weight:600;">${o.time}</span></span>
-      <span>${o.type}${o.isOnline ? ' <span title="طلب إلكتروني" style="font-size:11px;">🌐</span>' : ''}</span>
+      <span class="order-channel-tags">${orderChannelTagsHtml(o.channel, o.isOnline)}${ORDER_SCREEN_BRANCHES.length > 1 && o.branchName ? `<span class="order-branch-note">${escapeHtml(o.branchName)}</span>` : ''}</span>
       <span>${o.items}</span>
-      <span class="order-total">${o.total.toFixed(2)}</span>
+      <span class="order-total">${rkMoney(o.total)}</span>
       <span>${o.payment}</span>
       <span class="order-status-tag ${o.status}">${ORDER_STATUS_LABELS[o.status]}</span>
     </div>`
@@ -1160,23 +1208,24 @@ async function openOrderDetailModal(orderId){
     const product = MENU_ITEMS.find(m=>m.id===it.menu_item_id);
     const name = escapeHtml(product ? product.name : ('منتج #' + it.menu_item_id));
     const mods = (it.selected_modifiers||[]).map(m=>escapeHtml(m.option_name || m.text)).filter(Boolean).join('، ');
-    return `<div class="cpb-row"><span>${it.qty} × ${name}${mods ? ' (' + mods + ')' : ''}${it.note ? ' — ' + escapeHtml(it.note) : ''}</span><span class="mono">${Number(it.line_total).toFixed(2)}</span></div>`;
+    return `<div class="cpb-row"><span>${it.qty} × ${name}${mods ? ' (' + mods + ')' : ''}${it.note ? ' — ' + escapeHtml(it.note) : ''}</span>${rkMoney(it.line_total)}</div>`;
   }).join('');
 
   const isOnline = order.source === 'online';
   const hasLocation = order.channel === 'delivery' && order.customer_lat != null && order.customer_lng != null;
   const mapsUrl = hasLocation ? `https://www.google.com/maps?q=${order.customer_lat},${order.customer_lng}` : null;
-  const waMessage = `مرحبًا ${order.customer_name || ''}! طلبك رقم #${order.id} جاري تجهيزه وراح يوصلك بأقرب وقت 🚴`;
+  const waMessage = `مرحبًا ${order.customer_name || ''}! طلبك رقم #${order.id} جاري تجهيزه وراح يوصلك بأقرب وقت.`;
   const waPhone = (order.customer_phone || '').replace(/\D/g, '');
   const waUrl = waPhone ? `https://wa.me/${waPhone.startsWith('966') ? waPhone : '966' + waPhone.replace(/^0/, '')}?text=${encodeURIComponent(waMessage)}` : null;
 
   body.innerHTML = `
     ${isOnline ? `<div class="cost-preview-box" style="margin-bottom:14px; background:color-mix(in srgb, var(--lime, #C4FF2B) 14%, transparent); border:1px solid color-mix(in srgb, var(--lime, #C4FF2B) 35%, transparent);">
-      <div class="cpb-row"><span style="font-weight:800;">🌐 طلب إلكتروني — من متجر المطعم مباشرة</span><span></span></div>
+      <div class="cpb-row"><span style="font-weight:800; display:flex; align-items:center; gap:6px;" class="order-online-badge">${rkIcon('globe')} طلب إلكتروني — من متجر المطعم مباشرة</span><span></span></div>
     </div>` : ''}
     <div class="cost-preview-box" style="margin-bottom:14px;">
       <div class="cpb-row"><span>التاريخ</span><span class="mono">${new Date(order.created_at).toLocaleString('ar-SA')}</span></div>
-      <div class="cpb-row"><span>النوع</span><span class="mono">${ORDER_CHANNEL_TYPE_LABELS[order.channel] || order.channel}</span></div>
+      ${ORDER_SCREEN_BRANCHES.length > 1 ? `<div class="cpb-row"><span>الفرع</span><span class="mono">${escapeHtml((ORDER_SCREEN_BRANCHES.find(b=>b.id===order.branch_id)||{}).name || '—')}</span></div>` : ''}
+      <div class="cpb-row"><span>النوع</span><span>${orderChannelTagsHtml(order.channel, false)}</span></div>
       ${order.customer_name ? `<div class="cpb-row"><span>العميل</span><span class="mono">${escapeHtml(order.customer_name)}</span></div>` : ''}
       ${order.customer_phone ? `<div class="cpb-row"><span>جوال العميل</span><span class="mono">${escapeHtml(order.customer_phone)}</span></div>` : ''}
       ${order.delivery_address ? `<div class="cpb-row"><span>عنوان التوصيل</span><span class="mono">${escapeHtml(order.delivery_address)}</span></div>` : ''}
@@ -1189,22 +1238,23 @@ async function openOrderDetailModal(orderId){
     </div>
     ${hasLocation ? `
     <div class="cost-preview-box" style="margin-bottom:14px; text-align:center;">
-      <div style="font-weight:800; font-size:12.5px; margin-bottom:10px;">📍 موقع العميل — للمندوب</div>
+      <div class="oh-loc-title" style="font-weight:800; font-size:12.5px; margin-bottom:10px; display:flex; align-items:center; justify-content:center; gap:5px;"><span class="oh-inline-icon">${rkIcon('mapPin')}</span> موقع العميل — للمندوب</div>
       <img src="/api/qr?data=${encodeURIComponent(mapsUrl)}" alt="QR موقع العميل" style="width:120px; height:120px; margin:0 auto 10px; display:block;">
       <a href="${escapeHtml(mapsUrl)}" target="_blank" rel="noopener" class="mtr-edit-btn" style="display:inline-block; text-decoration:none; margin-bottom:8px;">فتح بخرائط جوجل</a>
-      ${waUrl ? `<a href="${escapeHtml(waUrl)}" target="_blank" rel="noopener" class="settings-save-btn" style="display:block; text-decoration:none; background:#25D366;">📱 إرسال تحديث للعميل عبر واتساب</a>` : ''}
+      ${waUrl ? `<a href="${escapeHtml(waUrl)}" target="_blank" rel="noopener" class="settings-save-btn" style="display:flex; align-items:center; justify-content:center; gap:6px; text-decoration:none; background:#25D366;"><span class="oh-inline-icon">${rkIcon('messageCircle')}</span> إرسال تحديث للعميل عبر واتساب</a>` : ''}
     </div>` : ''}
     <div class="cost-preview-box">
       ${itemsHtml}
-      <div class="cpb-row"><span>المجموع الفرعي</span><span class="mono">${Number(order.subtotal).toFixed(2)}</span></div>
-      ${order.delivery_fee > 0 ? `<div class="cpb-row"><span>رسوم التوصيل</span><span class="mono">${Number(order.delivery_fee).toFixed(2)}</span></div>` : ''}
-      ${order.discount_amount > 0 ? `<div class="cpb-row"><span>الخصم</span><span class="mono">-${Number(order.discount_amount).toFixed(2)}</span></div>` : ''}
-      <div class="cpb-row"><span>الضريبة</span><span class="mono">${Number(order.vat_amount).toFixed(2)}</span></div>
-      <div class="cpb-row total"><span>الإجمالي</span><span class="mono">${Number(order.total).toFixed(2)} ر.س</span></div>
+      <div class="cpb-row"><span>المجموع الفرعي</span>${rkMoney(order.subtotal)}</div>
+      ${order.delivery_fee > 0 ? `<div class="cpb-row"><span>رسوم التوصيل</span>${rkMoney(order.delivery_fee)}</div>` : ''}
+      ${order.discount_amount > 0 ? `<div class="cpb-row"><span>الخصم</span>${rkMoney(-order.discount_amount)}</div>` : ''}
+      <div class="cpb-row"><span>الضريبة</span>${rkMoney(order.vat_amount)}</div>
+      <div class="cpb-row total"><span>الإجمالي</span>${rkMoney(order.total)}</div>
       <div class="cpb-row"><span>طريقة الدفع</span><span class="mono">${ORDER_PAYMENT_LABELS[order.payment_method] || order.payment_method}</span></div>
     </div>
     ${order.status === 'completed' ? `
-    <div class="product-edit-footer" style="margin-top:14px; padding-top:0; border-top:none;">
+    <p class="stock-qty-helper" style="margin-top:14px;">الاسترجاع يرجّع كمية المخزون المرتبطة بوصفة كل صنف تلقائيًا (حسب الوصفة الحالية). الاستثناء: صناديق التجميع المخصصة والإضافات المرتبطة بالمخزون يدويًا — هذي ترجّعها بنفسك من شاشة المخزون لو احتجت.</p>
+    <div class="product-edit-footer" style="margin-top:10px; padding-top:0; border-top:none;">
       <span></span>
       <button class="mtr-edit-btn" id="refundOrderBtn" style="color:var(--danger, #a3402c); border-color:var(--danger, #a3402c);">استرجاع مبلغ الطلب</button>
     </div>` : ''}
@@ -1212,7 +1262,7 @@ async function openOrderDetailModal(orderId){
   const refundBtn = document.getElementById('refundOrderBtn');
   if(refundBtn){
     refundBtn.addEventListener('click', async ()=>{
-      if(!window.confirm('متأكد إنك تبي تسترجع مبلغ هذا الطلب؟')) return;
+      if(!window.confirm('متأكد إنك تبي تسترجع مبلغ هذا الطلب؟ يرجّع كمية مخزون الأصناف المرتبطة بوصفة تلقائيًا.')) return;
       refundBtn.disabled = true;
       try {
         const { error } = await window.supabaseClient.rpc('refund_pos_order', { p_order_id: orderId });
@@ -1253,6 +1303,8 @@ document.getElementById('orderDateRangeSelect').addEventListener('change', async
   renderOrderStatusGrid();
   renderOrdersTable();
   renderTablesFloorGrid();
+  renderOrdersByType();
+  renderOrdersBySource();
 });
 
 /* ============ Table Management — occupied tables link to real dine-in orders from RECENT_ORDERS,
@@ -1303,7 +1355,7 @@ function renderTablesFloorGrid(){
       const mins = Math.floor((Date.now() - new Date(t.statusChangedAt).getTime()) / 60000);
       turnBadge = `<span class="ft-turn-timer${turnTimerSeverityClass(mins)}">${mins < 1 ? 'الآن' : mins + ' د'}</span>`;
     }
-    return `<button class="floor-table ${t.status}" data-table="${t.number}">
+    return `<button class="floor-table ${t.status}" data-table-id="${t.tableId}">
       ${(t.status === 'serving' || t.status === 'awaiting_payment') ? '<span class="ft-live-dot"></span>' : ''}
       <span class="ft-num">${t.number}</span>
       <span class="ft-status">${TABLE_STATUS_LABEL[t.status]}</span>
@@ -1316,31 +1368,55 @@ function renderTablesFloorGrid(){
   // only ever changes from the cashier device (see the note in
   // showTableDetail below), this just organizes the same live data the same
   // way so the owner sees a matching picture from their phone.
+  // Table numbers aren't unique across branches — branch 1's "طاولة 3" and
+  // branch 2's "طاولة 3" are different physical tables. Grouping by branch
+  // first (only when there's more than one) keeps them from rendering as
+  // identical, indistinguishable buttons on the same grid; single-branch
+  // businesses see exactly the old section-only grouping, unchanged.
   let groups;
-  if(!TABLE_SECTIONS.length){
-    groups = [{section: null, tables: TABLES}];
+  if(ORDER_SCREEN_BRANCHES.length > 1){
+    groups = [];
+    ORDER_SCREEN_BRANCHES.forEach(b=>{
+      const branchTables = TABLES.filter(t=>t.branchId===b.id);
+      if(!branchTables.length) return;
+      const branchSections = TABLE_SECTIONS.filter(s=>s.branch_id===b.id);
+      if(!branchSections.length){
+        groups.push({branch: b, section: null, tables: branchTables});
+      } else {
+        const bySection = {};
+        branchTables.forEach(t => { const key = t.sectionId || 'none'; (bySection[key] = bySection[key] || []).push(t); });
+        branchSections.forEach(s => { if(bySection[s.id] && bySection[s.id].length) groups.push({branch: b, section: s, tables: bySection[s.id]}); });
+        if(bySection.none && bySection.none.length) groups.push({branch: b, section: {id: null, name: 'بدون قسم'}, tables: bySection.none});
+      }
+    });
+  } else if(!TABLE_SECTIONS.length){
+    groups = [{branch: null, section: null, tables: TABLES}];
   } else {
     const bySection = {};
     TABLES.forEach(t => { const key = t.sectionId || 'none'; (bySection[key] = bySection[key] || []).push(t); });
-    groups = TABLE_SECTIONS.map(s => ({section: s, tables: bySection[s.id] || []})).filter(g => g.tables.length);
-    if(bySection.none && bySection.none.length) groups.push({section: {id: null, name: 'بدون قسم'}, tables: bySection.none});
+    groups = TABLE_SECTIONS.map(s => ({branch: null, section: s, tables: bySection[s.id] || []})).filter(g => g.tables.length);
+    if(bySection.none && bySection.none.length) groups.push({branch: null, section: {id: null, name: 'بدون قسم'}, tables: bySection.none});
   }
 
   document.getElementById('tablesFloorGrid').innerHTML = groups.map(g => {
     let html = '';
-    if(g.section) html += `<div class="tables-section-header"><span>${g.section.name}</span></div>`;
+    if(g.branch) html += `<div class="tables-section-header"><span>${g.branch.name}${g.section ? ' — ' + g.section.name : ''}</span></div>`;
+    else if(g.section) html += `<div class="tables-section-header"><span>${g.section.name}</span></div>`;
     return html + g.tables.map(tableBtnHtml).join('');
   }).join('');
   document.querySelectorAll('.floor-table').forEach(btn=>{
-    btn.addEventListener('click', ()=> showTableDetail(parseInt(btn.dataset.table)));
+    btn.addEventListener('click', ()=> showTableDetail(parseInt(btn.dataset.tableId)));
   });
 }
 
-function showTableDetail(tableNumber){
-  const t = TABLES.find(x=>x.number===tableNumber);
-  document.querySelectorAll('.floor-table').forEach(b=> b.classList.toggle('selected', parseInt(b.dataset.table)===tableNumber));
+function showTableDetail(tableId){
+  const t = TABLES.find(x=>x.tableId===tableId);
+  document.querySelectorAll('.floor-table').forEach(b=> b.classList.toggle('selected', parseInt(b.dataset.tableId)===tableId));
   const panel = document.getElementById('tableDetailPanel');
   let bodyHtml = `<div class="tdp-row"><span>الحالة</span><span class="mono">${TABLE_STATUS_LABEL[t.status]}</span></div>`;
+  if(t.branchName && ORDER_SCREEN_BRANCHES.length > 1){
+    bodyHtml = `<div class="tdp-row"><span>الفرع</span><span class="mono">${t.branchName}</span></div>` + bodyHtml;
+  }
   if(t.statusChangedAt && t.status !== 'available'){
     const mins = Math.floor((Date.now() - new Date(t.statusChangedAt).getTime()) / 60000);
     bodyHtml += `<div class="tdp-row"><span>منذ</span><span class="mono ft-turn-timer${turnTimerSeverityClass(mins)}">${mins < 1 ? 'الآن' : mins + ' د'}</span></div>`;
@@ -1356,7 +1432,7 @@ function showTableDetail(tableNumber){
   }
   bodyHtml += `<div class="tdp-row"><span>تبديل الحالة من</span><span class="mono">الكاشير</span></div>`;
 
-  panel.innerHTML = `<div class="tdp-head"><span class="tdp-title">طاولة ${tableNumber}</span><button class="tdp-close" id="tdpCloseBtn">✕</button></div>` + bodyHtml;
+  panel.innerHTML = `<div class="tdp-head"><span class="tdp-title">طاولة ${t.number}</span><button class="tdp-close" id="tdpCloseBtn">✕</button></div>` + bodyHtml;
   panel.style.display = 'block';
   document.getElementById('tdpCloseBtn').addEventListener('click', ()=>{
     panel.style.display = 'none';
@@ -1365,12 +1441,19 @@ function showTableDetail(tableNumber){
 }
 
 function renderOrdersByType(){
+  // Computed from RECENT_ORDERS (already scoped to the Orders screen's own
+  // date-range selector) rather than the Home screen's CHANNEL_PERF, which
+  // only ever covers today — before this fix these two donut charts silently
+  // kept showing today's split no matter which range was picked above them.
+  const byType = {};
+  RECENT_ORDERS.forEach(o=>{ (byType[o.type] ||= {name:o.type, orders:0}).orders++; });
   const el = document.getElementById('ordersByType');
-  const total = CHANNEL_PERF.reduce((s,c)=>s+c.orders,0);
+  const typeCounts = Object.values(byType);
+  const total = typeCounts.reduce((s,c)=>s+c.orders,0);
   if(total === 0){ el.innerHTML = '<div class="orders-empty">ما فيه طلبات بهالفترة</div>'; return; }
   const COLORS = ['var(--acc-ops)','var(--acc-res)','var(--acc-fin)','var(--acc-team)','var(--acc-ai)'];
   const COLORS_BG = ['var(--acc-ops-bg)','var(--acc-res-bg)','var(--acc-fin-bg)','var(--acc-team-bg)','var(--acc-ai-bg)'];
-  const ranked = [...CHANNEL_PERF].sort((a,b)=>b.orders-a.orders);
+  const ranked = typeCounts.sort((a,b)=>b.orders-a.orders);
   const r = 50, circumference = 2*Math.PI*r;
   let cumulative = 0;
   const segments = ranked.map((c,i)=>{
@@ -1401,14 +1484,21 @@ function renderOrdersByType(){
 }
 
 function renderOrdersBySource(){
-  const deliveryTotal = CHANNEL_PERF.find(c=>c.name==='توصيل')?.orders || 0;
-  const walkInTotal = CHANNEL_PERF.filter(c=>c.name!=='توصيل').reduce((s,c)=>s+c.orders,0);
-  // split delivery orders across the connected platforms proportionally to keep this illustrative but non-arbitrary
-  const onlinePlatforms = DELIVERY_PLATFORMS_STATUS.filter(p=>p.online);
-  const perPlatform = onlinePlatforms.length > 0 ? Math.floor(deliveryTotal / onlinePlatforms.length) : 0;
-  const remainder = deliveryTotal - perPlatform*onlinePlatforms.length;
-  const sources = [{name:'زبون مباشر (بدون تطبيق)', orders:walkInTotal}]
-    .concat(onlinePlatforms.map((p,i)=>({name:p.name, orders: perPlatform + (i < remainder ? 1 : 0)})));
+  // Real per-platform counts from each order's own delivery_platform_id —
+  // this used to fabricate a proportional even split across a hardcoded
+  // platform list ("split delivery orders... to keep this illustrative but
+  // non-arbitrary") even though the cashier already tags every delivery
+  // order with its real platform. That data was just never being read.
+  const bySource = {};
+  let walkInTotal = 0;
+  RECENT_ORDERS.forEach(o=>{
+    if(o.channel === 'delivery' && o.platformName){
+      (bySource[o.platformName] ||= {name:o.platformName, orders:0}).orders++;
+    } else {
+      walkInTotal++;
+    }
+  });
+  const sources = [{name:'زبون مباشر (بدون تطبيق)', orders:walkInTotal}].concat(Object.values(bySource));
   const el = document.getElementById('ordersBySource');
   const total = sources.reduce((s,x)=>s+x.orders,0);
   if(total === 0){ el.innerHTML = '<div class="orders-empty">ما فيه طلبات بهالفترة</div>'; return; }
@@ -1526,7 +1616,7 @@ function stockRowHtml(s, usedInMap){
         <div class="stock-bar-track"><div class="stock-bar-fill ${tier}" style="width:${pct}%"></div></div>
         <span class="mtr-stock-pct mono">${pct}٪</span>
       </div>
-      <div class="mth-col-modused"><span class="mtr-mod-used">${usedBy ? '<b>'+usedBy.length+'</b> منتج' : 'غير مرتبط'}</span></div>
+      <div class="mth-col-modused"><span class="mtr-mod-used"${usedBy ? ` title="${escapeHtml(usedBy.join('، '))}"` : ''}>${usedBy ? escapeHtml(usedBy.slice(0,2).join('، ')) + (usedBy.length>2 ? ' +'+(usedBy.length-2) : '') : 'غير مرتبط'}</span></div>
       <div class="mtr-action"><button class="mtr-edit-btn" data-id="${s.id}">تعديل</button></div>
     </div>`;
 }
@@ -1616,6 +1706,7 @@ function openStockItemModal(stockId){
       </div>
       <div class="menu-add-field"><label id="siCostLabel">تكلفة ${UNIT_LABELS[stockModalState.unit]} الواحد (ر.س)</label><input type="number" id="siUnitCost" value="${stockModalState.unitCost}" step="0.01"></div>
     </div>
+    ${existing ? `<p class="stock-qty-helper" style="margin-top:-8px; margin-bottom:16px;">تغيير التكلفة هنا يطبّق على المبيعات الجاية بس — كل طلب سابق يحتفظ بتكلفته وقت البيع فعليًا، وما يتغيّر بأثر رجعي.</p>` : ''}
 
     <div class="menu-add-field" style="margin-bottom:6px;"><label>${existing ? 'الكمية المتوفرة الآن' : 'كم عندك الآن؟ (بتصير ١٠٠٪)'}</label><input type="number" id="siQtyOnHand" value="${stockModalState.qtyOnHand}" step="0.1"></div>
     <div class="stock-live-bar-box" id="siLiveBarBox"></div>
@@ -1634,6 +1725,12 @@ function openStockItemModal(stockId){
 
     <div class="menu-add-field" style="margin:16px 0 14px;"><label>وصف المدة المتبقية (اختياري)</label><input type="text" id="siDuration" value="${stockModalState.duration}" placeholder="مثال: يكفي يومين"></div>
     ${existing ? `<div class="accounting-note">استهلك اليوم من هذا الصنف: <b>${consumption.totalQty.toFixed(2)} ${UNIT_LABELS[existing.unit]}</b> عبر ${consumption.orderCount} طلب مبيعات حقيقي — محسوبة تلقائيًا من وصفات المنتجات المرتبطة بالمخزون.</div>` : ''}
+    ${existing ? (()=>{
+      const usedBy = getUsedInMap()[existing.name];
+      return `<div class="accounting-note" style="margin-top:8px;">${usedBy && usedBy.length
+        ? 'يُستخدم بوصفة: <b>' + usedBy.map(escapeHtml).join('، ') + '</b>'
+        : 'غير مرتبط بوصفة أي منتج حاليًا — حذفه ما يأثر على القائمة.'}</div>`;
+    })() : ''}
   `;
   const updatePctPreview = ()=>{
     const par = stockModalState.parLevel;
@@ -1733,7 +1830,7 @@ async function deleteStockItem(){
   if(!editingStockId) return;
   const item = STOCK_ITEMS.find(s=>s.id===editingStockId);
   const usedBy = getUsedInMap()[item.name];
-  if(usedBy && usedBy.length){ showToast('ما تقدر تحذفه — مستخدم بوصفة ' + usedBy.length + ' منتج. شيله من الوصفة أول.'); return; }
+  if(usedBy && usedBy.length){ showToast('ما تقدر تحذفه — مستخدم بوصفة: ' + usedBy.join('، ') + '. شيله من الوصفة أول.'); return; }
   if(!window.confirm('متأكد إنك تبي تحذف "' + item.name + '" من المخزون؟ هذا يحذف سجله وتكلفته نهائيًا.')) return;
   try {
     const { error } = await window.supabaseClient.from('stock_items').delete().eq('id', editingStockId);
@@ -1782,7 +1879,7 @@ function renderSupplierComparison(){
         <div class="supcomp-verdict-text"><b>${escapeHtml(best.supplier)}</b> أفضل خيار لـ<b>${escapeHtml(itemName)}</b></div>
         <div class="supcomp-verdict-calc">
           لو تشتري <input type="number" class="supcomp-qty-input" data-item="${escapeHtml(itemName)}" value="${monthlyQty}" min="1"> ${escapeHtml(unitLabel)} بالشهر،
-          توفر <b class="mono">${monthlySavings.toFixed(0)} ر.س</b> شهريًا
+          توفر ${rkMoney(monthlySavings)} شهريًا
         </div>
         <button class="supcomp-use-btn" data-item="${escapeHtml(itemName)}" data-price="${best.unitPrice}">اعتمد ${escapeHtml(best.supplier)} الآن</button>
       </div>` : `
@@ -1798,7 +1895,7 @@ function renderSupplierComparison(){
           <span class="supcomp-rank">${i+1}</span>
           <div style="flex:1;">
             <div class="supcomp-supplier">${escapeHtml(e.supplier)}</div>
-            <div class="supcomp-meta">${e.qty} ${escapeHtml(UNIT_LABELS[e.unit]||e.unit)} — ${e.totalCost.toFixed(2)} ر.س — ${escapeHtml(e.date)}</div>
+            <div class="supcomp-meta">${e.qty} ${escapeHtml(UNIT_LABELS[e.unit]||e.unit)} — ${rkMoney(e.totalCost)} — ${escapeHtml(e.date)}</div>
           </div>
           <span class="supcomp-unit-price">${formatUnitCost(e.unitPrice)} ر.س/${escapeHtml(UNIT_LABELS[e.unit]||e.unit)}</span>
         </div>
@@ -2455,13 +2552,10 @@ function invBlockHtml(blockId){
       <div class="inv-line-headers"><span>الصنف</span><span>الكمية</span><span>السعر</span><span></span></div>
       <div class="inv-block-lineitems"></div>
       <button type="button" class="inv-add-line-btn inv-block-add-line-btn">+ إضافة صنف آخر لنفس الفاتورة</button>
-      <div class="inv-block-subtotal mono"></div>
+      <div class="inv-block-subtotal"></div>
       <div class="menu-add-field" style="margin-top:10px;">
-        <label style="display:flex; align-items:center; gap:8px; font-weight:700; cursor:pointer;">
-          <input type="checkbox" class="inv-block-vat-registered" checked style="width:auto;">
-          هذا المورد يصدر فاتورة ضريبية (مسعّرة شاملة الضريبة)
-        </label>
-        <p class="stock-qty-helper" style="margin-top:6px;">مفعّل افتراضيًا — يحسب الضريبة تلقائيًا من داخل السعر المدخل أعلاه (مثل أسعار منيوك بالضبط)، وتُحتسب ضمن الضريبة القابلة للاسترداد بتقرير الإقرار الضريبي. عطّله بس لو هذا المورد لا يصدر فاتورة ضريبية (محل غير مسجّل بالضريبة).</p>
+        ${rkCheck('class="inv-block-vat-registered" checked', 'هذا المورد يصدر فاتورة ضريبية (مسعّرة شاملة الضريبة)')}
+        <p class="stock-qty-helper" style="margin-top:6px;">مفعّل افتراضيًا — يحسب الضريبة تلقائيًا من داخل السعر المدخل أعلاه (مثل أسعار المنيو بمطعمك بالضبط)، وتُحتسب ضمن الضريبة القابلة للاسترداد بتقرير الإقرار الضريبي. عطّله بس لو هذا المورد لا يصدر فاتورة ضريبية (محل غير مسجّل بالضريبة).</p>
       </div>
     </div>
   `;
@@ -2504,7 +2598,7 @@ function updateInvoiceGrandTotal(){
     grand += parseFloat(inp.value) || 0;
   });
   const el = document.getElementById('invGrandTotal');
-  if(el) el.innerHTML = `<div class="cpb-row total"><span>إجمالي كل الفواتير</span><span class="mono">${grand.toFixed(2)} ر.س</span></div>`;
+  if(el) el.innerHTML = `<div class="cpb-row total"><span>إجمالي كل الفواتير</span>${rkMoney(grand)}</div>`;
 }
 
 function updateInvBlockRemoveVisibility(){
@@ -2521,7 +2615,7 @@ function wireInvoiceBlock(blockEl, prefillLines){
     lineItemsEl.querySelectorAll('.inv-line-row').forEach(row=>{
       subtotal += parseFloat(row.querySelector('.inv-line-total').value) || 0;
     });
-    subtotalEl.textContent = 'إجمالي هذه الفاتورة: ' + subtotal.toFixed(2) + ' ر.س';
+    subtotalEl.innerHTML = 'إجمالي هذه الفاتورة: ' + rkMoney(subtotal);
     updateInvoiceGrandTotal();
   };
   const toggleNewFields = (row)=>{
@@ -2791,7 +2885,7 @@ function wireInvoiceBlock(blockEl, prefillLines){
           '. راجع الأصناف والكميات ثم احفظ');
         telemetry.lineItemCount = parsedLines.length;
         telemetry.qrTotalMatch = (qrResult && qrResult.total != null) ? true : null; // local-accept with QR present only happens when the QR-total reconciliation already passed
-        setInvoiceReviewBadge(blockEl, true, '🟢 متطابقة — قراءة محلية موثوقة');
+        setInvoiceReviewBadge(blockEl, true, 'متطابقة — قراءة محلية موثوقة');
         logScan('local_ocr');
         return;
       }
@@ -2849,7 +2943,7 @@ function wireInvoiceBlock(blockEl, prefillLines){
         telemetry.usage = textResult.data.usage;
         telemetry.qrTotalMatch = (qrResult && qrResult.total != null && textResult.data.grandTotal != null)
           ? Math.abs(qrResult.total - textResult.data.grandTotal) <= 0.02 * qrResult.total : null;
-        setInvoiceReviewBadge(blockEl, true, '🟢 متطابقة — تحقق الذكاء الاصطناعي من المجموع');
+        setInvoiceReviewBadge(blockEl, true, 'متطابقة — تحقق الذكاء الاصطناعي من المجموع');
         prefillInvoiceMetadata(blockEl, textResult.data);
         logScan('text_gemini');
         return;
@@ -2876,7 +2970,7 @@ function wireInvoiceBlock(blockEl, prefillLines){
 
       if(visionResult.error && !qrResult){
         telemetry.errorMessage = visionResult.error;
-        setInvoiceReviewBadge(blockEl, false, '🟡 تحتاج مراجعة — تعذرت القراءة الآلية، أدخل البيانات يدويًا');
+        setInvoiceReviewBadge(blockEl, false, 'تحتاج مراجعة — تعذرت القراءة الآلية، أدخل البيانات يدويًا');
         logScan('failed');
         showToast(visionResult.error);
         return;
@@ -2923,13 +3017,13 @@ function wireInvoiceBlock(blockEl, prefillLines){
           showToast('تم استخراج ' + items.length + (items.length===1?' صنف':' أصناف') +
             (newCount ? ' — ' + newCount + (newCount===1?' صنف جديد':' أصناف جديدة') + ' غير مسجّلة بالمخزون، راجعها' : '') +
             '. راجع الأصناف والكميات ثم احفظ');
-          setInvoiceReviewBadge(blockEl, true, '🟢 متطابقة — تحقق الذكاء الاصطناعي من المجموع');
+          setInvoiceReviewBadge(blockEl, true, 'متطابقة — تحقق الذكاء الاصطناعي من المجموع');
         } else {
           // still fill the rows — a human reviewing pre-filled (if
           // unverified) numbers beats retyping the whole invoice from
           // scratch — but the toast must not claim this was verified
           showToast('⚠️ الأصناف اللي قرأها الذكاء الاصطناعي ما تجمع صح مع إجمالي الفاتورة — راجع كل رقم يدويًا قبل الحفظ، لا تثق فيها كما هي');
-          setInvoiceReviewBadge(blockEl, false, '🟡 تحتاج مراجعة — الأصناف ما تجمع صح مع الإجمالي');
+          setInvoiceReviewBadge(blockEl, false, 'تحتاج مراجعة — الأصناف ما تجمع صح مع الإجمالي');
         }
         telemetry.lineItemCount = items.length;
         telemetry.usage = visionResult.data.usage;
@@ -2943,7 +3037,7 @@ function wireInvoiceBlock(blockEl, prefillLines){
         row.querySelector('.inv-line-total').value = qrResult.total.toFixed(2);
         updateBlockSubtotal();
         showToast('ما قدرنا نميّز الأصناف بالصورة، بس قرأنا الإجمالي من رمز الفاتورة (' + qrResult.total.toFixed(2) + ' ر.س) — أدخل الأصناف يدويًا');
-        setInvoiceReviewBadge(blockEl, false, '🟡 تحتاج مراجعة — أدخل الأصناف يدويًا');
+        setInvoiceReviewBadge(blockEl, false, 'تحتاج مراجعة — أدخل الأصناف يدويًا');
         telemetry.lineItemCount = 0;
         telemetry.usage = visionResult.data && visionResult.data.usage;
         telemetry.errorMessage = visionResult.error || 'items not extracted, QR total used';
@@ -2951,13 +3045,13 @@ function wireInvoiceBlock(blockEl, prefillLines){
       } else {
         telemetry.errorMessage = visionResult.error || 'no items, no QR total';
         showToast(visionResult.error || 'ما قدرنا نقرأ الفاتورة — جرّب صورة أوضح وبإضاءة أفضل، أو أدخل البيانات يدويًا');
-        setInvoiceReviewBadge(blockEl, false, '🟡 تحتاج مراجعة — تعذرت القراءة الآلية');
+        setInvoiceReviewBadge(blockEl, false, 'تحتاج مراجعة — تعذرت القراءة الآلية');
         logScan('failed');
       }
     } catch(err){
       telemetry.errorMessage = err && err.message;
       showToast('تعذرت قراءة الفاتورة: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-      setInvoiceReviewBadge(blockEl, false, '🟡 تحتاج مراجعة — تعذرت القراءة الآلية، أدخل البيانات يدويًا');
+      setInvoiceReviewBadge(blockEl, false, 'تحتاج مراجعة — تعذرت القراءة الآلية، أدخل البيانات يدويًا');
       logScan('failed');
     } finally {
       overlay.classList.add('hidden');
@@ -3286,7 +3380,7 @@ function renderAcctTodayStat(){
     <div class="purchases-today-body">
       <div class="purchases-today-label">مشتريات اليوم</div>
       ${count > 0
-        ? `<div class="purchases-today-value mono">${count} ${count===1?'فاتورة':'فواتير'} — ${todayTotal.toFixed(2)} ر.س</div>`
+        ? `<div class="purchases-today-value">${count} ${count===1?'فاتورة':'فواتير'} — ${rkMoney(todayTotal)}</div>`
         : `<div class="purchases-today-value empty">ما سجّلت أي مشتريات اليوم بعد</div>`}
     </div>`;
 }
@@ -3324,7 +3418,7 @@ function renderPurchaseHistory(){
       <div class="purchase-history-row" data-group-id="${gid}">
         <div class="purchase-history-info">
           <div class="purchase-history-supplier">${escapeHtml(g.supplier)}</div>
-          <div class="purchase-history-meta">${g.lines.length} ${g.lines.length===1?'صنف':'أصناف'} — <span class="mono">${g.total.toFixed(2)} ر.س</span> — ${g.date}</div>
+          <div class="purchase-history-meta">${g.lines.length} ${g.lines.length===1?'صنف':'أصناف'} — ${rkMoney(g.total)} — ${g.date}</div>
         </div>
         <div class="purchase-history-actions">
           <button type="button" class="purchase-history-edit-btn" data-group-id="${gid}" title="تعديل"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${editIcon}</svg></button>
@@ -3336,7 +3430,7 @@ function renderPurchaseHistory(){
           <div class="purchase-history-detail-line">
             <span>${l.stockItem}</span>
             <span class="mono">${l.qty} ${UNIT_LABELS[l.unit] || l.unit}</span>
-            <span class="mono">${l.totalCost.toFixed(2)} ر.س</span>
+            ${rkMoney(l.totalCost)}
           </div>
         `).join('')}
       </div>
@@ -3405,11 +3499,42 @@ function openExpenseModal(){
       <div class="menu-add-field"><label>المبلغ (ر.س)</label><input type="number" id="expAmount" placeholder="0.00"></div>
     </div>
     <div class="menu-add-field"><label>وصف مختصر</label><input type="text" id="expDescription" placeholder="مثال: إصلاح تكييف"></div>
-    <div class="stock-qty-helper" style="margin-top:14px;">هذا سجل للمصروف بس — ما يأثر على مخزونك ولا على تكلفة أي منتج. لو تبي تغيّر معدل مصاريفك الثابتة الشهرية (إيجار، رواتب)، روح الإعدادات → المصاريف الثابتة.</div>
+    <div class="stock-qty-helper" style="margin-top:14px;">هذا سجل للمصروف بس — ما يأثر على مخزونك ولا على تكلفة أي منتج. لو تبي تغيّر معدل مصاريفك الثابتة الشهرية (إيجار، رواتب)، روح تبويب "المصاريف الثابتة" بنفس الشاشة.</div>
   `;
   document.getElementById('expenseModal').classList.add('show');
 }
 function closeExpenseModal(){ document.getElementById('expenseModal').classList.remove('show'); }
+// Adding or deleting a general expense changes today's real opex — without
+// this, "من الإيراد للربح الصافي" and the VAT/margin stat cards silently
+// went stale until a full page reload, even though the expense list itself
+// updated immediately.
+async function refreshTodayAccountingAfterExpenseChange(){
+  const sb = window.supabaseClient;
+  const startToday = new Date(); startToday.setHours(0,0,0,0);
+  const { data: todayExpenses } = await sb.from('general_expenses')
+    .select('amount').eq('business_id', CURRENT_PROFILE.business_id).gte('spent_at', startToday.toISOString());
+  TODAY_GENERAL_EXPENSES_TOTAL = (todayExpenses||[]).reduce((s,e)=>s+Number(e.amount),0);
+  recomputeAccounting();
+  renderWaterfall();
+  renderOpexBreakdown();
+  renderVatAndMargin();
+}
+async function deleteGeneralExpense(id){
+  const expense = GENERAL_EXPENSES.find(e=>e.id===id);
+  if(!expense) return;
+  if(!window.confirm('متأكد إنك تبي تحذف مصروف "' + expense.description + '" بقيمة ' + expense.amount.toFixed(2) + ' ر.س؟')) return;
+  try {
+    const { error } = await window.supabaseClient.from('general_expenses').delete().eq('id', id);
+    if(error) throw error;
+    GENERAL_EXPENSES = GENERAL_EXPENSES.filter(e=>e.id!==id);
+    logDashboardAudit('حذف مصروف عام: ' + expense.description + ' (' + expense.amount.toFixed(2) + ' ر.س)');
+    showToast('تم حذف المصروف');
+    renderGeneralExpensesList();
+    refreshTodayAccountingAfterExpenseChange();
+  } catch(err){
+    showToast('تعذر الحذف: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+  }
+}
 async function saveExpense(){
   const category = document.getElementById('expCategory').value;
   const amount = parseFloat(document.getElementById('expAmount').value);
@@ -3438,6 +3563,7 @@ async function saveExpense(){
     showToast('تم تسجيل المصروف');
     closeExpenseModal();
     renderGeneralExpensesList();
+    refreshTodayAccountingAfterExpenseChange();
   } catch(err){
     showToast('تعذر تسجيل المصروف: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
   } finally {
@@ -3458,8 +3584,12 @@ function renderGeneralExpensesList(){
         <div class="supcomp-meta">${e.date}</div>
       </div>
       <span class="supcomp-unit-price">${e.amount.toFixed(2)} ر.س</span>
+      <button type="button" class="expense-row-delete-btn" data-id="${e.id}" title="حذف المصروف"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg></button>
     </div>
   `).join('');
+  el.querySelectorAll('.expense-row-delete-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> deleteGeneralExpense(Number(btn.dataset.id)));
+  });
 }
 
 const PARSE_REASON_LABELS = {
@@ -3478,12 +3608,15 @@ const PARSE_REASON_LABELS = {
   gemini_error: 'خطأ من خدمة الذكاء الاصطناعي',
 };
 
-// Production observability (Step 8) for the invoice-scan pipeline —
-// deliberately reads raw invoice_scan_events rows and aggregates in the
-// client rather than adding a server-side aggregation endpoint: the whole
-// point right now is answering "is each optimization actually reducing
-// vision_gemini usage" from real production data as it accumulates over
-// the first few hundred scans, not building infrastructure ahead of need.
+// Production observability (Step 8) for the invoice-scan pipeline — reads
+// raw invoice_scan_events rows and aggregates in the client. This was never
+// actually an owner-facing feature: read closely, it surfaces Rakeen's own
+// per-scan Gemini API cost in SAR to 4 decimal places, internal pipeline
+// stage names, and OCR-confidence diagnostics — none of it something a
+// restaurant owner can act on. It had been wired into the Purchases screen's
+// "أداء نظام قراءة الفواتير" collapsible anyway (probably for convenience
+// while building the pipeline); removed from there — no longer called — but
+// kept defined here in case an admin-only view wants it later.
 async function renderInvoiceScanMetrics(){
   const el = document.getElementById('invoiceScanMetricsList');
   if(!el) return;
@@ -3729,6 +3862,7 @@ function wireAccountingScreen(){
     document.getElementById('acctTabExpenses').style.display = tab==='expenses' ? 'block' : 'none';
     document.getElementById('acctTabFixedCosts').style.display = tab==='fixedcosts' ? 'block' : 'none';
     document.getElementById('acctTabDelivery').style.display = tab==='delivery' ? 'block' : 'none';
+    resetContentScroll();
     if(tab==='expenses'){ renderGeneralExpensesList(); }
     if(tab==='fixedcosts'){ renderFixedCostsTab(); }
     if(tab==='delivery'){ renderDeliveryReconciliation(); }
@@ -3768,15 +3902,27 @@ function wirePurchasesScreen(){
 }
 
 function renderMovers(){
+  if(ALL_SELLERS.length === 0){
+    document.getElementById('fastMoversList').innerHTML = '<div class="orders-empty">ما فيه مبيعات بهالفترة</div>';
+    document.getElementById('slowMoversList').innerHTML = '<div class="orders-empty">ما فيه مبيعات بهالفترة</div>';
+    return;
+  }
   const sorted = [...ALL_SELLERS].sort((a,b)=>b.qty-a.qty);
-  const fast = sorted.slice(0,4);
-  const slow = sorted.slice(-4).reverse();
+  // Same overlap bug as renderBestWorstSellers on Home (fixed earlier this
+  // session), found again here: slice(0,4)/slice(-4) share items whenever
+  // there are under 8 distinct sold products — a very normal day for a
+  // small menu — showing one product as both "fastest" and "slowest"
+  // moving at once. Same half-split fix.
+  const half = Math.ceil(sorted.length / 2);
+  const fastCount = Math.min(4, sorted.length >= 8 ? 4 : half);
+  const fast = sorted.slice(0, fastCount);
+  const slow = sorted.length >= 8 ? sorted.slice(-4).reverse() : sorted.slice(fastCount).reverse();
   document.getElementById('fastMoversList').innerHTML = fast.map(p=>
     `<div class="mover-row"><div style="flex:1;"><div class="mover-name">${p.name}</div><div class="mover-meta">${p.cat}</div></div><span class="mover-badge fast">${p.qty} قطعة اليوم</span></div>`
   ).join('');
-  document.getElementById('slowMoversList').innerHTML = slow.map(p=>
+  document.getElementById('slowMoversList').innerHTML = slow.length ? slow.map(p=>
     `<div class="mover-row"><div style="flex:1;"><div class="mover-name">${p.name}</div><div class="mover-meta">${p.cat}</div></div><span class="mover-badge slow">${p.qty} قطعة اليوم</span></div>`
-  ).join('');
+  ).join('') : '<div class="orders-empty">ما فيه تنوع كافٍ بالمبيعات لعرض قائمة منفصلة</div>';
 }
 
 /* ============ Accounting screen ============ */
@@ -3840,7 +3986,7 @@ function renderOpexBreakdown(){
     {name:'مصاريف اليوم الإضافية', amount: TODAY_GENERAL_EXPENSES_TOTAL}
   ].filter(o=>o.amount>0);
   if(items.length === 0){
-    document.getElementById('opexBreakdown').innerHTML = '<div class="orders-empty">لسا ما حددت مصاريفك الثابتة — الإعدادات ← المصاريف الثابتة</div>';
+    document.getElementById('opexBreakdown').innerHTML = '<div class="orders-empty">لسا ما حددت مصاريفك الثابتة — تبويب "المصاريف الثابتة" بنفس الشاشة</div>';
     return;
   }
   document.getElementById('opexBreakdown').innerHTML = items.map(o=>{
@@ -3863,10 +4009,12 @@ function renderVatAndMargin(){
   document.getElementById('marginBarFill').style.width = Math.max(0, Math.min(100, Math.round(marginPct*2))) + '%'; // scaled for visibility
 }
 
-document.getElementById('acctToggleBtn').addEventListener('click', function(){
-  const panel = document.getElementById('acctDetailPanel');
-  panel.classList.toggle('hidden');
-  this.textContent = panel.classList.contains('hidden') ? 'عرض تفاصيل المحاسب' : 'إخفاء تفاصيل المحاسب';
+document.getElementById('acctDetailToggle').addEventListener('click', ()=>{
+  const body = document.getElementById('acctDetailBody');
+  const chevron = document.getElementById('acctDetailChevron');
+  const open = !body.classList.contains('open');
+  body.classList.toggle('open', open);
+  chevron.classList.toggle('open', open);
 });
 
 /* ============ Employees screen — real cashiers (staff_members, same rows the
@@ -3900,10 +4048,10 @@ async function loadStaffStats(){
 }
 
 function renderEmployeeCards(){
-  const el = document.getElementById('empCards');
+  const el = document.getElementById('hrEmpCards');
   if(!el) return;
   if(STAFF_STATS.length === 0){
-    el.innerHTML = '<p class="stock-qty-helper">ما فيه موظفو كاشير مضافين بعد — أضفهم من الإعدادات ← نقطة البيع.</p>';
+    el.innerHTML = '<p class="stock-qty-helper">ما فيه موظف مفعّل على الكاشير بعد — فعّل "الكاشير" لأي موظف من تبويب "قائمة الموظفين".</p>';
     return;
   }
   const COLORS = ['var(--acc-ops)','var(--acc-res)','var(--acc-fin)','var(--acc-team)','var(--acc-ai)'];
@@ -3929,8 +4077,8 @@ function renderEmployeeCards(){
 }
 
 function renderAchievements(){
-  const panel = document.getElementById('achievementsPanel');
-  const row = document.getElementById('achievementsRow');
+  const panel = document.getElementById('hrAchievementsPanel');
+  const row = document.getElementById('hrAchievementsRow');
   if(!panel || !row) return;
   const active = STAFF_STATS.filter(s=>s.orders>0);
   if(active.length === 0){ panel.style.display = 'none'; return; }
@@ -3959,12 +4107,41 @@ async function loadCustomersReal(){
 
   const [{data: customers}, {data: orders}, {data: business}] = await Promise.all([
     sb.from('customers').select('id, name, phone, created_at, public_token, loyalty_points').eq('business_id', businessId),
-    sb.from('orders').select('customer_id, total, created_at').eq('business_id', businessId).not('customer_id', 'is', null),
-    sb.from('businesses').select('loyalty_points_divisor').eq('id', businessId).single()
+    sb.from('orders').select('id, customer_id, total, created_at').eq('business_id', businessId).not('customer_id', 'is', null),
+    sb.from('businesses').select('loyalty_points_divisor, loyalty_tiers').eq('id', businessId).single()
   ]);
   const customerList = customers || [];
   const orderList = orders || [];
-  if(business) LOYALTY_RATE = Number(business.loyalty_points_divisor);
+  if(business){
+    LOYALTY_RATE = Number(business.loyalty_points_divisor);
+    if(Array.isArray(business.loyalty_tiers) && business.loyalty_tiers.length > 0) LOYALTY_TIERS = business.loyalty_tiers;
+  }
+
+  // "يفضّل: ..." used to be a hardcoded '—' for every customer — a feature
+  // that could structurally never show real data. It's fully computable
+  // from data already on hand: tally qty sold per menu item per customer
+  // across their real order_items, the same "usual order" a cashier who
+  // knows a regular would recognize.
+  const orderIds = orderList.map(o=>o.id);
+  const { data: items } = orderIds.length
+    ? await sb.from('order_items').select('order_id, menu_item_id, qty').in('order_id', orderIds).not('menu_item_id', 'is', null)
+    : { data: [] };
+  const orderCustomerById = {};
+  orderList.forEach(o=>{ orderCustomerById[o.id] = o.customer_id; });
+  const favoriteCountByCustomer = {};
+  (items||[]).forEach(it=>{
+    const custId = orderCustomerById[it.order_id];
+    if(!custId) return;
+    const bucket = (favoriteCountByCustomer[custId] ||= {});
+    bucket[it.menu_item_id] = (bucket[it.menu_item_id]||0) + Number(it.qty);
+  });
+  const favoriteNameByCustomer = {};
+  Object.entries(favoriteCountByCustomer).forEach(([custId, counts])=>{
+    let bestId = null, bestQty = 0;
+    Object.entries(counts).forEach(([menuItemId, qty])=>{ if(qty > bestQty){ bestQty = qty; bestId = menuItemId; } });
+    const product = bestId ? MENU_ITEMS.find(m=>String(m.id)===String(bestId)) : null;
+    if(product) favoriteNameByCustomer[custId] = product.name;
+  });
 
   const statsById = {};
   orderList.forEach(o=>{
@@ -3980,7 +4157,7 @@ async function loadCustomersReal(){
       const s = statsById[c.id];
       if(!s) return null; // no real order tied to this customer yet — don't show a phantom row
       const lastVisitDays = Math.floor((now - new Date(s.lastOrderAt).getTime())/86400000);
-      return { id:c.id, name:c.name, phone:c.phone||null, publicToken:c.public_token, points:Number(c.loyalty_points), visits:s.visits, spend:s.spend, lastVisitDays, favorite:'—', vip: s.spend >= LOYALTY_TIERS[1].min, note:null };
+      return { id:c.id, name:c.name, phone:c.phone||null, publicToken:c.public_token, points:Number(c.loyalty_points), visits:s.visits, spend:s.spend, lastVisitDays, favorite: favoriteNameByCustomer[c.id] || null, vip: s.spend >= LOYALTY_TIERS[1].min };
     })
     .filter(Boolean)
     .sort((a,b)=>b.spend-a.spend);
@@ -4023,24 +4200,28 @@ function rfmRScore(days){ if(days<=3) return 5; if(days<=7) return 4; if(days<=1
 function rfmFScore(visits){ if(visits>=20) return 5; if(visits>=15) return 4; if(visits>=10) return 3; if(visits>=5) return 2; return 1; }
 function rfmMScore(spend){ if(spend>=1000) return 5; if(spend>=500) return 4; if(spend>=200) return 3; if(spend>=50) return 2; return 1; }
 function rfmSegment(r,f,m){
-  if(r>=4 && f>=4 && m>=4) return {key:'champions', label:'Champions'};
-  if(r<=2 && f>=3 && m>=3) return {key:'at-risk', label:'At Risk'};
-  if(f>=3 && m>=3) return {key:'loyal', label:'Loyal Customers'};
-  if(r>=4 && f<=2) return {key:'new', label:'New Customers'};
-  if(r>=3 && f<=3) return {key:'potential', label:'Potential Loyalist'};
-  return {key:'lost', label:'Lost'};
+  if(r>=4 && f>=4 && m>=4) return {key:'champions', label:'الأبرز'};
+  if(r<=2 && f>=3 && m>=3) return {key:'at-risk', label:'مهددون بالانقطاع'};
+  if(f>=3 && m>=3) return {key:'loyal', label:'دائمون'};
+  if(r>=4 && f<=2) return {key:'new', label:'جدد'};
+  if(r>=3 && f<=3) return {key:'potential', label:'واعدون'};
+  return {key:'lost', label:'منقطعون'};
 }
 function rfmScoreCustomer(c){
   const r = rfmRScore(c.lastVisitDays), f = rfmFScore(c.visits), m = rfmMScore(c.spend);
   return {r, f, m, segment: rfmSegment(r,f,m)};
 }
+// Segment names were shown in raw English (RFM analysis jargon —
+// "Champions"/"At Risk"/"Lost") straight to the owner, with only the
+// description translated. Names are now plain Arabic; the logic/thresholds
+// computing who lands in which segment are unchanged.
 const RFM_SEGMENT_META = {
-  champions:{label:'Champions', desc:'الأفضل — زيارات حديثة ومتكررة وإنفاق عالٍ.'},
-  loyal:{label:'Loyal Customers', desc:'ثابتون ويعودون بانتظام.'},
-  potential:{label:'Potential Loyalist', desc:'زاروا مؤخرًا، بحاجة لتشجيع أكثر.'},
-  new:{label:'New Customers', desc:'زيارات أولى — فرصة لبناء ولاء.'},
-  'at-risk':{label:'At Risk', desc:'كانوا جيدين، بدأوا يبتعدون — يستاهلون تواصل.'},
-  lost:{label:'Lost', desc:'ما زاروا من فترة طويلة وتفاعلهم قليل.'}
+  champions:{label:'الأبرز', desc:'الأفضل — زيارات حديثة ومتكررة وإنفاق عالٍ.'},
+  loyal:{label:'دائمون', desc:'ثابتون ويعودون بانتظام.'},
+  potential:{label:'واعدون', desc:'زاروا مؤخرًا، بحاجة لتشجيع أكثر.'},
+  new:{label:'جدد', desc:'زيارات أولى — فرصة لبناء ولاء.'},
+  'at-risk':{label:'مهددون بالانقطاع', desc:'كانوا جيدين، بدأوا يبتعدون — يستاهلون تواصل.'},
+  lost:{label:'منقطعون', desc:'ما زاروا من فترة طويلة وتفاعلهم قليل.'}
 };
 function renderRfmSegments(){
   const counts = {champions:0, loyal:0, potential:0, new:0, 'at-risk':0, lost:0};
@@ -4096,18 +4277,76 @@ function renderCustList(){
   const phoneIcon = '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>';
   el.innerHTML = rows.map((c,i)=>{
     const rfm = rfmScoreCustomer(c);
-    return `<div class="cust-row">
+    return `<div class="cust-row" data-cust-id="${c.id}" style="cursor:pointer;">
       <div class="cust-avatar" style="background:${COLORS_BG[i%5]}; color:${COLORS[i%5]};">${escapeHtml(c.name.charAt(0))}</div>
       <div class="cust-info">
-        <div class="cust-name">${escapeHtml(c.name)}${c.vip?'<span class="cust-vip-badge">VIP</span>':''}${c.note?'<span class="cust-note-badge">يحتاج متابعة</span>':''}<span class="cust-rfm-tag ${rfm.segment.key}">${escapeHtml(rfm.segment.label)}</span></div>
-        <div class="cust-meta">${c.visits} زيارة — آخر زيارة قبل ${c.lastVisitDays} يوم${c.favorite!=='—'?' — يفضّل: '+escapeHtml(c.favorite):''}${c.note?' — '+escapeHtml(c.note):''}</div>
+        <div class="cust-name">${escapeHtml(c.name)}${c.vip?'<span class="cust-vip-badge">VIP</span>':''}<span class="cust-rfm-tag ${rfm.segment.key}">${escapeHtml(rfm.segment.label)}</span></div>
+        <div class="cust-meta">${c.visits} زيارة — آخر زيارة قبل ${c.lastVisitDays} يوم${c.favorite ? ' — يفضّل: '+escapeHtml(c.favorite) : ''}</div>
       </div>
       <div class="cust-end">
-        <div class="cust-spend mono">${c.spend.toFixed(2)} ر.س</div>
+        <div class="cust-spend">${rkMoney(c.spend)}</div>
         ${c.phone ? `<a class="cust-call-btn" href="tel:${escapeHtml(c.phone)}" title="اتصال" onclick="event.stopPropagation()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">${phoneIcon}</svg></a>` : ''}
       </div>
     </div>`;
   }).join('');
+  el.querySelectorAll('.cust-row').forEach(row=>{
+    row.addEventListener('click', ()=> openCustomerDetailModal(parseInt(row.dataset.custId)));
+  });
+}
+
+// A customer row used to be a dead end — the row itself had no click
+// handler at all (only the tiny phone-call icon was interactive, and it
+// already called stopPropagation as if a row click was expected to do
+// something). There was no way to see a customer's actual order history
+// anywhere in the dashboard. This reuses the same real order data and the
+// existing order-detail modal (openOrderDetailModal, from Orders) rather
+// than inventing a second, parallel order-detail view.
+function closeCustomerDetailModal(){
+  document.getElementById('customerDetailModal').classList.remove('show');
+}
+async function openCustomerDetailModal(customerId){
+  const c = TOP_CUSTOMERS.find(x=>x.id===customerId);
+  if(!c) return;
+  const modal = document.getElementById('customerDetailModal');
+  const body = document.getElementById('customerDetailModalBody');
+  document.getElementById('customerDetailModalTitle').textContent = c.name;
+  body.innerHTML = '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p>';
+  modal.classList.add('show');
+
+  const rfm = rfmScoreCustomer(c);
+  const tier = loyaltyTier(c.spend);
+  const { data: orders } = await window.supabaseClient.from('orders')
+    .select('id, created_at, channel, total, status')
+    .eq('customer_id', customerId).order('created_at', {ascending:false}).limit(20);
+
+  const ordersHtml = (orders||[]).length ? (orders||[]).map(o=>`
+    <div class="cpb-row" data-order-id="${o.id}" style="cursor:pointer;">
+      <span>${new Date(o.created_at).toLocaleDateString('ar-SA')} — ${orderChannelTagsHtml(o.channel, false)}${o.status!=='completed' ? ' <span class="order-status-tag '+o.status+'">'+(ORDER_STATUS_LABELS[o.status]||o.status)+'</span>' : ''}</span>
+      ${rkMoney(o.total)}
+    </div>`).join('') : '<p class="stock-qty-helper">ما فيه طلبات مسجّلة لهذا العميل بعد.</p>';
+
+  body.innerHTML = `
+    <div class="cost-preview-box" style="margin-bottom:14px;">
+      ${c.phone ? `<div class="cpb-row"><span>الجوال</span><a href="tel:${escapeHtml(c.phone)}" class="mono" style="color:var(--lime-deep); font-weight:700;">${escapeHtml(c.phone)}</a></div>` : ''}
+      <div class="cpb-row"><span>التصنيف</span><span class="cust-rfm-tag ${rfm.segment.key}">${escapeHtml(rfm.segment.label)}</span></div>
+      <div class="cpb-row"><span>مستوى العضوية</span><span class="mono">${tier.name} — خصم دائم ${tier.discount}٪</span></div>
+      <div class="cpb-row"><span>نقاط الولاء</span><span class="mono">${c.points}</span></div>
+      ${c.favorite ? `<div class="cpb-row"><span>يفضّل</span><span class="mono">${escapeHtml(c.favorite)}</span></div>` : ''}
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
+      <div class="kpi-card"><div class="kpi-label">إجمالي الزيارات</div><div class="kpi-value mono">${c.visits}</div></div>
+      <div class="kpi-card"><div class="kpi-label">إجمالي الإنفاق</div><div class="kpi-value">${rkMoney(c.spend)}</div></div>
+    </div>
+    <div class="panel-title" style="margin-bottom:8px;">آخر الطلبات</div>
+    ${ordersHtml}
+  `;
+  body.querySelectorAll('[data-order-id]').forEach(row=>{
+    row.addEventListener('click', ()=> openOrderDetailModal(row.dataset.orderId));
+  });
+}
+function wireCustomersScreen(){
+  document.getElementById('customerDetailModalClose').addEventListener('click', closeCustomerDetailModal);
+  document.getElementById('customerDetailModal').addEventListener('click', (e)=>{ if(e.target.id==='customerDetailModal') closeCustomerDetailModal(); });
 }
 
 function renderCustInsight(){
@@ -4119,19 +4358,28 @@ function renderCustInsight(){
    the same single source of truth used by the Customers and Home screens. The points-per-riyal
    rate is genuinely editable and recomputes every displayed point live (no separate stored values). */
 let LOYALTY_RATE = 10; // 1 point per this many SAR — persisted on businesses.loyalty_points_divisor
-const LOYALTY_TIERS = [
-  {name:'Bronze', min:0, max:999, discount:5},
-  {name:'Silver', min:1000, max:4999, discount:10},
-  {name:'Gold', min:5000, max:9999, discount:15},
-  {name:'Platinum', min:10000, max:Infinity, discount:20}
+// Real owner feedback: this ladder used to be a fixed constant — every
+// business saw the exact same 4 thresholds/discounts with no way to change
+// them. Now persisted on businesses.loyalty_tiers (jsonb), loaded in
+// loadCustomersReal(); this literal is just the fallback a business starts
+// with before ever touching "المستويات" (identical to the old hardcoded
+// values, so nothing changes for anyone who never opens that tab). Tier
+// NAMES stay fixed (Bronze/Silver/Gold/Platinum) — only min/discount are
+// owner-editable — see renderLoyaltyTiersEditor(). No `max` is stored: it's
+// always derived as "the next tier's min", so editing one threshold can
+// never leave a gap or overlap with its neighbor out of sync.
+let LOYALTY_TIERS = [
+  {name:'Bronze', min:0, discount:5},
+  {name:'Silver', min:1000, discount:10},
+  {name:'Gold', min:5000, discount:15},
+  {name:'Platinum', min:10000, discount:20}
 ];
 function loyaltyTier(spend){
-  return LOYALTY_TIERS.find(t=> spend >= t.min && spend <= t.max) || LOYALTY_TIERS[0];
+  const sorted = [...LOYALTY_TIERS].sort((a,b)=> a.min - b.min);
+  let match = sorted[0];
+  for(const t of sorted){ if(spend >= t.min) match = t; }
+  return match;
 }
-// real — 0 until the POS actually has a redemption flow (it doesn't yet: no
-// "redeem points" action exists anywhere in the checkout UI)
-const LOYALTY_REDEEMED_TODAY = 0;
-
 function renderLoyaltyKpis(){
   const pointsIssuedToday = Math.round(TODAY.netSales / LOYALTY_RATE);
   const activeMembersToday = CUSTOMERS_TODAY.newCount + CUSTOMERS_TODAY.returningCount;
@@ -4140,7 +4388,10 @@ function renderLoyaltyKpis(){
     : 0;
   const kpis = [
     {label:'نقاط مصدرة اليوم', value: pointsIssuedToday},
-    {label:'نقاط مستردة اليوم', value: LOYALTY_REDEEMED_TODAY},
+    // "نقاط مستردة اليوم" used to sit here as a hardcoded 0 — the POS has no
+    // redemption flow yet, so that number could never be anything but fake-
+    // looking-real zero. Total members is honest and actually useful instead.
+    {label:'إجمالي الأعضاء', value: TOP_CUSTOMERS.length},
     {label:'أعضاء تفاعلوا اليوم', value: activeMembersToday},
     {label:'متوسط نقاط العميل', value: avgPoints}
   ];
@@ -4155,35 +4406,89 @@ function renderLoyaltyCards(){
     document.getElementById('loyaltyCardsGrid').innerHTML = '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">ما فيه أعضاء بعد.</p>';
     return;
   }
+  const cardIcon = '<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>';
   document.getElementById('loyaltyCardsGrid').innerHTML = TOP_CUSTOMERS.map(c=>{
     const tier = loyaltyTier(c.spend);
-    const cardUrl = location.origin + '/loyalty-card/' + c.publicToken;
-    return `<div class="loyalty-card tier-${tier.name.toLowerCase()}">
-      <div class="lc-top"><span class="lc-tier-label">${tier.name}</span><span class="lc-tier-label">خصم ${tier.discount}٪</span></div>
-      <div class="lc-name">${c.name}</div>
-      <div class="lc-points">${Math.round(c.points)}</div>
-      <div class="lc-points-label">نقطة</div>
-      <div class="lc-bottom">
-        <div class="lc-qr"><img src="/api/qr?data=${encodeURIComponent(cardUrl)}" alt="" width="52" height="52" loading="lazy"></div>
-        <button class="lc-card-link-btn" data-token="${c.publicToken}">فتح البطاقة الرقمية</button>
+    const tierClass = 'tier-' + tier.name.toLowerCase();
+    return `<div class="loy-row">
+      <div class="loy-avatar ${tierClass}">${escapeHtml(c.name.charAt(0))}</div>
+      <div class="loy-info">
+        <div class="loy-name">${escapeHtml(c.name)}<span class="loy-tier-badge ${tierClass}">${tier.name} — خصم ${tier.discount}٪</span></div>
+        <div class="loy-meta">${Math.round(c.points)} نقطة</div>
       </div>
+      <button class="loy-card-btn" data-token="${c.publicToken}" title="فتح البطاقة الرقمية"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">${cardIcon}</svg></button>
     </div>`;
   }).join('');
-  document.querySelectorAll('.lc-card-link-btn').forEach(btn=>{
+  document.querySelectorAll('.loy-card-btn').forEach(btn=>{
     btn.addEventListener('click', ()=> window.open('/loyalty-card/' + btn.dataset.token, '_blank'));
   });
 }
 
 function renderLoyaltyTiers(){
-  document.getElementById('loyaltyTiersTable').innerHTML = `<div class="loyalty-tiers-grid">` + LOYALTY_TIERS.map(t=>
-    `<div class="loyalty-tier-card ${t.name.toLowerCase()}">
+  const sorted = [...LOYALTY_TIERS].sort((a,b)=> a.min - b.min);
+  document.getElementById('loyaltyTiersTable').innerHTML = `<div class="loyalty-tiers-grid">` + sorted.map((t,i)=>{
+    const nextMin = sorted[i+1] ? sorted[i+1].min : null;
+    const range = nextMin === null ? t.min.toLocaleString()+'+ ر.س' : t.min.toLocaleString()+' – '+(nextMin-1).toLocaleString()+' ر.س';
+    return `<div class="loyalty-tier-card ${t.name.toLowerCase()}">
       <div class="ltc-name">${t.name}</div>
-      <div class="ltc-range">${t.max===Infinity ? t.min.toLocaleString()+'+ ر.س' : t.min.toLocaleString()+' – '+t.max.toLocaleString()+' ر.س'}</div>
+      <div class="ltc-range">${range}</div>
       <div class="ltc-discount">${t.discount}٪</div>
       <div class="ltc-discount-label">خصم دائم</div>
-    </div>`
-  ).join('') + `</div>`;
+    </div>`;
+  }).join('') + `</div>`;
 }
+
+// "المستويات" tab — real owner feedback: the ladder used to be forced on
+// every business with no way to change it. Tier order/names stay fixed
+// (Bronze<Silver<Gold<Platinum); only each tier's spend threshold and
+// discount % are editable here. Setting every discount to 0 is a first-
+// class, fully supported way to "turn off" the discount promise without
+// touching the enable/disable toggle for the whole loyalty feature.
+function renderLoyaltyTiersEditor(){
+  const el = document.getElementById('loyaltyTiersEditor');
+  if(!el) return;
+  const sorted = [...LOYALTY_TIERS].sort((a,b)=> a.min - b.min);
+  const dotColor = {bronze:'#8a6a4a', silver:'#6e7378', gold:'#c9a227', platinum:'var(--graphite)'};
+  el.innerHTML = sorted.map((t,i)=>{
+    const key = t.name.toLowerCase();
+    return `<div class="loy-tier-edit-row" data-tier-name="${t.name}">
+      <div class="loy-tier-edit-label"><span class="loy-tier-edit-dot" style="background:${dotColor[key]||'var(--muted)'};"></span>${t.name}</div>
+      <div class="rk-field"><label>الحد الأدنى للإنفاق (ر.س)</label><input type="number" class="loy-tier-min-input" min="0" step="1" value="${t.min}" ${i===0 ? 'readonly' : ''}></div>
+      <div class="rk-field"><label>الخصم (٪)</label><input type="number" class="loy-tier-discount-input" min="0" max="100" step="1" value="${t.discount}"></div>
+    </div>`;
+  }).join('');
+}
+document.getElementById('loyaltyTiersSaveBtn').addEventListener('click', async ()=>{
+  const btn = document.getElementById('loyaltyTiersSaveBtn');
+  const rows = [...document.querySelectorAll('.loy-tier-edit-row')];
+  const newTiers = rows.map(row=>({
+    name: row.dataset.tierName,
+    min: Math.max(0, parseInt(row.querySelector('.loy-tier-min-input').value, 10) || 0),
+    discount: Math.min(100, Math.max(0, parseInt(row.querySelector('.loy-tier-discount-input').value, 10) || 0))
+  }));
+  // Keep thresholds strictly ascending — a lower tier's minimum landing at
+  // or above the next tier's would silently make that next tier unreachable.
+  const sortedCheck = [...newTiers].sort((a,b)=> a.min - b.min);
+  for(let i=1;i<sortedCheck.length;i++){
+    if(sortedCheck[i].min <= sortedCheck[i-1].min){
+      showToast('كل مستوى لازم يكون حد إنفاقه أعلى من اللي قبله');
+      return;
+    }
+  }
+  rkBtnLoading(btn, true);
+  try {
+    await updateCurrentBusiness({loyalty_tiers: newTiers});
+    LOYALTY_TIERS = newTiers;
+    renderLoyaltyKpis();
+    renderLoyaltyCards();
+    renderLoyaltyTiers();
+    logDashboardAudit('حدّث مستويات نادي الولاء');
+    rkBtnSuccess(btn, '✓ تم الحفظ');
+  } catch(err){
+    rkBtnLoading(btn, false);
+    showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+  }
+});
 
 /* ============ Loyalty card branding — real logo/banner/accent color/icon/
    system type, stored on businesses + uploaded to Supabase Storage
@@ -4383,7 +4688,7 @@ async function renderLoyaltySuggestedColors(imgSrc){
 
 async function loadLoyaltyBranding(){
   const { data } = await window.supabaseClient.from('businesses')
-    .select('loyalty_logo_url, loyalty_banner_url, loyalty_accent_color, loyalty_system_type, loyalty_visits_threshold, loyalty_reward_label, loyalty_icon_style, loyalty_pattern_style, loyalty_theme, loyalty_custom_icon_url, loyalty_enabled')
+    .select('loyalty_logo_url, loyalty_banner_url, loyalty_accent_color, loyalty_system_type, loyalty_visits_threshold, loyalty_reward_label, loyalty_icon_style, loyalty_pattern_style, loyalty_theme, loyalty_custom_icon_url, loyalty_enabled, loyalty_banner_overlay, loyalty_icon_size, loyalty_tagline')
     .eq('id', CURRENT_PROFILE.business_id).single();
   if(data){
     LOYALTY_BRANDING = {
@@ -4391,15 +4696,26 @@ async function loadLoyaltyBranding(){
       systemType: data.loyalty_system_type || 'points', visitsThreshold: data.loyalty_visits_threshold || 5,
       rewardLabel: data.loyalty_reward_label || 'مشروب مجاني', iconStyle: data.loyalty_icon_style || 'generic',
       patternStyle: data.loyalty_pattern_style || 'none', theme: data.loyalty_theme || 'classic',
-      customIconUrl: data.loyalty_custom_icon_url || null
+      customIconUrl: data.loyalty_custom_icon_url || null,
+      bannerOverlay: data.loyalty_banner_overlay ?? 80, iconSize: data.loyalty_icon_size || 30,
+      tagline: data.loyalty_tagline || ''
     };
     renderLoyaltyEnabledState(data.loyalty_enabled !== false);
   }
 }
 
+const rkLoyaltyEnabledStatus = c => c
+  ? {text:'مفعّل — يظهر لعملائك بالكاشير وبطاقتهم الرقمية', tone:'ok'}
+  : {text:'⚠ معطّل — يختفي نظام الولاء بالكامل من شاشة الكاشير', tone:'warn'};
 function renderLoyaltyEnabledState(enabled){
   const toggle = document.getElementById('loyaltyEnabledToggle');
   if(toggle) toggle.checked = enabled;
+  const status = document.getElementById('loyaltyEnabledToggleStatus');
+  if(status){
+    const s = rkLoyaltyEnabledStatus(enabled);
+    status.textContent = s.text;
+    status.className = 'rk-switch-desc ' + s.tone;
+  }
   const wrapper = document.getElementById('loyaltyContentWrapper');
   const notice = document.getElementById('loyaltyDisabledNotice');
   if(wrapper) wrapper.classList.toggle('hidden', !enabled);
@@ -4417,6 +4733,7 @@ document.getElementById('loyaltyTabs').addEventListener('click', (e)=>{
   const target = btn.dataset.loyaltyTab;
   document.querySelectorAll('#loyaltyTabs .loyalty-tab').forEach(b=> b.classList.toggle('active', b===btn));
   document.querySelectorAll('.loyalty-tab-panel').forEach(p=> p.classList.toggle('active', p.dataset.loyaltyPanel === target));
+  resetContentScroll();
 });
 
 document.getElementById('loyaltyEnabledToggle').addEventListener('change', async (e)=>{
@@ -4433,6 +4750,23 @@ document.getElementById('loyaltyEnabledToggle').addEventListener('change', async
   showToast(enabled ? 'تم تفعيل نظام الولاء' : 'تم تعطيل نظام الولاء — اختفى من شاشة الكاشير');
 });
 
+const rkWinBackStatus = c => {
+  const days = document.getElementById('winBackDaysInput')?.value || 30;
+  return c
+    ? {text:`مفعّل — يرسل تلقائيًا كل يوم لأي عميل غايب أكثر من ${days} يوم`, tone:'ok'}
+    : {text:'معطّل — ما يوصل أي تذكير تلقائي للعملاء الخاملين', tone:''};
+};
+function renderWinBackStatus(){
+  const status = document.getElementById('winBackToggleStatus');
+  const checked = document.getElementById('winBackToggle')?.checked;
+  if(!status) return;
+  const s = rkWinBackStatus(checked);
+  status.textContent = s.text;
+  status.className = 'rk-switch-desc ' + s.tone;
+}
+rkWireSwitchStatus('winBackToggle', rkWinBackStatus);
+document.getElementById('winBackDaysInput').addEventListener('input', renderWinBackStatus);
+
 async function loadWinBackSettings(){
   const { data } = await window.supabaseClient.from('businesses')
     .select('notify_win_back, win_back_inactive_days, win_back_message')
@@ -4443,25 +4777,25 @@ async function loadWinBackSettings(){
   const msg = document.getElementById('winBackMessageInput');
   if(toggle) toggle.checked = !!data.notify_win_back;
   if(days) days.value = data.win_back_inactive_days || 30;
-  if(msg) msg.value = data.win_back_message || 'مشتقنالك! زورنا قريب — عندنا شي يسعدك 🎁';
+  if(msg) msg.value = data.win_back_message || 'مشتقنالك! زورنا قريب — عندنا شي يسعدك';
+  renderWinBackStatus();
 }
 
 document.getElementById('winBackSaveBtn').addEventListener('click', async ()=>{
   const btn = document.getElementById('winBackSaveBtn');
-  btn.disabled = true;
+  rkBtnLoading(btn, true);
   try {
     const updates = {
       notify_win_back: document.getElementById('winBackToggle').checked,
       win_back_inactive_days: Math.max(1, parseInt(document.getElementById('winBackDaysInput').value, 10) || 30),
-      win_back_message: document.getElementById('winBackMessageInput').value.trim() || 'مشتقنالك! زورنا قريب — عندنا شي يسعدك 🎁'
+      win_back_message: document.getElementById('winBackMessageInput').value.trim() || 'مشتقنالك! زورنا قريب — عندنا شي يسعدك'
     };
     await updateCurrentBusiness(updates);
     logDashboardAudit('حدّث إعدادات استرجاع العملاء الخاملين');
-    showToast('تم حفظ إعدادات الاسترجاع');
+    rkBtnSuccess(btn, '✓ تم الحفظ');
   } catch(err){
+    rkBtnLoading(btn, false);
     showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-  } finally {
-    btn.disabled = false;
   }
 });
 
@@ -4487,6 +4821,21 @@ function renderLoyaltyIconPicker(){
     });
   });
 }
+// Registered before any other 'change' listener on these inputs (the
+// cropper implementation itself lives further down this file, in function
+// declarations — those are hoisted, so calling attachImageCropper here
+// works fine) — it must run FIRST so it can intercept the raw file and
+// stopImmediatePropagation() before the preview listeners below ever see
+// the uncropped original. This screen's markup exists from initial page
+// load, unlike the settings/online-menu-design screens below (rendered
+// lazily on first visit) which attach their own croppers inline instead.
+attachImageCropper('loyaltyLogoInput', { aspect: 1, outputWidth: 500, outputHeight: 500 });
+attachImageCropper('loyaltyBannerInput', { aspect: 2, outputWidth: 1200, outputHeight: 600 });
+attachImageCropper('loyaltyCustomIconInput', { aspect: 1, outputWidth: 300, outputHeight: 300 });
+wireImageUploadBoxPreview('loyaltyLogoInput');
+wireImageUploadBoxPreview('loyaltyBannerInput');
+wireImageUploadBoxPreview('loyaltyCustomIconInput');
+
 document.getElementById('loyaltyCustomIconInput').addEventListener('change', ()=>{
   const file = document.getElementById('loyaltyCustomIconInput').files[0];
   LOYALTY_CUSTOM_ICON_FILE_URL = file ? URL.createObjectURL(file) : null;
@@ -4516,8 +4865,8 @@ function renderLoyaltyPatternPicker(){
 }
 
 function loyaltySystemTypeFormValue(){
-  const active = document.querySelector('#loyaltySystemTypeChips button.active');
-  return active ? active.dataset.type : 'points';
+  const active = document.querySelector('input[name="loyaltySystemType"]:checked');
+  return active ? active.value : 'points';
 }
 
 async function renderLoyaltyCardPreview(){
@@ -4535,6 +4884,10 @@ async function renderLoyaltyCardPreview(){
   const customIconUrl = iconKey === 'custom' ? (LOYALTY_CUSTOM_ICON_FILE_URL || LOYALTY_BRANDING.customIconUrl) : null;
   const patternChoice = document.querySelector('.loyalty-pattern-swatch.active');
   const patternKey = patternChoice ? patternChoice.dataset.pattern : 'none';
+  const bannerOverlay = Math.max(0, Math.min(100, parseInt(document.getElementById('loyaltyBannerOverlayInput').value, 10) || 0));
+  const iconSize = Math.max(16, Math.min(60, parseInt(document.getElementById('loyaltyIconSizeInput').value, 10) || 30));
+  const tagline = document.getElementById('loyaltyTaglineInput').value.trim();
+  const taglineHtml = (color) => tagline ? `<div class="loyalty-preview-tagline" style="color:${color};">${escapeHtml(tagline)}</div>` : '';
   // re-tint swatches to the current color without rebuilding them (a rebuild
   // would reset "active" back to the saved value, losing an unsaved click)
   document.querySelectorAll('.loyalty-pattern-swatch').forEach(btn=>{
@@ -4563,11 +4916,12 @@ async function renderLoyaltyCardPreview(){
     ? `<img src="${logoUrl}" class="loyalty-preview-logo">`
     : `<div class="loyalty-preview-logo-fallback" style="background:${bg}; color:${onAccentColor};">${businessName.trim().charAt(0)}</div>`;
 
+  document.getElementById('loyaltyBannerOverlayRow').classList.toggle('hidden', !bannerUrl);
   const middleBg = bannerUrl
-    ? `background-image:linear-gradient(rgba(247,244,239,.8),rgba(247,244,239,.8)), url('${bannerUrl}'); background-size:cover; background-position:center;`
+    ? `background-image:linear-gradient(rgba(247,244,239,${bannerOverlay/100}),rgba(247,244,239,${bannerOverlay/100})), url('${bannerUrl}'); background-size:cover; background-position:center;`
     : loyaltyPatternCardCss(patternKey, accent, customIconUrl ? '' : iconPath);
 
-  const stampRowHtml = `<div class="loyalty-preview-stamp-row">${Array.from({length: threshold}).map((_,i)=> stampGlyph(i < Math.min(2, threshold-1), 24)).join('')}</div>`;
+  const stampRowHtml = `<div class="loyalty-preview-stamp-row">${Array.from({length: threshold}).map((_,i)=> stampGlyph(i < Math.min(2, threshold-1), iconSize)).join('')}</div>`;
   const pointsBlockHtml = `
     <div class="loyalty-preview-points-block">
       <div class="loyalty-preview-points-halo" style="background:radial-gradient(circle, ${accent}33, transparent 70%);"></div>
@@ -4581,7 +4935,7 @@ async function renderLoyaltyCardPreview(){
     <div class="loyalty-preview-stat"><span class="loyalty-preview-stat-label">متبقي لـ${rewardLabel}</span><span class="loyalty-preview-stat-value">${Math.max(0,threshold-2)}</span></div>
     <div class="loyalty-preview-stat"><span class="loyalty-preview-stat-label">هدايا جاهزة</span><span class="loyalty-preview-stat-value">1</span></div>
   ` : '';
-  const savedBadgeHtml = (bg, color) => `<div class="loyalty-preview-saved-badge" style="background:${bg}; color:${color};"><span>💰</span><span>وفرت معنا 500 ر.س</span></div>`;
+  const savedBadgeHtml = (bg, color) => `<div class="loyalty-preview-saved-badge" style="background:${bg}; color:${color};"><span>وفرت معنا 500 ر.س</span></div>`;
   const tenureHtml = (color) => `<div class="loyalty-preview-tenure" style="color:${color};">معنا من سنة</div>`;
 
   let cardHtml;
@@ -4593,7 +4947,8 @@ async function renderLoyaltyCardPreview(){
         ${logoHtml(accent, '#F2F0EA')}
         <div style="flex:1; min-width:0;">
           <div class="loyalty-preview-brand" style="color:#171717;">${businessName}</div>
-          <div style="font-size:10.5px; font-weight:800; color:${accent}; margin-top:2px;">🥇 Gold</div>
+          ${taglineHtml('#8a8477')}
+          <div style="font-size:10.5px; font-weight:800; color:${accent}; margin-top:2px;">Gold</div>
         </div>
       </div>
       <div style="padding:14px 18px 0;">
@@ -4613,8 +4968,11 @@ async function renderLoyaltyCardPreview(){
     <div class="loyalty-preview-card loyalty-preview-bold" style="background:${accent};">
       <div class="loyalty-preview-header-top" style="padding:16px 16px 0;">
         ${logoHtml(accent, onAccent)}
-        <div class="loyalty-preview-brand" style="color:${onAccent};">${businessName}</div>
-        <div class="loyalty-preview-tier-chip" style="background:${onAccent}26; color:${onAccent};">🥇 Gold</div>
+        <div style="flex:1; min-width:0;">
+          <div class="loyalty-preview-brand" style="color:${onAccent};">${businessName}</div>
+          ${taglineHtml(`${onAccent}b3`)}
+        </div>
+        <div class="loyalty-preview-tier-chip" style="background:${onAccent}26; color:${onAccent};">Gold</div>
       </div>
       <div class="loyalty-preview-customer-name" style="color:${onAccent}; text-align:center;">عميل تجريبي</div>
       ${tenureHtml(`${onAccent}b3`).replace('style="', 'style="text-align:center; ')}
@@ -4634,8 +4992,11 @@ async function renderLoyaltyCardPreview(){
       <div class="loyalty-preview-header" style="background:${accent}; color:${onAccent};">
         <div class="loyalty-preview-header-top">
           ${logoHtml(accent, onAccent)}
-          <div class="loyalty-preview-brand">${businessName}</div>
-          <div class="loyalty-preview-tier-chip" style="background:${onAccent}22;">🥇 Gold</div>
+          <div style="flex:1; min-width:0;">
+            <div class="loyalty-preview-brand">${businessName}</div>
+            ${taglineHtml(`${onAccent}b3`)}
+          </div>
+          <div class="loyalty-preview-tier-chip" style="background:${onAccent}22;">Gold</div>
         </div>
         <div class="loyalty-preview-customer-name">عميل تجريبي</div>
         ${tenureHtml(`${onAccent}b3`)}
@@ -4658,14 +5019,16 @@ function updateLoyaltySystemTypeVisibility(){
   document.getElementById('loyaltyPointsConfig').classList.toggle('hidden', isVisits);
   document.getElementById('loyaltyVisitsConfig').classList.toggle('hidden', !isVisits);
   document.getElementById('loyaltyIconPickerRow').classList.toggle('hidden', !isVisits);
+  document.getElementById('loyaltyIconSizeRow').classList.toggle('hidden', !isVisits);
 }
 
-document.getElementById('loyaltySystemTypeChips').addEventListener('click', (e)=>{
-  const btn = e.target.closest('button'); if(!btn) return;
-  document.querySelectorAll('#loyaltySystemTypeChips button').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  updateLoyaltySystemTypeVisibility();
-  renderLoyaltyCardPreview();
+document.querySelectorAll('input[name="loyaltySystemType"]').forEach(radio=>{
+  radio.addEventListener('change', ()=>{
+    document.getElementById('loyaltyTypeCardPoints').style.borderColor = radio.value === 'points' ? 'var(--lime-deep)' : 'var(--line)';
+    document.getElementById('loyaltyTypeCardVisits').style.borderColor = radio.value === 'visits' ? 'var(--lime-deep)' : 'var(--line)';
+    updateLoyaltySystemTypeVisibility();
+    renderLoyaltyCardPreview();
+  });
 });
 document.getElementById('loyaltyThemeChips').addEventListener('click', (e)=>{
   const btn = e.target.closest('button'); if(!btn) return;
@@ -4673,9 +5036,17 @@ document.getElementById('loyaltyThemeChips').addEventListener('click', (e)=>{
   btn.classList.add('active');
   renderLoyaltyCardPreview();
 });
-['loyaltyAccentInput','loyaltyVisitsThresholdInput','loyaltyRewardLabelInput'].forEach(id=>{
+['loyaltyAccentInput','loyaltyVisitsThresholdInput','loyaltyRewardLabelInput','loyaltyTaglineInput'].forEach(id=>{
   const inp = document.getElementById(id);
   if(inp) inp.addEventListener('input', renderLoyaltyCardPreview);
+});
+document.getElementById('loyaltyBannerOverlayInput').addEventListener('input', (e)=>{
+  document.getElementById('loyaltyBannerOverlayValue').textContent = e.target.value + '%';
+  renderLoyaltyCardPreview();
+});
+document.getElementById('loyaltyIconSizeInput').addEventListener('input', (e)=>{
+  document.getElementById('loyaltyIconSizeValue').textContent = e.target.value + 'px';
+  renderLoyaltyCardPreview();
 });
 document.getElementById('loyaltyBannerInput').addEventListener('change', renderLoyaltyCardPreview);
 document.getElementById('loyaltyLogoInput').addEventListener('change', ()=>{
@@ -4695,13 +5066,25 @@ function renderLoyaltyBrandingPreview(){
   document.getElementById('loyaltyAccentInput').value = LOYALTY_BRANDING.accentColor;
   document.getElementById('loyaltyVisitsThresholdInput').value = LOYALTY_BRANDING.visitsThreshold;
   document.getElementById('loyaltyRewardLabelInput').value = LOYALTY_BRANDING.rewardLabel;
-  document.querySelectorAll('#loyaltySystemTypeChips button').forEach(b=>b.classList.toggle('active', b.dataset.type === LOYALTY_BRANDING.systemType));
+  document.getElementById('loyaltyTaglineInput').value = LOYALTY_BRANDING.tagline;
+  document.getElementById('loyaltyBannerOverlayInput').value = LOYALTY_BRANDING.bannerOverlay;
+  document.getElementById('loyaltyBannerOverlayValue').textContent = LOYALTY_BRANDING.bannerOverlay + '%';
+  document.getElementById('loyaltyIconSizeInput').value = LOYALTY_BRANDING.iconSize;
+  document.getElementById('loyaltyIconSizeValue').textContent = LOYALTY_BRANDING.iconSize + 'px';
+  document.querySelectorAll('input[name="loyaltySystemType"]').forEach(radio=>{
+    radio.checked = radio.value === LOYALTY_BRANDING.systemType;
+  });
+  document.getElementById('loyaltyTypeCardPoints').style.borderColor = LOYALTY_BRANDING.systemType === 'points' ? 'var(--lime-deep)' : 'var(--line)';
+  document.getElementById('loyaltyTypeCardVisits').style.borderColor = LOYALTY_BRANDING.systemType === 'visits' ? 'var(--lime-deep)' : 'var(--line)';
   document.querySelectorAll('#loyaltyThemeChips button').forEach(b=>b.classList.toggle('active', b.dataset.theme === LOYALTY_BRANDING.theme));
   renderLoyaltyIconPicker();
   renderLoyaltyPatternPicker();
   updateLoyaltySystemTypeVisibility();
   renderLoyaltyCardPreview();
   renderLoyaltySuggestedColors(LOYALTY_BRANDING.logoUrl);
+  updateImageUploadBoxPreview('loyaltyLogoInput', LOYALTY_BRANDING.logoUrl);
+  updateImageUploadBoxPreview('loyaltyBannerInput', LOYALTY_BRANDING.bannerUrl);
+  updateImageUploadBoxPreview('loyaltyCustomIconInput', LOYALTY_BRANDING.customIconUrl);
 }
 
 // Phone-camera uploads (banners, product photos) were landing in Storage at
@@ -4740,6 +5123,303 @@ async function compressImageFile(file, maxDim = 1600, quality = 0.82) {
   }
 }
 
+// Menu-item photos get shown at a fixed square aspect everywhere (POS grid,
+// online storefront) via object-fit:cover — a non-square source photo isn't
+// "wrong", but every item ends up cropped/zoomed by a different amount
+// depending on its original proportions, which is what actually reads as
+// "unbalanced" sitting next to each other in a grid. Padding every upload
+// onto a square canvas up front (instead of relying on CSS to crop) means
+// object-fit:cover always receives an already-square image and never needs
+// to crop anything — the whole photo is always visible, at the same
+// relative scale, for every item. Runs before compressImageFile.
+async function squareifyProductImage(file){
+  if(!file || !file.type || !file.type.startsWith('image/')) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    if(bitmap.width === bitmap.height) return file;
+    const side = Math.max(bitmap.width, bitmap.height);
+    const canvas = document.createElement('canvas');
+    canvas.width = side; canvas.height = side;
+    const ctx = canvas.getContext('2d');
+    const isPng = file.type === 'image/png';
+    // PNG stays transparent where padded (logos/stickers with real alpha);
+    // everything else (the vast majority — real photos) gets a white pad,
+    // matching every theme's default card/surface color.
+    if(!isPng){
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, side, side);
+    }
+    ctx.drawImage(bitmap, (side - bitmap.width) / 2, (side - bitmap.height) / 2);
+    const outType = isPng ? 'image/png' : 'image/jpeg';
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, outType, isPng ? undefined : 0.92));
+    if(!blob) return file;
+    const newName = file.name.replace(/\.[^.]+$/, isPng ? '.png' : '.jpg');
+    return new File([blob], newName, { type: outType });
+  } catch(err){
+    console.error('squareifyProductImage failed, uploading original', err);
+    return file;
+  }
+}
+
+// A dedicated POS-only thumbnail, always regenerated regardless of source
+// file size (unlike compressImageFile, which skips files already under
+// 250KB — fine for "compress if it helps", wrong here since the actual goal
+// is guaranteeing a small file exists for the cashier grid, even from a
+// source that already happened to be small in bytes but not in pixels).
+// Never touches image_url — the full-quality file the storefront/receipts
+// use is completely unaffected by this.
+async function makePosThumbnail(file){
+  if(!file || !file.type || !file.type.startsWith('image/')) return null;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const maxDim = 300;
+    let width = bitmap.width, height = bitmap.height;
+    if(width > maxDim || height > maxDim){
+      const scale = maxDim / Math.max(width, height);
+      width = Math.round(width * scale);
+      height = Math.round(height * scale);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    const isPng = file.type === 'image/png';
+    const outType = isPng ? 'image/png' : 'image/jpeg';
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, outType, isPng ? undefined : 0.75));
+    if(!blob) return null;
+    const newName = file.name.replace(/\.[^.]+$/, isPng ? '.png' : '.jpg');
+    return new File([blob], newName, { type: outType });
+  } catch(err){
+    console.error('makePosThumbnail failed', err);
+    return null;
+  }
+}
+
+// ============ Generic crop-on-upload modal ============
+// Every branding image upload (loyalty logo/banner/icon, business logo,
+// storefront logo/banner) routes through this before compressImageFile() —
+// so instead of hoping object-fit:cover crops an arbitrary photo
+// acceptably, the merchant picks exactly which region renders. Resolves the
+// cropped File, or null if they cancelled (meaning: don't proceed with this
+// upload at all).
+let cropResolve = null;
+let cropState = null;
+
+function openImageCropper(file, opts){
+  const aspect = (opts && opts.aspect) || 1;
+  const outW = (opts && opts.outputWidth) || 500;
+  const outH = (opts && opts.outputHeight) || 500;
+  return new Promise((resolve)=>{
+    cropResolve = resolve;
+    const img = document.getElementById('cropImg');
+    const viewport = document.getElementById('cropViewport');
+    const viewW = Math.max(160, Math.min(320, window.innerWidth - 80));
+    const viewH = Math.round(viewW / aspect);
+    viewport.style.width = viewW + 'px';
+    viewport.style.height = viewH + 'px';
+    const url = URL.createObjectURL(file);
+    img.onload = ()=>{
+      const natW = img.naturalWidth, natH = img.naturalHeight;
+      const minScale = Math.max(viewW / natW, viewH / natH);
+      cropState = {
+        natW, natH, viewW, viewH, outW, outH,
+        minScale, maxScale: minScale * 3, scale: minScale,
+        offsetX: (viewW - natW * minScale) / 2, offsetY: (viewH - natH * minScale) / 2,
+        isPng: file.type === 'image/png', fileName: file.name || 'image'
+      };
+      document.getElementById('cropZoomSlider').value = 0;
+      applyCropTransform();
+      document.getElementById('imageCropModal').classList.add('show');
+    };
+    img.src = url;
+  });
+}
+
+function applyCropTransform(){
+  const img = document.getElementById('cropImg');
+  const s = cropState;
+  img.style.width = (s.natW * s.scale) + 'px';
+  img.style.height = (s.natH * s.scale) + 'px';
+  img.style.transform = `translate(${s.offsetX}px, ${s.offsetY}px)`;
+}
+
+// The image must always fully cover the viewport — an offset that would
+// reveal empty space past its edge gets pulled back to the edge instead.
+function clampCropOffsets(){
+  const s = cropState;
+  const w = s.natW * s.scale, h = s.natH * s.scale;
+  s.offsetX = Math.min(0, Math.max(s.viewW - w, s.offsetX));
+  s.offsetY = Math.min(0, Math.max(s.viewH - h, s.offsetY));
+}
+
+document.getElementById('cropZoomSlider').addEventListener('input', (e)=>{
+  if(!cropState) return;
+  const t = parseInt(e.target.value, 10) / 100;
+  // Zoom around the viewport's center rather than the image's top-left
+  // corner, so the subject the merchant is already framing stays in view.
+  const centerX = cropState.viewW / 2, centerY = cropState.viewH / 2;
+  const imgX = (centerX - cropState.offsetX) / cropState.scale;
+  const imgY = (centerY - cropState.offsetY) / cropState.scale;
+  cropState.scale = cropState.minScale + t * (cropState.maxScale - cropState.minScale);
+  cropState.offsetX = centerX - imgX * cropState.scale;
+  cropState.offsetY = centerY - imgY * cropState.scale;
+  clampCropOffsets();
+  applyCropTransform();
+});
+
+(function wireCropDrag(){
+  const viewport = document.getElementById('cropViewport');
+  let dragging = false, startX = 0, startY = 0, startOffX = 0, startOffY = 0;
+  viewport.addEventListener('pointerdown', (e)=>{
+    if(!cropState) return;
+    dragging = true;
+    viewport.classList.add('dragging');
+    viewport.setPointerCapture(e.pointerId);
+    startX = e.clientX; startY = e.clientY;
+    startOffX = cropState.offsetX; startOffY = cropState.offsetY;
+  });
+  viewport.addEventListener('pointermove', (e)=>{
+    if(!dragging || !cropState) return;
+    cropState.offsetX = startOffX + (e.clientX - startX);
+    cropState.offsetY = startOffY + (e.clientY - startY);
+    clampCropOffsets();
+    applyCropTransform();
+  });
+  const endDrag = ()=>{ dragging = false; viewport.classList.remove('dragging'); };
+  viewport.addEventListener('pointerup', endDrag);
+  viewport.addEventListener('pointercancel', endDrag);
+})();
+
+function closeCropModal(result){
+  document.getElementById('imageCropModal').classList.remove('show');
+  const img = document.getElementById('cropImg');
+  if(img.src) URL.revokeObjectURL(img.src);
+  img.removeAttribute('src');
+  const resolve = cropResolve;
+  cropResolve = null;
+  cropState = null;
+  if(resolve) resolve(result);
+}
+
+document.getElementById('cropCancelBtn').addEventListener('click', ()=> closeCropModal(null));
+document.getElementById('cropModalClose').addEventListener('click', ()=> closeCropModal(null));
+
+document.getElementById('cropConfirmBtn').addEventListener('click', ()=>{
+  const s = cropState;
+  const img = document.getElementById('cropImg');
+  const canvas = document.createElement('canvas');
+  canvas.width = s.outW; canvas.height = s.outH;
+  const ctx = canvas.getContext('2d');
+  // Map the visible viewport rect back into natural-image pixel space.
+  const srcX = -s.offsetX / s.scale, srcY = -s.offsetY / s.scale;
+  const srcW = s.viewW / s.scale, srcH = s.viewH / s.scale;
+  ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, s.outW, s.outH);
+  const outType = s.isPng ? 'image/png' : 'image/jpeg';
+  canvas.toBlob((blob)=>{
+    if(!blob){ closeCropModal(null); return; }
+    const newName = s.fileName.replace(/\.[^.]+$/, s.isPng ? '.png' : '.jpg');
+    closeCropModal(new File([blob], newName, { type: outType }));
+  }, outType, s.isPng ? undefined : 0.92);
+});
+
+// Wires a file input so picking a file opens the cropper immediately; the
+// cropped result replaces the input's own FileList (via DataTransfer) so
+// every existing bit of code that reads `input.files[0]` — live preview
+// listeners, the save handler — keeps working completely unchanged. If the
+// input already has an onCropped-marked file (this is the synthetic
+// 'change' this function itself dispatches after cropping), it's left
+// alone so we don't crop the same file twice.
+const CROP_ALREADY_APPLIED = new WeakSet();
+function attachImageCropper(inputId, opts){
+  const input = document.getElementById(inputId);
+  if(!input) return;
+  input.addEventListener('change', function onRawSelect(e){
+    const file = input.files[0];
+    if(!file || CROP_ALREADY_APPLIED.has(file)) return;
+    e.stopImmediatePropagation();
+    openImageCropper(file, opts).then((cropped)=>{
+      if(!cropped){ input.value = ''; return; }
+      CROP_ALREADY_APPLIED.add(cropped);
+      const dt = new DataTransfer();
+      dt.items.add(cropped);
+      input.files = dt.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  }, true);
+}
+
+// Every image upload used to just be a bare native <input type=file> —
+// inconsistent-looking, and gave no hint that picking a file opens a real
+// crop tool (attachImageCropper, above — already wired everywhere, this
+// was purely a presentation gap) or what size actually gets used. Same
+// click-anywhere visual language as the product-image uploader, generalized
+// to any aspect ratio, plus a permanent "المقاس المثالي" line so the owner
+// knows the target size before they pick a file, not after.
+function rkImageUploadHtml(inputId, opts){
+  const { currentUrl, width, height, shape, note } = opts;
+  const boxStyle = shape === 'wide'
+    ? `width:100%; max-width:280px; aspect-ratio:${width}/${height};`
+    : `width:100px; height:100px;`;
+  return `
+    <div>
+      <div class="image-upload-box" id="${inputId}Box" style="${boxStyle} ${shape==='circle'?'border-radius:50%;':''} margin-bottom:0;">
+        ${currentUrl ? `<img src="${currentUrl}">` : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg><span>أضف صورة</span>`}
+        <input type="file" id="${inputId}" accept="image/*">
+      </div>
+      <p class="stock-qty-helper" style="margin-top:8px; margin-bottom:0; max-width:280px;">المقاس المثالي: ${width}×${height} بكسل${note ? ' — ' + note : ''}</p>
+    </div>
+  `;
+}
+// Keeps the box's own thumbnail in sync with whatever file ends up selected
+// — including after cropping, since attachImageCropper re-dispatches
+// 'change' on the same input once the crop is confirmed (a plain capture-
+// phase listener stops the RAW pre-crop event from reaching this one; only
+// the cropped result's synthetic 'change' bubbles this far — exactly the
+// image this box should end up showing). Added alongside, not instead of,
+// any page-specific 'change' listener already on this same input (a bigger
+// themed preview elsewhere on the page, say) — multiple listeners on one
+// element coexist fine.
+function wireImageUploadBoxPreview(inputId){
+  const input = document.getElementById(inputId);
+  if(!input) return;
+  input.addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const box = document.getElementById(inputId + 'Box');
+    if(!box) return;
+    let img = box.querySelector('img');
+    if(!img){
+      img = document.createElement('img');
+      box.insertBefore(img, box.firstChild);
+    }
+    img.src = URL.createObjectURL(file);
+    const placeholder = box.querySelectorAll('svg, span');
+    placeholder.forEach(el=> el.remove());
+  });
+}
+// For upload boxes whose markup is static (rendered once at page load, no
+// access to fetched data yet) rather than built inline via rkImageUploadHtml
+// — sets/restores a box's thumbnail once the real saved URL is known (e.g.
+// after a lazy per-screen data load completes).
+function updateImageUploadBoxPreview(inputId, url){
+  const box = document.getElementById(inputId + 'Box');
+  if(!box) return;
+  let img = box.querySelector('img');
+  if(url){
+    if(!img){
+      img = document.createElement('img');
+      box.insertBefore(img, box.firstChild);
+    }
+    img.src = url;
+    box.querySelectorAll('svg, span').forEach(el=> el.remove());
+  } else if(img){
+    img.remove();
+    if(!box.querySelector('svg')){
+      box.insertAdjacentHTML('afterbegin', `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg><span>أضف صورة</span>`);
+    }
+  }
+}
+
 // Uploads to R2 via the server-side route (never straight to Storage —
 // moved off Supabase Storage entirely since R2 has no egress fees, which is
 // what actually blew up the bill; Storage billed every cached view of every
@@ -4763,7 +5443,7 @@ async function uploadMediaFile(file, folder, prefix) {
 
 document.getElementById('loyaltyBrandingSaveBtn').addEventListener('click', async ()=>{
   const btn = document.getElementById('loyaltyBrandingSaveBtn');
-  btn.disabled = true;
+  rkBtnLoading(btn, true);
   try {
     const logoFile = await compressImageFile(document.getElementById('loyaltyLogoInput').files[0]);
     const bannerFile = await compressImageFile(document.getElementById('loyaltyBannerInput').files[0]);
@@ -4775,7 +5455,10 @@ document.getElementById('loyaltyBrandingSaveBtn').addEventListener('click', asyn
       loyalty_accent_color: accentColor,
       loyalty_icon_style: iconChoice ? iconChoice.dataset.icon : 'generic',
       loyalty_pattern_style: patternChoice ? patternChoice.dataset.pattern : 'none',
-      loyalty_theme: loyaltyThemeFormValue()
+      loyalty_theme: loyaltyThemeFormValue(),
+      loyalty_tagline: document.getElementById('loyaltyTaglineInput').value.trim() || null,
+      loyalty_banner_overlay: Math.max(0, Math.min(100, parseInt(document.getElementById('loyaltyBannerOverlayInput').value, 10) || 0)),
+      loyalty_icon_size: Math.max(16, Math.min(60, parseInt(document.getElementById('loyaltyIconSizeInput').value, 10) || 30))
     };
 
     if(logoFile){
@@ -4794,11 +5477,10 @@ document.getElementById('loyaltyBrandingSaveBtn').addEventListener('click', asyn
     await loadLoyaltyBranding();
     renderLoyaltyBrandingPreview();
     logDashboardAudit('حدّث تصميم بطاقة الولاء');
-    showToast('تم حفظ التصميم');
+    rkBtnSuccess(btn, '✓ تم الحفظ');
   } catch(err){
+    rkBtnLoading(btn, false);
     showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-  } finally {
-    btn.disabled = false;
   }
 });
 
@@ -4826,7 +5508,10 @@ if(loyaltyBroadcastBtn) loyaltyBroadcastBtn.addEventListener('click', async ()=>
   const title = document.getElementById('loyaltyBroadcastTitle').value.trim();
   const body = document.getElementById('loyaltyBroadcastBody').value.trim();
   if(!title){ showToast('لازم تكتب عنوان للإشعار'); return; }
-  loyaltyBroadcastBtn.disabled = true;
+  const subCount = document.getElementById('loyaltySubCount')?.textContent;
+  const countPhrase = subCount && subCount !== '...' ? `لـ${subCount} مشترك` : 'لكل المشتركين حاليًا';
+  if(!window.confirm(`متأكد إنك تبي ترسل هذا الإشعار الآن؟ بيوصل فورًا ${countPhrase} وما يترجع.`)) return;
+  rkBtnLoading(loyaltyBroadcastBtn, true);
   try {
     const { data: { session } } = await window.supabaseClient.auth.getSession();
     if(!session){ showToast('جلسة غير صالحة'); return; }
@@ -4847,7 +5532,7 @@ if(loyaltyBroadcastBtn) loyaltyBroadcastBtn.addEventListener('click', async ()=>
   } catch(err){
     showToast('تعذر الإرسال: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
   } finally {
-    loyaltyBroadcastBtn.disabled = false;
+    rkBtnLoading(loyaltyBroadcastBtn, false);
   }
 });
 
@@ -4869,7 +5554,7 @@ document.getElementById('loyaltyRateSaveBtn').addEventListener('click', async ()
     updates.loyalty_points_divisor = val;
   }
 
-  btn.disabled = true;
+  rkBtnLoading(btn, true);
   try {
     await updateCurrentBusiness(updates);
     if(systemType === 'points'){
@@ -4879,11 +5564,10 @@ document.getElementById('loyaltyRateSaveBtn').addEventListener('click', async ()
     }
     LOYALTY_BRANDING.systemType = systemType;
     logDashboardAudit('حدّث إعداد برنامج الولاء (' + (systemType==='visits'?'زيارات':'نقاط') + ')');
-    showToast('تم حفظ إعداد البرنامج');
+    rkBtnSuccess(btn, '✓ تم الحفظ');
   } catch(err){
+    rkBtnLoading(btn, false);
     showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'بس المالك يقدر يغيّر هذا الإعداد'));
-  } finally {
-    btn.disabled = false;
   }
 });
 
@@ -4923,16 +5607,50 @@ document.getElementById('campaignBuildBtn').addEventListener('click', ()=>{
 
 /* ============ Sidebar navigation ============ */
 const SCREEN_TITLES = {
-  home:'الرئيسية', orders:'الطلبات', purchases:'المشتريات', menu:'القائمة', services:'الخدمات', rooms:'الغرف', inventory:'المخزون',
-  staff:'الموظفين', customers:'العملاء', loyalty:'نادي الولاء', accounting:'المحاسبة', delivery:'تطبيقات التوصيل',
+  home:'الرئيسية', pos:'الكاشير', orders:'الطلبات', purchases:'المشتريات', menu:'القائمة', onlineMenu:'المتجر الإلكتروني', services:'الخدمات', rooms:'الغرف', inventory:'المخزون',
+  hr:'الموظفون', customers:'العملاء', loyalty:'نادي الولاء', accounting:'المحاسبة', delivery:'تطبيقات التوصيل',
   ai:'مستشار ركين الذكي', reports:'التقارير', settings:'الإعدادات'
 };
+// Desktop-only collapsible rail — persisted per-browser so the choice
+// sticks across reloads. Never applied under 900px: the mobile drawer is
+// either fully open or fully hidden, "collapsed" has no third state there
+// (rakeen-dashboard-responsive.css neutralizes the class defensively too).
+(function initSidebarCollapse(){
+  const sidebar = document.querySelector('.sidebar');
+  const btn = document.getElementById('sidebarCollapseBtn');
+  if(!sidebar || !btn) return;
+  const STORAGE_KEY = 'rk-sidebar-collapsed';
+  if(localStorage.getItem(STORAGE_KEY) === '1') sidebar.classList.add('collapsed');
+  btn.addEventListener('click', ()=>{
+    const isCollapsed = sidebar.classList.toggle('collapsed');
+    localStorage.setItem(STORAGE_KEY, isCollapsed ? '1' : '0');
+  });
+})();
+
+// Header bell — mirrors the real Home status banner (computeRealAttentionItems
+// via renderStatusHero's two call sites), never a separate/fake alert source.
+function syncHeaderNotifBadge(count, tier){
+  const badge = document.getElementById('topbarNotifBadge');
+  if(!badge) return;
+  badge.hidden = count === 0;
+  badge.textContent = count > 9 ? '9+' : String(count);
+  badge.classList.toggle('tier-attention', tier === 'attention');
+}
+document.getElementById('topbarNotifBtn')?.addEventListener('click', ()=>{
+  document.querySelector('.nav-item[data-screen="home"]')?.click();
+  const list = document.getElementById('attentionList');
+  const toggle = document.getElementById('attentionToggle');
+  if(list && list.hidden && toggle) toggle.click();
+  document.getElementById('statusBanner')?.scrollIntoView({behavior:'smooth', block:'start'});
+});
+
 const PLACEHOLDER_ICONS = {
   orders:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
   purchases:'<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>',
   inventory:'<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
   accounting:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
   staff:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>',
+  hr:'<rect x="2" y="4" width="20" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M15 8h4"/><path d="M15 12h4"/><path d="M6 16c.5-2 2-3 3-3s2.5 1 3 3"/>',
   customers:'<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/>',
   delivery:'<rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
   ai:'<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
@@ -4976,6 +5694,10 @@ function syncBottomNav(target){
 }
 
 document.body.dataset.activeScreen = 'home'; // matches the markup's default active section
+// syncBottomNav is otherwise only called from inside the .nav-item click
+// handler below — without this, the bottom nav's Home pill never appeared
+// on first load, only after navigating away and back once.
+syncBottomNav('home');
 
 // Reports/Settings render instantly from already-loaded globals — only
 // gate the FIRST call per session so revisits don't redo the (cheap) work.
@@ -4985,12 +5707,27 @@ document.body.dataset.activeScreen = 'home'; // matches the markup's default act
 // triggers it once for both.
 let reportsScreenLoaded = false;
 let settingsPanelLoaded = false;
+let onlineMenuScreenLoaded = false;
+let posSettingsScreenLoaded = false;
+let deliveryPlatformsSettingsLoaded = false;
 let customersDataLoaded = false;
 let loyaltyBrandingLoaded = false;
+let hrScreenLoaded = false;
 async function ensureCustomersDataLoaded(){
   if(customersDataLoaded) return;
   customersDataLoaded = true;
   await loadCustomersReal();
+}
+
+// .content is one shared scroll container for every screen and every
+// in-page tab system (settings/accounting/loyalty/menu/POS-settings/online-
+// menu all swap content inside it without ever touching scrollTop) — so
+// scrolling down in one, then switching, silently lands the next view
+// mid-scroll or past its own bottom instead of at the top. Called from
+// every screen- and tab-switch handler below.
+function resetContentScroll(){
+  const c = document.querySelector('.content');
+  if(c) c.scrollTop = 0;
 }
 
 document.querySelectorAll('.nav-item').forEach(btn=>{
@@ -5002,6 +5739,7 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
     document.getElementById('screen-'+target).classList.add('active');
     document.getElementById('topbarTitle').textContent = SCREEN_TITLES[target];
     document.body.dataset.activeScreen = target;
+    resetContentScroll();
     syncBottomNav(target);
 
     if(target !== 'home'){
@@ -5023,7 +5761,6 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
       renderAcctTodayStat();
       renderPurchaseHistory();
       renderSupplierComparison();
-      renderInvoiceScanMetrics();
     }
 
     if(target === 'reports' && !reportsScreenLoaded){
@@ -5036,6 +5773,26 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
     if(target === 'settings' && !settingsPanelLoaded){
       settingsPanelLoaded = true;
       renderSettingsPanel();
+    }
+
+    if(target === 'onlineMenu' && !onlineMenuScreenLoaded){
+      onlineMenuScreenLoaded = true;
+      renderOnlineMenuPanel();
+    }
+
+    if(target === 'pos' && !posSettingsScreenLoaded){
+      posSettingsScreenLoaded = true;
+      renderPosSettings();
+    }
+
+    if(target === 'delivery' && !deliveryPlatformsSettingsLoaded){
+      deliveryPlatformsSettingsLoaded = true;
+      renderDeliveryPlatformsSettings();
+    }
+
+    if(target === 'hr' && !hrScreenLoaded){
+      hrScreenLoaded = true;
+      renderHrPanel();
     }
 
     if(target === 'customers'){
@@ -5051,6 +5808,7 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
       renderLoyaltyKpis();
       renderLoyaltyCards();
       renderLoyaltyTiers();
+      renderLoyaltyTiersEditor();
       if(!loyaltyBrandingLoaded){
         loyaltyBrandingLoaded = true;
         await loadLoyaltyBranding();
@@ -5194,6 +5952,15 @@ function canViewProfit(){
   return GRANTED_SCREENS.has('view_profit');
 }
 
+/* same idea as canViewProfit() but for salary figures on the HR screen — an
+   employee can have screen:hr (e.g. to manage attendance/compliance) without
+   seeing what anyone gets paid, unless view_salary is granted too. */
+function canViewSalary(){
+  if(!CURRENT_PROFILE) return false;
+  if(CURRENT_PROFILE.user_type !== 'employee') return true;
+  return GRANTED_SCREENS.has('view_salary');
+}
+
 async function loadProfileAndPermissions(userId){
   const { data: profile, error: profileError } = await window.supabaseClient
     .from('profiles').select('id, business_id, full_name, user_type').eq('id', userId).single();
@@ -5226,6 +5993,10 @@ let SUPPLIER_ID_BY_NAME = {};
 let SUPPLIER_VAT_REGISTERED_BY_NAME = {}; // suppliers.vat_registered — gates auto-derived input VAT (see saveInvoice)
 let EXPENSE_CATEGORY_ID_BY_NAME = {};
 let MENU_CATEGORY_ID_BY_NAME = {};
+// {id, name, parentId} per category — online-storefront-only subcategory
+// grouping (online_parent_category_id). POS/product-editor code keeps using
+// the plain MENU_CATEGORIES name array above and never reads parentId.
+let CATEGORY_ROWS = [];
 
 function formatRelativeDate(iso){
   if(!iso) return '';
@@ -5247,7 +6018,7 @@ async function loadBusinessData(){
          expCatRes, expRes, businessRes] = await Promise.all([
     sb.from('stock_items').select('*').eq('business_id', businessId).order('id'),
     sb.from('menu_categories').select('*').eq('business_id', businessId).order('sort_order'),
-    sb.from('menu_items').select('*').eq('business_id', businessId).order('id'),
+    sb.from('menu_items').select('*').eq('business_id', businessId).order('sort_order').order('id'),
     // Recipe/box-mix quantities are encrypted at rest — a bulk select on
     // those tables would only ever return ciphertext anyway, so cost
     // figures come from menu_item_costs() instead, which decrypts
@@ -5265,7 +6036,7 @@ async function loadBusinessData(){
     sb.from('purchase_invoices').select('*').eq('business_id', businessId).order('invoiced_at', {ascending:false}),
     sb.from('expense_categories').select('*').eq('business_id', businessId),
     sb.from('general_expenses').select('*').eq('business_id', businessId).order('spent_at', {ascending:false}),
-    sb.from('businesses').select('name, logo_url, vat_rate, vat_number, prices_include_vat, vat_registered, notify_sound_enabled, dine_in_enabled, receipt_custom_message, online_ordering_enabled, online_menu_slug, online_theme_color, online_banner_url, online_offers_delivery, online_offers_pickup, online_delivery_fee, online_pickup_prep_minutes, online_contact_whatsapp, online_order_free_count, online_subscribed, online_order_free_limit, inventory_enabled, business_type, online_booking_enabled, geidea_connected, geidea_public_key_last4').eq('id', businessId).single(),
+    sb.from('businesses').select('name, logo_url, vat_rate, vat_number, prices_include_vat, vat_registered, notify_sound_enabled, dine_in_enabled, receipt_custom_message, online_ordering_enabled, online_menu_slug, online_theme_color, online_theme_style, online_font_family, online_color_surf, online_color_card, online_color_ink, online_color_muted, online_banner_url, online_offers_delivery, online_offers_pickup, online_delivery_fee, online_pickup_prep_minutes, online_contact_whatsapp, online_social_instagram, online_social_tiktok, online_social_twitter, online_tagline_header, online_tagline_hero, online_order_free_count, online_subscribed, online_order_free_limit, inventory_enabled, business_type, online_booking_enabled, geidea_connected, geidea_public_key_last4').eq('id', businessId).single(),
   ]);
 
   if(businessRes.data){
@@ -5281,12 +6052,30 @@ async function loadBusinessData(){
     ONLINE_ORDERING_ENABLED = businessRes.data.online_ordering_enabled === true;
     ONLINE_MENU_SLUG = businessRes.data.online_menu_slug || null;
     ONLINE_THEME_COLOR = businessRes.data.online_theme_color || '#C7FF4D';
+    ONLINE_THEME_STYLE = businessRes.data.online_theme_style === 'luxury' ? 'luxury' : 'classic';
+    ONLINE_FONT_FAMILY = businessRes.data.online_font_family === 'thmanyah' ? 'thmanyah' : 'rakeen';
+    ONLINE_COLOR_SURF = businessRes.data.online_color_surf || null;
+    ONLINE_COLOR_CARD = businessRes.data.online_color_card || null;
+    ONLINE_COLOR_INK = businessRes.data.online_color_ink || null;
+    ONLINE_COLOR_MUTED = businessRes.data.online_color_muted || null;
     ONLINE_BANNER_URL = businessRes.data.online_banner_url || '';
     ONLINE_OFFERS_DELIVERY = businessRes.data.online_offers_delivery !== false;
     ONLINE_OFFERS_PICKUP = businessRes.data.online_offers_pickup !== false;
+    // Its own await, for the reason on loadOnlineCodEnabled itself.
+    ONLINE_COD_ENABLED = await loadOnlineCodEnabled();
     ONLINE_DELIVERY_FEE = Number(businessRes.data.online_delivery_fee) || 0;
     ONLINE_PICKUP_PREP_MINUTES = Number(businessRes.data.online_pickup_prep_minutes) || 20;
     ONLINE_CONTACT_WHATSAPP = businessRes.data.online_contact_whatsapp || '';
+    ONLINE_SOCIAL_INSTAGRAM = businessRes.data.online_social_instagram || '';
+    ONLINE_SOCIAL_TIKTOK = businessRes.data.online_social_tiktok || '';
+    ONLINE_SOCIAL_TWITTER = businessRes.data.online_social_twitter || '';
+    // Left as null/undefined (not coerced to '') when never customized — a
+    // null means "show the built-in default", an explicit '' means the
+    // merchant cleared the field on purpose to hide it. Losing that
+    // distinction here would make every un-customized business look like
+    // it had deliberately hidden its tagline.
+    ONLINE_TAGLINE_HEADER = businessRes.data.online_tagline_header;
+    ONLINE_TAGLINE_HERO = businessRes.data.online_tagline_hero;
     ONLINE_ORDER_FREE_COUNT = Number(businessRes.data.online_order_free_count) || 0;
     ONLINE_SUBSCRIBED = businessRes.data.online_subscribed === true;
     ONLINE_ORDER_FREE_LIMIT = Number(businessRes.data.online_order_free_limit) || 350;
@@ -5308,6 +6097,7 @@ async function loadBusinessData(){
   MENU_CATEGORY_ID_BY_NAME = {};
   (catRes.data||[]).forEach(c=> MENU_CATEGORY_ID_BY_NAME[c.name]=c.id);
   MENU_CATEGORIES = (catRes.data||[]).map(c=>c.name);
+  CATEGORY_ROWS = (catRes.data||[]).map(c=>({id:c.id, name:c.name, parentId:c.online_parent_category_id||null, sortOrder:c.sort_order}));
 
   const boxEligByItem = {};
   (boxEligRes.data||[]).forEach(r=>{ (boxEligByItem[r.menu_item_id] ||= []).push(r); });
@@ -5329,7 +6119,11 @@ async function loadBusinessData(){
     // only when its editor opens — see openProductEditModal. computeVariableCost
     // reads MENU_ITEM_COST_BY_ID instead of this array for cost math.
     const item = {
-      id:m.id, name:m.name, price:Number(m.price), category:catNameById[m.category_id]||'', active:m.active, image:m.image_url||null,
+      id:m.id, name:m.name, nameEn: m.name_en || '', price:Number(m.price), category:catNameById[m.category_id]||'', sortOrder: m.sort_order, active:m.active, image:m.image_url||null,
+      visibleOnline: m.visible_online !== false, visiblePos: m.visible_pos !== false,
+      hiddenUntil: m.hidden_until || null,
+      onlineTagLabel: m.online_tag_label || null, onlineTagColor: m.online_tag_color || null,
+      onlinePrice: m.online_price != null ? Number(m.online_price) : null,
       costMode:m.cost_mode, directCost:Number(m.direct_cost), linkInventory:m.link_inventory, linkProfit:m.link_profit,
       pointsRedeemPrice: m.points_redeem_price != null ? Number(m.points_redeem_price) : null,
       barcode: m.barcode || '',
@@ -5388,18 +6182,32 @@ async function loadBusinessData(){
 const ORDER_CHANNEL_TYPE_LABELS = {dine_in:'داخل المطعم', pickup:'سفري', delivery:'توصيل'};
 const ORDER_PAYMENT_LABELS = {cash:'كاش', card:'بطاقة', split:'تقسيم دفع', delivery_platform:'مدفوع عبر التطبيق'};
 
+// A multi-branch business's orders/tables all share one business_id — without
+// branch_id, two branches' "طاولة 1" render as identical, indistinguishable
+// buttons on the same floor grid, and the orders table gives no way to tell
+// which branch rang up a given sale. ORDER_SCREEN_BRANCHES stays empty (and
+// every branch-grouping/label below stays inert) for the common single-branch
+// case, so this adds nothing to look at until it's actually needed.
+let ORDER_SCREEN_BRANCHES = [];
+let ORDER_SCREEN_PLATFORMS = [];
 async function loadOrdersAndTables(){
   const sb = window.supabaseClient;
   const businessId = CURRENT_PROFILE.business_id;
   const cutoff = orderDateRangeCutoff(orderDateRange);
-  const [{data: orders}, {data: tables}, {data: sections}, {data: biz}] = await Promise.all([
-    sb.from('orders').select('id, created_at, channel, total, payment_method, status, source').eq('business_id', businessId).gte('created_at', cutoff).order('created_at', {ascending:false}).limit(500),
-    sb.from('restaurant_tables').select('id, number, status, active_order_id, section_id, status_changed_at').eq('business_id', businessId).order('number'),
+  const [{data: orders}, {data: tables}, {data: sections}, {data: biz}, {data: branches}, {data: platforms}] = await Promise.all([
+    sb.from('orders').select('id, created_at, channel, total, payment_method, status, source, branch_id, delivery_platform_id').eq('business_id', businessId).gte('created_at', cutoff).order('created_at', {ascending:false}).limit(500),
+    sb.from('restaurant_tables').select('id, number, status, active_order_id, section_id, branch_id, status_changed_at').eq('business_id', businessId).order('number'),
     sb.from('table_sections').select('id, name, sort_order').eq('business_id', businessId).order('sort_order'),
-    sb.from('businesses').select('tables_turn_time_minutes').eq('id', businessId).single()
+    sb.from('businesses').select('tables_turn_time_minutes').eq('id', businessId).single(),
+    sb.from('branches').select('id, name').eq('business_id', businessId).order('id'),
+    sb.from('delivery_platforms').select('id, name').eq('business_id', businessId)
   ]);
   TABLE_SECTIONS = sections || [];
   TABLES_TURN_TIME_MINUTES = (biz && biz.tables_turn_time_minutes) || 45;
+  ORDER_SCREEN_BRANCHES = branches || [];
+  ORDER_SCREEN_PLATFORMS = platforms || [];
+  const branchNameById = {}; ORDER_SCREEN_BRANCHES.forEach(b=>{ branchNameById[b.id] = b.name; });
+  const platformNameById = {}; ORDER_SCREEN_PLATFORMS.forEach(p=>{ platformNameById[p.id] = p.name; });
   const orderIds = (orders||[]).map(o=>o.id);
   const { data: items } = orderIds.length
     ? await sb.from('order_items').select('order_id').in('order_id', orderIds)
@@ -5411,13 +6219,18 @@ async function loadOrdersAndTables(){
     date: formatRelativeDate(o.created_at),
     time: new Date(o.created_at).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}),
     type: ORDER_CHANNEL_TYPE_LABELS[o.channel] || o.channel,
+    channel: o.channel,
     isOnline: o.source === 'online',
     items: countByOrder[o.id] || 0,
     total: Number(o.total),
     payment: ORDER_PAYMENT_LABELS[o.payment_method] || o.payment_method,
-    status: o.status
+    status: o.status,
+    branchId: o.branch_id,
+    branchName: branchNameById[o.branch_id] || null,
+    platformId: o.delivery_platform_id,
+    platformName: o.delivery_platform_id ? (platformNameById[o.delivery_platform_id] || 'منصة محذوفة') : null
   }));
-  TABLES = (tables||[]).map(t=>({ number: t.number, status: t.status, tableId: t.id, sectionId: t.section_id, orderId: t.active_order_id ? '#'+t.active_order_id : null, statusChangedAt: t.status_changed_at }));
+  TABLES = (tables||[]).map(t=>({ number: t.number, status: t.status, tableId: t.id, sectionId: t.section_id, branchId: t.branch_id, branchName: branchNameById[t.branch_id] || null, orderId: t.active_order_id ? '#'+t.active_order_id : null, statusChangedAt: t.status_changed_at }));
 }
 
 /* live sync with the POS: a table status change made on a cashier's tablet
@@ -5473,6 +6286,8 @@ async function renderPhase1Screens(){
   renderOrderStatusGrid();
   renderOrdersTable();
   renderTablesFloorGrid();
+  renderOrdersByType();
+  renderOrdersBySource();
   subscribeToTableChanges();
   subscribeToOrdersLiveSync();
   await loadPaymentBreakdown();
@@ -5481,8 +6296,6 @@ async function renderPhase1Screens(){
   renderEmployeeCards();
   renderAchievements();
   await loadSalesRealData();
-  renderOrdersByType();
-  renderOrdersBySource();
   recomputeAccounting();
   await loadWeekTrend();
   renderStatusHero();
@@ -5541,14 +6354,28 @@ document.getElementById('logoutBtn').addEventListener('click', async ()=>{
 });
 
 /* returning user with a still-valid session (e.g. page refresh) skips
-   straight to the dashboard instead of the login/welcome screens */
+   straight to the dashboard instead of the login/welcome screens.
+   sessionCheckScreen (not the login form) is what's visible the instant the
+   page paints now — the login form only ever appears once we've actually
+   confirmed there's no session, so a signed-in owner refreshing never sees
+   a flash of the login screen before landing back on their dashboard. */
+function exitSessionCheck(){
+  const el = document.getElementById('sessionCheckScreen');
+  if(el) el.classList.add('hidden');
+}
 (async function restoreSession(){
   const { data: { session } } = await window.supabaseClient.auth.getSession();
-  if(!session) return;
+  if(!session){
+    exitSessionCheck();
+    document.getElementById('loginScreen').classList.remove('hidden');
+    document.body.dataset.stage = 'login';
+    return;
+  }
   try {
     await loadProfileAndPermissions(session.user.id);
     await loadBusinessData();
     await renderPhase1Screens();
+    exitSessionCheck();
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('welcomeScreen').classList.add('hidden');
     document.getElementById('appShell').classList.remove('hidden');
@@ -5557,6 +6384,9 @@ document.getElementById('logoutBtn').addEventListener('click', async ()=>{
   } catch (e) {
     console.error('restoreSession failed:', e);
     await window.supabaseClient.auth.signOut();
+    exitSessionCheck();
+    document.getElementById('loginScreen').classList.remove('hidden');
+    document.body.dataset.stage = 'login';
   }
 })();
 
@@ -5589,7 +6419,7 @@ async function renderWelcome(){
   const hour = new Date().getHours();
   const firstName = (CURRENT_PROFILE && CURRENT_PROFILE.full_name ? CURRENT_PROFILE.full_name : '').split(' ')[0] || '';
   const timeGreeting = hour < 12 ? 'صباح الخير' : 'مساء الخير';
-  document.getElementById('welcomeGreeting').textContent = (timeGreeting + ' ' + firstName).trim() + ' 👋';
+  document.getElementById('welcomeGreeting').textContent = (timeGreeting + ' ' + firstName).trim();
 
   const hasYesterdayBaseline = YESTERDAY.netSales > 0;
   const salesDelta = hasYesterdayBaseline ? ((TODAY.netSales - YESTERDAY.netSales) / YESTERDAY.netSales * 100).toFixed(0) : null;
@@ -5647,7 +6477,12 @@ function enterDashboard(){
   applyPermissions();
 }
 
-const ALL_DASHBOARD_SCREENS = ['home','orders','purchases','menu','services','rooms','inventory','staff','customers','loyalty','accounting','delivery','ai','reports','settings'];
+// 'staff' used to be its own screen (a read-only sales leaderboard) — its
+// content is now the "نظرة عامة" tab inside 'hr', which also absorbed
+// cashier-name management from Settings -> POS. Deliberately dropped from
+// this list (not just hidden) so the old nav button — still present in the
+// markup, unreachable now — never shows for anyone, owner included.
+const ALL_DASHBOARD_SCREENS = ['home','pos','orders','purchases','menu','onlineMenu','services','rooms','inventory','hr','customers','loyalty','accounting','delivery','ai','reports','settings'];
 const USER_TYPE_LABELS = {owner:'مالك', manager:'مدير', employee:'موظف'};
 
 function applyPermissions(){
@@ -5809,27 +6644,27 @@ async function renderSalesCountersPanel(){
   const panel = document.getElementById('reportPreviewPanel');
   const activeProducts = MENU_ITEMS.filter(m=>m.active && !m.name.includes('(مؤرشف)'));
   const newCounterForm = `
-    <div class="panel" style="margin-bottom:16px;">
-      <div class="panel-title">عدّاد جديد</div>
-      <div class="menu-add-field" style="max-width:320px; margin-bottom:10px;">
+    <div class="rk-section" style="margin-bottom:16px;">
+      ${rkSectionHead('trendingUp', 'عدّاد جديد', 'يحسب كم انباع من صنف معين منذ تاريخ تحدده — مباشر من طلباتك الحقيقية، ما يتأثر باسترجاع أو إلغاء')}
+      <div class="rk-field" style="max-width:340px; margin-bottom:14px;">
         <label>نوع العدّاد</label>
         <select id="newCounterType">
           <option value="product">منتج كامل (بوكس/صنف بحد ذاته)</option>
           <option value="piece">مكوّن يدخل بأكثر من منتج ${helpIcon('مثال: ورق عنب يدخل بعدة أنواع بوكسات — هذا يجمع عدد القطع من كل الأنواع مع بعض. يشتغل بس إذا كنت حدّدت "بيان محتوى" (كم قطعة من هذا الصنف بكل بوكس) بشاشة المنيو.')}</option>
         </select>
       </div>
-      <div class="menu-add-row">
-        <div class="menu-add-field" id="newCounterTargetField"><label>المنتج</label>
+      <div class="rk-grid-2" style="margin-bottom:14px;">
+        <div class="rk-field" id="newCounterTargetField"><label>المنتج</label>
           <select id="newCounterTarget">${activeProducts.map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}</select>
         </div>
-        <div class="menu-add-field"><label>اسم العدّاد</label><input type="text" id="newCounterName" placeholder="مثال: ورق عنب — أغسطس"></div>
-        <div class="menu-add-field"><label>يبدأ من</label><input type="datetime-local" id="newCounterSince"></div>
+        <div class="rk-field"><label>اسم العدّاد</label><input type="text" id="newCounterName" placeholder="مثال: ورق عنب — أغسطس"></div>
+        <div class="rk-field span-2"><label>يبدأ من</label><input type="datetime-local" id="newCounterSince"></div>
       </div>
-      <button class="menu-add-btn" id="createCounterBtn" style="margin-top:8px;">+ إضافة عدّاد</button>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="createCounterBtn">${rkIcon('plus')}إضافة عدّاد</button>
     </div>`;
 
   if(SALES_COUNTERS.length === 0){
-    panel.innerHTML = newCounterForm + '<div class="orders-empty">ما فيه عدّادات بعد — أضف واحد فوق.</div>';
+    panel.innerHTML = newCounterForm + '<p class="stock-qty-helper">ما فيه عدّادات بعد — أضف واحد فوق.</p>';
     wireSalesCounterHandlers();
     return;
   }
@@ -5843,22 +6678,22 @@ async function renderSalesCountersPanel(){
     const since = new Date(c.count_since);
     const sinceLabel = since.toLocaleDateString('ar-SA', {year:'numeric', month:'long', day:'numeric'}) + ' — ' + since.toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'});
     return `
-    <div class="panel sales-counter-card" style="margin-bottom:12px;" data-id="${c.id}">
+    <div class="rk-subcard sales-counter-card" style="margin-bottom:12px;" data-id="${c.id}">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
         <div>
-          <div class="panel-title" style="margin-bottom:2px;">${c.name}</div>
+          <div class="rk-subcard-title" style="margin-bottom:2px;">${c.name}</div>
           <div class="stock-qty-helper">${targetName} — منذ ${sinceLabel}</div>
         </div>
         <div class="acct-hero-value mono" style="font-size:26px;">${counts[i]}</div>
       </div>
       <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
-        <button class="mtr-edit-btn counter-reset-btn" data-id="${c.id}">تصفير (يبدأ من الآن)</button>
-        <button class="mtr-edit-btn counter-delete-btn" data-id="${c.id}" style="color:var(--danger, #a3402c); border-color:var(--danger, #a3402c);">حذف العدّاد</button>
+        <button class="rk-btn rk-btn-secondary rk-btn-sm counter-reset-btn" data-id="${c.id}">تصفير (يبدأ من الآن)</button>
+        <button class="rk-btn rk-btn-secondary rk-btn-sm counter-delete-btn" data-id="${c.id}" style="color:var(--danger); border-color:var(--danger);">حذف العدّاد</button>
       </div>
     </div>`;
   }).join('');
 
-  panel.innerHTML = newCounterForm + '<div class="panel-title" style="margin-top:4px;">العدّادات الحالية</div>' + cardsHtml;
+  panel.innerHTML = newCounterForm + '<div class="rk-section-title" style="margin:4px 0 12px;">العدّادات الحالية</div>' + cardsHtml;
   wireSalesCounterHandlers();
 }
 
@@ -5883,13 +6718,12 @@ function wireSalesCounterHandlers(){
     const targetName = isPiece ? STOCK_ITEMS.find(s=>s.id===targetId)?.name : MENU_ITEMS.find(m=>m.id===targetId)?.name;
     const name = nameInput.value.trim() || targetName || 'عدّاد جديد';
     const sinceIso = sinceInput.value ? new Date(sinceInput.value).toISOString() : new Date().toISOString();
-    createBtn.disabled = true;
+    rkBtnLoading(createBtn, true);
     const { error } = await window.supabaseClient.from('sales_counters').insert({
       business_id: CURRENT_PROFILE.business_id, name, count_since: sinceIso, created_by: CURRENT_PROFILE.id,
       menu_item_id: isPiece ? null : targetId, stock_item_id: isPiece ? targetId : null
     });
-    createBtn.disabled = false;
-    if(error){ showToast('تعذر إضافة العدّاد: ' + error.message); return; }
+    if(error){ rkBtnLoading(createBtn, false); showToast('تعذر إضافة العدّاد: ' + error.message); return; }
     logDashboardAudit('أضاف عدّاد مبيعات: ' + name);
     loadSalesCountersPanel();
   });
@@ -5952,16 +6786,14 @@ async function loadDailyReportConfig(){
 
 function dailyReportConfigHtml(){
   return `
-    <div class="panel" style="margin-bottom:14px;">
-      <div class="panel-title">محتوى التقرير اليومي — اختر وش يظهر بالتقرير التلقائي</div>
-      <div class="daily-report-config-grid" style="display:flex; flex-wrap:wrap; gap:14px; margin:10px 0;">
-        ${Object.keys(DAILY_REPORT_SECTION_LABELS).map(key=>`
-          <label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:600;">
-            <input type="checkbox" class="daily-report-section-toggle" data-key="${key}" ${DAILY_REPORT_CONFIG['daily_report_'+key] !== false ? 'checked' : ''}>
-            ${DAILY_REPORT_SECTION_LABELS[key]}
-          </label>`).join('')}
+    <div class="rk-section" style="margin-bottom:16px;">
+      ${rkSectionHead('sliders', 'محتوى التقرير اليومي', 'اختر وش يظهر بالتقرير التلقائي اللي يتولد كل ليلة الساعة ١٢')}
+      <div class="rk-check-grid" style="grid-template-columns:repeat(3, 1fr); margin-bottom:14px;">
+        ${Object.keys(DAILY_REPORT_SECTION_LABELS).map(key=>
+          rkCheck(`class="daily-report-section-toggle" data-key="${key}" ${DAILY_REPORT_CONFIG['daily_report_'+key] !== false ? 'checked' : ''}`, DAILY_REPORT_SECTION_LABELS[key])
+        ).join('')}
       </div>
-      <button class="settings-save-btn" id="dailyReportConfigSaveBtn" style="width:auto; padding:0 18px;">حفظ</button>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="dailyReportConfigSaveBtn">حفظ</button>
     </div>`;
 }
 
@@ -5973,17 +6805,16 @@ function wireDailyReportConfigForm(){
     document.querySelectorAll('.daily-report-section-toggle').forEach(cb=>{
       update['daily_report_'+cb.dataset.key] = cb.checked;
     });
-    btn.disabled = true;
+    rkBtnLoading(btn, true);
     try {
       await updateCurrentBusiness(update);
     } catch(err){
-      btn.disabled = false;
+      rkBtnLoading(btn, false);
       showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
       return;
     }
-    btn.disabled = false;
     DAILY_REPORT_CONFIG = { ...DAILY_REPORT_CONFIG, ...update };
-    showToast('تم الحفظ — يطبّق من أول تقرير قادم');
+    rkBtnSuccess(btn, '✓ تم الحفظ — من أول تقرير قادم');
   });
 }
 
@@ -6043,13 +6874,11 @@ function renderDailyAutoReportPanel(){
   const panel = document.getElementById('reportPreviewPanel');
   panel.className = 'report-preview-doc theme-' + REPORT_THEME;
   const datePicker = `
-    <div class="panel" style="margin-bottom:14px;">
-      <div class="menu-add-field" style="max-width:260px;">
-        <label>اختر يوم</label>
-        <select id="dailyAutoReportDateSelect">
-          ${DAILY_REPORTS_LIST.map(r=>`<option value="${r.report_date}" ${SELECTED_DAILY_REPORT && SELECTED_DAILY_REPORT.report_date===r.report_date?'selected':''}>${formatDailyReportDate(r.report_date)}</option>`).join('')}
-        </select>
-      </div>
+    <div class="rk-field" style="max-width:280px; margin-bottom:16px;">
+      <label>اختر يوم</label>
+      <select id="dailyAutoReportDateSelect">
+        ${DAILY_REPORTS_LIST.map(r=>`<option value="${r.report_date}" ${SELECTED_DAILY_REPORT && SELECTED_DAILY_REPORT.report_date===r.report_date?'selected':''}>${formatDailyReportDate(r.report_date)}</option>`).join('')}
+      </select>
     </div>`;
   if(!SELECTED_DAILY_REPORT){ panel.innerHTML = dailyReportConfigHtml() + datePicker + '<div class="orders-empty">اختر يوماً لعرض تقريره</div>'; wireDailyReportConfigForm(); return; }
 
@@ -6065,7 +6894,7 @@ function renderDailyAutoReportPanel(){
   if(sections.tax !== false) body += taxReportHtml(d);
 
   panel.innerHTML = dailyReportConfigHtml() + datePicker + reportDocHeaderHtml() + body
-    + `<div style="margin-top:16px; display:flex; justify-content:flex-end;"><button class="settings-save-btn" id="dailyAutoReportPrintBtn" style="width:auto; padding:0 20px;">طباعة / حفظ PDF</button></div>`;
+    + `<div style="margin-top:16px; display:flex; justify-content:flex-end;"><button class="rk-btn rk-btn-primary rk-btn-md" id="dailyAutoReportPrintBtn">طباعة / حفظ PDF</button></div>`;
 
   wireDailyReportConfigForm();
   document.getElementById('dailyAutoReportDateSelect').addEventListener('change', (e)=> selectDailyReport(e.target.value));
@@ -6611,31 +7440,38 @@ const AI_QA = [
       : 'ما فيه مبيعات مسجّلة اليوم بعد.';
   }}
 ];
+// No more free-text matching — this is a fixed picker now (tap a question,
+// get its answer), not a chat you type into, so every call is always the
+// exact q string off a button's own data-q. Kept as a lookup (not just
+// calling item.a() straight from the click handler) purely so the "answer
+// computation threw" guard stays in one place.
 function aiFindAnswer(text){
-  const q = text.trim();
-  if(!q) return null;
-  const safeAnswer = (item)=>{
-    try { return item.a(); }
-    catch(err){ console.error('AI advisor answer failed', item.q, err); return 'صار خطأ وأنا أجهّز الإجابة — جرّب مرة ثانية.'; }
-  };
-  const exact = AI_QA.find(item=>item.q === q);
-  if(exact) return safeAnswer(exact);
-  const fuzzy = AI_QA.find(item=> q.includes(item.q.replace('؟','')) || item.q.includes(q));
-  return fuzzy ? safeAnswer(fuzzy) : null;
+  const item = AI_QA.find(i=>i.q === text);
+  if(!item) return null;
+  try { return item.a(); }
+  catch(err){ console.error('AI advisor answer failed', item.q, err); return 'صار خطأ وأنا أجهّز الإجابة — جرّب مرة ثانية.'; }
 }
-function aiAddMessage(text, sender){
+function aiAddMessage(html, sender){
   const el = document.createElement('div');
   el.className = 'ai-msg ' + sender;
-  el.innerHTML = text;
+  el.innerHTML = html;
   document.getElementById('aiConversation').appendChild(el);
-  document.getElementById('aiConversation').scrollTop = 9999;
+  return el;
 }
 function aiAsk(text){
+  document.querySelectorAll('.ai-suggest-chip').forEach(chip=> chip.classList.toggle('active', chip.dataset.q === text));
   aiAddMessage(text, 'user');
-  const answer = aiFindAnswer(text);
+  const conv = document.getElementById('aiConversation');
+  const typing = document.createElement('div');
+  typing.className = 'ai-typing';
+  typing.innerHTML = '<span></span><span></span><span></span>';
+  conv.appendChild(typing);
+  typing.scrollIntoView({block:'end', behavior:'smooth'});
   setTimeout(()=>{
-    aiAddMessage(answer || 'هذا السؤال يحتاج تطوير أكثر حاليًا — جرّب أحد الأسئلة المقترحة فوق، أو أعد صياغة سؤالك.', 'bot');
-  }, 300);
+    typing.remove();
+    const el = aiAddMessage(aiFindAnswer(text), 'bot');
+    el.scrollIntoView({block:'end', behavior:'smooth'});
+  }, 500);
 }
 function renderAiSuggestions(){
   document.getElementById('aiSuggestedQuestions').innerHTML = AI_QA.map(item=>
@@ -6645,15 +7481,6 @@ function renderAiSuggestions(){
     chip.addEventListener('click', ()=> aiAsk(chip.dataset.q));
   });
 }
-document.getElementById('aiSendBtn').addEventListener('click', ()=>{
-  const input = document.getElementById('aiInput');
-  if(!input.value.trim()) return;
-  aiAsk(input.value.trim());
-  input.value = '';
-});
-document.getElementById('aiInput').addEventListener('keydown', (e)=>{
-  if(e.key === 'Enter') document.getElementById('aiSendBtn').click();
-});
 
 /* ============ Settings: Restaurant identity + Menu management ============ */
 let activeSettingsTab = 'restaurant';
@@ -6662,7 +7489,18 @@ document.getElementById('settingsTabs').addEventListener('click', (e)=>{
   document.querySelectorAll('#settingsTabs button').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');
   activeSettingsTab = b.dataset.tab;
+  resetContentScroll();
   renderSettingsPanel();
+});
+
+let activePosSettingsTab = 'receipt';
+document.getElementById('posSettingsTabs').addEventListener('click', (e)=>{
+  const b = e.target.closest('button'); if(!b) return;
+  document.querySelectorAll('#posSettingsTabs button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  activePosSettingsTab = b.dataset.tab;
+  resetContentScroll();
+  renderPosSettings();
 });
 
 const RESTAURANT_INFO = {name:''};
@@ -6679,10 +7517,67 @@ let PRICES_INCLUDE_VAT = true;
 let VAT_REGISTERED = true; // businesses.vat_registered — off means no VAT anywhere, not just a hidden field
 let BUSINESS_VAT_NUMBER = '';
 let RECEIPT_CUSTOM_MESSAGE = '';
+let RECEIPT_THEME = 'classic';
+let ONLINE_COD_ENABLED = true;
+
+// Its own query, NOT a field on the big business select: PostgREST fails an
+// entire select over one unknown column, and this one would blank the whole
+// settings screen on any deploy that reached production before the
+// migration. Anything but an explicit false leaves cash on, so a business
+// on the old schema behaves exactly as it does today.
+async function loadOnlineCodEnabled(){
+  try {
+    const { data, error } = await window.supabaseClient
+      .from('businesses').select('online_cod_enabled').eq('id', CURRENT_PROFILE.business_id).single();
+    if(error || !data) return true;
+    return data.online_cod_enabled !== false;
+  } catch(_){ return true; }
+}
+
+// businesses.receipt_theme gets its own query, NOT a field on the big
+// business select above: PostgREST fails an entire select over one
+// unknown column, so adding it there would blank the whole settings
+// screen on any deployment where the migration has not run yet.
+const RECEIPT_THEMES = [
+  { id: 'classic', label: 'كلاسيكي', desc: 'متوازن، مع الشعار وخطوط تفصل الأقسام. الافتراضي.' },
+  { id: 'compact', label: 'مضغوط', desc: 'يوفّر ورق — بدون شعار، سطور أقرب وخط أصغر. أقصر بحوالي الثلث.' },
+  { id: 'elegant', label: 'أنيق', desc: 'اسم المنشأة بين خطين، وخط رفيع تحت كل صنف، والإجمالي داخل إطار.' },
+];
+
+async function loadReceiptTheme(){
+  try {
+    const { data, error } = await window.supabaseClient
+      .from('businesses').select('receipt_theme').eq('id', CURRENT_PROFILE.business_id).single();
+    if(error || !data || !data.receipt_theme) return 'classic';
+    return data.receipt_theme;
+  } catch(_){ return 'classic'; }
+}
 let DINE_IN_ENABLED = true;
 let ONLINE_ORDERING_ENABLED = false;
 let ONLINE_MENU_SLUG = null;
 let ONLINE_THEME_COLOR = '#C7FF4D';
+let ONLINE_THEME_STYLE = 'classic';
+let ONLINE_FONT_FAMILY = 'rakeen';
+let ONLINE_COLOR_SURF = null, ONLINE_COLOR_CARD = null, ONLINE_COLOR_INK = null, ONLINE_COLOR_MUTED = null;
+let ONLINE_SOCIAL_INSTAGRAM = '', ONLINE_SOCIAL_TIKTOK = '', ONLINE_SOCIAL_TWITTER = '';
+// null = "use the built-in default text" (never customized); '' = merchant
+// explicitly cleared it to hide it; any other string = custom text. Both
+// rakeen-order.js and the dashboard input pre-fill below rely on this
+// three-way distinction, so never coerce null to '' when reading these.
+let ONLINE_TAGLINE_HEADER = null, ONLINE_TAGLINE_HERO = null;
+const DEFAULT_TAGLINE_HEADER = 'اطلب مباشرة من المطعم';
+const DEFAULT_TAGLINE_HERO = 'طلب مباشر بدون عمولة تطبيقات';
+// Built-in defaults per theme (mirrors :root / .om-shell[data-theme="luxury"]
+// in rakeen-order.css exactly — keep in sync if either changes). Used to (a)
+// seed the color pickers with the real current color when the business has
+// never overridden a field (stored as null = "follow the theme"), and (b)
+// let the save handler write null back instead of a hex whenever a picker
+// still matches the active theme's default, so switching themes later
+// doesn't leave stale colors from the other theme baked in as "custom".
+const ONLINE_THEME_DEFAULT_COLORS = {
+  classic: {surf:'#F7F5EF', card:'#FFFFFF', ink:'#18170F', muted:'#8A8375'},
+  luxury: {surf:'#FFFAEE', card:'#FFFFFF', ink:'#2A1D12', muted:'#A0876D'},
+};
 let ONLINE_BANNER_URL = '';
 let ONLINE_OFFERS_DELIVERY = true;
 let ONLINE_OFFERS_PICKUP = true;
@@ -6711,8 +7606,6 @@ function renderSettingsPanel(){
   const panel = document.getElementById('settingsPanelBody');
   if(activeSettingsTab === 'restaurant'){ panel.innerHTML = restaurantSettingsHtml(); wireRestaurantSettings(); }
   else if(activeSettingsTab === 'branches'){ renderBranchesSettings(); }
-  else if(activeSettingsTab === 'pos'){ renderPosSettings(); }
-  else if(activeSettingsTab === 'delivery'){ renderDeliveryPlatformsSettings(); }
   else if(activeSettingsTab === 'notifications'){ renderNotificationsSettings(); }
   else { panel.innerHTML = permissionsSettingsHtml(); wirePermissionsSettings(); }
 }
@@ -6723,65 +7616,64 @@ function renderSettingsPanel(){
    so multiple staff can each enable it on their own phone. */
 async function renderNotificationsSettings(){
   const panel = document.getElementById('settingsPanelBody');
-  panel.innerHTML = `
-    <div class="panel">
-      <div class="panel-title">تنبيهات فورية لك</div>
-      <p class="stock-qty-helper">إشعارات مجانية بالكامل تصلك على جوالك أو جهازك — مافيها أي تكلفة. أول مرة، ثبّت لوحة التحكم كتطبيق (من قائمة المتصفح اختر "إضافة إلى الشاشة الرئيسية")، وبعدها فعّل الإشعارات من هنا.</p>
-      <button class="settings-save-btn" id="ownerPushEnableBtn">فعّل الإشعارات على هذا الجهاز</button>
-      <p class="stock-qty-helper" id="ownerPushStatus" style="margin-top:10px;"></p>
-    </div>
-    <div class="panel">
-      <div class="panel-title">وش تبي يوصلك؟</div>
-      <div class="notif-pref-row"><label><input type="checkbox" id="notifyNewOrder"> طلب جديد من الكاشير</label></div>
-      <div class="notif-pref-row"><label><input type="checkbox" id="notifyRefundCancel"> عملية استرجاع أو إلغاء طلب</label></div>
-      <div class="notif-pref-row">
-        <label><input type="checkbox" id="notifyLowStock"> مخزون صنف ينزل عن</label>
-        <input type="number" id="notifyLowStockPct" class="notif-pref-num" min="1" max="99">
-        <span>٪ ${helpIcon('النسبة محسوبة من "الحد الأدنى" (par level) اللي تحدده لكل صنف بشاشة المخزون، مو من كمية ثابتة — نفس الصنف ينبهك عند كمية مختلفة حسب الحد الأدنى المحدد له.')}</span>
-      </div>
-      <div class="notif-pref-row">
-        <label><input type="checkbox" id="notifySalesTarget"> مبيعات اليوم توصل</label>
-        <input type="number" id="notifySalesTargetAmount" class="notif-pref-num" min="0">
-        <span>ر.س ${helpIcon('إشعار واحد فقط أول ما مبيعات اليوم (صافي المبيعات) توصل هذا الرقم — ما يتكرر بعدها لبقية اليوم، ويرجع يشتغل تلقائيًا اليوم اللي بعده.')}</span>
-      </div>
-      <div class="notif-pref-row"><label><input type="checkbox" id="notifyDeliveryPrepWarning"> باقي ٥ دقائق على وقت تجهيز طلب توصيل</label></div>
-      <div class="notif-pref-row"><label><input type="checkbox" id="notifyDeliveryPrepExpired"> انتهى وقت تجهيز طلب توصيل</label></div>
-      <button class="settings-save-btn" id="notifyPrefsSaveBtn" style="margin-top:14px;">حفظ التفضيلات</button>
-    </div>
-    <div class="panel">
-      <div class="panel-title">الصوت</div>
-      <p class="stock-qty-helper">صوت تنبيه لطيف يشتغل تلقائيًا وأنت فاتح لوحة التحكم أو شاشة الكاشير — لو الصفحة مقفولة، صوت التنبيه الافتراضي من الجهاز نفسه هو اللي يشتغل، مو صوتنا المخصص.</p>
-      <div class="notif-pref-row"><label><input type="checkbox" id="notifySoundEnabled"> تشغيل صوت التنبيهات</label></div>
-      <div style="display:flex; gap:8px; margin-top:12px;">
-        <button class="mtr-edit-btn" id="testSoundChimeBtn" style="flex:1;">🔊 تجربة صوت التنبيه العادي</button>
-        <button class="mtr-edit-btn" id="testSoundAlarmBtn" style="flex:1;">🔊 تجربة صوت انتهاء الوقت</button>
-      </div>
-    </div>
-    <div class="panel" id="waLinkPanel">
-      <div class="panel-title">ربط واتساب</div>
-      <p class="stock-qty-helper">اربط رقم واتساب حقك عشان تكلم رقم ركين وتسأله عن مبيعاتك، طلباتك، ومخزونك مباشرة — بدون فتح لوحة التحكم.</p>
-      <div id="waLinkBody">جارٍ التحميل...</div>
-    </div>
-  `;
+  panel.innerHTML = '<div class="rk-section"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>';
 
   const { data } = await window.supabaseClient.from('businesses')
     .select('notify_low_stock, notify_low_stock_pct, notify_new_order, notify_refund_cancel, notify_sales_target, notify_sales_target_amount, notify_delivery_prep_warning, notify_delivery_prep_expired, notify_sound_enabled, whatsapp_link_phone, whatsapp_link_verified')
     .eq('id', CURRENT_PROFILE.business_id).single();
-  if(data){
-    document.getElementById('notifyNewOrder').checked = data.notify_new_order;
-    document.getElementById('notifyRefundCancel').checked = data.notify_refund_cancel;
-    document.getElementById('notifyLowStock').checked = data.notify_low_stock;
-    document.getElementById('notifyLowStockPct').value = data.notify_low_stock_pct;
-    document.getElementById('notifySalesTarget').checked = data.notify_sales_target;
-    document.getElementById('notifySalesTargetAmount').value = data.notify_sales_target_amount;
-    document.getElementById('notifyDeliveryPrepWarning').checked = data.notify_delivery_prep_warning;
-    document.getElementById('notifyDeliveryPrepExpired').checked = data.notify_delivery_prep_expired;
-    document.getElementById('notifySoundEnabled').checked = data.notify_sound_enabled;
-  }
-  renderWaLinkPanel(data);
+  const d = data || {};
 
-  document.getElementById('testSoundChimeBtn').addEventListener('click', ()=> playAlertSound('chime'));
-  document.getElementById('testSoundAlarmBtn').addEventListener('click', ()=> playAlertSound('alarm'));
+  panel.innerHTML = `
+    <div class="rk-section">
+      ${rkSectionHead('bell', 'تنبيهات فورية لك', 'إشعارات مجانية بالكامل تصلك على جوالك أو جهازك — مافيها أي تكلفة. أول مرة، ثبّت لوحة التحكم كتطبيق (من قائمة المتصفح اختر "إضافة إلى الشاشة الرئيسية")، وبعدها فعّل الإشعارات من هنا.')}
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="ownerPushEnableBtn">فعّل الإشعارات على هذا الجهاز</button>
+      <p class="stock-qty-helper" id="ownerPushStatus" style="margin-top:10px;"></p>
+    </div>
+    <div class="rk-section">
+      ${rkSectionHead('activity', 'وش تبي يوصلك؟', 'كل إشعار هنا مستقل — فعّل بس اللي تبيه')}
+      ${rkSwitchRow('notifyNewOrder', d.notify_new_order, 'طلب جديد من الكاشير')}
+      ${rkSwitchRow('notifyRefundCancel', d.notify_refund_cancel, 'عملية استرجاع أو إلغاء طلب')}
+      <div class="rk-switch-row">
+        <div class="rk-switch-text">
+          <span class="rk-switch-label"><label for="notifyLowStock">مخزون صنف ينزل عن</label><input type="number" class="rk-inline-num" id="notifyLowStockPct" min="1" max="99" value="${d.notify_low_stock_pct ?? 20}">٪ ${helpIcon('النسبة محسوبة من "الحد الأدنى" اللي تحدده لكل صنف بشاشة المخزون، مو من كمية ثابتة — نفس الصنف ينبهك عند كمية مختلفة حسب الحد الأدنى المحدد له.')}</span>
+        </div>
+        <label class="rk-switch"><input type="checkbox" id="notifyLowStock" ${d.notify_low_stock?'checked':''}><span class="rk-switch-track"></span></label>
+      </div>
+      <div class="rk-switch-row">
+        <div class="rk-switch-text">
+          <span class="rk-switch-label"><label for="notifySalesTarget">مبيعات اليوم توصل</label><input type="number" class="rk-inline-num" id="notifySalesTargetAmount" min="0" value="${d.notify_sales_target_amount ?? 0}">ر.س ${helpIcon('إشعار واحد فقط أول ما مبيعات اليوم (صافي المبيعات) توصل هذا الرقم — ما يتكرر بعدها لبقية اليوم، ويرجع يشتغل تلقائيًا اليوم اللي بعده.')}</span>
+        </div>
+        <label class="rk-switch"><input type="checkbox" id="notifySalesTarget" ${d.notify_sales_target?'checked':''}><span class="rk-switch-track"></span></label>
+      </div>
+      ${rkSwitchRow('notifyDeliveryPrepWarning', d.notify_delivery_prep_warning, 'باقي ٥ دقائق على وقت تجهيز طلب توصيل')}
+      ${rkSwitchRow('notifyDeliveryPrepExpired', d.notify_delivery_prep_expired, 'انتهى وقت تجهيز طلب توصيل')}
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="notifyPrefsSaveBtn" style="margin-top:14px;">حفظ التفضيلات</button>
+    </div>
+    <div class="rk-section">
+      ${rkSectionHead('volume', 'الصوت', 'صوت تنبيه لطيف يشتغل تلقائيًا وأنت فاتح لوحة التحكم أو شاشة الكاشير — لو الصفحة مقفولة، صوت التنبيه الافتراضي من الجهاز نفسه هو اللي يشتغل، مو صوتنا المخصص.')}
+      ${rkSwitchRow('notifySoundEnabled', d.notify_sound_enabled, 'تشغيل صوت التنبيهات')}
+      <div class="rk-sound-test-row">
+        <button class="rk-sound-test-btn" id="testSoundChimeBtn" type="button"><span class="rk-sound-test-icon">${rkIcon('volume')}</span>صوت التنبيه العادي</button>
+        <button class="rk-sound-test-btn" id="testSoundAlarmBtn" type="button"><span class="rk-sound-test-icon">${rkIcon('zap')}</span>صوت انتهاء الوقت</button>
+      </div>
+    </div>
+    <div class="rk-section" id="waLinkPanel">
+      ${rkSectionHead('messageCircle', 'ربط واتساب', 'اربط رقم واتساب حقك عشان تكلم رقم ركين وتسأله عن مبيعاتك، طلباتك، ومخزونك مباشرة — بدون فتح لوحة التحكم.')}
+      <div id="waLinkBody">جارٍ التحميل...</div>
+    </div>
+  `;
+
+  renderWaLinkPanel(d);
+
+  const playTestSound = (btn, sound)=>{
+    playAlertSound(sound);
+    btn.classList.remove('is-playing');
+    void btn.offsetWidth; // restart the pulse animation on repeated clicks
+    btn.classList.add('is-playing');
+    setTimeout(()=> btn.classList.remove('is-playing'), 500);
+  };
+  document.getElementById('testSoundChimeBtn').addEventListener('click', (e)=> playTestSound(e.currentTarget, 'chime'));
+  document.getElementById('testSoundAlarmBtn').addEventListener('click', (e)=> playTestSound(e.currentTarget, 'alarm'));
 
   const statusEl = document.getElementById('ownerPushStatus');
   if(localStorage.getItem('rakeen_owner_push_enabled') === '1'){
@@ -6790,23 +7682,22 @@ async function renderNotificationsSettings(){
 
   document.getElementById('ownerPushEnableBtn').addEventListener('click', async ()=>{
     const btn = document.getElementById('ownerPushEnableBtn');
-    btn.disabled = true;
+    rkBtnLoading(btn, true);
     try {
       if(!window.enableOwnerPushNotifications) throw new Error('جاري التجهيز، أعد المحاولة بعد لحظة');
       await window.enableOwnerPushNotifications();
       localStorage.setItem('rakeen_owner_push_enabled', '1');
       statusEl.textContent = '✓ الإشعارات مفعّلة على هذا الجهاز';
-      showToast('تم تفعيل الإشعارات');
+      rkBtnSuccess(btn, '✓ تم التفعيل');
     } catch(err){
+      rkBtnLoading(btn, false);
       showToast('تعذر تفعيل الإشعارات: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-    } finally {
-      btn.disabled = false;
     }
   });
 
   document.getElementById('notifyPrefsSaveBtn').addEventListener('click', async ()=>{
     const btn = document.getElementById('notifyPrefsSaveBtn');
-    btn.disabled = true;
+    rkBtnLoading(btn, true);
     try {
       const updates = {
         notify_new_order: document.getElementById('notifyNewOrder').checked,
@@ -6822,11 +7713,10 @@ async function renderNotificationsSettings(){
       await updateCurrentBusiness(updates);
       NOTIFY_SOUND_ENABLED = updates.notify_sound_enabled;
       logDashboardAudit('عدّل تفضيلات الإشعارات');
-      showToast('تم حفظ التفضيلات');
+      rkBtnSuccess(btn, '✓ تم الحفظ');
     } catch(err){
+      rkBtnLoading(btn, false);
       showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-    } finally {
-      btn.disabled = false;
     }
   });
 }
@@ -6845,8 +7735,13 @@ function renderWaLinkPanel(businessRow){
 
   if(businessRow.whatsapp_link_verified && businessRow.whatsapp_link_phone){
     body.innerHTML = `
-      <p class="stock-qty-helper">✓ مربوط برقم <span class="mono" dir="ltr">${businessRow.whatsapp_link_phone}</span></p>
-      <button class="mtr-edit-btn" id="waUnlinkBtn" style="color:var(--danger);">إلغاء الربط</button>
+      <div class="rk-switch-row" style="padding-top:0;">
+        <div class="rk-switch-text">
+          <span class="rk-switch-label" style="color:var(--success-text);">✓ مربوط بنجاح</span>
+          <span class="rk-switch-desc">رقم <span class="mono" dir="ltr">${businessRow.whatsapp_link_phone}</span></span>
+        </div>
+        <button class="rk-btn rk-btn-secondary rk-btn-sm" id="waUnlinkBtn" style="color:var(--danger); border-color:var(--danger);">إلغاء الربط</button>
+      </div>
     `;
     document.getElementById('waUnlinkBtn').addEventListener('click', async ()=>{
       if(!window.confirm('تأكيد إلغاء ربط واتساب؟')) return;
@@ -6861,7 +7756,7 @@ function renderWaLinkPanel(businessRow){
   // (that would be business-initiated and need an approved WhatsApp
   // template). We learn their number from whichever number sends the code.
   body.innerHTML = `
-    <button class="settings-save-btn" id="waGenerateCodeBtn">إنشاء رمز الربط</button>
+    <button class="rk-btn rk-btn-primary rk-btn-md" id="waGenerateCodeBtn">إنشاء رمز الربط</button>
     <div id="waCodeRow" class="hidden" style="margin-top:14px;">
       <p class="stock-qty-helper">من جوالك، افتح واتساب وأرسل الرمز التالي لرقم ركين <span class="mono" dir="ltr">${RAKEEN_WHATSAPP_DISPLAY_NUMBER}</span>:</p>
       <div class="mono" id="waCodeDisplay" style="font-size:26px; font-weight:800; letter-spacing:4px; text-align:center; padding:14px; margin-top:10px; background:var(--surf1); border-radius:var(--r-sm); direction:ltr;"></div>
@@ -6871,7 +7766,7 @@ function renderWaLinkPanel(businessRow){
 
   document.getElementById('waGenerateCodeBtn').addEventListener('click', async ()=>{
     const btn = document.getElementById('waGenerateCodeBtn');
-    btn.disabled = true;
+    rkBtnLoading(btn, true);
     try {
       const { data: sessionData } = await window.supabaseClient.auth.getSession();
       const session = sessionData && sessionData.session;
@@ -6879,9 +7774,10 @@ function renderWaLinkPanel(businessRow){
         method: 'POST', headers: { 'Authorization': 'Bearer ' + (session ? session.access_token : '') }
       });
       const result = await res.json().catch(()=>({}));
-      if(!res.ok){ showToast(result.error || 'حدث خطأ'); return; }
+      if(!res.ok){ rkBtnLoading(btn, false); showToast(result.error || 'حدث خطأ'); return; }
       document.getElementById('waCodeDisplay').textContent = result.code;
       document.getElementById('waCodeRow').classList.remove('hidden');
+      rkBtnLoading(btn, false);
       waLinkPollTimer = setInterval(async ()=>{
         const { data } = await window.supabaseClient.from('businesses')
           .select('whatsapp_link_phone, whatsapp_link_verified').eq('id', CURRENT_PROFILE.business_id).single();
@@ -6891,8 +7787,9 @@ function renderWaLinkPanel(businessRow){
           renderWaLinkPanel(data);
         }
       }, 4000);
-    } finally {
-      btn.disabled = false;
+    } catch(err){
+      rkBtnLoading(btn, false);
+      showToast('خطأ غير متوقع');
     }
   });
 }
@@ -6919,8 +7816,9 @@ async function waLinkApiCall(method, url, body){
    platform, used by the monthly reconciliation report (renderDeliveryReconciliation)
    to compute exactly what each platform keeps vs. owes the business. */
 async function renderDeliveryPlatformsSettings(){
-  const panel = document.getElementById('settingsPanelBody');
-  panel.innerHTML = '<div class="panel"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>';
+  const panel = document.getElementById('deliveryPlatformsPanelBody');
+  if(!panel) return;
+  panel.innerHTML = '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p>';
   const [{data: platforms}, {data: tiers}] = await Promise.all([
     window.supabaseClient.from('delivery_platforms').select('*').eq('business_id', CURRENT_PROFILE.business_id).order('id'),
     window.supabaseClient.from('delivery_platform_fee_tiers').select('*').order('min_order_value')
@@ -6931,63 +7829,57 @@ async function renderDeliveryPlatformsSettings(){
   panel.innerHTML = (platforms||[]).map(p=>{
     const platformTiers = tiersByPlatform[p.id] || [];
     return `
-    <div class="panel" style="margin-bottom:16px;" data-platform-panel="${p.id}">
-      <div class="panel-title"><span>${p.name}${p.active?'':' — معطّلة'}</span></div>
-      <div class="menu-add-row" style="margin-bottom:14px;">
-        <div class="menu-add-field"><label>نسبة عمولة المنصة (٪)</label><input type="number" step="0.1" class="dp-commission" value="${p.commission_pct}"></div>
-        <div class="menu-add-field"><label>تحسب العمولة من</label>
+    <div class="rk-subcard" data-platform-panel="${p.id}">
+      <div class="rk-subcard-title">${p.name}${p.active?'':' <span class="rk-badge warn">معطّلة</span>'}</div>
+      <div class="rk-grid-2" style="margin-bottom:14px;">
+        <div class="rk-field"><label>نسبة عمولة المنصة (٪)</label><input type="number" step="0.1" class="dp-commission" value="${p.commission_pct}"></div>
+        <div class="rk-field"><label>تحسب العمولة من</label>
           <select class="dp-commission-base">
             <option value="total" ${p.commission_base==='total'?'selected':''}>الإجمالي شامل الضريبة</option>
             <option value="subtotal" ${p.commission_base==='subtotal'?'selected':''}>المجموع قبل الضريبة</option>
           </select>
         </div>
       </div>
-      <div class="menu-add-field" style="margin-bottom:14px; max-width:260px;">
+      <div class="rk-field" style="margin-bottom:14px; max-width:280px;">
         <label>نموذج رسوم التوصيل</label>
         <select class="dp-fee-model">
           <option value="flat" ${p.fee_model==='flat'?'selected':''}>رسم ثابت لكل الطلبات</option>
           <option value="tiered" ${p.fee_model==='tiered'?'selected':''}>يتدرّج حسب قيمة الطلب</option>
         </select>
       </div>
-      <div class="dp-flat-fee-field" style="margin-bottom:14px; max-width:260px;">
-        <div class="menu-add-field"><label class="dp-flat-fee-label">${p.fee_model==='tiered' ? 'رسم ثابت إضافي لكل طلب (اختياري)' : 'رسم التوصيل الثابت (ر.س)'}</label><input type="number" step="0.01" class="dp-flat-fee" value="${p.flat_fee}"></div>
-        ${p.fee_model==='tiered' ? `<p class="stock-qty-helper" style="margin-top:4px;">يُضاف فوق رسم الشريحة في كل طلب — مثال: هنقرستيشن تاخذ رسم شريحة + 2 ر.س ثابتة لكل طلب. سيبه صفر إذا ما فيه رسم إضافي.</p>` : ''}
+      <div class="dp-flat-fee-field rk-field" style="margin-bottom:14px; max-width:280px;">
+        <label class="dp-flat-fee-label">${p.fee_model==='tiered' ? 'رسم ثابت إضافي لكل طلب (اختياري)' : 'رسم التوصيل الثابت (ر.س)'}</label>
+        <input type="number" step="0.01" class="dp-flat-fee" value="${p.flat_fee}">
+        ${p.fee_model==='tiered' ? `<p class="stock-qty-helper" style="margin-top:6px;">يُضاف فوق رسم الشريحة في كل طلب — مثال: هنقرستيشن تاخذ رسم شريحة + 2 ر.س ثابتة لكل طلب. سيبه صفر إذا ما فيه رسم إضافي.</p>` : ''}
       </div>
       <div class="dp-tiers-field" style="display:${p.fee_model==='tiered'?'block':'none'}; margin-bottom:14px;">
         <label style="font-size:11.5px; font-weight:700; color:var(--muted);">درجات الرسوم — الرسم يطبّق لأعلى حد أدنى تحقق قيمة الطلب</label>
         <div class="dp-tiers-list" style="margin-top:8px;">
           ${platformTiers.map((t,i)=>`
-            <div class="menu-add-row dp-tier-row" data-idx="${i}" style="margin-bottom:8px; align-items:end;">
-              <div class="menu-add-field"><label>الطلب من (ر.س)</label><input type="number" step="0.01" class="dp-tier-min" value="${t.min_order_value}"></div>
-              <div class="menu-add-field"><label>رسم التوصيل (ر.س)</label><input type="number" step="0.01" class="dp-tier-fee" value="${t.fee}"></div>
-              <button class="mtr-edit-btn dp-tier-remove" data-idx="${i}" style="align-self:end;">حذف</button>
+            <div class="dp-tier-row" data-idx="${i}" style="display:flex; gap:10px; align-items:flex-end; margin-bottom:8px;">
+              <div class="rk-field" style="flex:1;"><label>الطلب من (ر.س)</label><input type="number" step="0.01" class="dp-tier-min" value="${t.min_order_value}"></div>
+              <div class="rk-field" style="flex:1;"><label>رسم التوصيل (ر.س)</label><input type="number" step="0.01" class="dp-tier-fee" value="${t.fee}"></div>
+              <button class="rk-btn rk-btn-ghost rk-btn-sm dp-tier-remove" data-idx="${i}" style="flex-shrink:0;">حذف</button>
             </div>`).join('')}
         </div>
-        <button class="mtr-edit-btn dp-tier-add" style="margin-top:6px;">+ إضافة درجة</button>
+        <button class="rk-btn rk-btn-secondary rk-btn-sm dp-tier-add" style="margin-top:6px;">${rkIcon('plus')}إضافة درجة</button>
       </div>
-      <div class="menu-add-field" style="margin-bottom:14px; max-width:260px;">
-        <label>نسبة تعويضات/استرجاعات مفترضة (٪) ${helpIcon('تقدير اختياري — لو حاب تفترض إن نسبة معينة من طلبات هذي المنصة تنتهي بتعويض أو استرجاع يخصمه منك، حط النسبة هنا وبينحسب ضمن التكلفة. سيبه صفر لو ما تبي تفترض شي.')}</label>
-        <input type="number" step="0.1" class="dp-compensation" value="${p.compensation_pct}">
+      <div class="rk-grid-2" style="margin-bottom:14px;">
+        <div class="rk-field"><label>نسبة تعويضات/استرجاعات مفترضة (٪) ${helpIcon('تقدير اختياري — لو حاب تفترض إن نسبة معينة من طلبات هذي المنصة تنتهي بتعويض أو استرجاع يخصمه منك، حط النسبة هنا وبينحسب ضمن التكلفة. سيبه صفر لو ما تبي تفترض شي.')}</label><input type="number" step="0.1" class="dp-compensation" value="${p.compensation_pct}"></div>
+        <div class="rk-field"><label>الحد الأقصى لتجهيز طلب توصيل (دقيقة) ${helpIcon('المؤقت اللي يبدأ بالكاشير فور ما يضرب طلب توصيل من هذي المنصة — تنبيه أول عند بقاء ٥ دقائق، وتنبيه ثاني إذا انتهى الوقت.')}</label><input type="number" step="1" min="1" class="dp-prep-timeout" value="${p.prep_timeout_minutes}"></div>
       </div>
-      <div class="menu-add-field" style="margin-bottom:14px; max-width:260px;">
-        <label>الحد الأقصى لتجهيز طلب توصيل (دقيقة) ${helpIcon('المؤقت اللي يبدأ بالكاشير فور ما يضرب طلب توصيل من هذي المنصة — تنبيه أول عند بقاء ٥ دقائق، وتنبيه ثاني إذا انتهى الوقت.')}</label>
-        <input type="number" step="1" min="1" class="dp-prep-timeout" value="${p.prep_timeout_minutes}">
-      </div>
-      <div style="display:flex; gap:8px;">
-        <button class="settings-save-btn dp-save-btn" data-id="${p.id}" style="width:auto; padding:0 18px;">حفظ إعدادات ${p.name}</button>
-        <button class="mtr-edit-btn dp-toggle-active" data-id="${p.id}" data-active="${p.active}">${p.active?'تعطيل المنصة':'تفعيل المنصة'}</button>
-        <button class="mtr-edit-btn dp-delete-btn" data-id="${p.id}" data-name="${p.name}" style="color:var(--danger, #a3402c); border-color:var(--danger, #a3402c);">حذف</button>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="rk-btn rk-btn-primary rk-btn-sm dp-save-btn" data-id="${p.id}">حفظ إعدادات ${p.name}</button>
+        <button class="rk-btn rk-btn-secondary rk-btn-sm dp-toggle-active" data-id="${p.id}" data-active="${p.active}">${p.active?'تعطيل المنصة':'تفعيل المنصة'}</button>
+        <button class="rk-btn rk-btn-secondary rk-btn-sm dp-delete-btn" data-id="${p.id}" data-name="${p.name}" style="color:var(--danger); border-color:var(--danger);">حذف</button>
       </div>
     </div>`;
-  }).join('') || '';
+  }).join('') || '<p class="stock-qty-helper">ما فيه منصات توصيل مضافة بعد.</p>';
 
   panel.innerHTML += `
-    <div class="panel">
-      <div class="panel-title">إضافة منصة توصيل جديدة</div>
-      <div style="display:flex; gap:8px;">
-        <input type="text" id="newPlatformName" placeholder="مثال: هنقرستيشن" style="flex:1;">
-        <button class="settings-save-btn" id="addPlatformBtn" style="width:auto; padding:0 18px;">إضافة</button>
-      </div>
+    <div style="display:flex; gap:10px; align-items:flex-end; margin-top:${(platforms||[]).length?'12px':'0'};">
+      <div class="rk-field" style="flex:1; margin-bottom:0;"><label>منصة توصيل جديدة</label><input type="text" id="newPlatformName" placeholder="مثال: هنقرستيشن"></div>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="addPlatformBtn" style="flex-shrink:0;">${rkIcon('plus')}إضافة</button>
     </div>`;
 
   panel.querySelectorAll('[data-platform-panel]').forEach(block=>{
@@ -7001,12 +7893,12 @@ async function renderDeliveryPlatformsSettings(){
     block.querySelector('.dp-tier-add').addEventListener('click', ()=>{
       const list = block.querySelector('.dp-tiers-list');
       const row = document.createElement('div');
-      row.className = 'menu-add-row dp-tier-row';
-      row.style.cssText = 'margin-bottom:8px; align-items:end;';
+      row.className = 'dp-tier-row';
+      row.style.cssText = 'display:flex; gap:10px; align-items:flex-end; margin-bottom:8px;';
       row.innerHTML = `
-        <div class="menu-add-field"><label>الطلب من (ر.س)</label><input type="number" step="0.01" class="dp-tier-min" value="0"></div>
-        <div class="menu-add-field"><label>رسم التوصيل (ر.س)</label><input type="number" step="0.01" class="dp-tier-fee" value="0"></div>
-        <button class="mtr-edit-btn dp-tier-remove" style="align-self:end;">حذف</button>`;
+        <div class="rk-field" style="flex:1;"><label>الطلب من (ر.س)</label><input type="number" step="0.01" class="dp-tier-min" value="0"></div>
+        <div class="rk-field" style="flex:1;"><label>رسم التوصيل (ر.س)</label><input type="number" step="0.01" class="dp-tier-fee" value="0"></div>
+        <button class="rk-btn rk-btn-ghost rk-btn-sm dp-tier-remove" style="flex-shrink:0;">حذف</button>`;
       list.appendChild(row);
       row.querySelector('.dp-tier-remove').addEventListener('click', ()=> row.remove());
     });
@@ -7030,7 +7922,7 @@ async function renderDeliveryPlatformsSettings(){
       }));
       const compensationPct = parseFloat(block.querySelector('.dp-compensation').value) || 0;
       const prepTimeoutMinutes = parseInt(block.querySelector('.dp-prep-timeout').value, 10) || 17;
-      btn.disabled = true;
+      rkBtnLoading(btn, true);
       try {
         const { error: updateError } = await window.supabaseClient.from('delivery_platforms').update({
           commission_pct: commissionPct, commission_base: commissionBase, fee_model: feeModel,
@@ -7045,11 +7937,10 @@ async function renderDeliveryPlatformsSettings(){
           if(insertTiersError) throw insertTiersError;
         }
         logDashboardAudit('حدّث إعدادات منصة توصيل');
-        showToast('تم الحفظ');
+        rkBtnSuccess(btn, '✓ تم الحفظ');
       } catch(err){
+        rkBtnLoading(btn, false);
         showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-      } finally {
-        btn.disabled = false;
       }
     });
   });
@@ -7057,11 +7948,13 @@ async function renderDeliveryPlatformsSettings(){
   panel.querySelectorAll('.dp-toggle-active').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       const makeActive = btn.dataset.active !== 'true';
+      rkBtnLoading(btn, true);
       try {
         const { error } = await window.supabaseClient.from('delivery_platforms').update({active: makeActive}).eq('id', btn.dataset.id);
         if(error) throw error;
         renderDeliveryPlatformsSettings();
       } catch(err){
+        rkBtnLoading(btn, false);
         showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
       }
     });
@@ -7070,12 +7963,14 @@ async function renderDeliveryPlatformsSettings(){
   panel.querySelectorAll('.dp-delete-btn').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       if(!window.confirm('متأكد إنك تبي تحذف "' + btn.dataset.name + '"؟')) return;
+      rkBtnLoading(btn, true);
       try {
         const { error } = await window.supabaseClient.from('delivery_platforms').delete().eq('id', btn.dataset.id);
         if(error) throw error;
         logDashboardAudit('حذف منصة توصيل: ' + btn.dataset.name);
         renderDeliveryPlatformsSettings();
       } catch(err){
+        rkBtnLoading(btn, false);
         showToast('تعذر الحذف: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
       }
     });
@@ -7086,6 +7981,7 @@ async function renderDeliveryPlatformsSettings(){
     const input = document.getElementById('newPlatformName');
     const name = input.value.trim();
     if(!name){ showToast('اكتب اسم المنصة'); return; }
+    rkBtnLoading(addBtn, true);
     try {
       const { error } = await window.supabaseClient.from('delivery_platforms')
         .insert({ business_id: CURRENT_PROFILE.business_id, name });
@@ -7093,6 +7989,7 @@ async function renderDeliveryPlatformsSettings(){
       logDashboardAudit('أضاف منصة توصيل جديدة: ' + name);
       renderDeliveryPlatformsSettings();
     } catch(err){
+      rkBtnLoading(addBtn, false);
       showToast('تعذرت الإضافة: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
     }
   });
@@ -7107,7 +8004,7 @@ async function renderDeliveryPlatformsSettings(){
    next to that item's normal price than in a separate matrix. ============ */
 async function renderBranchesSettings(){
   const panel = document.getElementById('settingsPanelBody');
-  panel.innerHTML = '<div class="panel"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>';
+  panel.innerHTML = '<div class="rk-section"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>';
   const [{data: business}, {data: branches}] = await Promise.all([
     window.supabaseClient.from('businesses').select('branch_limit').eq('id', CURRENT_PROFILE.business_id).single(),
     window.supabaseClient.from('branches').select('id, name, address, lat, lng, opening_time, closing_time').eq('business_id', CURRENT_PROFILE.business_id).order('id')
@@ -7117,36 +8014,38 @@ async function renderBranchesSettings(){
   const atLimit = count >= limit;
 
   panel.innerHTML = `
-    <div class="panel">
-      <div class="panel-title"><span>الفروع (${count} من ${limit})</span></div>
-      <p class="stock-qty-helper" style="margin-top:-4px; margin-bottom:12px;">موقع كل فرع يُستخدم بالمنيو الإلكتروني — يختار العميل فرع الاستلام، وللتوصيل يتحدد أقرب فرع لموقعه تلقائيًا.</p>
-      <div style="display:flex; flex-direction:column; gap:14px;">
-        ${(branches||[]).map(b=>`
-          <div class="branch-row" data-branch="${b.id}" style="border:1px solid var(--line, #eee); border-radius:12px; padding:12px;">
-            <div style="font-weight:800; font-size:13.5px; margin-bottom:8px;">${b.name}</div>
-            <div class="settings-field-row"><label>العنوان</label><input type="text" class="branch-address-input" value="${b.address||''}" placeholder="الحي، المدينة"></div>
-            <div style="display:flex; gap:8px; align-items:end;">
-              <div class="menu-add-field" style="flex:1;"><label>خط العرض (Lat)</label><input type="number" class="branch-lat-input" value="${b.lat??''}" step="0.000001"></div>
-              <div class="menu-add-field" style="flex:1;"><label>خط الطول (Lng)</label><input type="number" class="branch-lng-input" value="${b.lng??''}" step="0.000001"></div>
-              <button class="settings-save-btn branch-locate-btn" type="button" style="width:auto; padding:0 14px; margin:0; height:38px;">📍 موقعي الحالي</button>
-            </div>
-            <div style="display:flex; gap:8px; margin-top:10px;">
-              <div class="menu-add-field" style="flex:1;"><label>وقت الفتح</label><input type="time" class="branch-open-input" value="${(b.opening_time||'').slice(0,5)}"></div>
-              <div class="menu-add-field" style="flex:1;"><label>وقت الإغلاق</label><input type="time" class="branch-close-input" value="${(b.closing_time||'').slice(0,5)}"></div>
-            </div>
-            <p class="stock-qty-helper" style="margin-top:2px; margin-bottom:0;">تُستخدم لتحديد وقت استلام الطلبات بالمنيو الإلكتروني — سيبها فاضية لو ما تبي خيار "وقت لاحق" للاستلام.</p>
-            <button class="settings-save-btn branch-save-btn" style="margin-top:10px;">حفظ موقع الفرع</button>
+    <div class="rk-section">
+      <div class="rk-section-head">
+        <div class="rk-section-icon">${rkIcon('mapPin')}</div>
+        <div>
+          <div class="rk-section-title">الفروع <span class="rk-badge${atLimit?' warn':''}">${count} من ${limit}</span></div>
+          <div class="rk-section-sub">موقع كل فرع يُستخدم بالمتجر الإلكتروني — يختار العميل فرع الاستلام، وللتوصيل يتحدد أقرب فرع لموقعه تلقائيًا.</div>
+        </div>
+      </div>
+      ${(branches||[]).map(b=>`
+        <div class="rk-subcard" data-branch="${b.id}">
+          <div class="rk-subcard-title">${b.name}</div>
+          <div class="rk-field" style="margin-bottom:14px;"><label>العنوان</label><input type="text" class="branch-address-input" value="${b.address||''}" placeholder="الحي، المدينة"></div>
+          <div class="rk-grid-2" style="margin-bottom:14px;">
+            <div class="rk-field"><label>خط العرض (Lat)</label><input type="number" class="branch-lat-input" value="${b.lat??''}" step="0.000001"></div>
+            <div class="rk-field"><label>خط الطول (Lng)</label><input type="number" class="branch-lng-input" value="${b.lng??''}" step="0.000001"></div>
           </div>
-        `).join('') || '<p class="stock-qty-helper">ما فيه فروع بعد.</p>'}
+          <button class="rk-btn rk-btn-secondary rk-btn-sm branch-locate-btn" type="button" style="margin-bottom:14px;">${rkIcon('crosshair')}استخدم موقعي الحالي</button>
+          <div class="rk-grid-2">
+            <div class="rk-field"><label>وقت الفتح ${helpIcon('تُستخدم لتحديد وقت استلام الطلبات بالمتجر الإلكتروني — سيبها فاضية لو ما تبي خيار "وقت لاحق" للاستلام.')}</label><input type="time" class="branch-open-input" value="${(b.opening_time||'').slice(0,5)}"></div>
+            <div class="rk-field"><label>وقت الإغلاق</label><input type="time" class="branch-close-input" value="${(b.closing_time||'').slice(0,5)}"></div>
+          </div>
+          <button class="rk-btn rk-btn-primary rk-btn-sm branch-save-btn" style="margin-top:14px;">حفظ موقع الفرع</button>
+        </div>
+      `).join('') || '<p class="stock-qty-helper">ما فيه فروع بعد.</p>'}
+      <div style="display:flex; gap:10px; align-items:flex-end; margin-top:18px;">
+        <div class="rk-field" style="flex:1; margin-bottom:0;"><label>اسم الفرع الجديد</label><input type="text" id="newBranchName" placeholder="مثال: فرع العليا" ${atLimit?'disabled':''}></div>
+        <button class="rk-btn rk-btn-primary rk-btn-md" id="addBranchBtn" ${atLimit?'disabled':''} style="flex-shrink:0;">${rkIcon('plus')}إضافة</button>
       </div>
-      <div style="display:flex; gap:8px; margin-top:14px;">
-        <input type="text" id="newBranchName" placeholder="اسم الفرع الجديد" style="flex:1;" ${atLimit?'disabled':''}>
-        <button class="settings-save-btn" id="addBranchBtn" style="width:auto; padding:0 18px;" ${atLimit?'disabled':''}>إضافة فرع</button>
-      </div>
-      ${atLimit ? '<p class="stock-qty-helper" style="margin-top:10px;">وصلت الحد الأقصى لعدد الفروع المسموح باشتراكك الحالي. لزيادة العدد، تواصل مع ركين.</p>' : ''}
+      ${atLimit ? '<p class="stock-qty-helper" style="margin-top:12px; color:var(--amber); font-weight:700; background:rgba(224,134,46,0.1);">وصلت الحد الأقصى لعدد الفروع المسموح باشتراكك الحالي — لزيادة العدد تواصل مع ركين.</p>' : ''}
     </div>`;
 
-  panel.querySelectorAll('.branch-row').forEach(row=>{
+  panel.querySelectorAll('.rk-subcard[data-branch]').forEach(row=>{
     const branchId = row.dataset.branch;
     row.querySelector('.branch-locate-btn').addEventListener('click', (e)=>{
       e.preventDefault();
@@ -7160,20 +8059,24 @@ async function renderBranchesSettings(){
         ()=> showToast('تعذر الوصول للموقع — تأكد من إذن الموقع بالمتصفح')
       );
     });
-    row.querySelector('.branch-save-btn').addEventListener('click', async ()=>{
+    const saveBtn = row.querySelector('.branch-save-btn');
+    saveBtn.addEventListener('click', async ()=>{
       const address = row.querySelector('.branch-address-input').value.trim() || null;
       const latVal = row.querySelector('.branch-lat-input').value;
       const lngVal = row.querySelector('.branch-lng-input').value;
       const openVal = row.querySelector('.branch-open-input').value;
       const closeVal = row.querySelector('.branch-close-input').value;
+      rkBtnLoading(saveBtn, true);
       try {
         const { error } = await window.supabaseClient.from('branches').update({
           address, lat: latVal===''?null:parseFloat(latVal), lng: lngVal===''?null:parseFloat(lngVal),
           opening_time: openVal || null, closing_time: closeVal || null
         }).eq('id', branchId);
         if(error) throw error;
-        showToast('تم حفظ موقع الفرع'); logDashboardAudit('عدّل موقع فرع');
+        logDashboardAudit('عدّل موقع فرع');
+        rkBtnSuccess(saveBtn, '✓ تم الحفظ');
       } catch(err){
+        rkBtnLoading(saveBtn, false);
         showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
       }
     });
@@ -7184,6 +8087,7 @@ async function renderBranchesSettings(){
     const input = document.getElementById('newBranchName');
     const name = input.value.trim();
     if(!name){ showToast('اكتب اسم الفرع'); return; }
+    rkBtnLoading(addBtn, true);
     try {
       const { error } = await window.supabaseClient.from('branches')
         .insert({ business_id: CURRENT_PROFILE.business_id, name });
@@ -7191,6 +8095,7 @@ async function renderBranchesSettings(){
       logDashboardAudit('أضاف فرع جديد: ' + name);
       renderBranchesSettings();
     } catch(err){
+      rkBtnLoading(addBtn, false);
       const msg = (err && err.message && err.message.includes('branch_limit_reached'))
         ? 'وصلت الحد الأقصى لعدد الفروع المسموح باشتراكك الحالي.'
         : 'تعذرت الإضافة: ' + (err && err.message ? err.message : 'خطأ غير متوقع');
@@ -7225,13 +8130,28 @@ function zatcaQrBase64ForPreview(sellerName, vatNumber, timestampISO, totalWithV
   combined.forEach(b=> binary += String.fromCharCode(b));
   return btoa(binary);
 }
+const rkPosHidePopularStatus = c => c
+  ? {text:'مخفي — الكاشير ما يشوف تبويب "الأكثر طلبًا"', tone:''}
+  : {text:'ظاهر — يسهّل على الكاشير الوصول للأصناف الأكثر طلبًا بسرعة', tone:'ok'};
+const rkPosHideSearchStatus = c => c
+  ? {text:'⚠ مخفي — الكاشير ما يقدر يبحث أو يمسح باركود، لازم يتصفح يدويًا', tone:'warn'}
+  : {text:'ظاهر — الكاشير يقدر يبحث أو يمسح باركود لإضافة صنف بسرعة', tone:'ok'};
+const rkPosHideHoldStatus = c => c
+  ? {text:'⚠ مخفي — الكاشير ما يقدر يعلّق طلب ويرجع له لاحقًا', tone:'warn'}
+  : {text:'ظاهر — الكاشير يقدر يعلّق طلب مؤقتًا ويرجع له', tone:'ok'};
+const rkPosHideImagesStatus = c => c
+  ? {text:'مخفية — تظهر أيقونة عادية بدل صورة كل منتج (أسرع تحميل)', tone:''}
+  : {text:'ظاهرة — يشوف الكاشير صورة كل منتج فعليًا', tone:'ok'};
+const rkPosHideBellStatus = c => c
+  ? {text:'⚠ مخفي — ما يوصل الكاشير أي تذكير قبل انتهاء وقت تجهيز طلب توصيل', tone:'warn'}
+  : {text:'ظاهر — ينبّه الكاشير قبل ما ينتهي وقت تجهيز طلب التوصيل', tone:'ok'};
+
 function receiptPreviewHtml(){
   const hasVat = !!BUSINESS_VAT_NUMBER;
   const qrPayload = hasVat ? zatcaQrBase64ForPreview(RESTAURANT_INFO.name || 'ركين', BUSINESS_VAT_NUMBER, new Date().toISOString(), '113.85', '14.85') : null;
   return `
-    <div class="panel" style="margin-bottom:16px;">
-      <div class="panel-title"><span>شكل الفاتورة</span></div>
-      <p class="stock-qty-helper" style="margin-bottom:14px;">هذا شكل الفاتورتين اللي يطبعهما جهاز الكاشير — مو تعديل، بس عشان تشوفها بدون ما تروح للجهاز فعليًا.</p>
+    <div class="rk-section" style="margin-bottom:16px;">
+      ${rkSectionHead('fileText', 'شكل الفاتورة', 'هذا شكل الفاتورتين اللي يطبعهما جهاز الكاشير — مو تعديل، بس عشان تشوفها بدون ما تروح للجهاز فعليًا')}
       <div style="display:flex; gap:16px; flex-wrap:wrap;">
         <div style="flex:1; min-width:220px; max-width:280px; background:#fff; color:#111; border-radius:10px; padding:16px; font-family:'IBM Plex Sans Arabic',sans-serif;">
           ${BUSINESS_LOGO_URL ? `<div style="text-align:center; margin-bottom:8px;"><img src="${BUSINESS_LOGO_URL}" alt="" style="width:46px; height:46px; border-radius:50%; object-fit:cover;"></div>` : ''}
@@ -7241,7 +8161,8 @@ function receiptPreviewHtml(){
           ${hasVat ? `<div style="text-align:center; font-weight:800; font-size:11.5px; margin-top:8px;">فاتورة ضريبية مبسطة</div>
           <div style="text-align:center; font-size:10.5px; color:#555;">الرقم الضريبي: ${BUSINESS_VAT_NUMBER}</div>` : `<div style="text-align:center; font-size:10.5px; color:#a87a1e; margin-top:8px;">⚠ بدون رقم ضريبي — ما راح يطبع رمز QR</div>`}
           <div style="border-top:1px dashed #ccc; margin:10px 0;"></div>
-          <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:4px;"><span>1 × برجر لحم مشوي</span><span style="font-family:monospace;">24.00</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:4px;"><span>2 × برجر لحم مشوي</span><span style="font-family:monospace;">70.00</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:4px;"><span>1 × بطاطس مقلية</span><span style="font-family:monospace;">29.00</span></div>
           <div style="border-top:1px dashed #ccc; margin:10px 0;"></div>
           <div style="display:flex; justify-content:space-between; font-size:11.5px;"><span>المجموع الفرعي</span><span style="font-family:monospace;">99.00</span></div>
           <div style="display:flex; justify-content:space-between; font-size:11.5px;"><span>ضريبة القيمة المضافة</span><span style="font-family:monospace;">14.85</span></div>
@@ -7256,7 +8177,7 @@ function receiptPreviewHtml(){
           <div style="border-top:1px dashed #ccc; margin:10px 0;"></div>
           <div style="font-weight:800; font-size:15px;">2 × برجر لحم مشوي</div>
           <div style="font-size:11px; color:#555; padding-inline-start:10px;">— حجم كبير</div>
-          <div style="font-size:11px; font-weight:700; padding-inline-start:10px;">📝 بدون بصل</div>
+          <div style="font-size:11px; font-weight:700; padding-inline-start:10px;">بدون بصل</div>
           <div style="font-weight:800; font-size:15px; margin-top:8px;">1 × بطاطس مقلية</div>
           <div style="text-align:center; font-size:9.5px; color:#999; margin-top:14px;">— فاتورة المطبخ (بدون أسعار) —</div>
         </div>
@@ -7265,19 +8186,23 @@ function receiptPreviewHtml(){
 }
 
 async function renderPosSettings(){
-  const panel = document.getElementById('settingsPanelBody');
+  const panel = document.getElementById('posSettingsPanelBody');
   panel.innerHTML = '<div class="panel"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>';
+  RECEIPT_THEME = await loadReceiptTheme();
   const { data: branches } = await window.supabaseClient
     .from('branches').select('id, name').eq('business_id', CURRENT_PROFILE.business_id).order('id');
-  const { data: staff } = await window.supabaseClient
-    .from('staff_members').select('id, branch_id, name, active, is_reservation_host').eq('active', true).order('id');
   const { data: tables } = await window.supabaseClient
     .from('restaurant_tables').select('id, branch_id, number, active_order_id, section_id').eq('business_id', CURRENT_PROFILE.business_id).order('number');
   const { data: tableSections } = await window.supabaseClient
     .from('table_sections').select('id, branch_id, name, sort_order').eq('business_id', CURRENT_PROFILE.business_id).order('sort_order');
   const { data: kitchenSettings } = await window.supabaseClient
-    .from('businesses').select('kitchen_ready_mode, kitchen_auto_ready_minutes, kitchen_new_order_sound_enabled, tables_reservations_enabled, tables_reservation_deposit_enabled, tables_reservation_deposit_percent, tables_turn_time_enabled, tables_turn_time_minutes, tables_reservation_conflict_warning_enabled, dine_in_pay_timing, tables_specific_booking_enabled, auto_ready_dine_in, auto_ready_pickup, auto_ready_delivery_platform, auto_ready_delivery_online')
+    .from('businesses').select('kitchen_ready_mode, kitchen_auto_ready_minutes, kitchen_new_order_sound_enabled, tables_reservations_enabled, tables_reservation_deposit_enabled, tables_reservation_deposit_percent, tables_turn_time_enabled, tables_turn_time_minutes, tables_reservation_conflict_warning_enabled, dine_in_pay_timing, tables_specific_booking_enabled, auto_ready_dine_in, auto_ready_pickup, auto_ready_delivery_platform, auto_ready_delivery_online, pos_hide_popular_tab, pos_hide_search, pos_hide_hold, pos_hide_product_images, pos_hide_notif_bell')
     .eq('id', CURRENT_PROFILE.business_id).single();
+  const hidePopular = !!(kitchenSettings && kitchenSettings.pos_hide_popular_tab);
+  const hideSearch = !!(kitchenSettings && kitchenSettings.pos_hide_search);
+  const hideHold = !!(kitchenSettings && kitchenSettings.pos_hide_hold);
+  const hideImages = !kitchenSettings || kitchenSettings.pos_hide_product_images !== false;
+  const hideBell = !!(kitchenSettings && kitchenSettings.pos_hide_notif_bell);
   const kMode = kitchenSettings && kitchenSettings.kitchen_ready_mode === 'auto' ? 'auto' : 'manual';
   const kMinutes = (kitchenSettings && kitchenSettings.kitchen_auto_ready_minutes) || 15;
   const kSound = !kitchenSettings || kitchenSettings.kitchen_new_order_sound_enabled !== false;
@@ -7294,115 +8219,167 @@ async function renderPosSettings(){
   const autoReadyDeliveryPlatform = !!(kitchenSettings && kitchenSettings.auto_ready_delivery_platform);
   const autoReadyDeliveryOnline = !!(kitchenSettings && kitchenSettings.auto_ready_delivery_online);
 
+  const receiptThemePanel = `
+    <div class="rk-section">
+      ${rkSectionHead('fileText', 'شكل الفاتورة المطبوعة', 'يطبّق على كل أجهزة الكاشير — كل الأشكال تطبع فاتورة ضريبية مبسطة معتمدة')}
+      <div class="rk-field">
+        <label>اختر الشكل</label>
+        <select id="receiptThemeSelect">
+          ${RECEIPT_THEMES.map(t => `<option value=\"${t.id}\" ${RECEIPT_THEME === t.id ? 'selected' : ''}>${t.label}</option>`).join('')}
+        </select>
+      </div>
+      <p class="stock-qty-helper" id="receiptThemeDesc" style="margin-top:8px;">${(RECEIPT_THEMES.find(t => t.id === RECEIPT_THEME) || RECEIPT_THEMES[0]).desc}</p>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="receiptThemeSaveBtn" style="margin-top:6px;">حفظ الشكل</button>
+    </div>`;
+
   const receiptMessagePanel = `
-    <div class="panel" style="margin-bottom:16px;">
-      <div class="panel-title"><span>رسالة أسفل فاتورة العميل</span></div>
-      <div class="settings-field-row">
+    <div class="rk-section">
+      ${rkSectionHead('messageCircle', 'رسالة أسفل فاتورة العميل', 'سطر قصير يطبع تحت رمز QR — شكر، أو أي رسالة تحبها')}
+      <div class="rk-field">
         <input type="text" id="settingsReceiptMessage" value="${RECEIPT_CUSTOM_MESSAGE || ''}" placeholder="شكراً لزيارتكم" maxlength="120">
       </div>
-      <p class="stock-qty-helper" style="margin-top:-6px;">تُطبع تحت رمز QR بفاتورة العميل — سيبها فاضية لتبقى "شكراً لزيارتكم" الافتراضية.</p>
-      <button class="settings-save-btn" id="receiptMessageSaveBtn" style="width:auto; padding:0 18px;">حفظ الرسالة</button>
+      <p class="stock-qty-helper" style="margin-top:8px;">سيبها فاضية لتبقى "شكراً لزيارتكم" الافتراضية.</p>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="receiptMessageSaveBtn" style="margin-top:6px;">حفظ الرسالة</button>
     </div>`;
 
   const kitchenPanel = `
-    <div class="panel" style="margin-bottom:16px;">
-      <div class="panel-title"><span>آلية شاشة المطبخ</span></div>
-      <div class="settings-field-row">
+    <div class="rk-section">
+      ${rkSectionHead('coffee', 'آلية شاشة المطبخ', 'كيف تنتهي فاتورة الطلب من شاشة المطبخ')}
+      <div class="rk-field">
         <label>كيف تنتهي الطلبات من شاشة المطبخ؟</label>
         <select id="kitchenReadyModeSelect">
           <option value="manual" ${kMode==='manual'?'selected':''}>يدوي — الموظف يضغط "تم التجهيز"</option>
           <option value="auto" ${kMode==='auto'?'selected':''}>تلقائي — تختفي الفاتورة بعد وقت محدد بدون ضغط</option>
         </select>
       </div>
-      <div class="settings-field-row" id="kitchenAutoMinutesRow" style="${kMode==='auto'?'':'display:none;'}">
+      <div class="rk-field" id="kitchenAutoMinutesRow" style="margin-top:12px; max-width:160px; ${kMode==='auto'?'':'display:none;'}">
         <label>الوقت التلقائي (بالدقائق)</label>
-        <input type="number" id="kitchenAutoMinutesInput" value="${kMinutes}" min="1" max="120" style="max-width:120px;">
+        <input type="number" id="kitchenAutoMinutesInput" value="${kMinutes}" min="1" max="120">
       </div>
-      <div class="settings-field-row">
-        <label><input type="checkbox" id="kitchenSoundToggle" ${kSound?'checked':''}> صوت تنبيه بشاشة المطبخ عند وصول طلب جديد</label>
+      <div class="rk-switch-row" style="margin-top:8px;">
+        <div class="rk-switch-text"><label class="rk-switch-label" for="kitchenSoundToggle">صوت تنبيه بشاشة المطبخ عند وصول طلب جديد</label></div>
+        <label class="rk-switch"><input type="checkbox" id="kitchenSoundToggle" ${kSound?'checked':''}><span class="rk-switch-track"></span></label>
       </div>
-      <button class="settings-save-btn" id="kitchenSettingsSaveBtn" style="width:auto; padding:0 18px;">حفظ إعدادات المطبخ</button>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="kitchenSettingsSaveBtn" style="margin-top:14px;">حفظ إعدادات المطبخ</button>
     </div>`;
 
   const autoReadyPanel = `
-    <div class="panel" style="margin-bottom:16px;">
-      <div class="panel-title"><span>تخطي مرحلة "جاهز" ${helpIcon('لو فعّلت هذا لقناة معينة، أي طلب جديد فيها يتسجّل جاهز مباشرة عند إنشائه — بدون ما ينتظر أحد يضغط "جاهز" بالكاشير أو شاشة المطبخ. فعّلها بس للقنوات اللي فعليًا ما تحتاج تجهيز يُنتظر (مثلاً كاونتر تسليم فوري).')}</span></div>
-      <div class="settings-field-row">
-        <label><input type="checkbox" id="autoReadyDineInToggle" ${autoReadyDineIn?'checked':''}> الطاولات (Dine-in)</label>
+    <div class="rk-section">
+      ${rkSectionHead('zap', 'تخطي مرحلة "جاهز"', 'القنوات المحددة هنا: أي طلب جديد فيها يتسجّل جاهز فورًا عند إنشائه — بدون انتظار ضغط "جاهز" بالكاشير أو شاشة المطبخ. فعّلها بس للقنوات اللي فعليًا ما تحتاج تجهيز يُنتظر (مثلاً كاونتر تسليم فوري)')}
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        ${rkCheck(`id="autoReadyDineInToggle" ${autoReadyDineIn?'checked':''}`, 'الطاولات (Dine-in)')}
+        ${rkCheck(`id="autoReadyPickupToggle" ${autoReadyPickup?'checked':''}`, 'السفري (استلام)')}
+        ${rkCheck(`id="autoReadyDeliveryPlatformToggle" ${autoReadyDeliveryPlatform?'checked':''}`, 'توصيل عبر تطبيقات التوصيل (كيتا، جاهز...)')}
+        ${rkCheck(`id="autoReadyDeliveryOnlineToggle" ${autoReadyDeliveryOnline?'checked':''}`, 'توصيل عبر متجرك الإلكتروني')}
       </div>
-      <div class="settings-field-row">
-        <label><input type="checkbox" id="autoReadyPickupToggle" ${autoReadyPickup?'checked':''}> السفري (استلام)</label>
-      </div>
-      <div class="settings-field-row">
-        <label><input type="checkbox" id="autoReadyDeliveryPlatformToggle" ${autoReadyDeliveryPlatform?'checked':''}> توصيل عبر تطبيقات التوصيل (كيتا، جاهز...)</label>
-      </div>
-      <div class="settings-field-row">
-        <label><input type="checkbox" id="autoReadyDeliveryOnlineToggle" ${autoReadyDeliveryOnline?'checked':''}> توصيل عبر متجرك الإلكتروني</label>
-      </div>
-      <button class="settings-save-btn" id="autoReadySaveBtn" style="width:auto; padding:0 18px;">حفظ</button>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="autoReadySaveBtn" style="margin-top:16px;">حفظ</button>
     </div>`;
 
   const payTimingPanel = `
-    <div class="panel" style="margin-bottom:16px;">
-      <div class="panel-title"><span>توقيت الدفع للطاولات</span></div>
-      <div class="settings-field-row">
+    <div class="rk-section">
+      ${rkSectionHead('creditCard', 'توقيت الدفع للطاولات', 'يتحكم بحالة الطاولة بالكاشير')}
+      <div class="rk-field">
         <label>متى يدفع العميل؟</label>
         <select id="dineInPayTimingSelect">
           <option value="before" ${payTiming==='before'?'selected':''}>قبل الأكل — يدفع عند تسجيل الطلب</option>
           <option value="after" ${payTiming==='after'?'selected':''}>بعد الأكل — يدفع لما يطلب الفاتورة</option>
         </select>
       </div>
-      <p class="stock-qty-helper" style="margin-top:-6px;">يتحكم بحالة الطاولة بالكاشير: "بعد الأكل" تسمح بتسجيل الطلب وإرساله للمطبخ فورًا مع تأجيل الدفع لآخر الجلسة.</p>
-      <button class="settings-save-btn" id="dineInPayTimingSaveBtn" style="width:auto; padding:0 18px;">حفظ</button>
+      <p class="stock-qty-helper" style="margin-top:8px;">"بعد الأكل" تسمح بتسجيل الطلب وإرساله للمطبخ فورًا مع تأجيل الدفع لآخر الجلسة.</p>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="dineInPayTimingSaveBtn" style="margin-top:6px;">حفظ</button>
     </div>`;
 
   const reservationsPanel = `
-    <div class="panel" style="margin-bottom:16px;">
-      <div class="panel-title"><span>حجوزات الطاولات</span></div>
-      <div class="settings-field-row">
-        <label><input type="checkbox" id="resEnabledToggle" ${resEnabled?'checked':''}> تفعيل الحجوزات بشاشة الطاولات بالكاشير</label>
-      </div>
-      <div id="resSubSettings" style="${resEnabled?'':'display:none;'}">
-        <div class="settings-field-row">
-          <label><input type="checkbox" id="resDepositToggle" ${resDepositEnabled?'checked':''}> إظهار عربون مقترح عند إنشاء الحجز</label>
+    <div class="rk-section">
+      ${rkSectionHead('calendar', 'حجوزات الطاولات', 'يتحكم بإمكانية حجز طاولة مسبقًا من شاشة الحجز المستقلة')}
+      <div class="rk-switch-row">
+        <div class="rk-switch-text">
+          <label class="rk-switch-label" for="resEnabledToggle">تفعيل الحجوزات بشاشة الطاولات بالكاشير</label>
+          <span class="rk-switch-desc ${resEnabled?'ok':''}" id="resEnabledToggleStatus">${resEnabled?'مفعّل — يقدر عميلك يحجز طاولة مسبقًا من شاشة الحجز':'معطّل — شاشة الطاولات تعمل بدون حجوزات مسبقة'}</span>
         </div>
-        <div class="settings-field-row" id="resDepositRow" style="${resDepositEnabled?'':'display:none;'}">
+        <label class="rk-switch"><input type="checkbox" id="resEnabledToggle" ${resEnabled?'checked':''}><span class="rk-switch-track"></span></label>
+      </div>
+      <div id="resSubSettings" style="margin-top:14px; ${resEnabled?'':'display:none;'}">
+        <div class="rk-switch-row">
+          <div class="rk-switch-text"><label class="rk-switch-label" for="resDepositToggle">إظهار عربون مقترح عند إنشاء الحجز</label></div>
+          <label class="rk-switch"><input type="checkbox" id="resDepositToggle" ${resDepositEnabled?'checked':''}><span class="rk-switch-track"></span></label>
+        </div>
+        <div class="rk-field" id="resDepositRow" style="margin-top:10px; max-width:220px; ${resDepositEnabled?'':'display:none;'}">
           <label>نسبة العربون (٪ من قيمة الطلب المتوقعة)</label>
-          <input type="number" id="resDepositPercentInput" value="${resDepositPercent}" min="0" max="100" style="max-width:120px;">
-          <p class="stock-qty-helper">للتوجيه فقط — يُحصّل يدويًا، ما فيه دفع أونلاين مربوط حاليًا.</p>
+          <input type="number" id="resDepositPercentInput" value="${resDepositPercent}" min="0" max="100">
+          <p class="stock-qty-helper" style="margin-top:6px; margin-bottom:0;">للتوجيه فقط — يُحصّل يدويًا، ما فيه دفع أونلاين مربوط حاليًا.</p>
         </div>
-        <div class="settings-field-row">
-          <label><input type="checkbox" id="resTurnToggle" ${resTurnEnabled?'checked':''}> إظهار مدة الجلسة على الطاولات المشغولة</label>
+        <div class="rk-switch-row">
+          <div class="rk-switch-text"><label class="rk-switch-label" for="resTurnToggle">إظهار مدة الجلسة على الطاولات المشغولة</label></div>
+          <label class="rk-switch"><input type="checkbox" id="resTurnToggle" ${resTurnEnabled?'checked':''}><span class="rk-switch-track"></span></label>
         </div>
-        <div class="settings-field-row" id="resTurnRow" style="${resTurnEnabled?'':'display:none;'}">
+        <div class="rk-field" id="resTurnRow" style="margin-top:10px; max-width:220px; ${resTurnEnabled?'':'display:none;'}">
           <label>مدة الجلسة القياسية (بالدقائق)</label>
-          <input type="number" id="resTurnMinutesInput" value="${resTurnMinutes}" min="1" max="600" style="max-width:120px;">
+          <input type="number" id="resTurnMinutesInput" value="${resTurnMinutes}" min="1" max="600">
         </div>
-        <div class="settings-field-row">
-          <label><input type="checkbox" id="resConflictToggle" ${resConflictWarning?'checked':''}> تنبيه عند حجز طاولة قريبة من حجز آخر بنفس الوقت</label>
+        <div class="rk-switch-row">
+          <div class="rk-switch-text"><label class="rk-switch-label" for="resConflictToggle">تنبيه عند حجز طاولة قريبة من حجز آخر بنفس الوقت</label></div>
+          <label class="rk-switch"><input type="checkbox" id="resConflictToggle" ${resConflictWarning?'checked':''}><span class="rk-switch-track"></span></label>
         </div>
-        <div class="settings-field-row">
-          <label><input type="checkbox" id="resSpecificBookingToggle" ${specificBookingEnabled?'checked':''}> السماح بحجز طاولة محددة مسبقًا (بالإضافة لقائمة الانتظار العادية)</label>
+        <div class="rk-switch-row">
+          <div class="rk-switch-text">
+            <label class="rk-switch-label" for="resSpecificBookingToggle">السماح بحجز طاولة محددة مسبقًا</label>
+            <span class="rk-switch-desc">بالإضافة لقائمة الانتظار العادية — العميل يختار طاولة معينة بدل الدور، وتفضل متاحة لغيره لحد ما يوصل وقته</span>
+          </div>
+          <label class="rk-switch"><input type="checkbox" id="resSpecificBookingToggle" ${specificBookingEnabled?'checked':''}><span class="rk-switch-track"></span></label>
         </div>
-        <p class="stock-qty-helper" style="margin-top:-6px;">لو مفعّل، عند إضافة أحد لقائمة الانتظار بالكاشير يقدر يختار طاولة معينة له بدل ما ينتظر بالدور — الطاولة تعرض وقت الحجز كتذكير، وتفضل متاحة لأي زبون آخر لحد ما يوصل وقته.</p>
       </div>
-      <button class="settings-save-btn" id="resSettingsSaveBtn" style="width:auto; padding:0 18px;">حفظ إعدادات الحجوزات</button>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="resSettingsSaveBtn" style="margin-top:16px;">حفظ إعدادات الحجوزات</button>
     </div>`;
 
+  const LOCK_ICON = '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path>';
   const managerPinPanel = `
-    <div class="panel" style="margin-bottom:16px;">
-      <div class="panel-title"><span>كلمة سر المدير</span></div>
-      <div class="settings-field-row">
+    <div class="rk-section">
+      <div class="rk-section-head"><div class="rk-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${LOCK_ICON}</svg></div><div><div class="rk-section-title">كلمة سر المدير</div><div class="rk-section-sub">رمز عام يطلبه جهاز الكاشير قبل إغلاق الوردية ومطابقة الكاش — مختلف عن رمز فتح الجهاز نفسه لكل فرع بالأسفل</div></div></div>
+      <div class="rk-field" style="max-width:200px;">
         <label>رمز اعتماد العمليات الحساسة (٤ أرقام)</label>
-        <div style="display:flex; gap:8px;">
-          <input type="text" maxlength="4" inputmode="numeric" id="managerPinInput" placeholder="١٢٣٤" style="max-width:120px;">
-          <button class="settings-save-btn" id="managerPinSaveBtn" style="width:auto; padding:0 18px;">تعيين / تحديث</button>
-        </div>
-        <p class="stock-qty-helper">يطلبه جهاز الكاشير قبل إغلاق الوردية (ومطابقة الكاش) — أعطِه لك أو لمن تثق فيه فقط. غيّره في أي وقت من هنا.</p>
+        <input type="text" maxlength="4" inputmode="numeric" id="managerPinInput" placeholder="١٢٣٤">
       </div>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="managerPinSaveBtn" style="margin-top:10px;">تعيين / تحديث</button>
+      <p class="stock-qty-helper" style="margin-top:10px;">أعطِه لك أو لمن تثق فيه فقط. غيّره في أي وقت من هنا.</p>
     </div>`;
-  panel.innerHTML = receiptPreviewHtml() + receiptMessagePanel + kitchenPanel + autoReadyPanel + payTimingPanel + reservationsPanel + managerPinPanel + (branches||[]).map(b=>{
-    const branchStaff = (staff||[]).filter(s=>s.branch_id===b.id);
+
+  const simplifyPanel = `
+    <div class="rk-section">
+      ${rkSectionHead('sliders', 'تبسيط واجهة الكاشير', 'لو المنيو عندك صغير أو مطعمك يعتمد أسلوب بسيط، هذي الخيارات تخفي أجزاء من شاشة الكاشير ما تحتاجها — ترجعها أي وقت')}
+      ${rkSwitchRow('posHidePopularToggle', hidePopular, 'إخفاء تبويب "الأكثر طلبًا" من شريط الأقسام', null, rkPosHidePopularStatus)}
+      ${rkSwitchRow('posHideSearchToggle', hideSearch, 'إخفاء شريط البحث/مسح الباركود', null, rkPosHideSearchStatus)}
+      ${rkSwitchRow('posHideHoldToggle', hideHold, 'إخفاء زر "تعليق الطلب"', null, rkPosHideHoldStatus)}
+      ${rkSwitchRow('posHideImagesToggle', hideImages, 'إخفاء صور المنتجات', null, rkPosHideImagesStatus)}
+      ${rkSwitchRow('posHideBellToggle', hideBell, 'إخفاء جرس تنبيهات التوصيل', null, rkPosHideBellStatus)}
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="posSimplifySaveBtn" style="margin-top:16px;">حفظ</button>
+    </div>`;
+
+  // Branch security card — PIN + staff roster only. Table/section management
+  // used to live here too, which is why it kept getting reported as "why are
+  // table options buried in branches & security" — moved out to
+  // branchTablesPanelsHtml below, grouped with the rest of "الطاولات والحجوزات".
+  // Cashier-name management (add/edit/remove/reservation-host) lives
+  // entirely in screen:hr now — the "موظفو الكاشير بهذا الفرع" list that
+  // used to live here was the exact duplication the owner flagged ("ليش
+  // موجودة بالكاشير؟ ليش ما نشيلها؟"). This card is device security only.
+  const branchSecurityPanelsHtml = (branches||[]).map(b=>{
+    return `
+    <div class="rk-section">
+      ${rkSectionHead('mapPin', b.name, 'رمز الجهاز لهذا الفرع')}
+      <div class="rk-field" style="max-width:260px;">
+        <label>رمز نقطة البيع لهذا الفرع (٤ أرقام)</label>
+        <input type="text" maxlength="4" inputmode="numeric" class="pos-pin-input" data-branch="${b.id}" placeholder="١٢٣٤">
+      </div>
+      <button class="rk-btn rk-btn-secondary rk-btn-sm pos-pin-save" data-branch="${b.id}" style="margin-top:8px;">تعيين / تحديث</button>
+      <p class="stock-qty-helper" style="margin-top:8px;">هذا الرمز يفتح جهاز الكاشير لهذا الفرع بس — كل الموظفين يستخدمونه، وبعده يختارون اسمهم من القائمة. إدارة الأسماء نفسها من شاشة "الموظفون".</p>
+    </div>`;
+  }).join('') || '<div class="rk-section"><p>ما فيه فروع بعد.</p></div>';
+
+  // Table/section management per branch — everything literally about
+  // "طاولات" lives under the "الطاولات والحجوزات" tab now, inside the
+  // dine-in-gated block below (hidden entirely when dine-in is off).
+  const branchTablesPanelsHtml = (branches||[]).map(b=>{
     const branchTables = (tables||[]).filter(t=>t.branch_id===b.id);
     const branchSections = (tableSections||[]).filter(s=>s.branch_id===b.id);
     const nextTableNumber = branchTables.reduce((max,t)=>Math.max(max,t.number),0) + 1;
@@ -7410,43 +8387,19 @@ async function renderPosSettings(){
     const sectionOptionsHtml = (selectedId) => '<option value="">بدون قسم</option>' +
       branchSections.map(s=>`<option value="${s.id}" ${selectedId===s.id?'selected':''}>${s.name}</option>`).join('');
     return `
-    <div class="panel" style="margin-bottom:16px;">
-      <div class="panel-title"><span>${b.name}</span></div>
-      <div class="settings-field-row">
-        <label>رمز نقطة البيع لهذا الفرع (٤ أرقام)</label>
-        <div style="display:flex; gap:8px;">
-          <input type="text" maxlength="4" inputmode="numeric" class="pos-pin-input" data-branch="${b.id}" placeholder="١٢٣٤" style="max-width:120px;">
-          <button class="settings-save-btn pos-pin-save" data-branch="${b.id}" style="width:auto; padding:0 18px;">تعيين / تحديث</button>
-        </div>
-        <p class="stock-qty-helper">هذا الرمز يفتح جهاز الكاشير لهذا الفرع بس — كل الموظفين يستخدمونه، وبعده يختارون اسمهم من القائمة تحت.</p>
+    <div class="rk-section">
+      ${rkSectionHead('grid', 'طاولات ' + b.name, 'الأقسام والطاولات الفعلية بهذا الفرع، ورابط شاشة الحجز المستقلة')}
+
+      <div class="rk-subsection" style="margin-top:0; padding-top:0; border-top:none;">
+        <label class="rk-subhead">رابط شاشة الحجز المستقلة</label>
+        <p class="stock-qty-helper">بدون كاشير أو دفع — لجهاز منفصل عند مضيف الاستقبال.</p>
+        <input type="text" readonly value="${(typeof window!=='undefined'?window.location.origin:'')}/pos/host" class="mono host-link-input" style="width:100%; box-sizing:border-box; font-size:11px; background:var(--card-bg); border:1px solid var(--line); border-radius:var(--r-sm); padding:10px;">
       </div>
-      <div class="settings-field-row" style="margin-top:14px;">
-        <label>موظفو الكاشير بهذا الفرع</label>
-        <div class="checklist" style="margin-top:4px;">
-          ${branchStaff.length ? branchStaff.map(s=>`
-            <div class="check-item" style="opacity:1; transform:none;">
-              <span style="flex:1;">${s.name}</span>
-              <label style="display:flex; align-items:center; gap:5px; font-size:11px; font-weight:600; color:var(--muted); cursor:pointer;">
-                <input type="checkbox" class="staff-host-toggle" data-id="${s.id}" ${s.is_reservation_host?'checked':''}> مخصص للحجز
-              </label>
-              <button class="mtr-edit-btn staff-remove-btn" data-id="${s.id}">حذف</button>
-            </div>`).join('') : '<p class="stock-qty-helper">ما فيه موظفين مضافين لهذا الفرع.</p>'}
-        </div>
-        <div style="display:flex; gap:8px; margin-top:10px;">
-          <input type="text" class="staff-name-input" data-branch="${b.id}" placeholder="اسم الموظف">
-          <button class="settings-save-btn staff-add-btn" data-branch="${b.id}" style="width:auto; padding:0 18px;">إضافة</button>
-        </div>
-        <p class="stock-qty-helper" style="margin-top:8px;">"مخصص للحجز" تظهره أول القائمة بشاشة الحجز المستقلة تحت — ما تمنع باقي الموظفين من استخدامها.</p>
-        <div style="margin-top:10px; padding:10px 12px; background:var(--surf1); border-radius:var(--r-md);">
-          <p class="stock-qty-helper" style="margin:0 0 6px;">رابط شاشة الحجز والطاولات المستقلة (بدون كاشير أو دفع) — لجهاز منفصل عند مضيف الاستقبال:</p>
-          <div style="display:flex; gap:8px; align-items:center;">
-            <input type="text" readonly value="${(typeof window!=='undefined'?window.location.origin:'')}/pos/host" class="mono host-link-input" style="flex:1; font-size:11px; background:var(--card-bg); border:1px solid var(--line); border-radius:var(--r-sm); padding:8px;">
-          </div>
-        </div>
-      </div>
-      <div class="settings-field-row" style="margin-top:14px;">
-        <label>أقسام هذا الفرع <span class="stock-qty-helper" style="display:inline;">(اختياري — عائلات/شباب/داخلي...، تظهر كعناوين تجمع الطاولات بشاشة الكاشير)</span></label>
-        <div class="checklist" style="margin-top:4px; flex-wrap:wrap; flex-direction:row; gap:8px;">
+
+      <div class="rk-subsection">
+        <label class="rk-subhead">أقسام هذا الفرع</label>
+        <p class="stock-qty-helper">اختياري — عائلات/شباب/داخلي...، تظهر كعناوين تجمع الطاولات بشاشة الكاشير.</p>
+        <div class="checklist" style="flex-wrap:wrap; flex-direction:row; gap:8px;">
           ${branchSections.length ? branchSections.map(s=>`
             <div class="check-item" style="opacity:1; transform:none; width:auto; flex:0 0 auto; gap:8px;">
               <span>${s.name}</span>
@@ -7455,12 +8408,13 @@ async function renderPosSettings(){
         </div>
         <div style="display:flex; gap:8px; margin-top:10px;">
           <input type="text" class="section-name-input" data-branch="${b.id}" data-next="${nextSectionOrder}" placeholder="اسم القسم (مثال: عائلات)">
-          <button class="settings-save-btn section-add-btn" data-branch="${b.id}" data-next="${nextSectionOrder}" style="width:auto; padding:0 18px;">إضافة</button>
+          <button class="rk-btn rk-btn-secondary rk-btn-sm section-add-btn" data-branch="${b.id}" data-next="${nextSectionOrder}">إضافة</button>
         </div>
       </div>
-      <div class="settings-field-row" style="margin-top:14px;">
-        <label>طاولات هذا الفرع</label>
-        <div class="checklist" style="margin-top:4px; flex-wrap:wrap; flex-direction:row; gap:8px;">
+
+      <div class="rk-subsection">
+        <label class="rk-subhead">طاولات هذا الفرع</label>
+        <div class="checklist" style="flex-wrap:wrap; flex-direction:row; gap:8px;">
           ${branchTables.length ? branchTables.map(t=>`
             <div class="check-item" style="opacity:1; transform:none; width:auto; flex:0 0 auto; gap:8px;">
               <span>طاولة ${t.number}</span>
@@ -7468,34 +8422,124 @@ async function renderPosSettings(){
               <button class="mtr-edit-btn table-remove-btn" data-id="${t.id}" data-active="${t.active_order_id ? '1' : ''}">حذف</button>
             </div>`).join('') : '<p class="stock-qty-helper">ما فيه طاولات مسجّلة لهذا الفرع.</p>'}
         </div>
-        <button class="settings-save-btn table-add-btn" data-branch="${b.id}" data-next="${nextTableNumber}" style="width:auto; padding:0 18px; margin-top:10px;">+ إضافة طاولة رقم ${nextTableNumber}</button>
+        <button class="rk-btn rk-btn-secondary rk-btn-sm table-add-btn" data-branch="${b.id}" data-next="${nextTableNumber}" style="margin-top:10px;">+ إضافة طاولة رقم ${nextTableNumber}</button>
       </div>
     </div>`;
-  }).join('') || '<div class="panel"><p>ما فيه فروع بعد.</p></div>';
+  }).join('') || '<div class="rk-section"><p>ما فيه فروع بعد.</p></div>';
+
+  // Master gate for the whole tab: off by default expectation is that a
+  // restaurant without dine-in shouldn't be shown table/section/reservation
+  // config at all — same business.dine_in_enabled flag Settings already
+  // writes, surfaced here so it's not buried in a different screen.
+  const dineInMasterPanel = `
+    <div class="rk-section">
+      ${rkSectionHead('grid', 'خدمة الطاولات (الجلوس بالمطعم)', 'يتحكم بكل الإعدادات تحت — توقيت الدفع، الأقسام، الطاولات، والحجوزات')}
+      ${rkSwitchRow('posDineInToggle', DINE_IN_ENABLED, 'تفعيل خدمة الطاولات', null, rkDineInStatus)}
+    </div>`;
+  const tablesGatedContent = `
+    <div id="posTablesGatedContent" style="${DINE_IN_ENABLED ? '' : 'display:none;'}">
+      ${payTimingPanel}
+      ${branchTablesPanelsHtml}
+      ${reservationsPanel}
+    </div>`;
+
+  const POS_SETTINGS_TABS_HTML = {
+    receipt: receiptPreviewHtml() + receiptThemePanel + receiptMessagePanel,
+    interface: simplifyPanel,
+    tables: dineInMasterPanel + tablesGatedContent,
+    kitchen: kitchenPanel + autoReadyPanel,
+    branches: managerPinPanel + branchSecurityPanelsHtml,
+  };
+  panel.innerHTML = POS_SETTINGS_TABS_HTML[activePosSettingsTab] || POS_SETTINGS_TABS_HTML.receipt;
+
+  rkWireSwitchStatus('posDineInToggle', rkDineInStatus);
+  const posDineInToggle = document.getElementById('posDineInToggle');
+  if(posDineInToggle) posDineInToggle.addEventListener('change', async ()=>{
+    const enabled = posDineInToggle.checked;
+    const gated = document.getElementById('posTablesGatedContent');
+    if(gated) gated.style.display = enabled ? '' : 'none';
+    posDineInToggle.disabled = true;
+    try {
+      await updateCurrentBusiness({ dine_in_enabled: enabled });
+      DINE_IN_ENABLED = enabled;
+      logDashboardAudit(enabled ? 'فعّل خدمة الطاولات' : 'عطّل خدمة الطاولات');
+    } catch(err){
+      posDineInToggle.checked = !enabled;
+      if(gated) gated.style.display = !enabled ? '' : 'none';
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    } finally {
+      posDineInToggle.disabled = false;
+    }
+  });
+
+  rkWireSwitchStatus('posHidePopularToggle', rkPosHidePopularStatus);
+  rkWireSwitchStatus('posHideSearchToggle', rkPosHideSearchStatus);
+  rkWireSwitchStatus('posHideHoldToggle', rkPosHideHoldStatus);
+  rkWireSwitchStatus('posHideImagesToggle', rkPosHideImagesStatus);
+  rkWireSwitchStatus('posHideBellToggle', rkPosHideBellStatus);
+
+  const posSimplifySaveBtn = document.getElementById('posSimplifySaveBtn');
+  if(posSimplifySaveBtn) posSimplifySaveBtn.addEventListener('click', async ()=>{
+    rkBtnLoading(posSimplifySaveBtn, true);
+    try {
+      await updateCurrentBusiness({
+        pos_hide_popular_tab: document.getElementById('posHidePopularToggle').checked,
+        pos_hide_search: document.getElementById('posHideSearchToggle').checked,
+        pos_hide_hold: document.getElementById('posHideHoldToggle').checked,
+        pos_hide_product_images: document.getElementById('posHideImagesToggle').checked,
+        pos_hide_notif_bell: document.getElementById('posHideBellToggle').checked,
+      });
+      logDashboardAudit('عدّل إعدادات تبسيط واجهة الكاشير');
+      rkBtnSuccess(posSimplifySaveBtn, '✓ تم الحفظ');
+    } catch(err){
+      rkBtnLoading(posSimplifySaveBtn, false);
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
+  });
 
   const managerPinSaveBtn = document.getElementById('managerPinSaveBtn');
   if(managerPinSaveBtn) managerPinSaveBtn.addEventListener('click', async ()=>{
     const input = document.getElementById('managerPinInput');
     const pin = input.value.trim();
     if(!/^\d{4}$/.test(pin)){ showToast('لازم يكون الرمز ٤ أرقام بالضبط'); return; }
-    managerPinSaveBtn.disabled = true;
+    rkBtnLoading(managerPinSaveBtn, true);
     try {
       const { error } = await window.supabaseClient.rpc('set_pos_manager_pin', { p_pin: pin });
       if(error) throw error;
       input.value = '';
       logDashboardAudit('حدّث كلمة سر مدير الكاشير');
-      showToast('تم الحفظ — الرمز فعّال الآن');
+      rkBtnSuccess(managerPinSaveBtn, '✓ تم الحفظ');
     } catch(err){
+      rkBtnLoading(managerPinSaveBtn, false);
       showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-    } finally {
-      managerPinSaveBtn.disabled = false;
+    }
+  });
+
+  const receiptThemeSelect = document.getElementById('receiptThemeSelect');
+  if(receiptThemeSelect) receiptThemeSelect.addEventListener('change', ()=>{
+    const desc = document.getElementById('receiptThemeDesc');
+    const found = RECEIPT_THEMES.find(t => t.id === receiptThemeSelect.value);
+    if(desc && found) desc.textContent = found.desc;
+  });
+  const receiptThemeSaveBtn = document.getElementById('receiptThemeSaveBtn');
+  if(receiptThemeSaveBtn) receiptThemeSaveBtn.addEventListener('click', async ()=>{
+    const theme = document.getElementById('receiptThemeSelect').value;
+    rkBtnLoading(receiptThemeSaveBtn, true);
+    try {
+      await updateCurrentBusiness({ receipt_theme: theme });
+      RECEIPT_THEME = theme;
+      logDashboardAudit('غيّر شكل الفاتورة المطبوعة');
+      rkBtnSuccess(receiptThemeSaveBtn, '✓ تم الحفظ');
+    } catch(err){
+      rkBtnLoading(receiptThemeSaveBtn, false);
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
     }
   });
 
   const receiptMessageSaveBtn = document.getElementById('receiptMessageSaveBtn');
   if(receiptMessageSaveBtn) receiptMessageSaveBtn.addEventListener('click', async ()=>{
     const msg = document.getElementById('settingsReceiptMessage').value.trim();
-    receiptMessageSaveBtn.disabled = true;
+    rkBtnLoading(receiptMessageSaveBtn, true);
     try {
       await updateCurrentBusiness({ receipt_custom_message: msg || null });
       RECEIPT_CUSTOM_MESSAGE = msg;
@@ -7503,9 +8547,8 @@ async function renderPosSettings(){
       showToast('تم حفظ رسالة الفاتورة');
       renderPosSettings();
     } catch(err){
+      rkBtnLoading(receiptMessageSaveBtn, false);
       showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-    } finally {
-      receiptMessageSaveBtn.disabled = false;
     }
   });
 
@@ -7519,7 +8562,7 @@ async function renderPosSettings(){
     const minutes = parseInt(document.getElementById('kitchenAutoMinutesInput').value, 10);
     const soundEnabled = document.getElementById('kitchenSoundToggle').checked;
     if(mode === 'auto' && !(minutes >= 1 && minutes <= 120)){ showToast('الوقت التلقائي لازم يكون بين ١ و١٢٠ دقيقة'); return; }
-    kitchenSettingsSaveBtn.disabled = true;
+    rkBtnLoading(kitchenSettingsSaveBtn, true);
     try {
       await updateCurrentBusiness({
         kitchen_ready_mode: mode,
@@ -7527,17 +8570,16 @@ async function renderPosSettings(){
         kitchen_new_order_sound_enabled: soundEnabled
       });
       logDashboardAudit('عدّل إعدادات شاشة المطبخ');
-      showToast('تم حفظ إعدادات المطبخ');
+      rkBtnSuccess(kitchenSettingsSaveBtn, '✓ تم الحفظ');
     } catch(err){
+      rkBtnLoading(kitchenSettingsSaveBtn, false);
       showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-    } finally {
-      kitchenSettingsSaveBtn.disabled = false;
     }
   });
 
   const autoReadySaveBtn = document.getElementById('autoReadySaveBtn');
   if(autoReadySaveBtn) autoReadySaveBtn.addEventListener('click', async ()=>{
-    autoReadySaveBtn.disabled = true;
+    rkBtnLoading(autoReadySaveBtn, true);
     try {
       await updateCurrentBusiness({
         auto_ready_dine_in: document.getElementById('autoReadyDineInToggle').checked,
@@ -7546,32 +8588,35 @@ async function renderPosSettings(){
         auto_ready_delivery_online: document.getElementById('autoReadyDeliveryOnlineToggle').checked
       });
       logDashboardAudit('عدّل إعدادات تخطي مرحلة الجاهزية');
-      showToast('تم الحفظ');
+      rkBtnSuccess(autoReadySaveBtn, '✓ تم الحفظ');
     } catch(err){
+      rkBtnLoading(autoReadySaveBtn, false);
       showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-    } finally {
-      autoReadySaveBtn.disabled = false;
     }
   });
 
   const dineInPayTimingSaveBtn = document.getElementById('dineInPayTimingSaveBtn');
   if(dineInPayTimingSaveBtn) dineInPayTimingSaveBtn.addEventListener('click', async ()=>{
     const timing = document.getElementById('dineInPayTimingSelect').value;
-    dineInPayTimingSaveBtn.disabled = true;
+    rkBtnLoading(dineInPayTimingSaveBtn, true);
     try {
       await updateCurrentBusiness({ dine_in_pay_timing: timing });
       logDashboardAudit('عدّل توقيت الدفع للطاولات إلى ' + (timing === 'after' ? 'بعد الأكل' : 'قبل الأكل'));
-      showToast('تم الحفظ');
+      rkBtnSuccess(dineInPayTimingSaveBtn, '✓ تم الحفظ');
     } catch(err){
+      rkBtnLoading(dineInPayTimingSaveBtn, false);
       showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-    } finally {
-      dineInPayTimingSaveBtn.disabled = false;
     }
   });
 
   const resEnabledToggle = document.getElementById('resEnabledToggle');
   if(resEnabledToggle) resEnabledToggle.addEventListener('change', ()=>{
     document.getElementById('resSubSettings').style.display = resEnabledToggle.checked ? '' : 'none';
+    const status = document.getElementById('resEnabledToggleStatus');
+    if(status){
+      status.textContent = resEnabledToggle.checked ? 'مفعّل — يقدر عميلك يحجز طاولة مسبقًا من شاشة الحجز' : 'معطّل — شاشة الطاولات تعمل بدون حجوزات مسبقة';
+      status.className = 'rk-switch-desc ' + (resEnabledToggle.checked ? 'ok' : '');
+    }
   });
   const resDepositToggle = document.getElementById('resDepositToggle');
   if(resDepositToggle) resDepositToggle.addEventListener('change', ()=>{
@@ -7592,7 +8637,7 @@ async function renderPosSettings(){
     const specificBooking = document.getElementById('resSpecificBookingToggle').checked;
     if(depositEnabled && !(depositPercent >= 0 && depositPercent <= 100)){ showToast('نسبة العربون لازم تكون بين ٠ و١٠٠'); return; }
     if(turnEnabled && !(turnMinutes >= 1 && turnMinutes <= 600)){ showToast('مدة الجلسة لازم تكون بين ١ و٦٠٠ دقيقة'); return; }
-    resSettingsSaveBtn.disabled = true;
+    rkBtnLoading(resSettingsSaveBtn, true);
     try {
       await updateCurrentBusiness({
         tables_reservations_enabled: enabled,
@@ -7604,11 +8649,10 @@ async function renderPosSettings(){
         tables_specific_booking_enabled: specificBooking
       });
       logDashboardAudit('عدّل إعدادات حجوزات الطاولات');
-      showToast('تم حفظ إعدادات الحجوزات');
+      rkBtnSuccess(resSettingsSaveBtn, '✓ تم الحفظ');
     } catch(err){
+      rkBtnLoading(resSettingsSaveBtn, false);
       showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-    } finally {
-      resSettingsSaveBtn.disabled = false;
     }
   });
 
@@ -7618,7 +8662,7 @@ async function renderPosSettings(){
       const input = panel.querySelector('.pos-pin-input[data-branch="'+branchId+'"]');
       const pin = input.value.trim();
       if(!/^\d{4}$/.test(pin)){ showToast('لازم يكون الرمز ٤ أرقام بالضبط'); return; }
-      btn.disabled = true;
+      rkBtnLoading(btn, true);
       try {
         const { data: { session } } = await window.supabaseClient.auth.getSession();
         const res = await fetch('/api/pos/provision-branch', {
@@ -7630,65 +8674,19 @@ async function renderPosSettings(){
         if(!res.ok) throw new Error(body.error || 'خطأ غير متوقع');
         input.value = '';
         logDashboardAudit('حدّث رمز نقطة البيع لفرع #' + branchId);
-        showToast('تم الحفظ — الرمز فعّال الآن');
+        rkBtnSuccess(btn, '✓ تم الحفظ');
       } catch(err){
+        rkBtnLoading(btn, false);
         showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-      } finally {
-        btn.disabled = false;
       }
     });
   });
 
-  panel.querySelectorAll('.staff-add-btn').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      const branchId = parseInt(btn.dataset.branch,10);
-      const input = panel.querySelector('.staff-name-input[data-branch="'+branchId+'"]');
-      const name = input.value.trim();
-      if(!name){ showToast('اكتب اسم الموظف'); return; }
-      try {
-        const { error } = await window.supabaseClient.from('staff_members')
-          .insert({ business_id: CURRENT_PROFILE.business_id, branch_id: branchId, name });
-        if(error) throw error;
-        logDashboardAudit('أضاف موظف كاشير: ' + name);
-        renderPosSettings();
-      } catch(err){
-        showToast('تعذرت الإضافة: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-      }
-    });
-  });
-
-  panel.querySelectorAll('.staff-remove-btn').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      // Overnight QA finding: this button removed a cashier from the branch
-      // on a single click with no confirmation — unlike every other
-      // delete/remove action in this same panel (tables, sections). One
-      // misclick silently dropped a staff member from the POS staff list.
-      if(!window.confirm('تأكيد حذف هذا الموظف من قائمة الكاشير؟')) return;
-      try {
-        const { error } = await window.supabaseClient.from('staff_members').update({active:false}).eq('id', btn.dataset.id);
-        if(error) throw error;
-        renderPosSettings();
-      } catch(err){
-        showToast('تعذر الحذف: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-      }
-    });
-  });
-
-  panel.querySelectorAll('.staff-host-toggle').forEach(cb=>{
-    cb.addEventListener('change', async ()=>{
-      cb.disabled = true;
-      try {
-        const { error } = await window.supabaseClient.from('staff_members').update({ is_reservation_host: cb.checked }).eq('id', cb.dataset.id);
-        if(error) throw error;
-        showToast('تم الحفظ');
-      } catch(err){
-        cb.checked = !cb.checked;
-        showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-      } finally {
-        cb.disabled = false;
-      }
-    });
-  });
+  // Cashier-name add/edit/remove/reservation-host all moved to screen:hr
+  // (the unified الموظفون screen's "قائمة الموظفين" tab, both for real
+  // employees via "تفعيل الكاشير" and for legacy unlinked names) — this
+  // panel used to duplicate that management, which is exactly what got
+  // flagged ("ليش موجودة بالكاشير؟"). Nothing left to wire here.
 
   panel.querySelectorAll('.host-link-input').forEach(input=>{
     input.addEventListener('click', ()=> input.select());
@@ -7701,7 +8699,7 @@ async function renderPosSettings(){
       const name = input.value.trim();
       if(!name){ showToast('اكتب اسم القسم'); return; }
       const sortOrder = parseInt(btn.dataset.next,10);
-      btn.disabled = true;
+      rkBtnLoading(btn, true);
       try {
         const { error } = await window.supabaseClient.from('table_sections')
           .insert({ business_id: CURRENT_PROFILE.business_id, branch_id: branchId, name, sort_order: sortOrder });
@@ -7709,8 +8707,8 @@ async function renderPosSettings(){
         logDashboardAudit('أضاف قسم طاولات: ' + name);
         renderPosSettings();
       } catch(err){
+        rkBtnLoading(btn, false);
         showToast('تعذرت الإضافة: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-        btn.disabled = false;
       }
     });
   });
@@ -7746,7 +8744,7 @@ async function renderPosSettings(){
     btn.addEventListener('click', async ()=>{
       const branchId = parseInt(btn.dataset.branch,10);
       const number = parseInt(btn.dataset.next,10);
-      btn.disabled = true;
+      rkBtnLoading(btn, true);
       try {
         const { error } = await window.supabaseClient.from('restaurant_tables')
           .insert({ business_id: CURRENT_PROFILE.business_id, branch_id: branchId, number });
@@ -7754,8 +8752,8 @@ async function renderPosSettings(){
         logDashboardAudit('أضاف طاولة رقم ' + number);
         renderPosSettings();
       } catch(err){
+        rkBtnLoading(btn, false);
         showToast('تعذرت الإضافة: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-        btn.disabled = false;
       }
     });
   });
@@ -7783,15 +8781,22 @@ async function renderPosSettings(){
 function geideaPanelHtml(){
   if(GEIDEA_CONNECTED){
     return `
-      <p class="stock-qty-helper">✓ متصل — مفتاح ينتهي بـ <span class="mono" dir="ltr">${GEIDEA_PUBLIC_KEY_LAST4}</span></p>
-      <button class="mtr-edit-btn" id="geideaDisconnectBtn" style="color:var(--danger);">فصل الاتصال</button>
+      <div class="rk-switch-row" style="padding-top:0;">
+        <div class="rk-switch-text">
+          <span class="rk-switch-label" style="color:var(--success-text);">✓ متصل بنجاح</span>
+          <span class="rk-switch-desc">مفتاح ينتهي بـ <span class="mono" dir="ltr">${GEIDEA_PUBLIC_KEY_LAST4}</span></span>
+        </div>
+        <button class="rk-btn rk-btn-secondary rk-btn-sm" id="geideaDisconnectBtn" style="color:var(--danger); border-color:var(--danger);">فصل الاتصال</button>
+      </div>
     `;
   }
   return `
-    <div class="settings-field-row"><label>المفتاح العام (Merchant Public Key)</label><input type="text" id="geideaPublicKeyInput" autocomplete="off"></div>
-    <div class="settings-field-row"><label>كلمة مرور الـAPI (API Password)</label><input type="password" id="geideaApiPasswordInput" autocomplete="off"></div>
-    <p class="stock-qty-helper" style="margin-top:-6px;">تحصل عليهم من حساب Geidea الخاص فيك بعد التسجيل — نتحقق منهم فورًا قبل الحفظ.</p>
-    <button class="settings-save-btn" id="geideaConnectBtn">حفظ وتفعيل</button>
+    <div class="rk-grid-2">
+      <div class="rk-field"><label>المفتاح العام (Merchant Public Key)</label><input type="text" id="geideaPublicKeyInput" autocomplete="off"></div>
+      <div class="rk-field"><label>كلمة مرور الـAPI (API Password)</label><input type="password" id="geideaApiPasswordInput" autocomplete="off"></div>
+    </div>
+    <p class="stock-qty-helper" style="margin-top:14px;">تحصل عليهم من حساب Geidea الخاص فيك بعد التسجيل — نتحقق منهم فورًا قبل الحفظ.</p>
+    <button class="rk-btn rk-btn-primary rk-btn-md" id="geideaConnectBtn" style="margin-top:4px;">حفظ وتفعيل</button>
   `;
 }
 function wireGeideaPanel(){
@@ -7800,7 +8805,7 @@ function wireGeideaPanel(){
     const publicKey = document.getElementById('geideaPublicKeyInput').value.trim();
     const apiPassword = document.getElementById('geideaApiPasswordInput').value.trim();
     if(!publicKey || !apiPassword){ showToast('أدخل المفتاح وكلمة المرور'); return; }
-    connectBtn.disabled = true; connectBtn.textContent = 'جاري التحقق...';
+    rkBtnLoading(connectBtn, true);
     try {
       const { data: sessionData } = await window.supabaseClient.auth.getSession();
       const session = sessionData && sessionData.session;
@@ -7810,170 +8815,242 @@ function wireGeideaPanel(){
         body: JSON.stringify({ merchant_public_key: publicKey, api_password: apiPassword }),
       });
       const result = await res.json().catch(()=>({}));
-      if(!res.ok){ showToast(result.error || 'تعذر الحفظ'); return; }
+      if(!res.ok){ rkBtnLoading(connectBtn, false); showToast(result.error || 'تعذر الحفظ'); return; }
       GEIDEA_CONNECTED = true;
       GEIDEA_PUBLIC_KEY_LAST4 = result.last4 || '';
-      document.getElementById('geideaPanelBody').innerHTML = geideaPanelHtml();
-      wireGeideaPanel();
-      showToast('تم ربط بوابة الدفع'); logDashboardAudit('ربط بوابة دفع Geidea');
-    } finally {
-      connectBtn.disabled = false; connectBtn.textContent = 'حفظ وتفعيل';
+      logDashboardAudit('ربط بوابة دفع Geidea');
+      rkBtnSuccess(connectBtn, '✓ تم الربط');
+      setTimeout(()=>{
+        document.getElementById('geideaPanelBody').innerHTML = geideaPanelHtml();
+        wireGeideaPanel();
+      }, 1100);
+    } catch(err){
+      rkBtnLoading(connectBtn, false);
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
     }
   });
   const disconnectBtn = document.getElementById('geideaDisconnectBtn');
   if(disconnectBtn) disconnectBtn.addEventListener('click', async ()=>{
     if(!window.confirm('تأكيد فصل بوابة الدفع؟ عملاؤك لن يقدروا يدفعون بالبطاقة بعدها.')) return;
-    disconnectBtn.disabled = true;
+    rkBtnLoading(disconnectBtn, true);
     try {
       const { data: sessionData } = await window.supabaseClient.auth.getSession();
       const session = sessionData && sessionData.session;
       const res = await fetch('/api/dashboard/geidea/credentials', {
         method: 'DELETE', headers: { 'Authorization': 'Bearer ' + (session ? session.access_token : '') },
       });
-      if(!res.ok){ showToast('تعذر الفصل'); return; }
+      if(!res.ok){ rkBtnLoading(disconnectBtn, false); showToast('تعذر الفصل'); return; }
       GEIDEA_CONNECTED = false;
       GEIDEA_PUBLIC_KEY_LAST4 = '';
-      document.getElementById('geideaPanelBody').innerHTML = geideaPanelHtml();
-      wireGeideaPanel();
-      showToast('تم فصل بوابة الدفع'); logDashboardAudit('فصل بوابة دفع Geidea');
-    } finally {
-      disconnectBtn.disabled = false;
+      logDashboardAudit('فصل بوابة دفع Geidea');
+      rkBtnSuccess(disconnectBtn, '✓ تم الفصل');
+      setTimeout(()=>{
+        document.getElementById('geideaPanelBody').innerHTML = geideaPanelHtml();
+        wireGeideaPanel();
+      }, 1100);
+    } catch(err){
+      rkBtnLoading(disconnectBtn, false);
+      showToast('تعذر الفصل: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
     }
   });
 }
+// Feather-style line icons (viewBox 24x24, stroke=currentColor, stroke-
+// width=2) — same visual language as the sidebar nav icons, reused here so
+// section headers read as part of the same system, not a new one.
+const RK_ICON_PATHS = {
+  home: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>',
+  fileText: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline>',
+  coffee: '<path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line>',
+  creditCard: '<rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line>',
+  calendar: '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>',
+  mapPin: '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle>',
+  crosshair: '<circle cx="12" cy="12" r="10"></circle><line x1="22" y1="12" x2="18" y2="12"></line><line x1="6" y1="12" x2="2" y2="12"></line><line x1="12" y1="6" x2="12" y2="2"></line><line x1="12" y1="22" x2="12" y2="18"></line>',
+  plus: '<line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>',
+  clock: '<circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>',
+  users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>',
+  truck: '<rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle>',
+  sliders: '<line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line>',
+  trendingUp: '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline>',
+  bell: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path>',
+  activity: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>',
+  volume: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>',
+  messageCircle: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>',
+  zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 9 2"></polygon>',
+  refreshCw: '<polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>',
+  checkCircle: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 17.01"></polyline>',
+  award: '<circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>',
+  globe: '<circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>',
+  grid: '<rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect>',
+  bag: '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path>',
+};
+// Custom checkbox — a proper checkmark-in-a-box for "pick several from a
+// list" (screen access grid, either inline-saved per member or inside the
+// add/edit form), as distinct from .rk-switch: a switch is one immediate
+// on/off action, this is a multi-select.
+function rkCheck(inputAttrs, label){
+  return `<label class="rk-check"><input type="checkbox" ${inputAttrs}><span class="rk-check-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>${label}</span></label>`;
+}
+function rkIcon(name){
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${RK_ICON_PATHS[name]}</svg>`;
+}
+// Shared button feedback for the rk-btn system: a real spinner while the
+// request is in flight (no reflow — label goes transparent, width holds),
+// then a brief self-reverting checkmark instead of just going back to idle,
+// so "حفظ" reads as having actually happened.
+function rkBtnLoading(btn, loading){
+  if(!btn) return;
+  if(loading){
+    btn.classList.add('is-loading');
+    btn.disabled = true;
+  } else {
+    btn.classList.remove('is-loading');
+    btn.disabled = false;
+  }
+}
+// Renders the success label via a CSS ::after (content: attr(data-success-
+// label)) instead of overwriting the button's own content — an earlier
+// version set btn.textContent directly, which silently deleted any <svg>
+// icon inside the button (textContent replaces ALL children) and never
+// restored it once the label reverted. Buttons with no icon look identical
+// either way; this version just doesn't destroy the ones that have one.
+function rkBtnSuccess(btn, label){
+  if(!btn) return;
+  btn.classList.remove('is-loading');
+  btn.disabled = false;
+  btn.dataset.successLabel = label || '✓ تم';
+  btn.classList.add('is-success');
+  setTimeout(()=>{
+    btn.classList.remove('is-success');
+  }, 1100);
+}
+
+function rkSectionHead(icon, title, sub){
+  return `<div class="rk-section-head"><div class="rk-section-icon">${rkIcon(icon)}</div><div><div class="rk-section-title">${title}</div><div class="rk-section-sub">${sub}</div></div></div>`;
+}
+// One accessible checkbox + visual switch + label wired to it via for=id —
+// clicking the label or the switch both toggle it, exactly like a native
+// checkbox, but the whole thing reads as a deliberate ركين control.
+//
+// statusFn(checked) -> {text, tone:'ok'|'warn'|''} is what actually changed
+// after a copy audit of this tab: the two VAT switches carry a real
+// financial/legal consequence (turn one off and the whole system stops
+// charging tax, silently) that used to live only inside a "؟" tooltip —
+// something a busy owner could easily never open. Now the live consequence
+// is a permanent, color-coded line under the switch, so reading the switch
+// alone tells you what's true right now; the tooltip stays for the deeper
+// "why", not the "what happens".
+function rkSwitchRow(id, checked, label, help, statusFn){
+  const s = statusFn ? statusFn(checked) : null;
+  return `
+    <div class="rk-switch-row">
+      <div class="rk-switch-text">
+        <label class="rk-switch-label" for="${id}">${label}${help?helpIcon(help):''}</label>
+        ${s?`<span class="rk-switch-desc ${s.tone||''}" id="${id}Status">${s.text}</span>`:''}
+      </div>
+      <label class="rk-switch"><input type="checkbox" id="${id}" ${checked?'checked':''}><span class="rk-switch-track"></span></label>
+    </div>
+  `;
+}
+function rkWireSwitchStatus(id, statusFn){
+  const input = document.getElementById(id);
+  const statusEl = document.getElementById(id + 'Status');
+  if(!input || !statusEl) return;
+  input.addEventListener('change', ()=>{
+    const s = statusFn(input.checked);
+    statusEl.textContent = s.text;
+    statusEl.className = 'rk-switch-desc ' + (s.tone || '');
+  });
+}
+const rkVatRegisteredStatus = c => c
+  ? {text:'الضريبة تُحسب تلقائيًا على كل عملية بيع وشراء', tone:'ok'}
+  : {text:'⚠ ما تُحسب أي ضريبة على النظام بالكامل', tone:'warn'};
+// A plain sentence explaining this ("tax is added on top") still left the
+// owner asking "يعني وش يسوي فعلاً" — abstract phrasing about tax mechanics
+// doesn't land the way a concrete before/after number does. Compute a real
+// example off their own configured VAT rate (defaults to 15% until it
+// loads) instead of describing the rule.
+const rkPricesIncludeVatStatus = c => {
+  const rate = (typeof BUSINESS_VAT_RATE === 'number' && BUSINESS_VAT_RATE > 0) ? BUSINESS_VAT_RATE : 0.15;
+  const base = 50;
+  const vat = c ? base * rate / (1 + rate) : base * rate;
+  const total = c ? base : base + vat;
+  return c
+    ? {text:`مثال: منتج سعره ${base} ر.س بالمنيو → العميل يدفع ${total.toFixed(2)} ر.س بالضبط (${vat.toFixed(2)} منها ضريبة)`, tone:'ok'}
+    : {text:`⚠ مثال: منتج سعره ${base} ر.س بالمنيو → العميل يدفع ${total.toFixed(2)} ر.س (تُضاف ${vat.toFixed(2)} ضريبة فوق السعر المعروض)`, tone:'warn'};
+};
+const rkDineInStatus = c => c
+  ? {text:'شاشة الطاولات ظاهرة بالكاشير', tone:'ok'}
+  : {text:'شاشة الطاولات مخفية من الكاشير', tone:''};
+const rkBookingStatus = c => c
+  ? {text:'رابط الحجز يظهر لعملائك الحين', tone:'ok'}
+  : {text:'الحجز الذاتي غير متاح لعملائك حاليًا', tone:''};
+
 function restaurantSettingsHtml(){
   return `
-    <div class="panel">
+    <div class="rk-section">
+      ${rkSectionHead('home', 'هوية المطعم', 'الاسم والشعار اللي يظهر بالفواتير والتقارير ولوحة التحكم')}
       <div class="settings-identity-preview">
         ${BUSINESS_LOGO_URL
-          ? `<img src="${BUSINESS_LOGO_URL}" style="width:44px; height:44px; border-radius:50%; object-fit:cover;">`
-          : `<div class="brand-avatar" style="width:44px;height:44px;font-size:19px;">${(RESTAURANT_INFO.name||'؟').trim().charAt(0)}</div>`}
+          ? `<img src="${BUSINESS_LOGO_URL}" style="width:48px; height:48px; border-radius:50%; object-fit:cover;">`
+          : `<div class="rk-avatar" style="width:48px;height:48px;font-size:20px;">${(RESTAURANT_INFO.name||'؟').trim().charAt(0)}</div>`}
         <div><div style="font-weight:800; font-size:14px;">${RESTAURANT_INFO.name}</div></div>
       </div>
-      <div class="settings-field-row"><label>اسم المطعم</label><input type="text" id="settingsRestName" value="${RESTAURANT_INFO.name}"></div>
-      <div class="settings-field-row">
-        <label><input type="checkbox" id="settingsVatRegistered" ${VAT_REGISTERED?'checked':''}> مسجّل في ضريبة القيمة المضافة</label>
+      <div class="rk-grid-2">
+        <div class="rk-field"><label>اسم المطعم</label><input type="text" id="settingsRestName" value="${RESTAURANT_INFO.name}"></div>
+        <div class="rk-field"><label>شعار المطعم ${helpIcon('يظهر بأعلى تقارير PDF، وبهوية مطعمك داخل لوحة التحكم.')}</label>${rkImageUploadHtml('settingsLogoInput', {currentUrl: BUSINESS_LOGO_URL, width:500, height:500, shape:'circle'})}</div>
       </div>
-      <p class="stock-qty-helper" style="margin-top:-6px; margin-bottom:10px;">عطّلها فقط لو مطعمك فعليًا غير مسجّل بالضريبة (إيراد سنوي أقل من ٣٧٥,٠٠٠ ريال عادةً) — عند التعطيل ما تُحسب أي ضريبة على المبيعات أو المشتريات بكل النظام، مو بس تختفي الحقول.</p>
+    </div>
+
+    <div class="rk-section">
+      ${rkSectionHead('fileText', 'الضريبة والفوترة', 'تتحكم بحساب ضريبة القيمة المضافة ورمز QR على فاتورة الكاشير')}
+      ${rkSwitchRow('settingsVatRegistered', VAT_REGISTERED, 'مسجّل في ضريبة القيمة المضافة', 'سجّل عادةً لازم لو دخلك السنوي فوق ٣٧٥,٠٠٠ ريال. لو غير مسجّل فعليًا، عطّلها.', rkVatRegisteredStatus)}
       <div id="vatRegisteredFields" style="${VAT_REGISTERED?'':'display:none;'}">
-        <div class="settings-field-row">
-          <label>نسبة ضريبة القيمة المضافة (%)</label>
-          <input type="number" id="settingsVatRate" value="${(BUSINESS_VAT_RATE*100).toFixed(2)}" min="0" max="100" step="0.01" inputmode="decimal">
+        <div class="rk-grid-2" style="margin-top:14px;">
+          <div class="rk-field"><label>نسبة الضريبة (%) ${helpIcon('تُستخدم أيضًا للتحقق من فواتير المشتريات الممسوحة تلقائيًا — لو تغيّرت النسبة رسميًا، عدّلها هنا.')}</label><input type="number" id="settingsVatRate" value="${(BUSINESS_VAT_RATE*100).toFixed(2)}" min="0" max="100" step="0.01" inputmode="decimal"></div>
+          <div class="rk-field"><label>الرقم الضريبي ${helpIcon('يطبع رمز QR على فاتورة الكاشير (فاتورة ضريبية مبسطة متوافقة مع هيئة الزكاة والضريبة والجمارك). بدونه، تُطبع الفاتورة بدون الرمز.')}</label><input type="text" id="settingsVatNumber" value="${BUSINESS_VAT_NUMBER}" placeholder="٣xxxxxxxxxxxxx03" inputmode="numeric" maxlength="15"></div>
         </div>
-        <p class="stock-qty-helper" style="margin-top:-6px; margin-bottom:10px;">تُستخدم للتحقق من صحة أرقام فواتير المشتريات الممسوحة تلقائيًا — لو تغيّرت نسبة الضريبة رسميًا، عدّلها هنا.</p>
-        <div class="settings-field-row">
-          <label><input type="checkbox" id="settingsPricesIncludeVat" ${PRICES_INCLUDE_VAT?'checked':''}> أسعار المنيو شاملة الضريبة</label>
-        </div>
-        <p class="stock-qty-helper" style="margin-top:-6px; margin-bottom:10px;">هذا هو المعيار القانوني بالسعودية — نظام حماية المستهلك يُلزم بعرض السعر شاملًا للضريبة. لو تسعّر منتجاتك بهذا الشكل فعليًا (الوضع الافتراضي)، اترك هذا الخيار مفعّل — الضريبة تُحسب من داخل السعر المعروض بدل ما تُضاف فوقه. عطّله بس لو أسعار منيوك مسجّلة فعلًا بدون الضريبة.</p>
-        <div class="settings-field-row">
-          <label>الرقم الضريبي (VAT Registration Number)</label>
-          <input type="text" id="settingsVatNumber" value="${BUSINESS_VAT_NUMBER}" placeholder="٣xxxxxxxxxxxxx03" inputmode="numeric" maxlength="15">
-        </div>
-        <p class="stock-qty-helper" style="margin-top:-6px; margin-bottom:10px;">مطلوب لطباعة فاتورة ضريبية مبسطة متوافقة مع هيئة الزكاة والضريبة والجمارك (رمز QR) على فواتير الكاشير — بدونه تُطبع الفاتورة بدون رمز QR.</p>
+        ${rkSwitchRow('settingsPricesIncludeVat', PRICES_INCLUDE_VAT, 'أسعار المنيو شاملة الضريبة', 'المعيار القانوني بالسعودية إن السعر المعروض للعميل شامل الضريبة. اتركها مفعّلة إلا لو أسعار المنيو عندك مسجّلة فعلًا بدون الضريبة.', rkPricesIncludeVatStatus)}
       </div>
-      <div class="settings-field-row">
-        <label><input type="checkbox" id="settingsDineInEnabled" ${DINE_IN_ENABLED?'checked':''}> يقدّم طلبات "بالمطعم" (فيه صالة/طاولات)</label>
-      </div>
-      <p class="stock-qty-helper" style="margin-top:-6px; margin-bottom:10px;">أوقفها لو مطعمك سحابي أو توصيل/استلام بس — تختفي شاشة الطاولات وخيار "بالمطعم" من الكاشير.</p>
-      <div class="menu-add-field" style="margin-top:10px;">
-        <label>شعار المطعم</label>
-        <input type="file" id="settingsLogoInput" accept="image/*">
-        <p class="stock-qty-helper" style="margin-top:6px;">يظهر بترويسة تقارير PDF المصدّرة، وباعتماد المطعم بلوحة التحكم.</p>
-      </div>
-      <button class="settings-save-btn" id="settingsSaveBtn">حفظ التغييرات</button>
     </div>
-    <div class="panel" style="margin-top:16px;">
-      <div class="panel-title"><span class="field-label-row">المنيو الإلكتروني ${helpIcon('صفحة طلب مباشر لعملائك — يتصفحون المنيو ويطلبون توصيل أو استلام، ويوصل الطلب مباشرة لنظامك. مفعّلة تلقائيًا لكل حساب جديد.')}</span></div>
-      ${ONLINE_ORDERING_ENABLED ? `
-        <div class="settings-field-row" style="margin-bottom:10px;">
-          <label style="color:var(--lime-deep, #7a9e1a); font-weight:800;">✓ مفعّلة لمطعمك</label>
-        </div>
-        ${ONLINE_SUBSCRIBED ? `
-        <div class="settings-field-row" style="margin-bottom:14px;">
-          <label style="color:var(--lime-deep, #7a9e1a); font-weight:800;">✓ مشترك — طلبات بلا حد</label>
-        </div>
-        ` : `
-        <div class="settings-field-row" style="margin-bottom:14px;">
-          <label>الفترة التجريبية المجانية</label>
-          <div style="height:8px; background:var(--line-soft, rgba(23,23,23,.08)); border-radius:99px; overflow:hidden; margin-top:6px;">
-            <div style="height:100%; width:${Math.min(100, (ONLINE_ORDER_FREE_COUNT/ONLINE_ORDER_FREE_LIMIT)*100)}%; background:${ONLINE_ORDER_FREE_COUNT>=ONLINE_ORDER_FREE_LIMIT?'#B0402C':'var(--lime-deep,#7a9e1a)'}; border-radius:99px;"></div>
-          </div>
-          <p class="stock-qty-helper" style="margin-top:6px;">${ONLINE_ORDER_FREE_COUNT>=ONLINE_ORDER_FREE_LIMIT
-            ? `خلصت أول ${ONLINE_ORDER_FREE_LIMIT} طلب مجاني — المتجر مقفول عن العملاء لين تشترك. تواصل مع ركين لتفعيل الاشتراك.`
-            : `استخدمت ${ONLINE_ORDER_FREE_COUNT} من ${ONLINE_ORDER_FREE_LIMIT} طلب مجاني على متجرك الإلكتروني. بعدها يحتاج اشتراك عشان يفضل المتجر شغال.`}</p>
-        </div>
-        `}
-        <div class="settings-field-row">
-          <label>رابط المنيو</label>
-          <div style="display:flex; gap:8px; align-items:center;">
-            <input type="text" id="onlineMenuUrlDisplay" readonly value="${window.location.origin}/order/${ONLINE_MENU_SLUG||''}" style="flex:1;">
-            <button class="settings-save-btn" id="copyOnlineMenuUrlBtn" style="width:auto; padding:10px 16px; margin:0;" type="button">نسخ</button>
-          </div>
-        </div>
-        <div class="settings-field-row">
-          <label>لون هوية صفحة الطلب</label>
-          <input type="color" id="settingsOnlineThemeColor" value="${ONLINE_THEME_COLOR}" style="width:64px; height:38px; padding:2px; cursor:pointer;">
-          <p class="stock-qty-helper" style="margin-top:6px;">يُطبّق تلقائيًا على كل أزرار وشارات صفحة الطلب — نص أبيض أو غامق يُختار تلقائيًا حسب وضوحه فوق اللون.</p>
-        </div>
-        <div class="menu-add-field" style="margin-top:2px;">
-          <label>صورة غلاف صفحة الطلب</label>
-          ${ONLINE_BANNER_URL ? `<img src="${ONLINE_BANNER_URL}" alt="" style="width:100%; max-width:280px; height:100px; object-fit:cover; border-radius:10px; margin-bottom:8px;">` : ''}
-          <input type="file" id="settingsOnlineBannerInput" accept="image/*">
-          ${ONLINE_BANNER_URL ? `<label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700; margin-top:8px;"><input type="checkbox" id="settingsOnlineBannerClear"> إزالة صورة الغلاف الحالية</label>` : ''}
-          <p class="stock-qty-helper" style="margin-top:6px;">صورة عريضة تظهر أعلى صفحة الطلب — تُبهر العميل من أول لحظة. بدونها تظهر الصفحة بلون هوية بسيط بدل الصورة.</p>
-        </div>
-        <div class="settings-field-row">
-          <label><input type="checkbox" id="settingsOnlineDelivery" ${ONLINE_OFFERS_DELIVERY?'checked':''}> يقبل طلبات توصيل من المنيو الإلكتروني</label>
-        </div>
-        <div class="settings-field-row">
-          <label><input type="checkbox" id="settingsOnlinePickup" ${ONLINE_OFFERS_PICKUP?'checked':''}> يقبل طلبات استلام من المنيو الإلكتروني</label>
-        </div>
-        <div class="settings-field-row">
-          <label>رسوم التوصيل الخاصة بالمطعم (ر.س)</label>
-          <input type="number" id="settingsOnlineDeliveryFee" value="${ONLINE_DELIVERY_FEE}" min="0" step="0.5" inputmode="decimal">
-        </div>
-        <p class="stock-qty-helper" style="margin-top:-6px; margin-bottom:10px;">توصيل ذاتي بمندوب المطعم — رسوم ثابتة تُضاف لطلبات التوصيل من المنيو الإلكتروني (اتركها 0 للتوصيل المجاني). ربط شركة توصيل خارجية عبر API يحتاج تفعيل إضافي من فريق ركين.</p>
-        <div class="settings-field-row">
-          <label>مدة تجهيز طلبات الاستلام (بالدقائق)</label>
-          <input type="number" id="settingsOnlinePickupPrep" value="${ONLINE_PICKUP_PREP_MINUTES}" min="1" max="180" inputmode="numeric">
-        </div>
-        <p class="stock-qty-helper" style="margin-top:-6px; margin-bottom:10px;">أقل وقت يعرضه المنيو الإلكتروني كـ"أقرب وقت استلام" — حدد وقت دوام الفرع من تبويب "الفروع" عشان يقدر العميل يختار وقت استلام لاحق أيضًا.</p>
-        <div class="settings-field-row">
-          <label>رقم واتساب للتواصل مع العملاء</label>
-          <input type="text" id="settingsOnlineWhatsapp" value="${ONLINE_CONTACT_WHATSAPP}" placeholder="05xxxxxxxx" inputmode="tel">
-        </div>
-        <p class="stock-qty-helper" style="margin-top:-6px; margin-bottom:10px;">يظهر كزر "تواصل معنا عبر واتساب" بصفحة تتبع الطلب — سيبه فاضي لإخفاء الزر.</p>
-        <button class="settings-save-btn" id="settingsOnlineSaveBtn">حفظ إعدادات المنيو الإلكتروني</button>
-      ` : `
-        <p class="stock-qty-helper">هذي الميزة غير مفعّلة لمطعمك حاليًا — تواصل مع فريق ركين لتفعيلها.</p>
-      `}
+
+    <div class="rk-section">
+      ${rkSectionHead('coffee', 'طريقة التقديم', 'يتحكم بظهور شاشة الطاولات بالكاشير')}
+      ${rkSwitchRow('settingsDineInEnabled', DINE_IN_ENABLED, 'يقدّم طلبات "بالمطعم" (فيه صالة/طاولات)', 'أوقفها لو مطعمك سحابي أو توصيل/استلام بس.', rkDineInStatus)}
     </div>
+
+    <button class="rk-btn rk-btn-primary rk-btn-lg" id="settingsSaveBtn" style="width:100%; margin-bottom:16px;">حفظ التغييرات</button>
+
     ${ONLINE_ORDERING_ENABLED ? `
-    <div class="panel" style="margin-top:16px;">
-      <div class="panel-title"><span class="field-label-row">بوابة الدفع ${helpIcon('اربط حساب Geidea الخاص فيك عشان يقدر عملاؤك يدفعون بالبطاقة مباشرة من صفحة الطلب الإلكتروني. سجّل عندهم بنفسك، وهنا بس تدخل بيانات الاتصال.')}</span></div>
+    <div class="rk-section">
+      ${rkSectionHead('creditCard', 'بوابة الدفع', 'اربط حساب Geidea الخاص فيك عشان يقدر عملاؤك يدفعون بالبطاقة مباشرة من صفحة الطلب الإلكتروني. سجّل عندهم بنفسك، وهنا بس تدخل بيانات الاتصال.')}
       <div id="geideaPanelBody">${geideaPanelHtml()}</div>
     </div>
     ` : ''}
     ${isServiceBusinessType(BUSINESS_TYPE) ? `
-    <div class="panel" style="margin-top:16px;">
-      <div class="panel-title"><span class="field-label-row">الحجز الذاتي عبر الإنترنت ${helpIcon('صفحة تسمح لعملائك يحجزون موعدهم بأنفسهم مباشرة بدون اتصال — يختارون الخدمة والموظف والوقت، ويوصل الحجز فورًا لشاشة الحجوزات بالكاشير.')}</span></div>
-      <div class="settings-field-row">
-        <label><input type="checkbox" id="settingsOnlineBookingEnabled" ${ONLINE_BOOKING_ENABLED?'checked':''}> تفعيل صفحة الحجز الذاتي لعملائك</label>
-      </div>
-      <div id="onlineBookingUrlRow" class="settings-field-row" style="${ONLINE_BOOKING_ENABLED?'':'display:none;'}">
+    <div class="rk-section">
+      ${rkSectionHead('calendar', 'الحجز الذاتي عبر الإنترنت', 'صفحة تسمح لعملائك يحجزون موعدهم بأنفسهم مباشرة بدون اتصال — يختارون الخدمة والموظف والوقت، ويوصل الحجز فورًا لشاشة الحجوزات بالكاشير.')}
+      ${rkSwitchRow('settingsOnlineBookingEnabled', ONLINE_BOOKING_ENABLED, 'تفعيل صفحة الحجز الذاتي لعملائك', null, rkBookingStatus)}
+      <div id="onlineBookingUrlRow" class="rk-field" style="margin-top:14px; ${ONLINE_BOOKING_ENABLED?'':'display:none;'}">
         <label>رابط صفحة الحجز</label>
         <div style="display:flex; gap:8px; align-items:center;">
           <input type="text" id="onlineBookingUrlDisplay" readonly value="${window.location.origin}/book/${ONLINE_MENU_SLUG||''}" style="flex:1;">
-          <button class="settings-save-btn" id="copyOnlineBookingUrlBtn" style="width:auto; padding:10px 16px; margin:0;" type="button">نسخ</button>
+          <button class="rk-btn rk-btn-secondary rk-btn-md" id="copyOnlineBookingUrlBtn" type="button">نسخ</button>
         </div>
       </div>
-      <button class="settings-save-btn" id="settingsOnlineBookingSaveBtn" style="width:auto; padding:0 18px;">حفظ</button>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="settingsOnlineBookingSaveBtn" style="margin-top:14px;">حفظ</button>
     </div>
     ` : ''}
   `;
 }
 function wireRestaurantSettings(){
   wireGeideaPanel();
+  attachImageCropper('settingsLogoInput', { aspect: 1, outputWidth: 500, outputHeight: 500 });
+  wireImageUploadBoxPreview('settingsLogoInput');
+
+  rkWireSwitchStatus('settingsVatRegistered', rkVatRegisteredStatus);
+  rkWireSwitchStatus('settingsPricesIncludeVat', rkPricesIncludeVatStatus);
+  rkWireSwitchStatus('settingsDineInEnabled', rkDineInStatus);
+  rkWireSwitchStatus('settingsOnlineBookingEnabled', rkBookingStatus);
 
   const vatRegisteredCheckbox = document.getElementById('settingsVatRegistered');
   if(vatRegisteredCheckbox) vatRegisteredCheckbox.addEventListener('change', ()=>{
@@ -7990,7 +9067,7 @@ function wireRestaurantSettings(){
     if(vatRegistered && !(vatPct >= 0 && vatPct <= 100)){ showToast('نسبة الضريبة لازم تكون رقم بين 0 و100'); return; }
     const vatNumber = document.getElementById('settingsVatNumber').value.trim();
     if(vatRegistered && vatNumber && !/^\d{15}$/.test(vatNumber)){ showToast('الرقم الضريبي لازم يكون ١٥ رقم بالضبط'); return; }
-    btn.disabled = true;
+    rkBtnLoading(btn, true);
     try {
       const dineInEnabled = document.getElementById('settingsDineInEnabled').checked;
       const pricesIncludeVat = document.getElementById('settingsPricesIncludeVat').checked;
@@ -8011,55 +9088,12 @@ function wireRestaurantSettings(){
       PRICES_INCLUDE_VAT = pricesIncludeVat;
       DINE_IN_ENABLED = dineInEnabled;
       if(updates.logo_url) BUSINESS_LOGO_URL = updates.logo_url;
-      renderSettingsPanel();
-      showToast('تم حفظ معلومات المطعم'); logDashboardAudit('عدّل معلومات المطعم');
+      logDashboardAudit('عدّل معلومات المطعم');
+      rkBtnSuccess(btn, '✓ تم الحفظ');
+      setTimeout(renderSettingsPanel, 1100);
     } catch(err){
+      rkBtnLoading(btn, false);
       showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-    } finally {
-      btn.disabled = false;
-    }
-  });
-
-  const copyBtn = document.getElementById('copyOnlineMenuUrlBtn');
-  if(copyBtn) copyBtn.addEventListener('click', ()=>{
-    const input = document.getElementById('onlineMenuUrlDisplay');
-    input.select();
-    navigator.clipboard?.writeText(input.value).then(()=> showToast('تم نسخ الرابط')).catch(()=> showToast('انسخه يدويًا من الحقل'));
-  });
-
-  const onlineSaveBtn = document.getElementById('settingsOnlineSaveBtn');
-  if(onlineSaveBtn) onlineSaveBtn.addEventListener('click', async ()=>{
-    onlineSaveBtn.disabled = true;
-    try {
-      const updates = {
-        online_theme_color: document.getElementById('settingsOnlineThemeColor').value,
-        online_offers_delivery: document.getElementById('settingsOnlineDelivery').checked,
-        online_offers_pickup: document.getElementById('settingsOnlinePickup').checked,
-        online_delivery_fee: parseFloat(document.getElementById('settingsOnlineDeliveryFee').value) || 0,
-        online_pickup_prep_minutes: parseInt(document.getElementById('settingsOnlinePickupPrep').value, 10) || 20,
-        online_contact_whatsapp: document.getElementById('settingsOnlineWhatsapp').value.trim() || null,
-      };
-      const bannerFile = await compressImageFile(document.getElementById('settingsOnlineBannerInput').files[0]);
-      const bannerClear = document.getElementById('settingsOnlineBannerClear');
-      if(bannerFile){
-        updates.online_banner_url = await uploadMediaFile(bannerFile, 'business-branding', 'online-banner');
-      } else if(bannerClear && bannerClear.checked){
-        updates.online_banner_url = null;
-      }
-      await updateCurrentBusiness(updates);
-      ONLINE_THEME_COLOR = updates.online_theme_color;
-      if('online_banner_url' in updates) ONLINE_BANNER_URL = updates.online_banner_url || '';
-      ONLINE_OFFERS_DELIVERY = updates.online_offers_delivery;
-      ONLINE_OFFERS_PICKUP = updates.online_offers_pickup;
-      ONLINE_DELIVERY_FEE = updates.online_delivery_fee;
-      ONLINE_PICKUP_PREP_MINUTES = updates.online_pickup_prep_minutes;
-      ONLINE_CONTACT_WHATSAPP = updates.online_contact_whatsapp || '';
-      renderSettingsPanel();
-      showToast('تم حفظ إعدادات المنيو الإلكتروني'); logDashboardAudit('عدّل إعدادات المنيو الإلكتروني');
-    } catch(err){
-      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-    } finally {
-      onlineSaveBtn.disabled = false;
     }
   });
 
@@ -8073,23 +9107,726 @@ function wireRestaurantSettings(){
   if(copyBookingBtn) copyBookingBtn.addEventListener('click', ()=>{
     const input = document.getElementById('onlineBookingUrlDisplay');
     input.select();
-    navigator.clipboard?.writeText(input.value).then(()=> showToast('تم نسخ الرابط')).catch(()=> showToast('انسخه يدويًا من الحقل'));
+    navigator.clipboard?.writeText(input.value).then(()=> rkBtnSuccess(copyBookingBtn, '✓ تم النسخ')).catch(()=> showToast('انسخه يدويًا من الحقل'));
   });
 
   const bookingSaveBtn = document.getElementById('settingsOnlineBookingSaveBtn');
   if(bookingSaveBtn) bookingSaveBtn.addEventListener('click', async ()=>{
-    bookingSaveBtn.disabled = true;
+    rkBtnLoading(bookingSaveBtn, true);
     try {
       const enabled = document.getElementById('settingsOnlineBookingEnabled').checked;
       await updateCurrentBusiness({ online_booking_enabled: enabled });
       ONLINE_BOOKING_ENABLED = enabled;
-      renderSettingsPanel();
-      showToast(enabled ? 'تم تفعيل الحجز الذاتي' : 'تم إيقاف الحجز الذاتي'); logDashboardAudit('عدّل إعداد الحجز الذاتي عبر الإنترنت');
+      logDashboardAudit('عدّل إعداد الحجز الذاتي عبر الإنترنت');
+      rkBtnSuccess(bookingSaveBtn, enabled ? '✓ تم التفعيل' : '✓ تم الإيقاف');
+      setTimeout(renderSettingsPanel, 1100);
     } catch(err){
+      rkBtnLoading(bookingSaveBtn, false);
       showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-    } finally {
-      bookingSaveBtn.disabled = false;
     }
+  });
+}
+
+/* ============ المتجر الإلكتروني — its own top-level screen, three tabs:
+   settings (link/fulfillment/contact/page copy), design (theme/color/
+   banner/font, with a live preview like the loyalty card editor), and
+   display categories (subcategory grouping for the storefront only — the
+   products themselves are managed from "القائمة", not here). */
+let activeOnlineMenuTab = 'settings';
+document.getElementById('onlineMenuTabs').addEventListener('click', (e)=>{
+  const b = e.target.closest('button'); if(!b) return;
+  document.querySelectorAll('#onlineMenuTabs button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  activeOnlineMenuTab = b.dataset.tab;
+  resetContentScroll();
+  renderOnlineMenuPanel();
+});
+
+// The subdomain form ({slug}.rakeenapp.com) is what merchants should actually
+// share — middleware.ts rewrites it to /order/{slug} internally. Only shown
+// on the real production host; localhost dev has no wildcard DNS for that,
+// so it falls back to the path form there (still fully functional to test).
+function onlineMenuPublicUrl(){
+  if(window.location.hostname === 'localhost') return `${window.location.origin}/order/${ONLINE_MENU_SLUG||''}`;
+  return `https://${ONLINE_MENU_SLUG||''}.rakeenapp.com`;
+}
+
+function renderOnlineMenuPanel(){
+  const panel = document.getElementById('onlineMenuPanelBody');
+  if(!ONLINE_ORDERING_ENABLED){
+    panel.innerHTML = `<div class="panel"><p class="stock-qty-helper">هذي الميزة غير مفعّلة لمطعمك حاليًا — تواصل مع فريق ركين لتفعيلها.</p></div>`;
+    return;
+  }
+  if(activeOnlineMenuTab === 'settings'){
+    panel.innerHTML = onlineStoreSettingsHtml();
+    wireOnlineStoreSettings();
+  } else if(activeOnlineMenuTab === 'design'){
+    panel.innerHTML = onlineMenuDesignHtml();
+    wireOnlineMenuDesign();
+    renderOnlineMenuDesignPreview();
+  } else {
+    panel.innerHTML = onlineMenuCatalogHtml();
+    wireOnlineMenuCatalog();
+  }
+}
+
+// Duplicated on purpose, not imported — public/order/rakeen-order.js and
+// public/dashboard/rakeen-dashboard.js are separate bundles with no shared
+// module graph (see AGENTS.md / the vanilla-JS-per-screen architecture).
+// Keep in sync with inkColorFor() there if the contrast rule ever changes.
+function dashboardInkColorFor(hex){
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || '');
+  if(!m) return '#16281B';
+  const r = parseInt(m[1],16), g = parseInt(m[2],16), b = parseInt(m[3],16);
+  const yiq = (r*299 + g*587 + b*114) / 1000;
+  return yiq >= 150 ? '#16281B' : '#FDFCF7';
+}
+
+// Two-way binding between the visible hex text field (the actual primary
+// input — you can paste "b7834a" straight into it) and the native
+// type="color" input hidden inside the swatch (kept around purely for its
+// OS picker UI). Either side changing updates the other, the swatch's own
+// background, and the live preview.
+function wireColorField(id){
+  const colorInput = document.getElementById(id);
+  const hexInput = document.getElementById(id + 'Hex');
+  const swatch = colorInput.closest('label');
+  colorInput.addEventListener('input', ()=>{
+    hexInput.value = colorInput.value.toUpperCase();
+    swatch.style.background = colorInput.value;
+    renderOnlineMenuDesignPreview();
+  });
+  hexInput.addEventListener('input', ()=>{
+    let v = hexInput.value.trim();
+    if(v && v[0] !== '#') v = '#' + v;
+    if(/^#[0-9a-fA-F]{6}$/.test(v)){
+      colorInput.value = v;
+      swatch.style.background = v;
+      renderOnlineMenuDesignPreview();
+    }
+  });
+  // typed something incomplete/invalid and clicked away — snap back to
+  // whatever the last valid color actually was, don't leave garbage showing
+  hexInput.addEventListener('blur', ()=>{ hexInput.value = colorInput.value.toUpperCase(); });
+}
+
+function onlineMenuColorFieldHtml(id, label, value){
+  // A bare native swatch has no way to type/paste a hex code — the actual
+  // color still lives on the (now visually hidden) type="color" input for
+  // its picker UI, but the text field next to it is the real primary input:
+  // paste "b7834a" straight in, or use the swatch as a quick shortcut.
+  return `
+    <div>
+      <div class="online-color-field-row" style="display:flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:10px; padding:6px 10px; background:var(--card-bg);">
+        <label style="width:26px; height:26px; border-radius:7px; border:1px solid var(--line); flex-shrink:0; cursor:pointer; overflow:hidden; background:${value};">
+          <input type="color" id="${id}" value="${value}" style="opacity:0; width:1px; height:1px; display:block;">
+        </label>
+        <input type="text" id="${id}Hex" class="mono" value="${value.toUpperCase()}" maxlength="7"
+          style="border:none; background:none; padding:0; font-size:12px; font-weight:700; flex:1; min-width:0; direction:ltr; text-align:start;">
+      </div>
+      <span style="font-size:10.5px; font-weight:700; color:var(--muted); text-align:center; display:block; margin-top:4px;">${label}</span>
+    </div>
+  `;
+}
+
+const rkOnlineDeliveryStatus = c => c
+  ? {text:'خيار التوصيل يظهر للعميل بمتجرك', tone:'ok'}
+  : {text:'⚠ خيار التوصيل مخفي تمامًا — ما يقدر أي عميل يطلب توصيل', tone:'warn'};
+const rkOnlinePickupStatus = c => c
+  ? {text:'خيار الاستلام يظهر للعميل بمتجرك', tone:'ok'}
+  : {text:'⚠ خيار الاستلام مخفي تمامًا — ما يقدر أي عميل يطلب استلام', tone:'warn'};
+
+// Was one giant panel labeled "التصميم" (Design) that actually mixed
+// business status + fulfillment + contact info + page copy + the real
+// design/branding fields together — the tab name itself was wrong for half
+// its own content. Split into its own "الإعدادات" tab so "التصميم" only
+// ever means what it says.
+function onlineStoreSettingsHtml(){
+  return `
+    <div class="rk-section">
+      ${rkSectionHead('globe', 'رابط متجرك', 'صفحة طلب مباشر لعملائك — يتصفحون منتجاتك ويطلبون توصيل أو استلام، ويوصل الطلب مباشرة لنظامك.')}
+      <div class="rk-field">
+        <label>رابط متجرك الإلكتروني</label>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <input type="text" id="onlineMenuUrlDisplay" readonly value="${onlineMenuPublicUrl()}" style="flex:1;">
+          <button class="rk-btn rk-btn-secondary rk-btn-md" id="copyOnlineMenuUrlBtn" type="button">نسخ</button>
+        </div>
+      </div>
+      ${ONLINE_SUBSCRIBED ? `
+      <div class="rk-badge" style="background:rgba(196,255,43,0.16); color:var(--success-text); margin-top:12px;">مشترك — طلبات بلا حد</div>
+      ` : `
+      <div style="margin-top:14px;">
+        <div style="display:flex; justify-content:space-between; font-size:11.5px; font-weight:700; color:var(--muted); margin-bottom:6px;">
+          <span>الفترة التجريبية المجانية</span>
+          <span class="mono">${ONLINE_ORDER_FREE_COUNT} / ${ONLINE_ORDER_FREE_LIMIT}</span>
+        </div>
+        <div style="height:8px; background:var(--surf2); border-radius:99px; overflow:hidden;">
+          <div style="height:100%; width:${Math.min(100, (ONLINE_ORDER_FREE_COUNT/ONLINE_ORDER_FREE_LIMIT)*100)}%; background:${ONLINE_ORDER_FREE_COUNT>=ONLINE_ORDER_FREE_LIMIT?'var(--danger)':'var(--lime-deep)'}; border-radius:99px;"></div>
+        </div>
+        <p class="stock-qty-helper" style="margin-top:8px;">${ONLINE_ORDER_FREE_COUNT>=ONLINE_ORDER_FREE_LIMIT
+          ? `خلصت أول ${ONLINE_ORDER_FREE_LIMIT} طلب مجاني — المتجر مقفول عن العملاء لين تشترك. تواصل مع ركين لتفعيل الاشتراك.`
+          : `استخدمت ${ONLINE_ORDER_FREE_COUNT} من ${ONLINE_ORDER_FREE_LIMIT} طلب مجاني. بعدها يحتاج اشتراك عشان يفضل متجرك شغال.`}</p>
+      </div>
+      `}
+    </div>
+
+    <div class="rk-section">
+      ${rkSectionHead('truck', 'طرق الاستلام', 'وش الطرق المتاحة لعميلك يستلم طلبه فيها')}
+      ${rkSwitchRow('settingsOnlineDelivery', ONLINE_OFFERS_DELIVERY, 'يستقبل طلبات توصيل', null, rkOnlineDeliveryStatus)}
+      <div class="rk-field" id="onlineDeliveryFeeRow" style="margin-top:12px; max-width:220px; ${ONLINE_OFFERS_DELIVERY?'':'display:none;'}">
+        <label>رسوم التوصيل (ر.س) ${helpIcon('توصيل ذاتي بمندوب المطعم — رسوم ثابتة تُضاف لطلبات التوصيل. اتركها 0 للتوصيل المجاني.')}</label>
+        <input type="number" id="settingsOnlineDeliveryFee" value="${ONLINE_DELIVERY_FEE}" min="0" step="0.5" inputmode="decimal">
+      </div>
+      ${rkSwitchRow('settingsOnlinePickup', ONLINE_OFFERS_PICKUP, 'يستقبل طلبات استلام', null, rkOnlinePickupStatus)}
+      <div class="rk-field" id="onlinePickupPrepRow" style="margin-top:12px; max-width:220px; ${ONLINE_OFFERS_PICKUP?'':'display:none;'}">
+        <label>مدة تجهيز طلب الاستلام (دقيقة)</label>
+        <input type="number" id="settingsOnlinePickupPrep" value="${ONLINE_PICKUP_PREP_MINUTES}" min="1" max="180" inputmode="numeric">
+      </div>
+      ${rkSwitchRow('settingsOnlineCod', ONLINE_COD_ENABLED, 'يقبل الدفع عند الاستلام', 'لو أطفأته، العميل لازم يدفع إلكترونيًا وقت الطلب — يشمل الاستلام والتوصيل.')}
+    </div>
+
+    <div class="rk-section">
+      ${rkSectionHead('messageCircle', 'التواصل مع العملاء', 'تظهر بصفحة تتبع الطلب وأعلى المتجر')}
+      <div class="rk-field">
+        <label>رقم واتساب للتواصل ${helpIcon('يظهر كزر "تواصل معنا عبر واتساب" بصفحة تتبع الطلب. سيبه فاضي لإخفاء الزر.')}</label>
+        <input type="tel" id="settingsOnlineWhatsapp" value="${ONLINE_CONTACT_WHATSAPP}" placeholder="05xxxxxxxx" inputmode="tel" maxlength="10">
+      </div>
+      <div class="advanced-section" style="margin-top:14px;">
+        <div class="advanced-toggle-row" id="onlineSocialToggle">
+          <div class="panel-subtitle" style="margin:0;">روابط التواصل الاجتماعي (اختياري)</div>
+          <svg class="advanced-chevron" id="onlineSocialChevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="advanced-body" id="onlineSocialBody">
+          <div class="rk-field" style="margin-top:12px;"><input type="text" id="settingsOnlineInstagram" value="${ONLINE_SOCIAL_INSTAGRAM}" placeholder="رابط انستقرام" dir="ltr"></div>
+          <div class="rk-field" style="margin-top:8px;"><input type="text" id="settingsOnlineTiktok" value="${ONLINE_SOCIAL_TIKTOK}" placeholder="رابط تيك توك" dir="ltr"></div>
+          <div class="rk-field" style="margin-top:8px;"><input type="text" id="settingsOnlineTwitter" value="${ONLINE_SOCIAL_TWITTER}" placeholder="رابط X (تويتر)" dir="ltr"></div>
+        </div>
+      </div>
+    </div>
+
+    <button class="rk-btn rk-btn-primary rk-btn-lg" id="settingsOnlineSaveBtn" style="width:100%;">حفظ التغييرات</button>
+  `;
+}
+
+function onlineMenuDesignHtml(){
+  return `
+    <div class="online-menu-design-grid" style="display:grid; grid-template-columns:1fr 300px; gap:16px; align-items:start;">
+      <div style="display:flex; flex-direction:column; gap:16px;">
+      <div class="rk-section" style="margin-bottom:0;">
+        ${rkSectionHead('sliders', 'التصميم', 'شكل متجرك اللي يشوفه عميلك — الشعار، الألوان، والخط')}
+        <div class="menu-add-field" style="margin-bottom:14px;">
+          <label>شعار المطعم</label>
+          ${rkImageUploadHtml('settingsOnlineLogoInput', {currentUrl: BUSINESS_LOGO_URL, width:500, height:500, shape:'circle', note:'يظهر برأس صفحة الطلب وبطاقة هويتها — نفس الشعار المستخدم بالكاشير وتقارير PDF'})}
+        </div>
+        <div class="menu-add-field">
+          <label>الألوان ${helpIcon('كل لون بالتصميم مبني على هذي الخمسة — غيّر أي وحد وشوف التأثير مباشرة بالمعاينة. سيبها بدون تغيير وتتبع شكل الثيم المختار تلقائيًا.')}</label>
+          <div class="online-color-swatch-grid" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:10px; margin-top:6px;">
+            ${onlineMenuColorFieldHtml('settingsOnlineThemeColor', 'لون الهوية', ONLINE_THEME_COLOR)}
+            ${onlineMenuColorFieldHtml('settingsOnlineColorSurf', 'خلفية الصفحة', ONLINE_COLOR_SURF || ONLINE_THEME_DEFAULT_COLORS[ONLINE_THEME_STYLE].surf)}
+            ${onlineMenuColorFieldHtml('settingsOnlineColorCard', 'خلفية الكروت', ONLINE_COLOR_CARD || ONLINE_THEME_DEFAULT_COLORS[ONLINE_THEME_STYLE].card)}
+            ${onlineMenuColorFieldHtml('settingsOnlineColorInk', 'لون النص', ONLINE_COLOR_INK || ONLINE_THEME_DEFAULT_COLORS[ONLINE_THEME_STYLE].ink)}
+            ${onlineMenuColorFieldHtml('settingsOnlineColorMuted', 'لون النص الثانوي', ONLINE_COLOR_MUTED || ONLINE_THEME_DEFAULT_COLORS[ONLINE_THEME_STYLE].muted)}
+          </div>
+        </div>
+        <div class="menu-add-field" style="margin-top:2px;">
+          <label>شكل صفحة الطلب</label>
+          <div class="online-radio-card-row" style="display:flex; gap:10px; margin-top:4px;">
+            <label style="flex:1; display:flex; flex-direction:column; gap:4px; padding:12px 14px; border:2px solid ${ONLINE_THEME_STYLE==='classic'?'var(--lime-deep)':'var(--line)'}; border-radius:12px; cursor:pointer;">
+              <span style="display:flex; align-items:center; gap:8px; font-weight:800; font-size:13px;">
+                <input type="radio" name="settingsOnlineThemeStyle" value="classic" ${ONLINE_THEME_STYLE==='classic'?'checked':''}> كلاسيكي
+              </span>
+              <span style="font-size:11.5px; color:var(--muted); margin-inline-start:22px;">كروت مربعة مرتبة</span>
+            </label>
+            <label style="flex:1; display:flex; flex-direction:column; gap:4px; padding:12px 14px; border:2px solid ${ONLINE_THEME_STYLE==='luxury'?'var(--lime-deep)':'var(--line)'}; border-radius:12px; cursor:pointer;">
+              <span style="display:flex; align-items:center; gap:8px; font-weight:800; font-size:13px;">
+                <input type="radio" name="settingsOnlineThemeStyle" value="luxury" ${ONLINE_THEME_STYLE==='luxury'?'checked':''}> فخم
+              </span>
+              <span style="font-size:11.5px; color:var(--muted); margin-inline-start:22px;">بنر كبير وصور بلا صناديق</span>
+            </label>
+          </div>
+        </div>
+        <div class="menu-add-field" style="margin-top:14px;">
+          <label>الخط</label>
+          <div class="online-radio-card-row" style="display:flex; gap:10px; margin-top:4px;">
+            <label style="flex:1; display:flex; align-items:center; gap:8px; padding:12px 14px; border:2px solid ${ONLINE_FONT_FAMILY==='rakeen'?'var(--lime-deep)':'var(--line)'}; border-radius:12px; cursor:pointer; font-weight:800; font-size:13px;">
+              <input type="radio" name="settingsOnlineFontFamily" value="rakeen" ${ONLINE_FONT_FAMILY==='rakeen'?'checked':''}> خط ركين
+            </label>
+            <label style="flex:1; display:flex; align-items:center; gap:8px; padding:12px 14px; border:2px solid ${ONLINE_FONT_FAMILY==='thmanyah'?'var(--lime-deep)':'var(--line)'}; border-radius:12px; cursor:pointer; font-weight:800; font-size:13px;">
+              <input type="radio" name="settingsOnlineFontFamily" value="thmanyah" ${ONLINE_FONT_FAMILY==='thmanyah'?'checked':''}> خط Thmanyah
+            </label>
+          </div>
+        </div>
+        <div class="menu-add-field" style="margin-top:14px;">
+          <label>صورة غلاف صفحة الطلب</label>
+          ${rkImageUploadHtml('settingsOnlineBannerInput', {currentUrl: ONLINE_BANNER_URL, width:1500, height:500, shape:'wide', note:'بدونها تظهر الصفحة بلون هوية بسيط بدل الصورة'})}
+          ${ONLINE_BANNER_URL ? `<div style="margin-top:8px;">${rkCheck('id="settingsOnlineBannerClear"', 'إزالة صورة الغلاف الحالية')}</div>` : ''}
+        </div>
+        <button class="rk-btn rk-btn-primary rk-btn-lg" id="settingsOnlineDesignSaveBtn" style="width:100%;">حفظ التصميم</button>
+      </div>
+
+      <div class="rk-section" style="margin-bottom:0;">
+        ${rkSectionHead('fileText', 'نصوص الصفحة', 'اختياري — تظهر أعلى صفحة الطلب، تُحفظ مع التصميم')}
+        <div class="rk-field">
+          <label>عبارة أعلى الصفحة ${helpIcon('سطر صغير جنب اسم المطعم بأعلى الصفحة. سيبه فاضي لإخفائه نهائيًا.')}</label>
+          <input type="text" id="settingsOnlineTaglineHeader" value="${ONLINE_TAGLINE_HEADER===''?'':(ONLINE_TAGLINE_HEADER||DEFAULT_TAGLINE_HEADER)}" placeholder="${DEFAULT_TAGLINE_HEADER}">
+        </div>
+        <div class="rk-field" style="margin-top:12px;">
+          <label>عبارة بطاقة الهوية ${helpIcon('تظهر كشارة صغيرة تحت اسم المطعم بأعلى الصفحة. سيبها فاضية لإخفائها نهائيًا.')}</label>
+          <input type="text" id="settingsOnlineTaglineHero" value="${ONLINE_TAGLINE_HERO===''?'':(ONLINE_TAGLINE_HERO||DEFAULT_TAGLINE_HERO)}" placeholder="${DEFAULT_TAGLINE_HERO}">
+        </div>
+      </div>
+      </div>
+
+      <div class="rk-section" style="margin-bottom:0;">
+        ${rkSectionHead('crosshair', 'معاينة حية', 'يتحدث فورًا كل ما تغيّر شي')}
+        <div id="onlineMenuLivePreview"></div>
+      </div>
+    </div>
+  `;
+}
+
+function renderOnlineMenuDesignPreview(){
+  const host = document.getElementById('onlineMenuLivePreview');
+  if(!host) return;
+  const color = document.getElementById('settingsOnlineThemeColor')?.value || ONLINE_THEME_COLOR;
+  const themeStyle = document.querySelector('input[name="settingsOnlineThemeStyle"]:checked')?.value || ONLINE_THEME_STYLE;
+  const font = document.querySelector('input[name="settingsOnlineFontFamily"]:checked')?.value || ONLINE_FONT_FAMILY;
+  const surf = document.getElementById('settingsOnlineColorSurf')?.value || ONLINE_THEME_DEFAULT_COLORS[themeStyle].surf;
+  const card = document.getElementById('settingsOnlineColorCard')?.value || ONLINE_THEME_DEFAULT_COLORS[themeStyle].card;
+  const ink = document.getElementById('settingsOnlineColorInk')?.value || ONLINE_THEME_DEFAULT_COLORS[themeStyle].ink;
+  const muted = document.getElementById('settingsOnlineColorMuted')?.value || ONLINE_THEME_DEFAULT_COLORS[themeStyle].muted;
+  const bannerFile = document.getElementById('settingsOnlineBannerInput')?.files?.[0];
+  const bannerUrl = bannerFile ? URL.createObjectURL(bannerFile) : ONLINE_BANNER_URL;
+  const logoFile = document.getElementById('settingsOnlineLogoInput')?.files?.[0];
+  const logoUrl = logoFile ? URL.createObjectURL(logoFile) : BUSINESS_LOGO_URL;
+  const brandInk = dashboardInkColorFor(color);
+  const fontFamily = font === 'thmanyah' ? "'ThmanyahSansPreview', sans-serif" : "'Alexandria', sans-serif";
+  const name = RESTAURANT_INFO.name || 'مطعمك';
+  const initial = (name||'؟').trim().charAt(0);
+  const isLuxury = themeStyle === 'luxury';
+  const logoInner = logoUrl ? `<img src="${logoUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;">` : initial;
+
+  host.innerHTML = `
+    <div style="border:1px solid color-mix(in srgb, ${ink} 12%, transparent); border-radius:14px; overflow:hidden; background:${surf}; color:${ink}; font-family:${fontFamily};" dir="rtl">
+      <div style="height:${bannerUrl?'70px':'0'}; background:${bannerUrl?`url('${bannerUrl}') center/cover`:'none'};"></div>
+      <div style="padding:14px; ${bannerUrl && isLuxury ? 'padding-top:14px;' : ''} ${!bannerUrl ? `background:color-mix(in srgb, ${color} 16%, ${surf});` : ''}">
+        <div style="display:flex; align-items:center; gap:10px; ${bannerUrl ? 'margin-top:-30px;' : ''}">
+          <div style="width:44px; height:44px; border-radius:${isLuxury?'50%':'12px'}; background:${color}; color:${brandInk}; display:flex; align-items:center; justify-content:center; font-weight:800; border:3px solid ${card}; box-shadow:0 2px 8px rgba(0,0,0,.15); flex-shrink:0; overflow:hidden;">${logoInner}</div>
+          <div style="font-weight:800; font-size:15px; color:${ink};">${name}</div>
+        </div>
+        <div style="display:flex; gap:${isLuxury?'16px':'6px'}; margin-top:14px;">
+          <span style="${isLuxury
+            ? `padding:4px 0 6px; border-bottom:2px solid ${color}; font-weight:700; font-size:12px; color:${ink};`
+            : `padding:6px 12px; border-radius:99px; background:${color}; color:${brandInk}; font-weight:700; font-size:11.5px;`}">المشروبات</span>
+          <span style="${isLuxury
+            ? `padding:4px 0 6px; color:${muted}; font-weight:700; font-size:12px;`
+            : `padding:6px 12px; border-radius:99px; background:color-mix(in srgb, ${ink} 6%, ${card}); color:${muted}; font-weight:700; font-size:11.5px;`}">الحلويات</span>
+        </div>
+        <div style="margin-top:14px; ${isLuxury ? 'text-align:center;' : `display:flex; gap:10px; align-items:center; background:${card}; border-radius:12px; padding:8px;`}">
+          <div style="${isLuxury ? 'width:100%; aspect-ratio:1/1; border-radius:12px;' : 'width:52px; height:52px; border-radius:10px; flex-shrink:0;'} background:${isLuxury ? card : `color-mix(in srgb, ${color} 12%, ${card})`};"></div>
+          <div style="${isLuxury ? 'margin-top:8px;' : 'flex:1;'}">
+            <div style="font-weight:700; font-size:12.5px; color:${ink};">منتج تجريبي</div>
+            <div class="mono" style="font-weight:800; font-size:12px; color:${isLuxury?ink:color}; margin-top:2px; direction:ltr;">15.00</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Status/fulfillment/contact/page-copy — anything that ISN'T visual
+// branding. Split out of wireOnlineMenuDesign(), which used to wire this
+// same form under a tab literally labeled "التصميم" (Design).
+function wireOnlineStoreSettings(){
+  const copyBtn = document.getElementById('copyOnlineMenuUrlBtn');
+  if(copyBtn) copyBtn.addEventListener('click', ()=>{
+    const input = document.getElementById('onlineMenuUrlDisplay');
+    input.select();
+    navigator.clipboard?.writeText(input.value).then(()=> showToast('تم نسخ الرابط')).catch(()=> showToast('انسخه يدويًا من الحقل'));
+  });
+
+  rkWireSwitchStatus('settingsOnlineDelivery', rkOnlineDeliveryStatus);
+  document.getElementById('settingsOnlineDelivery').addEventListener('change', (e)=>{
+    document.getElementById('onlineDeliveryFeeRow').style.display = e.target.checked ? '' : 'none';
+  });
+  rkWireSwitchStatus('settingsOnlinePickup', rkOnlinePickupStatus);
+  document.getElementById('settingsOnlinePickup').addEventListener('change', (e)=>{
+    document.getElementById('onlinePickupPrepRow').style.display = e.target.checked ? '' : 'none';
+  });
+
+  document.getElementById('settingsOnlineWhatsapp').addEventListener('input', (e)=>{
+    e.target.value = toWesternDigits(e.target.value).replace(/\D/g, '').slice(0, 10);
+  });
+
+  document.getElementById('onlineSocialToggle').addEventListener('click', ()=>{
+    const body = document.getElementById('onlineSocialBody');
+    const chevron = document.getElementById('onlineSocialChevron');
+    const open = !body.classList.contains('open');
+    body.classList.toggle('open', open);
+    chevron.classList.toggle('open', open);
+  });
+
+  const onlineSaveBtn = document.getElementById('settingsOnlineSaveBtn');
+  onlineSaveBtn.addEventListener('click', async ()=>{
+    rkBtnLoading(onlineSaveBtn, true);
+    try {
+      const updates = {
+        online_offers_delivery: document.getElementById('settingsOnlineDelivery').checked,
+        online_offers_pickup: document.getElementById('settingsOnlinePickup').checked,
+        online_cod_enabled: document.getElementById('settingsOnlineCod').checked,
+        online_delivery_fee: parseFloat(document.getElementById('settingsOnlineDeliveryFee').value) || 0,
+        online_pickup_prep_minutes: parseInt(document.getElementById('settingsOnlinePickupPrep').value, 10) || 20,
+        online_contact_whatsapp: document.getElementById('settingsOnlineWhatsapp').value.trim() || null,
+        online_social_instagram: document.getElementById('settingsOnlineInstagram').value.trim() || null,
+        online_social_tiktok: document.getElementById('settingsOnlineTiktok').value.trim() || null,
+        online_social_twitter: document.getElementById('settingsOnlineTwitter').value.trim() || null,
+      };
+      await updateCurrentBusiness(updates);
+      ONLINE_OFFERS_DELIVERY = updates.online_offers_delivery;
+      ONLINE_OFFERS_PICKUP = updates.online_offers_pickup;
+      ONLINE_COD_ENABLED = updates.online_cod_enabled;
+      ONLINE_DELIVERY_FEE = updates.online_delivery_fee;
+      ONLINE_PICKUP_PREP_MINUTES = updates.online_pickup_prep_minutes;
+      ONLINE_CONTACT_WHATSAPP = updates.online_contact_whatsapp || '';
+      ONLINE_SOCIAL_INSTAGRAM = updates.online_social_instagram || '';
+      ONLINE_SOCIAL_TIKTOK = updates.online_social_tiktok || '';
+      ONLINE_SOCIAL_TWITTER = updates.online_social_twitter || '';
+      rkBtnSuccess(onlineSaveBtn, '✓ تم الحفظ');
+      logDashboardAudit('عدّل إعدادات المتجر الإلكتروني');
+    } catch(err){
+      rkBtnLoading(onlineSaveBtn, false);
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
+  });
+}
+
+function wireOnlineMenuDesign(){
+  // Must run before the 'change' listeners further down (they read
+  // input.files[0] for the live preview) so the cropped file is what they
+  // see, not the raw upload.
+  attachImageCropper('settingsOnlineLogoInput', { aspect: 1, outputWidth: 500, outputHeight: 500 });
+  attachImageCropper('settingsOnlineBannerInput', { aspect: 3, outputWidth: 1500, outputHeight: 500 });
+  wireImageUploadBoxPreview('settingsOnlineLogoInput');
+  wireImageUploadBoxPreview('settingsOnlineBannerInput');
+
+  const designSaveBtn = document.getElementById('settingsOnlineDesignSaveBtn');
+  designSaveBtn.addEventListener('click', async ()=>{
+    rkBtnLoading(designSaveBtn, true);
+    try {
+      const themeStyle = document.querySelector('input[name="settingsOnlineThemeStyle"]:checked')?.value || 'classic';
+      const defaults = ONLINE_THEME_DEFAULT_COLORS[themeStyle];
+      // A picker left exactly on the active theme's built-in default is
+      // saved as null ("follow the theme"), not that hex — so switching
+      // themes later doesn't leave a color from the OTHER theme stuck as a
+      // fake "customization" the merchant never actually chose.
+      const colorOrNull = (inputId, key) => {
+        const v = document.getElementById(inputId).value.toUpperCase();
+        return v === defaults[key].toUpperCase() ? null : v;
+      };
+      const updates = {
+        online_theme_color: document.getElementById('settingsOnlineThemeColor').value,
+        online_theme_style: themeStyle,
+        online_font_family: document.querySelector('input[name="settingsOnlineFontFamily"]:checked')?.value || 'rakeen',
+        online_color_surf: colorOrNull('settingsOnlineColorSurf', 'surf'),
+        online_color_card: colorOrNull('settingsOnlineColorCard', 'card'),
+        online_color_ink: colorOrNull('settingsOnlineColorInk', 'ink'),
+        online_color_muted: colorOrNull('settingsOnlineColorMuted', 'muted'),
+        // '' (not null) on purpose when left blank — that's how "hidden" is
+        // told apart from "never customized" (null, follows the built-in
+        // default). See the ONLINE_TAGLINE_* declaration comment above.
+        online_tagline_header: document.getElementById('settingsOnlineTaglineHeader').value.trim(),
+        online_tagline_hero: document.getElementById('settingsOnlineTaglineHero').value.trim(),
+      };
+      const bannerFile = await compressImageFile(document.getElementById('settingsOnlineBannerInput').files[0]);
+      const bannerClear = document.getElementById('settingsOnlineBannerClear');
+      if(bannerFile){
+        updates.online_banner_url = await uploadMediaFile(bannerFile, 'business-branding', 'online-banner');
+      } else if(bannerClear && bannerClear.checked){
+        updates.online_banner_url = null;
+      }
+      const logoFile = await compressImageFile(document.getElementById('settingsOnlineLogoInput').files[0]);
+      if(logoFile){
+        updates.logo_url = await uploadMediaFile(logoFile, 'business-branding', 'logo');
+      }
+      await updateCurrentBusiness(updates);
+      ONLINE_THEME_COLOR = updates.online_theme_color;
+      ONLINE_THEME_STYLE = updates.online_theme_style;
+      ONLINE_FONT_FAMILY = updates.online_font_family;
+      ONLINE_COLOR_SURF = updates.online_color_surf;
+      ONLINE_COLOR_CARD = updates.online_color_card;
+      ONLINE_COLOR_INK = updates.online_color_ink;
+      ONLINE_COLOR_MUTED = updates.online_color_muted;
+      ONLINE_TAGLINE_HEADER = updates.online_tagline_header;
+      ONLINE_TAGLINE_HERO = updates.online_tagline_hero;
+      if('online_banner_url' in updates) ONLINE_BANNER_URL = updates.online_banner_url || '';
+      if(updates.logo_url) BUSINESS_LOGO_URL = updates.logo_url;
+      renderOnlineMenuPanel();
+      showToast('تم حفظ التصميم'); logDashboardAudit('عدّل تصميم المتجر الإلكتروني');
+    } catch(err){
+      rkBtnLoading(designSaveBtn, false);
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
+  });
+
+  ['settingsOnlineThemeColor','settingsOnlineColorSurf','settingsOnlineColorCard','settingsOnlineColorInk','settingsOnlineColorMuted'].forEach(wireColorField);
+  document.getElementById('settingsOnlineBannerInput').addEventListener('change', renderOnlineMenuDesignPreview);
+  document.getElementById('settingsOnlineLogoInput').addEventListener('change', renderOnlineMenuDesignPreview);
+  document.querySelectorAll('input[name="settingsOnlineThemeStyle"]').forEach(r=>{
+    r.addEventListener('change', ()=>{
+      // radio 'change' only fires on the one that just became checked, so
+      // r.value is the NEW theme and its opposite is reliably the old one —
+      // no need to track prior state separately.
+      const fromDefaults = ONLINE_THEME_DEFAULT_COLORS[r.value === 'luxury' ? 'classic' : 'luxury'];
+      const toDefaults = ONLINE_THEME_DEFAULT_COLORS[r.value];
+      // Only nudge a picker to the new theme's default if it was still
+      // sitting on the OLD theme's default — a color the merchant actually
+      // customized should survive a theme switch untouched.
+      [['settingsOnlineColorSurf','surf'],['settingsOnlineColorCard','card'],['settingsOnlineColorInk','ink'],['settingsOnlineColorMuted','muted']].forEach(([id,key])=>{
+        const input = document.getElementById(id);
+        if(input.value.toUpperCase() === fromDefaults[key].toUpperCase()){
+          input.value = toDefaults[key];
+          document.getElementById(id + 'Hex').value = toDefaults[key].toUpperCase();
+          input.closest('label').style.background = toDefaults[key];
+        }
+      });
+      document.querySelectorAll('input[name="settingsOnlineThemeStyle"]').forEach(radio=>{
+        radio.closest('label').style.borderColor = radio.checked ? 'var(--lime-deep)' : 'var(--line)';
+      });
+      renderOnlineMenuDesignPreview();
+    });
+  });
+  document.querySelectorAll('input[name="settingsOnlineFontFamily"]').forEach(r=>{
+    r.addEventListener('change', ()=>{
+      document.querySelectorAll('input[name="settingsOnlineFontFamily"]').forEach(radio=>{
+        radio.closest('label').style.borderColor = radio.checked ? 'var(--lime-deep)' : 'var(--line)';
+      });
+      renderOnlineMenuDesignPreview();
+    });
+  });
+}
+
+let categoryManagementOpen = false;
+
+function onlineMenuCatalogHtml(){
+  return `
+    <div class="panel">
+      <div class="panel-top-row">
+        <div class="panel-title" style="margin-bottom:0;">فئات المتجر الإلكتروني ${helpIcon('رتّب الفئات، احذف فئة فاضية، أو نظّمها بفئات فرعية — هذا التنظيم الفرعي فقط يظهر بالمتجر الإلكتروني ولا يغيّر شي بشاشة الكاشير. لإعادة تسمية فئة، استخدم أيقونة القلم بتبويبات الفئات بشاشة "القائمة".')}</div>
+        <button class="menu-add-btn" id="toggleCatMgmtBtn" type="button">${categoryManagementOpen ? 'إخفاء إدارة الفئات' : 'إدارة الفئات'}</button>
+      </div>
+      <div id="onlineCategoryHierarchyWrap" style="${categoryManagementOpen ? '' : 'display:none;'} margin-top:12px;">
+        <div id="onlineCategoryHierarchy"></div>
+      </div>
+    </div>
+    <p class="stock-qty-helper">المنتجات نفسها تُدار من شاشة "القائمة" — كل منتج فيه مفتاحي "ظاهر بالكاشير" و"ظاهر بالمتجر الإلكتروني" مباشرة بنموذج تعديله.</p>
+  `;
+}
+
+// Two-level grouping only (a category that already has children can't also
+// become someone's child) — keeps the storefront's rendering simple and
+// guarantees a product's category is always reachable in exactly one or two
+// hops, never silently lost down a third level.
+const CAT_MOVE_UP_SVG = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 15l-6-6-6 6"/></svg>`;
+const CAT_MOVE_DOWN_SVG = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg>`;
+const CAT_DELETE_SVG = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>`;
+
+const CAT_SORT_FN = (a,b) => (a.sortOrder ?? a.id) - (b.sortOrder ?? b.id) || a.id - b.id;
+
+// Tree view, built parent-first: you add a subcategory FROM the main category
+// it belongs under (an inline "+ فئة فرعية جديدة" / "انقل فئة موجودة" row
+// under each main category), not by hunting for a "which category is this
+// one's parent?" dropdown buried on the child's own row — that was the
+// earlier design and it read as backwards.
+function renderOnlineCategoryHierarchy(){
+  const el = document.getElementById('onlineCategoryHierarchy');
+  if(!el) return;
+  if(CATEGORY_ROWS.length === 0){ el.innerHTML = '<p class="stock-qty-helper">أضف فئات من شاشة "القائمة" أولًا.</p>'; return; }
+  const topLevel = CATEGORY_ROWS.filter(c=>!c.parentId).sort(CAT_SORT_FN);
+  const childrenOf = id => CATEGORY_ROWS.filter(c=>c.parentId===id).sort(CAT_SORT_FN);
+  // Eligible to become someone's subcategory: top-level, not itself, and not
+  // already a parent of other categories (keeps nesting at exactly 2 levels).
+  const eligibleToLink = forParentId => topLevel.filter(c=>c.id!==forParentId && childrenOf(c.id).length===0);
+
+  el.innerHTML = `<div class="cat-mgmt-list">` + topLevel.map((cat, i)=>{
+    const kids = childrenOf(cat.id);
+    const eligible = eligibleToLink(cat.id);
+    return `
+      <div class="cat-mgmt-group">
+        <div class="cat-mgmt-row">
+          <div class="cat-mgmt-move">
+            <button class="cat-move-btn" data-move="up" data-cat-id="${cat.id}" ${i===0?'disabled':''} title="نقل لأعلى">${CAT_MOVE_UP_SVG}</button>
+            <button class="cat-move-btn" data-move="down" data-cat-id="${cat.id}" ${i===topLevel.length-1?'disabled':''} title="نقل لأسفل">${CAT_MOVE_DOWN_SVG}</button>
+          </div>
+          <div class="cat-mgmt-name">${cat.name}</div>
+          <button class="cat-delete-btn" data-cat-id="${cat.id}" title="حذف الفئة">${CAT_DELETE_SVG}</button>
+        </div>
+        ${kids.map((kid, ki)=>`
+          <div class="cat-mgmt-row cat-mgmt-row-child">
+            <span class="cat-mgmt-branch">↳</span>
+            <div class="cat-mgmt-move">
+              <button class="cat-move-btn" data-move="up" data-cat-id="${kid.id}" ${ki===0?'disabled':''} title="نقل لأعلى">${CAT_MOVE_UP_SVG}</button>
+              <button class="cat-move-btn" data-move="down" data-cat-id="${kid.id}" ${ki===kids.length-1?'disabled':''} title="نقل لأسفل">${CAT_MOVE_DOWN_SVG}</button>
+            </div>
+            <div class="cat-mgmt-name">${kid.name}</div>
+            <button class="cat-unlink-btn" data-cat-id="${kid.id}">فك الربط</button>
+            <button class="cat-delete-btn" data-cat-id="${kid.id}" title="حذف الفئة">${CAT_DELETE_SVG}</button>
+          </div>
+        `).join('')}
+        <div class="cat-mgmt-add-row">
+          <span class="cat-mgmt-branch">↳</span>
+          <input type="text" class="cat-add-sub-input" data-parent-id="${cat.id}" placeholder="اسم فئة فرعية جديدة">
+          <button class="cat-add-sub-btn" data-parent-id="${cat.id}">+ إضافة</button>
+          ${eligible.length ? `
+            <span class="cat-mgmt-or">أو</span>
+            <select class="cat-link-existing-select" data-parent-id="${cat.id}">
+              <option value="">انقل فئة موجودة لهنا</option>
+              ${eligible.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}
+            </select>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }).join('') + `</div>`;
+
+  el.querySelectorAll('.cat-move-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> moveCategoryOrder(parseInt(btn.dataset.catId, 10), btn.dataset.move === 'up' ? -1 : 1));
+  });
+  el.querySelectorAll('.cat-delete-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> deleteCategoryFromHierarchy(parseInt(btn.dataset.catId, 10)));
+  });
+  el.querySelectorAll('.cat-unlink-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> unlinkSubcategory(parseInt(btn.dataset.catId, 10)));
+  });
+  el.querySelectorAll('.cat-add-sub-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const input = el.querySelector(`.cat-add-sub-input[data-parent-id="${btn.dataset.parentId}"]`);
+      addNewSubcategory(parseInt(btn.dataset.parentId, 10), input.value, input);
+    });
+  });
+  el.querySelectorAll('.cat-add-sub-input').forEach(input=>{
+    input.addEventListener('keydown', (ev)=>{
+      if(ev.key === 'Enter') addNewSubcategory(parseInt(input.dataset.parentId, 10), input.value, input);
+    });
+  });
+  el.querySelectorAll('.cat-link-existing-select').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      if(!sel.value) return;
+      linkExistingAsSubcategory(parseInt(sel.value, 10), parseInt(sel.dataset.parentId, 10));
+    });
+  });
+}
+
+async function moveCategoryOrder(catId, direction){
+  const cat = CATEGORY_ROWS.find(c=>c.id===catId);
+  if(!cat) return;
+  // Reorder within the right scope: top-level categories move among each
+  // other, a subcategory moves among its own siblings under the same parent.
+  const siblings = (cat.parentId ? CATEGORY_ROWS.filter(c=>c.parentId===cat.parentId) : CATEGORY_ROWS.filter(c=>!c.parentId)).sort(CAT_SORT_FN);
+  const idx = siblings.indexOf(cat);
+  const targetIdx = idx + direction;
+  if(idx === -1 || targetIdx < 0 || targetIdx >= siblings.length) return;
+  const other = siblings[targetIdx];
+  const catSort = cat.sortOrder, otherSort = other.sortOrder;
+  cat.sortOrder = otherSort; other.sortOrder = catSort;
+  renderOnlineCategoryHierarchy();
+  try {
+    const [{error:e1}, {error:e2}] = await Promise.all([
+      window.supabaseClient.from('menu_categories').update({sort_order: otherSort}).eq('id', cat.id),
+      window.supabaseClient.from('menu_categories').update({sort_order: catSort}).eq('id', other.id),
+    ]);
+    if(e1 || e2) throw (e1 || e2);
+    logDashboardAudit('غيّر ترتيب فئة "' + cat.name + '"');
+  } catch(err){
+    showToast('تعذر حفظ الترتيب: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+  }
+}
+
+async function unlinkSubcategory(catId){
+  const cat = CATEGORY_ROWS.find(c=>c.id===catId);
+  if(!cat) return;
+  cat.parentId = null;
+  renderOnlineCategoryHierarchy();
+  try {
+    const { error } = await window.supabaseClient.from('menu_categories').update({online_parent_category_id: null}).eq('id', catId);
+    if(error) throw error;
+    showToast('صارت "' + cat.name + '" فئة رئيسية مستقلة');
+    logDashboardAudit('فك ربط فئة "' + cat.name + '" عن فئتها الرئيسية');
+  } catch(err){
+    showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+  } finally {
+    renderOnlineCategoryHierarchy();
+  }
+}
+
+async function linkExistingAsSubcategory(catId, parentId){
+  const cat = CATEGORY_ROWS.find(c=>c.id===catId), parent = CATEGORY_ROWS.find(c=>c.id===parentId);
+  if(!cat || !parent) return;
+  try {
+    const { error } = await window.supabaseClient.from('menu_categories').update({online_parent_category_id: parentId}).eq('id', catId);
+    if(error) throw error;
+    cat.parentId = parentId;
+    showToast('صارت "' + cat.name + '" فئة فرعية تحت "' + parent.name + '"');
+    logDashboardAudit('نقل فئة "' + cat.name + '" تحت "' + parent.name + '"');
+  } catch(err){
+    showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+  } finally {
+    renderOnlineCategoryHierarchy();
+  }
+}
+
+async function addNewSubcategory(parentId, rawName, input){
+  const name = rawName.trim();
+  if(!name) return;
+  if(MENU_CATEGORIES.includes(name)){ showToast('فيه فئة بنفس هذا الاسم أصلًا'); return; }
+  input.disabled = true;
+  try {
+    const { data: created, error } = await window.supabaseClient.from('menu_categories')
+      .insert({business_id: CURRENT_PROFILE.business_id, name, sort_order: MENU_CATEGORIES.length, online_parent_category_id: parentId})
+      .select().single();
+    if(error) throw error;
+    MENU_CATEGORIES.push(name);
+    MENU_CATEGORY_ID_BY_NAME[name] = created.id;
+    CATEGORY_ROWS.push({id: created.id, name, parentId, sortOrder: created.sort_order});
+    const parent = CATEGORY_ROWS.find(c=>c.id===parentId);
+    showToast('أُضيفت "' + name + '" كفئة فرعية تحت "' + (parent ? parent.name : '')  + '"');
+    logDashboardAudit('أضاف فئة فرعية "' + name + '"');
+  } catch(err){
+    showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+  } finally {
+    renderOnlineCategoryHierarchy();
+  }
+}
+
+async function deleteCategoryFromHierarchy(catId){
+  const cat = CATEGORY_ROWS.find(c=>c.id===catId);
+  if(!cat) return;
+  const productCount = MENU_ITEMS.filter(m=>m.category===cat.name && !m.name.includes('(مؤرشف)')).length;
+  if(productCount > 0){ showToast('فيه ' + productCount + ' منتج بفئة "' + cat.name + '" — انقلها لفئة ثانية أول عشان تقدر تحذفها'); return; }
+  if(CATEGORY_ROWS.some(c=>c.parentId===catId)){ showToast('هذي فئة رئيسية ولها فئات فرعية — شيل الربط عنها أول'); return; }
+  if(!window.confirm('حذف فئة "' + cat.name + '"؟')) return;
+  try {
+    const { error } = await window.supabaseClient.from('menu_categories').delete().eq('id', catId);
+    if(error) throw error;
+    CATEGORY_ROWS = CATEGORY_ROWS.filter(c=>c.id!==catId);
+    MENU_CATEGORIES = MENU_CATEGORIES.filter(c=>c!==cat.name);
+    delete MENU_CATEGORY_ID_BY_NAME[cat.name];
+    if(activeMenuCategory === cat.name) activeMenuCategory = null;
+    logDashboardAudit('حذف فئة "' + cat.name + '"');
+    showToast('تم حذف الفئة');
+  } catch(err){
+    showToast('تعذر الحذف: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+  } finally {
+    renderOnlineCategoryHierarchy();
+    renderCategoryTabs();
+  }
+}
+
+function wireOnlineMenuCatalog(){
+  renderOnlineCategoryHierarchy();
+  document.getElementById('toggleCatMgmtBtn').addEventListener('click', ()=>{
+    categoryManagementOpen = !categoryManagementOpen;
+    document.getElementById('onlineCategoryHierarchyWrap').style.display = categoryManagementOpen ? '' : 'none';
+    document.getElementById('toggleCatMgmtBtn').textContent = categoryManagementOpen ? 'إخفاء إدارة الفئات' : 'إدارة الفئات';
   });
 }
 
@@ -8100,23 +9837,17 @@ function renderFixedCostsTab(){
 
 function fixedCostsSettingsHtml(){
   return `
-    <div class="panel">
-      <div class="panel-title">
-        <span class="field-label-row">المصاريف الثابتة ${helpIcon('مصاريف تدفعها كل شهر بغض النظر عن مبيعاتك — إيجار، رواتب، فواتير. تختلف عن "التكلفة المتغيرة" اللي تتغيّر حسب كل منتج تبيعه (مكوّناته وتغليفه). ركين يوزّع هالمصاريف على كل منتج تلقائيًا حسب عدد القطع المباعة، عشان يطلع لك صافي ربح دقيق لكل صنف.')}</span>
-      </div>
-      <p style="font-size:11.5px; color:var(--muted); font-weight:600; margin-bottom:18px;">هذا الرقم هو اللي يظهر بكل منتج تحت "حصة المصاريف الثابتة" — عدّله هنا وينعكس تلقائيًا على هامش ربح كل منتج بالقائمة.</p>
-
-      <div class="menu-add-row" style="margin-bottom:6px;">
-        <div class="menu-add-field"><label class="field-label-row">الإيجار الشهري (ر.س) ${helpIcon('إيجار المحل أو الفرع شهريًا.')}</label><input type="number" id="fcRent" value="${FIXED_COSTS.rent}"></div>
-        <div class="menu-add-field"><label class="field-label-row">الرواتب الشهرية (ر.س) ${helpIcon('إجمالي رواتب كل الموظفين شهريًا.')}</label><input type="number" id="fcSalaries" value="${FIXED_COSTS.salaries}"></div>
-      </div>
-      <div class="menu-add-row" style="margin-bottom:16px;">
-        <div class="menu-add-field"><label class="field-label-row">الفواتير والخدمات (ر.س) ${helpIcon('كهرباء، ماء، إنترنت، اشتراكات — كل شي يتكرر شهريًا بغض النظر عن المبيعات.')}</label><input type="number" id="fcUtilities" value="${FIXED_COSTS.utilities}"></div>
-        <div class="menu-add-field"><label class="field-label-row">مصاريف أخرى (ر.س) ${helpIcon('أي شي ثابت شهري ما يندرج تحت الفئات فوق — صيانة، تأمين، وغيرها.')}</label><input type="number" id="fcOther" value="${FIXED_COSTS.other}"></div>
+    <div class="rk-section">
+      ${rkSectionHead('sliders', 'المصاريف الثابتة', 'مصاريف تدفعها كل شهر بغض النظر عن مبيعاتك — إيجار، رواتب، فواتير. ركين يوزّعها تلقائيًا على كل منتج حسب عدد القطع المباعة، عشان يطلع لك صافي ربح دقيق لكل صنف — هذا الرقم بالضبط اللي يظهر بكل منتج تحت "حصة المصاريف الثابتة"')}
+      <div class="rk-field-grid" style="display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px;">
+        <div class="rk-field"><label>الإيجار الشهري (ر.س) ${helpIcon('إيجار المحل أو الفرع شهريًا.')}</label><input type="number" id="fcRent" value="${FIXED_COSTS.rent}"></div>
+        <div class="rk-field"><label>الرواتب الشهرية (ر.س) ${helpIcon('إجمالي رواتب كل الموظفين شهريًا.')}</label><input type="number" id="fcSalaries" value="${FIXED_COSTS.salaries}"></div>
+        <div class="rk-field"><label>الفواتير والخدمات (ر.س) ${helpIcon('كهرباء، ماء، إنترنت، اشتراكات — كل شي يتكرر شهريًا بغض النظر عن المبيعات.')}</label><input type="number" id="fcUtilities" value="${FIXED_COSTS.utilities}"></div>
+        <div class="rk-field"><label>مصاريف أخرى (ر.س) ${helpIcon('أي شي ثابت شهري ما يندرج تحت الفئات فوق — صيانة، تأمين، وغيرها.')}</label><input type="number" id="fcOther" value="${FIXED_COSTS.other}"></div>
       </div>
 
-      <div class="cost-preview-box" id="fcPreviewBox"></div>
-      <button class="settings-save-btn" id="fcSaveBtn" style="margin-top:14px;">حفظ المصاريف الثابتة</button>
+      <div class="cost-preview-box" id="fcPreviewBox" style="margin-top:16px;"></div>
+      <button class="rk-btn rk-btn-primary rk-btn-lg" id="fcSaveBtn" style="margin-top:16px; width:100%;">حفظ المصاريف الثابتة</button>
     </div>
   `;
 }
@@ -8142,20 +9873,27 @@ function wireFixedCostsSettings(){
     const utilities = parseFloat(document.getElementById('fcUtilities').value)||0;
     const other = parseFloat(document.getElementById('fcOther').value)||0;
     const saveBtn = document.getElementById('fcSaveBtn');
-    saveBtn.disabled = true;
+    rkBtnLoading(saveBtn, true);
     try {
       const { error } = await window.supabaseClient.from('fixed_costs')
         .upsert({business_id: CURRENT_PROFILE.business_id, rent, salaries, utilities, other, updated_at: new Date().toISOString()});
       if(error) throw error;
       FIXED_COSTS.rent = rent; FIXED_COSTS.salaries = salaries; FIXED_COSTS.utilities = utilities; FIXED_COSTS.other = other;
       logDashboardAudit('حدّث المصاريف الثابتة الشهرية إلى ' + getMonthlyFixedCostsTotal().toFixed(2) + ' ر.س');
-      showToast('تم الحفظ — هامش الربح لكل منتج تحدّث تلقائيًا');
+      rkBtnSuccess(saveBtn, '✓ تم الحفظ');
+      // Fixed costs feed today's opex directly (recomputeAccounting) — without
+      // this, the "من الإيراد للربح الصافي" waterfall and the VAT/margin
+      // stat cards on the نظرة عامة tab would keep showing the OLD total
+      // until a full page reload, same class of bug as general expenses.
+      recomputeAccounting();
+      renderWaterfall();
+      renderOpexBreakdown();
+      renderVatAndMargin();
       if(typeof renderMenuProductTable === 'function') renderMenuProductTable();
       if(typeof renderOnboardingChecklist === 'function') renderOnboardingChecklist();
     } catch(err){
+      rkBtnLoading(saveBtn, false);
       showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-    } finally {
-      saveBtn.disabled = false;
     }
   });
 }
@@ -8375,15 +10113,29 @@ function renderCategoryTabs(){
   }
 }
 
-function confirmCategoryRename(input){
+async function confirmCategoryRename(input){
   const oldName = input.dataset.original;
   const newName = input.value.trim();
   renamingCategory = null;
   if(!newName || newName === oldName){ renderCategoryTabs(); return; }
   if(MENU_CATEGORIES.includes(newName)){ showToast('فيه فئة بنفس هذا الاسم أصلًا'); renderCategoryTabs(); return; }
 
+  const catId = MENU_CATEGORY_ID_BY_NAME[oldName];
+  try {
+    const { error } = await window.supabaseClient.from('menu_categories').update({name: newName}).eq('id', catId);
+    if(error) throw error;
+  } catch(err){
+    showToast('تعذر حفظ الاسم الجديد: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    renderCategoryTabs();
+    return;
+  }
+
   const idx = MENU_CATEGORIES.indexOf(oldName);
   MENU_CATEGORIES[idx] = newName;
+  delete MENU_CATEGORY_ID_BY_NAME[oldName];
+  MENU_CATEGORY_ID_BY_NAME[newName] = catId;
+  const catRow = CATEGORY_ROWS.find(c=>c.id===catId);
+  if(catRow) catRow.name = newName;
   MENU_ITEMS.forEach(m=>{ if(m.category === oldName) m.category = newName; }); // cascade to every product using it
   if(activeMenuCategory === oldName) activeMenuCategory = newName;
   logDashboardAudit('أعاد تسمية فئة "' + oldName + '" إلى "' + newName + '"');
@@ -8393,20 +10145,120 @@ function confirmCategoryRename(input){
 }
 
 /* ============ Product table — clean, scannable, one Edit entry point ============ */
+// Both this banner's item list and the unify banner's duplicate-name list
+// used to dump every name inline on one line — fine for a handful of test
+// products, unreadable (one giant unbroken line) once a real menu has
+// dozens of them. Collapsed by default now; the count alone is the
+// permanent signal, the actual names are one click away, not forced on
+// screen.
+let costCompletionBannerOpen = false;
 function renderCostCompletionBanner(){
   const el = document.getElementById('costCompletionBanner');
   if(!el) return;
   const incomplete = MENU_ITEMS.filter(m => !m.linkProfit);
   if(incomplete.length === 0){ el.innerHTML = ''; return; }
-  el.innerHTML = `<div class="cost-completion-banner">
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-    <span><b>${incomplete.length}</b> منتج لسا بدون تكلفة محددة (ما يدخل بحساب الأرباح):
+  el.innerHTML = `<div class="cost-completion-banner" style="flex-direction:column; align-items:stretch; gap:0;">
+    <div class="advanced-toggle-row" id="ccbToggle" style="padding:0;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span><b>${incomplete.length}</b> منتج لسا بدون تكلفة محددة (ما يدخل بحساب الأرباح)</span>
+      </div>
+      <svg class="advanced-chevron ${costCompletionBannerOpen?'open':''}" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="advanced-body ${costCompletionBannerOpen?'open':''}" style="margin-top:${costCompletionBannerOpen?'8px':'0'};">
       ${incomplete.map(m=>`<button class="ccb-item-link" data-id="${m.id}">${m.name}</button>`).join('، ')}
-    </span>
+    </div>
   </div>`;
+  document.getElementById('ccbToggle').addEventListener('click', ()=>{
+    costCompletionBannerOpen = !costCompletionBannerOpen;
+    renderCostCompletionBanner();
+  });
   el.querySelectorAll('.ccb-item-link').forEach(btn=>{
     btn.addEventListener('click', ()=> openProductEditModal(parseInt(btn.dataset.id)));
   });
+}
+
+/* ============ One-time cleanup for the old two-copies-per-channel model —
+   a product that's only turned on for ONE channel with no same-named row in
+   the other is almost always an oversight from before both switches lived
+   on the same record, so it's offered as a real one-click fix. A product
+   that DOES have a same-named row in the other channel is a genuine
+   pre-existing duplicate (two separate ids, possibly different cost/recipe
+   data) — flipping both rows' flags on would make the SAME product show
+   twice in one list, so those are only ever listed for the owner to look at
+   and resolve by hand (keep one, delete the other), never auto-merged. ============ */
+function computeMenuUnifyPlan(){
+  const items = MENU_ITEMS.filter(m=>!m.name.includes('(مؤرشف)'));
+  const byName = {};
+  items.forEach(m=>{
+    const key = m.name.trim().toLowerCase();
+    (byName[key] = byName[key] || []).push(m);
+  });
+  const safeToUnify = [];
+  const duplicateGroups = [];
+  Object.values(byName).forEach(group=>{
+    if(group.length > 1){ duplicateGroups.push(group); return; }
+    const item = group[0];
+    if(item.visiblePos !== item.visibleOnline) safeToUnify.push(item);
+  });
+  return {safeToUnify, duplicateGroups};
+}
+
+let menuUnifyDuplicatesOpen = false;
+function renderMenuUnifyBanner(){
+  const el = document.getElementById('menuUnifyBanner');
+  if(!el) return;
+  if(!ONLINE_ORDERING_ENABLED){ el.innerHTML = ''; return; }
+  const {safeToUnify, duplicateGroups} = computeMenuUnifyPlan();
+  if(safeToUnify.length === 0 && duplicateGroups.length === 0){ el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="cost-completion-banner" style="flex-direction:column; align-items:stretch; gap:10px;">
+    ${safeToUnify.length ? `
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <span class="oh-inline-icon" style="flex-shrink:0;">${rkIcon('refreshCw')}</span>
+      <span style="flex:1; min-width:200px;"><b>${safeToUnify.length}</b> منتج ظاهر بمكان واحد بس (كاشير أو متجر إلكتروني) — تقدر توحّدهم يظهرون بالاثنين بضغطة وحدة.</span>
+      <button class="rk-btn rk-btn-primary rk-btn-sm" id="menuUnifyApplyBtn">وحّد ${safeToUnify.length} منتج الآن</button>
+    </div>` : ''}
+    ${duplicateGroups.length ? `
+    <div class="${safeToUnify.length ? 'advanced-section' : ''}" style="${safeToUnify.length ? 'margin-top:0; padding-top:10px;' : ''}">
+      <div class="advanced-toggle-row" id="menuUnifyDupToggle" style="padding:0;">
+        <span style="font-size:12px; font-weight:700;"><b>${duplicateGroups.length}</b> اسم منتج له نسختين منفصلتين — يحتاج مراجعتك يدويًا (ما نقدر نوحّدهم تلقائيًا لاحتمال يكون لهم تكلفة أو وصفة مختلفة)</span>
+        <svg class="advanced-chevron ${menuUnifyDuplicatesOpen?'open':''}" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="advanced-body ${menuUnifyDuplicatesOpen?'open':''}" style="margin-top:${menuUnifyDuplicatesOpen?'8px':'0'}; font-size:11px; color:var(--muted); font-weight:600; line-height:1.7;">
+        ${duplicateGroups.map(g=>g[0].name).join('، ')}
+      </div>
+    </div>` : ''}
+  </div>`;
+  const applyBtn = document.getElementById('menuUnifyApplyBtn');
+  if(applyBtn) applyBtn.addEventListener('click', applyMenuUnify);
+  const dupToggle = document.getElementById('menuUnifyDupToggle');
+  if(dupToggle) dupToggle.addEventListener('click', ()=>{
+    menuUnifyDuplicatesOpen = !menuUnifyDuplicatesOpen;
+    renderMenuUnifyBanner();
+  });
+}
+
+async function applyMenuUnify(){
+  const btn = document.getElementById('menuUnifyApplyBtn');
+  const {safeToUnify} = computeMenuUnifyPlan();
+  if(safeToUnify.length === 0) return;
+  rkBtnLoading(btn, true);
+  try {
+    const results = await Promise.all(safeToUnify.map(item=>
+      window.supabaseClient.from('menu_items').update({visible_pos:true, visible_online:true}).eq('id', item.id)
+    ));
+    const failed = results.find(r=>r.error);
+    if(failed) throw failed.error;
+    safeToUnify.forEach(item=>{ item.visiblePos = true; item.visibleOnline = true; });
+    logDashboardAudit('وحّد ' + safeToUnify.length + ' منتج ليظهروا بالكاشير والمتجر الإلكتروني معًا');
+    showToast('تم توحيد ' + safeToUnify.length + ' منتج');
+    renderMenuProductTable();
+    renderMenuUnifyBanner();
+  } catch(err){
+    showToast('تعذر التوحيد: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+  } finally {
+    rkBtnLoading(btn, false);
+  }
 }
 
 function renderMenuProductTable(){
@@ -8423,11 +10275,22 @@ function renderMenuProductTable(){
   if(totalEl) totalEl.textContent = visibleItems.length;
   let items = activeMenuCategory === null ? visibleItems : visibleItems.filter(m=>m.category===activeMenuCategory);
   if(menuSearchQuery.trim()) items = items.filter(m=>m.name.includes(menuSearchQuery.trim()));
+  // MENU_ITEMS is only ever re-fetched in the DB's sort_order, not re-sorted
+  // in place after a local reorder — moveProductOrder mutates .sortOrder on
+  // the two swapped items but leaves their array position untouched, so this
+  // has to re-sort every render or a swap would look like it did nothing
+  // until the next full reload.
+  items = [...items].sort((a,b) => (a.sortOrder ?? a.id) - (b.sortOrder ?? b.id) || a.id - b.id);
 
   const el = document.getElementById('menuProductTable');
   if(items.length === 0){ el.innerHTML = '<div class="menu-table-empty">ما فيه منتجات تطابق هذا البحث أو القسم.</div>'; return; }
 
-  el.innerHTML = items.map(item=>{
+  // Reordering only makes sense against the true, unfiltered order within
+  // ONE category — with "كل المنتجات" active or a search applied, adjacent
+  // rows in the visible list aren't actually adjacent in the real order.
+  const canReorderProducts = activeMenuCategory !== null && !menuSearchQuery.trim();
+
+  el.innerHTML = items.map((item, itemIdx)=>{
     const cost = computeProductCost(item);
     const isBox = item.costMode === 'box' && item.componentSlot;
     // costMode isn't 'direct' but the resolved variable cost is exactly 0 —
@@ -8440,37 +10303,115 @@ function renderMenuProductTable(){
       : uncosted ? 'غير محددة ⚠️'
       : isBox ? cost.marginWorst.toFixed(0)+'٪–'+cost.marginBest.toFixed(0)+'٪'
       : cost.marginPct.toFixed(0)+'٪';
-    return `<div class="menu-table-row ${item.active?'':'inactive'}" data-id="${item.id}">
+    const isTempHidden = item.active && item.hiddenUntil && new Date(item.hiddenUntil) > new Date();
+    const isHiddenNow = !item.active || isTempHidden;
+    // Only the resulting timestamp is stored, not which button was clicked —
+    // approximate it back for the select's own display so a temporarily
+    // hidden row doesn't confusingly show "ظاهر" as selected.
+    const currentChoice = !item.active ? 'forever' : !isTempHidden ? 'show'
+      : (new Date(item.hiddenUntil) - new Date()) < 36*60*60*1000 ? 'today'
+      : (new Date(item.hiddenUntil) - new Date()) < 4*24*60*60*1000 ? '3days' : 'week';
+    return `<div class="menu-table-row ${isHiddenNow?'inactive':''}" data-id="${item.id}">
+      ${canReorderProducts ? `<div class="mtr-move">
+        <button class="cat-move-btn prod-move-btn" data-move="up" data-id="${item.id}" ${itemIdx===0?'disabled':''} title="نقل لأعلى">${CAT_MOVE_UP_SVG}</button>
+        <button class="cat-move-btn prod-move-btn" data-move="down" data-id="${item.id}" ${itemIdx===items.length-1?'disabled':''} title="نقل لأسفل">${CAT_MOVE_DOWN_SVG}</button>
+      </div>` : ''}
       <div class="mtr-product">
         <div class="mtr-thumb">${item.image ? `<img src="${item.image}">` : productImagePlaceholderSvg()}</div>
         <div class="mtr-name-col">
           <div class="mtr-name">${item.name}</div>
-          <div class="mtr-meta">${item.category}${isBox ? ' — تركيبة متغيرة ('+item.componentSlot.totalPieces+' قطعة)' : ''}${item.modifierGroupIds.length ? ' — '+item.modifierGroupIds.length+' مجموعة خيارات' : ''}</div>
+          <div class="mtr-meta">${item.category}${isBox ? ' — تركيبة متغيرة ('+item.componentSlot.totalPieces+' قطعة)' : ''}${item.modifierGroupIds.length ? ' — '+item.modifierGroupIds.length+' مجموعة خيارات' : ''}${(item.active && item.hiddenUntil && new Date(item.hiddenUntil) > new Date()) ? ' — يرجع تلقائيًا ' + formatHiddenUntilLabel(item.hiddenUntil) : ''}${(ONLINE_ORDERING_ENABLED && !item.visibleOnline) ? ' — غير ظاهر بالمتجر الإلكتروني' : ''}</div>
         </div>
       </div>
       <div class="mtr-price mono">${item.price.toFixed(2)}</div>
       <div class="mtr-margin"><span class="cost-margin-badge ${tier}">${marginDisplay}</span></div>
-      <div class="mtr-status"><button class="menu-toggle mtr-toggle ${item.active?'active':''}" data-action="toggle" data-id="${item.id}" title="${item.active?'مفعّل — اضغط للإيقاف':'موقوف — اضغط للتفعيل'}"></button></div>
+      <div class="mtr-status mtr-status-wide">
+        <select class="mtr-hide-select" data-id="${item.id}" title="ظهور المنتج">
+          <option value="show" ${currentChoice==='show'?'selected':''}>ظاهر</option>
+          <option value="today" ${currentChoice==='today'?'selected':''}>إخفاء اليوم</option>
+          <option value="3days" ${currentChoice==='3days'?'selected':''}>إخفاء ٣ أيام</option>
+          <option value="week" ${currentChoice==='week'?'selected':''}>إخفاء أسبوع</option>
+          <option value="forever" ${currentChoice==='forever'?'selected':''}>إخفاء نهائي</option>
+        </select>
+      </div>
       <div class="mtr-action"><button class="mtr-edit-btn" data-id="${item.id}">تعديل</button></div>
     </div>`;
   }).join('');
 
   el.querySelectorAll('.menu-table-row').forEach(row=>{
     row.addEventListener('click', (e)=>{
-      if(e.target.closest('.mtr-toggle')) return; // toggle handles itself, doesn't open the modal
+      if(e.target.closest('.mtr-hide-select') || e.target.closest('.prod-move-btn')) return;
       openProductEditModal(parseInt(row.dataset.id));
     });
   });
-  el.querySelectorAll('.mtr-toggle').forEach(btn=>{
-    btn.addEventListener('click', (e)=>{
-      e.stopPropagation();
-      const item = MENU_ITEMS.find(m=>m.id===parseInt(btn.dataset.id));
-      item.active = !item.active;
-      logDashboardAudit((item.active?'فعّل':'أوقف') + ' صنف ' + item.name);
-      showToast(item.active ? 'تم تفعيل الصنف' : 'تم إيقاف الصنف');
-      renderMenuProductTable();
+  el.querySelectorAll('.prod-move-btn').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{ e.stopPropagation(); moveProductOrder(parseInt(btn.dataset.id, 10), btn.dataset.move === 'up' ? -1 : 1); });
+  });
+  el.querySelectorAll('.mtr-hide-select').forEach(sel=>{
+    sel.addEventListener('click', e=>e.stopPropagation());
+    sel.addEventListener('change', async ()=>{
+      const item = MENU_ITEMS.find(m=>m.id===parseInt(sel.dataset.id));
+      const nextActive = sel.value !== 'forever';
+      const nextHiddenUntil = hiddenUntilForChoice(sel.value);
+      sel.disabled = true;
+      try {
+        const { error } = await window.supabaseClient.from('menu_items')
+          .update({active: nextActive, hidden_until: nextHiddenUntil}).eq('id', item.id);
+        if(error) throw error;
+        item.active = nextActive;
+        item.hiddenUntil = nextHiddenUntil;
+        const labels = {show:'أظهر', today:'أخفى (اليوم)', '3days':'أخفى (٣ أيام)', week:'أخفى (أسبوع)', forever:'أوقف نهائيًا'};
+        logDashboardAudit(labels[sel.value] + ' صنف ' + item.name);
+        showToast(sel.value === 'show' ? 'تم إظهار الصنف' : 'تم إخفاء الصنف');
+      } catch(err){
+        showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+      } finally {
+        sel.disabled = false;
+        renderMenuProductTable();
+      }
     });
   });
+}
+
+async function moveProductOrder(itemId, direction){
+  const visibleItems = MENU_ITEMS.filter(m=>!m.name.includes('(مؤرشف)'));
+  const items = activeMenuCategory === null ? visibleItems : visibleItems.filter(m=>m.category===activeMenuCategory);
+  const idx = items.findIndex(m=>m.id===itemId);
+  const targetIdx = idx + direction;
+  if(idx === -1 || targetIdx < 0 || targetIdx >= items.length) return;
+  const item = items[idx], other = items[targetIdx];
+  const itemSort = item.sortOrder ?? item.id, otherSort = other.sortOrder ?? other.id;
+  item.sortOrder = otherSort; other.sortOrder = itemSort;
+  renderMenuProductTable();
+  try {
+    const [{error:e1}, {error:e2}] = await Promise.all([
+      window.supabaseClient.from('menu_items').update({sort_order: otherSort}).eq('id', item.id),
+      window.supabaseClient.from('menu_items').update({sort_order: itemSort}).eq('id', other.id),
+    ]);
+    if(e1 || e2) throw (e1 || e2);
+    logDashboardAudit('غيّر ترتيب منتج "' + item.name + '"');
+  } catch(err){
+    showToast('تعذر حفظ الترتيب: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+  }
+}
+
+// "اخفاء اليوم" means "hidden until we're in a new day", not "hidden for
+// 24 hours" — comes back at local midnight tonight, not this-time-tomorrow.
+function hiddenUntilForChoice(choice){
+  const now = new Date();
+  if(choice === 'show' || choice === 'forever') return null;
+  if(choice === 'today'){
+    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    return tomorrow.toISOString();
+  }
+  if(choice === '3days') return new Date(now.getTime() + 3*24*60*60*1000).toISOString();
+  if(choice === 'week') return new Date(now.getTime() + 7*24*60*60*1000).toISOString();
+  return null;
+}
+
+function formatHiddenUntilLabel(iso){
+  const d = new Date(iso);
+  return d.toLocaleDateString('ar-SA', {day:'numeric', month:'short'}) + ' ' + d.toLocaleTimeString('ar-SA', {hour:'numeric', minute:'2-digit'});
 }
 
 function productImagePlaceholderSvg(){
@@ -8481,6 +10422,7 @@ function productImagePlaceholderSvg(){
    All three sections stay in the DOM simultaneously (just hidden) while the modal is open,
    so switching tabs never loses anything you've already typed. */
 let productModalState = {};
+let productModalOrigin = 'posMenu'; // 'posMenu' | 'onlineMenu' — which screen opened the modal
 
 // Recipe/box-mix quantities are encrypted at rest (see the migration adding
 // encrypt_recipe_qty) — MENU_ITEMS never carries real recipe numbers for
@@ -8489,8 +10431,9 @@ let productModalState = {};
 // legitimate moment the OWNER needs the real numbers, so it's fetched fresh,
 // per-item, through get_menu_item_recipe/get_menu_item_box_mix — the same
 // permission-gated RPCs that decrypt for them and only them.
-async function openProductEditModal(productId){
+async function openProductEditModal(productId, origin){
   editingProductId = productId || null;
+  productModalOrigin = origin === 'onlineMenu' ? 'onlineMenu' : 'posMenu';
   const existing = productId ? MENU_ITEMS.find(m=>m.id===productId) : null;
   const slot = existing && existing.componentSlot ? existing.componentSlot : null;
 
@@ -8505,8 +10448,14 @@ async function openProductEditModal(productId){
     defaultMix = (mixRows||[]).map(r=>({ingredient: STOCK_ITEM_NAME_BY_ID[r.stock_item_id], qty:Number(r.qty)})).filter(r=>r.ingredient);
   }
 
+  // One product, one row, everywhere by default — a new item starts visible
+  // on both the cashier and the online store (when the business has online
+  // ordering on) since that's what it almost always turns out to be. Hiding
+  // it from one channel is the exception, not the starting point, so it's a
+  // plain switch on the same record rather than a separate copy to keep in
+  // sync by hand.
   productModalState = existing
-    ? {name:existing.name, price:existing.price, category:existing.category, image:existing.image, imageFile:null,
+    ? {name:existing.name, nameEn:existing.nameEn||'', price:existing.price, category:existing.category, image:existing.image, imageFile:null,
        costMode:existing.costMode, directCost:existing.directCost, recipe,
        linkInventory:existing.linkInventory, linkProfit:existing.linkProfit,
        pointsRedeemPrice: existing.pointsRedeemPrice,
@@ -8514,10 +10463,15 @@ async function openProductEditModal(productId){
        modifierGroupIds:[...existing.modifierGroupIds],
        totalPieces: slot ? slot.totalPieces : 0,
        eligibleItems: slot ? [...slot.eligibleItems] : [],
-       defaultMix, finishedGoodStockItemId: existing.finishedGoodStockItemId}
-    : {name:'', price:0, category:MENU_CATEGORIES[0]||'', image:null, imageFile:null,
+       defaultMix, finishedGoodStockItemId: existing.finishedGoodStockItemId,
+       visibleOnline: existing.visibleOnline, visiblePos: existing.visiblePos,
+       onlineTagLabel: existing.onlineTagLabel, onlineTagColor: existing.onlineTagColor,
+       onlinePrice: existing.onlinePrice}
+    : {name:'', nameEn:'', price:0, category:MENU_CATEGORIES[0]||'', image:null, imageFile:null,
        costMode:'direct', directCost:0, recipe:[], linkInventory:false, linkProfit:false, pointsRedeemPrice:null, barcode:'', modifierGroupIds:[],
-       totalPieces:0, eligibleItems:[], defaultMix:[], finishedGoodStockItemId:null};
+       totalPieces:0, eligibleItems:[], defaultMix:[], finishedGoodStockItemId:null,
+       visibleOnline: true, visiblePos: true,
+       onlineTagLabel: null, onlineTagColor: null, onlinePrice: null};
 
   document.getElementById('productEditModalTitle').textContent = existing ? 'تعديل: ' + existing.name : 'إضافة منتج جديد';
   document.getElementById('productDeleteLink').style.display = existing ? 'block' : 'none';
@@ -8526,6 +10480,116 @@ async function openProductEditModal(productId){
   document.getElementById('productEditModal').classList.add('show');
 }
 
+// One product, one row — no more "sync a separate copy to the other
+// channel". These are just visibility switches on this exact record, so an
+// edit here is automatically the truth everywhere it's turned on. The
+// online switch only exists at all when the business has online ordering
+// turned on — no storefront, no reason to show a toggle for one.
+const rkVisiblePosStatus = c => c
+  ? {text:'يقدر الكاشير يبيعه', tone:'ok'}
+  : {text:'⚠ ما يظهر بشاشة الكاشير — ما يقدر أحد يبيعه من هناك', tone:'warn'};
+const rkVisibleOnlineStatus = c => c
+  ? {text:'يشوفه العميل ويقدر يطلبه من متجرك الإلكتروني', tone:'ok'}
+  : {text:'⚠ ما يظهر بمتجرك الإلكتروني', tone:'warn'};
+
+function productEditChannelControlHtml(){
+  let html = `<div style="margin-top:6px;">`;
+  html += rkSwitchRow('pfVisiblePos', productModalState.visiblePos, 'ظاهر بالكاشير', null, rkVisiblePosStatus);
+  if(ONLINE_ORDERING_ENABLED){
+    html += rkSwitchRow('pfVisibleOnline', productModalState.visibleOnline, 'ظاهر بالمتجر الإلكتروني', null, rkVisibleOnlineStatus);
+  }
+  html += `</div>`;
+  return html;
+}
+
+// Online-storefront-only merchandising badge — never shown in the POS.
+// Each preset ships a sane default color; the merchant can still override
+// the color for any of them.
+const ONLINE_TAG_PRESETS = {
+  'جديد': '#3E7BFA', 'مميز': '#7C5CFC', 'الأكثر مبيعاً': '#E0862E', 'موسمي': '#1FA6A6',
+};
+
+// Fills the target name field from the source field via the free translate
+// proxy (see app/api/dashboard/translate) — never blocks: if it fails for
+// any reason, the merchant still has the field to type into themselves.
+function wireTranslateButton(btnId, fromId, toId, target){
+  document.getElementById(btnId).addEventListener('click', async ()=>{
+    const btn = document.getElementById(btnId);
+    const text = document.getElementById(fromId).value.trim();
+    if(!text){ showToast('اكتب الاسم بالطرف الثاني أولاً'); return; }
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = '...';
+    try {
+      const res = await fetch('/api/dashboard/translate', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({text, target}),
+      });
+      const data = await res.json();
+      if(!res.ok || !data.translated) throw new Error('translate failed');
+      const toInput = document.getElementById(toId);
+      toInput.value = data.translated;
+      toInput.dispatchEvent(new Event('input', {bubbles:true}));
+    } catch {
+      showToast('تعذرت الترجمة التلقائية — اكتبها بنفسك');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+  });
+}
+
+function productEditOnlineTagHtml(){
+  const label = productModalState.onlineTagLabel || '';
+  const color = productModalState.onlineTagColor || ONLINE_TAG_PRESETS[label] || '#7C5CFC';
+  return `
+    <div class="menu-add-field" style="margin-top:14px; max-width:220px;">
+      <label>سعر مختلف للمتجر الإلكتروني (اختياري) ${helpIcon('لو تبي هذا المنتج يُباع بسعر مختلف عن سعره بالكاشير لما يُطلب من متجرك الإلكتروني (مثلاً لتغطية تكلفة تغليف إضافية)، اكتبه هنا. سيبه 0 عشان يستخدم نفس السعر العادي.')}</label>
+      <input type="number" id="pfOnlinePrice" value="${productModalState.onlinePrice != null ? productModalState.onlinePrice : ''}" placeholder="0 = نفس سعر الكاشير">
+    </div>
+    <div class="menu-add-field" style="margin-top:14px;">
+      <label>وسم المنتج بالمتجر الإلكتروني (اختياري) ${helpIcon('يظهر كشارة صغيرة فوق صورة المنتج بالمتجر الإلكتروني بس — ما يظهر بالكاشير أبدًا.')}</label>
+      <div style="display:flex; gap:8px; margin-top:4px;">
+        <select id="pfOnlineTagLabel" style="flex:1;">
+          <option value="">بدون وسم</option>
+          ${Object.keys(ONLINE_TAG_PRESETS).map(l=>`<option value="${l}" ${label===l?'selected':''}>${l}</option>`).join('')}
+        </select>
+        <input type="color" id="pfOnlineTagColor" value="${color}" style="width:44px; height:38px; padding:2px; cursor:pointer; ${label?'':'visibility:hidden;'}">
+      </div>
+    </div>
+  `;
+}
+
+// Was a bare "— شامل الضريبة"/"— قبل الضريبة" suffix on the price label —
+// real feedback: that reads like it conflicts with Settings' "تسجيل
+// الضريبة" (a DIFFERENT toggle, whether VAT applies at all vs whether a
+// price already has it baked in). Spelling out a real number removes the
+// ambiguity outright instead of trying to word the label more carefully.
+function updatePfPriceVatNote(){
+  const el = document.getElementById('pfPriceVatNote');
+  if(!el) return;
+  const price = productModalState.price || 0;
+  if(!VAT_REGISTERED){
+    el.textContent = 'مشروعك مو مسجّل بضريبة القيمة المضافة حاليًا (الإعدادات ← الضريبة والفوترة) — ما تُضاف أي ضريبة على هذا السعر.';
+    return;
+  }
+  const rate = (typeof BUSINESS_VAT_RATE === 'number' && BUSINESS_VAT_RATE > 0) ? BUSINESS_VAT_RATE : 0.15;
+  if(PRICES_INCLUDE_VAT){
+    const vatPortion = price - (price / (1 + rate));
+    el.textContent = 'هذا هو السعر النهائي اللي يدفعه العميل — منه ' + vatPortion.toFixed(2) + ' ر.س ضريبة (الإعدادات ← الضريبة والفوترة).';
+  } else {
+    const finalPrice = price * (1 + rate);
+    el.textContent = 'الضريبة تُضاف على هذا السعر وقت البيع — العميل يدفع فعليًا ' + finalPrice.toFixed(2) + ' ر.س (الإعدادات ← الضريبة والفوترة).';
+  }
+}
+
+const rkLinkInventoryStatus = c => c
+  ? {text:'كل عملية بيع تخصم المكوّنات تلقائيًا من مخزونك الحقيقي', tone:'ok'}
+  : {text:'⚠ المخزون ما يتأثر بمبيعات هذا المنتج — التكلفة تُحسب بس، بدون خصم فعلي', tone:'warn'};
+const rkLinkProfitStatus = c => c
+  ? {text:'يدخل ضمن حساب أرباحك الكلية، وهامشه يظهر بجدول القائمة', tone:'ok'}
+  : {text:'⚠ ما يُحتسب هذا المنتج بتحليل الربحية — هامشه ما يظهر بالجدول', tone:'warn'};
+
 function productEditBodyHtml(){
   return `
     <div class="pe-tab-section" data-section="basic">
@@ -8533,18 +10597,45 @@ function productEditBodyHtml(){
         ${productModalState.image ? `<img src="${productModalState.image}">` : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg><span>أضف صورة</span>`}
         <input type="file" id="pfImageInput" accept="image/*">
       </div>
-      <div class="menu-add-field" style="margin-bottom:12px;"><label>اسم المنتج</label><input type="text" id="pfName" value="${productModalState.name}" placeholder="مثال: موكا"></div>
-      <div class="menu-add-row" style="margin-bottom:0;">
-        <div class="menu-add-field"><label>السعر (ر.س)${PRICES_INCLUDE_VAT ? ' — شامل الضريبة' : ' — قبل الضريبة'}</label><input type="number" id="pfPrice" value="${productModalState.price}"></div>
+      <div class="menu-add-row" style="margin-bottom:12px;">
+        <div class="menu-add-field">
+          <label>الاسم بالعربي</label>
+          <div style="display:flex; gap:6px;">
+            <input type="text" id="pfName" value="${productModalState.name}" placeholder="مثال: موكا" style="flex:1;">
+            <button type="button" class="mtr-edit-btn" id="pfTranslateToAr" title="ترجمة من الإنجليزي">AR ⟵</button>
+          </div>
+        </div>
+        <div class="menu-add-field">
+          <label>English Name</label>
+          <div style="display:flex; gap:6px;">
+            <input type="text" id="pfNameEn" value="${productModalState.nameEn||''}" placeholder="e.g: Mocha" dir="ltr" style="flex:1;">
+            <button type="button" class="mtr-edit-btn" id="pfTranslateToEn" title="ترجمة من العربي">⟶ EN</button>
+          </div>
+        </div>
+      </div>
+      <p class="stock-qty-helper" style="margin-top:-8px; margin-bottom:12px;">اكتب أي وحد منهم واضغط زر الترجمة عشان يعبّي الثاني تلقائيًا — أو اكتبهم بنفسك بدون ترجمة.</p>
+      <div class="menu-add-row" style="margin-bottom:4px;">
+        <div class="menu-add-field"><label>السعر (ر.س) ${helpIcon('هذا السعر عمومًا مرتبط بإعداد "أسعار المنيو شاملة الضريبة" اللي تتحكم فيه من الإعدادات ← الضريبة والفوترة — التوضيح تحت الحقل يعكس إعدادك الحالي.')}</label><input type="number" id="pfPrice" value="${productModalState.price}"></div>
         <div class="menu-add-field"><label>التصنيف</label><select id="pfCategory">${MENU_CATEGORIES.map(c=>`<option value="${c}" ${productModalState.category===c?'selected':''}>${c}</option>`).join('')}</select></div>
       </div>
-      <div class="menu-add-field" style="margin-top:12px; max-width:220px;">
-        <label>نقاط الاسترداد (اختياري) ${helpIcon('لو حددت رقم، يقدر العميل يستبدل هذا المنتج بنقاط ولائه بدل الدفع — يظهر خيار الاستبدال بالكاشير إذا كان رصيده كافي. سيبه فاضي عشان ما يكون قابل للاستبدال بالنقاط.')}</label>
-        <input type="number" id="pfPointsRedeemPrice" value="${productModalState.pointsRedeemPrice != null ? productModalState.pointsRedeemPrice : ''}" placeholder="مثال: ٥٠٠">
-      </div>
-      <div class="menu-add-field" style="margin-top:12px; max-width:260px;">
-        <label>الباركود (اختياري) ${helpIcon('امسح أو اكتب الباركود المطبوع على المنتج — يقدر الكاشير يبحث عنه ويضيفه للسلة مباشرة بجهاز قارئ باركود بدل البحث اليدوي. سيبه فاضي لو ما عندك قارئ باركود.')}</label>
-        <input type="text" id="pfBarcode" class="mono" value="${productModalState.barcode||''}" placeholder="مثال: 6281234567890">
+      <p class="stock-qty-helper" id="pfPriceVatNote" style="margin-top:0;"></p>
+      ${productEditChannelControlHtml()}
+      <div class="advanced-section" style="margin-top:6px;">
+        <div class="advanced-toggle-row" id="pfAdvancedToggle">
+          <div class="panel-subtitle" style="margin:0;">خيارات إضافية (اختياري)</div>
+          <svg class="advanced-chevron" id="pfAdvancedChevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="advanced-body" id="pfAdvancedBody">
+          <div class="menu-add-field" style="margin-top:12px; max-width:220px;">
+            <label>نقاط الاسترداد ${helpIcon('لو حددت رقم، يقدر العميل يستبدل هذا المنتج بنقاط ولائه بدل الدفع — يظهر خيار الاستبدال بالكاشير إذا كان رصيده كافي. سيبه فاضي عشان ما يكون قابل للاستبدال بالنقاط.')}</label>
+            <input type="number" id="pfPointsRedeemPrice" value="${productModalState.pointsRedeemPrice != null ? productModalState.pointsRedeemPrice : ''}" placeholder="مثال: ٥٠٠">
+          </div>
+          <div class="menu-add-field" style="margin-top:12px; max-width:260px;">
+            <label>الباركود ${helpIcon('امسح أو اكتب الباركود المطبوع على المنتج — يقدر الكاشير يبحث عنه ويضيفه للسلة مباشرة بجهاز قارئ باركود بدل البحث اليدوي. سيبه فاضي لو ما عندك قارئ باركود.')}</label>
+            <input type="text" id="pfBarcode" class="mono" value="${productModalState.barcode||''}" placeholder="مثال: 6281234567890">
+          </div>
+          ${ONLINE_ORDERING_ENABLED ? productEditOnlineTagHtml() : ''}
+        </div>
       </div>
     </div>
 
@@ -8595,9 +10686,9 @@ function productEditBodyHtml(){
       </div>
 
       <div class="pe-step-label">٣. ربطه بالمخزون والمحاسبة</div>
-      <div class="menu-toggles-row">
-        <label class="field-label-row"><input type="checkbox" id="pfLinkInventory" ${productModalState.linkInventory?'checked':''}> اربط بالمخزون ${helpIcon('لو فعّلته: كل ما تنباع وحدة، النظام يخصم المكوّنات تلقائيًا من مخزونك الحقيقي، وتقدر تشوف "استهلك اليوم" بصفحة المخزون. لو ما فعّلته: التكلفة تُحسب زي العادة، بس المخزون ما يتأثر (يفيدك لمنتجات ما عندها مكوّنات متتبّعة، مثل مشروب معلّب جاهز).')}</label>
-        <label class="field-label-row"><input type="checkbox" id="pfLinkProfit" ${productModalState.linkProfit?'checked':''}> احتسب ضمن المحاسبة ${helpIcon('لو فعّلته: تكلفة هذا المنتج وربحه يدخلون بحساب أرباحك الكلية وهامشه يظهر بجدول القائمة. لو ما فعّلته: المنتج يبقى موجود ويُباع عادي، بس ما يُحتسب بتحليل الربحية (يفيدك لعينات مجانية أو منتجات لسا ما حددت تكلفتها).')}</label>
+      <div class="rk-switch-row-group">
+        ${rkSwitchRow('pfLinkInventory', productModalState.linkInventory, 'اربط بالمخزون', 'لو فعّلته: كل ما تنباع وحدة، النظام يخصم المكوّنات تلقائيًا من مخزونك الحقيقي، وتقدر تشوف "استهلك اليوم" بصفحة المخزون. لو ما فعّلته: التكلفة تُحسب زي العادة، بس المخزون ما يتأثر (يفيدك لمنتجات ما عندها مكوّنات متتبّعة، مثل مشروب معلّب جاهز).', rkLinkInventoryStatus)}
+        ${rkSwitchRow('pfLinkProfit', productModalState.linkProfit, 'احتسب ضمن المحاسبة', 'لو فعّلته: تكلفة هذا المنتج وربحه يدخلون بحساب أرباحك الكلية وهامشه يظهر بجدول القائمة. لو ما فعّلته: المنتج يبقى موجود ويُباع عادي، بس ما يُحتسب بتحليل الربحية (يفيدك لعينات مجانية أو منتجات لسا ما حددت تكلفتها).', rkLinkProfitStatus)}
       </div>
 
       <div class="pe-step-label">النتيجة</div>
@@ -8685,13 +10776,63 @@ async function renderProductDeliveryPricing(){
 function renderProductEditBody(){
   document.getElementById('productEditBody').innerHTML = productEditBodyHtml();
   wireImageInput();
+  // Open by default only if there's already something in there to see —
+  // a brand-new product shouldn't have to expand this to get through the
+  // fast path (name, price, category, image), but re-opening a product
+  // that already has a barcode/points/online-tag set must never hide data
+  // the owner already entered.
+  const hasAdvancedData = !!(productModalState.barcode || productModalState.pointsRedeemPrice != null || productModalState.onlineTagLabel || productModalState.onlinePrice);
+  if(hasAdvancedData){
+    document.getElementById('pfAdvancedBody').classList.add('open');
+    document.getElementById('pfAdvancedChevron').classList.add('open');
+  }
+  document.getElementById('pfAdvancedToggle').addEventListener('click', ()=>{
+    const body = document.getElementById('pfAdvancedBody');
+    const chevron = document.getElementById('pfAdvancedChevron');
+    const open = !body.classList.contains('open');
+    body.classList.toggle('open', open);
+    chevron.classList.toggle('open', open);
+  });
   document.getElementById('pfName').addEventListener('input', (e)=> productModalState.name = e.target.value);
-  document.getElementById('pfPrice').addEventListener('input', (e)=>{ productModalState.price = parseFloat(e.target.value)||0; updateCostPreview(); });
+  document.getElementById('pfNameEn').addEventListener('input', (e)=> productModalState.nameEn = e.target.value);
+  wireTranslateButton('pfTranslateToEn', 'pfName', 'pfNameEn', 'en');
+  wireTranslateButton('pfTranslateToAr', 'pfNameEn', 'pfName', 'ar');
+  document.getElementById('pfPrice').addEventListener('input', (e)=>{ productModalState.price = parseFloat(e.target.value)||0; updateCostPreview(); updatePfPriceVatNote(); });
+  updatePfPriceVatNote();
   document.getElementById('pfCategory').addEventListener('change', (e)=> productModalState.category = e.target.value);
   document.getElementById('pfPointsRedeemPrice').addEventListener('input', (e)=>{
     productModalState.pointsRedeemPrice = e.target.value.trim() === '' ? null : parseFloat(e.target.value);
   });
   document.getElementById('pfBarcode').addEventListener('input', (e)=> productModalState.barcode = e.target.value.trim());
+  document.getElementById('pfVisiblePos').addEventListener('change', (e)=> productModalState.visiblePos = e.target.checked);
+  rkWireSwitchStatus('pfVisiblePos', rkVisiblePosStatus);
+  const visibleOnlineToggle = document.getElementById('pfVisibleOnline');
+  if(visibleOnlineToggle){
+    visibleOnlineToggle.addEventListener('change', (e)=> productModalState.visibleOnline = e.target.checked);
+    rkWireSwitchStatus('pfVisibleOnline', rkVisibleOnlineStatus);
+  }
+
+  const onlinePriceInput = document.getElementById('pfOnlinePrice');
+  if(onlinePriceInput) onlinePriceInput.addEventListener('input', (e)=>{
+    const v = parseFloat(e.target.value);
+    productModalState.onlinePrice = (e.target.value.trim() === '' || !(v > 0)) ? null : v;
+  });
+
+  const tagLabelSelect = document.getElementById('pfOnlineTagLabel');
+  const tagColorInput = document.getElementById('pfOnlineTagColor');
+  if(tagLabelSelect && tagColorInput){
+    tagLabelSelect.addEventListener('change', ()=>{
+      productModalState.onlineTagLabel = tagLabelSelect.value || null;
+      if(tagLabelSelect.value){
+        tagColorInput.style.visibility = 'visible';
+        if(!productModalState.onlineTagColor) tagColorInput.value = ONLINE_TAG_PRESETS[tagLabelSelect.value];
+        productModalState.onlineTagColor = tagColorInput.value;
+      } else {
+        tagColorInput.style.visibility = 'hidden';
+      }
+    });
+    tagColorInput.addEventListener('input', ()=> productModalState.onlineTagColor = tagColorInput.value);
+  }
 
   document.getElementById('pfCostModeSelect').addEventListener('change', (e)=> setCostMode(e.target.value));
   document.getElementById('pfDirectCost').addEventListener('input', (e)=>{ productModalState.directCost = parseFloat(e.target.value)||0; updateCostPreview(); });
@@ -8707,6 +10848,8 @@ function renderProductEditBody(){
     const fg = document.getElementById('finishedGoodSection');
     if(fg) fg.style.display = (productModalState.costMode==='direct' && productModalState.linkInventory) ? 'block' : 'none';
   });
+  rkWireSwitchStatus('pfLinkInventory', rkLinkInventoryStatus);
+  rkWireSwitchStatus('pfLinkProfit', rkLinkProfitStatus);
   const fgSelect = document.getElementById('pfFinishedGoodStockItem');
   if(fgSelect) fgSelect.addEventListener('change', (e)=> productModalState.finishedGoodStockItemId = e.target.value ? parseInt(e.target.value,10) : null);
   const fgCreateBtn = document.getElementById('createFinishedGoodStockBtn');
@@ -8759,8 +10902,9 @@ function renderEligibleItemsChecklist(){
   const simpleItems = productModalState.eligibleItems.filter(e=>e.costMode==='simple');
   el.innerHTML = pieceItems.map(s=>{
     const checked = productModalState.eligibleItems.some(e=>e.costMode==='stock' && e.name===s.name);
-    return `<label class="attach-group-item">
+    return `<label class="attach-group-item rk-check">
       <input type="checkbox" class="eligible-item-checkbox" value="${s.name}" ${checked?'checked':''}>
+      <span class="rk-check-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
       <span class="ag-name">${s.name}</span>
       <span class="ag-meta">${formatUnitCost(s.unitCost)} ر.س/حبة — من المخزون</span>
     </label>`;
@@ -8888,8 +11032,9 @@ function renderAttachGroupsList(){
     const checked = productModalState.modifierGroupIds.includes(g.id);
     const hasCost = g.options.some(o=>computeModifierOptionCost(o)>0);
     const typeLabel = g.type==='single' ? 'اختيار واحد' : g.type==='quantity' ? 'كمية متعددة (حتى '+g.max+' قطعة)' : 'اختيار متعدد';
-    return `<label class="attach-group-item">
+    return `<label class="attach-group-item rk-check">
       <input type="checkbox" class="attach-group-checkbox" data-id="${g.id}" ${checked?'checked':''}>
+      <span class="rk-check-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
       <span class="ag-name">${g.name}</span>
       <span class="ag-meta">${typeLabel} — ${g.options.length} خيار</span>
     </label>
@@ -8934,6 +11079,7 @@ async function saveProductEdit(){
   const name = productModalState.name.trim();
   if(!name){ showToast('لازم تكتب اسم المنتج'); return; }
   if(!(productModalState.price >= 0)){ showToast('لازم تدخل سعر صحيح'); return; }
+  if(!productModalState.visiblePos && !productModalState.visibleOnline){ showToast('المنتج لازم يكون ظاهر بمكان واحد على الأقل — فعّل الكاشير أو المتجر الإلكتروني'); return; }
   if(productModalState.costMode === 'box'){
     if(!(productModalState.totalPieces > 0)){ showToast('لازم تحدد كم قطعة بالمنتج كامل'); return; }
     if(productModalState.eligibleItems.length === 0){ showToast('لازم تحدد عناصر يقدر العميل يختار منها'); return; }
@@ -8946,12 +11092,16 @@ async function saveProductEdit(){
   }
 
   const productData = {
-    name, price: productModalState.price, category: productModalState.category, image: productModalState.image,
+    name, nameEn: productModalState.nameEn.trim() || null, price: productModalState.price, category: productModalState.category, image: productModalState.image,
     costMode: productModalState.costMode, directCost: productModalState.directCost,
     recipe: productModalState.recipe.filter(r=>r.qty>0),
     linkInventory: productModalState.linkInventory, linkProfit: productModalState.linkProfit,
     pointsRedeemPrice: productModalState.pointsRedeemPrice,
     barcode: productModalState.barcode || '',
+    visibleOnline: productModalState.visibleOnline, visiblePos: productModalState.visiblePos,
+    onlineTagLabel: productModalState.onlineTagLabel, onlineTagColor: productModalState.onlineTagColor,
+    onlinePrice: productModalState.onlinePrice,
+    onlinePrice: productModalState.onlinePrice,
     modifierGroupIds: [...productModalState.modifierGroupIds],
     componentSlot: productModalState.costMode==='box' ? {
       totalPieces: productModalState.totalPieces, eligibleItems: [...productModalState.eligibleItems],
@@ -8960,7 +11110,7 @@ async function saveProductEdit(){
   };
 
   const saveBtn = document.getElementById('productEditSaveBtn');
-  saveBtn.disabled = true;
+  rkBtnLoading(saveBtn, true);
   try {
     const sb = window.supabaseClient;
     let categoryId = MENU_CATEGORY_ID_BY_NAME[productModalState.category];
@@ -8974,11 +11124,14 @@ async function saveProductEdit(){
     }
 
     const row = {
-      business_id: CURRENT_PROFILE.business_id, category_id: categoryId, name, price: productModalState.price,
+      business_id: CURRENT_PROFILE.business_id, category_id: categoryId, name, name_en: productModalState.nameEn.trim() || null, price: productModalState.price,
       cost_mode: productModalState.costMode, direct_cost: productModalState.directCost,
       link_inventory: productModalState.linkInventory, link_profit: productModalState.linkProfit,
       points_redeem_price: productModalState.pointsRedeemPrice,
       barcode: productModalState.barcode || null,
+      visible_online: productModalState.visibleOnline, visible_pos: productModalState.visiblePos,
+      online_tag_label: productModalState.onlineTagLabel, online_tag_color: productModalState.onlineTagLabel ? productModalState.onlineTagColor : null,
+      online_price: productModalState.onlinePrice,
       total_pieces: productModalState.costMode==='box' ? productModalState.totalPieces : null,
       finished_good_stock_item_id: (productModalState.costMode==='direct' && productModalState.linkInventory) ? (productModalState.finishedGoodStockItemId || null) : null
     };
@@ -9022,12 +11175,26 @@ async function saveProductEdit(){
     if(childFailed) throw childFailed.error;
 
     if(productModalState.imageFile){
-      const compressedImage = await compressImageFile(productModalState.imageFile);
-      const url = await uploadMediaFile(compressedImage, 'menu-item-images', String(menuItemId));
-      const { error: imgErr } = await sb.from('menu_items').update({image_url: url}).eq('id', menuItemId);
+      const squared = await squareifyProductImage(productModalState.imageFile);
+      // Full quality, unchanged — this is what the online storefront,
+      // quickview zoom, and receipts show, so it must never be degraded.
+      const compressedImage = await compressImageFile(squared);
+      // A SEPARATE small thumbnail, only for the POS grid's tiny tiles
+      // (72-130px) — tapping "الكل" there was decoding dozens of full-size
+      // photos at once and hanging the iPad. makePosThumbnail always
+      // shrinks regardless of source size (unlike compressImageFile, which
+      // skips files already under 250KB) since the goal here is guaranteeing
+      // a small file, not just compressing when it happens to help.
+      const thumbImage = await makePosThumbnail(squared);
+      const [url, thumbUrl] = await Promise.all([
+        uploadMediaFile(compressedImage, 'menu-item-images', String(menuItemId)),
+        thumbImage ? uploadMediaFile(thumbImage, 'menu-item-images', String(menuItemId) + '-thumb') : Promise.resolve(null),
+      ]);
+      const { error: imgErr } = await sb.from('menu_items').update({image_url: url, image_thumb_url: thumbUrl}).eq('id', menuItemId);
       if(imgErr) throw imgErr;
       productData.image = url;
     }
+
 
     if(editingProductId){
       Object.assign(MENU_ITEMS.find(m=>m.id===editingProductId), productData);
@@ -9044,7 +11211,7 @@ async function saveProductEdit(){
     if(editingProductId){
       closeProductEditModal();
     } else {
-      openProductEditModal(null);
+      openProductEditModal(null, productModalOrigin);
       const nameInput = document.getElementById('pfName');
       if(nameInput) nameInput.focus();
     }
@@ -9052,6 +11219,7 @@ async function saveProductEdit(){
     renderMenuProductTable();
     renderModifierGroupsTable();
     renderCostCompletionBanner();
+    if(typeof renderMenuUnifyBanner === 'function') renderMenuUnifyBanner();
     if(typeof renderStockTable === 'function') renderStockTable();
     if(typeof renderOnboardingChecklist === 'function') renderOnboardingChecklist();
   } catch(err){
@@ -9061,7 +11229,7 @@ async function saveProductEdit(){
       showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
     }
   } finally {
-    saveBtn.disabled = false;
+    rkBtnLoading(saveBtn, false);
   }
 }
 
@@ -9095,6 +11263,7 @@ async function deleteProductFromModal(){
         renderCategoryTabs();
         renderMenuProductTable();
         renderCostCompletionBanner();
+    if(typeof renderMenuUnifyBanner === 'function') renderMenuUnifyBanner();
         showToast('هذا الصنف له طلبات حقيقية سابقة فما ينحذف نهائيًا — تمت أرشفته وصار غير ظاهر بالكاشير');
         return;
       }
@@ -9114,6 +11283,7 @@ async function deleteProductFromModal(){
     renderCategoryTabs();
     renderMenuProductTable();
     renderCostCompletionBanner();
+    if(typeof renderMenuUnifyBanner === 'function') renderMenuUnifyBanner();
     showToast('تم حذف الصنف');
   } catch(err){
     showToast('تعذر الحذف: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
@@ -9318,7 +11488,7 @@ async function saveModGroup(){
   };
 
   const saveBtn = document.getElementById('modGroupSaveBtn');
-  saveBtn.disabled = true;
+  rkBtnLoading(saveBtn, true);
   try {
     const sb = window.supabaseClient;
     const groupRow = {business_id: CURRENT_PROFILE.business_id, name, type: groupData.type, max_select: groupData.max};
@@ -9365,7 +11535,7 @@ async function saveModGroup(){
   } catch(err){
     showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
   } finally {
-    saveBtn.disabled = false;
+    rkBtnLoading(saveBtn, false);
   }
 }
 
@@ -9638,6 +11808,7 @@ async function commitBulkImport(kind, validRows){
     renderCategoryTabs();
     renderMenuProductTable();
     if(typeof renderCostCompletionBanner === 'function') renderCostCompletionBanner();
+    if(typeof renderMenuUnifyBanner === 'function') renderMenuUnifyBanner();
     if(typeof renderOnboardingChecklist === 'function') renderOnboardingChecklist();
   } else if(kind === 'modifiers'){
     for(const g of validRows){
@@ -9666,6 +11837,7 @@ function wireMenuScreen(){
   renderMenuProductTable();
   renderModifierGroupsTable();
   renderCostCompletionBanner();
+  renderMenuUnifyBanner();
 
   document.getElementById('openAddCategoryBtn').addEventListener('click', ()=>{
     document.getElementById('addCategoryInline').style.display = 'flex';
@@ -9705,6 +11877,7 @@ function wireMenuScreen(){
     const tab = btn.dataset.tab;
     document.getElementById('menuTabProducts').style.display = tab==='products' ? 'block' : 'none';
     document.getElementById('menuTabModifiers').style.display = tab==='modifiers' ? 'block' : 'none';
+    resetContentScroll();
   });
 
   // unified product edit modal wiring
@@ -10213,13 +12386,15 @@ async function wireRoomsScreen(){
    so it's a real access cutoff, not just a hidden row in this list. */
 const PERMISSION_CATEGORIES = [
   {label:'الرئيسية والمبيعات', screen:'home'},
+  {label:'الكاشير', screen:'pos'},
   {label:'الطلبات', screen:'orders'},
   {label:'المشتريات', screen:'purchases'},
   {label:'القائمة', screen:'menu'},
+  {label:'المتجر الإلكتروني', screen:'onlineMenu'},
   {label:'الخدمات', screen:'services'},
   {label:'الغرف', screen:'rooms'},
   {label:'المخزون', screen:'inventory'},
-  {label:'الموظفين', screen:'staff'},
+  {label:'الموظفون', screen:'hr'},
   {label:'العملاء', screen:'customers'},
   {label:'نادي الولاء', screen:'loyalty'},
   {label:'المحاسبة', screen:'accounting'},
@@ -10229,8 +12404,15 @@ const PERMISSION_CATEGORIES = [
 
 function permissionsSettingsHtml(){
   return `
-    <div class="panel">
-      <div class="panel-title"><span class="field-label-row">فريق العمل ${helpIcon('كل "شاشة" هنا تتحكم بس بالتبويبات اللي يشوفها هذا الموظف بلوحة التحكم — ما لها علاقة بالكاشير (أي موظف عنده صلاحية pos:register من جهاز مربوط يقدر يبيع، بغض النظر عن هذي القائمة). "عرض التكلفة والهامش" صلاحية منفصلة تمامًا: حتى لو فعّلت له شاشة المحاسبة أو المنيو، يقدر يديرها بدون ما يشوف تكلفة أي منتج أو هامش ربحه إلا لو فعّلت له هذي تحديدًا.')}</span><button class="mtr-edit-btn" id="addTeamMemberBtn">+ إضافة عضو فريق</button></div>
+    <div class="rk-section">
+      <div class="rk-section-head">
+        <div class="rk-section-icon">${rkIcon('users')}</div>
+        <div>
+          <div class="rk-section-title">فريق العمل</div>
+          <div class="rk-section-sub">شاشات لوحة التحكم اللي يقدر يشوفها كل موظف — منفصلة تمامًا عن صلاحية الدخول بجهاز الكاشير ${helpIcon('أي موظف مسجّل بجهاز الكاشير بالفرع يقدر يبيع فورًا، حتى لو ما فعّلت له ولا شاشة من القائمة تحت — لأن جهاز الكاشير شي منفصل كليًا عن شاشات لوحة التحكم هذي. أما "عرض التكلفة والهامش" فصلاحية مستقلة بذاتها: حتى لو فعّلت له شاشة المحاسبة أو المنيو، يقدر يشتغل فيها بدون ما يشوف تكلفة أي منتج أو هامش ربحه إلا لو فعّلت له هذي بالتحديد.')}</div>
+        </div>
+        <button class="rk-btn rk-btn-primary rk-btn-sm rk-section-head-actions" id="addTeamMemberBtn">${rkIcon('plus')}إضافة عضو</button>
+      </div>
       <div id="teamMembersList"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>
     </div>
   `;
@@ -10255,29 +12437,33 @@ async function renderTeamMembers(){
     const granted = permsByUser[m.id] || new Set();
     const isEmployee = m.user_type === 'employee';
     const permsHtml = isEmployee ? `
-      <div class="checklist hidden" id="teamPerms-${m.id}" style="margin:2px 0 14px;">
-        ${PERMISSION_CATEGORIES.map(cat=>`
-          <label class="check-item" style="opacity:1; transform:none; cursor:pointer;">
-            <input type="checkbox" class="team-perm-checkbox" data-user="${m.id}" data-key="screen:${cat.screen}" ${granted.has('screen:'+cat.screen)?'checked':''}>
-            <span style="flex:1;">${cat.label}</span>
-          </label>`).join('')}
-        <label class="check-item" style="opacity:1; transform:none; cursor:pointer; border-top:1px solid var(--line); margin-top:6px; padding-top:8px;">
-          <input type="checkbox" class="team-perm-checkbox" data-user="${m.id}" data-key="view_profit" ${granted.has('view_profit')?'checked':''}>
-          <span style="flex:1;">عرض التكلفة والهامش (كل الشاشات)</span>
-        </label>
+      <div class="hidden" id="teamPerms-${m.id}" style="margin:8px 0 16px;">
+        <div class="rk-check-grid">
+          ${PERMISSION_CATEGORIES.map(cat=>
+            rkCheck(`class="team-perm-checkbox" data-user="${m.id}" data-key="screen:${cat.screen}" ${granted.has('screen:'+cat.screen)?'checked':''}`, cat.label)
+          ).join('')}
+        </div>
+        <div style="border-top:1px solid var(--line); margin-top:8px; padding-top:8px;">
+          ${rkCheck(`class="team-perm-checkbox" data-user="${m.id}" data-key="view_profit" ${granted.has('view_profit')?'checked':''}`, 'عرض التكلفة والهامش (كل الشاشات)')}
+          ${rkCheck(`class="team-perm-checkbox" data-user="${m.id}" data-key="view_salary" ${granted.has('view_salary')?'checked':''}`, 'عرض الرواتب (شاشة الموارد البشرية)')}
+        </div>
       </div>` : '';
     return `
     <div class="team-member-block" style="border-bottom:1px solid var(--line); padding:2px 0;">
       <div class="users-table-row" style="border-bottom:none;">
-        <span class="u-name">${m.full_name}</span>
-        <span class="u-role">${USER_TYPE_LABELS[m.user_type]||m.user_type}</span>
-        <span class="u-status"><span class="u-status-badge ${m.active?'active':'disabled'}">${m.active?'نشط':'معطّل'}</span></span>
-        ${isEmployee ? `<button class="u-toggle-btn team-perms-toggle" data-id="${m.id}">الصلاحيات (${granted.size})</button>` : ''}
-        ${m.user_type !== 'owner' ? `
-          <button class="u-toggle-btn team-edit-btn" data-id="${m.id}">تعديل</button>
-          <button class="u-toggle-btn team-toggle-active" data-id="${m.id}" data-active="${m.active}">${m.active?'تعطيل':'تفعيل'}</button>
-          <button class="u-toggle-btn team-delete-btn" data-id="${m.id}" data-name="${m.full_name}" style="color:var(--danger, #a3402c); border-color:var(--danger, #a3402c);">حذف</button>
-        ` : `<span class="stock-qty-helper" style="width:auto;">صلاحية كاملة دائمًا</span>`}
+        <div class="users-table-identity">
+          <span class="u-name">${m.full_name}</span>
+          <span class="u-role">${USER_TYPE_LABELS[m.user_type]||m.user_type}</span>
+          <span class="u-status"><span class="u-status-badge ${m.active?'active':'disabled'}">${m.active?'نشط':'معطّل'}</span></span>
+        </div>
+        <div class="users-table-actions">
+          ${isEmployee ? `<button class="rk-btn rk-btn-secondary rk-btn-sm team-perms-toggle" data-id="${m.id}">الصلاحيات (${granted.size})</button>` : ''}
+          ${m.user_type !== 'owner' ? `
+            <button class="rk-btn rk-btn-secondary rk-btn-sm team-edit-btn" data-id="${m.id}">تعديل</button>
+            <button class="rk-btn rk-btn-secondary rk-btn-sm team-toggle-active" data-id="${m.id}" data-active="${m.active}">${m.active?'تعطيل':'تفعيل'}</button>
+            <button class="rk-btn rk-btn-secondary rk-btn-sm team-delete-btn" data-id="${m.id}" data-name="${m.full_name}" style="color:var(--danger); border-color:var(--danger);">حذف</button>
+          ` : `<span class="rk-badge">صلاحية كاملة دائمًا</span>`}
+        </div>
       </div>
       ${permsHtml}
     </div>`;
@@ -10374,10 +12560,10 @@ function openTeamMemberModal(member){
   document.getElementById('teamMemberSaveBtn').textContent = isEdit ? 'حفظ التعديلات' : 'إنشاء الحساب';
   document.getElementById('teamMemberDeleteLink').style.display = (isEdit && member.user_type !== 'owner') ? '' : 'none';
   document.getElementById('teamMemberModalBody').innerHTML = `
-    <div class="menu-add-field" style="margin-bottom:14px;"><label>الاسم الكامل</label><input type="text" id="tmName" value="${isEdit?member.full_name:''}" placeholder="مثال: سارة العتيبي"></div>
-    <div class="menu-add-field" style="margin-bottom:14px;"><label>البريد الإلكتروني</label><input type="email" id="tmEmail" placeholder="name@example.com" ${isEdit ? 'disabled' : ''}></div>
-    <div class="menu-add-field" style="margin-bottom:14px;"><label>${isEdit ? 'كلمة مرور جديدة (اتركه فاضي لعدم التغيير)' : 'كلمة المرور المبدئية'}</label><input type="text" id="tmPassword" placeholder="٦ أحرف على الأقل"></div>
-    <div class="menu-add-field" style="margin-bottom:14px;"><label>الدور</label>
+    <div class="rk-field" style="margin-bottom:14px;"><label>الاسم الكامل</label><input type="text" id="tmName" value="${isEdit?member.full_name:''}" placeholder="مثال: سارة العتيبي"></div>
+    <div class="rk-field" style="margin-bottom:14px;"><label>البريد الإلكتروني</label><input type="email" id="tmEmail" placeholder="name@example.com" ${isEdit ? 'disabled' : ''}></div>
+    <div class="rk-field" style="margin-bottom:14px;"><label>${isEdit ? 'كلمة مرور جديدة (اتركه فاضي لعدم التغيير)' : 'كلمة المرور المبدئية'}</label><input type="text" id="tmPassword" placeholder="٦ أحرف على الأقل"></div>
+    <div class="rk-field" style="margin-bottom:14px;"><label>الدور</label>
       ${isEdit
         ? `<input type="text" value="${USER_TYPE_LABELS[member.user_type]||member.user_type}" disabled>`
         : `<select id="tmUserType" class="pe-select">
@@ -10387,16 +12573,13 @@ function openTeamMemberModal(member){
     </div>
     <div id="tmPermissionsField" style="${isEdit && member.user_type !== 'employee' ? 'display:none;' : ''}">
       <label style="font-size:11.5px; font-weight:700; color:var(--muted);">الصلاحيات الممنوحة</label>
-      <div class="checklist" style="margin-top:8px;">
-        ${PERMISSION_CATEGORIES.map(cat=>`
-          <label class="check-item" style="opacity:1; transform:none; cursor:pointer;">
-            <input type="checkbox" class="tm-new-perm" value="screen:${cat.screen}" ${granted.has('screen:'+cat.screen)?'checked':''}>
-            <span style="flex:1;">${cat.label}</span>
-          </label>`).join('')}
-        <label class="check-item" style="opacity:1; transform:none; cursor:pointer; border-top:1px solid var(--line); margin-top:6px; padding-top:8px;">
-          <input type="checkbox" class="tm-new-perm" value="view_profit" ${granted.has('view_profit')?'checked':''}>
-          <span style="flex:1;">عرض التكلفة والهامش</span>
-        </label>
+      <div class="rk-check-grid" style="margin-top:8px;">
+        ${PERMISSION_CATEGORIES.map(cat=>
+          rkCheck(`class="tm-new-perm" value="screen:${cat.screen}" ${granted.has('screen:'+cat.screen)?'checked':''}`, cat.label)
+        ).join('')}
+      </div>
+      <div style="border-top:1px solid var(--line); margin-top:8px; padding-top:8px;">
+        ${rkCheck(`class="tm-new-perm" value="view_profit" ${granted.has('view_profit')?'checked':''}`, 'عرض التكلفة والهامش')}
       </div>
     </div>
     <div class="pos-auth-error" id="tmError" style="display:none; margin-top:10px;"></div>
@@ -10483,6 +12666,708 @@ document.getElementById('teamMemberSaveBtn').addEventListener('click', async ()=
 function wirePermissionsSettings(){
   renderTeamMembers();
   document.getElementById('addTeamMemberBtn').addEventListener('click', ()=> openTeamMemberModal());
+}
+
+/* ============ HR: Employees / Compliance / Org Structure (screen:hr)
+   Phase 1 of the HR+Accounting roadmap — real employee records, decoupled
+   from both `profiles` (a seat-limited login account) and `staff_members`
+   (a disposable POS order-attribution label, see
+   20260801172010_staff_members_and_branch_pin.sql). An employee here never
+   needs to log into anything. All three tabs share one dynamically-created
+   modal (#hrModal, built once by ensureHrModal — no static markup for it,
+   same idea as showToast's on-demand element) instead of three separate
+   static modals in dashboard-markup.ts, dispatching by modal.dataset.mode. */
+let activeHrTab = 'overview';
+let EMPLOYEES = [];
+let DEPARTMENTS = [];
+let COMPLIANCE_ITEMS = [];
+let HR_BRANCHES = [];
+// staff_members rows linked to a real employee (keyed by employees.id) and
+// the ones still unlinked (legacy cashier names added before this screen
+// existed, or added straight from Settings -> POS) — both populated by
+// renderHrEmployeesTab, read by openEmployeeModal so "تفعيل الكاشير" can
+// either sync an existing link or offer to attach an unlinked legacy name
+// instead of silently creating a duplicate person.
+let STAFF_MEMBER_BY_EMPLOYEE_ID = {};
+let UNLINKED_STAFF_MEMBERS = [];
+const EMP_STATUS_LABELS = {active:'نشط', on_leave:'إجازة', terminated:'منتهي خدمته'};
+const EMP_TYPE_LABELS = {full_time:'دوام كامل', part_time:'دوام جزئي', temporary:'مؤقت'};
+const COMPLIANCE_TYPE_LABELS = {iqama:'إقامة', contract:'عقد عمل', health_cert:'شهادة صحية', insurance:'تأمين', other:'أخرى'};
+const COMPLIANCE_STATUS_LABELS = {valid:'ساري', expiring_soon:'قارب على الانتهاء', expired:'منتهي'};
+
+document.getElementById('hrTabs').addEventListener('click', (e)=>{
+  const b = e.target.closest('button'); if(!b) return;
+  document.querySelectorAll('#hrTabs button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  activeHrTab = b.dataset.tab;
+  resetContentScroll();
+  renderHrPanel();
+});
+
+function renderHrPanel(){
+  if(activeHrTab === 'employees') renderHrEmployeesTab();
+  else if(activeHrTab === 'compliance') renderHrComplianceTab();
+  else if(activeHrTab === 'departments') renderHrDepartmentsTab();
+  else renderHrOverviewTab();
+}
+
+/* -------- Overview: today's real per-cashier sales, same STAFF_STATS the
+   old standalone "الموظفين" leaderboard screen used (loadStaffStats/
+   renderEmployeeCards/renderAchievements, defined earlier near the Home
+   screen's data loaders) — just re-hosted here as the HR screen's first
+   tab instead of its own nav item, and re-targeted at hrEmpCards/
+   hrAchievementsPanel/hrAchievementsRow instead of the old empCards/
+   achievementsPanel/achievementsRow ids. */
+async function renderHrOverviewTab(){
+  const panel = document.getElementById('hrPanelBody');
+  panel.innerHTML = `
+    <div class="rk-section">
+      <div class="rk-section-head">
+        <div class="rk-section-icon">${rkIcon('trendingUp')}</div>
+        <div>
+          <div class="rk-section-title">أداء اليوم</div>
+          <div class="rk-section-sub">مبيعات وطلبات كل موظف مفعّل على الكاشير، لحظة بلحظة.</div>
+        </div>
+      </div>
+      <div class="emp-cards" id="hrEmpCards"></div>
+      <div class="panel" id="hrAchievementsPanel" style="display:none; margin-top:16px;">
+        <div class="panel-title">أبطال اليوم</div>
+        <div class="achievements-row" id="hrAchievementsRow"></div>
+      </div>
+    </div>
+  `;
+  await loadStaffStats();
+  renderEmployeeCards();
+  renderAchievements();
+}
+
+/* One shared modal for all three HR forms — created once, reused every
+   open, same reason showToast() lazily creates #dashToast: touching
+   dashboard-markup.ts's giant escaped-HTML string for three separate static
+   modal shells (like #teamMemberModal) would be needless risk for what's
+   otherwise plain, disposable form markup. */
+function ensureHrModal(){
+  let modal = document.getElementById('hrModal');
+  if(modal) return modal;
+  modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'hrModal';
+  modal.innerHTML = `
+    <div class="modal-card product-edit-modal-card">
+      <div class="modal-head">
+        <span id="hrModalTitle"></span>
+        <button class="tdp-close" id="hrModalClose">✕</button>
+      </div>
+      <div class="product-edit-body" id="hrModalBody"></div>
+      <div class="product-edit-footer">
+        <button class="product-delete-link" id="hrModalDeleteLink" style="display:none;"></button>
+        <button class="menu-add-btn menu-add-btn-primary" id="hrModalSaveBtn"></button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  document.getElementById('hrModalClose').addEventListener('click', ()=> modal.classList.remove('show'));
+  modal.addEventListener('click', (e)=>{ if(e.target === modal) modal.classList.remove('show'); });
+  document.getElementById('hrModalSaveBtn').addEventListener('click', async ()=>{
+    if(modal.dataset.mode === 'employee') await saveEmployeeFromModal(modal);
+    else if(modal.dataset.mode === 'compliance') await saveComplianceFromModal(modal);
+    else if(modal.dataset.mode === 'department') await saveDepartmentFromModal(modal);
+  });
+  document.getElementById('hrModalDeleteLink').addEventListener('click', async ()=>{
+    const id = Number(modal.dataset.editingId);
+    if(!id) return;
+    modal.classList.remove('show');
+    if(modal.dataset.mode === 'employee'){
+      const emp = EMPLOYEES.find(x=>x.id===id);
+      await deleteEmployee(id, emp ? emp.full_name : '');
+    } else if(modal.dataset.mode === 'compliance'){
+      await deleteComplianceItem(id);
+    } else if(modal.dataset.mode === 'department'){
+      const d = DEPARTMENTS.find(x=>x.id===id);
+      await deleteDepartment(id, d ? d.name : '');
+    }
+  });
+  return modal;
+}
+
+/* -------- Employees -------- */
+async function renderHrEmployeesTab(){
+  const panel = document.getElementById('hrPanelBody');
+  panel.innerHTML = '<div class="rk-section"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>';
+  const [{data: employees}, {data: departments}, {data: branches}, {data: staffMembers}] = await Promise.all([
+    window.supabaseClient.from('employees')
+      .select('id, full_name, job_title, department_id, branch_id, employment_type, status, hire_date, base_salary, national_id_or_iqama, iqama_expiry, nationality, phone, emergency_contact_name, emergency_contact_phone')
+      .eq('business_id', CURRENT_PROFILE.business_id).order('created_at'),
+    window.supabaseClient.from('departments').select('id, name, parent_department_id').eq('business_id', CURRENT_PROFILE.business_id).order('name'),
+    window.supabaseClient.from('branches').select('id, name').eq('business_id', CURRENT_PROFILE.business_id).order('id'),
+    window.supabaseClient.from('staff_members').select('id, employee_id, branch_id, name, is_reservation_host')
+      .eq('business_id', CURRENT_PROFILE.business_id).eq('active', true),
+  ]);
+  EMPLOYEES = employees || [];
+  DEPARTMENTS = departments || [];
+  HR_BRANCHES = branches || [];
+  STAFF_MEMBER_BY_EMPLOYEE_ID = {};
+  UNLINKED_STAFF_MEMBERS = [];
+  (staffMembers||[]).forEach(sm=>{
+    if(sm.employee_id) STAFF_MEMBER_BY_EMPLOYEE_ID[sm.employee_id] = sm;
+    else UNLINKED_STAFF_MEMBERS.push(sm);
+  });
+  const deptName = id => (DEPARTMENTS.find(d=>d.id===id)||{}).name || '';
+  const branchName = id => (HR_BRANCHES.find(b=>b.id===id)||{}).name || '';
+  const canSalary = canViewSalary();
+
+  panel.innerHTML = `
+    <div class="rk-section">
+      <div class="rk-section-head">
+        <div class="rk-section-icon">${rkIcon('users')}</div>
+        <div>
+          <div class="rk-section-title">قائمة الموظفين</div>
+          <div class="rk-section-sub">سجل موظفين حقيقي — راتب، تاريخ تعيين، إقامة/هوية، ومستنداتهم — ونفس المكان لتفعيل دخولهم لجهاز الكاشير.</div>
+        </div>
+        <button class="rk-btn rk-btn-primary rk-btn-sm rk-section-head-actions" id="addEmployeeBtn">${rkIcon('plus')}إضافة موظف</button>
+      </div>
+      <div id="employeesList">
+        ${EMPLOYEES.length === 0 ? '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">ما فيه موظفين مسجّلين بعد.</p>' : EMPLOYEES.map(emp => {
+          const cashier = STAFF_MEMBER_BY_EMPLOYEE_ID[emp.id];
+          return `
+          <div class="users-table-row">
+            <div class="users-table-identity">
+              <span class="u-name">${emp.full_name}</span>
+              <span class="u-role">${[emp.job_title, deptName(emp.department_id)].filter(Boolean).join(' · ') || '—'}</span>
+              <span class="u-status">
+                <span class="u-status-badge ${emp.status==='active'?'active':'disabled'}">${EMP_STATUS_LABELS[emp.status]||emp.status}</span>
+                ${cashier ? `<span class="rk-badge">كاشير — ${branchName(cashier.branch_id)}</span>` : ''}
+                ${canSalary && emp.base_salary ? ' <span class="rk-badge mono">' + Number(emp.base_salary).toFixed(0) + ' ر.س</span>' : ''}
+              </span>
+            </div>
+            <div class="users-table-actions">
+              <button class="rk-btn rk-btn-secondary rk-btn-sm hr-emp-edit-btn" data-id="${emp.id}">تعديل</button>
+              <button class="rk-btn rk-btn-secondary rk-btn-sm hr-emp-delete-btn" data-id="${emp.id}" data-name="${emp.full_name}" style="color:var(--danger); border-color:var(--danger);">حذف</button>
+            </div>
+          </div>
+        `; }).join('')}
+      </div>
+    </div>
+    ${UNLINKED_STAFF_MEMBERS.length ? `
+    <div class="rk-section">
+      <div class="rk-section-head">
+        <div class="rk-section-icon">${rkIcon('users')}</div>
+        <div>
+          <div class="rk-section-title">أسماء كاشير قديمة</div>
+          <div class="rk-section-sub">أسماء أُضيفت قبل شاشة الموظفين هذي، مو مرتبطة بسجل موظف بعد. اربطها بموظف من نموذج "إضافة موظف" فوق، أو أدرها هنا مباشرة.</div>
+        </div>
+      </div>
+      <div id="legacyStaffList">
+        ${UNLINKED_STAFF_MEMBERS.map(s=>`
+          <div class="users-table-row">
+            <div class="users-table-identity">
+              <span class="u-name">${s.name}</span>
+              <span class="u-role">${branchName(s.branch_id)}</span>
+            </div>
+            <div class="users-table-actions">
+              <label style="display:flex; align-items:center; gap:5px; font-size:11px; font-weight:600; color:var(--muted); cursor:pointer;">
+                <input type="checkbox" class="legacy-staff-host-toggle" data-id="${s.id}" ${s.is_reservation_host?'checked':''}> مخصص للحجز
+              </label>
+              <button class="rk-btn rk-btn-secondary rk-btn-sm legacy-staff-remove-btn" data-id="${s.id}" style="color:var(--danger); border-color:var(--danger);">حذف</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>` : ''}
+  `;
+
+  document.getElementById('addEmployeeBtn').addEventListener('click', ()=> openEmployeeModal());
+  panel.querySelectorAll('.hr-emp-edit-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const emp = EMPLOYEES.find(e=>e.id===Number(btn.dataset.id));
+      if(emp) openEmployeeModal(emp);
+    });
+  });
+  panel.querySelectorAll('.hr-emp-delete-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> deleteEmployee(Number(btn.dataset.id), btn.dataset.name));
+  });
+  panel.querySelectorAll('.legacy-staff-host-toggle').forEach(cb=>{
+    cb.addEventListener('change', async ()=>{
+      cb.disabled = true;
+      try {
+        const { error } = await window.supabaseClient.from('staff_members').update({ is_reservation_host: cb.checked }).eq('id', cb.dataset.id);
+        if(error) throw error;
+        showToast('تم الحفظ');
+      } catch(err){
+        cb.checked = !cb.checked;
+        showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+      } finally {
+        cb.disabled = false;
+      }
+    });
+  });
+  panel.querySelectorAll('.legacy-staff-remove-btn').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(!window.confirm('تأكيد حذف هذا الاسم من قائمة الكاشير؟')) return;
+      try {
+        const { error } = await window.supabaseClient.from('staff_members').update({active:false}).eq('id', btn.dataset.id);
+        if(error) throw error;
+        renderHrEmployeesTab();
+      } catch(err){
+        showToast('تعذر الحذف: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+      }
+    });
+  });
+}
+
+function openEmployeeModal(employee){
+  const isEdit = !!employee;
+  const modal = ensureHrModal();
+  document.getElementById('hrModalTitle').textContent = isEdit ? 'تعديل بيانات موظف' : 'إضافة موظف';
+  document.getElementById('hrModalSaveBtn').textContent = isEdit ? 'حفظ التعديلات' : 'إضافة الموظف';
+  const delLink = document.getElementById('hrModalDeleteLink');
+  delLink.textContent = 'حذف الموظف';
+  delLink.style.display = isEdit ? '' : 'none';
+
+  document.getElementById('hrModalBody').innerHTML = `
+    <div class="rk-field" style="margin-bottom:14px;"><label>الاسم الكامل</label><input type="text" id="empName" value="${isEdit?employee.full_name:''}" placeholder="مثال: محمد العتيبي"></div>
+    <div class="menu-add-row" style="margin-bottom:14px;">
+      <div class="menu-add-field"><label>المسمى الوظيفي</label><input type="text" id="empJobTitle" value="${isEdit?(employee.job_title||''):''}" placeholder="مثال: شيف"></div>
+      <div class="menu-add-field"><label>القسم</label>
+        <select id="empDepartment"><option value="">بدون قسم</option>${DEPARTMENTS.map(d=>`<option value="${d.id}" ${isEdit && employee.department_id===d.id?'selected':''}>${d.name}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="menu-add-row" style="margin-bottom:14px;">
+      <div class="menu-add-field"><label>الفرع</label>
+        <select id="empBranch"><option value="">—</option>${HR_BRANCHES.map(b=>`<option value="${b.id}" ${isEdit && employee.branch_id===b.id?'selected':''}>${b.name}</option>`).join('')}</select>
+      </div>
+      <div class="menu-add-field"><label>نوع الدوام</label>
+        <select id="empType">${Object.keys(EMP_TYPE_LABELS).map(k=>`<option value="${k}" ${(isEdit?employee.employment_type:'full_time')===k?'selected':''}>${EMP_TYPE_LABELS[k]}</option>`).join('')}</select>
+      </div>
+    </div>
+    ${(()=>{
+      const linkedCashier = isEdit ? STAFF_MEMBER_BY_EMPLOYEE_ID[employee.id] : null;
+      const cashierChecked = !!linkedCashier;
+      const unlinkedOptions = (!isEdit && UNLINKED_STAFF_MEMBERS.length) ? UNLINKED_STAFF_MEMBERS.map(sm=>
+        `<option value="${sm.id}">${(HR_BRANCHES.find(b=>b.id===sm.branch_id)||{}).name || ''} — اسم كاشير قديم #${sm.id}</option>`
+      ).join('') : '';
+      return `
+    <div style="border-top:1px solid var(--line); margin:4px 0 14px; padding-top:12px;">
+      ${rkSwitchRow('empCashierEnabled', cashierChecked, 'تفعيل الكاشير لهذا الموظف', null, ()=>({text:'يقدر يسجّل حضوره بجهاز الكاشير بالفرع المحدد فوق، ويظهر بمبيعات اليوم بتبويب "نظرة عامة".'}))}
+      <div id="empCashierFields" style="${cashierChecked?'':'display:none;'} margin-top:10px;">
+        ${unlinkedOptions ? `
+        <div class="rk-field" style="margin-bottom:12px;">
+          <label>ربط باسم كاشير موجود (اختياري)</label>
+          <select id="empLinkExisting">
+            <option value="">— إنشاء اسم جديد باسم الموظف —</option>
+            ${unlinkedOptions}
+          </select>
+          <p class="stock-qty-helper" style="margin-top:6px;">لو هذا الموظف مسجّل مسبقًا بجهاز الكاشير باسم قديم، اربطه هنا بدل ما تسوي له اسم مكرر.</p>
+        </div>` : ''}
+        ${rkCheck(`id="empReservationHost" ${linkedCashier && linkedCashier.is_reservation_host ? 'checked':''}`, 'مخصص للحجز (يظهر أول قائمة شاشة الحجز)')}
+      </div>
+    </div>`;
+    })()}
+    <div class="menu-add-row" style="margin-bottom:14px;">
+      <div class="menu-add-field"><label>تاريخ التعيين</label><input type="date" id="empHireDate" value="${isEdit && employee.hire_date ? employee.hire_date : ''}"></div>
+      <div class="menu-add-field"><label>الحالة</label>
+        <select id="empStatus">${Object.keys(EMP_STATUS_LABELS).map(k=>`<option value="${k}" ${(isEdit?employee.status:'active')===k?'selected':''}>${EMP_STATUS_LABELS[k]}</option>`).join('')}</select>
+      </div>
+    </div>
+    ${canViewSalary() ? `<div class="rk-field" style="margin-bottom:14px;"><label>الراتب الأساسي (ر.س)</label><input type="number" id="empSalary" value="${isEdit && employee.base_salary!=null ? employee.base_salary : ''}" placeholder="0.00"></div>` : ''}
+    <div class="menu-add-row" style="margin-bottom:14px;">
+      <div class="menu-add-field"><label>رقم الهوية/الإقامة</label><input type="text" id="empNationalId" value="${isEdit?(employee.national_id_or_iqama||''):''}"></div>
+      <div class="menu-add-field"><label>تاريخ انتهاء الإقامة</label><input type="date" id="empIqamaExpiry" value="${isEdit && employee.iqama_expiry ? employee.iqama_expiry : ''}"></div>
+    </div>
+    <div class="menu-add-row" style="margin-bottom:14px;">
+      <div class="menu-add-field"><label>الجنسية</label><input type="text" id="empNationality" value="${isEdit?(employee.nationality||''):''}"></div>
+      <div class="menu-add-field"><label>رقم الجوال</label><input type="text" id="empPhone" value="${isEdit?(employee.phone||''):''}"></div>
+    </div>
+    <div class="menu-add-row" style="margin-bottom:14px;">
+      <div class="menu-add-field"><label>جهة اتصال الطوارئ</label><input type="text" id="empEmergencyName" value="${isEdit?(employee.emergency_contact_name||''):''}"></div>
+      <div class="menu-add-field"><label>جوال الطوارئ</label><input type="text" id="empEmergencyPhone" value="${isEdit?(employee.emergency_contact_phone||''):''}"></div>
+    </div>
+    <div class="pos-auth-error" id="empError" style="display:none; margin-top:10px;"></div>
+  `;
+  document.getElementById('empCashierEnabled').addEventListener('change', (e)=>{
+    document.getElementById('empCashierFields').style.display = e.target.checked ? '' : 'none';
+  });
+  modal.dataset.editingId = isEdit ? employee.id : '';
+  modal.dataset.mode = 'employee';
+  modal.classList.add('show');
+}
+
+async function saveEmployeeFromModal(modal){
+  const errEl = document.getElementById('empError');
+  errEl.style.display = 'none';
+  const fullName = document.getElementById('empName').value.trim();
+  if(!fullName){ errEl.textContent = 'الاسم مطلوب.'; errEl.style.display = 'block'; return; }
+  const deptVal = document.getElementById('empDepartment').value;
+  const branchVal = document.getElementById('empBranch').value;
+  const payload = {
+    business_id: CURRENT_PROFILE.business_id,
+    full_name: fullName,
+    job_title: document.getElementById('empJobTitle').value.trim() || null,
+    department_id: deptVal ? Number(deptVal) : null,
+    branch_id: branchVal ? Number(branchVal) : null,
+    employment_type: document.getElementById('empType').value,
+    hire_date: document.getElementById('empHireDate').value || null,
+    status: document.getElementById('empStatus').value,
+    national_id_or_iqama: document.getElementById('empNationalId').value.trim() || null,
+    iqama_expiry: document.getElementById('empIqamaExpiry').value || null,
+    nationality: document.getElementById('empNationality').value.trim() || null,
+    phone: document.getElementById('empPhone').value.trim() || null,
+    emergency_contact_name: document.getElementById('empEmergencyName').value.trim() || null,
+    emergency_contact_phone: document.getElementById('empEmergencyPhone').value.trim() || null,
+  };
+  const salaryInput = document.getElementById('empSalary');
+  if(salaryInput) payload.base_salary = salaryInput.value ? parseFloat(salaryInput.value) : null;
+
+  const cashierEnabled = document.getElementById('empCashierEnabled').checked;
+  if(cashierEnabled && !branchVal){
+    errEl.textContent = 'حدد الفرع فوق عشان تفعّل الكاشير له.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const editingId = modal.dataset.editingId;
+  const saveBtn = document.getElementById('hrModalSaveBtn');
+  saveBtn.disabled = true;
+  try {
+    let employeeId;
+    if(editingId){
+      employeeId = Number(editingId);
+      const { error } = await window.supabaseClient.from('employees').update(payload).eq('id', editingId);
+      if(error) throw error;
+      logDashboardAudit('عدّل بيانات الموظف: ' + fullName);
+    } else {
+      payload.created_by = CURRENT_PROFILE.id;
+      const { data: inserted, error } = await window.supabaseClient.from('employees').insert(payload).select('id').single();
+      if(error) throw error;
+      employeeId = inserted.id;
+      logDashboardAudit('أضاف موظف جديد: ' + fullName);
+    }
+    await syncEmployeeCashierLink(employeeId, fullName, cashierEnabled, branchVal ? Number(branchVal) : null);
+    modal.classList.remove('show');
+    showToast('تم الحفظ');
+    renderHrEmployeesTab();
+  } catch(err){
+    errEl.textContent = 'تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع');
+    errEl.style.display = 'block';
+  } finally {
+    saveBtn.disabled = false;
+  }
+}
+
+/* Keeps staff_members (the POS cashier-name join table) in sync with the
+   "تفعيل الكاشير" toggle on the employee form — the whole point of linking
+   the two is that adding/editing a person here is the only place that's
+   ever needed, instead of also visiting Settings -> POS. Never hard-deletes
+   a staff_members row (orders.staff_member_id points at it — see
+   20260801172010_staff_members_and_branch_pin.sql): turning the toggle off
+   just deactivates it, same as the old Settings -> POS "remove" control did. */
+async function syncEmployeeCashierLink(employeeId, fullName, cashierEnabled, branchId){
+  const existing = STAFF_MEMBER_BY_EMPLOYEE_ID[employeeId];
+  const hostCb = document.getElementById('empReservationHost');
+  const isHost = hostCb ? hostCb.checked : false;
+
+  if(!cashierEnabled){
+    if(existing){
+      const { error } = await window.supabaseClient.from('staff_members').update({active:false}).eq('id', existing.id);
+      if(error) throw error;
+    }
+    return;
+  }
+
+  if(existing){
+    const { error } = await window.supabaseClient.from('staff_members')
+      .update({ name: fullName, branch_id: branchId, active: true, is_reservation_host: isHost }).eq('id', existing.id);
+    if(error) throw error;
+    return;
+  }
+
+  const linkSelect = document.getElementById('empLinkExisting');
+  const linkExistingId = linkSelect ? linkSelect.value : '';
+  if(linkExistingId){
+    const { error } = await window.supabaseClient.from('staff_members')
+      .update({ employee_id: employeeId, name: fullName, branch_id: branchId, active: true, is_reservation_host: isHost })
+      .eq('id', Number(linkExistingId));
+    if(error) throw error;
+    return;
+  }
+
+  const { error } = await window.supabaseClient.from('staff_members')
+    .insert({ business_id: CURRENT_PROFILE.business_id, branch_id: branchId, name: fullName, employee_id: employeeId, is_reservation_host: isHost });
+  if(error) throw error;
+}
+
+async function deleteEmployee(id, name){
+  if(!window.confirm('متأكد إنك تبي تحذف "' + name + '"؟ هذا يحذف سجله وكل بيانات الامتثال المرتبطة فيه ويعطّل دخوله للكاشير، وما يتراجع.')) return;
+  try {
+    const linkedCashier = STAFF_MEMBER_BY_EMPLOYEE_ID[id];
+    if(linkedCashier){
+      const { error: deactivateError } = await window.supabaseClient.from('staff_members').update({active:false}).eq('id', linkedCashier.id);
+      if(deactivateError) throw deactivateError;
+    }
+    const { error } = await window.supabaseClient.from('employees').delete().eq('id', id);
+    if(error) throw error;
+    logDashboardAudit('حذف موظف: ' + name);
+    showToast('تم الحذف');
+    renderHrEmployeesTab();
+  } catch(err){
+    showToast('تعذر الحذف: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+  }
+}
+
+/* -------- Compliance / expiry reminders (internal only — manually entered
+   dates, no live GOSI/Muqeem lookup; status is recomputed daily by the
+   check_compliance_expiries() cron, see app/api/cron/compliance-check) -------- */
+async function renderHrComplianceTab(){
+  const panel = document.getElementById('hrPanelBody');
+  panel.innerHTML = '<div class="rk-section"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>';
+  const [{data: items}, {data: employees}] = await Promise.all([
+    window.supabaseClient.from('compliance_items')
+      .select('id, employee_id, document_type, document_number, issued_date, expiry_date, status, reminder_days_before')
+      .eq('business_id', CURRENT_PROFILE.business_id).order('expiry_date'),
+    window.supabaseClient.from('employees').select('id, full_name').eq('business_id', CURRENT_PROFILE.business_id).order('full_name'),
+  ]);
+  COMPLIANCE_ITEMS = items || [];
+  EMPLOYEES = employees || []; // light shape (id, full_name) — the Employees tab re-fetches its own full shape whenever it's opened, so this never goes stale for that tab
+  const empName = id => (EMPLOYEES.find(e=>e.id===id)||{}).full_name || '—';
+
+  panel.innerHTML = `
+    <div class="rk-section">
+      <div class="rk-section-head">
+        <div class="rk-section-icon">${rkIcon('bell')}</div>
+        <div>
+          <div class="rk-section-title">الامتثال والوثائق</div>
+          <div class="rk-section-sub">تواريخ انتهاء الإقامات والعقود والشهادات — تنبيه داخلي قبل الانتهاء، بدون أي ربط مباشر مع أنظمة حكومية.</div>
+        </div>
+        <button class="rk-btn rk-btn-primary rk-btn-sm rk-section-head-actions" id="addComplianceBtn" ${EMPLOYEES.length===0?'disabled':''}>${rkIcon('plus')}إضافة وثيقة</button>
+      </div>
+      <div id="complianceList">
+        ${EMPLOYEES.length===0 ? '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">أضف موظف أولًا من تبويب "الموظفون" قبل تسجيل وثائقه.</p>'
+        : COMPLIANCE_ITEMS.length === 0 ? '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">ما فيه وثائق مسجّلة بعد.</p>' : COMPLIANCE_ITEMS.map(item => `
+          <div class="users-table-row">
+            <div class="users-table-identity">
+              <span class="u-name">${empName(item.employee_id)} — ${COMPLIANCE_TYPE_LABELS[item.document_type]||item.document_type}</span>
+              <span class="u-role">${item.document_number || '—'} · ينتهي ${item.expiry_date}</span>
+              <span class="u-status"><span class="u-status-badge ${item.status==='valid'?'active':'disabled'}" style="${item.status!=='valid'?'color:var(--danger);':''}">${COMPLIANCE_STATUS_LABELS[item.status]||item.status}</span></span>
+            </div>
+            <div class="users-table-actions">
+              <button class="rk-btn rk-btn-secondary rk-btn-sm hr-comp-edit-btn" data-id="${item.id}">تعديل</button>
+              <button class="rk-btn rk-btn-secondary rk-btn-sm hr-comp-delete-btn" data-id="${item.id}" style="color:var(--danger); border-color:var(--danger);">حذف</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  document.getElementById('addComplianceBtn').addEventListener('click', ()=> openComplianceModal());
+  panel.querySelectorAll('.hr-comp-edit-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const item = COMPLIANCE_ITEMS.find(c=>c.id===Number(btn.dataset.id));
+      if(item) openComplianceModal(item);
+    });
+  });
+  panel.querySelectorAll('.hr-comp-delete-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> deleteComplianceItem(Number(btn.dataset.id)));
+  });
+}
+
+function openComplianceModal(item){
+  const isEdit = !!item;
+  const modal = ensureHrModal();
+  document.getElementById('hrModalTitle').textContent = isEdit ? 'تعديل وثيقة' : 'إضافة وثيقة';
+  document.getElementById('hrModalSaveBtn').textContent = isEdit ? 'حفظ التعديلات' : 'إضافة الوثيقة';
+  const delLink = document.getElementById('hrModalDeleteLink');
+  delLink.textContent = 'حذف الوثيقة';
+  delLink.style.display = isEdit ? '' : 'none';
+
+  document.getElementById('hrModalBody').innerHTML = `
+    <div class="rk-field" style="margin-bottom:14px;"><label>الموظف</label>
+      <select id="compEmployee">${EMPLOYEES.map(e=>`<option value="${e.id}" ${isEdit && item.employee_id===e.id?'selected':''}>${e.full_name}</option>`).join('')}</select>
+    </div>
+    <div class="menu-add-row" style="margin-bottom:14px;">
+      <div class="menu-add-field"><label>نوع الوثيقة</label>
+        <select id="compType">${Object.keys(COMPLIANCE_TYPE_LABELS).map(k=>`<option value="${k}" ${(isEdit?item.document_type:'iqama')===k?'selected':''}>${COMPLIANCE_TYPE_LABELS[k]}</option>`).join('')}</select>
+      </div>
+      <div class="menu-add-field"><label>رقم الوثيقة</label><input type="text" id="compNumber" value="${isEdit?(item.document_number||''):''}"></div>
+    </div>
+    <div class="menu-add-row" style="margin-bottom:14px;">
+      <div class="menu-add-field"><label>تاريخ الإصدار</label><input type="date" id="compIssued" value="${isEdit && item.issued_date ? item.issued_date : ''}"></div>
+      <div class="menu-add-field"><label>تاريخ الانتهاء</label><input type="date" id="compExpiry" value="${isEdit && item.expiry_date ? item.expiry_date : ''}"></div>
+    </div>
+    <div class="rk-field" style="margin-bottom:14px;"><label>تنبيهني قبل الانتهاء بـ (أيام)</label><input type="number" id="compReminderDays" value="${isEdit ? item.reminder_days_before : 30}"></div>
+    <div class="pos-auth-error" id="compError" style="display:none; margin-top:10px;"></div>
+  `;
+  modal.dataset.editingId = isEdit ? item.id : '';
+  modal.dataset.mode = 'compliance';
+  modal.classList.add('show');
+}
+
+async function saveComplianceFromModal(modal){
+  const errEl = document.getElementById('compError');
+  errEl.style.display = 'none';
+  const expiry = document.getElementById('compExpiry').value;
+  if(!expiry){ errEl.textContent = 'تاريخ الانتهاء مطلوب.'; errEl.style.display = 'block'; return; }
+  const payload = {
+    business_id: CURRENT_PROFILE.business_id,
+    employee_id: Number(document.getElementById('compEmployee').value),
+    document_type: document.getElementById('compType').value,
+    document_number: document.getElementById('compNumber').value.trim() || null,
+    issued_date: document.getElementById('compIssued').value || null,
+    expiry_date: expiry,
+    reminder_days_before: parseInt(document.getElementById('compReminderDays').value, 10) || 30,
+  };
+  const editingId = modal.dataset.editingId;
+  const saveBtn = document.getElementById('hrModalSaveBtn');
+  saveBtn.disabled = true;
+  try {
+    if(editingId){
+      const { error } = await window.supabaseClient.from('compliance_items').update(payload).eq('id', editingId);
+      if(error) throw error;
+      logDashboardAudit('عدّل وثيقة امتثال');
+    } else {
+      const { error } = await window.supabaseClient.from('compliance_items').insert(payload);
+      if(error) throw error;
+      logDashboardAudit('أضاف وثيقة امتثال جديدة');
+    }
+    modal.classList.remove('show');
+    showToast('تم الحفظ');
+    renderHrComplianceTab();
+  } catch(err){
+    errEl.textContent = 'تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع');
+    errEl.style.display = 'block';
+  } finally {
+    saveBtn.disabled = false;
+  }
+}
+
+async function deleteComplianceItem(id){
+  if(!window.confirm('متأكد إنك تبي تحذف هذه الوثيقة؟')) return;
+  try {
+    const { error } = await window.supabaseClient.from('compliance_items').delete().eq('id', id);
+    if(error) throw error;
+    logDashboardAudit('حذف وثيقة امتثال');
+    showToast('تم الحذف');
+    renderHrComplianceTab();
+  } catch(err){
+    showToast('تعذر الحذف: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+  }
+}
+
+/* -------- Org structure (departments) -------- */
+async function renderHrDepartmentsTab(){
+  const panel = document.getElementById('hrPanelBody');
+  panel.innerHTML = '<div class="rk-section"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>';
+  const { data: departments } = await window.supabaseClient.from('departments')
+    .select('id, name, parent_department_id').eq('business_id', CURRENT_PROFILE.business_id).order('name');
+  DEPARTMENTS = departments || [];
+  const parentName = id => (DEPARTMENTS.find(d=>d.id===id)||{}).name || '';
+
+  panel.innerHTML = `
+    <div class="rk-section">
+      <div class="rk-section-head">
+        <div class="rk-section-icon">${rkIcon('grid')}</div>
+        <div>
+          <div class="rk-section-title">الأقسام</div>
+          <div class="rk-section-sub">أقسام العمل — تُستخدم لتصنيف الموظفين بتبويب "قائمة الموظفين".</div>
+        </div>
+        <button class="rk-btn rk-btn-primary rk-btn-sm rk-section-head-actions" id="addDepartmentBtn">${rkIcon('plus')}إضافة قسم</button>
+      </div>
+      <div id="departmentsList">
+        ${DEPARTMENTS.length === 0 ? '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">ما فيه أقسام مسجّلة بعد.</p>' : DEPARTMENTS.map(d => `
+          <div class="users-table-row">
+            <div class="users-table-identity">
+              <span class="u-name">${d.name}</span>
+              ${d.parent_department_id ? `<span class="u-role">تابع لـ ${parentName(d.parent_department_id)}</span>` : ''}
+            </div>
+            <div class="users-table-actions">
+              <button class="rk-btn rk-btn-secondary rk-btn-sm hr-dept-edit-btn" data-id="${d.id}">تعديل</button>
+              <button class="rk-btn rk-btn-secondary rk-btn-sm hr-dept-delete-btn" data-id="${d.id}" data-name="${d.name}" style="color:var(--danger); border-color:var(--danger);">حذف</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  document.getElementById('addDepartmentBtn').addEventListener('click', ()=> openDepartmentModal());
+  panel.querySelectorAll('.hr-dept-edit-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const d = DEPARTMENTS.find(x=>x.id===Number(btn.dataset.id));
+      if(d) openDepartmentModal(d);
+    });
+  });
+  panel.querySelectorAll('.hr-dept-delete-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> deleteDepartment(Number(btn.dataset.id), btn.dataset.name));
+  });
+}
+
+function openDepartmentModal(dept){
+  const isEdit = !!dept;
+  const modal = ensureHrModal();
+  document.getElementById('hrModalTitle').textContent = isEdit ? 'تعديل قسم' : 'إضافة قسم';
+  document.getElementById('hrModalSaveBtn').textContent = isEdit ? 'حفظ التعديلات' : 'إضافة القسم';
+  const delLink = document.getElementById('hrModalDeleteLink');
+  delLink.textContent = 'حذف القسم';
+  delLink.style.display = isEdit ? '' : 'none';
+
+  document.getElementById('hrModalBody').innerHTML = `
+    <div class="rk-field" style="margin-bottom:14px;"><label>اسم القسم</label><input type="text" id="deptName" value="${isEdit?dept.name:''}" placeholder="مثال: المطبخ"></div>
+    <div class="rk-field" style="margin-bottom:14px;"><label>قسم أعلى (اختياري)</label>
+      <select id="deptParent"><option value="">بدون</option>${DEPARTMENTS.filter(d=>!isEdit || d.id!==dept.id).map(d=>`<option value="${d.id}" ${isEdit && dept.parent_department_id===d.id?'selected':''}>${d.name}</option>`).join('')}</select>
+    </div>
+    <div class="pos-auth-error" id="deptError" style="display:none; margin-top:10px;"></div>
+  `;
+  modal.dataset.editingId = isEdit ? dept.id : '';
+  modal.dataset.mode = 'department';
+  modal.classList.add('show');
+}
+
+async function saveDepartmentFromModal(modal){
+  const errEl = document.getElementById('deptError');
+  errEl.style.display = 'none';
+  const name = document.getElementById('deptName').value.trim();
+  if(!name){ errEl.textContent = 'اسم القسم مطلوب.'; errEl.style.display = 'block'; return; }
+  const parentVal = document.getElementById('deptParent').value;
+  const payload = {
+    business_id: CURRENT_PROFILE.business_id,
+    name,
+    parent_department_id: parentVal ? Number(parentVal) : null,
+  };
+  const editingId = modal.dataset.editingId;
+  const saveBtn = document.getElementById('hrModalSaveBtn');
+  saveBtn.disabled = true;
+  try {
+    if(editingId){
+      const { error } = await window.supabaseClient.from('departments').update(payload).eq('id', editingId);
+      if(error) throw error;
+      logDashboardAudit('عدّل قسم: ' + name);
+    } else {
+      const { error } = await window.supabaseClient.from('departments').insert(payload);
+      if(error) throw error;
+      logDashboardAudit('أضاف قسم جديد: ' + name);
+    }
+    modal.classList.remove('show');
+    showToast('تم الحفظ');
+    renderHrDepartmentsTab();
+  } catch(err){
+    errEl.textContent = 'تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع');
+    errEl.style.display = 'block';
+  } finally {
+    saveBtn.disabled = false;
+  }
+}
+
+async function deleteDepartment(id, name){
+  if(!window.confirm('متأكد إنك تبي تحذف قسم "' + name + '"؟')) return;
+  try {
+    const { error } = await window.supabaseClient.from('departments').delete().eq('id', id);
+    if(error) throw error;
+    logDashboardAudit('حذف قسم: ' + name);
+    showToast('تم الحذف');
+    renderHrDepartmentsTab();
+  } catch(err){
+    showToast('تعذر الحذف: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+  }
 }
 
 /* ============ Alert sound — pure Web Audio API tone, no external asset.
@@ -10791,18 +13676,18 @@ function exportReportPdf(){
 async function exportReportExcel(btn){
   if(!window.generateReportExcel){ showToast('جاري تجهيز مصدّر Excel، أعد المحاولة بعد لحظة'); return; }
   const payload = buildReportPayload(activeReportType);
-  if(btn) btn.disabled = true;
+  if(btn) rkBtnLoading(btn, true);
   try {
     await window.generateReportExcel(payload);
     logReportExport(activeReportType, 'excel');
+    if(btn) rkBtnSuccess(btn, '✓ تم التصدير');
   } catch(err){
+    if(btn) rkBtnLoading(btn, false);
     showToast('تعذر إنشاء ملف Excel: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-  } finally {
-    if(btn) btn.disabled = false;
   }
 }
 
-document.querySelectorAll('.report-export-action').forEach(btn=>{
+document.querySelectorAll('[data-export]').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     const type = btn.dataset.export;
     if(type === 'pdf') exportReportPdf();
@@ -10868,6 +13753,7 @@ renderOpexBreakdown();
 renderVatAndMargin();
 wireAccountingScreen(); // renderGeneralExpensesList()/wireMenuScreen() likewise now run post-login
 wirePurchasesScreen();
+wireCustomersScreen();
 wireBulkImportModal();
 
 // Mobile numeric keyboard: every type="number" field in this app is a

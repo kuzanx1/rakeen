@@ -1532,8 +1532,21 @@ function renderChannelStep(){
   const channels = [
     {id:'dine_in', label:'🍽️ بالمطعم'},
     {id:'pickup', label:'📦 استلام'},
-    {id:'delivery', label:'🛵 توصيل'}
-  ].filter(c => c.id !== 'dine_in' || DINE_IN_ENABLED);
+    {id:'delivery', label:'🛵 تطبيقات التوصيل'}
+  ].filter(c => {
+    if(c.id === 'dine_in') return DINE_IN_ENABLED;
+    // "توصيل" here means a delivery-APP order (Jahez, HungerStation...),
+    // which is why it records a platform and an app invoice number. With
+    // no platform registered there is nothing for it to record against,
+    // and picking it forced payment_method='delivery_platform' — booking
+    // the sale to a platform that does not exist and keeping the cash out
+    // of the drawer total. A restaurant delivering with its own driver
+    // takes that order through the online store, not this button.
+    // Still shown for an order already saved as delivery, so reopening
+    // one cannot strand it on a channel it can no longer display.
+    if(c.id === 'delivery') return DELIVERY_PLATFORMS_LIST.length > 0 || state.orderChannel === 'delivery';
+    return true;
+  });
   let html = `<div class="channel-row" id="pmChannelRow">` + channels.map(c=>
     `<button class="channel-btn ${state.orderChannel===c.id?'active':''}" data-channel="${c.id}">${c.label}</button>`
   ).join('') + `</div>`;
@@ -4953,13 +4966,14 @@ async function seedActiveDeliveryOrders(){
   // still belongs on this list (awaiting a delivered confirmation); only a
   // genuinely delivered order is done and should drop off.
   const { data } = await window.supabaseClient
-    .from('orders').select('id, total, created_at, ready_at, out_for_delivery_at, delivery_platform_id, platform_invoice_last4, source, delivery_platforms(name)')
+    .from('orders').select('id, total, created_at, ready_at, out_for_delivery_at, delivery_platform_id, platform_invoice_last4, source, payment_method, payment_status, delivery_platforms(name)')
     .eq('branch_id', DEVICE.branchId).eq('channel', 'delivery').is('delivered_at', null)
     .gte('created_at', startToday.toISOString()).order('created_at', {ascending:true});
   ACTIVE_DELIVERY_ORDERS = (data||[]).map(o=>({
     id: o.id, createdAt: new Date(o.created_at), platformId: o.delivery_platform_id,
     platformName: o.source === 'online' ? 'متجر المطعم' : (o.delivery_platforms ? o.delivery_platforms.name : 'توصيل'),
     total: Number(o.total), isOnline: o.source === 'online',
+    isCod: o.payment_method === 'cash' && o.payment_status === 'unpaid',
     invoiceLast4: o.platform_invoice_last4, warnedAt5min: false, alertedExpired: false,
     readyAt: o.ready_at ? new Date(o.ready_at) : null,
     outForDeliveryAt: o.out_for_delivery_at ? new Date(o.out_for_delivery_at) : null
@@ -4998,11 +5012,31 @@ async function markDeliveryOrderReady(orderId){
   renderOrdersList();
 }
 
+// Cash on delivery: handing the order over and taking the money are the
+// same moment, so they are one call. confirm_cod_collected marks it paid,
+// attaches it to the open shift and records the handover together — an
+// online cash order has no other way into a drawer total, because
+// complete_pos_order is the only other function that ever writes shift_id.
+async function collectCodIfOwed(order){
+  if(!order.isCod) return { handled:false, ok:false };
+  if(!CURRENT_SHIFT){ showToast('افتح وردية أولاً عشان يتسجل المبلغ فيها'); return { handled:true, ok:false }; }
+  const { error } = await window.supabaseClient.rpc('confirm_cod_collected', {
+    p_order_id: order.id, p_shift_id: CURRENT_SHIFT.id
+  });
+  if(error){ showToast(error.message || 'تعذر تسجيل استلام المبلغ'); return { handled:true, ok:false }; }
+  return { handled:true, ok:true };
+}
+
 async function markDeliveryOrderDelivered(orderId){
-  const { error } = await window.supabaseClient.rpc('mark_delivery_order_delivered', { p_order_id: orderId });
-  if(error){ showToast('تعذر تسجيل الطلب مُسلَّم'); return; }
+  const tracked = ACTIVE_DELIVERY_ORDERS.find(o=>o.id === orderId);
+  const collected = await collectCodIfOwed(tracked || {});
+  if(collected.handled && !collected.ok) return;
+  if(!collected.handled){
+    const { error } = await window.supabaseClient.rpc('mark_delivery_order_delivered', { p_order_id: orderId });
+    if(error){ showToast('تعذر تسجيل الطلب مُسلَّم'); return; }
+  }
   ACTIVE_DELIVERY_ORDERS = ACTIVE_DELIVERY_ORDERS.filter(o=>o.id !== orderId);
-  showToast('تم تسليم الطلب #' + orderId);
+  showToast(collected.ok ? 'تم التسليم واستلام المبلغ — طلب #' + orderId : 'تم تسليم الطلب #' + orderId);
   updateNotifBell();
   renderOrdersList();
 }
@@ -5032,11 +5066,12 @@ let ACTIVE_PICKUP_ORDERS = []; // [{id, createdAt, customerName, total, schedule
 async function seedActivePickupOrders(){
   const startToday = new Date(); startToday.setHours(0,0,0,0);
   const { data } = await window.supabaseClient
-    .from('orders').select('id, total, created_at, customer_name, ready_at, scheduled_for, scheduled_by_customer')
+    .from('orders').select('id, total, created_at, customer_name, ready_at, scheduled_for, scheduled_by_customer, payment_method, payment_status')
     .eq('branch_id', DEVICE.branchId).eq('channel', 'pickup').eq('source', 'online').eq('status', 'completed').is('delivered_at', null)
     .gte('created_at', startToday.toISOString()).order('created_at', {ascending:true});
   ACTIVE_PICKUP_ORDERS = (data||[]).map(o=>({
     id: o.id, createdAt: new Date(o.created_at), customerName: o.customer_name, total: Number(o.total),
+    isCod: o.payment_method === 'cash' && o.payment_status === 'unpaid',
     scheduledFor: o.scheduled_for ? new Date(o.scheduled_for) : null, scheduledByCustomer: !!o.scheduled_by_customer,
     readyAt: o.ready_at ? new Date(o.ready_at) : null
   }));
@@ -5084,10 +5119,15 @@ async function markPickupOrderReady(orderId){
 }
 
 async function markPickupOrderDelivered(orderId){
-  const { error } = await window.supabaseClient.rpc('mark_order_delivered', { p_order_id: orderId });
-  if(error){ showToast('تعذر تسجيل تسليم الطلب'); return; }
+  const tracked = ACTIVE_PICKUP_ORDERS.find(o=>o.id === orderId);
+  const collected = await collectCodIfOwed(tracked || {});
+  if(collected.handled && !collected.ok) return;
+  if(!collected.handled){
+    const { error } = await window.supabaseClient.rpc('mark_order_delivered', { p_order_id: orderId });
+    if(error){ showToast('تعذر تسجيل تسليم الطلب'); return; }
+  }
   ACTIVE_PICKUP_ORDERS = ACTIVE_PICKUP_ORDERS.filter(o=>o.id !== orderId);
-  showToast('تم تسليم الطلب #' + orderId);
+  showToast(collected.ok ? 'تم التسليم واستلام المبلغ — طلب #' + orderId : 'تم تسليم الطلب #' + orderId);
   renderOrdersList();
 }
 

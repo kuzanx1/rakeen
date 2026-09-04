@@ -98,7 +98,7 @@ export default function DiagnosticsScreen() {
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.scroll}>
-      <Text style={styles.title}>تشخيص النظام</Text>
+      <Text style={styles.title}>حالة الجهاز</Text>
       <View
         style={[
           styles.diagnosisBanner,
@@ -110,19 +110,19 @@ export default function DiagnosticsScreen() {
       <Section title="الاتصال">
         <Row label="الإنترنت" color={triColor(tri, snapshot.internet)} value={triLabel(snapshot.internet, '🟢 متصل', '🔴 غير متصل', '⚪ غير معروف بعد')} />
         <Row
-          label="الاتصال بالسحابة"
+          label="الاتصال بحساب المطعم"
           color={triColor(tri, snapshot.cloud)}
           value={triLabel(snapshot.cloud, '🟢 تعمل', '🔴 تعذر الوصول', '⚪ لم تُختبر بعد')}
         />
         {!!snapshot.lastCloudError && <Text style={styles.errorDetail}>آخر خطأ سحابة: {snapshot.lastCloudError}</Text>}
-        <Row label="آخر مزامنة ناجحة" color={UNKNOWN} value={snapshot.lastSuccessfulSyncAt ? new Date(snapshot.lastSuccessfulSyncAt).toLocaleTimeString() : '—'} last />
+        <Row label="آخر تحديث ناجح" color={UNKNOWN} value={snapshot.lastSuccessfulSyncAt ? new Date(snapshot.lastSuccessfulSyncAt).toLocaleTimeString() : '—'} last />
       </Section>
 
       <Section title="الطابعة">
         <Row
           label="الطابعة"
           color={snapshot.printerBridgeAvailable ? OK : BAD}
-          value={snapshot.printerBridgeAvailable ? '🟢 متاح' : '🔴 غير متاح على هذا الجهاز/البناء'}
+          value={snapshot.printerBridgeAvailable ? '🟢 متاح' : '🔴 غير متاح على هذا الجهاز'}
         />
         <Row
           label="إعداد الطابعة"
@@ -136,19 +136,19 @@ export default function DiagnosticsScreen() {
         <Row
           label="درج النقدية"
           color={snapshot.cashDrawerBridgeAvailable ? OK : UNKNOWN}
-          value={snapshot.cashDrawerBridgeAvailable ? '🟢 متاح' : '⚪ غير متاح على هذا الجهاز/البناء'}
+          value={snapshot.cashDrawerBridgeAvailable ? '🟢 متاح' : '⚪ غير متاح على هذا الجهاز'}
           last
         />
       </Section>
 
       <Section title="طلبات بانتظار المزامنة">
-        <Row label="إجمالي الطلبات المحفوظة محليًا" color={snapshot.queuedOrdersCount === 0 ? OK : UNKNOWN} value={String(snapshot.queuedOrdersCount)} />
-        <Row label="طلبات عالقة (تحتاج تدخّل)" color={snapshot.stuckOrdersCount === 0 ? OK : BAD} value={String(snapshot.stuckOrdersCount)} last />
+        <Row label="الطلبات المحفوظة على الجهاز" color={snapshot.queuedOrdersCount === 0 ? OK : UNKNOWN} value={String(snapshot.queuedOrdersCount)} />
+        <Row label="طلبات متعلّقة تحتاج مراجعة" color={snapshot.stuckOrdersCount === 0 ? OK : BAD} value={String(snapshot.stuckOrdersCount)} last />
       </Section>
 
       <Section title="قائمة الطباعة">
         <Row label="قيد الطباعة أو الانتظار" color={UNKNOWN} value={String(snapshot.printQueueCounts.queued + snapshot.printQueueCounts.retrying + snapshot.printQueueCounts.printing)} />
-        <Row label="طباعات فاشلة نهائيًا" color={snapshot.printQueueCounts.failed === 0 ? OK : BAD} value={String(snapshot.printQueueCounts.failed)} last />
+        <Row label="فواتير ما طبعت" color={snapshot.printQueueCounts.failed === 0 ? OK : BAD} value={String(snapshot.printQueueCounts.failed)} last />
       </Section>
 
       <View style={styles.actionsRow}>

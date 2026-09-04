@@ -89,7 +89,7 @@ export interface AttachedCustomer {
 const CHANNELS: { id: OrderChannel; label: string }[] = [
   { id: 'dine_in', label: '🍽️ بالمطعم' },
   { id: 'pickup', label: '📦 استلام' },
-  { id: 'delivery', label: '🛵 توصيل' },
+  { id: 'delivery', label: '🛵 تطبيقات التوصيل' },
 ];
 
 const STEP_TITLE: Record<Step, string> = {
@@ -192,6 +192,16 @@ export default function PaymentModal({
   // because it also decides whether the 4-second auto-reset runs at all.
   const showLoyaltyQr = false;
 
+
+  // A cart can still be carrying `delivery` from before the last platform
+  // was removed, or from a build where the channel was always offered.
+  // Left alone it would show a channel row with nothing selected and then
+  // book the sale as platform-prepaid anyway, so it is moved to the first
+  // channel that is actually available.
+  useEffect(() => {
+    if (!visible || channel !== 'delivery' || deliveryPlatforms.length > 0) return;
+    onChannelChange(dineInEnabled ? 'dine_in' : 'pickup');
+  }, [visible, channel, deliveryPlatforms.length, dineInEnabled, onChannelChange]);
 
   useEffect(() => {
     if (!visible) return;
@@ -420,7 +430,32 @@ export default function PaymentModal({
           ? validSplit
           : true;
 
-  const channels = CHANNELS.filter(c => c.id !== 'dine_in' || dineInEnabled);
+  /**
+   * DELIBERATE DIVERGENCE from the source, decided by the owner.
+   *
+   * rakeen-pos.js:1536 filters only dine_in, so 🛵 توصيل is always
+   * offered; it hides just the platform buttons when no platform exists.
+   * But picking that channel forces `activePaymentMethod =
+   * 'delivery_platform'` (:1293) and shows "مدفوع مسبقًا عبر التطبيق"
+   * with a field for the platform invoice's last four digits -- for an
+   * invoice that does not exist when no platform is configured.
+   *
+   * The cost is not cosmetic: computeShiftTotals counts delivery_platform
+   * as its own bucket, outside both cash and card, so money the
+   * restaurant's own driver collected is booked as collected by an
+   * aggregator and the shift's cash reconciliation is wrong by that
+   * amount.
+   *
+   * A restaurant that delivers with its own driver takes those orders
+   * through the website instead, where they arrive as online orders,
+   * already priced and invoiced. So with no platform configured there is
+   * nothing this channel can correctly record, and it is hidden.
+   */
+  const channels = CHANNELS.filter(c => {
+    if (c.id === 'dine_in') return dineInEnabled;
+    if (c.id === 'delivery') return deliveryPlatforms.length > 0;
+    return true;
+  });
   const methods: { id: PaymentMethod; label: string }[] = [
     { id: 'cash', label: 'كاش' },
     { id: 'card', label: 'بطاقة' },
