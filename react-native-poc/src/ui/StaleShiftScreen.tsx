@@ -3,6 +3,7 @@ import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
 import { createStyles, fonts, gradients, radii } from './theme';
+import { formatArabicDateTimeWithWeekday } from '../domain/arabicDate';
 
 /**
  * Shown when the open shift belongs to a trading day that has already
@@ -28,14 +29,7 @@ export default function StaleShiftScreen({
   onClose: () => void;
 }) {
   const styles = useStyles();
-  const opened = new Date(openedAt);
-  const label = opened.toLocaleString('ar-SA', {
-    weekday: 'long',
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const label = formatArabicDateTimeWithWeekday(new Date(openedAt));
 
   return (
     <View style={styles.screen}>

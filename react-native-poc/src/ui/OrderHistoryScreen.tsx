@@ -29,6 +29,7 @@ import { useShell } from './shell';
 import Svg, { Path, Polyline, Rect } from 'react-native-svg';
 import Money from './Money';
 import RunningOrdersList from './RunningOrdersList';
+import { formatArabicDateTimeShort } from '../domain/arabicDate';
 
 /**
  * "جارية" first, matching the source's own tab order and for the same
@@ -250,7 +251,7 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
               <View style={[styles.rowBadge, { backgroundColor: ROW_BADGE_COLOR[status as OrderHistoryStatus] }]} />
               <View style={styles.rowInfo}>
                 <Text style={styles.rowTitle}>#{item.id} — {item.customerName || CHANNEL_LABELS[item.channel] || item.channel}</Text>
-                <Text style={styles.rowMeta}>{new Date(item.createdAt).toLocaleString('ar-SA')}</Text>
+                <Text style={styles.rowMeta}>{formatArabicDateTimeShort(new Date(item.createdAt))}</Text>
               </View>
               <Money value={item.total} size={14.5} />
             </TouchableOpacity>

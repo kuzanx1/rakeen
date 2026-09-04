@@ -2,6 +2,7 @@ import { supabase } from '../infrastructure/supabaseClient';
 import { getItem, setItem } from '../infrastructure/mmkvStorage';
 import { computeShiftTotals, EMPTY_SHIFT_TOTALS } from '../domain/shift';
 import type { CashMovement, ClosingReport, Shift, ShiftOrderRow, ShiftTotals } from '../domain/shift';
+import { formatArabicDateTime } from '../domain/arabicDate';
 
 /**
  * The shift lifecycle, ported from rakeen-pos.js's own (findOpenShift at
@@ -286,13 +287,7 @@ export async function getLastClosingReport(
   return {
     businessName: businessName || 'ركين',
     branchName: branchName || '',
-    dateLabel: new Date(String(row.created_at)).toLocaleString('ar-SA', {
-      hour: '2-digit',
-      minute: '2-digit',
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    }),
+    dateLabel: formatArabicDateTime(new Date(String(row.created_at))),
     // The source prints an em dash here: the report row records who closed
     // it as a user id, not a display name.
     staffName: '—',

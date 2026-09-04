@@ -75,6 +75,7 @@ import { findOpenShift, getLastClosingReport, getBranchClosingTime } from './src
 import type { Shift } from './src/domain/shift';
 import { isShiftStale } from './src/domain/shift';
 import StaleShiftScreen from './src/ui/StaleShiftScreen';
+import ErrorBoundary from './src/ui/ErrorBoundary';
 import ShiftClosedScreen from './src/ui/ShiftClosedScreen';
 import CashMovementModal from './src/ui/CashMovementModal';
 import type { ClosingReport } from './src/domain/shift';
@@ -877,7 +878,7 @@ function App(): React.JSX.Element {
         ) : screen.name === 'printQueue' ? (
           <PrintQueueScreen />
         ) : screen.name === 'printerSettings' ? (
-          <PrinterSettingsScreen />
+          <PrinterSettingsScreen online={online} staffName={staffMember?.name ?? null} />
         ) : screen.name === 'diagnostics' ? (
           <DiagnosticsScreen />
         ) : screen.name === 'orderHistory' && branchId != null ? (
@@ -1286,9 +1287,14 @@ const HomeActiveContext = React.createContext<(active: boolean) => void>(() => {
 export default function Root(): React.JSX.Element {
   return (
     <SafeAreaProvider>
-      <ThemeProvider>
-        <Shell />
-      </ThemeProvider>
+      {/* Outside ThemeProvider on purpose: if the thing that throws is
+          anywhere in the tree -- theme included -- the fallback still has
+          to be able to render. */}
+      <ErrorBoundary>
+        <ThemeProvider>
+          <Shell />
+        </ThemeProvider>
+      </ErrorBoundary>
     </SafeAreaProvider>
   );
 }

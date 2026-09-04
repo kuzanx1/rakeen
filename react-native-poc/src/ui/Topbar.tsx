@@ -6,6 +6,7 @@ import Svg, { Circle, Line, Path, Polyline, Rect } from 'react-native-svg';
 import { createStyles, fonts, radii, useTheme } from './theme';
 import { useShell } from './shell';
 import { useI18n } from './i18n';
+import { formatArabicTime } from '../domain/arabicDate';
 
 /**
  * <header class="topbar"> (pos/page.tsx), styled by rakeen-pos.css:89-138
@@ -95,7 +96,7 @@ export default function Topbar({
   }, []);
 
   // ar-SA gives the Arabic-Indic digits and م/ص suffix the source shows.
-  const clock = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+  const clock = formatArabicTime(now);
 
   return (
     <View

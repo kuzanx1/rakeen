@@ -59,6 +59,7 @@ import type { PaymentMethod } from '../domain/payment';
 import CustomerPickerModal from './CustomerPickerModal';
 import LoyaltyRedeemModal from './LoyaltyRedeemModal';
 import type { Customer } from '../domain/customer';
+import { formatArabicTime } from '../domain/arabicDate';
 
 /** `.slice(0,8)` in renderProductGrid's popular branch. */
 const POPULAR_TAB_SIZE = 8;
@@ -1009,7 +1010,7 @@ export default function ProductsScreen({
         // from it, so capturing it after the clear would always store 0.
         setLastTransaction({
           total: cart.totals.total,
-          time: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+          time: formatArabicTime(new Date()),
         });
         cart.clearCart(); // safe in the SQLite queue either way, per Checkpoint 5
         // `document.getElementById('discountToggle').textContent = '+ خصم'`

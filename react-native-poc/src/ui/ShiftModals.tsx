@@ -8,6 +8,7 @@ import { loadShiftTotals, closeShift } from '../application/shiftService';
 import { EMPTY_SHIFT_TOTALS, varianceLabel, varianceSeverity } from '../domain/shift';
 import type { ClosingReport, Shift, ShiftTotals } from '../domain/shift';
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
+import { formatArabicTime, formatArabicDateTime } from '../domain/arabicDate';
 
 /**
  * openShiftSummary() (rakeen-pos.js:5421) and the closing wizard (:5467),
@@ -86,7 +87,7 @@ export function ShiftSummaryModal({
   const { totals, loading } = useShiftTotals(shift, visible);
 
   const startTime = shift
-    ? new Date(shift.opened_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
+    ? formatArabicTime(new Date(shift.opened_at))
     : '--:--';
 
   return (
@@ -180,13 +181,7 @@ export function CloseShiftModal({
     const report: ClosingReport = {
       businessName: businessName || 'ركين',
       branchName,
-      dateLabel: new Date().toLocaleString('ar-SA', {
-        hour: '2-digit',
-        minute: '2-digit',
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-      }),
+      dateLabel: formatArabicDateTime(new Date()),
       staffName: staffName || 'بدون اسم',
       ordersCount: totals.ordersCount,
       salesTotal: totals.salesTotal,

@@ -6,6 +6,7 @@ import Money from './Money';
 import { REJECT_REASONS } from '../application/incomingOrderService';
 import type { IncomingOrder } from '../application/incomingOrderService';
 import { createStyles, fonts, gradients, radii, useTheme } from './theme';
+import { formatArabicTime } from '../domain/arabicDate';
 
 const CHANNEL_LABELS: Record<string, string> = { dine_in: 'بالمطعم', pickup: 'استلام', delivery: 'توصيل' };
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
@@ -65,7 +66,7 @@ export default function IncomingOrderModal({
     if (!order.scheduledByCustomer) return { label: 'وقت الاستلام', value: 'الآن', loud: false };
     return {
       label: 'وقت الاستلام',
-      value: new Date(order.scheduledFor).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+      value: formatArabicTime(new Date(order.scheduledFor)),
       loud: true,
     };
   })();
