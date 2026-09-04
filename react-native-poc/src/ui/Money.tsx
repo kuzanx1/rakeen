@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { I18nManager, StyleSheet, Text, View } from 'react-native';
 import type { StyleProp, TextStyle, ViewStyle } from 'react-native';
 import { fonts, useTheme } from './theme';
 
@@ -78,13 +78,28 @@ export default function Money({
 }
 
 const styles = StyleSheet.create({
-  // `direction:ltr; unicode-bidi:isolate` -- a money box never reorders
-  // under the surrounding RTL text. In RN that means an explicitly
-  // 'row' (not 'row-reverse') flex box, which does not flip under
-  // I18nManager the way `start`/`end` do.
-  row: { flexDirection: 'row', alignItems: 'baseline', gap: 3 },
-  whole: { fontFamily: fonts.monoBold },
-  frac: { fontFamily: fonts.monoBold, opacity: 0.82 },
+  // `.rk-money { direction: ltr }` -- the money box reads left to right no
+  // matter what surrounds it: whole, then fraction, then the mark.
+  //
+  // The previous note here claimed `flexDirection:'row'` "does not flip
+  // under I18nManager". It does. `row` follows the writing direction in
+  // Yoga exactly as it does in CSS, and index.js forces RTL app-wide, so
+  // the three pieces were laid out right-to-left -- the mirror of the
+  // source. On screen that put the mark and the fraction to the LEFT of
+  // the integer: an amount reading ".0099" instead of "99.00".
+  //
+  // `row-reverse` under an RTL direction resolves to left-to-right, which
+  // is the whole point; the ternary keeps it correct if RTL is ever off.
+  // Done this way rather than with the `direction:'ltr'` style prop
+  // because that one is documented iOS-only, and this needs no platform
+  // to honour anything beyond flexbox.
+  row: { flexDirection: I18nManager.isRTL ? 'row-reverse' : 'row', alignItems: 'baseline', gap: 3 },
+  // This piece carries the minus sign on a discount line. A bare '-' is
+  // bidi-neutral, so in an RTL paragraph it would attach to the wrong end
+  // of the digits; pinning the direction keeps "-12.50" from rendering as
+  // "12.50-".
+  whole: { fontFamily: fonts.monoBold, writingDirection: 'ltr' },
+  frac: { fontFamily: fonts.monoBold, opacity: 0.82, writingDirection: 'ltr' },
   riyal: {
     fontFamily: 'SaudiRiyal-Bold',
     // transform:scaleX(-1)
