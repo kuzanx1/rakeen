@@ -2357,3 +2357,40 @@ select.field-invalid {
 @media (max-width: 900px) {
   .report-theme-swatch { font-size: 9.5px; }
 }
+
+/* ============================================================
+   الرئيسية — الجواب قبل السؤال.
+
+   الاستعلام يحسب تسعة عشر قيمة ويعرض ثلاثاً. اثنتان من المهمَلات
+   يحسبهما المالك بنفسه اليوم: متوسط الفاتورة، وساعة الذروة — وهذي
+   الأخيرة تُحسب بمرور كامل على كل طلب ثم تُرمى.
+
+   ونموذج التاريخ كان يتصدّر الشاشة في كل زيارة، لأداة تُستخدم أقل
+   بكثير من الأزرار المختصرة فوقها. طُوي، فارتفع الجواب لأعلى.
+   ============================================================ */
+
+/* التفاصيل المطوية: العنصر كان flex، وهذا يكسر تخطيط <details>. */
+.sales-range-custom{display:block; margin-top:10px;}
+.sales-range-custom > summary{
+  cursor:pointer; list-style:none;
+  display:inline-flex; align-items:center; gap:6px;
+  padding:9px 13px; border-radius:var(--r-full);
+  border:1px solid var(--line); background:var(--surf1);
+  font-size:11px; font-weight:800; color:var(--muted);
+  min-height:44px; box-sizing:border-box;
+}
+.sales-range-custom > summary::-webkit-details-marker{display:none;}
+.sales-range-custom > summary::before{content:'+'; font-weight:800;}
+.sales-range-custom[open] > summary::before{content:'−';}
+.sales-range-custom > summary:hover{color:var(--text); border-color:var(--muted);}
+.sales-range-custom-body{
+  display:flex; align-items:end; gap:10px; flex-wrap:wrap;
+  margin-top:12px; padding-top:12px; border-top:1px solid var(--line);
+}
+.sales-range-custom-body .menu-add-field{flex:1 1 0; min-width:104px; gap:3px;}
+
+/* السطر الثاني من المؤشرات — نفس إيقاع الأول، بلا ظل جديد. */
+.sales-kpi-note{
+  margin-top:5px; font-size:10.5px; font-weight:700; color:var(--muted);
+}
+.sales-kpi-peak .sales-kpi-value{letter-spacing:-.3px;}

@@ -827,6 +827,42 @@ function renderSalesRangeSummary(data){
   const pillArrowUp = '<path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>';
   const pillArrowDown = '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>';
 
+  // متوسط الفاتورة: يُمرَّر إلى هنا منذ البداية ولم يكن يُعرض. وهو
+  // الرقم الذي يفصل «زبائن أقل» عن «الزبون يشتري أقل» — وهما مشكلتان
+  // مختلفتان تماماً، وعلاجهما مختلف.
+  const avg = typeof data.avgTicket === 'number' && isFinite(data.avgTicket)
+    ? data.avgTicket
+    : (data.ordersCount > 0 ? data.netSales / data.ordersCount : 0);
+
+  // ساعة الذروة: تُحسب في loadSalesRangeData بمرور كامل على الطلبات،
+  // ثم تُرجَع ولا تُقرأ. هذه أول مرة تصل الشاشة.
+  const hours = Array.isArray(data.hourly) ? data.hourly.filter(h => Number(h.revenue) > 0) : [];
+  const peak = hours.length ? hours.reduce((a, b) => (Number(b.revenue) > Number(a.revenue) ? b : a)) : null;
+  const peakLabel = peak
+    ? `${String(peak.hour).padStart(2, '0')}:00 — ${String((Number(peak.hour) + 1) % 24).padStart(2, '0')}:00`
+    : '—';
+  const peakShare = peak && data.netSales > 0
+    ? Math.round((Number(peak.revenue) / data.netSales) * 100)
+    : null;
+
+  const clockIcon = '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>';
+  const ticketIcon = '<path d="M3 9V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 6v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-6z"/><path d="M12 8v8"/>';
+
+  const secondRow = `
+    <div class="sales-kpi-row">
+      <div class="sales-kpi-card">
+        <div class="sales-kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ticketIcon}</svg></div>
+        <div class="sales-kpi-label">متوسط الفاتورة</div>
+        <div class="sales-kpi-value mono">${avg.toFixed(2)} ر.س</div>
+      </div>
+      <div class="sales-kpi-card sales-kpi-peak">
+        <div class="sales-kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${clockIcon}</svg></div>
+        <div class="sales-kpi-label">ساعة الذروة</div>
+        <div class="sales-kpi-value mono">${peakLabel}</div>
+        ${peakShare != null ? `<div class="sales-kpi-note">${peakShare}٪ من مبيعات الفترة</div>` : ''}
+      </div>
+    </div>`;
+
   const deltaHtml = !hasDelta ? '' : `
     <div class="sales-kpi-hero-delta ${deltaUp?'up':'down'}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">${deltaUp?pillArrowUp:pillArrowDown}</svg>
@@ -853,7 +889,8 @@ function renderSalesRangeSummary(data){
         <div class="sales-kpi-label">صافي الأرباح</div>
         <div class="sales-kpi-value mono${profitUp?'':' negative'}" title="${profit.toFixed(2)} ر.س">${profit.toFixed(2)} ر.س</div>
       </div>
-    </div>`;
+    </div>
+    ${secondRow}`;
 }
 
 function isTodayRange(from, to){
@@ -864,7 +901,14 @@ function isTodayRange(from, to){
 async function applySalesRange(from, to){
   if(isTodayRange(from, to)){
     renderBestWorstSellers(); renderCategoryPerf(); renderChannelCards(); renderPaymentBreakdown();
-    renderSalesRangeSummary({netSales: TODAY.netSales, ordersCount: TODAY.ordersCount, avgTicket: TODAY.avgTicket, profit: TODAY.profit, salesDelta: YESTERDAY.netSales > 0 ? (TODAY.netSales - YESTERDAY.netSales) / YESTERDAY.netSales * 100 : null});
+    renderSalesRangeSummary({
+      netSales: TODAY.netSales, ordersCount: TODAY.ordersCount, avgTicket: TODAY.avgTicket,
+      profit: TODAY.profit,
+      // HOURLY_SALES is what TODAY is derived from in the first place (see
+      // the comment at the top of this file: hourly is the source of truth).
+      hourly: typeof HOURLY_SALES !== 'undefined' ? HOURLY_SALES : null,
+      salesDelta: YESTERDAY.netSales > 0 ? (TODAY.netSales - YESTERDAY.netSales) / YESTERDAY.netSales * 100 : null,
+    });
     return;
   }
   const data = await loadSalesRangeData(from, to);
