@@ -71,6 +71,7 @@ import type { Shift } from './src/domain/shift';
 import { isShiftStale } from './src/domain/shift';
 import StaleShiftScreen from './src/ui/StaleShiftScreen';
 import ErrorBoundary from './src/ui/ErrorBoundary';
+import { WelcomeSplash } from './src/ui/WelcomeSplash';
 import ShiftClosedScreen from './src/ui/ShiftClosedScreen';
 import CashMovementModal from './src/ui/CashMovementModal';
 import type { ClosingReport } from './src/domain/shift';
@@ -1308,6 +1309,12 @@ export default function Root(): React.JSX.Element {
           <Shell />
         </ThemeProvider>
       </ErrorBoundary>
+      {/* Above the tree, never around it: the app is mounted and running
+          underneath while this plays, and it removes itself on a timer.
+          Outside ThemeProvider because its colours are the brand's, not
+          the device's -- it starts on the icon's own ground whatever
+          appearance the phone is set to. */}
+      <WelcomeSplash />
     </SafeAreaProvider>
   );
 }
