@@ -21,6 +21,8 @@ import {
   renderShiftReportToEscPosBase64,
 } from './receiptRenderer';
 import type { ClosingReport } from '../domain/shift';
+import { getDeviceConfig } from './authService';
+import { getReceiptTheme } from './catalogService';
 
 /**
  * Checkpoint 10 (Print Queue) -- application-layer orchestration,
@@ -69,7 +71,15 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
   }
   const escPosBase64 =
     job.type === 'receipt'
-      ? await renderReceiptToEscPosBase64(job.data as unknown as ReceiptData, profile?.paperWidthPx)
+      ? await renderReceiptToEscPosBase64(
+          job.data as unknown as ReceiptData,
+          profile?.paperWidthPx,
+          // Read at DISPATCH, not at enqueue, exactly as the paper width
+          // already is: a job queued before the owner changed the theme
+          // should print in the theme that is current when it actually
+          // reaches paper.
+          await getReceiptThemeForPrinting(),
+        )
       : job.type === 'shiftReport'
         ? await renderShiftReportToEscPosBase64(job.data as unknown as ClosingReport, profile?.paperWidthPx)
         : await renderKitchenTicketToEscPosBase64(job.data as unknown as KitchenTicketData, profile?.paperWidthPx);
@@ -106,6 +116,18 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
  * order/payment submission. Returns the job id (useful for a future
  * "show this job's status" UI, not required by anything today).
  */
+/** The configured receipt theme, or 'classic'. Never throws -- a settings
+ *  read must not be able to stop a receipt printing. */
+async function getReceiptThemeForPrinting(): Promise<string> {
+  try {
+    const device = await getDeviceConfig();
+    if (device.businessId == null) return 'classic';
+    return await getReceiptTheme(device.businessId);
+  } catch {
+    return 'classic';
+  }
+}
+
 export async function enqueuePrintJob(type: PrintJobType, data: Record<string, unknown>): Promise<string> {
   const contentKey = buildContentKey(type, data);
   const now = Date.now();

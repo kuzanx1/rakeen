@@ -224,6 +224,26 @@ export async function getRequireManagerPinForClose(businessId: number): Promise<
   }
 }
 
+/**
+ * businesses.receipt_theme. Its own query for the same reason as
+ * getRequireManagerPinForClose: the column does not exist until the
+ * migration runs, and PostgREST fails an entire select over one unknown
+ * column. Falls back to 'classic'.
+ */
+export async function getReceiptTheme(businessId: number): Promise<string> {
+  try {
+    const { data, error } = await supabase
+      .from('businesses')
+      .select('receipt_theme')
+      .eq('id', businessId)
+      .single();
+    if (error || !data?.receipt_theme) return 'classic';
+    return String(data.receipt_theme);
+  } catch {
+    return 'classic';
+  }
+}
+
 export function subscribeToBusinessSettings(businessId: number, onChange: () => void): () => void {
   const channel = supabase
     .channel(`pos-business-settings:${businessId}`)

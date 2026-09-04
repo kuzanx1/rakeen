@@ -8,6 +8,7 @@ import { buildQrMatrix } from '../domain/qrMatrix';
 import { toReceiptPrintable, toKitchenTicketPrintable, ReceiptPrintable, KitchenTicketPrintable } from '../domain/receiptPrintable';
 import { ReceiptData, KitchenTicketData, buildReceiptEscPosBase64, buildKitchenTicketEscPosBase64 } from '../domain/receipt';
 import type { ClosingReport } from '../domain/shift';
+import { bi, receiptTheme } from '../domain/receiptTheme';
 
 /**
  * Feature Parity Pass -- Real Receipt Rendering. This is the real
@@ -66,6 +67,25 @@ function drawQrMatrix(canvas: ReturnType<typeof createReceiptSurface>['canvas'],
   }
 }
 
+/** A hairline rectangle, for the elegant theme's boxed total. Four thin
+ *  rules rather than a stroked rect: a thermal head renders a 1px stroke
+ *  unevenly at low temperature, and filled bars stay crisp. */
+function drawBox(
+  canvas: ReturnType<typeof createReceiptSurface>['canvas'],
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): void {
+  const t = 1.5;
+  const paint = Skia.Paint();
+  paint.setColor(Skia.Color('#000000'));
+  canvas.drawRect(Skia.XYWHRect(x, y, w, t), paint);
+  canvas.drawRect(Skia.XYWHRect(x, y + h - t, w, t), paint);
+  canvas.drawRect(Skia.XYWHRect(x, y, t, h), paint);
+  canvas.drawRect(Skia.XYWHRect(x + w - t, y, t, h), paint);
+}
+
 function drawDivider(canvas: ReturnType<typeof createReceiptSurface>['canvas'], width: number, y: number): void {
   const paint = Skia.Paint();
   paint.setColor(Skia.Color('#000000'));
@@ -116,8 +136,18 @@ async function buildFontProviderReady() {
  * rather than whatever width happened to be configured back when the
  * job was first enqueued, which may since have changed.
  */
-export async function renderReceiptToEscPosBase64(data: ReceiptData, printerPaperWidthPx?: number): Promise<string> {
+export async function renderReceiptToEscPosBase64(
+  data: ReceiptData,
+  printerPaperWidthPx?: number,
+  themeId?: string | null,
+): Promise<string> {
   try {
+    // Spacing, type scale and rules come from the theme; the ZATCA fields
+    // below never do. A theme decides how a receipt looks, never what a
+    // tax invoice must contain.
+    const th = receiptTheme(themeId);
+    const gap = (n: number) => LINE_H * n * th.density;
+    const sz = (n: number) => Math.round(n * th.typeScale);
     const receipt = toReceiptPrintable(printerPaperWidthPx != null ? { ...data, paperWidthPx: printerPaperWidthPx } : data);
     const provider = await buildFontProviderReady();
     const logoImage = data.logoUrl ? await loadRemoteImage(data.logoUrl) : null;
@@ -125,7 +155,7 @@ export async function renderReceiptToEscPosBase64(data: ReceiptData, printerPape
     const width = receipt.paperWidthPx;
     const contentWidth = width - PAD * 2;
     const qrSize = Math.min(220, contentWidth);
-    const logoSize = logoImage ? Math.min(90, Math.round(width * 0.18)) : 0;
+    const logoSize = logoImage && th.showLogo ? Math.min(90, Math.round(width * 0.18)) : 0;
     const maxHeight = 2400 + receipt.items.length * 200 + (receipt.vatNumber ? qrSize + 120 : 0) + (logoImage ? logoSize + 40 : 0);
 
     const surface = createReceiptSurface(width, maxHeight);
@@ -135,7 +165,7 @@ export async function renderReceiptToEscPosBase64(data: ReceiptData, printerPape
 
     let y = PAD + LINE_H / 2;
 
-    if (logoImage) {
+    if (logoImage && th.showLogo) {
       canvas.drawImageRect(
         logoImage,
         Skia.XYWHRect(0, 0, logoImage.width(), logoImage.height()),
@@ -145,53 +175,88 @@ export async function renderReceiptToEscPosBase64(data: ReceiptData, printerPape
       y += logoSize + LINE_H * 0.3;
     }
 
-    y = drawCenterLine(ctx, y, receipt.businessName, 30, true);
-    if (receipt.branchName) y = drawCenterLine(ctx, y, receipt.branchName, 19, false);
-    y = drawCenterLine(ctx, y, receipt.dateLabel, 16, false);
-    y = drawCenterLine(ctx, y, `رقم الطلب: ${receipt.orderNumber}`, 18, true);
-    if (receipt.metaLabel) y = drawCenterLine(ctx, y, receipt.metaLabel, 15, false);
+    // The elegant theme frames the name between two rules; the others
+    // just print it.
+    if (th.headerBand) {
+      drawDivider(canvas, width, y);
+      y += gap(0.5);
+    }
+    y = drawCenterLine(ctx, y, receipt.businessName, sz(30), true);
+    if (th.headerBand) {
+      y += gap(0.15);
+      drawDivider(canvas, width, y);
+      y += gap(0.5);
+    }
+    if (receipt.branchName) y = drawCenterLine(ctx, y, receipt.branchName, sz(19), false);
+    y = drawCenterLine(ctx, y, receipt.dateLabel, sz(16), false);
+    y = drawCenterLine(ctx, y, `${bi('رقم الطلب', 'Order')}: ${receipt.orderNumber}`, sz(18), true);
+    if (receipt.metaLabel) y = drawCenterLine(ctx, y, receipt.metaLabel, sz(15), false);
+    // ZATCA Phase 1: the heading and the seller's VAT number are mandatory
+    // on a simplified tax invoice. Present in every theme.
     if (receipt.vatNumber) {
-      y = drawCenterLine(ctx, y, 'فاتورة ضريبية مبسطة', 17, true);
-      y = drawCenterLine(ctx, y, `الرقم الضريبي: ${receipt.vatNumber}`, 15, false);
+      y = drawCenterLine(ctx, y, bi('فاتورة ضريبية مبسطة', 'Simplified Tax Invoice'), sz(17), true);
+      y = drawCenterLine(ctx, y, `${bi('الرقم الضريبي', 'VAT No')}: ${receipt.vatNumber}`, sz(15), false);
     }
     drawDivider(canvas, width, y);
-    y += LINE_H * 0.6;
+    y += gap(0.6);
 
-    for (const item of receipt.items) {
-      for (const line of measureAndWrapText(provider, item.name, contentWidth, 21, true)) {
-        paintText(canvas, provider, line, PAD, y, contentWidth, { size: 21, bold: true, align: 'right', direction: 'rtl' });
-        y += LINE_H * 0.85;
+    receipt.items.forEach((item, index) => {
+      for (const line of measureAndWrapText(provider, item.name, contentWidth, sz(21), true)) {
+        paintText(canvas, provider, line, PAD, y, contentWidth, { size: sz(21), bold: true, align: 'right', direction: 'rtl' });
+        y += gap(0.85);
       }
       for (const modText of item.mods) {
-        for (const line of measureAndWrapText(provider, modText, contentWidth, 15, false)) {
-          paintText(canvas, provider, line, PAD, y, contentWidth, { size: 15, bold: false, align: 'right', direction: 'rtl', color: '#333333' });
-          y += LINE_H * 0.7;
+        for (const line of measureAndWrapText(provider, modText, contentWidth, sz(15), false)) {
+          paintText(canvas, provider, line, PAD, y, contentWidth, { size: sz(15), bold: false, align: 'right', direction: 'rtl', color: '#333333' });
+          y += gap(0.7);
         }
       }
-      y = drawRow(ctx, y, item.lineTotal.toFixed(2), `${item.qty} × ${item.unitPrice.toFixed(2)}`, 18, false);
+      y = drawRow(ctx, y, item.lineTotal.toFixed(2), `${item.qty} × ${item.unitPrice.toFixed(2)}`, sz(18), false);
+      // A hairline under each item turns the list into a table instead of
+      // a run of text. Skipped after the last one -- the section rule
+      // below already closes it.
+      if (th.ruleBetweenItems && index < receipt.items.length - 1) {
+        drawDivider(canvas, width, y);
+        y += gap(0.35);
+      }
+    });
+    drawDivider(canvas, width, y);
+    y += gap(0.6);
+
+    y = drawRow(ctx, y, receipt.subtotal.toFixed(2), bi('المجموع الفرعي', 'Subtotal'), sz(18), false);
+    if (receipt.discount > 0) {
+      y = drawRow(ctx, y, `-${receipt.discount.toFixed(2)}`, bi('الخصم', 'Discount'), sz(18), false);
+    }
+    // ZATCA: the VAT amount is a mandatory line, in every theme.
+    y = drawRow(ctx, y, receipt.vat.toFixed(2), bi('ضريبة القيمة المضافة', 'VAT'), sz(18), false);
+    if (th.boxedTotal) {
+      const boxTop = y - LINE_H * 0.55;
+      y = drawRow(ctx, y, receipt.total.toFixed(2), bi('الإجمالي', 'Total'), sz(24), true);
+      drawBox(canvas, PAD * 0.6, boxTop, width - PAD * 1.2, y - boxTop - LINE_H * 0.15);
+      y += gap(0.35);
+    } else {
+      y = drawRow(ctx, y, receipt.total.toFixed(2), bi('الإجمالي', 'Total'), sz(24), true);
     }
     drawDivider(canvas, width, y);
-    y += LINE_H * 0.6;
+    y += gap(0.6);
 
-    y = drawRow(ctx, y, receipt.subtotal.toFixed(2), 'المجموع الفرعي', 18, false);
-    if (receipt.discount > 0) y = drawRow(ctx, y, `-${receipt.discount.toFixed(2)}`, 'الخصم', 18, false);
-    y = drawRow(ctx, y, receipt.vat.toFixed(2), 'ضريبة القيمة المضافة', 18, false);
-    y = drawRow(ctx, y, receipt.total.toFixed(2), 'الإجمالي', 24, true);
-    drawDivider(canvas, width, y);
-    y += LINE_H * 0.6;
+    y = drawRow(ctx, y, '', receipt.paymentMethodLabel, sz(17), false);
+    if (receipt.change > 0) {
+      y = drawRow(ctx, y, receipt.change.toFixed(2), bi('الباقي', 'Change'), sz(17), false);
+    }
 
-    y = drawRow(ctx, y, '', receipt.paymentMethodLabel, 17, false);
-    if (receipt.change > 0) y = drawRow(ctx, y, receipt.change.toFixed(2), 'الباقي', 17, false);
-
+    // ZATCA Phase 1 TLV QR -- mandatory, and identical in every theme.
+    // Only its printed size varies, and never below a scannable one.
     if (receipt.vatNumber) {
-      y += LINE_H * 0.5;
+      y += gap(0.5);
+      const themedQr = Math.min(qrSize, th.qrMaxSize);
       const payload = zatcaQrBase64(receipt.businessName, receipt.vatNumber, receipt.timestampISO, receipt.total, receipt.vat);
-      drawQrMatrix(canvas, payload, (width - qrSize) / 2, y, qrSize);
-      y += qrSize + LINE_H * 0.3;
+      drawQrMatrix(canvas, payload, (width - themedQr) / 2, y, themedQr);
+      y += themedQr + gap(0.3);
     }
-    y += LINE_H * 0.4;
-    for (const line of measureAndWrapText(provider, receipt.customMessage, contentWidth, 18, false)) {
-      y = drawCenterLine(ctx, y, line, 18, false);
+    y += gap(0.4);
+    for (const line of measureAndWrapText(provider, receipt.customMessage, contentWidth, sz(18), false)) {
+      y = drawCenterLine(ctx, y, line, sz(18), false);
     }
     y += PAD;
 
