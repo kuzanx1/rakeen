@@ -115,3 +115,61 @@ export function varianceLabel(variance: number): string {
   if (variance === 0) return 'مطابق تمامًا';
   return variance > 0 ? `زيادة ${variance.toFixed(2)}` : `عجز ${Math.abs(variance).toFixed(2)}`;
 }
+
+
+/**
+ * Has the branch closed for the night since this shift opened?
+ *
+ * The problem this exists for: nothing ever closes a shift on its own. If
+ * a cashier locks up and goes home without running the closing wizard, the
+ * shift stays open forever -- so the next day's sales land inside
+ * yesterday's shift, the Z-report spans several days, and the cash count
+ * is measured against a float declared two days ago. Logging in the next
+ * morning never asks for a new shift, because an open one is found.
+ *
+ * Calendar date cannot answer this. A cafe trading 16:00-02:00 closes on
+ * the FOLLOWING date, so "is it a new day?" is the wrong question. The
+ * right one is "has the branch's own closing time passed since this shift
+ * opened?", and that works for a 02:00 close and a midnight close alike.
+ *
+ * The rule: find the most recent instant at which the branch's
+ * closing_time has passed, and compare. Worked examples --
+ *
+ *   16:00-02:00, now Tue 03:00, opened Mon 16:00
+ *     last close = Tue 02:00 > opened -> STALE      (correct)
+ *   16:00-02:00, now Mon 20:00, opened Mon 16:00
+ *     last close = Mon 02:00 < opened -> fine       (correct)
+ *   09:00-00:00, now Tue 01:00, opened Mon 09:00
+ *     last close = Tue 00:00 > opened -> STALE      (correct)
+ *
+ * When the branch has no hours set, fall back to a plain age limit so the
+ * "open for days" case is still caught rather than ignored.
+ */
+export const STALE_SHIFT_FALLBACK_HOURS = 18;
+
+export function isShiftStale(
+  shift: Pick<Shift, 'opened_at'>,
+  /** branches.closing_time, "HH:MM" or "HH:MM:SS". Null when unset. */
+  closingTime: string | null,
+  now: Date = new Date(),
+): boolean {
+  const openedAt = new Date(shift.opened_at);
+  if (Number.isNaN(openedAt.getTime())) return false;
+
+  if (!closingTime) {
+    return now.getTime() - openedAt.getTime() > STALE_SHIFT_FALLBACK_HOURS * 3600_000;
+  }
+
+  const [h, m] = closingTime.split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) {
+    return now.getTime() - openedAt.getTime() > STALE_SHIFT_FALLBACK_HOURS * 3600_000;
+  }
+
+  const lastClose = new Date(now);
+  lastClose.setHours(h, m, 0, 0);
+  // Today's closing time has not arrived yet, so the most recent one was
+  // yesterday's.
+  if (lastClose.getTime() > now.getTime()) lastClose.setDate(lastClose.getDate() - 1);
+
+  return openedAt.getTime() < lastClose.getTime();
+}

@@ -67,8 +67,10 @@ import { startIncomingOrderSound, stopIncomingOrderSound } from './src/applicati
 import { loadRememberedStaff, rememberStaff } from './src/application/staffService';
 import type { StaffMember } from './src/application/staffService';
 import { ShiftSummaryModal, CloseShiftModal } from './src/ui/ShiftModals';
-import { findOpenShift, getLastClosingReport } from './src/application/shiftService';
+import { findOpenShift, getLastClosingReport, getBranchClosingTime } from './src/application/shiftService';
 import type { Shift } from './src/domain/shift';
+import { isShiftStale } from './src/domain/shift';
+import StaleShiftScreen from './src/ui/StaleShiftScreen';
 
 /** React Native's Hermes runtime has no global `btoa` (unlike a browser) —
  *  a minimal base64 encoder, since pulling in a whole polyfill package for
@@ -197,6 +199,9 @@ function App(): React.JSX.Element {
    *  one running. */
   const [shift, setShift] = useState<Shift | null>(null);
   const [shiftChecked, setShiftChecked] = useState(false);
+  /** The found shift was opened before the branch last closed, so it
+   *  belongs to a trading day that is already over. */
+  const [shiftStale, setShiftStale] = useState(false);
 
   /** CURRENT_STAFF_MEMBER. `staffPicked` separates "nobody on duty" from
    *  "not asked yet" -- the source lets a branch with no staff carry on
@@ -455,6 +460,23 @@ function App(): React.JSX.Element {
       const open = await findOpenShift(cashier.id);
       if (cancelled) return;
       setShift(open);
+      if (open) {
+        // Nothing closes a shift on its own. A cashier who locks up
+        // without running the wizard leaves it open, so the next day's
+        // sales land inside yesterday's shift and its cash is counted
+        // against a float declared a day or two ago. Detect that and make
+        // it the first thing the cashier deals with.
+        try {
+          const device = await getDeviceConfig();
+          const closingTime =
+            device.branchId != null ? await getBranchClosingTime(device.branchId) : null;
+          if (!cancelled) setShiftStale(isShiftStale(open, closingTime));
+        } catch {
+          if (!cancelled) setShiftStale(false);
+        }
+      } else {
+        setShiftStale(false);
+      }
       setShiftChecked(true);
     })();
     return () => {
@@ -623,6 +645,21 @@ function App(): React.JSX.Element {
     );
   }
 
+  // A stale shift is not silently continued: yesterday's drawer gets
+  // reconciled before today's first sale, which is the only way the count
+  // means anything and the only way each trading day gets its own report.
+  if (shift && shiftStale) {
+    return (
+      <StaleShiftScreen
+        openedAt={shift.opened_at}
+        onClose={() => {
+          setShiftStale(false);
+          setCloseShiftOpen(true);
+        }}
+      />
+    );
+  }
+
   if (!shift && branchId != null) {
     return (
       <OpenShiftScreen
@@ -720,6 +757,7 @@ function App(): React.JSX.Element {
           // The source signs the cashier out and reloads: a closed shift
           // must not leave a till that can still take orders against it.
           setShift(null);
+          setShiftStale(false);
           await logout();
           setCashier(null);
         }}

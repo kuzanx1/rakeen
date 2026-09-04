@@ -112,6 +112,12 @@ export async function loadShiftTotals(shift: Shift | null): Promise<ShiftTotals>
   return computeShiftTotals((data as ShiftOrderRow[]) || [], Number(shift.opening_cash));
 }
 
+/** branches.closing_time, for the stale check. Null when unset. */
+export async function getBranchClosingTime(branchId: number): Promise<string | null> {
+  const { data } = await supabase.from('branches').select('closing_time').eq('id', branchId).single();
+  return data?.closing_time ?? null;
+}
+
 export interface CloseShiftInput {
   shift: Shift;
   countedCash: number;
