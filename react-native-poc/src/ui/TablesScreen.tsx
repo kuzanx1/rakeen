@@ -30,6 +30,7 @@ import {
 import ManagerPinModal from './ManagerPinModal';
 import { createStyles, fonts, Palette, radii, spacing, useTheme } from './theme';
 import { useShell } from './shell';
+import { useToast } from './Toast';
 
 // .table-card.<status> (rakeen-pos.css:469-489) -- border/background/text
 // triples, verbatim. `occupied`/`maintenance` in the CSS aren't reachable
@@ -93,7 +94,6 @@ export default function TablesScreen({
   const [sheetTable, setSheetTable] = useState<RestaurantTable | null>(null);
   const [movePickerFor, setMovePickerFor] = useState<RestaurantTable | null>(null);
   const [cancelConfirmFor, setCancelConfirmFor] = useState<RestaurantTable | null>(null);
-  const [toast, setToast] = useState('');
   const [busy, setBusy] = useState(false);
   // Feature Parity Pass -- Refunds/Void/Cancellation. Voiding an unpaid
   // dine-in order writes off real money -- ported from the PWA's own
@@ -128,10 +128,8 @@ export default function TablesScreen({
 
   const groups = useMemo(() => groupTablesForDisplay(tables, sections), [tables, sections]);
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(''), 3000);
-  };
+  // The source's own floating toast, not a band inside the layout.
+  const { showToast } = useToast();
 
   const handleTablePress = (table: RestaurantTable) => {
     const action = routeTableTap(table.status);
@@ -267,11 +265,6 @@ export default function TablesScreen({
         </TouchableOpacity>
       </View>
       {!!error && <Text style={styles.error}>{error}</Text>}
-      {!!toast && (
-        <View style={styles.toast}>
-          <Text style={styles.toastText}>{toast}</Text>
-        </View>
-      )}
       <ScrollView contentContainerStyle={[styles.scroll, gridInset]}>
         {groups.map((group, gi) => (
           <View key={group.section?.id ?? `unsectioned-${gi}`} style={styles.sectionBlock}>
@@ -439,8 +432,6 @@ const useStyles = createStyles(colors =>
   title: { fontFamily: fonts.sansBold, fontSize: 17, color: colors.text },
   refreshLink: { fontFamily: fonts.sansBold, color: colors.accentText },
   error: { fontFamily: fonts.sansBold, color: colors.danger, textAlign: 'center', padding: spacing[2] },
-  toast: { backgroundColor: colors.surf2, padding: spacing[3], alignItems: 'center' },
-  toastText: { fontFamily: fonts.sansSemiBold, color: colors.text, fontSize: 13 },
   scroll: { padding: spacing[4] },
   sectionBlock: { marginBottom: spacing[5] },
   sectionTitle: { fontFamily: fonts.sansBold, fontSize: 14, marginBottom: spacing[2], color: colors.muted },

@@ -19,6 +19,7 @@ import { CategoryIcon, iconForCategoryName } from './categoryIcons';
 import Money from './Money';
 import { useShell } from './shell';
 import { useI18n } from './i18n';
+import { useToast } from './Toast';
 import {
   loadCatalog,
   getBusinessType,
@@ -624,7 +625,12 @@ export default function ProductsScreen({
   const registerMode =
     selectedTable != null && cart.orderChannel === 'dine_in' && dineInPayTiming === 'after';
 
-  const [submitStatus, setSubmitStatus] = useState('');
+  /**
+   * Every message this screen used to print into a line inside the order
+   * panel now goes to the toast the source uses (rakeen-pos.js:448). Kept
+   * under the old name so the fifteen call sites read unchanged.
+   */
+  const { showToast: setSubmitStatus } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
 
@@ -1450,7 +1456,6 @@ export default function ProductsScreen({
             </View>
           </View>
 
-          {!!submitStatus && <Text style={styles.submitStatus}>{submitStatus}</Text>}
 
           {/* .order-actions -- `padding:8px 18px 14px; gap:6px`, holding
               the pay button and, under it, .clear-btn. */}

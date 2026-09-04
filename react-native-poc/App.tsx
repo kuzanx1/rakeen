@@ -54,6 +54,7 @@ import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-
 import { createStyles, fonts, radii, spacing, ThemeProvider, useTheme } from './src/ui/theme';
 import { ShellProvider, TOPBAR_FALLBACK_HEIGHT, useShell } from './src/ui/shell';
 import { I18nProvider, useI18n } from './src/ui/i18n';
+import { ToastProvider } from './src/ui/Toast';
 import Topbar from './src/ui/Topbar';
 import ManagerPinModal from './src/ui/ManagerPinModal';
 import OpenShiftScreen from './src/ui/OpenShiftScreen';
@@ -1273,7 +1274,9 @@ function Shell(): React.JSX.Element {
       <SetTopbarHeightContext.Provider value={setTopbarHeight}>
         <ShellProvider homeActive={homeActive} topbarHeight={topbarHeight}>
           <I18nProvider>
-            <App />
+            <ToastProvider>
+              <App />
+            </ToastProvider>
           </I18nProvider>
         </ShellProvider>
       </SetTopbarHeightContext.Provider>
