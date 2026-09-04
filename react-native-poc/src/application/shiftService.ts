@@ -159,10 +159,44 @@ export async function loadShiftTotals(shift: Shift | null): Promise<ShiftTotals>
   return computeShiftTotals((data as ShiftOrderRow[]) || [], Number(shift.opening_cash), movements);
 }
 
-/** branches.closing_time, for the stale check. Null when unset. */
+/**
+ * The closing time that applies TODAY.
+ *
+ * A branch_weekly_hours row for today's weekday wins over the branch's
+ * default pair; a weekday with no row keeps the default. That is what
+ * makes the override list short -- a place that only differs on Friday
+ * stores one row, not seven.
+ *
+ * A day marked closed returns null, which makes the stale check fall back
+ * to its age limit. Deliberate: "we are shut today" says nothing about
+ * when the shift that is open should have ended, so guessing a closing
+ * time from a closed day would be inventing one.
+ *
+ * The weekly table may not exist yet (migration not run), so a failure
+ * there falls through to the branch default rather than breaking login.
+ */
 export async function getBranchClosingTime(branchId: number): Promise<string | null> {
-  const { data } = await supabase.from('branches').select('closing_time').eq('id', branchId).single();
-  return data?.closing_time ?? null;
+  const { data: branch } = await supabase
+    .from('branches')
+    .select('closing_time')
+    .eq('id', branchId)
+    .single();
+  const fallback = branch?.closing_time ?? null;
+
+  try {
+    // extract(dow): 0 = Sunday .. 6 = Saturday, matching getDay().
+    const { data, error } = await supabase
+      .from('branch_weekly_hours')
+      .select('closing_time, is_closed')
+      .eq('branch_id', branchId)
+      .eq('weekday', new Date().getDay())
+      .maybeSingle();
+    if (error || !data) return fallback;
+    if (data.is_closed) return null;
+    return data.closing_time ?? fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 export interface CloseShiftInput {
