@@ -1,15 +1,25 @@
--- submit_online_order() is fully public/anonymous-callable (granted to
--- anon) and cast each cart line's qty straight from client JSON with no
--- bound check at all: `(v_item->>'qty')::int`. A caller could pass a
--- negative or zero quantity (or an absurdly large one) directly via the RPC
--- (bypassing the storefront UI, which only ever sends positive increments)
--- and get a real `orders` row in the live business's own data with a
--- negative subtotal/total, corrupting real sales/financial reporting with
--- no error surfaced anywhere. Fix: validate qty is a positive integer within
--- a sane bound (1..50, matching realistic single-line cart quantities) and
--- raise a clean, translated error otherwise — same pattern every other
--- validation in this function already uses.
+-- "إخفاء مؤقت" — hide a product for a set window (today / 3 days / a week)
+-- without touching `active`, so it comes back on its own instead of relying
+-- on someone remembering to re-enable it. Permanent hide still just uses
+-- `active = false` as it always has; this is strictly for the temporary case.
+-- Null = not hidden. A past timestamp is equivalent to null everywhere this
+-- is checked, so nothing needs a cron job to "expire" it.
+alter table menu_items add column if not exists hidden_until timestamptz;
 
+-- Both storefronts (POS grid, online menu) need to additionally respect
+-- this, same as they already respect active/visible_pos/visible_online.
+drop policy if exists "public menu read for online ordering" on menu_items;
+create policy "public menu read for online ordering" on menu_items for select
+  using (
+    active = true
+    and visible_online = true
+    and (hidden_until is null or hidden_until < now())
+    and exists (select 1 from businesses b where b.id = menu_items.business_id and b.online_ordering_enabled = true)
+  );
+
+-- submit_online_order is anon-callable directly, so re-check here too —
+-- same reasoning as the visible_online addition in 20260830080000. Body is
+-- byte-identical to that migration's version except this one extra AND.
 create or replace function public.submit_online_order(p_business_slug text, p_customer_name text, p_customer_phone text, p_channel text, p_delivery_address text, p_note text, p_items jsonb, p_branch_id bigint DEFAULT NULL::bigint, p_customer_lat numeric DEFAULT NULL::numeric, p_customer_lng numeric DEFAULT NULL::numeric, p_scheduled_for timestamp with time zone DEFAULT NULL::timestamp with time zone, p_client_order_uuid uuid DEFAULT NULL::uuid, p_payment_method text DEFAULT 'cash'::text)
  RETURNS TABLE(order_id bigint, order_total numeric, tracking_token uuid, scheduled_for timestamp with time zone)
  LANGUAGE plpgsql
@@ -43,7 +53,8 @@ declare
   v_uuid uuid;
   v_recent_count int;
 begin
-  select * into v_business from businesses where online_menu_slug = p_business_slug and online_ordering_enabled = true;
+  select * into v_business from businesses
+    where online_menu_slug = p_business_slug and online_ordering_enabled = true and is_active = true;
   if not found then
     raise exception 'المطعم غير متاح للطلب الإلكتروني حاليًا';
   end if;
@@ -171,7 +182,8 @@ begin
   for v_item in select * from jsonb_array_elements(p_items)
   loop
     select id, name, price, business_id, cost_mode, total_pieces into v_menu_item from menu_items
-      where id = (v_item->>'menu_item_id')::bigint and business_id = v_business.id and active = true;
+      where id = (v_item->>'menu_item_id')::bigint and business_id = v_business.id and active = true and visible_online = true
+        and (hidden_until is null or hidden_until < now());
     if not found then
       raise exception 'صنف غير متاح: %', (v_item->>'menu_item_id');
     end if;

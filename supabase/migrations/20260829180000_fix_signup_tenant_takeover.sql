@@ -34,7 +34,7 @@
 -- anyway. This closes the hole without changing any legitimate flow's
 -- behavior.
 
-create table staff_invite_tokens (
+create table if not exists staff_invite_tokens (
   token uuid primary key default gen_random_uuid(),
   business_id bigint not null references businesses(id) on delete cascade,
   user_type text not null check (user_type in ('manager', 'employee')),
@@ -43,7 +43,7 @@ create table staff_invite_tokens (
   used_at timestamptz,
   created_at timestamptz not null default now()
 );
-create index staff_invite_tokens_created_idx on staff_invite_tokens(created_at);
+create index if not exists staff_invite_tokens_created_idx on staff_invite_tokens(created_at);
 
 -- Same lesson as rate_limit_hits (20260829170000): a fresh table in the
 -- public schema picks up Supabase's default anon/authenticated grants

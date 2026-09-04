@@ -199,6 +199,31 @@ export async function getPosFeatureFlags(businessId: number): Promise<PosFeature
  * so flipping a switch in the dashboard did nothing until the till was
  * restarted.
  */
+/**
+ * businesses.pos_require_manager_pin_for_close.
+ *
+ * Its own query on purpose, NOT folded into getPosFeatureFlags: this
+ * column may not exist yet on a database that has not run the migration,
+ * and PostgREST fails the WHOLE select when one column is unknown. Sharing
+ * a query would silently reset the other four flags to their defaults.
+ *
+ * Defaults to REQUIRED. An unreadable answer must not be the one that
+ * removes a control on the drawer.
+ */
+export async function getRequireManagerPinForClose(businessId: number): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('businesses')
+      .select('pos_require_manager_pin_for_close')
+      .eq('id', businessId)
+      .single();
+    if (error || !data) return true;
+    return data.pos_require_manager_pin_for_close !== false;
+  } catch {
+    return true;
+  }
+}
+
 export function subscribeToBusinessSettings(businessId: number, onChange: () => void): () => void {
   const channel = supabase
     .channel(`pos-business-settings:${businessId}`)

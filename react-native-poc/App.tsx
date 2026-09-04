@@ -39,7 +39,11 @@ import PrintQueueScreen from './src/ui/PrintQueueScreen';
 import PrinterSettingsScreen from './src/ui/PrinterSettingsScreen';
 import uuid from 'react-native-uuid';
 import { getPrinterProfile } from './src/infrastructure/printerProfileStore';
-import { getPosFeatureFlags, subscribeToBusinessSettings } from './src/application/catalogService';
+import {
+  getPosFeatureFlags,
+  getRequireManagerPinForClose,
+  subscribeToBusinessSettings,
+} from './src/application/catalogService';
 import { profileToPrinterTarget, drawerKickCommandFor, isDrawerSupported } from './src/domain/printerProfile';
 import { startDiagnosticsTracking } from './src/application/diagnosticsService';
 import { getNotifySoundEnabled } from './src/application/catalogService';
@@ -71,6 +75,8 @@ import { findOpenShift, getLastClosingReport, getBranchClosingTime } from './src
 import type { Shift } from './src/domain/shift';
 import { isShiftStale } from './src/domain/shift';
 import StaleShiftScreen from './src/ui/StaleShiftScreen';
+import ShiftClosedScreen from './src/ui/ShiftClosedScreen';
+import type { ClosingReport } from './src/domain/shift';
 
 /** React Native's Hermes runtime has no global `btoa` (unlike a browser) —
  *  a minimal base64 encoder, since pulling in a whole polyfill package for
@@ -202,6 +208,12 @@ function App(): React.JSX.Element {
   /** The found shift was opened before the branch last closed, so it
    *  belongs to a trading day that is already over. */
   const [shiftStale, setShiftStale] = useState(false);
+  /** The just-closed shift's balance, held so the cashier can watch it
+   *  print and reprint it before signing out. */
+  const [closedReport, setClosedReport] = useState<ClosingReport | null>(null);
+  const [closedReportJobId, setClosedReportJobId] = useState<string | null>(null);
+  /** businesses.pos_require_manager_pin_for_close. */
+  const [requireManagerPin, setRequireManagerPin] = useState(true);
 
   /** CURRENT_STAFF_MEMBER. `staffPicked` separates "nobody on duty" from
    *  "not asked yet" -- the source lets a branch with no staff carry on
@@ -380,6 +392,12 @@ function App(): React.JSX.Element {
       setBranchId(device.branchId);
       setBusinessName(device.businessName);
       if (device.businessId != null) {
+        try {
+          setRequireManagerPin(await getRequireManagerPinForClose(device.businessId));
+        } catch {
+          // Stays required. An unreadable answer must not be the one that
+          // removes a control on the drawer.
+        }
         try {
           setHideNotifBell((await getPosFeatureFlags(device.businessId)).hideNotifBell);
         } catch {
@@ -645,6 +663,25 @@ function App(): React.JSX.Element {
     );
   }
 
+  // Closing used to sign the cashier out on the spot, so a jam or an
+  // empty roll at that exact moment lost the balance slip with no easy way
+  // back to it. Now the print status is watched here and signing out is
+  // the cashier's own last step.
+  if (closedReport) {
+    return (
+      <ShiftClosedScreen
+        report={closedReport}
+        printJobId={closedReportJobId}
+        onFinish={async () => {
+          setClosedReport(null);
+          setClosedReportJobId(null);
+          await logout();
+          setCashier(null);
+        }}
+      />
+    );
+  }
+
   // A stale shift is not silently continued: yesterday's drawer gets
   // reconciled before today's first sale, which is the only way the count
   // means anything and the only way each trading day gets its own report.
@@ -746,6 +783,7 @@ function App(): React.JSX.Element {
         // The staff member on duty, not the shared PIN account's own
         // profile name -- that is the same string for everyone on the till.
         staffName={staffMember?.name ?? ''}
+        requireManagerPin={requireManagerPin}
         onClose={() => setCloseShiftOpen(false)}
         onClosed={async (report, warning) => {
           setCloseShiftOpen(false);
@@ -753,13 +791,18 @@ function App(): React.JSX.Element {
           // Queued like any other job so a jammed printer retries rather
           // than losing the slip -- which is the whole reason the source
           // keeps a reprint around.
-          await enqueuePrintJob('shiftReport', report as unknown as Record<string, unknown>);
-          // The source signs the cashier out and reloads: a closed shift
-          // must not leave a till that can still take orders against it.
+          const jobId = await enqueuePrintJob(
+            'shiftReport',
+            report as unknown as Record<string, unknown>,
+          ).catch(() => null);
+          // The shift is cleared immediately -- a closed shift must never
+          // leave a till that can still take orders against it -- but the
+          // sign-out waits for the cashier, so they can confirm the
+          // balance actually printed first.
           setShift(null);
           setShiftStale(false);
-          await logout();
-          setCashier(null);
+          setClosedReportJobId(jobId);
+          setClosedReport(report);
         }}
       />
 

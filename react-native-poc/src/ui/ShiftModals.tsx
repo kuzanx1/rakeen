@@ -128,6 +128,7 @@ export function CloseShiftModal({
   branchName,
   staffName,
   onClose,
+  requireManagerPin = true,
   onClosed,
 }: {
   visible: boolean;
@@ -136,6 +137,9 @@ export function CloseShiftModal({
   branchName: string;
   staffName: string;
   onClose: () => void;
+  /** businesses.pos_require_manager_pin_for_close. When the owner turns
+   *  it off, closing goes straight through without the PIN. */
+  requireManagerPin?: boolean;
   /** Fires only after the shift is genuinely closed, with the filed
    *  report so the caller can print it. `warning` carries a partial
    *  success -- closed, but something alongside it did not land. */

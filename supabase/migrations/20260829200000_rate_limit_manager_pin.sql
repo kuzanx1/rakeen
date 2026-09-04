@@ -10,6 +10,7 @@
 -- caller (auth.uid()), so one cashier being throttled doesn't affect anyone
 -- else's device.
 
+drop function if exists public.verify_pos_manager_pin(text);
 create or replace function public.verify_pos_manager_pin(p_pin text)
  returns boolean
  language plpgsql

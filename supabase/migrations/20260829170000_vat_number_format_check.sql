@@ -9,5 +9,8 @@
 -- QR code on every printed receipt, a bad value breaks tax-compliant
 -- invoicing for that business until someone notices. Belt-and-suspenders:
 -- enforce the same 15-digit format at the DB layer.
-alter table businesses add constraint businesses_vat_number_format
-  check (vat_number is null or vat_number ~ '^\d{15}$');
+do $$ begin
+  alter table businesses add constraint businesses_vat_number_format
+    check (vat_number is null or vat_number ~ '^\d{15}$');
+exception when duplicate_object then null;
+end $$;
