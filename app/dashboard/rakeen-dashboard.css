@@ -1652,8 +1652,11 @@ body.quickadd-mode .rk-sidebar-backdrop{display:none !important;}
 .rk-weekhours > summary::before{content:'+'; display:inline-block; width:14px; font-weight:800;}
 .rk-weekhours[open] > summary::before{content:'−';}
 .rk-weekhours > summary:hover{color:var(--text);}
-.rk-weekhours-row{display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:7px 0; border-bottom:1px solid var(--line);}
-.rk-weekhours-row:last-of-type{border-bottom:none;}
+/* Same rhythm as .rk-switch-row: the rule sits BETWEEN siblings, so the
+   block closes on its own edge rather than on a line that reads as a
+   missing row. */
+.rk-weekhours-row{display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:13px 0;}
+.rk-weekhours-row + .rk-weekhours-row{border-top:1px solid var(--line);}
 .rk-weekhours-day{min-width:64px; font-weight:700; font-size:12.5px;}
 .rk-weekhours-closed{display:flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; color:var(--muted); cursor:pointer; min-width:64px;}
 .rk-weekhours-row input[type="time"]{padding:7px 9px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-size:12px; font-family:inherit;}
@@ -1666,3 +1669,15 @@ body.quickadd-mode .rk-sidebar-backdrop{display:none !important;}
 .rk-typemap-item{display:flex; flex-direction:column; gap:5px; padding:13px 15px; border-radius:var(--r-md); background:var(--surf1); border:1px solid var(--line);}
 .rk-typemap-name{font-weight:800; font-size:13px; color:var(--text);}
 .rk-typemap-desc{font-size:11.5px; color:var(--muted); line-height:1.6;}
+
+
+/* A sub-block inside a section: the mode pickers under a master switch,
+   the manager-PIN rule under the PIN field. Was three different inline
+   style attributes doing the same job slightly differently. */
+.rk-subblock{margin-top:14px; padding-top:14px; border-top:1px solid var(--line);}
+.rk-subblock:first-child{margin-top:0; padding-top:0; border-top:none;}
+
+/* The card pickers sit on the same vertical rhythm as a switch row, so a
+   section that mixes the two does not change pace halfway down. */
+.rk-theme-cards{margin-top:2px;}
+.rk-typemap{margin-top:2px;}

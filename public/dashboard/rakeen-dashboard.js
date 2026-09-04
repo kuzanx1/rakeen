@@ -8513,7 +8513,7 @@ async function renderPosSettings(){
       </div>
       <button class="rk-btn rk-btn-primary rk-btn-md" id="managerPinSaveBtn" style="margin-top:10px;">تعيين / تحديث</button>
       <p class="stock-qty-helper" style="margin-top:10px;">أعطِه لك أو لمن تثق فيه فقط. غيّره في أي وقت من هنا.</p>
-      <div style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px;">
+      <div class="rk-subblock">
         ${rkSwitchRow('requireManagerPinToggle', REQUIRE_MANAGER_PIN_FOR_CLOSE, 'اطلب كلمة سر المدير عند إغلاق الوردية', 'أطفئه لو اللي يقفل الوردية هو المدير نفسه. الجرد والفرق والسجل ما يتغير شي فيهم — يتغير بس مين يعتمد الإغلاق. إلغاء الطلبات والاسترجاع يظلان يطلبان الرمز.')}
         <button class="rk-btn rk-btn-secondary rk-btn-md" id="requireManagerPinSaveBtn" style="margin-top:10px;">حفظ</button>
       </div>
@@ -8629,7 +8629,7 @@ async function renderPosSettings(){
     <div class="rk-section">
       ${rkSectionHead('grid', 'الطلب المحلي', 'الفرق عن السفري إن المطبخ يجهّزه بصحون بدل أكياس — وتحتها تختار كيف تديره')}
       ${rkSwitchRow('posDineInToggle', DINE_IN_ENABLED, 'تفعيل الطلب المحلي', null, rkDineInStatus)}
-      <div id="dineInModeBlock" style="margin-top:14px; ${DINE_IN_ENABLED ? '' : 'display:none;'}">
+      <div class="rk-subblock" id="dineInModeBlock" style="${DINE_IN_ENABLED ? '' : 'display:none;'}">
         <div class="rk-theme-cards">
           <button type="button" class="rk-theme-card ${DINE_IN_MODE === 'simple' ? 'selected' : ''}" data-dinemode="simple">
             <span class="rk-theme-card-name">محلي بسيط</span>
