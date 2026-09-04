@@ -115,6 +115,7 @@ export default function PaymentModal({
   onCustomerChange,
   dineInEnabled = true,
   loyaltyEnabled = true,
+  onLoyaltySelected,
 }: {
   visible: boolean;
   total: number;
@@ -132,6 +133,10 @@ export default function PaymentModal({
   dineInEnabled?: boolean;
   /** LOYALTY_ENABLED -- when false the customer step is skipped whole. */
   loyaltyEnabled?: boolean;
+  /** Picking الولاء hands off to the redemption flow instead of tendering.
+   *  renderPaymentStep() does exactly this: `renderLoyaltyWaitStep();
+   *  return;` -- the loyalty method never reaches the tender UI at all. */
+  onLoyaltySelected: () => void;
 }) {
   const { colors, shadows } = useTheme();
   const styles = useStyles();
@@ -284,6 +289,14 @@ export default function PaymentModal({
   /** `state.activePaymentMethod = ...; state.cashAmount=0;
    *  state.splitCardAmount=0` on every tab tap (:1697). */
   const pickMethod = (m: PaymentMethod) => {
+    if (m === 'loyalty') {
+      // Never becomes the active tender method. The source jumps straight
+      // to the customer-confirmation wait and returns, so there is no
+      // "confirm" a cashier could press to settle an order on points
+      // without the cardholder having agreed to anything.
+      onLoyaltySelected();
+      return;
+    }
     setMethod(m);
     setCashInput('');
     setSplitCardInput('');
@@ -730,7 +743,7 @@ export default function PaymentModal({
                   </View>
                 )}
 
-                {(method === 'card' || method === 'loyalty') && (
+                {method === 'card' && (
                   <View style={styles.cardTapState}>
                     <View style={styles.cardTapIcon}>
                       <Svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={2}>

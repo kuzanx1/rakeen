@@ -1396,6 +1396,14 @@ export default function ProductsScreen({
         onChannelChange={cart.setOrderChannel}
         customer={selectedCustomer}
         onCustomerChange={setSelectedCustomer}
+        // Closes checkout and opens the redemption flow, exactly as the
+        // source does (addPointsRedemptionToCart then closePaymentModalNow):
+        // the redeemed item lands in the cart as a points line and the
+        // cashier reopens payment for whatever is left to pay.
+        onLoyaltySelected={() => {
+          setPaymentModalOpen(false);
+          setLoyaltyRedeemOpen(true);
+        }}
         onConfirm={(method, cashAmount) =>
           registerMode ? handlePayDineInOrder(method, cashAmount) : handlePayOrder(method, cashAmount)
         }
