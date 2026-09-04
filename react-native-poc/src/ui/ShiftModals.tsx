@@ -205,12 +205,34 @@ export function CloseShiftModal({
           <ActivityIndicator color={colors.accentText} style={styles.loading} />
         ) : step === 1 ? (
           <>
-            {/* .due-display -- the figure the count is measured against */}
+            {/*
+              A BLIND count: the expected figure is deliberately not shown
+              until the next step.
+
+              Counting exists to DETECT a discrepancy, and showing the
+              expected amount first destroys that. An honest cashier who
+              counts 1,180 against a displayed 1,250 assumes they
+              miscounted and types 1,250 to avoid trouble -- so a real
+              shortfall disappears and nobody learns that, say, wrong
+              change is being given every day. Someone dishonest simply
+              types the number they were shown. Either way the count stops
+              being a measurement and becomes agreement with a figure the
+              system already had.
+
+              Entered blind, the number is independent evidence: repeated
+              small shortfalls point at a training problem, repeated
+              surpluses at a pricing one. It also protects the cashier --
+              a documented independent count is their defence, whereas
+              "agreed with our number" is not.
+
+              Step 2 is unchanged and still shows expected, counted and
+              the variance together. The figure is delayed by one step,
+              not hidden.
+            */}
             <View style={styles.dueDisplay}>
-              <Text style={styles.dueLabel}>الكاش المتوقع بالدرج</Text>
-              <Money value={totals.cashTotal} size={30} style={styles.dueAmount} />
+              <Text style={styles.dueLabel}>عدّ الكاش الموجود بالدرج</Text>
+              <Text style={styles.blindHint}>اكتب المبلغ اللي عدّيته — الفرق يظهر بالخطوة الجاية</Text>
             </View>
-            <Text style={styles.countPrompt}>أدخل المبلغ اللي عدّيته فعليًا</Text>
             <TextInput
               style={styles.input}
               placeholder="0.00"
@@ -308,6 +330,7 @@ const useStyles = createStyles(colors =>
     dueDisplay: { alignItems: 'center', paddingVertical: 16, backgroundColor: colors.surf1, borderRadius: radii.lg, marginBottom: spacing[3] },
     dueLabel: { fontFamily: fonts.sansBold, fontSize: 10.5, color: colors.muted },
     dueAmount: { marginTop: 5 },
+    blindHint: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted, marginTop: 6, textAlign: 'center', paddingHorizontal: 12 },
     countPrompt: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.muted, marginBottom: 10, textAlign: 'center' },
 
     input: {

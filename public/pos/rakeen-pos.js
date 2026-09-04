@@ -5483,12 +5483,29 @@ async function openClosingWizard(){
   closingShiftData = await loadShiftData();
   renderClosingWizard();
 }
+/* Step 1 is a BLIND count: the expected figure is deliberately withheld
+   until step 2.
+
+   Counting the drawer exists to DETECT a discrepancy, and showing the
+   expected amount first destroys that. A cashier who counts 1,180 against
+   a displayed 1,250 assumes they miscounted and types 1,250 to avoid
+   trouble — a real shortfall vanishes, and nobody learns that (say) wrong
+   change is being handed out every day. Someone dishonest just types the
+   number on screen. Either way the count stops being a measurement and
+   becomes agreement with a figure the system already had.
+
+   Entered blind, the number is independent evidence: repeated small
+   shortfalls point at a training problem, repeated surpluses at a pricing
+   one. It also protects the cashier — a documented independent count is
+   their defence; "agreed with our number" is not.
+
+   Step 2 is unchanged: expected, counted and variance still shown
+   together. The figure is delayed by one step, not hidden. */
 function renderClosingWizard(){
   document.getElementById('paymentModalTitle').textContent = closingStep === 1 ? 'إغلاق الوردية — عدّ الكاش' : 'إغلاق الوردية — المطابقة';
   if(closingStep === 1){
     paymentModalBody.innerHTML = `
-      <div class="due-display"><div class="due-label">الكاش المتوقع بالدرج</div><div class="due-amount">${rkMoney(closingShiftData.cashTotal)}</div></div>
-      <div class="pin-dots" style="margin-bottom:10px;"><span style="font-size:12px; font-weight:700; color:var(--muted);">أدخل المبلغ اللي عدّيته فعليًا</span></div>
+      <div class="due-display"><div class="due-label">عدّ الكاش الموجود بالدرج</div><div style="font-size:12px; font-weight:600; color:var(--muted); margin-top:6px; padding:0 12px;">اكتب المبلغ اللي عدّيته — الفرق يظهر بالخطوة الجاية</div></div>
       <div class="cash-input-row"><input type="number" id="countedCashInput" placeholder="0.00" value="${countedCash}"></div>
       <button class="confirm-pay-btn" id="closingNextBtn" ${countedCash?'':'disabled'}>التالي</button>
     `;
