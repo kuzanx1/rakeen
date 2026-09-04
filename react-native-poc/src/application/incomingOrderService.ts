@@ -1,4 +1,5 @@
 import { supabase } from '../infrastructure/supabaseClient';
+import { subscribeToPostgresChanges } from '../infrastructure/realtimeChannel';
 
 /**
  * Online orders arriving from the restaurant's own storefront.
@@ -66,21 +67,15 @@ export function subscribeToIncomingOnlineOrders(
   branchId: number,
   onIncoming: (orderId: number) => void,
 ): () => void {
-  const channel = supabase
-    .channel(`pos-incoming-online-orders:${branchId}`)
-    .on(
-      'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'orders', filter: `branch_id=eq.${branchId}` },
-      payload => {
-        const order = payload.new as { id?: number; status?: string } | null;
-        if (!order || order.status !== 'pending') return;
-        onIncoming(Number(order.id));
-      },
-    )
-    .subscribe();
-  return () => {
-    supabase.removeChannel(channel);
-  };
+  return subscribeToPostgresChanges(
+    `pos-incoming-online-orders:${branchId}`,
+    { event: 'INSERT', schema: 'public', table: 'orders', filter: `branch_id=eq.${branchId}` },
+    payload => {
+      const order = payload.new as { id?: number; status?: string } | null;
+      if (!order || order.status !== 'pending') return;
+      onIncoming(Number(order.id));
+    },
+  );
 }
 
 /**

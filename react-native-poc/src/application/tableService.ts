@@ -1,5 +1,6 @@
 import { supabase } from '../infrastructure/supabaseClient';
 import { RestaurantTable, TableSection, TableStatus } from '../domain/tables';
+import { subscribeToPostgresChanges } from '../infrastructure/realtimeChannel';
 
 /**
  * Checkpoint 7 (Dine-in / Tables) — real Supabase wiring for the table
@@ -133,15 +134,9 @@ export async function getOrderSummary(orderId: number): Promise<ActiveOrderSumma
  * as 🟡 Ready for Testing, not verified.
  */
 export function subscribeToTableChanges(branchId: number, onChange: () => void): () => void {
-  const channel = supabase
-    .channel(`restaurant_tables:branch:${branchId}`)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'restaurant_tables', filter: `branch_id=eq.${branchId}` },
-      onChange,
-    )
-    .subscribe();
-  return () => {
-    supabase.removeChannel(channel);
-  };
+  return subscribeToPostgresChanges(
+    `restaurant_tables:branch:${branchId}`,
+    { event: '*', schema: 'public', table: 'restaurant_tables', filter: `branch_id=eq.${branchId}` },
+    () => onChange(),
+  );
 }

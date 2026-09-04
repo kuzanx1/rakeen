@@ -2,6 +2,7 @@ import * as kvStorage from '../infrastructure/mmkvStorage';
 import { supabase } from '../infrastructure/supabaseClient';
 import { Category, Product, isServiceBusinessType } from '../domain/catalog';
 import { ModifierDefinition, ModifierOptionStockMap } from '../domain/cart';
+import { subscribeToPostgresChanges } from '../infrastructure/realtimeChannel';
 
 /**
  * Ported from public/pos/rakeen-pos.js's loadPosData() -- scoped to
@@ -245,17 +246,11 @@ export async function getReceiptTheme(businessId: number): Promise<string> {
 }
 
 export function subscribeToBusinessSettings(businessId: number, onChange: () => void): () => void {
-  const channel = supabase
-    .channel(`pos-business-settings:${businessId}`)
-    .on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'businesses', filter: `id=eq.${businessId}` },
-      () => onChange(),
-    )
-    .subscribe();
-  return () => {
-    supabase.removeChannel(channel);
-  };
+  return subscribeToPostgresChanges(
+    `pos-business-settings:${businessId}`,
+    { event: 'UPDATE', schema: 'public', table: 'businesses', filter: `id=eq.${businessId}` },
+    () => onChange(),
+  );
 }
 
 /** DELIVERY_PLATFORMS_LIST -- the delivery apps this branch works with
