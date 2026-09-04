@@ -2406,6 +2406,10 @@ const RECEIPT_THEMES = {
   elegant: { density:1.15, typeScale:1.04, showLogo:true,  ruleBetweenItems:true,  headerBand:true,  boxedTotal:true,  qrMaxSize:220 }
 };
 let RECEIPT_THEME = 'classic';
+// businesses.pos_require_manager_pin_for_close. Governs the shift-close
+// gate ONLY — cancelling an order and refunding keep their own PIN, which
+// this setting was never about.
+let REQUIRE_MANAGER_PIN_FOR_CLOSE = true;
 function receiptTheme(id){ return RECEIPT_THEMES[id] || RECEIPT_THEMES.classic; }
 
 // A bilingual label — the receipt is read by customers and by auditors.
@@ -5618,11 +5622,16 @@ function renderClosingWizard(){
       <div class="pos-auth-error" id="closingWizardError" style="display:none;"></div>
       <button class="confirm-pay-btn" id="confirmCloseBtn" style="margin-top:16px;">تأكيد إغلاق الوردية</button>
     `;
-    // Closing the drawer needs the owner's manager PIN — this used to be a
-    // cashier-only action with no approval at all, and the counted-vs-
-    // expected mismatch was shown but never enforced or recorded anywhere.
+    // Closing the drawer asks for the owner's manager PIN by default — it
+    // used to be a cashier-only action with no approval at all, and the
+    // counted-vs-expected mismatch was shown but never enforced or recorded.
+    // The owner can now turn that gate off; see REQUIRE_MANAGER_PIN_FOR_CLOSE.
     document.getElementById('confirmCloseBtn').addEventListener('click', ()=>{
-      openPinModal(async ()=>{
+      // The owner can turn this gate off for shops where the person closing
+      // IS the manager and the PIN is only friction. Everything else about
+      // the close is unchanged — the count, the variance, and the record
+      // written against it do not depend on who approved it.
+      const runClose = async ()=>{
         const btn = document.getElementById('confirmCloseBtn');
         const errEl = document.getElementById('closingWizardError');
         if(btn) btn.disabled = true;
@@ -5662,7 +5671,8 @@ function renderClosingWizard(){
           }
           if(btn) btn.disabled = false;
         }
-      });
+      };
+      if(REQUIRE_MANAGER_PIN_FOR_CLOSE) openPinModal(runClose); else runClose();
     });
   }
 }
@@ -5954,9 +5964,14 @@ async function loadPosData(){
   // Anything unrecognised falls back to classic, so a till on the old
   // schema prints exactly what it printed before.
   try {
-    const themeRes = await sb.from('businesses').select('receipt_theme').eq('id', businessId).single();
+    const themeRes = await sb.from('businesses')
+      .select('receipt_theme, pos_require_manager_pin_for_close').eq('id', businessId).single();
     RECEIPT_THEME = (themeRes.data && themeRes.data.receipt_theme) || 'classic';
-  } catch(_){ RECEIPT_THEME = 'classic'; }
+    // Only an explicit false turns the gate off, so a till on the old
+    // schema — or one whose fetch failed — keeps asking for the PIN. The
+    // safe direction for a control over the cash drawer is ON.
+    REQUIRE_MANAGER_PIN_FOR_CLOSE = !(themeRes.data && themeRes.data.pos_require_manager_pin_for_close === false);
+  } catch(_){ RECEIPT_THEME = 'classic'; REQUIRE_MANAGER_PIN_FOR_CLOSE = true; }
   POS_HIDE_POPULAR_TAB = loyaltyRes.data ? loyaltyRes.data.pos_hide_popular_tab === true : false;
   POS_HIDE_SEARCH = loyaltyRes.data ? loyaltyRes.data.pos_hide_search === true : false;
   POS_HIDE_HOLD = loyaltyRes.data ? loyaltyRes.data.pos_hide_hold === true : false;

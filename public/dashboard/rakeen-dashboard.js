@@ -6065,6 +6065,7 @@ async function loadBusinessData(){
     const payFlags = await loadOnlineCodEnabled();
     ONLINE_COD_ENABLED = payFlags.cod;
     ONLINE_CARD_ENABLED = payFlags.card;
+    REQUIRE_MANAGER_PIN_FOR_CLOSE = payFlags.pin;
     ONLINE_DELIVERY_FEE = Number(businessRes.data.online_delivery_fee) || 0;
     ONLINE_PICKUP_PREP_MINUTES = Number(businessRes.data.online_pickup_prep_minutes) || 20;
     ONLINE_CONTACT_WHATSAPP = businessRes.data.online_contact_whatsapp || '';
@@ -7522,6 +7523,7 @@ let RECEIPT_CUSTOM_MESSAGE = '';
 let RECEIPT_THEME = 'classic';
 let ONLINE_COD_ENABLED = true;
 let ONLINE_CARD_ENABLED = true;
+let REQUIRE_MANAGER_PIN_FOR_CLOSE = true;
 
 // Its own query, NOT a field on the big business select: PostgREST fails an
 // entire select over one unknown column, and this one would blank the whole
@@ -7531,10 +7533,17 @@ let ONLINE_CARD_ENABLED = true;
 async function loadOnlineCodEnabled(){
   try {
     const { data, error } = await window.supabaseClient
-      .from('businesses').select('online_cod_enabled, online_card_enabled').eq('id', CURRENT_PROFILE.business_id).single();
-    if(error || !data) return { cod:true, card:true };
-    return { cod: data.online_cod_enabled !== false, card: data.online_card_enabled !== false };
-  } catch(_){ return { cod:true, card:true }; }
+      .from('businesses')
+      .select('online_cod_enabled, online_card_enabled, pos_require_manager_pin_for_close')
+      .eq('id', CURRENT_PROFILE.business_id).single();
+    if(error || !data) return { cod:true, card:true, pin:true };
+    return {
+      cod: data.online_cod_enabled !== false,
+      card: data.online_card_enabled !== false,
+      // Only an explicit false turns it off — same safe default as the till.
+      pin: data.pos_require_manager_pin_for_close !== false,
+    };
+  } catch(_){ return { cod:true, card:true, pin:true }; }
 }
 
 // businesses.receipt_theme gets its own query, NOT a field on the big
@@ -8364,6 +8373,10 @@ async function renderPosSettings(){
       </div>
       <button class="rk-btn rk-btn-primary rk-btn-md" id="managerPinSaveBtn" style="margin-top:10px;">تعيين / تحديث</button>
       <p class="stock-qty-helper" style="margin-top:10px;">أعطِه لك أو لمن تثق فيه فقط. غيّره في أي وقت من هنا.</p>
+      <div style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px;">
+        ${rkSwitchRow('requireManagerPinToggle', REQUIRE_MANAGER_PIN_FOR_CLOSE, 'اطلب كلمة سر المدير عند إغلاق الوردية', 'أطفئه لو اللي يقفل الوردية هو المدير نفسه. الجرد والفرق والسجل ما يتغير شي فيهم — يتغير بس مين يعتمد الإغلاق. إلغاء الطلبات والاسترجاع يظلان يطلبان الرمز.')}
+        <button class="rk-btn rk-btn-secondary rk-btn-md" id="requireManagerPinSaveBtn" style="margin-top:10px;">حفظ</button>
+      </div>
     </div>`;
 
   const simplifyPanel = `
@@ -8561,6 +8574,21 @@ async function renderPosSettings(){
       rkBtnSuccess(receiptThemeSaveBtn, '✓ تم الحفظ');
     } catch(err){
       rkBtnLoading(receiptThemeSaveBtn, false);
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
+  });
+
+  const requireManagerPinSaveBtn = document.getElementById('requireManagerPinSaveBtn');
+  if(requireManagerPinSaveBtn) requireManagerPinSaveBtn.addEventListener('click', async ()=>{
+    const on = document.getElementById('requireManagerPinToggle').checked;
+    rkBtnLoading(requireManagerPinSaveBtn, true);
+    try {
+      await updateCurrentBusiness({ pos_require_manager_pin_for_close: on });
+      REQUIRE_MANAGER_PIN_FOR_CLOSE = on;
+      logDashboardAudit(on ? 'فعّل طلب كلمة سر المدير عند إغلاق الوردية' : 'أوقف طلب كلمة سر المدير عند إغلاق الوردية');
+      rkBtnSuccess(requireManagerPinSaveBtn, '✓ تم الحفظ');
+    } catch(err){
+      rkBtnLoading(requireManagerPinSaveBtn, false);
       showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
     }
   });
