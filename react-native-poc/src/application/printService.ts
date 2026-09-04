@@ -15,7 +15,12 @@ import {
   resetJobForManualRetry,
 } from '../domain/printQueue';
 import { ReceiptData, KitchenTicketData } from '../domain/receipt';
-import { renderReceiptToEscPosBase64, renderKitchenTicketToEscPosBase64 } from './receiptRenderer';
+import {
+  renderReceiptToEscPosBase64,
+  renderKitchenTicketToEscPosBase64,
+  renderShiftReportToEscPosBase64,
+} from './receiptRenderer';
+import type { ClosingReport } from '../domain/shift';
 
 /**
  * Checkpoint 10 (Print Queue) -- application-layer orchestration,
@@ -65,7 +70,9 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
   const escPosBase64 =
     job.type === 'receipt'
       ? await renderReceiptToEscPosBase64(job.data as unknown as ReceiptData, profile?.paperWidthPx)
-      : await renderKitchenTicketToEscPosBase64(job.data as unknown as KitchenTicketData, profile?.paperWidthPx);
+      : job.type === 'shiftReport'
+        ? await renderShiftReportToEscPosBase64(job.data as unknown as ClosingReport, profile?.paperWidthPx)
+        : await renderKitchenTicketToEscPosBase64(job.data as unknown as KitchenTicketData, profile?.paperWidthPx);
   const bytes = base64ByteLength(escPosBase64);
   // An empty render is the one way this path could report a genuine
   // "printed" while the printer produces nothing: the native module takes

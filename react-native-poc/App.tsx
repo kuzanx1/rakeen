@@ -10,8 +10,9 @@
  * @format
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -33,6 +34,7 @@ import { logout, getDeviceConfig } from './src/application/authService';
 import { startAutoSync } from './src/application/syncScheduler';
 import { startPrintQueueAutoProcess } from './src/application/printQueueScheduler';
 import { resetInterruptedPrintJobsOnBoot } from './src/infrastructure/sqlitePrintQueue';
+import { enqueuePrintJob } from './src/application/printService';
 import PrintQueueScreen from './src/ui/PrintQueueScreen';
 import PrinterSettingsScreen from './src/ui/PrinterSettingsScreen';
 import uuid from 'react-native-uuid';
@@ -48,6 +50,10 @@ import { createStyles, fonts, radii, spacing, ThemeProvider, useTheme } from './
 import { ShellProvider, TOPBAR_FALLBACK_HEIGHT, useShell } from './src/ui/shell';
 import Topbar from './src/ui/Topbar';
 import ManagerPinModal from './src/ui/ManagerPinModal';
+import OpenShiftScreen from './src/ui/OpenShiftScreen';
+import { ShiftSummaryModal, CloseShiftModal } from './src/ui/ShiftModals';
+import { findOpenShift, getLastClosingReport } from './src/application/shiftService';
+import type { Shift } from './src/domain/shift';
 
 /** React Native's Hermes runtime has no global `btoa` (unlike a browser) —
  *  a minimal base64 encoder, since pulling in a whole polyfill package for
@@ -167,6 +173,32 @@ function App(): React.JSX.Element {
   /** موافقة مدير -- openPinModal() in the source (rakeen-pos.js:5157). */
   const [managerPinOpen, setManagerPinOpen] = useState(false);
 
+  /** CURRENT_SHIFT. Null means either "no shift open" or "not checked
+   *  yet" -- shiftChecked separates them, because showing the open-shift
+   *  screen during the check would flash it at a cashier who already has
+   *  one running. */
+  const [shift, setShift] = useState<Shift | null>(null);
+  const [shiftChecked, setShiftChecked] = useState(false);
+  const [shiftSummaryOpen, setShiftSummaryOpen] = useState(false);
+  const [closeShiftOpen, setCloseShiftOpen] = useState(false);
+
+  /**
+   * reprintLastClosingReport() (rakeen-pos.js:5445). No manager approval:
+   * the source's own reasoning is that this re-outputs data already
+   * produced and approved, rather than creating anything new.
+   */
+  const handleReprintLastClosing = useCallback(async () => {
+    if (branchId == null) return;
+    setStatusMessage('جاري البحث عن آخر موازنة...');
+    const report = await getLastClosingReport(branchId, businessName ?? '', branchName ?? '');
+    if (!report) {
+      setStatusMessage('ما فيه موازنة سابقة مسجلة لهذا الفرع');
+      return;
+    }
+    await enqueuePrintJob('shiftReport', report as unknown as Record<string, unknown>);
+    setStatusMessage('تم إرسال آخر موازنة للطابعة');
+  }, [branchId, businessName, branchName]);
+
   useEffect(() => {
     if (!cashier) return;
     (async () => {
@@ -205,6 +237,31 @@ function App(): React.JSX.Element {
   // automatically. Starts on login (also flushes anything queued from a
   // previous session), stops on logout -- syncing while logged out would
   // just fail every RPC's has_permission() check anyway.
+  /**
+   * afterStaffReady() (rakeen-pos.js:6277): look for an open shift, and
+   * only boot the till if there is one. Otherwise the open-shift screen
+   * stands in front of it -- a cashier cannot start selling without first
+   * declaring what is in the drawer, which is the whole basis for the
+   * closing count.
+   */
+  useEffect(() => {
+    if (!cashier) {
+      setShift(null);
+      setShiftChecked(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const open = await findOpenShift(cashier.id);
+      if (cancelled) return;
+      setShift(open);
+      setShiftChecked(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [cashier]);
+
   useEffect(() => {
     if (!cashier) return;
     return startAutoSync();
@@ -325,6 +382,34 @@ function App(): React.JSX.Element {
     return <LoginScreen onLoggedIn={setCashier} />;
   }
 
+  // branchId comes from the device config effect, so "not loaded yet" and
+  // "genuinely unpaired" both read as null here; waiting for the shift
+  // check AND the config keeps the open-shift screen from being skipped
+  // on the first frame.
+  if (!shiftChecked || branchId == null) {
+    return (
+      <View style={[styles.root, styles.center]}>
+        <ActivityIndicator color={colors.accentText} />
+      </View>
+    );
+  }
+
+  if (!shift && branchId != null) {
+    return (
+      <OpenShiftScreen
+        businessId={cashier.business_id}
+        // DEVICE.branchId, not the profile's. The shift belongs to the
+        // till this device is paired to; a cashier's own profile branch
+        // can differ (or be null) and would file the shift against the
+        // wrong branch -- or, being null, silently skip this screen and
+        // let every order be sold against no shift at all.
+        branchId={branchId}
+        cashierId={cashier.id}
+        onOpened={setShift}
+      />
+    );
+  }
+
   return (
     /* Every edge EXCEPT the bottom. The source does not inset the page for
        the home indicator either -- it stretches .bottom-nav over that strip
@@ -366,6 +451,30 @@ function App(): React.JSX.Element {
       {/* موافقة مدير -- openPinModal() with no callback (rakeen-pos.js:5557)
           is a standalone supervisor check: it verifies the manager's code
           and reports "تمت موافقة المدير", with nothing else attached. */}
+      <ShiftSummaryModal visible={shiftSummaryOpen} shift={shift} onClose={() => setShiftSummaryOpen(false)} />
+
+      <CloseShiftModal
+        visible={closeShiftOpen}
+        shift={shift}
+        businessName={businessName ?? ''}
+        branchName={branchName ?? ''}
+        staffName={cashier.full_name ?? ''}
+        onClose={() => setCloseShiftOpen(false)}
+        onClosed={async (report, warning) => {
+          setCloseShiftOpen(false);
+          if (warning) setStatusMessage(warning);
+          // Queued like any other job so a jammed printer retries rather
+          // than losing the slip -- which is the whole reason the source
+          // keeps a reprint around.
+          await enqueuePrintJob('shiftReport', report as unknown as Record<string, unknown>);
+          // The source signs the cashier out and reloads: a closed shift
+          // must not leave a till that can still take orders against it.
+          setShift(null);
+          await logout();
+          setCashier(null);
+        }}
+      />
+
       <ManagerPinModal
         visible={managerPinOpen}
         onApprove={() => {
@@ -406,6 +515,15 @@ function App(): React.JSX.Element {
             // source does it: the cashier has to pick WHICH order first.
             onOpenCompletedOrders={() => setScreen({ name: 'orderHistory' })}
             onRequestManagerApproval={() => setManagerPinOpen(true)}
+            onOpenShiftSummary={() => setShiftSummaryOpen(true)}
+            onCloseShift={() => {
+              if (!shift) {
+                setStatusMessage('ما فيه وردية مفتوحة');
+                return;
+              }
+              setCloseShiftOpen(true);
+            }}
+            onReprintLastClosing={handleReprintLastClosing}
             drawerBusy={drawerBusy}
           />
         ) : screen.name === 'printQueue' ? (
@@ -420,6 +538,7 @@ function App(): React.JSX.Element {
           <ProductsScreen
             key={screen.name === 'products' ? screen.table?.id ?? 'no-table' : 'no-table'}
             cashier={cashier}
+            shift={shift}
             selectedTable={screen.name === 'products' ? screen.table : null}
             onExitTableContext={() => setScreen({ name: 'tables' })}
           />
@@ -526,13 +645,9 @@ function NavTabButton({
  * This screen was a stack of full-width text rows with no icons and no
  * sections at all.
  *
- * Four of the source's ten tiles are not rendered yet because the features
- * behind them do not exist in this app: مسح باركود (needs the camera),
- * and the three shift ones -- ملخص الوردية, إغلاق الوردية,
- * طباعة آخر موازنة -- which are a whole shift-management feature,
- * not buttons. A tile that looks live and does nothing when a cashier taps
- * it mid-service is worse than one that is not there yet, so they wait
- * until the feature does.
+ * One of the source's ten tiles is still not rendered: مسح باركود needs
+ * the camera. A tile that looks live and does nothing when a cashier taps
+ * it mid-service is worse than one that is not there yet.
  */
 function MoreScreen({
   onOpenPrintQueue,
@@ -541,6 +656,9 @@ function MoreScreen({
   onOpenDrawer,
   onOpenCompletedOrders,
   onRequestManagerApproval,
+  onOpenShiftSummary,
+  onCloseShift,
+  onReprintLastClosing,
   drawerBusy,
 }: {
   onOpenPrintQueue: () => void;
@@ -551,6 +669,9 @@ function MoreScreen({
    *  the completed-orders list to pick the order (rakeen-pos.js:5158). */
   onOpenCompletedOrders: (purpose: 'reprint' | 'refund') => void;
   onRequestManagerApproval: () => void;
+  onOpenShiftSummary: () => void;
+  onCloseShift: () => void;
+  onReprintLastClosing: () => void;
   drawerBusy: boolean;
 }) {
   const { colors } = useTheme();
@@ -587,6 +708,19 @@ function MoreScreen({
 
       <Text style={styles.moreSectionLabel}>الوردية</Text>
       <View style={styles.moreGrid}>
+        <MoreTile label="ملخص الوردية" onPress={onOpenShiftSummary}>
+          <Path d="M3 3v18h18" stroke={ink} />
+          <Path d="M18 17V9M13 17V5M8 17v-3" stroke={ink} />
+        </MoreTile>
+        <MoreTile label="إغلاق الوردية" onPress={onCloseShift}>
+          <Circle cx={12} cy={12} r={10} stroke={ink} />
+          <Polyline points="12 6 12 12 16 14" stroke={ink} />
+        </MoreTile>
+        <MoreTile label="طباعة آخر موازنة" onPress={onReprintLastClosing}>
+          <Polyline points="6 9 6 2 18 2 18 9" stroke={ink} />
+          <Path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" stroke={ink} />
+          <Rect x={6} y={14} width={12} height={8} stroke={ink} />
+        </MoreTile>
         <MoreTile label="إعدادات الطباعة" onPress={onOpenPrinterSettings}>
           <Circle cx={12} cy={12} r={3} stroke={ink} />
           <Path
@@ -716,6 +850,7 @@ const useStyles = createStyles(colors =>
   navTabLabel: { fontFamily: fonts.sansBold, fontSize: 10.5 },
   moreRoot: { flex: 1, backgroundColor: colors.canvas },
   // .more-scroll -- `padding:18px 24px 28px`
+  center: { alignItems: 'center', justifyContent: 'center' },
   moreScroll: { paddingTop: 18, paddingHorizontal: 24, paddingBottom: 28 },
   // .more-section-label
   moreSectionLabel: {

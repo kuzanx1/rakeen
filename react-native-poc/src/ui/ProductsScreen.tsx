@@ -42,6 +42,7 @@ import { isRetailBusinessType } from '../domain/catalog';
 import { buildDefaultConfig } from '../domain/cart';
 import type { CartLine, ModifierDefinition, OrderChannel } from '../domain/cart';
 import type { CashierProfile } from '../domain/auth';
+import type { Shift } from '../domain/shift';
 import { useCart } from './useCart';
 import ModifierModal from './ModifierModal';
 import PaymentModal from './PaymentModal';
@@ -199,10 +200,18 @@ function paymentOutcomeText(state: string): string {
 
 export default function ProductsScreen({
   cashier,
+  shift,
   selectedTable = null,
   onExitTableContext,
 }: {
   cashier: CashierProfile;
+  /** The open shift every order made on this screen belongs to. Both
+   *  payload builders used to hardcode `shiftId: null` while the payload
+   *  type and the complete_pos_order RPC both carried the column -- so
+   *  every order was filed against no shift at all, and any shift total
+   *  would have read zero orders and zero sales no matter how much was
+   *  actually sold. */
+  shift: Shift | null;
   /** Checkpoint 7 (Dine-in / Tables) -- when set, this screen's cart is
    *  attached to a real table (see ui/TablesScreen.tsx). Registering an
    *  order sends the table's real id instead of null, and an existing
@@ -548,7 +557,7 @@ export default function ProductsScreen({
       }
       const payload = buildDineInRegisterPayload(cart.cart, productsById, catalog.modifiersByProductId, cart.unitPriceOf, {
         branchId: device.branchId,
-        shiftId: null,
+        shiftId: shift?.id ?? null,
         staffMemberId: null,
         customerName: selectedCustomer?.name ?? null,
         customerPhone: selectedCustomer?.phone ?? null,
@@ -746,7 +755,7 @@ export default function ProductsScreen({
       }
       const payload = buildOrderPayload(cart.cart, productsById, catalog.modifiersByProductId, cart.unitPriceOf, {
         branchId: device.branchId,
-        shiftId: null,
+        shiftId: shift?.id ?? null,
         staffMemberId: null,
         customerName: selectedCustomer?.name ?? null,
         customerPhone: selectedCustomer?.phone ?? null,

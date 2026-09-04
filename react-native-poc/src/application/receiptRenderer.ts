@@ -7,6 +7,7 @@ import { zatcaQrBase64 } from '../domain/zatca';
 import { buildQrMatrix } from '../domain/qrMatrix';
 import { toReceiptPrintable, toKitchenTicketPrintable, ReceiptPrintable, KitchenTicketPrintable } from '../domain/receiptPrintable';
 import { ReceiptData, KitchenTicketData, buildReceiptEscPosBase64, buildKitchenTicketEscPosBase64 } from '../domain/receipt';
+import type { ClosingReport } from '../domain/shift';
 
 /**
  * Feature Parity Pass -- Real Receipt Rendering. This is the real
@@ -210,6 +211,69 @@ export async function renderReceiptToEscPosBase64(data: ReceiptData, printerPape
     console.error('[receiptRenderer] real rendering failed, falling back to ASCII receipt:', e);
     return buildReceiptEscPosBase64(data);
   }
+}
+
+/**
+ * renderShiftReportCanvas() + buildShiftReportEscPosBytes()
+ * (rakeen-pos.js:3079, :3140) -- the shift closing report, line for line
+ * and in the same order as the source lays it out.
+ *
+ * Built on the same helpers as the receipt above rather than a separate
+ * path, so it inherits the real Arabic shaping and the configured paper
+ * width instead of falling back to the ASCII placeholder.
+ */
+export async function renderShiftReportToEscPosBase64(
+  report: ClosingReport,
+  printerPaperWidthPx?: number,
+): Promise<string> {
+  const width = printerPaperWidthPx ?? 576;
+  const provider = await buildFontProviderReady();
+  const contentWidth = width - PAD * 2;
+  const surface = createReceiptSurface(width, 1800);
+  const { canvas } = surface;
+  canvas.clear(Skia.Color('#ffffff'));
+  const ctx: RenderContext = { canvas, provider, width, contentWidth };
+
+  let y = PAD + LINE_H / 2;
+  y = drawCenterLine(ctx, y, report.businessName || 'ركين', 30, true);
+  if (report.branchName) y = drawCenterLine(ctx, y, report.branchName, 19, false);
+  y = drawCenterLine(ctx, y, 'تقرير إغلاق الوردية', 20, true);
+  y = drawCenterLine(ctx, y, report.dateLabel, 16, false);
+  y = drawCenterLine(ctx, y, 'الكاشير: ' + report.staffName, 16, false);
+
+  drawDivider(canvas, width, y);
+  y += LINE_H * 0.6;
+
+  y = drawRow(ctx, y, String(report.ordersCount), 'عدد الطلبات', 18, false);
+  y = drawRow(ctx, y, report.salesTotal.toFixed(2), 'إجمالي المبيعات', 18, false);
+  y = drawRow(ctx, y, report.cardTotal.toFixed(2), 'بطاقة', 18, false);
+  y = drawRow(ctx, y, report.deliveryPlatformTotal.toFixed(2), 'توصيل — مدفوع عبر التطبيق', 18, false);
+
+  drawDivider(canvas, width, y);
+  y += LINE_H * 0.6;
+
+  y = drawRow(ctx, y, report.cashExpected.toFixed(2), 'الكاش المتوقع', 18, false);
+  y = drawRow(ctx, y, report.cashCounted.toFixed(2), 'الكاش المعدود', 18, false);
+  // The variance keeps its sign: a surplus and a shortfall are different
+  // problems, and "+" is what tells them apart at a glance on paper.
+  y = drawRow(
+    ctx,
+    y,
+    (report.cashVariance >= 0 ? '+' : '') + report.cashVariance.toFixed(2),
+    'الفرق',
+    22,
+    true,
+  );
+
+  drawDivider(canvas, width, y);
+  y += LINE_H * 0.6;
+  y = drawCenterLine(ctx, y, 'معتمد من المدير', 15, false);
+  y += PAD;
+
+  const finalHeight = Math.min(Math.ceil(y), 1800);
+  const raster = rgbaToEscPosRaster(surface.toRgba(finalHeight));
+  const bytes = [0x1b, 0x40, ...raster, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00];
+  return bytesToBase64(bytes);
 }
 
 export async function renderKitchenTicketToEscPosBase64(data: KitchenTicketData, printerPaperWidthPx?: number): Promise<string> {

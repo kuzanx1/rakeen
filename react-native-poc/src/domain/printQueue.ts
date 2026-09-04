@@ -22,7 +22,12 @@ export function computePrintBackoffMs(retryCount: number): number {
   return Math.min(2000 * Math.pow(2, retryCount), PRINT_MAX_BACKOFF_MS);
 }
 
-export type PrintJobType = 'receipt' | 'kitchen';
+/** 'shiftReport' is the closing balance slip. It goes through the SAME
+ *  queue as the other two on purpose: a jammed printer at closing time is
+ *  exactly when the retry/persist behaviour matters most, and the source's
+ *  own reason for keeping a reprint around is that this slip used to print
+ *  once and be lost forever if the paper ran out. */
+export type PrintJobType = 'receipt' | 'kitchen' | 'shiftReport';
 
 /**
  * Real named states, ported verbatim from the PWA:
