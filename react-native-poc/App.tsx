@@ -48,6 +48,7 @@ import OrderHistoryScreen from './src/ui/OrderHistoryScreen';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createStyles, fonts, radii, spacing, ThemeProvider, useTheme } from './src/ui/theme';
 import { ShellProvider, TOPBAR_FALLBACK_HEIGHT, useShell } from './src/ui/shell';
+import { I18nProvider, useI18n } from './src/ui/i18n';
 import Topbar from './src/ui/Topbar';
 import ManagerPinModal from './src/ui/ManagerPinModal';
 import OpenShiftScreen from './src/ui/OpenShiftScreen';
@@ -164,6 +165,7 @@ function screenToTab(screen: Screen): NavTab {
 
 function App(): React.JSX.Element {
   const { colors, mode, toggle } = useTheme();
+  const { t } = useI18n();
   const styles = useStyles();
   const { sideBySide, homeActive, orderPanelWidth, topbarHeight, bottomNavHeight } = useShell();
   const setTopbarHeight = useSetTopbarHeight();
@@ -779,13 +781,13 @@ function App(): React.JSX.Element {
         ]}>
         <NavTabButton
           active={activeTab === 'home'}
-          label="الرئيسية"
+          label={t('الرئيسية')}
           onPress={() => setScreen({ name: 'products', table: null })}
           icon={<Path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />}
         />
         <NavTabButton
           active={activeTab === 'orders'}
-          label="الطلبات"
+          label={t('الطلبات')}
           onPress={() => setScreen({ name: 'orderHistory' })}
           icon={
             <>
@@ -796,7 +798,7 @@ function App(): React.JSX.Element {
         />
         <NavTabButton
           active={activeTab === 'tables'}
-          label="الطاولات"
+          label={t('الطاولات')}
           onPress={() => setScreen({ name: 'tables' })}
           icon={
             <>
@@ -809,7 +811,7 @@ function App(): React.JSX.Element {
         />
         <NavTabButton
           active={activeTab === 'more'}
-          label="المزيد"
+          label={t('المزيد')}
           onPress={() => setScreen({ name: 'more' })}
           icon={
             <>
@@ -1138,7 +1140,9 @@ function Shell(): React.JSX.Element {
     <HomeActiveContext.Provider value={setHomeActive}>
       <SetTopbarHeightContext.Provider value={setTopbarHeight}>
         <ShellProvider homeActive={homeActive} topbarHeight={topbarHeight}>
-          <App />
+          <I18nProvider>
+            <App />
+          </I18nProvider>
         </ShellProvider>
       </SetTopbarHeightContext.Provider>
     </HomeActiveContext.Provider>

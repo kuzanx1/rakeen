@@ -5,6 +5,7 @@ import { TouchableOpacity } from './tappable';
 import Svg, { Circle, Line, Path, Polyline, Rect } from 'react-native-svg';
 import { createStyles, fonts, radii, useTheme } from './theme';
 import { useShell } from './shell';
+import { useI18n } from './i18n';
 
 /**
  * <header class="topbar"> (pos/page.tsx), styled by rakeen-pos.css:89-138
@@ -80,6 +81,7 @@ export default function Topbar({
   const { colors, mode, toggle } = useTheme();
   const styles = useStyles();
   const { sideBySide } = useShell();
+  const { lang, t, toggle: toggleLang } = useI18n();
   const [now, setNow] = useState(() => new Date());
 
   // #clock ticks once a minute in the source; a 1s timer would redraw the
@@ -123,7 +125,7 @@ export default function Topbar({
         <View style={styles.statusGroup}>
           <View style={styles.statusPill}>
             <View style={[styles.statusDot, { backgroundColor: online ? colors.limeDeep : colors.danger }]} />
-            <Text style={styles.statusPillText}>{online ? 'متصل بالإنترنت' : 'غير متصل'}</Text>
+            <Text style={styles.statusPillText}>{online ? t('متصل بالإنترنت') : t('غير متصل — يحفظ محليًا')}</Text>
           </View>
           <View style={styles.statusPill}>
             <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={2}>
@@ -137,7 +139,7 @@ export default function Topbar({
       )}
 
       {/* .notif-bell */}
-      <TouchableOpacity style={styles.notifBell} onPress={onPressBell} accessibilityLabel="تنبيهات التوصيل">
+      <TouchableOpacity style={styles.notifBell} onPress={onPressBell} accessibilityLabel={t('تنبيهات التوصيل')}>
         <Svg
           width={16}
           height={16}
@@ -157,7 +159,7 @@ export default function Topbar({
 
       {/* .theme-toggle -- `.icon-light` is hidden at base and revealed by
           `[data-theme="light"]`, so LIGHT shows the sun and DARK the moon. */}
-      <TouchableOpacity onPress={toggle} style={styles.themeToggle} accessibilityLabel="تبديل المظهر">
+      <TouchableOpacity onPress={toggle} style={styles.themeToggle} accessibilityLabel={t('تبديل المظهر')}>
         <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={2}>
           {mode === 'dark' ? (
             <Path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
@@ -178,8 +180,10 @@ export default function Topbar({
       </TouchableOpacity>
 
       {/* .lang-toggle -- mono, not the Arabic sans the rest of the bar uses */}
-      <TouchableOpacity onPress={onToggleLang} style={styles.langToggle} accessibilityLabel="Language / اللغة">
-        <Text style={styles.langToggleText}>EN</Text>
+      <TouchableOpacity onPress={onToggleLang ?? toggleLang} style={styles.langToggle} accessibilityLabel="Language / اللغة">
+        {/* Shows the language it switches TO, so the label is an action
+            rather than a statement of the current state. */}
+        <Text style={styles.langToggleText}>{lang === 'ar' ? 'EN' : 'ع'}</Text>
       </TouchableOpacity>
 
       {/* .user-cluster -- a divider rule, then the two controls. The name,

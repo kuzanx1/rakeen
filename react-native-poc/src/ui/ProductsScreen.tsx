@@ -18,6 +18,7 @@ import { createStyles, fonts, gradients, layout, radii, spacing, useTheme } from
 import { CategoryIcon, iconForCategoryName } from './categoryIcons';
 import Money from './Money';
 import { useShell } from './shell';
+import { useI18n } from './i18n';
 import {
   loadCatalog,
   getBusinessType,
@@ -273,6 +274,7 @@ export default function ProductsScreen({
   }, [searchQuery]);
 
   const { colors } = useTheme();
+  const { t } = useI18n();
   const styles = useStyles();
 
   // #favToggle / .fav-star -- both session-scoped, see toggleFavourite.
@@ -372,11 +374,14 @@ export default function ProductsScreen({
    *  instead of a category icon. */
   const railCategories = useMemo(
     () => [
-      ...(hidePopularTab ? [] : [{ id: 'popular', name: 'الأكثر طلبًا', glyph: '★' }]),
-      { id: 'all', name: 'الكل', glyph: '▦' },
+      ...(hidePopularTab ? [] : [{ id: 'popular', name: t('الأكثر طلبًا'), glyph: '★' }]),
+      { id: 'all', name: t('الكل'), glyph: '▦' },
+      // Real category names come from the business's own menu, so they are
+      // its own text -- the source translates `c.nameEn || t(c.name)`, and
+      // menu_categories has no English column in this app's schema.
       ...(catalog?.categories ?? []).map(c => ({ id: c.id, name: c.name, glyph: '' })),
     ],
-    [catalog, hidePopularTab],
+    [catalog, hidePopularTab, t],
   );
 
   const { gridColumns, gridTileWidth } = useMemo(() => {
@@ -1056,7 +1061,7 @@ export default function ProductsScreen({
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 onSubmitEditing={handleSearchSubmit}
-                placeholder="ابحث أو امسح باركود..."
+                placeholder={t('ابحث أو امسح باركود...')}
                 returnKeyType="search"
               />
             </View>
@@ -1093,7 +1098,7 @@ export default function ProductsScreen({
               />
             )}
             // .grid-empty
-            ListEmptyComponent={<Text style={styles.gridEmpty}>ما فيه نتائج مطابقة</Text>}
+            ListEmptyComponent={<Text style={styles.gridEmpty}>{t('ما فيه نتائج مطابقة')}</Text>}
           />
         </View>
 
@@ -1120,20 +1125,20 @@ export default function ProductsScreen({
                   <Circle cx={20} cy={21} r={1} />
                   <Path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
                 </Svg>
-                <Text style={styles.orderEmptyText}>اضغط منتج عشان يضاف</Text>
+                <Text style={styles.orderEmptyText}>{t('اضغط منتج عشان يضاف')}</Text>
                 {/* .last-tx-card -- only when a previous sale exists in
                     this session, exactly as `state.lastTransaction ? ... : ''`. */}
                 {lastTransaction && (
                   <View style={styles.lastTxCard}>
                     <View style={styles.lastTxInfo}>
-                      <Text style={styles.lastTxLabel}>آخر عملية</Text>
+                      <Text style={styles.lastTxLabel}>{t('آخر عملية')}</Text>
                       <View style={styles.lastTxValue}>
                         <Money value={lastTransaction.total} size={11} />
                         <Text style={styles.lastTxTime}> — {lastTransaction.time}</Text>
                       </View>
                     </View>
                     <TouchableOpacity style={styles.lastTxReprint} onPress={handleReprintLast} activeOpacity={0.8}>
-                      <Text style={styles.lastTxReprintText}>إعادة طباعة</Text>
+                      <Text style={styles.lastTxReprintText}>{t('إعادة طباعة')}</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -1175,7 +1180,7 @@ export default function ProductsScreen({
                       {line.qty > 1 && !line.isPointsRedemption && (
                         <View style={styles.cartLinePrice}>
                           <Money value={unitPrice} size={10} color={colors.muted} />
-                          <Text style={styles.cartLineUnitSuffix}> / حبة</Text>
+                          <Text style={styles.cartLineUnitSuffix}> / {t('حبة')}</Text>
                         </View>
                       )}
                     </View>
@@ -1237,7 +1242,7 @@ export default function ProductsScreen({
                         }}
                         style={styles.oiNoteLink}
                         activeOpacity={0.7}>
-                        <Text style={styles.oiNoteLinkText}>+ ملاحظة</Text>
+                        <Text style={styles.oiNoteLinkText}>{t('+ ملاحظة')}</Text>
                       </TouchableOpacity>
                     ) : null}
                     {editingNote === line.lineId && (
@@ -1275,7 +1280,7 @@ export default function ProductsScreen({
               {/* The toggle's own label carries the active state -- the
                   source rewrites its textContent on pick (:1144). */}
               <Text style={styles.discountToggleText}>
-                {cart.discountPct > 0 ? `خصم ${cart.discountPct}٪ مفعّل` : '+ خصم'}
+                {cart.discountPct > 0 ? `خصم ${cart.discountPct}٪ مفعّل` : t('+ خصم')}
               </Text>
             </TouchableOpacity>
             {discountPanelOpen && (
@@ -1321,11 +1326,11 @@ export default function ProductsScreen({
               here entirely. */}
           <View style={styles.totalsBox}>
             <View style={styles.totalsRow}>
-              <Text style={styles.totalsLabel}>عدد الأصناف</Text>
+              <Text style={styles.totalsLabel}>{t('عدد الأصناف')}</Text>
               <Text style={styles.totalsValue}>{cart.cart.reduce((n, i) => n + i.qty, 0)}</Text>
             </View>
             <View style={styles.totalsRow}>
-              <Text style={styles.totalsLabel}>المجموع الفرعي</Text>
+              <Text style={styles.totalsLabel}>{t('المجموع الفرعي')}</Text>
               <Money value={cart.totals.subtotal} size={11.5} />
             </View>
             {cart.totals.discount > 0 && (
@@ -1341,12 +1346,12 @@ export default function ProductsScreen({
                   are VAT-inclusive, so the figure is not read as an
                   addition on top of the total. */}
               <Text style={styles.totalsLabel}>
-                ضريبة القيمة المضافة{financial?.pricesIncludeVat ? ' (شاملة ضمن الإجمالي)' : ''}
+                {t('ضريبة القيمة المضافة')}{financial?.pricesIncludeVat ? ` ${t('(شاملة ضمن الإجمالي)')}` : ''}
               </Text>
               <Money value={cart.totals.vat} size={11.5} />
             </View>
             <View style={[styles.totalsRow, styles.totalsRowFinal]}>
-              <Text style={styles.totalsLabelFinal}>الإجمالي</Text>
+              <Text style={styles.totalsLabelFinal}>{t('الإجمالي')}</Text>
               <Money value={cart.totals.total} size={17} color={colors.accentText} />
             </View>
           </View>
@@ -1392,7 +1397,7 @@ export default function ProductsScreen({
               onPress={handleClearOrder}
               activeOpacity={0.8}>
               <Text style={[styles.clearBtnText, clearArmed && styles.clearBtnTextArmed]}>
-                {clearArmed ? 'اضغط مرة ثانية للتأكيد' : 'إفراغ الطلب'}
+                {clearArmed ? t('اضغط مرة ثانية للتأكيد') : t('إفراغ الطلب')}
               </Text>
             </TouchableOpacity>
           </View>
