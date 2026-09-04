@@ -26,6 +26,7 @@ import { shouldPrintCustomerReceipt, shouldPrintReceiptLogo } from '../domain/pr
 import type { ReceiptData } from '../domain/receipt';
 import { createStyles, fonts, gradients, Palette, radii, spacing, useTheme } from './theme';
 import { useShell } from './shell';
+import Svg, { Path, Polyline, Rect } from 'react-native-svg';
 import Money from './Money';
 
 const STATUS_TABS: { value: OrderHistoryStatus; label: string }[] = [
@@ -36,6 +37,14 @@ const STATUS_TABS: { value: OrderHistoryStatus; label: string }[] = [
 
 const CHANNEL_LABELS: Record<string, string> = { dine_in: 'بالمطعم', pickup: 'استلام', delivery: 'توصيل' };
 const PAYMENT_METHOD_LABELS: Record<string, string> = { cash: 'كاش', card: 'بطاقة', split: 'تقسيم دفع', delivery_platform: 'مدفوع عبر التطبيق' };
+/** ORDER_STATUS_LABELS_POS (rakeen-pos.js:3671). */
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  pending: 'بانتظار القبول',
+  completed: 'مكتمل',
+  cancelled: 'ملغى',
+  refunded: 'مسترجع',
+  rejected: 'مرفوض',
+};
 
 // .order-row-badge.<status> (rakeen-pos.css:456-458). This screen's own
 // tabs are completed/cancelled/refunded, not the PWA's running/completed/
@@ -62,6 +71,18 @@ const rowBadgeColor = (colors: Palette): Record<OrderHistoryStatus, string> => (
  * — see ROW_BADGE_COLOR above for the one place that required a judgment
  * call).
  */
+/** .receipt-detail-row -- the one row shape the whole sheet is built
+ *  from: a muted label on one side, its value on the other. */
+function DetailRow({ label, text, mono }: { label: string; text: string; mono?: boolean }) {
+  const styles = useStyles();
+  return (
+    <View style={styles.itemRow}>
+      <Text style={styles.itemName}>{label}</Text>
+      <Text style={mono ? styles.detailValueMono : styles.detailValue}>{text}</Text>
+    </View>
+  );
+}
+
 export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
   const { colors } = useTheme();
   const styles = useStyles();
@@ -224,60 +245,106 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
               <ActivityIndicator color={colors.accentText} />
             ) : detail ? (
               <>
-                <Text style={styles.sheetTitle}>طلب #{detail.id}</Text>
-                <Text style={styles.sheetMeta}>
+                {/* openOrderDetail() (rakeen-pos.js:3574) opens with the
+                    channel and customer as a heading and the amount as a
+                    big .receipt-total, then a single column of
+                    .receipt-detail-row -- items and money and metadata all
+                    in the same row shape. This sheet used to mix three
+                    different shapes and put the payment method in a
+                    trailing side-line. */}
+                {/* The source puts this in the popup's own head bar
+                    ("تفاصيل الطلب #123"); this sheet has no head bar, so it
+                    leads with it -- without it the cashier cannot tell
+                    which order they opened. */}
+                <Text style={styles.sheetOrderNo}>تفاصيل الطلب #{detail.id}</Text>
+                <Text style={styles.sheetTitle}>
                   {CHANNEL_LABELS[detail.channel] || detail.channel}
-                  {detail.tableNumber != null ? ` — طاولة ${detail.tableNumber}` : ''}
-                  {' — '}
-                  {new Date(detail.createdAt).toLocaleString('ar-SA')}
+                  {detail.customerName ? ` \u2014 ${detail.customerName}` : ''}
                 </Text>
+                <Money value={detail.total} size={26} style={styles.sheetTotal} />
+
+                {detail.tableNumber != null && (
+                  <DetailRow label="\u0627\u0644\u0637\u0627\u0648\u0644\u0629" text={`\u0637\u0627\u0648\u0644\u0629 ${detail.tableNumber}`} />
+                )}
+
                 {detail.items.map((it, i) => (
                   <View key={i} style={styles.itemRow}>
                     <Text style={styles.itemName}>
-                      {it.qty} × {it.name}
-                      {it.mods.length > 0 ? ` (${it.mods.join('، ')})` : ''}
+                      {it.qty} \u00d7 {it.name}
+                      {it.mods.length > 0 ? ` (${it.mods.join('\u060c ')})` : ''}
+                      {it.note ? ` \u2014 ${it.note}` : ''}
                     </Text>
                     <Money value={it.lineTotal} size={11.5} />
                   </View>
                 ))}
-                <View style={styles.divider} />
+
                 <View style={styles.itemRow}>
-                  <Text style={styles.itemName}>المجموع الفرعي</Text>
+                  <Text style={styles.itemName}>\u0627\u0644\u0645\u062c\u0645\u0648\u0639 \u0627\u0644\u0641\u0631\u0639\u064a</Text>
                   <Money value={detail.subtotal} size={11.5} />
                 </View>
+                {detail.deliveryFee > 0 && (
+                  <View style={styles.itemRow}>
+                    <Text style={styles.itemName}>\u0631\u0633\u0648\u0645 \u0627\u0644\u062a\u0648\u0635\u064a\u0644</Text>
+                    <Money value={detail.deliveryFee} size={11.5} />
+                  </View>
+                )}
                 {detail.discountAmount > 0 && (
                   <View style={styles.itemRow}>
-                    <Text style={styles.itemName}>الخصم</Text>
+                    <Text style={styles.itemName}>\u0627\u0644\u062e\u0635\u0645</Text>
                     <Money value={-detail.discountAmount} size={11.5} />
                   </View>
                 )}
                 <View style={styles.itemRow}>
-                  <Text style={styles.itemName}>الضريبة</Text>
+                  <Text style={styles.itemName}>\u0627\u0644\u0636\u0631\u064a\u0628\u0629</Text>
                   <Money value={detail.vatAmount} size={11.5} />
                 </View>
-                <View style={styles.itemRow}>
-                  <Text style={styles.itemNameBold}>الإجمالي</Text>
-                  <Money value={detail.total} size={13.5} />
-                </View>
-                <Text style={styles.sheetMeta}>الدفع: {PAYMENT_METHOD_LABELS[detail.paymentMethod] || detail.paymentMethod}</Text>
 
-                <TouchableOpacity disabled={reprintBusy} onPress={handleReprint} activeOpacity={0.85}>
-                  <View style={styles.reprintButton}>
-                    <GradientFill gradient={gradients.payButton} radius={radii.md} />
-                    <Text style={styles.reprintButtonText}>{reprintBusy ? 'جارٍ الإضافة...' : 'إعادة طباعة'}</Text>
-                  </View>
-                </TouchableOpacity>
-                {!!reprintStatus && <Text style={styles.statusText}>{reprintStatus}</Text>}
-
-                {detail.status === 'completed' && (
-                  <TouchableOpacity
-                    style={styles.refundButton}
-                    disabled={refundBusy}
-                    onPress={() => setPinPendingRefund(true)}
-                    activeOpacity={0.8}>
-                    <Text style={styles.refundButtonText}>{refundBusy ? 'جارٍ الاسترجاع...' : 'استرجاع مبلغ'}</Text>
-                  </TouchableOpacity>
+                <DetailRow
+                  label="\u0637\u0631\u064a\u0642\u0629 \u0627\u0644\u062f\u0641\u0639"
+                  text={PAYMENT_METHOD_LABELS[detail.paymentMethod] || detail.paymentMethod}
+                />
+                {/* Both of these are rows in the source and were missing
+                    from this sheet entirely. */}
+                <DetailRow label="\u0627\u0644\u062d\u0627\u0644\u0629" text={ORDER_STATUS_LABELS[detail.status] || String(detail.status)} />
+                {!!detail.customerPhone && <DetailRow label="\u062c\u0648\u0627\u0644 \u0627\u0644\u0639\u0645\u064a\u0644" text={detail.customerPhone} mono />}
+                {!!detail.deliveryAddress && (
+                  <DetailRow label="\u0639\u0646\u0648\u0627\u0646 \u0627\u0644\u062a\u0648\u0635\u064a\u0644" text={detail.deliveryAddress} />
                 )}
+
+                {/* .receipt-actions -- a ROW of equal buttons, not a
+                    stack. \u0627\u0633\u062a\u0631\u062c\u0627\u0639 \u0645\u0628\u0644\u063a only exists on a completed order. */}
+                <View style={styles.detailActions}>
+                  <TouchableOpacity
+                    style={styles.detailActionBtn}
+                    disabled={reprintBusy}
+                    onPress={handleReprint}
+                    activeOpacity={0.8}>
+                    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={colors.text} strokeWidth={2}>
+                      <Polyline points="6 9 6 2 18 2 18 9" />
+                      <Path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                      <Rect x={6} y={14} width={12} height={8} />
+                    </Svg>
+                    <Text style={styles.detailActionText}>
+                      {reprintBusy ? '\u062c\u0627\u0631\u064d \u0627\u0644\u0637\u0628\u0627\u0639\u0629...' : '\u0625\u0639\u0627\u062f\u0629 \u0637\u0628\u0627\u0639\u0629'}
+                    </Text>
+                  </TouchableOpacity>
+                  {detail.status === 'completed' && (
+                    <TouchableOpacity
+                      style={styles.detailActionBtn}
+                      disabled={refundBusy}
+                      onPress={() => setPinPendingRefund(true)}
+                      activeOpacity={0.8}>
+                      <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={colors.text} strokeWidth={2}>
+                        <Polyline points="9 14 4 9 9 4" />
+                        <Path d="M20 20v-7a4 4 0 0 0-4-4H4" />
+                      </Svg>
+                      <Text style={styles.detailActionText}>
+                        {refundBusy ? '\u062c\u0627\u0631\u064d \u0627\u0644\u0627\u0633\u062a\u0631\u062c\u0627\u0639...' : '\u0627\u0633\u062a\u0631\u062c\u0627\u0639 \u0645\u0628\u0644\u063a'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {!!reprintStatus && <Text style={styles.statusText}>{reprintStatus}</Text>}
                 {!!refundStatus && <Text style={styles.statusText}>{refundStatus}</Text>}
 
                 <TouchableOpacity style={styles.closeButton} onPress={() => setDetail(null)}>
@@ -339,7 +406,6 @@ const useStyles = createStyles(colors =>
   overlay: { flex: 1, backgroundColor: colors.modalOverlay, justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.cardBg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing[5], maxHeight: '85%' },
   sheetTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, marginBottom: 6, textAlign: 'center' },
-  sheetMeta: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted, marginBottom: 10, textAlign: 'center' },
   itemRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   // Explicitly start-aligned, and this is not decoration. index.js sets
   // I18nManager.swapLeftAndRightInRTL(false) on purpose (so ported
@@ -350,22 +416,25 @@ const useStyles = createStyles(colors =>
   // fills the free space and the amount is pinned at the other end, that
   // reads as the price colliding with the end of the name.
   itemName: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: colors.text, flex: 1, textAlign: 'right' },
-  itemTotal: { fontFamily: fonts.monoMedium, fontSize: 13, color: colors.text, writingDirection: 'ltr' },
-  itemNameBold: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.text, flex: 1, textAlign: 'right' },
-  itemTotalBold: { fontFamily: fonts.monoBold, fontSize: 15, color: colors.accentText, writingDirection: 'ltr' },
-  divider: { height: 1, backgroundColor: colors.line, marginVertical: spacing[2] },
-  refundButton: {
-    backgroundColor: `rgba(${colors.dangerRgb},0.12)`,
-    borderWidth: 1,
-    borderColor: colors.danger,
+  sheetOrderNo: { fontFamily: fonts.sansBold, fontSize: 16.5, color: colors.text, textAlign: 'center', marginBottom: 6 },
+  // .receipt-total -- the amount as the sheet's headline figure
+  sheetTotal: { alignSelf: 'center', marginBottom: 16 },
+  detailValue: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text },
+  detailValueMono: { fontFamily: fonts.monoBold, fontSize: 12, color: colors.text, writingDirection: 'ltr' },
+  // .receipt-actions / .receipt-action-btn
+  detailActions: { flexDirection: 'row', gap: 8, marginTop: spacing[4], marginBottom: 10 },
+  detailActionBtn: {
+    flex: 1,
+    paddingVertical: 13,
+    paddingHorizontal: 4,
     borderRadius: radii.md,
-    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surf1,
     alignItems: 'center',
-    marginTop: spacing[4],
+    gap: 5,
   },
-  refundButtonText: { fontFamily: fonts.sansBold, color: colors.danger },
-  reprintButton: { borderRadius: radii.md, padding: 14, alignItems: 'center', marginTop: spacing[4], backgroundColor: colors.lime },
-  reprintButtonText: { fontFamily: fonts.sansBold, color: colors.flagGreenDeep },
+  detailActionText: { fontFamily: fonts.sansBold, fontSize: 10.5, color: colors.text },
   statusText: { fontFamily: fonts.sansSemiBold, textAlign: 'center', marginTop: 10, fontSize: 12, color: colors.muted },
   closeButton: { padding: 14, alignItems: 'center', marginTop: spacing[2] },
   closeButtonText: { fontFamily: fonts.sansBold, color: colors.muted },

@@ -63,6 +63,10 @@ export interface OrderHistoryDetail {
   discountAmount: number;
   vatAmount: number;
   total: number;
+  /** orders.delivery_fee -- its own row in the source, above the discount,
+   *  and only when there is one. */
+  deliveryFee: number;
+  deliveryAddress: string | null;
   tableNumber: number | null;
   items: OrderHistoryItem[];
 }
@@ -101,6 +105,8 @@ export async function getOrderHistoryDetail(orderId: number): Promise<OrderHisto
     discountAmount: Number(order.discount_amount || 0),
     vatAmount: Number(order.vat_amount),
     total: Number(order.total),
+    deliveryFee: Number(order.delivery_fee || 0),
+    deliveryAddress: order.delivery_address ?? null,
     tableNumber: order.restaurant_tables?.number ?? null,
     items: (items || []).map((it: any) => ({
       menuItemId: it.menu_item_id,
