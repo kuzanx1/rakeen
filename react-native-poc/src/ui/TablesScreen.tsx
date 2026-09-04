@@ -144,7 +144,7 @@ export default function TablesScreen({
             if (!won) showToast('طاولة انشغلت للتو');
             await refresh();
           } catch (e) {
-            showToast(`خطأ: ${String(e)}`);
+            showToast('خطأ — جرّب مرة ثانية');
           } finally {
             setBusy(false);
           }
@@ -158,7 +158,7 @@ export default function TablesScreen({
             if (!won) showToast('حالة الطاولة تغيّرت للتو');
             await refresh();
           } catch (e) {
-            showToast(`خطأ: ${String(e)}`);
+            showToast('خطأ — جرّب مرة ثانية');
           } finally {
             setBusy(false);
           }
@@ -181,7 +181,7 @@ export default function TablesScreen({
       if (!won) showToast('حالة الطاولة تغيّرت للتو');
       await refresh();
     } catch (e) {
-      showToast(`خطأ: ${String(e)}`);
+      showToast('خطأ — جرّب مرة ثانية');
     } finally {
       setBusy(false);
       closeSheet();
@@ -200,7 +200,7 @@ export default function TablesScreen({
       await resumePaymentForTable(table.id, table.status);
       await refresh();
     } catch (e) {
-      showToast(`خطأ: ${String(e)}`);
+      showToast('خطأ — جرّب مرة ثانية');
     } finally {
       setBusy(false);
       closeSheet();
@@ -228,7 +228,7 @@ export default function TablesScreen({
       await cancelDineInOrder(table.active_order_id as number, stillOccupied);
       await refresh();
     } catch (e) {
-      showToast(`تعذر الإلغاء: ${String(e)}`);
+      showToast('تعذر الإلغاء — جرّب مرة ثانية');
     } finally {
       setBusy(false);
       closeSheet();
@@ -242,7 +242,7 @@ export default function TablesScreen({
       await moveTableOrder(fromTable.active_order_id, toTable.id);
       await refresh();
     } catch (e) {
-      showToast(`تعذر النقل: ${String(e)}`);
+      showToast('تعذر النقل — جرّب مرة ثانية');
     } finally {
       setBusy(false);
       setMovePickerFor(null);

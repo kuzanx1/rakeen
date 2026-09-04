@@ -149,7 +149,7 @@ export default function PrinterSettingsScreen() {
           : `🔴 غير متصل بـ ${where} — ${result.error}${result.errorDetail ? ` (${result.errorDetail})` : ''}`,
       );
     } catch (e) {
-      setTestResult(`🔴 خطأ غير متوقع: ${String(e)}`);
+      setTestResult('🔴 خطأ غير متوقع — جرّب مرة ثانية');
     } finally {
       setTesting(false);
     }
@@ -168,7 +168,7 @@ export default function PrinterSettingsScreen() {
       setSavedSnapshot(JSON.stringify(withCapabilities));
       setSaveStatus('✅ تم الحفظ محليًا على هذا الجهاز');
     } catch (e) {
-      setSaveStatus(`🔴 تعذر الحفظ: ${String(e)}`);
+      setSaveStatus('🔴 تعذر الحفظ — جرّب مرة ثانية');
     } finally {
       setSaving(false);
     }

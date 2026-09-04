@@ -90,7 +90,7 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
       const result = await listOrderHistory(branchId, status);
       setRows(result);
     } catch (e) {
-      setError(`تعذر تحميل الطلبات: ${String(e)}`);
+      setError('تعذر تحميل الطلبات — جرّب مرة ثانية');
     } finally {
       setLoading(false);
     }
@@ -156,7 +156,7 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
       } satisfies ReceiptData);
       setReprintStatus('🟢 أُضيفت الطباعة إلى قائمة الانتظار');
     } catch (e) {
-      setReprintStatus(`🔴 تعذرت الطباعة: ${String(e)}`);
+      setReprintStatus('🔴 تعذرت الطباعة — جرّب مرة ثانية');
     } finally {
       setReprintBusy(false);
     }
@@ -171,7 +171,7 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
       setDetail({ ...detail, status: 'refunded' });
       refresh();
     } catch (e) {
-      setRefundStatus(`🔴 تعذر الاسترجاع: ${String(e)}`);
+      setRefundStatus('🔴 تعذر الاسترجاع — جرّب مرة ثانية');
     } finally {
       setRefundBusy(false);
     }
