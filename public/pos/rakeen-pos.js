@@ -27,6 +27,167 @@ function escapeHtml(value){
     .replace(/'/g, '&#39;');
 }
 
+/* ============ Language toggle (Arabic/English) — per-device, like the
+   theme toggle. Phase 1: the Home screen (topbar chrome, category sidebar,
+   product grid, order panel/checkout) plus every product/category name.
+   Other screens (Orders, Tables, settings, reports, loyalty, kitchen
+   alerts) stay Arabic-only for now — a genuinely complete translation is a
+   much bigger pass across the rest of this file, coming incrementally.
+   Arabic stays the single source of truth for every UI string (matching
+   how this whole file is authored) — t() just substitutes from a lookup
+   table keyed by the Arabic original, so nothing needs a parallel "key"
+   naming scheme; only DYNAMIC-content strings (real order numbers, staff
+   names, toasts) are left untranslated in this phase. */
+let LANG = 'ar';
+try { LANG = localStorage.getItem('rakeen_pos_lang') || 'ar'; } catch {}
+const I18N_EN = {
+  'الرئيسية': 'Home', 'الطلبات': 'Orders', 'الطاولات': 'Tables', 'المزيد': 'More',
+  'متصل بالإنترنت': 'Online', 'غير متصل — يحفظ محليًا': 'Offline — saving locally',
+  'الطابعة جاهزة': 'Printer ready', 'تنبيهات التوصيل': 'Delivery alerts', 'تبديل المظهر': 'Toggle theme',
+  'ابحث أو امسح باركود...': 'Search or scan barcode...', 'المفضّلة': 'Favorites',
+  'الأكثر طلبًا': 'Popular', 'الكل': 'All', 'ما فيه نتائج مطابقة': 'No matching results',
+  'الطلب الحالي': 'Current order', 'علّق': 'Hold', 'اضغط منتج عشان يضاف': 'Tap a product to add it',
+  'عدد الأصناف': 'Items', 'المجموع الفرعي': 'Subtotal', 'ضريبة القيمة المضافة': 'VAT',
+  '(شاملة ضمن الإجمالي)': '(included in total)', 'الإجمالي': 'Total', 'ادفع': 'Pay',
+  'إفراغ الطلب': 'Clear order', '+ خصم': '+ Discount', 'إضافة للطلب': 'Add to order',
+  'تسجيل الطلب': 'Register order', 'اضغط مرة ثانية للتأكيد': 'Tap again to confirm',
+  'حبة': 'item', 'نقاط': 'Points', 'آخر عملية': 'Last transaction', 'إعادة طباعة': 'Reprint',
+  '+ ملاحظة': '+ Note', 'أضف': 'Add',
+  'فيه خيارات — اضغط مطولًا للتخصيص': 'Has options — hold to customize',
+};
+function t(ar){ return LANG === 'en' ? (I18N_EN[ar] || ar) : ar; }
+
+// Real reported bug: every phone field's digit-strip used /\D/g, which in
+// JS only matches ASCII 0-9 — a customer typing on an Arabic keyboard
+// (Arabic-Indic ٠-٩, common default in this market) got every character of
+// their number silently wiped instead of converted, since \D treats them
+// as "non-digit" too. Convert both Arabic-Indic and Eastern Arabic-Indic
+// (Persian) digits to Western digits FIRST, before any \D stripping.
+function toWesternDigits(str){
+  return String(str).replace(/[٠-٩۰-۹]/g, ch=>{
+    const code = ch.charCodeAt(0);
+    return String(code >= 0x06F0 ? code - 0x06F0 : code - 0x0660);
+  });
+}
+
+// The Diagnostics screen used to show native/network error strings verbatim
+// (job.last_error / caught exception messages) — real reported leak of
+// internal jargon (driver/library names, raw HTTP/socket errors) straight to
+// a cashier's screen, which means nothing to them and looks broken. Maps the
+// common real cases to plain Arabic; anything unrecognized gets a short
+// generic line instead of the raw string, never the raw string itself.
+// Matches the dashboard's rkCheck() — see .pos-check in rakeen-pos-additions.css.
+function posCheck(inputAttrs, label){
+  return `<label class="pos-check"><input type="checkbox" ${inputAttrs}><span class="pos-check-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span class="pos-check-label">${label}</span></label>`;
+}
+function friendlyErrorText(raw){
+  const s = String(raw || '').toLowerCase();
+  if(!s) return 'خطأ غير معروف';
+  if(s.includes('timeout') || s.includes('timed out')) return 'انتهت مهلة الاتصال بالطابعة';
+  if(s.includes('econnrefused') || s.includes('connection refused') || s.includes('unreachable')) return 'تعذر الوصول للطابعة — تأكد إنها شغّالة ومتصلة بنفس شبكة الواي فاي';
+  if(s.includes('network') || s.includes('fetch failed') || s.includes('offline')) return 'مشكلة اتصال بالإنترنت';
+  if(s.includes('unauthorized') || s.includes('401') || s.includes('forbidden') || s.includes('403')) return 'صلاحية الوصول مرفوضة';
+  if(s.includes('not found') || s.includes('404')) return 'الخدمة غير متاحة حاليًا';
+  return 'صار خطأ تقني — جرّب مرة ثانية أو تواصل مع الدعم';
+}
+
+// Shared money display, mirroring the dashboard's rkMoney() — halalas render
+// smaller than the whole riyals (matches printed receipts), and the real
+// Saudi Riyal sign replaces every "ر.س"/"SAR" text label. Currency-agnostic
+// on purpose: the real sign doesn't need a LANG branch the way "ر.س"/"SAR"
+// text did.
+const RK_RIYAL_CHAR = '⃁';
+function rkMoney(amount){
+  const n = Number(amount) || 0;
+  const sign = n < 0 ? '-' : '';
+  const [whole, frac] = Math.abs(n).toFixed(2).split('.');
+  return `<span class="rk-money mono">${sign}${whole}<span class="rk-money-frac">.${frac}</span> <span class="rk-riyal">${RK_RIYAL_CHAR}</span></span>`;
+}
+function applyLang(){
+  // Layout direction stays RTL regardless of language — a cashier's muscle
+  // memory for where every button sits matters more than a "correctly"
+  // mirrored English layout, and every real bilingual POS in this market
+  // works the same way. Only the text itself switches.
+  document.documentElement.lang = LANG;
+  const langBtn = document.getElementById('langToggle');
+  if(langBtn) langBtn.textContent = LANG === 'en' ? 'ع' : 'EN';
+
+  const setText = (sel, ar) => { const el = document.querySelector(sel); if(el) el.textContent = t(ar); };
+  setText('.nav-tab[data-screen="home"] span', 'الرئيسية');
+  setText('.nav-tab[data-screen="orders"] span', 'الطلبات');
+  setText('.nav-tab[data-screen="tables"] span', 'الطاولات');
+  setText('.nav-tab[data-screen="more"] span', 'المزيد');
+
+  const searchInput = document.getElementById('searchInput');
+  if(searchInput) searchInput.placeholder = t('ابحث أو امسح باركود...');
+  const favToggle = document.getElementById('favToggle');
+  if(favToggle) favToggle.title = t('المفضّلة');
+  const notifBell = document.getElementById('notifBellBtn');
+  if(notifBell){ notifBell.setAttribute('aria-label', t('تنبيهات التوصيل')); notifBell.title = t('تنبيهات التوصيل'); }
+  const themeToggle = document.getElementById('themeToggle');
+  if(themeToggle) themeToggle.setAttribute('aria-label', t('تبديل المظهر'));
+  const opTitle = document.querySelector('.op-title');
+  if(opTitle) opTitle.textContent = t('الطلب الحالي');
+  // holdOrderBtn has TWO text-node children around its svg icon (leading
+  // whitespace from the markup's own indentation, then the real label) —
+  // matching "first text node" grabbed the whitespace one by mistake and
+  // left the actual label untouched. Match on non-whitespace content instead.
+  const holdBtnEl = document.getElementById('holdOrderBtn');
+  if(holdBtnEl) for(const node of holdBtnEl.childNodes){ if(node.nodeType === 3 && node.nodeValue.trim()){ node.nodeValue = node.nodeValue.replace(node.nodeValue.trim(), t('علّق')); break; } }
+  // Only reset the discount button's label when it's showing its default
+  // "+ خصم" state — once a discount is active it reads "خصم ١٠٪ مفعّل" (see
+  // the discountPanel click handler below), which this must not clobber.
+  // Wrapped: applyLang() also runs once at the very top of this file, before
+  // `state` (declared further down) is initialized — reading it that early
+  // would throw and silently abort everything below this line.
+  try {
+    const discountToggle = document.getElementById('discountToggle');
+    if(discountToggle && state.discountPct === 0) discountToggle.textContent = LANG === 'en' ? '+ Discount' : '+ خصم';
+  } catch {}
+  const clearBtn = document.getElementById('clearOrderBtn');
+  if(clearBtn && !clearBtn.classList.contains('armed')) clearBtn.textContent = t('إفراغ الطلب');
+
+  updateConnStatus();
+  // Re-run the Home screen's own render functions so their JS-generated
+  // strings (category sidebar, product grid, order panel/checkout totals)
+  // pick up the new language too — all guarded since applyLang() also runs
+  // once at boot, before PRODUCTS/CATEGORIES exist yet.
+  // Wrapped in try/catch, not just existence checks: #orderSummary (unlike
+  // #catRail/#productGrid) exists empty in the static markup from page
+  // load, so its own presence doesn't actually tell us `state` (declared
+  // further down this file) has been initialized yet — calling renderOrder()
+  // that early threw and got reported as an unhandled rejection way down at
+  // this file's closing line, from wherever the async boot chain landed.
+  try {
+    if(document.getElementById('catRail') && document.getElementById('catRail').children.length) renderCatRail();
+    if(document.getElementById('productGrid') && document.getElementById('productGrid').children.length) renderProductGrid();
+    if(typeof renderOrder === 'function' && document.getElementById('orderSummary')) renderOrder();
+  } catch {}
+}
+document.getElementById('langToggle').addEventListener('click', ()=>{
+  LANG = LANG === 'en' ? 'ar' : 'en';
+  try { localStorage.setItem('rakeen_pos_lang', LANG); } catch {}
+  applyLang();
+});
+applyLang(); // apply the stored preference immediately — even pre-login, the topbar/nav chrome should already match
+
+// The tablet+ topbar (.app.home-active > .topbar, rakeen-pos.css) wraps onto
+// however many lines its content needs once .order-panel's reserved width
+// leaves too little room for one line — a real, continuously variable
+// height depending on viewport width, not one of a few fixed breakpoint
+// values. Every layout piece that needs to start below it (.screen-head,
+// .cat-sidebar, .products-toolbar, .bottom-nav's top) reads --topbar-h
+// instead of a hardcoded guess, so this stays correct at every width
+// instead of drifting out of sync the moment the real height doesn't match
+// whatever number was hand-picked for one specific screen size.
+(function syncTopbarHeightVar(){
+  const topbar = document.querySelector('.topbar');
+  if(!topbar || typeof ResizeObserver === 'undefined') return;
+  const apply = ()=> document.documentElement.style.setProperty('--topbar-h', topbar.offsetHeight + 'px');
+  apply();
+  new ResizeObserver(apply).observe(topbar);
+})();
+
 /* ============ DATA — seed literals below are the pre-Supabase demo values;
    loadPosData() (near the auth section) replaces CATEGORIES/PRODUCTS/
    MODIFIER_PRODUCTS with real fetched data after a cashier logs in. Kept as
@@ -305,32 +466,73 @@ document.getElementById('themeToggle').addEventListener('click', ()=>{
   document.documentElement.setAttribute('data-theme', isLight ? 'dark' : 'light');
 });
 
+/* ============ Network State Model ============
+   A single navigator.onLine boolean can't represent this POS's actual
+   operating reality: "internet is down but a LAN printer on the same
+   Wi-Fi still prints fine" and "internet is up but this specific cloud
+   call just failed" are both ROUTINE states here, not edge cases — see
+   section 32 of the offline-architecture spec this is built against.
+   NETWORK_STATE tracks each dimension independently; Diagnostics (below)
+   and the topbar pill both read it instead of re-deriving their own
+   partial view of "is everything fine" from scratch. */
+let NETWORK_STATE = {
+  internet: navigator.onLine,      // browser-level connectivity
+  cloud: null,                      // null = no real call made yet this session; true/false = the last one's outcome
+  lastCloudCheckAt: null,
+  lastCloudError: null,
+};
+function updateNetworkState(patch){
+  Object.assign(NETWORK_STATE, patch);
+  refreshDiagnosticsIfOpen();
+}
+// Piggybacks on syncQueue's own real round-trips (every 30s, plus every
+// 'online' event) rather than a separate polling ping — the sync attempt
+// already tells us definitively whether the cloud is actually reachable
+// right now, not just whether the OS thinks the network interface is up.
+function reportCloudResult(ok, error){
+  updateNetworkState({ cloud: ok, lastCloudCheckAt: Date.now(), lastCloudError: ok ? null : ((error && error.message) || String(error || 'unknown_error')) });
+}
+
 function updateConnStatus(){
   const pill = document.getElementById('connStatus');
   const isOnline = navigator.onLine;
   pill.classList.toggle('online', isOnline);
   pill.classList.toggle('offline', !isOnline);
-  pill.innerHTML = '<span class="status-dot"></span>' + (isOnline ? 'متصل' : 'غير متصل — يحفظ محليًا');
+  pill.innerHTML = '<span class="status-dot"></span>' + t(isOnline ? 'متصل بالإنترنت' : 'غير متصل — يحفظ محليًا');
 }
 updateConnStatus();
-window.addEventListener('online', ()=>{ updateConnStatus(); showToast('رجع الاتصال — تتم مزامنة الطلبات'); });
-window.addEventListener('offline', ()=>{ updateConnStatus(); showToast('انقطع الاتصال — الطلبات تُحفظ وتتزامن تلقائيًا'); });
+window.addEventListener('online', ()=>{ updateNetworkState({internet:true}); updateConnStatus(); showToast('رجع الاتصال — تتم مزامنة الطلبات'); });
+window.addEventListener('offline', ()=>{ updateNetworkState({internet:false}); updateConnStatus(); showToast('انقطع الاتصال — الطلبات تُحفظ وتتزامن تلقائيًا'); });
 
 /* ============ Bottom nav / screen switching ============ */
-document.getElementById('bottomNav').addEventListener('click', (e)=>{
-  const btn = e.target.closest('.nav-tab');
+function switchBottomNavScreen(screenKey){
+  const btn = document.querySelector('.nav-tab[data-screen="'+screenKey+'"]');
   if(!btn) return;
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   btn.classList.add('active');
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  document.getElementById('screen-'+btn.dataset.screen).classList.add('active');
+  document.getElementById('screen-'+screenKey).classList.add('active');
+  // Only Home has an order panel reserving space on the left — the topbar's
+  // narrower, order-panel-aware width (see .app.home-active > .topbar) only
+  // makes sense there; every other screen keeps the full-width bar.
+  document.getElementById('posApp').classList.toggle('home-active', screenKey === 'home');
   // refresh live data whenever a screen is (re)entered — never show stale state
-  if(btn.dataset.screen === 'orders') renderOrdersList();
-  if(btn.dataset.screen === 'tables'){ if(isHotelBusiness()) renderHotelActiveTab(); else renderTables(); }
+  if(screenKey === 'orders') renderOrdersList();
+  if(screenKey === 'tables'){ if(isHotelBusiness()) renderHotelActiveTab(); else renderTables(); }
   // "Scan-first" mode (roadmap item 2): a retail cashier's default action is
   // scanning, not browsing — keep the barcode/search field focused so a
   // hardware scanner's keystrokes land there immediately, no tap needed.
-  if(btn.dataset.screen === 'home' && isRetailBusiness()) document.getElementById('searchInput').focus();
+  if(screenKey === 'home' && isRetailBusiness()) document.getElementById('searchInput').focus();
+  // Same reasoning as the orders-tab switch above: mobile scrolls the real
+  // page, so landing on a new screen already scrolled down (from whatever
+  // the previous screen's scroll position was) hides its own header behind
+  // the fixed topbar until manually scrolled back up.
+  window.scrollTo(0, 0);
+}
+document.getElementById('bottomNav').addEventListener('click', (e)=>{
+  const btn = e.target.closest('.nav-tab');
+  if(!btn) return;
+  switchBottomNavScreen(btn.dataset.screen);
 });
 
 /* ============ Order channel + delivery platform — changes the base price
@@ -367,9 +569,9 @@ function renderPlatformButtons(){
 /* ============ Categories ============ */
 function renderCatRail(){
   const el = document.getElementById('catRail');
-  const cats = [{id:'popular', name:'الأكثر طلبًا', icon:'★'}, {id:'all', name:'الكل', icon:'▦'}, ...CATEGORIES];
+  const cats = [...(POS_HIDE_POPULAR_TAB ? [] : [{id:'popular', name:'الأكثر طلبًا', icon:'★'}]), {id:'all', name:'الكل', icon:'▦'}, ...CATEGORIES];
   el.innerHTML = cats.map(c=>
-    `<button class="cat-btn ${state.activeCat===c.id?'active':''}" data-cat="${c.id}"><span class="ci">${ICONS[c.icon] || c.icon}</span>${c.name}</button>`
+    `<button class="cat-btn ${state.activeCat===c.id?'active':''}" data-cat="${c.id}"><span class="ci">${ICONS[c.icon] || c.icon}</span>${LANG === 'en' ? (c.nameEn || t(c.name)) : c.name}</button>`
   ).join('');
   el.querySelectorAll('.cat-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{ state.activeCat = btn.dataset.cat; renderCatRail(); renderProductGrid(); });
@@ -383,19 +585,24 @@ function renderProductGrid(){
   if(state.activeCat === 'popular') items = [...items].sort((a,b)=> b.pop - a.pop).slice(0,8);
   else if(state.activeCat !== 'all') items = items.filter(p=>p.cat===state.activeCat);
   if(state.showFavOnly) items = items.filter(p=>p.fav);
-  if(state.searchQuery.trim()) items = items.filter(p=>p.name.includes(state.searchQuery.trim()));
+  if(state.searchQuery.trim()){
+    const q = state.searchQuery.trim().toLowerCase();
+    items = items.filter(p=> p.name.toLowerCase().includes(q) || (p.nameEn && p.nameEn.toLowerCase().includes(q)));
+  }
 
-  if(items.length === 0){ el.innerHTML = '<div class="grid-empty">ما فيه نتائج مطابقة</div>'; return; }
+  if(items.length === 0){ el.innerHTML = `<div class="grid-empty">${t('ما فيه نتائج مطابقة')}</div>`; return; }
 
   el.innerHTML = items.map(p=>{
     const hasMods = !!MODIFIER_PRODUCTS[p.id];
     const cat = CATEGORIES.find(c=>c.id===p.cat);
+    const displayName = LANG === 'en' ? (p.nameEn || p.name) : p.name;
+    const catName = cat ? (LANG === 'en' ? (cat.nameEn || t(cat.name)) : cat.name) : '';
     return `<button class="product-card" data-id="${p.id}">
-      <span class="fav-star ${p.fav?'on':''}" data-fav="${p.id}">★</span>
-      ${hasMods ? '<span class="customize-dot" title="اضغط مطولًا للتخصيص"></span>' : ''}
-      <div class="product-icon">${p.image ? `<img src="${p.image}" alt="">` : ICONS[p.icon]}<span class="product-price mono">${productBasePrice(p.id).toFixed(2)}</span></div>
-      <div class="product-name">${p.name}</div>
-      ${p.isService ? `<div class="product-cat">${p.durationMinutes} د${cat ? ' · ' + cat.name : ''}</div>` : (cat ? `<div class="product-cat">${cat.name}</div>` : '')}
+      <span class="fav-star ${p.fav?'on':''}" data-fav="${p.id}" aria-label="${t('المفضّلة')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>
+      ${hasMods ? `<span class="customize-dot" title="${t('فيه خيارات — اضغط مطولًا للتخصيص')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>` : ''}
+      <div class="product-icon">${(p.image && !POS_HIDE_PRODUCT_IMAGES) ? `<img src="${p.imageThumb || p.image}" alt="" decoding="async">` : ICONS[p.icon]}<span class="product-price">${rkMoney(productBasePrice(p.id))}</span></div>
+      <div class="product-name">${displayName}</div>
+      ${p.isService ? `<div class="product-cat">${p.durationMinutes} د${catName ? ' · ' + catName : ''}</div>` : (catName ? `<div class="product-cat">${catName}</div>` : '')}
     </button>`;
   }).join('');
 
@@ -654,7 +861,7 @@ function renderGroupModifiers(){
   const unitPrice = computeConfigPrice(product, config);
   html += `<div class="modifier-footer">
     <div class="modifier-qty"><button class="mqty-btn" data-qdelta="-1">−</button><span class="mono" id="modifierQtyVal">${qty}</span><button class="mqty-btn" data-qdelta="1">+</button></div>
-    <button class="modifier-add-btn" id="modifierAddBtn">أضف — <span class="mono">${(unitPrice*qty).toFixed(2)}</span> ر.س</button>
+    <button class="modifier-add-btn" id="modifierAddBtn">${t('أضف')} — ${rkMoney(unitPrice*qty)}</button>
   </div>`;
   document.getElementById('modifierBody').innerHTML = html;
   wireGroupModifierEvents();
@@ -722,7 +929,7 @@ function renderBoxBuilder(){
   html += `</div>`;
   const canAdd = total === modDef.slots;
   html += canAdd
-    ? `<button class="modifier-add-btn" id="modifierAddBtn">أضف — <span class="mono">${productBasePrice(product.id).toFixed(2)}</span> ر.س</button>`
+    ? `<button class="modifier-add-btn" id="modifierAddBtn">${t('أضف')} — ${rkMoney(productBasePrice(product.id))}</button>`
     : `<button class="modifier-add-btn" id="modifierAddBtn" disabled>اكمل باقي الاختيارات (${modDef.slots-total} متبقي)</button>`;
   document.getElementById('modifierBody').innerHTML = html;
 
@@ -847,13 +1054,13 @@ function renderOrder(){
   if(state.cart.length === 0){
     const lastTxHtml = state.lastTransaction
       ? `<div class="last-tx-card">
-          <div class="last-tx-info"><span>آخر عملية</span><span class="mono">${state.lastTransaction.total.toFixed(2)} ر.س — ${state.lastTransaction.time}</span></div>
-          <button class="last-tx-reprint" id="lastTxReprint">إعادة طباعة</button>
+          <div class="last-tx-info"><span>${t('آخر عملية')}</span><span>${rkMoney(state.lastTransaction.total)} — ${state.lastTransaction.time}</span></div>
+          <button class="last-tx-reprint" id="lastTxReprint">${t('إعادة طباعة')}</button>
         </div>`
       : '';
     itemsEl.innerHTML = `<div class="order-empty">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-      <p>اضغط منتج عشان يضاف</p>${lastTxHtml}</div>`;
+      <p>${t('اضغط منتج عشان يضاف')}</p>${lastTxHtml}</div>`;
     const reprintBtn = document.getElementById('lastTxReprint');
     if(reprintBtn) reprintBtn.addEventListener('click', ()=> showToast('تمت إعادة الطباعة'));
   } else {
@@ -872,16 +1079,16 @@ function renderOrder(){
             <button class="qty-btn" data-action="inc" data-line="${i.lineId}">+</button>
           </div>
           <div class="oi-info">
-            <div class="oi-name">${escapeHtml(p.name)}${i.isPointsRedemption?' 🎁':''}</div>
-            ${i.qty > 1 && !i.isPointsRedemption ? `<div class="oi-unit mono">${unitPrice.toFixed(2)} ر.س / حبة</div>` : ''}
+            <div class="oi-name">${escapeHtml(LANG === 'en' ? (p.nameEn || p.name) : p.name)}${i.isPointsRedemption?' 🎁':''}</div>
+            ${i.qty > 1 && !i.isPointsRedemption ? `<div class="oi-unit">${rkMoney(unitPrice)} / ${t('حبة')}</div>` : ''}
           </div>
-          <div class="oi-total mono">${i.isPointsRedemption ? 'نقاط' : (unitPrice*i.qty).toFixed(2)}</div>
+          <div class="oi-total">${i.isPointsRedemption ? t('نقاط') : rkMoney(unitPrice*i.qty)}</div>
           <button class="oi-remove" data-action="remove" data-line="${i.lineId}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
         ${configHtml}
         ${i.note
           ? `<div class="oi-note-text">📝 ${escapeHtml(i.note)}</div>`
-          : `<button class="oi-note-link" data-action="note-open" data-line="${i.lineId}">+ ملاحظة</button>`}
+          : `<button class="oi-note-link" data-action="note-open" data-line="${i.lineId}">${t('+ ملاحظة')}</button>`}
         <input type="text" class="oi-note-input" data-line="${i.lineId}" placeholder="بدون بصل، إضافي صوص..." value="${escapeHtml(i.note||'')}">
       </div>`;
     }).join('');
@@ -910,15 +1117,15 @@ function renderOrder(){
   }
 
   const {subtotal, discount, vat, total} = cartTotals();
-  let summaryHtml = `<div class="sum-row"><span>عدد الأصناف</span><span class="mono">${state.cart.reduce((s,i)=>s+i.qty,0)}</span></div>
-    <div class="sum-row"><span>المجموع الفرعي</span><span class="mono">${subtotal.toFixed(2)}</span></div>`;
-  if(discount > 0) summaryHtml += `<div class="sum-row discount"><span>خصم (${state.discountPct}٪)</span><span class="mono">−${discount.toFixed(2)}</span></div>`;
-  summaryHtml += `<div class="sum-row"><span>ضريبة القيمة المضافة${PRICES_INCLUDE_VAT ? ' (شاملة ضمن الإجمالي)' : ''}</span><span class="mono">${vat.toFixed(2)}</span></div>
-    <div class="sum-row total"><span>الإجمالي</span><span class="mono">${total.toFixed(2)} ر.س</span></div>`;
+  let summaryHtml = `<div class="sum-row"><span>${t('عدد الأصناف')}</span><span class="mono">${state.cart.reduce((s,i)=>s+i.qty,0)}</span></div>
+    <div class="sum-row"><span>${t('المجموع الفرعي')}</span>${rkMoney(subtotal)}</div>`;
+  if(discount > 0) summaryHtml += `<div class="sum-row discount"><span>${LANG==='en' ? `Discount (${state.discountPct}%)` : `خصم (${state.discountPct}٪)`}</span>${rkMoney(-discount)}</div>`;
+  summaryHtml += `<div class="sum-row"><span>${t('ضريبة القيمة المضافة')}${PRICES_INCLUDE_VAT ? ' ' + t('(شاملة ضمن الإجمالي)') : ''}</span>${rkMoney(vat)}</div>
+    <div class="sum-row total"><span>${t('الإجمالي')}</span>${rkMoney(total)}</div>`;
   document.getElementById('orderSummary').innerHTML = summaryHtml;
-  document.getElementById('payBtnAmount').textContent = total.toFixed(2);
+  document.getElementById('payBtnAmount').innerHTML = rkMoney(total);
   const registerMode = state.selectedTableId && state.orderChannel === 'dine_in' && DINE_IN_PAY_TIMING === 'after';
-  document.getElementById('payBtnLabel').textContent = registerMode ? (state.selectedOrderId ? 'إضافة للطلب' : 'تسجيل الطلب') : 'ادفع';
+  document.getElementById('payBtnLabel').textContent = registerMode ? (state.selectedOrderId ? t('إضافة للطلب') : t('تسجيل الطلب')) : t('ادفع');
   payBtn.disabled = state.cart.length === 0;
 }
 
@@ -934,7 +1141,9 @@ document.getElementById('discountPanel').addEventListener('click', (e)=>{
   if(state.discountPct > 0) btn.classList.add('active');
   renderOrder();
   document.getElementById('discountPanel').classList.remove('open');
-  document.getElementById('discountToggle').textContent = state.discountPct > 0 ? `خصم ${state.discountPct}٪ مفعّل` : '+ خصم';
+  document.getElementById('discountToggle').textContent = state.discountPct > 0
+    ? (LANG === 'en' ? `Discount ${state.discountPct}% active` : `خصم ${state.discountPct}٪ مفعّل`)
+    : (LANG === 'en' ? '+ Discount' : '+ خصم');
 });
 
 /* ============ Customer — step 2 of the payment popup (between channel and
@@ -964,16 +1173,23 @@ function renderNewCustomerStep(prefill){
     </div>
     <div class="pos-auth-field">
       <label>رقم الجوال</label>
-      <input type="text" id="newCustPhoneInput" placeholder="05xxxxxxxx" inputmode="tel" value="${prefill.phone || ''}">
+      <input type="tel" id="newCustPhoneInput" placeholder="05xxxxxxxx" inputmode="tel" maxlength="10" value="${prefill.phone || ''}">
     </div>
     <button class="confirm-pay-btn" id="newCustSaveBtn" disabled>متابعة</button>
   `;
   const nameInput = document.getElementById('newCustNameInput');
   const phoneInput = document.getElementById('newCustPhoneInput');
   const saveBtn = document.getElementById('newCustSaveBtn');
-  const validate = ()=>{ saveBtn.disabled = !(nameInput.value.trim() && phoneInput.value.trim()); };
+  // Real reported bug: this field had no length cap or format check at all
+  // (only "non-empty") — a customer got saved with an 11-digit number.
+  // Same maxlength+strip+regex pattern already used by the online-order
+  // checkout's #omPhone field, applied here too.
+  const validate = ()=>{ saveBtn.disabled = !(nameInput.value.trim() && /^05\d{8}$/.test(phoneInput.value.trim())); };
   nameInput.addEventListener('input', validate);
-  phoneInput.addEventListener('input', validate);
+  phoneInput.addEventListener('input', ()=>{
+    phoneInput.value = toWesternDigits(phoneInput.value).replace(/\D/g, '').slice(0, 10);
+    validate();
+  });
   validate();
   (prefill.phone ? nameInput : phoneInput).focus();
   saveBtn.addEventListener('click', ()=>{
@@ -1204,13 +1420,13 @@ document.getElementById('clearOrderBtn').addEventListener('click', function(){
   if(!clearArmed){
     clearArmed = true;
     this.classList.add('armed');
-    this.textContent = 'اضغط مرة ثانية للتأكيد';
-    clearArmTimer = setTimeout(()=>{ clearArmed=false; this.classList.remove('armed'); this.textContent='إفراغ الطلب'; }, 3000);
+    this.textContent = t('اضغط مرة ثانية للتأكيد');
+    clearArmTimer = setTimeout(()=>{ clearArmed=false; this.classList.remove('armed'); this.textContent=t('إفراغ الطلب'); }, 3000);
   } else {
     clearTimeout(clearArmTimer);
     clearArmed = false;
     this.classList.remove('armed');
-    this.textContent = 'إفراغ الطلب';
+    this.textContent = t('إفراغ الطلب');
     state.cart = []; state.discountPct = 0;
     renderOrder();
     showToast('تم إفراغ الطلب');
@@ -1246,6 +1462,7 @@ function openModalStep(fn){ modalStepStack.push(fn); fn(); }
 function closePaymentModalNow(){
   paymentModal.classList.remove('show');
   modalStepStack = [];
+  diagnosticsModalOpen = false;
   if(activeAutoResetTimer) clearInterval(activeAutoResetTimer);
   if(loyaltyPollTimer) clearInterval(loyaltyPollTimer);
   // Re-drive any incoming online order(s) that arrived while this modal had
@@ -1280,23 +1497,26 @@ async function submitTableOrderRegistration(){
   payBtn.disabled = true;
   const table = TABLES_CACHE.find(t => t.id === state.selectedTableId);
   const isAppend = !!state.selectedOrderId;
-  try {
-    const orderId = await registerTableOrder();
-    if(DEVICE.printKitchenTicket === true){
-      sendKitchenTicketToPrinter(buildKitchenReceiptData({channel:'dine_in', orderId, tableNumber: table ? table.number : null}));
-    }
-    showToast((isAppend ? 'تمت إضافة الأصناف للطلب' : 'تم تسجيل الطلب') + (table ? ' — طاولة ' + table.number : ''));
-    state.cart = []; state.customer = null; state.discountPct = 0;
-    document.getElementById('discountToggle').textContent = '+ خصم';
-    state.selectedTableId = null;
-    state.selectedOrderId = null;
-    updatePointsRedeemStrip();
-    renderOrder();
-    document.querySelector('.nav-tab[data-screen="tables"]').click();
-  } catch(err){
-    showToast('تعذر تسجيل الطلب — تحقق من الاتصال');
-    payBtn.disabled = false;
+  // registerTableOrder() always queues first and never throws — a null
+  // orderId here means it's safely in IndexedDB and will sync on its own
+  // (see syncQueue), not that anything failed. Proceed the same way the
+  // cashier already expects from a normal sale offline: the round is saved,
+  // don't block them waiting on network. The table's status flip to
+  // "serving" happens server-side inside the RPC, so it'll lag until sync
+  // completes for a queued round — the cart/UI reset below doesn't wait on it.
+  const orderId = await registerTableOrder();
+  if(DEVICE.printKitchenTicket === true){
+    enqueuePrintJob('kitchen', buildKitchenReceiptData({channel:'dine_in', orderId, tableNumber: table ? table.number : null}));
   }
+  const savedLabel = isAppend ? 'تمت إضافة الأصناف للطلب' : 'تم تسجيل الطلب';
+  showToast(savedLabel + (table ? ' — طاولة ' + table.number : '') + (orderId ? '' : ' (بدون اتصال — راح تتزامن تلقائيًا)'));
+  state.cart = []; state.customer = null; state.discountPct = 0;
+  document.getElementById('discountToggle').textContent = '+ خصم';
+  state.selectedTableId = null;
+  state.selectedOrderId = null;
+  updatePointsRedeemStrip();
+  renderOrder();
+  document.querySelector('.nav-tab[data-screen="tables"]').click();
 }
 document.getElementById('closePaymentModal').addEventListener('click', closePaymentModalNow);
 paymentModal.addEventListener('click', (e)=>{ if(e.target===paymentModal) closePaymentModalNow(); });
@@ -1395,7 +1615,7 @@ function renderPaymentStep(){
   // own app — no cash/card tabs, just a confirmation before we log the order
   if(state.orderChannel === 'delivery'){
     const last4Valid = /^\d{4}$/.test(state.platformInvoiceLast4);
-    let html = `<div class="due-display"><div class="due-label">إجمالي الطلب — مدفوع مسبقًا عبر التطبيق</div><div class="due-amount mono">${total.toFixed(2)}</div></div>`;
+    let html = `<div class="due-display"><div class="due-label">إجمالي الطلب — مدفوع مسبقًا عبر التطبيق</div><div class="due-amount">${rkMoney(total)}</div></div>`;
     html += `<div class="pos-auth-field" style="margin-bottom:14px;">
       <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px;">آخر ٤ أرقام من فاتورة تطبيق التوصيل</label>
       <input type="text" id="deliveryInvoiceLast4Input" maxlength="4" inputmode="numeric" placeholder="٠٠٠٠" value="${state.platformInvoiceLast4}" style="width:100%; text-align:center; font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:16px;">
@@ -1423,7 +1643,7 @@ function renderPaymentStep(){
     methods.push({id:'loyalty', label:'الولاء', icon:'🎁'});
   }
   let html = `<div class="pm-tabs">` + methods.map(m=>`<button class="pm-tab ${state.activePaymentMethod===m.id?'active':''}" data-method="${m.id}">${m.icon}<span>${m.label}</span></button>`).join('') + `</div>`;
-  html += `<div class="due-display"><div class="due-label">المبلغ المطلوب</div><div class="due-amount mono">${total.toFixed(2)}</div></div>`;
+  html += `<div class="due-display"><div class="due-label">المبلغ المطلوب</div><div class="due-amount">${rkMoney(total)}</div></div>`;
   // Purely informational per-person calculator — doesn't touch payment_method
   // or any order data, just tells the cashier how much to collect from each
   // friend. Collapsed by default so it never gets in the way of a normal
@@ -1435,7 +1655,7 @@ function renderPaymentStep(){
         <div class="friends-split-counts">
           ${[2,3,4,5,6].map(n=>`<button type="button" class="fsc-btn ${state.friendsSplitCount===n?'active':''}" data-n="${n}">${n}</button>`).join('')}
         </div>
-        ${state.friendsSplitCount ? `<div class="friends-split-result"><span>كل واحد يدفع</span><span class="mono">${(total/state.friendsSplitCount).toFixed(2)} ر.س</span></div>` : ''}
+        ${state.friendsSplitCount ? `<div class="friends-split-result"><span>كل واحد يدفع</span>${rkMoney(total/state.friendsSplitCount)}</div>` : ''}
       </div>` : ''}
     </div>`;
   }
@@ -1445,7 +1665,7 @@ function renderPaymentStep(){
     html += `<div class="quick-amounts">` + opts.map(v=>`<button class="qa-btn" data-amount="${v}">${v}</button>`).join('') + `</div>`;
     html += `<div class="cash-input-row"><input type="number" id="cashInput" placeholder="0.00" value="${state.cashAmount||''}"></div>`;
     const change = Math.max(0, (state.cashAmount||0)-total);
-    html += `<div class="change-row"><span>الباقي</span><span class="mono" id="cashChangeAmount">${change.toFixed(2)} ر.س</span></div>`;
+    html += `<div class="change-row"><span>الباقي</span><span id="cashChangeAmount">${rkMoney(change)}</span></div>`;
     html += `<button class="confirm-pay-btn" id="confirmPayBtn" ${(state.cashAmount||0)>=total?'':'disabled'}>تأكيد الدفع</button>`;
   } else if(state.activePaymentMethod === 'split'){
     // Two linked inputs, either direction — the cashier types whichever
@@ -1487,7 +1707,7 @@ function renderPaymentStep(){
   if(cashInput) cashInput.addEventListener('input', (e)=>{
     state.cashAmount = parseFloat(e.target.value)||0;
     const changeEl = document.getElementById('cashChangeAmount');
-    if(changeEl) changeEl.textContent = Math.max(0, state.cashAmount - total).toFixed(2) + ' ر.س';
+    if(changeEl) changeEl.innerHTML = rkMoney(Math.max(0, state.cashAmount - total));
     const btn = document.getElementById('confirmPayBtn');
     if(btn) btn.disabled = !(state.cashAmount >= total);
   });
@@ -1609,14 +1829,42 @@ async function renderLoyaltyWaitStep(){
    an order that already made it to the server (e.g. the sync response was
    lost but the insert succeeded) is a safe no-op — complete_pos_order()
    just returns the existing order id instead of inserting a duplicate. */
-const POS_DB_NAME = 'rakeen_pos', POS_DB_VERSION = 1, POS_STORE = 'pending_orders';
+// KV_STORE backs the offline-boot snapshot layer (cashier profile, last
+// known open shift, and loadPosData's full menu/settings payload — see
+// their respective cache*/restore* functions below): a cold boot with no
+// network can't run a single Supabase query, not even to check who's
+// logged in or whether a shift is open, so each of those steps needs its
+// own "last known good" fallback instead of just the product catalog.
+const POS_DB_NAME = 'rakeen_pos', POS_DB_VERSION = 3, POS_STORE = 'pending_orders', KV_STORE = 'kv_cache';
 function openPosDb(){
   return new Promise((resolve, reject)=>{
     const req = indexedDB.open(POS_DB_NAME, POS_DB_VERSION);
     req.onupgradeneeded = ()=>{
       if(!req.result.objectStoreNames.contains(POS_STORE)) req.result.createObjectStore(POS_STORE, {keyPath:'client_order_uuid'});
+      if(!req.result.objectStoreNames.contains(KV_STORE)) req.result.createObjectStore(KV_STORE, {keyPath:'key'});
+      if(!req.result.objectStoreNames.contains('print_jobs')) req.result.createObjectStore('print_jobs', {keyPath:'id'});
     };
     req.onsuccess = ()=> resolve(req.result);
+    req.onerror = ()=> reject(req.error);
+  });
+}
+async function setCacheValue(key, value){
+  const db = await openPosDb();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(KV_STORE, 'readwrite');
+    tx.objectStore(KV_STORE).put({ key, value, cached_at: Date.now() });
+    tx.oncomplete = resolve; tx.onerror = ()=> reject(tx.error);
+  });
+}
+// Returns {value, cached_at} or null — callers that show the cashier how
+// stale a fallback is (see the offline-boot banner) need cached_at, not
+// just the bare value.
+async function getCacheValue(key){
+  const db = await openPosDb();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(KV_STORE, 'readonly');
+    const req = tx.objectStore(KV_STORE).get(key);
+    req.onsuccess = ()=> resolve(req.result || null);
     req.onerror = ()=> reject(req.error);
   });
 }
@@ -1660,24 +1908,124 @@ async function sendOrderToServer(payload){
   if(error) throw error;
   return data;
 }
+
+/* ============ Dine-in offline queue dispatch ============
+   register_dine_in_order/pay_dine_in_order used to be online-only (see the
+   old comments on submitTableOrderRegistration/submitOrder's dine-in
+   branches) specifically because register_dine_in_order's "append a round"
+   path had no idempotency protection — a retried append would double the
+   subtotal and order_items. supabase/migrations/20260831170000 closed that
+   gap (dine_in_round_log, keyed by the same client_order_uuid already
+   generated per attempt), so these can now go through the exact same
+   queue/retry contract as a normal sale. */
+async function sendDineInRegisterToServer(payload){
+  const { data, error } = await window.supabaseClient.rpc('register_dine_in_order', {
+    p_client_order_uuid: payload.client_order_uuid, p_branch_id: payload.branch_id, p_shift_id: payload.shift_id,
+    p_customer_name: payload.customer_name, p_customer_phone: payload.customer_phone,
+    p_subtotal: payload.subtotal, p_discount_pct: payload.discount_pct, p_items: payload.items,
+    p_table_id: payload.table_id, p_staff_member_id: payload.staff_member_id,
+    p_existing_order_id: payload.existing_order_id, p_customer_id: payload.customer_id
+  });
+  if(error) throw error;
+  return data;
+}
+// pay_dine_in_order has no idempotency key of its own — it doesn't need one.
+// Its own WHERE clause (payment_status = 'unpaid') already makes a second
+// call against an order this exact call already paid a clean no-op at the
+// DB level; it just surfaces as the "already paid" exception instead of
+// silently succeeding twice. A queued retry treats that specific message as
+// success (already applied) rather than a real failure — anything else
+// (a genuinely different error) still fails normally and stays queued.
+async function sendDineInPayToServer(payload){
+  const { error } = await window.supabaseClient.rpc('pay_dine_in_order', {
+    p_order_id: payload.order_id, p_payment_method: payload.payment_method, p_cash_amount: payload.cash_amount,
+    p_customer_name: payload.customer_name, p_customer_phone: payload.customer_phone, p_customer_id: payload.customer_id
+  });
+  if(error && !/already paid/i.test(error.message || '')) throw error;
+  return payload.order_id;
+}
+async function sendDineInRegisterAndPayToServer(payload){
+  const orderId = await sendDineInRegisterToServer(payload);
+  await sendDineInPayToServer({ ...payload, order_id: orderId });
+  return orderId;
+}
+function dispatchQueuedPayload(payload){
+  switch(payload.type){
+    case 'dine_in_register': return sendDineInRegisterToServer(payload);
+    case 'dine_in_pay': return sendDineInPayToServer(payload);
+    case 'dine_in_register_and_pay': return sendDineInRegisterAndPayToServer(payload);
+    default: return sendOrderToServer(payload); // 'simple' (or unset, for anything already queued before this field existed)
+  }
+}
+
 let syncing = false;
+// A permanently-invalid queued item (references a since-deleted table, a
+// loyalty redemption that no longer affordable, etc.) used to `break` the
+// whole pass on its first failure — every OTHER, perfectly sendable order
+// queued behind it silently never got its turn again until that one finally
+// cleared. Retrying every item every pass, with its own backoff so a stuck
+// one doesn't get hammered every 30s forever, fixes both at once.
+const SYNC_MAX_BACKOFF_MS = 5 * 60 * 1000;
+// Orders are financial data — "give up and delete" is never acceptable
+// (see the print queue's PRINT_MAX_RETRIES for the contrast: printing is
+// allowed to have a permanent, dismissable "failed" state; an order is not).
+// Past this many attempts, stop the automatic 30s hammering (next_retry_at
+// pinned to Infinity — the skip-check below always leaves it alone), flag
+// it loudly ONCE, and require a human to explicitly retry it from
+// Diagnostics — but the order itself stays in the queue forever until it
+// actually succeeds or a human resolves the underlying problem.
+const SYNC_MAX_AUTO_RETRIES = 10;
 async function syncQueue(){
   if(!navigator.onLine || syncing) return;
   syncing = true;
+  let anySucceeded = false, anyFailed = false, lastFailure = null;
   try {
     const queued = await getQueuedOrders();
+    const now = Date.now();
     for(const payload of queued){
+      if(payload.next_retry_at && payload.next_retry_at > now) continue; // still backing off (or permanently stuck, Infinity > now always) — leave it for a later pass / a manual retry
       try {
-        const orderId = await sendOrderToServer(payload);
+        const orderId = await dispatchQueuedPayload(payload);
         await removeQueuedOrder(payload.client_order_uuid);
         if(payload.channel === 'delivery' && orderId) registerActiveDeliveryOrder(orderId, payload);
+        anySucceeded = true;
       } catch (e) {
-        break; // stop on first failure this pass (likely still offline/RLS issue) — retry next pass instead of hammering
+        anyFailed = true; lastFailure = e;
+        const retryCount = (payload.retry_count || 0) + 1;
+        const nowStuck = retryCount >= SYNC_MAX_AUTO_RETRIES;
+        const backoff = Math.min(1000 * Math.pow(2, retryCount), SYNC_MAX_BACKOFF_MS);
+        try {
+          await queueOrder({
+            ...payload, retry_count: retryCount, last_error: (e && e.message) || String(e),
+            next_retry_at: nowStuck ? Infinity : Date.now() + backoff, stuck: nowStuck
+          });
+        } catch (e2) { /* IndexedDB write failed — this item just gets retried sooner than its backoff intended, harmless */ }
+        // Fire only on the exact transition into "stuck" — not every pass
+        // afterward, which would spam the same toast every 30s forever.
+        if(nowStuck && !payload.stuck) showToast('⚠ تعذّرت مزامنة طلب بعد عدة محاولات — راجع "تشخيص النظام"');
       }
     }
   } catch (e) { /* IndexedDB unavailable — nothing to sync */ }
+  if(anySucceeded) LAST_SUCCESSFUL_SYNC_AT = Date.now();
+  // Deliberately NOT pinging the server here when the queue is empty (tried,
+  // then reverted — see the "تحديث واختبار الاتصال" button below instead).
+  // An empty queue means nothing is actually waiting on cloud connectivity
+  // right now, so there's no real risk to a cashier's workflow to detect —
+  // only a rarely-opened diagnostics screen that would rather show green.
+  // This function runs every 30s on every open POS terminal all day; paying
+  // a real request each time just for that, on every idle device, isn't
+  // worth it. The manual button covers the actual "I want to check right
+  // now" moment for free.
+  // A pass with at least one real success proves the cloud is reachable
+  // even if another item in the same pass failed for its own reason (a
+  // stale price, a validation error) — only report "cloud down" when
+  // NOTHING got through, the actual signal Diagnostics cares about.
+  if(anySucceeded) reportCloudResult(true);
+  else if(anyFailed) reportCloudResult(false, lastFailure);
   syncing = false;
+  refreshDiagnosticsIfOpen();
 }
+let LAST_SUCCESSFUL_SYNC_AT = null;
 window.addEventListener('online', syncQueue);
 setInterval(syncQueue, 30000);
 
@@ -1775,7 +2123,7 @@ function buildOrderPayload(totals){
 // أصناف" round) — appends to it instead. Used by both the pay-after
 // register-only CTA and the pay-before register-then-pay flow below, so a
 // table's order math is computed in exactly one place regardless of timing.
-async function registerTableOrder(){
+function buildDineInRegisterPayload(){
   const items = state.cart.map(item=>({
     // Roadmap item 4: per-line, not per-cart — a mixed cart (service +
     // retail product) is now possible, so this can't just check the whole
@@ -1797,32 +2145,49 @@ async function registerTableOrder(){
     points_cost: item.isPointsRedemption ? (MENU_ITEM_META[item.productId].pointsRedeemPrice || 0) : 0
   }));
   const {subtotal} = cartTotals();
-  const clientOrderUuid = (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random().toString(36).slice(2)));
-  const { data: orderId, error } = await window.supabaseClient.rpc('register_dine_in_order', {
-    p_client_order_uuid: clientOrderUuid,
-    p_branch_id: DEVICE.branchId,
-    p_shift_id: CURRENT_SHIFT ? CURRENT_SHIFT.id : null,
-    p_customer_name: state.customer ? state.customer.name : null,
-    p_customer_phone: state.customer ? state.customer.phone : null,
-    p_customer_id: state.customer ? (state.customer.id || null) : null,
-    p_subtotal: subtotal,
-    p_discount_pct: state.discountPct,
-    p_items: items,
-    p_table_id: state.selectedTableId,
-    p_staff_member_id: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.id : null,
-    p_existing_order_id: state.selectedOrderId || null
-  });
-  if(error) throw error;
-  return orderId;
+  return {
+    type: 'dine_in_register',
+    client_order_uuid: (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random().toString(36).slice(2))),
+    branch_id: DEVICE.branchId,
+    shift_id: CURRENT_SHIFT ? CURRENT_SHIFT.id : null,
+    customer_name: state.customer ? state.customer.name : null,
+    customer_phone: state.customer ? state.customer.phone : null,
+    customer_id: state.customer ? (state.customer.id || null) : null,
+    subtotal, discount_pct: state.discountPct, items,
+    table_id: state.selectedTableId,
+    staff_member_id: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.id : null,
+    existing_order_id: state.selectedOrderId || null
+  };
+}
+// Queue-first, same contract as a normal sale (buildOrderPayload/
+// sendOrderToServer below): the round is safely in IndexedDB, keyed by its
+// own client_order_uuid, before any network attempt — a network drop here
+// no longer loses the round or blocks the cashier, it just syncs on its own
+// once connectivity (or migrations/20260831170000's append idempotency)
+// lets syncQueue() get it through. Returns the real order id when the
+// immediate send succeeds, or null when it's still queued (caller treats
+// that as "saved, will sync" rather than a failure — see
+// submitTableOrderRegistration/submitOrder's Flow A).
+async function registerTableOrder(){
+  const payload = buildDineInRegisterPayload();
+  try { await queueOrder(payload); } catch (e) { /* IndexedDB unavailable — still attempt a direct send below */ }
+  if(!navigator.onLine) return null;
+  try {
+    const orderId = await sendDineInRegisterToServer(payload);
+    await removeQueuedOrder(payload.client_order_uuid);
+    return orderId;
+  } catch (e) {
+    return null; // stays queued — syncQueue() retries it
+  }
 }
 
 async function submitOrder(totals){
   if(state.resumingOrder){
     // Flow D: closing out an already-registered, already-kitchen-printed
     // tab — no items to send, just the payment method against the order's
-    // stored total. Deliberately not routed through the offline IndexedDB
-    // queue (see the note on the table-attached branch below) — both
-    // table-order paths are online-only for now.
+    // stored total. order_id is real already (this order was registered
+    // earlier, online), so this is a plain queued dine_in_pay op — same
+    // queue-first/sync-later contract as everything else now.
     const payload = {
       channel: 'dine_in', table_id: state.resumingOrder.table_id,
       payment_method: state.activePaymentMethod,
@@ -1834,15 +2199,19 @@ async function submitOrder(totals){
       customer_id: state.customer ? (state.customer.id || null) : null,
       orderId: null
     };
-    try {
-      const { error } = await window.supabaseClient.rpc('pay_dine_in_order', {
-        p_order_id: state.resumingOrder.id, p_payment_method: payload.payment_method, p_cash_amount: payload.cash_amount,
-        p_customer_name: payload.customer_name, p_customer_phone: payload.customer_phone, p_customer_id: payload.customer_id
-      });
-      if(error) throw error;
-      payload.orderId = state.resumingOrder.id;
-    } catch(e){
-      showToast('تعذر إتمام الدفع — تحقق من الاتصال');
+    const payQueueEntry = {
+      type: 'dine_in_pay',
+      client_order_uuid: (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random().toString(36).slice(2))),
+      order_id: state.resumingOrder.id, payment_method: payload.payment_method, cash_amount: payload.cash_amount,
+      customer_name: payload.customer_name, customer_phone: payload.customer_phone, customer_id: payload.customer_id
+    };
+    try { await queueOrder(payQueueEntry); } catch (e) { /* IndexedDB unavailable — still attempt a direct send below */ }
+    if(navigator.onLine){
+      try {
+        await sendDineInPayToServer(payQueueEntry);
+        await removeQueuedOrder(payQueueEntry.client_order_uuid);
+        payload.orderId = state.resumingOrder.id;
+      } catch(e){ /* stays queued — syncQueue() retries it */ }
     }
     return payload;
   }
@@ -1854,22 +2223,20 @@ async function submitOrder(totals){
     // gets it, stock decrements) and immediately pay it in the same tap, so
     // the table's status ladder (serving -> awaiting_payment -> cleaning)
     // stays accurate even though the business collects payment right away.
-    // Deliberately NOT queued through the offline IndexedDB path like the
-    // block below — that queue's retry model is built around one
-    // self-contained payload per sale; safely extending it to a two-call
-    // register+pay sequence is separate work. A network drop here surfaces
-    // as a clear error to retry rather than a silent queue.
-    try {
-      const orderId = await registerTableOrder();
-      const { error } = await window.supabaseClient.rpc('pay_dine_in_order', {
-        p_order_id: orderId, p_payment_method: payload.payment_method, p_cash_amount: payload.cash_amount,
-        p_customer_name: payload.customer_name, p_customer_phone: payload.customer_phone, p_customer_id: payload.customer_id
-      });
-      if(error) throw error;
-      payload.orderId = orderId;
-    } catch(e){
-      payload.orderId = null;
-      showToast('تعذر إتمام الطلب — تحقق من الاتصال');
+    // One combined queue entry covers both calls: on retry, register
+    // re-derives the same order id via its own idempotency (unique
+    // client_order_uuid for a new order, dine_in_round_log for an append —
+    // see migrations/20260831170000) before pay is attempted again, so a
+    // network drop between the two calls can't double-register or
+    // double-charge either half.
+    const combinedPayload = { ...buildDineInRegisterPayload(), type: 'dine_in_register_and_pay', payment_method: payload.payment_method, cash_amount: payload.cash_amount };
+    try { await queueOrder(combinedPayload); } catch (e) { /* IndexedDB unavailable — still attempt a direct send below */ }
+    if(navigator.onLine){
+      try {
+        const orderId = await sendDineInRegisterAndPayToServer(combinedPayload);
+        await removeQueuedOrder(combinedPayload.client_order_uuid);
+        payload.orderId = orderId;
+      } catch(e){ /* stays queued — syncQueue() retries it */ }
     }
     return payload;
   }
@@ -2352,6 +2719,45 @@ function sendBytesToPrinter(bytes, ip, port){
   });
 }
 
+/* ============ Cash Drawer ============
+   Matches docs/ios-native-bridge-interfaces.md §2 (window.NativeCashDrawer)
+   exactly — nothing implements that interface anywhere yet, same as
+   window.AndroidPrint before a real printer bridge exists. This used to be
+   a bare `showToast('تم فتح الدرج')` with NO command sent anywhere, to any
+   device — claiming success for something that never happened. Per explicit
+   instruction not to fake an implementation, this now honestly reports
+   "not available yet" instead, exactly like a real, unconfigured printer
+   already does elsewhere in this file. */
+let drawerCallbackCounter = 0;
+const drawerCallbacks = {};
+window.__nativeCashDrawerCallback = function(id, result){
+  const cb = drawerCallbacks[id];
+  if(cb){ delete drawerCallbacks[id]; cb(result); }
+};
+function cashDrawerBridgeAvailable(){
+  return !!(window.NativeCashDrawer && typeof window.NativeCashDrawer.isAvailable === 'function' && window.NativeCashDrawer.isAvailable());
+}
+function kickCashDrawer(ip, port){
+  return new Promise((resolve)=>{
+    if(!cashDrawerBridgeAvailable()){ resolve({ok:false, error:'bridge_unavailable'}); return; }
+    const targetIp = ip || DEVICE.printerIp; // most real setups: drawer wired through the receipt printer's own RJ11 port
+    if(!targetIp){ resolve({ok:false, error:'no_printer_configured'}); return; }
+    const callbackId = 'd' + (++drawerCallbackCounter);
+    drawerCallbacks[callbackId] = resolve;
+    window.NativeCashDrawer.kick(targetIp, port || DEVICE.printerPort || 9100, callbackId);
+    setTimeout(()=>{
+      if(drawerCallbacks[callbackId]){ delete drawerCallbacks[callbackId]; resolve({ok:false, error:'timeout'}); }
+    }, 8000);
+  });
+}
+async function openCashDrawer(){
+  const result = await kickCashDrawer();
+  if(result.ok) showToast('تم فتح الدرج');
+  else if(result.error === 'bridge_unavailable') showToast('⚠ فتح الدرج غير متاح بعد — يحتاج تطبيق iOS أصلي');
+  else if(result.error === 'no_printer_configured') showToast('⚠ اضبط عنوان IP للطابعة أولًا من الإعدادات');
+  else showToast('⚠ تعذّر فتح الدرج — تحقق من الاتصال');
+}
+
 function sendKitchenTicketToPrinter(receipt){
   let bytes;
   try { bytes = buildKitchenTicketEscPosBytes(receipt); }
@@ -2373,6 +2779,200 @@ async function sendToPrinter(receipt){
   } catch (e) { return {ok:false, error:'render_failed'}; }
   return sendBytesToPrinter(bytes);
 }
+
+/* ============ Print Queue ============
+   Every print (customer receipt, kitchen ticket, reprint) goes through this
+   instead of calling sendToPrinter/sendKitchenTicketToPrinter directly. Each
+   job is a plain, IndexedDB-serializable record — receiptData/kitchen
+   receipt objects are already pure data (images are loaded fresh inside
+   sendToPrinter itself, never stored), so a job survives an app close/
+   device restart exactly like a queued order does (same rakeen_pos DB,
+   see the offline order queue above).
+
+   Job lifecycle: queued -> printing -> one of:
+     printed              — a real printer accepted the bytes
+     skipped_no_printer    — no printer bridge/IP configured on this device at
+                             all (today, ALWAYS this — no native printer
+                             bridge exists yet); nothing to retry against, so
+                             this is a terminal, non-error state, not a
+                             failure. Matches the pre-queue UX exactly (a
+                             cashier with no printer configured always saw
+                             "تمت الطباعة", never an error).
+     retrying              — a real printer was targeted but the attempt
+                             failed (timeout/busy/disconnected) — will retry
+                             with backoff, up to PRINT_MAX_RETRIES
+     failed                — retries exhausted; needs a manual retry tap
+   A failed/stuck job is processed independently of every other queued job —
+   processPrintQueue() always continues to the next job on any outcome,
+   never stops the pass early. */
+const PRINT_STORE = 'print_jobs';
+const PRINT_MAX_RETRIES = 5;
+const PRINT_MAX_BACKOFF_MS = 2 * 60 * 1000;
+const PRINT_DEDUPE_WINDOW_MS = 10000; // catches a double-tapped print button; a genuine reprint later still creates a new job
+
+function simpleHash(str){
+  let h = 0;
+  for(let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+  return h.toString(36);
+}
+async function putPrintJob(job){
+  const db = await openPosDb();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(PRINT_STORE, 'readwrite');
+    tx.objectStore(PRINT_STORE).put(job);
+    tx.oncomplete = ()=> resolve(job); tx.onerror = ()=> reject(tx.error);
+  });
+}
+async function getAllPrintJobs(){
+  const db = await openPosDb();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(PRINT_STORE, 'readonly');
+    const req = tx.objectStore(PRINT_STORE).getAll();
+    req.onsuccess = ()=> resolve(req.result || []);
+    req.onerror = ()=> reject(req.error);
+  });
+}
+
+const printJobListeners = {};
+function notifyPrintJobUpdate(job){
+  const fns = printJobListeners[job.id];
+  if(fns) fns.slice().forEach(fn=>fn(job));
+}
+// One-shot subscription — callers that only care about the next update
+// (the print-status row, awaitPrintJobFirstAttempt below) don't need to
+// manage their own unsubscribe.
+function onPrintJobUpdate(jobId, fn){
+  (printJobListeners[jobId] ||= []).push(fn);
+}
+
+const PRINT_TERMINAL_STATUSES = ['printed', 'skipped_no_printer', 'failed'];
+// Resolves once a job's FIRST attempt has an outcome (success, no-printer-
+// skip, or scheduled-for-retry/failed) — NOT once every retry is exhausted.
+// acceptIncomingOrder's "kitchen ticket dispatched before the receipt
+// starts" ordering rule only needs the first attempt to have happened; full
+// retry backoff can run up to 2 minutes per job, and blocking that flow
+// (the cashier is actively waiting on it) for anywhere near that long over
+// a printer that isn't even there yet would be worse than the ordering
+// guarantee is worth.
+function awaitPrintJobFirstAttempt(job){
+  if(job.status !== 'queued' && job.status !== 'printing') return Promise.resolve(job);
+  return new Promise(resolve=>{
+    onPrintJobUpdate(job.id, (j)=>{ if(j.status !== 'queued' && j.status !== 'printing') resolve(j); });
+  });
+}
+// Resolves once a job reaches a genuinely final state (including after
+// retries) — for one-off UI feedback (a toast) where showing the eventual
+// real outcome matters more than responding instantly, unlike the ordering
+// guarantee above.
+function awaitPrintJobSettled(job){
+  if(PRINT_TERMINAL_STATUSES.includes(job.status)) return Promise.resolve(job);
+  return new Promise(resolve=>{
+    onPrintJobUpdate(job.id, (j)=>{ if(PRINT_TERMINAL_STATUSES.includes(j.status)) resolve(j); });
+  });
+}
+
+// Keyed by content_key, holding the currently-active job (if any) for that
+// exact receipt content. Checked and set SYNCHRONOUSLY (no `await` before
+// either) so a print button double/triple-tapped in the same tick can't
+// race past an async IndexedDB read the way the original version did — that
+// version read getAllPrintJobs() before any of the near-simultaneous calls
+// had written their own job yet, so none of them saw the others, and 3
+// rapid taps produced 3 separate jobs (reproduced directly while testing:
+// content_key matched across all 3, created_at identical to the millisecond,
+// none deduped). Entries are removed the moment a job reaches a terminal
+// state (see processPrintQueue) so a genuine reprint afterward isn't blocked.
+const activePrintJobByContentKey = new Map();
+
+async function enqueuePrintJob(type, receipt){
+  const contentKey = type + ':' + simpleHash(JSON.stringify(receipt));
+  const now = Date.now();
+  const active = activePrintJobByContentKey.get(contentKey);
+  if(active && (now - active.created_at) < PRINT_DEDUPE_WINDOW_MS) return active;
+  const job = {
+    id: (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random().toString(36).slice(2))),
+    type, receipt, content_key: contentKey,
+    status: 'queued', retry_count: 0, next_retry_at: 0, last_error: null, created_at: now
+  };
+  activePrintJobByContentKey.set(contentKey, job); // synchronous — closes the race before any await below
+  try { await putPrintJob(job); } catch (e) { /* IndexedDB unavailable — job only lives in-memory for this attempt, matches pre-queue behavior */ }
+  processPrintQueue(); // fire-and-forget — caller awaits the job's own status via onPrintJobUpdate/awaitPrintJobFirstAttempt instead
+  return job;
+}
+
+function sendPrintJobPayload(job){
+  return job.type === 'kitchen' ? sendKitchenTicketToPrinter(job.receipt) : sendToPrinter(job.receipt);
+}
+
+// Only clears activePrintJobByContentKey's entry if it still points at THIS
+// job id — a newer job (a genuine reprint created after this one already
+// went terminal, reusing the same content_key) must not have its own,
+// still-active entry wiped out by a late-resolving older job.
+function clearActiveIfCurrent(job){
+  const cur = activePrintJobByContentKey.get(job.content_key);
+  if(cur && cur.id === job.id) activePrintJobByContentKey.delete(job.content_key);
+}
+
+let printQueueProcessing = false;
+async function processPrintQueue(){
+  if(printQueueProcessing) return;
+  printQueueProcessing = true;
+  try {
+    const jobs = await getAllPrintJobs();
+    const now = Date.now();
+    for(const job of jobs){
+      if(job.status !== 'queued' && job.status !== 'retrying') continue;
+      if(job.next_retry_at && job.next_retry_at > now) continue; // still backing off
+      job.status = 'printing';
+      try { await putPrintJob(job); } catch (e) {}
+      notifyPrintJobUpdate(job);
+      let result;
+      try { result = await sendPrintJobPayload(job); }
+      catch (e) { result = { ok: false, error: (e && e.message) || String(e) }; }
+      if(result.ok){
+        job.status = 'printed';
+      } else if(result.error === 'bridge_unavailable' || result.error === 'no_printer_configured'){
+        job.status = 'skipped_no_printer';
+      } else {
+        job.retry_count += 1;
+        job.last_error = result.error || 'unknown_error';
+        if(job.retry_count >= PRINT_MAX_RETRIES){
+          job.status = 'failed';
+        } else {
+          job.status = 'retrying';
+          job.next_retry_at = now + Math.min(2000 * Math.pow(2, job.retry_count), PRINT_MAX_BACKOFF_MS);
+        }
+      }
+      try { await putPrintJob(job); } catch (e) {}
+      if(PRINT_TERMINAL_STATUSES.includes(job.status)) clearActiveIfCurrent(job);
+      notifyPrintJobUpdate(job);
+      // Deliberately no `break`/`continue`-skipping logic beyond the status
+      // checks above — one job's failure never stops the loop from reaching
+      // the rest of the queue.
+    }
+  } catch (e) { /* IndexedDB unavailable — nothing to process */ }
+  printQueueProcessing = false;
+}
+window.addEventListener('online', processPrintQueue);
+setInterval(processPrintQueue, 20000);
+// Anything left mid-flight from before a crash/close is still 'printing' in
+// storage — nothing will ever flip it, so it'd sit there forever looking
+// active. Treat it as interrupted and let the normal retry/backoff path
+// pick it back up on this fresh boot instead. Deliberately does NOT call
+// processPrintQueue() itself here: this runs at script parse time, well
+// before loadDeviceConfig() populates DEVICE (that's near the bottom of
+// this file, in the Init section) — processing this early would read
+// DEVICE.printerIp as empty and wrongly mark a job "no printer configured"
+// even when one genuinely is, just because it hasn't loaded yet. The 20s
+// interval / next 'online' event / next real print all fire well after
+// DEVICE is ready and will pick these back up correctly.
+(async function resetInterruptedPrintJobsOnBoot(){
+  try {
+    const jobs = await getAllPrintJobs();
+    for(const job of jobs){
+      if(job.status === 'printing'){ job.status = 'queued'; await putPrintJob(job); }
+    }
+  } catch (e) { /* IndexedDB unavailable — nothing to recover */ }
+})();
 
 function buildLiveReceiptData(orderPayload, totals){
   // Closing out an already-registered tab (state.resumingOrder) has no cart
@@ -2554,23 +3154,39 @@ function sendShiftReportToPrinter(report){
   return sendBytesToPrinter(bytes);
 }
 
+function printJobStatusHtml(job){
+  if(job.status === 'printed' || job.status === 'skipped_no_printer') return '<span class="print-check">✓</span>تمت الطباعة';
+  if(job.status === 'retrying') return '<span class="print-spinner"></span>إعادة محاولة (' + job.retry_count + ')...';
+  if(job.status === 'failed') return '<span style="color:var(--danger)">⚠</span>تعذرت الطباعة — <a href="#" class="print-retry-link" data-job-id="' + job.id + '">إعادة المحاولة</a>';
+  return '<span class="print-spinner"></span>جاري الطباعة...';
+}
+// Delegated once (not per-row) — the receipt screen's whole innerHTML gets
+// replaced on every checkout, so a listener bound directly to a specific
+// row would be gone by the time a failed job's retry link is actually clicked.
+document.addEventListener('click', (e)=>{
+  const link = e.target.closest('.print-retry-link');
+  if(!link) return;
+  e.preventDefault();
+  retryPrintJob(link.dataset.jobId, link.closest('.print-status-label'));
+});
+async function retryPrintJob(jobId, labelEl){
+  const jobs = await getAllPrintJobs().catch(()=>[]);
+  const job = jobs.find(j => j.id === jobId);
+  if(!job) return;
+  job.status = 'queued'; job.retry_count = 0; job.next_retry_at = 0; job.last_error = null;
+  try { await putPrintJob(job); } catch (e) {}
+  if(labelEl) labelEl.innerHTML = printJobStatusHtml(job);
+  onPrintJobUpdate(job.id, (j)=>{ if(labelEl) labelEl.innerHTML = printJobStatusHtml(j); });
+  processPrintQueue();
+}
 async function attemptPrint(receiptData){
   const row = document.getElementById('printStatusRow');
-  if(row) row.querySelector('.print-status-label').innerHTML = '<span class="print-spinner"></span>جاري الطباعة...';
-  const result = await sendToPrinter(receiptData);
+  const job = await enqueuePrintJob('receipt', receiptData);
   if(!row) return;
-  if(result.ok){
-    row.querySelector('.print-status-label').innerHTML = '<span class="print-check">✓</span>تمت الطباعة';
-  } else if(result.error === 'bridge_unavailable' || result.error === 'no_printer_configured'){
-    // no real printer configured yet (plain browser, or app not set up with
-    // an IP) — keep the original simulated flow so testing looks the same
-    // as it always has, rather than surfacing a scary error for a non-issue
-    setTimeout(()=>{
-      if(row) row.querySelector('.print-status-label').innerHTML = '<span class="print-check">✓</span>تمت الطباعة';
-    }, 700);
-  } else {
-    row.querySelector('.print-status-label').innerHTML = '<span style="color:var(--danger)">⚠</span>تعذرت الطباعة — تحقق من الطابعة';
-  }
+  const label = row.querySelector('.print-status-label');
+  const render = (j)=>{ if(label) label.innerHTML = printJobStatusHtml(j); };
+  render(job);
+  onPrintJobUpdate(job.id, render);
 }
 
 // Checkout auto-print — respects the two independent POS-settings toggles
@@ -2588,7 +3204,7 @@ async function autoPrintOnCheckout(orderPayload, receiptData, wasResumingOrder){
   // — that flag is already cleared by the time this runs (see completePayment,
   // which resets cart/table state immediately on success, before this call).
   const printKitchen = DEVICE.printKitchenTicket === true && !wasResumingOrder; // default off
-  if(printKitchen) sendKitchenTicketToPrinter(buildKitchenReceiptData(orderPayload));
+  if(printKitchen) enqueuePrintJob('kitchen', buildKitchenReceiptData(orderPayload));
   if(printCustomer) attemptPrint(receiptData);
   else {
     const row = document.getElementById('printStatusRow');
@@ -2620,17 +3236,12 @@ async function completePayment(){
   const willShowLoyaltyQr = !!customerPhone;
   const orderPayload = await submitOrder(totals);
   completingPayment = false;
-  // Table-order paths (Flow A/D above) aren't queued offline like a normal
-  // sale — a null orderId there means the register/pay call genuinely
-  // failed, nothing was persisted. Showing the usual success receipt would
-  // tell the cashier money was collected when it wasn't; surface a plain
-  // retry state instead. (Non-table channels keep today's behavior: a null
-  // orderId there just means "still queued, will sync" and still shows
-  // success — that's the existing, correct offline-first contract.)
-  if(orderPayload.channel === 'dine_in' && orderPayload.table_id != null && !orderPayload.orderId){
-    if(confirmBtn) confirmBtn.disabled = false;
-    return;
-  }
+  // Table-order paths (Flow A/D) now go through the same IndexedDB queue as
+  // every other channel (see registerTableOrder/submitOrder and
+  // migrations/20260831170000's append idempotency, which is what made this
+  // safe) — a null orderId here just means "queued, will sync" exactly like
+  // a pickup/delivery sale offline, not a failure. Proceed to the normal
+  // success receipt in every case.
   if(navigator.onLine) runOwnerNotificationChecks(orderPayload);
   if(orderPayload.channel === 'delivery' && orderPayload.orderId) registerActiveDeliveryOrder(orderPayload.orderId, orderPayload);
   // Hotel checkout hook (roadmap item 7) — startHotelCheckout() loaded the
@@ -2661,9 +3272,9 @@ async function completePayment(){
   paymentModalBody.innerHTML = `<div class="receipt-success">
     <div class="success-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
     <h3>تمت العملية بنجاح</h3>
-    <div class="receipt-total mono">${total.toFixed(2)} ر.س</div>
-    <div class="receipt-detail-row"><span>المدفوع</span><span class="mono">${(state.activePaymentMethod==='cash' ? (state.cashAmount||0) : total).toFixed(2)} ر.س</span></div>
-    ${state.activePaymentMethod==='cash' ? `<div class="receipt-detail-row"><span>الباقي</span><span class="mono">${change.toFixed(2)} ر.س</span></div>` : ''}
+    <div class="receipt-total">${rkMoney(total)}</div>
+    <div class="receipt-detail-row"><span>المدفوع</span>${rkMoney(state.activePaymentMethod==='cash' ? (state.cashAmount||0) : total)}</div>
+    ${state.activePaymentMethod==='cash' ? `<div class="receipt-detail-row"><span>الباقي</span>${rkMoney(change)}</div>` : ''}
     <div class="receipt-detail-row print-status" id="printStatusRow"><span>الطابعة</span><span class="print-status-label"><span class="print-spinner"></span>جاري الطباعة...</span></div>
     <div id="loyaltyQrBox"></div>
     <div class="receipt-actions">
@@ -2764,6 +3375,11 @@ document.getElementById('ordersTabs').addEventListener('click', (e)=>{
   btn.classList.add('active');
   ordersActiveTab = btn.dataset.tab;
   renderOrdersList();
+  // Mobile has real page-level scroll (see .home-zones' stacked layout) —
+  // without this, switching tabs while scrolled down left the just-tapped
+  // tab sitting invisible above the fold behind the now-fixed topbar, which
+  // reads as "the tab moved" even though nothing in its own layout changed.
+  window.scrollTo(0, 0);
 });
 async function renderOrdersList(){
   const el = document.getElementById('ordersList');
@@ -2785,19 +3401,29 @@ async function renderOrdersList(){
       .sort((a,b)=> a.readyAt - b.readyAt)
       .map(o=>({order:o, remaining: null}));
     const deliveryRows = [...notReadyRows, ...readyRows];
-    if(held.length === 0 && deliveryRows.length === 0){ el.innerHTML = '<div class="list-empty">ما فيه طلبات جارية حاليًا</div>'; return; }
+    // Pickup gets the exact same not-ready/ready split and sort — a pickup
+    // order has no prep-timeout countdown ring (that's a delivery-platform
+    // concept), so "not ready" just sorts oldest-first (longest waiting to be
+    // started is most urgent).
+    const notReadyPickupRows = ACTIVE_PICKUP_ORDERS.filter(o=>!o.readyAt).sort((a,b)=> a.createdAt - b.createdAt);
+    const readyPickupRows = ACTIVE_PICKUP_ORDERS.filter(o=>o.readyAt).sort((a,b)=> a.readyAt - b.readyAt);
+    const pickupRows = [...notReadyPickupRows, ...readyPickupRows];
+    if(held.length === 0 && deliveryRows.length === 0 && pickupRows.length === 0){ el.innerHTML = '<div class="list-empty">ما فيه طلبات جارية حاليًا</div>'; return; }
+    const gridCards = deliveryRows.map(({order, remaining})=> renderDeliveryCard(order, remaining)).join('')
+      + pickupRows.map(order=> renderPickupCard(order)).join('');
     el.innerHTML =
-      (deliveryRows.length ? `<div class="dorder-grid">${deliveryRows.map(({order, remaining})=> renderDeliveryCard(order, remaining)).join('')}</div>` : '') +
+      (gridCards ? `<div class="dorder-grid">${gridCards}</div>` : '') +
       held.map(o=>
         `<div class="order-row"><span class="order-row-badge running"></span>
           <div class="order-row-info"><div class="order-row-title">${o.id}</div><div class="order-row-meta">${o.meta}</div></div>
-          <div class="order-row-total mono">${o.total.toFixed(2)}</div>
+          <div class="order-row-total">${rkMoney(o.total)}</div>
           <button class="order-row-action" data-held="${o.heldId}">استرجاع</button>
         </div>`
       ).join('');
     el.querySelectorAll('.dorder-card').forEach(card=>{
       card.addEventListener('click', (e)=>{
-        if(e.target.closest('.dorder-ready-btn')) return;
+        if(e.target.closest('.dorder-ready-btn') || e.target.closest('.dorder-delivered-btn') || e.target.closest('.dorder-out-btn')
+          || e.target.closest('.pickup-ready-btn') || e.target.closest('.pickup-delivered-btn')) return;
         resetModalStack(()=> openOrderDetail(parseInt(card.dataset.order, 10)));
       });
     });
@@ -2806,6 +3432,15 @@ async function renderOrdersList(){
     });
     el.querySelectorAll('.dorder-delivered-btn').forEach(btn=>{
       btn.addEventListener('click', (e)=>{ e.stopPropagation(); markDeliveryOrderDelivered(parseInt(btn.dataset.orderId, 10)); });
+    });
+    el.querySelectorAll('.dorder-out-btn').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{ e.stopPropagation(); markDeliveryOrderOutForDelivery(parseInt(btn.dataset.orderId, 10)); });
+    });
+    el.querySelectorAll('.pickup-ready-btn').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{ e.stopPropagation(); markPickupOrderReady(parseInt(btn.dataset.orderId, 10)); });
+    });
+    el.querySelectorAll('.pickup-delivered-btn').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{ e.stopPropagation(); markPickupOrderDelivered(parseInt(btn.dataset.orderId, 10)); });
     });
     el.querySelectorAll('[data-held]').forEach(btn=>{
       btn.addEventListener('click', ()=>{
@@ -2827,10 +3462,16 @@ async function renderOrdersList(){
   // "جهز خلال mm:ss" badge (this tab already pulled delivery orders before
   // the merge, just without that extra context).
   el.innerHTML = '<div class="list-empty">جارٍ التحميل...</div>';
-  const { data } = await window.supabaseClient
+  let completedQuery = window.supabaseClient
     .from('orders').select('id, total, created_at, customer_name, channel, ready_at, prep_duration_seconds, platform_invoice_last4, scheduled_for, delivery_platforms(name)')
-    .eq('branch_id', DEVICE.branchId).eq('status', ordersActiveTab)
-    .order('created_at', {ascending:false}).limit(30);
+    .eq('branch_id', DEVICE.branchId).eq('status', ordersActiveTab);
+  // Only for "مكتملة" — a still-active online pickup/delivery order (already
+  // shown in "جارية" above) shouldn't ALSO show here just because its status
+  // flipped to completed the instant it was accepted. "ملغاة" orders always
+  // have delivered_at null legitimately, so this filter must never touch that
+  // tab or every cancelled order would wrongly vanish from it.
+  if(ordersActiveTab === 'completed') completedQuery = completedQuery.or('channel.not.in.(pickup,delivery),source.neq.online,delivered_at.not.is.null');
+  const { data } = await completedQuery.order('created_at', {ascending:false}).limit(30);
   const real = (data||[]).map(o=>{
     let extra = '';
     if(o.channel === 'delivery'){
@@ -2849,7 +3490,7 @@ async function renderOrdersList(){
     `<div class="order-row" data-order="${o.orderId}">
       <span class="order-row-badge ${ordersActiveTab}"></span>
       <div class="order-row-info"><div class="order-row-title">${o.id}</div><div class="order-row-meta">${o.meta}</div></div>
-      <div class="order-row-total mono">${o.total.toFixed(2)}</div>
+      <div class="order-row-total">${rkMoney(o.total)}</div>
     </div>`
   ).join('');
   el.querySelectorAll('[data-order]').forEach(row=>{
@@ -2896,12 +3537,20 @@ function renderDeliveryCard(order, remaining){
   // no longer applies), just how long it's been waiting + a delivered button.
   if(order.readyAt){
     const waitingSec = Math.round((Date.now() - order.readyAt.getTime()) / 1000);
+    // "خرج للتوصيل" is an optional extra milestone — a cashier who's always
+    // gone ready→delivered directly (the pre-existing flow) can keep doing
+    // exactly that; this button just gives the ones who want it a place to
+    // mark the rider actually left.
+    const outForDeliveryBlock = order.outForDeliveryAt
+      ? `<div class="dorder-out-waiting mono">🛵 خرج للتوصيل — منذ ${formatMmSs(Math.round((Date.now() - order.outForDeliveryAt.getTime())/1000))}</div>`
+      : `<div class="dorder-out-waiting mono">بانتظار التسليم — ${formatMmSs(waitingSec)}</div>
+         <button class="dorder-out-btn" data-order-id="${order.id}">خرج للتوصيل</button>`;
     return `<div class="dorder-card out-for-delivery" data-order="${order.id}">
       <div class="dorder-out-icon">🛵</div>
       <div class="dorder-info">${badge}<span class="dorder-id">#${order.id}</span></div>
       <div class="dorder-platform">${order.platformName}${order.invoiceLast4 ? ' — ...' + order.invoiceLast4 : ''}</div>
-      <div class="dorder-out-waiting mono">بانتظار التسليم — ${formatMmSs(waitingSec)}</div>
-      <div class="dorder-total mono">${order.total.toFixed(2)}</div>
+      ${outForDeliveryBlock}
+      <div class="dorder-total">${rkMoney(order.total)}</div>
       <button class="dorder-delivered-btn" data-order-id="${order.id}">تم توصيله ✅</button>
     </div>`;
   }
@@ -2913,7 +3562,7 @@ function renderDeliveryCard(order, remaining){
     <div class="dorder-ring-wrap">${ring}<span class="dorder-ring-time mono">${formatMmSs(remaining)}</span></div>
     <div class="dorder-info">${badge}<span class="dorder-id">#${order.id}</span></div>
     <div class="dorder-platform">${order.platformName}${order.invoiceLast4 ? ' — ...' + order.invoiceLast4 : ''}</div>
-    <div class="dorder-total mono">${order.total.toFixed(2)}</div>
+    <div class="dorder-total">${rkMoney(order.total)}</div>
     <button class="dorder-ready-btn" data-order-id="${order.id}">جاهز</button>
   </div>`;
 }
@@ -2939,7 +3588,7 @@ async function openOrderDetail(orderId){
     const mods = (it.selected_modifiers||[]).map(m=>escapeHtml(m.text)).join('، ');
     const product = PRODUCTS.find(p=>p.id===it.menu_item_id);
     const name = escapeHtml(product ? product.name : ('منتج #' + it.menu_item_id));
-    return `<div class="receipt-detail-row"><span>${it.qty} × ${name}${mods ? ' (' + mods + ')' : ''}${it.note ? ' — ' + escapeHtml(it.note) : ''}</span><span class="mono">${Number(it.line_total).toFixed(2)}</span></div>`;
+    return `<div class="receipt-detail-row"><span>${it.qty} × ${name}${mods ? ' (' + mods + ')' : ''}${it.note ? ' — ' + escapeHtml(it.note) : ''}</span>${rkMoney(Number(it.line_total))}</div>`;
   }).join('');
 
   const isOnline = order.source === 'online';
@@ -2953,14 +3602,14 @@ async function openOrderDetail(orderId){
     <div class="receipt-success">
       ${isOnline ? `<div class="receipt-detail-row" style="border-bottom:none; font-weight:800; color:var(--lime-deep);"><span>🌐 طلب إلكتروني — من متجر المطعم</span><span></span></div>` : ''}
       <h3>${escapeHtml(CHANNEL_LABELS[order.channel] || order.channel)}${order.customer_name ? ' — ' + escapeHtml(order.customer_name) : ''}</h3>
-      <div class="receipt-total mono">${Number(order.total).toFixed(2)} ر.س</div>
-      ${order.channel === 'pickup' && order.scheduled_for ? `<div class="receipt-detail-row" style="font-weight:800; color:var(--lime-deep);"><span>⏰ وقت الاستلام المطلوب</span><span class="mono">${new Date(order.scheduled_for).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'})}</span></div>` : ''}
+      <div class="receipt-total">${rkMoney(Number(order.total))}</div>
+      ${pickupTimeNoteHtml(order)}
       ${order.channel === 'dine_in' && order.restaurant_tables ? `<div class="receipt-detail-row"><span>الطاولة</span><span class="mono">طاولة ${order.restaurant_tables.number}</span></div>` : ''}
       ${itemsHtml}
-      <div class="receipt-detail-row"><span>المجموع الفرعي</span><span class="mono">${Number(order.subtotal).toFixed(2)}</span></div>
-      ${order.delivery_fee > 0 ? `<div class="receipt-detail-row"><span>رسوم التوصيل</span><span class="mono">${Number(order.delivery_fee).toFixed(2)}</span></div>` : ''}
-      ${order.discount_amount > 0 ? `<div class="receipt-detail-row"><span>الخصم</span><span class="mono">-${Number(order.discount_amount).toFixed(2)}</span></div>` : ''}
-      <div class="receipt-detail-row"><span>الضريبة</span><span class="mono">${Number(order.vat_amount).toFixed(2)}</span></div>
+      <div class="receipt-detail-row"><span>المجموع الفرعي</span>${rkMoney(Number(order.subtotal))}</div>
+      ${order.delivery_fee > 0 ? `<div class="receipt-detail-row"><span>رسوم التوصيل</span>${rkMoney(Number(order.delivery_fee))}</div>` : ''}
+      ${order.discount_amount > 0 ? `<div class="receipt-detail-row"><span>الخصم</span>${rkMoney(-Number(order.discount_amount))}</div>` : ''}
+      <div class="receipt-detail-row"><span>الضريبة</span>${rkMoney(Number(order.vat_amount))}</div>
       <div class="receipt-detail-row"><span>طريقة الدفع</span><span class="mono">${PAYMENT_METHOD_LABELS_POS[order.payment_method] || order.payment_method}</span></div>
       <div class="receipt-detail-row"><span>الحالة</span><span class="mono">${ORDER_STATUS_LABELS_POS[order.status] || order.status}</span></div>
       ${order.customer_phone ? `<div class="receipt-detail-row"><span>جوال العميل</span><span class="mono">${escapeHtml(order.customer_phone)}</span></div>` : ''}
@@ -2986,9 +3635,9 @@ async function openOrderDetail(orderId){
   `;
   document.getElementById('reprintBtn').addEventListener('click', async ()=>{
     showToast('جاري الطباعة...');
-    const result = await sendToPrinter(buildHistoricalReceiptData(order, items));
-    if(result.ok) showToast('تمت الطباعة');
-    else if(result.error === 'bridge_unavailable' || result.error === 'no_printer_configured') showToast('تمت إعادة الطباعة');
+    const job = await enqueuePrintJob('receipt', buildHistoricalReceiptData(order, items));
+    const settled = await awaitPrintJobSettled(job);
+    if(settled.status === 'printed' || settled.status === 'skipped_no_printer') showToast('تمت الطباعة');
     else showToast('تعذرت الطباعة — تحقق من الطابعة');
   });
   const refundBtn = document.getElementById('refundOrderBtn');
@@ -3302,7 +3951,7 @@ async function openServingSheet(table){
 function renderServingSheet(table, order){
   document.getElementById('paymentModalTitle').textContent = 'طاولة ' + table.number + ' — قيد التقديم';
   paymentModalBody.innerHTML = `
-    <div class="due-display"><div class="due-label">إجمالي الطلب حتى الآن</div><div class="due-amount mono">${Number(order.total).toFixed(2)}</div></div>
+    <div class="due-display"><div class="due-label">إجمالي الطلب حتى الآن</div><div class="due-amount">${rkMoney(Number(order.total))}</div></div>
     ${HOST_MODE ? '' : `
     <button class="confirm-pay-btn" id="servingAddItemsBtn">+ إضافة أصناف</button>
     <button class="loyalty-otp-back" id="servingPayBtn">الدفع</button>`}
@@ -3342,7 +3991,7 @@ async function openAwaitingPaymentSheet(table){
 function renderAwaitingPaymentSheet(table, order){
   document.getElementById('paymentModalTitle').textContent = 'طاولة ' + table.number + ' — بانتظار الدفع';
   paymentModalBody.innerHTML = `
-    <div class="due-display"><div class="due-label">إجمالي الطلب</div><div class="due-amount mono">${Number(order.total).toFixed(2)}</div></div>
+    <div class="due-display"><div class="due-label">إجمالي الطلب</div><div class="due-amount">${rkMoney(Number(order.total))}</div></div>
     ${HOST_MODE ? '' : '<button class="confirm-pay-btn" id="apContinueBtn">متابعة الدفع</button>'}
     <button class="loyalty-otp-back" id="apMoveBtn">تغيير الطاولة</button>
     <button class="loyalty-otp-back" id="apCancelBtn" style="color:var(--danger);">إلغاء الطلب</button>
@@ -4291,7 +4940,7 @@ function registerActiveDeliveryOrder(orderId, payload){
   ACTIVE_DELIVERY_ORDERS.push({
     id: orderId, createdAt: new Date(), platformId: payload.delivery_platform_id,
     platformName: platform ? platform.name : 'توصيل', total: payload.total, isOnline: false,
-    invoiceLast4: payload.platform_invoice_last4, warnedAt5min: false, alertedExpired: false, readyAt: null
+    invoiceLast4: payload.platform_invoice_last4, warnedAt5min: false, alertedExpired: false, readyAt: null, outForDeliveryAt: null
   });
   if(NOTIFY_SOUND_ENABLED) playAlertSound('new_order');
   updateNotifBell();
@@ -4304,7 +4953,7 @@ async function seedActiveDeliveryOrders(){
   // still belongs on this list (awaiting a delivered confirmation); only a
   // genuinely delivered order is done and should drop off.
   const { data } = await window.supabaseClient
-    .from('orders').select('id, total, created_at, ready_at, delivery_platform_id, platform_invoice_last4, source, delivery_platforms(name)')
+    .from('orders').select('id, total, created_at, ready_at, out_for_delivery_at, delivery_platform_id, platform_invoice_last4, source, delivery_platforms(name)')
     .eq('branch_id', DEVICE.branchId).eq('channel', 'delivery').is('delivered_at', null)
     .gte('created_at', startToday.toISOString()).order('created_at', {ascending:true});
   ACTIVE_DELIVERY_ORDERS = (data||[]).map(o=>({
@@ -4312,7 +4961,8 @@ async function seedActiveDeliveryOrders(){
     platformName: o.source === 'online' ? 'متجر المطعم' : (o.delivery_platforms ? o.delivery_platforms.name : 'توصيل'),
     total: Number(o.total), isOnline: o.source === 'online',
     invoiceLast4: o.platform_invoice_last4, warnedAt5min: false, alertedExpired: false,
-    readyAt: o.ready_at ? new Date(o.ready_at) : null
+    readyAt: o.ready_at ? new Date(o.ready_at) : null,
+    outForDeliveryAt: o.out_for_delivery_at ? new Date(o.out_for_delivery_at) : null
   }));
 }
 
@@ -4357,6 +5007,90 @@ async function markDeliveryOrderDelivered(orderId){
   renderOrdersList();
 }
 
+// New, optional milestone — NOT required before markDeliveryOrderDelivered
+// (its RPC's guard is untouched), so a cashier who's always gone
+// ready→delivered directly keeps working exactly the same.
+async function markDeliveryOrderOutForDelivery(orderId){
+  const { error } = await window.supabaseClient.rpc('mark_order_out_for_delivery', { p_order_id: orderId });
+  if(error){ showToast('تعذر تسجيل خروج الطلب للتوصيل'); return; }
+  const tracked = ACTIVE_DELIVERY_ORDERS.find(o=>o.id === orderId);
+  if(tracked) tracked.outForDeliveryAt = new Date();
+  showToast('الطلب #' + orderId + ' خرج للتوصيل');
+  renderOrdersList();
+}
+
+// ============ Active pickup orders (mirrors ACTIVE_DELIVERY_ORDERS above) ============
+// Online pickup orders had no "جارية" (running) tracking at all before this
+// — the instant accept_online_order flipped status pending→completed they
+// vanished straight into the flat "مكتملة" list, indistinguishable from an
+// order that's actually been picked up. This gives pickup the same
+// ready → delivered handoff delivery already had, via the generic
+// mark_order_ready (already existed, only ever called from the kitchen
+// display before) / mark_order_delivered RPCs.
+let ACTIVE_PICKUP_ORDERS = []; // [{id, createdAt, customerName, total, scheduledFor, scheduledByCustomer, readyAt}]
+
+async function seedActivePickupOrders(){
+  const startToday = new Date(); startToday.setHours(0,0,0,0);
+  const { data } = await window.supabaseClient
+    .from('orders').select('id, total, created_at, customer_name, ready_at, scheduled_for, scheduled_by_customer')
+    .eq('branch_id', DEVICE.branchId).eq('channel', 'pickup').eq('source', 'online').eq('status', 'completed').is('delivered_at', null)
+    .gte('created_at', startToday.toISOString()).order('created_at', {ascending:true});
+  ACTIVE_PICKUP_ORDERS = (data||[]).map(o=>({
+    id: o.id, createdAt: new Date(o.created_at), customerName: o.customer_name, total: Number(o.total),
+    scheduledFor: o.scheduled_for ? new Date(o.scheduled_for) : null, scheduledByCustomer: !!o.scheduled_by_customer,
+    readyAt: o.ready_at ? new Date(o.ready_at) : null
+  }));
+}
+
+function renderPickupCard(order){
+  if(order.readyAt){
+    const waitingSec = Math.round((Date.now() - order.readyAt.getTime()) / 1000);
+    return `<div class="dorder-card out-for-delivery" data-order="${order.id}">
+      <div class="dorder-out-icon">🛍️</div>
+      <div class="dorder-info"><span class="dorder-id">#${order.id}</span></div>
+      <div class="dorder-platform">${order.customerName ? escapeHtml(order.customerName) : 'استلام من الفرع'}</div>
+      <div class="dorder-out-waiting mono">بانتظار الاستلام — ${formatMmSs(waitingSec)}</div>
+      <div class="dorder-total">${rkMoney(order.total)}</div>
+      <button class="pickup-delivered-btn" data-order-id="${order.id}">تم التسليم ✅</button>
+    </div>`;
+  }
+  // ASAP shows a plain "الآن" — it's just this order's own prep estimate,
+  // not a real commitment from the customer, so it doesn't deserve the same
+  // visual weight as a time the customer actually chose (that case gets a
+  // real alert instead, in the incoming-order modal — see renderIncomingOrderModal).
+  const timeLabel = order.scheduledByCustomer && order.scheduledFor
+    ? 'استلام ' + order.scheduledFor.toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'})
+    : 'استلام الآن';
+  return `<div class="dorder-card" data-order="${order.id}">
+    <div class="dorder-info"><span class="dorder-logo-initial" style="background:var(--lime);">🛍️</span><span class="dorder-id">#${order.id}</span></div>
+    <div class="dorder-platform">${order.customerName ? escapeHtml(order.customerName) + ' — ' : ''}${timeLabel}</div>
+    <div class="dorder-total">${rkMoney(order.total)}</div>
+    <button class="pickup-ready-btn" data-order-id="${order.id}">جاهز</button>
+  </div>`;
+}
+
+async function markPickupOrderReady(orderId){
+  // same self-suppression trick as markDeliveryOrderReady — this device
+  // already knows it just marked this ready, no need for its own realtime
+  // "kitchen marked it ready" alert a moment later.
+  selfMarkedReadyOrderIds.add(orderId);
+  const { data, error } = await window.supabaseClient.rpc('mark_order_ready', { p_order_id: orderId });
+  if(error){ showToast('تعذر تسجيل الطلب جاهز'); return; }
+  const row = Array.isArray(data) ? data[0] : data;
+  const tracked = ACTIVE_PICKUP_ORDERS.find(o=>o.id === orderId);
+  if(tracked) tracked.readyAt = (row && row.ready_at) ? new Date(row.ready_at) : new Date();
+  showToast('تم تسجيل الطلب جاهز للاستلام');
+  renderOrdersList();
+}
+
+async function markPickupOrderDelivered(orderId){
+  const { error } = await window.supabaseClient.rpc('mark_order_delivered', { p_order_id: orderId });
+  if(error){ showToast('تعذر تسجيل تسليم الطلب'); return; }
+  ACTIVE_PICKUP_ORDERS = ACTIVE_PICKUP_ORDERS.filter(o=>o.id !== orderId);
+  showToast('تم تسليم الطلب #' + orderId);
+  renderOrdersList();
+}
+
 // Ticks every second regardless of which POS screen is focused — the
 // warning/expired alert must fire even if the cashier is busy on the order
 // screen, not only while they happen to be looking at "التوصيل". The visual
@@ -4389,20 +5123,29 @@ setInterval(()=>{
 }, 1000);
 
 /* ============ MORE screen ============ */
+// Real audit finding: "customers" and "void" used to be here but only ever
+// showed a toast saying the feature doesn't exist yet ("جاي بالنسخة الجاية")
+// or pointed at a button that's already visible elsewhere on Home (the ✕ on
+// every cart line) — a cashier tapping either learns nothing and gets
+// nowhere, exactly the "tried them all, most don't do anything" complaint.
+// Removed rather than kept as dead weight. "refund"/"reprint" stay, upgraded
+// from a toast-only hint to actually opening Orders (pre-filtered to
+// Completed for refund, since that's genuinely where both actions happen —
+// there's no separate refund/reprint flow to build here, Orders already
+// has it).
 const QUICK_ACTIONS = [
   {id:'drawer', label:'فتح الدرج', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M2 7l4-4h12l4 4"/><line x1="12" y1="12" x2="12" y2="16"/></svg>'},
   {id:'refund', label:'استرجاع مبلغ', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>'},
   {id:'manager', label:'موافقة مدير', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'},
   {id:'reprint', label:'إعادة طباعة', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>'},
-  {id:'scan', label:'مسح باركود', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>'},
-  {id:'customers', label:'العملاء', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'},
-  {id:'void', label:'إلغاء صنف/طلب', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>'}
+  {id:'scan', label:'مسح باركود', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>'}
 ];
 const SHIFT_ACTIONS = [
   {id:'shiftSummary', label:'ملخص الوردية', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg>'},
   {id:'closeShift', label:'إغلاق الوردية', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'},
   {id:'reprintClosing', label:'طباعة آخر موازنة', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>'},
-  {id:'settings', label:'الإعدادات', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'}
+  {id:'settings', label:'إعدادات الطباعة', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'},
+  {id:'diagnostics', label:'تشخيص النظام', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>'}
 ];
 document.getElementById('moreGridQuick').innerHTML = QUICK_ACTIONS.map(a=>`<button class="more-item" data-action="${a.id}">${a.icon}<span>${a.label}</span></button>`).join('');
 document.getElementById('moreGridShift').innerHTML = SHIFT_ACTIONS.map(a=>`<button class="more-item" data-action="${a.id}">${a.icon}<span>${a.label}</span></button>`).join('');
@@ -4410,30 +5153,33 @@ document.getElementById('moreGridShift').innerHTML = SHIFT_ACTIONS.map(a=>`<butt
 function handleMoreAction(e){
   const btn = e.target.closest('.more-item'); if(!btn) return;
   const id = btn.dataset.action;
-  if(id === 'drawer') showToast('تم فتح الدرج');
+  if(id === 'drawer') openCashDrawer();
   else if(id === 'manager') openPinModal();
   else if(id === 'scan') resetModalStack(scanCustomerCard);
-  else if(id === 'reprint') showToast('اختر طلب من "الطلبات" لإعادة طباعته');
-  else if(id === 'refund') showToast('اختر طلب مكتمل من "الطلبات" لاسترجاعه');
-  else if(id === 'customers') showToast('سجل العملاء والولاء — جاي بالنسخة الجاية');
-  else if(id === 'void') showToast('احذف الصنف مباشرة من لوحة الطلب بزر ✕');
+  else if(id === 'reprint' || id === 'refund'){
+    switchBottomNavScreen('orders');
+    const completedTab = document.querySelector('#ordersTabs .seg-tab[data-tab="completed"]');
+    if(completedTab) completedTab.click();
+    showToast(id === 'refund' ? 'اختر الطلب اللي تبي تسترجعه' : 'اختر الطلب اللي تبي تعيد طباعته');
+  }
   else if(id === 'settings') resetModalStack(openPosSettingsModal);
   else if(id === 'shiftSummary') resetModalStack(openShiftSummary);
   else if(id === 'closeShift') resetModalStack(openClosingWizard);
   else if(id === 'reprintClosing') reprintLastClosingReport();
+  else if(id === 'diagnostics') resetModalStack(openDiagnosticsModal);
 }
 document.getElementById('moreGridQuick').addEventListener('click', handleMoreAction);
 document.getElementById('moreGridShift').addEventListener('click', handleMoreAction);
 
 /* ============ Settings — real device/branch/session info, no fake config options ============ */
 function openPosSettingsModal(){
-  document.getElementById('paymentModalTitle').textContent = 'الإعدادات';
+  document.getElementById('paymentModalTitle').textContent = 'إعدادات الطباعة';
   const bridgeOn = printerBridgeAvailable();
   paymentModalBody.innerHTML = `
     <div class="shift-stat-row"><span>النشاط</span><span class="mono">${DEVICE.businessName || '—'}</span></div>
     <div class="shift-stat-row"><span>الفرع</span><span class="mono">${DEVICE.branchName || '—'}</span></div>
     <div class="shift-stat-row"><span>الموظف الحالي</span><span class="mono">${CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : 'بدون اسم'}</span></div>
-    <div class="shift-stat-row"><span>حالة الاتصال</span><span class="mono">${navigator.onLine ? 'متصل' : 'غير متصل'}</span></div>
+    <div class="shift-stat-row"><span>حالة الاتصال</span><span class="mono">${navigator.onLine ? 'متصل بالإنترنت' : 'غير متصل'}</span></div>
 
     <div class="shift-stat-row" style="margin-top:14px;"><span>طابعة الفواتير</span><span class="mono">${bridgeOn ? '✓ تطبيق الطباعة متاح' : '⚠ افتح من تطبيق الكاشير المثبّت للطباعة'}</span></div>
     <div class="pos-auth-field" style="margin-top:8px;">
@@ -4454,19 +5200,10 @@ function openPosSettingsModal(){
       </div>
     </div>
     <div class="pos-auth-field" style="margin-top:10px;">
-      <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px;">شكل الفاتورة عند الدفع</label>
-      <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700; margin-bottom:8px;">
-        <input type="checkbox" id="printCustomerReceiptToggle" ${DEVICE.printCustomerReceipt !== false ? 'checked' : ''}>
-        فاتورة العميل (مع السعر والضريبة ورمز QR)
-      </label>
-      <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700;">
-        <input type="checkbox" id="printKitchenTicketToggle" ${DEVICE.printKitchenTicket === true ? 'checked' : ''}>
-        فاتورة المطبخ (الأصناف والملاحظات فقط، بدون أسعار)
-      </label>
-      ${BUSINESS_LOGO_URL ? `<label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700; margin-top:8px;">
-        <input type="checkbox" id="printReceiptLogoToggle" ${DEVICE.printReceiptLogo !== false ? 'checked' : ''}>
-        طباعة شعار المطعم أعلى فاتورة العميل
-      </label>` : ''}
+      <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:2px;">شكل الفاتورة عند الدفع</label>
+      ${posCheck(`id="printCustomerReceiptToggle" ${DEVICE.printCustomerReceipt !== false ? 'checked' : ''}`, 'فاتورة العميل (مع السعر والضريبة ورمز QR)')}
+      ${posCheck(`id="printKitchenTicketToggle" ${DEVICE.printKitchenTicket === true ? 'checked' : ''}`, 'فاتورة المطبخ (الأصناف والملاحظات فقط، بدون أسعار)')}
+      ${BUSINESS_LOGO_URL ? posCheck(`id="printReceiptLogoToggle" ${DEVICE.printReceiptLogo !== false ? 'checked' : ''}`, 'طباعة شعار المطعم أعلى فاتورة العميل') : ''}
     </div>
     <div class="pos-auth-field" style="margin-top:10px;">
       <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px;">طابعة مطبخ منفصلة (اختياري)</label>
@@ -4521,6 +5258,127 @@ function openPosSettingsModal(){
   });
 }
 
+/* ============ Diagnostics ============
+   Support/self-service screen — real state read fresh every open/refresh,
+   never a guess. Every count here comes straight from the same IndexedDB
+   stores the offline order queue and print queue actually use, and
+   NETWORK_STATE above — nothing duplicated or cached separately, so this
+   can never drift out of sync with what the queues themselves are doing. */
+function timeAgoLabel(ts){
+  if(!ts) return 'لم يحدث بعد';
+  const mins = Math.round((Date.now() - ts) / 60000);
+  if(mins < 1) return 'الآن';
+  if(mins < 60) return 'قبل ' + mins + ' د';
+  const hrs = Math.round(mins / 60);
+  return 'قبل ' + hrs + ' سا';
+}
+// One plain-language sentence naming the SPECIFIC broken layer instead of
+// making the cashier cross-reference 4 separate status rows themselves —
+// this is the actual thing asked for: "هل المشكلة إنترنت، Cloud، Printer،
+// أو Native Bridge" answered directly, checked in the order a real cashier
+// would want ruled out (closest to them first): internet, then cloud, then
+// whether a native printer bridge exists AT ALL (expected "problem" on
+// today's plain web build — no iOS bridge exists yet), then the printer
+// itself once a bridge is actually present.
+// Every string here shows straight to a cashier via "المزيد ← تشخيص النظام" —
+// real reported bug: this used to name internal implementation details
+// ("Supabase", "جسر Native", "تطبيق iOS") that mean nothing to a restaurant
+// owner. Describe what's true and what to do about it, never how it's built.
+function diagnoseProblem(bridgeAvailable, failedOrRetryingPrintCount){
+  if(!NETWORK_STATE.internet) return { text: 'المشكلة: الجهاز مو متصل بالإنترنت إطلاقًا.', bad: true };
+  if(NETWORK_STATE.cloud === false) return { text: 'المشكلة: الإنترنت شغّال، لكن مزامنة البيانات ما تستجيب حاليًا.', bad: true };
+  if(!bridgeAvailable) return { text: 'ملاحظة: الطباعة الفعلية على هذا الجهاز تحتاج تطبيق الكاشير المخصص — النسخة الحالية (عبر المتصفح) ما تدعمها بعد.', bad: false };
+  if(failedOrRetryingPrintCount > 0) return { text: 'المشكلة: بالطابعة نفسها — تأكد من اتصالها بالشبكة والطاقة وعنوان IP.', bad: true };
+  return { text: 'لا توجد مشكلة ظاهرة الآن.', bad: false };
+}
+let diagnosticsModalOpen = false;
+async function renderDiagnosticsBody(){
+  const [queuedOrders, printJobs] = await Promise.all([
+    getQueuedOrders().catch(()=>[]),
+    getAllPrintJobs().catch(()=>[])
+  ]);
+  const printByStatus = {};
+  printJobs.forEach(j => { printByStatus[j.status] = (printByStatus[j.status]||0) + 1; });
+  const failedPrintJobs = printJobs.filter(j => j.status === 'failed');
+  const troublePrintJobs = printJobs.filter(j => j.status === 'failed' || j.status === 'retrying');
+  const lastPrintError = troublePrintJobs.sort((a,b)=>(b.created_at||0)-(a.created_at||0))[0];
+  const stuckOrders = queuedOrders.filter(o => o.stuck);
+  const bridgeOn = printerBridgeAvailable();
+  const diagnosis = diagnoseProblem(bridgeOn, troublePrintJobs.length);
+  const statusRow = (label, ok, detail) => `<div class="shift-stat-row"><span>${label}</span><span class="mono" style="color:${ok===true?'var(--lime-deep)':ok===false?'var(--danger)':'var(--muted)'}">${detail}</span></div>`;
+  paymentModalBody.innerHTML = `
+    <div class="pos-modal-hint" style="margin-bottom:10px; font-weight:800; color:${diagnosis.bad?'var(--danger)':'var(--lime-deep)'};">${diagnosis.text}</div>
+    ${statusRow('الإنترنت', NETWORK_STATE.internet, NETWORK_STATE.internet ? '🟢 متصل' : '🔴 غير متصل')}
+    ${statusRow('مزامنة البيانات', NETWORK_STATE.cloud, NETWORK_STATE.cloud === true ? '🟢 تعمل' : NETWORK_STATE.cloud === false ? '🔴 تعذر الاتصال' : '⚪ ما تأكّدنا منها بعد')}
+    ${NETWORK_STATE.lastCloudError ? `<div class="shift-stat-row"><span>آخر خطأ مزامنة</span><span class="mono" style="color:var(--danger); font-size:10.5px;">${escapeHtml(friendlyErrorText(NETWORK_STATE.lastCloudError))}</span></div>` : ''}
+    ${statusRow('الطباعة', bridgeOn, bridgeOn ? '🟢 جاهزة' : '🔴 غير جاهزة — تحتاج تطبيق الكاشير المخصص')}
+    ${statusRow('عنوان IP للطابعة', !!DEVICE.printerIp, DEVICE.printerIp ? DEVICE.printerIp + ':' + (DEVICE.printerPort||9100) : '⚪ غير معدّة')}
+    ${lastPrintError ? `<div class="shift-stat-row"><span>آخر خطأ طباعة</span><span class="mono" style="color:var(--danger); font-size:10.5px;">${escapeHtml(friendlyErrorText(lastPrintError.last_error))}</span></div>` : ''}
+    ${statusRow('درج النقدية', cashDrawerBridgeAvailable(), cashDrawerBridgeAvailable() ? '🟢 جاهز' : '⚪ غير جاهز بعد — يحتاج تطبيق الكاشير المخصص')}
+    <div class="shift-stat-row" style="margin-top:14px;"><span>آخر مزامنة ناجحة</span><span class="mono">${timeAgoLabel(LAST_SUCCESSFUL_SYNC_AT)}</span></div>
+    ${statusRow('طلبات بانتظار المزامنة', queuedOrders.length === 0, queuedOrders.length)}
+    ${statusRow('طلبات عالقة (تحتاج تدخّل)', stuckOrders.length === 0, stuckOrders.length)}
+    <div class="shift-stat-row"><span>طباعات قيد الانتظار/الإعادة</span><span class="mono">${(printByStatus.queued||0) + (printByStatus.retrying||0) + (printByStatus.printing||0)}</span></div>
+    ${statusRow('طباعات فاشلة نهائيًا', failedPrintJobs.length === 0, failedPrintJobs.length)}
+    <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
+      <button class="confirm-pay-btn" id="diagRefreshBtn" style="flex:1;">تحديث واختبار الاتصال</button>
+      ${failedPrintJobs.length > 0 ? `<button class="receipt-action-btn" id="diagRetryAllBtn" style="flex:1;">إعادة محاولة الطباعات الفاشلة (${failedPrintJobs.length})</button>` : ''}
+      ${stuckOrders.length > 0 ? `<button class="receipt-action-btn" id="diagRetryStuckOrdersBtn" style="flex:1;">إعادة محاولة الطلبات العالقة (${stuckOrders.length})</button>` : ''}
+    </div>
+  `;
+  document.getElementById('diagRefreshBtn').addEventListener('click', async (e)=>{
+    // "مزامنة البيانات" only ever resolves as a side-effect of a real
+    // request — with nothing queued, that used to mean it could sit on "ما
+    // تأكّدنا منها بعد" forever under normal, healthy use. This button is
+    // now the direct answer to "how do we confirm it": it forces syncQueue()
+    // to run right now (which pings the server for real when the queue's
+    // empty, see syncQueue) instead of just re-rendering the same old state.
+    const btn = e.currentTarget;
+    const originalText = btn.textContent;
+    btn.disabled = true; btn.textContent = 'جارٍ الاختبار...';
+    try { await syncQueue(); } catch (e2) {}
+    btn.disabled = false; btn.textContent = originalText;
+    renderDiagnosticsBody();
+  });
+  const retryAllBtn = document.getElementById('diagRetryAllBtn');
+  if(retryAllBtn) retryAllBtn.addEventListener('click', async ()=>{
+    retryAllBtn.disabled = true;
+    for(const job of failedPrintJobs){
+      job.status = 'queued'; job.retry_count = 0; job.next_retry_at = 0; job.last_error = null;
+      try { await putPrintJob(job); } catch (e) {}
+    }
+    processPrintQueue();
+    showToast('أُعيدت جدولة ' + failedPrintJobs.length + ' طباعة');
+    renderDiagnosticsBody();
+  });
+  const retryStuckBtn = document.getElementById('diagRetryStuckOrdersBtn');
+  if(retryStuckBtn) retryStuckBtn.addEventListener('click', async ()=>{
+    retryStuckBtn.disabled = true;
+    // Financial data: never delete, only clear the "give up" markers so
+    // syncQueue's normal pass picks it up again like any other queued item.
+    for(const order of stuckOrders){
+      try { await queueOrder({ ...order, stuck: false, retry_count: 0, next_retry_at: 0 }); } catch (e) {}
+    }
+    syncQueue();
+    showToast('أُعيدت جدولة ' + stuckOrders.length + ' طلب');
+    renderDiagnosticsBody();
+  });
+}
+function openDiagnosticsModal(){
+  document.getElementById('paymentModalTitle').textContent = 'تشخيص النظام';
+  paymentModalBody.innerHTML = '<p class="pos-auth-sub">جاري التحميل...</p>';
+  document.getElementById('paymentModal').classList.add('show');
+  diagnosticsModalOpen = true;
+  renderDiagnosticsBody();
+}
+// Auto-refreshes the open Diagnostics screen when NETWORK_STATE changes
+// (see updateNetworkState) — e.g. the internet drops while a cashier
+// happens to already have this screen open, instead of showing stale state
+// until they manually tap "تحديث".
+function refreshDiagnosticsIfOpen(){
+  if(diagnosticsModalOpen && document.getElementById('paymentModal').classList.contains('show')) renderDiagnosticsBody();
+}
+
 /* ============ Shift Summary ============ */
 /* ============ Shift data — real, computed from orders tagged with the
    currently-open shift's id (see CURRENT_SHIFT / afterStaffReady near the
@@ -4533,8 +5391,18 @@ async function loadShiftData(){
   // mid-meal (order registered, nothing collected yet) — without this an
   // open tab's total would land in the drawer count before any money
   // actually changed hands.
+  // .neq('status','refunded') is doing real accounting work, not tidying:
+  // refund_pos_order only sets status='refunded' and never touches
+  // payment_status — which cannot even hold 'refunded' (its check
+  // constraint allows 'unpaid'/'paid' only). So without this a refunded
+  // cash sale kept counting toward "expected in drawer" while the cashier
+  // had physically handed the money back, producing a phantom shortfall
+  // equal to every cash refund and making an honest cashier look short on
+  // a figure a manager then signs off.
+  // 'cancelled' needs no exclusion: cancel_dine_in_order only matches
+  // payment_status='unpaid', so those orders never enter this query.
   const { data } = await window.supabaseClient
-    .from('orders').select('total, payment_method, cash_amount').eq('shift_id', CURRENT_SHIFT.id).eq('payment_status', 'paid');
+    .from('orders').select('total, payment_method, cash_amount').eq('shift_id', CURRENT_SHIFT.id).eq('payment_status', 'paid').neq('status', 'refunded');
   const orders = data || [];
   // a split order's cash half belongs in the drawer count too — only the
   // remainder is card, not the whole order total (that used to be double
@@ -4568,10 +5436,10 @@ async function openShiftSummary(){
   paymentModalBody.innerHTML = `
     <div style="text-align:center; margin-bottom:16px;"><div style="font-size:11px; font-weight:700; color:var(--muted);">من بداية الوردية — ${data.startTime}</div></div>
     <div class="shift-stat-row"><span>عدد الطلبات</span><span class="mono">${data.ordersCount}</span></div>
-    <div class="shift-stat-row"><span>إجمالي المبيعات</span><span class="mono">${data.salesTotal.toFixed(2)} ر.س</span></div>
-    <div class="shift-stat-row"><span>كاش (شامل الرصيد الافتتاحي)</span><span class="mono">${data.cashTotal.toFixed(2)} ر.س</span></div>
-    <div class="shift-stat-row"><span>بطاقة / Apple Pay</span><span class="mono">${data.cardTotal.toFixed(2)} ر.س</span></div>
-    <div class="shift-stat-row total"><span>توصيل — مدفوع عبر التطبيق</span><span class="mono">${data.deliveryPlatformTotal.toFixed(2)} ر.س</span></div>
+    <div class="shift-stat-row"><span>إجمالي المبيعات</span>${rkMoney(data.salesTotal)}</div>
+    <div class="shift-stat-row"><span>كاش (شامل الرصيد الافتتاحي)</span>${rkMoney(data.cashTotal)}</div>
+    <div class="shift-stat-row"><span>بطاقة / Apple Pay</span>${rkMoney(data.cardTotal)}</div>
+    <div class="shift-stat-row total"><span>توصيل — مدفوع عبر التطبيق</span>${rkMoney(data.deliveryPlatformTotal)}</div>
   `;
 }
 
@@ -4619,7 +5487,7 @@ function renderClosingWizard(){
   document.getElementById('paymentModalTitle').textContent = closingStep === 1 ? 'إغلاق الوردية — عدّ الكاش' : 'إغلاق الوردية — المطابقة';
   if(closingStep === 1){
     paymentModalBody.innerHTML = `
-      <div class="due-display"><div class="due-label">الكاش المتوقع بالدرج</div><div class="due-amount mono">${closingShiftData.cashTotal.toFixed(2)}</div></div>
+      <div class="due-display"><div class="due-label">الكاش المتوقع بالدرج</div><div class="due-amount">${rkMoney(closingShiftData.cashTotal)}</div></div>
       <div class="pin-dots" style="margin-bottom:10px;"><span style="font-size:12px; font-weight:700; color:var(--muted);">أدخل المبلغ اللي عدّيته فعليًا</span></div>
       <div class="cash-input-row"><input type="number" id="countedCashInput" placeholder="0.00" value="${countedCash}"></div>
       <button class="confirm-pay-btn" id="closingNextBtn" ${countedCash?'':'disabled'}>التالي</button>
@@ -4633,8 +5501,8 @@ function renderClosingWizard(){
     const varClass = variance === 0 ? 'ok' : (Math.abs(variance) <= 5 ? 'warn' : 'urgent');
     const varLabel = variance === 0 ? 'مطابق تمامًا' : (variance > 0 ? 'زيادة ' + variance.toFixed(2) : 'عجز ' + Math.abs(variance).toFixed(2));
     paymentModalBody.innerHTML = `
-      <div class="shift-stat-row"><span>المتوقع</span><span class="mono">${closingShiftData.cashTotal.toFixed(2)}</span></div>
-      <div class="shift-stat-row"><span>المعدود فعليًا</span><span class="mono">${counted.toFixed(2)}</span></div>
+      <div class="shift-stat-row"><span>المتوقع</span>${rkMoney(closingShiftData.cashTotal)}</div>
+      <div class="shift-stat-row"><span>المعدود فعليًا</span>${rkMoney(counted)}</div>
       <div class="shift-stat-row total"><span>الفرق</span><span class="mono urgency-badge ${varClass}">${varLabel}</span></div>
       <div class="pos-auth-error" id="closingWizardError" style="display:none;"></div>
       <button class="confirm-pay-btn" id="confirmCloseBtn" style="margin-top:16px;">تأكيد إغلاق الوردية</button>
@@ -4673,7 +5541,7 @@ function renderClosingWizard(){
 
           document.getElementById('paymentModal').classList.remove('show');
           CURRENT_SHIFT = null;
-          sessionStorage.removeItem('rakeen_pos_staff');
+          localStorage.removeItem('rakeen_pos_staff');
           await window.supabaseClient.auth.signOut();
           window.location.reload();
         } catch(err){
@@ -4700,6 +5568,8 @@ function openPinModal(onApprove){
   state.pinEntry = '';
   pinModalOnApprove = onApprove || null;
   setPinError('');
+  document.getElementById('pinModalVerifying').classList.add('hidden');
+  document.getElementById('pinPad').classList.remove('hidden');
   renderPin();
   pinModal.classList.add('show');
 }
@@ -4732,9 +5602,12 @@ function renderPin(){
       if(state.pinEntry.length !== state.pinTargetLength) return;
 
       const pin = state.pinEntry;
-      document.querySelectorAll('#pinPad .pin-key').forEach(b=> b.disabled = true);
+      document.getElementById('pinPad').classList.add('hidden');
+      document.getElementById('pinModalVerifying').classList.remove('hidden');
       const { data, error } = await window.supabaseClient.rpc('verify_pos_manager_pin', { p_pin: pin });
       state.pinEntry = '';
+      document.getElementById('pinModalVerifying').classList.add('hidden');
+      document.getElementById('pinPad').classList.remove('hidden');
       if(error){
         setPinError('تعذر التحقق من الرمز — تحقق من الاتصال');
         renderPin();
@@ -4795,6 +5668,11 @@ let TABLES_RESERVATION_CONFLICT_WARNING_ENABLED = true; // businesses.tables_res
 let TABLE_SECTIONS_LIST = []; // table_sections for this branch — empty means "no sections configured", Tables screen stays a flat grid
 let TABLES_CACHE = []; // last-loaded restaurant_tables — lets the order-panel table badge resolve a number from state.selectedTableId without a round trip
 let DINE_IN_PAY_TIMING = 'before'; // businesses.dine_in_pay_timing — whether a table's order is paid the moment it's registered, or later when the guest asks for the bill
+let POS_HIDE_POPULAR_TAB = false; // businesses.pos_hide_popular_tab — drops the "الأكثر طلبًا" shortcut category
+let POS_HIDE_SEARCH = false;      // businesses.pos_hide_search — hides the search box (also the barcode-scanner input — only meant for businesses that don't scan barcodes)
+let POS_HIDE_HOLD = false;        // businesses.pos_hide_hold — hides the "علّق" hold-order button on the order panel
+let POS_HIDE_PRODUCT_IMAGES = true; // businesses.pos_hide_product_images — shows the plain category icon instead of the uploaded photo on every product tile; defaults true (real photos are the slowest thing this grid renders, and a plain icon is guaranteed to paint instantly regardless of device/network)
+let POS_HIDE_NOTIF_BELL = false; // businesses.pos_hide_notif_bell — the delivery-prep-timing alert bell; only meaningful for businesses that run their own delivery
 let TABLES_SPECIFIC_BOOKING_ENABLED = false; // businesses.tables_specific_booking_enabled — lets the add-to-waitlist form book an exact table in advance, separate from the general FIFO queue
 let BUSINESS_TYPE = 'restaurant'; // businesses.business_type — service-based types (see SERVICE_BUSINESS_TYPES below) source PRODUCTS from services instead of menu_items (see loadPosData); quick_service/cafe/cloud_kitchen are 'restaurant' under the hood with different default settings, no code branches on them
 // Every one of these shares the exact services/service_staff/table_reservations
@@ -4868,6 +5746,14 @@ function iconForCategory(name){
   return 'bowl';
 }
 
+// Set by loadPosData() every boot: false after a normal live fetch, true
+// when it had to fall back to the last cached snapshot (see below). Read by
+// the Home screen to show a persistent "يعمل من نسخة محفوظة محليًا" banner —
+// menu/prices/settings shown offline may be stale, and the cashier should
+// know that rather than trust them silently.
+let POS_USING_OFFLINE_SNAPSHOT = false;
+let POS_SNAPSHOT_AGE_MS = 0;
+
 async function loadPosData(){
   const sb = window.supabaseClient;
   const businessId = DEVICE.businessId;
@@ -4879,9 +5765,9 @@ async function loadPosData(){
   // rest besides. The cashier terminal has no legitimate use for either
   // table and, before this change, was downloading the business's real
   // recipe into every POS session whether it needed it or not.
-  const [catRes, itemsRes, boxEligRes, groupRes, optRes, itemModRes, stockRes, platformRes, platformPriceRes, loyaltyRes, tableSectionsRes, servicesRes, serviceStaffRes] = await Promise.all([
+  let [catRes, itemsRes, boxEligRes, groupRes, optRes, itemModRes, stockRes, platformRes, platformPriceRes, loyaltyRes, tableSectionsRes, servicesRes, serviceStaffRes] = await Promise.all([
     sb.from('menu_categories').select('*').eq('business_id', businessId).order('sort_order'),
-    sb.from('menu_items').select('*').eq('business_id', businessId).eq('active', true).order('id'),
+    sb.from('menu_items').select('*').eq('business_id', businessId).eq('active', true).eq('visible_pos', true).or(`hidden_until.is.null,hidden_until.lt.${new Date().toISOString()}`).order('sort_order').order('id'),
     sb.from('menu_item_box_eligible_items').select('*'),
     sb.from('modifier_groups').select('*').eq('business_id', businessId).order('id'),
     sb.from('modifier_options').select('*'),
@@ -4889,7 +5775,7 @@ async function loadPosData(){
     sb.from('stock_items').select('id, name, unit'),
     sb.from('delivery_platforms').select('id, name, prep_timeout_minutes, logo_url, brand_color').eq('business_id', businessId).eq('active', true).order('name'),
     sb.from('menu_item_platform_prices').select('*'),
-    sb.from('businesses').select('business_type, loyalty_enabled, notify_delivery_prep_warning, notify_delivery_prep_expired, notify_sound_enabled, dine_in_enabled, vat_number, vat_rate, prices_include_vat, vat_registered, logo_url, receipt_custom_message, kitchen_display_enabled, tables_reservations_enabled, tables_reservation_deposit_enabled, tables_reservation_deposit_percent, tables_turn_time_enabled, tables_turn_time_minutes, tables_reservation_conflict_warning_enabled, dine_in_pay_timing, tables_specific_booking_enabled').eq('id', businessId).single(),
+    sb.from('businesses').select('business_type, loyalty_enabled, notify_delivery_prep_warning, notify_delivery_prep_expired, notify_sound_enabled, dine_in_enabled, vat_number, vat_rate, prices_include_vat, vat_registered, logo_url, receipt_custom_message, kitchen_display_enabled, tables_reservations_enabled, tables_reservation_deposit_enabled, tables_reservation_deposit_percent, tables_turn_time_enabled, tables_turn_time_minutes, tables_reservation_conflict_warning_enabled, dine_in_pay_timing, tables_specific_booking_enabled, pos_hide_popular_tab, pos_hide_search, pos_hide_hold, pos_hide_product_images, pos_hide_notif_bell').eq('id', businessId).single(),
     sb.from('table_sections').select('id, name, sort_order').eq('branch_id', DEVICE.branchId).order('sort_order'),
     // Only ever non-empty for a business_type='salon' business — a
     // restaurant's services table is always empty (RLS-scoped by
@@ -4898,6 +5784,39 @@ async function loadPosData(){
     sb.from('services').select('*').eq('business_id', businessId).eq('active', true).order('id'),
     sb.from('service_staff').select('*'),
   ]);
+
+  // supabase-js never rejects this Promise.all on a network failure — a
+  // dropped connection resolves each query as {data: null, error: {...}}
+  // instead of throwing, so a cold boot with no network used to silently
+  // proceed with an EMPTY menu (CATEGORIES=[], PRODUCTS=[]) and every
+  // business setting falling back to its generic default, no error shown
+  // anywhere. catRes/itemsRes failing is the reliable signal something
+  // network-shaped went wrong (RLS/permission errors surface differently
+  // and shouldn't fall back to a stale snapshot); everything else in this
+  // boot query either isn't essential to ringing up a sale or degrades
+  // gracefully as empty on its own already.
+  const liveResults = { catRes, itemsRes, boxEligRes, groupRes, optRes, itemModRes, stockRes, platformRes, platformPriceRes, loyaltyRes, tableSectionsRes, servicesRes, serviceStaffRes };
+  if(catRes.error || itemsRes.error){
+    const cached = await getCacheValue('posdata:' + businessId).catch(()=>null);
+    if(!cached || !cached.value){
+      // Never successfully loaded on this device before — nothing to fall
+      // back to, so this has to surface as a real failure (matches
+      // bootPos()'s existing caller, which already has no offline path for
+      // a device that's never been online at all).
+      throw (catRes.error || itemsRes.error);
+    }
+    POS_USING_OFFLINE_SNAPSHOT = true;
+    POS_SNAPSHOT_AGE_MS = Date.now() - cached.cached_at;
+    for(const key of Object.keys(liveResults)) liveResults[key] = { data: cached.value[key] };
+    ({ catRes, itemsRes, boxEligRes, groupRes, optRes, itemModRes, stockRes, platformRes, platformPriceRes, loyaltyRes, tableSectionsRes, servicesRes, serviceStaffRes } = liveResults);
+    showToast('لا يوجد اتصال — يعمل بمنيو محفوظ محليًا (آخر تحديث ' + Math.round(POS_SNAPSHOT_AGE_MS / 60000) + ' د)');
+  } else {
+    POS_USING_OFFLINE_SNAPSHOT = false;
+    const snapshotData = {};
+    for(const key of Object.keys(liveResults)) snapshotData[key] = liveResults[key].data;
+    try { await setCacheValue('posdata:' + businessId, snapshotData); } catch(e) { /* IndexedDB unavailable — no snapshot for next time, not fatal now */ }
+  }
+
   TABLE_SECTIONS_LIST = tableSectionsRes.data || [];
   BUSINESS_TYPE = loyaltyRes.data ? (loyaltyRes.data.business_type || 'restaurant') : 'restaurant';
 
@@ -4918,6 +5837,24 @@ async function loadPosData(){
   VAT_REGISTERED = loyaltyRes.data ? loyaltyRes.data.vat_registered !== false : true;
   BUSINESS_LOGO_URL = loyaltyRes.data ? (loyaltyRes.data.logo_url || '') : '';
   RECEIPT_CUSTOM_MESSAGE = loyaltyRes.data ? (loyaltyRes.data.receipt_custom_message || '') : '';
+  POS_HIDE_POPULAR_TAB = loyaltyRes.data ? loyaltyRes.data.pos_hide_popular_tab === true : false;
+  POS_HIDE_SEARCH = loyaltyRes.data ? loyaltyRes.data.pos_hide_search === true : false;
+  POS_HIDE_HOLD = loyaltyRes.data ? loyaltyRes.data.pos_hide_hold === true : false;
+  POS_HIDE_PRODUCT_IMAGES = loyaltyRes.data ? loyaltyRes.data.pos_hide_product_images !== false : true;
+  POS_HIDE_NOTIF_BELL = loyaltyRes.data ? loyaltyRes.data.pos_hide_notif_bell === true : false;
+  if(POS_HIDE_POPULAR_TAB && state.activeCat === 'popular') state.activeCat = 'all';
+  if(POS_HIDE_SEARCH){
+    const searchBox = document.querySelector('.search-box');
+    if(searchBox) searchBox.style.display = 'none';
+  }
+  if(POS_HIDE_HOLD){
+    const holdBtn = document.getElementById('holdOrderBtn');
+    if(holdBtn) holdBtn.style.display = 'none';
+  }
+  if(POS_HIDE_NOTIF_BELL){
+    const notifBtn = document.getElementById('notifBellBtn');
+    if(notifBtn) notifBtn.style.display = 'none';
+  }
   const tablesNavBtn = document.querySelector('.nav-tab[data-screen="tables"]');
   if(!DINE_IN_ENABLED){
     if(tablesNavBtn) tablesNavBtn.remove();
@@ -4990,7 +5927,7 @@ async function loadPosData(){
     PLATFORM_PRICES[pp.platform_id][pp.menu_item_id] = Number(pp.price);
   });
 
-  CATEGORIES = (catRes.data||[]).map(c=>({id: String(c.id), name: c.name, icon: iconForCategory(c.name)}));
+  CATEGORIES = (catRes.data||[]).map(c=>({id: String(c.id), name: c.name, nameEn: c.name_en || c.name, icon: iconForCategory(c.name)}));
 
   SERVICE_STAFF_BY_SERVICE = {};
   (serviceStaffRes.data||[]).forEach(r=>{ (SERVICE_STAFF_BY_SERVICE[r.service_id] ||= []).push(r.staff_member_id); });
@@ -5021,9 +5958,10 @@ async function loadPosData(){
   const catById = {}; (catRes.data||[]).forEach(c=> catById[c.id] = c);
 
   const menuItemProducts = (itemsRes.data||[]).map(m=>({
-    id: m.id, cat: String(m.category_id), name: m.name, price: Number(m.price),
+    id: m.id, cat: String(m.category_id), name: m.name, nameEn: m.name_en || null, price: Number(m.price),
     icon: iconForCategory(catById[m.category_id] ? catById[m.category_id].name : ''),
     image: m.image_url || null,
+    imageThumb: m.image_thumb_url || null,
     barcode: m.barcode || null,
     isService: false, fav: false, pop: 0
   }));
@@ -5126,6 +6064,10 @@ document.getElementById('provSubmitBtn').addEventListener('click', async ()=>{
   const email = document.getElementById('provEmail').value.trim();
   const password = document.getElementById('provPassword').value;
   if(!email || !password){ errEl.textContent = 'اكتب البريد وكلمة المرور.'; errEl.style.display='block'; return; }
+  const submitBtn = document.getElementById('provSubmitBtn');
+  const originalBtnText = submitBtn.textContent;
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'جارٍ الدخول...';
   try {
     const { data, error } = await window.supabaseClient.auth.signInWithPassword({ email, password });
     if(error) throw error;
@@ -5150,10 +6092,13 @@ document.getElementById('provSubmitBtn').addEventListener('click', async ()=>{
     }
     branchSelect.innerHTML = branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
     branchField.classList.remove('hidden');
-    document.getElementById('provSubmitBtn').textContent = 'تأكيد الفرع';
+    submitBtn.textContent = 'تأكيد الفرع';
   } catch(err){
     errEl.textContent = err && err.message ? err.message : 'تعذر تسجيل الدخول.';
     errEl.style.display = 'block';
+    submitBtn.textContent = originalBtnText;
+  } finally {
+    submitBtn.disabled = false;
   }
 });
 
@@ -5178,6 +6123,8 @@ function showCashierLogin(){
   loginPinEntry = '';
   document.getElementById('posLoginError').style.display = 'none';
   document.getElementById('posLoginBranchLabel').textContent = DEVICE.branchName ? ('أدخل رمز فرع: ' + DEVICE.branchName) : 'أدخل رمز نقطة البيع لهذا الفرع';
+  document.getElementById('pinVerifying').classList.add('hidden');
+  document.getElementById('loginPinPad').classList.remove('hidden');
   renderLoginPin();
   showAuthScreen('posLoginScreen');
 }
@@ -5189,6 +6136,8 @@ function showCashierLogin(){
 async function attemptCashierLogin(){
   const errEl = document.getElementById('posLoginError');
   errEl.style.display = 'none';
+  document.getElementById('loginPinPad').classList.add('hidden');
+  document.getElementById('pinVerifying').classList.remove('hidden');
   try {
     const res = await fetch('/api/pos/login', {
       method: 'POST',
@@ -5209,6 +6158,8 @@ async function attemptCashierLogin(){
     errEl.style.display = 'block';
     loginPinEntry = '';
     renderLoginPin();
+    document.getElementById('pinVerifying').classList.add('hidden');
+    document.getElementById('loginPinPad').classList.remove('hidden');
   }
 }
 document.getElementById('reprovisionLink').addEventListener('click', ()=>{
@@ -5217,20 +6168,31 @@ document.getElementById('reprovisionLink').addEventListener('click', ()=>{
   window.location.reload();
 });
 document.getElementById('posLogoutBtn').addEventListener('click', async ()=>{
-  sessionStorage.removeItem('rakeen_pos_staff');
+  localStorage.removeItem('rakeen_pos_staff');
   await window.supabaseClient.auth.signOut();
   window.location.reload();
 });
 document.getElementById('posSwitchStaffBtn').addEventListener('click', ()=>{
-  sessionStorage.removeItem('rakeen_pos_staff');
+  localStorage.removeItem('rakeen_pos_staff');
   showStaffPick();
 });
 
 async function loadCashierProfile(userId){
   const { data: profile, error } = await window.supabaseClient
     .from('profiles').select('id, business_id, branch_id, full_name, user_type').eq('id', userId).single();
-  if(error || !profile) throw error || new Error('تعذر تحميل بيانات الجهاز');
-  CURRENT_PROFILE = profile;
+  if(error || !profile){
+    // A cold boot with literally no network can't run this query at all —
+    // fall back to whatever profile last loaded successfully for this exact
+    // account, rather than forcing a re-login that also can't succeed
+    // offline (see initAuth's caller, which used to just sign the cashier
+    // out here and land them on a PIN screen /api/pos/login can't reach).
+    const cached = await getCacheValue('profile:' + userId).catch(()=>null);
+    if(!cached || !cached.value) throw error || new Error('تعذر تحميل بيانات الجهاز');
+    CURRENT_PROFILE = cached.value;
+  } else {
+    CURRENT_PROFILE = profile;
+    try { await setCacheValue('profile:' + userId, profile); } catch(e) { /* IndexedDB unavailable — no fallback next time, not fatal now */ }
+  }
   document.getElementById('posBusinessName').textContent = DEVICE.businessName || '';
   document.getElementById('posBranchName').textContent = DEVICE.branchName || '';
 }
@@ -5241,8 +6203,14 @@ let CURRENT_STAFF_MEMBER = null;
 function applyStaffMember(member){
   CURRENT_STAFF_MEMBER = member;
   document.getElementById('posCashierName').textContent = 'مرحبًا، ' + (member ? member.name : 'بدون اسم');
-  document.getElementById('posCashierAvatar').textContent = member ? member.name.charAt(0) : '؟';
-  try { sessionStorage.setItem('rakeen_pos_staff', JSON.stringify(member)); } catch (e) { /* ignore */ }
+  const avatarEl = document.getElementById('posCashierAvatar');
+  avatarEl.textContent = member ? member.name.charAt(0) : '؟';
+  avatarEl.title = member ? member.name : 'بدون اسم'; // the name/role text is hidden from the topbar now (see .user-cluster .identity-text) — this keeps it reachable on hover
+  // localStorage, not sessionStorage: a genuine device restart (part of the
+  // offline-boot chain this now needs to survive) clears sessionStorage,
+  // which used to force a re-pick of who's on duty even though nothing
+  // about that actually requires a fresh choice.
+  try { localStorage.setItem('rakeen_pos_staff', JSON.stringify(member)); } catch (e) { /* ignore */ }
 }
 async function showStaffPick(){
   const el = document.getElementById('posStaffList');
@@ -5256,16 +6224,35 @@ async function showStaffPick(){
   const staff = HOST_MODE ? [...(data||[])].sort((a,b)=> (b.is_reservation_host===true) - (a.is_reservation_host===true)) : (data || []);
   if(staff.length === 0){
     el.innerHTML = '<p class="pos-auth-sub">ما فيه موظفين مضافين لهذا الفرع بعد — أضفهم من الإعدادات بالداشبورد.</p><button class="confirm-pay-btn" id="staffSkipBtn">متابعة بدون اسم</button>';
-    document.getElementById('staffSkipBtn').addEventListener('click', async ()=>{ applyStaffMember(null); await afterStaffReady(); });
+    document.getElementById('staffSkipBtn').addEventListener('click', async ()=>{
+      applyStaffMember(null);
+      await goToStaffReady(el);
+    });
     return;
   }
   el.innerHTML = staff.map(s=>`<button class="pos-staff-btn" data-id="${s.id}" data-name="${s.name}">${s.name}</button>`).join('');
   el.querySelectorAll('.pos-staff-btn').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       applyStaffMember({ id: parseInt(btn.dataset.id,10), name: btn.dataset.name });
-      await afterStaffReady();
+      await goToStaffReady(el);
     });
   });
+}
+
+// Picking a name used to just sit there with no feedback while
+// findOpenShift() (network) and, on a fresh boot, bootPos()'s full
+// loadPosData()+renders (the heaviest step in the whole login chain) ran —
+// exactly the "feels stuck" gap reported for this screen. Also the first
+// real error handling around afterStaffReady(): it had none before, so a
+// failed request here left the cashier frozen with no way back.
+async function goToStaffReady(listEl){
+  listEl.innerHTML = '<div class="pin-verifying"><span class="pin-verifying-spinner"></span>جارٍ تجهيز الكاشير...</div>';
+  try {
+    await afterStaffReady();
+  } catch(e){
+    showToast('صار خطأ وإحنا نجهّز الكاشير — حاول مرة ثانية');
+    showStaffPick();
+  }
 }
 
 /* ============ Shifts — a shift is scoped to the branch's shared PIN account
@@ -5276,10 +6263,25 @@ async function showStaffPick(){
 let CURRENT_SHIFT = null;
 
 async function findOpenShift(){
-  const { data } = await window.supabaseClient
+  // A network failure here used to read as "no data" (only `data` was
+  // destructured, `error` silently dropped) — same supabase-js contract as
+  // loadPosData's Promise.all (resolves {data:null,error} rather than
+  // throwing). That meant a cold boot with no network always landed on
+  // "بدء الوردية" even when a shift was genuinely already open, since it
+  // couldn't tell "confirmed no open shift" apart from "couldn't check".
+  const { data, error } = await window.supabaseClient
     .from('shifts').select('*').eq('cashier_id', CURRENT_PROFILE.id).is('closed_at', null)
     .order('opened_at', {ascending:false}).limit(1);
-  return (data && data[0]) || null;
+  if(error){
+    const cached = await getCacheValue('shift:' + CURRENT_PROFILE.id).catch(()=>null);
+    return cached ? cached.value : null;
+  }
+  const shift = (data && data[0]) || null;
+  // Cache the real (possibly null) result on every successful check — a
+  // shift closed while online must overwrite a stale "still open" cache
+  // entry, not leave it behind for the next offline boot to wrongly trust.
+  try { await setCacheValue('shift:' + CURRENT_PROFILE.id, shift); } catch(e) { /* IndexedDB unavailable — no fallback next time, not fatal now */ }
+  return shift;
 }
 
 async function afterStaffReady(){
@@ -5440,11 +6442,15 @@ async function acceptIncomingOrder(orderId){
   ]);
   // Kitchen ticket FIRST, then customer receipt SECOND — always, unconditionally
   // (not gated by the per-device DEVICE.printKitchenTicket/printCustomerReceipt
-  // toggles that govern normal POS checkout auto-print). Awaited in sequence so
-  // the kitchen ticket is genuinely dispatched to the printer before the
-  // customer receipt starts, matching the owner's explicit ordering requirement.
-  await sendKitchenTicketToPrinter(buildDbKitchenReceiptData(order, items || []));
-  await sendToPrinter(buildHistoricalReceiptData(order, items || []));
+  // toggles that govern normal POS checkout auto-print). Both go through the
+  // print queue now (persisted, retried with backoff) but the ordering
+  // requirement only needs the kitchen job's FIRST attempt to have happened
+  // before the receipt job is even created — waiting for its full retry
+  // chain (up to ~2 minutes) would hang this accept flow far longer than
+  // the 8s ceiling the cashier used to see here.
+  const kitchenJob = await enqueuePrintJob('kitchen', buildDbKitchenReceiptData(order, items || []));
+  await awaitPrintJobFirstAttempt(kitchenJob);
+  await enqueuePrintJob('receipt', buildHistoricalReceiptData(order, items || []));
   // Without this, an accepted delivery order only appears in the "جارية"
   // (running) list after the next page reload — seedActiveDeliveryOrders()
   // would eventually pick it up, but nothing repopulates ACTIVE_DELIVERY_ORDERS
@@ -5456,9 +6462,19 @@ async function acceptIncomingOrder(orderId){
     ACTIVE_DELIVERY_ORDERS.push({
       id: order.id, createdAt: new Date(order.created_at), platformId: order.delivery_platform_id,
       platformName: 'متجر المطعم', total: Number(order.total), isOnline: true,
-      invoiceLast4: order.platform_invoice_last4, warnedAt5min: false, alertedExpired: false, readyAt: null
+      invoiceLast4: order.platform_invoice_last4, warnedAt5min: false, alertedExpired: false, readyAt: null, outForDeliveryAt: null
     });
     updateNotifBell();
+  }
+  // Same "don't make the cashier wait for a reload" fix as the delivery block
+  // above, mirrored for pickup — see ACTIVE_PICKUP_ORDERS' own comment for why
+  // pickup needs this tracking at all (it had none before this feature).
+  if(order && order.channel === 'pickup' && order.source === 'online'){
+    ACTIVE_PICKUP_ORDERS.push({
+      id: order.id, createdAt: new Date(order.created_at), customerName: order.customer_name, total: Number(order.total),
+      scheduledFor: order.scheduled_for ? new Date(order.scheduled_for) : null, scheduledByCustomer: !!order.scheduled_by_customer,
+      readyAt: null
+    });
   }
   showToast('تم قبول الطلب #' + orderId);
   if(document.getElementById('screen-orders').classList.contains('active')) renderOrdersList();
@@ -5472,6 +6488,19 @@ async function rejectIncomingOrder(orderId, reason){
   advanceIncomingQueue(orderId);
 }
 
+// ASAP (scheduled_by_customer=false) is just this order's own prep estimate,
+// not a real commitment the customer is expecting — a plain line is enough.
+// A time the customer actually PICKED deserves a loud, hard-to-miss banner so
+// the cashier notices and doesn't treat it like a normal now-order.
+function pickupTimeNoteHtml(order){
+  if(order.channel !== 'pickup' || !order.scheduled_for) return '';
+  const timeStr = new Date(order.scheduled_for).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'});
+  if(!order.scheduled_by_customer){
+    return `<div class="receipt-detail-row"><span>وقت الاستلام</span><span class="mono">الآن</span></div>`;
+  }
+  return `<div class="pickup-scheduled-alert">⏰ العميل اختار وقت استلام لاحق — <span class="mono">${timeStr}</span></div>`;
+}
+
 const INCOMING_ORDER_REJECT_REASONS = ['عدم توفر الصنف', 'المطعم مشغول', 'خارج نطاق التوصيل', 'الفرع مغلق الآن'];
 
 function renderIncomingOrderModal(order, items){
@@ -5479,7 +6508,7 @@ function renderIncomingOrderModal(order, items){
     const mods = (it.selected_modifiers||[]).map(m=>escapeHtml(m.text)).join('، ');
     const product = PRODUCTS.find(p=>p.id===it.menu_item_id);
     const name = escapeHtml(product ? product.name : ('منتج #' + it.menu_item_id));
-    return `<div class="receipt-detail-row"><span>${it.qty} × ${name}${mods ? ' (' + mods + ')' : ''}${it.note ? ' — ' + escapeHtml(it.note) : ''}</span><span class="mono">${Number(it.line_total).toFixed(2)}</span></div>`;
+    return `<div class="receipt-detail-row"><span>${it.qty} × ${name}${mods ? ' (' + mods + ')' : ''}${it.note ? ' — ' + escapeHtml(it.note) : ''}</span>${rkMoney(Number(it.line_total))}</div>`;
   }).join('');
   const phoneDigits = (order.customer_phone || '').replace(/\D/g, '');
   const body = document.getElementById('incomingOrderModalBody');
@@ -5487,10 +6516,10 @@ function renderIncomingOrderModal(order, items){
     <div class="receipt-detail-row" style="border-bottom:none; font-weight:800;"><span>${escapeHtml(CHANNEL_LABELS[order.channel] || order.channel)}${order.customer_name ? ' — ' + escapeHtml(order.customer_name) : ''}</span><span></span></div>
     ${order.customer_phone ? `<a class="incoming-order-call" href="tel:${escapeHtml(phoneDigits)}">📞 ${escapeHtml(order.customer_phone)}</a>` : ''}
     <div class="receipt-detail-row"><span>طريقة الدفع</span><span class="mono">${escapeHtml(PAYMENT_METHOD_LABELS_POS[order.payment_method] || order.payment_method)}${order.payment_method === 'cash' ? ' — يُدفع عند الاستلام' : ''}</span></div>
-    ${order.channel === 'pickup' && order.scheduled_for ? `<div class="receipt-detail-row"><span>⏰ وقت الاستلام المطلوب</span><span class="mono">${new Date(order.scheduled_for).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'})}</span></div>` : ''}
+    ${pickupTimeNoteHtml(order)}
     ${order.delivery_address ? `<div class="receipt-detail-row"><span>عنوان التوصيل</span><span>${escapeHtml(order.delivery_address)}</span></div>` : ''}
     ${itemsHtml}
-    <div class="receipt-total mono">${Number(order.total).toFixed(2)} ر.س</div>
+    <div class="receipt-total">${rkMoney(Number(order.total))}</div>
     <div class="incoming-order-actions">
       <button class="confirm-pay-btn" id="incomingAcceptBtn">قبول ✅</button>
       <button class="clear-btn armed" id="incomingRejectBtn">رفض ❌</button>
@@ -5589,9 +6618,30 @@ function syncActiveDeliveryOrderFromRow(order){
     platformName: order.source === 'online' ? 'متجر المطعم' : (platform ? platform.name : 'توصيل'),
     total: Number(order.total), isOnline: order.source === 'online',
     invoiceLast4: order.platform_invoice_last4, warnedAt5min: false, alertedExpired: false,
-    readyAt: order.ready_at ? new Date(order.ready_at) : null
+    readyAt: order.ready_at ? new Date(order.ready_at) : null,
+    outForDeliveryAt: order.out_for_delivery_at ? new Date(order.out_for_delivery_at) : null
   });
   updateNotifBell();
+}
+
+// Mirrors syncActiveDeliveryOrderFromRow exactly, for pickup — see
+// ACTIVE_PICKUP_ORDERS' own comment for why this list exists at all.
+function syncActivePickupOrderFromRow(order){
+  if(!order || order.channel !== 'pickup' || order.source !== 'online' || order.status !== 'completed') return;
+  const tracked = ACTIVE_PICKUP_ORDERS.find(o=>o.id===order.id);
+  if(order.delivered_at != null){
+    if(tracked) ACTIVE_PICKUP_ORDERS = ACTIVE_PICKUP_ORDERS.filter(o=>o.id!==order.id);
+    return;
+  }
+  if(tracked){
+    if(order.ready_at && !tracked.readyAt) tracked.readyAt = new Date(order.ready_at);
+    return;
+  }
+  ACTIVE_PICKUP_ORDERS.push({
+    id: order.id, createdAt: new Date(order.created_at), customerName: order.customer_name, total: Number(order.total),
+    scheduledFor: order.scheduled_for ? new Date(order.scheduled_for) : null, scheduledByCustomer: !!order.scheduled_by_customer,
+    readyAt: order.ready_at ? new Date(order.ready_at) : null
+  });
 }
 
 let ordersLiveSyncChannel = null;
@@ -5599,6 +6649,7 @@ function subscribeToOrdersLiveSync(){
   if(ordersLiveSyncChannel) return;
   const onOrdersChange = (payload)=>{
     syncActiveDeliveryOrderFromRow(payload.new);
+    syncActivePickupOrderFromRow(payload.new);
     if(document.getElementById('screen-orders').classList.contains('active')) renderOrdersList();
   };
   ordersLiveSyncChannel = window.supabaseClient
@@ -5622,6 +6673,7 @@ async function bootPos(){
   await loadPosData();
   if(HOST_MODE){
     document.getElementById('posApp').classList.add('host-mode');
+    document.getElementById('posApp').classList.remove('home-active'); // Tables, not Home, is the only reachable screen here
     document.getElementById('posCashierRole').textContent = 'الحجز والطاولات';
     renderTables();
     subscribeToTableChanges();
@@ -5637,10 +6689,12 @@ async function bootPos(){
     return;
   }
   renderPlatformButtons();
+  applyLang(); // re-apply now that CATEGORIES/PRODUCTS carry real nameEn values
   renderCatRail();
   renderProductGrid();
   renderOrder();
   await seedActiveDeliveryOrders();
+  await seedActivePickupOrders();
   updateNotifBell();
   renderOrdersList();
   // mobile_car_wash lands on the waitlist pane by default (no floor grid —
@@ -5677,7 +6731,7 @@ updatePrinterStatusPill();
     showAuthScreen('posProvisionScreen');
   } else if(CURRENT_PROFILE){
     try {
-      const savedStaff = JSON.parse(sessionStorage.getItem('rakeen_pos_staff') || 'null');
+      const savedStaff = JSON.parse(localStorage.getItem('rakeen_pos_staff') || 'null');
       if(savedStaff){ applyStaffMember(savedStaff); await afterStaffReady(); }
       else await showStaffPick();
     } catch (e) { await showStaffPick(); }

@@ -25,13 +25,14 @@ import {
   getFinancialSettings,
   getHideProductImages,
   getHidePopularTab,
+  getPosFeatureFlags,
   getDineInPayTiming,
   getReceiptBusinessProfile,
   CatalogResult,
 } from '../application/catalogService';
 import { getOrderHistoryDetail } from '../application/orderHistoryService';
 import { listDeliveryPlatforms } from '../application/catalogService';
-import type { DeliveryPlatform } from '../application/catalogService';
+import type { DeliveryPlatform, PosFeatureFlags } from '../application/catalogService';
 import { listTables, seatWalkIn } from '../application/tableService';
 import { toWesternDigits } from '../domain/customer';
 import { submitOrder } from '../application/orderService';
@@ -294,6 +295,15 @@ export default function ProductsScreen({
    *  SHOWN, unlike pos_hide_product_images which defaults to hidden. */
   const [hidePopularTab, setHidePopularTab] = useState(false);
 
+  /** The owner's POS switches. Defaults match each flag's own polarity so
+   *  the first paint behaves like a business that has set nothing. */
+  const [flags, setFlags] = useState<PosFeatureFlags>({
+    loyaltyEnabled: true,
+    dineInEnabled: true,
+    hideSearch: false,
+    hideNotifBell: false,
+  });
+
   /** .discount-panel is `display:none` until .discount-toggle opens it. */
   const [discountPanelOpen, setDiscountPanelOpen] = useState(false);
 
@@ -418,17 +428,19 @@ export default function ProductsScreen({
       try {
         const type = await getBusinessType(cashier.business_id);
         setBusinessType(type);
-        const [result, settings, hideImgs, payTiming, hidePopular] = await Promise.all([
+        const [result, settings, hideImgs, payTiming, hidePopular, posFlags] = await Promise.all([
           loadCatalog(cashier.business_id, type),
           getFinancialSettings(cashier.business_id),
           getHideProductImages(cashier.business_id),
           getDineInPayTiming(cashier.business_id),
           getHidePopularTab(cashier.business_id),
+          getPosFeatureFlags(cashier.business_id),
         ]);
         setCatalog(result);
         setFinancial(settings);
         setHideImages(hideImgs);
         setHidePopularTab(hidePopular);
+        setFlags(posFlags);
         // :5835 -- when the business hides the popular tab the default
         // lands on 'all', not on a tab that is not rendered.
         if (hidePopular) setActiveCategoryId('all');
@@ -1110,8 +1122,11 @@ export default function ProductsScreen({
 
         {/* .products-zone */}
         <View style={[styles.productsZone, isNarrow && styles.productsZoneNarrow]}>
-          {/* .products-toolbar -- search box + favourites toggle, in that order */}
+          {/* .products-toolbar -- search box + favourites toggle, in that
+              order. POS_HIDE_SEARCH removes the search box; the favourites
+              toggle stays, since it is a separate control. */}
           <View style={[styles.productsToolbar, toolbarInset]}>
+            {!flags.hideSearch && (
             <View style={styles.searchBox}>
               {/* .search-box svg -- same circle+line magnifier, ported path-for-path */}
               <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={2} strokeLinecap="round" style={styles.searchIcon}>
@@ -1128,6 +1143,7 @@ export default function ProductsScreen({
                 returnKeyType="search"
               />
             </View>
+            )}
             {/* .fav-toggle -- 48px pill beside the search box */}
             <TouchableOpacity
               style={[styles.favToggle, showFavOnly && styles.favToggleActive]}
@@ -1485,6 +1501,10 @@ export default function ProductsScreen({
         // source does (addPointsRedemptionToCart then closePaymentModalNow):
         // the redeemed item lands in the cart as a points line and the
         // cashier reopens payment for whatever is left to pay.
+        // These two props existed and were never fed, so turning either
+        // switch off in the dashboard did nothing at all on the till.
+        loyaltyEnabled={flags.loyaltyEnabled}
+        dineInEnabled={flags.dineInEnabled}
         deliveryPlatforms={deliveryPlatforms}
         deliveryPlatformId={deliveryPlatformId}
         onDeliveryPlatformChange={setDeliveryPlatformId}

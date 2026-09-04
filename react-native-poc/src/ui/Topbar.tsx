@@ -58,6 +58,7 @@ export default function Topbar({
   online,
   printerLabel,
   unreadNotifications,
+  hideNotifBell = false,
   onPressBell,
   onSwitchStaff,
   onLogout,
@@ -71,6 +72,8 @@ export default function Topbar({
   /** #printerStatus's label -- "بدون طابعة شبكة" until one is configured. */
   printerLabel: string;
   unreadNotifications: boolean;
+  /** POS_HIDE_NOTIF_BELL. */
+  hideNotifBell?: boolean;
   onPressBell?: () => void;
   onSwitchStaff?: () => void;
   onLogout?: () => void;
@@ -138,7 +141,8 @@ export default function Topbar({
         </View>
       )}
 
-      {/* .notif-bell */}
+      {/* .notif-bell -- removed entirely when the owner hides it. */}
+      {!hideNotifBell && (
       <TouchableOpacity style={styles.notifBell} onPress={onPressBell} accessibilityLabel={t('تنبيهات التوصيل')}>
         <Svg
           width={16}
@@ -156,6 +160,7 @@ export default function Topbar({
             report, so an always-on dot would read as a permanent alert. */}
         {unreadNotifications && <View style={styles.notifBellDot} />}
       </TouchableOpacity>
+      )}
 
       {/* .theme-toggle -- `.icon-light` is hidden at base and revealed by
           `[data-theme="light"]`, so LIGHT shows the sun and DARK the moon. */}

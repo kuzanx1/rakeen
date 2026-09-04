@@ -98,7 +98,17 @@ export async function loadShiftTotals(shift: Shift | null): Promise<ShiftTotals>
     .from('orders')
     .select('total, payment_method, cash_amount')
     .eq('shift_id', shift.id)
-    .eq('payment_status', 'paid');
+    .eq('payment_status', 'paid')
+    // Refunds. refund_pos_order sets status='refunded' and never touches
+    // payment_status -- which cannot hold 'refunded' at all, its check
+    // constraint allows 'unpaid'/'paid' only. Without this exclusion a
+    // refunded cash sale keeps counting toward "expected in drawer" while
+    // the money has physically been handed back, so the count comes up
+    // short by exactly the refunded amount and an honest cashier looks
+    // like they are missing cash on the figure a manager signs off.
+    // 'cancelled' needs no exclusion: cancel_dine_in_order only matches
+    // payment_status='unpaid', so those never reach this query.
+    .neq('status', 'refunded');
   return computeShiftTotals((data as ShiftOrderRow[]) || [], Number(shift.opening_cash));
 }
 

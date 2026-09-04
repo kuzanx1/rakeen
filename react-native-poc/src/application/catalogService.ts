@@ -151,6 +151,42 @@ export interface ReceiptBusinessProfile {
   customMessage: string;
 }
 
+/**
+ * The POS feature switches the owner controls from the dashboard.
+ *
+ * Fetched together rather than one call each: they come from the same
+ * businesses row, and the source reads them all in one query too.
+ *
+ * Polarities are NOT uniform and each matches the source exactly --
+ * `!== false` means ON unless explicitly turned off, `=== true` means OFF
+ * unless explicitly turned on. Getting one backwards silently inverts a
+ * feature for every branch that never set it.
+ */
+export interface PosFeatureFlags {
+  /** LOYALTY_ENABLED -- when off, the customer step is skipped entirely. */
+  loyaltyEnabled: boolean;
+  /** DINE_IN_ENABLED -- when off, بالمطعم is dropped from the channel row. */
+  dineInEnabled: boolean;
+  /** POS_HIDE_SEARCH -- hides the search box and the barcode field with it. */
+  hideSearch: boolean;
+  /** POS_HIDE_NOTIF_BELL */
+  hideNotifBell: boolean;
+}
+
+export async function getPosFeatureFlags(businessId: number): Promise<PosFeatureFlags> {
+  const { data } = await supabase
+    .from('businesses')
+    .select('loyalty_enabled, dine_in_enabled, pos_hide_search, pos_hide_notif_bell')
+    .eq('id', businessId)
+    .single();
+  return {
+    loyaltyEnabled: data ? data.loyalty_enabled !== false : true,
+    dineInEnabled: data ? data.dine_in_enabled !== false : true,
+    hideSearch: data ? data.pos_hide_search === true : false,
+    hideNotifBell: data ? data.pos_hide_notif_bell === true : false,
+  };
+}
+
 /** DELIVERY_PLATFORMS_LIST -- the delivery apps this branch works with
  *  (Jahez, HungerStation, ...). A delivery order that does not name one
  *  cannot be split by platform in the dashboard's reports. */

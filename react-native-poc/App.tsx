@@ -39,6 +39,7 @@ import PrintQueueScreen from './src/ui/PrintQueueScreen';
 import PrinterSettingsScreen from './src/ui/PrinterSettingsScreen';
 import uuid from 'react-native-uuid';
 import { getPrinterProfile } from './src/infrastructure/printerProfileStore';
+import { getPosFeatureFlags } from './src/application/catalogService';
 import { profileToPrinterTarget, drawerKickCommandFor, isDrawerSupported } from './src/domain/printerProfile';
 import { startDiagnosticsTracking } from './src/application/diagnosticsService';
 import { getNotifySoundEnabled } from './src/application/catalogService';
@@ -183,6 +184,8 @@ function App(): React.JSX.Element {
   /** #printerStatus. The source shows "بدون طابعة شبكة" until a network
    *  printer is actually configured, then the host it will print to. */
   const [printerLabel, setPrinterLabel] = useState('بدون طابعة شبكة');
+  /** POS_HIDE_NOTIF_BELL -- the owner can remove the bell entirely. */
+  const [hideNotifBell, setHideNotifBell] = useState(false);
   const [drawerBusy, setDrawerBusy] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   /** موافقة مدير -- openPinModal() in the source (rakeen-pos.js:5157). */
@@ -371,6 +374,14 @@ function App(): React.JSX.Element {
       const device = await getDeviceConfig();
       setBranchId(device.branchId);
       setBusinessName(device.businessName);
+      if (device.businessId != null) {
+        try {
+          setHideNotifBell((await getPosFeatureFlags(device.businessId)).hideNotifBell);
+        } catch {
+          // Leave the bell visible; a failed settings read must not remove
+          // a control the owner may well want.
+        }
+      }
       setBranchName(device.branchName);
       try {
         const printer = await getPrinterProfile();
@@ -639,6 +650,7 @@ function App(): React.JSX.Element {
         branchName={branchName}
         online={online}
         printerLabel={printerLabel}
+        hideNotifBell={hideNotifBell}
         unreadNotifications={false}
         // notifBellBtn's whole handler (rakeen-pos.js:4933) is a jump to
         // the Orders screen. It was rendered here with no handler at all,
