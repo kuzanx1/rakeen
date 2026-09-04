@@ -1031,14 +1031,16 @@ if (!window.__rakeenOrderBooted) {
   // asked yet"; anything but an explicit false leaves cash on, so a failed
   // fetch degrades to exactly today's behaviour instead of blocking orders.
   let COD_ENABLED = null;
+  let CARD_ENABLED = null;
 
   async function loadCodEnabled() {
     if (COD_ENABLED !== null) return COD_ENABLED;
     try {
       const { data, error } = await sb
-        .from('businesses').select('online_cod_enabled').eq('id', BUSINESS.id).single();
+        .from('businesses').select('online_cod_enabled, online_card_enabled').eq('id', BUSINESS.id).single();
       COD_ENABLED = (error || !data) ? true : data.online_cod_enabled !== false;
-    } catch { COD_ENABLED = true; }
+      CARD_ENABLED = (error || !data) ? true : data.online_card_enabled !== false;
+    } catch { COD_ENABLED = true; CARD_ENABLED = true; }
     return COD_ENABLED;
   }
 
@@ -1046,7 +1048,7 @@ if (!window.__rakeenOrderBooted) {
     return [
       { id: 'cash', label: 'نقدًا عند الاستلام', icon: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg>', enabled: COD_ENABLED !== false },
       { id: 'applepay', label: 'Apple Pay', icon: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20.5c-4 0-7-3.5-7-8 0-2.5 1.2-4.5 3-5.5"/><path d="M12 6.5c1 0 2 .5 2.5 1.5"/></svg>', enabled: false },
-      { id: 'card', label: 'بطاقة', icon: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>', enabled: BUSINESS && BUSINESS.geidea_connected === true },
+      { id: 'card', label: 'بطاقة', icon: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>', enabled: BUSINESS && BUSINESS.geidea_connected === true && CARD_ENABLED !== false },
     ];
   }
   let checkoutPaymentMethod = 'cash';
@@ -1055,9 +1057,16 @@ if (!window.__rakeenOrderBooted) {
     document.getElementById('omCartOverlay').classList.remove('show');
     await loadCodEnabled();
     // A store that turned cash off must not leave it preselected.
-    if (COD_ENABLED === false && checkoutPaymentMethod === 'cash') {
-      const firstOn = getPaymentMethods().find(m => m.enabled);
-      checkoutPaymentMethod = firstOn ? firstOn.id : 'card';
+    const usable = getPaymentMethods().filter(m => m.enabled);
+    if (usable.length === 0) {
+      // The dashboard refuses to save this combination, so reaching it means
+      // something changed underneath -- a gateway disconnected, say. Say so
+      // plainly instead of showing a sheet with nothing selectable.
+      showToast('الطلب غير متاح حاليًا — تواصل مع المطعم');
+      return;
+    }
+    if (!usable.some(m => m.id === checkoutPaymentMethod)) {
+      checkoutPaymentMethod = usable[0].id;
     }
     if (BRANCHES.length > 1 && !state.branchId) { openBranchPicker(); return; }
     const openBranch = BRANCHES.find(b => b.id === state.branchId) || (BRANCHES.length === 1 ? BRANCHES[0] : null);

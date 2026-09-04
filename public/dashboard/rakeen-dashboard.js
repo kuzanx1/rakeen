@@ -6062,7 +6062,9 @@ async function loadBusinessData(){
     ONLINE_OFFERS_DELIVERY = businessRes.data.online_offers_delivery !== false;
     ONLINE_OFFERS_PICKUP = businessRes.data.online_offers_pickup !== false;
     // Its own await, for the reason on loadOnlineCodEnabled itself.
-    ONLINE_COD_ENABLED = await loadOnlineCodEnabled();
+    const payFlags = await loadOnlineCodEnabled();
+    ONLINE_COD_ENABLED = payFlags.cod;
+    ONLINE_CARD_ENABLED = payFlags.card;
     ONLINE_DELIVERY_FEE = Number(businessRes.data.online_delivery_fee) || 0;
     ONLINE_PICKUP_PREP_MINUTES = Number(businessRes.data.online_pickup_prep_minutes) || 20;
     ONLINE_CONTACT_WHATSAPP = businessRes.data.online_contact_whatsapp || '';
@@ -7519,6 +7521,7 @@ let BUSINESS_VAT_NUMBER = '';
 let RECEIPT_CUSTOM_MESSAGE = '';
 let RECEIPT_THEME = 'classic';
 let ONLINE_COD_ENABLED = true;
+let ONLINE_CARD_ENABLED = true;
 
 // Its own query, NOT a field on the big business select: PostgREST fails an
 // entire select over one unknown column, and this one would blank the whole
@@ -7528,10 +7531,10 @@ let ONLINE_COD_ENABLED = true;
 async function loadOnlineCodEnabled(){
   try {
     const { data, error } = await window.supabaseClient
-      .from('businesses').select('online_cod_enabled').eq('id', CURRENT_PROFILE.business_id).single();
-    if(error || !data) return true;
-    return data.online_cod_enabled !== false;
-  } catch(_){ return true; }
+      .from('businesses').select('online_cod_enabled, online_card_enabled').eq('id', CURRENT_PROFILE.business_id).single();
+    if(error || !data) return { cod:true, card:true };
+    return { cod: data.online_cod_enabled !== false, card: data.online_card_enabled !== false };
+  } catch(_){ return { cod:true, card:true }; }
 }
 
 // businesses.receipt_theme gets its own query, NOT a field on the big
@@ -9309,6 +9312,7 @@ function onlineStoreSettingsHtml(){
         <input type="number" id="settingsOnlinePickupPrep" value="${ONLINE_PICKUP_PREP_MINUTES}" min="1" max="180" inputmode="numeric">
       </div>
       ${rkSwitchRow('settingsOnlineCod', ONLINE_COD_ENABLED, 'يقبل الدفع عند الاستلام', 'لو أطفأته، العميل لازم يدفع إلكترونيًا وقت الطلب — يشمل الاستلام والتوصيل.')}
+      ${rkSwitchRow('settingsOnlineCard', ONLINE_CARD_ENABLED, 'يقبل الدفع الإلكتروني', GEIDEA_CONNECTED ? 'العميل يدفع بالبطاقة وقت الطلب.' : 'يحتاج ربط بوابة الدفع أولاً — بدونها ما يظهر للعميل حتى لو شغّلته.')}
     </div>
 
     <div class="rk-section">
@@ -9494,12 +9498,26 @@ function wireOnlineStoreSettings(){
 
   const onlineSaveBtn = document.getElementById('settingsOnlineSaveBtn');
   onlineSaveBtn.addEventListener('click', async ()=>{
+    // A store with no usable payment method takes no orders at all, and the
+    // way to get there is not obvious: turning cash off while card is "on"
+    // but has no gateway connected leaves the customer nothing to pick.
+    // Card availability is the SWITCH AND the gateway, so that is what gets
+    // checked here rather than the switch alone.
+    const codOn = document.getElementById('settingsOnlineCod').checked;
+    const cardUsable = document.getElementById('settingsOnlineCard').checked && GEIDEA_CONNECTED;
+    if(!codOn && !cardUsable){
+      showToast(GEIDEA_CONNECTED
+        ? 'لازم تخلي طريقة دفع وحدة على الأقل شغّالة — وإلا ما يقدر أحد يطلب'
+        : 'ما تقدر تطفي الدفع عند الاستلام قبل ما تربط بوابة الدفع — بيصير ما فيه أي طريقة دفع');
+      return;
+    }
     rkBtnLoading(onlineSaveBtn, true);
     try {
       const updates = {
         online_offers_delivery: document.getElementById('settingsOnlineDelivery').checked,
         online_offers_pickup: document.getElementById('settingsOnlinePickup').checked,
         online_cod_enabled: document.getElementById('settingsOnlineCod').checked,
+        online_card_enabled: document.getElementById('settingsOnlineCard').checked,
         online_delivery_fee: parseFloat(document.getElementById('settingsOnlineDeliveryFee').value) || 0,
         online_pickup_prep_minutes: parseInt(document.getElementById('settingsOnlinePickupPrep').value, 10) || 20,
         online_contact_whatsapp: document.getElementById('settingsOnlineWhatsapp').value.trim() || null,
@@ -9511,6 +9529,7 @@ function wireOnlineStoreSettings(){
       ONLINE_OFFERS_DELIVERY = updates.online_offers_delivery;
       ONLINE_OFFERS_PICKUP = updates.online_offers_pickup;
       ONLINE_COD_ENABLED = updates.online_cod_enabled;
+      ONLINE_CARD_ENABLED = updates.online_card_enabled;
       ONLINE_DELIVERY_FEE = updates.online_delivery_fee;
       ONLINE_PICKUP_PREP_MINUTES = updates.online_pickup_prep_minutes;
       ONLINE_CONTACT_WHATSAPP = updates.online_contact_whatsapp || '';
