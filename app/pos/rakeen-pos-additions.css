@@ -45,14 +45,25 @@
   margin-bottom: 11px;
   text-align: start;
 }
-.pos-auth-field label {
+/* :not(.pos-check) — same collision class as the width:100% fix above:
+   ".pos-auth-field label" (1 class + 1 element) beats ".pos-check" (1 class)
+   on specificity alone regardless of source order, so without this exception
+   every .pos-check row silently lost its flex layout to this block-display
+   reset and stacked the checkbox above its label text instead of beside it. */
+.pos-auth-field label:not(.pos-check) {
   display: block;
   font-size: 11px;
   font-weight: 700;
   color: var(--muted);
   margin-bottom: 6px;
 }
-.pos-auth-field input,
+/* Real reported bug: this used to match every <input> including the
+   type="checkbox" rows further down (printCustomerReceiptToggle etc) —
+   width:100% stretched a native checkbox to fill the whole row, squeezing
+   its label text into a single narrow multi-line sliver next to it. Text
+   inputs/selects still get the full-width treatment; checkboxes get their
+   own sizing via .pos-check below instead. */
+.pos-auth-field input:not([type="checkbox"]),
 .pos-auth-field select {
   width: 100%;
   padding: 13px 15px;
@@ -64,6 +75,43 @@
   font-weight: 600;
   font-family: inherit;
 }
+/* Rakeen-identity checkbox (mirrors the dashboard's rk-check, POS-flavored)
+   — replaces every bare native checkbox in Settings, whose default OS
+   styling (blue checkmark, arbitrary browser sizing) read as un-styled and
+   off-brand next to the rest of the app. */
+.pos-check {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 2px;
+  cursor: pointer;
+}
+.pos-check input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.pos-check-box {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  border-radius: 6px;
+  border: 1.5px solid var(--line);
+  background: var(--surf1);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .12s ease, border-color .12s ease;
+}
+.pos-check-box svg { width: 13px; height: 13px; opacity: 0; transition: opacity .1s ease; }
+.pos-check input:checked + .pos-check-box { background: var(--lime); border-color: var(--lime); }
+.pos-check input:checked + .pos-check-box svg { opacity: 1; color: var(--flag-green-deep); }
+.pos-check input:focus-visible + .pos-check-box { box-shadow: 0 0 0 3px rgba(var(--lime-deep-rgb), 0.35); }
+.pos-check-label { font-size: 12.5px; font-weight: 700; line-height: 1.5; }
 .pos-auth-field input:focus,
 .pos-auth-field select:focus {
   outline: none;
@@ -182,6 +230,7 @@
 .dorder-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  grid-auto-rows: min-content; /* see .product-grid in rakeen-pos.css for why */
   gap: 10px;
   margin-bottom: 12px;
 }
@@ -260,7 +309,7 @@
   width: 100%; border-top: 1px dashed var(--line); color: var(--lime-deep);
 }
 [data-theme="dark"] .dorder-total { color: var(--lime); }
-.dorder-ready-btn {
+.dorder-ready-btn, .pickup-ready-btn {
   width: 100%;
   margin-top: 6px;
   padding: 8px 0;
@@ -317,7 +366,7 @@
   margin-top: 2px;
 }
 [data-theme="dark"] .dorder-out-waiting { color: var(--lime); }
-.dorder-delivered-btn {
+.dorder-delivered-btn, .pickup-delivered-btn {
   width: 100%;
   margin-top: 6px;
   padding: 8px 0;
@@ -330,6 +379,35 @@
   cursor: pointer;
   box-shadow: 0 3px 10px rgba(var(--lime-deep-rgb), 0.28);
 }
+/* Optional secondary milestone — smaller/quieter than the primary
+   delivered button so it doesn't compete with it visually. */
+.dorder-out-btn {
+  width: 100%;
+  margin-top: 6px;
+  padding: 7px 0;
+  border-radius: var(--r-full);
+  border: 1.5px solid var(--lime-deep);
+  background: transparent;
+  color: var(--lime-deep);
+  font-weight: 800;
+  font-size: 11px;
+  cursor: pointer;
+}
+[data-theme="dark"] .dorder-out-btn { color: var(--lime); border-color: var(--lime); }
+
+/* Customer-picked-a-later-time alert — loud on purpose, so the cashier
+   registers it's not a normal ASAP order at a glance (see pickupTimeNoteHtml). */
+.pickup-scheduled-alert {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(var(--amber-rgb), 0.16);
+  border: 1.5px solid var(--amber);
+  color: var(--amber);
+  font-weight: 800;
+  font-size: 13px;
+  text-align: center;
+}
 
 /* Responsive: the 3-zone layout (cat-rail | products | order-panel 360px)
    plus the sidebar icon-rail (rakeen-pos.css, ≥761px) targets 11-12" tablets
@@ -337,16 +415,50 @@
    layout stacks into a single scrollable column. */
 @media (max-width: 1100px) and (min-width: 761px) {
   .order-panel { width: 300px; }
+  .app.home-active > .topbar { inset-inline-end: 300px; } /* keep matching .order-panel's narrower width here */
+  .app.home-active > .bottom-nav { inset-inline-end: 300px; } /* same */
+  /* Squeezed down to just the products column at this width, the topbar's
+     full content (business identity + status pills + staff avatar + theme/
+     lang/notif icons + clock) no longer fits on one line — it was silently
+     overflowing past the topbar's own left edge and landing on top of the
+     order panel (an iPad-portrait-width bug, caught directly on a real
+     login: measured .tb-clock rendering at x:-23..26 while the topbar box
+     itself started at x:315). Wrapping keeps every piece of info intact
+     instead of picking something to delete — however many lines it takes,
+     --topbar-h (rakeen-pos.js) measures the real result and everything
+     else (.cat-sidebar/.products-toolbar/.bottom-nav, in rakeen-pos.css)
+     reads that instead of a second hardcoded guess here. */
+  .app.home-active > .topbar { flex-wrap:wrap; height:auto; min-height:88px; padding-block:8px; align-content:center; }
 }
 
 @media (max-width: 760px) {
   body { overflow: auto; height: auto; min-height: 100vh; padding: 0; }
-  .app { height: auto; min-height: 100vh; border-radius: 0; box-shadow: none; border: none; }
+  /* Real reported bug: the topbar and bottom-nav are normal-flow flex
+     children of .app on desktop (a fixed 100vh shell, never needs page
+     scroll). Here .app grows to fit all content instead (needed so Home's
+     stacked mobile layout — grid then cart below it — has somewhere to
+     scroll to), which means both bars just sit once at their natural flow
+     position and scroll away with everything else instead of staying
+     docked — exactly the "bottom nav disappears" / tabs seem to "move"
+     complaint (what actually moved was the whole page under them). Pinning
+     them to the viewport and padding .app to clear their height fixes both
+     without touching the "whole page scrolls" strategy Home's layout relies
+     on. */
+  .app { height: auto; min-height: 100vh; border-radius: 0; box-shadow: none; border: none; padding-top: calc(58px + env(safe-area-inset-top, 0px)); padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px)); }
   .screens { overflow: visible; }
   .screen.active { position: static; height: auto; }
 
   .status-group, .tb-clock { display: none; }
-  .topbar { gap: 8px; padding: 0 12px; height: 58px; }
+  .topbar {
+    position: fixed; top: 0; inset-inline: 0; z-index: 30;
+    padding-top: env(safe-area-inset-top, 0px);
+    gap: 8px; padding-inline: 12px; height: calc(58px + env(safe-area-inset-top, 0px));
+  }
+  .bottom-nav {
+    position: fixed; bottom: 0; inset-inline: 0; z-index: 30;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    height: calc(68px + env(safe-area-inset-bottom, 0px));
+  }
   .identity-branch { display: none; }
   .identity-cluster, .user-cluster { min-width: 0; }
   .identity-text { min-width: 0; }
@@ -356,8 +468,24 @@
 
   .home-zones { flex-direction: column; overflow: visible; }
 
+  /* The vertical category sidebar (rakeen-pos.css) works great on tablet+
+     widths where there's room to spare, but on a narrow phone dedicating a
+     whole column to it leaves barely anything for products — revert to a
+     horizontal scrolling strip here instead, same as it always was. */
+  .cat-sidebar { width: 100%; flex-direction: row; overflow-x: auto; overflow-y: visible; border-inline-end: none; border-bottom: 1px solid var(--line); padding: 10px 12px; background: none; }
+  .cat-sidebar .cat-btn { flex-direction: row; padding: 8px 14px; border-radius: var(--r-full); white-space: nowrap; width: auto; }
+  .cat-sidebar .cat-btn .ci { font-size: 14px; }
+  .cat-sidebar .cat-btn .ci svg { width: 15px; height: 15px; }
+
   .products-zone { overflow: visible; }
-  .product-grid { overflow-y: visible; max-height: 60vh; grid-template-columns: repeat(auto-fill, minmax(122px,1fr)); gap: 10px; }
+  /* Real reported bug: overflow-y:visible on a max-height-capped grid doesn't
+     clip or scroll — it just paints past its own box. Every .product-card is
+     position:relative (the star/dot/price badges need it as their anchor),
+     so those overflowing cards were painting ON TOP of .order-panel right
+     after it in the stacking order, hiding the cart underneath the menu.
+     Scrolling internally within the grid's own 60vh cap keeps the cart
+     always visible below it without needing that. */
+  .product-grid { overflow-y: auto; -webkit-overflow-scrolling: touch; max-height: 60vh; grid-template-columns: repeat(auto-fill, minmax(122px,1fr)); gap: 10px; }
   .product-icon { height: 72px; }
 
   .order-panel {
@@ -460,3 +588,11 @@
   margin: 2px 0 14px;
 }
 .reject-reason-chip.active { background: var(--lime-deep); color: var(--flag-green-deep); border-color: var(--lime-deep); }
+
+/* Call-buzzer number on the payment step. A wide, centred, mono field:
+   it is a number read back off a physical device, so it should look like
+   the number on that device rather than like a text input. */
+.pager-field{margin-bottom:14px;}
+.pager-field label{display:block; font-size:11px; font-weight:800; color:var(--muted); margin-bottom:6px;}
+.pager-field input{width:100%; padding:12px 14px; border-radius:var(--r-md); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:18px; font-weight:700; text-align:center; letter-spacing:2px;}
+.pager-field input:focus{outline:none; border-color:var(--lime-deep); background:var(--card-bg);}

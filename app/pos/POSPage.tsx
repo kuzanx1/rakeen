@@ -24,9 +24,14 @@ export default function POSPage() {
     document.documentElement.setAttribute("data-theme", "light");
     container.innerHTML = posMarkup;
 
+    // Named cookie: keeps POS's own session isolated from /dashboard and
+    // /kitchen, which otherwise share one auth cookie on this origin and
+    // silently clobber each other's session on sign-in/sign-out. See the
+    // matching note in DashboardPage.tsx for the full explanation.
     window.supabaseClient = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookieOptions: { name: 'sb-rakeen-pos-auth' } }
     );
 
     const script = document.createElement("script");

@@ -10,6 +10,11 @@ import POSPage from "../POSPage";
 // A dedicated reservation host and the regular cashier can both use this
 // link from a separate tablet at the entrance without it ever touching
 // money or the register.
+// See app/pos/page.tsx for why: this shell would otherwise be statically
+// prerendered with a very long edge cache, and a device stuck on a stale
+// copy can end up requesting JS/CSS chunk files a newer deploy removed.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "ركين | الحجوزات والطاولات",
   description: "شاشة إدارة الطاولات وقائمة الانتظار — ركين.",

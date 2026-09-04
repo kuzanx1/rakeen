@@ -390,8 +390,19 @@ export default function PaymentModal({
 
   const chooseChannel = (id: OrderChannel) => {
     onChannelChange(id);
+    // Delivery is the one channel that asks a second question on this same
+    // step: WHICH app the order came from. Advancing on the channel tap
+    // would answer it silently with whichever platform happens to be
+    // first, and that platform is what the sale is booked against. So
+    // delivery stays put and the platform tap is what moves on.
+    if (id === 'delivery') return;
     if (needsTable(id)) setStep('tablePicker');
     else advanceToCustomer();
+  };
+
+  const choosePlatform = (platformId: number) => {
+    onDeliveryPlatformChange(platformId);
+    advanceToCustomer();
   };
 
   const advanceFromChannel = () => {
@@ -724,7 +735,7 @@ export default function PaymentModal({
                             active && styles.platformBtnActive,
                             active && pf.brandColor ? { borderColor: pf.brandColor } : null,
                           ]}
-                          onPress={() => onDeliveryPlatformChange(pf.id)}
+                          onPress={() => choosePlatform(pf.id)}
                           activeOpacity={0.8}>
                           {pf.logoUrl ? (
                             <Image source={{ uri: pf.logoUrl }} style={styles.platformLogo} resizeMode="contain" />

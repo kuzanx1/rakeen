@@ -874,6 +874,12 @@ function renderPlatformButtons(){
   row.querySelectorAll('.platform-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       state.deliveryPlatformId = parseInt(btn.dataset.platform, 10);
+      // Picking the app is the delivery order's real choice, so it is what
+      // moves the step on. Guarded: this same row is re-rendered on the
+      // payment step too, where advancing would throw the cashier back.
+      if(typeof advanceFromChannelStep === 'function' && document.getElementById('pmChannelRow')){
+        setTimeout(advanceFromChannelStep, 0);
+      }
       renderPlatformButtons();
       renderProductGrid();
       renderOrder();
@@ -1803,6 +1809,9 @@ document.getElementById('payBtn').addEventListener('click', ()=>{
     submitTableOrderRegistration();
     return;
   }
+  // A buzzer belongs to one sale. Cleared as the flow opens so the next
+  // customer cannot inherit the previous one is number.
+  state.pagerNumber = '';
   resetModalStack(renderChannelStep);
   paymentModal.classList.add('show');
 });
@@ -1866,7 +1875,6 @@ function renderChannelStep(){
     `<button class="channel-btn ${state.orderChannel===c.id?'active':''}" data-channel="${c.id}">${c.label}</button>`
   ).join('') + `</div>`;
   html += `<div class="platform-btn-row ${state.orderChannel==='delivery' && DELIVERY_PLATFORMS_LIST.length ? '' : 'hidden'}" id="channelPlatformRow"></div>`;
-  html += `<button class="confirm-pay-btn" id="channelNextBtn" style="margin-top:18px;">التالي</button>`;
   paymentModalBody.innerHTML = html;
   renderPlatformButtons();
 
@@ -1888,15 +1896,32 @@ function renderChannelStep(){
     }
     renderProductGrid();
     renderOrder();
+    // The tap IS the choice — there is no "التالي" any more. A single row
+    // of options does not need a confirm step, and having one meant the
+    // step could be completed without choosing: state.orderChannel carries
+    // a default, so Next with nothing selected filed the order as dine-in
+    // and jumped to a table picker nobody asked for.
+    //
+    // Delivery is the exception: it asks a SECOND question on this same
+    // step — which app the order came from — and that platform is what the
+    // sale gets booked against. Advancing on the channel tap would answer
+    // it silently with whichever platform sorts first, so delivery waits
+    // and the platform tap is what moves on.
+    if(state.orderChannel !== 'delivery') advanceFromChannelStep();
   });
-  document.getElementById('channelNextBtn').addEventListener('click', ()=>{
-    // Most dine-in orders already carry a table by this point (started by
-    // tapping a table on the Tables screen) — this step only appears for
-    // the remaining case: cashier built the cart straight from Home, then
-    // picked "بالمطعم" here for the first time.
-    if(state.orderChannel === 'dine_in' && !state.selectedTableId) openModalStep(renderTablePickerStep);
-    else openModalStep(renderCustomerStep);
-  });
+}
+
+function advanceFromChannelStep(){
+  // Most dine-in orders already carry a table by this point (started by
+  // tapping a table on the Tables screen). This asks only for the
+  // remaining case: the cart was built from Home and "محلي" was picked
+  // here for the first time — and only under full table service, since
+  // simple dine-in has no table to pick at all.
+  const needsTable = state.orderChannel === 'dine_in'
+    && DINE_IN_MODE === 'tables'
+    && !state.selectedTableId;
+  if(needsTable) openModalStep(renderTablePickerStep);
+  else openModalStep(renderCustomerStep);
 }
 
 function renderTablePickerStep(){
@@ -1988,6 +2013,22 @@ function renderPaymentStep(){
     </div>`;
   }
 
+  // The buzzer, asked for only where the customer walks away and comes
+  // back: takeaway, and simple dine-in. A table-service order already has
+  // a table number doing this job, and a delivery order has nobody
+  // standing here to hand one to.
+  const wantsPager = POS_PAGER_ENABLED
+    && (state.orderChannel === 'pickup'
+        || (state.orderChannel === 'dine_in' && DINE_IN_MODE === 'simple'));
+  if(wantsPager){
+    html += `<div class="pager-field">
+      <label>رقم جهاز النداء</label>
+      <input type="number" id="pagerInput" inputmode="numeric" maxlength="3" placeholder="مثال: 20" value="${state.pagerNumber || ''}">
+      <p class="stock-qty-helper">اتركه فاضي لو ما أعطيته جهاز.</p>
+      <p class="pos-auth-error" id="pagerError" style="display:none;"></p>
+    </div>`;
+  }
+
   if(state.activePaymentMethod === 'cash'){
     const opts = [...new Set([total, Math.ceil(total/10)*10, Math.ceil(total/50)*50, Math.ceil(total/100)*100].map(n=>n.toFixed(2)))].slice(0,4);
     html += `<div class="quick-amounts">` + opts.map(v=>`<button class="qa-btn" data-amount="${v}">${v}</button>`).join('') + `</div>`;
@@ -2061,6 +2102,12 @@ function renderPaymentStep(){
   });
   const confirmBtn = document.getElementById('confirmPayBtn');
   if(confirmBtn) confirmBtn.addEventListener('click', completePayment);
+  const pagerInputEl = document.getElementById('pagerInput');
+  if(pagerInputEl) pagerInputEl.addEventListener('input', ()=>{
+    state.pagerNumber = pagerInputEl.value.replace(/[^0-9]/g, '').slice(0, 3);
+    const err = document.getElementById('pagerError');
+    if(err) err.style.display = 'none';
+  });
   const friendsSplitToggle = document.getElementById('friendsSplitToggle');
   if(friendsSplitToggle) friendsSplitToggle.addEventListener('click', ()=>{
     state.friendsSplitOpen = !state.friendsSplitOpen;
@@ -2725,6 +2772,16 @@ let RECEIPT_THEME = 'classic';
 // gate ONLY — cancelling an order and refunding keep their own PIN, which
 // this setting was never about.
 let REQUIRE_MANAGER_PIN_FOR_CLOSE = true;
+// businesses.dine_in_mode — 'simple' means order at the till and sit
+// anywhere, with no table to pick and none to close later. The kitchen
+// still gets "محلي" so it plates rather than bags.
+let DINE_IN_MODE = 'simple';
+// businesses.pos_pager_enabled — the buzzer base station is standalone;
+// this only records which number went out with which order.
+let POS_PAGER_ENABLED = false;
+// businesses.kitchen_ticket_mode — 'copy' prints a second customer
+// receipt instead of a kitchen-shaped ticket.
+let KITCHEN_TICKET_MODE = 'brief';
 function receiptTheme(id){ return RECEIPT_THEMES[id] || RECEIPT_THEMES.classic; }
 
 // A bilingual label — the receipt is read by customers and by auditors.
@@ -2924,6 +2981,10 @@ function renderKitchenTicketCanvas(receipt){
   if(receipt.branchName) centerText(receipt.branchName, 18, false);
   centerText(receipt.dateLabel, 16, false);
   centerText(receipt.metaLabel, 20, true);
+  // The buzzer number, bigger than anything else on the ticket — read off
+  // this paper and typed into the base station, so it has to be legible at
+  // a glance rather than hunted for among the item lines.
+  if(receipt.pagerNumber != null) centerText('جهاز النداء  ' + receipt.pagerNumber, 40, true);
   divider();
 
   receipt.items.forEach(it=>{
@@ -3408,7 +3469,11 @@ function buildKitchenReceiptData(orderPayload){
     branchName: DEVICE.branchName || '',
     dateLabel: new Date().toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
     metaLabel: (CHANNEL_LABELS[orderPayload.channel] || orderPayload.channel) + tableLabel + ' — ' + (orderPayload.orderId ? '#' + orderPayload.orderId : 'سيُحدَّد عند الاتصال'),
-    items
+    items,
+    // Printed larger than anything else on the ticket: whoever finishes the
+    // order reads it off this paper and types it into the base station, so
+    // it has to carry across a hot kitchen at a glance.
+    pagerNumber: state.pagerNumber ? parseInt(state.pagerNumber, 10) : null
   };
 }
 
@@ -3590,7 +3655,14 @@ async function autoPrintOnCheckout(orderPayload, receiptData, wasResumingOrder){
   // — that flag is already cleared by the time this runs (see completePayment,
   // which resets cart/table state immediately on success, before this call).
   const printKitchen = DEVICE.printKitchenTicket === true && !wasResumingOrder; // default off
-  if(printKitchen) enqueuePrintJob('kitchen', buildKitchenReceiptData(orderPayload));
+  if(printKitchen){
+    // 'copy' mode queues a SECOND customer receipt rather than a
+    // kitchen-shaped ticket, decided here at enqueue time. A flag inside
+    // the renderer would be two code paths that have to be kept looking
+    // identical — the exact thing this mode exists to avoid.
+    if(KITCHEN_TICKET_MODE === 'copy') enqueuePrintJob('receipt', receiptData);
+    else enqueuePrintJob('kitchen', buildKitchenReceiptData(orderPayload));
+  }
   if(printCustomer) attemptPrint(receiptData);
   else {
     const row = document.getElementById('printStatusRow');
@@ -3615,6 +3687,30 @@ async function completePayment(){
   completingPayment = true;
   const confirmBtn = document.getElementById('confirmPayBtn');
   if(confirmBtn) confirmBtn.disabled = true;
+
+  // A buzzer number is reused all day, so the same one must never be out
+  // with two open orders — buzzing it calls the wrong customer over, and
+  // nothing downstream could tell that it happened. The database has a
+  // unique index that makes it impossible; this is the check that refuses
+  // it while the cashier can still grab a different buzzer, rather than
+  // failing after the customer has walked off with it.
+  const pagerNum = state.pagerNumber ? parseInt(state.pagerNumber, 10) : null;
+  if(pagerNum){
+    try {
+      const { data: busy } = await window.supabaseClient
+        .from('orders').select('id')
+        .eq('branch_id', DEVICE.branchId).eq('pager_number', pagerNum)
+        .is('delivered_at', null).limit(1);
+      if(busy && busy.length){
+        const err = document.getElementById('pagerError');
+        if(err){ err.textContent = 'جهاز ' + pagerNum + ' مع طلب ثاني الحين — اختر رقم غيره'; err.style.display = 'block'; }
+        completingPayment = false;
+        if(confirmBtn) confirmBtn.disabled = false;
+        return;
+      }
+    } catch(_){ /* a failed check must not block a sale — the index still guards it */ }
+  }
+
   const {total} = cartTotals();
   const totals = cartTotals();
   const change = state.activePaymentMethod==='cash' ? Math.max(0,(state.cashAmount||0)-total) : 0;
@@ -3622,6 +3718,11 @@ async function completePayment(){
   const willShowLoyaltyQr = !!customerPhone;
   const orderPayload = await submitOrder(totals);
   completingPayment = false;
+  if(pagerNum && orderPayload && orderPayload.orderId){
+    window.supabaseClient.rpc('set_order_pager', {
+      p_order_id: orderPayload.orderId, p_pager_number: pagerNum
+    }).then(({error})=>{ if(error) showToast('انحفظ الطلب، بس ما انسجّل رقم الجهاز'); });
+  }
   // Table-order paths (Flow A/D) now go through the same IndexedDB queue as
   // every other channel (see registerTableOrder/submitOrder and
   // migrations/20260831170000's append idempotency, which is what made this
@@ -6280,13 +6381,22 @@ async function loadPosData(){
   // schema prints exactly what it printed before.
   try {
     const themeRes = await sb.from('businesses')
-      .select('receipt_theme, pos_require_manager_pin_for_close').eq('id', businessId).single();
+      .select('receipt_theme, pos_require_manager_pin_for_close, dine_in_mode, pos_pager_enabled, kitchen_ticket_mode')
+      .eq('id', businessId).single();
     RECEIPT_THEME = (themeRes.data && themeRes.data.receipt_theme) || 'classic';
+    // 'tables' only when it says so: defaulting to tables would put a café
+    // that has none into a table workflow.
+    DINE_IN_MODE = (themeRes.data && themeRes.data.dine_in_mode === 'tables') ? 'tables' : 'simple';
+    POS_PAGER_ENABLED = !!(themeRes.data && themeRes.data.pos_pager_enabled === true);
+    KITCHEN_TICKET_MODE = (themeRes.data && themeRes.data.kitchen_ticket_mode === 'copy') ? 'copy' : 'brief';
     // Only an explicit false turns the gate off, so a till on the old
     // schema — or one whose fetch failed — keeps asking for the PIN. The
     // safe direction for a control over the cash drawer is ON.
     REQUIRE_MANAGER_PIN_FOR_CLOSE = !(themeRes.data && themeRes.data.pos_require_manager_pin_for_close === false);
-  } catch(_){ RECEIPT_THEME = 'classic'; REQUIRE_MANAGER_PIN_FOR_CLOSE = true; }
+  } catch(_){
+    RECEIPT_THEME = 'classic'; REQUIRE_MANAGER_PIN_FOR_CLOSE = true;
+    DINE_IN_MODE = 'simple'; POS_PAGER_ENABLED = false; KITCHEN_TICKET_MODE = 'brief';
+  }
   POS_HIDE_POPULAR_TAB = loyaltyRes.data ? loyaltyRes.data.pos_hide_popular_tab === true : false;
   POS_HIDE_SEARCH = loyaltyRes.data ? loyaltyRes.data.pos_hide_search === true : false;
   POS_HIDE_HOLD = loyaltyRes.data ? loyaltyRes.data.pos_hide_hold === true : false;
@@ -6309,6 +6419,14 @@ async function loadPosData(){
   if(!DINE_IN_ENABLED){
     if(tablesNavBtn) tablesNavBtn.remove();
     if(state.orderChannel === 'dine_in') state.orderChannel = 'pickup';
+  } else if(DINE_IN_MODE === 'simple' && !isServiceBusiness()){
+    // Simple dine-in has no tables to manage — the customer sits wherever
+    // they like. The channel STAYS available (the kitchen still needs to
+    // know it plates rather than bags); only the screen goes, because
+    // there is nothing on it. A service business keeps the screen: its
+    // "tables" are bays or rooms, which are booked whatever the dining
+    // arrangement is.
+    if(tablesNavBtn) tablesNavBtn.remove();
   } else if(isServiceBusiness() && tablesNavBtn){
     // "طاولات" reads wrong for a car wash bay or clinic room — relabel the
     // nav tab text node in place rather than touching the markup file
