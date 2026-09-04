@@ -280,60 +280,60 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
                 <Text style={styles.sheetOrderNo}>تفاصيل الطلب #{detail.id}</Text>
                 <Text style={styles.sheetTitle}>
                   {CHANNEL_LABELS[detail.channel] || detail.channel}
-                  {detail.customerName ? ` \u2014 ${detail.customerName}` : ''}
+                  {detail.customerName ? ` — ${detail.customerName}` : ''}
                 </Text>
                 <Money value={detail.total} size={26} style={styles.sheetTotal} />
 
                 {detail.tableNumber != null && (
-                  <DetailRow label="\u0627\u0644\u0637\u0627\u0648\u0644\u0629" text={`\u0637\u0627\u0648\u0644\u0629 ${detail.tableNumber}`} />
+                  <DetailRow label="الطاولة" text={`طاولة ${detail.tableNumber}`} />
                 )}
 
                 {detail.items.map((it, i) => (
                   <View key={i} style={styles.itemRow}>
                     <Text style={styles.itemName}>
-                      {it.qty} \u00d7 {it.name}
-                      {it.mods.length > 0 ? ` (${it.mods.join('\u060c ')})` : ''}
-                      {it.note ? ` \u2014 ${it.note}` : ''}
+                      {it.qty} × {it.name}
+                      {it.mods.length > 0 ? ` (${it.mods.join('، ')})` : ''}
+                      {it.note ? ` — ${it.note}` : ''}
                     </Text>
                     <Money value={it.lineTotal} size={11.5} />
                   </View>
                 ))}
 
                 <View style={styles.itemRow}>
-                  <Text style={styles.itemName}>\u0627\u0644\u0645\u062c\u0645\u0648\u0639 \u0627\u0644\u0641\u0631\u0639\u064a</Text>
+                  <Text style={styles.itemName}>المجموع الفرعي</Text>
                   <Money value={detail.subtotal} size={11.5} />
                 </View>
                 {detail.deliveryFee > 0 && (
                   <View style={styles.itemRow}>
-                    <Text style={styles.itemName}>\u0631\u0633\u0648\u0645 \u0627\u0644\u062a\u0648\u0635\u064a\u0644</Text>
+                    <Text style={styles.itemName}>رسوم التوصيل</Text>
                     <Money value={detail.deliveryFee} size={11.5} />
                   </View>
                 )}
                 {detail.discountAmount > 0 && (
                   <View style={styles.itemRow}>
-                    <Text style={styles.itemName}>\u0627\u0644\u062e\u0635\u0645</Text>
+                    <Text style={styles.itemName}>الخصم</Text>
                     <Money value={-detail.discountAmount} size={11.5} />
                   </View>
                 )}
                 <View style={styles.itemRow}>
-                  <Text style={styles.itemName}>\u0627\u0644\u0636\u0631\u064a\u0628\u0629</Text>
+                  <Text style={styles.itemName}>الضريبة</Text>
                   <Money value={detail.vatAmount} size={11.5} />
                 </View>
 
                 <DetailRow
-                  label="\u0637\u0631\u064a\u0642\u0629 \u0627\u0644\u062f\u0641\u0639"
+                  label="طريقة الدفع"
                   text={PAYMENT_METHOD_LABELS[detail.paymentMethod] || detail.paymentMethod}
                 />
                 {/* Both of these are rows in the source and were missing
                     from this sheet entirely. */}
-                <DetailRow label="\u0627\u0644\u062d\u0627\u0644\u0629" text={ORDER_STATUS_LABELS[detail.status] || String(detail.status)} />
-                {!!detail.customerPhone && <DetailRow label="\u062c\u0648\u0627\u0644 \u0627\u0644\u0639\u0645\u064a\u0644" text={detail.customerPhone} mono />}
+                <DetailRow label="الحالة" text={ORDER_STATUS_LABELS[detail.status] || String(detail.status)} />
+                {!!detail.customerPhone && <DetailRow label="جوال العميل" text={detail.customerPhone} mono />}
                 {!!detail.deliveryAddress && (
-                  <DetailRow label="\u0639\u0646\u0648\u0627\u0646 \u0627\u0644\u062a\u0648\u0635\u064a\u0644" text={detail.deliveryAddress} />
+                  <DetailRow label="عنوان التوصيل" text={detail.deliveryAddress} />
                 )}
 
                 {/* .receipt-actions -- a ROW of equal buttons, not a
-                    stack. \u0627\u0633\u062a\u0631\u062c\u0627\u0639 \u0645\u0628\u0644\u063a only exists on a completed order. */}
+                    stack. استرجاع مبلغ only exists on a completed order. */}
                 <View style={styles.detailActions}>
                   <TouchableOpacity
                     style={styles.detailActionBtn}
@@ -346,7 +346,7 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
                       <Rect x={6} y={14} width={12} height={8} />
                     </Svg>
                     <Text style={styles.detailActionText}>
-                      {reprintBusy ? '\u062c\u0627\u0631\u064d \u0627\u0644\u0637\u0628\u0627\u0639\u0629...' : '\u0625\u0639\u0627\u062f\u0629 \u0637\u0628\u0627\u0639\u0629'}
+                      {reprintBusy ? 'جارٍ الطباعة...' : 'إعادة طباعة'}
                     </Text>
                   </TouchableOpacity>
                   {detail.status === 'completed' && (
@@ -360,7 +360,7 @@ export default function OrderHistoryScreen({ branchId }: { branchId: number }) {
                         <Path d="M20 20v-7a4 4 0 0 0-4-4H4" />
                       </Svg>
                       <Text style={styles.detailActionText}>
-                        {refundBusy ? '\u062c\u0627\u0631\u064d \u0627\u0644\u0627\u0633\u062a\u0631\u062c\u0627\u0639...' : '\u0627\u0633\u062a\u0631\u062c\u0627\u0639 \u0645\u0628\u0644\u063a'}
+                        {refundBusy ? 'جارٍ الاسترجاع...' : 'استرجاع مبلغ'}
                       </Text>
                     </TouchableOpacity>
                   )}

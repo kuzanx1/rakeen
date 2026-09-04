@@ -549,7 +549,7 @@ export default function PaymentModal({
                             <Image source={{ uri: pf.logoUrl }} style={styles.platformLogo} resizeMode="contain" />
                           ) : (
                             <View style={[styles.platformInitial, { backgroundColor: pf.brandColor || colors.surf2 }]}>
-                              <Text style={styles.platformInitialText}>{(pf.name || '\u061f').charAt(0)}</Text>
+                              <Text style={styles.platformInitialText}>{(pf.name || '؟').charAt(0)}</Text>
                             </View>
                           )}
                           <Text style={styles.platformName} numberOfLines={1}>
@@ -574,7 +574,7 @@ export default function PaymentModal({
             {step === 'tablePicker' && (
               <>
                 {availableTables.length === 0 ? (
-                  <Text style={styles.sub}>\u0645\u0627 \u0641\u064a\u0647 \u0637\u0627\u0648\u0644\u0627\u062a \u0645\u062a\u0627\u062d\u0629 \u0627\u0644\u062d\u064a\u0646.</Text>
+                  <Text style={styles.sub}>ما فيه طاولات متاحة الحين.</Text>
                 ) : (
                   <View style={styles.tableGrid}>
                     {availableTables.map(tb => (
@@ -592,7 +592,7 @@ export default function PaymentModal({
                 {/* Skipping is allowed: dine-in without a table is a real,
                     supported case, not a mistake to block. */}
                 <TouchableOpacity onPress={advanceToCustomer} style={styles.textLink}>
-                  <Text style={styles.textLinkText}>\u0645\u062a\u0627\u0628\u0639\u0629 \u0628\u062f\u0648\u0646 \u0637\u0627\u0648\u0644\u0629</Text>
+                  <Text style={styles.textLinkText}>متابعة بدون طاولة</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -692,16 +692,16 @@ export default function PaymentModal({
                     phone). Without one this "customer" is free text on the
                     order -- never a loyalty member, never found again on a
                     repeat visit, never in the dashboard's customer list. */}
-                <Text style={styles.splitLabel}>\u0627\u0644\u0627\u0633\u0645</Text>
+                <Text style={styles.splitLabel}>الاسم</Text>
                 <TextInput
                   style={[styles.input, styles.newCustomerInput]}
-                  placeholder="\u0627\u0633\u0645 \u0627\u0644\u0639\u0645\u064a\u0644"
+                  placeholder="اسم العميل"
                   placeholderTextColor={colors.muted}
                   value={newName}
                   onChangeText={setNewName}
                   autoFocus={!!newPhone}
                 />
-                <Text style={styles.splitLabel}>\u0631\u0642\u0645 \u0627\u0644\u062c\u0648\u0627\u0644</Text>
+                <Text style={styles.splitLabel}>رقم الجوال</Text>
                 <TextInput
                   style={[styles.input, styles.newCustomerInput]}
                   placeholder="05xxxxxxxx"
@@ -733,12 +733,12 @@ export default function PaymentModal({
                     activeOpacity={0.85}>
                     <View style={styles.confirmButton}>
                       <GradientFill gradient={gradients.payButton} radius={radii.md} />
-                      <Text style={styles.confirmText}>\u0645\u062a\u0627\u0628\u0639\u0629</Text>
+                      <Text style={styles.confirmText}>متابعة</Text>
                     </View>
                   </TouchableOpacity>
                 ) : (
                   <View style={[styles.confirmButton, styles.confirmButtonDisabled]}>
-                    <Text style={[styles.confirmText, styles.confirmTextDisabled]}>\u0645\u062a\u0627\u0628\u0639\u0629</Text>
+                    <Text style={[styles.confirmText, styles.confirmTextDisabled]}>متابعة</Text>
                   </View>
                 )}
                 {/* Says WHY it is disabled rather than leaving the cashier
@@ -786,10 +786,10 @@ export default function PaymentModal({
                     stays disabled until all four are entered. */}
                 {channel === 'delivery' && (
                   <View style={styles.splitInputs}>
-                    <Text style={styles.splitLabel}>\u0622\u062e\u0631 \u0664 \u0623\u0631\u0642\u0627\u0645 \u0645\u0646 \u0641\u0627\u062a\u0648\u0631\u0629 \u062a\u0637\u0628\u064a\u0642 \u0627\u0644\u062a\u0648\u0635\u064a\u0644</Text>
+                    <Text style={styles.splitLabel}>آخر ٤ أرقام من فاتورة تطبيق التوصيل</Text>
                     <TextInput
                       style={styles.input}
-                      placeholder="\u0660\u0660\u0660\u0660"
+                      placeholder="٠٠٠٠"
                       placeholderTextColor={colors.muted}
                       keyboardType="number-pad"
                       maxLength={4}

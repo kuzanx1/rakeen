@@ -510,7 +510,7 @@ export default function ProductsScreen({
     // the source's own `state.cart = []; state.discountPct = 0`.
     cart.clearCart();
     setDiscountPanelOpen(false);
-    setSubmitStatus('\u062a\u0645 \u0625\u0641\u0631\u0627\u063a \u0627\u0644\u0637\u0644\u0628');
+    setSubmitStatus('تم إفراغ الطلب');
   }, [cart, clearArmed]);
 
   const visibleProducts = useMemo<Product[]>(() => {
@@ -1255,7 +1255,7 @@ export default function ProductsScreen({
                         {/* U+2212 MINUS SIGN, as in the source markup --
                             not a hyphen, which renders visibly shorter
                             and sits off-centre against the "+". */}
-                        <Text style={styles.qtyButtonText}>{'\u2212'}</Text>
+                        <Text style={styles.qtyButtonText}>{'−'}</Text>
                       </TouchableOpacity>
                       <Text style={styles.qtyValue}>{line.qty}</Text>
                       <TouchableOpacity onPress={() => cart.changeQty(line.lineId, 1)} style={styles.qtyButton}>
@@ -1735,7 +1735,7 @@ function PayButton({
       <Text style={[styles.payButtonText, disabled && styles.payButtonTextDisabled]}>{label}</Text>
       {amount != null && (
         <>
-          <Text style={[styles.payButtonText, disabled && styles.payButtonTextDisabled]}>{' \u2014 '}</Text>
+          <Text style={[styles.payButtonText, disabled && styles.payButtonTextDisabled]}>{' — '}</Text>
           <Money value={amount} size={15} color={disabled ? colors.muted : colors.flagGreenDeep} />
         </>
       )}

@@ -147,7 +147,7 @@ export default function ModifierModal({
                         </Text>
                         <View style={styles.boxItemQty}>
                           <TouchableOpacity style={styles.qtyBtn} onPress={() => bumpPick(it.id, -1)}>
-                            <Text style={styles.qtyBtnText}>{'\u2212'}</Text>
+                            <Text style={styles.qtyBtnText}>{'−'}</Text>
                           </TouchableOpacity>
                           <Text style={styles.qtyVal}>{picks[it.id] || 0}</Text>
                           <TouchableOpacity style={styles.qtyBtn} onPress={() => bumpPick(it.id, 1)}>
