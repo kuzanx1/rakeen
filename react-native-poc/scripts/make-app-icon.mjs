@@ -30,15 +30,20 @@ const bg = Buffer.from(`
     </linearGradient>
     <!-- A diagonal SHEET of light, not a spot. A radial put a visible
          circular hot-spot low-centre, which reads as a torch pointed at
-         the icon; a linear ramp from the bottom-left corner reads as the
-         surface itself being lit. The ramp goes straight from brand lime
-         to transparent — a mid-green stop in between mixes to olive,
-         which is what made the first two passes look muddy. -->
-    <linearGradient id="glow" x1="0.04" y1="1" x2="0.62" y2="0.06">
-      <stop offset="0%"   stop-color="#C7FF4D" stop-opacity="1"/>
-      <stop offset="18%"  stop-color="#9DE83F" stop-opacity="0.66"/>
-      <stop offset="40%"  stop-color="#4FC24B" stop-opacity="0.22"/>
-      <stop offset="68%"  stop-color="#0B6B3A" stop-opacity="0"/>
+         the icon; a linear ramp reads as the surface itself being lit.
+         Straight from brand lime to transparent — a mid-green stop in
+         between mixes to olive, which is what made the first passes
+         muddy.
+
+         Reaching to 88% rather than 68%: at the shorter ramp the icon
+         was mostly dark with a bright corner, which sat off-balance
+         against the mark instead of carrying it. -->
+    <linearGradient id="glow" x1="0.06" y1="1.02" x2="0.72" y2="-0.04">
+      <stop offset="0%"   stop-color="#D9FF7A" stop-opacity="1"/>
+      <stop offset="14%"  stop-color="#C7FF4D" stop-opacity="0.92"/>
+      <stop offset="34%"  stop-color="#9DE83F" stop-opacity="0.60"/>
+      <stop offset="58%"  stop-color="#4FC24B" stop-opacity="0.26"/>
+      <stop offset="88%"  stop-color="#0B6B3A" stop-opacity="0"/>
     </linearGradient>
     <!-- A single soft highlight along the top edge. Depth on a real card
          comes from one light source, not from an outline on every side. -->
@@ -76,7 +81,7 @@ const mark = await sharp({
 
 // Optically centred, not mathematically: the glow weights the lower half,
 // so a mark on the true centre line looks like it has sagged.
-const top = Math.round((S - markH) / 2 - S * 0.075);
+const top = Math.round((S - markH) / 2 - S * 0.045);
 const left = Math.round((S - markW) / 2);
 
 const base = await sharp(bg)

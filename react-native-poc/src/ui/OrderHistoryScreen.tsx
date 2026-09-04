@@ -362,6 +362,18 @@ export default function OrderHistoryScreen({
                       label="جوال العميل"
                       text={detail.customerPhone}
                       mono
+                      last={!detail.deliveryAddress && detail.pagerNumber == null}
+                    />
+                  )}
+                  {/* Which buzzer went out with it. Kept on the finished
+                      order because "who had 20 last night?" is a question
+                      that gets asked after the fact, when a customer comes
+                      back about a missing item. */}
+                  {detail.pagerNumber != null && (
+                    <DetailRow
+                      label="جهاز النداء"
+                      text={String(detail.pagerNumber)}
+                      mono
                       last={!detail.deliveryAddress}
                     />
                   )}

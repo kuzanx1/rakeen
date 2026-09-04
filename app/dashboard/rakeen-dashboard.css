@@ -1681,3 +1681,63 @@ body.quickadd-mode .rk-sidebar-backdrop{display:none !important;}
    section that mixes the two does not change pace halfway down. */
 .rk-theme-cards{margin-top:2px;}
 .rk-typemap{margin-top:2px;}
+
+/* ============================================================
+   HR employee cards.
+
+   The old row put name, job, three badges and two buttons on one flex
+   line: it wrapped into a block on a phone and read as a squeezed strip
+   on a desktop, and it showed none of the hire date, phone, iqama expiry
+   or employment type the query was already fetching.
+
+   A card gives every fact a label and a place, and the grid decides how
+   many fit rather than each row fighting for width.
+   ============================================================ */
+.hr-emp-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(310px, 1fr)); gap:12px;}
+.hr-emp-card{
+  display:flex; flex-direction:column;
+  border:1px solid var(--line); border-radius:var(--r-md); background:var(--surf1);
+  padding:14px 15px 12px;
+}
+
+/* --- head: who this is ------------------------------------------- */
+.hr-emp-head{display:flex; align-items:center; gap:11px;}
+.hr-emp-avatar{
+  width:38px; height:38px; flex-shrink:0; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--surf2); color:var(--text);
+  font-weight:800; font-size:15px;
+}
+.hr-emp-id{display:flex; flex-direction:column; gap:2px; flex:1; min-width:0;}
+.hr-emp-name{font-weight:800; font-size:14px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.hr-emp-role{font-weight:600; font-size:11.5px; color:var(--muted);}
+
+/* --- facts: label above value, so a long value never squeezes its
+       own label off the line ------------------------------------- */
+.hr-emp-facts{
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(126px, 1fr)); gap:10px 14px;
+  margin-top:13px; padding-top:13px; border-top:1px solid var(--line);
+}
+.hr-fact{display:flex; flex-direction:column; gap:3px; min-width:0;}
+.hr-fact-label{font-size:10.5px; font-weight:700; color:var(--muted);}
+.hr-fact-value{font-size:12.5px; font-weight:700; color:var(--text); overflow-wrap:anywhere;}
+.hr-link{color:var(--text); text-decoration:none; border-bottom:1px solid var(--line);}
+.hr-link:hover{border-bottom-color:var(--muted);}
+
+/* --- chips: an expiry reads as a countdown, and colour carries the
+       urgency the number alone would not -------------------------- */
+.hr-chip{
+  display:inline-block; padding:3px 9px; border-radius:var(--r-full);
+  font-size:10.5px; font-weight:800; background:var(--surf2); color:var(--muted);
+}
+.hr-chip.warn{background:rgba(224,184,74,0.16); color:var(--amber);}
+.hr-chip.danger{background:rgba(163,64,44,0.14); color:var(--danger);}
+.hr-chip.lime{background:rgba(196,255,43,0.16); color:var(--success-text);}
+
+/* --- foot: what this person IS on the till, and what you can do --- */
+.hr-emp-foot{
+  display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+  margin-top:13px; padding-top:11px; border-top:1px solid var(--line);
+}
+.hr-emp-actions{display:flex; gap:7px; flex-shrink:0;}
+.hr-emp-actions .hr-emp-delete-btn{color:var(--danger); border-color:color-mix(in srgb, var(--danger) 45%, transparent);}

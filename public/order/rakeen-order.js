@@ -1188,7 +1188,7 @@ if (!window.__rakeenOrderBooted) {
       phone, name,
       address: document.getElementById('omAddress')?.value.trim() || null,
       note: document.getElementById('omNote').value.trim() || null,
-      scheduledFor: resolveScheduledFor(),
+      scheduledFor: state.pickupTimeMode === 'later' ? resolveScheduledFor() : null,
       // Generated once per checkout attempt, reused across submitOrder()
       // retries (network retry, double-tap) so the server can recognize a
       // repeat and return the original order instead of creating a second
@@ -1243,7 +1243,14 @@ if (!window.__rakeenOrderBooted) {
       p_branch_id: state.branchId || null,
       p_customer_lat: state.channel === 'delivery' ? state.customerLat : null,
       p_customer_lng: state.channel === 'delivery' ? state.customerLng : null,
-      p_scheduled_for: pendingOrder.scheduledFor ? pendingOrder.scheduledFor.toISOString() : null,
+      // Only a time the customer actually CHOSE is sent. "الآن" is not a
+      // schedule — sending the prep estimate as one made the order expire
+      // against itself while the customer was still confirming their phone.
+      // Re-resolved here rather than reused from pendingOrder so a chosen
+      // time cannot go stale in that same gap either.
+      p_scheduled_for: state.pickupTimeMode === 'later'
+        ? (resolveScheduledFor()?.toISOString() ?? null)
+        : null,
       p_client_order_uuid: pendingOrder.clientUuid,
       p_payment_method: checkoutPaymentMethod,
       p_scheduled_by_customer: state.channel === 'pickup' && state.pickupTimeMode === 'later',

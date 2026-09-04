@@ -12966,6 +12966,37 @@ let HR_BRANCHES = [];
 let STAFF_MEMBER_BY_EMPLOYEE_ID = {};
 let UNLINKED_STAFF_MEMBERS = [];
 const EMP_STATUS_LABELS = {active:'نشط', on_leave:'إجازة', terminated:'منتهي خدمته'};
+
+// Days until a document expires, or null when there is no date. Compared
+// on calendar days rather than elapsed hours, so a card does not flip
+// from "3 days" to "2 days" in the middle of an afternoon.
+function daysUntil(dateStr){
+  if(!dateStr) return null;
+  const then = new Date(dateStr + 'T00:00:00');
+  if(isNaN(then)) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  return Math.round((then - today) / 86400000);
+}
+
+// An expiry reads as a countdown, not a date, because the question an
+// owner is actually asking is "how long have I got?". The thresholds
+// match compliance_items' own valid / expiring_soon / expired.
+function expiryChip(dateStr){
+  const d = daysUntil(dateStr);
+  if(d === null) return '';
+  if(d < 0) return `<span class="hr-chip danger">منتهية من ${Math.abs(d)} يوم</span>`;
+  if(d === 0) return '<span class="hr-chip danger">تنتهي اليوم</span>';
+  if(d <= 30) return `<span class="hr-chip warn">تنتهي بعد ${d} يوم</span>`;
+  return `<span class="hr-chip">سارية · ${d} يوم</span>`;
+}
+
+// One labelled fact. Skipped entirely when empty — a column of "—" tells
+// nobody anything and makes a half-filled record look broken rather than
+// half-filled.
+function hrFact(label, value){
+  if(value === null || value === undefined || value === '') return '';
+  return `<div class="hr-fact"><span class="hr-fact-label">${label}</span><span class="hr-fact-value">${value}</span></div>`;
+}
 const EMP_TYPE_LABELS = {full_time:'دوام كامل', part_time:'دوام جزئي', temporary:'مؤقت'};
 const COMPLIANCE_TYPE_LABELS = {iqama:'إقامة', contract:'عقد عمل', health_cert:'شهادة صحية', insurance:'تأمين', other:'أخرى'};
 const COMPLIANCE_STATUS_LABELS = {valid:'ساري', expiring_soon:'قارب على الانتهاء', expired:'منتهي'};
@@ -13101,23 +13132,38 @@ async function renderHrEmployeesTab(){
         </div>
         <button class="rk-btn rk-btn-primary rk-btn-sm rk-section-head-actions" id="addEmployeeBtn">${rkIcon('plus')}إضافة موظف</button>
       </div>
-      <div id="employeesList">
+      <div id="employeesList" class="hr-emp-grid">
         ${EMPLOYEES.length === 0 ? '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">ما فيه موظفين مسجّلين بعد.</p>' : EMPLOYEES.map(emp => {
           const cashier = STAFF_MEMBER_BY_EMPLOYEE_ID[emp.id];
           return `
-          <div class="users-table-row">
-            <div class="users-table-identity">
-              <span class="u-name">${emp.full_name}</span>
-              <span class="u-role">${[emp.job_title, deptName(emp.department_id)].filter(Boolean).join(' · ') || '—'}</span>
-              <span class="u-status">
-                <span class="u-status-badge ${emp.status==='active'?'active':'disabled'}">${EMP_STATUS_LABELS[emp.status]||emp.status}</span>
-                ${cashier ? `<span class="rk-badge">كاشير — ${branchName(cashier.branch_id)}</span>` : ''}
-                ${canSalary && emp.base_salary ? ' <span class="rk-badge mono">' + Number(emp.base_salary).toFixed(0) + ' ر.س</span>' : ''}
-              </span>
+          <div class="hr-emp-card">
+            <div class="hr-emp-head">
+              <div class="hr-emp-avatar">${(emp.full_name||'؟').trim().charAt(0)}</div>
+              <div class="hr-emp-id">
+                <span class="hr-emp-name">${emp.full_name}</span>
+                <span class="hr-emp-role">${[emp.job_title, deptName(emp.department_id)].filter(Boolean).join(' · ') || 'بدون مسمى'}</span>
+              </div>
+              <span class="u-status-badge ${emp.status==='active'?'active':'disabled'}">${EMP_STATUS_LABELS[emp.status]||emp.status}</span>
             </div>
-            <div class="users-table-actions">
-              <button class="rk-btn rk-btn-secondary rk-btn-sm hr-emp-edit-btn" data-id="${emp.id}">تعديل</button>
-              <button class="rk-btn rk-btn-secondary rk-btn-sm hr-emp-delete-btn" data-id="${emp.id}" data-name="${emp.full_name}" style="color:var(--danger); border-color:var(--danger);">حذف</button>
+
+            <div class="hr-emp-facts">
+              ${hrFact('الفرع', emp.branch_id ? branchName(emp.branch_id) : '')}
+              ${hrFact('نوع الدوام', EMP_TYPE_LABELS[emp.employment_type] || '')}
+              ${hrFact('تاريخ التعيين', emp.hire_date ? `<span class="mono">${emp.hire_date}</span>` : '')}
+              ${hrFact('الجوال', emp.phone ? `<a class="mono hr-link" href="tel:${emp.phone}">${emp.phone}</a>` : '')}
+              ${hrFact('الجنسية', emp.nationality || '')}
+              ${hrFact('الهوية / الإقامة', emp.national_id_or_iqama ? `<span class="mono">${emp.national_id_or_iqama}</span>` : '')}
+              ${emp.iqama_expiry ? hrFact('انتهاء الإقامة', expiryChip(emp.iqama_expiry)) : ''}
+              ${canSalary && emp.base_salary ? hrFact('الراتب', `<span class="mono">${Number(emp.base_salary).toLocaleString('en-US')}</span> ر.س`) : ''}
+              ${emp.emergency_contact_phone ? hrFact('للطوارئ', `${emp.emergency_contact_name||''} <span class="mono">${emp.emergency_contact_phone}</span>`) : ''}
+            </div>
+
+            <div class="hr-emp-foot">
+              ${cashier ? `<span class="hr-chip lime">كاشير · ${branchName(cashier.branch_id)}</span>` : '<span></span>'}
+              <div class="hr-emp-actions">
+                <button class="rk-btn rk-btn-secondary rk-btn-sm hr-emp-edit-btn" data-id="${emp.id}">تعديل</button>
+                <button class="rk-btn rk-btn-secondary rk-btn-sm hr-emp-delete-btn" data-id="${emp.id}" data-name="${emp.full_name}">حذف</button>
+              </div>
             </div>
           </div>
         `; }).join('')}

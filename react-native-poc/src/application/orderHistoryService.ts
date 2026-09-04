@@ -57,6 +57,8 @@ export interface OrderHistoryDetail {
   createdAt: string;
   customerName: string | null;
   customerPhone: string | null;
+  /** The call-buzzer this order went out with, if any. */
+  pagerNumber: number | null;
   channel: string;
   paymentMethod: string;
   subtotal: number;
@@ -99,6 +101,7 @@ export async function getOrderHistoryDetail(orderId: number): Promise<OrderHisto
     createdAt: order.created_at,
     customerName: order.customer_name,
     customerPhone: order.customer_phone,
+    pagerNumber: order.pager_number != null ? Number(order.pager_number) : null,
     channel: order.channel,
     paymentMethod: order.payment_method,
     subtotal: Number(order.subtotal),

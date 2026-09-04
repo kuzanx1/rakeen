@@ -4073,6 +4073,7 @@ async function openOrderDetail(orderId){
       <div class="receipt-detail-row"><span>طريقة الدفع</span><span class="mono">${PAYMENT_METHOD_LABELS_POS[order.payment_method] || order.payment_method}</span></div>
       <div class="receipt-detail-row"><span>الحالة</span><span class="mono">${ORDER_STATUS_LABELS_POS[order.status] || order.status}</span></div>
       ${order.customer_phone ? `<div class="receipt-detail-row"><span>جوال العميل</span><span class="mono">${escapeHtml(order.customer_phone)}</span></div>` : ''}
+      ${order.pager_number != null ? `<div class="receipt-detail-row"><span>جهاز النداء</span><span class="mono">${order.pager_number}</span></div>` : ''}
       ${order.delivery_address ? `<div class="receipt-detail-row"><span>عنوان التوصيل</span><span>${escapeHtml(order.delivery_address)}</span></div>` : ''}
       ${order.channel === 'delivery' ? `
         <div class="receipt-detail-row"><span>منصة التوصيل</span><span>${isOnline ? 'متجر المطعم' : escapeHtml(order.delivery_platforms ? order.delivery_platforms.name : '—')}</span></div>
