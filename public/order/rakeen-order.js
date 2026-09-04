@@ -41,6 +41,7 @@ if (!window.__rakeenOrderBooted) {
   let MODIFIER_PRODUCTS = {}; // menu_item_id -> {groups:[{id,name,type,options:[{id,name,price}]}]}
   let BOX_PRODUCTS = {}; // menu_item_id -> {slots, items:[{id,name}]}
   let BRANCHES = []; // [{id,name,address,lat,lng}]
+  let WEEKLY_HOURS = []; // branch_weekly_hours rows; empty = every day uses the branch default
   let CART = []; // [{lineId, productId, qty, config|boxSelections, unitPrice, label}]
   let lineIdCounter = 1;
   let state = {
@@ -243,11 +244,30 @@ if (!window.__rakeenOrderBooted) {
   // branch is already closed (e.g. ordering at 3am against 15:00–02:00
   // hours). Handles the overnight-span case (closing time earlier than
   // opening time) the same way pickupWindow() does.
+  // Today's effective hours for a branch: the weekday override if there is
+  // one, otherwise the branch's normal pair. Returns null when the branch
+  // is shut today, and {open, close} otherwise -- callers must tell those
+  // apart, since "closed today" and "no hours configured" mean opposite
+  // things (the latter has always meant "always open" here).
+  function branchHoursToday(branch, when) {
+    if (!branch) return { open: null, close: null };
+    const day = (when || new Date()).getDay();
+    const o = WEEKLY_HOURS.find(r => String(r.branch_id) === String(branch.id) && Number(r.weekday) === day);
+    if (o) {
+      if (o.is_closed) return null;
+      if (o.opening_time && o.closing_time) return { open: o.opening_time, close: o.closing_time };
+    }
+    return { open: branch.opening_time, close: branch.closing_time };
+  }
+
   function isBranchOpenNow(branch) {
-    if (!branch || !branch.opening_time || !branch.closing_time) return true;
+    if (!branch) return true;
+    const hours = branchHoursToday(branch);
+    if (hours === null) return false; // shut today
+    if (!hours.open || !hours.close) return true;
     const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
-    const openMin = timeStrToMinutes(branch.opening_time);
-    const closeMin = timeStrToMinutes(branch.closing_time);
+    const openMin = timeStrToMinutes(hours.open);
+    const closeMin = timeStrToMinutes(hours.close);
     if (closeMin > openMin) return nowMin >= openMin && nowMin < closeMin;
     return nowMin >= openMin || nowMin < closeMin;
   }
@@ -258,11 +278,15 @@ if (!window.__rakeenOrderBooted) {
   // shows the ASAP estimate as informational text only.
   function pickupWindow() {
     const branch = BRANCHES.find(b => b.id === state.branchId) || (BRANCHES.length === 1 ? BRANCHES[0] : null);
-    if (!branch || !branch.opening_time || !branch.closing_time) return null;
+    if (!branch) return null;
+    const todayHours = branchHoursToday(branch);
+    // Shut today, or no hours at all: no window to offer. The picker is
+    // skipped entirely rather than fabricating one.
+    if (!todayHours || !todayHours.open || !todayHours.close) return null;
     const now = new Date();
     const earliest = pickupEarliestEstimate();
-    const openMin = timeStrToMinutes(branch.opening_time);
-    const closeMin = timeStrToMinutes(branch.closing_time);
+    const openMin = timeStrToMinutes(todayHours.open);
+    const closeMin = timeStrToMinutes(todayHours.close);
     const closesAt = new Date(now);
     closesAt.setHours(Math.floor(closeMin / 60), closeMin % 60, 0, 0);
     const nowMin = now.getHours() * 60 + now.getMinutes();
@@ -525,6 +549,15 @@ if (!window.__rakeenOrderBooted) {
     try {
       const { data: branches } = await sb.from('branches').select('id, name, address, lat, lng, opening_time, closing_time').eq('business_id', biz.id).order('id');
       BRANCHES = branches || [];
+      // Per-weekday overrides. Its own request, and a failure here leaves
+      // WEEKLY_HOURS empty, which means every branch falls back to its
+      // normal hours -- the behaviour before overrides existed.
+      try {
+        const { data: wh } = await sb.from('branch_weekly_hours')
+          .select('branch_id, weekday, opening_time, closing_time, is_closed')
+          .eq('business_id', biz.id);
+        WEEKLY_HOURS = wh || [];
+      } catch { WEEKLY_HOURS = []; }
       state.branchId = BRANCHES.length === 1 ? BRANCHES[0].id : null;
     } catch { BRANCHES = []; }
 

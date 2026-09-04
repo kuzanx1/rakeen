@@ -8024,9 +8024,14 @@ async function renderDeliveryPlatformsSettings(){
 async function renderBranchesSettings(){
   const panel = document.getElementById('settingsPanelBody');
   panel.innerHTML = '<div class="rk-section"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>';
-  const [{data: business}, {data: branches}] = await Promise.all([
+  const [{data: business}, {data: branches}, {data: weeklyHours}] = await Promise.all([
     window.supabaseClient.from('businesses').select('branch_limit').eq('id', CURRENT_PROFILE.business_id).single(),
-    window.supabaseClient.from('branches').select('id, name, address, lat, lng, opening_time, closing_time').eq('business_id', CURRENT_PROFILE.business_id).order('id')
+    window.supabaseClient.from('branches').select('id, name, address, lat, lng, opening_time, closing_time').eq('business_id', CURRENT_PROFILE.business_id).order('id'),
+    // Its own request rather than a join: most businesses have no overrides
+    // at all, and an empty result here must not affect the branch list.
+    window.supabaseClient.from('branch_weekly_hours')
+      .select('branch_id, weekday, opening_time, closing_time, is_closed')
+      .eq('business_id', CURRENT_PROFILE.business_id)
   ]);
   const limit = business ? business.branch_limit : 1;
   const count = (branches||[]).length;
@@ -8055,6 +8060,7 @@ async function renderBranchesSettings(){
             <div class="rk-field"><label>وقت الإغلاق</label><input type="time" class="branch-close-input" value="${(b.closing_time||'').slice(0,5)}"></div>
           </div>
           <button class="rk-btn rk-btn-primary rk-btn-sm branch-save-btn" style="margin-top:14px;">حفظ موقع الفرع</button>
+          ${branchWeeklyHoursHtml(b.id, weeklyHours)}
         </div>
       `).join('') || '<p class="stock-qty-helper">ما فيه فروع بعد.</p>'}
       <div style="display:flex; gap:10px; align-items:flex-end; margin-top:18px;">
@@ -8063,6 +8069,63 @@ async function renderBranchesSettings(){
       </div>
       ${atLimit ? '<p class="stock-qty-helper" style="margin-top:12px; color:var(--amber); font-weight:700; background:rgba(224,134,46,0.1);">وصلت الحد الأقصى لعدد الفروع المسموح باشتراكك الحالي — لزيادة العدد تواصل مع ركين.</p>' : ''}
     </div>`;
+
+  // Ticking "مغلق" greys that day's times out — a closed day with times on
+  // it is a contradiction the table's own check constraint rejects, so the
+  // form should not let one be typed in the first place.
+  panel.querySelectorAll('.rk-weekhours-row').forEach(r=>{
+    const closed = r.querySelector('.wh-closed');
+    closed.addEventListener('change', ()=>{
+      r.querySelectorAll('.wh-open, .wh-close').forEach(i=>{
+        i.disabled = closed.checked;
+        if(closed.checked) i.value = '';
+      });
+    });
+  });
+
+  panel.querySelectorAll('.branch-hours-save-btn').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const box = btn.closest('[data-branch-hours]');
+      const branchId = Number(box.dataset.branchHours);
+      const upserts = [], clearDays = [];
+      box.querySelectorAll('.rk-weekhours-row').forEach(r=>{
+        const weekday = Number(r.dataset.day);
+        const closed = r.querySelector('.wh-closed').checked;
+        const o = r.querySelector('.wh-open').value;
+        const c = r.querySelector('.wh-close').value;
+        if(closed){
+          upserts.push({ business_id: CURRENT_PROFILE.business_id, branch_id: branchId, weekday, opening_time: null, closing_time: null, is_closed: true });
+        } else if(o && c){
+          upserts.push({ business_id: CURRENT_PROFILE.business_id, branch_id: branchId, weekday, opening_time: o, closing_time: c, is_closed: false });
+        } else {
+          // Empty, or half-filled, means "use the branch's normal hours" —
+          // which is the ABSENCE of a row, not a row full of nulls.
+          clearDays.push(weekday);
+        }
+      });
+      rkBtnLoading(btn, true);
+      try {
+        // Upsert before delete: if the second call fails, the day the user
+        // just configured is already saved, and the worst outcome is a
+        // stale override left behind rather than a lost one.
+        if(upserts.length){
+          const { error } = await window.supabaseClient
+            .from('branch_weekly_hours').upsert(upserts, { onConflict: 'branch_id,weekday' });
+          if(error) throw error;
+        }
+        if(clearDays.length){
+          const { error } = await window.supabaseClient
+            .from('branch_weekly_hours').delete().eq('branch_id', branchId).in('weekday', clearDays);
+          if(error) throw error;
+        }
+        logDashboardAudit('عدّل أوقات الأيام لفرع');
+        rkBtnSuccess(btn, '✓ تم الحفظ');
+      } catch(err){
+        rkBtnLoading(btn, false);
+        showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+      }
+    });
+  });
 
   panel.querySelectorAll('.rk-subcard[data-branch]').forEach(row=>{
     const branchId = row.dataset.branch;
@@ -8198,6 +8261,43 @@ function customerReceiptPreviewHtml(themeId){
       '<div style="text-align:center; font-size:' + sz(10.5) + '; color:#555; margin-top:10px;">' + escapeHtml(RECEIPT_CUSTOM_MESSAGE || 'شكراً لزيارتكم') + '</div>',
       '<div style="text-align:center; font-size:9.5px; color:#999; margin-top:6px;">— فاتورة العميل —</div>',
     '</div>'
+  ].join('');
+}
+
+// weekday follows Postgres extract(dow) and JS getDay(): 0 = Sunday.
+const RK_WEEKDAYS = ['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+
+// Three states per day, and they come from the table's own three shapes:
+//   no row          -> use the branch's normal hours
+//   is_closed       -> shut that day
+//   times, not shut -> different hours that day
+// The form mirrors that: tick "مغلق", or fill both times, or leave it
+// alone. Anything half-filled is treated as "leave it alone", because a
+// day with one time is a state the database refuses to store anyway.
+function branchWeeklyHoursHtml(branchId, rows){
+  const byDay = {};
+  (rows||[]).filter(r=>String(r.branch_id) === String(branchId)).forEach(r=>{ byDay[r.weekday] = r; });
+  const any = Object.keys(byDay).length > 0;
+  return [
+    '<details class="rk-weekhours" data-branch-hours="' + branchId + '"' + (any ? ' open' : '') + '>',
+      '<summary>أوقات مختلفة لكل يوم' + (any ? ' <span class="rk-badge">مفعّل</span>' : '') + '</summary>',
+      '<p class="stock-qty-helper" style="margin:8px 0 12px;">اتركه فاضي لأي يوم يشتغل بأوقات الفرع العادية فوق. علّم «مغلق» لليوم اللي ما تفتحون فيه.</p>',
+      RK_WEEKDAYS.map((name, d) => {
+        const r = byDay[d];
+        const closed = !!(r && r.is_closed);
+        const o = (r && r.opening_time) ? String(r.opening_time).slice(0,5) : '';
+        const c = (r && r.closing_time) ? String(r.closing_time).slice(0,5) : '';
+        return [
+          '<div class="rk-weekhours-row" data-day="' + d + '">',
+            '<span class="rk-weekhours-day">' + name + '</span>',
+            '<label class="rk-weekhours-closed"><input type="checkbox" class="wh-closed"' + (closed ? ' checked' : '') + '> مغلق</label>',
+            '<input type="time" class="wh-open" value="' + o + '"' + (closed ? ' disabled' : '') + '>',
+            '<input type="time" class="wh-close" value="' + c + '"' + (closed ? ' disabled' : '') + '>',
+          '</div>'
+        ].join('');
+      }).join(''),
+      '<button class="rk-btn rk-btn-secondary rk-btn-sm branch-hours-save-btn" type="button" style="margin-top:12px;">حفظ أوقات الأيام</button>',
+    '</details>'
   ].join('');
 }
 
