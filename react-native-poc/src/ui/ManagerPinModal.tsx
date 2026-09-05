@@ -20,12 +20,33 @@ const PIN_LENGTH = 4;
  * Visuals: .modal-overlay/.modal-card/.pin-dots match rakeen-pos.css
  * value-for-value (same tokens as LoginScreen's own PIN dots).
  */
+/**
+ * كيف تُعرَض هذه النافذة.
+ *
+ * 'modal' نافذة قائمة بذاتها -- الوضع الافتراضي، وهو ما تستعمله شاشة
+ * الطاولات حيث لا شيء مفتوح فوقها.
+ *
+ * 'inline' طبقة داخل شجرة نافذة أخرى مفتوحة أصلاً. على iOS كل <Modal>
+ * هي UIViewController تُقدَّم فعلياً، وتقديم واحدة فوق أخرى مفتوحة
+ * يوقف الواجهة: الثانية لا تظهر، والحاجب الذي يبتلع اللمس يبقى، فيبدو
+ * التطبيق معلّقاً. وقد وقع هذا في شاشة السجل حين طُلبت موافقة المدير
+ * وتفاصيل الطلب مفتوحة -- تعليقٌ كامل عند كل استرجاع.
+ *
+ * وشاشة الطاولات تتفادى ذلك بأن تغلق ما هو مفتوح قبل أن تفتح التالي،
+ * في كل انتقال بلا استثناء. لكن تفاصيل الطلب لا يصح إغلاقها: الكاشير
+ * يقرأ منها الفاتورة وهو يسترجع. فهذا الوضع يعطيه الشكل نفسه بلا
+ * تقديم ثانٍ.
+ */
+export type PinPresentation = 'modal' | 'inline';
+
 export default function ManagerPinModal({
   visible,
+  presentation = 'modal',
   onApprove,
   onCancel,
 }: {
   visible: boolean;
+  presentation?: PinPresentation;
   onApprove: () => void;
   onCancel: () => void;
 }) {
@@ -63,9 +84,8 @@ export default function ManagerPinModal({
     }
   };
 
-  return (
-    <Modal visible={visible} animationType="fade" transparent onRequestClose={onCancel}>
-      <View style={styles.overlay}>
+  const body = (
+      <View style={presentation === 'inline' ? styles.overlayInline : styles.overlay}>
         <View style={styles.card}>
           <Text style={styles.title}>موافقة المدير مطلوبة</Text>
           <View style={styles.dotsRow}>
@@ -90,6 +110,15 @@ export default function ManagerPinModal({
           </TouchableOpacity>
         </View>
       </View>
+  );
+
+  // داخل نافذة مفتوحة: طبقة لا تقديم. و`visible` تُفحص هنا لأن <Modal>
+  // كانت هي التي تخفيها.
+  if (presentation === 'inline') return visible ? body : null;
+
+  return (
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onCancel}>
+      {body}
     </Modal>
   );
 }
@@ -98,6 +127,8 @@ const useStyles = createStyles(colors =>
   StyleSheet.create({
   // .modal-overlay
   overlay: { flex: 1, backgroundColor: colors.modalOverlay, justifyContent: 'center', alignItems: 'center' },
+  // نفس الشكل، لكن فوق محتوى نافذة قائمة بدل أن تكون نافذة جديدة.
+  overlayInline: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.modalOverlay, justifyContent: 'center', alignItems: 'center' },
   // .pos-auth-card
   card: { backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing[6], width: '80%', alignItems: 'center' },
   title: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, marginBottom: spacing[4], textAlign: 'center' },

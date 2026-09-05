@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, StyleSheet, TextInput, View } from 'react-native';
 import { profileToPrinterTarget, drawerKickCommandFor } from '../domain/printerProfile';
 import { openCashDrawer } from '../platform/cashDrawer';
 import { Text } from './Text';
@@ -138,6 +138,9 @@ export default function OrderHistoryScreen({
   const [pendingRefundAmount, setPendingRefundAmount] = useState<number | undefined>(undefined);
   const [refundStatus, setRefundStatus] = useState('');
   const [pinPendingRefund, setPinPendingRefund] = useState(false);
+  const [refundAskOpen, setRefundAskOpen] = useState(false);
+  const [refundAmountText, setRefundAmountText] = useState('');
+  const [refundAskError, setRefundAskError] = useState('');
   const [reprintBusy, setReprintBusy] = useState(false);
   const [reprintStatus, setReprintStatus] = useState('');
 
@@ -283,35 +286,38 @@ export default function OrderHistoryScreen({
       setRefundStatus('هذا الطلب مسترجع بالكامل');
       return;
     }
-    Alert.prompt(
-      'استرجاع مبلغ',
-      `الباقي من الفاتورة ${remaining.toFixed(2)} ريال.
-اتركه فاضي لاسترجاع المبلغ كامل.`,
-      [
-        { text: 'إلغاء', style: 'cancel' },
-        {
-          text: 'استرجاع',
-          onPress: (raw?: string) => {
-            const text = (raw ?? '').trim();
-            if (text === '') { setPinPendingRefund(true); return; }
-            const amount = Number(text.replace(',', '.'));
-            if (!isFinite(amount) || amount <= 0) {
-              setRefundStatus('🔴 اكتب مبلغ صحيح');
-              return;
-            }
-            if (amount > remaining + 0.001) {
-              setRefundStatus('🔴 المبلغ أكبر من الباقي في الفاتورة');
-              return;
-            }
-            setPendingRefundAmount(amount);
-            setPinPendingRefund(true);
-          },
-        },
-      ],
-      'plain-text',
-      '',
-      'decimal-pad',
-    );
+    setRefundAmountText('');
+    setRefundAskError('');
+    setRefundAskOpen(true);
+  };
+
+  /**
+   * يفحص المبلغ ثم يسلّمه لموافقة المدير.
+   *
+   * والخطأ يُعرض في اللوحة نفسها لا خلفها: الكاشير لا يقرأ ما تحت طبقة
+   * تغطيه.
+   */
+  const submitRefundAmount = () => {
+    if (!detail) return;
+    const remaining = Math.max(0, detail.total - (detail.refundedAmount || 0));
+    const text = refundAmountText.trim();
+    if (text === '') {
+      setRefundAskOpen(false);
+      setPinPendingRefund(true);
+      return;
+    }
+    const amount = Number(text.replace(',', '.'));
+    if (!isFinite(amount) || amount <= 0) {
+      setRefundAskError('اكتب مبلغ صحيح');
+      return;
+    }
+    if (amount > remaining + 0.001) {
+      setRefundAskError('المبلغ أكبر من الباقي في الفاتورة');
+      return;
+    }
+    setPendingRefundAmount(amount);
+    setRefundAskOpen(false);
+    setPinPendingRefund(true);
   };
 
   return (
@@ -499,21 +505,65 @@ export default function OrderHistoryScreen({
               </>
             ) : null}
           </View>
+
+          {/* طبقتا الاسترجاع داخل هذه النافذة، لا نافذتين فوقها.
+              كانت لوحة المبلغ تنبيهَ نظام (Alert.prompt) وموافقةُ المدير
+              <Modal> أخرى. وكل <Modal> على iOS هي UIViewController
+              تُقدَّم فعلاً، فكان يُقدَّم مقدَّمٌ فوق مقدَّم -- ومن داخل
+              رد نداء التنبيه، أي قبل أن يُتمّ التنبيه اختفاءه. فلا تظهر
+              الثانية، ويبقى الحاجب الذي يبتلع اللمس: تطبيق معلّق عند كل
+              استرجاع.
+
+              وشاشة الطاولات لم تقع فيه لأنها تغلق المفتوح قبل أن تفتح
+              التالي في كل انتقال. وهنا لا يصح إغلاق التفاصيل -- الكاشير
+              يقرأ الفاتورة وهو يسترجع -- فصارت طبقات في نافذة واحدة.
+
+              وAlert.prompt خاص بـiOS وحدها: على أندرويد لا يفعل شيئاً،
+              فكان زر الاسترجاع هناك زراً لا يستجيب أصلاً. */}
+          {refundAskOpen && detail && (
+            <View style={styles.innerOverlay}>
+              <View style={styles.askCard}>
+                <Text style={styles.askTitle}>استرجاع مبلغ</Text>
+                <Text style={styles.askNote}>
+                  الباقي من الفاتورة {Math.max(0, detail.total - (detail.refundedAmount || 0)).toFixed(2)} ريال
+                </Text>
+                <Text style={styles.askNote}>اتركه فاضي لاسترجاع المبلغ كامل</Text>
+                <TextInput
+                  style={styles.askInput}
+                  value={refundAmountText}
+                  onChangeText={t => { setRefundAmountText(t); setRefundAskError(''); }}
+                  keyboardType="decimal-pad"
+                  placeholder="المبلغ كامل"
+                  placeholderTextColor={colors.muted}
+                  autoFocus
+                  textAlign="center"
+                />
+                {!!refundAskError && <Text style={styles.askError}>{refundAskError}</Text>}
+                <TouchableOpacity style={styles.askPrimary} onPress={submitRefundAmount} activeOpacity={0.85}>
+                  <Text style={styles.askPrimaryText}>استرجاع</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.askCancel} onPress={() => setRefundAskOpen(false)}>
+                  <Text style={styles.askCancelText}>إلغاء</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          <ManagerPinModal
+            presentation="inline"
+            visible={pinPendingRefund}
+            onApprove={() => {
+              setPinPendingRefund(false);
+              // المبلغ يُلتقط قبل كلمة سر المدير ويُمرَّر بعدها، ويُمسح دائماً
+              // -- وإلا ورث استرجاعٌ تالٍ مبلغ سابقه بلا أن يُسأل.
+              const amount = pendingRefundAmount;
+              setPendingRefundAmount(undefined);
+              performRefund(amount);
+            }}
+            onCancel={() => { setPinPendingRefund(false); setPendingRefundAmount(undefined); }}
+          />
         </View>
       </Modal>
-
-      <ManagerPinModal
-        visible={pinPendingRefund}
-        onApprove={() => {
-          setPinPendingRefund(false);
-          // المبلغ يُلتقط قبل كلمة سر المدير ويُمرَّر بعدها، ويُمسح دائماً
-          // -- وإلا ورث استرجاعٌ تالٍ مبلغ سابقه بلا أن يُسأل.
-          const amount = pendingRefundAmount;
-          setPendingRefundAmount(undefined);
-          performRefund(amount);
-        }}
-        onCancel={() => { setPinPendingRefund(false); setPendingRefundAmount(undefined); }}
-      />
     </View>
   );
 }
@@ -554,6 +604,22 @@ const useStyles = createStyles(colors =>
   rowTotal: { fontFamily: fonts.monoBold, fontSize: 14.5, color: colors.text, writingDirection: 'ltr' },
   // .modal-overlay
   overlay: { flex: 1, backgroundColor: colors.modalOverlay, justifyContent: 'flex-end' },
+  // طبقة داخل النافذة المفتوحة -- لا <Modal> ثانية تُقدَّم فوق الأولى.
+  innerOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.modalOverlay, justifyContent: 'center', alignItems: 'center', padding: spacing[5] },
+  askCard: { backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing[6], width: '100%', maxWidth: 380 },
+  askTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, textAlign: 'center', marginBottom: spacing[2] },
+  askNote: { fontFamily: fonts.sansRegular, fontSize: 12.5, lineHeight: 19, color: colors.muted, textAlign: 'center' },
+  askInput: {
+    fontFamily: fonts.sansBold, fontSize: 20, color: colors.text,
+    backgroundColor: colors.surf1, borderWidth: 1, borderColor: colors.line,
+    borderRadius: radii.md, paddingVertical: 12, paddingHorizontal: spacing[4],
+    marginTop: spacing[4],
+  },
+  askError: { fontFamily: fonts.sansBold, color: colors.danger, fontSize: 12, textAlign: 'center', marginTop: spacing[2] },
+  askPrimary: { backgroundColor: colors.lime, borderRadius: radii.full, paddingVertical: 14, alignItems: 'center', marginTop: spacing[4] },
+  askPrimaryText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.flagGreenDeep },
+  askCancel: { padding: spacing[3], alignItems: 'center', marginTop: 4 },
+  askCancelText: { fontFamily: fonts.sansBold, color: colors.muted },
   sheet: { backgroundColor: colors.cardBg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing[5], maxHeight: '85%' },
   sheetTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, marginBottom: 6, textAlign: 'center' },
   // space-between does the placing; the label must NOT also stretch.
