@@ -108,7 +108,9 @@ const THEMES: Record<ReceiptThemeId, ReceiptTheme> = {
   signature: {
     rule: 'bar', orderStyle: 'invert', totalStyle: 'invert', itemStyle: 'columns', sectionLabels: true,
     logoWidth: 0.52,
-    id: 'elegant',
+    // كان 'elegant' -- نسخةٌ لم يُبدَّل معرّفها. المفتاح صحيح فالثيم
+    // يُرسم صحيحاً، لكن الحقل يكذب على كل من يقرؤه.
+    id: 'signature',
     label: 'فخم',
     density: 1.12,
     typeScale: 1.02,

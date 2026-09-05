@@ -26,6 +26,8 @@ import Svg, { Path, Polyline, Rect } from 'react-native-svg';
 import Money from './Money';
 import RunningOrdersList from './RunningOrdersList';
 import { formatArabicDateTimeShort } from '../domain/arabicDate';
+import { toLatinDigits } from '../domain/digits';
+import KeyboardLift from './KeyboardLift';
 
 /**
  * "جارية" first, matching the source's own tab order and for the same
@@ -521,7 +523,7 @@ export default function OrderHistoryScreen({
               وAlert.prompt خاص بـiOS وحدها: على أندرويد لا يفعل شيئاً،
               فكان زر الاسترجاع هناك زراً لا يستجيب أصلاً. */}
           {refundAskOpen && detail && (
-            <View style={styles.innerOverlay}>
+            <KeyboardLift style={styles.innerOverlay}>
               <View style={styles.askCard}>
                 <Text style={styles.askTitle}>استرجاع مبلغ</Text>
                 <Text style={styles.askNote}>
@@ -531,7 +533,7 @@ export default function OrderHistoryScreen({
                 <TextInput
                   style={styles.askInput}
                   value={refundAmountText}
-                  onChangeText={t => { setRefundAmountText(t); setRefundAskError(''); }}
+                  onChangeText={t => { setRefundAmountText(toLatinDigits(t)); setRefundAskError(''); }}
                   keyboardType="decimal-pad"
                   placeholder="المبلغ كامل"
                   placeholderTextColor={colors.muted}
@@ -546,7 +548,7 @@ export default function OrderHistoryScreen({
                   <Text style={styles.askCancelText}>إلغاء</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </KeyboardLift>
           )}
 
           <ManagerPinModal

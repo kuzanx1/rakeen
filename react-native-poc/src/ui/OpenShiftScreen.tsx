@@ -6,6 +6,7 @@ import GradientFill from './GradientFill';
 import { openShift } from '../application/shiftService';
 import type { Shift } from '../domain/shift';
 import { createStyles, fonts, gradients, radii, useTheme } from './theme';
+import { toLatinDigits } from '../domain/digits';
 
 /**
  * #posOpenShiftScreen (pos-markup.ts) -- the step between signing in and
@@ -82,7 +83,7 @@ export default function OpenShiftScreen({
               placeholderTextColor={colors.muted}
               keyboardType="decimal-pad"
               value={cash}
-              onChangeText={setCash}
+              onChangeText={t => setCash(toLatinDigits(t))}
               autoFocus
             />
           </View>

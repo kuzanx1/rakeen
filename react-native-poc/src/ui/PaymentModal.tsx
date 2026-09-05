@@ -19,6 +19,7 @@ import { isPrintJobTerminal } from '../domain/printQueue';
 import type { PrintJobStatus } from '../domain/printQueue';
 import Money from './Money';
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
+import { toLatinDigits } from '../domain/digits';
 
 /**
  * The payment popup is a WIZARD, not a single sheet -- something only
@@ -894,7 +895,7 @@ export default function PaymentModal({
                   // source does: Arabic-Indic digits folded to Western,
                   // everything non-numeric dropped, capped at 10 -- so what
                   // the cashier sees is always what will be stored.
-                  onChangeText={t => setNewPhone(normalisePhoneInput(t))}
+                  onChangeText={t => setNewPhone(normalisePhoneInput(toLatinDigits(t)))}
                   maxLength={10}
                   autoFocus={!newPhone}
                 />
@@ -976,7 +977,7 @@ export default function PaymentModal({
                       keyboardType="number-pad"
                       maxLength={4}
                       value={invoiceLast4}
-                      onChangeText={onInvoiceLast4Change}
+                      onChangeText={t => onInvoiceLast4Change(toLatinDigits(t))}
                     />
                   </View>
                 )}
@@ -1035,7 +1036,7 @@ export default function PaymentModal({
                       placeholder="0.00"
                       placeholderTextColor={colors.muted}
                       value={cashInput}
-                      onChangeText={setCashInput}
+                      onChangeText={t => setCashInput(toLatinDigits(t))}
                     />
                     <View style={styles.changeRow}>
                       <Text style={styles.changeLabel}>الباقي</Text>
@@ -1059,7 +1060,7 @@ export default function PaymentModal({
                       placeholder="0.00"
                       placeholderTextColor={colors.muted}
                       value={splitCardInput}
-                      onChangeText={setSplitCardInput}
+                      onChangeText={t => setSplitCardInput(toLatinDigits(t))}
                     />
                   </View>
                 )}
@@ -1087,7 +1088,7 @@ export default function PaymentModal({
                       style={[styles.input, styles.pagerInput, !!pagerError && styles.pagerInputError]}
                       value={pagerInput}
                       onChangeText={t => {
-                        setPagerInput(t.replace(/[^0-9]/g, '').slice(0, 3));
+                        setPagerInput(toLatinDigits(t).replace(/[^0-9]/g, '').slice(0, 3));
                         setPagerError('');
                       }}
                       placeholder="مثال: 20"

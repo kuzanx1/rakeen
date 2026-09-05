@@ -6,6 +6,7 @@ import GradientFill from './GradientFill';
 import { searchCustomers } from '../application/customerService';
 import { validateNewCustomerDraft, looksLikePhoneNumber, Customer } from '../domain/customer';
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
+import KeyboardLift from './KeyboardLift';
 
 /**
  * Feature Parity Pass -- Customer Management. Ported from the PWA's
@@ -97,7 +98,7 @@ export default function CustomerPickerModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onCancel}>
-      <View style={styles.overlay}>
+      <KeyboardLift style={styles.overlay}>
         <View style={styles.sheet}>
           {!showNewForm ? (
             <>
@@ -178,7 +179,7 @@ export default function CustomerPickerModal({
             </>
           )}
         </View>
-      </View>
+      </KeyboardLift>
     </Modal>
   );
 }

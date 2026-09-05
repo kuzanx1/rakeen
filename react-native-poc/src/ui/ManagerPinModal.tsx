@@ -4,6 +4,8 @@ import { Text, TextInput } from './Text';
 import { TouchableOpacity } from './tappable';
 import { verifyManagerPin } from '../application/managerPinService';
 import { createStyles, fonts, radii, spacing, useTheme } from './theme';
+import { toLatinDigits } from '../domain/digits';
+import KeyboardLift from './KeyboardLift';
 
 const PIN_LENGTH = 4;
 
@@ -65,7 +67,9 @@ export default function ManagerPinModal({
   }, [visible]);
 
   const handleChange = async (text: string) => {
-    const digits = text.replace(/\D/g, '').slice(0, PIN_LENGTH);
+    // الترجمة قبل التصفية: replace(/\D/g) تعتبر ٠-٩ العربية
+    // "غير رقم" فتحذفها، فكان المدير يضغط أرقامه ولا تظهر نقطة.
+    const digits = toLatinDigits(text).replace(/\D/g, '').slice(0, PIN_LENGTH);
     setPin(digits);
     setError('');
     if (digits.length !== PIN_LENGTH) return;
@@ -85,7 +89,7 @@ export default function ManagerPinModal({
   };
 
   const body = (
-      <View style={presentation === 'inline' ? styles.overlayInline : styles.overlay}>
+      <KeyboardLift style={presentation === 'inline' ? styles.overlayInline : styles.overlay}>
         <View style={styles.card}>
           <Text style={styles.title}>موافقة المدير مطلوبة</Text>
           <View style={styles.dotsRow}>
@@ -109,7 +113,7 @@ export default function ManagerPinModal({
             <Text style={styles.cancelText}>إلغاء</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardLift>
   );
 
   // داخل نافذة مفتوحة: طبقة لا تقديم. و`visible` تُفحص هنا لأن <Modal>

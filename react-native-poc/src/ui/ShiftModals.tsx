@@ -12,6 +12,8 @@ import { EMPTY_SHIFT_TOTALS, varianceLabel, varianceSeverity } from '../domain/s
 import type { ClosingReport, Shift, ShiftTotals } from '../domain/shift';
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
 import { formatArabicTime, formatArabicDateTime } from '../domain/arabicDate';
+import { toLatinDigits } from '../domain/digits';
+import KeyboardLift from './KeyboardLift';
 
 /**
  * openShiftSummary() (rakeen-pos.js:5421) and the closing wizard (:5467),
@@ -50,7 +52,7 @@ function Shell({
   const { colors, shadows } = useTheme();
   const styles = useStyles();
   return (
-    <View style={styles.overlay}>
+    <KeyboardLift style={styles.overlay}>
       <View style={[styles.card, shadows.md]}>
         <View style={styles.head}>
           <Text style={styles.title}>{title}</Text>
@@ -60,7 +62,7 @@ function Shell({
         </View>
         <View style={styles.body}>{children}</View>
       </View>
-    </View>
+    </KeyboardLift>
   );
 }
 
@@ -283,7 +285,7 @@ export function CloseShiftModal({
               placeholderTextColor={colors.muted}
               keyboardType="decimal-pad"
               value={counted}
-              onChangeText={setCounted}
+              onChangeText={t => setCounted(toLatinDigits(t))}
               autoFocus
             />
             {counted ? (

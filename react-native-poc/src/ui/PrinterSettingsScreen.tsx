@@ -20,6 +20,7 @@ import {
 } from '../domain/printerProfile';
 import type { PrinterProfile, PrinterTransportKind, DiscoveredDevice, PrinterTarget } from '../platform/printer';
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
+import { toLatinDigits } from '../domain/digits';
 
 const TRANSPORT_LABELS: Record<PrinterTransportKind, string> = {
   network: 'شبكة الواي فاي',
@@ -388,7 +389,7 @@ export default function PrinterSettingsScreen({
               style={styles.input}
               placeholderTextColor={colors.muted}
               value={profile.host}
-              onChangeText={t => update({ host: t })}
+              onChangeText={t => update({ host: toLatinDigits(t) })}
               placeholder="192.168.1.50"
               autoCapitalize="none"
             />
@@ -397,7 +398,7 @@ export default function PrinterSettingsScreen({
               style={styles.input}
               placeholderTextColor={colors.muted}
               value={profile.port != null ? String(profile.port) : ''}
-              onChangeText={t => update({ port: t ? parseInt(t, 10) : undefined })}
+              onChangeText={t => { const v = toLatinDigits(t); update({ port: v ? parseInt(v, 10) : undefined }); }}
               placeholder="من ورقة إعدادات طابعتك"
               keyboardType="number-pad"
             />
@@ -516,7 +517,7 @@ export default function PrinterSettingsScreen({
               style={styles.input}
               placeholderTextColor={colors.muted}
               value={profile.kitchenHost || ''}
-              onChangeText={t => update({ kitchenHost: t })}
+              onChangeText={t => update({ kitchenHost: toLatinDigits(t) })}
               placeholder="192.168.1.51"
               autoCapitalize="none"
             />
@@ -525,7 +526,7 @@ export default function PrinterSettingsScreen({
               style={styles.input}
               placeholderTextColor={colors.muted}
               value={profile.kitchenPort != null ? String(profile.kitchenPort) : ''}
-              onChangeText={t => update({ kitchenPort: t ? parseInt(t, 10) : undefined })}
+              onChangeText={t => { const v = toLatinDigits(t); update({ kitchenPort: v ? parseInt(v, 10) : undefined }); }}
               placeholder="9100"
               keyboardType="number-pad"
             />

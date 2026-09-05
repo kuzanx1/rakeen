@@ -6,6 +6,8 @@ import GradientFill from './GradientFill';
 import { recordCashMovement } from '../application/shiftService';
 import type { Shift } from '../domain/shift';
 import { createStyles, fonts, gradients, radii, useTheme } from './theme';
+import { toLatinDigits } from '../domain/digits';
+import KeyboardLift from './KeyboardLift';
 
 /**
  * Recording cash that enters or leaves the drawer without being a sale:
@@ -78,7 +80,7 @@ export default function CashMovementModal({
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <KeyboardLift style={styles.overlay}>
         <View style={[styles.card, shadows.md]}>
           <View style={styles.head}>
             <Text style={styles.title}>حركة نقدية بالدرج</Text>
@@ -118,7 +120,7 @@ export default function CashMovementModal({
                   placeholderTextColor={colors.muted}
                   keyboardType="decimal-pad"
                   value={amount}
-                  onChangeText={setAmount}
+                  onChangeText={t => setAmount(toLatinDigits(t))}
                   autoFocus
                 />
 
@@ -157,7 +159,7 @@ export default function CashMovementModal({
             )}
           </ScrollView>
         </View>
-      </View>
+      </KeyboardLift>
     </Modal>
   );
 }

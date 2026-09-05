@@ -3126,7 +3126,7 @@ const RECEIPT_THEMES = {
                headerBand:false, boxedTotal:false, qrMaxSize:170 },
   // الأنيق: هادئ ومتّسع. خطوط منقّطة رفيعة، وعناوين أقسام بحروف متباعدة،
   // ونقاط موصِلة -- مظهر المطاعم الراقية: لا شيء صارخ، وكل شيء مرتّب.
-  elegant:   { density:1.18, typeScale:1.04, showLogo:true,  logoWidth:0.34,
+  elegant:   { density:1.15, typeScale:1.04, showLogo:true,  logoWidth:0.34,
                rule:'dotted', orderStyle:'spaced', totalStyle:'box',   itemStyle:'leaders', sectionLabels:true,
                headerBand:true,  boxedTotal:true,  qrMaxSize:220 },
   // الفخم: بيان. شعار كبير، ورقم الطلب والإجمالي أبيض على أسود، وأشرطة
