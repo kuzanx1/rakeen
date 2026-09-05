@@ -6,6 +6,8 @@ import GradientFill from './GradientFill';
 import Money from './Money';
 import ManagerPinModal from './ManagerPinModal';
 import { loadShiftTotals, closeShift } from '../application/shiftService';
+import { getShiftReportSettings } from '../application/catalogService';
+import { getDeviceConfig } from '../application/authService';
 import { EMPTY_SHIFT_TOTALS, varianceLabel, varianceSeverity } from '../domain/shift';
 import type { ClosingReport, Shift, ShiftTotals } from '../domain/shift';
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
@@ -160,6 +162,23 @@ export function CloseShiftModal({
   const [pinOpen, setPinOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // خيارات التقرير وحالة الدفع الإلكتروني، بنفس ما يقرؤه الكاشير. تُقرأ
+  // عند فتح النافذة لا عند البناء، فتغييرٌ في اللوحة يظهر في أول إغلاق
+  // بعده بلا إعادة تشغيل التطبيق.
+  const [reportSettings, setReportSettings] = useState<{
+    onlinePaymentsEnabled: boolean;
+    options: Record<string, boolean>;
+  }>({ onlinePaymentsEnabled: false, options: {} });
+
+  useEffect(() => {
+    if (!visible) return;
+    let alive = true;
+    getDeviceConfig()
+      .then(d => (d.businessId == null ? null : getShiftReportSettings(d.businessId)))
+      .then(v => { if (alive && v) setReportSettings(v); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [visible]);
 
   useEffect(() => {
     if (!visible) return;
@@ -170,6 +189,9 @@ export function CloseShiftModal({
     setError('');
   }, [visible]);
 
+  const shiftStartLabel = shift
+    ? new Date(shift.opened_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
+    : '';
   const countedNum = parseFloat(counted) || 0;
   const variance = countedNum - totals.cashTotal;
   const severity = varianceSeverity(variance);
@@ -193,6 +215,21 @@ export function CloseShiftModal({
       cashExpected: totals.cashTotal,
       cashCounted: countedNum,
       cashVariance: variance,
+      // المسار المحاسبي كاملاً، بنفس ما تطبعه ورقة الكاشير -- ورقة إغلاق
+      // واحدة لمنشأة واحدة لا يجوز أن تنقص لأن الجهاز اختلف.
+      grossSales: totals.grossSales,
+      discountsTotal: totals.discountsTotal,
+      refundsTotal: totals.refundsTotal,
+      refundsCount: totals.refundsCount,
+      vatTotal: totals.vatTotal,
+      netSales: totals.netSales,
+      avgTicket: totals.avgTicket,
+      openingCash: totals.openingCash,
+      cashSales: totals.cashSales,
+      onlineTotal: totals.onlineTotal,
+      onlinePaymentsEnabled: reportSettings.onlinePaymentsEnabled,
+      options: reportSettings.options,
+      shiftStart: shiftStartLabel,
     };
     const result = await closeShift({ shift, countedCash: countedNum, report });
     setBusy(false);

@@ -27,6 +27,12 @@ export interface ShiftOrderRow {
   total: number | string;
   payment_method: string | null;
   cash_amount: number | string | null;
+  /** المسار المحاسبي: من الإجمالي إلى الصافي. */
+  subtotal?: number | string | null;
+  discount_amount?: number | string | null;
+  vat_amount?: number | string | null;
+  /** 'online' يفصل الدفع الإلكتروني عن شبكة الصالة -- وكلاهما 'card'. */
+  source?: string | null;
 }
 
 /** A non-sale movement of cash in or out of the drawer. */
@@ -53,6 +59,17 @@ export interface ShiftTotals {
    *  rather than just trusted. */
   cashInTotal: number;
   cashOutTotal: number;
+  /** المسار المحاسبي، بنفس ما تحسبه ورقة الكاشير حرفياً. */
+  grossSales: number;
+  discountsTotal: number;
+  vatTotal: number;
+  refundsTotal: number;
+  refundsCount: number;
+  netSales: number;
+  avgTicket: number;
+  openingCash: number;
+  cashSales: number;
+  onlineTotal: number;
 }
 
 export const EMPTY_SHIFT_TOTALS: ShiftTotals = {
@@ -63,6 +80,16 @@ export const EMPTY_SHIFT_TOTALS: ShiftTotals = {
   deliveryPlatformTotal: 0,
   cashInTotal: 0,
   cashOutTotal: 0,
+  grossSales: 0,
+  discountsTotal: 0,
+  vatTotal: 0,
+  refundsTotal: 0,
+  refundsCount: 0,
+  netSales: 0,
+  avgTicket: 0,
+  openingCash: 0,
+  cashSales: 0,
+  onlineTotal: 0,
 };
 
 /**
@@ -79,13 +106,27 @@ export function computeShiftTotals(
   orders: ShiftOrderRow[],
   openingCash: number,
   movements: CashMovement[] = [],
+  refunds: { total: number; count: number } = { total: 0, count: 0 },
 ): ShiftTotals {
   let cashSales = 0;
   let cardSales = 0;
   let deliveryPlatformSales = 0;
+  let onlineSales = 0;
+  let grossSales = 0;
+  let discountsTotal = 0;
+  let vatTotal = 0;
 
   for (const o of orders) {
     const total = Number(o.total) || 0;
+    grossSales += Number(o.subtotal) || 0;
+    discountsTotal += Number(o.discount_amount) || 0;
+    vatTotal += Number(o.vat_amount) || 0;
+    // طلب من المتجر الإلكتروني دُفع بغير الكاش هو "دفع إلكتروني" لا شبكة
+    // الصالة. الفصل بالمصدر لا بطريقة الدفع، فكلاهما يصل بـ'card'.
+    if (o.source === 'online' && o.payment_method !== 'cash') {
+      onlineSales += total;
+      continue;
+    }
     if (o.payment_method === 'cash') {
       cashSales += total;
     } else if (o.payment_method === 'split') {
@@ -107,16 +148,30 @@ export function computeShiftTotals(
     else cashOut += amount;
   }
 
+  // الاسترجاع كاش دائماً، فهو سحبٌ من الدرج مهما كانت طريقة دفع البيع --
+  // وبيع شبكة أُعيد كاشاً ينقص الدرج وإن لم يدخله شيء.
+  const netSales = cashSales + cardSales + deliveryPlatformSales + onlineSales - refunds.total;
+
   return {
     ordersCount: orders.length,
     // Sales only. A float taken from the safe is not revenue, so movements
     // deliberately do NOT touch this figure -- only the drawer's.
-    salesTotal: cashSales + cardSales + deliveryPlatformSales,
-    cashTotal: (Number(openingCash) || 0) + cashSales + cashIn - cashOut,
+    salesTotal: netSales,
+    cashTotal: (Number(openingCash) || 0) + cashSales + cashIn - cashOut - refunds.total,
     cardTotal: cardSales,
     deliveryPlatformTotal: deliveryPlatformSales,
     cashInTotal: cashIn,
     cashOutTotal: cashOut,
+    grossSales,
+    discountsTotal,
+    vatTotal,
+    refundsTotal: refunds.total,
+    refundsCount: refunds.count,
+    netSales,
+    avgTicket: orders.length ? netSales / orders.length : 0,
+    openingCash: Number(openingCash) || 0,
+    cashSales,
+    onlineTotal: onlineSales,
   };
 }
 

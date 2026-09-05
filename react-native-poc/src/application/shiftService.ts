@@ -141,7 +141,7 @@ export async function loadShiftTotals(shift: Shift | null): Promise<ShiftTotals>
   if (!shift) return EMPTY_SHIFT_TOTALS;
   const { data } = await supabase
     .from('orders')
-    .select('total, payment_method, cash_amount')
+    .select('total, subtotal, discount_amount, vat_amount, payment_method, cash_amount, source')
     .eq('shift_id', shift.id)
     .eq('payment_status', 'paid')
     // Refunds. refund_pos_order sets status='refunded' and never touches
@@ -153,11 +153,31 @@ export async function loadShiftTotals(shift: Shift | null): Promise<ShiftTotals>
     // like they are missing cash on the figure a manager signs off.
     // 'cancelled' needs no exclusion: cancel_dine_in_order only matches
     // payment_status='unpaid', so those never reach this query.
-    .neq('status', 'refunded');
+    //
+    // والاستبعاد لم يعد كلياً: البيع يُحسب كما وقع، والاسترجاع يُطرح على
+    // سطره الخاص. الاستبعاد الكلي كان صحيحاً في حالة واحدة -- بيع كاش
+    // أُعيد كاملاً كاشاً -- أما بيع شبكة أُعيد كاشاً فينقص الدرج وإن لم
+    // يدخله شيء، وبيع كاش أُعيد بعضه فالباقي منه فيه.
+    ;
   // A missing table (migration not run yet) must not stop a shift being
   // read or closed -- it just means no movements are recorded.
   const movements = await listCashMovements(shift.id).catch(() => [] as CashMovement[]);
-  return computeShiftTotals((data as ShiftOrderRow[]) || [], Number(shift.opening_cash), movements);
+  // المرتجعات بورديّة خروج المال لا بورديّة البيع: بيع الأمس قد يُرجَع
+  // اليوم، والدرج الذي ينقص هو درج اليوم.
+  let refunds = { total: 0, count: 0 };
+  try {
+    const { data: refunded } = await supabase
+      .from('orders')
+      .select('refunded_amount')
+      .eq('refund_shift_id', shift.id);
+    for (const r of refunded ?? []) {
+      const amt = Number((r as { refunded_amount?: number }).refunded_amount) || 0;
+      if (amt > 0) { refunds.total += amt; refunds.count += 1; }
+    }
+  } catch {
+    // بلا سطر مرتجعات خير من وردية لا تُقرأ.
+  }
+  return computeShiftTotals((data as ShiftOrderRow[]) || [], Number(shift.opening_cash), movements, refunds);
 }
 
 /**

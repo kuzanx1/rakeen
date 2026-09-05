@@ -3766,7 +3766,30 @@ window.__androidPrintCallback = function(id, result){
 // back to DEVICE.printerIp/printerPort when omitted, so anything that
 // doesn't care which printer (a plain reprint, the shift report) keeps
 // working exactly as before.
-function sendBytesToPrinter(bytes, ip, port){
+/**
+ * الطابعة المشغولة تُنتظر، لا تُسلَّم للطابور.
+ *
+ * الطلب الواحد يُنتج ورقتين تخرجان من طابعة واحدة، وطابعة الشبكة تقبل
+ * اتصالاً واحداً في اللحظة وترفض الثاني ما دامت تطبع. فالثانية -- تذكرة
+ * المطبخ -- تُرفض دائماً، وكانت تنتظر دورة الطابور التالية.
+ *
+ * والانتظار متدرّج لا ثابت: مدة انشغال الطابعة تتبع طول الورقة قبلها،
+ * ورقمٌ ثابت إمّا أن يقصر فيخفق أو يطول فيؤخّر كل ورقة بلا سبب.
+ *
+ * ولا يُعاد إلا الرفض والمهلة: جسرٌ غائب أو طابعة غير مضبوطة لا يصلحهما
+ * تكرار المحاولة، وإعادتهما تؤخّر ظهور الخطأ الحقيقي للكاشير.
+ */
+const PRINT_BUSY_RETRY_MS = [400, 900, 1600];
+async function sendBytesToPrinter(bytes, ip, port){
+  let result = await sendBytesOnce(bytes, ip, port);
+  for(let i = 0; !result.ok && (result.error === 'timeout' || result.error === 'connection_refused') && i < PRINT_BUSY_RETRY_MS.length; i++){
+    await new Promise(r=> setTimeout(r, PRINT_BUSY_RETRY_MS[i]));
+    result = await sendBytesOnce(bytes, ip, port);
+  }
+  return result;
+}
+
+function sendBytesOnce(bytes, ip, port){
   return new Promise((resolve)=>{
     if(!printerBridgeAvailable()){ resolve({ok:false, error:'bridge_unavailable'}); return; }
     const targetIp = ip || DEVICE.printerIp;

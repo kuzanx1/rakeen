@@ -371,6 +371,32 @@ export async function getReceiptBranding(businessId: number, branchId: number | 
   return out;
 }
 
+/**
+ * خيارات تقرير الإغلاق، وهل الدفع الإلكتروني مفعّل.
+ *
+ * استعلام متسامح مستقل، لنفس سبب البقية: عمود لا تعرفه القاعدة يُسقط
+ * الاستعلام كله، ووردية لا تُغلق لأن ترحيلاً لم يُطبَّق أسوأ من تقرير
+ * ينقصه سطر.
+ */
+export async function getShiftReportSettings(businessId: number): Promise<{
+  onlinePaymentsEnabled: boolean;
+  options: Record<string, boolean>;
+}> {
+  try {
+    const { data } = await supabase
+      .from('businesses')
+      .select('geidea_connected, shift_report_options')
+      .eq('id', businessId)
+      .single();
+    return {
+      onlinePaymentsEnabled: !!data?.geidea_connected,
+      options: (data?.shift_report_options as Record<string, boolean>) ?? {},
+    };
+  } catch {
+    return { onlinePaymentsEnabled: false, options: {} };
+  }
+}
+
 export function subscribeToBusinessSettings(businessId: number, onChange: () => void): () => void {
   return subscribeToPostgresChanges(
     `pos-business-settings:${businessId}`,
