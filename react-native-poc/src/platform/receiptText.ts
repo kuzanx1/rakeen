@@ -85,6 +85,32 @@ export function paintText(
 }
 
 /**
+ * عرض نصٍّ بالبكسل، دون رسمه.
+ *
+ * لازم لوضع شيء بجانب نص مركزيّ -- القلب بجانب "بالعافية عليكم" -- إذ
+ * لا يُعرف أين ينتهي النص حتى يُقاس، والتخمين يجعل الرمز يلامس الحرف
+ * على ورق ويبتعد عنه على آخر باختلاف عرض الورق.
+ */
+export function measureTextWidth(
+  provider: SkTypefaceFontProvider,
+  text: string,
+  size: number,
+  bold: boolean,
+): number {
+  const builder = Skia.ParagraphBuilder.Make({ textDirection: TextDirection.RTL }, provider);
+  builder.pushStyle({
+    color: Skia.Color('#000000'),
+    fontFamilies: [RECEIPT_FONT_FAMILY],
+    fontSize: size,
+    fontStyle: { weight: bold ? FontWeight.ExtraBold : FontWeight.Normal },
+  });
+  builder.addText(text);
+  const paragraph = builder.build();
+  paragraph.layout(100000);
+  return paragraph.getLongestLine();
+}
+
+/**
  * Word-wraps `text` to fit `maxWidth` at the given style, ported from
  * the PWA's real wrapLine() (measure-and-break on spaces). Needed
  * because callers here draw each wrapped line as ITS OWN paragraph

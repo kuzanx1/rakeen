@@ -40,7 +40,7 @@ import {
 } from './src/application/catalogService';
 import { profileToPrinterTarget, drawerKickCommandFor, isDrawerSupported } from './src/domain/printerProfile';
 import { startDiagnosticsTracking } from './src/application/diagnosticsService';
-import { getNotifySoundEnabled } from './src/application/catalogService';
+import { getNotifySoundEnabled, getReceiptBranding } from './src/application/catalogService';
 import { setNotifySoundEnabled } from './src/application/soundService';
 import DiagnosticsScreen from './src/ui/DiagnosticsScreen';
 import OrderHistoryScreen from './src/ui/OrderHistoryScreen';
@@ -330,26 +330,30 @@ function App(): React.JSX.Element {
       setIncomingError(result.error ?? 'تعذر قبول الطلب');
       return;
     }
-    // Kitchen ticket FIRST, receipt SECOND, and both unconditionally --
-    // NOT gated by the per-device auto-print toggles that govern normal
-    // checkout. An accepted online order has to reach the kitchen.
+    // فاتورة العميل أولاً ثم تذكرة المطبخ، وكلتاهما بلا شرط -- لا تحكمهما
+    // مفاتيح الطباعة التلقائية التي تحكم الدفع العادي: طلب مقبول لا بد
+    // أن يصل المطبخ.
+    //
+    // والعميل أولاً لأنه هو المنتظِر: الورقتان تخرجان من طابعة واحدة،
+    // والثانية تنتظر فراغها من الأولى، فمن يقف عند الكاشير أولى بأن
+    // تسبق ورقتُه ورقةً تُقرأ في المطبخ بعد دقيقة.
     try {
       const device = await getDeviceConfig();
+      const branding = device.businessId != null
+        ? await getReceiptBranding(device.businessId, device.branchId)
+        : null;
       const lines = incomingOrder.items.map(it => ({
         qty: it.qty,
         name: it.name,
+        // سعر الوحدة محسوب من مجموع السطر: الطلب الإلكتروني لا يحمله،
+        // وغيابه كان يُسقط تصيير الفاتورة كله إلى نسخة ASCII بالإنجليزية.
+        unitPrice: it.qty > 0 ? it.lineTotal / it.qty : it.lineTotal,
         lineTotal: it.lineTotal,
         mods: it.mods,
         note: it.note ?? undefined,
       }));
-      await enqueuePrintJob('kitchen', {
-        orderId,
-        tableNumber: null,
-        lines,
-        branchName: device.branchName ?? undefined,
-        createdAtISO: new Date().toISOString(),
-        metaLabel: 'طلب إلكتروني',
-      });
+      const createdAtISO = new Date().toISOString();
+      const staff = staffMember?.name ?? '';
       await enqueuePrintJob('receipt', {
         orderId,
         lines,
@@ -361,7 +365,30 @@ function App(): React.JSX.Element {
         change: 0,
         businessName: device.businessName ?? undefined,
         branchName: device.branchName ?? undefined,
-        createdAtISO: new Date().toISOString(),
+        // نفس ترويسة أي فاتورة أخرى: الطلب الإلكتروني ليس نوعاً آخر من
+        // الورق، هو نفس الورقة يتغيّر فيها سطر النوع ويُضاف صاحب الطلب.
+        logoUrl: branding?.logoUrl || undefined,
+        tagline: branding?.tagline || undefined,
+        showBusinessName: branding ? branding.showBusinessName : undefined,
+        locationLine: branding?.locationLine || undefined,
+        branchLabel: branding?.branchLabel || undefined,
+        vatNumber: branding?.vatNumber || undefined,
+        customMessage: branding?.customMessage || undefined,
+        cashierName: staff || undefined,
+        customerName: incomingOrder.customerName ?? undefined,
+        customerPhone: incomingOrder.customerPhone ?? undefined,
+        orderNote: incomingOrder.customerNote ?? undefined,
+        createdAtISO,
+        metaLabel: 'طلب إلكتروني',
+      });
+      await enqueuePrintJob('kitchen', {
+        orderId,
+        tableNumber: null,
+        lines,
+        branchName: device.branchName ?? undefined,
+        logoUrl: branding?.logoUrl || undefined,
+        cashierName: staff || undefined,
+        createdAtISO,
         metaLabel: 'طلب إلكتروني',
       });
     } catch {

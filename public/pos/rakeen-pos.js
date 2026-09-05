@@ -738,6 +738,27 @@ const RK_RIYAL_CHAR = '⃁';
 //
 // ومربع فارغ جنب كل سعر أسوأ من غياب العملة، فالكلمة تُقرأ في كل مكان.
 const RIYAL = 'ريال';
+
+// نوع الطلب بالعربية والإنجليزية.
+//
+// الورقة تُقرأ في مطبخ فيه من لا يقرأ العربية، وفي صالة فيها من لا يقرأ
+// الإنجليزية، والكلمة الواحدة هنا تقرر أين يذهب الطلب.
+const ORDER_KIND_BILINGUAL = {
+  'محلي': 'محلي · Dine-in',
+  'بالمطعم': 'محلي · Dine-in',
+  'سفري': 'سفري · Takeaway',
+  'توصيل': 'توصيل · Delivery',
+  'استلام': 'استلام · Pickup',
+  'طلب إلكتروني': 'طلب إلكتروني · Online Order'
+};
+function bilingualOrderKind(metaLabel){
+  if(!metaLabel) return '';
+  // "محلي — طاولة 7" يحمل النوع وما بعده، فيُترجم النوع ويبقى الباقي.
+  for(const ar of Object.keys(ORDER_KIND_BILINGUAL)){
+    if(metaLabel.indexOf(ar) === 0) return ORDER_KIND_BILINGUAL[ar] + metaLabel.slice(ar.length);
+  }
+  return metaLabel;
+}
 function rkMoney(amount){
   const n = Number(amount) || 0;
   const sign = n < 0 ? '-' : '';
@@ -3248,13 +3269,19 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
   divider();
   if(receipt.cashierName) rowText('', bi('تمت بواسطة', 'Served by') + ': ' + receipt.cashierName, sz(15), false);
   if(receipt.metaLabel) rowText('', bi('نوع الطلب', 'Type') + ': ' + receipt.metaLabel, sz(15), false);
+  // صاحب الطلب. لا يظهر إلا حين يوجد -- وهو يوجد في الطلب الإلكتروني
+  // والتوصيل، حيث الورقة هي ما يربط الكيس بصاحبه.
+  if(receipt.customerName) rowText('', bi('العميل', 'Customer') + ': ' + receipt.customerName, sz(15), false);
+  if(receipt.customerPhone) rowText('', bi('الجوال', 'Phone') + ': ' + receipt.customerPhone, sz(15), false);
   divider();
 
   receipt.items.forEach((it, idx)=>{
     const nameFont = '700 ' + sz(21) + 'px "IBM Plex Sans Arabic", sans-serif';
     // العربي والإنجليزي سطراً واحداً: الكانفس يرسم بترتيب ثنائي الاتجاه
     // صحيح، فالشَرطة بينهما تستقر في موضعها -- وهو ما تعذّر في وضع النص.
-    const shownName = it.nameEn ? (it.name + ' | ' + it.nameEn) : it.name;
+    // الكمية ملتصقة بالاسم: "2x سبانيش لاتيه". عمودٌ مستقل كان يفصل
+    // الرقم عن الصنف الذي يعدّه بعرض الورقة، فتقفز العين بينهما.
+    const shownName = it.qty + 'x ' + (it.nameEn ? (it.name + ' | ' + it.nameEn) : it.name);
     wrapLine(shownName, nameFont).forEach(line=>{
       ctx.font = nameFont;
       ctx.direction = 'rtl'; ctx.textAlign = 'right';
@@ -3300,6 +3327,14 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
     // something a theme gets to switch off.
     if(idx < receipt.items.length - 1) hairline();
   });
+  // ملاحظة الزبون على الطلب كله: أسفل الأصناف وقبل الأرقام. ليست ملاحظة
+  // صنف فتُكتب تحته، ولا سطر حساب فتُكتب بين المبالغ.
+  if(receipt.orderNote){
+    y += gap(0.25);
+    wrapLine('ملاحظات الطلب: ' + receipt.orderNote, '600 ' + sz(15) + 'px "IBM Plex Sans Arabic", sans-serif')
+      .forEach(line=> rowText('', line, sz(15), false));
+    y += gap(0.1);
+  }
   divider();
   rowText(receipt.subtotal.toFixed(2) + ' ' + RIYAL, bi('المجموع الفرعي', 'Subtotal'), sz(18), false);
   if(receipt.discount > 0) rowText('-' + receipt.discount.toFixed(2) + ' ' + RIYAL, bi('الخصم', 'Discount'), sz(18), false);
@@ -3348,7 +3383,7 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
    صوص" — which the customer receipt never printed either), nothing about
    money. Independently toggleable in POS settings from the customer
    receipt, since some kitchens want both printed, some just one. */
-function renderKitchenTicketCanvas(receipt){
+function renderKitchenTicketCanvas(receipt, logoImage){
   const width = DEVICE.printerPaperWidth || 576;
   const pad = 16, lineH = 36;
   const maxHeight = 1200 + receipt.items.length * 260;
@@ -3386,18 +3421,34 @@ function renderKitchenTicketCanvas(receipt){
     y += lineH * 0.6;
   };
 
-  centerText('طلب مطبخ', 32, true);
+  // الشعار يتصدّرها، و"KITCHEN RECEIPT" تحته بدل كلمة "طلب مطبخ".
+  if(logoImage){
+    const lw = Math.round(width * 0.34);
+    const lr = (logoImage.naturalHeight || logoImage.height) / (logoImage.naturalWidth || logoImage.width);
+    const lh = Math.round(lw * lr);
+    ctx.drawImage(logoImage, (width - lw) / 2, y, lw, lh);
+    y += lh + lineH * 0.35;
+  }
+  centerText('KITCHEN RECEIPT', logoImage ? 24 : 32, true);
   if(receipt.branchName) centerText(receipt.branchName, 18, false);
   centerText(receipt.dateLabel, 16, false);
   centerText(receipt.metaLabel, 20, true);
-  // The buzzer number, bigger than anything else on the ticket — read off
-  // this paper and typed into the base station, so it has to be legible at
-  // a glance rather than hunted for among the item lines.
-  if(receipt.pagerNumber != null) centerText('جهاز النداء  ' + receipt.pagerNumber, 40, true);
+  // الرقم الذي يُنادى به: جهاز النداء إن وُجد، وإلا رقم الطلب. ولا
+  // يجتمعان -- رقمان كبيران متجاوران يجعلان من يقرأهما عبر مطبخ حار
+  // يتردد أيّهما ينادي.
+  y += lineH * 0.2;
+  if(receipt.pagerNumber != null){
+    centerText('جهاز النداء · Pager', 16, false);
+    centerText(String(receipt.pagerNumber), 44, true);
+  } else {
+    centerText('رقم الطلب · Order No', 16, false);
+    centerText(receipt.orderNumber || '—', 40, true);
+  }
   divider();
 
   receipt.items.forEach(it=>{
-    wrapLine(it.qty + ' × ' + it.name, '800 26px "IBM Plex Sans Arabic", sans-serif').forEach(line=>{
+    const kName = it.nameEn ? (it.name + ' | ' + it.nameEn) : it.name;
+    wrapLine(it.qty + 'x ' + kName, '800 26px "IBM Plex Sans Arabic", sans-serif').forEach(line=>{
       ctx.font = '800 26px "IBM Plex Sans Arabic", sans-serif';
       ctx.direction = 'rtl'; ctx.textAlign = 'right';
       ctx.fillText(line, width - pad, y);
@@ -3412,7 +3463,8 @@ function renderKitchenTicketCanvas(receipt){
       });
     });
     if(it.note){
-      wrapLine('📝 ' + it.note, '700 18px "IBM Plex Sans Arabic", sans-serif').forEach(line=>{
+      // بلا إيموجي: محرف يحتاج خطاً ملوّناً لا تحمله الطابعة، فيخرج مربعاً.
+      wrapLine('ملاحظات: ' + it.note, '700 18px "IBM Plex Sans Arabic", sans-serif').forEach(line=>{
         ctx.font = '700 18px "IBM Plex Sans Arabic", sans-serif';
         ctx.direction = 'rtl'; ctx.textAlign = 'right';
         ctx.fillText(line, width - pad - 14, y);
@@ -3422,7 +3474,33 @@ function renderKitchenTicketCanvas(receipt){
     y += lineH * 0.3;
   });
   divider();
-  y += pad;
+  y += lineH * 0.15;
+
+  if(receipt.cashierName) centerText('طبعها · By: ' + receipt.cashierName, 16, false);
+
+  // بالعافية عليكم، وقلب مرسوم بجانبها.
+  //
+  // مرسوم لا مكتوب: الإيموجي محرف يحتاج خطاً ملوّناً لا تحمله طابعة
+  // حرارية، فيخرج مربعاً فارغاً. ومنحنيان يُطبعان على أي جهاز لأنهما
+  // نقاط لا حروف.
+  y += lineH * 0.35;
+  const blessing = 'بالعافية عليكم';
+  const bSize = 22, heart = bSize * 0.72, gapx = bSize * 0.42;
+  ctx.font = '800 ' + bSize + 'px "IBM Plex Sans Arabic", sans-serif';
+  const bw = ctx.measureText(blessing).width;
+  const startX = (width - (bw + gapx + heart)) / 2;
+  ctx.direction = 'rtl'; ctx.textAlign = 'right';
+  ctx.fillText(blessing, startX + heart + gapx + bw, y);
+  (function(cx, cy, sz){
+    const w = sz, h = sz * 0.9;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + h * 0.42);
+    ctx.bezierCurveTo(cx - w * 0.62, cy - h * 0.05, cx - w * 0.30, cy - h * 0.62, cx, cy - h * 0.18);
+    ctx.bezierCurveTo(cx + w * 0.30, cy - h * 0.62, cx + w * 0.62, cy - h * 0.05, cx, cy + h * 0.42);
+    ctx.closePath();
+    ctx.fillStyle = '#000'; ctx.fill();
+  })(startX + heart / 2, y, heart);
+  y += lineH * 0.9 + pad;
 
   const finalHeight = Math.min(Math.ceil(y), maxHeight);
   const out = document.createElement('canvas');
@@ -3463,8 +3541,8 @@ function buildReceiptEscPosBytes(receipt, qrImage, logoImage){
   return out;
 }
 
-function buildKitchenTicketEscPosBytes(receipt){
-  const image = canvasToEscPosRaster(renderKitchenTicketCanvas(receipt));
+function buildKitchenTicketEscPosBytes(receipt, logoImage){
+  const image = canvasToEscPosRaster(renderKitchenTicketCanvas(receipt, logoImage));
   const init = new Uint8Array([0x1B, 0x40]);
   const feedCut = new Uint8Array([0x0A, 0x0A, 0x0A, 0x1D, 0x56, 0x00]);
   const out = new Uint8Array(init.length + image.length + feedCut.length);
@@ -3614,9 +3692,12 @@ async function openCashDrawer(){
   else showToast('⚠ تعذّر فتح الدرج — تحقق من الاتصال');
 }
 
-function sendKitchenTicketToPrinter(receipt){
+async function sendKitchenTicketToPrinter(receipt){
+  // الشعار لا يمنع الطباعة: تذكرة بلا شعار تذكرة، وتذكرة لم تُطبع لأن
+  // مضيف الصور بطيء هي طلب ضاع في المطبخ.
+  const logoImage = await loadLogoImage(receipt.logoUrl);
   let bytes;
-  try { bytes = buildKitchenTicketEscPosBytes(receipt); }
+  try { bytes = buildKitchenTicketEscPosBytes(receipt, logoImage); }
   catch (e) { return Promise.resolve({ok:false, error:'render_failed'}); }
   // A separate physical printer for the kitchen (e.g. downstairs) is
   // optional — falls back to the main counter printer when not set, so a
@@ -3857,7 +3938,7 @@ function buildLiveReceiptData(orderPayload, totals){
     // customer with zero way to reference this order; say so honestly
     // instead of silently dropping the line.
     orderNumber: orderPayload.orderId ? ('#' + orderPayload.orderId) : 'سيُحدَّد عند الاتصال',
-    metaLabel: (CHANNEL_LABELS[orderPayload.channel] || orderPayload.channel) + liveTableLabel,
+    metaLabel: bilingualOrderKind((CHANNEL_LABELS[orderPayload.channel] || orderPayload.channel) + liveTableLabel),
     showLogo: DEVICE.printReceiptLogo !== false && !!RECEIPT_LOGO_URL, logoUrl: RECEIPT_LOGO_URL,
     cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
     tagline: RECEIPT_TAGLINE,
@@ -3878,15 +3959,20 @@ function buildKitchenReceiptData(orderPayload){
   const items = state.cart.map(item=>{
     const p = PRODUCTS.find(x=>x.id===item.productId);
     return {
-      name: p ? p.name : '', qty: item.qty, note: item.note || '',
+      name: p ? p.name : '', nameEn: p ? (p.name_en || '') : '',
+      qty: item.qty, note: item.note || '',
       mods: formatConfigLabels(item.productId, item.config).map(l=>l.text)
     };
   });
   const tableLabel = orderPayload.tableNumber ? ' — طاولة ' + orderPayload.tableNumber : '';
   return {
     branchName: DEVICE.branchName || '',
+    logoUrl: RECEIPT_LOGO_URL,
+    cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
     dateLabel: new Date().toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
-    metaLabel: (CHANNEL_LABELS[orderPayload.channel] || orderPayload.channel) + tableLabel + ' — ' + (orderPayload.orderId ? '#' + orderPayload.orderId : 'سيُحدَّد عند الاتصال'),
+    // رقم الطلب سطر قائم بذاته الآن، فلا يُطوى هنا داخل نص النوع.
+    orderNumber: orderPayload.orderId ? '#' + orderPayload.orderId : '—',
+    metaLabel: bilingualOrderKind((CHANNEL_LABELS[orderPayload.channel] || orderPayload.channel) + tableLabel),
     items,
     // Printed larger than anything else on the ticket: whoever finishes the
     // order reads it off this paper and types it into the base station, so
@@ -3903,8 +3989,11 @@ function buildHistoricalReceiptData(order, items){
   const lineItems = (items || []).map(it=>{
     const product = PRODUCTS.find(p=>p.id===it.menu_item_id);
     return {
-      name: product ? product.name : ('منتج #' + it.menu_item_id), qty: it.qty,
+      name: product ? product.name : ('منتج #' + it.menu_item_id),
+      nameEn: product ? (product.name_en || '') : '',
+      qty: it.qty,
       unitPrice: Number(it.unit_price), lineTotal: Number(it.line_total),
+      note: it.note || '',
       mods: (it.selected_modifiers || []).map(m=>m.text)
     };
   });
@@ -3914,7 +4003,12 @@ function buildHistoricalReceiptData(order, items){
     dateLabel: new Date(order.created_at).toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
     timestampISO: order.created_at, vatNumber: BUSINESS_VAT_NUMBER,
     orderNumber: '#' + order.id,
-    metaLabel: (CHANNEL_LABELS[order.channel] || order.channel) + histTableLabel,
+    metaLabel: bilingualOrderKind((CHANNEL_LABELS[order.channel] || order.channel) + histTableLabel),
+    // صاحب الطلب وملاحظته: الطلب الإلكتروني والتوصيل تكون الورقة فيهما
+    // الشيء الوحيد الذي يربط الكيس بصاحبه.
+    customerName: order.customer_name || '',
+    customerPhone: order.customer_phone || '',
+    orderNote: order.online_customer_note || '',
     showLogo: DEVICE.printReceiptLogo !== false && !!RECEIPT_LOGO_URL, logoUrl: RECEIPT_LOGO_URL,
     cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
     tagline: RECEIPT_TAGLINE,
@@ -3938,15 +4032,20 @@ function buildDbKitchenReceiptData(order, items){
   const mapped = (items || []).map(it=>{
     const product = PRODUCTS.find(p=>p.id===it.menu_item_id);
     return {
-      name: product ? product.name : ('منتج #' + it.menu_item_id), qty: it.qty,
+      name: product ? product.name : ('منتج #' + it.menu_item_id),
+      nameEn: product ? (product.name_en || '') : '',
+      qty: it.qty,
       note: it.note || '',
       mods: (it.selected_modifiers || []).map(m=>m.text)
     };
   });
   return {
     branchName: DEVICE.branchName || '',
+    logoUrl: RECEIPT_LOGO_URL,
+    cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
     dateLabel: new Date(order.created_at).toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
-    metaLabel: (CHANNEL_LABELS[order.channel] || order.channel) + ' — #' + order.id,
+    orderNumber: '#' + order.id,
+    metaLabel: bilingualOrderKind(CHANNEL_LABELS[order.channel] || order.channel),
     items: mapped
   };
 }
@@ -4078,6 +4177,12 @@ async function autoPrintOnCheckout(orderPayload, receiptData, wasResumingOrder){
   // — that flag is already cleared by the time this runs (see completePayment,
   // which resets cart/table state immediately on success, before this call).
   const printKitchen = DEVICE.printKitchenTicket === true && !wasResumingOrder; // default off
+  // فاتورة العميل أولاً، ثم المطبخ.
+  //
+  // الورقتان تخرجان من طابعة واحدة، والثانية تنتظر فراغها من الأولى.
+  // ومن يقف عند الكاشير ينتظر ورقته الآن، أما تذكرة المطبخ فتُقرأ بعد
+  // دقيقة، فالأسبقية لمن ينتظر.
+  if(printCustomer) attemptPrint(receiptData);
   if(printKitchen){
     // 'copy' mode queues a SECOND customer receipt rather than a
     // kitchen-shaped ticket, decided here at enqueue time. A flag inside
@@ -4086,8 +4191,7 @@ async function autoPrintOnCheckout(orderPayload, receiptData, wasResumingOrder){
     if(KITCHEN_TICKET_MODE === 'copy') enqueuePrintJob('receipt', receiptData);
     else enqueuePrintJob('kitchen', buildKitchenReceiptData(orderPayload));
   }
-  if(printCustomer) attemptPrint(receiptData);
-  else {
+  if(!printCustomer){
     const row = document.getElementById('printStatusRow');
     if(row) row.style.display = 'none';
   }
@@ -7461,9 +7565,11 @@ async function acceptIncomingOrder(orderId){
   // before the receipt job is even created — waiting for its full retry
   // chain (up to ~2 minutes) would hang this accept flow far longer than
   // the 8s ceiling the cashier used to see here.
-  const kitchenJob = await enqueuePrintJob('kitchen', buildDbKitchenReceiptData(order, items || []));
-  await awaitPrintJobFirstAttempt(kitchenJob);
-  await enqueuePrintJob('receipt', buildHistoricalReceiptData(order, items || []));
+  // العميل أولاً هنا أيضاً، ونُنتظر أول محاولة له لا للمطبخ: الورقة
+  // التي يجب أن تكون بيد الكاشير قبل أن تُغلق الشاشة هي فاتورة الزبون.
+  const receiptJob = await enqueuePrintJob('receipt', buildHistoricalReceiptData(order, items || []));
+  await awaitPrintJobFirstAttempt(receiptJob);
+  await enqueuePrintJob('kitchen', buildDbKitchenReceiptData(order, items || []));
   // Without this, an accepted delivery order only appears in the "جارية"
   // (running) list after the next page reload — seedActiveDeliveryOrders()
   // would eventually pick it up, but nothing repopulates ACTIVE_DELIVERY_ORDERS

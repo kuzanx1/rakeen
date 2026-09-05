@@ -72,6 +72,11 @@ export interface ReceiptData {
   metaLabel?: string;
   /** اسم الموظف الذي أصدر الفاتورة -- "تمت بواسطة". */
   cashierName?: string;
+  /** اسم صاحب الطلب وجواله -- للطلبات الإلكترونية والتوصيل. */
+  customerName?: string;
+  customerPhone?: string;
+  /** ملاحظة الزبون على الطلب كله، لا على صنف بعينه. */
+  orderNote?: string;
   /** businesses.receipt_show_name -- هل يُطبع الاسم تحت الشعار. */
   showBusinessName?: boolean;
   /** businesses.receipt_tagline -- سطر تحت الاسم يكتبه صاحب المطعم. */
@@ -93,6 +98,10 @@ export interface KitchenTicketData {
   /** Call-buzzer number, when the shop hands them out. */
   pagerNumber?: number | null;
   orderId: number | null;
+  /** شعار المطعم، يتصدّر التذكرة بدل كلمة "طلب مطبخ". */
+  logoUrl?: string;
+  /** من طبعها. المطبخ يحتاج أن يعرف بمن يسأل عن صنف غير مفهوم. */
+  cashierName?: string;
   tableNumber: number | null;
   lines: ReceiptLine[];
   branchName?: string;

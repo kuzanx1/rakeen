@@ -36,6 +36,10 @@ export interface ReceiptPrintable {
   locationLine: string;
   branchLabel: string;
   cashierName: string;
+  customerName: string;
+  customerPhone: string;
+  /** ملاحظة الزبون على الطلب كله. تُطبع أسفل الأصناف وحدها. */
+  orderNote: string;
   /** هل يُطبع الاسم تحت الشعار. يُتجاهل حين لا شعار. */
   showBusinessName: boolean;
   dateLabel: string;
@@ -55,6 +59,8 @@ export interface ReceiptPrintable {
 }
 
 export interface KitchenTicketItemPrintable {
+  /** الاسم الإنجليزي -- المطبخ فيه من لا يقرأ العربية. */
+  nameEn: string;
   name: string;
   mods: string[];
   qty: number;
@@ -62,6 +68,10 @@ export interface KitchenTicketItemPrintable {
 }
 
 export interface KitchenTicketPrintable {
+  /** رقم الطلب. المطبخ يناديه، والكاشير يطابق به الكيس بصاحبه. */
+  orderNumber: string;
+  /** من طبعها -- يُسأل حين يلتبس صنف. */
+  cashierName: string;
   /** The call-buzzer handed to this customer. Printed large, because on a
    *  kitchen ticket it is the one number somebody has to read off the
    *  paper and type into the base station to call them over. */
@@ -110,16 +120,44 @@ export function formatArabicDateLabel(date: Date): string {
   }
 }
 
-function toItemPrintable(line: { name: string; nameEn?: string; qty: number; unitPrice: number; lineTotal: number; mods?: string[]; note?: string }): ReceiptItemPrintable {
+function toItemPrintable(line: { name: string; nameEn?: string; qty: number; unitPrice?: number; lineTotal: number; mods?: string[]; note?: string }): ReceiptItemPrintable {
   return {
     name: line.name,
     nameEn: line.nameEn ?? '',
     mods: line.mods ?? [],
     qty: line.qty,
-    unitPrice: line.unitPrice,
+    // يُحسب حين لا يُمرَّر: الطلب الإلكتروني يصل بمجموع السطر وحده،
+    // وقراءة toFixed من undefined كانت تُسقط تصيير الفاتورة كلها إلى
+    // النسخة الاحتياطية بالإنجليزية -- وهي التي خرجت "؟؟؟؟؟" على ورق هبية.
+    unitPrice: line.unitPrice ?? (line.qty > 0 ? line.lineTotal / line.qty : 0),
     lineTotal: line.lineTotal,
     note: line.note ?? '',
   };
+}
+
+/**
+ * نوع الطلب بالعربية والإنجليزية.
+ *
+ * الورقة تُقرأ في مطبخ فيه من لا يقرأ العربية وفي صالة فيها من لا يقرأ
+ * الإنجليزية، والكلمة الواحدة هنا تقرر أين يذهب الطلب. فتُكتب باللغتين
+ * لا بواحدة، ولو كلّف ذلك بضعة ملّيمترات من الورق.
+ */
+const ORDER_KIND_BILINGUAL: Record<string, string> = {
+  'محلي': 'محلي · Dine-in',
+  'بالمطعم': 'محلي · Dine-in',
+  'سفري': 'سفري · Takeaway',
+  'توصيل': 'توصيل · Delivery',
+  'استلام': 'استلام · Pickup',
+  'طلب إلكتروني': 'طلب إلكتروني · Online Order',
+};
+
+export function bilingualOrderKind(metaLabel: string): string {
+  if (!metaLabel) return '';
+  // "محلي — طاولة 7" يحمل النوع وما بعده، فيُترجم النوع ويبقى الباقي.
+  for (const [ar, both] of Object.entries(ORDER_KIND_BILINGUAL)) {
+    if (metaLabel.startsWith(ar)) return both + metaLabel.slice(ar.length);
+  }
+  return metaLabel;
 }
 
 export function toReceiptPrintable(data: ReceiptData): ReceiptPrintable {
@@ -139,7 +177,10 @@ export function toReceiptPrintable(data: ReceiptData): ReceiptPrintable {
     // (rakeen-pos.js:2923) -- an order still offline-queued has no
     // server-assigned id yet, and "#null" would be actively misleading.
     orderNumber: data.orderId != null ? `#${data.orderId}` : 'سيُحدَّد عند الاتصال',
-    metaLabel: data.metaLabel ?? '',
+    metaLabel: bilingualOrderKind(data.metaLabel ?? ''),
+    customerName: data.customerName ?? '',
+    customerPhone: data.customerPhone ?? '',
+    orderNote: data.orderNote ?? '',
     vatNumber: data.vatNumber ?? '',
     items: data.lines.map(toItemPrintable),
     subtotal: data.subtotal,
@@ -159,10 +200,20 @@ export function toKitchenTicketPrintable(data: KitchenTicketData): KitchenTicket
   return {
     branchName: data.branchName ?? '',
     dateLabel: formatArabicDateLabel(createdAt),
-    metaLabel:
-      data.metaLabel ??
-      (data.tableNumber != null ? `طاولة ${data.tableNumber}` : '') + (data.orderId != null ? ` — #${data.orderId}` : ''),
-    items: data.lines.map(line => ({ name: line.name, mods: line.mods ?? [], qty: line.qty, note: line.note ?? '' })),
+    // رقم الطلب سطر قائم بذاته الآن، لا مطويّاً في نص النوع: المطبخ
+    // ينادي به، والكاشير يطابق به الكيس بصاحبه.
+    orderNumber: data.orderId != null ? `#${data.orderId}` : '—',
+    cashierName: data.cashierName ?? '',
+    metaLabel: bilingualOrderKind(
+      data.metaLabel ?? (data.tableNumber != null ? `طاولة ${data.tableNumber}` : ''),
+    ),
+    items: data.lines.map(line => ({
+      name: line.name,
+      nameEn: line.nameEn ?? '',
+      mods: line.mods ?? [],
+      qty: line.qty,
+      note: line.note ?? '',
+    })),
     pagerNumber: data.pagerNumber ?? null,
     paperWidthPx: data.paperWidthPx ?? 576,
   };

@@ -35,6 +35,8 @@ export interface IncomingOrder {
   deliveryAddress: string | null;
   scheduledFor: string | null;
   scheduledByCustomer: boolean;
+  /** orders.online_customer_note -- ملاحظة الزبون على الطلب كله. */
+  customerNote: string | null;
   total: number;
   status: string;
   items: IncomingOrderItem[];
@@ -109,6 +111,7 @@ export async function getIncomingOrder(orderId: number): Promise<IncomingOrder |
     deliveryAddress: order.delivery_address ?? null,
     scheduledFor: order.scheduled_for ?? null,
     scheduledByCustomer: order.scheduled_by_customer === true,
+    customerNote: (order.online_customer_note as string) || null,
     total: Number(order.total),
     status: String(order.status),
     items: rows.map(r => ({

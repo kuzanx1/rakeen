@@ -309,6 +309,66 @@ export async function getReceiptTheme(businessId: number): Promise<string> {
   }
 }
 
+export interface ReceiptBranding {
+  logoUrl: string;
+  tagline: string;
+  showBusinessName: boolean;
+  vatNumber: string;
+  customMessage: string;
+  locationLine: string;
+  branchLabel: string;
+}
+
+const EMPTY_BRANDING: ReceiptBranding = {
+  logoUrl: '', tagline: '', showBusinessName: true,
+  vatNumber: '', customMessage: '', locationLine: '', branchLabel: '',
+};
+
+/**
+ * ما تحتاجه ترويسة الفاتورة من إعدادات المطعم.
+ *
+ * استعلامان لا واحد، وكلاهما متسامح: PostgREST يُسقط الاستعلام كاملاً على
+ * عمود واحد لا يعرفه، وجهازٌ على قاعدة تسبق الترحيل يجب أن يطبع فاتورة
+ * أبسط، لا أن يعجز عن الطباعة.
+ *
+ * واسم الفرع يُرجَع فقط حين تتعدد فروع المنشأة -- العدّ هنا، لا في
+ * العارض: "الفرع الأول" على منشأة بفرع واحد سطر لا يقول شيئاً.
+ */
+export async function getReceiptBranding(businessId: number, branchId: number | null): Promise<ReceiptBranding> {
+  const out: ReceiptBranding = { ...EMPTY_BRANDING };
+  try {
+    const { data } = await supabase
+      .from('businesses')
+      .select('receipt_logo_url, receipt_tagline, receipt_show_name, vat_number, receipt_custom_message')
+      .eq('id', businessId)
+      .single();
+    if (data) {
+      out.logoUrl = (data.receipt_logo_url as string) || '';
+      out.tagline = (data.receipt_tagline as string) || '';
+      out.showBusinessName = data.receipt_show_name !== false;
+      out.vatNumber = (data.vat_number as string) || '';
+      out.customMessage = (data.receipt_custom_message as string) || '';
+    }
+  } catch {
+    // تبقى القيم الافتراضية.
+  }
+  try {
+    const { data } = await supabase
+      .from('branches')
+      .select('id, name, district, city')
+      .eq('business_id', businessId);
+    const rows = data ?? [];
+    const mine = rows.find(b => String(b.id) === String(branchId));
+    if (mine) {
+      out.locationLine = [mine.district, mine.city].filter(Boolean).join('، ');
+      if (rows.length > 1) out.branchLabel = (mine.name as string) || '';
+    }
+  } catch {
+    // بلا حي ولا مدينة: الترويسة تنغلق على ما بقي.
+  }
+  return out;
+}
+
 export function subscribeToBusinessSettings(businessId: number, onChange: () => void): () => void {
   return subscribeToPostgresChanges(
     `pos-business-settings:${businessId}`,

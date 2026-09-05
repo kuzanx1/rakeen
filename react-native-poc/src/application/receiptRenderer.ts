@@ -1,7 +1,7 @@
 import { Skia, PaintStyle } from '@shopify/react-native-skia';
 import { createReceiptSurface, loadRemoteImage } from '../platform/receiptCanvas';
 import { loadReceiptTypefaces } from '../platform/receiptFonts';
-import { buildReceiptFontProvider, paintText, measureAndWrapText } from '../platform/receiptText';
+import { buildReceiptFontProvider, paintText, measureTextWidth, measureAndWrapText } from '../platform/receiptText';
 import { rgbaToEscPosRaster, rgbaToEscPosRasterLegacy, RgbaBuffer } from '../domain/escposRaster';
 import type { PrintTimer } from './printTiming';
 import { bytesToBase64 } from '../domain/escposText';
@@ -118,6 +118,29 @@ function drawItemRule(canvas: ReturnType<typeof createReceiptSurface>['canvas'],
  * في خطه. ومربع فارغ جنب كل سعر أسوأ من غياب العملة.
  */
 const RIYAL = 'ريال';
+
+/**
+ * قلب صغير، مرسوم لا مكتوب.
+ *
+ * الإيموji محرف يحتاج خطاً ملوّناً لا تحمله طابعة حرارية ولا يحمله
+ * IBM Plex، فيخرج مربعاً فارغاً. ومسارٌ من منحنيين يُطبع على أي جهاز
+ * لأنه نقاط لا حروف.
+ */
+function drawHeart(
+  canvas: ReturnType<typeof createReceiptSurface>['canvas'],
+  cx: number, cy: number, size: number,
+): void {
+  const p = Skia.Path.Make();
+  const w = size, h = size * 0.9;
+  p.moveTo(cx, cy + h * 0.42);
+  p.cubicTo(cx - w * 0.62, cy - h * 0.05, cx - w * 0.30, cy - h * 0.62, cx, cy - h * 0.18);
+  p.cubicTo(cx + w * 0.30, cy - h * 0.62, cx + w * 0.62, cy - h * 0.05, cx, cy + h * 0.42);
+  p.close();
+  const paint = Skia.Paint();
+  paint.setColor(Skia.Color('#000000'));
+  paint.setAntiAlias(true);
+  canvas.drawPath(p, paint);
+}
 
 interface RenderContext {
   canvas: ReturnType<typeof createReceiptSurface>['canvas'];
@@ -342,11 +365,18 @@ export async function renderReceiptToEscPosBase64(
       // وموضعه بعد ترتيب المقاطع غير محدَّد، فكان يقع مرة يمين العربي
       // ومرة يسار الإنجليزي بلا قاعدة. أما هنا فالنص يُرسم بترتيب
       // ثنائي الاتجاه صحيح، فالسطر الواحد يصحّ -- ويوفّر سطراً لكل صنف.
-      const fullName = item.nameEn ? `${item.name} | ${item.nameEn}` : item.name;
-      const nameLines = measureAndWrapText(provider, fullName, cols.name, sz(20), true);
+      // الكمية ملتصقة بالاسم: "2x سبانيش لاتيه".
+      //
+      // عمودٌ مستقل للكمية كان يفصل الرقم عن الصنف الذي يعدّه بعرض
+      // الورقة كلها، فتقفز العين بينهما. والرقم ملتصقاً يُقرأ مع اسمه في
+      // نظرة واحدة، ويحرّر العمود لصالح الاسم -- وهو ما يحتاجه اسمان
+      // بلغتين.
+      const named = item.nameEn ? `${item.name} | ${item.nameEn}` : item.name;
+      const fullName = `${item.qty}x ${named}`;
+      const nameLines = measureAndWrapText(provider, fullName, cols.name + cols.qty, sz(20), true);
       y = drawItemLine(
         ctx, y,
-        String(item.qty),
+        '',
         nameLines,
         `${item.lineTotal.toFixed(2)} ${RIYAL}`,
         sz(20), true,
@@ -384,22 +414,35 @@ export async function renderReceiptToEscPosBase64(
         y += gap(0.22);
       }
     });
+
+    // ملاحظة الزبون على الطلب كله: أسفل الأصناف وقبل الأرقام.
+    //
+    // ليست ملاحظة صنف فتُكتب تحته، ولا سطر حساب فتُكتب بين المبالغ --
+    // هي تعليمات تخصّ ما فوقها جميعاً، فموضعها بينهما.
+    if (receipt.orderNote) {
+      y += gap(0.25);
+      for (const line of measureAndWrapText(provider, `ملاحظات الطلب: ${receipt.orderNote}`, contentWidth, sz(15), false)) {
+        y = drawRow(ctx, y, '', line, sz(15), false);
+      }
+      y += gap(0.1);
+    }
+
     drawDivider(canvas, width, y);
     y += gap(0.6);
 
-    y = drawRow(ctx, y, receipt.subtotal.toFixed(2), bi('المجموع الفرعي', 'Subtotal'), sz(18), false);
+    y = drawRow(ctx, y, `${receipt.subtotal.toFixed(2)} ${RIYAL}`, bi('المجموع الفرعي', 'Subtotal'), sz(18), false);
     if (receipt.discount > 0) {
-      y = drawRow(ctx, y, `-${receipt.discount.toFixed(2)}`, bi('الخصم', 'Discount'), sz(18), false);
+      y = drawRow(ctx, y, `-${receipt.discount.toFixed(2)} ${RIYAL}`, bi('الخصم', 'Discount'), sz(18), false);
     }
     // ZATCA: the VAT amount is a mandatory line, in every theme.
-    y = drawRow(ctx, y, receipt.vat.toFixed(2), bi('ضريبة القيمة المضافة', 'VAT'), sz(18), false);
+    y = drawRow(ctx, y, `${receipt.vat.toFixed(2)} ${RIYAL}`, bi('ضريبة القيمة المضافة', 'VAT'), sz(18), false);
     if (th.boxedTotal) {
       const boxTop = y - LINE_H * 0.55;
-      y = drawRow(ctx, y, `${receipt.total.toFixed(2)} ${bi('ريال', 'SAR')}`, bi('الإجمالي', 'Total'), sz(24), true);
+      y = drawRow(ctx, y, `${receipt.total.toFixed(2)} ${RIYAL}`, bi('الإجمالي', 'Total'), sz(24), true);
       drawBox(canvas, PAD * 0.6, boxTop, width - PAD * 1.2, y - boxTop - LINE_H * 0.15);
       y += gap(0.35);
     } else {
-      y = drawRow(ctx, y, `${receipt.total.toFixed(2)} ${bi('ريال', 'SAR')}`, bi('الإجمالي', 'Total'), sz(24), true);
+      y = drawRow(ctx, y, `${receipt.total.toFixed(2)} ${RIYAL}`, bi('الإجمالي', 'Total'), sz(24), true);
     }
     drawDivider(canvas, width, y);
     y += gap(0.6);
@@ -516,6 +559,9 @@ export async function renderKitchenTicketToEscPosBase64(data: KitchenTicketData,
   try {
     const ticket = toKitchenTicketPrintable(printerPaperWidthPx != null ? { ...data, paperWidthPx: printerPaperWidthPx } : data);
     const provider = await buildFontProviderReady();
+    // شعار المطبخ لا يمنع الطباعة: تذكرة بلا شعار تذكرة، وتذكرة لم تُطبع
+    // لأن مضيف الصور بطيء هي طلب ضاع في المطبخ.
+    const logoImage = data.logoUrl ? await loadRemoteImage(data.logoUrl).catch(() => null) : null;
 
     const width = ticket.paperWidthPx;
     const contentWidth = width - PAD * 2;
@@ -527,23 +573,45 @@ export async function renderKitchenTicketToEscPosBase64(data: KitchenTicketData,
     const ctx: RenderContext = { canvas, provider, width, contentWidth };
 
     let y = PAD + KITCHEN_LINE_H / 2;
-    y = drawKitchenCenterLine(ctx, y, 'طلب مطبخ', 32, true);
+
+    // الشعار يتصدّرها، و"KITCHEN RECEIPT" تحته -- بدل كلمة "طلب مطبخ".
+    // المطبخ يعرف أنها تذكرته من شكلها، والسطر الإنجليزي يقولها لمن لا
+    // يقرأ العربية دون أن يزاحم الشعار.
+    if (logoImage) {
+      const lw = Math.round(width * 0.34);
+      const lr = logoImage.height() / logoImage.width();
+      const lh = Math.round(lw * lr);
+      canvas.drawImageRect(
+        logoImage,
+        Skia.XYWHRect(0, 0, logoImage.width(), logoImage.height()),
+        Skia.XYWHRect((width - lw) / 2, y, lw, lh),
+        Skia.Paint(),
+      );
+      y += lh + KITCHEN_LINE_H * 0.35;
+    }
+    y = drawKitchenCenterLine(ctx, y, 'KITCHEN RECEIPT', logoImage ? 24 : 32, true);
     if (ticket.branchName) y = drawKitchenCenterLine(ctx, y, ticket.branchName, 18, false);
     y = drawKitchenCenterLine(ctx, y, ticket.dateLabel, 16, false);
     y = drawKitchenCenterLine(ctx, y, ticket.metaLabel, 20, true);
-    // The buzzer number, bigger than anything else on the ticket. Whoever
-    // finishes the order reads it off this paper and types it into the
-    // base station -- so it has to be legible across a hot kitchen at a
-    // glance, not hunted for among the item lines.
+
+    // الرقم الذي يُنادى به.
+    //
+    // جهاز النداء إن وُجد، وإلا رقم الطلب -- ولا يجتمعان: رقمان كبيران
+    // متجاوران يجعلان من يقرأهما عبر مطبخ حار يتردد أيّهما ينادي.
+    y += KITCHEN_LINE_H * 0.25;
     if (ticket.pagerNumber != null) {
-      y += KITCHEN_LINE_H * 0.2;
-      y = drawKitchenCenterLine(ctx, y, `جهاز النداء  ${ticket.pagerNumber}`, 40, true);
+      y = drawKitchenCenterLine(ctx, y, 'جهاز النداء · Pager', 16, false);
+      y = drawKitchenCenterLine(ctx, y, String(ticket.pagerNumber), 44, true);
+    } else {
+      y = drawKitchenCenterLine(ctx, y, 'رقم الطلب · Order No', 16, false);
+      y = drawKitchenCenterLine(ctx, y, ticket.orderNumber, 40, true);
     }
     drawDivider(canvas, width, y);
     y += KITCHEN_LINE_H * 0.6;
 
     for (const item of ticket.items) {
-      for (const line of measureAndWrapText(provider, `${item.qty} × ${item.name}`, contentWidth, 26, true)) {
+      const kName = item.nameEn ? `${item.name} | ${item.nameEn}` : item.name;
+      for (const line of measureAndWrapText(provider, `${item.qty}x ${kName}`, contentWidth, 26, true)) {
         paintText(canvas, provider, line, PAD, y, contentWidth, { size: 26, bold: true, align: 'right', direction: 'rtl' });
         y += KITCHEN_LINE_H * 0.9;
       }
@@ -554,7 +622,8 @@ export async function renderKitchenTicketToEscPosBase64(data: KitchenTicketData,
         }
       }
       if (item.note) {
-        for (const line of measureAndWrapText(provider, `📝 ${item.note}`, contentWidth - 14, 18, true)) {
+        // بلا إيموجي: محرف يحتاج خطاً ملوّناً لا تحمله الطابعة، فيخرج مربعاً.
+        for (const line of measureAndWrapText(provider, `ملاحظات: ${item.note}`, contentWidth - 14, 18, true)) {
           paintText(canvas, provider, line, PAD, y, contentWidth - 14, { size: 18, bold: true, align: 'right', direction: 'rtl' });
           y += KITCHEN_LINE_H * 0.7;
         }
@@ -562,7 +631,26 @@ export async function renderKitchenTicketToEscPosBase64(data: KitchenTicketData,
       y += KITCHEN_LINE_H * 0.3;
     }
     drawDivider(canvas, width, y);
-    y += KITCHEN_LINE_H * 0.6 + PAD;
+    y += KITCHEN_LINE_H * 0.55;
+
+    if (ticket.cashierName) {
+      y = drawKitchenCenterLine(ctx, y, `طبعها · By: ${ticket.cashierName}`, 16, false);
+    }
+
+    // بالعافية عليكم، وقلب مرسوم بجانبها.
+    y += KITCHEN_LINE_H * 0.35;
+    const blessing = 'بالعافية عليكم';
+    const bSize = 22;
+    const bw = measureTextWidth(provider, blessing, bSize, true);
+    const heart = bSize * 0.72;
+    const gapx = bSize * 0.42;
+    const totalW = bw + gapx + heart;
+    const startX = (width - totalW) / 2;
+    paintText(canvas, provider, blessing, startX + heart + gapx, y - bSize * 0.62, bw + 4, {
+      size: bSize, bold: true, align: 'right', direction: 'rtl',
+    });
+    drawHeart(canvas, startX + heart / 2, y - bSize * 0.1, heart);
+    y += KITCHEN_LINE_H * 0.9 + PAD;
 
     const finalHeight = Math.min(Math.ceil(y), maxHeight);
     const rgba = timer ? await timer.stage('pixelsRead', () => surface.toRgba(finalHeight)) : surface.toRgba(finalHeight);
