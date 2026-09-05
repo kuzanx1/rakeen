@@ -142,6 +142,69 @@ function drawHeart(
   canvas.drawPath(p, paint);
 }
 
+/** الفاصل بحسب القالب: أربع لغات بصرية لنفس الوظيفة. */
+function drawThemedRule(
+  canvas: ReturnType<typeof createReceiptSurface>['canvas'],
+  width: number, y: number, mode: string,
+): void {
+  if (mode === 'none') return;
+  const paint = Skia.Paint();
+  paint.setColor(Skia.Color('#000000'));
+  if (mode === 'bar') {
+    // شريط سميك: يُرى من بعيد، ويجعل الأقسام كتلاً لا سطوراً.
+    canvas.drawRect(Skia.XYWHRect(PAD, y - 3, width - PAD * 2, 6), paint);
+    return;
+  }
+  paint.setStyle(PaintStyle.Stroke);
+  paint.setStrokeWidth(1);
+  if (mode === 'dotted') paint.setPathEffect(Skia.PathEffect.MakeDash([2, 4], 0));
+  canvas.drawLine(PAD, Math.round(y) + 0.5, width - PAD, Math.round(y) + 0.5, paint);
+}
+
+/** شريط أسود بكتابة بيضاء -- أقوى تمييز تقدر عليه طابعة بلون واحد. */
+function drawInvertBar(ctx: RenderContext, y: number, text: string, size: number): number {
+  const h = Math.round(size * 1.9);
+  const paint = Skia.Paint();
+  paint.setColor(Skia.Color('#000000'));
+  ctx.canvas.drawRect(Skia.XYWHRect(PAD * 0.5, y - h / 2, ctx.width - PAD, h), paint);
+  paintText(ctx.canvas, ctx.provider, text, PAD, y - size * 0.72, ctx.contentWidth, {
+    size, bold: true, align: 'center', direction: 'rtl', color: '#ffffff',
+  });
+  return y + h / 2 + LINE_H * 0.5;
+}
+
+/**
+ * حروف متباعدة.
+ *
+ * بإدراج مسافة رفيعة بين الحروف لا بخاصية تباعد: العربية تتصل حروفها
+ * فالمباعدة تفكّها، فتُطبَّق على اللاتيني والأرقام وحدها.
+ */
+function drawSpacedText(ctx: RenderContext, y: number, text: string, size: number, bold: boolean): number {
+  const shown = /[؀-ۿ]/.test(text) ? text : [...text].join(' ');
+  paintText(ctx.canvas, ctx.provider, shown, PAD, y - size * 0.7, ctx.contentWidth, {
+    size, bold, align: 'center', direction: 'rtl',
+  });
+  return y + LINE_H * (size > 22 ? 1.3 : 1);
+}
+
+/** سطر صنف بنقاط موصِلة بين اسمه وسعره -- مظهر التذاكر القديمة. */
+function drawLeaderRow(ctx: RenderContext, y: number, name: string, price: string, size: number, bold: boolean): number {
+  paintText(ctx.canvas, ctx.provider, name, PAD, y, ctx.contentWidth, { size, bold, align: 'right', direction: 'rtl' });
+  paintText(ctx.canvas, ctx.provider, price, PAD, y, ctx.contentWidth, { size, bold: false, align: 'left', direction: 'ltr' });
+  const nameW = measureTextWidth(ctx.provider, name, size, bold);
+  const priceW = measureTextWidth(ctx.provider, price, size, false);
+  const from = PAD + priceW + 8;
+  const to = ctx.width - PAD - nameW - 8;
+  if (to > from) {
+    const paint = Skia.Paint();
+    paint.setColor(Skia.Color('#000000'));
+    for (let x = from; x < to; x += 6) {
+      ctx.canvas.drawRect(Skia.XYWHRect(x, y + size * 0.62, 2, 2), paint);
+    }
+  }
+  return y + LINE_H;
+}
+
 interface RenderContext {
   canvas: ReturnType<typeof createReceiptSurface>['canvas'];
   provider: ReturnType<typeof buildReceiptFontProvider>;
@@ -293,7 +356,7 @@ export async function renderReceiptToEscPosBase64(
     // The elegant theme frames the name between two rules; the others
     // just print it.
     if (th.headerBand) {
-      drawDivider(canvas, width, y);
+      drawThemedRule(canvas, width, y, th.rule);
       y += gap(0.5);
     }
     // الاسم تحت الشعار اختياري -- أغلب الشعارات تحمله داخلها. لكن بلا
@@ -302,7 +365,7 @@ export async function renderReceiptToEscPosBase64(
     if (nameShown) y = drawCenterLine(ctx, y, receipt.businessName, sz(30), true);
     if (th.headerBand) {
       y += gap(0.15);
-      drawDivider(canvas, width, y);
+      drawThemedRule(canvas, width, y, th.rule);
       y += gap(0.5);
     }
     if (receipt.tagline) {
@@ -324,24 +387,34 @@ export async function renderReceiptToEscPosBase64(
     // رقم الطلب في صندوق. الملصق صغير فوقه، والرقم وحده كبيراً -- الرقم
     // هو المطلوب، فلا تزاحمه الكلمة الدالة عليه بنفس حجمه.
     y += gap(0.7);
-    const boxTop = y;
-    y += gap(0.45);
-    y = drawCenterLine(ctx, y, bi('رقم الطلب', 'Order No'), sz(14), false);
-    y = drawCenterLine(ctx, y, receipt.orderNumber, sz(30), true);
-    y += gap(0.35);
-    drawBox(canvas, PAD + contentWidth * 0.2, boxTop, contentWidth * 0.6, y - boxTop);
+    if (th.orderStyle === 'invert') {
+      y = drawInvertBar(ctx, y, `${bi('رقم الطلب', 'Order No')}   ${receipt.orderNumber}`, sz(24));
+    } else if (th.orderStyle === 'plain') {
+      y = drawCenterLine(ctx, y, `${bi('رقم الطلب', 'Order')}: ${receipt.orderNumber}`, sz(17), true);
+    } else if (th.orderStyle === 'spaced') {
+      y = drawSpacedText(ctx, y, bi('رقم الطلب', 'Order No'), sz(12), false);
+      y = drawSpacedText(ctx, y, receipt.orderNumber, sz(28), true);
+    } else {
+      const boxTop = y;
+      y += gap(0.45);
+      y = drawCenterLine(ctx, y, bi('رقم الطلب', 'Order No'), sz(14), false);
+      y = drawCenterLine(ctx, y, receipt.orderNumber, sz(30), true);
+      y += gap(0.35);
+      drawBox(canvas, PAD + contentWidth * 0.2, boxTop, contentWidth * 0.6, y - boxTop);
+    }
     y += gap(0.5);
 
     y = drawCenterLine(ctx, y, receipt.dateLabel, sz(15), false);
     y += gap(0.35);
-    drawDivider(canvas, width, y);
+    drawThemedRule(canvas, width, y, th.rule);
     y += gap(0.45);
 
     // من أصدرها ونوعها، صفّين معنونين.
+    if (th.sectionLabels) y = drawSpacedText(ctx, y, bi('الطلب', 'ORDER'), sz(11), false);
     if (receipt.cashierName) y = drawRow(ctx, y, '', `${bi('تمت بواسطة', 'Served by')}: ${receipt.cashierName}`, sz(15), false);
     if (receipt.metaLabel) y = drawRow(ctx, y, '', `${bi('نوع الطلب', 'Type')}: ${receipt.metaLabel}`, sz(15), false);
     y += gap(0.1);
-    drawDivider(canvas, width, y);
+    drawThemedRule(canvas, width, y, th.rule);
     y += gap(0.6);
 
     // عناوين الأعمدة: تقول ما هي الأرقام قبل أن تبدأ. سطر واحد صغير
@@ -355,7 +428,7 @@ export async function renderReceiptToEscPosBase64(
       sz(14), false, '#555555',
     );
     y += gap(0.18);
-    drawDivider(canvas, width, y);
+    drawThemedRule(canvas, width, y, th.rule);
     y += gap(0.35);
 
     receipt.items.forEach((item, index) => {
@@ -373,6 +446,14 @@ export async function renderReceiptToEscPosBase64(
       // بلغتين.
       const named = item.nameEn ? `${item.name} | ${item.nameEn}` : item.name;
       const fullName = `${item.qty}x ${named}`;
+      if (th.itemStyle === 'leaders') {
+        y = drawLeaderRow(ctx, y, fullName, `${item.lineTotal.toFixed(2)} ${RIYAL}`, sz(17), true);
+        for (const modText of item.mods) y = drawRow(ctx, y, '', `— ${modText}`, sz(14), false);
+        if (item.note) y = drawRow(ctx, y, '', `ملاحظات: ${item.note}`, sz(14), false);
+        if (index < receipt.items.length - 1) { y += gap(0.2); drawItemRule(canvas, width, y); y += gap(0.3); }
+        else y += gap(0.22);
+        return;
+      }
       const nameLines = measureAndWrapText(provider, fullName, cols.name + cols.qty, sz(20), true);
       y = drawItemLine(
         ctx, y,
@@ -427,24 +508,28 @@ export async function renderReceiptToEscPosBase64(
       y += gap(0.1);
     }
 
-    drawDivider(canvas, width, y);
+    drawThemedRule(canvas, width, y, th.rule);
     y += gap(0.6);
 
+    if (th.sectionLabels) y = drawSpacedText(ctx, y, bi('الحساب', 'PAYMENT'), sz(11), false);
     y = drawRow(ctx, y, `${receipt.subtotal.toFixed(2)} ${RIYAL}`, bi('المجموع الفرعي', 'Subtotal'), sz(18), false);
     if (receipt.discount > 0) {
       y = drawRow(ctx, y, `-${receipt.discount.toFixed(2)} ${RIYAL}`, bi('الخصم', 'Discount'), sz(18), false);
     }
     // ZATCA: the VAT amount is a mandatory line, in every theme.
     y = drawRow(ctx, y, `${receipt.vat.toFixed(2)} ${RIYAL}`, bi('ضريبة القيمة المضافة', 'VAT'), sz(18), false);
-    if (th.boxedTotal) {
+    if (th.totalStyle === 'invert') {
+      y = drawInvertBar(ctx, y, `${bi('الإجمالي', 'Total')}   ${receipt.total.toFixed(2)} ${RIYAL}`, sz(21));
+    } else if (th.totalStyle === 'box') {
       const boxTop = y - LINE_H * 0.55;
-      y = drawRow(ctx, y, `${receipt.total.toFixed(2)} ${RIYAL}`, bi('الإجمالي', 'Total'), sz(24), true);
+      y = drawRow(ctx, y, `${receipt.total.toFixed(2)} ${RIYAL}`, bi('الإجمالي', 'Total'), sz(22), true);
       drawBox(canvas, PAD * 0.6, boxTop, width - PAD * 1.2, y - boxTop - LINE_H * 0.15);
       y += gap(0.35);
     } else {
-      y = drawRow(ctx, y, `${receipt.total.toFixed(2)} ${RIYAL}`, bi('الإجمالي', 'Total'), sz(24), true);
+      y = drawRow(ctx, y, `${receipt.total.toFixed(2)} ${RIYAL}`, bi('الإجمالي', 'Total'),
+        th.totalStyle === 'plain' ? sz(19) : sz(24), true);
     }
-    drawDivider(canvas, width, y);
+    drawThemedRule(canvas, width, y, th.rule);
     y += gap(0.6);
 
     y = drawRow(ctx, y, '', receipt.paymentMethodLabel, sz(17), false);

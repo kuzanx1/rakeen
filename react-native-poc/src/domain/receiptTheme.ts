@@ -30,6 +30,16 @@ export interface ReceiptTheme {
   /** عرض الشعار كنسبة من عرض الورق. نسبة لا رقماً ثابتاً، فالورق ٥٨ مم
    *  يصغّره بنفس النسبة بدل أن يزحم عرضه كله. */
   logoWidth: number;
+  /** شكل الفاصل: خط صلب / لا شيء (فراغ) / منقّط / شريط أسود. */
+  rule: 'solid' | 'none' | 'dotted' | 'bar';
+  /** رقم الطلب: صندوق / سطر عادي / حروف متباعدة / أبيض على أسود. */
+  orderStyle: 'box' | 'plain' | 'spaced' | 'invert';
+  /** الإجمالي: عريض / عادي / صندوق / أبيض على أسود. */
+  totalStyle: 'bold' | 'plain' | 'box' | 'invert';
+  /** الأصناف: أعمدة بعنوان / سطر واحد بنقاط موصِلة. */
+  itemStyle: 'columns' | 'leaders';
+  /** عناوين أقسام صغيرة متباعدة الحروف. */
+  sectionLabels: boolean;
   /** A rule between each item, not just between sections. */
   /** Letter-spaced, centred business name with rules above and below. */
   headerBand: boolean;
@@ -45,6 +55,7 @@ const THEMES: Record<ReceiptThemeId, ReceiptTheme> = {
    * What most businesses expect a receipt to look like.
    */
   classic: {
+    rule: 'solid', orderStyle: 'box', totalStyle: 'bold', itemStyle: 'columns', sectionLabels: false,
     logoWidth: 0.30,
     id: 'classic',
     label: 'كلاسيكي',
@@ -63,6 +74,7 @@ const THEMES: Record<ReceiptThemeId, ReceiptTheme> = {
    * which is real money at a few hundred receipts a day.
    */
   compact: {
+    rule: 'none', orderStyle: 'plain', totalStyle: 'plain', itemStyle: 'leaders', sectionLabels: false,
     logoWidth: 0.24,
     id: 'compact',
     label: 'مضغوط — يوفّر ورق',
@@ -82,6 +94,7 @@ const THEMES: Record<ReceiptThemeId, ReceiptTheme> = {
    * of how the room feels.
    */
   elegant: {
+    rule: 'dotted', orderStyle: 'spaced', totalStyle: 'box', itemStyle: 'leaders', sectionLabels: true,
     logoWidth: 0.34,
     id: 'elegant',
     label: 'أنيق',
@@ -93,6 +106,7 @@ const THEMES: Record<ReceiptThemeId, ReceiptTheme> = {
     qrMaxSize: 220,
   },
   signature: {
+    rule: 'bar', orderStyle: 'invert', totalStyle: 'invert', itemStyle: 'columns', sectionLabels: true,
     logoWidth: 0.52,
     id: 'elegant',
     label: 'فخم',

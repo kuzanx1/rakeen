@@ -7639,13 +7639,13 @@ async function loadOnlineCodEnabled(){
 // app's src/domain/receiptTheme.ts), so the preview below is a real preview
 // and not a drawing of one.
 const RECEIPT_THEMES = [
-  { id: 'classic', label: 'كلاسيكي', desc: 'متوازن، مع الشعار وخطوط تفصل الأقسام. الافتراضي.',
+  { id: 'classic', label: 'كلاسيكي', desc: 'أعمدة وخطوط صلبة ورقم الطلب داخل صندوق — الشكل التقليدي المعروف.',
     density:1,    typeScale:1,    showLogo:true, logoWidth:0.30, headerBand:false, boxedTotal:false, qrSize:110 },
-  { id: 'compact', label: 'مضغوط', desc: 'يوفّر ورق — بدون شعار، سطور أقرب وخط أصغر. أقصر بحوالي الثلث.',
+  { id: 'compact', label: 'مضغوط', desc: 'أقصر ورقة ممكنة: بلا شعار ولا خطوط، والصنف وسعره على سطر واحد تصلهما نقاط. النصف تقريباً.',
     density:0.68, typeScale:0.88, showLogo:false, logoWidth:0.24, headerBand:false, boxedTotal:false, qrSize:85 },
-  { id: 'elegant', label: 'أنيق', desc: 'اسم المنشأة بين خطين، وخط رفيع تحت كل صنف، والإجمالي داخل إطار.',
+  { id: 'elegant', label: 'أنيق', desc: 'هادئ ومتّسع: خطوط منقّطة، وعناوين أقسام بحروف متباعدة، ونقاط موصِلة — مظهر المطاعم الراقية.',
     density:1.15, typeScale:1.04, showLogo:true, logoWidth:0.34, headerBand:true,  boxedTotal:true,  qrSize:110 },
-  { id: 'signature', label: 'فخم', desc: 'الشعار كبير بمقاسه الأصلي، ورقم الطلب داخل صندوق، ومساحات أوسع.',
+  { id: 'signature', label: 'فخم', desc: 'بيان: شعار كبير، ورقم الطلب والإجمالي أبيض على أسود، وأشرطة سوداء تفصل الأقسام.',
     density:1.12, typeScale:1.02, showLogo:true, logoWidth:0.52, headerBand:false, boxedTotal:true,  qrSize:110 },
 ];
 function rkReceiptTheme(id){ return RECEIPT_THEMES.find(t=>t.id===id) || RECEIPT_THEMES[0]; }
