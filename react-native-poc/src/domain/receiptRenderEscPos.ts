@@ -112,16 +112,36 @@ function hairline(caps: PrinterCapabilityProfile): number[] {
   return bytes;
 }
 
-/** One fully dark pixel row, as the encoder expects to receive it. */
-function rowToRgba(width: number): RgbaBuffer {
+/**
+ * One pixel row, at the given dot density.
+ *
+ * `every = 1` is a solid rule; `every = 2` prints every other dot and
+ * reads as a fine dotted line. The second is what separates items from
+ * each other, so that a section boundary and an item boundary do not look
+ * like the same thing.
+ */
+function rowToRgba(width: number, every = 1): RgbaBuffer {
   const data = new Uint8Array(width * 4);
   for (let i = 0; i < width; i++) {
-    data[i * 4] = 0;
-    data[i * 4 + 1] = 0;
-    data[i * 4 + 2] = 0;
+    const on = i % every === 0;
+    data[i * 4] = on ? 0 : 255;
+    data[i * 4 + 1] = on ? 0 : 255;
+    data[i * 4 + 2] = on ? 0 : 255;
     data[i * 4 + 3] = 255;
   }
   return { width, height: 1, data };
+}
+
+/** The lighter rule that separates one item from the next. */
+const dottedCache = new Map<number, number[]>();
+
+function dottedLine(caps: PrinterCapabilityProfile): number[] {
+  const cached = dottedCache.get(caps.printableDots);
+  if (cached) return cached;
+  const row = rowToRgba(caps.printableDots, 2);
+  const bytes = caps.modernGraphics ? rgbaToEscPosRaster(row) : rgbaToEscPosRasterLegacy(row);
+  dottedCache.set(caps.printableDots, bytes);
+  return bytes;
 }
 
 /** Logo bytes, encoded once per logo and reused for every receipt. */
@@ -282,7 +302,13 @@ export function renderReceipt(model: ReceiptModel, caps: PrinterCapabilityProfil
   ], caps);
   rule();
 
-  for (const item of model.items) {
+  model.items.forEach((item, itemIndex) => {
+    // فاصل بين الأصناف لا قبل أولها ولا بعد آخرها: الأول يفصله عنوان
+    // الأعمدة، والأخير يغلقه خط القسم.
+    if (itemIndex > 0) {
+      t.feedDots(5).align('left').raw(dottedLine(caps)).feedDots(7);
+      lineIndex++;
+    }
     lineIndex++;
     writeColumns(t, [
       { text: money(item.lineTotal), x: col.price.x, width: col.price.width, align: 'right', bold: true },
@@ -318,7 +344,7 @@ export function renderReceipt(model: ReceiptModel, caps: PrinterCapabilityProfil
         { text: `* ${item.note}`, x: col.name.x, width: col.name.width, align: 'right' },
       ], caps);
     }
-  }
+  });
 
   rule();
 
