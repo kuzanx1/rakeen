@@ -2,8 +2,9 @@ import uuid from 'react-native-uuid';
 import { sqlitePrintQueueStorage } from '../infrastructure/sqlitePrintQueue';
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { PrintTimer } from './printTiming';
-import { buildTextReceipt } from '../domain/escposTextReceipt';
-import { toReceiptPrintable } from '../domain/receiptPrintable';
+import { renderReceipt } from '../domain/receiptRenderEscPos';
+import { receiptModelFromOrder } from './receiptModelFromOrder';
+import { resolveCapabilities } from '../domain/printerCapability';
 import { bytesToBase64 } from '../domain/escposText';
 import { profileToPrinterTarget, profileToKitchenPrinterTarget } from '../domain/printerProfile';
 import { printReceipt } from '../platform/printer';
@@ -79,18 +80,16 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
   }
   // الوضع النصي يتجاوز التصيير كله: لا Skia، ولا قراءة بكسل، ولا صورة.
   // من نموذج الفاتورة إلى بايتات مباشرة.
-  // النص هو الافتراضي: مسارٌ مُتحقَّق منه ضد ورقة مطبوعة حقيقية، وأسرع
-  // من الصورة بمراتب. الصورة تبقى لمن يختارها صراحةً لطابعة لا تعرف
-  // العربية.
-  const useText = (profile?.receiptMode ?? 'text') === 'text' && job.type === 'receipt';
+  // القدرات تقرر، لا الطابور. طابعة ترتّب العربية بنفسها تتلقى النص كما
+  // هو؛ وواحدة تُشكّل ولا ترتّب تتلقاه معكوس المقاطع؛ وواحدة بلا عربية
+  // تُحوّل إلى مسار الصورة. الطابور لا يعرف أياً من ذلك.
+  const caps = resolveCapabilities(profile?.capabilityProfileId, profile?.paperWidthPx);
+  const canPrintAsText = caps.arabic !== 'none' && profile?.receiptMode !== 'image';
+  const useText = canPrintAsText && job.type === 'receipt';
   const escPosBase64 = useText
     ? await timer.stage('escposBuild', () => {
-        const printable = toReceiptPrintable(
-          profile?.paperWidthPx != null
-            ? { ...(job.data as unknown as ReceiptData), paperWidthPx: profile.paperWidthPx }
-            : (job.data as unknown as ReceiptData),
-        );
-        return bytesToBase64(buildTextReceipt(printable));
+        const model = receiptModelFromOrder(job.data as unknown as ReceiptData);
+        return bytesToBase64(renderReceipt(model, caps).bytes);
       })
     :
     job.type === 'receipt'

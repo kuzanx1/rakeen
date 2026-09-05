@@ -484,29 +484,24 @@ export default function PrinterSettingsScreen({
         />
       </Section>
 
-      <Section title="طريقة الطباعة">
+      <Section title="طراز الطابعة">
         <View style={styles.rasterCards}>
           {([
-            ['text', 'نص — الأسرع',
-             'الطابعة تكتب الحروف بنفسها. أسرع بمراتب. جرّب أولًا زر «اختبار الطباعة النصية» تحت وتأكد إن العربي طلع متصل ومن اليمين.'],
-            ['modern', 'صورة سريعة',
-             'نرسم الفاتورة عندنا ونرسلها صورة، بالطريقة الحديثة. مضمونة على أي طابعة، لكن أبطأ من النص.'],
-            ['legacy', 'صورة متوافقة',
-             'نفس الصورة بالطريقة القديمة. الأبطأ — استخدمها فقط لو ما طلعت الفاتورة أصلًا بالخيارين فوق.'],
+            ['sunmi-nt310', 'SUNMI NT310',
+             'مُختبرة على جهاز حقيقي: تكتب العربي بنفسها، وتدعم رمز QR والباركود. الأسرع.'],
+            ['generic-80mm-arabic', 'طابعة ٨٠ مم تكتب عربي',
+             'لو جرّبت طابعتك وطلع العربي سليماً. نفس السرعة.'],
+            ['generic-58mm', 'طابعة ٥٨ مم',
+             'الورق الصغير. تتغيّر الأعمدة تلقائياً مع عرض الورق.'],
+            ['', 'غير معروفة (الأضمن)',
+             'ما جرّبناها. نرسل الفاتورة صورة — أبطأ، لكن تطبع صحيحاً على أي طابعة.'],
           ] as const).map(([id, name, desc]) => {
-            const current = (profile.receiptMode ?? 'text') === 'text' ? 'text' : (profile.rasterCommand ?? 'modern');
-            const active = current === id;
+            const active = (profile.capabilityProfileId ?? '') === id;
             return (
               <TouchableOpacity
-                key={id}
+                key={id || 'unknown'}
                 style={[styles.rasterCard, active && styles.rasterCardActive]}
-                onPress={() =>
-                  setProfile(
-                    id === 'text'
-                      ? { ...profile, receiptMode: 'text' }
-                      : { ...profile, receiptMode: 'image', rasterCommand: id },
-                  )
-                }
+                onPress={() => setProfile({ ...profile, capabilityProfileId: id || undefined })}
                 activeOpacity={0.8}>
                 <Text style={styles.rasterCardName}>{name}</Text>
                 <Text style={styles.rasterCardDesc}>{desc}</Text>

@@ -113,6 +113,14 @@ export interface PrinterProfile {
    *            وثمنه أن الطابعة تطبع صفحة نقطية كاملة.
    */
   receiptMode?: 'text' | 'image';
+  /**
+   * أي طراز طابعة هذا — مفتاح في KNOWN_PROFILES.
+   *
+   * منه تُشتق القدرات: هل ترتّب العربية، هل تدعم QR وباركود أصليين،
+   * وكم عرضها. طراز غير معروف يأخذ الافتراضي المتحفّظ الذي لا يفسد
+   * فاتورة ولو كان أبطأ.
+   */
+  capabilityProfileId?: string;
   rasterCommand?: 'modern' | 'legacy';
   bluetoothName?: string;
   usbAccessoryId?: string;

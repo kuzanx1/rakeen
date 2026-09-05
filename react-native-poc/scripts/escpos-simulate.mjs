@@ -31,8 +31,15 @@ export function parse(bytes) {
   let align = 'left', bold = false, wide = false, tall = false;
   let line = [];
 
+  let pendingX = null;
   const flush = () => {
-    ops.push({ type: 'line', text: Buffer.from(line).toString('utf8'), align, bold, wide, tall });
+    if (pendingX !== null) {
+      if (line.length) ops.push({ type: 'run', text: Buffer.from(line).toString('utf8'), x: pendingX, align, bold, wide, tall });
+      ops.push({ type: 'break' });
+      pendingX = null;
+    } else {
+      ops.push({ type: 'line', text: Buffer.from(line).toString('utf8'), align, bold, wide, tall });
+    }
     line = [];
   };
 
@@ -43,6 +50,15 @@ export function parse(bytes) {
     if (b === ESC && bytes[i + 1] === 0x45) { bold = bytes[i + 2] === 1; i += 3; continue; }
     if (b === GS && bytes[i + 1] === 0x21) { const n = bytes[i+2]; wide = (n >> 4) > 0; tall = (n & 0x0f) > 0; i += 3; continue; }
     if (b === GS && bytes[i + 1] === 0x56) { ops.push({ type: 'cut' }); i += 3; continue; }
+    // GS h / GS w / GS H — ارتفاع وعرض الباركود ووضع نصّه
+    if (b === GS && (bytes[i + 1] === 0x68 || bytes[i + 1] === 0x77 || bytes[i + 1] === 0x48)) { i += 3; continue; }
+    // GS k — الباركود نفسه: m=73 يعني الطول في البايت التالي
+    if (b === GS && bytes[i + 1] === 0x6b) {
+      const m = bytes[i + 2];
+      if (m >= 65) { const n = bytes[i + 3]; ops.push({ type: 'barcode' }); i += 4 + n; }
+      else { let j = i + 3; while (j < bytes.length && bytes[j] !== 0) j++; ops.push({ type: 'barcode' }); i = j + 1; }
+      continue;
+    }
     // GS ( k — QR
     if (b === GS && bytes[i + 1] === 0x28 && bytes[i + 2] === 0x6b) {
       const len = bytes[i + 3] | (bytes[i + 4] << 8);
@@ -61,6 +77,14 @@ export function parse(bytes) {
       continue;
     }
     if (b === GS && bytes[i + 1] === 0x28 && bytes[i + 2] === 0x4c) { i += 7; continue; } // print stored
+    // ESC $ — موضع أفقي مطلق بالنقاط. هذا ما تُبنى به الأعمدة الآن،
+    // فالمحاكي يسجّله مع النص ليعرض الترصيف الحقيقي لا تقريبه.
+    if (b === ESC && bytes[i + 1] === 0x24) {
+      if (line.length) { ops.push({ type: 'run', text: Buffer.from(line).toString('utf8'), x: pendingX, align, bold, wide, tall }); line = []; }
+      pendingX = bytes[i + 2] | (bytes[i + 3] << 8);
+      i += 4;
+      continue;
+    }
     if (b === 0x0a) { flush(); i += 1; continue; }
     line.push(b);
     i += 1;
@@ -70,6 +94,10 @@ export function parse(bytes) {
 }
 
 const W = 576;
+/** الطابعة تتقدّم ٢٤ نقطة للسطر العادي و٤٨ للمضاعف — لا بارتفاع الخط
+ *  المُصيَّر، الذي يبالغ ويجعل طول الورق (= زمن الطباعة) خاطئاً. */
+const LINE_DOTS = 24;
+const LINE_DOTS_TALL = 48;
 const layers = [];
 let y = 8;
 
@@ -88,7 +116,7 @@ async function renderWord(word, bold, size, wide) {
 
 async function drawText(op) {
   const { text, align, bold, wide, tall } = op;
-  if (!text.trim()) { y += 22; return; }
+  if (!text.trim()) { y += LINE_DOTS; return; }
   const size = tall ? 34 : 24;
 
   // كل كلمة تُرسَم وحدها ثم تُوضع من اليسار — هذا هو سلوك الطابعة
@@ -118,7 +146,7 @@ async function drawText(op) {
     x += p.info.width + spaceW;
     maxH = Math.max(maxH, p.info.height);
   }
-  y += maxH;
+  y += tall ? LINE_DOTS_TALL : LINE_DOTS;
 }
 
 function drawImage(op) {
@@ -157,7 +185,25 @@ function drawQr(op) {
 export async function render(bytes, outPath) {
   layers.length = 0;
   y = 8;
+  let runH = 0;
   for (const op of parse(bytes)) {
+    if (op.type === 'run') {
+      // الموضع بالنقاط كما أمر ESC $، والكلمات تُوضع من اليسار كما تفعل
+      // الطابعة. رسمها ككتلة واحدة يجعل Pango يرتّبها فيُخفي الخطأ الذي
+      // بُني هذا الملف لكشفه.
+      const size = op.tall ? 34 : 24;
+      const spaceW = Math.round(size * 0.5);
+      let x = op.x;
+      for (const w of op.text.split(' ')) {
+        if (w === '') { x += spaceW; continue; }
+        const b = await renderWord(w, op.bold, size, op.wide);
+        layers.push({ input: b.data, top: Math.round(y), left: Math.round(x) });
+        x += b.info.width + spaceW;
+      }
+      runH = Math.max(runH, op.tall ? LINE_DOTS_TALL : LINE_DOTS);
+      continue;
+    }
+    if (op.type === 'break') { y += runH || LINE_DOTS; runH = 0; continue; }
     if (op.type === 'line') await drawText(op);
     else if (op.type === 'image') drawImage(op);
     else if (op.type === 'qr') drawQr(op);
