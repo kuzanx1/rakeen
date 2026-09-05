@@ -30,10 +30,26 @@ import { bi, receiptTheme } from '../domain/receiptTheme';
  * iOS/Android hardware. Never claim printing "works" from this alone.
  */
 
-/** يختار المُرمِّز حسب إعداد الطابعة المحفوظ. الافتراضي الحديث، لأنه
- *  المُصلح المتوقع؛ والقديم مخرج طوارئ يقلبه المالك بنفسه. */
+/**
+ * يختار المُرمِّز حسب إعداد الطابعة المحفوظ. الافتراضي `GS v 0`.
+ *
+ * كان الافتراضي الأمر الحديث (`GS 8 L`)، على أنه علاج الخمس والأربعين
+ * ثانية. ولم يكن: السبب طابور لا يُوقظه أحد قبل عشرين ثانية،
+ * وفاتورة ترفضها الطابعة لانشغالها بتذكرة المطبخ قبلها -- وكلاهما
+ * أُصلح في مكانه (application/printService.ts)، لا هنا. فلم يبقَ من
+ * تغيير الأمر إلا أثره السيّئ وحده.
+ *
+ * والطابعة التي لا تعرف أمراً لا تصمت عنه، بل تطبع حمولته حروفاً.
+ * طابعة هبية لا تعرف `GS 8 L`، فخرجت بايتات الصورة على الورق
+ * `<<<<` و `aaaa` بيد الزبون.
+ *
+ * فالافتراضي هو الأمر الذي تعرفه كل طابعة ESC/POS، وهو نفسه
+ * الذي يرسله متصفّح ركين منذ اليوم الأول ولم يشتكِ منه أحد.
+ * و'modern' باقٍ اختياراً في الإعدادات، يقلبه المالك حين تثبت
+ * طابعته على الورق أنها تعرفه.
+ */
 function encodeRaster(buffer: RgbaBuffer, command?: 'modern' | 'legacy'): number[] {
-  return command === 'legacy' ? rgbaToEscPosRasterLegacy(buffer) : rgbaToEscPosRaster(buffer);
+  return command === 'modern' ? rgbaToEscPosRaster(buffer) : rgbaToEscPosRasterLegacy(buffer);
 }
 
 const PAD = 16;

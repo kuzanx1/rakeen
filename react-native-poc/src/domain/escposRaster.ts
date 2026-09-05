@@ -6,18 +6,25 @@
  * which this replaces, is marked obsolete in Epson's own ESC/POS
  * reference with `GS ( L` named as its replacement.
  *
- * That is not a style preference — it is the measurement. On a SUNMI
- * NT310 at Hbiah, a 694-row receipt sent as `GS v 0` took 45 seconds.
- * Thermal printing runs 5–20ms per dot row, so 694 rows should cost 3.5
- * to 14 seconds at the very worst; 45 seconds is 65ms per row, three to
- * thirteen times outside the physical range. And Foodics on the SAME
- * printer prints a receipt of roughly the same dot-row count in about a
- * second. Same rows, same paper, same hardware, 45x the time — so the
- * cost was never "images are heavy", it was this command taking a slow
- * path through the firmware.
+ * NOT THE DEFAULT, and no longer believed to be faster. Read this before
+ * switching anything back to it.
  *
- * The transport was never involved: the trace shows 20ms from connect to
- * the printer closing the stream itself.
+ * This encoder was written on the theory that `GS v 0` was what made a
+ * 694-row receipt take 45 seconds on the SUNMI NT310 at Hbiah. That
+ * theory was wrong, and it was disproved by the two commits that came
+ * after it: the 45 seconds was a print queue nothing woke for up to 20
+ * seconds, plus a receipt the printer kept refusing because it was still
+ * busy with the kitchen ticket ahead of it. Both were fixed where they
+ * actually lived, in application/printService.ts. Neither was here.
+ *
+ * The 45 seconds was wall clock from checkout to paper, not bytes to
+ * paper — the trace always showed 20ms from connect to the printer
+ * closing the stream itself. The command was never in that measurement.
+ *
+ * What the command change DID do was put an unreadable receipt in a
+ * customer's hand at Hbiah: the printer does not implement fn112/fn50,
+ * and a printer that does not know a command does not ignore it — it
+ * prints the payload as characters. A page of `<<<<` and `aaaa`.
  *
  * ONE PIECE, deliberately. An earlier attempt split the image into 128-row
  * bands on the theory that a huge single command was choking the firmware.
@@ -98,11 +105,17 @@ export function rgbaToEscPosRaster(buffer: RgbaBuffer): number[] {
 }
 
 /**
- * The previous encoder, kept for one reason: `GS ( L` is the modern
- * command but not a universal one, and a printer that ignores it prints
- * nothing at all rather than printing slowly. If that happens on some
- * unit in the field, this is the one-line fallback — not dead code, a
- * documented escape hatch with a known trigger.
+ * THE DEFAULT. `GS v 0` — obsolete in Epson's reference, and the only
+ * raster command every ESC/POS printer in the field actually implements.
+ *
+ * It is what Rakeen's browser POS has sent since day one
+ * (public/pos/rakeen-pos.js, canvasToEscPosRaster) on this same hardware,
+ * with no complaint, and it is what the printer at Hbiah understands.
+ * "Obsolete in the spec" and "unsupported by the printer on the counter"
+ * point in opposite directions; the paper decides, not the spec.
+ *
+ * Choosing correct-everywhere over modern costs nothing measurable here:
+ * the printers are on the network, and the send was never the slow part.
  */
 export function rgbaToEscPosRasterLegacy(buffer: RgbaBuffer): number[] {
   const { height } = buffer;

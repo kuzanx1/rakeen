@@ -444,13 +444,13 @@ export default function PrinterSettingsScreen({
         <View style={styles.rasterCards}>
           {([
             ['sunmi-nt310', 'SUNMI NT310',
-             'مُختبرة على جهاز حقيقي: تكتب العربي بنفسها، وتدعم رمز QR والباركود. الأسرع.'],
+             'مُختبرة على جهاز حقيقي عندنا. تدعم رمز QR والباركود.'],
             ['generic-80mm-arabic', 'طابعة ٨٠ مم تكتب عربي',
-             'لو جرّبت طابعتك وطلع العربي سليماً. نفس السرعة.'],
+             'لو جرّبت طابعتك وطلع العربي سليماً.'],
             ['generic-58mm', 'طابعة ٥٨ مم',
              'الورق الصغير. تتغيّر الأعمدة تلقائياً مع عرض الورق.'],
             ['', 'غير معروفة (الأضمن)',
-             'ما جرّبناها. نرسل الفاتورة صورة — أبطأ، لكن تطبع صحيحاً على أي طابعة.'],
+             'ما جرّبناها. الفاتورة تُرسل صورة على كل الأحوال، فتطبع صحيحاً على أي طابعة.'],
           ] as const).map(([id, name, desc]) => {
             const active = (profile.capabilityProfileId ?? '') === id;
             return (
@@ -458,6 +458,32 @@ export default function PrinterSettingsScreen({
                 key={id || 'unknown'}
                 style={[styles.rasterCard, active && styles.rasterCardActive]}
                 onPress={() => setProfile({ ...profile, capabilityProfileId: id || undefined })}
+                activeOpacity={0.8}>
+                <Text style={styles.rasterCardName}>{name}</Text>
+                <Text style={styles.rasterCardDesc}>{desc}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </Section>
+
+      <Section title="أمر رسم الصورة">
+        <FieldLabel>كيف تُرسَل صورة الفاتورة للطابعة</FieldLabel>
+        <View style={styles.rasterCards}>
+          {([
+            ['legacy', 'المتوافق — GS v 0 (الافتراضي)',
+             'كل طابعة ESC/POS تفهمه، وهو نفسه الذي يرسله ركين من المتصفح من أول يوم.'],
+            ['modern', 'الحديث — GS 8 L',
+             'أحدث في المواصفة، لكن ليست كل طابعة تعرفه. والتي لا تعرفه تطبع الصورة حروفاً ورموزاً بدل أن تتجاهلها. لا تختره إلا بعد أن تجرّبه وتقرأ الورقة بنفسك.'],
+          ] as const).map(([id, name, desc]) => {
+            // الافتراضي 'legacy' حين لا شيء محفوظ -- نفس ما يفعله
+            // encodeRaster في application/receiptRenderer.ts بالضبط.
+            const active = (profile.rasterCommand ?? 'legacy') === id;
+            return (
+              <TouchableOpacity
+                key={id}
+                style={[styles.rasterCard, active && styles.rasterCardActive]}
+                onPress={() => update({ rasterCommand: id })}
                 activeOpacity={0.8}>
                 <Text style={styles.rasterCardName}>{name}</Text>
                 <Text style={styles.rasterCardDesc}>{desc}</Text>

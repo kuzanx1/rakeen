@@ -40,7 +40,11 @@ export interface PrinterCapabilityProfile {
   nativeQr: boolean;
   /** `GS k` barcodes. */
   nativeBarcode: boolean;
-  /** `GS ( L` / `GS 8 L` graphics. False falls back to obsolete `GS v 0`. */
+  /** `GS ( L` / `GS 8 L` graphics. False falls back to `GS v 0`.
+   *  False unless a specific printer has been seen to print an image from
+   *  the modern command ON PAPER. The NT310 at Hbiah does not: it printed
+   *  the raster payload as characters. A printer that does not know a
+   *  command prints its bytes, it does not skip them. */
   modernGraphics: boolean;
   supportsCut: boolean;
   /** Width of one character in the printer's built-in Latin font, in dots.
@@ -64,7 +68,7 @@ export const DEFAULT_CAPABILITIES: PrinterCapabilityProfile = {
   arabic: 'none',
   nativeQr: false,
   nativeBarcode: false,
-  modernGraphics: true,
+  modernGraphics: false,
   supportsCut: true,
   latinCharDots: 12,
 };
@@ -83,7 +87,9 @@ export const KNOWN_PROFILES: Record<string, Partial<PrinterCapabilityProfile>> =
     arabic: 'shapingOnly',
     nativeQr: true,
     nativeBarcode: true,
-    modernGraphics: true,
+    // Measured on paper at Hbiah, not assumed: sent `GS 8 L` fn112, the
+    // printer printed the bitmap as text. It does not have this command.
+    modernGraphics: false,
     supportsCut: true,
   },
   /** Any 80mm printer the owner has confirmed prints Arabic correctly. */
