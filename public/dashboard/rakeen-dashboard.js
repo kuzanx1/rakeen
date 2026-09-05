@@ -9182,6 +9182,17 @@ async function renderPosSettings(){
     rkBtnLoading(receiptThemeSaveBtn, true);
     try {
       await updateCurrentBusiness({ receipt_theme: pendingTheme });
+      // يُقرأ ما استقرّ فعلاً، لا ما أُرسل.
+      //
+      // "تم الحفظ" كانت تُقال لمجرد أن الطلب لم يرمِ خطأً، فبقيت هبية
+      // على "مضغوط" أياماً والزر يؤكّد الحفظ في كل مرة -- والكاشير
+      // يطبع شكلاً لم يختره أحد. ولا يُطمأن إلى كتابةٍ إلا بقراءتها.
+      const stored = await loadReceiptTheme();
+      if(stored !== pendingTheme){
+        rkBtnLoading(receiptThemeSaveBtn, false);
+        showToast('لم يُحفظ الشكل: القاعدة ما زالت على "' + rkReceiptTheme(stored).label + '". تأكد إن حسابك مالك هذا النشاط.');
+        return;
+      }
       RECEIPT_THEME = pendingTheme;
       logDashboardAudit('غيّر شكل الفاتورة المطبوعة');
       rkBtnSuccess(receiptThemeSaveBtn, '✓ تم الحفظ');
