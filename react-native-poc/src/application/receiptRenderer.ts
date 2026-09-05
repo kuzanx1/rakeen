@@ -506,50 +506,91 @@ export async function renderShiftReportToEscPosBase64(
   const width = printerPaperWidthPx ?? 576;
   const provider = await buildFontProviderReady();
   const contentWidth = width - PAD * 2;
-  const surface = createReceiptSurface(width, 1800);
+  const surface = createReceiptSurface(width, 2200);
   const { canvas } = surface;
   canvas.clear(Skia.Color('#ffffff'));
   const ctx: RenderContext = { canvas, provider, width, contentWidth };
 
+  // نفس ترتيب ورقة الكاشير حرفياً: مبيعات ← طرق دفع ← صندوق ← توقيع.
+  // ورقة واحدة لمنشأة واحدة لا يجوز أن تختلف باختلاف الجهاز الذي طبعها.
+  const opt = report.options ?? {};
+  const on = (k: string) => opt[k] !== false;
+  const n = (v: number | undefined) => `${(v ?? 0).toFixed(2)} ${RIYAL}`;
+
   let y = PAD + LINE_H / 2;
   y = drawCenterLine(ctx, y, report.businessName || 'ركين', 30, true);
   if (report.branchName) y = drawCenterLine(ctx, y, report.branchName, 19, false);
+  y += LINE_H * 0.2;
   y = drawCenterLine(ctx, y, 'تقرير إغلاق الوردية', 20, true);
+  y = drawCenterLine(ctx, y, 'Shift Close Report', 15, false);
   y = drawCenterLine(ctx, y, report.dateLabel, 16, false);
-  y = drawCenterLine(ctx, y, 'الكاشير: ' + report.staffName, 16, false);
-
   drawDivider(canvas, width, y);
-  y += LINE_H * 0.6;
-
-  y = drawRow(ctx, y, String(report.ordersCount), 'عدد الطلبات', 18, false);
-  y = drawRow(ctx, y, report.salesTotal.toFixed(2), 'إجمالي المبيعات', 18, false);
-  y = drawRow(ctx, y, report.cardTotal.toFixed(2), 'بطاقة', 18, false);
-  y = drawRow(ctx, y, report.deliveryPlatformTotal.toFixed(2), 'توصيل — مدفوع عبر التطبيق', 18, false);
-
+  y += LINE_H * 0.5;
+  y = drawRow(ctx, y, '', 'الكاشير · Cashier: ' + report.staffName, 17, false);
+  if (report.shiftStart) y = drawRow(ctx, y, '', 'من · From: ' + report.shiftStart, 16, false);
   drawDivider(canvas, width, y);
-  y += LINE_H * 0.6;
+  y += LINE_H * 0.5;
 
-  if (report.cashIn > 0) y = drawRow(ctx, y, report.cashIn.toFixed(2), 'إيداع بالدرج', 18, false);
-  if (report.cashOut > 0) y = drawRow(ctx, y, '-' + report.cashOut.toFixed(2), 'سحب من الدرج', 18, false);
-  y = drawRow(ctx, y, report.cashExpected.toFixed(2), 'الكاش المتوقع', 18, false);
-  y = drawRow(ctx, y, report.cashCounted.toFixed(2), 'الكاش المعدود', 18, false);
+  y = drawCenterLine(ctx, y, 'المبيعات · Sales', 16, true);
+  y = drawRow(ctx, y, n(report.grossSales ?? report.salesTotal), 'إجمالي المبيعات · Gross', 18, false);
+  if (on('discounts')) y = drawRow(ctx, y, '-' + n(report.discountsTotal), 'الخصومات · Discounts', 18, false);
+  if (on('refunds')) y = drawRow(ctx, y, '-' + n(report.refundsTotal), `المرتجعات · Refunds (${report.refundsCount ?? 0})`, 18, false);
+  if (on('vat')) y = drawRow(ctx, y, n(report.vatTotal), 'ضريبة القيمة المضافة · VAT', 18, false);
+  y = drawRow(ctx, y, n(report.netSales ?? report.salesTotal), 'صافي المبيعات · Net', 20, true);
+  drawDivider(canvas, width, y);
+  y += LINE_H * 0.5;
+
+  y = drawCenterLine(ctx, y, 'طرق الدفع · Payments', 16, true);
+  y = drawRow(ctx, y, n(report.cashSales), 'كاش · Cash', 18, false);
+  y = drawRow(ctx, y, n(report.cardTotal), 'شبكة · Card', 18, false);
+  y = drawRow(ctx, y, n(report.deliveryPlatformTotal), 'تطبيقات توصيل · Delivery Apps', 18, false);
+  if (report.onlinePaymentsEnabled) y = drawRow(ctx, y, n(report.onlineTotal), 'دفع إلكتروني · Online', 18, false);
+  drawDivider(canvas, width, y);
+  y += LINE_H * 0.5;
+
+  y = drawCenterLine(ctx, y, 'الصندوق · Cash Drawer', 16, true);
+  y = drawRow(ctx, y, n(report.openingCash), 'الرصيد الافتتاحي · Opening float', 18, false);
+  y = drawRow(ctx, y, '+' + n(report.cashSales), 'مبيعات الكاش · Cash sales', 18, false);
+  if (report.cashIn > 0) y = drawRow(ctx, y, '+' + n(report.cashIn), 'إيداع بالدرج · Pay-in', 18, false);
+  if (report.cashOut > 0) y = drawRow(ctx, y, '-' + n(report.cashOut), 'سحب من الدرج · Pay-out', 18, false);
+  if ((report.refundsTotal ?? 0) > 0) y = drawRow(ctx, y, '-' + n(report.refundsTotal), 'مرتجعات كاش · Refunds paid', 18, false);
+  y = drawRow(ctx, y, n(report.cashExpected), 'المتوقع في الدرج · Expected', 18, true);
+  y = drawRow(ctx, y, n(report.cashCounted), 'المعدود · Counted', 18, false);
+  const vTop = y - LINE_H * 0.55;
   // The variance keeps its sign: a surplus and a shortfall are different
   // problems, and "+" is what tells them apart at a glance on paper.
   y = drawRow(
     ctx,
     y,
-    (report.cashVariance >= 0 ? '+' : '') + report.cashVariance.toFixed(2),
-    'الفرق',
+    (report.cashVariance >= 0 ? '+' : '') + report.cashVariance.toFixed(2) + ' ' + RIYAL,
+    'الفرق · Variance',
     22,
     true,
   );
 
-  drawDivider(canvas, width, y);
-  y += LINE_H * 0.6;
-  y = drawCenterLine(ctx, y, 'معتمد من المدير', 15, false);
+  // الفرق داخل إطار: هو السطر الوحيد الذي يُفتح عليه تحقيق.
+  drawBox(canvas, PAD * 0.6, vTop, width - PAD * 1.2, y - vTop - LINE_H * 0.15);
+  y += LINE_H * 0.35;
+
+  if (on('counts')) {
+    drawDivider(canvas, width, y);
+    y += LINE_H * 0.5;
+    y = drawRow(ctx, y, String(report.ordersCount), 'عدد الطلبات · Orders', 17, false);
+    y = drawRow(ctx, y, n(report.avgTicket), 'متوسط الفاتورة · Avg ticket', 17, false);
+  }
+
+  // خانتا توقيع بدل جملة "معتمد من المدير" التي كانت تدّعي اعتماداً بلا
+  // مكانٍ يوقَّع فيه.
+  if (on('signatures')) {
+    drawDivider(canvas, width, y);
+    y += LINE_H * 0.9;
+    y = drawRow(ctx, y, '', 'توقيع الكاشير · Cashier  ______________', 15, false);
+    y += LINE_H * 0.5;
+    y = drawRow(ctx, y, '', 'توقيع المدير · Manager   ______________', 15, false);
+  }
   y += PAD;
 
-  const finalHeight = Math.min(Math.ceil(y), 1800);
+  const finalHeight = Math.min(Math.ceil(y), 2200);
   const raster = encodeRaster(surface.toRgba(finalHeight), rasterCommand);
   const bytes = [0x1b, 0x40, ...raster, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00];
   return bytesToBase64(bytes);

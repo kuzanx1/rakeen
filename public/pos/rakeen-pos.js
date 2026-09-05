@@ -4131,6 +4131,9 @@ function renderShiftReportCanvas(report){
   centerText('الصندوق · Cash Drawer', 16, true);
   rowText(report.openingCash.toFixed(2) + ' ' + RIYAL, 'الرصيد الافتتاحي · Opening float', 18, false);
   rowText('+' + report.cashSales.toFixed(2) + ' ' + RIYAL, 'مبيعات الكاش · Cash sales', 18, false);
+  // السحب يُذكر ولو كان صفراً حين تُطبع المرتجعات: معادلة الصندوق لا
+  // تُقرأ إن غاب أحد طرفيها، ومن يجمع بيده يريد أن يجد كل رقم.
+  if(report.refundsTotal > 0) rowText('-' + report.refundsTotal.toFixed(2) + ' ' + RIYAL, 'مرتجعات كاش · Refunds paid', 18, false);
   rowText(report.cashExpected.toFixed(2) + ' ' + RIYAL, 'المتوقع في الدرج · Expected', 18, true);
   rowText(report.cashCounted.toFixed(2) + ' ' + RIYAL, 'المعدود · Counted', 18, false);
   const vTop = y - lineH * 0.55;
@@ -4685,7 +4688,7 @@ async function openOrderDetail(orderId){
       ` : ''}
       <div class="receipt-actions">
         <button class="receipt-action-btn" id="reprintBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>إعادة طباعة</button>
-        ${order.status === 'completed' ? `<button class="receipt-action-btn" id="refundOrderBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>استرجاع مبلغ</button>` : ''}
+        ${(order.status === 'completed' || order.status === 'partially_refunded') ? `<button class="receipt-action-btn" id="refundOrderBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>استرجاع مبلغ</button>` : ''}
       </div>
     </div>
   `;
@@ -4699,7 +4702,27 @@ async function openOrderDetail(orderId){
   const refundBtn = document.getElementById('refundOrderBtn');
   if(refundBtn){
     refundBtn.addEventListener('click', ()=>{
-      if(!window.confirm('متأكد إنك تبي تسترجع مبلغ هذا الطلب؟')) return;
+      // مبلغٌ محدد أو الباقي كله.
+      //
+      // كان الاسترجاع كله-أو-لا-شيء، ولا وجه له: زبونٌ أعاد صنفاً من
+      // ثلاثة لا يُرجَع له ثمن الثلاثة. والسقف هو الباقي من الفاتورة لا
+      // إجماليها، حتى لا يُسترجع مرتين على استرجاع سابق.
+      const already = Number(order.refunded_amount) || 0;
+      const remaining = Math.max(0, Number(order.total) - already);
+      if(remaining <= 0.001){ showToast('هذا الطلب مسترجع بالكامل'); return; }
+      const raw = window.prompt(
+        'كم تبي ترجع؟ الباقي من الفاتورة ' + remaining.toFixed(2) + ' ريال.' + String.fromCharCode(10) +
+        'اتركه فاضي لاسترجاع المبلغ كامل.', '');
+      if(raw === null) return;
+      let amount = null;
+      if(raw.trim() !== ''){
+        amount = Number(raw.trim().replace(',', '.'));
+        if(!isFinite(amount) || amount <= 0){ showToast('اكتب مبلغ صحيح'); return; }
+        // السقف يُفحص هنا وفي القاعدة: هذا يمنع الخطأ، وذاك يمنع التحايل.
+        if(amount > remaining + 0.001){ showToast('المبلغ أكبر من الباقي في الفاتورة'); return; }
+      }
+      const shown = amount === null ? remaining : amount;
+      if(!window.confirm('استرجاع ' + shown.toFixed(2) + ' ريال كاش من الدرج؟')) return;
       // Manager-PIN gated — same stated convention as voiding an unpaid
       // dine-in order (see the comment above confirmCancelOrder: "same
       // convention as shift close and refunds"). This button used to go
@@ -4710,10 +4733,17 @@ async function openOrderDetail(orderId){
       openPinModal(async () => {
         refundBtn.disabled = true;
         try {
-          const { error } = await window.supabaseClient.rpc('refund_pos_order', { p_order_id: orderId });
+          const { data, error } = await window.supabaseClient.rpc('refund_pos_order',
+            amount === null ? { p_order_id: orderId } : { p_order_id: orderId, p_amount: amount });
           if(error) throw error;
-          showToast('تم استرجاع مبلغ الطلب');
-          sendOwnerPush('refund_cancel', 'استرجاع طلب', `تم استرجاع مبلغ ${Number(order.total).toFixed(2)} ر.س (طلب #${orderId}).`);
+          const res = data || {};
+          // الاسترجاع كاش دائماً، فالدرج يُفتح -- ولا يُنتظر: فشل فتح
+          // الدرج لا يُبطل استرجاعاً وقع في القاعدة فعلاً.
+          openCashDrawer().catch(()=>{});
+          showToast(res.full === false
+            ? 'تم استرجاع ' + shown.toFixed(2) + ' ريال — باقي ' + Number(res.remaining || 0).toFixed(2)
+            : 'تم استرجاع مبلغ الطلب كامل');
+          sendOwnerPush('refund_cancel', 'استرجاع طلب', `تم استرجاع مبلغ ${shown.toFixed(2)} ر.س (طلب #${orderId}).`);
           openOrderDetail(orderId);
           renderOrdersList();
         } catch(err){
@@ -4724,7 +4754,7 @@ async function openOrderDetail(orderId){
     });
   }
 }
-const ORDER_STATUS_LABELS_POS = {pending:'بانتظار القبول', completed:'مكتمل', cancelled:'ملغى', refunded:'مسترجع', rejected:'مرفوض'};
+const ORDER_STATUS_LABELS_POS = {pending:'بانتظار القبول', completed:'مكتمل', cancelled:'ملغى', refunded:'مسترجع', partially_refunded:'مسترجع جزئياً', rejected:'مرفوض'};
 const CHANNEL_LABELS = {dine_in:'محلي', pickup:'سفري', delivery:'تطبيقات التوصيل'};
 const PAYMENT_METHOD_LABELS_POS = {cash:'كاش', card:'بطاقة', split:'تقسيم دفع', delivery_platform:'مدفوع عبر التطبيق'};
 
@@ -6489,17 +6519,25 @@ async function loadShiftData(){
   // a figure a manager then signs off.
   // 'cancelled' needs no exclusion: cancel_dine_in_order only matches
   // payment_status='unpaid', so those orders never enter this query.
+  // البيع يُحسب كما وقع، والاسترجاع يُطرح مستقلاً.
+  //
+  // كان الاستعلام يستبعد المسترجَع كلياً، وهو صحيحٌ في حالة واحدة فقط:
+  // بيع كاش أُعيد كاملاً كاشاً -- دخل وخرج فصفر. أما بيع شبكة أُعيد كاشاً
+  // فالدرج ينقص فعلاً وإن لم يدخله شيء، وبيع كاش أُعيد بعضه فالباقي منه
+  // في الدرج. فالاستبعاد كان يُخفي سحباً حقيقياً من الصندوق.
   const { data } = await window.supabaseClient
-    .from('orders').select('total, subtotal, discount_amount, vat_amount, payment_method, cash_amount, source').eq('shift_id', CURRENT_SHIFT.id).eq('payment_status', 'paid').neq('status', 'refunded');
+    .from('orders').select('total, subtotal, discount_amount, vat_amount, payment_method, cash_amount, source').eq('shift_id', CURRENT_SHIFT.id).eq('payment_status', 'paid');
   const orders = data || [];
-  // المرتجعات باستعلام مستقل: الاستعلام أعلاه يستبعدها عمداً من حساب
-  // الدرج (المال أُعيد فعلاً)، لكن التقرير لا بد أن يذكرها -- وردية بلا
-  // سطر مرتجعات تُخفي أكثر ما يُدقَّق فيه.
+  // المرتجعات بورديّة خروج المال لا بورديّة البيع: قد يُرجَع بيع الأمس
+  // اليوم، والدرج الذي ينقص هو درج اليوم.
   let refundsTotal = 0, refundsCount = 0;
   try {
     const { data: refunded } = await window.supabaseClient
-      .from('orders').select('total').eq('shift_id', CURRENT_SHIFT.id).eq('status', 'refunded');
-    (refunded || []).forEach(o=>{ refundsTotal += Number(o.total) || 0; refundsCount++; });
+      .from('orders').select('refunded_amount').eq('refund_shift_id', CURRENT_SHIFT.id);
+    (refunded || []).forEach(o=>{
+      const amt = Number(o.refunded_amount) || 0;
+      if(amt > 0){ refundsTotal += amt; refundsCount++; }
+    });
   } catch(_){ /* بلا سطر مرتجعات خير من تقرير لا يُطبع */ }
   // a split order's cash half belongs in the drawer count too — only the
   // remainder is card, not the whole order total (that used to be double
@@ -6523,7 +6561,8 @@ async function loadShiftData(){
     } else if(o.payment_method === 'delivery_platform') deliveryPlatformSales += total;
     else cardSales += total;
   });
-  const netSales = cashSales + cardSales + deliveryPlatformSales + onlineSales;
+  // الصافي بعد المرتجعات، والدرج بعد ما خرج منه.
+  const netSales = cashSales + cardSales + deliveryPlatformSales + onlineSales - refundsTotal;
   return {
     ordersCount: orders.length,
     grossSales, discountsTotal, vatTotal, refundsTotal, refundsCount,
@@ -6533,7 +6572,8 @@ async function loadShiftData(){
     cashSales,
     onlineTotal: onlineSales,
     salesTotal: netSales,
-    cashTotal: Number(CURRENT_SHIFT.opening_cash) + cashSales,
+    // الاسترجاع كاش دائماً، فهو سحبٌ من الدرج مهما كانت طريقة دفع البيع.
+    cashTotal: Number(CURRENT_SHIFT.opening_cash) + cashSales - refundsTotal,
     cardTotal: cardSales,
     deliveryPlatformTotal: deliveryPlatformSales,
     startTime: new Date(CURRENT_SHIFT.opened_at).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'})

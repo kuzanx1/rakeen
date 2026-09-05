@@ -1161,7 +1161,7 @@ function renderChannelCards(channelPerf){
 
 /* ============ Operations Center ============ */
 /* ============ Orders screen ============ */
-const ORDER_STATUS_LABELS = {completed:'مكتمل', cancelled:'ملغى', refunded:'مسترجع'};
+const ORDER_STATUS_LABELS = {completed:'مكتمل', cancelled:'ملغى', refunded:'مسترجع', partially_refunded:'مسترجع جزئياً'};
 let orderStatusFilter = 'all', orderSearchQuery = '';
 let orderDateRange = '7d';
 

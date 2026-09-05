@@ -130,6 +130,22 @@ export interface ClosingReport {
   salesTotal: number;
   cardTotal: number;
   deliveryPlatformTotal: number;
+  /** المسار المحاسبي من الإجمالي إلى الصافي. اختيارية حتى يبقى تقرير
+   *  محفوظ من قبل قابلاً للطباعة بما فيه. */
+  grossSales?: number;
+  discountsTotal?: number;
+  refundsTotal?: number;
+  refundsCount?: number;
+  vatTotal?: number;
+  netSales?: number;
+  avgTicket?: number;
+  openingCash?: number;
+  cashSales?: number;
+  onlineTotal?: number;
+  onlinePaymentsEnabled?: boolean;
+  shiftStart?: string;
+  /** ما يظهر في الورقة وما لا يظهر. الغياب يعني أظهر. */
+  options?: Record<string, boolean>;
   /** Non-sale cash movements, printed as their own lines so the expected
    *  figure on the slip can be reconstructed by whoever reads it. */
   cashIn: number;
