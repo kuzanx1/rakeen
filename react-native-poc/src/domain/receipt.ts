@@ -16,6 +16,8 @@
 
 export interface ReceiptLine {
   name: string;
+  /** menu_items.name_en -- يُطبع سطراً تحت الاسم العربي حين يوجد. */
+  nameEn?: string;
   qty: number;
   unitPrice: number;
   lineTotal: number;
@@ -68,6 +70,15 @@ export interface ReceiptData {
   createdAtISO?: string;
   /** Free-text channel/table meta line, e.g. "بالمطعم — طاولة 4". */
   metaLabel?: string;
+  /** businesses.receipt_tagline -- سطر تحت الاسم يكتبه صاحب المطعم. */
+  tagline?: string;
+  /** الحي والمدينة، مركّبين من branches.district/city. */
+  locationLine?: string;
+  /** اسم الفرع، ويُمرَّر فقط حين تتعدد فروع المنشأة. الجهة المُرسِلة
+   *  تعدّ الفروع؛ لا يجوز للعارض ولا للمحوّل أن يخمّنا. */
+  branchLabel?: string;
+  /** اسم تطبيق التوصيل حين يكون الطلب منه. */
+  orderKindLabel?: string;
   /** Cash change due, when > 0 -- PWA's receipt.change. */
   change?: number;
   /** DEVICE.printerPaperWidth in px at ~203dpi (576=80mm, 384=58mm). */

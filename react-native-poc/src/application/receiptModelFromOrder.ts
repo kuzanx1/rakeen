@@ -42,6 +42,7 @@ export function receiptModelFromOrder(data: ReceiptData): ReceiptModel {
 
   const items: ReceiptItem[] = data.lines.map(line => ({
     name: line.name,
+    nameEn: line.nameEn || undefined,
     qty: line.qty,
     unitPrice: line.unitPrice,
     lineTotal: line.lineTotal,
@@ -55,10 +56,14 @@ export function receiptModelFromOrder(data: ReceiptData): ReceiptModel {
   return {
     businessName: data.businessName ?? '',
     branchName: data.branchName,
+    tagline: data.tagline || undefined,
+    locationLine: data.locationLine || undefined,
+    branchLabel: data.branchLabel || undefined,
     vatNumber: data.vatNumber || undefined,
 
     orderNumber: data.orderId != null ? String(data.orderId) : '—',
     orderKind: orderKindFrom(data.metaLabel),
+    orderKindLabel: data.orderKindLabel || undefined,
     tableNumber: tableFrom(data.metaLabel),
     dateLabel: formatArabicDateTimeShort(when).replace(formatArabicTime(when), '').trim(),
     timeLabel: formatArabicTime(when),

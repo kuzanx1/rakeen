@@ -3175,7 +3175,14 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
   if(th.headerBand){ divider(); }
   centerText(receipt.businessName || 'ركين', sz(30), true);
   if(th.headerBand){ divider(); }
-  if(receipt.branchName) centerText(receipt.branchName, sz(19), false);
+  // السلوقن ثم مكان الفرع، بنفس ترتيب مسار النص حتى لا تختلف ورقتان
+  // لمطعم واحد باختلاف الطابعة التي طبعتهما.
+  if(receipt.tagline) centerText(receipt.tagline, sz(17), false);
+  // اسم الفرع يسبق الحي والمدينة، ولا يُطبع إلا حين مرّرته الجهة
+  // المُرسِلة -- وهي لا تمرّره إلا لمنشأة لها أكثر من فرع.
+  const whereLine = [receipt.branchLabel, receipt.locationLine].filter(Boolean).join(' — ');
+  if(whereLine) centerText(whereLine, sz(16), false);
+  else if(receipt.branchName) centerText(receipt.branchName, sz(19), false);
   centerText(receipt.dateLabel, sz(16), false);
   // its own clearly-labeled line, always present — this used to be folded
   // into metaLabel ("بالمطعم — طلب #58") and silently disappeared whenever
@@ -3770,7 +3777,10 @@ function buildLiveReceiptData(orderPayload, totals){
     // instead of silently dropping the line.
     orderNumber: orderPayload.orderId ? ('#' + orderPayload.orderId) : 'سيُحدَّد عند الاتصال',
     metaLabel: (CHANNEL_LABELS[orderPayload.channel] || orderPayload.channel) + liveTableLabel,
-    showLogo: DEVICE.printReceiptLogo !== false && !!BUSINESS_LOGO_URL, logoUrl: BUSINESS_LOGO_URL,
+    showLogo: DEVICE.printReceiptLogo !== false && !!RECEIPT_LOGO_URL, logoUrl: RECEIPT_LOGO_URL,
+    tagline: RECEIPT_TAGLINE,
+    locationLine: BRANCH_LOCATION_LINE,
+    branchLabel: BRANCH_COUNT > 1 ? (DEVICE.branchName || '') : '',
     customMessage: RECEIPT_CUSTOM_MESSAGE,
     items, subtotal: totals.subtotal, discount: totals.discount, vat: totals.vat, total: totals.total,
     paymentMethodLabel: PAYMENT_METHOD_LABELS_POS[orderPayload.payment_method] || orderPayload.payment_method,
@@ -3822,7 +3832,10 @@ function buildHistoricalReceiptData(order, items){
     timestampISO: order.created_at, vatNumber: BUSINESS_VAT_NUMBER,
     orderNumber: '#' + order.id,
     metaLabel: (CHANNEL_LABELS[order.channel] || order.channel) + histTableLabel,
-    showLogo: DEVICE.printReceiptLogo !== false && !!BUSINESS_LOGO_URL, logoUrl: BUSINESS_LOGO_URL,
+    showLogo: DEVICE.printReceiptLogo !== false && !!RECEIPT_LOGO_URL, logoUrl: RECEIPT_LOGO_URL,
+    tagline: RECEIPT_TAGLINE,
+    locationLine: BRANCH_LOCATION_LINE,
+    branchLabel: BRANCH_COUNT > 1 ? (DEVICE.branchName || '') : '',
     customMessage: RECEIPT_CUSTOM_MESSAGE,
     items: lineItems, subtotal: Number(order.subtotal), discount: Number(order.discount_amount || 0),
     vat: Number(order.vat_amount), total: Number(order.total),
@@ -6030,7 +6043,7 @@ function openPosSettingsModal(){
       <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:2px;">شكل الفاتورة عند الدفع</label>
       ${posCheck(`id="printCustomerReceiptToggle" ${DEVICE.printCustomerReceipt !== false ? 'checked' : ''}`, 'فاتورة العميل (مع السعر والضريبة ورمز QR)')}
       ${posCheck(`id="printKitchenTicketToggle" ${DEVICE.printKitchenTicket === true ? 'checked' : ''}`, 'فاتورة المطبخ (الأصناف والملاحظات فقط، بدون أسعار)')}
-      ${BUSINESS_LOGO_URL ? posCheck(`id="printReceiptLogoToggle" ${DEVICE.printReceiptLogo !== false ? 'checked' : ''}`, 'طباعة شعار المطعم أعلى فاتورة العميل') : ''}
+      ${RECEIPT_LOGO_URL ? posCheck(`id="printReceiptLogoToggle" ${DEVICE.printReceiptLogo !== false ? 'checked' : ''}`, 'طباعة شعار الفاتورة أعلى فاتورة العميل') : ''}
     </div>
     <div class="pos-auth-field" style="margin-top:10px;">
       <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px;">طابعة مطبخ منفصلة (اختياري)</label>
@@ -6073,7 +6086,10 @@ function openPosSettingsModal(){
       dateLabel: new Date().toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
       timestampISO: new Date().toISOString(), vatNumber: BUSINESS_VAT_NUMBER,
       orderNumber: '#0', metaLabel: 'طباعة اختبار',
-      showLogo: DEVICE.printReceiptLogo !== false && !!BUSINESS_LOGO_URL, logoUrl: BUSINESS_LOGO_URL,
+      showLogo: DEVICE.printReceiptLogo !== false && !!RECEIPT_LOGO_URL, logoUrl: RECEIPT_LOGO_URL,
+      tagline: RECEIPT_TAGLINE,
+      locationLine: BRANCH_LOCATION_LINE,
+      branchLabel: BRANCH_COUNT > 1 ? (DEVICE.branchName || '') : '',
       customMessage: RECEIPT_CUSTOM_MESSAGE,
       items: [{name:'صنف تجريبي', qty:1, unitPrice:10, lineTotal:10, mods:[]}],
       subtotal:10, discount:0, vat:1.5, total:11.5, paymentMethodLabel:'اختبار', change:0
@@ -6501,6 +6517,10 @@ let BUSINESS_VAT_NUMBER = '';   // businesses.vat_number — required for the ZA
 let BUSINESS_VAT_RATE = 0.15;   // businesses.vat_rate — real per-business rate, replaces the old hardcoded VAT_RATE constant
 let PRICES_INCLUDE_VAT = true;  // businesses.prices_include_vat — default true matches the KSA legal requirement (menu prices already include tax)
 let VAT_REGISTERED = true;      // businesses.vat_registered — off means zero VAT everywhere, not just an inclusive/exclusive question
+let RECEIPT_LOGO_URL = '';      // businesses.receipt_logo_url — شعار الفاتورة وحدها؛ فارغ = اطبع الاسم بلا شعار (ولا يرتدّ إلى logo_url)
+let RECEIPT_TAGLINE = '';       // businesses.receipt_tagline — سطر تحت الاسم
+let BRANCH_LOCATION_LINE = '';  // "حي البيعة، الطائف" من branches.district/city
+let BRANCH_COUNT = 1;           // عدد فروع المنشأة — اسم الفرع يُطبع فقط حين يتعدد
 let BUSINESS_LOGO_URL = '';     // businesses.logo_url — same logo already used on reports/dashboard; printed at the top of the customer receipt when DEVICE.printReceiptLogo is on
 let RECEIPT_CUSTOM_MESSAGE = ''; // businesses.receipt_custom_message — owner-editable line printed near the receipt footer
 let PLATFORM_PRICES = {};       // platformId -> {menuItemId: price} — real menu_item_platform_prices, each platform's own price list
@@ -6696,6 +6716,26 @@ async function loadPosData(){
       .select('receipt_theme, pos_require_manager_pin_for_close, dine_in_mode, pos_pager_enabled, kitchen_ticket_mode')
       .eq('id', businessId).single();
     RECEIPT_THEME = (themeRes.data && themeRes.data.receipt_theme) || 'classic';
+    // هوية الفاتورة، في نفس الاستعلام المتسامح ولنفس سببه.
+    try {
+      const brandRes = await sb.from('businesses')
+        .select('receipt_logo_url, receipt_tagline').eq('id', businessId).single();
+      RECEIPT_LOGO_URL = (brandRes.data && brandRes.data.receipt_logo_url) || '';
+      RECEIPT_TAGLINE = (brandRes.data && brandRes.data.receipt_tagline) || '';
+    } catch(_){ RECEIPT_LOGO_URL = ''; RECEIPT_TAGLINE = ''; }
+    // الحي والمدينة، وعدد الفروع. العدد هو ما يقرر طباعة اسم الفرع:
+    // منشأة بفرع واحد لا تحتاج تمييزه، وسطرٌ يقول "الفرع الأول" حيث لا
+    // ثانيَ له سطرٌ بلا معنى.
+    try {
+      const brRes = await sb.from('branches')
+        .select('id, district, city').eq('business_id', businessId);
+      const rows = brRes.data || [];
+      BRANCH_COUNT = rows.length || 1;
+      const mine = rows.find(b => String(b.id) === String(DEVICE.branchId));
+      BRANCH_LOCATION_LINE = mine
+        ? [mine.district, mine.city].filter(Boolean).join('، ')
+        : '';
+    } catch(_){ BRANCH_LOCATION_LINE = ''; BRANCH_COUNT = 1; }
     // 'tables' only when it says so: defaulting to tables would put a café
     // that has none into a table workflow.
     DINE_IN_MODE = (themeRes.data && themeRes.data.dine_in_mode === 'tables') ? 'tables' : 'simple';

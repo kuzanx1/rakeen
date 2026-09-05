@@ -7582,6 +7582,8 @@ let PRICES_INCLUDE_VAT = true;
 let VAT_REGISTERED = true; // businesses.vat_registered — off means no VAT anywhere, not just a hidden field
 let BUSINESS_VAT_NUMBER = '';
 let RECEIPT_CUSTOM_MESSAGE = '';
+let RECEIPT_LOGO_URL = '';
+let RECEIPT_TAGLINE = '';
 let RECEIPT_THEME = 'classic';
 let ONLINE_COD_ENABLED = true;
 let ONLINE_CARD_ENABLED = true;
@@ -8114,6 +8116,14 @@ async function renderBranchesSettings(){
       .select('branch_id, weekday, opening_time, closing_time, is_closed')
       .eq('business_id', CURRENT_PROFILE.business_id)
   ]);
+  // الحي والمدينة باستعلام مستقل متسامح: عمود لا تعرفه القاعدة يُسقط
+  // الاستعلام كله، وشاشة الفروع لا يجوز أن تسقط لأن ترحيلاً لم يُطبَّق.
+  const locations = await loadBranchLocations(CURRENT_PROFILE.business_id);
+  (branches || []).forEach(b => {
+    const loc = locations[b.id];
+    b.district = loc ? (loc.district || '') : '';
+    b.city = loc ? (loc.city || '') : '';
+  });
   const limit = business ? business.branch_limit : 1;
   const count = (branches||[]).length;
   const atLimit = count >= limit;
@@ -8130,7 +8140,12 @@ async function renderBranchesSettings(){
       ${(branches||[]).map(b=>`
         <div class="rk-subcard" data-branch="${b.id}">
           <div class="rk-subcard-title">${b.name}</div>
-          <div class="rk-field" style="margin-bottom:14px;"><label>العنوان</label><input type="text" class="branch-address-input" value="${b.address||''}" placeholder="الحي، المدينة"></div>
+          <div class="rk-grid-2" style="margin-bottom:14px;">
+            <div class="rk-field"><label>الحي</label><input type="text" class="branch-district-input" value="${b.district||''}" placeholder="حي البيعة" maxlength="40"></div>
+            <div class="rk-field"><label>المدينة</label><input type="text" class="branch-city-input" value="${b.city||''}" placeholder="الطائف" maxlength="40"></div>
+          </div>
+          <p class="stock-qty-helper" style="margin:-6px 0 14px;">الحي والمدينة يطبعان في ترويسة الفاتورة تحت اسم المطعم.</p>
+          <div class="rk-field" style="margin-bottom:14px;"><label>العنوان الكامل</label><input type="text" class="branch-address-input" value="${b.address||''}" placeholder="طريق الملك فهد، حي البيعة، الطائف"></div>
           <div class="rk-grid-2" style="margin-bottom:14px;">
             <div class="rk-field"><label>خط العرض (Lat)</label><input type="number" class="branch-lat-input" value="${b.lat??''}" step="0.000001"></div>
             <div class="rk-field"><label>خط الطول (Lng)</label><input type="number" class="branch-lng-input" value="${b.lng??''}" step="0.000001"></div>
@@ -8232,7 +8247,10 @@ async function renderBranchesSettings(){
       rkBtnLoading(saveBtn, true);
       try {
         const { error } = await window.supabaseClient.from('branches').update({
-          address, lat: latVal===''?null:parseFloat(latVal), lng: lngVal===''?null:parseFloat(lngVal),
+          address,
+          district: row.querySelector('.branch-district-input').value.trim() || null,
+          city: row.querySelector('.branch-city-input').value.trim() || null,
+          lat: latVal===''?null:parseFloat(latVal), lng: lngVal===''?null:parseFloat(lngVal),
           opening_time: openVal || null, closing_time: closeVal || null
         }).eq('id', branchId);
         if(error) throw error;
@@ -8305,6 +8323,39 @@ const rkPosHideImagesStatus = c => c
 const rkPosHideBellStatus = c => c
   ? {text:'⚠ مخفي — ما يوصل الكاشير أي تذكير قبل انتهاء وقت تجهيز طلب توصيل', tone:'warn'}
   : {text:'ظاهر — ينبّه الكاشير قبل ما ينتهي وقت تجهيز طلب التوصيل', tone:'ok'};
+
+/**
+ * أعمدة هوية الفاتورة، باستعلام مستقل.
+ *
+ * PostgREST يُسقط الاستعلام كاملاً على عمود واحد لا يعرفه. فلو ضُمّت
+ * هذي الأعمدة إلى استعلام المنشأة الكبير، لسقطت لوحة التحكم كلها على
+ * أي نشر يسبق تطبيق الترحيل -- وهو تحديداً ما حذّر منه الكاشير في
+ * تعليقه عند قراءة شكل الفاتورة. نفس النمط، ولنفس السبب.
+ */
+async function loadReceiptBranding(businessId){
+  try {
+    const res = await window.supabaseClient.from('businesses')
+      .select('receipt_logo_url, receipt_tagline').eq('id', businessId).single();
+    RECEIPT_LOGO_URL = (res.data && res.data.receipt_logo_url) || '';
+    RECEIPT_TAGLINE = (res.data && res.data.receipt_tagline) || '';
+  } catch(_){
+    RECEIPT_LOGO_URL = '';
+    RECEIPT_TAGLINE = '';
+  }
+}
+
+/** الحي والمدينة، بنفس الحيطة. */
+async function loadBranchLocations(businessId){
+  try {
+    const res = await window.supabaseClient.from('branches')
+      .select('id, district, city').eq('business_id', businessId);
+    const byId = {};
+    (res.data || []).forEach(b => { byId[b.id] = b; });
+    return byId;
+  } catch(_){
+    return {};
+  }
+}
 
 function customerReceiptPreviewHtml(themeId){
   const t = rkReceiptTheme(themeId);
@@ -8522,6 +8573,7 @@ function renderPosReadiness(){
 }
 
 async function renderPosSettings(){
+  await loadReceiptBranding(CURRENT_PROFILE.business_id);
   const panel = document.getElementById('posSettingsPanelBody');
   panel.innerHTML = '<div class="panel"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>';
   // كل هذي كانت await وراء await — أربع رحلات متتابعة تتكرر مع كل ضغطة
@@ -8593,13 +8645,33 @@ async function renderPosSettings(){
       <button class="rk-btn rk-btn-primary rk-btn-md" id="kitchenTicketSaveBtn" style="margin-top:12px;">حفظ نسخة المطبخ</button>
     </div>`;
 
+  // شعار الفاتورة منفصل عن شعار المطعم عمداً، لا تكراراً له. الطباعة
+  // الحرارية أبيض وأسود بلا تدرّج، وشعار ملوّن جميل على الشاشة قد يخرج
+  // بقعة سوداء على الورق -- فمن أراد نسخة مبسّطة للطباعة يرفعها هنا.
+  // والأهم: تركها فارغة قرارٌ يعني "اطبع الاسم وحده"، ولا يمكن قول ذلك
+  // لو كانت الخانة مشتركة مع شعار المطعم.
+  const receiptBrandPanel = `
+    <div class="rk-section">
+      ${rkSectionHead('image', 'هوية الفاتورة المطبوعة', 'شعار وسطر تعريفي يطبعان بأعلى كل فاتورة')}
+      <div class="rk-field" style="margin-bottom:16px;">
+        <label>شعار الفاتورة</label>
+        ${rkImageUploadHtml('receiptLogoInput', { currentUrl: RECEIPT_LOGO_URL, width:500, height:500, note:'اتركه فارغاً إذا تبي اسم المطعم فقط' })}
+      </div>
+      <div class="rk-field">
+        <label>السطر التعريفي</label>
+        <input type="text" id="settingsReceiptTagline" value="${RECEIPT_TAGLINE || ''}" placeholder="قهوة مختصة من الطائف" maxlength="60">
+      </div>
+      <p class="stock-qty-helper" style="margin-top:8px;">يطبع تحت اسم المطعم مباشرة. سيبه فاضي إذا ما تبيه.</p>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="receiptBrandSaveBtn" style="margin-top:6px;">حفظ هوية الفاتورة</button>
+    </div>`;
+
   const receiptMessagePanel = `
     <div class="rk-section">
-      ${rkSectionHead('messageCircle', 'رسالة أسفل فاتورة العميل', 'سطر قصير يطبع تحت رمز QR — شكر، أو أي رسالة تحبها')}
+      ${rkSectionHead('messageCircle', 'رسالة أسفل فاتورة العميل', 'تطبع تحت رمز QR — شكر، أو مدة جلوس، أو أي رسالة تحبها')}
       <div class="rk-field">
-        <input type="text" id="settingsReceiptMessage" value="${RECEIPT_CUSTOM_MESSAGE || ''}" placeholder="شكراً لزيارتكم" maxlength="120">
+        <textarea id="settingsReceiptMessage" rows="2" maxlength="120" placeholder="مدة الجلوس 60 دقيقة للطاولة&#10;شكراً لزيارتكم">${RECEIPT_CUSTOM_MESSAGE || ''}</textarea>
       </div>
-      <p class="stock-qty-helper" style="margin-top:8px;">سيبها فاضية لتبقى "شكراً لزيارتكم" الافتراضية.</p>
+      <p class="stock-qty-helper" style="margin-top:8px;">كل سطر يطبع سطراً. سيبها فاضية لتبقى "شكراً لزيارتكم" الافتراضية.</p>
       <button class="rk-btn rk-btn-primary rk-btn-md" id="receiptMessageSaveBtn" style="margin-top:6px;">حفظ الرسالة</button>
     </div>`;
 
@@ -8854,7 +8926,7 @@ async function renderPosSettings(){
     </div>`;
 
   const POS_SETTINGS_TABS_HTML = {
-    receipt: receiptPreviewHtml() + receiptMessagePanel + kitchenTicketPanel,
+    receipt: receiptPreviewHtml() + receiptBrandPanel + receiptMessagePanel + kitchenTicketPanel,
     interface: simplifyPanel,
     tables: orderTypesIntro + dineInMasterPanel + tablesGatedContent,
     kitchen: kitchenPanel + autoReadyPanel,
@@ -9032,8 +9104,36 @@ async function renderPosSettings(){
     }
   });
 
+  attachImageCropper('receiptLogoInput', { aspect: 1, outputWidth: 500, outputHeight: 500 });
+  wireImageUploadBoxPreview('receiptLogoInput');
+
+  const receiptBrandSaveBtn = document.getElementById('receiptBrandSaveBtn');
+  if(receiptBrandSaveBtn) receiptBrandSaveBtn.addEventListener('click', async ()=>{
+    const tagline = document.getElementById('settingsReceiptTagline').value.trim();
+    const logoFile = document.getElementById('receiptLogoInput').files[0];
+    rkBtnLoading(receiptBrandSaveBtn, true);
+    try {
+      const updates = { receipt_tagline: tagline || null };
+      // الشعار يُرفع فقط حين يُختار ملف جديد. غياب الملف يعني "لا تغيّره"،
+      // لا "احذفه" -- وإلا فقد صاحب المطعم شعاره كلما حفظ السطر التعريفي.
+      if(logoFile){
+        updates.receipt_logo_url = await uploadMediaFile(await compressImageFile(logoFile), 'receipt-branding', 'logo');
+      }
+      await updateCurrentBusiness(updates);
+      RECEIPT_TAGLINE = tagline;
+      if(updates.receipt_logo_url) RECEIPT_LOGO_URL = updates.receipt_logo_url;
+      logDashboardAudit('عدّل هوية الفاتورة المطبوعة');
+      rkBtnSuccess(receiptBrandSaveBtn, '✓ تم الحفظ');
+    } catch(err){
+      rkBtnLoading(receiptBrandSaveBtn, false);
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
+  });
+
   const receiptMessageSaveBtn = document.getElementById('receiptMessageSaveBtn');
   if(receiptMessageSaveBtn) receiptMessageSaveBtn.addEventListener('click', async ()=>{
+    // الأسطر تُحفظ كما هي -- trim() على النص كله لا على كل سطر، وإلا
+    // ضاع السطر الثاني الذي يريده صاحب المطعم.
     const msg = document.getElementById('settingsReceiptMessage').value.trim();
     rkBtnLoading(receiptMessageSaveBtn, true);
     try {
