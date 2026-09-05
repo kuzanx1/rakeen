@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './Text';
 import { TouchableOpacity } from './tappable';
@@ -644,6 +644,32 @@ export default function PaymentModal({
       : (c.name || '').trim().toLowerCase() === trimmedQuery.toLowerCase(),
   );
 
+  /**
+   * رقمٌ كامل لا يعرفه أحد ينتقل إلى التسجيل وحده.
+   *
+   * كان الكاشير يكتب الرقم، ثم ينتظر البحث، ثم يقرأ صفاً مكتوباً فيه
+   * "إضافة عميل جديد"، ثم يضغطه. أربع خطوات لنتيجةٍ واحدة لا ثانيَ لها:
+   * رقمٌ سعوديٌّ كامل لم يُطابق أحداً لا يعني إلا زبوناً جديداً.
+   *
+   * والشرط ضيّق عمداً: عشرة أرقام تبدأ بـ05 -- لا اسمٌ ولا رقمٌ ناقص.
+   * فمن يكتب اسماً يبحث، ومن يكتب نصف رقم لم يفرغ منه بعد.
+   *
+   * ولا ينتقل إلا مرة: من رجع إلى البحث بإرادته لا يُدفع إلى الأمام
+   * ثانيةً على الرقم نفسه.
+   */
+  const autoNewFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (step !== 'customer' || customer || searching || suggestions == null) return;
+    const q = trimmedQuery;
+    if (!/^05\d{8}$/.test(q)) return;
+    if (queryMatchesExisting || suggestions.length > 0) return;
+    if (autoNewFor.current === q) return;
+    autoNewFor.current = q;
+    setNewName('');
+    setNewPhone(q);
+    setStep('newCustomer');
+  }, [step, customer, searching, suggestions, trimmedQuery, queryMatchesExisting]);
+
   const CustomerRow = ({ c, onPress }: { c: AttachedCustomer; onPress?: () => void }) => (
     <TouchableOpacity style={styles.customerSuggest} onPress={onPress} disabled={!onPress} activeOpacity={0.8}>
       {/* A person mark, not the first letter of the name. The letter tile
@@ -815,15 +841,20 @@ export default function PaymentModal({
                     <View style={styles.searchRow}>
                       <TextInput
                         style={[styles.input, styles.searchInput]}
-                        placeholder="اكتب اسم أو جوال..."
+                        placeholder="رقم الجوال أو الاسم"
                         placeholderTextColor={colors.muted}
                         value={query}
-                        onChangeText={setQuery}
+                        onChangeText={t => setQuery(toLatinDigits(t))}
                         autoFocus
                       />
-                      {/* #pmScanCustomerCardBtn -- a 44px square */}
+                      {/* كان زر مسح باركود لا يمسح شيئاً -- لا ماسح خلفه
+                          ولا معالج. فأصبح ما هو: علامةُ حقلٍ تقول إنه
+                          للبحث عن عميل، لا زراً يَعِد بما لا يفعل. */}
                       <View style={[styles.customerSuggest, styles.scanBtn]}>
-                        <Text style={styles.scanGlyph}>📷</Text>
+                        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={2}>
+                          <Circle cx={11} cy={11} r={7} />
+                          <Path d="M20 20l-3.5-3.5" />
+                        </Svg>
                       </View>
                     </View>
                     <View style={styles.customerPanelRow}>
@@ -955,6 +986,12 @@ export default function PaymentModal({
                 {!newCustomerValid && (newName.trim() !== '' || newPhone !== '') && (
                   <Text style={styles.newCustomerHint}>{newCustomerErrors[0]}</Text>
                 )}
+                {/* من لا يريد التسجيل لا يُحبس في شاشته.
+                    كان الخروج من هنا بالرجوع ثم "تخطي" في الشاشة التي
+                    قبلها -- ضغطتان وطريقٌ إلى الوراء، والزبون واقف. */}
+                <TouchableOpacity onPress={() => { onCustomerChange(null); proceedToPayment(); }} style={styles.textLink}>
+                  <Text style={styles.textLinkText}>تخطي — بيع بدون تسجيل</Text>
+                </TouchableOpacity>
               </>
             )}
 
