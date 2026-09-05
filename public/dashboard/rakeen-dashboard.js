@@ -8403,10 +8403,15 @@ function customerReceiptPreviewHtml(themeId){
       // رمادياً ثم يُحوَّل إلى نقاط سوداء أو بيضاء بعتبة. عرضُه ملوّناً
       // في المعاينة يَعِد بما لا يستطيع الورق الوفاء به.
       //
-      // والمرشّح يحاكي العتبة نفسها: تدرّج رمادي، ثم تباين عالٍ يدفع كل
-      // درجة إلى أحد الطرفين -- وهو ما تفعله <160 بالضبط.
+      // والمرشّح يحاكي العتبة بالحساب لا بالتقريب.
+      //
+      // contrast يوزّع حول 0.5، والعتبة عند 160/255 = 0.627 -- فتباينٌ
+      // وحده يُفتّح الشعار بدل أن يعتّمه، وهو ما أخرجه رمادياً باهتاً.
+      // فـbrightness تُزيح العتبة إلى 0.5 أولاً (0.5 ÷ 0.627 = 0.797)،
+      // ثم تباين ستّون يجعل النتيجة ثنائية: أسود أو أبيض بلا رمادي.
+      // الحافة تقع عند إضاءة 163، أي عتبة المُرمِّز نفسها.
       (t.showLogo && RECEIPT_LOGO_URL)
-        ? '<div style="display:flex; justify-content:center; ' + mb(8) + '"><img src="' + RECEIPT_LOGO_URL + '" alt="" style="width:' + Math.round((t.logoWidth || 0.30) * 100) + '%; max-height:90px; object-fit:contain; filter:grayscale(1) contrast(2.2) brightness(0.92);"></div>'
+        ? '<div style="display:flex; justify-content:center; ' + mb(8) + '"><img src="' + RECEIPT_LOGO_URL + '" alt="" style="width:' + Math.round((t.logoWidth || 0.30) * 100) + '%; max-height:90px; object-fit:contain; filter:grayscale(1) brightness(0.797) contrast(60);"></div>'
         : '',
       // الاسم يُخفى فقط حين يوجد شعار -- بلا شعار هو الترويسة كلها.
       (RECEIPT_SHOW_NAME || !(t.showLogo && RECEIPT_LOGO_URL))
