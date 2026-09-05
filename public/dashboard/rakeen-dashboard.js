@@ -10486,7 +10486,16 @@ async function moveCategoryOrder(catId, direction){
   const other = siblings[targetIdx];
   const catSort = cat.sortOrder, otherSort = other.sortOrder;
   cat.sortOrder = otherSort; other.sortOrder = catSort;
-  renderOnlineCategoryHierarchy();
+  // MENU_CATEGORIES مصفوفة أسماء تُبنى مرة واحدة عند التحميل بترتيب
+  // القاعدة، ولا علاقة لها بـCATEGORY_ROWS. فتبديل sortOrder كان يُحفظ في
+  // القاعدة ولا يحرّك رقاقة واحدة على الشاشة -- الزر يعمل والعين لا ترى
+  // شيئاً، وهو أسوأ من زر لا يعمل. تُبدَّل هنا أيضاً.
+  const ia = MENU_CATEGORIES.indexOf(cat.name), ib = MENU_CATEGORIES.indexOf(other.name);
+  if(ia !== -1 && ib !== -1){ MENU_CATEGORIES[ia] = other.name; MENU_CATEGORIES[ib] = cat.name; }
+  // كلتا الشاشتين تعرض الفئات، وأيّهما مفتوحة تُعاد رسمها. الحارس لأن
+  // الأخرى قد لا تكون في الصفحة أصلاً.
+  if(document.getElementById('onlineCategoryHierarchy')) renderOnlineCategoryHierarchy();
+  if(document.getElementById('menuCategoryTabs')){ renderCategoryTabs(); renderMenuProductTable(); }
   try {
     const [{error:e1}, {error:e2}] = await Promise.all([
       window.supabaseClient.from('menu_categories').update({sort_order: otherSort}).eq('id', cat.id),
@@ -10905,14 +10914,22 @@ function renderCategoryTabs(){
     // تُستدعيان هنا، لا نسخة ثانية منهما.
     const catId = MENU_CATEGORY_ID_BY_NAME[cat];
     const order = MENU_CATEGORIES.indexOf(cat);
-    return `<button class="menu-cat-tab ${activeMenuCategory===cat?'active':''}" data-cat="${cat}">
+    // الأدوات على الفئة المختارة وحدها.
+    //
+    // إظهارها على كل رقاقة يضرب أربعة أزرار في عدد الفئات: عشر فئات صارت
+    // أربعين زراً على الشاشة، وعلى الجوال صارت كل فئة سطراً كاملاً حتى
+    // ابتلعت الرقاقاتُ الصفحةَ ولم يبقَ للمنتجات مكان. والفئة تُختار قبل
+    // أن تُرتَّب أو تُحذف على أي حال، فربط الأدوات بالاختيار لا يضيف
+    // خطوة -- يُظهرها في وقتها.
+    const isActive = activeMenuCategory === cat;
+    return `<button class="menu-cat-tab ${isActive?'active':''}" data-cat="${cat}">
       ${cat} <span class="mct-count">${count}</span>
-      <span class="mct-tools">
-        <span class="mct-tool" data-catmove="up" data-catid="${catId}" title="نقل لليمين" ${order===0?'data-off="1"':''}>
-          <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3"><polyline points="15 18 9 12 15 6"/></svg>
-        </span>
-        <span class="mct-tool" data-catmove="down" data-catid="${catId}" title="نقل لليسار" ${order===MENU_CATEGORIES.length-1?'data-off="1"':''}>
+      ${!isActive ? '' : `<span class="mct-tools">
+        <span class="mct-tool" data-catmove="up" data-catid="${catId}" title="قدّمها" ${order===0?'data-off="1"':''}>
           <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"/></svg>
+        </span>
+        <span class="mct-tool" data-catmove="down" data-catid="${catId}" title="أخّرها" ${order===MENU_CATEGORIES.length-1?'data-off="1"':''}>
+          <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3"><polyline points="15 18 9 12 15 6"/></svg>
         </span>
         <span class="mct-tool mct-rename" data-rename="${cat}" title="إعادة تسمية">
           <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
@@ -10920,7 +10937,7 @@ function renderCategoryTabs(){
         <span class="mct-tool mct-del" data-catdel="${catId}" title="حذف الفئة">
           <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
         </span>
-      </span>
+      </span>`}
     </button>`;
   }).join('');
   el.innerHTML = html;
