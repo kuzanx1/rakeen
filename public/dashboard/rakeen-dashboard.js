@@ -4817,12 +4817,15 @@ async function renderLoyaltySuggestedColors(imgSrc){
 
 async function loadLoyaltyBranding(){
   const { data } = await window.supabaseClient.from('businesses')
-    .select('loyalty_logo_url, loyalty_banner_url, loyalty_accent_color, loyalty_system_type, loyalty_visits_threshold, loyalty_reward_label, loyalty_icon_style, loyalty_pattern_style, loyalty_theme, loyalty_custom_icon_url, loyalty_enabled, loyalty_banner_overlay, loyalty_icon_size, loyalty_tagline')
+    .select('loyalty_logo_url, loyalty_banner_url, loyalty_accent_color, loyalty_system_type, loyalty_visits_threshold, loyalty_reward_label, loyalty_icon_style, loyalty_pattern_style, loyalty_theme, loyalty_custom_icon_url, loyalty_enabled, loyalty_banner_overlay, loyalty_icon_size, loyalty_tagline, loyalty_unit_threshold, loyalty_reward_mode, loyalty_visit_min_total')
     .eq('id', CURRENT_PROFILE.business_id).single();
   if(data){
     LOYALTY_BRANDING = {
       logoUrl: data.loyalty_logo_url, bannerUrl: data.loyalty_banner_url, accentColor: data.loyalty_accent_color || '#C4FF2B',
       systemType: data.loyalty_system_type || 'points', visitsThreshold: data.loyalty_visits_threshold || 5,
+      unitThreshold: data.loyalty_unit_threshold || 6,
+      rewardMode: data.loyalty_reward_mode || 'open',
+      visitMinTotal: Number(data.loyalty_visit_min_total || 0),
       rewardLabel: data.loyalty_reward_label || 'مشروب مجاني', iconStyle: data.loyalty_icon_style || 'generic',
       patternStyle: data.loyalty_pattern_style || 'none', theme: data.loyalty_theme || 'classic',
       customIconUrl: data.loyalty_custom_icon_url || null,
@@ -5144,18 +5147,25 @@ async function renderLoyaltyCardPreview(){
 }
 
 function updateLoyaltySystemTypeVisibility(){
-  const isVisits = loyaltySystemTypeFormValue() === 'visits';
-  document.getElementById('loyaltyPointsConfig').classList.toggle('hidden', isVisits);
+  const type = loyaltySystemTypeFormValue();
+  const isVisits = type === 'visits';
+  const isPoints = type === 'points';
+  // بطاقةُ ختمٍ تُملأ في الحالين -- زياراتٍ كانت أو أكواباً -- فأيقونتها
+  // وحجمها يعنيان كليهما، والنقاط وحدها هي التي لا ختم لها.
+  document.getElementById('loyaltyPointsConfig').classList.toggle('hidden', !isPoints);
   document.getElementById('loyaltyVisitsConfig').classList.toggle('hidden', !isVisits);
-  document.getElementById('loyaltyIconPickerRow').classList.toggle('hidden', !isVisits);
-  document.getElementById('loyaltyIconSizeRow').classList.toggle('hidden', !isVisits);
+  document.getElementById('loyaltyIconPickerRow').classList.toggle('hidden', isPoints);
+  document.getElementById('loyaltyIconSizeRow').classList.toggle('hidden', isPoints);
 }
 
 document.querySelectorAll('input[name="loyaltySystemType"]').forEach(radio=>{
   radio.addEventListener('change', ()=>{
     document.getElementById('loyaltyTypeCardPoints').style.borderColor = radio.value === 'points' ? 'var(--lime-deep)' : 'var(--line)';
     document.getElementById('loyaltyTypeCardVisits').style.borderColor = radio.value === 'visits' ? 'var(--lime-deep)' : 'var(--line)';
+    const pc = document.getElementById('loyaltyTypeCardProducts');
+    if(pc) pc.style.borderColor = radio.value === 'products' ? 'var(--lime-deep)' : 'var(--line)';
     updateLoyaltySystemTypeVisibility();
+    renderLoyaltyProgramPanel();
     renderLoyaltyCardPreview();
   });
 });
@@ -5204,6 +5214,12 @@ function renderLoyaltyBrandingPreview(){
     radio.checked = radio.value === LOYALTY_BRANDING.systemType;
   });
   document.getElementById('loyaltyTypeCardPoints').style.borderColor = LOYALTY_BRANDING.systemType === 'points' ? 'var(--lime-deep)' : 'var(--line)';
+  const productsCard = document.getElementById('loyaltyTypeCardProducts');
+  if(productsCard) productsCard.style.borderColor = LOYALTY_BRANDING.systemType === 'products' ? 'var(--lime-deep)' : 'var(--line)';
+  // القوائم تُجلب مرة ثم تُرسم: الشاشة تظهر بما في الذاكرة ولا تنتظر
+  // الشبكة، وتُعاد رسمها حين تصل.
+  renderLoyaltyProgramPanel();
+  loadLoyaltyProgramData().then(renderLoyaltyProgramPanel);
   document.getElementById('loyaltyTypeCardVisits').style.borderColor = LOYALTY_BRANDING.systemType === 'visits' ? 'var(--lime-deep)' : 'var(--line)';
   document.querySelectorAll('#loyaltyThemeChips button').forEach(b=>b.classList.toggle('active', b.dataset.theme === LOYALTY_BRANDING.theme));
   renderLoyaltyIconPicker();
@@ -5723,6 +5739,15 @@ document.getElementById('loyaltyRateSaveBtn').addEventListener('click', async ()
   const btn = document.getElementById('loyaltyRateSaveBtn');
   const systemType = loyaltySystemTypeFormValue();
   const updates = { loyalty_system_type: systemType };
+  // طريقة التسليم تخصّ الزيارات والأكواب معاً، لا أحدهما.
+  if(systemType !== 'points'){
+    const modeEl = document.querySelector('input[name="loyaltyRewardMode"]:checked');
+    const mode = modeEl ? modeEl.value : 'open';
+    if(mode === 'products' && LOYALTY_PROGRAM.reward.length === 0){
+      showToast('اخترت "منتج محدد" — حدد وش المنتج اللي ياخذه'); return;
+    }
+    updates.loyalty_reward_mode = mode;
+  }
 
   if(systemType === 'visits'){
     const threshold = parseInt(document.getElementById('loyaltyVisitsThresholdInput').value,10);
@@ -5731,6 +5756,15 @@ document.getElementById('loyaltyRateSaveBtn').addEventListener('click', async ()
     if(!rewardLabel){ showToast('اكتب وش المكافأة'); return; }
     updates.loyalty_visits_threshold = threshold;
     updates.loyalty_reward_label = rewardLabel;
+    const minEl = document.getElementById('loyaltyVisitMinInput');
+    if(minEl) updates.loyalty_visit_min_total = Math.max(0, Number(minEl.value) || 0);
+  } else if(systemType === 'products'){
+    const unitEl = document.getElementById('loyaltyUnitThresholdInput');
+    const units = parseInt(unitEl ? unitEl.value : '', 10);
+    if(!(units >= 2)){ showToast('عدد الوحدات لازم يكون ٢ أو أكثر'); return; }
+    if(LOYALTY_PROGRAM.counts.length === 0){ showToast('اختر وش الأصناف اللي تُعدّ أولاً'); return; }
+    updates.loyalty_unit_threshold = units;
+    updates.loyalty_reward_label = document.getElementById('loyaltyRewardLabelInput').value.trim() || 'مكافأة مجانية';
   } else {
     const val = parseInt(document.getElementById('loyaltyRateInput').value);
     if(!(val > 0)){ showToast('أدخل رقم صحيح'); return; }
@@ -15027,3 +15061,165 @@ renderAiSuggestions();
    panel, plus a support/lead channel) lives in the webhook + admin panel
    instead; see rakeen_support_conversations. */
 })();
+
+/* ============ لوحة برنامج الولاء ============
+   الأصناف التي تُعدّ، والأصناف التي تُعطى، والحدّ الأدنى للزيارة.
+
+   تُبنى من JS لا من المعلَم: القوائم تتبع منيو المطعم -- تصنيفاته
+   وأصنافه -- ولا يعرفها معلَمٌ ثابت. والمعلَم لا يحمل منها إلا حاوية
+   فارغة اسمها loyaltyProgramPanel. */
+
+let LOYALTY_PROGRAM = { counts: [], reward: [] };
+let LOYALTY_MENU = { categories: [], items: [] };
+
+async function loadLoyaltyProgramData(){
+  const bizId = CURRENT_PROFILE.business_id;
+  try {
+    const [catRes, itemRes, progRes] = await Promise.all([
+      window.supabaseClient.from('menu_categories').select('id, name').eq('business_id', bizId).order('sort_order'),
+      window.supabaseClient.from('menu_items').select('id, name, category_id').eq('business_id', bizId).eq('active', true).order('name'),
+      window.supabaseClient.from('loyalty_program_items').select('id, role, category_id, menu_item_id').eq('business_id', bizId),
+    ]);
+    LOYALTY_MENU.categories = catRes.data || [];
+    LOYALTY_MENU.items = itemRes.data || [];
+    const rows = progRes.data || [];
+    LOYALTY_PROGRAM.counts = rows.filter(r => r.role === 'counts');
+    LOYALTY_PROGRAM.reward = rows.filter(r => r.role === 'reward');
+  } catch(_){
+    // لوحة بلا قوائم خيرٌ من صفحة لا تُفتح.
+  }
+}
+
+function rkLoyaltyChip(label, onRemoveAttr){
+  return '<span style="display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:999px; background:var(--surf-2); border:1px solid var(--line); font-size:12px; font-weight:700;">'
+    + escapeHtml(label)
+    + '<button type="button" ' + onRemoveAttr + ' style="border:0; background:none; cursor:pointer; color:var(--muted); font-size:15px; line-height:1;">×</button></span>';
+}
+
+/** خياراتُ إضافةٍ لا تعرض ما أُضيف: قائمةٌ تعرض المضاف تدعو إلى تكراره. */
+function rkLoyaltyOptions(role){
+  const usedCat = new Set(LOYALTY_PROGRAM[role].filter(r=>r.category_id).map(r=>String(r.category_id)));
+  const usedItem = new Set(LOYALTY_PROGRAM[role].filter(r=>r.menu_item_id).map(r=>String(r.menu_item_id)));
+  let html = '<option value="">+ أضف…</option>';
+  // المكافأة صنفٌ دائماً لا تصنيف -- والقيد في القاعدة يمنع غير ذلك،
+  // فالواجهة لا تعرض ما سيُردّ.
+  if(role === 'counts'){
+    const cats = LOYALTY_MENU.categories.filter(c => !usedCat.has(String(c.id)));
+    if(cats.length) html += '<optgroup label="تصنيف كامل">' + cats.map(c=>'<option value="c:'+c.id+'">'+escapeHtml(c.name)+'</option>').join('') + '</optgroup>';
+  }
+  const items = LOYALTY_MENU.items.filter(i => !usedItem.has(String(i.id)));
+  if(items.length) html += '<optgroup label="صنف واحد">' + items.map(i=>'<option value="i:'+i.id+'">'+escapeHtml(i.name)+'</option>').join('') + '</optgroup>';
+  return html;
+}
+
+function rkLoyaltyRowLabel(r){
+  if(r.category_id){
+    const c = LOYALTY_MENU.categories.find(x => String(x.id) === String(r.category_id));
+    return 'تصنيف: ' + (c ? c.name : '#' + r.category_id);
+  }
+  const i = LOYALTY_MENU.items.find(x => String(x.id) === String(r.menu_item_id));
+  return i ? i.name : '#' + r.menu_item_id;
+}
+
+function rkLoyaltyListHtml(role){
+  const rows = LOYALTY_PROGRAM[role];
+  const chips = rows.length
+    ? rows.map((r,idx)=>rkLoyaltyChip(rkLoyaltyRowLabel(r), 'data-lprm="'+role+':'+idx+'"')).join(' ')
+    : '<span style="font-size:12px; color:var(--muted);">لا شيء بعد.</span>';
+  return '<div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:8px;">' + chips + '</div>'
+    + '<select data-lpadd="' + role + '" style="max-width:280px;">' + rkLoyaltyOptions(role) + '</select>';
+}
+
+function renderLoyaltyProgramPanel(){
+  const el = document.getElementById('loyaltyProgramPanel');
+  if(!el) return;
+  const type = loyaltySystemTypeFormValue();
+  // النقاط لا تعدّ أصنافاً ولا تُسلَّم منتجاً: هي خصمٌ على الفاتورة.
+  if(type === 'points'){ el.innerHTML = ''; return; }
+
+  const rewardMode = (LOYALTY_BRANDING.rewardMode === 'products') ? 'products' : 'open';
+  let html = '';
+
+  if(type === 'products'){
+    html += '<div class="rk-field" style="max-width:320px;">'
+      + '<label>كم وحدة قبل المكافأة؟</label>'
+      + '<input type="number" id="loyaltyUnitThresholdInput" min="2" value="' + (LOYALTY_BRANDING.unitThreshold || 6) + '">'
+      + '</div>'
+      + '<div style="margin-top:14px;">'
+      + '<div style="font-weight:800; font-size:13px; margin-bottom:2px;">وش الأصناف اللي تُعدّ؟</div>'
+      + '<div style="font-size:11.5px; color:var(--muted); margin-bottom:8px; line-height:1.6;">اختر تصنيفاً كاملاً — وأي صنف جديد تضيفه له يدخل العرض تلقائياً — وتقدر تضم صنفاً مفرداً من تصنيف ثاني.</div>'
+      + rkLoyaltyListHtml('counts')
+      + '</div>';
+  }
+
+  if(type === 'visits'){
+    html += '<div class="rk-field" style="max-width:320px;">'
+      + '<label>أقل قيمة فاتورة تُحسب زيارة (ريال)</label>'
+      + '<input type="number" id="loyaltyVisitMinInput" min="0" step="0.5" value="' + (LOYALTY_BRANDING.visitMinTotal || 0) + '">'
+      + '<div style="font-size:11.5px; color:var(--muted); margin-top:5px; line-height:1.6;">صفر = كل فاتورة تُحسب. وبدونه تُملأ بطاقة العشر زيارات بعشر مياه.</div>'
+      + '</div>';
+  }
+
+  html += '<div style="margin-top:18px; padding-top:16px; border-top:1px solid var(--line);">'
+    + '<div style="font-weight:800; font-size:13px; margin-bottom:8px;">وش ياخذ مجاناً؟</div>'
+    + '<div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">'
+    + '<label style="flex:1; min-width:200px; display:flex; flex-direction:column; gap:3px; padding:12px 14px; border:2px solid ' + (rewardMode==='open'?'var(--lime-deep)':'var(--line)') + '; border-radius:12px; cursor:pointer;">'
+    + '<span style="display:flex; align-items:center; gap:8px; font-weight:800; font-size:13px;"><input type="radio" name="loyaltyRewardMode" value="open"' + (rewardMode==='open'?' checked':'') + '> مفتوح</span>'
+    + '<span style="font-size:11.5px; color:var(--muted); margin-inline-start:22px; line-height:1.5;">الكاشير يقرر وش يعطيه.</span></label>'
+    + '<label style="flex:1; min-width:200px; display:flex; flex-direction:column; gap:3px; padding:12px 14px; border:2px solid ' + (rewardMode==='products'?'var(--lime-deep)':'var(--line)') + '; border-radius:12px; cursor:pointer;">'
+    + '<span style="display:flex; align-items:center; gap:8px; font-weight:800; font-size:13px;"><input type="radio" name="loyaltyRewardMode" value="products"' + (rewardMode==='products'?' checked':'') + '> منتج محدد</span>'
+    + '<span style="font-size:11.5px; color:var(--muted); margin-inline-start:22px; line-height:1.5;">الكاشير يضغط ولا يختار — نفس الصنف في كل فرع، ويُخصم من المخزون.</span></label>'
+    + '</div>'
+    + '<div id="loyaltyRewardItemsWrap"' + (rewardMode==='products' ? '' : ' class="hidden"') + '>'
+    + rkLoyaltyListHtml('reward')
+    + '</div></div>';
+
+  el.innerHTML = html;
+}
+
+/* التغييرات تُحفظ في القاعدة مباشرة لا تنتظر زرّاً: القائمة صفوفٌ
+   مستقلة، وجمعُها في حفظةٍ واحدة يعني حذفَ الكل وإعادةَ إدراجه -- وهو
+   يفقد الصفوف إن انقطع في منتصفه. */
+document.addEventListener('change', async (e)=>{
+  const addSel = e.target.closest && e.target.closest('[data-lpadd]');
+  if(addSel && addSel.value){
+    const role = addSel.getAttribute('data-lpadd');
+    const [kind, id] = addSel.value.split(':');
+    const row = { business_id: CURRENT_PROFILE.business_id, role };
+    if(kind === 'c') row.category_id = Number(id); else row.menu_item_id = Number(id);
+    addSel.disabled = true;
+    try {
+      const { data, error } = await window.supabaseClient.from('loyalty_program_items').insert(row).select('id, role, category_id, menu_item_id').single();
+      if(error) throw error;
+      LOYALTY_PROGRAM[role].push(data);
+      renderLoyaltyProgramPanel();
+    } catch(err){
+      addSel.disabled = false;
+      addSel.value = '';
+      showToast('تعذر الإضافة: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
+    return;
+  }
+  const modeRadio = e.target.closest && e.target.closest('input[name="loyaltyRewardMode"]');
+  if(modeRadio){
+    LOYALTY_BRANDING.rewardMode = modeRadio.value;
+    renderLoyaltyProgramPanel();
+  }
+});
+
+document.addEventListener('click', async (e)=>{
+  const rm = e.target.closest && e.target.closest('[data-lprm]');
+  if(!rm) return;
+  e.preventDefault();
+  const [role, idxStr] = rm.getAttribute('data-lprm').split(':');
+  const row = LOYALTY_PROGRAM[role][Number(idxStr)];
+  if(!row) return;
+  try {
+    const { error } = await window.supabaseClient.from('loyalty_program_items').delete().eq('id', row.id);
+    if(error) throw error;
+    LOYALTY_PROGRAM[role].splice(Number(idxStr), 1);
+    renderLoyaltyProgramPanel();
+  } catch(err){
+    showToast('تعذر الحذف: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+  }
+});
