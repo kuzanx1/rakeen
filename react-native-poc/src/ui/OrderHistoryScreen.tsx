@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Modal, StyleSheet, View } from 'react-native';
+import { profileToPrinterTarget, drawerKickCommandFor } from '../domain/printerProfile';
+import { openCashDrawer } from '../platform/cashDrawer';
 import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
@@ -53,6 +55,7 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
   completed: 'مكتمل',
   cancelled: 'ملغى',
   refunded: 'مسترجع',
+  partially_refunded: 'مسترجع جزئياً',
   rejected: 'مرفوض',
 };
 
@@ -65,6 +68,7 @@ const rowBadgeColor = (colors: Palette): Record<OrderHistoryStatus, string> => (
   completed: colors.muted,
   cancelled: colors.danger,
   refunded: colors.danger,
+  partially_refunded: colors.danger,
 });
 
 /**
@@ -131,6 +135,7 @@ export default function OrderHistoryScreen({
   const [detail, setDetail] = useState<OrderHistoryDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [refundBusy, setRefundBusy] = useState(false);
+  const [pendingRefundAmount, setPendingRefundAmount] = useState<number | undefined>(undefined);
   const [refundStatus, setRefundStatus] = useState('');
   const [pinPendingRefund, setPinPendingRefund] = useState(false);
   const [reprintBusy, setReprintBusy] = useState(false);
@@ -218,19 +223,95 @@ export default function OrderHistoryScreen({
     }
   };
 
-  const performRefund = async () => {
+  /**
+   * استرجاع مبلغ، أو الباقي كله حين لا يُمرَّر مبلغ.
+   *
+   * والاسترجاع كاش دائماً فالدرج يُفتح -- ولا يُنتظر ولا يُبطل شيئاً:
+   * درجٌ لم ينفتح لا يجوز أن يُلغي استرجاعاً وقع في القاعدة فعلاً.
+   */
+  const performRefund = async (amount?: number) => {
     if (!detail) return;
     setRefundBusy(true);
     try {
-      await refundPosOrder(detail.id);
-      setRefundStatus('✅ تم استرجاع مبلغ الطلب');
-      setDetail({ ...detail, status: 'refunded' });
+      const res = await refundPosOrder(detail.id, amount);
+      setRefundStatus(
+        res.full
+          ? '✅ تم استرجاع مبلغ الطلب كامل'
+          : `✅ تم استرجاع ${res.refunded.toFixed(2)} ريال — باقي ${res.remaining.toFixed(2)}`,
+      );
+      setDetail({
+        ...detail,
+        status: res.full ? 'refunded' : 'partially_refunded',
+        refundedAmount: res.refunded_total,
+      });
+      void kickDrawerAfterRefund();
       refresh();
     } catch (e) {
       setRefundStatus('🔴 تعذر الاسترجاع — جرّب مرة ثانية');
     } finally {
       setRefundBusy(false);
     }
+  };
+
+  const kickDrawerAfterRefund = async () => {
+    try {
+      const profile = await getPrinterProfile();
+      const target = profileToPrinterTarget(profile);
+      if (!target) return;
+      await openCashDrawer({
+        target,
+        kickCommandBase64: drawerKickCommandFor(profile),
+        timeoutMs: 8000,
+        operationId: `refund-${detail?.id}-${Date.now()}`,
+      });
+    } catch {
+      // الدرج ليس شرطاً لصحة الاسترجاع.
+    }
+  };
+
+  /**
+   * يسأل عن المبلغ قبل أن يسترجع.
+   *
+   * السقف هو الباقي من الفاتورة لا إجماليها، فلا يُسترجع مرتين فوق
+   * استرجاع سابق. والقاعدة تفحصه ثانيةً -- هذا يمنع الغلطة، وذاك يمنع
+   * التحايل.
+   */
+  const askRefundAmount = () => {
+    if (!detail) return;
+    const remaining = Math.max(0, detail.total - (detail.refundedAmount || 0));
+    if (remaining <= 0.001) {
+      setRefundStatus('هذا الطلب مسترجع بالكامل');
+      return;
+    }
+    Alert.prompt(
+      'استرجاع مبلغ',
+      `الباقي من الفاتورة ${remaining.toFixed(2)} ريال.
+اتركه فاضي لاسترجاع المبلغ كامل.`,
+      [
+        { text: 'إلغاء', style: 'cancel' },
+        {
+          text: 'استرجاع',
+          onPress: (raw?: string) => {
+            const text = (raw ?? '').trim();
+            if (text === '') { setPinPendingRefund(true); return; }
+            const amount = Number(text.replace(',', '.'));
+            if (!isFinite(amount) || amount <= 0) {
+              setRefundStatus('🔴 اكتب مبلغ صحيح');
+              return;
+            }
+            if (amount > remaining + 0.001) {
+              setRefundStatus('🔴 المبلغ أكبر من الباقي في الفاتورة');
+              return;
+            }
+            setPendingRefundAmount(amount);
+            setPinPendingRefund(true);
+          },
+        },
+      ],
+      'plain-text',
+      '',
+      'decimal-pad',
+    );
   };
 
   return (
@@ -393,11 +474,11 @@ export default function OrderHistoryScreen({
                       {reprintBusy ? 'جارٍ الطباعة...' : 'إعادة طباعة'}
                     </Text>
                   </TouchableOpacity>
-                  {detail.status === 'completed' && (
+                  {(detail.status === 'completed' || detail.status === 'partially_refunded') && (
                     <TouchableOpacity
                       style={styles.detailActionBtn}
                       disabled={refundBusy}
-                      onPress={() => setPinPendingRefund(true)}
+                      onPress={askRefundAmount}
                       activeOpacity={0.8}>
                       <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={colors.text} strokeWidth={2}>
                         <Polyline points="9 14 4 9 9 4" />
@@ -425,9 +506,13 @@ export default function OrderHistoryScreen({
         visible={pinPendingRefund}
         onApprove={() => {
           setPinPendingRefund(false);
-          performRefund();
+          // المبلغ يُلتقط قبل كلمة سر المدير ويُمرَّر بعدها، ويُمسح دائماً
+          // -- وإلا ورث استرجاعٌ تالٍ مبلغ سابقه بلا أن يُسأل.
+          const amount = pendingRefundAmount;
+          setPendingRefundAmount(undefined);
+          performRefund(amount);
         }}
-        onCancel={() => setPinPendingRefund(false)}
+        onCancel={() => { setPinPendingRefund(false); setPendingRefundAmount(undefined); }}
       />
     </View>
   );

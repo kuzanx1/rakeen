@@ -11,7 +11,7 @@ import { supabase } from '../infrastructure/supabaseClient';
  * which is this item's actual scope.
  */
 
-export type OrderHistoryStatus = 'completed' | 'cancelled' | 'refunded';
+export type OrderHistoryStatus = 'completed' | 'cancelled' | 'refunded' | 'partially_refunded';
 
 export interface OrderHistoryRow {
   id: number;
@@ -65,6 +65,8 @@ export interface OrderHistoryDetail {
   discountAmount: number;
   vatAmount: number;
   total: number;
+  /** ما أُعيد من هذي الفاتورة حتى الآن. الباقي = total - refundedAmount. */
+  refundedAmount: number;
   /** orders.delivery_fee -- its own row in the source, above the discount,
    *  and only when there is one. */
   deliveryFee: number;
@@ -108,6 +110,7 @@ export async function getOrderHistoryDetail(orderId: number): Promise<OrderHisto
     discountAmount: Number(order.discount_amount || 0),
     vatAmount: Number(order.vat_amount),
     total: Number(order.total),
+    refundedAmount: Number(order.refunded_amount || 0),
     deliveryFee: Number(order.delivery_fee || 0),
     deliveryAddress: order.delivery_address ?? null,
     tableNumber: order.restaurant_tables?.number ?? null,
@@ -128,15 +131,27 @@ export async function getOrderHistoryDetail(orderId: number): Promise<OrderHisto
   };
 }
 
-/** Ported from refund_pos_order(p_order_id) -- see
- *  supabase/migrations/20260801235653_refund_pos_order.sql, unchanged
- *  since it was first written: only a 'completed' order can be refunded
- *  (the RPC itself enforces this, raising an exception otherwise -- never
- *  duplicated/re-validated here), flips status to 'refunded', does not
- *  restock (a real, disclosed limitation of the RPC itself, not this
- *  client). Gated behind ManagerPinModal by every real caller, matching
- *  the PWA's own refundOrderBtn handler -- never called unguarded. */
-export async function refundPosOrder(orderId: number): Promise<void> {
-  const { error } = await supabase.rpc('refund_pos_order', { p_order_id: orderId });
+export interface RefundResult {
+  refunded: number;
+  refunded_total: number;
+  remaining: number;
+  full: boolean;
+}
+
+/**
+ * استرجاع مبلغ من فاتورة، أو الباقي منها كله.
+ *
+ * غياب المبلغ يعني الباقي كله -- وهو ما يريده من ضغط "كامل المبلغ".
+ * والسقف تفرضه الدالة في القاعدة لا هذا الملف: من يستطيع استدعاءها
+ * يستطيع تمرير أي رقم، فالتحقق هنا يمنع الغلطة وحدها.
+ *
+ * لا تُستدعى إلا خلف ManagerPinModal، كما في الكاشير تماماً.
+ */
+export async function refundPosOrder(orderId: number, amount?: number): Promise<RefundResult> {
+  const { data, error } = await supabase.rpc(
+    'refund_pos_order',
+    amount == null ? { p_order_id: orderId } : { p_order_id: orderId, p_amount: amount },
+  );
   if (error) throw error;
+  return (data ?? { refunded: 0, refunded_total: 0, remaining: 0, full: true }) as RefundResult;
 }
