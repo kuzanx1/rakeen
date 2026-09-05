@@ -7586,6 +7586,7 @@ let RECEIPT_LOGO_URL = '';
 let RECEIPT_TAGLINE = '';
 let RECEIPT_SHOW_NAME = true;
 let SHIFT_REPORT_OPTIONS = {};
+let RECEIPT_BRANCHES = [];
 let RECEIPT_THEME = 'classic';
 let ONLINE_COD_ENABLED = true;
 let ONLINE_CARD_ENABLED = true;
@@ -8353,6 +8354,17 @@ async function loadReceiptBranding(businessId){
   }
 }
 
+/** فروع الفاتورة: الحي والمدينة والاسم المطبوع، بنفس الحيطة. */
+async function loadReceiptBranches(businessId){
+  try {
+    const res = await window.supabaseClient.from('branches')
+      .select('id, name, district, city, receipt_label').eq('business_id', businessId).order('id');
+    RECEIPT_BRANCHES = res.data || [];
+  } catch(_){
+    RECEIPT_BRANCHES = [];
+  }
+}
+
 /** الحي والمدينة، بنفس الحيطة. */
 async function loadBranchLocations(businessId){
   try {
@@ -8385,8 +8397,16 @@ function customerReceiptPreviewHtml(themeId){
       // شعار الفاتورة لا شعار المتجر، وبنسبة أبعاده لا مقصوصاً في دائرة:
       // المعاينة هي ما يختار عليها صاحب المطعم، فإن أرته غير ما يُطبع
       // فقد اختار شيئاً ورأى شيئاً آخر.
+      // الشعار كما يخرج على الورق: بلا لون.
+      //
+      // الطابعة الحرارية بلون واحد، فشعار ذهبي جميل على الشاشة يخرج
+      // رمادياً ثم يُحوَّل إلى نقاط سوداء أو بيضاء بعتبة. عرضُه ملوّناً
+      // في المعاينة يَعِد بما لا يستطيع الورق الوفاء به.
+      //
+      // والمرشّح يحاكي العتبة نفسها: تدرّج رمادي، ثم تباين عالٍ يدفع كل
+      // درجة إلى أحد الطرفين -- وهو ما تفعله <160 بالضبط.
       (t.showLogo && RECEIPT_LOGO_URL)
-        ? '<div style="text-align:center; ' + mb(8) + '"><img src="' + RECEIPT_LOGO_URL + '" alt="" style="width:' + Math.round((t.logoWidth || 0.30) * 100) + '%; max-height:90px; object-fit:contain;"></div>'
+        ? '<div style="display:flex; justify-content:center; ' + mb(8) + '"><img src="' + RECEIPT_LOGO_URL + '" alt="" style="width:' + Math.round((t.logoWidth || 0.30) * 100) + '%; max-height:90px; object-fit:contain; filter:grayscale(1) contrast(2.2) brightness(0.92);"></div>'
         : '',
       // الاسم يُخفى فقط حين يوجد شعار -- بلا شعار هو الترويسة كلها.
       (RECEIPT_SHOW_NAME || !(t.showLogo && RECEIPT_LOGO_URL))
@@ -8574,6 +8594,13 @@ function renderPosReadiness(){
   ];
   const pending = (r.managerPinSet ? 0 : 1) + r.branches.filter(b => !r.tillByBranch[b.id]).length;
 
+  // قائمة تحقّقٍ اكتملت لم تعد قائمة تحقّق.
+  //
+  // شريطٌ كله علامات صحّ لا يطلب شيئاً، ووجوده يعلّم صاحب المطعم أن
+  // يتجاهل أعلى الصفحة -- وهو أسوأ ما يمكن أن يتعلّمه عن مكانٍ سيحمل
+  // تنبيهاً حقيقياً يوماً ما. ويعود وحده إن نقص شيء.
+  if(pending === 0){ el.innerHTML = ''; return; }
+
   el.innerHTML = `
     <div class="rk-section pos-ready">
       ${rkSectionHead('crosshair', 'جاهزية الكاشير',
@@ -8600,6 +8627,7 @@ function renderPosReadiness(){
 
 async function renderPosSettings(){
   await loadReceiptBranding(CURRENT_PROFILE.business_id);
+  await loadReceiptBranches(CURRENT_PROFILE.business_id);
   const panel = document.getElementById('posSettingsPanelBody');
   panel.innerHTML = '<div class="panel"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>';
   // كل هذي كانت await وراء await — أربع رحلات متتابعة تتكرر مع كل ضغطة
@@ -8690,6 +8718,21 @@ async function renderPosSettings(){
       </div>
       <p class="stock-qty-helper" style="margin-top:8px;">يطبع تحت اسم المطعم مباشرة. سيبه فاضي إذا ما تبيه.</p>
       <button class="rk-btn rk-btn-primary rk-btn-md" id="receiptBrandSaveBtn" style="margin-top:6px;">حفظ هوية الفاتورة</button>
+    </div>
+
+    <div class="rk-section">
+      ${rkSectionHead('mapPin', 'سطر الفرع في الفاتورة', 'الحي والمدينة ورقم الفرع — أي خانة تسيبها فاضية ما تطبع')}
+      ${RECEIPT_BRANCHES.map(b => `
+        <div class="rk-subcard" data-receipt-branch="${b.id}">
+          <div class="rk-subcard-title">${escapeHtml(b.name || '')}</div>
+          <div class="rk-grid-2" style="margin-bottom:12px;">
+            <div class="rk-field"><label>الحي</label><input type="text" class="rb-district" value="${escapeHtml(b.district || '')}" placeholder="حي البيعة" maxlength="40"></div>
+            <div class="rk-field"><label>المدينة</label><input type="text" class="rb-city" value="${escapeHtml(b.city || '')}" placeholder="الطائف" maxlength="40"></div>
+          </div>
+          <div class="rk-field"><label>رقم الفرع أو اسمه في الفاتورة</label><input type="text" class="rb-label" value="${escapeHtml(b.receipt_label || '')}" placeholder="الفرع الأول" maxlength="30"></div>
+        </div>`).join('')}
+      <p class="stock-qty-helper" style="margin-top:8px;">يطبع سطر واحد تحت السطر التعريفي، كذا: <span style="font-weight:700;">الفرع الأول — حي البيعة، الطائف</span></p>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="receiptBranchSaveBtn" style="margin-top:10px;">حفظ سطر الفرع</button>
     </div>`;
 
   // تقرير إغلاق الوردية: ما يظهر فيه.
@@ -9177,6 +9220,29 @@ async function renderPosSettings(){
       rkBtnSuccess(receiptBrandSaveBtn, '✓ تم الحفظ');
     } catch(err){
       rkBtnLoading(receiptBrandSaveBtn, false);
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
+  });
+
+  const receiptBranchSaveBtn = document.getElementById('receiptBranchSaveBtn');
+  if(receiptBranchSaveBtn) receiptBranchSaveBtn.addEventListener('click', async ()=>{
+    rkBtnLoading(receiptBranchSaveBtn, true);
+    try {
+      const rows = Array.from(document.querySelectorAll('[data-receipt-branch]'));
+      for(const row of rows){
+        const id = Number(row.dataset.receiptBranch);
+        const { error } = await window.supabaseClient.from('branches').update({
+          district: row.querySelector('.rb-district').value.trim() || null,
+          city: row.querySelector('.rb-city').value.trim() || null,
+          receipt_label: row.querySelector('.rb-label').value.trim() || null
+        }).eq('id', id);
+        if(error) throw error;
+      }
+      await loadReceiptBranches(CURRENT_PROFILE.business_id);
+      logDashboardAudit('عدّل سطر الفرع في الفاتورة');
+      rkBtnSuccess(receiptBranchSaveBtn, '✓ تم الحفظ');
+    } catch(err){
+      rkBtnLoading(receiptBranchSaveBtn, false);
       showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
     }
   });

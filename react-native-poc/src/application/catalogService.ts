@@ -355,13 +355,15 @@ export async function getReceiptBranding(businessId: number, branchId: number | 
   try {
     const { data } = await supabase
       .from('branches')
-      .select('id, name, district, city')
+      .select('id, name, district, city, receipt_label')
       .eq('business_id', businessId);
     const rows = data ?? [];
     const mine = rows.find(b => String(b.id) === String(branchId));
     if (mine) {
       out.locationLine = [mine.district, mine.city].filter(Boolean).join('، ');
-      if (rows.length > 1) out.branchLabel = (mine.name as string) || '';
+      // ما كتبه صاحب المطعم، لا ما نستنتجه من عدد الفروع: الفراغ يعني
+      // لا تطبعه، وهو قرارٌ صريح لا تخمين نيابةً عنه.
+      out.branchLabel = (mine.receipt_label as string) || '';
     }
   } catch {
     // بلا حي ولا مدينة: الترويسة تنغلق على ما بقي.

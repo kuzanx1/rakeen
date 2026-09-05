@@ -4072,7 +4072,7 @@ function buildLiveReceiptData(orderPayload, totals){
     tagline: RECEIPT_TAGLINE,
     showBusinessName: RECEIPT_SHOW_NAME,
     locationLine: BRANCH_LOCATION_LINE,
-    branchLabel: BRANCH_COUNT > 1 ? (DEVICE.branchName || '') : '',
+    branchLabel: BRANCH_RECEIPT_LABEL,
     customMessage: RECEIPT_CUSTOM_MESSAGE,
     items, subtotal: totals.subtotal, discount: totals.discount, vat: totals.vat, total: totals.total,
     paymentMethodLabel: PAYMENT_METHOD_LABELS_POS[orderPayload.payment_method] || orderPayload.payment_method,
@@ -4142,7 +4142,7 @@ function buildHistoricalReceiptData(order, items){
     tagline: RECEIPT_TAGLINE,
     showBusinessName: RECEIPT_SHOW_NAME,
     locationLine: BRANCH_LOCATION_LINE,
-    branchLabel: BRANCH_COUNT > 1 ? (DEVICE.branchName || '') : '',
+    branchLabel: BRANCH_RECEIPT_LABEL,
     customMessage: RECEIPT_CUSTOM_MESSAGE,
     items: lineItems, subtotal: Number(order.subtotal), discount: Number(order.discount_amount || 0),
     vat: Number(order.vat_amount), total: Number(order.total),
@@ -6492,7 +6492,7 @@ function openPosSettingsModal(){
     tagline: RECEIPT_TAGLINE,
     showBusinessName: RECEIPT_SHOW_NAME,
       locationLine: BRANCH_LOCATION_LINE,
-      branchLabel: BRANCH_COUNT > 1 ? (DEVICE.branchName || '') : '',
+      branchLabel: BRANCH_RECEIPT_LABEL,
       customMessage: RECEIPT_CUSTOM_MESSAGE,
       items: [{name:'صنف تجريبي', qty:1, unitPrice:10, lineTotal:10, mods:[]}],
       subtotal:10, discount:0, vat:1.5, total:11.5, paymentMethodLabel:'اختبار', change:0
@@ -6968,7 +6968,7 @@ let SHIFT_REPORT_OPTIONS = {};       // businesses.shift_report_options — ما
 let RECEIPT_SHOW_NAME = true;   // businesses.receipt_show_name — هل يُطبع الاسم تحت الشعار
 let RECEIPT_TAGLINE = '';       // businesses.receipt_tagline — سطر تحت الاسم
 let BRANCH_LOCATION_LINE = '';  // "حي البيعة، الطائف" من branches.district/city
-let BRANCH_COUNT = 1;           // عدد فروع المنشأة — اسم الفرع يُطبع فقط حين يتعدد
+let BRANCH_RECEIPT_LABEL = '';  // branches.receipt_label — اسم الفرع كما يُطبع؛ فارغ = لا يُطبع
 let BUSINESS_LOGO_URL = '';     // businesses.logo_url — same logo already used on reports/dashboard; printed at the top of the customer receipt when DEVICE.printReceiptLogo is on
 let RECEIPT_CUSTOM_MESSAGE = ''; // businesses.receipt_custom_message — owner-editable line printed near the receipt footer
 let PLATFORM_PRICES = {};       // platformId -> {menuItemId: price} — real menu_item_platform_prices, each platform's own price list
@@ -7184,15 +7184,18 @@ async function loadPosData(){
     // منشأة بفرع واحد لا تحتاج تمييزه، وسطرٌ يقول "الفرع الأول" حيث لا
     // ثانيَ له سطرٌ بلا معنى.
     try {
+      // اسم الفرع صار خياراً صريحاً لا استنتاجاً من عدد الفروع: من أراده
+      // كتبه في الإعدادات، ومن تركه فارغاً لا يُطبع. عدّ الفروع كان
+      // تخميناً نيابةً عن صاحب المطعم، وقد طلب أن يقرر هو.
       const brRes = await sb.from('branches')
-        .select('id, district, city').eq('business_id', businessId);
+        .select('id, district, city, receipt_label').eq('business_id', businessId);
       const rows = brRes.data || [];
-      BRANCH_COUNT = rows.length || 1;
       const mine = rows.find(b => String(b.id) === String(DEVICE.branchId));
       BRANCH_LOCATION_LINE = mine
         ? [mine.district, mine.city].filter(Boolean).join('، ')
         : '';
-    } catch(_){ BRANCH_LOCATION_LINE = ''; BRANCH_COUNT = 1; }
+      BRANCH_RECEIPT_LABEL = (mine && mine.receipt_label) || '';
+    } catch(_){ BRANCH_LOCATION_LINE = ''; BRANCH_RECEIPT_LABEL = ''; }
     // 'tables' only when it says so: defaulting to tables would put a café
     // that has none into a table workflow.
     DINE_IN_MODE = (themeRes.data && themeRes.data.dine_in_mode === 'tables') ? 'tables' : 'simple';
