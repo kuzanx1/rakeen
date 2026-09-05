@@ -12,15 +12,10 @@ import { useShell } from './shell';
 import { displayName, useI18n } from './i18n';
 import { useToast } from './Toast';
 import {
-  loadCatalog,
-  getBusinessType,
-  getFinancialSettings,
+  // بقية نداءات الإقلاع انتقلت إلى application/posBootstrap.ts، حيث
+  // تُجلب معاً وتُحفظ، بدل أن تُعاد كلها عند كل عودة إلى هذه الشاشة.
   getHideProductImages,
-  getHidePopularTab,
-  getPosFeatureFlags,
-  getServiceSettings,
   subscribeToBusinessSettings,
-  getDineInPayTiming,
   getReceiptBusinessProfile,
   CatalogResult,
 } from '../application/catalogService';
@@ -45,6 +40,7 @@ import type { CartLine, ModifierDefinition, OrderChannel } from '../domain/cart'
 import type { CashierProfile } from '../domain/auth';
 import type { Shift } from '../domain/shift';
 import { useCart } from './useCart';
+import { getCachedPosBootstrap, loadPosBootstrap, PosBootstrap } from '../application/posBootstrap';
 import ModifierModal from './ModifierModal';
 import PaymentModal from './PaymentModal';
 import type { PaymentResult } from './PaymentModal';
@@ -438,38 +434,50 @@ export default function ProductsScreen({
   }, [isNarrow, windowWidth, orderPanelWidth]);
 
   useEffect(() => {
+    // التنقّل يهدم هذه الشاشة ويبنيها، فكانت كل عودة إلى "الرئيسية"
+    // انتظاراً لأربعة عشر نداءً قبل أن يظهر منتج. الآن: ما في الذاكرة
+    // يُعرض في الحال، والجلب يمضي في الخلفية ويحلّ محلّه حين يصل.
+    let alive = true;
+    const apply = (b: PosBootstrap) => {
+      setBusinessType(b.businessType);
+      setCatalog(b.catalog);
+      setFinancial(b.financial);
+      setHideImages(b.hideImages);
+      setHidePopularTab(b.hidePopularTab);
+      setFlags(b.flags);
+      setService(b.service);
+      // :5835 -- when the business hides the popular tab the default
+      // lands on 'all', not on a tab that is not rendered.
+      if (b.hidePopularTab) setActiveCategoryId('all');
+      setDineInPayTiming(b.dineInPayTiming);
+      // No jump to the first real category any more: the source opens
+      // on its own shortcut tab, and landing on "قهوة" (or whatever
+      // happens to sort first) hid every other product behind a tap.
+    };
+
+    const cached = getCachedPosBootstrap(cashier.business_id);
+    if (cached) {
+      apply(cached);
+      setLoading(false);
+    }
+
     (async () => {
       try {
-        const type = await getBusinessType(cashier.business_id);
-        setBusinessType(type);
-        const [result, settings, hideImgs, payTiming, hidePopular, posFlags, svc] = await Promise.all([
-          loadCatalog(cashier.business_id, type),
-          getFinancialSettings(cashier.business_id),
-          getHideProductImages(cashier.business_id),
-          getDineInPayTiming(cashier.business_id),
-          getHidePopularTab(cashier.business_id),
-          getPosFeatureFlags(cashier.business_id),
-          getServiceSettings(cashier.business_id),
-        ]);
-        setCatalog(result);
-        setFinancial(settings);
-        setHideImages(hideImgs);
-        setHidePopularTab(hidePopular);
-        setFlags(posFlags);
-        setService(svc);
-        // :5835 -- when the business hides the popular tab the default
-        // lands on 'all', not on a tab that is not rendered.
-        if (hidePopular) setActiveCategoryId('all');
-        setDineInPayTiming(payTiming);
-        // No jump to the first real category any more: the source opens
-        // on its own shortcut tab, and landing on "قهوة" (or whatever
-        // happens to sort first) hid every other product behind a tap.
+        const fresh = await loadPosBootstrap(cashier.business_id);
+        if (!alive) return;
+        apply(fresh);
       } catch (e) {
-        setError('تعذر تحميل المنتجات — تحقق من الاتصال.');
+        // شاشة معروضة من الذاكرة لا تُمحى برسالة خطأ: الكاشير يبيع
+        // منها الآن، والشبكة وحدها هي التي سقطت.
+        if (alive && !cached) setError('تعذر تحميل المنتجات — تحقق من الاتصال.');
       } finally {
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     })();
+
+    return () => {
+      alive = false;
+    };
   }, [cashier.business_id, settingsVersion]);
 
   /**
@@ -486,6 +494,19 @@ export default function ProductsScreen({
   const productsById = useMemo(() => {
     const map = new Map<number, Product>();
     catalog?.products.forEach(p => map.set(p.id, p));
+    return map;
+  }, [catalog]);
+
+  /**
+   * اسم التصنيف بالمعرّف، مبنيّ مرة لا مرةً لكل بطاقة.
+   *
+   * كان كل تصيير لبطاقة منتج يمرّ على التصنيفات كلها بـfind() ليجد
+   * اسم تصنيفه. فقائمة من مئة منتج وعشرين تصنيفاً تعني ألفي مقارنة في
+   * كل رسمة -- وفي كل حرف يُكتب في البحث رسمة.
+   */
+  const categoryNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    catalog?.categories.forEach(c => map.set(c.id, c.name));
     return map;
   }, [catalog]);
 
@@ -618,6 +639,41 @@ export default function ProductsScreen({
       return next;
     });
   };
+
+  /**
+   * معالِجات ثابتة الهوية تُمرَّر لبطاقات المنتجات.
+   *
+   * البطاقة محفوظة بـmemo، والحفظ يقارن المراجع. ودالةٌ تُكتب داخل
+   * التصيير تُولد جديدة في كل رسمة، فتبدو كل بطاقة متغيّرة ولو لم يتغير
+   * فيها شيء -- ويسقط الحفظ كله. فالمرجع هنا يحمل آخر نسخة من
+   * المعالِج، والدالة المُمرَّرة ثابتة إلى الأبد.
+   *
+   * وأثره أن إضافة صنف للسلة لم تعد تعيد رسم الشبكة كلها: قبله كانت كل
+   * ضغطة منتج تعيد رسم كل بطاقة ظاهرة، بصورتها وتدرّجها.
+   */
+  const cardHandlers = useRef({ handleTapProduct: (_p: Product, _f?: boolean) => {}, toggleFavourite });
+  cardHandlers.current = { handleTapProduct, toggleFavourite };
+  const onCardPress = useCallback((p: Product) => cardHandlers.current.handleTapProduct(p), []);
+  const onCardLongPress = useCallback((p: Product) => cardHandlers.current.handleTapProduct(p, true), []);
+  const onCardToggleFav = useCallback((id: number) => cardHandlers.current.toggleFavourite(id), []);
+
+  const modifiersByProductId = catalog?.modifiersByProductId;
+  const renderProductCard = useCallback(
+    ({ item }: { item: Product }) => (
+      <ProductCard
+        width={gridTileWidth}
+        product={item}
+        categoryName={categoryNameById.get(item.categoryId) ?? ''}
+        hasMods={!!modifiersByProductId?.[item.id]}
+        isFav={favIds.has(item.id)}
+        hideImages={hideImages}
+        onPress={onCardPress}
+        onLongPress={onCardLongPress}
+        onToggleFav={onCardToggleFav}
+      />
+    ),
+    [gridTileWidth, categoryNameById, modifiersByProductId, favIds, hideImages, onCardPress, onCardLongPress, onCardToggleFav],
+  );
 
   /**
    * registerMode (rakeen-pos.js:1127) -- ALL THREE, not just the channel:
@@ -1216,19 +1272,16 @@ export default function ProductsScreen({
             numColumns={gridColumns}
             columnWrapperStyle={gridColumns > 1 ? styles.gridRow : undefined}
             contentContainerStyle={[styles.grid, gridInset]}
-            renderItem={({ item }) => (
-              <ProductCard
-                width={gridTileWidth}
-                product={item}
-                categoryName={catalog.categories.find(c => c.id === item.categoryId)?.name ?? ''}
-                hasMods={!!catalog.modifiersByProductId[item.id]}
-                isFav={favIds.has(item.id)}
-                hideImages={hideImages}
-                onPress={() => handleTapProduct(item)}
-                onLongPress={() => handleTapProduct(item, true)}
-                onToggleFav={() => toggleFavourite(item.id)}
-              />
-            )}
+            renderItem={renderProductCard}
+            // شبكة أجهزة اللمس في المقهى: ما لا يُرى لا يُرسم.
+            // الافتراضي يرسم عشرة ثم يوسّع نافذته إلى واحد وعشرين شاشة
+            // حولك -- على آيباد بشاشة عريضة يعني عشرات البطاقات بصورها
+            // قبل أن يظهر شيء. هذه القيم تُظهر الشاشة الأولى ثم تبني
+            // الباقي أثناء التمرير.
+            initialNumToRender={gridColumns * 4}
+            maxToRenderPerBatch={gridColumns * 3}
+            windowSize={5}
+            removeClippedSubviews
             // .grid-empty
             ListEmptyComponent={<Text style={styles.gridEmpty}>{t('ما فيه نتائج مطابقة')}</Text>}
           />
@@ -1641,7 +1694,7 @@ export default function ProductsScreen({
  * cart, which the source enforces with an early `closest('.fav-star')`
  * check -- here the star is simply its own touchable above the card.
  */
-function ProductCard({
+const ProductCard = React.memo(function ProductCard({
   width,
   product,
   categoryName,
@@ -1660,9 +1713,11 @@ function ProductCard({
   hasMods: boolean;
   isFav: boolean;
   hideImages: boolean;
-  onPress: () => void;
-  onLongPress: () => void;
-  onToggleFav: () => void;
+  /** تستقبل المنتج بدل أن تُغلق عليه: دالةٌ مُغلقة على `item` تُولد
+   *  جديدة لكل بطاقة في كل رسمة، فيسقط الحفظ. */
+  onPress: (product: Product) => void;
+  onLongPress: (product: Product) => void;
+  onToggleFav: (productId: number) => void;
 }) {
   const { colors } = useTheme();
   const styles = useStyles();
@@ -1674,8 +1729,8 @@ function ProductCard({
   return (
     <TouchableOpacity
       style={[styles.productCard, { width }]}
-      onPress={onPress}
-      onLongPress={onLongPress}
+      onPress={() => onPress(product)}
+      onLongPress={() => onLongPress(product)}
       // rakeen-pos.js's pressTimer fires at 480ms
       delayLongPress={480}
       activeOpacity={0.85}>
@@ -1723,7 +1778,7 @@ function ProductCard({
       {/* .fav-star */}
       <TouchableOpacity
         style={[styles.favStar, isFav && styles.favStarOn]}
-        onPress={onToggleFav}
+        onPress={() => onToggleFav(product.id)}
         hitSlop={6}
         activeOpacity={0.7}>
         <Svg
@@ -1750,7 +1805,7 @@ function ProductCard({
       )}
     </TouchableOpacity>
   );
-}
+});
 
 /**
  * #payBtn is two spans, not one string: #payBtnLabel then #payBtnAmount,
