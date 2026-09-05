@@ -70,6 +70,8 @@ export interface ReceiptData {
   createdAtISO?: string;
   /** Free-text channel/table meta line, e.g. "بالمطعم — طاولة 4". */
   metaLabel?: string;
+  /** اسم الموظف الذي أصدر الفاتورة -- "تمت بواسطة". */
+  cashierName?: string;
   /** businesses.receipt_tagline -- سطر تحت الاسم يكتبه صاحب المطعم. */
   tagline?: string;
   /** الحي والمدينة، مركّبين من branches.district/city. */

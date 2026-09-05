@@ -17,15 +17,25 @@ import type { ReceiptData, KitchenTicketData } from './receipt';
 
 export interface ReceiptItemPrintable {
   name: string;
+  /** menu_items.name_en -- يُطبع مع العربي على السطر نفسه. */
+  nameEn: string;
   mods: string[];
   qty: number;
   unitPrice: number;
   lineTotal: number;
+  /** الملاحظة تُطبع على فاتورة العميل أيضاً الآن، بطلب صاحب المطعم --
+   *  كانت للمطبخ وحده، فكان الزبون لا يرى ما طلبه بنفسه. */
+  note: string;
 }
 
 export interface ReceiptPrintable {
   businessName: string;
   branchName: string;
+  /** سطر تعريفي تحت الاسم، والحي والمدينة، واسم الفرع عند تعدد الفروع. */
+  tagline: string;
+  locationLine: string;
+  branchLabel: string;
+  cashierName: string;
   dateLabel: string;
   orderNumber: string;
   metaLabel: string;
@@ -98,8 +108,16 @@ export function formatArabicDateLabel(date: Date): string {
   }
 }
 
-function toItemPrintable(line: { name: string; qty: number; unitPrice: number; lineTotal: number; mods?: string[] }): ReceiptItemPrintable {
-  return { name: line.name, mods: line.mods ?? [], qty: line.qty, unitPrice: line.unitPrice, lineTotal: line.lineTotal };
+function toItemPrintable(line: { name: string; nameEn?: string; qty: number; unitPrice: number; lineTotal: number; mods?: string[]; note?: string }): ReceiptItemPrintable {
+  return {
+    name: line.name,
+    nameEn: line.nameEn ?? '',
+    mods: line.mods ?? [],
+    qty: line.qty,
+    unitPrice: line.unitPrice,
+    lineTotal: line.lineTotal,
+    note: line.note ?? '',
+  };
 }
 
 export function toReceiptPrintable(data: ReceiptData): ReceiptPrintable {
@@ -108,6 +126,10 @@ export function toReceiptPrintable(data: ReceiptData): ReceiptPrintable {
   return {
     businessName: data.businessName || 'ركين',
     branchName: data.branchName ?? '',
+    tagline: data.tagline ?? '',
+    locationLine: data.locationLine ?? '',
+    branchLabel: data.branchLabel ?? '',
+    cashierName: data.cashierName ?? '',
     dateLabel: formatArabicDateLabel(createdAt),
     // Ported from the PWA's own real orderNumber fallback text
     // (rakeen-pos.js:2923) -- an order still offline-queued has no

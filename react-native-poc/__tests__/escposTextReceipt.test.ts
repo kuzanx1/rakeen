@@ -71,11 +71,12 @@ describe('buildTextReceipt()', () => {
   const receipt = {
     businessName: 'هَبيّة',
     branchName: 'الفرع الرئيسي',
+    tagline: '', locationLine: '', branchLabel: '', cashierName: '',
     dateLabel: '5 سبتمبر 2026',
     orderNumber: '313',
     metaLabel: 'محلي',
     vatNumber: '',
-    items: [{ name: 'لاتيه', qty: 1, unitPrice: 15, lineTotal: 15, mods: [] }],
+    items: [{ name: 'لاتيه', qty: 1, unitPrice: 15, lineTotal: 15, mods: [], nameEn: '', note: '' }],
     subtotal: 15,
     discount: 0,
     vat: 0,

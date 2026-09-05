@@ -3189,8 +3189,23 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
   // orderId wasn't available yet (e.g. printed while the order was still
   // offline-queued, before the real server id existed) — a customer with no
   // order number has no way to ask about their order at all.
-  centerText('رقم الطلب: ' + receipt.orderNumber, 18, true);
-  if(receipt.metaLabel) centerText(receipt.metaLabel, sz(15), false);
+  // رقم الطلب في صندوق: أول ما تبحث عنه العين، فيستحق حدّاً يخصّه.
+  // أربعة أشرطة ممتلئة لا حدّ مرسوم -- الرأس الحراري يطبع الحدّ الرفيع
+  // متفاوتاً، والشريط الممتلئ يخرج نظيفاً.
+  y += gap(0.5);
+  const boxTop = y - lineH * 0.35;
+  centerText(bi('رقم الطلب', 'Order No'), sz(14), false);
+  centerText(receipt.orderNumber, sz(30), true);
+  const boxH = (y - lineH * 0.2) - boxTop;
+  const boxX = pad + (width - pad * 2) * 0.2, boxW = (width - pad * 2) * 0.6;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(boxX, boxTop, boxW, 1.5);
+  ctx.fillRect(boxX, boxTop + boxH - 1.5, boxW, 1.5);
+  ctx.fillRect(boxX, boxTop, 1.5, boxH);
+  ctx.fillRect(boxX + boxW - 1.5, boxTop, 1.5, boxH);
+  y += gap(0.5);
+  if(receipt.cashierName) rowText('', bi('تمت بواسطة', 'Served by') + ': ' + receipt.cashierName, sz(15), false);
+  if(receipt.metaLabel) rowText('', bi('نوع الطلب', 'Type') + ': ' + receipt.metaLabel, sz(15), false);
   // ZATCA Phase 1: the heading and the seller's VAT number are mandatory
   // on a simplified tax invoice, in every theme.
   if(receipt.vatNumber){
@@ -3201,7 +3216,10 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
 
   receipt.items.forEach((it, idx)=>{
     const nameFont = '700 ' + sz(21) + 'px "IBM Plex Sans Arabic", sans-serif';
-    wrapLine(it.name, nameFont).forEach(line=>{
+    // العربي والإنجليزي سطراً واحداً: الكانفس يرسم بترتيب ثنائي الاتجاه
+    // صحيح، فالشَرطة بينهما تستقر في موضعها -- وهو ما تعذّر في وضع النص.
+    const shownName = it.nameEn ? (it.name + ' | ' + it.nameEn) : it.name;
+    wrapLine(shownName, nameFont).forEach(line=>{
       ctx.font = nameFont;
       ctx.direction = 'rtl'; ctx.textAlign = 'right';
       ctx.fillText(line, width - pad, y);
@@ -3218,6 +3236,18 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
         y += gap(0.7);
       });
     });
+    // الملاحظة تُطبع للزبون أيضاً الآن، بطلب صاحب المطعم -- كانت للمطبخ
+    // وحده، فكان الزبون لا يرى ما طلبه بنفسه.
+    if(it.note){
+      const noteFont = '500 ' + sz(15) + 'px "IBM Plex Sans Arabic", sans-serif';
+      wrapLine(bi('ملاحظات', 'Notes') + ': ' + it.note, noteFont).forEach(line=>{
+        ctx.fillStyle = '#333'; ctx.font = noteFont;
+        ctx.direction = 'rtl'; ctx.textAlign = 'right';
+        ctx.fillText(line, width - pad, y);
+        ctx.fillStyle = '#000';
+        y += gap(0.7);
+      });
+    }
     rowText(it.lineTotal.toFixed(2), it.qty + ' × ' + it.unitPrice.toFixed(2), sz(18), false);
     // Skipped after the last item — the section rule below already closes
     // the list, and two lines together would read as a mistake.
@@ -3761,8 +3791,12 @@ function buildLiveReceiptData(orderPayload, totals){
     const p = PRODUCTS.find(x=>x.id===item.productId);
     const unitPrice = lineUnitPrice(item);
     return {
-      name: p ? p.name : '', qty: item.qty, unitPrice, lineTotal: unitPrice * item.qty,
-      mods: formatConfigLabels(item.productId, item.config).map(l=>l.text)
+      name: p ? p.name : '', nameEn: p ? (p.name_en || '') : '',
+      qty: item.qty, unitPrice, lineTotal: unitPrice * item.qty,
+      mods: formatConfigLabels(item.productId, item.config).map(l=>l.text),
+      // الملاحظة صارت تُطبع للزبون أيضاً، بطلب صاحب المطعم -- كانت
+      // تُمرَّر لتذكرة المطبخ وحدها.
+      note: item.note || ''
     };
   });
   const liveTable = orderPayload.table_id ? (TABLES_CACHE || []).find(t => t.id === orderPayload.table_id) : null;
@@ -3778,6 +3812,7 @@ function buildLiveReceiptData(orderPayload, totals){
     orderNumber: orderPayload.orderId ? ('#' + orderPayload.orderId) : 'سيُحدَّد عند الاتصال',
     metaLabel: (CHANNEL_LABELS[orderPayload.channel] || orderPayload.channel) + liveTableLabel,
     showLogo: DEVICE.printReceiptLogo !== false && !!RECEIPT_LOGO_URL, logoUrl: RECEIPT_LOGO_URL,
+    cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
     tagline: RECEIPT_TAGLINE,
     locationLine: BRANCH_LOCATION_LINE,
     branchLabel: BRANCH_COUNT > 1 ? (DEVICE.branchName || '') : '',
@@ -3833,6 +3868,7 @@ function buildHistoricalReceiptData(order, items){
     orderNumber: '#' + order.id,
     metaLabel: (CHANNEL_LABELS[order.channel] || order.channel) + histTableLabel,
     showLogo: DEVICE.printReceiptLogo !== false && !!RECEIPT_LOGO_URL, logoUrl: RECEIPT_LOGO_URL,
+    cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
     tagline: RECEIPT_TAGLINE,
     locationLine: BRANCH_LOCATION_LINE,
     branchLabel: BRANCH_COUNT > 1 ? (DEVICE.branchName || '') : '',
@@ -6087,7 +6123,8 @@ function openPosSettingsModal(){
       timestampISO: new Date().toISOString(), vatNumber: BUSINESS_VAT_NUMBER,
       orderNumber: '#0', metaLabel: 'طباعة اختبار',
       showLogo: DEVICE.printReceiptLogo !== false && !!RECEIPT_LOGO_URL, logoUrl: RECEIPT_LOGO_URL,
-      tagline: RECEIPT_TAGLINE,
+      cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
+    tagline: RECEIPT_TAGLINE,
       locationLine: BRANCH_LOCATION_LINE,
       branchLabel: BRANCH_COUNT > 1 ? (DEVICE.branchName || '') : '',
       customMessage: RECEIPT_CUSTOM_MESSAGE,

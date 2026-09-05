@@ -64,6 +64,7 @@ export function receiptModelFromOrder(data: ReceiptData): ReceiptModel {
     orderNumber: data.orderId != null ? String(data.orderId) : '—',
     orderKind: orderKindFrom(data.metaLabel),
     orderKindLabel: data.orderKindLabel || undefined,
+    cashierName: data.cashierName || undefined,
     tableNumber: tableFrom(data.metaLabel),
     dateLabel: formatArabicDateTimeShort(when).replace(formatArabicTime(when), '').trim(),
     timeLabel: formatArabicTime(when),

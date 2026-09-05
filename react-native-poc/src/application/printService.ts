@@ -2,11 +2,6 @@ import uuid from 'react-native-uuid';
 import { sqlitePrintQueueStorage } from '../infrastructure/sqlitePrintQueue';
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { PrintTimer } from './printTiming';
-import { renderReceipt } from '../domain/receiptRenderEscPos';
-import { receiptModelFromOrder } from './receiptModelFromOrder';
-import { resolveCapabilities } from '../domain/printerCapability';
-import { ensureLogoCached } from './receiptLogo';
-import { bytesToBase64 } from '../domain/escposText';
 import { profileToPrinterTarget, profileToKitchenPrinterTarget } from '../domain/printerProfile';
 import { printReceipt } from '../platform/printer';
 import type { PrinterTarget } from '../platform/printer';
@@ -92,23 +87,21 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
   }
   // الوضع النصي يتجاوز التصيير كله: لا Skia، ولا قراءة بكسل، ولا صورة.
   // من نموذج الفاتورة إلى بايتات مباشرة.
-  // القدرات تقرر، لا الطابور. طابعة ترتّب العربية بنفسها تتلقى النص كما
-  // هو؛ وواحدة تُشكّل ولا ترتّب تتلقاه معكوس المقاطع؛ وواحدة بلا عربية
-  // تُحوّل إلى مسار الصورة. الطابور لا يعرف أياً من ذلك.
-  const caps = resolveCapabilities(profile?.capabilityProfileId, profile?.paperWidthPx);
-  const canPrintAsText = caps.arabic !== 'none' && profile?.receiptMode !== 'image';
-  const useText = canPrintAsText && job.type === 'receipt';
-  const escPosBase64 = useText
-    ? await (async () => {
-        const model = receiptModelFromOrder(job.data as unknown as ReceiptData);
-        // مرة واحدة لكل شعار. الفواتير التالية تجده جاهزاً، فتظهر هذي
-        // المرحلة بصفر ملّي ثانية في التشخيص — وهذا دليل الذاكرة تعمل.
-        const hasLogo = await timer.stage('logoLoad', () => ensureLogoCached(model.logoKey, caps));
-        return timer.stage('escposBuild', () =>
-          bytesToBase64(renderReceipt(hasLogo ? model : { ...model, logoKey: undefined }, caps).bytes),
-        );
-      })()
-    :
+  // كل فاتورة صورة.
+  //
+  // كان هنا مسار نصّي يُختار حسب قدرات الطابعة، بُني على تشخيص خاطئ:
+  // ظننت الصورة سبب الخمس والأربعين ثانية. وقد تبيّن السبب -- طابور لا
+  // يُوقظه أحد قبل عشرين ثانية، وفاتورةٌ ترفضها الطابعة لانشغالها بتذكرة
+  // المطبخ قبلها -- وأُصلح كلاهما. فالمبرر الذي بُني عليه ذلك المسار لم
+  // يبقَ منه شيء.
+  //
+  // والصورة ليست تنازلاً بل هي الأقدر: خطٌّ عربي حقيقي بدل خط الطابعة،
+  // وترتيبٌ صحيح للعربية بلا قلب مقاطع، وأُطر وخطوط رأسية وصناديق لا
+  // يعرفها وضع النص، وطابعةٌ بلا حروف عربية تطبع مثل غيرها تماماً.
+  // وطابعاتنا كلها على الشبكة، فحجم الصورة لا يكلّف شيئاً يُذكر.
+  //
+  // ومسار النص باقٍ في المستودع باختباراته -- لم يعد أحد يطبع به.
+  const escPosBase64 =
     job.type === 'receipt'
       ? await renderReceiptToEscPosBase64(
           job.data as unknown as ReceiptData,

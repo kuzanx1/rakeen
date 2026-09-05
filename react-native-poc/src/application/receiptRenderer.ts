@@ -61,9 +61,12 @@ function drawQrMatrix(canvas: ReturnType<typeof createReceiptSurface>['canvas'],
   }
 }
 
-/** A hairline rectangle, for the elegant theme's boxed total. Four thin
- *  rules rather than a stroked rect: a thermal head renders a 1px stroke
- *  unevenly at low temperature, and filled bars stay crisp. */
+/** A hairline rectangle, for the boxed total and the order number. Four
+ *  thin rules rather than a stroked rect: a thermal head renders a 1px
+ *  stroke unevenly at low temperature, and filled bars stay crisp.
+ *
+ *  وهو مما لا يستطيعه وضع النص: يطبع سطراً سطراً، فالضلعان الرأسيان
+ *  يحتاجان محرفاً في كل سطر ويخرجان متقطّعين. */
 function drawBox(
   canvas: ReturnType<typeof createReceiptSurface>['canvas'],
   x: number,
@@ -257,16 +260,42 @@ export async function renderReceiptToEscPosBase64(
       drawDivider(canvas, width, y);
       y += gap(0.5);
     }
-    if (receipt.branchName) y = drawCenterLine(ctx, y, receipt.branchName, sz(19), false);
-    y = drawCenterLine(ctx, y, receipt.dateLabel, sz(16), false);
-    y = drawCenterLine(ctx, y, `${bi('رقم الطلب', 'Order')}: ${receipt.orderNumber}`, sz(18), true);
-    if (receipt.metaLabel) y = drawCenterLine(ctx, y, receipt.metaLabel, sz(15), false);
-    // ZATCA Phase 1: the heading and the seller's VAT number are mandatory
-    // on a simplified tax invoice. Present in every theme.
-    if (receipt.vatNumber) {
-      y = drawCenterLine(ctx, y, bi('فاتورة ضريبية مبسطة', 'Simplified Tax Invoice'), sz(17), true);
-      y = drawCenterLine(ctx, y, `${bi('الرقم الضريبي', 'VAT No')}: ${receipt.vatNumber}`, sz(15), false);
+    if (receipt.tagline) {
+      y += gap(0.25);
+      y = drawCenterLine(ctx, y, receipt.tagline, sz(17), false);
+      y += gap(0.2);
     }
+    // اسم الفرع يسبق الحي والمدينة، ولا يُمرَّر إلا لمنشأة لها أكثر من فرع.
+    const whereLine = [receipt.branchLabel, receipt.locationLine].filter(Boolean).join(' — ');
+    if (whereLine) y = drawCenterLine(ctx, y, whereLine, sz(16), false);
+    else if (receipt.branchName) y = drawCenterLine(ctx, y, receipt.branchName, sz(17), false);
+
+    if (receipt.vatNumber) {
+      y += gap(0.2);
+      y = drawCenterLine(ctx, y, bi('فاتورة ضريبية مبسطة', 'Simplified Tax Invoice'), sz(16), true);
+      y = drawCenterLine(ctx, y, `${bi('الرقم الضريبي', 'VAT No')}: ${receipt.vatNumber}`, sz(14), false);
+    }
+
+    // رقم الطلب في صندوق. الملصق صغير فوقه، والرقم وحده كبيراً -- الرقم
+    // هو المطلوب، فلا تزاحمه الكلمة الدالة عليه بنفس حجمه.
+    y += gap(0.7);
+    const boxTop = y;
+    y += gap(0.45);
+    y = drawCenterLine(ctx, y, bi('رقم الطلب', 'Order No'), sz(14), false);
+    y = drawCenterLine(ctx, y, receipt.orderNumber, sz(30), true);
+    y += gap(0.35);
+    drawBox(canvas, PAD + contentWidth * 0.2, boxTop, contentWidth * 0.6, y - boxTop);
+    y += gap(0.5);
+
+    y = drawCenterLine(ctx, y, receipt.dateLabel, sz(15), false);
+    y += gap(0.35);
+    drawDivider(canvas, width, y);
+    y += gap(0.45);
+
+    // من أصدرها ونوعها، صفّين معنونين.
+    if (receipt.cashierName) y = drawRow(ctx, y, '', `${bi('تمت بواسطة', 'Served by')}: ${receipt.cashierName}`, sz(15), false);
+    if (receipt.metaLabel) y = drawRow(ctx, y, '', `${bi('نوع الطلب', 'Type')}: ${receipt.metaLabel}`, sz(15), false);
+    y += gap(0.1);
     drawDivider(canvas, width, y);
     y += gap(0.6);
 
@@ -285,7 +314,14 @@ export async function renderReceiptToEscPosBase64(
     y += gap(0.35);
 
     receipt.items.forEach((item, index) => {
-      const nameLines = measureAndWrapText(provider, item.name, cols.name, sz(20), true);
+      // العربي والإنجليزي على سطر واحد يفصلهما شَرطة.
+      //
+      // هذا ما عجز عنه وضع النص: الفاصل محرف محايد بين مقطعين بلغتين،
+      // وموضعه بعد ترتيب المقاطع غير محدَّد، فكان يقع مرة يمين العربي
+      // ومرة يسار الإنجليزي بلا قاعدة. أما هنا فالنص يُرسم بترتيب
+      // ثنائي الاتجاه صحيح، فالسطر الواحد يصحّ -- ويوفّر سطراً لكل صنف.
+      const fullName = item.nameEn ? `${item.name} | ${item.nameEn}` : item.name;
+      const nameLines = measureAndWrapText(provider, fullName, cols.name, sz(20), true);
       y = drawItemLine(
         ctx, y,
         String(item.qty),
@@ -303,8 +339,14 @@ export async function renderReceiptToEscPosBase64(
         );
       }
       for (const modText of item.mods) {
-        for (const line of measureAndWrapText(provider, modText, cols.name, sz(14), false)) {
+        for (const line of measureAndWrapText(provider, `+ ${modText}`, cols.name, sz(14), false)) {
           y = drawItemLine(ctx, y, '', [line], '', sz(14), false, '#555555');
+        }
+      }
+      // الملاحظة تحمل اسمها، وإلا أشبهت اسم منتج بلا سعر.
+      if (item.note) {
+        for (const line of measureAndWrapText(provider, `${bi('ملاحظات', 'Notes')}: ${item.note}`, cols.name, sz(14), false)) {
+          y = drawItemLine(ctx, y, '', [line], '', sz(14), false, '#333333');
         }
       }
       // فاصل بين كل منتج والذي يليه، لا بعد آخرها: خط القسم تحته يغلق

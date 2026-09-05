@@ -137,8 +137,6 @@ export default function PrinterSettingsScreen({
   const [device, setDevice] = useState<DeviceConfig | null>(null);
   const [themeId, setThemeId] = useState<string>('classic');
   const [printingTest, setPrintingTest] = useState(false);
-  const [probing, setProbing] = useState(false);
-  const [textProbeStatus, setTextProbeStatus] = useState('');
   const [testPrintStatus, setTestPrintStatus] = useState('');
   /** The cash-drawer command is a field nobody fills in by hand; it is
    *  here for a printer whose kick sequence differs from the standard
@@ -244,48 +242,6 @@ export default function PrinterSettingsScreen({
    * refused outright while there are unsaved edits, rather than quietly
    * testing a target the cashier is no longer looking at.
    */
-  /**
-   * يطبع ورقة نصية صغيرة ويوقّتها.
-   *
-   * الغرض ليس فاتورة، بل جواب: هل ترسم هذي الطابعة العربية من نص
-   * UTF-8، وهل تصل حروفها، وهل ترتّبها من اليمين؟ وكم تأخذ؟ الوقت
-   * المعروض هنا يُقارَن مباشرةً بوقت فاتورة الاختبار فوقه — ولو طبعت
-   * الورقة في جزء من الثانية بينما الفاتورة تأخذ ٤٥، فقد ثبت أن الحل
-   * في النص لا في الصورة.
-   */
-  const handleTextProbe = async () => {
-    if (unsaved) {
-      setTextProbeStatus('احفظ الإعدادات أولًا.');
-      return;
-    }
-    const target = savedTarget;
-    if (!target) {
-      setTextProbeStatus('ما فيه طابعة محفوظة.');
-      return;
-    }
-    setProbing(true);
-    setTextProbeStatus('');
-    const startedAt = Date.now();
-    try {
-      const result = await printReceipt({
-        target,
-        escPosBase64: bytesToBase64(buildArabicProbeSlip()),
-        timeoutMs: 15000,
-      });
-      const seconds = ((Date.now() - startedAt) / 1000).toFixed(1);
-      setTextProbeStatus(
-        result.ok
-          ? `🟢 انطبعت في ${seconds} ثانية — شوف الورقة: هل العربي متصل ويُقرأ من اليمين؟`
-          : `🔴 ما انطبعت (${result.errorDetail ?? 'خطأ'})`,
-      );
-      setTestTrace(result.diagnostics ?? []);
-    } catch (e) {
-      setTextProbeStatus('🔴 خطأ غير متوقع');
-    } finally {
-      setProbing(false);
-    }
-  };
-
   const handleTestPrint = async () => {
     if (unsaved) {
       setTestPrintStatus('احفظ الإعدادات أولًا — الطباعة تستخدم الإعداد المحفوظ.');
@@ -643,19 +599,6 @@ export default function PrinterSettingsScreen({
       </TouchableOpacity>
       {!!testPrintStatus && <Text style={styles.testResult}>{testPrintStatus}</Text>}
 
-      {/* اختبار الوضع النصي. مؤقت وصريح: يقيس ما إذا كانت الطابعة تقدر
-          تكتب العربي بنفسها، وهو السؤال الذي يقرر هل نُعيد كتابة تصيير
-          الفاتورة كلها أم لا. يُحذف بعد أن يُجاب. */}
-      <TouchableOpacity
-        style={styles.testButton}
-        onPress={handleTextProbe}
-        disabled={probing}
-        activeOpacity={0.8}>
-        <Text style={styles.testButtonText}>
-          {probing ? 'جارٍ الطباعة...' : 'اختبار الطباعة النصية (سرعة)'}
-        </Text>
-      </TouchableOpacity>
-      {!!textProbeStatus && <Text style={styles.testResult}>{textProbeStatus}</Text>}
     </ScrollView>
   );
 }
