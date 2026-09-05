@@ -9259,11 +9259,32 @@ async function renderPosSettings(){
   panel.addEventListener('change', posRefreshDirty);
 
   rkWireSwitchStatus('posDineInToggle', rkDineInStatus);
+  /**
+   * ما يُرى يتبع ما هو مختار، في اللحظة نفسها.
+   *
+   * ثلاثة كانت تفترق: مفتاح التفعيل يُظهر خيارات الطاولات ولا يُظهر
+   * بطاقتَي "بسيط/طاولات" أصلاً -- فمن شغّل المحلي وهو مطفأ رأى
+   * الخيارات ولم يرَ الاختيار. وكان يُظهر خيارات الطاولات لأي وضع،
+   * فمقهىً بسيط يُغرق بأقسامٍ وحجوزات لا تعنيه. والبطاقة لا تُغيّر شيئاً
+   * حتى تُحفظ، فيضغط "بسيط" ويبقى ما تحته كما هو.
+   *
+   * فصار المرجع واحداً: المفتاح والوضع المختار الآن -- لا المحفوظ.
+   */
+  function rkSyncDineInVisibility(){
+    const on = document.getElementById('posDineInToggle');
+    const enabled = on ? on.checked : DINE_IN_ENABLED;
+    const picked = document.querySelector('[data-dinemode].selected');
+    const mode = picked ? picked.dataset.dinemode : DINE_IN_MODE;
+    const block = document.getElementById('dineInModeBlock');
+    if(block) block.style.display = enabled ? '' : 'none';
+    const gated = document.getElementById('posTablesGatedContent');
+    if(gated) gated.style.display = (enabled && mode === 'tables') ? '' : 'none';
+  }
+
   const posDineInToggle = document.getElementById('posDineInToggle');
   if(posDineInToggle) posDineInToggle.addEventListener('change', async ()=>{
     const enabled = posDineInToggle.checked;
-    const gated = document.getElementById('posTablesGatedContent');
-    if(gated) gated.style.display = enabled ? '' : 'none';
+    rkSyncDineInVisibility();
     posDineInToggle.disabled = true;
     try {
       await updateCurrentBusiness({ dine_in_enabled: enabled });
@@ -9274,7 +9295,7 @@ async function renderPosSettings(){
       logDashboardAudit(enabled ? 'فعّل خدمة الطاولات' : 'عطّل خدمة الطاولات');
     } catch(err){
       posDineInToggle.checked = !enabled;
-      if(gated) gated.style.display = !enabled ? '' : 'none';
+      rkSyncDineInVisibility();
       showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
     } finally {
       posDineInToggle.disabled = false;
@@ -9366,6 +9387,9 @@ async function renderPosSettings(){
     card.addEventListener('click', ()=>{
       pendingDineInMode = card.dataset.dinemode;
       document.querySelectorAll('[data-dinemode]').forEach(c=>c.classList.toggle('selected', c === card));
+      // الأقسام والحجوزات وأوقات الدفع تختفي مع "بسيط" في الحال، لا بعد
+      // الحفظ: من اختار البسيط لا ينبغي أن يظل ينظر إلى ما لا يخصّه.
+      rkSyncDineInVisibility();
     });
   });
   const dineInModeSaveBtn = document.getElementById('dineInModeSaveBtn');
@@ -9376,8 +9400,7 @@ async function renderPosSettings(){
       DINE_IN_MODE = pendingDineInMode;
       // The tables settings below only apply to one of the two modes, so
       // they appear and disappear with it rather than sitting there inert.
-      const gated = document.getElementById('posTablesGatedContent');
-      if(gated) gated.style.display = (DINE_IN_ENABLED && DINE_IN_MODE === 'tables') ? '' : 'none';
+      rkSyncDineInVisibility();
       logDashboardAudit('غيّر نظام الطلب المحلي إلى ' + (pendingDineInMode === 'tables' ? 'خدمة طاولات' : 'محلي بسيط'));
       rkBtnSuccess(dineInModeSaveBtn, '✓ تم الحفظ');
     } catch(err){
