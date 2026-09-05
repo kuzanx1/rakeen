@@ -35,6 +35,7 @@ import uuid from 'react-native-uuid';
 import { getPrinterProfile } from './src/infrastructure/printerProfileStore';
 import {
   getPosFeatureFlags,
+  getServiceSettings,
   getRequireManagerPinForClose,
   subscribeToBusinessSettings,
 } from './src/application/catalogService';
@@ -192,6 +193,23 @@ function App(): React.JSX.Element {
   const [printerLabel, setPrinterLabel] = useState('بدون طابعة شبكة');
   /** POS_HIDE_NOTIF_BELL -- the owner can remove the bell entirely. */
   const [hideNotifBell, setHideNotifBell] = useState(false);
+  /**
+   * هل لهذا المطعم طاولات أصلاً؟
+   *
+   * businesses.dine_in_mode: 'simple' يعني اطلب من الكاشير واجلس حيث
+   * شئت -- لا أرقام ولا حجز ولا شاشة طاولات. و'tables' خدمة طاولات
+   * كاملة. والقاعدة تعرف الفرق منذ ترحيل dine_in_mode، ولوحة التحكم
+   * تعرضه، وهذا الملف وحده كان يتجاهله: تبويب "الطاولات" معروضٌ دائماً
+   * بلا شرط.
+   *
+   * فمقهىً لا طاولات عنده يرى تبويباً لا يعنيه ولا يفتح على شيء.
+   * و"محلي" لا يذهب معه -- هو نوع طلب لا نظام طاولات، والمقهى البسيط
+   * يبيع محلياً كل يوم.
+   *
+   * والافتراضي 'tables' لا 'simple': قراءةٌ أخفقت يجب ألا تُخفي شاشةً
+   * يعتمد عليها مطعمٌ يديرها بالفعل.
+   */
+  const [dineInMode, setDineInMode] = useState<'simple' | 'tables'>('tables');
   const [drawerBusy, setDrawerBusy] = useState(false);
   // The same floating toast every other screen uses, instead of a banner
   // of this component own: a confirmation that follows a deliberate tap
@@ -456,6 +474,12 @@ function App(): React.JSX.Element {
           // Leave the bell visible; a failed settings read must not remove
           // a control the owner may well want.
         }
+        try {
+          setDineInMode((await getServiceSettings(device.businessId)).dineInMode);
+        } catch {
+          // يبقى 'tables': إخفاء شاشة الطاولات عن مطعمٍ يستعملها أسوأ
+          // من إظهارها لمن لا يستعملها.
+        }
       }
       setBranchName(device.branchName);
       try {
@@ -604,6 +628,7 @@ function App(): React.JSX.Element {
     return subscribeToBusinessSettings(cashier.business_id, async () => {
       try {
         setHideNotifBell((await getPosFeatureFlags(cashier.business_id)).hideNotifBell);
+        setDineInMode((await getServiceSettings(cashier.business_id)).dineInMode);
       } catch {
         // Keep whatever is showing rather than removing a control on a
         // failed read.
@@ -663,6 +688,12 @@ function App(): React.JSX.Element {
       setDrawerBusy(false);
     }
   };
+
+  // المالك قد يطفئ الطاولات والكاشير واقفٌ عليها. فيُنقل إلى الرئيسية،
+  // لا يُترك أمام شاشة لم يبقَ لها تبويب يعود منه إليها.
+  useEffect(() => {
+    if (dineInMode === 'simple' && screen.name === 'tables') setScreen({ name: 'products', table: null });
+  }, [dineInMode, screen.name]);
 
   const activeTab = screenToTab(screen);
 
@@ -955,7 +986,9 @@ function App(): React.JSX.Element {
             </>
           }
         />
-        <NavTabButton
+        {/* لا تبويب طاولات لمن لا طاولات عنده. و"محلي" باقٍ في أنواع
+            الطلب كما هو -- هو نوع طلب لا نظام طاولات. */}
+        {dineInMode === 'tables' && <NavTabButton
           active={activeTab === 'tables'}
           label={t('الطاولات')}
           onPress={() => setScreen({ name: 'tables' })}
@@ -967,7 +1000,7 @@ function App(): React.JSX.Element {
               <Rect x={14} y={14} width={7} height={7} />
             </>
           }
-        />
+        />}
         <NavTabButton
           active={activeTab === 'more'}
           label={t('المزيد')}
