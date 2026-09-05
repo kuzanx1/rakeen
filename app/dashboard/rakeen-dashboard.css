@@ -1047,8 +1047,14 @@ button{font-family:inherit; cursor:pointer;}
 .menu-cat-tab.active{background:linear-gradient(135deg, var(--graphite), #262626); border-color:var(--graphite); color:var(--lime); box-shadow:0 4px 14px rgba(0,0,0,0.18);}
 [data-theme="dark"] .menu-cat-tab.active{background:linear-gradient(135deg, #232323, #171717);}
 .menu-cat-tab .mct-count{opacity:0.7; font-size:10.5px;}
-.menu-cat-tab .mct-rename{width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.12); flex-shrink:0;}
-.menu-cat-tab:not(.active) .mct-rename{background:var(--surf2);}
+.menu-cat-tab .mct-tools{display:flex; align-items:center; gap:4px; flex-shrink:0;}
+.menu-cat-tab .mct-tool{width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.12); flex-shrink:0;}
+.menu-cat-tab:not(.active) .mct-tool{background:var(--surf2);}
+.menu-cat-tab .mct-tool[data-off]{opacity:0.25; pointer-events:none;}
+.menu-cat-tab .mct-del:hover{background:color-mix(in srgb, var(--danger) 22%, transparent); color:var(--danger);}
+/* الحقلان جنب بعض عند إعادة التسمية: العربي أولاً ثم الإنجليزي. */
+.menu-cat-rename-pair{display:flex; gap:6px; align-items:center;}
+.mcri-en{width:120px; font-family:'IBM Plex Mono',monospace; font-size:11px;}
 .menu-cat-tab-rename-input{padding:8px 12px; border-radius:var(--r-full); border:1.5px solid var(--lime-deep); background:var(--card-bg); color:var(--text); font-weight:700; font-size:12px; width:140px;}
 
 /* Category management list — one clean horizontal row per category, mirrors

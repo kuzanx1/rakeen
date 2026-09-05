@@ -6159,7 +6159,7 @@ async function loadBusinessData(){
   MENU_CATEGORY_ID_BY_NAME = {};
   (catRes.data||[]).forEach(c=> MENU_CATEGORY_ID_BY_NAME[c.name]=c.id);
   MENU_CATEGORIES = (catRes.data||[]).map(c=>c.name);
-  CATEGORY_ROWS = (catRes.data||[]).map(c=>({id:c.id, name:c.name, parentId:c.online_parent_category_id||null, sortOrder:c.sort_order}));
+  CATEGORY_ROWS = (catRes.data||[]).map(c=>({id:c.id, name:c.name, nameEn:c.name_en||'', parentId:c.online_parent_category_id||null, sortOrder:c.sort_order}));
 
   const boxEligByItem = {};
   (boxEligRes.data||[]).forEach(r=>{ (boxEligByItem[r.menu_item_id] ||= []).push(r); });
@@ -10888,12 +10888,38 @@ function renderCategoryTabs(){
   html += MENU_CATEGORIES.map(cat=>{
     const count = countableItems.filter(m=>m.category===cat).length;
     if(renamingCategory === cat){
-      return `<input type="text" class="menu-cat-tab-rename-input" id="catRenameInput" value="${cat}" data-original="${cat}">`;
+      // الاسم الإنجليزي هنا، لا في شاشة أخرى.
+      //
+      // العمود menu_categories.name_en موجود منذ ترحيل الأسماء ثنائية
+      // اللغة، والكاشير يقرؤه -- ولا شاشة في اللوحة تكتبه. فالفئة تظهر
+      // بالإنجليزية فقط إن صادف اسمها العربي كلمةً في قاموس التطبيق
+      // المدمج، وإلا بقيت عربية في واجهة إنجليزية.
+      const row = CATEGORY_ROWS.find(c=>c.name===cat) || {};
+      return `<span class="menu-cat-rename-pair">
+        <input type="text" class="menu-cat-tab-rename-input" id="catRenameInput" value="${cat}" data-original="${cat}" placeholder="الاسم بالعربي">
+        <input type="text" class="menu-cat-tab-rename-input mcri-en" id="catRenameInputEn" value="${row.nameEn || ''}" placeholder="English name" dir="ltr">
+      </span>`;
     }
+    // الترتيب والحذف كانا موجودين في شاشة المتجر الإلكتروني وحدها، ومن
+    // يرتّب فئاته يرتّبها من حيث يراها -- وهو المنيو. نفس الدالتين
+    // تُستدعيان هنا، لا نسخة ثانية منهما.
+    const catId = MENU_CATEGORY_ID_BY_NAME[cat];
+    const order = MENU_CATEGORIES.indexOf(cat);
     return `<button class="menu-cat-tab ${activeMenuCategory===cat?'active':''}" data-cat="${cat}">
       ${cat} <span class="mct-count">${count}</span>
-      <span class="mct-rename" data-rename="${cat}" title="إعادة تسمية">
-        <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
+      <span class="mct-tools">
+        <span class="mct-tool" data-catmove="up" data-catid="${catId}" title="نقل لليمين" ${order===0?'data-off="1"':''}>
+          <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3"><polyline points="15 18 9 12 15 6"/></svg>
+        </span>
+        <span class="mct-tool" data-catmove="down" data-catid="${catId}" title="نقل لليسار" ${order===MENU_CATEGORIES.length-1?'data-off="1"':''}>
+          <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"/></svg>
+        </span>
+        <span class="mct-tool mct-rename" data-rename="${cat}" title="إعادة تسمية">
+          <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
+        </span>
+        <span class="mct-tool mct-del" data-catdel="${catId}" title="حذف الفئة">
+          <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+        </span>
       </span>
     </button>`;
   }).join('');
@@ -10921,9 +10947,23 @@ function renderCategoryTabs(){
     });
   }
 
+  el.querySelectorAll('[data-catmove]').forEach(sp=>{
+    sp.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      if(sp.dataset.off) return;
+      moveCategoryOrder(parseInt(sp.dataset.catid, 10), sp.dataset.catmove === 'up' ? -1 : 1);
+    });
+  });
+  el.querySelectorAll('[data-catdel]').forEach(sp=>{
+    sp.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      deleteCategoryFromHierarchy(parseInt(sp.dataset.catdel, 10));
+    });
+  });
+
   el.querySelectorAll('.menu-cat-tab').forEach(btn=>{
     btn.addEventListener('click', (e)=>{
-      if(e.target.closest('.mct-rename')) return;
+      if(e.target.closest('.mct-tools')) return;
       activeMenuCategory = btn.dataset.cat === '__all__' ? null : btn.dataset.cat;
       renderCategoryTabs();
       renderMenuProductTable();
@@ -10937,24 +10977,57 @@ function renderCategoryTabs(){
     });
   });
   const renameInput = document.getElementById('catRenameInput');
+  const renameInputEn = document.getElementById('catRenameInputEn');
   if(renameInput){
     renameInput.focus(); renameInput.select();
-    renameInput.addEventListener('keydown', (ev)=>{ if(ev.key==='Enter') renameInput.blur(); if(ev.key==='Escape'){ renamingCategory=null; renderCategoryTabs(); } });
-    renameInput.addEventListener('blur', ()=> confirmCategoryRename(renameInput));
+    // الحفظ حين تغادر الخانتين معاً لا حين تنتقل بينهما: الانتقال من
+    // العربي إلى الإنجليزي كان يُطلق الحفظ فيُعاد رسم الرقاقة ويختفي
+    // الحقل الإنجليزي قبل أن يُكتب فيه حرف.
+    const leaving = (ev)=>{
+      const to = ev.relatedTarget;
+      if(to && to.closest && to.closest('.menu-cat-rename-pair')) return;
+      confirmCategoryRename(renameInput);
+    };
+    const keys = (ev)=>{
+      if(ev.key==='Enter') confirmCategoryRename(renameInput);
+      if(ev.key==='Escape'){ renamingCategory=null; renderCategoryTabs(); }
+    };
+    renameInput.addEventListener('keydown', keys);
+    renameInput.addEventListener('blur', leaving);
+    if(renameInputEn){
+      renameInputEn.addEventListener('keydown', keys);
+      renameInputEn.addEventListener('blur', leaving);
+    }
   }
 }
 
 async function confirmCategoryRename(input){
   const oldName = input.dataset.original;
   const newName = input.value.trim();
+  const enInput = document.getElementById('catRenameInputEn');
+  const newEn = enInput ? enInput.value.trim() : null;
+  const catRowNow = CATEGORY_ROWS.find(c=>c.name===oldName);
+  const oldEn = (catRowNow && catRowNow.nameEn) || '';
+  const enChanged = enInput && newEn !== oldEn;
   renamingCategory = null;
-  if(!newName || newName === oldName){ renderCategoryTabs(); return; }
-  if(MENU_CATEGORIES.includes(newName)){ showToast('فيه فئة بنفس هذا الاسم أصلًا'); renderCategoryTabs(); return; }
+  // الاسم العربي وحده لم يتغيّر لكن الإنجليزي تغيّر: يُحفظ ولا يُهمَل.
+  if((!newName || newName === oldName) && !enChanged){ renderCategoryTabs(); return; }
+  if(newName && newName !== oldName && MENU_CATEGORIES.includes(newName)){ showToast('فيه فئة بنفس هذا الاسم أصلًا'); renderCategoryTabs(); return; }
 
   const catId = MENU_CATEGORY_ID_BY_NAME[oldName];
+  const finalName = newName || oldName;
   try {
-    const { error } = await window.supabaseClient.from('menu_categories').update({name: newName}).eq('id', catId);
+    const patch = { name: finalName };
+    if(enInput) patch.name_en = newEn || null;
+    const { error } = await window.supabaseClient.from('menu_categories').update(patch).eq('id', catId);
     if(error) throw error;
+    if(catRowNow) catRowNow.nameEn = newEn || '';
+    if(finalName === oldName){
+      logDashboardAudit('عدّل الاسم الإنجليزي لفئة "' + oldName + '"');
+      showToast('تم حفظ الاسم الإنجليزي');
+      renderCategoryTabs();
+      return;
+    }
   } catch(err){
     showToast('تعذر حفظ الاسم الجديد: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
     renderCategoryTabs();
