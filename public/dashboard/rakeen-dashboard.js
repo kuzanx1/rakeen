@@ -8379,22 +8379,39 @@ function customerReceiptPreviewHtml(themeId){
     '<div style="display:flex; justify-content:space-between; font-size:' + sz(11.5) + '; ' + mb(4) + (last ? '' : hair) + '"><span>' + name + '</span><span style="font-family:monospace;">' + price + '</span></div>';
   return [
     '<div id="rkReceiptPreviewCard" style="flex:1; min-width:220px; max-width:280px; background:#fff; color:#111; border-radius:10px; padding:16px; font-family:\'IBM Plex Sans Arabic\',sans-serif;">',
-      (t.showLogo && BUSINESS_LOGO_URL) ? '<div style="text-align:center; ' + mb(8) + '"><img src="' + BUSINESS_LOGO_URL + '" alt="" style="width:46px; height:46px; border-radius:50%; object-fit:cover;"></div>' : '',
-      '<div style="text-align:center; font-weight:800; font-size:' + sz(15) + '; ' + (t.headerBand ? band + 'letter-spacing:1.5px;' : '') + '">' + escapeHtml(RESTAURANT_INFO.name || 'ركين') + '</div>',
-      '<div style="text-align:center; font-size:' + sz(11) + '; color:#555; margin-top:4px;">١٠/٠٨/٢٠٢٦ ٥:٤٢ م</div>',
-      '<div style="text-align:center; font-weight:800; font-size:' + sz(11.5) + '; margin-top:6px;">رقم الطلب · Order: #58</div>',
+      // شعار الفاتورة لا شعار المتجر، وبنسبة أبعاده لا مقصوصاً في دائرة:
+      // المعاينة هي ما يختار عليها صاحب المطعم، فإن أرته غير ما يُطبع
+      // فقد اختار شيئاً ورأى شيئاً آخر.
+      (t.showLogo && RECEIPT_LOGO_URL)
+        ? '<div style="text-align:center; ' + mb(8) + '"><img src="' + RECEIPT_LOGO_URL + '" alt="" style="width:' + Math.round((t.logoWidth || 0.30) * 100) + '%; max-height:90px; object-fit:contain;"></div>'
+        : '',
+      // الاسم يُخفى فقط حين يوجد شعار -- بلا شعار هو الترويسة كلها.
+      (RECEIPT_SHOW_NAME || !(t.showLogo && RECEIPT_LOGO_URL))
+        ? '<div style="text-align:center; font-weight:800; font-size:' + sz(15) + '; ' + (t.headerBand ? band + 'letter-spacing:1.5px;' : '') + '">' + escapeHtml(RESTAURANT_INFO.name || 'ركين') + '</div>'
+        : '',
+      RECEIPT_TAGLINE ? '<div style="text-align:center; font-size:' + sz(11.5) + '; color:#444; margin-top:5px;">' + escapeHtml(RECEIPT_TAGLINE) + '</div>' : '',
+      '<div style="text-align:center; font-size:' + sz(11) + '; color:#555; margin-top:4px;">الفرع الأول — حي البيعة، الطائف</div>',
       hasVat
         ? '<div style="text-align:center; font-weight:800; font-size:' + sz(11.5) + '; margin-top:8px;">فاتورة ضريبية مبسطة · Simplified Tax Invoice</div><div style="text-align:center; font-size:' + sz(10.5) + '; color:#555;">الرقم الضريبي · VAT No: ' + escapeHtml(BUSINESS_VAT_NUMBER) + '</div>'
         : '<div style="text-align:center; font-size:10.5px; color:#a87a1e; margin-top:8px;">⚠ بدون رقم ضريبي — ما راح يطبع رمز QR</div>',
+      // رقم الطلب داخل صندوق، تحته التاريخ -- كما يُطبع تماماً.
+      '<div style="border:1.5px solid #111; border-radius:3px; padding:6px 4px; margin:' + (10 * t.density).toFixed(1) + 'px 18% 0;">'
+        + '<div style="text-align:center; font-size:' + sz(9.5) + '; color:#555;">رقم الطلب · Order No</div>'
+        + '<div style="text-align:center; font-weight:800; font-size:' + sz(19) + '; font-family:monospace;">#58</div>'
+        + '</div>',
+      '<div style="text-align:center; font-size:' + sz(10.5) + '; color:#555; margin-top:6px;">١٠/٠٨/٢٠٢٦ ٥:٤٢ م</div>',
       '<div style="' + rule + '"></div>',
-      item('2 × برجر لحم مشوي', '70.00', false),
-      item('1 × بطاطس مقلية', '29.00', true),
+      '<div style="font-size:' + sz(10.5) + '; color:#555;">تمت بواسطة · Served by: سارة</div>',
+      '<div style="font-size:' + sz(10.5) + '; color:#555;">نوع الطلب · Type: محلي · Dine-in</div>',
       '<div style="' + rule + '"></div>',
-      '<div style="display:flex; justify-content:space-between; font-size:' + sz(11.5) + ';"><span>المجموع الفرعي · Subtotal</span><span style="font-family:monospace;">99.00</span></div>',
-      '<div style="display:flex; justify-content:space-between; font-size:' + sz(11.5) + ';"><span>ضريبة القيمة المضافة · VAT</span><span style="font-family:monospace;">14.85</span></div>',
-      '<div style="display:flex; justify-content:space-between; font-weight:800; font-size:' + sz(14) + '; margin-top:4px; ' + (t.boxedTotal ? 'border:1.5px solid #111; border-radius:4px; padding:5px 7px;' : '') + '"><span>الإجمالي · Total</span><span style="font-family:monospace;">113.85</span></div>',
+      item('2x برجر لحم مشوي | Grilled Beef Burger', '70.00 ريال', false),
+      item('1x بطاطس مقلية | French Fries', '29.00 ريال', true),
+      '<div style="' + rule + '"></div>',
+      '<div style="display:flex; justify-content:space-between; font-size:' + sz(11.5) + ';"><span>المجموع الفرعي · Subtotal</span><span style="font-family:monospace;">99.00 ريال</span></div>',
+      '<div style="display:flex; justify-content:space-between; font-size:' + sz(11.5) + ';"><span>ضريبة القيمة المضافة · VAT</span><span style="font-family:monospace;">14.85 ريال</span></div>',
+      '<div style="display:flex; justify-content:space-between; font-weight:800; font-size:' + sz(14) + '; margin-top:4px; ' + (t.boxedTotal ? 'border:1.5px solid #111; border-radius:4px; padding:5px 7px;' : '') + '"><span>الإجمالي · Total</span><span style="font-family:monospace;">113.85 ريال</span></div>',
       qrPayload ? '<div style="text-align:center; margin-top:' + (12 * t.density).toFixed(1) + 'px;"><img src="/api/qr?data=' + encodeURIComponent(qrPayload) + '" alt="QR" style="width:' + t.qrSize + 'px; height:' + t.qrSize + 'px;"></div>' : '',
-      '<div style="text-align:center; font-size:' + sz(10.5) + '; color:#555; margin-top:10px;">' + escapeHtml(RECEIPT_CUSTOM_MESSAGE || 'شكراً لزيارتكم') + '</div>',
+      '<div style="text-align:center; font-size:' + sz(10.5) + '; color:#555; margin-top:10px;">' + (RECEIPT_CUSTOM_MESSAGE || 'شكراً لزيارتكم').split(String.fromCharCode(10)).map(l=>l.trim()).filter(Boolean).map(l=>escapeHtml(l)).join('<br>') + '</div>',
       '<div style="text-align:center; font-size:9.5px; color:#999; margin-top:6px;">— فاتورة العميل —</div>',
     '</div>'
   ].join('');
