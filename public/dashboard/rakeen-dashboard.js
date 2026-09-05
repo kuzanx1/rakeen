@@ -9218,17 +9218,17 @@ async function renderPosSettings(){
 
   const dineInMasterPanel = `
     <div class="rk-section">
-      ${rkSectionHead('grid', 'الطلب المحلي', 'الفرق عن السفري إن المطبخ يجهّزه بصحون بدل أكياس — وتحتها تختار كيف تديره')}
+      ${rkSectionHead('grid', 'الطلب المحلي', 'قراران: المفتاح يقرر هل زر «محلي» موجود، والبطاقة تحته تقرر هل معه طاولات')}
       ${rkSwitchRow('posDineInToggle', DINE_IN_ENABLED, 'تفعيل الطلب المحلي', null, rkDineInStatus)}
       <div class="rk-subblock" id="dineInModeBlock" style="${DINE_IN_ENABLED ? '' : 'display:none;'}">
         <div class="rk-theme-cards">
           <button type="button" class="rk-theme-card ${DINE_IN_MODE === 'simple' ? 'selected' : ''}" data-dinemode="simple">
             <span class="rk-theme-card-name">محلي بسيط</span>
-            <span class="rk-theme-card-desc">العميل يطلب من الكاشير ويجلس أي مكان ويستلم بنفسه. ما فيه أرقام طاولات ولا حجوزات — بس المطبخ يعرف إنه بصحون.</span>
+            <span class="rk-theme-card-desc">زر «محلي» يبقى بالكاشير، وتبويب «الطاولات» يختفي — ومعه الأقسام والحجوزات وأوقات الدفع. العميل يطلب من الكاشير ويجلس أي مكان.</span>
           </button>
           <button type="button" class="rk-theme-card ${DINE_IN_MODE === 'tables' ? 'selected' : ''}" data-dinemode="tables">
             <span class="rk-theme-card-name">خدمة طاولات كاملة</span>
-            <span class="rk-theme-card-desc">أرقام طاولات، فتح وإقفال حساب لكل طاولة، أقسام، وحجوزات.</span>
+            <span class="rk-theme-card-desc">تبويب «الطاولات» يظهر بالكاشير: أرقام، وفتح وإقفال حساب لكل طاولة، وأقسام، وحجوزات.</span>
           </button>
         </div>
         <button class="rk-btn rk-btn-secondary rk-btn-md" id="dineInModeSaveBtn" style="margin-top:12px;">حفظ نظام المحلي</button>
@@ -9408,6 +9408,10 @@ async function renderPosSettings(){
       showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
     }
   });
+
+  // الحالة تُضبط من أول رسم، لا بعد أول ضغطة: المعلَم يحمل قيمةً
+  // ابتدائية، وهذا يجعلها هي والمرجع شيئاً واحداً منذ اللحظة الأولى.
+  rkSyncDineInVisibility();
 
   const posPagerSaveBtn = document.getElementById('posPagerSaveBtn');
   if(posPagerSaveBtn) posPagerSaveBtn.addEventListener('click', async ()=>{
@@ -10023,9 +10027,17 @@ const rkPricesIncludeVatStatus = c => {
     ? {text:`مثال: منتج سعره ${base} ر.س بالمنيو → العميل يدفع ${total.toFixed(2)} ر.س بالضبط (${vat.toFixed(2)} منها ضريبة)`, tone:'ok'}
     : {text:`⚠ مثال: منتج سعره ${base} ر.س بالمنيو → العميل يدفع ${total.toFixed(2)} ر.س (تُضاف ${vat.toFixed(2)} ضريبة فوق السعر المعروض)`, tone:'warn'};
 };
+/**
+ * المفتاح يقرر وجود "محلي"، لا وجود الطاولات.
+ *
+ * كان نصّه "شاشة الطاولات ظاهرة بالكاشير" -- وهو من قبل أن ينقسم
+ * المحلي إلى بسيطٍ وطاولات. فمن أراد إخفاء الطاولات أطفأ المفتاح،
+ * فذهب "محلي" كلّه معها وهو يريده. والطاولات تقررها البطاقة تحته لا
+ * هو.
+ */
 const rkDineInStatus = c => c
-  ? {text:'شاشة الطاولات ظاهرة بالكاشير', tone:'ok'}
-  : {text:'شاشة الطاولات مخفية من الكاشير', tone:''};
+  ? {text:'زر «محلي» ظاهر بالكاشير', tone:'ok'}
+  : {text:'«محلي» مخفي — الطلبات سفري وتوصيل فقط', tone:''};
 const rkBookingStatus = c => c
   ? {text:'رابط الحجز يظهر لعملائك الحين', tone:'ok'}
   : {text:'الحجز الذاتي غير متاح لعملائك حاليًا', tone:''};
