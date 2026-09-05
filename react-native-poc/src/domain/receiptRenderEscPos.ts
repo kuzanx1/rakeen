@@ -86,6 +86,44 @@ function barcodeCommands(value: string): number[] {
   ];
 }
 
+/**
+ * A hairline rule, as one dot row of graphics.
+ *
+ * A row of "-" is what a receipt looks like when nobody chose anything:
+ * the dashes are as tall as the text, they leave gaps, and they read as
+ * typing rather than as a rule. One dot row reads as a printed line, which
+ * is what Foodics' slip has and what makes its blocks look deliberate.
+ *
+ * The cost is 89 bytes and it is identical on every receipt, so it is
+ * built once per width and reused — a rule is not worth re-encoding six
+ * times a receipt, several receipts a minute.
+ */
+const hairlineCache = new Map<number, number[]>();
+
+function hairline(caps: PrinterCapabilityProfile): number[] {
+  const cached = hairlineCache.get(caps.printableDots);
+  if (cached) return cached;
+  const width = caps.printableDots;
+  // Through the same encoder as everything else, so an old printer still
+  // gets the command form it understands.
+  const row = rowToRgba(width);
+  const bytes = caps.modernGraphics ? rgbaToEscPosRaster(row) : rgbaToEscPosRasterLegacy(row);
+  hairlineCache.set(width, bytes);
+  return bytes;
+}
+
+/** One fully dark pixel row, as the encoder expects to receive it. */
+function rowToRgba(width: number): RgbaBuffer {
+  const data = new Uint8Array(width * 4);
+  for (let i = 0; i < width; i++) {
+    data[i * 4] = 0;
+    data[i * 4 + 1] = 0;
+    data[i * 4 + 2] = 0;
+    data[i * 4 + 3] = 255;
+  }
+  return { width, height: 1, data };
+}
+
 /** Logo bytes, encoded once per logo and reused for every receipt. */
 const logoCache = new Map<string, number[]>();
 
@@ -171,36 +209,63 @@ export function renderReceipt(model: ReceiptModel, caps: PrinterCapabilityProfil
 
   const rule = () => {
     lineIndex++;
-    t.align('left').rule(Math.floor(caps.printableDots / caps.latinCharDots));
+    t.feedDots(6).align('left').raw(hairline(caps)).feedDots(8);
+  };
+
+  /**
+   * رقم الطلب داخل إطار.
+   *
+   * هو أول ما يبحث عنه الكاشير في نزاع، وأول ما يقرأه العميل ليطابق
+   * طلبه. خطّان شعريان حوله يجعلانه كتلة قائمة بذاتها بدل سطر عريض بين
+   * سطور — وهذا ما يفعله فودكس، وهو صحيح.
+   */
+  const framed = (text: string) => {
+    t.feedDots(6).align('left').raw(hairline(caps)).feedDots(12);
+    centre(text, { bold: true, tall: true });
+    t.feedDots(10).align('left').raw(hairline(caps)).feedDots(8);
+    lineIndex += 2;
   };
 
   // ---- Header ---------------------------------------------------------
   const logo = model.logoKey ? logoCache.get(model.logoKey) : undefined;
   if (logo) {
-    t.align('center').raw(logo).line();
+    t.align('center').raw(logo).feedDots(10);
   }
   centre(model.businessName, { bold: true, tall: true });
   if (model.branchName) centre(model.branchName);
-  if (model.addressLine) centre(model.addressLine);
-  if (model.phone) centre(model.phone);
+  // العنوان والهاتف سطر واحد: كلاهما "أين نحن"، وسطران لهما يفرّقان ما
+  // يُقرأ معاً ويطيلان الورق بلا مقابل.
+  const where = [model.addressLine, model.phone].filter(Boolean).join('  ');
+  if (where) centre(where);
   if (model.vatNumber) {
     centre(label('فاتورة ضريبية مبسطة', 'Simplified Tax Invoice'));
     centre(`${label('الرقم الضريبي', 'VAT')} ${model.vatNumber}`);
   }
 
-  rule();
+  // لا فاصل هنا: الإطار حول رقم الطلب يحمل خطه العلوي بنفسه، وخطان
+  // متجاوران يقرأان كخطأ طباعة.
 
   // ---- Order ----------------------------------------------------------
   // The order number is the one thing a cashier looks for first, so it is
   // the largest line in this block rather than another grey label.
-  centre(`${label('رقم الطلب', 'Order')} #${model.orderNumber}`, { bold: true, tall: true });
+  framed(`${label('رقم الطلب', 'Order')} #${model.orderNumber}`);
 
   // Order type as a labelled pair like every other order field, not a
   // centred line of its own: it belongs to the same scan column as the
   // table number and the cashier, and centring it would break that column.
   const kind = model.orderKind ? ORDER_KIND_LABEL[model.orderKind] : null;
-  if (kind) infoRow(label('النوع', 'Type'), label(kind.ar, kind.en));
-  if (model.tableNumber) infoRow(label('طاولة', 'Table'), model.tableNumber);
+  // النوع والطاولة سطر واحد: "محلي — طاولة 7" جملة واحدة، وفصلها سطرين
+  // يجعل العين تقفز بينهما لتركيبها.
+  if (kind) {
+    infoRow(
+      label('النوع', 'Type'),
+      model.tableNumber
+        ? `${label(kind.ar, kind.en)} — ${label('طاولة', 'Table')} ${model.tableNumber}`
+        : label(kind.ar, kind.en),
+    );
+  } else if (model.tableNumber) {
+    infoRow(label('طاولة', 'Table'), model.tableNumber);
+  }
   if (model.customerName) infoRow(label('العميل', 'Customer'), model.customerName);
   if (model.customerPhone) infoRow(label('الجوال', 'Phone'), model.customerPhone);
   if (model.cashierName) infoRow(label('الكاشير', 'Cashier'), model.cashierName);

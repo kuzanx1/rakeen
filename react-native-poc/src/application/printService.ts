@@ -5,6 +5,7 @@ import { PrintTimer } from './printTiming';
 import { renderReceipt } from '../domain/receiptRenderEscPos';
 import { receiptModelFromOrder } from './receiptModelFromOrder';
 import { resolveCapabilities } from '../domain/printerCapability';
+import { ensureLogoCached } from './receiptLogo';
 import { bytesToBase64 } from '../domain/escposText';
 import { profileToPrinterTarget, profileToKitchenPrinterTarget } from '../domain/printerProfile';
 import { printReceipt } from '../platform/printer';
@@ -87,10 +88,15 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
   const canPrintAsText = caps.arabic !== 'none' && profile?.receiptMode !== 'image';
   const useText = canPrintAsText && job.type === 'receipt';
   const escPosBase64 = useText
-    ? await timer.stage('escposBuild', () => {
+    ? await (async () => {
         const model = receiptModelFromOrder(job.data as unknown as ReceiptData);
-        return bytesToBase64(renderReceipt(model, caps).bytes);
-      })
+        // مرة واحدة لكل شعار. الفواتير التالية تجده جاهزاً، فتظهر هذي
+        // المرحلة بصفر ملّي ثانية في التشخيص — وهذا دليل الذاكرة تعمل.
+        const hasLogo = await timer.stage('logoLoad', () => ensureLogoCached(model.logoKey, caps));
+        return timer.stage('escposBuild', () =>
+          bytesToBase64(renderReceipt(hasLogo ? model : { ...model, logoKey: undefined }, caps).bytes),
+        );
+      })()
     :
     job.type === 'receipt'
       ? await renderReceiptToEscPosBase64(

@@ -117,6 +117,17 @@ export class EscPosText {
     return this;
   }
 
+  /**
+   * `ESC J n` — يطبع ويغذّي n نقطة.
+   *
+   * للمسافات الصغيرة حول الخطوط والصور، حيث السطر الفارغ (٢٤ نقطة)
+   * أكبر بكثير مما يلزم. المسافة هنا قرار بالنقطة لا أثر جانبي.
+   */
+  feedDots(dots: number): this {
+    this.bytes.push(ESC, 0x4a, Math.max(0, Math.min(255, Math.round(dots))));
+    return this;
+  }
+
   feed(n: number): this {
     for (let i = 0; i < n; i++) this.bytes.push(0x0a);
     return this;

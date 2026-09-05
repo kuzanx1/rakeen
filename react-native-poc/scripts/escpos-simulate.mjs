@@ -46,6 +46,9 @@ export function parse(bytes) {
   while (i < bytes.length) {
     const b = bytes[i];
     if (b === ESC && bytes[i + 1] === 0x40) { i += 2; continue; }            // init
+    // ESC J n — تغذية بالنقاط. هذا ما يضبط المسافات حول الخطوط والصور،
+    // فمحاكٍ يتجاهله يعرض تباعداً غير الذي سيُطبع.
+    if (b === ESC && bytes[i + 1] === 0x4a) { ops.push({ type: 'feed', dots: bytes[i + 2] }); i += 3; continue; }
     if (b === ESC && bytes[i + 1] === 0x61) { align = ['left','center','right'][bytes[i+2]] ?? 'left'; i += 3; continue; }
     if (b === ESC && bytes[i + 1] === 0x45) { bold = bytes[i + 2] === 1; i += 3; continue; }
     if (b === GS && bytes[i + 1] === 0x21) { const n = bytes[i+2]; wide = (n >> 4) > 0; tall = (n & 0x0f) > 0; i += 3; continue; }
@@ -166,7 +169,7 @@ function drawImage(op) {
     raw: { width: op.w, height: op.h, channels: 3 },
     top: Math.round(y), left: Math.round((W - op.w) / 2),
   });
-  y += op.h + 6;
+  y += op.h;
 }
 
 function drawQr(op) {
@@ -206,6 +209,7 @@ export async function render(bytes, outPath) {
       continue;
     }
     if (op.type === 'break') { y += runH || LINE_DOTS; runH = 0; continue; }
+    if (op.type === 'feed') { y += op.dots; continue; }
     if (op.type === 'line') await drawText(op);
     else if (op.type === 'image') drawImage(op);
     else if (op.type === 'qr') drawQr(op);
