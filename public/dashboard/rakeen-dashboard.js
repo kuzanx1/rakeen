@@ -7740,6 +7740,16 @@ const RECEIPT_THEMES = [
 ];
 function rkReceiptTheme(id){ return RECEIPT_THEMES.find(t=>t.id===id) || RECEIPT_THEMES[0]; }
 
+/** يقرأ صفّ هوية الفاتورة كما هو في القاعدة الآن -- للتحقق بعد الكتابة. */
+async function loadReceiptBrandingRow(){
+  try {
+    const { data } = await window.supabaseClient
+      .from('businesses').select('receipt_logo_url, receipt_tagline, receipt_show_name')
+      .eq('id', CURRENT_PROFILE.business_id).single();
+    return data || null;
+  } catch(_){ return null; }
+}
+
 async function loadReceiptTheme(){
   try {
     const { data, error } = await window.supabaseClient
@@ -9359,6 +9369,20 @@ async function renderPosSettings(){
       RECEIPT_TAGLINE = tagline;
       RECEIPT_SHOW_NAME = showName;
       if(updates.receipt_logo_url) RECEIPT_LOGO_URL = updates.receipt_logo_url;
+      // تُقرأ القيمة بعد الكتابة، لا يُكتفى بأن الطلب لم يرمِ خطأً --
+      // نفس ما فُعل بحفظ الشكل بعد أن بقيت هبية على "مضغوط" أياماً
+      // والزرّ يؤكّد الحفظ في كل مرة.
+      const after = await loadReceiptBrandingRow();
+      if(after && ((after.receipt_tagline || '') !== (tagline || '') || after.receipt_show_name !== showName)){
+        rkBtnLoading(receiptBrandSaveBtn, false);
+        showToast('لم تُحفظ هوية الفاتورة — القاعدة ما زالت على قيمتها السابقة. تأكد إن حسابك مالك هذا النشاط.');
+        return;
+      }
+      // المعاينة تُعاد كتابتها، وإلا بقيت على الشعار القديم بعد حفظ
+      // الجديد -- فيظنّ المالك أن الرفع لم ينجح وهو ناجح.
+      const previewRow = document.getElementById('rkReceiptPreviewRow');
+      const previewOld = document.getElementById('rkReceiptPreviewCard');
+      if(previewRow && previewOld) previewOld.outerHTML = customerReceiptPreviewHtml(RECEIPT_THEME);
       logDashboardAudit('عدّل هوية الفاتورة المطبوعة');
       rkBtnSuccess(receiptBrandSaveBtn, '✓ تم الحفظ');
     } catch(err){
