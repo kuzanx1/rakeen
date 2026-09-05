@@ -329,11 +329,11 @@ export async function renderReceiptToEscPosBase64(
     y = drawRow(ctx, y, receipt.vat.toFixed(2), bi('ضريبة القيمة المضافة', 'VAT'), sz(18), false);
     if (th.boxedTotal) {
       const boxTop = y - LINE_H * 0.55;
-      y = drawRow(ctx, y, receipt.total.toFixed(2), bi('الإجمالي', 'Total'), sz(24), true);
+      y = drawRow(ctx, y, `${receipt.total.toFixed(2)} ${bi('ريال', 'SAR')}`, bi('الإجمالي', 'Total'), sz(24), true);
       drawBox(canvas, PAD * 0.6, boxTop, width - PAD * 1.2, y - boxTop - LINE_H * 0.15);
       y += gap(0.35);
     } else {
-      y = drawRow(ctx, y, receipt.total.toFixed(2), bi('الإجمالي', 'Total'), sz(24), true);
+      y = drawRow(ctx, y, `${receipt.total.toFixed(2)} ${bi('ريال', 'SAR')}`, bi('الإجمالي', 'Total'), sz(24), true);
     }
     drawDivider(canvas, width, y);
     y += gap(0.6);

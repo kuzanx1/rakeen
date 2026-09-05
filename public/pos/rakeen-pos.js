@@ -3227,7 +3227,9 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
   // ZATCA: the VAT amount is a mandatory line, in every theme.
   rowText(receipt.vat.toFixed(2), bi('ضريبة القيمة المضافة', 'VAT'), sz(18), false);
   const totalTop = y - lineH * 0.55;
-  rowText(receipt.total.toFixed(2), bi('الإجمالي', 'Total'), sz(24), true);
+  // بالحروف لا برمز الريال: الرمز الجديد ليس في خط الطابعة، فيخرج
+  // فراغاً أو مربعاً، ومبلغ بلا عملة أوضح من مبلغ بعملة مشوّهة.
+  rowText(receipt.total.toFixed(2) + ' ' + bi('ريال', 'SAR'), bi('الإجمالي', 'Total'), sz(24), true);
   if(th.boxedTotal){
     ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
     ctx.strokeRect(pad * 0.6, totalTop, width - pad * 1.2, y - totalTop - lineH * 0.15);

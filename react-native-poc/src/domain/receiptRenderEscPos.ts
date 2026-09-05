@@ -296,7 +296,10 @@ export function renderReceipt(model: ReceiptModel, caps: PrinterCapabilityProfil
   // ---- Items ----------------------------------------------------------
   lineIndex++;
   writeColumns(t, [
-    { text: label('السعر', 'Price'), x: col.price.x, width: col.price.width, align: 'right' },
+    // العملة في عنوان العمود لا في كل سطر: تكرارها اثنتي عشرة مرة يملأ
+    // أضيق عمود في الورقة ويدفع الأرقام إلى القصّ، والعمود المعنون
+    // يقول ما تقوله المرة الواحدة.
+    { text: label('السعر ريال', 'Price SAR'), x: col.price.x, width: col.price.width, align: 'right' },
     { text: label('المنتج', 'Item'), x: col.name.x, width: col.name.width, align: 'right' },
     { text: label('كمية', 'Qty'), x: col.qty.x, width: col.qty.width, align: 'right' },
   ], caps);
@@ -338,10 +341,17 @@ export function renderReceipt(model: ReceiptModel, caps: PrinterCapabilityProfil
       ], caps);
     }
 
+    // الملاحظة تحمل اسمها. اسم المنتج عريض ويقابله سعر؛ والإضافة تبدأ
+    // بعلامة زائد؛ أما الملاحظة فكانت سطراً عربياً عادياً لا يميّزه عن
+    // اسم منتج شيء إلا غياب السعر. الخط الأصغر كان سيفصلها بلا كلمات،
+    // لكن Font B لم يُختبر عربياً على هذي الطابعة، ولن أرسل غير مُختبر
+    // إلى طابعة تعمل. فالكلمة تفعل ما يفعله الخط، بما هو مُثبت.
     if (item.note) {
       lineIndex++;
+      const noteIndent = Math.round(caps.printableDots * 0.06);
       writeColumns(t, [
-        { text: `* ${item.note}`, x: col.name.x, width: col.name.width, align: 'right' },
+        { text: `${label('ملاحظة', 'Note')}: ${item.note}`,
+          x: col.name.x, width: col.name.width - noteIndent, align: 'right' },
       ], caps);
     }
   });
@@ -357,10 +367,15 @@ export function renderReceipt(model: ReceiptModel, caps: PrinterCapabilityProfil
   // The total is the only line printed double-height. It is what the
   // customer checks and the only number worth finding without reading.
   lineIndex++;
+  // الرقم الذي يُراجَع ويُعترض عليه، فيُذكر باسم عملته كاملاً. وعموده
+  // موسَّع لهذا السطر وحده -- عمود الأسعار ضيّق بحساب الأرقام وحدها،
+  // وإضافة كلمة إليه كما هو تُقصّ الكلمة أو الرقم.
+  const totalW = Math.round(caps.printableDots * 0.34);
   t.size(0, 1);
   writeColumns(t, [
-    { text: money(model.total), x: col.price.x, width: col.price.width, align: 'right', bold: true },
-    { text: label('الإجمالي', 'Total'), x: col.name.x, width: col.name.width, align: 'right', bold: true },
+    { text: `${money(model.total)} ${label('ريال', 'SAR')}`, x: 0, width: totalW, align: 'right', bold: true },
+    { text: label('الإجمالي', 'Total'), x: totalW + Math.round(caps.printableDots * 0.03),
+      width: caps.printableDots - totalW - Math.round(caps.printableDots * 0.06), align: 'right', bold: true },
   ], caps);
   t.size(0, 0);
 
