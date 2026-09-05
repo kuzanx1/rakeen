@@ -7709,15 +7709,34 @@ async function loadOnlineCodEnabled(){
 // The same numbers the two renderers use (public/pos/rakeen-pos.js and the
 // app's src/domain/receiptTheme.ts), so the preview below is a real preview
 // and not a drawing of one.
+/**
+ * الأربعة كما يرسمها الجهاز، لا كما تقاربها المعاينة.
+ *
+ * كانت هذه القائمة تحمل الكثافة ومقياس الخط والشعار فقط، فتعرض المعاينة
+ * أربع نسخ من شكل واحد بفروق في التباعد. والتطبيق يرسم أربعة تصاميم
+ * حقيقية يفصل بينها rule و orderStyle و totalStyle و itemStyle -- وهي
+ * كلمات لم تكن في هذا الملف أصلاً.
+ *
+ * فكان المالك يختار "فخم" فيرى صندوقاً بإطار، ويستلم ورقةً فيها أشرطة
+ * سوداء ورقمُ طلبٍ أبيض على أسود. والورقة هي الصادقة؛ المعاينة هي التي
+ * لا تملك المفردات.
+ *
+ * والقيم أدناه منقولة حرفياً من domain/receiptTheme.ts في التطبيق --
+ * أي تعديل هناك يُنقل هنا، وإلا عاد الافتراق.
+ */
 const RECEIPT_THEMES = [
   { id: 'classic', label: 'كلاسيكي', desc: 'أعمدة وخطوط صلبة ورقم الطلب داخل صندوق — الشكل التقليدي المعروف.',
-    density:1,    typeScale:1,    showLogo:true, logoWidth:0.30, headerBand:false, boxedTotal:false, qrSize:110 },
+    density:1,    typeScale:1,    showLogo:true, logoWidth:0.30, headerBand:false, boxedTotal:false, qrSize:110,
+    rule:'solid', orderStyle:'box', totalStyle:'bold', itemStyle:'columns', sectionLabels:false },
   { id: 'compact', label: 'مضغوط', desc: 'أقصر ورقة ممكنة: بلا شعار ولا خطوط، والصنف وسعره على سطر واحد تصلهما نقاط. النصف تقريباً.',
-    density:0.68, typeScale:0.88, showLogo:false, logoWidth:0.24, headerBand:false, boxedTotal:false, qrSize:85 },
+    density:0.68, typeScale:0.88, showLogo:false, logoWidth:0.24, headerBand:false, boxedTotal:false, qrSize:85,
+    rule:'none', orderStyle:'plain', totalStyle:'plain', itemStyle:'leaders', sectionLabels:false },
   { id: 'elegant', label: 'أنيق', desc: 'هادئ ومتّسع: خطوط منقّطة، وعناوين أقسام بحروف متباعدة، ونقاط موصِلة — مظهر المطاعم الراقية.',
-    density:1.15, typeScale:1.04, showLogo:true, logoWidth:0.34, headerBand:true,  boxedTotal:true,  qrSize:110 },
+    density:1.15, typeScale:1.04, showLogo:true, logoWidth:0.34, headerBand:true,  boxedTotal:true,  qrSize:110,
+    rule:'dotted', orderStyle:'spaced', totalStyle:'box', itemStyle:'leaders', sectionLabels:true },
   { id: 'signature', label: 'فخم', desc: 'بيان: شعار كبير، ورقم الطلب والإجمالي أبيض على أسود، وأشرطة سوداء تفصل الأقسام.',
-    density:1.12, typeScale:1.02, showLogo:true, logoWidth:0.52, headerBand:false, boxedTotal:true,  qrSize:110 },
+    density:1.12, typeScale:1.02, showLogo:true, logoWidth:0.52, headerBand:false, boxedTotal:true,  qrSize:110,
+    rule:'bar', orderStyle:'invert', totalStyle:'invert', itemStyle:'columns', sectionLabels:true },
 ];
 function rkReceiptTheme(id){ return RECEIPT_THEMES.find(t=>t.id===id) || RECEIPT_THEMES[0]; }
 
@@ -8456,12 +8475,41 @@ function customerReceiptPreviewHtml(themeId){
   // drift from the renderer by someone tweaking a literal here.
   const sz = n => (n * t.typeScale).toFixed(1) + 'px';
   const mb = n => 'margin-bottom:' + (n * t.density).toFixed(1) + 'px;';
-  const rule = 'border-top:1px dashed #ccc; margin:' + (10 * t.density).toFixed(1) + 'px 0;';
+  // الفاصل يتبع rule كما في التطبيق: صلبٌ للكلاسيكي، منقّطٌ للأنيق،
+  // شريطٌ أسود للفخم، ولا شيء للمضغوط.
+  const RULE_CSS = {
+    solid:  'border-top:1px solid #ccc;',
+    dotted: 'border-top:1px dotted #bbb;',
+    bar:    'border-top:3px solid #111;',
+    none:   '',
+  };
+  const rule = (RULE_CSS[t.rule] || RULE_CSS.solid) + ' margin:' + (10 * t.density).toFixed(1) + 'px 0;';
   // يطابق الورق: الفاصل بين الأصناف مرقّط دائماً، ليس خياراً في القالب.
   const hair = 'border-bottom:1px dotted #bbb; padding-bottom:3px;';
   const band = 'border-top:1.5px solid #111; border-bottom:1.5px solid #111; padding:' + (5 * t.density).toFixed(1) + 'px 0;';
-  const item = (name, price, last) =>
-    '<div style="display:flex; justify-content:space-between; font-size:' + sz(11.5) + '; ' + mb(4) + (last ? '' : hair) + '"><span>' + name + '</span><span style="font-family:monospace;">' + price + '</span></div>';
+  // أبيض على أسود -- ما كانت المعاينة تعرفه، وهو بصمة "فخم" على الورق.
+  const invert = 'background:#111; color:#fff; padding:' + (5 * t.density).toFixed(1) + 'px 8px; border-radius:3px;';
+
+  /**
+   * الصنف بأسلوبين، كما في التطبيق تماماً.
+   *
+   * 'columns' عمودان متقابلان (الكلاسيكي والفخم)، و'leaders' نقاطٌ
+   * موصِلة تمدّ ما بين الاسم وسعره (المضغوط والأنيق). وكانت المعاينة
+   * ترسم العمودين دائماً، فيختار المالك "أنيق" على وعد النقاط الموصِلة
+   * ولا يراها إلا على الورق.
+   */
+  const item = (name, price, last) => {
+    const base = 'font-size:' + sz(11.5) + '; ' + mb(4) + (last ? '' : hair);
+    if (t.itemStyle === 'leaders') {
+      return '<div style="display:flex; align-items:baseline; gap:2px; ' + base + '">'
+        + '<span style="white-space:nowrap;">' + name + '</span>'
+        + '<span style="flex:1; border-bottom:1px dotted #999; transform:translateY(-3px);"></span>'
+        + '<span style="font-family:monospace; white-space:nowrap;">' + price + '</span></div>';
+    }
+    return '<div style="display:flex; justify-content:space-between; gap:8px; ' + base + '">'
+      + '<span>' + name + '</span>'
+      + '<span style="font-family:monospace; white-space:nowrap;">' + price + '</span></div>';
+  };
   return [
     '<div id="rkReceiptPreviewCard" style="flex:1; min-width:220px; max-width:280px; background:#fff; color:#111; border-radius:10px; padding:16px; font-family:\'IBM Plex Sans Arabic\',sans-serif;">',
       // شعار الفاتورة لا شعار المتجر، وبنسبة أبعاده لا مقصوصاً في دائرة:
@@ -8492,11 +8540,16 @@ function customerReceiptPreviewHtml(themeId){
       hasVat
         ? '<div style="text-align:center; font-weight:800; font-size:' + sz(11.5) + '; margin-top:8px;">فاتورة ضريبية مبسطة · Simplified Tax Invoice</div><div style="text-align:center; font-size:' + sz(10.5) + '; color:#555;">الرقم الضريبي · VAT No: ' + escapeHtml(BUSINESS_VAT_NUMBER) + '</div>'
         : '<div style="text-align:center; font-size:10.5px; color:#a87a1e; margin-top:8px;">⚠ بدون رقم ضريبي — ما راح يطبع رمز QR</div>',
-      // رقم الطلب داخل صندوق، تحته التاريخ -- كما يُطبع تماماً.
-      '<div style="border:1.5px solid #111; border-radius:3px; padding:6px 4px; margin:' + (10 * t.density).toFixed(1) + 'px 18% 0;">'
-        + '<div style="text-align:center; font-size:' + sz(9.5) + '; color:#555;">رقم الطلب · Order No</div>'
-        + '<div style="text-align:center; font-weight:800; font-size:' + sz(19) + '; font-family:monospace;">#58</div>'
-        + '</div>',
+      // رقم الطلب بأسلوب الثيم: صندوق، أو أبيض على أسود، أو متباعد،
+      // أو عارياً -- أربعة كما في التطبيق، لا شكلٌ واحد للأربعة.
+      (function(){
+        var inner = '<div style="text-align:center; font-size:' + sz(9.5) + '; ' + (t.orderStyle === 'invert' ? 'color:#ddd;' : 'color:#555;') + (t.orderStyle === 'spaced' ? ' letter-spacing:2px;' : '') + '">رقم الطلب · Order No</div>'
+          + '<div style="text-align:center; font-weight:800; font-size:' + sz(19) + '; font-family:monospace;">#58</div>';
+        var m = 'margin:' + (10 * t.density).toFixed(1) + 'px 18% 0;';
+        if (t.orderStyle === 'invert') return '<div style="' + invert + ' ' + m + '">' + inner + '</div>';
+        if (t.orderStyle === 'box')    return '<div style="border:1.5px solid #111; border-radius:3px; padding:6px 4px; ' + m + '">' + inner + '</div>';
+        return '<div style="' + m + '">' + inner + '</div>';
+      })(),
       '<div style="text-align:center; font-size:' + sz(10.5) + '; color:#555; margin-top:6px;">١٠/٠٨/٢٠٢٦ ٥:٤٢ م</div>',
       '<div style="' + rule + '"></div>',
       '<div style="font-size:' + sz(10.5) + '; color:#555;">تمت بواسطة · Served by: سارة</div>',
@@ -8507,7 +8560,11 @@ function customerReceiptPreviewHtml(themeId){
       '<div style="' + rule + '"></div>',
       '<div style="display:flex; justify-content:space-between; font-size:' + sz(11.5) + ';"><span>المجموع الفرعي · Subtotal</span><span style="font-family:monospace;">99.00 ريال</span></div>',
       '<div style="display:flex; justify-content:space-between; font-size:' + sz(11.5) + ';"><span>ضريبة القيمة المضافة · VAT</span><span style="font-family:monospace;">14.85 ريال</span></div>',
-      '<div style="display:flex; justify-content:space-between; font-weight:800; font-size:' + sz(14) + '; margin-top:4px; ' + (t.boxedTotal ? 'border:1.5px solid #111; border-radius:4px; padding:5px 7px;' : '') + '"><span>الإجمالي · Total</span><span style="font-family:monospace;">113.85 ريال</span></div>',
+      '<div style="display:flex; justify-content:space-between; font-weight:800; font-size:' + sz(14) + '; margin-top:4px; '
+        + (t.totalStyle === 'invert' ? invert
+           : t.totalStyle === 'box' ? 'border:1.5px solid #111; border-radius:4px; padding:5px 7px;'
+           : '')
+        + '"><span>الإجمالي · Total</span><span style="font-family:monospace;">113.85 ريال</span></div>',
       qrPayload ? '<div style="text-align:center; margin-top:' + (12 * t.density).toFixed(1) + 'px;"><img src="/api/qr?data=' + encodeURIComponent(qrPayload) + '" alt="QR" style="width:' + t.qrSize + 'px; height:' + t.qrSize + 'px;"></div>' : '',
       '<div style="text-align:center; font-size:' + sz(10.5) + '; color:#555; margin-top:10px;">' + (RECEIPT_CUSTOM_MESSAGE || 'شكراً لزيارتكم').split(String.fromCharCode(10)).map(l=>l.trim()).filter(Boolean).map(l=>escapeHtml(l)).join('<br>') + '</div>',
       '<div style="text-align:center; font-size:9.5px; color:#999; margin-top:6px;">— فاتورة العميل —</div>',
