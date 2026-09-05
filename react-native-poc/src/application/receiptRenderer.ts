@@ -88,6 +88,24 @@ function drawDivider(canvas: ReturnType<typeof createReceiptSurface>['canvas'], 
   canvas.drawLine(PAD, y, width - PAD, y, paint);
 }
 
+/**
+ * The lighter rule that separates one item from the next.
+ *
+ * Dashed, not a thinner or greyer solid line: this canvas is reduced to
+ * one bit per dot before it reaches the printer, so a line is either a
+ * dot or nothing and neither colour nor sub-pixel width survives the
+ * trip. Dash spacing is the only weight that does — which is also how the
+ * text renderer separates its items, so the two paths agree on paper.
+ */
+function drawItemRule(canvas: ReturnType<typeof createReceiptSurface>['canvas'], width: number, y: number): void {
+  const paint = Skia.Paint();
+  paint.setColor(Skia.Color('#000000'));
+  paint.setStyle(PaintStyle.Stroke);
+  paint.setStrokeWidth(1);
+  paint.setPathEffect(Skia.PathEffect.MakeDash([2, 3], 0));
+  canvas.drawLine(PAD, Math.round(y) + 0.5, width - PAD, Math.round(y) + 0.5, paint);
+}
+
 interface RenderContext {
   canvas: ReturnType<typeof createReceiptSurface>['canvas'];
   provider: ReturnType<typeof buildReceiptFontProvider>;
@@ -289,9 +307,12 @@ export async function renderReceiptToEscPosBase64(
           y = drawItemLine(ctx, y, '', [line], '', sz(14), false, '#555555');
         }
       }
-      if (th.ruleBetweenItems && index < receipt.items.length - 1) {
+      // فاصل بين كل منتج والذي يليه، لا بعد آخرها: خط القسم تحته يغلق
+      // الجدول. وهو مرقّط لا كامل، وإلا تساوى حدّ الصنف بحدّ القسم
+      // فصارت الفاتورة شبكة.
+      if (index < receipt.items.length - 1) {
         y += gap(0.2);
-        drawDivider(canvas, width, y);
+        drawItemRule(canvas, width, y);
         y += gap(0.3);
       } else {
         y += gap(0.22);

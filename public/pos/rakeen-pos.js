@@ -3072,9 +3072,9 @@ function updatePrinterStatusPill(){
 // amount and the TLV QR. A theme may change spacing and type; it may never
 // change what a tax invoice must contain.
 const RECEIPT_THEMES = {
-  classic: { density:1,    typeScale:1,    showLogo:true,  ruleBetweenItems:false, headerBand:false, boxedTotal:false, qrMaxSize:220 },
-  compact: { density:0.68, typeScale:0.88, showLogo:false, ruleBetweenItems:false, headerBand:false, boxedTotal:false, qrMaxSize:170 },
-  elegant: { density:1.15, typeScale:1.04, showLogo:true,  ruleBetweenItems:true,  headerBand:true,  boxedTotal:true,  qrMaxSize:220 }
+  classic: { density:1,    typeScale:1,    showLogo:true,  headerBand:false, boxedTotal:false, qrMaxSize:220 },
+  compact: { density:0.68, typeScale:0.88, showLogo:false, headerBand:false, boxedTotal:false, qrMaxSize:170 },
+  elegant: { density:1.15, typeScale:1.04, showLogo:true,  headerBand:true,  boxedTotal:true,  qrMaxSize:220 }
 };
 let RECEIPT_THEME = 'classic';
 // businesses.pos_require_manager_pin_for_close. Governs the shift-close
@@ -3150,10 +3150,19 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
   };
   // A hairline, lighter than a section divider: it groups items into a
   // table without competing with the rules that separate the sections.
+  //
+  // Dotted rather than grey, and snapped to the middle of one pixel row.
+  // The canvas is thresholded to 1-bit before it reaches the printer
+  // (luminance < 160), and the previous 0.5px #888 line antialiased to
+  // about 195 — so it drew in the preview and printed nothing at all.
+  // Colour cannot carry weight through a 1-bit conversion; dash spacing
+  // can, which is also how the text path separates its items.
   const hairline = ()=>{
-    ctx.strokeStyle = '#888'; ctx.lineWidth = 0.5;
-    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(width - pad, y); ctx.stroke();
+    const row = Math.round(y) + 0.5;
     ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath(); ctx.moveTo(pad, row); ctx.lineTo(width - pad, row); ctx.stroke();
+    ctx.setLineDash([]);
     y += gap(0.35);
   };
 
@@ -3205,7 +3214,12 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
     rowText(it.lineTotal.toFixed(2), it.qty + ' × ' + it.unitPrice.toFixed(2), sz(18), false);
     // Skipped after the last item — the section rule below already closes
     // the list, and two lines together would read as a mistake.
-    if(th.ruleBetweenItems && idx < receipt.items.length - 1) hairline();
+    //
+    // Not a theme option any more. Once an item can carry modifiers, a
+    // line like "بدون سكر" is indistinguishable from a product priced at
+    // nothing, so where one item ends is a guess — and a guess is not
+    // something a theme gets to switch off.
+    if(idx < receipt.items.length - 1) hairline();
   });
   divider();
   rowText(receipt.subtotal.toFixed(2), bi('المجموع الفرعي', 'Subtotal'), sz(18), false);

@@ -28,7 +28,6 @@ export interface ReceiptTheme {
   /** Print the business logo when one is configured. */
   showLogo: boolean;
   /** A rule between each item, not just between sections. */
-  ruleBetweenItems: boolean;
   /** Letter-spaced, centred business name with rules above and below. */
   headerBand: boolean;
   /** Draw a box around the total line. */
@@ -48,7 +47,6 @@ const THEMES: Record<ReceiptThemeId, ReceiptTheme> = {
     density: 1,
     typeScale: 1,
     showLogo: true,
-    ruleBetweenItems: false,
     headerBand: false,
     boxedTotal: false,
     qrMaxSize: 220,
@@ -66,7 +64,6 @@ const THEMES: Record<ReceiptThemeId, ReceiptTheme> = {
     density: 0.68,
     typeScale: 0.88,
     showLogo: false,
-    ruleBetweenItems: false,
     headerBand: false,
     boxedTotal: false,
     qrMaxSize: 170,
@@ -85,7 +82,6 @@ const THEMES: Record<ReceiptThemeId, ReceiptTheme> = {
     density: 1.15,
     typeScale: 1.04,
     showLogo: true,
-    ruleBetweenItems: true,
     headerBand: true,
     boxedTotal: true,
     qrMaxSize: 220,

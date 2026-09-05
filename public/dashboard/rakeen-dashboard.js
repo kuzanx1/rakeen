@@ -7636,11 +7636,11 @@ async function loadOnlineCodEnabled(){
 // and not a drawing of one.
 const RECEIPT_THEMES = [
   { id: 'classic', label: 'كلاسيكي', desc: 'متوازن، مع الشعار وخطوط تفصل الأقسام. الافتراضي.',
-    density:1,    typeScale:1,    showLogo:true,  ruleBetweenItems:false, headerBand:false, boxedTotal:false, qrSize:110 },
+    density:1,    typeScale:1,    showLogo:true,  headerBand:false, boxedTotal:false, qrSize:110 },
   { id: 'compact', label: 'مضغوط', desc: 'يوفّر ورق — بدون شعار، سطور أقرب وخط أصغر. أقصر بحوالي الثلث.',
-    density:0.68, typeScale:0.88, showLogo:false, ruleBetweenItems:false, headerBand:false, boxedTotal:false, qrSize:85 },
+    density:0.68, typeScale:0.88, showLogo:false, headerBand:false, boxedTotal:false, qrSize:85 },
   { id: 'elegant', label: 'أنيق', desc: 'اسم المنشأة بين خطين، وخط رفيع تحت كل صنف، والإجمالي داخل إطار.',
-    density:1.15, typeScale:1.04, showLogo:true,  ruleBetweenItems:true,  headerBand:true,  boxedTotal:true,  qrSize:110 },
+    density:1.15, typeScale:1.04, showLogo:true,  headerBand:true,  boxedTotal:true,  qrSize:110 },
 ];
 function rkReceiptTheme(id){ return RECEIPT_THEMES.find(t=>t.id===id) || RECEIPT_THEMES[0]; }
 
@@ -8315,7 +8315,8 @@ function customerReceiptPreviewHtml(themeId){
   const sz = n => (n * t.typeScale).toFixed(1) + 'px';
   const mb = n => 'margin-bottom:' + (n * t.density).toFixed(1) + 'px;';
   const rule = 'border-top:1px dashed #ccc; margin:' + (10 * t.density).toFixed(1) + 'px 0;';
-  const hair = t.ruleBetweenItems ? 'border-bottom:1px solid #e6e6e6; padding-bottom:3px;' : '';
+  // يطابق الورق: الفاصل بين الأصناف مرقّط دائماً، ليس خياراً في القالب.
+  const hair = 'border-bottom:1px dotted #bbb; padding-bottom:3px;';
   const band = 'border-top:1.5px solid #111; border-bottom:1.5px solid #111; padding:' + (5 * t.density).toFixed(1) + 'px 0;';
   const item = (name, price, last) =>
     '<div style="display:flex; justify-content:space-between; font-size:' + sz(11.5) + '; ' + mb(4) + (last ? '' : hair) + '"><span>' + name + '</span><span style="font-family:monospace;">' + price + '</span></div>';
