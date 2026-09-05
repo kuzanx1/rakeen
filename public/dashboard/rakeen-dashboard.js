@@ -5223,6 +5223,60 @@ function renderLoyaltyBrandingPreview(){
 // fixes it at the source rather than after the fact. Small files (icons,
 // already-optimized logos) are left alone — there's nothing to gain and
 // re-encoding a small PNG can only hurt it.
+
+/**
+ * كم من هذا الشعار سيصل الورق فعلاً؟
+ *
+ * الطابعة الحرارية تحرق نقاطاً سوداء على ورق أبيض: لا لون، ولا أبيض.
+ * فما كان فاتحاً لا يُطبع، بل يُترك ورقاً. وشعارٌ مرسوم أبيضَ على خلفية
+ * شفافة -- وهو الشائع في شعارات صُمِّمت لخلفيات داكنة -- يخرج ورقةً
+ * فارغة تماماً.
+ *
+ * وقد وقع هذا فعلاً: شعارٌ رُفع، والمعاينة تعرض فراغاً، فظنّ صاحبه أن
+ * الرفع أخفق. وقياسه: صفر فاصلة صفر بالمئة من نقاطه تتجاوز العتبة.
+ * وقلبُ ألوانه يجعلها 15.8%.
+ *
+ * فالقياس هنا هو القياس نفسه الذي يجريه المصيّر على الورق:
+ * (r*299 + g*587 + b*114) / 1000 < 160، والشفاف ورقٌ مهما كان لونه.
+ */
+async function rkMeasureLogoInk(file) {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const W = 160, H = Math.max(1, Math.round(bitmap.height * W / bitmap.width));
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(bitmap, 0, 0, W, H);
+    const d = ctx.getImageData(0, 0, W, H).data;
+    let opaque = 0, dark = 0, darkIfInverted = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 128) continue;
+      opaque++;
+      if ((d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000 < 160) dark++;
+      if (((255 - d[i]) * 299 + (255 - d[i + 1]) * 587 + (255 - d[i + 2]) * 114) / 1000 < 160) darkIfInverted++;
+    }
+    const total = W * H;
+    return { ink: dark / total, inkInverted: darkIfInverted / total, opaque: opaque / total };
+  } catch (_) { return null; }
+}
+
+/** يقلب ألوان الصورة ويُبقي الشفافية على حالها، ويُرجع ملفاً جديداً. */
+async function rkInvertImageFile(file) {
+  const bitmap = await createImageBitmap(file);
+  const c = document.createElement('canvas');
+  c.width = bitmap.width; c.height = bitmap.height;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(bitmap, 0, 0);
+  const img = ctx.getImageData(0, 0, c.width, c.height);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    d[i] = 255 - d[i]; d[i + 1] = 255 - d[i + 1]; d[i + 2] = 255 - d[i + 2];
+  }
+  ctx.putImageData(img, 0, 0);
+  const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+  return new File([blob], (file.name || 'logo').replace(/\.[^.]+$/, '') + '-inverted.png', { type: 'image/png' });
+}
+
 async function compressImageFile(file, maxDim = 1600, quality = 0.82) {
   if (!file || !file.type || !file.type.startsWith('image/') || file.size < 250 * 1024) return file;
   try {
@@ -8852,6 +8906,14 @@ async function renderPosSettings(){
       <div class="rk-field" style="margin-bottom:16px;">
         <label>شعار الفاتورة</label>
         ${rkImageUploadHtml('receiptLogoInput', { currentUrl: RECEIPT_LOGO_URL, width:500, height:500, note:'اتركه فارغاً إذا تبي اسم المطعم فقط' })}
+        <div id="receiptLogoInkWarning" style="display:none; margin-top:8px; padding:10px 12px; border-radius:8px; background:#FFF4E5; border:1px solid #F0C36D; font-size:12.5px; line-height:1.7;">
+          <div style="font-weight:800; margin-bottom:2px;">⚠ هذا الشعار فاتح — ما راح يظهر على الورق</div>
+          <div style="color:#6b5a2e;">الطابعة الحرارية تطبع الغامق فقط على ورق أبيض، وهذا الشعار لا يصل منه شيء. وبقلب ألوانه يصل <b id="receiptLogoInkPct">0</b>% منه.</div>
+          <label style="display:flex; align-items:center; gap:8px; margin-top:8px; font-weight:700; cursor:pointer;">
+            <input type="checkbox" id="receiptLogoInvert" checked>
+            اقلب ألوان الشعار قبل الحفظ
+          </label>
+        </div>
       </div>
       ${rkSwitchRow('settingsReceiptShowName', RECEIPT_SHOW_NAME, 'اطبع اسم المطعم تحت الشعار', 'أغلب الشعارات فيها الاسم أصلاً، فتكراره تحتها زيادة. وإذا ما فيه شعار يطبع الاسم دايم.')}
       <div class="rk-field">
@@ -9347,6 +9409,25 @@ async function renderPosSettings(){
 
   attachImageCropper('receiptLogoInput', { aspect: 1, outputWidth: 500, outputHeight: 500 });
   wireImageUploadBoxPreview('receiptLogoInput');
+  // يُقاس الشعار ساعة اختياره، لا بعد مئة فاتورة فارغة.
+  const receiptLogoInputEl = document.getElementById('receiptLogoInput');
+  if(receiptLogoInputEl) receiptLogoInputEl.addEventListener('change', async ()=>{
+    const warn = document.getElementById('receiptLogoInkWarning');
+    if(!warn) return;
+    const f = receiptLogoInputEl.files[0];
+    if(!f){ warn.style.display = 'none'; return; }
+    const m = await rkMeasureLogoInk(f);
+    // فاتحٌ يقيناً: لا شيء منه يُطبع، وقلبُه يُطبع شيئاً معتبراً. وشرط
+    // الثاني يمنع التحذير من صورةٍ فارغة أصلاً لا ينفع فيها قلبٌ ولا غيره.
+    if(m && m.ink < 0.005 && m.inkInverted > 0.02){
+      document.getElementById('receiptLogoInkPct').textContent = (m.inkInverted * 100).toFixed(1);
+      warn.style.display = '';
+      document.getElementById('receiptLogoInvert').checked = true;
+    } else {
+      warn.style.display = 'none';
+      document.getElementById('receiptLogoInvert').checked = false;
+    }
+  });
 
   const receiptBrandSaveBtn = document.getElementById('receiptBrandSaveBtn');
   if(receiptBrandSaveBtn) receiptBrandSaveBtn.addEventListener('click', async ()=>{
@@ -9363,7 +9444,9 @@ async function renderPosSettings(){
       // مجلّدات معروفة ولكلٍّ صلاحيته، وأي اسم خارجها يُردّ بـ"بيانات غير
       // صالحة". وشعار الفاتورة هوية منشأة تُعدَّل من شاشة الإعدادات، فهو
       // في مكانه هنا تماماً.
-      updates.receipt_logo_url = await uploadMediaFile(await compressImageFile(logoFile), 'business-branding', 'receipt-logo');
+      const invertEl = document.getElementById('receiptLogoInvert');
+      const toUpload = (invertEl && invertEl.checked) ? await rkInvertImageFile(logoFile) : logoFile;
+      updates.receipt_logo_url = await uploadMediaFile(await compressImageFile(toUpload), 'business-branding', 'receipt-logo');
       }
       await updateCurrentBusiness(updates);
       RECEIPT_TAGLINE = tagline;
