@@ -954,6 +954,12 @@ export default function ProductsScreen({
               vatNumber: profile?.vatNumber || undefined,
               logoUrl: shouldPrintReceiptLogo(printerProfileForReceipt) ? profile?.logoUrl || undefined : undefined,
               customMessage: profile?.customMessage || undefined,
+              // اسم من باع.
+              //
+              // المصيّر يرسمه منذ بنائه (receiptRenderer.ts:473) ولا أحد
+              // يمرّره، فبقي السطر لا يُطبع أبداً. وهو أول ما يُسأل عنه
+              // حين يُراجَع طلب: من كتبه؟
+              cashierName: staffMember?.name || undefined,
               tagline: profile?.tagline || undefined,
               showBusinessName: profile?.showBusinessName,
               locationLine: profile?.locationLine || undefined,
@@ -1088,6 +1094,12 @@ export default function ProductsScreen({
               vatNumber: profile?.vatNumber || undefined,
               logoUrl: shouldPrintReceiptLogo(printerProfileForReceipt) ? profile?.logoUrl || undefined : undefined,
               customMessage: profile?.customMessage || undefined,
+              // اسم من باع.
+              //
+              // المصيّر يرسمه منذ بنائه (receiptRenderer.ts:473) ولا أحد
+              // يمرّره، فبقي السطر لا يُطبع أبداً. وهو أول ما يُسأل عنه
+              // حين يُراجَع طلب: من كتبه؟
+              cashierName: staffMember?.name || undefined,
               tagline: profile?.tagline || undefined,
               showBusinessName: profile?.showBusinessName,
               locationLine: profile?.locationLine || undefined,

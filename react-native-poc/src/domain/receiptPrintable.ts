@@ -107,7 +107,16 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
  */
 export function formatArabicDateLabel(date: Date): string {
   try {
-    return date.toLocaleString('ar-SA', {
+    // 'en-GB' لا 'ar-SA'.
+    //
+    // ar-SA على iOS تقويمها أم القرى، فكان يُطبع "٢٤ ربيع١، ١٤٤٨هـ" --
+    // وصاحب المطعم يطابق فواتيره بتواريخ ميلادية، وشبكات الدفع كذلك،
+    // وZATCA تختم الطابع الزمني ميلادياً. وNode يعطي ar-SA ميلادياً فلا
+    // يظهر الفرق إلا على الجهاز.
+    //
+    // en-GB تعطي DD/MM/YYYY بأرقام لاتينية -- وهو ما طلبه، وما يقرؤه
+    // من لا يقرأ العربية على الورقة نفسها.
+    return date.toLocaleString('en-GB', {
       hour: '2-digit',
       minute: '2-digit',
       day: '2-digit',

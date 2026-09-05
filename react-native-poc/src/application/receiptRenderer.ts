@@ -388,9 +388,20 @@ export async function renderReceiptToEscPosBase64(
     // كان يُرسم في مربع مهما كانت أبعاده، فشعار عريض ٣:٢ -- وهو الشائع --
     // يُضغط أفقياً. العرض وحده مضبوط الآن والارتفاع يتبعه، مع سقفٍ
     // للارتفاع حتى لا يبتلع شعارٌ طويل نصف الورقة.
-    const logoW0 = logoImage && th.showLogo ? Math.round(width * (th.logoWidth ?? 0.3)) : 0;
+    /**
+     * الشعار أكبر بالنصف، ويبدأ من حافة الورقة.
+     *
+     * كان يبدأ بعد نصف سطر من أعلى الورقة ثم يُرسم صغيراً، فيبدو فراغٌ
+     * ثم شيءٌ صغير -- وأول ما تقع عليه العين من الفاتورة هو الفراغ.
+     * والشعار هو الترويسة كلها حين يحمل الاسم، فيأخذ حقّه.
+     *
+     * والمُعامل 1.5 على ما يقرره الثيم لا بدلاً منه: "فخم" يبقى أكبر من
+     * "كلاسيكي"، وتبقى النسب بينهما كما صُمّمت.
+     */
+    const LOGO_BOOST = 1.5;
+    const logoW0 = logoImage && th.showLogo ? Math.round(width * (th.logoWidth ?? 0.3) * LOGO_BOOST) : 0;
     const logoRatio = logoImage ? logoImage.height() / logoImage.width() : 1;
-    const logoCapH = Math.round(width * 0.34);
+    const logoCapH = Math.round(width * 0.34 * LOGO_BOOST);
     const logoW = logoW0 * logoRatio > logoCapH ? Math.round(logoCapH / logoRatio) : logoW0;
     const logoH = Math.round(logoW * logoRatio);
     const maxHeight = 2400 + receipt.items.length * 200 + (receipt.vatNumber ? qrSize + 120 : 0) + (logoImage ? logoH + 40 : 0);
@@ -400,7 +411,8 @@ export async function renderReceiptToEscPosBase64(
     canvas.clear(Skia.Color('#ffffff'));
     const ctx: RenderContext = { canvas, provider, width, contentWidth };
 
-    let y = PAD + LINE_H / 2;
+    // بلا فراغٍ فوق الشعار: هو أول ما يُرى، لا ما يُرى بعد فراغ.
+    let y = logoImage && th.showLogo && logoW0 > 0 ? PAD * 0.4 : PAD + LINE_H / 2;
 
     if (logoImage && th.showLogo && logoW > 0) {
       canvas.drawImageRect(
@@ -516,13 +528,13 @@ export async function renderReceiptToEscPosBase64(
       // سبعة عشر لا عشرون: الاسمان بلغتين يطولان، والخط الأكبر يدفع
       // نصفهما إلى سطر ثانٍ بلا داعٍ. أصغر قليلاً = أسطر أقل وورقة
       // أنظف، والسعر يبقى بحجمه فهو ما تبحث عنه العين.
-      const nameLines = measureAndWrapText(provider, fullName, cols.name + cols.qty, sz(17), true);
+      const nameLines = measureAndWrapText(provider, fullName, cols.name + cols.qty, sz(19), true);
       y = drawItemLine(
         ctx, y,
         '',
         nameLines,
         `${item.lineTotal.toFixed(2)} ${RIYAL}`,
-        sz(17), true,
+        sz(19), true,
       );
       // سعر الوحدة يُذكر فقط حين تتعدد الكمية — عند الواحدة يكرر السعر
       // المكتوب يمينه ولا يضيف شيئاً غير سطر يطيل الورقة.
@@ -574,12 +586,24 @@ export async function renderReceiptToEscPosBase64(
     y += gap(0.6);
 
     if (th.sectionLabels) y = drawSpacedText(ctx, y, bi('الحساب', 'PAYMENT'), sz(11), false);
-    y = drawRow(ctx, y, `${receipt.subtotal.toFixed(2)} ${RIYAL}`, bi('المجموع الفرعي', 'Subtotal'), sz(18), false);
+    y = drawRow(ctx, y, `${receipt.subtotal.toFixed(2)} ${RIYAL}`, bi('المجموع الفرعي', 'Subtotal'), sz(20), false);
     if (receipt.discount > 0) {
-      y = drawRow(ctx, y, `-${receipt.discount.toFixed(2)} ${RIYAL}`, bi('الخصم', 'Discount'), sz(18), false);
+      y = drawRow(ctx, y, `-${receipt.discount.toFixed(2)} ${RIYAL}`, bi('الخصم', 'Discount'), sz(20), false);
     }
     // ZATCA: the VAT amount is a mandatory line, in every theme.
-    y = drawRow(ctx, y, `${receipt.vat.toFixed(2)} ${RIYAL}`, bi('ضريبة القيمة المضافة', 'VAT'), sz(18), false);
+    y = drawRow(ctx, y, `${receipt.vat.toFixed(2)} ${RIYAL}`, bi('ضريبة القيمة المضافة', 'VAT'), sz(20), false);
+    /**
+     * فراغٌ قبل الإجمالي، وإلا ابتلع سطرَ الضريبة.
+     *
+     * drawInvertBar يرسم شريطه من y - h/2، فنصفه يمتد إلى أعلى --
+     * وارتفاعه أربعون بينما سطر الضريبة اثنان وثلاثون. فكان الشريط
+     * الأسود يغطي "ضريبة القيمة المضافة" كلها. وdrawBox مثله: إطاره
+     * يبدأ فوق y فيقطع السطر الذي قبله.
+     *
+     * وهو مطلوبٌ في ذاته أيضاً: الإجمالي آخر ما تقرؤه العين، ولا يُقرأ
+     * ملتصقاً بما قبله.
+     */
+    y += gap(0.55);
     if (th.totalStyle === 'invert') {
       y = drawInvertBar(ctx, y, `${bi('الإجمالي', 'Total')}   ${receipt.total.toFixed(2)} ${RIYAL}`, sz(21));
     } else if (th.totalStyle === 'box') {

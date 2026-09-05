@@ -20,9 +20,9 @@ import { Skia, SkFont, SkTypeface } from '@shopify/react-native-skia';
  */
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const REGULAR_ASSET = require('../../assets/fonts/IBMPlexSansArabic-Regular.ttf');
+const REGULAR_ASSET = require('../../assets/fonts/Tajawal-Regular.ttf');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const BOLD_ASSET = require('../../assets/fonts/IBMPlexSansArabic-Bold.ttf');
+const BOLD_ASSET = require('../../assets/fonts/Tajawal-Bold.ttf');
 // رمز الريال ليس في IBM Plex، وهو خطٌّ قائم بذاته يحمل محرفاً واحداً
 // يعنينا: U+20C1. تحقّقتُ من الملف المضمّن قبل استعماله -- المحرف
 // موجود ويُرسم بالاتجاه الصحيح كما هو، بلا الانعكاس الذي يحتاجه خط
