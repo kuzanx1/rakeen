@@ -2012,3 +2012,43 @@ select:not([class]){min-width:150px;}
 .pos-unsaved-note::before{
   content:''; width:7px; height:7px; border-radius:50%; background:var(--amber); flex-shrink:0;
 }
+
+/* ===== الولاء: التزام البرنامج =====
+   الأرقام هنا مال لا إحصاء، فتُعامل كمال: مونو بأرقام جدولية، والقيمة
+   وحدها بلون التحذير -- لهجة واحدة على رقم واحد، لا خلفية ولا إطار.
+   والصفّان يفصلهما فراغ لا خط: القسم واحد وإن تعدّدت أرقامه. */
+.loy-liab-row{display:flex; flex-wrap:wrap; gap:20px 32px; padding:4px 0 2px;}
+.loy-liab-cell{min-width:0; flex:1 1 220px;}
+.loy-liab-label{font-size:11.5px; font-weight:700; color:var(--muted);}
+.loy-liab-value{
+  margin-top:4px; font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;
+  font-size:24px; font-weight:800; color:var(--text); line-height:1.2;
+}
+.loy-liab-value.is-cost{color:var(--amber);}
+.loy-liab-note{margin-top:5px; font-size:11px; font-weight:600; color:var(--muted); line-height:1.6;}
+
+.loy-tier-spread{display:flex; flex-wrap:wrap; gap:8px; margin-top:16px;}
+.loy-tier-cell{
+  display:flex; align-items:center; gap:8px; min-height:44px; padding:0 14px;
+  border:1px solid var(--line); border-radius:var(--r-full); background:var(--card-bg);
+  font-size:11.5px; font-weight:700;
+}
+.loy-tier-dot{width:8px; height:8px; border-radius:50%; background:var(--muted); flex-shrink:0;}
+.loy-tier-dot.bronze{background:#a9714b;}
+.loy-tier-dot.silver{background:#9aa0a6;}
+.loy-tier-dot.gold{background:#c9a227;}
+.loy-tier-dot.platinum{background:#6b7f8c;}
+.loy-tier-name{color:var(--muted);}
+.loy-tier-n{font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums; font-weight:800; color:var(--text);}
+.loy-tier-disc{
+  font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;
+  color:var(--muted); margin-inline-start:2px;
+}
+@media (max-width:640px){
+  .loy-liab-row{gap:16px;}
+  .loy-liab-cell{flex:1 1 100%;}
+  .loy-liab-value{font-size:21px;}
+  .loy-tier-spread{flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none;}
+  .loy-tier-spread::-webkit-scrollbar{display:none;}
+  .loy-tier-cell{flex:0 0 auto;}
+}

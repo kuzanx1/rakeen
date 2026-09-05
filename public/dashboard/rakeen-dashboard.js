@@ -4458,6 +4458,76 @@ function renderLoyaltyKpis(){
     `<div class="kpi-card"><div class="kpi-label">${k.label}</div><div class="kpi-value mono">${k.value}</div></div>`
   ).join('');
   document.getElementById('loyaltyRateDisplay').textContent = LOYALTY_RATE;
+  renderLoyaltyLiability();
+}
+
+/**
+ * ما التزم به البرنامج -- لا ما يفعله.
+ *
+ * الصفحة كانت تعرض إعدادات البرنامج ولا تعرض كلفته: معدّل الكسب هنا،
+ * وسعر الاسترداد في صفحة القائمة على كل صنف، ولا واحدة منهما تعرف
+ * بالأخرى. فصاحب المطعم يضبط "نقطة لكل عشرة ريال" وهو لا يرى أن قهوته
+ * تُستبدل بمئة نقطة -- أي أن ألف ريال من المبيعات تشتري كوباً.
+ *
+ * والنقاط ليست رقماً تجميلياً: الكاشير يصرفها فعلاً (انظر شاشة
+ * الاسترداد في rakeen-pos.js)، فمجموع أرصدة العملاء دَينٌ قائم.
+ *
+ * الأرقام الثلاثة كلها محسوبة من بيانات محمّلة أصلاً -- لا استعلام جديد.
+ */
+function renderLoyaltyLiability(){
+  const el = document.getElementById('loyaltyLiability');
+  if(!el) return;
+  const members = TOP_CUSTOMERS || [];
+  const outstanding = members.reduce((s,c)=> s + (Number(c.points)||0), 0);
+
+  // أفضل صرف للعميل = أسوأ التزام على المطعم. الصنف الذي يعطي أكثر ريال
+  // لكل نقطة هو ما سيختاره العميل العاقل، فهو ما نحسب به.
+  const redeemables = (MENU_ITEMS||[]).filter(m=> m.pointsRedeemPrice != null && m.pointsRedeemPrice > 0 && m.price > 0);
+  let bestRiyalPerPoint = 0, bestItem = null;
+  redeemables.forEach(m=>{
+    const r = m.price / m.pointsRedeemPrice;
+    if(r > bestRiyalPerPoint){ bestRiyalPerPoint = r; bestItem = m; }
+  });
+  const liability = bestRiyalPerPoint ? outstanding * bestRiyalPerPoint : null;
+
+  // كم عضواً في كل مستوى، وبأي خصم -- الخصم رقم مجرّد حتى يُعرف على كم.
+  const tiers = (LOYALTY_TIERS||[]).map((t, i)=>{
+    const next = LOYALTY_TIERS[i+1];
+    const n = members.filter(m=> m.spend >= t.min && (!next || m.spend < next.min)).length;
+    return { ...t, n };
+  });
+
+  const money = v => v.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+  el.innerHTML = `
+    <div class="rk-section">
+      ${rkSectionHead('award', 'التزام البرنامج', 'النقاط اللي عند عملائك دَين عليك — الكاشير يصرفها فعلاً')}
+      <div class="loy-liab-row">
+        <div class="loy-liab-cell">
+          <div class="loy-liab-label">نقاط معلّقة عند العملاء</div>
+          <div class="loy-liab-value mono">${outstanding.toLocaleString('en-US')}</div>
+        </div>
+        <div class="loy-liab-cell">
+          <div class="loy-liab-label">تعادل من قائمتك</div>
+          <div class="loy-liab-value mono ${liability != null ? 'is-cost' : ''}">${liability != null ? money(liability) + ' ر.س' : '—'}</div>
+          <div class="loy-liab-note">${
+            liability != null
+              ? 'محسوبة على أرخص صرف عندك: ' + bestItem.name + ' بـ' + bestItem.pointsRedeemPrice + ' نقطة'
+              : 'ما حددت أي منتج يُستبدل بنقاط — النقاط تتراكم بلا ما يقدر العميل يصرفها'
+          }</div>
+        </div>
+      </div>
+      <div class="loy-tier-spread">
+        ${tiers.map(t=>`
+          <div class="loy-tier-cell">
+            <span class="loy-tier-dot ${t.name.toLowerCase()}"></span>
+            <span class="loy-tier-name">${t.name}</span>
+            <span class="loy-tier-n mono">${t.n}</span>
+            <span class="loy-tier-disc mono">${t.discount}٪</span>
+          </div>`).join('')}
+      </div>
+      <p class="stock-qty-helper" style="margin-top:10px;">الخصم ينطبق على كل طلب من عضو بهذا المستوى، دايم.</p>
+    </div>`;
 }
 
 function renderLoyaltyCards(){
