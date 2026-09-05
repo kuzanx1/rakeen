@@ -188,14 +188,32 @@ export async function enqueuePrintJob(type: PrintJobType, data: Record<string, u
   };
   activeJobIdByContentKey.set(contentKey, job.id);
   await sqlitePrintQueueStorage.put(job);
+  // يبدأ فوراً، لا عند الدورة التالية.
+  //
+  // هذا السطر موجود في الكاشير (enqueuePrintJob في rakeen-pos.js) وسقط
+  // في النقل، فبقي المؤقّت الدوري وحده يحرّك الطابور. والنتيجة أن كل
+  // فاتورة تنتظر حتى عشرين ثانية قبل أول محاولة أصلاً، ثم عشرين أخرى
+  // إن أخفقت المحاولة الأولى -- وهذا كل ما كان يفسّر "خمس وأربعون
+  // ثانية ثم تطبع في ثانية". لم تكن الطابعة بطيئة ولا الشبكة: كان
+  // الطابور نائماً.
+  void processPrintQueueNow();
   return job.id;
 }
 
 let processing = false;
+/** نداء وصل أثناء تمريرة جارية. يُعاد بعدها لا يُهمَل. */
+let rerunRequested = false;
 
 /** Same overlapping-run guard shape as orderService.ts's syncQueuedOrdersNow. */
 export async function processPrintQueueNow(): Promise<PrintQueueOutcome | null> {
-  if (processing) return null;
+  // التطبيق يضيف تذكرة المطبخ أولاً والفاتورة ثانياً. فلو اكتفى الحارس
+  // بردّ النداء الثاني، لوجدت الفاتورة نفسها -- وهي الورقة التي ينتظرها
+  // الزبون -- تنتظر الدورة التالية بينما طُبعت تذكرتها. الحارس يمنع
+  // التداخل، ولا يجوز أن يُسقط عملاً.
+  if (processing) {
+    rerunRequested = true;
+    return null;
+  }
   processing = true;
   try {
     const outcome = await processPrintQueueAlgorithm(sqlitePrintQueueStorage, job => doDispatch(job), Date.now());
@@ -211,10 +229,36 @@ export async function processPrintQueueNow(): Promise<PrintQueueOutcome | null> 
         }
       }
     }
+    // والمحاولة التالية في موعدها هي، لا في موعد الدورة.
+    //
+    // المهلة التصاعدية تقول "أعد بعد ثانيتين"، لكن لا شيء كان يوقظ
+    // الطابور قبل الدورة التالية، فتصير الثانيتان عشرين. جدولة اليقظة
+    // على موعد المهلة تجعل الرقم المكتوب هو الرقم الواقع.
+    scheduleNextRetry(jobs);
     return outcome;
   } finally {
     processing = false;
+    if (rerunRequested) {
+      rerunRequested = false;
+      void processPrintQueueNow();
+    }
   }
+}
+
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** يوقظ الطابور عند أقرب موعد إعادة، مرة واحدة. */
+function scheduleNextRetry(jobs: PrintJobRecord[]): void {
+  const due = jobs
+    .filter(j => j.status === 'retrying' && j.next_retry_at > 0)
+    .map(j => j.next_retry_at);
+  if (due.length === 0) return;
+  const waitMs = Math.max(250, Math.min(...due) - Date.now());
+  if (retryTimer) clearTimeout(retryTimer);
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    void processPrintQueueNow();
+  }, waitMs);
 }
 
 /** Manual retry -- ported from retryPrintJob/the Diagnostics bulk retry
