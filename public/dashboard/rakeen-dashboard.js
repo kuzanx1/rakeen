@@ -8907,12 +8907,8 @@ async function renderPosSettings(){
         <label>شعار الفاتورة</label>
         ${rkImageUploadHtml('receiptLogoInput', { currentUrl: RECEIPT_LOGO_URL, width:500, height:500, note:'اتركه فارغاً إذا تبي اسم المطعم فقط' })}
         <div id="receiptLogoInkWarning" style="display:none; margin-top:8px; padding:10px 12px; border-radius:8px; background:#FFF4E5; border:1px solid #F0C36D; font-size:12.5px; line-height:1.7;">
-          <div style="font-weight:800; margin-bottom:2px;">⚠ هذا الشعار فاتح — ما راح يظهر على الورق</div>
-          <div style="color:#6b5a2e;">الطابعة الحرارية تطبع الغامق فقط على ورق أبيض، وهذا الشعار لا يصل منه شيء. وبقلب ألوانه يصل <b id="receiptLogoInkPct">0</b>% منه.</div>
-          <label style="display:flex; align-items:center; gap:8px; margin-top:8px; font-weight:700; cursor:pointer;">
-            <input type="checkbox" id="receiptLogoInvert" checked>
-            اقلب ألوان الشعار قبل الحفظ
-          </label>
+          <div style="font-weight:800; margin-bottom:2px;">قلبنا ألوان الشعار تلقائياً</div>
+          <div style="color:#6b5a2e;">شعارك فاتح، والطابعة الحرارية تطبع الغامق فقط على ورق أبيض — فكان راح يطلع فراغاً. بعد القلب يظهر منه <b id="receiptLogoInkPct">0</b>% على الورق، والمعاينة تحت توريك النتيجة.</div>
         </div>
       </div>
       ${rkSwitchRow('settingsReceiptShowName', RECEIPT_SHOW_NAME, 'اطبع اسم المطعم تحت الشعار', 'أغلب الشعارات فيها الاسم أصلاً، فتكراره تحتها زيادة. وإذا ما فيه شعار يطبع الاسم دايم.')}
@@ -9422,10 +9418,8 @@ async function renderPosSettings(){
     if(m && m.ink < 0.005 && m.inkInverted > 0.02){
       document.getElementById('receiptLogoInkPct').textContent = (m.inkInverted * 100).toFixed(1);
       warn.style.display = '';
-      document.getElementById('receiptLogoInvert').checked = true;
     } else {
       warn.style.display = 'none';
-      document.getElementById('receiptLogoInvert').checked = false;
     }
   });
 
@@ -9444,8 +9438,15 @@ async function renderPosSettings(){
       // مجلّدات معروفة ولكلٍّ صلاحيته، وأي اسم خارجها يُردّ بـ"بيانات غير
       // صالحة". وشعار الفاتورة هوية منشأة تُعدَّل من شاشة الإعدادات، فهو
       // في مكانه هنا تماماً.
-      const invertEl = document.getElementById('receiptLogoInvert');
-      const toUpload = (invertEl && invertEl.checked) ? await rkInvertImageFile(logoFile) : logoFile;
+      // القياس هو القرار، لا مربّع اختيار.
+      //
+      // الشرط: لا يصل من الشعار شيء، ويصل من مقلوبه شيء معتبر. وما من
+      // حالٍ يكون فيها الجواب "اتركه" -- تركُه ورقةٌ بيضاء. فسؤالُ
+      // صاحب المطعم هنا سؤالٌ لا ثانيَ لجوابه؛ يُقلب ويُعلَم بما جرى،
+      // ويرى نتيجته في المعاينة.
+      const ink = await rkMeasureLogoInk(logoFile);
+      const needsInvert = !!(ink && ink.ink < 0.005 && ink.inkInverted > 0.02);
+      const toUpload = needsInvert ? await rkInvertImageFile(logoFile) : logoFile;
       updates.receipt_logo_url = await uploadMediaFile(await compressImageFile(toUpload), 'business-branding', 'receipt-logo');
       }
       await updateCurrentBusiness(updates);
