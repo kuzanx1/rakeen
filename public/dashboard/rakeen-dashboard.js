@@ -8678,16 +8678,12 @@ async function renderPosSettings(){
   // لو كانت الخانة مشتركة مع شعار المطعم.
   const receiptBrandPanel = `
     <div class="rk-section">
-      ${rkSectionHead('image', 'هوية الفاتورة المطبوعة', 'شعار وسطر تعريفي يطبعان بأعلى كل فاتورة')}
+      ${rkSectionHead('award', 'هوية الفاتورة المطبوعة', 'شعار وسطر تعريفي يطبعان بأعلى كل فاتورة')}
       <div class="rk-field" style="margin-bottom:16px;">
         <label>شعار الفاتورة</label>
         ${rkImageUploadHtml('receiptLogoInput', { currentUrl: RECEIPT_LOGO_URL, width:500, height:500, note:'اتركه فارغاً إذا تبي اسم المطعم فقط' })}
       </div>
-      <label class="pos-check" style="margin-bottom:14px;">
-        <input type="checkbox" id="settingsReceiptShowName" ${RECEIPT_SHOW_NAME ? 'checked' : ''}>
-        <span>اطبع اسم المطعم تحت الشعار</span>
-      </label>
-      <p class="stock-qty-helper" style="margin:-8px 0 16px;">أغلب الشعارات فيها الاسم أصلاً، فتكراره تحتها زيادة. وإذا ما فيه شعار يطبع الاسم دايم.</p>
+      ${rkSwitchRow('settingsReceiptShowName', RECEIPT_SHOW_NAME, 'اطبع اسم المطعم تحت الشعار', 'أغلب الشعارات فيها الاسم أصلاً، فتكراره تحتها زيادة. وإذا ما فيه شعار يطبع الاسم دايم.')}
       <div class="rk-field">
         <label>السطر التعريفي</label>
         <input type="text" id="settingsReceiptTagline" value="${RECEIPT_TAGLINE || ''}" placeholder="قهوة مختصة من الطائف" maxlength="60">
@@ -8705,11 +8701,11 @@ async function renderPosSettings(){
   const shiftReportPanel = `
     <div class="rk-section">
       ${rkSectionHead('fileText', 'تقرير إغلاق الوردية', 'اختر وش يطلع في الورقة اللي تنطبع عند إغلاق الوردية')}
-      <label class="pos-check"><input type="checkbox" id="srOptDiscounts" ${SHIFT_REPORT_OPTIONS.discounts !== false ? 'checked' : ''}><span>الخصومات</span></label>
-      <label class="pos-check"><input type="checkbox" id="srOptRefunds" ${SHIFT_REPORT_OPTIONS.refunds !== false ? 'checked' : ''}><span>المرتجعات</span></label>
-      <label class="pos-check"><input type="checkbox" id="srOptVat" ${SHIFT_REPORT_OPTIONS.vat !== false ? 'checked' : ''}><span>ضريبة القيمة المضافة</span></label>
-      <label class="pos-check"><input type="checkbox" id="srOptCounts" ${SHIFT_REPORT_OPTIONS.counts !== false ? 'checked' : ''}><span>عدد الطلبات ومتوسط الفاتورة</span></label>
-      <label class="pos-check"><input type="checkbox" id="srOptSignatures" ${SHIFT_REPORT_OPTIONS.signatures !== false ? 'checked' : ''}><span>خانتَي توقيع الكاشير والمدير</span></label>
+      ${rkSwitchRow('srOptDiscounts', SHIFT_REPORT_OPTIONS.discounts !== false, 'الخصومات')}
+      ${rkSwitchRow('srOptRefunds', SHIFT_REPORT_OPTIONS.refunds !== false, 'المرتجعات')}
+      ${rkSwitchRow('srOptVat', SHIFT_REPORT_OPTIONS.vat !== false, 'ضريبة القيمة المضافة', 'لو مطعمك غير مسجّل بالضريبة، سيبه مطفي.')}
+      ${rkSwitchRow('srOptCounts', SHIFT_REPORT_OPTIONS.counts !== false, 'عدد الطلبات ومتوسط الفاتورة')}
+      ${rkSwitchRow('srOptSignatures', SHIFT_REPORT_OPTIONS.signatures !== false, 'خانتَي توقيع الكاشير والمدير')}
       <p class="stock-qty-helper" style="margin-top:10px;">المبيعات وطرق الدفع والصندوق والفرق تطبع دايم — هذي أساس التسوية وما تنشال.<br>وصف «دفع إلكتروني» يطلع لحاله إذا فعّلت الدفع في متجرك الإلكتروني.</p>
       <button class="rk-btn rk-btn-primary rk-btn-md" id="shiftReportSaveBtn" style="margin-top:10px;">حفظ خيارات التقرير</button>
     </div>`;
@@ -9167,7 +9163,11 @@ async function renderPosSettings(){
       // الشعار يُرفع فقط حين يُختار ملف جديد. غياب الملف يعني "لا تغيّره"،
       // لا "احذفه" -- وإلا فقد صاحب المطعم شعاره كلما حفظ السطر التعريفي.
       if(logoFile){
-        updates.receipt_logo_url = await uploadMediaFile(await compressImageFile(logoFile), 'receipt-branding', 'logo');
+        // المجلّد 'business-branding' لا مجلّد جديد: خادم الرفع يقبل ثلاثة
+      // مجلّدات معروفة ولكلٍّ صلاحيته، وأي اسم خارجها يُردّ بـ"بيانات غير
+      // صالحة". وشعار الفاتورة هوية منشأة تُعدَّل من شاشة الإعدادات، فهو
+      // في مكانه هنا تماماً.
+      updates.receipt_logo_url = await uploadMediaFile(await compressImageFile(logoFile), 'business-branding', 'receipt-logo');
       }
       await updateCurrentBusiness(updates);
       RECEIPT_TAGLINE = tagline;
