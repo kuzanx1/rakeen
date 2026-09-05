@@ -1365,6 +1365,15 @@ button.purchases-hero-btn{
    والنص، لا خلفيةً: خلفية ملوّنة على ست رقاقات تُحوّل الصف إلى إنذار
    دائم، والصفحة ليست إنذاراً. */
 .menu-flag-tabs{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:10px;}
+/* الفئات أيضاً سطر واحد يُمرَّر على الجوال.
+   عشر فئات بأسماء عربية طويلة كانت تلتف على خمسة أسطر فتبتلع الشاشة قبل
+   أن يظهر منتج واحد -- والصفحة قائمة منتجات لا قائمة فئات. */
+@media (max-width:640px){
+  .menu-cat-tabs{flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; padding-bottom:2px;}
+  .menu-cat-tabs::-webkit-scrollbar{display:none;}
+  .menu-cat-tabs > *{flex:0 0 auto;}
+  .menu-cat-tab{white-space:nowrap;}
+}
 /* على الجوال سطر واحد يُمرَّر أفقياً لا ثلاثة أسطر: ستّ رقاقات ملفوفة
    كانت تدفع أول منتج إلى 656 من 812 -- أي أن الصفحة تفتح على تشخيصها لا
    على قائمتها، وهو عكس المقصود. التمرير داخل الشريط نفسه فلا يفيض
@@ -1375,13 +1384,9 @@ button.purchases-hero-btn{
   .menu-flag-tabs > *{flex:0 0 auto;}
 }
 .menu-flag-tabs:empty{display:none;}
-/* ملصق الصف: سطر واحد لا يلتف، وبمحاذاة الرقاقات لا معلّقاً فوقها --
-   كان يلتف داخل شريط التمرير فيبدو نصاً منسياً لا عنواناً. */
-.menu-flag-lead{
-  display:inline-flex; align-items:center; align-self:stretch;
-  white-space:nowrap; font-size:11px; font-weight:800; color:var(--muted);
-  letter-spacing:.02em; margin-inline-end:4px;
-}
+/* «تحتاج مراجعة» حُذفت. الرقاقات تشرح نفسها -- "مخفية الآن ١٥" تقول
+   كل شيء -- وعنوانٌ فوقها كان يشغل عرضاً ثميناً على الجوال ويُقرأ نصاً
+   منسياً لا عنواناً. العنوان الذي يحتاج شرحاً ضجيج. */
 .menu-flag-tab{
   display:flex; align-items:center; gap:7px; min-height:44px;
   padding:0 14px; border-radius:var(--r-full);

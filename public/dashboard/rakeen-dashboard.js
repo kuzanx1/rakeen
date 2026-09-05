@@ -10958,7 +10958,7 @@ function renderCategoryTabs(){
       .filter(f=> f.n > 0);
     flagEl.innerHTML = counted.length === 0
       ? ''
-      : `<span class="menu-flag-lead">تحتاج مراجعة</span>` + counted.map(f=>`
+      : counted.map(f=>`
         <button class="menu-flag-tab ${f.tone} ${activeMenuFlag===f.key?'active':''}" data-flag="${f.key}" title="${f.help}">
           ${f.label} <span class="mct-count">${f.n}</span>
         </button>`).join('');
