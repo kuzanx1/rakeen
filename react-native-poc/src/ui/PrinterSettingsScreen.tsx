@@ -5,7 +5,7 @@ import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
 import { getPrinterProfile, savePrinterProfile } from '../infrastructure/printerProfileStore';
 import { getDeviceConfig } from '../application/authService';
-import { getReceiptBusinessProfile, getReceiptTheme } from '../application/catalogService';
+import { getReceiptBranding, getReceiptTheme } from '../application/catalogService';
 import { enqueuePrintJob, listPrintJobs, processPrintQueueNow } from '../application/printService';
 import { receiptTheme } from '../domain/receiptTheme';
 import type { DeviceConfig } from '../domain/auth';
@@ -251,7 +251,8 @@ export default function PrinterSettingsScreen({
     setPrintingTest(true);
     setTestPrintStatus('');
     try {
-      const profileInfo = device?.businessId != null ? await getReceiptBusinessProfile(device.businessId) : null;
+      // فاتورة التجربة تُظهر ما ستطبعه الحقيقية، فتقرأ ما تقرؤه.
+      const profileInfo = device?.businessId != null ? await getReceiptBranding(device.businessId, device.branchId ?? null) : null;
       const jobId = await enqueuePrintJob('receipt', {
         orderId: null,
         lines: [{ name: 'صنف تجريبي', qty: 1, unitPrice: 10, lineTotal: 10, mods: [] }],

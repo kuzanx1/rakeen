@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { profileToPrinterTarget, drawerKickCommandFor } from '../domain/printerProfile';
 import { openCashDrawer } from '../platform/cashDrawer';
 import { Text } from './Text';
@@ -16,7 +16,7 @@ import {
 import ManagerPinModal from './ManagerPinModal';
 import { enqueuePrintJob } from '../application/printService';
 import { getDeviceConfig } from '../application/authService';
-import { getReceiptBusinessProfile } from '../application/catalogService';
+import { getReceiptBranding } from '../application/catalogService';
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { shouldPrintCustomerReceipt, shouldPrintReceiptLogo } from '../domain/printerProfile';
 import type { ReceiptData } from '../domain/receipt';
@@ -190,7 +190,9 @@ export default function OrderHistoryScreen({
     setReprintStatus('');
     try {
       const device = await getDeviceConfig();
-      const profile = device.businessId != null ? await getReceiptBusinessProfile(device.businessId) : null;
+      // نفس مصدر الفاتورة الأصلية: إعادة الطباعة بشعارٍ وهويةٍ غير
+      // التي خرجت أول مرة ورقتان لطلب واحد، لا نسخةٌ منه.
+      const profile = device.businessId != null ? await getReceiptBranding(device.businessId, device.branchId ?? null) : null;
       const printerProfile = await getPrinterProfile();
       if (!shouldPrintCustomerReceipt(printerProfile)) {
         setReprintStatus('⚪ طباعة إيصال العميل معطّلة من الإعدادات');
@@ -371,7 +373,19 @@ export default function OrderHistoryScreen({
             {detailLoading && !detail ? (
               <ActivityIndicator color={colors.accentText} />
             ) : detail ? (
-              <>
+              /* يتمرّر، وإلا اختفت أزراره.
+               *
+               * الورقة سقفها 85% من الشاشة، والأصناف تُرسم بـmap بلا أي
+               * تمرير. فطلبٌ من عشرة أصناف يدفع "إغلاق" و"استرجاع"
+               * و"إعادة طباعة" تحت حافة الشاشة، والحاجب يبتلع اللمس فوق
+               * ما بقي. لا شيء يستجيب، ولا سبيل للخروج إلا إغلاق التطبيق
+               * كله -- وقد بلّغ عنه الكاشير على أنه تعليق، وهو محتوى لا
+               * يتمرّر لا معالجٌ متوقف. ولهذا كانت الطلبات الصغيرة تعمل:
+               * أزرارها تسع الشاشة. */
+              <ScrollView
+                style={styles.sheetScroll}
+                contentContainerStyle={styles.sheetScrollBody}
+                showsVerticalScrollIndicator>
                 {/* openOrderDetail() (rakeen-pos.js:3574) opens with the
                     channel and customer as a heading and the amount as a
                     big .receipt-total, then a single column of
@@ -505,7 +519,7 @@ export default function OrderHistoryScreen({
                 <TouchableOpacity style={styles.closeButton} onPress={() => setDetail(null)}>
                   <Text style={styles.closeButtonText}>إغلاق</Text>
                 </TouchableOpacity>
-              </>
+              </ScrollView>
             ) : null}
           </View>
 
@@ -624,6 +638,9 @@ const useStyles = createStyles(colors =>
   askCancel: { padding: spacing[3], alignItems: 'center', marginTop: 4 },
   askCancelText: { fontFamily: fonts.sansBold, color: colors.muted },
   sheet: { backgroundColor: colors.cardBg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing[5], maxHeight: '85%' },
+  // flexGrow:0 يمنع الورقة من ملء الشاشة حين يكون الطلب صنفاً واحداً.
+  sheetScroll: { flexGrow: 0 },
+  sheetScrollBody: { paddingBottom: spacing[2] },
   sheetTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, marginBottom: 6, textAlign: 'center' },
   // space-between does the placing; the label must NOT also stretch.
   // With flex:1 on the label plus a physical textAlign, the text ended up

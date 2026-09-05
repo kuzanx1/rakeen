@@ -16,7 +16,7 @@ import {
   // تُجلب معاً وتُحفظ، بدل أن تُعاد كلها عند كل عودة إلى هذه الشاشة.
   getHideProductImages,
   subscribeToBusinessSettings,
-  getReceiptBusinessProfile,
+  getReceiptBranding,
   CatalogResult,
 } from '../application/catalogService';
 import { getOrderHistoryDetail } from '../application/orderHistoryService';
@@ -909,7 +909,12 @@ export default function ProductsScreen({
         // though it was genuinely just paid.
         try {
           const device = await getDeviceConfig();
-          const profile = device.businessId != null ? await getReceiptBusinessProfile(device.businessId) : null;
+          // getReceiptBranding لا getReceiptBusinessProfile: الثانية تقرأ
+          // logo_url -- شعار المنشأة العام -- ولا تعرف receipt_logo_url
+          // ولا receipt_tagline ولا receipt_show_name. فكان يُطبع شعارٌ
+          // غير الذي رُفع للفاتورة، ويختفي السطر التعريفي، ويُطبع اسم
+          // المطعم رغم إطفاء مفتاحه -- ثلاثةٌ من مصدرٍ واحد خاطئ.
+          const profile = device.businessId != null ? await getReceiptBranding(device.businessId, device.branchId ?? null) : null;
           const printerProfileForReceipt = await getPrinterProfile();
           // Real order subtotal/discount/vat/items -- a real bug found
           // during the Feature Parity audit: this used to hardcode
@@ -948,6 +953,10 @@ export default function ProductsScreen({
               vatNumber: profile?.vatNumber || undefined,
               logoUrl: shouldPrintReceiptLogo(printerProfileForReceipt) ? profile?.logoUrl || undefined : undefined,
               customMessage: profile?.customMessage || undefined,
+              tagline: profile?.tagline || undefined,
+              showBusinessName: profile?.showBusinessName,
+              locationLine: profile?.locationLine || undefined,
+              branchLabel: profile?.branchLabel || undefined,
               createdAtISO: new Date().toISOString(),
               metaLabel: CHANNEL_LABELS.dine_in + (selectedTable ? ` — طاولة ${selectedTable.number}` : ''),
             } satisfies ReceiptData).catch(() => null);
@@ -1057,7 +1066,12 @@ export default function ProductsScreen({
         // catch would contradict that by turning an offline-but-successful
         // sale into a false "unexpected error" and skip clearing the cart.
         try {
-          const profile = device.businessId != null ? await getReceiptBusinessProfile(device.businessId) : null;
+          // getReceiptBranding لا getReceiptBusinessProfile: الثانية تقرأ
+          // logo_url -- شعار المنشأة العام -- ولا تعرف receipt_logo_url
+          // ولا receipt_tagline ولا receipt_show_name. فكان يُطبع شعارٌ
+          // غير الذي رُفع للفاتورة، ويختفي السطر التعريفي، ويُطبع اسم
+          // المطعم رغم إطفاء مفتاحه -- ثلاثةٌ من مصدرٍ واحد خاطئ.
+          const profile = device.businessId != null ? await getReceiptBranding(device.businessId, device.branchId ?? null) : null;
           const printerProfileForReceipt = await getPrinterProfile();
           const customerReceipt = {
               orderId: outcome.orderId ?? null,
@@ -1073,6 +1087,10 @@ export default function ProductsScreen({
               vatNumber: profile?.vatNumber || undefined,
               logoUrl: shouldPrintReceiptLogo(printerProfileForReceipt) ? profile?.logoUrl || undefined : undefined,
               customMessage: profile?.customMessage || undefined,
+              tagline: profile?.tagline || undefined,
+              showBusinessName: profile?.showBusinessName,
+              locationLine: profile?.locationLine || undefined,
+              branchLabel: profile?.branchLabel || undefined,
               createdAtISO: new Date().toISOString(),
               metaLabel: CHANNEL_LABELS[cart.orderChannel] || cart.orderChannel,
           } satisfies ReceiptData;
