@@ -11149,16 +11149,40 @@ function renderMenuUnifyBanner(){
     ${duplicateGroups.length ? `
     <div class="${safeToUnify.length ? 'advanced-section' : ''}" style="${safeToUnify.length ? 'margin-top:0; padding-top:10px;' : ''}">
       <div class="advanced-toggle-row" id="menuUnifyDupToggle" style="padding:0;">
-        <span style="font-size:12px; font-weight:700;"><b>${duplicateGroups.length}</b> اسم منتج له نسختين منفصلتين — يحتاج مراجعتك يدويًا (ما نقدر نوحّدهم تلقائيًا لاحتمال يكون لهم تكلفة أو وصفة مختلفة)</span>
+        <span style="font-size:12px; font-weight:700;"><b>${duplicateGroups.length}</b> اسم متطابق حرفيًا بين منتجين أو أكثر — افتح كل نسخة وقارن، وامسح الزايدة (ما نوحّدهم تلقائيًا لاحتمال اختلاف التكلفة أو الوصفة)</span>
         <svg class="advanced-chevron ${menuUnifyDuplicatesOpen?'open':''}" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
       <div class="advanced-body ${menuUnifyDuplicatesOpen?'open':''}" style="margin-top:${menuUnifyDuplicatesOpen?'8px':'0'}; font-size:11px; color:var(--muted); font-weight:600; line-height:1.7;">
-        ${duplicateGroups.map(g=>g[0].name).join('، ')}
+${duplicateGroups.map(g=>`
+          <div class="menu-dup-group">
+            <div class="menu-dup-name">${g[0].name}</div>
+            ${g.map(it=>`
+              <div class="menu-dup-row" data-dupid="${it.id}">
+                <span class="menu-dup-id">#${it.id}</span>
+                <span class="menu-dup-cat">${it.category || 'بلا فئة'}</span>
+                <span class="menu-dup-price mono">${it.price.toFixed(2)}</span>
+                <span class="menu-dup-where">${
+                  it.visiblePos && it.visibleOnline ? 'الكاشير والمتجر'
+                  : it.visiblePos ? 'الكاشير فقط'
+                  : it.visibleOnline ? 'المتجر فقط'
+                  : 'مخفي من الاثنين'
+                }</span>
+                <button class="menu-dup-open" data-dupopen="${it.id}">افتحه</button>
+              </div>`).join('')}
+          </div>`).join('')}
       </div>
     </div>` : ''}
   </div>`;
   const applyBtn = document.getElementById('menuUnifyApplyBtn');
   if(applyBtn) applyBtn.addEventListener('click', applyMenuUnify);
+  // فتح النسخة من داخل البانر: كان يقول "مكرّر" ويترك صاحب المطعم يبحث
+  // عن الاسم في سبعة وأربعين صفاً ليقارن بنفسه.
+  el.querySelectorAll('[data-dupopen]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      openProductEditModal(parseInt(btn.dataset.dupopen, 10));
+    });
+  });
   const dupToggle = document.getElementById('menuUnifyDupToggle');
   if(dupToggle) dupToggle.addEventListener('click', ()=>{
     menuUnifyDuplicatesOpen = !menuUnifyDuplicatesOpen;

@@ -1384,6 +1384,32 @@ button.purchases-hero-btn{
   .menu-flag-tabs > *{flex:0 0 auto;}
 }
 .menu-flag-tabs:empty{display:none;}
+/* ===== النسخ المكرّرة: الدليل لا الادّعاء =====
+   البانر كان يسرد أسماءً ويسكت، فلا يستطيع صاحب المطعم أن يتحقق ولا أن
+   يصلح -- يبحث عن الاسم في سبعة وأربعين صفاً ويقارن بنفسه. صار يعرض كل
+   نسخة بمعرّفها وفئتها وسعرها وأين تظهر، وزرٍّ يفتحها. */
+.menu-dup-group{padding:8px 0;}
+.menu-dup-group + .menu-dup-group{border-top:1px solid var(--line);}
+.menu-dup-name{font-size:12px; font-weight:800; color:var(--text); margin-bottom:5px;}
+.menu-dup-row{
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  padding:6px 0; font-size:11px; font-weight:600;
+}
+.menu-dup-row + .menu-dup-row{border-top:1px dotted var(--line);}
+.menu-dup-id{
+  font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;
+  color:var(--muted); flex-shrink:0;
+}
+.menu-dup-cat{color:var(--muted);}
+.menu-dup-price{font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums; color:var(--text); font-weight:800;}
+.menu-dup-where{color:var(--muted);}
+.menu-dup-open{
+  margin-inline-start:auto; min-height:34px; padding:0 12px; border-radius:var(--r-sm);
+  border:1px solid var(--line); background:var(--card-bg); color:var(--text);
+  font-weight:700; font-size:11px; flex-shrink:0;
+}
+.menu-dup-open:hover{border-color:var(--lime-deep); color:var(--success-text);}
+
 /* «تحتاج مراجعة» حُذفت. الرقاقات تشرح نفسها -- "مخفية الآن ١٥" تقول
    كل شيء -- وعنوانٌ فوقها كان يشغل عرضاً ثميناً على الجوال ويُقرأ نصاً
    منسياً لا عنواناً. العنوان الذي يحتاج شرحاً ضجيج. */
