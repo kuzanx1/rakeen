@@ -19,9 +19,22 @@ import type { SkCanvas, SkTypeface, SkTypefaceFontProvider } from '@shopify/reac
  */
 
 const RECEIPT_FONT_FAMILY = 'RakeenReceiptArabic';
+/**
+ * عائلة ثانية لا بديلة: Skia تبحث في العائلات بالترتيب لكل محرف على
+ * حدة، فما لم تجده في الأولى التمسته في الثانية. ورمز الريال محرفٌ
+ * واحد لا يملكه IBM Plex، فيأتي من هنا وحده -- وبقية النص لا تتغيّر.
+ */
+const RIYAL_FONT_FAMILY = 'RakeenRiyal';
 
-export function buildReceiptFontProvider(regular: SkTypeface | null, bold: SkTypeface | null): SkTypefaceFontProvider {
+export function buildReceiptFontProvider(
+  regular: SkTypeface | null,
+  bold: SkTypeface | null,
+  riyalRegular?: SkTypeface | null,
+  riyalBold?: SkTypeface | null,
+): SkTypefaceFontProvider {
   const provider = Skia.TypefaceFontProvider.Make();
+  if (riyalRegular) provider.registerFont(riyalRegular, RIYAL_FONT_FAMILY);
+  if (riyalBold) provider.registerFont(riyalBold, RIYAL_FONT_FAMILY);
   // Both weights register under the SAME family name -- pushStyle's
   // fontStyle.weight below is what picks Regular vs. Bold at paint time,
   // matching how a real font family with multiple weights works.
@@ -73,7 +86,7 @@ export function paintText(
   );
   builder.pushStyle({
     color: Skia.Color(opts.color ?? '#000000'),
-    fontFamilies: [RECEIPT_FONT_FAMILY],
+    fontFamilies: [RECEIPT_FONT_FAMILY, RIYAL_FONT_FAMILY],
     fontSize: opts.size,
     fontStyle: { weight: opts.bold ? FontWeight.ExtraBold : FontWeight.Normal },
   });
@@ -100,7 +113,7 @@ export function measureTextWidth(
   const builder = Skia.ParagraphBuilder.Make({ textDirection: TextDirection.RTL }, provider);
   builder.pushStyle({
     color: Skia.Color('#000000'),
-    fontFamilies: [RECEIPT_FONT_FAMILY],
+    fontFamilies: [RECEIPT_FONT_FAMILY, RIYAL_FONT_FAMILY],
     fontSize: size,
     fontStyle: { weight: bold ? FontWeight.ExtraBold : FontWeight.Normal },
   });
@@ -133,7 +146,7 @@ export function measureAndWrapText(
   const widthOf = (candidate: string): number => {
     const builder = Skia.ParagraphBuilder.Make({ textAlign: TextAlign.Right, textDirection: TextDirection.RTL }, provider);
     builder.pushStyle({
-      fontFamilies: [RECEIPT_FONT_FAMILY],
+      fontFamilies: [RECEIPT_FONT_FAMILY, RIYAL_FONT_FAMILY],
       fontSize: size,
       fontStyle: { weight: bold ? FontWeight.ExtraBold : FontWeight.Normal },
     });

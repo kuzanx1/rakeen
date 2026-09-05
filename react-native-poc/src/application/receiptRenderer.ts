@@ -126,14 +126,21 @@ function drawItemRule(canvas: ReturnType<typeof createReceiptSurface>['canvas'],
 }
 
 /**
- * العملة على الورق: الكلمة لا الرمز.
+ * العملة على الورق: الرمز الجديد، لا الكلمة.
  *
- * رمز الريال الجديد ليس في أي خط تحمله الطابعة ولا في IBM Plex الذي
- * نرسم به -- وتعليق ‎.rk-riyal‎ في CSS الكاشير يقول ذلك صراحةً: أي نص
- * يعرضه خارج تلك الفئة يخرج مربعاً فارغاً، وهو فوق ذلك مرسوم معكوساً
- * في خطه. ومربع فارغ جنب كل سعر أسوأ من غياب العملة.
+ * كان هنا 'ريال' مكتوبةً، وعلّتُها أن الرمز ليس في أي خط نحمله فيخرج
+ * مربعاً فارغاً. وقد كان ذلك صحيحاً يوم كُتب، ثم دخل SaudiRiyal-*.ttf
+ * أصولَ التطبيق للواجهة ولم ينتبه أحد أن الفاتورة تستطيع استعماله.
+ *
+ * وتحقّقتُ من الملف نفسه قبل الاعتماد عليه: U+20C1 موجود فيه بألف
+ * وتسعمئة نقطة، ويُرسم بالاتجاه الصحيح كما هو. والانعكاس الذي يذكره
+ * ui/Money.tsx يخصّ خط الويب في public/fonts، لا هذا -- ونقلُ ذلك
+ * الانعكاس إلى هنا بلا فحص كان سيطبع رمزاً مقلوباً على كل ورقة.
+ *
+ * والخط مسجَّل عائلةً ثانية في platform/receiptText.ts: Skia تلتمس كل
+ * محرف في العائلات بالترتيب، فهذا وحده يأتي منها وبقية النص لا تمسّها.
  */
-const RIYAL = 'ريال';
+const RIYAL = '⃁';
 
 /**
  * قلب صغير، مرسوم لا مكتوب.
@@ -204,21 +211,45 @@ function drawSpacedText(ctx: RenderContext, y: number, text: string, size: numbe
 }
 
 /** سطر صنف بنقاط موصِلة بين اسمه وسعره -- مظهر التذاكر القديمة. */
+/**
+ * الاسم والسعر تصلهما نقاط -- والاسم يلتفّ حين لا يسعه ما بقي.
+ *
+ * كان يُرسم سطراً واحداً على عرض الورقة كله، والسعر يُرسم على العرض
+ * نفسه من الجهة الأخرى. فاسمٌ طويل -- وكل اسم بلغتين طويل -- يمتدّ
+ * تحت السعر فيركب أحدهما الآخر. وليس ثمّ لفٌّ يمنعه.
+ *
+ * فالمساحة تُقسَم أولاً: السعر يأخذ قدره، والاسم يلتفّ في الباقي.
+ * والنقاط لا تُرسم إلا إذا بقي بينهما فراغ يسعها -- ونقطةٌ واحدة في
+ * فراغٍ ضيق أسوأ من لا شيء.
+ */
 function drawLeaderRow(ctx: RenderContext, y: number, name: string, price: string, size: number, bold: boolean): number {
-  paintText(ctx.canvas, ctx.provider, name, PAD, y, ctx.contentWidth, { size, bold, align: 'right', direction: 'rtl' });
-  paintText(ctx.canvas, ctx.provider, price, PAD, y, ctx.contentWidth, { size, bold: false, align: 'left', direction: 'ltr' });
-  const nameW = measureTextWidth(ctx.provider, name, size, bold);
-  const priceW = measureTextWidth(ctx.provider, price, size, false);
+  const priceW = price ? measureTextWidth(ctx.provider, price, size, false) : 0;
+  const GAP = 10;
+  const nameMax = Math.max(60, ctx.contentWidth - priceW - GAP);
+  const lines = measureAndWrapText(ctx.provider, name, nameMax, size, bold);
+
+  lines.forEach((line, i) => {
+    paintText(ctx.canvas, ctx.provider, line, PAD, y + i * LINE_H * 0.86, ctx.contentWidth, {
+      size, bold, align: 'right', direction: 'rtl',
+    });
+  });
+  if (price) {
+    paintText(ctx.canvas, ctx.provider, price, PAD, y, ctx.contentWidth, { size, bold: false, align: 'left', direction: 'ltr' });
+  }
+
+  // النقاط على السطر الأول وحده، وبين ما انتهى إليه الاسم وما بدأ منه
+  // السعر -- فإن التقيا فلا فراغ يُملأ.
+  const firstW = measureTextWidth(ctx.provider, lines[0] ?? name, size, bold);
   const from = PAD + priceW + 8;
-  const to = ctx.width - PAD - nameW - 8;
-  if (to > from) {
+  const to = ctx.width - PAD - firstW - 8;
+  if (to - from > 12) {
     const paint = Skia.Paint();
     paint.setColor(Skia.Color('#000000'));
     for (let x = from; x < to; x += 6) {
       ctx.canvas.drawRect(Skia.XYWHRect(x, y + size * 0.62, 2, 2), paint);
     }
   }
-  return y + LINE_H;
+  return y + Math.max(1, lines.length) * LINE_H * 0.86 + (LINE_H * 0.14);
 }
 
 interface RenderContext {
@@ -272,9 +303,21 @@ function drawItemLine(
   const col = itemColumns(ctx.contentWidth);
   const nameX = PAD + col.price + col.gutter;
   const qtyX = ctx.width - PAD - col.qty;
+  /**
+   * الاسم يُرسم في العرض الذي لُفَّ عليه، لا في أضيق منه.
+   *
+   * الكمية صارت ملتصقة بالاسم ("2x سبانيش لاتيه") فلم يعد لعمودها
+   * راسمٌ، والمنادي يلفّ النص على name+qty ليستفيد من فراغه. وكان
+   * الرسم يقصره على name وحده -- أضيق مما لُفَّ عليه بعُشر الورقة --
+   * فيفيض كل سطر على جاره. وهو ما ظهر في "كركديه بالأناناس |
+   * Hibiscus Pineapple": اسمان بلغتين لا يسعهما العمود الأضيق.
+   *
+   * فحين لا كمية تُرسم، يأخذ الاسم عرضها معه.
+   */
+  const nameW = qtyText ? col.name : col.name + col.qty;
 
   nameLines.forEach((line, i) => {
-    paintText(ctx.canvas, ctx.provider, line, nameX, y + i * LINE_H * 0.82, col.name, {
+    paintText(ctx.canvas, ctx.provider, line, nameX, y + i * LINE_H * 0.86, nameW, {
       size, bold, align: 'right', direction: 'rtl', color,
     });
   });
@@ -289,7 +332,7 @@ function drawItemLine(
       size, bold, align: 'left', direction: 'ltr', color,
     });
   }
-  return y + Math.max(1, nameLines.length) * LINE_H * 0.82;
+  return y + Math.max(1, nameLines.length) * LINE_H * 0.86;
 }
 
 function drawRow(ctx: RenderContext, y: number, leftMono: string, rightArabic: string, size: number, bold: boolean): number {
@@ -301,8 +344,8 @@ function drawRow(ctx: RenderContext, y: number, leftMono: string, rightArabic: s
 }
 
 async function buildFontProviderReady() {
-  const { regular, bold } = await loadReceiptTypefaces();
-  return buildReceiptFontProvider(regular, bold);
+  const { regular, bold, riyalRegular, riyalBold } = await loadReceiptTypefaces();
+  return buildReceiptFontProvider(regular, bold, riyalRegular, riyalBold);
 }
 
 /**
@@ -470,13 +513,16 @@ export async function renderReceiptToEscPosBase64(
         else y += gap(0.22);
         return;
       }
-      const nameLines = measureAndWrapText(provider, fullName, cols.name + cols.qty, sz(20), true);
+      // سبعة عشر لا عشرون: الاسمان بلغتين يطولان، والخط الأكبر يدفع
+      // نصفهما إلى سطر ثانٍ بلا داعٍ. أصغر قليلاً = أسطر أقل وورقة
+      // أنظف، والسعر يبقى بحجمه فهو ما تبحث عنه العين.
+      const nameLines = measureAndWrapText(provider, fullName, cols.name + cols.qty, sz(17), true);
       y = drawItemLine(
         ctx, y,
         '',
         nameLines,
         `${item.lineTotal.toFixed(2)} ${RIYAL}`,
-        sz(20), true,
+        sz(17), true,
       );
       // سعر الوحدة يُذكر فقط حين تتعدد الكمية — عند الواحدة يكرر السعر
       // المكتوب يمينه ولا يضيف شيئاً غير سطر يطيل الورقة.

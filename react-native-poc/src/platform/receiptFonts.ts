@@ -23,9 +23,19 @@ import { Skia, SkFont, SkTypeface } from '@shopify/react-native-skia';
 const REGULAR_ASSET = require('../../assets/fonts/IBMPlexSansArabic-Regular.ttf');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const BOLD_ASSET = require('../../assets/fonts/IBMPlexSansArabic-Bold.ttf');
+// رمز الريال ليس في IBM Plex، وهو خطٌّ قائم بذاته يحمل محرفاً واحداً
+// يعنينا: U+20C1. تحقّقتُ من الملف المضمّن قبل استعماله -- المحرف
+// موجود ويُرسم بالاتجاه الصحيح كما هو، بلا الانعكاس الذي يحتاجه خط
+// الويب (انظر تعليق ui/Money.tsx: هو عن ملف آخر، لا عن هذا).
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const RIYAL_REGULAR_ASSET = require('../../assets/fonts/SaudiRiyal-Regular.ttf');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const RIYAL_BOLD_ASSET = require('../../assets/fonts/SaudiRiyal-Bold.ttf');
 
 let cachedRegular: SkTypeface | null = null;
 let cachedBold: SkTypeface | null = null;
+let cachedRiyalRegular: SkTypeface | null = null;
+let cachedRiyalBold: SkTypeface | null = null;
 
 async function loadTypefaceFromAsset(asset: number): Promise<SkTypeface | null> {
   try {
@@ -44,10 +54,15 @@ async function loadTypefaceFromAsset(asset: number): Promise<SkTypeface | null> 
   }
 }
 
-export async function loadReceiptTypefaces(): Promise<{ regular: SkTypeface | null; bold: SkTypeface | null }> {
+export async function loadReceiptTypefaces(): Promise<{
+  regular: SkTypeface | null; bold: SkTypeface | null;
+  riyalRegular: SkTypeface | null; riyalBold: SkTypeface | null;
+}> {
   if (!cachedRegular) cachedRegular = await loadTypefaceFromAsset(REGULAR_ASSET);
   if (!cachedBold) cachedBold = await loadTypefaceFromAsset(BOLD_ASSET);
-  return { regular: cachedRegular, bold: cachedBold };
+  if (!cachedRiyalRegular) cachedRiyalRegular = await loadTypefaceFromAsset(RIYAL_REGULAR_ASSET);
+  if (!cachedRiyalBold) cachedRiyalBold = await loadTypefaceFromAsset(RIYAL_BOLD_ASSET);
+  return { regular: cachedRegular, bold: cachedBold, riyalRegular: cachedRiyalRegular, riyalBold: cachedRiyalBold };
 }
 
 export function makeFont(typeface: SkTypeface | null, size: number): SkFont {
