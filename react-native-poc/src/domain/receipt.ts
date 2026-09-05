@@ -72,6 +72,8 @@ export interface ReceiptData {
   metaLabel?: string;
   /** اسم الموظف الذي أصدر الفاتورة -- "تمت بواسطة". */
   cashierName?: string;
+  /** businesses.receipt_show_name -- هل يُطبع الاسم تحت الشعار. */
+  showBusinessName?: boolean;
   /** businesses.receipt_tagline -- سطر تحت الاسم يكتبه صاحب المطعم. */
   tagline?: string;
   /** الحي والمدينة، مركّبين من branches.district/city. */

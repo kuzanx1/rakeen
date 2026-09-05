@@ -7584,6 +7584,7 @@ let BUSINESS_VAT_NUMBER = '';
 let RECEIPT_CUSTOM_MESSAGE = '';
 let RECEIPT_LOGO_URL = '';
 let RECEIPT_TAGLINE = '';
+let RECEIPT_SHOW_NAME = true;
 let RECEIPT_THEME = 'classic';
 let ONLINE_COD_ENABLED = true;
 let ONLINE_CARD_ENABLED = true;
@@ -7638,11 +7639,13 @@ async function loadOnlineCodEnabled(){
 // and not a drawing of one.
 const RECEIPT_THEMES = [
   { id: 'classic', label: 'كلاسيكي', desc: 'متوازن، مع الشعار وخطوط تفصل الأقسام. الافتراضي.',
-    density:1,    typeScale:1,    showLogo:true,  headerBand:false, boxedTotal:false, qrSize:110 },
+    density:1,    typeScale:1,    showLogo:true, logoWidth:0.30, headerBand:false, boxedTotal:false, qrSize:110 },
   { id: 'compact', label: 'مضغوط', desc: 'يوفّر ورق — بدون شعار، سطور أقرب وخط أصغر. أقصر بحوالي الثلث.',
-    density:0.68, typeScale:0.88, showLogo:false, headerBand:false, boxedTotal:false, qrSize:85 },
+    density:0.68, typeScale:0.88, showLogo:false, logoWidth:0.24, headerBand:false, boxedTotal:false, qrSize:85 },
   { id: 'elegant', label: 'أنيق', desc: 'اسم المنشأة بين خطين، وخط رفيع تحت كل صنف، والإجمالي داخل إطار.',
-    density:1.15, typeScale:1.04, showLogo:true,  headerBand:true,  boxedTotal:true,  qrSize:110 },
+    density:1.15, typeScale:1.04, showLogo:true, logoWidth:0.34, headerBand:true,  boxedTotal:true,  qrSize:110 },
+  { id: 'signature', label: 'فخم', desc: 'الشعار كبير بمقاسه الأصلي، ورقم الطلب داخل صندوق، ومساحات أوسع.',
+    density:1.12, typeScale:1.02, showLogo:true, logoWidth:0.52, headerBand:false, boxedTotal:true,  qrSize:110 },
 ];
 function rkReceiptTheme(id){ return RECEIPT_THEMES.find(t=>t.id===id) || RECEIPT_THEMES[0]; }
 
@@ -8335,9 +8338,12 @@ const rkPosHideBellStatus = c => c
 async function loadReceiptBranding(businessId){
   try {
     const res = await window.supabaseClient.from('businesses')
-      .select('receipt_logo_url, receipt_tagline').eq('id', businessId).single();
+      .select('receipt_logo_url, receipt_tagline, receipt_show_name').eq('id', businessId).single();
     RECEIPT_LOGO_URL = (res.data && res.data.receipt_logo_url) || '';
     RECEIPT_TAGLINE = (res.data && res.data.receipt_tagline) || '';
+    // الاسم يُطبع إلا إذا أُطفئ صراحةً -- فقاعدة قديمة بلا هذا العمود
+    // تبقى تطبع الاسم كما كانت.
+    RECEIPT_SHOW_NAME = !(res.data && res.data.receipt_show_name === false);
   } catch(_){
     RECEIPT_LOGO_URL = '';
     RECEIPT_TAGLINE = '';
@@ -8657,6 +8663,11 @@ async function renderPosSettings(){
         <label>شعار الفاتورة</label>
         ${rkImageUploadHtml('receiptLogoInput', { currentUrl: RECEIPT_LOGO_URL, width:500, height:500, note:'اتركه فارغاً إذا تبي اسم المطعم فقط' })}
       </div>
+      <label class="pos-check" style="margin-bottom:14px;">
+        <input type="checkbox" id="settingsReceiptShowName" ${RECEIPT_SHOW_NAME ? 'checked' : ''}>
+        <span>اطبع اسم المطعم تحت الشعار</span>
+      </label>
+      <p class="stock-qty-helper" style="margin:-8px 0 16px;">أغلب الشعارات فيها الاسم أصلاً، فتكراره تحتها زيادة. وإذا ما فيه شعار يطبع الاسم دايم.</p>
       <div class="rk-field">
         <label>السطر التعريفي</label>
         <input type="text" id="settingsReceiptTagline" value="${RECEIPT_TAGLINE || ''}" placeholder="قهوة مختصة من الطائف" maxlength="60">
@@ -9113,7 +9124,8 @@ async function renderPosSettings(){
     const logoFile = document.getElementById('receiptLogoInput').files[0];
     rkBtnLoading(receiptBrandSaveBtn, true);
     try {
-      const updates = { receipt_tagline: tagline || null };
+      const showName = document.getElementById('settingsReceiptShowName').checked;
+      const updates = { receipt_tagline: tagline || null, receipt_show_name: showName };
       // الشعار يُرفع فقط حين يُختار ملف جديد. غياب الملف يعني "لا تغيّره"،
       // لا "احذفه" -- وإلا فقد صاحب المطعم شعاره كلما حفظ السطر التعريفي.
       if(logoFile){
@@ -9121,6 +9133,7 @@ async function renderPosSettings(){
       }
       await updateCurrentBusiness(updates);
       RECEIPT_TAGLINE = tagline;
+      RECEIPT_SHOW_NAME = showName;
       if(updates.receipt_logo_url) RECEIPT_LOGO_URL = updates.receipt_logo_url;
       logDashboardAudit('عدّل هوية الفاتورة المطبوعة');
       rkBtnSuccess(receiptBrandSaveBtn, '✓ تم الحفظ');

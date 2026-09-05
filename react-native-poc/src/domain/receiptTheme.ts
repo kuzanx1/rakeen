@@ -13,9 +13,9 @@
  * themes vary spacing, type scale and rules, never the content.
  */
 
-export type ReceiptThemeId = 'classic' | 'compact' | 'elegant';
+export type ReceiptThemeId = 'classic' | 'compact' | 'elegant' | 'signature';
 
-export const RECEIPT_THEME_IDS: ReceiptThemeId[] = ['classic', 'compact', 'elegant'];
+export const RECEIPT_THEME_IDS: ReceiptThemeId[] = ['classic', 'compact', 'elegant', 'signature'];
 
 export interface ReceiptTheme {
   id: ReceiptThemeId;
@@ -27,6 +27,9 @@ export interface ReceiptTheme {
   typeScale: number;
   /** Print the business logo when one is configured. */
   showLogo: boolean;
+  /** عرض الشعار كنسبة من عرض الورق. نسبة لا رقماً ثابتاً، فالورق ٥٨ مم
+   *  يصغّره بنفس النسبة بدل أن يزحم عرضه كله. */
+  logoWidth: number;
   /** A rule between each item, not just between sections. */
   /** Letter-spaced, centred business name with rules above and below. */
   headerBand: boolean;
@@ -42,6 +45,7 @@ const THEMES: Record<ReceiptThemeId, ReceiptTheme> = {
    * What most businesses expect a receipt to look like.
    */
   classic: {
+    logoWidth: 0.30,
     id: 'classic',
     label: 'كلاسيكي',
     density: 1,
@@ -59,6 +63,7 @@ const THEMES: Record<ReceiptThemeId, ReceiptTheme> = {
    * which is real money at a few hundred receipts a day.
    */
   compact: {
+    logoWidth: 0.24,
     id: 'compact',
     label: 'مضغوط — يوفّر ورق',
     density: 0.68,
@@ -77,12 +82,24 @@ const THEMES: Record<ReceiptThemeId, ReceiptTheme> = {
    * of how the room feels.
    */
   elegant: {
+    logoWidth: 0.34,
     id: 'elegant',
     label: 'أنيق',
     density: 1.15,
     typeScale: 1.04,
     showLogo: true,
     headerBand: true,
+    boxedTotal: true,
+    qrMaxSize: 220,
+  },
+  signature: {
+    logoWidth: 0.52,
+    id: 'elegant',
+    label: 'فخم',
+    density: 1.12,
+    typeScale: 1.02,
+    showLogo: true,
+    headerBand: false,
     boxedTotal: true,
     qrMaxSize: 220,
   },

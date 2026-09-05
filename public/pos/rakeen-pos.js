@@ -728,6 +728,16 @@ function friendlyErrorText(raw){
 // on purpose: the real sign doesn't need a LANG branch the way "ر.س"/"SAR"
 // text did.
 const RK_RIYAL_CHAR = '⃁';
+
+// العملة على الورق: الكلمة لا الرمز.
+//
+// رمز الريال الجديد ليس في أي خط تحمله الطابعة ولا في IBM Plex الذي
+// نرسم به الفاتورة -- والتعليق أعلى .rk-riyal في CSS يقول ذلك صراحةً:
+// أي نص يعرض هذا المحرف خارج تلك الفئة يخرج مربعاً فارغاً. وهو فوق ذلك
+// مرسوم معكوساً في خطه ويحتاج scaleX(-1) ليستقيم.
+//
+// ومربع فارغ جنب كل سعر أسوأ من غياب العملة، فالكلمة تُقرأ في كل مكان.
+const RIYAL = 'ريال';
 function rkMoney(amount){
   const n = Number(amount) || 0;
   const sign = n < 0 ? '-' : '';
@@ -3071,10 +3081,13 @@ function updatePrinterStatusPill(){
 // heading, the seller's VAT number, the timestamp, the total, the VAT
 // amount and the TLV QR. A theme may change spacing and type; it may never
 // change what a tax invoice must contain.
+// logoWidth: نسبة عرض الشعار من عرض الورق. نسبة لا رقماً ثابتاً، فالورق
+// ٥٨ مم يصغّره بنفس النسبة بدل أن يزحم عرضه كله.
 const RECEIPT_THEMES = {
-  classic: { density:1,    typeScale:1,    showLogo:true,  headerBand:false, boxedTotal:false, qrMaxSize:220 },
-  compact: { density:0.68, typeScale:0.88, showLogo:false, headerBand:false, boxedTotal:false, qrMaxSize:170 },
-  elegant: { density:1.15, typeScale:1.04, showLogo:true,  headerBand:true,  boxedTotal:true,  qrMaxSize:220 }
+  classic:   { density:1,    typeScale:1,    showLogo:true,  logoWidth:0.30, headerBand:false, boxedTotal:false, qrMaxSize:220 },
+  compact:   { density:0.68, typeScale:0.88, showLogo:false, logoWidth:0.24, headerBand:false, boxedTotal:false, qrMaxSize:170 },
+  elegant:   { density:1.15, typeScale:1.04, showLogo:true,  logoWidth:0.34, headerBand:true,  boxedTotal:true,  qrMaxSize:220 },
+  signature: { density:1.12, typeScale:1.02, showLogo:true,  logoWidth:0.52, headerBand:false, boxedTotal:true,  qrMaxSize:220 }
 };
 let RECEIPT_THEME = 'classic';
 // businesses.pos_require_manager_pin_for_close. Governs the shift-close
@@ -3104,8 +3117,20 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
   const gap = n => lineH * n * th.density;
   const sz = n => Math.round(n * th.typeScale);
   const qrSize = Math.min(220, th.qrMaxSize, width - pad * 2);
-  const logoSize = (logoImage && th.showLogo) ? Math.min(90, Math.round(width * 0.18)) : 0;
-  const maxHeight = 2400 + receipt.items.length * 200 + (qrImage ? qrSize + 120 : 0) + (logoImage ? logoSize + 40 : 0);
+  // الشعار بنسبة أبعاده الأصلية.
+  //
+  // كان يُرسم في مربع مهما كانت أبعاده، فشعار عريض ٣:٢ -- وهو الشائع --
+  // يُضغط أفقياً أو يُمطّ رأسياً. العرض وحده هو المضبوط الآن، والارتفاع
+  // يتبعه، فلا يتشوّه شكل صاحب المطعم على ورقته.
+  //
+  // وسقفٌ للارتفاع مع ذلك: شعار طويل جداً كان سيبتلع نصف الورقة، فإن
+  // تجاوز ثلثَ عرض الورق قُيّد بارتفاعه وعاد العرض يتبعه.
+  const logoW0 = (logoImage && th.showLogo) ? Math.round(width * (th.logoWidth || 0.30)) : 0;
+  const logoRatio = logoImage ? (logoImage.naturalHeight || logoImage.height) / (logoImage.naturalWidth || logoImage.width) : 1;
+  const logoCapH = Math.round(width * 0.34);
+  const logoW = (logoW0 * logoRatio > logoCapH) ? Math.round(logoCapH / logoRatio) : logoW0;
+  const logoH = Math.round(logoW * logoRatio);
+  const maxHeight = 2400 + receipt.items.length * 200 + (qrImage ? qrSize + 120 : 0) + (logoImage ? logoH + 40 : 0);
   const scratch = document.createElement('canvas');
   scratch.width = width; scratch.height = maxHeight;
   const ctx = scratch.getContext('2d');
@@ -3166,14 +3191,18 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
     y += gap(0.35);
   };
 
-  if(logoImage && th.showLogo){
-    ctx.drawImage(logoImage, (width - logoSize) / 2, y - logoSize / 2, logoSize, logoSize);
-    y += logoSize + lineH * 0.3;
+  if(logoImage && th.showLogo && logoW > 0){
+    ctx.drawImage(logoImage, (width - logoW) / 2, y, logoW, logoH);
+    y += logoH + lineH * 0.45;
   }
   // The elegant theme frames the name between two rules; the others just
   // print it.
   if(th.headerBand){ divider(); }
-  centerText(receipt.businessName || 'ركين', sz(30), true);
+  // الاسم تحت الشعار اختياري: أغلب الشعارات تحمل الاسم داخلها، فكتابته
+  // تحتها تكرار. لكن غياب الشعار يجعل الاسم هو الترويسة كلها، فلا يُخفى
+  // حينها مهما كان الإعداد -- ورقة بلا اسم ولا شعار ليست فاتورة.
+  const nameShown = receipt.showBusinessName !== false || !(logoImage && th.showLogo && logoW > 0);
+  if(nameShown) centerText(receipt.businessName || 'ركين', sz(30), true);
   if(th.headerBand){ divider(); }
   // السلوقن ثم مكان الفرع، بنفس ترتيب مسار النص حتى لا تختلف ورقتان
   // لمطعم واحد باختلاف الطابعة التي طبعتهما.
@@ -3247,7 +3276,7 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
     // وحده، فكان الزبون لا يرى ما طلبه بنفسه.
     if(it.note){
       const noteFont = '500 ' + sz(15) + 'px "IBM Plex Sans Arabic", sans-serif';
-      wrapLine(bi('ملاحظات', 'Notes') + ': ' + it.note, noteFont).forEach(line=>{
+      wrapLine('ملاحظات: ' + it.note, noteFont).forEach(line=>{
         ctx.fillStyle = '#333'; ctx.font = noteFont;
         ctx.direction = 'rtl'; ctx.textAlign = 'right';
         ctx.fillText(line, width - pad, y);
@@ -3255,7 +3284,13 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
         y += gap(0.7);
       });
     }
-    rowText(it.lineTotal.toFixed(2), it.qty + ' × ' + it.unitPrice.toFixed(2), sz(18), false);
+    // سعر الوحدة سطر مستقل فقط حين تتعدد الكمية.
+    //
+    // عند الكمية واحد كان يطبع "1 × 12.00" بجانب "12.00" -- الرقم نفسه
+    // مرتين في سطرين، وهو ما يجعل القارئ يتوقف ليتأكد أنه لم يُحاسَب
+    // مرتين. الضرب لا يقول شيئاً حين يكون في واحد.
+    if(it.qty > 1) rowText('', it.qty + ' × ' + it.unitPrice.toFixed(2) + ' ' + RIYAL, sz(15), false);
+    rowText(it.lineTotal.toFixed(2) + ' ' + RIYAL, '', sz(18), false);
     // Skipped after the last item — the section rule below already closes
     // the list, and two lines together would read as a mistake.
     //
@@ -3266,14 +3301,14 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
     if(idx < receipt.items.length - 1) hairline();
   });
   divider();
-  rowText(receipt.subtotal.toFixed(2), bi('المجموع الفرعي', 'Subtotal'), sz(18), false);
-  if(receipt.discount > 0) rowText('-' + receipt.discount.toFixed(2), bi('الخصم', 'Discount'), sz(18), false);
+  rowText(receipt.subtotal.toFixed(2) + ' ' + RIYAL, bi('المجموع الفرعي', 'Subtotal'), sz(18), false);
+  if(receipt.discount > 0) rowText('-' + receipt.discount.toFixed(2) + ' ' + RIYAL, bi('الخصم', 'Discount'), sz(18), false);
   // ZATCA: the VAT amount is a mandatory line, in every theme.
-  rowText(receipt.vat.toFixed(2), bi('ضريبة القيمة المضافة', 'VAT'), sz(18), false);
+  rowText(receipt.vat.toFixed(2) + ' ' + RIYAL, bi('ضريبة القيمة المضافة', 'VAT'), sz(18), false);
   const totalTop = y - lineH * 0.55;
   // بالحروف لا برمز الريال: الرمز الجديد ليس في خط الطابعة، فيخرج
   // فراغاً أو مربعاً، ومبلغ بلا عملة أوضح من مبلغ بعملة مشوّهة.
-  rowText(receipt.total.toFixed(2) + ' ' + bi('ريال', 'SAR'), bi('الإجمالي', 'Total'), sz(24), true);
+  rowText(receipt.total.toFixed(2) + ' ' + RIYAL, bi('الإجمالي', 'Total'), sz(24), true);
   if(th.boxedTotal){
     ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
     ctx.strokeRect(pad * 0.6, totalTop, width - pad * 1.2, y - totalTop - lineH * 0.15);
@@ -3826,6 +3861,7 @@ function buildLiveReceiptData(orderPayload, totals){
     showLogo: DEVICE.printReceiptLogo !== false && !!RECEIPT_LOGO_URL, logoUrl: RECEIPT_LOGO_URL,
     cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
     tagline: RECEIPT_TAGLINE,
+    showBusinessName: RECEIPT_SHOW_NAME,
     locationLine: BRANCH_LOCATION_LINE,
     branchLabel: BRANCH_COUNT > 1 ? (DEVICE.branchName || '') : '',
     customMessage: RECEIPT_CUSTOM_MESSAGE,
@@ -3882,6 +3918,7 @@ function buildHistoricalReceiptData(order, items){
     showLogo: DEVICE.printReceiptLogo !== false && !!RECEIPT_LOGO_URL, logoUrl: RECEIPT_LOGO_URL,
     cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
     tagline: RECEIPT_TAGLINE,
+    showBusinessName: RECEIPT_SHOW_NAME,
     locationLine: BRANCH_LOCATION_LINE,
     branchLabel: BRANCH_COUNT > 1 ? (DEVICE.branchName || '') : '',
     customMessage: RECEIPT_CUSTOM_MESSAGE,
@@ -6137,6 +6174,7 @@ function openPosSettingsModal(){
       showLogo: DEVICE.printReceiptLogo !== false && !!RECEIPT_LOGO_URL, logoUrl: RECEIPT_LOGO_URL,
       cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
     tagline: RECEIPT_TAGLINE,
+    showBusinessName: RECEIPT_SHOW_NAME,
       locationLine: BRANCH_LOCATION_LINE,
       branchLabel: BRANCH_COUNT > 1 ? (DEVICE.branchName || '') : '',
       customMessage: RECEIPT_CUSTOM_MESSAGE,
@@ -6567,6 +6605,7 @@ let BUSINESS_VAT_RATE = 0.15;   // businesses.vat_rate — real per-business rat
 let PRICES_INCLUDE_VAT = true;  // businesses.prices_include_vat — default true matches the KSA legal requirement (menu prices already include tax)
 let VAT_REGISTERED = true;      // businesses.vat_registered — off means zero VAT everywhere, not just an inclusive/exclusive question
 let RECEIPT_LOGO_URL = '';      // businesses.receipt_logo_url — شعار الفاتورة وحدها؛ فارغ = اطبع الاسم بلا شعار (ولا يرتدّ إلى logo_url)
+let RECEIPT_SHOW_NAME = true;   // businesses.receipt_show_name — هل يُطبع الاسم تحت الشعار
 let RECEIPT_TAGLINE = '';       // businesses.receipt_tagline — سطر تحت الاسم
 let BRANCH_LOCATION_LINE = '';  // "حي البيعة، الطائف" من branches.district/city
 let BRANCH_COUNT = 1;           // عدد فروع المنشأة — اسم الفرع يُطبع فقط حين يتعدد
@@ -6768,10 +6807,12 @@ async function loadPosData(){
     // هوية الفاتورة، في نفس الاستعلام المتسامح ولنفس سببه.
     try {
       const brandRes = await sb.from('businesses')
-        .select('receipt_logo_url, receipt_tagline').eq('id', businessId).single();
+        .select('receipt_logo_url, receipt_tagline, receipt_show_name').eq('id', businessId).single();
       RECEIPT_LOGO_URL = (brandRes.data && brandRes.data.receipt_logo_url) || '';
       RECEIPT_TAGLINE = (brandRes.data && brandRes.data.receipt_tagline) || '';
-    } catch(_){ RECEIPT_LOGO_URL = ''; RECEIPT_TAGLINE = ''; }
+      // إلا إذا أُطفئ صراحةً: قاعدة بلا هذا العمود تبقى تطبع الاسم.
+      RECEIPT_SHOW_NAME = !(brandRes.data && brandRes.data.receipt_show_name === false);
+    } catch(_){ RECEIPT_LOGO_URL = ''; RECEIPT_TAGLINE = ''; RECEIPT_SHOW_NAME = true; }
     // الحي والمدينة، وعدد الفروع. العدد هو ما يقرر طباعة اسم الفرع:
     // منشأة بفرع واحد لا تحتاج تمييزه، وسطرٌ يقول "الفرع الأول" حيث لا
     // ثانيَ له سطرٌ بلا معنى.

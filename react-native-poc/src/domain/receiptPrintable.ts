@@ -36,6 +36,8 @@ export interface ReceiptPrintable {
   locationLine: string;
   branchLabel: string;
   cashierName: string;
+  /** هل يُطبع الاسم تحت الشعار. يُتجاهل حين لا شعار. */
+  showBusinessName: boolean;
   dateLabel: string;
   orderNumber: string;
   metaLabel: string;
@@ -130,6 +132,8 @@ export function toReceiptPrintable(data: ReceiptData): ReceiptPrintable {
     locationLine: data.locationLine ?? '',
     branchLabel: data.branchLabel ?? '',
     cashierName: data.cashierName ?? '',
+    // إلا إذا أُطفئ صراحةً، فجهاز على إعدادات قديمة يطبع الاسم كما كان.
+    showBusinessName: data.showBusinessName !== false,
     dateLabel: formatArabicDateLabel(createdAt),
     // Ported from the PWA's own real orderNumber fallback text
     // (rakeen-pos.js:2923) -- an order still offline-queued has no

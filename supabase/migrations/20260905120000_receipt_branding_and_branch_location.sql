@@ -25,3 +25,10 @@ comment on column businesses.receipt_tagline is
   'سطر تحت الاسم في الفاتورة المطبوعة.';
 comment on column branches.district is 'الحي، للسطر التعريفي في الفاتورة.';
 comment on column branches.city is 'المدينة، للسطر التعريفي في الفاتورة.';
+
+-- الاسم تحت الشعار اختياري: أغلب الشعارات تحمل الاسم داخلها، فكتابته
+-- تحتها تكرار. الافتراض true لأن الفواتير القائمة تطبعه اليوم، وتغيير
+-- شكل ورقة كل مطعم بترحيل ليس من حقّنا.
+alter table businesses add column if not exists receipt_show_name boolean not null default true;
+comment on column businesses.receipt_show_name is
+  'هل يُطبع اسم المنشأة تحت الشعار في الفاتورة. يُتجاهل حين لا يوجد شعار.';

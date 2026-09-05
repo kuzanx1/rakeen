@@ -109,6 +109,16 @@ function drawItemRule(canvas: ReturnType<typeof createReceiptSurface>['canvas'],
   canvas.drawLine(PAD, Math.round(y) + 0.5, width - PAD, Math.round(y) + 0.5, paint);
 }
 
+/**
+ * العملة على الورق: الكلمة لا الرمز.
+ *
+ * رمز الريال الجديد ليس في أي خط تحمله الطابعة ولا في IBM Plex الذي
+ * نرسم به -- وتعليق ‎.rk-riyal‎ في CSS الكاشير يقول ذلك صراحةً: أي نص
+ * يعرضه خارج تلك الفئة يخرج مربعاً فارغاً، وهو فوق ذلك مرسوم معكوساً
+ * في خطه. ومربع فارغ جنب كل سعر أسوأ من غياب العملة.
+ */
+const RIYAL = 'ريال';
+
 interface RenderContext {
   canvas: ReturnType<typeof createReceiptSurface>['canvas'];
   provider: ReturnType<typeof buildReceiptFontProvider>;
@@ -228,8 +238,17 @@ export async function renderReceiptToEscPosBase64(
     const width = receipt.paperWidthPx;
     const contentWidth = width - PAD * 2;
     const qrSize = Math.min(220, contentWidth);
-    const logoSize = logoImage && th.showLogo ? Math.min(90, Math.round(width * 0.18)) : 0;
-    const maxHeight = 2400 + receipt.items.length * 200 + (receipt.vatNumber ? qrSize + 120 : 0) + (logoImage ? logoSize + 40 : 0);
+    // الشعار بنسبة أبعاده الأصلية.
+    //
+    // كان يُرسم في مربع مهما كانت أبعاده، فشعار عريض ٣:٢ -- وهو الشائع --
+    // يُضغط أفقياً. العرض وحده مضبوط الآن والارتفاع يتبعه، مع سقفٍ
+    // للارتفاع حتى لا يبتلع شعارٌ طويل نصف الورقة.
+    const logoW0 = logoImage && th.showLogo ? Math.round(width * (th.logoWidth ?? 0.3)) : 0;
+    const logoRatio = logoImage ? logoImage.height() / logoImage.width() : 1;
+    const logoCapH = Math.round(width * 0.34);
+    const logoW = logoW0 * logoRatio > logoCapH ? Math.round(logoCapH / logoRatio) : logoW0;
+    const logoH = Math.round(logoW * logoRatio);
+    const maxHeight = 2400 + receipt.items.length * 200 + (receipt.vatNumber ? qrSize + 120 : 0) + (logoImage ? logoH + 40 : 0);
 
     const surface = createReceiptSurface(width, maxHeight);
     const { canvas } = surface;
@@ -238,14 +257,14 @@ export async function renderReceiptToEscPosBase64(
 
     let y = PAD + LINE_H / 2;
 
-    if (logoImage && th.showLogo) {
+    if (logoImage && th.showLogo && logoW > 0) {
       canvas.drawImageRect(
         logoImage,
         Skia.XYWHRect(0, 0, logoImage.width(), logoImage.height()),
-        Skia.XYWHRect((width - logoSize) / 2, y - logoSize / 2, logoSize, logoSize),
+        Skia.XYWHRect((width - logoW) / 2, y, logoW, logoH),
         Skia.Paint(),
       );
-      y += logoSize + LINE_H * 0.3;
+      y += logoH + LINE_H * 0.45;
     }
 
     // The elegant theme frames the name between two rules; the others
@@ -254,7 +273,10 @@ export async function renderReceiptToEscPosBase64(
       drawDivider(canvas, width, y);
       y += gap(0.5);
     }
-    y = drawCenterLine(ctx, y, receipt.businessName, sz(30), true);
+    // الاسم تحت الشعار اختياري -- أغلب الشعارات تحمله داخلها. لكن بلا
+    // شعار يصير الاسم هو الترويسة كلها، فلا يُخفى مهما كان الإعداد.
+    const nameShown = receipt.showBusinessName || !(logoImage && th.showLogo && logoW > 0);
+    if (nameShown) y = drawCenterLine(ctx, y, receipt.businessName, sz(30), true);
     if (th.headerBand) {
       y += gap(0.15);
       drawDivider(canvas, width, y);
@@ -326,15 +348,17 @@ export async function renderReceiptToEscPosBase64(
         ctx, y,
         String(item.qty),
         nameLines,
-        item.lineTotal.toFixed(2),
+        `${item.lineTotal.toFixed(2)} ${RIYAL}`,
         sz(20), true,
       );
       // سعر الوحدة يُذكر فقط حين تتعدد الكمية — عند الواحدة يكرر السعر
       // المكتوب يمينه ولا يضيف شيئاً غير سطر يطيل الورقة.
+      // سعر الوحدة سطر مستقل فقط حين تتعدد الكمية: عند الواحد يكرر
+      // الرقم المطبوع بجانبه، فيتوقف القارئ ليتأكد أنه لم يُحاسَب مرتين.
       if (item.qty > 1) {
         y = drawItemLine(
           ctx, y, '',
-          [`${item.unitPrice.toFixed(2)} × ${item.qty}`],
+          [`${item.unitPrice.toFixed(2)} ${RIYAL} × ${item.qty}`],
           '', sz(14), false, '#555555',
         );
       }
@@ -345,7 +369,7 @@ export async function renderReceiptToEscPosBase64(
       }
       // الملاحظة تحمل اسمها، وإلا أشبهت اسم منتج بلا سعر.
       if (item.note) {
-        for (const line of measureAndWrapText(provider, `${bi('ملاحظات', 'Notes')}: ${item.note}`, cols.name, sz(14), false)) {
+        for (const line of measureAndWrapText(provider, `ملاحظات: ${item.note}`, cols.name, sz(14), false)) {
           y = drawItemLine(ctx, y, '', [line], '', sz(14), false, '#333333');
         }
       }

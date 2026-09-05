@@ -71,7 +71,7 @@ describe('buildTextReceipt()', () => {
   const receipt = {
     businessName: 'هَبيّة',
     branchName: 'الفرع الرئيسي',
-    tagline: '', locationLine: '', branchLabel: '', cashierName: '',
+    tagline: '', locationLine: '', branchLabel: '', cashierName: '', showBusinessName: true,
     dateLabel: '5 سبتمبر 2026',
     orderNumber: '313',
     metaLabel: 'محلي',
