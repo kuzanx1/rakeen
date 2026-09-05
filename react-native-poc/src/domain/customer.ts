@@ -11,6 +11,8 @@ export interface Customer {
   name: string;
   phone: string | null;
   points: number;
+  /** مكافآت مجانية جاهزة للصرف -- customers.loyalty_free_rewards. */
+  freeRewards: number;
 }
 
 export interface NewCustomerDraft {

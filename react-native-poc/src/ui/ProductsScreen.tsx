@@ -43,6 +43,7 @@ import { useCart } from './useCart';
 import { getCachedPosBootstrap, loadPosBootstrap, PosBootstrap } from '../application/posBootstrap';
 import ModifierModal from './ModifierModal';
 import PaymentModal from './PaymentModal';
+import type { AttachedCustomer } from './PaymentModal';
 import type { PaymentResult } from './PaymentModal';
 import type { PaymentMethod } from '../domain/payment';
 import CustomerPickerModal from './CustomerPickerModal';
@@ -722,7 +723,7 @@ export default function ProductsScreen({
     selectedTable?.activeOrderId ?? null,
   );
   const [dineInOrderTotal, setDineInOrderTotal] = useState(0);
-  const [selectedCustomer, setSelectedCustomer] = useState<{ id: number | null; name: string; phone: string | null; points: number } | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<AttachedCustomer | null>(null);
   const [loyaltyRedeemOpen, setLoyaltyRedeemOpen] = useState(false);
 
   /** DELIVERY_PLATFORMS_LIST and state.deliveryPlatformId. */
@@ -1644,6 +1645,13 @@ export default function ProductsScreen({
         onChannelChange={cart.setOrderChannel}
         customer={selectedCustomer}
         onCustomerChange={setSelectedCustomer}
+        /* الصنف يدخل السلة بسعر صفر، فيُطبع على الفاتورة ويُخصم من
+           المخزون كأي بيع. والوضع المفتوح لا صنف له -- الكاشير يعطي ما
+           يراه، والرصيد خُصم في الخادم على كل حال. */
+        onFreeRewardGranted={product => {
+          if (product) cart.addFreeRewardProduct(product.id);
+          setSubmitStatus(product ? `مكافأة: ${product.name} — مجاناً` : 'تم استخدام المكافأة');
+        }}
         // Closes checkout and opens the redemption flow, exactly as the
         // source does (addPointsRedemptionToCart then closePaymentModalNow):
         // the redeemed item lands in the cart as a points line and the

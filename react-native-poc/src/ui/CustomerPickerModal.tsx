@@ -31,7 +31,7 @@ export default function CustomerPickerModal({
   visible: boolean;
   businessId: number;
   onCancel: () => void;
-  onSelect: (customer: { id: number | null; name: string; phone: string | null; points: number }) => void;
+  onSelect: (customer: { id: number | null; name: string; phone: string | null; points: number; freeRewards: number }) => void;
 }) {
   const { colors } = useTheme();
   const styles = useStyles();
@@ -93,7 +93,7 @@ export default function CustomerPickerModal({
     // customer_id stays null -- complete_pos_order/register_dine_in_order
     // find-or-create by phone server-side (real RPC behavior, not
     // something this client re-implements).
-    onSelect({ id: null, name: newName.trim(), phone: newPhone.trim(), points: 0 });
+    onSelect({ id: null, name: newName.trim(), phone: newPhone.trim(), points: 0, freeRewards: 0 });
   };
 
   return (
@@ -116,7 +116,7 @@ export default function CustomerPickerModal({
                 <TouchableOpacity
                   key={c.id}
                   style={styles.suggest}
-                  onPress={() => onSelect({ id: c.id, name: c.name, phone: c.phone, points: c.points })}
+                  onPress={() => onSelect({ id: c.id, name: c.name, phone: c.phone, points: c.points, freeRewards: c.freeRewards })}
                   activeOpacity={0.8}>
                   <View style={styles.suggestAvatar}>
                     <Text style={styles.suggestAvatarText}>{c.name.trim().charAt(0) || '؟'}</Text>

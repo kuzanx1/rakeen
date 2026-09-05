@@ -305,7 +305,9 @@ function buildItems(
     // MENU_ITEM_META[item.productId].pointsRedeemPrice lookup (not
     // stored on the cart line itself -- see domain/cart.ts's
     // addPointsRedemptionToCart doc comment).
-    points_cost: item.isPointsRedemption ? productsById.get(item.productId)?.pointsRedeemPrice || 0 : 0,
+    // مكافأةٌ خُصمت من رصيدها لا من النقاط: صفرٌ ولو كان الصنف نفسه
+    // قابلاً للاستبدال بالنقاط.
+    points_cost: item.isPointsRedemption && !item.isFreeReward ? productsById.get(item.productId)?.pointsRedeemPrice || 0 : 0,
   }));
 }
 

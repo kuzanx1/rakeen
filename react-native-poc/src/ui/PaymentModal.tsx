@@ -20,6 +20,7 @@ import type { PrintJobStatus } from '../domain/printQueue';
 import Money from './Money';
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
 import { toLatinDigits } from '../domain/digits';
+import FreeRewardBanner from './FreeRewardBanner';
 
 /**
  * The payment popup is a WIZARD, not a single sheet -- something only
@@ -82,6 +83,8 @@ export interface AttachedCustomer {
   name: string;
   phone: string | null;
   points: number;
+  /** مكافآت مجانية جاهزة. صفرٌ يخفي البطاقة كلها. */
+  freeRewards: number;
 }
 
 const CHANNELS: { id: OrderChannel; label: string }[] = [
@@ -115,6 +118,7 @@ export default function PaymentModal({
   onChannelChange,
   customer,
   onCustomerChange,
+  onFreeRewardGranted,
   dineInEnabled = true,
   loyaltyEnabled = true,
   dineInMode = 'simple',
@@ -151,6 +155,11 @@ export default function PaymentModal({
   onChannelChange: (c: OrderChannel) => void;
   customer: AttachedCustomer | null;
   onCustomerChange: (c: AttachedCustomer | null) => void;
+  /**
+   * صُرفت مكافأة: يُضاف الصنف إلى السلة بسعر صفر، أو يقرر الكاشير
+   * بنفسه حين يكون الوضع مفتوحاً (product = null).
+   */
+  onFreeRewardGranted: (product: { id: number; name: string; nameEn: string | null } | null) => void;
   /** DINE_IN_ENABLED -- filters 🍽️ بالمطعم out of the channel row. */
   dineInEnabled?: boolean;
   /** LOYALTY_ENABLED -- when false the customer step is skipped whole. */
@@ -781,6 +790,21 @@ export default function PaymentModal({
                     {/* `pointer-events:none` in the source -- the attached
                         customer is a display row, not a button. */}
                     <CustomerRow c={customer} />
+                    {/* المكافأة حيث يراها الكاشير بلا أن يبحث عنها: بعد
+                        الزبون مباشرةً وقبل الدفع. ولا تظهر لمن لا رصيد
+                        له، فلا تشغل مكاناً في الحالة الغالبة. */}
+                    {customer.id != null && customer.freeRewards > 0 && (
+                      <FreeRewardBanner
+                        businessId={businessId}
+                        customerId={customer.id}
+                        customerName={customer.name}
+                        freeRewards={customer.freeRewards}
+                        onRedeemed={(product, remaining) => {
+                          onCustomerChange({ ...customer, freeRewards: remaining });
+                          onFreeRewardGranted(product);
+                        }}
+                      />
+                    )}
                     {/* .loyalty-otp-back -- a plain text link, not a button */}
                     <TouchableOpacity onPress={() => onCustomerChange(null)} style={styles.textLink}>
                       <Text style={styles.textLinkText}>تغيير</Text>
@@ -910,6 +934,8 @@ export default function PaymentModal({
                         name: newName.trim(),
                         phone: newPhone,
                         points: 0,
+                        // زبونٌ لم يُنشأ صفّه بعد، فلا رصيد له.
+                        freeRewards: 0,
                       });
                       proceedToPayment();
                     }}

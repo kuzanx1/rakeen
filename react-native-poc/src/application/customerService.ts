@@ -19,7 +19,7 @@ export async function searchCustomers(businessId: number, rawQuery: string): Pro
 
   const { data, error } = await supabase
     .from('customers')
-    .select('id, name, phone, loyalty_points')
+    .select('id, name, phone, loyalty_points, loyalty_free_rewards')
     .eq('business_id', businessId)
     .or(`name.ilike.%${query}%,phone.ilike.%${query}%`)
     .limit(SEARCH_RESULT_LIMIT);
@@ -31,7 +31,7 @@ export async function searchCustomers(businessId: number, rawQuery: string): Pro
 export async function findCustomerByPublicToken(businessId: number, token: string): Promise<Customer | null> {
   const { data, error } = await supabase
     .from('customers')
-    .select('id, name, phone, loyalty_points')
+    .select('id, name, phone, loyalty_points, loyalty_free_rewards')
     .eq('business_id', businessId)
     .eq('public_token', token)
     .maybeSingle();
@@ -39,11 +39,14 @@ export async function findCustomerByPublicToken(businessId: number, token: strin
   return rowToCustomer(data);
 }
 
-function rowToCustomer(row: { id: number; name: string; phone: string | null; loyalty_points: number | string | null }): Customer {
+function rowToCustomer(row: { id: number; name: string; phone: string | null; loyalty_points: number | string | null; loyalty_free_rewards?: number | string | null }): Customer {
   return {
     id: row.id,
     name: row.name,
     phone: row.phone,
     points: Number(row.loyalty_points || 0),
+    // المكافآت الجاهزة تُجلب مع الزبون لا في نداءٍ ثانٍ: الكاشير
+    // يعرفها لحظة اختياره، فلا يمرّ عليها بلا أن يراها.
+    freeRewards: Number(row.loyalty_free_rewards || 0),
   };
 }

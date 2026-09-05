@@ -187,6 +187,16 @@ export interface CartLine {
   note: string;
   config: CartLineConfig | null;
   isPointsRedemption?: boolean;
+  /**
+   * مكافأة ولاء مجانية، لا استبدال نقاط.
+   *
+   * الاثنان يشتركان في أن السطر أُعطي ولم يُبَع -- فسعره صفر ولا يُعدّ
+   * في الولاء -- ويفترقان في الثمن: استبدال النقاط يخصم نقاطاً،
+   * والمكافأة خُصمت من رصيد المكافآت وحده. ولولا هذه العلامة لخسر
+   * الزبون مكافأةً ونقاطاً معاً كلما كان الصنف المجاني قابلاً
+   * للاستبدال بالنقاط أيضاً -- وهو الشائع، إذ يُختار للعرضين معاً.
+   */
+  isFreeReward?: boolean;
 }
 
 export interface CartTotals {
@@ -327,6 +337,11 @@ export function addToCartWithConfig(
  *  checkout time, exactly matching the source's MENU_ITEM_META lookup. */
 export function addPointsRedemptionToCart(cart: CartLine[], productId: number, nextLineId: () => number): CartLine[] {
   return [...cart, { lineId: nextLineId(), productId, qty: 1, note: '', config: null, isPointsRedemption: true }];
+}
+
+/** مكافأة الولاء: كسطر الاستبدال في السعر والعدّ، وبلا ثمنٍ بالنقاط. */
+export function addFreeRewardToCart(cart: CartLine[], productId: number, nextLineId: () => number): CartLine[] {
+  return [...cart, { lineId: nextLineId(), productId, qty: 1, note: '', config: null, isPointsRedemption: true, isFreeReward: true }];
 }
 
 export function changeQty(cart: CartLine[], lineId: number, delta: number): CartLine[] {

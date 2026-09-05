@@ -5,6 +5,7 @@ import {
   ModifierDefinition,
   OrderChannel,
   addPointsRedemptionToCart,
+  addFreeRewardToCart,
   addToCartWithConfig,
   buildDefaultConfig,
   cartTotals,
@@ -76,6 +77,14 @@ export function useCart(
     [nextLineId],
   );
 
+  /** المكافأة المجانية بعد تأكيد صاحبها -- سطرٌ بسعر صفر بلا ثمن نقاط. */
+  const addFreeRewardProduct = useCallback(
+    (productId: number) => {
+      setCart(prev => addFreeRewardToCart(prev, productId, nextLineId));
+    },
+    [],
+  );
+
   const changeQty = useCallback((lineId: number, delta: number) => {
     setCart(prev => changeQtyPure(prev, lineId, delta));
   }, []);
@@ -111,6 +120,7 @@ export function useCart(
     addProduct,
     addWithConfig,
     addPointsRedemptionProduct,
+    addFreeRewardProduct,
     changeQty,
     removeFromCart,
     setLineNote,
