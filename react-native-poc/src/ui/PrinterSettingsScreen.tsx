@@ -494,7 +494,7 @@ export default function PrinterSettingsScreen({
             ['legacy', 'صورة متوافقة',
              'نفس الصورة بالطريقة القديمة. الأبطأ — استخدمها فقط لو ما طلعت الفاتورة أصلًا بالخيارين فوق.'],
           ] as const).map(([id, name, desc]) => {
-            const current = profile.receiptMode === 'text' ? 'text' : (profile.rasterCommand ?? 'modern');
+            const current = (profile.receiptMode ?? 'text') === 'text' ? 'text' : (profile.rasterCommand ?? 'modern');
             const active = current === id;
             return (
               <TouchableOpacity

@@ -79,7 +79,10 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
   }
   // الوضع النصي يتجاوز التصيير كله: لا Skia، ولا قراءة بكسل، ولا صورة.
   // من نموذج الفاتورة إلى بايتات مباشرة.
-  const useText = profile?.receiptMode === 'text' && job.type === 'receipt';
+  // النص هو الافتراضي: مسارٌ مُتحقَّق منه ضد ورقة مطبوعة حقيقية، وأسرع
+  // من الصورة بمراتب. الصورة تبقى لمن يختارها صراحةً لطابعة لا تعرف
+  // العربية.
+  const useText = (profile?.receiptMode ?? 'text') === 'text' && job.type === 'receipt';
   const escPosBase64 = useText
     ? await timer.stage('escposBuild', () => {
         const printable = toReceiptPrintable(
