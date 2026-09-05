@@ -10843,6 +10843,39 @@ function menuSettingsHtml(){
 /* ============ Category tabs — simple, standard, renameable ============ */
 let menuSearchQuery = '';
 let activeMenuCategory = null; // null = show all
+/**
+ * ترشيح بالحالة لا بالفئة: أي صنف يحتاج مني شيئاً؟
+ *
+ * الصفحة كانت تجيب "كم صنفاً عندي" وتترك السؤال الذي يُفتح لأجله المنيو
+ * -- أي صنف ناقص أو مخفي أو يبيع بلا تكلفة معروفة -- لعينٍ تمسح الصفوف
+ * صفاً صفاً. والصفحة تملك جواب هذا السؤال في كل مرة، ولا تنطق به.
+ *
+ * وشكل الجواب رقاقات ترشيح لا شريط تنبيهات: الإجراء هنا يتكرر ("ورّني
+ * هذولا وأصلحهم") لا يقع مرة، والقائمة نفسها هي مكان الإصلاح. فالترشيح
+ * هو التشخيص، بآلية الصفحة نفسها لا بأداة جديدة فوقها.
+ */
+let activeMenuFlag = null;
+const MENU_FLAGS = [
+  { key:'uncosted',  label:'بلا تكلفة',        tone:'bad',
+    help:'تبيعها وأنت ما تعرف ربحها — حدّد تكلفتها عشان يطلع الهامش.',
+    test:(m)=> m.linkProfit && m.costMode !== 'direct' && computeProductCost(m).variable === 0 && m.price > 0 },
+  { key:'hidden',    label:'مخفية الآن',       tone:'warn',
+    help:'ما تظهر للزبون حالياً.',
+    test:(m)=> !m.active || (m.hiddenUntil && new Date(m.hiddenUntil) > new Date()) },
+  { key:'returning', label:'ترجع خلال يوم',    tone:'warn',
+    help:'مخفية مؤقتاً وترجع تلقائياً قريب — تأكد إنها متوفرة.',
+    test:(m)=> m.active && m.hiddenUntil && new Date(m.hiddenUntil) > new Date()
+               && (new Date(m.hiddenUntil) - new Date()) < 24*60*60*1000 },
+  { key:'onlineGap', label:'سعرها أونلاين مختلف', tone:'warn',
+    help:'سعر المتجر الإلكتروني غير سعر الكاشير.',
+    test:(m)=> m.onlinePrice != null && Number(m.onlinePrice) !== Number(m.price) },
+  { key:'posHidden', label:'مخفية عن الكاشير', tone:'warn',
+    help:'الكاشير ما يشوفها، بس المتجر الإلكتروني يشوفها.',
+    test:(m)=> m.visiblePos === false },
+  { key:'noStock',   label:'بلا ربط مخزون',    tone:'muted',
+    help:'ما ينخصم منها مخزون لما تنباع.',
+    test:(m)=> !m.linkInventory },
+];
 let renamingCategory = null;
 
 function renderCategoryTabs(){
@@ -10865,6 +10898,28 @@ function renderCategoryTabs(){
     </button>`;
   }).join('');
   el.innerHTML = html;
+
+  // رقاقات الحالة: لا تظهر إلا وفيها أصناف. رقاقة بصفر تعلّم صاحب المطعم
+  // أن يتجاهل الصف، وهو أسوأ ما يتعلّمه عن سطرٍ سيحمل تحذيراً يوماً.
+  const flagEl = document.getElementById('menuFlagTabs');
+  if(flagEl){
+    const counted = MENU_FLAGS
+      .map(f=>({ ...f, n: countableItems.filter(f.test).length }))
+      .filter(f=> f.n > 0);
+    flagEl.innerHTML = counted.length === 0
+      ? ''
+      : `<span class="menu-flag-lead">تحتاج مراجعة</span>` + counted.map(f=>`
+        <button class="menu-flag-tab ${f.tone} ${activeMenuFlag===f.key?'active':''}" data-flag="${f.key}" title="${f.help}">
+          ${f.label} <span class="mct-count">${f.n}</span>
+        </button>`).join('');
+    flagEl.querySelectorAll('.menu-flag-tab').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        activeMenuFlag = activeMenuFlag === btn.dataset.flag ? null : btn.dataset.flag;
+        renderCategoryTabs();
+        renderMenuProductTable();
+      });
+    });
+  }
 
   el.querySelectorAll('.menu-cat-tab').forEach(btn=>{
     btn.addEventListener('click', (e)=>{
@@ -11051,6 +11106,8 @@ function renderMenuProductTable(){
   if(totalEl) totalEl.textContent = visibleItems.length;
   let items = activeMenuCategory === null ? visibleItems : visibleItems.filter(m=>m.category===activeMenuCategory);
   if(menuSearchQuery.trim()) items = items.filter(m=>m.name.includes(menuSearchQuery.trim()));
+  const flag = MENU_FLAGS.find(f=>f.key===activeMenuFlag);
+  if(flag) items = items.filter(flag.test);
   // MENU_ITEMS is only ever re-fetched in the DB's sort_order, not re-sorted
   // in place after a local reorder — moveProductOrder mutates .sortOrder on
   // the two swapped items but leaves their array position untouched, so this
@@ -11059,7 +11116,26 @@ function renderMenuProductTable(){
   items = [...items].sort((a,b) => (a.sortOrder ?? a.id) - (b.sortOrder ?? b.id) || a.id - b.id);
 
   const el = document.getElementById('menuProductTable');
-  if(items.length === 0){ el.innerHTML = '<div class="menu-table-empty">ما فيه منتجات تطابق هذا البحث أو القسم.</div>'; return; }
+  if(items.length === 0){
+    // النص يقول ما حدث فعلاً.
+    //
+    // كان يقول "ما فيه منتجات تطابق هذا البحث أو القسم" لمنشأة جديدة بلا
+    // بحث ولا قسم -- فيقرأ صاحب المطعم أن ترشيحاً خفياً يخفي منتجاته،
+    // ويبحث عن زر يلغيه لا وجود له. وهذي أول شاشة يراها في المنيو.
+    const filtering = !!(menuSearchQuery.trim() || activeMenuCategory || flag);
+    el.innerHTML = visibleItems.length === 0
+      ? `<div class="menu-table-empty">
+           <div class="mte-title">ما أضفت منتجات بعد</div>
+           <div class="mte-sub">أضف أول منتج وحدّد سعره وتكلفته — بعدها يظهر لك هامش ربحه هنا على طول.</div>
+         </div>`
+      : filtering
+        ? `<div class="menu-table-empty">
+             <div class="mte-title">ما فيه منتج يطابق</div>
+             <div class="mte-sub">جرّب تشيل البحث أو الترشيح.</div>
+           </div>`
+        : '<div class="menu-table-empty"><div class="mte-title">ما فيه منتجات هنا</div></div>';
+    return;
+  }
 
   // Reordering only makes sense against the true, unfiltered order within
   // ONE category — with "كل المنتجات" active or a search applied, adjacent
@@ -11096,7 +11172,8 @@ function renderMenuProductTable(){
         <div class="mtr-thumb">${item.image ? `<img src="${item.image}">` : productImagePlaceholderSvg()}</div>
         <div class="mtr-name-col">
           <div class="mtr-name">${item.name}</div>
-          <div class="mtr-meta">${item.category}${isBox ? ' — تركيبة متغيرة ('+item.componentSlot.totalPieces+' قطعة)' : ''}${item.modifierGroupIds.length ? ' — '+item.modifierGroupIds.length+' مجموعة خيارات' : ''}${(item.active && item.hiddenUntil && new Date(item.hiddenUntil) > new Date()) ? ' — يرجع تلقائيًا ' + formatHiddenUntilLabel(item.hiddenUntil) : ''}${(ONLINE_ORDERING_ENABLED && !item.visibleOnline) ? ' — غير ظاهر بالمتجر الإلكتروني' : ''}</div>
+          <div class="mtr-meta">${item.category}${isBox ? ' — تركيبة متغيرة ('+item.componentSlot.totalPieces+' قطعة)' : ''}${item.modifierGroupIds.length ? ' — '+item.modifierGroupIds.length+' مجموعة خيارات' : ''}${(item.active && item.hiddenUntil && new Date(item.hiddenUntil) > new Date()) ? ' — يرجع تلقائيًا ' + formatHiddenUntilLabel(item.hiddenUntil) : ''}${(ONLINE_ORDERING_ENABLED && !item.visibleOnline) ? ' — غير ظاهر بالمتجر الإلكتروني' : ''}${item.visiblePos === false ? ' — مخفي عن الكاشير' : ''}${(item.onlinePrice != null && Number(item.onlinePrice) !== Number(item.price)) ? ' — سعر المتجر ' + Number(item.onlinePrice).toFixed(2) : ''}${!item.linkInventory ? ' — بلا ربط مخزون' : ''}</div>
+          <span class="cost-margin-badge ${tier} mtr-margin-inline">${marginDisplay}</span>
         </div>
       </div>
       <div class="mtr-price mono">${item.price.toFixed(2)}</div>

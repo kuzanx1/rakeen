@@ -1043,7 +1043,7 @@ button{font-family:inherit; cursor:pointer;}
 
 .menu-cat-tabs-row{display:flex; align-items:center; gap:10px; margin-bottom:8px;}
 .menu-cat-tabs{display:flex; gap:6px; flex-wrap:wrap; flex:1;}
-.menu-cat-tab{display:flex; align-items:center; gap:7px; padding:9px 8px 9px 14px; border-radius:var(--r-full); border:1.5px solid var(--line); background:var(--card-bg); color:var(--muted); font-weight:700; font-size:12px;}
+.menu-cat-tab{display:flex; align-items:center; gap:7px; min-height:44px; padding:0 8px 0 14px; border-radius:var(--r-full); border:1.5px solid var(--line); background:var(--card-bg); color:var(--muted); font-weight:700; font-size:12px;}
 .menu-cat-tab.active{background:linear-gradient(135deg, var(--graphite), #262626); border-color:var(--graphite); color:var(--lime); box-shadow:0 4px 14px rgba(0,0,0,0.18);}
 [data-theme="dark"] .menu-cat-tab.active{background:linear-gradient(135deg, #232323, #171717);}
 .menu-cat-tab .mct-count{opacity:0.7; font-size:10.5px;}
@@ -1292,8 +1292,10 @@ button.purchases-hero-btn{
 .mtr-margin{width:90px;}
 .mtr-status{width:70px;}
 .mtr-status-wide{width:112px;}
+/* min-height 44: هذي ثاني أكثر أداة تُضغط في الصفحة بعد الصف نفسه،
+   وكانت 28 بكسل على سطح المكتب و36 على الجوال. */
 .mtr-hide-select{
-  width:100%; font-size:10.5px; font-weight:700; padding:5px 6px; border-radius:var(--r-sm);
+  width:100%; min-height:44px; font-size:10.5px; font-weight:700; padding:5px 8px; border-radius:var(--r-sm);
   border:1px solid var(--line); background:var(--card-bg); color:var(--text); cursor:pointer;
 }
 .mtr-action{width:80px; text-align:end;}
@@ -1308,6 +1310,8 @@ button.purchases-hero-btn{
 .mtr-action .mtr-edit-btn{min-height:44px; padding-inline:16px; box-sizing:border-box;}
 .menu-table-row:hover .mtr-edit-btn{border-color:var(--lime-deep); color:var(--success-text);}
 .menu-table-empty{padding:40px 20px; text-align:center; color:var(--muted); font-weight:600; font-size:12.5px;}
+.menu-table-empty .mte-title{font-size:13.5px; font-weight:800; color:var(--text);}
+.menu-table-empty .mte-sub{margin-top:6px; font-size:12px; line-height:1.7; max-width:34ch; margin-inline:auto;}
 
 /* ===== Menu screen — a refined single-column list, each product its own
    rounded card (not a grid of hero-image tiles — tried that, it read as a
@@ -1332,7 +1336,57 @@ button.purchases-hero-btn{
 #menuProductTable .mtr-price{font-size:13.5px; text-align:end;}
 #menuProductTable .mtr-margin{width:auto;}
 #menuProductTable .mtr-action{display:none;}
-@media (max-width:480px){ #menuProductTable .mtr-margin{display:none;} }
+/* الهامش يبقى على الجوال.
+   كان يُخفى تحت 480 بلا تعليق يبرّره، بخلاف كل قرار آخر في هذي الكتلة --
+   ومعه يختفي "غير محددة ⚠️"، وهو التحذير الوحيد الذي يقول لصاحب المطعم
+   إنه يبيع صنفاً وهو لا يعرف ربحه. والجوال هو الجهاز الذي يفتح منه
+   المنيو وهو خارج المطعم. فينتقل إلى سطر ثانٍ تحت الاسم بدل أن يُحذف. */
+/* الصف يبقى سطراً واحداً على الجوال -- قرارٌ موثّق في
+   rakeen-dashboard-responsive.css ولا يُنقض هنا. فالهامش ينزل تحت الاسم
+   بدل أن يزاحم العمودَ عليه: عمودٌ رابع على 375 يضغط اسم المنتج إلى
+   ستّة وسبعين بكسل، وهو أسوأ من إخفاء الهامش. */
+@media (max-width:480px){
+  #menuProductTable .mtr-margin{display:none;}
+  #menuProductTable .mtr-margin-inline{display:inline-flex;}
+}
+.mtr-margin-inline{display:none; margin-top:4px;}
+
+/* ===== رقاقات الحالة — الترشيح هو التشخيص =====
+   نفس هندسة .menu-cat-tab: القياس والحواف والوزن واحدة، فهي امتداد
+   للآلية نفسها لا عنصر جديد. واللون وحده هو ما يفرّق -- ولهجةً على الحدّ
+   والنص، لا خلفيةً: خلفية ملوّنة على ست رقاقات تُحوّل الصف إلى إنذار
+   دائم، والصفحة ليست إنذاراً. */
+.menu-flag-tabs{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:10px;}
+/* على الجوال سطر واحد يُمرَّر أفقياً لا ثلاثة أسطر: ستّ رقاقات ملفوفة
+   كانت تدفع أول منتج إلى 656 من 812 -- أي أن الصفحة تفتح على تشخيصها لا
+   على قائمتها، وهو عكس المقصود. التمرير داخل الشريط نفسه فلا يفيض
+   الصفحة. */
+@media (max-width:640px){
+  .menu-flag-tabs{flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; padding-bottom:2px;}
+  .menu-flag-tabs::-webkit-scrollbar{display:none;}
+  .menu-flag-tabs > *{flex:0 0 auto;}
+}
+.menu-flag-tabs:empty{display:none;}
+.menu-flag-lead{font-size:11px; font-weight:700; color:var(--muted); margin-inline-end:2px;}
+.menu-flag-tab{
+  display:flex; align-items:center; gap:7px; min-height:44px;
+  padding:0 14px; border-radius:var(--r-full);
+  border:1.5px solid var(--line); background:var(--card-bg);
+  color:var(--muted); font-weight:700; font-size:11.5px;
+}
+.menu-flag-tab .mct-count{
+  font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;
+  font-size:11px; opacity:0.85;
+}
+.menu-flag-tab.bad{border-color:color-mix(in srgb, var(--danger) 45%, var(--line)); color:var(--danger);}
+.menu-flag-tab.warn{border-color:color-mix(in srgb, var(--amber) 45%, var(--line)); color:var(--amber);}
+.menu-flag-tab.active{
+  background:linear-gradient(135deg, var(--graphite), #262626);
+  border-color:var(--graphite); color:var(--lime);
+  box-shadow:0 4px 14px rgba(0,0,0,0.18);
+}
+[data-theme="dark"] .menu-flag-tab.active{background:linear-gradient(135deg, #232323, #171717);}
+.menu-flag-tab:focus-visible{outline:2px solid var(--lime-deep); outline-offset:2px;}
 
 /* unified product edit modal */
 .product-edit-modal-card{width:520px; display:flex; flex-direction:column; max-height:86vh;}
