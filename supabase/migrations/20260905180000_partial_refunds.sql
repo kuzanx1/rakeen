@@ -17,9 +17,14 @@ alter table orders add column if not exists refund_shift_id bigint references sh
 create index if not exists orders_refund_shift_idx on orders(refund_shift_id) where refund_shift_id is not null;
 
 -- حالة جديدة للاسترجاع الجزئي: الفاتورة لم تُلغَ، وبعضها أُعيد.
+--
+-- والقائمة كاملة عمداً: القيد ليس تعريفاً جديداً بل توسيعٌ للقائم في
+-- 20260821090000، فإعادة كتابته بأربع حالات تحذف 'pending' و'rejected'
+-- و'awaiting_payment' -- وفي الجدول صفوف تحملها، فيرفضها القيد ويسقط
+-- الترحيل. القيد يُوسَّع بذكر كل ما كان قبله، لا بذكر الجديد وحده.
 alter table orders drop constraint if exists orders_status_check;
 alter table orders add constraint orders_status_check
-  check (status in ('completed','cancelled','refunded','partially_refunded'));
+  check (status in ('pending','completed','cancelled','refunded','partially_refunded','rejected','awaiting_payment'));
 
 comment on column orders.refunded_amount is 'إجمالي ما أُعيد من هذي الفاتورة. لا يتجاوز total أبداً.';
 comment on column orders.refund_shift_id is 'الوردية التي خرج فيها المال من الدرج.';
