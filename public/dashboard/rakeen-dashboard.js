@@ -4439,25 +4439,67 @@ function loyaltyTier(spend){
   for(const t of sorted){ if(spend >= t.min) match = t; }
   return match;
 }
-function renderLoyaltyKpis(){
-  const pointsIssuedToday = Math.round(TODAY.netSales / LOYALTY_RATE);
+/**
+ * إحصاءات البرنامج المشغَّل، لا إحصاءات النقاط دائماً.
+ *
+ * كانت الصفحة تعرض "نقاط مصدرة اليوم" و"متوسط نقاط العميل" مهما كان
+ * النظام. وهما لمطعمٍ يشغّل بطاقة ختم رقمان لا يعنيان شيئاً: الأول
+ * يُحسب من مبيعاتٍ لا تُنتج نقاطاً، والثاني صفرٌ دائماً. فالصفحة تصف
+ * برنامجاً غير الذي يشغّله.
+ */
+let LOYALTY_STATS = null;
+
+async function loadLoyaltyProgramStats(){
+  try {
+    const { data, error } = await window.supabaseClient.rpc('get_loyalty_program_stats');
+    if(error || !data || data.error) return;
+    LOYALTY_STATS = data;
+  } catch(_){ /* الصفحة تبقى على ما لديها، لا تفرغ. */ }
+}
+
+function loyaltyKpisForSystem(){
+  const st = LOYALTY_STATS;
+  const type = (st && st.systemType) || (LOYALTY_BRANDING && LOYALTY_BRANDING.systemType) || 'points';
   const activeMembersToday = CUSTOMERS_TODAY.newCount + CUSTOMERS_TODAY.returningCount;
-  const avgPoints = TOP_CUSTOMERS.length > 0
-    ? Math.round(TOP_CUSTOMERS.reduce((s,c)=>s+c.points,0) / TOP_CUSTOMERS.length)
-    : 0;
-  const kpis = [
-    {label:'نقاط مصدرة اليوم', value: pointsIssuedToday},
-    // "نقاط مستردة اليوم" used to sit here as a hardcoded 0 — the POS has no
-    // redemption flow yet, so that number could never be anything but fake-
-    // looking-real zero. Total members is honest and actually useful instead.
-    {label:'إجمالي الأعضاء', value: TOP_CUSTOMERS.length},
+  if(!st){
+    // قبل وصول الأرقام: أعضاءٌ وتفاعلٌ يُعرفان محلياً، ولا يُخترع غيرهما.
+    return [
+      {label:'إجمالي الأعضاء', value: TOP_CUSTOMERS.length},
+      {label:'أعضاء تفاعلوا اليوم', value: activeMembersToday},
+    ];
+  }
+  if(type === 'visits'){
+    return [
+      {label:'إجمالي الأعضاء', value: st.members},
+      {label:'بطاقات جارية', value: st.visitsActive},
+      {label:'باقي لهم زيارة واحدة', value: st.visitsNearReward},
+      // التزامٌ قائم لا إنجاز: كل واحدة كوبٌ سيُعطى ولم يُعطَ بعد.
+      {label:'مكافآت جاهزة للصرف', value: st.rewardsReady},
+    ];
+  }
+  if(type === 'products'){
+    return [
+      {label:'إجمالي الأعضاء', value: st.members},
+      {label:'بطاقات جارية', value: st.unitsActive},
+      {label:'باقي لهم واحدة', value: st.unitsNearReward},
+      {label:'مكافآت جاهزة للصرف', value: st.rewardsReady},
+    ];
+  }
+  return [
+    {label:'نقاط مصدرة اليوم', value: Math.round(TODAY.netSales / LOYALTY_RATE)},
+    {label:'إجمالي الأعضاء', value: st.members},
     {label:'أعضاء تفاعلوا اليوم', value: activeMembersToday},
-    {label:'متوسط نقاط العميل', value: avgPoints}
+    {label:'نقاط لم تُصرف', value: st.pointsOutstanding},
   ];
+}
+
+function renderLoyaltyKpis(){
+  const kpis = loyaltyKpisForSystem();
   document.getElementById('loyaltyKpiGrid').innerHTML = kpis.map(k=>
     `<div class="kpi-card"><div class="kpi-label">${k.label}</div><div class="kpi-value mono">${k.value}</div></div>`
   ).join('');
-  document.getElementById('loyaltyRateDisplay').textContent = LOYALTY_RATE;
+  const rateEl = document.getElementById('loyaltyRateDisplay');
+  if(rateEl) rateEl.textContent = LOYALTY_RATE;
   renderLoyaltyLiability();
 }
 
@@ -5166,6 +5208,10 @@ document.querySelectorAll('input[name="loyaltySystemType"]').forEach(radio=>{
     if(pc) pc.style.borderColor = radio.value === 'products' ? 'var(--lime-deep)' : 'var(--line)';
     updateLoyaltySystemTypeVisibility();
     renderLoyaltyProgramPanel();
+    // الأرقام نفسها لا تتغيّر بتبديل الاختيار -- المعروض منها هو الذي
+    // يتغيّر. فتُعاد الرسمة بلا نداءٍ ثانٍ للخادم.
+    if(LOYALTY_STATS) LOYALTY_STATS.systemType = radio.value;
+    renderLoyaltyKpis();
     renderLoyaltyCardPreview();
   });
 });
@@ -5220,6 +5266,7 @@ function renderLoyaltyBrandingPreview(){
   // الشبكة، وتُعاد رسمها حين تصل.
   renderLoyaltyProgramPanel();
   loadLoyaltyProgramData().then(renderLoyaltyProgramPanel);
+  loadLoyaltyProgramStats().then(renderLoyaltyKpis);
   document.getElementById('loyaltyTypeCardVisits').style.borderColor = LOYALTY_BRANDING.systemType === 'visits' ? 'var(--lime-deep)' : 'var(--line)';
   document.querySelectorAll('#loyaltyThemeChips button').forEach(b=>b.classList.toggle('active', b.dataset.theme === LOYALTY_BRANDING.theme));
   renderLoyaltyIconPicker();
