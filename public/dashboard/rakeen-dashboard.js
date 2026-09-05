@@ -10894,7 +10894,15 @@ function renderCategoryTabs(){
   const countableItems = MENU_ITEMS.filter(m=>!m.name.includes('(مؤرشف)'));
   const allCount = countableItems.length;
   let html = `<button class="menu-cat-tab ${activeMenuCategory===null?'active':''}" data-cat="__all__">كل المنتجات <span class="mct-count">${allCount}</span></button>`;
-  html += MENU_CATEGORIES.map(cat=>{
+  // الرقاقات من CATEGORY_ROWS لا من مصفوفة الأسماء.
+  //
+  // MENU_CATEGORY_ID_BY_NAME مفهرسة بالاسم، وفئتان بنفس الاسم تعني أن
+  // الثانية تدهس الأولى في الخريطة -- فزر الحذف على الرقاقة الأولى كان
+  // يحذف الفئة الثانية، والترتيب يحرّك غير ما تنظر إليه. وكل رقاقة تحمل
+  // معرّفها الحقيقي الآن، فما عادت الخريطة تُستشار أصلاً.
+  const catRows = [...CATEGORY_ROWS].sort((a,b)=>(a.sortOrder ?? a.id) - (b.sortOrder ?? b.id) || a.id - b.id);
+  html += catRows.map((row, rowIdx)=>{
+    const cat = row.name;
     const count = countableItems.filter(m=>m.category===cat).length;
     if(renamingCategory === cat){
       // الاسم الإنجليزي هنا، لا في شاشة أخرى.
@@ -10903,7 +10911,6 @@ function renderCategoryTabs(){
       // اللغة، والكاشير يقرؤه -- ولا شاشة في اللوحة تكتبه. فالفئة تظهر
       // بالإنجليزية فقط إن صادف اسمها العربي كلمةً في قاموس التطبيق
       // المدمج، وإلا بقيت عربية في واجهة إنجليزية.
-      const row = CATEGORY_ROWS.find(c=>c.name===cat) || {};
       return `<span class="menu-cat-rename-pair">
         <input type="text" class="menu-cat-tab-rename-input" id="catRenameInput" value="${cat}" data-original="${cat}" placeholder="الاسم بالعربي">
         <input type="text" class="menu-cat-tab-rename-input mcri-en" id="catRenameInputEn" value="${row.nameEn || ''}" placeholder="English name" dir="ltr">
@@ -10912,8 +10919,8 @@ function renderCategoryTabs(){
     // الترتيب والحذف كانا موجودين في شاشة المتجر الإلكتروني وحدها، ومن
     // يرتّب فئاته يرتّبها من حيث يراها -- وهو المنيو. نفس الدالتين
     // تُستدعيان هنا، لا نسخة ثانية منهما.
-    const catId = MENU_CATEGORY_ID_BY_NAME[cat];
-    const order = MENU_CATEGORIES.indexOf(cat);
+    const catId = row.id;
+    const order = rowIdx;
     // الأدوات على الفئة المختارة وحدها.
     //
     // إظهارها على كل رقاقة يضرب أربعة أزرار في عدد الفئات: عشر فئات صارت
@@ -10928,7 +10935,7 @@ function renderCategoryTabs(){
         <span class="mct-tool" data-catmove="up" data-catid="${catId}" title="قدّمها" ${order===0?'data-off="1"':''}>
           <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"/></svg>
         </span>
-        <span class="mct-tool" data-catmove="down" data-catid="${catId}" title="أخّرها" ${order===MENU_CATEGORIES.length-1?'data-off="1"':''}>
+        <span class="mct-tool" data-catmove="down" data-catid="${catId}" title="أخّرها" ${order===catRows.length-1?'data-off="1"':''}>
           <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3"><polyline points="15 18 9 12 15 6"/></svg>
         </span>
         <span class="mct-tool mct-rename" data-rename="${cat}" title="إعادة تسمية">
