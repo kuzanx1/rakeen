@@ -7585,6 +7585,7 @@ let RECEIPT_CUSTOM_MESSAGE = '';
 let RECEIPT_LOGO_URL = '';
 let RECEIPT_TAGLINE = '';
 let RECEIPT_SHOW_NAME = true;
+let SHIFT_REPORT_OPTIONS = {};
 let RECEIPT_THEME = 'classic';
 let ONLINE_COD_ENABLED = true;
 let ONLINE_CARD_ENABLED = true;
@@ -8338,15 +8339,17 @@ const rkPosHideBellStatus = c => c
 async function loadReceiptBranding(businessId){
   try {
     const res = await window.supabaseClient.from('businesses')
-      .select('receipt_logo_url, receipt_tagline, receipt_show_name').eq('id', businessId).single();
+      .select('receipt_logo_url, receipt_tagline, receipt_show_name, shift_report_options').eq('id', businessId).single();
     RECEIPT_LOGO_URL = (res.data && res.data.receipt_logo_url) || '';
     RECEIPT_TAGLINE = (res.data && res.data.receipt_tagline) || '';
     // الاسم يُطبع إلا إذا أُطفئ صراحةً -- فقاعدة قديمة بلا هذا العمود
     // تبقى تطبع الاسم كما كانت.
     RECEIPT_SHOW_NAME = !(res.data && res.data.receipt_show_name === false);
+    SHIFT_REPORT_OPTIONS = (res.data && res.data.shift_report_options) || {};
   } catch(_){
     RECEIPT_LOGO_URL = '';
     RECEIPT_TAGLINE = '';
+    SHIFT_REPORT_OPTIONS = {};
   }
 }
 
@@ -8693,6 +8696,24 @@ async function renderPosSettings(){
       <button class="rk-btn rk-btn-primary rk-btn-md" id="receiptBrandSaveBtn" style="margin-top:6px;">حفظ هوية الفاتورة</button>
     </div>`;
 
+  // تقرير إغلاق الوردية: ما يظهر فيه.
+  //
+  // الأسطر الأربعة الأولى ليست زينة -- مراجع تسوية نقاط البيع تعدّها
+  // أساسية: الرصيد الافتتاحي والمرتجعات والضريبة والفرق. لكنّ مطعماً
+  // غير مسجّل بضريبة لا معنى لسطر ضريبة عنده، ومقهى لا يرتجع لا معنى
+  // لسطر مرتجعات فيه دائماً بصفر. فالاختيار له، والافتراض الإظهار.
+  const shiftReportPanel = `
+    <div class="rk-section">
+      ${rkSectionHead('fileText', 'تقرير إغلاق الوردية', 'اختر وش يطلع في الورقة اللي تنطبع عند إغلاق الوردية')}
+      <label class="pos-check"><input type="checkbox" id="srOptDiscounts" ${SHIFT_REPORT_OPTIONS.discounts !== false ? 'checked' : ''}><span>الخصومات</span></label>
+      <label class="pos-check"><input type="checkbox" id="srOptRefunds" ${SHIFT_REPORT_OPTIONS.refunds !== false ? 'checked' : ''}><span>المرتجعات</span></label>
+      <label class="pos-check"><input type="checkbox" id="srOptVat" ${SHIFT_REPORT_OPTIONS.vat !== false ? 'checked' : ''}><span>ضريبة القيمة المضافة</span></label>
+      <label class="pos-check"><input type="checkbox" id="srOptCounts" ${SHIFT_REPORT_OPTIONS.counts !== false ? 'checked' : ''}><span>عدد الطلبات ومتوسط الفاتورة</span></label>
+      <label class="pos-check"><input type="checkbox" id="srOptSignatures" ${SHIFT_REPORT_OPTIONS.signatures !== false ? 'checked' : ''}><span>خانتَي توقيع الكاشير والمدير</span></label>
+      <p class="stock-qty-helper" style="margin-top:10px;">المبيعات وطرق الدفع والصندوق والفرق تطبع دايم — هذي أساس التسوية وما تنشال.<br>وصف «دفع إلكتروني» يطلع لحاله إذا فعّلت الدفع في متجرك الإلكتروني.</p>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="shiftReportSaveBtn" style="margin-top:10px;">حفظ خيارات التقرير</button>
+    </div>`;
+
   const receiptMessagePanel = `
     <div class="rk-section">
       ${rkSectionHead('messageCircle', 'رسالة أسفل فاتورة العميل', 'تطبع تحت رمز QR — شكر، أو مدة جلوس، أو أي رسالة تحبها')}
@@ -8954,7 +8975,7 @@ async function renderPosSettings(){
     </div>`;
 
   const POS_SETTINGS_TABS_HTML = {
-    receipt: receiptPreviewHtml() + receiptBrandPanel + receiptMessagePanel + kitchenTicketPanel,
+    receipt: receiptPreviewHtml() + receiptBrandPanel + receiptMessagePanel + kitchenTicketPanel + shiftReportPanel,
     interface: simplifyPanel,
     tables: orderTypesIntro + dineInMasterPanel + tablesGatedContent,
     kitchen: kitchenPanel + autoReadyPanel,
@@ -9156,6 +9177,27 @@ async function renderPosSettings(){
       rkBtnSuccess(receiptBrandSaveBtn, '✓ تم الحفظ');
     } catch(err){
       rkBtnLoading(receiptBrandSaveBtn, false);
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
+  });
+
+  const shiftReportSaveBtn = document.getElementById('shiftReportSaveBtn');
+  if(shiftReportSaveBtn) shiftReportSaveBtn.addEventListener('click', async ()=>{
+    const opts = {
+      discounts: document.getElementById('srOptDiscounts').checked,
+      refunds: document.getElementById('srOptRefunds').checked,
+      vat: document.getElementById('srOptVat').checked,
+      counts: document.getElementById('srOptCounts').checked,
+      signatures: document.getElementById('srOptSignatures').checked
+    };
+    rkBtnLoading(shiftReportSaveBtn, true);
+    try {
+      await updateCurrentBusiness({ shift_report_options: opts });
+      SHIFT_REPORT_OPTIONS = opts;
+      logDashboardAudit('عدّل خيارات تقرير إغلاق الوردية');
+      rkBtnSuccess(shiftReportSaveBtn, '✓ تم الحفظ');
+    } catch(err){
+      rkBtnLoading(shiftReportSaveBtn, false);
       showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
     }
   });

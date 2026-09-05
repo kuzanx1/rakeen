@@ -188,7 +188,7 @@ export function WelcomeSplash({ onDone }: { onDone?: () => void }) {
               },
             ],
           }}>
-          <Text style={styles.line}>أهلًا بك</Text>
+          <Text style={styles.line}>ابدأ أرباحك</Text>
         </Animated.View>
       </View>
     </Animated.View>

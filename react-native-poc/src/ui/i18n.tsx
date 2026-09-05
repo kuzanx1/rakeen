@@ -25,6 +25,7 @@ import { getItem, setItem } from '../infrastructure/mmkvStorage';
  */
 
 const I18N_EN: Record<string, string> = {
+  'ابدأ أرباحك': 'Start earning',
   // Mirrors the table in public/pos/rakeen-pos.js. Keep them in step:
   // the same business runs both, and a label that reads one way on the
   // tablet and another on the phone is exactly the drift this migration

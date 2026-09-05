@@ -4058,10 +4058,14 @@ function buildDbKitchenReceiptData(order, items){
 function renderShiftReportCanvas(report){
   const width = DEVICE.printerPaperWidth || 576;
   const pad = 16, lineH = 32;
+  const gap = n => lineH * n;
+  // التقرير صار أطول بعد إضافة المبيعات والمرتجعات والصندوق والتواقيع،
+  // والسطح المقصوص على ١٤٠٠ كان سيبتر آخره بلا خطأ يُرى.
+  const MAXH = 2200;
   const scratch = document.createElement('canvas');
-  scratch.width = width; scratch.height = 1400;
+  scratch.width = width; scratch.height = MAXH;
   const ctx = scratch.getContext('2d');
-  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, width, 1400);
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, width, MAXH);
   ctx.fillStyle = '#000';
   ctx.textBaseline = 'middle';
   let y = pad + lineH / 2;
@@ -4087,26 +4091,76 @@ function renderShiftReportCanvas(report){
     y += lineH * 0.6;
   };
 
+  // ترتيب التقرير من مراجع التسوية المحاسبية، لا من عادةٍ عندنا:
+  // مبيعات ← طرق دفع ← صندوق ← توقيع. وكل قسم ينتهي بسطر واحد يُنقل
+  // إلى الذي بعده، حتى يستطيع من يدقّق أن يتتبّع الرقم بيده.
+  const opt = report.options || {};
+  const on = k => opt[k] !== false;
+
   centerText(report.businessName || 'ركين', 30, true);
   if(report.branchName) centerText(report.branchName, 19, false);
+  y += gap(0.2);
   centerText('تقرير إغلاق الوردية', 20, true);
+  centerText('Shift Close Report', 15, false);
   centerText(report.dateLabel, 16, false);
-  centerText('الكاشير: ' + report.staffName, 16, false);
   divider();
-  rowText(String(report.ordersCount), 'عدد الطلبات', 18, false);
-  rowText(report.salesTotal.toFixed(2), 'إجمالي المبيعات', 18, false);
-  rowText(report.cardTotal.toFixed(2), 'بطاقة', 18, false);
-  rowText(report.deliveryPlatformTotal.toFixed(2), 'توصيل — مدفوع عبر التطبيق', 18, false);
+  rowText('', 'الكاشير · Cashier: ' + report.staffName, 17, false);
+  if(report.shiftStart) rowText('', 'من · From: ' + report.shiftStart, 16, false);
   divider();
-  rowText(report.cashExpected.toFixed(2), 'الكاش المتوقع', 18, false);
-  rowText(report.cashCounted.toFixed(2), 'الكاش المعدود', 18, false);
-  rowText((report.cashVariance >= 0 ? '+' : '') + report.cashVariance.toFixed(2), 'الفرق', 22, true);
+
+  // ١) المبيعات: من الإجمالي إلى الصافي، خطوةً خطوة.
+  centerText('المبيعات · Sales', 16, true);
+  rowText(report.grossSales.toFixed(2) + ' ' + RIYAL, 'إجمالي المبيعات · Gross', 18, false);
+  if(on('discounts')) rowText('-' + report.discountsTotal.toFixed(2) + ' ' + RIYAL, 'الخصومات · Discounts', 18, false);
+  if(on('refunds')) rowText('-' + report.refundsTotal.toFixed(2) + ' ' + RIYAL, 'المرتجعات · Refunds (' + report.refundsCount + ')', 18, false);
+  if(on('vat')) rowText(report.vatTotal.toFixed(2) + ' ' + RIYAL, 'ضريبة القيمة المضافة · VAT', 18, false);
+  rowText(report.netSales.toFixed(2) + ' ' + RIYAL, 'صافي المبيعات · Net', 20, true);
   divider();
-  centerText('معتمد من المدير', 15, false);
+
+  // ٢) طرق الدفع، مرتّبة بالأهمية لا بالأبجدية.
+  centerText('طرق الدفع · Payments', 16, true);
+  rowText(report.cashSales.toFixed(2) + ' ' + RIYAL, 'كاش · Cash', 18, false);
+  rowText(report.cardTotal.toFixed(2) + ' ' + RIYAL, 'شبكة · Card', 18, false);
+  rowText(report.deliveryPlatformTotal.toFixed(2) + ' ' + RIYAL, 'تطبيقات توصيل · Delivery Apps', 18, false);
+  // الدفع الإلكتروني لا يظهر إلا لمن فعّله في متجره: صفٌّ بصفر دائماً
+  // على مطعم لا يبيع أونلاين ضجيج في ورقة تُدقَّق.
+  if(report.onlinePaymentsEnabled) rowText(report.onlineTotal.toFixed(2) + ' ' + RIYAL, 'دفع إلكتروني · Online', 18, false);
+  divider();
+
+  // ٣) الصندوق: المعادلة كاملة، فما من رقم يظهر بلا أصل.
+  centerText('الصندوق · Cash Drawer', 16, true);
+  rowText(report.openingCash.toFixed(2) + ' ' + RIYAL, 'الرصيد الافتتاحي · Opening float', 18, false);
+  rowText('+' + report.cashSales.toFixed(2) + ' ' + RIYAL, 'مبيعات الكاش · Cash sales', 18, false);
+  rowText(report.cashExpected.toFixed(2) + ' ' + RIYAL, 'المتوقع في الدرج · Expected', 18, true);
+  rowText(report.cashCounted.toFixed(2) + ' ' + RIYAL, 'المعدود · Counted', 18, false);
+  const vTop = y - lineH * 0.55;
+  rowText((report.cashVariance >= 0 ? '+' : '') + report.cashVariance.toFixed(2) + ' ' + RIYAL, 'الفرق · Variance', 22, true);
+  // الفرق داخل إطار: هو السطر الوحيد الذي يُفتح عليه تحقيق.
+  ctx.fillStyle = '#000';
+  const vX = pad * 0.6, vW = width - pad * 1.2, vH = (y - lineH * 0.2) - vTop;
+  ctx.fillRect(vX, vTop, vW, 1.5);
+  ctx.fillRect(vX, vTop + vH - 1.5, vW, 1.5);
+  ctx.fillRect(vX, vTop, 1.5, vH);
+  ctx.fillRect(vX + vW - 1.5, vTop, 1.5, vH);
+  y += gap(0.35);
+
+  if(on('counts')){
+    divider();
+    rowText(String(report.ordersCount), 'عدد الطلبات · Orders', 17, false);
+    rowText(report.avgTicket.toFixed(2) + ' ' + RIYAL, 'متوسط الفاتورة · Avg ticket', 17, false);
+  }
+
+  if(on('signatures')){
+    divider();
+    y += gap(0.5);
+    rowText('', 'توقيع الكاشير · Cashier  ______________', 15, false);
+    y += gap(0.5);
+    rowText('', 'توقيع المدير · Manager   ______________', 15, false);
+  }
   y += pad;
 
   const out = document.createElement('canvas');
-  out.width = width; out.height = Math.ceil(y);
+  out.width = width; out.height = Math.min(Math.ceil(y), MAXH);
   out.getContext('2d').drawImage(scratch, 0, 0, width, out.height, 0, 0, width, out.height);
   return out;
 }
@@ -6436,14 +6490,31 @@ async function loadShiftData(){
   // 'cancelled' needs no exclusion: cancel_dine_in_order only matches
   // payment_status='unpaid', so those orders never enter this query.
   const { data } = await window.supabaseClient
-    .from('orders').select('total, payment_method, cash_amount').eq('shift_id', CURRENT_SHIFT.id).eq('payment_status', 'paid').neq('status', 'refunded');
+    .from('orders').select('total, subtotal, discount_amount, vat_amount, payment_method, cash_amount, source').eq('shift_id', CURRENT_SHIFT.id).eq('payment_status', 'paid').neq('status', 'refunded');
   const orders = data || [];
+  // المرتجعات باستعلام مستقل: الاستعلام أعلاه يستبعدها عمداً من حساب
+  // الدرج (المال أُعيد فعلاً)، لكن التقرير لا بد أن يذكرها -- وردية بلا
+  // سطر مرتجعات تُخفي أكثر ما يُدقَّق فيه.
+  let refundsTotal = 0, refundsCount = 0;
+  try {
+    const { data: refunded } = await window.supabaseClient
+      .from('orders').select('total').eq('shift_id', CURRENT_SHIFT.id).eq('status', 'refunded');
+    (refunded || []).forEach(o=>{ refundsTotal += Number(o.total) || 0; refundsCount++; });
+  } catch(_){ /* بلا سطر مرتجعات خير من تقرير لا يُطبع */ }
   // a split order's cash half belongs in the drawer count too — only the
   // remainder is card, not the whole order total (that used to be double
   // counted as "card" while the real cash portion went uncounted entirely).
-  let cashSales = 0, cardSales = 0, deliveryPlatformSales = 0;
+  let cashSales = 0, cardSales = 0, deliveryPlatformSales = 0, onlineSales = 0;
+  let grossSales = 0, discountsTotal = 0, vatTotal = 0;
   orders.forEach(o=>{
     const total = Number(o.total);
+    grossSales += Number(o.subtotal) || 0;
+    discountsTotal += Number(o.discount_amount) || 0;
+    vatTotal += Number(o.vat_amount) || 0;
+    // طلب من المتجر الإلكتروني دُفع بغير الكاش هو "دفع إلكتروني" -- لا
+    // شبكةَ الصالة. الفصل بالمصدر لا بطريقة الدفع، لأن كليهما يصل
+    // بـ'card' وحدها لا تفرّق بينهما.
+    if(o.source === 'online' && o.payment_method !== 'cash'){ onlineSales += total; return; }
     if(o.payment_method === 'cash') cashSales += total;
     else if(o.payment_method === 'split'){
       const cashPart = Number(o.cash_amount||0);
@@ -6452,9 +6523,16 @@ async function loadShiftData(){
     } else if(o.payment_method === 'delivery_platform') deliveryPlatformSales += total;
     else cardSales += total;
   });
+  const netSales = cashSales + cardSales + deliveryPlatformSales + onlineSales;
   return {
     ordersCount: orders.length,
-    salesTotal: cashSales + cardSales + deliveryPlatformSales,
+    grossSales, discountsTotal, vatTotal, refundsTotal, refundsCount,
+    netSales,
+    avgTicket: orders.length ? netSales / orders.length : 0,
+    openingCash: Number(CURRENT_SHIFT.opening_cash) || 0,
+    cashSales,
+    onlineTotal: onlineSales,
+    salesTotal: netSales,
     cashTotal: Number(CURRENT_SHIFT.opening_cash) + cashSales,
     cardTotal: cardSales,
     deliveryPlatformTotal: deliveryPlatformSales,
@@ -6580,7 +6658,15 @@ function renderClosingWizard(){
             businessName: DEVICE.businessName || 'ركين', branchName: DEVICE.branchName || '',
             dateLabel: new Date().toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
             staffName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : 'بدون اسم',
+            shiftStart: closingShiftData.startTime,
             ordersCount: closingShiftData.ordersCount, salesTotal: closingShiftData.salesTotal,
+            grossSales: closingShiftData.grossSales, discountsTotal: closingShiftData.discountsTotal,
+            refundsTotal: closingShiftData.refundsTotal, refundsCount: closingShiftData.refundsCount,
+            vatTotal: closingShiftData.vatTotal, netSales: closingShiftData.netSales,
+            avgTicket: closingShiftData.avgTicket, openingCash: closingShiftData.openingCash,
+            cashSales: closingShiftData.cashSales, onlineTotal: closingShiftData.onlineTotal,
+            onlinePaymentsEnabled: ONLINE_PAYMENTS_ENABLED,
+            options: SHIFT_REPORT_OPTIONS,
             cardTotal: closingShiftData.cardTotal, deliveryPlatformTotal: closingShiftData.deliveryPlatformTotal,
             cashExpected: closingShiftData.cashTotal, cashCounted: counted, cashVariance: variance
           };
@@ -6709,6 +6795,8 @@ let BUSINESS_VAT_RATE = 0.15;   // businesses.vat_rate — real per-business rat
 let PRICES_INCLUDE_VAT = true;  // businesses.prices_include_vat — default true matches the KSA legal requirement (menu prices already include tax)
 let VAT_REGISTERED = true;      // businesses.vat_registered — off means zero VAT everywhere, not just an inclusive/exclusive question
 let RECEIPT_LOGO_URL = '';      // businesses.receipt_logo_url — شعار الفاتورة وحدها؛ فارغ = اطبع الاسم بلا شعار (ولا يرتدّ إلى logo_url)
+let ONLINE_PAYMENTS_ENABLED = false; // businesses.geidea_connected — صف "دفع إلكتروني" في تقرير الإغلاق
+let SHIFT_REPORT_OPTIONS = {};       // businesses.shift_report_options — ما يظهر في التقرير وما لا يظهر
 let RECEIPT_SHOW_NAME = true;   // businesses.receipt_show_name — هل يُطبع الاسم تحت الشعار
 let RECEIPT_TAGLINE = '';       // businesses.receipt_tagline — سطر تحت الاسم
 let BRANCH_LOCATION_LINE = '';  // "حي البيعة، الطائف" من branches.district/city
@@ -6917,6 +7005,13 @@ async function loadPosData(){
       // إلا إذا أُطفئ صراحةً: قاعدة بلا هذا العمود تبقى تطبع الاسم.
       RECEIPT_SHOW_NAME = !(brandRes.data && brandRes.data.receipt_show_name === false);
     } catch(_){ RECEIPT_LOGO_URL = ''; RECEIPT_TAGLINE = ''; RECEIPT_SHOW_NAME = true; }
+    // إعدادات تقرير الإغلاق، باستعلام ثالث متسامح لنفس السبب.
+    try {
+      const shRes = await sb.from('businesses')
+        .select('geidea_connected, shift_report_options').eq('id', businessId).single();
+      ONLINE_PAYMENTS_ENABLED = !!(shRes.data && shRes.data.geidea_connected);
+      SHIFT_REPORT_OPTIONS = (shRes.data && shRes.data.shift_report_options) || {};
+    } catch(_){ ONLINE_PAYMENTS_ENABLED = false; SHIFT_REPORT_OPTIONS = {}; }
     // الحي والمدينة، وعدد الفروع. العدد هو ما يقرر طباعة اسم الفرع:
     // منشأة بفرع واحد لا تحتاج تمييزه، وسطرٌ يقول "الفرع الأول" حيث لا
     // ثانيَ له سطرٌ بلا معنى.
