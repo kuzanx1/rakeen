@@ -123,7 +123,7 @@ async function drawText(op) {
   // المرصود: تشكيل صحيح داخل الكلمة، ووضع بترتيب الوصول لا بترتيب
   // العربية. رسم السطر دفعة واحدة يجعل Pango يرتّبه صحيحاً، فيحاكي
   // طابعة مثالية لا هذي.
-  const spaceW = Math.round(size * 0.5);
+  const spaceW = 12;
   const parts = [];
   let total = 0;
   for (const word of text.split(' ')) {
@@ -192,7 +192,9 @@ export async function render(bytes, outPath) {
       // الطابعة. رسمها ككتلة واحدة يجعل Pango يرتّبها فيُخفي الخطأ الذي
       // بُني هذا الملف لكشفه.
       const size = op.tall ? 34 : 24;
-      const spaceW = Math.round(size * 0.5);
+      // المسافة محرف واحد بعرض خلية الخط (١٢ نقطة لـFont A)، لا نصف
+      // حجم الخط — وإلا بدت الكلمات متباعدة أكثر مما ستُطبع.
+      const spaceW = 12;
       let x = op.x;
       for (const w of op.text.split(' ')) {
         if (w === '') { x += spaceW; continue; }

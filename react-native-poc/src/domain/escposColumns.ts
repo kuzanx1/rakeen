@@ -57,6 +57,28 @@ export function estimateDots(text: string, caps: PrinterCapabilityProfile): numb
 }
 
 /**
+ * Shortens text until it fits its column, ending with an ellipsis.
+ *
+ * The estimate is approximate for Arabic, so the fit is checked against a
+ * small margin rather than the exact width — a name that lands one dot
+ * over would otherwise push the whole line and wrap it.
+ */
+export function truncateToDots(text: string, maxDots: number, caps: PrinterCapabilityProfile): string {
+  if (estimateDots(text, caps) <= maxDots) return text;
+  const chars = [...text];
+  const ellipsis = estimateDots('…', caps);
+  let kept = '';
+  let used = 0;
+  for (const ch of chars) {
+    const w = estimateDots(ch, caps);
+    if (used + w + ellipsis > maxDots) break;
+    kept += ch;
+    used += w;
+  }
+  return kept.trimEnd() + '…';
+}
+
+/**
  * Writes one line made of columns, each starting at an exact dot offset.
  *
  * Every segment's text passes through the capability layer first, so a
@@ -72,7 +94,16 @@ export function writeColumns(
   let head = 0;
 
   for (const seg of segments) {
-    const prepared = arabicLineFor(seg.text, caps);
+    // Fit the text to its column BEFORE mirroring: truncating afterwards
+    // would cut the start of the line rather than its end.
+    //
+    // Without this a long product name overruns its column, pushes the
+    // quantity past the paper edge, and the printer wraps the remainder
+    // onto the next line — which is what "الأرقام ملخبطة" looks like on
+    // paper. A column that cannot hold its content must shorten it, not
+    // spill into its neighbour.
+    const fitted = truncateToDots(seg.text, seg.width, caps);
+    const prepared = arabicLineFor(fitted, caps);
     // A null means this run cannot be printed as text on this printer.
     // The caller is responsible for rasterising it; skipping here keeps a
     // half-broken line from reaching paper.

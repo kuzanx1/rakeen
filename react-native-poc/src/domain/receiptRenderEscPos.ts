@@ -138,12 +138,34 @@ export function renderReceipt(model: ReceiptModel, caps: PrinterCapabilityProfil
     if (opts?.tall) t.size(0, 0);
   };
 
-  /** A label/value pair with the value hard against the left edge. */
-  const pair = (label: string, value: string, bold = false) => {
+  /**
+   * A money row: the number hard against the left edge, the label at the
+   * right. The number column is narrow on purpose — every value in it is
+   * a price, and a narrow column is what makes them read as one stack.
+   */
+  const moneyRow = (label: string, value: string, bold = false) => {
     lineIndex++;
     writeColumns(t, [
       { text: value, x: 0, width: col.price.width, align: 'right', bold },
       { text: label, x: col.name.x, width: col.name.width, align: 'right', bold },
+    ], caps);
+  };
+
+  /**
+   * An order-info row: label at the right, value flowing left across
+   * everything that is left.
+   *
+   * Separate from moneyRow because its values are not numbers. Putting a
+   * date or a customer name into the narrow price column overran it,
+   * pushed the label off the paper, and the printer wrapped the remainder
+   * — the line was not "misaligned", it was two lines pretending to be one.
+   */
+  const infoRow = (label: string, value: string) => {
+    lineIndex++;
+    const labelW = Math.round(caps.printableDots * 0.3);
+    writeColumns(t, [
+      { text: value, x: 0, width: caps.printableDots - labelW - Math.round(caps.printableDots * 0.03), align: 'right' },
+      { text: label, x: caps.printableDots - labelW, width: labelW, align: 'right' },
     ], caps);
   };
 
@@ -177,12 +199,12 @@ export function renderReceipt(model: ReceiptModel, caps: PrinterCapabilityProfil
   // centred line of its own: it belongs to the same scan column as the
   // table number and the cashier, and centring it would break that column.
   const kind = model.orderKind ? ORDER_KIND_LABEL[model.orderKind] : null;
-  if (kind) pair(label('النوع', 'Type'), label(kind.ar, kind.en));
-  if (model.tableNumber) pair(label('طاولة', 'Table'), model.tableNumber);
-  if (model.customerName) pair(label('العميل', 'Customer'), model.customerName);
-  if (model.customerPhone) pair(label('الجوال', 'Phone'), model.customerPhone);
-  if (model.cashierName) pair(label('الكاشير', 'Cashier'), model.cashierName);
-  pair(label('التاريخ', 'Date'), model.timeLabel ? `${model.dateLabel}  ${model.timeLabel}` : model.dateLabel);
+  if (kind) infoRow(label('النوع', 'Type'), label(kind.ar, kind.en));
+  if (model.tableNumber) infoRow(label('طاولة', 'Table'), model.tableNumber);
+  if (model.customerName) infoRow(label('العميل', 'Customer'), model.customerName);
+  if (model.customerPhone) infoRow(label('الجوال', 'Phone'), model.customerPhone);
+  if (model.cashierName) infoRow(label('الكاشير', 'Cashier'), model.cashierName);
+  infoRow(label('التاريخ', 'Date'), model.timeLabel ? `${model.dateLabel}  ${model.timeLabel}` : model.dateLabel);
 
   rule();
 
@@ -236,10 +258,10 @@ export function renderReceipt(model: ReceiptModel, caps: PrinterCapabilityProfil
   rule();
 
   // ---- Money ----------------------------------------------------------
-  pair(label('المجموع الفرعي', 'Subtotal'), money(model.subtotal));
-  if (model.discount > 0) pair(label('الخصم', 'Discount'), `-${money(model.discount)}`);
-  for (const charge of model.charges) pair(charge.label, money(charge.amount));
-  pair(label('ضريبة القيمة المضافة', 'VAT'), money(model.vat));
+  moneyRow(label('المجموع الفرعي', 'Subtotal'), money(model.subtotal));
+  if (model.discount > 0) moneyRow(label('الخصم', 'Discount'), `-${money(model.discount)}`);
+  for (const charge of model.charges) moneyRow(charge.label, money(charge.amount));
+  moneyRow(label('ضريبة القيمة المضافة', 'VAT'), money(model.vat));
 
   // The total is the only line printed double-height. It is what the
   // customer checks and the only number worth finding without reading.
@@ -254,9 +276,11 @@ export function renderReceipt(model: ReceiptModel, caps: PrinterCapabilityProfil
   rule();
 
   // ---- Payment --------------------------------------------------------
-  pair(label('الدفع', 'Payment'), model.paymentMethodLabel);
-  if (model.paidAmount != null) pair(label('المدفوع', 'Paid'), money(model.paidAmount));
-  if (model.change > 0) pair(label('الباقي', 'Change'), money(model.change));
+  // طريقة الدفع في عمود الأرقام لا في عمود المعلومات: السطور الثلاثة
+  // متجاورة، وحافة واحدة تجعلها كتلة تُقرأ دفعةً بدل ثلاث كتل.
+  moneyRow(label('الدفع', 'Payment'), model.paymentMethodLabel);
+  if (model.paidAmount != null) moneyRow(label('المدفوع', 'Paid'), money(model.paidAmount));
+  if (model.change > 0) moneyRow(label('الباقي', 'Change'), money(model.change));
 
   // ---- Proof ----------------------------------------------------------
   if (model.qrPayload && caps.nativeQr) {
@@ -270,7 +294,12 @@ export function renderReceipt(model: ReceiptModel, caps: PrinterCapabilityProfil
     t.line();
   }
 
-  if (model.customMessage) centre(model.customMessage);
+  // فاصل يُغلق كتلة الأرقام قبل الخاتمة، وإلا التصقت "شكراً لزيارتكم"
+  // بآخر مبلغ وبدت سطراً من الحساب.
+  if (model.customMessage) {
+    rule();
+    centre(model.customMessage);
+  }
 
   t.feed(3);
   if (caps.supportsCut) t.cut();
