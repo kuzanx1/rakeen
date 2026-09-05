@@ -438,7 +438,16 @@ export default function ProductsScreen({
     // انتظاراً لأربعة عشر نداءً قبل أن يظهر منتج. الآن: ما في الذاكرة
     // يُعرض في الحال، والجلب يمضي في الخلفية ويحلّ محلّه حين يصل.
     let alive = true;
-    const apply = (b: PosBootstrap) => {
+    /**
+     * `first` تفصل ما هو بيانات خادم عمّا هو اختيار كاشير.
+     *
+     * كل ما تكتبه هذه الدالة بيانات تأتي من الخادم، إلا سطراً واحداً:
+     * التصنيف المختار. وهو حالةٌ يملكها الكاشير بإصبعه. والتصيير صار
+     * مرتين -- من الذاكرة ثم من الشبكة -- فلو كُتب في المرة الثانية
+     * أيضاً، لعاد التصنيف إلى "الكل" بعد ثانية من اختيار الكاشير
+     * غيره. يُكتب في أول مرة وحدها: هو قيمة ابتدائية لا قاعدة تُفرض.
+     */
+    const apply = (b: PosBootstrap, first: boolean) => {
       setBusinessType(b.businessType);
       setCatalog(b.catalog);
       setFinancial(b.financial);
@@ -448,7 +457,7 @@ export default function ProductsScreen({
       setService(b.service);
       // :5835 -- when the business hides the popular tab the default
       // lands on 'all', not on a tab that is not rendered.
-      if (b.hidePopularTab) setActiveCategoryId('all');
+      if (first && b.hidePopularTab) setActiveCategoryId('all');
       setDineInPayTiming(b.dineInPayTiming);
       // No jump to the first real category any more: the source opens
       // on its own shortcut tab, and landing on "قهوة" (or whatever
@@ -457,7 +466,7 @@ export default function ProductsScreen({
 
     const cached = getCachedPosBootstrap(cashier.business_id);
     if (cached) {
-      apply(cached);
+      apply(cached, true);
       setLoading(false);
     }
 
@@ -465,7 +474,8 @@ export default function ProductsScreen({
       try {
         const fresh = await loadPosBootstrap(cashier.business_id);
         if (!alive) return;
-        apply(fresh);
+        // أول تطبيق حقيقي فقط حين لم تكن هناك ذاكرة تسبقه.
+        apply(fresh, !cached);
       } catch (e) {
         // شاشة معروضة من الذاكرة لا تُمحى برسالة خطأ: الكاشير يبيع
         // منها الآن، والشبكة وحدها هي التي سقطت.
@@ -1273,15 +1283,25 @@ export default function ProductsScreen({
             columnWrapperStyle={gridColumns > 1 ? styles.gridRow : undefined}
             contentContainerStyle={[styles.grid, gridInset]}
             renderItem={renderProductCard}
-            // شبكة أجهزة اللمس في المقهى: ما لا يُرى لا يُرسم.
-            // الافتراضي يرسم عشرة ثم يوسّع نافذته إلى واحد وعشرين شاشة
-            // حولك -- على آيباد بشاشة عريضة يعني عشرات البطاقات بصورها
-            // قبل أن يظهر شيء. هذه القيم تُظهر الشاشة الأولى ثم تبني
-            // الباقي أثناء التمرير.
-            initialNumToRender={gridColumns * 4}
+            /**
+             * نافذة أضيق من الافتراضي، لا ضيّقة.
+             *
+             * الافتراضي يبني واحداً وعشرين شاشة حول المعروض -- على آيباد
+             * عريض عشرات البطاقات بصورها قبل أن يظهر شيء.
+             *
+             * وستة صفوف ابتدائية لا أربعة: أربعةٌ قد لا تملأ شاشة الآيباد
+             * في الوضع الأفقي، فيلمح الكاشير فراغاً يمتلئ. والغرض ألا
+             * يُلحظ فرق شكلي أصلاً.
+             *
+             * ولا removeClippedSubviews هنا: توثيق React Native نفسه
+             * يصفه بأنه "قد يسبب اختفاء محتوى"، وهذه الشبكة تعيش داخل
+             * ScrollView على الشاشات الضيقة -- وهي الحال التي يظهر فيها
+             * العطل أكثر. بطاقةٌ فارغة في وجه الكاشير أسوأ من تمرير
+             * أثقل بقليل.
+             */
+            initialNumToRender={gridColumns * 6}
             maxToRenderPerBatch={gridColumns * 3}
-            windowSize={5}
-            removeClippedSubviews
+            windowSize={11}
             // .grid-empty
             ListEmptyComponent={<Text style={styles.gridEmpty}>{t('ما فيه نتائج مطابقة')}</Text>}
           />
