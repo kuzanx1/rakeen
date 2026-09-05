@@ -11159,9 +11159,8 @@ ${duplicateGroups.map(g=>`
             ${g.map(it=>`
               <div class="menu-dup-row" data-dupid="${it.id}">
                 <span class="menu-dup-id">#${it.id}</span>
-                <span class="menu-dup-cat">${it.category || 'بلا فئة'}</span>
                 <span class="menu-dup-price mono">${it.price.toFixed(2)}</span>
-                <span class="menu-dup-where">${
+                <span class="menu-dup-sub">${it.category || 'بلا فئة'} · ${
                   it.visiblePos && it.visibleOnline ? 'الكاشير والمتجر'
                   : it.visiblePos ? 'الكاشير فقط'
                   : it.visibleOnline ? 'المتجر فقط'

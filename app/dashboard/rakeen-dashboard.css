@@ -1396,13 +1396,24 @@ button.purchases-hero-btn{
   padding:6px 0; font-size:11px; font-weight:600;
 }
 .menu-dup-row + .menu-dup-row{border-top:1px dotted var(--line);}
+/* على الجوال سطران بدل سطر واحد مزدحم: ما يُقارَن أولاً (الرقم والسعر)
+   مع زر الفتح في الأعلى، وما يُقرأ بعده (الفئة وأين تظهر) تحته هادئاً.
+   خمسة عناصر على سطر واحد بعرض 375 تجعل اسم الفئة الطويل يزاحم السعر. */
+@media (max-width:640px){
+  .menu-dup-row{row-gap:2px; padding:8px 0;}
+  .menu-dup-id{order:1;}
+  .menu-dup-price{order:2; font-size:12.5px;}
+  .menu-dup-open{order:3;}
+  .menu-dup-sub{order:4; flex:1 0 100%; font-size:10.5px;}
+}
 .menu-dup-id{
   font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;
   color:var(--muted); flex-shrink:0;
 }
-.menu-dup-cat{color:var(--muted);}
+/* الفئة وأين تظهر في نصٍّ واحد لا عنصرين: عنصران منفصلان مع الالتفاف
+   ينزل كلٌّ منهما سطراً، فيصير الصف ثلاثة أسطر بلا داعٍ. */
 .menu-dup-price{font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums; color:var(--text); font-weight:800;}
-.menu-dup-where{color:var(--muted);}
+.menu-dup-sub{color:var(--muted); min-width:0;}
 .menu-dup-open{
   margin-inline-start:auto; min-height:34px; padding:0 12px; border-radius:var(--r-sm);
   border:1px solid var(--line); background:var(--card-bg); color:var(--text);
