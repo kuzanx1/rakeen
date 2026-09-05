@@ -151,18 +151,56 @@ export class EscPosText {
  */
 export function buildArabicProbeSlip(): number[] {
   const t = new EscPosText();
-  t.align('center').bold(true).line('RAKEEN TEXT TEST').bold(false);
+  const samples = ['مرحبا بك', 'قهوة عربية', 'الإجمالي 123.45'];
+
+  t.align('center').bold(true).line('RAKEEN TEXT TEST 2').bold(false);
   t.line('--------------------------------');
   t.align('right');
-  t.line('مرحبا بك');
-  t.line('قهوة عربية');
-  t.line('الإجمالي ١٢٣٫٤٥');
-  t.line('Latte 15.00');
-  t.align('left');
+
+  t.line('A) كما هي');
+  for (const x of samples) t.line(x);
   t.line('--------------------------------');
-  t.align('center').line('if the Arabic above is joined');
-  t.line('and reads right-to-left, text mode');
-  t.line('works and receipts get 40x faster');
+
+  t.line('B) عكس الكلمات');
+  for (const x of samples) t.line(reverseWords(x));
+  t.line('--------------------------------');
+
+  t.line('C) عكس الحروف');
+  for (const x of samples) t.line(reverseChars(x));
+  t.line('--------------------------------');
+
+  t.line('D) كلمات معكوسة والارقام ثابتة');
+  for (const x of samples) t.line(reverseWordsKeepNumbers(x));
+  t.line('--------------------------------');
+
+  t.align('center').line('اي مجموعة تقرأ صحيحة؟');
+  t.line('A B C or D');
   t.feed(3).cut();
   return t.build();
+}
+
+/** الكلمات بترتيب معكوس، وحروف كل كلمة كما هي. */
+export function reverseWords(text: string): string {
+  return text.split(' ').reverse().join(' ');
+}
+
+/** كل الحروف بترتيب معكوس. */
+export function reverseChars(text: string): string {
+  return [...text].reverse().join('');
+}
+
+/**
+ * الحروف معكوسة داخل الكلمات العربية، والكلمات معكوسة الترتيب،
+ * والأرقام وحدها تبقى كما هي.
+ *
+ * الأرقام لا تُقلب في العربية — تُكتب من اليسار لليمين داخل سطر عربي.
+ * فعكس السطر كله يقلبها معه و15.00 تصير 00.51، وهذا وحده يكفي لرفض
+ * الخيار C على فاتورة مهما بدا نصّها صحيحاً.
+ */
+export function reverseWordsKeepNumbers(text: string): string {
+  return text
+    .split(' ')
+    .reverse()
+    .map(w => (/[0-9]/.test(w) ? w : [...w].reverse().join('')))
+    .join(' ');
 }
