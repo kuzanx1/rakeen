@@ -27,7 +27,8 @@ export type PrintStage =
   | 'pixelsRead'
   | 'escposBuild'
   | 'base64'
-  | 'transport';
+  | 'transport'
+  | 'transportRetry';
 
 const ORDER: PrintStage[] = [
   'profileRead',
@@ -39,6 +40,7 @@ const ORDER: PrintStage[] = [
   'escposBuild',
   'base64',
   'transport',
+  'transportRetry',
 ];
 
 /** Short Arabic labels, because this is read on a till by an owner. */
@@ -52,6 +54,8 @@ const LABEL: Record<PrintStage, string> = {
   escposBuild: 'بناء أوامر الطابعة',
   base64: 'تحويل للإرسال',
   transport: 'الإرسال للطابعة',
+  // يظهر فقط حين ترفض الطابعة أول اتصال لأنها مشغولة بتذكرة قبلها.
+  transportRetry: 'إعادة الإرسال (الطابعة مشغولة)',
 };
 
 export class PrintTimer {

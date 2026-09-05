@@ -62,6 +62,17 @@ function base64ByteLength(base64: string): number {
   return Math.floor((body.length * 3) / 4);
 }
 
+/**
+ * هل يعني هذا الخطأ "مشغولة الآن" أم "لن تعمل"؟
+ *
+ * الرفض والمهلة يزولان وحدهما بعد ثانية، فالإعادة تنفع. أما رفض إذن
+ * الشبكة المحلية أو تعذّر الوصول فلا يغيّرهما تكرار المحاولة، وإعادتها
+ * تؤخّر ظهور الخطأ الحقيقي للكاشير بلا فائدة.
+ */
+function isPrinterBusy(errorDetail?: string | null): boolean {
+  return errorDetail === 'connection_refused' || errorDetail === 'connection_timeout';
+}
+
 async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
   // كل رقم قيل عن أداء هذا المسار حتى الآن -- بما فيه كلامي -- كان
   // استنتاجاً. النقل وحده كان مقيساً، ولهذا كان "٢٠ ملّي ثانية" حقيقة
@@ -124,11 +135,28 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
   if (bytes === 0) {
     return { ok: false, error: 'RENDER_FAILED', target: describeTarget(target), bytes: 0 };
   }
-  const result = await timer.stage('transport', () => printReceipt({
-    target,
-    escPosBase64,
-    timeoutMs: 8000,
-  }));
+  // محاولات قريبة قبل تسليم الأمر للطابور.
+  //
+  // الطلب الواحد يُنتج مهمتين: تذكرة المطبخ أولاً والفاتورة ثانياً. وحين
+  // لا تُضبط طابعة مطبخ منفصلة -- وهي حال أغلب المقاهي -- ترتدّ التذكرة
+  // إلى الطابعة نفسها، فتُرسل المهمتان إلى منفذ واحد بلا فاصل. وطابعة
+  // الشبكة تقبل اتصالاً واحداً في اللحظة وترفض الثاني ما دامت تطبع.
+  //
+  // فالمرفوضة دائماً هي الثانية، أي الفاتورة، أي الورقة التي يقف
+  // الزبون ينتظرها. والرفض يقع في اثنتي عشرة ملّي ثانية -- الطابعة
+  // مشغولة لا بعيدة -- فالانتظار القصير هنا يكفي، ولا حاجة لتسليمها
+  // للطابور أصلاً.
+  //
+  // والانتظار متدرّج لا ثابت: مدة انشغال الطابعة تتبع طول التذكرة
+  // قبلها، ورقم ثابت يخمّنها إمّا أن يقصر فيخفق أو يطول فيؤخّر كل
+  // فاتورة بلا سبب.
+  const RETRY_DELAYS_MS = [400, 900, 1600];
+  const send = () => printReceipt({ target, escPosBase64, timeoutMs: 8000 });
+  let result = await timer.stage('transport', send);
+  for (let attempt = 0; !result.ok && isPrinterBusy(result.errorDetail) && attempt < RETRY_DELAYS_MS.length; attempt++) {
+    await new Promise<void>(resolve => { setTimeout(resolve, RETRY_DELAYS_MS[attempt]); });
+    result = await timer.stage('transportRetry', send);
+  }
   // الملخّص أولاً ثم أثر النقل: الترتيب هو ترتيب الحدوث، فمن يقرأ من
   // فوق لتحت يرى أين ذهب الوقت قبل أن يرى تفاصيل الاتصال.
   const diagnostics = [...timer.summary(), ...(result.diagnostics ?? [])];
