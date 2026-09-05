@@ -47,6 +47,8 @@ export interface OrderHistoryItem {
   qty: number;
   unitPrice: number;
   lineTotal: number;
+  /** menu_items.name_en -- تُطبع مع العربي على السطر نفسه. */
+  nameEn?: string;
   mods: string[];
   note: string | null;
 }
@@ -91,11 +93,15 @@ export async function getOrderHistoryDetail(orderId: number): Promise<OrderHisto
   const menuItemIds = Array.from(new Set((items || []).map((it: any) => it.menu_item_id).filter((id: any) => id != null)));
   const serviceIds = Array.from(new Set((items || []).map((it: any) => it.service_id).filter((id: any) => id != null)));
   const [menuItemsRes, servicesRes] = await Promise.all([
-    menuItemIds.length > 0 ? supabase.from('menu_items').select('id, name').in('id', menuItemIds) : Promise.resolve({ data: [] as any[] }),
-    serviceIds.length > 0 ? supabase.from('services').select('id, name').in('id', serviceIds) : Promise.resolve({ data: [] as any[] }),
+    menuItemIds.length > 0 ? supabase.from('menu_items').select('id, name, name_en').in('id', menuItemIds) : Promise.resolve({ data: [] as any[] }),
+    serviceIds.length > 0 ? supabase.from('services').select('id, name, name_en').in('id', serviceIds) : Promise.resolve({ data: [] as any[] }),
   ]);
   const menuItemNames = new Map<number, string>((menuItemsRes.data || []).map((m: any) => [m.id, m.name]));
   const serviceNames = new Map<number, string>((servicesRes.data || []).map((s: any) => [s.id, s.name]));
+  // الاسم الإنجليزي يُجلب هنا أيضاً، وإلا خرجت إعادة الطباعة بالعربية
+  // وحدها بينما الفاتورة الأصلية باللغتين -- وهما ورقتان لطلب واحد.
+  const menuItemNamesEn = new Map<number, string>((menuItemsRes.data || []).map((m: any) => [m.id, m.name_en]));
+  const serviceNamesEn = new Map<number, string>((servicesRes.data || []).map((s: any) => [s.id, s.name_en]));
 
   return {
     id: order.id,
@@ -122,6 +128,12 @@ export async function getOrderHistoryDetail(orderId: number): Promise<OrderHisto
           : it.service_id != null
             ? serviceNames.get(it.service_id) || `خدمة #${it.service_id}`
             : 'صنف',
+      nameEn:
+        (it.menu_item_id != null
+          ? menuItemNamesEn.get(it.menu_item_id)
+          : it.service_id != null
+            ? serviceNamesEn.get(it.service_id)
+            : null) || undefined,
       qty: Number(it.qty),
       unitPrice: Number(it.unit_price),
       lineTotal: Number(it.line_total),

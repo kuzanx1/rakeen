@@ -96,13 +96,17 @@ function cartToReceiptLines(
     const product = productsById.get(item.productId);
     const unitPrice = unitPriceOf(item);
     return {
-      // Real bug found during the Feature Parity audit: this preferred
-      // nameEn, so any product with an English name populated printed in
-      // English regardless of the cashier's UI language. The PWA's real
-      // receipt/kitchen builders always use the primary Arabic name
-      // (p.name) unconditionally -- receipts are never English, even
-      // when the POS UI itself is toggled to English.
+      // الاسمان معاً، لا أحدهما.
+      //
+      // كان هذا يفضّل nameEn فيطبع الإنجليزي مكان العربي -- عطلٌ حقيقي.
+      // فأُزيل nameEn من هنا، وكان ذلك تصحيحاً زائداً: المصيّر يكتب
+      // `الاسم | Name` حين يجده (receiptRenderer.ts:463 و:755)، فبقي
+      // ينتظر حقلاً لا يصله، وطُبعت الأصناف بالعربية وحدها.
+      //
+      // والفاتورة تُقرأ في صالة فيها من لا يقرأ العربية، وتذكرة المطبخ
+      // يقرأها من لا يقرأ العربية أصلاً. فالاسمان معاً، والعربي أولاً.
       name: product?.name || `#${item.productId}`,
+      nameEn: product?.nameEn || undefined,
       qty: item.qty,
       unitPrice,
       lineTotal: unitPrice * item.qty,

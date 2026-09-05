@@ -8567,13 +8567,13 @@ function receiptPreviewHtml(){
       <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:16px;" id="rkReceiptPreviewRow">
         ${customerReceiptPreviewHtml(RECEIPT_THEME)}
         <div style="flex:1; min-width:220px; max-width:280px; background:#fff; color:#111; border-radius:10px; padding:16px; font-family:'IBM Plex Sans Arabic',sans-serif;">
-          <div style="text-align:center; font-weight:800; font-size:18px;">طلب مطبخ</div>
+          <div style="text-align:center; font-weight:800; font-size:18px;">طلب مطبخ · Kitchen Order</div>
           <div style="text-align:center; font-size:11px; color:#555; margin-top:4px;">طاولة ٤ — طلب #58</div>
           <div style="border-top:1px dashed #ccc; margin:10px 0;"></div>
-          <div style="font-weight:800; font-size:15px;">2 × برجر لحم مشوي</div>
+          <div style="font-weight:800; font-size:15px;">2 × برجر لحم مشوي | Grilled Beef Burger</div>
           <div style="font-size:11px; color:#555; padding-inline-start:10px;">— حجم كبير</div>
           <div style="font-size:11px; font-weight:700; padding-inline-start:10px;">بدون بصل</div>
-          <div style="font-weight:800; font-size:15px; margin-top:8px;">1 × بطاطس مقلية</div>
+          <div style="font-weight:800; font-size:15px; margin-top:8px;">1 × بطاطس مقلية | French Fries</div>
           <div style="text-align:center; font-size:9.5px; color:#999; margin-top:14px;">— فاتورة المطبخ (بدون أسعار) —</div>
         </div>
       </div>

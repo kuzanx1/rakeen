@@ -200,6 +200,7 @@ export default function OrderHistoryScreen({
         orderId: detail.id,
         lines: detail.items.map(it => ({
           name: it.name,
+          nameEn: it.nameEn,
           qty: it.qty,
           unitPrice: it.unitPrice,
           lineTotal: it.lineTotal,
