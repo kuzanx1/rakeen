@@ -3183,16 +3183,24 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
   const whereLine = [receipt.branchLabel, receipt.locationLine].filter(Boolean).join(' — ');
   if(whereLine) centerText(whereLine, sz(16), false);
   else if(receipt.branchName) centerText(receipt.branchName, sz(19), false);
-  centerText(receipt.dateLabel, sz(16), false);
-  // its own clearly-labeled line, always present — this used to be folded
-  // into metaLabel ("بالمطعم — طلب #58") and silently disappeared whenever
-  // orderId wasn't available yet (e.g. printed while the order was still
-  // offline-queued, before the real server id existed) — a customer with no
-  // order number has no way to ask about their order at all.
+
+  // ZATCA Phase 1: the heading and the seller's VAT number are mandatory
+  // on a simplified tax invoice, in every theme. وموضعهما مع بيانات
+  // المنشأة، فهما تعريف بالبائع لا ببيانات هذا الطلب.
+  if(receipt.vatNumber){
+    y += gap(0.2);
+    centerText(bi('فاتورة ضريبية مبسطة', 'Simplified Tax Invoice'), sz(16), true);
+    centerText(bi('الرقم الضريبي', 'VAT No') + ': ' + receipt.vatNumber, sz(14), false);
+  }
+
   // رقم الطلب في صندوق: أول ما تبحث عنه العين، فيستحق حدّاً يخصّه.
   // أربعة أشرطة ممتلئة لا حدّ مرسوم -- الرأس الحراري يطبع الحدّ الرفيع
   // متفاوتاً، والشريط الممتلئ يخرج نظيفاً.
-  y += gap(0.5);
+  //
+  // والرقم سطر قائم بذاته دائماً، لا مطويّاً في metaLabel كما كان: كان
+  // يختفي كلما طُبعت الفاتورة قبل أن يعطي الخادم رقماً، فيخرج الزبون
+  // بورقة لا يستطيع أن يسأل بها عن طلبه.
+  y += gap(0.7);
   const boxTop = y - lineH * 0.35;
   centerText(bi('رقم الطلب', 'Order No'), sz(14), false);
   centerText(receipt.orderNumber, sz(30), true);
@@ -3203,15 +3211,14 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
   ctx.fillRect(boxX, boxTop + boxH - 1.5, boxW, 1.5);
   ctx.fillRect(boxX, boxTop, 1.5, boxH);
   ctx.fillRect(boxX + boxW - 1.5, boxTop, 1.5, boxH);
-  y += gap(0.5);
+  y += gap(0.55);
+
+  // التاريخ تحت الرقم: تتمّة كتلته، لا سطر في ترويسة المنشأة.
+  centerText(receipt.dateLabel, sz(15), false);
+  y += gap(0.25);
+  divider();
   if(receipt.cashierName) rowText('', bi('تمت بواسطة', 'Served by') + ': ' + receipt.cashierName, sz(15), false);
   if(receipt.metaLabel) rowText('', bi('نوع الطلب', 'Type') + ': ' + receipt.metaLabel, sz(15), false);
-  // ZATCA Phase 1: the heading and the seller's VAT number are mandatory
-  // on a simplified tax invoice, in every theme.
-  if(receipt.vatNumber){
-    centerText(bi('فاتورة ضريبية مبسطة', 'Simplified Tax Invoice'), sz(17), true);
-    centerText(bi('الرقم الضريبي', 'VAT No') + ': ' + receipt.vatNumber, sz(15), false);
-  }
   divider();
 
   receipt.items.forEach((it, idx)=>{
@@ -3284,7 +3291,12 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
     y += qrSize + lineH * 0.3;
   }
   y += lineH * 0.4;
-  wrapLine(receipt.customMessage || 'شكراً لزيارتكم', '600 18px "IBM Plex Sans Arabic", sans-serif').forEach(line=> centerText(line, 18, false));
+  // كل سطر يكتبه صاحب المطعم يطبع سطراً: "مدة الجلوس ٦٠ دقيقة" و"شكراً
+  // لزيارتكم" جملتان، ودمجهما في فقرة واحدة يطمس الأولى.
+  (receipt.customMessage || 'شكراً لزيارتكم').split(/\r?\n/)
+    .map(l=>l.trim()).filter(Boolean)
+    .forEach(part => wrapLine(part, '600 18px "IBM Plex Sans Arabic", sans-serif')
+      .forEach(line=> centerText(line, 18, false)));
   y += pad;
 
   const finalHeight = Math.min(Math.ceil(y), maxHeight);
