@@ -239,25 +239,53 @@ export function renderReceipt(model: ReceiptModel, caps: PrinterCapabilityProfil
    * طلبه. خطّان شعريان حوله يجعلانه كتلة قائمة بذاتها بدل سطر عريض بين
    * سطور — وهذا ما يفعله فودكس، وهو صحيح.
    */
-  const framed = (text: string) => {
-    t.feedDots(6).align('left').raw(hairline(caps)).feedDots(12);
-    centre(text, { bold: true, tall: true });
-    t.feedDots(10).align('left').raw(hairline(caps)).feedDots(8);
-    lineIndex += 2;
+  // خط علوي فقط. التاريخ يأتي تحت الرقم، ويغلق الكتلةَ فاصلُ القسم
+  // بعده -- وخطّ سفلي هنا كان يحبس التاريخ بين خطين فيقرأ قسماً قائماً
+  // بذاته لا تتمّةً للرقم الذي فوقه.
+  const framed = (small: string, big: string) => {
+    t.feedDots(7).align('left').raw(hairline(caps)).feedDots(11);
+    centre(small);
+    t.feedDots(3);
+    centre(big, { bold: true, tall: true });
+    t.feedDots(6);
+    lineIndex += 1;
+  };
+
+  /**
+   * السلوقن: مركزي، بمتّسع فوقه وتحته.
+   *
+   * والتباعد بين حروفه للاتيني وحده. طلبُ "خط عرض" جميل بالإنجليزية،
+   * ومدمّر بالعربية: حروفها تتصل، وزيادة المسافة تفكّ الوصل فتصير
+   * الكلمة حروفاً متناثرة.
+   */
+  const tagline = (text: string) => {
+    const latinOnly = !/[؀-ۿ]/.test(text);
+    t.feedDots(6);
+    if (latinOnly) t.charSpacing(3);
+    centre(text);
+    if (latinOnly) t.charSpacing(0);
+    t.feedDots(4);
   };
 
   // ---- Header ---------------------------------------------------------
+  // شعار الفاتورة وحده. غيابه يعني الاسم فقط، ولا يرتدّ إلى شعار المتجر:
+  // من ترك خانة "شعار الفاتورة" فارغة اختار ألّا يطبع شعاراً.
   const logo = model.logoKey ? logoCache.get(model.logoKey) : undefined;
   if (logo) {
     t.align('center').raw(logo).feedDots(10);
   }
   centre(model.businessName, { bold: true, tall: true });
-  if (model.branchName) centre(model.branchName);
-  // العنوان والهاتف سطر واحد: كلاهما "أين نحن"، وسطران لهما يفرّقان ما
-  // يُقرأ معاً ويطيلان الورق بلا مقابل.
-  const where = [model.addressLine, model.phone].filter(Boolean).join('  ');
+  if (model.tagline) tagline(model.tagline);
+
+  // أين نحن، سطر واحد. واسم الفرع يتقدّمه فقط حين تتعدد الفروع -- وهو
+  // ما يقرّره المُحوّل بعدّ الفروع، لا العارض بالتخمين.
+  const where = [model.branchLabel, model.locationLine].filter(Boolean).join(' — ');
   if (where) centre(where);
+  const contact = [model.addressLine, model.phone].filter(Boolean).join('  ');
+  if (contact) centre(contact);
+
   if (model.vatNumber) {
+    t.feedDots(4);
     centre(label('فاتورة ضريبية مبسطة', 'Simplified Tax Invoice'));
     centre(`${label('الرقم الضريبي', 'VAT')} ${model.vatNumber}`);
   }
@@ -268,28 +296,32 @@ export function renderReceipt(model: ReceiptModel, caps: PrinterCapabilityProfil
   // ---- Order ----------------------------------------------------------
   // The order number is the one thing a cashier looks for first, so it is
   // the largest line in this block rather than another grey label.
-  framed(`${label('رقم الطلب', 'Order')} #${model.orderNumber}`);
+  // الرقم وحده كبيراً، وملصقه صغيراً فوقه. الرقم هو ما يُبحث عنه، فلا
+  // تزاحمه كلمة بنفس حجمه.
+  framed(label('رقم الطلب', 'Order No'), `#${model.orderNumber}`);
 
-  // Order type as a labelled pair like every other order field, not a
-  // centred line of its own: it belongs to the same scan column as the
-  // table number and the cashier, and centring it would break that column.
+  // التاريخ والوقت مركزيان تحت الرقم: هما تتمّة كتلته، وجعلهما صفّاً
+  // معنوناً يفتح عموداً لا يملؤه غيرهما.
+  centre(model.timeLabel ? `${model.dateLabel}   ${model.timeLabel}` : model.dateLabel);
+
+  rule();
+
+  // من أصدرها ونوعها. صفّان معنونان لأن لهما ما بعدهما في نفس العمود.
+  if (model.cashierName) infoRow(label('تمت بواسطة', 'Served by'), model.cashierName);
+  // اسم تطبيق التوصيل يتقدّم على النوع العام حين يوجد: "هنقرستيشن"
+  // تقول ما لا تقوله "توصيل".
   const kind = model.orderKind ? ORDER_KIND_LABEL[model.orderKind] : null;
-  // النوع والطاولة سطر واحد: "محلي — طاولة 7" جملة واحدة، وفصلها سطرين
-  // يجعل العين تقفز بينهما لتركيبها.
-  if (kind) {
+  const kindText = model.orderKindLabel ?? (kind ? label(kind.ar, kind.en) : null);
+  if (kindText) {
     infoRow(
-      label('النوع', 'Type'),
-      model.tableNumber
-        ? `${label(kind.ar, kind.en)} — ${label('طاولة', 'Table')} ${model.tableNumber}`
-        : label(kind.ar, kind.en),
+      label('نوع الطلب', 'Type'),
+      model.tableNumber ? `${kindText} — ${label('طاولة', 'Table')} ${model.tableNumber}` : kindText,
     );
   } else if (model.tableNumber) {
     infoRow(label('طاولة', 'Table'), model.tableNumber);
   }
   if (model.customerName) infoRow(label('العميل', 'Customer'), model.customerName);
   if (model.customerPhone) infoRow(label('الجوال', 'Phone'), model.customerPhone);
-  if (model.cashierName) infoRow(label('الكاشير', 'Cashier'), model.cashierName);
-  infoRow(label('التاريخ', 'Date'), model.timeLabel ? `${model.dateLabel}  ${model.timeLabel}` : model.dateLabel);
 
   rule();
 
@@ -318,6 +350,19 @@ export function renderReceipt(model: ReceiptModel, caps: PrinterCapabilityProfil
       { text: item.name, x: col.name.x, width: col.name.width, align: 'right', bold: true },
       { text: String(item.qty), x: col.qty.x, width: col.qty.width, align: 'right' },
     ], caps);
+
+    // الاسم الإنجليزي سطراً تحته، لا بجانبه بفاصل.
+    //
+    // فودكس يكتبهما على سطر واحد يفصلهما "|"، وهو ممكن عندهم لأنهم
+    // يرسلون صورة. أما هنا فالمحرف المحايد بين مقطعين بلغتين يتأرجح
+    // موضعه بعد ترتيب المقاطع، فيقع مرة يمين العربي ومرة يسار الإنجليزي
+    // بلا قاعدة. سطران يزيلان السؤال كله.
+    if (item.nameEn) {
+      lineIndex++;
+      writeColumns(t, [
+        { text: item.nameEn, x: col.name.x, width: col.name.width, align: 'right' },
+      ], caps);
+    }
 
     // The unit price only earns a line when quantity is more than one; at
     // one it repeats the number already printed beside it.
@@ -350,7 +395,7 @@ export function renderReceipt(model: ReceiptModel, caps: PrinterCapabilityProfil
       lineIndex++;
       const noteIndent = Math.round(caps.printableDots * 0.06);
       writeColumns(t, [
-        { text: `${label('ملاحظة', 'Note')}: ${item.note}`,
+        { text: `${label('ملاحظات', 'Notes')}: ${item.note}`,
           x: col.name.x, width: col.name.width - noteIndent, align: 'right' },
       ], caps);
     }
@@ -402,9 +447,16 @@ export function renderReceipt(model: ReceiptModel, caps: PrinterCapabilityProfil
 
   // فاصل يُغلق كتلة الأرقام قبل الخاتمة، وإلا التصقت "شكراً لزيارتكم"
   // بآخر مبلغ وبدت سطراً من الحساب.
-  if (model.customMessage) {
+  // الخاتمة أسطر لا سطر: "مدة الجلوس ٦٠ دقيقة للطاولة" ثم "شكراً
+  // لزيارتكم" جملتان لكل منهما وقعها، ودمجهما في سطر يطمس الأولى.
+  // ويُقصّ الفارغ حتى لا يطبع سطر بياض من ضغطة Enter زائدة.
+  const closing = (model.customMessage ?? '')
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean);
+  if (closing.length > 0) {
     rule();
-    centre(model.customMessage);
+    for (const line of closing) centre(line);
   }
 
   t.feed(3);

@@ -69,6 +69,18 @@ function utf8(text: string): number[] {
 export class EscPosText {
   private bytes: number[] = [ESC, 0x40];
 
+  /**
+   * `ESC SP n` -- مسافة يمنى بعد كل محرف.
+   *
+   * للسلوقن اللاتيني وحده. العربية تتصل حروفها، وزيادة المسافة بينها
+   * تفكّ الوصل فتقرأ كحروف متناثرة لا ككلمة -- فمن يستدعيها مسؤول عن
+   * ألّا يمرّر عربية.
+   */
+  charSpacing(dots: number): this {
+    this.bytes.push(0x1b, 0x20, Math.max(0, Math.min(255, Math.round(dots))));
+    return this;
+  }
+
   align(a: Align): this {
     this.bytes.push(ESC, 0x61, a === 'center' ? 1 : a === 'right' ? 2 : 0);
     return this;

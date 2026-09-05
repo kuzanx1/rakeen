@@ -28,6 +28,9 @@ export interface ReceiptModifier {
 
 export interface ReceiptItem {
   name: string;
+  /** الاسم الإنجليزي، سطراً تحت العربي. سطران لا سطر واحد بفاصل: الفاصل
+   *  محرف محايد، وموضعه بعد ترتيب المقاطع يتأرجح بين طرفي الحدّ اللغوي. */
+  nameEn?: string;
   qty: number;
   unitPrice: number;
   lineTotal: number;
@@ -40,6 +43,15 @@ export interface ReceiptModel {
   // ---- Header -------------------------------------------------------
   businessName: string;
   branchName?: string;
+  /** شعار الفاتورة وحده. غيابه يعني الاسم فقط -- ولا يرتدّ إلى شعار
+   *  المتجر: صاحب المطعم اختار ألّا يطبع شعاراً، لا أن يطبع غيره. */
+  /** سطر تحت الاسم يكتبه صاحب المطعم. */
+  tagline?: string;
+  /** أين هذا الفرع: الحي والمدينة. */
+  locationLine?: string;
+  /** يُطبع فقط حين يكون للمنشأة أكثر من فرع -- فرع واحد لا يحتاج تمييزاً،
+   *  وطباعة اسمه على كل فاتورة سطر بلا معنى. المُحوّل يقرر، لا العارض. */
+  branchLabel?: string;
   /** Street address or any line the business wants under its name. */
   addressLine?: string;
   phone?: string;
@@ -50,6 +62,8 @@ export interface ReceiptModel {
   // ---- Order --------------------------------------------------------
   orderNumber: string;
   orderKind?: OrderKind;
+  /** يتقدّم على orderKind حين يكون المصدر تطبيق توصيل باسمه. */
+  orderKindLabel?: string;
   tableNumber?: string;
   customerName?: string;
   customerPhone?: string;
