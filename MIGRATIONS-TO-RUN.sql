@@ -1901,13 +1901,14 @@ grant execute on function create_wallet_add_token(bigint, bigint) to authenticat
  * -- وهو بالضبط ما يقع حين يمسح اثنان الشاشة في اللحظة نفسها.
  */
 create or replace function consume_wallet_add_token(p_token uuid)
-returns uuid
+returns jsonb
 language plpgsql
 security definer
 set search_path = public
 as $use$
 declare
   v_public uuid;
+  v_display bigint;
 begin
   update wallet_add_tokens t
   set consumed_at = now()
@@ -1916,9 +1917,15 @@ begin
     and t.customer_id = c.id
     and t.consumed_at is null
     and t.expires_at > now()
-  returning c.public_token into v_public;
+  returning c.public_token, t.display_device_id into v_public, v_display;
 
-  return v_public;  -- null = مصروف، أو منتهٍ، أو لا وجود له.
+  if v_public is null then
+    return null;  -- مصروف، أو منتهٍ، أو لا وجود له.
+  end if;
+
+  -- ورقم الشاشة معه: الخادم يخبرها فتُخفي الباركود في اللحظة، فلا
+  -- يقعد على وجهها يحجب المنيو عن الزبون التالي لدقيقتين وقد أُخذ.
+  return jsonb_build_object('publicToken', v_public, 'displayDeviceId', v_display);
 end;
 $use$;
 
