@@ -32,6 +32,22 @@ export function middleware(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
+  /**
+   * hbiah.rakeenapp.com/menu -- شاشة العميل، بهوية المتجر نفسه.
+   *
+   * وكان رابطها rakeenapp.com/display/{slug}: يعمل، لكنه لا يشبه شيئاً
+   * يملكه صاحب المطعم. والشاشة تُفتح مرة ويُكتب رابطها بيد -- فليكن
+   * مما يُملى في الهاتف: "اسم متجرك، ثم شرطة، ثم منيو".
+   *
+   * و"menu" لا "display": الكلمة يقرؤها من يمرّ بالجهاز، ويكتبها من
+   * يُعدّه. وdisplay اسمُنا الداخلي للوضع، لا اسمُه عندهم.
+   */
+  if (request.nextUrl.pathname === "/menu" || request.nextUrl.pathname === "/menu/") {
+    const url = request.nextUrl.clone();
+    url.pathname = `/display/${slug}`;
+    return NextResponse.rewrite(url);
+  }
+
   return NextResponse.next();
 }
 

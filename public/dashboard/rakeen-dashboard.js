@@ -15365,12 +15365,18 @@ function displayDevicesHtml(){
         <div><div class="rk-section-title">شاشة العميل</div>
         <div class="rk-section-sub">الجهاز اللي قدّام الزبون — يعرض المنيو، وعليه يطلع باركود الولاء</div></div>
       </div>
-      <div style="font-size:12.5px; color:var(--muted); line-height:1.8; margin-bottom:12px;">
-        افتح على جهاز الشاشة الرابط
-        ${slug
-          ? `<b style="color:var(--text);">${escapeHtml((typeof location !== 'undefined' ? location.origin : '') + '/display/' + slug)}</b> ثم الصق فيه رمز الاقتران مرة واحدة.`
-          : '<b style="color:var(--danger);">اضبط رابط المتجر الإلكتروني أولاً</b> — شاشة العميل تستعمل نفس الاسم.'}
+      <div style="font-size:12.5px; color:var(--muted); line-height:1.8; margin-bottom:8px;">
+        ١. افتح هذا الرابط على جهاز الشاشة اللي قدّام الزبون، ٢. الصق فيه رمز الاقتران مرة واحدة.
       </div>
+      ${slug ? `
+      <div class="rk-disp-url-row">
+        <input type="text" id="displayUrlInput" readonly value="${escapeHtml(displayPublicUrl())}">
+        <button type="button" class="rk-btn rk-btn-secondary rk-btn-sm" id="displayUrlCopyBtn">نسخ</button>
+      </div>` : `
+      <div style="padding:12px 14px; border-radius:10px; background:#FFF4E5; border:1px solid #F0C36D; font-size:12.5px; line-height:1.7;">
+        <b>اضبط رابط المتجر الإلكتروني أولاً</b> — شاشة العميل تستعمل نفس الاسم.
+        من تبويب "إعدادات المتجر" فوق، احفظ اسم المتجر ثم ارجع هنا.
+      </div>`}
       <div class="rk-disp-list">${rows}</div>
       <button class="rk-btn rk-btn-secondary rk-btn-md" id="displayPairBtn" style="margin-top:12px;">أنشئ رمز اقتران جديد</button>
 
@@ -15381,6 +15387,24 @@ function displayDevicesHtml(){
       </div>
       <button class="rk-btn rk-btn-primary rk-btn-md" id="displayMsgSaveBtn" style="margin-top:8px;">حفظ النص</button>
     </div>`;
+}
+
+/**
+ * رابط شاشة العرض: النطاق الرئيسي لا الفرعي.
+ *
+ * وسيط النطاقات الفرعية يحوّل جذر {slug}.rakeenapp.com إلى /order/{slug}
+ * وحده -- ولا يعرف /display. فلو أُعطي صاحب المطعم الرابط الفرعي لفتح
+ * على شاشته صفحةً غير التي أردناها، أو لا شيء.
+ */
+function displayPublicUrl(){
+  const slug = (typeof ONLINE_MENU_SLUG !== 'undefined' && ONLINE_MENU_SLUG) || '';
+  // نفس شكل رابط المتجر: اسم المتجر نطاقاً فرعياً، ثم /menu. والوسيط
+  // يحوّله داخلياً إلى /display/{slug} -- كما يحوّل جذره إلى /order.
+  // ولوكال هوست بلا DNS بديل، فيبقى على المسار.
+  if (typeof window !== 'undefined' && window.location && window.location.hostname === 'localhost') {
+    return window.location.origin + '/display/' + slug;
+  }
+  return 'https://' + slug + '.rakeenapp.com/menu';
 }
 
 /** سرٌّ طويل يُقرأ ويُلصق: ثلاثون حرفاً لا تُخمَّن، ولا تُكتب بالغلط. */
@@ -15420,6 +15444,21 @@ document.addEventListener('click', async (e)=>{
       const host = document.getElementById('rkDisplayPanelHost');
       if(host) host.innerHTML = displayDevicesHtml();
     } catch(err){ showToast('تعذر الحذف'); }
+    return;
+  }
+  const copyBtn = e.target.closest && e.target.closest('#displayUrlCopyBtn');
+  if(copyBtn){
+    const inp = document.getElementById('displayUrlInput');
+    if(inp){
+      inp.select();
+      try {
+        // clipboard API قد تُمنع على اتصالٍ غير آمن أو بلا تفاعل موثوق،
+        // وexecCommand يعمل حيث تُمنع. فالاثنان، لا أحدهما.
+        if(navigator.clipboard) navigator.clipboard.writeText(inp.value);
+        else document.execCommand('copy');
+        rkBtnSuccess(copyBtn, '✓ نُسخ');
+      } catch(_){ showToast('انسخه يدوياً'); }
+    }
     return;
   }
   const saveMsg = e.target.closest && e.target.closest('#displayMsgSaveBtn');
