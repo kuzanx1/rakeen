@@ -45,11 +45,24 @@ export async function POST(request: NextRequest) {
   const admin = serviceClient();
   if (!admin) return NextResponse.json({ error: "الخدمة غير متاحة" }, { status: 503 });
 
-  // الشاشة أولاً: لا يُنشأ رمزٌ لن يُعرض على شيء.
-  let q = asCashier.from("display_devices").select("id, device_secret, branch_id");
-  if (branchId) q = q.eq("branch_id", branchId);
-  const { data: displays } = await q.limit(1);
-  const display = displays?.[0];
+  /**
+   * الشاشة أولاً: لا يُنشأ رمزٌ لن يُعرض على شيء.
+   *
+   * وشاشةٌ بلا فرع تخدم الفروع كلها. فالمالك يُنشئ اقترانه من لوحة
+   * التحكم بلا أن يُسأل عن فرع -- ومقهىً بفرع واحد لا معنى لسؤاله --
+   * فكان الكاشير يُخبَر أن لا شاشة مقترنة وهي مقترنة أمامه.
+   *
+   * والأولوية لشاشة الفرع حين توجد: فرعان لكلٍّ شاشته لا تُخلط
+   * باركوداتهما.
+   */
+  const { data: displays } = await asCashier
+    .from("display_devices")
+    .select("id, device_secret, branch_id");
+
+  const display =
+    (branchId ? displays?.find(d => d.branch_id === branchId) : undefined)
+    ?? displays?.find(d => d.branch_id == null)
+    ?? displays?.[0];
   if (!display) {
     return NextResponse.json(
       { error: "ما فيه شاشة عميل مقترنة بهذا الفرع. اقترنها أولاً من لوحة التحكم." },

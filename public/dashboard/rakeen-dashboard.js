@@ -15553,7 +15553,10 @@ document.addEventListener('click', async (e)=>{
     const val = (document.getElementById('displayMsgInput').value || '').trim();
     rkBtnLoading(saveMsg, true);
     try {
-      await updateCurrentBusiness({ display_barcode_message: val || null });
+      // العمود not-null بقيمة افتراضية، فالفراغ يعني "أعِد الافتراضي"
+      // لا "امسح النص" -- وإرسال null يُردّ بخطأ قاعدة بيانات لا يفهمه
+      // صاحب المطعم ولا ذنب له فيه.
+      await updateCurrentBusiness({ display_barcode_message: val || 'بالعافية عليك — امسح الباركود وصير من خلّاننا' });
       rkBtnSuccess(saveMsg, '✓ تم الحفظ');
     } catch(err){
       rkBtnLoading(saveMsg, false);
