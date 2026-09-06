@@ -885,3 +885,14 @@ img{max-width:100%; display:block;}
   margin-top:18px; font-size:14px; font-weight:700; color:var(--muted);
   font-variant-numeric:tabular-nums;
 }
+.rk-disp-pair-hint{ font-size:13px; color:var(--muted); margin-bottom:18px; line-height:1.7; }
+.rk-disp-pair-input{
+  width:100%; padding:14px 16px; border-radius:var(--r-md, 10px);
+  border:1px solid var(--line); background:var(--surf); color:var(--ink);
+  font-size:16px; font-weight:700; text-align:center; letter-spacing:1px;
+}
+.rk-disp-pair-btn{
+  width:100%; margin-top:14px; padding:14px; border:0; cursor:pointer;
+  border-radius:var(--r-full); background:var(--lime, #C4FF2B);
+  color:var(--ink); font-size:15px; font-weight:800;
+}

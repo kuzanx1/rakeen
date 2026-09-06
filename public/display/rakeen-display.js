@@ -79,11 +79,41 @@
     timerId = setInterval(tick, 1000);
   }
 
+  /**
+   * شاشة الاقتران، حين لا سرّ محفوظ.
+   *
+   * ولا نقطة خدمة تتحقق من الرمز: الشاشة تحفظه وتستمع إلى قناته، فإن
+   * كان خطأً لم يصلها شيء أبداً. ونقطةُ تحققٍ تعني بابَ تخمينٍ يُطرق،
+   * وغيابها يعني ألا باب.
+   */
+  function askForPairing() {
+    var box = document.createElement('div');
+    box.className = 'rk-disp-overlay';
+    box.innerHTML =
+      '<div class="rk-disp-card">' +
+        '<div class="rk-disp-msg">اربط هذه الشاشة بالمطعم</div>' +
+        '<div class="rk-disp-pair-hint">من لوحة التحكم: الإعدادات ← شاشة العميل ← أنشئ رمز اقتران</div>' +
+        '<input type="text" id="rkDispPairInput" class="rk-disp-pair-input" placeholder="الصق رمز الاقتران" autocomplete="off" spellcheck="false">' +
+        '<button type="button" id="rkDispPairBtn" class="rk-disp-pair-btn">اربط الشاشة</button>' +
+      '</div>';
+    document.body.appendChild(box);
+    var input = box.querySelector('#rkDispPairInput');
+    box.querySelector('#rkDispPairBtn').addEventListener('click', function () {
+      var v = (input.value || '').trim();
+      if (!v) return;
+      try { localStorage.setItem(LS_SECRET, v); } catch (_) {}
+      box.remove();
+      listen();
+    });
+    input.focus();
+  }
+
   function listen() {
     var sb = window.supabaseClient;
     var s = secret();
+    if (!sb) return;
     // بلا اقتران لا استماع: شاشةٌ لم تُقترن لا تعرض باركود أحد.
-    if (!sb || !s) return;
+    if (!s) { askForPairing(); return; }
 
     sb.channel('display-secret:' + s)
       .on('broadcast', { event: 'show_barcode' }, function (m) {

@@ -43,6 +43,17 @@ create policy display_devices_write on display_devices
   for all using (business_id = current_business_id() and has_permission('settings:edit'))
   with check (business_id = current_business_id() and has_permission('settings:edit'));
 
+-- ============ نصّ الدعوة على الشاشة ============
+--
+-- يكتبه صاحب المطعم بلسانه: "بالعافية عليك" ليست عبارةً واحدة تصلح
+-- لمقهى ومطعم ومخبز، ولا هي بلهجة كل مدينة.
+alter table businesses
+  add column if not exists display_barcode_message text
+  not null default 'بالعافية عليك — امسح الباركود وصير من خلّاننا';
+
+comment on column businesses.display_barcode_message is
+  'النص المعروض فوق باركود الولاء على شاشة العميل.';
+
 -- ============ رمز الإضافة: يُصرف مرة ============
 --
 -- ليس public_token: ذاك دائم، ومن صوّره ملك البطاقة إلى الأبد. وهذا

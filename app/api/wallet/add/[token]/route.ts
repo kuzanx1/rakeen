@@ -50,9 +50,18 @@ export async function GET(
    */
   if (displayDeviceId) {
     try {
-      const ch = sb.channel(`display:${displayDeviceId}`);
-      await ch.send({ type: "broadcast", event: "hide_barcode", payload: { at: Date.now() } });
-      await sb.removeChannel(ch);
+      // القناة باسم السرّ لا بالرقم: الشاشة لا تعرف رقمها -- هي تحفظ
+      // سرّها وتستمع إليه. ورقمٌ متسلسل قناةٌ يخمّنها من أراد.
+      const { data: dev } = await sb
+        .from("display_devices")
+        .select("device_secret")
+        .eq("id", displayDeviceId)
+        .maybeSingle();
+      if (dev?.device_secret) {
+        const ch = sb.channel(`display-secret:${dev.device_secret}`);
+        await ch.send({ type: "broadcast", event: "hide_barcode", payload: { at: Date.now() } });
+        await sb.removeChannel(ch);
+      }
     } catch { /* الشاشة تعود إلى المنيو بانتهاء المهلة على كل حال */ }
   }
 
