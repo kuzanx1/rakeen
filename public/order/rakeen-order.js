@@ -169,6 +169,11 @@ if (!window.__rakeenOrderBooted) {
 
   // ============ Display mode (staff-only, per-device, view-only menu) ============
   function loadDisplayMode() {
+    // الرابط أولاً: /display/{slug} وضعُ عرضٍ بطبيعته، لا بمفتاحٍ يُضغط
+    // ويُحفظ. والمفتاح باقٍ للمتجر نفسه حتى لا ينكسر ما اعتاده أحد --
+    // لكن الشاشة المقفلة على جهاز لها رابطها المستقل، لأن المتجر لا
+    // يُقفل على جهاز وهذا هو الغرض منه.
+    if (window.RAKEEN_DISPLAY_MODE === true) { DISPLAY_MODE = true; return; }
     try { DISPLAY_MODE = localStorage.getItem(LS_DISPLAY_MODE) === '1'; } catch { DISPLAY_MODE = false; }
   }
   // Used to swap in fixed kiosk labels ("المنيو"/"تصفح قائمة الطعام") whenever

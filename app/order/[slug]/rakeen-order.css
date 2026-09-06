@@ -838,3 +838,50 @@ img{max-width:100%; display:block;}
      iPad relayout specifically targets) since it comes later in the file. */
   .om-shell[data-theme="luxury"] .om-hero.has-banner .om-hero-banner{height:300px;}
 }
+
+/* ============ لوح باركود الولاء — شاشة العميل ============
+   يعيش في CSS المتجر لا في ملفٍ ثانٍ: الشاشة تستعمل هذا الملف نفسه،
+   وملفٌ ثانٍ يعني رموزاً لونية تفترق عن رموزه بعد أول تعديل. */
+.rk-disp-overlay{
+  position:fixed; inset:0; z-index:9999;
+  display:flex; align-items:center; justify-content:center; padding:24px;
+  background:color-mix(in srgb, var(--ink) 82%, transparent);
+  backdrop-filter:blur(6px);
+  animation:rkDispIn .22s ease-out;
+}
+.rk-disp-overlay[hidden]{ display:none; }
+@keyframes rkDispIn{ from{ opacity:0 } to{ opacity:1 } }
+
+.rk-disp-card{
+  --rk-disp-progress:100%;
+  position:relative; background:var(--card); border-radius:var(--r-xl);
+  padding:40px 44px 28px; text-align:center;
+  max-width:min(92vw, 560px); box-shadow:0 24px 70px rgba(0,0,0,.35);
+  overflow:hidden;
+}
+/* شريطٌ يتقلّص فوق البطاقة: يُلمح بطرف العين والعميل ينظر إلى جواله. */
+.rk-disp-card::after{
+  content:''; position:absolute; inset-inline-start:0; bottom:0; height:5px;
+  width:var(--rk-disp-progress); background:var(--lime, #C4FF2B);
+  transition:width 1s linear;
+}
+.rk-disp-x{
+  position:absolute; inset-inline-end:14px; top:12px;
+  width:40px; height:40px; border-radius:var(--r-full);
+  border:1px solid var(--line); background:var(--surf);
+  color:var(--muted); font-size:24px; line-height:1; cursor:pointer;
+}
+.rk-disp-x:hover{ color:var(--ink); }
+.rk-disp-msg{
+  font-size:clamp(17px, 2.6vw, 22px); font-weight:800; color:var(--ink);
+  line-height:1.6; margin-bottom:22px; padding-inline:18px;
+}
+/* الباركود يملأ العين: يُمسح من مسافة ذراع، لا من عشرة سنتيمترات. */
+.rk-disp-qr img{
+  width:min(62vw, 300px); height:auto; display:block; margin:0 auto;
+  image-rendering:pixelated;
+}
+.rk-disp-timer{
+  margin-top:18px; font-size:14px; font-weight:700; color:var(--muted);
+  font-variant-numeric:tabular-nums;
+}
