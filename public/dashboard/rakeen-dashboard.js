@@ -15357,7 +15357,14 @@ function displayDevicesHtml(){
 
   return `
     <div class="rk-section" style="margin-bottom:16px;">
-      ${rkSectionHead('grid', 'شاشة العميل', 'الجهاز اللي قدّام الزبون — يعرض المنيو، وعليه يطلع باركود الولاء')}
+      <!-- العنوان مكتوبٌ هنا لا مأخوذاً من rkSectionHead: تلك تنادي
+           rkIcon، وسلسلةُ نداءٍ من ملفٍ بخمسة عشر ألف سطر تنكسر حلقةٌ
+           منها فيسقط القسم كله صامتاً -- وقد سقط. وعنوانٌ من ثلاثة
+           عناصر لا يستحق تلك التبعية. -->
+      <div class="rk-section-head">
+        <div><div class="rk-section-title">شاشة العميل</div>
+        <div class="rk-section-sub">الجهاز اللي قدّام الزبون — يعرض المنيو، وعليه يطلع باركود الولاء</div></div>
+      </div>
       <div style="font-size:12.5px; color:var(--muted); line-height:1.8; margin-bottom:12px;">
         افتح على جهاز الشاشة الرابط
         ${slug
