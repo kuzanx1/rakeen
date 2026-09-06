@@ -1,0 +1,3 @@
+section ids before posSettingsTabs: ['screen-ai', 'screen-pos']
+
+v class="ai-chat-greeting">\n          <img class="ai-avatar-lg" src="/brand/rakeen-wordmark.png" alt="ركين">\n          <div class="ai-greeting-text">\n            <div class="ai-greeting-title">مرحبًا! أنا مستشار ركين الذكي</div>\n            <div class="ai-greeting-sub">إجابات جاهزة، مبنية على بيانات مشروعك الفعلية اليوم — اختر وش تبي تعرف:</div>\n          </div>\n        </div>\n        <div class="ai-suggested-questions" id="aiSuggestedQuestions"></div>\n        <div class="ai-conversation" id="aiConversation"></div>\n      </div>\n    </section>\n\n    <section class="screen" id="screen-pos" data-rendered="1">\n      <div id="posReadiness"></div>\n      <div class="settings-tabs" id="

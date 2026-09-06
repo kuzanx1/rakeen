@@ -1,0 +1,5 @@
+tables       = أنواع الطلبات
+receipt      = الفاتورة والطباعة
+interface    = واجهة الكاشير
+kitchen      = شاشة المطبخ
+branches     = الفروع والأمان

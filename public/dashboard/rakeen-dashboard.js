@@ -9298,7 +9298,7 @@ async function renderPosSettings(){
     </div>`;
 
   const POS_SETTINGS_TABS_HTML = {
-    receipt: receiptPreviewHtml() + receiptBrandPanel + receiptMessagePanel + '<div id="rkDisplayPanelHost"></div>' + kitchenTicketPanel + shiftReportPanel,
+    receipt: receiptPreviewHtml() + receiptBrandPanel + receiptMessagePanel + kitchenTicketPanel + shiftReportPanel,
     interface: simplifyPanel,
     tables: orderTypesIntro + dineInMasterPanel + tablesGatedContent,
     kitchen: kitchenPanel + autoReadyPanel,
@@ -9462,18 +9462,6 @@ async function renderPosSettings(){
   // الحالة تُضبط من أول رسم، لا بعد أول ضغطة: المعلَم يحمل قيمةً
   // ابتدائية، وهذا يجعلها هي والمرجع شيئاً واحداً منذ اللحظة الأولى.
   rkSyncDineInVisibility();
-
-  // شاشة العميل: تُرسم بما في الذاكرة ثم تُعاد حين تصل من القاعدة،
-  // فالتبويب يظهر بلا انتظار.
-  const displayHost = document.getElementById('rkDisplayPanelHost');
-  if(displayHost){
-    displayHost.innerHTML = displayDevicesHtml();
-    loadDisplayDevices().then(()=>{
-      displayHost.innerHTML = displayDevicesHtml();
-      const msgEl = document.getElementById('displayMsgInput');
-      if(msgEl) msgEl.value = DISPLAY_BARCODE_MESSAGE || '';
-    });
-  }
 
   const posPagerSaveBtn = document.getElementById('posPagerSaveBtn');
   if(posPagerSaveBtn) posPagerSaveBtn.addEventListener('click', async ()=>{
@@ -10277,8 +10265,23 @@ function renderOnlineMenuPanel(){
     return;
   }
   if(activeOnlineMenuTab === 'settings'){
-    panel.innerHTML = onlineStoreSettingsHtml();
+    // شاشة العميل مع إعدادات المتجر لا مع إعدادات الطابعة: هي المنيو
+    // نفسه في وضع عرض، وتستعمل اسم المتجر نفسه في رابطها.
+    panel.innerHTML = onlineStoreSettingsHtml() + '<div id="rkDisplayPanelHost"></div>';
     wireOnlineStoreSettings();
+    const displayHost = document.getElementById('rkDisplayPanelHost');
+    if(displayHost){
+      // تُرسم بما في الذاكرة ثم تُعاد حين تصل من القاعدة، فالتبويب
+      // يظهر بلا انتظار. وفشلُها لا يُسقط بقية الصفحة.
+      try { displayHost.innerHTML = displayDevicesHtml(); } catch(e){ console.error('display panel', e); }
+      loadDisplayDevices().then(()=>{
+        try {
+          displayHost.innerHTML = displayDevicesHtml();
+          const msgEl = document.getElementById('displayMsgInput');
+          if(msgEl) msgEl.value = DISPLAY_BARCODE_MESSAGE || '';
+        } catch(e){ console.error('display panel', e); }
+      });
+    }
   } else if(activeOnlineMenuTab === 'design'){
     panel.innerHTML = onlineMenuDesignHtml();
     wireOnlineMenuDesign();
