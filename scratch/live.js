@@ -15390,39 +15390,20 @@ document.addEventListener('click', async (e)=>{
    في محلٍّ آخر، ولا يرى من فتح الرابط على جواله ما يمرّ فيها. */
 let DISPLAY_DEVICES = [];
 
-/**
- * اسم المتجر يُجلب هنا لا يُنتظر.
- *
- * كان يُقرأ من ONLINE_MENU_SLUG -- متغيّرٌ يُملأ في مكانٍ آخر من ملفٍ
- * بخمسة عشر ألف سطر. والقاعدة تحمله ('hbiah')، ولا يصل هذه اللوحة:
- * فتعرض "اضبط رابط المتجر أولاً" وهو مضبوط، وصاحب المطعم يحفظه مرة
- * بعد مرة ولا يتغيّر شيء.
- *
- * ونداءٌ واحد إلى الصف نفسه الذي نجلب منه الشاشات يُنهي التبعية كلها.
- */
-let DISPLAY_STORE_SLUG = '';
-
 async function loadDisplayDevices(){
   try {
-    const [devRes, bizRes] = await Promise.all([
-      window.supabaseClient
-        .from('display_devices').select('id, label, device_secret, branch_id, last_seen_at')
-        .eq('business_id', CURRENT_PROFILE.business_id).order('id'),
-      window.supabaseClient
-        .from('businesses').select('online_menu_slug, display_barcode_message')
-        .eq('id', CURRENT_PROFILE.business_id).maybeSingle(),
-    ]);
-    DISPLAY_DEVICES = devRes.data || [];
-    if(bizRes.data){
-      DISPLAY_STORE_SLUG = bizRes.data.online_menu_slug || '';
-      DISPLAY_BARCODE_MESSAGE = bizRes.data.display_barcode_message || '';
-    }
+    const { data } = await window.supabaseClient
+      .from('display_devices').select('id, label, device_secret, branch_id, last_seen_at')
+      .eq('business_id', CURRENT_PROFILE.business_id).order('id');
+    DISPLAY_DEVICES = data || [];
   } catch(_){ DISPLAY_DEVICES = []; }
 }
 
 function displayDevicesHtml(){
-  // ما جُلب من القاعدة أولاً، والمتغيّر العالمي احتياطاً بعده.
-  const slug = DISPLAY_STORE_SLUG || (typeof ONLINE_MENU_SLUG !== 'undefined' && ONLINE_MENU_SLUG) || '';
+  // ONLINE_MENU_SLUG هو ما يُحمَّل فعلاً (سطر 6317)؛ ولا وجود لـ
+  // RESTAURANT_INFO.onlineSlug -- فكان الرابط يخرج بلا اسم فيقود إلى
+  // /display/ فارغة.
+  const slug = (typeof ONLINE_MENU_SLUG !== 'undefined' && ONLINE_MENU_SLUG) || '';
   const rows = DISPLAY_DEVICES.length
     ? DISPLAY_DEVICES.map(d => `
         <div class="rk-disp-row">
@@ -15476,7 +15457,7 @@ function displayDevicesHtml(){
  * على شاشته صفحةً غير التي أردناها، أو لا شيء.
  */
 function displayPublicUrl(){
-  const slug = DISPLAY_STORE_SLUG || (typeof ONLINE_MENU_SLUG !== 'undefined' && ONLINE_MENU_SLUG) || '';
+  const slug = (typeof ONLINE_MENU_SLUG !== 'undefined' && ONLINE_MENU_SLUG) || '';
   // نفس شكل رابط المتجر: اسم المتجر نطاقاً فرعياً، ثم /menu. والوسيط
   // يحوّله داخلياً إلى /display/{slug} -- كما يحوّل جذره إلى /order.
   // ولوكال هوست بلا DNS بديل، فيبقى على المسار.
