@@ -28,6 +28,7 @@ export async function GET(
   const { data: consumed, error } = await sb.rpc("consume_wallet_add_token", { p_token: token });
   const publicToken = (consumed as { publicToken?: string } | null)?.publicToken;
   const displayDeviceId = (consumed as { displayDeviceId?: number } | null)?.displayDeviceId;
+  const posSession = (consumed as { posSession?: string } | null)?.posSession;
   if (error || !publicToken) {
     // رسالةٌ تقول ما جرى لا "خطأ": من مسحه ثانيةً يستحق أن يعرف أنه
     // استُعمل، لا أن يظن العطل في جواله.
@@ -63,6 +64,18 @@ export async function GET(
         await sb.removeChannel(ch);
       }
     } catch { /* الشاشة تعود إلى المنيو بانتهاء المهلة على كل حال */ }
+  }
+
+  /**
+   * والكاشير يُخبَر أيضاً: الطلب انتهى كله -- الفاتورة طُبعت والبطاقة
+   * أُضيفت -- فلا معنى لنافذةٍ تنتظر ضغطةً ليس بعدها شيء.
+   */
+  if (posSession) {
+    try {
+      const ch = sb.channel(`pos-session:${posSession}`);
+      await ch.send({ type: "broadcast", event: "card_added", payload: { at: Date.now() } });
+      await sb.removeChannel(ch);
+    } catch { /* الكاشير يغلقها بيده، كما كان */ }
   }
 
   const row = await loadWalletRow(sb, publicToken as string);

@@ -70,10 +70,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data: addToken, error: mkErr } = await asCashier.rpc("create_wallet_add_token", {
+  const { data: made, error: mkErr } = await asCashier.rpc("create_wallet_add_token", {
     p_customer_id: customerId,
     p_display_device_id: display.id,
   });
+  const addToken = (made as { token?: string } | null)?.token;
+  const posSession = (made as { posSession?: string } | null)?.posSession;
   if (mkErr || !addToken) {
     return NextResponse.json({ error: "تعذر إنشاء الباركود" }, { status: 403 });
   }
@@ -97,6 +99,7 @@ export async function POST(request: NextRequest) {
     });
 
   // الرمز لا يُردّ إلى المتصفح: من ملكه ملك البطاقة، والكاشير لا يحتاجه
-  // -- هو يعرضه لا يستعمله.
-  return NextResponse.json({ ok: true });
+  // -- هو يعرضه لا يستعمله. ويُردّ معرّف الجلسة وحده: قناةٌ يسمع بها
+  // نتيجة عرضه هو، ولا تُغني عن الرمز ولا تكشفه.
+  return NextResponse.json({ ok: true, posSession });
 }

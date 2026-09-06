@@ -4450,7 +4450,7 @@ async function completePayment(){
   const totals = cartTotals();
   const change = state.activePaymentMethod==='cash' ? Math.max(0,(state.cashAmount||0)-total) : 0;
   const customerPhone = state.customer ? state.customer.phone : null;
-  const willShowLoyaltyQr = !!customerPhone;
+
   const orderPayload = await submitOrder(totals);
   completingPayment = false;
   if(pagerNum && orderPayload && orderPayload.orderId){
@@ -4498,7 +4498,6 @@ async function completePayment(){
     <div class="receipt-detail-row"><span>المدفوع</span>${rkMoney(state.activePaymentMethod==='cash' ? (state.cashAmount||0) : total)}</div>
     ${state.activePaymentMethod==='cash' ? `<div class="receipt-detail-row"><span>الباقي</span>${rkMoney(change)}</div>` : ''}
     <div class="receipt-detail-row print-status" id="printStatusRow"><span>الطابعة</span><span class="print-status-label"><span class="print-spinner"></span>جاري الطباعة...</span></div>
-    <div id="loyaltyQrBox"></div>
     <div class="receipt-actions">
       <button class="receipt-action-btn" id="printBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>طباعة</button>
       <button class="receipt-action-btn" id="waBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>واتساب</button>
@@ -4518,15 +4517,10 @@ async function completePayment(){
       .eq('business_id', DEVICE.businessId).eq('phone', customerPhone).maybeSingle()
       .then(async ({data})=>{
         if(!data) return;
-        const cardUrl = window.location.origin + '/loyalty-card/' + data.public_token;
-        const box = document.getElementById('loyaltyQrBox');
-        if(box){
-          box.innerHTML = `
-            <div style="text-align:center; margin:14px 0; padding:14px; background:#fff; border-radius:12px;">
-              <img src="/api/qr?data=${encodeURIComponent(cardUrl)}" alt="QR بطاقة الولاء" style="width:120px; height:120px;">
-              <p style="font-size:11.5px; font-weight:700; color:var(--muted, #666); margin-top:8px;">امسح لإضافة بطاقة الولاء لجوالك</p>
-            </div>`;
-        }
+        // الباركود كان يُرسم هنا، على شاشة الكاشير، ويُطلب من الزبون أن
+        // يمدّ رأسه إليها. ومكانه الشاشة التي أمامه، ومن هناك يُعرض
+        // بضغطة زر. فبقاؤه هنا يزحم نافذةً ويقدّم طريقاً أسوأ لنفس
+        // الغاية.
         // real push notification (free, VAPID) — does nothing visible to the
         // customer if they never enabled notifications on their card, but
         // logs/toasts any failure so it's debuggable from the cashier device
@@ -4614,6 +4608,24 @@ async function completePayment(){
       const out = await resp.json();
       if(!resp.ok){ say(out.error || 'تعذر العرض', 'err'); showOnDisplayBtn.disabled = false; return; }
       say('✅ الباركود على شاشة العميل الآن', 'ok');
+      /**
+       * ويُغلق نفسه حين يمسحه العميل.
+       *
+       * الطلب انتهى كله عند ذلك -- الفاتورة طُبعت، والبطاقة أُضيفت --
+       * فنافذةٌ تنتظر ضغطةً ليس بعدها شيء تُبقي الكاشير واقفاً بلا
+       * سبب، والزبون التالي ينتظر.
+       *
+       * والقناة معرّفٌ عابر يخصّ هذا العرض وحده، لا سرّ الشاشة: ذاك لا
+       * يُسلَّم للمتصفح، ومن ملكه استمع إلى كل باركود يمرّ عليها.
+       */
+      if(out.posSession && window.supabaseClient){
+        const ch = window.supabaseClient.channel('pos-session:' + out.posSession);
+        ch.on('broadcast', { event: 'card_added' }, ()=>{
+          say('✅ تمت إضافة البطاقة — يقفل الآن', 'ok');
+          try { window.supabaseClient.removeChannel(ch); } catch(_){}
+          setTimeout(startNewOrder, 900);
+        }).subscribe();
+      }
       // يبقى الزر معطّلاً لحظات: ضغطتان متتاليتان تُنشئان رمزين،
       // فيموت الأول والعميل يمسحه.
       setTimeout(()=>{ showOnDisplayBtn.disabled = false; }, 3000);
