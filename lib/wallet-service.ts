@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { buildPassJson, buildPkPass, PassData, PassEnv } from "@/lib/wallet-pass";
+import { buildStripPng } from "@/lib/wallet-strip";
 
 /**
  * الخدمة التي تقف خلف بطاقة المحفظة.
@@ -67,23 +68,68 @@ const FALLBACK_PNG = Uint8Array.from(atob(
  * في أعلى البطاقة. وتُجلب من رابط المنشأة حين يوجد، ويُسكت عن فشلها --
  * بطاقةٌ بشعارٍ افتراضي خيرٌ من بطاقةٍ لا تُبنى.
  */
-export async function passImages(logoUrl: string): Promise<{ name: string; data: Uint8Array }[]> {
-  let logo = FALLBACK_PNG;
-  if (logoUrl) {
-    try {
-      const r = await fetch(logoUrl);
-      if (r.ok) {
-        const buf = new Uint8Array(await r.arrayBuffer());
-        if (buf.length > 0 && buf.length < 400_000) logo = buf;
-      }
-    } catch { /* يبقى الافتراضي */ }
+async function fetchImage(url: string | null | undefined): Promise<Uint8Array | null> {
+  if (!url) return null;
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    const buf = new Uint8Array(await r.arrayBuffer());
+    // حدٌّ أعلى: بندل البطاقة يُوقَّع ويُنقل، وصورةٌ بميغابايتين تُبطئ
+    // كل فتحةٍ لها بلا أن تُرى أوضح.
+    return buf.length > 0 && buf.length < 900_000 ? buf : null;
+  } catch {
+    return null;
   }
-  return [
-    { name: "icon.png", data: logo },
-    { name: "icon@2x.png", data: logo },
-    { name: "logo.png", data: logo },
-    { name: "logo@2x.png", data: logo },
+}
+
+export interface PassAssets {
+  iconUrl?: string | null;
+  logoUrl?: string | null;
+  stripUrl?: string | null;
+}
+
+/**
+ * صور البطاقة: ما رفعه صاحب المطعم أولاً، ورسمُنا حيث لم يرفع.
+ *
+ * icon إلزامية -- بلاها ترفض آبل البندل ولا تقول لماذا. وlogo ما يُرى
+ * في الأعلى. وstrip أكبر مساحة بصرية في البطاقة: من رفع صورته أخذها،
+ * ومن لم يرفع أخذ شريط الأختام المرسوم بلون علامته.
+ *
+ * وترتيب البدائل مقصود: أصلُ المحفظة، ثم شعار الولاء، ثم شعار المنشأة،
+ * ثم مربّعٌ رمادي -- فبطاقةٌ بشعارٍ عامّ خيرٌ من بطاقةٍ لا تُبنى.
+ */
+export async function passImages(
+  fallbackLogoUrl: string,
+  assets: PassAssets = {},
+  strip?: Uint8Array | null,
+): Promise<{ name: string; data: Uint8Array }[]> {
+  const [icon, logo, stripUpload] = await Promise.all([
+    fetchImage(assets.iconUrl),
+    fetchImage(assets.logoUrl),
+    fetchImage(assets.stripUrl),
+  ]);
+  const generic = (await fetchImage(fallbackLogoUrl)) ?? FALLBACK_PNG;
+  const iconFinal = icon ?? logo ?? generic;
+  const logoFinal = logo ?? icon ?? generic;
+  const stripFinal = stripUpload ?? strip ?? null;
+
+  const files = [
+    { name: "icon.png", data: iconFinal },
+    { name: "icon@2x.png", data: iconFinal },
+    { name: "logo.png", data: logoFinal },
+    { name: "logo@2x.png", data: logoFinal },
   ];
+  if (stripFinal) {
+    // مرةً واحدة باسم @2x: الشريط مُولَّد بضعف الكثافة أصلاً، وتكراره
+    // بالاسم العادي يضاعف حجم البندل بلا أن يُرى أوضح.
+    files.push({ name: "strip@2x.png", data: stripFinal });
+  }
+  return files;
+}
+
+export interface WalletBranchLocation {
+  latitude: number;
+  longitude: number;
 }
 
 export interface WalletRow {
@@ -104,6 +150,12 @@ export interface WalletRow {
   logoUrl: string;
   updatedAt: string;
   enabled: boolean;
+  iconUrl?: string | null;
+  walletLogoUrl?: string | null;
+  stripUrl?: string | null;
+  bgColor?: string | null;
+  nearbyText?: string | null;
+  locations?: WalletBranchLocation[] | null;
 }
 
 export async function loadWalletRow(
@@ -132,10 +184,28 @@ export async function renderPass(row: WalletRow, publicToken: string): Promise<U
     visitsThreshold: row.visitsThreshold,
     unitsThreshold: row.unitsThreshold,
     rewardLabel: row.rewardLabel,
-    accentColor: row.accentColor,
+    accentColor: row.bgColor || row.accentColor,
     tagline: row.tagline,
     authToken: await passAuthToken(publicToken),
     webServiceURL: WEB_SERVICE_URL,
+    locations: (row.locations || []).map(l => ({
+      latitude: l.latitude,
+      longitude: l.longitude,
+      relevantText: row.nearbyText || undefined,
+    })),
   };
-  return buildPkPass(buildPassJson(data, env), await passImages(row.logoUrl), env);
+  const strip = await buildStripPng({
+    systemType: row.systemType,
+    progress: row.systemType === "visits" ? row.visits : row.units,
+    threshold: row.systemType === "visits" ? row.visitsThreshold : row.unitsThreshold,
+    points: row.points,
+    accentColor: row.bgColor || row.accentColor,
+  }).catch(() => null);
+
+  const images = await passImages(
+    row.logoUrl,
+    { iconUrl: row.iconUrl, logoUrl: row.walletLogoUrl, stripUrl: row.stripUrl },
+    strip,
+  );
+  return buildPkPass(buildPassJson(data, env), images, env);
 }

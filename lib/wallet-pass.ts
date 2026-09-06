@@ -52,6 +52,12 @@ export interface PassEnv {
   PASS_TEAM_ID: string;
 }
 
+export interface PassLocation {
+  latitude: number;
+  longitude: number;
+  relevantText?: string;
+}
+
 export interface PassData {
   customerId: number;
   publicToken: string;
@@ -69,6 +75,8 @@ export interface PassData {
   tagline: string;
   authToken: string;
   webServiceURL: string;
+  /** مواقع الفروع -- يُنبَّه من اقترب من أحدها. */
+  locations?: PassLocation[];
 }
 
 /** "#C4FF2B" -> "rgb(196, 255, 43)". آبل لا تقبل الست عشري. */
@@ -101,9 +109,28 @@ function progressFields(d: PassData) {
   return { label: "نقاطك", value: String(d.points) };
 }
 
+/**
+ * ما يقوله التقدّم بلسانٍ لا برقم.
+ *
+ * "باقي لك كوبان" يُفهم في لمحة، و"4/6" يحتاج طرحاً. والفرق بينهما هو
+ * الفرق بين بطاقةٍ تُفتح وبطاقةٍ تُنسى.
+ */
+function remainingText(d: PassData): string | null {
+  if (d.systemType === "points") return null;
+  const have = d.systemType === "visits" ? d.visits : d.units;
+  const need = d.systemType === "visits" ? d.visitsThreshold : d.unitsThreshold;
+  const left = Math.max(0, need - have);
+  if (left <= 0) return "مكافأتك جاهزة 🎉";
+  const noun = d.systemType === "visits" ? "زيارة" : "وحدة";
+  if (left === 1) return `باقي ${noun} واحدة`;
+  if (left === 2) return `باقي ${noun}تان`;
+  return `باقي ${left} ${noun === "زيارة" ? "زيارات" : "وحدات"}`;
+}
+
 export function buildPassJson(d: PassData, env: PassEnv): Record<string, unknown> {
   const progress = progressFields(d);
   const ready = d.freeRewards > 0;
+  const remaining = remainingText(d);
   return {
     formatVersion: 1,
     passTypeIdentifier: env.PASS_TYPE_ID,
@@ -129,22 +156,43 @@ export function buildPassJson(d: PassData, env: PassEnv): Record<string, unknown
         altText: d.customerName || undefined,
       },
     ],
+    // يُنبَّه من اقترب من فرع. عشرة على الأكثر -- حدُّ آبل، لا حدُّنا.
+    ...(d.locations && d.locations.length ? { locations: d.locations.slice(0, 10), maxDistance: 150 } : {}),
     storeCard: {
       headerFields: [
         { key: "progress", label: progress.label, value: progress.value, textAlignment: "PKTextAlignmentRight" },
       ],
-      primaryFields: ready
-        ? [{ key: "ready", label: "جاهزة الآن", value: d.rewardLabel }]
-        : [],
+      /**
+       * الحقل الأول أكبر ما في البطاقة، فيحمل أهمّ ما فيها:
+       * مكافأةٌ جاهزة إن كانت، وإلا فكم بقي.
+       *
+       * وchangeMessage ليس زينة: به وحده تُظهر المحفظة إشعاراً حين
+       * يتغيّر الحقل. وبدونه يتحدّث الرصيد في صمت، ولا يعرف صاحبه.
+       */
+      primaryFields: [
+        ready
+          ? { key: "ready", label: "جاهزة الآن 🎉", value: d.rewardLabel, changeMessage: "مكافأتك جاهزة: %@" }
+          : {
+              key: "left",
+              label: "تقدّمك",
+              value: remaining || d.rewardLabel,
+              changeMessage: "%@",
+            },
+      ],
       secondaryFields: [
         { key: "name", label: "العميل", value: d.customerName || "—" },
+        ...(ready
+          ? [{ key: "count", label: "مكافآت جاهزة", value: String(d.freeRewards), textAlignment: "PKTextAlignmentRight" }]
+          : [{ key: "reward", label: "مكافأتك", value: d.rewardLabel, textAlignment: "PKTextAlignmentRight" }]),
       ],
-      auxiliaryFields: ready
-        ? [{ key: "count", label: "مكافآت جاهزة", value: String(d.freeRewards) }]
-        : [],
       backFields: [
         { key: "tagline", label: d.businessName, value: d.tagline || "شكراً لولائك" },
-        { key: "how", label: "كيف تستخدمها", value: "اعرض هذه البطاقة عند الكاشير. حين تجهز مكافأتك، اطلبها منه ويصلك تنبيه للتأكيد." },
+        {
+          key: "how",
+          label: "كيف تستخدمها",
+          value: "اعرض هذه البطاقة عند الكاشير. وحين تجهز مكافأتك اطلبها منه، ويصلك تنبيه على جوالك للتأكيد قبل صرفها.",
+        },
+        { key: "id", label: "رقم عضويتك", value: d.publicToken.slice(0, 8).toUpperCase() },
       ],
     },
   };
