@@ -15337,7 +15337,10 @@ async function loadDisplayDevices(){
 }
 
 function displayDevicesHtml(){
-  const slug = (RESTAURANT_INFO && RESTAURANT_INFO.onlineSlug) || '';
+  // ONLINE_MENU_SLUG هو ما يُحمَّل فعلاً (سطر 6317)؛ ولا وجود لـ
+  // RESTAURANT_INFO.onlineSlug -- فكان الرابط يخرج بلا اسم فيقود إلى
+  // /display/ فارغة.
+  const slug = (typeof ONLINE_MENU_SLUG !== 'undefined' && ONLINE_MENU_SLUG) || '';
   const rows = DISPLAY_DEVICES.length
     ? DISPLAY_DEVICES.map(d => `
         <div class="rk-disp-row">
@@ -15354,8 +15357,9 @@ function displayDevicesHtml(){
       ${rkSectionHead('grid', 'شاشة العميل', 'الجهاز اللي قدّام الزبون — يعرض المنيو، وعليه يطلع باركود الولاء')}
       <div style="font-size:12.5px; color:var(--muted); line-height:1.8; margin-bottom:12px;">
         افتح على جهاز الشاشة الرابط
-        <b style="color:var(--text);">${escapeHtml((typeof location !== 'undefined' ? location.origin : '') + '/display/' + slug)}</b>
-        ثم الصق فيه رمز الاقتران مرة واحدة.
+        ${slug
+          ? `<b style="color:var(--text);">${escapeHtml((typeof location !== 'undefined' ? location.origin : '') + '/display/' + slug)}</b> ثم الصق فيه رمز الاقتران مرة واحدة.`
+          : '<b style="color:var(--danger);">اضبط رابط المتجر الإلكتروني أولاً</b> — شاشة العميل تستعمل نفس الاسم.'}
       </div>
       <div class="rk-disp-list">${rows}</div>
       <button class="rk-btn rk-btn-secondary rk-btn-md" id="displayPairBtn" style="margin-top:12px;">أنشئ رمز اقتران جديد</button>
