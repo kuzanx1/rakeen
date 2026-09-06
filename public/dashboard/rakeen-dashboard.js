@@ -15220,8 +15220,16 @@ renderAiSuggestions();
    Rakeen-owned number serving registered clients as a WhatsApp control
    panel, plus a support/lead channel) lives in the webhook + admin panel
    instead; see rakeen_support_conversations. */
-})();
 
+/* ============================================================
+   ما تحت هذا السطر كان خارج الغلاف.
+   الملف كله ملفوف في (function(){ ... })()، وأُلحقت هذه الكتل بعد
+   إغلاقه -- فصارت في نطاق آخر لا يرى ONLINE_MENU_SLUG ولا
+   CURRENT_PROFILE ولا rkSectionHead. ومنه جاءت ثلاثة أعطال متتابعة:
+   قسمٌ يسقط صامتاً، ورابطٌ لا يظهر واسمُ المتجر مضبوط، ومتغيّراتٌ
+   تقول الأدوات إنها "غير معرّفة" وهي معرّفة.
+   والعلاج أن تكون حيث ينبغي، لا أن يُداوى كل عرَض وحده.
+   ============================================================ */
 /* ============ لوحة برنامج الولاء ============
    الأصناف التي تُعدّ، والأصناف التي تُعطى، والحدّ الأدنى للزيارة.
 
@@ -15553,3 +15561,5 @@ document.addEventListener('click', async (e)=>{
     }
   }
 });
+
+})();
