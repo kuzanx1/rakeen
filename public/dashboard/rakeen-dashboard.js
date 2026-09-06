@@ -15414,7 +15414,7 @@ async function loadDisplayDevices(){
   try {
     const [devRes, bizRes] = await Promise.all([
       window.supabaseClient
-        .from('display_devices').select('id, label, device_secret, branch_id, last_seen_at')
+        .from('display_devices').select('id, label, branch_id, last_seen_at, pairing_code, pairing_expires_at, paired_at, user_agent')
         .eq('business_id', CURRENT_PROFILE.business_id).order('id'),
       window.supabaseClient
         .from('businesses').select('online_menu_slug, display_barcode_message')
@@ -15428,18 +15428,50 @@ async function loadDisplayDevices(){
   } catch(_){ DISPLAY_DEVICES = []; }
 }
 
+/** متى رأيناها آخر مرة، بكلامٍ يُقرأ لا بطابع زمني. */
+function displayDeviceStatus(d){
+  if(!d.last_seen_at) return 'ما اتصلت بعد';
+  const mins = Math.floor((Date.now() - new Date(d.last_seen_at).getTime()) / 60000);
+  if(mins < 10) return '🟢 متصلة الآن';
+  if(mins < 60) return 'آخر اتصال قبل ' + mins + ' دقيقة';
+  const hrs = Math.floor(mins / 60);
+  if(hrs < 24) return 'آخر اتصال قبل ' + hrs + ' ساعة';
+  return '🔴 منقطعة منذ ' + Math.floor(hrs / 24) + ' يوم';
+}
+
+/** أي جهاز هذا -- من قول متصفحه عن نفسه، مختصراً لا كاملاً. */
+function displayDeviceKind(ua){
+  const u = String(ua || '');
+  if(/iPad/i.test(u)) return 'آيباد';
+  if(/iPhone/i.test(u)) return 'آيفون';
+  if(/Android/i.test(u)) return /Mobile/i.test(u) ? 'جوال أندرويد' : 'تابلت أندرويد';
+  if(/Macintosh/i.test(u)) return 'ماك';
+  if(/Windows/i.test(u)) return 'ويندوز';
+  return 'جهاز';
+}
+
 function displayDevicesHtml(){
   // ما جُلب من القاعدة أولاً، والمتغيّر العالمي احتياطاً بعده.
   const slug = DISPLAY_STORE_SLUG || (typeof ONLINE_MENU_SLUG !== 'undefined' && ONLINE_MENU_SLUG) || '';
   const rows = DISPLAY_DEVICES.length
-    ? DISPLAY_DEVICES.map(d => `
+    ? DISPLAY_DEVICES.map(d => {
+        const waiting = !!d.pairing_code;
+        return `
         <div class="rk-disp-row">
-          <div>
-            <div class="rk-disp-row-name">${escapeHtml(d.label || 'شاشة العميل')}</div>
-            <div class="rk-disp-row-code">${escapeHtml(d.device_secret)}</div>
+          <div style="min-width:0;">
+            <div class="rk-disp-row-name">${escapeHtml(d.label || 'شاشة عميل')}</div>
+            ${waiting
+              ? `<div class="rk-disp-code-big" dir="ltr">${escapeHtml(d.pairing_code)}</div>
+                 <div class="rk-disp-row-meta">اكتب هذا الرمز في الشاشة — صالح ١٠ دقائق</div>`
+              : `<div class="rk-disp-row-meta">${escapeHtml(displayDeviceStatus(d))}</div>
+                 ${d.user_agent ? `<div class="rk-disp-row-meta rk-disp-ua">${escapeHtml(displayDeviceKind(d.user_agent))}</div>` : ''}`}
           </div>
-          <button type="button" class="rk-btn rk-btn-ghost rk-btn-sm" data-dispdel="${d.id}">حذف</button>
-        </div>`).join('')
+          <div style="display:flex; gap:6px; flex-shrink:0;">
+            ${waiting ? '' : `<button type="button" class="rk-btn rk-btn-ghost rk-btn-sm" data-disprepair="${d.id}">رمز جديد</button>`}
+            <button type="button" class="rk-btn rk-btn-ghost rk-btn-sm" data-dispdel="${d.id}">فكّ الربط</button>
+          </div>
+        </div>`;
+      }).join('')
     : '<div style="font-size:12.5px; color:var(--muted);">ما فيه شاشة مقترنة بعد.</div>';
 
   return `
@@ -15506,12 +15538,8 @@ document.addEventListener('click', async (e)=>{
   if(pairBtn){
     rkBtnLoading(pairBtn, true);
     try {
-      const { error } = await window.supabaseClient.from('display_devices').insert({
-        business_id: CURRENT_PROFILE.business_id,
-        device_secret: newDisplaySecret(),
-        label: 'شاشة العميل',
-      });
-      if(error) throw error;
+      const { data, error } = await window.supabaseClient.rpc('create_display_pairing_code', { p_device_id: null });
+      if(error || !data) throw (error || new Error('تعذر الإنشاء'));
       await loadDisplayDevices();
       const host = document.getElementById('rkDisplayPanelHost');
       if(host) host.innerHTML = displayDevicesHtml();
@@ -15519,6 +15547,18 @@ document.addEventListener('click', async (e)=>{
       rkBtnLoading(pairBtn, false);
       showToast('تعذر الإنشاء: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
     }
+    return;
+  }
+  const repair = e.target.closest && e.target.closest('[data-disprepair]');
+  if(repair){
+    // الشاشة التي فقدت سرّها هي الشاشة نفسها: يُجدَّد رمزها ولا يُنشأ
+    // صفٌّ ثانٍ يتراكم في القائمة.
+    try {
+      await window.supabaseClient.rpc('create_display_pairing_code', { p_device_id: Number(repair.getAttribute('data-disprepair')) });
+      await loadDisplayDevices();
+      const host = document.getElementById('rkDisplayPanelHost');
+      if(host) host.innerHTML = displayDevicesHtml();
+    } catch(err){ showToast('تعذر إنشاء رمز جديد'); }
     return;
   }
   const del = e.target.closest && e.target.closest('[data-dispdel]');

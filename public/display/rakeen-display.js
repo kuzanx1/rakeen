@@ -92,19 +92,48 @@
     box.innerHTML =
       '<div class="rk-disp-card">' +
         '<div class="rk-disp-msg">اربط هذه الشاشة بالمطعم</div>' +
-        '<div class="rk-disp-pair-hint">من لوحة التحكم: الإعدادات ← شاشة العميل ← أنشئ رمز اقتران</div>' +
-        '<input type="text" id="rkDispPairInput" class="rk-disp-pair-input" placeholder="الصق رمز الاقتران" autocomplete="off" spellcheck="false">' +
+        '<div class="rk-disp-pair-hint">من لوحة التحكم: المتجر الإلكتروني ← إعدادات المتجر ← شاشة العميل ← أنشئ رمز اقتران. الرمز صالح عشر دقائق.</div>' +
+        '<input type="text" id="rkDispPairInput" class="rk-disp-pair-input" placeholder="XXX-XXX" autocomplete="off" spellcheck="false" inputmode="latin" maxlength="7" dir="ltr">' +
+        '<div id="rkDispPairErr" class="rk-disp-pair-err"></div>' +
         '<button type="button" id="rkDispPairBtn" class="rk-disp-pair-btn">اربط الشاشة</button>' +
       '</div>';
     document.body.appendChild(box);
     var input = box.querySelector('#rkDispPairInput');
-    box.querySelector('#rkDispPairBtn').addEventListener('click', function () {
-      var v = (input.value || '').trim();
-      if (!v) return;
-      try { localStorage.setItem(LS_SECRET, v); } catch (_) {}
-      box.remove();
-      listen();
+    var btn = box.querySelector('#rkDispPairBtn');
+    var err = box.querySelector('#rkDispPairErr');
+
+    // الشرطة تُكتب وحدها: من ينقل K7MP4Q لا يُطالَب بتذكّر مكانها.
+    input.addEventListener('input', function () {
+      var raw = input.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+      input.value = raw.length > 3 ? raw.slice(0, 3) + '-' + raw.slice(3) : raw;
+      if (err) err.textContent = '';
     });
+
+    function submit() {
+      var code = (input.value || '').trim().toUpperCase();
+      if (code.replace('-', '').length !== 6) { if (err) err.textContent = 'الرمز ست خانات'; return; }
+      btn.disabled = true;
+      btn.textContent = 'جارٍ الربط...';
+      window.supabaseClient.rpc('redeem_display_pairing_code', {
+        p_code: code, p_user_agent: navigator.userAgent
+      }).then(function (r) {
+        var d = r && r.data;
+        if (!d || !d.ok) {
+          if (err) err.textContent = 'الرمز غير صحيح أو انتهت صلاحيته — اطلب رمزاً جديداً';
+          btn.disabled = false; btn.textContent = 'اربط الشاشة';
+          return;
+        }
+        try { localStorage.setItem(LS_SECRET, d.secret); } catch (_) {}
+        box.remove();
+        listen();
+      }).catch(function () {
+        if (err) err.textContent = 'تعذر الاتصال — تأكد من الشبكة';
+        btn.disabled = false; btn.textContent = 'اربط الشاشة';
+      });
+    }
+
+    btn.addEventListener('click', submit);
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
     input.focus();
   }
 
@@ -122,6 +151,17 @@
       })
       .on('broadcast', { event: 'hide_barcode' }, hide)
       .subscribe();
+
+    /**
+     * نبضةٌ كل خمس دقائق.
+     *
+     * لا لتُبقي الاتصال -- ذاك يُبقيه Realtime -- بل ليعرف المالك أي
+     * شاشة حيّة وأيها انقطع. وشاشةٌ لم تُرَ منذ يومين خبرٌ يستحق أن
+     * يُعرف قبل أن يقف زبون أمامها فارغة.
+     */
+    var beat = function () { try { sb.rpc('touch_display_device', { p_secret: s }); } catch (_) {} };
+    beat();
+    setInterval(beat, 5 * 60 * 1000);
   }
 
   if (document.readyState === 'loading') {
