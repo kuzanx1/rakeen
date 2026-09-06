@@ -10368,6 +10368,21 @@ function onlineStoreSettingsHtml(){
     <div class="rk-section">
       ${rkSectionHead('globe', 'رابط متجرك', 'صفحة طلب مباشر لعملائك — يتصفحون منتجاتك ويطلبون توصيل أو استلام، ويوصل الطلب مباشرة لنظامك.')}
       <div class="rk-field">
+        <label>اسم المتجر بالعربي</label>
+        <input type="text" id="storeNameArInput" maxlength="60" value="${escapeHtml(RESTAURANT_INFO.name || '')}" placeholder="هَبيّة">
+        <div class="rk-field-hint">الاسم اللي يشوفه العميل في المتجر وعلى الفاتورة.</div>
+      </div>
+      <div class="rk-field" style="margin-top:12px;">
+        <label>اسم المتجر بالإنجليزي</label>
+        <input type="text" id="storeSlugInput" maxlength="40" value="${escapeHtml(ONLINE_MENU_SLUG || '')}" placeholder="hbiah" dir="ltr" style="text-align:left;">
+        <div class="rk-field-hint">
+          ⚠️ هذا الاسم يُستخدم في الروابط: <b dir="ltr">${escapeHtml(ONLINE_MENU_SLUG || 'اسمك')}.rakeenapp.com</b>
+          — حروف إنجليزية صغيرة وأرقام وشرطات فقط، بلا مسافات. وتغييره يكسر أي رابط قديم شاركته.
+        </div>
+      </div>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="storeNamesSaveBtn" type="button" style="margin-bottom:16px;">حفظ الأسماء</button>
+
+      <div class="rk-field">
         <label>رابط متجرك الإلكتروني</label>
         <div style="display:flex; gap:8px; align-items:center;">
           <input type="text" id="onlineMenuUrlDisplay" readonly value="${onlineMenuPublicUrl()}" style="flex:1;">
@@ -10561,6 +10576,51 @@ function renderOnlineMenuDesignPreview(){
 // branding. Split out of wireOnlineMenuDesign(), which used to wire this
 // same form under a tab literally labeled "التصميم" (Design).
 function wireOnlineStoreSettings(){
+  /**
+   * اسم المتجر بالعربي والإنجليزي.
+   *
+   * الإنجليزي هو ما يدخل الروابط -- المتجر وشاشة العميل والحجز -- وكان
+   * يُقرأ في ثلاثة مواضع ولا يُكتب في موضع واحد. فمطعمٌ جديد لا سبيل له
+   * إلى ضبطه إلا بأمر SQL، ولوحةُ التحكم تعرض له رابطاً بلا اسم.
+   *
+   * ويُنظَّف عند الكتابة لا عند الحفظ: صاحب المطعم يرى ما سيصير رابطاً
+   * وهو يكتبه، فلا يُفاجأ بعد الحفظ باسمٍ غير الذي أدخله.
+   */
+  const slugInput = document.getElementById('storeSlugInput');
+  if(slugInput) slugInput.addEventListener('input', ()=>{
+    const clean = slugInput.value.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/-{2,}/g, '-').slice(0, 40);
+    if(clean !== slugInput.value) slugInput.value = clean;
+  });
+
+  const namesBtn = document.getElementById('storeNamesSaveBtn');
+  if(namesBtn) namesBtn.addEventListener('click', async ()=>{
+    const nameAr = (document.getElementById('storeNameArInput').value || '').trim();
+    const slug = (slugInput.value || '').trim();
+    if(!nameAr){ showToast('اكتب اسم المتجر بالعربي'); return; }
+    if(!/^[a-z0-9][a-z0-9-]{1,39}$/.test(slug)){
+      showToast('الاسم الإنجليزي: حرفين على الأقل، حروف صغيرة وأرقام وشرطات، ويبدأ بحرف أو رقم'); return;
+    }
+    rkBtnLoading(namesBtn, true);
+    try {
+      await updateCurrentBusiness({ name: nameAr, online_menu_slug: slug });
+      RESTAURANT_INFO.name = nameAr;
+      ONLINE_MENU_SLUG = slug;
+      logDashboardAudit('غيّر اسم المتجر ورابطه');
+      rkBtnSuccess(namesBtn, '✓ تم الحفظ');
+      // الروابط المعروضة تُعاد كتابتها: رابط المتجر وشاشة العميل مبنيان
+      // على الاسم الذي تغيّر للتو.
+      const urlEl = document.getElementById('onlineMenuUrlDisplay');
+      if(urlEl) urlEl.value = onlineMenuPublicUrl();
+      const dispHost = document.getElementById('rkDisplayPanelHost');
+      if(dispHost){ try { dispHost.innerHTML = displayDevicesHtml(); } catch(_){} }
+    } catch(err){
+      rkBtnLoading(namesBtn, false);
+      // اسمٌ محجوز يردّه القيد الفريد -- ويُقال ذلك، لا "خطأ غير متوقع".
+      const m = err && err.message ? err.message : '';
+      showToast(/duplicate|unique/i.test(m) ? 'هذا الاسم الإنجليزي محجوز لمتجر آخر — اختر غيره' : 'تعذر الحفظ: ' + (m || 'خطأ غير متوقع'));
+    }
+  });
+
   const copyBtn = document.getElementById('copyOnlineMenuUrlBtn');
   if(copyBtn) copyBtn.addEventListener('click', ()=>{
     const input = document.getElementById('onlineMenuUrlDisplay');
