@@ -4503,8 +4503,9 @@ async function completePayment(){
       <button class="receipt-action-btn" id="printBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>طباعة</button>
       <button class="receipt-action-btn" id="waBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>واتساب</button>
     </div>
+    <button class="receipt-action-btn wide" id="showOnDisplayBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>اعرض باركود الولاء على شاشة العميل</button>
+    <div class="display-push-status" id="displayPushStatus"></div>
     <button class="new-order-btn" id="newOrderBtn">طلب جديد الآن</button>
-    ${willShowLoyaltyQr ? '' : `<div class="auto-reset-note" id="autoResetNote">يبدأ طلب جديد تلقائيًا خلال <span class="mono" id="autoResetCount">4</span></div>`}
   </div>`;
   document.getElementById('printBtn').addEventListener('click', ()=> attemptPrint(receiptData));
   document.getElementById('waBtn').addEventListener('click', ()=> showToast('تم الإرسال'));
@@ -4566,26 +4567,60 @@ async function completePayment(){
   // timer or an explicit tap.
   const startNewOrder = ()=> closePaymentModalNow();
 
-  // auto-reset for the next customer — visible countdown, cashier can skip by tapping "New Order" or paying again.
-  // Skipped entirely when a loyalty QR is shown — 4 seconds isn't enough time
-  // for the customer to get their phone out and scan it; the cashier taps
-  // "طلب جديد الآن" whenever they're actually ready to move on instead.
-  if(!willShowLoyaltyQr){
-    let secondsLeft = 4;
-    const countEl = document.getElementById('autoResetCount');
-    activeAutoResetTimer = setInterval(()=>{
-      secondsLeft -= 1;
-      if(countEl) countEl.textContent = secondsLeft;
-      if(secondsLeft <= 0){
-        clearInterval(activeAutoResetTimer);
-        startNewOrder();
-      }
-    }, 1000);
-  }
-
+  /**
+   * لا إغلاق تلقائي. الكاشير هو الذي يقرر متى ينتهي هذا الطلب.
+   *
+   * كانت تُغلق نفسها بعد أربع ثوان -- إلا حين يُعرض باركود ولاء. وأربع
+   * ثوان لا تكفي لشيء: لا لقراءة الباقي، ولا للضغط على "اعرض الباركود"،
+   * ولا للعميل أن يُخرج جواله. فكانت تختفي من تحت يده.
+   *
+   * والآن تُغلق بثلاثة، كلها بيده: "طلب جديد الآن"، أو الضغط على أي
+   * فراغ في النافذة، أو الزر المعتاد. ولا رابع.
+   */
   document.getElementById('newOrderBtn').addEventListener('click', ()=>{
     clearInterval(activeAutoResetTimer);
     startNewOrder();
+  });
+
+  // الضغط على فراغ النافذة يغلقها -- أسرع طريقة يعرفها كل كاشير.
+  const successBox = paymentModalBody.querySelector('.receipt-success');
+  if(successBox) successBox.addEventListener('click', (e)=>{
+    if(e.target === successBox) startNewOrder();
+  });
+
+  const showOnDisplayBtn = document.getElementById('showOnDisplayBtn');
+  if(showOnDisplayBtn) showOnDisplayBtn.addEventListener('click', async ()=>{
+    const statusEl = document.getElementById('displayPushStatus');
+    const say = (t, cls)=>{ if(statusEl){ statusEl.textContent = t; statusEl.className = 'display-push-status ' + (cls||''); } };
+    // العميل يُعرف برقمه: هو ما التُقط في هذا الطلب، أو ما يبحث به
+    // الكاشير حين لم يُلتقط -- أو حين راح الوقت على العميل.
+    let phone = customerPhone;
+    if(!phone){
+      phone = (prompt('رقم جوال العميل') || '').trim();
+      if(!phone) return;
+    }
+    showOnDisplayBtn.disabled = true;
+    say('جارٍ العرض...');
+    try {
+      const { data: cust } = await window.supabaseClient.from('customers')
+        .select('id').eq('business_id', DEVICE.businessId).eq('phone', phone).maybeSingle();
+      if(!cust){ say('ما لقينا عميل بهذا الرقم', 'err'); showOnDisplayBtn.disabled = false; return; }
+      const { data: { session } } = await window.supabaseClient.auth.getSession();
+      const resp = await fetch('/api/pos/show-loyalty-barcode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+        body: JSON.stringify({ customerId: cust.id, branchId: DEVICE.branchId || null }),
+      });
+      const out = await resp.json();
+      if(!resp.ok){ say(out.error || 'تعذر العرض', 'err'); showOnDisplayBtn.disabled = false; return; }
+      say('✅ الباركود على شاشة العميل الآن', 'ok');
+      // يبقى الزر معطّلاً لحظات: ضغطتان متتاليتان تُنشئان رمزين،
+      // فيموت الأول والعميل يمسحه.
+      setTimeout(()=>{ showOnDisplayBtn.disabled = false; }, 3000);
+    } catch (e) {
+      say('تعذر الاتصال بالخادم', 'err');
+      showOnDisplayBtn.disabled = false;
+    }
   });
 }
 

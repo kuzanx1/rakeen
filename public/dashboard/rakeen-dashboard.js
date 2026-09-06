@@ -7876,11 +7876,14 @@ const RECEIPT_THEMES = [
 function rkReceiptTheme(id){ return RECEIPT_THEMES.find(t=>t.id===id) || RECEIPT_THEMES[0]; }
 
 /** يقرأ صفّ هوية الفاتورة كما هو في القاعدة الآن -- للتحقق بعد الكتابة. */
+let DISPLAY_BARCODE_MESSAGE = '';
+
 async function loadReceiptBrandingRow(){
   try {
     const { data } = await window.supabaseClient
-      .from('businesses').select('receipt_logo_url, receipt_tagline, receipt_show_name')
+      .from('businesses').select('receipt_logo_url, receipt_tagline, receipt_show_name, display_barcode_message')
       .eq('id', CURRENT_PROFILE.business_id).single();
+    if(data && data.display_barcode_message) DISPLAY_BARCODE_MESSAGE = data.display_barcode_message;
     return data || null;
   } catch(_){ return null; }
 }
@@ -9295,7 +9298,7 @@ async function renderPosSettings(){
     </div>`;
 
   const POS_SETTINGS_TABS_HTML = {
-    receipt: receiptPreviewHtml() + receiptBrandPanel + receiptMessagePanel + kitchenTicketPanel + shiftReportPanel,
+    receipt: receiptPreviewHtml() + receiptBrandPanel + receiptMessagePanel + '<div id="rkDisplayPanelHost"></div>' + kitchenTicketPanel + shiftReportPanel,
     interface: simplifyPanel,
     tables: orderTypesIntro + dineInMasterPanel + tablesGatedContent,
     kitchen: kitchenPanel + autoReadyPanel,
@@ -9459,6 +9462,18 @@ async function renderPosSettings(){
   // الحالة تُضبط من أول رسم، لا بعد أول ضغطة: المعلَم يحمل قيمةً
   // ابتدائية، وهذا يجعلها هي والمرجع شيئاً واحداً منذ اللحظة الأولى.
   rkSyncDineInVisibility();
+
+  // شاشة العميل: تُرسم بما في الذاكرة ثم تُعاد حين تصل من القاعدة،
+  // فالتبويب يظهر بلا انتظار.
+  const displayHost = document.getElementById('rkDisplayPanelHost');
+  if(displayHost){
+    displayHost.innerHTML = displayDevicesHtml();
+    loadDisplayDevices().then(()=>{
+      displayHost.innerHTML = displayDevicesHtml();
+      const msgEl = document.getElementById('displayMsgInput');
+      if(msgEl) msgEl.value = DISPLAY_BARCODE_MESSAGE || '';
+    });
+  }
 
   const posPagerSaveBtn = document.getElementById('posPagerSaveBtn');
   if(posPagerSaveBtn) posPagerSaveBtn.addEventListener('click', async ()=>{
@@ -15303,5 +15318,106 @@ document.addEventListener('click', async (e)=>{
     renderLoyaltyProgramPanel();
   } catch(err){
     showToast('تعذر الحذف: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+  }
+});
+
+/* ============ شاشة العميل ============
+   جهازٌ يقف أمام الزبون يعرض المنيو، وعليه يظهر باركود الولاء. ويُقترن
+   مرة برمزٍ يُنشأ هنا ويُلصق هناك -- فلا يعرض باركود زبونٍ على شاشةٍ
+   في محلٍّ آخر، ولا يرى من فتح الرابط على جواله ما يمرّ فيها. */
+let DISPLAY_DEVICES = [];
+
+async function loadDisplayDevices(){
+  try {
+    const { data } = await window.supabaseClient
+      .from('display_devices').select('id, label, device_secret, branch_id, last_seen_at')
+      .eq('business_id', CURRENT_PROFILE.business_id).order('id');
+    DISPLAY_DEVICES = data || [];
+  } catch(_){ DISPLAY_DEVICES = []; }
+}
+
+function displayDevicesHtml(){
+  const slug = (RESTAURANT_INFO && RESTAURANT_INFO.onlineSlug) || '';
+  const rows = DISPLAY_DEVICES.length
+    ? DISPLAY_DEVICES.map(d => `
+        <div class="rk-disp-row">
+          <div>
+            <div class="rk-disp-row-name">${escapeHtml(d.label || 'شاشة العميل')}</div>
+            <div class="rk-disp-row-code">${escapeHtml(d.device_secret)}</div>
+          </div>
+          <button type="button" class="rk-btn rk-btn-ghost rk-btn-sm" data-dispdel="${d.id}">حذف</button>
+        </div>`).join('')
+    : '<div style="font-size:12.5px; color:var(--muted);">ما فيه شاشة مقترنة بعد.</div>';
+
+  return `
+    <div class="rk-section" style="margin-bottom:16px;">
+      ${rkSectionHead('grid', 'شاشة العميل', 'الجهاز اللي قدّام الزبون — يعرض المنيو، وعليه يطلع باركود الولاء')}
+      <div style="font-size:12.5px; color:var(--muted); line-height:1.8; margin-bottom:12px;">
+        افتح على جهاز الشاشة الرابط
+        <b style="color:var(--text);">${escapeHtml((typeof location !== 'undefined' ? location.origin : '') + '/display/' + slug)}</b>
+        ثم الصق فيه رمز الاقتران مرة واحدة.
+      </div>
+      <div class="rk-disp-list">${rows}</div>
+      <button class="rk-btn rk-btn-secondary rk-btn-md" id="displayPairBtn" style="margin-top:12px;">أنشئ رمز اقتران جديد</button>
+
+      <div class="rk-field" style="margin-top:18px;">
+        <label>النص فوق الباركود</label>
+        <input type="text" id="displayMsgInput" maxlength="120" placeholder="بالعافية عليك — امسح الباركود وصير من خلّاننا">
+        <div style="font-size:11.5px; color:var(--muted); margin-top:5px;">يقرؤه الزبون وهو واقف. اكتبه بلسانك.</div>
+      </div>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="displayMsgSaveBtn" style="margin-top:8px;">حفظ النص</button>
+    </div>`;
+}
+
+/** سرٌّ طويل يُقرأ ويُلصق: ثلاثون حرفاً لا تُخمَّن، ولا تُكتب بالغلط. */
+function newDisplaySecret(){
+  const a = new Uint8Array(16);
+  crypto.getRandomValues(a);
+  return [...a].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+document.addEventListener('click', async (e)=>{
+  const pairBtn = e.target.closest && e.target.closest('#displayPairBtn');
+  if(pairBtn){
+    rkBtnLoading(pairBtn, true);
+    try {
+      const { error } = await window.supabaseClient.from('display_devices').insert({
+        business_id: CURRENT_PROFILE.business_id,
+        device_secret: newDisplaySecret(),
+        label: 'شاشة العميل',
+      });
+      if(error) throw error;
+      await loadDisplayDevices();
+      const host = document.getElementById('rkDisplayPanelHost');
+      if(host) host.innerHTML = displayDevicesHtml();
+    } catch(err){
+      rkBtnLoading(pairBtn, false);
+      showToast('تعذر الإنشاء: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
+    return;
+  }
+  const del = e.target.closest && e.target.closest('[data-dispdel]');
+  if(del){
+    // بلا تأكيد ثانٍ: الشاشة تُقترن من جديد بضغطة، والحذف لا يفقد شيئاً
+    // إلا اقتراناً يُعاد.
+    try {
+      await window.supabaseClient.from('display_devices').delete().eq('id', Number(del.getAttribute('data-dispdel')));
+      await loadDisplayDevices();
+      const host = document.getElementById('rkDisplayPanelHost');
+      if(host) host.innerHTML = displayDevicesHtml();
+    } catch(err){ showToast('تعذر الحذف'); }
+    return;
+  }
+  const saveMsg = e.target.closest && e.target.closest('#displayMsgSaveBtn');
+  if(saveMsg){
+    const val = (document.getElementById('displayMsgInput').value || '').trim();
+    rkBtnLoading(saveMsg, true);
+    try {
+      await updateCurrentBusiness({ display_barcode_message: val || null });
+      rkBtnSuccess(saveMsg, '✓ تم الحفظ');
+    } catch(err){
+      rkBtnLoading(saveMsg, false);
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
   }
 });
