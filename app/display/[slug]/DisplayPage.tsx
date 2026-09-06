@@ -45,6 +45,18 @@ export default function DisplayPage({ slug }: { slug: string }) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
+    /**
+     * عامل الخدمة: شرطُ التثبيت، والتثبيتُ شرطُ بقاء الاقتران.
+     *
+     * سفاري iOS تحذف تخزين المواقع بعد سبعة أيام بلا استعمال -- فتفقد
+     * الشاشة سرّها بعد كل إجازة. والصفحة المثبَّتة على الشاشة الرئيسية
+     * لا يشملها ذلك الحذف. فالتثبيت هنا ليس زينةً ولا ملءَ شاشة، هو ما
+     * يُبقي الجهاز مقترناً.
+     */
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/display-sw.js").catch(() => {});
+    }
+
     const menu = document.createElement("script");
     menu.src = SCRIPT_SRC;
     document.body.appendChild(menu);
