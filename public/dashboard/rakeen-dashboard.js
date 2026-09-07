@@ -10182,6 +10182,7 @@ function wireGeideaPanel(){
 // width=2) — same visual language as the sidebar nav icons, reused here so
 // section headers read as part of the same system, not a new one.
 const RK_ICON_PATHS = {
+  chevronDown: '<polyline points="6 9 12 15 18 9"></polyline>',
   home: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>',
   fileText: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline>',
   coffee: '<path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line>',
@@ -10494,18 +10495,27 @@ function renderOnlineMenuPanel(){
     return;
   }
   if(activeOnlineMenuTab === 'settings'){
-    // شاشة العميل مع إعدادات المتجر لا مع إعدادات الطابعة: هي المنيو
-    // نفسه في وضع عرض، وتستعمل اسم المتجر نفسه في رابطها.
     /**
-     * والتوثيق آخر ما في الصفحة.
+     * والتوثيقُ آخرُ ما في الصفحة، ومطويٌّ.
      *
-     * يُفتح مرّةً في عمر المتجر ثم لا يُفتح، وما فوقه يُفتح كل أسبوع:
-     * اسم المتجر ورابطه وطرق الاستلام وشاشة العميل. وترتيبُ الشاشة
-     * بترتيب ما يُفتح، لا بترتيب ما كُتب.
+     * يُفتح مرّةً في عمر المتجر ثم لا يُفتح أبداً -- وما فوقه يُفتح كل
+     * أسبوع: اسمُ المتجر ورابطُه وطرقُ الاستلام. فبقاؤه مفتوحاً يدفع
+     * ما يُقرأ كثيراً إلى أسفل الشاشة كي يُقرأ ما لا يُقرأ.
+     * وترتيبُ الشاشة بترتيب ما يُفتح، لا بترتيب ما كُتب.
      */
-    panel.innerHTML = onlineStoreSettingsHtml() + '<div id="rkDisplayPanelHost"></div><div id="rkVerifyPanelHost"></div>';
+    panel.innerHTML = onlineStoreSettingsHtml() + '<div id="rkVerifyPanelHost"></div>';
     renderStoreVerificationPanel();
     wireOnlineStoreSettings();
+  } else if(activeOnlineMenuTab === 'display'){
+    /**
+     * شاشةُ العميل في تبويبها.
+     *
+     * كانت مذيّلةً بإعدادات المتجر: يُمرّر صاحبُ المطعم صفحةً كاملةً --
+     * اسمَ المتجر وطرقَ الاستلام ونصوصَ الصفحة -- ليصل إلى إضافة شاشة.
+     * وهي ليست إعداداً من إعداداته، هي جهازٌ قائمٌ بنفسه له أجهزتُه
+     * وروابطُه وجلساتُه.
+     */
+    panel.innerHTML = '<div id="rkDisplayPanelHost"></div>';
     const displayHost = document.getElementById('rkDisplayPanelHost');
     if(displayHost){
       // تُرسم بما في الذاكرة ثم تُعاد حين تصل من القاعدة، فالتبويب
@@ -15646,6 +15656,8 @@ let DISPLAY_DEVICES = [];
  * ونداءٌ واحد إلى الصف نفسه الذي نجلب منه الشاشات يُنهي التبعية كلها.
  */
 let DISPLAY_STORE_SLUG = '';
+/** الأجهزةُ التي فتحت روابطَ الشاشات -- مفتاحُها معرّف الشاشة. */
+let DISPLAY_SESSIONS = {};
 
 async function loadDisplayDevices(){
   try {
@@ -15658,11 +15670,67 @@ async function loadDisplayDevices(){
         .eq('id', CURRENT_PROFILE.business_id).maybeSingle(),
     ]);
     DISPLAY_DEVICES = devRes.data || [];
+    /**
+     * ومن فتح الرابط يُقرأ مع الأجهزة.
+     *
+     * رمزُ الشاشة مفتاحٌ حامل، والتسريبُ -- لا التخمين -- هو طريقُه
+     * الحقيقيّ. ولا يُمنع ما لا يُرى: صاحبُ المطعم اليوم لا يعرف كم
+     * جهازاً يفتح رابطَه ولا من أين.
+     */
+    try {
+      const { data: sess } = await window.supabaseClient
+        .from('display_device_sessions')
+        .select('id, device_id, ip, user_agent, first_seen_at, last_seen_at, hits')
+        .eq('business_id', CURRENT_PROFILE.business_id)
+        .order('last_seen_at', { ascending: false });
+      DISPLAY_SESSIONS = {};
+      for(const row of (sess || [])){
+        (DISPLAY_SESSIONS[row.device_id] = DISPLAY_SESSIONS[row.device_id] || []).push(row);
+      }
+    } catch(_){ /* الترحيلُ لم يُشغَّل بعد -- الأجهزةُ تُعرض بلا جلساتها */ }
     if(bizRes.data){
       DISPLAY_STORE_SLUG = bizRes.data.online_menu_slug || '';
       DISPLAY_BARCODE_MESSAGE = bizRes.data.display_barcode_message || '';
     }
   } catch(_){ DISPLAY_DEVICES = []; }
+}
+
+/**
+ * الأجهزةُ التي فتحت رابطَ هذي الشاشة -- كما تعرض تيليقرام أجهزةَ الحساب.
+ *
+ * وواحدٌ لا يُعرض في قائمة: شاشةٌ واحدة تفتح رابطَها هي الحالةُ الغالبة،
+ * وسطرٌ يقول ما هو معروفٌ أصلاً ضجيج. فيُعرض العددُ حين يزيد، ويُفصّل
+ * حين يُطلب.
+ *
+ * والغايةُ أن يُرى، لا أن يُمنع: جهازٌ غريبٌ في القائمة يُقرأ فوراً،
+ * وعندها يُحذف الاقتران فيموت الرابط ومعه كلُّ من يحمله.
+ */
+function displaySessionsHtml(deviceId){
+  const rows = DISPLAY_SESSIONS[deviceId] || [];
+  if(rows.length < 2) return '';
+  const when = (iso)=>{
+    const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+    if(mins < 10) return 'الآن';
+    if(mins < 60) return 'قبل ' + mins + ' دقيقة';
+    const hrs = Math.floor(mins / 60);
+    if(hrs < 24) return 'قبل ' + hrs + ' ساعة';
+    return 'قبل ' + Math.floor(hrs / 24) + ' يوم';
+  };
+  return `
+    <details class="rk-disp-sessions">
+      <summary>⚠ ${rows.length} أجهزة فتحت هذا الرابط — اضغط للتفاصيل</summary>
+      <div class="rk-disp-sess-list">
+        ${rows.map(r => `
+          <div class="rk-disp-sess">
+            <span class="rk-disp-sess-kind">${escapeHtml(displayDeviceKind(r.user_agent))}</span>
+            <span class="rk-disp-sess-ip" dir="ltr">${escapeHtml(r.ip || '—')}</span>
+            <span class="rk-disp-sess-when">${escapeHtml(when(r.last_seen_at))} · ${r.hits} فتحة</span>
+          </div>`).join('')}
+      </div>
+      <p class="stock-qty-helper" style="margin-top:8px;">
+        لو فيه جهاز ما تعرفه: احذف الشاشة وأضفها من جديد — الرابط القديم يموت.
+      </p>
+    </details>`;
 }
 
 /** متى رأيناها آخر مرة، بكلامٍ يُقرأ لا بطابع زمني. */
@@ -15703,6 +15771,7 @@ function displayDevicesHtml(){
                 <button type="button" class="rk-btn rk-btn-secondary rk-btn-sm" data-displink="${d.id}">الرابط</button>
             <button type="button" class="rk-btn rk-btn-ghost rk-btn-sm" data-dispdel="${d.id}">احذف</button>
           </div>
+          ${displaySessionsHtml(d.id)}
         </div>`).join('')
     : '<div style="font-size:12.5px; color:var(--muted);">ما فيه شاشة بعد — اضغط الزر تحت.</div>';
 
@@ -16048,9 +16117,27 @@ function storeVerificationHtml(){
   const hasMeta = !!(v.metaName && v.metaContent);
   const fileUrl = v.fileName && base ? `${base}/${v.fileName}` : '';
 
+  /**
+   * مطويٌّ حتى يُطلب.
+   *
+   * يُفتح مرّةً في عمر المتجر ثم لا يُفتح -- وكان مبسوطاً في أسفل كل
+   * زيارةٍ لصفحة الإعدادات، بحقوله ورموزه وأزراره. فيُمرَّر فوقه كلَّ
+   * مرّة، ويُطيل صفحةً يُفتح ما فوقها كل أسبوع.
+   *
+   * وdetails لا زرٌّ بحالة: المتصفّح يفتحه ويغلقه بلا شيفرة، ويبقى
+   * محتواه في الصفحة فلا تنكسر معالجاتُه حين يُطوى.
+   */
   return `
-    <div class="rk-section rk-section-last">
-      ${rkSectionHead('shield', 'توثيق المتجر (وزارة التجارة)', 'قبل ما يعطونك شهادة التوثيق، يطلبون إثبات إنك تملك رابط متجرك. الصق اللي أعطوك إياه هنا، ويظهر بمتجرك على طول — واحذفه بعد ما توثّق.')}
+    <details class="rk-section rk-section-last rk-verify-fold">
+      <summary class="rk-verify-summary">
+        <span class="rk-verify-summary-icon">${rkIcon('shield')}</span>
+        <span class="rk-verify-summary-text">
+          <span class="rk-verify-summary-title">توثيق المتجر (وزارة التجارة)</span>
+          <span class="rk-verify-summary-sub">${hasMeta || v.fileName ? 'موثّق — اضغط للمراجعة أو الحذف' : 'اضغط لو طلبوا منك إثبات ملكية الرابط'}</span>
+        </span>
+        <span class="rk-verify-summary-chev">${rkIcon('chevronDown')}</span>
+      </summary>
+      <p class="stock-qty-helper" style="margin-bottom:14px;">قبل ما يعطونك شهادة التوثيق، يطلبون إثبات إنك تملك رابط متجرك. الصق اللي أعطوك إياه هنا، ويظهر بمتجرك على طول — واحذفه بعد ما توثّق.</p>
 
       ${!slug ? `<p class="stock-qty-helper" style="color:var(--danger);">لازم تحدد اسم متجرك بالإنجليزي فوق أول — الرابط مبني عليه.</p>` : ''}
 
@@ -16110,7 +16197,7 @@ function storeVerificationHtml(){
         <div class="rk-verify-status" id="verifyFileStatus">${v.fileName ? 'محفوظ — اضغط "تأكد إنه ظاهر" قبل ما تضغط تحقق عندهم.' : ''}</div>
       </div>
 
-    </div>`;
+    </details>`;
 }
 
 async function renderStoreVerificationPanel(){

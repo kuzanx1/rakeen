@@ -2463,3 +2463,51 @@ select:not([class]){min-width:150px;}
   flex:0 0 auto; padding:11px 20px; border-radius:var(--r-sm); border:1px solid var(--line);
   background:transparent; color:var(--muted); font-weight:800; font-size:12.5px;
 }
+
+
+/* ============ توثيق المتجر -- مطويّ ============
+   يُفتح مرّةً في عمر المتجر ثم لا يُفتح، وكان مبسوطاً في أسفل كل زيارة
+   لصفحة الإعدادات بحقوله ورموزه وأزراره -- يُمرَّر فوقه كلَّ مرّة. */
+.rk-verify-fold{ padding:0; overflow:hidden; }
+.rk-verify-fold > :not(summary){ padding-inline:20px; }
+.rk-verify-fold > :last-child{ padding-bottom:20px; }
+.rk-verify-summary{
+  display:flex; align-items:center; gap:12px; padding:18px 20px;
+  cursor:pointer; list-style:none; user-select:none;
+}
+.rk-verify-summary::-webkit-details-marker{ display:none; }
+.rk-verify-summary-icon{
+  flex:0 0 auto; width:34px; height:34px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--surf2); color:var(--muted);
+}
+.rk-verify-summary-icon svg{ width:17px; height:17px; }
+.rk-verify-summary-text{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.rk-verify-summary-title{ font-size:14px; font-weight:800; color:var(--text); }
+.rk-verify-summary-sub{ font-size:11.5px; font-weight:600; color:var(--muted); }
+.rk-verify-summary-chev{ flex:0 0 auto; color:var(--muted); display:flex; transition:transform .15s ease; }
+.rk-verify-summary-chev svg{ width:16px; height:16px; }
+.rk-verify-fold[open] .rk-verify-summary-chev{ transform:rotate(180deg); }
+.rk-verify-fold[open] .rk-verify-summary-icon{ background:var(--surf1); color:var(--text); }
+
+
+/* ============ أجهزةٌ فتحت رابط الشاشة ============
+   رمزُ الشاشة مفتاحٌ حامل، والتسريبُ -- لا التخمين -- طريقُه. ولا يُمنع
+   ما لا يُرى، فيُعرض. وواحدٌ لا يُعرض في قائمة: شاشةٌ تفتح رابطَها هي
+   الحالةُ الغالبة، وسطرٌ يقول المعروفَ ضجيج. */
+.rk-disp-sessions{ grid-column:1 / -1; width:100%; margin-top:10px; }
+.rk-disp-sessions > summary{
+  cursor:pointer; list-style:none; font-size:11.5px; font-weight:800;
+  color:#9a6b00; padding:8px 11px; border-radius:8px;
+  background:rgba(224,184,74,0.14); border:1px solid rgba(224,184,74,0.45);
+}
+.rk-disp-sessions > summary::-webkit-details-marker{ display:none; }
+.rk-disp-sess-list{ display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+.rk-disp-sess{
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  padding:9px 11px; border-radius:8px; background:var(--surf1);
+  border:1px solid var(--line); font-size:11.5px; font-weight:700;
+}
+.rk-disp-sess-kind{ color:var(--text); }
+.rk-disp-sess-ip{ font-family:ui-monospace, Menlo, Consolas, monospace; color:var(--muted); }
+.rk-disp-sess-when{ margin-inline-start:auto; color:var(--muted); }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { serviceClient } from "@/lib/wallet-service";
 
 /**
  * مرساةٌ ثانية لسرّ الشاشة.
@@ -22,13 +23,47 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   let secret = "";
+  let clientId = "";
   try {
-    secret = String(((await request.json()) as { secret?: unknown }).secret || "");
+    const body = (await request.json()) as { secret?: unknown; clientId?: unknown };
+    secret = String(body.secret || "");
+    clientId = String(body.clientId || "");
   } catch {
     return NextResponse.json({ ok: false }, { status: 400 });
   }
   // السرّ أربعةٌ وستون حرفاً ست عشرية -- وما خالف ذلك لا يُكتب.
   if (!/^[0-9a-f]{32,128}$/.test(secret)) return NextResponse.json({ ok: false }, { status: 400 });
+
+  /**
+   * ويُسجَّل من فتح الرابط -- كما تعرض تيليقرام أجهزةَ الحساب.
+   *
+   * رمزُ الشاشة مفتاحٌ حامل: من قرأه من شريط العنوان أو ورثه من سجلّ
+   * تصفّحٍ عنده ما عند الشاشة. والتخمينُ بعيد، لكنّ التسريب ليس
+   * تخميناً -- وهو الطريق الحقيقيّ. ولا يُمنع ما لا يُرى.
+   *
+   * والعنوانُ يُقرأ هنا لا في المتصفّح: الصفحةُ لا تعرف عنوانَ نفسها،
+   * ولو عرفته لما أُمِن عليه. وcf-connecting-ip هو الحقيقيّ خلف
+   * كلاودفلير -- وx-forwarded-for قد يحمل سلسلةً، فيُؤخذ أوّلُها.
+   */
+  if (/^[a-z0-9]{8,64}$/i.test(clientId)) {
+    const ip =
+      request.headers.get("cf-connecting-ip") ||
+      (request.headers.get("x-forwarded-for") || "").split(",")[0].trim() ||
+      null;
+    const ua = request.headers.get("user-agent");
+    try {
+      const sb = serviceClient();
+      // ولا يُنتظر: تسجيلُ الأثر لا يؤخّر فتحَ الشاشة أمام زبونٍ واقف.
+      await sb?.rpc("record_display_session", {
+        p_secret: secret,
+        p_client_id: clientId,
+        p_ip: ip,
+        p_user_agent: ua,
+      });
+    } catch {
+      // فشلُ التسجيل لا يمنع الاقتران: الأثرُ فائدةٌ، والاقترانُ وظيفة.
+    }
+  }
 
   const res = NextResponse.json({ ok: true }, { headers: { "cache-control": "no-store" } });
   res.cookies.set(COOKIE, secret, {

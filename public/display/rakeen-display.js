@@ -24,13 +24,37 @@
     try { return localStorage.getItem(LS_SECRET) || ''; } catch (_) { return ''; }
   }
 
+  /**
+   * بصمةُ هذا الجهاز -- تُولَّد مرّةً وتبقى.
+   *
+   * ولا يُميَّز بالعنوان: مقهىً وراء راوتر واحد يعطي أجهزتَه كلَّها
+   * عنواناً واحداً، فتُقرأ ثلاثُ شاشاتٍ جهازاً واحداً في القائمة.
+   *
+   * وهي ليست إثباتاً -- تُنسخ كما يُنسخ الرمز، ومن مسح تخزينَه ظهر
+   * جهازاً جديداً. غايتُها أن يرى المالك كم جهازاً يفتح رابطَه، لا أن
+   * تمنع أحداً.
+   */
+  function clientId() {
+    var k = 'rakeen_display_client';
+    try {
+      var v = localStorage.getItem(k);
+      if (v) return v;
+      var a = new Uint8Array(8);
+      crypto.getRandomValues(a);
+      v = [].map.call(a, function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+      localStorage.setItem(k, v);
+      return v;
+    } catch (_) { return ''; }
+  }
+
   /** ويُكتب في المرساتين معاً: ما يُمحى من إحداهما تُعيده الأخرى. */
   function saveSecret(v) {
     try { localStorage.setItem(LS_SECRET, v); } catch (_) {}
     try {
       fetch('/api/display/session', {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ secret: v }),
+        // والبصمةُ معه: بها يُفرَّق جهازٌ عن جهازٍ في لوحة المالك.
+        body: JSON.stringify({ secret: v, clientId: clientId() }),
       }).catch(function () {});
     } catch (_) {}
   }
