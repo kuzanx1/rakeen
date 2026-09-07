@@ -2538,3 +2538,22 @@ select:not([class]){min-width:150px;}
 /* وقائمةُ النتائج فارغةٌ حتى يُبنى شيء -- وهامشُها العلويّ يُبقي فجوةً
    داخل البطاقة لا محتوى لها. */
 #campaignResultList:empty{ display:none; }
+
+
+/* العنوانُ كاملاً في مربّعٍ واحد: عنوانٌ فوق ورمزٌ تحته يُقرآن شيئين،
+   فيُكتب العنوان ويُنتظر الرمزُ أن يظهر في الشاشة. */
+.rk-ask-code-url{
+  font-size:17px; letter-spacing:0.5px; line-height:1.8;
+  padding:14px 12px; word-break:break-all;
+}
+.rk-ask-code-dim{ color:var(--muted); font-weight:700; }
+/* ويُبرَّز آخرُه: هو ما يُخطأ فيه حين يُنقل حرفاً حرفاً. */
+.rk-ask-code-key{ color:var(--text); font-weight:800; letter-spacing:2px; }
+
+.rk-pin-steps{ margin-top:16px; }
+.rk-pin-title{ font-size:12.5px; font-weight:800; color:var(--text); margin-bottom:7px; }
+.rk-pin-steps ol{ margin:0; padding-inline-start:18px; }
+.rk-pin-steps li{ font-size:11.5px; font-weight:600; color:var(--muted); line-height:1.95; }
+.rk-pin-steps li b{ color:var(--text); font-weight:800; }
+.rk-pin-steps p{ margin:8px 0 0; font-size:11.5px; font-weight:700; color:var(--muted); line-height:1.7; }
+.rk-pin-ico{ font-family:inherit; }

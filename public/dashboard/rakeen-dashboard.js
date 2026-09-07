@@ -15912,6 +15912,8 @@ function rkAsk(opts){
         ${o.body ? `<div class="rk-ask-body">${o.body}</div>` : ''}
         ${o.url ? `<div class="rk-ask-url">${o.url}</div>` : ''}
         ${o.code ? `<div class="rk-ask-code">${escapeHtml(o.code)}</div>` : ''}
+        ${o.codeHtml ? `<div class="rk-ask-code rk-ask-code-url">${o.codeHtml}</div>` : ''}
+        ${o.after || ''}
         ${o.input !== undefined ? `<input type="text" class="rk-ask-in" id="rkAskIn"
             maxlength="${o.maxlength || 60}" value="${escapeHtml(o.input || '')}"
             placeholder="${escapeHtml(o.placeholder || '')}">` : ''}
@@ -16009,16 +16011,40 @@ async function rkShowDisplayLink(deviceId){
   const short = url.replace(/^https:\/\//, '');
   const typeable = !!data.token;
 
+  /**
+   * العنوانُ كاملاً في المربّع -- لا عنوانٌ فوق ورمزٌ تحته.
+   *
+   * كانا سطرين منفصلين، فقُرئا شيئين: كتب صاحبُ المطعم العنوانَ وحده،
+   * وذهب إلى الشاشة ينتظر رمزاً يظهر فيها. وهو ليس رمزاً يُنتظر، هو
+   * آخرُ العنوان -- وما فُصل عن موضعه لا يُعرف موضعُه.
+   *
+   * ويُلوَّن آخرُه لا يُفصل: العينُ تحتاج أن تعرف أين تدقّق حين تنقل
+   * حرفاً حرفاً، والفصلُ يعطيها ذلك ويأخذ منها المعنى. فيبقى متّصلاً
+   * ويُبرَّز الجزءُ الذي يُخطأ فيه.
+   */
+  const [host, token] = short.split('#');
+  const fullBox = typeable
+    ? `<span class="rk-ask-code-dim">${escapeHtml(host)}#</span><span class="rk-ask-code-key">${escapeHtml(token)}</span>`
+    : `<span class="rk-ask-code-dim">${escapeHtml(short)}</span>`;
+
   await rkAsk({
     title: 'رابط ' + (data.label || 'الشاشة'),
-    body: typeable
-      ? 'اكتب هذا العنوان في متصفّح <b>جهاز الشاشة</b>، وثبّته على الشاشة الرئيسية. مرّة وحدة وما يطلب منك شي بعدها أبداً.'
-      : 'افتح هذا الرابط على <b>جهاز الشاشة</b>، وثبّته على الشاشة الرئيسية.',
-    url: typeable
-      ? escapeHtml(short.split('#')[0]) + '<b>#</b>'
-      : '<b>' + escapeHtml(short) + '</b>',
-    code: typeable ? data.token : null,
-    ok: '📋 انسخ الرابط كامل',
+    body: 'اكتب هذا العنوان كامل في متصفّح <b>جهاز الشاشة</b> — بما فيه الجزء اللي بعد <b>#</b>.',
+    codeHtml: fullBox,
+    /* وطريقةُ التثبيت مكتوبةٌ لا مُلمَّحٌ إليها: "ثبّته على الشاشة
+       الرئيسية" جملةٌ يعرفها من يعرفها، ومن لا يعرفها يترك الصفحة في
+       تبويبٍ يُغلق -- فيعود يسأل عن رمزٍ كل صباح. */
+    after: `
+      <div class="rk-pin-steps">
+        <div class="rk-pin-title">وثبّته عشان يفتح وحده</div>
+        <ol>
+          <li><b>آيباد / آيفون:</b> اضغط زرّ <b>المشاركة</b> (المربّع اللي فيه سهم فوق) ثم «إضافة إلى الشاشة الرئيسية».</li>
+          <li><b>أندرويد:</b> افتح <b>قائمة المتصفّح</b> (النقاط الثلاث) ثم «إضافة إلى الشاشة الرئيسية» أو «تثبيت التطبيق».</li>
+          <li><b>ويندوز (كروم/إيدج):</b> من <b>قائمة المتصفّح</b> اختر «تثبيت» — ويفتح ملء الشاشة بلا شريط عنوان.</li>
+        </ol>
+        <p>بعدها افتحه من الأيقونة لا من المتصفّح. ما يطلب منك شي بعدها أبداً.</p>
+      </div>`,
+    ok: '📋 انسخ العنوان كامل',
     cancel: 'تمام',
     // والنسخُ داخل الضغطة: الحافظة تشترط تفعيلاً حديثاً من المستخدم،
     // ونداءُ القاعدة قبلها يستهلك مهلته -- فكان يُرفض ويسقط على
