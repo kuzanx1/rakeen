@@ -60,7 +60,7 @@ const I18N_EN = {
   'ياكل عندك في المحل': 'Eats in the shop', 'ياخذ طلبه ويطلع': 'Takes it and leaves',
   'الطلب جاك من': 'Order came from', 'الطلب جاك من تطبيق توصيل': 'Order came from a delivery app',
   'أو': 'or',
-  'حفظ': 'Save', 'أو امسح بطاقة العميل': 'Or scan the customer card',
+  'حفظ': 'Save',
   'اكتب رقم الجوال': 'Enter the phone number',
   'ما لقينا عميل بهذا الرقم': 'No customer with this number',
   'اعرض باركود الولاء على شاشة العميل': 'Show loyalty barcode on customer display',
@@ -670,12 +670,23 @@ const i18nObserver = new MutationObserver(records => {
         if(node.nodeType === 1) translateTree(node);
         else if(node.nodeType === 3 && node.parentElement) translateTree(node.parentElement);
       }
-      // وتبديلُ نصٍّ قائمٍ في مكانه (characterData) يُلتقط بالمثل.
-      if(rec.type === 'characterData' && rec.target.parentElement) translateTree(rec.target.parentElement);
     }
   } catch {} finally { i18nApplying = false; }
 });
-try { i18nObserver.observe(document.body, { childList: true, subtree: true, characterData: true }); } catch {}
+/**
+ * ولا تُراقَب characterData.
+ *
+ * راقبتُها لألتقط ما يُكتب في نصٍّ قائم، فصنعتُ حلقةً لا تنتهي:
+ * translateTree يكتب nodeValue، والكتابةُ تُسجَّل سجلاً، والسجلُّ يصل
+ * في نداءٍ لاحقٍ بعد أن يكون الحارسُ قد رُفع -- فيُترجم ويكتب من جديد،
+ * فيُسجَّل من جديد. أربعُ مئة نداءٍ وألفٌ ومئتا كتابةٍ لعقدتَي نصّ، ثم
+ * تقف الصفحةُ كلُّها. (قِيست، لا خُمّنت.)
+ *
+ * ولا حاجةَ إليها أصلاً: el.textContent = '...' يستبدل الأبناء بعقدة
+ * نصٍّ جديدة، فيصل سجلُّ childList بها -- وذاك ما يلتقطه فرعُ nodeType 3
+ * أعلاه، وهو ما أصلح "+ خصم" لا مراقبةُ characterData.
+ */
+try { i18nObserver.observe(document.body, { childList: true, subtree: true }); } catch {}
 
 function translateTree(root){
   if(!root) return;
@@ -697,7 +708,10 @@ function translateTree(root){
     // Replacing only the trimmed part preserves the surrounding whitespace
     // the markup's own indentation put there, which some buttons rely on
     // to keep a gap between an icon and its label.
-    node.nodeValue = (LANG === 'en' && en) ? original.replace(key, en) : original;
+    const next = (LANG === 'en' && en) ? original.replace(key, en) : original;
+    // ولا يُكتب ما هو مكتوب: الإسنادُ يُسجَّل تغييراً وإن لم يتغيّر شيء،
+    // فكلُّ كتابةٍ عبثية تُوقظ المراقب. حارسٌ ثانٍ دون الحلقة.
+    if(node.nodeValue !== next) node.nodeValue = next;
   }
   for(const el of root.querySelectorAll('[placeholder], [title], [aria-label]')){
     if(el.closest(I18N_SKIP)) continue;
@@ -2201,7 +2215,6 @@ function renderCustomerStep(){
     </div>
     <p class="cust-hint" id="pmCustomerHint"></p>
     <div class="customer-panel-row" id="pmCustomerSuggestions"></div>
-    <button type="button" class="cust-scan" id="pmScanCustomerCardBtn">أو امسح بطاقة العميل</button>
     <button class="confirm-pay-btn confirm-pay-btn-quiet" id="pmCustomerNextBtn">تخطي</button>
   `;
 
@@ -2368,15 +2381,6 @@ function renderCustomerStep(){
       if(!btn) return;
       setCustomer({id: parseInt(btn.dataset.id,10), name: btn.dataset.name, phone: btn.dataset.phone || null, points: Number(btn.dataset.points), freeRewards: Number(btn.dataset.free || 0)});
       proceedFromCustomerStep();
-    });
-    document.getElementById('pmScanCustomerCardBtn').addEventListener('click', async ()=>{
-      const decoded = await scanCustomerCard();
-      // false means the cashier cancelled (× / back) — the modal is already
-      // closed in that case, so re-showing it here would undo their tap.
-      if(decoded){
-        paymentModal.classList.add('show');
-        renderCustomerStep();
-      }
     });
   }
 
@@ -2548,17 +2552,13 @@ async function openBarcodeScanner(onDecode){
   });
 }
 
-async function scanCustomerCard(){
-  return await openBarcodeScanner(async (decoded)=>{
-    // the QR encodes the full card URL (…/loyalty-card/<token>), not the bare token
-    const token = decoded.split('/').filter(Boolean).pop();
-    const { data } = await window.supabaseClient.from('customers')
-      .select('id, name, phone, loyalty_points, loyalty_free_rewards').eq('business_id', DEVICE.businessId).eq('public_token', token).maybeSingle();
-    if(!data){ showToast('ما فيه عميل مربوط بهذا الباركود.'); return; }
-    setCustomer({id:data.id, name:data.name, phone:data.phone, points:Number(data.loyalty_points), freeRewards:Number(data.loyalty_free_rewards||0)});
-    showToast('تم التعرف على ' + data.name);
-  });
-}
+/* scanCustomerCard حُذفت مع زرّها.
+   كانت تُعرّف العميل بمسح بطاقته في خطوة العميل -- وهو ما يفعله حقلُ
+   الجوّال فوقها بضغطتين، والكاشيرُ يعرف رقم زبونه ولا يملك عادةً أن
+   يوجّه كاميرا التابلت إلى جوّال الزبون وهو يمسك سلّته.
+   والمسحُ باقٍ حيث لا بديل عنه: باب "امسح باركود بطاقته" في تأكيد
+   الولاء -- هناك المسحُ إثباتُ حيازةٍ لا اختصارَ كتابة، فلا يُغني عنه
+   شيء. (openBarcodeScanner تُنادى من هناك.) */
 
 /**
  * أيُّ شاشةٍ تقف أمام هذا الكاشير.
@@ -7740,7 +7740,7 @@ function handleMoreAction(e){
   /* "مسح باركود" حُذف من "المزيد": كان يمسح بطاقةً ويُلصق صاحبَها بسلّةٍ
      قد تكون فارغة، والكاشير واقفٌ في شاشةٍ غير شاشة الطلب -- فلا يرى
      أثراً لما فعل. والمسحُ نفسُه باقٍ حيث يُفيد: داخل خطوة العميل، وفي
-     أبواب تأكيد الولاء. (scanCustomerCard ما زالت تُنادى من هناك.) */
+     أبواب تأكيد الولاء -- هناك المسحُ إثباتُ حيازةٍ لا اختصارَ كتابة. */
   else if(id === 'reprint' || id === 'refund'){
     switchBottomNavScreen('orders');
     const completedTab = document.querySelector('#ordersTabs .seg-tab[data-tab="completed"]');

@@ -31,7 +31,6 @@ const I18N_EN: Record<string, string> = {
      عطلاً لا خياراً. */
   'المطلوب': 'Due', 'المستلَم': 'Tendered', 'الباقي للعميل': 'Change due',
   'نداء': 'Pager', 'حفظ': 'Save',
-  'أو امسح بطاقة العميل': 'Or scan the customer card',
   'ياكل عندك في المحل': 'Eats in the shop', 'ياخذ طلبه ويطلع': 'Takes it and leaves',
   'الطلب جاك من': 'Order came from', 'الطلب جاك من تطبيق توصيل': 'Order came from a delivery app',
   'تفاصيل الطلب': 'Order details', 'اكتب رقم الجوال': 'Enter the phone number',
