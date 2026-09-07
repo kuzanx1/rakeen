@@ -2601,8 +2601,25 @@ function rkSetModalBack(show){
 }
 function resetModalStack(fn){ modalStepStack = [fn]; rkSetModalBack(false); fn(); }
 function openModalStep(fn){ modalStepStack.push(fn); rkSetModalBack(true); fn(); }
+/** ورديةٌ قديمة تنتظر الإقفال: لا يمرّ الكاشير حتى تُقفل. */
+let RK_STALE_SHIFT_LOCK = null;
+
 function closePaymentModalNow(){
   paymentModal.classList.remove('show');
+  /**
+   * ومعالجُ الإقفال لا يُغلق ليُكمل.
+   *
+   * كان التنبيه يُغلق بـ"×" ويكمل الكاشير يومَه -- وهو ما يُفعل كلَّ
+   * صباح، فتبقى الوردية مفتوحةً أسبوعاً. والمعالجُ نفسُه نافذةٌ لها
+   * "×"، فنقلُ الحراسة إلى بابه وحده يترك البابَ نفسَه مفتوحاً.
+   *
+   * فمن أغلقه ووردّيتُه القديمة لم تُقفل يعود إلى حيث كان. وطريقٌ
+   * واحدٌ يخرج منه: أن يُقفلها.
+   */
+  if(RK_STALE_SHIFT_LOCK && CURRENT_SHIFT){
+    const shift = RK_STALE_SHIFT_LOCK;
+    setTimeout(()=> showStaleShiftScreen(shift), 0);
+  }
   modalStepStack = [];
   diagnosticsModalOpen = false;
   if(activeAutoResetTimer) clearInterval(activeAutoResetTimer);
@@ -2781,8 +2798,19 @@ function advanceFromChannelStep(){
   const needsTable = state.orderChannel === 'dine_in'
     && DINE_IN_MODE === 'tables'
     && !state.selectedTableId;
-  if(needsTable) openModalStep(renderTablePickerStep);
-  else openModalStep(renderCustomerStep);
+  if(needsTable){ openModalStep(renderTablePickerStep); return; }
+  /**
+   * وطلبُ التوصيل لا يُسأل عن عميل ولاء.
+   *
+   * الزبونُ ليس واقفاً هنا: طلبَ من جاهز أو هنقرستيشن، ورقمُه عند
+   * المنصّة لا عندنا -- والكاشير لا يملك ما يكتبه في الحقل أصلاً.
+   * فخطوةٌ لا جوابَ لها تُعرض في كل طلبِ توصيل، ويضغط "تخطي".
+   *
+   * والولاءُ نفسُه لا يصحّ عليها: النقاطُ لمن اشترى منّا، وهذا اشترى
+   * من التطبيق.
+   */
+  if(state.orderChannel === 'delivery'){ proceedFromCustomerStep(); return; }
+  openModalStep(renderCustomerStep);
 }
 
 function renderTablePickerStep(){
@@ -8916,14 +8944,128 @@ async function findOpenShift(){
   return shift;
 }
 
+/**
+ * وقتُ إغلاق الفرع اليوم -- من جدول الأيام إن وُجد، وإلا من الفرع.
+ *
+ * ويومٌ مُعلَّمٌ "مغلق" يُرجع null: كونُنا لا نفتح اليوم لا يقول شيئاً
+ * عن الساعة التي كان ينبغي أن تُقفل فيها ورديةٌ مفتوحة، فاختراعُ ساعةٍ
+ * له اختراعٌ لا استنتاج. (نظيرها في التطبيق: getBranchClosingTime.)
+ */
+async function getBranchClosingTime(){
+  if(!DEVICE || !DEVICE.branchId) return null;
+  let fallback = null;
+  try {
+    const { data } = await window.supabaseClient
+      .from('branches').select('closing_time').eq('id', DEVICE.branchId).maybeSingle();
+    fallback = (data && data.closing_time) || null;
+  } catch(_){ /* بلا وقتِ إغلاق يبقى حدُّ الساعات */ }
+  try {
+    const { data, error } = await window.supabaseClient
+      .from('branch_weekly_hours').select('closing_time, is_closed')
+      .eq('branch_id', DEVICE.branchId).eq('weekday', new Date().getDay()).maybeSingle();
+    if(error || !data) return fallback;
+    if(data.is_closed) return null;
+    return data.closing_time || fallback;
+  } catch(_){ return fallback; }
+}
+
+/** بلا وقتِ إغلاقٍ معروف: ثمانيةَ عشرَ ساعةً حدٌّ لا يُخطئ يوماً كاملاً. */
+const RK_STALE_SHIFT_HOURS = 18;
+
+/**
+ * وردية يومٍ مضى -- تُقاس بآخر إغلاقٍ مرّ، لا بمنتصف الليل.
+ *
+ * مقهىً يُغلق الثانية صباحاً وردّيتُه تمتدّ عبر منتصف الليل ولا تكون
+ * قديمة. والقديمُ ما فُتح قبل آخر إغلاقٍ مضى.
+ * (نُقلت حرفاً بحرف من التطبيق: domain/shift.ts:isShiftStale.)
+ */
+function rkIsShiftStale(shift, closingTime, now){
+  now = now || new Date();
+  const openedAt = new Date(shift.opened_at);
+  if(isNaN(openedAt.getTime())) return false;
+  const byAge = ()=> (now.getTime() - openedAt.getTime()) > RK_STALE_SHIFT_HOURS * 3600000;
+  if(!closingTime) return byAge();
+  const parts = String(closingTime).split(':').map(Number);
+  const h = parts[0], m = parts[1];
+  if(!isFinite(h) || !isFinite(m)) return byAge();
+  const lastClose = new Date(now);
+  lastClose.setHours(h, m, 0, 0);
+  // إغلاقُ اليوم لم يجئ بعد، فآخرُ إغلاقٍ مضى هو إغلاقُ أمس.
+  if(lastClose.getTime() > now.getTime()) lastClose.setDate(lastClose.getDate() - 1);
+  return openedAt.getTime() < lastClose.getTime();
+}
+
 async function afterStaffReady(){
   // A host stand doesn't run a cash drawer — no shift concept applies, skip
   // straight to the app regardless of whether the branch's real POS
   // terminal happens to have one open right now.
   if(HOST_MODE){ await bootPos(); return; }
   CURRENT_SHIFT = await findOpenShift();
-  if(CURRENT_SHIFT) await bootPos();
-  else showOpenShiftScreen();
+  if(!CURRENT_SHIFT){ showOpenShiftScreen(); return; }
+
+  /**
+   * ورديةُ أمسِ لا تُكمَّل، تُقفل.
+   *
+   * لا شيء يُقفل ورديةً من تلقائه: من أغلق المحلّ بلا أن يُشغّل معالجَ
+   * الإقفال تركها مفتوحةً إلى الأبد. فمبيعاتُ اليوم تسقط داخل ورديةِ
+   * أمس، وتقريرُها يجمع يومين أو ثلاثة، ونقدُها يُعدّ على رصيدٍ
+   * افتتاحيٍّ أُعلن قبل يومين -- ولا يُكتشف ذلك إلا في جردٍ لا يتّزن.
+   *
+   * وتسجيلُ الدخول لا يسأل عن ورديةٍ جديدة لأنه يجد واحدةً مفتوحة،
+   * وهكذا تجري الوردية أسبوعاً بلا أن يقول أحدٌ شيئاً.
+   *
+   * وكانت هذي الحراسة في التطبيق وحده (StaleShiftScreen) -- والويب
+   * يمرّ صامتاً. فنُقلت.
+   */
+  const closingTime = await getBranchClosingTime();
+  if(rkIsShiftStale(CURRENT_SHIFT, closingTime)){
+    showStaleShiftScreen(CURRENT_SHIFT);
+    return;
+  }
+  await bootPos();
+}
+
+/**
+ * شاشةٌ تقف أمام الكاشير، لا تنبيهٌ يُغلق بضغطة.
+ *
+ * وهذا كلُّ المقصود: ما يُغلق بـ"×" يُغلق بـ"×" كلَّ صباح، وتبقى
+ * الوردية مفتوحة. ولا زرَّ إغلاقٍ هنا ولا تخطٍّ -- طريقٌ واحد: يُقفل
+ * ورديةَ أمس ثم يبدأ يومَه.
+ */
+function showStaleShiftScreen(shift){
+  const opened = new Date(shift.opened_at);
+  const when = opened.toLocaleDateString('ar-SA', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  }) + ' — ' + opened.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+
+  const host = document.getElementById('posStaleShiftScreen') || (()=>{
+    const el = document.createElement('div');
+    el.id = 'posStaleShiftScreen';
+    el.className = 'pos-auth-screen hidden';
+    document.body.appendChild(el);
+    return el;
+  })();
+
+  host.innerHTML = `
+    <div class="pos-auth-card">
+      <img class="brand-avatar" src="/brand/rakeen-wordmark.png" alt="ركين" style="height:28px;width:auto;margin-bottom:14px;">
+      <h2 class="pos-auth-title">فيه وردية ما انقفلت</h2>
+      <p class="pos-auth-sub">لازم تقفلها قبل ما تبدأ اليوم — عشان جرد الدرج يطلع صحيح، ويكون لكل يوم تقريره.</p>
+      <div class="stale-shift-when">
+        <span class="stale-shift-when-label">فُتحت</span>
+        <span class="stale-shift-when-value">${escapeHtml(when)}</span>
+      </div>
+      <button class="confirm-pay-btn" id="staleShiftCloseBtn">اقفل وردية ${escapeHtml(opened.toLocaleDateString('ar-SA', { weekday: 'long' }))}</button>
+    </div>`;
+
+  RK_STALE_SHIFT_LOCK = shift;
+  showAuthScreen('posStaleShiftScreen');
+  document.getElementById('staleShiftCloseBtn').addEventListener('click', async ()=>{
+    // المعالجُ يعيش داخل التطبيق، فيُقلع أولاً ثم يُفتح فوراً -- ولا
+    // يُترك للكاشير بابٌ يمرّ منه بينهما.
+    await bootPos();
+    openClosingWizard();
+  });
 }
 
 function showOpenShiftScreen(){

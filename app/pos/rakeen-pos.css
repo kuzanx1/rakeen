@@ -1058,3 +1058,17 @@ input[type="number"]::-webkit-inner-spin-button{ -webkit-appearance:none; appear
    واحدٍ ضيّق، فانضغط الثلاثة. */
 .pay-extra-pager{ padding-inline:12px; gap:8px; }
 .pay-extra-pager input{ width:56px; }
+
+
+/* ============ وردية ما انقفلت ============
+   شاشةٌ تقف أمام الكاشير لا تنبيهٌ يُغلق: ما يُغلق بضغطة يُغلق بضغطة
+   كلَّ صباح، وتبقى الوردية مفتوحةً أسبوعاً -- ومبيعاتُ اليوم تسقط في
+   تقرير أمس. واليومُ والتاريخُ مكتوبان: من يُقفل ورديةً لا يعرف أيَّ
+   يومٍ يُقفل يعدّ الدرجَ على غير ما يُقارن به. */
+.stale-shift-when{
+  display:flex; flex-direction:column; gap:5px; align-items:center;
+  margin:16px 0 18px; padding:14px 16px; border-radius:var(--r-md);
+  background:var(--surf1); border:1px solid var(--line);
+}
+.stale-shift-when-label{ font-size:11.5px; font-weight:800; color:var(--muted); }
+.stale-shift-when-value{ font-size:14px; font-weight:800; color:var(--text); text-align:center; line-height:1.7; }

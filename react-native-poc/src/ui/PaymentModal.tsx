@@ -473,8 +473,19 @@ export default function PaymentModal({
 
   const advanceToCustomer = () => {
     // `if(!LOYALTY_ENABLED){ proceedFromCustomerStep(); return; }`
-    if (!loyaltyEnabled) proceedToPayment();
-    else setStep('customer');
+    if (!loyaltyEnabled) { proceedToPayment(); return; }
+    /**
+     * وطلبُ التوصيل لا يُسأل عن عميل ولاء.
+     *
+     * الزبونُ ليس واقفاً هنا: طلبَ من التطبيق، ورقمُه عند المنصّة لا
+     * عندنا -- فالكاشير لا يملك ما يكتبه في الحقل أصلاً. خطوةٌ لا
+     * جوابَ لها تُعرض في كل طلبِ توصيل، ويضغط "تخطي".
+     *
+     * والولاءُ نفسُه لا يصحّ عليها: النقاطُ لمن اشترى منّا، وهذا اشترى
+     * من التطبيق.
+     */
+    if (channel === 'delivery') { proceedToPayment(); return; }
+    setStep('customer');
   };
 
   /**
