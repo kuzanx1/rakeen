@@ -1,4 +1,5 @@
 import { supabase, RAKEEN_API_BASE_URL } from '../infrastructure/supabaseClient';
+import { getPosDeviceId } from './displayScopeService';
 
 /**
  * "اعرض باركود الولاء على شاشة العميل" -- التطبيق يلحق الويب.
@@ -30,7 +31,14 @@ export async function showLoyaltyBarcodeOnDisplay(
     const response = await fetch(`${RAKEEN_API_BASE_URL}/api/pos/show-loyalty-barcode`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ customerId, branchId }),
+      /**
+       * وهويّةُ نقطة البيع معه.
+       *
+       * بدونها يبثّ الخادم إلى شاشات الفرع غير المربوطة كلِّها: فرعٌ
+       * بثلاث نقاطٍ وثلاثِ شاشات يعرض باركوداً واحداً على الثلاث، ومن
+       * مسحه من غير أصحابه أخذ بطاقتَه -- والرمزُ يُصرف مرّةً واحدة.
+       */
+      body: JSON.stringify({ customerId, branchId, posDeviceId: await getPosDeviceId() }),
     });
     const data = await response.json();
     // ورسالةُ الخادم تُعرض كما هي: هو وحده يعرف أيّ الأسباب الثلاثة وقع

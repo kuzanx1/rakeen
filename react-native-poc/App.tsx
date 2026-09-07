@@ -71,6 +71,7 @@ import { findOpenShift, getLastClosingReport, getBranchClosingTime } from './src
 import type { Shift } from './src/domain/shift';
 import { isShiftStale } from './src/domain/shift';
 import StaleShiftScreen from './src/ui/StaleShiftScreen';
+import MyDisplayModal from './src/ui/MyDisplayModal';
 import ErrorBoundary from './src/ui/ErrorBoundary';
 import { WelcomeSplash } from './src/ui/WelcomeSplash';
 import ShiftClosedScreen from './src/ui/ShiftClosedScreen';
@@ -218,6 +219,8 @@ function App(): React.JSX.Element {
   const { showToast: setStatusMessage } = useToast();
   /** موافقة مدير -- openPinModal() in the source (rakeen-pos.js:5157). */
   const [managerPinOpen, setManagerPinOpen] = useState(false);
+  /** أيُّ شاشةِ عميلٍ تخصّ هذي النقطة -- يختارها الكاشير، لا المالك. */
+  const [myDisplayOpen, setMyDisplayOpen] = useState(false);
 
   /** CURRENT_SHIFT. Null means either "no shift open" or "not checked
    *  yet" -- shiftChecked separates them, because showing the open-shift
@@ -908,6 +911,15 @@ function App(): React.JSX.Element {
         }}
       />
 
+      {/* شاشةُ العميل التي أمام هذي النقطة -- خارج شاشة "المزيد" لأنها
+          Modal، وModal داخل Modal يُجمّد iOS. */}
+      <MyDisplayModal
+        visible={myDisplayOpen}
+        branchId={branchId}
+        onClose={() => setMyDisplayOpen(false)}
+        onToast={setStatusMessage}
+      />
+
       <ManagerPinModal
         visible={managerPinOpen}
         onApprove={() => {
@@ -933,6 +945,7 @@ function App(): React.JSX.Element {
             // source does it: the cashier has to pick WHICH order first.
             onOpenCompletedOrders={() => setScreen({ name: 'orderHistory' })}
             onRequestManagerApproval={() => setManagerPinOpen(true)}
+            onOpenMyDisplay={() => setMyDisplayOpen(true)}
             onOpenCashMovement={() => {
               if (!shift) {
                 setStatusMessage('ما فيه وردية مفتوحة');
@@ -1085,6 +1098,7 @@ function MoreScreen({
   onOpenDrawer,
   onOpenCompletedOrders,
   onRequestManagerApproval,
+  onOpenMyDisplay,
   onOpenCashMovement,
   onOpenShiftSummary,
   onCloseShift,
@@ -1100,6 +1114,7 @@ function MoreScreen({
   onOpenCompletedOrders: (purpose: 'reprint' | 'refund') => void;
   onRequestManagerApproval: () => void;
   /** Cash in/out of the drawer that is not a sale. */
+  onOpenMyDisplay: () => void;
   onOpenCashMovement: () => void;
   onOpenShiftSummary: () => void;
   onCloseShift: () => void;
@@ -1139,6 +1154,12 @@ function MoreScreen({
           <Polyline points="6 9 6 2 18 2 18 9" stroke={ink} />
           <Path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" stroke={ink} />
           <Rect x={6} y={14} width={12} height={8} stroke={ink} />
+        </MoreTile>
+        {/* أيُّ شاشةٍ أمام هذا الكاشير -- بلا اختيارٍ يبثّ إلى شاشات
+            الفرع كلِّها، فيرى عدّةُ زبائن باركوداً واحداً. */}
+        <MoreTile label="شاشة العميل" onPress={onOpenMyDisplay}>
+          <Rect x={2} y={3} width={20} height={14} rx={2} stroke={ink} />
+          <Path d="M8 21h8M12 17v4" stroke={ink} />
         </MoreTile>
       </View>
 

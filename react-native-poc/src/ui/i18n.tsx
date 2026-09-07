@@ -25,6 +25,31 @@ import { getItem, setItem } from '../infrastructure/mmkvStorage';
  */
 
 const I18N_EN: Record<string, string> = {
+  /* ما استُجدّ في شاشات الدفع والعميل ونوع الطلب -- نُقل من قاموس الويب
+     نفسه. وكلُّ نصٍّ يُكتب في الواجهة ولا يُسجَّل هنا يبقى عربياً على
+     جهازٍ لغتُه إنجليزية، والمترجَمُ نصفُه أسوأ من غير المترجَم: يبدو
+     عطلاً لا خياراً. */
+  'المطلوب': 'Due', 'المستلَم': 'Tendered', 'الباقي للعميل': 'Change due',
+  'نداء': 'Pager', 'حفظ': 'Save',
+  'أو امسح بطاقة العميل': 'Or scan the customer card',
+  'ياكل عندك في المحل': 'Eats in the shop', 'ياخذ طلبه ويطلع': 'Takes it and leaves',
+  'الطلب جاك من': 'Order came from', 'الطلب جاك من تطبيق توصيل': 'Order came from a delivery app',
+  'تفاصيل الطلب': 'Order details', 'اكتب رقم الجوال': 'Enter the phone number',
+  'ما لقينا عميل بهذا الرقم': 'No customer with this number',
+  'مدفوع بمكافأة الولاء': 'Paid with a loyalty reward',
+  'مدفوع مسبقًا عبر التطبيق': 'Prepaid in the app',
+  /* شاشةُ العميل -- يختارها الكاشير من جهازه. */
+  'شاشة العميل': 'Customer display',
+  'اختر الشاشة اللي قدّام زبونك — الباركود يطلع عليها هي بس.':
+    'Pick the screen facing your customer — the barcode shows only there.',
+  'ما فيه شاشة عميل لهذا الفرع — تنضاف من لوحة التحكم.':
+    'No customer display for this branch — add one from the dashboard.',
+  'شاشتك': 'Yours', 'مربوطة بكاشير ثاني': 'Linked to another till',
+  'غير مربوطة': 'Unlinked', 'بلا ربط': 'No link',
+  'يبث لكل شاشات الفرع غير المربوطة': 'Broadcasts to every unlinked screen in the branch',
+  'تم الربط بهذي الشاشة': 'Linked to this screen', 'انفكّ الربط': 'Unlinked',
+  'تعذر الربط': 'Could not link',
+
   'ابدأ أرباحك': 'Start earning',
   // Mirrors the table in public/pos/rakeen-pos.js. Keep them in step:
   // the same business runs both, and a label that reads one way on the

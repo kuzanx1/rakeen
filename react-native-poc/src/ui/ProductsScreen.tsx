@@ -52,6 +52,7 @@ import {
   getFreeRewardConfig,
   redeemFreeReward,
   redeemErrorText,
+  returnUnusedFreeReward,
   type FreeRewardConfig,
 } from '../application/freeRewardService';
 import type { Customer } from '../domain/customer';
@@ -550,6 +551,10 @@ export default function ProductsScreen({
     setSubmitStatus('تمت إعادة الطباعة');
   }, []);
 
+  /* العميلُ المرفق يُعلَن هنا لا مع بقية الحالة تحت: handleClearOrder
+     يحتاجه ليردّ المكافأة قبل التفريغ، وترتيبُ الخطّافات لا يقفز. */
+  const [selectedCustomer, setSelectedCustomer] = useState<AttachedCustomer | null>(null);
+
   /** clearOrderBtn's two-tap arm/confirm (rakeen-pos.js:1417). */
   const handleClearOrder = useCallback(() => {
     if (cart.cart.length === 0) return;
@@ -560,12 +565,32 @@ export default function ProductsScreen({
     }
     if (clearArmTimer.current) clearTimeout(clearArmTimer.current);
     setClearArmed(false);
-    // clearCart() already zeroes discountPct (useCart.ts:87), matching
-    // the source's own `state.cart = []; state.discountPct = 0`.
+    /**
+     * والمكافأةُ تعود لصاحبها قبل أن تُفرغ السلّة.
+     *
+     * كان clearCart يصفّر الرصيدَ في الذاكرة ولا يردّه إلى القاعدة:
+     * كوبٌ خُصم من الزبون وضاع -- جمعه في ستّ زياراتٍ ولا أحد يعلم،
+     * لا هو ولا الكاشير. والويب يردّه منذ اليوم الأول.
+     *
+     * وrewardArm تُستثنى: أُكِّدت ولم تُخصم بعد، فلا شيء يُردّ.
+     */
+    const pending = cart.rewardArm != null ? 0 : cart.freeRewardCredit;
+    const owner = selectedCustomer;
     cart.clearCart();
     setDiscountPanelOpen(false);
     setSubmitStatus('تم إفراغ الطلب');
-  }, [cart, clearArmed]);
+    if (pending > 0 && owner?.id != null) {
+      void returnUnusedFreeReward(owner.id, pending).then(back => {
+        if (back <= 0) return;
+        setSelectedCustomer(prev =>
+          prev && prev.id === owner.id
+            ? { ...prev, freeRewards: Number(prev.freeRewards ?? 0) + back }
+            : prev,
+        );
+        setSubmitStatus('رجّعنا المكافأة لمحفظة العميل');
+      });
+    }
+  }, [cart, clearArmed, selectedCustomer]);
 
   const visibleProducts = useMemo<Product[]>(() => {
     if (!catalog) return [];
@@ -768,7 +793,6 @@ export default function ProductsScreen({
     selectedTable?.activeOrderId ?? null,
   );
   const [dineInOrderTotal, setDineInOrderTotal] = useState(0);
-  const [selectedCustomer, setSelectedCustomer] = useState<AttachedCustomer | null>(null);
   const [loyaltyRedeemOpen, setLoyaltyRedeemOpen] = useState(false);
 
   /** DELIVERY_PLATFORMS_LIST and state.deliveryPlatformId. */

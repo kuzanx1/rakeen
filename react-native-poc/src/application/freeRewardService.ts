@@ -94,3 +94,31 @@ export function redeemErrorText(code?: string): string {
     default: return 'تعذر استخدام المكافأة — جرّب مرة ثانية';
   }
 }
+
+/**
+ * المكافأةُ تعود لصاحبها حين تُفرَغ السلّة.
+ *
+ * الكاشير يؤكّد العميل فيُخصم الكوبُ من رصيده -- ثم يُفرغ السلّة لسببٍ
+ * ما: غيّر الزبونُ رأيه، أو أخطأ الكاشير الحساب. وكان الرصيدُ يُصفَّر في
+ * الذاكرة ولا يُردّ إلى القاعدة: خسر الزبونُ مكافأةً جمعها في ستّ
+ * زياراتٍ ولا أحد يعلم -- لا هو ولا الكاشير.
+ *
+ * والويب يردّها منذ اليوم الأول (rkReturnUnusedReward)، والتطبيق لا.
+ *
+ * وrewardArm تُستثنى: تلك أُكِّدت ولم تُخصم بعد، فلا شيء يُردّ.
+ */
+export async function returnUnusedFreeReward(customerId: number, count: number): Promise<number> {
+  if (!customerId || count <= 0) return 0;
+  let returned = 0;
+  for (let i = 0; i < count; i++) {
+    try {
+      const { data, error } = await supabase.rpc('return_unused_free_reward', {
+        p_customer_id: customerId,
+      });
+      if (!error && (data as { ok?: boolean } | null)?.ok) returned++;
+    } catch {
+      // ما لم يُردّ يبقى مخصوماً -- ولا تُوقف الحلقةُ عن محاولة الباقي.
+    }
+  }
+  return returned;
+}

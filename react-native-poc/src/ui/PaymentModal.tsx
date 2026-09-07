@@ -635,17 +635,25 @@ export default function PaymentModal({
     else onCancel();
   };
 
-  const quickAmounts = React.useMemo(
-    () =>
-      [
-        ...new Set(
-          [total, Math.ceil(total / 10) * 10, Math.ceil(total / 50) * 50, Math.ceil(total / 100) * 100].map(n =>
-            n.toFixed(2),
-          ),
+  /**
+   * المبالغُ السريعة تُنقّى من التكرار، فيقلّ عددُها -- وتملأ سطرَها.
+   *
+   * طلبٌ بثمانين يُخرج اثنتين (٨٠ و١٠٠)، وطلبٌ بمئةٍ يُخرج واحدة: مئةً
+   * هي المطلوبُ نفسُه، وهي المكتوبةُ سلفاً في الحقل -- زرٌّ لا يفعل
+   * شيئاً ويشغل سطراً. فتُضاف الفئةُ التي بعدها ليكون ثمّة خيارٌ حقيقيّ.
+   * (نظيرها في الويب: opts داخل renderPaymentStep.)
+   */
+  const quickAmounts = React.useMemo(() => {
+    const opts = [
+      ...new Set(
+        [total, Math.ceil(total / 10) * 10, Math.ceil(total / 50) * 50, Math.ceil(total / 100) * 100].map(n =>
+          n.toFixed(2),
         ),
-      ].slice(0, 4),
-    [total],
-  );
+      ),
+    ].slice(0, 4);
+    if (opts.length < 2) opts.push(((Math.floor(total / 100) + 1) * 100).toFixed(2));
+    return opts;
+  }, [total]);
 
   const newCustomerCheck = validateNewCustomerDraft({ name: newName, phone: newPhone });
   const newCustomerValid = newCustomerCheck.valid;
@@ -1763,6 +1771,7 @@ const useStyles = createStyles(colors =>
     flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
     gap: 12, paddingHorizontal: 29,
   },
+  // تملأ سطرَها مهما كان عددُها: العمودُ الثابت يترك فراغاً يُقرأ عطلاً.
   payChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 14, marginHorizontal: 14 },
   payTenderRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -1824,9 +1833,11 @@ const useStyles = createStyles(colors =>
   friendsResultLabel: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text },
   // .quick-amounts / .qa-btn
   quickAmounts: { flexDirection: 'row', gap: 7, marginBottom: spacing[3] },
-  qaBtn: { flex: 1, paddingVertical: 10, paddingHorizontal: 4, borderRadius: radii.sm, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surf1, alignItems: 'center' },
-  qaSpacer: { flex: 1 },
-  qaBtnText: { fontFamily: fonts.monoBold, fontSize: 12, color: colors.text, writingDirection: 'ltr' },
+  // flexBasis 0 مع النموّ: القيمُ تقتسم العرضَ مهما كان عددُها -- ولا
+  // حاجةَ إلى فواصلَ فارغة تُكمل أربعةَ أعمدةٍ ثابتة. (qaSpacer ذهبت
+  // معها: كانت تملأ الفراغَ فراغاً، والصوابُ ألّا يكون ثمّة فراغ.)
+  qaBtn: { flexGrow: 1, flexBasis: 0, minWidth: 70, paddingVertical: 12, paddingHorizontal: 4, borderRadius: radii.sm, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surf1, alignItems: 'center' },
+  qaBtnText: { fontFamily: fonts.monoBold, fontSize: 13, color: colors.text, writingDirection: 'ltr' },
   // .cash-input-row input / .split-inputs input
   input: {
     width: '100%',
