@@ -759,7 +759,7 @@ export default function PaymentModal({
     const stroke = active ? colors.accentText : colors.muted;
     if (id === 'cash') {
       return (
-        <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={2}>
+        <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={2}>
           <Rect x={2} y={6} width={20} height={12} rx={2} />
           <Circle cx={12} cy={12} r={3} />
         </Svg>
@@ -767,7 +767,7 @@ export default function PaymentModal({
     }
     if (id === 'card') {
       return (
-        <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={2}>
+        <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={2}>
           <Rect x={2} y={5} width={20} height={14} rx={2} />
           <Line x1={2} y1={10} x2={22} y2={10} />
         </Svg>
@@ -775,7 +775,7 @@ export default function PaymentModal({
     }
     if (id === 'split') {
       return (
-        <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={2}>
+        <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={2}>
           <Line x1={12} y1={2} x2={12} y2={22} />
           <Path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
         </Svg>
@@ -799,10 +799,24 @@ export default function PaymentModal({
    * فيُعامَل اسماً بلا قيد -- والحقل الواحد يخدم الاثنين كما كان.
    */
   const queryLooksNumeric = (v: string) => v.trim() === '' || /^[0-9٠-٩۰-۹+]/.test(v.trim());
-  /** ذيلُ الرقم وحده: 05 مطبوعةٌ خارج الحقل، وما لُصق كاملاً تُنزع مقدّمتُه. */
+  /**
+   * ذيلُ الرقم وحده -- و05 مطبوعةٌ خارج الحقل.
+   *
+   * ولا تُنزع مقدّمةٌ إلا مما هو أطولُ من ثمانٍ: ذيلُ أكثر الأرقام
+   * السعودية يبدأ بـ٥ (0557444227 ذيلُه 57444227)، فنزعٌ بلا شرطِ طول
+   * يبتلع أولَ رقمٍ يكتبه الكاشير، ثم الذي بعده -- فلا يدخل الرقمُ أبداً
+   * ولا يُقال لماذا. (نظيرها في الويب: shapeTail.)
+   */
   const shapePhoneTail = (raw: string) => {
-    const full = normalisePhoneInput(raw);
-    return (full.startsWith('05') ? full.slice(2) : full).slice(0, 8);
+    let d = toLatinDigits(raw).replace(/[^0-9]/g, '');
+    for (let i = 0; i < 4 && d.length > 8; i++) {
+      if (d.startsWith('00')) { d = d.slice(2); continue; }
+      if (d.startsWith('966')) { d = d.slice(3); continue; }
+      if (d.startsWith('0')) { d = d.slice(1); continue; }
+      if (d.startsWith('5')) { d = d.slice(1); continue; }
+      break;
+    }
+    return d.slice(0, 8);
   };
   const fullPhone = '05' + trimmedQuery;
   const queryPhoneValid = /^[0-9]{8}$/.test(trimmedQuery) && isSaudiMobile(fullPhone);
@@ -1620,7 +1634,13 @@ const useStyles = createStyles(colors =>
   // صفٌّ كامل العرض تحت الإجراءين: نصُّه أطول من أن يقتسم سطراً معهما.
   barcodeBtn: { marginTop: 8, flexDirection: 'row', gap: 8, justifyContent: 'center' },
   barcodeBtnBusy: { opacity: 0.55 },
-  custField: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 14, paddingVertical: 0 },
+  custField: {
+    flexDirection: 'row', alignItems: 'center', gap: 2,
+    paddingHorizontal: 14, paddingVertical: 0,
+    /* من اليسار: الأرقامُ تُقرأ يساراً-يميناً، وفي وعاءٍ عربيٍّ تقع 05
+       يمينَ الثمانية فيُقرأ الرقم مقلوباً -- "xxxxxxxx 05". */
+    direction: 'ltr',
+  },
   custPrefix: { fontFamily: fonts.monoBold, fontSize: 17, letterSpacing: 1, color: colors.muted },
   custInput: { flex: 1, minWidth: 0, paddingVertical: 13, fontFamily: fonts.monoBold, fontSize: 17, letterSpacing: 1, color: colors.text, textAlign: 'left' },
   custSave: {
@@ -1776,14 +1796,17 @@ const useStyles = createStyles(colors =>
   payTenderRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     marginTop: 8, marginHorizontal: 14,
-    paddingVertical: 4, paddingHorizontal: 14,
+    paddingVertical: 8, paddingHorizontal: 14,
     borderRadius: radii.md, borderWidth: 1, borderColor: colors.line,
     backgroundColor: colors.cardBg,
   },
   payTenderLabel: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.muted },
   payTender: {
     flex: 1, minWidth: 0, paddingVertical: 9,
-    fontFamily: fonts.monoBold, fontSize: 22, textAlign: 'right', color: colors.text,
+    /* يساراً: الويب text-align:end، وend في وعاءٍ عربيٍّ هو اليسار --
+       فيقع المستلَمُ على عمود المطلوب والباقي. و'right' كانت تضعه على
+       عمود العناوين، فتكسر الأعمدة التي بُنيت البطاقةُ عليها. */
+    fontFamily: fonts.monoBold, fontSize: 22, textAlign: 'left', color: colors.text,
   },
   payChange: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -1792,13 +1815,19 @@ const useStyles = createStyles(colors =>
   },
   dueDisplayReward: { borderWidth: 1, borderColor: colors.limeDeep },
   dueRewardNote: { marginTop: 8, textAlign: 'center', fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.muted, lineHeight: 18 },
-  dueLabel: { fontFamily: fonts.sansBold, fontSize: 10.5, color: colors.muted, textAlign: 'center' },
-  dueAmount: { marginTop: 5 },
+  /* هذان يعيشان الآن في صفٍّ لا في صندوقٍ رأسيّ، فتُنزع عنهما بقايا
+     الصندوق: عنوانٌ بحجم ١٠٫٥ موسَّطاً، ورقمٌ بهامشٍ علويّ يكسر محاذاة
+     الخطّ القاعديّ. والويب: .pay-due-label 12px، والرقمُ بلا هامش. */
+  dueLabel: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.muted },
+  dueAmount: {},
   // .pm-tabs / .pm-tab
-  methodTabs: { flexDirection: 'row', gap: 8, marginBottom: spacing[4] },
-  methodTab: { flex: 1, paddingVertical: 14, paddingHorizontal: 6, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surf1, alignItems: 'center', gap: 6 },
+  /* الويب نحّفها مع إعادة التصميم (‎.pm-tabs gap 7/mb 14، ‎.pm-tab
+     padding 11×4، gap 5، 10.5px، والأيقونة 16) -- والتطبيق بقي على
+     القديم، فبدت أضخم وأخذت من ارتفاع البطاقة تحتها. */
+  methodTabs: { flexDirection: 'row', gap: 7, marginBottom: 14 },
+  methodTab: { flex: 1, paddingVertical: 11, paddingHorizontal: 4, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surf1, alignItems: 'center', gap: 5 },
   methodTabActive: { borderColor: colors.limeDeep, backgroundColor: `rgba(${colors.limeRgb},0.12)` },
-  methodTabText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.muted },
+  methodTabText: { fontFamily: fonts.sansBold, fontSize: 10.5, color: colors.muted },
   methodTabTextActive: { color: colors.accentText },
   tabEmoji: { fontSize: 18 },
   // .friends-split
@@ -1862,7 +1891,9 @@ const useStyles = createStyles(colors =>
   changeLabelLive: { color: colors.text },
   qaBtnActive: { borderColor: colors.limeDeep, backgroundColor: `rgba(${colors.limeRgb},0.16)` },
   qaBtnTextActive: { color: colors.accentText },
-  changeLabel: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text },
+  /* هادئٌ ما دام صفراً -- والويب كذلك: ‎.pay-change لونُه muted، ولا
+     يصير نصّاً كاملاً إلا مع ‎.live. */
+  changeLabel: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.muted },
   // .card-tap-state / .card-tap-icon
   cardTapState: { alignItems: 'center', paddingVertical: 26 },
   cardTapIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.surf2, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },

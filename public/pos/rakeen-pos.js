@@ -2243,9 +2243,24 @@ function renderCustomerStep(){
      */
     const shapeTail = (raw)=>{
       let d = toWesternDigits(raw).replace(/[^0-9]/g, '');
-      if(d.startsWith('966')) d = d.slice(3);
-      if(d.startsWith('05')) d = d.slice(2);
-      else if(d.startsWith('5')) d = d.slice(1);
+      /**
+       * ولا تُنزع مقدّمةٌ إلا مما هو أطولُ من ثمانٍ أصلاً.
+       *
+       * كان النزعُ بلا شرطِ طول، وذيلُ أكثرِ الأرقام السعودية يبدأ بـ٥
+       * (0557444227 ذيلُه 57444227) -- فأولُ رقمٍ يكتبه الكاشير يُقرأ
+       * مقدّمةً ويُمحى، ثم الذي بعده، ثم الذي بعده. فالحقلُ يبتلع كلَّ
+       * ما يُكتب فيه ولا يُقال لماذا، ولا سبيلَ إلى إدخال الرقم أبداً.
+       *
+       * والقشرُ في حلقة: 00966 مقدّمتان متراكبتان، وعدُّ حالاتها واحدةً
+       * واحدةً يُنسي إحداها.
+       */
+      for(let i = 0; i < 4 && d.length > 8; i++){
+        if(d.startsWith('00')){ d = d.slice(2); continue; }
+        if(d.startsWith('966')){ d = d.slice(3); continue; }
+        if(d.startsWith('0')){ d = d.slice(1); continue; }
+        if(d.startsWith('5')){ d = d.slice(1); continue; }
+        break;
+      }
       return d.slice(0, 8);
     };
     const isPhoneish = (v)=> v === '' || /[0-9٠-٩۰-۹+]/.test(v.charAt(0));
