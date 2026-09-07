@@ -45,6 +45,8 @@ export interface ReceiptPrintable {
   dateLabel: string;
   orderNumber: string;
   metaLabel: string;
+  /** رقمُ الطلب الذي استُرجع منه -- يُطبع في إشعار الاسترجاع وحده. */
+  refundOfOrder?: string;
   vatNumber: string;
   items: ReceiptItemPrintable[];
   subtotal: number;
@@ -187,6 +189,7 @@ export function toReceiptPrintable(data: ReceiptData): ReceiptPrintable {
     // server-assigned id yet, and "#null" would be actively misleading.
     orderNumber: data.orderId != null ? `#${data.orderId}` : 'سيُحدَّد عند الاتصال',
     metaLabel: bilingualOrderKind(data.metaLabel ?? ''),
+    refundOfOrder: data.refundOfOrder ?? '',
     customerName: data.customerName ?? '',
     customerPhone: data.customerPhone ?? '',
     orderNote: data.orderNote ?? '',

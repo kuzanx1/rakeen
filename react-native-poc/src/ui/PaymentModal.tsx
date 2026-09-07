@@ -140,10 +140,6 @@ const STEP_TITLE: Record<Step, string> = {
   success: 'تمت العملية',
 };
 
-/** The visible countdown before the next order starts on its own
- *  (rakeen-pos.js:3352). Four seconds, ticked once a second. */
-const AUTO_RESET_SECONDS = 4;
-
 export default function PaymentModal({
   visible,
   total,
@@ -269,17 +265,12 @@ export default function PaymentModal({
   const [pagerError, setPagerError] = useState('');
   const [printStatus, setPrintStatus] = useState<PrintJobStatus | null>(null);
   const [printRetries, setPrintRetries] = useState(0);
-  const [countdown, setCountdown] = useState(AUTO_RESET_SECONDS);
   const [sentWhatsapp, setSentWhatsapp] = useState(false);
 
   /** renderNewCustomerStep()'s two fields. */
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
 
-  // Reserved for the loyalty card QR, which the source shows only when a
-  // customer phone was captured on this order. Wired as a flag first
-  // because it also decides whether the 4-second auto-reset runs at all.
-  const showLoyaltyQr = false;
 
   /**
    * عرض باركود الولاء على شاشة العميل.
@@ -404,7 +395,6 @@ export default function PaymentModal({
     setResult(null);
     setPrintStatus(null);
     setPrintRetries(0);
-    setCountdown(AUTO_RESET_SECONDS);
     setSentWhatsapp(false);
     /**
      * وصاحبُ الطلب السابق يُنسى عند كل فتحة.
@@ -452,26 +442,19 @@ export default function PaymentModal({
     };
   }, [step, result?.printJobId]);
 
-  /**
-   * The 4-second auto-reset (rakeen-pos.js:3351). Deliberately NOT started
-   * when a loyalty QR is on screen -- the source's own comment says four
-   * seconds "isn't enough time for the customer to get their phone out and
-   * scan it", so the cashier closes it by hand instead.
+  /*
+   * لا إغلاقَ تلقائيّ. الكاشير هو الذي يقرّر متى ينتهي هذا الطلب.
+   *
+   * كانت تُغلق نفسها بعد أربع ثوان. وأربعُ ثوانٍ لا تكفي لشيء: لا
+   * لقراءة الباقي، ولا للضغط على "اعرض الباركود"، ولا للعميل أن يُخرج
+   * جواله ويمسح. فتختفي الشاشة من تحت يده.
+   *
+   * والويب أزالها، والتطبيق بقي عليها -- فالشاشة نفسها تتصرّف تصرّفين
+   * على جهازين.
+   *
+   * وتُغلق الآن بثلاثة، كلّها بيده: "طلب جديد الآن"، أو ✕، أو زرّ
+   * الرجوع في الجهاز. ولا رابع.
    */
-  useEffect(() => {
-    if (step !== 'success' || showLoyaltyQr) return;
-    const id = setInterval(() => {
-      setCountdown(n => {
-        if (n <= 1) {
-          clearInterval(id);
-          onCancel();
-          return 0;
-        }
-        return n - 1;
-      });
-    }, 1000);
-    return () => clearInterval(id);
-  }, [step, showLoyaltyQr, onCancel]);
 
   /** `input.addEventListener('input', ...)` with a 320ms timer and a
    *  2-character floor (rakeen-pos.js:1229-1234); under two characters it
@@ -647,7 +630,6 @@ export default function PaymentModal({
     setPaidTotal(captured);
     setResult(outcome);
     setPrintStatus(outcome.printJobId ? 'queued' : null);
-    setCountdown(AUTO_RESET_SECONDS);
     setStep('success');
   };
 
@@ -1628,11 +1610,6 @@ export default function PaymentModal({
                   </View>
                 </TouchableOpacity>
 
-                {!showLoyaltyQr && (
-                  <Text style={styles.autoResetNote}>
-                    يبدأ طلب جديد تلقائيًا خلال <Text style={styles.autoResetCount}>{countdown}</Text>
-                  </Text>
-                )}
               </View>
             )}
           </ScrollView>
@@ -1999,8 +1976,6 @@ const useStyles = createStyles(colors =>
   newOrderBtn: { width: '100%', paddingVertical: 14, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   newOrderText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.flagGreenDeep },
   // .auto-reset-note
-  autoResetNote: { fontFamily: fonts.sansSemiBold, fontSize: 11, color: colors.muted, marginTop: 12 },
-  autoResetCount: { fontFamily: fonts.monoBold, color: colors.accentText },
   // .confirm-pay-btn
   confirmButton: { width: '100%', paddingVertical: 16, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.lime },
   confirmButtonDisabled: { backgroundColor: colors.surf2 },

@@ -8028,6 +8028,8 @@ let RECEIPT_CUSTOM_MESSAGE = '';
 let RECEIPT_LOGO_URL = '';
 let RECEIPT_TAGLINE = '';
 let RECEIPT_SHOW_NAME = true;
+/** تُطبع فاتورةُ استرجاعٍ بعد كل استرجاع. الافتراضُ نعم. */
+let RECEIPT_PRINT_REFUND = true;
 let SHIFT_REPORT_OPTIONS = {};
 let RECEIPT_BRANCHES = [];
 let RECEIPT_THEME = 'classic';
@@ -8815,12 +8817,15 @@ const rkPosHideBellStatus = c => c
 async function loadReceiptBranding(businessId){
   try {
     const res = await window.supabaseClient.from('businesses')
-      .select('receipt_logo_url, receipt_tagline, receipt_show_name, shift_report_options').eq('id', businessId).single();
+      .select('receipt_logo_url, receipt_tagline, receipt_show_name, receipt_print_refund, shift_report_options').eq('id', businessId).single();
     RECEIPT_LOGO_URL = (res.data && res.data.receipt_logo_url) || '';
     RECEIPT_TAGLINE = (res.data && res.data.receipt_tagline) || '';
     // الاسم يُطبع إلا إذا أُطفئ صراحةً -- فقاعدة قديمة بلا هذا العمود
     // تبقى تطبع الاسم كما كانت.
     RECEIPT_SHOW_NAME = !(res.data && res.data.receipt_show_name === false);
+    // الافتراضُ الطباعة: عمودٌ لم يُرحَّل بعد يُقرأ undefined، ومن لم
+    // يُسأل يُفترض أنه يريد الأثر لا أن يفقده.
+    RECEIPT_PRINT_REFUND = !(res.data && res.data.receipt_print_refund === false);
     SHIFT_REPORT_OPTIONS = (res.data && res.data.shift_report_options) || {};
   } catch(_){
     RECEIPT_LOGO_URL = '';
@@ -9234,6 +9239,7 @@ async function renderPosSettings(){
         </div>
       </div>
       ${rkSwitchRow('settingsReceiptShowName', RECEIPT_SHOW_NAME, 'اطبع اسم المطعم تحت الشعار', 'أغلب الشعارات فيها الاسم أصلاً، فتكراره تحتها زيادة. وإذا ما فيه شعار يطبع الاسم دايم.')}
+      ${rkSwitchRow('settingsReceiptPrintRefund', RECEIPT_PRINT_REFUND, 'اطبع فاتورة استرجاع', 'ورقة تثبت المبلغ اللي طلع من الدرج — يأخذها العميل، وتُطابق بها الوردية عند الإقفال. أوقفها لو استرجاعاتك صغيرة وما تبي ورق.')}
       <div class="rk-field">
         <label>السطر التعريفي</label>
         <input type="text" id="settingsReceiptTagline" value="${RECEIPT_TAGLINE || ''}" placeholder="قهوة مختصة من الطائف" maxlength="60">
@@ -9779,7 +9785,12 @@ async function renderPosSettings(){
     rkBtnLoading(receiptBrandSaveBtn, true);
     try {
       const showName = document.getElementById('settingsReceiptShowName').checked;
-      const updates = { receipt_tagline: tagline || null, receipt_show_name: showName };
+      const printRefund = document.getElementById('settingsReceiptPrintRefund').checked;
+      const updates = {
+        receipt_tagline: tagline || null,
+        receipt_show_name: showName,
+        receipt_print_refund: printRefund,
+      };
       // الشعار يُرفع فقط حين يُختار ملف جديد. غياب الملف يعني "لا تغيّره"،
       // لا "احذفه" -- وإلا فقد صاحب المطعم شعاره كلما حفظ السطر التعريفي.
       if(logoFile){
@@ -9801,6 +9812,7 @@ async function renderPosSettings(){
       await updateCurrentBusiness(updates);
       RECEIPT_TAGLINE = tagline;
       RECEIPT_SHOW_NAME = showName;
+      RECEIPT_PRINT_REFUND = printRefund;
       if(updates.receipt_logo_url) RECEIPT_LOGO_URL = updates.receipt_logo_url;
       // تُقرأ القيمة بعد الكتابة، لا يُكتفى بأن الطلب لم يرمِ خطأً --
       // نفس ما فُعل بحفظ الشكل بعد أن بقيت هبية على "مضغوط" أياماً

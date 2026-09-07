@@ -4433,6 +4433,9 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
   if(th.sectionLabels) spacedText(bi('الطلب', 'ORDER'), sz(14), true);
   if(receipt.cashierName) rowText('', bi('تمت بواسطة', 'Served by') + ': ' + receipt.cashierName, sz(15), false);
   if(receipt.metaLabel) rowText('', bi('نوع الطلب', 'Type') + ': ' + receipt.metaLabel, sz(15), false);
+  /* رقمُ الطلب الأصليّ في إشعار الاسترجاع: الورقةُ تُسند إلى ما استُرجع
+     منه، وإلا كانت مبلغاً بلا مصدرٍ عند الجرد. */
+  if(receipt.refundOfOrder) rowText('', bi('استرجاع من الطلب', 'Refund of') + ': ' + receipt.refundOfOrder, sz(15), true);
   // صاحب الطلب. لا يظهر إلا حين يوجد -- وهو يوجد في الطلب الإلكتروني
   // والتوصيل، حيث الورقة هي ما يربط الكيس بصاحبه.
   if(receipt.customerName) rowText('', bi('العميل', 'Customer') + ': ' + receipt.customerName, sz(15), false);
@@ -6217,6 +6220,8 @@ async function openOrderDetail(orderId){
  * يُصان على حدة، ولا صيغةَ إيصالٍ تفترق عن أختها.
  */
 function printRefundReceipt(orderId, picked, lines, amount){
+  // قرارُ صاحب المطعم: استرجاعٌ بريالين قد لا يستحقّ ورقة.
+  if(!RECEIPT_PRINT_REFUND) return;
   try {
     const items = (picked && lines)
       ? picked.map(pk=>{
@@ -6232,8 +6237,14 @@ function printRefundReceipt(orderId, picked, lines, amount){
       dateLabel: new Date().toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
       timestampISO: new Date().toISOString(), vatNumber: BUSINESS_VAT_NUMBER,
       orderNumber: '#' + orderId,
-      // يُقرأ من أول سطر: هذي ليست فاتورة بيع.
-      metaLabel: 'إشعار استرجاع',
+      /**
+       * ويُقرأ من أول سطر أنها ليست فاتورة بيع.
+       *
+       * ورقمُ الطلب الأصليّ معها: الورقةُ تُطابَق بأصلها عند الجرد،
+       * وإشعارٌ بلا رقمِ ما استُرجع منه ورقةٌ لا تُسند إلى شيء.
+       */
+      metaLabel: 'إشعار دائن — استرجاع',
+      refundOfOrder: '#' + orderId,
       showLogo: DEVICE.printReceiptLogo !== false && !!RECEIPT_LOGO_URL, logoUrl: RECEIPT_LOGO_URL,
       cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
       tagline: RECEIPT_TAGLINE,
@@ -8342,6 +8353,8 @@ let ONLINE_PAYMENTS_ENABLED = false; // businesses.geidea_connected — صف "د
 let SHIFT_REPORT_OPTIONS = {};       // businesses.shift_report_options — ما يظهر في التقرير وما لا يظهر
 let RECEIPT_SHOW_NAME = true;   // businesses.receipt_show_name — هل يُطبع الاسم تحت الشعار
 let RECEIPT_TAGLINE = '';       // businesses.receipt_tagline — سطر تحت الاسم
+/** businesses.receipt_print_refund — ورقةٌ تُثبت ما خرج من الدرج. */
+let RECEIPT_PRINT_REFUND = true;
 let BRANCH_LOCATION_LINE = '';  // "حي البيعة، الطائف" من branches.district/city
 let BRANCH_RECEIPT_LABEL = '';  // branches.receipt_label — اسم الفرع كما يُطبع؛ فارغ = لا يُطبع
 let BUSINESS_LOGO_URL = '';     // businesses.logo_url — same logo already used on reports/dashboard; printed at the top of the customer receipt when DEVICE.printReceiptLogo is on
@@ -8565,12 +8578,14 @@ async function loadPosData(){
     // هوية الفاتورة، في نفس الاستعلام المتسامح ولنفس سببه.
     try {
       const brandRes = await sb.from('businesses')
-        .select('receipt_logo_url, receipt_tagline, receipt_show_name').eq('id', businessId).single();
+        .select('receipt_logo_url, receipt_tagline, receipt_show_name, receipt_print_refund').eq('id', businessId).single();
       RECEIPT_LOGO_URL = (brandRes.data && brandRes.data.receipt_logo_url) || '';
       RECEIPT_TAGLINE = (brandRes.data && brandRes.data.receipt_tagline) || '';
       // إلا إذا أُطفئ صراحةً: قاعدة بلا هذا العمود تبقى تطبع الاسم.
       RECEIPT_SHOW_NAME = !(brandRes.data && brandRes.data.receipt_show_name === false);
-    } catch(_){ RECEIPT_LOGO_URL = ''; RECEIPT_TAGLINE = ''; RECEIPT_SHOW_NAME = true; }
+      // وكذلك فاتورةُ الاسترجاع: من لم يُسأل يُفترض أنه يريد الأثر.
+      RECEIPT_PRINT_REFUND = !(brandRes.data && brandRes.data.receipt_print_refund === false);
+    } catch(_){ RECEIPT_LOGO_URL = ''; RECEIPT_TAGLINE = ''; RECEIPT_SHOW_NAME = true; RECEIPT_PRINT_REFUND = true; }
     // إعدادات تقرير الإغلاق، باستعلام ثالث متسامح لنفس السبب.
     try {
       const shRes = await sb.from('businesses')

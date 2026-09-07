@@ -501,6 +501,11 @@ export async function renderReceiptToEscPosBase64(
     if (th.sectionLabels) y = drawSpacedText(ctx, y, bi('الطلب', 'ORDER'), sz(14), true);
     if (receipt.cashierName) y = drawRow(ctx, y, '', `${bi('تمت بواسطة', 'Served by')}: ${receipt.cashierName}`, sz(15), false);
     if (receipt.metaLabel) y = drawRow(ctx, y, '', `${bi('نوع الطلب', 'Type')}: ${receipt.metaLabel}`, sz(15), false);
+    /* رقمُ الطلب الأصليّ في إشعار الاسترجاع: الورقةُ تُسند إلى ما استُرجع
+       منه، وإلا كانت مبلغاً بلا مصدرٍ عند الجرد. */
+    if (receipt.refundOfOrder) {
+      y = drawRow(ctx, y, '', `${bi('استرجاع من الطلب', 'Refund of')}: ${receipt.refundOfOrder}`, sz(15), true);
+    }
     y += gap(0.1);
     drawThemedRule(canvas, width, y, th.rule);
     y += gap(0.6);

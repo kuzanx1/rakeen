@@ -70,6 +70,8 @@ export interface ReceiptData {
   createdAtISO?: string;
   /** Free-text channel/table meta line, e.g. "بالمطعم — طاولة 4". */
   metaLabel?: string;
+  /** رقمُ الطلب الذي استُرجع منه -- يُطبع في إشعار الاسترجاع وحده. */
+  refundOfOrder?: string;
   /** اسم الموظف الذي أصدر الفاتورة -- "تمت بواسطة". */
   cashierName?: string;
   /** اسم صاحب الطلب وجواله -- للطلبات الإلكترونية والتوصيل. */

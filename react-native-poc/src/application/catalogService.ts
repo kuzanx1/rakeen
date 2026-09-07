@@ -313,6 +313,8 @@ export interface ReceiptBranding {
   logoUrl: string;
   tagline: string;
   showBusinessName: boolean;
+  /** تُطبع فاتورة استرجاع بعد كل استرجاع. */
+  printRefundReceipt: boolean;
   vatNumber: string;
   customMessage: string;
   locationLine: string;
@@ -320,7 +322,7 @@ export interface ReceiptBranding {
 }
 
 const EMPTY_BRANDING: ReceiptBranding = {
-  logoUrl: '', tagline: '', showBusinessName: true,
+  logoUrl: '', tagline: '', showBusinessName: true, printRefundReceipt: true,
   vatNumber: '', customMessage: '', locationLine: '', branchLabel: '',
 };
 
@@ -339,13 +341,16 @@ export async function getReceiptBranding(businessId: number, branchId: number | 
   try {
     const { data } = await supabase
       .from('businesses')
-      .select('receipt_logo_url, receipt_tagline, receipt_show_name, vat_number, receipt_custom_message')
+      .select('receipt_logo_url, receipt_tagline, receipt_show_name, receipt_print_refund, vat_number, receipt_custom_message')
       .eq('id', businessId)
       .single();
     if (data) {
       out.logoUrl = (data.receipt_logo_url as string) || '';
       out.tagline = (data.receipt_tagline as string) || '';
       out.showBusinessName = data.receipt_show_name !== false;
+      // الافتراضُ الطباعة: عمودٌ لم يُرحَّل بعد يُقرأ undefined، ومن لم
+      // يُسأل يُفترض أنه يريد الأثر لا أن يفقده.
+      out.printRefundReceipt = data.receipt_print_refund !== false;
       out.vatNumber = (data.vat_number as string) || '';
       out.customMessage = (data.receipt_custom_message as string) || '';
     }

@@ -261,6 +261,63 @@ export default function OrderHistoryScreen({
   };
 
   /**
+   * إشعارُ استرجاع -- ورقةٌ تُثبت ما خرج من الدرج.
+   *
+   * الاسترجاعُ حركةٌ ماليةٌ تُخرج نقداً، وورقةٌ تُثبتها ليست زينة:
+   * يأخذها الزبون، وتبقى نسخةٌ تُطابَق بها الوردية عند الإقفال. وكانت
+   * في الويب وحده -- فمطعمٌ انتقل إلى التطبيق فقد أثرَ استرجاعاته بلا
+   * أن يُقال له.
+   *
+   * وتحمل رقمَ الطلب الأصليّ: إشعارٌ بلا رقمِ ما استُرجع منه مبلغٌ بلا
+   * مصدرٍ عند الجرد.
+   *
+   * وطباعتُها لا تُبطل استرجاعاً وقع: الورقةُ تُعاد، والمالُ لا يُعاد.
+   * (نظيرها في الويب: printRefundReceipt.)
+   */
+  const printRefundReceipt = async (
+    refunded: { name: string; nameEn?: string; qty: number; unitPrice: number }[],
+    amount: number,
+  ) => {
+    if (!detail) return;
+    try {
+      const device = await getDeviceConfig();
+      const profile = device.businessId != null
+        ? await getReceiptBranding(device.businessId, device.branchId ?? null)
+        : null;
+      // قرارُ صاحب المطعم: استرجاعٌ بريالين قد لا يستحقّ ورقة.
+      if (profile && profile.printRefundReceipt === false) return;
+      const printerProfile = await getPrinterProfile();
+      if (!shouldPrintCustomerReceipt(printerProfile)) return;
+
+      const items = refunded.length
+        ? refunded.map(r => ({
+            name: r.name, nameEn: r.nameEn, qty: r.qty,
+            unitPrice: r.unitPrice, lineTotal: r.unitPrice * r.qty,
+            mods: [] as string[],
+          }))
+        : [{ name: 'استرجاع مبلغ', qty: 1, unitPrice: amount, lineTotal: amount, mods: [] as string[] }];
+
+      await enqueuePrintJob('receipt', {
+        orderId: detail.id,
+        lines: items,
+        subtotal: amount, discount: 0, vat: 0, total: amount,
+        paymentMethod: 'cash',
+        change: 0,
+        businessName: device.businessName ?? undefined,
+        branchName: device.branchName ?? undefined,
+        vatNumber: profile?.vatNumber || undefined,
+        logoUrl: shouldPrintReceiptLogo(printerProfile) ? profile?.logoUrl || undefined : undefined,
+        customMessage: 'تم استرجاع هذا المبلغ نقداً',
+        createdAtISO: new Date().toISOString(),
+        metaLabel: 'إشعار دائن — استرجاع',
+        refundOfOrder: `#${detail.id}`,
+      } satisfies ReceiptData);
+    } catch {
+      // الطباعة لا تُبطل استرجاعاً وقع.
+    }
+  };
+
+  /**
    * استرجاع مبلغ، أو الباقي كله حين لا يُمرَّر مبلغ.
    *
    * والاسترجاع كاش دائماً فالدرج يُفتح -- ولا يُنتظر ولا يُبطل شيئاً:
@@ -281,6 +338,9 @@ export default function OrderHistoryScreen({
         status: res.full ? 'refunded' : 'partially_refunded',
         refundedAmount: res.refunded_total,
       });
+      // والمسارُ الآخر يطبع كذلك: استرجاعٌ بمبلغٍ بلا أصنافٍ مختارة --
+      // فسطرٌ واحد اسمُه "استرجاع مبلغ"، كما في الويب.
+      void printRefundReceipt([], res.refunded);
       void kickDrawerAfterRefund();
       refresh();
     } catch (e) {
@@ -368,6 +428,18 @@ export default function OrderHistoryScreen({
       status: out.full ? 'refunded' : 'partially_refunded',
       refundedAmount: (detail.refundedAmount || 0) + (out.amount || 0),
     });
+    // ما استُرجع بالضبط -- بأسمائه وأسعاره، لا مبلغاً مجرّداً.
+    const refundedItems = lines.map(l => {
+      const src = refundLines?.find(x => x.orderItemId === l.orderItemId);
+      const det = detail.items.find(i => i.menuItemId === src?.menuItemId);
+      return {
+        name: src?.name || 'صنف',
+        nameEn: det?.nameEn,
+        qty: l.qty,
+        unitPrice: src?.unitPrice ?? 0,
+      };
+    });
+    void printRefundReceipt(refundedItems, out.amount || 0);
     setRefundLines(null);
     setRefundPick({});
     void kickDrawerAfterRefund();
