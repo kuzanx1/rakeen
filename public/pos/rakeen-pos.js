@@ -4390,7 +4390,7 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
   if(receipt.vatNumber){
     y += gap(0.2);
     centerText(bi('فاتورة ضريبية مبسطة', 'Simplified Tax Invoice'), sz(16), true);
-    centerText(bi('الرقم الضريبي', 'VAT No') + ': ' + receipt.vatNumber, sz(14), false);
+    centerText(bi('الرقم الضريبي', 'VAT No') + ': ' + receipt.vatNumber, sz(15), false);
   }
 
   // رقم الطلب في صندوق: أول ما تبحث عنه العين، فيستحق حدّاً يخصّه.
@@ -4407,13 +4407,13 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
   } else if(oStyle === 'plain'){
     centerText(bi('رقم الطلب', 'Order') + ': ' + receipt.orderNumber, sz(17), true);
   } else if(oStyle === 'spaced'){
-    spacedText(bi('رقم الطلب', 'Order No'), sz(12), false);
+    spacedText(bi('رقم الطلب', 'Order No'), sz(15), false);
     y -= gap(0.15);
     spacedText(receipt.orderNumber, sz(28), true);
   } else {
     const boxTop = y - lineH * 0.35;
-    centerText(bi('رقم الطلب', 'Order No'), sz(14), false);
-    centerText(receipt.orderNumber, sz(30), true);
+    centerText(bi('رقم الطلب', 'Order No'), sz(16), true);
+    centerText(receipt.orderNumber, sz(36), true);
     const boxH = (y - lineH * 0.2) - boxTop;
     const boxX = pad + (width - pad * 2) * 0.2, boxW = (width - pad * 2) * 0.6;
     ctx.fillStyle = '#000';
@@ -4430,7 +4430,7 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
   divider();
   // عناوين أقسام صغيرة بحروف متباعدة: تقسّم الورقة بلا خطوط إضافية،
   // وهي ما يعطي القالبَين الأنيق والفخم بنيتهما.
-  if(th.sectionLabels) spacedText(bi('الطلب', 'ORDER'), sz(11), false);
+  if(th.sectionLabels) spacedText(bi('الطلب', 'ORDER'), sz(14), true);
   if(receipt.cashierName) rowText('', bi('تمت بواسطة', 'Served by') + ': ' + receipt.cashierName, sz(15), false);
   if(receipt.metaLabel) rowText('', bi('نوع الطلب', 'Type') + ': ' + receipt.metaLabel, sz(15), false);
   // صاحب الطلب. لا يظهر إلا حين يوجد -- وهو يوجد في الطلب الإلكتروني
@@ -4450,8 +4450,8 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
     // لكل صنف، ويعطي مظهر التذاكر القديمة.
     if(th.itemStyle === 'leaders'){
       leaderRow(shownName, it.lineTotal.toFixed(2) + ' ' + RIYAL, sz(17), true);
-      (it.mods || []).forEach(m=> rowText('', '— ' + m, sz(14), false));
-      if(it.note) rowText('', 'ملاحظات: ' + it.note, sz(14), false);
+      (it.mods || []).forEach(m=> rowText('', '— ' + m, sz(16), false));
+      if(it.note) rowText('', 'ملاحظات: ' + it.note, sz(16), false);
       if(idx < receipt.items.length - 1) hairline();
       return;
     }
@@ -4461,10 +4461,14 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
       ctx.fillText(line, width - pad, y);
       y += gap(0.85);
     });
-    const modFont = '500 ' + sz(15) + 'px "IBM Plex Sans Arabic", sans-serif';
+    /* لا رماديّ على ورقٍ حراريّ: الورقُ لا يعرف إلا نقطةً محروقةً أو
+       بيضاء، والرماديُّ يُحوَّل عند الطباعة -- وحرفٌ صغير لا تبلغ سيقانُه
+       تغطيةً تامّة، فيقع الرماديُّ على جانب الورق حيث يثبت الأسود.
+       (قِيست: بتغطية ٥٠٪ يثبت #000 ويسقط #555.) وسطورُ الإضافات هي أوّلُ
+       ما يتقطّع في الفاتورة، وهي بالضبط ما كان رمادياً. */
+    const modFont = '600 ' + sz(16) + 'px "IBM Plex Sans Arabic", sans-serif';
     (it.mods || []).forEach(modText=>{
       wrapLine(modText, modFont).forEach(line=>{
-        ctx.fillStyle = '#333';
         ctx.font = modFont;
         ctx.direction = 'rtl'; ctx.textAlign = 'right';
         ctx.fillText(line, width - pad, y);
@@ -4475,9 +4479,9 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
     // الملاحظة تُطبع للزبون أيضاً الآن، بطلب صاحب المطعم -- كانت للمطبخ
     // وحده، فكان الزبون لا يرى ما طلبه بنفسه.
     if(it.note){
-      const noteFont = '500 ' + sz(15) + 'px "IBM Plex Sans Arabic", sans-serif';
+      const noteFont = '600 ' + sz(16) + 'px "IBM Plex Sans Arabic", sans-serif';
       wrapLine('ملاحظات: ' + it.note, noteFont).forEach(line=>{
-        ctx.fillStyle = '#333'; ctx.font = noteFont;
+        ctx.font = noteFont;
         ctx.direction = 'rtl'; ctx.textAlign = 'right';
         ctx.fillText(line, width - pad, y);
         ctx.fillStyle = '#000';
@@ -4509,7 +4513,7 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
     y += gap(0.1);
   }
   divider();
-  if(th.sectionLabels) spacedText(bi('الحساب', 'PAYMENT'), sz(11), false);
+  if(th.sectionLabels) spacedText(bi('الحساب', 'PAYMENT'), sz(14), true);
   rowText(receipt.subtotal.toFixed(2) + ' ' + RIYAL, bi('المجموع الفرعي', 'Subtotal'), sz(18), false);
   if(receipt.discount > 0) rowText('-' + receipt.discount.toFixed(2) + ' ' + RIYAL, bi('الخصم', 'Discount'), sz(18), false);
   // ZATCA: the VAT amount is a mandatory line, in every theme.

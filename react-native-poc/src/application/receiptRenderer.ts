@@ -368,6 +368,21 @@ export async function renderReceiptToEscPosBase64(
     // below never do. A theme decides how a receipt looks, never what a
     // tax invoice must contain.
     const th = receiptTheme(themeId);
+    /**
+     * لا رماديّ على ورقٍ حراريّ.
+     *
+     * الورقُ لا يعرف إلا نقطةً محروقةً أو بيضاء. والرماديُّ فكرةُ شاشةٍ:
+     * يُحوَّل عند الطباعة إلى "أسودُ أم أبيض؟" -- وحرفٌ صغير لا تبلغ
+     * سيقانُه تغطيةً تامّة، فيقع الرماديُّ منها على جانب الورق حيث يقع
+     * الأسودُ على جانب الحبر.
+     *
+     * قِيست: بتغطية ٥٠٪ يثبت #000 ويسقط #555. وسطورُ الإضافات تحت الصنف
+     * كانت #555 -- وهي أوّلُ ما يتقطّع في الفاتورة، وهو ما شُكي منه.
+     *
+     * (المعالجةُ الحقيقية للتقطّع في escposRaster: المزجُ على أبيض. وهذا
+     *  يمنع أن يُولَد النصُّ ضعيفاً من أصله.)
+     */
+    const INK = '#000000';
     const gap = (n: number) => LINE_H * n * th.density;
     const sz = (n: number) => Math.round(n * th.typeScale);
     const receipt = toReceiptPrintable(printerPaperWidthPx != null ? { ...data, paperWidthPx: printerPaperWidthPx } : data);
@@ -452,7 +467,7 @@ export async function renderReceiptToEscPosBase64(
     if (receipt.vatNumber) {
       y += gap(0.2);
       y = drawCenterLine(ctx, y, bi('فاتورة ضريبية مبسطة', 'Simplified Tax Invoice'), sz(16), true);
-      y = drawCenterLine(ctx, y, `${bi('الرقم الضريبي', 'VAT No')}: ${receipt.vatNumber}`, sz(14), false);
+      y = drawCenterLine(ctx, y, `${bi('الرقم الضريبي', 'VAT No')}: ${receipt.vatNumber}`, sz(15), false);
     }
 
     // رقم الطلب في صندوق. الملصق صغير فوقه، والرقم وحده كبيراً -- الرقم
@@ -463,25 +478,27 @@ export async function renderReceiptToEscPosBase64(
     } else if (th.orderStyle === 'plain') {
       y = drawCenterLine(ctx, y, `${bi('رقم الطلب', 'Order')}: ${receipt.orderNumber}`, sz(17), true);
     } else if (th.orderStyle === 'spaced') {
-      y = drawSpacedText(ctx, y, bi('رقم الطلب', 'Order No'), sz(12), false);
+      y = drawSpacedText(ctx, y, bi('رقم الطلب', 'Order No'), sz(15), false);
       y = drawSpacedText(ctx, y, receipt.orderNumber, sz(28), true);
     } else {
       const boxTop = y;
       y += gap(0.45);
-      y = drawCenterLine(ctx, y, bi('رقم الطلب', 'Order No'), sz(14), false);
-      y = drawCenterLine(ctx, y, receipt.orderNumber, sz(30), true);
+      // والملصقُ عريضٌ لا رفيع، والرقمُ أكبر: هذا الصندوق أوّلُ ما تقع
+      // عليه العينُ في الفاتورة، وأوّلُ ما يُقرأ في المطبخ وعند التسليم.
+      y = drawCenterLine(ctx, y, bi('رقم الطلب', 'Order No'), sz(16), true);
+      y = drawCenterLine(ctx, y, receipt.orderNumber, sz(36), true);
       y += gap(0.35);
       drawBox(canvas, PAD + contentWidth * 0.2, boxTop, contentWidth * 0.6, y - boxTop);
     }
     y += gap(0.5);
 
-    y = drawCenterLine(ctx, y, receipt.dateLabel, sz(15), false);
+    y = drawCenterLine(ctx, y, receipt.dateLabel, sz(16), false);
     y += gap(0.35);
     drawThemedRule(canvas, width, y, th.rule);
     y += gap(0.45);
 
     // من أصدرها ونوعها، صفّين معنونين.
-    if (th.sectionLabels) y = drawSpacedText(ctx, y, bi('الطلب', 'ORDER'), sz(11), false);
+    if (th.sectionLabels) y = drawSpacedText(ctx, y, bi('الطلب', 'ORDER'), sz(14), true);
     if (receipt.cashierName) y = drawRow(ctx, y, '', `${bi('تمت بواسطة', 'Served by')}: ${receipt.cashierName}`, sz(15), false);
     if (receipt.metaLabel) y = drawRow(ctx, y, '', `${bi('نوع الطلب', 'Type')}: ${receipt.metaLabel}`, sz(15), false);
     y += gap(0.1);
@@ -496,7 +513,7 @@ export async function renderReceiptToEscPosBase64(
       bi('الكمية', 'Qty'),
       [bi('المنتج', 'Item')],
       bi('السعر', 'Price'),
-      sz(14), false, '#555555',
+      sz(15), false, INK,
     );
     y += gap(0.18);
     drawThemedRule(canvas, width, y, th.rule);
@@ -519,8 +536,10 @@ export async function renderReceiptToEscPosBase64(
       const fullName = `${item.qty}x ${named}`;
       if (th.itemStyle === 'leaders') {
         y = drawLeaderRow(ctx, y, fullName, `${item.lineTotal.toFixed(2)} ${RIYAL}`, sz(17), true);
-        for (const modText of item.mods) y = drawRow(ctx, y, '', `— ${modText}`, sz(14), false);
-        if (item.note) y = drawRow(ctx, y, '', `ملاحظات: ${item.note}`, sz(14), false);
+        // ستّةَ عشرَ لا أربعةَ عشر: عند ٥٧٦ نقطة يساوي البكسلُ نقطةً،
+        // وأربعةَ عشرَ تجعل سيقانَ العربية دون نقطةٍ كاملة فتتقطّع.
+        for (const modText of item.mods) y = drawRow(ctx, y, '', `— ${modText}`, sz(16), false);
+        if (item.note) y = drawRow(ctx, y, '', `ملاحظات: ${item.note}`, sz(16), false);
         if (index < receipt.items.length - 1) { y += gap(0.2); drawItemRule(canvas, width, y); y += gap(0.3); }
         else y += gap(0.22);
         return;
@@ -544,18 +563,21 @@ export async function renderReceiptToEscPosBase64(
         y = drawItemLine(
           ctx, y, '',
           [`${item.unitPrice.toFixed(2)} ${RIYAL} × ${item.qty}`],
-          '', sz(14), false, '#555555',
+          '', sz(16), false, INK,
         );
       }
+      /* القياسُ بالحجم الذي يُرسم به، لا بغيره: قياسُ اللفّ بأربعةَ عشرَ
+         ورسمٌ بستّةَ عشرَ يجعل السطرَ أعرضَ من عموده فيخرج عنه. */
+      const modSz = sz(16);
       for (const modText of item.mods) {
-        for (const line of measureAndWrapText(provider, `+ ${modText}`, cols.name, sz(14), false)) {
-          y = drawItemLine(ctx, y, '', [line], '', sz(14), false, '#555555');
+        for (const line of measureAndWrapText(provider, `+ ${modText}`, cols.name, modSz, false)) {
+          y = drawItemLine(ctx, y, '', [line], '', modSz, false, INK);
         }
       }
       // الملاحظة تحمل اسمها، وإلا أشبهت اسم منتج بلا سعر.
       if (item.note) {
-        for (const line of measureAndWrapText(provider, `ملاحظات: ${item.note}`, cols.name, sz(14), false)) {
-          y = drawItemLine(ctx, y, '', [line], '', sz(14), false, '#333333');
+        for (const line of measureAndWrapText(provider, `ملاحظات: ${item.note}`, cols.name, modSz, false)) {
+          y = drawItemLine(ctx, y, '', [line], '', modSz, false, INK);
         }
       }
       // فاصل بين كل منتج والذي يليه، لا بعد آخرها: خط القسم تحته يغلق
@@ -585,7 +607,7 @@ export async function renderReceiptToEscPosBase64(
     drawThemedRule(canvas, width, y, th.rule);
     y += gap(0.6);
 
-    if (th.sectionLabels) y = drawSpacedText(ctx, y, bi('الحساب', 'PAYMENT'), sz(11), false);
+    if (th.sectionLabels) y = drawSpacedText(ctx, y, bi('الحساب', 'PAYMENT'), sz(14), true);
     y = drawRow(ctx, y, `${receipt.subtotal.toFixed(2)} ${RIYAL}`, bi('المجموع الفرعي', 'Subtotal'), sz(20), false);
     if (receipt.discount > 0) {
       y = drawRow(ctx, y, `-${receipt.discount.toFixed(2)} ${RIYAL}`, bi('الخصم', 'Discount'), sz(20), false);
