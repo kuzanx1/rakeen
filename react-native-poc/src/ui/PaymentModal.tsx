@@ -303,6 +303,19 @@ export default function PaymentModal({
    */
   const [phoneAsk, setPhoneAsk] = useState(false);
   const [phoneDraft, setPhoneDraft] = useState('');
+  /**
+   * صاحبُ الطلب الذي تمّ -- يُلتقط قبل أن يُمحى.
+   *
+   * الشاشةُ الأمّ تُصفّر العميل في اللحظة التي تُبنك فيها العملية
+   * (setSelectedCustomer(null)) -- وهو الصواب: السلّةُ التالية لزبونٍ
+   * آخر. لكنّ شاشة "تمت العملية" تُرسم بعد ذلك، فتصل إليها الخاصّيةُ
+   * فارغة: يضغط الكاشير "اعرض باركود الولاء" فيُسأل عن رقم جوّالٍ
+   * أعطاه قبل دقيقة.
+   *
+   * والويب لا يقع فيه: يلتقط الرقم في متغيّرٍ محليّ قبل التصفير
+   * (customerPhone). وهذا نظيرُه.
+   */
+  const [soldCustomerId, setSoldCustomerId] = useState<number | null>(null);
 
   useEffect(() => () => { cardAddedOff.current?.(); }, []);
 
@@ -327,16 +340,32 @@ export default function PaymentModal({
   }, [branchId]);
 
   const handleShowBarcode = useCallback(() => {
-    if (customer?.id != null) { void pushBarcode(customer.id); return; }
+    // الملتقَطُ أولاً: الخاصّيةُ فُرّغت مع بنك العملية، وهو صاحبُ الطلب.
+    const id = soldCustomerId ?? customer?.id ?? null;
+    if (id != null) { void pushBarcode(id); return; }
     setBarcodeMsg(null);
     setPhoneAsk(true);
-  }, [customer, pushBarcode]);
+  }, [soldCustomerId, customer, pushBarcode]);
 
   const submitPhone = useCallback(async () => {
-    const phone = normalisePhoneInput(phoneDraft).trim();
-    if (!phone) { setBarcodeMsg({ text: 'اكتب رقم الجوال', ok: false }); return; }
+    const digits = toLatinDigits(phoneDraft).replace(/[^0-9]/g, '');
+    if (!digits) { setBarcodeMsg({ text: 'اكتب رقم الجوال', ok: false }); return; }
+    /**
+     * ويُقبل الذيلُ كما يُقبل الكامل.
+     *
+     * خطوةُ العميل تطبع 05 خارج الحقل وتأخذ ثمانياً، فيعتاد الكاشير
+     * ذلك -- ثم يكتب هنا ثمانياً فلا يُطابق أحداً، ويُقال له "ما لقينا
+     * عميل" وهو مسجّلٌ عندنا. فيُجرَّب الشكلان.
+     */
+    const candidates = digits.length === 8
+      ? ['05' + digits]
+      : [normalisePhoneInput(digits)];
     setBarcodeBusy(true);
-    const found = await findCustomerByPhone(businessId, phone).catch(() => null);
+    let found = null;
+    for (const c of candidates) {
+      found = await findCustomerByPhone(businessId, c).catch(() => null);
+      if (found) break;
+    }
     setBarcodeBusy(false);
     if (!found) { setBarcodeMsg({ text: 'ما لقينا عميل بهذا الرقم', ok: false }); return; }
     await pushBarcode(found.id);
@@ -377,6 +406,17 @@ export default function PaymentModal({
     setPrintRetries(0);
     setCountdown(AUTO_RESET_SECONDS);
     setSentWhatsapp(false);
+    /**
+     * وصاحبُ الطلب السابق يُنسى عند كل فتحة.
+     *
+     * وإلا ورثه الطلبُ التالي: يفتح الكاشير طلباً لزبونٍ آخر بلا عميل،
+     * ويضغط "اعرض باركود الولاء" -- فيُعرض باركودُ الزبون الذي قبله،
+     * ومن مسحه أخذ بطاقةَ غيره. الرمزُ يُصرف مرّةً واحدة.
+     */
+    setSoldCustomerId(null);
+    setPhoneAsk(false);
+    setPhoneDraft('');
+    setBarcodeMsg(null);
   }, [visible]);
 
   /**
@@ -602,6 +642,8 @@ export default function PaymentModal({
       const saved = await setOrderPager(outcome.orderId, pager);
       if (!saved.ok) setPagerError('انحفظ الطلب، بس ما انسجّل رقم الجهاز');
     }
+    // قبل setStep('success'): بعده تكون الخاصّيةُ قد فُرّغت.
+    setSoldCustomerId(customer?.id ?? null);
     setPaidTotal(captured);
     setResult(outcome);
     setPrintStatus(outcome.printJobId ? 'queued' : null);
