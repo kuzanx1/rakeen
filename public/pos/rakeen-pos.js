@@ -2545,6 +2545,75 @@ async function scanCustomerCard(){
   });
 }
 
+/**
+ * أيُّ شاشةٍ تقف أمام هذا الكاشير.
+ *
+ * ويختارها الكاشير من جهازه، لا المالكُ من لوحته: المالك لا يعرف أيُّ
+ * شاشةٍ أمام أيِّ نقطةِ بيع -- وهو غالباً ليس في المحلّ. والكاشير ينظر
+ * أمامه فيعرف.
+ *
+ * وبلا اختيارٍ تبقى الحال كما كانت: البثُّ إلى شاشات الفرع غير المربوطة.
+ * فمقهىً بكاشيرٍ واحدٍ وشاشة لا يُسأل عن ربطٍ لا معنى له عنده.
+ */
+async function openMyDisplayModal(){
+  document.getElementById('paymentModalTitle').textContent = t('شاشة العميل');
+  paymentModalBody.innerHTML = `<div class="list-empty">${t('جارٍ التحميل...')}</div>`;
+  paymentModal.classList.add('show');
+
+  const mine = ensurePosDeviceId();
+  let rows = [];
+  try {
+    const { data } = await window.supabaseClient.rpc('list_branch_displays',
+      { p_branch_id: DEVICE.branchId || null });
+    rows = Array.isArray(data) ? data : [];
+  } catch(_){ rows = []; }
+
+  if(!rows.length){
+    paymentModalBody.innerHTML = `<div class="list-empty">${
+      t('ما فيه شاشة عميل لهذا الفرع — تنضاف من لوحة التحكم.')}</div>`;
+    return;
+  }
+
+  const draw = ()=>{
+    paymentModalBody.innerHTML = `
+      <p class="stock-qty-helper" style="margin-bottom:12px;">${
+        t('اختر الشاشة اللي قدّام زبونك — الباركود يطلع عليها هي بس.')}</p>
+      <div class="mydisp-list">
+        ${rows.map(r=>{
+          const isMine = r.posDeviceId && r.posDeviceId === mine;
+          const takenByOther = r.posDeviceId && r.posDeviceId !== mine;
+          return `<button type="button" class="mydisp-row ${isMine?'active':''}" data-mydisp="${r.id}">
+            <span class="mydisp-name">${escapeHtml(r.label || t('شاشة عميل'))}</span>
+            <span class="mydisp-state">${
+              isMine ? t('شاشتك') : takenByOther ? t('مربوطة بكاشير ثاني') : t('غير مربوطة')}</span>
+          </button>`;
+        }).join('')}
+        <button type="button" class="mydisp-row ${!rows.some(r=>r.posDeviceId===mine)?'active':''}" data-mydisp="">
+          <span class="mydisp-name">${t('بلا ربط')}</span>
+          <span class="mydisp-state">${t('يبث لكل شاشات الفرع غير المربوطة')}</span>
+        </button>
+      </div>`;
+
+    paymentModalBody.querySelectorAll('[data-mydisp]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const raw = btn.getAttribute('data-mydisp');
+        const id = raw ? Number(raw) : null;
+        try {
+          const { data } = await window.supabaseClient.rpc('claim_display_device',
+            { p_device_id: id, p_pos_device_id: mine });
+          if(!data || !data.ok){ showToast(t('تعذر الربط')); return; }
+          // والحالةُ تُحدَّث محلياً: الربطُ حصريّ، فما كان لي صار لا أحد.
+          rows = rows.map(r=>({ ...r, posDeviceId: r.posDeviceId === mine ? null : r.posDeviceId }));
+          if(id != null) rows = rows.map(r=> r.id === id ? { ...r, posDeviceId: mine } : r);
+          draw();
+          showToast(id == null ? t('انفكّ الربط') : t('تم الربط بهذي الشاشة'));
+        } catch(_){ showToast(t('تعذر الربط')); }
+      });
+    });
+  };
+  draw();
+}
+
 /* ============ Clear order — two-tap arm/confirm, no blocking dialog ============ */
 let clearArmed = false, clearArmTimer;
 document.getElementById('clearOrderBtn').addEventListener('click', function(){
@@ -5591,7 +5660,12 @@ async function completePayment(){
       const resp = await fetch('/api/pos/show-loyalty-barcode', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
-        body: JSON.stringify({ customerId: cust.id, branchId: DEVICE.branchId || null }),
+        body: JSON.stringify({
+          customerId: cust.id,
+          branchId: DEVICE.branchId || null,
+          // وبها تعرف نقطةُ الخدمة أيَّ شاشةٍ تخصّ هذا الكاشير.
+          posDeviceId: ensurePosDeviceId(),
+        }),
       });
       const out = await resp.json();
       if(!resp.ok){ say(out.error || 'تعذر العرض', 'err'); showOnDisplayBtn.disabled = false; return; }
@@ -7630,6 +7704,7 @@ const QUICK_ACTIONS = [
   {id:'drawer', label:'فتح الدرج', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M2 7l4-4h12l4 4"/><line x1="12" y1="12" x2="12" y2="16"/></svg>'},
   {id:'refund', label:'استرجاع مبلغ', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>'},
   {id:'manager', label:'موافقة مدير', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'},
+  {id:'myDisplay', label:'شاشة العميل', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>'},
   {id:'reprint', label:'إعادة طباعة', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>'},
 ];
 const SHIFT_ACTIONS = [
@@ -7657,6 +7732,7 @@ function handleMoreAction(e){
     if(completedTab) completedTab.click();
     showToast(id === 'refund' ? 'اختر الطلب اللي تبي تسترجعه' : 'اختر الطلب اللي تبي تعيد طباعته');
   }
+  else if(id === 'myDisplay') resetModalStack(openMyDisplayModal);
   else if(id === 'settings') resetModalStack(openPosSettingsModal);
   else if(id === 'shiftSummary') resetModalStack(openShiftSummary);
   else if(id === 'closeShift') resetModalStack(openClosingWizard);
@@ -8688,6 +8764,28 @@ async function loadPosData(){
    Supabase Auth's 6-char minimum without the cashier ever knowing it). */
 let CURRENT_PROFILE = null;
 let DEVICE = { businessId: null, branchId: null, branchName: null };
+
+/**
+ * معرّفٌ ثابتٌ لهذي النقطة -- يولَّد مرّةً ويبقى.
+ *
+ * كان الجهاز يعرف مشروعَه وفرعَه ولا يعرف نفسَه. وفرعٌ بثلاث نقاطِ بيعٍ
+ * لا يُفرَّق بينها: يبثّ الباركود إلى شاشات الفرع كلِّها، فيرى ثلاثةُ
+ * زبائن باركوداً واحداً ولا يعرف أيُّهم صاحبُه -- ومن مسحه أخذ بطاقةَ
+ * غيره، فالرمزُ يُصرف مرّةً واحدة.
+ *
+ * ويُحفظ مع إعداد الجهاز نفسه: من أعاد التجهيز صار نقطةً جديدة، وهو
+ * الصواب -- الربطُ لجهازٍ لا لمتصفّح.
+ */
+function ensurePosDeviceId(){
+  if(DEVICE.posDeviceId) return DEVICE.posDeviceId;
+  try {
+    const a = new Uint8Array(8);
+    crypto.getRandomValues(a);
+    DEVICE.posDeviceId = [].map.call(a, b=>b.toString(16).padStart(2,'0')).join('');
+    saveDeviceConfig();
+  } catch(_){ /* بلا تخزين يبقى البثّ على مستوى الفرع */ }
+  return DEVICE.posDeviceId || null;
+}
 
 function loadDeviceConfig(){
   try {

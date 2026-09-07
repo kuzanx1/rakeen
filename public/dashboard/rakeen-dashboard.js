@@ -10357,12 +10357,10 @@ function restaurantSettingsHtml(){
 
     <button class="rk-btn rk-btn-primary rk-btn-lg" id="settingsSaveBtn" style="width:100%; margin-bottom:16px;">حفظ التغييرات</button>
 
-    ${ONLINE_ORDERING_ENABLED ? `
-    <div class="rk-section">
-      ${rkSectionHead('creditCard', 'بوابة الدفع', 'اربط حساب Geidea الخاص فيك عشان يقدر عملاؤك يدفعون بالبطاقة مباشرة من صفحة الطلب الإلكتروني. سجّل عندهم بنفسك، وهنا بس تدخل بيانات الاتصال.')}
-      <div id="geideaPanelBody">${geideaPanelHtml()}</div>
-    </div>
-    ` : ''}
+    <!-- بوابةُ الدفع انتقلت إلى المتجر الإلكتروني ← تبويب "بوابة الدفع":
+         هي لا تعمل إلا هناك -- زرُّ البطاقة في صفحة الطلب مشروطٌ بها
+         وحدها -- وإعدادٌ واحدٌ في مكانين يُعدَّل في أحدهما ويُقرأ من
+         الآخر. -->
     ${isServiceBusinessType(BUSINESS_TYPE) ? `
     <div class="rk-section">
       ${rkSectionHead('calendar', 'الحجز الذاتي عبر الإنترنت', 'صفحة تسمح لعملائك يحجزون موعدهم بأنفسهم مباشرة بدون اتصال — يختارون الخدمة والموظف والوقت، ويوصل الحجز فورًا لشاشة الحجوزات بالكاشير.')}
@@ -10380,7 +10378,8 @@ function restaurantSettingsHtml(){
   `;
 }
 function wireRestaurantSettings(){
-  wireGeideaPanel();
+  // بوابةُ الدفع لم تعد تُرسم هنا -- انتقلت إلى تبويبها في المتجر
+  // الإلكتروني، وهي التي تُنادي wireGeideaPanel بنفسها.
   attachImageCropper('settingsLogoInput', { aspect: 1, outputWidth: 500, outputHeight: 500 });
   wireImageUploadBoxPreview('settingsLogoInput');
 
@@ -10529,6 +10528,34 @@ function renderOnlineMenuPanel(){
         } catch(e){ console.error('display panel', e); }
       });
     }
+  } else if(activeOnlineMenuTab === 'gateway'){
+    /**
+     * بوابةُ الدفع في المتجر الذي تخدمه.
+     *
+     * كانت في "إعدادات المطعم" -- بين الضريبة وطريقة التقديم وأصوات
+     * التنبيه. وهي لا تعمل إلا في المتجر الإلكتروني: زرُّ البطاقة في
+     * صفحة الطلب مشروطٌ بها وحدها، ولا أثر لها في الكاشير.
+     * فمن يجهّز متجرَه يبحث عنها حيث يجهّزه.
+     */
+    panel.innerHTML = `
+      <div class="rk-section">
+        ${rkSectionHead('creditCard', 'بوابة الدفع الإلكتروني (Geidea)', 'اربط حسابك عشان يدفع عملاؤك بالبطاقة مباشرة من صفحة الطلب. سجّل عندهم بنفسك، وهنا بس تدخل بيانات الاتصال — وبمجرد ما تحفظها يشتغل الدفع على طول.')}
+        <div id="geideaPanelBody">${geideaPanelHtml()}</div>
+      </div>
+      <div class="rk-section">
+        ${rkSectionHead('fileText', 'كيف تجيب البيانات', null)}
+        <ol class="rk-gw-steps">
+          <li>سجّل حساب تاجر في <b>Geidea</b> وخلّص التوثيق عندهم.</li>
+          <li>من لوحتهم افتح <b>Developers / API Keys</b>.</li>
+          <li>انسخ <b>Merchant Public Key</b> و<b>API Password</b> والصقهم فوق.</li>
+          <li>احفظ — يتفعّل الدفع بالبطاقة في متجرك على طول، بلا انتظار.</li>
+        </ol>
+        <p class="stock-qty-helper">
+          كلمة مرور الـAPI تُخزَّن مشفّرة، والمفتاح اللي يفكّها ما يسكن قاعدة البيانات —
+          فحتى لو تسرّبت القاعدة ما تنفكّ. واللوحة ما تعرضها لك بعد الحفظ أبداً، تعرض آخر أربعة من المفتاح العام بس.
+        </p>
+      </div>`;
+    wireGeideaPanel();
   } else if(activeOnlineMenuTab === 'design'){
     panel.innerHTML = onlineMenuDesignHtml();
     wireOnlineMenuDesign();
@@ -15658,18 +15685,24 @@ let DISPLAY_DEVICES = [];
 let DISPLAY_STORE_SLUG = '';
 /** الأجهزةُ التي فتحت روابطَ الشاشات -- مفتاحُها معرّف الشاشة. */
 let DISPLAY_SESSIONS = {};
+/** فروعُ المشروع -- الشاشةُ تُنسب لواحدٍ منها عند إنشائها. */
+let DISPLAY_BRANCHES = [];
 
 async function loadDisplayDevices(){
   try {
-    const [devRes, bizRes] = await Promise.all([
+    const [devRes, bizRes, brRes] = await Promise.all([
       window.supabaseClient
-        .from('display_devices').select('id, label, branch_id, last_seen_at, pairing_code, pairing_expires_at, paired_at, user_agent')
+        .from('display_devices').select('id, label, branch_id, pos_device_id, last_seen_at, pairing_code, pairing_expires_at, paired_at, user_agent')
         .eq('business_id', CURRENT_PROFILE.business_id).order('id'),
       window.supabaseClient
         .from('businesses').select('online_menu_slug, display_barcode_message')
         .eq('id', CURRENT_PROFILE.business_id).maybeSingle(),
+      window.supabaseClient
+        .from('branches').select('id, name')
+        .eq('business_id', CURRENT_PROFILE.business_id).order('id'),
     ]);
     DISPLAY_DEVICES = devRes.data || [];
+    DISPLAY_BRANCHES = (brRes && brRes.data) || [];
     /**
      * ومن فتح الرابط يُقرأ مع الأجهزة.
      *
@@ -15693,6 +15726,22 @@ async function loadDisplayDevices(){
       DISPLAY_BARCODE_MESSAGE = bizRes.data.display_barcode_message || '';
     }
   } catch(_){ DISPLAY_DEVICES = []; }
+}
+
+/**
+ * لمن تبثّ هذي الشاشة: فرعُها، وهل خصّها كاشيرٌ بنفسه.
+ *
+ * وشاشةٌ بلا فرعٍ تُقال بلونٍ يُقرأ: هي حالُ كلِّ شاشةٍ أُنشئت قبل اليوم،
+ * وتبثّ إلى فروع المشروع كلِّها -- فيرى زبونُ فرعٍ باركود زبونٍ في فرعٍ
+ * آخر، ومن مسحه أخذ بطاقةَ غيره.
+ */
+function displayScopeHtml(d){
+  const br = DISPLAY_BRANCHES.find(b => b.id === d.branch_id);
+  const branch = br
+    ? '📍 ' + escapeHtml(br.name)
+    : '<span class="rk-disp-noscope">⚠ بلا فرع — تبث لكل الفروع</span>';
+  const till = d.pos_device_id ? ' · 🖥 مربوطة بكاشير' : '';
+  return branch + till;
 }
 
 /**
@@ -15765,6 +15814,8 @@ function displayDevicesHtml(){
             <div class="rk-disp-row-name" data-disprename="${d.id}"
                  style="cursor:pointer;" title="اضغط لتغيير الاسم">${escapeHtml(d.label || 'شاشة عميل')} ✏️</div>
             <div class="rk-disp-row-meta">${escapeHtml(displayDeviceStatus(d))}</div>
+            <div class="rk-disp-row-meta rk-disp-scope" data-dispbranch="${d.id}"
+                 style="cursor:pointer;" title="اضغط لتغيير الفرع">${displayScopeHtml(d)}</div>
             ${d.user_agent ? `<div class="rk-disp-row-meta rk-disp-ua">${escapeHtml(displayDeviceKind(d.user_agent))}</div>` : ''}
           </div>
           <div style="display:flex; gap:6px; flex-shrink:0;">
@@ -15912,6 +15963,33 @@ function rkDisplayLinkUrl(data){
   return 'https://' + data.slug + '.rakeenapp.com/menu#' + key;
 }
 
+/** منتقي الفرع -- بنفس هيئة rkAsk، وبأزرارٍ بعدد الفروع. */
+function rkAskBranch(current){
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.className = 'modal-overlay';
+    ov.innerHTML = `
+      <div class="modal-card rk-ask-card">
+        <div class="rk-ask-title">أي فرع؟</div>
+        <div class="rk-ask-body">الشاشة تعرض باركود زبائن هذا الفرع وحده.</div>
+        <div class="rk-branch-pick">
+          ${DISPLAY_BRANCHES.map(b=>`
+            <button type="button" class="rk-branch-btn ${b.id===current?'active':''}" data-branch="${b.id}">
+              📍 ${escapeHtml(b.name)}
+            </button>`).join('')}
+        </div>
+        <div class="rk-ask-foot"><button type="button" class="rk-ask-cancel" id="rkBranchNo" style="flex:1;">إلغاء</button></div>
+      </div>`;
+    document.body.appendChild(ov);
+    requestAnimationFrame(()=> ov.classList.add('show'));
+    const close = (v)=>{ ov.classList.remove('show'); setTimeout(()=>ov.remove(), 180); resolve(v); };
+    ov.querySelectorAll('[data-branch]').forEach(b=>
+      b.addEventListener('click', ()=> close(Number(b.getAttribute('data-branch')))));
+    ov.querySelector('#rkBranchNo').addEventListener('click', ()=> close(null));
+    ov.addEventListener('click', e => { if(e.target === ov) close(null); });
+  });
+}
+
 async function rkShowDisplayLink(deviceId){
   const { data, error } = await window.supabaseClient.rpc('get_display_device_link',
     { p_device_id: Number(deviceId) });
@@ -15967,6 +16045,26 @@ document.addEventListener('click', async (e)=>{
        * ولا يعرف المالك أيّهما يحذف. واسمٌ يكتبه بيده أدلّ من "ويندوز"
        * على كل حال: عنده ثلاثة أجهزة ويندوز.
        */
+      /**
+       * والفرعُ يُسأل عنه قبل الاسم.
+       *
+       * كان يُنشأ بلا فرع -- والعمودُ قائمٌ منذ أول يوم -- فيسقط ترشيحُ
+       * البثّ إلى "كلِّ الشاشات". مقهىً بفرعين يعرض باركود زبونٍ هنا
+       * على شاشةٍ هناك، ويقف زبونُ الفرع الآخر أمام باركودٍ ليس له
+       * فيمسحه -- والرمزُ يُصرف مرّةً واحدة، فتضيع بطاقةُ صاحبه.
+       *
+       * وبفرعٍ واحدٍ لا يُسأل: سؤالٌ جوابُه واحدٌ لا يُطرح.
+       */
+      let branchId = DISPLAY_BRANCHES.length === 1 ? DISPLAY_BRANCHES[0].id : null;
+      if(DISPLAY_BRANCHES.length > 1){
+        branchId = await rkAskBranch();
+        if(branchId === null){ rkBtnLoading(pairBtn, false); return; }
+      }
+      if(!branchId){
+        rkBtnLoading(pairBtn, false);
+        showToast('ما فيه فروع مسجّلة — أضف فرعاً أولاً');
+        return;
+      }
       const name = await rkAsk({
         title: 'شاشة جديدة',
         body: 'سمِّها عشان تعرفها بين شاشاتك.',
@@ -15975,11 +16073,9 @@ document.addEventListener('click', async (e)=>{
         ok: 'أنشئ',
       });
       if(name === null){ rkBtnLoading(pairBtn, false); return; }
-      const { data, error } = await window.supabaseClient.rpc('create_display_pairing_code', { p_device_id: null });
-      if(error || !data || !data.id) throw (error || new Error('تعذر الإنشاء'));
-      const label = (name || '').trim();
-      if(label) await window.supabaseClient.from('display_devices')
-        .update({ label }).eq('id', data.id);
+      const { data, error } = await window.supabaseClient.rpc('create_display_device',
+        { p_branch_id: branchId, p_label: (name || '').trim() || null });
+      if(error || !data || !data.ok) throw (error || new Error('تعذر الإنشاء'));
       await rkShowDisplayLink(data.id);
       await loadDisplayDevices();
       const host = document.getElementById('rkDisplayPanelHost');
@@ -15990,6 +16086,23 @@ document.addEventListener('click', async (e)=>{
     }
     return;
   }
+  const scopeBtn = e.target.closest && e.target.closest('[data-dispbranch]');
+  if(scopeBtn){
+    const id = Number(scopeBtn.getAttribute('data-dispbranch'));
+    const cur = (DISPLAY_DEVICES.find(d => d.id === id) || {}).branch_id;
+    const picked = await rkAskBranch(cur);
+    if(picked === null) return;
+    try {
+      const { data } = await window.supabaseClient.rpc('set_display_device_branch',
+        { p_device_id: id, p_branch_id: picked });
+      if(!data || !data.ok){ showToast('تعذر التغيير'); return; }
+      await loadDisplayDevices();
+      const host = document.getElementById('rkDisplayPanelHost');
+      if(host) host.innerHTML = displayDevicesHtml();
+    } catch(_){ showToast('تعذر التغيير'); }
+    return;
+  }
+
   const renameBtn = e.target.closest && e.target.closest('[data-disprename]');
   if(renameBtn){
     const id = Number(renameBtn.getAttribute('data-disprename'));

@@ -72,3 +72,39 @@ describe('GS v 0 is what a printer actually receives', () => {
     expect(out).toHaveLength(8 + 72 * 694);
   });
 });
+
+/**
+ * حوافُّ الحروف المُنعَّمة -- وهي أكثرُ الحرف الرفيع في العربية.
+ *
+ * سطحُ Skia يبدأ شفافاً، فما يُرسم عليه يحمل ألفا التغطية. وبوّابةُ
+ * a < 128 كانت تُسقط كلَّ تغطيةٍ دونها، فيسقط الحرفُ الرفيع كلُّه
+ * ويخرج مقطوعاً بينما جارُه السميك أسودُ تامّ.
+ */
+describe('anti-aliased strokes survive the 1-bit threshold', () => {
+  /** بكسل واحد بلونٍ وتغطية، ونسأل: أصار حبراً؟ */
+  const inks = (r: number, g: number, b: number, a: number): boolean => {
+    const bytes = rgbaToEscPosRasterLegacy({
+      width: 1, height: 1, data: new Uint8Array([r, g, b, a]),
+    });
+    // آخرُ بايت هو صفُّ البكسل الواحد: البتُّ الأعلى مضاءٌ إن كان حبراً.
+    return (bytes[bytes.length - 1] & 0x80) !== 0;
+  };
+
+  it('keeps a black pixel at partial coverage that the old alpha gate dropped', () => {
+    // تغطية ١١٠: سطوعُها الفعليّ على أبيض ١٤٥ -- حبر. وكانت تُسقط.
+    expect(inks(0, 0, 0, 110)).toBe(true);
+    expect(inks(0, 0, 0, 128)).toBe(true);
+    expect(inks(0, 0, 0, 255)).toBe(true);
+  });
+
+  it('still treats a faint edge as paper', () => {
+    // تغطية ٩٠ فأقلّ: حافّةٌ باهتة لا حرف.
+    expect(inks(0, 0, 0, 90)).toBe(false);
+    expect(inks(0, 0, 0, 30)).toBe(false);
+    expect(inks(0, 0, 0, 0)).toBe(false);
+  });
+
+  it('leaves white paper white however opaque', () => {
+    expect(inks(255, 255, 255, 255)).toBe(false);
+  });
+});

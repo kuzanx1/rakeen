@@ -1,7 +1,3 @@
--- ركين — الترحيلات المتبقية، شغّلها كلها مرة وحدة في Supabase ← SQL Editor
--- كلها آمنة لو انعادت (create or replace / if not exists).
-
--- ═══════════════ 20260907170000_display_scoping ═══════════════
 -- شاشةُ العميل تخصّ فرعاً وكاشيراً بعينه، لا كلَّ من في المشروع.
 --
 -- العمودُ branch_id قائمٌ منذ أول يوم، ولا شيء يملؤه: دالّةُ الإنشاء لا
@@ -195,4 +191,3 @@ $cl$;
 
 revoke all on function claim_display_device(bigint, text) from public, anon;
 grant execute on function claim_display_device(bigint, text) to authenticated;
-

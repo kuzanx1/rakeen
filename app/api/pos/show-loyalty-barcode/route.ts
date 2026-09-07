@@ -29,10 +29,14 @@ export async function POST(request: NextRequest) {
 
   let customerId: number | null = null;
   let branchId: number | null = null;
+  let posDeviceId: string | null = null;
   try {
-    const body = (await request.json()) as { customerId?: number; branchId?: number };
+    const body = (await request.json()) as {
+      customerId?: number; branchId?: number; posDeviceId?: string;
+    };
     customerId = Number(body?.customerId) || null;
     branchId = Number(body?.branchId) || null;
+    posDeviceId = typeof body?.posDeviceId === "string" ? body.posDeviceId : null;
   } catch { /* جسمٌ ناقص */ }
   if (!customerId) return NextResponse.json({ error: "لا يوجد عميل" }, { status: 400 });
 
@@ -57,7 +61,7 @@ export async function POST(request: NextRequest) {
    */
   const { data: displays } = await asCashier
     .from("display_devices")
-    .select("id, device_secret, branch_id");
+    .select("id, device_secret, branch_id, pos_device_id");
 
   /**
    * وكلُّ شاشات الفرع تُعرض عليها، لا أوّلها.
@@ -68,13 +72,36 @@ export async function POST(request: NextRequest) {
    *
    * وحصرُ الفرع يبقى: فرعان لكلٍّ شاشاته، ولا يُخلط باركود هذا بذاك.
    */
+  /**
+   * الفرعُ أولاً، ثم نقطةُ البيع -- ولا سقوطَ إلى "كلِّ الشاشات".
+   *
+   * كان الترشيح يسقط، حين لا يُطابق شيء، إلى بثِّ الباركود على كل شاشةٍ
+   * في المشروع. وbranch_id لم يكن يُملأ عند الإنشاء أصلاً -- فالسقوطُ
+   * هو الحالةُ الدائمة: مقهىً بفرعين يعرض باركود زبونٍ هنا على شاشةٍ
+   * هناك، ويقف زبونُ الفرع الآخر أمام باركودٍ ليس له فيمسحه.
+   *
+   * وليس عرضاً في غير محلّه وحسب: من مسحه أخذ بطاقةَ غيره -- الرمزُ
+   * يُصرف مرّةً واحدة، فيضيع على صاحبه.
+   *
+   * والفرعُ وحده لا يكفي: فرعٌ بثلاث نقاطِ بيعٍ وثلاثِ شاشات يبثّ إلى
+   * الثلاث، فيرى ثلاثةُ زبائن باركوداً واحداً.
+   *
+   * فالترتيب:
+   *   ١) شاشاتُ هذا الفرع (وما لم يُنسب لفرعٍ بعد -- شاشاتُ ما قبل
+   *      اليوم، لئلا تسكت فجأةً على مطعمٍ يعمل).
+   *   ٢) منها: المربوطةُ بنقطة البيع هذي إن وُجدت، وإلا غيرُ المربوطة.
+   *      وشاشةٌ مربوطةٌ بنقطةِ بيعٍ أخرى لا تُبثّ إليها أبداً.
+   */
   const all = displays || [];
-  const targets =
-    (branchId ? all.filter(d => d.branch_id === branchId) : []).length
-      ? all.filter(d => d.branch_id === branchId)
-      : all.filter(d => d.branch_id == null).length
-        ? all.filter(d => d.branch_id == null)
-        : all;
+  const inBranch = branchId
+    ? all.filter(d => d.branch_id === branchId || d.branch_id == null)
+    : all.filter(d => d.branch_id == null);
+
+  const mine = posDeviceId ? inBranch.filter(d => d.pos_device_id === posDeviceId) : [];
+  const targets = mine.length
+    ? mine
+    : inBranch.filter(d => d.pos_device_id == null);
+
   const display = targets[0];
   if (!display) {
     return NextResponse.json(

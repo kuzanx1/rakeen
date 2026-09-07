@@ -56,6 +56,17 @@ export function createReceiptSurface(widthPx: number, heightPx: number): Receipt
     throw new Error('Skia.Surface.Make returned null -- could not allocate an offscreen surface');
   }
   const canvas = surface.getCanvas();
+  /**
+   * والورقُ أبيضُ قبل أن يُكتب عليه.
+   *
+   * سطحُ Skia يُخلق شفافاً تماماً، فكلُّ ما يُرسم عليه يحمل ألفا التغطية
+   * لا ألفا ٢٥٥ -- وحوافُّ الحروف تنزل بتغطيةٍ جزئية. وملؤه أبيضَ يجعل
+   * الألفا ٢٥٥ في كل مكان، فيصير المزجُ في القراءة تحصيلَ حاصل، ويصير
+   * ما يُقرأ هو ما يُرى.
+   *
+   * وهو ما تفعله لوحةُ الويب من نفسها: لوحةُ DOM معتمةٌ افتراضاً.
+   */
+  canvas.drawColor(Skia.Color('white'));
 
   return {
     widthPx,
