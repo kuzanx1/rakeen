@@ -23,6 +23,7 @@ import { getReceiptBranding } from '../application/catalogService';
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { shouldPrintCustomerReceipt, shouldPrintReceiptLogo } from '../domain/printerProfile';
 import type { ReceiptData } from '../domain/receipt';
+import { useI18n } from './i18n';
 import { createStyles, fonts, gradients, Palette, radii, spacing, useTheme } from './theme';
 import { useShell } from './shell';
 import Svg, { Path, Polyline, Rect } from 'react-native-svg';
@@ -116,6 +117,19 @@ function DetailRow({
   );
 }
 
+/**
+ * اسمُ الصنف بلغة الجهاز.
+ *
+ * الأسماءُ بياناتٌ لا نصوصُ واجهة، فلا يمسّها مترجمُ <Text> -- ولها
+ * ترجمتُها في القاعدة: menu_items.name_en، وهي محمّلةٌ في التفاصيل
+ * أصلاً (nameEn). وكانت تُقرأ عربيةً في واجهةٍ إنجليزية.
+ * وبلا name_en يبقى العربيّ: اسمٌ لم يُكتب لا يُخترع.
+ * (نظيرها في الويب: rkProductName.)
+ */
+function displayName(lang: string, name: string, nameEn?: string | null): string {
+  return lang === 'en' && nameEn ? nameEn : name;
+}
+
 export default function OrderHistoryScreen({
   branchId,
   shiftId,
@@ -154,6 +168,7 @@ export default function OrderHistoryScreen({
    * لا يعرف كم يخصّ الصنف الذي رجع، والحساب في رأسه بابُ خطأ. ويُسأل
    * عن المبلغ حيث يكون السؤال ذا معنى: صنفٌ واحد رجع بعضُه.
    */
+  const { lang } = useI18n();
   const [refundLines, setRefundLines] = useState<RefundLine[] | null>(null);
   const [refundPick, setRefundPick] = useState<Record<number, number>>({});
   const [refundPickOpen, setRefundPickOpen] = useState(false);
@@ -474,7 +489,7 @@ export default function OrderHistoryScreen({
                 {detail.items.map((it, i) => (
                   <View key={i} style={styles.itemRow}>
                     <Text style={styles.itemName}>
-                      {it.qty} × {it.name}
+                      {it.qty} × {displayName(lang, it.name, it.nameEn)}
                       {it.mods.length > 0 ? ` (${it.mods.join('، ')})` : ''}
                       {it.note ? ` — ${it.note}` : ''}
                     </Text>
@@ -613,7 +628,13 @@ export default function OrderHistoryScreen({
                   return (
                     <View key={l.orderItemId} style={styles.refundLineRow}>
                       <View style={styles.refundLineInfo}>
-                        <Text style={styles.refundLineName}>{l.name}</Text>
+                        {/* الدالّةُ في القاعدة تُرجع الاسمَ العربيّ وحده،
+                            وتُرجع معه menuItemId -- فتُقرأ الإنجليزيةُ من
+                            سطور التفاصيل المحمّلة، بلا نداءٍ ثانٍ. */}
+                        <Text style={styles.refundLineName}>{
+                          displayName(lang, l.name,
+                            detail?.items.find(i => i.menuItemId === l.menuItemId)?.nameEn)
+                        }</Text>
                         <Text style={styles.refundLineMeta}>
                           {l.isFreeReward ? 'مكافأة مجانية' : `${l.unitPrice.toFixed(2)} ريال`} · باقي {left}
                         </Text>

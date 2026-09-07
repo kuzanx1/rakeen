@@ -754,6 +754,24 @@ function t(ar){ return LANG === 'en' ? (lookupEn(ar) || ar) : ar; }
 // their number silently wiped instead of converted, since \D treats them
 // as "non-digit" too. Convert both Arabic-Indic and Eastern Arabic-Indic
 // (Persian) digits to Western digits FIRST, before any \D stripping.
+/**
+ * اسمُ الصنف بلغة الجهاز.
+ *
+ * الأسماءُ بياناتٌ لا نصوصُ واجهة، فهي مستثناةٌ من المترجم العام عمداً
+ * (I18N_SKIP) -- ولها ترجمتُها الحقيقية في القاعدة: menu_items.name_en،
+ * يكتبها صاحبُ المطعم بنفسه.
+ *
+ * والشبكةُ والسلّةُ والفاتورة تقرؤها منذ البداية، وشاشاتٌ ثلاث لا:
+ * تفاصيل الطلب، ومنتقي الاسترجاع، ونافذة الطلب الوارد. فيقرأ الكاشير
+ * واجهةً إنجليزيةً وأصنافاً عربية في الشاشة نفسها.
+ *
+ * وبلا name_en يبقى العربيّ: اسمٌ لم يُكتب لا يُخترع.
+ */
+function rkProductName(product, fallbackId){
+  if(!product) return 'منتج #' + fallbackId;
+  return (LANG === 'en' && product.name_en) ? product.name_en : product.name;
+}
+
 function toWesternDigits(str){
   return String(str).replace(/[٠-٩۰-۹]/g, ch=>{
     const code = ch.charCodeAt(0);
@@ -5977,7 +5995,7 @@ async function openOrderDetail(orderId){
   const itemsHtml = (items||[]).map(it=>{
     const mods = (it.selected_modifiers||[]).map(m=>escapeHtml(m.text)).join('، ');
     const product = PRODUCTS.find(p=>p.id===it.menu_item_id);
-    const name = escapeHtml(product ? product.name : ('منتج #' + it.menu_item_id));
+    const name = escapeHtml(rkProductName(product, it.menu_item_id));
     return `<div class="receipt-detail-row"><span>${it.qty} × ${name}${mods ? ' (' + mods + ')' : ''}${it.note ? ' — ' + escapeHtml(it.note) : ''}</span>${rkMoney(Number(it.line_total))}</div>`;
   }).join('');
 
@@ -5991,7 +6009,10 @@ async function openOrderDetail(orderId){
   body.innerHTML = `
     <div class="receipt-success">
       ${isOnline ? `<div class="receipt-detail-row" style="border-bottom:none; font-weight:800; color:var(--lime-deep);"><span>🌐 طلب إلكتروني — من متجر المطعم</span><span></span></div>` : ''}
-      <h3>${escapeHtml(CHANNEL_LABELS[order.channel] || order.channel)}${order.customer_name ? ' — ' + escapeHtml(order.customer_name) : ''}</h3>
+      <!-- t() صراحةً: "محلي — فيصل" عقدةُ نصٍّ واحدة، والمترجمُ العام
+           يبحث عن السلسلة كاملةً في القاموس فلا يجدها -- فيبقى العنوانُ
+           عربياً في واجهةٍ إنجليزية. واسمُ الموظّف لا يُترجَم بحال. -->
+      <h3>${escapeHtml(t(CHANNEL_LABELS[order.channel] || order.channel))}${order.customer_name ? ' — ' + escapeHtml(order.customer_name) : ''}</h3>
       <div class="receipt-total">${rkMoney(Number(order.total))}</div>
       ${pickupTimeNoteHtml(order)}
       ${order.channel === 'dine_in' && order.restaurant_tables ? `<div class="receipt-detail-row"><span>الطاولة</span><span class="mono">طاولة ${order.restaurant_tables.number}</span></div>` : ''}
@@ -6074,7 +6095,12 @@ async function openOrderDetail(orderId){
             const took = pick[l.orderItemId] || 0;
             return `<div class="refund-line">
               <div class="refund-line-info">
-                <div class="refund-line-name">${escapeHtml(l.name)}</div>
+                <!-- الدالّةُ في القاعدة تُرجع الاسمَ العربيّ وحده، وتُرجع
+                     معه menuItemId -- والشبكةُ محمّلةٌ في الجهاز أصلاً،
+                     فيُقرأ name_en منها بلا ترحيلٍ ولا نداءٍ ثانٍ. -->
+                <div class="refund-line-name">${escapeHtml(
+                  rkProductName(PRODUCTS.find(p => p.id === l.menuItemId), l.menuItemId) || l.name
+                )}</div>
                 <div class="refund-line-meta">${l.isFreeReward ? 'مكافأة مجانية' : Number(l.unitPrice).toFixed(2) + ' ريال'} · باقي ${left}</div>
               </div>
               <div class="refund-qty">
@@ -9396,7 +9422,7 @@ function renderIncomingOrderModal(order, items){
   const itemsHtml = items.map(it=>{
     const mods = (it.selected_modifiers||[]).map(m=>escapeHtml(m.text)).join('، ');
     const product = PRODUCTS.find(p=>p.id===it.menu_item_id);
-    const name = escapeHtml(product ? product.name : ('منتج #' + it.menu_item_id));
+    const name = escapeHtml(rkProductName(product, it.menu_item_id));
     return `<div class="receipt-detail-row"><span>${it.qty} × ${name}${mods ? ' (' + mods + ')' : ''}${it.note ? ' — ' + escapeHtml(it.note) : ''}</span>${rkMoney(Number(it.line_total))}</div>`;
   }).join('');
   const phoneDigits = (order.customer_phone || '').replace(/\D/g, '');
