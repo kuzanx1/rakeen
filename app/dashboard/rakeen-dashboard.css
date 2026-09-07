@@ -132,7 +132,28 @@ button{font-family:inherit; cursor:pointer;}
 .topbar{min-height:64px; padding-top:env(safe-area-inset-top, 0px); flex-shrink:0; display:flex; align-items:center; gap:16px; padding-inline:28px; border-bottom:1px solid var(--line); background:var(--card-bg);}
 .topbar h1{font-size:17px; font-weight:800;}
 .topbar-spacer{flex:1;}
-.content{flex:1; overflow-y:auto; padding:28px 32px;}
+/* شريط التمرير: إلى يمين المحتوى، ونحيفٌ يُلمح ولا يزاحم.
+ *
+ * في الاتجاه من اليمين إلى اليسار يضعه المتصفّح على اليسار -- فيقع في
+ * أقصى الشاشة، بعيداً عن الشريط الجانبي وعن حيث تبدأ العين. والحيلة
+ * قلبُ اتجاه الحاوية وحدها ثم ردُّه على أبنائها: الاتجاه يقرّر جهة
+ * الشريط، ولا شيء غيره يتغيّر -- فالنصّ والتخطيط يبقيان عربيّين.
+ *
+ * (ويُردّ على كل ابنٍ مباشر لا على .screen بالاسم: شاشةٌ تُضاف غداً
+ * بصنفٍ آخر لا تخرج مقلوبة.)
+ */
+.content{flex:1; overflow-y:auto; padding:28px 32px; direction:ltr;
+  scrollbar-width:thin; scrollbar-color:color-mix(in srgb, var(--muted) 34%, transparent) transparent;}
+.content > *{direction:rtl;}
+.content::-webkit-scrollbar{width:11px;}
+.content::-webkit-scrollbar-track{background:transparent;}
+.content::-webkit-scrollbar-thumb{
+  background:color-mix(in srgb, var(--muted) 32%, transparent);
+  border:3px solid transparent; background-clip:content-box; border-radius:999px;
+}
+.content::-webkit-scrollbar-thumb:hover{
+  background:color-mix(in srgb, var(--muted) 58%, transparent); background-clip:content-box;
+}
 .screen{display:none;}
 .screen.active{display:block;}
 
@@ -2076,3 +2097,369 @@ select:not([class]){min-width:150px;}
 }
 .rk-disp-row-meta{ font-size:11.5px; color:var(--muted); margin-top:3px; }
 .rk-disp-ua{ opacity:.75; }
+
+/* ===== توثيق ملكية المتجر =====
+   طريقتان في بطاقةٍ واحدة، مرقّمتان: صاحب المطعم يفتح هذه اللوحة وفي
+   يده شاشة المنصّة، فيقابل رقماً برقم. ولو صُفّت الحقول بلا فصلٍ ظاهر
+   لخلط الوسم بالملف وحفظ نصف هذا في مكان ذاك. */
+.rk-verify-method{ border:1px solid var(--line); border-radius:var(--r-md); padding:16px; margin-top:14px; background:var(--surf1); }
+.rk-verify-method-head{ display:flex; gap:10px; align-items:flex-start; margin-bottom:12px; }
+.rk-verify-num{ width:24px; height:24px; border-radius:50%; background:var(--surf2); color:var(--text);
+  font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.rk-verify-title{ font-size:13px; font-weight:800; color:var(--text); display:flex; align-items:center; gap:7px; }
+.rk-verify-sub{ font-size:11.5px; font-weight:600; color:var(--muted); margin-top:3px; line-height:1.6; }
+.rk-verify-badge{ font-size:9.5px; font-weight:800; padding:2px 7px; border-radius:99px;
+  background:rgba(196,255,43,0.20); color:var(--success-text); }
+.rk-verify-actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+
+/* الحالة تبقى مكانها ولو كانت فارغة -- لأن ظهور سطرٍ يزحزح الأزرار
+   تحته، فتُضغط بعد الفحص ضغطةٌ في غير موضعها. */
+.rk-verify-status{ font-size:11.5px; font-weight:700; color:var(--muted); margin-top:10px; min-height:17px; line-height:1.6; }
+.rk-verify-status.ok{ color:var(--success-text); }
+.rk-verify-status.warn{ color:var(--danger); }
+
+/* رمز التحقق يُقرأ حرفاً حرفاً حين يُقارَن، فيُعرض بخطٍّ ثابت العرض
+   وباتجاهٍ لاتيني -- وهو نصٌّ لاتيني داخل لوحةٍ عربية. */
+.rk-verify-method textarea{ padding:11px 14px; border-radius:var(--r-sm); border:1px solid var(--line);
+  background-color:var(--card-bg); color:var(--text); font-size:12px; font-family:'IBM Plex Mono', ui-monospace, monospace;
+  width:100%; resize:vertical; line-height:1.6; transition:border-color .12s ease, box-shadow .12s ease; }
+.rk-verify-method textarea:focus{ outline:none; border-color:var(--lime-deep); box-shadow:0 0 0 3px rgba(143,203,23,0.18); }
+.rk-verify-method input[type="text"]{ font-family:'IBM Plex Mono', ui-monospace, monospace; font-size:12px; }
+
+/* ===== معاينة بطاقة المحفظة =====
+   بنِسَب آبل: عرض البطاقة 320px والشريط 105 — أي 375×123 نقطة مصغّرةً
+   بنفس المعامل. ليست "تشبه البطاقة": من ضبط لوناً على معاينةٍ تكذب
+   اكتشف كذبها بعد أن تصير في جيوب زبائنه. */
+.rkw-wrap{ display:flex; gap:18px; flex-wrap:wrap; align-items:flex-start; }
+.rkw-phone{ flex:1 1 260px; min-width:0; max-width:320px; }
+/* خطُّ البطاقة ليس خطَّنا.
+   آبل ترسم كلَّ نصٍّ على البطاقة بخطّها هي -- لا مفتاح في pass.json
+   لعائلة خطٍّ ولا حجمٍ ولا وزن. فالمعاينة التي ترسم بخطّ لوحة التحكم
+   بوزن 800 تَعِد بشيءٍ لا يصل الجهاز: صاحب المطعم يضبط تصميماً ثم
+   يفتح جواله فيجد غيره. فتُرسم هنا بخطّ النظام وبأوزان آبل وبمقاساتها
+   -- أقلّ جمالاً، وهو الثمن الوحيد المقبول مقابل أن تكون صادقة. */
+.rkw-card{ width:100%; max-width:320px; border-radius:14px; overflow:hidden; box-shadow:0 10px 28px rgba(0,0,0,.22);
+  font-family:-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Arabic', 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing:antialiased; }
+
+.rkw-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px 10px; }
+.rkw-logo{ max-height:30px; max-width:150px; object-fit:contain; display:block; }
+.rkw-name{ font-size:14.5px; font-weight:600; }
+.rkw-headfield{ text-align:end; }
+.rkw-flabel{ font-size:9.5px; font-weight:600; letter-spacing:.3px; text-transform:uppercase; }
+.rkw-fvalue{ font-size:14.5px; font-weight:600; margin-top:1px; }
+
+.rkw-strip{ height:105px; overflow:hidden; position:relative; }
+.rkw-strip img{ width:100%; height:100%; object-fit:cover; display:block; }
+/* شبكةٌ لا سطر: أكثر من سبعة أختام تنزل صفّاً ثانياً، تماماً كما يفعل
+   مولّد الشريط في الخادم -- ولو اختلفا لكانت المعاينة لصفٍّ والبطاقة
+   لصفّين. */
+.rkw-stamps{ position:absolute; inset:0; display:grid; place-content:center;
+  justify-items:center; align-items:center; gap:2px 6px; }
+.rkw-stamps svg{ display:block; }
+
+.rkw-fields{ display:flex; justify-content:space-between; gap:12px; padding:11px 14px 4px; }
+.rkw-f-end{ text-align:end; }
+
+/* الباركود مساحةٌ بيضاء لا رمزٌ حقيقي: رمزُ معاينةٍ يُمسح خطأً في
+   الاختبار، وهذه مساحته لا هو. */
+.rkw-qr{ display:flex; flex-direction:column; align-items:center; gap:5px; padding:8px 0 14px; }
+.rkw-qr-alt{ font-size:10px; font-weight:500; letter-spacing:.6px; direction:ltr; }
+.rkw-qr-box{ width:86px; height:86px; border-radius:6px; background:#fff; padding:6px;
+  box-sizing:border-box; display:block; }
+.rkw-qr-box svg{ width:100%; height:100%; display:block; shape-rendering:crispEdges; }
+
+.rkw-side{ flex:1 1 210px; min-width:190px; }
+/* إشعار شاشة القفل: ما يراه وهو يمرّ بالفرع، لا ما يراه وهو يفتح
+   البطاقة. وهما موضعان مختلفان يُضبطان من حقلين مختلفين. */
+.rkw-lock{ background:rgba(120,120,120,.16); backdrop-filter:blur(6px);
+  border:1px solid var(--line); border-radius:14px; padding:10px 12px; }
+.rkw-lock-head{ display:flex; align-items:center; gap:7px; font-size:10.5px; font-weight:800; color:var(--muted); }
+.rkw-lock-head img{ width:17px; height:17px; border-radius:4px; object-fit:cover; }
+.rkw-lock-ico{ width:17px; height:17px; border-radius:4px; background:var(--surf2);
+  display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; color:var(--text); }
+.rkw-lock-now{ margin-inline-start:auto; opacity:.7; font-weight:700; }
+.rkw-lock-body{ font-size:12.5px; font-weight:700; color:var(--text); margin-top:5px; line-height:1.5; }
+.rkw-note{ font-size:11px; color:var(--muted); font-weight:600; line-height:1.7; margin:10px 0 0; }
+
+.rkw-sep{ font-size:10.5px; font-weight:800; color:var(--muted); letter-spacing:.4px;
+  margin:22px 0 12px; padding-top:14px; border-top:1px dashed var(--line); }
+
+.rkw-fieldset{ margin-top:20px; padding-top:16px; border-top:1px solid var(--line); }
+
+/* ===== مجموعات شاشة تصميم البطاقة =====
+   ثلاث خطوات مرقّمة ثم درجٌ للمتقدّم. والترقيم ليس زينة: صاحب المطعم
+   يفتح هذه الشاشة مرةً كل بضعة أشهر، فيحتاج أن يعرف أين هو وكم بقي —
+   لا أن يواجه اثني عشر حقلاً متساوية. */
+.rk-dgroup{ border:1px solid var(--line); border-radius:var(--r-md); padding:16px; margin-bottom:14px; background:var(--surf1); }
+.rk-dgroup.hidden{ display:none; }
+.rk-dgroup-head{ display:flex; gap:10px; align-items:flex-start; margin-bottom:4px; }
+.rk-dgroup-num{ width:23px; height:23px; border-radius:50%; background:var(--surf2); color:var(--text);
+  font-size:11.5px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px; }
+.rk-dgroup-title{ font-size:13px; font-weight:800; color:var(--text); }
+.rk-dgroup-sub{ font-size:11.5px; font-weight:600; color:var(--muted); margin-top:3px; line-height:1.6; }
+
+/* أول حقلٍ في المجموعة لا يحتاج فاصلاً عن ترويستها. */
+.rk-dgroup > .rk-field:first-of-type{ margin-top:12px !important; }
+
+/* المتقدّم مطويّ: من احتاجه فتحه، ومن لم يحتجه لم يره أصلاً — وهو
+   الأغلب، لأن الافتراضي مرسومٌ له. */
+.rk-dadv{ background:transparent; }
+.rk-dadv > summary{ cursor:pointer; list-style:none; display:flex; flex-direction:column; gap:3px; }
+.rk-dadv > summary::-webkit-details-marker{ display:none; }
+.rk-dadv > summary::after{ content:'▾'; position:absolute; inset-inline-end:16px; margin-top:2px; color:var(--muted); font-size:11px; }
+.rk-dadv[open] > summary::after{ content:'▴'; }
+.rk-dadv{ position:relative; }
+
+/* المضيف بعد أن أُفرغ: لا يُحذف لأن ما يكتب فيه يبحث عنه، ولا يُترك
+   يأخذ فراغاً في التخطيط. */
+.rk-dhost-spent{ display:none; }
+
+/* المتقاعد لا يعود: hidden وحده يُنزَع من دوالٍّ لا تعرف أنه تقاعد. */
+.rk-retired{ display:none !important; }
+
+/* ===== حقل اللون: مربّع وكود وقطّارة =====
+   نفس نمط تصميم المتجر الإلكتروني — لأن لوحةً واحدة ينبغي أن تُضبط
+   الألوان فيها بطريقةٍ واحدة، لا بطريقةٍ في كل شاشة. */
+.rk-color-ctl{ display:flex; align-items:center; gap:9px; border:1px solid var(--line);
+  border-radius:10px; padding:7px 10px; background:var(--card-bg); max-width:280px; }
+.rk-color-swatch{ width:28px; height:28px; border-radius:8px; border:1px solid var(--line);
+  flex-shrink:0; cursor:pointer; overflow:hidden; position:relative; }
+/* المربّع الأصلي يبقى في الشجرة ليحمل مستمعيه، ويختفي عن العين: هو
+   بابُ منتقي النظام لا شكله. */
+.rk-color-native{ opacity:0; width:1px; height:1px; display:block; padding:0; border:none; }
+.rk-color-hex{ border:none !important; background:none !important; padding:0 !important;
+  font-size:12.5px; font-weight:800; flex:1; min-width:0; direction:ltr; text-align:start;
+  color:var(--text); letter-spacing:.5px; }
+.rk-color-hex:focus{ outline:none; box-shadow:none !important; }
+.rk-color-pick{ width:28px; height:28px; border-radius:8px; border:1px solid var(--line);
+  background:var(--surf1); color:var(--muted); flex-shrink:0; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; transition:color .12s ease, border-color .12s ease; }
+.rk-color-pick:hover{ color:var(--text); border-color:color-mix(in srgb, var(--line) 40%, var(--muted)); }
+.rk-color-pick svg{ width:14px; height:14px; }
+
+/* الختم المرفوع: بألوانه حين يُنال، ومطفأً باهتاً قبله — نفس ما يفعله
+   الخادم بالبكسلات، لا تقريبٌ له. */
+.rkw-stamp-img{ width:27px; height:27px; object-fit:contain; display:block; }
+.rkw-stamp-off{ filter:grayscale(1) brightness(.8); opacity:.42; }
+
+/* شريط التجربة: يجيب عن السؤال الذي يسأله كل صاحب مطعم — كيف تطلع
+   بطاقته بعد زيارة، وكيف تطلع حين تكتمل. ويُجاب بأن يُرى. */
+.rkw-scrub{ background:var(--surf1); border:1px solid var(--line); border-radius:var(--r-md); padding:11px 13px; margin-bottom:12px; }
+.rkw-scrub-lab{ font-size:11px; font-weight:800; color:var(--muted); margin-bottom:8px; }
+.rkw-scrub input[type="range"]{ width:100%; margin:0; }
+.rkw-scrub-val{ font-size:12px; font-weight:800; color:var(--text); margin-top:7px; }
+
+/* الإزالة نصف الرفع: من وضع صورةً في غير موضعها لا ينبغي أن يُضطر إلى
+   رفع أخرى فوقها. */
+.rk-img-clear{ display:block; margin-top:7px; background:none; border:none; padding:0;
+  font-family:inherit; font-size:11px; font-weight:700; color:var(--danger); cursor:pointer; }
+.rk-img-clear:hover{ text-decoration:underline; }
+
+/* الخلفية المرفوعة تحت الأختام، والحجاب بينهما — نفس ترتيب الطبقات في
+   الخادم، لأن معاينةً بترتيبٍ آخر معاينةُ بطاقةٍ أخرى. */
+.rkw-strip-bg{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; }
+.rkw-strip-scrim{ position:absolute; inset:0; background:rgba(8,8,10,.34); }
+
+/* مبدّل بخيارين: قرارٌ من اثنين يُرى الاثنان فيه معاً، لا قائمةٌ تُفتح. */
+.rk-seg{ display:flex; gap:6px; background:var(--surf2); border-radius:10px; padding:4px; }
+.rk-seg button{ flex:1; border:none; background:none; border-radius:7px; padding:8px 6px;
+  font-family:inherit; font-size:11.5px; font-weight:800; color:var(--muted); cursor:pointer;
+  transition:background .12s ease, color .12s ease; }
+.rk-seg button.active{ background:var(--card-bg); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,.10); }
+
+/* خليّة الختم: غلافٌ يُزاح رأسياً — الميل يُطبَّق عليه لا على الرسمة
+   نفسها، فتبقى الشبكة تحسب المسافات الأفقية بلا أن يزحزحها الميل. */
+.rkw-cell{ display:block; line-height:0; }
+
+/* منتقي الترتيب: أربعة رسوم تُقارَن بالنظر، لا أربعة أسماء تُقرأ. */
+.rk-layoutpick{ display:grid; grid-template-columns:repeat(4, 1fr); gap:7px; }
+.rk-layoutpick button{ border:1px solid var(--line); background:var(--card-bg); border-radius:10px;
+  padding:9px 4px 7px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:5px;
+  font-family:inherit; font-size:9.5px; font-weight:700; color:var(--muted);
+  transition:border-color .12s ease, color .12s ease; }
+.rk-layoutpick button svg{ width:22px; height:22px; }
+.rk-layoutpick button.active{ border-color:var(--lime-deep); color:var(--text); box-shadow:0 0 0 2px rgba(143,203,23,.16); }
+.rk-layoutpick button span{ text-align:center; line-height:1.3; }
+
+/* شريحةُ الخلفية المشتقّة: ما ستكون عليه إن لم يُختر لون. */
+.rk-swatch-preview{ height:26px; border-radius:8px; margin-top:10px; border:1px solid var(--line); }
+.rk-bgcolors.hidden{ display:none; }
+
+/* ===== المعاينة تلاحق العين =====
+   الشاشة أطول من الشاشة: من نزل إلى ترتيب الأختام لم يعد يرى البطاقة
+   التي يرتّبها. فتثبت المعاينة وتنزل معه — وهي نصف العمل، لا زينةٌ
+   إلى جانبه.
+
+   ولا تثبت في العمود الواحد: تحت 900 بكسل تصير المعاينة فوق النموذج،
+   وتثبيتها هناك يأكل نصف الشاشة على الحقل الذي يُكتب فيه. */
+@media (min-width: 901px){
+  .loyalty-design-grid > .loyalty-design-preview{
+    position:sticky; top:14px; align-self:start; max-height:calc(100vh - 28px); overflow:auto;
+  }
+}
+
+/* مبدّلٌ بأربعة: النصّ يضيق، فيُصغَّر ويُلفّ بدل أن يُقصّ. */
+.rk-seg-4 button{ font-size:10.5px; padding:8px 3px; line-height:1.35; }
+
+/* حالتا الختم جنباً إلى جنب تحت عنوانٍ واحد: صفّان متتاليان بلا رابط
+   يُقرآن رفعين مستقلّين، فيُرفع أحدهما ويُترك الآخر. */
+.rk-stamp-pair{ margin-top:14px; }
+.rk-stamp-pair.hidden{ display:none; }
+.rk-stamp-pair-title{ font-size:11.5px; font-weight:800; color:var(--text); margin-bottom:10px; }
+.rk-stamp-pair-boxes{ display:flex; gap:14px; flex-wrap:wrap; }
+.rk-stamp-pair-boxes > .rk-field{ margin-top:0 !important; flex:1 1 130px; min-width:120px; }
+.rk-stamp-pair-boxes .stock-qty-helper{ font-size:10.5px; }
+
+/* ===== شريطٌ عليه علامة المناسب =====
+   شريطٌ بلا علامة يجعل كل موضعٍ فيه متساوياً في الظنّ: من حرّكه لم
+   يعرف أين كان ولا إلى أين يرجع. والعلامة زرٌّ يُضغط فيَرجع — لا خطٌّ
+   يُنظر إليه فقط. */
+/* المزلاج بهويّتنا لا بهويّة المتصفّح.
+   كان أزرقَ ويندوز الافتراضي في لوحةٍ ليمونية -- لونٌ لم يخترْه أحد.
+   والمسار يمتلئ ليمياً إلى موضع الإبهام (--fill يُحدَّث مع السحب)،
+   فيُقرأ المقدار من طول الممتلئ لا من موضع نقطةٍ وحدها.
+   وعلامة الافتراضي حُذفت: نقطةٌ في وسط المسار لا تقول ما هي. */
+.rk-range{ position:relative; padding-top:2px; }
+.rk-range input[type="range"]{
+  -webkit-appearance:none; appearance:none; width:100%; margin:0; height:22px;
+  background:transparent; cursor:pointer; position:relative; z-index:1;
+}
+.rk-range input[type="range"]::-webkit-slider-runnable-track{
+  height:6px; border-radius:var(--r-full);
+  background:linear-gradient(to left, var(--lime-deep) 0 var(--fill,50%), var(--surf2) var(--fill,50%) 100%);
+  border:1px solid var(--line);
+}
+.rk-range input[type="range"]::-moz-range-track{
+  height:6px; border-radius:var(--r-full); background:var(--surf2); border:1px solid var(--line);
+}
+.rk-range input[type="range"]::-moz-range-progress{
+  height:6px; border-radius:var(--r-full); background:var(--lime-deep);
+}
+.rk-range input[type="range"]::-webkit-slider-thumb{
+  -webkit-appearance:none; appearance:none; margin-top:-7px;
+  width:20px; height:20px; border-radius:50%;
+  background:var(--card-bg); border:2px solid var(--lime-deep);
+  box-shadow:0 1px 4px rgba(17,17,17,.22); transition:transform .1s ease, box-shadow .12s ease;
+}
+.rk-range input[type="range"]::-moz-range-thumb{
+  width:20px; height:20px; border-radius:50%; border:2px solid var(--lime-deep);
+  background:var(--card-bg); box-shadow:0 1px 4px rgba(17,17,17,.22);
+}
+.rk-range input[type="range"]:hover::-webkit-slider-thumb{ transform:scale(1.08); }
+.rk-range input[type="range"]:active::-webkit-slider-thumb{ transform:scale(1.14); }
+.rk-range input[type="range"]:focus-visible::-webkit-slider-thumb{ box-shadow:0 0 0 4px rgba(143,203,23,.35); }
+
+/* أيقونتا حالتَي الختم — لا إيموجي.
+   الإيموجي يُرسم بخطّ النظام: يختلف بين ويندوز وماك وأندرويد، ويأتي
+   ملوّناً في لوحةٍ ألوانها محسوبة. والأيقونة تتبع لون النصّ حولها. */
+.rk-stamp-pair label{ display:flex; align-items:center; gap:6px; }
+.rk-stamp-ico{ width:15px; height:15px; flex-shrink:0; color:var(--success-text); }
+.rk-stamp-ico-muted{ color:var(--muted); }
+
+/* صندوقا الرفع سواء، وتحتهما شرحٌ بارتفاعٍ واحد — فلا يهبط أحدهما. */
+.rk-stamp-pair-boxes > .rk-field{ display:flex; flex-direction:column; }
+.rk-stamp-pair-boxes .stock-qty-helper{ margin-top:8px; }
+
+/* آخر قسمٍ في الشاشة يُفصل عمّا قبله.
+   زرُّ الحفظ يخصّ ما فوقه، فالتصاق قسمٍ جديد به يجعله يبدو كأنه يخصّه
+   هو أيضاً — والمسافة هي التي تقول أين انتهى شيء وبدأ آخر. */
+.rk-section-last{ margin-top:28px; }
+
+/* جدول التسميات: ما يقوله الحقل على اليمين، وما تكتبه أنت على اليسار.
+   وصفٌّ لكل حقل بدل بطاقةٍ لكل حقل — تسعُ بطاقاتٍ تُخفي بعضها بعضاً. */
+.rk-lbltable{ margin-top:12px; display:flex; flex-direction:column; gap:8px; }
+.rk-lblrow{ display:flex; align-items:center; gap:10px; }
+.rk-lblrow-what{ flex:0 0 140px; font-size:11.5px; font-weight:700; color:var(--muted); }
+.rk-lblrow-in{ flex:1; min-width:0; padding:9px 12px; border-radius:var(--r-sm);
+  border:1px solid var(--line); background:var(--card-bg); color:var(--text);
+  font-family:inherit; font-size:12.5px; font-weight:700; }
+.rk-lblrow-in:focus{ outline:none; border-color:var(--lime-deep); box-shadow:0 0 0 3px rgba(143,203,23,.18); }
+/* عمودان: عربيٌّ وإنجليزي. والعناوين فوقهما مرّةً واحدة لا فوق كل صفّ
+   -- تسعةُ صفوفٍ كلٌّ منها يقول "عربي/English" ضجيجٌ يُقرأ مرّة. */
+.rk-icon-more{ width:auto; padding:0 12px; font-size:11.5px; font-weight:800; }
+.rkw-langsw{ display:flex; gap:4px; margin-bottom:10px; padding:3px; border-radius:var(--r-full);
+  background:var(--surf1); border:1px solid var(--line); width:max-content; }
+.rkw-langbtn{ padding:5px 14px; border:0; border-radius:var(--r-full); background:transparent;
+  color:var(--muted); font-family:inherit; font-size:11.5px; font-weight:800; cursor:pointer;
+  transition:background .12s ease, color .12s ease; }
+.rkw-langbtn.on{ background:var(--lime-deep); color:var(--graphite); }
+.rk-lblrow-cap{ margin-top:14px; }
+.rk-lblrow-caplab{ flex:1; min-width:0; font-size:10.5px; font-weight:800;
+  color:var(--muted); letter-spacing:.4px; }
+.rk-lblrow-en{ font-family:-apple-system, 'Segoe UI', system-ui, sans-serif; }
+.rk-lblrow-head{ font-size:11.5px; font-weight:800; color:var(--text); margin-top:18px; }
+/* حقول تبويب الإشعارات: حدودٌ ظاهرة وعدّادٌ يقول كم بقي.
+   كانت خانة العرض بلا إطار -- نصٌّ يطفو على بياض، فلا يُعرف أين يبدأ
+   ولا كم يتّسع، ولا يُدرَك أن له حدّاً حتى يُرفض عند الإرسال. */
+#walletMsgBlock textarea,
+#walletMsgBlock input[type="text"],
+#walletMsgBlock input[type="number"]{
+  width:100%; padding:11px 14px; border-radius:var(--r-sm);
+  border:1px solid var(--line); background:var(--card-bg); color:var(--text);
+  font-family:inherit; font-size:12.5px; font-weight:700; line-height:1.7; resize:vertical;
+}
+#walletMsgBlock textarea:focus,
+#walletMsgBlock input:focus{outline:none; border-color:var(--lime-deep); box-shadow:0 0 0 3px rgba(143,203,23,.18);}
+.rk-charcount{margin-top:5px; text-align:end; font-size:10.5px; font-weight:700; color:var(--muted); font-family:'IBM Plex Mono',monospace;}
+.rk-charcount.near{color:var(--amber);}
+
+/* العرض الشغّال: يُرى قبل أن يُنهى، ونقطةٌ خضراء تقول إنه حيّ. */
+.rk-active-offer{margin-top:14px; padding:14px 16px; border-radius:var(--r-md);
+  background:color-mix(in srgb, var(--lime) 10%, transparent); border:1px solid var(--lime-deep);}
+.rk-active-offer-head{display:flex; align-items:center; gap:7px; font-size:11px; font-weight:800; color:var(--muted);}
+.rk-active-offer-dot{width:8px; height:8px; border-radius:50%; background:var(--lime-deep); flex-shrink:0;}
+.rk-active-offer-text{margin:8px 0 12px; font-size:13px; font-weight:700; color:var(--text); line-height:1.7;}
+
+#walletLabelsBlock textarea{ width:100%; padding:11px 14px; border-radius:var(--r-sm);
+  border:1px solid var(--line); background:var(--card-bg); color:var(--text);
+  font-family:inherit; font-size:12.5px; line-height:1.7; resize:vertical; }
+@media (max-width: 560px){
+  .rk-lblrow{ flex-direction:column; align-items:stretch; gap:4px; }
+  .rk-lblrow-what{ flex:none; }
+  /* والعناوين تسقط مع العمودين: الصفُّ صار رأسياً، فلا عمودَ تعنونه. */
+  .rk-lblrow-cap{ display:none; }
+}
+
+/* ترويسة البطاقة تحمل حقلين: المستوى والعدّاد — وهما ما يُرى والبطاقة
+   مطويّة في رصّة بطاقاته. */
+.rkw-headwrap{ display:flex; gap:14px; align-items:flex-start; }
+/* والصفّ الثالث أخفت: معلومةٌ تُقرأ حين تُطلب، لا حين تُفتح البطاقة. */
+.rkw-aux{ padding-top:2px; opacity:.92; }
+.rkw-aux .rkw-fvalue{ font-size:12.5px; }
+
+
+/* ============ نوافذُ السؤال ============
+   بديلُ prompt/confirm. ونافذةُ المتصفّح ليست قبحاً وحسب: تقول اسم
+   النطاق وتعرض "امنع هذه الصفحة من إنشاء نوافذ" -- فتُقرأ تحذيراً من
+   الموقع لا رسالةً منه. ومن ضغط ذلك المربّع أسكت اللوحة عن الكلام. */
+.rk-ask-card{ width:440px; max-width:92vw; padding:22px; }
+.rk-ask-title{ font-size:15px; font-weight:800; color:var(--text); margin-bottom:8px; }
+.rk-ask-body{ font-size:12.5px; color:var(--muted); line-height:1.85; }
+.rk-ask-body b{ color:var(--text); }
+.rk-ask-in{
+  width:100%; box-sizing:border-box; margin-top:14px; padding:12px 14px;
+  border-radius:var(--r-sm); border:1px solid var(--line);
+  background:var(--surf); color:var(--text); font-size:13.5px; font-weight:700;
+}
+.rk-ask-in:focus{ outline:none; border-color:var(--lime); }
+/* الرمزُ يُنقل بالعين واليد إلى جهازٍ آخر: فيُكبَّر ويُباعد حروفه،
+   ويُكتب بخطٍّ لا يشبه فيه I الـ l ولا 0 الـ O. */
+.rk-ask-code{
+  margin-top:14px; padding:16px; border-radius:var(--r-md);
+  background:var(--surf2); border:1px dashed var(--line); text-align:center;
+  font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size:27px; font-weight:800; letter-spacing:5px; color:var(--text);
+  word-break:break-all; line-height:1.5; direction:ltr;
+}
+.rk-ask-url{
+  margin-top:10px; text-align:center; direction:ltr;
+  font-size:13px; font-weight:700; color:var(--muted); word-break:break-all;
+}
+.rk-ask-url b{ color:var(--text); }
+.rk-ask-foot{ display:flex; gap:10px; margin-top:18px; }
+.rk-ask-foot .menu-add-btn{ flex:1; }
+.rk-ask-cancel{
+  flex:0 0 auto; padding:11px 20px; border-radius:var(--r-sm); border:1px solid var(--line);
+  background:transparent; color:var(--muted); font-weight:800; font-size:12.5px;
+}

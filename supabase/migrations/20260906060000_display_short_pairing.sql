@@ -83,7 +83,17 @@ begin
     returning id into v_id;
   else
     insert into display_devices (business_id, device_secret, label, pairing_code, pairing_expires_at)
-    values (v_business_id, encode(gen_random_bytes(24), 'hex'), 'شاشة عميل', v_code, now() + interval '10 minutes')
+    -- سرٌّ من معرّفين عشوائيين لا من gen_random_bytes.
+    --
+    -- تلك من إضافة pgcrypto، وهي في Supabase تسكن سكيما extensions --
+    -- ودوالُّنا search_path لها public وحدها (وهو الصواب: مسارٌ واسع في
+    -- دالّةٍ security definer بابُ اختطاف). فتُردّ "does not exist"
+    -- ويسقط الملف كلُّه.
+    --
+    -- وgen_random_uuid في نواة PostgreSQL منذ الإصدار 13، بلا إضافة.
+    -- واثنان منها أربعةٌ وستون حرفاً ست عشرية -- أطول مما كان، وبنفس
+    -- مصدر العشوائية.
+    values (v_business_id, replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', ''), 'شاشة عميل', v_code, now() + interval '10 minutes')
     returning id into v_id;
   end if;
 

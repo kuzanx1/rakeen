@@ -59,10 +59,23 @@ export async function POST(request: NextRequest) {
     .from("display_devices")
     .select("id, device_secret, branch_id");
 
-  const display =
-    (branchId ? displays?.find(d => d.branch_id === branchId) : undefined)
-    ?? displays?.find(d => d.branch_id == null)
-    ?? displays?.[0];
+  /**
+   * وكلُّ شاشات الفرع تُعرض عليها، لا أوّلها.
+   *
+   * كان يُختار واحدٌ ويُبثّ إليه وحده -- فمطعمٌ له شاشتان عند مساري
+   * الطلب يعرض الباركود على إحداهما، والزبون واقفٌ عند الأخرى ينتظر
+   * ما لا يجيء. والكاشير يرى "تم العرض" فيعيد ويعيد.
+   *
+   * وحصرُ الفرع يبقى: فرعان لكلٍّ شاشاته، ولا يُخلط باركود هذا بذاك.
+   */
+  const all = displays || [];
+  const targets =
+    (branchId ? all.filter(d => d.branch_id === branchId) : []).length
+      ? all.filter(d => d.branch_id === branchId)
+      : all.filter(d => d.branch_id == null).length
+        ? all.filter(d => d.branch_id == null)
+        : all;
+  const display = targets[0];
   if (!display) {
     return NextResponse.json(
       { error: "ما فيه شاشة عميل مقترنة بهذا الفرع. اقترنها أولاً من لوحة التحكم." },
@@ -77,7 +90,24 @@ export async function POST(request: NextRequest) {
   const addToken = (made as { token?: string } | null)?.token;
   const posSession = (made as { posSession?: string } | null)?.posSession;
   if (mkErr || !addToken) {
-    return NextResponse.json({ error: "تعذر إنشاء الباركود" }, { status: 403 });
+    /**
+     * ويُقال أيّ الأسباب الثلاثة.
+     *
+     * "تعذر إنشاء الباركود" جملةٌ تصف ما حدث ولا تقول شيئاً عمّا يُفعل:
+     * الكاشير يعيد الضغط، وصاحب المطعم يتّصل، ولا أحد يعرف أن الجهاز
+     * دخل بحساب مالكٍ لا بحساب كاشير -- وهو أشيع الأسباب.
+     */
+    const reason = (made as { error?: string } | null)?.error;
+    const says: Record<string, string> = {
+      no_business: "الجهاز مو مربوط بمطعم. أعد إقران الجهاز من لوحة التحكم.",
+      no_permission:
+        "هذا الحساب ما عنده صلاحية الكاشير. سجّل دخول بحساب كاشير (PIN) مو بحساب المالك.",
+      customer_not_found: "هذا العميل مو مسجّل عندك.",
+    };
+    return NextResponse.json(
+      { error: (reason && says[reason]) || "تعذر إنشاء الباركود — راجع اقتران الجهاز." },
+      { status: 403 },
+    );
   }
 
   const { data: biz } = await asCashier
@@ -87,16 +117,18 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   const origin = new URL(request.url).origin;
-  await admin
-    .channel(`display-secret:${display.device_secret}`)
-    .send({
-      type: "broadcast",
-      event: "show_barcode",
-      payload: {
-        url: `${origin}/api/wallet/add/${addToken}`,
-        message: biz?.display_barcode_message || undefined,
-      },
-    });
+  const payload = {
+    url: `${origin}/api/wallet/add/${addToken}`,
+    message: biz?.display_barcode_message || undefined,
+  };
+  // ولا تُنتظر واحدةً بعد واحدة: شاشةٌ بطيئة لا تؤخّر التي بجانبها،
+  // والكاشير ينتظر الردّ ليكمل طلبه.
+  await Promise.all(targets.map(d =>
+    admin.channel(`display-secret:${d.device_secret}`)
+      .send({ type: "broadcast", event: "show_barcode", payload })
+      .catch(err => console.error(`display ${d.id} broadcast failed`, err)),
+  ));
+  console.log(`show-barcode: عُرض على ${targets.length} شاشة`);
 
   // الرمز لا يُردّ إلى المتصفح: من ملكه ملك البطاقة، والكاشير لا يحتاجه
   // -- هو يعرضه لا يستعمله. ويُردّ معرّف الجلسة وحده: قناةٌ يسمع بها

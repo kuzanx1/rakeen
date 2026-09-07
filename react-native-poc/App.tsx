@@ -714,6 +714,8 @@ function App(): React.JSX.Element {
   // Same rule -- this one belongs to .bottom-nav below, not to anything
   // above the returns, but it is a hook so it lives up here regardless.
   const insets = useSafeAreaInsets();
+  // ومظهرُ التطبيق يُقرأ هنا ليتبعه شريطُ النظام.
+  const { mode: themeMode } = useTheme();
 
   if (!cashier) {
     return <LoginScreen onLoggedIn={setCashier} />;
@@ -809,6 +811,15 @@ function App(): React.JSX.Element {
        nav floating above a 34pt band of bare canvas -- visible as an empty
        strip under the tabs on any device with a home indicator. */
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
+      {/*
+        شريطُ النظام يتبع مظهرَ التطبيق.
+        كان StatusBar مستورداً ولا يُستعمل قطّ -- فتُترك حروفُ الساعة
+        للافتراض، وهي على المظهر الفاتح بيضاءُ لا تُقرأ. وهنا لا في
+        الجذر: هنا وحده يُعرف أيُّ مظهرٍ يعمل.
+        (backgroundColor وtranslucent ذهبتا من أنواع RN 0.87 -- كانتا
+        لأندرويد القديم، ولا بديلَ لهما إلا هذا.)
+      */}
+      <StatusBar barStyle={themeMode === 'light' ? 'dark-content' : 'light-content'} />
       {/* At >=761px both bars leave normal flow (position:absolute) so the
           screen area spans the full height behind them and .order-panel
           can reach the true top and bottom edges; on Home they also stop
@@ -1361,6 +1372,7 @@ const HomeActiveContext = React.createContext<(active: boolean) => void>(() => {
 export default function Root(): React.JSX.Element {
   return (
     <SafeAreaProvider>
+
       {/* Outside ThemeProvider on purpose: if the thing that throws is
           anywhere in the tree -- theme included -- the fallback still has
           to be able to render. */}

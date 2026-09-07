@@ -28,6 +28,26 @@ export async function searchCustomers(businessId: number, rawQuery: string): Pro
   return (data || []).map(rowToCustomer);
 }
 
+/**
+ * البحثُ برقمٍ كامل -- للكاشير الذي تخطّى خطوة العميل ثم أراد الباركود.
+ *
+ * وليست searchCustomers: تلك تُرجع ستّةً بالتشابه، وهذا يريد واحداً
+ * بعينه أو لا شيء. (نظيرها في الويب: نداءُ customers.eq('phone') داخل
+ * showOnDisplayBtn.)
+ */
+export async function findCustomerByPhone(businessId: number, rawPhone: string): Promise<Customer | null> {
+  const phone = sanitizeSearchQuery(rawPhone);
+  if (!phone) return null;
+  const { data, error } = await supabase
+    .from('customers')
+    .select('id, name, phone, loyalty_points, loyalty_free_rewards')
+    .eq('business_id', businessId)
+    .eq('phone', phone)
+    .maybeSingle();
+  if (error || !data) return null;
+  return rowToCustomer(data);
+}
+
 export async function findCustomerByPublicToken(businessId: number, token: string): Promise<Customer | null> {
   const { data, error } = await supabase
     .from('customers')

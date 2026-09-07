@@ -166,28 +166,39 @@
 }
 .pos-staff-btn:active { background: var(--lime); color: var(--flag-green-deep); border-color: var(--lime); }
 
-.channel-row {
-  display: flex;
-  gap: 4px;
-  padding: 4px;
-  background: var(--surf1);
-  border-radius: var(--r-full);
-  margin-top: 8px;
-}
+/* ============ نوع الطلب -- ثلاثُ بلاطات ============
+   ثلاثةُ أقراصٍ صغيرة في شريطٍ واحد تجعل "تطبيقات التوصيل" ينكسر في
+   قرصٍ بعرض "محلي"، وتترك النافذة تحتها بيضاء. والبلاطةُ تأخذ ثلثَ
+   العرض وارتفاعاً يُصاب بالإبهام بلا نظر، والمواضعُ ثابتةٌ في كل طلب. */
+.channel-row { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-bottom:12px; }
 .channel-btn {
-  flex: 1;
-  padding: 8px 4px;
-  border-radius: var(--r-full);
-  border: none;
-  background: none;
-  color: var(--muted);
-  font-family: inherit;
-  font-weight: 700;
-  font-size: 11.5px;
-  cursor: pointer;
-  transition: background .12s ease, color .12s ease;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:9px;
+  padding:20px 6px 16px; border-radius:16px;
+  border:1.5px solid var(--line); background:var(--surf1); color:var(--text);
+  transition:border-color .12s ease, background .12s ease;
 }
-.channel-btn.active { background: var(--lime); color: var(--flag-green-deep); box-shadow: 0 4px 12px rgba(var(--lime-deep-rgb), 0.3); }
+.channel-ico {
+  width:46px; height:46px; border-radius:14px;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--surf2); color:var(--muted);
+  transition:background .12s ease, color .12s ease;
+}
+.channel-ico svg { width:23px; height:23px; }
+.channel-name { font-size:13px; font-weight:800; line-height:1.4; text-align:center; }
+/* والمختارُ يُضيء أيقونتَه لا حدَّه وحده: الحدُّ وحده يُلمح، والأيقونةُ
+   المملوءةُ تُرى من طرف العين وسط الحركة. */
+.channel-btn.active {
+  border-color:var(--lime-deep);
+  background:linear-gradient(160deg, rgba(var(--lime-rgb),0.28), rgba(var(--lime-rgb),0.10));
+}
+.channel-btn.active .channel-ico {
+  background:linear-gradient(155deg, var(--lime), var(--lime-deep));
+  color:var(--flag-green-deep);
+  box-shadow:0 6px 16px rgba(var(--lime-deep-rgb),0.35);
+}
+.channel-btn.active .channel-name { color:var(--flag-green-deep); }
+.channel-btn:active { transform:scale(0.98); }
+
 .platform-btn-row {
   display: flex;
   flex-wrap: wrap;

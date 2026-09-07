@@ -48,6 +48,12 @@ import type { PaymentResult } from './PaymentModal';
 import type { PaymentMethod } from '../domain/payment';
 import CustomerPickerModal from './CustomerPickerModal';
 import LoyaltyRedeemModal from './LoyaltyRedeemModal';
+import {
+  getFreeRewardConfig,
+  redeemFreeReward,
+  redeemErrorText,
+  type FreeRewardConfig,
+} from '../application/freeRewardService';
 import type { Customer } from '../domain/customer';
 import { formatArabicTime } from '../domain/arabicDate';
 
@@ -630,7 +636,46 @@ export default function ProductsScreen({
    * makes tapping a drink with a size group a one-tap sale instead of a
    * modal every time. This used to open the modal unconditionally.
    */
-  const handleTapProduct = (product: Product, forceCustomize = false) => {
+  /**
+   * والصنفُ المضغوط يصير مجانياً إن كان في اليد رصيدُ مكافأة.
+   *
+   *   rewardArm        -- أُكِّد العميل ولم يُخصم بعد. يُخصم الآن،
+   *                       والصنف يُمرَّر لأن الوضع المقيَّد يشترطه.
+   *   freeRewardCredit -- خُصم ومُسح سطرُه، فيُطبَّق بلا خصمٍ ثانٍ.
+   *
+   * والمقيَّد يرفض ما ليس من أصنافه -- فيُقال لماذا، ولا يُبتلع الضغطُ
+   * صامتاً. (نظيرها في الويب: addToCartWithConfig.)
+   */
+  const applyRewardTo = async (product: Product): Promise<boolean> => {
+    const armed = cart.rewardArm != null || cart.freeRewardCredit > 0;
+    if (!armed || selectedCustomer?.id == null) return false;
+    const restricted = rewardConfig?.mode === 'products';
+    const allowed = !restricted || (rewardConfig?.products || []).some(r => r.id === product.id);
+    if (!allowed) {
+      setSubmitStatus('هذا الصنف مو ضمن أصناف المكافأة — انضاف بثمنه');
+      return false;
+    }
+    if (cart.rewardArm != null) {
+      const out = await redeemFreeReward(
+        selectedCustomer.id,
+        cart.rewardArm,
+        restricted ? product.id : null,
+      );
+      if (!out.ok) {
+        setSubmitStatus('🔴 ' + redeemErrorText(out.error));
+        return true;
+      }
+      cart.setRewardArm(null);
+    } else {
+      cart.setFreeRewardCredit(n => Math.max(0, n - 1));
+    }
+    cart.addFreeRewardProduct(product.id);
+    setSubmitStatus(`مكافأة: ${product.name} — مجاناً 🎁`);
+    return true;
+  };
+
+  const handleTapProduct = async (product: Product, forceCustomize = false) => {
+    if (await applyRewardTo(product)) return;
     const modDef = catalog?.modifiersByProductId[product.id];
     if (!modDef) {
       cart.addProduct(product.id); // simple product -- always instant
@@ -775,6 +820,13 @@ export default function ProductsScreen({
     };
   }, [paymentModalOpen]);
   const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
+  /** إعدادُ المكافأة -- الوضع وأصنافُه، ليُعرف ما يُقبل مجاناً. */
+  const [rewardConfig, setRewardConfig] = useState<FreeRewardConfig | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getFreeRewardConfig(cashier.business_id).then(c => { if (alive) setRewardConfig(c); });
+    return () => { alive = false; };
+  }, [cashier.business_id]);
 
   /** Fetches the order's REAL current total from the server right before
    *  showing the payment modal -- the local cart's total is stale once
@@ -1660,6 +1712,7 @@ export default function ProductsScreen({
         /* الصنف يدخل السلة بسعر صفر، فيُطبع على الفاتورة ويُخصم من
            المخزون كأي بيع. والوضع المفتوح لا صنف له -- الكاشير يعطي ما
            يراه، والرصيد خُصم في الخادم على كل حال. */
+        cartHasFreeReward={cart.cart.some(l => l.isFreeReward)}
         onFreeRewardGranted={product => {
           if (product) cart.addFreeRewardProduct(product.id);
           setSubmitStatus(product ? `مكافأة: ${product.name} — مجاناً` : 'تم استخدام المكافأة');
@@ -1718,6 +1771,12 @@ export default function ProductsScreen({
           customerPoints={selectedCustomer.points}
           redeemableProducts={catalog.products.filter(p => p.pointsRedeemPrice != null)}
           onRedeem={productId => cart.addPointsRedemptionProduct(productId)}
+          hasFreeReward={Number(selectedCustomer.freeRewards ?? 0) > 0}
+          onArmReward={requestId => {
+            cart.setRewardArm(requestId);
+            setLoyaltyRedeemOpen(false);
+            setSubmitStatus('اضغط الصنف اللي بيصير مجاني من القائمة 🎁');
+          }}
           onClose={() => setLoyaltyRedeemOpen(false)}
         />
       )}

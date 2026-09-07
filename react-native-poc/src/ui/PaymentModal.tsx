@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './Text';
 import { TouchableOpacity } from './tappable';
@@ -13,7 +13,8 @@ import { searchCustomers } from '../application/customerService';
 import type { DeliveryPlatform } from '../application/catalogService';
 import { isPagerNumberBusy } from '../application/catalogService';
 import { setOrderPager } from '../application/activeOrderService';
-import { normalisePhoneInput, validateNewCustomerDraft } from '../domain/customer';
+import { normalisePhoneInput, isSaudiMobile, validateNewCustomerDraft } from '../domain/customer';
+import { findCustomerByPhone } from '../application/customerService';
 import { listPrintJobs, retryPrintJob } from '../application/printService';
 import { isPrintJobTerminal } from '../domain/printQueue';
 import type { PrintJobStatus } from '../domain/printQueue';
@@ -21,6 +22,7 @@ import Money from './Money';
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
 import { toLatinDigits } from '../domain/digits';
 import FreeRewardBanner from './FreeRewardBanner';
+import { showLoyaltyBarcodeOnDisplay, onCardAdded } from '../application/displayBarcodeService';
 
 /**
  * The payment popup is a WIZARD, not a single sheet -- something only
@@ -87,10 +89,46 @@ export interface AttachedCustomer {
   freeRewards: number;
 }
 
-const CHANNELS: { id: OrderChannel; label: string }[] = [
-  { id: 'dine_in', label: '🍽️ محلي' },
-  { id: 'pickup', label: '📦 سفري' },
-  { id: 'delivery', label: '🛵 تطبيقات التوصيل' },
+/**
+ * ثلاثُ بلاطاتٍ في صف -- كما صارت في الويب.
+ *
+ * كانت أقراصاً صغيرة في شريطٍ واحد: "تطبيقات التوصيل" ثلاثُ كلماتٍ في
+ * قرصٍ بعرض "محلي"، فينكسر سطرُها أو يُقصّ. والنافذةُ تحتها بيضاء --
+ * خطوةٌ كاملةٌ لثلاثة خيارات وأكثرُ مساحتها فراغ.
+ *
+ * وأيقونةٌ مرسومة لا سمجة (emoji): السمجاتُ تختلف رسماً بين أندرويد
+ * وiOS، ولا تقبل لوناً يتبع المظهر.
+ */
+const CHANNELS: { id: OrderChannel; label: string; icon: React.ReactNode }[] = [
+  {
+    id: 'dine_in', label: 'محلي',
+    icon: (
+      <>
+        <Path d="M3 2v7a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V2" />
+        <Path d="M7 2v20" />
+        <Path d="M21 15V2a5 5 0 0 0-5 5v6a2 2 0 0 0 2 2h3zm0 0v7" />
+      </>
+    ),
+  },
+  {
+    id: 'pickup', label: 'سفري',
+    icon: (
+      <>
+        <Path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+        <Line x1={3} y1={6} x2={21} y2={6} />
+        <Path d="M16 10a4 4 0 0 1-8 0" />
+      </>
+    ),
+  },
+  {
+    id: 'delivery', label: 'تطبيقات التوصيل',
+    icon: (
+      <>
+        <Rect x={5} y={2} width={14} height={20} rx={2.5} />
+        <Line x1={10} y1={18.5} x2={14} y2={18.5} />
+      </>
+    ),
+  },
 ];
 
 const STEP_TITLE: Record<Step, string> = {
@@ -119,6 +157,7 @@ export default function PaymentModal({
   customer,
   onCustomerChange,
   onFreeRewardGranted,
+  cartHasFreeReward = false,
   dineInEnabled = true,
   loyaltyEnabled = true,
   dineInMode = 'simple',
@@ -160,6 +199,8 @@ export default function PaymentModal({
    * بنفسه حين يكون الوضع مفتوحاً (product = null).
    */
   onFreeRewardGranted: (product: { id: number; name: string; nameEn: string | null } | null) => void;
+  /** في السلة سطرُ مكافأةٍ مجانية -- تُخفي زرّ الولاء وتُلغي سؤال الدفع. */
+  cartHasFreeReward?: boolean;
   /** DINE_IN_ENABLED -- filters 🍽️ بالمطعم out of the channel row. */
   dineInEnabled?: boolean;
   /** LOYALTY_ENABLED -- when false the customer step is skipped whole. */
@@ -239,6 +280,67 @@ export default function PaymentModal({
   // customer phone was captured on this order. Wired as a flag first
   // because it also decides whether the 4-second auto-reset runs at all.
   const showLoyaltyQr = false;
+
+  /**
+   * عرض باركود الولاء على شاشة العميل.
+   *
+   * ثلاثة أطوار لا اثنان: "جارٍ العرض" ليس زينة -- بين الضغطة والبثّ
+   * نداءُ شبكة، وبلا طورٍ ثالث يضغط الكاشير مرّتين فيُبثّ رمزان
+   * ويُبطَل أوّلهما.
+   */
+  const [barcodeBusy, setBarcodeBusy] = useState(false);
+  const [barcodeMsg, setBarcodeMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const cardAddedOff = useRef<(() => void) | null>(null);
+  /**
+   * حقلُ الرقم يُفتح في مكانه -- ولا نافذةَ فوق نافذة.
+   *
+   * كان الردُّ "اختر عميلاً أول" وطريقٌ مسدود: النافذة مفتوحة والطلب
+   * تمّ، فالرجوع لخطوة العميل يعني إلغاء ما بين يديه. وفي الويب كان
+   * prompt المتصفّح -- وذاك على iOS نافذةٌ فوق نافذة، وهي تُجمّد
+   * التطبيق صامتاً (وAlert.prompt أصلاً لا وجود له على أندرويد).
+   *
+   * فحقلٌ يظهر تحت الزرّ نفسه: لا Modal ثانٍ، ولا خطوةٌ تُلغى.
+   */
+  const [phoneAsk, setPhoneAsk] = useState(false);
+  const [phoneDraft, setPhoneDraft] = useState('');
+
+  useEffect(() => () => { cardAddedOff.current?.(); }, []);
+
+  const pushBarcode = useCallback(async (customerId: number) => {
+    setBarcodeBusy(true);
+    setBarcodeMsg({ text: 'جارٍ العرض...', ok: true });
+    const out = await showLoyaltyBarcodeOnDisplay(customerId, branchId ?? null);
+    setBarcodeBusy(false);
+    if (!out.ok) {
+      setBarcodeMsg({ text: out.error || 'تعذر العرض', ok: false });
+      return;
+    }
+    setBarcodeMsg({ text: '✅ الباركود على شاشة العميل الآن', ok: true });
+    setPhoneAsk(false);
+    // ويُقال حين يمسحه: الكاشير يعرف أن الطلب انتهى بلا أن ينتظر.
+    if (out.posSession) {
+      cardAddedOff.current?.();
+      cardAddedOff.current = onCardAdded(out.posSession, () => {
+        setBarcodeMsg({ text: '✅ تمت إضافة البطاقة', ok: true });
+      });
+    }
+  }, [branchId]);
+
+  const handleShowBarcode = useCallback(() => {
+    if (customer?.id != null) { void pushBarcode(customer.id); return; }
+    setBarcodeMsg(null);
+    setPhoneAsk(true);
+  }, [customer, pushBarcode]);
+
+  const submitPhone = useCallback(async () => {
+    const phone = normalisePhoneInput(phoneDraft).trim();
+    if (!phone) { setBarcodeMsg({ text: 'اكتب رقم الجوال', ok: false }); return; }
+    setBarcodeBusy(true);
+    const found = await findCustomerByPhone(businessId, phone).catch(() => null);
+    setBarcodeBusy(false);
+    if (!found) { setBarcodeMsg({ text: 'ما لقينا عميل بهذا الرقم', ok: false }); return; }
+    await pushBarcode(found.id);
+  }, [phoneDraft, businessId, pushBarcode]);
 
 
   // A cart can still be carrying `delivery` from before the last platform
@@ -441,9 +543,18 @@ export default function PaymentModal({
       onLoyaltySelected();
       return;
     }
+    /**
+     * ولا يُمحى ما كُتب.
+     *
+     * كاشيرٌ كتب المئةَ التي بيده، ثم لمس "شبكة" ليرى، ثم رجع إلى
+     * "كاش" -- يجد الحقلَ فارغاً وزرَّ التأكيد مطفأً، ويكتبها من جديد.
+     * والمبلغُ لم يتغيّر: العميلُ نفسُه والورقةُ نفسُها.
+     *
+     * وما يُبطله التبديلُ يُبطله الحسابُ وحده: canConfirm يُحسب من
+     * المستلَم في كل رسم، فرقمٌ لا يكفي يُطفئ الزرّ بلا تفريغ.
+     * (نظيرها في الويب: معالجُ .pm-tab.)
+     */
     setMethod(m);
-    setCashInput('');
-    setSplitCardInput('');
   };
 
   /** completePayment() (rakeen-pos.js:3272): on success the popup does NOT
@@ -599,7 +710,31 @@ export default function PaymentModal({
     { id: 'card', label: 'بطاقة' },
     { id: 'split', label: 'تقسيم' },
   ];
-  if (customer?.id != null && customer.points > 0) methods.push({ id: 'loyalty', label: 'الولاء' });
+  /**
+   * "الولاء" يُعرض لصاحب المكافأة كما يُعرض لصاحب النقاط -- ويختفي وقد
+   * صُرف في هذه السلة.
+   *
+   * كان مشروطاً بالنقاط وحدها، ونظامُ الأكواب لا نقاط فيه: رصيدُه صفرٌ
+   * دائماً والزرّ لا يظهر أبداً. ثم يظهر بعد الصرف فيظنّه الكاشير خطوةً
+   * باقية، وهي تمّت.
+   */
+  // يأتي من الشاشة: النافذة لا تملك السلة، إنما إجماليها.
+  if (
+    customer?.id != null &&
+    !cartHasFreeReward &&
+    (customer.points > 0 || Number(customer.freeRewards ?? 0) > 0)
+  ) {
+    methods.push({ id: 'loyalty', label: 'الولاء' });
+  }
+
+  /**
+   * وطلبٌ غطّته المكافأة بالكامل لا يُسأل عن طريقة دفع.
+   *
+   * أربعةُ مربّعات والمطلوب صفر: سؤالٌ لا جواب له -- ما الذي يقبضه
+   * الكاشير؟ فيختار "كاش" ويُسجَّل بيعٌ نقديٌّ بصفر يُقرأ في التقارير
+   * خطأً. (وهي معالجةُ طلب التوصيل نفسها: دُفع في مكانٍ آخر.)
+   */
+  const paidByReward = total <= 0.001 && cartHasFreeReward;
 
   const tabIcon = (id: PaymentMethod, active: boolean) => {
     const stroke = active ? colors.accentText : colors.muted;
@@ -637,10 +772,55 @@ export default function PaymentModal({
    * recognised as the same person rather than as two.
    */
   const trimmedQuery = query.trim();
-  const queryIsPhone = /^[0-9+\s-]{6,}$/.test(trimmedQuery);
+
+  /**
+   * الرقمُ يُشكَّل عند الكتابة، ويُحفظ بزرٍّ يُنهي الخطوة.
+   *
+   * أوّلُ محرفٍ يفصل: رقمٌ فيُعامَل رقماً (05 وعشرُ خانات)، وحرفٌ
+   * فيُعامَل اسماً بلا قيد -- والحقل الواحد يخدم الاثنين كما كان.
+   */
+  const queryLooksNumeric = (v: string) => v.trim() === '' || /^[0-9٠-٩۰-۹+]/.test(v.trim());
+  /** ذيلُ الرقم وحده: 05 مطبوعةٌ خارج الحقل، وما لُصق كاملاً تُنزع مقدّمتُه. */
+  const shapePhoneTail = (raw: string) => {
+    const full = normalisePhoneInput(raw);
+    return (full.startsWith('05') ? full.slice(2) : full).slice(0, 8);
+  };
+  const fullPhone = '05' + trimmedQuery;
+  const queryPhoneValid = /^[0-9]{8}$/.test(trimmedQuery) && isSaudiMobile(fullPhone);
+  const canSaveCustomer = queryLooksNumeric(query)
+    ? queryPhoneValid
+    : trimmedQuery.length >= 2;
+  // ولا يُقال "خطأ" وهو لم يُكمل بعد.
+  const customerHint =
+    queryLooksNumeric(query) && !queryPhoneValid && trimmedQuery.length > 0
+      ? `باقي ${8 - trimmedQuery.length} أرقام`
+      : '';
+
+  /**
+   * الحفظُ يُعرّف العميل ويمضي -- بلا ضغطةٍ على اسمه تحت.
+   *
+   * الرقم يُكتب فيظهر صاحبُه، ثم يُنتظر من الكاشير أن يضغط السطر. وهو
+   * سطرٌ واحد لا خيارَ فيه -- فضغطةٌ ثانية تأخيرٌ بلا فائدة.
+   */
+  const saveCustomerAndGo = async () => {
+    if (!canSaveCustomer) return;
+    if (queryLooksNumeric(query)) {
+      const found = await findCustomerByPhone(businessId, fullPhone).catch(() => null);
+      if (found) { onCustomerChange(found); proceedToPayment(); return; }
+      setNewName('');
+      setNewPhone(fullPhone);
+      setStep('newCustomer');
+      return;
+    }
+    const list = suggestions || [];
+    if (list.length === 1) { onCustomerChange(list[0]); proceedToPayment(); return; }
+    if (list.length === 0) { setNewName(trimmedQuery); setNewPhone(''); setStep('newCustomer'); }
+  };
+  // والمقارنةُ بالرقم الكامل: الحقلُ صار يحمل ذيلَه وحده، وذيلٌ من
+  // ثمانٍ لا يساوي رقماً من عشر مهما كان صاحبُهما واحداً.
   const queryMatchesExisting = (suggestions || []).some(c =>
-    queryIsPhone
-      ? normalisePhoneInput(c.phone || '') === normalisePhoneInput(trimmedQuery)
+    queryLooksNumeric(query)
+      ? normalisePhoneInput(c.phone || '') === fullPhone
       : (c.name || '').trim().toLowerCase() === trimmedQuery.toLowerCase(),
   );
 
@@ -660,15 +840,17 @@ export default function PaymentModal({
   const autoNewFor = useRef<string | null>(null);
   useEffect(() => {
     if (step !== 'customer' || customer || searching || suggestions == null) return;
-    const q = trimmedQuery;
-    if (!/^05\d{8}$/.test(q)) return;
+    // الشرطُ على الرقم الكامل، لا على ما في الحقل: صار ثمانياً بعد أن
+    // خرجت 05 منه، فبقي الشرطُ العشريّ لا يتحقّق أبداً.
+    if (!queryPhoneValid) return;
+    const q = fullPhone;
     if (queryMatchesExisting || suggestions.length > 0) return;
     if (autoNewFor.current === q) return;
     autoNewFor.current = q;
     setNewName('');
     setNewPhone(q);
     setStep('newCustomer');
-  }, [step, customer, searching, suggestions, trimmedQuery, queryMatchesExisting]);
+  }, [step, customer, searching, suggestions, trimmedQuery, queryMatchesExisting, queryPhoneValid, fullPhone]);
 
   const CustomerRow = ({ c, onPress }: { c: AttachedCustomer; onPress?: () => void }) => (
     <TouchableOpacity style={styles.customerSuggest} onPress={onPress} disabled={!onPress} activeOpacity={0.8}>
@@ -710,11 +892,15 @@ export default function PaymentModal({
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={[styles.card, shadows.md]}>
           {/* .modal-head -- the back circle only exists above the first
-              step, matching modalStepStack's own depth check. */}
+              step, matching modalStepStack's own depth check.
+
+              وليس على "تمت العملية" أيضاً: الطلب سُجّل ودُفع وطُبع،
+              وما وراءه سلّةٌ فُرّغت. فسهمٌ يقول "ارجع" وليس هناك ما
+              يُرجع إليه -- يُضغط فيُغلق، فيُقرأ عطلاً لا نيّة. */}
           <View style={styles.head}>
             <Text style={styles.title}>{STEP_TITLE[step]}</Text>
             <View style={styles.headBtns}>
-              {step !== 'channel' && (
+              {step !== 'channel' && step !== 'success' && (
                 <TouchableOpacity onPress={goBack} disabled={submitting} style={styles.headCircle}>
                   <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={colors.text} strokeWidth={2} strokeLinecap="round">
                     <Polyline points="9 18 15 12 9 6" />
@@ -740,7 +926,15 @@ export default function PaymentModal({
                         key={c.id}
                         style={[styles.channelBtn, active && styles.channelBtnActive]}
                         onPress={() => chooseChannel(c.id)}
-                        activeOpacity={0.8}>
+                        activeOpacity={0.85}>
+                        <View style={[styles.channelIco, active && styles.channelIcoActive]}>
+                          <Svg
+                            width={23} height={23} viewBox="0 0 24 24" fill="none"
+                            stroke={active ? colors.flagGreenDeep : colors.muted}
+                            strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+                            {c.icon}
+                          </Svg>
+                        </View>
                         <Text style={[styles.channelBtnText, active && styles.channelBtnTextActive]}>{c.label}</Text>
                       </TouchableOpacity>
                     );
@@ -839,24 +1033,37 @@ export default function PaymentModal({
                 ) : (
                   <>
                     <View style={styles.searchRow}>
-                      <TextInput
-                        style={[styles.input, styles.searchInput]}
-                        placeholder="رقم الجوال أو الاسم"
-                        placeholderTextColor={colors.muted}
-                        value={query}
-                        onChangeText={t => setQuery(toLatinDigits(t))}
-                        autoFocus
-                      />
-                      {/* كان زر مسح باركود لا يمسح شيئاً -- لا ماسح خلفه
-                          ولا معالج. فأصبح ما هو: علامةُ حقلٍ تقول إنه
-                          للبحث عن عميل، لا زراً يَعِد بما لا يفعل. */}
-                      <View style={[styles.customerSuggest, styles.scanBtn]}>
-                        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={2}>
-                          <Circle cx={11} cy={11} r={7} />
-                          <Path d="M20 20l-3.5-3.5" />
-                        </Svg>
+                      {/* 05 مطبوعةٌ داخل الإطار ولا تُكتب: ثابتةٌ في كل
+                          جوّالٍ سعودي، فكتابتُها في كل طلبٍ ضغطتان بلا
+                          معنى -- ومحوُها بالخطأ يجعل الرقم لا يُطابق
+                          أحداً فيُنشأ عميلٌ ثانٍ للإنسان نفسِه.
+                          وتختفي حين يُكتب اسم: البحثُ بالاسم لا 05 فيه. */}
+                      <View style={[styles.input, styles.searchInput, styles.custField]}>
+                        {queryLooksNumeric(query) && <Text style={styles.custPrefix}>05</Text>}
+                        <TextInput
+                          style={styles.custInput}
+                          placeholder="xxxxxxxx"
+                          placeholderTextColor={colors.line}
+                          value={query}
+                          onChangeText={t => setQuery(queryLooksNumeric(t) ? shapePhoneTail(t) : toLatinDigits(t))}
+                          onSubmitEditing={() => { void saveCustomerAndGo(); }}
+                          returnKeyType="go"
+                          autoFocus
+                        />
                       </View>
+                      {/* كان هنا مربّعُ عدسةٍ لا يفعل شيئاً -- علامةُ حقلٍ
+                          تشغل مكانَ زرّ. وصار زرَّ حفظٍ يُنهي الخطوة:
+                          الرقمُ يُكتب فيُعرَف صاحبُه ويُمضى، بلا ضغطةٍ
+                          ثانية على سطرٍ لا خيارَ فيه. */}
+                      <TouchableOpacity
+                        style={[styles.custSave, !canSaveCustomer && styles.custSaveOff]}
+                        onPress={() => { void saveCustomerAndGo(); }}
+                        disabled={!canSaveCustomer}
+                        activeOpacity={0.85}>
+                        <Text style={[styles.custSaveText, !canSaveCustomer && styles.custSaveTextOff]}>حفظ</Text>
+                      </TouchableOpacity>
                     </View>
+                    {customerHint !== '' && <Text style={styles.custHint}>{customerHint}</Text>}
                     <View style={styles.customerPanelRow}>
                       {searching && <Text style={styles.suggestLoading}>جارٍ البحث...</Text>}
                       {!searching &&
@@ -887,10 +1094,9 @@ export default function PaymentModal({
                         <TouchableOpacity
                           style={[styles.customerSuggest, styles.customerSuggestNew]}
                           onPress={() => {
-                            const q = query.trim();
-                            const isPhone = /^[0-9+\s-]{6,}$/.test(q);
-                            setNewName(isPhone ? '' : q);
-                            setNewPhone(isPhone ? normalisePhoneInput(q) : '');
+                            const numeric = queryLooksNumeric(query);
+                            setNewName(numeric ? '' : trimmedQuery);
+                            setNewPhone(numeric ? fullPhone : '');
                             setStep('newCustomer');
                           }}
                           activeOpacity={0.8}>
@@ -900,9 +1106,7 @@ export default function PaymentModal({
                           <View style={styles.customerInfo}>
                             <Text style={styles.customerName}>إضافة عميل جديد</Text>
                             <Text style={styles.customerPhone}>
-                              {/^[0-9+\s-]{6,}$/.test(query.trim())
-                                ? query.trim()
-                                : `باسم "${query.trim()}"`}
+                              {queryLooksNumeric(query) ? fullPhone : `باسم "${trimmedQuery}"`}
                             </Text>
                           </View>
                         </TouchableOpacity>
@@ -999,7 +1203,7 @@ export default function PaymentModal({
               <>
                 {/* A delivery order is already paid inside the platform's
                     own app, so it gets no tab strip at all (:1616). */}
-                {channel !== 'delivery' && (
+                {channel !== 'delivery' && !paidByReward && (
                   <View style={styles.methodTabs}>
                     {methods.map(m => {
                       const active = method === m.id;
@@ -1017,11 +1221,64 @@ export default function PaymentModal({
                   </View>
                 )}
 
-                <View style={styles.dueDisplay}>
-                  <Text style={styles.dueLabel}>
-                    {channel === 'delivery' ? 'إجمالي الطلب — مدفوع مسبقًا عبر التطبيق' : 'المبلغ المطلوب'}
-                  </Text>
-                  <Money value={total} size={30} style={styles.dueAmount} />
+                {/*
+                  بطاقةٌ واحدة تُقرأ عموداً: المطلوبُ والمستلَمُ والباقي
+                  ثلاثةُ سطورٍ عناوينُها تحت بعض وأرقامُها تحت بعض.
+                  كانت ثلاثَ كتلٍ لكلٍّ إطارُها، والمستلَمُ في وسط حقله
+                  والآخران على حافّتهما -- فالعينُ ترتدّ بين ثلاثة مواضع.
+                */}
+                <View style={[styles.payCard, paidByReward && styles.dueDisplayReward]}>
+                  <View style={styles.payDue}>
+                    <Text style={styles.dueLabel}>
+                      {paidByReward
+                        ? 'مدفوع بمكافأة الولاء'
+                        : channel === 'delivery'
+                          ? 'مدفوع مسبقًا عبر التطبيق'
+                          : 'المطلوب'}
+                    </Text>
+                    <Money value={total} size={29} style={styles.dueAmount} />
+                  </View>
+                  {paidByReward && (
+                    <Text style={styles.dueRewardNote}>
+                      🎁 ما فيه مبلغ يُقبض — المكافأة انخصمت من رصيد العميل
+                    </Text>
+                  )}
+
+                  {method === 'cash' && channel !== 'delivery' && !paidByReward && (
+                    <>
+                      <View style={styles.payChips}>
+                        {quickAmounts.map(v => {
+                          const on = parseFloat(v) === cashAmount;
+                          return (
+                            <TouchableOpacity
+                              key={v}
+                              style={[styles.qaBtn, on && styles.qaBtnActive]}
+                              onPress={() => setCashInput(v)}
+                              activeOpacity={0.8}>
+                              <Text style={[styles.qaBtnText, on && styles.qaBtnTextActive]}>{v}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                      <View style={styles.payTenderRow}>
+                        <Text style={styles.payTenderLabel}>المستلَم</Text>
+                        <TextInput
+                          style={styles.payTender}
+                          keyboardType="decimal-pad"
+                          placeholder="0.00"
+                          placeholderTextColor={colors.muted}
+                          value={cashInput}
+                          onChangeText={t => setCashInput(toLatinDigits(t))}
+                        />
+                      </View>
+                      {/* والباقي هادئٌ حتى يصير له معنى: صفرٌ أخضرُ في كل
+                          طلبٍ لا يُقرأ. */}
+                      <View style={styles.payChange}>
+                        <Text style={[styles.changeLabel, change > 0 && styles.changeLabelLive]}>الباقي للعميل</Text>
+                        <Money value={change} size={change > 0 ? 19 : 15} color={change > 0 ? colors.accentText : colors.muted} />
+                      </View>
+                    </>
+                  )}
                 </View>
 
                 {/* The delivery branch (rakeen-pos.js:1616) is not a
@@ -1077,35 +1334,6 @@ export default function PaymentModal({
                       </View>
                     )}
                   </View>
-                )}
-
-                {method === 'cash' && (
-                  <>
-                    <View style={styles.quickAmounts}>
-                      {quickAmounts.map(v => (
-                        <TouchableOpacity key={v} style={styles.qaBtn} onPress={() => setCashInput(v)} activeOpacity={0.8}>
-                          <Text style={styles.qaBtnText}>{v}</Text>
-                        </TouchableOpacity>
-                      ))}
-                      {/* `repeat(4,1fr)` keeps every cell a quarter wide,
-                          so a short option list must not stretch. */}
-                      {Array.from({ length: 4 - quickAmounts.length }).map((_, i) => (
-                        <View key={`sp${i}`} style={styles.qaSpacer} />
-                      ))}
-                    </View>
-                    <TextInput
-                      style={styles.input}
-                      keyboardType="decimal-pad"
-                      placeholder="0.00"
-                      placeholderTextColor={colors.muted}
-                      value={cashInput}
-                      onChangeText={t => setCashInput(toLatinDigits(t))}
-                    />
-                    <View style={styles.changeRow}>
-                      <Text style={styles.changeLabel}>الباقي</Text>
-                      <Money value={change} size={15} color={colors.accentText} />
-                    </View>
-                  </>
                 )}
 
                 {method === 'split' && (
@@ -1271,6 +1499,50 @@ export default function PaymentModal({
                   </TouchableOpacity>
                 </View>
 
+                {/* اعرض باركود الولاء على شاشة العميل -- نظير
+                    showOnDisplayBtn في rakeen-pos.js:4596. */}
+                <TouchableOpacity
+                  style={[styles.receiptActionBtn, styles.barcodeBtn, barcodeBusy && styles.barcodeBtnBusy]}
+                  onPress={handleShowBarcode}
+                  disabled={barcodeBusy}
+                  activeOpacity={0.8}
+                >
+                  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={colors.text} strokeWidth={2}>
+                    <Rect x={2} y={3} width={20} height={14} rx={2} />
+                    <Path d="M8 21h8M12 17v4" />
+                  </Svg>
+                  <Text style={styles.receiptActionText}>اعرض باركود الولاء على شاشة العميل</Text>
+                </TouchableOpacity>
+                {phoneAsk && (
+                  <View style={styles.phoneAskRow}>
+                    <TextInput
+                      style={styles.phoneAskInput}
+                      value={phoneDraft}
+                      onChangeText={setPhoneDraft}
+                      placeholder="رقم جوال العميل"
+                      placeholderTextColor={colors.muted}
+                      keyboardType="number-pad"
+                      autoFocus
+                      maxLength={15}
+                      onSubmitEditing={() => { void submitPhone(); }}
+                      returnKeyType="go"
+                    />
+                    <TouchableOpacity
+                      style={[styles.phoneAskGo, barcodeBusy && styles.barcodeBtnBusy]}
+                      onPress={() => { void submitPhone(); }}
+                      disabled={barcodeBusy}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.phoneAskGoText}>اعرض</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+                {barcodeMsg && (
+                  <Text style={[styles.barcodeNote, !barcodeMsg.ok && styles.barcodeNoteErr]}>
+                    {barcodeMsg.text}
+                  </Text>
+                )}
+
                 {/* .new-order-btn -- startNewOrder() is just "close", since
                     the cart was already cleared the moment the sale
                     succeeded. */}
@@ -1326,21 +1598,66 @@ const useStyles = createStyles(colors =>
   // far as it knows it already fits. Letting it shrink is what turns the
   // cap into a scroll instead of a truncation (iPhone landscape caps the
   // card at ~343pt, well under the cash step's natural height).
+  // صفٌّ كامل العرض تحت الإجراءين: نصُّه أطول من أن يقتسم سطراً معهما.
+  barcodeBtn: { marginTop: 8, flexDirection: 'row', gap: 8, justifyContent: 'center' },
+  barcodeBtnBusy: { opacity: 0.55 },
+  custField: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 14, paddingVertical: 0 },
+  custPrefix: { fontFamily: fonts.monoBold, fontSize: 17, letterSpacing: 1, color: colors.muted },
+  custInput: { flex: 1, minWidth: 0, paddingVertical: 13, fontFamily: fonts.monoBold, fontSize: 17, letterSpacing: 1, color: colors.text, textAlign: 'left' },
+  custSave: {
+    flex: 0, minWidth: 78, alignItems: 'center', justifyContent: 'center',
+    borderRadius: radii.md, backgroundColor: colors.lime,
+  },
+  custSaveOff: { backgroundColor: colors.surf2 },
+  custSaveText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.graphite },
+  custSaveTextOff: { color: colors.muted },
+  custHint: { marginTop: 7, marginHorizontal: 2, fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.muted },
+  phoneAskRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  phoneAskInput: {
+    flex: 1, paddingVertical: 11, paddingHorizontal: 14,
+    borderRadius: radii.md, borderWidth: 1, borderColor: colors.line,
+    backgroundColor: colors.surf1, color: colors.text,
+    fontFamily: fonts.sansBold, fontSize: 14, textAlign: 'center',
+  },
+  phoneAskGo: {
+    paddingHorizontal: 20, justifyContent: 'center',
+    borderRadius: radii.md, backgroundColor: colors.lime,
+  },
+  phoneAskGoText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.graphite },
+  barcodeNote: { marginTop: 8, textAlign: 'center', fontSize: 11.5, fontFamily: fonts.sansBold, color: colors.flagGreenDeep },
+  barcodeNoteErr: { color: colors.danger },
   body: { flexGrow: 0, flexShrink: 1 },
   bodyContent: { paddingTop: 18, paddingHorizontal: 22, paddingBottom: 22 },
 
   // .channel-row / .channel-btn
-  channelRow: { flexDirection: 'row', gap: 4, padding: 4, backgroundColor: colors.surf1, borderRadius: radii.full, marginTop: 8 },
-  channelBtn: { flex: 1, paddingVertical: 8, paddingHorizontal: 4, borderRadius: radii.full, alignItems: 'center' },
+  channelRow: { flexDirection: 'row', gap: 9, marginTop: 8, marginBottom: 12 },
+  channelBtn: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', gap: 9,
+    paddingTop: 20, paddingBottom: 16, paddingHorizontal: 6,
+    borderRadius: 16, borderWidth: 1.5, borderColor: colors.line,
+    backgroundColor: colors.surf1,
+  },
   channelBtnActive: {
+    borderColor: colors.limeDeep,
+    // تلوينٌ خفيفٌ ثابت: لا تدرّجَ في RN بلا مكتبة، وrgba من لون الليم
+    // نفسِه تعمل على المظهرين.
+    backgroundColor: 'rgba(199,255,77,0.20)',
+  },
+  // والأيقونةُ هي ما يُرى من طرف العين وسط الحركة، لا الحدُّ وحده.
+  channelIco: {
+    width: 46, height: 46, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.surf2,
+  },
+  channelIcoActive: {
     backgroundColor: colors.lime,
     shadowColor: colors.limeDeep,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 4,
   },
-  channelBtnText: { fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.muted },
+  channelBtnText: { fontFamily: fonts.sansBold, fontSize: 13, lineHeight: 18, textAlign: 'center', color: colors.text },
   channelBtnTextActive: { color: colors.flagGreenDeep },
   nextWrap: { marginTop: 18 },
   sub: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.muted, textAlign: 'center', marginBottom: 14 },
@@ -1383,7 +1700,6 @@ const useStyles = createStyles(colors =>
   // .customer-suggest and friends
   searchRow: { flexDirection: 'row', gap: 8 },
   searchInput: { flex: 1, marginBottom: 0, textAlign: 'right' },
-  scanBtn: { width: 44, flexGrow: 0, flexShrink: 0, justifyContent: 'center' },
   scanGlyph: { fontSize: 17 },
   customerPanelRow: { flexDirection: 'column', gap: 6, marginTop: 8 },
   suggestLoading: { padding: 10, textAlign: 'center', fontFamily: fonts.sansSemiBold, fontSize: 11.5, color: colors.muted },
@@ -1425,6 +1741,37 @@ const useStyles = createStyles(colors =>
 
   // .due-display
   dueDisplay: { alignItems: 'center', paddingVertical: 16, backgroundColor: colors.surf1, borderRadius: radii.lg, marginBottom: spacing[4] },
+  payCard: {
+    borderRadius: radii.lg, backgroundColor: colors.surf1,
+    borderWidth: 1, borderColor: colors.line,
+    paddingVertical: 14, marginBottom: 12,
+  },
+  // حدُّ الحقل يزيح نصَّه، فالسطران الآخران يُزاحان مثلَه ليقعَ الثلاثة
+  // على عمودٍ واحد. (نظيرها في الويب: --pay-inset.)
+  payDue: {
+    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
+    gap: 12, paddingHorizontal: 29,
+  },
+  payChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 14, marginHorizontal: 14 },
+  payTenderRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    marginTop: 8, marginHorizontal: 14,
+    paddingVertical: 4, paddingHorizontal: 14,
+    borderRadius: radii.md, borderWidth: 1, borderColor: colors.line,
+    backgroundColor: colors.cardBg,
+  },
+  payTenderLabel: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.muted },
+  payTender: {
+    flex: 1, minWidth: 0, paddingVertical: 9,
+    fontFamily: fonts.monoBold, fontSize: 22, textAlign: 'right', color: colors.text,
+  },
+  payChange: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginTop: 12, paddingTop: 12, paddingHorizontal: 29,
+    borderTopWidth: 1, borderTopColor: colors.line,
+  },
+  dueDisplayReward: { borderWidth: 1, borderColor: colors.limeDeep },
+  dueRewardNote: { marginTop: 8, textAlign: 'center', fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.muted, lineHeight: 18 },
   dueLabel: { fontFamily: fonts.sansBold, fontSize: 10.5, color: colors.muted, textAlign: 'center' },
   dueAmount: { marginTop: 5 },
   // .pm-tabs / .pm-tab
@@ -1490,6 +1837,9 @@ const useStyles = createStyles(colors =>
   splitLabel: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.muted, marginBottom: 6 },
   // .change-row
   changeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 15, backgroundColor: `rgba(${colors.limeRgb},0.12)`, borderRadius: radii.md, marginBottom: spacing[4] },
+  changeLabelLive: { color: colors.text },
+  qaBtnActive: { borderColor: colors.limeDeep, backgroundColor: `rgba(${colors.limeRgb},0.16)` },
+  qaBtnTextActive: { color: colors.accentText },
   changeLabel: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text },
   // .card-tap-state / .card-tap-icon
   cardTapState: { alignItems: 'center', paddingVertical: 26 },

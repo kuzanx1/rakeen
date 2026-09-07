@@ -21,6 +21,28 @@
     // zone — not something this route config can create by itself.
     { "pattern": "*.rakeenapp.com/*", "zone_name": "rakeenapp.com" }
   ],
+  /**
+   * شهادة Pass Type ID، مربوطةً لإشعارات آبل.
+   *
+   * APNs لا يقبل مفتاحاً في ترويسة: يشترط اتصالاً موقّعاً بشهادة
+   * البطاقة نفسها (mTLS). وWorkers لا تفتح اتصالات TLS بيدها، إنما
+   * تُربط الشهادة فتُعطى fetch يوقّع بها -- فلا يغادر المفتاح الخادم
+   * ولا يُقرأ من الكود.
+   *
+   * وبلا هذا الربط لا إشعار: البطاقة تبقى كما أُضيفت حتى يفتح صاحبها
+   * المحفظة ويسحب بيده. وهذا ما كان يحدث -- الطابور يمتلئ ولا أحد
+   * يُوقَظ.
+   *
+   * تُرفع بـ: wrangler cert upload mtls-certificate --cert pass.pem
+   *           --key rakeen-pass.key --name rakeen-apns
+   * وتنتهي في 2027-10-06 -- تُجدَّد من حساب المطوّر عند آبل قبلها.
+   */
+  "mtls_certificates": [
+    {
+      "binding": "APNS_MTLS",
+      "certificate_id": "397e1982-885a-4866-a5a6-6ac047227cc0"
+    }
+  ],
   "services": [
     {
       "binding": "WORKER_SELF_REFERENCE",
@@ -54,6 +76,9 @@
     // "0 5 * * *": once daily — recomputes HR compliance_items.status from
     // manually-entered expiry dates (iqama/contract/etc.), no external
     // government API involved (app/api/cron/compliance-check).
+    // خمسة لا ستة: حسابُ Workers المجاني يسمح بخمسة مؤقّتات لا أكثر.
+    // ودفعُ بطاقات المحفظة يركب "*/2" نفسه بدل أن يطلب سادساً — وهما
+    // مكنستان خفيفتان تُنجزان في ثوانٍ، فلا تزاحم إحداهما الأخرى.
     "crons": ["0 6 * * *", "0 7 * * 1", "0 21 * * *", "*/2 * * * *", "0 5 * * *"]
   },
   // Report emailing (app/api/reports/send-email/route.ts). The binding

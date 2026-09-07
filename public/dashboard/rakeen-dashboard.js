@@ -4848,7 +4848,12 @@ async function renderLoyaltySuggestedColors(imgSrc){
   ).join('');
   el.querySelectorAll('.loyalty-color-swatch').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      document.getElementById('loyaltyAccentInput').value = btn.dataset.color;
+      // يُبَثّ الحدث لا تُكتب القيمة وحدها: خانةُ الكود والمربّع
+      // والمعاينة كلها تسمع <input> -- ومن كتب القيمة صامتاً غيّر
+      // اللون في الذاكرة وترك الشاشة تقول غيره.
+      const accent = document.getElementById('loyaltyAccentInput');
+      accent.value = btn.dataset.color;
+      accent.dispatchEvent(new Event('input', { bubbles: true }));
       el.querySelectorAll('.loyalty-color-swatch').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
       renderLoyaltyPatternPicker();
@@ -4859,7 +4864,7 @@ async function renderLoyaltySuggestedColors(imgSrc){
 
 async function loadLoyaltyBranding(){
   const { data } = await window.supabaseClient.from('businesses')
-    .select('loyalty_logo_url, loyalty_banner_url, loyalty_accent_color, loyalty_system_type, loyalty_visits_threshold, loyalty_reward_label, loyalty_icon_style, loyalty_pattern_style, loyalty_theme, loyalty_custom_icon_url, loyalty_enabled, loyalty_banner_overlay, loyalty_icon_size, loyalty_tagline, loyalty_unit_threshold, loyalty_reward_mode, loyalty_visit_min_total')
+    .select('loyalty_logo_url, loyalty_banner_url, loyalty_accent_color, loyalty_system_type, loyalty_visits_threshold, loyalty_reward_label, loyalty_icon_style, loyalty_pattern_style, loyalty_theme, loyalty_custom_icon_url, loyalty_enabled, loyalty_banner_overlay, loyalty_icon_size, loyalty_tagline, loyalty_unit_threshold, loyalty_reward_mode, loyalty_visit_min_total, notify_win_back, win_back_message, win_back_inactive_days, wallet_offer_text, wallet_offer_at')
     .eq('id', CURRENT_PROFILE.business_id).single();
   if(data){
     LOYALTY_BRANDING = {
@@ -4872,10 +4877,16 @@ async function loadLoyaltyBranding(){
       patternStyle: data.loyalty_pattern_style || 'none', theme: data.loyalty_theme || 'classic',
       customIconUrl: data.loyalty_custom_icon_url || null,
       bannerOverlay: data.loyalty_banner_overlay ?? 80, iconSize: data.loyalty_icon_size || 30,
-      tagline: data.loyalty_tagline || ''
+      tagline: data.loyalty_tagline || '',
+      winBackOn: !!data.notify_win_back,
+      winBackMessage: data.win_back_message || '',
+      winBackDays: data.win_back_inactive_days ?? 30,
+      offerText: data.wallet_offer_text || null,
+      offerAt: data.wallet_offer_at || null
     };
     renderLoyaltyEnabledState(data.loyalty_enabled !== false);
   }
+  await loadWalletAssets();
 }
 
 const rkLoyaltyEnabledStatus = c => c
@@ -4977,19 +4988,39 @@ function renderLoyaltyIconPicker(){
   const el = document.getElementById('loyaltyIconPicker');
   if(!el) return;
   const isCustom = LOYALTY_BRANDING.iconStyle === 'custom';
-  el.innerHTML = Object.keys(LOYALTY_ICON_PATHS_JS).map(key=>
-    `<button type="button" class="loyalty-icon-choice${key===LOYALTY_BRANDING.iconStyle?' active':''}" data-icon="${key}" title="${LOYALTY_ICON_LABELS_JS[key]}">
+  /**
+   * أربعةٌ ثم "المزيد".
+   *
+   * ستةَ عشرَ شكلاً في صفٍّ واحد صفٌّ يُمسح لا يُقرأ، ويدفع ما تحته
+   * -- ورفعُ ختمِه هو المقصود -- خارج الشاشة. والمختارُ يظهر دائماً
+   * ولو كان الخامسَ عشر: قائمةٌ لا تُري ما اختاره تُقرأ خطأً.
+   */
+  const KEYS = Object.keys(LOYALTY_ICON_PATHS_JS);
+  const SHOWN = 4;
+  const selIdx = KEYS.indexOf(LOYALTY_BRANDING.iconStyle);
+  const openAll = el.dataset.rkAll === '1' || selIdx >= SHOWN;
+  // ولا زرَّ "+": الصورة المرفوعة تُعتمد وحدها، وخانتاها مفتوحتان
+  // تحت المنتقي. فزرٌّ يقول "اختر المرفوعة" زائدٌ على من رفعها.
+  el.innerHTML = KEYS.map((key, i) =>
+    `<button type="button" class="loyalty-icon-choice${key===LOYALTY_BRANDING.iconStyle?' active':''}" data-icon="${key}" title="${LOYALTY_ICON_LABELS_JS[key]}"${(!openAll && i>=SHOWN) ? ' hidden' : ''}>
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${LOYALTY_ICON_PATHS_JS[key]}</svg>
     </button>`
-  ).join('') + `<button type="button" class="loyalty-icon-choice${isCustom?' active':''}" data-icon="custom" title="ارفع أيقونتك الخاصة">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    </button>`;
-  document.getElementById('loyaltyCustomIconRow').classList.toggle('hidden', !isCustom);
+  ).join('') + (openAll ? '' : `<button type="button" class="loyalty-icon-choice rk-icon-more" id="rkIconMore">المزيد</button>`);
+  const more = document.getElementById('rkIconMore');
+  if(more) more.addEventListener('click', ()=>{ el.dataset.rkAll = '1'; renderLoyaltyIconPicker(); });
+  /**
+   * وخانتا الرفع مفتوحتان دائماً.
+   *
+   * كانتا تظهران بعد ضغط "+" -- وميزةٌ خلف زرٍّ لا يُعرف ما خلفه ميزةٌ
+   * لا تُستعمل. ورفعُ ختمِه أهمُّ ما في هذه المجموعة، لا آخرُ خياراتها.
+   */
+  const pairA = document.getElementById('rkStampPair');
+  if(pairA) pairA.classList.remove('hidden');
+  else document.getElementById('loyaltyCustomIconRow').classList.remove('hidden');
   el.querySelectorAll('.loyalty-icon-choice').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       el.querySelectorAll('.loyalty-icon-choice').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
-      document.getElementById('loyaltyCustomIconRow').classList.toggle('hidden', btn.dataset.icon !== 'custom');
       renderLoyaltyPatternPicker();
       renderLoyaltyCardPreview();
     });
@@ -5005,7 +5036,16 @@ function renderLoyaltyIconPicker(){
 // lazily on first visit) which attach their own croppers inline instead.
 attachImageCropper('loyaltyLogoInput', { aspect: 1, outputWidth: 500, outputHeight: 500 });
 attachImageCropper('loyaltyBannerInput', { aspect: 2, outputWidth: 1200, outputHeight: 600 });
-attachImageCropper('loyaltyCustomIconInput', { aspect: 1, outputWidth: 300, outputHeight: 300 });
+/**
+ * ولا قصَّ للختم.
+ *
+ * أداة القصّ تُجبر مربّعاً، والأختام في البطاقات ليست مربّعة: كوبٌ
+ * طوليّ، وكفٌّ أعرض من طوله. فمن رفع كوبه قُصّ أعلاه وأسفله، ووقف
+ * أمام معاينةٍ تُريه ما لم يرفعه.
+ *
+ * والشريط يحتوي الشكل بنسبته أصلاً -- طولاً كان أو عرضاً -- فالقصّ
+ * ليس شرطاً لشيء، إنما كان عادةً أُخذت من رفع الصور الفوتوغرافية.
+ */
 wireImageUploadBoxPreview('loyaltyLogoInput');
 wireImageUploadBoxPreview('loyaltyBannerInput');
 wireImageUploadBoxPreview('loyaltyCustomIconInput');
@@ -5185,7 +5225,29 @@ async function renderLoyaltyCardPreview(){
     </div>`;
   }
 
-  el.innerHTML = cardHtml;
+  /**
+   * بطاقة المحفظة فوق، وبطاقة الويب تحتها.
+   *
+   * المحفظة هي ما يفتحه الزبون فعلاً، فهي التي تُعاين. وبطاقة الويب
+   * ما زالت حيّة -- الكاشير يطبع رمزها، والعملاء عندهم روابطها -- ولها
+   * حقولٌ في هذه اللوحة. فإخفاء معاينتها يترك تلك الحقول بلا صدى،
+   * وحقلٌ لا يُرى أثره أسوأ من حقلٍ زائد.
+   */
+  try { await rkwPrepareTrims(); } catch(_){}
+  try { el.innerHTML = walletCardPreviewHtml(); }
+  catch(e){ console.error('wallet preview', e); el.innerHTML = cardHtml; }
+  el.querySelectorAll('[data-prevlang]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      RKW_PREV_LANG = btn.dataset.prevlang;
+      renderLoyaltyCardPreview();
+    });
+  });
+  const scrub = document.getElementById('rkwScrub');
+  if(scrub) scrub.addEventListener('input', ()=>{
+    RKW_PREVIEW_DONE = parseInt(scrub.value, 10);
+    renderLoyaltyCardPreview();
+  });
+  try { syncImageClearButtons(); } catch(_){}
 }
 
 function updateLoyaltySystemTypeVisibility(){
@@ -5197,6 +5259,7 @@ function updateLoyaltySystemTypeVisibility(){
   document.getElementById('loyaltyPointsConfig').classList.toggle('hidden', !isPoints);
   document.getElementById('loyaltyVisitsConfig').classList.toggle('hidden', !isVisits);
   document.getElementById('loyaltyIconPickerRow').classList.toggle('hidden', isPoints);
+  try { syncLoyaltyStampGroup(); } catch(_){}
   document.getElementById('loyaltyIconSizeRow').classList.toggle('hidden', isPoints);
 }
 
@@ -5273,10 +5336,23 @@ function renderLoyaltyBrandingPreview(){
   renderLoyaltyPatternPicker();
   updateLoyaltySystemTypeVisibility();
   renderLoyaltyCardPreview();
+  try { mountWalletFields(); } catch(e){ console.error('wallet fields', e); }
+  /**
+   * ويُعاد بناؤه بالمحفوظ: رُكِّب قبل وصول البيانات بقيمٍ افتراضية،
+   * فحذفُه وإعادتُه أضمنُ من محاولة تحديث كل خانةٍ على حدة.
+   */
+  const msgBlock = document.getElementById('walletMsgBlock');
+  if(msgBlock) msgBlock.remove();
+  try { mountWalletMessages(); } catch(e){ console.error('messages', e); }
+  try { restructureLoyaltyDesign(); }
+  catch(e){ window.__rkLayout = 'خطأ: ' + (e && e.message ? e.message : e); console.error('design layout', e); }
   renderLoyaltySuggestedColors(LOYALTY_BRANDING.logoUrl);
   updateImageUploadBoxPreview('loyaltyLogoInput', LOYALTY_BRANDING.logoUrl);
   updateImageUploadBoxPreview('loyaltyBannerInput', LOYALTY_BRANDING.bannerUrl);
   updateImageUploadBoxPreview('loyaltyCustomIconInput', LOYALTY_BRANDING.customIconUrl);
+  // وصندوقُ "قبل الشراء" يُبنى بعد هذه الدالّة أول مرّة، ويبقى بعدها
+  // فيحتاج أن يُملأ من المحفوظ كإخوته عند كل دخول.
+  updateImageUploadBoxPreview('walletStampEmptyInput', WALLET_ASSETS.stampEmptyUrl);
 }
 
 // Phone-camera uploads (banners, product photos) were landing in Storage at
@@ -5687,19 +5763,107 @@ async function uploadMediaFile(file, folder, prefix) {
   return data.url;
 }
 
+/**
+ * ختمُ المحفظة يُقيَّس قبل رفعه.
+ *
+ * الخادم يفكّ PNG بثمانية بتاتٍ غير متشابك -- وهو ما يُخرجه canvas
+ * دائماً، لا ما يرفعه صاحب المطعم دائماً. فقد يرفع JPEG بلا شفافية،
+ * أو صورةً بثلاثة آلاف بكسل، أو SVG لا تُفكّ أصلاً.
+ *
+ * فتُمرَّر كلها على لوحةٍ واحدة: مربّعٌ 128، شفّافٌ خلفها، بنسبتها لا
+ * ممدودة. وما يخرج منه يفكّه الخادم يقيناً -- لا رجاءً.
+ *
+ * و320 محسوبةٌ لا مقدَّرة.
+ *
+ * أكبرُ ما يُرسم به الختمُ فعلاً هو 303 بكسلاً: على شاشةٍ ثلاثية
+ * الكثافة، ببطاقةٍ فيها ختمان أو ثلاثة، ومقاسٍ مرفوعٍ إلى ضعفين. فما
+ * دونها يُكبَّر فتلين حوافّه -- وهو أوضح ما في البطاقة وأولى ما
+ * يُنظر إليه.
+ *
+ * وما فوقها لا يُرى وإنما يُثقل بندلاً يُوقَّع ويُنقل عند كل تحديث.
+ * (كانت 128، ثم 256 -- وكلتاهما تقديرٌ قبل أن يُحسب الحدّ.)
+ */
+async function normalizeStampFile(file){
+  if(!file) return null;
+  try {
+    const bitmap = await createImageBitmap(file);
+
+    /**
+     * الهامش الشفّاف يُقصّ أولاً.
+     *
+     * صورتان بنفس المقاس تُخرجان ختمين بحجمين لو كان حول رسم إحداهما
+     * فراغ: الاحتواء يحسب المربّع لا ما فيه. وهما حالتا شيءٍ واحد
+     * تقفان متجاورتين -- فيُقرأ الفرق خللاً لا تصميماً.
+     *
+     * ويُقصّ هنا كما يُقصّ في الخادم بالضبط (عتبة الشفافية نفسها):
+     * لو قصّ أحدهما دون الآخر لاختلفت المعاينة عن البطاقة في الشيء
+     * الذي بُنيت المعاينة لتُريه.
+     */
+    const probe = document.createElement('canvas');
+    probe.width = bitmap.width; probe.height = bitmap.height;
+    const pg = probe.getContext('2d', { willReadFrequently: true });
+    pg.drawImage(bitmap, 0, 0);
+    let bx0 = bitmap.width, by0 = bitmap.height, bx1 = -1, by1 = -1;
+    try {
+      const d = pg.getImageData(0, 0, bitmap.width, bitmap.height).data;
+      for(let y=0; y<bitmap.height; y++){
+        for(let x=0; x<bitmap.width; x++){
+          // أي شفافيةٍ غير معدومة رسم: كوبٌ بلاستيكيٌّ شفّاف زجاجُه
+          // دون أي عتبة، فتُقصّ حافّته ويخرج مقطوعاً.
+          if(d[(y*bitmap.width+x)*4+3] > 0){
+            if(x<bx0) bx0=x; if(x>bx1) bx1=x;
+            if(y<by0) by0=y; if(y>by1) by1=y;
+          }
+        }
+      }
+    } catch(_){ /* صورةٌ من أصلٍ آخر تمنع القراءة: تُترك كما هي */ }
+    if(bx1 < 0){ bx0 = 0; by0 = 0; bx1 = bitmap.width - 1; by1 = bitmap.height - 1; }
+    const iw = bx1 - bx0 + 1, ih = by1 - by0 + 1;
+
+    // أطول ضلعٍ 320، والنسبة كما هي.
+    //
+    // كان يُحشى في مربّعٍ 256 بحواشٍ شفافة حوله -- والحواشي تُحسب من
+    // مساحة الختم في الشريط، فيخرج كوبٌ طوليّ أصغر ممّا تسمح به
+    // خليّته بالثلث. والشريط يحتويه بنسبته، فليس للمربّع سبب.
+    const S = 320;
+    const scale = Math.min(1, S / Math.max(iw, ih));
+    const w = Math.max(1, Math.round(iw * scale));
+    const h = Math.max(1, Math.round(ih * scale));
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    const g = cv.getContext('2d');
+    g.drawImage(bitmap, bx0, by0, iw, ih, 0, 0, w, h);
+    const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+    if(!blob) return file;
+    return new File([blob], 'stamp.png', { type: 'image/png' });
+  } catch(err){
+    console.error('normalizeStampFile', err);
+    return file;
+  }
+}
+
 document.getElementById('loyaltyBrandingSaveBtn').addEventListener('click', async ()=>{
   const btn = document.getElementById('loyaltyBrandingSaveBtn');
   rkBtnLoading(btn, true);
   try {
     const logoFile = await compressImageFile(document.getElementById('loyaltyLogoInput').files[0]);
     const bannerFile = await compressImageFile(document.getElementById('loyaltyBannerInput').files[0]);
-    const customIconFile = await compressImageFile(document.getElementById('loyaltyCustomIconInput').files[0]);
+    const customIconFile = await normalizeStampFile(document.getElementById('loyaltyCustomIconInput').files[0]);
     const accentColor = document.getElementById('loyaltyAccentInput').value;
     const iconChoice = document.querySelector('.loyalty-icon-choice[data-icon].active');
     const patternChoice = document.querySelector('.loyalty-pattern-swatch.active');
     const updates = {
       loyalty_accent_color: accentColor,
-      loyalty_icon_style: iconChoice ? iconChoice.dataset.icon : 'generic',
+      /**
+       * الصورةُ المرفوعة تسبق الشكل المختار.
+       *
+       * من رفع ختمه أراده -- ولم يكن بينه وبين ظهوره إلا زرٌّ لا يدلّ
+       * على نفسه، فيرفع ويحفظ ويرى نجمةً مكانه. ومتى أزال صورتيه عاد
+       * الشكلُ الذي اختاره، فلا يُحبَس في اختيارٍ حذَفه.
+       */
+      loyalty_icon_style: rkHasOwnStamp()
+        ? 'custom'
+        : (iconChoice && iconChoice.dataset.icon !== 'custom' ? iconChoice.dataset.icon : 'generic'),
       loyalty_pattern_style: patternChoice ? patternChoice.dataset.pattern : 'none',
       loyalty_theme: loyaltyThemeFormValue(),
       loyalty_tagline: document.getElementById('loyaltyTaglineInput').value.trim() || null,
@@ -5719,9 +5883,60 @@ document.getElementById('loyaltyBrandingSaveBtn').addEventListener('click', asyn
       updates.loyalty_banner_url = null;
     }
 
+    // أصول المحفظة تُرفع وتُحفظ في نفس الضغطة: هما وجهان لتصميمٍ واحد،
+    // وزرّان يعنيان أن يُحفظ نصفه ويُنسى نصفه.
+    // ما أُزيل يُكتب فراغاً: بلا هذا يبقى المحفوظ كما هو، ويرى صاحب
+    // المطعم صورةً أزالها بعينه ترجع بعد إعادة التحميل.
+    RK_CLEARED_IMAGES.forEach(col => { updates[col] = null; });
+    try { Object.assign(updates, await collectWalletUpdates()); }
+    catch(e){ console.error('wallet assets', e); showToast('تعذر رفع صور المحفظة — بقية التصميم انحفظ'); }
+
     await updateCurrentBusiness(updates);
     await loadLoyaltyBranding();
+    Object.values(WALLET_FILE_URLS).forEach(u => u && URL.revokeObjectURL(u));
+    WALLET_FILE_URLS = { icon:null, logo:null, strip:null };
+    RK_PENDING_URLS.forEach(v => URL.revokeObjectURL(v.url));
+    RK_PENDING_URLS.clear();
+    RK_CLEARED_IMAGES.clear();
+    try { mountWalletFields(); } catch(_){}
     renderLoyaltyBrandingPreview();
+    /**
+     * وبطاقاتُ المحفظة تُوقَظ.
+     *
+     * البطاقة عند الزبون نسخةٌ مبنيّة، لا صفحةٌ تُقرأ من جديد كلما
+     * فُتحت. فالتصميم يُحفظ هنا ولا يصل هناك حتى يُقال للجهاز "اسأل".
+     * وبلا هذا يظلّ صاحب المطعم يبدّل الألوان ويحفظ ويفتح محفظته فلا
+     * يرى شيئاً -- ويظنّ العطل في التصميم وهو في الإيصال.
+     *
+     * ويُطلب البناء فقط: الإيقاظ نفسه تتولّاه مكنسةٌ كل ثلاث دقائق،
+     * فلا يُحبس الحفظ على إشعارٍ قد يبطئ أو يفشل.
+     */
+    try {
+      const { data: woke } = await window.supabaseClient.rpc('bump_business_wallet_passes');
+      if(woke > 0){
+        /**
+         * ويُدفع الآن، لا في الدورة القادمة.
+         *
+         * كان يُترك للمكنسة كل دقيقتين -- فيحفظ صاحب المطعم وينظر إلى
+         * جواله فلا يتغيّر شيء، فيحفظ ثانيةً ويظنّ التصميم لا يُحفظ.
+         * والانتظار إنما شُرع لطريق الكاشير، وهذا ليس طريقه.
+         */
+        const { data: { session } } = await window.supabaseClient.auth.getSession();
+        const r = await fetch('/api/dashboard/wallet-push-now', {
+          method: 'POST', headers: { Authorization: 'Bearer ' + session.access_token },
+        }).then(x => x.json()).catch(() => null);
+        showToast(r && r.sent > 0
+          ? 'تم الحفظ — ' + r.sent + ' بطاقة تتحدّث الآن'
+          : 'تم الحفظ — ' + woke + ' بطاقة بتتحدث خلال دقائق');
+        rkMarkPushed();
+        rkGuardPushButton(document.getElementById('walletBroadcastBtn'), 'أرسل العرض');
+        rkGuardPushButton(document.getElementById('walletBroadcastClear'), 'أنهِ العرض');
+        // وزرُّ الحفظ بعد لحظة: تُترك علامةُ النجاح تُقرأ أولاً، ثم
+        // يُقفل. وإقفالٌ يمحو "✓ تم الحفظ" قبل أن تُرى يُقلق بلا داع.
+        setTimeout(()=> rkGuardPushButton(
+          document.getElementById('loyaltyBrandingSaveBtn'), 'احفظ التصميم'), 1800);
+      }
+    } catch(_){ /* التصميم محفوظ، والإيقاظ يلحق في الدورة القادمة */ }
     logDashboardAudit('حدّث تصميم بطاقة الولاء');
     rkBtnSuccess(btn, '✓ تم الحفظ');
   } catch(err){
@@ -6068,6 +6283,19 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
     }
 
     if(target === 'loyalty'){
+      /**
+       * تبويب الإشعارات يُركَّب قبل انتظار الشبكة.
+       *
+       * كان يُركَّب داخل renderLoyaltyBrandingPreview، وتلك لا تُنادى
+       * إلا بعد await loadLoyaltyBranding() -- فيفتح صاحب المطعم
+       * الشاشة فيرى خمسة تبويبات، ويظهر السادس بعد لحظة. وتبويبٌ يظهر
+       * متأخّراً يُقرأ عطلاً لا بطئاً.
+       *
+       * ويُبنى بقيمٍ افتراضية آمنة، ثم يُعاد بناؤه بالمحفوظ حين يصل.
+       */
+      try { mountWalletMessages(); } catch(e){ console.error('messages', e); }
+      rkHideTiersTab();
+      rkFoldContactTab();
       await ensureCustomersDataLoaded();
       renderLoyaltyKpis();
       renderLoyaltyCards();
@@ -6448,7 +6676,7 @@ async function loadBusinessData(){
 }
 
 const ORDER_CHANNEL_TYPE_LABELS = {dine_in:'داخل المطعم', pickup:'سفري', delivery:'توصيل'};
-const ORDER_PAYMENT_LABELS = {cash:'كاش', card:'بطاقة', split:'تقسيم دفع', delivery_platform:'مدفوع عبر التطبيق'};
+const ORDER_PAYMENT_LABELS = {cash:'كاش', card:'بطاقة', split:'تقسيم دفع', delivery_platform:'مدفوع عبر التطبيق', loyalty:'مكافأة ولاء'};
 
 // A multi-branch business's orders/tables all share one business_id — without
 // branch_id, two branches' "طاولة 1" render as identical, indistinguishable
@@ -9978,6 +10206,7 @@ const RK_ICON_PATHS = {
   globe: '<circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>',
   grid: '<rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect>',
   bag: '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10"></polyline>',
 };
 // Custom checkbox — a proper checkmark-in-a-box for "pick several from a
 // list" (screen access grid, either inline-saved per member or inside the
@@ -10267,7 +10496,15 @@ function renderOnlineMenuPanel(){
   if(activeOnlineMenuTab === 'settings'){
     // شاشة العميل مع إعدادات المتجر لا مع إعدادات الطابعة: هي المنيو
     // نفسه في وضع عرض، وتستعمل اسم المتجر نفسه في رابطها.
-    panel.innerHTML = onlineStoreSettingsHtml() + '<div id="rkDisplayPanelHost"></div>';
+    /**
+     * والتوثيق آخر ما في الصفحة.
+     *
+     * يُفتح مرّةً في عمر المتجر ثم لا يُفتح، وما فوقه يُفتح كل أسبوع:
+     * اسم المتجر ورابطه وطرق الاستلام وشاشة العميل. وترتيبُ الشاشة
+     * بترتيب ما يُفتح، لا بترتيب ما كُتب.
+     */
+    panel.innerHTML = onlineStoreSettingsHtml() + '<div id="rkDisplayPanelHost"></div><div id="rkVerifyPanelHost"></div>';
+    renderStoreVerificationPanel();
     wireOnlineStoreSettings();
     const displayHost = document.getElementById('rkDisplayPanelHost');
     if(displayHost){
@@ -15454,25 +15691,20 @@ function displayDevicesHtml(){
   // ما جُلب من القاعدة أولاً، والمتغيّر العالمي احتياطاً بعده.
   const slug = DISPLAY_STORE_SLUG || (typeof ONLINE_MENU_SLUG !== 'undefined' && ONLINE_MENU_SLUG) || '';
   const rows = DISPLAY_DEVICES.length
-    ? DISPLAY_DEVICES.map(d => {
-        const waiting = !!d.pairing_code;
-        return `
+    ? DISPLAY_DEVICES.map(d => `
         <div class="rk-disp-row">
           <div style="min-width:0;">
-            <div class="rk-disp-row-name">${escapeHtml(d.label || 'شاشة عميل')}</div>
-            ${waiting
-              ? `<div class="rk-disp-code-big" dir="ltr">${escapeHtml(d.pairing_code)}</div>
-                 <div class="rk-disp-row-meta">اكتب هذا الرمز في الشاشة — صالح ١٠ دقائق</div>`
-              : `<div class="rk-disp-row-meta">${escapeHtml(displayDeviceStatus(d))}</div>
-                 ${d.user_agent ? `<div class="rk-disp-row-meta rk-disp-ua">${escapeHtml(displayDeviceKind(d.user_agent))}</div>` : ''}`}
+            <div class="rk-disp-row-name" data-disprename="${d.id}"
+                 style="cursor:pointer;" title="اضغط لتغيير الاسم">${escapeHtml(d.label || 'شاشة عميل')} ✏️</div>
+            <div class="rk-disp-row-meta">${escapeHtml(displayDeviceStatus(d))}</div>
+            ${d.user_agent ? `<div class="rk-disp-row-meta rk-disp-ua">${escapeHtml(displayDeviceKind(d.user_agent))}</div>` : ''}
           </div>
           <div style="display:flex; gap:6px; flex-shrink:0;">
-            ${waiting ? '' : `<button type="button" class="rk-btn rk-btn-ghost rk-btn-sm" data-disprepair="${d.id}">رمز جديد</button>`}
-            <button type="button" class="rk-btn rk-btn-ghost rk-btn-sm" data-dispdel="${d.id}">فكّ الربط</button>
+                <button type="button" class="rk-btn rk-btn-secondary rk-btn-sm" data-displink="${d.id}">الرابط</button>
+            <button type="button" class="rk-btn rk-btn-ghost rk-btn-sm" data-dispdel="${d.id}">احذف</button>
           </div>
-        </div>`;
-      }).join('')
-    : '<div style="font-size:12.5px; color:var(--muted);">ما فيه شاشة مقترنة بعد.</div>';
+        </div>`).join('')
+    : '<div style="font-size:12.5px; color:var(--muted);">ما فيه شاشة بعد — اضغط الزر تحت.</div>';
 
   return `
     <div class="rk-section" style="margin-bottom:16px;">
@@ -15484,28 +15716,34 @@ function displayDevicesHtml(){
         <div><div class="rk-section-title">شاشة العميل</div>
         <div class="rk-section-sub">الجهاز اللي قدّام الزبون — يعرض المنيو، وعليه يطلع باركود الولاء</div></div>
       </div>
-      <div style="font-size:12.5px; color:var(--muted); line-height:1.8; margin-bottom:8px;">
-        ١. افتح هذا الرابط على جهاز الشاشة اللي قدّام الزبون، ٢. اكتب فيه رمز الاقتران مرة واحدة.
+      <!-- طريقةٌ واحدة، هي التي لا تسقط.
+           كان معها طريقُ الرمز: يُنشأ في اللوحة ويُكتب في الشاشة. وهو
+           مبنيٌّ على ما يحفظه المتصفّح، ومتصفّحُ الكشك ينظّف عند كل
+           إغلاق -- فيُطلب الرمز كل بضعة أيام. وطريقان أحدهما يسقط
+           أسوأ من طريقٍ واحد: من سقط به الأول لا يعرف أسقط النظامُ
+           كلُّه أم اختار الفرع الخطأ.
+           فحُذف. والسرُّ في العنوان لا يُمحى بمسح الذاكرة. -->
+      <div style="font-size:12.5px; color:var(--muted); line-height:1.9; margin-bottom:10px;">
+        خطوتان مرّة وحدة، وبعدها ما يطلب منك شي أبداً:
+        <b style="color:var(--text);">١)</b> اضغط «أضف شاشة» — يطلع لك عنوان قصير.
+        <b style="color:var(--text);">٢)</b> اكتبه في متصفّح جهاز الشاشة، وثبّته على الشاشة الرئيسية.
       </div>
       <!-- التثبيت ليس تحسيناً شكلياً: سفاري iOS تحذف تخزين المواقع بعد
            سبعة أيام بلا استعمال، فتفقد الشاشة اقترانها بعد كل إجازة.
            والمثبَّتة لا يشملها ذلك. ومن لم يُقَل له سيعود يشتكي. -->
       <div style="padding:11px 13px; border-radius:9px; background:rgba(196,255,43,0.14); border:1px solid rgba(196,255,43,0.5); font-size:12px; line-height:1.75; margin-bottom:12px;">
-        <b>مهم:</b> بعد ما تفتح الرابط على الجهاز، ثبّته على الشاشة الرئيسية
-        (من قائمة المتصفح ← "إضافة إلى الشاشة الرئيسية").
-        غير المثبّت على آيباد يفقد الربط لو انطفى أسبوع.
+        <b>بعد ما تفتحه:</b> ثبّته على الشاشة الرئيسية (من قائمة المتصفح ←
+        "إضافة إلى الشاشة الرئيسية") عشان يفتح وحده. ورابط الشاشة يحمل
+        الاقتران في عنوانه، فحتى لو نظّف الجهاز ذاكرته يرجع يشتغل بمجرد فتحه.
       </div>
-      ${slug ? `
-      <div class="rk-disp-url-row">
-        <input type="text" id="displayUrlInput" readonly value="${escapeHtml(displayPublicUrl())}">
-        <button type="button" class="rk-btn rk-btn-secondary rk-btn-sm" id="displayUrlCopyBtn">نسخ</button>
-      </div>` : `
+
+      ${slug ? '' : `
       <div style="padding:12px 14px; border-radius:10px; background:#FFF4E5; border:1px solid #F0C36D; font-size:12.5px; line-height:1.7;">
         <b>اضبط رابط المتجر الإلكتروني أولاً</b> — شاشة العميل تستعمل نفس الاسم.
         من تبويب "إعدادات المتجر" فوق، احفظ اسم المتجر ثم ارجع هنا.
       </div>`}
       <div class="rk-disp-list">${rows}</div>
-      <button class="rk-btn rk-btn-secondary rk-btn-md" id="displayPairBtn" style="margin-top:12px;">أنشئ رمز اقتران جديد</button>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="displayPairBtn" style="margin-top:12px;">➕ أضف شاشة — وانسخ رابطها</button>
 
       <div class="rk-field" style="margin-top:18px;">
         <label>النص فوق الباركود</label>
@@ -15516,24 +15754,6 @@ function displayDevicesHtml(){
     </div>`;
 }
 
-/**
- * رابط شاشة العرض: النطاق الرئيسي لا الفرعي.
- *
- * وسيط النطاقات الفرعية يحوّل جذر {slug}.rakeenapp.com إلى /order/{slug}
- * وحده -- ولا يعرف /display. فلو أُعطي صاحب المطعم الرابط الفرعي لفتح
- * على شاشته صفحةً غير التي أردناها، أو لا شيء.
- */
-function displayPublicUrl(){
-  const slug = DISPLAY_STORE_SLUG || (typeof ONLINE_MENU_SLUG !== 'undefined' && ONLINE_MENU_SLUG) || '';
-  // نفس شكل رابط المتجر: اسم المتجر نطاقاً فرعياً، ثم /menu. والوسيط
-  // يحوّله داخلياً إلى /display/{slug} -- كما يحوّل جذره إلى /order.
-  // ولوكال هوست بلا DNS بديل، فيبقى على المسار.
-  if (typeof window !== 'undefined' && window.location && window.location.hostname === 'localhost') {
-    return window.location.origin + '/display/' + slug;
-  }
-  return 'https://' + slug + '.rakeenapp.com/menu';
-}
-
 /** سرٌّ طويل يُقرأ ويُلصق: ثلاثون حرفاً لا تُخمَّن، ولا تُكتب بالغلط. */
 function newDisplaySecret(){
   const a = new Uint8Array(16);
@@ -15541,13 +15761,157 @@ function newDisplaySecret(){
   return [...a].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+/**
+ * حوارٌ بهيئة ركين -- بديلُ prompt وconfirm.
+ *
+ * ونافذةُ المتصفّح لا تُعاب بشكلها وحده: تعلوها كلمةُ "rakeenapp.com"
+ * ويجاورها مربّعُ "امنع هذه الصفحة من إنشاء نوافذ" -- فتُقرأ إنذاراً
+ * من المتصفّح على الموقع، لا رسالةً من الموقع. ومن ضغط ذاك المربّع
+ * أسكت اللوحة عن مخاطبته إلى أن يُصلحها من الإعدادات، وهو لا يعرف.
+ *
+ * تُرجع وعداً: النصَّ المكتوب، أو true، أو null إذا أُلغي.
+ */
+function rkAsk(opts){
+  return new Promise(resolve => {
+    const o = opts || {};
+    const ov = document.createElement('div');
+    ov.className = 'modal-overlay';
+    ov.innerHTML = `
+      <div class="modal-card rk-ask-card">
+        <div class="rk-ask-title">${escapeHtml(o.title || '')}</div>
+        ${o.body ? `<div class="rk-ask-body">${o.body}</div>` : ''}
+        ${o.url ? `<div class="rk-ask-url">${o.url}</div>` : ''}
+        ${o.code ? `<div class="rk-ask-code">${escapeHtml(o.code)}</div>` : ''}
+        ${o.input !== undefined ? `<input type="text" class="rk-ask-in" id="rkAskIn"
+            maxlength="${o.maxlength || 60}" value="${escapeHtml(o.input || '')}"
+            placeholder="${escapeHtml(o.placeholder || '')}">` : ''}
+        <div class="rk-ask-foot">
+          <button type="button" class="menu-add-btn menu-add-btn-primary" id="rkAskOk">${escapeHtml(o.ok || 'تمام')}</button>
+          ${o.cancel === null ? '' : `<button type="button" class="rk-ask-cancel" id="rkAskNo">${escapeHtml(o.cancel || 'إلغاء')}</button>`}
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    requestAnimationFrame(()=> ov.classList.add('show'));
+
+    let settled = false;
+    const close = (val)=>{
+      if(settled) return; settled = true;
+      ov.classList.remove('show');
+      setTimeout(()=> ov.remove(), 180);
+      document.removeEventListener('keydown', onKey);
+      resolve(val);
+    };
+    const inp = ov.querySelector('#rkAskIn');
+    const accept = ()=>{
+      // ودالّةُ الموافقة تُنادى والضغطةُ حيّة: نسخُ الحافظة يشترط
+      // "تفعيلاً" من المستخدم لم يمضِ عليه ثوانٍ، وinvocation بعد
+      // انتظارِ شبكةٍ يفقده. فيُنفَّذ هنا لا بعد return.
+      const val = inp ? inp.value.trim() : true;
+      if(o.onOk){ const r = o.onOk(val, ov); if(r === false) return; }
+      close(val === '' ? null : val);
+    };
+    ov.querySelector('#rkAskOk').addEventListener('click', accept);
+    const no = ov.querySelector('#rkAskNo');
+    if(no) no.addEventListener('click', ()=> close(null));
+    ov.addEventListener('click', e => { if(e.target === ov) close(null); });
+    const onKey = e => {
+      if(e.key === 'Escape') close(null);
+      if(e.key === 'Enter' && inp && document.activeElement === inp) accept();
+    };
+    document.addEventListener('keydown', onKey);
+    if(inp) setTimeout(()=>{ inp.focus(); inp.select(); }, 60);
+  });
+}
+
+/**
+ * رابطُ الشاشة: قصيرٌ يُكتب، لا طويلٌ يُنسخ.
+ *
+ * كان يحمل السرّ كاملاً -- ستّون حرفاً. وهو دائمٌ لا يُمحى، لكنّ
+ * دوامه لا ينفع إن لم يصل: لوحةُ التحكم على جهاز المالك، والشاشة
+ * جهازٌ آخر بلا واتساب ولا بريد. فلا نسخَ بينهما، إنما نقلٌ بالعين
+ * واليد -- وستّون حرفاً ست عشرية تُنقل بالعين خطأٌ مؤكّد.
+ *
+ * فصار العنوان يحمل رمزاً من ثمانية أحرف يُبدَّل بالسرّ عند القاعدة.
+ * قِصَرُ الرمز المؤقّت، ودوامُ الرابط -- ولا واحدةَ من علّتيهما.
+ *
+ * ويبقى بعد # : ما بعده لا يُرسل إلى الخادم فلا يمرّ في سجلّاته.
+ */
+function rkDisplayLinkUrl(data){
+  // token من الدالّة الجديدة، وsecret من القديمة قبل الترحيل: تُقرأ
+  // اللوحةُ المنشورة قبل أن تُرحَّل القاعدة، فلا تنكسر في ما بينهما.
+  const key = data.token || ('s=' + data.secret);
+  return 'https://' + data.slug + '.rakeenapp.com/menu#' + key;
+}
+
+async function rkShowDisplayLink(deviceId){
+  const { data, error } = await window.supabaseClient.rpc('get_display_device_link',
+    { p_device_id: Number(deviceId) });
+  if(error || !data || !data.ok) throw new Error('تعذر جلب الرابط');
+  if(!data.slug) throw new Error('اضبط اسم المتجر الإلكتروني أولاً');
+  const url = rkDisplayLinkUrl(data);
+  const short = url.replace(/^https:\/\//, '');
+  const typeable = !!data.token;
+
+  await rkAsk({
+    title: 'رابط ' + (data.label || 'الشاشة'),
+    body: typeable
+      ? 'اكتب هذا العنوان في متصفّح <b>جهاز الشاشة</b>، وثبّته على الشاشة الرئيسية. مرّة وحدة وما يطلب منك شي بعدها أبداً.'
+      : 'افتح هذا الرابط على <b>جهاز الشاشة</b>، وثبّته على الشاشة الرئيسية.',
+    url: typeable
+      ? escapeHtml(short.split('#')[0]) + '<b>#</b>'
+      : '<b>' + escapeHtml(short) + '</b>',
+    code: typeable ? data.token : null,
+    ok: '📋 انسخ الرابط كامل',
+    cancel: 'تمام',
+    // والنسخُ داخل الضغطة: الحافظة تشترط تفعيلاً حديثاً من المستخدم،
+    // ونداءُ القاعدة قبلها يستهلك مهلته -- فكان يُرفض ويسقط على
+    // prompt. وهنا الضغطةُ حيّة، فلا يُرفض.
+    onOk: (_v, ov) => {
+      try {
+        navigator.clipboard.writeText(url);
+        const b = ov.querySelector('#rkAskOk');
+        if(b){ b.textContent = '✓ انتسخ'; return false; }
+      } catch(_){ showToast('اكتب العنوان اللي فوق على جهاز الشاشة'); }
+      return false;
+    },
+  });
+  return url;
+}
+
 document.addEventListener('click', async (e)=>{
   const pairBtn = e.target.closest && e.target.closest('#displayPairBtn');
   if(pairBtn){
     rkBtnLoading(pairBtn, true);
     try {
+      /**
+       * الإنشاء يُرجع رابطاً، لا رمزاً يُكتب.
+       *
+       * ودالّةُ القاعدة تُنشئ الصفّ بسرّه وترجع رمزاً قصيراً معه --
+       * يُترك بلا استعمال ويموت بعد عشر دقائق. والصفُّ هو المطلوب،
+       * والسرُّ فيه منذ لحظة إنشائه، فالرابط جاهزٌ قبل أن يُقترن شيء.
+       */
+      /**
+       * ويُسمّى عند إنشائه.
+       *
+       * كان الاسمُ يجيء من user_agent -- وذاك لا يُكتب إلا في مسار
+       * الرمز، وقد ذهب. فشاشتان تظهران "شاشة عميل" و"شاشة عميل"،
+       * ولا يعرف المالك أيّهما يحذف. واسمٌ يكتبه بيده أدلّ من "ويندوز"
+       * على كل حال: عنده ثلاثة أجهزة ويندوز.
+       */
+      const name = await rkAsk({
+        title: 'شاشة جديدة',
+        body: 'سمِّها عشان تعرفها بين شاشاتك.',
+        input: 'شاشة ' + (DISPLAY_DEVICES.length + 1),
+        maxlength: 40,
+        ok: 'أنشئ',
+      });
+      if(name === null){ rkBtnLoading(pairBtn, false); return; }
       const { data, error } = await window.supabaseClient.rpc('create_display_pairing_code', { p_device_id: null });
-      if(error || !data) throw (error || new Error('تعذر الإنشاء'));
+      if(error || !data || !data.id) throw (error || new Error('تعذر الإنشاء'));
+      const label = (name || '').trim();
+      if(label) await window.supabaseClient.from('display_devices')
+        .update({ label }).eq('id', data.id);
+      await rkShowDisplayLink(data.id);
       await loadDisplayDevices();
       const host = document.getElementById('rkDisplayPanelHost');
       if(host) host.innerHTML = displayDevicesHtml();
@@ -15557,16 +15921,26 @@ document.addEventListener('click', async (e)=>{
     }
     return;
   }
-  const repair = e.target.closest && e.target.closest('[data-disprepair]');
-  if(repair){
-    // الشاشة التي فقدت سرّها هي الشاشة نفسها: يُجدَّد رمزها ولا يُنشأ
-    // صفٌّ ثانٍ يتراكم في القائمة.
+  const renameBtn = e.target.closest && e.target.closest('[data-disprename]');
+  if(renameBtn){
+    const id = Number(renameBtn.getAttribute('data-disprename'));
+    const cur = (DISPLAY_DEVICES.find(d => d.id === id) || {}).label || '';
+    const next = await rkAsk({ title: 'اسم الشاشة', input: cur, maxlength: 40, ok: 'احفظ' });
+    if(next === null) return;
     try {
-      await window.supabaseClient.rpc('create_display_pairing_code', { p_device_id: Number(repair.getAttribute('data-disprepair')) });
+      await window.supabaseClient.from('display_devices')
+        .update({ label: next.trim() }).eq('id', id);
       await loadDisplayDevices();
       const host = document.getElementById('rkDisplayPanelHost');
       if(host) host.innerHTML = displayDevicesHtml();
-    } catch(err){ showToast('تعذر إنشاء رمز جديد'); }
+    } catch(_){ showToast('تعذر تغيير الاسم'); }
+    return;
+  }
+
+  const linkBtn = e.target.closest && e.target.closest('[data-displink]');
+  if(linkBtn){
+    try { await rkShowDisplayLink(linkBtn.getAttribute('data-displink')); }
+    catch(err){ showToast(err && err.message ? err.message : 'تعذر جلب الرابط'); }
     return;
   }
   const del = e.target.closest && e.target.closest('[data-dispdel]');
@@ -15579,21 +15953,6 @@ document.addEventListener('click', async (e)=>{
       const host = document.getElementById('rkDisplayPanelHost');
       if(host) host.innerHTML = displayDevicesHtml();
     } catch(err){ showToast('تعذر الحذف'); }
-    return;
-  }
-  const copyBtn = e.target.closest && e.target.closest('#displayUrlCopyBtn');
-  if(copyBtn){
-    const inp = document.getElementById('displayUrlInput');
-    if(inp){
-      inp.select();
-      try {
-        // clipboard API قد تُمنع على اتصالٍ غير آمن أو بلا تفاعل موثوق،
-        // وexecCommand يعمل حيث تُمنع. فالاثنان، لا أحدهما.
-        if(navigator.clipboard) navigator.clipboard.writeText(inp.value);
-        else document.execCommand('copy');
-        rkBtnSuccess(copyBtn, '✓ نُسخ');
-      } catch(_){ showToast('انسخه يدوياً'); }
-    }
     return;
   }
   const saveMsg = e.target.closest && e.target.closest('#displayMsgSaveBtn');
@@ -15612,5 +15971,2370 @@ document.addEventListener('click', async (e)=>{
     }
   }
 });
+
+
+/* ================= توثيق ملكية المتجر =================
+   وزارة التجارة لا تمنح شهادة التوثيق حتى يُثبت صاحب المتجر أنه يملك
+   رابطه. وتقبل ثلاثة أدلّة، وليست عندنا سواء:
+
+     سجلّ DNS  -- النطاق rakeenapp.com لنا، فلا يد له في إعداداته. وأي
+                  "خطوة" نكتبها له هنا تنتهي عندنا نحن، لا عنده.
+     وسم Meta  -- سطرٌ في ترويسة صفحته. يلصقه ويُحفظ ويظهر فوراً.
+     ملفٌ نصّي -- في جذر موقعه. يلصق اسمه ومحتواه، ونقدّمه له.
+
+   فالاثنان الأخيران هما ما يملكه بيده، وكلاهما يُنجَز في لصقةٍ وحفظة.
+   ويُحذفان بعد التوثيق بزرّ واحد -- وهذا نصف الطلب: أن يخرج كما دخل،
+   بلا أثرٍ يبقى في صفحته. */
+
+let STORE_VERIFICATION = { metaName:null, metaContent:null, fileName:null, fileContent:null, slug:null };
+
+async function loadStoreVerification(){
+  const { data } = await window.supabaseClient.from('businesses')
+    .select('verification_meta_name, verification_meta_content, verification_file_name, verification_file_content, online_menu_slug')
+    .eq('id', CURRENT_PROFILE.business_id).single();
+  if(data){
+    STORE_VERIFICATION = {
+      metaName: data.verification_meta_name || null,
+      metaContent: data.verification_meta_content || null,
+      fileName: data.verification_file_name || null,
+      fileContent: data.verification_file_content || null,
+      slug: data.online_menu_slug || null,
+    };
+  }
+  return STORE_VERIFICATION;
+}
+
+/**
+ * اسم الوسم حين لا يُلصَق وسم.
+ *
+ * منصّة وزارة التجارة تعرض الرمز في خانةٍ وحدها ("رمز التحقق")، وتعرض
+ * الوسم كاملاً في خانةٍ أخرى. فالذي يلصق الرمز وحده يلصق الأشهر -- وهو
+ * أقصر وأقرب إلى اليد. واسم الوسم عندهم واحد لا يتغيّر.
+ */
+const VERIFY_DEFAULT_META_NAME = 'domain-verification';
+
+/**
+ * يفكّ ما لُصق إلى اسمٍ وقيمة.
+ *
+ * ولا يُفترض شكلٌ واحد: من نسخ الوسم كاملاً لصقه كاملاً، ومن نسخ الرمز
+ * وحده لصقه وحده -- وكلاهما نسخٌ صحيح من الشاشة نفسها. فيُقبل الاثنان،
+ * ولا يُردّ أحدهما برسالةٍ تقول "الصقه كامل" وهو قد لصق ما أُعطي.
+ *
+ * والترتيب داخل الوسم غير مضمون: content قبل name وارد، فيُقرآن بالاسم
+ * لا بالموضع.
+ */
+function parseVerificationMeta(raw, fallbackName){
+  const text = (raw || '').trim();
+  if(!text) return null;
+  if(/<meta/i.test(text)){
+    const name = /\b(?:name|property|http-equiv)\s*=\s*["']([^"']+)["']/i.exec(text);
+    const content = /\bcontent\s*=\s*["']([^"']*)["']/i.exec(text);
+    if(!name || !content) return null;
+    return { name: name[1].trim(), content: content[1].trim() };
+  }
+  // رمزٌ وحده: يأخذ الاسم من الحقل الظاهر أمامه -- لا من تخمينٍ مخبّأ.
+  // فإن غيّرته منصّةٌ أخرى يوماً، غيّره هو ورأى ما غيّر.
+  const name = (fallbackName || '').trim() || VERIFY_DEFAULT_META_NAME;
+  return { name, content: text.replace(/^["']|["']$/g, '') };
+}
+
+function storeVerificationHtml(){
+  const v = STORE_VERIFICATION;
+  const slug = v.slug || ONLINE_MENU_SLUG || '';
+  const base = slug ? `https://${slug}.rakeenapp.com` : '';
+  // يُعرض المحفوظ رمزاً مجرّداً لا وسماً كاملاً: هو ما قارنه بشاشة
+  // المنصّة، وسطرُ HTML حوله يُخفي الحرف الذي يدقّق فيه.
+  const metaContentValue = v.metaContent || '';
+  const hasMeta = !!(v.metaName && v.metaContent);
+  const fileUrl = v.fileName && base ? `${base}/${v.fileName}` : '';
+
+  return `
+    <div class="rk-section rk-section-last">
+      ${rkSectionHead('shield', 'توثيق المتجر (وزارة التجارة)', 'قبل ما يعطونك شهادة التوثيق، يطلبون إثبات إنك تملك رابط متجرك. الصق اللي أعطوك إياه هنا، ويظهر بمتجرك على طول — واحذفه بعد ما توثّق.')}
+
+      ${!slug ? `<p class="stock-qty-helper" style="color:var(--danger);">لازم تحدد اسم متجرك بالإنجليزي فوق أول — الرابط مبني عليه.</p>` : ''}
+
+      <div class="rk-verify-method">
+        <div class="rk-verify-method-head">
+          <span class="rk-verify-num">١</span>
+          <div>
+            <div class="rk-verify-title">إضافة Meta Tag <span class="rk-verify-badge">الأسرع</span></div>
+            <div class="rk-verify-sub">الصق <b>رمز التحقق</b> وحده، أو السطر كامل — أي واحد منهم يمشي.</div>
+          </div>
+        </div>
+        <div class="rk-field">
+          <textarea id="verifyMetaInput" rows="2" dir="ltr" spellcheck="false" placeholder="الصق رمز التحقق هنا">${escapeHtml(metaContentValue)}</textarea>
+        </div>
+        <div class="rk-field" style="margin-top:10px;">
+          <label>اسم الوسم ${helpIcon('يجي مع الرمز بنفس الصفحة — عند وزارة التجارة اسمه domain-verification دايمًا. لا تغيّره إلا إذا المنصة أعطتك اسم ثاني.')}</label>
+          <input type="text" id="verifyMetaNameInput" dir="ltr" spellcheck="false" style="text-align:left;"
+                 value="${escapeHtml(v.metaName || VERIFY_DEFAULT_META_NAME)}">
+        </div>
+        <div class="rk-verify-actions">
+          <button class="rk-btn rk-btn-primary rk-btn-md" id="verifyMetaSaveBtn" type="button">حفظ ونشر</button>
+          <button class="rk-btn rk-btn-secondary rk-btn-md" id="verifyMetaCheckBtn" type="button">تأكد إنه ظاهر</button>
+          ${hasMeta ? `<button class="rk-btn rk-btn-secondary rk-btn-md" id="verifyMetaDeleteBtn" type="button">حذف</button>` : ''}
+        </div>
+        <div class="rk-verify-status" id="verifyMetaStatus">${hasMeta ? 'محفوظ — اضغط "تأكد إنه ظاهر" قبل ما تضغط تحقق عندهم.' : ''}</div>
+      </div>
+
+      <div class="rk-verify-method">
+        <div class="rk-verify-method-head">
+          <span class="rk-verify-num">٢</span>
+          <div>
+            <div class="rk-verify-title">إضافة Root File</div>
+            <div class="rk-verify-sub">لو اخترت طريقة الملف: اكتب اسم الملف اللي أعطوك إياه ومحتواه — ما تحتاج ترفع شي، إحنا نقدّمه من موقعك.</div>
+          </div>
+        </div>
+        <div class="rk-field">
+          <label>اسم الملف</label>
+          <input type="text" id="verifyFileNameInput" dir="ltr" spellcheck="false" placeholder="verification-1a2b3c.txt" value="${escapeHtml(v.fileName || '')}" style="text-align:left;">
+        </div>
+        <div class="rk-field" style="margin-top:10px;">
+          <label>محتوى الملف</label>
+          <textarea id="verifyFileContentInput" rows="2" dir="ltr" spellcheck="false" placeholder="الصق النص اللي داخل الملف">${escapeHtml(v.fileContent || '')}</textarea>
+        </div>
+        ${fileUrl ? `
+        <div class="rk-field" style="margin-top:10px;">
+          <label>الرابط اللي تعطيهم إياه</label>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <input type="text" id="verifyFileUrl" readonly dir="ltr" value="${escapeHtml(fileUrl)}" style="flex:1; text-align:left;">
+            <button class="rk-btn rk-btn-secondary rk-btn-md" id="verifyFileCopyBtn" type="button">نسخ</button>
+          </div>
+        </div>` : ''}
+        <div class="rk-verify-actions">
+          <button class="rk-btn rk-btn-primary rk-btn-md" id="verifyFileSaveBtn" type="button">حفظ ونشر</button>
+          <button class="rk-btn rk-btn-secondary rk-btn-md" id="verifyFileCheckBtn" type="button">تأكد إنه ظاهر</button>
+          ${v.fileName ? `<button class="rk-btn rk-btn-secondary rk-btn-md" id="verifyFileDeleteBtn" type="button">حذف</button>` : ''}
+        </div>
+        <div class="rk-verify-status" id="verifyFileStatus">${v.fileName ? 'محفوظ — اضغط "تأكد إنه ظاهر" قبل ما تضغط تحقق عندهم.' : ''}</div>
+      </div>
+
+    </div>`;
+}
+
+async function renderStoreVerificationPanel(){
+  const host = document.getElementById('rkVerifyPanelHost');
+  if(!host) return;
+  // تُرسم بما في الذاكرة أولاً فلا تنتظر الشبكة، ثم تُعاد بالمحفوظ.
+  try { host.innerHTML = storeVerificationHtml(); } catch(e){ console.error('verify panel', e); }
+  try {
+    await loadStoreVerification();
+    const still = document.getElementById('rkVerifyPanelHost');
+    if(still) still.innerHTML = storeVerificationHtml();
+  } catch(e){ console.error('verify load', e); }
+}
+
+function setVerifyStatus(id, text, tone){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.textContent = text;
+  el.className = 'rk-verify-status' + (tone ? ' ' + tone : '');
+}
+
+/**
+ * الفحص من عندنا قبل الفحص من عندهم.
+ *
+ * المنصّة تعطي محاولاتٍ معدودة، وفشلٌ واحدٌ يعني انتظاراً. فيُقرأ ما
+ * يقرؤونه قبل أن يقرؤوه: الصفحة نفسها، والملف نفسه -- من أصلنا نحن،
+ * فلا يمنعنا CORS ولا نحتاج طرفاً ثالثاً.
+ */
+async function verifyMetaLive(){
+  const v = STORE_VERIFICATION;
+  const slug = v.slug || ONLINE_MENU_SLUG;
+  if(!v.metaName || !v.metaContent){ setVerifyStatus('verifyMetaStatus', 'ما فيه وسم محفوظ.', 'warn'); return; }
+  setVerifyStatus('verifyMetaStatus', 'نتأكد...', '');
+  try {
+    const res = await fetch('/order/' + encodeURIComponent(slug) + '?v=' + Date.now(), { cache: 'no-store' });
+    const html = await res.text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const tag = doc.querySelector('meta[name="' + CSS.escape(v.metaName) + '"]');
+    const got = tag ? tag.getAttribute('content') : null;
+    if(got === v.metaContent){
+      setVerifyStatus('verifyMetaStatus', '✓ ظاهر بصفحة متجرك الحين — اضغط "تحقق" عندهم.', 'ok');
+    } else if(got){
+      setVerifyStatus('verifyMetaStatus', '⚠ فيه وسم بنفس الاسم لكن قيمته مختلفة. احفظ من جديد.', 'warn');
+    } else {
+      setVerifyStatus('verifyMetaStatus', '⚠ ما ظهر بعد. تأكد إن متجرك مفعّل، وأعد الحفظ.', 'warn');
+    }
+  } catch(err){
+    setVerifyStatus('verifyMetaStatus', 'تعذر الفحص: ' + (err && err.message ? err.message : 'خطأ'), 'warn');
+  }
+}
+
+async function verifyFileLive(){
+  const v = STORE_VERIFICATION;
+  const slug = v.slug || ONLINE_MENU_SLUG;
+  if(!v.fileName){ setVerifyStatus('verifyFileStatus', 'ما فيه ملف محفوظ.', 'warn'); return; }
+  setVerifyStatus('verifyFileStatus', 'نتأكد...', '');
+  try {
+    const res = await fetch('/api/store-verification?slug=' + encodeURIComponent(slug)
+      + '&file=' + encodeURIComponent(v.fileName) + '&v=' + Date.now(), { cache: 'no-store' });
+    const text = await res.text();
+    if(res.ok && text.trim() === (v.fileContent || '').trim()){
+      setVerifyStatus('verifyFileStatus', '✓ الملف يُقدَّم الحين على رابطك — اضغط "تحقق" عندهم.', 'ok');
+    } else {
+      setVerifyStatus('verifyFileStatus', '⚠ ما ظهر بعد. احفظ من جديد وأعد المحاولة.', 'warn');
+    }
+  } catch(err){
+    setVerifyStatus('verifyFileStatus', 'تعذر الفحص: ' + (err && err.message ? err.message : 'خطأ'), 'warn');
+  }
+}
+
+document.addEventListener('click', async (e)=>{
+  const t = e.target && e.target.closest ? e.target : null;
+  if(!t) return;
+
+  const metaSave = t.closest('#verifyMetaSaveBtn');
+  if(metaSave){
+    const raw = (document.getElementById('verifyMetaInput').value || '').trim();
+    if(!raw){ showToast('الصق رمز التحقق أول'); return; }
+    const nameField = document.getElementById('verifyMetaNameInput');
+    const parsed = parseVerificationMeta(raw, nameField ? nameField.value : STORE_VERIFICATION.metaName);
+    if(!parsed || !parsed.content){ showToast('ما قدرت أقرأ الرمز — الصقه مثل ما نسخته من المنصة'); return; }
+    // ولُصق الوسم كاملاً يملأ خانة الاسم أمامه: يرى أن اسماً قُرئ من
+    // لصقته، ولا يبقى الحقل يقول شيئاً وقد حُفظ سواه.
+    if(nameField && nameField.value !== parsed.name) nameField.value = parsed.name;
+    if(!/^[A-Za-z0-9][A-Za-z0-9:._-]{0,78}$/.test(parsed.name)){ showToast('اسم الوسم فيه رموز غير مقبولة'); return; }
+    if(parsed.content.length > 500){ showToast('قيمة الوسم طويلة أكثر من اللازم'); return; }
+    rkBtnLoading(metaSave, true);
+    try {
+      await updateCurrentBusiness({ verification_meta_name: parsed.name, verification_meta_content: parsed.content });
+      STORE_VERIFICATION.metaName = parsed.name;
+      STORE_VERIFICATION.metaContent = parsed.content;
+      logDashboardAudit('حفظ وسم توثيق المتجر');
+      rkBtnSuccess(metaSave, '✓ تم النشر');
+      // زرّ الحذف لا يوجد قبل أول حفظ -- فتُعاد الرسمة ليظهر، ثم يُفحص
+      // بعدها لأن الفحص يكتب في سطرٍ أُعيد بناؤه للتو.
+      await renderStoreVerificationPanel();
+      await verifyMetaLive();
+    } catch(err){
+      rkBtnLoading(metaSave, false);
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
+    return;
+  }
+
+  if(t.closest('#verifyMetaCheckBtn')){ await verifyMetaLive(); return; }
+
+  const metaDel = t.closest('#verifyMetaDeleteBtn');
+  if(metaDel){
+    if(!window.confirm('نحذف وسم التحقق من صفحة متجرك؟ سوّها بعد ما تصدر شهادة التوثيق فقط.')) return;
+    rkBtnLoading(metaDel, true);
+    try {
+      await updateCurrentBusiness({ verification_meta_name: null, verification_meta_content: null });
+      logDashboardAudit('حذف وسم توثيق المتجر');
+      await renderStoreVerificationPanel();
+      showToast('انحذف من صفحة متجرك');
+    } catch(err){
+      rkBtnLoading(metaDel, false);
+      showToast('تعذر الحذف: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
+    return;
+  }
+
+  const fileSave = t.closest('#verifyFileSaveBtn');
+  if(fileSave){
+    const name = (document.getElementById('verifyFileNameInput').value || '').trim();
+    const content = (document.getElementById('verifyFileContentInput').value || '').trim();
+    if(!name){ showToast('اكتب اسم الملف'); return; }
+    if(!/^[A-Za-z0-9][A-Za-z0-9._-]{0,78}\.txt$/.test(name)){
+      showToast('اسم الملف لازم ينتهي بـ .txt وبحروف إنجليزية وأرقام فقط'); return;
+    }
+    if(['robots.txt','ads.txt','app-ads.txt','security.txt','sitemap.txt','humans.txt'].includes(name.toLowerCase())){
+      showToast('هذا الاسم محجوز للموقع نفسه — استخدم الاسم اللي أعطتك إياه المنصة'); return;
+    }
+    if(!content){ showToast('الصق محتوى الملف'); return; }
+    if(content.length > 2000){ showToast('محتوى الملف طويل أكثر من اللازم'); return; }
+    rkBtnLoading(fileSave, true);
+    try {
+      await updateCurrentBusiness({ verification_file_name: name, verification_file_content: content });
+      STORE_VERIFICATION.fileName = name;
+      STORE_VERIFICATION.fileContent = content;
+      logDashboardAudit('حفظ ملف توثيق المتجر');
+      rkBtnSuccess(fileSave, '✓ تم النشر');
+      // الرابط ما كان موجوداً قبل الحفظ الأول -- تُعاد الرسمة ليظهر،
+      // ثم يُفحص بعدها لأن الفحص يكتب في عنصرٍ أُعيد بناؤه للتو.
+      await renderStoreVerificationPanel();
+      await verifyFileLive();
+    } catch(err){
+      rkBtnLoading(fileSave, false);
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
+    return;
+  }
+
+  if(t.closest('#verifyFileCheckBtn')){ await verifyFileLive(); return; }
+
+  const fileDel = t.closest('#verifyFileDeleteBtn');
+  if(fileDel){
+    if(!window.confirm('نحذف ملف التحقق من موقعك؟ سوّها بعد ما تصدر شهادة التوثيق فقط.')) return;
+    rkBtnLoading(fileDel, true);
+    try {
+      await updateCurrentBusiness({ verification_file_name: null, verification_file_content: null });
+      logDashboardAudit('حذف ملف توثيق المتجر');
+      await renderStoreVerificationPanel();
+      showToast('انحذف من موقعك');
+    } catch(err){
+      rkBtnLoading(fileDel, false);
+      showToast('تعذر الحذف: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
+    return;
+  }
+
+  const fileCopy = t.closest('#verifyFileCopyBtn');
+  if(fileCopy){
+    const inp = document.getElementById('verifyFileUrl');
+    if(inp){
+      inp.select();
+      try {
+        if(navigator.clipboard) navigator.clipboard.writeText(inp.value);
+        else document.execCommand('copy');
+        rkBtnSuccess(fileCopy, '✓ نُسخ');
+      } catch(_){ showToast('انسخه يدوياً'); }
+    }
+    return;
+  }
+});
+
+
+/* ================= بطاقة المحفظة: أصولها ومعاينتها =================
+
+   بطاقة الولاء كانت صفحة ويب نصمّمها هنا ويفتحها الزبون برابط. وقد
+   استُبدلت بالمحفظة -- تُضاف مرة، وتسكن الجيب، وتتحدّث وحدها. فالمعاينة
+   ينبغي أن تُري ما يسكن الجيب، لا ما لم يعد موجوداً.
+
+   وتُرسم بنِسَب آبل نفسها: 375×123 نقطة للشريط، وترويسةٌ فوقه وحقلان
+   تحته. ليست تقريباً "يشبه البطاقة" -- من ضبط لوناً على معاينةٍ تكذب
+   اكتشف كذبها بعد أن تصير في جيوب زبائنه. */
+
+let WALLET_ASSETS = { iconUrl:null, logoUrl:null, stripUrl:null, stripMode:'behind', bgColor:null, nearbyText:'', stampEmptyUrl:null, stripBgMode:'auto', stripBg1:null, stripBg2:null, stampLayout:'grid', stripScrim:34, stampSize:100, labels:{} };
+// تُعرض الملفات المختارة قبل رفعها: من غيّر صورةً ينبغي أن يراها الآن،
+// لا بعد الحفظ. وتُحرَّر عند إعادة البناء فلا تتراكم في الذاكرة.
+let WALLET_FILE_URLS = { icon:null, logo:null, strip:null };
+
+async function loadWalletAssets(){
+  try {
+    const { data } = await window.supabaseClient.from('businesses')
+      .select('wallet_icon_url, wallet_logo_url, wallet_strip_url, wallet_strip_mode, wallet_bg_color, wallet_nearby_text, wallet_stamp_empty_url, wallet_strip_bg_mode, wallet_strip_bg1, wallet_strip_bg2, wallet_stamp_layout, wallet_strip_scrim, wallet_stamp_size, wallet_labels, wallet_msg_quality_on, wallet_msg_quality_text, wallet_msg_quality_hours')
+      .eq('id', CURRENT_PROFILE.business_id).single();
+    if(data){
+      WALLET_ASSETS = {
+        iconUrl: data.wallet_icon_url || null,
+        logoUrl: data.wallet_logo_url || null,
+        stripUrl: data.wallet_strip_url || null,
+        stripMode: data.wallet_strip_mode === 'replace' ? 'replace' : 'behind',
+        bgColor: data.wallet_bg_color || null,
+        nearbyText: data.wallet_nearby_text || '',
+        stampEmptyUrl: data.wallet_stamp_empty_url || null,
+        stripBgMode: data.wallet_strip_bg_mode || 'auto',
+        stripBg1: data.wallet_strip_bg1 || null,
+        stripBg2: data.wallet_strip_bg2 || null,
+        stampLayout: data.wallet_stamp_layout || 'grid',
+        stripScrim: data.wallet_strip_scrim ?? 34,
+        stampSize: data.wallet_stamp_size ?? 100,
+        labels: data.wallet_labels || {},
+        qualityOn: !!data.wallet_msg_quality_on,
+        qualityText: data.wallet_msg_quality_text || '',
+        qualityHours: data.wallet_msg_quality_hours ?? 3,
+      };
+    }
+  } catch(_){ /* الأعمدة قد لا تكون منشّغلة بعد -- اللوحة تعمل بلاها */ }
+}
+
+function rkwHex(v, fb){
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(String(v || '').trim());
+  return m ? '#' + m[1] : fb;
+}
+function rkwRgb(hex){ const n = parseInt(hex.slice(1),16); return {r:(n>>16)&255, g:(n>>8)&255, b:n&255}; }
+function rkwLum(c){ return (c.r*299 + c.g*587 + c.b*114)/1000; }
+function rkwMix(a,b,t){ return {r:Math.round(a.r+(b.r-a.r)*t), g:Math.round(a.g+(b.g-a.g)*t), b:Math.round(a.b+(b.b-a.b)*t)}; }
+function rkwCss(c){ return `rgb(${c.r},${c.g},${c.b})`; }
+
+/**
+ * شكل الختم في المعاينة هو شكله في البطاقة.
+ *
+ * الخادم يرسمه بمساراتٍ محسوبة، والمعاينة ترسمه بـSVG -- ولا سبيل إلى
+ * مشاركة الكود بينهما (ذاك في Worker وهذي في المتصفّح). فالمشترك هو
+ * المفتاح: loyalty_icon_style نفسه، والصورتان تتبعانه.
+ */
+const RKW_STAMP_PATHS = {
+  generic: 'M12 2.6 L14.5 9.2 L21.4 9.2 L15.9 13.3 L18 20 L12 15.9 L6 20 L8.1 13.3 L2.6 9.2 L9.5 9.2 Z',
+  coffee:  'M4.8 5 H17.2 L15.6 20 H6.4 Z M3.4 2.2 H18.6 V4.6 H3.4 Z',
+  burger:  'M2 9.4 A10 6.4 0 0 1 22 9.4 Z M2.4 11.4 H21.6 V14.2 H2.4 Z M2.4 16 H21.6 A9.6 5 0 0 1 2.4 16 Z',
+  pizza:   'M12 1.6 L20.8 19.6 A11 11 0 0 1 3.2 19.6 Z',
+  pastry:  'M17.4 2.4 A10.6 10.6 0 0 0 17.4 21.6 A8 10 0 1 1 17.4 2.4 Z',
+  dessert: 'M4.6 11 A7.4 8 0 0 1 19.4 11 Z M4.8 12.4 H19.2 L16.6 21.4 H7.4 Z',
+  car:     'M1.4 12.6 H22.6 V17.8 H1.4 Z M5.6 12.6 L8 6.6 H16 L18.4 12.6 Z M6 18.4 a2.3 2.3 0 1 0 0.01 0 M18 18.4 a2.3 2.3 0 1 0 0.01 0',
+  pet:     'M12 22 A6 5.4 0 0 1 12 11.4 A6 5.4 0 0 1 12 22 M4 8.4 a2.5 2.6 0 1 0 0.01 0 M9.4 5.2 a2.5 2.6 0 1 0 0.01 0 M14.6 5.2 a2.5 2.6 0 1 0 0.01 0 M20 8.4 a2.5 2.6 0 1 0 0.01 0',
+  salon:   'M4.32 0.96 L7.2 1.44 L17.76 17.76 L15.36 19.2 Z M19.68 0.96 L16.8 1.44 L6.24 17.76 L8.64 19.2 Z M1.8 20.4 a3.72 3.72 0 1 0 7.44 0 a3.72 3.72 0 1 0 -7.44 0 M3.72 20.4 a1.8 1.8 0 1 0 3.6 0 a1.8 1.8 0 1 0 -3.6 0 M14.76 20.4 a3.72 3.72 0 1 0 7.44 0 a3.72 3.72 0 1 0 -7.44 0 M16.68 20.4 a1.8 1.8 0 1 0 3.6 0 a1.8 1.8 0 1 0 -3.6 0',
+  gym:     'M1.44 5.52 H5.76 V18.48 H1.44 Z M18.24 5.52 H22.56 V18.48 H18.24 Z M4.8 9.96 H19.2 V14.04 H4.8 Z',
+  retail:  'M4 9.6 H20 V21.6 H4 Z M8 9.6 A4 4.4 0 0 1 16 9.6',
+  padel:   'M12 1.8 a7.7 7.7 0 1 0 0.01 0 M10.6 13.4 H13.4 V22 H10.6 Z',
+  sports:  'M12 1.4 a10.6 10.6 0 1 0 0.01 0 M12 5.2 a6.8 6.8 0 1 0 0.01 0',
+  spa:     'M12 1.4 C 6 9, 3.8 12.4, 3.8 15.2 A8.2 8.2 0 0 0 20.2 15.2 C 20.2 12.4, 18 9, 12 1.4 Z',
+  clinic:  'M8.6 1.6 H15.4 V8.6 H22.4 V15.4 H15.4 V22.4 H8.6 V15.4 H1.6 V8.6 H8.6 Z',
+};
+function rkwStamp(styleKey, filled, on, off, size){
+  const d = RKW_STAMP_PATHS[styleKey] || RKW_STAMP_PATHS.generic;
+  const px = Math.round(size || 27);
+  return `<svg viewBox="0 0 24 24" width="${px}" height="${px}" aria-hidden="true">
+    <path d="${d}" fill="${filled ? on : 'none'}" stroke="${filled ? on : off}"
+          stroke-width="${filled ? 0 : 1.9}" stroke-linejoin="round" fill-rule="evenodd"/></svg>`;
+}
+
+// null يعني "منتصف الطريق تلقائياً"، ورقمٌ يعني ما اختاره بالشريط.
+let RKW_PREVIEW_DONE = null;
+
+/**
+ * صورةُ ختمٍ مقصوصةُ الهامش، للمعاينة.
+ *
+ * الخادم يقصّ الفراغ الشفّاف حول الرسم ويحتوي الرسم نفسه. والمعاينة
+ * كانت تعرض الملف كما هو، فصورتان بهامشين مختلفين تظهران بحجمين هنا
+ * وبحجمٍ واحد هناك -- والمعاينة تُبنى لتُري ما يُطبع، فإن خالفته صارت
+ * ضرراً لا نفعاً.
+ *
+ * والقصّ يُحفظ بمفتاح الرابط: الرسمة تُعاد عشرات المرّات مع كل حركة
+ * شريط، وقراءةُ بكسلات صورةٍ في كل مرّة تُثقل ما بُني ليكون فورياً.
+ */
+const RKW_TRIMMED = new Map();
+
+/** رابطا الختمين -- يُقرآن في موضعين، فيُحسبان في موضعٍ واحد. */
+function rkwStampUrls(){
+  const iconChoice = document.querySelector('.loyalty-icon-choice[data-icon].active');
+  const key = iconChoice ? iconChoice.dataset.icon : (LOYALTY_BRANDING.iconStyle || 'generic');
+  if(key !== 'custom') return { filled: null, empty: null };
+  return {
+    filled: RK_CLEARED_IMAGES.has('loyalty_custom_icon_url') ? null
+      : (pendingImageUrl('loyaltyCustomIconInput') || LOYALTY_BRANDING.customIconUrl),
+    empty: RK_CLEARED_IMAGES.has('wallet_stamp_empty_url') ? null
+      : (pendingImageUrl('walletStampEmptyInput') || WALLET_ASSETS.stampEmptyUrl),
+  };
+}
+
+/**
+ * يُنتظر قصُّ الختمين قبل أن تُرسم المعاينة.
+ *
+ * كان كلٌّ منهما يُقصّ ثم يُعيد الرسم وحده. فتقع رسمةٌ بين القصّتين:
+ * أحدهما مقصوصٌ يملأ خليّته، والآخر لم يُقصّ بعد فيظهر بثلثي حجمه --
+ * وهو بالضبط الفرق الذي شُكي منه. وصورةٌ في ذاكرة المتصفّح تُحمَّل
+ * فوراً وأخرى من الشبكة تتأخّر، فتبقى الرسمةُ الناقصة هي ما يُرى.
+ *
+ * فيُنتظران معاً: رسمةٌ متأخّرة جزءاً من ثانية خيرٌ من رسمةٍ فوريّة
+ * تكذب.
+ */
+async function rkwPrepareTrims(){
+  const { filled, empty } = rkwStampUrls();
+  await Promise.all([filled, empty].filter(Boolean).map(u => new Promise(done => {
+    if(RKW_TRIMMED.get(u)) return done();
+    rkwTrimmedStamp(u, done);
+  })));
+}
+
+function rkwTrimmedStamp(url, onReady){
+  if(!url) return null;
+  const hit = RKW_TRIMMED.get(url);
+  if(hit !== undefined){ if(onReady) onReady(); return hit; }
+  RKW_TRIMMED.set(url, null);   // ريثما تُحمَّل: تُعرض الأصل ولا تُطلب مرّتين
+  const img = new Image();
+  // ولا crossOrigin على blob: أو data: -- هما من أصلنا أصلاً، ووضعُه
+  // عليهما يمنع التحميل في بعض المتصفّحات فلا يُقصّ الختم المُختار
+  // للتوّ، وهو أوّل ما يُنظر إليه بعد الرفع.
+  if(!/^(blob|data):/.test(url)) img.crossOrigin = 'anonymous';
+  img.onload = ()=>{
+    try {
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      const g = c.getContext('2d', { willReadFrequently: true });
+      g.drawImage(img, 0, 0);
+      const d = g.getImageData(0, 0, c.width, c.height).data;
+      let x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
+      for(let y = 0; y < c.height; y++){
+        for(let x = 0; x < c.width; x++){
+          if(d[(y * c.width + x) * 4 + 3] > 0){
+            if(x < x0) x0 = x; if(x > x1) x1 = x;
+            if(y < y0) y0 = y; if(y > y1) y1 = y;
+          }
+        }
+      }
+      if(x1 < 0) return;
+      const w = x1 - x0 + 1, h = y1 - y0 + 1;
+      const out = document.createElement('canvas');
+      out.width = w; out.height = h;
+      out.getContext('2d').drawImage(c, x0, y0, w, h, 0, 0, w, h);
+      RKW_TRIMMED.set(url, out.toDataURL('image/png'));
+    } catch(_){ /* أصلٌ يمنع قراءة بكسلاته: تُعرض كما هي */ }
+    if(onReady) onReady(); else renderLoyaltyCardPreview();
+  };
+  // وفشلُ التحميل لا يُعلِّق الرسم: تُعرض الصورة كما هي.
+  img.onerror = ()=>{ if(onReady) onReady(); };
+  img.src = url;
+  return null;
+}
+
+/**
+ * التسمية كما ستظهر: المكتوبة الآن، ثم المحفوظة، ثم الافتراضية.
+ *
+ * وتُقرأ من الحقل لا من المحفوظ: من كتب "كوباتك" ينتظر أن يراها في
+ * البطاقة قبل أن يحفظ -- وإلا حفظ ليرى، وهو ما بُنيت المعاينة لتغنيه
+ * عنه.
+ */
+/**
+ * لغة المعاينة.
+ *
+ * البطاقة تُبنى مرّةً وتُقرأ بلغتين، فمعاينةٌ بلغةٍ واحدة تُري نصفها.
+ * ومن كتب الإنجليزية لا يملك جهازاً إنجليزياً ليتحقّق -- فيكتبها ولا
+ * يراها أبداً.
+ */
+let RKW_PREV_LANG = 'ar';
+
+/**
+ * ولا تسرّبَ بين اللغتين هنا كذلك.
+ *
+ * خانةٌ إنجليزيةٌ فارغة تعني ترجمتنا الإنجليزية، لا ما كُتب بالعربي --
+ * وهي القاعدة نفسها التي يمشي عليها الخادم. ولو خالفتها المعاينة
+ * لأرَت صاحبَ المطعم عربياً حيث سيقرأ عميلُه إنجليزياً.
+ */
+/**
+ * رمزٌ يشبه الرمز ولا يُمسح.
+ *
+ * المعاينة تُصوَّر وتُرسَل وتُعلَّق -- ورمزٌ حقيقي فيها يُمسح يوماً
+ * فيفتح بطاقة عميلٍ بعينه. فمربّعاتُ الزوايا الثلاث كما هي (بها
+ * يُعرف الشكل)، والحشوُ متتاليةٌ ثابتة لا ترمز إلى شيء.
+ */
+function rkwFakeQr(){
+  const N = 25, m = [];
+  let seed = 1373;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  for(let y=0; y<N; y++){ m.push([]); for(let x=0; x<N; x++) m[y].push(rnd() > 0.52 ? 1 : 0); }
+  // مربّعات التموضع الثلاثة: سبعةٌ في سبعة، وحولها هامشٌ فارغ.
+  const eye = (ox, oy) => {
+    for(let y=-1; y<8; y++) for(let x=-1; x<8; x++){
+      const px = ox+x, py = oy+y;
+      if(px<0 || py<0 || px>=N || py>=N) continue;
+      const edge = (x===0||x===6||y===0||y===6) && x>=0 && y>=0 && x<7 && y<7;
+      const core = x>=2 && x<=4 && y>=2 && y<=4;
+      m[py][px] = (edge || core) ? 1 : 0;
+    }
+  };
+  eye(0,0); eye(N-7,0); eye(0,N-7);
+  let d = '';
+  for(let y=0; y<N; y++) for(let x=0; x<N; x++) if(m[y][x]) d += `M${x} ${y}h1v1h-1z`;
+  return `<svg viewBox="0 0 ${N} ${N}" xmlns="http://www.w3.org/2000/svg"><path d="${d}" fill="#111"/></svg>`;
+}
+
+function rkwLabel(key, fallback, fallbackEn){
+  const en = RKW_PREV_LANG === 'en';
+  const live = document.querySelector((en ? '[data-lblen="' : '[data-lbl="') + key + '"]');
+  if(live && live.value.trim()) return live.value.trim();
+  const saved = (WALLET_ASSETS.labels || {})[en ? key + 'En' : key];
+  if(saved && String(saved).trim()) return String(saved).trim();
+  return (en && fallbackEn) ? fallbackEn : fallback;
+}
+function rkwHidden(flag){
+  // المفتاح الموجب: مضاءً يعني ظاهراً، فإخفاؤه نقيضُه.
+  const off = document.querySelector('[data-lblflagoff="' + flag + '"]');
+  if(off) return !off.checked;
+  const el = document.querySelector('[data-lblflag="' + flag + '"]');
+  if(el) return el.checked;
+  return !!(WALLET_ASSETS.labels || {})[flag];
+}
+
+function walletCardPreviewHtml(){
+  const b = LOYALTY_BRANDING || {};
+  const type = loyaltySystemTypeFormValue();
+
+  // القيم تُقرأ من الحقول لا من المحفوظ: المعاينة تسبق الحفظ، وإلا لم
+  // تكن معاينة.
+  const accentInput = document.getElementById('loyaltyAccentInput');
+  const accentHex = rkwHex(accentInput ? accentInput.value : b.accentColor, '#C4FF2B');
+  const bgInput = document.getElementById('walletBgInput');
+  const bgHex = rkwHex(bgInput ? bgInput.value : (WALLET_ASSETS.bgColor || accentHex), '#1D2A1A');
+  const bg = rkwRgb(bgHex);
+  const onLight = rkwLum(bg) > 150;
+  const fg = onLight ? 'rgb(20,19,14)' : 'rgb(255,255,255)';
+  const faint = onLight ? 'rgba(20,19,14,.58)' : 'rgba(255,255,255,.60)';
+
+  // نفس معادلة الخادم حرفاً بحرف: لونٌ داكن يذوب في خلفيةٍ مشتقّة منه،
+  // فيُفتَّح حتى يُرى. ولو اختلفت المعادلتان لاختلفت البطاقة عن معاينتها
+  // في الحالة الوحيدة التي تُهِمّ -- حين يكون اللون داكناً.
+  const stripBg = rkwMix(rkwRgb(bgHex), {r:0,g:0,b:0}, 0.80);
+  /**
+   * خلفية الشريط: مشتقّةً أو لوناً أو تدرّجاً -- كما يبنيها الخادم.
+   *
+   * والزاوية محسوبةٌ من نسبتَي الخادم لا مقدَّرة: t تزيد 0.78 بعرض
+   * الشريط و0.22 بارتفاعه، فاتجاهها بالبكسل يميل 131 درجة في اصطلاح
+   * CSS. وتقديرُها بالعين يعني تدرّجاً يُضبط بميلٍ ويُطبع بميلٍ غيره.
+   */
+  const sbMode = (typeof walletStripBgMode === 'function') ? walletStripBgMode() : 'auto';
+  const sb1 = rkwHex((document.getElementById('walletStripBg1')||{}).value || WALLET_ASSETS.stripBg1, '#1A0F08');
+  const sb2 = rkwHex((document.getElementById('walletStripBg2')||{}).value || WALLET_ASSETS.stripBg2, '#4A2C17');
+  const stripBgCss = sbMode === 'gradient'
+    ? `linear-gradient(131deg, ${sb1}, ${sb2})`
+    : sbMode === 'solid' ? sb1 : rkwCss(stripBg);
+  let acc = rkwRgb(accentHex);
+  for(let i=0; i<12 && Math.abs(rkwLum(acc) - rkwLum(stripBg)) < 90; i++){
+    acc = rkwMix(acc, {r:255,g:255,b:255}, 0.18);
+  }
+  const stampOn = rkwCss(acc);
+  const stampOff = onLight ? 'rgba(20,19,14,.34)' : 'rgba(255,255,255,.36)';
+
+  const rewardEl = document.getElementById('loyaltyRewardLabelInput');
+  const rewardAr = (document.querySelector('[data-lbl="rewardValue"]') || {}).value
+    || (WALLET_ASSETS.labels || {}).rewardValue
+    || (rewardEl && rewardEl.value.trim()) || b.rewardLabel || 'مكافأة مجانية';
+  const rewardEn = (document.querySelector('[data-lblen="rewardValue"]') || {}).value
+    || (WALLET_ASSETS.labels || {}).rewardValueEn || '';
+  const rewardLabel = (RKW_PREV_LANG === 'en' && String(rewardEn).trim())
+    ? String(rewardEn).trim() : String(rewardAr).trim();
+  const visitsEl = document.getElementById('loyaltyVisitsThresholdInput');
+  const unitEl = document.getElementById('loyaltyUnitThresholdInput');
+  const threshold = Math.max(2, Math.min(14, parseInt(
+    type === 'visits' ? (visitsEl && visitsEl.value) : (unitEl && unitEl.value), 10) || 6));
+  // منتصف الطريق: يُري الممتلئ والفارغ معاً، فيُحكَم على التباين بينهما.
+  /**
+   * كم ختماً يُعرَض ممتلئاً.
+   *
+   * الافتراضي منتصف الطريق -- يُري الممتلئ والفارغ معاً، فيُحكَم على
+   * التباين بينهما. ويُحرَّك بالشريط تحت المعاينة، لأن السؤال الذي
+   * يسأله كل صاحب مطعم هو: كيف تطلع أول زيارة، وكيف تطلع لمّا تكتمل؟
+   * وجوابُه أن يراها، لا أن تُشرَح له.
+   */
+  const done = RKW_PREVIEW_DONE === null
+    ? Math.max(1, Math.round(threshold / 2))
+    : Math.min(threshold, RKW_PREVIEW_DONE);
+
+  const iconChoice = document.querySelector('.loyalty-icon-choice[data-icon].active');
+  const styleKey = iconChoice ? iconChoice.dataset.icon : (b.iconStyle || 'generic');
+
+  const stripUrl = RK_CLEARED_IMAGES.has('wallet_strip_url') ? null
+    : (pendingImageUrl('walletStripInput') || WALLET_ASSETS.stripUrl);
+  /**
+   * الصورة المرفوعة خلفيةٌ للأختام لا بديلٌ عنها.
+   *
+   * وهذا ليس قيداً من آبل: شريط البطاقة صورةٌ واحدة نولّدها، ومن ملك
+   * توليدها ملك أن يرسم فيها طبقةً فوق طبقة. والحجابُ فوقها هنا هو
+   * الحجاب نفسه في الخادم -- بلاه تُبتلع الأختام في نصف الصورة وتظهر
+   * في نصفها، وتُضبط على معاينةٍ لا تشبه ما يُطبع.
+   */
+  const stripMode = walletStripModeValue();
+  const bgLayer = stripUrl
+    ? `<img class="rkw-strip-bg" src="${escapeHtml(stripUrl)}" alt="">
+       ${stripMode === 'replace' ? '' : `<div class="rkw-strip-scrim" style="background:rgba(8,8,10,${(rkwScrim()/100).toFixed(2)});"></div>`}`
+    : '';
+
+  let strip;
+  if(stripUrl && stripMode === 'replace'){
+    strip = `<div class="rkw-strip">${bgLayer}</div>`;
+  } else if(type === 'points'){
+    // النقاط رصيدٌ بلا سقف: صفُّ أختامٍ لها يكذب. فموجةٌ هادئة، والرقم
+    // في الترويسة يقول الرصيد.
+    strip = `<div class="rkw-strip" style="background:${stripBgCss};">${bgLayer}
+      <svg viewBox="0 0 375 123" preserveAspectRatio="none" style="width:100%;height:100%;display:block;position:relative;">
+        <path d="M0 78 C 60 56, 110 98, 170 74 S 300 50, 375 68 L375 123 L0 123 Z" fill="${stampOn}" opacity=".13"/>
+        <path d="M0 78 C 60 56, 110 98, 170 74 S 300 50, 375 68" fill="none" stroke="${stampOn}" stroke-width="3.4" opacity=".8"/>
+      </svg></div>`;
+  } else {
+    const rows = threshold > 7 ? 2 : 1;
+    const per = Math.ceil(threshold / rows);
+    /**
+     * ختمُ صاحب المطعم صورةً: يُعرض هنا كما يُرسم هناك.
+     *
+     * المنالُ بألوانه، والباقي مطفأُ اللون باهت -- وهو ما يفعله الخادم
+     * بالبكسلات بالضبط. ولو عُرض هنا شكلٌ مرسوم وهو قد رفع صورته، لكانت
+     * المعاينة تُري بطاقةً غير بطاقته.
+     */
+    const stampImg = RK_CLEARED_IMAGES.has('loyalty_custom_icon_url') ? null
+      : (styleKey === 'custom'
+          ? (pendingImageUrl('loyaltyCustomIconInput') || LOYALTY_BRANDING.customIconUrl)
+          : null);
+    // ختمُ الفارغ صورةً مستقلّة إن رُفعت: تُرسم كما هي لا مطفأةً.
+    const emptyImg = RK_CLEARED_IMAGES.has('wallet_stamp_empty_url') ? null
+      : (styleKey === 'custom'
+          ? (pendingImageUrl('walletStampEmptyInput') || WALLET_ASSETS.stampEmptyUrl)
+          : null);
+    /**
+     * الميل يُطبَّق على كل ختمٍ بموضعه في صفّه.
+     *
+     * والمعادلة هي معادلة الخادم نفسها، والمقياس وحده يختلف: هناك
+     * الختم بحجم البكسلات وهنا بـ27 نقطة. فما يُرى من ميلٍ هنا هو ما
+     * يُطبع هناك، ولو حُسب بغيرها لضُبط ميلٌ وطُبع سواه.
+     */
+    const lay = (typeof walletStampLayout === 'function') ? walletStampLayout() : 'grid';
+    /**
+     * مقاس الختم في المعاينة -- بحدود الخادم الثلاثة نفسها.
+     *
+     * والثالث هو الذي كان ناقصاً: الحدّ الرأسي يحسب إزاحة الترتيب، لا
+     * الارتفاع وحده. فختمٌ يبلغ حدَّ الشريط ثم يُزاح ثلاثين بالمئة من
+     * حجمه يخرج عنه، ويقصّه overflow:hidden -- والصورة كاملةٌ سليمة،
+     * إنما الشريطُ أضيق مما وُضع فيه.
+     *
+     * (صُحّح في الخادم أولاً ونُسي هنا، فبقيت المعاينة تقصّ وحدها --
+     * وهي التي يُنظر إليها.)
+     */
+    const sizePct = rkwStampSizePct();
+    const STRIP_PX = 105;                       // ارتفاع الشريط في المعاينة
+    const riseFactor = lay === 'arch' ? 0.26 : lay === 'wave' ? 0.22 : lay === 'stagger' ? 0.20 : 0;
+    // نفس معادلة الخادم بعد تصحيحها: الحدّ الرأسي يحسب المسافة بين
+    // الصفّين، لا الارتفاع مقسوماً على عددها وحده.
+    const riseAt = riseFactor * (rows === 1 ? 1 : 0.62);
+    const PREV_STAMP = Math.min(
+      27 * sizePct / 100,
+      (300 * 0.86 / per),
+      (STRIP_PX * 0.94 / 2) / (((rows - 1) * 1.22) / 2 + 0.5 + riseAt),
+    );
+    let cells = '';
+    for(let i=0; i<threshold; i++){
+      const on = i < done;
+      const col = rows === 1 ? i : (i % per);
+      const n = rows === 1 ? threshold : per;
+      const dy = rkwRise(lay, col, n, PREV_STAMP) * (rows === 1 ? 1 : 0.62);
+      const st = dy ? ` style="transform:translateY(${dy.toFixed(1)}px);"` : '';
+      let inner;
+      /**
+       * الحالتان تُبنيان من مكانٍ واحد.
+       *
+       * كانتا سطرين مستقلّين، فأُضيف المقاس إلى أحدهما دون الآخر
+       * والقصُّ إلى ثالثٍ لم يكن -- فخرج ختمٌ بسبعين بكسلاً وآخر
+       * بسبعةٍ وعشرين، وهو الفرق الذي شُكي منه مرّتين. وسطرٌ واحد
+       * يبني الاثنين لا يحتمل أن يُنسى نصفه.
+       */
+      if(!stampImg){
+        inner = rkwStamp(styleKey, on, stampOn, stampOff, PREV_STAMP);
+      } else {
+        // له صورةٌ للفارغ: تُرسم كما هي. وإلا فختمُه مطفأَ اللون.
+        const useEmpty = !on && !!emptyImg;
+        const src = useEmpty ? emptyImg : stampImg;
+        const dim = (!on && !useEmpty) ? ' rkw-stamp-off' : '';
+        inner = `<img class="rkw-stamp-img${dim}"`
+          + ` style="width:${PREV_STAMP.toFixed(0)}px;height:${PREV_STAMP.toFixed(0)}px;"`
+          + ` src="${escapeHtml(rkwTrimmedStamp(src) || src)}" alt="">`;
+      }
+      cells += `<span class="rkw-cell"${st}>${inner}</span>`;
+    }
+    // المسافة نسبةٌ من الحجم -- 0.46 كما في الخادم حرفاً بحرف. وثباتُها
+    // يجعل ستّة أختامٍ بنصف الحجم تبدو ضائعةً في فراغ.
+    const gapPx = (PREV_STAMP * 0.46).toFixed(1);
+    strip = `<div class="rkw-strip" style="background:${stripBgCss};">${bgLayer}
+      <div class="rkw-stamps" style="grid-template-columns:repeat(${per}, auto); gap:${(PREV_STAMP*0.22).toFixed(1)}px ${gapPx}px; padding:0 7%;">${cells}</div></div>`;
+  }
+
+  const walletLogo = RK_CLEARED_IMAGES.has('wallet_logo_url') ? null
+    : (pendingImageUrl('walletLogoInput') || WALLET_ASSETS.logoUrl);
+  // شعار المطعم يُقرأ من الحقل المعلّق أيضاً -- هو الحقل الذي يُستعمل
+  // فعلاً، والمحفظة تأخذه حين لا يُرفع لها شعارٌ خاص.
+  const mainLogo = pendingImageUrl('loyaltyLogoInput') || LOYALTY_BRANDING.logoUrl;
+  const logoUrl = walletLogo || mainLogo;
+  const iconUrl = (RK_CLEARED_IMAGES.has('wallet_icon_url') ? null
+    : (pendingImageUrl('walletIconInput') || WALLET_ASSETS.iconUrl)) || logoUrl;
+  const bizName = RESTAURANT_INFO.name || 'مطعمك';
+
+  const stamps = type !== 'points';
+  // نموذجٌ لا فراغ: المسافات لا تُحكَم على قيمٍ خالية.
+  const sampleName = RESTAURANT_INFO.ownerName || 'محمد الأحمد';
+  const sampleCode = 'A3F19C42';
+  const headLabel   = type === 'points' ? 'نقاطك' : (type === 'visits' ? 'زياراتك' : 'ختومك');
+  const headLabelEn = type === 'points' ? 'Points' : (type === 'visits' ? 'Visits' : 'Stamps');
+  // "٣ / ٦" لا "٣ من ٦" -- الخادم يكتب الشرطة لأنها تُقرأ في اللغتين.
+  const headValue = type === 'points' ? '1440' : `${done} / ${threshold}`;
+  const isEn = RKW_PREV_LANG === 'en';
+  const left = threshold - done;
+  // اكتملت: البطاقة تنقلب إلى حالة "جاهزة" -- وهو ما يفعله النظام حين
+  // يبلغ العدّاد حدّه. و"باقي ٠" رقمٌ صحيح وجملةٌ لا تُقال.
+  const ready = type !== 'points' && left <= 0;
+  const primaryLabel = ready ? 'جاهزة الآن 🎉' : 'تقدّمك';
+  const primary = type === 'points' ? rewardLabel
+    : ready ? rewardLabel
+    : (left === 1 ? 'باقي وحدة وتاخذها' : left === 2 ? 'باقي ثنتين' : `باقي ${left}`);
+
+  const nearbyEl = document.getElementById('walletNearbyInput');
+  const nearby = (nearbyEl ? nearbyEl.value : WALLET_ASSETS.nearbyText) || '';
+
+  return `
+    <div class="rkw-wrap">
+      <div class="rkw-phone">
+        <div class="rkw-langsw" role="group">
+          <button type="button" class="rkw-langbtn${isEn ? '' : ' on'}" data-prevlang="ar">عربي</button>
+          <button type="button" class="rkw-langbtn${isEn ? ' on' : ''}" data-prevlang="en">English</button>
+        </div>
+        <div class="rkw-card" dir="${isEn ? 'ltr' : 'rtl'}" style="background:${bgHex}; color:${fg};">
+          <div class="rkw-head">
+            ${logoUrl
+              ? `<img class="rkw-logo" src="${escapeHtml(logoUrl)}" alt="">`
+              : ''}
+            ${(logoUrl && rkwHidden('hideLogoText')) ? ''
+              : `<span class="rkw-name">${escapeHtml(bizName)}</span>`}
+            <div class="rkw-headwrap">
+              ${(stamps || rkwHidden('hideTier')) ? '' : `
+              <div class="rkw-headfield">
+                <div class="rkw-flabel" style="color:${faint};">${escapeHtml(rkwLabel('tier','مستواك','Tier'))}</div>
+                <div class="rkw-fvalue">${escapeHtml(rkwLabel('tierGold','Gold','Gold'))}</div>
+              </div>`}
+              <div class="rkw-headfield">
+                <div class="rkw-flabel" style="color:${faint};">${escapeHtml(rkwLabel('progress', headLabel, headLabelEn))}</div>
+                <div class="rkw-fvalue">${escapeHtml(headValue)}</div>
+              </div>
+            </div>
+          </div>
+          ${strip}
+          <div class="rkw-fields">
+            <div class="rkw-f">
+              <div class="rkw-flabel" style="color:${faint};">${escapeHtml(rkwLabel('customer','اسمك','Name'))}</div>
+              <div class="rkw-fvalue">${escapeHtml(stamps ? sampleName : primary)}</div>
+            </div>
+            ${stamps ? `
+            <div class="rkw-f rkw-f-end">
+              <div class="rkw-flabel" style="color:${faint};">${escapeHtml(ready ? rkwLabel('ready','مكافأتك جاهزة','Reward ready') : rkwLabel('left','باقي','Left'))}</div>
+              <div class="rkw-fvalue">${escapeHtml(ready ? rewardLabel : String(left))}</div>
+            </div>` : `
+            <div class="rkw-f rkw-f-end" ${rkwHidden('hideReward') ? 'hidden' : ''}>
+              <div class="rkw-flabel" style="color:${faint};">${escapeHtml(rkwLabel('reward','مكافأتك','Your reward'))}</div>
+              <div class="rkw-fvalue">${escapeHtml(rewardLabel)}</div>
+            </div>`}
+          </div>
+          ${(stamps || (rkwHidden('hideSaved') && rkwHidden('hideSince'))) ? '' : `
+        <div class="rkw-fields rkw-aux">
+          ${rkwHidden('hideSaved') ? '<div></div>' : `<div class="rkw-f">
+            <div class="rkw-flabel" style="color:${faint};">${escapeHtml(rkwLabel('saved','وفّرت معنا','You saved'))}</div>
+            <div class="rkw-fvalue">${isEn ? 'SAR 450' : '٤٥٠ ر.س'}</div>
+          </div>`}
+          ${rkwHidden('hideSince') ? '<div></div>' : `<div class="rkw-f rkw-f-end">
+            <div class="rkw-flabel" style="color:${faint};">${escapeHtml(rkwLabel('since','عميلنا منذ','Member since'))}</div>
+            <div class="rkw-fvalue">${isEn ? 'March 2025' : 'مارس ٢٠٢٥'}</div>
+          </div>`}
+        </div>`}
+        <div class="rkw-qr"><div class="rkw-qr-box">${rkwFakeQr()}</div>
+          <div class="rkw-qr-alt" style="color:${faint};">${sampleCode}</div></div>
+        </div>
+      </div>
+
+      <div class="rkw-side">
+        ${type === 'points' ? '' : `
+        <div class="rkw-scrub">
+          <div class="rkw-scrub-lab">جرّب: كيف تطلع بطاقته بعد</div>
+          <input type="range" id="rkwScrub" min="0" max="${threshold}" value="${done}">
+          <div class="rkw-scrub-val">${done === 0 ? 'قبل أول زيارة' : done >= threshold ? 'اكتملت — مكافأته جاهزة' : `${done} من ${threshold} زيارات`}</div>
+        </div>`}
+        <div class="rkw-lock">
+          <div class="rkw-lock-head">
+            ${iconUrl ? `<img src="${escapeHtml(iconUrl)}" alt="">` : `<div class="rkw-lock-ico">${escapeHtml(bizName.trim().charAt(0))}</div>`}
+            <span>${escapeHtml(bizName)}</span><span class="rkw-lock-now">الآن</span>
+          </div>
+          <div class="rkw-lock-body">${escapeHtml(nearby || 'وحشتنا 🤍 قهوتك بانتظارك')}</div>
+        </div>
+        <p class="rkw-note">كذا تطلع على شاشة قفل جواله لما يقرب من فرعك — بشرط تحط إحداثيات الفرع بـالإعدادات ← الفروع.</p>
+      </div>
+    </div>`;
+}
+
+
+/**
+ * حقول بطاقة المحفظة: ثلاث صور ولونٌ وسطر.
+ *
+ * وثلاثة مواضع لا موضع واحد، لأن آبل تعاملها ثلاثة: أيقونةٌ مربّعة
+ * تظهر في الإشعار وفي قائمة المحفظة، وشعارٌ عريض أعلى البطاقة، وبنرٌ
+ * خلف الأختام. ومن رفع واحدةً في موضع الأخرى خرجت مقصوصة -- فالمقاس
+ * مكتوبٌ تحت كل خانة، لا في صفحة مساعدةٍ لا تُفتح.
+ */
+function walletFieldsHtml(){
+  const box = (id, label, hint, w, h, url) => `
+    <div class="rk-field" style="margin-top:14px;">
+      <label>${label}</label>
+      <div>
+        <div class="image-upload-box" id="${id}Box" style="width:${w}; height:${h}; margin-bottom:0;">
+          ${url ? `<img src="${escapeHtml(url)}" alt="">` :
+            `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg><span>أضف صورة</span>`}
+          <input type="file" id="${id}" accept="image/*">
+        </div>
+        <p class="stock-qty-helper" style="margin-top:8px; margin-bottom:0; max-width:300px;">${hint}</p>
+      </div>
+    </div>`;
+
+  const a = WALLET_ASSETS;
+  return `
+    <div class="rkw-fieldset">
+      <div class="loyalty-design-subheading">بطاقة المحفظة (Apple Wallet)</div>
+      <p class="stock-qty-helper" style="margin-top:-4px;">هذي البطاقة اللي تسكن جوال عميلك. اتركها فاضية ونرسمها لك بلون علامتك.</p>
+
+      ${box('walletIconInput', 'الأيقونة', 'تظهر بالإشعارات وبقائمة المحفظة. مربّعة، ١٢٠×١٢٠ فأكثر.', '90px', '90px', a.iconUrl)}
+      ${box('walletLogoInput', 'الشعار (أعلى البطاقة)', 'عريض لا مربّع. حتى ٤٨٠×١٥٠، ويفضّل خلفية شفافة.', '190px', '62px', a.logoUrl)}
+      ${box('walletStripInput', 'خلفية شريط الأختام (اختياري)', '٧٥٠×٢٤٦. الأختام تنرسم فوقها، فاختر صورة هادية — الزحمة تبلع الأختام.', '100%; max-width:300px', '98px', a.stripUrl)}
+      <div class="rk-field rk-stripmode" id="walletStripModeRow" style="margin-top:10px;">
+        <label>وش نسوي بالصورة؟</label>
+        <div class="rk-seg" id="walletStripModeSeg">
+          <button type="button" data-mode="behind" class="${a.stripMode !== 'replace' ? 'active' : ''}">خلفية والأختام فوقها</button>
+          <button type="button" data-mode="replace" class="${a.stripMode === 'replace' ? 'active' : ''}">الصورة وحدها بلا أختام</button>
+        </div>
+        <div class="rk-field-hint">اختر "وحدها" فقط لو مصمّمك سوّى لك الشريط كامل — تفقد الأختام، وهي اللي ترجّع العميل.</div>
+      </div>
+
+      <div class="rk-field" style="margin-top:14px;">
+        <label>لون خلفية البطاقة ${helpIcon('لون البطاقة نفسها بالمحفظة. مستقل عن لون العلامة لأنها تُشاف جنب بطاقات بنوك ومطاعم ثانية، مو لحالها بصفحة.')}</label>
+        <input type="color" id="walletBgInput" value="${rkwHex(a.bgColor || (document.getElementById('loyaltyAccentInput')||{}).value, '#1D2A1A')}">
+      </div>
+
+      <div class="rk-field" style="margin-top:14px;">
+        <label>رسالة "قربت من الفرع"</label>
+        <input type="text" id="walletNearbyInput" maxlength="60" value="${escapeHtml(a.nearbyText || '')}" placeholder="وحشتنا 🤍 قهوتك بانتظارك">
+        <div class="rk-field-hint">تطلع على شاشة قفل جواله لما يقرب من فرعك. تحتاج تحط إحداثيات الفرع بـ<b>الإعدادات ← الفروع</b>.</div>
+      </div>
+    </div>`;
+}
+
+/**
+ * الحقول تُبنى مرةً وتُوصَل مرة، والمعاينة تُعاد عند كل لمسة.
+ *
+ * ولا تُعاد بناءً عند كل تغيير: إعادةُ بناء الحقل الذي يُكتب فيه تسحب
+ * التركيز من تحت اليد، فتُكتب الجملة حرفاً ثم تُفقد.
+ */
+function mountWalletFields(){
+  const host = document.getElementById('rkWalletFieldsHost');
+  if(!host) return;
+  if(document.getElementById('walletBgInput')){
+    // مبنيّةٌ وموصولة: تُحدَّث قيمها فقط. وإعادةُ البناء هنا تعني نسخةً
+    // ثانية من كل حقل، لأن الأولى قد خرجت من المضيف إلى مجموعتها.
+    refreshWalletFieldValues();
+    return;
+  }
+  host.innerHTML = walletFieldsHtml();
+
+  [['walletIconInput','icon'], ['walletLogoInput','logo'], ['walletStripInput','strip']].forEach(([id, key])=>{
+    const input = document.getElementById(id);
+    if(!input) return;
+    input.addEventListener('change', ()=>{
+      const f = input.files[0];
+      if(WALLET_FILE_URLS[key]) URL.revokeObjectURL(WALLET_FILE_URLS[key]);
+      WALLET_FILE_URLS[key] = f ? URL.createObjectURL(f) : null;
+      updateImageUploadBoxPreview(id, WALLET_FILE_URLS[key] || WALLET_ASSETS[key + 'Url']);
+      renderLoyaltyCardPreview();
+    });
+  });
+  const bg = document.getElementById('walletBgInput');
+  if(bg) bg.addEventListener('input', ()=> renderLoyaltyCardPreview());
+  const near = document.getElementById('walletNearbyInput');
+  if(near) near.addEventListener('input', ()=> renderLoyaltyCardPreview());
+  const seg = document.getElementById('walletStripModeSeg');
+  if(seg) seg.addEventListener('click', (e)=>{
+    const b = e.target.closest('button[data-mode]');
+    if(!b) return;
+    seg.querySelectorAll('button').forEach(x=>x.classList.toggle('active', x === b));
+    renderLoyaltyCardPreview();
+  });
+}
+
+/** الوضع المختار الآن -- من الأزرار لا من المحفوظ، فالمعاينة تسبق الحفظ. */
+function walletStripModeValue(){
+  const b = document.querySelector('#walletStripModeSeg button.active');
+  return b ? b.dataset.mode : (WALLET_ASSETS.stripMode || 'behind');
+}
+
+/** بعد الحفظ: القيم من القاعدة، والمصغّرات من الروابط الجديدة. */
+function refreshWalletFieldValues(){
+  const bg = document.getElementById('walletBgInput');
+  if(bg) bg.value = rkwHex(WALLET_ASSETS.bgColor || (document.getElementById('loyaltyAccentInput')||{}).value, '#1D2A1A');
+  const near = document.getElementById('walletNearbyInput');
+  if(near) near.value = WALLET_ASSETS.nearbyText || '';
+  /**
+   * وصندوقا الختم معهما.
+   *
+   * كانا خارج هذه القائمة، فيبقيان بعد الحفظ يشيران إلى رابط الملف
+   * المؤقّت -- وقد حُرّر للتوّ. فتظهر خانتاهما فارغتين وصورتهما محفوظة،
+   * ويُعاد رفعها ظنّاً أنها ضاعت.
+   */
+  [['walletIconInput', () => WALLET_ASSETS.iconUrl],
+   ['walletLogoInput', () => WALLET_ASSETS.logoUrl],
+   ['walletStripInput', () => WALLET_ASSETS.stripUrl],
+   ['loyaltyCustomIconInput', () => LOYALTY_BRANDING.customIconUrl],
+   ['walletStampEmptyInput', () => WALLET_ASSETS.stampEmptyUrl]].forEach(([id, saved])=>{
+    const el = document.getElementById(id);
+    if(el) el.value = '';
+    updateImageUploadBoxPreview(id, saved());
+  });
+}
+
+/** ما يُرفع ويُحفظ مع بقيّة تصميم البطاقة، في نفس الزرّ. */
+async function collectWalletUpdates(){
+  const updates = {};
+  const files = [
+    ['walletIconInput', 'wallet_icon_url', 'wallet-icon'],
+    ['walletLogoInput', 'wallet_logo_url', 'wallet-logo'],
+    ['walletStripInput', 'wallet_strip_url', 'wallet-strip'],
+    ['walletStampEmptyInput', 'wallet_stamp_empty_url', 'stamp-empty'],
+  ];
+  for(const [id, col, prefix] of files){
+    const el = document.getElementById(id);
+    const raw = el && el.files[0];
+    if(!raw) continue;
+    // ختمُ الفارغ يمرّ بمقيّس الأختام لا بضاغط الصور: الخادم يفكّه.
+    const f = col === 'wallet_stamp_empty_url' ? await normalizeStampFile(raw) : await compressImageFile(raw);
+    if(f) updates[col] = await uploadMediaFile(f, 'loyalty-branding', prefix);
+  }
+  updates.wallet_strip_mode = walletStripModeValue();
+  updates.wallet_labels = collectWalletLabels();
+  updates.wallet_strip_bg_mode = walletStripBgMode();
+  updates.wallet_stamp_layout = walletStampLayout();
+  // إعدادات الرسائل تُحفظ مع التصميم: كلاهما "شكل البطاقة وما تقوله".
+  const qOn = document.getElementById('walletQualityOn');
+  if(qOn) updates.wallet_msg_quality_on = qOn.checked;
+  const qTx = document.getElementById('walletQualityText');
+  if(qTx && qTx.value.trim()) updates.wallet_msg_quality_text = qTx.value.trim();
+  const qHr = document.getElementById('walletQualityHours');
+  if(qHr) updates.wallet_msg_quality_hours = Math.max(1, Math.min(72, parseInt(qHr.value, 10) || 3));
+  const wOn = document.getElementById('walletWinBackOn');
+  if(wOn) updates.notify_win_back = wOn.checked;
+  const wTx = document.getElementById('walletWinBackText');
+  if(wTx && wTx.value.trim()) updates.win_back_message = wTx.value.trim();
+  const wDy = document.getElementById('walletWinBackDays');
+  if(wDy) updates.win_back_inactive_days = Math.max(3, Math.min(365, parseInt(wDy.value, 10) || 30));
+  const sb1 = document.getElementById('walletStripBg1');
+  const sb2 = document.getElementById('walletStripBg2');
+  if(sb1) updates.wallet_strip_bg1 = rkwHex(sb1.value, '#1A0F08');
+  if(sb2) updates.wallet_strip_bg2 = rkwHex(sb2.value, '#4A2C17');
+  const scr = document.getElementById('walletScrimInput');
+  if(scr) updates.wallet_strip_scrim = Math.max(0, Math.min(75, parseInt(scr.value, 10) || 0));
+  const ssz = document.getElementById('walletStampSizeInput');
+  if(ssz) updates.wallet_stamp_size = Math.max(50, Math.min(200, parseInt(ssz.value, 10) || 100));
+  const bg = document.getElementById('walletBgInput');
+  if(bg) updates.wallet_bg_color = rkwHex(bg.value, '#1D2A1A');
+  const near = document.getElementById('walletNearbyInput');
+  if(near) updates.wallet_nearby_text = near.value.trim() || 'وحشتنا 🤍 قهوتك بانتظارك';
+  return updates;
+}
+
+
+/* ============ ترتيب شاشة تصميم البطاقة ============
+
+   الشاشة بُنيت لبطاقة الويب: ثيمٌ من ثلاثة، وخلفيةٌ زخرفية، ودرجةُ
+   تعتيمٍ لها، ومقاسُ أيقونة. ثم حلّت المحفظة محلّ تلك البطاقة، فأُضيفت
+   حقولها إلى الحقول القديمة -- فصارت الشاشة طبقتين: نصفٌ يضبط شيئاً
+   لم يعد يُفتح، ونصفٌ يضبط ما يُفتح، ولا فاصل بينهما.
+
+   فتُرتَّب هنا لا في القالب: الحقول موجودة وموصولة، ونقلُها في DOM
+   يحفظ كل مستمعٍ عليها. وإعادةُ كتابتها في القالب تعني إعادة وصلها
+   كلها، وكسرَ ما لا يُكسر لو تُرك.
+
+   والمتقاعد يُخفى لا يُحذف: بطاقة الويب ما زالت تُفتح بروابط عند
+   عملاء أندرويد -- تقرأ ما حُفظ لها، ولا تُضبط بعد اليوم. */
+
+const RK_RETIRED_DESIGN_ROWS = [
+  'loyaltyThemeChips',        // ثيمٌ لا تعرفه المحفظة: قالبها واحد
+  'loyaltyBannerInput',       // خلفيةٌ زخرفية -- بديلها بنر الشريط
+  'loyaltyBannerOverlayInput',
+  'loyaltyIconSizeInput',     // المقاس يتبع عدد الأختام، لا يُضبط بيد
+  'loyaltyPatternPicker',
+  // العبارة: كانت تسكن ظهر البطاقة، وحُذفت من هناك -- فحقلٌ يُملأ ولا
+  // أثرَ له أسوأ من حقلٍ ناقص. (يبقى في الصفحة مخفيّاً: بطاقة الويب
+  // القديمة ووضعُ الكشك يقرآن معرّفه.)
+  'loyaltyTaglineInput',
+];
+
+/** يصعد من عنصرٍ إلى صفّه (.rk-field) أو إلى ما يقوم مقامه. */
+function rkFieldOf(id){
+  let el = document.getElementById(id);
+  while(el && !el.classList.contains('rk-field') && !el.classList.contains('loyalty-design-subheading')){
+    el = el.parentElement;
+    if(el && el.classList.contains('rk-section')) return null;
+  }
+  return el;
+}
+
+function rkDesignGroup(num, title, sub){
+  const d = document.createElement('div');
+  d.className = 'rk-dgroup';
+  d.innerHTML = `<div class="rk-dgroup-head"><span class="rk-dgroup-num">${num}</span>
+    <div><div class="rk-dgroup-title">${title}</div>
+    ${sub ? `<div class="rk-dgroup-sub">${sub}</div>` : ''}</div></div>`;
+  return d;
+}
+
+function restructureLoyaltyDesign(){
+  /**
+   * ويُسجَّل سببُ الخروج.
+   *
+   * كانت تخرج صامتةً عند أي شرطٍ ناقص، فتبقى الشاشة نصفَ مرتّبة: حقول
+   * لونٍ بلا خانة كود، ومجموعاتٌ لم تُبنَ. ولا شيء يقول إن الترتيب لم
+   * يجرِ أصلاً -- فيُقرأ الأمر "اختفت إعدادات".
+   */
+  window.__rkLayout = 'بدأ';
+  let form = document.getElementById('loyaltyAccentInput');
+  while(form && !form.classList.contains('rk-section')) form = form.parentElement;
+  if(!form){ window.__rkLayout = 'ما لقيت النموذج'; return; }
+  if(form.dataset.rkRestructured === '1'){ window.__rkLayout = 'مرتّب من قبل'; return; }
+
+  const head = form.querySelector('.rk-section-head');
+  const saveBtn = document.getElementById('loyaltyBrandingSaveBtn');
+  const walletHost = document.getElementById('rkWalletFieldsHost');
+  if(!head){ window.__rkLayout = 'ما لقيت ترويسة القسم'; return; }
+  if(!saveBtn){ window.__rkLayout = 'ما لقيت زر الحفظ'; return; }
+
+  // المتقاعد أولاً: يُخفى قبل النقل فلا يُنقل ثم يُخفى.
+  RK_RETIRED_DESIGN_ROWS.forEach(id => {
+    const row = rkFieldOf(id);
+    if(row) row.classList.add('rk-retired');
+  });
+  form.querySelectorAll('.loyalty-design-subheading').forEach(h => h.classList.add('rk-retired'));
+
+  /**
+   * وترويسة الشاشة تُقال من جديد.
+   *
+   * كانت تَعِد بـ"بطاقة رقمية" يفتحها العميل برابط -- وتلك انتهت. ووعدٌ
+   * قديمٌ في أعلى شاشةٍ جديدة يجعل كل ما تحته يُقرأ خطأ.
+   */
+  const ht = head.querySelector('.rk-section-title');
+  const hs = head.querySelector('.rk-section-sub');
+  if(ht) ht.textContent = 'تصميم بطاقة المحفظة';
+  if(hs) hs.textContent = 'البطاقة اللي تسكن جوال عميلك وتتحدّث لحالها. كل تغيير هنا تشوفه بالمعاينة على طول.';
+
+  // ومقاس الشعار: المحفظة تبي شعاراً عريضاً لا مربّعاً.
+  const logoHint = rkFieldOf('loyaltyLogoInput');
+  const lh = logoHint && logoHint.querySelector('.stock-qty-helper');
+  if(lh) lh.textContent = 'يظهر بأعلى البطاقة. الأفضل عريض (٤٨٠×١٥٠) بخلفية شفافة — والمربّع يشتغل بعد.';
+
+  /**
+   * أربع مجموعات بترتيب ما تُرى به البطاقة، لا بترتيب ما كُتب أولاً.
+   *
+   *   الهوية    -- الشعار واللون: أول ما تقع عليه العين، وأكبر ما يقول
+   *                إن البطاقة له.
+   *   الشريط    -- أكبر مساحةٍ فيها وكلُّ حرّية التصميم التي تعطيها آبل.
+   *                فهو المتن لا الهامش، وموضعه بعد الهوية مباشرةً.
+   *   النصوص    -- ما يُقرأ، وهو يُقرأ بعد أن يُرى.
+   *   صورٌ أخرى -- الشعار العريض وأيقونة الإشعار: مواضع صغيرة لا تُترك
+   *                مطويّةً، فمن لم يعرف أنها موجودة لم يملأها أبداً.
+   */
+  const g1 = rkDesignGroup('١', 'هوية البطاقة', 'شعارك وألوانك — أول ما تقع عليه عينه.');
+  const g2 = rkDesignGroup('٢', 'شريط الأختام', 'أكبر مساحة بالبطاقة، وكل مساحة الإبداع فيها.');
+  g2.classList.add('rk-dgroup-stamp');
+  const g3 = rkDesignGroup('٣', 'صور إضافية', 'مواضع صغيرة لكنها تُشاف — لو تركتها ناخذ شعارك.');
+  const g5 = rkDesignGroup('٥', 'النصوص', 'وش يوصله لما يقرب من فرعك.');
+
+  const place = (parent, id) => { const r = rkFieldOf(id); if(r) parent.appendChild(r); };
+
+  place(g1, 'loyaltyLogoInput');
+  /**
+   * ومفتاحُ اسم المقهى في مجموعة الهوية، إلى جانب الشعار الذي يجاوره
+   * على البطاقة -- لا في جدول التسميات: ذاك يقول ماذا تُسمّى الحقول،
+   * وهذا يقول ما يظهر أصلاً.
+   *
+   * وصيغتُه موجبة: "اسم المقهى فوق البطاقة" مضاءً يعني ظاهراً. ومفتاحٌ
+   * اسمُه "أخفِ" مضاءً يعني مخفياً -- فيُقرأ المضاءُ ظاهراً وهو مخفيّ.
+   * والمحفوظ يبقى hideLogoText كما هو، والانعكاس هنا في الواجهة وحدها.
+   */
+  if(!document.getElementById('rkLogoTextRow')){
+    const hid = !!(WALLET_ASSETS.labels || {}).hideLogoText;
+    g1.insertAdjacentHTML('beforeend', `
+      <div class="rk-switch-row" id="rkLogoTextRow">
+        <div class="rk-switch-text">
+          <span class="rk-switch-label">اسم المقهى فوق البطاقة</span>
+          <span class="rk-switch-desc">آبل تكتبه جنب شعارك. أطفئه لو شعارك فيه اسمك أصلاً.</span>
+        </div>
+        <label class="rk-switch">
+          <input type="checkbox" data-lblflagoff="hideLogoText" ${hid ? '' : 'checked'}>
+          <span class="rk-switch-track"></span>
+        </label>
+      </div>`);
+    g1.querySelector('#rkLogoTextRow input')
+      .addEventListener('change', renderLoyaltyCardPreview);
+  }
+  place(g1, 'walletBgInput');
+  place(g1, 'loyaltyAccentInput');
+  place(g1, 'loyaltySuggestedColors');
+
+  place(g2, 'loyaltyIconPicker');
+  place(g2, 'loyaltyCustomIconInput');
+
+  place(g5, 'walletNearbyInput');
+
+  place(g3, 'walletLogoInput');
+  place(g3, 'walletIconInput');
+
+  // ٤ التسميات تُركَّب بينهما -- mountWalletLabels يضعها بعد "صور إضافية".
+  head.insertAdjacentElement('afterend', g1);
+  g1.insertAdjacentElement('afterend', g2);
+  g2.insertAdjacentElement('afterend', g3);
+  g3.insertAdjacentElement('afterend', g5);
+  form.appendChild(saveBtn);
+
+  /**
+   * زرُّ فحصٍ إلى جانب زرّ الحفظ.
+   *
+   * البندل يُبنى في الخادم ويُفتح في جهاز الزبون، وبينهما لا شيء
+   * يُقرأ: المحفظة ترفضه بصمت -- شاشةٌ سوداء تُغلق بلا رسالة. فيبقى
+   * صاحب المطعم يعيد المحاولة ولا يعرف أين الخلل.
+   *
+   * وهذا الزرّ يبني بطاقته الحقيقية ويفكّها ويصفها: ما فيها من ملفات،
+   * وهل صورها سليمة. فيُرى الخلل هنا بلا جهازٍ ولا محاولة.
+   */
+  if(!document.getElementById('walletSelfTestBtn')){
+    saveBtn.insertAdjacentHTML('afterend', `
+      <button class="rk-btn rk-btn-secondary rk-btn-md" id="walletSelfTestBtn" type="button"
+              style="margin-top:10px; width:100%;">افحص بطاقتي</button>
+      <div id="walletSelfTestOut" class="rk-verify-status"></div>`);
+    document.getElementById('walletSelfTestBtn').addEventListener('click', runWalletSelfTest);
+    /**
+     * ويجري وحده عند فتح الشاشة.
+     *
+     * زرٌّ لا يُضغط لا يُفيد: من فتح الشاشة يريد أن يعرف حال بطاقته
+     * الآن، لا أن يُطلب منه أن يسأل. والزرّ يبقى لإعادة الفحص بعد
+     * تغييرٍ حفظه.
+     */
+    runWalletSelfTest();
+  }
+  if(walletHost) walletHost.classList.add('rk-dhost-spent');
+
+  /**
+   * والتسميتان تُصحَّحان.
+   *
+   * "لون البطاقة المميّز" كان اللون الوحيد، فلم يحتج تمييزاً. وقد صارا
+   * اثنين -- خلفيةُ البطاقة ولونُ أختامها -- فاسمٌ واحدٌ لهما يجعل
+   * أحدهما مفاجأة.
+   */
+  const relabel = (id, text, hint) => {
+    const row = rkFieldOf(id);
+    const lab = row && row.querySelector('label');
+    /**
+     * التسمية تُكتب في أول عقدةٍ نصّية، لا في أول عقدةٍ مطلقاً.
+     *
+     * بعض التسميات تبدأ بمسافةٍ أو بسطرٍ جديد من القالب، فتكون العقدة
+     * الأولى فراغاً -- فيُكتب الاسم في الفراغ ويبقى القديم بعده. وحقلٌ
+     * اسمه "لون البطاقة المميّز" إلى جانب "لون خلفية البطاقة" يجعل
+     * صاحب المطعم يخمّن أيّهما أيّ.
+     */
+    if(lab){
+      const t = [...lab.childNodes].find(n => n.nodeType === 3 && n.nodeValue.trim());
+      if(t) t.nodeValue = text; else lab.insertAdjacentText('afterbegin', text);
+    }
+    if(hint && row && !row.querySelector('.rk-field-hint')){
+      row.insertAdjacentHTML('beforeend', `<div class="rk-field-hint">${hint}</div>`);
+    }
+  };
+  relabel('loyaltyAccentInput', 'لون الأختام والتفاصيل ');
+  relabel('walletBgInput', 'لون البطاقة ');
+  relabel('loyaltyLogoInput', 'شعار المطعم ');
+  // ويصير اللونان حقلين مرتّبين: مربّعٌ وكودٌ وقطّارة.
+  rkUpgradeColorField('walletBgInput', 'خلفية البطاقة نفسها بالمحفظة. الصق الكود أو اسحبه من شعارك بالقطّارة.');
+  rkUpgradeColorField('loyaltyAccentInput', 'لون الأختام الممتلئة والتفاصيل فوق الشريط.');
+
+  const iconRow = rkFieldOf('loyaltyIconPicker');
+  const iconLab = iconRow && iconRow.querySelector('label');
+  if(iconLab) iconLab.childNodes[0].nodeValue = 'شكل الختم ';
+  /**
+   * وخانةٌ ثانية للحالة الفارغة.
+   *
+   * تُبنى هنا لا في قالب المحفظة: موضعها مع ختمه لا مع صور البطاقة،
+   * والقرب هو ما يقول إنهما وجهان لشيء واحد.
+   */
+  /**
+   * وتلميحٌ تحت المنتقي.
+   *
+   * خيار "ختمك أنت" زرُّ زائدٍ في آخر صفٍّ من ستّة عشر شكلاً -- ومن لم
+   * يعرف أنه هناك لم يضغطه. وميزةٌ لا تُرى ميزةٌ غير موجودة.
+   */
+  const pickerRow = rkFieldOf('loyaltyIconPicker');
+  if(pickerRow && !pickerRow.querySelector('.rk-field-hint')){
+    pickerRow.insertAdjacentHTML('beforeend',
+      '<div class="rk-field-hint">أو ارفع ختمك أنت تحت — ومتى ما رفعته يُعتمد بدل الشكل. أزِل الصورتين وترجع للشكل.</div>');
+  }
+
+  const stampGroup = document.querySelector('.rk-dgroup-stamp');
+  if(stampGroup && !document.getElementById('walletStampEmptyInput')){
+    stampGroup.insertAdjacentHTML('beforeend', `
+      <div class="rk-field loyalty-custom-icon-row hidden" id="walletStampEmptyRow" style="margin-top:14px;">
+        <label><svg class="rk-stamp-ico rk-stamp-ico-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9" stroke-dasharray="3.2 3.4"/></svg><span>قبل الشراء</span></label>
+        <div>
+          <div class="image-upload-box" id="walletStampEmptyInputBox" style="width:90px; height:90px; margin-bottom:0;">
+            ${WALLET_ASSETS.stampEmptyUrl ? `<img src="${escapeHtml(WALLET_ASSETS.stampEmptyUrl)}" alt="">`
+              : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg><span>أضف صورة</span>`}
+            <input type="file" id="walletStampEmptyInput" accept="image/*">
+          </div>
+          <p class="stock-qty-helper" style="margin-top:8px; margin-bottom:0; max-width:300px;">
+            <b>نفس المقاس والصيغة.</b> هذا ختمه <b>الفارغ</b> — يبيّن كم باقي عليه.
+            تركته فاضي؟ ناخذ ختم الشراء ونطفي لونه.</p>
+        </div>
+      </div>`);
+    // وأداة القصّ: أختها موصولةٌ بها منذ بُنيت، وهذه بُنيت بعدها فلم
+    // تنلها. فيخرج ختمٌ مقصوصٌ مربّعاً وآخر بنسبته -- وهما يُرسمان
+    // متجاورين.
+    const se = document.getElementById('walletStampEmptyInput');
+    if(se) se.addEventListener('change', ()=>{
+      updateImageUploadBoxPreview('walletStampEmptyInput',
+        pendingImageUrl('walletStampEmptyInput') || WALLET_ASSETS.stampEmptyUrl);
+      renderLoyaltyCardPreview();
+    });
+  }
+
+  const cRow = rkFieldOf('loyaltyCustomIconInput');
+  const cLab = cRow && cRow.querySelector('label');
+  if(cLab) cLab.innerHTML = '<svg class="rk-stamp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>بعد الشراء</span>';
+  const cHint = cRow && cRow.querySelector('.stock-qty-helper');
+  if(cHint) cHint.textContent = '٥١٢×٥١٢ بكسل، PNG، خلفية شفافة. هذا ختمك الممتلئ — اللي ينضاف له كل ما يشتري.';
+
+  try { mountWalletStripStyle(); } catch(e){ console.error('strip style', e); }
+  try { mountWalletLabels(); } catch(e){ console.error('labels', e); }
+  // ورفعُ الصورة يسكن داخل خيار "صورة" لا في مجموعةٍ أخرى: من اختار
+  // صورةً ينبغي أن يجد مكان رفعها تحت الاختيار، لا أن يبحث عنه.
+  const imgHost = document.getElementById('walletStripImageHost');
+  if(imgHost){
+    const up = rkFieldOf('walletStripInput');
+    if(up) imgHost.appendChild(up);
+    const modeRow = document.getElementById('walletStripModeRow');
+    if(modeRow) imgHost.appendChild(modeRow);
+  }
+  form.dataset.rkRestructured = '1';
+  window.__rkLayout = 'اكتمل';
+  updateLoyaltySystemTypeVisibility();
+  syncLoyaltyStampGroup();
+}
+
+async function runWalletSelfTest(){
+    {
+      const btn = document.getElementById('walletSelfTestBtn');
+      if(!btn) return;
+      const out = document.getElementById('walletSelfTestOut');
+      rkBtnLoading(btn, true);
+      out.textContent = '';
+      try {
+        const { data: { session } } = await window.supabaseClient.auth.getSession();
+        const res = await fetch('/api/dashboard/wallet-selftest', {
+          headers: { Authorization: 'Bearer ' + session.access_token },
+        });
+        const j = await res.json();
+        rkBtnLoading(btn, false);
+        if(j.error){ out.textContent = '⚠ ' + j.error; out.className = 'rk-verify-status warn'; return; }
+        const c = j.certificate || {};
+        if(j.ok){
+          out.className = 'rk-verify-status ok';
+          out.className = 'rk-verify-status ok';
+          out.innerHTML = '✓ البطاقة سليمة — ' + Math.round(j.bundleBytes/1024) + ' ك.ب، '
+            + j.files.length + ' ملف، التوقيع صحيح، الشهادة تنتهي ' + c.notAfter + '.'
+            + '<br><a href="' + j.testFull + '" target="_blank">جرّبها بجوالك</a>';
+        } else if(j.identifiers && (!j.identifiers.teamOk || !j.identifiers.passTypeOk)){
+          out.className = 'rk-verify-status warn';
+          const d = j.identifiers;
+          out.innerHTML = '⚠ <b>المعرّفات مو مطابقة للشهادة — هذا سبب الرفض:</b><br>'
+            + 'معرّف الفريق بالبطاقة: <code>' + d.teamIdInPass + '</code><br>'
+            + 'معرّف الفريق بالشهادة: <code>' + (d.teamIdInCert||'—') + '</code> ' + (d.teamOk?'✓':'❌') + '<br>'
+            + 'نوع البطاقة بالبطاقة: <code>' + d.passTypeInPass + '</code><br>'
+            + 'نوع البطاقة بالشهادة: <code>' + (d.passTypeInCert||'—') + '</code> ' + (d.passTypeOk?'✓':'❌');
+        } else {
+          out.className = 'rk-verify-status warn';
+          out.textContent = j.stage === 'build'
+            ? ('⚠ البطاقة ما تُبنى: ' + (j.buildError || 'سبب غير معروف'))
+            : c.parseError ? ('⚠ الشهادة أو المفتاح ما يُقرآن: ' + c.parseError)
+            : !c.match ? '⚠ الشهادة والمفتاح مو زوج واحد — التوقيع باطل والمحفظة ترفض بصمت.'
+            : c.expired ? ('⚠ الشهادة منتهية منذ ' + c.notAfter)
+            : ('⚠ ملفات مكسورة: ' + (j.notRealPng || []).join('، '));
+        }
+        console.log('فحص البطاقة:', j);
+        // وتُطبع الروابط نصّاً صريحاً: ما يُقصّ في التخطيط يبقى هنا.
+        console.log('١ كاملة  :', j.testFull);
+        console.log('٢ مبسّطة :', j.testMinimal);
+        console.log('٣ عارية  :', j.testBare);
+        (j.bisect || []).forEach(function(x){ console.log('   ' + x); });
+      } catch(err){
+        rkBtnLoading(btn, false);
+        out.className = 'rk-verify-status warn';
+        out.textContent = 'تعذر الفحص: ' + (err && err.message ? err.message : 'خطأ');
+      }
+    }
+}
+
+
+/**
+ * مجموعةُ الختم تختفي مع النقاط.
+ *
+ * النقاط رصيدٌ بلا سقف، فلا ختم لها ولا شكل -- ومجموعةٌ كاملة تبقى
+ * ظاهرةً بلا أثرٍ في المعاينة تُغري بضبط ما لا يُضبط.
+ */
+/**
+ * النقاط تُخفي الأختام، لا الشريط.
+ *
+ * كانت المجموعة كلّها تختفي مع نظام النقاط -- ومعها خلفيةُ الشريط
+ * ولونُه وتدرّجه وصورتُه. والنقاط لها شريطٌ كذلك: موجةٌ تُرسم على
+ * خلفيةٍ تُختار. فكان صاحب المطعم يفقد نصف تصميمه لأنه اختار نظاماً،
+ * ولا شيء يقول له أين ذهب.
+ *
+ * فيُخفى ما لا معنى له وحده: شكلُ الختم وصورتاه ومقاسُه وترتيبُه.
+ * والخلفيةُ تبقى -- هي خلفية الشريط لا خلفية الأختام.
+ */
+function syncLoyaltyStampGroup(){
+  const isPoints = loyaltySystemTypeFormValue() === 'points';
+  const g = document.querySelector('.rk-dgroup-stamp');
+  if(g){
+    g.classList.remove('hidden');
+    const sub = g.querySelector('.rk-dgroup-sub');
+    if(sub) sub.textContent = isPoints
+      ? 'أكبر مساحة بالبطاقة. مع نظام النقاط نرسم موجة هادئة بدل الأختام.'
+      : 'أكبر مساحة بالبطاقة، وكل مساحة الإبداع فيها.';
+  }
+  [rkFieldOf('loyaltyIconPicker'), document.getElementById('rkStampPair'),
+   rkFieldOf('walletStampSizeInput'), rkFieldOf('walletLayoutPick')]
+    .forEach(el => { if(el) el.classList.toggle('rk-retired', isPoints); });
+  document.querySelectorAll('[data-lblonly="points"]')
+    .forEach(el => { el.hidden = !isPoints; });
+}
+
+
+/* ============ حقل اللون المرتّب ============
+
+   مربّعُ <input type="color"> عارياً لا يُلصق فيه كود. وصاحب المطعم
+   يجيء بلونه مكتوباً -- من هويته، أو من مصمّمه، أو من متجرٍ رآه --
+   فيحتاج خانةً يلصقه فيها، لا نافذةَ نظامٍ يدور فيها حتى يقارب.
+
+   وهذا النمط موجودٌ في اللوحة أصلاً (تصميم المتجر الإلكتروني)، فيُنقل
+   كما هو: مربّعٌ يفتح منتقي النظام، وخانةُ كودٍ إلى جانبه، وقطّارةٌ
+   تسحب اللون من أي شيء على الشاشة.
+
+   ولا يُعاد بناء <input type="color"> بل يُنقل داخل المربّع: عليه
+   مستمعون يحدّثون المعاينة، وبناءُ واحدٍ جديد يعني وصلها من جديد --
+   وما يُوصَل مرتين يُنسى مرة. */
+
+const RK_EYEDROPPER = typeof window !== 'undefined' && 'EyeDropper' in window;
+
+function rkUpgradeColorField(id, hint){
+  const input = document.getElementById(id);
+  const row = rkFieldOf(id);
+  if(!input || !row || row.dataset.rkColorCtl === '1') return;
+
+  // عرضٌ مقيّد في القالب كان لمربّعٍ عارٍ عرضه عرضُ المربّع. والحقل
+  // الجديد سطرٌ فيه كودٌ من سبعة أحرف وقطّارة، فيُقصّ الكود إن بقي
+  // القيد -- ويُقرأ لونٌ غير الذي كُتب.
+  row.style.maxWidth = '';
+
+  const value = /^#[0-9a-fA-F]{6}$/.test(input.value) ? input.value : '#C4FF2B';
+  const wrap = document.createElement('div');
+  wrap.className = 'rk-color-ctl';
+  wrap.innerHTML = `
+    <label class="rk-color-swatch" style="background:${value};" title="افتح منتقي الألوان"></label>
+    <input type="text" class="mono rk-color-hex" id="${id}Hex" maxlength="7" value="${value.toUpperCase()}"
+           spellcheck="false" aria-label="كود اللون">
+    ${RK_EYEDROPPER ? `<button type="button" class="rk-color-pick" id="${id}Pick" title="اسحب لون من أي مكان بالشاشة">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/><path d="m15 6 3.5-3.5a2.12 2.12 0 0 1 3 3L18 9l.9.9a2.1 2.1 0 0 1 0 3l-.9.9-5.8-5.8.9-.9a2.1 2.1 0 0 1 3 0z"/></svg>
+    </button>` : ''}`;
+
+  const swatch = wrap.querySelector('.rk-color-swatch');
+  swatch.appendChild(input);
+  input.classList.add('rk-color-native');
+  row.appendChild(wrap);
+  row.dataset.rkColorCtl = '1';
+
+  const hex = wrap.querySelector('.rk-color-hex');
+  // اللونُ يُبَثّ من <input type="color"> نفسه مهما كان مصدر التغيير --
+  // فمستمعوه القدماء لا يحتاجون أن يعرفوا أن ثمّ خانةً وقطّارة.
+  const apply = (v) => {
+    input.value = v;
+    swatch.style.background = v;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  input.addEventListener('input', ()=>{
+    hex.value = input.value.toUpperCase();
+    swatch.style.background = input.value;
+  });
+  hex.addEventListener('input', ()=>{
+    let v = hex.value.trim();
+    if(v && v[0] !== '#') v = '#' + v;
+    if(/^#[0-9a-fA-F]{6}$/.test(v)) apply(v);
+  });
+  // كتب نصفَ كودٍ ثم انصرف: يُرَدّ إلى آخر لونٍ صحيح، ولا يُترك نصفه
+  // معروضاً كأنه لون.
+  hex.addEventListener('blur', ()=>{ hex.value = input.value.toUpperCase(); });
+
+  const pick = wrap.querySelector('.rk-color-pick');
+  if(pick) pick.addEventListener('click', async ()=>{
+    try {
+      const res = await new window.EyeDropper().open();
+      if(res && res.sRGBHex) apply(res.sRGBHex);
+    } catch(_){ /* أغلقها بـEsc -- وهذا إلغاءٌ لا خطأ */ }
+  });
+
+  if(hint && !row.querySelector('.rk-field-hint')){
+    row.insertAdjacentHTML('beforeend', `<div class="rk-field-hint">${hint}</div>`);
+  }
+}
+
+
+/* ============ المعاينة تسبق الحفظ ============
+
+   ما يُرفع يُرى قبل أن يُحفظ. وإلا صار الحفظ تجربةً: تحفظ لترى، فإن
+   لم يعجبك حفظت مرةً أخرى -- وكل حفظةٍ رفعُ ملفٍ وكتابةٌ في القاعدة.
+   والمعاينة كانت تقرأ المحفوظ وحده، فكانت تكذب في اللحظة الوحيدة التي
+   يُنظر إليها فيها: بعد الاختيار وقبل الحفظ.
+
+   والروابط المؤقّتة تُحفظ في خريطة لا تُنشأ عند كل رسمة: createObjectURL
+   في دالّةِ رسمٍ تُستدعى مع كل ضغطة مفتاح يُسرّب رابطاً في كل مرة. */
+
+const RK_PENDING_URLS = new Map();
+
+function pendingImageUrl(inputId){
+  const el = document.getElementById(inputId);
+  const file = el && el.files && el.files[0];
+  const prev = RK_PENDING_URLS.get(inputId);
+  if(!file){
+    if(prev){ URL.revokeObjectURL(prev.url); RK_PENDING_URLS.delete(inputId); }
+    return null;
+  }
+  if(prev && prev.file === file) return prev.url;
+  if(prev) URL.revokeObjectURL(prev.url);
+  const url = URL.createObjectURL(file);
+  RK_PENDING_URLS.set(inputId, { file, url });
+  return url;
+}
+
+/**
+ * صورةٌ أُزيلت تُنسى عند الحفظ.
+ *
+ * كان الرفع طريقاً واحداً: تضع صورةً ولا تنزعها. ومن رفع بنراً في غير
+ * موضعه -- وهو يقع، لأن المواضع ثلاثة -- لم يجد سبيلاً إلا أن يرفع
+ * صورةً أخرى فوقه. والإزالة نصفُ الرفع، لا ميزةٌ إضافية عليه.
+ */
+const RK_CLEARED_IMAGES = new Set();
+
+function rkClearImage(inputId, column){
+  const el = document.getElementById(inputId);
+  if(el) el.value = '';
+  const prev = RK_PENDING_URLS.get(inputId);
+  if(prev){ URL.revokeObjectURL(prev.url); RK_PENDING_URLS.delete(inputId); }
+  RK_CLEARED_IMAGES.add(column);
+  updateImageUploadBoxPreview(inputId, null);
+  syncImageClearButtons();
+  renderLoyaltyCardPreview();
+}
+
+const RK_CLEARABLE = [
+  ['walletIconInput',      'wallet_icon_url',        () => WALLET_ASSETS.iconUrl],
+  ['walletLogoInput',      'wallet_logo_url',        () => WALLET_ASSETS.logoUrl],
+  ['walletStripInput',     'wallet_strip_url',       () => WALLET_ASSETS.stripUrl],
+  ['loyaltyCustomIconInput','loyalty_custom_icon_url',() => LOYALTY_BRANDING.customIconUrl],
+  // وحالةُ "قبل الشراء" مثلها: بُنيت بعد هذه القائمة فلم تُضف إليها،
+  // فبقيت صورةٌ تُرفع ولا تُزال -- ولا سبيل للرجوع إلى الأيقونة بعدها.
+  ['walletStampEmptyInput', 'wallet_stamp_empty_url', () => WALLET_ASSETS.stampEmptyUrl],
+];
+
+/** هل له ختمٌ مرفوع الآن -- معلّقاً أو محفوظاً ولم يُزَل؟ */
+function rkHasOwnStamp(){
+  const live = (id, col, saved) => !RK_CLEARED_IMAGES.has(col) && !!(pendingImageUrl(id) || saved());
+  return live('loyaltyCustomIconInput', 'loyalty_custom_icon_url', () => LOYALTY_BRANDING.customIconUrl)
+      || live('walletStampEmptyInput', 'wallet_stamp_empty_url', () => WALLET_ASSETS.stampEmptyUrl);
+}
+
+function syncImageClearButtons(){
+  RK_CLEARABLE.forEach(([id, col, saved])=>{
+    const row = rkFieldOf(id);
+    if(!row) return;
+    const has = !RK_CLEARED_IMAGES.has(col) && (pendingImageUrl(id) || saved());
+    let btn = row.querySelector('.rk-img-clear');
+    if(has && !btn){
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'rk-img-clear';
+      btn.textContent = '✕ إزالة الصورة';
+      btn.addEventListener('click', ()=> rkClearImage(id, col));
+      const box = document.getElementById(id + 'Box');
+      (box ? box.parentElement : row).appendChild(btn);
+    } else if(!has && btn){
+      btn.remove();
+    }
+  });
+}
+
+
+/* ============ خلفية الشريط وترتيب أختامه ============
+
+   قراران كانا مُشتقّين فصارا مُختارين. والاشتقاق يبقى الافتراضي --
+   بطاقةٌ متّسقة بلا أن يُطلب من صاحبها قرارٌ لا يعرف أثره -- لكن من
+   عرف ما يريد وجد أين يقوله.
+
+   ويُبنى الاثنان بعد إعادة الترتيب لا في قالب المحفظة: موضعهما مع
+   الختم، والقرب هو ما يقول إنهما يخصّانه. */
+
+const RKW_LAYOUTS = [
+  ['grid',    'صف مستقيم',  'M3 12h18'],
+  ['stagger', 'واحد فوق وواحد تحت', 'M3 8h4v0M3 16h4M9 8h4M9 16h4M15 8h4M15 16h4'],
+  ['arch',    'قوس',        'M3 17 A9 9 0 0 1 21 17'],
+  ['wave',    'موجة',       'M3 15 C7 7, 11 19, 15 11 S20 9, 21 12'],
+];
+
+/**
+ * شريطٌ تُعلَّم عليه القيمة المناسبة.
+ *
+ * شريطٌ من خمسين إلى مئتين بلا علامة يجعل كل موضعٍ فيه متساوياً في
+ * الظنّ: من حرّكه لم يعرف أين كان، ولا إلى أين يرجع. والمئةُ ليست
+ * منتصفَ الشريط حتى تُحزَر -- هي المحسوب من عرض الشريط وعدد الأختام،
+ * وهو ما يصلح لأكثر البطاقات.
+ *
+ * فتُرسم علامةٌ في موضعها، ويُقال عندها "المناسب"، ويُرجَع إليها
+ * بضغطة. ومن أراد غيرها أراده وهو يعرف من أين خرج.
+ */
+/**
+ * ويُحدَّث الامتلاء مع السحب.
+ *
+ * المتصفّحات لا تلوّن ما قبل الإبهام من نفسها (إلا فَيَرفُكس)، فيُحسب
+ * الطولُ هنا ويُكتب متغيّراً في النمط -- ولولاه لبقي المسار رمادياً
+ * كلَّه، ولا يُقرأ المقدار إلا من الرقم المكتوب.
+ */
+function rkRangeFill(inp){
+  if(!inp || inp.type !== 'range') return;
+  const min = Number(inp.min || 0), max = Number(inp.max || 100);
+  if(max === min) return;
+  inp.style.setProperty('--fill', (((Number(inp.value) - min) / (max - min)) * 100).toFixed(2) + '%');
+}
+document.addEventListener('input', e => rkRangeFill(e.target), true);
+
+function rkRangeWithDefault(id, label, min, max, step, value, def, defLabel, hint){
+  const atDef = Number(value) === Number(def);
+  return `
+    <div class="rk-field" style="margin-top:16px;">
+      <label>${label}
+        <span class="loyalty-range-value" id="${id}Value">${value}%${atDef ? ' · ' + defLabel : ''}</span>
+      </label>
+      <div class="rk-range">
+        <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${value}"
+               style="--fill:${(((value - min) / (max - min)) * 100).toFixed(2)}%;">
+      </div>
+      <div class="rk-field-hint">${hint}</div>
+    </div>`;
+}
+
+function walletStripStyleHtml(){
+  const a = WALLET_ASSETS;
+  const mode = a.stripBgMode || 'auto';
+  return `
+    <div class="rk-field" style="margin-top:16px;">
+      <label>خلفية شريط الأختام</label>
+      <div class="rk-seg rk-seg-4" id="walletStripBgSeg">
+        <button type="button" data-bg="auto" class="${mode==='auto'?'active':''}">مشتق من لونك</button>
+        <button type="button" data-bg="solid" class="${mode==='solid'?'active':''}">لون</button>
+        <button type="button" data-bg="gradient" class="${mode==='gradient'?'active':''}">تدرّج</button>
+        <button type="button" data-bg="image" class="${mode==='image'?'active':''}">صورة</button>
+      </div>
+      <div id="walletStripBgColors" class="rk-bgcolors ${(mode==='solid'||mode==='gradient')?'':'hidden'}">
+        <div class="rk-field" style="margin-top:10px;">
+          <label>${mode==='gradient' ? 'اللون الأول' : 'اللون'}</label>
+          <input type="color" id="walletStripBg1" value="${rkwHex(a.stripBg1, '#1A0F08')}">
+        </div>
+        <div class="rk-field ${mode==='gradient'?'':'hidden'}" id="walletStripBg2Row" style="margin-top:10px;">
+          <label>اللون الثاني</label>
+          <input type="color" id="walletStripBg2" value="${rkwHex(a.stripBg2, '#4A2C17')}">
+        </div>
+      </div>
+    </div>
+    <div id="walletStripImageHost" class="${mode==='image'?'':'hidden'}">
+      ${rkRangeWithDefault('walletScrimInput', 'تعتيم فوق الصورة', 0, 75, 1, a.stripScrim ?? 34, 34, 'المناسب',
+        'يخلّي الأختام تُقرأ فوق الصورة. صفر = بلا تعتيم، يصلح لو صورتك غامقة أصلاً.')}
+    </div>
+
+    ${rkRangeWithDefault('walletStampSizeInput', 'مقاس الختم', 50, 200, 10, a.stampSize ?? 100, 100, 'المقاس المناسب',
+      'المناسب محسوب من عرض الشريط وعدد أختامك. حرّكه لو تبيها أكبر أو تبي فراغ حواليها.')}
+
+    <div class="rk-field" style="margin-top:16px;">
+      <label>ترتيب الأختام</label>
+      <div class="rk-layoutpick" id="walletLayoutPick">
+        ${RKW_LAYOUTS.map(([k, label, d]) => `
+          <button type="button" data-layout="${k}" class="${(a.stampLayout||'grid')===k?'active':''}" title="${label}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="${d}"/></svg>
+            <span>${label}</span>
+          </button>`).join('')}
+      </div>
+    </div>`;
+}
+
+function mountWalletStripStyle(){
+  const group = document.querySelector('.rk-dgroup-stamp');
+  if(!group || document.getElementById('walletStripBgSeg')) return;
+  group.insertAdjacentHTML('beforeend', walletStripStyleHtml());
+
+  const seg = document.getElementById('walletStripBgSeg');
+  seg.addEventListener('click', (e)=>{
+    const b = e.target.closest('button[data-bg]');
+    if(!b) return;
+    seg.querySelectorAll('button').forEach(x=>x.classList.toggle('active', x===b));
+    const m = b.dataset.bg;
+    document.getElementById('walletStripBgColors').classList.toggle('hidden', m !== 'solid' && m !== 'gradient');
+    document.getElementById('walletStripBg2Row').classList.toggle('hidden', m !== 'gradient');
+    const imgHost = document.getElementById('walletStripImageHost');
+    if(imgHost) imgHost.classList.toggle('hidden', m !== 'image');
+    const lab = document.querySelector('#walletStripBgColors label');
+    if(lab) lab.textContent = m === 'gradient' ? 'اللون الأول' : 'اللون';
+    renderLoyaltyCardPreview();
+  });
+  ['walletStripBg1','walletStripBg2'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('input', ()=> renderLoyaltyCardPreview());
+  });
+  [['walletScrimInput', 34, 'المناسب'], ['walletStampSizeInput', 100, 'المقاس المناسب']].forEach(([id, def, defLabel])=>{
+    const el = document.getElementById(id);
+    if(!el) return;
+    const show = ()=>{
+      const o = document.getElementById(id + 'Value');
+      if(o) o.textContent = el.value + '%' + (Number(el.value) === def ? ' · ' + defLabel : '');
+    };
+    el.addEventListener('input', ()=>{ show(); renderLoyaltyCardPreview(); });
+  });
+  /**
+   * ومقاس الختم ينتقل تحت شكله.
+   *
+   * بُني مع خيارات الشريط لأنه كُتب معها، وموضعه ليس هناك: من اختار
+   * شكلاً سأل عن حجمه في اللحظة نفسها -- لا بعد خلفيةٍ ولا قبل ترتيب.
+   */
+  /**
+   * الصفّان يُلَفّان بعنوانٍ واحد.
+   *
+   * "بعد الشراء" و"قبل الشراء" حالتا شيءٍ واحد، وصفّان متتاليان بلا
+   * رابطٍ بينهما يُقرآن رفعين مستقلّين -- فيُرفع أحدهما ويُترك الآخر،
+   * وتخرج بطاقةٌ نصفها مصمَّم.
+   */
+  const cRowEl = document.getElementById('loyaltyCustomIconRow');
+  const eRowEl = document.getElementById('walletStampEmptyRow');
+  /**
+   * والصندوقان يُسوّيان.
+   *
+   * الأول وُرث من بطاقة الويب فجاء دائرياً (كان أيقونةً في دائرة)،
+   * والثاني بُني مربّعاً. وهما حالتا شيءٍ واحد تقفان متجاورتين --
+   * فشكلان مختلفان يقولان إنهما شيئان مختلفان.
+   */
+  const cBox = document.getElementById('loyaltyCustomIconInputBox');
+  if(cBox) cBox.setAttribute('style', 'width:104px; height:104px; margin-bottom:0;');
+  const eBox = document.getElementById('walletStampEmptyInputBox');
+  if(eBox) eBox.setAttribute('style', 'width:104px; height:104px; margin-bottom:0;');
+  if(cRowEl && eRowEl && !document.getElementById('rkStampPair')){
+    const pair = document.createElement('div');
+    pair.className = 'rk-stamp-pair loyalty-custom-icon-row' + (cRowEl.classList.contains('hidden') ? ' hidden' : '');
+    pair.id = 'rkStampPair';
+    pair.innerHTML = '<div class="rk-stamp-pair-title">ختمك أنت — الحالتين</div>';
+    cRowEl.insertAdjacentElement('beforebegin', pair);
+    const box = document.createElement('div');
+    box.className = 'rk-stamp-pair-boxes';
+    pair.appendChild(box);
+    box.appendChild(cRowEl);
+    box.appendChild(eRowEl);
+    cRowEl.classList.remove('hidden');
+    eRowEl.classList.remove('hidden');
+  }
+
+  const sizeRow = document.getElementById('walletStampSizeInput');
+  const shapeRow = rkFieldOf('loyaltyIconPicker');
+  if(sizeRow && shapeRow){
+    const r = sizeRow.closest('.rk-field');
+    const pair = document.getElementById('rkStampPair');
+    (pair || shapeRow).insertAdjacentElement('afterend', r);
+  }
+
+  const pick = document.getElementById('walletLayoutPick');
+  pick.addEventListener('click', (e)=>{
+    const b = e.target.closest('button[data-layout]');
+    if(!b) return;
+    pick.querySelectorAll('button').forEach(x=>x.classList.toggle('active', x===b));
+    renderLoyaltyCardPreview();
+  });
+  // الحقلان يصيران حقلَي لونٍ مرتّبين كبقيّة ألوان الشاشة.
+  try { rkUpgradeColorField('walletStripBg1'); rkUpgradeColorField('walletStripBg2'); } catch(_){}
+}
+
+/** التعتيم المختار الآن -- من الشريط لا من المحفوظ، فالمعاينة تسبق الحفظ. */
+function rkwScrim(){
+  const el = document.getElementById('walletScrimInput');
+  return el ? (parseInt(el.value, 10) || 0) : (WALLET_ASSETS.stripScrim ?? 34);
+}
+function rkwStampSizePct(){
+  const el = document.getElementById('walletStampSizeInput');
+  return el ? (parseInt(el.value, 10) || 100) : (WALLET_ASSETS.stampSize ?? 100);
+}
+
+function walletStripBgMode(){
+  const b = document.querySelector('#walletStripBgSeg button.active');
+  return b ? b.dataset.bg : (WALLET_ASSETS.stripBgMode || 'auto');
+}
+function walletStampLayout(){
+  const b = document.querySelector('#walletLayoutPick button.active');
+  return b ? b.dataset.layout : (WALLET_ASSETS.stampLayout || 'grid');
+}
+
+/**
+ * ارتفاعُ الختم في المعاينة -- نفس معادلة الخادم حرفاً بحرف.
+ *
+ * ولو اختلفتا لصار الاختيار يُضبط على ميلٍ ويُطبع بميلٍ آخر، وهو أسوأ
+ * من ألّا يكون الاختيار أصلاً.
+ */
+function rkwRise(layout, i, n, size){
+  const t = n <= 1 ? 0.5 : i / (n - 1);
+  if(layout === 'stagger') return (i % 2 === 0 ? -1 : 1) * size * 0.20;
+  if(layout === 'arch')    return -Math.sin(t * Math.PI) * size * 0.26;
+  if(layout === 'wave')    return Math.sin(t * Math.PI * 2) * size * 0.22;
+  return 0;
+}
+
+
+/* ============ تسميات البطاقة ============
+
+   حقول البطاقة تسمياتها مفاتيح تُترجَم بلغة جهاز الزبون. وهذا افتراضٌ
+   صحيح ولزومٌ خاطئ: مقهىً يسمّي زياراته "كوباتك"، ونادٍ يسمّي مستواه
+   "رتبتك"، ومطعمٌ لا يريد أن يُدعى زبونُه "العميل".
+
+   فمن كتب تسميته أخذها كما كتبها -- وخسر ترجمتها، وهو يعرف ما يخسر:
+   كتبها بلغته لأنه يعرف بأي لغةٍ يخاطب زبائنه. والفراغ يُبقي المترجَم،
+   فمن لم يقرّر لم يُقرَّر عنه. */
+
+/**
+ * والمحرّر يعرض ما تعرضه البطاقة، لا أكثر.
+ *
+ * بطاقةُ الأختام أربعةُ حقول ثابتة، فتسميةُ حقلٍ لا يظهر خانةٌ تُملأ
+ * ولا يُرى أثرُها -- وصاحب المطعم يكتب فيها ثم يفتح جواله فلا يجد
+ * شيئاً، فيظنّ العطل في البطاقة. والرابعُ الأخير عمودُ ما تحته:
+ * "points" يعني أن الحقل لا يُعرض إلا مع نظام النقاط.
+ */
+const RKW_LABEL_FIELDS = [
+  ['progress', 'عدّاد الزيارات/الأكواب', 'ختومك',        'Stamps'],
+  ['left',     'كم باقي له',             'باقي',          'Left'],
+  ['ready',    'لما تجهز مكافأته',       'مكافأتك جاهزة', 'Reward ready'],
+  ['customer', 'اسم العميل',             'اسمك',          'Name'],
+  // القيمةُ الوحيدة التي يكتبها صاحب المطعم وتظهر على وجه البطاقة.
+  ['rewardValue', 'اسم المكافأة نفسها',  '',              'Free coffee'],
+  ['reward',   'المكافأة',               'مكافأتك',       'Your reward',   'points'],
+  ['tier',     'المستوى',                'مستواك',        'Tier',          'points'],
+  ['saved',    'كم وفّر معك',            'وفّرت معنا',     'You saved',     'points'],
+  ['since',    'تاريخ انضمامه',          'عميلنا منذ',    'Member since',  'points'],
+  ['how',      'عنوان الشرح (ظهر البطاقة)', 'كيف تستخدمها', 'How to use it', 'points'],
+];
+
+const RKW_LABEL_TOGGLES = [
+  ['hideTier',     'المستوى (برونزي / ذهبي …)'],
+  ['hideSaved',    'كم وفّر معك'],
+  ['hideSince',    'تاريخ انضمامه'],
+  ['hideCustomer', 'اسم العميل'],
+  ['hideReward',   'اسم المكافأة'],
+  ['hideLinks',    'روابط المتجر والواتساب (ظهر البطاقة)'],
+];
+
+/**
+ * أسماء المستويات.
+ *
+ * "Bronze" و"Gold" اصطلاحُنا لا اصطلاحه: نادٍ يسمّيها "عضو/فضّي/ذهبي"،
+ * ومقهىً يسمّيها "زبون/صديق/من العيلة". والعتبات تبقى كما هي -- إنما
+ * الاسم الذي يُقرأ يخصّه.
+ */
+const RKW_TIER_NAMES = [
+  ['tierBronze',   'المستوى الأول',  'Bronze'],
+  ['tierSilver',   'الثاني',         'Silver'],
+  ['tierGold',     'الثالث',         'Gold'],
+  ['tierPlatinum', 'الأعلى',         'Platinum'],
+];
+
+function walletLabelsHtml(){
+  const L = WALLET_ASSETS.labels || {};
+  // فراغُ الافتراضي يعني "خذه من إعداد المكافأة" -- فيُعرض ما هو مضبوطٌ الآن.
+  const rewardNow = (LOYALTY_BRANDING || {}).rewardLabel || 'مكافأة مجانية';
+  const rows = RKW_LABEL_FIELDS.map(([k, what, def, defEn, only]) => `
+    <div class="rk-lblrow"${only ? ` data-lblonly="${only}"` : ''}>
+      <span class="rk-lblrow-what">${what}</span>
+      <input type="text" class="rk-lblrow-in" data-lbl="${k}" maxlength="40"
+             value="${escapeHtml(L[k] || '')}" placeholder="${escapeHtml(def || rewardNow)}">
+      <input type="text" class="rk-lblrow-in rk-lblrow-en" data-lblen="${k}" maxlength="40" dir="ltr"
+             value="${escapeHtml(L[k + 'En'] || '')}" placeholder="${escapeHtml(defEn)}">
+    </div>`).join('');
+
+  return `
+    <div class="rk-dgroup" id="walletLabelsBlock">
+      <div class="rk-dgroup-head"><span class="rk-dgroup-num">٤</span>
+        <div><div class="rk-dgroup-title">تسميات البطاقة</div>
+        <div class="rk-dgroup-sub">غيّرها بكيفك — أو اتركها وتترجم نفسها حسب لغة جوال عميلك.</div></div>
+      </div>
+      <p class="stock-qty-helper" style="margin-top:12px;">
+        خانتان لكل تسمية: <b>العربية</b> يشوفها اللي جواله عربي، و<b>الإنجليزية</b> يشوفها اللي جواله إنجليزي —
+        نفس البطاقة، والجهاز يختار. وأي خانة تتركها فاضية تاخذ ترجمتنا.
+      </p>
+      <div class="rk-lblrow rk-lblrow-cap" aria-hidden="true">
+        <span class="rk-lblrow-what"></span>
+        <span class="rk-lblrow-caplab">عربي</span>
+        <span class="rk-lblrow-caplab">English</span>
+      </div>
+      <div class="rk-lbltable">${rows}</div>
+      <div class="rk-lblrow-head" data-lblonly="points">أسماء المستويات</div>
+      <p class="stock-qty-helper" style="margin-top:4px;" data-lblonly="points">العتبات ما تتغيّر — الاسم اللي يقرأه عميلك فقط.</p>
+      <div class="rk-lbltable" data-lblonly="points">
+        ${RKW_TIER_NAMES.map(([k, what, def]) => `
+          <div class="rk-lblrow">
+            <span class="rk-lblrow-what">${what}</span>
+            <input type="text" class="rk-lblrow-in" data-lbl="${k}" maxlength="24"
+                   value="${escapeHtml((WALLET_ASSETS.labels || {})[k] || '')}" placeholder="${def}">
+          </div>`).join('')}
+      </div>
+
+      <div class="rk-lblrow-head" data-lblonly="points">حقول تقدر تخفيها من البطاقة</div>
+      ${RKW_LABEL_TOGGLES.map(([k, label]) => `
+        <label class="rk-check" style="margin-top:8px;" data-lblonly="points">
+          <input type="checkbox" data-lblflag="${k}" ${L[k] ? 'checked' : ''}>
+          <span class="rk-check-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+          <span>${label}</span>
+        </label>`).join('')}
+
+      <div class="rk-field" style="margin-top:14px;" data-lblonly="points">
+        <label>نصّ "كيف تستخدمها" (ظهر البطاقة)</label>
+        <textarea id="walletHowText" rows="3" maxlength="300"
+          placeholder="اعرض هذه البطاقة عند الكاشير. وحين تجهز مكافأتك اطلبها منه…">${escapeHtml(L.howText || '')}</textarea>
+        <textarea id="walletHowTextEn" rows="3" maxlength="300" dir="ltr" style="margin-top:8px;"
+          placeholder="Show this card at the register. When your reward is ready, ask for it…">${escapeHtml(L.howTextEn || '')}</textarea>
+      </div>
+    </div>`;
+}
+
+/* ============ مهلة بين دفعتين ============
+
+   iOS يخنق البطاقة التي تنهال عليها الإشعارات الصامتة: يبقى APNs يردّ
+   200، والجهاز لا يسحب البطاقة أبداً -- ولا يُفكّ إلا بحذفها وإعادة
+   إضافتها. وحدوده غير منشورة، فلا يُعرف متى يقع إلا بعد وقوعه.
+
+   وصاحب المطعم لا يعرف هذا ولا ينبغي أن يعرفه: هو يعدّل لوناً ويحفظ،
+   ثم يعدّل مسافةً ويحفظ -- ثلاث حفظاتٍ في دقيقة تصرّفٌ طبيعي تماماً،
+   وهي التي تخنق بطاقته.
+
+   فالزرُّ يُقفل من نفسه، ويقول كم بقي. والمنعُ خيرٌ من شرحٍ بعد العطب. */
+const RK_PUSH_GAP_MS = 75 * 1000;
+let RK_LAST_PUSH_AT = 0;
+
+/** كم بقي من المهلة بالثواني -- صفرٌ إذا انقضت. */
+function rkPushCooldownLeft(){
+  return Math.max(0, Math.ceil((RK_PUSH_GAP_MS - (Date.now() - RK_LAST_PUSH_AT)) / 1000));
+}
+
+/**
+ * يقفل الزرّ ويعدّ تنازلياً حتى تنقضي المهلة.
+ *
+ * ويُستدعى بعد كل دفعة، وعند بناء الشاشة: من فتحها وقد دفع قبل ثوانٍ
+ * يجد الزرّ مقفلاً كما تركه، لا مفتوحاً يغرّه.
+ */
+function rkGuardPushButton(btn, label){
+  if(!btn) return;
+  if(btn.dataset.rkGuard === '1') return;
+  btn.dataset.rkGuard = '1';
+  const tick = () => {
+    const left = rkPushCooldownLeft();
+    if(left > 0){
+      btn.disabled = true;
+      btn.textContent = 'استنَّ ' + left + ' ثانية';
+    } else {
+      btn.disabled = false;
+      btn.textContent = label;
+      clearInterval(id);
+      btn.dataset.rkGuard = '';
+    }
+  };
+  const id = setInterval(tick, 500);
+  tick();
+}
+
+function rkMarkPushed(){ RK_LAST_PUSH_AT = Date.now(); }
+
+/* ============ رسائل البطاقة ============
+
+   آبل لا تعطي إلا باباً واحداً لرسالةٍ تصل شاشة العميل: حقلٌ على
+   البطاقة تتغيّر قيمته. فالأنواع الأربعة -- عمليات وتسويق وجودة
+   وترجيع -- ليست أربعة أنظمة، إنما نصوصٌ مختلفة في حقلٍ واحد
+   بمُطلِقاتٍ مختلفة.
+
+   والعمليات وحدها لا تُكتب هنا: عدّاده يتغيّر من نفسه عند الشراء،
+   وchangeMessage عليه يقول ما جرى. */
+/**
+ * نصوصُ إشعارات العمليات -- موضعُها مع الإشعارات لا مع تسميات الحقول.
+ *
+ * تسميةُ الحقل تُقرأ حين تُفتح البطاقة، وهذي تُقرأ على الشاشة المقفلة
+ * مع كل شراء -- فهي إشعارٌ لا تسمية، ومكانُها حيث يُبحث عنها.
+ *
+ * و%@ يُستبدل بالرقم أو باسم المكافأة. وآبل لا تعرض إشعاراً لتغيّر
+ * حقلٍ إلا إذا حملت رسالتُه هذا الرمز -- فمن حذفه أسكت إشعاره وهو
+ * يظنّه يعمل.
+ */
+const RKW_CHG_FIELDS = [
+  ['chgProgress', 'صار عنده كذا',  'عدّادك صار %@ ☕',           "You're now at %@ ☕"],
+  ['chgLeft',     'باقي له كذا',    'باقي لك %@ على مكافأتك 🎁',  '%@ to go until your reward 🎁'],
+  ['chgReady',    'جاته مكافأة',    'مكافأتك جاهزة: %@ 🎉',       'Your reward is ready: %@ 🎉'],
+];
+
+function walletMessagesHtml(){
+  const b = LOYALTY_BRANDING || {};
+  const W = WALLET_ASSETS || {};
+  return `
+    <div class="rk-section" id="walletMsgBlock">
+      <div class="rk-section-head">
+        <div><div class="rk-section-title">رسائل تصل جواله</div>
+        <div class="rk-section-sub">إشعار على شاشته المقفلة، ويبقى مكتوباً على بطاقته لين تشيله.</div></div>
+      </div>
+
+      <div class="rk-field" style="margin-top:14px;">
+        <label>عرض تبثّه الآن لكل عملائك</label>
+        <textarea id="walletBroadcastText" rows="2" maxlength="160"
+          placeholder="احتفل باليوم الوطني بخصم ٢٠٪ لأعضاء الولاء — اليوم فقط 🎉"></textarea>
+        <div class="rk-charcount" id="walletBroadcastCount">0 / 160</div>
+        <div class="rk-field-hint">يوصلهم خلال ثوانٍ. اسم مطعمك يطلع فوقه، ونصّك تحته.
+          والعرض الجديد <b>يحلّ محلّ القديم</b> — بطاقةٌ واحدة ورسالةٌ واحدة.</div>
+        <button type="button" class="rk-btn rk-btn-primary rk-btn-md" id="walletBroadcastBtn" style="margin-top:10px; width:100%;">أرسل العرض</button>
+        <div id="walletBroadcastOut" class="rk-verify-status"></div>
+      </div>
+
+      <div id="walletActiveOffer" hidden></div>
+
+      <div class="rk-lblrow-head">إشعارات العمليات — نصوصها بيدك</div>
+      <p class="stock-qty-helper" style="margin-top:4px;">
+        هذي اللي توصل شاشته المقفلة مع كل شراء. و<code>%@</code> يتحوّل
+        للرقم أو لاسم المكافأة — خلّه في نصّك، وإذا نسيته نضيفه بآخر السطر.
+      </p>
+      <div class="rk-lblrow rk-lblrow-cap" aria-hidden="true">
+        <span class="rk-lblrow-what"></span>
+        <span class="rk-lblrow-caplab">عربي</span>
+        <span class="rk-lblrow-caplab">English</span>
+      </div>
+      <div class="rk-lbltable">
+        ${RKW_CHG_FIELDS.map(([k, what, def, defEn]) => `
+          <div class="rk-lblrow">
+            <span class="rk-lblrow-what">${what}</span>
+            <input type="text" class="rk-lblrow-in" data-lbl="${k}" maxlength="90"
+                   value="${escapeHtml((WALLET_ASSETS.labels || {})[k] || '')}" placeholder="${escapeHtml(def)}">
+            <input type="text" class="rk-lblrow-in rk-lblrow-en" data-lblen="${k}" maxlength="90" dir="ltr"
+                   value="${escapeHtml((WALLET_ASSETS.labels || {})[k + 'En'] || '')}" placeholder="${escapeHtml(defEn)}">
+          </div>`).join('')}
+      </div>
+
+      <div class="rk-lblrow-head">تلقائية — تشتغل بلا متابعة</div>
+
+      <div class="rk-switch-row">
+        <div class="rk-switch-text">
+          <span class="rk-switch-label">اسأله عن رأيه بعد الزيارة</span>
+          <span class="rk-switch-desc">يوصله بعد <b id="wqHoursLbl">${W.qualityHours ?? 3}</b> ساعات من زيارته.</span>
+        </div>
+        <label class="rk-switch">
+          <input type="checkbox" id="walletQualityOn" ${W.qualityOn ? 'checked' : ''}>
+          <span class="rk-switch-track"></span>
+        </label>
+      </div>
+      <div class="rk-field" style="margin-top:10px;">
+        <input type="text" id="walletQualityText" maxlength="160"
+          value="${escapeHtml(W.qualityText || '')}" placeholder="رأيك يفرق — كيف كانت زيارتك؟">
+      </div>
+      <div class="rk-field" style="margin-top:10px;">
+        <label>بعد كم ساعة</label>
+        <input type="number" id="walletQualityHours" min="1" max="72" value="${W.qualityHours ?? 3}">
+      </div>
+
+      <div class="rk-switch-row" style="margin-top:6px;">
+        <div class="rk-switch-text">
+          <span class="rk-switch-label">رجّع اللي طوّلوا عنك</span>
+          <span class="rk-switch-desc">يوصله إذا ما زارك <b>${b.winBackDays ?? 30}</b> يوم.</span>
+        </div>
+        <label class="rk-switch">
+          <input type="checkbox" id="walletWinBackOn" ${b.winBackOn ? 'checked' : ''}>
+          <span class="rk-switch-track"></span>
+        </label>
+      </div>
+      <div class="rk-field" style="margin-top:10px;">
+        <input type="text" id="walletWinBackText" maxlength="160"
+          value="${escapeHtml(b.winBackMessage || '')}" placeholder="مشتقنالك! زورنا قريب — عندنا شي يسعدك 🎁">
+      </div>
+      <div class="rk-field" style="margin-top:10px;">
+        <label>بعد كم يوم</label>
+        <input type="number" id="walletWinBackDays" min="3" max="365" value="${b.winBackDays ?? 30}">
+      </div>
+
+      <div class="rk-switch-row" style="margin-top:6px;">
+        <div class="rk-switch-text">
+          <span class="rk-switch-label">إشعار بعد كل عملية</span>
+          <span class="rk-switch-desc">يوصله رصيده الجديد لحظة ما يحسبه الكاشير — جزء من البطاقة نفسها.</span>
+        </div>
+        <span class="rk-switch-desc ok" style="font-weight:800;">✓ يعمل</span>
+      </div>
+
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="walletMsgSaveBtn" type="button"
+              style="margin-top:18px; width:100%;">احفظ إعدادات الإشعارات</button>
+    </div>`;
+}
+
+/**
+ * تبويبٌ مستقلّ لا مجموعةٌ في شاشة التصميم.
+ *
+ * التصميم يجيب "كيف تبدو البطاقة"، والإشعارات تجيب "متى تكلّم عميلك"
+ * -- سؤالان يُفتحان في وقتين مختلفين، ومن جمعهما في شاشةٍ واحدة جعل
+ * أطولَهما يدفن أقصرَهما.
+ *
+ * ويُبنى بالجافاسكربت لا في القالب: القالب سلسلةٌ واحدة مهرّبة،
+ * وإضافةُ لوحةٍ فيها تعني تحرير نصٍّ لا بنية.
+ */
+/**
+ * المستويات تُخفى -- مؤقّتاً بطلب صاحب المطعم.
+ *
+ * البرونزي والفضّي والذهبي أسماءٌ بلا أثر: لا خصمَ يتبعها ولا مضاعفة،
+ * وصاحب المطعم سأل "وش فايدة سلفر؟" ولم يكن للسؤال جواب. فتُخفى حتى
+ * يكون لها فعلٌ يُشرح -- ولا تُحذف: الحساب قائم في القاعدة، والعتبات
+ * محفوظة، فمتى فُعِّلت عادت بأرصدتها.
+ */
+/**
+ * تبويب "التواصل مع العملاء" يُطوى -- ثلاثةُ أقسامٍ اثنان منها زائدان.
+ *
+ *   استرجاع الخاملين  -- مكرَّرٌ حرفياً: نفس أعمدة القاعدة التي في
+ *                        تبويب الإشعارات. واجهتان تكتبان الشيء نفسه
+ *                        تفترقان يوماً، ويُقرأ الفرقُ عطلاً.
+ *   إشعار فوري        -- إشعارات المتصفّح، ولا تصل الآيفون إلا لمن
+ *                        أضاف الصفحة إلى شاشته الرئيسية -- ولا أحد
+ *                        يفعل. ونظيرُه على المحفظة هو ما يعمل فعلاً.
+ *   عرض مستهدف        -- نافع: يبني قائمةً بشروط ويصدّرها CSV بأرقام
+ *                        الجوالات. فيُنقل إلى الإشعارات ولا يُحذف.
+ *
+ * ولا يُحذف من القالب: القالب سلسلةٌ واحدة مهرّبة، وطيُّه هنا يكفي --
+ * وإن أُعيد يوماً فالحقول كما تركها أصحابها.
+ */
+function rkFoldContactTab(){
+  const tab = document.querySelector('[data-loyalty-tab="contact"]');
+  const panel = document.querySelector('[data-loyalty-panel="contact"]');
+  if(!tab || !panel || tab.hidden) return;
+
+  // "عرض مستهدف" ينتقل إلى تبويب الإشعارات قبل أن يُطوى ما حوله.
+  const msgBlock = document.getElementById('walletMsgBlock');
+  const sections = [...panel.querySelectorAll('.rk-section')];
+  const targeted = sections.find(sec =>
+    (sec.querySelector('.rk-section-title') || {}).textContent === 'عرض مستهدف');
+  if(targeted && msgBlock && !document.getElementById('rkTargetedMoved')){
+    targeted.id = 'rkTargetedMoved';
+    msgBlock.insertAdjacentElement('afterend', targeted);
+  }
+
+  tab.hidden = true;
+  panel.hidden = true;
+  if(tab.classList.contains('active')){
+    const first = document.querySelector('#loyaltyTabs .loyalty-tab:not([hidden])');
+    if(first) first.click();
+  }
+}
+
+function rkHideTiersTab(){
+  const tab = document.querySelector('[data-loyalty-tab="tiers"]');
+  const panel = document.querySelector('[data-loyalty-panel="tiers"]');
+  if(tab) tab.hidden = true;
+  if(panel) panel.hidden = true;
+  // ولو كانت مفتوحةً حين أُخفيت، تُردّ العين إلى أول تبويب.
+  if(tab && tab.classList.contains('active')){
+    const first = document.querySelector('#loyaltyTabs .loyalty-tab:not([hidden])');
+    if(first) first.click();
+  }
+}
+
+/**
+ * العرض الشغّال الآن -- يُرى، ويُنهى من موضعه.
+ *
+ * كان زرُّ "أنهِ العرض" جالساً بجانب "أرسل" دائماً، ولا شيء يقول أيّ
+ * عرضٍ يُنهى ولا إن كان ثمّة عرضٌ أصلاً. فيبثّ صاحب المطعم عرض اليوم
+ * الوطني وينسى، ويبقى على بطاقات زبائنه شهراً.
+ *
+ * فيُعرض نصُّه وتاريخُه، وزرُّ الإنهاء بجانبه -- فما يُنهى شيءٌ لا
+ * يُرى.
+ */
+function renderActiveOffer(){
+  const host = document.getElementById('walletActiveOffer');
+  if(!host) return;
+  const txt = (LOYALTY_BRANDING || {}).offerText;
+  if(!txt){ host.hidden = true; host.innerHTML = ''; return; }
+  const when = (LOYALTY_BRANDING || {}).offerAt;
+  const since = when ? new Date(when).toLocaleDateString('ar-SA', {day:'2-digit', month:'2-digit'}) : '';
+  host.hidden = false;
+  host.innerHTML = `
+    <div class="rk-active-offer">
+      <div class="rk-active-offer-head">
+        <span class="rk-active-offer-dot"></span>
+        <span>شغّال الآن على بطاقات عملائك${since ? ' — من ' + since : ''}</span>
+      </div>
+      <div class="rk-active-offer-text">${escapeHtml(txt)}</div>
+      <button type="button" class="rk-btn rk-btn-secondary rk-btn-md" id="walletBroadcastClear">أنهِ العرض</button>
+    </div>`;
+  const clr = document.getElementById('walletBroadcastClear');
+  if(clr) clr.addEventListener('click', ()=> rkSendBroadcast('', clr, r => '✓ انتهى العرض — انشال من ' + r.written + ' بطاقة'));
+}
+
+function mountWalletMessages(){
+  const tabs = document.getElementById('loyaltyTabs');
+  const anyPanel = document.querySelector('.loyalty-tab-panel');
+  if(!tabs || !anyPanel || document.getElementById('walletMsgBlock')) return;
+
+  if(!tabs.querySelector('[data-loyalty-tab="notify"]')){
+    tabs.insertAdjacentHTML('beforeend',
+      '<button class="loyalty-tab" data-loyalty-tab="notify" type="button">الإشعارات</button>');
+  }
+  const panels = [...document.querySelectorAll('.loyalty-tab-panel')];
+  const panel = document.createElement('div');
+  panel.className = 'loyalty-tab-panel';
+  panel.dataset.loyaltyPanel = 'notify';
+  panel.innerHTML = walletMessagesHtml();
+  panels[panels.length - 1].insertAdjacentElement('afterend', panel);
+
+  const out = document.getElementById('walletBroadcastOut');
+  window.rkSendBroadcast = async (text, btn, done) => {
+    rkBtnLoading(btn, true);
+    try {
+      const { data: { session } } = await window.supabaseClient.auth.getSession();
+      const r = await fetch('/api/dashboard/wallet-broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+        body: JSON.stringify({ text }),
+      }).then(x => x.json());
+      rkBtnLoading(btn, false);
+      if(r.error){ out.className = 'rk-verify-status warn'; out.textContent = '⚠ ' + r.error; return; }
+      out.className = 'rk-verify-status ok';
+      out.textContent = done(r);
+      LOYALTY_BRANDING.offerText = text || null;
+      LOYALTY_BRANDING.offerAt = text ? new Date().toISOString() : null;
+      renderActiveOffer();
+      rkMarkPushed();
+      rkGuardPushButton(document.getElementById('walletBroadcastBtn'), 'أرسل العرض');
+      rkGuardPushButton(document.getElementById('walletBroadcastClear'), 'أنهِ العرض');
+      rkGuardPushButton(document.getElementById('loyaltyBrandingSaveBtn'), 'احفظ التصميم');
+    } catch(e){
+      rkBtnLoading(btn, false);
+      out.className = 'rk-verify-status warn';
+      out.textContent = 'تعذر الإرسال: ' + (e && e.message ? e.message : 'خطأ');
+    }
+  };
+  document.getElementById('walletBroadcastBtn').addEventListener('click', async function(){
+    const t = (document.getElementById('walletBroadcastText').value || '').trim();
+    if(!t){ out.className = 'rk-verify-status warn'; out.textContent = '⚠ اكتب العرض أولاً'; return; }
+    // ويُسأل قبل أن يُمحى عرضٌ قائم: البطاقة رسالةٌ واحدة، والجديد
+    // يحلّ محلّ القديم -- فالأولى أن يُقال قبل أن يقع.
+    const live = (LOYALTY_BRANDING || {}).offerText;
+    if(live){
+      const go = await rkAsk({
+        title: 'عندك عرض شغّال',
+        body: 'الجديد بيحلّ محلّه وينشال من بطاقاتهم:<br><br><b>' + escapeHtml(live) + '</b>',
+        ok: 'كمّل وأرسل الجديد', cancel: 'خلّه',
+      });
+      if(!go) return;
+    }
+    window.rkSendBroadcast(t, this, r => '✓ وصل ' + r.sent + ' من ' + r.written + ' — شوف جوالك');
+  });
+  renderActiveOffer();
+  /**
+   * عدّادُ الحروف: يقول كم بقي قبل أن يُرفض النصّ.
+   *
+   * الحدّ مئةٌ وستون -- حدُّ الخادم نفسه، وما فوقه يُقصّ على الشاشة
+   * المقفلة على كل حال. وبلا عدّادٍ يكتب صاحب المطعم فقرةً ثم يُقال له
+   * "أطول من اللازم" بعد أن كتبها.
+   */
+  const bt = document.getElementById('walletBroadcastText');
+  const bc = document.getElementById('walletBroadcastCount');
+  if(bt && bc){
+    const tick = ()=>{
+      const n = (bt.value || '').length;
+      bc.textContent = n + ' / 160';
+      bc.classList.toggle('near', n > 130);
+    };
+    bt.addEventListener('input', tick);
+    tick();
+  }
+
+  const hrs = document.getElementById('walletQualityHours');
+  if(hrs) hrs.addEventListener('input', ()=>{
+    const l = document.getElementById('wqHoursLbl');
+    if(l) l.textContent = hrs.value;
+  });
+
+  document.getElementById('walletMsgSaveBtn').addEventListener('click', async function(){
+    rkBtnLoading(this, true);
+    const num = (id, def, lo, hi) => {
+      const el = document.getElementById(id);
+      return Math.max(lo, Math.min(hi, parseInt(el && el.value, 10) || def));
+    };
+    const txt = (id) => (document.getElementById(id).value || '').trim() || null;
+    const updates = {
+      wallet_msg_quality_on: document.getElementById('walletQualityOn').checked,
+      wallet_msg_quality_hours: num('walletQualityHours', 3, 1, 72),
+      notify_win_back: document.getElementById('walletWinBackOn').checked,
+      win_back_inactive_days: num('walletWinBackDays', 30, 3, 365),
+    };
+    // النصّ الفارغ يعني "خلّ الافتراضي" -- والعمودان NOT NULL، فلا يُرسل.
+    const q = txt('walletQualityText'); if(q) updates.wallet_msg_quality_text = q;
+    const w = txt('walletWinBackText'); if(w) updates.win_back_message = w;
+    // ونصوصُ الإشعارات تُحفظ معها: هي في هذا التبويب، فزرُّه يحفظها.
+    updates.wallet_labels = collectWalletLabels();
+    try {
+      // updateCurrentBusiness لا update خام: الخام يردّ error:null بصفر
+      // صفوفٍ حين تحجبه RLS، فيُقال "تم الحفظ" ولم يُحفظ شيء.
+      await updateCurrentBusiness(updates);
+      rkBtnLoading(this, false);
+      Object.assign(WALLET_ASSETS, {
+        qualityOn: updates.wallet_msg_quality_on,
+        qualityText: updates.wallet_msg_quality_text ?? WALLET_ASSETS.qualityText,
+        qualityHours: updates.wallet_msg_quality_hours,
+      });
+      Object.assign(LOYALTY_BRANDING, {
+        winBackOn: updates.notify_win_back,
+        winBackMessage: updates.win_back_message ?? LOYALTY_BRANDING.winBackMessage,
+        winBackDays: updates.win_back_inactive_days,
+      });
+      WALLET_ASSETS.labels = updates.wallet_labels;
+      /**
+       * والبطاقات تُوقظ: نصُّ الإشعار جزءٌ من البطاقة نفسها، فتغييرُه
+       * لا يصل الزبون حتى تُبنى له من جديد.
+       */
+      try {
+        const { data: woke } = await window.supabaseClient.rpc('bump_business_wallet_passes');
+        if(woke > 0) rkMarkPushed();
+      } catch(_){ /* التصميم محفوظ، والإيقاظ يلحق في الدورة القادمة */ }
+      rkBtnSuccess(this, '✓ تم الحفظ');
+    } catch(err){
+      rkBtnLoading(this, false);
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ'));
+    }
+  });
+}
+
+function mountWalletLabels(){
+  const after = [...document.querySelectorAll('.rk-dgroup')]
+    .find(g => (g.querySelector('.rk-dgroup-title') || {}).textContent === 'صور إضافية');
+  if(!after || document.getElementById('walletLabelsBlock')) return;
+  after.insertAdjacentElement('afterend', (()=>{
+    const d = document.createElement('div');
+    d.innerHTML = walletLabelsHtml();
+    return d.firstElementChild;
+  })());
+  /**
+   * والمعاينة تتبع الكتابة حرفاً بحرف.
+   *
+   * تسميةٌ لا تُرى إلا بعد الحفظ تعني حفظاً للتجربة -- يحفظ ليرى، فيمضي
+   * ما لم يقصده إلى بطاقات عملائه، ثم يعود يصلحه.
+   */
+  document.querySelectorAll('#walletLabelsBlock [data-lbl], #walletLabelsBlock [data-lblen], #walletHowText, #walletHowTextEn')
+    .forEach(inp => inp.addEventListener('input', renderLoyaltyCardPreview));
+}
+
+/**
+ * ما كُتب فقط يُحفظ.
+ *
+ * حقلٌ فارغ ليس تسميةً فارغة -- هو "لم أقرّر"، والمترجَم يبقى. ولو
+ * حُفظ الفراغ لخرجت البطاقة بحقلٍ بلا تسمية، وهو أسوأ من تسميةٍ
+ * بلغةٍ أخرى.
+ */
+function collectWalletLabels(){
+  const out = {};
+  /**
+   * ونصُّ الإشعار لا يخلو من %@.
+   *
+   * آبل لا تعرض إشعاراً لتغيّر حقلٍ إلا إذا حملت رسالتُه %@ -- فمن كتب
+   * "مكافأتك جاهزة" بلا الرمز أسكت إشعاره وهو يظنّه يعمل. فيُضاف بآخر
+   * السطر، ويبقى نصُّه كما كتبه.
+   */
+  const NEEDS_AT = ['chgProgress', 'chgLeft', 'chgReady'];
+  const withAt = (key, v) => (NEEDS_AT.includes(key) && !v.includes('%@')) ? (v + ' %@') : v;
+  document.querySelectorAll('[data-lbl]').forEach(el => {
+    const v = (el.value || '').trim();
+    if(v) out[el.dataset.lbl] = withAt(el.dataset.lbl, v);
+  });
+  document.querySelectorAll('[data-lblen]').forEach(el => {
+    const v = (el.value || '').trim();
+    if(v) out[el.dataset.lblen + 'En'] = withAt(el.dataset.lblen, v);
+  });
+  document.querySelectorAll('[data-lblflag]').forEach(el => {
+    if(el.checked) out[el.dataset.lblflag] = true;
+  });
+  document.querySelectorAll('[data-lblflagoff]').forEach(el => {
+    if(!el.checked) out[el.dataset.lblflagoff] = true;
+  });
+  const how = document.getElementById('walletHowText');
+  if(how && how.value.trim()) out.howText = how.value.trim();
+  const howEn = document.getElementById('walletHowTextEn');
+  if(howEn && howEn.value.trim()) out.howTextEn = howEn.value.trim();
+  return out;
+}
 
 })();

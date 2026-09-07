@@ -56,8 +56,26 @@ export const SAUDI_MOBILE_RE = /^05\d{8}$/;
  *  the customer is found by on every later visit. The field caps as you
  *  type, so the two never disagree in practice -- this just makes sure a
  *  value arriving any other way is rejected rather than quietly altered. */
+/**
+ * ويُصلَح ما يُكتب بصورةٍ أخرى للرقم نفسه.
+ *
+ * الرقم الواحد يُكتب ثلاثاً: 0557444227، و557444227 بلا صفرها،
+ * و966557444227 بمقدّمة الدولة. وكان يُقبل كما كُتب -- فيُبحث به فلا
+ * يُوجد صاحبُه وهو مسجّلٌ عندنا بصورةٍ أخرى، فيُنشأ عميلٌ ثانٍ لنفس
+ * الإنسان وينقسم رصيدُ ولائه بين صفّين.
+ *
+ * (نظيرها في الويب: shapePhone داخل renderCustomerStep.)
+ */
 export function normalisePhoneInput(raw: string): string {
-  return toWesternDigits(raw).replace(/\D/g, '').slice(0, 10);
+  let d = toWesternDigits(raw).replace(/\D/g, '');
+  if (d.startsWith('966')) d = '0' + d.slice(3);
+  else if (d.startsWith('5')) d = '0' + d;
+  return d.slice(0, 10);
+}
+
+/** يبدأ بـ 05 وعشرُ خاناتٍ لا أكثر -- وهو شرطُ الحفظ لا تحسينُه. */
+export function isSaudiMobile(phone: string): boolean {
+  return SAUDI_MOBILE_RE.test(phone);
 }
 
 export function validateNewCustomerDraft(draft: NewCustomerDraft): ValidationResult {

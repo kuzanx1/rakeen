@@ -4,13 +4,32 @@
 // 2. Handle push notifications (owner alerts — low stock, new order,
 //    refund/cancel, sales target) and open the dashboard when tapped.
 
-const CACHE_NAME = 'rakeen-dashboard-shell-v1';
+/**
+ * اسمُ المخزن يحمل رقمَ إصدار.
+ *
+ * activate يحذف كل مخزنٍ لا يوافق هذا الاسم. فرفعُ الرقم يمسح القديم
+ * كلَّه مرّةً واحدة -- وهو المخرج الوحيد حين تعلَق نسخةٌ قديمة في
+ * جهاز، ويبقى صاحبه يرى شاشةً غير التي نُشرت ولا شيء يقول له لماذا.
+ */
+const CACHE_NAME = 'rakeen-dashboard-shell-v2';
+/**
+ * والجافاسكربت خرج من قائمة التخزين المسبق.
+ *
+ * كان يُخزَّن عند التثبيت -- لقطةٌ تُؤخذ مرّةً وتبقى. والاستراتيجية
+ * "شبكةٌ أولاً" تحميه في الأحوال العادية، لكن أيَّ تعثّرٍ لحظي في
+ * الشبكة يُرجع اللقطة القديمة، فتعمل اللوحة بنسخةٍ من الأمس بلا
+ * علامةٍ ظاهرة -- وهو أخطر من ألّا تعمل.
+ *
+ * والقشرة تكفي للعمل بلا شبكة: صفحةُ /dashboard والأيقونة والبيان.
+ */
 const SHELL_URLS = [
   '/dashboard',
-  '/dashboard/rakeen-dashboard.js',
   '/dashboard-manifest.json',
   '/pos-icon.svg',
 ];
+
+// ويبقى الجافاسكربت مارّاً بالشبكة دائماً -- لا يُخزَّن ولا يُقدَّم منه.
+const NEVER_CACHE = ['/dashboard/rakeen-dashboard.js'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -29,6 +48,10 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
+  if (NEVER_CACHE.includes(url.pathname)) return;   // إلى الشبكة مباشرة
+  // والرابط يحمل بصمةَ بناءٍ الآن (`?b=...`)، فتُقارَن المسارات وحدها
+  // -- والذاكرة تُفهرس بالرابط كاملاً، فبناءٌ جديد = طلبٌ جديد يُجلب
+  // من الشبكة ويُخزَّن، بلا أن يمسح أحدٌ شيئاً.
   if (!SHELL_URLS.includes(url.pathname)) return;
 
   event.respondWith(

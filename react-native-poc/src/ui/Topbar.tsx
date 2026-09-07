@@ -204,8 +204,13 @@ export default function Topbar({
         </TouchableOpacity>
       </View>
 
-      {/* .tb-clock -- `display:none` below 761px */}
-      {sideBySide && <Text style={styles.tbClock}>{clock}</Text>}
+      {/*
+        ساعةُ التطبيق حُذفت: النظامُ يعرض الساعةَ فوقها مباشرةً، وساعتان
+        على شاشةٍ واحدة تُقرآن عطلاً -- خصوصاً وقد اختلفتا صيغةً (ص/م
+        عندنا، وتنسيقُ الجهاز عنده). وفي الويب لها معنى: الصفحةُ قد
+        تُفتح ملءَ الشاشة بلا شريط نظام. وفي التطبيق لا تُفتح كذلك أبداً.
+        (clock ما زالت تُحسب: يُقرؤها التشخيص.)
+      */}
     </View>
   );
 }
@@ -216,7 +221,11 @@ const useStyles = createStyles(colors =>
        padding-inline 12. The safe-area top the CSS adds via env() is
        supplied by the SafeAreaView this sits inside. */
     topbar: {
-      height: 58,
+      // ومسافةٌ تحت شريط النظام: SafeAreaView يُنزل المحتوى عن الساعة
+      // بالضبط، فيلتصق الصفُّ بها بلا فاصل ويُقرأ الاثنان صفاً واحداً
+      // مزدحماً. وستّةٌ تكفي لأن يُفصلا بالعين.
+      paddingTop: 6,
+      height: 64,
       flexShrink: 0,
       flexDirection: 'row',
       alignItems: 'center',
@@ -229,7 +238,7 @@ const useStyles = createStyles(colors =>
     },
     /* Base rule (rakeen-pos.css:90), which is what actually applies at
        >=761px once the phone override drops out: h52, gap 10, pad 0 16. */
-    topbarWide: { height: 52, gap: 10, paddingHorizontal: 16, zIndex: 20 },
+    topbarWide: { height: 58, gap: 10, paddingHorizontal: 16, zIndex: 20 },
 
     identityCluster: { flexDirection: 'row', alignItems: 'center', gap: 9, flexShrink: 0, minWidth: 0 },
     // inline `height:20px; width:auto` on the element itself

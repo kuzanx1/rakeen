@@ -334,7 +334,12 @@ svg{display:block;}
 .oi-note-input.open{display:block;}
 .oi-note-text{font-size:10px; color:var(--text); opacity:0.7; margin-top:3px; font-weight:600;}
 
-.op-discount-row{padding:12px 18px 0;}
+/* الزرّان في سطرٍ واحد: العميل والخصم إجراءان متجاوران على السلة، لا
+   أحدهما فوق الآخر -- والسلة أضيق من أن تُهدر سطراً لكلٍّ منهما.
+   (ولوحة الخصم تبقى تحتهما بعرضها كاملاً، فتُبقى خارج الالتفاف.) */
+.op-discount-row{padding:12px 18px 0; display:flex; flex-wrap:wrap; gap:8px;}
+.op-discount-row > .discount-toggle{flex:1 1 0; min-width:0;}
+.op-discount-row > .discount-panel{flex:1 0 100%;}
 .discount-toggle{width:100%; padding:10px; border-radius:var(--r-md); border:1px dashed var(--line); background:none; color:var(--muted); font-size:11.5px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px;}
 .discount-panel{display:none; margin-top:8px; gap:6px;}
 .discount-panel.open{display:flex;}
@@ -485,6 +490,9 @@ svg{display:block;}
 .order-row-badge.running{background:var(--lime-deep);}
 .order-row-badge.completed{background:var(--muted);}
 .order-row-badge.cancelled{background:var(--danger);}
+/* المسترجَع ليس ملغىً: مالٌ قُبض ثم خرج، لا بيعٌ لم يقع. فلونه كهرماني
+   يُنبّه ولا يُنذر -- والأحمر للإلغاء وحده. */
+.order-row-badge.refunded{background:var(--amber);}
 .order-row-info{flex:1; min-width:0;}
 .order-row-title{font-weight:700; font-size:13.5px;}
 .order-row-meta{font-size:11px; color:var(--muted); margin-top:2px;}
@@ -658,6 +666,68 @@ svg{display:block;}
 .loyalty-wait-timer{font-weight:700; font-size:11.5px; color:var(--muted); font-family:'IBM Plex Mono',monospace; margin-bottom:14px;}
 .loyalty-otp-back{padding:10px; border:none; background:none; color:var(--muted); font-weight:700; font-size:12px; cursor:pointer;}
 
+/* خانة رمز التأكيد -- أربعة أرقام تُقرأ عن بُعد: الكاشير يكتبها
+   والزبون واقفٌ ينظر إليها، فتكبر ويتباعد حرفها. */
+.loyalty-code-input{
+  width:168px; margin:4px 0 6px; padding:10px 0; text-align:center;
+  font-family:'IBM Plex Mono',monospace; font-size:30px; font-weight:700;
+  letter-spacing:10px; color:var(--text);
+  background:var(--surf1); border:1px solid var(--line); border-radius:var(--r-md);
+}
+.loyalty-code-input:focus{outline:none; border-color:var(--lime-deep); box-shadow:0 0 0 3px rgba(143,203,23,.18);}
+.loyalty-code-err{min-height:16px; font-size:11.5px; font-weight:700; color:var(--danger); margin-bottom:6px;}
+.loyalty-code-ok{
+  padding:12px 40px; border:none; border-radius:var(--r-md); cursor:pointer;
+  background:var(--lime); color:var(--graphite); font-family:inherit; font-weight:800; font-size:14px;
+}
+.loyalty-code-ok:disabled{opacity:.45; cursor:default;}
+
+/* بطاقةٌ لكل باب: عنوانٌ يقول ما هو، وسطرٌ يقول متى يُستعمل -- فيُختار
+   بالقراءة لا بالتجريب. */
+.loyalty-pick{
+  display:flex; flex-direction:column; gap:3px; align-items:flex-start;
+  width:100%; margin-top:10px; padding:14px 16px; cursor:pointer; text-align:start;
+  background:var(--surf1); border:1px solid var(--line); border-radius:var(--r-md);
+  font-family:inherit; color:var(--text); transition:border-color .12s ease, background .12s ease;
+}
+.loyalty-pick:hover{border-color:var(--lime-deep); background:var(--card-bg);}
+.loyalty-pick b{font-size:14px; font-weight:800;}
+
+/* أسطر الاسترجاع: اسمٌ وسعرٌ وكم بقي، وعدّادٌ يختار الكمية. */
+.refund-line{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);}
+.refund-line-info{flex:1; min-width:0;}
+.refund-line-name{font-size:13px; font-weight:800; color:var(--text);}
+.refund-line-meta{font-size:11px; font-weight:600; color:var(--muted); margin-top:2px;}
+.refund-qty{display:flex; align-items:center; gap:10px;}
+.refund-qty button{width:30px; height:30px; border-radius:50%; border:1px solid var(--line); background:var(--surf1); color:var(--text); font-size:16px; font-weight:800; cursor:pointer;}
+.refund-qty span{min-width:18px; text-align:center; font-weight:800; font-size:14px;}
+
+/* طلبٌ غطّته المكافأة: لا مربّعات دفعٍ ولا مبلغ يُقبض. */
+.due-display.reward-paid{background:color-mix(in srgb, var(--lime) 12%, transparent); border:1px solid var(--lime-deep);}
+.reward-paid-note{margin-top:8px; font-size:11.5px; font-weight:700; color:var(--muted); line-height:1.6;}
+.loyalty-pick span{font-size:11.5px; font-weight:600; color:var(--muted);}
+
+/* شريط المكافأة فوق السلة -- يُرى بطرف العين ولا يُبحث عنه. */
+.reward-strip-btn{
+  display:flex; align-items:center; gap:10px; width:100%; padding:10px 12px; cursor:pointer;
+  background:color-mix(in srgb, var(--lime) 16%, transparent);
+  border:1px solid var(--lime-deep); border-radius:var(--r-md);
+  font-family:inherit; color:var(--text); text-align:start;
+}
+.reward-strip-btn:hover{background:color-mix(in srgb, var(--lime) 26%, transparent);}
+.reward-strip-icon{font-size:18px; line-height:1;}
+.reward-strip-text{display:flex; flex-direction:column; gap:1px; min-width:0;}
+.reward-strip-text b{font-size:12.5px; font-weight:800;}
+.reward-strip-text span{font-size:11px; font-weight:600; color:var(--muted);}
+.reward-strip-due{background:color-mix(in srgb, var(--amber) 18%, transparent); border-color:var(--amber);}
+
+/* زرّ العميل جنب الخصم -- ويتلوّن حين يُعرف، فيُقرأ حالُه بلا نصّ. */
+.pos-customer-btn.has-customer{
+  border-color:var(--lime-deep);
+  background:color-mix(in srgb, var(--lime) 14%, transparent);
+  color:var(--text); font-weight:800;
+}
+
 /* ============ Modifier modal ============ */
 .modifier-card{width:460px;}
 .mod-group{margin-bottom:20px;}
@@ -759,9 +829,232 @@ svg{display:block;}
 
 /* ============ زر شاشة العميل في نافذة النجاح ============ */
 .receipt-action-btn.wide{ width:100%; margin-top:10px; }
+/* رقمُ العميل يُكتب هنا لا في نافذة المتصفّح: النافذة مفتوحة بيد
+   الكاشير أصلاً، والطلب تمّ -- فلا داعيَ لنافذةٍ فوقها. */
+.display-phone-row{ display:flex; gap:8px; margin-top:10px; }
+.display-phone-row input{
+  flex:1; min-width:0; padding:11px 14px; border-radius:var(--r-md, 10px);
+  border:1px solid var(--line); background:var(--surf2); color:var(--text);
+  font-size:14px; font-weight:700; text-align:center;
+}
+.display-phone-row input:focus{ outline:none; border-color:var(--lime); }
+.display-phone-row .receipt-action-btn{ flex:0 0 auto; width:auto; padding-inline:22px; }
 .display-push-status{
   min-height:18px; margin-top:8px; font-size:12.5px; font-weight:700;
   text-align:center; color:var(--muted);
 }
 .display-push-status.ok{ color:var(--lime-deep, #6a8f00); }
 .display-push-status.err{ color:var(--danger, #c0392b); }
+
+
+/* ============ سؤالٌ داخل النظام ============
+   بديلُ confirm/prompt. ونافذةُ المتصفّح تُجمّد الصفحة كلَّها حتى
+   يُجاب -- فالطلباتُ الواردة والطابعةُ وكلّ مؤقّتٍ يقف -- وتعرض مربّع
+   "امنع هذه الصفحة من إنشاء نوافذ" على جهازٍ يقف عليه طابور. */
+.rk-ask-overlay{ z-index:620; }
+.rk-ask-card{ width:400px; max-width:92vw; padding:22px; }
+.rk-ask-title{ font-size:16px; font-weight:800; color:var(--text); line-height:1.6; }
+.rk-ask-body{ margin-top:8px; font-size:13px; color:var(--muted); line-height:1.8; }
+.rk-ask-body b{ color:var(--text); }
+.rk-ask-in{
+  width:100%; box-sizing:border-box; margin-top:14px; padding:13px 16px;
+  border-radius:var(--r-md, 10px); border:1px solid var(--line);
+  background:var(--surf2); color:var(--text);
+  font-size:20px; font-weight:800; text-align:center;
+}
+.rk-ask-in:focus{ outline:none; border-color:var(--lime); }
+/* الموافقةُ أعرض وأبرز: الكاشير يضغط بإبهامه على جهازٍ واقف. */
+.rk-ask-foot{ display:flex; gap:10px; margin-top:20px; }
+.rk-ask-ok{
+  flex:1; min-height:48px; border:none; border-radius:var(--r-md, 10px);
+  background:var(--lime); color:var(--graphite); font-size:14px; font-weight:800;
+}
+.rk-ask-no{
+  flex:0 0 auto; min-height:48px; padding:0 22px; border-radius:var(--r-md, 10px);
+  border:1px solid var(--line); background:transparent; color:var(--muted);
+  font-size:13.5px; font-weight:800;
+}
+.rk-ask-ok:active, .rk-ask-no:active{ transform:scale(0.97); }
+
+
+/* ============ شاشة الدفع -- بطاقةٌ واحدة تُقرأ عموداً ============
+   كانت ثماني كتلٍ لكلٍّ إطارُها، فلا شيء أبرزُ من شيء. والعمل ثلاث
+   خطوات: اختر، اكتب، أكّد. فالمطلوبُ والمُلقِّماتُ والمستلَمُ والباقي
+   في بطاقةٍ واحدة، والثانويُّ في سطرٍ صغير تحتها. */
+.pm-tabs{ gap:7px; margin-bottom:14px; }
+.pm-tab{ padding:11px 4px; gap:5px; font-size:10.5px; }
+.pm-tab svg{ width:16px; height:16px; }
+
+.pay-card{
+  /* حافّةُ الحدّ أربعةَ عشرَ، ونصُّ الحقل داخلَه بخمسةَ عشرَ أخرى --
+     فالسطران الآخران يُزاحان تسعةً وعشرين ليقعَ الثلاثة على عمودٍ واحد. */
+  --pay-inset:29px;
+  border-radius:var(--r-lg); background:var(--surf1);
+  border:1px solid var(--line); padding:14px 0; margin-bottom:12px;
+}
+/* المطلوبُ سطرٌ لا صندوق: الصندوقُ الطويل كان يزاحم حقلَ المستلَم في
+   الحجم، فيتساوى ما يُقرأ وما يُكتب. */
+/* العناوينُ على عمودٍ والأرقامُ على عمود: الرقمُ المستلَم كان في وسط
+   حقله، والمطلوبُ والباقي على حافّتهما -- فثلاثةُ أرقامٍ في ثلاثة
+   مواضع، والعينُ ترتدّ بينها بدل أن تنزل عموداً واحداً.
+   وحدُّ الحقل يزيح نصَّه أربعةَ عشرَ بكسلاً، فأُزيح الآخران مثلَه. */
+.pay-due{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding-inline:var(--pay-inset); }
+.pay-due-label{ font-size:12px; font-weight:800; color:var(--muted); }
+.pay-due-amount{ font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:29px; line-height:1.1; }
+
+/* تملأ سطرَها مهما كان عددُها: أربعةُ أعمدةٍ ثابتة تترك نصفَ السطر
+   فارغاً حين تكون القيمُ اثنتين -- ويُقرأ الفراغُ عطلاً لا تصميماً. */
+.pay-chips{ display:flex; flex-wrap:wrap; gap:6px; margin:14px 14px 0; }
+.pay-chips .qa-btn{ flex:1 1 0; min-width:70px; }
+.pay-chips .qa-btn{ padding:12px 2px; font-size:13px; }
+/* والمضغوطُ يبقى ظاهراً: بلا ذلك يكتب الكاشير الرقم ولا يدري أيَّ
+   مبلغٍ ضغط قبل قليل. */
+.pay-chips .qa-btn.active{
+  border-color:var(--lime-deep); background:rgba(var(--lime-rgb), 0.16); color:var(--lime-deep);
+}
+/* والمستلَمُ يُعنون كما يُعنون المطلوبُ والباقي: ثلاثةُ سطورٍ
+   متوازية، عناوينُها تحت بعض وأرقامُها تحت بعض -- فتُقرأ البطاقة
+   عموداً واحداً. وكان النائب "المبلغ المستلَم" يختفي بأول رقم، والحقلُ
+   مملوءٌ سلفاً بالمطلوب -- فلا يُرى النائبُ أصلاً، ويبقى رقمٌ كبيرٌ
+   بلا اسم. */
+.pay-tender-row{
+  display:flex; align-items:center; gap:10px; margin:8px 14px 0;
+  padding:8px 14px; border-radius:var(--r-md);
+  border:1px solid var(--line); background:var(--card-bg);
+}
+.pay-tender-row:focus-within{ border-color:var(--lime-deep); }
+.pay-tender-label{ flex:0 0 auto; font-size:12px; font-weight:800; color:var(--muted); }
+.pay-tender{
+  flex:1; min-width:0; width:100%; padding:7px 0;
+  border:none; background:transparent; color:var(--text);
+  font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:22px; text-align:end;
+}
+.pay-tender::placeholder{ font-family:'IBM Plex Mono',monospace; font-size:20px; font-weight:800; color:var(--muted); text-align:end; }
+.pay-tender:focus{ outline:none; }
+
+/* الباقي هادئٌ حتى يصير له معنى: صفرٌ أخضرُ في كل طلبٍ لا يُقرأ. */
+.pay-change{
+  display:flex; justify-content:space-between; align-items:center;
+  margin-top:12px; padding-top:12px; padding-inline:var(--pay-inset); border-top:1px solid var(--line);
+  font-size:12px; font-weight:800; color:var(--muted);
+}
+.pay-change .rk-money{ font-size:15px; color:var(--muted); }
+.pay-change.live{ color:var(--text); }
+.pay-change.live .rk-money{ font-size:19px; color:var(--lime-deep); }
+
+.pay-split{ display:flex; gap:10px; margin:14px 14px 0; }
+.pay-split-cell{ flex:1; min-width:0; }
+.pay-split-cell label{ display:block; font-size:11px; font-weight:800; color:var(--muted); margin-bottom:6px; }
+.pay-split-cell input{
+  width:100%; box-sizing:border-box; padding:13px 10px;
+  border-radius:var(--r-md); border:1px solid var(--line);
+  background:var(--card-bg); color:var(--text);
+  font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:17px; text-align:center;
+}
+.pay-split-cell input:focus{ outline:none; border-color:var(--lime-deep); }
+
+.pay-tap{
+  display:flex; align-items:center; justify-content:center; gap:9px;
+  margin:14px 14px 0; padding:20px 12px; border-radius:var(--r-md);
+  background:var(--card-bg); border:1px dashed var(--line);
+  font-size:12.5px; font-weight:700; color:var(--muted);
+}
+
+/* الاختياريّ في سطرٍ واحد بحجمه: كان النداءُ كتلةً بعنوانٍ وسطرِ شرح،
+   والقسمةُ كتلةً أخرى -- فبدَتا بحجم الدفع نفسه، وهما لا يُستعملان في
+   أكثر الطلبات. */
+.pay-extras{ display:flex; gap:8px; margin-bottom:12px; }
+.pay-extra{
+  display:flex; align-items:center; gap:7px; min-height:40px; padding:0 13px;
+  border-radius:var(--r-md); border:1px solid var(--line);
+  background:transparent; color:var(--muted); font-size:12px; font-weight:800;
+}
+.pay-extra-btn{ flex:1; justify-content:center; }
+.pay-extra-btn.open{ border-color:var(--lime-deep); color:var(--lime-deep); background:rgba(var(--lime-rgb), 0.10); }
+.pay-extra-pager{ flex:0 0 auto; }
+.pay-extra-pager input{
+  width:60px; border:none; background:transparent; color:var(--text);
+  font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:14px; text-align:center;
+}
+.pay-extra-pager input:focus{ outline:none; }
+.pay-extra-pager input::placeholder{ font-family:'IBM Plex Sans Arabic', sans-serif; font-size:11.5px; font-weight:800; color:var(--muted); }
+.pay-extra-pager:focus-within{ border-color:var(--lime-deep); }
+
+.confirm-pay-btn{ min-height:56px; font-size:15px; }
+
+
+/* ============ خطوة العميل ============
+   الرقمُ يُكتب ويُحفظ، والحفظُ يمضي. وكان المسحُ زرّاً بحجم الحفظ
+   بجانبه -- وهو الطريقُ النادر، فنزل سطراً هادئاً تحته. */
+/* 05 مطبوعةٌ داخل إطار الحقل ولا تُكتب: ثابتةٌ في كل جوّالٍ سعودي،
+   فكتابتُها في كل طلبٍ ضغطتان بلا معنى -- ومحوُها بالخطأ يجعل الرقم
+   لا يُطابق أحداً، فيُنشأ عميلٌ ثانٍ للإنسان نفسِه. */
+.cust-row{ display:flex; gap:8px; }
+.cust-field{
+  flex:1; min-width:0; display:flex; align-items:center; gap:2px;
+  padding:0 14px; border-radius:var(--r-md); border:1px solid var(--line);
+  background:var(--surf1);
+  /* والحقلُ من اليسار: الأرقام تُقرأ يساراً-يميناً، وفي وعاءٍ عربيٍّ
+     تقع 05 يمينَ الثمانية فيُقرأ الرقم مقلوباً -- "57444227 05". */
+  direction:ltr;
+}
+.cust-field:focus-within{ border-color:var(--lime-deep); background:var(--card-bg); }
+.cust-prefix{
+  flex:0 0 auto; font-family:'IBM Plex Mono',monospace; font-weight:800;
+  font-size:17px; letter-spacing:1px; color:var(--muted);
+}
+.cust-row input{
+  flex:1; min-width:0; padding:14px 0;
+  border:none; background:transparent; color:var(--text);
+  font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:17px;
+  letter-spacing:1px; text-align:start;
+}
+.cust-row input::placeholder{ font-family:'IBM Plex Mono',monospace; font-size:17px; letter-spacing:1px; font-weight:800; color:var(--line); }
+.cust-row input:focus{ outline:none; }
+.cust-save{
+  flex:0 0 auto; min-width:84px; border:none; border-radius:var(--r-md);
+  background:linear-gradient(155deg, var(--lime), var(--lime-deep));
+  color:var(--flag-green-deep); font-weight:800; font-size:14px;
+}
+.cust-save:disabled{ background:var(--surf2); color:var(--muted); }
+.cust-save:active:not(:disabled){ transform:scale(0.97); }
+
+/* يقول كم بقي، لا "خطأ" وهو لم يُكمل بعد. */
+.cust-hint{ min-height:16px; margin:7px 2px 0; font-size:11.5px; font-weight:700; color:var(--muted); }
+.cust-hint.err{ color:var(--danger); }
+
+.cust-scan{
+  display:block; width:100%; margin-top:10px; padding:11px;
+  border-radius:var(--r-md); border:1px dashed var(--line);
+  background:transparent; color:var(--muted); font-size:12px; font-weight:800;
+}
+/* "تخطي" ليس الفعلَ المقصود: يُترك ظاهراً ولا يُلبَس لباسَ الزرّ
+   الأخضر -- فذاك يُضغط بالعادة، فيمرّ الطلبُ بلا عميلٍ ولا ولاء. */
+.confirm-pay-btn-quiet{
+  margin-top:14px; background:transparent; border:1px solid var(--line);
+  color:var(--muted); font-size:13px; min-height:46px;
+}
+.confirm-pay-btn-quiet:disabled{ background:transparent; }
+
+
+/* ============ لا أسهمَ في حقول الأرقام ============
+   حقلُ type="number" يرسم سهمَي زيادةٍ ونقصان -- وهما على شاشةٍ تُلمس
+   بالإصبع هدفٌ صغيرٌ يُخطأ، ويسرقان من عرض الحقل، ولا يُستعملان: من
+   يريد ٥٠ يكتب ٥٠ ولا يضغط السهم سبعاً وعشرين مرة.
+
+   ولا واحدَ من ثمانية حقول رقمية في الكاشير كان يُخفيها. */
+.pos-app input[type="number"],
+.modal-card input[type="number"],
+.pay-tender, .pay-extra-pager input,
+.pay-split-cell input, .cash-input-row input{ -moz-appearance:textfield; appearance:textfield; }
+.pos-app input[type="number"]::-webkit-outer-spin-button,
+.pos-app input[type="number"]::-webkit-inner-spin-button,
+.modal-card input[type="number"]::-webkit-outer-spin-button,
+.modal-card input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button{ -webkit-appearance:none; appearance:none; margin:0; }
+
+/* ونداءٌ بمساحةٍ تسع كلمتَه: كان الاسمُ والجرسُ والسهمان في صندوقٍ
+   واحدٍ ضيّق، فانضغط الثلاثة. */
+.pay-extra-pager{ padding-inline:12px; gap:8px; }
+.pay-extra-pager input{ width:56px; }

@@ -1,6 +1,17 @@
 (function(){
   if (window.__rakeenPosBooted) return;
   window.__rakeenPosBooted = true;
+  /**
+   * بصمةُ البناء -- تُقرأ من الConsole بلا تخمين.
+   *
+   * الملف كلُّه داخل IIFE، فدوالُّه ليست عامّة: سؤالُ الConsole عن
+   * اسم دالّةٍ يردّ "undefined" في كل نسخة، جديدةً كانت أو قديمة.
+   * فأُهدرت ساعةٌ على تشخيصٍ خاطئ بُني على ذلك.
+   *
+   * وهذه تقول متى بُني الملف الذي يشغّله الجهاز فعلاً:
+   *     window.__rkPosBuild
+   */
+  window.__rkPosBuild = '2026-09-07T13:00Z';
 
 // A dedicated reservation-host stand at the entrance (or the cashier
 // stepping over to it) — same login and the exact same live
@@ -41,6 +52,30 @@ function escapeHtml(value){
 let LANG = 'ar';
 try { LANG = localStorage.getItem('rakeen_pos_lang') || 'ar'; } catch {}
 const I18N_EN = {
+  /* ما استُجدّ في شاشات الدفع والعميل ونوع الطلب. وكلُّ نصٍّ يُكتب في
+     الواجهة ولا يُسجَّل هنا يبقى عربياً على جهازٍ لغتُه إنجليزية --
+     والمترجَمُ نصفُه أسوأ من غير المترجَم: يبدو عطلاً لا خياراً. */
+  'المطلوب': 'Due', 'المستلَم': 'Tendered', 'الباقي للعميل': 'Change due',
+  'نداء': 'Pager', 'قسّم بين الأصحاب': 'Split between friends',
+  'ياكل عندك في المحل': 'Eats in the shop', 'ياخذ طلبه ويطلع': 'Takes it and leaves',
+  'الطلب جاك من': 'Order came from', 'الطلب جاك من تطبيق توصيل': 'Order came from a delivery app',
+  'أو': 'or',
+  'حفظ': 'Save', 'أو امسح بطاقة العميل': 'Or scan the customer card',
+  'اكتب رقم الجوال': 'Enter the phone number',
+  'ما لقينا عميل بهذا الرقم': 'No customer with this number',
+  'اعرض باركود الولاء على شاشة العميل': 'Show loyalty barcode on customer display',
+  'جارٍ العرض...': 'Showing...', 'تعذر العرض': 'Could not show it',
+  '✅ الباركود على شاشة العميل الآن': '✅ Barcode is on the customer display now',
+  '✅ تمت إضافة البطاقة — يقفل الآن': '✅ Card added — closing',
+  'تمت الطباعة': 'Printed', 'تفاصيل الطلب': 'Order details',
+  '+ عميل ولاء': '+ Loyalty customer',
+  /* نوافذُ السؤال: عناوينُها وأزرارُها. */
+  'تأكيد': 'Confirm', 'كمّل': 'Continue', 'كمّل وأرسل الجديد': 'Continue and send',
+  'لسا قاعدين': 'Still seated', 'غادروا': 'They left', 'اجلسهم': 'Seat them',
+  'أفرغها': 'Clear it', 'ألغِ الطلب': 'Cancel order', 'ألغِ الحجز': 'Cancel booking',
+  'ما حضر': 'No-show', 'تراجع': 'Undo', 'ارجع المبلغ': 'Refund it',
+  'كم تبي ترجع؟': 'How much to refund?',
+
   'الرئيسية': 'Home', 'الطلبات': 'Orders', 'الطاولات': 'Tables', 'المزيد': 'More',
   'متصل بالإنترنت': 'Online', 'غير متصل — يحفظ محليًا': 'Offline — saving locally',
   'الطابعة جاهزة': 'Printer ready', 'تنبيهات التوصيل': 'Delivery alerts', 'تبديل المظهر': 'Toggle theme',
@@ -623,13 +658,24 @@ const i18nObserver = new MutationObserver(records => {
   i18nApplying = true;
   try {
     for(const rec of records){
+      /**
+       * وnodeType 3 يُترجَم كذلك.
+       *
+       * el.textContent = '...' لا يضيف عنصراً، يضيف عقدةَ نصّ -- وكان
+       * الشرطُ يقبل العناصر وحدها فتمرّ بلا ترجمة. ولهذا بقي "+ خصم"
+       * عربياً على جهازٍ إنجليزيّ وهو مسجّلٌ في القاموس منذ البداية:
+       * الترجمةُ موجودة، والمراقبُ لا يراها تُكتب.
+       */
       for(const node of rec.addedNodes){
         if(node.nodeType === 1) translateTree(node);
+        else if(node.nodeType === 3 && node.parentElement) translateTree(node.parentElement);
       }
+      // وتبديلُ نصٍّ قائمٍ في مكانه (characterData) يُلتقط بالمثل.
+      if(rec.type === 'characterData' && rec.target.parentElement) translateTree(rec.target.parentElement);
     }
   } catch {} finally { i18nApplying = false; }
 });
-try { i18nObserver.observe(document.body, { childList: true, subtree: true }); } catch {}
+try { i18nObserver.observe(document.body, { childList: true, subtree: true, characterData: true }); } catch {}
 
 function translateTree(root){
   if(!root) return;
@@ -1020,7 +1066,21 @@ let state = {
   activePaymentMethod: 'cash', cashAmount: 0,
   friendsSplitOpen: false, friendsSplitCount: null,
   pinEntry: '', pinTargetLength: 4,
-  orderChannel: 'dine_in', deliveryPlatformId: null, selectedTableId: null, selectedOrderId: null, resumingOrder: null, platformInvoiceLast4: ''
+  orderChannel: 'dine_in', deliveryPlatformId: null, selectedTableId: null, selectedOrderId: null, resumingOrder: null, platformInvoiceLast4: '',
+  /**
+   * مكافآتٌ صُرفت من محفظة العميل ولم تُطبَّق على صنفٍ بعد.
+   *
+   * التأكيد يخصمها من رصيده في الخادم لحظتَه -- فهي ملكُه من تلك
+   * اللحظة، وليست شيئاً يُضاف إلى السلة ويضيع بضغطةِ حذف. فتُحفظ
+   * رصيداً: يطبّقها الكاشير على أي صنف، ويعيد تطبيقها إن غيّر العميل
+   * رأيه، ولا تسقط إلا بإتمام الطلب.
+   *
+   * ولا شيء منها يمسّ المخزون ولا الوردية قبل الإتمام -- شأنها شأن
+   * كل سطرٍ في السلة.
+   */
+  freeRewardCredit: 0, freeRewardLabel: 'مكافأة مجانية',
+  /** أُكِّد العميل ولم تُخصم مكافأته بعد -- تُخصم عند اختيار الصنف. */
+  rewardArm: null
 };
 
 /* ============ Alert sounds ============
@@ -1108,6 +1168,86 @@ document.addEventListener('click', (e)=>{
 
 /* ============ Toast (replaces alert()) ============ */
 let toastTimer;
+/**
+ * سؤالٌ بهيئة ركين -- بديلُ confirm وprompt في الكاشير.
+ *
+ * ونوافذُ المتصفّح ليست قبحاً وحسب: تعلوها كلمةُ النطاق ويجاورها مربّع
+ * "امنع هذه الصفحة من إنشاء نوافذ" -- فتُقرأ إنذاراً من المتصفّح على
+ * النظام، لا سؤالاً منه. ومن ضغط ذاك المربّع أسكت الكاشيرَ عن السؤال:
+ * تصير الأزرار لا تفعل شيئاً، ولا يُقال لماذا. وذلك على جهازٍ يقف عليه
+ * طابورٌ من الزبائن.
+ *
+ * وconfirm تُجمّد الصفحة كلَّها حتى يُجاب -- فالطلباتُ الواردة والطابعةُ
+ * وكل مؤقّتٍ يقف. وهذي لا تُجمّد شيئاً.
+ *
+ * وتُرجع وعداً: true إن وافق، وnull إن لم يوافق -- أو النصَّ المكتوب
+ * حين يكون ثمّة حقل.
+ */
+function rkPosAsk(opts){
+  return new Promise(resolve => {
+    const o = opts || {};
+    const ov = document.createElement('div');
+    ov.className = 'modal-overlay rk-ask-overlay';
+    ov.innerHTML = `
+      <div class="modal-card rk-ask-card">
+        <div class="rk-ask-title">${escapeHtml(o.title || '')}</div>
+        ${o.body ? `<div class="rk-ask-body">${o.body}</div>` : ''}
+        ${o.input !== undefined ? `<input type="${o.numeric ? 'tel' : 'text'}" class="rk-ask-in" id="rkPosAskIn"
+            ${o.numeric ? 'inputmode="decimal"' : ''} value="${escapeHtml(o.input || '')}"
+            placeholder="${escapeHtml(o.placeholder || '')}">` : ''}
+        <div class="rk-ask-foot">
+          <button type="button" class="rk-ask-ok" id="rkPosAskOk">${escapeHtml(o.ok || 'تأكيد')}</button>
+          ${o.cancel === null ? '' : `<button type="button" class="rk-ask-no" id="rkPosAskNo">${escapeHtml(o.cancel || 'رجوع')}</button>`}
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    requestAnimationFrame(()=> ov.classList.add('show'));
+
+    let settled = false;
+    const close = (val)=>{
+      if(settled) return; settled = true;
+      ov.classList.remove('show');
+      setTimeout(()=> ov.remove(), 180);
+      document.removeEventListener('keydown', onKey);
+      resolve(val);
+    };
+    const inp = ov.querySelector('#rkPosAskIn');
+    const accept = ()=> close(inp ? inp.value.trim() : true);
+    ov.querySelector('#rkPosAskOk').addEventListener('click', accept);
+    const no = ov.querySelector('#rkPosAskNo');
+    if(no) no.addEventListener('click', ()=> close(null));
+    ov.addEventListener('click', e => { if(e.target === ov) close(null); });
+    const onKey = e => {
+      if(e.key === 'Escape') close(null);
+      if(e.key === 'Enter' && inp && document.activeElement === inp) accept();
+    };
+    document.addEventListener('keydown', onKey);
+    if(inp) setTimeout(()=>{ inp.focus(); inp.select(); }, 60);
+  });
+}
+
+/** سؤالُ نعم/لا -- يُرجع true أو false، فيحلّ محلّ confirm حرفياً. */
+async function rkPosConfirm(title, body, ok, cancel){
+  const r = await rkPosAsk({ title, body: body || '', ok: ok || 'تأكيد', cancel: cancel || 'رجوع' });
+  return r === true;
+}
+
+/**
+ * عجلةُ الفأرة لا تُغيّر مبلغاً.
+ *
+ * حقلُ type="number" يزيد وينقص بعجلة الفأرة ما دام مركّزاً -- والكاشير
+ * يمرّر الشاشة بعجلته والحقلُ تحت المؤشّر، فيصير المستلَم ٢٤ بدل ٢٣
+ * ولا شيء يقول إنه تغيّر. والفرقُ يظهر في جرد الدرج آخر الوردية، حين
+ * لا يُعرف من أين جاء.
+ *
+ * وblur لا preventDefault: المطلوب ألا يُغيَّر الرقم، لا أن تُمنع
+ * الصفحة من التمرير.
+ */
+document.addEventListener('wheel', (e)=>{
+  const el = e.target;
+  if(el && el.tagName === 'INPUT' && el.type === 'number' && el === document.activeElement) el.blur();
+}, { passive: true });
+
 function showToast(msg){
   const t = document.getElementById('toast');
   document.getElementById('toastText').textContent = msg;
@@ -1388,7 +1528,7 @@ function productBasePrice(productId){
 }
 
 function lineUnitPrice(item){
-  if(item.isPointsRedemption) return 0;
+  if(item.isPointsRedemption || item.isFreeReward) return 0;
   const modDef = MODIFIER_PRODUCTS[item.productId];
   if(!modDef || modDef.isBox || modDef.isMeal || !item.config) return productBasePrice(item.productId);
   let price = productBasePrice(item.productId);
@@ -1409,21 +1549,112 @@ function addToCart(productId){
   addToCartWithConfig(product, null, 1);
 }
 
-function addToCartWithConfig(product, config, qty){
-  const existing = state.cart.find(i=> i.productId===product.id && configsEqual(i.config, config));
+/**
+ * الصنفُ المضغوط يصير مجانياً إن كان في اليد رصيدُ مكافأة.
+ *
+ * حالتان:
+ *   rewardArm        -- أُكِّد العميل ولم يُخصم بعد. يُخصم الآن، والصنف
+ *                       يُمرَّر إلى الخادم لأن الوضع المقيَّد يشترطه.
+ *   freeRewardCredit -- خُصم من قبل ومُسح سطرُه. يُطبَّق بلا خصمٍ ثانٍ.
+ *
+ * والمقيَّد يرفض ما ليس من أصنافه -- فيُضاف بثمنه ويُقال لماذا، لا
+ * يُبتلع الضغطُ صامتاً.
+ */
+async function addToCartWithConfig(product, config, qty){
+  const cfg = (window.BUSINESS_LOYALTY || {});
+  const armed = state.rewardArm || state.freeRewardCredit > 0;
+  if(armed && qty === 1){
+    const restricted = cfg.rewardMode === 'products';
+    const allowed = !restricted || (cfg.rewardProductIds || []).map(Number).includes(Number(product.id));
+    if(!allowed){
+      showToast('هذا الصنف مو ضمن أصناف المكافأة — انضاف بثمنه');
+    } else if(state.rewardArm){
+      const req = state.rewardArm.requestId;
+      const { data, error } = await window.supabaseClient.rpc('redeem_free_reward', {
+        p_customer_id: state.customer.id,
+        p_request_id: req,
+        p_menu_item_id: restricted ? product.id : null,
+      });
+      if(error || !data || !data.ok){
+        showToast(rkFreeRewardError(data && data.error));
+        return;
+      }
+      state.rewardArm = null;
+      state.freeRewardLabel = cfg.rewardLabel || 'مكافأة مجانية';
+      if(state.customer) state.customer.freeRewards = Math.max(0, Number(state.customer.freeRewards || 1) - 1);
+      state.cart.push({lineId: lineIdCounter++, productId: product.id, qty:1, note:'', config, isFreeReward:true});
+      renderOrder();
+      showToast('انضاف مجاناً 🎁');
+      return;
+    } else {
+      state.freeRewardCredit -= 1;
+      state.cart.push({lineId: lineIdCounter++, productId: product.id, qty:1, note:'', config, isFreeReward:true});
+      renderOrder();
+      showToast('انضاف مجاناً 🎁');
+      return;
+    }
+  }
+  const existing = state.cart.find(i=> i.productId===product.id && configsEqual(i.config, config) && !i.isFreeReward);
   if(existing){ existing.qty += qty; }
   else { state.cart.push({lineId: lineIdCounter++, productId: product.id, qty, note:'', config}); }
   renderOrder();
 }
 
+/**
+ * ورصيدٌ لم يُصرف يعود إلى محفظة العميل.
+ *
+ * الخصمُ يقع لحظة التأكيد -- قبل اختيار الصنف، وذلك صواب: إثباتُ
+ * العميل تمّ ولا يُطلب مرّتين. لكن بينهما فجوة: يُفرغ الكاشير السلة أو
+ * ينصرف الزبون، فتكون المكافأة انخصمت ولم تخرج بضاعةٌ مقابلها.
+ *
+ * فتُردّ عند إفراغ السلة. ولا يُنتظر ردُّ الخادم: البضاعة لم تخرج،
+ * والردّ يقع أو يُعاد في المرّة القادمة -- ولا شيء يُبنى عليه هنا.
+ */
+function rkReturnUnusedReward(){
+  const pending = (state.rewardArm ? 0 : state.freeRewardCredit) || 0;
+  const cust = state.customer;
+  state.rewardArm = null;
+  state.freeRewardCredit = 0;
+  if(!pending || !cust || !cust.id) return;
+  for(let i = 0; i < pending; i++){
+    window.supabaseClient.rpc('return_unused_free_reward', { p_customer_id: cust.id })
+      .then(({ data })=>{
+        if(data && data.ok){
+          if(state.customer && state.customer.id === cust.id){
+            state.customer.freeRewards = Number(state.customer.freeRewards || 0) + 1;
+            updatePointsRedeemStrip();
+          }
+          showToast('رجّعنا ' + state.freeRewardLabel + ' لمحفظة العميل');
+        }
+      }, ()=>{});
+  }
+}
+
+/**
+ * وحذفُ السطر المجاني يُعيد الرصيد إلى يد الكاشير.
+ *
+ * المكافأة انخصمت من محفظة العميل عند التأكيد -- فحذفُ سطرها لا
+ * يُرجعها إليه، إنما يُضيعها. والعميل يغيّر رأيه: يمسح الكوب ويطلب
+ * غيره، فيُطبَّق الرصيد على الجديد ويخرج بصفر.
+ */
+function rkReclaimCredit(item){
+  if(item && item.isFreeReward){
+    state.freeRewardCredit += 1;
+    showToast('رجّعنا ' + state.freeRewardLabel + ' لرصيده — اختر صنفاً غيره');
+  }
+}
 function changeQty(lineId, delta){
   const item = state.cart.find(i=>i.lineId===lineId);
   if(!item) return;
   item.qty += delta;
-  if(item.qty <= 0) state.cart = state.cart.filter(i=>i.lineId!==lineId);
+  if(item.qty <= 0){ rkReclaimCredit(item); state.cart = state.cart.filter(i=>i.lineId!==lineId); }
   renderOrder();
 }
-function removeFromCart(lineId){ state.cart = state.cart.filter(i=>i.lineId!==lineId); renderOrder(); }
+function removeFromCart(lineId){
+  rkReclaimCredit(state.cart.find(i=>i.lineId===lineId));
+  state.cart = state.cart.filter(i=>i.lineId!==lineId);
+  renderOrder();
+}
 function round2(n){ return Math.round((n + Number.EPSILON) * 100) / 100; }
 // Saudi Ministry of Commerce requires displayed menu prices to be VAT-
 // inclusive — the tax is already baked into menu_items.price, not added on
@@ -1690,11 +1921,14 @@ document.getElementById('opCancelTableBtn').addEventListener('click', async ()=>
   const table = (TABLES_CACHE || []).find(x => x.id === state.selectedTableId);
   const tableLabel = table ? ('طاولة ' + table.number) : 'الطاولة';
   if(state.selectedOrderId){
-    if(!window.confirm('تأكيد إلغاء طلب ' + tableLabel + '؟')) return;
+    if(!await rkPosConfirm('إلغاء طلب ' + tableLabel + '؟', '', 'ألغِ الطلب', 'رجوع')) return;
     // Cancelling a just-registered order doesn't always mean the guests
     // left — often it just means "hold off a bit", and the table should
     // stay put waiting for a real order, not get marked for cleaning.
-    const stillOccupied = window.confirm('هل الزبائن لسا قاعدين على ' + tableLabel + ' ويحتاجون وقت أطول؟\nموافق = نعم لسا قاعدين — إلغاء = لا، غادروا');
+    // خياران مسمّيان، لا "موافق/إلغاء" يُشرح بسطرٍ تحته: الكاشير يقرأ
+    // الزرّ لا الشرح، فيضغط "موافق" وهو يقصد "غادروا".
+    const stillOccupied = await rkPosConfirm(
+      'الزبائن لسا على ' + tableLabel + '؟', '', 'لسا قاعدين', 'غادروا');
     const orderIdToCancel = state.selectedOrderId;
     openPinModal(async () => {
       const { error } = await window.supabaseClient.rpc('cancel_dine_in_order', { p_order_id: orderIdToCancel, p_still_occupied: stillOccupied });
@@ -1704,8 +1938,9 @@ document.getElementById('opCancelTableBtn').addEventListener('click', async ()=>
       showToast(stillOccupied ? ('تراجعنا عن طلب ' + tableLabel + ' — بانتظار الطلب') : ('تم إلغاء طلب ' + tableLabel + ' — بحاجة تنظيف'));
     });
   } else {
-    if(!window.confirm('تأكيد التراجع عن ' + tableLabel + '؟')) return;
-    const stillOccupied = window.confirm('هل الزبائن لسا قاعدين على ' + tableLabel + '؟\nموافق = نعم لسا قاعدين — إلغاء = لا، غادروا');
+    if(!await rkPosConfirm('تراجع عن ' + tableLabel + '؟', '', 'تراجع', 'رجوع')) return;
+    const stillOccupied = await rkPosConfirm(
+      'الزبائن لسا على ' + tableLabel + '؟', '', 'لسا قاعدين', 'غادروا');
     const tableIdToRelease = state.selectedTableId;
     if(tableIdToRelease && !stillOccupied){
       await window.supabaseClient.from('restaurant_tables').update({status:'cleaning'}).eq('id', tableIdToRelease).eq('status','awaiting_order');
@@ -1716,6 +1951,11 @@ document.getElementById('opCancelTableBtn').addEventListener('click', async ()=>
   }
 });
 function renderOrder(){
+  // الشريط والزرّ يتبعان السلة: حذفُ سطرٍ مجاني يُعيد رصيداً، والشريط
+  // هو الذي يقول ذلك -- فلا يُحدَّث عند اختيار العميل وحده.
+  rkMountCustomerButton();
+  rkSyncCustomerButton();
+  updatePointsRedeemStrip();
   updateTableBadge();
   const itemsEl = document.getElementById('orderItems');
   const payBtn = document.getElementById('payBtn');
@@ -1748,10 +1988,10 @@ function renderOrder(){
             <button class="qty-btn" data-action="inc" data-line="${i.lineId}">+</button>
           </div>
           <div class="oi-info">
-            <div class="oi-name">${escapeHtml(LANG === 'en' ? (p.nameEn || p.name) : p.name)}${i.isPointsRedemption?' 🎁':''}</div>
-            ${i.qty > 1 && !i.isPointsRedemption ? `<div class="oi-unit">${rkMoney(unitPrice)} / ${t('حبة')}</div>` : ''}
+            <div class="oi-name">${escapeHtml(LANG === 'en' ? (p.nameEn || p.name) : p.name)}${(i.isPointsRedemption || i.isFreeReward)?' 🎁':''}</div>
+            ${i.qty > 1 && !i.isPointsRedemption && !i.isFreeReward ? `<div class="oi-unit">${rkMoney(unitPrice)} / ${t('حبة')}</div>` : ''}
           </div>
-          <div class="oi-total">${i.isPointsRedemption ? t('نقاط') : rkMoney(unitPrice*i.qty)}</div>
+          <div class="oi-total">${i.isPointsRedemption ? t('نقاط') : i.isFreeReward ? t('مجاني') : rkMoney(unitPrice*i.qty)}</div>
           <button class="oi-remove" data-action="remove" data-line="${i.lineId}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
         ${configHtml}
@@ -1799,6 +2039,43 @@ function renderOrder(){
 }
 
 /* ============ Discount panel ============ */
+/**
+ * بابُ العميل جنب "+ خصم" -- خارج نافذة الدفع.
+ *
+ * كان اختيار العميل داخل مسار الدفع وحده: أضف صنفاً، اضغط ادفع، ثم
+ * اختر العميل. فمن جاء لأجل مكافأته لا سبيل له إليها إلا أن يبني
+ * طلباً لا يريده. وشريطُ المكافأة نفسُه لم يكن يظهر أبداً -- لأنه
+ * يشترط عميلاً معروفاً، والعميل لا يُعرف إلا بعد الدفع.
+ *
+ * والزرّ يقول من هو حين يُعرف: "عميل ولاء" حين لا أحد، واسمُه بعده.
+ */
+function rkOpenCustomerPicker(){
+  let on = true;
+  try { on = LOYALTY_ENABLED; } catch { on = true; }
+  if(!on){ showToast('نادي الولاء مقفل من لوحة التحكم'); return; }
+  document.getElementById('paymentModal').classList.add('show');
+  resetModalStack(renderCustomerStep);
+}
+
+function rkSyncCustomerButton(){
+  const btn = document.getElementById('posCustomerBtn');
+  if(!btn) return;
+  /**
+   * وLOYALTY_ENABLED تُقرأ بحذر.
+   *
+   * هي `let` تُهيَّأ في آخر الملف، وrenderOrder يُنادى قبل ذلك في
+   * الإقلاع -- فقراءتها هناك ترمي ReferenceError (منطقةُ الموت
+   * الزمنية). فكانت الدالّة تُرمى بعد أن يُنشأ الزرّ وقبل أن يُكتب
+   * نصُّه، ولا يُعاد التركيب لأن الزرّ موجود -- فيبقى فارغاً للأبد.
+   */
+  let on = true;
+  try { on = LOYALTY_ENABLED; } catch { on = true; }
+  btn.style.display = on ? '' : 'none';
+  const c = state.customer;
+  btn.classList.toggle('has-customer', !!(c && c.id));
+  btn.textContent = (c && (c.name || c.phone)) ? ('👤 ' + (c.name || c.phone)) : '+ عميل ولاء';
+}
+
 document.getElementById('discountToggle').addEventListener('click', ()=>{
   document.getElementById('discountPanel').classList.toggle('open');
 });
@@ -1825,6 +2102,36 @@ document.getElementById('discountPanel').addEventListener('click', (e)=>{
 function setCustomer(customer){
   state.customer = customer;
   updatePointsRedeemStrip();
+  rkSyncCustomerButton();
+  /**
+   * ورصيدُ المكافآت يُستكمل إن جاء العميل من طريقٍ لا يحمله.
+   *
+   * مواضعُ اختيار العميل متعددة -- بحثٌ ومسحٌ واستئنافُ طلب -- ولو
+   * نُسي الحقل في واحدٍ منها لاختفى الشريط بلا سبب ظاهر. فيُسأل عنه
+   * هنا مرّةً، فلا يعتمد الظهور على أن يتذكّره كل نداء.
+   */
+  if(customer && customer.id && customer.freeRewards === undefined){
+    window.supabaseClient.from('customers')
+      .select('loyalty_free_rewards').eq('id', customer.id).maybeSingle()
+      .then(({ data })=>{
+        if(!data || !state.customer || state.customer.id !== customer.id) return;
+        state.customer.freeRewards = Number(data.loyalty_free_rewards || 0);
+        updatePointsRedeemStrip();
+      }, ()=>{});
+  }
+}
+
+/** يُركَّب مرّةً واحدة في صفّ الخصم -- الترميز سلسلةٌ واحدة لا تُحرَّر. */
+function rkMountCustomerButton(){
+  const row = document.querySelector('.op-discount-row');
+  if(!row || document.getElementById('posCustomerBtn')) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.id = 'posCustomerBtn';
+  btn.className = 'discount-toggle pos-customer-btn';
+  btn.addEventListener('click', rkOpenCustomerPicker);
+  row.insertBefore(btn, row.firstChild);
+  rkSyncCustomerButton();
 }
 
 /* Registering a brand-new customer needs BOTH name and phone — complete_pos_order()
@@ -1879,12 +2186,23 @@ function renderCustomerStep(){
     <button type="button" class="loyalty-otp-back" id="pmCustomerClearBtn" style="margin-top:8px;">تغيير</button>
     <button class="confirm-pay-btn" id="pmCustomerNextBtn" style="margin-top:16px;">متابعة</button>
   ` : `
-    <div style="display:flex; gap:8px;">
-      <input type="text" id="pmCustomerInput" placeholder="اكتب اسم أو جوال..." style="flex:1;">
-      <button class="customer-suggest" id="pmScanCustomerCardBtn" title="مسح بطاقة العميل" type="button" style="flex:0 0 auto; width:44px; justify-content:center;">📷</button>
+    <div class="cust-row">
+      <!-- 05 مطبوعةٌ خارج الحقل لا مكتوبةٌ فيه: هي ثابتةٌ في كل رقمٍ
+           سعودي، فكتابتُها في كل طلبٍ ضغطتان بلا معنى -- ومحوُها
+           بالخطأ يجعل الرقم لا يُطابق أحداً.
+           والحقلُ يقبل الاسمَ أيضاً، فإذا كُتب حرفٌ اختفت المقدّمة:
+           البحثُ بالاسم لا مقدّمةَ له. -->
+      <span class="cust-field">
+        <span class="cust-prefix" id="pmPhonePrefix" dir="ltr">05</span>
+        <input type="text" id="pmCustomerInput" autocomplete="off"
+               placeholder="xxxxxxxx" maxlength="30" dir="ltr">
+      </span>
+      <button type="button" class="cust-save" id="pmCustomerSaveBtn" disabled>حفظ</button>
     </div>
+    <p class="cust-hint" id="pmCustomerHint"></p>
     <div class="customer-panel-row" id="pmCustomerSuggestions"></div>
-    <button class="confirm-pay-btn" id="pmCustomerNextBtn" style="margin-top:16px;">تخطي</button>
+    <button type="button" class="cust-scan" id="pmScanCustomerCardBtn">أو امسح بطاقة العميل</button>
+    <button class="confirm-pay-btn confirm-pay-btn-quiet" id="pmCustomerNextBtn">تخطي</button>
   `;
 
   const clearBtn = document.getElementById('pmCustomerClearBtn');
@@ -1895,19 +2213,119 @@ function renderCustomerStep(){
     input.focus();
     let pmCustomerSearchTimer;
     const suggestEl = document.getElementById('pmCustomerSuggestions');
+    const saveBtn = document.getElementById('pmCustomerSaveBtn');
+    const hintEl = document.getElementById('pmCustomerHint');
+
+    /**
+     * الرقمُ سعوديٌّ: يبدأ بـ 05 وعشرُ خاناتٍ لا أكثر.
+     *
+     * وكان الحقل يقبل أيَّ شيء، فيُكتب الرقم بأحد عشر رقماً أو بمقدّمة
+     * +966 أو بتسعٍ ناقصةً صفرَها -- ويُبحث به فلا يُوجد صاحبُه، وهو
+     * مسجّلٌ عندنا بصورةٍ أخرى للرقم نفسه. فيُنشأ عميلٌ ثانٍ لنفس
+     * الإنسان، وينقسم رصيدُ ولائه بين صفّين.
+     *
+     * والأرقام العربية تُترجَم لا تُرفض: لوحةُ آيبادٍ بواجهةٍ عربية
+     * تكتب ٠٥ لا 05، و\D في جافاسكربت تعدّها "غيرَ رقم" فتمحوها --
+     * فيرى الكاشير حقلاً يفرغ كلّما كتب.
+     */
+    const prefixEl = document.getElementById('pmPhonePrefix');
+
+    /**
+     * الحقلُ يحمل الثمانيةَ وحدها، و05 مطبوعةٌ بجانبه.
+     *
+     * وهي ثابتةٌ في كل جوّالٍ سعودي: كتابتُها في كل طلبٍ ضغطتان بلا
+     * معنى، ومحوُها بالخطأ -- وهو يقع -- يجعل الرقم لا يُطابق أحداً
+     * فيُنشأ عميلٌ ثانٍ للإنسان نفسِه.
+     *
+     * ومن لصق رقماً كاملاً (0557444227 أو 966557444227 أو 557444227)
+     * تُنزع مقدّمتُه ويبقى ما بعدها: اللصقُ يجيء من واتساب وسجلّ
+     * المكالمات بأيّ صورة.
+     */
+    const shapeTail = (raw)=>{
+      let d = toWesternDigits(raw).replace(/[^0-9]/g, '');
+      if(d.startsWith('966')) d = d.slice(3);
+      if(d.startsWith('05')) d = d.slice(2);
+      else if(d.startsWith('5')) d = d.slice(1);
+      return d.slice(0, 8);
+    };
+    const isPhoneish = (v)=> v === '' || /[0-9٠-٩۰-۹+]/.test(v.charAt(0));
+    const fullPhone = ()=> '05' + input.value.trim();
+    const phoneValid = ()=> /^[0-9]{8}$/.test(input.value.trim());
+
+    const syncSave = ()=>{
+      const v = input.value.trim();
+      const numeric = isPhoneish(v);
+      // والمقدّمةُ تختفي حين يُكتب اسم: البحثُ بالاسم لا 05 فيه.
+      if(prefixEl) prefixEl.hidden = !numeric;
+      if(numeric){
+        const ok = phoneValid();
+        saveBtn.disabled = !ok;
+        const left = 8 - v.length;
+        // جملةٌ تُبنى بترتيب لغتها: "٣ أرقام باقية" لا تُركَّب من ترجمة
+        // "باقي" + رقم + ترجمة "أرقام" -- الترتيبُ يختلف والنتيجةُ ركيكة.
+        hintEl.textContent = (!ok && v.length > 0)
+          ? (LANG === 'en' ? left + ' digits to go' : 'باقي ' + left + ' أرقام')
+          : '';
+        hintEl.className = 'cust-hint';
+      } else {
+        saveBtn.disabled = v.length < 2;
+        hintEl.textContent = '';
+        hintEl.className = 'cust-hint';
+      }
+    };
+
+    /**
+     * الحفظُ يُعرّف العميل ويمضي -- بلا ضغطةٍ على الاسم تحت.
+     *
+     * كان الرقم يُكتب فيظهر اسمُه تحته، ثم يُنتظر من الكاشير أن يضغط
+     * السطر. وهو قد عرف صاحبَه بمجرّد كتابة رقمه -- فضغطةٌ ثانية على
+     * ما لا خيار فيه (سطرٌ واحد لا غير) تأخيرٌ بلا فائدة، والطابور
+     * واقف.
+     */
+    const saveAndGo = async ()=>{
+      const v = input.value.trim();
+      if(saveBtn.disabled) return;
+      if(isPhoneish(v)){
+        if(!phoneValid()) return;
+        const phone = fullPhone();
+        saveBtn.disabled = true;
+        saveBtn.textContent = '...';
+        const { data } = await window.supabaseClient.from('customers')
+          .select('id, name, phone, loyalty_points, loyalty_free_rewards')
+          .eq('business_id', DEVICE.businessId).eq('phone', phone).maybeSingle();
+        if(data){
+          setCustomer({ id: data.id, name: data.name, phone: data.phone || null,
+            points: Number(data.loyalty_points), freeRewards: Number(data.loyalty_free_rewards || 0) });
+          proceedFromCustomerStep();
+          return;
+        }
+        // ولا يُوجد: يُفتح إنشاؤه ورقمُه مكتوبٌ فيه، لا يُعاد كتابته.
+        openModalStep(()=> renderNewCustomerStep({ name: null, phone }));
+        return;
+      }
+      // بالاسم: نتيجةٌ واحدة تُختار وحدها، وأكثرُ يُترك للعين.
+      const rows = suggestEl.querySelectorAll('.customer-suggest:not(.customer-suggest-new)');
+      if(rows.length === 1){ rows[0].click(); return; }
+      if(rows.length === 0) openModalStep(()=> renderNewCustomerStep({ name: v, phone: null }));
+    };
+
+    saveBtn.addEventListener('click', saveAndGo);
+
     input.addEventListener('input', (e)=>{
       clearTimeout(pmCustomerSearchTimer);
-      const q = e.target.value.trim();
+      if(isPhoneish(e.target.value)) e.target.value = shapeTail(e.target.value);
+      syncSave();
+      const q = isPhoneish(e.target.value) ? (e.target.value.trim() ? fullPhone() : '') : e.target.value.trim();
       if(q.length < 2){ suggestEl.innerHTML = ''; return; }
       suggestEl.innerHTML = `<div class="customer-suggest-loading">جارٍ البحث...</div>`;
       pmCustomerSearchTimer = setTimeout(async ()=>{
         const { data } = await window.supabaseClient.from('customers')
-          .select('id, name, phone, loyalty_points').eq('business_id', DEVICE.businessId)
+          .select('id, name, phone, loyalty_points, loyalty_free_rewards').eq('business_id', DEVICE.businessId)
           .or(`name.ilike.%${q}%,phone.ilike.%${q}%`).limit(6);
         const rows = (data||[]).map(cust=>{
           const initial = (cust.name || cust.phone || '؟').charAt(0);
           const pointsBadge = cust.loyalty_points > 0 ? `<span class="customer-suggest-points">${cust.loyalty_points} نقطة</span>` : '';
-          return `<button class="customer-suggest" data-id="${cust.id}" data-name="${escapeHtml(cust.name)}" data-phone="${escapeHtml(cust.phone||'')}" data-points="${cust.loyalty_points}">
+          return `<button class="customer-suggest" data-id="${cust.id}" data-name="${escapeHtml(cust.name)}" data-phone="${escapeHtml(cust.phone||'')}" data-points="${cust.loyalty_points}" data-free="${cust.loyalty_free_rewards || 0}">
             <span class="customer-suggest-avatar">${escapeHtml(initial)}</span>
             <span class="customer-suggest-info"><span class="customer-suggest-name">${escapeHtml(cust.name)}</span>${cust.phone ? `<span class="customer-suggest-phone mono">${escapeHtml(cust.phone)}</span>` : ''}</span>
             ${pointsBadge}
@@ -1928,16 +2346,12 @@ function renderCustomerStep(){
       }, 250);
     });
     input.addEventListener('keydown', (e)=>{
-      if(e.key === 'Enter' && e.target.value.trim()){
-        const val = e.target.value.trim();
-        const isPhone = /^[0-9+\s-]{6,}$/.test(val);
-        openModalStep(()=> renderNewCustomerStep(isPhone ? {name: null, phone: val} : {name: val, phone: null}));
-      }
+      if(e.key === 'Enter'){ e.preventDefault(); saveAndGo(); }
     });
     suggestEl.addEventListener('click', (e)=>{
       const btn = e.target.closest('.customer-suggest:not(.customer-suggest-new)');
       if(!btn) return;
-      setCustomer({id: parseInt(btn.dataset.id,10), name: btn.dataset.name, phone: btn.dataset.phone || null, points: Number(btn.dataset.points)});
+      setCustomer({id: parseInt(btn.dataset.id,10), name: btn.dataset.name, phone: btn.dataset.phone || null, points: Number(btn.dataset.points), freeRewards: Number(btn.dataset.free || 0)});
       proceedFromCustomerStep();
     });
     document.getElementById('pmScanCustomerCardBtn').addEventListener('click', async ()=>{
@@ -1973,8 +2387,56 @@ function proceedFromCustomerStep(){
 // inside the payment modal (renderLoyaltyRedeemStep) — this strip used to
 // let a cashier open the redeem picker with one tap and no real cardholder
 // consent. Kept as a no-op (not deleted) since setCustomer() still calls it.
+/**
+ * شريطُ المكافأة فوق السلة -- طريقٌ مباشر لا يمرّ بالدفع.
+ *
+ * كان صرفُ المكافأة يشترط: أضف صنفاً، اضغط ادفع، اختر "الدفع
+ * بالولاء". ثلاث خطواتٍ لا علاقة لها بما يريده الكاشير -- وواحدةٌ
+ * منها كذبة: المكافأة ليست طريقة دفع، هي سطرٌ بصفر يُضاف.
+ *
+ * فيظهر الشريط بمجرّد أن يُعرف العميل وعنده مكافأة، ويُضغط فيبدأ
+ * التأكيد. والباب القديم يبقى لمن اعتاده.
+ */
 function updatePointsRedeemStrip(){
-  document.getElementById('pointsRedeemStrip').style.display = 'none';
+  const strip = document.getElementById('pointsRedeemStrip');
+  if(!strip) return;
+  const c = state.customer;
+  const label = (window.BUSINESS_LOYALTY && window.BUSINESS_LOYALTY.rewardLabel) || 'مكافأة مجانية';
+  state.freeRewardLabel = label;
+
+  // رصيدٌ مصروفٌ ينتظر صنفاً -- يسبق كل شيء: العميل دفع ثمنه بولائه،
+  // والكاشير لا ينبغي أن ينسى أن عليه صنفاً مجانياً.
+  if(state.freeRewardCredit > 0){
+    strip.style.display = '';
+    strip.innerHTML = `<button type="button" class="reward-strip-btn reward-strip-due" id="rewardStripBtn">
+        <span class="reward-strip-icon">🎁</span>
+        <span class="reward-strip-text"><b>${label}${state.freeRewardCredit > 1 ? ' ×' + state.freeRewardCredit : ''} بانتظار صنف</b><span>انخصمت من رصيده — اختر الصنف اللي بيصير مجاني</span></span>
+      </button>`;
+    document.getElementById('rewardStripBtn').addEventListener('click', ()=> openFreeRewardPicker(null));
+    return;
+  }
+
+  const n = c && Number(c.freeRewards || 0);
+  let loyaltyOn = true;
+  try { loyaltyOn = LOYALTY_ENABLED; } catch { loyaltyOn = true; }
+  if(!loyaltyOn || !c || !c.id || !n){
+    strip.style.display = 'none';
+    strip.innerHTML = '';
+    return;
+  }
+  strip.style.display = '';
+  strip.innerHTML = `<button type="button" class="reward-strip-btn" id="rewardStripBtn">
+      <span class="reward-strip-icon">🎁</span>
+      <span class="reward-strip-text"><b>عنده ${label}${n > 1 ? ' ×' + n : ''}</b><span>اضغط عشان تصرفها</span></span>
+    </button>`;
+  document.getElementById('rewardStripBtn').addEventListener('click', startLoyaltyRedeem);
+}
+
+/** يفتح التأكيد مباشرةً -- لا يمرّ بخطوة الدفع ولا يشترط سلّةً. */
+function startLoyaltyRedeem(){
+  if(!state.customer || !state.customer.id){ showToast('اختر العميل أول'); return; }
+  document.getElementById('paymentModal').classList.add('show');
+  resetModalStack(renderLoyaltyWaitStep);
 }
 function openPointsRedeemModal(){
   const redeemable = Object.entries(MENU_ITEM_META).filter(([,meta])=> meta.pointsRedeemPrice != null);
@@ -1990,8 +2452,9 @@ function openPointsRedeemModal(){
   document.getElementById('paymentModal').classList.add('show');
   paymentModalBody.querySelectorAll('.pos-staff-btn[data-id]:not([disabled])').forEach(btn=>{
     btn.addEventListener('click', ()=>{
+      // نفس علّة المكافأة: الاستبدال سطرٌ يُضاف لا دفعٌ يُتمّ.
       addPointsRedemptionToCart(Number(btn.dataset.id));
-      closePaymentModalNow();
+      resetToCashFallback();
     });
   });
 }
@@ -2075,9 +2538,9 @@ async function scanCustomerCard(){
     // the QR encodes the full card URL (…/loyalty-card/<token>), not the bare token
     const token = decoded.split('/').filter(Boolean).pop();
     const { data } = await window.supabaseClient.from('customers')
-      .select('id, name, phone, loyalty_points').eq('business_id', DEVICE.businessId).eq('public_token', token).maybeSingle();
+      .select('id, name, phone, loyalty_points, loyalty_free_rewards').eq('business_id', DEVICE.businessId).eq('public_token', token).maybeSingle();
     if(!data){ showToast('ما فيه عميل مربوط بهذا الباركود.'); return; }
-    setCustomer({id:data.id, name:data.name, phone:data.phone, points:Number(data.loyalty_points)});
+    setCustomer({id:data.id, name:data.name, phone:data.phone, points:Number(data.loyalty_points), freeRewards:Number(data.loyalty_free_rewards||0)});
     showToast('تم التعرف على ' + data.name);
   });
 }
@@ -2096,6 +2559,9 @@ document.getElementById('clearOrderBtn').addEventListener('click', function(){
     clearArmed = false;
     this.classList.remove('armed');
     this.textContent = t('إفراغ الطلب');
+    // المكافأة تعود لصاحبها قبل أن تُفرغ السلة: بعدها لا يبقى ما
+    // يقول إن في اليد رصيداً.
+    rkReturnUnusedReward();
     state.cart = []; state.discountPct = 0;
     renderOrder();
     showToast('تم إفراغ الطلب');
@@ -2118,8 +2584,23 @@ const paymentModalBody = document.getElementById('paymentModalBody');
    render function directly and never touch this stack. For a single-view
    modal (nothing pushed before it) the back button just closes, same as ×. */
 let modalStepStack = [];
-function resetModalStack(fn){ modalStepStack = [fn]; fn(); }
-function openModalStep(fn){ modalStepStack.push(fn); fn(); }
+/**
+ * سهمُ الرجوع يُخفى حين لا شيء وراءه.
+ *
+ * كان معروضاً دائماً -- والتطبيق يخفيه فوق الخطوة الأولى، فاختلفا. وفوق
+ * "تمت العملية" أسوأ من مجرّد اختلاف: الطلب سُجّل ودُفع وطُبع، والسلّة
+ * فُرّغت -- فما وراءه شيءٌ يُرجع إليه. يُضغط فيُغلق النافذة، فيقرؤه
+ * الكاشير عطلاً لا نيّة، أو يظنّ أنه ألغى ما تمّ.
+ *
+ * وvisibility لا display: الرأس صفٌّ من ثلاثة، وحذفُ أوّله يزيح
+ * العنوان عن وسطه.
+ */
+function rkSetModalBack(show){
+  const b = document.getElementById('paymentModalBackBtn');
+  if(b) b.style.visibility = show ? '' : 'hidden';
+}
+function resetModalStack(fn){ modalStepStack = [fn]; rkSetModalBack(false); fn(); }
+function openModalStep(fn){ modalStepStack.push(fn); rkSetModalBack(true); fn(); }
 function closePaymentModalNow(){
   paymentModal.classList.remove('show');
   modalStepStack = [];
@@ -2133,6 +2614,7 @@ function closePaymentModalNow(){
 function modalGoBack(){
   if(modalStepStack.length > 1){
     modalStepStack.pop();
+    rkSetModalBack(modalStepStack.length > 1);
     modalStepStack[modalStepStack.length - 1]();
   } else {
     closePaymentModalNow();
@@ -2175,11 +2657,16 @@ async function submitTableOrderRegistration(){
   const savedLabel = isAppend ? 'تمت إضافة الأصناف للطلب' : 'تم تسجيل الطلب';
   showToast(savedLabel + (table ? ' — طاولة ' + table.number : '') + (orderId ? '' : ' (بدون اتصال — راح تتزامن تلقائيًا)'));
   state.cart = []; state.customer = null; state.discountPct = 0;
+  // الرصيد يسقط مع الطلب الذي صُرف فيه -- لا يُورَّث لطلب زبونٍ آخر.
+  state.freeRewardCredit = 0; state.rewardArm = null;
   document.getElementById('discountToggle').textContent = '+ خصم';
   state.selectedTableId = null;
   state.selectedOrderId = null;
   updatePointsRedeemStrip();
   renderOrder();
+  rkSyncCustomerButton();
+  // انتهى الطلب: إن كان تحديثٌ ينتظر، يُطبَّق الآن -- هذه أسلم لحظة.
+  rkApplyShellUpdateIfIdle();
   document.querySelector('.nav-tab[data-screen="tables"]').click();
 }
 document.getElementById('closePaymentModal').addEventListener('click', closePaymentModalNow);
@@ -2193,10 +2680,39 @@ paymentModal.addEventListener('click', (e)=>{ if(e.target===paymentModal) closeP
    only when and where the choice is made moved. ============ */
 function renderChannelStep(){
   document.getElementById('paymentModalTitle').textContent = 'نوع الطلب';
+  /**
+   * ثلاثةُ صفوفٍ عريضة، لا ثلاثةُ أقراصٍ في سطر.
+   *
+   * كانت في سطرٍ واحد: "تطبيقات التوصيل" كلمتان في قرصٍ ضيّق فينكسر
+   * سطرُها، و"محلي" كلمةٌ واحدة في قرصٍ بعرضه نفسه -- فتختلف الأقراص
+   * في الامتلاء وتتساوى في العرض. والنافذةُ تحتها فارغةٌ تماماً: خطوةٌ
+   * كاملةٌ لثلاثة خيارات، وأكثرُ مساحتها بياض.
+   *
+   * فصارت صفوفاً: كلُّ صفٍّ بعرض النافذة -- هدفٌ يُصاب بالإبهام بلا
+   * نظر -- وفيه أيقونةٌ وعنوانٌ وسطرٌ يقول ما يعنيه. وسطرُ المعنى ليس
+   * زينة: "سفري" و"محلي" يعرفهما الكاشير، و"تطبيقات التوصيل" تُخلط
+   * بتوصيل المطعم بسائقه -- وهي ليست هي، وحجزُها في الحساب مختلف.
+   */
+  /**
+   * وسطرُ التوصيل يُسمّي تطبيقاتِ هذا المطعم هو، لا تطبيقاتٍ عامّة.
+   *
+   * "جاهز أو هنقرستيشن" مكتوبةً في الشيفرة تكذب على من لا يعمل معهما،
+   * وتصحّ صدفةً عند غيره. والقائمةُ محمّلةٌ أصلاً، فتُقرأ منها.
+   */
+  const platformNames = DELIVERY_PLATFORMS_LIST.map(p => p.name).filter(Boolean);
+  const deliveryHint = platformNames.length
+    // t() لا القالبُ الحرفيّ: أسماءُ التطبيقات لا تُترجم، وما حولها يُترجم.
+    ? t('الطلب جاك من') + ' ' + platformNames.slice(0, 2).join(' ' + t('أو') + ' ')
+    : t('الطلب جاك من تطبيق توصيل');
+
   const channels = [
-    {id:'dine_in', label:'🍽️ محلي'},
-    {id:'pickup', label:'📦 سفري'},
-    {id:'delivery', label:'🛵 تطبيقات التوصيل'}
+    // شوكةٌ وسكّين: دائرتان متراكزتان تُقرآن زرَّ تسجيلٍ لا صحناً.
+    {id:'dine_in', label:'محلي', hint:t('ياكل عندك في المحل'),
+     icon:'<path d="M3 2v7a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6a2 2 0 0 0 2 2h3zm0 0v7"/>'},
+    {id:'pickup', label:'سفري', hint:t('ياخذ طلبه ويطلع'),
+     icon:'<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>'},
+    {id:'delivery', label:'تطبيقات التوصيل', hint:deliveryHint,
+     icon:'<rect x="5" y="2" width="14" height="20" rx="2.5"/><line x1="10" y1="18.5" x2="14" y2="18.5"/>'}
   ].filter(c => {
     if(c.id === 'dine_in') return DINE_IN_ENABLED;
     // "توصيل" here means a delivery-APP order (Jahez, HungerStation...),
@@ -2212,7 +2728,10 @@ function renderChannelStep(){
     return true;
   });
   let html = `<div class="channel-row" id="pmChannelRow">` + channels.map(c=>
-    `<button class="channel-btn ${state.orderChannel===c.id?'active':''}" data-channel="${c.id}">${c.label}</button>`
+    `<button class="channel-btn ${state.orderChannel===c.id?'active':''}" data-channel="${c.id}" title="${c.hint}">
+      <span class="channel-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${c.icon}</svg></span>
+      <span class="channel-name">${c.label}</span>
+    </button>`
   ).join('') + `</div>`;
   html += `<div class="platform-btn-row ${state.orderChannel==='delivery' && DELIVERY_PLATFORMS_LIST.length ? '' : 'hidden'}" id="channelPlatformRow"></div>`;
   paymentModalBody.innerHTML = html;
@@ -2220,6 +2739,8 @@ function renderChannelStep(){
 
   document.getElementById('pmChannelRow').addEventListener('click', (e)=>{
     const btn = e.target.closest('.channel-btn'); if(!btn) return;
+    // والمختارُ يُعلَّم وحده: كان يُنزع من الجميع ثم يُوضع، وهو نفسه --
+    // فيبقى كما هو، ويُقرأ من الصفّ لا من الذاكرة.
     document.querySelectorAll('#pmChannelRow .channel-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     state.orderChannel = btn.dataset.channel;
@@ -2325,85 +2846,185 @@ function renderPaymentStep(){
     return;
   }
 
+  /**
+   * طلبٌ غطّته المكافأة بالكامل: لا يُسأل عن طريقة دفع.
+   *
+   * كانت تُعرض له أربعة مربّعات -- كاش وبطاقة وتقسيم وولاء -- والمطلوب
+   * صفر. فالكاشير يقف أمام سؤالٍ لا جواب له: ما الذي يقبضه؟ ثم يختار
+   * "كاش" فيُسجَّل بيعٌ نقديٌّ بصفر، ويُقرأ في التقارير خطأً.
+   *
+   * فيُقال ما جرى: دُفع بالولاء، ولا شيء يُقبض. وزرٌّ واحد يُتمّ الطلب.
+   * (وهي المعالجة نفسها التي لطلب التوصيل أعلاه: دُفع في مكانٍ آخر.)
+   */
+  const paidByReward = total <= 0.001 && state.cart.some(i => i.isFreeReward);
+  if(paidByReward){
+    state.activePaymentMethod = 'loyalty';
+    state.cashAmount = 0;
+    let html = `<div class="due-display reward-paid">
+      <div class="due-label">مدفوع بمكافأة الولاء</div>
+      <div class="due-amount">${rkMoney(0)}</div>
+      <div class="reward-paid-note">🎁 ما فيه مبلغ يُقبض — المكافأة انخصمت من رصيد العميل</div>
+    </div>`;
+    const wantsPagerHere = POS_PAGER_ENABLED
+      && (state.orderChannel === 'pickup'
+          || (state.orderChannel === 'dine_in' && DINE_IN_MODE === 'simple'));
+    if(wantsPagerHere){
+      html += `<div class="pager-field">
+        <label>رقم جهاز النداء</label>
+        <input type="number" id="pagerInput" inputmode="numeric" maxlength="3" placeholder="مثال: 20" value="${state.pagerNumber || ''}">
+        <p class="stock-qty-helper">اتركه فاضي لو ما أعطيته جهاز.</p>
+        <p class="pos-auth-error" id="pagerError" style="display:none;"></p>
+      </div>`;
+    }
+    html += `<button class="confirm-pay-btn" id="confirmPayBtn">تأكيد الطلب</button>`;
+    paymentModalBody.innerHTML = html;
+    const pg = document.getElementById('pagerInput');
+    if(pg) pg.addEventListener('input', ()=>{
+      state.pagerNumber = pg.value.replace(/[^0-9]/g, '').slice(0, 3);
+      const err = document.getElementById('pagerError');
+      if(err) err.style.display = 'none';
+    });
+    document.getElementById('confirmPayBtn').addEventListener('click', completePayment);
+    return;
+  }
+
   const methods = [
     {id:'cash', label:'كاش', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg>'},
     {id:'card', label:'بطاقة', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>'},
     {id:'split', label:'تقسيم', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>'}
   ];
-  // only surfaced once a real, existing customer with a redeemable balance is
-  // attached — same gate updatePointsRedeemStrip() used to check
-  if(state.customer && state.customer.id && state.customer.points > 0){
+  /**
+   * ويُعرض لصاحب المكافأة كما يُعرض لصاحب النقاط.
+   *
+   * كان مشروطاً بالنقاط وحدها -- ونظامُ الأكواب لا نقاط فيه، فرصيدُه
+   * صفرٌ دائماً والخيار لا يظهر أبداً. فمقهىً يعدّ الأكواب لا سبيل
+   * لكاشيره إلى صرف مكافأةٍ من هنا مهما جمع زبونه.
+   */
+  /**
+   * ولا يُعرض "الولاء" وقد صُرف في هذه السلة أصلاً.
+   *
+   * الكاشير أكّد العميل وأخذ مكافأته وأضافها -- ثم يجد الزرّ أمامه من
+   * جديد، فيظنّه خطوةً باقية. وهو تمّ.
+   */
+  if(state.customer && state.customer.id &&
+     !state.cart.some(i => i.isFreeReward) &&
+     (state.customer.points > 0 || Number(state.customer.freeRewards || 0) > 0)){
     methods.push({id:'loyalty', label:'الولاء', icon:'🎁'});
   }
-  let html = `<div class="pm-tabs">` + methods.map(m=>`<button class="pm-tab ${state.activePaymentMethod===m.id?'active':''}" data-method="${m.id}">${m.icon}<span>${m.label}</span></button>`).join('') + `</div>`;
-  html += `<div class="due-display"><div class="due-label">المبلغ المطلوب</div><div class="due-amount">${rkMoney(total)}</div></div>`;
-  // Purely informational per-person calculator — doesn't touch payment_method
-  // or any order data, just tells the cashier how much to collect from each
-  // friend. Collapsed by default so it never gets in the way of a normal
-  // single-payer checkout; only shows once tapped.
-  if(state.activePaymentMethod !== 'loyalty'){
-    html += `<div class="friends-split">
-      <button type="button" class="friends-split-toggle" id="friendsSplitToggle">÷ قسّم بين الأصحاب</button>
-      ${state.friendsSplitOpen ? `<div class="friends-split-body">
-        <div class="friends-split-counts">
-          ${[2,3,4,5,6].map(n=>`<button type="button" class="fsc-btn ${state.friendsSplitCount===n?'active':''}" data-n="${n}">${n}</button>`).join('')}
-        </div>
-        ${state.friendsSplitCount ? `<div class="friends-split-result"><span>كل واحد يدفع</span>${rkMoney(total/state.friendsSplitCount)}</div>` : ''}
-      </div>` : ''}
-    </div>`;
-  }
+  if(state.activePaymentMethod === 'loyalty'){ renderLoyaltyWaitStep(); return; }
 
-  // The buzzer, asked for only where the customer walks away and comes
-  // back: takeaway, and simple dine-in. A table-service order already has
-  // a table number doing this job, and a delivery order has nobody
-  // standing here to hand one to.
+  /**
+   * أربعُ مناطق، لا ثمانِ كتل.
+   *
+   * كانت الشاشة تُقرأ من فوق إلى تحت في ثماني وقفات: التبويبات، ثم
+   * صندوقُ المبلغ، ثم رابطُ القسمة، ثم حقلُ النداء بعنوانه وسطرِ شرحه،
+   * ثم المبالغ السريعة، ثم حقلُ المستلَم، ثم سطرُ الباقي، ثم الزرّ.
+   * ولكلٍّ إطارُه وحافّتُه -- فلا شيء أبرزُ من شيء، وعينُ الكاشير تبحث
+   * عن مكانها في كل طلب. والطابورُ واقف.
+   *
+   * والعملُ نفسه ثلاث خطوات لا ثمانٍ: اختر الطريقة، اكتب المستلَم،
+   * أكّد. فجُمعت في بطاقةٍ واحدة تُقرأ عموداً واحداً:
+   *
+   *   [ التبويبات ]
+   *   +-- المطلوب ......... 34.00 --+   البطلُ في الأعلى
+   *   |   [100][50][40][34]         |   ما يُلقّم الحقل، ملتصقاً به
+   *   |   [     المستلَم     ]      |
+   *   +-- الباقي ........... 6.00 --+   يُضيء حين يصير له معنى
+   *   [ 05 نداء ] [ قسّم بين الأصحاب ]  الثانويّ في سطرٍ واحد
+   *   [        تأكيد الدفع        ]
+   *
+   * والنداءُ والقسمةُ لم يُحذفا -- نُزعت عنهما العناوينُ والأُطر التي
+   * كانت تجعلهما بحجم الأساس، وهما اختياريّان.
+   */
+  let html = `<div class="pm-tabs">` + methods.map(m=>`<button class="pm-tab ${state.activePaymentMethod===m.id?'active':''}" data-method="${m.id}">${m.icon}<span>${m.label}</span></button>`).join('') + `</div>`;
+
+  html += `<div class="pay-card">
+    <div class="pay-due"><span class="pay-due-label">المطلوب</span><span class="pay-due-amount">${rkMoney(total)}</span></div>`;
+
+  if(state.activePaymentMethod === 'cash'){
+    /**
+     * المبالغُ السريعة تُبنى من الفئات، وتملأ سطرها مهما كان عددُها.
+     *
+     * كانت أربعةَ أعمدةٍ ثابتة والقيمُ تُنقّى من التكرار -- فطلبٌ بثمانين
+     * يُخرج اثنتين فقط (٨٠ و١٠٠) فتقفان في عمودين ويبقى نصفُ السطر
+     * فارغاً، كأنّ شيئاً لم يُحمَّل.
+     *
+     * وطلبٌ بمئةٍ يُخرج واحدة: مئةً هي المطلوبُ نفسُه، وهي القيمةُ
+     * المكتوبةُ سلفاً في الحقل -- زرٌّ لا يفعل شيئاً، ويشغل سطراً.
+     * فتُضاف الفئةُ التي بعدها ليكون في السطر خيارٌ حقيقي.
+     */
+    const opts = [...new Set([total, Math.ceil(total/10)*10, Math.ceil(total/50)*50, Math.ceil(total/100)*100]
+      .map(n=>n.toFixed(2)))].slice(0,4);
+    if(opts.length < 2) opts.push(((Math.floor(total/100) + 1) * 100).toFixed(2));
+    const given = state.cashAmount || 0;
+    const change = Math.max(0, given - total);
+    html += `<div class="pay-chips">` + opts.map(v=>`<button class="qa-btn ${Number(v)===given?'active':''}" data-amount="${v}">${v}</button>`).join('') + `</div>
+      <div class="pay-tender-row">
+        <span class="pay-tender-label">المستلَم</span>
+        <input type="number" class="pay-tender" id="cashInput" inputmode="decimal" placeholder="0.00" value="${given||''}">
+      </div>
+      <div class="pay-change ${change>0?'live':''}" id="cashChangeRow"><span>الباقي للعميل</span><span id="cashChangeAmount">${rkMoney(change)}</span></div>`;
+  } else if(state.activePaymentMethod === 'split'){
+    // حقلان مترابطان في الاتجاهين: يكتب الكاشير ما استلمه أولاً، ويُملأ
+    // الآخر بالباقي. وstate.splitCardAmount وحده المرجع.
+    const cardAmt = Math.min(total, state.splitCardAmount || 0);
+    const cashAmt = Math.max(0, Number((total - cardAmt).toFixed(2)));
+    html += `<div class="pay-split">
+      <div class="pay-split-cell"><label for="splitCashInput">كاش</label>
+        <input type="number" id="splitCashInput" inputmode="decimal" placeholder="0.00" value="${cashAmt||''}"></div>
+      <div class="pay-split-cell"><label for="splitCardInput">شبكة</label>
+        <input type="number" id="splitCardInput" inputmode="decimal" placeholder="0.00" value="${cardAmt||''}"></div>
+    </div>`;
+  } else {
+    html += `<div class="pay-tap"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg><span>مرّر أو قرّب البطاقة على الجهاز</span></div>`;
+  }
+  html += `</div>`;
+
+  // الثانويّ في سطرٍ واحد. والنداءُ يُطلب في الاستلام والصالة البسيطة --
+  // حيث يبتعد الزبون ويعود. والطاولةُ لها رقمها، والتوصيلُ لا أحد فيه.
   const wantsPager = POS_PAGER_ENABLED
     && (state.orderChannel === 'pickup'
         || (state.orderChannel === 'dine_in' && DINE_IN_MODE === 'simple'));
-  if(wantsPager){
-    html += `<div class="pager-field">
-      <label>رقم جهاز النداء</label>
-      <input type="number" id="pagerInput" inputmode="numeric" maxlength="3" placeholder="مثال: 20" value="${state.pagerNumber || ''}">
-      <p class="stock-qty-helper">اتركه فاضي لو ما أعطيته جهاز.</p>
-      <p class="pos-auth-error" id="pagerError" style="display:none;"></p>
+  html += `<div class="pay-extras">
+    ${wantsPager ? `<label class="pay-extra pay-extra-pager" title="رقم جهاز النداء — اتركه فاضي لو ما أعطيته جهاز">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <input type="number" id="pagerInput" inputmode="numeric" maxlength="3" placeholder="نداء" value="${state.pagerNumber || ''}">
+    </label>` : ''}
+    <button type="button" class="pay-extra pay-extra-btn ${state.friendsSplitOpen?'open':''}" id="friendsSplitToggle">÷ قسّم بين الأصحاب</button>
+  </div>
+  <p class="pos-auth-error" id="pagerError" style="display:none;"></p>`;
+  if(state.friendsSplitOpen){
+    html += `<div class="friends-split-body">
+      <div class="friends-split-counts">
+        ${[2,3,4,5,6].map(n=>`<button type="button" class="fsc-btn ${state.friendsSplitCount===n?'active':''}" data-n="${n}">${n}</button>`).join('')}
+      </div>
+      ${state.friendsSplitCount ? `<div class="friends-split-result"><span>كل واحد يدفع</span>${rkMoney(total/state.friendsSplitCount)}</div>` : ''}
     </div>`;
   }
 
-  if(state.activePaymentMethod === 'cash'){
-    const opts = [...new Set([total, Math.ceil(total/10)*10, Math.ceil(total/50)*50, Math.ceil(total/100)*100].map(n=>n.toFixed(2)))].slice(0,4);
-    html += `<div class="quick-amounts">` + opts.map(v=>`<button class="qa-btn" data-amount="${v}">${v}</button>`).join('') + `</div>`;
-    html += `<div class="cash-input-row"><input type="number" id="cashInput" placeholder="0.00" value="${state.cashAmount||''}"></div>`;
-    const change = Math.max(0, (state.cashAmount||0)-total);
-    html += `<div class="change-row"><span>الباقي</span><span id="cashChangeAmount">${rkMoney(change)}</span></div>`;
-    html += `<button class="confirm-pay-btn" id="confirmPayBtn" ${(state.cashAmount||0)>=total?'':'disabled'}>تأكيد الدفع</button>`;
-  } else if(state.activePaymentMethod === 'split'){
-    // Two linked inputs, either direction — the cashier types whichever
-    // amount they were actually handed first (cash or network), and the
-    // other side auto-fills the remainder. state.splitCardAmount stays the
-    // single source of truth; the cash field is always just total-card.
-    const cardAmt = Math.min(total, state.splitCardAmount || 0);
-    const cashAmt = Math.max(0, Number((total - cardAmt).toFixed(2)));
-    const validSplit = cardAmt > 0 && cashAmt > 0;
-    html += `<div class="split-inputs">
-      <label>المبلغ كاش</label>
-      <input type="number" id="splitCashInput" placeholder="0.00" value="${cashAmt||''}">
-      <label>المبلغ عبر الشبكة (بطاقة)</label>
-      <input type="number" id="splitCardInput" placeholder="0.00" value="${cardAmt||''}">
-    </div>`;
-    html += `<button class="confirm-pay-btn" id="confirmPayBtn" ${validSplit?'':'disabled'}>تأكيد الدفع المقسّم</button>`;
-  } else if(state.activePaymentMethod === 'loyalty'){
-    renderLoyaltyWaitStep();
-    return;
-  } else {
-    html += `<div class="card-tap-state">
-      <div class="card-tap-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
-      <p>مرّر أو قرّب البطاقة على الجهاز</p>
-    </div>`;
-    html += `<button class="confirm-pay-btn" id="confirmPayBtn">تأكيد الدفع</button>`;
-  }
+  const cardNow = Math.min(total, state.splitCardAmount || 0);
+  const ready = state.activePaymentMethod === 'cash'
+    ? (state.cashAmount || 0) >= total
+    : state.activePaymentMethod === 'split'
+      ? (cardNow > 0 && total - cardNow > 0)
+      : true;
+  html += `<button class="confirm-pay-btn" id="confirmPayBtn" ${ready?'':'disabled'}>${
+    state.activePaymentMethod === 'split' ? 'تأكيد الدفع المقسّم' : 'تأكيد الدفع'}</button>`;
   paymentModalBody.innerHTML = html;
   paymentModalBody.querySelectorAll('.pm-tab').forEach(tab=>tab.addEventListener('click', ()=>{
-    state.activePaymentMethod = tab.dataset.method; state.cashAmount=0; state.splitCardAmount=0; renderPaymentStep();
+    /**
+     * تبديلُ الطريقة لا يمحو ما كُتب.
+     *
+     * كان الضغطُ على أيّ تبويبٍ يصفّر المستلَمَ والمقسومَ معاً. فكاشيرٌ
+     * كتب المئةَ التي بيده، ثم لمس "شبكة" ليرى، ثم رجع إلى "كاش" --
+     * يجد الحقلَ صفراً وزرَّ التأكيد مطفأً، ويكتبها من جديد. والمبلغُ
+     * لم يتغيّر: العميلُ نفسُه والورقةُ نفسُها.
+     *
+     * وما يُبطله التبديل يُبطله الحسابُ وحده: زرُّ التأكيد يُحسب من
+     * المستلَم في كلّ رسم، فرقمٌ لا يكفي يُطفئه بلا تصفير.
+     */
+    state.activePaymentMethod = tab.dataset.method;
+    renderPaymentStep();
   }));
   paymentModalBody.querySelectorAll('.qa-btn[data-amount]').forEach(btn=>btn.addEventListener('click', ()=>{ state.cashAmount = parseFloat(btn.dataset.amount); renderPaymentStep(); }));
   // Cash/split inputs update state + the small bits of surrounding UI (change
@@ -2415,8 +3036,14 @@ function renderPaymentStep(){
   const cashInput = document.getElementById('cashInput');
   if(cashInput) cashInput.addEventListener('input', (e)=>{
     state.cashAmount = parseFloat(e.target.value)||0;
+    const change = Math.max(0, state.cashAmount - total);
     const changeEl = document.getElementById('cashChangeAmount');
-    if(changeEl) changeEl.innerHTML = rkMoney(Math.max(0, state.cashAmount - total));
+    if(changeEl) changeEl.innerHTML = rkMoney(change);
+    // ويُضاء السطر حين يصير للباقي معنى: صفرٌ أخضرُ دائماً لا يُقرأ.
+    const changeRow = document.getElementById('cashChangeRow');
+    if(changeRow) changeRow.classList.toggle('live', change > 0);
+    paymentModalBody.querySelectorAll('.qa-btn[data-amount]').forEach(b=>
+      b.classList.toggle('active', Number(b.dataset.amount) === state.cashAmount));
     const btn = document.getElementById('confirmPayBtn');
     if(btn) btn.disabled = !(state.cashAmount >= total);
   });
@@ -2471,35 +3098,39 @@ function resetToCashFallback(){
   state.cashAmount = cartTotals().total;
   renderPaymentStep();
 }
+/**
+ * تأكيد المكافأة برمزٍ يصل بطاقة العميل.
+ *
+ * كانت تنتظر أن يفتح العميل صفحة بطاقته ويضغط "تأكيد" -- صفحةٌ لا
+ * يفتحها أحد، فيمرّ الصرف عملياً بلا تأكيد: من عرف رقم جوال غيره أخذ
+ * مكافأته.
+ *
+ * والرمز يُولَّد في الخادم ويُكتب في بطاقة المحفظة ويُدفع إليها. فلا
+ * يمرّ بالكاشير ولا بهذه الشاشة -- ولهذا يُثبت: من أعطى رقماً ليس
+ * رقمه لا يصله شيء.
+ *
+ * (نظيرها في التطبيق: LoyaltyRedeemModal.tsx -- وكلاهما ينادي نفس
+ * المسار، فلا يفترقان.)
+ */
 async function renderLoyaltyWaitStep(){
   document.getElementById('paymentModalTitle').textContent = 'الدفع بنقاط الولاء';
   paymentModalBody.innerHTML = `
     <div class="loyalty-wait-step">
       <div class="loyalty-wait-spinner"></div>
-      <div class="loyalty-wait-text">بانتظار تأكيد ${state.customer.name || 'العميل'}...</div>
-      <div class="loyalty-wait-sub">اطلب منه يفتح بطاقة الولاء ويضغط تأكيد</div>
-      <div class="loyalty-wait-timer" id="loyaltyWaitTimer"></div>
-      <button type="button" class="loyalty-otp-back" id="loyaltyCancelBtn">إلغاء</button>
+      <div class="loyalty-wait-text">جارٍ التحضير...</div>
     </div>`;
-  document.getElementById('loyaltyCancelBtn').addEventListener('click', ()=>{
-    if(loyaltyPollTimer) clearInterval(loyaltyPollTimer);
-    resetToCashFallback();
-  });
 
   let requestId;
   try {
     const { data: { session } } = await window.supabaseClient.auth.getSession();
-    const resp = await fetch('/api/pos/request-loyalty-redemption', {
+    // بلا دفعة: الطلب يُنشأ، والدفعة تُطلب حين يُختار بابُ الرمز وحده.
+    const resp = await fetch('/api/pos/request-loyalty-code', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
-      body: JSON.stringify({ customerId: state.customer.id })
+      body: JSON.stringify({ customerId: state.customer.id, send: false })
     });
     const data = await resp.json();
-    if(!resp.ok){
-      showToast(data.error || 'تعذر بدء عملية الاستبدال');
-      resetToCashFallback();
-      return;
-    }
+    if(!resp.ok){ showToast(data.error || 'تعذر التحضير'); resetToCashFallback(); return; }
     requestId = data.requestId;
   } catch (e) {
     showToast('تعذر الاتصال بالخادم');
@@ -2508,34 +3139,317 @@ async function renderLoyaltyWaitStep(){
   }
 
   const expiresAt = Date.now() + 2 * 60 * 1000;
-  const updateTimer = ()=>{
-    const left = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
-    const el = document.getElementById('loyaltyWaitTimer');
-    if(el) el.textContent = left + ' ثانية متبقية';
-    return left;
+  let displayTimer = null;
+  const stop = ()=>{ if(displayTimer) clearInterval(displayTimer); displayTimer = null; };
+  const startTimer = ()=>{
+    stop();
+    displayTimer = setInterval(()=>{
+      const left = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
+      const el = document.getElementById('loyaltyWaitTimer');
+      if(el) el.textContent = left + ' ثانية متبقية';
+      if(left <= 0){
+        stop();
+        showToast('انتهت المهلة — ابدأ من جديد');
+        resetToCashFallback();
+      }
+    }, 1000);
   };
-  updateTimer();
-  const displayTimer = setInterval(()=>{ if(updateTimer() <= 0) clearInterval(displayTimer); }, 1000);
 
-  if(loyaltyPollTimer) clearInterval(loyaltyPollTimer);
-  loyaltyPollTimer = setInterval(async ()=>{
-    if(Date.now() > expiresAt){
-      clearInterval(loyaltyPollTimer); clearInterval(displayTimer);
-      showToast('انتهت مهلة التأكيد — حاول مرة ثانية');
-      resetToCashFallback();
+  const done = ()=>{
+    stop();
+    if(rkLoyaltySystemType() === 'points') openModalStep(openPointsRedeemModal);
+    else openModalStep(()=> openFreeRewardModal(requestId));
+  };
+
+  /**
+   * ثلاثة أبواب، ولا رابع.
+   *
+   * قبل هذا كان رقم الجوال وحده يكفي لصرف مكافأة غيرك. والأبواب
+   * الثلاثة كلها إثباتُ حيازة: ما وصل جهازه، أو ما مُسح من يده، أو ما
+   * قرأه عن بطاقته. ولكل حالةٍ بابها، فلا يقف زبونٌ محقٌّ بلا حلّ:
+   *
+   *   رمز مؤقّت  -- الأقوى، ويشترط شبكةً عنده.
+   *   مسح باركود -- بلا شبكته، ويشترط كاميرا عند الكاشير.
+   *   رقم البطاقة -- بلا شبكةٍ ولا كاميرا، وهو ثابتٌ فأضعفها.
+   */
+  function renderChooser(){
+    paymentModalBody.innerHTML = `
+      <div class="loyalty-wait-step">
+        <div class="loyalty-wait-text">أكّد إنه صاحب البطاقة</div>
+        <div class="loyalty-wait-sub">اختر طريقة — لازم وحدة منها</div>
+        <button type="button" class="loyalty-pick" data-pick="temp">
+          <b>رمز مؤقّت يوصل جواله</b><span>الأقوى — يحتاج نت عنده</span></button>
+        <button type="button" class="loyalty-pick" data-pick="scan">
+          <b>امسح باركود بطاقته</b><span>بدون نت — يحتاج كاميرا بالجهاز</span></button>
+        <button type="button" class="loyalty-pick" data-pick="number">
+          <b>رقم البطاقة</b><span>ثمانية أحرف تحت الباركود — بدون نت ولا كاميرا</span></button>
+        <div class="loyalty-wait-timer" id="loyaltyWaitTimer"></div>
+        <button type="button" class="loyalty-otp-back" id="loyaltyCancelBtn">إلغاء</button>
+      </div>`;
+    startTimer();
+    document.getElementById('loyaltyCancelBtn').addEventListener('click', ()=>{
+      stop();
+      if(state.cart.length) resetToCashFallback(); else closePaymentModalNow();
+    });
+    paymentModalBody.querySelectorAll('[data-pick]').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        if(b.dataset.pick === 'temp') sendTempCode();
+        else if(b.dataset.pick === 'scan') scanCard();
+        else renderNumber();
+      });
+    });
+  }
+
+  async function sendTempCode(){
+    paymentModalBody.innerHTML = `
+      <div class="loyalty-wait-step">
+        <div class="loyalty-wait-spinner"></div>
+        <div class="loyalty-wait-text">جارٍ إرسال الرمز لجوال ${state.customer.name || 'العميل'}...</div>
+      </div>`;
+    let delivered = false;
+    try {
+      const { data: { session } } = await window.supabaseClient.auth.getSession();
+      const resp = await fetch('/api/pos/request-loyalty-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+        body: JSON.stringify({ customerId: state.customer.id, send: true })
+      });
+      const data = await resp.json();
+      delivered = !!data.delivered;
+    } catch (e) { /* يُقال حاله في الشاشة التالية */ }
+    renderEntry({
+      title: 'اسأله عن الرمز',
+      sub: delivered ? 'وصله إشعار على جواله فيه أربعة أرقام'
+                     : '⚠ ما وصله شي — جرّب المسح أو رقم البطاقة',
+      len: 4, placeholder: '- - - -', numeric: true,
+      verify: (v)=> window.supabaseClient.rpc('verify_loyalty_redemption_code', { p_request_id: requestId, p_code: v }),
+    });
+  }
+
+  function renderNumber(){
+    renderEntry({
+      title: 'رقم بطاقته',
+      sub: 'خلّه يفتح البطاقة ويقرأ الأحرف تحت الباركود',
+      len: 8, placeholder: 'A3F19C42', numeric: false,
+      verify: (v)=> window.supabaseClient.rpc('confirm_loyalty_request_by_number', { p_request_id: requestId, p_number: v }),
+    });
+  }
+
+  async function scanCard(){
+    const got = await openBarcodeScanner(async (decoded)=>{
+      const token = decoded.split('/').filter(Boolean).pop();
+      const { data, error } = await window.supabaseClient.rpc('confirm_loyalty_request_by_card', {
+        p_request_id: requestId, p_token: token
+      });
+      if(error || !data || !data.ok){
+        showToast((data && data.error === 'card_mismatch')
+          ? 'هذي مو بطاقة نفس العميل — أو انتهت المهلة'
+          : 'تعذر التأكيد بالبطاقة');
+        return;
+      }
+      done();
+    });
+    if(!got) renderChooser();
+  }
+
+  /** خانةُ إدخالٍ واحدة تخدم البابين: يختلف طولها ومَن يتحقق منها. */
+  function renderEntry(opt){
+    paymentModalBody.innerHTML = `
+      <div class="loyalty-wait-step">
+        <div class="loyalty-wait-text">${opt.title}</div>
+        <div class="loyalty-wait-sub">${opt.sub}</div>
+        <input type="text" id="loyaltyCodeInput" class="loyalty-code-input"
+               ${opt.numeric ? 'inputmode="numeric"' : 'autocapitalize="characters"'}
+               maxlength="${opt.len}" placeholder="${opt.placeholder}" autocomplete="off"
+               style="${opt.len > 4 ? 'font-size:22px; letter-spacing:4px; width:220px;' : ''}">
+        <div class="loyalty-code-err" id="loyaltyCodeErr"></div>
+        <div class="loyalty-wait-timer" id="loyaltyWaitTimer"></div>
+        <button type="button" class="loyalty-code-ok" id="loyaltyCodeBtn" disabled>تأكيد</button>
+        <button type="button" class="loyalty-otp-back" id="loyaltyBackBtn">رجوع</button>
+      </div>`;
+    startTimer();
+    const input = document.getElementById('loyaltyCodeInput');
+    const okBtn = document.getElementById('loyaltyCodeBtn');
+    const errEl = document.getElementById('loyaltyCodeErr');
+    document.getElementById('loyaltyBackBtn').addEventListener('click', renderChooser);
+
+    // الأرقام الهندية تُحوَّل: لوحةُ العميل عربية، فيُقرأ ٤٨٢١ كما 4821.
+    const AR = { '٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9' };
+    input.addEventListener('input', ()=>{
+      let v = (input.value || '').replace(/[٠-٩]/g, d => AR[d]);
+      v = opt.numeric ? v.replace(/[^0-9]/g, '') : v.replace(/[^0-9a-zA-Z]/g, '').toUpperCase();
+      input.value = v.slice(0, opt.len);
+      okBtn.disabled = input.value.length < opt.len;
+      errEl.textContent = '';
+    });
+    input.focus();
+
+    okBtn.addEventListener('click', async ()=>{
+      okBtn.disabled = true;
+      okBtn.textContent = 'جارٍ التحقق...';
+      const { data, error } = await opt.verify(input.value);
+      okBtn.textContent = 'تأكيد';
+      if(error || !data || !data.ok){
+        const says = {
+          expired_or_locked: 'انتهت المهلة أو كثرت المحاولات — ابدأ من جديد',
+          wrong_code: 'الرمز غير صحيح',
+          number_mismatch: 'الرقم مو مطابق لبطاقته',
+          bad_number: 'الرقم ثمانية أحرف',
+          forbidden: 'ما عندك صلاحية'
+        };
+        const why = says[(data && data.error) || ''] || 'غير صحيح';
+        errEl.textContent = (data && data.triesLeft != null)
+          ? why + ' — بقيت ' + data.triesLeft + ' محاولات' : why;
+        input.value = '';
+        okBtn.disabled = true;
+        input.focus();
+        return;
+      }
+      done();
+    });
+  }
+
+  renderChooser();
+}
+
+/**
+ * صرف المكافأة المجانية -- نظام الزيارات والأكواب.
+ *
+ * كان في التطبيق وحده (freeRewardService.ts)، ولم يكن في الويب أصلاً:
+ * كاشير الويب لا يستطيع صرف كوبٍ مجاني مهما جمع الزبون. ونفس الدالّة
+ * في الخادم تخدم الاثنين، فلا تفترق قاعدتاهما.
+ *
+ *   open     -- الكاشير يختار أي صنف في السلة يصير مجاناً.
+ *   products -- من قائمة صاحب المطعم وحدها. يضغط ولا يختار.
+ *
+ * والخادم يعيد التحقق: ما تمنعه الشاشة يمنعه هو مرّة أخرى.
+ */
+function rkLoyaltySystemType(){
+  return (window.BUSINESS_LOYALTY && window.BUSINESS_LOYALTY.systemType) || 'points';
+}
+
+/**
+ * الصرف يضع رصيداً، والرصيد يُطبَّق على صنف -- خطوتان لا واحدة.
+ *
+ * كان الصرف يضيف السطر مباشرةً، فحذفُه يُضيع مكافأةً انخصمت من محفظة
+ * العميل فعلاً. وهما شيئان مختلفان: الخصمُ وقع في الخادم وانتهى،
+ * والاختيارُ قرارٌ يملك العميل أن يغيّره ما دام الطلب لم يُتمّ.
+ */
+/**
+ * بعد التأكيد ترجع قائمةُ الكاشير -- لا قائمةٌ ثانية فوقها.
+ *
+ * كان يُفتح منتقٍ بأسماءٍ مصفوفة: قائمةٌ ثانيةٌ للأصناف نفسها، بلا
+ * صورٍ ولا تصنيفاتٍ ولا أسعار -- والكاشير يعرف شبكته ولا يعرف هذي.
+ *
+ * فتُغلق النافذة، ويُسلَّح الطلب: أولُ صنفٍ يضغطه من شبكته يصير
+ * مجانياً. وهو ما يفعله أصلاً في كل طلب، بلا خطوةٍ يتعلّمها.
+ */
+function openFreeRewardModal(requestId){
+  state.rewardArm = { requestId };
+  closePaymentModalNow();
+  renderOrder();
+  showToast('اضغط الصنف اللي بيصير مجاني من القائمة');
+}
+
+/**
+ * منتقي الصنف المجاني -- القائمة كاملة، لا السلة وحدها.
+ *
+ * الوضع المفتوح يعني "أي صنف"، فحصرُه في السلة يخالف اسمه: العميل جاء
+ * لأجل مكافأته، وقد لا يكون في السلة شيءٌ بعد. والمقيَّد يبقى على
+ * أصناف صاحب المطعم -- ذاك قيدُه لا قيدُنا.
+ */
+function openFreeRewardPicker(requestId){
+  const cfg = (window.BUSINESS_LOYALTY || {});
+  const label = cfg.rewardLabel || 'مكافأة مجانية';
+  const restricted = cfg.rewardMode === 'products';
+  const choices = restricted
+    ? (cfg.rewardProductIds || []).map(id => PRODUCTS.find(p => p.id === Number(id))).filter(Boolean)
+    : PRODUCTS.slice();
+
+  document.getElementById('paymentModalTitle').textContent = label;
+  paymentModalBody.innerHTML = choices.length === 0
+    ? `<p class="pos-auth-sub">ما حدّدت أصناف المكافأة بعد — حدّدها من لوحة التحكم.</p>`
+    : `<p class="pos-auth-sub" style="margin-bottom:10px;">اختر الصنف اللي بيصير مجاني</p>
+       <input type="text" id="freeRewardSearch" class="loyalty-code-input" style="width:100%; font-size:14px; letter-spacing:0; text-align:start; padding:10px 14px; margin-bottom:8px;" placeholder="دوّر بالاسم..." autocomplete="off">
+       <div class="pos-staff-list" id="freeRewardList"></div>`;
+  document.getElementById('paymentModal').classList.add('show');
+  if(choices.length === 0) return;
+
+  const listEl = document.getElementById('freeRewardList');
+  const draw = (q)=>{
+    const shown = q ? choices.filter(p => (p.name || '').includes(q)) : choices;
+    listEl.innerHTML = shown.slice(0, 60).map(pr =>
+      `<button class="pos-staff-btn" data-free="${pr.id}">${escapeHtml(pr.name)}</button>`).join('')
+      || '<p class="pos-auth-sub">ما فيه صنف بهذا الاسم.</p>';
+    listEl.querySelectorAll('[data-free]').forEach(btn=>{
+      btn.addEventListener('click', ()=> pickFreeReward(Number(btn.dataset.free), requestId));
+    });
+  };
+  draw('');
+  const search = document.getElementById('freeRewardSearch');
+  if(search) search.addEventListener('input', ()=> draw(search.value.trim()));
+}
+
+/**
+ * يُطبَّق الرصيد على صنف: سطرٌ بصفر يدخل السلة.
+ *
+ * ولا يُتمّ شيء هنا -- لا مخزون ولا وردية ولا فاتورة. كلُّ ذلك عند
+ * إتمام الطلب، شأنُه شأن أي سطرٍ في السلة.
+ */
+/**
+ * إمّا خصمٌ ثم تطبيق، وإمّا تطبيقُ رصيدٍ خُصم من قبل.
+ *
+ * requestId موجودٌ = هذه أول مرّة، فيُخصم من محفظته الآن. وغائبٌ =
+ * رصيدٌ في يد الكاشير من صرفٍ سابق مُسح سطرُه، فلا يُخصم ثانيةً --
+ * وإلا دفع العميل مكافأتين وأخذ واحدة.
+ */
+async function pickFreeReward(productId, requestId){
+  const cfg = (window.BUSINESS_LOYALTY || {});
+  if(requestId){
+    const { data, error } = await window.supabaseClient.rpc('redeem_free_reward', {
+      p_customer_id: state.customer.id,
+      p_request_id: requestId,
+      p_menu_item_id: cfg.rewardMode === 'products' ? productId : null,
+    });
+    if(error || !data || !data.ok){
+      showToast(rkFreeRewardError(data && data.error));
       return;
     }
-    const { data } = await window.supabaseClient
-      .from('loyalty_redemption_requests').select('status').eq('id', requestId).single();
-    if(!data || data.status === 'pending') return;
-    clearInterval(loyaltyPollTimer); clearInterval(displayTimer);
-    if(data.status === 'confirmed'){
-      openModalStep(openPointsRedeemModal);
-    } else {
-      showToast('العميل رفض عملية الاستبدال');
-      resetToCashFallback();
-    }
-  }, 2000);
+    state.freeRewardLabel = cfg.rewardLabel || 'مكافأة مجانية';
+    state.freeRewardCredit += 1;
+    if(state.customer) state.customer.freeRewards = Math.max(0, Number(state.customer.freeRewards || 1) - 1);
+  }
+  applyFreeReward(productId);
+}
+
+function applyFreeReward(productId){
+  if(state.freeRewardCredit <= 0){ showToast('ما فيه رصيد مكافأة'); return; }
+  state.freeRewardCredit -= 1;
+  state.cart.push({lineId: lineIdCounter++, productId, qty:1, note:'', config:null, isFreeReward:true});
+  renderOrder();
+  const left = cartTotals().total;
+  if(left > 0){
+    resetToCashFallback();
+    showToast('انضاف مجاناً — كمّل باقي المبلغ ' + left.toFixed(2) + ' ر.س');
+  } else {
+    closePaymentModalNow();
+    showToast('انضاف مجاناً — أضف طلبه أو اضغط ادفع لإتمام الطلب');
+  }
+}
+
+/** رسائل الخادم بالعربية -- نفس نصوص التطبيق حرفاً بحرف. */
+function rkFreeRewardError(code){
+  const says = {
+    request_not_confirmed: 'ما وصل تأكيد العميل — جرّب مرة ثانية',
+    no_free_rewards: 'ما عنده مكافأة جاهزة',
+    item_not_allowed: 'هذا الصنف مو ضمن المكافآت',
+    item_not_a_reward: 'هذا الصنف مو ضمن أصناف المكافأة',
+    item_required: 'لازم تختار صنفاً من أصناف المكافأة',
+    no_rewards_left: 'ما عنده مكافأة جاهزة',
+    forbidden: 'ما عندك صلاحية',
+    no_business: 'الجهاز مو مربوط بمطعم',
+  };
+  return says[code] || 'تعذر صرف المكافأة';
 }
 
 /* ============ IndexedDB offline order queue ============
@@ -2786,6 +3700,21 @@ function computeLineBoxSelections(item){
     .map(([eligibleId, pieceQty])=>({eligible_item_id: parseInt(eligibleId,10), qty: pieceQty}));
 }
 
+/**
+ * طريقةُ الدفع حين لا يُدفع شيء.
+ *
+ * إجماليٌّ صفرٌ غطّته مكافأةٌ أو استبدالُ نقاط ليس كاشاً بصفر: يُقرأ
+ * في السجلّ "٠٫٠٠ كاش" فلا يُعرف من أين جاء. ونظيرُه 'delivery_platform'
+ * أُضيف لهذا السبب عينه -- طريقةُ دفعٍ لم تقع لا تُحشر في درج الكاش.
+ *
+ * وما بقي فيه مبلغ يبقى كاشاً أو شبكة، والمكافأة سطرٌ فيه.
+ */
+function rkPaymentMethodFor(totals){
+  const covered = state.cart.some(i => i.isFreeReward || i.isPointsRedemption);
+  if(covered && Number(totals.total) <= 0) return 'loyalty';
+  return state.activePaymentMethod;
+}
+
 function buildOrderPayload(totals){
   const clientOrderUuid = (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random().toString(36).slice(2)));
   const items = state.cart.map(item=>({
@@ -2804,6 +3733,7 @@ function buildOrderPayload(totals){
     stock_decrements: computeLineStockDecrements(item),
     box_selections: computeLineBoxSelections(item),
     is_points_redemption: !!item.isPointsRedemption,
+    is_free_reward: !!item.isFreeReward,
     points_cost: item.isPointsRedemption ? (MENU_ITEM_META[item.productId].pointsRedeemPrice || 0) : 0
   }));
   return {
@@ -2816,7 +3746,7 @@ function buildOrderPayload(totals){
     customer_id: state.customer ? (state.customer.id || null) : null,
     subtotal: totals.subtotal, discount_pct: state.discountPct, discount_amount: totals.discount,
     vat_amount: totals.vat, total: totals.total,
-    payment_method: state.activePaymentMethod,
+    payment_method: rkPaymentMethodFor(totals),
     // split's cash half is whatever's left after the cashier-entered card
     // amount — persisting it here is what lets the shift close/cash
     // breakdown correctly count it as real cash in the drawer, instead of
@@ -2857,6 +3787,7 @@ function buildDineInRegisterPayload(){
     // here, so register_dine_in_order had nothing to charge the redemption
     // against no matter what the RPC itself did with them.
     is_points_redemption: !!item.isPointsRedemption,
+    is_free_reward: !!item.isFreeReward,
     points_cost: item.isPointsRedemption ? (MENU_ITEM_META[item.productId].pointsRedeemPrice || 0) : 0
   }));
   const {subtotal} = cartTotals();
@@ -2905,7 +3836,7 @@ async function submitOrder(totals){
     // queue-first/sync-later contract as everything else now.
     const payload = {
       channel: 'dine_in', table_id: state.resumingOrder.table_id,
-      payment_method: state.activePaymentMethod,
+      payment_method: rkPaymentMethodFor(totals),
       cash_amount: state.activePaymentMethod === 'cash' ? (state.cashAmount||0)
         : state.activePaymentMethod === 'split' ? Math.max(0, Number((totals.total - (state.splitCardAmount||0)).toFixed(2)))
         : null,
@@ -4407,6 +5338,32 @@ async function autoPrintOnCheckout(orderPayload, receiptData, wasResumingOrder){
 
 let activeAutoResetTimer = null;
 let loyaltyPollTimer = null;
+
+/**
+ * تحديثٌ وصل الجهاز -- ولا يُطبَّق في منتصف طلب.
+ *
+ * عامل الخدمة يقدّم النسخة المخزّنة فوراً ويجلب الجديدة في الخلفية،
+ * فتبقى الجلسة كلّها على كودٍ قديم بلا أن يعرف أحد: يُجرَّب إصلاحٌ
+ * نُشر ولم يصل، فيُقال "ما زبط" وهو لم يُجرَّب.
+ *
+ * فيُبلَّغ الكاشير، ويُعاد التحميل حين تفرغ السلة -- لا وهو يحسب.
+ */
+let rkShellUpdatePending = false;
+function rkApplyShellUpdateIfIdle(){
+  if(!rkShellUpdatePending) return;
+  if(state && state.cart && state.cart.length) return;
+  if(document.querySelector('.modal-overlay:not([hidden])')) return;
+  rkShellUpdatePending = false;
+  location.reload();
+}
+if(navigator.serviceWorker){
+  navigator.serviceWorker.addEventListener('message', (e)=>{
+    if(!e.data || e.data.type !== 'rk-shell-updated') return;
+    rkShellUpdatePending = true;
+    try { showToast('في تحديث جديد — يطبّق أول ما تخلص الطلب'); } catch(_){}
+    rkApplyShellUpdateIfIdle();
+  });
+}
 // Guards against the exact bug a hung device produces: the confirm button
 // stayed clickable for the whole submitOrder() await, so a device that lagged
 // for even a second let 5 rapid taps fire 5 concurrent completePayment() calls
@@ -4487,10 +5444,14 @@ async function completePayment(){
   const receiptData = buildLiveReceiptData(orderPayload, totals);
   const wasResumingOrder = !!state.resumingOrder;
   state.cart = []; state.customer = null; state.discountPct = 0;
+  // الرصيد يسقط مع الطلب الذي صُرف فيه -- لا يُورَّث لطلب زبونٍ آخر.
+  state.freeRewardCredit = 0; state.rewardArm = null;
   state.selectedTableId = null; state.selectedOrderId = null; state.resumingOrder = null;
   document.getElementById('discountToggle').textContent = '+ خصم';
   updatePointsRedeemStrip();
   renderOrder();
+  // تُرسم مباشرةً لا عبر المكدّس، فتُخفيه بيدها.
+  rkSetModalBack(false);
   paymentModalBody.innerHTML = `<div class="receipt-success">
     <div class="success-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
     <h3>تمت العملية بنجاح</h3>
@@ -4503,6 +5464,10 @@ async function completePayment(){
       <button class="receipt-action-btn" id="waBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>واتساب</button>
     </div>
     <button class="receipt-action-btn wide" id="showOnDisplayBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>اعرض باركود الولاء على شاشة العميل</button>
+    <div class="display-phone-row" id="displayPhoneRow" hidden>
+      <input type="tel" id="displayPhoneInput" inputmode="numeric" maxlength="15" placeholder="رقم جوال العميل" autocomplete="off">
+      <button class="receipt-action-btn" id="displayPhoneGo">اعرض</button>
+    </div>
     <div class="display-push-status" id="displayPushStatus"></div>
     <button class="new-order-btn" id="newOrderBtn">طلب جديد الآن</button>
   </div>`;
@@ -4583,17 +5548,12 @@ async function completePayment(){
   });
 
   const showOnDisplayBtn = document.getElementById('showOnDisplayBtn');
-  if(showOnDisplayBtn) showOnDisplayBtn.addEventListener('click', async ()=>{
+  if(showOnDisplayBtn){
     const statusEl = document.getElementById('displayPushStatus');
     const say = (t, cls)=>{ if(statusEl){ statusEl.textContent = t; statusEl.className = 'display-push-status ' + (cls||''); } };
-    // العميل يُعرف برقمه: هو ما التُقط في هذا الطلب، أو ما يبحث به
-    // الكاشير حين لم يُلتقط -- أو حين راح الوقت على العميل.
-    let phone = customerPhone;
-    if(!phone){
-      phone = (prompt('رقم جوال العميل') || '').trim();
-      if(!phone) return;
-    }
-    showOnDisplayBtn.disabled = true;
+
+    const pushBarcodeFor = async (phone)=>{
+      showOnDisplayBtn.disabled = true;
     say('جارٍ العرض...');
     try {
       const { data: cust } = await window.supabaseClient.from('customers')
@@ -4633,11 +5593,62 @@ async function completePayment(){
       say('تعذر الاتصال بالخادم', 'err');
       showOnDisplayBtn.disabled = false;
     }
-  });
+    };
+
+    /**
+     * صفٌّ يُفتح تحت الزرّ -- لا نافذةَ متصفّح.
+     *
+     * وprompt ليست قبحاً وحسب: تعلوها "rakeenapp.com" ويجاورها مربّع
+     * "امنع هذه الصفحة من إنشاء نوافذ" -- فتُقرأ إنذاراً من المتصفّح على
+     * النظام. ومن ضغط ذاك المربّع أسكتها عن السؤال، فيصير الزرّ لا يفعل
+     * شيئاً وهو لا يعرف لماذا.
+     *
+     * والحقلُ هنا داخل النافذة التي بيده أصلاً، والطلبُ تمّ -- فلا خطوةَ
+     * تُلغى ولا شاشةَ تُغادر. (نظيره في التطبيق: phoneAsk.)
+     */
+    const phoneRow = document.getElementById('displayPhoneRow');
+    const phoneInput = document.getElementById('displayPhoneInput');
+    const goWithTyped = ()=>{
+      const typed = (phoneInput.value || '').trim();
+      if(!typed){ say('اكتب رقم الجوال', 'err'); phoneInput.focus(); return; }
+      pushBarcodeFor(typed);
+    };
+
+    showOnDisplayBtn.addEventListener('click', ()=>{
+      // العميل يُعرف برقمه: ما التُقط في هذا الطلب، أو ما يكتبه الكاشير
+      // حين لم يُلتقط -- أو حين راح الوقت على العميل.
+      if(customerPhone){ pushBarcodeFor(customerPhone); return; }
+      if(phoneRow && phoneInput){
+        phoneRow.hidden = false;
+        say('');
+        phoneInput.focus();
+      }
+    });
+
+    const goBtn = document.getElementById('displayPhoneGo');
+    if(goBtn) goBtn.addEventListener('click', goWithTyped);
+    if(phoneInput) phoneInput.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){ e.preventDefault(); goWithTyped(); }
+    });
+  }
 }
 
 /* ============ ORDERS screen ============ */
 let ordersActiveTab = 'running';
+
+/**
+ * تبويب "مسترجعة" -- كما في التطبيق تماماً.
+ *
+ * كانت التبويبات ثلاثة، والمسترجَعُ يختفي: حالتُه ليست 'completed'
+ * فيسقط من "مكتملة"، وليست 'cancelled' فيسقط من "ملغاة" -- ولا تبويبَ
+ * له. فيبحث عنه الكاشير في الثلاثة ولا يجده، ولا يعرف أين ذهب.
+ */
+(function mountRefundedTab(){
+  const tabs = document.getElementById('ordersTabs');
+  if(!tabs || tabs.querySelector('[data-tab="refunded"]')) return;
+  tabs.insertAdjacentHTML('beforeend',
+    '<button class="seg-tab" data-tab="refunded">مسترجعة</button>');
+})();
 document.getElementById('ordersTabs').addEventListener('click', (e)=>{
   const btn = e.target.closest('.seg-tab'); if(!btn) return;
   document.querySelectorAll('#ordersTabs .seg-tab').forEach(t=>t.classList.remove('active'));
@@ -4676,18 +5687,19 @@ async function renderOrdersList(){
     const notReadyPickupRows = ACTIVE_PICKUP_ORDERS.filter(o=>!o.readyAt).sort((a,b)=> a.createdAt - b.createdAt);
     const readyPickupRows = ACTIVE_PICKUP_ORDERS.filter(o=>o.readyAt).sort((a,b)=> a.readyAt - b.readyAt);
     const pickupRows = [...notReadyPickupRows, ...readyPickupRows];
-    if(held.length === 0 && deliveryRows.length === 0 && pickupRows.length === 0){ el.innerHTML = '<div class="list-empty">ما فيه طلبات جارية حاليًا</div>'; return; }
+    /**
+     * `held` كانت بقايا ميزةٍ حُذفت: لا مصدر لها في الملف، ولا مستمع
+     * لزرّها. فكان السطر يرمي ReferenceError في كل رسمٍ لقائمة الطلبات
+     * الجارية -- وهي دالّة async، فيصير الرمي رفضاً غير ملتقَط: لا
+     * شاشةَ خطأ، ولا سطرَ أحمر يراه صاحب المطعم، إنما قائمةٌ لا تُرسم.
+     *
+     * ولهذا كانت الطلبات "لا تُسجَّل" في نظره -- وهي مسجّلة، إنما لا
+     * تُعرض.
+     */
+    if(deliveryRows.length === 0 && pickupRows.length === 0){ el.innerHTML = '<div class="list-empty">ما فيه طلبات جارية حاليًا</div>'; return; }
     const gridCards = deliveryRows.map(({order, remaining})=> renderDeliveryCard(order, remaining)).join('')
       + pickupRows.map(order=> renderPickupCard(order)).join('');
-    el.innerHTML =
-      (gridCards ? `<div class="dorder-grid">${gridCards}</div>` : '') +
-      held.map(o=>
-        `<div class="order-row"><span class="order-row-badge running"></span>
-          <div class="order-row-info"><div class="order-row-title">${o.id}</div><div class="order-row-meta">${o.meta}</div></div>
-          <div class="order-row-total">${rkMoney(o.total)}</div>
-          <button class="order-row-action" data-held="${o.heldId}">استرجاع</button>
-        </div>`
-      ).join('');
+    el.innerHTML = gridCards ? `<div class="dorder-grid">${gridCards}</div>` : '';
     el.querySelectorAll('.dorder-card').forEach(card=>{
       card.addEventListener('click', (e)=>{
         if(e.target.closest('.dorder-ready-btn') || e.target.closest('.dorder-delivered-btn') || e.target.closest('.dorder-out-btn')
@@ -4720,7 +5732,12 @@ async function renderOrdersList(){
   el.innerHTML = '<div class="list-empty">جارٍ التحميل...</div>';
   let completedQuery = window.supabaseClient
     .from('orders').select('id, total, created_at, customer_name, channel, ready_at, prep_duration_seconds, platform_invoice_last4, scheduled_for, delivery_platforms(name)')
-    .eq('branch_id', DEVICE.branchId).eq('status', ordersActiveTab);
+    .eq('branch_id', DEVICE.branchId);
+  // والجزئيُّ مسترجَع: طلبٌ رُجّع صنفٌ منه حالتُه partially_refunded،
+  // فلو سُئل عن 'refunded' وحدها لسقط من التبويب الذي بُني له.
+  completedQuery = ordersActiveTab === 'refunded'
+    ? completedQuery.in('status', ['refunded', 'partially_refunded'])
+    : completedQuery.eq('status', ordersActiveTab);
   // Only for "مكتملة" — a still-active online pickup/delivery order (already
   // shown in "جارية" above) shouldn't ALSO show here just because its status
   // flipped to completed the instant it was accepted. "ملغاة" orders always
@@ -4830,7 +5847,7 @@ function renderDeliveryCard(order, remaining){
 async function openOrderDetail(orderId){
   const modal = document.getElementById('paymentModal');
   const body = document.getElementById('paymentModalBody');
-  document.getElementById('paymentModalTitle').textContent = 'تفاصيل الطلب #' + orderId;
+  document.getElementById('paymentModalTitle').textContent = t('تفاصيل الطلب') + ' #' + orderId;
   body.innerHTML = '<p class="pos-auth-sub">جاري التحميل...</p>';
   modal.classList.add('show');
 
@@ -4899,49 +5916,139 @@ async function openOrderDetail(orderId){
   });
   const refundBtn = document.getElementById('refundOrderBtn');
   if(refundBtn){
-    refundBtn.addEventListener('click', ()=>{
-      // مبلغٌ محدد أو الباقي كله.
-      //
-      // كان الاسترجاع كله-أو-لا-شيء، ولا وجه له: زبونٌ أعاد صنفاً من
-      // ثلاثة لا يُرجَع له ثمن الثلاثة. والسقف هو الباقي من الفاتورة لا
-      // إجماليها، حتى لا يُسترجع مرتين على استرجاع سابق.
+    /**
+     * الاسترجاع يبدأ بسؤالٍ عن الصنف، لا عن المبلغ.
+     *
+     * كان يسأل "كم تبي ترجع؟" وأمام الكاشير فاتورةٌ من ثلاثة أصناف --
+     * وهو لا يعرف كم يخصّ الصنف الذي رجع، فيحسب في رأسه ويخطئ. والأسوأ
+     * أن المخزون لا يعرف شيئاً: مبلغٌ يعود ولا صنفَ يعود إلى الرفّ.
+     *
+     * فصارت القسمة على حال الفاتورة:
+     *   أكثر من صنف  -> اختر الأصناف، أو "الكل". والمخزون يعود لها وحدها.
+     *   صنفٌ واحد    -> مبلغٌ جزئيّ أو كامل، كما كان.
+     */
+    refundBtn.addEventListener('click', async ()=>{
       const already = Number(order.refunded_amount) || 0;
       const remaining = Math.max(0, Number(order.total) - already);
       if(remaining <= 0.001){ showToast('هذا الطلب مسترجع بالكامل'); return; }
-      const raw = window.prompt(
-        'كم تبي ترجع؟ الباقي من الفاتورة ' + remaining.toFixed(2) + ' ريال.' + String.fromCharCode(10) +
-        'اتركه فاضي لاسترجاع المبلغ كامل.', '');
+
+      refundBtn.disabled = true;
+      const { data: st } = await window.supabaseClient.rpc('get_order_refund_state', { p_order_id: orderId });
+      refundBtn.disabled = false;
+      const openLines = (st && st.ok ? (st.lines || []) : []).filter(l => (l.qty - l.refundedQty) > 0.0001);
+
+      // بلا تفاصيل من الخادم يبقى الطريق القديم مفتوحاً: استرجاعٌ بمبلغ
+      // خيرٌ من كاشيرٍ أمام زرٍّ لا يفعل شيئاً.
+      if(openLines.length > 1) renderRefundLinePicker(openLines, remaining);
+      else askRefundAmount(remaining);
+    });
+
+    /** لوحةُ اختيار الأصناف -- عدّادٌ لكل سطر، وزرٌّ يختار الكل. */
+    function renderRefundLinePicker(lines, remaining){
+      const pick = {};
+      lines.forEach(l => { pick[l.orderItemId] = 0; });
+      const body = document.getElementById('paymentModalBody');
+      document.getElementById('paymentModalTitle').textContent = 'وش ترجّع؟';
+      const draw = ()=>{
+        body.innerHTML =
+          `<p class="pos-auth-sub" style="margin-bottom:10px;">اختر الأصناف — اللي تختاره يرجع للمخزون</p>` +
+          lines.map(l=>{
+            const left = l.qty - l.refundedQty;
+            const took = pick[l.orderItemId] || 0;
+            return `<div class="refund-line">
+              <div class="refund-line-info">
+                <div class="refund-line-name">${escapeHtml(l.name)}</div>
+                <div class="refund-line-meta">${l.isFreeReward ? 'مكافأة مجانية' : Number(l.unitPrice).toFixed(2) + ' ريال'} · باقي ${left}</div>
+              </div>
+              <div class="refund-qty">
+                <button type="button" data-dec="${l.orderItemId}">−</button>
+                <span>${took}</span>
+                <button type="button" data-inc="${l.orderItemId}" data-max="${left}">+</button>
+              </div>
+            </div>`;
+          }).join('') +
+          `<button type="button" class="loyalty-otp-back" id="refundPickAll" style="width:100%;">اختر الكل</button>
+           <button type="button" class="confirm-pay-btn" id="refundPickGo">استرجاع المختار</button>`;
+        body.querySelectorAll('[data-inc]').forEach(b=> b.addEventListener('click', ()=>{
+          const id = b.dataset.inc;
+          pick[id] = Math.min(Number(b.dataset.max), (pick[id] || 0) + 1);
+          draw();
+        }));
+        body.querySelectorAll('[data-dec]').forEach(b=> b.addEventListener('click', ()=>{
+          const id = b.dataset.dec;
+          pick[id] = Math.max(0, (pick[id] || 0) - 1);
+          draw();
+        }));
+        document.getElementById('refundPickAll').addEventListener('click', ()=>{
+          lines.forEach(l => { pick[l.orderItemId] = l.qty - l.refundedQty; });
+          draw();
+        });
+        const go = document.getElementById('refundPickGo');
+        const chosen = Object.entries(pick).filter(([,q])=> q > 0);
+        go.disabled = chosen.length === 0;
+        go.addEventListener('click', ()=>{
+          // موافقة المدير كما في الاسترجاع بمبلغ -- نفس السياسة.
+          openPinModal(async ()=>{
+            const payload = chosen.map(([id, q])=> ({ orderItemId: Number(id), qty: q }));
+            const { data, error } = await window.supabaseClient.rpc('refund_pos_order_lines', {
+              p_order_id: orderId, p_lines: payload, p_reason: null,
+            });
+            if(error || !data || !data.ok){
+              const says = {
+                not_refundable: 'هذي الفاتورة ما تقبل استرجاع',
+                nothing_left_to_refund: 'كل الأصناف المختارة مسترجَعة من قبل',
+                forbidden: 'ما عندك صلاحية',
+              };
+              showToast(says[(data && data.error) || ''] || 'تعذر الاسترجاع');
+              return;
+            }
+            openCashDrawer().catch(()=>{});
+            showToast(data.full
+              ? 'استُرجعت الفاتورة كاملة — ' + Number(data.amount || 0).toFixed(2) + ' ريال'
+              : 'استُرجع ' + Number(data.amount || 0).toFixed(2) + ' ريال — باقي ' + Number(data.remaining || 0).toFixed(2));
+            sendOwnerPush('refund_cancel', 'استرجاع طلب',
+              `تم استرجاع ${Number(data.amount || 0).toFixed(2)} ر.س (طلب #${orderId}).`);
+            printRefundReceipt(orderId, payload, lines, Number(data.amount || 0));
+            openOrderDetail(orderId);
+            renderOrdersList();
+          });
+        });
+      };
+      draw();
+      document.getElementById('paymentModal').classList.add('show');
+    }
+
+    /** الطريق القديم -- صنفٌ واحد، فالسؤال عن المبلغ له معنى. */
+    async function askRefundAmount(remaining){
+      const raw = await rkPosAsk({
+        title: 'كم تبي ترجع؟',
+        body: 'الباقي من الفاتورة <b>' + remaining.toFixed(2) + '</b> ريال. اتركه فاضي لاسترجاع المبلغ كامل.',
+        input: '', numeric: true, placeholder: remaining.toFixed(2),
+        ok: 'كمّل', cancel: 'رجوع',
+      });
       if(raw === null) return;
       let amount = null;
-      if(raw.trim() !== ''){
-        amount = Number(raw.trim().replace(',', '.'));
+      if(String(raw).trim() !== ''){
+        amount = Number(String(raw).trim().replace(',', '.'));
         if(!isFinite(amount) || amount <= 0){ showToast('اكتب مبلغ صحيح'); return; }
-        // السقف يُفحص هنا وفي القاعدة: هذا يمنع الخطأ، وذاك يمنع التحايل.
         if(amount > remaining + 0.001){ showToast('المبلغ أكبر من الباقي في الفاتورة'); return; }
       }
       const shown = amount === null ? remaining : amount;
-      if(!window.confirm('استرجاع ' + shown.toFixed(2) + ' ريال كاش من الدرج؟')) return;
-      // Manager-PIN gated — same stated convention as voiding an unpaid
-      // dine-in order (see the comment above confirmCancelOrder: "same
-      // convention as shift close and refunds"). This button used to go
-      // straight from a plain confirm() to the RPC — refund_pos_order only
-      // checks pos:register (every shared branch PIN has it), so any
-      // cashier could solo-refund a completed sale with no manager
-      // involved at all, contradicting that documented policy.
+      if(!await rkPosConfirm('استرجاع ' + shown.toFixed(2) + ' ريال كاش من الدرج؟', '', 'ارجع المبلغ', 'رجوع')) return;
       openPinModal(async () => {
         refundBtn.disabled = true;
         try {
-          const { data, error } = await window.supabaseClient.rpc('refund_pos_order',
-            amount === null ? { p_order_id: orderId } : { p_order_id: orderId, p_amount: amount });
+          // refund_pos_order_amount يلفّ الأصلية ويترك أثراً في order_refunds.
+          const { data, error } = await window.supabaseClient.rpc('refund_pos_order_amount',
+            { p_order_id: orderId, p_amount: amount, p_reason: null });
           if(error) throw error;
           const res = data || {};
-          // الاسترجاع كاش دائماً، فالدرج يُفتح -- ولا يُنتظر: فشل فتح
-          // الدرج لا يُبطل استرجاعاً وقع في القاعدة فعلاً.
           openCashDrawer().catch(()=>{});
           showToast(res.full === false
             ? 'تم استرجاع ' + shown.toFixed(2) + ' ريال — باقي ' + Number(res.remaining || 0).toFixed(2)
             : 'تم استرجاع مبلغ الطلب كامل');
           sendOwnerPush('refund_cancel', 'استرجاع طلب', `تم استرجاع مبلغ ${shown.toFixed(2)} ر.س (طلب #${orderId}).`);
+          printRefundReceipt(orderId, null, null, shown);
           openOrderDetail(orderId);
           renderOrdersList();
         } catch(err){
@@ -4949,9 +6056,53 @@ async function openOrderDetail(orderId){
           refundBtn.disabled = false;
         }
       });
-    });
+    }
   }
 }
+
+/**
+ * إشعار الاسترجاع -- ورقةٌ تقول ما رجع.
+ *
+ * يأخذها الزبون ويبقى نظيرُها في الدرج. وبدونها لا يبقى من الواقعة إلا
+ * صفٌّ في قاعدةٍ لا يراه أحد -- ولا شيء في يد من ردّ بضاعته.
+ *
+ * ويُبنى بنفس شكل فاتورة البيع ويمرّ بطابور الطباعة نفسه: لا مسار ثانٍ
+ * يُصان على حدة، ولا صيغةَ إيصالٍ تفترق عن أختها.
+ */
+function printRefundReceipt(orderId, picked, lines, amount){
+  try {
+    const items = (picked && lines)
+      ? picked.map(pk=>{
+          const l = lines.find(x=> x.orderItemId === pk.orderItemId) || {};
+          const unit = Number(l.unitPrice) || 0;
+          return { name: l.name || 'صنف', nameEn: '', qty: pk.qty,
+                   unitPrice: unit, lineTotal: unit * pk.qty, mods: [], note: '' };
+        })
+      : [{ name: 'استرجاع مبلغ', nameEn: '', qty: 1,
+           unitPrice: amount, lineTotal: amount, mods: [], note: '' }];
+    attemptPrint({
+      businessName: DEVICE.businessName || 'ركين', branchName: DEVICE.branchName || '',
+      dateLabel: new Date().toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
+      timestampISO: new Date().toISOString(), vatNumber: BUSINESS_VAT_NUMBER,
+      orderNumber: '#' + orderId,
+      // يُقرأ من أول سطر: هذي ليست فاتورة بيع.
+      metaLabel: 'إشعار استرجاع',
+      showLogo: DEVICE.printReceiptLogo !== false && !!RECEIPT_LOGO_URL, logoUrl: RECEIPT_LOGO_URL,
+      cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
+      tagline: RECEIPT_TAGLINE,
+      showBusinessName: RECEIPT_SHOW_NAME,
+      locationLine: BRANCH_LOCATION_LINE,
+      branchLabel: BRANCH_RECEIPT_LABEL,
+      customMessage: 'تم استرجاع هذا المبلغ نقداً',
+      items, subtotal: amount, discount: 0, vat: 0, total: amount,
+      paymentMethodLabel: 'استرجاع كاش',
+      change: 0,
+    });
+  } catch(_){
+    // الطباعة لا تُبطل استرجاعاً وقع: الورقة تُعاد، والمال لا يُعاد.
+  }
+}
+
 const ORDER_STATUS_LABELS_POS = {pending:'بانتظار القبول', completed:'مكتمل', cancelled:'ملغى', refunded:'مسترجع', partially_refunded:'مسترجع جزئياً', rejected:'مرفوض'};
 const CHANNEL_LABELS = {dine_in:'محلي', pickup:'سفري', delivery:'تطبيقات التوصيل'};
 const PAYMENT_METHOD_LABELS_POS = {cash:'كاش', card:'بطاقة', split:'تقسيم دفع', delivery_platform:'مدفوع عبر التطبيق'};
@@ -5138,7 +6289,8 @@ function renderBoundReservationSheet(table, res){
     <button class="loyalty-otp-back" id="brCancelBtn">إلغاء الحجز</button>
   `;
   document.getElementById('brSeatBtn').addEventListener('click', async () => {
-    if(table.status === 'cleaning' && !window.confirm('طاولة ' + table.number + ' تحتاج تنظيف — تأكيد الجلوس فيها؟')) return;
+    if(table.status === 'cleaning'
+       && !await rkPosConfirm('طاولة ' + table.number + ' تحتاج تنظيف', 'تبي تجلسهم فيها الحين؟', 'اجلسهم', 'رجوع')) return;
     const { error } = await window.supabaseClient.rpc('seat_waitlist_entry', { p_reservation_id: res.id, p_table_id: table.id });
     if(error){ showToast('تعذر بدء الجلسة — تحقق من حالة الطاولة'); closePaymentModalNow(); renderTables(); return; }
     showToast('طاولة ' + table.number + ' — بانتظار الطلب');
@@ -5146,7 +6298,7 @@ function renderBoundReservationSheet(table, res){
     renderTables();
   });
   document.getElementById('brCancelBtn').addEventListener('click', async () => {
-    if(!window.confirm('تأكيد إلغاء الحجز؟')) return;
+    if(!await rkPosConfirm('إلغاء الحجز؟', '', 'ألغِ الحجز', 'رجوع')) return;
     await window.supabaseClient.from('table_reservations').update({status: 'cancelled'}).eq('id', res.id);
     showToast('تم إلغاء الحجز');
     closePaymentModalNow();
@@ -5207,7 +6359,7 @@ function renderAwaitingOrderSheet(table){
   const takeOrderBtn = document.getElementById('aoTakeOrderBtn');
   if(takeOrderBtn) takeOrderBtn.addEventListener('click', () => beginOrderForTable(table));
   document.getElementById('aoReleaseBtn').addEventListener('click', async () => {
-    if(!window.confirm('تأكيد إفراغ طاولة ' + table.number + '؟')) return;
+    if(!await rkPosConfirm('إفراغ طاولة ' + table.number + '؟', '', 'أفرغها', 'رجوع')) return;
     const { data, error } = await window.supabaseClient.from('restaurant_tables')
       .update({status: 'cleaning'}).eq('id', table.id).eq('status', 'awaiting_order').select('id');
     if(error || !data || !data.length){ showToast('تعذر التحديث'); return; }
@@ -5323,11 +6475,12 @@ function renderMoveTableStep(fromTable, orderId){
 // same convention as shift close and refunds — since it's the one action
 // here with real money written off. Never reverses stock (see the RPC's
 // own comment for why).
-function confirmCancelOrder(table, orderId){
-  if(!window.confirm('تأكيد إلغاء طلب طاولة ' + table.number + '؟')) return;
+async function confirmCancelOrder(table, orderId){
+  if(!await rkPosConfirm('إلغاء طلب طاولة ' + table.number + '؟', '', 'ألغِ الطلب', 'رجوع')) return;
   // Same distinction as the Home-screen cancel button: "hold off a bit"
   // should leave the table waiting for a real order, not send it to cleaning.
-  const stillOccupied = window.confirm('هل الزبائن لسا قاعدين على طاولة ' + table.number + ' ويحتاجون وقت أطول؟\nموافق = نعم لسا قاعدين — إلغاء = لا، غادروا');
+  const stillOccupied = await rkPosConfirm(
+    'الزبائن لسا على طاولة ' + table.number + '؟', '', 'لسا قاعدين', 'غادروا');
   openPinModal(async () => {
     const { error } = await window.supabaseClient.rpc('cancel_dine_in_order', { p_order_id: orderId, p_still_occupied: stillOccupied });
     if(error){ showToast('تعذر الإلغاء'); return; }
@@ -5690,7 +6843,7 @@ function renderWaitlistDetailStep(entry){
   });
   const noShowBtn = document.getElementById('wlDetailNoShowBtn');
   if(noShowBtn) noShowBtn.addEventListener('click', async () => {
-    if(!window.confirm('تأكيد إن العميل ما حضر؟')) return;
+    if(!await rkPosConfirm('العميل ما حضر؟', '', 'ما حضر', 'رجوع')) return;
     await window.supabaseClient.from('table_reservations').update({status: 'no_show'}).eq('id', entry.id);
     showToast('تم تسجيل عدم الحضور');
     closePaymentModalNow();
@@ -6012,7 +7165,8 @@ function renderWaitlistSeatPickerStep(entry){
       paymentModalBody.innerHTML = html;
       document.querySelectorAll('.table-picker-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
-          if(btn.dataset.status === 'cleaning' && !window.confirm('طاولة ' + btn.dataset.number + ' تحتاج تنظيف — تأكيد الجلوس فيها؟')) return;
+          if(btn.dataset.status === 'cleaning'
+             && !await rkPosConfirm('طاولة ' + btn.dataset.number + ' تحتاج تنظيف', 'تبي تجلسهم فيها الحين؟', 'اجلسهم', 'رجوع')) return;
           const tableId = Number(btn.dataset.id);
           const { error } = await window.supabaseClient.rpc('seat_waitlist_entry', { p_reservation_id: entry.id, p_table_id: tableId });
           if(error){ showToast('تعذر تجليس الطاولة — تحقق من حالتها'); renderWaitlistSeatPickerStep(entry); return; }
@@ -6449,7 +7603,6 @@ const QUICK_ACTIONS = [
   {id:'refund', label:'استرجاع مبلغ', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>'},
   {id:'manager', label:'موافقة مدير', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'},
   {id:'reprint', label:'إعادة طباعة', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>'},
-  {id:'scan', label:'مسح باركود', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>'}
 ];
 const SHIFT_ACTIONS = [
   {id:'shiftSummary', label:'ملخص الوردية', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg>'},
@@ -6466,7 +7619,10 @@ function handleMoreAction(e){
   const id = btn.dataset.action;
   if(id === 'drawer') openCashDrawer();
   else if(id === 'manager') openPinModal();
-  else if(id === 'scan') resetModalStack(scanCustomerCard);
+  /* "مسح باركود" حُذف من "المزيد": كان يمسح بطاقةً ويُلصق صاحبَها بسلّةٍ
+     قد تكون فارغة، والكاشير واقفٌ في شاشةٍ غير شاشة الطلب -- فلا يرى
+     أثراً لما فعل. والمسحُ نفسُه باقٍ حيث يُفيد: داخل خطوة العميل، وفي
+     أبواب تأكيد الولاء. (scanCustomerCard ما زالت تُنادى من هناك.) */
   else if(id === 'reprint' || id === 'refund'){
     switchBottomNavScreen('orders');
     const completedTab = document.querySelector('#ordersTabs .seg-tab[data-tab="completed"]');
@@ -7162,7 +8318,7 @@ async function loadPosData(){
     sb.from('stock_items').select('id, name, unit'),
     sb.from('delivery_platforms').select('id, name, prep_timeout_minutes, logo_url, brand_color').eq('business_id', businessId).eq('active', true).order('name'),
     sb.from('menu_item_platform_prices').select('*'),
-    sb.from('businesses').select('business_type, loyalty_enabled, notify_delivery_prep_warning, notify_delivery_prep_expired, notify_sound_enabled, dine_in_enabled, vat_number, vat_rate, prices_include_vat, vat_registered, logo_url, receipt_custom_message, kitchen_display_enabled, tables_reservations_enabled, tables_reservation_deposit_enabled, tables_reservation_deposit_percent, tables_turn_time_enabled, tables_turn_time_minutes, tables_reservation_conflict_warning_enabled, dine_in_pay_timing, tables_specific_booking_enabled, pos_hide_popular_tab, pos_hide_search, pos_hide_product_images, pos_hide_notif_bell').eq('id', businessId).single(),
+    sb.from('businesses').select('business_type, loyalty_enabled, loyalty_system_type, loyalty_reward_mode, loyalty_reward_label, notify_delivery_prep_warning, notify_delivery_prep_expired, notify_sound_enabled, dine_in_enabled, vat_number, vat_rate, prices_include_vat, vat_registered, logo_url, receipt_custom_message, kitchen_display_enabled, tables_reservations_enabled, tables_reservation_deposit_enabled, tables_reservation_deposit_percent, tables_turn_time_enabled, tables_turn_time_minutes, tables_reservation_conflict_warning_enabled, dine_in_pay_timing, tables_specific_booking_enabled, pos_hide_popular_tab, pos_hide_search, pos_hide_product_images, pos_hide_notif_bell').eq('id', businessId).single(),
     sb.from('table_sections').select('id, name, sort_order').eq('branch_id', DEVICE.branchId).order('sort_order'),
     // Only ever non-empty for a business_type='salon' business — a
     // restaurant's services table is always empty (RLS-scoped by
@@ -7212,6 +8368,29 @@ async function loadPosData(){
   // than sitting there disabled, since "customer" in this POS only ever
   // exists to attach loyalty (nothing else reads state.customer)
   LOYALTY_ENABLED = loyaltyRes.data ? loyaltyRes.data.loyalty_enabled !== false : true;
+
+  /**
+   * ونوعُ نظام الولاء يُقرأ هنا، فالكاشير يعرف ماذا يصرف.
+   *
+   * كان لا يعرفه أصلاً: يفتح منتقي النقاط لكل مطعم، ومقهى الأكواب
+   * ينتهي إلى "ما فيه منتجات قابلة للاستبدال بالنقاط".
+   *
+   * وأصنافُ المكافأة تُقرأ حين يكون الوضع مقيّداً وحده -- نداءٌ لا
+   * يُدفع ثمنه إلا من يحتاجه.
+   */
+  window.BUSINESS_LOYALTY = {
+    systemType: (loyaltyRes.data && loyaltyRes.data.loyalty_system_type) || 'points',
+    rewardMode: (loyaltyRes.data && loyaltyRes.data.loyalty_reward_mode) || 'open',
+    rewardLabel: (loyaltyRes.data && loyaltyRes.data.loyalty_reward_label) || 'مكافأة مجانية',
+    rewardProductIds: [],
+  };
+  if(window.BUSINESS_LOYALTY.rewardMode === 'products'){
+    sb.from('loyalty_program_items').select('menu_item_id')
+      .eq('business_id', businessId).eq('role', 'reward')
+      .then(({ data })=>{
+        window.BUSINESS_LOYALTY.rewardProductIds = (data || []).map(r=> r.menu_item_id).filter(Boolean);
+      }, ()=>{});
+  }
 
   // cloud/delivery-only kitchens have no dining room — "بالمطعم" and the
   // whole Tables screen are dead weight on their cashier. renderChannelStep()

@@ -18,7 +18,7 @@
 // required for updates to propagate). Bump CACHE_NAME only when SHELL_URLS
 // itself changes.
 
-const CACHE_NAME = 'rakeen-pos-shell-v3';
+const CACHE_NAME = 'rakeen-pos-shell-v5';
 const SHELL_URLS = [
   '/pos',
   '/pos/rakeen-pos.js',
@@ -46,17 +46,78 @@ self.addEventListener('fetch', (event) => {
   // only handle same-origin GETs for the app shell itself — everything else
   // (Supabase REST/RPC calls, Next.js internals, other routes) passes through untouched
   if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
+  // والرابط يحمل بصمةَ بناءٍ الآن (`?b=...`)، فتُقارَن المسارات وحدها
+  // -- والذاكرة تُفهرس بالرابط كاملاً، فبناءٌ جديد = طلبٌ جديد يُجلب
+  // من الشبكة ويُخزَّن، بلا أن يمسح أحدٌ شيئاً.
   if (!SHELL_URLS.includes(url.pathname)) return;
+
+  /**
+   * والوثيقة من الشبكة أولاً، لا من الذاكرة.
+   *
+   * صفحةُ /pos تحمل أسماءَ ملفّات التنسيق والحزم -- وأسماؤها تتغيّر مع
+   * كل بناء. فوثيقةٌ قديمة تُقدَّم من الذاكرة تشير إلى تنسيقٍ قديم،
+   * فينزل السكربت الجديد (رابطُه يحمل بصمة البناء) على تنسيقٍ لا يعرف
+   * أصنافه -- فتخرج الشاشة نصوصاً متراكمة بلا شكل.
+   *
+   * وهي صفحةٌ صغيرة تُطلب مرّةً عند الإقلاع، فثمنُ الشبكة فيها زهيد.
+   * والذاكرة تبقى احتياطاً: بلا شبكةٍ يفتح الكاشير كما كان.
+   */
+  if (url.pathname === '/pos') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            event.waitUntil(caches.open(CACHE_NAME).then((c) => c.put(event.request, copy)));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((c) => c || Response.error()))
+    );
+    return;
+  }
 
   event.respondWith(
     caches.open(CACHE_NAME).then((cache) =>
       cache.match(event.request).then((cached) => {
         const networkFetch = fetch(event.request)
           .then((response) => {
-            if (response.ok) cache.put(event.request, response.clone());
+            if (response.ok) {
+              /**
+               * وحين تختلف النسخة، يُقال -- لا يُسكت عنها.
+               *
+               * "تحديثٌ يصل في الإطلاقة القادمة" مقبولٌ في موقع، وخطرٌ
+               * في جهازٍ يحسب فلوساً: الكاشير يظلّ يشغّل كوداً قديماً
+               * جلسةً كاملة، ويجرّب إصلاحاً نُشر ولم يصله، فيُقال
+               * "ما زبط" وهو لم يُجرَّب أصلاً. (وقع هذا فعلاً.)
+               *
+               * فتُقارن البصمة، وتُبلَّغ الصفحة، وهي تقرّر متى تُطبّق
+               * -- لا في منتصف طلب.
+               */
+              const stamp = (r) => r && (r.headers.get('etag') || r.headers.get('last-modified') || r.headers.get('content-length'));
+              if (cached && stamp(cached) && stamp(response) !== stamp(cached)) {
+                self.clients.matchAll({ type: 'window' }).then((list) =>
+                  list.forEach((c) => c.postMessage({ type: 'rk-shell-updated', path: url.pathname }))
+                );
+              }
+              cache.put(event.request, response.clone());
+            }
             return response;
           })
           .catch(() => cached);
+        /**
+         * والتحديث الخلفي يُمدَّد عمرُه، وإلا لم يقع أبداً.
+         *
+         * respondWith يُنهي عمر العامل بمجرّد أن يُردّ الجواب. فإن
+         * أُعيد المخزَّن وتُرك جلبُ الشبكة معلّقاً بلا waitUntil، قتله
+         * المتصفّح قبل أن يكتب النسخة الجديدة -- فتبقى الذاكرة قديمة
+         * مهما أُعيد التحميل، ويشتغل الكاشير على كودٍ نُشر قبل ساعات
+         * أو أيام بلا أن يعرف أحد.
+         *
+         * (وهي علّةُ ctx.waitUntil نفسها التي قتلت مكنسة البطاقات:
+         * وعدٌ لا يُعلَن عنه يُقتل في منتصفه، ولا خطأ يُرفع.)
+         */
+        event.waitUntil(networkFetch.catch(() => {}));
         return cached || networkFetch;
       })
     )

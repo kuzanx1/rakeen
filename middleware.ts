@@ -48,6 +48,32 @@ export function middleware(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
+  /**
+   * hbiah.rakeenapp.com/<اسم>.txt -- ملف توثيق ملكية المتجر.
+   *
+   * وزارة التجارة تطلب دليلاً على أن صاحب المتجر يملك نطاقه، وأحد
+   * أدلّتها ملفٌّ نصّي في الجذر. والجذر عندنا تطبيق لا مجلّد، فيُحوَّل
+   * الطلب إلى مسارٍ يبني الملف من إعدادات المطعم.
+   *
+   * والتحويل هنا لا في مطابِق المسارات: الاسم يختاره صاحب المطعم ولا
+   * يُعرف وقت البناء، والمسار الحقيقي يحمل اسم المتجر الذي لا يظهر في
+   * الرابط أصلاً -- الاسم في النطاق، لا في المسار.
+   */
+  const txt = /^\/([A-Za-z0-9][A-Za-z0-9._-]{0,78}\.txt)$/.exec(request.nextUrl.pathname);
+  // وأسماءٌ لا تُختطف: robots.txt وأخواتها يقرؤها الآخرون على أنها قول
+  // الموقع نفسه، لا قول متجرٍ فيه. وهي ممنوعة في المخزن أصلاً، ويُمرّ
+  // عليها هنا كذلك -- فلو أُضيف يوماً ملفٌ حقيقي منها بقي يعمل.
+  const reserved = new Set([
+    "robots.txt", "ads.txt", "app-ads.txt", "security.txt", "sitemap.txt", "humans.txt",
+  ]);
+  if (txt && !reserved.has(txt[1].toLowerCase())) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/api/store-verification";
+    url.searchParams.set("slug", slug);
+    url.searchParams.set("file", txt[1]);
+    return NextResponse.rewrite(url);
+  }
+
   return NextResponse.next();
 }
 

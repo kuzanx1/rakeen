@@ -22,7 +22,20 @@ export async function GET(
   const sb = serviceClient();
   if (!sb) return new NextResponse(null, { status: 500 });
 
-  const since = request.nextUrl.searchParams.get("passesUpdatedSince");
+  /**
+   * الوسم يُقرأ من السلسلة الخام، لا من searchParams.
+   *
+   * آبل تعيده كما أعطيناه: "…149679+00:00" -- والزائد في سلسلة
+   * الاستعلام يعني مسافةً عند فكّ الترميز، فتصير القيمة
+   * "…149679 00:00"، وترفضها القاعدة، والخطأ غير مفحوص فيُقرأ "لا
+   * جديد" ويُردّ 204.
+   *
+   * وأخبثُ ما فيه أنه ينجح أول مرّة: قبل أن يملك الجهاز وسماً لا يرسل
+   * شيئاً، فيُردّ عليه بقائمةٍ ووسم. ثم يعيده فينكسر -- ويتجمّد وسمه
+   * عند تلك اللحظة إلى الأبد، فلا تتحدّث بطاقته أبداً بعدها.
+   */
+  const raw = /[?&]passesUpdatedSince=([^&]*)/.exec(request.nextUrl.search);
+  const since = raw ? decodeURIComponent(raw[1]) : null;
 
   const { data: regs } = await sb
     .from("wallet_pass_registrations")
@@ -40,19 +53,32 @@ export async function GET(
   // نفسه، فيدور الجهاز والخادم بلا نهاية.
   if (since) q = q.gt("wallet_pass_updated_at", since);
 
-  const { data: rows } = await q;
+  const { data: rows, error } = await q;
+  // وخطأُ القاعدة لا يُقرأ "لا جديد": الأول عطلٌ يُصلَح، والثاني حالةٌ
+  // طبيعية -- وخلطُهما يُخفي العطل خلف ردٍّ سليم الشكل.
+  if (error) {
+    console.error("registrations query failed", { since, message: error.message });
+    return new NextResponse(null, { status: 500 });
+  }
   const changed = rows || [];
   if (changed.length === 0) return new NextResponse(null, { status: 204 });
 
   // lastUpdated وسمٌ يعيده الجهاز كما هو في النداء التالي، فيكفي أن
   // يكون أحدث ما رأيناه.
-  const lastUpdated = changed
+  const newest = changed
     .map(r => r.wallet_pass_updated_at as string)
     .sort()
     .pop() as string;
 
+  /**
+   * ويخرج الوسم بصيغة Z لا بإزاحةٍ موجبة.
+   *
+   * الجهاز يعيده حرفاً بحرف في نداءٍ تالٍ، فما فيه "+" يعود مكسوراً
+   * مهما أُحسن قراءتُه هنا -- وأمتنُ من قراءةٍ صحيحة ألّا يُرسَل ما
+   * يحتاج إليها.
+   */
   return NextResponse.json({
     serialNumbers: changed.map(r => r.public_token as string),
-    lastUpdated,
+    lastUpdated: new Date(newest).toISOString(),
   });
 }

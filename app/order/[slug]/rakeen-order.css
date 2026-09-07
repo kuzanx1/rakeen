@@ -885,16 +885,15 @@ img{max-width:100%; display:block;}
   margin-top:18px; font-size:14px; font-weight:700; color:var(--muted);
   font-variant-numeric:tabular-nums;
 }
-.rk-disp-pair-hint{ font-size:13px; color:var(--muted); margin-bottom:18px; line-height:1.7; }
-.rk-disp-pair-input{
-  width:100%; padding:14px 16px; border-radius:var(--r-md, 10px);
-  border:1px solid var(--line); background:var(--surf); color:var(--ink);
-  font-size:16px; font-weight:700; text-align:center; letter-spacing:1px;
+/* لا حقلَ إدخالٍ هنا بعد اليوم: الاقتران يجيء بالرابط لا بالرمز،
+   فذهبت أنماطُ الحقل والزرّ والخطأ معه. */
+.rk-disp-pair-why{
+  font-size:13.5px; font-weight:700; color:var(--ink); line-height:1.7;
+  margin-bottom:14px;
 }
-.rk-disp-pair-btn{
-  width:100%; margin-top:14px; padding:14px; border:0; cursor:pointer;
-  border-radius:var(--r-full); background:var(--lime, #C4FF2B);
-  color:var(--ink); font-size:15px; font-weight:800;
+.rk-disp-pair-hint{
+  font-size:13.5px; color:var(--muted); line-height:1.9; text-align:start;
+  padding:14px 16px; border-radius:var(--r-md, 10px);
+  border:1px solid var(--line); background:var(--surf);
 }
-.rk-disp-pair-input{ font-family:monospace; font-size:26px; letter-spacing:4px; }
-.rk-disp-pair-err{ font-size:12.5px; font-weight:700; color:#c0392b; min-height:18px; margin-top:8px; }
+.rk-disp-pair-hint b{ color:var(--ink); }

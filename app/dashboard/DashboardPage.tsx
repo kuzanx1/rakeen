@@ -7,7 +7,7 @@ import "./rakeen-dashboard.css";
 import "./rakeen-dashboard-responsive.css";
 import { dashboardMarkup } from "./dashboard-markup";
 
-const SCRIPT_SRC = "/dashboard/rakeen-dashboard.js";
+const SCRIPT_SRC = "/dashboard/rakeen-dashboard.js?b=" + (process.env.NEXT_PUBLIC_BUILD_ID || "dev");
 
 export interface ReportPayload {
   businessName: string;

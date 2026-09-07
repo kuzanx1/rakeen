@@ -18,8 +18,8 @@ import { orderMarkup } from "../../order/[slug]/order-markup";
  * قناة. ولوحٌ للباركود فوقه.
  */
 
-const SCRIPT_SRC = "/order/rakeen-order.js";
-const DISPLAY_SCRIPT_SRC = "/display/rakeen-display.js";
+const SCRIPT_SRC = "/order/rakeen-order.js?b=" + (process.env.NEXT_PUBLIC_BUILD_ID || "dev");
+const DISPLAY_SCRIPT_SRC = "/display/rakeen-display.js?b=" + (process.env.NEXT_PUBLIC_BUILD_ID || "dev");
 
 declare global {
   interface Window {

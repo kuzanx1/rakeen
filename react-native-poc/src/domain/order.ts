@@ -63,6 +63,8 @@ export interface OrderItemPayload {
    */
   box_selections: BoxSelectionPayload[];
   is_points_redemption: boolean;
+  /** سطرُ مكافأة ولاء مجانية -- لا خصمٌ يدوي. يُقاس به كلفةُ البرنامج. */
+  is_free_reward: boolean;
   points_cost: number;
 }
 
@@ -300,6 +302,7 @@ function buildItems(
       (modifiersByProductId[item.productId] as unknown as { isBox?: boolean })?.isBox === true,
     ),
     is_points_redemption: !!item.isPointsRedemption,
+    is_free_reward: !!item.isFreeReward,
     // Feature Parity Pass -- Loyalty. Looked up from the product's own
     // pointsRedeemPrice at build time, exactly matching the PWA's real
     // MENU_ITEM_META[item.productId].pointsRedeemPrice lookup (not
@@ -334,7 +337,17 @@ export function buildOrderPayload(
     discount_amount: ctx.discountAmount,
     vat_amount: ctx.vatAmount,
     total: ctx.total,
-    payment_method: paymentMethod,
+    /**
+     * إجماليٌّ صفرٌ غطّته مكافأةٌ أو استبدالُ نقاط ليس كاشاً بصفر.
+     *
+     * يُقرأ في السجلّ "٠٫٠٠ كاش" فلا يُعرف من أين جاء -- وهي علّةُ
+     * 'delivery_platform' نفسها: طريقةُ دفعٍ لم تقع لا تُحشر في درج
+     * الكاش. وما بقي فيه مبلغ يبقى كاشاً أو شبكة.
+     */
+    payment_method:
+      ctx.total <= 0 && cart.some(i => i.isFreeReward || i.isPointsRedemption)
+        ? 'loyalty'
+        : paymentMethod,
     cash_amount: cashAmount,
     channel: ctx.channel,
     delivery_platform_id: ctx.channel === 'delivery' ? ctx.deliveryPlatformId : null,

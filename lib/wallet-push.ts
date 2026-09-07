@@ -29,6 +29,8 @@ export interface ApnsEnv {
 export interface PushResult {
   sent: number;
   failed: number;
+  /** الرموز التي قبلها APNs -- وحدها تُعلَّم مدفوعةً. */
+  ok: string[];
   /** الرموز التي ردّ APNs بأنها لم تعد صالحة، لتُحذف تسجيلاتها. */
   invalid: string[];
 }
@@ -46,7 +48,7 @@ export async function pushToDevices(
   pushTokens: string[],
   env: ApnsEnv,
 ): Promise<PushResult> {
-  const out: PushResult = { sent: 0, failed: 0, invalid: [] };
+  const out: PushResult = { sent: 0, failed: 0, ok: [], invalid: [] };
   const topic = env.PASS_TYPE_ID;
   const host = env.APNS_HOST || DEFAULT_HOST;
   const mtls = env.APNS_MTLS;
@@ -63,18 +65,42 @@ export async function pushToDevices(
         headers: {
           "apns-topic": topic,
           "apns-push-type": "background",
-          "apns-priority": "5",
+          /**
+           * أولويةٌ عالية، وصلاحيةٌ ساعة.
+           *
+           * كانت 5 -- وهي الأولوية التي يؤجّلها iOS إلى وقتٍ يراه
+           * مناسباً: يجمعها ويوقظ الجهاز حين يستيقظ لغيرها. فيقبل APNs
+           * الإشعار ويردّ 200، ولا يسأل الجهازُ عن بطاقته لساعات. وهو
+           * ما كان يحدث: إرسالٌ ناجح بلا أثر.
+           *
+           * وapns-expiration كان صفراً بالافتراض -- أي "سلّمه الآن أو
+           * ارمه". وجهازٌ في جيبٍ بلا شبكة لحظةَ الإرسال يفقد التحديث
+           * إلى الأبد. وساعةٌ تكفي ليعود من مصعدٍ أو رحلة.
+           */
+          "apns-priority": "10",
+          "apns-expiration": String(Math.floor(Date.now() / 1000) + 3600),
           "content-type": "application/json",
         },
         body: "{}",
       });
-      if (res.ok) out.sent++;
+      if (res.ok) { out.sent++; out.ok.push(token); }
       else {
         out.failed++;
+        /**
+         * وسببُ الرفض يُقرأ ويُسجَّل.
+         *
+         * آبل تردّ برمزٍ وجسمٍ فيه reason -- BadDeviceToken أو
+         * DeviceTokenNotForTopic أو غيرهما. وكنّا نعدّه فشلاً بلا اسم،
+         * فيبقى "failed: 1" لا يقول ما العطل ولا أين يُصلَح.
+         */
+        let why = "";
+        try { why = ((await res.json()) as { reason?: string }).reason || ""; } catch { /* بلا جسم */ }
+        console.error(`APNs ${res.status} ${why} token=${token.slice(0, 12)}…`);
         if (res.status === 410) out.invalid.push(token);
       }
-    } catch {
+    } catch (err) {
       out.failed++;
+      console.error("APNs fetch failed", err);
     }
   }
   return out;
@@ -101,4 +127,25 @@ export function apnsClientPem(): { key: string; cert: string } | null {
   }
   cachedPem = { key: PASS_KEY_PEM, cert: PASS_CERT_PEM };
   return cachedPem;
+}
+
+/**
+ * بيئة الإشعارات من ربط Cloudflare.
+ *
+ * وAPNS_MTLS ربطٌ لا متغيّر بيئة: كائنٌ يحمل fetch يُوقّع بشهادة
+ * البطاقة، فلا يقرأ من process.env بل من سياق العامل. وغيابُه ليس
+ * خطأً -- البطاقات تعمل بلا إشعار، ويغيب التحديث اللحظي وحده.
+ */
+export async function apnsEnv(): Promise<ApnsEnv | null> {
+  const topic = process.env.PASS_TYPE_ID;
+  if (!topic) return null;
+  try {
+    const { getCloudflareContext } = await import("@opennextjs/cloudflare");
+    const { env } = await getCloudflareContext({ async: true });
+    const mtls = (env as unknown as { APNS_MTLS?: { fetch: typeof fetch } }).APNS_MTLS;
+    if (!mtls) return null;
+    return { APNS_MTLS: mtls, PASS_TYPE_ID: topic, APNS_HOST: process.env.APNS_HOST };
+  } catch {
+    return null;
+  }
 }

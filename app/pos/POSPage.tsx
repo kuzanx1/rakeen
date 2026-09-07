@@ -6,7 +6,7 @@ import "./rakeen-pos.css";
 import "./rakeen-pos-additions.css";
 import { posMarkup } from "./pos-markup";
 
-const SCRIPT_SRC = "/pos/rakeen-pos.js";
+const SCRIPT_SRC = "/pos/rakeen-pos.js?b=" + (process.env.NEXT_PUBLIC_BUILD_ID || "dev");
 
 declare global {
   interface Window {

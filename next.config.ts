@@ -55,7 +55,22 @@ const CSP = [
 // more specific rule only loosens framing for that one static subtree.
 const PREVIEW_CSP = CSP.replace("frame-ancestors 'none'", "frame-ancestors 'self'");
 
+/**
+ * بصمةُ البناء -- تُحسب مرّةً عند البناء وتُخبز في حزمة العميل.
+ *
+ * ملفّاتُ الواجهة المكتوبة بخطّ اليد (كاشير، لوحة تحكم، شاشة عميل)
+ * تُحمَّل بروابط ثابتة لا تتغيّر بين نشرٍ وآخر. فذاكرةُ المتصفّح
+ * وعاملُ الخدمة لا يعرفان أن فيها جديداً -- ويبقى الجهاز يشغّل كوداً
+ * نُشر قبل ساعاتٍ أو أيام، ويُجرَّب فيه إصلاحٌ لم يصله فيُقال "ما زبط".
+ *
+ * ولا يُطلب من صاحب المطعم أن يمسح ذاكرةً ولا أن يفتح أدوات مطوّر:
+ * الرابطُ نفسه يتغيّر مع كل نشر، فيصير طلباً جديداً لا مُخزَّناً --
+ * تلقائياً، لكل جهازٍ وكل مستخدم.
+ */
+const BUILD_ID = String(Date.now());
+
 const nextConfig: NextConfig = {
+  env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID },
   turbopack: {
     root: __dirname,
   },

@@ -52,6 +52,21 @@ export function useCart(
 
   /** Simple products (no modifier definition) always fast-add instantly --
    *  matches addToCart()'s real behavior in rakeen-pos.js exactly. */
+  /**
+   * رصيدُ المكافأة: مصروفٌ من محفظة العميل ولم يُطبَّق على صنفٍ بعد.
+   *
+   * الخصمُ يقع لحظة التأكيد -- قبل اختيار الصنف. فهو ملكُ العميل من
+   * تلك اللحظة، وليس سطراً يضيع بضغطة حذف: يمسح الكاشير الكوب، فيعود
+   * الرصيد إلى يده، ويضغط صنفاً غيره فيدخل بصفر بلا تأكيدٍ ثانٍ.
+   *
+   *   rewardArm        -- أُكِّد ولم يُخصم بعد (يحمل رقم الطلب).
+   *   freeRewardCredit -- خُصم ومُسح سطرُه، فيُطبَّق بلا خصمٍ ثانٍ.
+   *
+   * (نظيرها في الويب: state.rewardArm / state.freeRewardCredit.)
+   */
+  const [rewardArm, setRewardArm] = useState<number | null>(null);
+  const [freeRewardCredit, setFreeRewardCredit] = useState(0);
+
   const addProduct = useCallback(
     (productId: number) => {
       const modDef = modifiersByProductId[productId];
@@ -86,11 +101,26 @@ export function useCart(
   );
 
   const changeQty = useCallback((lineId: number, delta: number) => {
-    setCart(prev => changeQtyPure(prev, lineId, delta));
+    setCart(prev => {
+      const line = prev.find(l => l.lineId === lineId);
+      // النزول إلى الصفر حذفٌ -- فيُعاد الرصيد كما يُعاد عند الحذف.
+      if (line?.isFreeReward && line.qty + delta <= 0) setFreeRewardCredit(c => c + 1);
+      return changeQtyPure(prev, lineId, delta);
+    });
   }, []);
 
+  /**
+   * وحذفُ السطر المجاني يُعيد الرصيد، لا يُسقطه.
+   *
+   * المكافأة انخصمت من محفظته وانتهت -- فحذفُ سطرها لا يُرجعها إليه،
+   * إنما يُضيعها. والعميل يغيّر رأيه في الصنف لا في المكافأة.
+   */
   const removeFromCart = useCallback((lineId: number) => {
-    setCart(prev => removeFromCartPure(prev, lineId));
+    setCart(prev => {
+      const line = prev.find(l => l.lineId === lineId);
+      if (line?.isFreeReward) setFreeRewardCredit(c => c + 1);
+      return removeFromCartPure(prev, lineId);
+    });
   }, []);
 
   /** .oi-note-input's blur handler (rakeen-pos.js:1058): the typed value
@@ -103,6 +133,8 @@ export function useCart(
   const clearCart = useCallback(() => {
     setCart([]);
     setDiscountPct(0);
+    setRewardArm(null);
+    setFreeRewardCredit(0);
   }, []);
 
   const totals = useMemo(
@@ -121,6 +153,10 @@ export function useCart(
     addWithConfig,
     addPointsRedemptionProduct,
     addFreeRewardProduct,
+    rewardArm,
+    setRewardArm,
+    freeRewardCredit,
+    setFreeRewardCredit,
     changeQty,
     removeFromCart,
     setLineNote,

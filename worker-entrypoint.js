@@ -45,27 +45,125 @@ async function serveMediaBucket(request, env) {
   return new Response(request.method === "HEAD" ? null : object.body, { headers });
 }
 
+// وسم توثيق ملكية النطاق يُرفَع إلى <head>.
+//
+// وزارة التجارة تقرأ <head> وحده -- دليلها يقول "داخل قسم <head>" --
+// وNext يبعث وسوم الميتاداتا بعد إقفاله، فتستقرّ في <body>. المتصفّح لا
+// يبالي، والزاحف يبالي: يفتح الصفحة، لا يجد الوسم حيث نصّ عليه، ويردّ
+// الطلب. وهذا ما حدث فعلاً في أول محاولة.
+//
+// فيُنسَخ الوسم إلى موضعه قبل أن تخرج الصفحة. ونسخاً لا نقلاً: React
+// يعيد بناء ما في <body> عند التحميل، فحذفه من هناك يفتح باب اختلافٍ
+// بين ما بناه الخادم وما يبنيه المتصفّح، مقابل لا شيء.
+//
+// ويُقرأ الجسم كاملاً هنا -- وهو صفحةٌ في عشرة كيلوبايت تخرج في دفعة
+// واحدة أصلاً، فلا بثَّ يُفقد. ويُطبَّق على جذر نطاق المتجر وحده: هو
+// العنوان الوحيد الذي يفتحه الزاحف.
+const VERIFY_MARKER = "x-rakeen-verify";
+
+function metaTagRegex(name) {
+  return new RegExp(
+    '<meta\\s+name="' + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + '"\\s+content="[^"]*"\\s*/?>',
+    "i",
+  );
+}
+
+async function hoistVerificationMeta(response) {
+  if (!(response.headers.get("content-type") || "").includes("text/html")) return response;
+  let html;
+  try {
+    html = await response.text();
+  } catch {
+    return response;
+  }
+  try {
+    const marker = metaTagRegex(VERIFY_MARKER).exec(html);
+    const name = marker && /content="([^"]*)"/i.exec(marker[0]);
+    const headEnd = html.search(/<\/head>/i);
+    const tag = name && metaTagRegex(name[1]).exec(html);
+    // موجودٌ في الترويسة أصلاً؟ فلا شيء يُفعل -- ولا يُضاعَف.
+    if (tag && headEnd > 0 && tag.index > headEnd) {
+      html = html.slice(0, headEnd) + tag[0] + html.slice(headEnd);
+    }
+  } catch {
+    /* الصفحة تخرج كما هي: توثيقٌ لا يتمّ أهونُ من متجرٍ لا يفتح. */
+  }
+  // الطول والترميز يتغيّران بإعادة البناء، فتُطرح ترويستاهما لتُحسبا من
+  // جديد -- وإبقاؤهما يعني جسماً يخالف ما تصفه ترويسته.
+  const headers = new Headers(response.headers);
+  headers.delete("content-length");
+  headers.delete("content-encoding");
+  return new Response(html, { status: response.status, statusText: response.statusText, headers });
+}
+
+// مسار ملف التوثيق يُسوّى قبل أن يصل إلى Next.
+//
+// Next يردّ 308 على "//ملف.txt" و"ملف.txt/" ليصحّح الشكل. والمتصفّح
+// يتبع التحويل فلا يلاحظ، أما زاحف التحقق فكثيرٌ منها يرفض التحويل
+// أصلاً -- لأن اتّباعه يعني إثبات ملكية موقعٍ يوجّه إلى موقع آخر. فيصل
+// إليه 308 حيث ينتظر 200، ويُسجَّل فشلاً لا سببَ ظاهراً له.
+//
+// وشرطةٌ زائدة ليست خطأً يُفترض ألا يقع: من ركّب الرابط من عنوانٍ
+// ينتهي بشرطةٍ واسمِ ملفٍ يبدأ بشرطة حصل عليها بلا أن يخطئ. فتُسوّى
+// هنا، ويصل الطلب إلى وجهته من أول مرة.
+function normalizeVerificationPath(request, url) {
+  const m = /^\/{2,}([A-Za-z0-9][A-Za-z0-9._-]{0,78}\.txt)\/*$|^\/([A-Za-z0-9][A-Za-z0-9._-]{0,78}\.txt)\/+$/.exec(url.pathname);
+  if (!m) return request;
+  const fixed = new URL(url);
+  fixed.pathname = "/" + (m[1] || m[2]);
+  return new Request(fixed, request);
+}
+
 export default {
   async fetch(request, env, ctx) {
-    if (new URL(request.url).hostname === "media.rakeenapp.com") {
+    const url = new URL(request.url);
+    if (url.hostname === "media.rakeenapp.com") {
       return serveMediaBucket(request, env);
     }
-    return openNextWorker.fetch(request, env, ctx);
+    if (url.hostname.endsWith(".rakeenapp.com") && url.pathname.includes(".txt")) {
+      request = normalizeVerificationPath(request, url);
+    }
+    const response = await openNextWorker.fetch(request, env, ctx);
+    const isStoreRoot =
+      request.method === "GET" &&
+      url.pathname === "/" &&
+      url.hostname.endsWith(".rakeenapp.com") &&
+      url.hostname !== "www.rakeenapp.com";
+    return isStoreRoot ? hoistVerificationMeta(response) : response;
   },
   async scheduled(event, env, ctx) {
     // event.cron identifies which of the schedules in wrangler.jsonc fired,
     // so one scheduled() handler can dispatch each to its own route.
-    const path =
-      event.cron === "0 7 * * 1" ? "/api/cron/usage-check" :
-      event.cron === "0 21 * * *" ? "/api/cron/daily-report" :
-      event.cron === "*/2 * * * *" ? "/api/cron/auto-ready-pickup" :
-      event.cron === "0 5 * * *" ? "/api/cron/compliance-check" :
-      "/api/cron/win-back";
-    ctx.waitUntil(
+    //
+    // A schedule may map to MORE than one route: the Workers Free plan caps
+    // an account at 5 cron triggers, and we're at 5. The two-minute sweep
+    // therefore carries both the pickup sweep and the wallet-pass push —
+    // both finish in seconds, and neither blocks the other (they're
+    // dispatched together, not in sequence).
+    const paths =
+      event.cron === "0 7 * * 1" ? ["/api/cron/usage-check"] :
+      event.cron === "0 21 * * *" ? ["/api/cron/daily-report"] :
+      event.cron === "*/2 * * * *" ? ["/api/cron/auto-ready-pickup", "/api/cron/wallet-push"] :
+      event.cron === "0 5 * * *" ? ["/api/cron/compliance-check"] :
+      ["/api/cron/win-back"];
+    // والجسم يُقرأ، لا الترويسة وحدها.
+    //
+    // وعدُ fetch يُحلّ حين تصل الترويسة -- والمكنسة تعمل بعدها: تسأل
+    // القاعدة، وتفتح اتصال APNs، وتعلّم ما دُفع. فينتهي waitUntil عند
+    // الترويسة، وينتهي معه المؤقّت، ويُلغى الطلب الداخلي في منتصفه.
+    // فيظهر في السجلّ "Canceled" كل دقيقتين ولا شيء يُدفع، ولا خطأ
+    // يُرفع -- لأن لا أحد أخطأ.
+    //
+    // وقراءةُ الجسم تنتظر تمام المعالجة: الردّ لا يكتمل قبل أن يعود
+    // المعالج. وهذا ينطبق على كنس الطلبات الجاهزة كذلك -- كانت تُلغى
+    // معها في الدفعة نفسها.
+    ctx.waitUntil(Promise.all(paths.map((path) =>
       env.WORKER_SELF_REFERENCE.fetch(`https://internal${path}`, {
         method: "POST",
         headers: { "x-cron-secret": env.CRON_SECRET || "" },
-      }).catch((err) => console.error(`${path} cron dispatch failed`, err))
-    );
+      })
+        .then((res) => res.text().then((body) => console.log(`${path} → ${res.status} ${body.slice(0, 200)}`)))
+        .catch((err) => console.error(`${path} cron dispatch failed`, err))
+    )));
   },
 };

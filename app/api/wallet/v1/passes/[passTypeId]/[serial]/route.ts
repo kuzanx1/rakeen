@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authorizePass, loadWalletRow, renderPass, serviceClient } from "@/lib/wallet-service";
+import { authorizePass, loadWalletRow, passLastModified, renderPass, serviceClient } from "@/lib/wallet-service";
 
 /**
  * البطاقة المحدّثة.
@@ -26,13 +26,23 @@ export async function GET(
   const row = await loadWalletRow(sb, serial);
   if (!row) return new NextResponse(null, { status: 404 });
 
-  const updatedAt = new Date(row.updatedAt);
+  const updatedAt = passLastModified(row);
   const ims = request.headers.get("if-modified-since");
   if (ims) {
     const since = new Date(ims);
     // بالثانية لا بالملّي: ترويسة HTTP لا تحمل أدقّ من ذلك، والمقارنة
     // الأدقّ منها تُرجع "تغيّر" على فرقٍ لا وجود له في الترويسة.
-    if (!Number.isNaN(since.getTime()) && Math.floor(updatedAt.getTime() / 1000) <= Math.floor(since.getTime() / 1000)) {
+    /**
+     * وترويسةٌ من المستقبل لا تُصدَّق.
+     *
+     * أجهزةٌ حملت ختماً مسمَّماً من خطأٍ سابق تبقى عليه، فتُحرم كل
+     * تحديثٍ إلى أن يمرّ وقتُه. ولا معنى لجهازٍ يقول "عندي نسخةٌ من
+     * الغد" -- فيُهمَل قوله وتُبنى له البطاقة، ويخرج معها ختمٌ صحيح
+     * يشفيه.
+     */
+    const fresh = since.getTime() <= Date.now() + 60_000;
+    if (!Number.isNaN(since.getTime()) && fresh
+        && Math.floor(updatedAt.getTime() / 1000) <= Math.floor(since.getTime() / 1000)) {
       return new NextResponse(null, { status: 304 });
     }
   }

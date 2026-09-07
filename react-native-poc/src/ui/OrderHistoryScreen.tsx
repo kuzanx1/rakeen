@@ -9,6 +9,9 @@ import {
   listOrderHistory,
   getOrderHistoryDetail,
   refundPosOrder,
+  getOrderRefundState,
+  refundOrderLines,
+  type RefundLine,
   OrderHistoryRow,
   OrderHistoryDetail,
   OrderHistoryStatus,
@@ -143,6 +146,17 @@ export default function OrderHistoryScreen({
   const [refundAskOpen, setRefundAskOpen] = useState(false);
   const [refundAmountText, setRefundAmountText] = useState('');
   const [refundAskError, setRefundAskError] = useState('');
+  /**
+   * الاسترجاع الجديد: صنفاً صنفاً حين تكون الأصناف أكثر من واحد،
+   * ومبلغاً حين يكون صنفاً واحداً.
+   *
+   * فالكاشير لا يُسأل "كم ريالاً" وأمامه فاتورةٌ من ثلاثة أصناف -- هو
+   * لا يعرف كم يخصّ الصنف الذي رجع، والحساب في رأسه بابُ خطأ. ويُسأل
+   * عن المبلغ حيث يكون السؤال ذا معنى: صنفٌ واحد رجع بعضُه.
+   */
+  const [refundLines, setRefundLines] = useState<RefundLine[] | null>(null);
+  const [refundPick, setRefundPick] = useState<Record<number, number>>({});
+  const [refundPickOpen, setRefundPickOpen] = useState(false);
   const [reprintBusy, setReprintBusy] = useState(false);
   const [reprintStatus, setReprintStatus] = useState('');
 
@@ -284,16 +298,65 @@ export default function OrderHistoryScreen({
    * استرجاع سابق. والقاعدة تفحصه ثانيةً -- هذا يمنع الغلطة، وذاك يمنع
    * التحايل.
    */
-  const askRefundAmount = () => {
+  const askRefundAmount = async () => {
     if (!detail) return;
     const remaining = Math.max(0, detail.total - (detail.refundedAmount || 0));
     if (remaining <= 0.001) {
       setRefundStatus('هذا الطلب مسترجع بالكامل');
       return;
     }
-    setRefundAmountText('');
-    setRefundAskError('');
-    setRefundAskOpen(true);
+    setRefundBusy(true);
+    const st = await getOrderRefundState(detail.id);
+    setRefundBusy(false);
+    const open = (st?.lines || []).filter(l => l.qty - l.refundedQty > 0.0001);
+    if (!st?.ok || open.length === 0) {
+      // بلا تفاصيل من الخادم يبقى الطريق القديم مفتوحاً: استرجاعٌ
+      // بمبلغ خيرٌ من كاشيرٍ واقفٍ أمام زرٍّ لا يفعل شيئاً.
+      setRefundAmountText('');
+      setRefundAskError('');
+      setRefundAskOpen(true);
+      return;
+    }
+    setRefundLines(open);
+    if (open.length === 1) {
+      // صنفٌ واحد: السؤال عن المبلغ له معنى -- جزئيٌّ أو كامل.
+      setRefundAmountText('');
+      setRefundAskError('');
+      setRefundAskOpen(true);
+      return;
+    }
+    setRefundPick(Object.fromEntries(open.map(l => [l.orderItemId, 0])));
+    setRefundPickOpen(true);
+  };
+
+  /** استرجاع الأسطر المختارة -- بعد موافقة المدير. */
+  const performLineRefund = async () => {
+    if (!detail) return;
+    const lines = Object.entries(refundPick)
+      .filter(([, q]) => Number(q) > 0)
+      .map(([id, q]) => ({ orderItemId: Number(id), qty: Number(q) }));
+    if (lines.length === 0) return;
+    setRefundBusy(true);
+    const out = await refundOrderLines(detail.id, lines);
+    setRefundBusy(false);
+    if (!out.ok) {
+      setRefundStatus('🔴 ' + (out.error || 'تعذر الاسترجاع'));
+      return;
+    }
+    setRefundStatus(
+      out.full
+        ? `✅ استُرجعت الفاتورة كاملة — ${(out.amount || 0).toFixed(2)} ريال`
+        : `✅ استُرجع ${(out.amount || 0).toFixed(2)} ريال — باقي ${(out.remaining || 0).toFixed(2)}`,
+    );
+    setDetail({
+      ...detail,
+      status: out.full ? 'refunded' : 'partially_refunded',
+      refundedAmount: (detail.refundedAmount || 0) + (out.amount || 0),
+    });
+    setRefundLines(null);
+    setRefundPick({});
+    void kickDrawerAfterRefund();
+    refresh();
   };
 
   /**
@@ -537,6 +600,62 @@ export default function OrderHistoryScreen({
 
               وAlert.prompt خاص بـiOS وحدها: على أندرويد لا يفعل شيئاً،
               فكان زر الاسترجاع هناك زراً لا يستجيب أصلاً. */}
+          {refundPickOpen && detail && refundLines && (
+            <KeyboardLift style={styles.innerOverlay}>
+              <View style={styles.askCard}>
+                <Text style={styles.askTitle}>وش ترجّع؟</Text>
+                <Text style={styles.askNote}>اختر الأصناف — اللي تختاره يرجع للمخزون</Text>
+                {refundLines.map(l => {
+                  const left = l.qty - l.refundedQty;
+                  const taken = Number(refundPick[l.orderItemId] || 0);
+                  return (
+                    <View key={l.orderItemId} style={styles.refundLineRow}>
+                      <View style={styles.refundLineInfo}>
+                        <Text style={styles.refundLineName}>{l.name}</Text>
+                        <Text style={styles.refundLineMeta}>
+                          {l.isFreeReward ? 'مكافأة مجانية' : `${l.unitPrice.toFixed(2)} ريال`} · باقي {left}
+                        </Text>
+                      </View>
+                      <View style={styles.refundQtyBox}>
+                        <TouchableOpacity
+                          style={styles.refundQtyBtn}
+                          onPress={() => setRefundPick(m => ({ ...m, [l.orderItemId]: Math.max(0, taken - 1) }))}>
+                          <Text style={styles.refundQtyGlyph}>−</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.refundQtyNum}>{taken}</Text>
+                        <TouchableOpacity
+                          style={styles.refundQtyBtn}
+                          onPress={() => setRefundPick(m => ({ ...m, [l.orderItemId]: Math.min(left, taken + 1) }))}>
+                          <Text style={styles.refundQtyGlyph}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })}
+
+                <TouchableOpacity
+                  style={styles.askSecondary}
+                  onPress={() => setRefundPick(
+                    Object.fromEntries(refundLines.map(l => [l.orderItemId, l.qty - l.refundedQty])),
+                  )}>
+                  <Text style={styles.askSecondaryText}>اختر الكل</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.askPrimary,
+                          !Object.values(refundPick).some(q => Number(q) > 0) && styles.askPrimaryOff]}
+                  disabled={!Object.values(refundPick).some(q => Number(q) > 0)}
+                  onPress={() => { setRefundPickOpen(false); setPinPendingRefund(true); }}
+                  activeOpacity={0.85}>
+                  <Text style={styles.askPrimaryText}>استرجاع المختار</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.askCancel} onPress={() => { setRefundPickOpen(false); setRefundPick({}); }}>
+                  <Text style={styles.askCancelText}>إلغاء</Text>
+                </TouchableOpacity>
+              </View>
+            </KeyboardLift>
+          )}
+
           {refundAskOpen && detail && (
             <KeyboardLift style={styles.innerOverlay}>
               <View style={styles.askCard}>
@@ -573,11 +692,16 @@ export default function OrderHistoryScreen({
               setPinPendingRefund(false);
               // المبلغ يُلتقط قبل كلمة سر المدير ويُمرَّر بعدها، ويُمسح دائماً
               // -- وإلا ورث استرجاعٌ تالٍ مبلغ سابقه بلا أن يُسأل.
+              //
+              // وأسطرٌ مختارة تعني استرجاعاً بالأصناف: هي تحمل معنى
+              // المبلغ وزيادةً -- أي صنفٍ يعود إلى الرفّ.
+              const picked = Object.values(refundPick).some(q => Number(q) > 0);
               const amount = pendingRefundAmount;
               setPendingRefundAmount(undefined);
-              performRefund(amount);
+              if (picked) performLineRefund();
+              else performRefund(amount);
             }}
-            onCancel={() => { setPinPendingRefund(false); setPendingRefundAmount(undefined); }}
+            onCancel={() => { setPinPendingRefund(false); setPendingRefundAmount(undefined); setRefundPick({}); }}
           />
         </View>
       </Modal>
@@ -635,6 +759,17 @@ const useStyles = createStyles(colors =>
   askError: { fontFamily: fonts.sansBold, color: colors.danger, fontSize: 12, textAlign: 'center', marginTop: spacing[2] },
   askPrimary: { backgroundColor: colors.lime, borderRadius: radii.full, paddingVertical: 14, alignItems: 'center', marginTop: spacing[4] },
   askPrimaryText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.flagGreenDeep },
+  refundLineRow: { flexDirection: 'row', alignItems: 'center', gap: 10, width: '100%', paddingVertical: 8 },
+  refundLineInfo: { flex: 1, minWidth: 0 },
+  refundLineName: { fontFamily: fonts.sansBold, fontSize: 13 },
+  refundLineMeta: { fontFamily: fonts.sansRegular, fontSize: 11, marginTop: 2 },
+  refundQtyBox: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  refundQtyBtn: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  refundQtyGlyph: { fontFamily: fonts.sansBold, fontSize: 16 },
+  refundQtyNum: { fontFamily: fonts.sansBold, fontSize: 14, minWidth: 18, textAlign: 'center' },
+  askSecondary: { marginTop: 10, paddingVertical: 10, paddingHorizontal: 20, borderRadius: radii.md },
+  askSecondaryText: { fontFamily: fonts.sansBold, fontSize: 12.5 },
+  askPrimaryOff: { opacity: 0.45 },
   askCancel: { padding: spacing[3], alignItems: 'center', marginTop: 4 },
   askCancelText: { fontFamily: fonts.sansBold, color: colors.muted },
   sheet: { backgroundColor: colors.cardBg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing[5], maxHeight: '85%' },

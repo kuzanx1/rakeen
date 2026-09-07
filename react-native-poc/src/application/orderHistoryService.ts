@@ -22,12 +22,25 @@ export interface OrderHistoryRow {
   status: OrderHistoryStatus;
 }
 
+/**
+ * و"مسترجعة" تشمل المسترجَع جزئياً.
+ *
+ * كان التبويب يسأل status='refunded' بالضبط -- فطلبٌ رُجّع صنفٌ منه
+ * حالتُه partially_refunded: لا هو في "مكتملة" (حالته تغيّرت) ولا في
+ * "مسترجعة" (لا تطابق). فيختفي من كل التبويبات، ولا يجده الكاشير أبداً
+ * -- ولا يعرف أنه اختفى.
+ *
+ * وصار أظهرَ بعد الاسترجاع سطراً سطراً: أكثرُ الاسترجاعات جزئيّ.
+ */
 export async function listOrderHistory(branchId: number, status: OrderHistoryStatus): Promise<OrderHistoryRow[]> {
-  const { data, error } = await supabase
+  let q = supabase
     .from('orders')
     .select('id, total, created_at, customer_name, channel, status')
-    .eq('branch_id', branchId)
-    .eq('status', status)
+    .eq('branch_id', branchId);
+  q = status === 'refunded'
+    ? q.in('status', ['refunded', 'partially_refunded'])
+    : q.eq('status', status);
+  const { data, error } = await q
     .order('created_at', { ascending: false })
     .limit(30);
   if (error) throw error;
@@ -160,10 +173,76 @@ export interface RefundResult {
  * لا تُستدعى إلا خلف ManagerPinModal، كما في الكاشير تماماً.
  */
 export async function refundPosOrder(orderId: number, amount?: number): Promise<RefundResult> {
-  const { data, error } = await supabase.rpc(
-    'refund_pos_order',
-    amount == null ? { p_order_id: orderId } : { p_order_id: orderId, p_amount: amount },
-  );
+  // refund_pos_order_amount يلفّ الأصلية ويترك أثراً مفصَّلاً في
+  // order_refunds -- فتقريرُ "ما استُرجع اليوم" يرى سبباً لا مبلغاً
+  // مجرّداً. والمنطق والحدود كما هي، لم تُمسّ.
+  const { data, error } = await supabase.rpc('refund_pos_order_amount', {
+    p_order_id: orderId,
+    p_amount: amount ?? null,
+    p_reason: null,
+  });
   if (error) throw error;
   return (data ?? { refunded: 0, refunded_total: 0, remaining: 0, full: true }) as RefundResult;
+}
+
+/** سطرٌ في الفاتورة، وكم بقي منه غير مسترجَع. */
+export interface RefundLine {
+  orderItemId: number;
+  menuItemId: number | null;
+  name: string;
+  qty: number;
+  refundedQty: number;
+  unitPrice: number;
+  lineTotal: number;
+  isFreeReward: boolean;
+  isPointsRedemption: boolean;
+}
+
+export interface RefundState {
+  ok: boolean;
+  orderId: number;
+  status: string;
+  total: number;
+  discountPct: number;
+  refunded: number;
+  refundable: number;
+  paymentMethod: string;
+  lines: RefundLine[];
+  error?: string;
+}
+
+/**
+ * حالُ الاسترجاع كما يقولها الخادم -- لا كما يحسبها الجهاز.
+ *
+ * كم بقي من كل سطر، وكم بقي من المبلغ. ولو حُسبت هنا لاختلف جهازان
+ * يفتحان الفاتورة نفسها بعد أن رجّع أحدُهما سطراً.
+ */
+export async function getOrderRefundState(orderId: number): Promise<RefundState | null> {
+  const { data, error } = await supabase.rpc('get_order_refund_state', { p_order_id: orderId });
+  if (error || !data) return null;
+  return data as RefundState;
+}
+
+/** استرجاع أسطرٍ بعينها -- المخزون يعود لها وحدها. */
+export async function refundOrderLines(
+  orderId: number,
+  lines: { orderItemId: number; qty: number }[],
+  reason?: string,
+): Promise<{ ok: boolean; amount?: number; full?: boolean; remaining?: number; error?: string }> {
+  const { data, error } = await supabase.rpc('refund_pos_order_lines', {
+    p_order_id: orderId,
+    p_lines: lines,
+    p_reason: reason ?? null,
+  });
+  if (error) return { ok: false, error: error.message };
+  const out = (data ?? {}) as { ok?: boolean; amount?: number; full?: boolean; remaining?: number; error?: string };
+  if (out.ok) return { ok: true, amount: out.amount, full: out.full, remaining: out.remaining };
+  const says: Record<string, string> = {
+    forbidden: 'ما عندك صلاحية',
+    order_not_found: 'ما لقينا الفاتورة',
+    not_refundable: 'هذي الفاتورة ما تقبل استرجاع',
+    nothing_to_refund: 'ما اخترت أي صنف',
+    nothing_left_to_refund: 'كل الأصناف المختارة مسترجَعة من قبل',
+  };
+  return { ok: false, error: says[out.error || ''] || 'تعذر الاسترجاع' };
 }
