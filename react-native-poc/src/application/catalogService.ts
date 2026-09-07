@@ -336,7 +336,71 @@ const EMPTY_BRANDING: ReceiptBranding = {
  * واسم الفرع يُرجَع فقط حين تتعدد فروع المنشأة -- العدّ هنا، لا في
  * العارض: "الفرع الأول" على منشأة بفرع واحد سطر لا يقول شيئاً.
  */
+/**
+ * هويّةُ الفاتورة تُقرأ من الذاكرة، وتُحدَّث في الخلفية.
+ *
+ * كانت رحلتين إلى الخادم في كل عملية دفع -- المنشأةُ ثم الفروع --
+ * تُنتظران قبل أن تظهر شاشة "تمت العملية". وهي بياناتٌ تتغيّر مرّةً في
+ * الشهر: شعارٌ وسطرٌ تعريفيّ ورقمٌ ضريبيّ وحيٌّ ومدينة.
+ *
+ * وأسوأُ ما فيه أنها تُنتظر حيث لا يجوز الانتظار: نقطةُ البيع تعمل بلا
+ * إنترنت بالتصميم، وشبكةٌ ضعيفةٌ -- لا مقطوعة -- تُبقي الطلب معلّقاً
+ * حتى تنتهي مهلتُه. فيقف الكاشير أمام دوّارةٍ بعد أن قبض المال، وطابورٌ
+ * ينتظر. (وهذا هو "يقعد يحمّل شوي" بالضبط.)
+ *
+ * فتُحفظ محلياً وتُقرأ فوراً، ويُطلب التحديث بعد ذلك بلا انتظار: أسوأُ
+ * ما يقع أن تُطبع فاتورةٌ بسطرٍ تعريفيٍّ عمرُه دقائق.
+ */
+const BRANDING_KEY = 'rakeen_receipt_branding';
+let brandingMemo: Record<string, ReceiptBranding> = {};
+
+function brandingKey(businessId: number, branchId: number | null): string {
+  return `${businessId}:${branchId ?? 'none'}`;
+}
+
+/** يقرأ من الشبكة ويكتب في الذاكرتين -- تُنادى بلا انتظار. */
+async function refreshReceiptBranding(businessId: number, branchId: number | null): Promise<ReceiptBranding> {
+  const fresh = await fetchReceiptBranding(businessId, branchId);
+  const key = brandingKey(businessId, branchId);
+  brandingMemo[key] = fresh;
+  try {
+    await kvStorage.setItem(BRANDING_KEY, JSON.stringify({ ...brandingMemo }));
+  } catch {
+    // الذاكرةُ الحيّة تكفي هذي الجلسة.
+  }
+  return fresh;
+}
+
 export async function getReceiptBranding(businessId: number, branchId: number | null): Promise<ReceiptBranding> {
+  const key = brandingKey(businessId, branchId);
+  if (brandingMemo[key]) {
+    void refreshReceiptBranding(businessId, branchId).catch(() => {});
+    return brandingMemo[key];
+  }
+  try {
+    const raw = await kvStorage.getItem(BRANDING_KEY);
+    if (raw) {
+      const stored = JSON.parse(raw) as Record<string, ReceiptBranding>;
+      if (stored && stored[key]) {
+        brandingMemo = stored;
+        void refreshReceiptBranding(businessId, branchId).catch(() => {});
+        return stored[key];
+      }
+    }
+  } catch {
+    // مخزونٌ تالف: يُتجاهل ويُجلب من جديد.
+  }
+  // أوّلُ مرّةٍ على هذا الجهاز وحدها تنتظر الشبكة.
+  return refreshReceiptBranding(businessId, branchId);
+}
+
+/** تُمحى عند تبديل الجهاز أو المنشأة، فلا تُطبع هويّةُ مطعمٍ آخر. */
+export function clearReceiptBrandingCache(): void {
+  brandingMemo = {};
+  void kvStorage.removeItem(BRANDING_KEY).catch(() => {});
+}
+
+async function fetchReceiptBranding(businessId: number, branchId: number | null): Promise<ReceiptBranding> {
   const out: ReceiptBranding = { ...EMPTY_BRANDING };
   try {
     const { data } = await supabase

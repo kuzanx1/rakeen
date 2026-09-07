@@ -39,6 +39,35 @@ export const RAKEEN_API_BASE_URL = 'https://rakeenapp.com';
  * different, higher-frequency usage pattern). A deliberate choice per
  * usage, not the POC's storage recommendation applied blindly everywhere.
  */
+/**
+ * مهلةٌ على كل نداءٍ إلى الخادم.
+ *
+ * fetch في React Native بلا مهلةٍ افتراضية: النداءُ يبقى معلّقاً حتى
+ * يقطعه النظام -- دقيقةً أو أكثر. وشبكةُ مقهىً ضعيفة، أو بوّابةُ واي
+ * فاي تبتلع الطلبات ولا تردّ، تُوقف الشاشة على دوّارةٍ لا تنتهي: هذا
+ * "الدخول يعلّق" و"الطلبات تعلّق".
+ *
+ * والفشلُ الظاهر خيرٌ من انتظارٍ لا ينتهي: خمسَ عشرةَ ثانيةً تكفي أبطأَ
+ * شبكةٍ تعمل، وما بعدها ليس بطئاً إنما انقطاع -- فيُقال للكاشير إنه
+ * انقطع، ويُعيد المحاولة، بدل أن يقف أمام شاشةٍ لا تقول شيئاً.
+ *
+ * ولا تمسّ الوقتَ الحقيقيّ (Realtime): ذاك ويب سوكِت لا يمرّ بـfetch.
+ */
+const REQUEST_TIMEOUT_MS = 15000;
+
+// RN's fetch types take RequestInfo, not the DOM's RequestInfo | URL --
+// وURL يُحوَّل نصّاً، وهو ما يقبله fetch هنا.
+function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const target = (input instanceof URL ? input.toString() : input) as RequestInfo;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  // وإشارةُ المُنادي تُحترم كذلك: من ألغى نداءه يُلغى.
+  if (init?.signal) {
+    init.signal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
+  return fetch(target, { ...init, signal: controller.signal }).finally(() => clearTimeout(id));
+}
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     storage: AsyncStorage,
@@ -46,4 +75,5 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     persistSession: true,
     detectSessionInUrl: false,
   },
+  global: { fetch: fetchWithTimeout },
 });

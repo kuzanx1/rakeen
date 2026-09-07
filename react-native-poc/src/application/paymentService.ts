@@ -49,6 +49,26 @@ export interface PaymentOutcome {
  * (cash today; card follows the same shape minus the drawer step, since
  * only cash sales open a physical drawer) funnels through.
  */
+/** ما لم يصل في هذي المدّة يُترك للمزامن. */
+const DISPATCH_TIMEOUT_MS = 3500;
+
+/**
+ * سباقٌ بين وعدٍ ومهلة.
+ *
+ * ولا يُلغى الوعدُ الأصليّ: نداءُ الشبكة يمضي إلى نهايته وقد يصل، وهو
+ * مطلوب -- ما وصل بعد المهلة يجد الطلبَ قد سُجّل، والإعادةُ متعادلة.
+ * إنما لا يُنتظر.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const id = setTimeout(() => reject(new Error('dispatch_timeout')), ms);
+    promise.then(
+      v => { clearTimeout(id); resolve(v); },
+      e => { clearTimeout(id); reject(e); },
+    );
+  });
+}
+
 export async function completePaymentOperation(
   payload: QueuedPayload,
   options: { openDrawer: boolean },
@@ -82,7 +102,16 @@ export async function completePaymentOperation(
       const result = await openCashDrawer({
         target,
         kickCommandBase64: drawerKickCommandFor(profile),
-        timeoutMs: 8000,
+        /*
+         * ألفان وخمسُ مئة لا ثمانيةُ آلاف.
+         *
+         * الطابعةُ على الشبكة المحليّة تردّ في عشراتِ الأجزاء من الثانية.
+         * وثمانيةٌ ليست صبراً على البطء، هي انتظارُ ما لن يجيء -- والكاشير
+         * واقفٌ أمام دوّارةٍ بعد أن قبض المال، وطابورٌ خلفه.
+         * والحالةُ تبقى DRAWER_PENDING فتُعاد المحاولة، فلا شيء يضيع
+         * بقِصَر المهلة -- إنما يُعرف أسرع أنّ الدرج لم ينفتح.
+         */
+        timeoutMs: 2500,
         operationId: payload.operation_id || payload.client_order_uuid,
       });
       if (result.ok) {
@@ -111,7 +140,24 @@ export async function completePaymentOperation(
   let paymentError: string | undefined;
   let orderId: number | undefined;
   try {
-    const result = await dispatchQueuedPayload(afterDrawer);
+    /**
+     * ولا تُنتظر الشبكةُ إلى ما لا نهاية.
+     *
+     * الطلبُ محفوظٌ في SQLite قبل هذا السطر -- هذا كلُّ معنى "الحفظ
+     * أوّلاً". فالانتظارُ هنا ليس لسلامة الطلب، إنما لمعرفةِ رقمه فوراً.
+     *
+     * وfetch في React Native بلا مهلةٍ افتراضية: شبكةٌ ضعيفةٌ -- أو
+     * بوّابةُ فندقٍ تبتلع الطلبات ولا تردّها -- تُبقي النداء معلّقاً
+     * دقيقةً أو أكثر، والشاشةُ واقفةٌ عليه بعد أن قُبض المال.
+     *
+     * فثلاثُ ثوانٍ ونصف: ما لم يصل فيها يُعدّ معلّقاً، ويرفعه المزامنُ
+     * في الخلفية كما يرفع كلَّ ما تراكم بلا شبكة.
+     *
+     * وهذا آمنٌ لأنّ complete_pos_order متعادلة: تبحث عن
+     * client_order_uuid أوّلاً وتُرجع الطلبَ القائم إن وُجد. فنداءٌ نجح
+     * بعد انتهاء مهلتنا لا يُنشئ طلباً ثانياً حين يُعاد.
+     */
+    const result = await withTimeout(dispatchQueuedPayload(afterDrawer), DISPATCH_TIMEOUT_MS);
     orderId = typeof result === 'number' ? result : undefined;
     paymentState = 'PAYMENT_COMPLETED';
     await sqliteOrderQueueStorage.remove(afterDrawer.client_order_uuid);
