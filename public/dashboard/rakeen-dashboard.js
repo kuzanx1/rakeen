@@ -4100,10 +4100,20 @@ async function loadStaffStats(){
     s.orders += 1;
     if(!s.lastOrderAt || o.created_at > s.lastOrderAt) s.lastOrderAt = o.created_at;
   });
+  /**
+   * الموظّفُ المعطَّل لا يُعرض -- إلا إن باع اليوم.
+   *
+   * الجدولُ يُجلب كاملاً، فيقف في "أداء اليوم" من عُطِّل قبل شهر بصفرٍ
+   * وصفر، ومكتوبٌ بجانبه "معطّل". وعنوانُ القسم نفسُه يَعِد بغير ذلك:
+   * "مبيعات وطلبات كل موظف **مفعّل** على الكاشير".
+   *
+   * ومن عُطِّل اليوم بعد أن باع يبقى: مبيعاتُه في مجموع اليوم، وإخفاؤه
+   * يُخفي نسبتَها إلى صاحبها فيبدو المجموعُ بلا مصدر.
+   */
   STAFF_STATS = (staff||[]).map(s=>{
     const stat = statsByStaff[s.id] || {sales:0, orders:0, lastOrderAt:null};
     return { id:s.id, name:s.name, active:s.active, branchName: branchNameById[s.branch_id] || '—', ...stat };
-  });
+  }).filter(s => s.active || s.orders > 0);
 }
 
 function renderEmployeeCards(){
@@ -10254,7 +10264,11 @@ function rkBtnSuccess(btn, label){
 }
 
 function rkSectionHead(icon, title, sub){
-  return `<div class="rk-section-head"><div class="rk-section-icon">${rkIcon(icon)}</div><div><div class="rk-section-title">${title}</div><div class="rk-section-sub">${sub}</div></div></div>`;
+  // وسطرٌ فرعيٌّ غيرُ ممرَّر لا يُطبع "null" تحت العنوان: القوالبُ في
+  // جافاسكربت تُحوّل null نصّاً، فيقرأ صاحبُ المطعم كلمةً إنجليزيةً لا
+  // معنى لها في لوحته.
+  const subHtml = sub ? `<div class="rk-section-sub">${sub}</div>` : '';
+  return `<div class="rk-section-head"><div class="rk-section-icon">${rkIcon(icon)}</div><div><div class="rk-section-title">${title}</div>${subHtml}</div></div>`;
 }
 // One accessible checkbox + visual switch + label wired to it via for=id —
 // clicking the label or the switch both toggle it, exactly like a native
@@ -10550,10 +10564,6 @@ function renderOnlineMenuPanel(){
           <li>انسخ <b>Merchant Public Key</b> و<b>API Password</b> والصقهم فوق.</li>
           <li>احفظ — يتفعّل الدفع بالبطاقة في متجرك على طول، بلا انتظار.</li>
         </ol>
-        <p class="stock-qty-helper">
-          كلمة مرور الـAPI تُخزَّن مشفّرة، والمفتاح اللي يفكّها ما يسكن قاعدة البيانات —
-          فحتى لو تسرّبت القاعدة ما تنفكّ. واللوحة ما تعرضها لك بعد الحفظ أبداً، تعرض آخر أربعة من المفتاح العام بس.
-        </p>
       </div>`;
     wireGeideaPanel();
   } else if(activeOnlineMenuTab === 'design'){

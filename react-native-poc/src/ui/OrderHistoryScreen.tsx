@@ -604,7 +604,9 @@ export default function OrderHistoryScreen({
             <KeyboardLift style={styles.innerOverlay}>
               <View style={styles.askCard}>
                 <Text style={styles.askTitle}>وش ترجّع؟</Text>
-                <Text style={styles.askNote}>اختر الأصناف — اللي تختاره يرجع للمخزون</Text>
+                {/* الويب يبدؤها من الحافّة لا من الوسط: قائمةُ أصنافٍ
+                    تحتها، وسطرٌ موسَّطٌ فوق قائمةٍ محاذاةٍ يبدو منفصلاً. */}
+                <Text style={[styles.askNote, styles.refundNote]}>اختر الأصناف — اللي تختاره يرجع للمخزون</Text>
                 {refundLines.map(l => {
                   const left = l.qty - l.refundedQty;
                   const taken = Number(refundPick[l.orderItemId] || 0);
@@ -759,14 +761,26 @@ const useStyles = createStyles(colors =>
   askError: { fontFamily: fonts.sansBold, color: colors.danger, fontSize: 12, textAlign: 'center', marginTop: spacing[2] },
   askPrimary: { backgroundColor: colors.lime, borderRadius: radii.full, paddingVertical: 14, alignItems: 'center', marginTop: spacing[4] },
   askPrimaryText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.flagGreenDeep },
-  refundLineRow: { flexDirection: 'row', alignItems: 'center', gap: 10, width: '100%', paddingVertical: 8 },
+  /* كانت الأسطرُ بلا فاصلٍ بينها والأزرارُ بلا حدٍّ ولا أرضية -- فتُقرأ
+     كتلةً واحدة مزدحمة، ولا يُعرف أين ينتهي صنفٌ ويبدأ الذي بعده.
+     والويب: ‎.refund-line حدٌّ سفليّ وحشوةُ ١٠، و‎.refund-qty button
+     دائرةٌ بحدٍّ وأرضية. */
+  refundNote: { textAlign: 'right', marginBottom: 4 },
+  refundLineRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, width: '100%',
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.line,
+  },
   refundLineInfo: { flex: 1, minWidth: 0 },
-  refundLineName: { fontFamily: fonts.sansBold, fontSize: 13 },
-  refundLineMeta: { fontFamily: fonts.sansRegular, fontSize: 11, marginTop: 2 },
+  refundLineName: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.text },
+  refundLineMeta: { fontFamily: fonts.sansRegular, fontSize: 11, marginTop: 2, color: colors.muted },
   refundQtyBox: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  refundQtyBtn: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  refundQtyGlyph: { fontFamily: fonts.sansBold, fontSize: 16 },
-  refundQtyNum: { fontFamily: fonts.sansBold, fontSize: 14, minWidth: 18, textAlign: 'center' },
+  refundQtyBtn: {
+    width: 30, height: 30, borderRadius: 15,
+    borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surf1,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  refundQtyGlyph: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text },
+  refundQtyNum: { fontFamily: fonts.sansBold, fontSize: 14, minWidth: 18, textAlign: 'center', color: colors.text },
   askSecondary: { marginTop: 10, paddingVertical: 10, paddingHorizontal: 20, borderRadius: radii.md },
   askSecondaryText: { fontFamily: fonts.sansBold, fontSize: 12.5 },
   askPrimaryOff: { opacity: 0.45 },

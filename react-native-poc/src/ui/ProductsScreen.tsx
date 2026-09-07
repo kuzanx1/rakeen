@@ -1589,8 +1589,31 @@ export default function ProductsScreen({
               / `.open{display:flex}`). This screen previously showed all
               five percentages permanently, which is a different control. */}
           <View style={styles.opDiscountRow}>
+            {/*
+              زرُّ العميل جنب الخصم -- وكان في الويب وحده.
+              الطريقُ الوحيد إلى العميل في التطبيق كان داخل معالج الدفع:
+              يبني الكاشير السلّة، ثم يضغط "ادفع"، ثم يمرّ بخطوة العميل.
+              فمن أراد أن يعرف زبونَه قبل أن يبدأ -- ليرى رصيدَ ولائه أو
+              يصرف مكافأته -- لا سبيل له.
+              ويقول من هو حين يُعرف: اسمُه مكانَ نصِّه، ولونٌ يُقرأ حالُه
+              بلا قراءة. (نظيرها في الويب: rkSyncCustomerButton.)
+            */}
+            {flags.loyaltyEnabled && (
+              <TouchableOpacity
+                style={[styles.custBtn, selectedCustomer?.id != null && styles.custBtnOn]}
+                onPress={() => setCustomerPickerOpen(true)}
+                activeOpacity={0.8}>
+                <Text
+                  style={[styles.custBtnText, selectedCustomer?.id != null && styles.custBtnTextOn]}
+                  numberOfLines={1}>
+                  {selectedCustomer?.name || selectedCustomer?.phone
+                    ? `👤 ${selectedCustomer.name || selectedCustomer.phone}`
+                    : t('+ عميل ولاء')}
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
-              style={styles.discountToggle}
+              style={[styles.discountToggle, flags.loyaltyEnabled && styles.discountToggleHalf]}
               onPress={() => setDiscountPanelOpen(o => !o)}
               activeOpacity={0.8}>
               {/* The toggle's own label carries the active state -- the
@@ -2306,7 +2329,22 @@ const useStyles = createStyles((colors, shadows) =>
   },
   lastTxReprintText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.muted },
   // .op-discount-row -- `padding:12px 18px 0`
-  opDiscountRow: { paddingTop: 12, paddingHorizontal: 18 },
+  // صفٌّ من زرّين متجاورين لا واحدٍ ممتدّ: الويب ‎.op-discount-row
+  // flex/gap 8، وكلٌّ منهما ‎flex:1 1 0.
+  opDiscountRow: { paddingTop: 12, paddingHorizontal: 18, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  custBtn: {
+    flexGrow: 1, flexBasis: 0, minWidth: 0,
+    padding: 10, borderRadius: radii.md,
+    borderWidth: 1, borderStyle: 'dashed', borderColor: colors.line,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  custBtnOn: {
+    borderStyle: 'solid', borderColor: colors.limeDeep,
+    backgroundColor: `rgba(${colors.limeRgb},0.14)`,
+  },
+  custBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.muted },
+  custBtnTextOn: { color: colors.text },
+  discountToggleHalf: { flexGrow: 1, flexBasis: 0, width: undefined, minWidth: 0 },
   // .discount-toggle -- a DASHED, borderless-background full-width button
   discountToggle: {
     width: '100%',

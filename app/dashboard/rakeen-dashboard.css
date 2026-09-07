@@ -2530,3 +2530,11 @@ select:not([class]){min-width:150px;}
 .rk-gw-steps{ margin:0 0 12px; padding-inline-start:20px; font-size:12.5px; line-height:2; color:var(--muted); }
 .rk-gw-steps li{ margin-bottom:2px; }
 .rk-gw-steps b{ color:var(--text); }
+
+
+/* "عرض مستهدف" يُنقل بالشيفرة إلى تبويب الإشعارات، فيقع لاصقاً بما
+   فوقه: ستّةَ عشرَ بين بطاقتين بهذا الحجم تُقرأ التصاقاً لا فصلاً. */
+#rkTargetedMoved{ margin-top:24px; }
+/* وقائمةُ النتائج فارغةٌ حتى يُبنى شيء -- وهامشُها العلويّ يُبقي فجوةً
+   داخل البطاقة لا محتوى لها. */
+#campaignResultList:empty{ display:none; }
