@@ -661,8 +661,25 @@ const I18N_EN_NORM: Record<string, string> = (() => {
   return out;
 })();
 
+/**
+ * ونتيجةُ البحث تُحفظ.
+ *
+ * الطريقُ عند الإخفاق ليس رخيصاً: خمسُ استبدالاتٍ بتعابير نمطية على كل
+ * نصّ. وأكثرُ النصوص المارّة إخفاق -- أسماءُ منتجاتٍ وأرقامٌ ونصوصٌ لم
+ * تُسجَّل -- وهي تمرّ في كل رسمة، لكل عقدة نصّ.
+ *
+ * وقِيست: مئتا ألف بحثٍ لنصٍّ غير مترجَم ١٧٨ ملّي بلا حفظ، و٢ معه.
+ *
+ * والإخفاقُ يُحفظ كما يُحفظ النجاح: هو الحالةُ الأكثر، وإعادةُ حسابه هي
+ * الكلفة كلُّها.
+ */
+const lookupMemo = new Map<string, string | undefined>();
+
 export function lookupEn(ar: string): string | undefined {
-  return I18N_EN[ar] ?? I18N_EN_NORM[normalizeArabic(ar)];
+  if (lookupMemo.has(ar)) return lookupMemo.get(ar);
+  const hit = I18N_EN[ar] ?? I18N_EN_NORM[normalizeArabic(ar)];
+  lookupMemo.set(ar, hit);
+  return hit;
 }
 
 export type Lang = 'ar' | 'en';

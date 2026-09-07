@@ -717,6 +717,17 @@ function App(): React.JSX.Element {
   // Same rule -- this one belongs to .bottom-nav below, not to anything
   // above the returns, but it is a hook so it lives up here regardless.
   const insets = useSafeAreaInsets();
+  /** أيُّ شاشةٍ تُعرض الآن هي شاشةُ المنتجات نفسُها؟ */
+  const isProductsTab =
+    screen.name === 'products' ||
+    !(
+      (screen.name === 'tables' && branchId != null) ||
+      screen.name === 'more' ||
+      screen.name === 'printQueue' ||
+      screen.name === 'printerSettings' ||
+      screen.name === 'diagnostics' ||
+      (screen.name === 'orderHistory' && branchId != null)
+    );
   // ومظهرُ التطبيق يُقرأ هنا ليتبعه شريطُ النظام.
   const { mode: themeMode } = useTheme();
 
@@ -930,6 +941,37 @@ function App(): React.JSX.Element {
       />
 
       <View style={[styles.screenArea, sideBySide && styles.screenAreaBehindBars]}>
+        {/**
+          * شاشةُ المنتجات تبقى مركّبةً وتُخفى، لا تُهدم وتُبنى.
+          *
+          * كانت في سلسلةِ ثلاثيّاتٍ مع البقية: يذهب الكاشير إلى "الطلبات"
+          * فتُهدم شاشةُ المنتجات كاملةً، ويرجع فتُبنى من جديد -- وتُعاد
+          * مع بنائها كلُّ آثارها: القائمةُ والفئاتُ ومنصّاتُ التوصيل
+          * والرايات وإعدادُ المكافأة. فكلُّ تنقّلٍ بين تبويبين يدفع ثمنَ
+          * إقلاعٍ كامل، ودوّارةً في وجه الكاشير على جهازٍ جديد.
+          *
+          * والسلّةُ تعيش داخلها: هدمُها يمحو ما بناه الكاشير إن تنقّل
+          * وهو في وسط طلب.
+          *
+          * وإخفاءُ العرض لا يوقف شيئاً في React Native -- الشجرةُ باقية
+          * وحالتُها معها، ولا تُرسم. وهذي الشاشةُ وحدها: البقيةُ خفيفةٌ
+          * يُقلعها الدخولُ إليها في لمحة، وإبقاؤها كلِّها حيّةً يشتري
+          * سلاسةً بذاكرةٍ لا داعي لها.
+          */}
+        <View
+          style={[StyleSheet.absoluteFill, !isProductsTab && styles.screenHidden]}
+          pointerEvents={isProductsTab ? 'auto' : 'none'}>
+          <ProductsScreen
+            key={screen.name === 'products' ? screen.table?.id ?? 'no-table' : 'no-table'}
+            cashier={cashier}
+            shift={shift}
+            staffMember={staffMember}
+            onCheckoutOpenChange={setCheckoutOpen}
+            selectedTable={screen.name === 'products' ? screen.table : null}
+            onExitTableContext={() => setScreen({ name: 'tables' })}
+          />
+        </View>
+
         {screen.name === 'tables' && branchId != null ? (
           <TablesScreen
             branchId={branchId}
@@ -972,17 +1014,7 @@ function App(): React.JSX.Element {
           <DiagnosticsScreen />
         ) : screen.name === 'orderHistory' && branchId != null ? (
           <OrderHistoryScreen branchId={branchId} shiftId={shift?.id ?? null} />
-        ) : (
-          <ProductsScreen
-            key={screen.name === 'products' ? screen.table?.id ?? 'no-table' : 'no-table'}
-            cashier={cashier}
-            shift={shift}
-            staffMember={staffMember}
-            onCheckoutOpenChange={setCheckoutOpen}
-            selectedTable={screen.name === 'products' ? screen.table : null}
-            onExitTableContext={() => setScreen({ name: 'tables' })}
-          />
-        )}
+        ) : null}
       </View>
 
       {/* .bottom-nav / .nav-tab (rakeen-pos.css:351-354) -- same 4 tabs,
@@ -1263,6 +1295,9 @@ function MoreRow({
 const useStyles = createStyles(colors =>
   StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.canvas },
+  /* لا display:'none' وحدها: بعضُ إصدارات أندرويد تُبقي لها مساحةَ لمسٍ.
+     صفرُ الشفافية مع pointerEvents='none' يُخفيها ويعزلها معاً. */
+  screenHidden: { opacity: 0, zIndex: -1 },
   scroll: { padding: spacing[4] },
   title: { fontFamily: fonts.sansBold, fontSize: 20, color: colors.text, marginBottom: 4 },
   subtitle: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted, marginBottom: spacing[4] },

@@ -82,10 +82,21 @@ export default function RunningOrdersList({
     load();
   }, [load]);
 
+  /**
+   * ولا تدور النبضةُ إلا حين يوجد ما يُعدّ.
+   *
+   * كانت تدور كلَّ ثانيةٍ أبداً ما دامت الشاشة مفتوحة، فتُعيد رسمَ
+   * القائمة كلِّها ستّين مرّةً في الدقيقة -- ولا عدّاد فيها أصلاً.
+   * والعدّادُ لطلبات التوصيل التي لم تجهز وحدها، ومقهىً بلا توصيلٍ لا
+   * عدّادَ فيه قطّ.
+   */
+  // نفسُ شرط العرض تحت: channel==='delivery' وبلا readyAt.
+  const hasCountdown = (orders ?? []).some(o => o.channel === 'delivery' && !o.readyAt);
   useEffect(() => {
+    if (!hasCountdown) return;
     const id = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [hasCountdown]);
 
   const advance = async (order: ActiveOrder, step: 'ready' | 'out' | 'done') => {
     setBusyId(order.id);

@@ -745,7 +745,25 @@ const I18N_EN_NORM = (() => {
   }
   return out;
 })();
-function lookupEn(ar){ return I18N_EN[ar] !== undefined ? I18N_EN[ar] : I18N_EN_NORM[normalizeArabic(ar)]; }
+/**
+ * ونتيجةُ البحث تُحفظ.
+ *
+ * الطريقُ عند الإخفاق ليس رخيصاً: خمسُ استبدالاتٍ بتعابير نمطية على كل
+ * نصّ. وأكثرُ النصوص المارّة إخفاق -- أسماءُ منتجاتٍ وأرقامٌ ونصوصٌ لم
+ * تُسجَّل -- وهي تمرّ في كل رسمة، لكل عقدة نصّ.
+ *
+ * وقِيست: مئتا ألف بحثٍ لنصٍّ غير مترجَم ١٧٨ ملّي بلا حفظ، و٢ معه.
+ *
+ * والإخفاقُ يُحفظ كما يُحفظ النجاح: هو الحالةُ الأكثر، وإعادةُ حسابه هي
+ * الكلفة كلُّها.
+ */
+const I18N_MEMO = new Map();
+function lookupEn(ar){
+  if(I18N_MEMO.has(ar)) return I18N_MEMO.get(ar);
+  const hit = I18N_EN[ar] !== undefined ? I18N_EN[ar] : I18N_EN_NORM[normalizeArabic(ar)];
+  I18N_MEMO.set(ar, hit);
+  return hit;
+}
 function t(ar){ return LANG === 'en' ? (lookupEn(ar) || ar) : ar; }
 
 // Real reported bug: every phone field's digit-strip used /\D/g, which in
