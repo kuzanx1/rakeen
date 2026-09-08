@@ -4857,7 +4857,7 @@ function renderLoyaltyEnabledState(enabled){
    لا استعلامٌ ثانٍ، فلا تختلف قائمةٌ عن أخرى -- ونافذةُ تفاصيلٍ فيها
    التعديل وسجلّه معاً. */
 
-let LOY_MEMBERS_FILTER = 'all';
+let LOY_MEMBERS_FILTER = null; // مفتاحُ فئةٍ من LOY_SEGMENT_META، أو null = الكل. نفسُ نمط custSegmentFilter بشاشة العملاء بالضبط.
 let LOY_MEMBERS_SORT = 'lastVisit';
 let LOY_MEMBERS_SEARCH = '';
 let LOY_MEMBER_DETAIL_ID = null;
@@ -4882,20 +4882,68 @@ function loyMemberProgress(c){
   return null;
 }
 
+/**
+ * تصنيفُ دورة حياة العضو -- أربعُ فئاتٍ لا أكثر، بمصطلحاتٍ مستعملةٍ
+ * في الشاشة أصلاً: "جدد" من تصنيف العملاء (RFM)، و"خاملون" من رسالة
+ * استرجاع الغائبين (win-back) -- لا مصطلحٌ جديدٌ يزاحم مصطلحاً قائماً.
+ *
+ * وليست بديلاً عن تصنيف "أبرز العملاء" الأدقّ في شاشة العملاء (ستّ
+ * فئات RFM حقيقية بالحداثة والتكرار والإنفاق معاً) -- هذا أبسطُ عمداً:
+ * أربعُ أزرارٍ يفهمها صاحبُ القرار بنظرة، لا تقريرٌ يُدرَس.
+ *
+ * والأولويةُ مقصودة: VIP قبل الخمول، لأنّ عميلاً كبيراً بدأ يبتعد هو
+ * بالضبط من يستحقّ أن يظهر تحت "خاملون" أيضاً -- خمولُه أهمّ ما
+ * فيه الآن، لا قيمتُه التاريخية وحدها.
+ */
+function loyMemberSegment(c){
+  if(c.lastVisitDays > 30) return 'dormant';
+  if(c.vip) return 'vip';
+  if(c.visits <= 1) return 'new';
+  return 'regular';
+}
+
+const LOY_SEGMENT_META = {
+  new:     { label:'جدد',      desc:'أوّل زيارةٍ أو طلب -- فرصةٌ تُبنى قبل أن تُفقَد.' },
+  regular: { label:'منتظمون',  desc:'يعودون بانتظام -- عمودُ المطعم الثابت.' },
+  dormant: { label:'خاملون',   desc:'زاروا من قبل وانقطعوا -- يستاهلون تذكيراً.' },
+  vip:     { label:'VIP',      desc:'الأعلى إنفاقاً -- يستاهلون معاملةً تليق.' },
+};
+
 function loyMemberMatchesFilter(c, filter){
-  if(filter === 'inactive') return c.lastVisitDays >= 30;
-  if(filter === 'ready') return c.freeRewards > 0;
-  if(filter === 'near'){
-    const p = loyMemberProgress(c);
-    return !!p && (p.threshold - p.current === 1);
-  }
-  return true;
+  if(!filter) return true;
+  return loyMemberSegment(c) === filter;
+}
+
+/** بطاقاتُ الفئات فوق القائمة -- نفسُ مكوّن .rfm-seg-card بشاشة
+ *  العملاء حرفياً، لا شبيهٌ له. فتشعر الشاشتان بيدٍ واحدة. */
+function renderLoyMembersFilters(){
+  const el = document.getElementById('loyMembersFilters');
+  if(!el) return;
+  const all = TOP_CUSTOMERS || [];
+  const counts = { new:0, regular:0, dormant:0, vip:0 };
+  all.forEach(c=>{ counts[loyMemberSegment(c)]++; });
+  el.innerHTML = Object.entries(LOY_SEGMENT_META).map(([key,meta])=>
+    `<button type="button" class="rfm-seg-card ${key}${LOY_MEMBERS_FILTER===key?' selected':''}" data-seg="${key}">
+      <div class="rfm-seg-count mono">${counts[key]}</div>
+      <div class="rfm-seg-name">${meta.label}</div>
+      <div class="rfm-seg-desc">${meta.desc}</div>
+    </button>`
+  ).join('');
+  el.querySelectorAll('.rfm-seg-card').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const seg = btn.dataset.seg;
+      LOY_MEMBERS_FILTER = LOY_MEMBERS_FILTER === seg ? null : seg;
+      renderLoyMembersFilters();
+      renderLoyaltyMembers();
+    });
+  });
 }
 
 function renderLoyaltyMembers(){
   const listEl = document.getElementById('loyMembersList');
   const summaryEl = document.getElementById('loyMembersSummary');
   if(!listEl) return; // الشاشةُ لم تُبنَ بعد عند أوّل تحميل
+  renderLoyMembersFilters(); // الأعدادُ فوق البطاقات تتحرّك مع البيانات نفسِها
 
   const all = TOP_CUSTOMERS || [];
   const q = LOY_MEMBERS_SEARCH.trim().toLowerCase();
@@ -5132,12 +5180,6 @@ document.getElementById('memberDetailModal')?.addEventListener('click', (e)=>{
   if(e.target.id === 'memberDetailModal') closeMemberDetailModal();
 });
 
-document.getElementById('loyMembersFilters')?.addEventListener('click', (e)=>{
-  const btn = e.target.closest('button[data-filter]'); if(!btn) return;
-  LOY_MEMBERS_FILTER = btn.dataset.filter;
-  document.querySelectorAll('#loyMembersFilters button').forEach(b=> b.classList.toggle('active', b===btn));
-  renderLoyaltyMembers();
-});
 document.getElementById('loyMembersSearch')?.addEventListener('input', (e)=>{
   LOY_MEMBERS_SEARCH = e.target.value;
   renderLoyaltyMembers();

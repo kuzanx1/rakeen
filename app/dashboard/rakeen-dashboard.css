@@ -730,6 +730,20 @@ button{font-family:inherit; cursor:pointer;}
 .rfm-seg-card.at-risk .rfm-seg-count{color:var(--amber);}
 .rfm-seg-card.lost{background:color-mix(in srgb, var(--danger) 9%, var(--card-bg)); border-color:color-mix(in srgb, var(--danger) 22%, transparent);}
 .rfm-seg-card.lost .rfm-seg-count{color:var(--danger);}
+
+/* فئاتُ تبويب "الأعضاء" -- المفتاح new يعيد استعمال لون التصنيف
+   الحقيقيّ أعلاه (فهو المصطلح نفسُه)، والثلاثةُ الباقون بألوانهم:
+   منتظمون كـ"دائمون" (لِمة حيّة)، خاملون كـ"مهدَّدون" (تنبيهٌ لطيف)،
+   وVIP بلغة "الأهمّ" التي يعرفها المستخدم من زرّ الفلتر النشط أعلى
+   الشاشة نفسِها (غامقٌ يتوسّطه ليمونٌ) لا من سلّم مستوياتٍ محذوف. */
+.rfm-seg-card.regular{background:color-mix(in srgb, var(--lime) 6%, var(--card-bg)); border-color:color-mix(in srgb, var(--lime-deep) 18%, transparent);}
+.rfm-seg-card.regular .rfm-seg-count{color:var(--success-text);}
+.rfm-seg-card.dormant{background:color-mix(in srgb, var(--amber) 10%, var(--card-bg)); border-color:color-mix(in srgb, var(--amber) 28%, transparent);}
+.rfm-seg-card.dormant .rfm-seg-count{color:var(--amber);}
+.rfm-seg-card.vip{background:linear-gradient(135deg, var(--graphite), #262626); border-color:var(--graphite); color:#fff;}
+.rfm-seg-card.vip .rfm-seg-count{color:var(--lime);}
+.rfm-seg-card.vip .rfm-seg-desc{color:rgba(255,255,255,0.65);}
+[data-theme="dark"] .rfm-seg-card.vip{background:linear-gradient(135deg, #232323, #171717);}
 .cust-rfm-tag{font-size:9.5px; font-weight:800; padding:3px 8px; border-radius:var(--r-full); flex-shrink:0;}
 .cust-rfm-tag.champions, .cust-rfm-tag.loyal{background:color-mix(in srgb, var(--success-text) 14%, transparent); color:var(--success-text);}
 .cust-rfm-tag.at-risk{background:color-mix(in srgb, var(--amber) 16%, transparent); color:var(--amber);}
