@@ -4175,7 +4175,7 @@ async function loadCustomersReal(){
   const startToday = new Date(); startToday.setHours(0,0,0,0);
 
   const [{data: customers}, {data: orders}, {data: business}] = await Promise.all([
-    sb.from('customers').select('id, name, phone, created_at, public_token, loyalty_points').eq('business_id', businessId),
+    sb.from('customers').select('id, name, phone, created_at, public_token, loyalty_points, loyalty_visits, loyalty_free_rewards, loyalty_units').eq('business_id', businessId),
     sb.from('orders').select('id, customer_id, total, created_at').eq('business_id', businessId).not('customer_id', 'is', null),
     sb.from('businesses').select('loyalty_points_divisor, loyalty_tiers').eq('id', businessId).single()
   ]);
@@ -4226,7 +4226,16 @@ async function loadCustomersReal(){
       const s = statsById[c.id];
       if(!s) return null; // no real order tied to this customer yet — don't show a phantom row
       const lastVisitDays = Math.floor((now - new Date(s.lastOrderAt).getTime())/86400000);
-      return { id:c.id, name:c.name, phone:c.phone||null, publicToken:c.public_token, points:Number(c.loyalty_points), visits:s.visits, spend:s.spend, lastVisitDays, favorite: favoriteNameByCustomer[c.id] || null, vip: s.spend >= LOYALTY_TIERS[1].min };
+      return {
+        id:c.id, name:c.name, phone:c.phone||null, publicToken:c.public_token,
+        points:Number(c.loyalty_points), visits:s.visits, spend:s.spend, lastVisitDays,
+        favorite: favoriteNameByCustomer[c.id] || null, vip: s.spend >= LOYALTY_TIERS[1].min,
+        // رصيدُ برنامج الولاء الفعلي -- لا "visits" أعلاه، فذاك عددُ
+        // الطلبات الحقيقية المستعمَل في تصنيف RFM، واسمٌ واحدٌ يخدم
+        // معنيين كان سيُلبس أحدَهما على الآخر أوّل قراءةٍ للشيفرة.
+        stamps: Number(c.loyalty_visits)||0, units: Number(c.loyalty_units)||0,
+        freeRewards: Number(c.loyalty_free_rewards)||0
+      };
     })
     .filter(Boolean)
     .sort((a,b)=>b.spend-a.spend);
@@ -4511,6 +4520,9 @@ function renderLoyaltyKpis(){
   const rateEl = document.getElementById('loyaltyRateDisplay');
   if(rateEl) rateEl.textContent = LOYALTY_RATE;
   renderLoyaltyLiability();
+  // الأعضاءُ يعتمدون البياناتِ نفسَها (TOP_CUSTOMERS)، فيتحدّثون معها
+  // دائماً -- لا في بعض مواضع النداء الخمسة وتُنسى في السادس.
+  renderLoyaltyMembers();
 }
 
 /**
@@ -4923,6 +4935,308 @@ function renderLoyaltyEnabledState(enabled){
 // panel's content already run once when the screen loads (unchanged
 // here); this only ever toggles which panel is visible — no re-fetching,
 // no re-rendering, just show/hide, so switching tabs is instant.
+/* ============ الأعضاء -- تبويب داخل نادي الولاء ============
+   شاشة كانت غائبة كلياً: صاحب المطعم يعرف مجموع النقاط المعلّقة عند
+   عملائه (renderLoyaltyLiability) ولا يعرف عن عميلٍ واحد منهم شيئاً --
+   كم كوبٌ عنده، ولا طريقة يصحّح بها غلطة كاشير أو يعتذر لزبون بمشروب.
+   هذا التبويب يفتح ذلك: بحثٌ وفلترةٌ وفرزٌ على TOP_CUSTOMERS نفسها --
+   لا استعلامٌ ثانٍ، فلا تختلف قائمةٌ عن أخرى -- ونافذةُ تفاصيلٍ فيها
+   التعديل وسجلّه معاً. */
+
+let LOY_MEMBERS_FILTER = 'all';
+let LOY_MEMBERS_SORT = 'lastVisit';
+let LOY_MEMBERS_SEARCH = '';
+let LOY_MEMBER_DETAIL_ID = null;
+
+const LOY_KIND_LABELS = { point:'نقطة', visit:'كوب', unit:'وحدة', free_reward:'مكافأة' };
+const LOY_ADJUST_ERRORS = {
+  forbidden: 'ما عندك صلاحية تعديل رصيد الولاء -- تواصل مع صاحب الحساب',
+  insufficient_balance: 'الرصيد الحالي أقل من قيمة الخصم',
+  delta_too_large: 'التعديل كبير جدًا دفعة وحدة',
+  customer_not_found: 'ما لقينا هذا العميل',
+  no_business: 'تعذّر تحديد المطعم',
+  zero_delta: 'اختر مقدار التعديل',
+  invalid_kind: 'نوع تعديل غير معروف',
+};
+
+/** بطاقةُ الختم: كم عنده الآن، وكم يلزم -- بحسب نظام هذا المطعم وحده.
+ *  نظامُ النقاط بلا عتبة، فلا "بطاقة" له. */
+function loyMemberProgress(c){
+  const type = (LOYALTY_BRANDING && LOYALTY_BRANDING.systemType) || 'points';
+  if(type === 'visits') return { kind:'visit', current: c.stamps, threshold: LOYALTY_BRANDING.visitsThreshold || 5 };
+  if(type === 'units') return { kind:'unit', current: c.units, threshold: LOYALTY_BRANDING.unitThreshold || 6 };
+  return null;
+}
+
+function loyMemberMatchesFilter(c, filter){
+  if(filter === 'inactive') return c.lastVisitDays >= 30;
+  if(filter === 'ready') return c.freeRewards > 0;
+  if(filter === 'near'){
+    const p = loyMemberProgress(c);
+    return !!p && (p.threshold - p.current === 1);
+  }
+  return true;
+}
+
+function renderLoyaltyMembers(){
+  const listEl = document.getElementById('loyMembersList');
+  const summaryEl = document.getElementById('loyMembersSummary');
+  if(!listEl) return; // الشاشةُ لم تُبنَ بعد عند أوّل تحميل
+
+  const all = TOP_CUSTOMERS || [];
+  const q = LOY_MEMBERS_SEARCH.trim().toLowerCase();
+  let rows = all.filter(c=>{
+    if(!loyMemberMatchesFilter(c, LOY_MEMBERS_FILTER)) return false;
+    if(!q) return true;
+    return c.name.toLowerCase().includes(q) || (c.phone||'').includes(q);
+  });
+
+  const sorters = {
+    lastVisit: (a,b)=> a.lastVisitDays - b.lastVisitDays,
+    spend: (a,b)=> b.spend - a.spend,
+    progress: (a,b)=>{
+      const pa = loyMemberProgress(a), pb = loyMemberProgress(b);
+      const ra = pa ? (pa.threshold - pa.current) : 999;
+      const rb = pb ? (pb.threshold - pb.current) : 999;
+      return ra - rb;
+    },
+    name: (a,b)=> a.name.localeCompare(b.name, 'ar'),
+  };
+  rows = [...rows].sort(sorters[LOY_MEMBERS_SORT] || sorters.lastVisit);
+
+  if(summaryEl){
+    const readyCount = all.filter(c=>c.freeRewards>0).length;
+    summaryEl.textContent = rows.length === all.length
+      ? `${all.length} عضو${readyCount ? ' — ' + readyCount + ' جاهزون لمكافأة الآن' : ''}`
+      : `${rows.length} من ${all.length} عضو`;
+  }
+
+  if(rows.length === 0){
+    listEl.innerHTML = all.length === 0
+      ? '<p style="font-size:12.5px; color:var(--muted); font-weight:600; padding:6px 2px;">ما فيه أعضاء بعد -- يتسجّلون تلقائيًا أول ما يدخل الكاشير رقم جوالهم بالكاشير.</p>'
+      : '<p style="font-size:12.5px; color:var(--muted); font-weight:600; padding:6px 2px;">ما فيه أعضاء يطابقون هذا البحث أو الفلتر.</p>';
+    return;
+  }
+
+  const COLORS = ['var(--acc-ops)','var(--acc-res)','var(--acc-fin)','var(--acc-team)','var(--acc-ai)'];
+  const COLORS_BG = ['var(--acc-ops-bg)','var(--acc-res-bg)','var(--acc-fin-bg)','var(--acc-team-bg)','var(--acc-ai-bg)'];
+
+  listEl.innerHTML = rows.map((c,i)=>{
+    const tier = loyaltyTier(c.spend);
+    const tierClass = 'tier-' + tier.name.toLowerCase();
+    const progress = loyMemberProgress(c);
+    const progressHtml = progress
+      ? `<div class="loy-stamp-row" title="${progress.current} من ${progress.threshold}">${
+          Array.from({length: progress.threshold}).map((_,d)=>
+            `<span class="loy-stamp-dot ${d < progress.current ? 'filled' : ''}"></span>`
+          ).join('')
+        }</div>`
+      : `<div class="loy-member-points mono">${Math.round(c.points)} نقطة</div>`;
+    const rewardBadge = c.freeRewards > 0
+      ? `<span class="loy-reward-badge">${c.freeRewards > 1 ? c.freeRewards + ' مكافآت جاهزة' : 'مكافأة جاهزة'}</span>`
+      : '';
+
+    return `<div class="loy-member-row" data-cust-id="${c.id}" style="cursor:pointer;">
+      <div class="loy-avatar ${tierClass}" style="background:${COLORS_BG[i%5]}; color:${COLORS[i%5]};">${escapeHtml(c.name.charAt(0))}</div>
+      <div class="loy-info">
+        <div class="loy-name">${escapeHtml(c.name)}<span class="loy-tier-badge ${tierClass}">${tier.name}</span>${rewardBadge}</div>
+        <div class="loy-meta">${c.phone ? escapeHtml(c.phone) + ' — ' : ''}آخر زيارة قبل ${c.lastVisitDays} يوم</div>
+      </div>
+      <div class="loy-member-end">${progressHtml}</div>
+    </div>`;
+  }).join('');
+
+  listEl.querySelectorAll('.loy-member-row').forEach(row=>{
+    row.addEventListener('click', ()=> openMemberDetailModal(parseInt(row.dataset.custId, 10)));
+  });
+}
+
+/** يفتح نافذة عضوٍ واحد: رصيده، وأزرار تعديله، وسجلّ من عدّله من قبل. */
+async function openMemberDetailModal(customerId){
+  const c = TOP_CUSTOMERS.find(x=>x.id===customerId);
+  if(!c) return;
+  LOY_MEMBER_DETAIL_ID = customerId;
+  const modal = document.getElementById('memberDetailModal');
+  const body = document.getElementById('memberDetailModalBody');
+  document.getElementById('memberDetailModalTitle').textContent = c.name;
+  body.innerHTML = '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p>';
+  modal.classList.add('show');
+
+  const [{ data: orders }, { data: adjustments }] = await Promise.all([
+    window.supabaseClient.from('orders')
+      .select('id, created_at, channel, total, status')
+      .eq('customer_id', customerId).order('created_at', {ascending:false}).limit(10),
+    window.supabaseClient.from('loyalty_adjustments')
+      .select('id, kind, delta, balance_after, rewards_granted, reason, created_at, profiles(full_name)')
+      .eq('customer_id', customerId).order('created_at', {ascending:false}).limit(30)
+  ]);
+
+  // قد تُغلَق النافذةُ أو تُفتح لعضوٍ آخر أثناء الجلب -- فلا يُرسم عرضٌ قديم.
+  if(LOY_MEMBER_DETAIL_ID !== customerId) return;
+
+  const tier = loyaltyTier(c.spend);
+  const type = (LOYALTY_BRANDING && LOYALTY_BRANDING.systemType) || 'points';
+  const rewardLabel = (LOYALTY_BRANDING && LOYALTY_BRANDING.rewardLabel) || 'مكافأة مجانية';
+
+  const qtyOptions = [1,2,3,5,10].map(n=>`<option value="${n}">${n}</option>`).join('');
+  const adjustRow = (kind, label, currentText, extraHtml) => `
+    <div class="loy-adjust-row">
+      <div class="loy-adjust-top">
+        <span class="loy-adjust-label">${label}</span>
+        <span class="loy-adjust-current mono">${currentText}</span>
+      </div>
+      ${extraHtml||''}
+      <div class="loy-adjust-controls">
+        <button type="button" class="loy-adjust-btn minus" data-kind="${kind}" data-dir="-1" title="خصم">−</button>
+        <select class="loy-adjust-qty">${qtyOptions}</select>
+        <button type="button" class="loy-adjust-btn plus" data-kind="${kind}" data-dir="1" title="إضافة">+</button>
+      </div>
+    </div>`;
+
+  let balanceSectionHtml;
+  if(type === 'visits'){
+    const threshold = LOYALTY_BRANDING.visitsThreshold || 5;
+    const dots = Array.from({length: threshold}).map((_,d)=> `<span class="loy-stamp-dot ${d < c.stamps ? 'filled' : ''}"></span>`).join('');
+    balanceSectionHtml = adjustRow('visit', 'الأكواب', `${c.stamps} / ${threshold}`, `<div class="loy-stamp-row">${dots}</div>`)
+      + adjustRow('free_reward', escapeHtml(rewardLabel) + ' جاهزة', c.freeRewards);
+  } else if(type === 'units'){
+    const threshold = LOYALTY_BRANDING.unitThreshold || 6;
+    const dots = Array.from({length: threshold}).map((_,d)=> `<span class="loy-stamp-dot ${d < c.units ? 'filled' : ''}"></span>`).join('');
+    balanceSectionHtml = adjustRow('unit', 'الوحدات', `${c.units} / ${threshold}`, `<div class="loy-stamp-row">${dots}</div>`)
+      + adjustRow('free_reward', escapeHtml(rewardLabel) + ' جاهزة', c.freeRewards);
+  } else {
+    balanceSectionHtml = adjustRow('point', 'نقاط الولاء', Math.round(c.points));
+  }
+
+  const ordersHtml = (orders||[]).length ? orders.map(o=>`
+    <div class="cpb-row" data-order-id="${o.id}" style="cursor:pointer;">
+      <span>${new Date(o.created_at).toLocaleDateString('ar-SA')} — ${orderChannelTagsHtml(o.channel, false)}${o.status!=='completed' ? ' <span class="order-status-tag '+o.status+'">'+(ORDER_STATUS_LABELS[o.status]||o.status)+'</span>' : ''}</span>
+      ${rkMoney(o.total)}
+    </div>`).join('') : '<p class="stock-qty-helper">ما فيه طلبات مسجّلة بعد.</p>';
+
+  const historyHtml = (adjustments||[]).length ? adjustments.map(a=>{
+    const who = a.profiles ? a.profiles.full_name : '—';
+    const sign = a.delta > 0 ? '+' : '';
+    const kindLabel = LOY_KIND_LABELS[a.kind] || a.kind;
+    const rewardNote = a.rewards_granted > 0 ? ` — وصل لمكافأة (${a.rewards_granted})` : '';
+    const when = new Date(a.created_at).toLocaleString('ar-SA', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'});
+    return `<div class="loy-history-row">
+      <div class="loy-history-top">
+        <span class="loy-history-delta ${a.delta>0?'pos':'neg'}"><span class="mono">${sign}${a.delta}</span> ${escapeHtml(kindLabel)}${rewardNote}</span>
+        <span class="loy-history-when">${when}</span>
+      </div>
+      <div class="loy-history-reason">${escapeHtml(a.reason)} — <span class="loy-history-who">${escapeHtml(who)}</span></div>
+    </div>`;
+  }).join('') : '<p class="stock-qty-helper">ما فيه تعديلات يدوية على هذا العضو بعد.</p>';
+
+  body.innerHTML = `
+    <div class="cost-preview-box" style="margin-bottom:14px;">
+      ${c.phone ? `<div class="cpb-row"><span>الجوال</span><a href="tel:${escapeHtml(c.phone)}" class="mono" style="color:var(--lime-deep); font-weight:700;">${escapeHtml(c.phone)}</a></div>` : ''}
+      <div class="cpb-row"><span>مستوى العضوية</span><span class="loy-tier-badge tier-${tier.name.toLowerCase()}">${tier.name} — خصم ${tier.discount}٪</span></div>
+      <div class="cpb-row"><span>آخر زيارة</span><span class="mono">قبل ${c.lastVisitDays} يوم</span></div>
+      ${c.favorite ? `<div class="cpb-row"><span>يفضّل</span><span class="mono">${escapeHtml(c.favorite)}</span></div>` : ''}
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+      <div class="kpi-card"><div class="kpi-label">إجمالي الزيارات</div><div class="kpi-value mono">${c.visits}</div></div>
+      <div class="kpi-card"><div class="kpi-label">إجمالي الإنفاق</div><div class="kpi-value">${rkMoney(c.spend)}</div></div>
+    </div>
+
+    <div class="panel-title" style="margin-bottom:8px;">رصيد الولاء</div>
+    <div class="loy-adjust-box">${balanceSectionHtml}</div>
+    <p class="stock-qty-helper" style="margin:8px 0 16px;">كل تعديل يحتاج سببًا يُحفظ بالسجلّ تحت -- العميل ما يشوفه.</p>
+
+    <div class="panel-title" style="margin-bottom:8px;">سجلّ التعديلات</div>
+    <div class="loy-history-list">${historyHtml}</div>
+
+    <div class="panel-title" style="margin:16px 0 8px;">آخر الطلبات</div>
+    ${ordersHtml}
+  `;
+  body.querySelectorAll('[data-order-id]').forEach(row=>{
+    row.addEventListener('click', ()=> openOrderDetailModal(row.dataset.orderId));
+  });
+}
+
+function closeMemberDetailModal(){
+  document.getElementById('memberDetailModal').classList.remove('show');
+  LOY_MEMBER_DETAIL_ID = null;
+}
+
+/** ينفّذ تعديلاً واحداً: يسأل السبب، ينادي الدالّة، يحدّث كل مكانٍ يعرض
+ *  هذا العضو -- بلا انتظار تحميلٍ كامل جديد للشاشة. */
+async function performLoyaltyAdjustment(customerId, kind, delta, triggerBtn){
+  const cust = TOP_CUSTOMERS.find(c=>c.id===customerId);
+  if(!cust) return;
+  const label = LOY_KIND_LABELS[kind] || 'رصيد';
+  const verb = delta > 0 ? 'إضافة' : 'خصم';
+  const qty = Math.abs(delta);
+
+  const reason = await rkAsk({
+    title: `${verb} ${qty} ${label} — ${cust.name}`,
+    body: 'السبب يُحفظ بسجلّ العضو تحت، والعميل ما يشوفه.',
+    input: '',
+    maxlength: 120,
+    placeholder: 'مثال: الباركود انمسح مرتين بالغلط',
+    ok: 'تأكيد التعديل'
+  });
+  if(!reason) return; // ألغى، أو ترك السبب فارغاً
+
+  const controls = triggerBtn ? triggerBtn.closest('.loy-adjust-controls') : null;
+  if(controls){ controls.classList.add('busy'); controls.querySelectorAll('button').forEach(b=> b.disabled = true); }
+  try {
+    const { data, error } = await window.supabaseClient.rpc('adjust_loyalty_balance', {
+      p_customer_id: customerId, p_kind: kind, p_delta: delta, p_reason: reason
+    });
+    if(error) throw error;
+    if(!data || !data.ok){
+      showToast(LOY_ADJUST_ERRORS[(data && data.error)] || 'تعذّر حفظ التعديل');
+      return;
+    }
+
+    if(kind === 'point') cust.points = data.balanceAfter;
+    else if(kind === 'visit') cust.stamps = data.balanceAfter;
+    else if(kind === 'unit') cust.units = data.balanceAfter;
+    cust.freeRewards = data.freeRewardsAfter;
+
+    logDashboardAudit(`${verb} ${qty} ${label} — ${cust.name}`);
+    showToast(data.rewardsGranted > 0 ? 'تم — ووصل لمكافأة جديدة 🎉' : 'تم حفظ التعديل');
+
+    renderLoyaltyKpis(); // يحدّث القائمة والأعضاء معاً (انظر تعليقها)
+    if(LOY_MEMBER_DETAIL_ID === customerId) openMemberDetailModal(customerId);
+  } catch(err){
+    showToast('تعذّر التعديل: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+  } finally {
+    if(controls){ controls.classList.remove('busy'); controls.querySelectorAll('button').forEach(b=> b.disabled = false); }
+  }
+}
+
+document.getElementById('memberDetailModalBody')?.addEventListener('click', (e)=>{
+  const btn = e.target.closest('.loy-adjust-btn'); if(!btn) return;
+  const kind = btn.dataset.kind;
+  const dir = parseInt(btn.dataset.dir, 10);
+  const qtySel = btn.closest('.loy-adjust-controls')?.querySelector('.loy-adjust-qty');
+  const qty = qtySel ? (parseInt(qtySel.value, 10) || 1) : 1;
+  performLoyaltyAdjustment(LOY_MEMBER_DETAIL_ID, kind, dir * qty, btn);
+});
+document.getElementById('memberDetailModalClose')?.addEventListener('click', closeMemberDetailModal);
+document.getElementById('memberDetailModal')?.addEventListener('click', (e)=>{
+  if(e.target.id === 'memberDetailModal') closeMemberDetailModal();
+});
+
+document.getElementById('loyMembersFilters')?.addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-filter]'); if(!btn) return;
+  LOY_MEMBERS_FILTER = btn.dataset.filter;
+  document.querySelectorAll('#loyMembersFilters button').forEach(b=> b.classList.toggle('active', b===btn));
+  renderLoyaltyMembers();
+});
+document.getElementById('loyMembersSearch')?.addEventListener('input', (e)=>{
+  LOY_MEMBERS_SEARCH = e.target.value;
+  renderLoyaltyMembers();
+});
+document.getElementById('loyMembersSort')?.addEventListener('change', (e)=>{
+  LOY_MEMBERS_SORT = e.target.value;
+  renderLoyaltyMembers();
+});
+
 document.getElementById('loyaltyTabs').addEventListener('click', (e)=>{
   const btn = e.target.closest('.loyalty-tab'); if(!btn) return;
   const target = btn.dataset.loyaltyTab;
@@ -6316,6 +6630,12 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
         await loadLoyaltyBranding();
         loadLoyaltySubscriberCount();
         loadWinBackSettings();
+        // الأعضاءُ رُسموا قبل سطرين بنظام النقاط الافتراضي (قيمةُ
+        // LOYALTY_BRANDING قبل وصول المحفوظ) -- فمطعمٌ يشغّل بطاقة ختم
+        // حقيقية كان يرى "نقاط" لحظة أوّل فتحٍ للتبويب، وبطاقاتُ الختم
+        // لا تظهر إلا بعد فعلٍ آخر يُعيد الرسم. تُعاد الآن بالنظام
+        // الصحيح فور وصوله.
+        renderLoyaltyMembers();
       }
       renderLoyaltyBrandingPreview();
     }

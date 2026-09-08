@@ -764,6 +764,91 @@ button{font-family:inherit; cursor:pointer;}
 .loy-avatar.tier-platinum, .loy-tier-badge.tier-platinum{background:var(--graphite); color:var(--lime);}
 [data-theme="dark"] .loy-avatar.tier-platinum, [data-theme="dark"] .loy-tier-badge.tier-platinum{background:#262626; color:var(--lime);}
 
+/* ===== تبويب "الأعضاء" -- بحثٌ وفلترةٌ على TOP_CUSTOMERS نفسها،
+   ونافذةُ تفاصيلٍ فيها التعديل وسجلّه. يعيد استعمال .loy-avatar/
+   .loy-tier-badge أعلاه بالضبط، فعضوٌ في هذا التبويب هو نفسه الوجه
+   في "أبرز الأعضاء" بلا اختلاف بصريّ بينهما. ===== */
+.loy-members-toolbar{display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap;}
+.loy-members-search{
+  flex:1; min-width:200px; display:flex; align-items:center; gap:8px;
+  padding:0 16px; min-height:44px; border-radius:var(--r-full);
+  border:1px solid var(--line); background:var(--card-bg); color:var(--muted);
+}
+.loy-members-search svg{flex-shrink:0;}
+.loy-members-search input{
+  flex:1; border:none; background:none; outline:none; padding:11px 0;
+  font-family:inherit; font-size:12.5px; font-weight:600; color:var(--text);
+}
+.loy-members-search input::placeholder{color:var(--muted); font-weight:600;}
+.loy-members-sort{min-width:160px; font-size:12.5px;}
+.loy-members-filters{display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;}
+.loy-members-filters button{
+  padding:8px 14px; min-height:36px; box-sizing:border-box; border-radius:var(--r-full);
+  border:1.5px solid var(--line); background:var(--card-bg); color:var(--muted);
+  font-weight:700; font-size:11.5px; white-space:nowrap;
+}
+.loy-members-filters button.active{
+  background:linear-gradient(135deg, var(--graphite), #262626); border-color:var(--graphite);
+  color:var(--lime); box-shadow:0 4px 14px rgba(0,0,0,0.18);
+}
+[data-theme="dark"] .loy-members-filters button.active{background:linear-gradient(135deg, #232323, #171717);}
+.loy-members-summary{font-size:11px; font-weight:700; color:var(--muted); margin-bottom:10px;}
+.loy-members-list{max-height:520px; overflow-y:auto;}
+
+/* صفُّ عضوٍ في القائمة -- نفسُ .loy-row تماماً، بعمودٍ ثالث لتقدّمه. */
+.loy-member-row{display:flex; align-items:center; gap:14px; padding:12px 14px; border:1px solid var(--line); border-radius:14px; margin-bottom:8px; transition:border-color .12s ease;}
+.loy-member-row:last-child{margin-bottom:0;}
+.loy-member-row:hover{border-color:var(--lime-deep);}
+.loy-member-end{flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:4px;}
+.loy-member-points{font-weight:800; font-size:13px;}
+.loy-reward-badge{
+  font-size:9px; font-weight:800; padding:2px 8px; border-radius:var(--r-full); flex-shrink:0;
+  background:color-mix(in srgb, var(--lime) 20%, transparent); color:var(--success-text);
+}
+
+/* بطاقةُ الختم: نقطةٌ لكلّ كوب -- نفسُ فكرة أيقونات بطاقة الولاء
+   الحقيقية (app/loyalty-card)، مبسّطةً إلى نقاطٍ لقائمةٍ كثيفة. */
+.loy-stamp-row{display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end; max-width:170px;}
+.loy-stamp-dot{
+  width:9px; height:9px; border-radius:50%; flex-shrink:0;
+  border:1.5px solid var(--line); background:transparent;
+}
+.loy-stamp-dot.filled{background:var(--lime-deep); border-color:var(--lime-deep);}
+
+/* نافذةُ تفاصيل العضو -- أوسع من الافتراضي، فمحتواها أكثر: رصيدٌ
+   وتعديلٌ وسجلّ وطلبات معاً. */
+.member-detail-modal-card{width:600px;}
+
+.loy-adjust-box{background:var(--surf1); border-radius:var(--r-md); padding:4px 16px;}
+.loy-adjust-row{padding:14px 0; border-bottom:1px solid var(--line);}
+.loy-adjust-row:last-child{border-bottom:none;}
+.loy-adjust-top{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
+.loy-adjust-label{font-weight:700; font-size:12.5px; color:var(--text);}
+.loy-adjust-current{font-weight:800; font-size:13px; color:var(--muted);}
+.loy-adjust-row .loy-stamp-row{justify-content:flex-start; max-width:none; margin-bottom:10px;}
+.loy-adjust-controls{display:flex; align-items:center; gap:8px;}
+.loy-adjust-controls.busy{opacity:0.55; pointer-events:none;}
+.loy-adjust-btn{
+  width:34px; height:34px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  border:1.5px solid var(--line); background:var(--card-bg); color:var(--text);
+  font-size:18px; font-weight:700; line-height:1; box-sizing:border-box;
+}
+.loy-adjust-btn:hover{border-color:var(--lime-deep); color:var(--lime-deep);}
+.loy-adjust-btn.minus:hover{border-color:var(--danger); color:var(--danger);}
+.loy-adjust-qty{min-width:64px; padding:7px 10px; padding-inline-end:28px; font-size:12px; min-height:34px;}
+
+/* سجلّ التعديلات -- من غيّر، ومتى، وبكم، ولماذا. أربعتها معاً أو لا شيء. */
+.loy-history-list{max-height:220px; overflow-y:auto;}
+.loy-history-row{padding:10px 0; border-bottom:1px solid var(--line);}
+.loy-history-row:last-child{border-bottom:none;}
+.loy-history-top{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:3px;}
+.loy-history-delta{font-weight:800; font-size:12px; font-family:'IBM Plex Mono',monospace;}
+.loy-history-delta.pos{color:var(--success-text);}
+.loy-history-delta.neg{color:var(--danger);}
+.loy-history-when{font-size:10px; font-weight:600; color:var(--muted); flex-shrink:0;}
+.loy-history-reason{font-size:11.5px; font-weight:600; color:var(--muted); line-height:1.5;}
+.loy-history-who{color:var(--text); font-weight:700;}
+
 /* "المستويات" tab — one editable row per tier (real owner feedback: this
    ladder used to be fixed, no way to set your own thresholds/discounts). */
 .loy-tier-edit-row{display:flex; align-items:flex-end; gap:12px; padding:12px 0; border-bottom:1px solid var(--line); flex-wrap:wrap;}
