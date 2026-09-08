@@ -751,23 +751,18 @@ button{font-family:inherit; cursor:pointer;}
 .loy-avatar{width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; flex-shrink:0;}
 .loy-info{flex:1; min-width:0;}
 .loy-name{font-weight:700; font-size:13px; display:flex; align-items:center; gap:7px; flex-wrap:wrap; row-gap:4px;}
-.loy-tier-badge{font-size:9px; font-weight:800; padding:2px 8px; border-radius:var(--r-full); flex-shrink:0; text-transform:uppercase; letter-spacing:0.04em;}
 .loy-meta{font-size:10.5px; color:var(--muted); font-weight:600; margin-top:2px;}
 .loy-card-btn{
   width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;
   background:var(--surf2); color:var(--text); box-sizing:border-box;
 }
 .loy-card-btn:hover{background:var(--lime-deep); color:var(--graphite);}
-.loy-avatar.tier-bronze, .loy-tier-badge.tier-bronze{background:color-mix(in srgb, #8a6a4a 16%, transparent); color:#8a6a4a;}
-.loy-avatar.tier-silver, .loy-tier-badge.tier-silver{background:color-mix(in srgb, #6e7378 16%, transparent); color:#6e7378;}
-.loy-avatar.tier-gold, .loy-tier-badge.tier-gold{background:color-mix(in srgb, #c9a227 18%, transparent); color:#a3821e;}
-.loy-avatar.tier-platinum, .loy-tier-badge.tier-platinum{background:var(--graphite); color:var(--lime);}
-[data-theme="dark"] .loy-avatar.tier-platinum, [data-theme="dark"] .loy-tier-badge.tier-platinum{background:#262626; color:var(--lime);}
 
 /* ===== تبويب "الأعضاء" -- بحثٌ وفلترةٌ على TOP_CUSTOMERS نفسها،
-   ونافذةُ تفاصيلٍ فيها التعديل وسجلّه. يعيد استعمال .loy-avatar/
-   .loy-tier-badge أعلاه بالضبط، فعضوٌ في هذا التبويب هو نفسه الوجه
-   في "أبرز الأعضاء" بلا اختلاف بصريّ بينهما. ===== */
+   ونافذةُ تفاصيلٍ فيها التعديل وسجلّه. يعيد استعمال .loy-avatar أعلاه
+   بالضبط، فعضوٌ في هذا التبويب هو نفسه الوجه في "أبرز الأعضاء" بلا
+   اختلاف بصريّ بينهما. ولا شارةَ مستوى هنا: سلّمُ Bronze/Silver/Gold/
+   Platinum حُذف كاملاً (طلبٌ صريح -- كان "سيّئاً صراحة"). ===== */
 .loy-members-toolbar{display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap;}
 .loy-members-search{
   flex:1; min-width:200px; display:flex; align-items:center; gap:8px;
@@ -826,16 +821,29 @@ button{font-family:inherit; cursor:pointer;}
 .loy-adjust-label{font-weight:700; font-size:12.5px; color:var(--text);}
 .loy-adjust-current{font-weight:800; font-size:13px; color:var(--muted);}
 .loy-adjust-row .loy-stamp-row{justify-content:flex-start; max-width:none; margin-bottom:10px;}
-.loy-adjust-controls{display:flex; align-items:center; gap:8px;}
+
+/* عدّادٌ واحدٌ متّصل -- لا ثلاثةُ عناصرَ متفرّقة. نفسُ لغة الأزرار
+   المستديرة الفاتحة/الغامقة التي تفصل حالاتِ الفلاتر أعلى الشاشة
+   (.loy-members-filters)، فيقرأ التعديلُ فعلاً كجزءٍ من هوية الصفحة
+   لا كعنصر <select> عاديّ مقحمٍ عليها. */
+.loy-adjust-controls{
+  display:inline-flex; align-items:stretch; border:1.5px solid var(--line);
+  border-radius:var(--r-full); overflow:hidden; background:var(--card-bg);
+}
 .loy-adjust-controls.busy{opacity:0.55; pointer-events:none;}
 .loy-adjust-btn{
-  width:34px; height:34px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center;
-  border:1.5px solid var(--line); background:var(--card-bg); color:var(--text);
-  font-size:18px; font-weight:700; line-height:1; box-sizing:border-box;
+  width:38px; height:38px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  border:none; background:none; color:var(--text);
+  font-size:19px; font-weight:700; line-height:1; box-sizing:border-box;
+  transition:background .12s ease, color .12s ease;
 }
-.loy-adjust-btn:hover{border-color:var(--lime-deep); color:var(--lime-deep);}
-.loy-adjust-btn.minus:hover{border-color:var(--danger); color:var(--danger);}
-.loy-adjust-qty{min-width:64px; padding:7px 10px; padding-inline-end:28px; font-size:12px; min-height:34px;}
+.loy-adjust-btn.plus:hover{background:color-mix(in srgb, var(--lime) 22%, transparent); color:var(--lime-deep);}
+.loy-adjust-btn.minus:hover{background:color-mix(in srgb, var(--danger) 13%, transparent); color:var(--danger);}
+.loy-adjust-qty{
+  min-width:50px; height:38px; padding:0 24px 0 8px; font-size:12.5px; min-height:0;
+  border:none; border-inline:1.5px solid var(--line); border-radius:0; background:var(--surf1);
+  text-align:center; background-position:left 7px center;
+}
 
 /* سجلّ التعديلات -- من غيّر، ومتى، وبكم، ولماذا. أربعتها معاً أو لا شيء. */
 .loy-history-list{max-height:220px; overflow-y:auto;}
@@ -848,34 +856,6 @@ button{font-family:inherit; cursor:pointer;}
 .loy-history-when{font-size:10px; font-weight:600; color:var(--muted); flex-shrink:0;}
 .loy-history-reason{font-size:11.5px; font-weight:600; color:var(--muted); line-height:1.5;}
 .loy-history-who{color:var(--text); font-weight:700;}
-
-/* "المستويات" tab — one editable row per tier (real owner feedback: this
-   ladder used to be fixed, no way to set your own thresholds/discounts). */
-.loy-tier-edit-row{display:flex; align-items:flex-end; gap:12px; padding:12px 0; border-bottom:1px solid var(--line); flex-wrap:wrap;}
-.loy-tier-edit-row:last-child{border-bottom:none;}
-.loy-tier-edit-label{display:flex; align-items:center; gap:8px; width:84px; flex-shrink:0; font-weight:800; font-size:12.5px; padding-bottom:11px;}
-.loy-tier-edit-dot{width:10px; height:10px; border-radius:50%; flex-shrink:0;}
-.loy-tier-edit-row .rk-field{flex:1; min-width:120px;}
-
-/* Tier cards reuse the exact metallic gradients the loyalty cards above use
-   — same identity, so "Gold" reads as the same gold everywhere on this
-   screen, not a flat list disconnected from what the cards look like. */
-.loyalty-tiers-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:12px;}
-.loyalty-tier-card{border-radius:16px; padding:16px; color:#fff; position:relative; overflow:hidden;}
-.loyalty-tier-card.bronze{background:linear-gradient(135deg,#8a6a4a,#6b4f37);}
-.loyalty-tier-card.silver{background:linear-gradient(135deg,#9aa0a6,#6e7378);}
-.loyalty-tier-card.gold{background:linear-gradient(135deg,#c9a227,#8a6f19);}
-/* Platinum is the top tier — echo the same dark+lime "this is the active/
-   premium one" language the rest of the app already uses (.nav-item.active,
-   .seg-tab.active, etc.) instead of a plain black gradient with no Rakeen
-   identity in it at all. Real owner feedback: bring the brand's own lime
-   accent out more on this screen. */
-.loyalty-tier-card.platinum{background:linear-gradient(135deg, var(--graphite), #262626);}
-.loyalty-tier-card.platinum .ltc-discount{color:var(--lime);}
-.ltc-name{font-weight:800; font-size:14px;}
-.ltc-range{font-size:10.5px; font-weight:600; opacity:0.85; margin-top:4px;}
-.ltc-discount{font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:20px; margin-top:12px; direction:ltr; unicode-bidi:isolate;}
-.ltc-discount-label{font-size:9.5px; opacity:0.75; font-weight:700;}
 
 .campaign-builder{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;}
 .campaign-result-row{display:flex; align-items:center; gap:12px; padding:9px 0; border-bottom:1px solid var(--line); font-size:12px;}
@@ -2133,30 +2113,10 @@ select:not([class]){min-width:150px;}
 .loy-liab-value.is-cost{color:var(--amber);}
 .loy-liab-note{margin-top:5px; font-size:11px; font-weight:600; color:var(--muted); line-height:1.6;}
 
-.loy-tier-spread{display:flex; flex-wrap:wrap; gap:8px; margin-top:16px;}
-.loy-tier-cell{
-  display:flex; align-items:center; gap:8px; min-height:44px; padding:0 14px;
-  border:1px solid var(--line); border-radius:var(--r-full); background:var(--card-bg);
-  font-size:11.5px; font-weight:700;
-}
-.loy-tier-dot{width:8px; height:8px; border-radius:50%; background:var(--muted); flex-shrink:0;}
-.loy-tier-dot.bronze{background:#a9714b;}
-.loy-tier-dot.silver{background:#9aa0a6;}
-.loy-tier-dot.gold{background:#c9a227;}
-.loy-tier-dot.platinum{background:#6b7f8c;}
-.loy-tier-name{color:var(--muted);}
-.loy-tier-n{font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums; font-weight:800; color:var(--text);}
-.loy-tier-disc{
-  font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;
-  color:var(--muted); margin-inline-start:2px;
-}
 @media (max-width:640px){
   .loy-liab-row{gap:16px;}
   .loy-liab-cell{flex:1 1 100%;}
   .loy-liab-value{font-size:21px;}
-  .loy-tier-spread{flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none;}
-  .loy-tier-spread::-webkit-scrollbar{display:none;}
-  .loy-tier-cell{flex:0 0 auto;}
 }
 
 /* ============ شاشة العميل ============ */

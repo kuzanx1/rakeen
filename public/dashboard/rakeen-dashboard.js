@@ -4183,7 +4183,6 @@ async function loadCustomersReal(){
   const orderList = orders || [];
   if(business){
     LOYALTY_RATE = Number(business.loyalty_points_divisor);
-    if(Array.isArray(business.loyalty_tiers) && business.loyalty_tiers.length > 0) LOYALTY_TIERS = business.loyalty_tiers;
   }
 
   // "يفضّل: ..." used to be a hardcoded '—' for every customer — a feature
@@ -4229,7 +4228,10 @@ async function loadCustomersReal(){
       return {
         id:c.id, name:c.name, phone:c.phone||null, publicToken:c.public_token,
         points:Number(c.loyalty_points), visits:s.visits, spend:s.spend, lastVisitDays,
-        favorite: favoriteNameByCustomer[c.id] || null, vip: s.spend >= LOYALTY_TIERS[1].min,
+        // كانت "VIP" مشتقّةً من سلّم المستويات (حدّ Silver) -- وسلّمُ
+        // المستويات محذوفٌ (طلب صريح: "المستويات... سيّئ صراحة").
+        // فصارت لها عتبتُها الخاصّة، مستقلّةً عن أيّ نظامِ درجاتٍ لاحق.
+        favorite: favoriteNameByCustomer[c.id] || null, vip: s.spend >= VIP_SPEND_THRESHOLD,
         // رصيدُ برنامج الولاء الفعلي -- لا "visits" أعلاه، فذاك عددُ
         // الطلبات الحقيقية المستعمَل في تصنيف RFM، واسمٌ واحدٌ يخدم
         // معنيين كان سيُلبس أحدَهما على الآخر أوّل قراءةٍ للشيفرة.
@@ -4392,7 +4394,6 @@ async function openCustomerDetailModal(customerId){
   modal.classList.add('show');
 
   const rfm = rfmScoreCustomer(c);
-  const tier = loyaltyTier(c.spend);
   const { data: orders } = await window.supabaseClient.from('orders')
     .select('id, created_at, channel, total, status')
     .eq('customer_id', customerId).order('created_at', {ascending:false}).limit(20);
@@ -4407,7 +4408,6 @@ async function openCustomerDetailModal(customerId){
     <div class="cost-preview-box" style="margin-bottom:14px;">
       ${c.phone ? `<div class="cpb-row"><span>الجوال</span><a href="tel:${escapeHtml(c.phone)}" class="mono" style="color:var(--lime-deep); font-weight:700;">${escapeHtml(c.phone)}</a></div>` : ''}
       <div class="cpb-row"><span>التصنيف</span><span class="cust-rfm-tag ${rfm.segment.key}">${escapeHtml(rfm.segment.label)}</span></div>
-      <div class="cpb-row"><span>مستوى العضوية</span><span class="mono">${tier.name} — خصم دائم ${tier.discount}٪</span></div>
       <div class="cpb-row"><span>نقاط الولاء</span><span class="mono">${c.points}</span></div>
       ${c.favorite ? `<div class="cpb-row"><span>يفضّل</span><span class="mono">${escapeHtml(c.favorite)}</span></div>` : ''}
     </div>
@@ -4446,18 +4446,13 @@ let LOYALTY_RATE = 10; // 1 point per this many SAR — persisted on businesses.
 // owner-editable — see renderLoyaltyTiersEditor(). No `max` is stored: it's
 // always derived as "the next tier's min", so editing one threshold can
 // never leave a gap or overlap with its neighbor out of sync.
-let LOYALTY_TIERS = [
-  {name:'Bronze', min:0, discount:5},
-  {name:'Silver', min:1000, discount:10},
-  {name:'Gold', min:5000, discount:15},
-  {name:'Platinum', min:10000, discount:20}
-];
-function loyaltyTier(spend){
-  const sorted = [...LOYALTY_TIERS].sort((a,b)=> a.min - b.min);
-  let match = sorted[0];
-  for(const t of sorted){ if(spend >= t.min) match = t; }
-  return match;
-}
+/**
+ * حدُّ "VIP" -- كان مشتقّاً من سلّم مستويات (خصم Bronze/Silver/Gold/
+ * Platinum) طلب صاحب المطعم حذفَه كاملاً: "سيّئ صراحة، يبيله نظام
+ * بعدين نسويه مع الوقت". فبقيت الشارةُ وحدَها، بعتبةٍ ثابتة لحين
+ * نظامٍ حقيقيّ يستحقّ.
+ */
+const VIP_SPEND_THRESHOLD = 1000;
 /**
  * إحصاءات البرنامج المشغَّل، لا إحصاءات النقاط دائماً.
  *
@@ -4554,13 +4549,6 @@ function renderLoyaltyLiability(){
   });
   const liability = bestRiyalPerPoint ? outstanding * bestRiyalPerPoint : null;
 
-  // كم عضواً في كل مستوى، وبأي خصم -- الخصم رقم مجرّد حتى يُعرف على كم.
-  const tiers = (LOYALTY_TIERS||[]).map((t, i)=>{
-    const next = LOYALTY_TIERS[i+1];
-    const n = members.filter(m=> m.spend >= t.min && (!next || m.spend < next.min)).length;
-    return { ...t, n };
-  });
-
   const money = v => v.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
 
   el.innerHTML = `
@@ -4581,16 +4569,6 @@ function renderLoyaltyLiability(){
           }</div>
         </div>
       </div>
-      <div class="loy-tier-spread">
-        ${tiers.map(t=>`
-          <div class="loy-tier-cell">
-            <span class="loy-tier-dot ${t.name.toLowerCase()}"></span>
-            <span class="loy-tier-name">${t.name}</span>
-            <span class="loy-tier-n mono">${t.n}</span>
-            <span class="loy-tier-disc mono">${t.discount}٪</span>
-          </div>`).join('')}
-      </div>
-      <p class="stock-qty-helper" style="margin-top:10px;">الخصم ينطبق على كل طلب من عضو بهذا المستوى، دايم.</p>
     </div>`;
 }
 
@@ -4600,13 +4578,13 @@ function renderLoyaltyCards(){
     return;
   }
   const cardIcon = '<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>';
-  document.getElementById('loyaltyCardsGrid').innerHTML = TOP_CUSTOMERS.map(c=>{
-    const tier = loyaltyTier(c.spend);
-    const tierClass = 'tier-' + tier.name.toLowerCase();
+  const CARD_COLORS = ['var(--acc-ops)','var(--acc-res)','var(--acc-fin)','var(--acc-team)','var(--acc-ai)'];
+  const CARD_COLORS_BG = ['var(--acc-ops-bg)','var(--acc-res-bg)','var(--acc-fin-bg)','var(--acc-team-bg)','var(--acc-ai-bg)'];
+  document.getElementById('loyaltyCardsGrid').innerHTML = TOP_CUSTOMERS.map((c,i)=>{
     return `<div class="loy-row">
-      <div class="loy-avatar ${tierClass}">${escapeHtml(c.name.charAt(0))}</div>
+      <div class="loy-avatar" style="background:${CARD_COLORS_BG[i%5]}; color:${CARD_COLORS[i%5]};">${escapeHtml(c.name.charAt(0))}</div>
       <div class="loy-info">
-        <div class="loy-name">${escapeHtml(c.name)}<span class="loy-tier-badge ${tierClass}">${tier.name} — خصم ${tier.discount}٪</span></div>
+        <div class="loy-name">${escapeHtml(c.name)}</div>
         <div class="loy-meta">${Math.round(c.points)} نقطة</div>
       </div>
       <button class="loy-card-btn" data-token="${c.publicToken}" title="فتح البطاقة الرقمية"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">${cardIcon}</svg></button>
@@ -4617,71 +4595,7 @@ function renderLoyaltyCards(){
   });
 }
 
-function renderLoyaltyTiers(){
-  const sorted = [...LOYALTY_TIERS].sort((a,b)=> a.min - b.min);
-  document.getElementById('loyaltyTiersTable').innerHTML = `<div class="loyalty-tiers-grid">` + sorted.map((t,i)=>{
-    const nextMin = sorted[i+1] ? sorted[i+1].min : null;
-    const range = nextMin === null ? t.min.toLocaleString()+'+ ر.س' : t.min.toLocaleString()+' – '+(nextMin-1).toLocaleString()+' ر.س';
-    return `<div class="loyalty-tier-card ${t.name.toLowerCase()}">
-      <div class="ltc-name">${t.name}</div>
-      <div class="ltc-range">${range}</div>
-      <div class="ltc-discount">${t.discount}٪</div>
-      <div class="ltc-discount-label">خصم دائم</div>
-    </div>`;
-  }).join('') + `</div>`;
-}
 
-// "المستويات" tab — real owner feedback: the ladder used to be forced on
-// every business with no way to change it. Tier order/names stay fixed
-// (Bronze<Silver<Gold<Platinum); only each tier's spend threshold and
-// discount % are editable here. Setting every discount to 0 is a first-
-// class, fully supported way to "turn off" the discount promise without
-// touching the enable/disable toggle for the whole loyalty feature.
-function renderLoyaltyTiersEditor(){
-  const el = document.getElementById('loyaltyTiersEditor');
-  if(!el) return;
-  const sorted = [...LOYALTY_TIERS].sort((a,b)=> a.min - b.min);
-  const dotColor = {bronze:'#8a6a4a', silver:'#6e7378', gold:'#c9a227', platinum:'var(--graphite)'};
-  el.innerHTML = sorted.map((t,i)=>{
-    const key = t.name.toLowerCase();
-    return `<div class="loy-tier-edit-row" data-tier-name="${t.name}">
-      <div class="loy-tier-edit-label"><span class="loy-tier-edit-dot" style="background:${dotColor[key]||'var(--muted)'};"></span>${t.name}</div>
-      <div class="rk-field"><label>الحد الأدنى للإنفاق (ر.س)</label><input type="number" class="loy-tier-min-input" min="0" step="1" value="${t.min}" ${i===0 ? 'readonly' : ''}></div>
-      <div class="rk-field"><label>الخصم (٪)</label><input type="number" class="loy-tier-discount-input" min="0" max="100" step="1" value="${t.discount}"></div>
-    </div>`;
-  }).join('');
-}
-document.getElementById('loyaltyTiersSaveBtn').addEventListener('click', async ()=>{
-  const btn = document.getElementById('loyaltyTiersSaveBtn');
-  const rows = [...document.querySelectorAll('.loy-tier-edit-row')];
-  const newTiers = rows.map(row=>({
-    name: row.dataset.tierName,
-    min: Math.max(0, parseInt(row.querySelector('.loy-tier-min-input').value, 10) || 0),
-    discount: Math.min(100, Math.max(0, parseInt(row.querySelector('.loy-tier-discount-input').value, 10) || 0))
-  }));
-  // Keep thresholds strictly ascending — a lower tier's minimum landing at
-  // or above the next tier's would silently make that next tier unreachable.
-  const sortedCheck = [...newTiers].sort((a,b)=> a.min - b.min);
-  for(let i=1;i<sortedCheck.length;i++){
-    if(sortedCheck[i].min <= sortedCheck[i-1].min){
-      showToast('كل مستوى لازم يكون حد إنفاقه أعلى من اللي قبله');
-      return;
-    }
-  }
-  rkBtnLoading(btn, true);
-  try {
-    await updateCurrentBusiness({loyalty_tiers: newTiers});
-    LOYALTY_TIERS = newTiers;
-    renderLoyaltyKpis();
-    renderLoyaltyCards();
-    renderLoyaltyTiers();
-    logDashboardAudit('حدّث مستويات نادي الولاء');
-    rkBtnSuccess(btn, '✓ تم الحفظ');
-  } catch(err){
-    rkBtnLoading(btn, false);
-    showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-  }
-});
 
 /* ============ Loyalty card branding — real logo/banner/accent color/icon/
    system type, stored on businesses + uploaded to Supabase Storage
@@ -5022,8 +4936,6 @@ function renderLoyaltyMembers(){
   const COLORS_BG = ['var(--acc-ops-bg)','var(--acc-res-bg)','var(--acc-fin-bg)','var(--acc-team-bg)','var(--acc-ai-bg)'];
 
   listEl.innerHTML = rows.map((c,i)=>{
-    const tier = loyaltyTier(c.spend);
-    const tierClass = 'tier-' + tier.name.toLowerCase();
     const progress = loyMemberProgress(c);
     const progressHtml = progress
       ? `<div class="loy-stamp-row" title="${progress.current} من ${progress.threshold}">${
@@ -5037,9 +4949,9 @@ function renderLoyaltyMembers(){
       : '';
 
     return `<div class="loy-member-row" data-cust-id="${c.id}" style="cursor:pointer;">
-      <div class="loy-avatar ${tierClass}" style="background:${COLORS_BG[i%5]}; color:${COLORS[i%5]};">${escapeHtml(c.name.charAt(0))}</div>
+      <div class="loy-avatar" style="background:${COLORS_BG[i%5]}; color:${COLORS[i%5]};">${escapeHtml(c.name.charAt(0))}</div>
       <div class="loy-info">
-        <div class="loy-name">${escapeHtml(c.name)}<span class="loy-tier-badge ${tierClass}">${tier.name}</span>${rewardBadge}</div>
+        <div class="loy-name">${escapeHtml(c.name)}${rewardBadge}</div>
         <div class="loy-meta">${c.phone ? escapeHtml(c.phone) + ' — ' : ''}آخر زيارة قبل ${c.lastVisitDays} يوم</div>
       </div>
       <div class="loy-member-end">${progressHtml}</div>
@@ -5074,7 +4986,6 @@ async function openMemberDetailModal(customerId){
   // قد تُغلَق النافذةُ أو تُفتح لعضوٍ آخر أثناء الجلب -- فلا يُرسم عرضٌ قديم.
   if(LOY_MEMBER_DETAIL_ID !== customerId) return;
 
-  const tier = loyaltyTier(c.spend);
   const type = (LOYALTY_BRANDING && LOYALTY_BRANDING.systemType) || 'points';
   const rewardLabel = (LOYALTY_BRANDING && LOYALTY_BRANDING.rewardLabel) || 'مكافأة مجانية';
 
@@ -5132,7 +5043,6 @@ async function openMemberDetailModal(customerId){
   body.innerHTML = `
     <div class="cost-preview-box" style="margin-bottom:14px;">
       ${c.phone ? `<div class="cpb-row"><span>الجوال</span><a href="tel:${escapeHtml(c.phone)}" class="mono" style="color:var(--lime-deep); font-weight:700;">${escapeHtml(c.phone)}</a></div>` : ''}
-      <div class="cpb-row"><span>مستوى العضوية</span><span class="loy-tier-badge tier-${tier.name.toLowerCase()}">${tier.name} — خصم ${tier.discount}٪</span></div>
       <div class="cpb-row"><span>آخر زيارة</span><span class="mono">قبل ${c.lastVisitDays} يوم</span></div>
       ${c.favorite ? `<div class="cpb-row"><span>يفضّل</span><span class="mono">${escapeHtml(c.favorite)}</span></div>` : ''}
     </div>
@@ -6375,12 +6285,8 @@ document.getElementById('loyaltyRateSaveBtn').addEventListener('click', async ()
 });
 
 document.getElementById('campaignBuildBtn').addEventListener('click', ()=>{
-  const tierFilter = document.getElementById('campaignTierSelect').value;
   const minDays = parseInt(document.getElementById('campaignDaysInput').value) || 0;
-  const matches = TOP_CUSTOMERS.filter(c=>{
-    const tier = loyaltyTier(c.spend).name;
-    return (tierFilter==='all' || tier===tierFilter) && c.lastVisitDays >= minDays;
-  });
+  const matches = TOP_CUSTOMERS.filter(c=> c.lastVisitDays >= minDays);
   const el = document.getElementById('campaignResultList');
   if(matches.length === 0){
     el.innerHTML = '<div style="font-size:12px; color:var(--muted); font-weight:600; padding:10px 0;">ما فيه عملاء يطابقون هذي الشروط حاليًا.</div>';
@@ -6618,13 +6524,10 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
        * ويُبنى بقيمٍ افتراضية آمنة، ثم يُعاد بناؤه بالمحفوظ حين يصل.
        */
       try { mountWalletMessages(); } catch(e){ console.error('messages', e); }
-      rkHideTiersTab();
       rkFoldContactTab();
       await ensureCustomersDataLoaded();
       renderLoyaltyKpis();
       renderLoyaltyCards();
-      renderLoyaltyTiers();
-      renderLoyaltyTiersEditor();
       if(!loyaltyBrandingLoaded){
         loyaltyBrandingLoaded = true;
         await loadLoyaltyBranding();
@@ -18664,18 +18567,6 @@ function rkFoldContactTab(){
   tab.hidden = true;
   panel.hidden = true;
   if(tab.classList.contains('active')){
-    const first = document.querySelector('#loyaltyTabs .loyalty-tab:not([hidden])');
-    if(first) first.click();
-  }
-}
-
-function rkHideTiersTab(){
-  const tab = document.querySelector('[data-loyalty-tab="tiers"]');
-  const panel = document.querySelector('[data-loyalty-panel="tiers"]');
-  if(tab) tab.hidden = true;
-  if(panel) panel.hidden = true;
-  // ولو كانت مفتوحةً حين أُخفيت، تُردّ العين إلى أول تبويب.
-  if(tab && tab.classList.contains('active')){
     const first = document.querySelector('#loyaltyTabs .loyalty-tab:not([hidden])');
     if(first) first.click();
   }
