@@ -4874,11 +4874,18 @@ const LOY_ADJUST_ERRORS = {
 };
 
 /** بطاقةُ الختم: كم عنده الآن، وكم يلزم -- بحسب نظام هذا المطعم وحده.
- *  نظامُ النقاط بلا عتبة، فلا "بطاقة" له. */
+ *  نظامُ النقاط بلا عتبة، فلا "بطاقة" له.
+ *
+ *  والقيمةُ 'products' لا 'units': هي حرفُ الراديو في تبويب "برنامج
+ *  الولاء" لخيار "أكواب / أصناف" (loyaltySystemTypeFormValue وحفظُها
+ *  في loyaltyRateSaveBtn). كنتُ خمّنتُها 'units' قياساً على اسم
+ *  العمود customers.loyalty_units -- فعميل نظامُه أكواب كان يقع دائماً
+ *  في else الافتراضي (نقاط)، لأنّ 'products' لا تُطابق 'units' ولا
+ *  'visits'. عمودُ القاعدة اسمٌ، وقيمةُ النظام المحفوظة كلمةٌ أخرى. */
 function loyMemberProgress(c){
   const type = (LOYALTY_BRANDING && LOYALTY_BRANDING.systemType) || 'points';
   if(type === 'visits') return { kind:'visit', current: c.stamps, threshold: LOYALTY_BRANDING.visitsThreshold || 5 };
-  if(type === 'units') return { kind:'unit', current: c.units, threshold: LOYALTY_BRANDING.unitThreshold || 6 };
+  if(type === 'products') return { kind:'unit', current: c.units, threshold: LOYALTY_BRANDING.unitThreshold || 6 };
   return null;
 }
 
@@ -5058,7 +5065,7 @@ async function openMemberDetailModal(customerId){
     const dots = Array.from({length: threshold}).map((_,d)=> `<span class="loy-stamp-dot ${d < c.stamps ? 'filled' : ''}"></span>`).join('');
     balanceSectionHtml = adjustRow('visit', 'الأكواب', `${c.stamps} / ${threshold}`, `<div class="loy-stamp-row">${dots}</div>`)
       + adjustRow('free_reward', escapeHtml(rewardLabel) + ' جاهزة', c.freeRewards);
-  } else if(type === 'units'){
+  } else if(type === 'products'){ // "أكواب / أصناف" -- انظر تعليق loyMemberProgress أعلاه
     const threshold = LOYALTY_BRANDING.unitThreshold || 6;
     const dots = Array.from({length: threshold}).map((_,d)=> `<span class="loy-stamp-dot ${d < c.units ? 'filled' : ''}"></span>`).join('');
     balanceSectionHtml = adjustRow('unit', 'الوحدات', `${c.units} / ${threshold}`, `<div class="loy-stamp-row">${dots}</div>`)
