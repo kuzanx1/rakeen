@@ -2146,6 +2146,17 @@ select:not([class]){min-width:150px;}
 .loy-liab-value.is-cost{color:var(--amber);}
 .loy-liab-note{margin-top:5px; font-size:11px; font-weight:600; color:var(--muted); line-height:1.6;}
 
+/* شارةُ النظام المفعَّل -- تصريحٌ صريح أعلى النظرة العامة، فلا يُترك
+   صاحب المطعم يستنتج من تسميات أعمدةٍ متفرّقة أيّ نظامٍ يشغّله. */
+.loy-system-badge{
+  display:inline-flex; align-items:center; gap:6px; margin-bottom:14px;
+  padding:7px 14px; border-radius:var(--r-full);
+  background:color-mix(in srgb, var(--lime) 14%, var(--card-bg));
+  border:1px solid color-mix(in srgb, var(--lime-deep) 25%, transparent);
+  font-size:12px; font-weight:700; color:var(--text);
+}
+.loy-system-badge b{color:var(--lime-deep); font-weight:800;}
+
 @media (max-width:640px){
   .loy-liab-row{gap:16px;}
   .loy-liab-cell{flex:1 1 100%;}

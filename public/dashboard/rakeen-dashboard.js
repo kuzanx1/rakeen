@@ -4512,13 +4512,33 @@ function loyaltyKpisForSystem(){
   ];
 }
 
+/** أيّ نظامٍ مفعَّل الآن -- LOYALTY_STATS إن وصلت (من القاعدة، أدقّ)
+ *  وإلا LOYALTY_BRANDING (محليّ، أسرع وصولاً عند أوّل تحميل). */
+function currentLoyaltySystemType(){
+  return (LOYALTY_STATS && LOYALTY_STATS.systemType) || (LOYALTY_BRANDING && LOYALTY_BRANDING.systemType) || 'points';
+}
+
 function renderLoyaltyKpis(){
+  const type = currentLoyaltySystemType();
   const kpis = loyaltyKpisForSystem();
   document.getElementById('loyaltyKpiGrid').innerHTML = kpis.map(k=>
     `<div class="kpi-card"><div class="kpi-label">${k.label}</div><div class="kpi-value mono">${k.value}</div></div>`
   ).join('');
-  const rateEl = document.getElementById('loyaltyRateDisplay');
-  if(rateEl) rateEl.textContent = LOYALTY_RATE;
+
+  // تصريحٌ صريح بأيّ نظامٍ تتكلّم الشاشة -- لا يُترك ليُستنتج من
+  // تسميات الأعمدة وحدها.
+  const badgeEl = document.getElementById('loySystemBadge');
+  if(badgeEl) badgeEl.innerHTML = `نظامك الآن: <b>${loyaltySystemName(type)}</b>`;
+
+  const cardsSubEl = document.getElementById('loyaltyCardsSub');
+  if(cardsSubEl){
+    cardsSubEl.textContent = type === 'visits'
+      ? `كل ${LOYALTY_BRANDING.visitsThreshold || 5} زيارات = مكافأة`
+      : type === 'products'
+      ? `كل ${LOYALTY_BRANDING.unitThreshold || 6} أكواب = مكافأة`
+      : `١ نقطة لكل ${LOYALTY_RATE} ر.س`;
+  }
+
   renderLoyaltyLiability();
   // الأعضاءُ يعتمدون البياناتِ نفسَها (TOP_CUSTOMERS)، فيتحدّثون معها
   // دائماً -- لا في بعض مواضع النداء الخمسة وتُنسى في السادس.
@@ -4526,21 +4546,50 @@ function renderLoyaltyKpis(){
 }
 
 /**
- * ما التزم به البرنامج -- لا ما يفعله.
+ * ما التزم به البرنامج -- لا ما يفعله. ونظامٌ مختلفٌ يعني التزاماً
+ * مختلف الشكل: نقاطٌ تُقارَن بالريال، أو مكافآتٌ ثابتة العدد لا تحتاج
+ * تسعيراً لأنها صنفٌ محدَّد لا رقمٌ يُحوَّل.
  *
- * الصفحة كانت تعرض إعدادات البرنامج ولا تعرض كلفته: معدّل الكسب هنا،
+ * نظامُ النقاط وحده يملك حساب "تعادل من قائمتك": معدّل الكسب هنا،
  * وسعر الاسترداد في صفحة القائمة على كل صنف، ولا واحدة منهما تعرف
- * بالأخرى. فصاحب المطعم يضبط "نقطة لكل عشرة ريال" وهو لا يرى أن قهوته
- * تُستبدل بمئة نقطة -- أي أن ألف ريال من المبيعات تشتري كوباً.
+ * بالأخرى قبل هذا الحساب. فصاحب المطعم يضبط "نقطة لكل عشرة ريال" وهو
+ * لا يرى أن قهوته تُستبدل بمئة نقطة -- أي أن ألف ريال من المبيعات
+ * تشتري كوباً. والنقاط ليست رقماً تجميلياً: الكاشير يصرفها فعلاً
+ * (انظر شاشة الاسترداد في rakeen-pos.js)، فمجموع أرصدة العملاء دَينٌ
+ * قائم.
  *
- * والنقاط ليست رقماً تجميلياً: الكاشير يصرفها فعلاً (انظر شاشة
- * الاسترداد في rakeen-pos.js)، فمجموع أرصدة العملاء دَينٌ قائم.
- *
- * الأرقام الثلاثة كلها محسوبة من بيانات محمّلة أصلاً -- لا استعلام جديد.
+ * أما الزيارات والأكواب فمكافآتها أصنافٌ لا نقاط -- "مكافأةٌ جاهزة"
+ * تعني صنفاً واحداً سيُعطى مجاناً، بلا حاجة لتحويلها لريال.
  */
 function renderLoyaltyLiability(){
   const el = document.getElementById('loyaltyLiability');
   if(!el) return;
+  const type = currentLoyaltySystemType();
+  const st = LOYALTY_STATS;
+
+  if(type !== 'points'){
+    const rewardsReady = (st && st.rewardsReady) || 0;
+    const progressSum = type === 'visits' ? ((st && st.visitsSum) || 0) : ((st && st.unitsSum) || 0);
+    const progressLabel = type === 'visits' ? 'زيارات متراكمة عند العملاء' : 'أكواب متراكمة عند العملاء';
+    el.innerHTML = `
+      <div class="rk-section">
+        ${rkSectionHead('award', 'التزام البرنامج', 'مكافآتٌ ستُعطى مجاناً -- الكاشير يصرفها فعلاً')}
+        <div class="loy-liab-row">
+          <div class="loy-liab-cell">
+            <div class="loy-liab-label">مكافآت مستحقّة لم تُصرف بعد</div>
+            <div class="loy-liab-value mono ${rewardsReady > 0 ? 'is-cost' : ''}">${rewardsReady.toLocaleString('en-US')}</div>
+            <div class="loy-liab-note">كل مكافأة = صنفٌ سيُعطى مجاناً عند أوّل طلبٍ قادم</div>
+          </div>
+          <div class="loy-liab-cell">
+            <div class="loy-liab-label">${progressLabel}</div>
+            <div class="loy-liab-value mono">${progressSum.toLocaleString('en-US')}</div>
+            <div class="loy-liab-note">تقدّمٌ لم يكتمل بعد -- لا يُصرف حتى يعبر العتبة</div>
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
+
   const members = TOP_CUSTOMERS || [];
   const outstanding = members.reduce((s,c)=> s + (Number(c.points)||0), 0);
 
@@ -4586,11 +4635,15 @@ function renderLoyaltyCards(){
   const CARD_COLORS = ['var(--acc-ops)','var(--acc-res)','var(--acc-fin)','var(--acc-team)','var(--acc-ai)'];
   const CARD_COLORS_BG = ['var(--acc-ops-bg)','var(--acc-res-bg)','var(--acc-fin-bg)','var(--acc-team-bg)','var(--acc-ai-bg)'];
   document.getElementById('loyaltyCardsGrid').innerHTML = TOP_CUSTOMERS.map((c,i)=>{
+    const progress = loyMemberProgress(c);
+    const metaText = progress
+      ? `${progress.current} / ${progress.threshold} ${LOY_KIND_LABELS[progress.kind]}`
+      : `${Math.round(c.points)} نقطة`;
     return `<div class="loy-row">
       <div class="loy-avatar" style="background:${CARD_COLORS_BG[i%5]}; color:${CARD_COLORS[i%5]};">${escapeHtml(c.name.charAt(0))}</div>
       <div class="loy-info">
         <div class="loy-name">${escapeHtml(c.name)}</div>
-        <div class="loy-meta">${Math.round(c.points)} نقطة</div>
+        <div class="loy-meta">${metaText}</div>
       </div>
       <button class="loy-card-btn" data-token="${c.publicToken}" title="فتح البطاقة الرقمية"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">${cardIcon}</svg></button>
     </div>`;
@@ -4894,6 +4947,30 @@ function loyMemberProgress(c){
   return null;
 }
 
+/** اسمُ النظام بلغةٍ يفهمها صاحب المطعم -- يُستعمل حيثما وجب أن
+ *  تصرّح الشاشةُ بأيّ نظامٍ تتكلّم، لا أن تُفترَض النقاط دائماً. */
+function loyaltySystemName(type){
+  if(type === 'visits') return 'زيارات (بطاقة ختم)';
+  if(type === 'products') return 'أكواب / أصناف';
+  return 'نقاط';
+}
+
+/** بطاقةُ تقدّم عضوٍ واحد -- ختمٌ منقّط لنظامَي الزيارات والأكواب،
+ *  أو رقمُ نقاطٍ لنظام النقاط. مستعملةٌ في قائمة تبويب "الأعضاء"
+ *  و"أبرز الأعضاء" بالنظرة العامة معاً -- لا تُكتب مرّتين فتختلفا
+ *  يوماً بلا قصد. */
+function loyMemberProgressHtml(c){
+  const progress = loyMemberProgress(c);
+  if(!progress){
+    return `<div class="loy-member-points mono">${Math.round(c.points)} نقطة</div>`;
+  }
+  return `<div class="loy-stamp-row" title="${progress.current} من ${progress.threshold}">${
+    Array.from({length: progress.threshold}).map((_,d)=>
+      `<span class="loy-stamp-dot ${d < progress.current ? 'filled' : ''}"></span>`
+    ).join('')
+  }</div>`;
+}
+
 /**
  * تصنيفُ دورة حياة العضو -- أربعُ فئاتٍ لا أكثر، بمصطلحاتٍ مستعملةٍ
  * في الشاشة أصلاً: "جدد" من تصنيف العملاء (RFM)، و"خاملون" من رسالة
@@ -5001,14 +5078,7 @@ function renderLoyaltyMembers(){
   const COLORS_BG = ['var(--acc-ops-bg)','var(--acc-res-bg)','var(--acc-fin-bg)','var(--acc-team-bg)','var(--acc-ai-bg)'];
 
   listEl.innerHTML = rows.map((c,i)=>{
-    const progress = loyMemberProgress(c);
-    const progressHtml = progress
-      ? `<div class="loy-stamp-row" title="${progress.current} من ${progress.threshold}">${
-          Array.from({length: progress.threshold}).map((_,d)=>
-            `<span class="loy-stamp-dot ${d < progress.current ? 'filled' : ''}"></span>`
-          ).join('')
-        }</div>`
-      : `<div class="loy-member-points mono">${Math.round(c.points)} نقطة</div>`;
+    const progressHtml = loyMemberProgressHtml(c);
     const rewardBadge = c.freeRewards > 0
       ? `<span class="loy-reward-badge">${c.freeRewards > 1 ? c.freeRewards + ' مكافآت جاهزة' : 'مكافأة جاهزة'}</span>`
       : '';
