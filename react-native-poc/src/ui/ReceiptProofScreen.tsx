@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
-import { buildScenarios } from '../../../shared/receipt/scenarios';
+import { buildDeviceScenarios } from '../../../shared/receipt/scenarios';
 import type { Scenario } from '../../../shared/receipt/scenarios';
 import { BenchRow, runReceiptBench, renderScenarioPng } from '../application/receiptBench';
 import { createStyles, fonts, radii, spacing } from './theme';
@@ -24,7 +24,7 @@ import { createStyles, fonts, radii, spacing } from './theme';
  */
 export default function ReceiptProofScreen({ onClose }: { onClose?: () => void }) {
   const styles = useStyles();
-  const scenarios = React.useMemo(() => buildScenarios(), []);
+  const scenarios = React.useMemo(() => buildDeviceScenarios(), []);
 
   const [bench, setBench] = useState<BenchRow[] | null>(null);
   const [benchBusy, setBenchBusy] = useState(false);

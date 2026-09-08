@@ -143,3 +143,31 @@ export function buildScenarios(): Scenario[] {
   out.push({ id: 'shift-58mm', doc: 'shift', model: SHIFT_SCENARIO, width: PAPER.mm58 });
   return out;
 }
+
+/**
+ * ما يُرسم على الجهاز -- ستُّ أوراقٍ لا خمسٌ وخمسون.
+ *
+ * الفحصُ في CI آليٌّ ورخيص، فيأخذ كلَّ حالةٍ وكلَّ قالب. والفحصُ على
+ * الأيباد بيدِ إنسانٍ يمرّرها بعينه، وخمسٌ وخمسون ورقةً في تطبيق بيعٍ
+ * ثقلٌ لا يُقرأ: يملّ الناظرُ قبل السادسة فلا يرى ما بعدها.
+ *
+ * فهذه ستٌّ تكشف ما يُكشف: الشبكةُ في طلبٍ طويل، ولفُّ العربية،
+ * والخليطُ العربيّ الإنجليزيّ -- وهو أصعبُها -- ثمّ الورقتان
+ * الأخريان اللتان لا تشبهان الفاتورة.
+ */
+export function buildDeviceScenarios(): Scenario[] {
+  const byId = new Map(buildScenarios().map(s => [s.id, s]));
+  const wanted = [
+    'receipt-one-item-classic',
+    'receipt-thirty-items-classic',
+    'receipt-long-arabic-classic',
+    'receipt-mixed-ar-en-classic',
+    'kitchen-full',
+    'shift-full',
+  ];
+  return wanted.map(id => {
+    const found = byId.get(id);
+    if (!found) throw new Error('حالةٌ مفقودة: ' + id);
+    return found;
+  });
+}
