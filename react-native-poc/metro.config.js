@@ -21,6 +21,21 @@ const shared = path.resolve(__dirname, '..', 'shared');
 
 const config = {
   watchFolders: [shared],
+  resolver: {
+    /**
+     * حزمُ الشيفرة تُحلّ من داخل التطبيق دائماً.
+     *
+     * الملفُّ في `shared/` خارجُ جذر المشروع، وBabel يحقن فيه استدعاءَ
+     * مساعدٍ من @babel/runtime. فيبحث Metro عنه من موضع الملفّ لا من
+     * موضع التطبيق، ويقع في مجلّدٍ ليس فيه ما يحتاج -- فيفشل الحزمُ
+     * كلُّه بخطأٍ لا يذكر إلّا اسمَ المساعد.
+     *
+     * ولا يظهر هذا في jest ولا في tsc: الأوّلُ يحلّ بقواعد node
+     * والثاني لا يحلّ شيئاً أصلاً. لا يظهر إلّا في حزمِ الإصدار -- وهو
+     * ما يُشحن. (فشل أرشيفُ iOS عند «Bundle React Native code».)
+     */
+    nodeModulesPaths: [path.resolve(__dirname, 'node_modules')],
+  },
 };
 
 module.exports = mergeConfig(getDefaultConfig(__dirname), config);

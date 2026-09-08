@@ -30,6 +30,7 @@ on:
       - "react-native-poc/src/application/receiptRenderer.ts"
       - "react-native-poc/src/platform/receipt*.ts"
       - "react-native-poc/__tests__/receipt*.ts"
+      - "react-native-poc/metro.config.js"
       - "tools/receipt-visual/**"
       - "scripts/build-receipt-engine.mjs"
       - ".github/workflows/receipt-print.yml"
@@ -67,6 +68,17 @@ jobs:
       - name: بصمات التخطيط واختبارات الانحدار
         working-directory: react-native-poc
         run: npx jest __tests__/receiptLayout.test.ts __tests__/receiptDocuments.test.ts __tests__/receiptRegression.test.ts __tests__/receiptEngineFresh.test.ts --ci
+
+      # ── ٢٫٥) الحزم: هل يُبنى ما يُشحن أصلاً؟ ──
+      # الاختباراتُ وtsc لا يمسكان هذا. `shared/` خارج جذر التطبيق،
+      # وحلُّ الوحدات فيه يخضع لقواعد Metro لا لقواعد node -- فمرّت
+      # شيفرةٌ خضراءُ في الاثنين وفشل أرشيفُ iOS عند حزم JavaScript،
+      # بعد ستِّ دقائقَ من البناء وبخطأٍ لا يذكر إلّا اسمَ مساعدِ Babel.
+      # وهذا يمسكه في ثوانٍ، على جهازٍ بلا Xcode.
+      - name: حزمة الإصدار تُبنى
+        working-directory: react-native-poc
+        run: |
+          npx react-native bundle --platform ios --dev false             --entry-file index.js --bundle-output /tmp/main.jsbundle             --assets-dest /tmp/ios-assets
 
       # ── ٣) الصور: ما لا تمسكه البصمة ──
       # المتصفّحُ مثبَّتٌ بإصدار playwright-core نفسِه، فالصورُ المرجعية
