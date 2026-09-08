@@ -162,7 +162,10 @@ let STOCK_ITEMS = [
   {id:20, name:'بيكون', qtyOnHand:4, parLevel:10, duration:'يكفي ٤ أيام', unitCost:60, unit:'kg', category:'raw'}
 ];
 let stockIdCounter = 21;
-function computeStockPct(item){ return Math.max(0, Math.min(100, Math.round(item.qtyOnHand/item.parLevel*100))); }
+function computeStockPct(item){
+  if(!(item.parLevel > 0)) return 100; // ما تحدّد مستوى مرجعي بعد -- لا نسبة حقيقية تُحسب، ولا "صفر تقسيم صفر" يظهر NaN.
+  return Math.max(0, Math.min(100, Math.round(item.qtyOnHand/item.parLevel*100)));
+}
 function computeStockTier(pct){ if(pct<20) return 'critical'; if(pct<45) return 'warn'; return 'ok'; }
 const UNIT_LABELS = {kg:'كجم', g:'غرام', liter:'لتر', piece:'حبة'};
 // A per-gram/per-ml cost is often a fraction of a halala (e.g. 46 ر.س ÷ 9600 غ) —
@@ -1666,7 +1669,7 @@ function stockRowHtml(s, usedInMap){
       <div class="mtr-product">
         <div class="mtr-name-col">
           <div class="mtr-name">${s.name}</div>
-          <div class="mtr-meta">${s.qtyOnHand} من ${s.parLevel} ${UNIT_LABELS[s.unit]} متبقي${consumption.totalQty>0 ? ' — استهلك اليوم '+consumption.totalQty.toFixed(consumption.totalQty<10?2:0)+' '+UNIT_LABELS[s.unit]+' ('+consumption.orderCount+' طلب)' : ''}</div>
+          <div class="mtr-meta">${s.parLevel > 0 ? s.qtyOnHand + ' من ' + s.parLevel + ' ' + UNIT_LABELS[s.unit] + ' متبقي' : s.qtyOnHand + ' ' + UNIT_LABELS[s.unit] + ' متوفر — بلا مستوى مرجعي بعد'}${consumption.totalQty>0 ? ' — استهلك اليوم '+consumption.totalQty.toFixed(consumption.totalQty<10?2:0)+' '+UNIT_LABELS[s.unit]+' ('+consumption.orderCount+' طلب)' : ''}</div>
           ${negativeWarning}
         </div>
       </div>
@@ -1796,10 +1799,12 @@ function openStockItemModal(stockId){
     const pct = par>0 ? Math.max(0,Math.min(100,Math.round(stockModalState.qtyOnHand/par*100))) : 100;
     const tier = computeStockTier(pct);
     const unitLabel = UNIT_LABELS[stockModalState.unit];
-    document.getElementById('siLiveBarBox').innerHTML = existing ? `
+    document.getElementById('siLiveBarBox').innerHTML = existing ? (par > 0 ? `
       <div class="stock-bar-track" style="height:14px;"><div class="stock-bar-fill ${tier}" style="width:${pct}%"></div></div>
       <div class="stock-live-bar-label">يعني عندك <b class="mono">${pct}٪</b> من مخزونك المعتاد — ${stockModalState.qtyOnHand} من ${par} ${unitLabel}</div>
     ` : `
+      <div class="stock-live-bar-label">ما تحدّد مستوى مرجعي (١٠٠٪) لهذا الصنف بعد — حدّده من "توريد اليوم أقل من المعتاد" تحت عشان تشوف نسبة مخزونك الفعلية.</div>
+    `) : `
       <div class="stock-live-bar-label">أول ما تحفظ، هذي الكمية (${stockModalState.qtyOnHand} ${unitLabel}) بتصير مرجعك — يعني ١٠٠٪ تلقائيًا.</div>
     `;
   };
@@ -7080,6 +7085,29 @@ async function loadBusinessData(){
     }
     return item;
   });
+
+  /**
+   * "غير مرتبط بأي منتج" و"استهلك اليوم صفر" رغم وصفةٍ حقيقية موصولة --
+   * كلاهما كان يقرأ item.recipe فارغاً دائماً، لأنه يُملأ كسولاً فقط
+   * لحظة فتح محرّر ذاك المنتج بالذات (كمّياتُ الوصفة مشفّرة، فبيانات
+   * المخزون هنا لا تجلبها دفعةً واحدة أصلاً -- انظر تعليق openProductEditModal
+   * وترحيل encrypt_recipe_quantities). فيبدو كلُّ صنفٍ "غير مستخدم" في
+   * شاشة المخزون حتى يفتح صاحب المطعم محرّر كلّ منتجٍ يستخدمه أوّلاً
+   * بنفس الجلسة -- وهذا بالضبط ما بلّغ عنه صاحب "بن أثيوبي" المربوط
+   * بإسبريسو فعلاً. جلبٌ دفعةً واحدة هنا لكلّ منتجٍ وصفته فعلية ومربوط
+   * بالمخزون -- بنفس الدالّة المحمية بصلاحية الربح (get_menu_item_recipe)
+   * لا مساراً جديداً -- يصحّح الاثنين معاً دون انتظار فتح كل منتج.
+   */
+  const recipeLinkedItems = MENU_ITEMS.filter(m=> m.linkInventory && m.costMode==='recipe');
+  if(recipeLinkedItems.length){
+    const recipeResults = await Promise.all(
+      recipeLinkedItems.map(m=> sb.rpc('get_menu_item_recipe', {p_menu_item_id: m.id}))
+    );
+    recipeLinkedItems.forEach((m,i)=>{
+      const rows = recipeResults[i].data || [];
+      m.recipe = rows.map(r=>({ingredient: STOCK_ITEM_NAME_BY_ID[r.stock_item_id], qty:Number(r.qty), unit:r.unit})).filter(r=>r.ingredient);
+    });
+  }
 
   MODIFIER_GROUPS = (groupRes.data||[]).map(g=>({
     id:g.id, name:g.name, nameEn:g.name_en||'', type:g.type, max:g.max_select,
