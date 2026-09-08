@@ -48,6 +48,15 @@ export interface ReceiptSurface {
    *  render into a tall surface while tracking a running Y cursor, then
    *  read back only that cursor's final height. */
   toRgba(contentHeightPx?: number): RgbaBuffer;
+  /**
+   * صورةُ الورقة PNG بترميز base64 -- للمعاينة على الشاشة وحدها.
+   *
+   * والطباعةُ لا تمرّ بها: هي تقرأ البكسلات وترمّزها ESC/POS مباشرةً.
+   * وإنّما تُعرض على الجهاز لتُقارن بالعين بورقة الويب -- وهو ما لا
+   * يُغني عنه تطابقُ الأرقام، إذ يبقى الخطُّ والتشكيلُ ممّا يُرى ولا
+   * يُحسب.
+   */
+  toPngBase64(): string | null;
 }
 
 export function createReceiptSurface(widthPx: number, heightPx: number): ReceiptSurface {
@@ -90,6 +99,12 @@ export function createReceiptSurface(widthPx: number, heightPx: number): Receipt
       // reading the installed package's own type declaration
       // (Image.ts's readPixels signature), not assumed.
       return { width: widthPx, height: readHeight, data: pixels as Uint8Array };
+    },
+    toPngBase64(): string | null {
+      // ولا قصَّ هنا: السطحُ يُنشأ بالارتفاع المحسوب بالضبط، فما فيه
+      // كلُّه ورقة. (كان يُنشأ بتقديرٍ سخيّ ثمّ يُقصّ.)
+      surface.flush();
+      return surface.makeImageSnapshot().encodeToBase64();
     },
   };
 }

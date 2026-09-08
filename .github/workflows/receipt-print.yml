@@ -1,0 +1,88 @@
+name: Receipt print engine
+
+# يحرس محرّك الطباعة الواحد (shared/receipt/) -- وهو يطبع فواتيرَ
+# الزبائن وإشعاراتِ الاسترجاع وتذاكرَ المطبخ وتقاريرَ إغلاق الوردية،
+# في الويب والتطبيق معاً.
+#
+# وثلاثُ حراساتٍ، كلٌّ تمسك ما لا تمسكه الأخرى:
+#
+#   ١) الطزاجة: الويبُ يقرأ ملفاً مبنيّاً من المصدر. لو عُدِّل المصدرُ
+#      ونُسي البناء لَطبع التطبيقُ الجديدَ وطبع الويبُ القديم -- ولا
+#      شيءَ يشتكي: الورقتان تُطبعان كلتاهما، وإنّما تُطبعان مختلفتين.
+#
+#   ٢) البصمات: تمسك تغيّرَ المواضع -- مقاسٌ زاح، أو عمودٌ ضاق، أو
+#      سطرٌ خرج عن الورقة.
+#
+#   ٣) الصور: تمسك ما لا موضعَ له -- خطٌّ تبدّل، أو وزنٌ لم يعد
+#      يُحمَّل، أو محرفٌ صار مربّعاً فارغاً، أو منحنىً رُسم على غير
+#      وجهه. وهي أعطالٌ لا يراها إلّا من نظر، وهذا ينظر عن الناس.
+#
+# ولا يفشل الفحصُ الثالث ليُعتمد بلا نظر: الفرقُ يُرفع مُرفَقاً
+# ليُرى، ثمّ يُعتمد بـ`npm run receipt:visual:update` إن كان مقصوداً.
+
+on:
+  pull_request:
+    paths:
+      - "shared/receipt/**"
+      - "public/pos/rakeen-pos.js"
+      - "public/pos/receipt-engine.js"
+      - "public/fonts/**"
+      - "react-native-poc/src/application/receiptRenderer.ts"
+      - "react-native-poc/src/platform/receipt*.ts"
+      - "react-native-poc/__tests__/receipt*.ts"
+      - "tools/receipt-visual/**"
+      - "scripts/build-receipt-engine.mjs"
+      - ".github/workflows/receipt-print.yml"
+  push:
+    branches: [main]
+    paths:
+      - "shared/receipt/**"
+      - "public/pos/rakeen-pos.js"
+      - "tools/receipt-visual/**"
+  workflow_dispatch: {}
+
+jobs:
+  print-engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: تثبيت اعتماديات الجذر
+        run: npm ci
+
+      - name: تثبيت اعتماديات التطبيق
+        working-directory: react-native-poc
+        run: npm ci
+
+      # ── ١) المصدرُ واحد: المبنيُّ للويب يتبع shared/receipt/ ──
+      - name: محرّك الويب مطابق لمصدره
+        run: npm run receipt:check
+
+      # ── ٢) البصمات: التخطيطُ لم يتغيّر بلا قصد ──
+      - name: بصمات التخطيط واختبارات الانحدار
+        working-directory: react-native-poc
+        run: npx jest __tests__/receiptLayout.test.ts __tests__/receiptDocuments.test.ts __tests__/receiptRegression.test.ts __tests__/receiptEngineFresh.test.ts --ci
+
+      # ── ٣) الصور: ما لا تمسكه البصمة ──
+      # المتصفّحُ مثبَّتٌ بإصدار playwright-core نفسِه، فالصورُ المرجعية
+      # تُقارن بما وُلّدت به. واختلافُ إصدارٍ يغيّر تنعيمَ الحروف، فيفشل
+      # الفحصُ بلا سبب.
+      - name: تثبيت المتصفّح
+        run: npx playwright install --with-deps chromium-headless-shell
+
+      - name: مقارنة صور الفواتير
+        run: npm run receipt:visual
+
+      - name: رفع الفروق لتُرى
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: receipt-visual-diff
+          path: tools/receipt-visual/diff/
+          if-no-files-found: ignore
+          retention-days: 14

@@ -11,7 +11,10 @@
     "cf:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "cf:typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "receipt:build": "node scripts/build-receipt-engine.mjs",
-    "receipt:check": "node scripts/build-receipt-engine.mjs --check"
+    "receipt:check": "node scripts/build-receipt-engine.mjs --check",
+    "receipt:visual": "node tools/receipt-visual/run.mjs",
+    "receipt:visual:update": "node tools/receipt-visual/run.mjs --update",
+    "receipt:bench": "node tools/receipt-visual/bench.mjs"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.20.2",
@@ -28,6 +31,7 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@babel/runtime": "^8.0.0",
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
@@ -40,6 +44,8 @@
     "@types/web-push": "^3.6.4",
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
+    "pixelmatch": "^7.2.0",
+    "playwright-core": "^1.63.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "wrangler": "^4.124.0"

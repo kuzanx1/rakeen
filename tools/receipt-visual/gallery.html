@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>معرض الفواتير — مرجع الانحدار البصريّ</title>
+<style>
+/* خطّا الطباعة -- هما بعينهما اللذان يحزمهما التطبيق. ولا يُحمَّلان من
+   الشبكة: صورةٌ مرجعيةٌ تتغيّر لأنّ خادمَ خطوطٍ بعيداً تغيّر ليست
+   مرجعاً. */
+@font-face{font-family:'RakeenReceipt'; src:url('/fonts/tajawal/Tajawal-Regular.ttf') format('truetype'); font-weight:400 600; font-display:block;}
+@font-face{font-family:'RakeenReceipt'; src:url('/fonts/tajawal/Tajawal-Bold.ttf') format('truetype'); font-weight:700 900; font-display:block;}
+@font-face{font-family:'RakeenReceiptMono'; src:url('/fonts/plex-mono/IBMPlexMono-Medium.ttf') format('truetype'); font-weight:400 550; font-display:block;}
+@font-face{font-family:'RakeenReceiptMono'; src:url('/fonts/plex-mono/IBMPlexMono-SemiBold.ttf') format('truetype'); font-weight:551 900; font-display:block;}
+body{margin:0;background:#fff;font-family:sans-serif}
+figure{margin:0 0 24px}
+figcaption{font:12px monospace;padding:4px}
+canvas{display:block;border:1px solid #ddd}
+</style>
+</head>
+<body>
+<div id="out"></div>
+<script src="/pos/receipt-engine.js"></script>
+<!-- الدوالُّ المفحوصةُ هي المشحونةُ نفسُها، تُنتزع من rakeen-pos.js عند
+     التشغيل لا تُنسخ: نسخةٌ في صفحة الفحص تفحص نفسَها لا الشيءَ المشحون. -->
+<script src="/__shipped.js"></script>
+<script src="/__cases.js"></script>
+<script>
+window.DEVICE = { printerPaperWidth: 576 };
+window.RECEIPT_THEME = 'classic';
+
+window.__renderAll = async function(){
+  // الخطُّ العربيُّ يُحمَّل مجزّأً: بلا نصٍّ حقيقيّ لا تُجلب الجزئية،
+  // فيُرسم بخطٍّ احتياطيّ وتخرج صورةٌ مرجعيةٌ ليست هي.
+  const sample = 'سبانيش لاتيه مقهى هبيّة الإجمالي ضريبة KITCHEN RECEIPT 0123456789.﷼';
+  for (const f of ['RakeenReceipt', 'RakeenReceiptMono']) {
+    for (const w of ['400', '600', '700', '800']) {
+      await document.fonts.load(w + ' 40px "' + f + '"', sample);
+    }
+  }
+  await document.fonts.ready;
+
+  const out = document.getElementById('out');
+  const made = [];
+  for (const c of window.__CASES) {
+    window.RECEIPT_THEME = c.theme || 'classic';
+    window.DEVICE = { printerPaperWidth: c.width || 576 };
+    let canvas;
+    if (c.doc === 'kitchen') canvas = window.renderKitchenTicketCanvas(c.model, null);
+    else if (c.doc === 'shift') canvas = window.renderShiftReportCanvas(c.model);
+    else canvas = window.renderReceiptCanvas(c.model, null, null);
+
+    const fig = document.createElement('figure');
+    const cap = document.createElement('figcaption');
+    cap.textContent = c.id + ' — ' + canvas.width + '×' + canvas.height;
+    fig.appendChild(cap);
+    fig.appendChild(canvas);
+    canvas.setAttribute('data-case', c.id);
+    out.appendChild(fig);
+    made.push({ id: c.id, width: canvas.width, height: canvas.height });
+  }
+  return made;
+};
+
+window.__capture = function(id){
+  const cv = document.querySelector('canvas[data-case="' + id + '"]');
+  return cv ? cv.toDataURL('image/png') : null;
+};
+</script>
+</body>
+</html>

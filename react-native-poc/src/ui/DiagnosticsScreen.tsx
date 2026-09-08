@@ -4,6 +4,7 @@ import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import { getDiagnosticsSnapshot, retryStuckOrders, retryAllFailedPrintJobs, DiagnosticsSnapshot } from '../application/diagnosticsService';
 import { readErrors, readPerf } from '../infrastructure/perfLog';
+import ReceiptProofScreen from './ReceiptProofScreen';
 import { createStyles, fonts, Palette, radii, spacing, useTheme } from './theme';
 
 /** Status tri-color, derived from the live palette so it follows the
@@ -48,6 +49,9 @@ export default function DiagnosticsScreen() {
   const [busy, setBusy] = useState(false);
   const [actionStatus, setActionStatus] = useState('');
   const [perfRows, setPerfRows] = useState(() => readPerf());
+  /* شاشةُ الإثبات تحلّ محلَّ هذه لا تعلوها: نافذتان معاً على iOS
+     تُجمّدان التطبيق بلا خطأ يُرى -- وقد وقع. */
+  const [proofOpen, setProofOpen] = useState(false);
   const [errorRows, setErrorRows] = useState(() => readErrors());
 
   const refresh = useCallback(async () => {
@@ -89,6 +93,10 @@ export default function DiagnosticsScreen() {
     }
   };
 
+  /* تحلّ محلَّ هذه الشاشة لا تعلوها -- ولا نافذةَ منبثقة: نافذتان معاً
+     على iOS تُجمّدان التطبيق بلا خطأ يُرى، وقد وقع. */
+  if (proofOpen) return <ReceiptProofScreen onClose={() => setProofOpen(false)} />;
+
   if (!snapshot) {
     return (
       <View style={[styles.root, styles.center]}>
@@ -107,6 +115,16 @@ export default function DiagnosticsScreen() {
         ]}>
         <Text style={[styles.diagnosisText, { color: snapshot.diagnosis.bad ? BAD : OK }]}>{snapshot.diagnosis.text}</Text>
       </View>
+
+      <Section title="الطباعة">
+        <Text style={styles.errorDetail}>
+          يرسم أوراقَ النظام كلَّها بمحرّك الطباعة نفسِه، ويقيس زمنَها
+          وذاكرتَها على هذا الجهاز. لا يطبع شيئاً ولا يمسّ طلباً.
+        </Text>
+        <TouchableOpacity style={styles.retryButton} onPress={() => setProofOpen(true)}>
+          <Text style={styles.retryButtonText}>إثبات الطباعة والقياس</Text>
+        </TouchableOpacity>
+      </Section>
 
       <Section title="الاتصال">
         <Row label="الإنترنت" color={triColor(tri, snapshot.internet)} value={triLabel(snapshot.internet, '🟢 متصل', '🔴 غير متصل', '⚪ غير معروف بعد')} />

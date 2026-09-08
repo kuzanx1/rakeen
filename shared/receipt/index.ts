@@ -28,3 +28,7 @@ export type {
   Measurer, ImageSize, ReceiptItem, ReceiptModel, LayoutInput, LayoutResult,
 } from './types';
 export { stubMeasure } from './stubMeasure';
+/* والحالاتُ المرجعيةُ ليست هنا قصداً (`./scenarios`).
+   هي بياناتُ فحصٍ لا شيفرةُ طباعة، ولو صُدِّرت من المدخل لَحُزمت مع
+   محرّك الويب وشُحنت إلى كلّ جهاز كاشير -- ستةُ كيلوبايتاتٍ من طلباتٍ
+   وهمية على جهازٍ يُقلع في مطعم. فمن أرادها استوردها بنفسها. */

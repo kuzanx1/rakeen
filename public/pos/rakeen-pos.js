@@ -4293,6 +4293,37 @@ function paintReceiptOps(ctx, layout, images){
   ctx.fillStyle = '#000';
 }
 
+/**
+ * لا تُرسم ورقةٌ قبل أن يُحمَّل خطُّها.
+ *
+ * خطُّ الفاتورة يُقدَّم من هذا الموقع (@font-face)، ولوحةُ الرسم لا
+ * تنتظره: تسأل عن خطٍّ لم يصل فتُعطى احتياطيَّ النظام، وترسم به، ولا
+ * تشتكي. فتخرج الفاتورةُ الأولى بعد كلّ فتحِ متصفّحٍ بخطٍّ آخر -- ولا
+ * أحدَ يعلم، إذ الورقةُ تُطبع.
+ *
+ * وأخطرُ من الشكل: الرمزُ الذي لا يملكه الاحتياطيُّ يخرج مربّعاً
+ * فارغاً -- ﷼ مثلاً، وهو في كلّ سطرٍ ماليّ.
+ *
+ * والتحميلُ يحتاج نصّاً حقيقياً: الخطوطُ تُقدَّم مجزّأةً، فطلبُها بلا
+ * حروفٍ لا يجلب جزئيةَ العربية أصلاً.
+ */
+let RECEIPT_FONTS_READY = null;
+function ensureReceiptFonts(){
+  if(RECEIPT_FONTS_READY) return RECEIPT_FONTS_READY;
+  const sample = 'أبجد هوز حطي كلمن سعفص قرشت ثخذ ضظغ 0123456789. ' + RECEIPT_RIYAL;
+  const wants = [];
+  ['400','600','700','800'].forEach(function(w){
+    wants.push(document.fonts.load(w + ' 40px "RakeenReceipt"', sample));
+    wants.push(document.fonts.load(w + ' 40px "RakeenReceiptMono"', '0123456789.-+ ' + RECEIPT_RIYAL));
+  });
+  // ولا يُوقف الطبعَ فشلُ التحميل: ورقةٌ بخطٍّ احتياطيّ خيرٌ من ورقةٍ
+  // لم تُطبع. وإنّما يُنتظَر ما أمكن.
+  RECEIPT_FONTS_READY = Promise.all(wants.map(function(p){ return p.catch(function(){}); }))
+    .then(function(){ return document.fonts.ready; })
+    .catch(function(){});
+  return RECEIPT_FONTS_READY;
+}
+
 function renderReceiptCanvas(receipt, qrImage, logoImage){
   const E = window.RakeenReceiptEngine;
   const width = DEVICE.printerPaperWidth || E.PAPER.mm80;
@@ -4567,7 +4598,7 @@ async function openCashDrawer(){
 async function sendKitchenTicketToPrinter(receipt){
   // الشعار لا يمنع الطباعة: تذكرة بلا شعار تذكرة، وتذكرة لم تُطبع لأن
   // مضيف الصور بطيء هي طلب ضاع في المطبخ.
-  const logoImage = await loadLogoImage(receipt.logoUrl);
+  const [logoImage] = await Promise.all([loadLogoImage(receipt.logoUrl), ensureReceiptFonts()]);
   let bytes;
   try { bytes = buildKitchenTicketEscPosBytes(receipt, logoImage); }
   catch (e) { return Promise.resolve({ok:false, error:'render_failed'}); }
@@ -4582,7 +4613,8 @@ async function sendToPrinter(receipt){
   try {
     const [qrImage, logoImage] = await Promise.all([
       loadZatcaQrImage(receipt),
-      receipt.showLogo ? loadLogoImage(receipt.logoUrl) : Promise.resolve(null)
+      receipt.showLogo ? loadLogoImage(receipt.logoUrl) : Promise.resolve(null),
+      ensureReceiptFonts()
     ]);
     bytes = buildReceiptEscPosBytes(receipt, qrImage, logoImage);
   } catch (e) { return {ok:false, error:'render_failed'}; }
@@ -4958,10 +4990,12 @@ function buildShiftReportEscPosBytes(report){
   out.set(feedCut, init.length + image.length);
   return out;
 }
-function sendShiftReportToPrinter(report){
+async function sendShiftReportToPrinter(report){
+  // كسائر الأوراق: لا تُرسم قبل أن يُحمَّل خطُّها.
+  await ensureReceiptFonts();
   let bytes;
   try { bytes = buildShiftReportEscPosBytes(report); }
-  catch (e) { return Promise.resolve({ok:false, error:'render_failed'}); }
+  catch (e) { return {ok:false, error:'render_failed'}; }
   return sendBytesToPrinter(bytes);
 }
 

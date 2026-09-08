@@ -36,7 +36,7 @@ function leftEdge(t: TextOp): number {
 }
 const rightEdge = (t: TextOp): number => leftEdge(t) + stubMeasure(t.text, t.size, t.weight, t.family);
 
-function run(model: ReceiptModel, theme = 'classic', width = PAPER.mm80, currency = RIYAL): LayoutResult {
+function run(model: ReceiptModel, theme = 'classic', width: number = PAPER.mm80, currency = RIYAL): LayoutResult {
   return layoutReceipt({ receipt: model, measure: stubMeasure, paperWidth: width, theme, currency });
 }
 

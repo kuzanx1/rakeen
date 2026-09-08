@@ -133,7 +133,7 @@ async function buildFontProviderReady() {
  * ولو قرّر هذا المنفّذُ شيئاً من عنده لعادت ورقةُ التطبيق تفارق ورقةَ
  * الويب من حيث لا يُرى -- وهو ما كان يقع حين كان لكلٍّ منهما راسمُه.
  */
-function paintReceiptOps(
+export function paintReceiptOps(
   canvas: ReturnType<typeof createReceiptSurface>['canvas'],
   provider: ReturnType<typeof buildReceiptFontProvider>,
   layout: LayoutResult,
