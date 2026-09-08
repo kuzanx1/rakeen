@@ -1790,7 +1790,7 @@ function renderGroupModifiers(){
     const selectedArr = Array.isArray(selected) ? selected : [selected];
     const badge = g.required ? 'مطلوب' : (g.type==='multiple' ? 'اختياري · حتى ' + g.max : 'اختياري');
     html += `<div class="mod-group">
-      <div class="mod-group-head"><span class="mod-group-name">${g.name}</span><span class="mod-group-badge ${g.required?'required':'optional'}">${badge}</span></div>
+      <div class="mod-group-head"><span class="mod-group-name">${(LANG==='en' && g.nameEn) ? g.nameEn : g.name}</span><span class="mod-group-badge ${g.required?'required':'optional'}">${badge}</span></div>
       <div class="mod-options">`;
     if(g.options.length === 0){
       // Mirrors the box builder's own empty-state message below — a group
@@ -1800,7 +1800,7 @@ function renderGroupModifiers(){
     g.options.forEach(o=>{
       const isSel = selectedArr.includes(o.id);
       html += `<button class="mod-chip ${isSel?'selected':''} ${o.critical?'critical':''}" data-group="${g.id}" data-opt="${o.id}" data-type="${g.type}">
-        ${o.name}${o.price?`<span class="mod-chip-price">${o.price>0?'+':''}${o.price}</span>`:''}
+        ${(LANG==='en' && o.nameEn) ? o.nameEn : o.name}${o.price?`<span class="mod-chip-price">${o.price>0?'+':''}${o.price}</span>`:''}
       </button>`;
     });
     html += `</div></div>`;
@@ -1913,7 +1913,7 @@ function formatConfigLabels(productId, config){
       if(!optId) return;
       const opt = g.options.find(o=>o.id===optId);
       if(!opt) return;
-      labels.push({text: opt.name, critical: !!opt.critical});
+      labels.push({text: (LANG==='en' && opt.nameEn) ? opt.nameEn : opt.name, critical: !!opt.critical});
     });
   });
   return labels;
@@ -8408,9 +8408,9 @@ async function loadPosData(){
         if(o.cost_mode === 'stock' && o.stock_item_id){
           MODIFIER_OPTION_STOCK[gid+'_'+o.id] = {stockItemId: o.stock_item_id, qty: Number(o.stock_qty), unit: o.stock_unit};
         }
-        return {id: String(o.id), name: o.name, price: Number(o.price_delta)||0, default: i===0 && g.type==='single'};
+        return {id: String(o.id), name: o.name, nameEn: o.name_en || '', price: Number(o.price_delta)||0, default: i===0 && g.type==='single'};
       });
-      return {id: String(g.id), name: g.name, type: g.type, required: g.type === 'single', max: g.max_select, options};
+      return {id: String(g.id), name: g.name, nameEn: g.name_en || '', type: g.type, required: g.type === 'single', max: g.max_select, options};
     }).filter(Boolean);
 
     if(groups.length > 0) MODIFIER_PRODUCTS[m.id] = { groups, alwaysCustomize: groups.some(g=>g.required) };

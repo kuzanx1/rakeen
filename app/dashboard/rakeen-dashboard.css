@@ -1243,6 +1243,7 @@ button{font-family:inherit; cursor:pointer;}
 .mg-option-identity-row{display:flex; align-items:center; gap:10px; margin-bottom:12px;}
 .mg-option-badge{width:26px; height:26px; border-radius:50%; background:var(--card-bg); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px; color:var(--muted); flex-shrink:0;}
 .mg-option-identity-row .mg-opt-name{flex:1; font-weight:700; font-size:13.5px; padding:9px 12px; border-radius:8px; border:1px solid var(--line); background:var(--card-bg); color:var(--text);}
+.mg-option-identity-row .mg-opt-name-en{flex:1; font-weight:700; font-size:13.5px; padding:9px 12px; border-radius:8px; border:1px solid var(--line); background:var(--card-bg); color:var(--text);}
 .mg-field-block{margin-bottom:12px;}
 .mg-field-block label{display:block; font-size:10.5px; font-weight:700; color:var(--muted); margin-bottom:5px;}
 .mg-field-block input, .mg-field-block select{width:100%; padding:9px 10px; border-radius:7px; border:1px solid var(--line); background-color:var(--card-bg); color:var(--text); font-size:12.5px; font-family:'IBM Plex Mono',monospace;}

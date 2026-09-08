@@ -7082,9 +7082,9 @@ async function loadBusinessData(){
   });
 
   MODIFIER_GROUPS = (groupRes.data||[]).map(g=>({
-    id:g.id, name:g.name, type:g.type, max:g.max_select,
+    id:g.id, name:g.name, nameEn:g.name_en||'', type:g.type, max:g.max_select,
     options: (optRes.data||[]).filter(o=>o.group_id===g.id).map(o=>{
-      const base = {name:o.name, priceDelta:Number(o.price_delta), costMode:o.cost_mode};
+      const base = {name:o.name, nameEn:o.name_en||'', priceDelta:Number(o.price_delta), costMode:o.cost_mode};
       if(o.cost_mode === 'stock'){
         base.stockLink = {ingredient:STOCK_ITEM_NAME_BY_ID[o.stock_item_id], qty:Number(o.stock_qty), unit:o.stock_unit};
         if(o.option_max != null) base.optionMax = o.option_max;
@@ -13457,8 +13457,8 @@ function openModGroupModal(groupId){
   editingModGroupId = groupId || null;
   const existing = groupId ? MODIFIER_GROUPS.find(g=>g.id===groupId) : null;
   modGroupModalState = existing
-    ? {name:existing.name, type:existing.type, max:existing.max, options: JSON.parse(JSON.stringify(existing.options))}
-    : {name:'', type:'single', max:4, options:[]};
+    ? {name:existing.name, nameEn:existing.nameEn||'', type:existing.type, max:existing.max, options: JSON.parse(JSON.stringify(existing.options))}
+    : {name:'', nameEn:'', type:'single', max:4, options:[]};
 
   document.getElementById('modGroupModalTitle').textContent = existing ? 'تعديل: ' + existing.name : 'مجموعة خيارات جديدة';
   document.getElementById('modGroupDeleteLink').style.display = existing ? 'block' : 'none';
@@ -13468,7 +13468,11 @@ function openModGroupModal(groupId){
 
 function modGroupModalBodyHtml(){
   return `
-    <div class="menu-add-field" style="margin-bottom:16px;"><label>عنوان المجموعة</label><input type="text" id="mgName" value="${modGroupModalState.name}" placeholder="مثال: الحجم"></div>
+    <div class="menu-add-row" style="margin-bottom:4px;">
+      <div class="menu-add-field"><label>عنوان المجموعة</label><input type="text" id="mgName" value="${modGroupModalState.name}" placeholder="مثال: الحجم"></div>
+      <div class="menu-add-field"><label>English Name</label><input type="text" id="mgNameEn" value="${modGroupModalState.nameEn||''}" placeholder="e.g: Size" dir="ltr"></div>
+    </div>
+    <p class="stock-qty-helper" style="margin-top:-8px; margin-bottom:16px;">الاسم الإنجليزي اختياري — يظهر بالكاشير والفاتورة لما تكون لغته إنجليزي.</p>
 
     <div class="panel-subtitle" style="margin-top:0;" class="field-label-row">نوع الاختيار ${helpIcon('اختيار واحد: العميل يختار خيار واحد بس (مثل الحجم، درجة النضج). اختيار متعدد: يقدر يحدد أكثر من خيار، كل واحد له سعره لحاله (مثل إضافات). كمية متعددة: تحدد إجمالي قطع، والعميل يوزّعها بين الخيارات بالكمية اللي يبيها (مثل بوكس ٦ قطع).')}</div>
     <select id="mgTypeSelect" class="pe-select" style="margin-bottom:4px;">
@@ -13490,10 +13494,11 @@ function modGroupModalBodyHtml(){
 function renderModGroupModalBody(){
   document.getElementById('modGroupModalBody').innerHTML = modGroupModalBodyHtml();
   document.getElementById('mgName').addEventListener('input', (e)=> modGroupModalState.name = e.target.value);
+  document.getElementById('mgNameEn').addEventListener('input', (e)=> modGroupModalState.nameEn = e.target.value);
   document.getElementById('mgTypeSelect').addEventListener('change', (e)=> setModGroupType(e.target.value));
   document.getElementById('mgMax').addEventListener('input', (e)=> modGroupModalState.max = parseInt(e.target.value)||4);
   document.getElementById('addMgOptionBtn').addEventListener('click', ()=>{
-    modGroupModalState.options.push({name:'', priceDelta:0, costMode:'simple', extraCost:0, optionMax:null});
+    modGroupModalState.options.push({name:'', nameEn:'', priceDelta:0, costMode:'simple', extraCost:0, optionMax:null});
     renderMgOptionRows();
   });
   renderMgOptionRows();
@@ -13519,6 +13524,7 @@ function renderMgOptionRows(){
       <div class="mg-option-identity-row">
         <span class="mg-option-badge">${i+1}</span>
         <input type="text" class="mg-opt-name" data-idx="${i}" value="${o.name}" placeholder="اسم الخيار — مثال: جبن إضافي">
+        <input type="text" class="mg-opt-name-en" data-idx="${i}" value="${o.nameEn||''}" placeholder="English name" dir="ltr">
         <button class="recipe-remove-btn" data-idx="${i}" title="احذف هذا الخيار">✕</button>
       </div>
 
@@ -13561,6 +13567,7 @@ function renderMgOptionRows(){
   }).join('');
 
   el.querySelectorAll('.mg-opt-name').forEach(inp=> inp.addEventListener('input', ()=>{ modGroupModalState.options[parseInt(inp.dataset.idx)].name = inp.value; }));
+  el.querySelectorAll('.mg-opt-name-en').forEach(inp=> inp.addEventListener('input', ()=>{ modGroupModalState.options[parseInt(inp.dataset.idx)].nameEn = inp.value; }));
   el.querySelectorAll('.mg-opt-price').forEach(inp=> inp.addEventListener('input', ()=>{ modGroupModalState.options[parseInt(inp.dataset.idx)].priceDelta = parseFloat(inp.value)||0; }));
   el.querySelectorAll('.mg-opt-max').forEach(inp=> inp.addEventListener('input', ()=>{ modGroupModalState.options[parseInt(inp.dataset.idx)].optionMax = inp.value===''?null:(parseInt(inp.value)||0); }));
   el.querySelectorAll('.mg-opt-simple-cost').forEach(inp=> inp.addEventListener('input', ()=>{ modGroupModalState.options[parseInt(inp.dataset.idx)].extraCost = parseFloat(inp.value)||0; }));
@@ -13600,8 +13607,9 @@ async function saveModGroup(){
   const options = modGroupModalState.options.filter(o=>o.name.trim());
   if(options.length === 0){ showToast('لازم تضيف خيار وحد على الأقل'); return; }
 
+  const nameEn = modGroupModalState.nameEn.trim();
   const groupData = {
-    name, type: modGroupModalState.type,
+    name, nameEn, type: modGroupModalState.type,
     max: modGroupModalState.type!=='single' ? (modGroupModalState.max||4) : 1,
     options
   };
@@ -13610,7 +13618,7 @@ async function saveModGroup(){
   rkBtnLoading(saveBtn, true);
   try {
     const sb = window.supabaseClient;
-    const groupRow = {business_id: CURRENT_PROFILE.business_id, name, type: groupData.type, max_select: groupData.max};
+    const groupRow = {business_id: CURRENT_PROFILE.business_id, name, name_en: nameEn || null, type: groupData.type, max_select: groupData.max};
     let groupId = editingModGroupId;
     if(editingModGroupId){
       const { error } = await sb.from('modifier_groups').update(groupRow).eq('id', editingModGroupId);
@@ -13624,7 +13632,7 @@ async function saveModGroup(){
     }
 
     const optionRows = options.map(o=>{
-      const row = {group_id: groupId, name: o.name, price_delta: o.priceDelta||0, cost_mode: o.costMode};
+      const row = {group_id: groupId, name: o.name, name_en: (o.nameEn||'').trim() || null, price_delta: o.priceDelta||0, cost_mode: o.costMode};
       if(o.costMode === 'stock' && o.stockLink){
         row.stock_item_id = STOCK_ITEM_ID_BY_NAME[o.stockLink.ingredient];
         row.stock_qty = o.stockLink.qty; row.stock_unit = o.stockLink.unit;
