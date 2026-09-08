@@ -4222,21 +4222,27 @@ let KITCHEN_TICKET_MODE = 'brief';
 /** الخطُّ كما يفهمه الكانفس. والمحرّكُ لا يعرف أسماءَ الخطوط ولا يحتاجها. */
 function receiptFontString(size, weight, family){
   return family === 'mono'
-    ? weight + ' ' + size + 'px "RakeenReceiptMono", monospace'
-    : weight + ' ' + size + 'px "RakeenReceipt", sans-serif';
+    /* وخطُّ الريال ثانياً في الترتيب لا أوّلاً: المتصفّحُ يلتمس كلَّ
+       محرفٍ في العائلات بالترتيب، فالعربيُّ من Tajawal و⃁ وحده منه --
+       وهو نفسُ ترتيب Skia في التطبيق. */
+    ? weight + ' ' + size + 'px "RakeenReceiptMono", "RakeenReceiptRiyal", monospace'
+    : weight + ' ' + size + 'px "RakeenReceipt", "RakeenReceiptRiyal", sans-serif';
 }
 
 /**
- * رمزُ الريال على الورقة: ﷼ -- محرفٌ واحد (U+FDFC).
+ * رمزُ الريال على الورقة: ⃁ (U+20C1).
  *
- * كان الويبُ يكتب «ريال» بالحروف والتطبيقُ يرسم ⃁، فالورقتان تختلفان
- * في العملة نفسِها. و⃁ يحتاج خطاً قائماً بذاته، ونسخةُ الويب منه
- * تُرسم معكوسةً فتُقلب بـtransform -- وهو ما لا تفعله لوحةُ الرسم.
+ * وقد جرّبتُ ﷼ (U+FDFC) قبله وظننتُه أسلم -- قِستُه في المتصفّح فبدا
+ * أنّ الخطَّ يملكه. وكان المتصفّحُ يستعيره من خطوط النظام ولا يقول.
+ * فقُرئ جدولُ cmap من ملفّات الخطوط: لا Tajawal يملكه ولا IBM Plex.
+ * ولو شُحن لَخرج مربّعاً فارغاً في كلّ سطرٍ ماليّ على الأيباد -- إذ لا
+ * شيءَ هناك يُستعار منه.
  *
- * و﷼ يملكه الخطّان كلاهما بغلافه الخاصّ (قِيس: بصمةُ بكسلاته تخالف
- * بصمةَ احتياطيّ النظام في كليهما)، ولا يحتاج قلباً ولا ملفاً زائداً.
+ * و⃁ في خطٍّ محزومٍ قائمٍ بذاته (SaudiRiyal)، يحمله العميلان كلاهما،
+ * ويحرسه اختبار (__tests__/receiptGlyphs.test.ts) يقرأ الملفّ لا
+ * المتصفّح.
  */
-const RECEIPT_RIYAL = '﷼';
+const RECEIPT_RIYAL = '⃁';
 
 /**
  * تنفيذٌ أعمى لأوامر المحرّك.
@@ -4314,7 +4320,8 @@ function ensureReceiptFonts(){
   const wants = [];
   ['400','600','700','800'].forEach(function(w){
     wants.push(document.fonts.load(w + ' 40px "RakeenReceipt"', sample));
-    wants.push(document.fonts.load(w + ' 40px "RakeenReceiptMono"', '0123456789.-+ ' + RECEIPT_RIYAL));
+    wants.push(document.fonts.load(w + ' 40px "RakeenReceiptMono"', '0123456789.-+'));
+    wants.push(document.fonts.load(w + ' 40px "RakeenReceiptRiyal"', RECEIPT_RIYAL));
   });
   // ولا يُوقف الطبعَ فشلُ التحميل: ورقةٌ بخطٍّ احتياطيّ خيرٌ من ورقةٍ
   // لم تُطبع. وإنّما يُنتظَر ما أمكن.

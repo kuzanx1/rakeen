@@ -27,7 +27,7 @@ import { buildReceiptFontProvider, measureTextWidthWeighted } from '../platform/
 import { rgbaToEscPosRasterLegacy } from '../domain/escposRaster';
 import { paintReceiptOps } from './receiptRenderer';
 
-const RIYAL = '﷼';
+const RIYAL = '⃁';
 
 export interface BenchRow {
   items: number;

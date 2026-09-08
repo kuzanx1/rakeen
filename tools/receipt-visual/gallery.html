@@ -11,6 +11,9 @@
 @font-face{font-family:'RakeenReceipt'; src:url('/fonts/tajawal/Tajawal-Bold.ttf') format('truetype'); font-weight:700 900; font-display:block;}
 @font-face{font-family:'RakeenReceiptMono'; src:url('/fonts/plex-mono/IBMPlexMono-Medium.ttf') format('truetype'); font-weight:400 550; font-display:block;}
 @font-face{font-family:'RakeenReceiptMono'; src:url('/fonts/plex-mono/IBMPlexMono-SemiBold.ttf') format('truetype'); font-weight:551 900; font-display:block;}
+/* خطُّ ⃁ -- ملفُّ التطبيق بعينه، لا نسخةُ الويب المعكوسة. */
+@font-face{font-family:'RakeenReceiptRiyal'; src:url('/fonts/saudi-riyal/SaudiRiyal-Regular.ttf') format('truetype'); font-weight:400 600; font-display:block;}
+@font-face{font-family:'RakeenReceiptRiyal'; src:url('/fonts/saudi-riyal/SaudiRiyal-Bold.ttf') format('truetype'); font-weight:700 900; font-display:block;}
 body{margin:0;background:#fff;font-family:sans-serif}
 figure{margin:0 0 24px}
 figcaption{font:12px monospace;padding:4px}
@@ -31,8 +34,8 @@ window.RECEIPT_THEME = 'classic';
 window.__renderAll = async function(){
   // الخطُّ العربيُّ يُحمَّل مجزّأً: بلا نصٍّ حقيقيّ لا تُجلب الجزئية،
   // فيُرسم بخطٍّ احتياطيّ وتخرج صورةٌ مرجعيةٌ ليست هي.
-  const sample = 'سبانيش لاتيه مقهى هبيّة الإجمالي ضريبة KITCHEN RECEIPT 0123456789.﷼';
-  for (const f of ['RakeenReceipt', 'RakeenReceiptMono']) {
+  const sample = 'سبانيش لاتيه مقهى هبيّة الإجمالي ضريبة KITCHEN RECEIPT 0123456789.⃁';
+  for (const f of ['RakeenReceipt', 'RakeenReceiptMono', 'RakeenReceiptRiyal']) {
     for (const w of ['400', '600', '700', '800']) {
       await document.fonts.load(w + ' 40px "' + f + '"', sample);
     }

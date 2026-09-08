@@ -67,6 +67,12 @@ body{
 @font-face{font-family:'RakeenReceipt'; src:url('/fonts/tajawal/Tajawal-Bold.ttf') format('truetype'); font-weight:700 900; font-display:block;}
 @font-face{font-family:'RakeenReceiptMono'; src:url('/fonts/plex-mono/IBMPlexMono-Medium.ttf') format('truetype'); font-weight:400 550; font-display:block;}
 @font-face{font-family:'RakeenReceiptMono'; src:url('/fonts/plex-mono/IBMPlexMono-SemiBold.ttf') format('truetype'); font-weight:551 900; font-display:block;}
+/* رمزُ الريال ⃁ لا يملكه Tajawal ولا IBM Plex -- خطٌّ قائمٌ بذاته يحمل
+   محرفاً واحداً يعنينا. وهو ملفُّ التطبيق بعينه (.ttf) لا نسخةُ الويب
+   (.woff2): تلك تُرسم معكوسةً فتحتاج قلباً بـtransform، ولوحةُ الرسم
+   لا تقلب محرفاً بمفرده. */
+@font-face{font-family:'RakeenReceiptRiyal'; src:url('/fonts/saudi-riyal/SaudiRiyal-Regular.ttf') format('truetype'); font-weight:400 600; font-display:block;}
+@font-face{font-family:'RakeenReceiptRiyal'; src:url('/fonts/saudi-riyal/SaudiRiyal-Bold.ttf') format('truetype'); font-weight:700 900; font-display:block;}
 
 /* Self-hosted Saudi Riyal sign (U+20C1) — same webfont/character as the
    dashboard's rkMoney(), so a total here reads with the same real currency
