@@ -165,8 +165,6 @@ export default function PrinterSettingsScreen({
   const update = (patch: Partial<PrinterProfile>) => setProfile(prev => ({ ...prev, ...patch }));
   const updateDrawer = (patch: Partial<PrinterProfile['drawerCapabilities']>) =>
     setProfile(prev => ({ ...prev, drawerCapabilities: { ...prev.drawerCapabilities, ...patch } }));
-  const updateCapabilities = (patch: Partial<PrinterProfile['capabilities']>) =>
-    setProfile(prev => ({ ...prev, capabilities: { ...prev.capabilities, ...patch } }));
 
   /** Feature Parity Pass -- Bluetooth/USB. Real device discovery -- never
    *  a text field for typing a MAC/UUID/device id, so a profile can only
@@ -301,6 +299,12 @@ export default function PrinterSettingsScreen({
       const withCapabilities: PrinterProfile = {
         ...profile,
         capabilities: { ...profile.capabilities, paperWidthPx: profile.paperWidthPx ?? profile.capabilities.paperWidthPx },
+        /* أمرُ رسم الصورة لم يعد يُسأل عنه، ويُمحى ممّن كان اختاره.
+           كان خياراً في الشاشة، والقيمةُ الأخرى تجعل الطابعةَ التي لا
+           تعرفها تطبع بايتاتِ الصورة حروفاً على الورق بيد الزبون --
+           وقد وقع. ولو أُخفي الخيارُ وحدَه لبقي جهازٌ اختاره عالقاً
+           عليه بلا طريقةٍ يرجع بها. */
+        rasterCommand: undefined,
       };
       await savePrinterProfile(withCapabilities);
       setSavedSnapshot(JSON.stringify(withCapabilities));
@@ -358,13 +362,6 @@ export default function PrinterSettingsScreen({
         </View>
       </Section>
 
-      <Section title="الطابعة">
-        <FieldLabel>العلامة التجارية (اختياري)</FieldLabel>
-        <TextInput style={styles.input} placeholderTextColor={colors.muted} value={profile.brand} onChangeText={t => update({ brand: t })} placeholder="مثال: Epson, Xprinter, Sunmi..." />
-        <FieldLabel>الطراز (اختياري)</FieldLabel>
-        <TextInput style={styles.input} placeholderTextColor={colors.muted} value={profile.model} onChangeText={t => update({ model: t })} placeholder="مثال: TM-T88VI" />
-      </Section>
-
       <Section title="طريقة التوصيل">
         <View style={styles.row}>
           {(['network', 'bluetooth', 'usb'] as PrinterTransportKind[]).map(t => {
@@ -400,7 +397,7 @@ export default function PrinterSettingsScreen({
               placeholderTextColor={colors.muted}
               value={profile.port != null ? String(profile.port) : ''}
               onChangeText={t => { const v = toLatinDigits(t); update({ port: v ? parseInt(v, 10) : undefined }); }}
-              placeholder="من ورقة إعدادات طابعتك"
+              placeholder="9100"
               keyboardType="number-pad"
             />
           </>
@@ -431,64 +428,6 @@ export default function PrinterSettingsScreen({
                 onPress={() => update({ paperWidthPx: preset.px })}
                 activeOpacity={0.8}>
                 <Text style={[styles.paperOptionText, active && styles.paperOptionTextActive]}>{preset.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-        <PosCheck
-          label="تدعم قص الورق تلقائيًا"
-          value={profile.capabilities.supportsCut}
-          onChange={v => updateCapabilities({ supportsCut: v })}
-        />
-      </Section>
-
-      <Section title="طراز الطابعة">
-        <View style={styles.rasterCards}>
-          {([
-            ['sunmi-nt310', 'SUNMI NT310',
-             'مُختبرة على جهاز حقيقي عندنا. تدعم رمز QR والباركود.'],
-            ['generic-80mm-arabic', 'طابعة ٨٠ مم تكتب عربي',
-             'لو جرّبت طابعتك وطلع العربي سليماً.'],
-            ['generic-58mm', 'طابعة ٥٨ مم',
-             'الورق الصغير. تتغيّر الأعمدة تلقائياً مع عرض الورق.'],
-            ['', 'غير معروفة (الأضمن)',
-             'ما جرّبناها. الفاتورة تُرسل صورة على كل الأحوال، فتطبع صحيحاً على أي طابعة.'],
-          ] as const).map(([id, name, desc]) => {
-            const active = (profile.capabilityProfileId ?? '') === id;
-            return (
-              <TouchableOpacity
-                key={id || 'unknown'}
-                style={[styles.rasterCard, active && styles.rasterCardActive]}
-                onPress={() => setProfile({ ...profile, capabilityProfileId: id || undefined })}
-                activeOpacity={0.8}>
-                <Text style={styles.rasterCardName}>{name}</Text>
-                <Text style={styles.rasterCardDesc}>{desc}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </Section>
-
-      <Section title="أمر رسم الصورة">
-        <FieldLabel>كيف تُرسَل صورة الفاتورة للطابعة</FieldLabel>
-        <View style={styles.rasterCards}>
-          {([
-            ['legacy', 'المتوافق — GS v 0 (الافتراضي)',
-             'كل طابعة ESC/POS تفهمه، وهو نفسه الذي يرسله ركين من المتصفح من أول يوم.'],
-            ['modern', 'الحديث — GS 8 L',
-             'أحدث في المواصفة، لكن ليست كل طابعة تعرفه. والتي لا تعرفه تطبع الصورة حروفاً ورموزاً بدل أن تتجاهلها. لا تختره إلا بعد أن تجرّبه وتقرأ الورقة بنفسك.'],
-          ] as const).map(([id, name, desc]) => {
-            // الافتراضي 'legacy' حين لا شيء محفوظ -- نفس ما يفعله
-            // encodeRaster في application/receiptRenderer.ts بالضبط.
-            const active = (profile.rasterCommand ?? 'legacy') === id;
-            return (
-              <TouchableOpacity
-                key={id}
-                style={[styles.rasterCard, active && styles.rasterCardActive]}
-                onPress={() => update({ rasterCommand: id })}
-                activeOpacity={0.8}>
-                <Text style={styles.rasterCardName}>{name}</Text>
-                <Text style={styles.rasterCardDesc}>{desc}</Text>
               </TouchableOpacity>
             );
           })}
@@ -541,19 +480,6 @@ export default function PrinterSettingsScreen({
           value={profile.drawerCapabilities.supported}
           onChange={v => updateDrawer({ supported: v })}
         />
-        {profile.drawerCapabilities.supported && (
-          <>
-            <FieldLabel>أمر فتح الدرج الخاص بطابعتك</FieldLabel>
-            <TextInput
-              style={styles.input}
-              placeholderTextColor={colors.muted}
-              value={profile.drawerCapabilities.kickCommandBase64 || ''}
-              onChangeText={t => updateDrawer({ kickCommandBase64: t || undefined })}
-              placeholder="اتركه فارغ — النظام يستخدم الأمر المعتاد"
-              autoCapitalize="none"
-            />
-          </>
-        )}
       </Section>
 
       {!validation.valid && (
