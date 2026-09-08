@@ -717,6 +717,9 @@ button{font-family:inherit; cursor:pointer;}
 }
 .rfm-seg-card:hover{border-color:var(--lime-deep);}
 .rfm-seg-card.selected{box-shadow:0 0 0 2px var(--lime-deep) inset;}
+/* بطاقةُ "الكل" -- محايدةٌ عمداً، فلا تُنافس ألوان الفئات، وتبقى
+   نقطةَ الرجوع الواضحة مهما كانت الفئةُ المختارة. */
+.rfm-seg-card.all{background:var(--surf1);}
 .rfm-seg-count{font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:22px;}
 .rfm-seg-name{font-size:11.5px; font-weight:800; margin-top:4px;}
 .rfm-seg-desc{font-size:10px; color:var(--muted); font-weight:600; margin-top:3px; line-height:1.5;}

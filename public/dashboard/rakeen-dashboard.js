@@ -4306,7 +4306,12 @@ const RFM_SEGMENT_META = {
 function renderRfmSegments(){
   const counts = {champions:0, loyal:0, potential:0, new:0, 'at-risk':0, lost:0};
   TOP_CUSTOMERS.forEach(c=>{ counts[rfmScoreCustomer(c).segment.key]++; });
-  document.getElementById('rfmSegmentGrid').innerHTML = Object.entries(RFM_SEGMENT_META).map(([key,meta])=>
+  const allCard = `<button type="button" class="rfm-seg-card all${custSegmentFilter===null?' selected':''}" data-seg="">
+      <div class="rfm-seg-count mono">${TOP_CUSTOMERS.length}</div>
+      <div class="rfm-seg-name">الكل</div>
+      <div class="rfm-seg-desc">كل العملاء، بلا تصنيف.</div>
+    </button>`;
+  document.getElementById('rfmSegmentGrid').innerHTML = allCard + Object.entries(RFM_SEGMENT_META).map(([key,meta])=>
     `<button type="button" class="rfm-seg-card ${key}${custSegmentFilter===key?' selected':''}" data-seg="${key}">
       <div class="rfm-seg-count mono">${counts[key]}</div>
       <div class="rfm-seg-name">${meta.label}</div>
@@ -4315,7 +4320,7 @@ function renderRfmSegments(){
   ).join('');
   document.querySelectorAll('.rfm-seg-card').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      const seg = btn.dataset.seg;
+      const seg = btn.dataset.seg || null;
       custSegmentFilter = custSegmentFilter === seg ? null : seg;
       renderRfmSegments();
       renderCustList();
@@ -4929,7 +4934,12 @@ function renderLoyMembersFilters(){
   const all = TOP_CUSTOMERS || [];
   const counts = { new:0, regular:0, dormant:0, vip:0 };
   all.forEach(c=>{ counts[loyMemberSegment(c)]++; });
-  el.innerHTML = Object.entries(LOY_SEGMENT_META).map(([key,meta])=>
+  const allCard = `<button type="button" class="rfm-seg-card all${LOY_MEMBERS_FILTER===null?' selected':''}" data-seg="">
+      <div class="rfm-seg-count mono">${all.length}</div>
+      <div class="rfm-seg-name">الكل</div>
+      <div class="rfm-seg-desc">كل الأعضاء، بلا تصنيف.</div>
+    </button>`;
+  el.innerHTML = allCard + Object.entries(LOY_SEGMENT_META).map(([key,meta])=>
     `<button type="button" class="rfm-seg-card ${key}${LOY_MEMBERS_FILTER===key?' selected':''}" data-seg="${key}">
       <div class="rfm-seg-count mono">${counts[key]}</div>
       <div class="rfm-seg-name">${meta.label}</div>
@@ -4938,7 +4948,7 @@ function renderLoyMembersFilters(){
   ).join('');
   el.querySelectorAll('.rfm-seg-card').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      const seg = btn.dataset.seg;
+      const seg = btn.dataset.seg || null;
       LOY_MEMBERS_FILTER = LOY_MEMBERS_FILTER === seg ? null : seg;
       renderLoyMembersFilters();
       renderLoyaltyMembers();
