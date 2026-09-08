@@ -3,6 +3,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import { getDiagnosticsSnapshot, retryStuckOrders, retryAllFailedPrintJobs, DiagnosticsSnapshot } from '../application/diagnosticsService';
+import { readErrors, readPerf } from '../infrastructure/perfLog';
 import { createStyles, fonts, Palette, radii, spacing, useTheme } from './theme';
 
 /** Status tri-color, derived from the live palette so it follows the
@@ -46,10 +47,15 @@ export default function DiagnosticsScreen() {
   const [snapshot, setSnapshot] = useState<DiagnosticsSnapshot | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionStatus, setActionStatus] = useState('');
+  const [perfRows, setPerfRows] = useState(() => readPerf());
+  const [errorRows, setErrorRows] = useState(() => readErrors());
 
   const refresh = useCallback(async () => {
     const s = await getDiagnosticsSnapshot();
     setSnapshot(s);
+    // يُقرآن مع كل تحديث: السجلُّ في الذاكرة، فالقراءةُ لا تكلّف شيئاً.
+    setPerfRows(readPerf());
+    setErrorRows(readErrors());
   }, []);
 
   useEffect(() => {
@@ -144,6 +150,45 @@ export default function DiagnosticsScreen() {
       <Section title="قائمة الطباعة">
         <Row label="قيد الطباعة أو الانتظار" color={UNKNOWN} value={String(snapshot.printQueueCounts.queued + snapshot.printQueueCounts.retrying + snapshot.printQueueCounts.printing)} />
         <Row label="فواتير ما طبعت" color={snapshot.printQueueCounts.failed === 0 ? OK : BAD} value={String(snapshot.printQueueCounts.failed)} last />
+      </Section>
+
+      {/**
+        * ما تأخّر وما رمى -- بأسمائه لا بوصفه.
+        *
+        * البطءُ يُبلَّغ عنه بالكلام: "أحياناً يعلّق". والكلامُ لا يُصلَح،
+        * والبحثُ عنه في الشيفرة تخمين. فيُعرض هنا ما تجاوز مئةً وعشرين
+        * ملّي وما رُمي بلا التقاط -- فيُقرأ السطرُ ويُرسل، ويُعرف الموضع.
+        */}
+      <Section title="ما تأخّر (فوق ١٢٠ ملّي)">
+        {perfRows.length === 0 ? (
+          <Row label="ما فيه شي بطيء انسجّل" color={OK} value="—" last />
+        ) : (
+          perfRows.map((e, i) => (
+            <Row
+              key={`${e.at}:${i}`}
+              label={`${e.label} — ${new Date(e.at).toLocaleTimeString()}`}
+              color={e.ms > 1500 ? BAD : UNKNOWN}
+              value={`${e.ms} ms`}
+              last={i === perfRows.length - 1}
+            />
+          ))
+        )}
+      </Section>
+
+      <Section title="أخطاء غير متوقّعة">
+        {errorRows.length === 0 ? (
+          <Row label="ما فيه أخطاء انسجّلت" color={OK} value="—" last />
+        ) : (
+          errorRows.map((e, i) => (
+            <Row
+              key={`${e.at}:${i}`}
+              label={`${e.where} — ${new Date(e.at).toLocaleTimeString()}`}
+              color={BAD}
+              value={e.message}
+              last={i === errorRows.length - 1}
+            />
+          ))
+        )}
       </Section>
 
       <View style={styles.actionsRow}>

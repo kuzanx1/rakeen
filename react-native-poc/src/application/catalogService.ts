@@ -1,4 +1,5 @@
 import * as kvStorage from '../infrastructure/mmkvStorage';
+import { measure } from '../infrastructure/perfLog';
 import { supabase } from '../infrastructure/supabaseClient';
 import { Category, Product, isServiceBusinessType } from '../domain/catalog';
 import { ModifierDefinition, ModifierOptionStockMap } from '../domain/cart';
@@ -372,6 +373,10 @@ async function refreshReceiptBranding(businessId: number, branchId: number | nul
 }
 
 export async function getReceiptBranding(businessId: number, branchId: number | null): Promise<ReceiptBranding> {
+  return measure('receipt:branding', () => getReceiptBrandingInner(businessId, branchId));
+}
+
+async function getReceiptBrandingInner(businessId: number, branchId: number | null): Promise<ReceiptBranding> {
   const key = brandingKey(businessId, branchId);
   if (brandingMemo[key]) {
     void refreshReceiptBranding(businessId, branchId).catch(() => {});

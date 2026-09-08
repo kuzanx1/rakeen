@@ -72,6 +72,7 @@ import type { Shift } from './src/domain/shift';
 import { isShiftStale } from './src/domain/shift';
 import StaleShiftScreen from './src/ui/StaleShiftScreen';
 import MyDisplayModal from './src/ui/MyDisplayModal';
+import { installGlobalErrorTaps } from './src/infrastructure/perfLog';
 import ErrorBoundary from './src/ui/ErrorBoundary';
 import { WelcomeSplash } from './src/ui/WelcomeSplash';
 import ShiftClosedScreen from './src/ui/ShiftClosedScreen';
@@ -1424,6 +1425,10 @@ function Shell(): React.JSX.Element {
 
 /** `.app.home-active` -- only Home reserves the order-panel column. */
 const HomeActiveContext = React.createContext<(active: boolean) => void>(() => {});
+
+/* لاقطُ الأخطاء يُركَّب مرّةً عند تحميل الوحدة، قبل أن يُرسم شيء --
+   ما يقع في الإقلاع نفسه يُلتقط كذلك. */
+installGlobalErrorTaps();
 
 export default function Root(): React.JSX.Element {
   return (

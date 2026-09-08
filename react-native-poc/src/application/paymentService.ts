@@ -1,3 +1,4 @@
+import { recordDuration } from '../infrastructure/perfLog';
 import { sqliteOrderQueueStorage } from '../infrastructure/sqliteOrderQueue';
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { openCashDrawer } from '../platform/cashDrawer';
@@ -70,6 +71,20 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 export async function completePaymentOperation(
+  payload: QueuedPayload,
+  options: { openDrawer: boolean },
+): Promise<PaymentOutcome> {
+  // يُقاس المسارُ كلُّه: هو الذي يقف عليه الكاشير، وأيُّ تأخّرٍ فيه
+  // يُشتكى منه بوصفٍ لا باسم. والسجلُّ يعطيه اسماً.
+  const _t0 = Date.now();
+  try {
+    return await runCompletePayment(payload, options);
+  } finally {
+    recordDuration('payment', Date.now() - _t0);
+  }
+}
+
+async function runCompletePayment(
   payload: QueuedPayload,
   options: { openDrawer: boolean },
 ): Promise<PaymentOutcome> {
