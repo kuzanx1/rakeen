@@ -5130,7 +5130,12 @@ async function openMemberDetailModal(customerId){
 
     <div class="panel-title" style="margin-bottom:8px;">رصيد الولاء</div>
     <div class="loy-adjust-box">${balanceSectionHtml}</div>
-    <p class="stock-qty-helper" style="margin:8px 0 16px;">كل تعديل يحتاج سببًا يُحفظ بالسجلّ تحت -- العميل ما يشوفه.</p>
+    <div class="loy-adjust-footer">
+      <p class="stock-qty-helper" style="margin:0;">كل تعديل يحتاج سببًا يُحفظ بالسجلّ تحت -- العميل ما يشوفه.</p>
+      ${(c.points > 0 || c.stamps > 0 || c.units > 0 || c.freeRewards > 0)
+        ? `<button type="button" class="loy-reset-btn" id="loyResetBalanceBtn">تصفير الرصيد بالكامل</button>`
+        : ''}
+    </div>
 
     <div class="panel-title" style="margin-bottom:8px;">سجلّ التعديلات</div>
     <div class="loy-history-list">${historyHtml}</div>
@@ -5146,6 +5151,20 @@ async function openMemberDetailModal(customerId){
 function closeMemberDetailModal(){
   document.getElementById('memberDetailModal').classList.remove('show');
   LOY_MEMBER_DETAIL_ID = null;
+}
+
+/** يدفع بطاقاتِ المحفظة المعلّقة الآن، بدل تركها للمكنسة كلَّ دقيقتين.
+ *  التعديلُ اليدويّ يلمس صفَّ العميل فيُعلَّم "معلَّق" تلقائياً (المِشغِّل
+ *  customers_wallet_pass_touch)؛ هذه تدفعه فوراً -- نفسُ ما يفعله حفظُ
+ *  تصميم البطاقة، فلا يفرق صاحبُ المطعم بين الاثنين. */
+async function pushWalletNow(){
+  try {
+    const { data: { session } } = await window.supabaseClient.auth.getSession();
+    if(!session) return null;
+    return await fetch('/api/dashboard/wallet-push-now', {
+      method: 'POST', headers: { Authorization: 'Bearer ' + session.access_token },
+    }).then(x => x.json());
+  } catch(_){ return null; }
 }
 
 /** ينفّذ تعديلاً واحداً: يسأل السبب، ينادي الدالّة، يحدّث كل مكانٍ يعرض
@@ -5185,10 +5204,12 @@ async function performLoyaltyAdjustment(customerId, kind, delta, triggerBtn){
     cust.freeRewards = data.freeRewardsAfter;
 
     logDashboardAudit(`${verb} ${qty} ${label} — ${cust.name}`);
-    showToast(data.rewardsGranted > 0 ? 'تم — ووصل لمكافأة جديدة 🎉' : 'تم حفظ التعديل');
-
     renderLoyaltyKpis(); // يحدّث القائمة والأعضاء معاً (انظر تعليقها)
     if(LOY_MEMBER_DETAIL_ID === customerId) openMemberDetailModal(customerId);
+
+    const pushed = await pushWalletNow();
+    const rewardNote = data.rewardsGranted > 0 ? ' — ووصل لمكافأة جديدة 🎉' : '';
+    showToast((pushed && pushed.sent > 0 ? 'تم — بطاقته تتحدّث الآن' : 'تم حفظ التعديل') + rewardNote);
   } catch(err){
     showToast('تعذّر التعديل: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
   } finally {
@@ -5196,7 +5217,52 @@ async function performLoyaltyAdjustment(customerId, kind, delta, triggerBtn){
   }
 }
 
+/** يصفّر رصيد ولاء عضوٍ واحد بالكامل -- نقاطه وزياراته ووحداته
+ *  ومكافآته الجاهزة معاً. لبطاقةٍ ضاعت واستُبدلت، أو عميلٍ طلب مسح
+ *  رصيده صراحةً -- لا لتصحيح غلطةٍ صغيرة (لذاك adjust_loyalty_balance
+ *  وحده يكفي). كلُّ رصيدٍ كان غير صفرٍ يُسجَّل سطراً بالسجلّ تحت. */
+async function performLoyaltyReset(customerId, triggerBtn){
+  const cust = TOP_CUSTOMERS.find(c=>c.id===customerId);
+  if(!cust) return;
+
+  const reason = await rkAsk({
+    title: `تصفير رصيد الولاء بالكامل — ${cust.name}`,
+    body: 'يُصفّر نقاطه وزياراته ووحداته ومكافآته الجاهزة معاً دفعةً واحدة. يُسجَّل بسجلّ العضو تحت، ولا يُراجَع تلقائياً.',
+    input: '',
+    maxlength: 120,
+    placeholder: 'مثال: بطاقة ضاعت واستُبدلت ببطاقة جديدة',
+    ok: 'تصفير الرصيد'
+  });
+  if(!reason) return;
+
+  if(triggerBtn) triggerBtn.disabled = true;
+  try {
+    const { data, error } = await window.supabaseClient.rpc('reset_loyalty_balance', {
+      p_customer_id: customerId, p_reason: reason
+    });
+    if(error) throw error;
+    if(!data || !data.ok){
+      showToast(LOY_ADJUST_ERRORS[(data && data.error)] || 'تعذّر التصفير');
+      return;
+    }
+
+    cust.points = 0; cust.stamps = 0; cust.units = 0; cust.freeRewards = 0;
+    logDashboardAudit(`صفّر رصيد الولاء — ${cust.name}`);
+    renderLoyaltyKpis();
+    if(LOY_MEMBER_DETAIL_ID === customerId) openMemberDetailModal(customerId);
+
+    const pushed = await pushWalletNow();
+    showToast(pushed && pushed.sent > 0 ? 'تم التصفير — بطاقته تتحدّث الآن' : 'تم تصفير الرصيد');
+  } catch(err){
+    showToast('تعذّر التصفير: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+  } finally {
+    if(triggerBtn) triggerBtn.disabled = false;
+  }
+}
+
 document.getElementById('memberDetailModalBody')?.addEventListener('click', (e)=>{
+  const resetBtn = e.target.closest('#loyResetBalanceBtn');
+  if(resetBtn){ performLoyaltyReset(LOY_MEMBER_DETAIL_ID, resetBtn); return; }
   const btn = e.target.closest('.loy-adjust-btn'); if(!btn) return;
   const kind = btn.dataset.kind;
   const dir = parseInt(btn.dataset.dir, 10);

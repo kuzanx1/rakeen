@@ -1,9 +1,14 @@
--- ركين — شغّلها مرّة واحدة في محرّر SQL الخاص بـ Supabase.
--- آمنةٌ لو انعادت (create or replace).
-
--- ============================================================
--- تصفير رصيد ولاء عضوٍ واحد دفعةً واحدة (نقاط/زيارات/وحدات/مكافآت)
--- ============================================================
+-- تصفير رصيد ولاء عضوٍ واحد، دفعةً واحدة.
+--
+-- كان التصحيح يمرّ رصيداً رصيداً عبر adjust_loyalty_balance -- مناسبٌ
+-- لغلطة كاشيرٍ صغيرة، لكن لا لعضوٍ يُطلب منه صفحةٌ بيضاء (بطاقة ضاعت
+-- واستُبدلت، أو عميلٌ طلب مسح رصيده). فبدل أربع ضغطاتٍ منفصلة على كل
+-- عدّاد حتى يصل صفراً، تصفيرٌ واحدٌ يُنهي الأربعة معاً.
+--
+-- والسببُ إلزاميٌّ هنا أيضاً، وكلُّ رصيدٍ كان غير صفرٍ يُسجَّل سطراً
+-- خاصّاً به في loyalty_adjustments بقيمته السالبة كاملةً -- فالسجلّ
+-- يبقى صادقاً: "كان عنده ٣ أكواب و٢ مكافأة، صُفِّرا معاً وهذا سببه"،
+-- لا سطرٌ غامضٌ يقول "تصفير" بلا رقمٍ يُقارَن.
 
 create or replace function reset_loyalty_balance(
   p_customer_id bigint,
@@ -22,6 +27,8 @@ begin
   if v_business_id is null then
     return jsonb_build_object('ok', false, 'error', 'no_business');
   end if;
+  -- نفسُ حارس adjust_loyalty_balance بالضبط: صاحبُ المطعم والمدير
+  -- دائماً، والموظفُ يحتاج صلاحيةً صريحة.
   if not has_permission('settings:edit') then
     return jsonb_build_object('ok', false, 'error', 'forbidden');
   end if;
@@ -55,6 +62,7 @@ begin
     values (v_business_id, p_customer_id, 'free_reward', -v_cust.loyalty_free_rewards, 0, v_reason, auth.uid());
   end if;
 
+  -- الرابعةُ معاً بتحديثٍ واحد -- لا أربع جولات ذهابٍ وإيابٍ للقاعدة.
   update customers set
     loyalty_points = 0,
     loyalty_visits = 0,
