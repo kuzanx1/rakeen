@@ -790,17 +790,7 @@ button{font-family:inherit; cursor:pointer;}
 }
 .loy-members-search input::placeholder{color:var(--muted); font-weight:600;}
 .loy-members-sort{min-width:160px; font-size:12.5px;}
-.loy-members-filters{display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;}
-.loy-members-filters button{
-  padding:8px 14px; min-height:36px; box-sizing:border-box; border-radius:var(--r-full);
-  border:1.5px solid var(--line); background:var(--card-bg); color:var(--muted);
-  font-weight:700; font-size:11.5px; white-space:nowrap;
-}
-.loy-members-filters button.active{
-  background:linear-gradient(135deg, var(--graphite), #262626); border-color:var(--graphite);
-  color:var(--lime); box-shadow:0 4px 14px rgba(0,0,0,0.18);
-}
-[data-theme="dark"] .loy-members-filters button.active{background:linear-gradient(135deg, #232323, #171717);}
+.loy-members-filters{margin-bottom:14px;}
 .loy-members-summary{font-size:11px; font-weight:700; color:var(--muted); margin-bottom:10px;}
 .loy-members-list{max-height:520px; overflow-y:auto;}
 
