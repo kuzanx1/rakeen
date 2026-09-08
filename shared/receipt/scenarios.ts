@@ -36,34 +36,56 @@ const BASE: ReceiptModel = {
   customMessage: 'شكراً لزيارتكم',
 };
 
-const R = (o: Partial<ReceiptModel> = {}): ReceiptModel => ({ ...BASE, ...o });
-
 const many = (n: number): ReceiptItem[] =>
   Array.from({ length: n }, (_, i) =>
     item({ name: `صنف ${i + 1}`, nameEn: `Item ${i + 1}`, qty: (i % 3) + 1, lineTotal: 12 * ((i % 3) + 1) }));
 
+/**
+ * الضريبةُ محتسبةٌ داخل السعر (١٥٪): فالمجموعُ الفرعيّ هو الإجماليّ،
+ * والضريبةُ حصّةٌ منه لا زيادةٌ عليه.
+ */
+const vatOf = (total: number): number => Math.round((total - total / 1.15) * 100) / 100;
+
+/** مجموعُ أصنافٍ مولَّدة -- حتى لا تُكتب الأرقامُ بالحدس. */
+const sumOf = (items: ReceiptItem[]): number =>
+  Math.round(items.reduce((n, it) => n + it.lineTotal, 0) * 100) / 100;
+
+/**
+ * ورقةٌ تُجمع أرقامُها.
+ *
+ * كانت الحالاتُ تُبدَّل أصنافُها ويُترك مجموعُها كما ورثته: صنفٌ
+ * بأربعةٍ وخمسين وإجماليٌّ بثمانيةَ عشر. والراسمُ سليم -- إنّما
+ * المرجعُ كاذب، ومن ينظر إليه ليحكم على الطباعة يشكّ فيما لا شكّ فيه.
+ */
+function withTotals(over: Partial<ReceiptModel>): ReceiptModel {
+  const model = { ...BASE, ...over };
+  const gross = sumOf(model.items);
+  const total = Math.round((gross - (model.discount || 0)) * 100) / 100;
+  return { ...model, subtotal: gross, total, vat: vatOf(total) };
+}
+
 export const RECEIPT_SCENARIOS: Array<[string, ReceiptModel]> = [
-  ['one-item', R()],
-  ['ten-items', R({ items: many(10), subtotal: 240, vat: 31.3, total: 240 })],
-  ['thirty-items', R({ items: many(30), subtotal: 720, vat: 93.9, total: 720 })],
-  ['long-arabic', R({ items: [item({ name: AR_LONG, nameEn: null, qty: 3, lineTotal: 54 })] })],
-  ['mixed-ar-en', R({ items: [item({ name: AR_LONG, nameEn: EN_LONG, qty: 2, lineTotal: 36 })] })],
-  ['many-mods', R({ items: [item({ mods: ['حليب شوفان', 'شوت إضافي', 'بدون سكر', 'ثلج قليل', 'كراميل مملّح'] })] })],
-  ['long-notes', R({
+  ['one-item', withTotals({})],
+  ['ten-items', withTotals({ items: many(10) })],
+  ['thirty-items', withTotals({ items: many(30) })],
+  ['long-arabic', withTotals({ items: [item({ name: AR_LONG, nameEn: null, qty: 3, lineTotal: 54 })] })],
+  ['mixed-ar-en', withTotals({ items: [item({ name: AR_LONG, nameEn: EN_LONG, qty: 2, lineTotal: 36 })] })],
+  ['many-mods', withTotals({ items: [item({ mods: ['حليب شوفان', 'شوت إضافي', 'بدون سكر', 'ثلج قليل', 'كراميل مملّح'] })] })],
+  ['long-notes', withTotals({
     items: [item({ note: 'اجعل القهوة ساخنة جداً وأضف الحليب على جانب الكوب بدون رغوة' })],
     orderNote: 'الطلب لشخصين، يرجى وضع كل مشروب في كيس منفصل مع مناديل إضافية',
   })],
-  ['discount', R({ subtotal: 240, discount: 36, vat: 26.61, total: 204 })],
-  ['refund', R({
+  ['discount', withTotals({ items: many(10), discount: 36 })],
+  ['refund', withTotals({
     metaLabel: 'إشعار دائن — استرجاع', refundOfOrder: '#1042',
     items: [item({ qty: 2, unitPrice: -18, lineTotal: -36 })],
-    subtotal: -36, vat: -4.7, total: -36, paymentMethodLabel: 'استرجاع كاش',
+    paymentMethodLabel: 'استرجاع كاش',
   })],
-  ['split-bill', R({
-    subtotal: 240, vat: 31.3, total: 240, change: 15.5,
-    paymentMethodLabel: 'مقسّمة · نقداً 120.00 ﷼ + شبكة 120.00 ﷼',
+  ['split-bill', withTotals({
+    items: many(10), change: 15.5,
+    paymentMethodLabel: 'مقسّمة · نقداً 114.00 ⃁ + شبكة 114.00 ⃁',
   })],
-  ['customer', R({ customerName: 'عبدالرحمن الشمري', customerPhone: '0557444227' })],
+  ['customer', withTotals({ customerName: 'عبدالرحمن الشمري', customerPhone: '0557444227' })],
 ];
 
 export const THEME_IDS = ['classic', 'compact', 'elegant', 'signature'] as const;
@@ -108,7 +130,7 @@ export function buildScenarios(): Scenario[] {
   for (const theme of THEME_IDS) {
     out.push({
       id: `receipt-58mm-${theme}`, doc: 'receipt',
-      model: R({ items: many(3), subtotal: 72, vat: 9.39, total: 72 }),
+      model: withTotals({ items: many(3) }),
       theme, width: PAPER.mm58,
     });
   }
