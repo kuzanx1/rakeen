@@ -8,6 +8,20 @@ require Pod::Executable.execute_command('node', ['-p',
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
 
+# لا موقعَ في كاميرا الكاشير.
+#
+# VisionCamera يربط CoreLocation ليَسِم الصورَ بموضع التقاطها، وهو
+# مفعَّلٌ عنده افتراضياً. ولا نلتقط صوراً أصلاً: الكاميرا هنا ماسحُ
+# باركودِ ولاءٍ وحده (src/ui/CardScanner.tsx).
+#
+# فرفضت أبل التسليمَ بلا نصِّ إذنٍ للموقع (ITMS-90683، البناء ٤٣). وأن
+# نكتب نصَّ إذنٍ لقدرةٍ لا نستعملها أسوأُ من أن نُطفئها: يبقى الاستدعاءُ
+# في الثنائيّة، ويُسأل عنه في المراجعة، ويقرأ الكاشيرُ يوماً أنّ صندوقَ
+# المحاسبة يريد موقعه.
+#
+# فتُطفأ، فلا يُترجَم الملفُّ أصلاً ولا يُسأل عنه.
+$VCEnableLocation = false
+
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil
   Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green

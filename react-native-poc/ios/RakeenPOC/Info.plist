@@ -53,6 +53,17 @@
 	     loading, not Network.framework sockets) and does not cover this. -->
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>يستخدم التطبيق الشبكة المحلية للاتصال بطابعة الإيصالات وفتح درج النقد.</string>
+	<!-- ولا مفتاحَ للموقع هنا.
+
+	     رفضت أبل البناءَ ٤٣ بـITMS-90683 تطلبه، وسببُه أنّ VisionCamera
+	     يربط CoreLocation ليَسِم الصورَ بموضعها. والكاميرا عندنا ماسحُ
+	     باركودٍ لا آلةُ تصوير، فأُطفئت القدرةُ من أصلها في Podfile
+	     ($VCEnableLocation = false) بدل أن يُكتب نصُّ إذنٍ لشيءٍ لا
+	     يقع: نصٌّ كهذا يبقى في الثنائيّة، ويُسأل عنه في المراجعة،
+	     ويقرأ الكاشيرُ يوماً أنّ صندوقَ المحاسبة يريد موقعه.
+
+	     فإن عاد التحذيرُ في بناءٍ لاحق فالخللُ في إطفاء العَلَم لا في
+	     غياب المفتاح؛ يُتحقَّق أوّلاً أنّ pod install أعاد التوليد. -->
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
