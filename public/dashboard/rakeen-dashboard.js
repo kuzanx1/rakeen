@@ -13671,7 +13671,12 @@ async function deleteModGroup(){
   const group = MODIFIER_GROUPS.find(g=>g.id===editingModGroupId);
   const usedBy = MENU_ITEMS.filter(m=>m.modifierGroupIds.includes(editingModGroupId));
   if(usedBy.length > 0){ showToast('ما تقدر تحذفها — مستخدمة في ' + usedBy.length + ' منتج. شيلها من المنتج أول.'); return; }
-  if(!window.confirm('متأكد إنك تبي تحذف مجموعة "' + (group ? group.name : 'الخيارات') + '"؟')) return;
+  const go = await rkAsk({
+    title: 'حذف مجموعة الخيارات',
+    body: 'متأكد إنك تبي تحذف مجموعة "' + escapeHtml(group ? group.name : 'الخيارات') + '"؟',
+    ok: 'احذف المجموعة', cancel: 'تراجع',
+  });
+  if(!go) return;
   try {
     const { error } = await window.supabaseClient.from('modifier_groups').delete().eq('id', editingModGroupId);
     if(error) throw error;
