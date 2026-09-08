@@ -46,6 +46,7 @@ var RakeenReceiptEngine = (() => {
     INVERT_BAR: () => INVERT_BAR,
     KITCHEN: () => KITCHEN,
     KITCHEN_SPACE: () => KITCHEN_SPACE,
+    LARGE_TYPE_ABOVE: () => LARGE_TYPE_ABOVE,
     LINE: () => LINE,
     LOGO: () => LOGO,
     ORDER_BOX: () => ORDER_BOX,
@@ -149,6 +150,7 @@ var RakeenReceiptEngine = (() => {
     bold: 800,
     mono: 500
   };
+  var LARGE_TYPE_ABOVE = 22;
   var SPACE = {
     /** سطرٌ عاديّ يتبع سطراً. */
     row: 1,

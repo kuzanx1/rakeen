@@ -57,3 +57,7 @@ ios/DerivedData/
 ios/.build/
 ios/App/Pods/
 ios/App/*.xcworkspace/xcuserdata/
+
+# فروقُ الانحدار البصريّ -- ناتجُ تشغيلٍ يُرفع مُرفَقاً في CI، لا يُلتزم.
+tools/receipt-visual/diff/
+tools/receipt-visual/.bench/
