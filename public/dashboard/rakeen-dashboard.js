@@ -10795,6 +10795,13 @@ function restaurantSettingsHtml(){
         <div class="rk-field"><label>اسم المطعم</label><input type="text" id="settingsRestName" value="${RESTAURANT_INFO.name}"></div>
         <div class="rk-field"><label>شعار المطعم ${helpIcon('يظهر بأعلى تقارير PDF، وبهوية مطعمك داخل لوحة التحكم.')}</label>${rkImageUploadHtml('settingsLogoInput', {currentUrl: BUSINESS_LOGO_URL, width:500, height:500, shape:'circle'})}</div>
       </div>
+      <div class="rk-field" style="margin-top:14px; max-width:260px;">
+        <label>معرّف الحساب ${helpIcon('رقمٌ ثابتٌ لحسابك عند ركين، لا يتكرر عند أي حسابٍ آخر. أعطه للدعم الفني عند أي طلب تعديل أو حذف أو استفسار على بياناتك -- الاسم أو رقم الجوال قد يتشابه مع حساباتٍ أخرى، وهذا الرقم لا.')}</label>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <input type="text" id="settingsBusinessIdDisplay" readonly value="${CURRENT_PROFILE.business_id}" class="mono">
+          <button class="rk-btn rk-btn-secondary rk-btn-md" id="copyBusinessIdBtn" type="button">نسخ</button>
+        </div>
+      </div>
     </div>
 
     <div class="rk-section">
@@ -10903,6 +10910,13 @@ function wireRestaurantSettings(){
     const input = document.getElementById('onlineBookingUrlDisplay');
     input.select();
     navigator.clipboard?.writeText(input.value).then(()=> rkBtnSuccess(copyBookingBtn, '✓ تم النسخ')).catch(()=> showToast('انسخه يدويًا من الحقل'));
+  });
+
+  const copyBizIdBtn = document.getElementById('copyBusinessIdBtn');
+  if(copyBizIdBtn) copyBizIdBtn.addEventListener('click', ()=>{
+    const input = document.getElementById('settingsBusinessIdDisplay');
+    input.select();
+    navigator.clipboard?.writeText(input.value).then(()=> rkBtnSuccess(copyBizIdBtn, '✓ تم النسخ')).catch(()=> showToast('انسخه يدويًا من الحقل'));
   });
 
   const bookingSaveBtn = document.getElementById('settingsOnlineBookingSaveBtn');
