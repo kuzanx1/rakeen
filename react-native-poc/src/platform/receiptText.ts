@@ -25,16 +25,22 @@ const RECEIPT_FONT_FAMILY = 'RakeenReceiptArabic';
  * واحد لا يملكه IBM Plex، فيأتي من هنا وحده -- وبقية النص لا تتغيّر.
  */
 const RIYAL_FONT_FAMILY = 'RakeenRiyal';
+/** عائلةُ المبالغ -- خاناتٌ ثابتةُ العرض فتصطفّ الفاصلةُ العشرية. */
+const MONO_FONT_FAMILY = 'RakeenReceiptMono';
 
 export function buildReceiptFontProvider(
   regular: SkTypeface | null,
   bold: SkTypeface | null,
   riyalRegular?: SkTypeface | null,
   riyalBold?: SkTypeface | null,
+  monoRegular?: SkTypeface | null,
+  monoBold?: SkTypeface | null,
 ): SkTypefaceFontProvider {
   const provider = Skia.TypefaceFontProvider.Make();
   if (riyalRegular) provider.registerFont(riyalRegular, RIYAL_FONT_FAMILY);
   if (riyalBold) provider.registerFont(riyalBold, RIYAL_FONT_FAMILY);
+  if (monoRegular) provider.registerFont(monoRegular, MONO_FONT_FAMILY);
+  if (monoBold) provider.registerFont(monoBold, MONO_FONT_FAMILY);
   // Both weights register under the SAME family name -- pushStyle's
   // fontStyle.weight below is what picks Regular vs. Bold at paint time,
   // matching how a real font family with multiple weights works.
@@ -182,6 +188,20 @@ export function measureAndWrapText(
  * وسطُه على الخطّ المطلوب -- بارتفاعه المقيس هو، لا بتقديرٍ من حجم
  * الخطّ: العربيةُ تمتدّ فوق الخطّ وتحته بما لا يُخمَّن.
  */
+/**
+ * ترتيبُ العائلات لمحرفٍ محرفاً.
+ *
+ * Skia تبحث في العائلات بالترتيب لكلّ محرفٍ على حدة، فما لم تجده في
+ * الأولى التمسته في الثانية. فالمبالغُ تبدأ بالأحاديّ وتقع أرقامُها
+ * فيه، والعربيُّ إن وقع في سطرٍ أحاديّ رجع إلى الخطّ العربيّ -- ولا
+ * يخرج محرفٌ مربّعاً فارغاً.
+ */
+function familiesFor(family?: 'sans' | 'mono'): string[] {
+  return family === 'mono'
+    ? [MONO_FONT_FAMILY, RECEIPT_FONT_FAMILY, RIYAL_FONT_FAMILY]
+    : [RECEIPT_FONT_FAMILY, RIYAL_FONT_FAMILY];
+}
+
 export function paintTextAnchored(
   canvas: SkCanvas,
   provider: SkTypefaceFontProvider,
@@ -194,6 +214,8 @@ export function paintTextAnchored(
     weight: number;
     align: TextAlignment;
     direction: TextDir;
+    /** 'mono' للمبالغ وحدها -- خاناتٌ ثابتةُ العرض فتصطفّ. */
+    family?: 'sans' | 'mono';
     color?: string;
     letterSpacing?: number;
   },
@@ -222,7 +244,7 @@ export function paintTextAnchored(
   );
   builder.pushStyle({
     color: Skia.Color(opts.color ?? '#000000'),
-    fontFamilies: [RECEIPT_FONT_FAMILY, RIYAL_FONT_FAMILY],
+    fontFamilies: familiesFor(opts.family),
     fontSize: opts.size,
     fontStyle: { weight: opts.weight >= 800 ? FontWeight.ExtraBold : opts.weight >= 700 ? FontWeight.Bold : FontWeight.Normal },
     ...(opts.letterSpacing ? { letterSpacing: opts.letterSpacing } : {}),
@@ -239,6 +261,17 @@ export function measureTextWidthWeighted(
   text: string,
   size: number,
   weight: number,
+  family?: 'sans' | 'mono',
 ): number {
-  return measureTextWidth(provider, text, size, weight >= 700);
+  const builder = Skia.ParagraphBuilder.Make({ textDirection: TextDirection.RTL }, provider);
+  builder.pushStyle({
+    color: Skia.Color('#000000'),
+    fontFamilies: familiesFor(family),
+    fontSize: size,
+    fontStyle: { weight: weight >= 800 ? FontWeight.ExtraBold : weight >= 700 ? FontWeight.Bold : FontWeight.Normal },
+  });
+  builder.addText(text);
+  const paragraph = builder.build();
+  paragraph.layout(100000);
+  return paragraph.getLongestLine();
 }

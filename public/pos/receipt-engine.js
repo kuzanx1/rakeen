@@ -42,7 +42,10 @@ var RakeenReceiptEngine = (() => {
     CSS_DPI: () => CSS_DPI,
     DASH: () => DASH,
     DEFAULT_PAPER_WIDTH: () => DEFAULT_PAPER_WIDTH,
+    HEART: () => HEART,
     INVERT_BAR: () => INVERT_BAR,
+    KITCHEN: () => KITCHEN,
+    KITCHEN_SPACE: () => KITCHEN_SPACE,
     LINE: () => LINE,
     LOGO: () => LOGO,
     ORDER_BOX: () => ORDER_BOX,
@@ -50,6 +53,8 @@ var RakeenReceiptEngine = (() => {
     PAPER: () => PAPER,
     PRINTER_DPI: () => PRINTER_DPI,
     QR_MAX: () => QR_MAX,
+    SHIFT: () => SHIFT,
+    SHIFT_SPACE: () => SHIFT_SPACE,
     SPACE: () => SPACE,
     THEMES: () => THEMES,
     TOTAL_BOX: () => TOTAL_BOX,
@@ -57,9 +62,13 @@ var RakeenReceiptEngine = (() => {
     TYPE: () => TYPE,
     WEIGHT: () => WEIGHT,
     bi: () => bi,
+    createContext: () => createContext,
     dotsFromCss: () => dotsFromCss,
     dotsFromMm: () => dotsFromMm,
+    layoutKitchenTicket: () => layoutKitchenTicket,
     layoutReceipt: () => layoutReceipt,
+    layoutShiftReport: () => layoutShiftReport,
+    leaderDots: () => leaderDots,
     stubMeasure: () => stubMeasure,
     themeTokens: () => themeTokens
   });
@@ -318,18 +327,229 @@ var RakeenReceiptEngine = (() => {
   function themeTokens(id) {
     return THEMES[id || ""] || THEMES.classic;
   }
+  var KITCHEN = {
+    /** وحدةُ الإيقاع -- أوسعُ من الفاتورة، فالسطرُ يُقرأ من بعيد. */
+    line: 36,
+    /** «KITCHEN RECEIPT» -- يصغر حين يعلوه شعار. */
+    titleWithLogo: 24,
+    titleAlone: 32,
+    branch: 18,
+    date: 16,
+    /** نوعُ الطلب: محلي، سفري، توصيل. */
+    meta: 20,
+    /** الرقمُ الذي يُنادى به -- جهازُ النداء إن وُجد، وإلّا رقمُ الطلب.
+     *  ولا يجتمعان: رقمان كبيران متجاوران يجعلان القارئَ يتردّد أيَّهما
+     *  ينادي، وهو واقفٌ في زحام. */
+    callLabel: 16,
+    pagerNumber: 44,
+    orderNumber: 40,
+    /** الصنفُ وكميتُه -- أكبرُ نصٍّ يُقرأ في العمل. */
+    item: 26,
+    /** الإضافاتُ والملاحظات. */
+    sub: 18,
+    /** «طبعها» في الأسفل. */
+    by: 16,
+    /** «بالعافية عليكم». */
+    blessing: 22,
+    logoWidth: 0.34,
+    /** إزاحةُ الإضافات عن حافّة الاسم -- تُظهرها تابعةً له. */
+    subIndent: 14,
+    heartSize: 0.72,
+    heartGap: 0.42
+  };
+  var KITCHEN_SPACE = {
+    afterLogo: 0.35,
+    beforeCall: 0.2,
+    afterRule: 0.6,
+    itemLine: 0.9,
+    subLine: 0.7,
+    afterItem: 0.3,
+    beforeBy: 0.15,
+    beforeBlessing: 0.35,
+    afterBlessing: 0.9
+  };
+  var SHIFT = {
+    line: 32,
+    businessName: 30,
+    branch: 19,
+    title: 20,
+    titleEn: 15,
+    date: 16,
+    /** الكاشيرُ ووقتُ البدء. */
+    meta: 17,
+    metaSmall: 16,
+    /** عناوينُ الأقسام: المبيعات، طرق الدفع، الصندوق. */
+    sectionLabel: 16,
+    row: 18,
+    /** صافي المبيعات -- خلاصةُ قسم المبيعات. */
+    net: 20,
+    /** الفرق -- السطرُ الوحيد الذي يُفتح عليه تحقيق، فله إطارُه. */
+    variance: 22,
+    counts: 17,
+    signature: 15
+  };
+  var SHIFT_SPACE = {
+    afterRule: 0.6,
+    beforeTitle: 0.2,
+    afterVariance: 0.35,
+    aroundSignature: 0.5
+  };
+  var HEART = {
+    /** ارتفاعُه من عرضه. */
+    aspect: 0.9,
+    /** أخفضُ نقطةٍ فيه -- طرفُه الأسفل. */
+    bottom: 0.42,
+    /** الانخفاضُ بين الفصّين. */
+    dip: 0.18,
+    /** مقبضا المنحنى الخارجيّ. */
+    c1x: 0.62,
+    c1y: 0.05,
+    /** مقبضا المنحنى الداخليّ. */
+    c2x: 0.3,
+    c2y: 0.62
+  };
+
+  // shared/receipt/context.ts
+  var ARABIC = /[؀-ۿ]/;
+  function createContext(opts) {
+    var _a;
+    const ops = [];
+    const { width, line, measure } = opts;
+    const density = (_a = opts.density) != null ? _a : 1;
+    const ctx = {
+      ops,
+      width,
+      contentWidth: width - PAD * 2,
+      y: PAD + line / 2,
+      line,
+      gap: (n) => line * n * density,
+      text(t, x, size, weight, family, align, dir, o) {
+        var _a2;
+        ops.push(__spreadValues({
+          op: "text",
+          x,
+          y: (_a2 = o == null ? void 0 : o.at) != null ? _a2 : ctx.y,
+          text: String(t),
+          size,
+          weight,
+          family,
+          align,
+          dir,
+          color: (o == null ? void 0 : o.color) || "ink"
+        }, (o == null ? void 0 : o.letterSpacing) ? { letterSpacing: o.letterSpacing } : {}));
+      },
+      rect(x, y, w, h, color = "ink") {
+        ops.push({ op: "rect", x, y, w, h, color });
+      },
+      measure,
+      /**
+       * اللفُّ داخل عرضٍ معيَّن.
+       *
+       * وmaxW ليس عرضَ الورقة دائماً: اسمُ الصنف يلتفّ في عموده هو، وإلّا
+       * زحف على الكمية والسعر وقُرئ متداخلاً.
+       */
+      wrap(t, size, weight, family, maxW) {
+        const breakLong = (word) => {
+          if (measure(word, size, weight, family) <= maxW) return [word];
+          const out = [];
+          let piece = "";
+          for (const ch of word) {
+            if (piece && measure(piece + ch, size, weight, family) > maxW) {
+              out.push(piece);
+              piece = ch;
+            } else {
+              piece += ch;
+            }
+          }
+          if (piece) out.push(piece);
+          return out;
+        };
+        const words = [];
+        for (const w of String(t).split(" ")) words.push(...breakLong(w));
+        const lines = [];
+        let cur = "";
+        for (const w of words) {
+          const test = cur ? cur + " " + w : w;
+          if (measure(test, size, weight, family) > maxW && cur) {
+            lines.push(cur);
+            cur = w;
+          } else {
+            cur = test;
+          }
+        }
+        if (cur) lines.push(cur);
+        return lines.length > 0 ? lines : [""];
+      },
+      centerText(t, size, bold, step) {
+        ctx.text(t, width / 2, size, bold ? WEIGHT.bold : WEIGHT.regular, "sans", "center", "rtl");
+        ctx.y += ctx.gap(step != null ? step : size > 22 ? 1.3 : 1);
+      },
+      /** عربيٌّ يميناً ورقمٌ يساراً -- وهو ترتيبُ كلّ سطور الحساب. */
+      rowText(leftMono, rightArabic, size, bold, step) {
+        ctx.text(rightArabic, width - PAD, size, bold ? WEIGHT.bold : WEIGHT.regular, "sans", "right", "rtl");
+        if (leftMono) ctx.text(leftMono, PAD, size, WEIGHT.mono, "mono", "left", "ltr");
+        ctx.y += ctx.gap(step != null ? step : 1);
+      },
+      rule(after) {
+        ctx.rect(PAD, ctx.y, ctx.contentWidth, BORDER.rule);
+        ctx.y += ctx.gap(after);
+      },
+      /**
+       * خطٌّ متقطّع.
+       *
+       * ولا رماديَّ بديلاً عنه: اللوحةُ تُحوَّل إلى لونين قبل الطابعة
+       * (إضاءةٌ دون ١٦٠)، فخطٌّ رماديٌّ رفيع يُنعَّم إلى ١٩٥ فيظهر في
+       * المعاينة ولا يُطبع أصلاً.
+       */
+      dash(y, on, off, thickness = BORDER.rule) {
+        ops.push({ op: "dash", y, x1: PAD, x2: width - PAD, on, off, thickness });
+      },
+      /** شريطٌ أسودُ بكتابةٍ بيضاء: أقوى تمييزٍ تقدر عليه طابعةٌ بلونٍ واحد. */
+      invertBar(t, size, after) {
+        const h = Math.round(size * INVERT_BAR.height);
+        ctx.rect(PAD * INVERT_BAR.inset, ctx.y - h / 2, width - PAD, h);
+        ctx.text(t, width / 2, size, WEIGHT.bold, "sans", "center", "rtl", { color: "paper" });
+        ctx.y += h / 2 + ctx.gap(after);
+      },
+      /** حروفٌ متباعدةٌ وسطية -- ولا تُباعد العربيةُ فحروفُها متّصلة. */
+      spacedText(t, size, bold, step) {
+        const ls = ARABIC.test(t) ? 0 : Math.round(size * TRACKING);
+        ctx.text(t, width / 2, size, bold ? WEIGHT.bold : WEIGHT.regular, "sans", "center", "rtl", { letterSpacing: ls });
+        ctx.y += ctx.gap(step != null ? step : size > 22 ? 1.3 : 1);
+      },
+      /**
+       * إطارٌ من أربعة أشرطةٍ ممتلئة لا خطٌّ مرسوم.
+       *
+       * الرأسُ الحراريُّ يطبع الخطَّ الرفيع متفاوتاً -- يظهر هنا ويسقط
+       * هناك -- والشريطُ الممتلئ يخرج نظيفاً.
+       */
+      box(x, y, w, h, thickness) {
+        ctx.rect(x, y, w, thickness);
+        ctx.rect(x, y + h - thickness, w, thickness);
+        ctx.rect(x, y, thickness, h);
+        ctx.rect(x + w - thickness, y, thickness, h);
+      },
+      heart(cx, cy, size) {
+        ops.push({ op: "glyph", shape: "heart", cx, cy, size });
+      }
+    };
+    return ctx;
+  }
+  function leaderDots(ctx, from, to) {
+    for (let x = from; x < to; x += DASH.leader.step) {
+      ctx.rect(x, ctx.y - DASH.leader.size / 2, DASH.leader.size, DASH.leader.size);
+    }
+  }
 
   // shared/receipt/layout.ts
   function bi(ar, en) {
     return ar + " · " + en;
   }
-  var ARABIC = /[؀-ۿ]/;
   function layoutReceipt(input) {
     const { receipt, measure, paperWidth: width, currency, logo, qr } = input;
     const th = themeTokens(input.theme);
-    const ops = [];
-    const contentWidth = width - PAD * 2;
-    const gap = (n) => LINE * n * th.density;
+    const ctx = createContext({ width, line: LINE, measure, density: th.density });
+    const { ops, contentWidth, gap, text, rect, wrap, centerText, rowText, spacedText } = ctx;
     const sz = (n) => Math.round(n * th.typeScale);
     let logoW = 0;
     let logoH = 0;
@@ -340,126 +560,51 @@ var RakeenReceiptEngine = (() => {
       logoW = w0 * ratio > capH ? Math.round(capH / ratio) : w0;
       logoH = Math.round(logoW * ratio);
     }
-    let y = logoW > 0 ? PAD * LOGO.topPad : PAD + LINE / 2;
-    const text = (t, x, size, weight, family, align, dir, opts) => {
-      var _a;
-      ops.push(__spreadValues({
-        op: "text",
-        x,
-        y: (_a = opts == null ? void 0 : opts.at) != null ? _a : y,
-        text: String(t),
-        size,
-        weight,
-        family,
-        align,
-        dir,
-        color: (opts == null ? void 0 : opts.color) || "ink"
-      }, (opts == null ? void 0 : opts.letterSpacing) ? { letterSpacing: opts.letterSpacing } : {}));
-    };
-    const rect = (x, ry, w, h, color = "ink") => {
-      ops.push({ op: "rect", x, y: ry, w, h, color });
-    };
-    const wrap = (t, size, weight, family, maxW) => {
-      const words = String(t).split(" ");
-      const lines = [];
-      let cur = "";
-      for (const w of words) {
-        const test = cur ? cur + " " + w : w;
-        if (measure(test, size, weight, family) > maxW && cur) {
-          lines.push(cur);
-          cur = w;
-        } else {
-          cur = test;
-        }
-      }
-      if (cur) lines.push(cur);
-      return lines;
-    };
-    const centerText = (t, size, bold) => {
-      text(t, width / 2, size, bold ? WEIGHT.bold : WEIGHT.regular, "sans", "center", "rtl");
-      y += gap(size > 22 ? SPACE.rowLarge : SPACE.row);
-    };
-    const rowText = (leftMono, rightArabic, size, bold) => {
-      text(rightArabic, width - PAD, size, bold ? WEIGHT.bold : WEIGHT.regular, "sans", "right", "rtl");
-      if (leftMono) text(leftMono, PAD, size, WEIGHT.mono, "mono", "left", "ltr");
-      y += gap(SPACE.row);
-    };
+    if (logoW > 0) ctx.y = PAD * LOGO.topPad;
     const divider = () => {
       const mode = th.rule;
       if (mode === "none") {
-        y += gap(SPACE.ruleless);
+        ctx.y += gap(SPACE.ruleless);
         return;
       }
       if (mode === "bar") {
-        rect(PAD, y - BORDER.bar / 2, contentWidth, BORDER.bar);
-        y += gap(SPACE.afterBar);
+        rect(PAD, ctx.y - BORDER.bar / 2, contentWidth, BORDER.bar);
+        ctx.y += gap(SPACE.afterBar);
         return;
       }
       if (mode === "dotted") {
-        ops.push({
-          op: "dash",
-          y: Math.round(y) + 0.5,
-          x1: PAD,
-          x2: width - PAD,
-          on: DASH.rule.on,
-          off: DASH.rule.off,
-          thickness: BORDER.rule
-        });
-        y += gap(SPACE.afterRule);
+        ctx.dash(Math.round(ctx.y) + 0.5, DASH.rule.on, DASH.rule.off);
+        ctx.y += gap(SPACE.afterRule);
         return;
       }
-      rect(PAD, y, contentWidth, BORDER.rule);
-      y += gap(SPACE.afterRule);
+      ctx.rule(SPACE.afterRule);
     };
     const hairline = () => {
-      y += gap(SPACE.hairlineAbove);
-      ops.push({
-        op: "dash",
-        y: Math.round(y) + 0.5,
-        x1: PAD,
-        x2: width - PAD,
-        on: DASH.hairline.on,
-        off: DASH.hairline.off,
-        thickness: BORDER.rule
-      });
-      y += gap(SPACE.hairlineBelow);
+      ctx.y += gap(SPACE.hairlineAbove);
+      ctx.dash(Math.round(ctx.y) + 0.5, DASH.hairline.on, DASH.hairline.off);
+      ctx.y += gap(SPACE.hairlineBelow);
     };
-    const invertBar = (t, size) => {
-      const h = Math.round(size * INVERT_BAR.height);
-      rect(PAD * INVERT_BAR.inset, y - h / 2, width - PAD, h);
-      text(t, width / 2, size, WEIGHT.bold, "sans", "center", "rtl", { color: "paper" });
-      y += h / 2 + gap(SPACE.afterInvert);
-    };
-    const spacedText = (t, size, bold) => {
-      const ls = ARABIC.test(t) ? 0 : Math.round(size * TRACKING);
-      text(t, width / 2, size, bold ? WEIGHT.bold : WEIGHT.regular, "sans", "center", "rtl", { letterSpacing: ls });
-      y += gap(size > 22 ? SPACE.rowLarge : SPACE.row);
-    };
+    const invertBar = (t, size) => ctx.invertBar(t, size, SPACE.afterInvert);
     const leaderRow = (name, price, size, bold) => {
-      var _a;
       const weight = bold ? WEIGHT.bold : WEIGHT.regular;
       const priceW2 = measure(price, size, WEIGHT.regular, "mono");
       const room = contentWidth - priceW2 - DASH.leader.clearance * 2;
       const lines = wrap(name, size, weight, "sans", room);
       lines.slice(0, -1).forEach((line) => {
         text(line, width - PAD, size, weight, "sans", "right", "rtl");
-        y += gap(SPACE.row);
+        ctx.y += gap(SPACE.row);
       });
-      const last = (_a = lines[lines.length - 1]) != null ? _a : name;
+      const last = lines[lines.length - 1];
       text(last, width - PAD, size, weight, "sans", "right", "rtl");
       text(price, PAD, size, WEIGHT.regular, "mono", "left", "ltr");
       const nameW2 = measure(last, size, weight, "sans");
-      const from = PAD + priceW2 + DASH.leader.clearance;
-      const to = width - PAD - nameW2 - DASH.leader.clearance;
-      for (let x = from; x < to; x += DASH.leader.step) {
-        rect(x, y - DASH.leader.size / 2, DASH.leader.size, DASH.leader.size);
-      }
-      y += gap(SPACE.row);
+      leaderDots(ctx, PAD + priceW2 + DASH.leader.clearance, width - PAD - nameW2 - DASH.leader.clearance);
+      ctx.y += gap(SPACE.row);
     };
     const money = (n) => n.toFixed(2) + " " + currency;
     if (logoW > 0) {
-      ops.push({ op: "image", ref: "logo", x: (width - logoW) / 2, y, w: logoW, h: logoH });
-      y += logoH + LINE * SPACE.afterLogo;
+      ops.push({ op: "image", ref: "logo", x: (width - logoW) / 2, y: ctx.y, w: logoW, h: logoH });
+      ctx.y += logoH + LINE * SPACE.afterLogo;
     }
     if (th.headerBand) divider();
     const nameShown = receipt.showBusinessName !== false || logoW <= 0;
@@ -470,18 +615,18 @@ var RakeenReceiptEngine = (() => {
     if (whereLine) centerText(whereLine, sz(TYPE.where), false);
     else if (receipt.branchName) centerText(receipt.branchName, sz(TYPE.branchOnly), false);
     if (receipt.vatNumber) {
-      y += gap(SPACE.beforeZatca);
+      ctx.y += gap(SPACE.beforeZatca);
       centerText(bi("فاتورة ضريبية مبسطة", "Simplified Tax Invoice"), sz(TYPE.zatcaHeading), true);
       centerText(bi("الرقم الضريبي", "VAT No") + ": " + receipt.vatNumber, sz(TYPE.zatcaVatNo), false);
     }
-    y += gap(SPACE.beforeOrderBox);
+    ctx.y += gap(SPACE.beforeOrderBox);
     if (th.orderStyle === "invert") {
       invertBar(bi("رقم الطلب", "Order No") + "   " + receipt.orderNumber, sz(TYPE.orderInvert));
     } else if (th.orderStyle === "plain") {
       centerText(bi("رقم الطلب", "Order") + ": " + receipt.orderNumber, sz(TYPE.orderPlain), true);
     } else if (th.orderStyle === "spaced") {
       spacedText(bi("رقم الطلب", "Order No"), sz(TYPE.orderSpacedLabel), false);
-      y -= gap(ORDER_BOX.liftY / 2);
+      ctx.y -= gap(ORDER_BOX.liftY / 2);
       spacedText(receipt.orderNumber, sz(TYPE.orderSpacedNumber), true);
     } else {
       const labelSz = sz(TYPE.orderLabel);
@@ -491,12 +636,9 @@ var RakeenReceiptEngine = (() => {
       const boxH = padIn + labelSz + gapIn + numSz + padIn;
       const boxW = Math.round(contentWidth * ORDER_BOX.width);
       const boxX = Math.round((width - boxW) / 2);
-      const boxTop = y - LINE * ORDER_BOX.liftY;
+      const boxTop = ctx.y - LINE * ORDER_BOX.liftY;
       const bw = BORDER.box;
-      rect(boxX, boxTop, boxW, bw);
-      rect(boxX, boxTop + boxH - bw, boxW, bw);
-      rect(boxX, boxTop, bw, boxH);
-      rect(boxX + boxW - bw, boxTop, bw, boxH);
+      ctx.box(boxX, boxTop, boxW, boxH, bw);
       text(
         bi("رقم الطلب", "Order No"),
         width / 2,
@@ -517,11 +659,11 @@ var RakeenReceiptEngine = (() => {
         "ltr",
         { at: boxTop + padIn + labelSz + gapIn + numSz * ORDER_BOX.baseline }
       );
-      y = boxTop + boxH;
+      ctx.y = boxTop + boxH;
     }
-    y += gap(SPACE.afterOrderBox);
+    ctx.y += gap(SPACE.afterOrderBox);
     centerText(receipt.dateLabel, sz(TYPE.date), false);
-    y += gap(SPACE.beforeDate);
+    ctx.y += gap(SPACE.beforeDate);
     divider();
     if (th.sectionLabels) spacedText(bi("الطلب", "ORDER"), sz(TYPE.sectionLabel), true);
     const metaSz = sz(TYPE.meta);
@@ -553,10 +695,10 @@ var RakeenReceiptEngine = (() => {
       }
       const nameSz = sz(TYPE.itemName);
       const nameOnly = it.nameEn ? it.name + " | " + it.nameEn : it.name;
-      const firstY = y;
+      const firstY = ctx.y;
       wrap(nameOnly, nameSz, WEIGHT.medium, "sans", nameW).forEach((line) => {
         text(line, nameRight, nameSz, WEIGHT.medium, "sans", "right", "rtl");
-        y += gap(SPACE.itemNameLine);
+        ctx.y += gap(SPACE.itemNameLine);
       });
       const numSz = sz(TYPE.itemNumeric);
       text(String(it.qty), width - PAD, numSz, WEIGHT.medium, "sans", "right", "ltr", { at: firstY });
@@ -565,13 +707,13 @@ var RakeenReceiptEngine = (() => {
       mods.forEach((m) => {
         wrap("— " + m, subSz, WEIGHT.regular, "sans", nameW).forEach((line) => {
           text(line, nameRight, subSz, WEIGHT.regular, "sans", "right", "rtl");
-          y += gap(SPACE.itemSubLine);
+          ctx.y += gap(SPACE.itemSubLine);
         });
       });
       if (it.note) {
         wrap("ملاحظات: " + it.note, subSz, WEIGHT.regular, "sans", nameW).forEach((line) => {
           text(line, nameRight, subSz, WEIGHT.regular, "sans", "right", "rtl");
-          y += gap(SPACE.itemSubLine);
+          ctx.y += gap(SPACE.itemSubLine);
         });
       }
       if (it.qty > 1) {
@@ -584,16 +726,16 @@ var RakeenReceiptEngine = (() => {
           "right",
           "rtl"
         );
-        y += gap(SPACE.itemSubLine);
+        ctx.y += gap(SPACE.itemSubLine);
       }
-      y += gap(SPACE.afterItem);
+      ctx.y += gap(SPACE.afterItem);
       if ((mods.length > 0 || it.note) && !isLast) hairline();
     });
     if (receipt.orderNote) {
-      y += gap(SPACE.beforeOrderNote);
+      ctx.y += gap(SPACE.beforeOrderNote);
       const noteSz = sz(TYPE.orderNote);
       wrap("ملاحظات الطلب: " + receipt.orderNote, noteSz, WEIGHT.regular, "sans", contentWidth).forEach((line) => rowText("", line, noteSz, false));
-      y += gap(SPACE.afterOrderNote);
+      ctx.y += gap(SPACE.afterOrderNote);
     }
     divider();
     if (th.sectionLabels) spacedText(bi("الحساب", "PAYMENT"), sz(TYPE.sectionLabel), true);
@@ -601,21 +743,18 @@ var RakeenReceiptEngine = (() => {
     rowText(money(receipt.subtotal), bi("المجموع الفرعي", "Subtotal"), rowSz, false);
     if (receipt.discount > 0) rowText("-" + money(receipt.discount), bi("الخصم", "Discount"), rowSz, false);
     rowText(money(receipt.vat), bi("ضريبة القيمة المضافة", "VAT"), rowSz, false);
-    const totalTop = y - LINE * TOTAL_BOX.liftY;
+    const totalTop = ctx.y - LINE * TOTAL_BOX.liftY;
     if (th.totalStyle === "invert") {
       invertBar(bi("الإجمالي", "Total") + "   " + money(receipt.total), sz(TYPE.grandTotalInvert));
     } else if (th.totalStyle === "box") {
-      const tTop = y - LINE * TOTAL_BOX.liftY;
+      const tTop = ctx.y - LINE * TOTAL_BOX.liftY;
       rowText(money(receipt.total), bi("الإجمالي", "Total"), sz(TYPE.grandTotalBox), true);
-      const tH = y - LINE * TOTAL_BOX.dropY - tTop;
+      const tH = ctx.y - LINE * TOTAL_BOX.dropY - tTop;
       const bx = PAD * TOTAL_BOX.inset;
       const bw2 = width - PAD * TOTAL_BOX.inset * 2;
       const t = BORDER.totalBox;
-      rect(bx, tTop, bw2, t);
-      rect(bx, tTop + tH - t, bw2, t);
-      rect(bx, tTop, t, tH);
-      rect(width - bx - t, tTop, t, tH);
-      y += gap(SPACE.afterTotalBox);
+      ctx.box(bx, tTop, bw2, tH, t);
+      ctx.y += gap(SPACE.afterTotalBox);
     } else {
       rowText(
         money(receipt.total),
@@ -627,13 +766,10 @@ var RakeenReceiptEngine = (() => {
     if (th.boxedTotal) {
       const bx = PAD * TOTAL_BOX.inset;
       const bw2 = width - PAD * TOTAL_BOX.inset * 2;
-      const bh = y - totalTop - LINE * TOTAL_BOX.strokeDropY;
+      const bh = ctx.y - totalTop - LINE * TOTAL_BOX.strokeDropY;
       const t = BORDER.totalBox;
-      rect(bx, totalTop, bw2, t);
-      rect(bx, totalTop + bh - t, bw2, t);
-      rect(bx, totalTop, t, bh);
-      rect(bx + bw2 - t, totalTop, t, bh);
-      y += gap(SPACE.afterBoxedTotal);
+      ctx.box(bx, totalTop, bw2, bh, t);
+      ctx.y += gap(SPACE.afterBoxedTotal);
     }
     divider();
     const paySz = sz(TYPE.payment);
@@ -641,17 +777,139 @@ var RakeenReceiptEngine = (() => {
     if (receipt.change > 0) rowText(receipt.change.toFixed(2), "الباقي", paySz, false);
     if (qr) {
       const qrSize = Math.min(QR_MAX, th.qrMaxSize, contentWidth);
-      y += LINE * SPACE.beforeQr;
-      ops.push({ op: "image", ref: "qr", x: (width - qrSize) / 2, y, w: qrSize, h: qrSize });
-      y += qrSize + LINE * SPACE.afterQr;
+      ctx.y += LINE * SPACE.beforeQr;
+      ops.push({ op: "image", ref: "qr", x: (width - qrSize) / 2, y: ctx.y, w: qrSize, h: qrSize });
+      ctx.y += qrSize + LINE * SPACE.afterQr;
     }
-    y += LINE * SPACE.beforeFooter;
+    ctx.y += LINE * SPACE.beforeFooter;
     const footSz = sz(TYPE.footer);
     (receipt.customMessage || "شكراً لزيارتكم").split(/\r?\n/).map((l) => l.trim()).filter(Boolean).forEach((part) => {
       wrap(part, footSz, WEIGHT.regular, "sans", contentWidth).forEach((line) => centerText(line, footSz, false));
     });
-    y += PAD;
-    return { width, height: Math.ceil(y), ops };
+    ctx.y += PAD;
+    return { width, height: Math.ceil(ctx.y), ops };
+  }
+
+  // shared/receipt/kitchenLayout.ts
+  function layoutKitchenTicket(input) {
+    const { ticket, measure, paperWidth: width, logo } = input;
+    const ctx = createContext({ width, line: KITCHEN.line, measure });
+    if (logo) {
+      const lw = Math.round(width * KITCHEN.logoWidth);
+      const lh = Math.round(lw * (logo.height / logo.width));
+      ctx.ops.push({ op: "image", ref: "logo", x: (width - lw) / 2, y: ctx.y, w: lw, h: lh });
+      ctx.y += lh + ctx.line * KITCHEN_SPACE.afterLogo;
+    }
+    ctx.centerText("KITCHEN RECEIPT", logo ? KITCHEN.titleWithLogo : KITCHEN.titleAlone, true);
+    if (ticket.branchName) ctx.centerText(ticket.branchName, KITCHEN.branch, false);
+    ctx.centerText(ticket.dateLabel, KITCHEN.date, false);
+    ctx.centerText(ticket.metaLabel, KITCHEN.meta, true);
+    ctx.y += ctx.gap(KITCHEN_SPACE.beforeCall);
+    if (ticket.pagerNumber != null && ticket.pagerNumber !== "") {
+      ctx.centerText("جهاز النداء · Pager", KITCHEN.callLabel, false);
+      ctx.centerText(String(ticket.pagerNumber), KITCHEN.pagerNumber, true);
+    } else {
+      ctx.centerText("رقم الطلب · Order No", KITCHEN.callLabel, false);
+      ctx.centerText(ticket.orderNumber || "—", KITCHEN.orderNumber, true);
+    }
+    ctx.rule(KITCHEN_SPACE.afterRule);
+    const subRight = width - PAD - KITCHEN.subIndent;
+    for (const it of ticket.items) {
+      const name = it.nameEn ? it.name + " | " + it.nameEn : it.name;
+      ctx.wrap(it.qty + "x " + name, KITCHEN.item, WEIGHT.bold, "sans", ctx.contentWidth).forEach((l) => {
+        ctx.text(l, width - PAD, KITCHEN.item, WEIGHT.bold, "sans", "right", "rtl");
+        ctx.y += ctx.gap(KITCHEN_SPACE.itemLine);
+      });
+      for (const m of it.mods || []) {
+        ctx.wrap("— " + m, KITCHEN.sub, WEIGHT.regular, "sans", ctx.contentWidth - KITCHEN.subIndent).forEach((l) => {
+          ctx.text(l, subRight, KITCHEN.sub, WEIGHT.regular, "sans", "right", "rtl");
+          ctx.y += ctx.gap(KITCHEN_SPACE.subLine);
+        });
+      }
+      if (it.note) {
+        ctx.wrap("ملاحظات: " + it.note, KITCHEN.sub, WEIGHT.medium, "sans", ctx.contentWidth - KITCHEN.subIndent).forEach((l) => {
+          ctx.text(l, subRight, KITCHEN.sub, WEIGHT.medium, "sans", "right", "rtl");
+          ctx.y += ctx.gap(KITCHEN_SPACE.subLine);
+        });
+      }
+      ctx.y += ctx.gap(KITCHEN_SPACE.afterItem);
+    }
+    ctx.rule(KITCHEN_SPACE.afterRule);
+    ctx.y += ctx.gap(KITCHEN_SPACE.beforeBy);
+    if (ticket.cashierName) ctx.centerText("طبعها · By: " + ticket.cashierName, KITCHEN.by, false);
+    ctx.y += ctx.gap(KITCHEN_SPACE.beforeBlessing);
+    const blessing = "بالعافية عليكم";
+    const bSize = KITCHEN.blessing;
+    const heart = bSize * KITCHEN.heartSize;
+    const gapX = bSize * KITCHEN.heartGap;
+    const bw = measure(blessing, bSize, WEIGHT.bold, "sans");
+    const startX = (width - (bw + gapX + heart)) / 2;
+    ctx.text(blessing, startX + heart + gapX + bw, bSize, WEIGHT.bold, "sans", "right", "rtl");
+    ctx.heart(startX + heart / 2, ctx.y, heart);
+    ctx.y += ctx.gap(KITCHEN_SPACE.afterBlessing) + PAD;
+    return { width, height: Math.ceil(ctx.y), ops: ctx.ops };
+  }
+
+  // shared/receipt/shiftLayout.ts
+  function layoutShiftReport(input) {
+    const { report, measure, paperWidth: width, currency } = input;
+    const ctx = createContext({ width, line: SHIFT.line, measure });
+    const opt = report.options || {};
+    const on = (k) => opt[k] !== false;
+    const money = (n) => n.toFixed(2) + " " + currency;
+    ctx.centerText(report.businessName || "ركين", SHIFT.businessName, true);
+    if (report.branchName) ctx.centerText(report.branchName, SHIFT.branch, false);
+    ctx.y += ctx.gap(SHIFT_SPACE.beforeTitle);
+    ctx.centerText("تقرير إغلاق الوردية", SHIFT.title, true);
+    ctx.centerText("Shift Close Report", SHIFT.titleEn, false);
+    ctx.centerText(report.dateLabel, SHIFT.date, false);
+    ctx.rule(SHIFT_SPACE.afterRule);
+    ctx.rowText("", "الكاشير · Cashier: " + report.staffName, SHIFT.meta, false);
+    if (report.shiftStart) ctx.rowText("", "من · From: " + report.shiftStart, SHIFT.metaSmall, false);
+    ctx.rule(SHIFT_SPACE.afterRule);
+    ctx.centerText("المبيعات · Sales", SHIFT.sectionLabel, true);
+    ctx.rowText(money(report.grossSales), "إجمالي المبيعات · Gross", SHIFT.row, false);
+    if (on("discounts")) ctx.rowText("-" + money(report.discountsTotal), "الخصومات · Discounts", SHIFT.row, false);
+    if (on("refunds")) ctx.rowText("-" + money(report.refundsTotal), "المرتجعات · Refunds (" + report.refundsCount + ")", SHIFT.row, false);
+    if (on("vat")) ctx.rowText(money(report.vatTotal), "ضريبة القيمة المضافة · VAT", SHIFT.row, false);
+    ctx.rowText(money(report.netSales), "صافي المبيعات · Net", SHIFT.net, true);
+    ctx.rule(SHIFT_SPACE.afterRule);
+    ctx.centerText("طرق الدفع · Payments", SHIFT.sectionLabel, true);
+    ctx.rowText(money(report.cashSales), "كاش · Cash", SHIFT.row, false);
+    ctx.rowText(money(report.cardTotal), "شبكة · Card", SHIFT.row, false);
+    ctx.rowText(money(report.deliveryPlatformTotal), "تطبيقات توصيل · Delivery Apps", SHIFT.row, false);
+    if (report.onlinePaymentsEnabled) ctx.rowText(money(report.onlineTotal), "دفع إلكتروني · Online", SHIFT.row, false);
+    ctx.rule(SHIFT_SPACE.afterRule);
+    ctx.centerText("الصندوق · Cash Drawer", SHIFT.sectionLabel, true);
+    ctx.rowText(money(report.openingCash), "الرصيد الافتتاحي · Opening float", SHIFT.row, false);
+    ctx.rowText("+" + money(report.cashSales), "مبيعات الكاش · Cash sales", SHIFT.row, false);
+    if (report.refundsTotal > 0) ctx.rowText("-" + money(report.refundsTotal), "مرتجعات كاش · Refunds paid", SHIFT.row, false);
+    ctx.rowText(money(report.cashExpected), "المتوقع في الدرج · Expected", SHIFT.row, true);
+    ctx.rowText(money(report.cashCounted), "المعدود · Counted", SHIFT.row, false);
+    const vTop = ctx.y - ctx.line * TOTAL_BOX.liftY;
+    ctx.rowText((report.cashVariance >= 0 ? "+" : "") + money(report.cashVariance), "الفرق · Variance", SHIFT.variance, true);
+    ctx.box(
+      PAD * TOTAL_BOX.inset,
+      vTop,
+      width - PAD * TOTAL_BOX.inset * 2,
+      ctx.y - ctx.line * TOTAL_BOX.dropY - vTop,
+      BORDER.totalBox
+    );
+    ctx.y += ctx.gap(SHIFT_SPACE.afterVariance);
+    if (on("counts")) {
+      ctx.rule(SHIFT_SPACE.afterRule);
+      ctx.rowText(String(report.ordersCount), "عدد الطلبات · Orders", SHIFT.counts, false);
+      ctx.rowText(money(report.avgTicket), "متوسط الفاتورة · Avg ticket", SHIFT.counts, false);
+    }
+    if (on("signatures")) {
+      ctx.rule(SHIFT_SPACE.afterRule);
+      ctx.y += ctx.gap(SHIFT_SPACE.aroundSignature);
+      ctx.rowText("", "توقيع الكاشير · Cashier  ______________", SHIFT.signature, false);
+      ctx.y += ctx.gap(SHIFT_SPACE.aroundSignature);
+      ctx.rowText("", "توقيع المدير · Manager   ______________", SHIFT.signature, false);
+    }
+    ctx.y += PAD;
+    return { width, height: Math.ceil(ctx.y), ops: ctx.ops };
   }
 
   // shared/receipt/stubMeasure.ts

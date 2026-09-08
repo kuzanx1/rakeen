@@ -55,6 +55,19 @@ body{
 }
 .mono{font-family:'IBM Plex Mono', monospace; direction:ltr; unicode-bidi:isolate;}
 
+/* خطّا الفاتورة المطبوعة -- هما بعينهما اللذان يحزمهما التطبيق
+   (react-native-poc/assets/fonts/)، لا نظيران لهما.
+
+   وكانا مختلفَين: الويب يرسم بـIBM Plex Sans Arabic والتطبيق بـTajawal،
+   فالورقتان تختلفان في شكل الحرف نفسِه مهما توحّدت المقاسات. ولا يُرى
+   الفرقُ في مراجعة، إنما يُرى حين توضع الورقتان جنباً إلى جنب.
+
+   وهما للطباعة وحدها: واجهةُ الكاشير تبقى على خطّها. */
+@font-face{font-family:'RakeenReceipt'; src:url('/fonts/tajawal/Tajawal-Regular.ttf') format('truetype'); font-weight:400 600; font-display:block;}
+@font-face{font-family:'RakeenReceipt'; src:url('/fonts/tajawal/Tajawal-Bold.ttf') format('truetype'); font-weight:700 900; font-display:block;}
+@font-face{font-family:'RakeenReceiptMono'; src:url('/fonts/plex-mono/IBMPlexMono-Medium.ttf') format('truetype'); font-weight:400 550; font-display:block;}
+@font-face{font-family:'RakeenReceiptMono'; src:url('/fonts/plex-mono/IBMPlexMono-SemiBold.ttf') format('truetype'); font-weight:551 900; font-display:block;}
+
 /* Self-hosted Saudi Riyal sign (U+20C1) — same webfont/character as the
    dashboard's rkMoney(), so a total here reads with the same real currency
    mark a merchant already sees on their dashboard instead of "ر.س"/"SAR"

@@ -1,8 +1,8 @@
-import { Skia, PaintStyle } from '@shopify/react-native-skia';
+import { Skia } from '@shopify/react-native-skia';
 import type { SkImage } from '@shopify/react-native-skia';
 import { createReceiptSurface, loadRemoteImage } from '../platform/receiptCanvas';
 import { loadReceiptTypefaces } from '../platform/receiptFonts';
-import { buildReceiptFontProvider, paintText, paintTextAnchored, measureTextWidth, measureTextWidthWeighted, measureAndWrapText } from '../platform/receiptText';
+import { buildReceiptFontProvider, paintTextAnchored, measureTextWidthWeighted } from '../platform/receiptText';
 import { rgbaToEscPosRaster, rgbaToEscPosRasterLegacy, RgbaBuffer } from '../domain/escposRaster';
 import type { PrintTimer } from './printTiming';
 import { bytesToBase64 } from '../domain/escposText';
@@ -11,12 +11,11 @@ import { buildQrMatrix } from '../domain/qrMatrix';
 import { toReceiptPrintable, toKitchenTicketPrintable, ReceiptPrintable, KitchenTicketPrintable } from '../domain/receiptPrintable';
 import { ReceiptData, KitchenTicketData, buildReceiptEscPosBase64, buildKitchenTicketEscPosBase64 } from '../domain/receipt';
 import type { ClosingReport } from '../domain/shift';
-import { receiptTheme } from '../domain/receiptTheme';
 // محرّكُ الطباعة المشترك -- هو نفسُه الذي يبنيه الويب من
 // `shared/receipt/` إلى `public/pos/receipt-engine.js`. مصدرٌ واحد،
 // فلا تُعدَّل الورقةُ مرّتين ولا تفترق النسختان.
-import { layoutReceipt } from '../../../shared/receipt';
-import type { LayoutResult, Measurer } from '../../../shared/receipt';
+import { layoutReceipt, layoutKitchenTicket, layoutShiftReport, HEART, DEFAULT_PAPER_WIDTH } from '../../../shared/receipt';
+import type { LayoutResult, Measurer, KitchenTicketModel, ShiftReportModel } from '../../../shared/receipt';
 
 /**
  * Feature Parity Pass -- Real Receipt Rendering. This is the real
@@ -58,9 +57,9 @@ function encodeRaster(buffer: RgbaBuffer, command?: 'modern' | 'legacy'): number
   return command === 'modern' ? rgbaToEscPosRaster(buffer) : rgbaToEscPosRasterLegacy(buffer);
 }
 
-const PAD = 16;
-const LINE_H = 32;
-const KITCHEN_LINE_H = 36;
+/* ولا مقاسَ هنا: كانت PAD وLINE_H وKITCHEN_LINE_H تعيش في هذا الملفّ
+   ونظائرُها في ملفّ الويب، فتُعدَّل واحدةٌ وتبقى الأخرى. هي الآن في
+   `shared/receipt/tokens.ts` وحدها. */
 
 
 /** Draws a QR bit-matrix as a grid of filled black squares -- the same
@@ -83,36 +82,6 @@ function drawQrMatrix(canvas: ReturnType<typeof createReceiptSurface>['canvas'],
   }
 }
 
-/** A hairline rectangle, for the boxed total and the order number. Four
- *  thin rules rather than a stroked rect: a thermal head renders a 1px
- *  stroke unevenly at low temperature, and filled bars stay crisp.
- *
- *  وهو مما لا يستطيعه وضع النص: يطبع سطراً سطراً، فالضلعان الرأسيان
- *  يحتاجان محرفاً في كل سطر ويخرجان متقطّعين. */
-function drawBox(
-  canvas: ReturnType<typeof createReceiptSurface>['canvas'],
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-): void {
-  const t = 1.5;
-  const paint = Skia.Paint();
-  paint.setColor(Skia.Color('#000000'));
-  canvas.drawRect(Skia.XYWHRect(x, y, w, t), paint);
-  canvas.drawRect(Skia.XYWHRect(x, y + h - t, w, t), paint);
-  canvas.drawRect(Skia.XYWHRect(x, y, t, h), paint);
-  canvas.drawRect(Skia.XYWHRect(x + w - t, y, t, h), paint);
-}
-
-function drawDivider(canvas: ReturnType<typeof createReceiptSurface>['canvas'], width: number, y: number): void {
-  const paint = Skia.Paint();
-  paint.setColor(Skia.Color('#000000'));
-  paint.setStyle(PaintStyle.Stroke);
-  paint.setStrokeWidth(1);
-  canvas.drawLine(PAD, y, width - PAD, y, paint);
-}
-
 /**
  * العملة على الورق: الرمز الجديد، لا الكلمة.
  *
@@ -128,57 +97,24 @@ function drawDivider(canvas: ReturnType<typeof createReceiptSurface>['canvas'], 
  * والخط مسجَّل عائلةً ثانية في platform/receiptText.ts: Skia تلتمس كل
  * محرف في العائلات بالترتيب، فهذا وحده يأتي منها وبقية النص لا تمسّها.
  */
-const RIYAL = '⃁';
-
 /**
- * قلب صغير، مرسوم لا مكتوب.
+ * رمزُ الريال على الورقة: ﷼ (U+FDFC) -- وهو نفسُه الذي يطبعه الويب.
  *
- * الإيموji محرف يحتاج خطاً ملوّناً لا تحمله طابعة حرارية ولا يحمله
- * IBM Plex، فيخرج مربعاً فارغاً. ومسارٌ من منحنيين يُطبع على أي جهاز
- * لأنه نقاط لا حروف.
+ * كان التطبيقُ يرسم ⃁ والويبُ يكتب «ريال» بالحروف، فالورقتان تختلفان
+ * في العملة نفسِها. و⃁ يحتاج خطاً قائماً بذاته، ونسخةُ الويب منه
+ * تُرسم معكوسةً فتحتاج قلباً -- وهو ما لا تفعله لوحةُ الرسم.
+ *
+ * و﷼ يملكه الخطّان كلاهما بغلافه الخاصّ (قِيس في المتصفّح: بصمةُ
+ * بكسلاته تخالف بصمةَ احتياطيّ النظام)، فلا قلبَ ولا ملفَّ زائد.
+ *
+ * وواجهةُ التطبيق تبقى على ⃁ (ui/Money.tsx): تلك شاشةٌ تعرف الخطوطَ
+ * وتقدر على القلب، وهذه ورقةٌ تُرسل صورةً إلى طابعة.
  */
-function drawHeart(
-  canvas: ReturnType<typeof createReceiptSurface>['canvas'],
-  cx: number, cy: number, size: number,
-): void {
-  const p = Skia.Path.Make();
-  const w = size, h = size * 0.9;
-  p.moveTo(cx, cy + h * 0.42);
-  p.cubicTo(cx - w * 0.62, cy - h * 0.05, cx - w * 0.30, cy - h * 0.62, cx, cy - h * 0.18);
-  p.cubicTo(cx + w * 0.30, cy - h * 0.62, cx + w * 0.62, cy - h * 0.05, cx, cy + h * 0.42);
-  p.close();
-  const paint = Skia.Paint();
-  paint.setColor(Skia.Color('#000000'));
-  paint.setAntiAlias(true);
-  canvas.drawPath(p, paint);
-}
-
-interface RenderContext {
-  canvas: ReturnType<typeof createReceiptSurface>['canvas'];
-  provider: ReturnType<typeof buildReceiptFontProvider>;
-  width: number;
-  contentWidth: number;
-}
-
-/** Centered Arabic line -- ported from the PWA's centerText(). Returns
- *  the new Y cursor, same "returns next Y" convention every draw helper
- *  here uses (mirrors the source's own `y += ...` after each call). */
-function drawCenterLine(ctx: RenderContext, y: number, text: string, size: number, bold: boolean): number {
-  const height = paintText(ctx.canvas, ctx.provider, text, PAD, y, ctx.contentWidth, { size, bold, align: 'center', direction: 'rtl' });
-  return y + Math.max(height, LINE_H * (size > 22 ? 1.3 : 1));
-}
-
-function drawRow(ctx: RenderContext, y: number, leftMono: string, rightArabic: string, size: number, bold: boolean): number {
-  paintText(ctx.canvas, ctx.provider, rightArabic, PAD, y, ctx.contentWidth, { size, bold, align: 'right', direction: 'rtl' });
-  if (leftMono) {
-    paintText(ctx.canvas, ctx.provider, leftMono, PAD, y, ctx.contentWidth, { size, bold: false, align: 'left', direction: 'ltr' });
-  }
-  return y + LINE_H;
-}
+const RIYAL = '﷼';
 
 async function buildFontProviderReady() {
-  const { regular, bold, riyalRegular, riyalBold } = await loadReceiptTypefaces();
-  return buildReceiptFontProvider(regular, bold, riyalRegular, riyalBold);
+  const { regular, bold, riyalRegular, riyalBold, monoRegular, monoBold } = await loadReceiptTypefaces();
+  return buildReceiptFontProvider(regular, bold, riyalRegular, riyalBold, monoRegular, monoBold);
 }
 
 /**
@@ -238,6 +174,25 @@ function paintReceiptOps(
       }
       continue;
     }
+    if (op.op === 'glyph') {
+      /* قلبٌ مرسومٌ بمنحنياته لا محرفُ إيموجي: الإيموجي يحتاج خطاً
+         ملوّناً لا تحمله طابعةٌ حرارية، فيخرج مربّعاً فارغاً. ونِسَبُه
+         من المقاسات المشتركة، فهو قلبُ الويب نفسُه لا شبيهُه. */
+      const w = op.size;
+      const h = op.size * HEART.aspect;
+      const path = Skia.Path.Make();
+      path.moveTo(op.cx, op.cy + h * HEART.bottom);
+      path.cubicTo(op.cx - w * HEART.c1x, op.cy - h * HEART.c1y,
+                   op.cx - w * HEART.c2x, op.cy - h * HEART.c2y,
+                   op.cx, op.cy - h * HEART.dip);
+      path.cubicTo(op.cx + w * HEART.c2x, op.cy - h * HEART.c2y,
+                   op.cx + w * HEART.c1x, op.cy - h * HEART.c1y,
+                   op.cx, op.cy + h * HEART.bottom);
+      path.close();
+      fill.setColor(Skia.Color('#000000'));
+      canvas.drawPath(path, fill);
+      continue;
+    }
     paintTextAnchored(canvas, provider, op.text, {
       x: op.x,
       y: op.y,
@@ -246,6 +201,7 @@ function paintReceiptOps(
       weight: op.weight,
       align: op.align,
       direction: op.dir,
+      family: op.family,
       color: op.color === 'paper' ? '#ffffff' : '#000000',
       letterSpacing: op.letterSpacing,
     });
@@ -273,7 +229,7 @@ export async function renderReceiptToEscPosBase64(
     /* القياسُ هو الشيءُ الوحيد الذي لا يستطيع المحرّكُ فعلَه بنفسه:
        عرضُ الكلمة لا يُعرف إلا من الخطّ، والخطُّ هنا. فيُمرَّر إليه
        ويبقى الحسابُ كلُّه عنده -- وهذا ما جعل توحيدَ الراسمَين ممكناً. */
-    const measure: Measurer = (text, size, weight) => measureTextWidthWeighted(provider, text, size, weight);
+    const measure: Measurer = (text, size, weight, family) => measureTextWidthWeighted(provider, text, size, weight, family);
 
     const layout = layoutReceipt({
       receipt: {
@@ -355,95 +311,26 @@ export async function renderShiftReportToEscPosBase64(
   rasterCommand?: 'modern' | 'legacy',
   timer?: PrintTimer,
 ): Promise<string> {
-  const width = printerPaperWidthPx ?? 576;
+  const width = printerPaperWidthPx ?? DEFAULT_PAPER_WIDTH;
   const provider = await buildFontProviderReady();
-  const contentWidth = width - PAD * 2;
-  const surface = createReceiptSurface(width, 2200);
+  const measure: Measurer = (text, size, weight, family) => measureTextWidthWeighted(provider, text, size, weight, family);
+
+  // ورقةٌ واحدةٌ لمنشأةٍ واحدة لا يجوز أن تختلف باختلاف الجهاز الذي
+  // طبعها -- فالتخطيطُ من المحرّك المشترك، وهذا ينفّذه لا غير.
+  const layout = layoutShiftReport({
+    report: report as unknown as ShiftReportModel,
+    measure,
+    paperWidth: width,
+    currency: RIYAL,
+  });
+
+  const surface = createReceiptSurface(layout.width, layout.height);
   const { canvas } = surface;
   canvas.clear(Skia.Color('#ffffff'));
-  const ctx: RenderContext = { canvas, provider, width, contentWidth };
+  paintReceiptOps(canvas, provider, layout, { logo: null, qrPayload: null });
 
-  // نفس ترتيب ورقة الكاشير حرفياً: مبيعات ← طرق دفع ← صندوق ← توقيع.
-  // ورقة واحدة لمنشأة واحدة لا يجوز أن تختلف باختلاف الجهاز الذي طبعها.
-  const opt = report.options ?? {};
-  const on = (k: string) => opt[k] !== false;
-  const n = (v: number | undefined) => `${(v ?? 0).toFixed(2)} ${RIYAL}`;
-
-  let y = PAD + LINE_H / 2;
-  y = drawCenterLine(ctx, y, report.businessName || 'ركين', 30, true);
-  if (report.branchName) y = drawCenterLine(ctx, y, report.branchName, 19, false);
-  y += LINE_H * 0.2;
-  y = drawCenterLine(ctx, y, 'تقرير إغلاق الوردية', 20, true);
-  y = drawCenterLine(ctx, y, 'Shift Close Report', 15, false);
-  y = drawCenterLine(ctx, y, report.dateLabel, 16, false);
-  drawDivider(canvas, width, y);
-  y += LINE_H * 0.5;
-  y = drawRow(ctx, y, '', 'الكاشير · Cashier: ' + report.staffName, 17, false);
-  if (report.shiftStart) y = drawRow(ctx, y, '', 'من · From: ' + report.shiftStart, 16, false);
-  drawDivider(canvas, width, y);
-  y += LINE_H * 0.5;
-
-  y = drawCenterLine(ctx, y, 'المبيعات · Sales', 16, true);
-  y = drawRow(ctx, y, n(report.grossSales ?? report.salesTotal), 'إجمالي المبيعات · Gross', 18, false);
-  if (on('discounts')) y = drawRow(ctx, y, '-' + n(report.discountsTotal), 'الخصومات · Discounts', 18, false);
-  if (on('refunds')) y = drawRow(ctx, y, '-' + n(report.refundsTotal), `المرتجعات · Refunds (${report.refundsCount ?? 0})`, 18, false);
-  if (on('vat')) y = drawRow(ctx, y, n(report.vatTotal), 'ضريبة القيمة المضافة · VAT', 18, false);
-  y = drawRow(ctx, y, n(report.netSales ?? report.salesTotal), 'صافي المبيعات · Net', 20, true);
-  drawDivider(canvas, width, y);
-  y += LINE_H * 0.5;
-
-  y = drawCenterLine(ctx, y, 'طرق الدفع · Payments', 16, true);
-  y = drawRow(ctx, y, n(report.cashSales), 'كاش · Cash', 18, false);
-  y = drawRow(ctx, y, n(report.cardTotal), 'شبكة · Card', 18, false);
-  y = drawRow(ctx, y, n(report.deliveryPlatformTotal), 'تطبيقات توصيل · Delivery Apps', 18, false);
-  if (report.onlinePaymentsEnabled) y = drawRow(ctx, y, n(report.onlineTotal), 'دفع إلكتروني · Online', 18, false);
-  drawDivider(canvas, width, y);
-  y += LINE_H * 0.5;
-
-  y = drawCenterLine(ctx, y, 'الصندوق · Cash Drawer', 16, true);
-  y = drawRow(ctx, y, n(report.openingCash), 'الرصيد الافتتاحي · Opening float', 18, false);
-  y = drawRow(ctx, y, '+' + n(report.cashSales), 'مبيعات الكاش · Cash sales', 18, false);
-  if (report.cashIn > 0) y = drawRow(ctx, y, '+' + n(report.cashIn), 'إيداع بالدرج · Pay-in', 18, false);
-  if (report.cashOut > 0) y = drawRow(ctx, y, '-' + n(report.cashOut), 'سحب من الدرج · Pay-out', 18, false);
-  if ((report.refundsTotal ?? 0) > 0) y = drawRow(ctx, y, '-' + n(report.refundsTotal), 'مرتجعات كاش · Refunds paid', 18, false);
-  y = drawRow(ctx, y, n(report.cashExpected), 'المتوقع في الدرج · Expected', 18, true);
-  y = drawRow(ctx, y, n(report.cashCounted), 'المعدود · Counted', 18, false);
-  const vTop = y - LINE_H * 0.55;
-  // The variance keeps its sign: a surplus and a shortfall are different
-  // problems, and "+" is what tells them apart at a glance on paper.
-  y = drawRow(
-    ctx,
-    y,
-    (report.cashVariance >= 0 ? '+' : '') + report.cashVariance.toFixed(2) + ' ' + RIYAL,
-    'الفرق · Variance',
-    22,
-    true,
-  );
-
-  // الفرق داخل إطار: هو السطر الوحيد الذي يُفتح عليه تحقيق.
-  drawBox(canvas, PAD * 0.6, vTop, width - PAD * 1.2, y - vTop - LINE_H * 0.15);
-  y += LINE_H * 0.35;
-
-  if (on('counts')) {
-    drawDivider(canvas, width, y);
-    y += LINE_H * 0.5;
-    y = drawRow(ctx, y, String(report.ordersCount), 'عدد الطلبات · Orders', 17, false);
-    y = drawRow(ctx, y, n(report.avgTicket), 'متوسط الفاتورة · Avg ticket', 17, false);
-  }
-
-  // خانتا توقيع بدل جملة "معتمد من المدير" التي كانت تدّعي اعتماداً بلا
-  // مكانٍ يوقَّع فيه.
-  if (on('signatures')) {
-    drawDivider(canvas, width, y);
-    y += LINE_H * 0.9;
-    y = drawRow(ctx, y, '', 'توقيع الكاشير · Cashier  ______________', 15, false);
-    y += LINE_H * 0.5;
-    y = drawRow(ctx, y, '', 'توقيع المدير · Manager   ______________', 15, false);
-  }
-  y += PAD;
-
-  const finalHeight = Math.min(Math.ceil(y), 2200);
-  const raster = encodeRaster(surface.toRgba(finalHeight), rasterCommand);
+  const rgba = surface.toRgba(layout.height);
+  const raster = encodeRaster(rgba, rasterCommand);
   const bytes = [0x1b, 0x40, ...raster, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00];
   return bytesToBase64(bytes);
 }
@@ -452,115 +339,31 @@ export async function renderKitchenTicketToEscPosBase64(data: KitchenTicketData,
   try {
     const ticket = toKitchenTicketPrintable(printerPaperWidthPx != null ? { ...data, paperWidthPx: printerPaperWidthPx } : data);
     const provider = await buildFontProviderReady();
-    // شعار المطبخ لا يمنع الطباعة: تذكرة بلا شعار تذكرة، وتذكرة لم تُطبع
-    // لأن مضيف الصور بطيء هي طلب ضاع في المطبخ.
+    // شعارُ المطبخ لا يمنع الطباعة: تذكرةٌ بلا شعارٍ تذكرة، وتذكرةٌ لم
+    // تُطبع لأنّ مضيفَ الصور بطيء هي طلبٌ ضاع في المطبخ.
     const logoImage = data.logoUrl ? await loadRemoteImage(data.logoUrl).catch(() => null) : null;
+    const measure: Measurer = (text, size, weight, family) => measureTextWidthWeighted(provider, text, size, weight, family);
 
-    const width = ticket.paperWidthPx;
-    const contentWidth = width - PAD * 2;
-    const maxHeight = 1200 + ticket.items.length * 260;
+    const layout = layoutKitchenTicket({
+      ticket: ticket as unknown as KitchenTicketModel,
+      measure,
+      paperWidth: ticket.paperWidthPx,
+      logo: logoImage ? { width: logoImage.width(), height: logoImage.height() } : null,
+    });
 
-    const surface = createReceiptSurface(width, maxHeight);
+    const surface = createReceiptSurface(layout.width, layout.height);
     const { canvas } = surface;
     canvas.clear(Skia.Color('#ffffff'));
-    const ctx: RenderContext = { canvas, provider, width, contentWidth };
+    paintReceiptOps(canvas, provider, layout, { logo: logoImage, qrPayload: null });
 
-    let y = PAD + KITCHEN_LINE_H / 2;
-
-    // الشعار يتصدّرها، و"KITCHEN RECEIPT" تحته -- بدل كلمة "طلب مطبخ".
-    // المطبخ يعرف أنها تذكرته من شكلها، والسطر الإنجليزي يقولها لمن لا
-    // يقرأ العربية دون أن يزاحم الشعار.
-    if (logoImage) {
-      const lw = Math.round(width * 0.34);
-      const lr = logoImage.height() / logoImage.width();
-      const lh = Math.round(lw * lr);
-      canvas.drawImageRect(
-        logoImage,
-        Skia.XYWHRect(0, 0, logoImage.width(), logoImage.height()),
-        Skia.XYWHRect((width - lw) / 2, y, lw, lh),
-        Skia.Paint(),
-      );
-      y += lh + KITCHEN_LINE_H * 0.35;
-    }
-    y = drawKitchenCenterLine(ctx, y, 'KITCHEN RECEIPT', logoImage ? 24 : 32, true);
-    if (ticket.branchName) y = drawKitchenCenterLine(ctx, y, ticket.branchName, 18, false);
-    y = drawKitchenCenterLine(ctx, y, ticket.dateLabel, 16, false);
-    y = drawKitchenCenterLine(ctx, y, ticket.metaLabel, 20, true);
-
-    // الرقم الذي يُنادى به.
-    //
-    // جهاز النداء إن وُجد، وإلا رقم الطلب -- ولا يجتمعان: رقمان كبيران
-    // متجاوران يجعلان من يقرأهما عبر مطبخ حار يتردد أيّهما ينادي.
-    y += KITCHEN_LINE_H * 0.25;
-    if (ticket.pagerNumber != null) {
-      y = drawKitchenCenterLine(ctx, y, 'جهاز النداء · Pager', 16, false);
-      y = drawKitchenCenterLine(ctx, y, String(ticket.pagerNumber), 44, true);
-    } else {
-      y = drawKitchenCenterLine(ctx, y, 'رقم الطلب · Order No', 16, false);
-      y = drawKitchenCenterLine(ctx, y, ticket.orderNumber, 40, true);
-    }
-    drawDivider(canvas, width, y);
-    y += KITCHEN_LINE_H * 0.6;
-
-    for (const item of ticket.items) {
-      const kName = item.nameEn ? `${item.name} | ${item.nameEn}` : item.name;
-      for (const line of measureAndWrapText(provider, `${item.qty}x ${kName}`, contentWidth, 26, true)) {
-        paintText(canvas, provider, line, PAD, y, contentWidth, { size: 26, bold: true, align: 'right', direction: 'rtl' });
-        y += KITCHEN_LINE_H * 0.9;
-      }
-      for (const modText of item.mods) {
-        for (const line of measureAndWrapText(provider, `— ${modText}`, contentWidth - 14, 18, false)) {
-          paintText(canvas, provider, line, PAD, y, contentWidth - 14, { size: 18, bold: false, align: 'right', direction: 'rtl' });
-          y += KITCHEN_LINE_H * 0.7;
-        }
-      }
-      if (item.note) {
-        // بلا إيموجي: محرف يحتاج خطاً ملوّناً لا تحمله الطابعة، فيخرج مربعاً.
-        for (const line of measureAndWrapText(provider, `ملاحظات: ${item.note}`, contentWidth - 14, 18, true)) {
-          paintText(canvas, provider, line, PAD, y, contentWidth - 14, { size: 18, bold: true, align: 'right', direction: 'rtl' });
-          y += KITCHEN_LINE_H * 0.7;
-        }
-      }
-      y += KITCHEN_LINE_H * 0.3;
-    }
-    drawDivider(canvas, width, y);
-    y += KITCHEN_LINE_H * 0.55;
-
-    if (ticket.cashierName) {
-      y = drawKitchenCenterLine(ctx, y, `طبعها · By: ${ticket.cashierName}`, 16, false);
-    }
-
-    // بالعافية عليكم، وقلب مرسوم بجانبها.
-    y += KITCHEN_LINE_H * 0.35;
-    const blessing = 'بالعافية عليكم';
-    const bSize = 22;
-    const bw = measureTextWidth(provider, blessing, bSize, true);
-    const heart = bSize * 0.72;
-    const gapx = bSize * 0.42;
-    const totalW = bw + gapx + heart;
-    const startX = (width - totalW) / 2;
-    paintText(canvas, provider, blessing, startX + heart + gapx, y - bSize * 0.62, bw + 4, {
-      size: bSize, bold: true, align: 'right', direction: 'rtl',
-    });
-    drawHeart(canvas, startX + heart / 2, y - bSize * 0.1, heart);
-    y += KITCHEN_LINE_H * 0.9 + PAD;
-
-    const finalHeight = Math.min(Math.ceil(y), maxHeight);
-    const rgba = timer ? await timer.stage('pixelsRead', () => surface.toRgba(finalHeight)) : surface.toRgba(finalHeight);
-    const raster = timer
-      ? await timer.stage('escposBuild', () => encodeRaster(rgba, rasterCommand))
-      : encodeRaster(rgba, rasterCommand);
+    const rgba = surface.toRgba(layout.height);
+    const raster = encodeRaster(rgba, rasterCommand);
     const bytes = [0x1b, 0x40, ...raster, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00];
-    return timer ? await timer.stage('base64', () => bytesToBase64(bytes)) : bytesToBase64(bytes);
+    return bytesToBase64(bytes);
   } catch (e) {
-    console.error('[receiptRenderer] real kitchen-ticket rendering failed, falling back to ASCII ticket:', e);
+    console.error('[receiptRenderer] kitchen ticket rendering failed, falling back to ASCII:', e);
     return buildKitchenTicketEscPosBase64(data);
   }
-}
-
-function drawKitchenCenterLine(ctx: RenderContext, y: number, text: string, size: number, bold: boolean): number {
-  const height = paintText(ctx.canvas, ctx.provider, text, PAD, y, ctx.contentWidth, { size, bold, align: 'center', direction: 'rtl' });
-  return y + Math.max(height, KITCHEN_LINE_H * (size > 22 ? 1.3 : 1));
 }
 
 export type { ReceiptPrintable, KitchenTicketPrintable };

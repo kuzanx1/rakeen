@@ -73,7 +73,25 @@ export interface ImageOp {
   h: number;
 }
 
-export type DrawOp = TextOp | RectOp | DashOp | ImageOp;
+/**
+ * شكلٌ مرسوم -- ما لا يُكتب حرفاً.
+ *
+ * والقلبُ مثالُه: «بالعافية عليكم» يتبعها قلبٌ على تذكرة المطبخ. وهو
+ * مرسومٌ لا مكتوب لأنّ الإيموجي محرفٌ يحتاج خطاً ملوّناً لا تحمله
+ * طابعةٌ حرارية، فيخرج مربّعاً فارغاً بيد الطبّاخ.
+ *
+ * وشكلٌ مسمّىً لا مسارُ منحنياتٍ عامّ: هو المنحنى الوحيد في النظام
+ * كلِّه، ومسارٌ عامٌّ يُلزم كلَّ منفّذٍ بمحرّك مساراتٍ كامل لأجله.
+ */
+export interface GlyphOp {
+  op: 'glyph';
+  shape: 'heart';
+  cx: number;
+  cy: number;
+  size: number;
+}
+
+export type DrawOp = TextOp | RectOp | DashOp | ImageOp | GlyphOp;
 
 /**
  * قياسُ النصّ -- الشيءُ الوحيد الذي لا يستطيع المحرّكُ فعلَه بنفسه.

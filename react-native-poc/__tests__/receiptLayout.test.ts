@@ -127,7 +127,11 @@ describe('محرّك الفاتورة — ما لا يجوز أن يقع', () =>
 
         it('لا شيء يُرسم تحت آخر الورقة', () => {
           for (const op of out.ops) {
-            const bottom = op.op === 'text' ? op.y + op.size : op.op === 'dash' ? op.y : op.y + op.h;
+            const bottom =
+              op.op === 'text' ? op.y + op.size
+              : op.op === 'dash' ? op.y
+              : op.op === 'glyph' ? op.cy + op.size
+              : op.y + op.h;
             expect(bottom).toBeLessThanOrEqual(out.height);
           }
         });
@@ -285,6 +289,7 @@ describe('بصمة التخطيط', () => {
       }
       if (o.op === 'rect') return `R ${Math.round(o.x)},${Math.round(o.y)} ${Math.round(o.w)}x${Math.round(o.h)}`;
       if (o.op === 'dash') return `D ${Math.round(o.y)} ${Math.round(o.x1)}→${Math.round(o.x2)} ${o.on}/${o.off}`;
+      if (o.op === 'glyph') return `G ${o.shape} ${Math.round(o.cx)},${Math.round(o.cy)} ${Math.round(o.size)}`;
       return `I ${o.ref} ${Math.round(o.x)},${Math.round(o.y)} ${Math.round(o.w)}x${Math.round(o.h)}`;
     });
 

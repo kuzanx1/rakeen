@@ -31,11 +31,24 @@ const BOLD_ASSET = require('../../assets/fonts/Tajawal-Bold.ttf');
 const RIYAL_REGULAR_ASSET = require('../../assets/fonts/SaudiRiyal-Regular.ttf');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const RIYAL_BOLD_ASSET = require('../../assets/fonts/SaudiRiyal-Bold.ttf');
+/**
+ * خطٌّ أحاديُّ العرض للمبالغ -- هو الذي يجعل الخاناتِ تصطفّ.
+ *
+ * كان عمودُ المبالغ يُرسم بالخطّ العربيّ نفسِه لأنّ الأحاديَّ لم يكن
+ * محمولاً، فأرقامُ سطرٍ لا تحاذي أرقامَ الذي تحته وتتذبذب الفاصلةُ
+ * العشرية من سطرٍ إلى سطر -- والويبُ يصطفّ. وهو نفسُه خطُّ الويب.
+ */
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const MONO_REGULAR_ASSET = require('../../assets/fonts/IBMPlexMono-Medium.ttf');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const MONO_BOLD_ASSET = require('../../assets/fonts/IBMPlexMono-SemiBold.ttf');
 
 let cachedRegular: SkTypeface | null = null;
 let cachedBold: SkTypeface | null = null;
 let cachedRiyalRegular: SkTypeface | null = null;
 let cachedRiyalBold: SkTypeface | null = null;
+let cachedMonoRegular: SkTypeface | null = null;
+let cachedMonoBold: SkTypeface | null = null;
 
 async function loadTypefaceFromAsset(asset: number): Promise<SkTypeface | null> {
   try {
@@ -57,12 +70,19 @@ async function loadTypefaceFromAsset(asset: number): Promise<SkTypeface | null> 
 export async function loadReceiptTypefaces(): Promise<{
   regular: SkTypeface | null; bold: SkTypeface | null;
   riyalRegular: SkTypeface | null; riyalBold: SkTypeface | null;
+  monoRegular: SkTypeface | null; monoBold: SkTypeface | null;
 }> {
   if (!cachedRegular) cachedRegular = await loadTypefaceFromAsset(REGULAR_ASSET);
   if (!cachedBold) cachedBold = await loadTypefaceFromAsset(BOLD_ASSET);
   if (!cachedRiyalRegular) cachedRiyalRegular = await loadTypefaceFromAsset(RIYAL_REGULAR_ASSET);
   if (!cachedRiyalBold) cachedRiyalBold = await loadTypefaceFromAsset(RIYAL_BOLD_ASSET);
-  return { regular: cachedRegular, bold: cachedBold, riyalRegular: cachedRiyalRegular, riyalBold: cachedRiyalBold };
+  if (!cachedMonoRegular) cachedMonoRegular = await loadTypefaceFromAsset(MONO_REGULAR_ASSET);
+  if (!cachedMonoBold) cachedMonoBold = await loadTypefaceFromAsset(MONO_BOLD_ASSET);
+  return {
+    regular: cachedRegular, bold: cachedBold,
+    riyalRegular: cachedRiyalRegular, riyalBold: cachedRiyalBold,
+    monoRegular: cachedMonoRegular, monoBold: cachedMonoBold,
+  };
 }
 
 export function makeFont(typeface: SkTypeface | null, size: number): SkFont {

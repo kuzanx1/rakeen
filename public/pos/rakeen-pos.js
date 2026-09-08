@@ -4222,9 +4222,21 @@ let KITCHEN_TICKET_MODE = 'brief';
 /** الخطُّ كما يفهمه الكانفس. والمحرّكُ لا يعرف أسماءَ الخطوط ولا يحتاجها. */
 function receiptFontString(size, weight, family){
   return family === 'mono'
-    ? weight + ' ' + size + 'px "IBM Plex Mono", monospace'
-    : weight + ' ' + size + 'px "IBM Plex Sans Arabic", sans-serif';
+    ? weight + ' ' + size + 'px "RakeenReceiptMono", monospace'
+    : weight + ' ' + size + 'px "RakeenReceipt", sans-serif';
 }
+
+/**
+ * رمزُ الريال على الورقة: ﷼ -- محرفٌ واحد (U+FDFC).
+ *
+ * كان الويبُ يكتب «ريال» بالحروف والتطبيقُ يرسم ⃁، فالورقتان تختلفان
+ * في العملة نفسِها. و⃁ يحتاج خطاً قائماً بذاته، ونسخةُ الويب منه
+ * تُرسم معكوسةً فتُقلب بـtransform -- وهو ما لا تفعله لوحةُ الرسم.
+ *
+ * و﷼ يملكه الخطّان كلاهما بغلافه الخاصّ (قِيس: بصمةُ بكسلاته تخالف
+ * بصمةَ احتياطيّ النظام في كليهما)، ولا يحتاج قلباً ولا ملفاً زائداً.
+ */
+const RECEIPT_RIYAL = '﷼';
 
 /**
  * تنفيذٌ أعمى لأوامر المحرّك.
@@ -4253,6 +4265,20 @@ function paintReceiptOps(ctx, layout, images){
     if(op.op === 'image'){
       const img = images[op.ref];
       if(img) ctx.drawImage(img, op.x, op.y, op.w, op.h);
+      return;
+    }
+    if(op.op === 'glyph'){
+      /* قلبٌ مرسومٌ بمنحنياته لا محرفُ إيموجي: الإيموجي يحتاج خطاً
+         ملوّناً لا تحمله طابعةٌ حرارية، فيخرج مربّعاً فارغاً. ونِسَبُه
+         من المقاسات المشتركة، فهو قلبُ التطبيق نفسُه لا شبيهُه. */
+      const H = window.RakeenReceiptEngine.HEART;
+      const w = op.size, h = op.size * H.aspect, cx = op.cx, cy = op.cy;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy + h * H.bottom);
+      ctx.bezierCurveTo(cx - w * H.c1x, cy - h * H.c1y, cx - w * H.c2x, cy - h * H.c2y, cx, cy - h * H.dip);
+      ctx.bezierCurveTo(cx + w * H.c2x, cy - h * H.c2y, cx + w * H.c1x, cy - h * H.c1y, cx, cy + h * H.bottom);
+      ctx.closePath();
+      ctx.fillStyle = '#000'; ctx.fill();
       return;
     }
     ctx.font = receiptFontString(op.size, op.weight, op.family);
@@ -4288,7 +4314,7 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
     measure: measure,
     paperWidth: width,
     theme: RECEIPT_THEME,
-    currency: RIYAL,
+    currency: RECEIPT_RIYAL,
     logo: sizeOf(logoImage),
     qr: sizeOf(qrImage)
   });
@@ -4311,128 +4337,24 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
    money. Independently toggleable in POS settings from the customer
    receipt, since some kitchens want both printed, some just one. */
 function renderKitchenTicketCanvas(receipt, logoImage){
-  const width = DEVICE.printerPaperWidth || 576;
-  const pad = 16, lineH = 36;
-  const maxHeight = 1200 + receipt.items.length * 260;
-  const scratch = document.createElement('canvas');
-  scratch.width = width; scratch.height = maxHeight;
-  const ctx = scratch.getContext('2d');
-  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, width, maxHeight);
-  ctx.fillStyle = '#000';
-  ctx.textBaseline = 'middle';
-  let y = pad + lineH / 2;
-
-  const contentWidth = width - pad * 2;
-  const wrapLine = (text, font)=>{
-    ctx.font = font;
-    const words = String(text).split(' ');
-    const lines = [];
-    let cur = '';
-    words.forEach(w=>{
-      const test = cur ? cur + ' ' + w : w;
-      if(ctx.measureText(test).width > contentWidth && cur){ lines.push(cur); cur = w; }
-      else cur = test;
-    });
-    if(cur) lines.push(cur);
-    return lines;
+  const E = window.RakeenReceiptEngine;
+  const width = DEVICE.printerPaperWidth || E.PAPER.mm80;
+  const probe = document.createElement('canvas').getContext('2d');
+  const measure = function(text, size, weight, family){
+    probe.font = receiptFontString(size, weight, family);
+    return probe.measureText(text).width;
   };
-  const centerText = (text, size, bold)=>{
-    ctx.font = (bold ? '800 ' : '600 ') + size + 'px "IBM Plex Sans Arabic", sans-serif';
-    ctx.direction = 'rtl'; ctx.textAlign = 'center';
-    ctx.fillText(text, width / 2, y);
-    y += lineH * (size > 22 ? 1.3 : 1);
-  };
-  const divider = ()=>{
-    ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(width - pad, y); ctx.stroke();
-    y += lineH * 0.6;
-  };
-
-  // الشعار يتصدّرها، و"KITCHEN RECEIPT" تحته بدل كلمة "طلب مطبخ".
-  if(logoImage){
-    const lw = Math.round(width * 0.34);
-    const lr = (logoImage.naturalHeight || logoImage.height) / (logoImage.naturalWidth || logoImage.width);
-    const lh = Math.round(lw * lr);
-    ctx.drawImage(logoImage, (width - lw) / 2, y, lw, lh);
-    y += lh + lineH * 0.35;
-  }
-  centerText('KITCHEN RECEIPT', logoImage ? 24 : 32, true);
-  if(receipt.branchName) centerText(receipt.branchName, 18, false);
-  centerText(receipt.dateLabel, 16, false);
-  centerText(receipt.metaLabel, 20, true);
-  // الرقم الذي يُنادى به: جهاز النداء إن وُجد، وإلا رقم الطلب. ولا
-  // يجتمعان -- رقمان كبيران متجاوران يجعلان من يقرأهما عبر مطبخ حار
-  // يتردد أيّهما ينادي.
-  y += lineH * 0.2;
-  if(receipt.pagerNumber != null){
-    centerText('جهاز النداء · Pager', 16, false);
-    centerText(String(receipt.pagerNumber), 44, true);
-  } else {
-    centerText('رقم الطلب · Order No', 16, false);
-    centerText(receipt.orderNumber || '—', 40, true);
-  }
-  divider();
-
-  receipt.items.forEach(it=>{
-    const kName = it.nameEn ? (it.name + ' | ' + it.nameEn) : it.name;
-    wrapLine(it.qty + 'x ' + kName, '800 26px "IBM Plex Sans Arabic", sans-serif').forEach(line=>{
-      ctx.font = '800 26px "IBM Plex Sans Arabic", sans-serif';
-      ctx.direction = 'rtl'; ctx.textAlign = 'right';
-      ctx.fillText(line, width - pad, y);
-      y += lineH * 0.9;
-    });
-    (it.mods || []).forEach(modText=>{
-      wrapLine('— ' + modText, '600 18px "IBM Plex Sans Arabic", sans-serif').forEach(line=>{
-        ctx.font = '600 18px "IBM Plex Sans Arabic", sans-serif';
-        ctx.direction = 'rtl'; ctx.textAlign = 'right';
-        ctx.fillText(line, width - pad - 14, y);
-        y += lineH * 0.7;
-      });
-    });
-    if(it.note){
-      // بلا إيموجي: محرف يحتاج خطاً ملوّناً لا تحمله الطابعة، فيخرج مربعاً.
-      wrapLine('ملاحظات: ' + it.note, '700 18px "IBM Plex Sans Arabic", sans-serif').forEach(line=>{
-        ctx.font = '700 18px "IBM Plex Sans Arabic", sans-serif';
-        ctx.direction = 'rtl'; ctx.textAlign = 'right';
-        ctx.fillText(line, width - pad - 14, y);
-        y += lineH * 0.7;
-      });
-    }
-    y += lineH * 0.3;
+  const layout = E.layoutKitchenTicket({
+    ticket: receipt,
+    measure: measure,
+    paperWidth: width,
+    logo: logoImage ? { width: logoImage.naturalWidth || logoImage.width, height: logoImage.naturalHeight || logoImage.height } : null
   });
-  divider();
-  y += lineH * 0.15;
-
-  if(receipt.cashierName) centerText('طبعها · By: ' + receipt.cashierName, 16, false);
-
-  // بالعافية عليكم، وقلب مرسوم بجانبها.
-  //
-  // مرسوم لا مكتوب: الإيموجي محرف يحتاج خطاً ملوّناً لا تحمله طابعة
-  // حرارية، فيخرج مربعاً فارغاً. ومنحنيان يُطبعان على أي جهاز لأنهما
-  // نقاط لا حروف.
-  y += lineH * 0.35;
-  const blessing = 'بالعافية عليكم';
-  const bSize = 22, heart = bSize * 0.72, gapx = bSize * 0.42;
-  ctx.font = '800 ' + bSize + 'px "IBM Plex Sans Arabic", sans-serif';
-  const bw = ctx.measureText(blessing).width;
-  const startX = (width - (bw + gapx + heart)) / 2;
-  ctx.direction = 'rtl'; ctx.textAlign = 'right';
-  ctx.fillText(blessing, startX + heart + gapx + bw, y);
-  (function(cx, cy, sz){
-    const w = sz, h = sz * 0.9;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy + h * 0.42);
-    ctx.bezierCurveTo(cx - w * 0.62, cy - h * 0.05, cx - w * 0.30, cy - h * 0.62, cx, cy - h * 0.18);
-    ctx.bezierCurveTo(cx + w * 0.30, cy - h * 0.62, cx + w * 0.62, cy - h * 0.05, cx, cy + h * 0.42);
-    ctx.closePath();
-    ctx.fillStyle = '#000'; ctx.fill();
-  })(startX + heart / 2, y, heart);
-  y += lineH * 0.9 + pad;
-
-  const finalHeight = Math.min(Math.ceil(y), maxHeight);
   const out = document.createElement('canvas');
-  out.width = width; out.height = finalHeight;
-  out.getContext('2d').drawImage(scratch, 0, 0, width, finalHeight, 0, 0, width, finalHeight);
+  out.width = layout.width; out.height = layout.height;
+  const ctx = out.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, layout.width, layout.height);
+  paintReceiptOps(ctx, layout, { logo: logoImage, qr: null });
   return out;
 }
 
@@ -5006,115 +4928,24 @@ function buildDbKitchenReceiptData(order, items){
    canvas -> 1-bit raster -> ESC/POS pipeline as order receipts, but with its
    own simple row layout since a shift report has no product line items. */
 function renderShiftReportCanvas(report){
-  const width = DEVICE.printerPaperWidth || 576;
-  const pad = 16, lineH = 32;
-  const gap = n => lineH * n;
-  // التقرير صار أطول بعد إضافة المبيعات والمرتجعات والصندوق والتواقيع،
-  // والسطح المقصوص على ١٤٠٠ كان سيبتر آخره بلا خطأ يُرى.
-  const MAXH = 2200;
-  const scratch = document.createElement('canvas');
-  scratch.width = width; scratch.height = MAXH;
-  const ctx = scratch.getContext('2d');
-  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, width, MAXH);
-  ctx.fillStyle = '#000';
-  ctx.textBaseline = 'middle';
-  let y = pad + lineH / 2;
-
-  const centerText = (text, size, bold)=>{
-    ctx.font = (bold ? '800 ' : '600 ') + size + 'px "IBM Plex Sans Arabic", sans-serif';
-    ctx.direction = 'rtl'; ctx.textAlign = 'center';
-    ctx.fillText(text, width / 2, y);
-    y += lineH * (size > 22 ? 1.3 : 1);
+  const E = window.RakeenReceiptEngine;
+  const width = DEVICE.printerPaperWidth || E.PAPER.mm80;
+  const probe = document.createElement('canvas').getContext('2d');
+  const measure = function(text, size, weight, family){
+    probe.font = receiptFontString(size, weight, family);
+    return probe.measureText(text).width;
   };
-  const rowText = (leftMono, rightArabic, size, bold)=>{
-    ctx.font = (bold ? '800 ' : '600 ') + size + 'px "IBM Plex Sans Arabic", sans-serif';
-    ctx.direction = 'rtl'; ctx.textAlign = 'right';
-    ctx.fillText(rightArabic, width - pad, y);
-    ctx.font = '500 ' + size + 'px "IBM Plex Mono", monospace';
-    ctx.direction = 'ltr'; ctx.textAlign = 'left';
-    ctx.fillText(leftMono, pad, y);
-    y += lineH;
-  };
-  const divider = ()=>{
-    ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(width - pad, y); ctx.stroke();
-    y += lineH * 0.6;
-  };
-
-  // ترتيب التقرير من مراجع التسوية المحاسبية، لا من عادةٍ عندنا:
-  // مبيعات ← طرق دفع ← صندوق ← توقيع. وكل قسم ينتهي بسطر واحد يُنقل
-  // إلى الذي بعده، حتى يستطيع من يدقّق أن يتتبّع الرقم بيده.
-  const opt = report.options || {};
-  const on = k => opt[k] !== false;
-
-  centerText(report.businessName || 'ركين', 30, true);
-  if(report.branchName) centerText(report.branchName, 19, false);
-  y += gap(0.2);
-  centerText('تقرير إغلاق الوردية', 20, true);
-  centerText('Shift Close Report', 15, false);
-  centerText(report.dateLabel, 16, false);
-  divider();
-  rowText('', 'الكاشير · Cashier: ' + report.staffName, 17, false);
-  if(report.shiftStart) rowText('', 'من · From: ' + report.shiftStart, 16, false);
-  divider();
-
-  // ١) المبيعات: من الإجمالي إلى الصافي، خطوةً خطوة.
-  centerText('المبيعات · Sales', 16, true);
-  rowText(report.grossSales.toFixed(2) + ' ' + RIYAL, 'إجمالي المبيعات · Gross', 18, false);
-  if(on('discounts')) rowText('-' + report.discountsTotal.toFixed(2) + ' ' + RIYAL, 'الخصومات · Discounts', 18, false);
-  if(on('refunds')) rowText('-' + report.refundsTotal.toFixed(2) + ' ' + RIYAL, 'المرتجعات · Refunds (' + report.refundsCount + ')', 18, false);
-  if(on('vat')) rowText(report.vatTotal.toFixed(2) + ' ' + RIYAL, 'ضريبة القيمة المضافة · VAT', 18, false);
-  rowText(report.netSales.toFixed(2) + ' ' + RIYAL, 'صافي المبيعات · Net', 20, true);
-  divider();
-
-  // ٢) طرق الدفع، مرتّبة بالأهمية لا بالأبجدية.
-  centerText('طرق الدفع · Payments', 16, true);
-  rowText(report.cashSales.toFixed(2) + ' ' + RIYAL, 'كاش · Cash', 18, false);
-  rowText(report.cardTotal.toFixed(2) + ' ' + RIYAL, 'شبكة · Card', 18, false);
-  rowText(report.deliveryPlatformTotal.toFixed(2) + ' ' + RIYAL, 'تطبيقات توصيل · Delivery Apps', 18, false);
-  // الدفع الإلكتروني لا يظهر إلا لمن فعّله في متجره: صفٌّ بصفر دائماً
-  // على مطعم لا يبيع أونلاين ضجيج في ورقة تُدقَّق.
-  if(report.onlinePaymentsEnabled) rowText(report.onlineTotal.toFixed(2) + ' ' + RIYAL, 'دفع إلكتروني · Online', 18, false);
-  divider();
-
-  // ٣) الصندوق: المعادلة كاملة، فما من رقم يظهر بلا أصل.
-  centerText('الصندوق · Cash Drawer', 16, true);
-  rowText(report.openingCash.toFixed(2) + ' ' + RIYAL, 'الرصيد الافتتاحي · Opening float', 18, false);
-  rowText('+' + report.cashSales.toFixed(2) + ' ' + RIYAL, 'مبيعات الكاش · Cash sales', 18, false);
-  // السحب يُذكر ولو كان صفراً حين تُطبع المرتجعات: معادلة الصندوق لا
-  // تُقرأ إن غاب أحد طرفيها، ومن يجمع بيده يريد أن يجد كل رقم.
-  if(report.refundsTotal > 0) rowText('-' + report.refundsTotal.toFixed(2) + ' ' + RIYAL, 'مرتجعات كاش · Refunds paid', 18, false);
-  rowText(report.cashExpected.toFixed(2) + ' ' + RIYAL, 'المتوقع في الدرج · Expected', 18, true);
-  rowText(report.cashCounted.toFixed(2) + ' ' + RIYAL, 'المعدود · Counted', 18, false);
-  const vTop = y - lineH * 0.55;
-  rowText((report.cashVariance >= 0 ? '+' : '') + report.cashVariance.toFixed(2) + ' ' + RIYAL, 'الفرق · Variance', 22, true);
-  // الفرق داخل إطار: هو السطر الوحيد الذي يُفتح عليه تحقيق.
-  ctx.fillStyle = '#000';
-  const vX = pad * 0.6, vW = width - pad * 1.2, vH = (y - lineH * 0.2) - vTop;
-  ctx.fillRect(vX, vTop, vW, 1.5);
-  ctx.fillRect(vX, vTop + vH - 1.5, vW, 1.5);
-  ctx.fillRect(vX, vTop, 1.5, vH);
-  ctx.fillRect(vX + vW - 1.5, vTop, 1.5, vH);
-  y += gap(0.35);
-
-  if(on('counts')){
-    divider();
-    rowText(String(report.ordersCount), 'عدد الطلبات · Orders', 17, false);
-    rowText(report.avgTicket.toFixed(2) + ' ' + RIYAL, 'متوسط الفاتورة · Avg ticket', 17, false);
-  }
-
-  if(on('signatures')){
-    divider();
-    y += gap(0.5);
-    rowText('', 'توقيع الكاشير · Cashier  ______________', 15, false);
-    y += gap(0.5);
-    rowText('', 'توقيع المدير · Manager   ______________', 15, false);
-  }
-  y += pad;
-
+  const layout = E.layoutShiftReport({
+    report: report,
+    measure: measure,
+    paperWidth: width,
+    currency: RECEIPT_RIYAL
+  });
   const out = document.createElement('canvas');
-  out.width = width; out.height = Math.min(Math.ceil(y), MAXH);
-  out.getContext('2d').drawImage(scratch, 0, 0, width, out.height, 0, 0, width, out.height);
+  out.width = layout.width; out.height = layout.height;
+  const ctx = out.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, layout.width, layout.height);
+  paintReceiptOps(ctx, layout, { logo: null, qr: null });
   return out;
 }
 function buildShiftReportEscPosBytes(report){

@@ -14,13 +14,12 @@
  * أو ورقاً أضيق، فهناك، لا في هذا الملفّ.
  */
 
+import { createContext, leaderDots } from './context';
 import {
-  BORDER, COLUMNS, DASH, INVERT_BAR, LINE, LOGO, ORDER_BOX, PAD,
-  QR_MAX, SPACE, TOTAL_BOX, TRACKING, TYPE, WEIGHT, themeTokens,
+  BORDER, COLUMNS, DASH, LINE, LOGO, ORDER_BOX, PAD,
+  QR_MAX, SPACE, TOTAL_BOX, TYPE, WEIGHT, themeTokens,
 } from './tokens';
-import type {
-  Align, Dir, DrawOp, Family, LayoutInput, LayoutResult, ReceiptItem,
-} from './types';
+import type { LayoutInput, LayoutResult, ReceiptItem } from './types';
 
 /** ملصقٌ بلغتين: الورقةُ يقرؤها الزبونُ ويقرؤها المُراجع. */
 export function bi(ar: string, en: string): string {
@@ -32,11 +31,11 @@ const ARABIC = /[؀-ۿ]/;
 export function layoutReceipt(input: LayoutInput): LayoutResult {
   const { receipt, measure, paperWidth: width, currency, logo, qr } = input;
   const th = themeTokens(input.theme);
-  const ops: DrawOp[] = [];
-  const contentWidth = width - PAD * 2;
+  /* بدائيّاتُ الرسم من السياق المشترك -- هي بعينها التي تبني تذكرةَ
+     المطبخ وتقريرَ الوردية. وكانت لكلّ ورقةٍ نسختُها منها. */
+  const ctx = createContext({ width, line: LINE, measure, density: th.density });
+  const { ops, contentWidth, gap, text, rect, wrap, centerText, rowText, spacedText } = ctx;
 
-  /** المسافةُ الرأسية: مضاعفُ وحدةِ الإيقاع، مضروبٌ في كثافة القالب. */
-  const gap = (n: number): number => LINE * n * th.density;
   /** حجمُ الخطّ: مقاسُ السُّلَّم مضروباً في سُلَّم القالب. */
   const sz = (n: number): number => Math.round(n * th.typeScale);
 
@@ -58,79 +57,24 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
     logoW = w0 * ratio > capH ? Math.round(capH / ratio) : w0;
     logoH = Math.round(logoW * ratio);
   }
-
-  let y = logoW > 0 ? PAD * LOGO.topPad : PAD + LINE / 2;
-
-  const text = (
-    t: string, x: number, size: number, weight: number,
-    family: Family, align: Align, dir: Dir,
-    opts?: { color?: 'ink' | 'paper'; letterSpacing?: number; at?: number },
-  ): void => {
-    ops.push({
-      op: 'text', x, y: opts?.at ?? y, text: String(t), size, weight, family,
-      align, dir, color: opts?.color || 'ink',
-      ...(opts?.letterSpacing ? { letterSpacing: opts.letterSpacing } : {}),
-    });
-  };
-
-  const rect = (x: number, ry: number, w: number, h: number, color: 'ink' | 'paper' = 'ink'): void => {
-    ops.push({ op: 'rect', x, y: ry, w, h, color });
-  };
-
-  /**
-   * اللفُّ داخل عرضٍ معيَّن.
-   *
-   * وmaxW ليس عرضَ الورقة دائماً: الاسمُ يلتفّ في عموده هو، وإلّا زحف
-   * على الكمية والسعر وقرأه القارئُ متداخلاً.
-   */
-  const wrap = (t: string, size: number, weight: number, family: Family, maxW: number): string[] => {
-    const words = String(t).split(' ');
-    const lines: string[] = [];
-    let cur = '';
-    for (const w of words) {
-      const test = cur ? cur + ' ' + w : w;
-      if (measure(test, size, weight, family) > maxW && cur) {
-        lines.push(cur);
-        cur = w;
-      } else {
-        cur = test;
-      }
-    }
-    if (cur) lines.push(cur);
-    return lines;
-  };
-
-  const centerText = (t: string, size: number, bold: boolean): void => {
-    text(t, width / 2, size, bold ? WEIGHT.bold : WEIGHT.regular, 'sans', 'center', 'rtl');
-    y += gap(size > 22 ? SPACE.rowLarge : SPACE.row);
-  };
-
-  /** سطرٌ طرفاه: عربيٌّ يميناً ورقمٌ يساراً -- وهو ترتيبُ كلِّ سطور الحساب. */
-  const rowText = (leftMono: string, rightArabic: string, size: number, bold: boolean): void => {
-    text(rightArabic, width - PAD, size, bold ? WEIGHT.bold : WEIGHT.regular, 'sans', 'right', 'rtl');
-    if (leftMono) text(leftMono, PAD, size, WEIGHT.mono, 'mono', 'left', 'ltr');
-    y += gap(SPACE.row);
-  };
+  // بلا فراغٍ فوق الشعار: هو أوّلُ ما يُرى، لا ما يُرى بعد فراغ.
+  if (logoW > 0) ctx.y = PAD * LOGO.topPad;
 
   /** الفاصلُ بحسب القالب: أربعُ لغاتٍ بصريةٍ لوظيفةٍ واحدة. */
   const divider = (): void => {
     const mode = th.rule;
-    if (mode === 'none') { y += gap(SPACE.ruleless); return; }
+    if (mode === 'none') { ctx.y += gap(SPACE.ruleless); return; }
     if (mode === 'bar') {
-      rect(PAD, y - BORDER.bar / 2, contentWidth, BORDER.bar);
-      y += gap(SPACE.afterBar);
+      rect(PAD, ctx.y - BORDER.bar / 2, contentWidth, BORDER.bar);
+      ctx.y += gap(SPACE.afterBar);
       return;
     }
     if (mode === 'dotted') {
-      ops.push({
-        op: 'dash', y: Math.round(y) + 0.5, x1: PAD, x2: width - PAD,
-        on: DASH.rule.on, off: DASH.rule.off, thickness: BORDER.rule,
-      });
-      y += gap(SPACE.afterRule);
+      ctx.dash(Math.round(ctx.y) + 0.5, DASH.rule.on, DASH.rule.off);
+      ctx.y += gap(SPACE.afterRule);
       return;
     }
-    rect(PAD, y, contentWidth, BORDER.rule);
-    y += gap(SPACE.afterRule);
+    ctx.rule(SPACE.afterRule);
   };
 
   /**
@@ -140,36 +84,19 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
    * السطر الذي قبله، فيُقرأ شطباً على النصّ لا فصلاً بين قسمين.
    */
   const hairline = (): void => {
-    y += gap(SPACE.hairlineAbove);
-    ops.push({
-      op: 'dash', y: Math.round(y) + 0.5, x1: PAD, x2: width - PAD,
-      on: DASH.hairline.on, off: DASH.hairline.off, thickness: BORDER.rule,
-    });
-    y += gap(SPACE.hairlineBelow);
+    ctx.y += gap(SPACE.hairlineAbove);
+    ctx.dash(Math.round(ctx.y) + 0.5, DASH.hairline.on, DASH.hairline.off);
+    ctx.y += gap(SPACE.hairlineBelow);
   };
 
-  /** شريطٌ أسودُ بكتابةٍ بيضاء: أقوى تمييزٍ تقدر عليه طابعةٌ بلونٍ واحد. */
-  const invertBar = (t: string, size: number): void => {
-    const h = Math.round(size * INVERT_BAR.height);
-    rect(PAD * INVERT_BAR.inset, y - h / 2, width - PAD, h);
-    text(t, width / 2, size, WEIGHT.bold, 'sans', 'center', 'rtl', { color: 'paper' });
-    y += h / 2 + gap(SPACE.afterInvert);
-  };
-
-  /** حروفٌ متباعدةٌ وسطية -- ولا تُباعد العربيةُ فحروفُها متّصلة. */
-  const spacedText = (t: string, size: number, bold: boolean): void => {
-    const ls = ARABIC.test(t) ? 0 : Math.round(size * TRACKING);
-    text(t, width / 2, size, bold ? WEIGHT.bold : WEIGHT.regular, 'sans', 'center', 'rtl', { letterSpacing: ls });
-    y += gap(size > 22 ? SPACE.rowLarge : SPACE.row);
-  };
+  const invertBar = (t: string, size: number): void => ctx.invertBar(t, size, SPACE.afterInvert);
 
   /**
    * سطرٌ بنقاطٍ موصِلة بين الاسم وسعره -- مظهرُ التذاكر القديمة.
    *
    * والاسمُ يلتفّ إن طال: كان يُرسم سطراً واحداً مهما بلغ، فاسمٌ عربيٌّ
    * طويل يزحف على السعر ثم يخرج من حافّة الورقة اليسرى -- يُقصّ عند
-   * الطبع ولا يظهر شيءٌ في المعاينة يقول إنه قُصّ. فتُحجز مساحةُ السعر
-   * أوّلاً، ويلتفّ الاسمُ فيما بقي، وتُوصَل النقاطُ بآخر سطرٍ منه.
+   * الطبع ولا يظهر شيءٌ في المعاينة يقول إنه قُصّ.
    */
   const leaderRow = (name: string, price: string, size: number, bold: boolean): void => {
     const weight = bold ? WEIGHT.bold : WEIGHT.regular;
@@ -178,27 +105,22 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
     const lines = wrap(name, size, weight, 'sans', room);
     lines.slice(0, -1).forEach(line => {
       text(line, width - PAD, size, weight, 'sans', 'right', 'rtl');
-      y += gap(SPACE.row);
+      ctx.y += gap(SPACE.row);
     });
-    const last = lines[lines.length - 1] ?? name;
+    const last = lines[lines.length - 1];
     text(last, width - PAD, size, weight, 'sans', 'right', 'rtl');
     text(price, PAD, size, WEIGHT.regular, 'mono', 'left', 'ltr');
     const nameW = measure(last, size, weight, 'sans');
-    // النقاطُ تملأ ما بينهما بالضبط، فلا تلامس أيّاً منهما.
-    const from = PAD + priceW + DASH.leader.clearance;
-    const to = width - PAD - nameW - DASH.leader.clearance;
-    for (let x = from; x < to; x += DASH.leader.step) {
-      rect(x, y - DASH.leader.size / 2, DASH.leader.size, DASH.leader.size);
-    }
-    y += gap(SPACE.row);
+    leaderDots(ctx, PAD + priceW + DASH.leader.clearance, width - PAD - nameW - DASH.leader.clearance);
+    ctx.y += gap(SPACE.row);
   };
 
   const money = (n: number): string => n.toFixed(2) + ' ' + currency;
 
   // ── الترويسة ────────────────────────────────────────────────────────
   if (logoW > 0) {
-    ops.push({ op: 'image', ref: 'logo', x: (width - logoW) / 2, y, w: logoW, h: logoH });
-    y += logoH + LINE * SPACE.afterLogo;
+    ops.push({ op: 'image', ref: 'logo', x: (width - logoW) / 2, y: ctx.y, w: logoW, h: logoH });
+    ctx.y += logoH + LINE * SPACE.afterLogo;
   }
 
   if (th.headerBand) divider();
@@ -220,7 +142,7 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
   // الفاتورة المبسّطة، في كلّ قالب. وموضعُهما مع بيانات المنشأة فهما
   // تعريفٌ بالبائع لا ببيانات هذا الطلب.
   if (receipt.vatNumber) {
-    y += gap(SPACE.beforeZatca);
+    ctx.y += gap(SPACE.beforeZatca);
     centerText(bi('فاتورة ضريبية مبسطة', 'Simplified Tax Invoice'), sz(TYPE.zatcaHeading), true);
     centerText(bi('الرقم الضريبي', 'VAT No') + ': ' + receipt.vatNumber, sz(TYPE.zatcaVatNo), false);
   }
@@ -229,14 +151,14 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
   // أوّلُ ما تبحث عنه العين، فيستحقّ حدّاً يخصّه. وهو سطرٌ قائمٌ بذاته
   // دائماً: كان مطويّاً في سطر النوع فيختفي كلّما طُبعت الفاتورة قبل أن
   // يعطي الخادمُ رقماً، فيخرج الزبونُ بورقةٍ لا يسأل بها عن طلبه.
-  y += gap(SPACE.beforeOrderBox);
+  ctx.y += gap(SPACE.beforeOrderBox);
   if (th.orderStyle === 'invert') {
     invertBar(bi('رقم الطلب', 'Order No') + '   ' + receipt.orderNumber, sz(TYPE.orderInvert));
   } else if (th.orderStyle === 'plain') {
     centerText(bi('رقم الطلب', 'Order') + ': ' + receipt.orderNumber, sz(TYPE.orderPlain), true);
   } else if (th.orderStyle === 'spaced') {
     spacedText(bi('رقم الطلب', 'Order No'), sz(TYPE.orderSpacedLabel), false);
-    y -= gap(ORDER_BOX.liftY / 2);
+    ctx.y -= gap(ORDER_BOX.liftY / 2);
     spacedText(receipt.orderNumber, sz(TYPE.orderSpacedNumber), true);
   } else {
     /**
@@ -253,26 +175,23 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
     const boxH = padIn + labelSz + gapIn + numSz + padIn;
     const boxW = Math.round(contentWidth * ORDER_BOX.width);
     const boxX = Math.round((width - boxW) / 2);
-    const boxTop = y - LINE * ORDER_BOX.liftY;
+    const boxTop = ctx.y - LINE * ORDER_BOX.liftY;
     const bw = BORDER.box;
 
-    rect(boxX, boxTop, boxW, bw);
-    rect(boxX, boxTop + boxH - bw, boxW, bw);
-    rect(boxX, boxTop, bw, boxH);
-    rect(boxX + boxW - bw, boxTop, bw, boxH);
+    ctx.box(boxX, boxTop, boxW, boxH, bw);
 
     text(bi('رقم الطلب', 'Order No'), width / 2, labelSz, WEIGHT.bold, 'sans', 'center', 'rtl',
       { at: boxTop + padIn + labelSz * ORDER_BOX.baseline });
     text(receipt.orderNumber, width / 2, numSz, WEIGHT.bold, 'sans', 'center', 'ltr',
       { at: boxTop + padIn + labelSz + gapIn + numSz * ORDER_BOX.baseline });
 
-    y = boxTop + boxH;
+    ctx.y = boxTop + boxH;
   }
-  y += gap(SPACE.afterOrderBox);
+  ctx.y += gap(SPACE.afterOrderBox);
 
   // التاريخُ تحت الرقم: تتمّةُ كتلته، لا سطرٌ في ترويسة المنشأة.
   centerText(receipt.dateLabel, sz(TYPE.date), false);
-  y += gap(SPACE.beforeDate);
+  ctx.y += gap(SPACE.beforeDate);
   divider();
 
   if (th.sectionLabels) spacedText(bi('الطلب', 'ORDER'), sz(TYPE.sectionLabel), true);
@@ -329,11 +248,11 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
      */
     const nameSz = sz(TYPE.itemName);
     const nameOnly = it.nameEn ? it.name + ' | ' + it.nameEn : it.name;
-    const firstY = y;
+    const firstY = ctx.y;
 
     wrap(nameOnly, nameSz, WEIGHT.medium, 'sans', nameW).forEach(line => {
       text(line, nameRight, nameSz, WEIGHT.medium, 'sans', 'right', 'rtl');
-      y += gap(SPACE.itemNameLine);
+      ctx.y += gap(SPACE.itemNameLine);
     });
 
     // الكميةُ والسعرُ على سطر الاسم الأوّل، لا على آخره مهما طال.
@@ -350,7 +269,7 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
       // داخل عمود الاسم لا بعرض الورقة: هي تابعةٌ للصنف فتُزاح معه.
       wrap('— ' + m, subSz, WEIGHT.regular, 'sans', nameW).forEach(line => {
         text(line, nameRight, subSz, WEIGHT.regular, 'sans', 'right', 'rtl');
-        y += gap(SPACE.itemSubLine);
+        ctx.y += gap(SPACE.itemSubLine);
       });
     });
     // الملاحظةُ تُطبع للزبون أيضاً بطلب صاحب المطعم -- كانت للمطبخ وحده،
@@ -358,7 +277,7 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
     if (it.note) {
       wrap('ملاحظات: ' + it.note, subSz, WEIGHT.regular, 'sans', nameW).forEach(line => {
         text(line, nameRight, subSz, WEIGHT.regular, 'sans', 'right', 'rtl');
-        y += gap(SPACE.itemSubLine);
+        ctx.y += gap(SPACE.itemSubLine);
       });
     }
     /* سعرُ الوحدة سطرٌ مستقلٌّ فقط حين تتعدّد الكمية.
@@ -367,9 +286,9 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
     if (it.qty > 1) {
       text(it.qty + ' × ' + money(it.unitPrice), nameRight, sz(TYPE.itemUnitPrice),
         WEIGHT.regular, 'sans', 'right', 'rtl');
-      y += gap(SPACE.itemSubLine);
+      ctx.y += gap(SPACE.itemSubLine);
     }
-    y += gap(SPACE.afterItem);
+    ctx.y += gap(SPACE.afterItem);
     /* ولا خطَّ بين كلِّ صنفٍ وصنف: كان الصنفُ ثلاثةَ أسطرٍ فاحتاج خطاً
        يفصله، وقد صار صفاً واحداً بأعمدةٍ مصطفّة فالفراغُ يكفي. ويبقى
        الخطُّ حيث يلزم: بين صنفٍ حمل إضافاتٍ وما بعده، فسطورُه المزاحة
@@ -380,11 +299,11 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
   // ملاحظةُ الزبون على الطلب كلِّه: أسفلَ الأصناف وقبل الأرقام. ليست
   // ملاحظةَ صنفٍ فتُكتب تحته، ولا سطرَ حسابٍ فتُكتب بين المبالغ.
   if (receipt.orderNote) {
-    y += gap(SPACE.beforeOrderNote);
+    ctx.y += gap(SPACE.beforeOrderNote);
     const noteSz = sz(TYPE.orderNote);
     wrap('ملاحظات الطلب: ' + receipt.orderNote, noteSz, WEIGHT.regular, 'sans', contentWidth)
       .forEach(line => rowText('', line, noteSz, false));
-    y += gap(SPACE.afterOrderNote);
+    ctx.y += gap(SPACE.afterOrderNote);
   }
   divider();
 
@@ -396,21 +315,18 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
   // هيئةُ الزكاة: مبلغُ الضريبة سطرٌ إلزاميٌّ في كلّ قالب.
   rowText(money(receipt.vat), bi('ضريبة القيمة المضافة', 'VAT'), rowSz, false);
 
-  const totalTop = y - LINE * TOTAL_BOX.liftY;
+  const totalTop = ctx.y - LINE * TOTAL_BOX.liftY;
   if (th.totalStyle === 'invert') {
     invertBar(bi('الإجمالي', 'Total') + '   ' + money(receipt.total), sz(TYPE.grandTotalInvert));
   } else if (th.totalStyle === 'box') {
-    const tTop = y - LINE * TOTAL_BOX.liftY;
+    const tTop = ctx.y - LINE * TOTAL_BOX.liftY;
     rowText(money(receipt.total), bi('الإجمالي', 'Total'), sz(TYPE.grandTotalBox), true);
-    const tH = y - LINE * TOTAL_BOX.dropY - tTop;
+    const tH = ctx.y - LINE * TOTAL_BOX.dropY - tTop;
     const bx = PAD * TOTAL_BOX.inset;
     const bw2 = width - PAD * TOTAL_BOX.inset * 2;
     const t = BORDER.totalBox;
-    rect(bx, tTop, bw2, t);
-    rect(bx, tTop + tH - t, bw2, t);
-    rect(bx, tTop, t, tH);
-    rect(width - bx - t, tTop, t, tH);
-    y += gap(SPACE.afterTotalBox);
+    ctx.box(bx, tTop, bw2, tH, t);
+    ctx.y += gap(SPACE.afterTotalBox);
   } else {
     rowText(money(receipt.total), bi('الإجمالي', 'Total'),
       sz(th.totalStyle === 'plain' ? TYPE.grandTotalPlain : TYPE.grandTotalBold), true);
@@ -418,13 +334,10 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
   if (th.boxedTotal) {
     const bx = PAD * TOTAL_BOX.inset;
     const bw2 = width - PAD * TOTAL_BOX.inset * 2;
-    const bh = y - totalTop - LINE * TOTAL_BOX.strokeDropY;
+    const bh = ctx.y - totalTop - LINE * TOTAL_BOX.strokeDropY;
     const t = BORDER.totalBox;
-    rect(bx, totalTop, bw2, t);
-    rect(bx, totalTop + bh - t, bw2, t);
-    rect(bx, totalTop, t, bh);
-    rect(bx + bw2 - t, totalTop, t, bh);
-    y += gap(SPACE.afterBoxedTotal);
+    ctx.box(bx, totalTop, bw2, bh, t);
+    ctx.y += gap(SPACE.afterBoxedTotal);
   }
   divider();
 
@@ -435,12 +348,12 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
   // ── الخاتمة ─────────────────────────────────────────────────────────
   if (qr) {
     const qrSize = Math.min(QR_MAX, th.qrMaxSize, contentWidth);
-    y += LINE * SPACE.beforeQr;
+    ctx.y += LINE * SPACE.beforeQr;
     // في الوسط تماماً: (width - qrSize) / 2 مهما كان عرضُ الورق.
-    ops.push({ op: 'image', ref: 'qr', x: (width - qrSize) / 2, y, w: qrSize, h: qrSize });
-    y += qrSize + LINE * SPACE.afterQr;
+    ops.push({ op: 'image', ref: 'qr', x: (width - qrSize) / 2, y: ctx.y, w: qrSize, h: qrSize });
+    ctx.y += qrSize + LINE * SPACE.afterQr;
   }
-  y += LINE * SPACE.beforeFooter;
+  ctx.y += LINE * SPACE.beforeFooter;
 
   // كلُّ سطرٍ يكتبه صاحبُ المطعم يطبع سطراً: «مدة الجلوس ٦٠ دقيقة»
   // و«شكراً لزيارتكم» جملتان، ودمجُهما في فقرةٍ واحدة يطمس الأولى.
@@ -453,7 +366,7 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
       wrap(part, footSz, WEIGHT.regular, 'sans', contentWidth)
         .forEach(line => centerText(line, footSz, false));
     });
-  y += PAD;
+  ctx.y += PAD;
 
-  return { width, height: Math.ceil(y), ops };
+  return { width, height: Math.ceil(ctx.y), ops };
 }
