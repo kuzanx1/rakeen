@@ -835,29 +835,46 @@ button{font-family:inherit; cursor:pointer;}
   border-radius:var(--r-full); overflow:hidden; background:var(--card-bg);
 }
 .loy-adjust-controls.busy{opacity:0.55; pointer-events:none;}
+/* أزرارٌ مُلوَّنةٌ دائماً -- لا عند التحويم فقط -- ومكتوبٌ عليها فعلها
+   صراحةً، فلا يلتبس أيّهما يزيد وأيّهما ينقص قبل الضغط. */
 .loy-adjust-btn{
-  width:38px; height:38px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
-  border:none; background:none; color:var(--text);
-  font-size:19px; font-weight:700; line-height:1; box-sizing:border-box;
-  transition:background .12s ease, color .12s ease;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;
+  min-width:62px; height:48px; flex-shrink:0; padding:0 10px;
+  border:none; background:none; box-sizing:border-box;
+  transition:background .12s ease;
 }
-.loy-adjust-btn.plus:hover{background:color-mix(in srgb, var(--lime) 22%, transparent); color:var(--lime-deep);}
-.loy-adjust-btn.minus:hover{background:color-mix(in srgb, var(--danger) 13%, transparent); color:var(--danger);}
+.loy-adjust-icon{font-size:15px; font-weight:800; line-height:1;}
+.loy-adjust-btn-text{font-size:9px; font-weight:700; letter-spacing:.2px;}
+.loy-adjust-btn.plus{color:var(--lime-deep); background:color-mix(in srgb, var(--lime) 13%, transparent);}
+.loy-adjust-btn.plus:hover{background:color-mix(in srgb, var(--lime) 25%, transparent);}
+.loy-adjust-btn.minus{color:var(--danger); background:color-mix(in srgb, var(--danger) 9%, transparent);}
+.loy-adjust-btn.minus:hover{background:color-mix(in srgb, var(--danger) 18%, transparent);}
 .loy-adjust-qty{
-  min-width:50px; height:38px; padding:0 24px 0 8px; font-size:12.5px; min-height:0;
+  min-width:56px; height:48px; padding:0 26px 0 10px; font-size:13px; font-weight:800; min-height:0;
   border:none; border-inline:1.5px solid var(--line); border-radius:0; background:var(--surf1);
-  text-align:center; background-position:left 7px center;
+  text-align:center; background-position:left 8px center;
 }
 
-/* سجلّ التعديلات -- من غيّر، ومتى، وبكم، ولماذا. أربعتها معاً أو لا شيء. */
-.loy-history-list{max-height:220px; overflow-y:auto;}
-.loy-history-row{padding:10px 0; border-bottom:1px solid var(--line);}
+/* سجلّ التعديلات -- من غيّر، ومتى، وبكم، ولماذا. أربعتها معاً أو لا شيء.
+   أيقونةٌ ملوّنةٌ +/− بادئةً كلَّ صفٍّ تنقل اتجاه التعديل قبل قراءة
+   أيّ رقم، والمقدارُ والنوعُ معاً في صفٍّ واحدٍ بارز. */
+.loy-history-list{max-height:260px; overflow-y:auto;}
+.loy-history-row{display:flex; align-items:flex-start; gap:10px; padding:12px 0; border-bottom:1px solid var(--line);}
 .loy-history-row:last-child{border-bottom:none;}
-.loy-history-top{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:3px;}
-.loy-history-delta{font-weight:800; font-size:12px; font-family:'IBM Plex Mono',monospace;}
+.loy-history-icon{
+  width:28px; height:28px; border-radius:50%; flex-shrink:0; margin-top:1px;
+  display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:800; line-height:1;
+}
+.loy-history-icon.pos{background:color-mix(in srgb, var(--lime) 20%, transparent); color:var(--success-text);}
+.loy-history-icon.neg{background:color-mix(in srgb, var(--danger) 15%, transparent); color:var(--danger);}
+.loy-history-body{flex:1; min-width:0;}
+.loy-history-top{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px; flex-wrap:wrap;}
+.loy-history-amount{display:flex; align-items:center; gap:6px; flex-wrap:wrap;}
+.loy-history-delta{font-weight:800; font-size:13.5px;}
 .loy-history-delta.pos{color:var(--success-text);}
 .loy-history-delta.neg{color:var(--danger);}
-.loy-history-when{font-size:10px; font-weight:600; color:var(--muted); flex-shrink:0;}
+.loy-history-kind{font-size:12px; font-weight:700; color:var(--text);}
+.loy-history-when{font-size:10px; font-weight:600; color:var(--muted); flex-shrink:0; white-space:nowrap;}
 .loy-history-reason{font-size:11.5px; font-weight:600; color:var(--muted); line-height:1.5;}
 .loy-history-who{color:var(--text); font-weight:700;}
 

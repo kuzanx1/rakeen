@@ -5053,9 +5053,13 @@ async function openMemberDetailModal(customerId){
       </div>
       ${extraHtml||''}
       <div class="loy-adjust-controls">
-        <button type="button" class="loy-adjust-btn minus" data-kind="${kind}" data-dir="-1" title="خصم">−</button>
+        <button type="button" class="loy-adjust-btn minus" data-kind="${kind}" data-dir="-1">
+          <span class="loy-adjust-icon">−</span><span class="loy-adjust-btn-text">خصم</span>
+        </button>
         <select class="loy-adjust-qty">${qtyOptions}</select>
-        <button type="button" class="loy-adjust-btn plus" data-kind="${kind}" data-dir="1" title="إضافة">+</button>
+        <button type="button" class="loy-adjust-btn plus" data-kind="${kind}" data-dir="1">
+          <span class="loy-adjust-icon">+</span><span class="loy-adjust-btn-text">إضافة</span>
+        </button>
       </div>
     </div>`;
 
@@ -5082,16 +5086,24 @@ async function openMemberDetailModal(customerId){
 
   const historyHtml = (adjustments||[]).length ? adjustments.map(a=>{
     const who = a.profiles ? a.profiles.full_name : '—';
-    const sign = a.delta > 0 ? '+' : '';
+    const isPos = a.delta > 0;
+    const sign = isPos ? '+' : '';
     const kindLabel = LOY_KIND_LABELS[a.kind] || a.kind;
-    const rewardNote = a.rewards_granted > 0 ? ` — وصل لمكافأة (${a.rewards_granted})` : '';
+    const rewardNote = a.rewards_granted > 0 ? `<span class="loy-reward-badge">وصل لمكافأة (${a.rewards_granted})</span>` : '';
     const when = new Date(a.created_at).toLocaleString('ar-SA', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'});
     return `<div class="loy-history-row">
-      <div class="loy-history-top">
-        <span class="loy-history-delta ${a.delta>0?'pos':'neg'}"><span class="mono">${sign}${a.delta}</span> ${escapeHtml(kindLabel)}${rewardNote}</span>
-        <span class="loy-history-when">${when}</span>
+      <div class="loy-history-icon ${isPos?'pos':'neg'}">${isPos?'+':'−'}</div>
+      <div class="loy-history-body">
+        <div class="loy-history-top">
+          <div class="loy-history-amount">
+            <span class="loy-history-delta mono ${isPos?'pos':'neg'}">${sign}${a.delta}</span>
+            <span class="loy-history-kind">${escapeHtml(kindLabel)}</span>
+            ${rewardNote}
+          </div>
+          <span class="loy-history-when">${when}</span>
+        </div>
+        <div class="loy-history-reason">${escapeHtml(a.reason)} <span class="loy-history-who">— ${escapeHtml(who)}</span></div>
       </div>
-      <div class="loy-history-reason">${escapeHtml(a.reason)} — <span class="loy-history-who">${escapeHtml(who)}</span></div>
     </div>`;
   }).join('') : '<p class="stock-qty-helper">ما فيه تعديلات يدوية على هذا العضو بعد.</p>';
 
