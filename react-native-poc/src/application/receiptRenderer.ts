@@ -1,7 +1,8 @@
 import { Skia, PaintStyle } from '@shopify/react-native-skia';
+import type { SkImage } from '@shopify/react-native-skia';
 import { createReceiptSurface, loadRemoteImage } from '../platform/receiptCanvas';
 import { loadReceiptTypefaces } from '../platform/receiptFonts';
-import { buildReceiptFontProvider, paintText, measureTextWidth, measureAndWrapText } from '../platform/receiptText';
+import { buildReceiptFontProvider, paintText, paintTextAnchored, measureTextWidth, measureTextWidthWeighted, measureAndWrapText } from '../platform/receiptText';
 import { rgbaToEscPosRaster, rgbaToEscPosRasterLegacy, RgbaBuffer } from '../domain/escposRaster';
 import type { PrintTimer } from './printTiming';
 import { bytesToBase64 } from '../domain/escposText';
@@ -10,7 +11,12 @@ import { buildQrMatrix } from '../domain/qrMatrix';
 import { toReceiptPrintable, toKitchenTicketPrintable, ReceiptPrintable, KitchenTicketPrintable } from '../domain/receiptPrintable';
 import { ReceiptData, KitchenTicketData, buildReceiptEscPosBase64, buildKitchenTicketEscPosBase64 } from '../domain/receipt';
 import type { ClosingReport } from '../domain/shift';
-import { bi, receiptTheme } from '../domain/receiptTheme';
+import { receiptTheme } from '../domain/receiptTheme';
+// محرّكُ الطباعة المشترك -- هو نفسُه الذي يبنيه الويب من
+// `shared/receipt/` إلى `public/pos/receipt-engine.js`. مصدرٌ واحد،
+// فلا تُعدَّل الورقةُ مرّتين ولا تفترق النسختان.
+import { layoutReceipt } from '../../../shared/receipt';
+import type { LayoutResult, Measurer } from '../../../shared/receipt';
 
 /**
  * Feature Parity Pass -- Real Receipt Rendering. This is the real
@@ -108,24 +114,6 @@ function drawDivider(canvas: ReturnType<typeof createReceiptSurface>['canvas'], 
 }
 
 /**
- * The lighter rule that separates one item from the next.
- *
- * Dashed, not a thinner or greyer solid line: this canvas is reduced to
- * one bit per dot before it reaches the printer, so a line is either a
- * dot or nothing and neither colour nor sub-pixel width survives the
- * trip. Dash spacing is the only weight that does — which is also how the
- * text renderer separates its items, so the two paths agree on paper.
- */
-function drawItemRule(canvas: ReturnType<typeof createReceiptSurface>['canvas'], width: number, y: number): void {
-  const paint = Skia.Paint();
-  paint.setColor(Skia.Color('#000000'));
-  paint.setStyle(PaintStyle.Stroke);
-  paint.setStrokeWidth(1);
-  paint.setPathEffect(Skia.PathEffect.MakeDash([2, 3], 0));
-  canvas.drawLine(PAD, Math.round(y) + 0.5, width - PAD, Math.round(y) + 0.5, paint);
-}
-
-/**
  * العملة على الورق: الرمز الجديد، لا الكلمة.
  *
  * كان هنا 'ريال' مكتوبةً، وعلّتُها أن الرمز ليس في أي خط نحمله فيخرج
@@ -165,93 +153,6 @@ function drawHeart(
   canvas.drawPath(p, paint);
 }
 
-/** الفاصل بحسب القالب: أربع لغات بصرية لنفس الوظيفة. */
-function drawThemedRule(
-  canvas: ReturnType<typeof createReceiptSurface>['canvas'],
-  width: number, y: number, mode: string,
-): void {
-  if (mode === 'none') return;
-  const paint = Skia.Paint();
-  paint.setColor(Skia.Color('#000000'));
-  if (mode === 'bar') {
-    // شريط سميك: يُرى من بعيد، ويجعل الأقسام كتلاً لا سطوراً.
-    canvas.drawRect(Skia.XYWHRect(PAD, y - 3, width - PAD * 2, 6), paint);
-    return;
-  }
-  paint.setStyle(PaintStyle.Stroke);
-  paint.setStrokeWidth(1);
-  if (mode === 'dotted') paint.setPathEffect(Skia.PathEffect.MakeDash([2, 4], 0));
-  canvas.drawLine(PAD, Math.round(y) + 0.5, width - PAD, Math.round(y) + 0.5, paint);
-}
-
-/** شريط أسود بكتابة بيضاء -- أقوى تمييز تقدر عليه طابعة بلون واحد. */
-function drawInvertBar(ctx: RenderContext, y: number, text: string, size: number): number {
-  const h = Math.round(size * 1.9);
-  const paint = Skia.Paint();
-  paint.setColor(Skia.Color('#000000'));
-  ctx.canvas.drawRect(Skia.XYWHRect(PAD * 0.5, y - h / 2, ctx.width - PAD, h), paint);
-  paintText(ctx.canvas, ctx.provider, text, PAD, y - size * 0.72, ctx.contentWidth, {
-    size, bold: true, align: 'center', direction: 'rtl', color: '#ffffff',
-  });
-  return y + h / 2 + LINE_H * 0.5;
-}
-
-/**
- * حروف متباعدة.
- *
- * بإدراج مسافة رفيعة بين الحروف لا بخاصية تباعد: العربية تتصل حروفها
- * فالمباعدة تفكّها، فتُطبَّق على اللاتيني والأرقام وحدها.
- */
-function drawSpacedText(ctx: RenderContext, y: number, text: string, size: number, bold: boolean): number {
-  const shown = /[؀-ۿ]/.test(text) ? text : [...text].join(' ');
-  paintText(ctx.canvas, ctx.provider, shown, PAD, y - size * 0.7, ctx.contentWidth, {
-    size, bold, align: 'center', direction: 'rtl',
-  });
-  return y + LINE_H * (size > 22 ? 1.3 : 1);
-}
-
-/** سطر صنف بنقاط موصِلة بين اسمه وسعره -- مظهر التذاكر القديمة. */
-/**
- * الاسم والسعر تصلهما نقاط -- والاسم يلتفّ حين لا يسعه ما بقي.
- *
- * كان يُرسم سطراً واحداً على عرض الورقة كله، والسعر يُرسم على العرض
- * نفسه من الجهة الأخرى. فاسمٌ طويل -- وكل اسم بلغتين طويل -- يمتدّ
- * تحت السعر فيركب أحدهما الآخر. وليس ثمّ لفٌّ يمنعه.
- *
- * فالمساحة تُقسَم أولاً: السعر يأخذ قدره، والاسم يلتفّ في الباقي.
- * والنقاط لا تُرسم إلا إذا بقي بينهما فراغ يسعها -- ونقطةٌ واحدة في
- * فراغٍ ضيق أسوأ من لا شيء.
- */
-function drawLeaderRow(ctx: RenderContext, y: number, name: string, price: string, size: number, bold: boolean): number {
-  const priceW = price ? measureTextWidth(ctx.provider, price, size, false) : 0;
-  const GAP = 10;
-  const nameMax = Math.max(60, ctx.contentWidth - priceW - GAP);
-  const lines = measureAndWrapText(ctx.provider, name, nameMax, size, bold);
-
-  lines.forEach((line, i) => {
-    paintText(ctx.canvas, ctx.provider, line, PAD, y + i * LINE_H * 0.86, ctx.contentWidth, {
-      size, bold, align: 'right', direction: 'rtl',
-    });
-  });
-  if (price) {
-    paintText(ctx.canvas, ctx.provider, price, PAD, y, ctx.contentWidth, { size, bold: false, align: 'left', direction: 'ltr' });
-  }
-
-  // النقاط على السطر الأول وحده، وبين ما انتهى إليه الاسم وما بدأ منه
-  // السعر -- فإن التقيا فلا فراغ يُملأ.
-  const firstW = measureTextWidth(ctx.provider, lines[0] ?? name, size, bold);
-  const from = PAD + priceW + 8;
-  const to = ctx.width - PAD - firstW - 8;
-  if (to - from > 12) {
-    const paint = Skia.Paint();
-    paint.setColor(Skia.Color('#000000'));
-    for (let x = from; x < to; x += 6) {
-      ctx.canvas.drawRect(Skia.XYWHRect(x, y + size * 0.62, 2, 2), paint);
-    }
-  }
-  return y + Math.max(1, lines.length) * LINE_H * 0.86 + (LINE_H * 0.14);
-}
-
 interface RenderContext {
   canvas: ReturnType<typeof createReceiptSurface>['canvas'];
   provider: ReturnType<typeof buildReceiptFontProvider>;
@@ -265,74 +166,6 @@ interface RenderContext {
 function drawCenterLine(ctx: RenderContext, y: number, text: string, size: number, bold: boolean): number {
   const height = paintText(ctx.canvas, ctx.provider, text, PAD, y, ctx.contentWidth, { size, bold, align: 'center', direction: 'rtl' });
   return y + Math.max(height, LINE_H * (size > 22 ? 1.3 : 1));
-}
-
-/** Right-aligned Arabic label + left-aligned (LTR) mono amount on the
- *  same line -- ported from the PWA's rowText(). No dedicated mono
- *  typeface is bundled (only IBM Plex Sans Arabic was approved/
- *  downloaded for this pass), so the amount column uses the same
- *  Arabic-family digits -- fully correct information, just not the
- *  PWA's exact monospace typeface; a disclosed, minor simplification. */
-/**
- * أعمدة صف الصنف، محسوبة من عرض الورق لا بأرقام ثابتة — الورق ٥٨ مم
- * يصغّرها بنفس النسب بدل أن تتداخل.
- */
-function itemColumns(contentWidth: number) {
-  const qty = Math.round(contentWidth * 0.1);
-  const price = Math.round(contentWidth * 0.24);
-  const gutter = 8;
-  return { qty, price, name: contentWidth - qty - price - gutter * 2, gutter };
-}
-
-/**
- * صنف واحد في سطر واحد: الكمية يميناً، الاسم وسطاً، السعر يساراً.
- *
- * كان الاسم في سطر والسعر في السطر التالي، فالعين لا تربط بينهما
- * والورقة تطول بلا سبب. ثلاثة صناديق على نفس الـy تحلّ الاثنين معاً.
- */
-function drawItemLine(
-  ctx: RenderContext,
-  y: number,
-  qtyText: string,
-  nameLines: string[],
-  priceText: string,
-  size: number,
-  bold: boolean,
-  color?: string,
-): number {
-  const col = itemColumns(ctx.contentWidth);
-  const nameX = PAD + col.price + col.gutter;
-  const qtyX = ctx.width - PAD - col.qty;
-  /**
-   * الاسم يُرسم في العرض الذي لُفَّ عليه، لا في أضيق منه.
-   *
-   * الكمية صارت ملتصقة بالاسم ("2x سبانيش لاتيه") فلم يعد لعمودها
-   * راسمٌ، والمنادي يلفّ النص على name+qty ليستفيد من فراغه. وكان
-   * الرسم يقصره على name وحده -- أضيق مما لُفَّ عليه بعُشر الورقة --
-   * فيفيض كل سطر على جاره. وهو ما ظهر في "كركديه بالأناناس |
-   * Hibiscus Pineapple": اسمان بلغتين لا يسعهما العمود الأضيق.
-   *
-   * فحين لا كمية تُرسم، يأخذ الاسم عرضها معه.
-   */
-  const nameW = qtyText ? col.name : col.name + col.qty;
-
-  nameLines.forEach((line, i) => {
-    paintText(ctx.canvas, ctx.provider, line, nameX, y + i * LINE_H * 0.86, nameW, {
-      size, bold, align: 'right', direction: 'rtl', color,
-    });
-  });
-  // الكمية والسعر مع السطر الأول من الاسم فقط.
-  if (qtyText) {
-    paintText(ctx.canvas, ctx.provider, qtyText, qtyX, y, col.qty, {
-      size, bold: false, align: 'right', direction: 'ltr', color,
-    });
-  }
-  if (priceText) {
-    paintText(ctx.canvas, ctx.provider, priceText, PAD, y, col.price, {
-      size, bold, align: 'left', direction: 'ltr', color,
-    });
-  }
-  return y + Math.max(1, nameLines.length) * LINE_H * 0.86;
 }
 
 function drawRow(ctx: RenderContext, y: number, leftMono: string, rightArabic: string, size: number, bold: boolean): number {
@@ -356,6 +189,69 @@ async function buildFontProviderReady() {
  * rather than whatever width happened to be configured back when the
  * job was first enqueued, which may since have changed.
  */
+/**
+ * ينفّذ أوامرَ المحرّك على لوحة Skia -- تنفيذاً أعمى، بلا قرار.
+ *
+ * لا هامشَ هنا ولا ارتفاعَ سطرٍ ولا حجمَ خطّ: هي كلُّها في
+ * `shared/receipt/tokens.ts`، ينادِيها المحرّكُ ويُخرج مواضعَ محسوبة.
+ * ولو قرّر هذا المنفّذُ شيئاً من عنده لعادت ورقةُ التطبيق تفارق ورقةَ
+ * الويب من حيث لا يُرى -- وهو ما كان يقع حين كان لكلٍّ منهما راسمُه.
+ */
+function paintReceiptOps(
+  canvas: ReturnType<typeof createReceiptSurface>['canvas'],
+  provider: ReturnType<typeof buildReceiptFontProvider>,
+  layout: LayoutResult,
+  images: { logo: SkImage | null; qrPayload: string | null },
+): void {
+  const fill = Skia.Paint();
+  for (const op of layout.ops) {
+    if (op.op === 'rect') {
+      fill.setColor(Skia.Color(op.color === 'paper' ? '#ffffff' : '#000000'));
+      canvas.drawRect(Skia.XYWHRect(op.x, op.y, op.w, op.h), fill);
+      continue;
+    }
+    if (op.op === 'dash') {
+      /* متقطّعٌ لا رماديّ: اللوحةُ تُحوَّل إلى لونين قبل الطابعة، فالخطُّ
+         الرماديُّ الرفيع يُنعَّم فيظهر في المعاينة ولا يُطبع أصلاً.
+         ومربّعاتٌ صغيرةٌ متتابعة لا خطٌّ منقّط: الرأسُ الحراريُّ يطبع
+         الشرطةَ الممتلئة نظيفةً ويتفاوت في الخطّ المرسوم. */
+      fill.setColor(Skia.Color('#000000'));
+      for (let x = op.x1; x < op.x2; x += op.on + op.off) {
+        const w = Math.min(op.on, op.x2 - x);
+        canvas.drawRect(Skia.XYWHRect(x, op.y - op.thickness / 2, w, op.thickness), fill);
+      }
+      continue;
+    }
+    if (op.op === 'image') {
+      if (op.ref === 'logo' && images.logo) {
+        canvas.drawImageRect(
+          images.logo,
+          Skia.XYWHRect(0, 0, images.logo.width(), images.logo.height()),
+          Skia.XYWHRect(op.x, op.y, op.w, op.h),
+          Skia.Paint(),
+        );
+      } else if (op.ref === 'qr' && images.qrPayload) {
+        /* الرمزُ يُبنى مصفوفةَ وحداتٍ ويُرسم مربّعاتٍ، لا صورةً تُحمَّل:
+           فلا شبكةَ في مسار الطباعة، والحوافُّ تخرج حادّةً بلا تنعيم --
+           وهو ما يقرؤه الماسحُ من ورقٍ حراريّ. */
+        drawQrMatrix(canvas, images.qrPayload, op.x, op.y, op.w);
+      }
+      continue;
+    }
+    paintTextAnchored(canvas, provider, op.text, {
+      x: op.x,
+      y: op.y,
+      paperWidth: layout.width,
+      size: op.size,
+      weight: op.weight,
+      align: op.align,
+      direction: op.dir,
+      color: op.color === 'paper' ? '#ffffff' : '#000000',
+      letterSpacing: op.letterSpacing,
+    });
+  }
+}
+
 export async function renderReceiptToEscPosBase64(
   data: ReceiptData,
   printerPaperWidthPx?: number,
@@ -364,27 +260,6 @@ export async function renderReceiptToEscPosBase64(
   timer?: PrintTimer,
 ): Promise<string> {
   try {
-    // Spacing, type scale and rules come from the theme; the ZATCA fields
-    // below never do. A theme decides how a receipt looks, never what a
-    // tax invoice must contain.
-    const th = receiptTheme(themeId);
-    /**
-     * لا رماديّ على ورقٍ حراريّ.
-     *
-     * الورقُ لا يعرف إلا نقطةً محروقةً أو بيضاء. والرماديُّ فكرةُ شاشةٍ:
-     * يُحوَّل عند الطباعة إلى "أسودُ أم أبيض؟" -- وحرفٌ صغير لا تبلغ
-     * سيقانُه تغطيةً تامّة، فيقع الرماديُّ منها على جانب الورق حيث يقع
-     * الأسودُ على جانب الحبر.
-     *
-     * قِيست: بتغطية ٥٠٪ يثبت #000 ويسقط #555. وسطورُ الإضافات تحت الصنف
-     * كانت #555 -- وهي أوّلُ ما يتقطّع في الفاتورة، وهو ما شُكي منه.
-     *
-     * (المعالجةُ الحقيقية للتقطّع في escposRaster: المزجُ على أبيض. وهذا
-     *  يمنع أن يُولَد النصُّ ضعيفاً من أصله.)
-     */
-    const INK = '#000000';
-    const gap = (n: number) => LINE_H * n * th.density;
-    const sz = (n: number) => Math.round(n * th.typeScale);
     const receipt = toReceiptPrintable(printerPaperWidthPx != null ? { ...data, paperWidthPx: printerPaperWidthPx } : data);
     const provider = timer
       ? await timer.stage('fontsReady', () => buildFontProviderReady())
@@ -395,278 +270,61 @@ export async function renderReceiptToEscPosBase64(
         : await loadRemoteImage(data.logoUrl)
       : null;
 
-    const width = receipt.paperWidthPx;
-    const contentWidth = width - PAD * 2;
-    const qrSize = Math.min(220, contentWidth);
-    // الشعار بنسبة أبعاده الأصلية.
-    //
-    // كان يُرسم في مربع مهما كانت أبعاده، فشعار عريض ٣:٢ -- وهو الشائع --
-    // يُضغط أفقياً. العرض وحده مضبوط الآن والارتفاع يتبعه، مع سقفٍ
-    // للارتفاع حتى لا يبتلع شعارٌ طويل نصف الورقة.
-    /**
-     * الشعار أكبر بالنصف، ويبدأ من حافة الورقة.
-     *
-     * كان يبدأ بعد نصف سطر من أعلى الورقة ثم يُرسم صغيراً، فيبدو فراغٌ
-     * ثم شيءٌ صغير -- وأول ما تقع عليه العين من الفاتورة هو الفراغ.
-     * والشعار هو الترويسة كلها حين يحمل الاسم، فيأخذ حقّه.
-     *
-     * والمُعامل 1.5 على ما يقرره الثيم لا بدلاً منه: "فخم" يبقى أكبر من
-     * "كلاسيكي"، وتبقى النسب بينهما كما صُمّمت.
-     */
-    const LOGO_BOOST = 1.5;
-    const logoW0 = logoImage && th.showLogo ? Math.round(width * (th.logoWidth ?? 0.3) * LOGO_BOOST) : 0;
-    const logoRatio = logoImage ? logoImage.height() / logoImage.width() : 1;
-    const logoCapH = Math.round(width * 0.34 * LOGO_BOOST);
-    const logoW = logoW0 * logoRatio > logoCapH ? Math.round(logoCapH / logoRatio) : logoW0;
-    const logoH = Math.round(logoW * logoRatio);
-    const maxHeight = 2400 + receipt.items.length * 200 + (receipt.vatNumber ? qrSize + 120 : 0) + (logoImage ? logoH + 40 : 0);
+    /* القياسُ هو الشيءُ الوحيد الذي لا يستطيع المحرّكُ فعلَه بنفسه:
+       عرضُ الكلمة لا يُعرف إلا من الخطّ، والخطُّ هنا. فيُمرَّر إليه
+       ويبقى الحسابُ كلُّه عنده -- وهذا ما جعل توحيدَ الراسمَين ممكناً. */
+    const measure: Measurer = (text, size, weight) => measureTextWidthWeighted(provider, text, size, weight);
 
-    const surface = createReceiptSurface(width, maxHeight);
-    const { canvas } = surface;
-    canvas.clear(Skia.Color('#ffffff'));
-    const ctx: RenderContext = { canvas, provider, width, contentWidth };
-
-    // بلا فراغٍ فوق الشعار: هو أول ما يُرى، لا ما يُرى بعد فراغ.
-    let y = logoImage && th.showLogo && logoW0 > 0 ? PAD * 0.4 : PAD + LINE_H / 2;
-
-    if (logoImage && th.showLogo && logoW > 0) {
-      canvas.drawImageRect(
-        logoImage,
-        Skia.XYWHRect(0, 0, logoImage.width(), logoImage.height()),
-        Skia.XYWHRect((width - logoW) / 2, y, logoW, logoH),
-        Skia.Paint(),
-      );
-      y += logoH + LINE_H * 0.45;
-    }
-
-    // The elegant theme frames the name between two rules; the others
-    // just print it.
-    if (th.headerBand) {
-      drawThemedRule(canvas, width, y, th.rule);
-      y += gap(0.5);
-    }
-    // الاسم تحت الشعار اختياري -- أغلب الشعارات تحمله داخلها. لكن بلا
-    // شعار يصير الاسم هو الترويسة كلها، فلا يُخفى مهما كان الإعداد.
-    const nameShown = receipt.showBusinessName || !(logoImage && th.showLogo && logoW > 0);
-    if (nameShown) y = drawCenterLine(ctx, y, receipt.businessName, sz(30), true);
-    if (th.headerBand) {
-      y += gap(0.15);
-      drawThemedRule(canvas, width, y, th.rule);
-      y += gap(0.5);
-    }
-    if (receipt.tagline) {
-      y += gap(0.25);
-      y = drawCenterLine(ctx, y, receipt.tagline, sz(17), false);
-      y += gap(0.2);
-    }
-    // اسم الفرع يسبق الحي والمدينة، ولا يُمرَّر إلا لمنشأة لها أكثر من فرع.
-    const whereLine = [receipt.branchLabel, receipt.locationLine].filter(Boolean).join(' — ');
-    if (whereLine) y = drawCenterLine(ctx, y, whereLine, sz(16), false);
-    else if (receipt.branchName) y = drawCenterLine(ctx, y, receipt.branchName, sz(17), false);
-
-    if (receipt.vatNumber) {
-      y += gap(0.2);
-      y = drawCenterLine(ctx, y, bi('فاتورة ضريبية مبسطة', 'Simplified Tax Invoice'), sz(16), true);
-      y = drawCenterLine(ctx, y, `${bi('الرقم الضريبي', 'VAT No')}: ${receipt.vatNumber}`, sz(15), false);
-    }
-
-    // رقم الطلب في صندوق. الملصق صغير فوقه، والرقم وحده كبيراً -- الرقم
-    // هو المطلوب، فلا تزاحمه الكلمة الدالة عليه بنفس حجمه.
-    y += gap(0.7);
-    if (th.orderStyle === 'invert') {
-      y = drawInvertBar(ctx, y, `${bi('رقم الطلب', 'Order No')}   ${receipt.orderNumber}`, sz(24));
-    } else if (th.orderStyle === 'plain') {
-      y = drawCenterLine(ctx, y, `${bi('رقم الطلب', 'Order')}: ${receipt.orderNumber}`, sz(17), true);
-    } else if (th.orderStyle === 'spaced') {
-      y = drawSpacedText(ctx, y, bi('رقم الطلب', 'Order No'), sz(15), false);
-      y = drawSpacedText(ctx, y, receipt.orderNumber, sz(28), true);
-    } else {
-      const boxTop = y;
-      y += gap(0.45);
-      // والملصقُ عريضٌ لا رفيع، والرقمُ أكبر: هذا الصندوق أوّلُ ما تقع
-      // عليه العينُ في الفاتورة، وأوّلُ ما يُقرأ في المطبخ وعند التسليم.
-      y = drawCenterLine(ctx, y, bi('رقم الطلب', 'Order No'), sz(16), true);
-      y = drawCenterLine(ctx, y, receipt.orderNumber, sz(36), true);
-      y += gap(0.35);
-      drawBox(canvas, PAD + contentWidth * 0.2, boxTop, contentWidth * 0.6, y - boxTop);
-    }
-    y += gap(0.5);
-
-    y = drawCenterLine(ctx, y, receipt.dateLabel, sz(16), false);
-    y += gap(0.35);
-    drawThemedRule(canvas, width, y, th.rule);
-    y += gap(0.45);
-
-    // من أصدرها ونوعها، صفّين معنونين.
-    if (th.sectionLabels) y = drawSpacedText(ctx, y, bi('الطلب', 'ORDER'), sz(14), true);
-    if (receipt.cashierName) y = drawRow(ctx, y, '', `${bi('تمت بواسطة', 'Served by')}: ${receipt.cashierName}`, sz(15), false);
-    if (receipt.metaLabel) y = drawRow(ctx, y, '', `${bi('نوع الطلب', 'Type')}: ${receipt.metaLabel}`, sz(15), false);
-    /* رقمُ الطلب الأصليّ في إشعار الاسترجاع: الورقةُ تُسند إلى ما استُرجع
-       منه، وإلا كانت مبلغاً بلا مصدرٍ عند الجرد. */
-    if (receipt.refundOfOrder) {
-      y = drawRow(ctx, y, '', `${bi('استرجاع من الطلب', 'Refund of')}: ${receipt.refundOfOrder}`, sz(15), true);
-    }
-    y += gap(0.1);
-    drawThemedRule(canvas, width, y, th.rule);
-    y += gap(0.6);
-
-    // عناوين الأعمدة: تقول ما هي الأرقام قبل أن تبدأ. سطر واحد صغير
-    // يغني عن تخمين القارئ.
-    const cols = itemColumns(contentWidth);
-    y = drawItemLine(
-      ctx, y,
-      bi('الكمية', 'Qty'),
-      [bi('المنتج', 'Item')],
-      bi('السعر', 'Price'),
-      sz(15), false, INK,
-    );
-    y += gap(0.18);
-    drawThemedRule(canvas, width, y, th.rule);
-    y += gap(0.35);
-
-    receipt.items.forEach((item, index) => {
-      // العربي والإنجليزي على سطر واحد يفصلهما شَرطة.
-      //
-      // هذا ما عجز عنه وضع النص: الفاصل محرف محايد بين مقطعين بلغتين،
-      // وموضعه بعد ترتيب المقاطع غير محدَّد، فكان يقع مرة يمين العربي
-      // ومرة يسار الإنجليزي بلا قاعدة. أما هنا فالنص يُرسم بترتيب
-      // ثنائي الاتجاه صحيح، فالسطر الواحد يصحّ -- ويوفّر سطراً لكل صنف.
-      // الكمية ملتصقة بالاسم: "2x سبانيش لاتيه".
-      //
-      // عمودٌ مستقل للكمية كان يفصل الرقم عن الصنف الذي يعدّه بعرض
-      // الورقة كلها، فتقفز العين بينهما. والرقم ملتصقاً يُقرأ مع اسمه في
-      // نظرة واحدة، ويحرّر العمود لصالح الاسم -- وهو ما يحتاجه اسمان
-      // بلغتين.
-      const named = item.nameEn ? `${item.name} | ${item.nameEn}` : item.name;
-      const fullName = `${item.qty}x ${named}`;
-      if (th.itemStyle === 'leaders') {
-        y = drawLeaderRow(ctx, y, fullName, `${item.lineTotal.toFixed(2)} ${RIYAL}`, sz(17), true);
-        // ستّةَ عشرَ لا أربعةَ عشر: عند ٥٧٦ نقطة يساوي البكسلُ نقطةً،
-        // وأربعةَ عشرَ تجعل سيقانَ العربية دون نقطةٍ كاملة فتتقطّع.
-        for (const modText of item.mods) y = drawRow(ctx, y, '', `— ${modText}`, sz(16), false);
-        if (item.note) y = drawRow(ctx, y, '', `ملاحظات: ${item.note}`, sz(16), false);
-        if (index < receipt.items.length - 1) { y += gap(0.2); drawItemRule(canvas, width, y); y += gap(0.3); }
-        else y += gap(0.22);
-        return;
-      }
-      // سبعة عشر لا عشرون: الاسمان بلغتين يطولان، والخط الأكبر يدفع
-      // نصفهما إلى سطر ثانٍ بلا داعٍ. أصغر قليلاً = أسطر أقل وورقة
-      // أنظف، والسعر يبقى بحجمه فهو ما تبحث عنه العين.
-      const nameLines = measureAndWrapText(provider, fullName, cols.name + cols.qty, sz(19), true);
-      y = drawItemLine(
-        ctx, y,
-        '',
-        nameLines,
-        `${item.lineTotal.toFixed(2)} ${RIYAL}`,
-        sz(19), true,
-      );
-      // سعر الوحدة يُذكر فقط حين تتعدد الكمية — عند الواحدة يكرر السعر
-      // المكتوب يمينه ولا يضيف شيئاً غير سطر يطيل الورقة.
-      // سعر الوحدة سطر مستقل فقط حين تتعدد الكمية: عند الواحد يكرر
-      // الرقم المطبوع بجانبه، فيتوقف القارئ ليتأكد أنه لم يُحاسَب مرتين.
-      if (item.qty > 1) {
-        y = drawItemLine(
-          ctx, y, '',
-          [`${item.unitPrice.toFixed(2)} ${RIYAL} × ${item.qty}`],
-          '', sz(16), false, INK,
-        );
-      }
-      /* القياسُ بالحجم الذي يُرسم به، لا بغيره: قياسُ اللفّ بأربعةَ عشرَ
-         ورسمٌ بستّةَ عشرَ يجعل السطرَ أعرضَ من عموده فيخرج عنه. */
-      const modSz = sz(16);
-      for (const modText of item.mods) {
-        for (const line of measureAndWrapText(provider, `+ ${modText}`, cols.name, modSz, false)) {
-          y = drawItemLine(ctx, y, '', [line], '', modSz, false, INK);
-        }
-      }
-      // الملاحظة تحمل اسمها، وإلا أشبهت اسم منتج بلا سعر.
-      if (item.note) {
-        for (const line of measureAndWrapText(provider, `ملاحظات: ${item.note}`, cols.name, modSz, false)) {
-          y = drawItemLine(ctx, y, '', [line], '', modSz, false, INK);
-        }
-      }
-      // فاصل بين كل منتج والذي يليه، لا بعد آخرها: خط القسم تحته يغلق
-      // الجدول. وهو مرقّط لا كامل، وإلا تساوى حدّ الصنف بحدّ القسم
-      // فصارت الفاتورة شبكة.
-      if (index < receipt.items.length - 1) {
-        y += gap(0.2);
-        drawItemRule(canvas, width, y);
-        y += gap(0.3);
-      } else {
-        y += gap(0.22);
-      }
+    const layout = layoutReceipt({
+      receipt: {
+        businessName: receipt.businessName,
+        showBusinessName: receipt.showBusinessName,
+        tagline: receipt.tagline,
+        branchLabel: receipt.branchLabel,
+        branchName: receipt.branchName,
+        locationLine: receipt.locationLine,
+        vatNumber: receipt.vatNumber,
+        orderNumber: receipt.orderNumber,
+        dateLabel: receipt.dateLabel,
+        cashierName: receipt.cashierName,
+        metaLabel: receipt.metaLabel,
+        refundOfOrder: receipt.refundOfOrder,
+        customerName: receipt.customerName,
+        customerPhone: receipt.customerPhone,
+        items: receipt.items,
+        orderNote: receipt.orderNote,
+        subtotal: receipt.subtotal,
+        discount: receipt.discount,
+        vat: receipt.vat,
+        total: receipt.total,
+        paymentMethodLabel: receipt.paymentMethodLabel,
+        change: receipt.change,
+        customMessage: receipt.customMessage,
+      },
+      measure,
+      paperWidth: receipt.paperWidthPx,
+      theme: themeId ?? 'classic',
+      currency: RIYAL,
+      logo: logoImage ? { width: logoImage.width(), height: logoImage.height() } : null,
+      // هيئةُ الزكاة: الرمزُ إلزاميٌّ متى وُجد رقمٌ ضريبيّ، وحجمُه وحدَه
+      // ما يختلف بالقالب -- ولا ينزل عمّا يُقرأ.
+      qr: receipt.vatNumber ? { width: 1, height: 1 } : null,
     });
 
-    // ملاحظة الزبون على الطلب كله: أسفل الأصناف وقبل الأرقام.
-    //
-    // ليست ملاحظة صنف فتُكتب تحته، ولا سطر حساب فتُكتب بين المبالغ --
-    // هي تعليمات تخصّ ما فوقها جميعاً، فموضعها بينهما.
-    if (receipt.orderNote) {
-      y += gap(0.25);
-      for (const line of measureAndWrapText(provider, `ملاحظات الطلب: ${receipt.orderNote}`, contentWidth, sz(15), false)) {
-        y = drawRow(ctx, y, '', line, sz(15), false);
-      }
-      y += gap(0.1);
-    }
+    /* ارتفاعٌ محسوبٌ بالضبط قبل أن تُحجز اللوحة.
+       كان يُقدَّر تقديراً سخيّاً (٢٤٠٠ + ٢٠٠ لكلّ صنف) ثم يُقصّ، فطلبٌ
+       من ثلاثين صنفاً يحجز ما يقارب ثمانيةَ عشرَ ميغابايت من الذاكرة
+       لأجل ورقةٍ نصفُها فارغ -- على جهازٍ يعمل الوردية كلَّها. */
+    const surface = createReceiptSurface(layout.width, layout.height);
+    const { canvas } = surface;
+    canvas.clear(Skia.Color('#ffffff'));
 
-    drawThemedRule(canvas, width, y, th.rule);
-    y += gap(0.6);
+    const qrPayload = receipt.vatNumber
+      ? zatcaQrBase64(receipt.businessName, receipt.vatNumber, receipt.timestampISO, receipt.total, receipt.vat)
+      : null;
+    paintReceiptOps(canvas, provider, layout, { logo: logoImage, qrPayload });
 
-    if (th.sectionLabels) y = drawSpacedText(ctx, y, bi('الحساب', 'PAYMENT'), sz(14), true);
-    y = drawRow(ctx, y, `${receipt.subtotal.toFixed(2)} ${RIYAL}`, bi('المجموع الفرعي', 'Subtotal'), sz(20), false);
-    if (receipt.discount > 0) {
-      y = drawRow(ctx, y, `-${receipt.discount.toFixed(2)} ${RIYAL}`, bi('الخصم', 'Discount'), sz(20), false);
-    }
-    // ZATCA: the VAT amount is a mandatory line, in every theme.
-    y = drawRow(ctx, y, `${receipt.vat.toFixed(2)} ${RIYAL}`, bi('ضريبة القيمة المضافة', 'VAT'), sz(20), false);
-    /**
-     * فراغٌ قبل الإجمالي، وإلا ابتلع سطرَ الضريبة.
-     *
-     * drawInvertBar يرسم شريطه من y - h/2، فنصفه يمتد إلى أعلى --
-     * وارتفاعه أربعون بينما سطر الضريبة اثنان وثلاثون. فكان الشريط
-     * الأسود يغطي "ضريبة القيمة المضافة" كلها. وdrawBox مثله: إطاره
-     * يبدأ فوق y فيقطع السطر الذي قبله.
-     *
-     * وهو مطلوبٌ في ذاته أيضاً: الإجمالي آخر ما تقرؤه العين، ولا يُقرأ
-     * ملتصقاً بما قبله.
-     */
-    y += gap(0.55);
-    if (th.totalStyle === 'invert') {
-      y = drawInvertBar(ctx, y, `${bi('الإجمالي', 'Total')}   ${receipt.total.toFixed(2)} ${RIYAL}`, sz(21));
-    } else if (th.totalStyle === 'box') {
-      const boxTop = y - LINE_H * 0.55;
-      y = drawRow(ctx, y, `${receipt.total.toFixed(2)} ${RIYAL}`, bi('الإجمالي', 'Total'), sz(22), true);
-      drawBox(canvas, PAD * 0.6, boxTop, width - PAD * 1.2, y - boxTop - LINE_H * 0.15);
-      y += gap(0.35);
-    } else {
-      y = drawRow(ctx, y, `${receipt.total.toFixed(2)} ${RIYAL}`, bi('الإجمالي', 'Total'),
-        th.totalStyle === 'plain' ? sz(19) : sz(24), true);
-    }
-    drawThemedRule(canvas, width, y, th.rule);
-    y += gap(0.6);
-
-    y = drawRow(ctx, y, '', receipt.paymentMethodLabel, sz(17), false);
-    if (receipt.change > 0) {
-      y = drawRow(ctx, y, receipt.change.toFixed(2), bi('الباقي', 'Change'), sz(17), false);
-    }
-
-    // ZATCA Phase 1 TLV QR -- mandatory, and identical in every theme.
-    // Only its printed size varies, and never below a scannable one.
-    if (receipt.vatNumber) {
-      y += gap(0.5);
-      const themedQr = Math.min(qrSize, th.qrMaxSize);
-      const payload = zatcaQrBase64(receipt.businessName, receipt.vatNumber, receipt.timestampISO, receipt.total, receipt.vat);
-      drawQrMatrix(canvas, payload, (width - themedQr) / 2, y, themedQr);
-      y += themedQr + gap(0.3);
-    }
-    y += gap(0.4);
-    for (const line of measureAndWrapText(provider, receipt.customMessage, contentWidth, sz(18), false)) {
-      y = drawCenterLine(ctx, y, line, sz(18), false);
-    }
-    y += PAD;
-
-    const finalHeight = Math.min(Math.ceil(y), maxHeight);
-    const rgba = timer ? await timer.stage('pixelsRead', () => surface.toRgba(finalHeight)) : surface.toRgba(finalHeight);
+    const rgba = timer ? await timer.stage('pixelsRead', () => surface.toRgba(layout.height)) : surface.toRgba(layout.height);
     const raster = timer
       ? await timer.stage('escposBuild', () => encodeRaster(rgba, rasterCommand))
       : encodeRaster(rgba, rasterCommand);
@@ -676,11 +334,7 @@ export async function renderReceiptToEscPosBase64(
     // Never let a rendering bug silently fail to print at all -- falls
     // back to the ASCII placeholder (domain/receipt.ts), a real
     // degradation (Arabic text becomes '?' bytes) but still a printed,
-    // reconciliation-usable slip rather than nothing. This should not
-    // happen in a real RN runtime (Skia.Surface.Make is native/JSI, not
-    // network- or asset-dependent the way the logo/font loads are,
-    // which already degrade gracefully on their own) -- disclosed here
-    // as a safety net, not a normal code path.
+    // reconciliation-usable slip rather than nothing.
     console.error('[receiptRenderer] real rendering failed, falling back to ASCII receipt:', e);
     return buildReceiptEscPosBase64(data);
   }

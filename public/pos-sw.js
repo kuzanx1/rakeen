@@ -18,9 +18,12 @@
 // required for updates to propagate). Bump CACHE_NAME only when SHELL_URLS
 // itself changes.
 
-const CACHE_NAME = 'rakeen-pos-shell-v5';
+const CACHE_NAME = 'rakeen-pos-shell-v6';
 const SHELL_URLS = [
   '/pos',
+  // محرّك الطباعة المشترك مع التطبيق — يُحمّل قبل ملفّ الكاشير
+  // ولا تُطبع فاتورة بدونه، فهو من القشرة لا من الطلب.
+  '/pos/receipt-engine.js',
   '/pos/rakeen-pos.js',
   '/pos-manifest.json',
   '/pos-icon.svg',

@@ -167,3 +167,78 @@ export function measureAndWrapText(
   if (current) lines.push(current);
   return lines.length > 0 ? lines : [''];
 }
+
+/**
+ * يرسم نصّاً بمرساةٍ وخطِّ أساسٍ أوسط -- كما يفعل الكانفس في الويب.
+ *
+ * وهذا هو الفرقُ الوحيدُ الحقيقيُّ بين المنفّذَين، وهو الذي جعل توحيدَ
+ * المحرّك ممكناً بلا كذب: الكانفسُ يرسم من نقطةٍ ومحاذاة
+ * (`textAlign` + `textBaseline='middle'`)، وSkia ترسم فقرةً في صندوقٍ
+ * من زاويته العليا اليسرى. فالمحرّكُ يتكلّم لغةَ المرساة -- وهي أبسطُ
+ * وأقربُ إلى وصف التصميم -- وهنا تُترجَم إلى صندوقٍ لا غير.
+ *
+ * والصندوقُ يُشتقّ من المرساة: يمينيٌّ ينتهي عندها، ويساريٌّ يبدأ منها،
+ * ووسطيٌّ يتمدّد حولها بالتساوي. ثم يُرفع النصُّ نصفَ ارتفاعه فيقع
+ * وسطُه على الخطّ المطلوب -- بارتفاعه المقيس هو، لا بتقديرٍ من حجم
+ * الخطّ: العربيةُ تمتدّ فوق الخطّ وتحته بما لا يُخمَّن.
+ */
+export function paintTextAnchored(
+  canvas: SkCanvas,
+  provider: SkTypefaceFontProvider,
+  text: string,
+  opts: {
+    x: number;
+    y: number;
+    paperWidth: number;
+    size: number;
+    weight: number;
+    align: TextAlignment;
+    direction: TextDir;
+    color?: string;
+    letterSpacing?: number;
+  },
+): void {
+  let boxX: number;
+  let boxW: number;
+  if (opts.align === 'right') {
+    boxX = 0;
+    boxW = opts.x;
+  } else if (opts.align === 'left') {
+    boxX = opts.x;
+    boxW = opts.paperWidth - opts.x;
+  } else {
+    const half = Math.min(opts.x, opts.paperWidth - opts.x);
+    boxX = opts.x - half;
+    boxW = half * 2;
+  }
+  if (boxW <= 0) return;
+
+  const builder = Skia.ParagraphBuilder.Make(
+    {
+      textAlign: toTextAlign(opts.align),
+      textDirection: opts.direction === 'ltr' ? TextDirection.LTR : TextDirection.RTL,
+    },
+    provider,
+  );
+  builder.pushStyle({
+    color: Skia.Color(opts.color ?? '#000000'),
+    fontFamilies: [RECEIPT_FONT_FAMILY, RIYAL_FONT_FAMILY],
+    fontSize: opts.size,
+    fontStyle: { weight: opts.weight >= 800 ? FontWeight.ExtraBold : opts.weight >= 700 ? FontWeight.Bold : FontWeight.Normal },
+    ...(opts.letterSpacing ? { letterSpacing: opts.letterSpacing } : {}),
+  });
+  builder.addText(text);
+  const paragraph = builder.build();
+  paragraph.layout(boxW);
+  paragraph.paint(canvas, boxX, opts.y - paragraph.getHeight() / 2);
+}
+
+/** عرضُ نصٍّ بوزنٍ صريح -- المحرّكُ يتكلّم بالأوزان لا بـ«ثقيل/عاديّ». */
+export function measureTextWidthWeighted(
+  provider: SkTypefaceFontProvider,
+  text: string,
+  size: number,
+  weight: number,
+): number {
+  return measureTextWidth(provider, text, size, weight >= 700);
+}

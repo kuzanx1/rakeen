@@ -9,7 +9,9 @@
     "lint": "eslint",
     "cf:preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "cf:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-    "cf:typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
+    "cf:typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "receipt:build": "node scripts/build-receipt-engine.mjs",
+    "receipt:check": "node scripts/build-receipt-engine.mjs --check"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.20.2",

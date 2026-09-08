@@ -6,7 +6,12 @@ import "./rakeen-pos.css";
 import "./rakeen-pos-additions.css";
 import { posMarkup } from "./pos-markup";
 
-const SCRIPT_SRC = "/pos/rakeen-pos.js?b=" + (process.env.NEXT_PUBLIC_BUILD_ID || "dev");
+const BUILD = process.env.NEXT_PUBLIC_BUILD_ID || "dev";
+const SCRIPT_SRC = "/pos/rakeen-pos.js?b=" + BUILD;
+// محرّك الفاتورة -- مولّد من shared/receipt/ ويستعمله التطبيق نفسُه.
+// يُحمّل أوّلاً ويُنتظر: ملفّ الكاشير يناديه عند أوّل طباعة،
+// وطلبان متوازيان قد يصلان معكوسين فتفشل أوّل فاتورة وحدها.
+const ENGINE_SRC = "/pos/receipt-engine.js?b=" + BUILD;
 
 declare global {
   interface Window {
@@ -34,9 +39,14 @@ export default function POSPage() {
       { cookieOptions: { name: 'sb-rakeen-pos-auth' } }
     );
 
+    const engine = document.createElement("script");
+    engine.src = ENGINE_SRC;
     const script = document.createElement("script");
     script.src = SCRIPT_SRC;
-    document.body.appendChild(script);
+    // وإن سقط المحرّك يُحمّل الكاشير على كلّ حال: البيع لا يتوقّف
+    // لأنّ الفاتورة لا تُطبع.
+    engine.onload = engine.onerror = () => document.body.appendChild(script);
+    document.body.appendChild(engine);
 
     if ("serviceWorker" in navigator) {
       if (process.env.NODE_ENV === "production") {
@@ -58,6 +68,7 @@ export default function POSPage() {
 
     return () => {
       script.remove();
+      engine.remove();
       delete (window as unknown as { __rakeenPosBooted?: boolean }).__rakeenPosBooted;
       delete window.supabaseClient;
       container.innerHTML = "";
