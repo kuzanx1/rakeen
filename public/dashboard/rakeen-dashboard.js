@@ -6740,12 +6740,15 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
         await loadLoyaltyBranding();
         loadLoyaltySubscriberCount();
         loadWinBackSettings();
-        // الأعضاءُ رُسموا قبل سطرين بنظام النقاط الافتراضي (قيمةُ
+        // كلُّ ما رُسم قبل سطرين رُسم بنظام النقاط الافتراضي (قيمةُ
         // LOYALTY_BRANDING قبل وصول المحفوظ) -- فمطعمٌ يشغّل بطاقة ختم
-        // حقيقية كان يرى "نقاط" لحظة أوّل فتحٍ للتبويب، وبطاقاتُ الختم
-        // لا تظهر إلا بعد فعلٍ آخر يُعيد الرسم. تُعاد الآن بالنظام
-        // الصحيح فور وصوله.
-        renderLoyaltyMembers();
+        // حقيقية كان يرى "نقاط" لحظة أوّل فتحٍ للتبويب: شارة النظام،
+        // وقائمة الأعضاء، و"أبرز الأعضاء" بالنظرة العامة (renderLoyaltyCards
+        // لا تُنادى من renderLoyaltyKpis، فتُعاد صراحةً هنا) -- كلّها
+        // تُعاد الآن بالنظام الصحيح فور وصوله. renderLoyaltyKpis تكفي
+        // لتحديث الشارة والقائمة والالتزام معاً (انظر تعليقها).
+        renderLoyaltyKpis();
+        renderLoyaltyCards();
       }
       renderLoyaltyBrandingPreview();
     }

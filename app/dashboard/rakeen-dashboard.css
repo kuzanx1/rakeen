@@ -200,7 +200,11 @@ button{font-family:inherit; cursor:pointer;}
 .kpi-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:22px;}
 .kpi-card{background:var(--card-bg); border:1px solid var(--line); border-radius:var(--r-md); padding:18px 20px;}
 .kpi-label{font-size:11px; font-weight:700; color:var(--muted);}
-.kpi-value{font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:26px; margin-top:6px; direction:ltr; unicode-bidi:isolate;}
+/* direction:ltr يمنع خوارزمية bidi من قلب رقمٍ سالب أو منسّق، لكنه
+   يجعل "start" الافتراضي = يسار لا يمين -- فيَنزلق الرقمُ لطرف الصندوق
+   المقابل للتسمية فوقه بدل أن يقف تحتها. text-align:right صريحٌ يثبّته
+   يمين الصندوق دائماً، أيّاً كان اتجاهه الداخلي. */
+.kpi-value{font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:26px; margin-top:6px; direction:ltr; unicode-bidi:isolate; text-align:right;}
 .kpi-delta{font-size:11px; font-weight:700; margin-top:5px;}
 .kpi-delta.up{color:var(--success-text);}
 .kpi-delta.down{color:var(--danger);}
@@ -2142,6 +2146,10 @@ select:not([class]){min-width:150px;}
 .loy-liab-value{
   margin-top:4px; font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;
   font-size:24px; font-weight:800; color:var(--text); line-height:1.2;
+  /* .mono المضافة بجانبها بالماركب تقلب اتجاهها ltr، فيصير "start"
+     الافتراضي يساراً لا يميناً -- فينفصل الرقمُ عن تسميته فوقه. صريحٌ
+     هنا يثبّته يمين الصندوق دائماً. */
+  text-align:right;
 }
 .loy-liab-value.is-cost{color:var(--amber);}
 .loy-liab-note{margin-top:5px; font-size:11px; font-weight:600; color:var(--muted); line-height:1.6;}
