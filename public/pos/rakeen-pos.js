@@ -4265,14 +4265,17 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
   let y = pad + lineH / 2;
 
   const contentWidth = width - pad * 2;
-  const wrapLine = (text, font)=>{
+  /* maxW اختياريّ: اللفُّ داخل عمودٍ لا بعرض الورقة كلّها -- الشبكةُ
+     تحتاج أن يلتفّ الاسمُ في عموده ولا يزحف على الكمية والسعر. */
+  const wrapLine = (text, font, maxW)=>{
     ctx.font = font;
+    const limit = maxW || contentWidth;
     const words = String(text).split(' ');
     const lines = [];
     let cur = '';
     words.forEach(w=>{
       const test = cur ? cur + ' ' + w : w;
-      if(ctx.measureText(test).width > contentWidth && cur){ lines.push(cur); cur = w; }
+      if(ctx.measureText(test).width > limit && cur){ lines.push(cur); cur = w; }
       else cur = test;
     });
     if(cur) lines.push(cur);
@@ -4371,13 +4374,21 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
   // about 195 — so it drew in the preview and printed nothing at all.
   // Colour cannot carry weight through a 1-bit conversion; dash spacing
   // can, which is also how the text path separates its items.
+  /**
+   * وللخيط مسافةٌ فوقه كما له مسافةٌ تحته.
+   *
+   * كان يُرسم عند خطِّ الأساس الحاليّ ثم يُزاح ما بعده -- فيقع على
+   * السطر الذي قبله ويلامس الذي بعده، ويُقرأ شطباً على النصّ لا فصلاً
+   * بين قسمين. وفاصلٌ لا مسافةَ حوله ليس فاصلاً.
+   */
   const hairline = ()=>{
+    y += gap(0.30);
     const row = Math.round(y) + 0.5;
     ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
     ctx.setLineDash([2, 3]);
     ctx.beginPath(); ctx.moveTo(pad, row); ctx.lineTo(width - pad, row); ctx.stroke();
     ctx.setLineDash([]);
-    y += gap(0.35);
+    y += gap(0.45);
   };
 
   if(logoImage && th.showLogo && logoW > 0){
@@ -4429,16 +4440,42 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
     y -= gap(0.15);
     spacedText(receipt.orderNumber, sz(28), true);
   } else {
-    const boxTop = y - lineH * 0.35;
-    centerText(bi('رقم الطلب', 'Order No'), sz(16), true);
-    centerText(receipt.orderNumber, sz(36), true);
-    const boxH = (y - lineH * 0.2) - boxTop;
-    const boxX = pad + (width - pad * 2) * 0.2, boxW = (width - pad * 2) * 0.6;
+    /**
+     * صندوقُ رقم الطلب: حشوةٌ متساوية، ورقمٌ في وسطها.
+     *
+     * كان حدُّه يُحسب من موضع خطِّ الأساس بعد الرسم، فالمسافةُ فوق
+     * الملصق غيرُ المسافة تحت الرقم -- ويلتصق الملصقُ بالحدّ العلويّ
+     * بينما يطفو الرقمُ في الأسفل. والصندوقُ يُقرأ مائلاً وإن كان
+     * مستقيماً.
+     *
+     * فتُحسب أبعادُه أوّلاً من ارتفاعَي السطرين وحشوةٍ صريحة، ثم
+     * يُرسم النصُّ داخله في مواضع محسوبة -- لا العكس.
+     */
+    const labelSz = sz(16), numSz = sz(38);
+    const padIn = Math.round(lineH * 0.62);      // حشوةٌ رأسيةٌ واحدة أعلى وأسفل
+    const gapIn = Math.round(lineH * 0.30);      // بين الملصق والرقم
+    const boxH = padIn + labelSz + gapIn + numSz + padIn;
+    const boxW = Math.round((width - pad * 2) * 0.66);
+    const boxX = Math.round((width - boxW) / 2);
+    const boxTop = y - lineH * 0.30;
+
     ctx.fillStyle = '#000';
-    ctx.fillRect(boxX, boxTop, boxW, 1.5);
-    ctx.fillRect(boxX, boxTop + boxH - 1.5, boxW, 1.5);
-    ctx.fillRect(boxX, boxTop, 1.5, boxH);
-    ctx.fillRect(boxX + boxW - 1.5, boxTop, 1.5, boxH);
+    // حدٌّ بسمكِ نقطتين: نقطةٌ واحدة على ٢٠٣ نقطة/بوصة خيطٌ يكاد يُرى.
+    const bw = 2;
+    ctx.fillRect(boxX, boxTop, boxW, bw);
+    ctx.fillRect(boxX, boxTop + boxH - bw, boxW, bw);
+    ctx.fillRect(boxX, boxTop, bw, boxH);
+    ctx.fillRect(boxX + boxW - bw, boxTop, bw, boxH);
+
+    ctx.textAlign = 'center';
+    ctx.direction = 'rtl';
+    ctx.font = '800 ' + labelSz + 'px "IBM Plex Sans Arabic", sans-serif';
+    ctx.fillText(bi('رقم الطلب', 'Order No'), width / 2, boxTop + padIn + labelSz * 0.80);
+    ctx.direction = 'ltr';
+    ctx.font = '800 ' + numSz + 'px "IBM Plex Sans Arabic", sans-serif';
+    ctx.fillText(receipt.orderNumber, width / 2, boxTop + padIn + labelSz + gapIn + numSz * 0.80);
+
+    y = boxTop + boxH;
   }
   y += gap(0.55);
 
@@ -4476,12 +4513,43 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
       if(idx < receipt.items.length - 1) hairline();
       return;
     }
-    wrapLine(shownName, nameFont).forEach(line=>{
+    /**
+     * صفٌّ واحد بأعمدةٍ ثابتة: الكميةُ يميناً، والصنفُ وسطاً، والسعرُ
+     * يساراً -- كلُّها على خطِّ أساسٍ واحد.
+     *
+     * كان الصنفُ سطراً وسعرُه سطراً تحته، فالصفُّ الواحد ثلاثةُ أسطر
+     * والعينُ تنزل وتصعد لتصل الاسمَ بثمنه. ولا عمودَ يُحاذي عموداً:
+     * الأسعارُ تبدأ حيث انتهى الاسم، فتتذبذب من سطرٍ إلى سطر.
+     *
+     * والأعمدةُ ثابتةُ العرض لا تابعةٌ للنصّ -- هذا معنى الشبكة: الاسمُ
+     * يلتفّ داخل عموده ولا يزحف على جاره، والكميةُ والسعرُ يُرسمان مرّةً
+     * على أوّل سطرٍ من الاسم مهما طال.
+     */
+    const qtyW = Math.round(width * 0.09);
+    const priceW = Math.round(width * 0.26);
+    const nameW = width - pad * 2 - qtyW - priceW;
+    const qtyX = width - pad;                 // حافّة اليمين
+    const nameRight = width - pad - qtyW;     // يمينُ عمود الاسم
+    const priceX = pad;                       // حافّة اليسار
+
+    const nameOnly = it.nameEn ? (it.name + ' | ' + it.nameEn) : it.name;
+    const nameLines = wrapLine(nameOnly, nameFont, nameW);
+    const firstY = y;
+
+    nameLines.forEach(line=>{
       ctx.font = nameFont;
       ctx.direction = 'rtl'; ctx.textAlign = 'right';
-      ctx.fillText(line, width - pad, y);
+      ctx.fillText(line, nameRight, y);
       y += gap(0.85);
     });
+
+    // الكميةُ والسعرُ على سطر الاسم الأوّل، لا على آخره.
+    ctx.font = '700 ' + sz(19) + 'px "IBM Plex Sans Arabic", sans-serif';
+    ctx.direction = 'ltr'; ctx.textAlign = 'right';
+    ctx.fillText(String(it.qty), qtyX, firstY);
+    ctx.font = '700 ' + sz(19) + 'px "IBM Plex Sans Arabic", sans-serif';
+    ctx.direction = 'ltr'; ctx.textAlign = 'left';
+    ctx.fillText(it.lineTotal.toFixed(2) + ' ' + RIYAL, priceX, firstY);
     /* لا رماديّ على ورقٍ حراريّ: الورقُ لا يعرف إلا نقطةً محروقةً أو
        بيضاء، والرماديُّ يُحوَّل عند الطباعة -- وحرفٌ صغير لا تبلغ سيقانُه
        تغطيةً تامّة، فيقع الرماديُّ على جانب الورق حيث يثبت الأسود.
@@ -4489,11 +4557,11 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
        ما يتقطّع في الفاتورة، وهي بالضبط ما كان رمادياً. */
     const modFont = '600 ' + sz(16) + 'px "IBM Plex Sans Arabic", sans-serif';
     (it.mods || []).forEach(modText=>{
-      wrapLine(modText, modFont).forEach(line=>{
+      // داخل عمود الاسم لا بعرض الورقة: هي تابعةٌ للصنف، فتُزاح معه.
+      wrapLine('— ' + modText, modFont, nameW).forEach(line=>{
         ctx.font = modFont;
         ctx.direction = 'rtl'; ctx.textAlign = 'right';
-        ctx.fillText(line, width - pad, y);
-        ctx.fillStyle = '#000';
+        ctx.fillText(line, nameRight, y);
         y += gap(0.7);
       });
     });
@@ -4501,11 +4569,10 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
     // وحده، فكان الزبون لا يرى ما طلبه بنفسه.
     if(it.note){
       const noteFont = '600 ' + sz(16) + 'px "IBM Plex Sans Arabic", sans-serif';
-      wrapLine('ملاحظات: ' + it.note, noteFont).forEach(line=>{
+      wrapLine('ملاحظات: ' + it.note, noteFont, nameW).forEach(line=>{
         ctx.font = noteFont;
         ctx.direction = 'rtl'; ctx.textAlign = 'right';
-        ctx.fillText(line, width - pad, y);
-        ctx.fillStyle = '#000';
+        ctx.fillText(line, nameRight, y);
         y += gap(0.7);
       });
     }
@@ -4514,16 +4581,21 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
     // عند الكمية واحد كان يطبع "1 × 12.00" بجانب "12.00" -- الرقم نفسه
     // مرتين في سطرين، وهو ما يجعل القارئ يتوقف ليتأكد أنه لم يُحاسَب
     // مرتين. الضرب لا يقول شيئاً حين يكون في واحد.
-    if(it.qty > 1) rowText('', it.qty + ' × ' + it.unitPrice.toFixed(2) + ' ' + RIYAL, sz(15), false);
-    rowText(it.lineTotal.toFixed(2) + ' ' + RIYAL, '', sz(18), false);
-    // Skipped after the last item — the section rule below already closes
-    // the list, and two lines together would read as a mistake.
-    //
-    // Not a theme option any more. Once an item can carry modifiers, a
-    // line like "بدون سكر" is indistinguishable from a product priced at
-    // nothing, so where one item ends is a guess — and a guess is not
-    // something a theme gets to switch off.
-    if(idx < receipt.items.length - 1) hairline();
+    if(it.qty > 1){
+      ctx.font = '600 ' + sz(15) + 'px "IBM Plex Sans Arabic", sans-serif';
+      ctx.direction = 'rtl'; ctx.textAlign = 'right';
+      ctx.fillText(it.qty + ' × ' + it.unitPrice.toFixed(2) + ' ' + RIYAL, nameRight, y);
+      y += gap(0.7);
+    }
+    y += gap(0.25);
+    /* ولا خطَّ بين كلِّ صنفٍ وصنف.
+       كان الصنفُ ثلاثةَ أسطرٍ فاحتاج خطاً يفصله عمّا بعده. وقد صار صفاً
+       واحداً بأعمدةٍ مصطفّة، فالفراغُ يفصله -- وخطٌّ بين كلِّ سطرين
+       يُثقل الورقة ويُنافس خطوطَ الأقسام على معناها.
+       ويبقى الخطُّ حيث يلزم: بين صنفٍ حمل إضافاتٍ وما بعده، فسطورُه
+       المزاحة قد تُقرأ تتمّةً للذي يليه. */
+    const hadExtras = (it.mods && it.mods.length) || it.note;
+    if(hadExtras && idx < receipt.items.length - 1) hairline();
   });
   // ملاحظة الزبون على الطلب كله: أسفل الأصناف وقبل الأرقام. ليست ملاحظة
   // صنف فتُكتب تحته، ولا سطر حساب فتُكتب بين المبالغ.
