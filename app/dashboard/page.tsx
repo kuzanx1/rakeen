@@ -25,6 +25,10 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#111111",
+  // Android/Chrome: shrink the layout viewport when the soft keyboard opens
+  // so fixed overlays and vh units follow it (iOS ignores this — the JS
+  // visualViewport handler in rakeen-dashboard.js covers iOS).
+  interactiveWidget: "resizes-content",
 };
 
 export default function Page() {

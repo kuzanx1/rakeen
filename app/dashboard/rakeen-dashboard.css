@@ -338,6 +338,24 @@ button{font-family:inherit; cursor:pointer;}
 .cmdk-kbd{font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; background:var(--surf2); padding:2px 6px; border-radius:4px;}
 .modal-overlay{position:fixed; inset:0; z-index:590; background:rgba(17,17,17,0.4); display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity .15s ease;}
 .modal-overlay.show{opacity:1; pointer-events:auto;}
+
+/* جوال/تابلت: النافذة تُحاذى للأعلى وتتمرّر داخل الغطاء نفسه، مع حجز
+   مساحة أسفلها بقدر ارتفاع لوحة المفاتيح (--kb تضبطها rakeen-dashboard.js
+   من visualViewport). فالحقل المُركَّز يبقى قابلاً للتمرير فوق الكيبورد،
+   والنافذة الطويلة ما تتقصّ من فوق أو تحت. الديسكتوب ما يتأثر. */
+@media (max-width: 1024px){
+  .modal-overlay{
+    align-items:flex-start;
+    overflow-y:auto; -webkit-overflow-scrolling:touch;
+    padding:4vh 10px calc(4vh + var(--kb, 0px));
+  }
+  /* margin:auto = تتوسّط عموديًا وهي قصيرة، وتُحاذى للأعلى وتُتمرَّر كاملةً
+     وهي أطول من المساحة (حيلة flexbox المعروفة لتفادي قصّ أعلى النافذة). */
+  .modal-overlay > .modal-card{ margin-block:auto; }
+  .product-edit-modal-card{ max-height:none; }
+}
+/* لوحة «موظفك في ركين» الجانبية: آخر محتواها يعلو الكيبورد */
+.rka-body{ padding-bottom: calc(16px + var(--kb, 0px)); }
 .modal-card{background:var(--card-bg); border-radius:var(--r-lg); box-shadow:var(--shadow-md); transform:scale(0.97); transition:transform .15s ease;}
 .modal-overlay.show .modal-card{transform:scale(1);}
 .modal-head{display:flex; justify-content:space-between; align-items:center; padding:18px 22px 0; font-weight:800; font-size:14.5px;}
