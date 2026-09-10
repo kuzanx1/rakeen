@@ -2768,12 +2768,16 @@ select:not([class]){min-width:150px;}
   -webkit-mask:var(--rka-fab-icon) center / 22px 22px no-repeat;
           mask:var(--rka-fab-icon) center / 22px 22px no-repeat;
 }
+/* نقطة "متصل" الخضراء — تقعد على الركن العلوي الخارجي للحبّة (يمين الزر في
+   RTL) وفوق الهالة الدوّارة (z-index) عشان تبيّن واضحة، لا تختفي تحتها. */
 .rka-fab-pulse{
-  position:absolute; inset-block-start:-1px; inset-inline-end:-1px; width:10px; height:10px; border-radius:50%;
-  background:var(--lime); border:2px solid #fff; box-shadow:0 0 0 1px color-mix(in srgb, var(--rka-violet) 55%, transparent);
+  position:absolute; inset-block-start:-3px; inset-inline-start:-3px; inset-inline-end:auto;
+  width:12px; height:12px; border-radius:50%; z-index:3;
+  background:var(--lime); border:2px solid #fff;
+  box-shadow:0 0 0 1px color-mix(in srgb, var(--rka-violet) 55%, transparent), 0 1px 3px rgba(17,17,17,0.28);
 }
 .rka-fab-pulse::after{
-  content:''; position:absolute; inset:-4px; border-radius:50%;
+  content:''; position:absolute; inset:-4px; border-radius:50%; z-index:-1;
   background:var(--lime); opacity:.5; animation:rkaFabPulse 2s ease-out infinite;
 }
 @keyframes rkaFabPulse{ 0%{ transform:scale(.6); opacity:.55; } 70%{ transform:scale(1.9); opacity:0; } 100%{ opacity:0; } }
