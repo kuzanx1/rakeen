@@ -6,6 +6,8 @@ import GradientFill from './GradientFill';
 import Money from './Money';
 import ManagerPinModal from './ManagerPinModal';
 import { loadShiftTotals, closeShift } from '../application/shiftService';
+import { listBranchStaff } from '../application/staffService';
+import type { StaffMember } from '../application/staffService';
 import { getShiftReportSettings } from '../application/catalogService';
 import { getDeviceConfig } from '../application/authService';
 import { EMPTY_SHIFT_TOTALS, varianceLabel, varianceSeverity } from '../domain/shift';
@@ -138,6 +140,9 @@ export function CloseShiftModal({
   businessName,
   branchName,
   staffName,
+  branchId,
+  defaultCloserId,
+  defaultCloserName,
   onClose,
   requireManagerPin = true,
   onClosed,
@@ -147,6 +152,11 @@ export function CloseShiftModal({
   businessName: string;
   branchName: string;
   staffName: string;
+  /** For the "من يقفل الوردية" picker -- the branch's staff list. */
+  branchId: number | null;
+  /** Whoever is on duty; the default closer, changeable for a handover. */
+  defaultCloserId: number | null;
+  defaultCloserName: string;
   onClose: () => void;
   /** businesses.pos_require_manager_pin_for_close. When the owner turns
    *  it off, closing goes straight through without the PIN. */
@@ -164,6 +174,15 @@ export function CloseShiftModal({
   const [pinOpen, setPinOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // من يقفل الوردية -- الافتراضي هو المداوم الآن، ويتبدّل لو صار تسليم
+  // وردية بين موظفين. shifts.closed_by_staff_member_id.
+  const [closerId, setCloserId] = useState<number | null>(null);
+  const [pickCloser, setPickCloser] = useState(false);
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
+  const closerName =
+    closerId === defaultCloserId
+      ? defaultCloserName || 'بدون اسم'
+      : staffList.find(s => s.id === closerId)?.name || defaultCloserName || 'بدون اسم';
   // خيارات التقرير وحالة الدفع الإلكتروني، بنفس ما يقرؤه الكاشير. تُقرأ
   // عند فتح النافذة لا عند البناء، فتغييرٌ في اللوحة يظهر في أول إغلاق
   // بعده بلا إعادة تشغيل التطبيق.
@@ -189,7 +208,18 @@ export function CloseShiftModal({
     setPinOpen(false);
     setBusy(false);
     setError('');
-  }, [visible]);
+    setCloserId(defaultCloserId);
+    setPickCloser(false);
+  }, [visible, defaultCloserId]);
+
+  useEffect(() => {
+    if (!visible || branchId == null) return;
+    let alive = true;
+    listBranchStaff(branchId)
+      .then(rows => { if (alive) setStaffList(rows); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [visible, branchId]);
 
   const shiftStartLabel = shift
     ? new Date(shift.opened_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
@@ -233,7 +263,12 @@ export function CloseShiftModal({
       options: reportSettings.options,
       shiftStart: shiftStartLabel,
     };
-    const result = await closeShift({ shift, countedCash: countedNum, report });
+    const result = await closeShift({
+      shift,
+      countedCash: countedNum,
+      report,
+      closedByStaffMemberId: closerId,
+    });
     setBusy(false);
     if (!result.ok) {
       setError(result.error ?? 'تعذر إغلاق الوردية.');
@@ -314,6 +349,32 @@ export function CloseShiftModal({
               </View>
             </View>
 
+            {/* من يقفل الوردية -- يُسجَّل في shifts.closed_by_staff_member_id */}
+            <View style={styles.statRow}>
+              <Text style={styles.statLabel}>يقفلها</Text>
+              <TouchableOpacity onPress={() => setPickCloser(v => !v)} activeOpacity={0.7}>
+                <Text style={styles.closerName}>
+                  {closerName}
+                  {staffList.length > 1 ? <Text style={styles.closerSwap}>  ·  تبديل</Text> : null}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {pickCloser && staffList.length > 0 && (
+              <View style={styles.closerList}>
+                {staffList.map(m => (
+                  <TouchableOpacity
+                    key={m.id}
+                    style={[styles.closerOption, m.id === closerId && styles.closerOptionActive]}
+                    onPress={() => { setCloserId(m.id); setPickCloser(false); }}
+                    activeOpacity={0.8}>
+                    <Text style={[styles.closerOptionText, m.id === closerId && styles.closerOptionTextActive]}>
+                      {m.name}{m.id === closerId ? '  ✓' : ''}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
             {!!error && <Text style={styles.error}>{error}</Text>}
 
             {busy ? (
@@ -371,6 +432,21 @@ const useStyles = createStyles(colors =>
     statLabel: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted },
     statLabelTotal: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.text },
     statCount: { fontFamily: fonts.monoBold, fontSize: 12, color: colors.text },
+
+    closerName: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.text },
+    closerSwap: { fontFamily: fonts.sansSemiBold, fontSize: 11, color: colors.accentText },
+    closerList: { gap: 6, marginTop: 8, marginBottom: 4 },
+    closerOption: {
+      paddingVertical: 11,
+      paddingHorizontal: 14,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.line,
+      backgroundColor: colors.surf1,
+    },
+    closerOptionActive: { borderColor: colors.accentText, backgroundColor: colors.surf2 },
+    closerOptionText: { fontFamily: fonts.sansSemiBold, fontSize: 12.5, color: colors.text, textAlign: 'center' },
+    closerOptionTextActive: { fontFamily: fonts.sansBold, color: colors.text },
 
     // .due-display
     dueDisplay: { alignItems: 'center', paddingVertical: 16, backgroundColor: colors.surf1, borderRadius: radii.lg, marginBottom: spacing[3] },

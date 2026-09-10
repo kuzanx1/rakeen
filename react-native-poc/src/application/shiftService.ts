@@ -224,6 +224,10 @@ export interface CloseShiftInput {
   shift: Shift;
   countedCash: number;
   report: ClosingReport;
+  /** shifts.closed_by_staff_member_id -- which human signed the drawer off.
+   *  Defaults to whoever is on duty, but a handover can name someone else.
+   *  The branch PIN is shared, so this is the only per-person close trail. */
+  closedByStaffMemberId: number | null;
 }
 
 /**
@@ -238,7 +242,11 @@ export interface CloseShiftInput {
 export async function closeShift(input: CloseShiftInput): Promise<{ ok: boolean; error: string | null }> {
   const { error: updateError } = await supabase
     .from('shifts')
-    .update({ closing_cash: input.countedCash, closed_at: new Date().toISOString() })
+    .update({
+      closing_cash: input.countedCash,
+      closed_at: new Date().toISOString(),
+      closed_by_staff_member_id: input.closedByStaffMemberId,
+    })
     .eq('id', input.shift.id);
   if (updateError) return { ok: false, error: 'تعذر إغلاق الوردية — تحقق من الاتصال وجرّب مرة ثانية' };
 

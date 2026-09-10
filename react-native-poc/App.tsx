@@ -524,9 +524,12 @@ function App(): React.JSX.Element {
    * declaring what is in the drawer, which is the whole basis for the
    * closing count.
    */
-  /** applyStaffMember()'s persisted pick (rakeen-pos.js:6204). Restored
-   *  before the picker is shown so a device restart does not force a
-   *  re-pick of who is on duty. */
+  /** applyStaffMember()'s persisted pick (rakeen-pos.js:6204) is restored
+   *  only as the PRE-SELECTED name on the picker -- NOT as a reason to skip
+   *  it. Every shift must be opened under an explicitly chosen name (owner
+   *  request 2026-09-10: "لازم يتحدد موظف وبعدها وردية"), so `staffPicked`
+   *  stays false here and the effect below only auto-confirms when a shift
+   *  is already open (a mid-day app restart, not a new shift). */
   useEffect(() => {
     if (!cashier) {
       setStaffMember(null);
@@ -536,16 +539,20 @@ function App(): React.JSX.Element {
     let cancelled = false;
     (async () => {
       const remembered = await loadRememberedStaff();
-      if (cancelled) return;
-      if (remembered) {
-        setStaffMember(remembered);
-        setStaffPicked(true);
-      }
+      if (cancelled || !remembered) return;
+      setStaffMember(remembered);
     })();
     return () => {
       cancelled = true;
     };
   }, [cashier]);
+
+  /** Resuming a shift that is ALREADY open (app restart mid-shift) should
+   *  not re-prompt "who is on duty" -- the drawer is already attributed.
+   *  A brand-new shift still goes through the picker. */
+  useEffect(() => {
+    if (shiftChecked && shift && staffMember && !staffPicked) setStaffPicked(true);
+  }, [shiftChecked, shift, staffMember, staffPicked]);
 
   useEffect(() => {
     if (!cashier) {
@@ -900,6 +907,11 @@ function App(): React.JSX.Element {
         // The staff member on duty, not the shared PIN account's own
         // profile name -- that is the same string for everyone on the till.
         staffName={staffMember?.name ?? ''}
+        // Who signs the drawer off -- defaults to the on-duty name, but a
+        // handover can pick someone else (shifts.closed_by_staff_member_id).
+        branchId={branchId}
+        defaultCloserId={staffMember?.id ?? null}
+        defaultCloserName={staffMember?.name ?? ''}
         requireManagerPin={requireManagerPin}
         onClose={() => setCloseShiftOpen(false)}
         onClosed={async (report, warning) => {
@@ -918,6 +930,9 @@ function App(): React.JSX.Element {
           // balance actually printed first.
           setShift(null);
           setShiftStale(false);
+          // Next shift must pick a name again -- the just-closed one carried
+          // this shift's cashier, not the next.
+          setStaffPicked(false);
           setClosedReportJobId(jobId);
           setClosedReport(report);
         }}
