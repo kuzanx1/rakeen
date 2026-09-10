@@ -18,6 +18,10 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#111111",
+  // Android/Chrome: shrink the layout viewport when the soft keyboard opens
+  // so fixed overlays follow it (iOS ignores this — the visualViewport
+  // handler in rakeen-pos.js covers iOS). The native RN app is unaffected.
+  interactiveWidget: "resizes-content",
 };
 
 export default function Page() {

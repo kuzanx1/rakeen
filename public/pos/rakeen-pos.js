@@ -1439,7 +1439,7 @@ function renderProductGrid(){
   const el = document.getElementById('productGrid');
   let items = PRODUCTS;
   if(state.activeCat === 'popular') items = [...items].sort((a,b)=> b.pop - a.pop).slice(0,8);
-  else if(state.activeCat !== 'all') items = items.filter(p=>p.cat===state.activeCat);
+  else if(state.activeCat !== 'all') items = items.filter(p=> (p.cats || [p.cat]).includes(state.activeCat));
   if(state.showFavOnly) items = items.filter(p=>p.fav);
   if(state.searchQuery.trim()){
     const q = state.searchQuery.trim().toLowerCase();
@@ -1545,14 +1545,12 @@ function buildDefaultConfig(modDef){
   const config = {};
   modDef.groups.forEach(g=>{
     if(g.type === 'single'){
-      // A required group can legitimately have zero options for a moment —
-      // a manager adds the group to a menu item before adding any options to
-      // it. Without this guard, the very next tap on that product threw here
-      // (reading .id off undefined) and the product became unusable until
-      // reload. null just means "nothing selected yet"; every consumer of
-      // config (lineUnitPrice/computeConfigPrice/formatConfigLabels) already
-      // treats an unmatched option id as a no-op price/label contribution.
-      const def = g.options.find(o=>o.default) || g.options[0];
+      // Single groups now START UNSELECTED — no silent first-option default.
+      // An optional single group left blank = base price, no label. A
+      // required one blocks "أضف" until the cashier picks (see
+      // renderGroupModifiers). null = nothing selected; every consumer of
+      // config already treats an unmatched option id as a no-op.
+      const def = g.options.find(o=>o.default);
       config[g.id] = def ? def.id : null;
     } else {
       config[g.id] = g.options.filter(o=>o.default).map(o=>o.id);
@@ -1787,9 +1785,12 @@ function renderGroupModifiers(){
   let html = '';
   modDef.groups.forEach(g=>{
     const selected = config[g.id];
-    const selectedArr = Array.isArray(selected) ? selected : [selected];
-    const badge = g.required ? 'مطلوب' : (g.type==='multiple' ? 'اختياري · حتى ' + g.max : 'اختياري');
-    html += `<div class="mod-group">
+    const selectedArr = Array.isArray(selected) ? selected : (selected == null ? [] : [selected]);
+    const badge = g.required
+      ? (g.type === 'multiple' ? (g.minSelect > 1 ? 'اختر ' + g.minSelect + ' على الأقل' : 'مطلوب') : 'اختر واحد')
+      : (g.type === 'multiple' ? 'اختياري · حتى ' + g.max : 'اختياري');
+    const unmet = g.required && selectedArr.filter(Boolean).length < (g.minSelect || 1);
+    html += `<div class="mod-group${unmet ? ' unmet' : ''}">
       <div class="mod-group-head"><span class="mod-group-name">${(LANG==='en' && g.nameEn) ? g.nameEn : g.name}</span><span class="mod-group-badge ${g.required?'required':'optional'}">${badge}</span></div>
       <div class="mod-options">`;
     if(g.options.length === 0){
@@ -1806,9 +1807,18 @@ function renderGroupModifiers(){
     html += `</div></div>`;
   });
   const unitPrice = computeConfigPrice(product, config);
+  const unmetGroups = modDef.groups.filter(g=>{
+    if(!g.required) return false;
+    const sel = config[g.id];
+    const arr = Array.isArray(sel) ? sel : (sel == null ? [] : [sel]);
+    return arr.filter(Boolean).length < (g.minSelect || 1);
+  });
+  const addLabel = unmetGroups.length
+    ? 'اختر: ' + ((LANG==='en' && unmetGroups[0].nameEn) ? unmetGroups[0].nameEn : unmetGroups[0].name)
+    : t('أضف') + ' — ' + rkMoney(unitPrice*qty);
   html += `<div class="modifier-footer">
     <div class="modifier-qty"><button class="mqty-btn" data-qdelta="-1">−</button><span class="mono" id="modifierQtyVal">${qty}</span><button class="mqty-btn" data-qdelta="1">+</button></div>
-    <button class="modifier-add-btn" id="modifierAddBtn">${t('أضف')} — ${rkMoney(unitPrice*qty)}</button>
+    <button class="modifier-add-btn" id="modifierAddBtn"${unmetGroups.length ? ' disabled' : ''}>${addLabel}</button>
   </div>`;
   document.getElementById('modifierBody').innerHTML = html;
   wireGroupModifierEvents();
@@ -1820,7 +1830,8 @@ function wireGroupModifierEvents(){
       const groupId = chip.dataset.group, optId = chip.dataset.opt, type = chip.dataset.type;
       const group = modifierState.modDef.groups.find(g=>g.id===groupId);
       if(type === 'single'){
-        modifierState.config[groupId] = optId;
+        // tapping the already-selected option in an OPTIONAL single group clears it
+        modifierState.config[groupId] = (modifierState.config[groupId] === optId && !group.required) ? null : optId;
       } else {
         let arr = modifierState.config[groupId] || [];
         if(arr.includes(optId)) arr = arr.filter(x=>x!==optId);
@@ -7711,6 +7722,9 @@ async function openShiftSummary(){
 
 /* ============ Closing Wizard ============ */
 let closingStep = 1, countedCash = '', closingShiftData = null;
+// Who signs the drawer off — defaults to the on-duty name, changeable for a
+// handover between two people. Written to shifts.closed_by_staff_member_id.
+let closingCloserId = null, closingStaffList = [], closingCloserPickOpen = false;
 // Backup reprint — shift_closing_reports persists every closing report, but
 // until now the only time it ever printed was once, automatically, at the
 // moment of closing. If the printer jammed/was out of paper right then, the
@@ -7743,10 +7757,17 @@ async function reprintLastClosingReport(){
 async function openClosingWizard(){
   if(!CURRENT_SHIFT){ showToast('ما فيه وردية مفتوحة'); return; }
   closingStep = 1; countedCash = '';
+  closingCloserId = CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.id : null;
+  closingCloserPickOpen = false;
   document.getElementById('paymentModalTitle').textContent = 'إغلاق الوردية — عدّ الكاش';
   paymentModalBody.innerHTML = '<p class="pos-auth-sub">جاري التحميل...</p>';
   document.getElementById('paymentModal').classList.add('show');
-  closingShiftData = await loadShiftData();
+  const [shiftData, staffRes] = await Promise.all([
+    loadShiftData(),
+    window.supabaseClient.from('staff_members').select('id, name').eq('branch_id', DEVICE.branchId).eq('active', true).order('name'),
+  ]);
+  closingShiftData = shiftData;
+  closingStaffList = (staffRes && staffRes.data) || [];
   renderClosingWizard();
 }
 /* Step 1 is a BLIND count: the expected figure is deliberately withheld
@@ -7783,13 +7804,28 @@ function renderClosingWizard(){
     const variance = counted - closingShiftData.cashTotal;
     const varClass = variance === 0 ? 'ok' : (Math.abs(variance) <= 5 ? 'warn' : 'urgent');
     const varLabel = variance === 0 ? 'مطابق تمامًا' : (variance > 0 ? 'زيادة ' + variance.toFixed(2) : 'عجز ' + Math.abs(variance).toFixed(2));
+    const closerName = (closingStaffList.find(s=>s.id===closingCloserId) || {}).name
+      || (CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : 'بدون اسم');
+    const closerPickHtml = closingStaffList.length > 1
+      ? `<div class="shift-stat-row"><span>يقفلها</span><button type="button" class="pos-closer-toggle" id="closerToggleBtn">${closerName}${closingStaffList.length>1?' <span class="pos-closer-swap">· تبديل</span>':''}</button></div>`
+        + (closingCloserPickOpen
+            ? `<div class="pos-closer-list" id="closerList">${closingStaffList.map(s=>`<button type="button" class="pos-closer-opt${s.id===closingCloserId?' is-active':''}" data-id="${s.id}">${s.name}${s.id===closingCloserId?' ✓':''}</button>`).join('')}</div>`
+            : '')
+      : `<div class="shift-stat-row"><span>يقفلها</span><span class="mono">${closerName}</span></div>`;
     paymentModalBody.innerHTML = `
       <div class="shift-stat-row"><span>المتوقع</span>${rkMoney(closingShiftData.cashTotal)}</div>
       <div class="shift-stat-row"><span>المعدود فعليًا</span>${rkMoney(counted)}</div>
       <div class="shift-stat-row total"><span>الفرق</span><span class="mono urgency-badge ${varClass}">${varLabel}</span></div>
+      ${closerPickHtml}
       <div class="pos-auth-error" id="closingWizardError" style="display:none;"></div>
       <button class="confirm-pay-btn" id="confirmCloseBtn" style="margin-top:16px;">تأكيد إغلاق الوردية</button>
     `;
+    const closerToggle = document.getElementById('closerToggleBtn');
+    if(closerToggle) closerToggle.addEventListener('click', ()=>{ closingCloserPickOpen = !closingCloserPickOpen; renderClosingWizard(); });
+    const closerListEl = document.getElementById('closerList');
+    if(closerListEl) closerListEl.querySelectorAll('.pos-closer-opt').forEach(b=>{
+      b.addEventListener('click', ()=>{ closingCloserId = parseInt(b.dataset.id,10); closingCloserPickOpen = false; renderClosingWizard(); });
+    });
     // Closing the drawer asks for the owner's manager PIN by default — it
     // used to be a cashier-only action with no approval at all, and the
     // counted-vs-expected mismatch was shown but never enforced or recorded.
@@ -7805,7 +7841,11 @@ function renderClosingWizard(){
         if(btn) btn.disabled = true;
         try {
           const { error } = await window.supabaseClient.from('shifts')
-            .update({ closing_cash: counted, closed_at: new Date().toISOString() }).eq('id', CURRENT_SHIFT.id);
+            .update({
+              closing_cash: counted,
+              closed_at: new Date().toISOString(),
+              closed_by_staff_member_id: closingCloserId,
+            }).eq('id', CURRENT_SHIFT.id);
           if(error) throw error;
 
           const report = {
@@ -8070,7 +8110,7 @@ async function loadPosData(){
   // rest besides. The cashier terminal has no legitimate use for either
   // table and, before this change, was downloading the business's real
   // recipe into every POS session whether it needed it or not.
-  let [catRes, itemsRes, boxEligRes, groupRes, optRes, itemModRes, stockRes, platformRes, platformPriceRes, loyaltyRes, tableSectionsRes, servicesRes, serviceStaffRes] = await Promise.all([
+  let [catRes, itemsRes, boxEligRes, groupRes, optRes, itemModRes, stockRes, platformRes, platformPriceRes, loyaltyRes, tableSectionsRes, servicesRes, serviceStaffRes, itemCatRes] = await Promise.all([
     sb.from('menu_categories').select('*').eq('business_id', businessId).order('sort_order'),
     sb.from('menu_items').select('*').eq('business_id', businessId).eq('active', true).eq('visible_pos', true).or(`hidden_until.is.null,hidden_until.lt.${new Date().toISOString()}`).order('sort_order').order('id'),
     sb.from('menu_item_box_eligible_items').select('*'),
@@ -8088,6 +8128,9 @@ async function loadPosData(){
     // rather than something worth branching out of the boot query.
     sb.from('services').select('*').eq('business_id', businessId).eq('active', true).order('id'),
     sb.from('service_staff').select('*'),
+    // فئات إضافية للمنتج (migration 20260909130000) — لو الجدول ما وُجد
+    // بعد يرجع {data:null} ويُعامَل كأنه فاضي (كل منتج بفئته الأساسية فقط).
+    sb.from('menu_item_categories').select('*'),
   ]);
 
   // supabase-js never rejects this Promise.all on a network failure — a
@@ -8336,7 +8379,7 @@ async function loadPosData(){
   // already takes the "simple product, add straight to cart" path when
   // MODIFIER_PRODUCTS[productId] is undefined.
   const serviceProducts = isServiceBusiness() ? (servicesRes.data||[]).map(s=>({
-    id: -s.id, cat: String(s.category_id), name: s.name, price: Number(s.price),
+    id: -s.id, cat: String(s.category_id), cats: [String(s.category_id)], name: s.name, price: Number(s.price),
     icon: 'bowl', image: null, fav: false, pop: 0,
     isService: true, durationMinutes: s.duration_minutes
   })) : [];
@@ -8344,9 +8387,16 @@ async function loadPosData(){
   const boxEligByItem = {}; (boxEligRes.data||[]).forEach(r=>{ if(!boxEligByItem[r.menu_item_id]) boxEligByItem[r.menu_item_id] = []; boxEligByItem[r.menu_item_id].push(r); });
   const groupIdsByItem = {}; (itemModRes.data||[]).forEach(r=>{ if(!groupIdsByItem[r.menu_item_id]) groupIdsByItem[r.menu_item_id] = []; groupIdsByItem[r.menu_item_id].push(r.modifier_group_id); });
   const catById = {}; (catRes.data||[]).forEach(c=> catById[c.id] = c);
+  // فئات إضافية: cats = [الأساسية، ...الإضافية] كسلاسل، بلا تكرار.
+  const extraCatsByItem = {};
+  ((itemCatRes && itemCatRes.data) || []).forEach(r=>{
+    (extraCatsByItem[r.menu_item_id] = extraCatsByItem[r.menu_item_id] || []).push(String(r.menu_category_id));
+  });
 
   const menuItemProducts = (itemsRes.data||[]).map(m=>({
-    id: m.id, cat: String(m.category_id), name: m.name, nameEn: m.name_en || null, price: Number(m.price),
+    id: m.id, cat: String(m.category_id),
+    cats: [String(m.category_id), ...(extraCatsByItem[m.id]||[])].filter((v,i,a)=> v && v !== 'null' && a.indexOf(v) === i),
+    name: m.name, nameEn: m.name_en || null, price: Number(m.price),
     icon: iconForCategory(catById[m.category_id] ? catById[m.category_id].name : ''),
     image: m.image_url || null,
     imageThumb: m.image_thumb_url || null,
@@ -8360,8 +8410,9 @@ async function loadPosData(){
   // ما فيها كانت تبقى تبويباً يفتح على شبكة فاضية — والكاشير يضغطه
   // أمام الزبون ولا يجد شيئاً. الخدمات داخلة في نفس القائمة، فصالون
   // بخدمات فقط ما تختفي فئاته.
-  const catsWithProducts = new Set(PRODUCTS.map(p => p.cat));
-  CATEGORIES = CATEGORIES.filter(c => catsWithProducts.has(c.id));
+  const catsWithProducts = new Set();
+  PRODUCTS.forEach(p => (p.cats || [p.cat]).forEach(c => catsWithProducts.add(c)));
+  CATEGORIES = CATEGORIES.filter(c => catsWithProducts.has(String(c.id)));
 
   BARCODE_TO_PRODUCT_ID = {};
   menuItemProducts.forEach(p=>{ if(p.barcode) BARCODE_TO_PRODUCT_ID[p.barcode] = p.id; });
@@ -8408,9 +8459,15 @@ async function loadPosData(){
         if(o.cost_mode === 'stock' && o.stock_item_id){
           MODIFIER_OPTION_STOCK[gid+'_'+o.id] = {stockItemId: o.stock_item_id, qty: Number(o.stock_qty), unit: o.stock_unit};
         }
-        return {id: String(o.id), name: o.name, nameEn: o.name_en || '', price: Number(o.price_delta)||0, default: i===0 && g.type==='single'};
+        return {id: String(o.id), name: o.name, nameEn: o.name_en || '', price: Number(o.price_delta)||0, default: false};
       });
-      return {id: String(g.id), name: g.name, nameEn: g.name_en || '', type: g.type, required: g.type === 'single', max: g.max_select, options};
+      // required = the group's real min_select (migration 20260909100000), not
+      // "every single group is mandatory" as it used to be assumed. Until the
+      // column lands (min_select == null) fall back to the old rule so this
+      // file is safe to deploy before the migration runs — the backfill makes
+      // every existing single group min_select=1 anyway, identical result.
+      const minSel = g.min_select == null ? (g.type === 'single' ? 1 : 0) : Number(g.min_select) || 0;
+      return {id: String(g.id), name: g.name, nameEn: g.name_en || '', type: g.type, required: minSel > 0, minSelect: minSel, max: g.max_select, options};
     }).filter(Boolean);
 
     if(groups.length > 0) MODIFIER_PRODUCTS[m.id] = { groups, alwaysCustomize: groups.some(g=>g.required) };
@@ -8618,6 +8675,12 @@ async function loadCashierProfile(userId){
 /* ============ Staff picker — who's on duty, purely for attributing orders
    (not a login of its own; the branch PIN above is the real credential) ============ */
 let CURRENT_STAFF_MEMBER = null;
+// True once a name was EXPLICITLY chosen this session. The remembered pick
+// (localStorage) pre-fills the picker but no longer skips it: every new shift
+// must be opened under a name chosen on the spot (owner request 2026-09-10 —
+// "لازم يتحدد موظف وبعدها وردية"). Resuming an already-open shift does NOT
+// re-prompt.
+let STAFF_PICKED_THIS_SESSION = false;
 function applyStaffMember(member){
   CURRENT_STAFF_MEMBER = member;
   document.getElementById('posCashierName').textContent = 'مرحبًا، ' + (member ? member.name : 'بدون اسم');
@@ -8644,14 +8707,17 @@ async function showStaffPick(){
     el.innerHTML = '<p class="pos-auth-sub">ما فيه موظفين مضافين لهذا الفرع بعد — أضفهم من الإعدادات بالداشبورد.</p><button class="confirm-pay-btn" id="staffSkipBtn">متابعة بدون اسم</button>';
     document.getElementById('staffSkipBtn').addEventListener('click', async ()=>{
       applyStaffMember(null);
+      STAFF_PICKED_THIS_SESSION = true;
       await goToStaffReady(el);
     });
     return;
   }
-  el.innerHTML = staff.map(s=>`<button class="pos-staff-btn" data-id="${s.id}" data-name="${s.name}">${s.name}</button>`).join('');
+  const rememberedId = CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.id : null;
+  el.innerHTML = staff.map(s=>`<button class="pos-staff-btn${s.id===rememberedId?' is-remembered':''}" data-id="${s.id}" data-name="${s.name}">${s.name}${s.id===rememberedId?' <span class="pos-staff-remembered">آخر مرة</span>':''}</button>`).join('');
   el.querySelectorAll('.pos-staff-btn').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       applyStaffMember({ id: parseInt(btn.dataset.id,10), name: btn.dataset.name });
+      STAFF_PICKED_THIS_SESSION = true;
       await goToStaffReady(el);
     });
   });
@@ -8759,7 +8825,14 @@ async function afterStaffReady(){
   // terminal happens to have one open right now.
   if(HOST_MODE){ await bootPos(); return; }
   CURRENT_SHIFT = await findOpenShift();
-  if(!CURRENT_SHIFT){ showOpenShiftScreen(); return; }
+  if(!CURRENT_SHIFT){
+    // No open shift → a NEW one is about to start. Force an explicit name
+    // choice first (the remembered pick only pre-fills). Resuming an open
+    // shift skips this — the drawer is already attributed.
+    if(!STAFF_PICKED_THIS_SESSION){ await showStaffPick(); return; }
+    showOpenShiftScreen();
+    return;
+  }
 
   /**
    * ورديةُ أمسِ لا تُكمَّل، تُقفل.
@@ -8838,6 +8911,10 @@ document.getElementById('openShiftSubmitBtn').addEventListener('click', async ()
   const openingCash = parseFloat(input.value);
   errEl.style.display = 'none';
   if(!(openingCash >= 0)){ errEl.textContent = 'اكتب رصيد افتتاحي صحيح.'; errEl.style.display = 'block'; return; }
+  // A name must be chosen before a shift can open — the picker enforces this,
+  // this is the belt behind it (STAFF_PICKED_THIS_SESSION also covers the
+  // legitimate "branch has no staff yet → بدون اسم" path).
+  if(!STAFF_PICKED_THIS_SESSION){ errEl.textContent = 'اختر اسم الموظف أول.'; errEl.style.display = 'block'; showStaffPick(); return; }
   try {
     const { data, error } = await window.supabaseClient.from('shifts').insert({
       business_id: CURRENT_PROFILE.business_id,
@@ -9274,4 +9351,56 @@ updatePrinterStatusPill();
   }
 })();
 
+})();
+
+/* لوحة المفاتيح على التابلت/الجوال (كاشير الويب = تطبيق Capacitor على
+   iPad/iPhone): تُبقي الحقل المُركَّز فوق الكيبورد. نفس منطق لوحة التحكم.
+   - أندرويد: interactive-widget=resizes-content (في app/pos/page.tsx).
+   - iOS: نقيس ارتفاع الكيبورد من window.visualViewport ونمرّر الحقل.
+   محروس بـ if(!visualViewport). التطبيق الأصلي (React Native) له معالجته
+   الخاصة ولا يتأثر بهذا. */
+(function posKeyboardSafeInputs(){
+  var vv = window.visualViewport;
+  if(!vv) return;
+  var root = document.documentElement;
+  function kbHeight(){
+    return Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+  }
+  function scrollableAncestor(el){
+    var n = el && el.parentElement;
+    while(n && n !== document.body){
+      var s = getComputedStyle(n);
+      if(/(auto|scroll)/.test(s.overflowY) && n.scrollHeight > n.clientHeight + 4) return n;
+      n = n.parentElement;
+    }
+    return null;
+  }
+  function ensureVisible(el){
+    if(!el || !el.getBoundingClientRect) return;
+    var tag = el.tagName;
+    if(tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT' && !el.isContentEditable) return;
+    var kb = kbHeight();
+    var visibleBottom = window.innerHeight - (kb > 60 ? kb : 0) - 16;
+    var r = el.getBoundingClientRect();
+    var sp = scrollableAncestor(el);
+    if(r.bottom > visibleBottom){
+      var by = r.bottom - visibleBottom + 10;
+      if(sp) sp.scrollBy(0, by); else window.scrollBy(0, by);
+    } else if(r.top < 8){
+      if(sp) sp.scrollBy(0, r.top - 14); else window.scrollBy(0, r.top - 14);
+    }
+  }
+  function sync(){
+    var kb = kbHeight();
+    root.style.setProperty('--kb', (kb > 60 ? kb : 0) + 'px');
+    document.body.classList.toggle('kb-open', kb > 60);
+    if(kb > 60 && document.activeElement) ensureVisible(document.activeElement);
+  }
+  vv.addEventListener('resize', sync);
+  vv.addEventListener('scroll', sync);
+  document.addEventListener('focusin', function(e){
+    var el = e.target;
+    setTimeout(function(){ ensureVisible(el); }, 300);
+    setTimeout(function(){ ensureVisible(el); }, 560);
+  });
 })();

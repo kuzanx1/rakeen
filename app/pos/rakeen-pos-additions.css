@@ -165,6 +165,23 @@
   transition: border-color .12s ease, background .12s ease;
 }
 .pos-staff-btn:active { background: var(--lime); color: var(--flag-green-deep); border-color: var(--lime); }
+/* آخر موظف اختير على هذا الجهاز — مُظلَّل فقط، لا يُتخطّى الاختيار */
+.pos-staff-btn.is-remembered { border-color: var(--lime-deep); box-shadow: inset 0 0 0 1px var(--lime-deep); }
+.pos-staff-remembered { font-size: 10.5px; font-weight: 800; color: var(--lime-deep); margin-inline-start: 8px; }
+
+/* من يقفل الوردية — يظهر في خطوة المطابقة */
+.pos-closer-toggle {
+  border: none; background: none; font-family: inherit; font-weight: 800;
+  font-size: 13px; color: var(--text); cursor: pointer; padding: 0;
+}
+.pos-closer-swap { color: var(--lime-deep); font-weight: 700; font-size: 11.5px; }
+.pos-closer-list { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 4px; }
+.pos-closer-opt {
+  width: 100%; padding: 11px 14px; border-radius: var(--r-md);
+  border: 1px solid var(--line); background: var(--surf1); color: var(--text);
+  font-family: inherit; font-weight: 700; font-size: 12.5px; cursor: pointer;
+}
+.pos-closer-opt.is-active { border-color: var(--lime-deep); background: var(--surf2); }
 
 /* ============ نوع الطلب -- ثلاثُ بلاطات ============
    ثلاثةُ أقراصٍ صغيرة في شريطٍ واحد تجعل "تطبيقات التوصيل" ينكسر في
@@ -505,6 +522,21 @@
   .order-items { max-height: 40vh; }
 
   .modal-card, .modifier-card { width: 94vw; }
+}
+
+/* ============ لوحة المفاتيح ما تغطّي الحقل المُركَّز (تابلت/جوال) ============
+   نفس حيلة لوحة التحكم: الغطاء يُحاذي للأعلى ويتمرّر بنفسه، والبطاقة
+   margin-block:auto (تتوسّط قصيرةً، تُتمرَّر كاملةً طويلةً)، ومساحة
+   محجوزة أسفلها بقدر --kb (يضبطها rakeen-pos.js من visualViewport).
+   الديسكتوب (>1024px) لا يتأثر. */
+@media (max-width: 1024px) {
+  .modal-overlay, .pos-auth-screen {
+    align-items: flex-start;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 3vh 8px calc(3vh + var(--kb, 0px));
+  }
+  .modal-overlay > .modal-card { margin-block: auto; max-height: none; }
+  .pos-auth-screen > .pos-auth-card { margin-block: auto; }
 }
 
 /* ============ Incoming online-order accept/reject popup ============
