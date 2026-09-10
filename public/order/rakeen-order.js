@@ -601,7 +601,13 @@ if (!window.__rakeenOrderBooted) {
       sb.from('menu_items').select('id, category_id, name, name_en, price, online_price, image_url, cost_mode, total_pieces, online_tag_label, online_tag_color').eq('business_id', businessId).eq('active', true).eq('visible_online', true).or(`hidden_until.is.null,hidden_until.lt.${new Date().toISOString()}`).order('sort_order').order('id'),
       sb.from('modifier_groups').select('*').eq('business_id', businessId),
     ]);
-    CATEGORY_ROWS = (catRes.data || []).map(c => ({ id: c.id, name: c.name, parentId: c.online_parent_category_id || null }));
+    // فئة مخفية أونلاين (visible_online=false, migration 20260909140000)
+    // تُستبعد نهائيًا — لا شريحة، لا قسم، ومنتجٌ كل فئاته مخفية أونلاين
+    // يُخفى من المنيو (إلا لو بلا فئة).
+    CATEGORY_ROWS = (catRes.data || [])
+      .filter(c => c.visible_online !== false)
+      .map(c => ({ id: c.id, name: c.name, parentId: c.online_parent_category_id || null }));
+    const ONLINE_VISIBLE_CAT_IDS = new Set((catRes.data || []).filter(c => c.visible_online !== false).map(c => c.id));
     // Only top-level categories get a rail chip/anchor — a sub-category
     // renders as a heading nested inside its parent's section instead (see
     // renderMenu), so it doesn't need its own top-level jump target.
@@ -612,11 +618,33 @@ if (!window.__rakeenOrderBooted) {
 
     PRODUCTS = (itemsRes.data || []).map(m => ({
       id: m.id, name: m.name, nameEn: m.name_en || '', price: Number(m.online_price != null ? m.online_price : m.price), categoryId: m.category_id,
+      categoryIds: [m.category_id],
       image: m.image_url || null, costMode: m.cost_mode, totalPieces: m.total_pieces || 0,
       tagLabel: m.online_tag_label || '', tagColor: m.online_tag_color || '#3E7BFA',
     }));
 
-    const onlineCatIdsWithProducts = new Set(PRODUCTS.map(p => String(p.categoryId)));
+    // فئات إضافية للمنتج (migration 20260909130000). categoryIds = [الأساسية،
+    // ...الإضافية]. لو الجدول ما وُجد يرجع {data:null} ويبقى كل منتج بفئته.
+    const _micItemIds = PRODUCTS.map(p => p.id);
+    if (_micItemIds.length) {
+      const { data: micRows } = await sb.from('menu_item_categories')
+        .select('menu_item_id, menu_category_id').in('menu_item_id', _micItemIds);
+      const extraByItem = {};
+      (micRows || []).forEach(r => { (extraByItem[r.menu_item_id] ||= []).push(r.menu_category_id); });
+      PRODUCTS.forEach(p => {
+        p.categoryIds = [p.categoryId, ...(extraByItem[p.id] || [])]
+          .filter((v, i, a) => v != null && a.indexOf(v) === i);
+      });
+    }
+    // استبعاد المنتج لو كل فئاته مخفية أونلاين (وله فئة أصلًا)
+    PRODUCTS = PRODUCTS.filter(p => {
+      const all = p.categoryIds || (p.categoryId != null ? [p.categoryId] : []);
+      p.categoryIds = all.filter(cid => ONLINE_VISIBLE_CAT_IDS.has(cid));
+      return !(all.length > 0 && p.categoryIds.length === 0);
+    });
+
+    const onlineCatIdsWithProducts = new Set();
+    PRODUCTS.forEach(p => p.categoryIds.forEach(cid => onlineCatIdsWithProducts.add(String(cid))));
     const onlineCatHasProduct = cat =>
       onlineCatIdsWithProducts.has(String(cat.id)) ||
       CATEGORY_ROWS.some(k => k.parentId === cat.id && onlineCatIdsWithProducts.has(String(k.id)));
@@ -710,7 +738,7 @@ if (!window.__rakeenOrderBooted) {
       return;
     }
     const byCatId = {};
-    products.forEach(p => { (byCatId[p.categoryId] ||= []).push(p); });
+    products.forEach(p => (p.categoryIds || [p.categoryId]).forEach(cid => { (byCatId[cid] ||= []).push(p); }));
     // A category counts as top-level either because it has no parent, or its
     // parent no longer exists (defensive — shouldn't happen with the FK's ON
     // DELETE SET NULL, but never silently drop a whole section over it).
@@ -718,7 +746,7 @@ if (!window.__rakeenOrderBooted) {
     const topCats = CATEGORY_ROWS.filter(c => !c.parentId || !idExists(c.parentId));
     const childrenByParent = {};
     CATEGORY_ROWS.forEach(c => { if (c.parentId && idExists(c.parentId)) (childrenByParent[c.parentId] ||= []).push(c); });
-    const uncategorized = products.filter(p => !CATEGORY_ROWS.some(c => c.id === p.categoryId));
+    const uncategorized = products.filter(p => !(p.categoryIds || [p.categoryId]).some(cid => CATEGORY_ROWS.some(c => c.id === cid)));
 
     el.innerHTML = topCats.map(top => {
       const direct = byCatId[top.id] || [];
@@ -738,7 +766,8 @@ if (!window.__rakeenOrderBooted) {
       // switch between "الكل" and each one, instead of a long scroll of
       // stacked sub-headings (see the .has-subcats CSS for the visual).
       const views = [
-        { id: '__all', name: 'الكل', items: [...direct, ...kids.flatMap(k => byCatId[k.id] || [])] },
+        // منتج مربوط بالفئة الأم وفئة فرعية معًا قد يظهر مرتين في «الكل» — نُزيل التكرار.
+        { id: '__all', name: 'الكل', items: [...new Map([...direct, ...kids.flatMap(k => byCatId[k.id] || [])].map(p => [p.id, p])).values()] },
         ...kids.map(k => ({ id: String(k.id), name: k.name, items: byCatId[k.id] || [] })),
       ];
       return `

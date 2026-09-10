@@ -140,55 +140,107 @@ const AVG_PREP_TIME = 8.4; // minutes
    screen explains those facts, it doesn't invent new ones. Waste (7%, 3,200 SAR/month) matches
    the exact figures from the original landing page's health radar scene. */
 let STOCK_ITEMS = [
-  {id:1, name:'دجاج', qtyOnHand:3, parLevel:20, duration:'يكفي ٦ ساعات تقريبًا', unitCost:18, unit:'kg', category:'raw'},
-  {id:2, name:'جبن', qtyOnHand:3, parLevel:15, duration:'يكفي يوم ونص تقريبًا', unitCost:32, unit:'kg', category:'raw'},
-  {id:3, name:'بطاطس', qtyOnHand:10, parLevel:40, duration:'يكفي يوم واحد', unitCost:4, unit:'kg', category:'raw'},
-  {id:4, name:'خبز برجر', qtyOnHand:90, parLevel:200, duration:'يكفي يومين', unitCost:1.2, unit:'piece', category:'raw'},
-  {id:5, name:'حليب', qtyOnHand:15, parLevel:25, duration:'يكفي ٣ أيام', unitCost:6, unit:'liter', category:'raw'},
-  {id:6, name:'حبوب قهوة', qtyOnHand:8, parLevel:10, duration:'يكفي أسبوع تقريبًا', unitCost:55, unit:'kg', category:'raw'},
-  {id:7, name:'لحم برجر', qtyOnHand:5, parLevel:13, duration:'يكفي يوم تقريبًا', unitCost:45, unit:'kg', category:'raw'},
-  {id:8, name:'طماطم', qtyOnHand:8, parLevel:20, duration:'يكفي يومين', unitCost:6, unit:'kg', category:'raw'},
-  {id:9, name:'صوص', qtyOnHand:4, parLevel:10, duration:'يكفي أسبوع', unitCost:14, unit:'kg', category:'raw'},
-  {id:10, name:'كيس تغليف', qtyOnHand:150, parLevel:300, duration:'يكفي أسبوع تقريبًا', unitCost:0.30, unit:'piece', category:'packaging'},
-  {id:11, name:'كرتون تغليف', qtyOnHand:120, parLevel:250, duration:'يكفي أسبوع تقريبًا', unitCost:1.20, unit:'piece', category:'packaging'},
-  {id:12, name:'كوب وغطاء (حار)', qtyOnHand:100, parLevel:200, duration:'يكفي أسبوع', unitCost:0.40, unit:'piece', category:'packaging'},
-  {id:13, name:'كوب وغطاء (بارد)', qtyOnHand:80, parLevel:200, duration:'يكفي أسبوع', unitCost:0.60, unit:'piece', category:'packaging'},
-  {id:14, name:'ملعقة', qtyOnHand:300, parLevel:500, duration:'يكفي أسبوعين', unitCost:0.05, unit:'piece', category:'packaging'},
-  {id:15, name:'سمبوسة دجاج', qtyOnHand:80, parLevel:200, duration:'يكفي يومين', unitCost:1.20, unit:'piece', category:'raw'},
-  {id:16, name:'سمبوسة لحم', qtyOnHand:60, parLevel:200, duration:'يكفي يومين', unitCost:1.40, unit:'piece', category:'raw'},
-  {id:17, name:'ورق عنب', qtyOnHand:100, parLevel:250, duration:'يكفي يومين', unitCost:0.90, unit:'piece', category:'raw'},
-  {id:18, name:'مسخن', qtyOnHand:50, parLevel:150, duration:'يكفي يومين', unitCost:1.60, unit:'piece', category:'raw'},
-  {id:19, name:'كرتون تغليف كبير', qtyOnHand:60, parLevel:150, duration:'يكفي أسبوع', unitCost:1.80, unit:'piece', category:'packaging'},
-  {id:20, name:'بيكون', qtyOnHand:4, parLevel:10, duration:'يكفي ٤ أيام', unitCost:60, unit:'kg', category:'raw'}
+  {id:1, name:'دجاج', qtyOnHand:3, parLevel:20, unitCost:18, unit:'kg', category:'raw'},
+  {id:2, name:'جبن', qtyOnHand:3, parLevel:15, unitCost:32, unit:'kg', category:'raw'},
+  {id:3, name:'بطاطس', qtyOnHand:10, parLevel:40, unitCost:4, unit:'kg', category:'raw'},
+  {id:4, name:'خبز برجر', qtyOnHand:90, parLevel:200, unitCost:1.2, unit:'piece', category:'raw'},
+  {id:5, name:'حليب', qtyOnHand:15, parLevel:25, unitCost:6, unit:'liter', category:'raw'},
+  {id:6, name:'حبوب قهوة', qtyOnHand:8, parLevel:10, unitCost:55, unit:'kg', category:'raw'},
+  {id:7, name:'لحم برجر', qtyOnHand:5, parLevel:13, unitCost:45, unit:'kg', category:'raw'},
+  {id:8, name:'طماطم', qtyOnHand:8, parLevel:20, unitCost:6, unit:'kg', category:'raw'},
+  {id:9, name:'صوص', qtyOnHand:4, parLevel:10, unitCost:14, unit:'kg', category:'raw'},
+  {id:10, name:'كيس تغليف', qtyOnHand:150, parLevel:300, unitCost:0.30, unit:'piece', category:'packaging'},
+  {id:11, name:'كرتون تغليف', qtyOnHand:120, parLevel:250, unitCost:1.20, unit:'piece', category:'packaging'},
+  {id:12, name:'كوب وغطاء (حار)', qtyOnHand:100, parLevel:200, unitCost:0.40, unit:'piece', category:'packaging'},
+  {id:13, name:'كوب وغطاء (بارد)', qtyOnHand:80, parLevel:200, unitCost:0.60, unit:'piece', category:'packaging'},
+  {id:14, name:'ملعقة', qtyOnHand:300, parLevel:500, unitCost:0.05, unit:'piece', category:'packaging'},
+  {id:15, name:'سمبوسة دجاج', qtyOnHand:80, parLevel:200, unitCost:1.20, unit:'piece', category:'raw'},
+  {id:16, name:'سمبوسة لحم', qtyOnHand:60, parLevel:200, unitCost:1.40, unit:'piece', category:'raw'},
+  {id:17, name:'ورق عنب', qtyOnHand:100, parLevel:250, unitCost:0.90, unit:'piece', category:'raw'},
+  {id:18, name:'مسخن', qtyOnHand:50, parLevel:150, unitCost:1.60, unit:'piece', category:'raw'},
+  {id:19, name:'كرتون تغليف كبير', qtyOnHand:60, parLevel:150, unitCost:1.80, unit:'piece', category:'packaging'},
+  {id:20, name:'بيكون', qtyOnHand:4, parLevel:10, unitCost:60, unit:'kg', category:'raw'}
 ];
 let stockIdCounter = 21;
 function computeStockPct(item){
-  if(!(item.parLevel > 0)) return 100; // ما تحدّد مستوى مرجعي بعد -- لا نسبة حقيقية تُحسب، ولا "صفر تقسيم صفر" يظهر NaN.
+  if(!(item.parLevel > 0)) return 100; // ما تحدّد «مخزون معتاد» بعد -- لا نسبة حقيقية تُحسب، ولا "صفر تقسيم صفر" يظهر NaN.
   return Math.max(0, Math.min(100, Math.round(item.qtyOnHand/item.parLevel*100)));
 }
 function computeStockTier(pct){ if(pct<20) return 'critical'; if(pct<45) return 'warn'; return 'ok'; }
-const UNIT_LABELS = {kg:'كجم', g:'غرام', liter:'لتر', piece:'حبة'};
+const UNIT_LABELS = {kg:'كجم', g:'غرام', liter:'لتر', ml:'مل', piece:'حبة'};
 // A per-gram/per-ml cost is often a fraction of a halala (e.g. 46 ر.س ÷ 9600 غ) —
 // toFixed(2) alone shows a misleading "0.00 ر.س" for those. Widen the decimals
 // only when the value is actually that small, so normal per-kg/per-piece costs
 // still show their usual clean 2-decimal form.
 function formatUnitCost(cost){
   if(cost === 0) return '0.00';
+  if(Math.abs(cost) < 0.001) return cost.toFixed(6);
   if(Math.abs(cost) < 0.1) return cost.toFixed(4);
   return cost.toFixed(2);
 }
-/* recipe quantities can be entered in a different (but compatible) unit than the stock item's
-   purchasing unit — e.g. stock tracked in kg, recipe entered in grams for precision. */
-function convertToUnit(qty, fromUnit, toUnit){
+/* recipe quantities can be entered in a different (but compatible) unit than the stock
+   item's tracking unit — e.g. stock tracked in liter, recipe entered in ml or (with a
+   density bridge) in grams. MIRRORS the SQL rka_to_base() exactly — migration
+   20260909090000. gramsPerUnit = "how many grams one <toUnit> of this item weighs"
+   (only used to bridge weight↔volume for a volume-tracked item). */
+function convertToUnit(qty, fromUnit, toUnit, gramsPerUnit){
+  if(qty == null) return qty;
   if(fromUnit === toUnit) return qty;
-  if(fromUnit==='g' && toUnit==='kg') return qty/1000;
-  if(fromUnit==='kg' && toUnit==='g') return qty*1000;
-  return qty; // liter and piece have no cross-unit conversion in this system
+  const mass = u => u === 'g' || u === 'kg';
+  const vol  = u => u === 'ml' || u === 'liter';
+  if(mass(fromUnit) && mass(toUnit))
+    return qty * (fromUnit === 'kg' ? 1000 : 1) / (toUnit === 'kg' ? 1000 : 1);
+  if(vol(fromUnit) && vol(toUnit))
+    return qty * (fromUnit === 'liter' ? 1000 : 1) / (toUnit === 'liter' ? 1000 : 1);
+  if(vol(toUnit) && mass(fromUnit) && gramsPerUnit > 0)
+    return (qty * (fromUnit === 'kg' ? 1000 : 1)) / gramsPerUnit;
+  return qty; // no compatible path — unchanged (same as before)
 }
-function compatibleUnits(baseUnit){
-  if(baseUnit==='kg' || baseUnit==='g') return ['g','kg'];
-  if(baseUnit==='liter') return ['liter'];
+// hasBridge = the stock item has grams_per_unit set → weight units also allowed
+function compatibleUnits(baseUnit, hasBridge){
+  if(baseUnit === 'kg' || baseUnit === 'g') return ['g','kg'];
+  if(baseUnit === 'liter' || baseUnit === 'ml')
+    return hasBridge ? ['ml','liter','g','kg'] : ['ml','liter'];
   return ['piece'];
+}
+// كثافة معروفة حسب اسم الصنف (غرام لكل لتر) — نسخة طبق الأصل من دالة SQL
+// rka_density_for (migration 20260909120000). النظام يحوّل لتر↔غرام بها
+// تلقائيًا بلا ما يسأل أحد. المجهول → كثافة الماء (يُطبَّق عند الاستخدام).
+function guessGramsPerLiter(name){
+  const n = String(name || '').trim();
+  const has = re => re.test(n);
+  if(has(/زيت|زيوت|سمن|سمنة|أوليف|ghee|oil/i)) return 915;
+  if(has(/عسل|honey/i)) return 1420;
+  if(has(/جلوكوز|نشا سائل|شراب ذرة|glucose/i)) return 1400;
+  if(has(/قيقب|maple/i)) return 1370;
+  if(has(/دبس|molasses/i)) return 1350;
+  if(has(/مكثف|مكثّف|محلى|محلّى|condensed/i)) return 1290;
+  if(has(/شراب|سيرب|سكر سائل|syrup/i)) return 1300;
+  if(has(/كراميل|كاراميل|شوكولا|فدج|caramel|chocolate|fudge/i)) return 1270;
+  if(has(/صويا|soy/i)) return 1200;
+  if(has(/كاتش|كتش|ketchup|catsup/i)) return 1140;
+  if(has(/طحين|طحينة|طحينية|tahin/i)) return 1100;
+  if(has(/رب طماطم|معجون طماطم|tomato paste/i)) return 1100;
+  if(has(/مبخر|مبخّر|evaporated/i)) return 1070;
+  if(has(/صلصة|بيوريه|بسارة|بسّارة|passata|puree|marinara/i)) return 1050;
+  if(has(/مايون|mayo/i)) return 1050;
+  if(has(/خردل|mustard/i)) return 1050;
+  if(has(/صوص|صلصات|sauce/i)) return 1050;
+  if(has(/عصير|juice|كولا|بيبسي|مشروب غاز|صودا|soda|cola|pepsi|sprite/i)) return 1045;
+  if(has(/رايب|رائب|زبادي|زباده|روب|لبن مخيض|بترميلك|buttermilk|yogurt|yoghurt|laban/i)) return 1035;
+  if(has(/حليب|لبن|milk/i)) return 1030;
+  if(has(/قشطة|قشطه|كريمة|كريمه|كريم |cream/i)) return 1010;
+  if(has(/خل |خلّ|vinegar/i)) return 1010;
+  if(has(/مرق|شوربا|شوربة|broth|stock/i)) return 1010;
+  if(has(/ماء|مياه|ماي|مويه|شاي|قهوة|قهوه|أمريكانو|امريكانو|إسبريسو|اسبريسو|نعناع|كركديه|water|tea|coffee|americano|espresso/i)) return 1000;
+  return null;
+}
+// وزن وحدة تتبّع واحدة بالغرام (غ/لتر أو غ/مل). المجهول → كثافة الماء.
+function densityForStockUnit(name, unit){
+  if(unit !== 'liter' && unit !== 'ml') return null;
+  const gpl = guessGramsPerLiter(name);
+  const perL = (gpl != null) ? gpl : 1000;
+  return unit === 'ml' ? perL / 1000 : perL;
 }
 
 /* Purchase invoices — real records enabling genuine supplier price comparison,
@@ -1636,19 +1688,21 @@ function renderWasteAndFoodCost(){
    "an order came in, deduct it from what's registered in inventory" connection. */
 function computeTodayConsumption(stockItemName){
   const stockItem = STOCK_ITEMS.find(s=>s.name===stockItemName);
-  if(!stockItem) return {totalQty:0, orderCount:0};
-  let totalQty = 0, orderCount = 0;
+  if(!stockItem) return {totalQty:0, unitsSold:0};
+  // totalQty = كم من هذا الصنف استُهلك اليوم (بوحدته) عبر كل ما بيع من منتجات
+  // مرتبطة بالمخزون. unitsSold = عدد القطع المباعة من تلك المنتجات — لا "عدد
+  // الطلبات" (ALL_SELLERS مُجمَّع بالمنتج، ما فيه معلومة على مستوى الطلب).
+  let totalQty = 0, unitsSold = 0;
   MENU_ITEMS.forEach(item=>{
     if(!item.linkInventory || item.costMode!=='recipe') return;
     const sold = ALL_SELLERS.find(a=>a.name===item.name);
     if(!sold) return;
-    (item.recipe||[]).forEach(r=>{
-      if(r.ingredient !== stockItemName) return;
-      totalQty += convertToUnit(r.qty, r.unit, stockItem.unit) * sold.qty;
-      orderCount += sold.qty;
-    });
+    const lines = (item.recipe||[]).filter(r=>r.ingredient === stockItemName);
+    if(lines.length === 0) return;
+    lines.forEach(r=>{ totalQty += convertToUnit(r.qty, r.unit, stockItem.unit, stockItem.gramsPerUnit) * sold.qty; });
+    unitsSold += sold.qty; // مرة واحدة لكل منتج، لا لكل سطر وصفة
   });
-  return {totalQty, orderCount};
+  return {totalQty, unitsSold, orderCount: unitsSold};
 }
 
 function stockRowHtml(s, usedInMap){
@@ -1669,7 +1723,8 @@ function stockRowHtml(s, usedInMap){
       <div class="mtr-product">
         <div class="mtr-name-col">
           <div class="mtr-name">${s.name}</div>
-          <div class="mtr-meta">${s.parLevel > 0 ? s.qtyOnHand + ' من ' + s.parLevel + ' ' + UNIT_LABELS[s.unit] + ' متبقي' : s.qtyOnHand + ' ' + UNIT_LABELS[s.unit] + ' متوفر — بلا مستوى مرجعي بعد'}${consumption.totalQty>0 ? ' — استهلك اليوم '+consumption.totalQty.toFixed(consumption.totalQty<10?2:0)+' '+UNIT_LABELS[s.unit]+' ('+consumption.orderCount+' طلب)' : ''}</div>
+          <div class="mtr-meta">${s.parLevel > 0 ? s.qtyOnHand + ' من ' + s.parLevel + ' ' + UNIT_LABELS[s.unit] + ' متبقي' : s.qtyOnHand + ' ' + UNIT_LABELS[s.unit] + ' — سجّل أول كمية لهذا الصنف'}${consumption.totalQty>0 ? ' — استهلك اليوم '+consumption.totalQty.toFixed(consumption.totalQty<10?2:0)+' '+UNIT_LABELS[s.unit]+' (في '+consumption.unitsSold+' قطعة مباعة)' : ''}</div>
+          ${s.autoConsumption ? `<div class="mtr-auto-cons">⚙️ استهلاك تلقائي: كل ${s.autoConsumption.perQty} مبيعة من ${s.autoConsumption.targets.length} ${s.autoConsumption.targets.length===1?'هدف':'أهداف'}</div>` : ''}
           ${negativeWarning}
         </div>
       </div>
@@ -1743,12 +1798,16 @@ function openStockItemModal(stockId){
   editingStockId = stockId || null;
   const existing = stockId ? STOCK_ITEMS.find(s=>s.id===stockId) : null;
   stockModalState = existing
-    ? {name:existing.name, unit:existing.unit, unitCost:existing.unitCost, qtyOnHand:existing.qtyOnHand, parLevel:existing.parLevel, duration:existing.duration, category:existing.category||'raw'}
-    : {name:'', unit:'kg', unitCost:0, qtyOnHand:0, parLevel:0, duration:'يكفي فترة كافية', category:'raw'};
+    ? {name:existing.name, unit:existing.unit, unitCost:existing.unitCost, qtyOnHand:existing.qtyOnHand, parLevel:existing.parLevel, category:existing.category||'raw', gramsPerUnit: existing.gramsPerUnit || null,
+       autoConsumption: existing.autoConsumption
+         ? {perQty: existing.autoConsumption.perQty, deductQty: existing.autoConsumption.deductQty, targets: existing.autoConsumption.targets.map(t=>({...t}))}
+         : {perQty: null, deductQty: 1, targets: []}}
+    : {name:'', unit:'kg', unitCost:0, qtyOnHand:0, parLevel:0, category:'raw', gramsPerUnit:null,
+       autoConsumption: {perQty: null, deductQty: 1, targets: []}};
 
   document.getElementById('stockItemModalTitle').textContent = existing ? 'تعديل: ' + existing.name : 'إضافة صنف جديد';
   document.getElementById('stockItemDeleteLink').style.display = existing ? 'block' : 'none';
-  const consumption = existing ? computeTodayConsumption(existing.name) : {totalQty:0, orderCount:0};
+  const consumption = existing ? computeTodayConsumption(existing.name) : {totalQty:0, unitsSold:0};
   document.getElementById('stockItemModalBody').innerHTML = `
     <div class="menu-add-field" style="margin-bottom:14px;"><label>اسم الصنف</label><input type="text" id="siName" value="${stockModalState.name}" placeholder="مثال: زيت زيتون"></div>
     <div class="menu-add-field" style="margin-bottom:16px; max-width:260px;"><label class="field-label-row">نوع الصنف ${helpIcon('مواد خام: أي شي مأكول أو مشروب يدخل بوصفة (لحم، جبن، خضار...). تغليف ومستلزمات: أكياس، كراتين، أكواب، ملاعق — أي شي تغليف مو أكل. هذا التصنيف يفصلهم بجدول المخزون عشان يكون مرتب.')}</label>
@@ -1758,35 +1817,38 @@ function openStockItemModal(stockId){
       </select>
     </div>
     <div class="menu-add-row" style="margin-bottom:16px;">
-      <div class="menu-add-field"><label>وحدة الشراء</label>
+      <div class="menu-add-field"><label>وحدة التتبّع</label>
         <select id="siUnit">
           <option value="kg" ${stockModalState.unit==='kg'?'selected':''}>كيلوغرام</option>
           <option value="g" ${stockModalState.unit==='g'?'selected':''}>غرام</option>
           <option value="liter" ${stockModalState.unit==='liter'?'selected':''}>لتر</option>
+          <option value="ml" ${stockModalState.unit==='ml'?'selected':''}>مل</option>
           <option value="piece" ${stockModalState.unit==='piece'?'selected':''}>حبة</option>
         </select>
       </div>
       <div class="menu-add-field"><label id="siCostLabel">تكلفة ${UNIT_LABELS[stockModalState.unit]} الواحد (ر.س)</label><input type="number" id="siUnitCost" value="${stockModalState.unitCost}" step="0.01"></div>
     </div>
+
     ${existing ? `<p class="stock-qty-helper" style="margin-top:-8px; margin-bottom:16px;">تغيير التكلفة هنا يطبّق على المبيعات الجاية بس — كل طلب سابق يحتفظ بتكلفته وقت البيع فعليًا، وما يتغيّر بأثر رجعي.</p>` : ''}
 
-    <div class="menu-add-field" style="margin-bottom:6px;"><label>${existing ? 'الكمية المتوفرة الآن' : 'كم عندك الآن؟ (بتصير ١٠٠٪)'}</label><input type="number" id="siQtyOnHand" value="${stockModalState.qtyOnHand}" step="0.1"></div>
+    <div class="menu-add-field" style="margin-bottom:6px;"><label>${existing ? 'الكمية المتوفّرة الآن' : 'كم عندك الآن؟'}</label><input type="number" id="siQtyOnHand" value="${stockModalState.qtyOnHand}" step="0.1"></div>
     <div class="stock-live-bar-box" id="siLiveBarBox"></div>
 
     ${existing ? `
     <div class="advanced-section" style="margin-top:16px;">
       <div class="advanced-toggle-row" id="parAdvancedToggle">
-        <div class="panel-subtitle">توريد اليوم أقل من المعتاد؟ (اختياري)</div>
-        <svg class="advanced-chevron" id="parAdvancedChevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        <div class="panel-subtitle">تعديل «مخزونك المعتاد» من هذا الصنف (اختياري)</div>
+        <svg class="advanced-chevron${stockModalState.parLevel > 0 ? '' : ' open'}" id="parAdvancedChevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="advanced-body" id="parAdvancedBody">
-        <p style="font-size:11px; color:var(--muted); font-weight:600; margin:8px 0 10px;">هذا يغيّر تعريف "١٠٠٪" لهذا الصنف — استخدمه بس لو التوريد المعتاد تغيّر فعليًا.</p>
-        <div class="menu-add-field" style="max-width:220px;"><label>الكمية الجديدة اللي تمثّل ١٠٠٪</label><input type="number" id="siParLevel" value="${stockModalState.parLevel}" step="0.1"></div>
+      <div class="advanced-body${stockModalState.parLevel > 0 ? '' : ' open'}" id="parAdvancedBody">
+        <p style="font-size:11px; color:var(--muted); font-weight:600; margin:8px 0 10px;">«مخزونك المعتاد» هو الكمية اللي نعتبرها ١٠٠٪ لهذا الصنف، ونقيس عليها نسبة مخزونك في الجدول. عدّلها بس لو صرت تخزّن كمية أكبر أو أقل بشكل دائم — تحديث «المتوفّر الآن» فوق ما يحتاجه.</p>
+        <div class="menu-add-field" style="max-width:220px;"><label>كمية «مخزونك المعتاد» — يعني ١٠٠٪</label><input type="number" id="siParLevel" value="${stockModalState.parLevel}" step="0.1"></div>
       </div>
     </div>` : ''}
 
-    <div class="menu-add-field" style="margin:16px 0 14px;"><label>وصف المدة المتبقية (اختياري)</label><input type="text" id="siDuration" value="${stockModalState.duration}" placeholder="مثال: يكفي يومين"></div>
-    ${existing ? `<div class="accounting-note">استهلك اليوم من هذا الصنف: <b>${consumption.totalQty.toFixed(2)} ${UNIT_LABELS[existing.unit]}</b> عبر ${consumption.orderCount} طلب مبيعات حقيقي — محسوبة تلقائيًا من وصفات المنتجات المرتبطة بالمخزون.</div>` : ''}
+    <div id="siAutoConsumption" style="margin-top:16px;"></div>
+
+    ${existing ? `<div class="accounting-note" style="margin-top:16px;">استهلك اليوم من هذا الصنف: <b>${consumption.totalQty.toFixed(2)} ${UNIT_LABELS[existing.unit]}</b> عبر ${consumption.unitsSold} قطعة مباعة اليوم — محسوبة تلقائيًا من وصفات المنتجات المرتبطة بالمخزون.</div>` : ''}
     ${existing ? (()=>{
       const usedBy = getUsedInMap()[existing.name];
       return `<div class="accounting-note" style="margin-top:8px;">${usedBy && usedBy.length
@@ -1802,22 +1864,21 @@ function openStockItemModal(stockId){
     document.getElementById('siLiveBarBox').innerHTML = existing ? (par > 0 ? `
       <div class="stock-bar-track" style="height:14px;"><div class="stock-bar-fill ${tier}" style="width:${pct}%"></div></div>
       <div class="stock-live-bar-label">يعني عندك <b class="mono">${pct}٪</b> من مخزونك المعتاد — ${stockModalState.qtyOnHand} من ${par} ${unitLabel}</div>
-    ` : `
-      <div class="stock-live-bar-label">ما تحدّد مستوى مرجعي (١٠٠٪) لهذا الصنف بعد — حدّده من "توريد اليوم أقل من المعتاد" تحت عشان تشوف نسبة مخزونك الفعلية.</div>
-    `) : `
-      <div class="stock-live-bar-label">أول ما تحفظ، هذي الكمية (${stockModalState.qtyOnHand} ${unitLabel}) بتصير مرجعك — يعني ١٠٠٪ تلقائيًا.</div>
-    `;
+    ` : '') : '';
   };
-  document.getElementById('siName').addEventListener('input', (e)=> stockModalState.name = e.target.value);
+  document.getElementById('siName').addEventListener('input', (e)=>{
+    stockModalState.name = e.target.value;
+    const acName = document.getElementById('acItemName'); if(acName) acName.textContent = e.target.value.trim() || 'هذا الصنف';
+  });
   document.getElementById('siCategory').addEventListener('change', (e)=> stockModalState.category = e.target.value);
   document.getElementById('siUnit').addEventListener('change', (e)=>{
     stockModalState.unit = e.target.value;
+    renderStockAutoConsumption();
     document.getElementById('siCostLabel').textContent = 'تكلفة ' + UNIT_LABELS[stockModalState.unit] + ' الواحد (ر.س)';
     updatePctPreview();
   });
   document.getElementById('siUnitCost').addEventListener('input', (e)=> stockModalState.unitCost = parseFloat(e.target.value)||0);
   document.getElementById('siQtyOnHand').addEventListener('input', (e)=>{ stockModalState.qtyOnHand = parseFloat(e.target.value)||0; updatePctPreview(); });
-  document.getElementById('siDuration').addEventListener('input', (e)=> stockModalState.duration = e.target.value);
   if(existing){
     document.getElementById('siParLevel').addEventListener('input', (e)=>{ stockModalState.parLevel = parseFloat(e.target.value)||0; updatePctPreview(); });
     document.getElementById('parAdvancedToggle').addEventListener('click', ()=>{
@@ -1829,8 +1890,140 @@ function openStockItemModal(stockId){
     });
   }
   updatePctPreview();
+  renderStockAutoConsumption();
 
   document.getElementById('stockItemModal').classList.add('show');
+}
+
+/* ============ استهلاك تلقائي (صنف تشغيل غير مربوط بوصفة) ============
+   «كل N مبيعة من [منتجات/فئات] اخصم ١ من هذا الصنف». يُطبَّق على الخادم
+   عبر تريغر order_items — الكاشير والعميل ما يشوفون شي. القاعدة وحدة لكل
+   صنف. الحفظ عبر RPC set_indirect_consumption (استبدال كامل ذرّي). */
+function autoConsTargetLabel(t){
+  if(t.kind === 'category'){
+    const row = (typeof CATEGORY_ROWS !== 'undefined' ? CATEGORY_ROWS : []).find(c=>c.id===t.id);
+    return 'فئة: ' + (row ? row.name : ('#' + t.id));
+  }
+  const it = (typeof MENU_ITEMS !== 'undefined' ? MENU_ITEMS : []).find(m=>m.id===t.id);
+  return 'منتج: ' + (it ? it.name : ('#' + t.id));
+}
+function renderStockAutoConsumption(){
+  const host = document.getElementById('siAutoConsumption');
+  if(!host) return;
+  const st = stockModalState.autoConsumption;
+  const on = st.targets.length > 0 && st.perQty >= 1;
+  const unitLabel = UNIT_LABELS[stockModalState.unit] || 'وحدة';
+  const chosen = new Set([
+    ...st.targets.filter(t=>t.kind==='category').map(t=>'c'+t.id),
+    ...st.targets.filter(t=>t.kind==='product').map(t=>'p'+t.id),
+  ]);
+  const catOpts = (typeof CATEGORY_ROWS !== 'undefined' ? CATEGORY_ROWS : [])
+    .filter(c=>!chosen.has('c'+c.id))
+    .map(c=>`<option value="c${c.id}">فئة: ${escapeHtml(c.name)}</option>`).join('');
+  const itemOpts = (typeof MENU_ITEMS !== 'undefined' ? MENU_ITEMS : [])
+    .filter(m=>m.active !== false && !chosen.has('p'+m.id))
+    .map(m=>`<option value="p${m.id}">منتج: ${escapeHtml(m.name)}</option>`).join('');
+
+  const openByDefault = on; // مطوي افتراضيًا؛ يُفتح فقط لو فيه إعداد مفعّل
+  const itemNm = stockModalState.name || 'هذا الصنف';
+  host.innerHTML = `
+    <div class="advanced-section">
+      <div class="advanced-toggle-row" id="acAdvancedToggle">
+        <div class="panel-subtitle" style="color:var(--text); font-weight:800;">⚙️ خصم تلقائي مع المبيعات${on ? ' — <span style="color:var(--success-text);">مفعّل</span>' : ' <span style="color:var(--muted); font-weight:600;">(اختياري)</span>'}</div>
+        <svg class="advanced-chevron${openByDefault ? ' open' : ''}" id="acAdvancedChevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="advanced-body${openByDefault ? ' open' : ''}" id="acAdvancedBody">
+        <p style="font-size:11.5px; color:var(--muted); font-weight:600; margin:8px 0 14px; line-height:1.8;">
+          خلّي «${escapeHtml(itemNm)}» ينقص من مخزونك تلقائيًا كل ما تبيع منتجات معيّنة — بمعدّل تحدّده أنت، من غير ما تحطّه في وصفة كل منتج.<br>
+          يفيد لأشياء مثل فلتر القهوة (كل ٦ أكواب ≈ فلتر)، القفازات، المناديل، أكواب التذوّق.
+        </p>
+        <div class="ac-rule-line">
+          <span>يخصم</span>
+          <input type="number" id="acDeductQty" min="0" step="0.1" value="${st.deductQty ?? 1}" style="width:64px;">
+          <span>${escapeHtml(unitLabel)} من «<span id="acItemName">${escapeHtml(itemNm)}</span>» مع كل</span>
+          <input type="number" id="acPerQty" min="1" step="1" value="${st.perQty ?? ''}" placeholder="٦" style="width:64px;">
+          <span>بيعة من:</span>
+        </div>
+        <div class="ac-targets" id="acTargets">
+          ${st.targets.length
+            ? st.targets.map((t,i)=>`<span class="ac-chip">${escapeHtml(autoConsTargetLabel(t))}<button type="button" data-i="${i}" aria-label="حذف">✕</button></span>`).join('')
+            : '<span class="ac-targets-empty">اختر المنتجات أو الفئة اللي بيعها يستهلك هذا الصنف.</span>'}
+        </div>
+        <select id="acAddTarget" class="pe-select" style="margin-top:10px; max-width:340px;">
+          <option value="">+ أضف منتج أو فئة…</option>
+          ${catOpts ? `<optgroup label="فئات">${catOpts}</optgroup>` : ''}
+          ${itemOpts ? `<optgroup label="منتجات">${itemOpts}</optgroup>` : ''}
+        </select>
+        ${on
+          ? '<p style="font-size:11px; color:var(--success-text); font-weight:700; margin-top:10px;">شغّال: مع كل ' + escapeHtml(String(st.perQty)) + ' بيعة من اللي فوق، يُخصم ' + escapeHtml(String(st.deductQty ?? 1)) + ' ' + escapeHtml(unitLabel) + '. والكسور تتجمّع (٥ بيعات = ' + (Math.round(((st.deductQty ?? 1)/st.perQty)*5*100)/100) + ').</p>'
+          : '<p style="font-size:11px; color:var(--muted); font-weight:600; margin-top:10px;">عشان يشتغل: اختر منتج واحد على الأقل، واكتب رقم في «مع كل … بيعة».</p>'}
+        ${(getUsedInMap()[stockModalState.name]||[]).length
+          ? '<p style="font-size:11px; color:var(--amber); font-weight:700; margin-top:8px;">⚠️ هذا الصنف داخل وصفة منتج أصلًا — لا تخصمه هنا كمان وإلا ينقص مرّتين.</p>' : ''}
+      </div>
+    </div>`;
+
+  document.getElementById('acAdvancedToggle').addEventListener('click', ()=>{
+    const body = document.getElementById('acAdvancedBody');
+    const chevron = document.getElementById('acAdvancedChevron');
+    const open = !body.classList.contains('open');
+    body.classList.toggle('open', open);
+    chevron.classList.toggle('open', open);
+  });
+  document.getElementById('acPerQty').addEventListener('input', (e)=>{
+    const v = parseInt(e.target.value, 10);
+    stockModalState.autoConsumption.perQty = (v >= 1) ? v : null;
+  });
+  document.getElementById('acDeductQty').addEventListener('input', (e)=>{
+    const v = parseFloat(e.target.value);
+    stockModalState.autoConsumption.deductQty = (v > 0) ? v : 1;
+  });
+  document.getElementById('acAddTarget').addEventListener('change', (e)=>{
+    const v = e.target.value;
+    if(!v) return;
+    const kind = v[0] === 'c' ? 'category' : 'product';
+    const id = parseInt(v.slice(1), 10);
+    if(!stockModalState.autoConsumption.targets.some(t=>t.kind===kind && t.id===id)){
+      stockModalState.autoConsumption.targets.push({kind, id});
+    }
+    renderStockAutoConsumption();
+  });
+  document.querySelectorAll('#acTargets .ac-chip button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      stockModalState.autoConsumption.targets.splice(parseInt(btn.dataset.i, 10), 1);
+      renderStockAutoConsumption();
+    });
+  });
+}
+async function saveStockAutoConsumption(stockId){
+  const st = stockModalState.autoConsumption || {perQty:null, deductQty:1, targets:[]};
+  const valid = st.targets.length > 0 && st.perQty >= 1;
+  // صنف جديد بلا قاعدة: ما فيه شي نحفظه ولا نمسحه — تخطّى النداء.
+  const localNow = STOCK_ITEMS.find(s=>s.id===stockId);
+  if(!valid && !(localNow && localNow.autoConsumption)) return;
+  const catIds  = st.targets.filter(t=>t.kind==='category').map(t=>t.id);
+  const itemIds = st.targets.filter(t=>t.kind==='product').map(t=>t.id);
+  try {
+    const { error } = await window.supabaseClient.rpc('set_indirect_consumption', {
+      p_stock_item_id: stockId,
+      p_per_qty: valid ? st.perQty : null,
+      p_deduct_qty: valid ? (st.deductQty > 0 ? st.deductQty : 1) : 1,
+      p_category_ids: catIds,
+      p_menu_item_ids: itemIds,
+    });
+    if(error) throw error;
+    const local = STOCK_ITEMS.find(s=>s.id===stockId);
+    if(local){
+      local.autoConsumption = valid
+        ? {perQty: st.perQty, deductQty: (st.deductQty > 0 ? st.deductQty : 1), targets: st.targets.map(t=>({...t}))}
+        : null;
+    }
+  } catch(err){
+    // آمن قبل تشغيل migration 20260909110000 — بقية حفظ الصنف نجح فعلًا.
+    const missing = err && (err.code === 'PGRST202' || /set_indirect_consumption|indirect_consumption/.test(err.message||''));
+    showToast(missing
+      ? 'الصنف انحفظ — لكن «الاستهلاك التلقائي» يحتاج تشغيل تحديث قاعدة البيانات الأخير أول.'
+      : 'الصنف انحفظ — لكن تعذّر حفظ إعداد الاستهلاك التلقائي: ' + (err && err.message ? err.message : 'خطأ'));
+  }
 }
 function closeStockItemModal(){
   document.getElementById('stockItemModal').classList.remove('show');
@@ -1845,27 +2038,32 @@ async function saveStockItem(){
   const saveBtn = document.getElementById('stockItemSaveBtn');
   saveBtn.disabled = true;
   try {
+    // الكثافة تُشتقّ من الاسم والوحدة تلقائيًا (نظير guessGramsPerLiter لدالة
+    // SQL rka_density_for). تريغر stock_items يعيد اشتقاقها على الخادم أيضًا،
+    // فإرسالها هنا مجرد تسريع للنسخة المحلية.
+    const gpu = densityForStockUnit(name, stockModalState.unit);
     if(editingStockId){
-      // editing: keep the existing par level unless the hidden advanced field changed it
       const data = {name, unit: stockModalState.unit, unit_cost: stockModalState.unitCost, category: stockModalState.category,
-        qty_on_hand: stockModalState.qtyOnHand, par_level: stockModalState.parLevel, duration: stockModalState.duration, updated_at: new Date().toISOString()};
+        qty_on_hand: stockModalState.qtyOnHand, par_level: stockModalState.parLevel, grams_per_unit: gpu, updated_at: new Date().toISOString()};
       const { error } = await window.supabaseClient.from('stock_items').update(data).eq('id', editingStockId);
       if(error) throw error;
       Object.assign(STOCK_ITEMS.find(s=>s.id===editingStockId),
         {name, unit: stockModalState.unit, unitCost: stockModalState.unitCost, category: stockModalState.category,
-         qtyOnHand: stockModalState.qtyOnHand, parLevel: stockModalState.parLevel, duration: stockModalState.duration});
+         qtyOnHand: stockModalState.qtyOnHand, parLevel: stockModalState.parLevel, gramsPerUnit: gpu});
       STOCK_ITEM_ID_BY_NAME[name] = editingStockId; STOCK_ITEM_NAME_BY_ID[editingStockId] = name;
+      await saveStockAutoConsumption(editingStockId);
       logDashboardAudit('عدّل صنف مخزون: ' + name);
       showToast('تم حفظ التعديلات');
     } else {
       // new item: whatever quantity is entered right now defines 100% automatically
       const data = {business_id: CURRENT_PROFILE.business_id, name, unit: stockModalState.unit, unit_cost: stockModalState.unitCost,
-        category: stockModalState.category, qty_on_hand: stockModalState.qtyOnHand, par_level: stockModalState.qtyOnHand, duration: stockModalState.duration};
+        category: stockModalState.category, qty_on_hand: stockModalState.qtyOnHand, par_level: stockModalState.qtyOnHand, grams_per_unit: gpu};
       const { data: inserted, error } = await window.supabaseClient.from('stock_items').insert(data).select().single();
       if(error) throw error;
       STOCK_ITEMS.push({id: inserted.id, name, unit: stockModalState.unit, unitCost: stockModalState.unitCost,
-        category: stockModalState.category, qtyOnHand: stockModalState.qtyOnHand, parLevel: stockModalState.qtyOnHand, duration: stockModalState.duration, aliasNames: []});
+        category: stockModalState.category, qtyOnHand: stockModalState.qtyOnHand, parLevel: stockModalState.qtyOnHand, gramsPerUnit: gpu, aliasNames: [], autoConsumption: null});
       STOCK_ITEM_ID_BY_NAME[name] = inserted.id; STOCK_ITEM_NAME_BY_ID[inserted.id] = name;
+      await saveStockAutoConsumption(inserted.id);
       logDashboardAudit('أضاف صنف مخزون جديد: ' + name);
       showToast('تمت إضافة "' + name + '" — جاهز للصنف اللي بعده');
     }
@@ -6955,7 +7153,7 @@ async function loadBusinessData(){
 
   const [stockRes, catRes, itemsRes, costsRes, boxEligRes,
          groupRes, optRes, itemModRes, fixedRes, supplierRes, invRes,
-         expCatRes, expRes, businessRes] = await Promise.all([
+         expCatRes, expRes, businessRes, indirectRes, indirectTgtRes, menuItemCatRes] = await Promise.all([
     sb.from('stock_items').select('*').eq('business_id', businessId).order('id'),
     sb.from('menu_categories').select('*').eq('business_id', businessId).order('sort_order'),
     sb.from('menu_items').select('*').eq('business_id', businessId).order('sort_order').order('id'),
@@ -6977,6 +7175,13 @@ async function loadBusinessData(){
     sb.from('expense_categories').select('*').eq('business_id', businessId),
     sb.from('general_expenses').select('*').eq('business_id', businessId).order('spent_at', {ascending:false}),
     sb.from('businesses').select('name, logo_url, vat_rate, vat_number, prices_include_vat, vat_registered, notify_sound_enabled, dine_in_enabled, receipt_custom_message, online_ordering_enabled, online_menu_slug, online_theme_color, online_theme_style, online_font_family, online_color_surf, online_color_card, online_color_ink, online_color_muted, online_banner_url, online_offers_delivery, online_offers_pickup, online_delivery_fee, online_pickup_prep_minutes, online_contact_whatsapp, online_social_instagram, online_social_tiktok, online_social_twitter, online_tagline_header, online_tagline_hero, online_order_free_count, online_subscribed, online_order_free_limit, inventory_enabled, business_type, online_booking_enabled, geidea_connected, geidea_public_key_last4').eq('id', businessId).single(),
+    // استهلاك تلقائي (migration 20260909110000) — قد لا يوجد الجدول بعد،
+    // فأي خطأ هنا يرجع {data:null} ويُعامَل كـ«ما فيه قواعد».
+    sb.from('indirect_consumption_rules').select('*').eq('business_id', businessId),
+    sb.from('indirect_consumption_rule_targets').select('*'),
+    // فئات إضافية للمنتج (migration 20260909130000) — قد لا يوجد الجدول
+    // بعد، فأي خطأ هنا يرجع {data:null} ويُعامَل كـ«ما فيه فئات إضافية».
+    sb.from('menu_item_categories').select('*'),
   ]);
 
   if(businessRes.data){
@@ -7031,16 +7236,51 @@ async function loadBusinessData(){
 
   STOCK_ITEM_ID_BY_NAME = {}; STOCK_ITEM_NAME_BY_ID = {};
   (stockRes.data||[]).forEach(s=>{ STOCK_ITEM_ID_BY_NAME[s.name]=s.id; STOCK_ITEM_NAME_BY_ID[s.id]=s.name; });
-  STOCK_ITEMS = (stockRes.data||[]).map(s=>({
-    id:s.id, name:s.name, category:s.category, unit:s.unit,
-    qtyOnHand:Number(s.qty_on_hand), parLevel:Number(s.par_level), unitCost:Number(s.unit_cost),
-    duration:s.duration || '', aliasNames:s.alias_names || []
-  }));
+  STOCK_ITEMS = (stockRes.data||[]).map(s=>{
+    const qty = Number(s.qty_on_hand);
+    const par = Number(s.par_level);
+    return {
+      id:s.id, name:s.name, category:s.category, unit:s.unit,
+      qtyOnHand:qty,
+      // No "مخزون معتاد" recorded yet -> treat whatever is on hand right now as the
+      // 100% baseline, exactly like adding a brand-new item does. Keeps every item
+      // out of the limbo "بلا مخزون معتاد" state in the table; this value is written
+      // back to par_level the next time the item is saved.
+      parLevel: par > 0 ? par : qty,
+      unitCost:Number(s.unit_cost),
+      // الكثافة تُشتقّ تلقائيًا؛ لو الخادم ما عبّاها بعد (قبل migration
+      // 20260909120000) نشتقّها محليًا فالتحويل يشتغل من الآن.
+      gramsPerUnit: s.grams_per_unit != null ? Number(s.grams_per_unit) : densityForStockUnit(s.name, s.unit),
+      aliasNames:s.alias_names || []
+    };
+  });
+
+  // استهلاك تلقائي: قاعدة واحدة لكل صنف (أو لا شيء). أسماء الأهداف تُحلّ
+  // وقت العرض لأن MENU_ITEMS يُبنى لاحقًا في هذه الدالة.
+  {
+    const tgtByRule = {};
+    (indirectTgtRes && indirectTgtRes.data || []).forEach(t=>{
+      (tgtByRule[t.rule_id] ||= []).push(
+        t.menu_category_id != null
+          ? {kind:'category', id:t.menu_category_id}
+          : {kind:'product', id:t.menu_item_id}
+      );
+    });
+    const ruleByStock = {};
+    (indirectRes && indirectRes.data || []).forEach(r=>{
+      ruleByStock[r.stock_item_id] = {
+        perQty: Number(r.per_qty) || 1,
+        deductQty: Number(r.deduct_qty) || 1,
+        targets: tgtByRule[r.id] || []
+      };
+    });
+    STOCK_ITEMS.forEach(s=>{ s.autoConsumption = ruleByStock[s.id] || null; });
+  }
 
   MENU_CATEGORY_ID_BY_NAME = {};
   (catRes.data||[]).forEach(c=> MENU_CATEGORY_ID_BY_NAME[c.name]=c.id);
   MENU_CATEGORIES = (catRes.data||[]).map(c=>c.name);
-  CATEGORY_ROWS = (catRes.data||[]).map(c=>({id:c.id, name:c.name, nameEn:c.name_en||'', parentId:c.online_parent_category_id||null, sortOrder:c.sort_order}));
+  CATEGORY_ROWS = (catRes.data||[]).map(c=>({id:c.id, name:c.name, nameEn:c.name_en||'', parentId:c.online_parent_category_id||null, sortOrder:c.sort_order, visiblePos: c.visible_pos !== false, visibleOnline: c.visible_online !== false}));
 
   const boxEligByItem = {};
   (boxEligRes.data||[]).forEach(r=>{ (boxEligByItem[r.menu_item_id] ||= []).push(r); });
@@ -7057,12 +7297,24 @@ async function loadBusinessData(){
     };
   });
 
+  // فئات إضافية لكل منتج (menu_item_categories). categoryIds = [الأساسية،
+  // ...الإضافية] بلا تكرار، والأساسية أولًا. categoryNames نظيرها بالأسماء.
+  const extraCatIdsByItem = {};
+  (menuItemCatRes && menuItemCatRes.data || []).forEach(r=>{
+    (extraCatIdsByItem[r.menu_item_id] ||= []).push(r.menu_category_id);
+  });
+
   MENU_ITEMS = (itemsRes.data||[]).map(m=>{
     // real per-ingredient recipe (qty/unit) is fetched on demand, per item,
     // only when its editor opens — see openProductEditModal. computeVariableCost
     // reads MENU_ITEM_COST_BY_ID instead of this array for cost math.
+    const catIds = [m.category_id, ...(extraCatIdsByItem[m.id]||[])]
+      .filter((v,i,a)=> v != null && a.indexOf(v) === i);
     const item = {
-      id:m.id, name:m.name, nameEn: m.name_en || '', price:Number(m.price), category:catNameById[m.category_id]||'', sortOrder: m.sort_order, active:m.active, image:m.image_url||null,
+      id:m.id, name:m.name, nameEn: m.name_en || '', price:Number(m.price), category:catNameById[m.category_id]||'',
+      categoryIds: catIds,
+      categoryNames: catIds.map(id=>catNameById[id]).filter(Boolean),
+      sortOrder: m.sort_order, active:m.active, image:m.image_url||null,
       visibleOnline: m.visible_online !== false, visiblePos: m.visible_pos !== false,
       hiddenUntil: m.hidden_until || null,
       onlineTagLabel: m.online_tag_label || null, onlineTagColor: m.online_tag_color || null,
@@ -7110,7 +7362,7 @@ async function loadBusinessData(){
   }
 
   MODIFIER_GROUPS = (groupRes.data||[]).map(g=>({
-    id:g.id, name:g.name, nameEn:g.name_en||'', type:g.type, max:g.max_select,
+    id:g.id, name:g.name, nameEn:g.name_en||'', type:g.type, max:g.max_select, minSelect:(g.min_select==null ? (g.type==='single'?1:0) : Number(g.min_select)||0),
     options: (optRes.data||[]).filter(o=>o.group_id===g.id).map(o=>{
       const base = {name:o.name, nameEn:o.name_en||'', priceDelta:Number(o.price_delta), costMode:o.cost_mode};
       if(o.cost_mode === 'stock'){
@@ -7232,6 +7484,10 @@ function subscribeToOrdersLiveSync(){
       renderTodayHeroes();
       renderHourGrid();
       renderTodaySalesSummary();
+      // المخزون: سطر "استهلك اليوم" مشتقّ من ALL_SELLERS، فلازم يُعاد رسمه
+      // بعد أي تحديث مبيعات وإلا بقي على بيانات ما قبل التحميل (بذور العرض).
+      renderStockTable();
+      renderWasteAndFoodCost();
     })
     .subscribe();
 }
@@ -7264,6 +7520,11 @@ async function renderPhase1Screens(){
   renderAchievements();
   await loadSalesRealData();
   recomputeAccounting();
+  // renderStockTable/renderWasteAndFoodCost فوق ركضوا قبل loadSalesRealData —
+  // فسطر "استهلك اليوم" في المخزون كان على بذور ALL_SELLERS الوهمية. نعيد
+  // رسمهم الآن على البيانات الحقيقية.
+  renderStockTable();
+  renderWasteAndFoodCost();
   await loadWeekTrend();
   renderStatusHero();
   renderOnboardingChecklist();
@@ -7957,13 +8218,19 @@ async function loadReportDetailRows(type, from, to){
     }));
   }
   if(type === 'shift'){
+    // opener = shifts.staff_member_id, closer = shifts.closed_by_staff_member_id
+    // (both → staff_members). profiles(full_name) is the SHARED branch PIN
+    // account — the same string for everyone on the till — so it's only a
+    // last-ditch fallback for old rows that never recorded a staff member.
     const { data } = await sb.from('shifts')
-      .select('id, opening_cash, closing_cash, opened_at, closed_at, profiles(full_name)')
+      .select('id, opening_cash, closing_cash, opened_at, closed_at, profiles(full_name), opener:staff_members!shifts_staff_member_id_fkey(name), closer:staff_members!shifts_closed_by_staff_member_id_fkey(name)')
       .eq('business_id', businessId).gte('opened_at', from.toISOString()).lt('opened_at', to.toISOString())
       .order('opened_at', {ascending:false});
     const salesByShift = (REPORT_RANGE_DATA && REPORT_RANGE_DATA.salesByShift) || {};
     return (data||[]).map(s=>({
-      id: s.id, cashier: s.profiles ? s.profiles.full_name : '—',
+      id: s.id,
+      cashier: (s.opener && s.opener.name) || (s.profiles && s.profiles.full_name) || '—',
+      closedBy: (s.closer && s.closer.name) || null,
       openedAt: s.opened_at, closedAt: s.closed_at,
       openingCash: Number(s.opening_cash), closingCash: s.closing_cash!=null ? Number(s.closing_cash) : null,
       sales: salesByShift[s.id] || 0
@@ -8246,6 +8513,7 @@ function shiftReportCardsHtml(rows){
     <div class="report-item-card">
       <div class="ric-title">${r.cashier}</div>
       <div class="ric-row"><span class="ric-label">الفتح</span><span class="mono">${opened}</span></div>
+      ${r.closedBy ? `<div class="ric-row"><span class="ric-label">أقفلها</span><span class="mono">${r.closedBy}</span></div>` : ''}
       <div class="ric-row"><span class="ric-label">المبيعات</span><span class="mono">${r.sales.toFixed(2)}</span></div>
       <div class="ric-row"><span class="ric-label">الكاش المتوقع</span><span class="mono">${expectedCash.toFixed(2)}</span></div>
       <div class="ric-row"><span class="ric-label">الكاش الفعلي</span><span class="mono">${r.closingCash!=null ? r.closingCash.toFixed(2) : '—'}</span></div>
@@ -8259,14 +8527,14 @@ function shiftReportHtml(rows){
     ${rows.length === 0 ? '<div class="orders-empty">ما فيه ورديات بهالفترة</div>' : `
     <div class="report-cards-mobile">${shiftReportCardsHtml(rows)}</div>
     <table class="report-table">
-      <thead><tr><th>الكاشير</th><th>الفتح</th><th>المبيعات</th><th>الكاش المتوقع</th><th>الكاش الفعلي</th><th>الفرق</th></tr></thead>
+      <thead><tr><th>فتحها</th><th>أقفلها</th><th>الفتح</th><th>المبيعات</th><th>الكاش المتوقع</th><th>الكاش الفعلي</th><th>الفرق</th></tr></thead>
       <tbody>
         ${rows.map(r=>{
           const expectedCash = r.openingCash + r.sales;
           const diff = r.closingCash!=null ? r.closingCash - expectedCash : null;
           const opened = new Date(r.openedAt).toLocaleString('ar-SA', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
           return `<tr>
-            <td>${r.cashier}</td><td>${opened}</td><td class="mono">${r.sales.toFixed(2)}</td>
+            <td>${r.cashier}</td><td>${r.closedBy || '—'}</td><td>${opened}</td><td class="mono">${r.sales.toFixed(2)}</td>
             <td class="mono">${expectedCash.toFixed(2)}</td>
             <td class="mono">${r.closingCash!=null ? r.closingCash.toFixed(2) : '—'}</td>
             <td class="mono" style="${diff!=null && Math.abs(diff)>0.01 ? 'color:var(--danger,#a3402c); font-weight:800;' : ''}">${diff!=null ? diff.toFixed(2) : '—'}</td>
@@ -8341,15 +8609,16 @@ function renderDeliveryPlatforms(){
 
 // for a low/critical stock item, finds the menu item(s) that use it and
 // estimates how many more servings it can still make — real recipe-based
-// coverage, not a hand-typed "يكفي X" string (that field was dropped when the
-// dashboard went real: see the Phase 1 migration notes on stock_items.duration).
+// coverage, not a hand-typed "يكفي X" string. (The old free-text
+// stock_items.duration field this replaced was removed from the UI entirely;
+// the % bar + "استهلك اليوم X" line cover it now.)
 function stockCoverage(stockItem){
   const usedIn = MENU_ITEMS.filter(m => m.active !== false && (m.recipe||[]).some(r=>r.ingredient === stockItem.name));
   let best = null;
   usedIn.forEach(m=>{
     const line = m.recipe.find(r=>r.ingredient === stockItem.name);
     if(!line || !(line.qty > 0)) return;
-    const neededInStockUnit = convertToUnit(line.qty, line.unit, stockItem.unit);
+    const neededInStockUnit = convertToUnit(line.qty, line.unit, stockItem.unit, stockItem.gramsPerUnit);
     if(!(neededInStockUnit > 0)) return;
     const servings = Math.max(0, Math.floor(stockItem.qtyOnHand / neededInStockUnit));
     if(!best || servings < best.servings) best = {name: m.name, servings};
@@ -8664,7 +8933,7 @@ async function renderNotificationsSettings(){
   panel.innerHTML = '<div class="rk-section"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>';
 
   const { data } = await window.supabaseClient.from('businesses')
-    .select('notify_low_stock, notify_low_stock_pct, notify_new_order, notify_refund_cancel, notify_sales_target, notify_sales_target_amount, notify_delivery_prep_warning, notify_delivery_prep_expired, notify_sound_enabled, whatsapp_link_phone, whatsapp_link_verified')
+    .select('notify_low_stock, notify_low_stock_pct, notify_new_order, notify_refund_cancel, notify_sales_target, notify_sales_target_amount, notify_delivery_prep_warning, notify_delivery_prep_expired, notify_document_expiry, notify_sound_enabled, whatsapp_link_phone, whatsapp_link_verified')
     .eq('id', CURRENT_PROFILE.business_id).single();
   const d = data || {};
 
@@ -8692,6 +8961,7 @@ async function renderNotificationsSettings(){
       </div>
       ${rkSwitchRow('notifyDeliveryPrepWarning', d.notify_delivery_prep_warning, 'باقي ٥ دقائق على وقت تجهيز طلب توصيل')}
       ${rkSwitchRow('notifyDeliveryPrepExpired', d.notify_delivery_prep_expired, 'انتهى وقت تجهيز طلب توصيل')}
+      ${rkSwitchRow('notifyDocExpiry', d.notify_document_expiry !== false, 'قرب انتهاء وثيقة موظف (إقامة، عقد، شهادة...)', 'ينبهك مرة وحدة لما تقترب الوثيقة من تاريخ انتهائها (حسب المهلة المحددة لكل وثيقة)، ومرة لما تنتهي فعلًا. تقدر توقف التنبيه لوثيقة معيّنة من شاشة الموارد البشرية.')}
       <button class="rk-btn rk-btn-primary rk-btn-md" id="notifyPrefsSaveBtn" style="margin-top:14px;">حفظ التفضيلات</button>
     </div>
     <div class="rk-section">
@@ -8753,6 +9023,7 @@ async function renderNotificationsSettings(){
         notify_sales_target_amount: parseFloat(document.getElementById('notifySalesTargetAmount').value) || 0,
         notify_delivery_prep_warning: document.getElementById('notifyDeliveryPrepWarning').checked,
         notify_delivery_prep_expired: document.getElementById('notifyDeliveryPrepExpired').checked,
+        notify_document_expiry: document.getElementById('notifyDocExpiry').checked,
         notify_sound_enabled: document.getElementById('notifySoundEnabled').checked,
       };
       await updateCurrentBusiness(updates);
@@ -11778,7 +12049,7 @@ async function addNewSubcategory(parentId, rawName, input){
 async function deleteCategoryFromHierarchy(catId){
   const cat = CATEGORY_ROWS.find(c=>c.id===catId);
   if(!cat) return;
-  const inCat = MENU_ITEMS.filter(m=>m.category===cat.name && !m.name.includes('(مؤرشف)'));
+  const inCat = MENU_ITEMS.filter(m=>itemInCat(m, cat.name) && !m.name.includes('(مؤرشف)'));
   // منتج موقوف أو مخفي عن الكاشير والمتجر لا يظهر في القائمة التي
   // ينظر إليها المالك، فالمنع كان يبدو بلا سبب. الرسالة تسمّيه.
   const hiddenInCat = inCat.filter(m => !m.active || (!m.visiblePos && !m.visibleOnline));
@@ -12049,7 +12320,7 @@ function computeModifierOptionCost(option){
   if(option.costMode === 'stock' && option.stockLink){
     const stockItem = STOCK_ITEMS.find(s=>s.name===option.stockLink.ingredient);
     if(!stockItem) return 0;
-    const qtyInStockUnit = convertToUnit(option.stockLink.qty, option.stockLink.unit, stockItem.unit);
+    const qtyInStockUnit = convertToUnit(option.stockLink.qty, option.stockLink.unit, stockItem.unit, stockItem.gramsPerUnit);
     return qtyInStockUnit * stockItem.unitCost;
   }
   return option.extraCost || 0;
@@ -12098,6 +12369,216 @@ const MENU_FLAGS = [
 ];
 let renamingCategory = null;
 
+// المنتج يظهر تحت فئةٍ لو كانت أساسيّته أو إحدى فئاته الإضافية
+// (menu_item_categories, migration 20260909130000).
+function itemInCat(m, catName){
+  const names = (m.categoryNames && m.categoryNames.length) ? m.categoryNames : [m.category];
+  return names.includes(catName);
+}
+
+/* نافذة الفئة — إضافة وتعديل في مكان واحد: اسم عربي/إنجليزي + ربط
+   المنتجات بالبحث + حذف الفئة. تحل محل شريط «اسم الفئة الجديدة» السريع
+   ومحل إعادة التسمية على الرقاقة. تُبنى في JS (لا markup ثابت). */
+let catModal = null;
+function closeCategoryModal(){ if(catModal){ catModal.remove(); catModal = null; } }
+function openCategoryModal(catId){
+  closeCategoryModal();
+  const row = catId ? (CATEGORY_ROWS.find(c=>c.id===catId) || null) : null;
+  const st = {
+    id: row ? row.id : null,
+    origName: row ? row.name : '',
+    nameAr: row ? row.name : '',
+    nameEn: row ? (row.nameEn || '') : '',
+    // معرّفات المنتجات الأعضاء (المُختارة الآن في النافذة)
+    members: new Set(row ? MENU_ITEMS.filter(m=>itemInCat(m, row.name)).map(m=>m.id) : []),
+    origMembers: new Set(row ? MENU_ITEMS.filter(m=>itemInCat(m, row.name)).map(m=>m.id) : []),
+    visiblePos: row ? (row.visiblePos !== false) : true,
+    visibleOnline: row ? (row.visibleOnline !== false) : true,
+    search: '',
+  };
+
+  const ov = document.createElement('div');
+  ov.className = 'modal-overlay show cat-modal-ov';
+  catModal = ov;
+  document.body.appendChild(ov);
+
+  function productRows(){
+    const q = st.search.trim();
+    const list = MENU_ITEMS
+      .filter(m=> !m.name.includes('(مؤرشف)'))
+      .filter(m=> !q || m.name.includes(q) || (m.nameEn||'').toLowerCase().includes(q.toLowerCase()))
+      .sort((a,b)=> (st.members.has(b.id)?1:0) - (st.members.has(a.id)?1:0) || a.name.localeCompare(b.name,'ar'));
+    if(!list.length) return '<div class="cat-modal-empty">ما فيه منتجات مطابقة.</div>';
+    return list.map(m=>{
+      const on = st.members.has(m.id);
+      return '<label class="cat-modal-prow'+(on?' on':'')+'"><input type="checkbox" data-pid="'+m.id+'"'+(on?' checked':'')+'>'
+        + '<span class="cat-modal-pname">'+escapeHtml(m.name)+'</span>'
+        + (m.category ? '<span class="cat-modal-pcat">'+escapeHtml(m.category)+'</span>' : '')
+        + '</label>';
+    }).join('');
+  }
+  function render(){
+    ov.innerHTML =
+      '<div class="modal-card cat-modal-card">'
+      + '<div class="modal-head"><h3>'+(st.id ? 'تعديل فئة: '+escapeHtml(st.origName) : 'فئة جديدة')+'</h3>'
+        + '<button class="modal-close" id="catModalClose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>'
+      + '<div class="modal-body">'
+        + '<div class="menu-add-row" style="margin-bottom:6px;">'
+          + '<div class="menu-add-field"><label>اسم الفئة (عربي)</label><input type="text" id="catNameAr" value="'+escapeHtml(st.nameAr)+'" placeholder="مثال: مشروبات حارة"></div>'
+          + '<div class="menu-add-field"><label>English name</label><input type="text" id="catNameEn" value="'+escapeHtml(st.nameEn)+'" placeholder="e.g: Hot drinks" dir="ltr"></div>'
+        + '</div>'
+        + '<p class="stock-qty-helper" style="margin:8px 0 14px;">الاسم الإنجليزي اختياري — يظهر بالكاشير والمتجر لما تكون لغته إنجليزي.</p>'
+        + '<div class="cat-modal-vis">'
+          + rkSwitchRow('catVisPos', st.visiblePos, 'ظاهرة في الكاشير', 'لو مطفّأة: تبويب الفئة يختفي من شاشة الكاشير، ومنتجاتها اللي مالها فئة ثانية ظاهرة تختفي معها.')
+          + rkSwitchRow('catVisOnline', st.visibleOnline, 'ظاهرة في المتجر الإلكتروني', 'نفس الشي لصفحة الطلب أونلاين.')
+        + '</div>'
+        + '<div class="cat-modal-memhead">منتجات هذه الفئة <b>'+st.members.size+'</b></div>'
+        + '<input type="text" id="catProdSearch" class="cat-modal-search" placeholder="ابحث عن منتج…" value="'+escapeHtml(st.search)+'">'
+        + '<div class="cat-modal-prows" id="catProdRows">'+productRows()+'</div>'
+      + '</div>'
+      + '<div class="modal-foot cat-modal-foot">'
+        + (st.id ? '<button class="cat-modal-del" id="catModalDel">حذف الفئة</button>' : '<span></span>')
+        + '<div style="display:flex; gap:8px;">'
+          + '<button class="menu-add-btn" id="catModalCancel">تراجع</button>'
+          + '<button class="menu-add-btn menu-add-btn-primary" id="catModalSave">حفظ</button>'
+        + '</div>'
+      + '</div>'
+      + '</div>';
+    ov.querySelector('#catModalClose').addEventListener('click', closeCategoryModal);
+    ov.querySelector('#catModalCancel').addEventListener('click', closeCategoryModal);
+    ov.addEventListener('click', (e)=>{ if(e.target===ov) closeCategoryModal(); });
+    ov.querySelector('#catNameAr').addEventListener('input', e=> st.nameAr = e.target.value);
+    ov.querySelector('#catNameEn').addEventListener('input', e=> st.nameEn = e.target.value);
+    { const p = ov.querySelector('#catVisPos'); if(p) p.addEventListener('change', e=> st.visiblePos = e.target.checked); }
+    { const o = ov.querySelector('#catVisOnline'); if(o) o.addEventListener('change', e=> st.visibleOnline = e.target.checked); }
+    const se = ov.querySelector('#catProdSearch');
+    se.addEventListener('input', e=>{ st.search = e.target.value; ov.querySelector('#catProdRows').innerHTML = productRows(); wireRows(); });
+    wireRows();
+    const del = ov.querySelector('#catModalDel');
+    if(del) del.addEventListener('click', async ()=>{ closeCategoryModal(); if(st.id) await deleteCategoryFromHierarchy(st.id); });
+    ov.querySelector('#catModalSave').addEventListener('click', saveCategoryModal);
+  }
+  function wireRows(){
+    ov.querySelectorAll('#catProdRows input[type="checkbox"]').forEach(cb=> cb.addEventListener('change', ()=>{
+      const pid = parseInt(cb.dataset.pid, 10);
+      if(cb.checked) st.members.add(pid); else {
+        // منع إزالة المنتج من فئته الوحيدة من هنا
+        const m = MENU_ITEMS.find(x=>x.id===pid);
+        const names = (m && m.categoryNames && m.categoryNames.length) ? m.categoryNames : (m ? [m.category] : []);
+        if(st.id && names.length <= 1 && names[0] === st.origName){
+          showToast('«'+(m?m.name:'المنتج')+'» لازم له فئة واحدة — عيّن له فئة ثانية من محرّر المنتج أول');
+          cb.checked = true; return;
+        }
+        st.members.delete(pid);
+      }
+      cb.closest('.cat-modal-prow').classList.toggle('on', cb.checked);
+      const h = ov.querySelector('.cat-modal-memhead b'); if(h) h.textContent = st.members.size;
+    }));
+  }
+
+  async function saveCategoryModal(){
+    const nameAr = st.nameAr.trim();
+    const nameEn = st.nameEn.trim();
+    if(!nameAr){ showToast('لازم تكتب اسم الفئة'); return; }
+    const dupe = CATEGORY_ROWS.find(c=> c.name === nameAr && c.id !== st.id);
+    if(dupe){ showToast('فيه فئة بنفس هذا الاسم أصلًا'); return; }
+    const btn = ov.querySelector('#catModalSave'); btn.disabled = true;
+    const sb = window.supabaseClient;
+    try {
+      let catId = st.id, catName = nameAr;
+      if(st.id){
+        const { error } = await sb.from('menu_categories').update({name:nameAr, name_en: nameEn || null}).eq('id', st.id);
+        if(error) throw error;
+        const cr = CATEGORY_ROWS.find(c=>c.id===st.id);
+        if(cr){ const old = cr.name; cr.name = nameAr; cr.nameEn = nameEn; cr.visiblePos = st.visiblePos; cr.visibleOnline = st.visibleOnline;
+          const i = MENU_CATEGORIES.indexOf(old); if(i>=0) MENU_CATEGORIES[i] = nameAr;
+          delete MENU_CATEGORY_ID_BY_NAME[old]; MENU_CATEGORY_ID_BY_NAME[nameAr] = st.id;
+          MENU_ITEMS.forEach(m=>{
+            if(m.category === old) m.category = nameAr;
+            if(Array.isArray(m.categoryNames)) m.categoryNames = m.categoryNames.map(n=> n===old ? nameAr : n);
+          });
+          if(activeMenuCategory === old) activeMenuCategory = nameAr;
+        }
+      } else {
+        const { data: created, error } = await sb.from('menu_categories')
+          .insert({business_id: CURRENT_PROFILE.business_id, name: nameAr, name_en: nameEn || null, sort_order: MENU_CATEGORIES.length})
+          .select().single();
+        if(error) throw error;
+        catId = created.id;
+        CATEGORY_ROWS.push({id: catId, name: nameAr, nameEn: nameEn, parentId: null, sortOrder: MENU_CATEGORIES.length, visiblePos: st.visiblePos, visibleOnline: st.visibleOnline});
+        MENU_CATEGORIES.push(nameAr);
+        MENU_CATEGORY_ID_BY_NAME[nameAr] = catId;
+      }
+
+      // إظهار/إخفاء بالكاشير والمتجر — best-effort: آمن قبل migration
+      // 20260909140000 (الأعمدة قد لا توجد بعد → PGRST204 يُبتلع).
+      try {
+        const { error: eVis } = await sb.from('menu_categories')
+          .update({visible_pos: st.visiblePos, visible_online: st.visibleOnline}).eq('id', catId);
+        if(eVis) throw eVis;
+      } catch(eVis){
+        if(!(eVis && (eVis.code === 'PGRST204' || /visible_(pos|online)/.test(eVis.message||''))))
+          throw eVis;
+        showToast('الفئة انحفظت — «إظهار الفئة» يحتاج تشغيل تحديث قاعدة البيانات الأخير.');
+      }
+
+      // فرق العضوية
+      const added = [...st.members].filter(id=> !st.origMembers.has(id));
+      const removed = [...st.origMembers].filter(id=> !st.members.has(id));
+      const linkRows = [];
+      for(const pid of added){
+        const m = MENU_ITEMS.find(x=>x.id===pid); if(!m) continue;
+        if(!m.categoryIds || !m.categoryIds.length || m.category == null || m.category === ''){
+          // بلا فئة → اجعلها الأساسية
+          const { error } = await sb.from('menu_items').update({category_id: catId}).eq('id', pid);
+          if(error) throw error;
+          m.category = catName; m.categoryIds = [catId]; m.categoryNames = [catName];
+        } else if(!m.categoryIds.includes(catId)){
+          linkRows.push({menu_item_id: pid, menu_category_id: catId});
+          m.categoryIds = [...m.categoryIds, catId];
+          m.categoryNames = [...(m.categoryNames||[m.category]), catName];
+        }
+      }
+      if(linkRows.length){
+        const { error } = await sb.from('menu_item_categories').insert(linkRows);
+        if(error) throw error;
+      }
+      for(const pid of removed){
+        const m = MENU_ITEMS.find(x=>x.id===pid); if(!m) continue;
+        const isPrimary = m.category === catName;
+        if(isPrimary){
+          const otherId = (m.categoryIds||[]).find(id=> id !== catId);
+          if(otherId == null) continue; // محمي فوق، ما نوصل هنا
+          const { error: e1 } = await sb.from('menu_items').update({category_id: otherId}).eq('id', pid);
+          if(e1) throw e1;
+          // otherId كان فئة إضافية → صار أساسي، فنحذف صفّه من الجدول
+          await sb.from('menu_item_categories').delete().eq('menu_item_id', pid).eq('menu_category_id', otherId);
+          m.category = (CATEGORY_ROWS.find(c=>c.id===otherId)||{}).name || m.category;
+        } else {
+          const { error: e2 } = await sb.from('menu_item_categories').delete().eq('menu_item_id', pid).eq('menu_category_id', catId);
+          if(e2) throw e2;
+        }
+        m.categoryIds = (m.categoryIds||[]).filter(id=> id !== catId);
+        m.categoryNames = (m.categoryNames||[]).filter(n=> n !== catName);
+      }
+
+      logDashboardAudit((st.id ? 'عدّل فئة: ' : 'أضاف فئة: ') + nameAr + (added.length||removed.length ? ' (منتجات: +'+added.length+' / −'+removed.length+')' : ''));
+      closeCategoryModal();
+      renderCategoryTabs();
+      renderMenuProductTable();
+      showToast(st.id ? 'تم حفظ الفئة' : 'تمت إضافة «'+nameAr+'»');
+    } catch(err){
+      btn.disabled = false;
+      const missing = err && (err.code === 'PGRST205' || /menu_item_categories/.test(err.message||''));
+      showToast(missing
+        ? 'الاسم انحفظ — ربط أكثر من فئة يحتاج تشغيل تحديث قاعدة البيانات الأخير.'
+        : 'تعذّر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
+  }
+
+  render();
+}
+
 function renderCategoryTabs(){
   const el = document.getElementById('menuCategoryTabs');
   // Same archived-ghost exclusion as renderMenuProductTable — otherwise
@@ -12114,19 +12595,8 @@ function renderCategoryTabs(){
   const catRows = [...CATEGORY_ROWS].sort((a,b)=>(a.sortOrder ?? a.id) - (b.sortOrder ?? b.id) || a.id - b.id);
   html += catRows.map((row, rowIdx)=>{
     const cat = row.name;
-    const count = countableItems.filter(m=>m.category===cat).length;
-    if(renamingCategory === cat){
-      // الاسم الإنجليزي هنا، لا في شاشة أخرى.
-      //
-      // العمود menu_categories.name_en موجود منذ ترحيل الأسماء ثنائية
-      // اللغة، والكاشير يقرؤه -- ولا شاشة في اللوحة تكتبه. فالفئة تظهر
-      // بالإنجليزية فقط إن صادف اسمها العربي كلمةً في قاموس التطبيق
-      // المدمج، وإلا بقيت عربية في واجهة إنجليزية.
-      return `<span class="menu-cat-rename-pair">
-        <input type="text" class="menu-cat-tab-rename-input" id="catRenameInput" value="${cat}" data-original="${cat}" placeholder="الاسم بالعربي">
-        <input type="text" class="menu-cat-tab-rename-input mcri-en" id="catRenameInputEn" value="${row.nameEn || ''}" placeholder="English name" dir="ltr">
-      </span>`;
-    }
+    const count = countableItems.filter(m=>itemInCat(m, cat)).length;
+    // التسمية (عربي/إنجليزي) وربط المنتجات صارت كلها في نافذة openCategoryModal.
     // الترتيب والحذف كانا موجودين في شاشة المتجر الإلكتروني وحدها، ومن
     // يرتّب فئاته يرتّبها من حيث يراها -- وهو المنيو. نفس الدالتين
     // تُستدعيان هنا، لا نسخة ثانية منهما.
@@ -12140,8 +12610,11 @@ function renderCategoryTabs(){
     // أن تُرتَّب أو تُحذف على أي حال، فربط الأدوات بالاختيار لا يضيف
     // خطوة -- يُظهرها في وقتها.
     const isActive = activeMenuCategory === cat;
-    return `<button class="menu-cat-tab ${isActive?'active':''}" data-cat="${cat}">
-      ${cat} <span class="mct-count">${count}</span>
+    const hidBits = [];
+    if(row.visiblePos === false) hidBits.push('الكاشير');
+    if(row.visibleOnline === false) hidBits.push('المتجر');
+    return `<button class="menu-cat-tab ${isActive?'active':''}${hidBits.length?' cat-hidden':''}" data-cat="${cat}">
+      ${cat} <span class="mct-count">${count}</span>${hidBits.length?`<span class="mct-hidtag" title="مخفية في ${hidBits.join(' و')}">🚫</span>`:''}
       ${!isActive ? '' : `<span class="mct-tools">
         <span class="mct-tool" data-catmove="up" data-catid="${catId}" title="قدّمها" ${order===0?'data-off="1"':''}>
           <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"/></svg>
@@ -12169,7 +12642,8 @@ function renderCategoryTabs(){
       .filter(f=> f.n > 0);
     flagEl.innerHTML = counted.length === 0
       ? ''
-      : counted.map(f=>`
+      : '<span class="menu-flag-lead" title="ترشيح سريع"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></span>'
+        + counted.map(f=>`
         <button class="menu-flag-tab ${f.tone} ${activeMenuFlag===f.key?'active':''}" data-flag="${f.key}" title="${f.help}">
           ${f.label} <span class="mct-count">${f.n}</span>
         </button>`).join('');
@@ -12207,33 +12681,10 @@ function renderCategoryTabs(){
   el.querySelectorAll('.mct-rename').forEach(span=>{
     span.addEventListener('click', (e)=>{
       e.stopPropagation();
-      renamingCategory = span.dataset.rename;
-      renderCategoryTabs();
+      const r = (typeof CATEGORY_ROWS !== 'undefined' ? CATEGORY_ROWS : []).find(c=>c.name === span.dataset.rename);
+      openCategoryModal(r ? r.id : null);
     });
   });
-  const renameInput = document.getElementById('catRenameInput');
-  const renameInputEn = document.getElementById('catRenameInputEn');
-  if(renameInput){
-    renameInput.focus(); renameInput.select();
-    // الحفظ حين تغادر الخانتين معاً لا حين تنتقل بينهما: الانتقال من
-    // العربي إلى الإنجليزي كان يُطلق الحفظ فيُعاد رسم الرقاقة ويختفي
-    // الحقل الإنجليزي قبل أن يُكتب فيه حرف.
-    const leaving = (ev)=>{
-      const to = ev.relatedTarget;
-      if(to && to.closest && to.closest('.menu-cat-rename-pair')) return;
-      confirmCategoryRename(renameInput);
-    };
-    const keys = (ev)=>{
-      if(ev.key==='Enter') confirmCategoryRename(renameInput);
-      if(ev.key==='Escape'){ renamingCategory=null; renderCategoryTabs(); }
-    };
-    renameInput.addEventListener('keydown', keys);
-    renameInput.addEventListener('blur', leaving);
-    if(renameInputEn){
-      renameInputEn.addEventListener('keydown', keys);
-      renameInputEn.addEventListener('blur', leaving);
-    }
-  }
 }
 
 async function confirmCategoryRename(input){
@@ -12275,7 +12726,10 @@ async function confirmCategoryRename(input){
   MENU_CATEGORY_ID_BY_NAME[newName] = catId;
   const catRow = CATEGORY_ROWS.find(c=>c.id===catId);
   if(catRow) catRow.name = newName;
-  MENU_ITEMS.forEach(m=>{ if(m.category === oldName) m.category = newName; }); // cascade to every product using it
+  MENU_ITEMS.forEach(m=>{ // cascade to every product using it (primary or extra)
+    if(m.category === oldName) m.category = newName;
+    if(Array.isArray(m.categoryNames)) m.categoryNames = m.categoryNames.map(n=> n===oldName ? newName : n);
+  });
   if(activeMenuCategory === oldName) activeMenuCategory = newName;
   logDashboardAudit('أعاد تسمية فئة "' + oldName + '" إلى "' + newName + '"');
   showToast('تم تحديث اسم الفئة');
@@ -12435,7 +12889,7 @@ function renderMenuProductTable(){
   const visibleItems = MENU_ITEMS.filter(m=>!m.name.includes('(مؤرشف)'));
   const totalEl = document.getElementById('menuTotalCount');
   if(totalEl) totalEl.textContent = visibleItems.length;
-  let items = activeMenuCategory === null ? visibleItems : visibleItems.filter(m=>m.category===activeMenuCategory);
+  let items = activeMenuCategory === null ? visibleItems : visibleItems.filter(m=>itemInCat(m, activeMenuCategory));
   if(menuSearchQuery.trim()) items = items.filter(m=>m.name.includes(menuSearchQuery.trim()));
   const flag = MENU_FLAGS.find(f=>f.key===activeMenuFlag);
   if(flag) items = items.filter(flag.test);
@@ -12559,7 +13013,7 @@ function renderMenuProductTable(){
 
 async function moveProductOrder(itemId, direction){
   const visibleItems = MENU_ITEMS.filter(m=>!m.name.includes('(مؤرشف)'));
-  const items = activeMenuCategory === null ? visibleItems : visibleItems.filter(m=>m.category===activeMenuCategory);
+  const items = activeMenuCategory === null ? visibleItems : visibleItems.filter(m=>itemInCat(m, activeMenuCategory));
   const idx = items.findIndex(m=>m.id===itemId);
   const targetIdx = idx + direction;
   if(idx === -1 || targetIdx < 0 || targetIdx >= items.length) return;
@@ -12615,6 +13069,48 @@ let productModalOrigin = 'posMenu'; // 'posMenu' | 'onlineMenu' — which screen
 // legitimate moment the OWNER needs the real numbers, so it's fetched fresh,
 // per-item, through get_menu_item_recipe/get_menu_item_box_mix — the same
 // permission-gated RPCs that decrypt for them and only them.
+/* الفئات — عنصر واحد: شرائح متساوية، المنتج يظهر تحتها كلها. أول فئة
+   هي المخزّنة في category_id (تُستخدم داخليًا لمطابقة مكافآت الولاء) —
+   بلا أي زينة في الواجهة. الحالة: productModalState.category + .extraCategories. */
+function renderProductCategories(){
+  const host = document.getElementById('pfCategories');
+  if(!host) return;
+  if(!Array.isArray(productModalState.extraCategories)) productModalState.extraCategories = [];
+  const list = [productModalState.category, ...productModalState.extraCategories].filter(Boolean);
+  const used = new Set(list);
+  const opts = MENU_CATEGORIES.filter(c=> c && !used.has(c))
+    .map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  const canRemove = list.length > 1;
+  const chips = list.map((n,i)=>
+    '<span class="pf-cat-chip">'
+    + '<span class="pf-cat-name">'+escapeHtml(n)+'</span>'
+    + (canRemove ? '<button type="button" class="pf-cat-x" data-i="'+i+'" aria-label="حذف">✕</button>' : '')
+    + '</span>'
+  ).join('');
+  host.innerHTML =
+    '<label style="display:block; font-size:12px; font-weight:800; margin-bottom:7px;">الفئات '
+      + helpIcon('المنتج يظهر تحت كل فئة تضيفها هنا — في اللوحة والكاشير والمتجر الإلكتروني.') + '</label>'
+    + '<div class="pf-cat-chips">' + (chips || '<span class="ac-targets-empty">أضف فئة واحدة على الأقل.</span>') + '</div>'
+    + (opts ? '<select id="pfCatAdd" class="pe-select" style="margin-top:9px; max-width:280px;"><option value="">+ أضف فئة…</option>'+opts+'</select>'
+            : '<p style="font-size:10.5px; color:var(--muted); font-weight:600; margin-top:8px;">أضفت كل فئاتك.</p>');
+
+  const rerender = ()=>{ renderProductCategories(); if(typeof updateCostPreview === 'function') updateCostPreview(); };
+  const add = document.getElementById('pfCatAdd');
+  if(add) add.addEventListener('change', ()=>{
+    if(add.value && !used.has(add.value)){
+      if(!productModalState.category) productModalState.category = add.value;
+      else productModalState.extraCategories.push(add.value);
+    }
+    rerender();
+  });
+  host.querySelectorAll('.pf-cat-x').forEach(btn=> btn.addEventListener('click', ()=>{
+    const i = parseInt(btn.dataset.i, 10);
+    if(i === 0) productModalState.category = productModalState.extraCategories.shift() || '';
+    else productModalState.extraCategories.splice(i-1, 1);
+    rerender();
+  }));
+}
+
 async function openProductEditModal(productId, origin){
   editingProductId = productId || null;
   productModalOrigin = origin === 'onlineMenu' ? 'onlineMenu' : 'posMenu';
@@ -12638,8 +13134,12 @@ async function openProductEditModal(productId, origin){
   // it from one channel is the exception, not the starting point, so it's a
   // plain switch on the same record rather than a separate copy to keep in
   // sync by hand.
+  // الفئات الإضافية = categoryNames عدا الأساسية (categoryNames[0])
+  const existingExtraCats = existing && Array.isArray(existing.categoryNames)
+    ? existing.categoryNames.filter(n=> n && n !== existing.category)
+    : [];
   productModalState = existing
-    ? {name:existing.name, nameEn:existing.nameEn||'', price:existing.price, category:existing.category, image:existing.image, imageFile:null,
+    ? {name:existing.name, nameEn:existing.nameEn||'', price:existing.price, category:existing.category, extraCategories:[...existingExtraCats], image:existing.image, imageFile:null,
        costMode:existing.costMode, directCost:existing.directCost, recipe,
        linkInventory:existing.linkInventory, linkProfit:existing.linkProfit,
        pointsRedeemPrice: existing.pointsRedeemPrice,
@@ -12651,7 +13151,7 @@ async function openProductEditModal(productId, origin){
        visibleOnline: existing.visibleOnline, visiblePos: existing.visiblePos,
        onlineTagLabel: existing.onlineTagLabel, onlineTagColor: existing.onlineTagColor,
        onlinePrice: existing.onlinePrice}
-    : {name:'', nameEn:'', price:0, category:MENU_CATEGORIES[0]||'', image:null, imageFile:null,
+    : {name:'', nameEn:'', price:0, category:MENU_CATEGORIES[0]||'', extraCategories:[], image:null, imageFile:null,
        costMode:'direct', directCost:0, recipe:[], linkInventory:false, linkProfit:false, pointsRedeemPrice:null, barcode:'', modifierGroupIds:[],
        totalPieces:0, eligibleItems:[], defaultMix:[], finishedGoodStockItemId:null,
        visibleOnline: true, visiblePos: true,
@@ -12763,11 +13263,9 @@ function productEditBodyHtml(){
         </div>
       </div>
       <p class="stock-qty-helper" style="margin-top:-8px; margin-bottom:12px;">الاسم الإنجليزي اختياري — يظهر بالمتجر الإلكتروني وبالكاشير لما تكون لغته إنجليزي.</p>
-      <div class="menu-add-row" style="margin-bottom:4px;">
-        <div class="menu-add-field"><label>السعر (ر.س) ${helpIcon('هذا السعر عمومًا مرتبط بإعداد "أسعار المنيو شاملة الضريبة" اللي تتحكم فيه من الإعدادات ← الضريبة والفوترة — التوضيح تحت الحقل يعكس إعدادك الحالي.')}</label><input type="number" id="pfPrice" value="${productModalState.price}"></div>
-        <div class="menu-add-field"><label>التصنيف</label><select id="pfCategory">${MENU_CATEGORIES.map(c=>`<option value="${c}" ${productModalState.category===c?'selected':''}>${c}</option>`).join('')}</select></div>
-      </div>
+      <div class="menu-add-field" style="margin-bottom:4px; max-width:260px;"><label>السعر (ر.س) ${helpIcon('هذا السعر عمومًا مرتبط بإعداد "أسعار المنيو شاملة الضريبة" اللي تتحكم فيه من الإعدادات ← الضريبة والفوترة — التوضيح تحت الحقل يعكس إعدادك الحالي.')}</label><input type="number" id="pfPrice" value="${productModalState.price}"></div>
       <p class="stock-qty-helper" id="pfPriceVatNote" style="margin-top:0;"></p>
+      <div id="pfCategories" style="margin:4px 0 14px;"></div>
       ${productEditChannelControlHtml()}
       <div class="advanced-section" style="margin-top:6px;">
         <div class="advanced-toggle-row" id="pfAdvancedToggle">
@@ -12946,7 +13444,7 @@ function renderProductEditBody(){
   document.getElementById('pfNameEn').addEventListener('input', (e)=> productModalState.nameEn = e.target.value);
   document.getElementById('pfPrice').addEventListener('input', (e)=>{ productModalState.price = parseFloat(e.target.value)||0; updateCostPreview(); updatePfPriceVatNote(); });
   updatePfPriceVatNote();
-  document.getElementById('pfCategory').addEventListener('change', (e)=> productModalState.category = e.target.value);
+  renderProductCategories();
   document.getElementById('pfPointsRedeemPrice').addEventListener('input', (e)=>{
     productModalState.pointsRedeemPrice = e.target.value.trim() === '' ? null : parseFloat(e.target.value);
   });
@@ -13116,18 +13614,25 @@ function updateDefaultMixSumCheck(){
   el.innerHTML = `مجموع التركيبة: <b class="${match?'':'mono'}" style="${match?'color:var(--success-text);':'color:var(--danger);'}">${sum}</b> من أصل ${total} قطعة${match?' ✓':' — لازم يتساوى مع إجمالي القطع'}`;
 }
 
+function isWeightUnit(u){ return u === 'g' || u === 'kg'; }
+function isVolumeUnit(u){ return u === 'ml' || u === 'liter'; }
+
 function renderRecipeRows(){
   const el = document.getElementById('recipeRows');
   if(!el) return;
   el.innerHTML = productModalState.recipe.map((r,i)=>{
     const stockItem = STOCK_ITEMS.find(s=>s.name===r.ingredient);
-    const units = compatibleUnits(stockItem ? stockItem.unit : 'kg');
+    const baseU = stockItem ? stockItem.unit : 'kg';
+    // صنف باللتر/المل: يقدر يدخل الوصفة بالغرام والنظام يحوّل تلقائيًا بالكثافة
+    const units = isVolumeUnit(baseU) ? ['ml','liter','g','kg'] : compatibleUnits(baseU);
+    const converted = stockItem && isVolumeUnit(baseU) && isWeightUnit(r.unit) && stockItem.gramsPerUnit > 0;
     return `<div class="recipe-row" data-idx="${i}">
       <select class="recipe-ing-select" data-idx="${i}">${STOCK_ITEMS.map(s=>`<option value="${s.name}" ${r.ingredient===s.name?'selected':''}>${s.name} (${s.unitCost} ر.س/${UNIT_LABELS[s.unit]})</option>`).join('')}</select>
       <input type="number" class="recipe-qty-input" data-idx="${i}" value="${r.qty}" step="0.01">
       <select class="recipe-unit-select" data-idx="${i}">${units.map(u=>`<option value="${u}" ${r.unit===u?'selected':''}>${UNIT_LABELS[u]}</option>`).join('')}</select>
       <button class="recipe-remove-btn" data-idx="${i}">✕</button>
-    </div>`;
+    </div>${converted ? `
+    <div class="recipe-bridge-row converted" data-idx="${i}"><span class="recipe-bridge-msg">↔ يُحوّل تلقائيًا: ١ لتر ≈ ${Math.round(stockItem.gramsPerUnit * (baseU==='ml'?1000:1))} غرام</span></div>` : ''}`;
   }).join('');
   el.querySelectorAll('.recipe-ing-select').forEach(sel=> sel.addEventListener('change', ()=>{
     const idx = parseInt(sel.dataset.idx);
@@ -13138,7 +13643,7 @@ function renderRecipeRows(){
     renderRecipeRows(); updateCostPreview();
   }));
   el.querySelectorAll('.recipe-qty-input').forEach(inp=> inp.addEventListener('input', ()=>{ productModalState.recipe[parseInt(inp.dataset.idx)].qty = parseFloat(inp.value)||0; updateCostPreview(); }));
-  el.querySelectorAll('.recipe-unit-select').forEach(sel=> sel.addEventListener('change', ()=>{ productModalState.recipe[parseInt(sel.dataset.idx)].unit = sel.value; updateCostPreview(); }));
+  el.querySelectorAll('.recipe-unit-select').forEach(sel=> sel.addEventListener('change', ()=>{ productModalState.recipe[parseInt(sel.dataset.idx)].unit = sel.value; renderRecipeRows(); updateCostPreview(); }));
   el.querySelectorAll('.recipe-remove-btn').forEach(btn=> btn.addEventListener('click', ()=>{ productModalState.recipe.splice(parseInt(btn.dataset.idx),1); renderRecipeRows(); updateCostPreview(); }));
 }
 
@@ -13321,6 +13826,28 @@ async function saveProductEdit(){
     const childFailed = childResults.find(r=>r.error);
     if(childFailed) throw childFailed.error;
 
+    // الفئات الإضافية (menu_item_categories) — best-effort: ما يفشّل حفظ
+    // المنتج لو الجدول ما اتسوّى بعد (migration 20260909130000).
+    const extraCatIds = (productModalState.extraCategories||[])
+      .map(n=> MENU_CATEGORY_ID_BY_NAME[n])
+      .filter((v,i,a)=> v && v !== categoryId && a.indexOf(v) === i);
+    try {
+      if(editingProductId){
+        const { error: eDel } = await sb.from('menu_item_categories').delete().eq('menu_item_id', menuItemId);
+        if(eDel) throw eDel;
+      }
+      if(extraCatIds.length){
+        const { error: eIns } = await sb.from('menu_item_categories')
+          .insert(extraCatIds.map(cid=>({menu_item_id: menuItemId, menu_category_id: cid})));
+        if(eIns) throw eIns;
+      }
+    } catch(eCat){
+      const missing = eCat && (eCat.code==='PGRST205' || eCat.code==='42P01' || /menu_item_categories/.test(eCat.message||''));
+      showToast(missing
+        ? 'المنتج انحفظ — «الفئات الإضافية» تحتاج تشغيل تحديث قاعدة البيانات الأخير.'
+        : 'المنتج انحفظ — تعذّر حفظ الفئات الإضافية: ' + (eCat && eCat.message ? eCat.message : 'خطأ'));
+    }
+
     if(productModalState.imageFile){
       const squared = await squareifyProductImage(productModalState.imageFile);
       // Full quality, unchanged — this is what the online storefront,
@@ -13343,12 +13870,17 @@ async function saveProductEdit(){
     }
 
 
+    // فئات المنتج محليًا: الأساسية + الإضافية (بلا تكرار).
+    const savedCatIds = [categoryId, ...extraCatIds].filter((v,i,a)=> v != null && a.indexOf(v) === i);
+    const savedCatNames = savedCatIds.map(id=> (CATEGORY_ROWS.find(c=>c.id===id)||{}).name).filter(Boolean);
     if(editingProductId){
-      Object.assign(MENU_ITEMS.find(m=>m.id===editingProductId), productData);
+      const li = MENU_ITEMS.find(m=>m.id===editingProductId);
+      Object.assign(li, productData);
+      li.categoryIds = savedCatIds; li.categoryNames = savedCatNames;
       logDashboardAudit('عدّل منتج ' + name);
       showToast('تم حفظ التعديلات');
     } else {
-      MENU_ITEMS.push({id: menuItemId, active:true, ...productData});
+      MENU_ITEMS.push({id: menuItemId, active:true, ...productData, categoryIds: savedCatIds, categoryNames: savedCatNames});
       logDashboardAudit('أضاف منتج جديد: ' + name);
       showToast('تمت إضافة "' + name + '" — جاهز للمنتج اللي بعده');
     }
@@ -13485,8 +14017,8 @@ function openModGroupModal(groupId){
   editingModGroupId = groupId || null;
   const existing = groupId ? MODIFIER_GROUPS.find(g=>g.id===groupId) : null;
   modGroupModalState = existing
-    ? {name:existing.name, nameEn:existing.nameEn||'', type:existing.type, max:existing.max, options: JSON.parse(JSON.stringify(existing.options))}
-    : {name:'', nameEn:'', type:'single', max:4, options:[]};
+    ? {name:existing.name, nameEn:existing.nameEn||'', type:existing.type, max:existing.max, required:(existing.minSelect||0)>0, options: JSON.parse(JSON.stringify(existing.options))}
+    : {name:'', nameEn:'', type:'single', max:4, required:false, options:[]};
 
   document.getElementById('modGroupModalTitle').textContent = existing ? 'تعديل: ' + existing.name : 'مجموعة خيارات جديدة';
   document.getElementById('modGroupDeleteLink').style.display = existing ? 'block' : 'none';
@@ -13494,13 +14026,59 @@ function openModGroupModal(groupId){
   document.getElementById('modGroupModal').classList.add('show');
 }
 
+/* المنتجات المربوطة بهذه المجموعة — تظهر داخل نافذة التعديل حتى يعرف
+   صاحب المطعم وين تُستخدم قبل ما يعدّل أو يحذف. تُحسب محليًا من
+   MENU_ITEMS[].modifierGroupIds (تُحمَّل مع بيانات المنتجات). */
+function modGroupLinkedProducts(){
+  if(!editingModGroupId) return [];
+  return MENU_ITEMS.filter(m=>Array.isArray(m.modifierGroupIds) && m.modifierGroupIds.includes(editingModGroupId));
+}
+function modGroupLinkedProductsHtml(){
+  if(!editingModGroupId) return '';
+  const linked = modGroupLinkedProducts();
+  if(!linked.length){
+    return '<div class="mg-linked-box mg-linked-none">هذه المجموعة غير مربوطة بأي منتج بعد.</div>';
+  }
+  return '<div class="mg-linked-box">'
+    + '<div class="mg-linked-head">مربوطة بـ <b>' + linked.length + '</b> منتج <span style="color:var(--muted);font-weight:600;">— اضغط ✕ لفكّ الربط عن منتج</span>:</div>'
+    + '<div class="mg-linked-chips">' + linked.map(m=>'<span class="mg-linked-chip">'+escapeHtml(m.name)
+        +'<button type="button" class="mg-linked-x" data-mi="'+m.id+'" aria-label="فكّ الربط عن '+escapeHtml(m.name)+'">✕</button></span>').join('') + '</div>'
+    + '<div class="mg-linked-hint">فكّ الربط يشيل المجموعة من ذاك المنتج فقط، فورًا. حذف المجموعة كاملةً يشيلها من الكل (وما يتأثر أي طلب سابق).</div>'
+    + '</div>';
+}
+// ربط أزرار ✕ في صندوق المنتجات المربوطة — فكّ ربط مباشر لمنتج واحد
+function wireMgLinkedBox(){
+  document.querySelectorAll('#mgLinkedBox .mg-linked-x').forEach(btn=> btn.addEventListener('click', async ()=>{
+    if(!editingModGroupId) return;
+    const miId = parseInt(btn.dataset.mi);
+    const mi = MENU_ITEMS.find(m=>m.id===miId);
+    btn.disabled = true;
+    try {
+      const { error } = await window.supabaseClient.from('menu_item_modifier_groups')
+        .delete().eq('menu_item_id', miId).eq('modifier_group_id', editingModGroupId);
+      if(error) throw error;
+      if(mi) mi.modifierGroupIds = (mi.modifierGroupIds||[]).filter(id=>id!==editingModGroupId);
+      logDashboardAudit('فكّ ربط مجموعة خيارات عن منتج: ' + (mi ? mi.name : miId));
+      const host = document.getElementById('mgLinkedBox');
+      if(host){ host.innerHTML = modGroupLinkedProductsHtml(); wireMgLinkedBox(); }
+      if(typeof renderMenuProductTable === 'function') renderMenuProductTable();
+      showToast('انفكّ الربط عن «' + (mi ? mi.name : 'المنتج') + '»');
+    } catch(err){
+      showToast('تعذّر فكّ الربط: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+      btn.disabled = false;
+    }
+  }));
+}
+
 function modGroupModalBodyHtml(){
   return `
-    <div class="menu-add-row" style="margin-bottom:4px;">
+    <div class="menu-add-row" style="margin-bottom:6px;">
       <div class="menu-add-field"><label>عنوان المجموعة</label><input type="text" id="mgName" value="${modGroupModalState.name}" placeholder="مثال: الحجم"></div>
       <div class="menu-add-field"><label>English Name</label><input type="text" id="mgNameEn" value="${modGroupModalState.nameEn||''}" placeholder="e.g: Size" dir="ltr"></div>
     </div>
-    <p class="stock-qty-helper" style="margin-top:-8px; margin-bottom:16px;">الاسم الإنجليزي اختياري — يظهر بالكاشير والفاتورة لما تكون لغته إنجليزي.</p>
+    <p class="stock-qty-helper" style="margin:8px 0 18px;">الاسم الإنجليزي اختياري — يظهر بالكاشير والفاتورة لما تكون لغته إنجليزي.</p>
+
+    <div id="mgLinkedBox">${modGroupLinkedProductsHtml()}</div>
 
     <div class="panel-subtitle" style="margin-top:0;" class="field-label-row">نوع الاختيار ${helpIcon('اختيار واحد: العميل يختار خيار واحد بس (مثل الحجم، درجة النضج). اختيار متعدد: يقدر يحدد أكثر من خيار، كل واحد له سعره لحاله (مثل إضافات). كمية متعددة: تحدد إجمالي قطع، والعميل يوزّعها بين الخيارات بالكمية اللي يبيها (مثل بوكس ٦ قطع).')}</div>
     <select id="mgTypeSelect" class="pe-select" style="margin-bottom:4px;">
@@ -13512,6 +14090,10 @@ function modGroupModalBodyHtml(){
       <label>${modGroupModalState.type==='quantity' ? 'إجمالي القطع اللي يوزّعها العميل' : 'أقصى عدد يختاره العميل'}</label><input type="number" id="mgMax" value="${modGroupModalState.max}" min="1">
     </div>
 
+    <div id="mgRequiredField" style="display:${modGroupModalState.type==='quantity'?'none':'block'}; margin:0 0 16px;">
+      ${rkSwitchRow('mgRequired', modGroupModalState.required, 'إلزامية — لازم الكاشير يختار منها', 'لو مطفّأة: الكاشير يقدر يضيف المنتج بدون ما يفتح الخيارات إطلاقًا (ضغطة سريعة)، ويفتحها بالضغط المطوّل لو حب. لو مشغّلة: نافذة الخيارات تفتح إجباريًا وما يقدر يضيف قبل ما يختار.')}
+    </div>
+
     <div class="panel-subtitle">الخيارات</div>
     ${modGroupModalState.type==='quantity' ? '<div class="stock-qty-helper">لكل خيار حد أقصى خاص فيه (اختياري) — سيبه فاضي يعني مفتوح لحد الإجمالي فوق.</div>' : ''}
     <div id="mgOptionRows"></div>
@@ -13521,10 +14103,12 @@ function modGroupModalBodyHtml(){
 
 function renderModGroupModalBody(){
   document.getElementById('modGroupModalBody').innerHTML = modGroupModalBodyHtml();
+  wireMgLinkedBox();
   document.getElementById('mgName').addEventListener('input', (e)=> modGroupModalState.name = e.target.value);
   document.getElementById('mgNameEn').addEventListener('input', (e)=> modGroupModalState.nameEn = e.target.value);
   document.getElementById('mgTypeSelect').addEventListener('change', (e)=> setModGroupType(e.target.value));
   document.getElementById('mgMax').addEventListener('input', (e)=> modGroupModalState.max = parseInt(e.target.value)||4);
+  { const r = document.getElementById('mgRequired'); if(r) r.addEventListener('change', (e)=> modGroupModalState.required = e.target.checked); }
   document.getElementById('addMgOptionBtn').addEventListener('click', ()=>{
     modGroupModalState.options.push({name:'', nameEn:'', priceDelta:0, costMode:'simple', extraCost:0, optionMax:null});
     renderMgOptionRows();
@@ -13536,6 +14120,8 @@ function setModGroupType(type){
   modGroupModalState.type = type;
   document.getElementById('mgMaxField').style.display = type!=='single' ? 'block' : 'none';
   document.getElementById('mgMaxField').querySelector('label').textContent = type==='quantity' ? 'إجمالي القطع اللي يوزّعها العميل' : 'أقصى عدد يختاره العميل';
+  const rf = document.getElementById('mgRequiredField');
+  if(rf) rf.style.display = type==='quantity' ? 'none' : 'block';
   renderMgOptionRows();
 }
 
@@ -13608,7 +14194,29 @@ function renderMgOptionRows(){
     renderMgOptionRows();
   }));
   el.querySelectorAll('.mg-opt-stock-qty').forEach(inp=> inp.addEventListener('input', ()=>{ modGroupModalState.options[parseInt(inp.dataset.idx)].stockLink.qty = parseFloat(inp.value)||0; renderMgOptionRows(); }));
-  el.querySelectorAll('.mg-opt-stock-unit').forEach(sel=> sel.addEventListener('change', ()=>{ modGroupModalState.options[parseInt(sel.dataset.idx)].stockLink.unit = sel.value; renderMgOptionRows(); }));
+  el.querySelectorAll('.mg-opt-stock-unit').forEach(sel=> sel.addEventListener('change', ()=>{
+    // تغيير الوحدة يحوّل الرقم تلقائيًا للحفاظ على نفس الكمية الحقيقية —
+    // القائمة هنا تعرض عائلة واحدة فقط (غ/كجم أو مل/لتر) فالتحويل ×١٠٠٠
+    // بالضبط بلا كثافة ولا فقدان دقّة. «٢٠ غرام» ← «٠٫٠٢ كجم»، ونفس
+    // التكلفة/الخصم المحسوب.
+    const idx = parseInt(sel.dataset.idx);
+    const link = modGroupModalState.options[idx].stockLink;
+    if(!link){ return; }
+    const oldUnit = link.unit;
+    const cur = Number(link.qty);
+    const safeCur = (isFinite(cur) && cur >= 0) ? cur : 0;
+    if(sel.value !== oldUnit){
+      const si = STOCK_ITEMS.find(s=>s.name===link.ingredient);
+      const conv = (typeof convertToUnit === 'function')
+        ? convertToUnit(safeCur, oldUnit, sel.value, si && si.gramsPerUnit)
+        : safeCur;
+      link.qty = (isFinite(conv) && conv >= 0) ? Math.round(conv * 1e6) / 1e6 : safeCur;
+    } else {
+      link.qty = safeCur;
+    }
+    link.unit = sel.value;
+    renderMgOptionRows();
+  }));
   el.querySelectorAll('.mg-cost-mode-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const idx = parseInt(btn.dataset.idx);
@@ -13636,9 +14244,12 @@ async function saveModGroup(){
   if(options.length === 0){ showToast('لازم تضيف خيار وحد على الأقل'); return; }
 
   const nameEn = modGroupModalState.nameEn.trim();
+  const maxSel = modGroupModalState.type!=='single' ? (modGroupModalState.max||4) : 1;
+  // إلزامية = min_select 1 (على الأقل خيار واحد). quantity له منطقه الخاص → 0.
+  const minSel = (modGroupModalState.type!=='quantity' && modGroupModalState.required) ? 1 : 0;
   const groupData = {
     name, nameEn, type: modGroupModalState.type,
-    max: modGroupModalState.type!=='single' ? (modGroupModalState.max||4) : 1,
+    max: maxSel, minSelect: minSel,
     options
   };
 
@@ -13646,15 +14257,21 @@ async function saveModGroup(){
   rkBtnLoading(saveBtn, true);
   try {
     const sb = window.supabaseClient;
-    const groupRow = {business_id: CURRENT_PROFILE.business_id, name, name_en: nameEn || null, type: groupData.type, max_select: groupData.max};
+    const groupRow = {business_id: CURRENT_PROFILE.business_id, name, name_en: nameEn || null, type: groupData.type, max_select: groupData.max, min_select: groupData.minSelect};
+    // Safe to deploy before migration 20260909100000: if min_select isn't a
+    // column yet, drop it and save the rest so the editor keeps working (the
+    // "إلزامية؟" toggle just won't stick until the SQL is run).
+    const missingMinSelect = (err)=> err && (err.code === 'PGRST204' || /min_select/.test(err.message||''));
     let groupId = editingModGroupId;
     if(editingModGroupId){
-      const { error } = await sb.from('modifier_groups').update(groupRow).eq('id', editingModGroupId);
+      let { error } = await sb.from('modifier_groups').update(groupRow).eq('id', editingModGroupId);
+      if(missingMinSelect(error)){ const {min_select, ...rest} = groupRow; ({ error } = await sb.from('modifier_groups').update(rest).eq('id', editingModGroupId)); }
       if(error) throw error;
       const { error: delErr } = await sb.from('modifier_options').delete().eq('group_id', editingModGroupId);
       if(delErr) throw delErr;
     } else {
-      const { data: inserted, error } = await sb.from('modifier_groups').insert(groupRow).select().single();
+      let { data: inserted, error } = await sb.from('modifier_groups').insert(groupRow).select().single();
+      if(missingMinSelect(error)){ const {min_select, ...rest} = groupRow; ({ data: inserted, error } = await sb.from('modifier_groups').insert(rest).select().single()); }
       if(error) throw error;
       groupId = inserted.id;
     }
@@ -13696,27 +14313,41 @@ async function saveModGroup(){
 
 async function deleteModGroup(){
   if(!editingModGroupId) return;
-  const group = MODIFIER_GROUPS.find(g=>g.id===editingModGroupId);
-  const usedBy = MENU_ITEMS.filter(m=>m.modifierGroupIds.includes(editingModGroupId));
-  if(usedBy.length > 0){ showToast('ما تقدر تحذفها — مستخدمة في ' + usedBy.length + ' منتج. شيلها من المنتج أول.'); return; }
+  const deletedId = editingModGroupId;
+  const group = MODIFIER_GROUPS.find(g=>g.id===deletedId);
+  const groupName = group ? group.name : 'الخيارات';
+  const usedBy = modGroupLinkedProducts();
+  const names = usedBy.map(m=>escapeHtml(m.name)).join('، ');
   const go = await rkAsk({
     title: 'حذف مجموعة الخيارات',
-    body: 'متأكد إنك تبي تحذف مجموعة "' + escapeHtml(group ? group.name : 'الخيارات') + '"؟',
-    ok: 'احذف المجموعة', cancel: 'تراجع',
+    body: usedBy.length
+      ? 'مجموعة "' + escapeHtml(groupName) + '" مربوطة بـ <b>' + usedBy.length + '</b> منتج:<br>'
+        + '<span style="color:var(--muted); font-weight:600;">' + names + '</span><br><br>'
+        + 'الحذف يشيلها من هذي المنتجات كلها ويمسح خياراتها. الطلبات السابقة ما تتأثر. أكيد؟'
+      : 'متأكد إنك تبي تحذف مجموعة "' + escapeHtml(groupName) + '"؟',
+    ok: usedBy.length ? ('احذفها وشيلها من ' + usedBy.length + ' منتج') : 'احذف المجموعة',
+    cancel: 'تراجع',
   });
   if(!go) return;
   try {
-    const { error } = await window.supabaseClient.from('modifier_groups').delete().eq('id', editingModGroupId);
+    // menu_item_modifier_groups.modifier_group_id و modifier_options.group_id
+    // كلاهما ON DELETE CASCADE — حذف صف المجموعة يفكّ ربطها عن كل منتج
+    // ويمسح خياراتها دفعة واحدة. ما يحتاج تنظيف يدوي على الخادم.
+    const { error } = await window.supabaseClient.from('modifier_groups').delete().eq('id', deletedId);
     if(error) throw error;
   } catch(err){
     showToast('تعذر الحذف: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
     return;
   }
-  MODIFIER_GROUPS = MODIFIER_GROUPS.filter(g=>g.id!==editingModGroupId);
-  logDashboardAudit('حذف مجموعة خيارات: ' + group.name);
+  MODIFIER_GROUPS = MODIFIER_GROUPS.filter(g=>g.id!==deletedId);
+  MENU_ITEMS.forEach(m=>{
+    if(Array.isArray(m.modifierGroupIds)) m.modifierGroupIds = m.modifierGroupIds.filter(id=>id!==deletedId);
+  });
+  logDashboardAudit('حذف مجموعة خيارات: ' + groupName + (usedBy.length ? ' (كانت مربوطة بـ' + usedBy.length + ' منتج)' : ''));
   closeModGroupModal();
   renderModifierGroupsTable();
-  showToast('تم حذف المجموعة');
+  renderMenuProductTable();
+  showToast(usedBy.length ? ('حُذفت المجموعة وانشالت من ' + usedBy.length + ' منتج') : 'تم حذف المجموعة');
 }
 
 /* ============ Bulk Excel import — for setting up a new place with many
@@ -13734,7 +14365,7 @@ const BULK_IMPORT_CONFIGS = {
     columns: [
       {key:'name', header:'اسم الصنف', width:28, type:'text', required:true},
       {key:'category', header:'نوع الصنف', width:20, type:'list', options:['مادة خام أساسية','تغليف ومستلزمات'], required:true},
-      {key:'unit', header:'وحدة الشراء', width:16, type:'list', options:['كيلوغرام','غرام','لتر','حبة'], required:true},
+      {key:'unit', header:'وحدة الشراء', width:16, type:'list', options:['كيلوغرام','غرام','لتر','مل','حبة'], required:true},
       {key:'unitCost', header:'تكلفة الوحدة (ر.س)', width:20, type:'number', required:true},
       {key:'qty', header:'الكمية الحالية', width:18, type:'number', required:false},
     ],
@@ -13878,7 +14509,7 @@ function validateBulkImportRows(kind, rows){
   const valid = [], errors = [];
   if(kind === 'stock'){
     const catMap = {'مادة خام أساسية':'raw', 'تغليف ومستلزمات':'packaging'};
-    const unitMap = {'كيلوغرام':'kg', 'غرام':'g', 'لتر':'liter', 'حبة':'piece'};
+    const unitMap = {'كيلوغرام':'kg', 'غرام':'g', 'لتر':'liter', 'مل':'ml', 'ملل':'ml', 'حبة':'piece'};
     const seen = new Set();
     rows.forEach(r=>{
       const name = String(r.name||'').trim();
@@ -13928,14 +14559,14 @@ async function commitBulkImport(kind, validRows){
   const sb = window.supabaseClient;
   if(kind === 'stock'){
     const inserts = validRows.map(r=>({business_id:CURRENT_PROFILE.business_id, name:r.name, unit:r.unit, unit_cost:r.unitCost,
-      category:r.category, qty_on_hand:r.qty, par_level:r.qty, duration:''}));
+      category:r.category, qty_on_hand:r.qty, par_level:r.qty}));
     const {data, error} = await sb.from('stock_items').insert(inserts).select();
     if(error) throw error;
     const byName = {}; data.forEach(row=> byName[row.name]=row);
     validRows.forEach(r=>{
       const row = byName[r.name]; if(!row) return;
       STOCK_ITEMS.push({id:row.id, name:row.name, unit:row.unit, unitCost:row.unit_cost, category:row.category,
-        qtyOnHand:row.qty_on_hand, parLevel:row.par_level, duration:row.duration||'', aliasNames:[]});
+        qtyOnHand:row.qty_on_hand, parLevel:row.par_level, aliasNames:[]});
       STOCK_ITEM_ID_BY_NAME[row.name] = row.id; STOCK_ITEM_NAME_BY_ID[row.id] = row.name;
     });
     logDashboardAudit('استورد ' + validRows.length + ' صنف مخزون بالجملة');
@@ -13999,29 +14630,8 @@ function wireMenuScreen(){
   renderCostCompletionBanner();
   renderMenuUnifyBanner();
 
-  document.getElementById('openAddCategoryBtn').addEventListener('click', ()=>{
-    document.getElementById('addCategoryInline').style.display = 'flex';
-    document.getElementById('newCategoryInput').focus();
-  });
-  document.getElementById('confirmAddCategoryBtn').addEventListener('click', async ()=>{
-    const val = document.getElementById('newCategoryInput').value.trim();
-    if(!val){ showToast('لازم تكتب اسم الفئة'); return; }
-    if(MENU_CATEGORIES.includes(val)){ showToast('هذي الفئة موجودة أصلًا'); return; }
-    try {
-      const { data: newCat, error } = await window.supabaseClient.from('menu_categories')
-        .insert({business_id: CURRENT_PROFILE.business_id, name: val, sort_order: MENU_CATEGORIES.length}).select().single();
-      if(error) throw error;
-      MENU_CATEGORY_ID_BY_NAME[val] = newCat.id;
-      MENU_CATEGORIES.push(val);
-      logDashboardAudit('أضاف قسم رئيسي جديد: ' + val);
-      document.getElementById('newCategoryInput').value = '';
-      document.getElementById('addCategoryInline').style.display = 'none';
-      renderCategoryTabs();
-      showToast('تمت إضافة فئة "' + val + '"');
-    } catch(err){
-      showToast('تعذرت إضافة الفئة: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-    }
-  });
+  document.getElementById('openAddCategoryBtn').addEventListener('click', ()=> openCategoryModal(null));
+  { const inl = document.getElementById('addCategoryInline'); if(inl) inl.style.display = 'none'; }
   document.getElementById('menuSearchInput').addEventListener('input', (e)=>{
     menuSearchQuery = e.target.value;
     renderMenuProductTable();
@@ -14883,8 +15493,20 @@ function hrFact(label, value){
   return `<div class="hr-fact"><span class="hr-fact-label">${label}</span><span class="hr-fact-value">${value}</span></div>`;
 }
 const EMP_TYPE_LABELS = {full_time:'دوام كامل', part_time:'دوام جزئي', temporary:'مؤقت'};
-const COMPLIANCE_TYPE_LABELS = {iqama:'إقامة', contract:'عقد عمل', health_cert:'شهادة صحية', insurance:'تأمين', other:'أخرى'};
+const COMPLIANCE_TYPE_LABELS = {iqama:'إقامة', contract:'عقد عمل', health_cert:'شهادة صحية', insurance:'تأمين طبي', other:'أخرى'};
 const COMPLIANCE_STATUS_LABELS = {valid:'ساري', expiring_soon:'قارب على الانتهاء', expired:'منتهي'};
+
+// الشهادة الصحية (البطاقة الصحية البلدية) إلزامية نظامًا للعاملين في تداول
+// الأغذية والخدمات ذات التماس المباشر مع الجمهور — المطاعم والمقاهي والمطابخ
+// السحابية والصالونات والفنادق. سيارات الغسيل والخياطة والتجزئة والعيادات
+// (تراخيصها الصحية مهنية مختلفة) خارج هذا. أما التأمين الطبي التعاوني فمُلزِم
+// على كل منشأة قطاع خاص مهما كان نشاطها — فيطلب لكل الأنواع.
+const HEALTH_CERT_BUSINESS_TYPES = new Set(['restaurant','quick_service','cafe','cloud_kitchen','salon','ladies_salon','hotel']);
+function requiredEmployeeDocs(){
+  const docs = ['insurance'];
+  if(HEALTH_CERT_BUSINESS_TYPES.has(BUSINESS_TYPE)) docs.unshift('health_cert');
+  return docs;
+}
 
 document.getElementById('hrTabs').addEventListener('click', (e)=>{
   const b = e.target.closest('button'); if(!b) return;
@@ -14985,7 +15607,7 @@ function ensureHrModal(){
 async function renderHrEmployeesTab(){
   const panel = document.getElementById('hrPanelBody');
   panel.innerHTML = '<div class="rk-section"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>';
-  const [{data: employees}, {data: departments}, {data: branches}, {data: staffMembers}] = await Promise.all([
+  const [{data: employees}, {data: departments}, {data: branches}, {data: staffMembers}, {data: compItems}] = await Promise.all([
     window.supabaseClient.from('employees')
       .select('id, full_name, job_title, department_id, branch_id, employment_type, status, hire_date, base_salary, national_id_or_iqama, iqama_expiry, nationality, phone, emergency_contact_name, emergency_contact_phone')
       .eq('business_id', CURRENT_PROFILE.business_id).order('created_at'),
@@ -14993,8 +15615,12 @@ async function renderHrEmployeesTab(){
     window.supabaseClient.from('branches').select('id, name').eq('business_id', CURRENT_PROFILE.business_id).order('id'),
     window.supabaseClient.from('staff_members').select('id, employee_id, branch_id, name, is_reservation_host')
       .eq('business_id', CURRENT_PROFILE.business_id).eq('active', true),
+    window.supabaseClient.from('compliance_items').select('employee_id, document_type, status').eq('business_id', CURRENT_PROFILE.business_id),
   ]);
   EMPLOYEES = employees || [];
+  // {employeeId: {health_cert:'valid'|'expiring_soon'|'expired', insurance:...}}
+  const empDocStatus = {};
+  (compItems||[]).forEach(c=>{ (empDocStatus[c.employee_id] ||= {})[c.document_type] = c.status; });
   DEPARTMENTS = departments || [];
   HR_BRANCHES = branches || [];
   STAFF_MEMBER_BY_EMPLOYEE_ID = {};
@@ -15007,6 +15633,26 @@ async function renderHrEmployeesTab(){
   const branchName = id => (HR_BRANCHES.find(b=>b.id===id)||{}).name || '';
   const canSalary = canViewSalary();
 
+  const activeEmps = EMPLOYEES.filter(e=>e.status === 'active');
+  const missingByDoc = requiredEmployeeDocs().map(dt=>({
+    dt,
+    count: activeEmps.filter(e=>{ const st = (empDocStatus[e.id]||{})[dt]; return !st || st === 'expired'; }).length,
+  })).filter(x=>x.count > 0);
+
+  // The summary banner is dismissible with "حسنًا"; once dismissed it stays
+  // hidden until a NEW gap appears (a freshly added employee, or an existing
+  // doc that just expired) — we remember exactly which employee/doc pairs the
+  // owner already acknowledged, per business, in localStorage. The per-card
+  // chips are always shown regardless — this only silences the top banner.
+  const compGapPairs = [];
+  requiredEmployeeDocs().forEach(dt=>{
+    activeEmps.forEach(e=>{ const st = (empDocStatus[e.id]||{})[dt]; if(!st || st === 'expired') compGapPairs.push(e.id + ':' + dt); });
+  });
+  const compDismissKey = 'rakeen_hr_comp_dismissed_' + CURRENT_PROFILE.business_id;
+  let compDismissed = new Set();
+  try { compDismissed = new Set(JSON.parse(localStorage.getItem(compDismissKey) || '[]')); } catch(e){}
+  const showComplianceBanner = missingByDoc.length > 0 && compGapPairs.some(p => !compDismissed.has(p));
+
   panel.innerHTML = `
     <div class="rk-section">
       <div class="rk-section-head">
@@ -15017,6 +15663,7 @@ async function renderHrEmployeesTab(){
         </div>
         <button class="rk-btn rk-btn-primary rk-btn-sm rk-section-head-actions" id="addEmployeeBtn">${rkIcon('plus')}إضافة موظف</button>
       </div>
+      ${showComplianceBanner ? `<div class="hr-compliance-banner">${rkIcon('shield')}<span>${missingByDoc.map(x=>`${COMPLIANCE_TYPE_LABELS[x.dt]} — <b>${x.count}</b> ${x.count === 1 ? 'موظف' : 'موظفين'} بدون وثيقة سارية`).join(' · ')}. أضف وثائقهم من تبويب «الامتثال والوثائق».</span><button type="button" class="hr-compliance-dismiss" id="hrComplianceDismiss">حسنًا</button></div>` : ''}
       <div id="employeesList" class="hr-emp-grid">
         ${EMPLOYEES.length === 0 ? '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">ما فيه موظفين مسجّلين بعد.</p>' : EMPLOYEES.map(emp => {
           const cashier = STAFF_MEMBER_BY_EMPLOYEE_ID[emp.id];
@@ -15042,6 +15689,20 @@ async function renderHrEmployeesTab(){
               ${canSalary && emp.base_salary ? hrFact('الراتب', `<span class="mono">${Number(emp.base_salary).toLocaleString('en-US')}</span> ر.س`) : ''}
               ${emp.emergency_contact_phone ? hrFact('للطوارئ', `${emp.emergency_contact_name||''} <span class="mono">${emp.emergency_contact_phone}</span>`) : ''}
             </div>
+
+            ${(()=>{
+              if(emp.status !== 'active') return '';
+              const have = empDocStatus[emp.id] || {};
+              const chips = requiredEmployeeDocs().map(dt=>{
+                const st = have[dt];
+                const label = COMPLIANCE_TYPE_LABELS[dt];
+                if(!st) return `<span class="hr-chip danger">بدون ${label}</span>`;
+                if(st === 'expired') return `<span class="hr-chip danger">${label}: منتهية الصلاحية</span>`;
+                if(st === 'expiring_soon') return `<span class="hr-chip warn">قرب انتهاء ${label}</span>`;
+                return '';
+              }).filter(Boolean).join('');
+              return chips ? `<div class="hr-emp-flags">${chips}</div>` : '';
+            })()}
 
             <div class="hr-emp-foot">
               ${cashier ? `<span class="hr-chip lime">كاشير · ${branchName(cashier.branch_id)}</span>` : '<span></span>'}
@@ -15083,6 +15744,12 @@ async function renderHrEmployeesTab(){
   `;
 
   document.getElementById('addEmployeeBtn').addEventListener('click', ()=> openEmployeeModal());
+  const compDismissBtn = document.getElementById('hrComplianceDismiss');
+  if(compDismissBtn) compDismissBtn.addEventListener('click', ()=>{
+    try { localStorage.setItem(compDismissKey, JSON.stringify([...new Set([...compDismissed, ...compGapPairs])])); } catch(e){}
+    const banner = panel.querySelector('.hr-compliance-banner');
+    if(banner) banner.remove();
+  });
   panel.querySelectorAll('.hr-emp-edit-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const emp = EMPLOYEES.find(e=>e.id===Number(btn.dataset.id));
@@ -15176,10 +15843,11 @@ function openEmployeeModal(employee){
       </div>
     </div>
     ${canViewSalary() ? `<div class="rk-field" style="margin-bottom:14px;"><label>الراتب الأساسي (ر.س)</label><input type="number" id="empSalary" value="${isEdit && employee.base_salary!=null ? employee.base_salary : ''}" placeholder="0.00"></div>` : ''}
-    <div class="menu-add-row" style="margin-bottom:14px;">
+    <div class="menu-add-row" style="margin-bottom:4px;">
       <div class="menu-add-field"><label>رقم الهوية/الإقامة</label><input type="text" id="empNationalId" value="${isEdit?(employee.national_id_or_iqama||''):''}"></div>
       <div class="menu-add-field"><label>تاريخ انتهاء الإقامة</label><input type="date" id="empIqamaExpiry" value="${isEdit && employee.iqama_expiry ? employee.iqama_expiry : ''}"></div>
     </div>
+    <p class="stock-qty-helper" style="margin:0 0 14px;">مربوط تلقائيًا بوثيقة الإقامة في تبويب «الامتثال والوثائق» — أي تعديل هنا أو هناك يتزامن، وتنبيه الانتهاء يجي من هناك.</p>
     <div class="menu-add-row" style="margin-bottom:14px;">
       <div class="menu-add-field"><label>الجنسية</label><input type="text" id="empNationality" value="${isEdit?(employee.nationality||''):''}"></div>
       <div class="menu-add-field"><label>رقم الجوال</label><input type="text" id="empPhone" value="${isEdit?(employee.phone||''):''}"></div>
@@ -15249,6 +15917,7 @@ async function saveEmployeeFromModal(modal){
       logDashboardAudit('أضاف موظف جديد: ' + fullName);
     }
     await syncEmployeeCashierLink(employeeId, fullName, cashierEnabled, branchVal ? Number(branchVal) : null);
+    await syncEmployeeIqamaDoc(employeeId, payload.national_id_or_iqama, payload.iqama_expiry);
     modal.classList.remove('show');
     showToast('تم الحفظ');
     renderHrEmployeesTab();
@@ -15257,6 +15926,33 @@ async function saveEmployeeFromModal(modal){
     errEl.style.display = 'block';
   } finally {
     saveBtn.disabled = false;
+  }
+}
+
+/* Two-way link between an employee's iqama fields and their iqama compliance
+   document (see openComplianceModal for the other direction). Only creates a
+   document when an expiry date is present — compliance_items.expiry_date is
+   NOT NULL — otherwise just carries the ID number across if a doc already
+   exists. Runs a fresh read so it never acts on a stale page cache. */
+async function syncEmployeeIqamaDoc(employeeId, nationalId, iqamaExpiry){
+  try {
+    const { data: existing } = await window.supabaseClient.from('compliance_items')
+      .select('id, document_number, expiry_date')
+      .eq('business_id', CURRENT_PROFILE.business_id).eq('employee_id', employeeId).eq('document_type', 'iqama').maybeSingle();
+    if(existing){
+      const patch = {};
+      if((nationalId || null) !== (existing.document_number || null)) patch.document_number = nationalId || null;
+      if(iqamaExpiry && iqamaExpiry !== existing.expiry_date){ patch.expiry_date = iqamaExpiry; patch.reminder_sent_status = null; }
+      if(Object.keys(patch).length) await window.supabaseClient.from('compliance_items').update(patch).eq('id', existing.id);
+    } else if(iqamaExpiry){
+      await window.supabaseClient.from('compliance_items').insert({
+        business_id: CURRENT_PROFILE.business_id, employee_id: employeeId, document_type: 'iqama',
+        document_number: nationalId || null, expiry_date: iqamaExpiry, reminder_days_before: 30, reminder_enabled: true,
+      });
+    }
+  } catch(err){
+    // non-fatal: the employee record itself already saved
+    console.error('syncEmployeeIqamaDoc failed', err);
   }
 }
 
@@ -15328,7 +16024,7 @@ async function renderHrComplianceTab(){
   panel.innerHTML = '<div class="rk-section"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>';
   const [{data: items}, {data: employees}] = await Promise.all([
     window.supabaseClient.from('compliance_items')
-      .select('id, employee_id, document_type, document_number, issued_date, expiry_date, status, reminder_days_before')
+      .select('id, employee_id, document_type, document_number, issued_date, expiry_date, status, reminder_days_before, reminder_enabled')
       .eq('business_id', CURRENT_PROFILE.business_id).order('expiry_date'),
     window.supabaseClient.from('employees').select('id, full_name').eq('business_id', CURRENT_PROFILE.business_id).order('full_name'),
   ]);
@@ -15352,7 +16048,7 @@ async function renderHrComplianceTab(){
           <div class="users-table-row">
             <div class="users-table-identity">
               <span class="u-name">${empName(item.employee_id)} — ${COMPLIANCE_TYPE_LABELS[item.document_type]||item.document_type}</span>
-              <span class="u-role">${item.document_number || '—'} · ينتهي ${item.expiry_date}</span>
+              <span class="u-role">${item.document_number || '—'} · ينتهي ${item.expiry_date}${item.reminder_enabled === false ? ' · 🔕 التنبيه موقوف' : ''}</span>
               <span class="u-status"><span class="u-status-badge ${item.status==='valid'?'active':'disabled'}" style="${item.status!=='valid'?'color:var(--danger);':''}">${COMPLIANCE_STATUS_LABELS[item.status]||item.status}</span></span>
             </div>
             <div class="users-table-actions">
@@ -15396,15 +16092,66 @@ function openComplianceModal(item){
       </div>
       <div class="menu-add-field"><label>رقم الوثيقة</label><input type="text" id="compNumber" value="${isEdit?(item.document_number||''):''}"></div>
     </div>
+    <div class="stock-qty-helper" id="compDupNotice" style="display:none; margin:-6px 0 12px; color:var(--success-text); font-weight:700;"></div>
     <div class="menu-add-row" style="margin-bottom:14px;">
       <div class="menu-add-field"><label>تاريخ الإصدار</label><input type="date" id="compIssued" value="${isEdit && item.issued_date ? item.issued_date : ''}"></div>
       <div class="menu-add-field"><label>تاريخ الانتهاء</label><input type="date" id="compExpiry" value="${isEdit && item.expiry_date ? item.expiry_date : ''}"></div>
     </div>
-    <div class="rk-field" style="margin-bottom:14px;"><label>تنبيهني قبل الانتهاء بـ (أيام)</label><input type="number" id="compReminderDays" value="${isEdit ? item.reminder_days_before : 30}"></div>
+    ${rkSwitchRow('compReminderEnabled', isEdit ? item.reminder_enabled !== false : true, 'نبّهني قبل انتهاء هذه الوثيقة', 'لو أوقفته، الوثيقة تظل تظهر في الشاشة بحالتها لكن ما يوصلك تنبيه جوال عنها. يحتاج تفعيل "قرب انتهاء وثيقة موظف" من الإعدادات كمان.')}
+    <div class="rk-field" id="compReminderDaysRow" style="margin:12px 0 14px;"><label>نبّهني قبل الانتهاء بـ (أيام)</label><input type="number" id="compReminderDays" value="${isEdit ? item.reminder_days_before : 30}"></div>
     <div class="pos-auth-error" id="compError" style="display:none; margin-top:10px;"></div>
   `;
   modal.dataset.editingId = isEdit ? item.id : '';
   modal.dataset.mode = 'compliance';
+
+  const dupNotice = document.getElementById('compDupNotice');
+  const reminderRow = document.getElementById('compReminderDaysRow');
+  const syncReminderRow = ()=>{ reminderRow.style.opacity = document.getElementById('compReminderEnabled').checked ? '' : '0.45'; document.getElementById('compReminderDays').disabled = !document.getElementById('compReminderEnabled').checked; };
+  document.getElementById('compReminderEnabled').addEventListener('change', syncReminderRow);
+  syncReminderRow();
+
+  // "This employee already has an iqama registered" — an iqama's number doubles
+  // as the person's national ID and lives on the employee record too, so a
+  // second iqama document for the same person is always a mistake. When one
+  // exists, silently switch this modal into editing it; when only the employee
+  // record has the data, prefill from there so saving just creates the doc.
+  const checkExistingIqama = async ()=>{
+    dupNotice.style.display = 'none';
+    if(modal.dataset.editingId) return; // already editing a specific doc
+    if(document.getElementById('compType').value !== 'iqama') return;
+    const empId = Number(document.getElementById('compEmployee').value);
+    if(!empId) return;
+    const { data: existing } = await window.supabaseClient.from('compliance_items')
+      .select('id, document_number, issued_date, expiry_date, reminder_days_before, reminder_enabled')
+      .eq('business_id', CURRENT_PROFILE.business_id).eq('employee_id', empId).eq('document_type', 'iqama').maybeSingle();
+    if(existing){
+      modal.dataset.editingId = existing.id;
+      document.getElementById('hrModalTitle').textContent = 'تعديل وثيقة';
+      document.getElementById('hrModalSaveBtn').textContent = 'حفظ التعديلات';
+      delLink.style.display = '';
+      document.getElementById('compNumber').value = existing.document_number || '';
+      document.getElementById('compIssued').value = existing.issued_date || '';
+      document.getElementById('compExpiry').value = existing.expiry_date || '';
+      document.getElementById('compReminderDays').value = existing.reminder_days_before ?? 30;
+      document.getElementById('compReminderEnabled').checked = existing.reminder_enabled !== false;
+      syncReminderRow();
+      dupNotice.textContent = 'هذا الموظف عنده إقامة مسجّلة أصلًا — فتحناها لك للتعديل بدل ما تتكرر.';
+      dupNotice.style.display = '';
+      return;
+    }
+    const { data: emp } = await window.supabaseClient.from('employees')
+      .select('national_id_or_iqama, iqama_expiry').eq('id', empId).maybeSingle();
+    if(emp && (emp.national_id_or_iqama || emp.iqama_expiry)){
+      if(!document.getElementById('compNumber').value) document.getElementById('compNumber').value = emp.national_id_or_iqama || '';
+      if(!document.getElementById('compExpiry').value && emp.iqama_expiry) document.getElementById('compExpiry').value = emp.iqama_expiry;
+      dupNotice.textContent = 'بيانات الإقامة معبّاة من بطاقة الموظف — احفظ لإنشاء الوثيقة وربطها.';
+      dupNotice.style.display = '';
+    }
+  };
+  document.getElementById('compType').addEventListener('change', ()=>{ dupNotice.style.display='none'; checkExistingIqama(); });
+  document.getElementById('compEmployee').addEventListener('change', ()=>{ dupNotice.style.display='none'; checkExistingIqama(); });
+  if(!isEdit) checkExistingIqama();
+
   modal.classList.add('show');
 }
 
@@ -15413,14 +16160,21 @@ async function saveComplianceFromModal(modal){
   errEl.style.display = 'none';
   const expiry = document.getElementById('compExpiry').value;
   if(!expiry){ errEl.textContent = 'تاريخ الانتهاء مطلوب.'; errEl.style.display = 'block'; return; }
+  const employeeId = Number(document.getElementById('compEmployee').value);
+  const documentType = document.getElementById('compType').value;
+  const documentNumber = document.getElementById('compNumber').value.trim() || null;
   const payload = {
     business_id: CURRENT_PROFILE.business_id,
-    employee_id: Number(document.getElementById('compEmployee').value),
-    document_type: document.getElementById('compType').value,
-    document_number: document.getElementById('compNumber').value.trim() || null,
+    employee_id: employeeId,
+    document_type: documentType,
+    document_number: documentNumber,
     issued_date: document.getElementById('compIssued').value || null,
     expiry_date: expiry,
     reminder_days_before: parseInt(document.getElementById('compReminderDays').value, 10) || 30,
+    reminder_enabled: document.getElementById('compReminderEnabled').checked,
+    // a changed expiry re-arms the reminder — the daily cron pushes again once
+    // the new date crosses its threshold
+    reminder_sent_status: null,
   };
   const editingId = modal.dataset.editingId;
   const saveBtn = document.getElementById('hrModalSaveBtn');
@@ -15432,8 +16186,17 @@ async function saveComplianceFromModal(modal){
       logDashboardAudit('عدّل وثيقة امتثال');
     } else {
       const { error } = await window.supabaseClient.from('compliance_items').insert(payload);
-      if(error) throw error;
+      if(error){
+        if(error.code === '23505'){ errEl.textContent = 'هذا الموظف عنده إقامة مسجّلة أصلًا — عدّلها بدل ما تضيف وحدة جديدة.'; errEl.style.display = 'block'; return; }
+        throw error;
+      }
       logDashboardAudit('أضاف وثيقة امتثال جديدة');
+    }
+    // Keep the employee record's iqama fields in step with the iqama document.
+    if(documentType === 'iqama'){
+      await window.supabaseClient.from('employees')
+        .update({national_id_or_iqama: documentNumber, iqama_expiry: expiry})
+        .eq('id', employeeId);
     }
     modal.classList.remove('show');
     showToast('تم الحفظ');
@@ -15772,11 +16535,11 @@ function buildReportPayload(type){
   }
   if(type === 'shift'){
     const rows = REPORT_DETAIL_ROWS || [];
-    return { ...base, stats: [], table: { headers:['الكاشير','المبيعات','الكاش المتوقع','الكاش الفعلي','الفرق'],
+    return { ...base, stats: [], table: { headers:['فتحها','أقفلها','المبيعات','الكاش المتوقع','الكاش الفعلي','الفرق'],
       rows: rows.map(r=>{
         const expected = r.openingCash + r.sales;
         const diff = r.closingCash!=null ? r.closingCash - expected : null;
-        return [r.cashier, r.sales.toFixed(2), expected.toFixed(2), r.closingCash!=null ? r.closingCash.toFixed(2) : '—', diff!=null ? diff.toFixed(2) : '—'];
+        return [r.cashier, r.closedBy || '—', r.sales.toFixed(2), expected.toFixed(2), r.closingCash!=null ? r.closingCash.toFixed(2) : '—', diff!=null ? diff.toFixed(2) : '—'];
       }) } };
   }
   return base;
@@ -15986,6 +16749,64 @@ wireBulkImportModal();
     });
   }).observe(document.body, { childList: true, subtree: true });
 })();
+
+/* لوحة المفاتيح على الجوال/التابلت (iPad, Galaxy Tab): تُبقي الحقل المُركَّز
+   فوق الكيبورد ولا تدعه يختفي خلفها.
+   - على أندرويد: interactive-widget=resizes-content (في page.tsx) يقلّص
+     الـviewport تلقائيًا فيكفي غالبًا.
+   - على iOS: لا يدعم ذلك، فنقيس ارتفاع الكيبورد من window.visualViewport،
+     نضبط متغيّر --kb (يستخدمه CSS لحجز مساحة أسفل النوافذ)، ونمرّر حاوية
+     الحقل حتى يظهر فوق الكيبورد بعد ما تستقر حركتها. */
+(function keyboardSafeInputs(){
+  var vv = window.visualViewport;
+  if(!vv) return;
+  var root = document.documentElement;
+  function kbHeight(){
+    return Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+  }
+  function scrollableAncestor(el){
+    var n = el && el.parentElement;
+    while(n && n !== document.body){
+      var s = getComputedStyle(n);
+      if(/(auto|scroll)/.test(s.overflowY) && n.scrollHeight > n.clientHeight + 4) return n;
+      n = n.parentElement;
+    }
+    return null;
+  }
+  function inFloatingSurface(el){
+    return !!(el && el.closest && el.closest('.modal-overlay.show, .rka-panel.open, .audit-drawer, .cmdk-overlay.show, .modal-overlay'));
+  }
+  function ensureVisible(el){
+    if(!el || !el.getBoundingClientRect) return;
+    var tag = el.tagName;
+    if(tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT' && !el.isContentEditable) return;
+    if(!inFloatingSurface(el)) return;
+    var kb = kbHeight();
+    var visibleBottom = window.innerHeight - (kb > 60 ? kb : 0) - 16;
+    var sp = scrollableAncestor(el);
+    var r = el.getBoundingClientRect();
+    if(r.bottom > visibleBottom){
+      var by = r.bottom - visibleBottom + 10;
+      if(sp) sp.scrollBy(0, by); else window.scrollBy(0, by);
+    } else if(r.top < 8){
+      if(sp) sp.scrollBy(0, r.top - 14); else window.scrollBy(0, r.top - 14);
+    }
+  }
+  function sync(){
+    var kb = kbHeight();
+    root.style.setProperty('--kb', (kb > 60 ? kb : 0) + 'px');
+    document.body.classList.toggle('kb-open', kb > 60);
+    if(kb > 60 && document.activeElement) ensureVisible(document.activeElement);
+  }
+  vv.addEventListener('resize', sync);
+  vv.addEventListener('scroll', sync);
+  document.addEventListener('focusin', function(e){
+    var el = e.target;
+    setTimeout(function(){ ensureVisible(el); }, 300);
+    setTimeout(function(){ ensureVisible(el); }, 560);
+  });
+})();
+
 renderEmployeeCards();
 renderAchievements();
 renderDeliveryPlatforms();
@@ -19060,5 +19881,4534 @@ function collectWalletLabels(){
   if(howEn && howEn.value.trim()) out.howTextEn = howEn.value.trim();
   return out;
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   موظفك في ركين — Page Assistant  ("مدير المنتجات" أولًا، وأخواته لاحقًا)
+
+   طبقة إرشاد فوق الواجهة الحالية، لا بديلًا عنها. تجمع المدخلات خطوة
+   خطوة، تفهم العربي/اللهجة/الأرقام العربية، تعرض مراجعة، وبعد "اعتماد"
+   تنفّذ العملية عبر نفس كتابات ركين (نفس الجداول، نفس RLS). كل الكتابة
+   تمرّ من خطوة execute واحدة خلف idempotency key.
+
+   إضافة مدير جديد لاحقًا = RKA.registerManager({...}) + workflows تستخدم
+   نفس البدائيات (ask/choose/review/execute). لا نسخ للمحرك ولا للّوحة.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ---------- محلّلات نقية (مغطّاة باختبارات node، انظر scratchpad/rka-helpers.js) ---------- */
+function rkaDigits(s){
+  return String(s == null ? '' : s)
+    .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0))
+    .replace(/[٫٬]/g, m => m === '٫' ? '.' : '');
+}
+function rkaMeta(raw){
+  const s = rkaDigits(raw).trim().toLowerCase().replace(/[.،!؟]+$/,'');
+  if(!s) return null;
+  if(['الغاء','إلغاء','الغِ','ابطل','بطّل','توقف','stop','cancel'].includes(s)) return 'cancel';
+  if(['رجوع','ارجع','السابق','خطوة ورا','back','عودة','رجعني'].includes(s)) return 'back';
+  if(['تعديل','عدل','عدّل','edit'].includes(s)) return 'edit';
+  if(['من البداية','من جديد','ابدأ من جديد','من الأول','ابدا من جديد','restart','reset'].includes(s)) return 'restart';
+  if(['خلاص','يكفي','كفاية','كفى','خلص','done'].includes(s)
+     || /^(خلاص|كفى|يكفي)\b/.test(s)
+     || s.indexOf('كذا يكفي') >= 0 || s.indexOf('كذا كفاية') >= 0 || s.indexOf('بس كذا') >= 0 || s.indexOf('تمام كذا') >= 0)
+    return 'done';
+  return null;
+}
+function rkaChoice(raw, options){
+  const s = rkaDigits(raw).trim().toLowerCase().replace(/[.،!؟]+$/,'');
+  if(!s) return null;
+  const ordinals = {'اول':1,'أول':1,'الاول':1,'الأول':1,'واحد':1,'ثاني':2,'الثاني':2,'اثنين':2,'ثنين':2,'ثالث':3,'الثالث':3,'ثلاثة':3,'ثلاث':3,'رابع':4,'الرابع':4,'اربعة':4,'خامس':5,'الخامس':5};
+  let idx = null;
+  if(/^\d+$/.test(s)) idx = parseInt(s,10);
+  else if(ordinals[s]) idx = ordinals[s];
+  if(idx != null && idx >= 1 && idx <= options.length) return options[idx-1].value;
+  const yes = ['نعم','ايه','أيه','اي','أي','ايوه','أيوه','اكيد','أكيد','تمام','yes','y','صح','زين'];
+  const no  = ['لا','لأ','no','n','مب','مو'];
+  for(const o of options){ if(String(o.label).trim().toLowerCase() === s) return o.value; }
+  for(const o of options){ const lab = String(o.label).trim().toLowerCase(); if(lab.includes(s) || s.includes(lab)) return o.value; }
+  if(options.length === 2){
+    const labels = options.map(o=>String(o.label).trim().toLowerCase());
+    if(yes.includes(s)){ const i = labels.findIndex(l=>l.includes('نعم')); if(i>=0) return options[i].value; }
+    if(no.includes(s)){ const i = labels.findIndex(l=>l.includes('لا')); if(i>=0) return options[i].value; }
+  }
+  return null;
+}
+function rkaMoney(raw){
+  const s = rkaDigits(raw).replace(/[,\s]/g,'').replace(/ر\.?س|ريال|sar|﷼/gi,'');
+  if(!/^\d*\.?\d+$/.test(s)) return null;
+  const n = parseFloat(s);
+  return isFinite(n) ? n : null;
+}
+function rkaSizeLines(raw){
+  const text = rkaDigits(raw);
+  const parts = text.split(/\r?\n|،|,|؛|;/).map(p=>p.trim()).filter(Boolean);
+  const lines = [], errors = [];
+  for(const p of parts){
+    const m = p.match(/^(.*?)[\s:：=\-–—]*?(\d+(?:\.\d+)?)\s*(?:ر\.?س|ريال|sar|﷼)?\s*$/i);
+    if(!m || !m[1].trim()){ errors.push(p); continue; }
+    const name = m[1].replace(/[\s:：=\-–—]+$/,'').trim();
+    const price = parseFloat(m[2]);
+    if(!name || !isFinite(price)){ errors.push(p); continue; }
+    lines.push({ name, price });
+  }
+  return { lines, errors };
+}
+function rkaEsc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------------------------- المحرك ---------------------------- */
+const RKA = {
+  managers: {},
+  _doneKeys: new Set(),
+  _doneResults: {},
+  session: null,
+  els: null,
+
+  registerManager(def){ this.managers[def.id] = def; },
+
+  open(managerId, ctx){
+    const def = this.managers[managerId];
+    if(!def){ showToast('المدير غير موجود'); return; }
+    if(def.screen && typeof screenAllowed === 'function' && !screenAllowed(def.screen)){
+      showToast('ما عندك صلاحية لهذا القسم'); return;
+    }
+    this._ensurePanel();
+    this.session = { managerId, ctx: ctx || {}, def, workflow:null, answers:{}, steps:[], cursor:0, busy:false, idemKey:null, editing:false };
+    this.els.title.textContent = def.title;
+    this.els.sub.textContent = 'يمشي معك خطوة خطوة';
+    this.els.panel.classList.remove('busy');
+    this.els.panel.classList.add('open');
+    this.els.body.innerHTML = '';
+
+    // استئناف عملية ناقصة (بعد reload أو إغلاق) — أقل من ٣٠ دقيقة، لنفس المدير
+    const crumb = this._loadCrumb(managerId);
+    if(crumb){
+      const wf = (def.intents.find(it => it.workflow && it.workflow.id === crumb.workflowId) || {}).workflow;
+      if(wf){
+        this._say('bot', 'كنت بنص ' + (crumb.title || 'عملية') + '. تكمّل ولا تبدأ من جديد؟');
+        this._clearInteractive();
+        const wrap = document.createElement('div');
+        wrap.className = 'rka-choices';
+        const cont = document.createElement('button');
+        cont.className = 'rka-choice rka-primary'; cont.type = 'button';
+        cont.innerHTML = '<span class="rka-choice-num">1</span><span>أكمّل</span>';
+        cont.addEventListener('click', ()=> this._resumeCrumb(wf, crumb));
+        const fresh = document.createElement('button');
+        fresh.className = 'rka-choice'; fresh.type = 'button';
+        fresh.innerHTML = '<span class="rka-choice-num">2</span><span>من جديد</span>';
+        fresh.addEventListener('click', ()=>{ this._clearCrumb(); this.els.body.innerHTML=''; this._startManager(); });
+        wrap.appendChild(cont); wrap.appendChild(fresh);
+        this.els.body.appendChild(wrap);
+        this._resetInput('1 = أكمّل · 2 = من جديد');
+        setTimeout(()=> this.els.input && this.els.input.focus(), 250);
+        return;
+      }
+      this._clearCrumb();
+    }
+    this._startManager();
+    setTimeout(()=> this.els.input && this.els.input.focus(), 250);
+  },
+
+  _startManager(){
+    const def = this.session.def;
+    const ctx = this.session.ctx || {};
+    const greet = typeof def.greeting === 'function' ? def.greeting(ctx) : (def.greeting || 'وش تبي تسوي؟');
+    this._say('bot', greet);
+
+    // دخول مباشر على نيّة معيّنة (مثلاً "كمّل باقي المنتج" من نتيجة الإضافة)
+    if(ctx._jumpIntent){
+      const it = def.intents.find(x => x.id === ctx._jumpIntent);
+      if(it){ this._pickIntent(it, true); if(ctx._jumpAnswers) Object.assign(this.session.answers, ctx._jumpAnswers); if(ctx._jumpAnswers){ this._rebuildSteps(); this.session.cursor = this._firstPending(); this._runStep(); } return; }
+    }
+    if(def.intents.length === 1){
+      this._pickIntent(def.intents[0], true);
+    } else {
+      this._renderIntentPicker();
+      this._resetInput('اكتب رقم الخيار…');
+    }
+  },
+
+  close(){
+    if(this.session && this.session.busy) return;
+    if(this.els) this.els.panel.classList.remove('open');
+    this.session = null;
+  },
+
+  /* -------- breadcrumb (localStorage) so reload/close doesn't lose work -------- */
+  _crumbKey(mid){ return 'rka_crumb_' + mid + '_' + ((typeof CURRENT_PROFILE!=='undefined' && CURRENT_PROFILE) ? CURRENT_PROFILE.business_id : 'x'); },
+  _saveCrumb(){
+    const s = this.session;
+    if(!s || !s.workflow) return;
+    try {
+      const a = {}; Object.keys(s.answers).forEach(k => { if(k[0] !== '_' || k.slice(0,6)==='_raw_' || k==='_sizes') a[k] = s.answers[k]; });
+      const nm = s.answers.name ? (' «' + s.answers.name + '»') : '';
+      localStorage.setItem(this._crumbKey(s.managerId), JSON.stringify({
+        workflowId: s.workflow.id, title: (s._crumbTitle || 'عملية') + nm, answers: a, idemKey: s.idemKey || null, at: Date.now()
+      }));
+    } catch(e){}
+  },
+  _loadCrumb(mid){
+    try {
+      const raw = localStorage.getItem(this._crumbKey(mid));
+      if(!raw) return null;
+      const c = JSON.parse(raw);
+      if(!c || (Date.now() - c.at) > 30*60*1000){ localStorage.removeItem(this._crumbKey(mid)); return null; }
+      if(!c.answers || !Object.keys(c.answers).some(k => k[0] !== '_')) return null; // nothing meaningful entered yet
+      return c;
+    } catch(e){ return null; }
+  },
+  _clearCrumb(){ try { if(this.session) localStorage.removeItem(this._crumbKey(this.session.managerId)); } catch(e){} },
+  async _resumeCrumb(wf, crumb){
+    const s = this.session;
+    s.workflow = wf; s.answers = Object.assign({}, crumb.answers); s.idemKey = crumb.idemKey || null;
+    s.cursor = 0; s.editing = false; s.mode = null; s._exec = {}; s._passedInfo = {}; s._donePanel = false;
+    this._clearInteractive();
+    // لو كنا وصلنا "اعتماد" على المنتج الأساس وعندنا idemKey — تأكد من الخادم هل
+    // أُنشئ فعلًا. لو نعم: نعتبر مرحلة الأساس تمّت ونكمّل باقي المراحل (مو نختم).
+    if(s.idemKey && wf.checkDone){
+      this._say('bot', 'أتأكد من الخادم…');
+      try {
+        const done = await wf.checkDone(s.idemKey);
+        if(done && done.done && done.result && done.result.productId){
+          s._exec.base = { productId: done.result.productId, created: false };
+          s.answers._productId = done.result.productId;
+          s.answers._baseCreated = false;
+          this._say('bot', 'الأساس محفوظ ✓ — نكمّل الباقي.');
+        }
+      } catch(e){}
+    }
+    if(!s._exec.base) this._say('bot', 'نكمّل من مكان ما وقفت:');
+    this._rebuildSteps();
+    s.cursor = this._firstPending();
+    this._runStep();
+  },
+
+  _ensurePanel(){
+    if(this.els) return;
+    const panel = document.createElement('div');
+    panel.className = 'rka-panel';
+    panel.setAttribute('dir','rtl');
+    panel.innerHTML =
+      '<div class="rka-head">' +
+        '<div class="rka-head-badge">🧑‍💼</div>' +
+        '<div><div class="rka-head-title" id="rkaTitle"></div><div class="rka-head-sub" id="rkaSub"></div></div>' +
+        '<button class="rka-close" id="rkaClose" type="button" aria-label="إغلاق">✕</button>' +
+      '</div>' +
+      '<div class="rka-body" id="rkaBody"></div>' +
+      '<div class="rka-foot">' +
+        '<div class="rka-actions" id="rkaActions" hidden>' +
+          '<button class="rka-action-btn" data-act="back" type="button"><span class="rka-action-ic">↩</span>رجوع</button>' +
+          '<button class="rka-action-btn" data-act="edit" type="button"><span class="rka-action-ic">✎</span>تعديل</button>' +
+          '<button class="rka-action-btn rka-action-danger" data-act="cancel" type="button"><span class="rka-action-ic">✕</span>إلغاء</button>' +
+        '</div>' +
+        '<div class="rka-input-row">' +
+          '<textarea class="rka-input" id="rkaInput" rows="1" placeholder="اكتب هنا…"></textarea>' +
+          '<button class="rka-send" id="rkaSend" type="button" aria-label="إرسال">↩</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(panel);
+    this.els = {
+      panel,
+      title: panel.querySelector('#rkaTitle'),
+      sub: panel.querySelector('#rkaSub'),
+      body: panel.querySelector('#rkaBody'),
+      input: panel.querySelector('#rkaInput'),
+      send: panel.querySelector('#rkaSend'),
+      actions: panel.querySelector('#rkaActions'),
+    };
+    panel.querySelector('#rkaClose').addEventListener('click', ()=> this.close());
+    if(this.els.actions) this.els.actions.addEventListener('click', (e)=>{
+      const b = e.target && e.target.closest && e.target.closest('.rka-action-btn');
+      if(!b || b.disabled || !this.session || this.session.busy) return;
+      const act = b.dataset.act;
+      if(act === 'back') this._goBack();
+      else if(act === 'edit') this._openEditPicker();
+      else if(act === 'cancel') this._cancelFlow();
+    });
+    this.els.send.addEventListener('click', ()=> this._submit());
+    this.els.input.addEventListener('keydown', e=>{
+      if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); this._submit(); }
+    });
+    this.els.input.addEventListener('input', ()=>{
+      const el = this.els.input; el.style.height='auto'; el.style.height = Math.min(120, el.scrollHeight)+'px';
+    });
+    document.addEventListener('keydown', e=>{
+      if(e.key === 'Escape' && this.session && !this.session.busy && this.els.panel.classList.contains('open')) this.close();
+    });
+  },
+
+  _say(kind, textOrHtml, isHtml){
+    const div = document.createElement('div');
+    div.className = 'rka-msg rka-' + kind;
+    if(isHtml) div.innerHTML = textOrHtml; else div.textContent = textOrHtml;
+    this.els.body.appendChild(div);
+    this.els.body.scrollTop = this.els.body.scrollHeight;
+    return div;
+  },
+
+  _resetInput(placeholder){
+    if(!this.els) return;
+    this.els.input.value = '';
+    this.els.input.placeholder = placeholder || 'اكتب هنا…';
+    this.els.input.style.height = 'auto';
+    this.els.send.disabled = false;
+  },
+
+  _clearInteractive(){
+    this.els.body.querySelectorAll('.rka-choices').forEach(n=> n.remove());
+  },
+
+  // شريط أزرار «رجوع · تعديل · إلغاء» أسفل اللوحة — يظهر داخل الـworkflow فقط،
+  // وكل زر يتفعّل حسب السياق (تعديل يحتاج إجابة سابقة، رجوع يحتاج خطوة/قائمة)
+  _syncActionBar(){
+    const els = this.els; if(!els || !els.actions) return;
+    const s = this.session;
+    const active = !!(s && s.workflow && !s.busy && !s._donePanel && s.mode !== 'editpick');
+    els.actions.hidden = !active;
+    if(!active) return;
+    const q = a => els.actions.querySelector('.rka-action-btn[data-act="' + a + '"]');
+    const anyAnswered = (s.steps || []).some(st => (st.type === 'ask' || st.type === 'choose') && s.answers[st.key] !== undefined);
+    const canBack = this._prevAnswerableIdx() >= 0 || this._canBackToPicker() || (s.steps || []).some(st => st.type === 'review');
+    if(q('back')) q('back').disabled = !canBack;
+    if(q('edit')) q('edit').disabled = !anyAnswered;
+    if(q('cancel')) q('cancel').disabled = false;
+  },
+
+  _renderIntentPicker(){
+    if(this.session) this.session._donePanel = false;
+    this._clearInteractive();
+    this._syncActionBar();
+    const wrap = document.createElement('div');
+    wrap.className = 'rka-choices';
+    this.session.def.intents.forEach((it, i)=>{
+      const b = document.createElement('button');
+      b.className = 'rka-choice';
+      b.type = 'button';
+      b.innerHTML = '<span class="rka-choice-num">'+(i+1)+'</span><span>'+rkaEsc(it.label)+'</span>';
+      b.addEventListener('click', ()=> this._pickIntent(it));
+      wrap.appendChild(b);
+    });
+    this.els.body.appendChild(wrap);
+    this.els.body.scrollTop = this.els.body.scrollHeight;
+  },
+
+  _pickIntent(intent, silent){
+    if(this.session.busy) return;
+    this._clearInteractive();
+    if(!silent) this._say('user', intent.label);
+    this.session.workflow = intent.workflow;
+    this.session._crumbTitle = intent.label;
+    this.session.answers = {};
+    this.session.cursor = 0;
+    this.session.idemKey = null;
+    this.session._exec = {}; this.session._passedInfo = {}; this.session._donePanel = false;
+    this._rebuildSteps();
+    this._runStep();
+  },
+
+  _rebuildSteps(){
+    const wf = this.session.workflow;
+    this.session.steps = (wf && wf.buildSteps(this.session.answers, this.session.ctx)) || [];
+  },
+
+  _runStep(){
+    const sess = this.session;
+    sess.mode = null; // any real step render leaves the "pick a field" sub-mode
+    const s = sess.steps[sess.cursor];
+    if(!s) return;
+    this._clearInteractive();
+
+    if(s.type === 'info'){
+      this._say('bot', typeof s.text === 'function' ? s.text(sess.answers, sess.ctx) : s.text);
+      sess._passedInfo = sess._passedInfo || {};
+      sess._passedInfo[s.key || sess.cursor] = true;
+      this._rebuildSteps();
+      sess.cursor = this._firstPending();
+      this._runStep();
+      return;
+    }
+
+    const prompt = typeof s.prompt === 'function' ? s.prompt(sess.answers, sess.ctx) : s.prompt;
+    this._say('bot', prompt, false);
+    if(s.hint){ const h = typeof s.hint === 'function' ? s.hint(sess.answers) : s.hint; if(h) this._say('note', h, true); }
+
+    if(s.type === 'choose'){
+      const opts = typeof s.options === 'function' ? s.options(sess.answers, sess.ctx) : s.options;
+      s._opts = opts;
+      const wrap = document.createElement('div');
+      wrap.className = 'rka-choices';
+      opts.forEach((o,i)=>{
+        const b = document.createElement('button');
+        b.className = 'rka-choice' + (o.primary?' rka-primary':'');
+        b.type='button';
+        b.innerHTML = '<span class="rka-choice-num">'+(i+1)+'</span><span>'+rkaEsc(o.label)+'</span>';
+        b.addEventListener('click', ()=> this._answerCurrent(String(i+1)));
+        wrap.appendChild(b);
+      });
+      this._appendBackButton(wrap);
+      this.els.body.appendChild(wrap);
+      this._resetInput('اكتب رقم الخيار أو اسمه…');
+    } else if(s.type === 'review'){
+      const card = document.createElement('div');
+      card.className = 'rka-msg rka-bot';
+      card.style.maxWidth = '100%';
+      card.innerHTML = '<div class="rka-review"><dl>'+ s.summary(sess.answers, sess.ctx) +'</dl></div>';
+      this.els.body.appendChild(card);
+      const wrap = document.createElement('div');
+      wrap.className = 'rka-choices';
+      const mk = (lbl, primary, fn, i)=>{
+        const b=document.createElement('button');
+        b.className='rka-choice'+(primary?' rka-primary':'');
+        b.type='button';
+        b.innerHTML='<span class="rka-choice-num">'+(i+1)+'</span><span>'+lbl+'</span>';
+        b.addEventListener('click', fn);
+        return b;
+      };
+      wrap.appendChild(mk('اعتماد', true, ()=> this._confirmExecute(), 0));
+      wrap.appendChild(mk('تعديل', false, ()=> this._openEditPicker(), 1));
+      this.els.body.appendChild(wrap);
+      this._resetInput('1 = اعتماد · 2 = تعديل');
+    } else if(s.type === 'execute'){
+      this._confirmExecute();
+      return;
+    } else {
+      // خطوة ask — نضيف زر رجوع مرئي لو فيه خطوة سابقة تُعدَّل، أو (لو هذي أول
+      // خطوة في مدير متعدّد المهام) رجوع لقائمة المهام
+      if(this._prevAnswerableIdx() >= 0 || this._canBackToPicker()){
+        const wrap = document.createElement('div');
+        wrap.className = 'rka-choices';
+        this._appendBackButton(wrap);
+        this.els.body.appendChild(wrap);
+      }
+      this._resetInput(s.placeholder || 'اكتب هنا…');
+    }
+    this.els.body.scrollTop = this.els.body.scrollHeight;
+    this._syncActionBar();
+    setTimeout(()=> this.els.input && this.els.input.focus(), 60);
+  },
+
+  // هل نقدر نرجّع المستخدم لقائمة اختيار المهمة؟ (مدير فيه أكثر من نيّة، وإحنا
+  // داخل workflow ما بدأنا نكتب فيه شي فعليًا)
+  _canBackToPicker(){
+    const s = this.session;
+    return !!(s && s.workflow && s.def && s.def.intents && s.def.intents.length > 1 && !s.idemKey);
+  },
+
+  // زر «رجوع» — يظهر لو فيه خطوة سابقة تُعدَّل، أو للرجوع لقائمة المهام من أول خطوة
+  _appendBackButton(wrap){
+    const prevIdx = this._prevAnswerableIdx();
+    const toPicker = prevIdx < 0 && this._canBackToPicker();
+    if(prevIdx < 0 && !toPicker) return;
+    let lbl;
+    if(toPicker){
+      lbl = 'لقائمة المهام';
+    } else {
+      const prev = this.session.steps[prevIdx];
+      lbl = prev && typeof (prev.prompt) !== 'undefined'
+        ? (typeof prev.prompt === 'function' ? prev.prompt(this.session.answers, this.session.ctx) : prev.prompt).split('\n')[0]
+        : '';
+    }
+    const b = document.createElement('button');
+    b.className = 'rka-choice rka-back';
+    b.type = 'button';
+    b.innerHTML = '<span class="rka-choice-num">↩</span><span>رجوع' + (lbl ? ' — ' + rkaEsc(lbl.length > 34 ? lbl.slice(0, 34) + '…' : lbl) : ' للسؤال السابق') + '</span>';
+    b.addEventListener('click', ()=> this._goBack());
+    wrap.appendChild(b);
+  },
+
+  _submit(){
+    if(!this.session || this.session.busy) return;
+    const raw = this.els.input.value.trim();
+    if(!raw) return;
+    const sess = this.session;
+    const meta = rkaMeta(raw);
+
+    // حالة "اختر حقلًا لتعديله" — الأرقام هنا تختار حقلًا، لا تُعامَل كإجابة خطوة
+    if(sess.mode === 'editpick'){
+      this._say('user', raw);
+      if(meta === 'cancel') return this._cancelFlow();
+      if(meta === 'restart') { sess.mode = null; return this._restartFlow(); }
+      const list = sess._editList || [];
+      const n = /^\d+$/.test(rkaDigits(raw).trim()) ? parseInt(rkaDigits(raw).trim(), 10) : null;
+      if(n === list.length + 1 || meta === 'back' || /مراجعة|رجوع/.test(raw)){
+        sess.mode = null;
+        const rIdx = sess.steps.findIndex(x => x.type === 'review');
+        sess.cursor = rIdx >= 0 ? rIdx : sess.cursor;
+        sess.editing = false;
+        this._runStep();
+        return;
+      }
+      if(n != null && n >= 1 && n <= list.length){
+        sess.mode = null;
+        this._jumpToEdit(list[n - 1]);
+        return;
+      }
+      this._say('error', 'اكتب رقم من ١ إلى ' + (list.length + 1) + '.', true);
+      this._resetInput();
+      return;
+    }
+
+    // حالة اختيار النيّة (ما بدأنا workflow) — رقم يختار اختصارًا، وجملة طبيعية
+    // ("أبي أضيف برجر"، "كمّل برجر لحم") تدخل الـworkflow مباشرة.
+    if(!sess.workflow){
+      this._say('user', raw);
+      if(meta === 'cancel') return this.close();
+      const intents = sess.def.intents;
+      const n = /^\d+$/.test(rkaDigits(raw).trim()) ? parseInt(rkaDigits(raw).trim(), 10) : null;
+      if(n != null && n >= 1 && n <= intents.length) return this._pickIntent(intents[n - 1], true);
+      const classify = sess.def.classifyIntent || (typeof rkaClassifyIntent === 'function' ? rkaClassifyIntent : null);
+      const cls = classify ? classify(raw) : null;
+      if(cls && intents.some(i => i.id === cls.id)){
+        const it = intents.find(i => i.id === cls.id);
+        this._pickIntent(it, true);
+        if(cls.seed && Object.keys(cls.seed).length){
+          Object.assign(sess.answers, cls.seed);
+          this._rebuildSteps();
+          sess.cursor = this._firstPending();
+        }
+        this._runStep();
+        return;
+      }
+      this._say('bot', 'ما فهمت. اختر رقم من فوق، أو قل مثل: «أضيف برجر لحم» / «كمّل قهوة» / «عدّل سعر لاتيه».');
+      this._renderIntentPicker();
+      this._resetInput('رقم الاختصار أو جملة…');
+      return;
+    }
+
+    const s = sess.steps[sess.cursor];
+    if(s && s.type === 'review'){
+      this._say('user', raw);
+      if(meta === 'cancel') return this._cancelFlow();
+      if(meta === 'restart') return this._restartFlow();
+      if(meta === 'back' || meta === 'edit' || raw === '2') { this._resetInput(); return this._openEditPicker(); }
+      const norm = rkaDigits(raw).trim();
+      if(meta === 'done' || raw === '1' || /^(اعتمد|اعتماد|تمام|ايه|نعم|احفظ|اوك|ok)$/i.test(norm)) return this._confirmExecute();
+      this._say('error','اكتب <b>1</b> للاعتماد، <b>2</b> للتعديل، أو <b>إلغاء</b>.', true);
+      this._resetInput();
+      return;
+    }
+    this._answerCurrent(raw);
+  },
+
+  _jumpToEdit(step){
+    const sess = this.session;
+    sess.cursor = sess.steps.indexOf(step);
+    sess.editing = true;
+    delete sess.answers[step.key];
+    this._clearInteractive();
+    this._runStep();
+  },
+
+  _answerCurrent(raw){
+    const sess = this.session;
+    const s = sess.steps[sess.cursor];
+    if(!s) return;
+    const meta = rkaMeta(raw);
+    if(meta === 'cancel'){ this._say('user', raw); return this._cancelFlow(); }
+    if(meta === 'done'){ this._say('user', raw); return this._finishEarly(); }
+    if(meta === 'back' || meta === 'edit'){ this._say('user', raw); return this._goBack(); }
+    if(meta === 'restart'){ this._say('user', raw); return this._restartFlow(); }
+
+    if(s.type === 'choose'){
+      const opts = s._opts || (typeof s.options === 'function' ? s.options(sess.answers, sess.ctx) : s.options);
+      const picked = rkaChoice(raw, opts);
+      if(picked == null){
+        this._say('user', raw);
+        this._say('error','ما فهمت الاختيار. اكتب رقم من ١ إلى '+opts.length+'، أو اسم الخيار.', true);
+        this._resetInput();
+        return;
+      }
+      const label = (opts.find(o=>o.value===picked)||{}).label || raw;
+      this._say('user', label); // echo the chosen label, not the keystroke
+      sess.answers[s.key] = picked;
+      sess.answers['_raw_'+s.key] = raw;
+    } else {
+      const parsed = s.parse ? s.parse(raw) : raw.trim();
+      const err = s.validate ? s.validate(parsed, sess.answers, sess.ctx) : null;
+      this._say('user', raw);
+      // validate can return { message, choices:[{label,value}], onPick } to turn
+      // an ambiguous answer into pick-one buttons instead of "اكتب الاسم كامل".
+      if(err && typeof err === 'object' && Array.isArray(err.choices)){
+        this._say('error', err.message || 'فيه أكثر من احتمال — اختر:', true);
+        const wrap = document.createElement('div');
+        wrap.className = 'rka-choices';
+        err.choices.forEach((c, i)=>{
+          const b = document.createElement('button');
+          b.className = 'rka-choice'; b.type = 'button';
+          b.innerHTML = '<span class="rka-choice-num">'+(i+1)+'</span><span>'+rkaEsc(c.label)+'</span>';
+          b.addEventListener('click', ()=>{
+            this._say('user', c.label);
+            if(typeof err.onPick === 'function') err.onPick(c.value, sess.answers);
+            else sess.answers[s.key] = c.value;
+            this._saveCrumb();
+            this._rebuildSteps();
+            sess.cursor = this._firstPending();
+            this._runStep();
+          });
+          wrap.appendChild(b);
+        });
+        this.els.body.appendChild(wrap);
+        this._resetInput(s.placeholder);
+        return;
+      }
+      if(err){ this._say('error', err, true); this._resetInput(s.placeholder); return; }
+      sess.answers[s.key] = parsed;
+      sess.answers['_raw_'+s.key] = raw;
+    }
+    this._saveCrumb();
+
+    // steps can reshape after every answer (multi-stage / recipe loop), so we
+    // re-locate the cursor by "first unsatisfied step" rather than by index math.
+    this._rebuildSteps();
+    if(sess.editing){
+      sess.editing = false;
+      const rIdx = sess.steps.findIndex(x => x.type === 'review');
+      const ready = rIdx < 0 ? false : sess.steps.slice(0, rIdx).every(x => (x.type !== 'ask' && x.type !== 'choose') || sess.answers[x.key] !== undefined);
+      sess.cursor = (rIdx >= 0 && ready) ? rIdx : this._firstPending();
+    } else {
+      sess.cursor = this._firstPending();
+    }
+    this._runStep();
+  },
+
+  // index of the first step still needing attention. Steps can reshape between
+  // answers (multi-stage), so this is the single source of "where are we".
+  //  - ask/choose: pending until answered
+  //  - execute: pending until it appears in sess._exec (ran successfully)
+  //  - review: pending until the NEXT execute after it has run
+  //  - info: return it (─runStep auto-advances)
+  _firstPending(){
+    const sess = this.session;
+    const st = sess.steps;
+    const exec = sess._exec || {};
+    const pInfo = sess._passedInfo || {};
+    for(let i = 0; i < st.length; i++){
+      const s = st[i];
+      if(s.type === 'info'){ if(pInfo[s.key || i]) continue; return i; }
+      if(s.type === 'ask' || s.type === 'choose'){
+        if(sess.answers[s.key] === undefined) return i;
+        continue;
+      }
+      if(s.type === 'execute'){
+        if(exec[s.key] === undefined) return i;
+        continue;
+      }
+      if(s.type === 'review'){
+        let j = i + 1; while(j < st.length && st[j].type !== 'execute') j++;
+        if(j < st.length && exec[st[j].key] !== undefined) continue; // its execute ran → review passed
+        return i;
+      }
+    }
+    return st.length;
+  },
+
+  // أقرب خطوة سابقة يقدر يعدّلها المستخدم (ask/choose) — نتخطّى info/execute/review
+  _prevAnswerableIdx(from){
+    const sess = this.session;
+    let c = (from == null ? sess.cursor : from) - 1;
+    while(c >= 0){
+      const t = sess.steps[c] && sess.steps[c].type;
+      if(t === 'ask' || t === 'choose') return c;
+      c--;
+    }
+    return -1;
+  },
+
+  _goBack(){
+    const sess = this.session;
+    const c = this._prevAnswerableIdx();
+    if(c < 0){
+      // أول خطوة في الـworkflow — لو المدير فيه أكثر من مهمة ولسا ما كتبنا شي،
+      // نرجّع لقائمة المهام بدل ما نقول "هذي أول خطوة"
+      if(this._canBackToPicker()){
+        sess.workflow = null; sess.answers = {}; sess.cursor = 0;
+        sess.idemKey = null; sess.editing = false; sess.mode = null;
+        sess._exec = {}; sess._passedInfo = {};
+        this._clearCrumb();
+        this._say('bot','رجعناك للقائمة — اختر المهمة:');
+        this._renderIntentPicker();
+        this._resetInput('اكتب رقم الخيار…');
+        return;
+      }
+      this._say('bot','هذي أول خطوة. تقدر تكتب <b>إلغاء</b> لو تبي توقف.', true); this._resetInput(); return;
+    }
+    const target = sess.steps[c];
+    const prevRaw = sess.answers['_raw_' + target.key];
+    if(target.key){ delete sess.answers[target.key]; delete sess.answers['_raw_' + target.key]; }
+    sess.editing = false;
+    // الخطوات قد تُعاد تشكيلها بعد مسح الإجابة — نثبّت المؤشر على نفس الخطوة بالمفتاح
+    this._rebuildSteps();
+    const ni = sess.steps.findIndex(x => x.key === target.key);
+    sess.cursor = ni >= 0 ? ni : this._firstPending();
+    this._say('bot', 'رجعنا خطوة — عدّلها وكمّل من هنا.');
+    this._runStep();
+    if(target.type !== 'choose' && prevRaw && this.els.input) this.els.input.value = prevRaw;
+  },
+
+  _restartFlow(){
+    const sess = this.session;
+    sess.answers = {}; sess.cursor = 0; sess.idemKey = null; sess.editing = false; sess.mode = null; sess._exec = {}; sess._passedInfo = {}; sess._donePanel = false;
+    this._clearCrumb();
+    this._rebuildSteps();
+    this._say('bot','بدأنا من جديد.');
+    this._runStep();
+  },
+
+  _cancelFlow(){
+    this._clearCrumb();
+    this.session.workflow = null;
+    this.session.answers = {};
+    this.session.cursor = 0;
+    this.session.idemKey = null;
+    this.session.editing = false;
+    this.session.mode = null;
+    this.session._exec = {}; this.session._passedInfo = {};
+    if(this.session.def.intents.length === 1){
+      // مدير بنيّة واحدة — الإلغاء يعني "خلصت"، فنقفل ونرجّع للعمل اليدوي
+      this._say('bot','تمام، ألغينا.');
+      setTimeout(()=> this.close(), 350);
+    } else {
+      this._say('bot','تمام، ألغينا. تقدر تختار شي ثاني:');
+      this._renderIntentPicker();
+      this._resetInput('اكتب رقم الخيار…');
+    }
+  },
+
+  _openEditPicker(){
+    const sess = this.session;
+    const editable = sess.steps.filter(s=> (s.type==='ask'||s.type==='choose') && sess.answers[s.key] !== undefined);
+    if(editable.length === 0){ this._say('bot','ما فيه شي تعدّله بعد — جاوب أول سؤال وبتقدر ترجع تعدّله.'); this._resetInput(); return; }
+    sess.mode = 'editpick';
+    sess._editList = editable;
+    this._clearInteractive();
+    this._say('bot','وش تبي تعدّل؟ (اكتب رقمه)');
+    const wrap = document.createElement('div');
+    wrap.className = 'rka-choices';
+    editable.forEach((s,i)=>{
+      const b=document.createElement('button');
+      b.className='rka-choice'; b.type='button';
+      const lbl = (typeof s.prompt==='function' ? s.prompt(sess.answers,sess.ctx) : s.prompt).split('\n')[0];
+      b.innerHTML='<span class="rka-choice-num">'+(i+1)+'</span><span>'+rkaEsc(lbl)+'</span>';
+      b.addEventListener('click', ()=>{ sess.mode = null; this._jumpToEdit(s); });
+      wrap.appendChild(b);
+    });
+    const back = document.createElement('button');
+    back.className='rka-choice'; back.type='button';
+    back.innerHTML='<span class="rka-choice-num">'+(editable.length+1)+'</span><span>رجوع للمراجعة</span>';
+    back.addEventListener('click', ()=>{
+      sess.mode = null;
+      const rIdx = sess.steps.findIndex(x=>x.type==='review');
+      sess.cursor = rIdx >= 0 ? rIdx : sess.cursor;
+      sess.editing = false;
+      this._clearInteractive();
+      this._runStep();
+    });
+    wrap.appendChild(back);
+    this.els.body.appendChild(wrap);
+    this._syncActionBar();
+    this._resetInput('اكتب رقم الحقل…');
+  },
+
+  // ينفّذ خطوة execute واحدة. لو بعدها خطوات، يكمل الـworkflow (مرحلة تالية).
+  // لو ما فيه، يختم. كل execute له مفتاح idempotency فرعي خاص فيه.
+  async _confirmExecute(){
+    const sess = this.session;
+    if(sess.busy) return;
+    let ei = sess.cursor;
+    if(!(sess.steps[ei] && sess.steps[ei].type === 'execute')){
+      ei = sess.steps.findIndex((s, i) => i >= sess.cursor && s.type === 'execute');
+      if(ei < 0) ei = sess.steps.findIndex(s => s.type === 'execute');
+    }
+    const execStep = sess.steps[ei];
+    if(!execStep){ this._say('error','ما فيه خطوة تنفيذ.'); return; }
+    if(sess.def.screen && typeof screenAllowed === 'function' && !screenAllowed(sess.def.screen)){
+      this._say('error','ما عندك صلاحية تنفيذ هذي العملية.'); return;
+    }
+    if(!sess.idemKey) sess.idemKey = 'rka_'+Date.now()+'_'+Math.random().toString(36).slice(2,9);
+    const stepKey = sess.idemKey + ':' + (execStep.idemKind || execStep.key || ei);
+    this._saveCrumb();
+    sess.busy = true; sess.mode = null;
+    this.els.panel.classList.add('busy');
+    this._clearInteractive();
+    if(execStep.pending) this._say('bot', execStep.pending);
+    try {
+      const res = await execStep.run(sess.answers, sess.ctx, stepKey);
+      sess.busy = false;
+      this.els.panel.classList.remove('busy');
+      sess._exec = sess._exec || {};
+      sess._exec[execStep.key || ei] = res;
+      if(res && res.message) this._say('bot', res.message);
+      if(res && res.closePanel){ this._afterExecute(res); return; }
+      // مرحلة تالية؟ نعيد بناء الخطوات ونروح لأول خطوة ناقصة. لو ما فيه، نختم.
+      this._rebuildSteps();
+      const nextIdx = this._firstPending();
+      if(nextIdx < sess.steps.length){
+        sess.cursor = nextIdx;
+        this._runStep();
+      } else {
+        this._afterExecute(res);
+      }
+    } catch(err){
+      sess.busy = false;
+      this.els.panel.classList.remove('busy');
+      const msg = (err && err.message) ? err.message : 'خطأ غير متوقع';
+      this._say('error','تعذّر التنفيذ: '+rkaEsc(msg)+'\nما وصلني تأكيد الحفظ. أعِد المحاولة — النظام يمنع التكرار.', true);
+      const wrap = document.createElement('div');
+      wrap.className='rka-choices';
+      const mk=(lbl,pri,fn,i)=>{ const b=document.createElement('button'); b.className='rka-choice'+(pri?' rka-primary':''); b.type='button'; b.innerHTML='<span class="rka-choice-num">'+i+'</span><span>'+lbl+'</span>'; b.addEventListener('click',fn); return b; };
+      wrap.appendChild(mk('أعِد المحاولة', true, ()=> this._confirmExecute(), 1));
+      wrap.appendChild(mk('تعديل البيانات', false, ()=> this._openEditPicker(), 2));
+      if(sess._exec && sess._exec.base){ // منتج الأساس موجود — نقدر نختم على ما تم
+        wrap.appendChild(mk('خلاص كذا يكفي', false, ()=> this._finishEarly(), 3));
+      }
+      this.els.body.appendChild(wrap);
+      this.els.body.scrollTop = this.els.body.scrollHeight;
+    }
+  },
+
+  // "خلاص كذا يكفي" في أي وقت بعد إنشاء المنتج الأساس → يختم على ما تم ويعرض الاكتمال
+  _finishEarly(){
+    const sess = this.session;
+    const base = sess._exec && sess._exec.base;
+    if(!base || !base.productId){ return this._cancelFlow(); }
+    const wf = sess.workflow;
+    const res = { productId: base.productId, created: base.created,
+      message: (wf && wf.finishMessage) ? wf.finishMessage(sess.answers, sess.ctx) : 'تمام، وقفنا هنا. المنتج محفوظ ✓' };
+    this._say('bot', res.message);
+    this._afterExecute(res);
+  },
+
+  _afterExecute(res){
+    const sess = this.session;
+    const wf = sess.workflow;
+    this._clearCrumb();
+    if(res && res.closePanel){
+      sess.answers = {}; sess.cursor = 0; sess.idemKey = null; sess.mode = null;
+      setTimeout(()=> this.close(), 900); // give the user a beat to read the message
+      return;
+    }
+    const wrap = document.createElement('div');
+    wrap.className='rka-choices';
+    const acts = ((wf && wf.doneActions) ? wf.doneActions(res, sess.ctx) : [])
+      .concat([{ label:'خلاص، سكّر', run:()=> this.close() }]);
+    acts.forEach((a,i)=>{
+      const b=document.createElement('button');
+      b.className='rka-choice'+(i===0?' rka-primary':'');
+      b.type='button';
+      b.innerHTML='<span class="rka-choice-num">'+(i+1)+'</span><span>'+rkaEsc(a.label)+'</span>';
+      b.addEventListener('click', ()=> a.run());
+      wrap.appendChild(b);
+    });
+    this.els.body.appendChild(wrap);
+    sess.answers = {}; sess.cursor = 0; sess.idemKey = null; sess.editing = false; sess.mode = null; sess._exec = {}; sess._passedInfo = {};
+    sess._donePanel = true;
+    this._syncActionBar();
+    this.els.body.scrollTop = this.els.body.scrollHeight;
+    this._resetInput('اكتب رقم الخيار…');
+  },
+
+  // يبدأ نفس الـworkflow من جديد (يُستدعى من doneActions "أضف واحد ثاني")
+  restartSameWorkflow(introLine, carryAnswers){
+    const sess = this.session;
+    if(!sess || !sess.workflow) return;
+    this._resetFlowState(sess.workflow, carryAnswers, introLine);
+  },
+  // ينتقل لنيّة أخرى داخل نفس المدير مع تمهيد إجابات (مثلاً: من "إضافة" إلى "أكمل منتج X")
+  restartSameWorkflowAs(intentId, seedAnswers, introLine){
+    const sess = this.session;
+    if(!sess) return;
+    const it = sess.def.intents.find(x => x.id === intentId);
+    if(!it){ return this._cancelFlow(); }
+    this._resetFlowState(it.workflow, seedAnswers, introLine || 'تمام، نكمّل:');
+  },
+  _resetFlowState(workflow, seed, introLine){
+    const sess = this.session;
+    this._clearCrumb();
+    sess.workflow = workflow;
+    sess.answers = Object.assign({}, seed || {});
+    sess.cursor = 0; sess.idemKey = null; sess.editing = false;
+    sess.mode = null; sess._exec = {}; sess._passedInfo = {}; sess._donePanel = false;
+    this.els.body.innerHTML = '';
+    if(introLine) this._say('bot', introLine);
+    this._rebuildSteps();
+    sess.cursor = this._firstPending();
+    this._runStep();
+  },
+};
+
+/* ───────────────── مدير المنتجات ─────────────────
+   موظف صفحة المنتجات. يقود صاحب المطعم من "أبي أضيف برجر" حتى منتج مكتمل
+   بقدر ما يريد: الأساس → الأحجام → التكلفة (مباشرة / وصفة من المخزون) →
+   الإضافات (من الموجود أو مجموعة جديدة). العميل يقدر يقول "خلاص كذا يكفي"
+   بأي لحظة. كل كتابة تمرّ من RPC ذرّي (انظر migration 20260909020000).      */
+
+/* ---------- مطابقة نصّية بسيطة (لا AI): تام ثم تطبيع مسافات ثم جزئي ---------- */
+function rkaNorm(s){ return String(s == null ? '' : s).replace(/\s+/g, ' ').trim().toLowerCase(); }
+function rkaMatchIn(raw, list, nameOf, aliasesOf){
+  const q = rkaNorm(rkaDigits(raw));
+  if(!q) return { none: true };
+  const exact = list.filter(x => rkaNorm(nameOf(x)) === q || (aliasesOf && (aliasesOf(x) || []).some(a => rkaNorm(a) === q)));
+  if(exact.length === 1) return { item: exact[0] };
+  if(exact.length > 1) return { many: exact };
+  const part = list.filter(x => { const n = rkaNorm(nameOf(x)); return n.includes(q) || q.includes(n); });
+  if(part.length === 1) return { item: part[0] };
+  if(part.length > 1 && part.length <= 8) return { many: part };
+  return { none: true };
+}
+function rkaStockMatch(raw){
+  return rkaMatchIn(raw, (typeof STOCK_ITEMS !== 'undefined' ? STOCK_ITEMS : []), s => s.name, s => s.aliasNames);
+}
+function rkaProductMatch(raw){
+  const live = (typeof MENU_ITEMS !== 'undefined' ? MENU_ITEMS : []).filter(m => m.active !== false && !String(m.name).includes('(مؤرشف)'));
+  return rkaMatchIn(raw, live, m => m.name);
+}
+
+// تصنيف جملة طبيعية إلى نيّة (deterministic، بلا AI). يرجّع {id, seed} أو null.
+function rkaClassifyIntent(raw){
+  let s = ' ' + rkaDigits(raw).trim().toLowerCase().replace(/[.،؟!]+/g, ' ').replace(/\s+/g, ' ') + ' ';
+  const strip = (str, verbs) => {
+    let out = str;
+    for(const v of verbs) out = out.replace(v, ' ');
+    return out.replace(/\bلي\b|\bمنتج\b|\bصنف\b|\bال(?=\S)/g, ' ').replace(/\s+/g, ' ').trim();
+  };
+  const priceRe   = /(عدل|عدّل|غير|غيّر|بدل|بدّل|رفع|نزّل|خفّض|حدّث)\s+.*سعر|سعر\s+.*(صير|يصير)|تعديل سعر/;
+  const completeRe = /(كمّل|كمل|أكمل|اكمل|كمّلي|تكمل|كمّله|كمله|اكمّل|باقي على|وش باقي)/;
+  const addRe     = /(أضف|اضف|ضيف|ضف|سجّل|سجل|أبي أضيف|ابي اضيف|منتج جديد|صنف جديد|أنشئ منتج|انشئ منتج|إضافة منتج|اضافة منتج)/;
+  if(priceRe.test(s)){
+    const name = strip(s, [/عدل|عدّل|غير|غيّر|بدل|بدّل|رفع|نزّل|خفّض|حدّث|سعر|السعر|حق|تبع/g]);
+    return { id: 'price', seed: name ? { _pendingName: name } : {} };
+  }
+  if(completeRe.test(s)){
+    const name = strip(s, [/كمّل|كمل|أكمل|اكمل|كمّلي|تكمل|كمّله|كمله|اكمّل|باقي على|وش باقي|بيانات/g]);
+    return { id: 'complete', seed: name ? { _pendingName: name } : {} };
+  }
+  if(addRe.test(s)){
+    const name = strip(s, [/أضف|اضف|ضيف|ضف|سجّل|سجل|أبي|ابي|أنشئ|انشئ|جديد|إضافة|اضافة|بغيت|ودّي|ابغى|أبغى/g]);
+    return { id: 'add', seed: name ? { _pendingName: name } : {} };
+  }
+  return null;
+}
+// وحدة الوصفة الافتراضية لصنف مخزون: غرام للوزن، وإلا وحدته
+function rkaRecipeUnit(stockItem){ return (stockItem.unit === 'kg' || stockItem.unit === 'g') ? 'g' : stockItem.unit; }
+// «١٨٠ مل» / «٢٠ غ» / «٠.٢ لتر» / «150» → {qty, unit}. الوحدة الافتراضية =
+// وحدة الوصفة الطبيعية للصنف. يرجّع {error} لو الوحدة غير متوافقة.
+function rkaRecipeQtyUnit(raw, stockItem){
+  const s = (typeof rkaDigits === 'function' ? rkaDigits(String(raw || '')) : String(raw || '')).trim().toLowerCase();
+  const m = s.match(/^(\d*\.?\d+)\s*(.*)$/);
+  if(!m) return { error: 'اكتب كمية رقمية — مثال: 180 مل.' };
+  const qty = parseFloat(m[1]);
+  if(!(qty > 0)) return { error: 'اكتب كمية أكبر من صفر.' };
+  const w = m[2].trim();
+  let unit = null;
+  if(!w) unit = rkaRecipeUnit(stockItem);
+  else if(/^(مل|ملل|مليل|ml)/.test(w)) unit = 'ml';
+  else if(/^(لتر|ل|liter|l)$/.test(w) || /^لتر/.test(w)) unit = 'liter';
+  else if(/^(كجم|كيلو|kg)/.test(w)) unit = 'kg';
+  else if(/^(غ|جم|غرام|جرام|g)/.test(w)) unit = 'g';
+  else if(/^(حبة|حبه|قطعة|قطعه|piece|pc)/.test(w)) unit = 'piece';
+  else return { error: 'وحدة غير معروفة «' + w + '». استخدم: مل / لتر / غرام / كجم / حبة.' };
+  const base = stockItem.unit;
+  const fam = u => (u === 'g' || u === 'kg') ? 'mass' : (u === 'ml' || u === 'liter') ? 'vol' : 'count';
+  if(fam(unit) !== fam(base)){
+    // صنف مُتتبَّع بالحجم يقبل الغرام دائمًا — الكثافة معروفة تلقائيًا
+    if(fam(base) === 'vol' && fam(unit) === 'mass') { /* يُحوَّل بالكثافة */ }
+    else return { error: '«' + stockItem.name + '» مسجّل بالـ' + rkaUnitLabel(base) + '. أدخله بالـ' + rkaUnitLabel(base)
+      + (fam(base) === 'vol' ? ' أو المل أو الغرام' : (fam(base) === 'mass' ? ' أو الغرام أو الكيلو' : '')) + '.' };
+  }
+  return { qty, unit };
+}
+// تكلفة سطر وصفة حيّة من بيانات المخزون (نفس تحويل convertToUnit / compute_line_cost)
+function rkaLineCost(line){
+  const si = (typeof STOCK_ITEMS !== 'undefined' ? STOCK_ITEMS : []).find(s => s.id === line.stock_item_id);
+  if(!si) return 0;
+  const q = (typeof convertToUnit === 'function') ? convertToUnit(line.qty, line.unit, si.unit, si.gramsPerUnit) : line.qty;
+  return q * (Number(si.unitCost) || 0);
+}
+function rkaMoneyFmt(n){ n = Number(n) || 0; return (Math.abs(n) < 0.1 && n !== 0) ? n.toFixed(3) : n.toFixed(2); }
+
+/* ---------- خريطة اكتمال المنتج ----------
+   الحالات:  done      مكتمل
+             optional  اختياري (ما يحتاجه كل منتج) → —
+             na        غير مطلوب لهذا المنتج بعينه → لا يُعرض
+             skipped   أجّله المستخدم بإرادته → —
+             blocked   ممنوع بالصلاحيات → 🔒
+             needed    ناقص ويؤثّر → ❌
+   opts = { costSkipped, costBlocked } من إجابات الـworkflow (rkaCompletion pure من المنتج) */
+function rkaCompletion(p, opts){
+  if(!p) return [];
+  opts = opts || {};
+  const online = (typeof ONLINE_ORDERING_ENABLED !== 'undefined' && ONLINE_ORDERING_ENABLED);
+  const costDone = p.linkProfit === true && (p.costMode !== 'direct' || Number(p.directCost) > 0);
+  const st = (done, whenMissing) => done ? 'done' : whenMissing;
+  const rows = [
+    { key: 'price',     label: 'السعر',           state: st(Number(p.price) > 0, 'needed') },
+    { key: 'cost',      label: 'التكلفة',
+      state: costDone ? 'done' : (opts.costBlocked ? 'blocked' : (opts.costSkipped ? 'skipped' : 'needed')) },
+    { key: 'inventory', label: 'ربط المخزون',
+      state: p.costMode === 'direct' ? 'na' : st(p.linkInventory === true, 'optional') },
+    { key: 'options',   label: 'الخيارات/الأحجام', state: st((p.modifierGroupIds || []).length > 0, 'optional') },
+    { key: 'image',     label: 'صورة',             state: st(!!p.image, 'optional') },
+    { key: 'pos',       label: 'ظاهر بالكاشير',    state: st(p.visiblePos !== false, 'needed') },
+  ];
+  if(online) rows.push({ key: 'online', label: 'ظاهر أونلاين', state: st(p.visibleOnline !== false, 'needed') });
+  return rows.filter(r => r.state !== 'na').map(r => Object.assign(r, { done: r.state === 'done' }));
+}
+const RKA_STATE_MARK = { done: '✓', optional: '—', skipped: '— (أجّلتها)', blocked: '🔒 تحتاج صلاحية', needed: '❌' };
+function rkaCompletionLine(p, opts){
+  return rkaCompletion(p, opts).map(r => r.label + ' ' + (RKA_STATE_MARK[r.state] || '—')).join(' · ');
+}
+function rkaDoneSummary(productId, headline, opts){
+  const p = (typeof MENU_ITEMS !== 'undefined' ? MENU_ITEMS : []).find(m => m.id === productId);
+  if(!p) return headline || 'تم ✓';
+  const rows = rkaCompletion(p, opts);
+  let msg = (headline || ('«' + p.name + '» جاهز'));
+  msg += '\n' + rows.map(r => '• ' + r.label + ' ' + (RKA_STATE_MARK[r.state] || '—')).join('\n');
+  const needed = rows.filter(r => r.state === 'needed');
+  const canImprove = rows.filter(r => r.state === 'optional' || r.state === 'skipped');
+  if(needed.length) msg += '\nيحتاج انتباه: ' + needed.map(r => r.label).join('، ');
+  else if(canImprove.length) msg += '\nجاهز للبيع. تقدر لاحقًا تضيف: ' + canImprove.map(r => r.label).join('، ') + '.';
+  return msg;
+}
+// opts من إجابات الـworkflow الحالية
+function rkaCompletionOpts(a){
+  return {
+    costSkipped: a && a.costGate === 'skip',
+    costBlocked: !!(a && a.costGate === 'stock' && typeof canViewProfit === 'function' && !canViewProfit())
+  };
+}
+
+/* ---------- RPC wrappers (كلها ذرّية + مقيّدة بالنشاط + بلا صلاحيات زائدة) ---------- */
+function rkaRpcErr(error, fallback){
+  const m = String(error && (error.message || '')) + ' ' + String(error && (error.details || '')) + ' ' + String(error && (error.code || '')) + ' ' + String(error && (error.hint || ''));
+  if(m.includes('duplicate product name')) return new Error('صار عندك منتج بنفس الاسم — راجعه أول');
+  if(m.includes('forbidden') || m.includes('42501')) return new Error('ما عندك الصلاحية لهذي العملية');
+  if(m.includes('view_profit')) return new Error('هذي الخطوة تحتاج صلاحية عرض الأرباح — تواصل مع المالك');
+  if(m.includes('not authenticated') || m.includes('28000')) return new Error('انتهت الجلسة — حدّث الصفحة وسجّل دخول');
+  if(m.includes('PGRST202') || m.includes('schema cache') || (m.includes('function') && m.includes('guided')))
+    return new Error('مدير المنتجات يحتاج تحديث قاعدة البيانات — شغّل ترحيل create_menu_item_guided أول');
+  if(m.includes('box product')) return new Error('هذا منتج بوكس — تكلفته تُدار من نموذج المنتج، تبويب «التكلفة».');
+  if(m.includes('stock item not found')) return new Error('أحد المكوّنات مو موجود في مخزونك — حدّث الصفحة وأعد المحاولة');
+  if(m.includes('not found')) return new Error('العنصر مو موجود — حدّث الصفحة');
+  return new Error(String(error && error.message || '').replace(/^[a-z_ ]+:\s*/i, '') || (fallback || 'تعذّرت العملية — حاول مرة ثانية'));
+}
+
+async function rkaCreateProductGuided(a, idemKey){
+  if(RKA._doneKeys.has(idemKey)) return RKA._doneResults[idemKey];
+  if(typeof screenAllowed === 'function' && !screenAllowed('menu')) throw new Error('ما عندك صلاحية إدارة المنتجات');
+  const sb = window.supabaseClient;
+  const name = (a.name || '').trim();
+  const catName = (a.category === '__new__' ? (a.newCategory || '') : (a.category || '')).trim();
+  const sizes = (a._sizes && a._sizes.length) ? a._sizes : null;
+  const price = (a.priceOrSizes && a.priceOrSizes.kind === 'simple') ? a.priceOrSizes.price : a.price;
+
+  const { data, error } = await sb.rpc('create_menu_item_guided', {
+    p_op_id: idemKey, p_name: name, p_category_name: catName,
+    p_price: sizes ? null : price,
+    p_sizes: sizes ? sizes.map(s => ({ name: s.name, price: s.price })) : null
+  });
+  if(error) throw rkaRpcErr(error, 'تعذّر إنشاء المنتج');
+  const r = data || {};
+  const created = r.created !== false;
+  const menuItemId = r.menu_item_id;
+  const basePrice = r.base_price != null ? Number(r.base_price) : (sizes ? Math.min.apply(null, sizes.map(s => s.price)) : price);
+  const finalCat = r.category_name || catName;
+  const groupId = r.group_id || null;
+
+  if(created && typeof MENU_ITEMS !== 'undefined' && !MENU_ITEMS.some(m => m.id === menuItemId)){
+    if(typeof MENU_CATEGORY_ID_BY_NAME !== 'undefined' && r.category_id) MENU_CATEGORY_ID_BY_NAME[finalCat] = r.category_id;
+    if(typeof MENU_CATEGORIES !== 'undefined' && !MENU_CATEGORIES.includes(finalCat)) MENU_CATEGORIES.push(finalCat);
+    MENU_ITEMS.push({
+      id: menuItemId, active: true, name, nameEn: '', price: basePrice, category: finalCat, image: null,
+      costMode: 'direct', directCost: 0, recipe: [], linkInventory: false, linkProfit: false,
+      pointsRedeemPrice: null, barcode: '', modifierGroupIds: groupId ? [groupId] : [],
+      visibleOnline: true, visiblePos: true, onlineTagLabel: null, onlineTagColor: null, onlinePrice: null,
+      componentSlot: null, sortOrder: menuItemId
+    });
+    if(groupId && sizes && typeof MODIFIER_GROUPS !== 'undefined' && !MODIFIER_GROUPS.some(g => g.id === groupId)){
+      const opts = (r.group_options && r.group_options.length) ? r.group_options : sizes.map(s => ({ name: s.name, price_delta: +(s.price - basePrice).toFixed(2) }));
+      MODIFIER_GROUPS.push({ id: groupId, name: 'الحجم', nameEn: 'Size', type: 'single', max: 1,
+        options: opts.map(o => ({ name: o.name, nameEn: '', priceDelta: Number(o.price_delta) || 0, costMode: 'simple', extraCost: 0 })) });
+    }
+    if(typeof logDashboardAudit === 'function') logDashboardAudit('أضاف منتج عبر مدير المنتجات: ' + name);
+    ['renderCategoryTabs','renderMenuProductTable','renderModifierGroupsTable','renderCostCompletionBanner','renderMenuUnifyBanner','renderOnboardingChecklist']
+      .forEach(fn => { try { if(typeof window[fn] === 'function') window[fn](); } catch(e){} });
+  }
+  a._productId = menuItemId; a._baseCreated = created; a._basePrice = basePrice; a._sizesGroupId = groupId;
+
+  const priceBit = sizes ? ('أحجامه: ' + sizes.map(s => s.name + ' ' + s.price).join('، ') + ' (الأساسي ' + rkaMoneyFmt(basePrice) + ')')
+                         : ('سعره ' + rkaMoneyFmt(basePrice) + ' ر.س');
+  const result = {
+    productId: menuItemId, created: created,
+    // الأساس مرحلة، مو نهاية المهمة — الصياغة تقول ذلك
+    message: created
+      ? ('سجّلت أساس «' + name + '» ✓  (' + priceBit + ').\nخلنا نكمّل المنتج:')
+      : ('«' + name + '» أساسه محفوظ أصلًا ✓ — نكمّل الباقي:')
+  };
+  RKA._doneKeys.add(idemKey); RKA._doneResults[idemKey] = result;
+  return result;
+}
+
+// idempotent بطبيعته (RPC يستبدل الكل) — ما نحتاج ledger
+async function rkaSetCost(a, idemKey){
+  if(typeof screenAllowed === 'function' && !screenAllowed('menu')) throw new Error('ما عندك صلاحية إدارة المنتجات');
+  const sb = window.supabaseClient;
+  const id = a._productId;
+  const mode = a.costGate === 'direct' ? 'direct' : 'recipe';
+  let payload = { p_menu_item_id: id, p_mode: mode, p_direct_cost: null, p_recipe_lines: null };
+  if(mode === 'direct') payload.p_direct_cost = a.directCost;
+  else payload.p_recipe_lines = (a._recipe || []).map(l => ({ stock_item_id: l.stock_item_id, qty: l.qty, unit: l.unit }));
+
+  const { data, error } = await sb.rpc('set_menu_item_cost_guided', payload);
+  if(error) throw rkaRpcErr(error, 'تعذّر حفظ التكلفة');
+  const variable = Number((data && data.variable_cost) || 0);
+
+  const p = (typeof MENU_ITEMS !== 'undefined') ? MENU_ITEMS.find(m => m.id === id) : null;
+  if(p){
+    p.linkProfit = true;
+    if(mode === 'direct'){ p.costMode = 'direct'; p.directCost = a.directCost; p.recipe = []; p.linkInventory = false; }
+    else { p.costMode = 'recipe'; p.directCost = 0; p.linkInventory = true; p.recipe = (a._recipe || []).map(l => ({ ingredient: l.name, qty: l.qty, unit: l.unit })); }
+    if(typeof MENU_ITEM_COST_BY_ID !== 'undefined') MENU_ITEM_COST_BY_ID[id] = { variableCost: variable };
+    ['renderMenuProductTable','renderCostCompletionBanner','renderStockTable','renderOnboardingChecklist']
+      .forEach(fn => { try { if(typeof window[fn] === 'function') window[fn](); } catch(e){} });
+  }
+  if(typeof logDashboardAudit === 'function') logDashboardAudit('حدّد تكلفة منتج عبر مدير المنتجات (' + mode + ')');
+  const price = p ? Number(p.price) : 0;
+  const marginTxt = price > 0 ? (' — الهامش ' + (((price - variable) / price) * 100).toFixed(0) + '٪') : '';
+  return { productId: id, message: 'التكلفة المتغيرة ' + rkaMoneyFmt(variable) + ' ر.س' + marginTxt + ' ✓' };
+}
+
+async function rkaAttachGroups(a, idemKey){
+  const sb = window.supabaseClient;
+  const ids = a._attachIds || [];
+  const { error } = await sb.rpc('attach_menu_item_groups_guided', { p_menu_item_id: a._productId, p_group_ids: ids });
+  if(error) throw rkaRpcErr(error, 'تعذّر ربط المجموعات');
+  const p = (typeof MENU_ITEMS !== 'undefined') ? MENU_ITEMS.find(m => m.id === a._productId) : null;
+  if(p){ ids.forEach(gid => { if(!p.modifierGroupIds.includes(gid)) p.modifierGroupIds.push(gid); }); try { renderMenuProductTable(); } catch(e){} }
+  const names = ids.map(gid => (MODIFIER_GROUPS.find(g => g.id === gid) || {}).name).filter(Boolean);
+  return { productId: a._productId, message: 'ربطت: ' + names.join('، ') + ' ✓' };
+}
+
+async function rkaCreateOptionGroup(a, idemKey){
+  if(RKA._doneKeys.has(idemKey)) return RKA._doneResults[idemKey];
+  const sb = window.supabaseClient;
+  const opts = (a._optItems || []).map(o => ({ name: o.name, price_delta: o.price, extra_cost: 0 }));
+  const { data, error } = await sb.rpc('create_modifier_group_guided', {
+    p_op_id: idemKey, p_menu_item_id: a._productId, p_name: (a.optName || 'إضافات').trim(),
+    p_type: a.optType === 'single' ? 'single' : 'multiple', p_options: opts
+  });
+  if(error) throw rkaRpcErr(error, 'تعذّر إنشاء مجموعة الإضافات');
+  const r = data || {};
+  const gid = r.group_id;
+  if(r.created !== false && typeof MODIFIER_GROUPS !== 'undefined' && !MODIFIER_GROUPS.some(g => g.id === gid)){
+    MODIFIER_GROUPS.push({ id: gid, name: r.name || (a.optName || 'إضافات'), nameEn: '', type: r.type || 'multiple',
+      max: r.type === 'single' ? 1 : (r.options || []).length,
+      options: (r.options || opts).map(o => ({ name: o.name, nameEn: '', priceDelta: Number(o.price_delta) || 0, costMode: 'simple', extraCost: Number(o.extra_cost) || 0 })) });
+  }
+  const p = (typeof MENU_ITEMS !== 'undefined') ? MENU_ITEMS.find(m => m.id === a._productId) : null;
+  if(p && gid && !p.modifierGroupIds.includes(gid)) p.modifierGroupIds.push(gid);
+  ['renderModifierGroupsTable','renderMenuProductTable'].forEach(fn => { try { if(typeof window[fn] === 'function') window[fn](); } catch(e){} });
+  if(typeof logDashboardAudit === 'function') logDashboardAudit('أنشأ مجموعة إضافات عبر مدير المنتجات: ' + (a.optName || 'إضافات'));
+  const result = { productId: a._productId, message: 'أضفت «' + (r.name || a.optName) + '» بـ' + (a._optItems || []).length + ' خيار ✓' };
+  RKA._doneKeys.add(idemKey); RKA._doneResults[idemKey] = result;
+  return result;
+}
+
+async function rkaUpdatePrice(a, idemKey){
+  if(typeof screenAllowed === 'function' && !screenAllowed('menu')) throw new Error('ما عندك صلاحية إدارة المنتجات');
+  const sb = window.supabaseClient;
+  const id = a._productId;
+  // تحديد قيمة مطلقة → idempotent؛ RLS يقيّده بالنشاط + screen:menu
+  const { error } = await sb.from('menu_items').update({ price: a.newPrice, updated_at: new Date().toISOString() }).eq('id', id);
+  if(error) throw rkaRpcErr(error, 'تعذّر تحديث السعر');
+  const p = (typeof MENU_ITEMS !== 'undefined') ? MENU_ITEMS.find(m => m.id === id) : null;
+  if(p){ p.price = a.newPrice; ['renderMenuProductTable','renderCostCompletionBanner'].forEach(fn => { try { if(typeof window[fn] === 'function') window[fn](); } catch(e){} }); }
+  if(typeof logDashboardAudit === 'function') logDashboardAudit('عدّل سعر منتج عبر مدير المنتجات: ' + (p ? p.name : id));
+  return { productId: id, message: 'صار سعر «' + (p ? p.name : 'المنتج') + '» ' + rkaMoneyFmt(a.newPrice) + ' ر.س ✓\nملاحظة: أسعار منصّات التوصيل (إن وُجدت) ما تتغيّر تلقائيًا.' };
+}
+
+// استئناف: هل op الإنشاء تمّ فعلًا على الخادم؟ (نداء بـprice=-1 → يرفض بلا كتابة لو ما تمّ)
+async function rkaCheckProductOp(baseIdemKey){
+  try {
+    const sb = window.supabaseClient;
+    const { data, error } = await sb.rpc('create_menu_item_guided', {
+      p_op_id: baseIdemKey + ':base', p_name: 'probe', p_category_name: 'probe', p_price: -1, p_sizes: null
+    });
+    if(!error && data && data.created === false)
+      return { done: true, result: { productId: data.menu_item_id, created: false, message: 'المنتج كان محفوظًا أصلًا ✓' } };
+  } catch(e){}
+  return { done: false };
+}
+
+/* ============ مراحل مشتركة (تُركَّب في "إضافة منتج" و"أكمل منتج") ============ */
+function rkaCostStages(a){
+  const steps = [];
+  const canProfit = (typeof canViewProfit !== 'function') || canViewProfit();
+  const prod = (typeof MENU_ITEMS !== 'undefined') ? MENU_ITEMS.find(m => m.id === a._productId) : null;
+  // منتج بوكس/تركيبة متغيّرة: تكلفته من نموذج البوكس — يحوّل، لا يتعامل معها هنا
+  if(prod && prod.costMode === 'box'){
+    steps.push({ key: 'costBox', type: 'info', text: '«' + prod.name + '» منتج بوكس — تكلفته من نموذج المنتج تبويب «التكلفة». نكمّل باقي الأشياء.' });
+    return steps;
+  }
+  steps.push({
+    key: 'costGate', type: 'choose',
+    prompt: (prod && rkaCompletion(prod).find(r => r.key === 'cost' && r.state === 'done')) ? 'التكلفة محددة (' + rkaMoneyFmt(prod.costMode === 'direct' ? prod.directCost : ((typeof MENU_ITEM_COST_BY_ID !== 'undefined' && MENU_ITEM_COST_BY_ID[a._productId] || {}).variableCost || 0)) + ' ر.س). تعدّلها؟' : 'نحدّد تكلفته؟',
+    hint: 'التكلفة = كم يكلّفك المنتج الواحد قبل ما تبيعه. منها يطلع هامش ربحك في التقارير.\n'
+        + '• <b>رقم واحد</b>: تكتب المبلغ بنفسك — أسرع، بس ثابت وما ينقص من المخزون.\n'
+        + '• <b>من المخزون</b>: تختار المكوّنات وكمياتها — كل بيعة تنقص المكوّنات من مخزونك، والتكلفة تتحدّث لحالها لو تغيّر سعر مكوّن.',
+    options: () => [
+      { value: 'direct', label: 'رقم واحد (تكلفة مباشرة)' },
+      { value: 'stock',  label: 'من مكوّنات المخزون' + (canProfit ? '' : ' (يحتاج صلاحية أرباح)') },
+      { value: 'skip',   label: (prod && rkaCompletion(prod).find(r => r.key === 'cost' && r.state === 'done')) ? 'خلّها زي ما هي' : 'بعدين' }
+    ]
+  });
+  if(a.costGate === 'direct'){
+    steps.push({
+      key: 'directCost', type: 'ask', prompt: 'كم تكلّفك الوحدة؟ (ر.س)', placeholder: '8',
+      hint: 'تكلفة تجهيز وحدة وحدة: المكوّنات + التغليف. لا تحسب الإيجار ولا الرواتب.',
+      parse: raw => rkaMoney(raw),
+      validate: v => v == null ? 'اكتب رقم فقط — مثال: 8' : (v < 0 ? 'ما تكون بالسالب.' : (v > 100000 ? 'الرقم كبير — تأكّد.' : null))
+    });
+    steps.push({ key: 'costExec', type: 'execute', idemKind: 'cost', pending: 'أحفظ التكلفة…', run: (ans, ctx, k) => rkaSetCost(ans, k) });
+  } else if(a.costGate === 'stock'){
+    if(!canProfit){
+      steps.push({ key: 'costNoPerm', type: 'info', text: 'بناء الوصفة وربطها بالمخزون يحتاج صلاحية إضافية (عرض الأرباح) مو متاحة لك. نكمّل باقي المنتج، وصاحب الصلاحية يضيف الوصفة لاحقًا.' });
+    } else {
+      const done = (a._recipe || []).length;      // مكوّنات مكتملة
+      const lastMore = done > 0 ? a['recipeMore_' + (done - 1)] : null;
+      const collecting = done === 0 || lastMore === 'more'; // نحتاج مكوّن جديد؟
+      if(collecting){
+        const n = done;
+        steps.push({
+          key: 'recipeIng_' + n, type: 'ask',
+          prompt: (n === 0 ? 'وش يدخل في المنتج؟ اكتب أول مكوّن (من المخزون)' : 'المكوّن التالي؟'),
+          hint: n === 0 ? 'اكتب مكوّنات المنتج من مخزونك، واحد واحد. لازم يكون الصنف مسجّل في شاشة المخزون أول.\nمثال: لحم، خبز، جبن…' : null,
+          parse: raw => rkaStockMatch(raw),
+          validate(res, ans){
+            if(res.item){ ans['_ing_' + n] = res.item; return null; }
+            if(res.many) return 'فيه أكثر من صنف يشبه: ' + res.many.slice(0, 5).map(x => x.name).join('، ') + '. اكتب الاسم كامل.';
+            const names = (typeof STOCK_ITEMS !== 'undefined' ? STOCK_ITEMS : []).slice(0, 8).map(s => s.name).join('، ');
+            return 'ما لقيت هذا الصنف في المخزون. الموجود مثلاً: ' + names + (STOCK_ITEMS.length > 8 ? '…' : '') + '. لو مو مسجّل، أضفه من شاشة المخزون أول.';
+          }
+        });
+        if(a['recipeIng_' + n] !== undefined){
+          steps.push({
+            key: 'recipeQty_' + n, type: 'ask',
+            prompt: (ans) => { const ing = ans['_ing_' + n]; const u = ing ? rkaRecipeUnit(ing) : 'g';
+              const alt = ing && (ing.unit === 'liter' || ing.unit === 'ml') ? ' — تقدر تكتب «مل» أو «غرام» بعد الرقم' : '';
+              return 'كم كمية «' + (ing ? ing.name : '') + '»؟ (بالـ' + (UNIT_LABELS[u] || u) + ')' + alt; },
+            hint: 'الكمية اللي تدخل في وحدة وحدة من المنتج — مو كمية المخزون كامل. مثال: «١٨٠ مل» أو «٢٠ غ».',
+            placeholder: 'مثال: 180 مل',
+            parse: raw => String(raw == null ? '' : raw),
+            validate(raw, ans){
+              const ing = ans['_ing_' + n];
+              if(!ing) return 'صار خطأ — ابدأ من جديد.';
+              const r = rkaRecipeQtyUnit(raw, ing);
+              if(r.error) return r.error;
+              if(r.qty > 1000000) return 'الكمية كبيرة جدًا — تأكّد.';
+              ans._recipe = ans._recipe || [];
+              ans._recipe[n] = { stock_item_id: ing.id, name: ing.name, qty: r.qty, unit: r.unit };
+              return null;
+            }
+          });
+        }
+      } else {
+        // آخر مكوّن اكتمل — نسأل: مكوّن ثاني أو خلّصنا؟
+        const k = done - 1;
+        if(a['recipeMore_' + k] === undefined){
+          const running = (a._recipe || []).reduce((s, l) => s + rkaLineCost(l), 0);
+          steps.push({
+            key: 'recipeMore_' + k, type: 'choose',
+            prompt: 'صار عندنا ' + done + ' مكوّن (تكلفة تقريبية ' + rkaMoneyFmt(running) + ' ر.س). فيه مكوّن ثاني؟',
+            options: [{ value: 'more', label: 'نعم، مكوّن ثاني' }, { value: 'done', label: 'خلّصت الوصفة' }]
+          });
+        } else if(a['recipeMore_' + k] === 'done'){
+          steps.push({ key: 'costExec', type: 'execute', idemKind: 'cost', pending: 'أحفظ الوصفة وأحسب التكلفة…', run: (ans, ctx, kk) => rkaSetCost(ans, kk) });
+        }
+      }
+    }
+  }
+  return steps;
+}
+function rkaOptionStages(a){
+  const steps = [];
+  const groups = (typeof MODIFIER_GROUPS !== 'undefined' ? MODIFIER_GROUPS : [])
+    .filter(g => !(a._productId && (MENU_ITEMS.find(m => m.id === a._productId) || {modifierGroupIds:[]}).modifierGroupIds.includes(g.id)));
+  steps.push({
+    key: 'optGate', type: 'choose',
+    prompt: 'عليه إضافات أو خيارات؟',
+    hint: 'خيارات يختارها العميل وقت الطلب، ممكن تزيد السعر. تقدر تربط مجموعة جاهزة عندك أو تسوّي وحدة جديدة.\nمثل: جبن إضافي، صوص، بدون بصل…',
+    options: () => [].concat(
+      groups.length ? [{ value: 'attach', label: 'نعم، من الموجود عندك (' + groups.length + ')' }] : [],
+      [{ value: 'new', label: 'نعم، أنشئ مجموعة جديدة' }],
+      [{ value: 'no', label: 'لا' }]
+    )
+  });
+  if(a.optGate === 'attach'){
+    steps.push({
+      key: 'optPick', type: 'ask',
+      prompt: 'أي مجموعة؟ اكتب رقمها (أو أرقام مفصولة بفاصلة):\n' + groups.map((g, i) => (i + 1) + ') ' + g.name + ' — ' + g.options.length + ' خيار').join('\n'),
+      placeholder: '1 أو 1،3',
+      parse(raw){
+        const nums = rkaDigits(raw).split(/[,،\s]+/).map(x => parseInt(x, 10)).filter(x => x >= 1 && x <= groups.length);
+        return [...new Set(nums)].map(x => groups[x - 1].id);
+      },
+      validate(ids, ans){ if(!ids.length) return 'اكتب رقم صحيح من ١ إلى ' + groups.length + '.'; ans._attachIds = ids; return null; }
+    });
+    steps.push({ key: 'optExec', type: 'execute', idemKind: 'optattach', pending: 'أربط المجموعات…', run: (ans, ctx, k) => rkaAttachGroups(ans, k) });
+  } else if(a.optGate === 'new'){
+    steps.push({ key: 'optName', type: 'ask', prompt: 'اسم مجموعة الإضافات؟ (مثل: إضافات)', validate: v => (v && v.trim()) ? null : 'اكتب اسمًا.' });
+    steps.push({ key: 'optType', type: 'choose', prompt: 'العميل يختار كم إضافة؟',
+      hint: '<b>أكثر من وحدة</b>: يختار كذا إضافة مع بعض (جبن + صوص + مخلل).\n<b>وحدة واحدة</b>: يختار وحدة بس (نوع الخبز، درجة الاستواء).',
+      options: [{ value: 'multiple', label: 'أكثر من وحدة (إضافات)' }, { value: 'single', label: 'وحدة واحدة فقط' }] });
+    steps.push({
+      key: 'optItems', type: 'ask',
+      prompt: 'الإضافات وأسعارها، كل وحدة بسطر:\nجبن 5\nصوص خاص 3',
+      hint: 'السعر = كم يزيد على سعر المنتج لو اختار الإضافة. اكتب 0 لو مجانية.',
+      placeholder: 'جبن 5',
+      parse: raw => rkaSizeLines(raw),
+      validate(res, ans){
+        if(res.errors.length) return 'ما فهمت «' + rkaEsc(res.errors[0]) + '». اكتب كل إضافة: الاسم ثم السعر — مثال: جبن 5';
+        if(!res.lines.length) return 'حدّد إضافة واحدة على الأقل.';
+        if(res.lines.some(l => l.price < 0 || l.price > 100000)) return 'فيه سعر غير صحيح.';
+        ans._optItems = res.lines;
+        return null;
+      }
+    });
+    steps.push({ key: 'optExec', type: 'execute', idemKind: 'optnew', pending: 'أنشئ مجموعة الإضافات…', run: (ans, ctx, k) => rkaCreateOptionGroup(ans, k) });
+  }
+  return steps;
+}
+
+/* ============ تسجيل المدير ============ */
+RKA.registerManager({
+  id: 'products',
+  screen: 'menu',
+  title: 'مدير المنتجات',
+  greeting(){
+    return 'أنا مدير المنتجات 👋\nأساعدك تضيف منتجك وتكمّل بياناته — من السعر والتكلفة إلى المخزون والخيارات.\nقل لي وش تبي.';
+  },
+  intents: [
+    {
+      id: 'add', label: 'أضيف منتج جديد',
+      workflow: {
+        id: 'add-product',
+        checkDone: rkaCheckProductOp,
+        finishMessage: (a) => rkaDoneSummary(a._productId, 'وقفنا هنا. «' + ((MENU_ITEMS.find(m => m.id === a._productId) || {}).name || '') + '» محفوظ'),
+        buildSteps(a){
+          const cats = (typeof MENU_CATEGORIES !== 'undefined' ? MENU_CATEGORIES : []).slice();
+          const nameValidate = (v) => {
+            if(!v || !v.trim()) return 'اكتب اسم المنتج.';
+            if(v.trim().length > 60) return 'الاسم طويل — خليه أقصر.';
+            const norm = s => String(s).replace(/\s+/g, ' ').trim();
+            const list = (typeof MENU_ITEMS !== 'undefined') ? MENU_ITEMS : [];
+            if(list.some(m => m.active !== false && !String(m.name).includes('(مؤرشف)') && norm(m.name) === norm(v)))
+              return 'عندك منتج بهذا الاسم. لو تبي تكمّله اكتب: إلغاء، ثم اختر «أكمل منتج».';
+            return null;
+          };
+          // اسم مستخرَج من جملة الدخول ("أبي أضيف برجر لحم") — استخدمه لو صالح
+          if(a._pendingName && !a.name){
+            if(nameValidate(a._pendingName) === null){ a.name = a._pendingName.trim(); }
+            delete a._pendingName;
+          }
+          const steps = [];
+          if(!a.name) steps.push({ key: 'name', type: 'ask', prompt: 'وش اسم المنتج؟', validate: nameValidate });
+          if(cats.length === 0){
+            steps.push({ key: 'newCategory', type: 'ask', prompt: 'أول تصنيف عندك — سمّه (مثل: مشروبات)', validate: v => (v && v.trim()) ? null : 'اكتب اسم التصنيف.' });
+            a.category = '__new__';
+          } else if(cats.length === 1){
+            a.category = cats[0];
+          } else {
+            const last = a._carryCategory && cats.includes(a._carryCategory) ? a._carryCategory : null;
+            const ordered = last ? [last].concat(cats.filter(c => c !== last)) : cats;
+            steps.push({ key: 'category', type: 'choose', prompt: 'أي تصنيف؟',
+              options: () => ordered.map((c, i) => ({ value: c, label: c + (i === 0 && last ? '  ·  نفس السابق' : '') })).concat([{ value: '__new__', label: '+ تصنيف جديد' }]) });
+            if(a.category === '__new__') steps.push({ key: 'newCategory', type: 'ask', prompt: 'اسم التصنيف الجديد؟', validate: v => (v && v.trim()) ? null : 'اكتب اسم التصنيف.' });
+          }
+          steps.push({
+            key: 'priceOrSizes', type: 'ask',
+            prompt: 'وش سعره؟\nلو له أحجام، اكتب كل حجم بسطر — مثل:\nصغير 12\nوسط 15',
+            hint: 'رقم واحد لو سعره ثابت. ولو له أحجام: أرخص حجم يصير السعر الأساسي والباقي فروقات محسوبة عليه.',
+            placeholder: '15  ·  أو: صغير 12',
+            parse(raw){ const m = rkaMoney(raw); return m != null ? { kind: 'simple', price: m } : Object.assign({ kind: 'sizes' }, rkaSizeLines(raw)); },
+            validate(v, ans){
+              if(v.kind === 'simple'){
+                if(v.price < 0) return 'السعر ما يكون بالسالب.';
+                if(v.price > 100000) return 'الرقم كبير — تأكّد.';
+                ans._sizes = null; return null;
+              }
+              if(v.errors && v.errors.length) return 'ما فهمت «' + rkaEsc(v.errors[0]) + '». اكتب سعر واحد (مثل 15)، أو كل حجم بسطر (مثل: وسط 15).';
+              if(!v.lines || v.lines.length < 2) return 'لو له أحجام حدّد اثنين على الأقل. وإلا اكتب سعر واحد.';
+              if(v.lines.some(l => !(l.price >= 0) || l.price > 100000)) return 'فيه حجم بسعر غير صحيح.';
+              const names = v.lines.map(l => l.name);
+              if(new Set(names).size !== names.length) return 'فيه اسم حجم مكرر.';
+              ans._sizes = v.lines; return null;
+            }
+          });
+          const catName = a.category === '__new__' ? (a.newCategory || '').trim() : a.category;
+          const catNew = a.category === '__new__' || (catName && typeof MENU_CATEGORIES !== 'undefined' && !MENU_CATEGORIES.includes(catName));
+          steps.push({
+            key: 'review', type: 'review',
+            summary(a){
+              let rows = '<dt>المنتج</dt><dd>' + rkaEsc((a.name || '').trim()) + '</dd>';
+              rows += '<dt>التصنيف</dt><dd>' + rkaEsc(catName) + (catNew ? ' <span style="color:var(--success-text)">(جديد)</span>' : '') + '</dd>';
+              if(a._sizes && a._sizes.length){
+                const base = Math.min.apply(null, a._sizes.map(s => s.price));
+                rows += '<dt>الأحجام</dt><dd>' + a._sizes.map(s => rkaEsc(s.name) + ' — <b>' + s.price + '</b> ر.س').join('<br>')
+                  + '<br><span style="color:var(--muted);font-size:11px">السعر الأساسي ' + base + ' ر.س</span></dd>';
+              } else rows += '<dt>السعر</dt><dd><b>' + (a.priceOrSizes && a.priceOrSizes.price) + '</b> ر.س</dd>';
+              return rows;
+            }
+          });
+          steps.push({ key: 'base', type: 'execute', idemKind: 'base', pending: 'أضيف المنتج…', run: (ans, ctx, k) => rkaCreateProductGuided(ans, k) });
+          if(a._productId){
+            rkaCostStages(a).forEach(s => steps.push(s));
+            if(a.costGate && !(a.costGate === 'stock' && a._recipe && a._recipe.length && a['recipeMore_' + (a._recipe.length - 1)] !== 'done'))
+              rkaOptionStages(a).forEach(s => steps.push(s));
+            if(a.optGate) steps.push({ key: 'finish', type: 'execute', idemKind: 'finish',
+              run: (ans) => ({ productId: ans._productId, created: ans._baseCreated, message: rkaDoneSummary(ans._productId, '«' + ((MENU_ITEMS.find(m => m.id === ans._productId) || {}).name || '') + '» جاهز') }) });
+          }
+          return steps;
+        },
+        doneActions(res){
+          const acts = [];
+          const p = res && res.productId ? (typeof MENU_ITEMS !== 'undefined' ? MENU_ITEMS.find(m => m.id === res.productId) : null) : null;
+          acts.push({ label: 'أضيف منتج ثاني', run: () => {
+            const s = RKA.session, la = s && s._lastAnswers;
+            const cat = la ? (la.category === '__new__' ? (la.newCategory || '').trim() : la.category) : null;
+            RKA.restartSameWorkflow('منتج جديد:', cat ? { _carryCategory: cat } : {});
+          } });
+          if(p && rkaCompletion(p).some(r => !r.done))
+            acts.push({ label: 'كمّل باقي المنتج', run: () => {
+              RKA.restartSameWorkflowAs('complete', { _productId: res.productId, _baseCreated: false });
+            } });
+          if(res && res.productId) acts.push({ label: 'افتح المنتج', run: () => { RKA.close(); if(typeof openProductEditModal === 'function') openProductEditModal(res.productId); } });
+          return acts;
+        }
+      }
+    },
+    {
+      id: 'complete', label: 'أكمّل منتج موجود',
+      workflow: {
+        id: 'complete-product',
+        finishMessage: (a) => rkaDoneSummary(a._productId, 'وقفنا هنا'),
+        buildSteps(a){
+          const steps = [];
+          if(!a._productId && a._pendingName){
+            const m = rkaProductMatch(a._pendingName);
+            if(m.item){ a._productId = m.item.id; a._baseCreated = false; }
+            delete a._pendingName;
+          }
+          if(!a._productId){
+            steps.push({
+              key: 'pick', type: 'ask', prompt: 'أي منتج تبي تكمّله؟ اكتب اسمه',
+              parse: raw => rkaProductMatch(raw),
+              validate(res, ans){
+                if(res.item){ ans._productId = res.item.id; ans._baseCreated = false; return null; }
+                if(res.many) return 'فيه أكثر من منتج يشبه: ' + res.many.slice(0, 6).map(x => x.name).join('، ') + '. اكتب الاسم كامل.';
+                return 'ما لقيت منتج بهذا الاسم. تأكّد من الكتابة.';
+              }
+            });
+          }
+          if(a._productId){
+            const p = (typeof MENU_ITEMS !== 'undefined') ? MENU_ITEMS.find(m => m.id === a._productId) : null;
+            steps.push({ key: 'status', type: 'info', text: () => 'حالة «' + (p ? p.name : '') + '»:\n' + rkaCompletionLine(p, rkaCompletionOpts(a)) + '\nنكمّل الناقص:' });
+            rkaCostStages(a).forEach(s => steps.push(s));
+            if(a.costGate && !(a.costGate === 'stock' && a._recipe && a._recipe.length && a['recipeMore_' + (a._recipe.length - 1)] !== 'done'))
+              rkaOptionStages(a).forEach(s => steps.push(s));
+            if(a.optGate) steps.push({ key: 'finish', type: 'execute', idemKind: 'finish',
+              run: (ans) => ({ productId: ans._productId, message: rkaDoneSummary(ans._productId, '«' + ((MENU_ITEMS.find(m => m.id === ans._productId) || {}).name || '') + '»') }) });
+          }
+          return steps;
+        },
+        doneActions(res){
+          const acts = [{ label: 'كمّل منتج ثاني', run: () => RKA.restartSameWorkflow('أي منتج؟') }];
+          if(res && res.productId) acts.push({ label: 'افتح المنتج', run: () => { RKA.close(); if(typeof openProductEditModal === 'function') openProductEditModal(res.productId); } });
+          return acts;
+        }
+      }
+    },
+    {
+      id: 'price', label: 'أعدّل سعر منتج',
+      workflow: {
+        id: 'edit-price',
+        buildSteps(a){
+          if(!a._productId && a._pendingName){
+            const m = rkaProductMatch(a._pendingName);
+            if(m.item){ a._productId = m.item.id; a._curPrice = m.item.price; }
+            delete a._pendingName;
+          }
+          const steps = [];
+          if(!a._productId){
+            steps.push({
+              key: 'pick', type: 'ask', prompt: 'أي منتج؟ اكتب اسمه',
+              parse: raw => rkaProductMatch(raw),
+              validate(res, ans){
+                if(res.item){ ans._productId = res.item.id; ans._curPrice = res.item.price; return null; }
+                if(res.many) return 'فيه أكثر من منتج يشبه: ' + res.many.slice(0, 6).map(x => x.name).join('، ') + '. اكتب كامل.';
+                return 'ما لقيت هذا المنتج.';
+              }
+            });
+          }
+          if(a._productId){
+            steps.push({
+              key: 'newPrice', type: 'ask',
+              prompt: () => { const p = MENU_ITEMS.find(m => m.id === a._productId); return 'سعر «' + (p ? p.name : '') + '» الحالي ' + rkaMoneyFmt(p ? p.price : 0) + ' ر.س. وش السعر الجديد؟'; },
+              parse: raw => rkaMoney(raw),
+              validate(v, ans){ if(v == null) return 'اكتب رقم فقط.'; if(v < 0) return 'ما يكون بالسالب.'; if(v > 100000) return 'كبير — تأكّد.'; ans.newPrice = v; return null; }
+            });
+            steps.push({ key: 'review', type: 'review', summary(a){
+              const p = MENU_ITEMS.find(m => m.id === a._productId);
+              return '<dt>المنتج</dt><dd>' + rkaEsc(p ? p.name : '') + '</dd><dt>السعر</dt><dd>من <b>' + rkaMoneyFmt(a._curPrice) + '</b> إلى <b>' + rkaMoneyFmt(a.newPrice) + '</b> ر.س</dd>';
+            } });
+            steps.push({ key: 'priceExec', type: 'execute', idemKind: 'price', pending: 'أحدّث السعر…', run: (ans, ctx, k) => rkaUpdatePrice(ans, k) });
+          }
+          return steps;
+        },
+        doneActions(res){
+          const acts = [{ label: 'عدّل سعر منتج ثاني', run: () => RKA.restartSameWorkflow('أي منتج؟') }];
+          if(res && res.productId) acts.push({ label: 'افتح المنتج', run: () => { RKA.close(); if(typeof openProductEditModal === 'function') openProductEditModal(res.productId); } });
+          return acts;
+        }
+      }
+    }
+  ]
+});
+
+// نحفظ آخر إجابات ناجحة عشان "أضف منتج ثاني" يحمل نفس التصنيف
+const _rkaAfterExecuteOrig = RKA._afterExecute.bind(RKA);
+RKA._afterExecute = function(res){
+  if(this.session) this.session._lastAnswers = Object.assign({}, this.session.answers);
+  return _rkaAfterExecuteOrig(res);
+};
+
+/* ربط زر مدير المنتجات (FAB) — delegated */
+document.addEventListener('click', function(e){
+  const btn = e.target && e.target.closest && e.target.closest('#rkaProductsLaunch');
+  if(!btn) return;
+  e.preventDefault();
+  RKA.open('products', { screen: 'menu' });
+  // لو جينا من "كمّل باقي المنتج" — ادخل مباشرة على workflow الإكمال
+  const jump = btn.__rkaJump;
+});
+
+/* ═══════════════════════════ مدير المخزون ═══════════════════════════
+   موظف صفحة المخزون. يسجّل الأصناف، يضبط الأرصدة (جرد/تلف/تصحيح)،
+   يصحّح التكاليف، ويحوّل الاستلام من مورّد لنموذج فاتورة الشراء (وزن
+   متوسط). كل كتابة تمرّ من RPC ذرّي — migration 20260909030000. كل رقم
+   يُعرض (نسبة، قيمة مخزون، استهلاك) يُحسب بنفس دوال ركين، لا نسخة موازية.
+   بلا AI — محلّلات نصية فقط.                                          */
+
+const RKA_STOCK_REASONS = [
+  { value: 'count',      label: 'جرد دوري — عدّيت الكمية الفعلية' },
+  { value: 'waste',      label: 'تلف / هدر / انتهت الصلاحية' },
+  { value: 'correction', label: 'تصحيح إدخال غلط' },
+  { value: 'received',   label: 'استلمت كمية بدون فاتورة' }
+];
+const RKA_STOCK_REASON_LABEL = { count:'جرد دوري', waste:'تلف/هدر', correction:'تصحيح إدخال', received:'استلام بدون فاتورة' };
+
+function rkaStockById(id){ return (typeof STOCK_ITEMS !== 'undefined' ? STOCK_ITEMS : []).find(s => s.id === id) || null; }
+function rkaStockCatLabel(c){ return c === 'packaging' ? 'تغليف ومستلزمات' : 'مادة خام أساسية'; }
+function rkaUnitLabel(u){ return (typeof UNIT_LABELS !== 'undefined' && UNIT_LABELS[u]) || u || ''; }
+// صيغة مفردة طبيعية للسؤال: «كم سعر الكيلو» بدل «كم سعر كجم»
+function rkaUnitOne(u){ return ({ kg:'الكيلو', g:'الغرام', liter:'اللتر', ml:'المل', piece:'الحبة' })[u] || rkaUnitLabel(u); }
+// نفس صيغة عرض تكلفة الوحدة في جدول المخزون (formatUnitCost) — تطابق تام
+function rkaUnitCostFmt(n){ return (typeof formatUnitCost === 'function') ? formatUnitCost(Number(n) || 0) : rkaMoneyFmt(n); }
+// كميات المخزون ليست نقودًا — رقم نظيف بلا «.00» الزائدة
+function rkaQtyFmt(n){ n = Number(n) || 0; return Number.isInteger(n) ? String(n) : (Math.abs(n) < 0.1 ? n.toFixed(4) : n.toFixed(2).replace(/\.?0+$/, '')); }
+function rkaStockRerender(){
+  ['renderStockTable','renderWasteAndFoodCost','renderOnboardingChecklist','renderMenuProductTable','renderCostCompletionBanner']
+    .forEach(fn => { try { if(typeof window[fn] === 'function') window[fn](); } catch(e){} });
+}
+
+// جملة طبيعية → نيّة داخل مدير المخزون (deterministic، بلا AI)
+function rkaStockClassifyIntent(raw){
+  const s = ' ' + rkaDigits(raw).trim().toLowerCase().replace(/[.،؟!]+/g,' ').replace(/\s+/g,' ') + ' ';
+  // كلمات وظيفية تُحذف من الاسم المستخرَج (JS \b لا يعمل مع العربي → فلترة بالكلمة)
+  const STOP = new Set(['لي','صنف','مادة','من','عندي','عند','حق','تبع','هذا','هذي','ذا','ال','في','ب','و','باقي','كم','كام','وش','ايش','إيش','فاضل','متبقي','المتبقي']);
+  const strip = (re) => s.replace(re, ' ').split(/\s+/)
+    .map(w => w.replace(/^ال(?=\S\S)/, '')).filter(w => w && !STOP.has(w)).join(' ').trim();
+  const seed = (n) => (n && n.length >= 2) ? { _pendingName: n } : {};
+  const restockRe = /(استلمت|استلم|جاني|وصل|وصلت|شحنة|فاتورة مورد|فاتورة شراء|شريت|اشتريت|طلبيه|طلبية|توريد)/;
+  const costRe    = /(تكلفة|سعر الشراء|سعر التكلفة|سعر شراء|كلفة|غلا|رخص|صار سعره|سعر الكيلو)/;
+  const countRe   = /(جرد|جردت|عديت|عدّيت|عد المخزون|رصيد|كميه|كمية|نقص|ناقص|تلف|هدر|انتهى|خلص|خلّص|فاضل|صار عندي)/;
+  const checkRe   = /(كم باقي|كم عندي|كم فاضل|وش الكمية|رصيد كم|كم متبقي|كم المتبقي|باقي كم|عندي كم)/;
+  const addRe     = /(اضف|أضف|اضيف|أضيف|ضيف|ضف|سجل|سجّل|صنف جديد|مادة جديدة|انشئ|أنشئ|اضافة|إضافة|ابي اسجل|ابغى اسجل)/;
+  if(checkRe.test(s))   return { id:'check',   seed: seed(strip(/كم باقي|كم عندي|كم فاضل|وش الكمية|رصيد كم|كم متبقي|كم المتبقي|باقي كم|عندي كم|كم/g)) };
+  if(restockRe.test(s)) return { id:'restock', seed: {} };
+  if(costRe.test(s))    return { id:'cost',    seed: seed(strip(/تكلفة|سعر الشراء|سعر التكلفة|سعر شراء|كلفة|غلا|رخص|صار سعره|سعر الكيلو|سعر|حق|تبع/g)) };
+  if(countRe.test(s))   return { id:'count',   seed: seed(strip(/جرد|جردت|عديت|عدّيت|عد المخزون|رصيد|كميه|كمية|نقص|ناقص|تلف|هدر|انتهى|خلص|خلّص|فاضل|صار عندي/g)) };
+  if(addRe.test(s))     return { id:'add',     seed: seed(strip(/اضف|أضف|اضيف|أضيف|نضيف|تضيف|ضيف|ضف|سجل|سجّل|جديد|مادة|انشئ|أنشئ|اضافة|إضافة|ابي|ابغى|أبي|أبغى|اسجل|بغيت|ودي|ودّي/g)) };
+  return null;
+}
+
+// يستعيد _stockId بعد reload (المفاتيح اللي تبدأ بـ_ ما تُحفظ في الـcrumb).
+// لو الاسم الممرَّر يطابق أكثر من صنف → يخزّن القائمة في a._pickList عشان
+// تُعرَض أزرارًا بدل ما يُطلَب من العميل يكتب الاسم كامل.
+function rkaStockResumeId(a){
+  if(!a._stockId && !a._pickList){
+    const src = a._pendingName || a._raw_pick || (a.pick && a.pick.item && a.pick.item.name);
+    if(src){
+      const m = rkaStockMatch(src);
+      if(m.item) a._stockId = m.item.id;
+      else if(m.many) a._pickList = m.many.map(x => ({ id:x.id, name:x.name, unit:x.unit, qtyOnHand:x.qtyOnHand }));
+    }
+  }
+  if(a._pendingName) delete a._pendingName;
+  return a._stockId;
+}
+
+// خطوات اختيار صنف مشتركة (count / cost / check): إمّا أزرار (لو فيه احتمالات)
+// أو حقل كتابة يتحوّل لأزرار عند الالتباس. تستهلك a.pickOne وتضبط a._stockId.
+function rkaStockPickSteps(a, promptText){
+  if(a.pickOne !== undefined && !a._stockId){
+    if(a.pickOne === '__type__'){ delete a._pickList; delete a.pickOne; delete a._raw_pickOne; }
+    else { a._stockId = a.pickOne; }
+  }
+  if(a._stockId) return [];
+  if(a._pickList && a._pickList.length){
+    return [{ key:'pickOne', type:'choose', prompt: promptText || 'أي صنف؟',
+      options: () => a._pickList.map(x => ({ value: x.id,
+          label: x.name + ' — ' + rkaQtyFmt(x.qtyOnHand) + ' ' + rkaUnitLabel(x.unit) }))
+        .concat([{ value:'__type__', label:'مو من هذي — أكتب الاسم' }]) }];
+  }
+  return [{ key:'pick', type:'ask', prompt: (promptText || 'أي صنف؟') + ' اكتب اسمه',
+    parse: raw => rkaStockMatch(raw),
+    validate(res, ans){
+      if(res.item){ ans._stockId = res.item.id; return null; }
+      if(res.many) return {
+        message: 'فيه أكثر من صنف يشبه — اختر منها:',
+        choices: res.many.map(x => ({ value: x.id,
+          label: x.name + ' — ' + rkaQtyFmt(x.qtyOnHand) + ' ' + rkaUnitLabel(x.unit) }))
+          .concat([{ value:'__type__', label:'مو من هذي — أكتب اسم ثاني' }]),
+        onPick: (id, an) => { if(id !== '__type__') an._stockId = id; }
+      };
+      const names = (typeof STOCK_ITEMS !== 'undefined' ? STOCK_ITEMS : []).slice(0, 8).map(s => s.name).join('، ');
+      return 'ما لقيت صنف بهذا الاسم. الموجود مثلاً: ' + names + '.';
+    } }];
+}
+
+function rkaStockRpcErr(error, fallback){
+  const m = String(error && (error.message||'')) + ' ' + String(error && (error.details||'')) + ' ' + String(error && (error.code||'')) + ' ' + String(error && (error.hint||''));
+  if(m.includes('duplicate stock item name')) return new Error('عندك صنف بنفس الاسم في المخزون — راجعه أول');
+  if(m.includes('forbidden') || m.includes('42501')) return new Error('ما عندك صلاحية المخزون لهذي العملية');
+  if(m.includes('not authenticated') || m.includes('28000')) return new Error('انتهت الجلسة — حدّث الصفحة وسجّل دخول');
+  if(m.includes('PGRST202') || m.includes('schema cache') || (m.includes('function') && m.includes('guided')))
+    return new Error('مدير المخزون يحتاج تحديث قاعدة البيانات — شغّل ترحيل guided_stock_manager أول');
+  if(m.includes('stock item not found') || m.includes('not found')) return new Error('الصنف مو موجود — حدّث الصفحة وأعد المحاولة');
+  return new Error(String(error && error.message || '').replace(/^[a-z_ ]+:\s*/i,'') || (fallback || 'تعذّرت العملية — حاول مرة ثانية'));
+}
+
+/* ---------- RPC wrappers (ذرّية · مقيّدة بـscreen:inventory · بلا حساب موازٍ) ---------- */
+async function rkaStockCreateGuided(a, idemKey){
+  if(RKA._doneKeys.has(idemKey)) return RKA._doneResults[idemKey];
+  if(typeof screenAllowed === 'function' && !screenAllowed('inventory')) throw new Error('ما عندك صلاحية المخزون');
+  const sb = window.supabaseClient;
+  const name = (a.name || '').trim();
+  const { data, error } = await sb.rpc('create_stock_item_guided', {
+    p_op_id: idemKey, p_name: name, p_category: a.category, p_unit: a.unit,
+    p_unit_cost: a.unitCost, p_qty: a.qty,
+    // الكثافة تُشتقّ من الاسم — الخادم (تريغر stock_items) يملؤها، ونمرّرها
+    // هنا كذلك للنسخة المحلية قبل إعادة التحميل.
+    p_grams_per_unit: densityForStockUnit(name, a.unit)
+  });
+  if(error) throw rkaStockRpcErr(error, 'تعذّر إضافة الصنف');
+  const r = data || {};
+  const created = r.created !== false;
+  const id = r.stock_item_id;
+  const cat = r.category || a.category, unit = r.unit || a.unit;
+  const unitCost = r.unit_cost != null ? Number(r.unit_cost) : (Number(a.unitCost) || 0);
+  const qty = r.qty_on_hand != null ? Number(r.qty_on_hand) : (Number(a.qty) || 0);
+  const par = r.par_level != null ? Number(r.par_level) : qty;
+  const gpu = r.grams_per_unit != null ? Number(r.grams_per_unit) : densityForStockUnit(name, unit);
+  if(created && typeof STOCK_ITEMS !== 'undefined' && !STOCK_ITEMS.some(s => s.id === id)){
+    STOCK_ITEMS.push({ id, name, category: cat, unit, qtyOnHand: qty, parLevel: par, unitCost, gramsPerUnit: gpu, aliasNames: [] });
+    if(typeof STOCK_ITEM_ID_BY_NAME !== 'undefined') STOCK_ITEM_ID_BY_NAME[name] = id;
+    if(typeof STOCK_ITEM_NAME_BY_ID !== 'undefined') STOCK_ITEM_NAME_BY_ID[id] = name;
+    rkaStockRerender();
+    if(typeof logDashboardAudit === 'function') logDashboardAudit('أضاف صنف مخزون عبر مدير المخزون: ' + name);
+  }
+  a._stockId = id; a._stockCreated = created;
+  const line = qty + ' ' + rkaUnitLabel(unit) + ' · تكلفة ' + rkaUnitCostFmt(unitCost) + ' ر.س لكل ' + rkaUnitOne(unit);
+  const result = { stockId: id, created,
+    message: created
+      ? ('سجّلت «' + name + '» ✓  (' + line + ').\n«مخزونك المعتاد» (اللي نعتبره ١٠٠٪) صار = ' + qty + ' ' + rkaUnitLabel(unit) + '.')
+      : ('«' + name + '» مسجّل عندك أصلًا ✓') };
+  RKA._doneKeys.add(idemKey); RKA._doneResults[idemKey] = result;
+  return result;
+}
+
+async function rkaStockSetPar(a, idemKey){
+  if(typeof screenAllowed === 'function' && !screenAllowed('inventory')) throw new Error('ما عندك صلاحية المخزون');
+  const sb = window.supabaseClient;
+  const { data, error } = await sb.rpc('set_stock_par_guided', { p_stock_item_id: a._stockId, p_par_level: a.parLevel });
+  if(error) throw rkaStockRpcErr(error, 'تعذّر حفظ «مخزونك المعتاد»');
+  const it = rkaStockById(a._stockId);
+  const par = Number((data && data.par_level != null) ? data.par_level : a.parLevel);
+  if(it){ it.parLevel = par; rkaStockRerender(); }
+  if(typeof logDashboardAudit === 'function') logDashboardAudit('عدّل «مخزونك المعتاد» عبر مدير المخزون: ' + (it ? it.name : a._stockId) + ' → ' + par);
+  return { stockId: a._stockId, message: '«مخزونك المعتاد» صار ' + rkaQtyFmt(par) + ' ' + rkaUnitLabel(it ? it.unit : '') + ' ✓' };
+}
+
+async function rkaStockAdjustQty(a, idemKey){
+  if(typeof screenAllowed === 'function' && !screenAllowed('inventory')) throw new Error('ما عندك صلاحية المخزون');
+  const sb = window.supabaseClient;
+  const { data, error } = await sb.rpc('adjust_stock_qty_guided', {
+    p_stock_item_id: a._stockId, p_new_qty: a.newQty, p_reason: a.reason || 'count'
+  });
+  if(error) throw rkaStockRpcErr(error, 'تعذّر تعديل الرصيد');
+  const it = rkaStockById(a._stockId);
+  const oldQty = Number((data && data.old_qty) || 0);
+  const newQty = Number((data && data.new_qty != null) ? data.new_qty : a.newQty);
+  if(it){ it.qtyOnHand = newQty; rkaStockRerender(); }
+  if(typeof logDashboardAudit === 'function') logDashboardAudit('عدّل رصيد مخزون عبر مدير المخزون (' + (RKA_STOCK_REASON_LABEL[a.reason] || a.reason) + '): ' + (it ? it.name : a._stockId) + ' → ' + newQty);
+  const delta = newQty - oldQty;
+  const pct = it ? computeStockPct({ qtyOnHand: newQty, parLevel: it.parLevel }) : null;
+  return { stockId: a._stockId,
+    message: 'رصيد «' + (it ? it.name : 'الصنف') + '» صار ' + rkaQtyFmt(newQty) + ' ' + rkaUnitLabel(it ? it.unit : '')
+      + ' (' + (delta === 0 ? 'بدون تغيير' : (delta > 0 ? '+' : '') + rkaQtyFmt(delta)) + ')'
+      + (pct != null ? ' — ' + pct + '٪ من مخزونك المعتاد' : '') + ' ✓' };
+}
+
+async function rkaStockSetCost(a, idemKey){
+  if(typeof screenAllowed === 'function' && !screenAllowed('inventory')) throw new Error('ما عندك صلاحية المخزون');
+  const sb = window.supabaseClient;
+  const { data, error } = await sb.rpc('set_stock_cost_guided', { p_stock_item_id: a._stockId, p_unit_cost: a.newCost });
+  if(error) throw rkaStockRpcErr(error, 'تعذّر تحديث التكلفة');
+  const it = rkaStockById(a._stockId);
+  const oldCost = Number((data && data.old_cost) || 0);
+  const newCost = Number((data && data.unit_cost != null) ? data.unit_cost : a.newCost);
+  if(it){ it.unitCost = newCost; rkaStockRerender(); }
+  if(typeof logDashboardAudit === 'function') logDashboardAudit('صحّح تكلفة صنف عبر مدير المخزون: ' + (it ? it.name : a._stockId) + ' → ' + newCost);
+  return { stockId: a._stockId,
+    message: 'تكلفة «' + (it ? it.name : 'الصنف') + '» صارت ' + rkaUnitCostFmt(newCost) + ' ر.س لكل ' + rkaUnitOne(it ? it.unit : '')
+      + ' (كانت ' + rkaUnitCostFmt(oldCost) + ')\nتنطبق على المبيعات الجاية فقط — الطلبات السابقة تحتفظ بتكلفتها وقت البيع.' };
+}
+
+// استئناف: هل op الإنشاء تمّ فعلًا على الخادم؟ (نداء بـqty=-1 → يُرفض بلا كتابة لو ما تمّ)
+async function rkaStockCheckOp(baseIdemKey){
+  try {
+    const sb = window.supabaseClient;
+    const { data, error } = await sb.rpc('create_stock_item_guided', {
+      p_op_id: baseIdemKey + ':base', p_name: 'probe', p_category: 'raw', p_unit: 'kg', p_unit_cost: 0, p_qty: -1
+    });
+    if(!error && data && data.created === false)
+      return { done: true, result: { productId: data.stock_item_id, stockId: data.stock_item_id, created: false } };
+  } catch(e){}
+  return { done: false };
+}
+
+/* ---------- تقارير حالة (كلها بدوال ركين نفسها — لا حساب موازٍ) ---------- */
+function rkaStockDoneMsg(id){
+  const it = rkaStockById(id);
+  if(!it) return 'تم ✓';
+  const pct = computeStockPct(it);
+  const val = Math.max(0, it.qtyOnHand) * it.unitCost;
+  return '«' + it.name + '» جاهز في المخزون ✓\n'
+    + '• الرصيد: ' + rkaQtyFmt(it.qtyOnHand) + ' ' + rkaUnitLabel(it.unit) + ' (' + pct + '٪ من مخزونك المعتاد)\n'
+    + '• التكلفة: ' + rkaUnitCostFmt(it.unitCost) + ' ر.س لكل ' + rkaUnitOne(it.unit) + ' · قيمة المخزون منه: ' + rkaMoneyFmt(val) + ' ر.س';
+}
+function rkaStockStatusReport(id){
+  const it = rkaStockById(id);
+  if(!it) return 'ما لقيت الصنف — حدّث الصفحة.';
+  const pct = computeStockPct(it);
+  const tier = computeStockTier(pct);
+  const val = Math.max(0, it.qtyOnHand) * it.unitCost;
+  const cons = (typeof computeTodayConsumption === 'function') ? computeTodayConsumption(it.name) : { totalQty:0, unitsSold:0 };
+  const used = (typeof getUsedInMap === 'function') ? (getUsedInMap()[it.name] || []) : [];
+  let msg = '«' + it.name + '» — ' + rkaStockCatLabel(it.category) + '\n';
+  msg += '• الرصيد: ' + rkaQtyFmt(it.qtyOnHand) + ' من ' + rkaQtyFmt(it.parLevel) + ' ' + rkaUnitLabel(it.unit) + ' — ' + pct + '٪'
+       + (tier === 'critical' ? ' ⚠️ منخفض جدًا' : tier === 'warn' ? ' — يحتاج انتباه' : '') + '\n';
+  msg += '• التكلفة: ' + rkaUnitCostFmt(it.unitCost) + ' ر.س لكل ' + rkaUnitOne(it.unit) + ' · قيمة مخزونك منه: ' + rkaMoneyFmt(val) + ' ر.س\n';
+  if(cons.totalQty > 0) msg += '• استهلاك اليوم: ' + cons.totalQty.toFixed(cons.totalQty < 10 ? 2 : 0) + ' ' + rkaUnitLabel(it.unit) + ' — في ' + cons.unitsSold + ' قطعة مباعة\n';
+  msg += used.length ? '• يدخل في وصفة: ' + used.join('، ') : '• غير مرتبط بأي وصفة';
+  return msg;
+}
+
+/* ============ تسجيل المدير ============ */
+RKA.registerManager({
+  id: 'inventory',
+  screen: 'inventory',
+  title: 'مدير المخزون',
+  classifyIntent: rkaStockClassifyIntent,
+  greeting(){
+    return 'أنا مدير المخزون 👋\nأسجّل أصنافك، أضبط أرصدتها (جرد/تلف)، أصحّح تكاليفها، وأنبّهك للناقص.\nقل لي وش تبي — مثل: «أضيف زيت زيتون» أو «جردت الدجاج».';
+  },
+  intents: [
+    {
+      id: 'add', label: 'أضيف صنف جديد للمخزون',
+      workflow: {
+        id: 'add-stock',
+        checkDone: rkaStockCheckOp,
+        finishMessage: (a) => { const it = rkaStockById(a._stockId); return 'وقفنا هنا. «' + (it ? it.name : '') + '» مسجّل ✓'; },
+        buildSteps(a){
+          if(!a._stockId && a._productId) a._stockId = a._productId;   // بعد استئناف متعدد المراحل
+          const nameValidate = (v) => {
+            if(!v || !v.trim()) return 'اكتب اسم الصنف.';
+            if(v.trim().length > 60) return 'الاسم طويل — خليه أقصر.';
+            const norm = s => String(s).replace(/\s+/g,' ').trim();
+            const list = (typeof STOCK_ITEMS !== 'undefined') ? STOCK_ITEMS : [];
+            if(list.some(s => norm(s.name) === norm(v)))
+              return 'عندك صنف بهذا الاسم. لو تبي تعدّل رصيده أو تكلفته اكتب: إلغاء، ثم اختر الخيار المناسب.';
+            return null;
+          };
+          if(a._pendingName && !a.name){ if(nameValidate(a._pendingName) === null) a.name = a._pendingName.trim(); delete a._pendingName; }
+          // الخطوات المُجابة تبقى في القائمة (مثل مدير المنتجات) عشان «رجوع»
+          // و«تعديل» يقدرون يرجعون لها؛ _firstPending يتخطّاها تلقائيًا.
+          const steps = [];
+          if(!a.name) steps.push({ key:'name', type:'ask', prompt:'وش اسم الصنف؟', placeholder:'مثال: زيت زيتون', validate: nameValidate });
+          {
+            const carry = (a._carryCategory === 'raw' || a._carryCategory === 'packaging') ? a._carryCategory : null;
+            let opts = [ { value:'raw', label:'مادة خام أساسية' }, { value:'packaging', label:'تغليف ومستلزمات' } ];
+            if(carry){
+              opts = opts.slice().sort((x, y) => x.value === carry ? -1 : (y.value === carry ? 1 : 0));
+              opts = opts.map((o, i) => i === 0 ? Object.assign({}, o, { label: o.label + '  ·  نفس السابق' }) : o);
+            }
+            steps.push({ key:'category', type:'choose', prompt:'نوعه؟',
+              hint:'<b>مادة خام</b>: أي شي يدخل في وصفة منتج (لحم، جبن، خضار، حليب…).\n<b>تغليف ومستلزمات</b>: أكياس، أكواب، كراتين، ملاعق — أي شي مو مأكول. التصنيف يرتّب جدول المخزون فقط.',
+              options: opts });
+          }
+          steps.push({ key:'unit', type:'choose', prompt:'وش وحدة تتبّع الصنف؟',
+            hint:'الوحدة اللي تشتري فيها الصنف وتتابع رصيده. نفسها تُستخدم في الوصفات (وتقدر تدخل بالوصفة وحدة ثانية — النظام يحوّل).',
+            options:[ { value:'kg', label:'كيلوغرام' }, { value:'g', label:'غرام' }, { value:'liter', label:'لتر' }, { value:'ml', label:'مل' }, { value:'piece', label:'حبة / قطعة' } ] });
+          // لا سؤال عن الكثافة — النظام يشتقّها من اسم الصنف تلقائيًا
+          // (guessGramsPerLiter / دالة SQL rka_density_for). المجهول → كثافة الماء.
+          steps.push({ key:'unitCost', type:'ask',
+            prompt: (ans) => 'كم سعر ' + rkaUnitOne(ans.unit) + ' الواحد من «' + (ans.name || '') + '»؟ (ر.س)',
+            hint:'سعر <b>وحدة واحدة</b> بنفس الوحدة اللي فوق — لا سعر الكيس ولا الكرتون كامل. منه تُحسب تكلفة الوصفات وهامش الربح. لو ما تدري بالضبط حط أقرب رقم وصحّحه لاحقًا.',
+            placeholder:'سعر الوحدة الواحدة فقط', parse: raw => rkaMoney(raw),
+            validate: v => v == null ? 'اكتب رقم فقط — مثال: 18' : (v < 0 ? 'ما تكون بالسالب.' : (v > 1000000 ? 'الرقم كبير — تأكّد.' : null)) });
+          steps.push({ key:'qty', type:'ask',
+            prompt: (ans) => 'كم عندك الآن من «' + (ans.name || '') + '»؟ (' + rkaUnitLabel(ans.unit) + ')',
+            hint:'الكمية الحالية بالضبط. تصير مرجع «مخزونك المعتاد» (١٠٠٪).',
+            placeholder:'مثال: 20', parse: raw => rkaMoney(raw),
+            validate: v => v == null ? 'اكتب رقم فقط.' : (v < 0 ? 'ما تكون بالسالب.' : (v > 1000000000 ? 'الرقم كبير — تأكّد.' : null)) });
+          steps.push({ key:'review', type:'review', summary(a){
+            return '<dt>الصنف</dt><dd>' + rkaEsc((a.name || '').trim()) + '</dd>'
+              + '<dt>النوع</dt><dd>' + rkaStockCatLabel(a.category) + '</dd>'
+              + '<dt>الوحدة</dt><dd>' + rkaUnitLabel(a.unit) + '</dd>'
+              + '<dt>التكلفة</dt><dd><b>' + rkaUnitCostFmt(a.unitCost) + '</b> ر.س لكل ' + rkaUnitOne(a.unit) + '</dd>'
+              + '<dt>الكمية الآن</dt><dd><b>' + a.qty + '</b> ' + rkaUnitLabel(a.unit) + ' <span style="color:var(--muted);font-size:11px">(= ١٠٠٪)</span></dd>';
+          }});
+          steps.push({ key:'base', type:'execute', idemKind:'base', pending:'أسجّل الصنف…', run:(ans, ctx, k) => rkaStockCreateGuided(ans, k) });
+          if(a._stockId){
+            const it = rkaStockById(a._stockId);
+            const curPar = it ? it.parLevel : a.qty;
+            const uLbl = rkaUnitLabel(it ? it.unit : a.unit);
+            if(a.parGate === undefined) steps.push({ key:'parGate', type:'choose',
+              prompt: '«مخزونك المعتاد» صار = ' + rkaQtyFmt(curPar) + ' ' + uLbl + '. تبيه رقم ثاني؟',
+              hint:'«مخزونك المعتاد» = الكمية اللي نعتبرها مخزون كامل (١٠٠٪) ونقيس عليها النسبة. غيّره فقط لو عادةً تخزّن أكثر أو أقل من الكمية الحالية.',
+              options:[ { value:'keep', label:'لا، خلّه ' + rkaQtyFmt(curPar) }, { value:'set', label:'نعم، أحدّده' } ] });
+            if(a.parGate === 'set' && a.parLevel === undefined) steps.push({ key:'parLevel', type:'ask',
+              prompt:'كم الكمية اللي تعتبرها مخزون كامل لهذا الصنف؟', placeholder:'مثال: 30',
+              parse: raw => rkaMoney(raw),
+              validate: v => (v == null || v <= 0) ? 'اكتب رقم أكبر من صفر.' : (v > 1000000000 ? 'الرقم كبير — تأكّد.' : null) });
+            if(a.parGate === 'set' && a.parLevel !== undefined){
+              steps.push({ key:'parExec', type:'execute', idemKind:'par', pending:'أحفظ «مخزونك المعتاد»…', run:(ans, ctx, k) => rkaStockSetPar(ans, k) });
+              steps.push({ key:'finish', type:'execute', idemKind:'finish', run:(ans) => ({ stockId: ans._stockId, message: rkaStockDoneMsg(ans._stockId) }) });
+            }
+            if(a.parGate === 'keep') steps.push({ key:'finish', type:'execute', idemKind:'finish', run:(ans) => ({ stockId: ans._stockId, message: rkaStockDoneMsg(ans._stockId) }) });
+          }
+          return steps;
+        },
+        doneActions(res){
+          const acts = [{ label:'أضيف صنف ثاني', run:() => {
+            const s = RKA.session, la = s && s._lastAnswers;
+            RKA.restartSameWorkflow('صنف جديد:', (la && (la.category === 'raw' || la.category === 'packaging')) ? { _carryCategory: la.category } : {});
+          } }];
+          if(res && res.stockId){
+            acts.push({ label:'أعدّل رصيده', run:() => RKA.restartSameWorkflowAs('count', { _stockId: res.stockId }) });
+            acts.push({ label:'افتح الصنف', run:() => { RKA.close(); if(typeof openStockItemModal === 'function') openStockItemModal(res.stockId); } });
+          }
+          return acts;
+        }
+      }
+    },
+    {
+      id: 'count', label: 'أعدّل رصيد صنف (جرد / تلف)',
+      workflow: {
+        id: 'adjust-stock',
+        finishMessage: (a) => { const it = rkaStockById(a._stockId); return 'وقفنا هنا. رصيد «' + (it ? it.name : '') + '» زي ما هو.'; },
+        buildSteps(a){
+          rkaStockResumeId(a);
+          const steps = rkaStockPickSteps(a, 'أي صنف تبي تعدّل رصيده؟');
+          if(a._stockId){
+            steps.push({ key:'status', type:'info', text: () => {
+              const cur = rkaStockById(a._stockId);
+              const pct = cur ? computeStockPct(cur) : 0;
+              return 'رصيد «' + (cur ? cur.name : '') + '» المسجّل الآن: ' + rkaQtyFmt(cur ? cur.qtyOnHand : 0) + ' ' + rkaUnitLabel(cur ? cur.unit : '')
+                + ' (' + pct + '٪ من ' + rkaQtyFmt(cur ? cur.parLevel : 0) + ').';
+            } });
+            steps.push({ key:'reason', type:'choose', prompt:'وش سبب التعديل؟',
+              hint:'السبب ما يغيّر الحساب — بس يوضّح في سجل التعديلات ليش تغيّر الرصيد.',
+              options: RKA_STOCK_REASONS.slice() });
+            if(a.reason === 'received') steps.push({ key:'receivedNote', type:'info',
+              text:'استلام بمورّد وفاتورة الأفضل يتسجّل من شاشة «المشتريات» — يحدّث الكمية والتكلفة المتوسطة تلقائيًا. لو كان بدون فاتورة (تحويل من فرع، عيّنة…) كمّل هنا عادي.' });
+            if(a.reason !== undefined){
+              steps.push({ key:'newQty', type:'ask',
+                prompt: (ans) => { const cur = rkaStockById(ans._stockId); return 'كم الكمية الفعلية الحين؟ (' + rkaUnitLabel(cur ? cur.unit : '') + ')'; },
+                hint: a.reason === 'waste' ? 'اكتب الكمية <b>المتبقية</b> بعد التلف — مو كمية التالف. النظام يحسب الفرق.' : 'اكتب الرقم النهائي الصحيح، والنظام يحسب الفرق.',
+                placeholder:'مثال: 12', parse: raw => rkaMoney(raw),
+                validate(v){ if(v == null || v < 0) return 'اكتب رقم صحيح (صفر أو أكثر).'; if(v > 1000000000) return 'الرقم كبير — تأكّد.'; return null; } });
+              steps.push({ key:'review', type:'review', summary(a){
+                const cur = rkaStockById(a._stockId);
+                const from = cur ? cur.qtyOnHand : 0, to = a.newQty, d = to - from;
+                const pct = cur ? computeStockPct({ qtyOnHand: to, parLevel: cur.parLevel }) : null;
+                return '<dt>الصنف</dt><dd>' + rkaEsc(cur ? cur.name : '') + '</dd>'
+                  + '<dt>السبب</dt><dd>' + (RKA_STOCK_REASON_LABEL[a.reason] || a.reason) + '</dd>'
+                  + '<dt>الرصيد</dt><dd>من <b>' + rkaQtyFmt(from) + '</b> إلى <b>' + rkaQtyFmt(to) + '</b> ' + rkaUnitLabel(cur ? cur.unit : '')
+                  + ' <span style="color:' + (d < 0 ? 'var(--danger)' : 'var(--success-text)') + '">(' + (d === 0 ? 'بدون تغيير' : (d > 0 ? '+' : '') + rkaQtyFmt(d)) + ')</span>'
+                  + (pct != null ? '<br><span style="color:var(--muted);font-size:11px">' + pct + '٪ من مخزونك المعتاد</span>' : '') + '</dd>';
+              } });
+              steps.push({ key:'adjExec', type:'execute', idemKind:'adjust', pending:'أحدّث الرصيد…', run:(ans, ctx, k) => rkaStockAdjustQty(ans, k) });
+            }
+          }
+          return steps;
+        },
+        doneActions(res){
+          const acts = [{ label:'أعدّل رصيد صنف ثاني', run:() => RKA.restartSameWorkflow('أي صنف؟') }];
+          if(res && res.stockId) acts.push({ label:'افتح الصنف', run:() => { RKA.close(); if(typeof openStockItemModal === 'function') openStockItemModal(res.stockId); } });
+          return acts;
+        }
+      }
+    },
+    {
+      id: 'cost', label: 'أصحّح تكلفة صنف',
+      workflow: {
+        id: 'stock-cost',
+        finishMessage: (a) => { const it = rkaStockById(a._stockId); return 'وقفنا هنا. تكلفة «' + (it ? it.name : '') + '» زي ما هي.'; },
+        buildSteps(a){
+          rkaStockResumeId(a);
+          const steps = rkaStockPickSteps(a, 'أي صنف تبي تصحّح تكلفته؟');
+          if(a._stockId){
+            steps.push({ key:'newCost', type:'ask',
+              prompt: () => { const it = rkaStockById(a._stockId); const one = rkaUnitOne(it ? it.unit : '');
+                return 'صنف «' + (it ? it.name : '') + '» مسجّل بالـ' + rkaUnitLabel(it ? it.unit : '') + '، وتكلفته الحالية '
+                  + rkaUnitCostFmt(it ? it.unitCost : 0) + ' ر.س لكل ' + one + '.\nكم سعر ' + one + ' الواحد الصحيح؟ (ر.س)'; },
+              placeholder: 'سعر الوحدة الواحدة فقط',
+              hint:'اكتب سعر <b>وحدة واحدة</b> بنفس وحدة تسجيل الصنف — لا سعر الكيس ولا الكرتون كامل.\nاستخدمه <b>للتصحيح فقط</b>؛ لو التغيّر بفاتورة شراء جديدة سجّلها من «المشتريات» ليحسب المتوسط المرجّح. التصحيح هنا ينطبق على المبيعات الجاية فقط.',
+              parse: raw => rkaMoney(raw),
+              validate(v, ans){ if(v == null) return 'اكتب رقم فقط.'; if(v < 0) return 'ما تكون بالسالب.'; if(v > 1000000) return 'الرقم كبير — تأكّد.'; ans.newCost = v; return null; } });
+            steps.push({ key:'review', type:'review', summary(a){
+              const it = rkaStockById(a._stockId);
+              return '<dt>الصنف</dt><dd>' + rkaEsc(it ? it.name : '') + '</dd>'
+                + '<dt>سعر ' + rkaUnitOne(it ? it.unit : '') + '</dt><dd>من <b>' + rkaUnitCostFmt(it ? it.unitCost : 0) + '</b> إلى <b>' + rkaUnitCostFmt(a.newCost) + '</b> ر.س</dd>';
+            } });
+            steps.push({ key:'costExec', type:'execute', idemKind:'stockcost', pending:'أحدّث التكلفة…', run:(ans, ctx, k) => rkaStockSetCost(ans, k) });
+          }
+          return steps;
+        },
+        doneActions(res){
+          const acts = [{ label:'أصحّح تكلفة صنف ثاني', run:() => RKA.restartSameWorkflow('أي صنف؟') }];
+          if(res && res.stockId) acts.push({ label:'افتح الصنف', run:() => { RKA.close(); if(typeof openStockItemModal === 'function') openStockItemModal(res.stockId); } });
+          return acts;
+        }
+      }
+    },
+    {
+      id: 'restock', label: 'استلمت بضاعة من مورّد',
+      workflow: {
+        id: 'stock-restock',
+        buildSteps(a){
+          const canPurch = (typeof screenAllowed === 'function') && (screenAllowed('purchases') || screenAllowed('accounting'));
+          if(!canPurch) return [
+            { key:'noperm', type:'info', text:'تسجيل فواتير الشراء يحتاج صلاحية «المشتريات» — مو متاحة لك. تواصل مع المالك. تقدر تعدّل الأرصدة والتكاليف من هنا عادي.' },
+            { key:'end', type:'execute', idemKind:'noop', run:() => ({ closePanel:true, message:'خلّينا الفواتير للمشتريات.' }) }
+          ];
+          return [
+            { key:'intro', type:'info', text:'الاستلام من مورّد مكانه «فاتورة شراء» — تحدّث الكمية وتحسب متوسط التكلفة تلقائيًا وتظهر في تقارير المشتريات. بفتح لك النموذج الآن.' },
+            { key:'open', type:'execute', idemKind:'openinv', pending:'أفتح نموذج فاتورة الشراء…',
+              run:() => { try { if(typeof openInvoiceModal === 'function') openInvoiceModal(); } catch(e){} return { closePanel:true, message:'فتحت لك نموذج فاتورة الشراء ✓' }; } }
+          ];
+        }
+      }
+    },
+    {
+      id: 'check', label: 'كم باقي عندي من صنف؟',
+      workflow: {
+        id: 'stock-check',
+        buildSteps(a){
+          rkaStockResumeId(a);
+          const steps = rkaStockPickSteps(a, 'أي صنف تبي تشوف رصيده؟');
+          if(a._stockId) steps.push({ key:'show', type:'execute', idemKind:'noop',
+            run:(ans) => ({ stockId: ans._stockId, message: rkaStockStatusReport(ans._stockId) }) });
+          return steps;
+        },
+        doneActions(res){
+          const acts = [{ label:'أشوف صنف ثاني', run:() => RKA.restartSameWorkflow('أي صنف؟') }];
+          if(res && res.stockId){
+            acts.push({ label:'أعدّل رصيده', run:() => RKA.restartSameWorkflowAs('count', { _stockId: res.stockId }) });
+            acts.push({ label:'افتح الصنف', run:() => { RKA.close(); if(typeof openStockItemModal === 'function') openStockItemModal(res.stockId); } });
+          }
+          return acts;
+        }
+      }
+    }
+  ]
+});
+
+/* ربط زر مدير المخزون (FAB) — delegated */
+document.addEventListener('click', function(e){
+  const btn = e.target && e.target.closest && e.target.closest('#rkaInventoryLaunch');
+  if(!btn) return;
+  e.preventDefault();
+  RKA.open('inventory', { screen: 'inventory' });
+});
+
+/* ═══════════════════════════ مدير الكاشير ═══════════════════════════
+   موظف تبويب «الكاشير» في لوحة التحكم (#screen-pos). يفحص جاهزية
+   التشغيل ويجهّز الناقص، ويشرح الخيارات المحيّرة (توقيت الدفع، شاشة
+   المطبخ، تخطي «جاهز»، نسخة المطبخ، رمز الإغلاق، الفاتورة) ويضبطها
+   بتوصية وتأكيد. كل كتابة عبر نفس مسارات ركين: updateCurrentBusiness
+   (أعمدة businesses، RLS مالك) · set_pos_manager_pin (RPC) ·
+   /api/pos/provision-branch. ما يحتاج migration. بلا AI.              */
+
+const RKA_POS_WEAK_PINS = new Set(['0000','1111','2222','3333','4444','5555','6666','7777','8888','9999','1234','2345','3456','4567','5678','6789','0123','9876','8765','7654','6543','5432','4321','3210','1212','2121','1122','2211','1313','1004','2000','2001','2580','1010','6969','1230','0987']);
+const RKA_POS_AUTOREADY = [
+  { key:'auto_ready_dine_in', label:'الطاولات (محلي)' },
+  { key:'auto_ready_pickup', label:'السفري (استلام)' },
+  { key:'auto_ready_delivery_platform', label:'توصيل عبر التطبيقات (كيتا، جاهز…)' },
+  { key:'auto_ready_delivery_online', label:'توصيل عبر متجرك الإلكتروني' },
+];
+const RKA_POS_SRFLAGS = [
+  { key:'discounts', label:'الخصومات' },
+  { key:'refunds', label:'المرتجعات' },
+  { key:'vat', label:'ضريبة القيمة المضافة' },
+  { key:'counts', label:'عدد الطلبات ومتوسط الفاتورة' },
+  { key:'signatures', label:'خانتَي توقيع الكاشير والمدير' },
+];
+
+function rkaPosIsOwner(){ return !(typeof CURRENT_PROFILE !== 'undefined' && CURRENT_PROFILE && CURRENT_PROFILE.user_type && CURRENT_PROFILE.user_type !== 'owner'); }
+function rkaPosBizType(){ return (typeof BUSINESS_TYPE !== 'undefined' && BUSINESS_TYPE) || 'restaurant'; }
+function rkaPosDineInTables(){ return (typeof DINE_IN_ENABLED === 'undefined' || DINE_IN_ENABLED) && (typeof DINE_IN_MODE === 'undefined' || DINE_IN_MODE === 'tables'); }
+function rkaPosBiz(){ return (typeof RKA_POS_BIZ_CACHE !== 'undefined' && RKA_POS_BIZ_CACHE) || {}; }
+let RKA_POS_BIZ_CACHE = null;
+async function rkaPosLoadBiz(){
+  const sb = window.supabaseClient;
+  const { data } = await sb.from('businesses').select(
+    'pos_manager_pin_hash, dine_in_pay_timing, kitchen_ready_mode, kitchen_auto_ready_minutes, kitchen_new_order_sound_enabled, auto_ready_dine_in, auto_ready_pickup, auto_ready_delivery_platform, auto_ready_delivery_online, kitchen_ticket_mode, pos_require_manager_pin_for_close, receipt_tagline, receipt_custom_message, receipt_print_refund, shift_report_options'
+  ).eq('id', CURRENT_PROFILE.business_id).single();
+  RKA_POS_BIZ_CACHE = data || {};
+  return RKA_POS_BIZ_CACHE;
+}
+function rkaPosPinValidate(v){
+  const s = rkaDigits(String(v || '')).trim();
+  if(!/^\d{4}$/.test(s)) return 'لازم ٤ أرقام بالضبط.';
+  if(RKA_POS_WEAK_PINS.has(s)) return 'هذا الرمز سهل التخمين (متكرّر/متسلسل مثل ١٢٣٤ أو ٠٠٠٠) — اختر رمز ثاني.';
+  return null;
+}
+
+/* ---------- جاهزية التشغيل ---------- */
+async function rkaPosReadiness(){
+  const sb = window.supabaseClient;
+  const bizId = CURRENT_PROFILE.business_id;
+  const [pinRes, brRes, tillRes] = await Promise.all([
+    sb.from('businesses').select('id').eq('id', bizId).not('pos_manager_pin_hash', 'is', null),
+    sb.from('branches').select('id, name').eq('business_id', bizId).order('id'),
+    sb.from('profiles').select('branch_id').eq('business_id', bizId).eq('user_type', 'employee'),
+  ]);
+  const paired = new Set((tillRes.data || []).map(r => r.branch_id));
+  const branches = (brRes.data || []).map(b => ({ id:b.id, name:b.name, paired: paired.has(b.id) }));
+  const pinSet = !!(pinRes.data && pinRes.data.length);
+  const total = 1 + branches.length;
+  const done = (pinSet ? 1 : 0) + branches.filter(b => b.paired).length;
+  const missing = [];
+  if(!pinSet) missing.push('رمز المدير');
+  branches.filter(b => !b.paired).forEach(b => missing.push('اقتران فرع «' + b.name + '»'));
+  return { pinSet, branches, pct: total ? Math.round(done / total * 100) : 100, done, total, missing };
+}
+function rkaPosReadyBar(pct){ const n = Math.max(0, Math.min(10, Math.round(pct / 10))); return '█'.repeat(n) + '░'.repeat(10 - n); }
+function rkaPosReadinessText(r){
+  let s = 'جاهزية الكاشير: ' + r.pct + '٪  ' + rkaPosReadyBar(r.pct) + '\n';
+  s += (r.pinSet ? '✓' : '✗') + ' رمز المدير' + (r.pinSet ? ' — معيّن' : ' — ما تعيّن؛ الكاشير ما يقدر يقفل وردية ولا يسترجع مبلغ') + '\n';
+  r.branches.forEach(b => { s += (b.paired ? '✓' : '✗') + ' جهاز فرع «' + b.name + '»' + (b.paired ? ' — مقترن' : ' — ما اقترن؛ ما يفتح أي جهاز على هذا الفرع') + '\n'; });
+  return s.trim();
+}
+
+/* ---------- توصيات حسب نوع النشاط ---------- */
+function rkaPosRecommend(key){
+  const quick = ['cafe','coffee_shop','quick_service','cloud_kitchen','food_truck','bakery','juice_bar'].includes(rkaPosBizType());
+  const tables = rkaPosDineInTables();
+  if(key === 'payTiming') return (tables && !quick)
+    ? { value:'after', why:'عندك خدمة طاولات — الأنسب الدفع بعد الأكل (الفاتورة تنطلب على الطاولة).' }
+    : { value:'before', why:'نمطك كاونتر/سفري — الأنسب الدفع قبل الأكل، أسرع للطابور.' };
+  if(key === 'kitchenMode') return { value:'manual', why:'الأدق أن الموظف يضغط «تم التجهيز» فعليًا. التلقائي مناسب فقط لو ما عندك شاشة مطبخ أصلًا.' };
+  if(key === 'kitchenTicket') return { value:'brief', why:'تذكرة المطبخ أوضح للشيف وما فيها أسعار ولا ضريبة — نسخة الفاتورة تنفع لو تبي ورقة تلصقها على الكيس.' };
+  if(key === 'closePin') return { value:'on', why:'يُنصح بتفعيله، إلا إذا كان اللي يقفل الوردية هو المدير نفسه — الجرد والفرق والسجل ما يتغيّرون.' };
+  return { value:null, why:'' };
+}
+
+/* ---------- RPC/write wrappers (نفس مسارات ركين، RLS مالك) ---------- */
+function rkaPosRpcErr(error, fallback){
+  const m = String(error && (error.message || '')) + ' ' + String(error && (error.details || '')) + ' ' + String(error && (error.code || '')) + ' ' + String(error && (error.hint || ''));
+  if(/not authorized|42501|صلاحية كافية|حساب المالك/i.test(m)) return new Error('ضبط إعدادات الكاشير يحتاج حساب المالك — سجّل دخول بحساب المالك أو خلّه يضبطها.');
+  if(/سهل التخمين|weak|common/i.test(m)) return new Error('الرمز سهل التخمين — اختر رمز ثاني (تجنّب ١٢٣٤، ٠٠٠٠، المتكرّر أو المتسلسل).');
+  if(/invalid pin|pin format/i.test(m)) return new Error('الرمز لازم يكون ٤ أرقام.');
+  if(/not authenticated|28000|جلسة غير صالحة/i.test(m)) return new Error('انتهت الجلسة — حدّث الصفحة وسجّل دخول.');
+  return new Error(String(error && error.message || '').replace(/^[a-z_ ]+:\s*/i, '') || (fallback || 'تعذّرت العملية — حاول مرة ثانية.'));
+}
+async function rkaPosSaveBiz(patch, auditMsg){
+  if(!rkaPosIsOwner()) throw new Error('ضبط إعدادات الكاشير يحتاج حساب المالك — سجّل دخول بحساب المالك أو خلّه يضبطها.');
+  try { await updateCurrentBusiness(patch); }
+  catch(e){ throw rkaPosRpcErr(e, 'تعذّر الحفظ'); }
+  Object.assign(RKA_POS_BIZ_CACHE || (RKA_POS_BIZ_CACHE = {}), patch);
+  if(typeof logDashboardAudit === 'function' && auditMsg) logDashboardAudit(auditMsg + ' (عبر مدير الكاشير)');
+  try { if(typeof renderPosSettings === 'function') renderPosSettings(); } catch(e){}
+}
+async function rkaPosSetManagerPin(pin){
+  const { error } = await window.supabaseClient.rpc('set_pos_manager_pin', { p_pin: rkaDigits(String(pin)).trim() });
+  if(error) throw rkaPosRpcErr(error, 'تعذّر تعيين الرمز');
+  if(RKA_POS_BIZ_CACHE) RKA_POS_BIZ_CACHE.pos_manager_pin_hash = 'set';
+  if(typeof logDashboardAudit === 'function') logDashboardAudit('عيّن رمز مدير الكاشير (عبر مدير الكاشير)');
+  try { if(typeof renderPosSettings === 'function') renderPosSettings(); } catch(e){}
+}
+async function rkaPosProvisionBranch(branchId, pin){
+  const { data: { session } } = await window.supabaseClient.auth.getSession();
+  const res = await fetch('/api/pos/provision-branch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + ((session && session.access_token) || '') },
+    body: JSON.stringify({ branchId: parseInt(branchId, 10), pin: rkaDigits(String(pin)).trim() })
+  });
+  let body = {}; try { body = await res.json(); } catch(e){}
+  if(!res.ok) throw rkaPosRpcErr(new Error(body.error || 'تعذّر اقتران الجهاز'), 'تعذّر اقتران الجهاز');
+  if(typeof logDashboardAudit === 'function') logDashboardAudit('اقترن جهاز كاشير لفرع #' + branchId + ' (عبر مدير الكاشير)');
+  try { if(typeof renderPosSettings === 'function') renderPosSettings(); } catch(e){}
+}
+
+// جملة طبيعية → نيّة (deterministic)
+function rkaPosClassifyIntent(raw){
+  const s = ' ' + rkaDigits(raw).trim().toLowerCase().replace(/[.،؟!]+/g, ' ').replace(/\s+/g, ' ') + ' ';
+  const setupRe   = /(جهّز|جهز|رمز المدير|كلمة سر المدير|اقتران|اقترن|رمز الفرع|رمز الجهاز|جهاز الكاشير|ما يشتغل|مو يشتغل|جاهزية|تفعيل الكاشير|اربط الجهاز)/;
+  const receiptRe = /(فاتورة|الفاتوره|سطر تعريفي|رسالة.*فاتور|تقرير الإغلاق|تقرير الاغلاق|شعار|طباعة الاسترجاع|فاتورة استرجاع)/;
+  const serviceRe = /(توقيت الدفع|توقيت.*دفع|الدفع.*(طاول|قبل|بعد)|قبل الأكل|بعد الأكل|قبل ولا بعد|شاشة المطبخ|مرحلة جاهز|تخطي.*جاهز|نسخة المطبخ|تذكرة المطبخ|رمز الإغلاق|رمز الاغلاق|إغلاق الوردية|اغلاق الوردية|جاهز فور)/;
+  if(setupRe.test(s))   return { id:'setup', seed:{} };
+  if(serviceRe.test(s)) return { id:'service', seed:{} };   // قبل receipt: «نسخة المطبخ» فيها كلمة «فاتورة»
+  if(receiptRe.test(s)) return { id:'receipt', seed:{} };
+  return null;
+}
+
+function rkaPosOwnerGateStep(){
+  return { key:'ownerGate', type:'info',
+    text:'ضبط إعدادات الكاشير يحتاج حساب المالك (سياسة قاعدة البيانات). سجّل دخول بحساب المالك، أو خلّ المالك يفتح المدير. تقدر تشوف حالة الجاهزية بس.' };
+}
+
+/* ============ تسجيل المدير ============ */
+RKA.registerManager({
+  id: 'pos',
+  screen: 'pos',
+  title: 'مدير الكاشير',
+  classifyIntent: rkaPosClassifyIntent,
+  greeting(){
+    return 'أنا مدير الكاشير 👋\nأجهّز جهاز الكاشير للتشغيل، وأشرح لك الخيارات المحيّرة وأضبطها بتوصية.\nقل لي وش تبي — مثل: «جهّز الكاشير» أو «متى أخلي الدفع قبل ولا بعد؟».';
+  },
+  intents: [
+    {
+      id: 'setup', label: 'جهّز الكاشير للتشغيل',
+      workflow: {
+        id: 'pos-setup',
+        finishMessage: () => 'وقفنا هنا — تقدر تكمّل الباقي أي وقت من نفس الزر.',
+        buildSteps(a){
+          const steps = [];
+          if(a._ready === undefined){
+            steps.push({ key:'scan', type:'info', text: () => 'أفحص الجاهزية…' });
+            steps.push({ key:'readyExec', type:'execute', idemKind:'poscan',
+              run: async (ans) => { ans._ready = await rkaPosReadiness(); return { message: rkaPosReadinessText(ans._ready) }; } });
+            return steps;
+          }
+          const r = a._ready;
+          const canPin = (typeof screenAllowed !== 'function') || screenAllowed('settings') || rkaPosIsOwner();
+          // رمز المدير
+          if(!r.pinSet && a._pinDone === undefined){
+            if(!canPin){ steps.push({ key:'pinPerm', type:'info', text:'تعيين رمز المدير يحتاج صلاحية الإعدادات — مو متاحة لك. صاحب الصلاحية يعيّنه، ونكمّل اقتران الأجهزة.' }); a._pinDone = 'skip'; }
+            else {
+              steps.push({ key:'mpin', type:'ask',
+                prompt:'رمز المدير الجديد؟ (٤ أرقام)',
+                hint:'رمز عام يطلبه جهاز الكاشير قبل <b>إغلاق الوردية</b>، <b>الاسترجاع</b>، و<b>إلغاء طلب</b>. غير رمز فتح الجهاز نفسه (تحت). أعطِه للمدير ومن تثق فيه فقط.',
+                placeholder:'مثال: ٤٨٢٧ (تجنّب المتسلسل)', parse: raw => rkaDigits(String(raw)).trim(),
+                validate: v => rkaPosPinValidate(v) });
+              if(a.mpin !== undefined) steps.push({ key:'mpinExec', type:'execute', idemKind:'mpin', pending:'أعيّن رمز المدير…',
+                run: async (ans) => { await rkaPosSetManagerPin(ans.mpin); ans._pinDone = true; ans._ready = await rkaPosReadiness(); return { message:'رمز المدير معيّن ✓' }; } });
+            }
+          }
+          // اقتران كل فرع غير مقترن
+          const unpaired = r.branches.filter(b => !b.paired);
+          const nextBranch = unpaired.find(b => a['_pair_' + b.id] === undefined);
+          if((r.pinSet || a._pinDone !== undefined) && nextBranch){
+            steps.push({ key:'bpin_' + nextBranch.id, type:'ask',
+              prompt: 'رمز جهاز فرع «' + nextBranch.name + '»؟ (٤ أرقام)',
+              hint: 'رمز يفتح جهاز الكاشير <b>لهذا الفرع فقط</b>. كل الموظفين يستخدمونه ثم يختارون اسمهم من القائمة. اختر رمز يسهل تذكّره ويصعب تخمينه.',
+              placeholder:'٤ أرقام', parse: raw => rkaDigits(String(raw)).trim(),
+              validate: v => rkaPosPinValidate(v) });
+            if(a['bpin_' + nextBranch.id] !== undefined) steps.push({ key:'bexec_' + nextBranch.id, type:'execute', idemKind:'pair_' + nextBranch.id, pending:'أقرن الجهاز…',
+              run: async (ans) => { await rkaPosProvisionBranch(nextBranch.id, ans['bpin_' + nextBranch.id]); ans['_pair_' + nextBranch.id] = true; ans._ready = await rkaPosReadiness(); return { message:'جهاز فرع «' + nextBranch.name + '» مقترن ✓' }; } });
+          }
+          // خِتام
+          const stillMissing = (a._ready || r).missing.length;
+          if((r.pinSet || a._pinDone !== undefined) && !nextBranch && a._closed === undefined){
+            steps.push({ key:'closeExec', type:'execute', idemKind:'poswrap',
+              run: async (ans) => { ans._closed = true; const rr = ans._ready || await rkaPosReadiness();
+                return { message: rr.pct >= 100 ? ('الكاشير جاهز للتشغيل ✓\n' + rkaPosReadinessText(rr)) : ('وقفنا هنا:\n' + rkaPosReadinessText(rr)) }; } });
+          }
+          return steps;
+        },
+        doneActions(){
+          const acts = [{ label:'افحص الجاهزية من جديد', run:() => RKA.restartSameWorkflow('نعيد الفحص:') }];
+          acts.push({ label:'اضبط سلوك الخدمة', run:() => RKA.restartSameWorkflowAs('service', {}) });
+          acts.push({ label:'افتح تبويب الكاشير', run:() => { RKA.close(); const t = document.querySelector('#dashNav [data-screen="pos"], [data-screen="pos"]'); if(t) t.click(); } });
+          return acts;
+        }
+      }
+    },
+    {
+      id: 'service', label: 'اضبط سلوك الخدمة',
+      workflow: {
+        id: 'pos-service',
+        buildSteps(a){
+          if(!rkaPosIsOwner()) return [ rkaPosOwnerGateStep(), { key:'end', type:'execute', idemKind:'noop', run:() => ({ closePanel:true, message:'—' }) } ];
+          if(RKA_POS_BIZ_CACHE === null && a._loaded === undefined){
+            return [{ key:'load', type:'execute', idemKind:'load', run: async (ans) => { await rkaPosLoadBiz(); ans._loaded = true; return {}; } }];
+          }
+          const b = rkaPosBiz();
+          const steps = [];
+          // نُبقي البوابة في القائمة دائمًا — عشان «رجوع» يرجّع للاختيار السابق
+          steps.push({ key:'pick', type:'choose', prompt:'وش تبي تضبط في سلوك الخدمة؟',
+            options: [
+              { value:'payTiming', label:'توقيت الدفع للطاولات' + (rkaPosDineInTables() ? '' : ' (طاولاتك مطفّاة)') },
+              { value:'kitchenMode', label:'آلية إنهاء الطلب من شاشة المطبخ' },
+              { value:'autoReady', label:'تخطي مرحلة «جاهز» لقنوات معيّنة' },
+              { value:'kitchenTicket', label:'نسخة المطبخ (تذكرة / نسخة فاتورة)' },
+              { value:'closePin', label:'طلب رمز المدير عند إغلاق الوردية' },
+            ] });
+          if(a.pick === 'payTiming'){
+            const cur = b.dine_in_pay_timing === 'after' ? 'after' : 'before';
+            const rec = rkaPosRecommend('payTiming');
+            steps.push({ key:'payTiming', type:'choose',
+              prompt: 'توقيت الدفع للطاولات الآن: «' + (cur === 'after' ? 'بعد الأكل' : 'قبل الأكل') + '». نخليه؟',
+              hint: '<b>قبل الأكل</b>: العميل يدفع ثم يجلس — أسرع للكاونتر والمقاهي، والطاولة تتحرّر مبكّر.\n<b>بعد الأكل</b>: يجلس ويأكل ثم الفاتورة تنطلب على الطاولة — تجربة مطاعم الخدمة الكاملة.\nالموصى لك: <b>' + (rec.value === 'after' ? 'بعد الأكل' : 'قبل الأكل') + '</b> — ' + rec.why,
+              options: [
+                { value:'before', label:'قبل الأكل' + (rec.value === 'before' ? ' — موصى' : ''), primary: rec.value === 'before' },
+                { value:'after', label:'بعد الأكل' + (rec.value === 'after' ? ' — موصى' : ''), primary: rec.value === 'after' },
+              ] });
+            if(a.payTiming !== undefined) steps.push({ key:'ptExec', type:'execute', idemKind:'ptiming', pending:'أحفظ…',
+              run: async (ans) => { await rkaPosSaveBiz({ dine_in_pay_timing: ans.payTiming }, 'عدّل توقيت الدفع للطاولات'); return { message:'توقيت الدفع صار «' + (ans.payTiming === 'after' ? 'بعد الأكل' : 'قبل الأكل') + '» ✓' }; } });
+          } else if(a.pick === 'kitchenMode'){
+            const cur = b.kitchen_ready_mode === 'auto' ? 'auto' : 'manual';
+            steps.push({ key:'kMode', type:'choose',
+              prompt: 'إنهاء الطلب من شاشة المطبخ الآن: «' + (cur === 'auto' ? 'تلقائي' : 'يدوي') + '». نخليه؟',
+              hint: '<b>يدوي</b>: الموظف يضغط «تم التجهيز» — الأدق، يبيّن اللي جاهز فعلًا.\n<b>تلقائي</b>: الفاتورة تختفي من شاشة المطبخ بعد وقت محدّد بلا ضغط — مناسب فقط لو ما تستخدم شاشة مطبخ. الموصى: <b>يدوي</b>.',
+              options: [
+                { value:'manual', label:'يدوي — موصى', primary:true },
+                { value:'auto', label:'تلقائي بعد وقت محدّد' },
+              ] });
+            if(a.kMode === 'auto' && a.kMinutes === undefined) steps.push({ key:'kMinutes', type:'ask',
+              prompt:'بعد كم دقيقة تختفي الفاتورة تلقائيًا؟', placeholder:'مثال: ١٥',
+              parse: raw => { const n = parseInt(rkaDigits(String(raw)), 10); return isNaN(n) ? null : n; },
+              validate: v => (v == null || v < 1 || v > 120) ? 'اكتب رقم بين ١ و١٢٠.' : null });
+            if(a.kMode !== undefined && (a.kMode === 'manual' || a.kMinutes !== undefined)){
+              steps.push({ key:'kmReview', type:'review', summary(ans){
+                return '<dt>آلية الإنهاء</dt><dd>' + (ans.kMode === 'auto' ? 'تلقائي بعد <b>' + ans.kMinutes + '</b> دقيقة' : 'يدوي (ضغطة «تم»)') + '</dd>';
+              } });
+              steps.push({ key:'kmExec', type:'execute', idemKind:'kmode', pending:'أحفظ…',
+                run: async (ans) => { const patch = { kitchen_ready_mode: ans.kMode }; if(ans.kMode === 'auto') patch.kitchen_auto_ready_minutes = ans.kMinutes;
+                  await rkaPosSaveBiz(patch, 'عدّل آلية شاشة المطبخ'); return { message:'صارت «' + (ans.kMode === 'auto' ? 'تلقائي بعد ' + ans.kMinutes + ' دقيقة' : 'يدوي') + '» ✓' }; } });
+            }
+          } else if(a.pick === 'autoReady'){
+            const on = RKA_POS_AUTOREADY.filter(x => b[x.key]);
+            steps.push({ key:'ar', type:'ask',
+              prompt: 'أي قنوات تتخطى مرحلة «جاهز» (يتسجّل الطلب جاهز فورًا)؟ اكتب أرقامها، أو «ولا وحدة»:\n' + RKA_POS_AUTOREADY.map((x, i) => (i + 1) + ') ' + x.label + (b[x.key] ? '  ✓ الآن' : '')).join('\n'),
+              hint: 'فعّلها فقط للقنوات اللي فعلًا ما تحتاج انتظار تجهيز — مثل كاونتر تسليم فوري. لو فعّلتها للطاولات، الطلب يوصل المطبخ ويطلع «جاهز» في نفس اللحظة، فتضيع متابعة التحضير.',
+              placeholder:'مثال: ٢،٣  ·  أو: ولا وحدة',
+              parse(raw){
+                const s = rkaDigits(String(raw)).trim();
+                if(/^(ولا وحدة|ولا واحدة|لا شي|ولا شي|بدون|صفر|0)$/.test(s)) return [];
+                const nums = s.split(/[,،\s]+/).map(x => parseInt(x, 10)).filter(x => x >= 1 && x <= RKA_POS_AUTOREADY.length);
+                return [...new Set(nums)].map(x => RKA_POS_AUTOREADY[x - 1].key);
+              },
+              validate(res, ans){ if(!Array.isArray(res)) return 'اكتب أرقام من ١ إلى ' + RKA_POS_AUTOREADY.length + '، أو «ولا وحدة».'; ans._arKeys = res; return null; } });
+            if(a._arKeys !== undefined){
+              steps.push({ key:'arReview', type:'review', summary(ans){
+                const chosen = ans._arKeys.map(k => (RKA_POS_AUTOREADY.find(x => x.key === k) || {}).label).filter(Boolean);
+                return '<dt>تتخطى «جاهز»</dt><dd>' + (chosen.length ? chosen.join('<br>') : '<b>ولا قناة</b> — كل الطلبات تمرّ بمرحلة تجهيز') + '</dd>';
+              } });
+              steps.push({ key:'arExec', type:'execute', idemKind:'autoready', pending:'أحفظ…',
+                run: async (ans) => { const patch = {}; RKA_POS_AUTOREADY.forEach(x => { patch[x.key] = ans._arKeys.includes(x.key); });
+                  await rkaPosSaveBiz(patch, 'عدّل تخطي مرحلة الجاهزية'); return { message:'تم ✓ — ' + (ans._arKeys.length ? ans._arKeys.length + ' قناة تتخطى «جاهز»' : 'ما فيه قناة تتخطى «جاهز»') }; } });
+            }
+          } else if(a.pick === 'kitchenTicket'){
+            const cur = (typeof KITCHEN_TICKET_MODE !== 'undefined' ? KITCHEN_TICKET_MODE : (b.kitchen_ticket_mode || 'brief'));
+            steps.push({ key:'kt', type:'choose',
+              prompt: 'نسخة المطبخ الآن: «' + (cur === 'copy' ? 'نسخة من فاتورة العميل' : 'تذكرة مطبخ') + '». نخليها؟',
+              hint: '<b>تذكرة مطبخ</b>: أصناف وكميات وملاحظات فقط — بلا أسعار ولا ضريبة ولا رمز. كل اللي يحتاجه الشيف.\n<b>نسخة من فاتورة العميل</b>: نفس الفاتورة تنطبع مرتين — وحدة للعميل ووحدة تنحط على الكيس أو الممر. الموصى: <b>تذكرة مطبخ</b>.',
+              options: [
+                { value:'brief', label:'تذكرة مطبخ — موصى', primary:true },
+                { value:'copy', label:'نسخة من فاتورة العميل' },
+              ] });
+            if(a.kt !== undefined) steps.push({ key:'ktExec', type:'execute', idemKind:'kticket', pending:'أحفظ…',
+              run: async (ans) => { await rkaPosSaveBiz({ kitchen_ticket_mode: ans.kt }, 'غيّر نسخة المطبخ'); if(typeof KITCHEN_TICKET_MODE !== 'undefined') KITCHEN_TICKET_MODE = ans.kt;
+                return { message:'صارت «' + (ans.kt === 'copy' ? 'نسخة من فاتورة العميل' : 'تذكرة مطبخ') + '» ✓' }; } });
+          } else if(a.pick === 'closePin'){
+            const cur = b.pos_require_manager_pin_for_close !== false;
+            steps.push({ key:'cp', type:'choose',
+              prompt: 'طلب رمز المدير عند إغلاق الوردية الآن: «' + (cur ? 'مطلوب' : 'مو مطلوب') + '». نخليه؟',
+              hint: '<b>مطلوب</b>: جهاز الكاشير يطلب رمز المدير قبل إغلاق الوردية ومطابقة الكاش — طبقة اعتماد.\n<b>مو مطلوب</b>: أطفئه لو اللي يقفل الوردية هو المدير نفسه. الجرد والفرق والسجل ما يتغيّرون، والاسترجاع وإلغاء الطلب يظلّان يطلبان الرمز. الموصى: <b>مطلوب</b>.',
+              options: [
+                { value:'on', label:'مطلوب — موصى', primary:true },
+                { value:'off', label:'مو مطلوب' },
+              ] });
+            if(a.cp !== undefined) steps.push({ key:'cpExec', type:'execute', idemKind:'closepin', pending:'أحفظ…',
+              run: async (ans) => { await rkaPosSaveBiz({ pos_require_manager_pin_for_close: ans.cp === 'on' }, 'عدّل طلب رمز المدير للإغلاق'); if(typeof REQUIRE_MANAGER_PIN_FOR_CLOSE !== 'undefined') REQUIRE_MANAGER_PIN_FOR_CLOSE = ans.cp === 'on';
+                return { message: ans.cp === 'on' ? 'صار مطلوب رمز المدير عند الإغلاق ✓' : 'صار الإغلاق بلا رمز مدير ✓' }; } });
+          }
+          return steps;
+        },
+        doneActions(){
+          return [
+            { label:'اضبط خيار ثاني', run:() => RKA.restartSameWorkflow('وش الخيار الثاني؟') },
+            { label:'اضبط الفاتورة والتقرير', run:() => RKA.restartSameWorkflowAs('receipt', {}) },
+          ];
+        }
+      }
+    },
+    {
+      id: 'receipt', label: 'اضبط الفاتورة والتقرير',
+      workflow: {
+        id: 'pos-receipt',
+        buildSteps(a){
+          if(!rkaPosIsOwner()) return [ rkaPosOwnerGateStep(), { key:'end', type:'execute', idemKind:'noop', run:() => ({ closePanel:true, message:'—' }) } ];
+          if(RKA_POS_BIZ_CACHE === null && a._loaded === undefined){
+            return [{ key:'load', type:'execute', idemKind:'load', run: async (ans) => { await rkaPosLoadBiz(); ans._loaded = true; return {}; } }];
+          }
+          const b = rkaPosBiz();
+          const steps = [];
+          steps.push({ key:'pick', type:'choose', prompt:'وش تبي تضبط في الفاتورة والتقرير؟',
+            options: [
+              { value:'tagline', label:'السطر التعريفي أعلى الفاتورة' },
+              { value:'message', label:'الرسالة أسفل فاتورة العميل' },
+              { value:'printRefund', label:'طباعة فاتورة استرجاع' },
+              { value:'shiftReport', label:'أقسام تقرير إغلاق الوردية' },
+              { value:'logo', label:'شعار الفاتورة (صورة)' },
+            ] });
+          if(a.pick === 'tagline'){
+            steps.push({ key:'tagline', type:'ask',
+              prompt: 'السطر التعريفي الحالي: ' + ((b.receipt_tagline || '').trim() ? '«' + b.receipt_tagline + '»' : '(فاضي)') + '. اكتب الجديد (أو «امسح»):',
+              hint: 'يطبع تحت اسم المطعم مباشرة في كل فاتورة. مثال: «قهوة مختصة من الطائف». خلّه فاضي إذا ما تبيه.',
+              placeholder:'٦٠ حرف كحد أقصى',
+              parse: raw => { const s = String(raw || '').trim(); return /^(امسح|امسحه|احذف|فاضي|بدون|لا شي)$/.test(rkaDigits(s)) ? '' : s; },
+              validate: v => (v && v.length > 60) ? 'طويل — ٦٠ حرف كحد أقصى.' : null });
+            if(a.tagline !== undefined) steps.push({ key:'tagExec', type:'execute', idemKind:'tagline', pending:'أحفظ…',
+              run: async (ans) => { await rkaPosSaveBiz({ receipt_tagline: ans.tagline || null }, 'عدّل السطر التعريفي للفاتورة');
+                return { message: ans.tagline ? 'صار السطر التعريفي «' + ans.tagline + '» ✓' : 'مسحت السطر التعريفي ✓' }; } });
+          } else if(a.pick === 'message'){
+            steps.push({ key:'msg', type:'ask',
+              prompt: 'الرسالة أسفل الفاتورة الحالية: ' + ((b.receipt_custom_message || '').trim() ? '«' + b.receipt_custom_message.replace(/\n/g, ' / ') + '»' : '(الافتراضية: شكراً لزيارتكم)') + '. اكتب الجديدة (أو «امسح» للافتراضية):',
+              hint: 'تطبع تحت رمز QR. كل سطر يطبع سطرًا. مثال: «مدة الجلوس ٦٠ دقيقة للطاولة». خلّها فاضية لتبقى «شكراً لزيارتكم».',
+              placeholder:'١٢٠ حرف كحد أقصى',
+              parse: raw => { const s = String(raw || '').trim(); return /^(امسح|امسحها|احذف|فاضي|الافتراضية|بدون)$/.test(rkaDigits(s)) ? '' : s; },
+              validate: v => (v && v.length > 120) ? 'طويلة — ١٢٠ حرف كحد أقصى.' : null });
+            if(a.msg !== undefined) steps.push({ key:'msgExec', type:'execute', idemKind:'recmsg', pending:'أحفظ…',
+              run: async (ans) => { await rkaPosSaveBiz({ receipt_custom_message: ans.msg || null }, 'عدّل رسالة الفاتورة');
+                return { message: ans.msg ? 'حُفظت الرسالة ✓' : 'رجّعت الرسالة الافتراضية ✓' }; } });
+          } else if(a.pick === 'printRefund'){
+            const cur = b.receipt_print_refund !== false;
+            steps.push({ key:'pr', type:'choose',
+              prompt: 'طباعة فاتورة استرجاع الآن: «' + (cur ? 'مفعّلة' : 'مطفّاة') + '». نخليها؟',
+              hint: 'ورقة تثبت المبلغ اللي طلع من الدرج — يأخذها العميل، وتُطابق بها الوردية عند الإقفال. أطفئها لو استرجاعاتك صغيرة وما تبي ورق.',
+              options: [ { value:'on', label:'مفعّلة' }, { value:'off', label:'مطفّاة' } ] });
+            if(a.pr !== undefined) steps.push({ key:'prExec', type:'execute', idemKind:'printrefund', pending:'أحفظ…',
+              run: async (ans) => { await rkaPosSaveBiz({ receipt_print_refund: ans.pr === 'on' }, 'عدّل طباعة فاتورة الاسترجاع');
+                return { message: ans.pr === 'on' ? 'صارت فاتورة الاسترجاع تنطبع ✓' : 'وقّفت طباعة فاتورة الاسترجاع ✓' }; } });
+          } else if(a.pick === 'shiftReport'){
+            const opts = b.shift_report_options || {};
+            steps.push({ key:'sr', type:'ask',
+              prompt: 'أي أقسام تطلع في تقرير إغلاق الوردية؟ اكتب أرقام اللي تبيها:\n' + RKA_POS_SRFLAGS.map((x, i) => (i + 1) + ') ' + x.label + (opts[x.key] !== false ? '  ✓ الآن' : '')).join('\n'),
+              hint: 'المبيعات وطرق الدفع والصندوق والفرق تطبع دايم — هذي أساس التسوية وما تنشال. الباقي اختياري: مثلًا لو مطعمك غير مسجّل بالضريبة، شيل «ضريبة القيمة المضافة».',
+              placeholder:'مثال: ١،٢،٤،٥',
+              parse(raw){ const nums = rkaDigits(String(raw)).split(/[,،\s]+/).map(x => parseInt(x, 10)).filter(x => x >= 1 && x <= RKA_POS_SRFLAGS.length);
+                return [...new Set(nums)].map(x => RKA_POS_SRFLAGS[x - 1].key); },
+              validate(res, ans){ if(!Array.isArray(res)) return 'اكتب أرقام من ١ إلى ' + RKA_POS_SRFLAGS.length + '.'; ans._srKeys = res; return null; } });
+            if(a._srKeys !== undefined){
+              steps.push({ key:'srReview', type:'review', summary(ans){
+                const on = RKA_POS_SRFLAGS.filter(x => ans._srKeys.includes(x.key)).map(x => x.label);
+                const off = RKA_POS_SRFLAGS.filter(x => !ans._srKeys.includes(x.key)).map(x => x.label);
+                return '<dt>يطلع في التقرير</dt><dd>' + (on.length ? on.join('<br>') : '—') + '</dd>'
+                  + (off.length ? '<dt>ما يطلع</dt><dd style="color:var(--muted)">' + off.join('<br>') + '</dd>' : '');
+              } });
+              steps.push({ key:'srExec', type:'execute', idemKind:'shiftreport', pending:'أحفظ…',
+                run: async (ans) => { const o = {}; RKA_POS_SRFLAGS.forEach(x => { o[x.key] = ans._srKeys.includes(x.key); });
+                  await rkaPosSaveBiz({ shift_report_options: o }, 'عدّل أقسام تقرير الإغلاق'); if(typeof SHIFT_REPORT_OPTIONS !== 'undefined') SHIFT_REPORT_OPTIONS = o;
+                  return { message:'حُفظت أقسام التقرير ✓' }; } });
+            }
+          } else if(a.pick === 'logo'){
+            steps.push({ key:'logoInfo', type:'info', text:'الشعار يترفع صورة (مو نص) — أفتح لك مكانه في تبويب الكاشير، قسم «هوية الفاتورة المطبوعة».' });
+            steps.push({ key:'logoExec', type:'execute', idemKind:'logohand',
+              run: () => { try { RKA.close(); } catch(e){}
+                const t = document.querySelector('[data-screen="pos"]'); if(t) t.click();
+                setTimeout(() => { const tab = document.querySelector('#posSettingsTabs button[data-tab="receipt"]'); if(tab) tab.click();
+                  setTimeout(() => { const el = document.querySelector('#receiptLogoInput'); if(el && el.scrollIntoView) el.scrollIntoView({ block:'center' }); }, 400); }, 300);
+                return { closePanel:true, message:'فتحت لك مكان رفع الشعار ✓' }; } });
+          }
+          return steps;
+        },
+        doneActions(){
+          return [
+            { label:'اضبط شي ثاني في الفاتورة', run:() => RKA.restartSameWorkflow('وش الخيار الثاني؟') },
+            { label:'اضبط سلوك الخدمة', run:() => RKA.restartSameWorkflowAs('service', {}) },
+          ];
+        }
+      }
+    }
+  ]
+});
+
+/* ربط زر مدير الكاشير (FAB) — delegated */
+document.addEventListener('click', function(e){
+  const btn = e.target && e.target.closest && e.target.closest('#rkaPosLaunch');
+  if(!btn) return;
+  e.preventDefault();
+  rkaPosLoadBiz().catch(function(){});
+  RKA.open('pos', { screen: 'pos' });
+});
+
+/* ═══════════════════════════ مدير المشتريات ═══════════════════════════
+   موظف تبويب «المشتريات» في لوحة التحكم. يسجّل فاتورة مورّد كاملة زيّ ما
+   يسوّيها النموذج اليدوي (saveInvoice): يضيف المورّد، يُنشئ الأصناف
+   الجديدة، ويُدرج كل السطور تحت invoice_group_id واحد — والتريغر
+   purchase_invoice_bumps_stock يحسب المتوسط المرجّح ويزيد المخزون. كل
+   كتابة عبر RPC ذرّي واحد — migration 20260909040000. الأرقام المعروضة
+   بعد الحفظ من الخادم نفسه (stock_after). بلا AI.                      */
+
+const RKA_PURCH_UNITS = [
+  { value:'kg', label:'كيلوغرام' }, { value:'g', label:'غرام' },
+  { value:'liter', label:'لتر' }, { value:'piece', label:'حبة / قطعة' },
+];
+function rkaPurchUnitOne(u){ return ({ kg:'الكيلو', g:'الغرام', liter:'اللتر', piece:'الحبة' })[u] || rkaUnitLabel(u); }
+
+function rkaSupplierNames(){
+  return (typeof SUPPLIER_ID_BY_NAME !== 'undefined') ? Object.keys(SUPPLIER_ID_BY_NAME) : [];
+}
+function rkaSupplierMatch(raw){
+  const names = rkaSupplierNames();
+  return rkaMatchIn(raw, names.map(n => ({ name: n })), s => s.name);
+}
+function rkaPurchInvoices(){ return (typeof PURCHASE_INVOICES !== 'undefined') ? PURCHASE_INVOICES : []; }
+
+// تحليل تاريخ بسيط: «اليوم/أمس/قبل يومين» أو DD/MM أو DD-MM أو YYYY-MM-DD
+function rkaPurchParseDate(raw){
+  const s = rkaDigits(String(raw || '')).trim().toLowerCase();
+  const now = new Date();
+  const atNoon = d => { d.setHours(12, 0, 0, 0); return d; };
+  if(/^(اليوم|النهارده|توه?)$/.test(s)) return atNoon(new Date(now));
+  if(/^(أمس|امس|امبارح)$/.test(s)){ const d = new Date(now); d.setDate(d.getDate() - 1); return atNoon(d); }
+  if(/قبل يومين/.test(s)){ const d = new Date(now); d.setDate(d.getDate() - 2); return atNoon(d); }
+  let m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if(m){ const d = new Date(+m[1], +m[2] - 1, +m[3]); return isNaN(d) ? null : atNoon(d); }
+  m = s.match(/^(\d{1,2})[-/](\d{1,2})(?:[-/](\d{2,4}))?$/);
+  if(m){
+    const yr = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : now.getFullYear();
+    const d = new Date(yr, +m[2] - 1, +m[1]);
+    return isNaN(d) ? null : atNoon(d);
+  }
+  return null;
+}
+function rkaPurchDateLabel(iso){
+  try { return new Date(iso).toLocaleDateString('ar-SA', { day:'numeric', month:'long' }); } catch(e){ return String(iso).slice(0, 10); }
+}
+
+// كشف فاتورة شبه مكرّرة (نفس المورّد + نفس اليوم + إجمالي ضمن ١٪) — نفس فحص النموذج اليدوي
+function rkaPurchNearDup(supplierName, isoDate, grandTotal){
+  const day = String(isoDate).slice(0, 10);
+  const groups = {};
+  rkaPurchInvoices().forEach(p => {
+    if(p.supplier !== supplierName) return;
+    if(!p.invoicedAt || String(p.invoicedAt).slice(0, 10) !== day) return;
+    groups[p.invoiceGroupId] = (groups[p.invoiceGroupId] || 0) + Number(p.totalCost || 0);
+  });
+  return Object.values(groups).some(t => Math.abs(t - grandTotal) <= Math.max(0.5, grandTotal * 0.01));
+}
+
+function rkaPurchRpcErr(error, fallback){
+  const m = String(error && (error.message || '')) + ' ' + String(error && (error.details || '')) + ' ' + String(error && (error.code || '')) + ' ' + String(error && (error.hint || ''));
+  if(m.includes('new stock item needs screen:inventory')) return new Error('إضافة صنف جديد للمخزون تحتاج صلاحية المخزون — سجّل الأصناف الموجودة فقط، أو خلّ صاحب صلاحية المخزون يضيف الصنف أول.');
+  if(m.includes('duplicate stock item name')) return new Error('فيه صنف بنفس الاسم في المخزون — اختره من الموجود بدل «جديد».');
+  if(m.includes('forbidden') || m.includes('42501')) return new Error('ما عندك صلاحية تسجيل فواتير الشراء.');
+  if(m.includes('not authenticated') || m.includes('28000')) return new Error('انتهت الجلسة — حدّث الصفحة وسجّل دخول.');
+  if(m.includes('PGRST202') || m.includes('schema cache') || (m.includes('function') && m.includes('purchase')))
+    return new Error('مدير المشتريات يحتاج تحديث قاعدة البيانات — شغّل ترحيل guided_purchase_invoice أول.');
+  if(m.includes('stock item not found')) return new Error('أحد الأصناف مو موجود — حدّث الصفحة وأعد المحاولة.');
+  return new Error(String(error && error.message || '').replace(/^[a-z_ ]+:\s*/i, '') || (fallback || 'تعذّرت العملية — حاول مرة ثانية.'));
+}
+
+async function rkaCreatePurchaseGuided(a, idemKey){
+  if(RKA._doneKeys.has(idemKey)) return RKA._doneResults[idemKey];
+  if(typeof screenAllowed === 'function' && !(screenAllowed('purchases') || screenAllowed('accounting'))) throw new Error('ما عندك صلاحية المشتريات');
+  const sb = window.supabaseClient;
+  const lines = (a.lines || []).map(l => l.isNew
+    ? { kind:'new', name: l.name, unit: l.unit, qty: l.qty, total_cost: l.totalCost }
+    : { kind:'existing', stock_item_id: l.stockItemId, qty: l.qty, total_cost: l.totalCost });
+  const { data, error } = await sb.rpc('create_purchase_invoice_guided', {
+    p_op_id: idemKey,
+    p_supplier_name: (a.supplierName || '').trim(),
+    p_supplier_vat_registered: a.supplierVat !== false,
+    p_invoiced_at: a.invDateIso || new Date().toISOString(),
+    p_invoice_number: (a.invNo && a.invNo !== '__skip__') ? a.invNo : null,
+    p_lines: lines
+  });
+  if(error) throw rkaPurchRpcErr(error, 'تعذّر حفظ الفاتورة');
+  const r = data || {};
+  const created = r.created !== false;
+  const gid = r.invoice_group_id;
+
+  if(created){
+    // 1) المورّد
+    if(typeof SUPPLIER_ID_BY_NAME !== 'undefined' && r.supplier_id){ SUPPLIER_ID_BY_NAME[r.supplier_name] = r.supplier_id; }
+    if(typeof SUPPLIER_VAT_REGISTERED_BY_NAME !== 'undefined'){ SUPPLIER_VAT_REGISTERED_BY_NAME[r.supplier_name] = r.supplier_vat_registered !== false; }
+    // 2) أصناف جديدة
+    (r.new_items || []).forEach(ni => {
+      if(typeof STOCK_ITEMS !== 'undefined' && !STOCK_ITEMS.some(s => s.id === ni.id)){
+        STOCK_ITEMS.push({ id: ni.id, name: ni.name, category:'raw', unit: ni.unit, qtyOnHand: 0, parLevel: 0, unitCost: 0, aliasNames: [] });
+        if(typeof STOCK_ITEM_ID_BY_NAME !== 'undefined') STOCK_ITEM_ID_BY_NAME[ni.name] = ni.id;
+        if(typeof STOCK_ITEM_NAME_BY_ID !== 'undefined') STOCK_ITEM_NAME_BY_ID[ni.id] = ni.name;
+      }
+    });
+    // 3) حالة المخزون بعد التريغر — قيم الخادم بالضبط (تطابق تام)
+    (r.stock_after || []).forEach(sa => {
+      const it = (typeof STOCK_ITEMS !== 'undefined') ? STOCK_ITEMS.find(s => s.id === sa.id) : null;
+      if(it){ it.qtyOnHand = Number(sa.qty_on_hand); it.unitCost = Number(sa.unit_cost); if(!(it.parLevel > 0)) it.parLevel = Number(sa.qty_on_hand) || it.parLevel; }
+    });
+    // 4) سجل الفواتير
+    if(typeof PURCHASE_INVOICES !== 'undefined'){
+      (a.lines || []).forEach(l => {
+        const nm = l.isNew ? l.name : l.name;
+        PURCHASE_INVOICES.unshift({
+          id: undefined, stockItem: nm, supplier: r.supplier_name, qty: l.qty, unit: l.unit || 'kg',
+          totalCost: l.totalCost, date: 'الآن', invoicedAt: a.invDateIso || new Date().toISOString(),
+          invoiceGroupId: gid, stockItemId: l.stockItemId || (STOCK_ITEM_ID_BY_NAME || {})[nm]
+        });
+      });
+    }
+    ['renderSupplierComparison','renderAcctTodayStat','renderPurchaseHistory','renderStockTable','renderWasteAndFoodCost','renderMenuProductTable','renderOnboardingChecklist']
+      .forEach(fn => { try { if(typeof window[fn] === 'function') window[fn](); } catch(e){} });
+    if(typeof logDashboardAudit === 'function')
+      logDashboardAudit('سجّل فاتورة شراء عبر مدير المشتريات — ' + r.line_count + ' صنف من ' + r.supplier_name + ' بإجمالي ' + (Number(r.grand_total) || 0).toFixed(2) + ' ر.س');
+  }
+
+  const nl = (r.new_items || []).length;
+  let msg = created
+    ? ('سجّلت الفاتورة ✓  (' + r.line_count + (r.line_count === 1 ? ' صنف' : ' أصناف') + ' من «' + r.supplier_name + '» بإجمالي ' + rkaMoneyFmt(r.grand_total) + ' ر.س'
+        + (Number(r.vat_total) > 0 ? ' — منها ضريبة ' + rkaMoneyFmt(r.vat_total) : '') + ').')
+    : ('الفاتورة مسجّلة عندك أصلًا ✓');
+  if(created && (r.stock_after || []).length){
+    msg += '\nالمخزون تحدّث:\n' + (r.stock_after || []).map(sa =>
+      '• ' + sa.name + ': ' + rkaQtyFmt(sa.qty_on_hand) + ' ' + rkaUnitLabel(sa.unit) + ' · تكلفة ' + rkaUnitCostFmt(sa.unit_cost) + ' ر.س لكل ' + rkaPurchUnitOne(sa.unit)).join('\n');
+  }
+  if(created && nl) msg += '\nأصناف جديدة أُضيفت للمخزون: ' + (r.new_items || []).map(x => x.name).join('، ');
+  const result = { invoiceGroupId: gid, created, message: msg };
+  RKA._doneKeys.add(idemKey); RKA._doneResults[idemKey] = result;
+  return result;
+}
+
+/* ---------- تقارير قراءة فقط (بدوال ركين نفسها) ---------- */
+function rkaPurchPriceReport(itemName){
+  const entries = rkaPurchInvoices().filter(i => i.stockItem === itemName)
+    .map(i => Object.assign({}, i, { unitPrice: Number(i.totalCost) / Number(i.qty) }))
+    .sort((x, y) => x.unitPrice - y.unitPrice);
+  if(!entries.length) return 'ما فيه فواتير مسجّلة لـ«' + itemName + '» — سجّل أول فاتورة وبتبدأ المقارنة.';
+  const it = (typeof STOCK_ITEMS !== 'undefined') ? STOCK_ITEMS.find(s => s.name === itemName) : null;
+  const cur = it ? Number(it.unitCost) : null;
+  const best = entries[0];
+  const u = rkaUnitLabel(best.unit);
+  let msg = 'أسعار «' + itemName + '» المسجّلة (لكل ' + rkaPurchUnitOne(best.unit) + '):\n';
+  entries.forEach((e, i) => { msg += (i === 0 ? '⭐ ' : '• ') + e.supplier + ': ' + rkaUnitCostFmt(e.unitPrice) + ' ر.س  (' + rkaQtyFmt(e.qty) + ' ' + u + ' بـ' + rkaMoneyFmt(e.totalCost) + ' — ' + (e.date || '') + ')\n'; });
+  msg += '\nالأرخص: «' + best.supplier + '» بـ' + rkaUnitCostFmt(best.unitPrice) + ' ر.س/' + rkaPurchUnitOne(best.unit);
+  if(cur != null){
+    msg += '\nالتكلفة المعتمدة حاليًا: ' + rkaUnitCostFmt(cur) + ' ر.س/' + rkaPurchUnitOne(best.unit);
+    if(best.unitPrice < cur - 0.01) msg += '\nلو اعتمدت الأرخص: توفير ' + rkaUnitCostFmt(cur - best.unitPrice) + ' ر.س على كل ' + rkaPurchUnitOne(best.unit) + '.';
+    else msg += '\nأنت أصلًا على أفضل سعر مسجّل ✓';
+  }
+  return msg;
+}
+function rkaPurchRecentReport(){
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const groups = {};
+  rkaPurchInvoices().forEach(inv => {
+    const t = inv.invoicedAt ? new Date(inv.invoicedAt) : null;
+    if(!t || t < start) return;
+    const g = groups[inv.invoiceGroupId || inv.id] || (groups[inv.invoiceGroupId || inv.id] = { supplier: inv.supplier, lines: 0, total: 0 });
+    g.lines++; g.total += Number(inv.totalCost) || 0;
+  });
+  const list = Object.values(groups);
+  if(!list.length) return 'ما سجّلت أي فاتورة مشتريات اليوم بعد.';
+  const grand = list.reduce((s, g) => s + g.total, 0);
+  let msg = 'مشتريات اليوم: ' + list.length + (list.length === 1 ? ' فاتورة' : ' فواتير') + ' بإجمالي ' + rkaMoneyFmt(grand) + ' ر.س\n';
+  list.forEach(g => { msg += '• ' + g.supplier + ' — ' + g.lines + (g.lines === 1 ? ' صنف' : ' أصناف') + ' — ' + rkaMoneyFmt(g.total) + ' ر.س\n'; });
+  return msg.trim();
+}
+
+/* ---------- مراحل مشتركة: سطور الفاتورة ---------- */
+function rkaPurchLineSteps(a){
+  const steps = [];
+  const done = (a.lines || []).length;
+  const lastMore = done > 0 ? a['purMore_' + (done - 1)] : null;
+  const collecting = done === 0 || lastMore === 'more';
+  if(collecting){
+    const n = done;
+    // استعادة بعد reload: الإجابة محفوظة لكن _it_n (يبدأ بـ_) لا يُحفظ
+    if(a['purItem_' + n] !== undefined && !a['_it_' + n]){
+      const raw = a['_raw_purItem_' + n];
+      const m = raw ? rkaStockMatch(raw) : null;
+      if(m && m.item) a['_it_' + n] = { id:m.item.id, name:m.item.name, unit:m.item.unit, isNew:false };
+      else if(raw) a['_it_' + n] = { name: String(raw).trim(), isNew:true };
+    }
+    if(a['purQty_' + n] !== undefined && a['_qty_' + n] === undefined) a['_qty_' + n] = a['purQty_' + n];
+    steps.push({ key:'purItem_' + n, type:'ask',
+      prompt: n === 0 ? 'وش أول صنف في الفاتورة؟ اكتب اسمه' : 'الصنف التالي؟',
+      hint: n === 0 ? 'اكتب اسم الصنف كما تعرفه. لو مو مسجّل في مخزونك، بنسجّله جديد (يحتاج صلاحية المخزون).' : null,
+      parse: raw => ({ res: rkaStockMatch(raw), raw: String(raw || '').trim() }),
+      validate(p, ans){
+        const res = p.res, raw = p.raw;
+        if(res.item){ ans['_it_' + n] = { id: res.item.id, name: res.item.name, unit: res.item.unit, isNew: false }; return null; }
+        if(res.many) return {
+          message: 'فيه أكثر من صنف يشبه — اختر منها:',
+          choices: res.many.map(x => ({ value: x.id, label: x.name + ' — ' + rkaQtyFmt(x.qtyOnHand) + ' ' + rkaUnitLabel(x.unit) }))
+            .concat([{ value:'__new__', label:'مو من هذي — صنف جديد بهذا الاسم' }]),
+          onPick: (v, an) => {
+            if(v === '__new__'){ an['_it_' + n] = { name: raw, isNew: true }; }
+            else { const it = STOCK_ITEMS.find(s => s.id === v); if(it) an['_it_' + n] = { id: it.id, name: it.name, unit: it.unit, isNew: false }; }
+          }
+        };
+        ans['_it_' + n] = { name: raw, isNew: true };
+        return null;
+      } });
+    const it = a['_it_' + n];
+    if(it && it.isNew && a['purUnit_' + n] === undefined){
+      steps.push({ key:'purUnit_' + n, type:'choose',
+        prompt: '«' + it.name + '» مو مسجّل — نسجّله جديد. وش وحدة شرائه؟',
+        hint:'الوحدة اللي تشتري فيها الصنف وتتابع رصيده. نفسها تُستخدم في الوصفات.',
+        options: RKA_PURCH_UNITS.slice() });
+    }
+    if(it && (!it.isNew || a['purUnit_' + n] !== undefined)){
+      const unit = it.isNew ? a['purUnit_' + n] : it.unit;
+      steps.push({ key:'purQty_' + n, type:'ask',
+        prompt: 'كم كمية «' + it.name + '» في الفاتورة؟ (' + rkaUnitLabel(unit) + ')',
+        placeholder:'مثال: 25', parse: raw => rkaMoney(raw),
+        validate(v, ans){
+          if(v == null || v <= 0) return 'اكتب كمية رقمية أكبر من صفر.';
+          if(v > 1000000000) return 'الكمية كبيرة جدًا — تأكّد.';
+          ans['_qty_' + n] = v; return null;
+        } });
+      if(a['_qty_' + n] !== undefined){
+        steps.push({ key:'purTotal_' + n, type:'ask',
+          prompt: 'كم إجمالي سعر «' + it.name + '» في الفاتورة؟ (ر.س — شامل الضريبة زيّ ما هو مكتوب)',
+          hint: 'اكتب المبلغ الكامل لهذا السطر كما في ورقة الفاتورة — مو سعر الوحدة. النظام يطلّع سعر ' + rkaPurchUnitOne(unit) + ' لحاله.',
+          placeholder:'مثال: 90', parse: raw => rkaMoney(raw),
+          validate(v, ans){
+            if(v == null || v <= 0) return 'اكتب مبلغ رقمي أكبر من صفر.';
+            if(v > 1000000000) return 'المبلغ كبير جدًا — تأكّد.';
+            const q = ans['_qty_' + n];
+            ans.lines = ans.lines || [];
+            ans.lines[n] = { isNew: it.isNew, stockItemId: it.id || null, name: it.name, unit: unit, qty: q, totalCost: v };
+            return null;
+          } });
+      }
+    }
+  } else {
+    const k = done - 1;
+    if(a['purMore_' + k] === undefined){
+      const running = (a.lines || []).reduce((s, l) => s + Number(l.totalCost || 0), 0);
+      steps.push({ key:'purMore_' + k, type:'choose',
+        prompt: 'صار عندنا ' + done + (done === 1 ? ' صنف' : ' أصناف') + ' بإجمالي ' + rkaMoneyFmt(running) + ' ر.س. فيه صنف ثاني في نفس الفاتورة؟',
+        options: [ { value:'more', label:'نعم، صنف ثاني' }, { value:'done', label:'خلّصت الفاتورة' } ] });
+    }
+  }
+  return steps;
+}
+
+/* ============ تسجيل المدير ============ */
+RKA.registerManager({
+  id: 'purchases',
+  screen: 'purchases',
+  title: 'مدير المشتريات',
+  classifyIntent: function(raw){
+    const s = ' ' + rkaDigits(raw).trim().toLowerCase().replace(/[.،؟!]+/g, ' ').replace(/\s+/g, ' ') + ' ';
+    const STOP = new Set(['لي','صنف','مادة','من','عندي','عند','حق','تبع','هذا','هذي','ذا','ال','في','ب','و','مصدر','سعر','كم','وش','ايش']);
+    const nameOf = re => { const out = s.replace(re, ' ').split(/\s+/).map(w => w.replace(/^ال(?=\S\S)/, '')).filter(w => w && !STOP.has(w)).join(' ').trim(); return out.length >= 2 ? { _pendingName: out } : {}; };
+    if(/(صوّر|صور الفاتورة|صورة الفاتورة|امسح الفاتورة|ماسح|سكان|scan)/.test(s)) return { id:'scan', seed:{} };
+    if(/(قارن|مقارنة|أرخص|ارخص|أرخص مورد|سعر المورد|وش سعر|مين الأرخص|مين ارخص|أفضل سعر|افضل سعر)/.test(s)) return { id:'price', seed: nameOf(/قارن|مقارنة|أرخص|ارخص|مورد|مورّد|سعر|مين|أفضل|افضل|وش|مصدر/g) };
+    if(/(وش سجلت|وش سجّلت|كم سجلت|كم سجّلت|مشتريات اليوم|فواتير اليوم|سجل المشتريات|سجّل المشتريات)/.test(s)) return { id:'recent', seed:{} };
+    if(/(سجل|سجّل|أسجل|اسجل|فاتورة|فاتوره|مورد|مورّد|شريت|اشتريت|طلبية|توريد|بضاعة|بضاعه|استلمت)/.test(s)) return { id:'add', seed:{} };
+    return null;
+  },
+  greeting(){
+    return 'أنا مدير المشتريات 👋\nأسجّل فاتورة المورّد كاملة — تزيد مخزونك وتحدّث تكاليفك تلقائيًا — وأقارن لك أسعار الموردين.\nقل لي وش تبي — مثل: «سجّل فاتورة من مورّد» أو «وش أرخص مصدر للدجاج؟». لو عندك صورة الفاتورة قل «افتح الماسح».';
+  },
+  intents: [
+    {
+      id: 'add', label: 'سجّل فاتورة مشتريات',
+      workflow: {
+        id: 'add-purchase',
+        finishMessage: (a) => 'وقفنا هنا — تقدر تكمّل أو تلغي.',
+        buildSteps(a){
+          const steps = [];
+          // 1) المورّد
+          if(a.supplierName === undefined){
+            steps.push({ key:'supplier', type:'ask', prompt:'من أي مورّد؟ اكتب اسمه',
+              hint:'لو المورّد مسجّل عندك بيطلع تلقائيًا. لو جديد، بنسجّله.',
+              parse: raw => ({ res: rkaSupplierMatch(raw), raw: String(raw || '').trim() }),
+              validate(p, ans){
+                const res = p.res, raw = p.raw;
+                const knownVat = n => (typeof SUPPLIER_VAT_REGISTERED_BY_NAME !== 'undefined') ? (SUPPLIER_VAT_REGISTERED_BY_NAME[n] !== false) : true;
+                if(res.item){ ans.supplierName = res.item.name; ans._supplierKnown = true; ans._supplierVatKnown = knownVat(res.item.name); return null; }
+                if(res.many) return {
+                  message: 'فيه أكثر من مورّد يشبه — اختر:',
+                  choices: res.many.map(x => ({ value: x.name, label: x.name }))
+                    .concat([{ value:'__new__', label:'مورّد جديد بهذا الاسم' }]),
+                  onPick: (v, an) => {
+                    if(v === '__new__'){ an.supplierName = raw; an._supplierKnown = false; }
+                    else { an.supplierName = v; an._supplierKnown = true; an._supplierVatKnown = knownVat(v); }
+                  }
+                };
+                ans.supplierName = raw; ans._supplierKnown = false;
+                return null;
+              } });
+          }
+          // 2) المورّد مسجّل بالضريبة؟ (نسأل دائمًا — يؤثّر على الأرقام؛ للمعروف نقترح المعروف)
+          if(a.supplierName !== undefined && (a.supplierVat === undefined || a.supplierVat === 'yes' || a.supplierVat === 'no')){
+            if(a.supplierVat === 'yes' || a.supplierVat === 'no'){ a.supplierVat = a.supplierVat === 'yes'; }
+            else {
+              const suggY = a._supplierKnown ? (a._supplierVatKnown !== false) : true;
+              steps.push({ key:'supplierVat', type:'choose',
+                prompt: '«' + a.supplierName + '»' + (a._supplierKnown ? '' : ' (جديد)') + ' مسجّل بالضريبة؟',
+                hint:'<b>مسجّل</b>: فاتورته شاملة ضريبة، والنظام يستخرجها تلقائيًا من الإجمالي — تقدر تستردّها كضريبة مدخلات.\n<b>غير مسجّل</b>: الإجمالي بلا مكوّن ضريبة.',
+                options: [ { value:'yes', label:'مسجّل بالضريبة' + (suggY ? ' — الأرجح' : ''), primary: suggY }, { value:'no', label:'غير مسجّل' + (suggY ? '' : ' — الأرجح'), primary: !suggY } ] });
+            }
+          }
+          // 3) التاريخ
+          if(a.supplierName !== undefined && a.supplierVat !== undefined && a.invWhen === undefined){
+            steps.push({ key:'invWhen', type:'choose', prompt:'تاريخ الفاتورة؟',
+              options: [ { value:'today', label:'اليوم', primary:true }, { value:'yesterday', label:'أمس' }, { value:'2ago', label:'قبل يومين' }, { value:'other', label:'تاريخ ثاني' } ] });
+          }
+          if(a.invWhen === 'other' && a.invDate === undefined){
+            steps.push({ key:'invDate', type:'ask', prompt:'اكتب التاريخ (يوم/شهر أو سنة-شهر-يوم)', placeholder:'مثال: 15/8',
+              parse: raw => rkaPurchParseDate(raw),
+              validate(d, ans){
+                if(!d) return 'ما فهمت التاريخ. اكتب مثل: ١٥/٨ أو ٢٠٢٦-٠٨-١٥.';
+                if(d.getTime() > Date.now() + 36e5) return 'التاريخ في المستقبل — تأكّد.';
+                ans.invDateIso = d.toISOString(); return null;
+              } });
+          }
+          if(a.invWhen && a.invWhen !== 'other' && a.invDateIso === undefined){
+            const d = new Date(); d.setHours(12, 0, 0, 0);
+            if(a.invWhen === 'yesterday') d.setDate(d.getDate() - 1);
+            else if(a.invWhen === '2ago') d.setDate(d.getDate() - 2);
+            a.invDateIso = d.toISOString();
+          }
+          // 4) سطور الفاتورة
+          const dateReady = a.invDateIso !== undefined;
+          if(dateReady){
+            rkaPurchLineSteps(a).forEach(s => steps.push(s));
+            const linesDone = (a.lines || []).length > 0 && a['purMore_' + ((a.lines || []).length - 1)] === 'done';
+            // 5) رقم الفاتورة (اختياري)
+            if(linesDone && a.invNo === undefined){
+              steps.push({ key:'invNo', type:'ask', prompt:'رقم الفاتورة؟ (اختياري — اكتب «تخطى» لو ما عندك)',
+                parse: raw => { const s = String(raw || '').trim(); return /^(تخطى|تخطي|تجاوز|بدون|لا|ما عندي|skip)$/.test(rkaDigits(s)) ? '__skip__' : s; },
+                validate: v => (v && v !== '__skip__' && v.length > 40) ? 'رقم طويل — تأكّد.' : null });
+            }
+            // 6) تحذير فاتورة شبه مكرّرة (نفس فحص النموذج اليدوي)
+            if(linesDone && a.invNo !== undefined){
+              const grand = (a.lines || []).reduce((s, l) => s + Number(l.totalCost || 0), 0);
+              if(rkaPurchNearDup(a.supplierName, a.invDateIso, grand) && a.dupOk === undefined){
+                steps.push({ key:'dupOk', type:'choose',
+                  prompt:'فيه فاتورة مسجّلة من «' + a.supplierName + '» بنفس التاريخ وبإجمالي قريب جدًا (' + rkaMoneyFmt(grand) + ' ر.س) — يمكن نفس الفاتورة اتسجّلت مرّتين.',
+                  options: [ { value:'go', label:'أكيد مختلفة — سجّلها' }, { value:'stop', label:'صح، لا تسجّلها' } ] });
+              }
+            }
+            // 7) مراجعة + تنفيذ
+            const ready = linesDone && a.invNo !== undefined && (a.dupOk === undefined || a.dupOk === 'go' || !rkaPurchNearDup(a.supplierName, a.invDateIso, (a.lines || []).reduce((s, l) => s + Number(l.totalCost || 0), 0)));
+            if(a.dupOk === 'stop'){
+              steps.push({ key:'dupCancel', type:'execute', idemKind:'noop', run:() => ({ closePanel:true, message:'تمام، ما سجّلناها.' }) });
+            } else if(ready){
+              steps.push({ key:'review', type:'review', summary(a){
+                const grand = (a.lines || []).reduce((s, l) => s + Number(l.totalCost || 0), 0);
+                const rate = (typeof BUSINESS_VAT_RATE !== 'undefined' ? BUSINESS_VAT_RATE : 0.15);
+                const vat = a.supplierVat === false ? 0 : Math.round((grand * rate / (1 + rate)) * 100) / 100;
+                let rows = '<dt>المورّد</dt><dd>' + rkaEsc(a.supplierName) + (a._supplierKnown ? '' : ' <span style="color:var(--success-text)">(جديد)</span>') + (a.supplierVat === false ? ' — غير مسجّل بالضريبة' : '') + '</dd>';
+                rows += '<dt>التاريخ</dt><dd>' + rkaPurchDateLabel(a.invDateIso) + '</dd>';
+                rows += '<dt>الأصناف</dt><dd>' + (a.lines || []).map(l =>
+                  rkaEsc(l.name) + (l.isNew ? ' <span style="color:var(--success-text)">(جديد)</span>' : '') + ' — ' + rkaQtyFmt(l.qty) + ' ' + rkaUnitLabel(l.unit)
+                  + ' بـ <b>' + rkaMoneyFmt(l.totalCost) + '</b> ر.س <span style="color:var(--muted);font-size:11px">(' + rkaUnitCostFmt(l.totalCost / l.qty) + '/' + rkaPurchUnitOne(l.unit) + ')</span>').join('<br>') + '</dd>';
+                rows += '<dt>الإجمالي</dt><dd><b>' + rkaMoneyFmt(grand) + '</b> ر.س' + (vat > 0 ? ' <span style="color:var(--muted);font-size:11px">(منها ضريبة ' + rkaMoneyFmt(vat) + ')</span>' : '') + '</dd>';
+                return rows;
+              } });
+              steps.push({ key:'purExec', type:'execute', idemKind:'purchase', pending:'أسجّل الفاتورة وأحدّث المخزون…', run:(ans, ctx, k) => rkaCreatePurchaseGuided(ans, k) });
+            }
+          }
+          return steps;
+        },
+        doneActions(res){
+          const acts = [{ label:'سجّل فاتورة ثانية', run:() => RKA.restartSameWorkflow('فاتورة جديدة:') }];
+          acts.push({ label:'قارن أسعار الموردين', run:() => RKA.restartSameWorkflowAs('price', {}) });
+          acts.push({ label:'افتح سجل المشتريات', run:() => { RKA.close(); const t = document.querySelector('[data-screen="purchases"]'); if(t) t.click(); } });
+          return acts;
+        }
+      }
+    },
+    {
+      id: 'scan', label: 'عندي صورة الفاتورة — افتح الماسح',
+      workflow: {
+        id: 'purchase-scan',
+        buildSteps(){
+          return [
+            { key:'info', type:'info', text:'الماسح يقرأ صورة الفاتورة ويعبّي الأصناف تلقائيًا — أسرع من الكتابة. بفتح لك النموذج الآن.' },
+            { key:'open', type:'execute', idemKind:'openinv',
+              run:() => { try { if(typeof openInvoiceModal === 'function') openInvoiceModal(); } catch(e){} return { closePanel:true, message:'فتحت لك نموذج الفاتورة — دوّر على زر مسح الصورة فيه ✓' }; } }
+          ];
+        }
+      }
+    },
+    {
+      id: 'price', label: 'قارن أسعار الموردين لصنف',
+      workflow: {
+        id: 'purchase-price',
+        buildSteps(a){
+          const steps = [];
+          if(!a._itemName && a._pendingName){ const m = rkaStockMatch(a._pendingName); if(m.item) a._itemName = m.item.name; delete a._pendingName; }
+          if(!a._itemName){
+            steps.push({ key:'pick', type:'ask', prompt:'أي صنف تبي تقارن أسعاره؟ اكتب اسمه',
+              parse: raw => rkaStockMatch(raw),
+              validate(res, ans){
+                if(res.item){ ans._itemName = res.item.name; return null; }
+                if(res.many) return {
+                  message:'فيه أكثر من صنف يشبه — اختر:',
+                  choices: res.many.map(x => ({ value: x.name, label: x.name })),
+                  onPick: (v, an) => { an._itemName = v; }
+                };
+                const withInv = [...new Set(rkaPurchInvoices().map(i => i.stockItem))].filter(Boolean).slice(0, 8).join('، ');
+                return 'ما لقيت الصنف. أصناف عليها فواتير: ' + (withInv || '(ما فيه فواتير بعد)') + '.';
+              } });
+          }
+          if(a._itemName) steps.push({ key:'show', type:'execute', idemKind:'noop',
+            run:(ans) => ({ itemName: ans._itemName, message: rkaPurchPriceReport(ans._itemName) }) });
+          return steps;
+        },
+        doneActions(res){
+          const acts = [{ label:'قارن صنف ثاني', run:() => RKA.restartSameWorkflow('أي صنف؟') }];
+          acts.push({ label:'سجّل فاتورة', run:() => RKA.restartSameWorkflowAs('add', {}) });
+          return acts;
+        }
+      }
+    },
+    {
+      id: 'recent', label: 'وش سجّلت اليوم؟',
+      workflow: {
+        id: 'purchase-recent',
+        buildSteps(){
+          return [{ key:'show', type:'execute', idemKind:'noop', run:() => ({ message: rkaPurchRecentReport() }) }];
+        },
+        doneActions(){
+          return [
+            { label:'سجّل فاتورة', run:() => RKA.restartSameWorkflowAs('add', {}) },
+            { label:'افتح سجل المشتريات', run:() => { RKA.close(); const t = document.querySelector('[data-screen="purchases"]'); if(t) t.click(); } },
+          ];
+        }
+      }
+    }
+  ]
+});
+
+/* ربط زر مدير المشتريات (FAB) — delegated */
+document.addEventListener('click', function(e){
+  const btn = e.target && e.target.closest && e.target.closest('#rkaPurchasesLaunch');
+  if(!btn) return;
+  e.preventDefault();
+  RKA.open('purchases', { screen: 'purchases' });
+});
+
+/* ═══════════════════════ مدير المتجر الإلكتروني ═══════════════════════
+   موظف تبويب «المتجر الإلكتروني» في لوحة التحكم (#screen-onlineMenu).
+   يجهّز المتجر للنشر (اسم · رابط · طريقة استلام · طريقة دفع · واتساب)،
+   ويشرح خيارات الاستلام/الدفع/التصميم ويضبطها بتوصية. كل كتابة عبر
+   updateCurrentBusiness (أعمدة businesses، RLS مالك). ما يحتاج migration.
+   الشعار/الغلاف/بوابة الدفع/الأجهزة/الفئات → تحويل للمكان الحقيقي. بلا AI. */
+
+let RKA_ONLINE_BIZ_CACHE = null;
+function rkaOnlineIsOwner(){ return !(typeof CURRENT_PROFILE !== 'undefined' && CURRENT_PROFILE && CURRENT_PROFILE.user_type && CURRENT_PROFILE.user_type !== 'owner'); }
+function rkaOnlineEnabled(){ return (typeof ONLINE_ORDERING_ENABLED === 'undefined') || ONLINE_ORDERING_ENABLED === true; }
+function rkaOnlineGeidea(){ return (typeof GEIDEA_CONNECTED !== 'undefined') && GEIDEA_CONNECTED === true; }
+function rkaOnlineBiz(){
+  return {
+    name: (typeof RESTAURANT_INFO !== 'undefined' && RESTAURANT_INFO.name) || '',
+    slug: (typeof ONLINE_MENU_SLUG !== 'undefined' && ONLINE_MENU_SLUG) || '',
+    delivery: typeof ONLINE_OFFERS_DELIVERY === 'undefined' ? true : ONLINE_OFFERS_DELIVERY,
+    deliveryFee: typeof ONLINE_DELIVERY_FEE === 'undefined' ? 0 : Number(ONLINE_DELIVERY_FEE),
+    pickup: typeof ONLINE_OFFERS_PICKUP === 'undefined' ? true : ONLINE_OFFERS_PICKUP,
+    pickupPrep: typeof ONLINE_PICKUP_PREP_MINUTES === 'undefined' ? 20 : Number(ONLINE_PICKUP_PREP_MINUTES),
+    cod: typeof ONLINE_COD_ENABLED === 'undefined' ? true : ONLINE_COD_ENABLED,
+    card: typeof ONLINE_CARD_ENABLED === 'undefined' ? true : ONLINE_CARD_ENABLED,
+    whatsapp: (typeof ONLINE_CONTACT_WHATSAPP !== 'undefined' && ONLINE_CONTACT_WHATSAPP) || '',
+    ig: (typeof ONLINE_SOCIAL_INSTAGRAM !== 'undefined' && ONLINE_SOCIAL_INSTAGRAM) || '',
+    tk: (typeof ONLINE_SOCIAL_TIKTOK !== 'undefined' && ONLINE_SOCIAL_TIKTOK) || '',
+    tw: (typeof ONLINE_SOCIAL_TWITTER !== 'undefined' && ONLINE_SOCIAL_TWITTER) || '',
+    themeStyle: (typeof ONLINE_THEME_STYLE !== 'undefined' && ONLINE_THEME_STYLE) || 'classic',
+    themeColor: (typeof ONLINE_THEME_COLOR !== 'undefined' && ONLINE_THEME_COLOR) || '#C7FF4D',
+    font: (typeof ONLINE_FONT_FAMILY !== 'undefined' && ONLINE_FONT_FAMILY) || 'rakeen',
+    taglineHeader: (typeof ONLINE_TAGLINE_HEADER !== 'undefined') ? ONLINE_TAGLINE_HEADER : null,
+    taglineHero: (typeof ONLINE_TAGLINE_HERO !== 'undefined') ? ONLINE_TAGLINE_HERO : null,
+  };
+}
+function rkaOnlineCardUsable(b){ b = b || rkaOnlineBiz(); return !!b.card && rkaOnlineGeidea(); }
+function rkaOnlineSlugValid(s){ return /^[a-z0-9][a-z0-9-]{1,39}$/.test(String(s || '')); }
+function rkaOnlineSlugClean(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/-{2,}/g, '-').slice(0, 40); }
+function rkaOnlinePublicUrl(slug){
+  slug = slug || rkaOnlineBiz().slug;
+  try { if(typeof window !== 'undefined' && window.location && window.location.hostname === 'localhost') return window.location.origin + '/order/' + slug; } catch(e){}
+  return 'https://' + slug + '.rakeenapp.com';
+}
+
+/* ---------- جاهزية النشر ---------- */
+function rkaOnlineReadiness(){
+  const b = rkaOnlineBiz();
+  const items = [
+    { key:'name', ok: !!b.name.trim(), have:'اسم المتجر بالعربي محدَّد', miss:'ما حددت اسم المتجر بالعربي' },
+    { key:'slug', ok: rkaOnlineSlugValid(b.slug), have:'الرابط: ' + rkaOnlinePublicUrl(b.slug), miss:'ما حددت رابط المتجر (الاسم الإنجليزي)' },
+    { key:'fulfil', ok: (b.delivery || b.pickup), have:'طريقة استلام مفعّلة (' + [b.delivery && 'توصيل', b.pickup && 'استلام'].filter(Boolean).join(' + ') + ')', miss:'ما فيه توصيل ولا استلام مفعّل — العميل ما يقدر يطلب' },
+    { key:'pay', ok: (b.cod || rkaOnlineCardUsable(b)), have:'طريقة دفع شغّالة (' + [b.cod && 'عند الاستلام', rkaOnlineCardUsable(b) && 'إلكتروني'].filter(Boolean).join(' + ') + ')', miss:'ما فيه طريقة دفع شغّالة — لازم «الدفع عند الاستلام» أو بوابة دفع مربوطة' },
+  ];
+  const total = items.length, done = items.filter(x => x.ok).length;
+  return { items, pct: Math.round(done / total * 100), done, total, missing: items.filter(x => !x.ok).map(x => x.miss) };
+}
+function rkaOnlineReadyBar(pct){ const n = Math.max(0, Math.min(10, Math.round(pct / 10))); return '█'.repeat(n) + '░'.repeat(10 - n); }
+function rkaOnlineReadinessText(r){
+  let s = 'جاهزية المتجر للنشر: ' + r.pct + '٪  ' + rkaOnlineReadyBar(r.pct) + '\n';
+  r.items.forEach(x => { s += (x.ok ? '✓ ' : '✗ ') + (x.ok ? x.have : x.miss) + '\n'; });
+  if(!rkaOnlineBiz().whatsapp.trim()) s += '• (اختياري) ما حددت رقم واتساب للتواصل — يظهر للعميل في صفحة تتبع الطلب.\n';
+  return s.trim();
+}
+
+function rkaOnlineRpcErr(error){
+  const m = String(error && (error.message || '')) + ' ' + String(error && (error.details || '')) + ' ' + String(error && (error.code || ''));
+  if(/duplicate|unique|23505/i.test(m)) return new Error('هذا الاسم الإنجليزي (الرابط) محجوز لمتجر آخر — اختر غيره.');
+  if(/not authorized|42501|صلاحية كافية|حساب المالك/i.test(m)) return new Error('ضبط المتجر الإلكتروني يحتاج حساب المالك — سجّل دخول بحساب المالك أو خلّه يضبطه.');
+  if(/not authenticated|28000/i.test(m)) return new Error('انتهت الجلسة — حدّث الصفحة وسجّل دخول.');
+  return new Error(String(error && error.message || '').replace(/^[a-z_ ]+:\s*/i, '') || 'تعذّرت العملية — حاول مرة ثانية.');
+}
+async function rkaOnlineSaveBiz(patch, auditMsg, mirror){
+  if(!rkaOnlineIsOwner()) throw new Error('ضبط المتجر الإلكتروني يحتاج حساب المالك — سجّل دخول بحساب المالك أو خلّه يضبطه.');
+  try { await updateCurrentBusiness(patch); }
+  catch(e){ throw rkaOnlineRpcErr(e); }
+  if(typeof mirror === 'function'){ try { mirror(patch); } catch(e){} }
+  if(typeof logDashboardAudit === 'function' && auditMsg) logDashboardAudit(auditMsg + ' (عبر مدير المتجر الإلكتروني)');
+  try { if(typeof renderOnlineMenuPanel === 'function') renderOnlineMenuPanel(); } catch(e){}
+}
+function rkaOnlineMirror(patch){
+  const M = {
+    name: v => { if(typeof RESTAURANT_INFO !== 'undefined') RESTAURANT_INFO.name = v; },
+    online_menu_slug: v => { if(typeof ONLINE_MENU_SLUG !== 'undefined') ONLINE_MENU_SLUG = v; },
+    online_offers_delivery: v => { ONLINE_OFFERS_DELIVERY = v; },
+    online_delivery_fee: v => { ONLINE_DELIVERY_FEE = v; },
+    online_offers_pickup: v => { ONLINE_OFFERS_PICKUP = v; },
+    online_pickup_prep_minutes: v => { ONLINE_PICKUP_PREP_MINUTES = v; },
+    online_cod_enabled: v => { ONLINE_COD_ENABLED = v; },
+    online_card_enabled: v => { ONLINE_CARD_ENABLED = v; },
+    online_contact_whatsapp: v => { ONLINE_CONTACT_WHATSAPP = v || ''; },
+    online_social_instagram: v => { ONLINE_SOCIAL_INSTAGRAM = v || ''; },
+    online_social_tiktok: v => { ONLINE_SOCIAL_TIKTOK = v || ''; },
+    online_social_twitter: v => { ONLINE_SOCIAL_TWITTER = v || ''; },
+    online_theme_style: v => { ONLINE_THEME_STYLE = v; },
+    online_theme_color: v => { ONLINE_THEME_COLOR = v; },
+    online_font_family: v => { ONLINE_FONT_FAMILY = v; },
+    online_tagline_header: v => { ONLINE_TAGLINE_HEADER = v; },
+    online_tagline_hero: v => { ONLINE_TAGLINE_HERO = v; },
+  };
+  Object.keys(patch).forEach(k => { if(M[k]) M[k](patch[k]); });
+}
+
+function rkaOnlineOwnerGate(){
+  return { key:'ownerGate', type:'info', text:'ضبط المتجر الإلكتروني يحتاج حساب المالك (سياسة قاعدة البيانات). سجّل دخول بحساب المالك، أو خلّ المالك يفتح المدير. تقدر تشوف حالة الجاهزية بس.' };
+}
+function rkaOnlineDisabledGate(){
+  return { key:'disabledGate', type:'info', text:'ميزة المتجر الإلكتروني غير مفعّلة لمطعمك حاليًا — تواصل مع فريق ركين لتفعيلها، وبعدها أساعدك تجهّزه.' };
+}
+function rkaOnlineEndStep(msg){ return { key:'end', type:'execute', idemKind:'noop', run:() => ({ closePanel:true, message: msg || '—' }) }; }
+
+// جملة طبيعية → نيّة
+function rkaOnlineClassifyIntent(raw){
+  const s = ' ' + rkaDigits(raw).trim().toLowerCase().replace(/[.،؟!]+/g, ' ').replace(/\s+/g, ' ') + ' ';
+  if(/(جهّز|جهز|انشر|أنشر|جاهز|الرابط|رابط المتجر|اسم المتجر|slug|اطلق|أطلق|شغّل المتجر|شغل المتجر)/.test(s)) return { id:'launch', seed:{} };
+  if(/(شكل المتجر|تصميم|ثيم|لون|الوان|الألوان|خط|بنر|غلاف|شعار|عبارة|واجهة المتجر)/.test(s)) return { id:'design', seed:{} };
+  if(/(توصيل|رسوم|استلام|تجهيز|الدفع عند|كاش|بطاقة|دفع إلكتروني|دفع الكتروني|واتساب|واتس|تواصل|انستقرام|تيك توك|سوشال)/.test(s)) return { id:'fulfillment', seed:{} };
+  return null;
+}
+
+/* ============ تسجيل المدير ============ */
+RKA.registerManager({
+  id: 'online',
+  screen: 'onlineMenu',
+  title: 'مدير المتجر الإلكتروني',
+  classifyIntent: rkaOnlineClassifyIntent,
+  greeting(){
+    return 'أنا مدير المتجر الإلكتروني 👋\nأجهّز متجرك للنشر، وأشرح لك خيارات الاستلام والدفع والتصميم وأضبطها.\nقل لي وش تبي — مثل: «جهّز متجري» أو «كم رسوم التوصيل؟».';
+  },
+  intents: [
+    {
+      id: 'launch', label: 'جهّز متجري للنشر',
+      workflow: {
+        id: 'online-launch',
+        finishMessage: () => 'وقفنا هنا — تقدر تكمّل الباقي أي وقت من نفس الزر.',
+        buildSteps(a){
+          if(!rkaOnlineEnabled()) return [ rkaOnlineDisabledGate(), rkaOnlineEndStep('—') ];
+          const steps = [];
+          // فحص الجاهزية أول شي
+          if(a._scanned === undefined){
+            steps.push({ key:'scan', type:'info', text: () => rkaOnlineReadinessText(rkaOnlineReadiness()) });
+            steps.push({ key:'scanExec', type:'execute', idemKind:'oscan', run: (ans) => { ans._scanned = true; return {}; } });
+            return steps;
+          }
+          if(!rkaOnlineIsOwner()){ steps.push(rkaOnlineOwnerGate()); steps.push(rkaOnlineEndStep('—')); return steps; }
+
+          const b = rkaOnlineBiz();   // حيّة — تعكس كل حفظ سابق في هذه الجلسة
+          // 1) الاسم بالعربي
+          if(!b.name.trim()){
+            steps.push({ key:'oname', type:'ask', prompt:'وش اسم متجرك بالعربي؟ (اللي يشوفه العميل)',
+              hint:'يظهر بأعلى صفحة الطلب وعلى الفاتورة.',
+              placeholder:'مثال: هَبيّة', validate: v => (v && v.trim() && v.trim().length <= 60) ? null : 'اكتب اسم من ١ إلى ٦٠ حرف.' });
+            if(a.oname !== undefined) steps.push({ key:'onameExec', type:'execute', idemKind:'oname', pending:'أحفظ الاسم…',
+              run: async (ans) => { await rkaOnlineSaveBiz({ name: ans.oname.trim() }, 'حدّد اسم المتجر بالعربي', rkaOnlineMirror); return { message:'اسم المتجر: «' + ans.oname.trim() + '» ✓' }; } });
+            return steps;
+          }
+          // 2) الرابط (slug)
+          if(!rkaOnlineSlugValid(b.slug)){
+            steps.push({ key:'oslug', type:'ask', prompt:'اسم متجرك بالإنجليزي؟ (يصير رابطك: <b dir="ltr">اسمك.rakeenapp.com</b>)',
+              hint:'حروف إنجليزية صغيرة وأرقام وشرطات فقط، حرفين على الأقل، بلا مسافات. <b>تغييره لاحقًا يكسر أي رابط قديم شاركته</b> — فاختره بعناية.',
+              placeholder:'مثال: hbiah', parse: raw => rkaOnlineSlugClean(raw),
+              validate: v => rkaOnlineSlugValid(v) ? null : 'حرفين على الأقل، حروف إنجليزية صغيرة وأرقام وشرطات، ويبدأ بحرف أو رقم.' });
+            if(a.oslug !== undefined) steps.push({ key:'oslugExec', type:'execute', idemKind:'oslug', pending:'أحفظ الرابط…',
+              run: async (ans) => { await rkaOnlineSaveBiz({ online_menu_slug: ans.oslug }, 'حدّد رابط المتجر', rkaOnlineMirror); return { message:'رابط متجرك: ' + rkaOnlinePublicUrl(ans.oslug) + ' ✓' }; } });
+            return steps;
+          }
+          // 3) طريقة استلام
+          if(!(b.delivery || b.pickup)){
+            steps.push({ key:'ofulfil', type:'choose', prompt:'ما فيه طريقة استلام مفعّلة. وش تفعّل؟',
+              hint:'<b>توصيل</b>: مندوب مطعمك يوصّل، مع رسوم ثابتة تحدّدها.\n<b>استلام</b>: العميل يجي يستلم بنفسه، وتحدّد له مدة تجهيز تقريبية.',
+              options: [ { value:'both', label:'الاثنين', primary:true }, { value:'delivery', label:'توصيل فقط' }, { value:'pickup', label:'استلام فقط' } ] });
+            if(a.ofulfil !== undefined) steps.push({ key:'ofulfilExec', type:'execute', idemKind:'ofulfil', pending:'أحفظ…',
+              run: async (ans) => { const p = { online_offers_delivery: ans.ofulfil === 'both' || ans.ofulfil === 'delivery', online_offers_pickup: ans.ofulfil === 'both' || ans.ofulfil === 'pickup' };
+                await rkaOnlineSaveBiz(p, 'فعّل طرق الاستلام', rkaOnlineMirror); return { message:'فعّلت: ' + [p.online_offers_delivery && 'توصيل', p.online_offers_pickup && 'استلام'].filter(Boolean).join(' + ') + ' ✓' }; } });
+            return steps;
+          }
+          // 4) طريقة دفع
+          if(!(b.cod || rkaOnlineCardUsable(b))){
+            steps.push({ key:'opay', type:'choose', prompt:'ما فيه طريقة دفع شغّالة. وش تفعّل؟',
+              hint:'<b>الدفع عند الاستلام</b>: العميل يدفع كاش/شبكة وقت الاستلام أو التوصيل — أسهل بداية.\n<b>الدفع الإلكتروني</b>: يدفع بالبطاقة وقت الطلب — يحتاج ربط بوابة دفع (Geidea) من تبويب «بوابة الدفع».',
+              options: rkaOnlineGeidea()
+                ? [ { value:'cod', label:'الدفع عند الاستلام', primary:true }, { value:'card', label:'الدفع الإلكتروني (بوابتك مربوطة)' }, { value:'both', label:'الاثنين' } ]
+                : [ { value:'cod', label:'الدفع عند الاستلام', primary:true }, { value:'gateway', label:'أبي أربط بوابة دفع أول' } ] });
+            if(a.opay === 'gateway'){
+              steps.push({ key:'ogwInfo', type:'info', text:'تمام — بوابة الدفع تُربط من تبويب «بوابة الدفع» في هذه الصفحة. بفتح لك المكان.' });
+              steps.push({ key:'ogwExec', type:'execute', idemKind:'ogw', run:() => { rkaOnlineOpenTab('gateway'); return { closePanel:true, message:'فتحت لك تبويب «بوابة الدفع» ✓ — بعد الربط ارجع وكمّل التجهيز.' }; } });
+            } else if(a.opay !== undefined){
+              steps.push({ key:'opayExec', type:'execute', idemKind:'opay', pending:'أحفظ…',
+                run: async (ans) => { const p = { online_cod_enabled: ans.opay === 'cod' || ans.opay === 'both', online_card_enabled: ans.opay === 'card' || ans.opay === 'both' || rkaOnlineBiz().card };
+                  await rkaOnlineSaveBiz(p, 'فعّل طرق الدفع', rkaOnlineMirror); return { message:'فعّلت طريقة الدفع ✓' }; } });
+            }
+            return steps;
+          }
+          // 5) ختام — كل الأساسيات جاهزة
+          if(a._closed === undefined){
+            steps.push({ key:'oClose', type:'execute', idemKind:'owrap', run: (ans) => { ans._closed = true; const r = rkaOnlineReadiness();
+              return { message: 'متجرك جاهز للنشر ✓\n' + rkaOnlineReadinessText(r) + '\n\nشارك الرابط مع عملائك:\n' + rkaOnlinePublicUrl() }; } });
+          }
+          return steps;
+        },
+        doneActions(){
+          return [
+            { label:'افحص الجاهزية من جديد', run:() => RKA.restartSameWorkflow('نعيد الفحص:') },
+            { label:'اضبط الاستلام والدفع', run:() => RKA.restartSameWorkflowAs('fulfillment', {}) },
+            { label:'اضبط شكل المتجر', run:() => RKA.restartSameWorkflowAs('design', {}) },
+          ];
+        }
+      }
+    },
+    {
+      id: 'fulfillment', label: 'اضبط الاستلام والدفع والتواصل',
+      workflow: {
+        id: 'online-fulfillment',
+        buildSteps(a){
+          if(!rkaOnlineEnabled()) return [ rkaOnlineDisabledGate(), rkaOnlineEndStep('—') ];
+          if(!rkaOnlineIsOwner()) return [ rkaOnlineOwnerGate(), rkaOnlineEndStep('—') ];
+          const b = rkaOnlineBiz();
+          const steps = [];
+          steps.push({ key:'pick', type:'choose', prompt:'وش تبي تضبط؟',
+            options: [
+              { value:'delivery', label:'التوصيل ورسومه' + (b.delivery ? ' (مفعّل: ' + rkaMoneyFmt(b.deliveryFee) + ' ر.س)' : ' (مطفّأ)') },
+              { value:'pickup', label:'الاستلام ومدة التجهيز' + (b.pickup ? ' (مفعّل: ' + b.pickupPrep + ' د)' : ' (مطفّأ)') },
+              { value:'cod', label:'الدفع عند الاستلام' + (b.cod ? ' (مفعّل)' : ' (مطفّأ)') },
+              { value:'card', label:'الدفع الإلكتروني' + (rkaOnlineCardUsable(b) ? ' (شغّال)' : b.card ? ' (مفعّل بلا بوابة)' : ' (مطفّأ)') },
+              { value:'whatsapp', label:'رقم واتساب للتواصل' + (b.whatsapp ? ' (' + b.whatsapp + ')' : '') },
+              { value:'social', label:'روابط التواصل الاجتماعي' },
+            ] });
+          if(a.pick === 'delivery'){
+            steps.push({ key:'dOn', type:'choose', prompt:'التوصيل الآن: «' + (b.delivery ? 'مفعّل' : 'مطفّأ') + '». نخليه؟',
+              hint:'توصيل ذاتي بمندوب مطعمك — رسوم ثابتة تُضاف لكل طلب توصيل. ما فيه ربط مع تطبيقات توصيل هنا.',
+              options: [ { value:'on', label:'مفعّل' }, { value:'off', label:'مطفّأ' } ] });
+            if(a.dOn === 'on' && a.dFee === undefined) steps.push({ key:'dFee', type:'ask', prompt:'كم رسوم التوصيل؟ (ر.س — اكتب 0 لتوصيل مجاني)',
+              hint:'مبلغ ثابت يُضاف لإجمالي طلب التوصيل. 0 = مجاني.',
+              placeholder:'مثال: 10', parse: raw => rkaMoney(raw), validate: v => (v == null || v < 0 || v > 100000) ? 'اكتب رقم صفر أو أكثر.' : null });
+            if(a.dOn === 'off' || (a.dOn === 'on' && a.dFee !== undefined)) steps.push({ key:'dExec', type:'execute', idemKind:'odel', pending:'أحفظ…',
+              run: async (ans) => { const p = { online_offers_delivery: ans.dOn === 'on' }; if(ans.dOn === 'on') p.online_delivery_fee = ans.dFee;
+                if(!p.online_offers_delivery && !rkaOnlineBiz().pickup) throw new Error('لازم تخلي طريقة استلام وحدة على الأقل — فعّل الاستلام أول.');
+                await rkaOnlineSaveBiz(p, 'عدّل التوصيل', rkaOnlineMirror);
+                return { message: ans.dOn === 'on' ? 'التوصيل مفعّل برسوم ' + rkaMoneyFmt(ans.dFee) + ' ر.س ✓' : 'التوصيل مطفّأ ✓' }; } });
+          } else if(a.pick === 'pickup'){
+            steps.push({ key:'pOn', type:'choose', prompt:'الاستلام الآن: «' + (b.pickup ? 'مفعّل' : 'مطفّأ') + '». نخليه؟',
+              options: [ { value:'on', label:'مفعّل' }, { value:'off', label:'مطفّأ' } ] });
+            if(a.pOn === 'on' && a.pPrep === undefined) steps.push({ key:'pPrep', type:'ask', prompt:'كم مدة تجهيز طلب الاستلام؟ (دقيقة)',
+              hint:'وقت تقريبي يُعرض للعميل: «جاهز خلال X دقيقة».',
+              placeholder:'مثال: 20', parse: raw => { const n = parseInt(rkaDigits(String(raw)), 10); return isNaN(n) ? null : n; },
+              validate: v => (v == null || v < 1 || v > 180) ? 'اكتب رقم بين ١ و١٨٠.' : null });
+            if(a.pOn === 'off' || (a.pOn === 'on' && a.pPrep !== undefined)) steps.push({ key:'pExec', type:'execute', idemKind:'opick', pending:'أحفظ…',
+              run: async (ans) => { const p = { online_offers_pickup: ans.pOn === 'on' }; if(ans.pOn === 'on') p.online_pickup_prep_minutes = ans.pPrep;
+                if(!p.online_offers_pickup && !rkaOnlineBiz().delivery) throw new Error('لازم تخلي طريقة استلام وحدة على الأقل — فعّل التوصيل أول.');
+                await rkaOnlineSaveBiz(p, 'عدّل الاستلام', rkaOnlineMirror);
+                return { message: ans.pOn === 'on' ? 'الاستلام مفعّل، مدة التجهيز ' + ans.pPrep + ' دقيقة ✓' : 'الاستلام مطفّأ ✓' }; } });
+          } else if(a.pick === 'cod'){
+            steps.push({ key:'cOn', type:'choose', prompt:'الدفع عند الاستلام الآن: «' + (b.cod ? 'مفعّل' : 'مطفّأ') + '». نخليه؟',
+              hint:'العميل يدفع وقت الاستلام أو التوصيل. لو أطفأته، لازم بوابة دفع مربوطة — وإلا ما يقدر أحد يطلب.',
+              options: [ { value:'on', label:'مفعّل', primary:true }, { value:'off', label:'مطفّأ' } ] });
+            if(a.cOn !== undefined) steps.push({ key:'cExec', type:'execute', idemKind:'ocod', pending:'أحفظ…',
+              run: async (ans) => { const on = ans.cOn === 'on';
+                if(!on && !rkaOnlineCardUsable(rkaOnlineBiz())) throw new Error('ما تقدر تطفي الدفع عند الاستلام قبل ما تربط بوابة الدفع — بيصير ما فيه أي طريقة دفع.');
+                await rkaOnlineSaveBiz({ online_cod_enabled: on }, 'عدّل الدفع عند الاستلام', rkaOnlineMirror);
+                return { message: on ? 'الدفع عند الاستلام مفعّل ✓' : 'الدفع عند الاستلام مطفّأ ✓' }; } });
+          } else if(a.pick === 'card'){
+            if(!rkaOnlineGeidea()){
+              steps.push({ key:'cardInfo', type:'info', text:'الدفع الإلكتروني يحتاج ربط بوابة دفع (Geidea) أول — من تبويب «بوابة الدفع» في هذه الصفحة. بفتح لك المكان.' });
+              steps.push({ key:'cardGw', type:'execute', idemKind:'ocardgw', run:() => { rkaOnlineOpenTab('gateway'); return { closePanel:true, message:'فتحت لك تبويب «بوابة الدفع» ✓' }; } });
+            } else {
+              steps.push({ key:'krOn', type:'choose', prompt:'الدفع الإلكتروني الآن: «' + (b.card ? 'مفعّل' : 'مطفّأ') + '» (بوابتك مربوطة). نخليه؟',
+                options: [ { value:'on', label:'مفعّل', primary:true }, { value:'off', label:'مطفّأ' } ] });
+              if(a.krOn !== undefined) steps.push({ key:'krExec', type:'execute', idemKind:'ocard', pending:'أحفظ…',
+                run: async (ans) => { const on = ans.krOn === 'on';
+                  if(!on && !rkaOnlineBiz().cod) throw new Error('ما تقدر تطفي الدفع الإلكتروني وأنت مطفّي الدفع عند الاستلام — بيصير ما فيه طريقة دفع.');
+                  await rkaOnlineSaveBiz({ online_card_enabled: on }, 'عدّل الدفع الإلكتروني', rkaOnlineMirror);
+                  return { message: on ? 'الدفع الإلكتروني مفعّل ✓' : 'الدفع الإلكتروني مطفّأ ✓' }; } });
+            }
+          } else if(a.pick === 'whatsapp'){
+            steps.push({ key:'wa', type:'ask', prompt:'رقم واتساب للتواصل؟ (٠٥xxxxxxxx — اكتب «امسح» لإخفاء الزر)',
+              hint:'يظهر كزر «تواصل معنا عبر واتساب» في صفحة تتبع الطلب.',
+              parse: raw => { const s = rkaDigits(String(raw || '')).replace(/\D/g, ''); return /^امسح|احذف|بدون|شيل/.test(String(raw || '').trim()) ? '' : s; },
+              validate: v => (v === '' || /^05\d{8}$/.test(v)) ? null : 'رقم سعودي يبدأ بـ٠٥ و١٠ خانات، أو «امسح».' });
+            if(a.wa !== undefined) steps.push({ key:'waExec', type:'execute', idemKind:'owa', pending:'أحفظ…',
+              run: async (ans) => { await rkaOnlineSaveBiz({ online_contact_whatsapp: ans.wa || null }, 'عدّل رقم واتساب المتجر', rkaOnlineMirror);
+                return { message: ans.wa ? 'رقم واتساب: ' + ans.wa + ' ✓' : 'مسحت رقم الواتساب ✓' }; } });
+          } else if(a.pick === 'social'){
+            steps.push({ key:'soc', type:'ask', prompt:'ألصق روابط التواصل، كل واحد بسطر (انستقرام / تيك توك / X). اكتب «امسح» لمسح الكل:',
+              hint:'تظهر أيقونات صغيرة أعلى المتجر. أي سطر تتركه فاضي = ما يتغيّر.',
+              placeholder:'https://instagram.com/...\nhttps://tiktok.com/@...',
+              parse(raw){
+                if(/^امسح|احذف الكل/.test(String(raw || '').trim())) return { ig:'', tk:'', tw:'' };
+                const L = String(raw || '').split(/\r?\n/).map(x => x.trim());
+                const pick = re => (L.find(x => re.test(x)) || '');
+                return { ig: pick(/instagram|انستقرام|insta/i) || L[0] || '', tk: pick(/tiktok|تيك/i) || L[1] || '', tw: pick(/twitter|x\.com|تويتر/i) || L[2] || '' };
+              },
+              validate(v, ans){ ans._soc = v; return null; } });
+            if(a._soc !== undefined) steps.push({ key:'socExec', type:'execute', idemKind:'osoc', pending:'أحفظ…',
+              run: async (ans) => { await rkaOnlineSaveBiz({ online_social_instagram: ans._soc.ig || null, online_social_tiktok: ans._soc.tk || null, online_social_twitter: ans._soc.tw || null }, 'عدّل روابط التواصل', rkaOnlineMirror);
+                return { message:'حُفظت روابط التواصل ✓' }; } });
+          }
+          return steps;
+        },
+        doneActions(){
+          return [
+            { label:'اضبط خيار ثاني', run:() => RKA.restartSameWorkflow('وش الخيار الثاني؟') },
+            { label:'اضبط شكل المتجر', run:() => RKA.restartSameWorkflowAs('design', {}) },
+          ];
+        }
+      }
+    },
+    {
+      id: 'design', label: 'اضبط شكل المتجر',
+      workflow: {
+        id: 'online-design',
+        buildSteps(a){
+          if(!rkaOnlineEnabled()) return [ rkaOnlineDisabledGate(), rkaOnlineEndStep('—') ];
+          if(!rkaOnlineIsOwner()) return [ rkaOnlineOwnerGate(), rkaOnlineEndStep('—') ];
+          const b = rkaOnlineBiz();
+          const steps = [];
+          steps.push({ key:'pick', type:'choose', prompt:'وش تبي تضبط في شكل المتجر؟',
+            options: [
+              { value:'style', label:'شكل الصفحة (كلاسيكي / فخم)' + ' — الآن: ' + (b.themeStyle === 'luxury' ? 'فخم' : 'كلاسيكي') },
+              { value:'color', label:'اللون الرئيسي — الآن: ' + b.themeColor },
+              { value:'font', label:'الخط — الآن: ' + (b.font === 'thmanyah' ? 'Thmanyah' : 'ركين') },
+              { value:'taglineHeader', label:'العبارة أعلى الصفحة' },
+              { value:'taglineHero', label:'عبارة بطاقة الهوية' },
+              { value:'images', label:'الشعار وصورة الغلاف (صور)' },
+            ] });
+          if(a.pick === 'style'){
+            steps.push({ key:'st', type:'choose', prompt:'شكل صفحة الطلب؟',
+              hint:'<b>كلاسيكي</b>: كروت مربّعة مرتّبة — أوضح لمنيو كبير.\n<b>فخم</b>: بنر كبير وصور بلا صناديق — أنسب لمطعم قليل الأصناف ويعتمد على الصور.',
+              options: [ { value:'classic', label:'كلاسيكي' + (b.themeStyle === 'classic' ? ' (الحالي)' : ''), primary: b.themeStyle === 'classic' }, { value:'luxury', label:'فخم' + (b.themeStyle === 'luxury' ? ' (الحالي)' : ''), primary: b.themeStyle === 'luxury' } ] });
+            if(a.st !== undefined) steps.push({ key:'stExec', type:'execute', idemKind:'ostyle', pending:'أحفظ…',
+              run: async (ans) => { await rkaOnlineSaveBiz({ online_theme_style: ans.st }, 'غيّر شكل المتجر', rkaOnlineMirror);
+                return { message:'صار الشكل «' + (ans.st === 'luxury' ? 'فخم' : 'كلاسيكي') + '» ✓ — شوف النتيجة في تبويب «التصميم» (معاينة حية).' }; } });
+          } else if(a.pick === 'color'){
+            steps.push({ key:'col', type:'ask', prompt:'اللون الرئيسي؟ اكتب كود اللون (hex)',
+              hint:'مثل <b dir="ltr">C7FF4D</b> أو <b dir="ltr">#B7834A</b>. لو ما تدري الكود، افتح تبويب «التصميم» فيه منتقي ألوان بصري.',
+              parse: raw => { let v = String(raw || '').trim().replace(/^#/, ''); return /^[0-9a-fA-F]{6}$/.test(v) ? ('#' + v.toUpperCase()) : null; },
+              validate: v => v ? null : 'اكتب كود لون صحيح — ٦ خانات (٠-٩ / A-F)، مثل C7FF4D.' });
+            if(a.col !== undefined) steps.push({ key:'colExec', type:'execute', idemKind:'ocolor', pending:'أحفظ…',
+              run: async (ans) => { await rkaOnlineSaveBiz({ online_theme_color: ans.col }, 'غيّر لون هوية المتجر', rkaOnlineMirror);
+                return { message:'صار اللون الرئيسي ' + ans.col + ' ✓ — تبويب «التصميم» يوريك النتيجة.' }; } });
+          } else if(a.pick === 'font'){
+            steps.push({ key:'fn', type:'choose', prompt:'خط المتجر؟',
+              options: [ { value:'rakeen', label:'خط ركين' + (b.font === 'rakeen' ? ' (الحالي)' : ''), primary: b.font === 'rakeen' }, { value:'thmanyah', label:'خط Thmanyah' + (b.font === 'thmanyah' ? ' (الحالي)' : ''), primary: b.font === 'thmanyah' } ] });
+            if(a.fn !== undefined) steps.push({ key:'fnExec', type:'execute', idemKind:'ofont', pending:'أحفظ…',
+              run: async (ans) => { await rkaOnlineSaveBiz({ online_font_family: ans.fn }, 'غيّر خط المتجر', rkaOnlineMirror);
+                return { message:'صار الخط «' + (ans.fn === 'thmanyah' ? 'Thmanyah' : 'ركين') + '» ✓' }; } });
+          } else if(a.pick === 'taglineHeader' || a.pick === 'taglineHero'){
+            const isHeader = a.pick === 'taglineHeader';
+            const cur = isHeader ? b.taglineHeader : b.taglineHero;
+            steps.push({ key:'tg', type:'ask',
+              prompt: (isHeader ? 'العبارة أعلى الصفحة' : 'عبارة بطاقة الهوية') + ' الحالية: ' + ((cur && cur.trim()) ? '«' + cur + '»' : (cur === '' ? '(مخفية)' : '(الافتراضية)')) + '. اكتب الجديدة (أو «امسح» لإخفائها):',
+              hint:'سطر صغير يظهر أعلى صفحة الطلب. «امسح» = يختفي نهائيًا؛ خلّه فاضي = يرجع للنص الافتراضي.',
+              parse: raw => { const s = String(raw || '').trim(); return /^(امسح|اخفيها|أخفيها|احذف|اخفاء)$/.test(rkaDigits(s)) ? '' : s; },
+              validate: v => (v && v.length > 80) ? 'قصّرها — ٨٠ حرف كحد أقصى.' : null });
+            if(a.tg !== undefined) steps.push({ key:'tgExec', type:'execute', idemKind:'otag', pending:'أحفظ…',
+              run: async (ans) => { const col = isHeader ? 'online_tagline_header' : 'online_tagline_hero'; const p = {}; p[col] = ans.tg;
+                await rkaOnlineSaveBiz(p, 'عدّل عبارة المتجر', rkaOnlineMirror);
+                return { message: ans.tg ? 'صارت العبارة «' + ans.tg + '» ✓' : 'أخفيت العبارة ✓' }; } });
+          } else if(a.pick === 'images'){
+            steps.push({ key:'imgInfo', type:'info', text:'الشعار وصورة الغلاف تُرفع صور (مو نص) — أفتح لك تبويب «التصميم» فيه رفع الصور والمعاينة الحية.' });
+            steps.push({ key:'imgExec', type:'execute', idemKind:'oimg', run:() => { rkaOnlineOpenTab('design'); return { closePanel:true, message:'فتحت لك تبويب «التصميم» ✓' }; } });
+          }
+          return steps;
+        },
+        doneActions(){
+          return [
+            { label:'اضبط شي ثاني في الشكل', run:() => RKA.restartSameWorkflow('وش الخيار الثاني؟') },
+            { label:'اضبط الاستلام والدفع', run:() => RKA.restartSameWorkflowAs('fulfillment', {}) },
+            { label:'افتح تبويب التصميم (معاينة)', run:() => { RKA.close(); rkaOnlineOpenTab('design'); } },
+          ];
+        }
+      }
+    }
+  ]
+});
+
+function rkaOnlineOpenTab(tab){
+  try {
+    const nav = document.querySelector('[data-screen="onlineMenu"]'); if(nav) nav.click();
+    setTimeout(() => { const t = document.querySelector('#onlineMenuTabs button[data-tab="' + tab + '"]'); if(t) t.click(); }, 300);
+  } catch(e){}
+}
+
+/* ربط زر مدير المتجر الإلكتروني (FAB) — delegated */
+document.addEventListener('click', function(e){
+  const btn = e.target && e.target.closest && e.target.closest('#rkaOnlineLaunch');
+  if(!btn) return;
+  e.preventDefault();
+  RKA.open('online', { screen: 'onlineMenu' });
+});
+
+/* ═══════════════════════════ مدير الولاء ═══════════════════════════
+   موظف تبويب «الولاء» في لوحة التحكم (#screen-loyalty). يجهّز برنامج
+   الولاء (نقاط / زيارات / منتجات محددة)، يشرح ويضبط الإعدادات، ويعدّل
+   رصيد ولاء عميل بسبب إلزامي. إعدادات = updateCurrentBusiness (أعمدة
+   businesses، RLS مالك). تعديل الرصيد = adjust_loyalty_balance_guided
+   (migration 20260909050000 — غلاف idempotent فوق adjust_loyalty_balance
+   الموجودة، يعيد استخدام حساب العتبات والمكافآت كما هو). بلا AI.       */
+
+let RKA_LOY_OP_MAP = {};
+function rkaLoyOwner(){ return !(typeof CURRENT_PROFILE !== 'undefined' && CURRENT_PROFILE && CURRENT_PROFILE.user_type && CURRENT_PROFILE.user_type !== 'owner'); }
+function rkaLoyBr(){ return (typeof LOYALTY_BRANDING !== 'undefined' && LOYALTY_BRANDING) || { systemType:'points' }; }
+function rkaLoyRate(){ return (typeof LOYALTY_RATE !== 'undefined' && Number(LOYALTY_RATE) > 0) ? Number(LOYALTY_RATE) : 10; }
+function rkaLoySystem(){ return rkaLoyBr().systemType || 'points'; }
+function rkaLoyCustomers(){ return (typeof TOP_CUSTOMERS !== 'undefined' ? TOP_CUSTOMERS : []); }
+function rkaLoyRerender(){
+  ['renderLoyaltyKpis','renderLoyaltyMembers','renderLoyaltyLiability','renderOnboardingChecklist']
+    .forEach(fn => { try { if(typeof window[fn] === 'function') window[fn](); } catch(e){} });
+}
+function rkaLoyOpenTab(){ try { const n = document.querySelector('[data-screen="loyalty"]'); if(n) n.click(); } catch(e){} }
+
+const RKA_LOY_SYSTEMS = [
+  { value:'points', label:'نقاط — تجمع مع كل ريال' },
+  { value:'visits', label:'زيارات — كل عدد زيارات = مكافأة' },
+  { value:'products', label:'منتجات محددة — كل عدد أكواب/أصناف = مكافأة' },
+];
+const RKA_LOY_SYSTEM_HINT =
+  '<b>نقاط</b>: العميل يجمع نقطة لكل مبلغ تحدّده، ويصرفها لاحقًا. مرن، بلا «مكافأة» واحدة.\n'
+  + '<b>زيارات</b>: كل X شراء = مكافأة وحدة (مثل «كل ٦ زيارات قهوة مجانية»). أبسط للعميل.\n'
+  + '<b>منتجات محددة</b>: تعدّ صنفًا بعينه (كل ٦ أكواب لاتيه = كوب مجاني) — تختار الأصناف المحسوبة.';
+
+function rkaLoyBalanceLine(c){
+  const s = rkaLoySystem();
+  const parts = [];
+  if(s === 'points') parts.push('نقاط: ' + rkaQtyFmt(c.points || 0));
+  else if(s === 'visits') parts.push('زيارات (ختم): ' + rkaQtyFmt(c.stamps || 0) + ' / ' + (rkaLoyBr().visitsThreshold || 5));
+  else parts.push('وحدات: ' + rkaQtyFmt(c.units || 0) + ' / ' + (rkaLoyBr().unitThreshold || 6));
+  parts.push('مكافآت جاهزة: ' + rkaQtyFmt(c.freeRewards || 0));
+  return parts.join(' · ');
+}
+function rkaLoyKindsForSystem(){
+  const s = rkaLoySystem();
+  const rows = [];
+  if(s === 'points') rows.push({ value:'point', label:'نقاط' });
+  if(s === 'visits') rows.push({ value:'visit', label:'زيارات (ختم)' });
+  if(s === 'products') rows.push({ value:'unit', label:'وحدات' });
+  rows.push({ value:'free_reward', label:'مكافأة جاهزة (اعتذار / تصحيح عدّ)' });
+  return rows;
+}
+function rkaLoyKindLabel(k){ return ({ point:'نقاط', visit:'زيارات', unit:'وحدات', free_reward:'مكافأة جاهزة' })[k] || k; }
+function rkaLoyCustBalance(c, kind){
+  if(kind === 'point') return Number(c.points) || 0;
+  if(kind === 'visit') return Number(c.stamps) || 0;
+  if(kind === 'unit') return Number(c.units) || 0;
+  return Number(c.freeRewards) || 0;
+}
+
+function rkaLoySaveBiz(patch, auditMsg){
+  if(!rkaLoyOwner()) return Promise.reject(new Error('ضبط إعدادات الولاء يحتاج حساب المالك — سجّل دخول بحساب المالك أو خلّه يضبطه.'));
+  return updateCurrentBusiness(patch)
+    .then(() => {
+      if(typeof logDashboardAudit === 'function' && auditMsg) logDashboardAudit(auditMsg + ' (عبر مدير الولاء)');
+      try { if(typeof loadLoyaltyBranding === 'function') loadLoyaltyBranding(CURRENT_PROFILE.business_id); } catch(e){}
+      rkaLoyRerender();
+    })
+    .catch(e => { const m = String(e && e.message || ''); throw new Error(/duplicate|unique/i.test(m) ? m : (/صلاحية|owner/i.test(m) ? 'ضبط إعدادات الولاء يحتاج حساب المالك.' : (m.replace(/^[a-z_ ]+:\s*/i, '') || 'تعذّر الحفظ.'))); });
+}
+function rkaLoyAdjErr(code, current){
+  return ({
+    forbidden: 'تعديل رصيد الولاء يحتاج صلاحية «تعديل الإعدادات» — مو متاحة لك. صاحب الصلاحية يسوّيها.',
+    reason_required: 'اكتب سبب التعديل — إلزامي.',
+    zero_delta: 'التعديل لازم يكون رقم غير صفر.',
+    delta_too_large: 'أقصى تعديل يدوي ٥٠ في المرة الواحدة.',
+    invalid_kind: 'نوع الرصيد غير صحيح.',
+    customer_not_found: 'العميل مو موجود — حدّث الصفحة وأعد المحاولة.',
+    insufficient_balance: 'الرصيد ما يكفي للخصم — رصيده الحالي ' + (current != null ? current : '؟') + '.',
+    no_business: 'انتهت الجلسة — حدّث الصفحة وسجّل دخول.',
+  })[code] || ('تعذّر التعديل (' + code + ').');
+}
+async function rkaLoyAdjust(a, idemKey){
+  if(RKA._doneKeys.has(idemKey)) return RKA._doneResults[idemKey];
+  const sb = window.supabaseClient;
+  const { data, error } = await sb.rpc('adjust_loyalty_balance_guided', {
+    p_op_id: idemKey, p_customer_id: a._custId, p_kind: a.adjKind, p_delta: a.adjDelta, p_reason: (a.adjReason || '').trim()
+  });
+  if(error){
+    const m = String(error.message || '') + ' ' + String(error.code || '');
+    if(/PGRST202|schema cache|function.*guided/i.test(m)) throw new Error('مدير الولاء يحتاج تحديث قاعدة البيانات — شغّل ترحيل guided_loyalty_adjust أول.');
+    if(/28000|not authenticated/i.test(m)) throw new Error('انتهت الجلسة — حدّث الصفحة وسجّل دخول.');
+    throw new Error('تعذّر التعديل — أعِد المحاولة، النظام يمنع التكرار.');
+  }
+  const r = data || {};
+  if(r.ok !== true) throw new Error(rkaLoyAdjErr(r.error, r.current));
+
+  const c = rkaLoyCustomers().find(x => x.id === a._custId);
+  if(c){
+    if(a.adjKind === 'point') c.points = Number(r.balanceAfter);
+    else if(a.adjKind === 'visit') c.stamps = Number(r.balanceAfter);
+    else if(a.adjKind === 'unit') c.units = Number(r.balanceAfter);
+    if(r.freeRewardsAfter != null) c.freeRewards = Number(r.freeRewardsAfter);
+    rkaLoyRerender();
+  }
+  if(typeof logDashboardAudit === 'function') logDashboardAudit('عدّل رصيد ولاء عميل عبر مدير الولاء (' + rkaLoyKindLabel(a.adjKind) + ' ' + (a.adjDelta > 0 ? '+' : '') + a.adjDelta + '): ' + (c ? c.name : a._custId));
+  let msg = 'تمّ ✓  ' + (c ? '«' + c.name + '» ' : '') + rkaLoyKindLabel(a.adjKind) + ' صار ' + rkaQtyFmt(r.balanceAfter);
+  if(Number(r.rewardsGranted) > 0) msg += '\nوعبر عتبة المكافأة — عنده الآن ' + rkaQtyFmt(r.freeRewardsAfter) + ' مكافأة جاهزة.';
+  const result = { customerId: a._custId, message: msg };
+  RKA._doneKeys.add(idemKey); RKA._doneResults[idemKey] = result;
+  return result;
+}
+// استئناف: هل op التعديل تمّ فعلًا؟ (probe بمفتاح فارغ)
+async function rkaLoyCheckOp(baseIdemKey){
+  try {
+    const sb = window.supabaseClient;
+    const { data } = await sb.rpc('adjust_loyalty_balance_guided', { p_op_id: baseIdemKey + ':ladj', p_customer_id: -1, p_kind: 'point', p_delta: 1, p_reason: 'probe' });
+    if(data && data.replayed === true) return { done: true, result: { customerId: null, message: 'التعديل كان محفوظًا أصلًا ✓' } };
+  } catch(e){}
+  return { done: false };
+}
+
+/* ============ تسجيل المدير ============ */
+RKA.registerManager({
+  id: 'loyalty',
+  screen: 'loyalty',
+  title: 'مدير الولاء',
+  classifyIntent: function(raw){
+    const s = ' ' + rkaDigits(raw).trim().toLowerCase().replace(/[.،؟!]+/g, ' ').replace(/\s+/g, ' ') + ' ';
+    if(/(عدّل رصيد|عدل رصيد|أضف نقاط|اضف نقاط|امنح|اعطي نقاط|أعطِ|خصم نقاط|رصيد عميل|نقاط عميل|اعتذار)/.test(s)) return { id:'adjust', seed:{} };
+    if(/(جهّز|جهز|شغّل الولاء|شغل الولاء|ابدأ برنامج|فعّل الولاء|نظام الولاء أول|أنشئ برنامج)/.test(s)) return { id:'setup', seed:{} };
+    if(/(معدل النقاط|عتبة|عدد الزيارات|اسم المكافأة|استعادة العملاء|win back|رسالة الولاء|الحد الأدنى|إعدادات الولاء|اعدادات الولاء)/.test(s)) return { id:'tune', seed:{} };
+    return null;
+  },
+  greeting(){
+    return 'أنا مدير الولاء 👋\nأجهّز برنامج الولاء وأشرح لك أنظمته، وأعدّل رصيد عميل بسبب مسجّل.\nقل لي وش تبي — مثل: «جهّز برنامج الولاء» أو «أعطِ عميل ٥ نقاط اعتذار».';
+  },
+  intents: [
+    {
+      id: 'setup', label: 'جهّز برنامج الولاء',
+      workflow: {
+        id: 'loyalty-setup',
+        finishMessage: () => 'وقفنا هنا — تقدر تكمّل أو تلغي.',
+        buildSteps(a){
+          if(!rkaLoyOwner()) return [ { key:'og', type:'info', text:'ضبط برنامج الولاء يحتاج حساب المالك (سياسة قاعدة البيانات). سجّل دخول بحساب المالك أو خلّه يضبطه.' }, { key:'end', type:'execute', idemKind:'noop', run:() => ({ closePanel:true, message:'—' }) } ];
+          const steps = [];
+          if(a.sys === undefined){
+            steps.push({ key:'sys', type:'choose', prompt:'وش نظام الولاء اللي يناسب مطعمك؟',
+              hint: RKA_LOY_SYSTEM_HINT, options: RKA_LOY_SYSTEMS.slice() });
+            return steps;
+          }
+          if(a.sys === 'points'){
+            if(a.divisor === undefined) steps.push({ key:'divisor', type:'ask', prompt:'١ نقطة لكل كم ريال؟',
+              hint:'مثال: ١٠ يعني كل ١٠ ر.س = نقطة. كل ما قلّ الرقم، زادت النقاط اللي يجمعها العميل (وزاد التزامك).',
+              placeholder:'مثال: 10', parse: raw => { const n = parseInt(rkaDigits(String(raw)), 10); return isNaN(n) ? null : n; },
+              validate: v => (v == null || v < 1 || v > 1000) ? 'اكتب رقم بين ١ و١٠٠٠.' : null });
+          } else {
+            const isVisits = a.sys === 'visits';
+            if(a.threshold === undefined) steps.push({ key:'threshold', type:'ask',
+              prompt: isVisits ? 'كل كم زيارة (شراء) = مكافأة؟' : 'كل كم وحدة (كوب/صنف) = مكافأة؟',
+              hint: isVisits ? 'مثال: ٦ يعني السادسة مجانية. رقم ٢ فأكثر.' : 'مثال: ٦ أكواب = كوب مجاني. رقم ٢ فأكثر. الأصناف المحسوبة تختارها من قسم الولاء.',
+              placeholder:'مثال: 6', parse: raw => { const n = parseInt(rkaDigits(String(raw)), 10); return isNaN(n) ? null : n; },
+              validate: v => (v == null || v < 2 || v > 100) ? 'اكتب رقم ٢ أو أكثر (وأقل من ١٠٠).' : null });
+            if(a.threshold !== undefined && a.rewardLabel === undefined) steps.push({ key:'rewardLabel', type:'ask',
+              prompt:'وش المكافأة اللي ياخذها؟', hint:'تظهر للعميل على بطاقته. مثال: «مشروب مجاني»، «حلا مجاني».',
+              placeholder:'مثال: مشروب مجاني', validate: v => (v && v.trim() && v.trim().length <= 40) ? null : 'اكتب اسم المكافأة (حتى ٤٠ حرف).' });
+          }
+          const ready = a.sys === 'points' ? a.divisor !== undefined : (a.threshold !== undefined && a.rewardLabel !== undefined);
+          if(ready){
+            steps.push({ key:'review', type:'review', summary(a){
+              let r = '<dt>النظام</dt><dd>' + (RKA_LOY_SYSTEMS.find(x => x.value === a.sys) || {}).label + '</dd>';
+              if(a.sys === 'points') r += '<dt>المعدل</dt><dd>١ نقطة لكل <b>' + a.divisor + '</b> ر.س</dd>';
+              else { r += '<dt>العتبة</dt><dd>كل <b>' + a.threshold + '</b> ' + (a.sys === 'visits' ? 'زيارة' : 'وحدة') + ' = مكافأة</dd>';
+                r += '<dt>المكافأة</dt><dd>' + rkaEsc(a.rewardLabel.trim()) + '</dd>'; }
+              return r;
+            } });
+            steps.push({ key:'setupExec', type:'execute', idemKind:'loysetup', pending:'أحفظ وأفعّل…',
+              run: async (ans) => {
+                const p = { loyalty_system_type: ans.sys, loyalty_enabled: true };
+                if(ans.sys === 'points') p.loyalty_points_divisor = ans.divisor;
+                else if(ans.sys === 'visits'){ p.loyalty_visits_threshold = ans.threshold; p.loyalty_reward_label = ans.rewardLabel.trim(); }
+                else { p.loyalty_unit_threshold = ans.threshold; p.loyalty_reward_label = ans.rewardLabel.trim(); }
+                await rkaLoySaveBiz(p, 'جهّز برنامج الولاء (' + ans.sys + ')');
+                let m = 'برنامج الولاء مفعّل ✓ — نظام «' + (RKA_LOY_SYSTEMS.find(x => x.value === ans.sys) || {}).label + '».';
+                if(ans.sys === 'products') m += '\nباقي خطوة: اختر الأصناف المحسوبة من قسم الولاء (بفتح لك الصفحة من الأزرار تحت).';
+                return { message: m };
+              } });
+          }
+          return steps;
+        },
+        doneActions(res){
+          const acts = [{ label:'اعدّل إعدادات الولاء', run:() => RKA.restartSameWorkflowAs('tune', {}) }];
+          if(rkaLoySystem() === 'products') acts.push({ label:'اختر الأصناف المحسوبة', run:() => { RKA.close(); rkaLoyOpenTab(); } });
+          acts.push({ label:'افتح صفحة الولاء', run:() => { RKA.close(); rkaLoyOpenTab(); } });
+          return acts;
+        }
+      }
+    },
+    {
+      id: 'tune', label: 'اعدّل إعدادات الولاء',
+      workflow: {
+        id: 'loyalty-tune',
+        buildSteps(a){
+          if(!rkaLoyOwner()) return [ { key:'og', type:'info', text:'ضبط إعدادات الولاء يحتاج حساب المالك.' }, { key:'end', type:'execute', idemKind:'noop', run:() => ({ closePanel:true, message:'—' }) } ];
+          const br = rkaLoyBr(); const sys = rkaLoySystem();
+          const steps = [];
+          steps.push({ key:'pick', type:'choose', prompt:'وش تبي تعدّل؟',
+            options: [].concat(
+              sys === 'points' ? [{ value:'divisor', label:'معدل النقاط (الآن: ١ لكل ' + rkaLoyRate() + ' ر.س)' }] : [],
+              sys === 'visits' ? [{ value:'threshold', label:'عدد الزيارات للمكافأة (الآن: ' + (br.visitsThreshold || 5) + ')' }, { value:'visitMin', label:'الحد الأدنى للطلب المحتسب (الآن: ' + rkaMoneyFmt(br.visitMinTotal || 0) + ' ر.س)' }] : [],
+              sys === 'products' ? [{ value:'threshold', label:'عدد الوحدات للمكافأة (الآن: ' + (br.unitThreshold || 6) + ')' }] : [],
+              sys !== 'points' ? [{ value:'rewardLabel', label:'اسم المكافأة (الآن: «' + (br.rewardLabel || 'مكافأة') + '»)' }] : [],
+              [{ value:'winback', label:'رسالة استعادة العملاء' + (br.winBackOn ? ' (مفعّلة — بعد ' + (br.winBackDays || 30) + ' يوم)' : ' (مطفّأة)') }]
+            ) });
+          if(a.pick === 'divisor'){
+            steps.push({ key:'v', type:'ask', prompt:'١ نقطة لكل كم ريال؟',
+              hint:'كل ما قلّ الرقم زادت النقاط اللي يجمعها العميل (وزاد التزامك).',
+              placeholder:'مثال: 10', parse: raw => { const n = parseInt(rkaDigits(String(raw)), 10); return isNaN(n) ? null : n; },
+              validate: v => (v == null || v < 1 || v > 1000) ? 'رقم بين ١ و١٠٠٠.' : null });
+            if(a.v !== undefined) steps.push({ key:'vExec', type:'execute', idemKind:'loydiv', pending:'أحفظ…',
+              run: async (ans) => { await rkaLoySaveBiz({ loyalty_points_divisor: ans.v }, 'عدّل معدل نقاط الولاء'); return { message:'صار ١ نقطة لكل ' + ans.v + ' ر.س ✓' }; } });
+          } else if(a.pick === 'threshold'){
+            const isV = sys === 'visits';
+            steps.push({ key:'v', type:'ask', prompt: isV ? 'كل كم زيارة = مكافأة؟' : 'كل كم وحدة = مكافأة؟',
+              hint:'رقم ٢ أو أكثر. تغييره يأثّر على تقدّم العملاء الحاليين نحو مكافأتهم.',
+              placeholder:'مثال: 6', parse: raw => { const n = parseInt(rkaDigits(String(raw)), 10); return isNaN(n) ? null : n; },
+              validate: v => (v == null || v < 2 || v > 100) ? 'رقم ٢ أو أكثر.' : null });
+            if(a.v !== undefined) steps.push({ key:'vExec', type:'execute', idemKind:'loythr', pending:'أحفظ…',
+              run: async (ans) => { const p = isV ? { loyalty_visits_threshold: ans.v } : { loyalty_unit_threshold: ans.v };
+                await rkaLoySaveBiz(p, 'عدّل عتبة مكافأة الولاء'); return { message:'صارت العتبة ' + ans.v + ' ✓' }; } });
+          } else if(a.pick === 'visitMin'){
+            steps.push({ key:'v', type:'ask', prompt:'الحد الأدنى لقيمة الطلب عشان يُحتسب زيارة؟ (ر.س — اكتب 0 لأي مبلغ)',
+              hint:'يمنع احتساب طلب صغير جدًا كزيارة كاملة. 0 = أي شراء يُحتسب.',
+              placeholder:'مثال: 15', parse: raw => rkaMoney(raw), validate: v => (v == null || v < 0 || v > 100000) ? 'رقم صفر أو أكثر.' : null });
+            if(a.v !== undefined) steps.push({ key:'vExec', type:'execute', idemKind:'loymin', pending:'أحفظ…',
+              run: async (ans) => { await rkaLoySaveBiz({ loyalty_visit_min_total: ans.v }, 'عدّل الحد الأدنى للطلب المحتسب'); return { message: ans.v > 0 ? 'الحد الأدنى صار ' + rkaMoneyFmt(ans.v) + ' ر.س ✓' : 'صار أي شراء يُحتسب زيارة ✓' }; } });
+          } else if(a.pick === 'rewardLabel'){
+            steps.push({ key:'v', type:'ask', prompt:'اسم المكافأة الجديد؟', placeholder:'مثال: مشروب مجاني',
+              validate: v => (v && v.trim() && v.trim().length <= 40) ? null : 'اكتب اسمًا (حتى ٤٠ حرف).' });
+            if(a.v !== undefined) steps.push({ key:'vExec', type:'execute', idemKind:'loylbl', pending:'أحفظ…',
+              run: async (ans) => { await rkaLoySaveBiz({ loyalty_reward_label: ans.v.trim() }, 'عدّل اسم مكافأة الولاء'); return { message:'صار اسم المكافأة «' + ans.v.trim() + '» ✓' }; } });
+          } else if(a.pick === 'winback'){
+            steps.push({ key:'wOn', type:'choose', prompt:'رسالة استعادة العملاء الآن: «' + (br.winBackOn ? 'مفعّلة' : 'مطفّأة') + '». نخليها؟',
+              hint:'إشعار يوصل العميل اللي ما زارك من فترة (تحدّدها) — يذكّره ويرجّعه. يوصل للمشتركين بإشعارات بطاقتهم فقط.',
+              options: [ { value:'on', label:'مفعّلة', primary:true }, { value:'off', label:'مطفّأة' } ] });
+            if(a.wOn === 'on' && a.wDays === undefined) steps.push({ key:'wDays', type:'ask', prompt:'بعد كم يوم خمول يوصله التذكير؟',
+              placeholder:'مثال: 30', parse: raw => { const n = parseInt(rkaDigits(String(raw)), 10); return isNaN(n) ? null : n; },
+              validate: v => (v == null || v < 3 || v > 365) ? 'رقم بين ٣ و٣٦٥.' : null });
+            if(a.wOn === 'on' && a.wDays !== undefined && a.wMsg === undefined) steps.push({ key:'wMsg', type:'ask',
+              prompt:'نص التذكير؟ (اكتب «الافتراضي» للنص الجاهز)',
+              parse: raw => { const s = String(raw || '').trim(); return /^(الافتراضي|افتراضي|جاهز)$/.test(s) ? '' : s; },
+              validate: v => (v && v.length > 160) ? 'قصّره — ١٦٠ حرف كحد أقصى.' : null });
+            if(a.wOn === 'off' || (a.wOn === 'on' && a.wMsg !== undefined)) steps.push({ key:'wExec', type:'execute', idemKind:'loywb', pending:'أحفظ…',
+              run: async (ans) => { const p = { notify_win_back: ans.wOn === 'on' };
+                if(ans.wOn === 'on'){ p.win_back_inactive_days = ans.wDays; p.win_back_message = ans.wMsg || 'مشتقنالك! زورنا قريب — عندنا شي يسعدك'; }
+                await rkaLoySaveBiz(p, 'عدّل رسالة استعادة العملاء');
+                return { message: ans.wOn === 'on' ? 'رسالة الاستعادة مفعّلة بعد ' + ans.wDays + ' يوم خمول ✓' : 'رسالة الاستعادة مطفّأة ✓' }; } });
+          }
+          return steps;
+        },
+        doneActions(){
+          return [
+            { label:'اعدّل خيار ثاني', run:() => RKA.restartSameWorkflow('وش الخيار الثاني؟') },
+            { label:'افتح صفحة الولاء', run:() => { RKA.close(); rkaLoyOpenTab(); } },
+          ];
+        }
+      }
+    },
+    {
+      id: 'adjust', label: 'عدّل رصيد ولاء عميل',
+      workflow: {
+        id: 'loyalty-adjust',
+        checkDone: rkaLoyCheckOp,
+        finishMessage: () => 'وقفنا هنا — ما عدّلنا شي.',
+        buildSteps(a){
+          const steps = [];
+          if(!a._custId && a._pendingName){
+            const m = rkaMatchIn(a._pendingName, rkaLoyCustomers(), c => c.name + ' ' + (c.phone || ''));
+            if(m.item) a._custId = m.item.id;
+            delete a._pendingName;
+          }
+          // استعادة بعد reload: _custId (يبدأ بـ_) لا يُحفظ
+          if(!a._custId && (a._raw_cust || (a.cust && a.cust.q))){
+            const src = a._raw_cust || a.cust.q;
+            const q = rkaDigits(String(src)).trim().toLowerCase();
+            const list = rkaLoyCustomers().filter(c => (c.phone || '').includes(q) || String(c.name || '').toLowerCase().includes(String(src).trim().toLowerCase()));
+            if(list.length === 1) a._custId = list[0].id;
+          }
+          if(!a._custId){
+            steps.push({ key:'cust', type:'ask', prompt:'أي عميل؟ اكتب جواله أو اسمه',
+              hint:'العملاء يتسجّلون تلقائيًا أول ما يدخل الكاشير جوالهم.',
+              parse: raw => ({ q: String(raw || '').trim() }),
+              validate(p, ans){
+                const q = rkaDigits(p.q).trim().toLowerCase();
+                if(!q) return 'اكتب جوال أو اسم.';
+                const list = rkaLoyCustomers().filter(c => (c.phone || '').includes(q) || String(c.name || '').toLowerCase().includes(String(p.q).trim().toLowerCase()));
+                if(list.length === 1){ ans._custId = list[0].id; return null; }
+                if(list.length > 1 && list.length <= 12) return {
+                  message: 'فيه أكثر من عميل — اختر:',
+                  choices: list.map(c => ({ value: c.id, label: (c.name || 'بلا اسم') + (c.phone ? ' — ' + c.phone : '') + '  ·  ' + rkaLoyBalanceLine(c) })),
+                  onPick: (id, an) => { an._custId = id; }
+                };
+                return 'ما لقيت عميل مطابق. تأكّد من الجوال أو الاسم.';
+              } });
+          }
+          if(a._custId){
+            const c = rkaLoyCustomers().find(x => x.id === a._custId);
+            steps.push({ key:'bal', type:'info', text: () => { const cc = rkaLoyCustomers().find(x => x.id === a._custId); return 'رصيد «' + (cc ? cc.name : '') + '» الآن:\n' + rkaLoyBalanceLine(cc || {}); } });
+            // نُبقي الخطوات المُجابة في القائمة عشان «رجوع» يشتغل
+            steps.push({ key:'adjKind', type:'choose', prompt:'أي رصيد تعدّل؟',
+              hint:'الأغلب تعدّل رصيد نظامك الحالي. «مكافأة جاهزة» = تمنح/تسحب مكافأة كاملة مباشرة (اعتذار أو تصحيح عدّ).',
+              options: rkaLoyKindsForSystem() });
+            if(a.adjKind !== undefined) steps.push({ key:'adjDelta', type:'ask',
+              prompt: 'كم تعدّل من «' + rkaLoyKindLabel(a.adjKind) + '»؟ (موجب يزيد، سالب ينقص)',
+              hint:'مثال: <b>5</b> يضيف خمسة، <b>-3</b> يخصم ثلاثة. الحد ٥٠ في المرة. عبور عتبة الزيارات/الوحدات بموجب يمنح مكافأة تلقائيًا مثل شراء حقيقي.',
+              placeholder:'مثال: 5  أو  -3',
+              parse: raw => { const n = parseInt(rkaDigits(String(raw)).replace(/[^\d-]/g, ''), 10); return isNaN(n) ? null : n; },
+              validate(v, ans){
+                if(v == null || v === 0) return 'اكتب رقم غير صفر (موجب أو سالب).';
+                if(Math.abs(v) > 50) return 'أقصى تعديل ٥٠ في المرة الواحدة.';
+                const cc = rkaLoyCustomers().find(x => x.id === ans._custId);
+                if(v < 0 && cc && rkaLoyCustBalance(cc, ans.adjKind) + v < 0) return 'الخصم أكبر من الرصيد — عنده ' + rkaQtyFmt(rkaLoyCustBalance(cc, ans.adjKind)) + '.';
+                return null;
+              } });
+            if(a.adjDelta !== undefined) steps.push({ key:'adjReason', type:'ask',
+              prompt:'وش سبب التعديل؟ (إلزامي)',
+              hint:'يُسجَّل في سجل التعديلات مع اسمك ووقت التعديل — يحمي العميل ويحميك.',
+              placeholder:'مثال: تعويض عن مشروب اتأخر', validate: v => (v && v.trim().length >= 2 && v.trim().length <= 120) ? null : 'اكتب سبب واضح (٢–١٢٠ حرف).' });
+            if(a.adjReason !== undefined){
+              steps.push({ key:'review', type:'review', summary(a){
+                const cc = rkaLoyCustomers().find(x => x.id === a._custId);
+                const cur = cc ? rkaLoyCustBalance(cc, a.adjKind) : 0;
+                return '<dt>العميل</dt><dd>' + rkaEsc(cc ? cc.name : '') + (cc && cc.phone ? ' — ' + rkaEsc(cc.phone) : '') + '</dd>'
+                  + '<dt>' + rkaLoyKindLabel(a.adjKind) + '</dt><dd>من <b>' + rkaQtyFmt(cur) + '</b> إلى <b>' + rkaQtyFmt(cur + a.adjDelta) + '</b> <span style="color:' + (a.adjDelta < 0 ? 'var(--danger)' : 'var(--success-text)') + '">(' + (a.adjDelta > 0 ? '+' : '') + a.adjDelta + ')</span></dd>'
+                  + '<dt>السبب</dt><dd>' + rkaEsc((a.adjReason || '').trim()) + '</dd>';
+              } });
+              steps.push({ key:'adjExec', type:'execute', idemKind:'ladj', pending:'أعدّل الرصيد…', run:(ans, ctx, k) => rkaLoyAdjust(ans, k) });
+            }
+          }
+          return steps;
+        },
+        doneActions(res){
+          const acts = [{ label:'عدّل عميل ثاني', run:() => RKA.restartSameWorkflow('أي عميل؟') }];
+          acts.push({ label:'افتح صفحة الولاء', run:() => { RKA.close(); rkaLoyOpenTab(); } });
+          return acts;
+        }
+      }
+    }
+  ]
+});
+
+/* ربط زر مدير الولاء (FAB) — delegated */
+document.addEventListener('click', function(e){
+  const btn = e.target && e.target.closest && e.target.closest('#rkaLoyaltyLaunch');
+  if(!btn) return;
+  e.preventDefault();
+  RKA.open('loyalty', { screen: 'loyalty' });
+});
+
+/* ═══════════════════════════ مدير الموظفين ═══════════════════════════
+   موظف تبويب «الموظفون» في لوحة التحكم (#screen-hr). يضيف موظفًا كاملًا
+   ويعدّل بياناته — بنفس ما يسوّيه النموذج اليدوي (saveEmployeeFromModal +
+   syncEmployeeIqamaDoc). كل كتابة عبر RPC ذرّي — migration 20260909060000
+   — يُدرج صف employees ويزامن وثيقة الإقامة في compliance_items. الراتب لا
+   يُحفظ إلا لمن عنده صلاحية عرض الرواتب. بلا AI.                          */
+
+const RKA_HR_EMP_TYPES = [
+  { value:'full_time', label:'دوام كامل' }, { value:'part_time', label:'دوام جزئي' }, { value:'temporary', label:'مؤقت' },
+];
+const RKA_HR_STATUS = [
+  { value:'active', label:'نشط' }, { value:'on_leave', label:'إجازة' }, { value:'terminated', label:'منتهي خدمته' },
+];
+function rkaHrTypeLabel(v){ return (RKA_HR_EMP_TYPES.find(x => x.value === v) || {}).label || v; }
+function rkaHrStatusLabel(v){ return (RKA_HR_STATUS.find(x => x.value === v) || {}).label || v; }
+function rkaHrCanSalary(){ return (typeof canViewSalary !== 'function') || canViewSalary(); }
+function rkaHrDepts(){ return (typeof DEPARTMENTS !== 'undefined' ? DEPARTMENTS : []); }
+function rkaHrBranches(){ return (typeof HR_BRANCHES !== 'undefined' ? HR_BRANCHES : []); }
+function rkaHrEmployees(){ return (typeof EMPLOYEES !== 'undefined' ? EMPLOYEES : []); }
+function rkaHrRerender(){
+  ['renderHrEmployeesTab','renderHrOverviewTab','renderHrComplianceTab','renderOnboardingChecklist']
+    .forEach(fn => { try { if(typeof window[fn] === 'function') window[fn](); } catch(e){} });
+}
+function rkaHrOpenTab(tab){
+  try { const n = document.querySelector('[data-screen="hr"]'); if(n) n.click();
+    setTimeout(() => { const t = document.querySelector('#hrTabs button[data-tab="' + tab + '"]'); if(t) t.click(); }, 300);
+  } catch(e){}
+}
+function rkaHrParseDate(raw){
+  const s = rkaDigits(String(raw || '')).trim().toLowerCase();
+  const now = new Date(); const atNoon = d => { d.setHours(12, 0, 0, 0); return d; };
+  if(/^(اليوم|توه?|النهارده)$/.test(s)) return atNoon(new Date(now));
+  let m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if(m){ const d = new Date(+m[1], +m[2] - 1, +m[3]); return isNaN(d) ? null : atNoon(d); }
+  m = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);
+  if(m){ const yr = m[3].length === 2 ? 2000 + +m[3] : +m[3]; const d = new Date(yr, +m[2] - 1, +m[1]); return isNaN(d) ? null : atNoon(d); }
+  return null;
+}
+function rkaHrIso(d){ return d ? (d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')) : null; }
+function rkaHrDateLabel(iso){ try { return new Date(iso + 'T12:00:00').toLocaleDateString('ar-SA', { day:'numeric', month:'long', year:'numeric' }); } catch(e){ return String(iso); } }
+
+function rkaHrRpcErr(error, fallback){
+  const m = String(error && (error.message || '')) + ' ' + String(error && (error.details || '')) + ' ' + String(error && (error.code || ''));
+  if(/forbidden|42501/.test(m) && /view_salary|صلاحية عرض الرواتب/.test(m)) return new Error('الراتب يحتاج صلاحية «عرض الرواتب» — نكمّل بدونه، وصاحب الصلاحية يضيفه لاحقًا.');
+  if(/forbidden|42501/.test(m)) return new Error('إدارة الموظفين تحتاج صلاحية «الموظفون».');
+  if(/not authenticated|28000/.test(m)) return new Error('انتهت الجلسة — حدّث الصفحة وسجّل دخول.');
+  if(/PGRST202|schema cache|function.*guided/.test(m)) return new Error('مدير الموظفين يحتاج تحديث قاعدة البيانات — شغّل ترحيل guided_employee أول.');
+  if(/department not found/.test(m)) return new Error('القسم مو موجود — حدّث الصفحة.');
+  if(/branch not found/.test(m)) return new Error('الفرع مو موجود — حدّث الصفحة.');
+  if(/employee not found/.test(m)) return new Error('الموظف مو موجود — حدّث الصفحة.');
+  return new Error(String(error && error.message || '').replace(/^[a-z_ ]+:\s*/i, '') || (fallback || 'تعذّرت العملية — حاول مرة ثانية.'));
+}
+
+async function rkaHrCreate(a, idemKey){
+  if(RKA._doneKeys.has(idemKey)) return RKA._doneResults[idemKey];
+  if(typeof screenAllowed === 'function' && !screenAllowed('hr')) throw new Error('ما عندك صلاحية الموظفين');
+  const sb = window.supabaseClient;
+  const { data, error } = await sb.rpc('create_employee_guided', {
+    p_op_id: idemKey,
+    p_full_name: (a.name || '').trim(),
+    p_job_title: a.jobTitle && a.jobTitle !== '__skip__' ? a.jobTitle.trim() : null,
+    p_department_id: a.deptId || null,
+    p_branch_id: a.branchId || null,
+    p_employment_type: a.empType || 'full_time',
+    p_hire_date: a.hireIso || null,
+    p_status: 'active',
+    p_base_salary: (a.salary != null && a.salary !== '__skip__') ? a.salary : null,
+    p_national_id: a.iqamaId && a.iqamaId !== '__skip__' ? a.iqamaId.trim() : null,
+    p_iqama_expiry: a.iqamaExpIso || null,
+    p_nationality: null, p_phone: null, p_emergency_name: null, p_emergency_phone: null
+  });
+  if(error) throw rkaHrRpcErr(error, 'تعذّر إضافة الموظف');
+  const r = data || {};
+  const created = r.created !== false;
+  const id = r.employee_id;
+  if(created && typeof EMPLOYEES !== 'undefined' && !EMPLOYEES.some(e => e.id === id)){
+    EMPLOYEES.push({
+      id, full_name: (a.name || '').trim(), job_title: a.jobTitle && a.jobTitle !== '__skip__' ? a.jobTitle.trim() : null,
+      department_id: a.deptId || null, branch_id: a.branchId || null, employment_type: a.empType || 'full_time',
+      status: 'active', hire_date: a.hireIso || null, base_salary: r.salary_saved ? a.salary : null,
+      national_id_or_iqama: a.iqamaId && a.iqamaId !== '__skip__' ? a.iqamaId.trim() : null, iqama_expiry: a.iqamaExpIso || null,
+      nationality: null, phone: null, emergency_contact_name: null, emergency_contact_phone: null
+    });
+    rkaHrRerender();
+    if(typeof logDashboardAudit === 'function') logDashboardAudit('أضاف موظف عبر مدير الموظفين: ' + (a.name || '').trim());
+  }
+  a._empId = id; a._created = created;
+  let msg = created
+    ? ('سجّلت الموظف «' + (a.name || '').trim() + '» ✓' + (r.iqama_doc ? '  (وربطت وثيقة الإقامة تلقائيًا)' : '') + '.')
+    : ('«' + (a.name || '').trim() + '» مسجّل عندك أصلًا ✓');
+  if(created && r.salary_blocked) msg += '\nملاحظة: الراتب ما انحفظ — يحتاج صلاحية «عرض الرواتب».';
+  const result = { employeeId: id, created, message: msg };
+  RKA._doneKeys.add(idemKey); RKA._doneResults[idemKey] = result;
+  return result;
+}
+async function rkaHrCheckOp(baseIdemKey){
+  try {
+    const sb = window.supabaseClient;
+    const { data } = await sb.rpc('create_employee_guided', { p_op_id: baseIdemKey + ':base', p_full_name: '' });
+    if(data && data.created === false) return { done: true, result: { productId: data.employee_id, employeeId: data.employee_id, created: false, message: 'الموظف كان محفوظًا أصلًا ✓' } };
+  } catch(e){}
+  return { done: false };
+}
+async function rkaHrUpdate(a, idemKey){
+  if(typeof screenAllowed === 'function' && !screenAllowed('hr')) throw new Error('ما عندك صلاحية الموظفين');
+  const sb = window.supabaseClient;
+  const patch = a._patch || {};
+  const { error } = await sb.rpc('update_employee_guided', { p_employee_id: a._empId, p_patch: patch });
+  if(error) throw rkaHrRpcErr(error, 'تعذّر حفظ التعديل');
+  const e = rkaHrEmployees().find(x => x.id === a._empId);
+  if(e){ Object.keys(patch).forEach(k => { e[k] = patch[k] === '' ? null : (k === 'department_id' || k === 'branch_id' ? (patch[k] ? Number(patch[k]) : null) : patch[k]); }); rkaHrRerender(); }
+  if(typeof logDashboardAudit === 'function') logDashboardAudit('عدّل بيانات موظف عبر مدير الموظفين: ' + (e ? e.full_name : a._empId));
+  return { employeeId: a._empId, message: 'حُفظ التعديل ✓' };
+}
+
+/* ============ تسجيل المدير ============ */
+RKA.registerManager({
+  id: 'hr',
+  screen: 'hr',
+  title: 'مدير الموظفين',
+  classifyIntent: function(raw){
+    const s = ' ' + rkaDigits(raw).trim().toLowerCase().replace(/[.،؟!]+/g, ' ').replace(/\s+/g, ' ') + ' ';
+    const STOP = new Set(['لي','موظف','بيانات','راتب','قسم','فرع','حالة','اسم','ال','من','رقم','جوال','إقامة','اقامة','تاريخ']);
+    const nameOf = re => { const out = s.replace(re, ' ').split(/\s+/).map(w => w.replace(/^ال(?=\S\S)/, '')).filter(w => w && !STOP.has(w)).join(' ').trim(); return out.length >= 2 ? { _pendingName: out } : {}; };
+    if(/(عدّل|عدل|حدّث|حدث|غيّر|غير|بيانات موظف|راتب|قسم موظف|فرع موظف)/.test(s)) return { id:'edit', seed: nameOf(/عدّل|عدل|حدّث|حدث|غيّر|غير|بيانات|راتب|قسم|فرع|حالة|المسمى|مسمى|الوظيفي/g) };
+    if(/(أضف موظف|اضف موظف|ضيف موظف|موظف جديد|سجّل موظف|سجل موظف|وظّفت|وظفت|عيّنت|عينت)/.test(s)) return { id:'add', seed: nameOf(/أضف|اضف|ضيف|موظف|جديد|سجّل|سجل|وظّفت|وظفت|عيّنت|عينت/g) };
+    if(/(وثيقة|صحية|تأمين|عقد|إقامة موظف|امتثال)/.test(s)) return { id:'docs', seed:{} };
+    return null;
+  },
+  greeting(){
+    return 'أنا مدير الموظفين 👋\nأضيف موظف جديد كامل، وأعدّل بيانات أي موظف.\nقل لي وش تبي — مثل: «أضف موظف جديد» أو «عدّل راتب أحمد».';
+  },
+  intents: [
+    {
+      id: 'add', label: 'أضف موظف جديد',
+      workflow: {
+        id: 'hr-add',
+        checkDone: rkaHrCheckOp,
+        finishMessage: (a) => { const e = rkaHrEmployees().find(x => x.id === a._empId); return 'وقفنا هنا. «' + (e ? e.full_name : '') + '» مسجّل ✓'; },
+        buildSteps(a){
+          if(!a._empId && a._productId) a._empId = a._productId;
+          const steps = [];
+          const nameValidate = v => (!v || !v.trim()) ? 'اكتب الاسم الكامل.' : (v.trim().length > 60 ? 'الاسم طويل — خليه أقصر.' : null);
+          if(a._pendingName && !a.name){ if(nameValidate(a._pendingName) === null) a.name = a._pendingName.trim(); delete a._pendingName; }
+          if(!a.name) steps.push({ key:'name', type:'ask', prompt:'وش اسم الموظف الكامل؟', placeholder:'مثال: محمد العتيبي', validate: nameValidate });
+          steps.push({ key:'jobTitle', type:'ask', prompt:'المسمى الوظيفي؟ (اختياري — اكتب «تخطى»)',
+            parse: raw => { const s = String(raw || '').trim(); return /^(تخطى|تخطي|بدون|لا|skip)$/.test(rkaDigits(s)) ? '__skip__' : s; },
+            validate: v => (v && v !== '__skip__' && v.length > 60) ? 'قصّره.' : null });
+          {
+            const ds = rkaHrDepts();
+            if(ds.length){
+              steps.push({ key:'dept', type:'choose', prompt:'أي قسم؟',
+                options: () => ds.map(d => ({ value: d.id, label: d.name })).concat([{ value:'__none__', label:'بدون قسم' }]) });
+            } else a.dept = '__none__';
+          }
+          {
+            const bs = rkaHrBranches();
+            if(bs.length > 1) steps.push({ key:'branch', type:'choose', prompt:'أي فرع؟',
+              options: () => bs.map(b => ({ value: b.id, label: b.name })) });
+            else if(bs.length === 1) a.branch = bs[0].id;
+          }
+          steps.push({ key:'empType', type:'choose', prompt:'نوع الدوام؟', options: RKA_HR_EMP_TYPES.slice() });
+          steps.push({ key:'hire', type:'ask', prompt:'تاريخ التعيين؟ (اكتب «اليوم» أو يوم/شهر/سنة، أو «تخطى»)',
+            parse: raw => { const s = String(raw || '').trim(); if(/^(تخطى|تخطي|بدون|لا)$/.test(rkaDigits(s))) return '__skip__'; const d = rkaHrParseDate(s); return d ? rkaHrIso(d) : null; },
+            validate: v => v == null ? 'اكتب «اليوم» أو تاريخ مثل ١٥/٨/٢٠٢٦، أو «تخطى».' : null });
+          if(rkaHrCanSalary()){
+            steps.push({ key:'salary', type:'ask', prompt:'الراتب الأساسي؟ (ر.س — اكتب «تخطى» لو ما تبي تحدّده الآن)',
+              hint:'يظهر فقط لمن عنده صلاحية «عرض الرواتب».',
+              parse: raw => { const s = String(raw || '').trim(); return /^(تخطى|تخطي|بدون|لا)$/.test(rkaDigits(s)) ? '__skip__' : rkaMoney(raw); },
+              validate: v => (v === '__skip__' || (v != null && v >= 0 && v <= 10000000)) ? null : 'اكتب رقم، أو «تخطى».' });
+          } else {
+            steps.push({ key:'salaryInfo', type:'info', text:'الراتب يحتاج صلاحية «عرض الرواتب» — مو متاحة لك، فنكمّل بدونه.' });
+          }
+          steps.push({ key:'iqamaId', type:'ask', prompt:'رقم الهوية / الإقامة؟ (اختياري — «تخطى»)',
+            parse: raw => { const s = rkaDigits(String(raw || '')).trim(); return /^(تخطى|تخطي|بدون|لا)$/.test(String(raw || '').trim()) ? '__skip__' : s; },
+            validate: v => (v && v !== '__skip__' && !/^\d{6,15}$/.test(v)) ? 'رقم من ٦ إلى ١٥ خانة، أو «تخطى».' : null });
+          if(a.iqamaId !== undefined && a.iqamaId !== '__skip__'){
+            steps.push({ key:'iqamaExp', type:'ask', prompt:'تاريخ انتهاء الإقامة؟ (يوم/شهر/سنة — أو «تخطى»)',
+              hint:'لو حددته، يُربط تلقائيًا بوثيقة الإقامة في تبويب «الامتثال والوثائق» ويجيك تنبيه قبل الانتهاء.',
+              parse: raw => { const s = String(raw || '').trim(); if(/^(تخطى|تخطي|بدون|لا)$/.test(rkaDigits(s))) return '__skip__'; const d = rkaHrParseDate(s); return d ? rkaHrIso(d) : null; },
+              validate: v => v == null ? 'اكتب تاريخ مثل ١٥/٨/٢٠٢٧، أو «تخطى».' : null });
+          }
+          // تطبيع القيم
+          if(a.dept !== undefined) a.deptId = a.dept === '__none__' ? null : a.dept;
+          if(a.branch !== undefined) a.branchId = a.branch;
+          if(a.hire !== undefined) a.hireIso = a.hire === '__skip__' ? null : a.hire;
+          if(a.iqamaExp !== undefined) a.iqamaExpIso = a.iqamaExp === '__skip__' ? null : a.iqamaExp;
+
+          const ready = a.name && a.jobTitle !== undefined && (a.dept !== undefined || !rkaHrDepts().length)
+            && (a.branch !== undefined || rkaHrBranches().length <= 1) && a.empType !== undefined && a.hire !== undefined
+            && (a.salary !== undefined || !rkaHrCanSalary()) && a.iqamaId !== undefined
+            && (a.iqamaId === '__skip__' || a.iqamaExp !== undefined);
+          if(ready && !a._empId){
+            steps.push({ key:'review', type:'review', summary(a){
+              const d = rkaHrDepts().find(x => x.id === a.deptId);
+              const b = rkaHrBranches().find(x => x.id === a.branchId);
+              let r = '<dt>الاسم</dt><dd>' + rkaEsc((a.name || '').trim()) + '</dd>';
+              if(a.jobTitle && a.jobTitle !== '__skip__') r += '<dt>المسمى</dt><dd>' + rkaEsc(a.jobTitle.trim()) + '</dd>';
+              if(d) r += '<dt>القسم</dt><dd>' + rkaEsc(d.name) + '</dd>';
+              if(b) r += '<dt>الفرع</dt><dd>' + rkaEsc(b.name) + '</dd>';
+              r += '<dt>الدوام</dt><dd>' + rkaHrTypeLabel(a.empType) + '</dd>';
+              if(a.hireIso) r += '<dt>التعيين</dt><dd>' + rkaHrDateLabel(a.hireIso) + '</dd>';
+              if(a.salary != null && a.salary !== '__skip__') r += '<dt>الراتب</dt><dd><b>' + rkaMoneyFmt(a.salary) + '</b> ر.س</dd>';
+              if(a.iqamaId && a.iqamaId !== '__skip__') r += '<dt>الإقامة</dt><dd>' + rkaEsc(a.iqamaId) + (a.iqamaExpIso ? ' — تنتهي ' + rkaHrDateLabel(a.iqamaExpIso) : '') + '</dd>';
+              return r;
+            } });
+            steps.push({ key:'base', type:'execute', idemKind:'base', pending:'أسجّل الموظف…', run:(ans, ctx, k) => rkaHrCreate(ans, k) });
+          }
+          return steps;
+        },
+        doneActions(res){
+          const acts = [{ label:'أضف موظف ثاني', run:() => RKA.restartSameWorkflow('موظف جديد:') }];
+          if(res && res.employeeId){
+            acts.push({ label:'عدّل بياناته', run:() => RKA.restartSameWorkflowAs('edit', { _empId: res.employeeId }) });
+            acts.push({ label:'فعّل له الكاشير / أضف وثائق', run:() => { RKA.close(); if(typeof openEmployeeModal === 'function'){ const e = rkaHrEmployees().find(x => x.id === res.employeeId); if(e) openEmployeeModal(e); } } });
+          }
+          return acts;
+        }
+      }
+    },
+    {
+      id: 'edit', label: 'عدّل بيانات موظف',
+      workflow: {
+        id: 'hr-edit',
+        buildSteps(a){
+          const steps = [];
+          if(!a._empId && a._pendingName){
+            const m = rkaMatchIn(a._pendingName, rkaHrEmployees(), e => e.full_name);
+            if(m.item) a._empId = m.item.id;
+            delete a._pendingName;
+          }
+          if(!a._empId && (a._raw_pick || (a.pick && a.pick.item))){
+            const src = a._raw_pick || (a.pick.item && a.pick.item.full_name);
+            const m = src ? rkaMatchIn(src, rkaHrEmployees(), e => e.full_name) : null;
+            if(m && m.item) a._empId = m.item.id;
+          }
+          if(!a._empId){
+            steps.push({ key:'pick', type:'ask', prompt:'أي موظف؟ اكتب اسمه',
+              parse: raw => ({ res: rkaMatchIn(raw, rkaHrEmployees(), e => e.full_name), raw: String(raw || '').trim() }),
+              validate(p, ans){
+                const res = p.res;
+                if(res.item){ ans._empId = res.item.id; return null; }
+                if(res.many) return {
+                  message: 'فيه أكثر من موظف بهذا الاسم — اختر:',
+                  choices: res.many.map(e => ({ value: e.id, label: e.full_name + (e.job_title ? ' — ' + e.job_title : '') })),
+                  onPick: (id, an) => { an._empId = id; }
+                };
+                const names = rkaHrEmployees().slice(0, 8).map(e => e.full_name).join('، ');
+                return 'ما لقيت موظف بهذا الاسم. المسجّلين: ' + (names || '(ما فيه موظفين بعد)') + '.';
+              } });
+          }
+          if(a._empId){
+            const e = rkaHrEmployees().find(x => x.id === a._empId);
+            steps.push({ key:'field', type:'choose', prompt:'وش تبي تعدّل في «' + (e ? e.full_name : '') + '»؟',
+              options: [].concat(
+                [{ value:'full_name', label:'الاسم' }, { value:'job_title', label:'المسمى الوظيفي' }],
+                rkaHrDepts().length ? [{ value:'department_id', label:'القسم' }] : [],
+                rkaHrBranches().length > 1 ? [{ value:'branch_id', label:'الفرع' }] : [],
+                [{ value:'employment_type', label:'نوع الدوام' }, { value:'status', label:'الحالة (نشط/إجازة/منتهي)' }],
+                rkaHrCanSalary() ? [{ value:'base_salary', label:'الراتب' }] : [],
+                [{ value:'national_id_or_iqama', label:'رقم الإقامة' }, { value:'iqama_expiry', label:'تاريخ انتهاء الإقامة' },
+                 { value:'phone', label:'رقم الجوال' }]
+              ) });
+            if(a.field !== undefined && a.val === undefined){
+              const f = a.field;
+              if(f === 'department_id') steps.push({ key:'val', type:'choose', prompt:'القسم الجديد؟',
+                options: () => rkaHrDepts().map(d => ({ value: d.id, label: d.name })).concat([{ value:'', label:'بدون قسم' }]) });
+              else if(f === 'branch_id') steps.push({ key:'val', type:'choose', prompt:'الفرع الجديد؟',
+                options: () => rkaHrBranches().map(b => ({ value: b.id, label: b.name })) });
+              else if(f === 'employment_type') steps.push({ key:'val', type:'choose', prompt:'نوع الدوام الجديد؟', options: RKA_HR_EMP_TYPES.slice() });
+              else if(f === 'status') steps.push({ key:'val', type:'choose', prompt:'الحالة الجديدة؟',
+                hint:'«منتهي خدمته» يوقف احتسابه، ويوقف تفعيل الكاشير له لو كان مفعّلًا (من نموذج الموظف).',
+                options: RKA_HR_STATUS.slice() });
+              else if(f === 'base_salary') steps.push({ key:'val', type:'ask', prompt:'الراتب الجديد؟ (ر.س)',
+                parse: raw => rkaMoney(raw), validate: v => (v != null && v >= 0 && v <= 10000000) ? null : 'اكتب رقم صحيح.' });
+              else if(f === 'iqama_expiry') steps.push({ key:'val', type:'ask', prompt:'تاريخ انتهاء الإقامة الجديد؟ (يوم/شهر/سنة)',
+                hint:'يتزامن تلقائيًا مع وثيقة الإقامة، ويعيد ضبط تنبيه الانتهاء.',
+                parse: raw => { const d = rkaHrParseDate(raw); return d ? rkaHrIso(d) : null; }, validate: v => v == null ? 'اكتب تاريخ مثل ١٥/٨/٢٠٢٧.' : null });
+              else if(f === 'national_id_or_iqama') steps.push({ key:'val', type:'ask', prompt:'رقم الإقامة الجديد؟',
+                parse: raw => rkaDigits(String(raw)).trim(), validate: v => /^\d{6,15}$/.test(v) ? null : 'رقم من ٦ إلى ١٥ خانة.' });
+              else steps.push({ key:'val', type:'ask', prompt: 'القيمة الجديدة لـ' + ({ full_name:'الاسم', job_title:'المسمى', phone:'الجوال' })[f] + '؟',
+                validate: v => (v && v.trim() && v.trim().length <= 60) ? null : 'اكتب قيمة (حتى ٦٠ حرف).' });
+            }
+            if(a.val !== undefined){
+              const v = a.val;
+              const patchVal = (typeof v === 'string') ? v.trim() : v;
+              a._patch = {}; a._patch[a.field] = patchVal;
+              steps.push({ key:'review', type:'review', summary(a){
+                const e = rkaHrEmployees().find(x => x.id === a._empId);
+                const oldv = e ? e[a.field] : null;
+                let show = a._patch[a.field];
+                if(a.field === 'department_id') show = (rkaHrDepts().find(d => d.id === show) || {}).name || 'بدون قسم';
+                else if(a.field === 'branch_id') show = (rkaHrBranches().find(b => b.id === show) || {}).name || '—';
+                else if(a.field === 'employment_type') show = rkaHrTypeLabel(show);
+                else if(a.field === 'status') show = rkaHrStatusLabel(show);
+                else if(a.field === 'base_salary') show = rkaMoneyFmt(show) + ' ر.س';
+                let oldShow = oldv;
+                if(a.field === 'department_id') oldShow = (rkaHrDepts().find(d => d.id === oldv) || {}).name || 'بدون قسم';
+                else if(a.field === 'branch_id') oldShow = (rkaHrBranches().find(b => b.id === oldv) || {}).name || '—';
+                else if(a.field === 'employment_type') oldShow = rkaHrTypeLabel(oldv);
+                else if(a.field === 'status') oldShow = rkaHrStatusLabel(oldv);
+                else if(a.field === 'base_salary') oldShow = oldv != null ? rkaMoneyFmt(oldv) + ' ر.س' : '—';
+                return '<dt>الموظف</dt><dd>' + rkaEsc(e ? e.full_name : '') + '</dd>'
+                  + '<dt>' + ({ full_name:'الاسم', job_title:'المسمى', department_id:'القسم', branch_id:'الفرع', employment_type:'الدوام', status:'الحالة', base_salary:'الراتب', national_id_or_iqama:'رقم الإقامة', iqama_expiry:'انتهاء الإقامة', phone:'الجوال' })[a.field] + '</dt>'
+                  + '<dd>من <b>' + rkaEsc(String(oldShow == null || oldShow === '' ? '—' : oldShow)) + '</b> إلى <b>' + rkaEsc(String(a.field === 'iqama_expiry' ? rkaHrDateLabel(show) : show)) + '</b></dd>';
+              } });
+              steps.push({ key:'editExec', type:'execute', idemKind:'hredit', pending:'أحفظ التعديل…', run:(ans, ctx, k) => rkaHrUpdate(ans, k) });
+            }
+          }
+          return steps;
+        },
+        doneActions(res){
+          const acts = [{ label:'عدّل حقل ثاني', run:() => RKA.restartSameWorkflowAs('edit', { _empId: res && res.employeeId }) }];
+          acts.push({ label:'عدّل موظف ثاني', run:() => RKA.restartSameWorkflow('أي موظف؟') });
+          if(res && res.employeeId) acts.push({ label:'افتح ملف الموظف', run:() => { RKA.close(); if(typeof openEmployeeModal === 'function'){ const e = rkaHrEmployees().find(x => x.id === res.employeeId); if(e) openEmployeeModal(e); } } });
+          return acts;
+        }
+      }
+    },
+    {
+      id: 'docs', label: 'وثائق الامتثال (صحية / تأمين / عقد)',
+      workflow: {
+        id: 'hr-docs',
+        buildSteps(){
+          return [
+            { key:'info', type:'info', text:'وثائق الامتثال (الشهادة الصحية، التأمين، العقد) تُدار من تبويب «الامتثال والوثائق» في صفحة الموظفين — فيه تنبيهات الانتهاء والتزامن. بفتح لك المكان.' },
+            { key:'open', type:'execute', idemKind:'openinv', run:() => { rkaHrOpenTab('compliance'); return { closePanel:true, message:'فتحت لك تبويب «الامتثال والوثائق» ✓' }; } }
+          ];
+        }
+      }
+    }
+  ]
+});
+
+/* ربط زر مدير الموظفين (FAB) — delegated */
+document.addEventListener('click', function(e){
+  const btn = e.target && e.target.closest && e.target.closest('#rkaHrLaunch');
+  if(!btn) return;
+  e.preventDefault();
+  RKA.open('hr', { screen: 'hr' });
+});
+
+/* ═══════════════════════════ مدير الإعدادات ═══════════════════════════
+   موظف تبويب «الإعدادات» في لوحة التحكم (#screen-settings). يراجع
+   إعدادات مطعمك الأساسية ويضبطها معك بشرح وتوصية وتأكيد: اسم المطعم ·
+   ضريبة القيمة المضافة (تسجيل / نسبة / رقم ضريبي / شمول السعر) ·
+   طريقة التقديم (صالة وطاولات). كل كتابة عبر updateCurrentBusiness
+   (أعمدة جدول businesses، سياسة RLS = المالك فقط) — ما يحتاج migration.
+   الشعار والفروع والصلاحيات والإشعارات → تحويل لمكانها الحقيقي. بلا AI. */
+
+function rkaSettingsIsOwner(){
+  return !(typeof CURRENT_PROFILE !== 'undefined' && CURRENT_PROFILE && CURRENT_PROFILE.user_type && CURRENT_PROFILE.user_type !== 'owner');
+}
+function rkaSettingsBiz(){
+  return {
+    name: (typeof RESTAURANT_INFO !== 'undefined' && RESTAURANT_INFO.name) || '',
+    vatRegistered: (typeof VAT_REGISTERED === 'undefined') ? true : VAT_REGISTERED === true,
+    vatRate: (typeof BUSINESS_VAT_RATE === 'undefined') ? 0.15 : (Number(BUSINESS_VAT_RATE) || 0),
+    vatNumber: (typeof BUSINESS_VAT_NUMBER !== 'undefined' && BUSINESS_VAT_NUMBER) || '',
+    pricesIncludeVat: (typeof PRICES_INCLUDE_VAT === 'undefined') ? true : PRICES_INCLUDE_VAT === true,
+    dineIn: (typeof DINE_IN_ENABLED === 'undefined') ? true : DINE_IN_ENABLED === true,
+    logo: (typeof BUSINESS_LOGO_URL !== 'undefined' && BUSINESS_LOGO_URL) || '',
+    bizType: (typeof BUSINESS_TYPE !== 'undefined' && BUSINESS_TYPE) || 'restaurant',
+  };
+}
+function rkaSettingsPctFmt(fraction){
+  const p = (Number(fraction) || 0) * 100;
+  return (Math.round(p * 100) / 100).toString();
+}
+function rkaSettingsVatNumberValid(s){ return /^\d{15}$/.test(String(s || '')); }
+
+function rkaSettingsRpcErr(error){
+  const m = String(error && (error.message || '')) + ' ' + String(error && (error.details || '')) + ' ' + String(error && (error.code || ''));
+  if(/businesses_vat_number_format|23514|vat_number/i.test(m)) return new Error('الرقم الضريبي لازم يكون ١٥ رقم بالضبط — راجعه وأعِد المحاولة.');
+  if(/not authorized|42501|صلاحية كافية|حساب المالك|المالك/i.test(m)) return new Error('تعديل إعدادات المطعم يحتاج حساب المالك — سجّل دخول بحساب المالك أو خلّه يضبطها.');
+  if(/not authenticated|28000|jwt/i.test(m)) return new Error('انتهت الجلسة — حدّث الصفحة وسجّل دخول من جديد.');
+  return new Error(String(error && error.message || '').replace(/^[a-z_ ]+:\s*/i, '') || 'تعذّرت العملية — حاول مرة ثانية.');
+}
+function rkaSettingsMirror(patch){
+  const M = {
+    name: v => { if(typeof RESTAURANT_INFO !== 'undefined') RESTAURANT_INFO.name = v; },
+    vat_registered: v => { VAT_REGISTERED = v; },
+    vat_rate: v => { BUSINESS_VAT_RATE = v; },
+    vat_number: v => { BUSINESS_VAT_NUMBER = v || ''; },
+    prices_include_vat: v => { PRICES_INCLUDE_VAT = v; },
+    dine_in_enabled: v => { DINE_IN_ENABLED = v; },
+    logo_url: v => { BUSINESS_LOGO_URL = v; },
+  };
+  Object.keys(patch).forEach(k => { if(M[k]) M[k](patch[k]); });
+}
+async function rkaSettingsSaveBiz(patch, auditMsg, mirror){
+  if(!rkaSettingsIsOwner()) throw new Error('تعديل إعدادات المطعم يحتاج حساب المالك — سجّل دخول بحساب المالك أو خلّه يضبطها.');
+  try { await updateCurrentBusiness(patch); }
+  catch(e){ throw rkaSettingsRpcErr(e); }
+  if(typeof mirror === 'function'){ try { mirror(patch); } catch(e){} }
+  if(typeof logDashboardAudit === 'function' && auditMsg) logDashboardAudit(auditMsg + ' (عبر مدير الإعدادات)');
+  try { if(typeof renderSettingsPanel === 'function') renderSettingsPanel(); } catch(e){}
+}
+
+function rkaSettingsOwnerGate(){
+  return { key:'ownerGate', type:'info', text:'تعديل إعدادات المطعم يحتاج حساب المالك (سياسة قاعدة البيانات). سجّل دخول بحساب المالك، أو خلّ المالك يفتح المدير — تقدر تشوف وضعك الحالي من «راجع إعداداتي».' };
+}
+function rkaSettingsGateSteps(){
+  return [
+    rkaSettingsOwnerGate(),
+    { key:'gateEnd', type:'execute', idemKind:'sgate', run:() => ({ message:'ما نقدر نعدّل من هنا بدون حساب المالك.' }) },
+  ];
+}
+function rkaSettingsOpenTab(tab){
+  try {
+    const nav = document.querySelector('[data-screen="settings"]'); if(nav) nav.click();
+    setTimeout(() => { const t = document.querySelector('#settingsTabs button[data-tab="' + tab + '"]'); if(t) t.click(); }, 300);
+  } catch(e){}
+}
+
+function rkaSettingsSnapshotText(){
+  const b = rkaSettingsBiz();
+  let s = 'وضع إعدادات مطعمك الآن:\n';
+  s += '• الاسم: «' + (b.name.trim() || '—') + '»\n';
+  if(b.vatRegistered){
+    s += '• ضريبة القيمة المضافة: مسجّل، النسبة ' + rkaSettingsPctFmt(b.vatRate) + '٪';
+    s += b.vatNumber ? ('، الرقم الضريبي ' + b.vatNumber) : '، بدون رقم ضريبي';
+    s += '\n• أسعار المنيو: ' + (b.pricesIncludeVat ? 'شاملة الضريبة' : 'غير شاملة — تُضاف عند الحساب') + '\n';
+  } else {
+    s += '• ضريبة القيمة المضافة: غير مسجّل — الفواتير تُطبع بدون ضريبة ولا رمز QR\n';
+  }
+  s += '• طريقة التقديم: ' + (b.dineIn ? 'فيه صالة/طاولات (شاشة الطاولات ظاهرة بالكاشير)' : 'بدون صالة — توصيل/استلام فقط') + '\n';
+
+  const warn = [];
+  if(b.vatRegistered && !b.vatNumber) warn.push('⚠ مسجّل بالضريبة بدون رقم ضريبي — فاتورة الكاشير تُطبع بدون رمز QR المتوافق مع هيئة الزكاة والضريبة والجمارك. زوّدني الرقم من «اضبط الضريبة».');
+  if(b.vatRegistered && !(b.vatRate > 0)) warn.push('⚠ النسبة صفر مع إنك مسجّل — تأكد إن هذا مقصود.');
+  if(!b.name.trim()) warn.push('⚠ اسم المطعم فاضي — يظهر «؟» في الفواتير والتقارير.');
+  if(warn.length) s += '\n' + warn.join('\n');
+  return s.trim();
+}
+
+// جملة طبيعية → نيّة (regex خالص — بلا AI)
+function rkaSettingsClassifyIntent(raw){
+  const s = ' ' + rkaDigits(raw).trim().toLowerCase().replace(/[.،؟!]+/g, ' ').replace(/\s+/g, ' ') + ' ';
+  if(/(ضريب|قيمة مضاف|vat|الرقم الضريبي|رقم ضريبي|\bqr\b|فاتورة ضريبية|زكاة|شامل الضريبة|شاملة الضريبة|مسجل بالضريب|مسجّل بالضريب|نسبة الضريب)/.test(s)) return { id:'vat', seed:{} };
+  if(/(اسم المطعم|غير الاسم|غيّر الاسم|اسم مطعمي|شعار|لوقو|logo|هوية المطعم|طريقة التقديم|صالة|طاولات|dine|قاعة|جلوس|توصيل فقط|سحاب)/.test(s)) return { id:'tune', seed:{} };
+  if(/(راجع|مراجعة|وضعي|اعدادات|إعدادات|الإعدادات|وش عندي|حالة|شيك|افحص|اطلع على)/.test(s)) return { id:'review', seed:{} };
+  return null;
+}
+
+RKA.registerManager({
+  id: 'settings',
+  screen: 'settings',
+  title: 'مدير الإعدادات',
+  classifyIntent: rkaSettingsClassifyIntent,
+  greeting(){
+    return 'أنا مدير الإعدادات 👋\nأراجع إعدادات مطعمك الأساسية وأضبطها معك بشرح وتوصية: اسم المطعم، ضريبة القيمة المضافة، وطريقة التقديم.\nقل لي وش تبي — مثل: «راجع إعداداتي» أو «أبي أسجّل بالضريبة» أو «غيّر اسم المطعم».';
+  },
+  intents: [
+    {
+      id: 'review', label: 'راجع إعدادات مطعمي',
+      workflow: {
+        id: 'settings-review',
+        buildSteps(){
+          return [
+            { key:'snap', type:'info', text: () => rkaSettingsSnapshotText() },
+            { key:'snapExec', type:'execute', idemKind:'srev',
+              run:() => ({ message: rkaSettingsIsOwner()
+                ? 'تبي نضبط شي منها؟ اختر تحت، أو قل لي مباشرة.'
+                : 'للتعديل تحتاج حساب المالك — بس تقدر تشوف الوضع كامل فوق.' }) },
+          ];
+        },
+        doneActions(){
+          const acts = [];
+          if(rkaSettingsIsOwner()){
+            acts.push({ label:'اضبط ضريبة القيمة المضافة', run:() => RKA.restartSameWorkflowAs('vat', {}) });
+            acts.push({ label:'عدّل اسم المطعم أو طريقة التقديم', run:() => RKA.restartSameWorkflowAs('tune', {}) });
+          }
+          acts.push({ label:'راجع من جديد', run:() => RKA.restartSameWorkflow('نراجع مرة ثانية:') });
+          return acts;
+        }
+      }
+    },
+    {
+      id: 'vat', label: 'اضبط ضريبة القيمة المضافة',
+      workflow: {
+        id: 'settings-vat',
+        finishMessage: () => 'وقفنا هنا — تقدر تكمّل الباقي أي وقت من نفس الزر.',
+        buildSteps(a){
+          if(!rkaSettingsIsOwner()) return rkaSettingsGateSteps();
+          const b = rkaSettingsBiz();
+          const steps = [];
+
+          steps.push({ key:'reg', type:'choose',
+            prompt:'مطعمك مسجّل في ضريبة القيمة المضافة؟ (الوضع الحالي: ' + (b.vatRegistered ? 'مسجّل' : 'غير مسجّل') + ')',
+            hint:'التسجيل في ضريبة القيمة المضافة <b>إلزامي</b> لو إجمالي إيراداتك السنوية تجاوز ٣٧٥٬٠٠٠ ريال، واختياري بين ١٨٧٬٥٠٠ و٣٧٥٬٠٠٠.\n<b>مسجّل</b>: الكاشير يحسب الضريبة على كل فاتورة ويطبع رمز QR ضريبي.\n<b>غير مسجّل</b>: ما فيه ضريبة على الفواتير إطلاقًا ولا رمز QR — لا تختره إلا لو فعلاً غير مسجّل نظاميًا.',
+            options: [
+              { value:'yes', label:'مسجّل' + (b.vatRegistered ? ' (الحالي)' : ''), primary: b.vatRegistered },
+              { value:'no', label:'غير مسجّل' + (!b.vatRegistered ? ' (الحالي)' : ''), primary: !b.vatRegistered },
+            ] });
+          if(a.reg === undefined) return steps;
+
+          if(a.reg === 'no'){
+            steps.push({ key:'vatReview', type:'review', summary: () =>
+              '<dt>التسجيل الضريبي</dt><dd>غير مسجّل</dd>' +
+              '<dt>الأثر</dt><dd>الكاشير يوقف حساب ضريبة القيمة المضافة، والفواتير تُطبع بدون رمز QR الضريبي</dd>' });
+            steps.push({ key:'vatExec', type:'execute', idemKind:'svat', pending:'أحفظ…',
+              run: async () => {
+                await rkaSettingsSaveBiz({ vat_registered: false }, 'ألغى التسجيل الضريبي', rkaSettingsMirror);
+                return { message:'تمام — صار مطعمك «غير مسجّل» بالضريبة. الفواتير من الآن بدون ضريبة ولا رمز QR ✓' };
+              } });
+            return steps;
+          }
+
+          steps.push({ key:'rate', type:'ask',
+            prompt:'كم نسبة ضريبة القيمة المضافة؟ (٪ — النسبة النظامية بالسعودية ١٥) (الحالية: ' + rkaSettingsPctFmt(b.vatRate) + '٪)',
+            hint:'تُستخدم في حساب الضريبة على كل فاتورة كاشير، وأيضًا في التحقق التلقائي من فواتير المشتريات الممسوحة. لا تغيّرها إلا لو تغيّرت النسبة رسميًا.',
+            placeholder:'مثال: 15',
+            parse: raw => { const v = parseFloat(rkaDigits(String(raw || '')).replace(/[%٪\s]/g, '')); return isFinite(v) ? v : null; },
+            validate: v => (v == null || v < 0 || v > 100) ? 'اكتب رقم بين ٠ و١٠٠.' : null });
+          if(a.rate === undefined) return steps;
+
+          steps.push({ key:'vnum', type:'ask',
+            prompt:'وش الرقم الضريبي؟ (١٥ رقم — اكتب «تخطى» لو ما عندك الآن)' + (b.vatNumber ? '\n(الحالي: ' + b.vatNumber + ')' : ''),
+            hint:'هذا الرقم يطبع رمز QR على فاتورة الكاشير (فاتورة ضريبية مبسّطة متوافقة مع هيئة الزكاة والضريبة والجمارك). <b>بدونه تُطبع الفاتورة بدون الرمز</b> — تقدر تزوّده لاحقًا.',
+            placeholder:'مثال: ٣xxxxxxxxxxxxx03',
+            parse: raw => {
+              const t = String(raw || '').trim();
+              if(/^(تخطى|تخطي|تخطّى|بعدين|لاحقا|لاحقًا|ما عندي|بدون|skip)$/i.test(rkaDigits(t))) return { skip:true };
+              return { num: rkaDigits(t).replace(/\D/g, '') };
+            },
+            validate: v => {
+              if(v && v.skip) return null;
+              return rkaSettingsVatNumberValid(v && v.num) ? null : 'الرقم الضريبي لازم يكون ١٥ رقم بالضبط، أو اكتب «تخطى».';
+            } });
+          if(a.vnum === undefined) return steps;
+
+          steps.push({ key:'incl', type:'choose',
+            prompt:'أسعار المنيو عندك مسجّلة شاملة الضريبة ولا بدونها؟ (الحالي: ' + (b.pricesIncludeVat ? 'شاملة' : 'غير شاملة') + ')',
+            hint:'المعيار القانوني بالسعودية إن السعر المعروض للعميل <b>شامل الضريبة</b>.\n<b>شاملة</b>: السعر اللي تكتبه في المنيو هو اللي يدفعه العميل، والضريبة مستخرجة منه.\n<b>غير شاملة</b>: تُضاف النسبة فوق سعر المنيو عند الحساب — يعني العميل يدفع أكثر من الرقم المكتوب.',
+            options: [
+              { value:'yes', label:'شاملة الضريبة (الموصى به)', primary:true },
+              { value:'no', label:'غير شاملة — تُضاف عند الحساب' },
+            ] });
+          if(a.incl === undefined) return steps;
+
+          const num = (a.vnum && a.vnum.skip) ? '' : ((a.vnum && a.vnum.num) || '');
+          steps.push({ key:'vatReview', type:'review', summary: () =>
+            '<dt>التسجيل الضريبي</dt><dd>مسجّل</dd>' +
+            '<dt>النسبة</dt><dd>' + rkaSettingsPctFmt(a.rate / 100) + '٪</dd>' +
+            '<dt>الرقم الضريبي</dt><dd>' + (num || '— (بدون رقم — الفاتورة بدون رمز QR)') + '</dd>' +
+            '<dt>أسعار المنيو</dt><dd>' + (a.incl === 'yes' ? 'شاملة الضريبة' : 'غير شاملة — تُضاف عند الحساب') + '</dd>' });
+          steps.push({ key:'vatExec', type:'execute', idemKind:'svat', pending:'أحفظ…',
+            run: async (ans) => {
+              const n = (ans.vnum && ans.vnum.skip) ? null : ((ans.vnum && ans.vnum.num) || null);
+              const patch = {
+                vat_registered: true,
+                vat_rate: Math.round((ans.rate / 100) * 1e6) / 1e6,
+                prices_include_vat: ans.incl === 'yes',
+              };
+              if(!(ans.vnum && ans.vnum.skip)) patch.vat_number = n;
+              await rkaSettingsSaveBiz(patch, 'عدّل إعدادات ضريبة القيمة المضافة', rkaSettingsMirror);
+              const parts = ['النسبة ' + rkaSettingsPctFmt(patch.vat_rate) + '٪'];
+              parts.push(n ? ('الرقم ' + n) : 'بدون رقم ضريبي (تقدر تزوّده لاحقًا)');
+              parts.push(patch.prices_include_vat ? 'الأسعار شاملة الضريبة' : 'الأسعار غير شاملة');
+              return { message:'حُفظت إعدادات الضريبة ✓\n' + parts.join(' · ') };
+            } });
+          return steps;
+        },
+        doneActions(){
+          return [
+            { label:'راجع كل الإعدادات', run:() => RKA.restartSameWorkflowAs('review', {}) },
+            { label:'عدّل اسم المطعم أو طريقة التقديم', run:() => RKA.restartSameWorkflowAs('tune', {}) },
+          ];
+        }
+      }
+    },
+    {
+      id: 'tune', label: 'عدّل اسم المطعم / طريقة التقديم / الشعار',
+      workflow: {
+        id: 'settings-tune',
+        buildSteps(a){
+          if(!rkaSettingsIsOwner()) return rkaSettingsGateSteps();
+          const b = rkaSettingsBiz();
+          const steps = [];
+          steps.push({ key:'pick', type:'choose', prompt:'وش تبي تضبط؟',
+            options: [
+              { value:'name', label:'اسم المطعم' + (b.name.trim() ? ' (الآن: ' + b.name.trim() + ')' : ' (غير محدد)') },
+              { value:'serving', label:'طريقة التقديم' + (b.dineIn ? ' (فيه صالة/طاولات)' : ' (بدون صالة)') },
+              { value:'logo', label:'شعار المطعم (صورة)' },
+            ] });
+
+          if(a.pick === 'name'){
+            steps.push({ key:'nm', type:'ask', prompt:'وش الاسم الجديد للمطعم؟ (يظهر في الفواتير والتقارير ولوحة التحكم)',
+              hint:'هذا نفس الاسم اللي يشوفه العميل في المتجر الإلكتروني وفاتورة الكاشير.',
+              placeholder:'مثال: مطعم الطازج', parse: raw => String(raw || '').replace(/\s+/g, ' ').trim(),
+              validate: v => (v && v.length >= 1 && v.length <= 80) ? null : 'اكتب اسم من ١ إلى ٨٠ حرف.' });
+            if(a.nm !== undefined) steps.push({ key:'nmExec', type:'execute', idemKind:'sname', pending:'أحفظ…',
+              run: async (ans) => { await rkaSettingsSaveBiz({ name: ans.nm }, 'عدّل اسم المطعم', rkaSettingsMirror);
+                return { message:'صار اسم مطعمك «' + ans.nm + '» ✓' }; } });
+          } else if(a.pick === 'serving'){
+            steps.push({ key:'sv', type:'choose', prompt:'مطعمك فيه صالة وطاولات للجلوس؟ (الحالي: ' + (b.dineIn ? 'نعم' : 'لا') + ')',
+              hint:'<b>نعم</b>: شاشة الطاولات تظهر بالكاشير، وتقدر تفتح طلب لطاولة.\n<b>لا</b>: مطعمك سحابي أو توصيل/استلام فقط — شاشة الطاولات تختفي من الكاشير.',
+              options: [
+                { value:'yes', label:'نعم، فيه صالة/طاولات' + (b.dineIn ? ' (الحالي)' : ''), primary: b.dineIn },
+                { value:'no', label:'لا، توصيل/استلام فقط' + (!b.dineIn ? ' (الحالي)' : ''), primary: !b.dineIn },
+              ] });
+            if(a.sv !== undefined) steps.push({ key:'svExec', type:'execute', idemKind:'sdine', pending:'أحفظ…',
+              run: async (ans) => { const on = ans.sv === 'yes';
+                await rkaSettingsSaveBiz({ dine_in_enabled: on }, 'عدّل طريقة التقديم', rkaSettingsMirror);
+                return { message: on ? 'فعّلت الصالة/الطاولات ✓ — شاشة الطاولات تظهر بالكاشير الآن.' : 'أوقفت الصالة ✓ — الكاشير صار توصيل/استلام فقط.' }; } });
+          } else if(a.pick === 'logo'){
+            steps.push({ key:'lgInfo', type:'info', text:'الشعار صورة تُرفع (مو نص) — أفتح لك تبويب «معلومات المطعم» فيه رفع الشعار والقص والمعاينة.' });
+            steps.push({ key:'lgExec', type:'execute', idemKind:'slogo',
+              run:() => { rkaSettingsOpenTab('restaurant'); return { closePanel:true, message:'فتحت لك تبويب «معلومات المطعم» ✓ — ارفع الشعار من هناك.' }; } });
+          }
+          return steps;
+        },
+        doneActions(){
+          return [
+            { label:'اضبط إعداد ثاني', run:() => RKA.restartSameWorkflow('وش الإعداد الثاني؟') },
+            { label:'راجع كل الإعدادات', run:() => RKA.restartSameWorkflowAs('review', {}) },
+            { label:'اضبط ضريبة القيمة المضافة', run:() => RKA.restartSameWorkflowAs('vat', {}) },
+          ];
+        }
+      }
+    }
+  ]
+});
+
+/* ربط زر مدير الإعدادات (FAB) — delegated */
+document.addEventListener('click', function(e){
+  const btn = e.target && e.target.closest && e.target.closest('#rkaSettingsLaunch');
+  if(!btn) return;
+  e.preventDefault();
+  RKA.open('settings', { screen: 'settings' });
+});
+
+/* ═══════════════════════════ مدير المحاسبة ═══════════════════════════
+   موظف تبويب «المحاسبة» في لوحة التحكم (#screen-accounting، صلاحية
+   screen:accounting). يسجّل المصاريف العامة، يضبط المصاريف الثابتة
+   الشهرية، ويشرح شلال الأرباح (من الإيراد للربح الصافي) سطرًا سطرًا.
+   الكتابة عبر RPCs ذرّية (migration 20260909070000): مصروف عام =
+   create_general_expense_guided (op-ledger idempotent) · مصاريف ثابتة =
+   set_fixed_costs_guided (استبدال كامل، idempotent طبيعيًا). القراءة من
+   ACCOUNTING (نفس recomputeAccounting الرسمي). تسوية التوصيل → تحويل
+   للتبويب. بلا AI. */
+
+function rkaAcctBiz(){
+  const A = (typeof ACCOUNTING !== 'undefined' && ACCOUNTING) || {};
+  const F = (typeof FIXED_COSTS !== 'undefined' && FIXED_COSTS) || { rent:0, salaries:0, utilities:0, other:0 };
+  return {
+    acc: A,
+    fixedSet: (typeof FIXED_COSTS_SET !== 'undefined') ? FIXED_COSTS_SET === true : false,
+    rent: Number(F.rent) || 0, salaries: Number(F.salaries) || 0,
+    utilities: Number(F.utilities) || 0, other: Number(F.other) || 0,
+    todayExpenses: (typeof TODAY_GENERAL_EXPENSES_TOTAL === 'number') ? TODAY_GENERAL_EXPENSES_TOTAL : 0,
+    unitsToday: (typeof ALL_SELLERS !== 'undefined' && Array.isArray(ALL_SELLERS))
+      ? ALL_SELLERS.reduce((s, p) => s + (Number(p.qty) || 0), 0) : 0,
+  };
+}
+function rkaAcctFixedTotal(b){ b = b || rkaAcctBiz(); return b.rent + b.salaries + b.utilities + b.other; }
+function rkaAcctPerUnitShare(total, unitsToday){ return unitsToday > 0 ? total / (unitsToday * 30) : 0; }
+function rkaAcctFmt(n){ return (typeof rkaMoneyFmt === 'function') ? rkaMoneyFmt(Number(n) || 0) : (Number(n) || 0).toFixed(2); }
+
+const RKA_ACCT_EXPENSE_CATS = ['صيانة', 'تسويق', 'نقل وتوصيل', 'رسوم حكومية', 'أخرى'];
+
+function rkaAcctRpcErr(error){
+  const m = String(error && (error.message || '')) + ' ' + String(error && (error.details || '')) + ' ' + String(error && (error.code || ''));
+  if(/forbidden|42501|صلاحية/i.test(m)) return new Error('تسجيل الحسابات يحتاج صلاحية شاشة المحاسبة — تواصل مع صاحب الحساب.');
+  if(/not authenticated|28000|jwt/i.test(m)) return new Error('انتهت الجلسة — حدّث الصفحة وسجّل دخول من جديد.');
+  if(/amount invalid|amount.*positive|23514/i.test(m)) return new Error('المبلغ لازم يكون أكبر من صفر ورقم صحيح.');
+  if(/description required/i.test(m)) return new Error('لازم وصف مختصر للمصروف.');
+  if(/value negative|value too large|value invalid/i.test(m)) return new Error('راجع المبالغ — لازم أرقام موجبة معقولة.');
+  return new Error(String(error && error.message || '').replace(/^[a-z_ ]+:\s*/i, '') || 'تعذّرت العملية — حاول مرة ثانية.');
+}
+function rkaAcctRpc(fn, args){
+  return window.supabaseClient.rpc(fn, args).then(({ data, error }) => {
+    if(error) throw rkaAcctRpcErr(error);
+    return data;
+  });
+}
+async function rkaAcctRefreshOverview(){
+  try {
+    if(typeof recomputeAccounting === 'function') recomputeAccounting();
+    if(typeof renderWaterfall === 'function') renderWaterfall();
+    if(typeof renderOpexBreakdown === 'function') renderOpexBreakdown();
+    if(typeof renderVatAndMargin === 'function') renderVatAndMargin();
+    if(typeof renderTodaySalesSummary === 'function') renderTodaySalesSummary();
+  } catch(e){}
+}
+function rkaAcctAfterExpense(res, catName, amt, desc){
+  try {
+    if(typeof GENERAL_EXPENSES !== 'undefined' && Array.isArray(GENERAL_EXPENSES)){
+      GENERAL_EXPENSES.unshift({ id: res && res.expense_id, category: catName, amount: amt, description: desc, date: 'اليوم' });
+    }
+    if(typeof EXPENSE_CATEGORY_ID_BY_NAME !== 'undefined' && res && res.category_id) EXPENSE_CATEGORY_ID_BY_NAME[catName] = res.category_id;
+    if(typeof TODAY_GENERAL_EXPENSES_TOTAL === 'number') TODAY_GENERAL_EXPENSES_TOTAL += amt;
+    if(typeof logDashboardAudit === 'function') logDashboardAudit('سجّل مصروف عام: ' + desc + ' (' + amt.toFixed(2) + ' ر.س) (عبر مدير المحاسبة)');
+    if(typeof renderGeneralExpensesList === 'function') renderGeneralExpensesList();
+  } catch(e){}
+  rkaAcctRefreshOverview();
+  // defensive server re-sync of today's expenses, same as the manual save path
+  try { if(typeof refreshTodayAccountingAfterExpenseChange === 'function') Promise.resolve(refreshTodayAccountingAfterExpenseChange()).catch(()=>{}); } catch(e){}
+}
+function rkaAcctAfterFixed(v){
+  try {
+    if(typeof FIXED_COSTS !== 'undefined'){ FIXED_COSTS.rent = v.rent; FIXED_COSTS.salaries = v.salaries; FIXED_COSTS.utilities = v.utilities; FIXED_COSTS.other = v.other; }
+    if(typeof FIXED_COSTS_SET !== 'undefined') FIXED_COSTS_SET = true;
+    if(typeof logDashboardAudit === 'function') logDashboardAudit('حدّث المصاريف الثابتة الشهرية إلى ' + (v.rent + v.salaries + v.utilities + v.other).toFixed(2) + ' ر.س (عبر مدير المحاسبة)');
+    if(typeof renderMenuProductTable === 'function') renderMenuProductTable();
+    if(typeof renderOnboardingChecklist === 'function') renderOnboardingChecklist();
+  } catch(e){}
+  rkaAcctRefreshOverview();
+}
+function rkaAcctOpenTab(tab){
+  try {
+    const nav = document.querySelector('[data-screen="accounting"]'); if(nav) nav.click();
+    setTimeout(() => { const t = document.querySelector('#acctScreenTabs button[data-tab="' + tab + '"]'); if(t) t.click(); }, 300);
+  } catch(e){}
+}
+
+function rkaAcctWaterfallText(){
+  const b = rkaAcctBiz();
+  const a = b.acc || {};
+  const n = v => rkaAcctFmt(Math.abs(Number(v) || 0));
+  let s = 'شلال الأرباح اليوم — من الإيراد للربح الصافي:\n';
+  s += '• الإيرادات: ' + n(a.revenue) + ' ر.س — إجمالي المبيعات قبل أي خصم\n';
+  s += '• − الخصومات: ' + n(a.discounts) + ' ر.س\n';
+  s += '• = صافي المبيعات: ' + n(a.netSales) + ' ر.س\n';
+  s += '• − ضريبة القيمة المضافة: ' + n(a.vat) + ' ر.س — ١٥٪ محتسبة من صافي المبيعات\n';
+  s += '• − تكلفة البضاعة المباعة: ' + n(a.cogs) + ' ر.س — تكلفة مكوّنات وتغليف كل ما بيع اليوم\n';
+  s += '• − عمولات ورسوم تطبيقات التوصيل: ' + n(a.deliveryPlatformCost) + ' ر.س\n';
+  s += '• = مجمل الربح: ' + n(a.grossProfit) + ' ر.س\n';
+  s += '• − المصاريف التشغيلية: ' + n(a.opex) + ' ر.س — الثابتة الشهرية موزّعة على اليوم + مصاريف اليوم الإضافية (' + n(b.todayExpenses) + ' ر.س)\n';
+  s += '• = صافي الربح: ' + rkaAcctFmt(Number(a.netProfit) || 0) + ' ر.س';
+  const margin = (Number(a.netSales) > 0) ? (Number(a.netProfit) / Number(a.netSales) * 100) : 0;
+  if(Number(a.netSales) > 0) s += '  (هامش ' + margin.toFixed(1) + '٪)';
+
+  const warn = [];
+  if(!b.fixedSet) warn.push('⚠ ما حددت مصاريفك الثابتة الشهرية — الربح الصافي فوق ناقص الإيجار والرواتب. حدّدها من «عدّل المصاريف الثابتة».');
+  if(!(Number(a.revenue) > 0)) warn.push('ما فيه مبيعات اليوم بعد — الأرقام تحدّث تلقائيًا مع أول طلب.');
+  if(warn.length) s += '\n\n' + warn.join('\n');
+  return s;
+}
+
+function rkaAcctClassifyIntent(raw){
+  const s = ' ' + rkaDigits(raw).trim().toLowerCase().replace(/[.،؟!]+/g, ' ').replace(/\s+/g, ' ') + ' ';
+  if(/(مصاريف.{0,4}ثابت|تكاليف.{0,4}ثابت|الثابت|مصروف ثابت|الايجار|الإيجار|\bايجار\b|رواتب|الرواتب|فواتير شهري|مصاريف شهري)/.test(s)) return { id:'fixed', seed:{} };
+  if(/(مصروف|صرفت|صرف|دفعت فاتورة|فاتورة كهرب|فاتورة ماء|صيانة|تسويق|رسوم حكومي|مصاريف عام|سجل مصروف|أسجل مصروف)/.test(s)) return { id:'expense', seed:{} };
+  if(/(تسوية|منصات التوصيل|عمولة كيتا|عمولة جاهز|هنقرستيشن|كيتا|جاهز|مرسول|توصيل عبر التطبيق|صافي المستحق)/.test(s)) return { id:'delivery', seed:{} };
+  if(/(ربح|خساره|خسارة|حساباتي|الوضع المالي|كم ربحت|كم صرفت|شلال|صافي الربح|هامش|كم دخل|الارباح|الأرباح|مجمل الربح|كم اليوم)/.test(s)) return { id:'review', seed:{} };
+  return null;
+}
+
+RKA.registerManager({
+  id: 'accounting',
+  screen: 'accounting',
+  title: 'مدير المحاسبة',
+  classifyIntent: rkaAcctClassifyIntent,
+  greeting(){
+    return 'أنا مدير المحاسبة 👋\nأساعدك تسجّل مصاريفك، تضبط مصاريفك الثابتة الشهرية، وأشرح لك شلال الأرباح — من الإيراد للربح الصافي.\nقل لي وش تبي — مثل: «سجّل مصروف»، «عدّل مصاريفي الثابتة»، أو «كم ربح اليوم؟».';
+  },
+  intents: [
+    {
+      id: 'expense', label: 'سجّل مصروف عام',
+      workflow: {
+        id: 'acct-expense',
+        finishMessage: () => 'وقفنا هنا — تقدر تكمّل أي وقت من نفس الزر.',
+        checkDone: async (a, ctx, idemKey) => {
+          if(!idemKey) return { created: false };
+          try {
+            const r = await window.supabaseClient.rpc('create_general_expense_guided', { p_op_id: idemKey, p_category_name: '', p_amount: 0, p_description: '' });
+            return (r && r.data && r.data.created === false) ? { created: false, committed: true } : { created: false };
+          } catch(e){ return { created: false }; }
+        },
+        buildSteps(a){
+          const steps = [];
+          steps.push({ key:'cat', type:'choose',
+            prompt:'وش فئة المصروف؟',
+            hint:'هذا سجل لمصروف صُرف فعلاً اليوم (مرة وحدة) — <b>ما يمسّ مخزونك ولا تكلفة أي منتج</b>.\nلو تبي تغيّر <b>معدل</b> مصاريفك الشهرية المتكررة (إيجار، رواتب) روح «عدّل المصاريف الثابتة».\nلو شريت مواد خام أو تغليف من مورّد، هذي فاتورة مشتريات — استخدم مدير المشتريات، عشان تنقص من المخزون.',
+            options: RKA_ACCT_EXPENSE_CATS.map(c => ({ value:c, label:c })).concat([{ value:'__other__', label:'فئة ثانية أكتبها' }]) });
+          if(a.cat === undefined) return steps;
+
+          if(a.cat === '__other__'){
+            steps.push({ key:'catName', type:'ask', prompt:'اكتب اسم الفئة:',
+              placeholder:'مثال: اشتراكات برامج',
+              parse: raw => String(raw || '').replace(/\s+/g, ' ').trim(),
+              validate: v => (v && v.length >= 1 && v.length <= 60) ? null : 'اكتب اسم فئة من ١ إلى ٦٠ حرف.' });
+            if(a.catName === undefined) return steps;
+          }
+
+          steps.push({ key:'amount', type:'ask', prompt:'كم المبلغ؟ (ر.س)',
+            hint:'المبلغ اللي صُرف فعلاً. صفر ما يصير — لو ما صرفت شي، ما فيه مصروف تسجّله.',
+            placeholder:'مثال: 250', parse: raw => rkaMoney(raw),
+            validate: v => (v == null || !(v > 0)) ? 'اكتب مبلغ أكبر من صفر.' : (v > 10000000 ? 'المبلغ كبير جدًا — راجعه.' : null) });
+          if(a.amount === undefined) return steps;
+
+          steps.push({ key:'desc', type:'ask', prompt:'وصف مختصر للمصروف:',
+            placeholder:'مثال: إصلاح تكييف المطبخ',
+            parse: raw => String(raw || '').replace(/\s+/g, ' ').trim(),
+            validate: v => (v && v.length >= 1 && v.length <= 300) ? null : 'اكتب وصف مختصر (١ إلى ٣٠٠ حرف).' });
+          if(a.desc === undefined) return steps;
+
+          const catName = a.cat === '__other__' ? a.catName : a.cat;
+          steps.push({ key:'review', type:'review', summary: () =>
+            '<dt>الفئة</dt><dd>' + rkaEsc(catName) + '</dd>' +
+            '<dt>المبلغ</dt><dd>' + rkaAcctFmt(a.amount) + ' ر.س</dd>' +
+            '<dt>الوصف</dt><dd>' + rkaEsc(a.desc) + '</dd>' +
+            '<dt>التاريخ</dt><dd>اليوم</dd>' });
+          steps.push({ key:'exec', type:'execute', idemKind:'expense', pending:'أسجّل المصروف…',
+            run: async (ans, ctx, idemKey) => {
+              const cn = ans.cat === '__other__' ? ans.catName : ans.cat;
+              const res = await rkaAcctRpc('create_general_expense_guided', {
+                p_op_id: idemKey, p_category_name: cn, p_amount: ans.amount, p_description: ans.desc,
+              });
+              if(res && res.created === false){
+                return { message:'هذا المصروف مسجّل مسبقًا ✓ (ما تكرر).' };
+              }
+              rkaAcctAfterExpense(res, cn, ans.amount, ans.desc);
+              const np = (typeof ACCOUNTING !== 'undefined' && ACCOUNTING) ? ACCOUNTING.netProfit : null;
+              return { message:'سجّلت المصروف ✓ «' + cn + '» — ' + rkaAcctFmt(ans.amount) + ' ر.س'
+                + (np != null ? '\nصافي ربح اليوم بعد التحديث: ' + rkaAcctFmt(np) + ' ر.س' : '') };
+            } });
+          return steps;
+        },
+        doneActions(){
+          return [
+            { label:'سجّل مصروف ثاني', run:() => RKA.restartSameWorkflow('مصروف ثاني — وش فئته؟') },
+            { label:'راجع حساباتي', run:() => RKA.restartSameWorkflowAs('review', {}) },
+            { label:'عدّل المصاريف الثابتة', run:() => RKA.restartSameWorkflowAs('fixed', {}) },
+          ];
+        }
+      }
+    },
+    {
+      id: 'fixed', label: 'حدّد / عدّل المصاريف الثابتة الشهرية',
+      workflow: {
+        id: 'acct-fixed',
+        finishMessage: () => 'وقفنا هنا — تقدر تكمّل أي وقت من نفس الزر.',
+        buildSteps(a){
+          const b = rkaAcctBiz();
+          const steps = [];
+          const cur = { rent: b.rent, salaries: b.salaries, utilities: b.utilities, other: b.other };
+          const askFC = (key, prompt, hint) => ({
+            key, type:'ask',
+            prompt: prompt + (b.fixedSet ? '\n(الحالي: ' + rkaAcctFmt(cur[key]) + ' ر.س — اكتب «تخطى» لتثبيته)' : ''),
+            hint,
+            placeholder:'مثال: 8000',
+            parse: raw => {
+              const t = String(raw || '').trim();
+              if(/^(تخطى|تخطي|تخطّى|نفسه|نفس الحالي|زي ما هو|بدون تغيير|skip)$/i.test(rkaDigits(t))) return cur[key];
+              if(rkaDigits(t) === '' ) return b.fixedSet ? cur[key] : 0;
+              return rkaMoney(t);
+            },
+            validate: v => (v == null || v < 0) ? 'اكتب رقم صفر أو أكثر، أو «تخطى».' : (v > 100000000 ? 'الرقم كبير جدًا — راجعه.' : null),
+          });
+
+          steps.push({ key:'_fcIntro', type:'info', text: () =>
+            'المصاريف الثابتة = اللي تدفعه كل شهر بغضّ النظر عن مبيعاتك (إيجار، رواتب، فواتير).\nركين يوزّعها تلقائيًا على كل قطعة تبيعها = الإجمالي الشهري ÷ (متوسط قطعك المباعة يوميًا × ٣٠) — وهذا الرقم يظهر بتكلفة كل منتج تحت «حصة المصاريف الثابتة»، فيطلع صافي ربح دقيق لكل صنف.' });
+
+          steps.push(askFC('rent', 'كم الإيجار الشهري؟ (ر.س)', 'إيجار المحل أو الفرع شهريًا. لو مالك للمحل بدون إيجار، اكتب 0.'));
+          if(a.rent === undefined) return steps;
+          steps.push(askFC('salaries', 'كم إجمالي الرواتب الشهرية؟ (ر.س)', 'مجموع رواتب كل الموظفين شهريًا — بما فيهم راتبك لو تسحب راتب ثابت.'));
+          if(a.salaries === undefined) return steps;
+          steps.push(askFC('utilities', 'كم الفواتير والخدمات الشهرية؟ (ر.س)', 'كهرباء، ماء، إنترنت، اشتراكات — كل شي يتكرر شهريًا بغضّ النظر عن المبيعات.'));
+          if(a.utilities === undefined) return steps;
+          steps.push(askFC('other', 'كم المصاريف الثابتة الأخرى شهريًا؟ (ر.س)', 'أي ثابت شهري ما دخل تحت الفئات فوق — تأمين، صيانة دورية، رخص. لو ما فيه، اكتب 0.'));
+          if(a.other === undefined) return steps;
+
+          const total = a.rent + a.salaries + a.utilities + a.other;
+          const perUnit = rkaAcctPerUnitShare(total, b.unitsToday);
+          steps.push({ key:'review', type:'review', summary: () =>
+            '<dt>الإيجار</dt><dd>' + rkaAcctFmt(a.rent) + ' ر.س</dd>' +
+            '<dt>الرواتب</dt><dd>' + rkaAcctFmt(a.salaries) + ' ر.س</dd>' +
+            '<dt>الفواتير والخدمات</dt><dd>' + rkaAcctFmt(a.utilities) + ' ر.س</dd>' +
+            '<dt>أخرى</dt><dd>' + rkaAcctFmt(a.other) + ' ر.س</dd>' +
+            '<dt>الإجمالي الشهري</dt><dd>' + rkaAcctFmt(total) + ' ر.س</dd>' +
+            '<dt>حصة كل قطعة مباعة</dt><dd>' + (b.unitsToday > 0 ? rkaAcctFmt(perUnit) + ' ر.س' : '— (تظهر بعد أول مبيعات اليوم)') + '</dd>' });
+          steps.push({ key:'exec', type:'execute', idemKind:'fixed', pending:'أحفظ المصاريف الثابتة…',
+            run: async (ans) => {
+              const v = { rent: ans.rent, salaries: ans.salaries, utilities: ans.utilities, other: ans.other };
+              const res = await rkaAcctRpc('set_fixed_costs_guided', {
+                p_rent: v.rent, p_salaries: v.salaries, p_utilities: v.utilities, p_other: v.other,
+              });
+              const saved = res && typeof res === 'object' ? {
+                rent: Number(res.rent) || 0, salaries: Number(res.salaries) || 0,
+                utilities: Number(res.utilities) || 0, other: Number(res.other) || 0,
+              } : v;
+              rkaAcctAfterFixed(saved);
+              const tot = saved.rent + saved.salaries + saved.utilities + saved.other;
+              const b2 = rkaAcctBiz();
+              const pu = rkaAcctPerUnitShare(tot, b2.unitsToday);
+              return { message:'حدّثت مصاريفك الثابتة ✓\nالإجمالي ' + rkaAcctFmt(tot) + ' ر.س/شهر'
+                + (b2.unitsToday > 0 ? ' · حصة كل قطعة ' + rkaAcctFmt(pu) + ' ر.س' : '')
+                + '\nصافي الربح وهامش كل منتج تحدّثوا تلقائيًا.' };
+            } });
+          return steps;
+        },
+        doneActions(){
+          return [
+            { label:'راجع حساباتي', run:() => RKA.restartSameWorkflowAs('review', {}) },
+            { label:'سجّل مصروف عام', run:() => RKA.restartSameWorkflowAs('expense', {}) },
+          ];
+        }
+      }
+    },
+    {
+      id: 'review', label: 'راجع حساباتي — كم ربح اليوم',
+      workflow: {
+        id: 'acct-review',
+        buildSteps(){
+          return [
+            { key:'snap', type:'info', text: () => rkaAcctWaterfallText() },
+            { key:'snapExec', type:'execute', idemKind:'arev',
+              run:() => ({ message:'تبي تسجّل مصروف، تعدّل المصاريف الثابتة، أو تفتح تسوية التوصيل؟ اختر تحت.' }) },
+          ];
+        },
+        doneActions(){
+          return [
+            { label:'سجّل مصروف عام', run:() => RKA.restartSameWorkflowAs('expense', {}) },
+            { label:'عدّل المصاريف الثابتة', run:() => RKA.restartSameWorkflowAs('fixed', {}) },
+            { label:'افتح تسوية منصات التوصيل', run:() => RKA.restartSameWorkflowAs('delivery', {}) },
+            { label:'راجع من جديد', run:() => RKA.restartSameWorkflow('نراجع مرة ثانية:') },
+          ];
+        }
+      }
+    },
+    {
+      id: 'delivery', label: 'تسوية منصات التوصيل',
+      workflow: {
+        id: 'acct-delivery',
+        buildSteps(){
+          return [
+            { key:'info', type:'info', text:'تسوية منصات التوصيل تقرير شهري جاهز: كم أخذت كل منصة (كيتا، جاهز…) عمولة ورسوم توصيل وتعويضات، وكم صافي المستحق لك منها. بفتح لك التبويب.' },
+            { key:'open', type:'execute', idemKind:'opendel', run:() => { rkaAcctOpenTab('delivery'); return { closePanel:true, message:'فتحت لك تبويب «تسوية منصات التوصيل» ✓' }; } },
+          ];
+        }
+      }
+    }
+  ]
+});
+
+/* ربط زر مدير المحاسبة (FAB) — delegated */
+document.addEventListener('click', function(e){
+  const btn = e.target && e.target.closest && e.target.closest('#rkaAccountingLaunch');
+  if(!btn) return;
+  e.preventDefault();
+  RKA.open('accounting', { screen: 'accounting' });
+});
 
 })();

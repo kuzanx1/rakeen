@@ -8358,7 +8358,12 @@ async function loadPosData(){
     PLATFORM_PRICES[pp.platform_id][pp.menu_item_id] = Number(pp.price);
   });
 
-  CATEGORIES = (catRes.data||[]).map(c=>({id: String(c.id), name: c.name, nameEn: c.name_en || c.name, icon: iconForCategory(c.name)}));
+  // فئة مخفية بالكاشير (visible_pos=false, migration 20260909140000) تُستبعد
+  // من التبويبات، ومنتجٌ كل فئاته مخفية بالكاشير يُخفى منه (إلا لو بلا فئة).
+  CATEGORIES = (catRes.data||[])
+    .filter(c=> c.visible_pos !== false)
+    .map(c=>({id: String(c.id), name: c.name, nameEn: c.name_en || c.name, icon: iconForCategory(c.name)}));
+  const POS_VISIBLE_CAT_IDS = new Set((catRes.data||[]).filter(c=> c.visible_pos !== false).map(c=> String(c.id)));
 
   SERVICE_STAFF_BY_SERVICE = {};
   (serviceStaffRes.data||[]).forEach(r=>{ (SERVICE_STAFF_BY_SERVICE[r.service_id] ||= []).push(r.staff_member_id); });
@@ -8393,16 +8398,20 @@ async function loadPosData(){
     (extraCatsByItem[r.menu_item_id] = extraCatsByItem[r.menu_item_id] || []).push(String(r.menu_category_id));
   });
 
-  const menuItemProducts = (itemsRes.data||[]).map(m=>({
-    id: m.id, cat: String(m.category_id),
-    cats: [String(m.category_id), ...(extraCatsByItem[m.id]||[])].filter((v,i,a)=> v && v !== 'null' && a.indexOf(v) === i),
-    name: m.name, nameEn: m.name_en || null, price: Number(m.price),
-    icon: iconForCategory(catById[m.category_id] ? catById[m.category_id].name : ''),
-    image: m.image_url || null,
-    imageThumb: m.image_thumb_url || null,
-    barcode: m.barcode || null,
-    isService: false, fav: false, pop: 0
-  }));
+  const menuItemProducts = (itemsRes.data||[]).map(m=>{
+    const allCats = [String(m.category_id), ...(extraCatsByItem[m.id]||[])].filter((v,i,a)=> v && v !== 'null' && a.indexOf(v) === i);
+    const cats = allCats.filter(c=> POS_VISIBLE_CAT_IDS.has(c));
+    return {
+      id: m.id, cat: String(m.category_id), cats,
+      _hiddenByCat: allCats.length > 0 && cats.length === 0, // كل فئاته مخفية بالكاشير
+      name: m.name, nameEn: m.name_en || null, price: Number(m.price),
+      icon: iconForCategory(catById[m.category_id] ? catById[m.category_id].name : ''),
+      image: m.image_url || null,
+      imageThumb: m.image_thumb_url || null,
+      barcode: m.barcode || null,
+      isService: false, fav: false, pop: 0
+    };
+  }).filter(p=> !p._hiddenByCat);
   PRODUCTS = [...serviceProducts, ...menuItemProducts];
 
   // فئة ما بقي فيها منتج بعد الترشيح ما تُعرض. المنتجات فوق مُرشَّحة

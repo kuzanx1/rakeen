@@ -1260,6 +1260,7 @@ button{font-family:inherit; cursor:pointer;}
 /* نافذة الفئة (إضافة/تعديل + ربط منتجات) */
 .cat-modal-card{ width:520px; max-width:94vw; display:flex; flex-direction:column; max-height:86vh; }
 .cat-modal-card .modal-body{ padding:16px 22px; overflow-y:auto; flex:1; }
+.cat-modal-vis{ margin:0 0 14px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--surf1); display:flex; flex-direction:column; gap:4px; }
 .cat-modal-memhead{ font-size:12.5px; font-weight:800; color:var(--text); margin-bottom:8px; }
 .cat-modal-memhead b{ color:var(--lime-deep); }
 .cat-modal-search{ width:100%; padding:9px 12px; border-radius:8px; border:1px solid var(--line); background:var(--card-bg); color:var(--text); font-size:12.5px; font-weight:600; font-family:inherit; margin-bottom:10px; }
