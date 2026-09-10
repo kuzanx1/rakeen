@@ -657,10 +657,13 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
               id: String(o.id),
               name: o.name,
               price: Number(o.price_delta) || 0,
-              default: i === 0 && g.type === 'single',
+              default: false,
             };
           });
-        return { id: String(g.id), name: g.name, type: g.type, required: g.type === 'single', max: g.max_select, options };
+        // required = the group's real min_select (migration 20260909100000),
+        // not the old "every single group is mandatory" assumption.
+        const minSel = Number(g.min_select) || 0;
+        return { id: String(g.id), name: g.name, type: g.type, required: minSel > 0, minSelect: minSel, max: g.max_select, options };
       })
       .filter(Boolean) as ModifierDefinition['groups'];
     if (groups.length > 0) {

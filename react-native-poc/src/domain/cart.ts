@@ -32,7 +32,10 @@ export interface ModifierGroup {
   id: string;
   name: string;
   type: 'single' | 'multi';
+  /** min_select > 0 (migration 20260909100000). */
   required: boolean;
+  /** modifier_groups.min_select — how many the cashier must pick. */
+  minSelect?: number;
   max: number | null;
   options: ModifierOption[];
 }
@@ -220,11 +223,10 @@ export function buildDefaultConfig(modDef: ModifierDefinition | undefined): Cart
   const config: CartLineConfig = {};
   modDef.groups.forEach(g => {
     if (g.type === 'single') {
-      // A required group can legitimately have zero options for a moment
-      // (a manager adds the group before adding options to it) -- null
-      // just means "nothing selected yet", matching the source's own
-      // defensive comment on this exact branch.
-      const def = g.options.find(o => o.default) || g.options[0];
+      // Single groups START UNSELECTED now -- no silent first-option
+      // default. Optional + blank = base price, no label. Required + blank
+      // blocks "أضف" until the cashier picks (see ModifierModal).
+      const def = g.options.find(o => o.default);
       config[g.id] = def ? def.id : (null as unknown as string);
     } else {
       config[g.id] = g.options.filter(o => o.default).map(o => o.id);

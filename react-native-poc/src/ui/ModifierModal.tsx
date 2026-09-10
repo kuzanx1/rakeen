@@ -78,9 +78,23 @@ export default function ModifierModal({
     });
   };
 
-  const selectSingle = (groupId: string, optionId: string) => {
-    setConfig(prev => ({ ...prev, [groupId]: optionId }));
+  const selectSingle = (groupId: string, optionId: string, required: boolean) => {
+    setConfig(prev => ({
+      ...prev,
+      // re-tapping the selected option in an OPTIONAL single group clears it
+      [groupId]: prev[groupId] === optionId && !required ? (null as unknown as string) : optionId,
+    }));
   };
+
+  // required groups still missing a pick — blocks "أضف"
+  const unmetGroups = isBox
+    ? []
+    : modDef.groups.filter(g => {
+        if (!g.required) return false;
+        const sel = config[g.id];
+        const n = Array.isArray(sel) ? sel.filter(Boolean).length : sel ? 1 : 0;
+        return n < (g.minSelect || 1);
+      });
 
   const toggleMulti = (groupId: string, optionId: string, max: number | null) => {
     setConfig(prev => {
@@ -162,7 +176,15 @@ export default function ModifierModal({
                   <Text style={styles.groupTitle}>{group.name}</Text>
                   <View style={[styles.groupBadge, group.required && styles.groupBadgeRequired]}>
                     <Text style={[styles.groupBadgeText, group.required && styles.groupBadgeTextRequired]}>
-                      {group.required ? 'مطلوب' : 'اختياري'}
+                      {group.required
+                        ? group.type === 'single'
+                          ? 'اختر واحد'
+                          : (group.minSelect || 1) > 1
+                            ? `اختر ${group.minSelect} على الأقل`
+                            : 'مطلوب'
+                        : group.type === 'single'
+                          ? 'اختياري'
+                          : `اختياري · حتى ${group.max ?? ''}`}
                     </Text>
                   </View>
                 </View>
@@ -178,7 +200,7 @@ export default function ModifierModal({
                         style={[styles.chip, selected && styles.chipSelected]}
                         onPress={() =>
                           group.type === 'single'
-                            ? selectSingle(group.id, opt.id)
+                            ? selectSingle(group.id, opt.id, group.required)
                             : toggleMulti(group.id, opt.id, group.max)
                         }
                         activeOpacity={0.8}>
@@ -243,12 +265,20 @@ export default function ModifierModal({
                 <Text style={styles.qtyBtnText}>+</Text>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.confirmWrap} onPress={() => onConfirm(config, qty)} activeOpacity={0.85}>
-              <View style={styles.confirmButton}>
-                <GradientFill gradient={gradients.payButton} radius={radii.md} />
-                <Text style={styles.confirmText}>إضافة</Text>
+            {unmetGroups.length ? (
+              <View style={[styles.confirmWrap, styles.confirmButton, styles.confirmDisabled]}>
+                <Text style={[styles.confirmText, styles.confirmTextDisabled]}>
+                  اختر: {unmetGroups[0].name}
+                </Text>
               </View>
-            </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.confirmWrap} onPress={() => onConfirm(config, qty)} activeOpacity={0.85}>
+                <View style={styles.confirmButton}>
+                  <GradientFill gradient={gradients.payButton} radius={radii.md} />
+                  <Text style={styles.confirmText}>إضافة</Text>
+                </View>
+              </TouchableOpacity>
+            )}
           </View>
           )}
         </View>
