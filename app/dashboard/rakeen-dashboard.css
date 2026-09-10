@@ -1586,24 +1586,43 @@ button.purchases-hero-btn{
 /* «تحتاج مراجعة» حُذفت. الرقاقات تشرح نفسها -- "مخفية الآن ١٥" تقول
    كل شيء -- وعنوانٌ فوقها كان يشغل عرضاً ثميناً على الجوال ويُقرأ نصاً
    منسياً لا عنواناً. العنوان الذي يحتاج شرحاً ضجيج. */
+/* رقاقات الترشيح — تختلف عمدًا عن رقاقات الفئات: أقصر، زواياها أقل
+   استدارة، خلفية باهتة، ونقطة صغيرة بلون حالتها في المقدّمة. الفئة
+   المفعّلة تصير غرافيت/لايم؛ الترشيح المفعّل يتلوّن بلون حالته فقط —
+   فما يلتبس ترشيحٌ مفعّل بفئةٍ مفعّلة أبدًا. */
+.menu-flag-lead{
+  display:inline-flex; align-items:center; color:var(--muted); opacity:.6;
+  flex-shrink:0; margin-inline-end:2px;
+}
+.menu-flag-lead svg{width:13px; height:13px;}
 .menu-flag-tab{
-  display:flex; align-items:center; gap:7px; min-height:44px;
-  padding:0 14px; border-radius:var(--r-full);
-  border:1.5px solid var(--line); background:var(--card-bg);
-  color:var(--muted); font-weight:700; font-size:11.5px;
+  display:flex; align-items:center; gap:6px; min-height:32px;
+  padding:0 11px; border-radius:8px;
+  border:1px solid var(--line); background:var(--surf1);
+  color:var(--muted); font-weight:700; font-size:11px;
+}
+.menu-flag-tab::before{
+  content:''; width:6px; height:6px; border-radius:50%;
+  background:currentColor; opacity:.5; flex-shrink:0;
 }
 .menu-flag-tab .mct-count{
   font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;
-  font-size:11px; opacity:0.85;
+  font-size:10px; opacity:0.7;
 }
-.menu-flag-tab.bad{border-color:color-mix(in srgb, var(--danger) 45%, var(--line)); color:var(--danger);}
-.menu-flag-tab.warn{border-color:color-mix(in srgb, var(--amber) 45%, var(--line)); color:var(--amber);}
+.menu-flag-tab.bad{color:var(--danger);}
+.menu-flag-tab.warn{color:var(--amber);}
 .menu-flag-tab.active{
-  background:linear-gradient(135deg, var(--graphite), #262626);
-  border-color:var(--graphite); color:var(--lime);
-  box-shadow:0 4px 14px rgba(0,0,0,0.18);
+  background:var(--surf2); border-color:var(--muted); color:var(--text);
 }
-[data-theme="dark"] .menu-flag-tab.active{background:linear-gradient(135deg, #232323, #171717);}
+.menu-flag-tab.bad.active{
+  background:color-mix(in srgb, var(--danger) 12%, transparent);
+  border-color:color-mix(in srgb, var(--danger) 55%, var(--line)); color:var(--danger);
+}
+.menu-flag-tab.warn.active{
+  background:color-mix(in srgb, var(--amber) 14%, transparent);
+  border-color:color-mix(in srgb, var(--amber) 55%, var(--line)); color:var(--amber);
+}
+.menu-flag-tab.active::before{opacity:1;}
 .menu-flag-tab:focus-visible{outline:2px solid var(--lime-deep); outline-offset:2px;}
 
 /* unified product edit modal */
