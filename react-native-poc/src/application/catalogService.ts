@@ -555,11 +555,18 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
     return { ...cached, usingOfflineSnapshot: true };
   }
 
-  const categories: Category[] = (catRes.data || []).map((c: any) => ({
-    id: String(c.id),
-    name: c.name,
-    nameEn: c.name_en || null,
-  }));
+  // فئة مخفية بالكاشير (visible_pos=false, migration 20260909140000) تُستبعد
+  // من التبويبات، ومنتجٌ كل فئاته مخفية بالكاشير يُخفى منه (إلا لو بلا فئة).
+  const posVisibleCatIds = new Set(
+    (catRes.data || []).filter((c: any) => c.visible_pos !== false).map((c: any) => String(c.id)),
+  );
+  const categories: Category[] = (catRes.data || [])
+    .filter((c: any) => c.visible_pos !== false)
+    .map((c: any) => ({
+      id: String(c.id),
+      name: c.name,
+      nameEn: c.name_en || null,
+    }));
 
   // فئات إضافية: categoryIds = [الأساسية، ...الإضافية] كسلاسل، بلا تكرار.
   const extraCatsByItem: Record<string, string[]> = {};
@@ -589,10 +596,16 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
       }))
     : [];
 
-  const menuItemProducts: Product[] = (itemsRes.data || []).map((m: any) => ({
+  const menuItemProducts: Product[] = (itemsRes.data || [])
+    .map((m: any) => {
+      const all = catIdsFor(m.category_id, m.id);
+      return { m, all, cats: all.filter(cid => posVisibleCatIds.has(cid)) };
+    })
+    .filter(({ all, cats }) => !(all.length > 0 && cats.length === 0))
+    .map(({ m, cats }: any) => ({
     id: m.id,
     categoryId: String(m.category_id),
-    categoryIds: catIdsFor(m.category_id, m.id),
+    categoryIds: cats,
     name: m.name,
     nameEn: m.name_en || null,
     price: Number(m.price),
