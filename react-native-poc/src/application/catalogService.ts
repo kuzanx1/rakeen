@@ -661,8 +661,11 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
             };
           });
         // required = the group's real min_select (migration 20260909100000),
-        // not the old "every single group is mandatory" assumption.
-        const minSel = Number(g.min_select) || 0;
+        // not the old "every single group is mandatory" assumption. Until the
+        // column exists (min_select == null) fall back to the old rule so the
+        // build is safe to ship before the migration runs -- the backfill sets
+        // it to 1 for every existing single group anyway, same result.
+        const minSel = g.min_select == null ? (g.type === 'single' ? 1 : 0) : Number(g.min_select) || 0;
         return { id: String(g.id), name: g.name, type: g.type, required: minSel > 0, minSelect: minSel, max: g.max_select, options };
       })
       .filter(Boolean) as ModifierDefinition['groups'];
