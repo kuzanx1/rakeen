@@ -21,7 +21,11 @@ export interface Category {
 export interface Product {
   /** Positive for a menu_item, negative for a service -- see file header. */
   id: number;
+  /** Primary category (menu_items.category_id) — kept for display. */
   categoryId: string;
+  /** Primary + extra categories (menu_item_categories, migration 20260909130000).
+   *  A product shows under every id here. Falls back to [categoryId]. */
+  categoryIds?: string[];
   name: string;
   nameEn: string | null;
   price: number;

@@ -612,7 +612,7 @@ export default function ProductsScreen({
         ? catalog.products
         : activeCategoryId === 'popular'
           ? catalog.products.slice(0, POPULAR_TAB_SIZE)
-          : catalog.products.filter(p => p.categoryId === activeCategoryId);
+          : catalog.products.filter(p => (p.categoryIds ?? [p.categoryId]).includes(activeCategoryId));
     // renderProductGrid()'s own filter order: category, then favourites,
     // then the search term.
     const byFav = showFavOnly ? byCategory.filter(p => favIds.has(p.id)) : byCategory;

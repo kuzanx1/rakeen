@@ -519,7 +519,7 @@ export async function getReceiptBusinessProfile(businessId: number): Promise<Rec
 export async function loadCatalog(businessId: number, businessType: string): Promise<CatalogResult> {
   const isService = isServiceBusinessType(businessType);
 
-  const [catRes, itemsRes, servicesRes, groupRes, optRes, itemModRes, stockRes, boxEligRes] = await Promise.all([
+  const [catRes, itemsRes, servicesRes, groupRes, optRes, itemModRes, stockRes, boxEligRes, itemCatRes] = await Promise.all([
     supabase.from('menu_categories').select('*').eq('business_id', businessId).order('sort_order'),
     supabase
       .from('menu_items')
@@ -537,6 +537,9 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
     supabase.from('menu_item_modifier_groups').select('*'),
     supabase.from('stock_items').select('id, unit, name').eq('business_id', businessId),
     supabase.from('menu_item_box_eligible_items').select('*'),
+    // فئات إضافية للمنتج (migration 20260909130000) -- لو الجدول ما وُجد
+    // بعد يرجع {data:null} ويُعامَل كأنه فاضي (كل منتج بفئته الأساسية).
+    supabase.from('menu_item_categories').select('menu_item_id, menu_category_id'),
   ]);
 
   // supabase-js resolves a network failure as {data:null, error} rather
@@ -558,10 +561,22 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
     nameEn: c.name_en || null,
   }));
 
+  // فئات إضافية: categoryIds = [الأساسية، ...الإضافية] كسلاسل، بلا تكرار.
+  const extraCatsByItem: Record<string, string[]> = {};
+  ((itemCatRes as any)?.data || []).forEach((r: any) => {
+    (extraCatsByItem[r.menu_item_id] ||= []).push(String(r.menu_category_id));
+  });
+  const catIdsFor = (primary: any, itemId?: any): string[] => {
+    const p = String(primary);
+    const extra = itemId != null ? extraCatsByItem[itemId] || [] : [];
+    return [p, ...extra].filter((v, i, a) => v && v !== 'null' && a.indexOf(v) === i);
+  };
+
   const serviceProducts: Product[] = isService
     ? (servicesRes.data || []).map((s: any) => ({
         id: -s.id, // negative -- collision-proof with menu_items ids, see domain/catalog.ts
         categoryId: String(s.category_id),
+        categoryIds: catIdsFor(s.category_id),
         name: s.name,
         nameEn: null,
         price: Number(s.price),
@@ -577,6 +592,7 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
   const menuItemProducts: Product[] = (itemsRes.data || []).map((m: any) => ({
     id: m.id,
     categoryId: String(m.category_id),
+    categoryIds: catIdsFor(m.category_id, m.id),
     name: m.name,
     nameEn: m.name_en || null,
     price: Number(m.price),
@@ -590,8 +606,9 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
   // فئة ما بقي فيها منتج معروض ما تُعرض -- نفس قاعدة الـPWA بالحرف.
   // المنتجات مُرشَّحة في الاستعلام، فبقاء صفر منتج بعده يعني أن كل ما
   // فيها مخفي أو موقوف، والتبويب يفتح على فراغ.
-  const catIdsWithProducts = new Set(
-    [...serviceProducts, ...menuItemProducts].map(p => String(p.categoryId)),
+  const catIdsWithProducts = new Set<string>();
+  [...serviceProducts, ...menuItemProducts].forEach(p =>
+    (p.categoryIds || [String(p.categoryId)]).forEach(cid => catIdsWithProducts.add(cid)),
   );
   const visibleCategories = categories.filter(c => catIdsWithProducts.has(String(c.id)));
 
