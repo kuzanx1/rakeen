@@ -4,6 +4,7 @@ import { Text, TextInput } from './Text';
 import { TouchableOpacity } from './tappable';
 import { requestLoyaltyCode, verifyLoyaltyCode, confirmByCardNumber, confirmByCard } from '../application/loyaltyCodeService';
 import CardScanner from './CardScanner';
+import KeyboardLift from './KeyboardLift';
 import type { Product } from '../domain/catalog';
 import { createStyles, fonts, radii, spacing, useTheme } from './theme';
 
@@ -133,7 +134,7 @@ export default function LoyaltyRedeemModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <KeyboardLift style={styles.overlay}>
         <View style={styles.sheet}>
           {phase === 'waiting' && (
             <View style={styles.waitBlock}>
@@ -333,7 +334,7 @@ export default function LoyaltyRedeemModal({
             }}
           />
         </View>
-      </View>
+      </KeyboardLift>
     </Modal>
   );
 }

@@ -64,7 +64,7 @@ export default function OpenShiftScreen({
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.centerBox} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.centerBox} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         <View style={styles.card}>
           <Image
             source={require('../../assets/brand/rakeen-wordmark.png')}

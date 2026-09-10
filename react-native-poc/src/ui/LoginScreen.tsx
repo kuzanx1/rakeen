@@ -147,7 +147,7 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
     const pickingBranch = branches != null;
     return (
       <View style={styles.screen}>
-        <ScrollView contentContainerStyle={styles.centerBox} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.centerBox} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
           <View style={styles.card}>
             <Wordmark styles={styles} />
             <Text style={styles.title}>تجهيز هذا الجهاز</Text>

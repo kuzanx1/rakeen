@@ -4,6 +4,7 @@ import { Text, TextInput } from './Text';
 import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
 import Money from './Money';
+import KeyboardLift from './KeyboardLift';
 import { REJECT_REASONS } from '../application/incomingOrderService';
 import type { IncomingOrder } from '../application/incomingOrderService';
 import { createStyles, fonts, gradients, radii, useTheme } from './theme';
@@ -74,7 +75,7 @@ export default function IncomingOrderModal({
 
   return (
     <Modal visible={order != null || loading} animationType="fade" transparent>
-      <View style={styles.overlay}>
+      <KeyboardLift style={styles.overlay}>
         <View style={[styles.card, shadows.md]}>
           <View style={styles.head}>
             <Text style={styles.title}>طلب إلكتروني جديد 🌐</Text>
@@ -213,7 +214,7 @@ export default function IncomingOrderModal({
             )}
           </ScrollView>
         </View>
-      </View>
+      </KeyboardLift>
     </Modal>
   );
 }

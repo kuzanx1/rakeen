@@ -325,7 +325,7 @@ export default function PrinterSettingsScreen({
   }
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.scroll}>
+    <ScrollView style={styles.root} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
       <Text style={styles.title}>إعدادات الطباعة</Text>
       <Text style={styles.subtitle}>
         هذي الإعدادات خاصة بهذا الجهاز وحده — كل جهاز عنده طابعته وإعداداتها.
