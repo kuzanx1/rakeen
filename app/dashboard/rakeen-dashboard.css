@@ -1239,23 +1239,14 @@ button{font-family:inherit; cursor:pointer;}
    column is a redundant second way to do the same thing. */
 #stockTable .mtr-action{display:none;}
 
-/* الفئات — عنصر موحّد في محرّر المنتج (أساسية + إضافية في مكان واحد) */
+/* الفئات — عنصر موحّد في محرّر المنتج، شرائح متساوية */
 .pf-cat-chips{display:flex; flex-wrap:wrap; gap:7px;}
 .pf-cat-chip{
-  display:inline-flex; align-items:center; gap:6px;
-  padding:5px 8px 5px 10px; border-radius:var(--r-full);
+  display:inline-flex; align-items:center; gap:7px;
+  padding:6px 8px 6px 12px; border-radius:var(--r-full);
   background:var(--surf1); border:1px solid var(--line);
   font-size:12px; font-weight:700; color:var(--text);
 }
-.pf-cat-chip.is-primary{border-color:var(--lime-deep); background:rgba(199,255,77,0.12);}
-.pf-cat-star{color:var(--lime-deep); font-size:12px; line-height:1;}
-.pf-cat-mkprimary{
-  border:none; background:none; color:var(--muted); cursor:pointer;
-  font-size:13px; line-height:1; padding:0; width:16px;
-}
-.pf-cat-mkprimary:hover{color:var(--lime-deep);}
-.pf-cat-badge{font-size:9.5px; font-weight:800; color:var(--flag-green-deep, #2b5e1e); background:var(--card-bg); border:1px solid var(--lime-deep); border-radius:var(--r-full); padding:1px 7px;}
-[data-theme="dark"] .pf-cat-badge{color:var(--lime-deep);}
 .pf-cat-x{
   border:none; background:var(--surf2); color:var(--muted); cursor:pointer;
   width:16px; height:16px; border-radius:50%; font-size:9px; font-weight:800; line-height:1; padding:0; flex-shrink:0;
