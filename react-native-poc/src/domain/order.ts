@@ -40,7 +40,12 @@ export interface OrderItemPayload {
   modifiers_total: number;
   line_total: number;
   note: string | null;
-  selected_modifiers: { text: string }[];
+  /** Both languages, same policy as the item's own name/nameEn: the
+   *  Arabic text always saves, the English rides along when the option
+   *  has one -- independent of the cashier's screen language at sale
+   *  time. Lets a reprint/refund of this exact order show both later,
+   *  the same as the printed receipt does for the product name. */
+  selected_modifiers: { text: string; textEn?: string }[];
   /**
    * Stock drawn by this line's modifier EXTRAS -- "extra cheese" taking
    * 20g off the cheese in the store room.
@@ -222,13 +227,13 @@ export function buildDineInPayPayload(
 export function formatConfigLabels(
   config: CartLine['config'],
   modDef: ModifierDefinition | undefined,
-): { text: string }[] {
+): { text: string; textEn?: string }[] {
   if (!modDef || !config) return [];
   // A box has no groups -- its labels come from the piece counts, so the
   // group loop below would produce nothing for one.
   const box = modDef as unknown as BoxDefinition;
   if (box.isBox) return formatBoxLabels(config, box).map(text => ({ text }));
-  const labels: { text: string }[] = [];
+  const labels: { text: string; textEn?: string }[] = [];
   modDef.groups.forEach(g => {
     const sel = config[g.id];
     const arr = Array.isArray(sel) ? sel : [sel];
@@ -236,7 +241,7 @@ export function formatConfigLabels(
       if (!optId) return;
       const opt = g.options.find(o => o.id === optId);
       if (!opt) return;
-      labels.push({ text: opt.name });
+      labels.push({ text: opt.name, textEn: opt.nameEn || undefined });
     });
   });
   return labels;

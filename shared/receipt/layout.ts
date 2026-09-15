@@ -19,11 +19,20 @@ import {
   BORDER, COLUMNS, DASH, LINE, LOGO, ORDER_BOX, PAD,
   QR_MAX, SPACE, TOTAL_BOX, TYPE, WEIGHT, themeTokens,
 } from './tokens';
-import type { LayoutInput, LayoutResult, ReceiptItem } from './types';
+import type { LayoutInput, LayoutResult, ReceiptItem, ReceiptItemMod } from './types';
 
 /** ملصقٌ بلغتين: الورقةُ يقرؤها الزبونُ ويقرؤها المُراجع. */
 export function bi(ar: string, en: string): string {
   return ar + ' · ' + en;
+}
+
+/** نفسُ سياسة اسم الصنف (`it.nameEn ? it.name + ' | ' + it.nameEn : it.name`)
+ *  على خيارٍ واحد. نصٌّ عارٍ يمرّ كما هو -- فاتورةٌ لم تُخزَّن مع اسمٍ
+ *  إنجليزي لخياراتها تبقى تطبع عربيّاً فقط، لا فراغاً.
+ *  مُصدَّرةٌ لأن تذكرة المطبخ (`kitchenLayout.ts`) تعرض نفس الحقل. */
+export function modText(m: string | ReceiptItemMod): string {
+  if (typeof m === 'string') return m;
+  return m.textEn ? m.text + ' | ' + m.textEn : m.text;
 }
 
 const ARABIC = /[؀-ۿ]/;
@@ -225,7 +234,7 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
          تمتدّ خارج الورقة فيُقصّ آخرُها عند الطبع. */
       const subSz = sz(TYPE.itemSub);
       mods.forEach(m => {
-        wrap('— ' + m, subSz, WEIGHT.regular, 'sans', contentWidth)
+        wrap('— ' + modText(m), subSz, WEIGHT.regular, 'sans', contentWidth)
           .forEach(line => rowText('', line, subSz, false));
       });
       if (it.note) {
@@ -267,7 +276,7 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
     const subSz = sz(TYPE.itemSub);
     mods.forEach(m => {
       // داخل عمود الاسم لا بعرض الورقة: هي تابعةٌ للصنف فتُزاح معه.
-      wrap('— ' + m, subSz, WEIGHT.regular, 'sans', nameW).forEach(line => {
+      wrap('— ' + modText(m), subSz, WEIGHT.regular, 'sans', nameW).forEach(line => {
         text(line, nameRight, subSz, WEIGHT.regular, 'sans', 'right', 'rtl');
         ctx.y += gap(SPACE.itemSubLine);
       });

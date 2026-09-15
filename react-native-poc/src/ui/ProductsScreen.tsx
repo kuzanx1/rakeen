@@ -9,7 +9,7 @@ import { createStyles, fonts, gradients, layout, radii, spacing, useTheme } from
 import { CategoryIcon, iconForCategoryName } from './categoryIcons';
 import Money from './Money';
 import { useShell } from './shell';
-import { displayName, useI18n } from './i18n';
+import { displayName, useI18n, type Lang } from './i18n';
 import { useToast } from './Toast';
 import {
   // بقية نداءات الإقلاع انتقلت إلى application/posBootstrap.ts، حيث
@@ -32,7 +32,7 @@ import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { shouldPrintCustomerReceipt, shouldPrintKitchenTicket, shouldPrintReceiptLogo } from '../domain/printerProfile';
 import { supabase } from '../infrastructure/supabaseClient';
 import { buildOrderPayload, buildDineInRegisterPayload, buildDineInPayPayload } from '../domain/order';
-import type { ReceiptData, KitchenTicketData, ReceiptLine } from '../domain/receipt';
+import type { ReceiptData, KitchenTicketData, ReceiptLine, ReceiptLineMod } from '../domain/receipt';
 import type { Product } from '../domain/catalog';
 import { isRetailBusinessType } from '../domain/catalog';
 import { buildDefaultConfig } from '../domain/cart';
@@ -74,7 +74,18 @@ const CHANNEL_LABELS: Record<OrderChannel, string> = {
  *  prints per item (receipt.items[].mods). Looks the option up in the
  *  SAME ModifierDefinition already loaded for cart pricing/editing --
  *  not a second, redefined modifier model. */
-function cartLineToModLabels(item: CartLine, modifiersByProductId: Record<number, ModifierDefinition>): string[] {
+/**
+ * `lang` is omitted (Arabic) for the receipt call site -- receipts print
+ * the primary Arabic name regardless of UI language, same policy as
+ * i18n.tsx's displayName(). The on-screen order panel passes the real
+ * `lang` so a cashier working in English sees the English option names
+ * they configured on the dashboard, not just the product name.
+ */
+function cartLineToModLabels(
+  item: CartLine,
+  modifiersByProductId: Record<number, ModifierDefinition>,
+  lang: Lang = 'ar',
+): string[] {
   const def = modifiersByProductId[item.productId];
   if (!def || !item.config) return [];
   const labels: string[] = [];
@@ -83,10 +94,37 @@ function cartLineToModLabels(item: CartLine, modifiersByProductId: Record<number
     const ids = Array.isArray(selected) ? selected : selected != null ? [selected] : [];
     for (const id of ids) {
       const option = group.options.find(o => o.id === id);
-      if (option) labels.push(option.name);
+      if (option) labels.push(displayName(option, lang));
     }
   }
   return labels;
+}
+
+/**
+ * Same lookup as cartLineToModLabels, for the one place that needs BOTH
+ * languages at once rather than whichever the UI is showing: the printed
+ * receipt/kitchen ticket, and selected_modifiers as persisted with the
+ * order. Mirrors the item name's own policy (name + nameEn, always both,
+ * regardless of the cashier's screen language) -- shared/receipt's
+ * layout engine joins them as "text | textEn" the same way it already
+ * does for the item name.
+ */
+function cartLineToModEntries(
+  item: CartLine,
+  modifiersByProductId: Record<number, ModifierDefinition>,
+): ReceiptLineMod[] {
+  const def = modifiersByProductId[item.productId];
+  if (!def || !item.config) return [];
+  const entries: ReceiptLineMod[] = [];
+  for (const group of def.groups) {
+    const selected = item.config[group.id];
+    const ids = Array.isArray(selected) ? selected : selected != null ? [selected] : [];
+    for (const id of ids) {
+      const option = group.options.find(o => o.id === id);
+      if (option) entries.push({ text: option.name, textEn: option.nameEn || undefined });
+    }
+  }
+  return entries;
 }
 
 /** Checkpoint 10 (Print Queue) -- builds real receipt line data from the
@@ -118,7 +156,7 @@ function cartToReceiptLines(
       qty: item.qty,
       unitPrice,
       lineTotal: unitPrice * item.qty,
-      mods: cartLineToModLabels(item, modifiersByProductId),
+      mods: cartLineToModEntries(item, modifiersByProductId),
       note: item.note || undefined,
     };
   });
@@ -1013,6 +1051,7 @@ export default function ProductsScreen({
               orderId: lastRegisteredDineInOrderId,
               lines: (orderDetail?.items ?? []).map(it => ({
                 name: it.name,
+                nameEn: it.nameEn,
                 qty: it.qty,
                 unitPrice: it.unitPrice,
                 lineTotal: it.lineTotal,
@@ -1463,7 +1502,7 @@ export default function ProductsScreen({
               cart.cart.map(line => {
                 const product = productsById.get(line.productId);
                 const unitPrice = cart.unitPriceOf(line);
-                const modLabels = cartLineToModLabels(line, catalog.modifiersByProductId);
+                const modLabels = cartLineToModLabels(line, catalog.modifiersByProductId, lang);
                 return (
                   // .order-item > .oi-row -- child order is qty stepper,
                   // info, line total, remove.
@@ -1487,7 +1526,7 @@ export default function ProductsScreen({
                     {/* .oi-info */}
                     <View style={styles.cartLineInfo}>
                       <Text style={styles.cartLineName} numberOfLines={2}>
-                        {product?.name || '—'}
+                        {product ? displayName(product, lang) : '—'}
                         {line.isPointsRedemption ? ' 🎁' : ''}
                       </Text>
                       {/* .oi-unit -- rendered ONLY at qty > 1 and never
@@ -2373,25 +2412,27 @@ const useStyles = createStyles((colors, shadows) =>
   clearBtnArmed: { backgroundColor: 'rgba(224,138,106,0.15)' },
   clearBtnText: { fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.muted },
   clearBtnTextArmed: { color: colors.danger },
-  // .order-item (`padding:8px 0; border-bottom`) + .oi-row (`gap:8px`)
-  // .order-item -- `padding:8px 0; border-bottom:1px solid var(--line)`
+  // .order-item -- `padding:10px 0; border-bottom:1px solid var(--line)`.
+  // Bumped from the source's original 8px: on a tablet the config chip and
+  // note link sat close enough to the row above to read as pasted onto it.
   cartLine: {
-    paddingVertical: spacing[2],
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
   },
   // .oi-row -- `display:flex; align-items:center; gap:8px`
   oiRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
-  // .oi-config -- `flex-wrap:wrap; gap:4px; margin-top:4px`
-  oiConfig: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 },
+  // .oi-config -- `flex-wrap:wrap; gap:4px; margin-top:7px` (was 4px, same tablet-spacing pass)
+  oiConfig: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 7 },
   // .oi-config-tag
   oiConfigTag: { paddingVertical: 2, paddingHorizontal: 8, borderRadius: radii.full, backgroundColor: colors.surf2 },
   oiConfigTagText: { fontFamily: fonts.sansBold, fontSize: 9.5, color: colors.muted },
-  // .oi-note-link -- `padding-inline-start:0`, so it sits flush
-  oiNoteLink: { marginTop: 3, alignSelf: 'flex-start' },
+  // .oi-note-link -- `padding-inline-start:0`, so it sits flush. margin-top
+  // bumped from 3px to 6px in the same pass.
+  oiNoteLink: { marginTop: 6, alignSelf: 'flex-start' },
   oiNoteLinkText: { fontFamily: fonts.sansMedium, fontSize: 10, color: colors.muted },
   // .oi-note-text -- `opacity:0.7` on the normal text colour
-  oiNoteText: { fontFamily: fonts.sansSemiBold, fontSize: 10, color: colors.text, opacity: 0.7, marginTop: 3 },
+  oiNoteText: { fontFamily: fonts.sansSemiBold, fontSize: 10, color: colors.text, opacity: 0.7, marginTop: 6 },
   // .oi-note-input
   oiNoteInput: {
     width: '100%',

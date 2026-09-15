@@ -686,6 +686,7 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
             return {
               id: String(o.id),
               name: o.name,
+              nameEn: o.name_en || null,
               price: Number(o.price_delta) || 0,
               default: false,
             };
@@ -696,7 +697,7 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
         // build is safe to ship before the migration runs -- the backfill sets
         // it to 1 for every existing single group anyway, same result.
         const minSel = g.min_select == null ? (g.type === 'single' ? 1 : 0) : Number(g.min_select) || 0;
-        return { id: String(g.id), name: g.name, type: g.type, required: minSel > 0, minSelect: minSel, max: g.max_select, options };
+        return { id: String(g.id), name: g.name, nameEn: g.name_en || null, type: g.type, required: minSel > 0, minSelect: minSel, max: g.max_select, options };
       })
       .filter(Boolean) as ModifierDefinition['groups'];
     if (groups.length > 0) {

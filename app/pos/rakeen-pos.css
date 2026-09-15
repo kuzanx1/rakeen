@@ -332,7 +332,7 @@ svg{display:block;}
 .last-tx-info .mono{color:var(--text);}
 .last-tx-reprint{padding:8px; border-radius:var(--r-sm); border:1px solid var(--line); background:none; color:var(--muted); font-weight:700; font-size:11px;}
 
-.order-item{padding:8px 0; border-bottom:1px solid var(--line);}
+.order-item{padding:10px 0; border-bottom:1px solid var(--line);}
 /* one row per item whenever the name fits — qty stepper, name, line total and
    remove all sit side by side instead of always wrapping onto a second row.
    Long names (real product names run long — "بوكس ورق عنب سبايسي") clamp to
@@ -348,10 +348,10 @@ svg{display:block;}
 .oi-total{font-weight:800; font-size:12.5px; flex-shrink:0; font-family:'IBM Plex Mono',monospace;}
 .oi-remove{width:20px; height:20px; border:none; background:none; color:var(--muted); flex-shrink:0;}
 .oi-remove svg{width:12px; height:12px;}
-.oi-note-link{font-size:10px; color:var(--muted); background:none; border:none; margin-top:3px; padding-inline-start:0;}
+.oi-note-link{font-size:10px; color:var(--muted); background:none; border:none; margin-top:6px; padding-inline-start:0;}
 .oi-note-input{display:none; width:100%; margin-top:6px; padding:8px 10px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-size:11.5px;}
 .oi-note-input.open{display:block;}
-.oi-note-text{font-size:10px; color:var(--text); opacity:0.7; margin-top:3px; font-weight:600;}
+.oi-note-text{font-size:10px; color:var(--text); opacity:0.7; margin-top:6px; font-weight:600;}
 
 /* الزرّان في سطرٍ واحد: العميل والخصم إجراءان متجاوران على السلة، لا
    أحدهما فوق الآخر -- والسلة أضيق من أن تُهدر سطراً لكلٍّ منهما.
@@ -790,7 +790,7 @@ svg{display:block;}
 #modifierBody .modifier-add-btn:disabled{background:var(--surf2); color:var(--muted);}
 
 /* kitchen-aware config tags in the order panel */
-.oi-config{display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;}
+.oi-config{display:flex; flex-wrap:wrap; gap:4px; margin-top:7px;}
 .oi-config-tag{font-size:9.5px; font-weight:700; padding:2px 8px; border-radius:var(--r-full); background:var(--surf2); color:var(--muted);}
 .oi-config-tag.critical{background:rgba(224,184,74,0.16); color:var(--amber); font-weight:800;}
 

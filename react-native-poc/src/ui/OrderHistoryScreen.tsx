@@ -130,6 +130,15 @@ function displayName(lang: string, name: string, nameEn?: string | null): string
   return lang === 'en' && nameEn ? nameEn : name;
 }
 
+/** Same idea as displayName(), for one selected-modifier entry -- OrderHistoryItem.mods
+ *  now carries `{text, textEn}` (Feature Parity Pass: bilingual receipts), not a bare
+ *  string, so this picks the one to show on screen instead of Array.join() stringifying
+ *  the object as "[object Object]". */
+function modLabel(lang: string, m: string | { text: string; textEn?: string | null }): string {
+  if (typeof m === 'string') return m;
+  return lang === 'en' && m.textEn ? m.textEn : m.text;
+}
+
 export default function OrderHistoryScreen({
   branchId,
   shiftId,
@@ -562,7 +571,7 @@ export default function OrderHistoryScreen({
                   <View key={i} style={styles.itemRow}>
                     <Text style={styles.itemName}>
                       {it.qty} × {displayName(lang, it.name, it.nameEn)}
-                      {it.mods.length > 0 ? ` (${it.mods.join('، ')})` : ''}
+                      {it.mods.length > 0 ? ` (${it.mods.map(m => modLabel(lang, m)).join('، ')})` : ''}
                       {it.note ? ` — ${it.note}` : ''}
                     </Text>
                     <Money value={it.lineTotal} size={11.5} />

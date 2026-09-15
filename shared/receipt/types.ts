@@ -113,13 +113,22 @@ export interface ImageSize {
   height: number;
 }
 
+/** خيارٌ ثنائيُّ اللغة، نفسُ سياسة اسم الصنف نفسِه: العربيُّ أصلٌ دائمُ
+ *  الحضور، والإنجليزيُّ يظهر بجانبه حين يوجد -- بلا خضوعٍ للغة الشاشة
+ *  وقت الطباعة. نصٌّ عارٍ (`string`) يبقى صالحاً لتوافقٍ خلفيٍّ مع كلّ
+ *  فاتورةٍ قديمة لم تُخزَّن مع اسمٍ إنجليزي لخياراتها. */
+export interface ReceiptItemMod {
+  text: string;
+  textEn?: string | null;
+}
+
 export interface ReceiptItem {
   name: string;
   nameEn?: string | null;
   qty: number;
   unitPrice: number;
   lineTotal: number;
-  mods?: string[] | null;
+  mods?: Array<string | ReceiptItemMod> | null;
   note?: string | null;
 }
 

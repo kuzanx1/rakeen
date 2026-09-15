@@ -1,4 +1,5 @@
 import { supabase } from '../infrastructure/supabaseClient';
+import type { ReceiptLineMod } from '../domain/receipt';
 
 /**
  * Feature Parity Pass -- Refunds/Void/Cancellation. Ported from the PWA's
@@ -62,7 +63,7 @@ export interface OrderHistoryItem {
   lineTotal: number;
   /** menu_items.name_en -- تُطبع مع العربي على السطر نفسه. */
   nameEn?: string;
-  mods: string[];
+  mods: Array<string | ReceiptLineMod>;
   note: string | null;
 }
 
@@ -150,7 +151,9 @@ export async function getOrderHistoryDetail(orderId: number): Promise<OrderHisto
       qty: Number(it.qty),
       unitPrice: Number(it.unit_price),
       lineTotal: Number(it.line_total),
-      mods: (it.selected_modifiers || []).map((m: any) => m.text || m.name || String(m)),
+      mods: (it.selected_modifiers || []).map((m: any) =>
+        typeof m === 'string' ? m : { text: m.text || m.name || String(m), textEn: m.textEn || undefined },
+      ),
       note: it.note,
     })),
   };

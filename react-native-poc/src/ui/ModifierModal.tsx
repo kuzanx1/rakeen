@@ -7,7 +7,7 @@ import { ModifierDefinition, CartLineConfig, buildDefaultConfig } from '../domai
 import type { BoxDefinition } from '../domain/cart';
 import Money from './Money';
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
-import { useI18n } from './i18n';
+import { useI18n, displayName } from './i18n';
 
 /**
  * The real "customize" flow for a product with modifier groups (single-
@@ -46,7 +46,7 @@ export default function ModifierModal({
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [config, setConfig] = useState<CartLineConfig>(() => buildDefaultConfig(modDef) || {});
   const [qty, setQty] = useState(1);
 
@@ -173,7 +173,7 @@ export default function ModifierModal({
             modDef.groups.map(group => (
               <View key={group.id} style={styles.group}>
                 <View style={styles.groupHead}>
-                  <Text style={styles.groupTitle}>{group.name}</Text>
+                  <Text style={styles.groupTitle}>{displayName(group, lang)}</Text>
                   <View style={[styles.groupBadge, group.required && styles.groupBadgeRequired]}>
                     <Text style={[styles.groupBadgeText, group.required && styles.groupBadgeTextRequired]}>
                       {group.required
@@ -204,7 +204,7 @@ export default function ModifierModal({
                             : toggleMulti(group.id, opt.id, group.max)
                         }
                         activeOpacity={0.8}>
-                        <Text style={styles.chipText}>{opt.name}</Text>
+                        <Text style={styles.chipText}>{displayName(opt, lang)}</Text>
                         {/* .mod-chip-price is one of the few money-ish
                             figures the source does NOT put through
                             rkMoney(): it prints the RAW number with a sign
@@ -268,7 +268,7 @@ export default function ModifierModal({
             {unmetGroups.length ? (
               <View style={[styles.confirmWrap, styles.confirmButton, styles.confirmDisabled]}>
                 <Text style={[styles.confirmText, styles.confirmTextDisabled]}>
-                  اختر: {unmetGroups[0].name}
+                  اختر: {displayName(unmetGroups[0], lang)}
                 </Text>
               </View>
             ) : (

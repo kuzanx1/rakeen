@@ -547,6 +547,10 @@ var RakeenReceiptEngine = (() => {
   function bi(ar, en) {
     return ar + " · " + en;
   }
+  function modText(m) {
+    if (typeof m === "string") return m;
+    return m.textEn ? m.text + " | " + m.textEn : m.text;
+  }
   function layoutReceipt(input) {
     const { receipt, measure, paperWidth: width, currency, logo, qr } = input;
     const th = themeTokens(input.theme);
@@ -687,7 +691,7 @@ var RakeenReceiptEngine = (() => {
         leaderRow(shown, money(it.lineTotal), sz(TYPE.itemLeader), true);
         const subSz2 = sz(TYPE.itemSub);
         mods.forEach((m) => {
-          wrap("— " + m, subSz2, WEIGHT.regular, "sans", contentWidth).forEach((line) => rowText("", line, subSz2, false));
+          wrap("— " + modText(m), subSz2, WEIGHT.regular, "sans", contentWidth).forEach((line) => rowText("", line, subSz2, false));
         });
         if (it.note) {
           wrap("ملاحظات: " + it.note, subSz2, WEIGHT.regular, "sans", contentWidth).forEach((line) => rowText("", line, subSz2, false));
@@ -707,7 +711,7 @@ var RakeenReceiptEngine = (() => {
       text(money(it.lineTotal), PAD, numSz, WEIGHT.medium, "sans", "left", "ltr", { at: firstY });
       const subSz = sz(TYPE.itemSub);
       mods.forEach((m) => {
-        wrap("— " + m, subSz, WEIGHT.regular, "sans", nameW).forEach((line) => {
+        wrap("— " + modText(m), subSz, WEIGHT.regular, "sans", nameW).forEach((line) => {
           text(line, nameRight, subSz, WEIGHT.regular, "sans", "right", "rtl");
           ctx.y += gap(SPACE.itemSubLine);
         });
@@ -823,7 +827,7 @@ var RakeenReceiptEngine = (() => {
         ctx.y += ctx.gap(KITCHEN_SPACE.itemLine);
       });
       for (const m of it.mods || []) {
-        ctx.wrap("— " + m, KITCHEN.sub, WEIGHT.regular, "sans", ctx.contentWidth - KITCHEN.subIndent).forEach((l) => {
+        ctx.wrap("— " + modText(m), KITCHEN.sub, WEIGHT.regular, "sans", ctx.contentWidth - KITCHEN.subIndent).forEach((l) => {
           ctx.text(l, subRight, KITCHEN.sub, WEIGHT.regular, "sans", "right", "rtl");
           ctx.y += ctx.gap(KITCHEN_SPACE.subLine);
         });

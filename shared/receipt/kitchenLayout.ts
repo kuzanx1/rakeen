@@ -9,6 +9,7 @@
  */
 
 import { createContext } from './context';
+import { modText } from './layout';
 import { KITCHEN, KITCHEN_SPACE, PAD, WEIGHT } from './tokens';
 import type { ImageSize, LayoutResult, Measurer, ReceiptItem } from './types';
 
@@ -69,7 +70,7 @@ export function layoutKitchenTicket(input: KitchenLayoutInput): LayoutResult {
       });
     // الإضافاتُ مزاحةٌ عن حافّة الاسم، فتُقرأ تابعةً له لا صنفاً آخر.
     for (const m of it.mods || []) {
-      ctx.wrap('— ' + m, KITCHEN.sub, WEIGHT.regular, 'sans', ctx.contentWidth - KITCHEN.subIndent)
+      ctx.wrap('— ' + modText(m), KITCHEN.sub, WEIGHT.regular, 'sans', ctx.contentWidth - KITCHEN.subIndent)
         .forEach(l => {
           ctx.text(l, subRight, KITCHEN.sub, WEIGHT.regular, 'sans', 'right', 'rtl');
           ctx.y += ctx.gap(KITCHEN_SPACE.subLine);

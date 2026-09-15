@@ -1930,6 +1930,37 @@ function formatConfigLabels(productId, config){
   return labels;
 }
 
+/**
+ * Same lookup as formatConfigLabels, for the two places that need BOTH
+ * languages regardless of the cashier's current screen language:
+ * `selected_modifiers` as persisted with the order, and mods on a printed
+ * receipt/kitchen ticket. Same policy the item name already has (name_en
+ * stored and printed alongside name, never gated on LANG) -- the receipt
+ * engine (shared/receipt/layout.ts, built into receipt-engine.js) joins
+ * them as "text | textEn" the same way it already does for the item name.
+ */
+function formatConfigLabelsBilingual(productId, config){
+  const modDef = MODIFIER_PRODUCTS[productId];
+  if(!modDef || !config) return [];
+  if(modDef.isBox){
+    return Object.entries(config.selections||{})
+      .filter(([k,v])=>v>0)
+      .map(([k,v])=>{ const item = modDef.items.find(i=>i.id===k); return {text: item.name + ' ×' + v, textEn: null}; });
+  }
+  const labels = [];
+  modDef.groups.forEach(g=>{
+    const sel = config[g.id];
+    const arr = Array.isArray(sel) ? sel : [sel];
+    arr.forEach(optId=>{
+      if(!optId) return;
+      const opt = g.options.find(o=>o.id===optId);
+      if(!opt) return;
+      labels.push({text: opt.name, textEn: opt.nameEn || null});
+    });
+  });
+  return labels;
+}
+
 /* ============ Smart upselling — configurable, max 2, one-tap, never blocking ============ */
 function maybeShowUpsell(productId){
   const rules = UPSELL_RULES[productId];
@@ -3885,7 +3916,7 @@ function buildOrderPayload(totals){
     modifiers_total: 0,
     line_total: lineUnitPrice(item) * item.qty,
     note: item.note || null,
-    selected_modifiers: formatConfigLabels(item.productId, item.config).map(l=>({text:l.text})),
+    selected_modifiers: formatConfigLabelsBilingual(item.productId, item.config).map(l=>({text:l.text, textEn:l.textEn||undefined})),
     stock_decrements: computeLineStockDecrements(item),
     box_selections: computeLineBoxSelections(item),
     is_points_redemption: !!item.isPointsRedemption,
@@ -3934,7 +3965,7 @@ function buildDineInRegisterPayload(){
     service_id: item.productId < 0 ? -item.productId : null,
     qty: item.qty, unit_price: lineUnitPrice(item),
     modifiers_total: 0, line_total: lineUnitPrice(item) * item.qty, note: item.note || null,
-    selected_modifiers: formatConfigLabels(item.productId, item.config).map(l=>({text:l.text})),
+    selected_modifiers: formatConfigLabelsBilingual(item.productId, item.config).map(l=>({text:l.text, textEn:l.textEn||undefined})),
     stock_decrements: computeLineStockDecrements(item),
     box_selections: computeLineBoxSelections(item),
     // Was missing entirely on this path — a points-redeemed item added to a
@@ -4840,7 +4871,7 @@ function buildLiveReceiptData(orderPayload, totals){
     return {
       name: p ? p.name : '', nameEn: p ? (p.name_en || '') : '',
       qty: item.qty, unitPrice, lineTotal: unitPrice * item.qty,
-      mods: formatConfigLabels(item.productId, item.config).map(l=>l.text),
+      mods: formatConfigLabelsBilingual(item.productId, item.config).map(l=>({text:l.text, textEn:l.textEn||undefined})),
       // الملاحظة صارت تُطبع للزبون أيضاً، بطلب صاحب المطعم -- كانت
       // تُمرَّر لتذكرة المطبخ وحدها.
       note: item.note || ''
@@ -4880,7 +4911,7 @@ function buildKitchenReceiptData(orderPayload){
     return {
       name: p ? p.name : '', nameEn: p ? (p.name_en || '') : '',
       qty: item.qty, note: item.note || '',
-      mods: formatConfigLabels(item.productId, item.config).map(l=>l.text)
+      mods: formatConfigLabelsBilingual(item.productId, item.config).map(l=>({text:l.text, textEn:l.textEn||undefined}))
     };
   });
   const tableLabel = orderPayload.tableNumber ? ' — طاولة ' + orderPayload.tableNumber : '';
@@ -4913,7 +4944,7 @@ function buildHistoricalReceiptData(order, items){
       qty: it.qty,
       unitPrice: Number(it.unit_price), lineTotal: Number(it.line_total),
       note: it.note || '',
-      mods: (it.selected_modifiers || []).map(m=>m.text)
+      mods: (it.selected_modifiers || []).map(m=>({text:m.text, textEn:m.textEn||undefined}))
     };
   });
   const histTableLabel = order.restaurant_tables ? ' — طاولة ' + order.restaurant_tables.number : '';
@@ -4955,7 +4986,7 @@ function buildDbKitchenReceiptData(order, items){
       nameEn: product ? (product.name_en || '') : '',
       qty: it.qty,
       note: it.note || '',
-      mods: (it.selected_modifiers || []).map(m=>m.text)
+      mods: (it.selected_modifiers || []).map(m=>({text:m.text, textEn:m.textEn||undefined}))
     };
   });
   return {
@@ -5611,7 +5642,7 @@ async function openOrderDetail(orderId){
   if(!order){ body.innerHTML = '<p class="pos-auth-sub">تعذر تحميل الطلب.</p>'; return; }
 
   const itemsHtml = (items||[]).map(it=>{
-    const mods = (it.selected_modifiers||[]).map(m=>escapeHtml(m.text)).join('، ');
+    const mods = (it.selected_modifiers||[]).map(m=>escapeHtml((LANG==='en' && m.textEn) ? m.textEn : m.text)).join('، ');
     const product = PRODUCTS.find(p=>p.id===it.menu_item_id);
     const name = escapeHtml(rkProductName(product, it.menu_item_id));
     return `<div class="receipt-detail-row"><span>${it.qty} × ${name}${mods ? ' (' + mods + ')' : ''}${it.note ? ' — ' + escapeHtml(it.note) : ''}</span>${rkMoney(Number(it.line_total))}</div>`;
@@ -6276,7 +6307,7 @@ async function resumePaymentForTable(table){
     subtotal: order.subtotal, discount_amount: order.discount_amount, vat_amount: order.vat_amount, total: order.total,
     items: (items||[]).map(it => {
       const p = PRODUCTS.find(x=>x.id===it.menu_item_id);
-      return { name: p ? p.name : ('منتج #' + it.menu_item_id), qty: it.qty, unitPrice: Number(it.unit_price), lineTotal: Number(it.line_total), mods: (it.selected_modifiers||[]).map(m=>m.text) };
+      return { name: p ? p.name : ('منتج #' + it.menu_item_id), nameEn: p ? (p.name_en || '') : '', qty: it.qty, unitPrice: Number(it.unit_price), lineTotal: Number(it.line_total), mods: (it.selected_modifiers||[]).map(m=>({text:m.text, textEn:m.textEn||undefined})) };
     })
   };
   state.activePaymentMethod = 'cash';
@@ -9125,7 +9156,7 @@ const INCOMING_ORDER_REJECT_REASONS = ['عدم توفر الصنف', 'المطع
 
 function renderIncomingOrderModal(order, items){
   const itemsHtml = items.map(it=>{
-    const mods = (it.selected_modifiers||[]).map(m=>escapeHtml(m.text)).join('، ');
+    const mods = (it.selected_modifiers||[]).map(m=>escapeHtml((LANG==='en' && m.textEn) ? m.textEn : m.text)).join('، ');
     const product = PRODUCTS.find(p=>p.id===it.menu_item_id);
     const name = escapeHtml(rkProductName(product, it.menu_item_id));
     return `<div class="receipt-detail-row"><span>${it.qty} × ${name}${mods ? ' (' + mods + ')' : ''}${it.note ? ' — ' + escapeHtml(it.note) : ''}</span>${rkMoney(Number(it.line_total))}</div>`;

@@ -14,6 +14,19 @@
  * property this ASCII fallback still provides.
  */
 
+/**
+ * A selected-modifier label, e.g. "بدون بصل" or "كبير". Bilingual on
+ * purpose -- same policy as the item's own name/nameEn: the Arabic text
+ * always prints, the English joins it (`text | textEn`) when the option
+ * has one, regardless of the cashier's UI language at print time. A bare
+ * string is still accepted for any old call site that has only ever had
+ * one language for a mod.
+ */
+export interface ReceiptLineMod {
+  text: string;
+  textEn?: string | null;
+}
+
 export interface ReceiptLine {
   name: string;
   /** menu_items.name_en -- يُطبع سطراً تحت الاسم العربي حين يوجد. */
@@ -21,9 +34,9 @@ export interface ReceiptLine {
   qty: number;
   unitPrice: number;
   lineTotal: number;
-  /** Selected-modifier labels for this line, e.g. "بدون بصل" -- ported
-   *  from the PWA's real receipt.items[].mods (renderReceiptCanvas). */
-  mods?: string[];
+  /** Selected-modifier labels for this line -- ported from the PWA's real
+   *  receipt.items[].mods (renderReceiptCanvas). */
+  mods?: Array<string | ReceiptLineMod>;
   /** Cashier free-text note, e.g. "إضافي صوص" -- kitchen ticket only in
    *  the PWA (customer receipt never prints it). */
   note?: string;

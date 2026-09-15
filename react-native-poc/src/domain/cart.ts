@@ -22,6 +22,8 @@ export type OrderChannel = 'dine_in' | 'pickup' | 'delivery';
 export interface ModifierOption {
   id: string;
   name: string;
+  /** modifier_options.name_en (migration 20260908040000). */
+  nameEn?: string | null;
   /** price_delta in the source schema -- added to (or subtracted from,
    *  if negative) the product's base price when selected. */
   price: number;
@@ -31,6 +33,8 @@ export interface ModifierOption {
 export interface ModifierGroup {
   id: string;
   name: string;
+  /** modifier_groups.name_en (migration 20260908040000). */
+  nameEn?: string | null;
   type: 'single' | 'multi';
   /** min_select > 0 (migration 20260909100000). */
   required: boolean;

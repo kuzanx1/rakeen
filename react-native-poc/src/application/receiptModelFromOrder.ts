@@ -49,7 +49,7 @@ export function receiptModelFromOrder(data: ReceiptData): ReceiptModel {
     // The till carries modifiers as plain strings; a priced add-on is
     // already folded into the line total, so it is shown at zero here
     // rather than double-counted.
-    modifiers: (line.mods ?? []).map(label => ({ label, amount: 0 })),
+    modifiers: (line.mods ?? []).map(m => ({ label: typeof m === 'string' ? m : m.text, amount: 0 })),
     note: line.note,
   }));
 

@@ -25,7 +25,7 @@ export {
 export type { ReceiptThemeTokens } from './tokens';
 export type {
   Align, Dir, Family, Ink, DrawOp, TextOp, RectOp, DashOp, ImageOp, GlyphOp,
-  Measurer, ImageSize, ReceiptItem, ReceiptModel, LayoutInput, LayoutResult,
+  Measurer, ImageSize, ReceiptItem, ReceiptItemMod, ReceiptModel, LayoutInput, LayoutResult,
 } from './types';
 export { stubMeasure } from './stubMeasure';
 /* والحالاتُ المرجعيةُ ليست هنا قصداً (`./scenarios`).

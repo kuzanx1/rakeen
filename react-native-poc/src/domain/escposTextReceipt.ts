@@ -167,7 +167,7 @@ export function buildTextReceipt(receipt: ReceiptPrintable, logoKey?: string | n
     // The unit price only earns a line when quantity is more than one; at
     // one it repeats the number already printed beside it.
     if (item.qty > 1) line(`   ${money(item.unitPrice)} x ${item.qty}`);
-    for (const mod of item.mods) line(`   ${mod}`);
+    for (const mod of item.mods) line(`   ${typeof mod === 'string' ? mod : mod.text}`);
   }
 
   t.rule(columns);

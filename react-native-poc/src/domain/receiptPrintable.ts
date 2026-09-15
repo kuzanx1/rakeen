@@ -1,4 +1,4 @@
-import type { ReceiptData, KitchenTicketData } from './receipt';
+import type { ReceiptData, KitchenTicketData, ReceiptLineMod } from './receipt';
 
 /**
  * Feature Parity Pass -- Real Receipt Rendering. Pure (zero-I/O, no
@@ -19,7 +19,7 @@ export interface ReceiptItemPrintable {
   name: string;
   /** menu_items.name_en -- يُطبع مع العربي على السطر نفسه. */
   nameEn: string;
-  mods: string[];
+  mods: Array<string | ReceiptLineMod>;
   qty: number;
   unitPrice: number;
   lineTotal: number;
@@ -64,7 +64,7 @@ export interface KitchenTicketItemPrintable {
   /** الاسم الإنجليزي -- المطبخ فيه من لا يقرأ العربية. */
   nameEn: string;
   name: string;
-  mods: string[];
+  mods: Array<string | ReceiptLineMod>;
   qty: number;
   note: string;
 }
@@ -131,7 +131,7 @@ export function formatArabicDateLabel(date: Date): string {
   }
 }
 
-function toItemPrintable(line: { name: string; nameEn?: string; qty: number; unitPrice?: number; lineTotal: number; mods?: string[]; note?: string }): ReceiptItemPrintable {
+function toItemPrintable(line: { name: string; nameEn?: string; qty: number; unitPrice?: number; lineTotal: number; mods?: Array<string | ReceiptLineMod>; note?: string }): ReceiptItemPrintable {
   return {
     name: line.name,
     nameEn: line.nameEn ?? '',
