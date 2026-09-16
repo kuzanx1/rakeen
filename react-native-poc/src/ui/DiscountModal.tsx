@@ -7,6 +7,8 @@ import { createStyles, fonts, gradients, radii, spacing, useTheme } from './them
 import { toLatinDigits } from '../domain/digits';
 import KeyboardLift from './KeyboardLift';
 import { useI18n } from './i18n';
+import { listDiscountPresets } from '../application/discountService';
+import type { DiscountPreset } from '../application/discountService';
 
 /**
  * Replaces the old inline `.discount-panel` row (5 `flex:1` chips crammed
@@ -42,7 +44,9 @@ export default function DiscountModal({
 }) {
   const { colors } = useTheme();
   const styles = useStyles();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const [presets, setPresets] = useState<DiscountPreset[]>([]);
+  const [pickedPresetId, setPickedPresetId] = useState<number | null>(null);
   const isPreset = PRESET_PERCENTAGES.includes(discountPct);
   const [customMode, setCustomMode] = useState(discountPct > 0 && !isPreset);
   const [customPct, setCustomPct] = useState(discountPct > 0 && !isPreset ? String(discountPct) : '');
@@ -58,6 +62,8 @@ export default function DiscountModal({
     setCustomPct(startsCustom ? String(discountPct) : '');
     setPct(discountPct);
     setReason(discountReason);
+    setPickedPresetId(null);
+    listDiscountPresets().then(setPresets).catch(() => setPresets([]));
   }, [visible, discountPct, discountReason]);
 
   // ١٠٠٪ خصمٌ وارد: ضيافة، أو تعويض شكوى، أو وجبة موظف تُسجَّل طلبًا.
@@ -67,6 +73,18 @@ export default function DiscountModal({
   const pickPreset = (p: number) => {
     setCustomMode(false);
     setPct(p);
+    setPickedPresetId(null);
+  };
+
+  const presetName = (p: DiscountPreset) => (lang === 'en' && p.nameEn ? p.nameEn : p.name);
+
+  /* القالب يملأ النسبة والسبب معًا -- والسبب يُكتب بالاسم العربي دائمًا
+     مهما كانت لغة الشاشة، وإلا انقسم التقرير سطرين لحملةٍ واحدة. */
+  const pickNamedPreset = (preset: DiscountPreset) => {
+    setCustomMode(false);
+    setPct(preset.pct);
+    setReason(preset.name);
+    setPickedPresetId(preset.id);
   };
 
   const confirm = () => {
@@ -91,11 +109,35 @@ export default function DiscountModal({
           </View>
 
           <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+            {presets.length > 0 && (
+              <>
+                <Text style={styles.label}>{t('خصومات جاهزة')}</Text>
+                <View style={styles.presetList}>
+                  {presets.map(pr => {
+                    const on = pickedPresetId === pr.id;
+                    return (
+                      <TouchableOpacity
+                        key={pr.id}
+                        style={[styles.presetCard, on && styles.presetCardOn]}
+                        onPress={() => pickNamedPreset(pr)}
+                        activeOpacity={0.85}>
+                        <Text style={[styles.presetPct, on && styles.presetPctOn]}>{pr.pct}٪</Text>
+                        <Text style={[styles.presetName, on && styles.presetNameOn]} numberOfLines={1}>
+                          {presetName(pr)}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <Text style={styles.orLabel}>{t('أو خصم مخصّص')}</Text>
+              </>
+            )}
+
             {/* Content-sized chips in a wrapping grid -- the actual fix:
                 no flex:1, no shared width to fight over. */}
             <View style={styles.grid}>
               {PRESET_PERCENTAGES.map(p => {
-                const active = !customMode && pct === p;
+                const active = !customMode && pct === p && pickedPresetId === null;
                 return (
                   <TouchableOpacity
                     key={p}
@@ -177,6 +219,28 @@ const useStyles = createStyles(colors =>
     headCircle: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surf2, alignItems: 'center', justifyContent: 'center' },
     closeGlyph: { color: colors.text, fontSize: 13 },
     body: { paddingTop: 18, paddingHorizontal: 22, paddingBottom: 22 },
+
+    /* القالب المسمّى بطاقةٌ عريضة لا رقاقة: اسمُه هو ما يُقرأ، والنسبة
+       تشرحه. ورقاقةٌ بعرض محتواها تقصّ «عروض اليوم الوطني» إلى كلمة. */
+    presetList: { gap: 8, marginBottom: spacing[3] },
+    presetCard: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      paddingVertical: 13, paddingHorizontal: 15,
+      borderRadius: radii.md, borderWidth: 1, borderColor: colors.line,
+      backgroundColor: colors.surf1,
+    },
+    presetCardOn: { backgroundColor: colors.lime, borderColor: colors.lime },
+    presetPct: {
+      fontFamily: fonts.monoBold, fontSize: 15, color: colors.text,
+      minWidth: 46, textAlign: 'center',
+    },
+    presetPctOn: { color: colors.flagGreenDeep },
+    presetName: { fontFamily: fonts.sansBold, fontSize: 13.5, color: colors.text, flex: 1 },
+    presetNameOn: { color: colors.flagGreenDeep },
+    orLabel: {
+      fontFamily: fonts.sansBold, fontSize: 11, color: colors.muted,
+      marginBottom: 8, marginTop: 2,
+    },
 
     // The fix: a wrapping grid of content-sized chips, not a `flex:1` row
     // with no bounded width to divide.

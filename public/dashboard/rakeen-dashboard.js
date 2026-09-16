@@ -8959,6 +8959,9 @@ async function loadReportDetailRows(type, from, to){
         pct: Number(o.discount_pct), amount: Number(o.discount_amount),
         reason: o.discount_reason || '',
         products: productsLabel || '—',
+        // «استخدم ٥٠ منتج خصم اليوم الوطني» -- عدد الأصناف لا الطلبات،
+        // فطلبٌ فيه عشرة أكواب ليس كطلبٍ فيه كوب.
+        itemsCount: its.reduce((n,it)=>n + Number(it.qty || 0), 0),
         cashier: (o.shift_id != null && staffByShift[o.shift_id]) || '—',
       };
     });
@@ -9332,8 +9335,31 @@ function wasteReportHtml(rows){
 
 function discountsReportHtml(rows){
   const total = rows.reduce((s,r)=>s+r.amount,0);
+  /* التجميع بالسبب لا بالنسبة: «خصم ٣٠٪» قد تكون عروض اليوم الوطني
+     وضيافةً وتسويةَ شكوى في سطرٍ واحد. والقالب يكتب اسمه في السبب،
+     فيصير هذا الجدول جوابَ «كم راح على حملة كذا؟». */
+  const byReason = new Map();
+  rows.forEach(r=>{
+    const key = (r.reason && r.reason.trim()) || 'بدون سبب مكتوب';
+    const cur = byReason.get(key) || {orders:0, amount:0, items:0};
+    cur.orders += 1; cur.amount += r.amount; cur.items += (r.itemsCount || 0);
+    byReason.set(key, cur);
+  });
+  const campaigns = [...byReason.entries()].sort((a,b)=>b[1].amount - a[1].amount);
   return `
     <div class="panel-title">تقرير الخصومات — ${REPORT_RANGE_LABEL}</div>
+    ${rows.length === 0 ? '' : `
+    <div class="panel-title" style="margin-top:4px;">على وش راحت</div>
+    <table class="report-table">
+      <thead><tr><th>سبب الخصم / الحملة</th><th>عدد الطلبات</th><th>عدد الأصناف</th><th>المبلغ</th><th>من الإجمالي</th></tr></thead>
+      <tbody>
+        ${campaigns.map(([name, c])=>`<tr>
+          <td>${escapeHtml(name)}</td><td class="mono">${c.orders}</td><td class="mono">${c.items || '—'}</td>
+          <td class="mono">${c.amount.toFixed(2)}</td><td class="mono">${total>0?Math.round(c.amount/total*100):0}٪</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    <div class="panel-title" style="margin-top:18px;">كل طلب</div>`}
     ${rows.length === 0 ? '<div class="orders-empty">ما فيه طلبات فيها خصم بهالفترة</div>' : `
     <div class="report-cards-mobile">${discountsReportCardsHtml(rows)}</div>
     <table class="report-table">
@@ -9527,6 +9553,146 @@ function renderAiSuggestions(){
   });
 }
 
+/* ============ قوالب الخصم =====================================
+   «خصم ٣٠٪» في تقريرٍ لا يقول إن كانت عروض اليوم الوطني أم ضيافةً أم
+   تسويةَ شكوى. فيعرّف صاحب المطعم خصوماته بأسمائها، وتظهر للكاشير
+   أزرارًا جاهزة، ويملأ القالبُ سببَ الخصم بعنوانه -- فتتجمّع إحصاءات
+   التقرير عليه بلا عمودٍ جديد على الطلبات.
+
+   والخصم المفتوح يبقى: قوالبُ بلا حرّيةٍ تعني كاشيرًا يختار أقربها
+   ويكذب على التقرير. */
+let DISCOUNT_PRESETS = [];
+
+async function loadDiscountPresets(){
+  if(!window.supabaseClient || !CURRENT_PROFILE) return;
+  const { data, error } = await window.supabaseClient
+    .from('discount_presets')
+    .select('id, name, name_en, pct, active, sort_order')
+    .eq('business_id', CURRENT_PROFILE.business_id)
+    .order('sort_order').order('id');
+  DISCOUNT_PRESETS = error ? [] : (data || []);
+}
+
+function discountPresetsPanelHtml(){
+  const rows = DISCOUNT_PRESETS.map(p=>`
+    <div class="disc-preset-row ${p.active ? '' : 'off'}" data-id="${p.id}">
+      <div class="disc-preset-pct mono">${Number(p.pct)}٪</div>
+      <div class="disc-preset-names">
+        <div class="disc-preset-name">${escapeHtml(p.name)}</div>
+        <div class="disc-preset-name-en">${p.name_en ? escapeHtml(p.name_en) : '<span class="disc-preset-missing">ما فيه اسم إنجليزي</span>'}</div>
+      </div>
+      <div class="disc-preset-actions">
+        <button class="rk-btn rk-btn-secondary rk-btn-sm disc-preset-toggle" data-id="${p.id}">${p.active ? 'إيقاف' : 'تشغيل'}</button>
+        <button class="rk-btn rk-btn-secondary rk-btn-sm disc-preset-edit" data-id="${p.id}">تعديل</button>
+        <button class="rk-btn rk-btn-secondary rk-btn-sm disc-preset-del" data-id="${p.id}">حذف</button>
+      </div>
+    </div>`).join('');
+
+  return `
+    <div class="rk-section">
+      ${rkSectionHead('award', 'خصومات جاهزة', 'عرّف خصوماتك بأسمائها — تطلع للكاشير زر واحد، وتطلع بالتقارير باسمها لا برقمها')}
+      <p class="stock-qty-helper" style="margin-bottom:16px;">
+        مثال: «عروض اليوم الوطني ٣٠٪». الكاشير يضغطها فينكتب الاسم مع الطلب، وتقدر بعدين تعرف كم طلب راح على هالعرض بالضبط.
+        والخصم المفتوح يبقى موجود للحالات اللي ما لها قالب.
+      </p>
+
+      <div class="disc-preset-list">${rows || '<div class="orders-empty">ما فيه خصومات جاهزة — أضف أول وحدة تحت.</div>'}</div>
+
+      <div class="rk-subcard" style="margin-top:16px;">
+        <div class="rk-subcard-title" id="discPresetFormTitle">خصم جديد</div>
+        <div class="rk-grid-2" style="margin-top:12px;">
+          <div class="rk-field"><label>الاسم بالعربي</label>
+            <input type="text" id="discPresetName" placeholder="عروض اليوم الوطني"></div>
+          <div class="rk-field"><label>الاسم بالإنجليزي ${helpIcon('يظهر للكاشير اللي مشغّل الإنجليزي. لو تركته فاضي بيشوف الاسم العربي.')}</label>
+            <input type="text" id="discPresetNameEn" placeholder="National Day offer"></div>
+          <div class="rk-field"><label>النسبة ٪</label>
+            <input type="number" id="discPresetPct" min="1" max="100" step="1" placeholder="30"></div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+          <button class="rk-btn rk-btn-primary rk-btn-md" id="discPresetSave">حفظ</button>
+          <button class="rk-btn rk-btn-secondary rk-btn-md hidden" id="discPresetCancel">إلغاء التعديل</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+let editingPresetId = null;
+
+function wireDiscountPresets(){
+  const nameEl = document.getElementById('discPresetName');
+  const nameEnEl = document.getElementById('discPresetNameEn');
+  const pctEl = document.getElementById('discPresetPct');
+  const saveBtn = document.getElementById('discPresetSave');
+  const cancelBtn = document.getElementById('discPresetCancel');
+  if(!saveBtn) return;
+
+  const resetForm = ()=>{
+    editingPresetId = null;
+    nameEl.value = ''; nameEnEl.value = ''; pctEl.value = '';
+    document.getElementById('discPresetFormTitle').textContent = 'خصم جديد';
+    cancelBtn.classList.add('hidden');
+  };
+
+  saveBtn.addEventListener('click', async ()=>{
+    const name = nameEl.value.trim();
+    const pct = parseInt(pctEl.value, 10);
+    if(!name){ showToast('اكتب اسم الخصم'); return; }
+    if(!(pct > 0 && pct <= 100)){ showToast('النسبة لازم بين ١ و١٠٠'); return; }
+    rkBtnLoading(saveBtn, true);
+    const payload = { name, name_en: nameEnEl.value.trim() || null, pct };
+    const sb = window.supabaseClient;
+    const { error } = editingPresetId
+      ? await sb.from('discount_presets').update(payload).eq('id', editingPresetId)
+      : await sb.from('discount_presets').insert({ ...payload, business_id: CURRENT_PROFILE.business_id,
+          sort_order: DISCOUNT_PRESETS.length });
+    if(error){ rkBtnLoading(saveBtn, false); showToast('تعذر الحفظ: ' + error.message); return; }
+    logDashboardAudit((editingPresetId ? 'عدّل' : 'أضاف') + ' خصمًا جاهزًا: ' + name + ' ' + pct + '%');
+    resetForm();
+    await loadDiscountPresets();
+    renderPosSettings();
+  });
+
+  cancelBtn.addEventListener('click', resetForm);
+
+  document.querySelectorAll('.disc-preset-edit').forEach(b=> b.addEventListener('click', ()=>{
+    const p = DISCOUNT_PRESETS.find(x=>x.id === parseInt(b.dataset.id, 10));
+    if(!p) return;
+    editingPresetId = p.id;
+    nameEl.value = p.name; nameEnEl.value = p.name_en || ''; pctEl.value = p.pct;
+    document.getElementById('discPresetFormTitle').textContent = 'تعديل: ' + p.name;
+    cancelBtn.classList.remove('hidden');
+    nameEl.focus();
+  }));
+
+  document.querySelectorAll('.disc-preset-toggle').forEach(b=> b.addEventListener('click', async ()=>{
+    const p = DISCOUNT_PRESETS.find(x=>x.id === parseInt(b.dataset.id, 10));
+    if(!p) return;
+    const { error } = await window.supabaseClient.from('discount_presets')
+      .update({ active: !p.active }).eq('id', p.id);
+    if(error){ showToast('تعذر التعديل: ' + error.message); return; }
+    await loadDiscountPresets();
+    renderPosSettings();
+  }));
+
+  document.querySelectorAll('.disc-preset-del').forEach(b=> b.addEventListener('click', async ()=>{
+    const p = DISCOUNT_PRESETS.find(x=>x.id === parseInt(b.dataset.id, 10));
+    if(!p) return;
+    // الطلبات القديمة تحمل اسم الخصم نصًّا لا مفتاحًا، فحذف القالب لا
+    // يمسّ تقاريرها -- ويُقال ذلك صراحةً بدل أن يخاف صاحب المطعم.
+    const ok = await rkAsk({
+      title: 'حذف «' + p.name + '»؟',
+      body: 'الطلبات اللي انخصمت بهذا الخصم تبقى بتقاريرها زي ما هي — الاسم محفوظ معها. بس ما راح يظهر للكاشير بعدين.',
+      ok: 'احذفه', cancel: 'خلّه',
+    });
+    if(!ok) return;
+    const { error } = await window.supabaseClient.from('discount_presets').delete().eq('id', p.id);
+    if(error){ showToast('تعذر الحذف: ' + error.message); return; }
+    logDashboardAudit('حذف خصمًا جاهزًا: ' + p.name);
+    await loadDiscountPresets();
+    renderPosSettings();
+  }));
+}
+
 /* ============ Settings: Restaurant identity + Menu management ============ */
 let activeSettingsTab = 'restaurant';
 document.getElementById('settingsTabs').addEventListener('click', (e)=>{
@@ -9540,12 +9706,15 @@ document.getElementById('settingsTabs').addEventListener('click', (e)=>{
 
 // Order types first: it is the decision every other tab depends on.
 let activePosSettingsTab = 'tables';
-document.getElementById('posSettingsTabs').addEventListener('click', (e)=>{
+document.getElementById('posSettingsTabs').addEventListener('click', async (e)=>{
   const b = e.target.closest('button'); if(!b) return;
   document.querySelectorAll('#posSettingsTabs button').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');
   activePosSettingsTab = b.dataset.tab;
   resetContentScroll();
+  // القوالب تُجلب عند فتح تبويبها لا عند إقلاع اللوحة: قائمةٌ تُفتح
+  // مرّةً في الشهر لا تستحقّ نداءً في كل تسجيل دخول.
+  if(activePosSettingsTab === 'discounts') await loadDiscountPresets();
   renderPosSettings();
 });
 
@@ -11087,8 +11256,10 @@ async function renderPosSettings(){
     tables: orderTypesIntro + dineInMasterPanel + tablesGatedContent,
     kitchen: kitchenPanel + autoReadyPanel,
     branches: managerPinPanel + branchSecurityPanelsHtml,
+    discounts: discountPresetsPanelHtml(),
   };
   panel.innerHTML = POS_SETTINGS_TABS_HTML[activePosSettingsTab] || POS_SETTINGS_TABS_HTML.tables;
+  if(activePosSettingsTab === 'discounts') wireDiscountPresets();
   posSnapshotSwitches();
   panel.addEventListener('change', posRefreshDirty);
 

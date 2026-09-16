@@ -52,6 +52,9 @@ function escapeHtml(value){
 let LANG = 'ar';
 try { LANG = localStorage.getItem('rakeen_pos_lang') || 'ar'; } catch {}
 const I18N_EN = {
+  'خصومات جاهزة': 'Saved discounts',
+  'أو خصم مخصّص': 'Or a custom discount',
+
   /* الهدر -- من مادة الرفّ إلى المنتج التامّ. وسببُ الهدر يُخزَّن
      عربيًّا دائمًا ويُعرض مترجَمًا، فلا تنقسم التقارير بلغة الشاشة. */
   'تسجيل هدر': 'Record waste',
@@ -2377,7 +2380,7 @@ function rkSyncCustomerButton(){
  * لم يكن للصفّ القديم مكانٌ لهما أصلاً.
  */
 const PRESET_DISCOUNT_PCTS = [5, 10, 15, 20];
-let discountModalState = {pct: 0, customMode: false, customPct: '', reason: ''};
+let discountModalState = {pct: 0, customMode: false, customPct: '', reason: '', presetId: null};
 const discountModal = document.getElementById('discountModal');
 
 function syncDiscountToggleLabel(){
@@ -2386,6 +2389,27 @@ function syncDiscountToggleLabel(){
     : (LANG === 'en' ? '+ Discount' : '+ خصم');
 }
 
+/* قوالب الخصم التي عرّفها صاحب المطعم.
+   «خصم ٣٠٪» في تقريرٍ لا يقول إن كانت عروض اليوم الوطني أم ضيافةً أم
+   تسويةَ شكوى. فالقالب يحمل عنوانه ويملأ به سببَ الخصم، فتتجمّع
+   إحصاءات التقرير على الاسم. والخصم المفتوح يبقى إلى جانبها: قوالبُ
+   بلا حرّية تعني كاشيرًا يختار أقربها ويكذب على التقرير.
+   (نظيرها في التطبيق: DiscountModal.tsx) */
+let DISCOUNT_PRESETS_POS = [];
+
+async function loadDiscountPresetsPos(){
+  // قبل ترحيل 20260916090000 لا وجود للجدول -- قائمةٌ فارغة، فتظهر
+  // النافذة بالنِّسَب وحدها بلا خطأ في وجه الكاشير.
+  try {
+    const { data, error } = await window.supabaseClient
+      .from('discount_presets').select('id, name, name_en, pct')
+      .eq('active', true).order('sort_order').order('id');
+    DISCOUNT_PRESETS_POS = error ? [] : (data || []);
+  } catch { DISCOUNT_PRESETS_POS = []; }
+}
+
+function discountPresetName(p){ return (LANG === 'en' && p.name_en) ? p.name_en : p.name; }
+
 function openDiscountModal(){
   const isPreset = PRESET_DISCOUNT_PCTS.includes(state.discountPct);
   discountModalState = {
@@ -2393,9 +2417,11 @@ function openDiscountModal(){
     customMode: state.discountPct > 0 && !isPreset,
     customPct: state.discountPct > 0 && !isPreset ? String(state.discountPct) : '',
     reason: state.discountReason || '',
+    presetId: null,
   };
   renderDiscountModalBody();
   discountModal.classList.add('show');
+  loadDiscountPresetsPos().then(renderDiscountModalBody);
 }
 document.getElementById('discountToggle').addEventListener('click', openDiscountModal);
 document.getElementById('closeDiscountModal').addEventListener('click', ()=> discountModal.classList.remove('show'));
@@ -2411,9 +2437,16 @@ function renderDiscountModalBody(){
   const s = discountModalState;
   const effectivePct = discountModalEffectivePct();
   const body = document.getElementById('discountModalBody');
+  const presetsHtml = DISCOUNT_PRESETS_POS.length ? `
+    <label class="discount-reason-label">${t('خصومات جاهزة')}</label>
+    <div class="discount-preset-list">
+      ${DISCOUNT_PRESETS_POS.map(pr => `<button class="discount-preset-card ${s.presetId===pr.id ? 'active' : ''}" data-preset="${pr.id}"><span class="discount-preset-pct mono">${Number(pr.pct)}٪</span><span class="discount-preset-name">${escapeHtml(discountPresetName(pr))}</span></button>`).join('')}
+    </div>
+    <label class="discount-reason-label">${t('أو خصم مخصّص')}</label>` : '';
   body.innerHTML = `
+    ${presetsHtml}
     <div class="discount-grid">
-      ${PRESET_DISCOUNT_PCTS.map(p => `<button class="discount-chip ${!s.customMode && s.pct===p ? 'active' : ''}" data-pct="${p}">${p}٪</button>`).join('')}
+      ${PRESET_DISCOUNT_PCTS.map(p => `<button class="discount-chip ${!s.customMode && s.pct===p && s.presetId===null ? 'active' : ''}" data-pct="${p}">${p}٪</button>`).join('')}
       <button class="discount-chip ${s.customMode ? 'active' : ''}" id="discountCustomToggle">${t('نسبة أخرى')}</button>
     </div>
     ${s.customMode ? `<input type="text" inputmode="numeric" class="discount-custom-input" id="discountCustomInput" placeholder="0-100" value="${escapeHtml(s.customPct)}">` : ''}
@@ -2422,16 +2455,31 @@ function renderDiscountModalBody(){
     <button class="confirm-pay-btn discount-confirm-btn" id="discountConfirmBtn" ${effectivePct<=0 ? 'disabled' : ''}>${effectivePct>0 ? `${t('تطبيق الخصم')} — ${effectivePct}٪` : t('اختر نسبة')}</button>
     ${state.discountPct > 0 ? `<button class="discount-clear-link" id="discountClearBtn">${t('إلغاء الخصم')}</button>` : ''}
   `;
+  /* القالب يملأ النسبة والسبب معًا -- والسبب يُكتب بالاسم العربي دائمًا
+     مهما كانت لغة الشاشة، وإلا انقسم التقرير سطرين لحملةٍ واحدة. */
+  body.querySelectorAll('.discount-preset-card').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const pr = DISCOUNT_PRESETS_POS.find(x=>x.id === parseInt(btn.dataset.preset, 10));
+      if(!pr) return;
+      discountModalState.customMode = false;
+      discountModalState.pct = Number(pr.pct);
+      discountModalState.reason = pr.name;
+      discountModalState.presetId = pr.id;
+      renderDiscountModalBody();
+    });
+  });
   body.querySelectorAll('.discount-chip[data-pct]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       discountModalState.customMode = false;
       discountModalState.pct = parseInt(btn.dataset.pct, 10);
+      discountModalState.presetId = null;
       renderDiscountModalBody();
     });
   });
   const customToggle = document.getElementById('discountCustomToggle');
   if(customToggle) customToggle.addEventListener('click', ()=>{
     discountModalState.customMode = true;
+    discountModalState.presetId = null;
     renderDiscountModalBody();
     const input = document.getElementById('discountCustomInput');
     if(input) input.focus();

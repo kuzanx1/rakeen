@@ -25,6 +25,9 @@ import { getItem, setItem } from '../infrastructure/mmkvStorage';
  */
 
 const I18N_EN: Record<string, string> = {
+  'خصومات جاهزة': 'Saved discounts',
+  'أو خصم مخصّص': 'Or a custom discount',
+
   /* ما استُجدّ في شاشات الدفع والعميل ونوع الطلب -- نُقل من قاموس الويب
      نفسه. وكلُّ نصٍّ يُكتب في الواجهة ولا يُسجَّل هنا يبقى عربياً على
      جهازٍ لغتُه إنجليزية، والمترجَمُ نصفُه أسوأ من غير المترجَم: يبدو
