@@ -300,7 +300,7 @@ const FOOD_COST_STATS = {pct:31, note:'ضمن المعدل الصحي لمطاع
    prorated to a day, plus any general expenses actually logged today — no
    more solving opex backward to force-match a placeholder profit. Populated
    by recomputeAccounting(), called after loadSalesRealData(). */
-let ACCOUNTING = {revenue:0, discounts:0, netSales:0, vat:0, subtotal:0, cogs:0, deliveryPlatformCost:0, grossProfit:0, opex:0, netProfit:0};
+let ACCOUNTING = {revenue:0, discounts:0, netSales:0, vat:0, subtotal:0, cogs:0, deliveryPlatformCost:0, grossProfit:0, wasteCost:0, opex:0, netProfit:0};
 let TODAY_COGS = 0;
 // real per-order delivery-platform commission+fee+compensation deduction for
 // today's delivery orders (computeOrderDeliveryPlatformCost, same math as the
@@ -308,6 +308,39 @@ let TODAY_COGS = 0;
 // looked exactly as profitable as one sold at the counter, which it isn't.
 let TODAY_DELIVERY_PLATFORM_COST = 0;
 let TODAY_GENERAL_EXPENSES_TOTAL = 0;
+/* كلفة ما هُدر اليوم.
+   كان الهدر يُسجَّل ويُعرض ولا يدخل أي معادلة ربح -- فالفلوس تخرج من
+   الرفّ ولا تخرج من أي رقمٍ يقرأه صاحب المطعم، فيظهر ربحُه أعلى مما
+   هو بمقدار ما هُدر.
+
+   ولا ازدواج مع تكلفة البضاعة المباعة: تلك تُحسب من أصناف الطلبات
+   المباعة وحدها (order_items)، والهدر لا يمرّ ببيع قطّ -- لا سطر له
+   في الطلبات. فالمادتان منفصلتان تمامًا.
+
+   ويُطرح بندًا مستقلًّا بعد مجمل الربح، لا يُضاف إلى COGS: تكلفة
+   البضاعة تبقى «التكلفة النظرية لما بِيع» فتُقارن يومًا بيوم، والفرق
+   بينها وبين الاستهلاك الفعلي هو الهدر نفسه -- ودمجُهما يخفي ذلك
+   الفرق الذي يُقاس به الانضباط. */
+let TODAY_WASTE_COST = 0;
+/* كلفة الهدر بين تاريخين، من waste_log.
+   تُقرأ الكلفة المحفوظة لحظة الواقعة لا تُعاد حسابها: سعر المادة
+   يتغيّر، وربحُ الشهر الماضي يجب أن يبقى كما وقع.
+
+   وقبل ترحيل 20260916090000 لا وجود للجدول -- تُرجَع صفرًا، فتبقى
+   المعادلة كما كانت بلا خطأ في الوجه. */
+async function loadWasteCostBetween(from, to){
+  if(!window.supabaseClient || !CURRENT_PROFILE) return 0;
+  try {
+    let q = window.supabaseClient.from('waste_log').select('cost')
+      .eq('business_id', CURRENT_PROFILE.business_id)
+      .gte('created_at', from.toISOString());
+    if(to) q = q.lt('created_at', to.toISOString());
+    const { data, error } = await q;
+    if(error || !data) return 0;
+    return data.reduce((sum, w)=> sum + (Number(w.cost) || 0), 0);
+  } catch { return 0; }
+}
+
 function recomputeAccounting(){
   const revenue = TODAY.grossSales;
   const discounts = revenue - TODAY.netSales;
@@ -319,8 +352,9 @@ function recomputeAccounting(){
   const grossProfit = subtotal - cogs - deliveryPlatformCost;
   const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).getDate();
   const opex = (getMonthlyFixedCostsTotal() / daysInMonth) + TODAY_GENERAL_EXPENSES_TOTAL;
-  const netProfit = grossProfit - opex;
-  ACCOUNTING = {revenue, discounts, netSales, vat, subtotal, cogs, deliveryPlatformCost, grossProfit, opex, netProfit};
+  const wasteCost = TODAY_WASTE_COST;
+  const netProfit = grossProfit - wasteCost - opex;
+  ACCOUNTING = {revenue, discounts, netSales, vat, subtotal, cogs, deliveryPlatformCost, grossProfit, wasteCost, opex, netProfit};
   TODAY.profit = netProfit; // keeps Home's "الربح الحقيقي" KPI consistent with this same real waterfall
 }
 
@@ -661,6 +695,9 @@ async function loadSalesRealData(){
   const businessId = CURRENT_PROFILE.business_id;
   const startToday = new Date(); startToday.setHours(0,0,0,0);
   const startYesterday = new Date(startToday); startYesterday.setDate(startYesterday.getDate()-1);
+  // نفس نافذة المبيعات بالضبط -- هدرٌ يُحسب على مدّةٍ غير مدّة البيع
+  // يعطي ربحًا لا يطابق أي يوم.
+  TODAY_WASTE_COST = await loadWasteCostBetween(startToday, null);
 
   // payment_status='paid' excludes a pay-after dine-in table still mid-meal
   // — its total isn't real revenue yet, so it shouldn't inflate today's (or
@@ -899,14 +936,15 @@ async function loadSalesRangeData(from, to){
   const daysInRange = Math.max(1, Math.round((to.getTime()-from.getTime())/86400000));
   const subtotal = netSales - vat;
   const opex = (getMonthlyFixedCostsTotal()/30)*daysInRange + expensesTotal;
+  const wasteCost = await loadWasteCostBetween(from, to);
   const grossProfit = subtotal - cogs - deliveryPlatformCost;
-  const netProfit = grossProfit - opex;
+  const netProfit = grossProfit - wasteCost - opex;
 
   const salesByShift = {};
   list.forEach(o=>{ if(o.shift_id) salesByShift[o.shift_id] = (salesByShift[o.shift_id]||0) + Number(o.total); });
 
   return { netSales, ordersCount, avgTicket, sellers, categoryPerf, channelPerf, hourly, paymentBreakdown,
-    revenue, discounts, vat, subtotal, cogs, deliveryPlatformCost, opex, grossProfit, netProfit, expensesTotal, salesByShift };
+    revenue, discounts, vat, subtotal, cogs, deliveryPlatformCost, wasteCost, opex, grossProfit, netProfit, expensesTotal, salesByShift };
 }
 
 function renderSalesRangeSummary(data){
@@ -4313,6 +4351,9 @@ async function refreshTodayAccountingAfterExpenseChange(){
   const { data: todayExpenses } = await sb.from('general_expenses')
     .select('amount').eq('business_id', CURRENT_PROFILE.business_id).gte('spent_at', startToday.toISOString());
   TODAY_GENERAL_EXPENSES_TOTAL = (todayExpenses||[]).reduce((s,e)=>s+Number(e.amount),0);
+  // ويُعاد جلب الهدر هنا أيضًا: شاشة المحاسبة تُفتح بعد ساعاتٍ من إقلاع
+  // اللوحة، وهدرٌ سُجّل في الكاشير بينهما لا يصل إلا بإعادة السؤال.
+  TODAY_WASTE_COST = await loadWasteCostBetween(startToday, null);
   recomputeAccounting();
   renderWaterfall();
   renderOpexBreakdown();
@@ -4759,6 +4800,7 @@ function renderWaterfall(){
     {label:'تكلفة البضاعة المباعة', explain:'التكلفة الحقيقية لمكونات وتغليف كل ما بيع اليوم', amount:-a.cogs, cls:'neg'},
     {label:'عمولات ورسوم تطبيقات التوصيل', explain:'عمولة كل منصة + رسوم توصيلها لطلبات اليوم عبر تطبيقات التوصيل', amount:-a.deliveryPlatformCost, cls:'neg'},
     {label:'مجمل الربح', explain:'المبيعات بعد خصم تكلفة البضاعة وعمولات التوصيل', amount:a.grossProfit, cls:'pos'},
+    {label:'الهدر', explain:'كلفة اللي انسجّل هدره اليوم — مواد ومنتجات', amount:-(a.wasteCost||0), cls:'neg'},
     {label:'المصاريف التشغيلية', explain:'المصاريف الثابتة الشهرية موزّعة على اليوم + مصاريف اليوم الإضافية', amount:-a.opex, cls:'neg'},
     {label:'صافي الربح', explain:'نفس رقم "الربح الحقيقي" بالضبط — كل شي متطابق', amount:a.netProfit, cls:'final'}
   ];
@@ -8757,7 +8799,7 @@ function dailyWasteSectionHtml(d){
         <td class="mono">${Number(r.cost||0).toFixed(2)}</td>
       </tr>`).join('')}</tbody></table>` : ''}
     <div class="report-stat-row total"><span>كلفة الهدر</span><span class="mono">${Number(d.wasteCost||0).toFixed(2)} ر.س</span></div>
-    <p class="stock-qty-helper">الهدر معروض لحاله ولا هو مطروح من صافي الربح فوق — عشان الرقم اللي تعودت تقراه ما يتغير من دون ما تطلب.</p>`;
+    <p class="stock-qty-helper">هذا المبلغ مطروح من صافي الربح فوق — خسارة حقيقية طلعت من الرف. وما هو داخل "تكلفة البضاعة المباعة" عشان تبقى تكلفة اللي انباع بس، فتقدر تقارنها يوم بيوم.</p>`;
 }
 
 
@@ -9167,6 +9209,7 @@ function financialReportHtml(d){
     <div class="report-stat-row"><span>تكلفة البضاعة المباعة</span><span class="mono">${d.cogs.toFixed(2)} ر.س</span></div>
     <div class="report-stat-row"><span>عمولات ورسوم تطبيقات التوصيل</span><span class="mono">${(d.deliveryPlatformCost||0).toFixed(2)} ر.س</span></div>
     <div class="report-stat-row"><span>مجمل الربح</span><span class="mono">${d.grossProfit.toFixed(2)} ر.س</span></div>
+    <div class="report-stat-row"><span>الهدر</span><span class="mono">${Number(d.wasteCost||0).toFixed(2)} ر.س</span></div>
     <div class="report-stat-row"><span>المصاريف التشغيلية</span><span class="mono">${d.opex.toFixed(2)} ر.س</span></div>
     <div class="report-stat-row total"><span>صافي الربح</span><span class="mono">${d.netProfit.toFixed(2)} ر.س</span></div>
   `;
@@ -17508,6 +17551,7 @@ function buildReportPayload(type){
       {label:'تكلفة البضاعة المباعة', value:(d.cogs||0).toFixed(2)+' ر.س'},
       {label:'عمولات ورسوم تطبيقات التوصيل', value:(d.deliveryPlatformCost||0).toFixed(2)+' ر.س'},
       {label:'مجمل الربح', value:(d.grossProfit||0).toFixed(2)+' ر.س'},
+      {label:'الهدر', value:(d.wasteCost||0).toFixed(2)+' ر.س'},
       {label:'المصاريف التشغيلية', value:(d.opex||0).toFixed(2)+' ر.س'},
       {label:'صافي الربح', value:(d.netProfit||0).toFixed(2)+' ر.س', total:true},
     ] };
@@ -25266,6 +25310,9 @@ function rkaAcctWaterfallText(){
   s += '• − تكلفة البضاعة المباعة: ' + n(a.cogs) + ' ر.س — تكلفة مكوّنات وتغليف كل ما بيع اليوم\n';
   s += '• − عمولات ورسوم تطبيقات التوصيل: ' + n(a.deliveryPlatformCost) + ' ر.س\n';
   s += '• = مجمل الربح: ' + n(a.grossProfit) + ' ر.س\n';
+  // بدونه لا تُجمع الأسطر إلى صافي الربح -- والملخّص النصّي يُقرأ
+  // حسابًا لا عنوانًا، فسطرٌ ناقص فيه يعني أن الأرقام لا تنطبق.
+  s += '• − الهدر: ' + n(a.wasteCost || 0) + ' ر.س — كلفة اللي انسجّل هدره اليوم\n';
   s += '• − المصاريف التشغيلية: ' + n(a.opex) + ' ر.س — الثابتة الشهرية موزّعة على اليوم + مصاريف اليوم الإضافية (' + n(b.todayExpenses) + ' ر.س)\n';
   s += '• = صافي الربح: ' + rkaAcctFmt(Number(a.netProfit) || 0) + ' ر.س';
   const margin = (Number(a.netSales) > 0) ? (Number(a.netProfit) / Number(a.netSales) * 100) : 0;
