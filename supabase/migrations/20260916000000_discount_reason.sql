@@ -44,7 +44,7 @@ create or replace function complete_pos_order(
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $cpo_dr$
 declare
   v_order_id bigint;
   v_business_id bigint := current_business_id();
@@ -182,7 +182,7 @@ begin
 
   return v_order_id;
 end;
-$$;
+$cpo_dr$;
 
 -- ============================================================
 -- register_dine_in_order -- السبب يُحفظ عند فتح الطلب فقط، لا عند إضافة
@@ -210,7 +210,7 @@ create or replace function register_dine_in_order(
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $rdo_dr$
 declare
   v_order_id bigint;
   v_business_id bigint := current_business_id();
@@ -353,4 +353,4 @@ begin
 
   return v_order_id;
 end;
-$$;
+$rdo_dr$;
