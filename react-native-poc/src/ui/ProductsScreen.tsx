@@ -42,6 +42,7 @@ import type { Shift } from '../domain/shift';
 import { useCart } from './useCart';
 import { getCachedPosBootstrap, loadPosBootstrap, PosBootstrap } from '../application/posBootstrap';
 import ModifierModal from './ModifierModal';
+import DiscountModal from './DiscountModal';
 import PaymentModal from './PaymentModal';
 import type { AttachedCustomer } from './PaymentModal';
 import type { PaymentResult } from './PaymentModal';
@@ -61,7 +62,6 @@ import { formatArabicTime } from '../domain/arabicDate';
 /** `.slice(0,8)` in renderProductGrid's popular branch. */
 const POPULAR_TAB_SIZE = 8;
 
-const DISCOUNT_OPTIONS = [0, 5, 10, 15, 20];
 const CHANNEL_LABELS: Record<OrderChannel, string> = {
   dine_in: 'محلي',
   pickup: 'سفري',
@@ -364,8 +364,8 @@ export default function ProductsScreen({
     kitchenTicketMode: 'brief',
   });
 
-  /** .discount-panel is `display:none` until .discount-toggle opens it. */
-  const [discountPanelOpen, setDiscountPanelOpen] = useState(false);
+  /** Opens DiscountModal -- replaces the old inline `.discount-panel` row. */
+  const [discountModalOpen, setDiscountModalOpen] = useState(false);
 
   /** Which line currently has its .oi-note-input revealed. The source
    *  tracks this in the DOM by toggling `.open` on that one input; a
@@ -615,7 +615,7 @@ export default function ProductsScreen({
     const pending = cart.rewardArm != null ? 0 : cart.freeRewardCredit;
     const owner = selectedCustomer;
     cart.clearCart();
-    setDiscountPanelOpen(false);
+    setDiscountModalOpen(false);
     setSubmitStatus('تم إفراغ الطلب');
     if (pending > 0 && owner?.id != null) {
       void returnUnusedFreeReward(owner.id, pending).then(back => {
@@ -932,6 +932,7 @@ export default function ProductsScreen({
         customerId: selectedCustomer?.id ?? null,
         discountPct: cart.discountPct,
         discountAmount: cart.totals.discount,
+        discountReason: cart.discountReason || null,
         vatAmount: cart.totals.vat,
         total: cart.totals.total,
         subtotal: cart.totals.subtotal,
@@ -1157,6 +1158,7 @@ export default function ProductsScreen({
         customerId: selectedCustomer?.id ?? null,
         discountPct: cart.discountPct,
         discountAmount: cart.totals.discount,
+        discountReason: cart.discountReason || null,
         vatAmount: cart.totals.vat,
         total: cart.totals.total,
         subtotal: cart.totals.subtotal,
@@ -1266,7 +1268,7 @@ export default function ProductsScreen({
         cart.clearCart(); // safe in the SQLite queue either way, per Checkpoint 5
         // `document.getElementById('discountToggle').textContent = '+ خصم'`
         // (:3269) -- the toggle's label AND its panel go back to rest.
-        setDiscountPanelOpen(false);
+        setDiscountModalOpen(false);
         setSelectedCustomer(null); // transaction fully settled -- start clean for the next customer
         return {
           ok: true,
@@ -1623,10 +1625,15 @@ export default function ProductsScreen({
             )}
           </ScrollView>
 
-          {/* .op-discount-row -- a dashed toggle that EXPANDS the options,
-              which are hidden until then (`.discount-panel{display:none}`
-              / `.open{display:flex}`). This screen previously showed all
-              five percentages permanently, which is a different control. */}
+          {/* .op-discount-row -- the discount toggle now opens a real
+              modal (DiscountModal) instead of expanding an inline row.
+              The inline row's chips used `flex:1` with nothing to divide
+              (the panel View had no bounded width of its own), which
+              collapsed every chip to a blank sliver -- border visible,
+              text gone. A modal has its own fixed width, so a wrapping
+              grid of content-sized chips (same pattern as ModifierModal's
+              options) actually works. Also adds a custom-% input and an
+              optional reason, neither of which fit in the old row. */}
           <View style={styles.opDiscountRow}>
             {/*
               زرُّ العميل جنب الخصم -- وكان في الويب وحده.
@@ -1653,36 +1660,12 @@ export default function ProductsScreen({
             )}
             <TouchableOpacity
               style={[styles.discountToggle, flags.loyaltyEnabled && styles.discountToggleHalf]}
-              onPress={() => setDiscountPanelOpen(o => !o)}
+              onPress={() => setDiscountModalOpen(true)}
               activeOpacity={0.8}>
-              {/* The toggle's own label carries the active state -- the
-                  source rewrites its textContent on pick (:1144). */}
               <Text style={styles.discountToggleText}>
                 {cart.discountPct > 0 ? `خصم ${cart.discountPct}٪ مفعّل` : t('+ خصم')}
               </Text>
             </TouchableOpacity>
-            {discountPanelOpen && (
-              <View style={styles.discountPanel}>
-                {DISCOUNT_OPTIONS.map(pct => {
-                  const active = pct > 0 && cart.discountPct === pct;
-                  return (
-                    <TouchableOpacity
-                      key={pct}
-                      style={[styles.discountChip, active && styles.discountChipActive]}
-                      onPress={() => {
-                        cart.setDiscountPct(pct);
-                        // The panel closes on any pick, إلغاء included.
-                        setDiscountPanelOpen(false);
-                      }}
-                      activeOpacity={0.8}>
-                      <Text style={[styles.discountChipText, active && styles.discountChipTextActive]}>
-                        {pct === 0 ? 'إلغاء' : `${pct}٪`}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
           </View>
 
           {/* The order panel has NO customer chip and NO points-redeem
@@ -1880,6 +1863,17 @@ export default function ProductsScreen({
           }}
         />
       )}
+
+      <DiscountModal
+        visible={discountModalOpen}
+        discountPct={cart.discountPct}
+        discountReason={cart.discountReason}
+        onClose={() => setDiscountModalOpen(false)}
+        onConfirm={(pct, reason) => {
+          cart.setDiscountPct(pct);
+          cart.setDiscountReason(reason);
+        }}
+      />
     </View>
   );
 }
@@ -2396,8 +2390,6 @@ const useStyles = createStyles((colors, shadows) =>
     justifyContent: 'center',
   },
   discountToggleText: { fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.muted },
-  // .discount-panel.open -- `margin-top:8px; gap:6px; display:flex`
-  discountPanel: { flexDirection: 'row', gap: 6, marginTop: 8 },
   // .order-actions -- `padding:8px 18px 14px; gap:6px`
   orderActions: { paddingTop: 8, paddingHorizontal: 18, paddingBottom: 14, gap: 6 },
   // .clear-btn
@@ -2498,20 +2490,6 @@ const useStyles = createStyles((colors, shadows) =>
   qtyButtonText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text },
   // .qty-val
   qtyValue: { fontFamily: fonts.sansBold, fontSize: 11.5, minWidth: 16, textAlign: 'center', color: colors.text },
-  // .disc-btn
-  discountChip: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surf1,
-    alignItems: 'center',
-  },
-  discountChipActive: { backgroundColor: colors.lime, borderColor: colors.lime },
-  discountChipText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text },
-  discountChipTextActive: { color: colors.flagGreenDeep },
   // NOTE: rakeen-pos.css defines a .customer-chip rule, but it's dead CSS
   // -- the real PWA never renders it. Its actual customer-attach flow is
   // a step INSIDE the payment modal (renderCustomerStep(), triggered by

@@ -251,6 +251,7 @@ export function CloseShiftModal({
       // واحدة لمنشأة واحدة لا يجوز أن تنقص لأن الجهاز اختلف.
       grossSales: totals.grossSales,
       discountsTotal: totals.discountsTotal,
+      discountBreakdown: totals.discountBreakdown,
       refundsTotal: totals.refundsTotal,
       refundsCount: totals.refundsCount,
       vatTotal: totals.vatTotal,

@@ -77,6 +77,7 @@ import ErrorBoundary from './src/ui/ErrorBoundary';
 import { WelcomeSplash } from './src/ui/WelcomeSplash';
 import ShiftClosedScreen from './src/ui/ShiftClosedScreen';
 import CashMovementModal from './src/ui/CashMovementModal';
+import WasteModal from './src/ui/WasteModal';
 import type { ClosingReport } from './src/domain/shift';
 
 /** React Native's Hermes runtime has no global `btoa` (unlike a browser) —
@@ -239,6 +240,7 @@ function App(): React.JSX.Element {
   /** businesses.pos_require_manager_pin_for_close. */
   const [requireManagerPin, setRequireManagerPin] = useState(true);
   const [cashMovementOpen, setCashMovementOpen] = useState(false);
+  const [wasteOpen, setWasteOpen] = useState(false);
 
   /** CURRENT_STAFF_MEMBER. `staffPicked` separates "nobody on duty" from
    *  "not asked yet" -- the source lets a branch with no staff carry on
@@ -889,6 +891,12 @@ function App(): React.JSX.Element {
         onReject={handleRejectIncoming}
       />
 
+      <WasteModal
+        visible={wasteOpen}
+        onClose={() => setWasteOpen(false)}
+        onRecorded={setStatusMessage}
+      />
+
       <CashMovementModal
         visible={cashMovementOpen}
         shift={shift}
@@ -1011,6 +1019,7 @@ function App(): React.JSX.Element {
               }
               setCashMovementOpen(true);
             }}
+            onOpenWaste={() => setWasteOpen(true)}
             onOpenShiftSummary={() => setShiftSummaryOpen(true)}
             onCloseShift={() => {
               if (!shift) {
@@ -1148,6 +1157,7 @@ function MoreScreen({
   onRequestManagerApproval,
   onOpenMyDisplay,
   onOpenCashMovement,
+  onOpenWaste,
   onOpenShiftSummary,
   onCloseShift,
   onReprintLastClosing,
@@ -1164,6 +1174,8 @@ function MoreScreen({
   /** Cash in/out of the drawer that is not a sale. */
   onOpenMyDisplay: () => void;
   onOpenCashMovement: () => void;
+  /** الهدر يُسجَّل من الكاشير: من يقع الكوب من يده هو من يسجّله. */
+  onOpenWaste: () => void;
   onOpenShiftSummary: () => void;
   onCloseShift: () => void;
   onReprintLastClosing: () => void;
@@ -1189,6 +1201,11 @@ function MoreScreen({
         <MoreTile label="حركة نقدية" onPress={onOpenCashMovement}>
           <Path d="M12 1v22" stroke={ink} />
           <Path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke={ink} />
+        </MoreTile>
+        <MoreTile label="تسجيل هدر" onPress={onOpenWaste}>
+          <Path d="M3 6h18" stroke={ink} />
+          <Path d="M8 6V4h8v2" stroke={ink} />
+          <Path d="M5 6l1 14h12l1-14" stroke={ink} />
         </MoreTile>
         <MoreTile label="استرجاع مبلغ" onPress={() => onOpenCompletedOrders('refund')}>
           <Polyline points="9 14 4 9 9 4" stroke={ink} />

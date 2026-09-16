@@ -1362,6 +1362,7 @@ async function openOrderDetailModal(orderId){
       <div class="cpb-row"><span>المجموع الفرعي</span>${rkMoney(order.subtotal)}</div>
       ${order.delivery_fee > 0 ? `<div class="cpb-row"><span>رسوم التوصيل</span>${rkMoney(order.delivery_fee)}</div>` : ''}
       ${order.discount_amount > 0 ? `<div class="cpb-row"><span>الخصم</span>${rkMoney(-order.discount_amount)}</div>` : ''}
+      ${order.discount_amount > 0 && order.discount_reason ? `<div class="cpb-row"><span style="color:var(--muted); font-size:11px; font-weight:600;">سبب الخصم: ${escapeHtml(order.discount_reason)}</span></div>` : ''}
       <div class="cpb-row"><span>الضريبة</span>${rkMoney(order.vat_amount)}</div>
       <div class="cpb-row total"><span>الإجمالي</span>${rkMoney(order.total)}</div>
       <div class="cpb-row"><span>طريقة الدفع</span><span class="mono">${ORDER_PAYMENT_LABELS[order.payment_method] || order.payment_method}</span></div>
@@ -1652,6 +1653,303 @@ function renderOrdersBySource(){
 function realFoodCostPct(){
   return ACCOUNTING.subtotal > 0 ? Math.round(ACCOUNTING.cogs/ACCOUNTING.subtotal*100) : null;
 }
+/* ============ أفعال المخزون الثلاثة ============
+   استلام كمية / جرد / هدر. كلٌّ لوحةٌ صغيرة تسأل سؤالًا واحدًا، ولكلٍّ
+   صندوق «قبل التأكيد» يقول ماذا سيحدث -- فلا يؤكّد وهو يخمّن.
+
+   والكمية ما عادت حقلًا يُكتب في نموذج الصنف: من أراد رفعها فاستلام،
+   ومن أراد تصحيحها فجرد، ومن أراد إنقاصها فهدر. هكذا لكل تغيّر بابٌ
+   معلوم وسببٌ مكتوب، ولا يبقى في السجلّ سطرٌ بلا تفسير. */
+const WASTE_REASONS = ['تلف', 'انسكاب', 'انتهت الصلاحية', 'خطأ تحضير', 'أخرى'];
+let siActiveAction = null;
+let siActState = {};
+
+function siUnitOptions(baseUnit){
+  const opts = isVolumeUnit(baseUnit) ? ['liter','ml'] : (baseUnit==='piece' ? ['piece'] : ['kg','g']);
+  return opts.map(u=>`<option value="${u}" ${u===baseUnit?'selected':''}>${UNIT_LABELS[u]}</option>`).join('');
+}
+
+function renderStockActionPanel(){
+  const host = document.getElementById('siActPanel');
+  if(!host) return;
+  document.querySelectorAll('.si-act-btn').forEach(b=>
+    b.classList.toggle('active', b.dataset.act === siActiveAction));
+  if(!siActiveAction){ host.innerHTML = ''; host.classList.remove('open'); return; }
+  host.classList.add('open');
+
+  const item = STOCK_ITEMS.find(s=>s.id===editingStockId) || {};
+  const unitLabel = UNIT_LABELS[item.unit] || '';
+  const st = siActState;
+
+  if(siActiveAction === 'receive'){
+    const added = rkaToBaseLocal(st.qty||0, st.unit||item.unit, item.unit, item.gramsPerUnit);
+    const after = (item.qtyOnHand||0) + added;
+    const newCost = (st.priceMode==='new' && st.amount>0 && after>0)
+      ? ((item.qtyOnHand||0)*(item.unitCost||0) + st.amount) / after
+      : (item.unitCost||0);
+    host.innerHTML = `
+      <div class="si-field-label">كم أضفت؟</div>
+      <div class="si-row">
+        <input type="number" id="siRecQty" value="${st.qty||''}" step="0.01" placeholder="0" inputmode="decimal">
+        <select id="siRecUnit">${siUnitOptions(item.unit)}</select>
+      </div>
+
+      <div class="si-field-label">بكم؟</div>
+      <label class="si-choice ${st.priceMode!=='new'?'on':''}">
+        <input type="radio" name="siPrice" value="same" ${st.priceMode!=='new'?'checked':''}>
+        <span>نفس السعر السابق — ${formatUnitCost(item.unitCost||0)} ر.س / ${unitLabel}</span>
+      </label>
+      <label class="si-choice ${st.priceMode==='new'?'on':''}">
+        <input type="radio" name="siPrice" value="new" ${st.priceMode==='new'?'checked':''}>
+        <span>سعر جديد — اكتب المبلغ المدفوع</span>
+      </label>
+      ${st.priceMode==='new' ? `
+      <div class="si-row si-sub">
+        <input type="number" id="siRecAmount" value="${st.amount||''}" step="0.01" placeholder="0.00" inputmode="decimal">
+        <span class="si-suffix">ر.س للكمية كلها</span>
+      </div>` : ''}
+
+      <div class="si-preview">
+        <div><span>الرصيد بعدها</span><b class="mono">${(after).toLocaleString('en-US',{maximumFractionDigits:2})} ${unitLabel}</b></div>
+        <div><span>متوسط التكلفة</span><b class="mono">${
+          st.priceMode==='new' && st.amount>0
+            ? formatUnitCost(item.unitCost||0) + ' ← ' + formatUnitCost(newCost)
+            : formatUnitCost(item.unitCost||0) + ' — بلا تغيير'}</b></div>
+      </div>
+      <button type="button" class="settings-save-btn si-confirm" id="siActConfirm" ${!(st.qty>0)?'disabled':''}>تأكيد الإضافة</button>`;
+  }
+
+  if(siActiveAction === 'count'){
+    const counted = st.counted;
+    const diff = (counted === undefined || counted === null || counted === '') ? null : counted - (item.qtyOnHand||0);
+    const bigDiff = diff !== null && (item.qtyOnHand||0) > 0 && Math.abs(diff)/(item.qtyOnHand||1) > 0.10;
+    host.innerHTML = `
+      <div class="si-recorded">المسجّل عندنا: <b class="mono">${(item.qtyOnHand||0).toLocaleString('en-US',{maximumFractionDigits:2})} ${unitLabel}</b></div>
+      <div class="si-field-label">كم وزنت فعلاً؟</div>
+      <div class="si-row">
+        <input type="number" id="siCountQty" value="${counted??''}" step="0.01" placeholder="0" inputmode="decimal">
+        <span class="si-suffix">${unitLabel}</span>
+      </div>
+      ${diff !== null && Math.abs(diff) > 0.0001 ? `
+      <div class="si-preview ${diff<0?'warn':''}">
+        <div><span>${diff<0?'ناقص':'زائد'}</span><b class="mono">${Math.abs(diff).toLocaleString('en-US',{maximumFractionDigits:2})} ${unitLabel} · ${(Math.abs(diff)*(item.unitCost||0)).toFixed(2)} ر.س</b></div>
+      </div>` : ''}
+      ${bigDiff ? `<div class="si-field-label">الفرق كبير — اكتب سببه</div>` : `<div class="si-field-label">ملاحظة (اختياري)</div>`}
+      <input type="text" id="siCountNote" value="${escapeHtml(st.note||'')}" placeholder="${bigDiff?'مثال: تلف لم يُسجَّل':'اختياري'}">
+      <button type="button" class="settings-save-btn si-confirm" id="siActConfirm" ${
+        (diff===null || Math.abs(diff)<=0.0001 || (bigDiff && !(st.note||'').trim())) ? 'disabled' : ''}>تأكيد الجرد</button>`;
+  }
+
+  if(siActiveAction === 'waste'){
+    const lost = rkaToBaseLocal(st.qty||0, st.unit||item.unit, item.unit, item.gramsPerUnit);
+    host.innerHTML = `
+      <div class="si-field-label">كم راح؟</div>
+      <div class="si-row">
+        <input type="number" id="siWasteQty" value="${st.qty||''}" step="0.01" placeholder="0" inputmode="decimal">
+        <select id="siWasteUnit">${siUnitOptions(item.unit)}</select>
+      </div>
+      <div class="si-field-label">السبب</div>
+      <div class="si-chips">${WASTE_REASONS.map(r=>
+        `<button type="button" class="si-chip ${st.reason===r?'on':''}" data-reason="${r}">${r}</button>`).join('')}</div>
+      ${st.reason==='أخرى' ? `<input type="text" id="siWasteOther" value="${escapeHtml(st.other||'')}" placeholder="اكتب السبب">` : ''}
+      <div class="si-preview warn">
+        <div><span>الرصيد بعدها</span><b class="mono">${((item.qtyOnHand||0)-lost).toLocaleString('en-US',{maximumFractionDigits:2})} ${unitLabel}</b></div>
+        <div><span>كلفة الهدر</span><b class="mono">${(lost*(item.unitCost||0)).toFixed(2)} ر.س</b></div>
+      </div>
+      <button type="button" class="settings-save-btn si-confirm" id="siActConfirm" ${
+        !(st.qty>0 && st.reason && (st.reason!=='أخرى' || (st.other||'').trim())) ? 'disabled' : ''}>تسجيل الهدر</button>`;
+  }
+
+  wireStockActionPanel();
+}
+
+/** نظير rka_to_base في SQL -- للمعاينة قبل التأكيد فقط؛ الخادم هو الحكم. */
+function rkaToBaseLocal(qty, from, stock, gpu){
+  const q = Number(qty)||0;
+  if(!q) return 0;
+  if(from === stock) return q;
+  if(['g','kg'].includes(from) && ['g','kg'].includes(stock))
+    return q * (from==='kg'?1000:1) / (stock==='kg'?1000:1);
+  if(['ml','liter'].includes(from) && ['ml','liter'].includes(stock))
+    return q * (from==='liter'?1000:1) / (stock==='liter'?1000:1);
+  if(['ml','liter'].includes(stock) && ['g','kg'].includes(from) && gpu > 0)
+    return (q * (from==='kg'?1000:1)) / gpu;
+  return q;
+}
+
+function wireStockActionPanel(){
+  const bind = (id, ev, fn)=>{ const el = document.getElementById(id); if(el) el.addEventListener(ev, fn); };
+  bind('siRecQty','input', e=>{ siActState.qty = parseFloat(e.target.value)||0; renderStockActionPanel(); });
+  bind('siRecUnit','change', e=>{ siActState.unit = e.target.value; renderStockActionPanel(); });
+  bind('siRecAmount','input', e=>{ siActState.amount = parseFloat(e.target.value)||0; renderStockActionPanel(); });
+  document.querySelectorAll('input[name="siPrice"]').forEach(r=> r.addEventListener('change', ()=>{
+    siActState.priceMode = r.checked ? r.value : siActState.priceMode; renderStockActionPanel();
+  }));
+  bind('siCountQty','input', e=>{ siActState.counted = e.target.value===''?undefined:(parseFloat(e.target.value)||0); renderStockActionPanel(); });
+  bind('siCountNote','input', e=>{ siActState.note = e.target.value; });
+  bind('siWasteQty','input', e=>{ siActState.qty = parseFloat(e.target.value)||0; renderStockActionPanel(); });
+  bind('siWasteUnit','change', e=>{ siActState.unit = e.target.value; renderStockActionPanel(); });
+  bind('siWasteOther','input', e=>{ siActState.other = e.target.value; renderStockActionPanel(); });
+  document.querySelectorAll('#siActPanel .si-chip').forEach(c=> c.addEventListener('click', ()=>{
+    siActState.reason = c.dataset.reason; renderStockActionPanel();
+  }));
+  bind('siActConfirm','click', runStockAction);
+}
+
+async function runStockAction(){
+  const btn = document.getElementById('siActConfirm');
+  const item = STOCK_ITEMS.find(s=>s.id===editingStockId);
+  if(!item || !btn) return;
+  btn.disabled = true;
+  const sb = window.supabaseClient;
+  const st = siActState;
+  try {
+    let res;
+    if(siActiveAction === 'receive'){
+      res = await sb.rpc('rk_receive_stock', {
+        p_stock_item_id: item.id, p_qty: st.qty,
+        p_total_cost: st.priceMode==='new' && st.amount>0 ? st.amount : null,
+        p_unit: st.unit || item.unit, p_note: 'استلام كمية',
+      });
+    } else if(siActiveAction === 'count'){
+      res = await sb.rpc('rk_stocktake', {
+        p_stock_item_id: item.id, p_counted_qty: st.counted, p_note: (st.note||'').trim() || null,
+      });
+    } else {
+      res = await sb.rpc('rk_record_waste', {
+        p_stock_item_id: item.id, p_qty: st.qty,
+        p_reason: st.reason === 'أخرى' ? (st.other||'').trim() : st.reason,
+        p_unit: st.unit || item.unit,
+      });
+    }
+    if(res.error) throw res.error;
+    const out = res.data || {};
+    if(out.qtyAfter != null) item.qtyOnHand = Number(out.qtyAfter);
+    if(out.unitCost != null) item.unitCost = Number(out.unitCost);
+    if(item.qtyOnHand > (item.parLevel||0)){ item.parLevel = item.qtyOnHand; item.parIsSet = true; }
+
+    showToast(siActiveAction==='receive' ? 'انضافت الكمية'
+            : siActiveAction==='count'   ? 'تم الجرد'
+            : 'انسجّل الهدر');
+    siActiveAction = null; siActState = {};
+    renderStockActionPanel();
+    document.getElementById('siQtyOnHandView') && (document.getElementById('siQtyOnHandView').textContent =
+      item.qtyOnHand.toLocaleString('en-US',{maximumFractionDigits:2}));
+    renderStockItemLedger(item.id);
+    renderStockTable();
+    renderWasteAndFoodCost();
+  } catch(err){
+    const msg = (err && err.message) ? err.message : 'تعذر التنفيذ';
+    showToast(/rk_receive_stock|rk_record_waste|rk_stocktake|PGRST202/.test(msg)
+      ? 'هذي الميزة تحتاج تشغيل ترحيل قاعدة البيانات أولًا'
+      : msg);
+    btn.disabled = false;
+  }
+}
+
+/** أسماء أسباب الحركة كما تُقرأ، لا كما تُخزَّن. */
+const STOCK_MOVE_REASONS = {
+  sale:     {label:'بيع',            cls:'out'},
+  refund:   {label:'استرجاع',        cls:'in'},
+  indirect: {label:'استهلاك تلقائي', cls:'out'},
+  purchase: {label:'استلام كمية',    cls:'in'},
+  waste:    {label:'هدر',            cls:'out'},
+  count:    {label:'جرد',            cls:'neutral'},
+  manual:   {label:'تعديل يدوي',     cls:'neutral'},
+};
+const STOCK_MOVE_SOURCES = {
+  recipe:'وصفة', modifier:'خيار', box:'بوكس', finished_good:'صنف جاهز',
+  indirect:'قاعدة تلقائية', reversal:'عكس البيع', receipt:'استلام',
+  invoice:'فاتورة', invoice_deleted:'حذف فاتورة', waste:'هدر', count:'جرد',
+  recipe_legacy:'وصفة (طلب قديم)', finished_good_legacy:'صنف جاهز (طلب قديم)',
+};
+
+/**
+ * سجلّ حركة صنف مخزون واحد.
+ *
+ * كل خصمٍ وكل إرجاعٍ يكتب سطره في stock_movements (ترحيل 20260916030000)،
+ * ومعه الكمية قبل وبعد ورقم الطلب. فيُقرأ السطر وحده بلا حساب:
+ * «كان 5500، طلب #398 خصم 20، صار 5480».
+ *
+ * وهذا ما كان ناقصًا حين ظهر أن استرجاعًا أعاد 48 من 108: لم يكن في
+ * النظام موضعٌ يُسأل فيه «ما الذي جرى لهذي المادة؟».
+ */
+async function renderStockItemLedger(stockItemId){
+  const host = document.getElementById('siLedgerBody');
+  if(!host || !window.supabaseClient) return;
+  const { data, error } = await window.supabaseClient
+    .from('stock_movements')
+    .select('delta, qty_before, qty_after, reason, source, order_id, note, created_at')
+    .eq('stock_item_id', stockItemId)
+    .order('created_at', {ascending:false})
+    .limit(50);
+
+  if(error){
+    // الجدول ما انسوّى بعد (الترحيل ما شُغّل) -- يُقال السبب بدل صمتٍ مُربك.
+    host.innerHTML = '<div class="si-ledger-empty">سجلّ الحركة ما يشتغل بعد — يحتاج تشغيل ترحيل قاعدة البيانات.</div>';
+    return;
+  }
+  if(!data || data.length === 0){
+    host.innerHTML = '<div class="si-ledger-empty">ما فيه حركة مسجّلة لهذا الصنف بعد. أول بيع أو استرجاع بيظهر هنا.</div>';
+    return;
+  }
+
+  const unit = UNIT_LABELS[(STOCK_ITEMS.find(s=>s.id===stockItemId)||{}).unit] || '';
+  host.innerHTML = '<div class="si-ledger">' + data.map(m=>{
+    const r = STOCK_MOVE_REASONS[m.reason] || {label:m.reason, cls:'neutral'};
+    const src = STOCK_MOVE_SOURCES[m.source] || '';
+    const delta = Number(m.delta);
+    const sign = delta > 0 ? '+' : '';
+    const when = new Date(m.created_at).toLocaleString('ar-SA',
+      {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+    return `<div class="si-ledger-row ${r.cls}">
+      <div class="slr-head">
+        <span class="slr-reason">${r.label}${src ? ' · ' + src : ''}</span>
+        ${m.order_id ? `<span class="slr-order mono">طلب #${m.order_id}</span>` : ''}
+        <span class="slr-when mono">${when}</span>
+      </div>
+      <div class="slr-math mono">${Number(m.qty_before)} ${unit} <span class="slr-arrow">←</span> <b>${sign}${delta}</b> <span class="slr-arrow">←</span> ${Number(m.qty_after)} ${unit}</div>
+      ${m.note ? `<div class="slr-note">${escapeHtml(m.note)}</div>` : ''}
+    </div>`;
+  }).join('') + '</div>'
+    + (data.length >= 50 ? '<div class="si-ledger-empty">— آخر ٥٠ حركة —</div>' : '');
+}
+
+/**
+ * إعادة قراءة كميات المخزون من الخادم.
+ *
+ * STOCK_ITEMS تُحمَّل مرّةً واحدة عند إقلاع اللوحة ولا تُسأل بعدها أبدًا.
+ * فصاحب المطعم يفتح «المخزون»، ويبيع الكاشير عشرين كوبًا، ثم يرجع إلى
+ * الشاشة نفسها فيجد الأرقام كما تركها -- لأن الصفحة لم تسأل الخادم
+ * ثانيةً، لا لأن شيئًا لم يُخصم. والخصم واقعٌ في القاعدة طوال الوقت
+ * (مُثبت: ٥٠٠ طلب متتابع بلا انحراف).
+ *
+ * وهذا أول ما يُقرأ على أنه «المخزون ما ينقص» -- وهو أخطر أنواع الأعطال:
+ * عطلٌ في العرض يُتَّهم به الحساب.
+ *
+ * تُحدَّث الكميات وحدها؛ الحقول المشتقّة (الكثافة، الاستهلاك التلقائي،
+ * الأسماء البديلة) تبقى كما حُمّلت.
+ */
+async function refreshStockQuantities(){
+  const businessId = CURRENT_PROFILE && CURRENT_PROFILE.business_id;
+  if(!businessId || !window.supabaseClient) return;
+  const { data, error } = await window.supabaseClient
+    .from('stock_items').select('id, qty_on_hand, par_level')
+    .eq('business_id', businessId);
+  if(error || !data) return;
+  const byId = {};
+  data.forEach(r=>{ byId[r.id] = r; });
+  STOCK_ITEMS.forEach(s=>{
+    const r = byId[s.id];
+    if(!r) return;
+    const qty = Number(r.qty_on_hand);
+    const par = Number(r.par_level);
+    s.qtyOnHand = qty;
+    s.parLevel  = par > 0 ? par : qty;
+    s.parIsSet  = par > 0;
+  });
+}
+
 function renderWasteAndFoodCost(){
   // The old "نسبة الهدر" (waste %) card was a hardcoded constant
   // (WASTE_STATS = {pct:7, monthlyCost:3200}) shown as if real on every
@@ -1692,17 +1990,21 @@ function computeTodayConsumption(stockItemName){
   // totalQty = كم من هذا الصنف استُهلك اليوم (بوحدته) عبر كل ما بيع من منتجات
   // مرتبطة بالمخزون. unitsSold = عدد القطع المباعة من تلك المنتجات — لا "عدد
   // الطلبات" (ALL_SELLERS مُجمَّع بالمنتج، ما فيه معلومة على مستوى الطلب).
-  let totalQty = 0, unitsSold = 0;
+  let totalQty = 0, unitsSold = 0, qtyKnown = true;
   MENU_ITEMS.forEach(item=>{
     if(!item.linkInventory || item.costMode!=='recipe') return;
+    // الارتباط يُعرف من recipeStockIds المحمّلة دائمًا. أما `recipe`
+    // (الكميات) فلا تُجلب إلا لمنتجٍ فُتح محرّره -- وكان الاعتماد عليها
+    // وحدها يجعل هذا السطر يطبع «استهلك اليوم 0.00» أبداً.
+    if(!(item.recipeStockIds||[]).includes(stockItem.id)) return;
     const sold = ALL_SELLERS.find(a=>a.name===item.name);
     if(!sold) return;
-    const lines = (item.recipe||[]).filter(r=>r.ingredient === stockItemName);
-    if(lines.length === 0) return;
-    lines.forEach(r=>{ totalQty += convertToUnit(r.qty, r.unit, stockItem.unit, stockItem.gramsPerUnit) * sold.qty; });
     unitsSold += sold.qty; // مرة واحدة لكل منتج، لا لكل سطر وصفة
+    const lines = (item.recipe||[]).filter(r=>r.ingredient === stockItemName);
+    if(lines.length === 0){ qtyKnown = false; return; } // مرتبط، لكن كميته غير محمّلة
+    lines.forEach(r=>{ totalQty += convertToUnit(r.qty, r.unit, stockItem.unit, stockItem.gramsPerUnit) * sold.qty; });
   });
-  return {totalQty, unitsSold, orderCount: unitsSold};
+  return {totalQty, unitsSold, orderCount: unitsSold, qtyKnown};
 }
 
 function stockRowHtml(s, usedInMap){
@@ -1730,8 +2032,13 @@ function stockRowHtml(s, usedInMap){
       </div>
       <div class="mtr-price mono">${formatUnitCost(s.unitCost)} / ${UNIT_LABELS[s.unit]}</div>
       <div class="mtr-stock-bar-cell">
-        <div class="stock-bar-track"><div class="stock-bar-fill ${tier}" style="width:${pct}%"></div></div>
-        <span class="mtr-stock-pct mono">${pct}٪</span>
+        ${s.parIsSet === false
+          // بلا أساسٍ مسجَّل تكون النسبة ١٠٠٪ حسابيًا دائمًا (الموجود ÷ الموجود).
+          // شريطٌ أخضر ممتلئ هنا يقول «مخزونك كامل» عن صنفٍ قد يكون على وشك
+          // النفاد، ولا يرفع تنبيهًا أبدًا. فلا يُرسم، ويُقال السبب.
+          ? `<span class="mtr-stock-nobase">بلا مخزون معتاد</span>`
+          : `<div class="stock-bar-track"><div class="stock-bar-fill ${tier}" style="width:${pct}%"></div></div>
+        <span class="mtr-stock-pct mono">${pct}٪</span>`}
       </div>
       <div class="mth-col-modused"><span class="mtr-mod-used"${usedBy ? ` title="${escapeHtml(usedBy.join('، '))}"` : ''}>${usedBy ? escapeHtml(usedBy.slice(0,2).join('، ')) + (usedBy.length>2 ? ' +'+(usedBy.length-2) : '') : 'غير مرتبط'}</span></div>
       <div class="mtr-action"><button class="mtr-edit-btn" data-id="${s.id}">تعديل</button></div>
@@ -1777,7 +2084,16 @@ function renderStockTable(){
   }
   const raw = filtered.filter(s=>s.category!=='packaging');
   const packaging = filtered.filter(s=>s.category==='packaging');
-  el.innerHTML = stockCatGroupHtml('raw', 'مواد خام أساسية', raw, usedInMap) + stockCatGroupHtml('packaging', 'تغليف ومستلزمات', packaging, usedInMap);
+  // منتجات تبيع بلا ما تنقص شيئًا: أول ما يُسأل عنه حين «المخزون ما نقص».
+  // يُقال هنا لأن هنا يقف صاحب المطعم وهو يسأل، لا في شاشة القائمة.
+  const noRecipe = productsLinkedWithNoRecipe();
+  const noRecipeBanner = noRecipe.length ? `
+    <div class="stock-no-recipe-banner">
+      <div class="snrb-head">⚠️ ${noRecipe.length} منتج يبيع بدون ما ينقص المخزون</div>
+      <div class="snrb-body">هذي المنتجات مربوطة بالمخزون لكن ما لها وصفة (ولا مكوّن واحد)، فالكاشير يبيعها وما ينزل منها شيء. افتح كل واحد من: القائمة ← تعديل المنتج ← التكلفة والمخزون، وأضف مكوّناته.</div>
+      <div class="snrb-chips">${noRecipe.slice(0,12).map(m=>`<span class="snrb-chip">${escapeHtml(m.name)}</span>`).join('')}${noRecipe.length>12 ? `<span class="snrb-chip snrb-more">+${noRecipe.length-12}</span>` : ''}</div>
+    </div>` : '';
+  el.innerHTML = noRecipeBanner + stockCatGroupHtml('raw', 'مواد خام أساسية', raw, usedInMap) + stockCatGroupHtml('packaging', 'تغليف ومستلزمات', packaging, usedInMap);
 
   el.querySelectorAll('.menu-table-row').forEach(row=>{
     row.addEventListener('click', ()=> openStockItemModal(parseInt(row.dataset.id)));
@@ -1835,6 +2151,14 @@ function openStockItemModal(stockId){
     <div class="stock-live-bar-box" id="siLiveBarBox"></div>
 
     ${existing ? `
+    <div class="si-actions" id="siActions">
+      <button type="button" class="si-act-btn" data-act="receive">أضفت كمية</button>
+      <button type="button" class="si-act-btn" data-act="count">جرد</button>
+      <button type="button" class="si-act-btn" data-act="waste">هدر</button>
+    </div>
+    <div class="si-act-panel" id="siActPanel"></div>` : ''}
+
+    ${existing ? `
     <div class="advanced-section" style="margin-top:16px;">
       <div class="advanced-toggle-row" id="parAdvancedToggle">
         <div class="panel-subtitle">تعديل «مخزونك المعتاد» من هذا الصنف (اختياري)</div>
@@ -1848,23 +2172,47 @@ function openStockItemModal(stockId){
 
     <div id="siAutoConsumption" style="margin-top:16px;"></div>
 
-    ${existing ? `<div class="accounting-note" style="margin-top:16px;">استهلك اليوم من هذا الصنف: <b>${consumption.totalQty.toFixed(2)} ${UNIT_LABELS[existing.unit]}</b> عبر ${consumption.unitsSold} قطعة مباعة اليوم — محسوبة تلقائيًا من وصفات المنتجات المرتبطة بالمخزون.</div>` : ''}
+    ${existing ? (consumption.unitsSold === 0
+      ? `<div class="accounting-note" style="margin-top:16px;">ما بيع اليوم أي منتج يستهلك هذا الصنف.</div>`
+      : consumption.qtyKnown
+        ? `<div class="accounting-note" style="margin-top:16px;">استهلك اليوم من هذا الصنف: <b>${consumption.totalQty.toFixed(2)} ${UNIT_LABELS[existing.unit]}</b> عبر ${consumption.unitsSold} قطعة مباعة اليوم — محسوبة تلقائيًا من وصفات المنتجات المرتبطة بالمخزون.</div>`
+        // كميات الوصفة مشفّرة ولا تُجلب إلا لمنتجٍ يُفتح محرّره، فلا يُطبع
+        // رقمٌ ناقص كأنه كامل. العدد المباع معروف، فيُقال وحده.
+        : `<div class="accounting-note" style="margin-top:16px;">بيع اليوم <b>${consumption.unitsSold} قطعة</b> من منتجات تستهلك هذا الصنف.</div>`) : ''}
     ${existing ? (()=>{
       const usedBy = getUsedInMap()[existing.name];
       return `<div class="accounting-note" style="margin-top:8px;">${usedBy && usedBy.length
         ? 'يُستخدم بوصفة: <b>' + usedBy.map(escapeHtml).join('، ') + '</b>'
         : 'غير مرتبط بوصفة أي منتج حاليًا — حذفه ما يأثر على القائمة.'}</div>`;
     })() : ''}
+
+    ${existing ? `
+    <div class="advanced-section" style="margin-top:18px;">
+      <div class="advanced-toggle-row" id="siLedgerToggle">
+        <div class="panel-subtitle">سجلّ حركة هذا الصنف</div>
+        <svg class="advanced-chevron open" id="siLedgerChevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="advanced-body open" id="siLedgerBody">
+        <div class="si-ledger-loading">جارٍ تحميل السجلّ...</div>
+      </div>
+    </div>` : ''}
   `;
   const updatePctPreview = ()=>{
     const par = stockModalState.parLevel;
     const pct = par>0 ? Math.max(0,Math.min(100,Math.round(stockModalState.qtyOnHand/par*100))) : 100;
     const tier = computeStockTier(pct);
     const unitLabel = UNIT_LABELS[stockModalState.unit];
-    document.getElementById('siLiveBarBox').innerHTML = existing ? (par > 0 ? `
+    // بلا أساسٍ اختاره صاحب المطعم، الأساس هو الموجود الآن -- فالكسر
+    // ‏«٣٣٩ من ٣٣٩» يساوي ١٠٠٪ دائمًا مهما بِيع. كان يُعرض شريطًا أخضر
+    // ممتلئًا، فيُقرأ: «المخزون ما نقص». والحقيقة أنه نقص، وأن هذا الصنف
+    // لا يرفع تنبيه نقصٍ أبدًا. فيُقال الحال كما هو، ويُطلب الأساس.
+    const parSet = existing ? (existing.parIsSet !== false) : false;
+    document.getElementById('siLiveBarBox').innerHTML = !existing ? '' : (parSet && par > 0 ? `
       <div class="stock-bar-track" style="height:14px;"><div class="stock-bar-fill ${tier}" style="width:${pct}%"></div></div>
       <div class="stock-live-bar-label">يعني عندك <b class="mono">${pct}٪</b> من مخزونك المعتاد — ${stockModalState.qtyOnHand} من ${par} ${unitLabel}</div>
-    ` : '') : '';
+    ` : `
+      <div class="stock-live-bar-label stock-no-baseline">ما حدّدت «مخزونك المعتاد» لهذا الصنف بعد — الموجود الآن <b class="mono">${stockModalState.qtyOnHand} ${unitLabel}</b>.<br>بدونه ما نقدر نحسب نسبة، وما يوصلك تنبيه لمّا يقرب يخلص. حدّده من «تعديل مخزونك المعتاد» تحت.</div>
+    `);
   };
   document.getElementById('siName').addEventListener('input', (e)=>{
     stockModalState.name = e.target.value;
@@ -1888,7 +2236,25 @@ function openStockItemModal(stockId){
       body.classList.toggle('open', open);
       chevron.classList.toggle('open', open);
     });
+    document.getElementById('siLedgerToggle').addEventListener('click', ()=>{
+      const body = document.getElementById('siLedgerBody');
+      const chevron = document.getElementById('siLedgerChevron');
+      const open = !body.classList.contains('open');
+      body.classList.toggle('open', open);
+      chevron.classList.toggle('open', open);
+    });
+    document.querySelectorAll('.si-act-btn').forEach(b=> b.addEventListener('click', ()=>{
+      // الضغط على الزر المفتوح يغلقه -- لا تتراكم لوحتان.
+      siActiveAction = (siActiveAction === b.dataset.act) ? null : b.dataset.act;
+      siActState = siActiveAction === 'receive' ? {priceMode:'same', unit: existing.unit}
+                 : siActiveAction === 'waste'   ? {unit: existing.unit}
+                 : {};
+      renderStockActionPanel();
+    }));
+    // السجلّ يُجلب بعد فتح النافذة، فلا يؤخّر ظهورها.
+    renderStockItemLedger(editingStockId);
   }
+  siActiveAction = null; siActState = {};
   updatePctPreview();
   renderStockAutoConsumption();
 
@@ -2043,13 +2409,62 @@ async function saveStockItem(){
     // فإرسالها هنا مجرد تسريع للنسخة المحلية.
     const gpu = densityForStockUnit(name, stockModalState.unit);
     if(editingStockId){
+      const prevItem = STOCK_ITEMS.find(s=>s.id===editingStockId);
+      // «مخزونك المعتاد» لا يُكتب إلا إذا اختاره صاحب المطعم فعلاً.
+      //
+      // كان يُكتب دائمًا من stockModalState.parLevel، وهي تساوي الكمية
+      // الحالية حين لا يوجد أساس مسجَّل -- فكل فتحٍ وحفظٍ للصنف يعيد
+      // تثبيت الأساس على ما تبقّى، فيرجع الشريط ١٠٠٪ ولا ينزل أبدًا.
+      const parTyped = !!(prevItem && prevItem.parIsSet) || stockModalState.parLevel !== (prevItem ? prevItem.parLevel : 0);
+      /**
+       * الأساس يتبع التعبئة صعودًا.
+       *
+       * «مخزونك المعتاد» هو مقام النسبة، والنسبة تُقصّ عند ١٠٠٪. فلو
+       * عبّأ صاحب المطعم من ٣٣٩ إلى ١٠٠٠ وبقي الأساس ٣٣٩، صارت النسبة
+       * ٢٩٥٪ فتُقصّ إلى ١٠٠٪ -- ثم يبيع الكاشير فينزل الرقم والشريط
+       * لا يتحرك، حتى ينزل الرصيد تحت ٣٣٩ بعد أسابيع. وهو يقرأ ذلك
+       * على أن المخزون لا ينقص.
+       *
+       * فمن عبّأ إلى ألف فالألف هي مِلؤه الجديد. ولا ينزل الأساس من
+       * نفسه أبدًا: النقص بيعٌ لا تغيّرٌ في المعتاد -- ولو تبع النزول
+       * لبقيت النسبة ١٠٠٪ إلى الأبد، وهي العلّة نفسها مقلوبة.
+       */
+      const prevPar = prevItem ? (prevItem.parLevel || 0) : 0;
+      const parValue = parTyped
+        ? stockModalState.parLevel
+        : Math.max(prevPar, stockModalState.qtyOnHand);
+      const parRaised = !parTyped && parValue > prevPar;
+
+      // الكمية تمرّ بدالة تكتب سطرها في سجلّ الحركة، لا بتحديثٍ مباشر --
+      // وإلا ظهرت بالسجلّ قفزة بلا سبب. وبقية الحقول (اسم، وحدة، تكلفة)
+      // لا تمسّ الرصيد فتُحدَّث كما هي.
+      const qtyChanged = !prevItem || Math.abs((prevItem.qtyOnHand || 0) - stockModalState.qtyOnHand) > 0.0000001;
+      let data_qty_fallback = false;
+      if(qtyChanged){
+        const { error: qErr } = await window.supabaseClient.rpc('rk_set_stock_qty', {
+          p_stock_item_id: editingStockId,
+          p_new_qty: stockModalState.qtyOnHand,
+          p_note: 'تعديل من شاشة المخزون',
+        });
+        // قبل تشغيل ترحيل 20260916050000 لا وجود للدالة -- تُكتب الكمية
+        // بالطريقة القديمة فلا يتعطّل الحفظ، ويبقى السجلّ ناقصًا وحده.
+        if(qErr && !(qErr.code === 'PGRST202' || /rk_set_stock_qty/.test(qErr.message||''))) throw qErr;
+        if(qErr) data_qty_fallback = true;
+      }
+
       const data = {name, unit: stockModalState.unit, unit_cost: stockModalState.unitCost, category: stockModalState.category,
-        qty_on_hand: stockModalState.qtyOnHand, par_level: stockModalState.parLevel, grams_per_unit: gpu, updated_at: new Date().toISOString()};
+        grams_per_unit: gpu, updated_at: new Date().toISOString()};
+      if(!qtyChanged || data_qty_fallback) data.qty_on_hand = stockModalState.qtyOnHand;
+      if(parTyped || parRaised) data.par_level = parValue;
       const { error } = await window.supabaseClient.from('stock_items').update(data).eq('id', editingStockId);
       if(error) throw error;
-      Object.assign(STOCK_ITEMS.find(s=>s.id===editingStockId),
+      Object.assign(prevItem,
         {name, unit: stockModalState.unit, unitCost: stockModalState.unitCost, category: stockModalState.category,
-         qtyOnHand: stockModalState.qtyOnHand, parLevel: stockModalState.parLevel, gramsPerUnit: gpu});
+         qtyOnHand: stockModalState.qtyOnHand, gramsPerUnit: gpu},
+        (parTyped || parRaised) ? {parLevel: parValue, parIsSet: true} : {});
+      if(parRaised){
+        showToast('صار «مخزونك المعتاد» من هذا الصنف ' + parValue + ' ' + UNIT_LABELS[stockModalState.unit] + ' — تُقاس عليه نسبتك');
+      }
       STOCK_ITEM_ID_BY_NAME[name] = editingStockId; STOCK_ITEM_NAME_BY_ID[editingStockId] = name;
       await saveStockAutoConsumption(editingStockId);
       logDashboardAudit('عدّل صنف مخزون: ' + name);
@@ -2061,7 +2476,9 @@ async function saveStockItem(){
       const { data: inserted, error } = await window.supabaseClient.from('stock_items').insert(data).select().single();
       if(error) throw error;
       STOCK_ITEMS.push({id: inserted.id, name, unit: stockModalState.unit, unitCost: stockModalState.unitCost,
-        category: stockModalState.category, qtyOnHand: stockModalState.qtyOnHand, parLevel: stockModalState.qtyOnHand, gramsPerUnit: gpu, aliasNames: [], autoConsumption: null});
+        category: stockModalState.category, qtyOnHand: stockModalState.qtyOnHand, parLevel: stockModalState.qtyOnHand,
+        // الكمية المُدخلة عند الإضافة أساسٌ حقيقي اختاره صاحب المطعم.
+        parIsSet: true, gramsPerUnit: gpu, aliasNames: [], autoConsumption: null});
       STOCK_ITEM_ID_BY_NAME[name] = inserted.id; STOCK_ITEM_NAME_BY_ID[inserted.id] = name;
       await saveStockAutoConsumption(inserted.id);
       logDashboardAudit('أضاف صنف مخزون جديد: ' + name);
@@ -6882,6 +7299,14 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
       renderSupplierComparison();
     }
 
+    // المخزون يُسأل عنه الخادم عند كل دخول للشاشة -- المبيعات تنقصه بين
+    // لحظةٍ وأخرى، وشاشةٌ تعرض لقطة الإقلاع تجعل الخصم يبدو معطّلاً.
+    if(target === 'inventory'){
+      await refreshStockQuantities();
+      renderStockTable();
+      renderWasteAndFoodCost();
+    }
+
     if(target === 'reports' && !reportsScreenLoaded){
       reportsScreenLoaded = true;
       refreshReportData();
@@ -7153,7 +7578,8 @@ async function loadBusinessData(){
 
   const [stockRes, catRes, itemsRes, costsRes, boxEligRes,
          groupRes, optRes, itemModRes, fixedRes, supplierRes, invRes,
-         expCatRes, expRes, businessRes, indirectRes, indirectTgtRes, menuItemCatRes] = await Promise.all([
+         expCatRes, expRes, businessRes, indirectRes, indirectTgtRes, menuItemCatRes,
+         recipeLinkRes] = await Promise.all([
     sb.from('stock_items').select('*').eq('business_id', businessId).order('id'),
     sb.from('menu_categories').select('*').eq('business_id', businessId).order('sort_order'),
     sb.from('menu_items').select('*').eq('business_id', businessId).order('sort_order').order('id'),
@@ -7182,6 +7608,11 @@ async function loadBusinessData(){
     // فئات إضافية للمنتج (migration 20260909130000) — قد لا يوجد الجدول
     // بعد، فأي خطأ هنا يرجع {data:null} ويُعامَل كـ«ما فيه فئات إضافية».
     sb.from('menu_item_categories').select('*'),
+    // روابط الوصفات — المعرّفات وحدها، بلا عمود qty المشفّر. هذا ما كان
+    // ناقصاً: الوصفة الكاملة تُجلب لمنتجٍ واحد فقط عند فتح محرّره، فكانت
+    // كل شاشات المخزون تقول «غير مرتبط بوصفة أي منتج» عن مادةٍ تدخل في
+    // عشر وصفات — وتدعو صاحب المطعم إلى حذفها وهي مستعملة.
+    sb.from('menu_item_recipe_lines').select('menu_item_id, stock_item_id'),
   ]);
 
   if(businessRes.data){
@@ -7242,11 +7673,16 @@ async function loadBusinessData(){
     return {
       id:s.id, name:s.name, category:s.category, unit:s.unit,
       qtyOnHand:qty,
-      // No "مخزون معتاد" recorded yet -> treat whatever is on hand right now as the
-      // 100% baseline, exactly like adding a brand-new item does. Keeps every item
-      // out of the limbo "بلا مخزون معتاد" state in the table; this value is written
-      // back to par_level the next time the item is saved.
+      // بلا «مخزون معتاد» مسجَّل، يُستعمل الموجود الآن أساسًا للحساب حتى لا
+      // تُقسم على صفر. لكن `parIsSet` يفرّق بين أساسٍ حقيقي اختاره صاحب
+      // المطعم وأساسٍ افترضناه -- والفرق ليس تجميليًا:
+      //
+      // بلا هذا التمييز يخرج الشريط ١٠٠٪ أبدًا («٣٣٩ من ٣٣٩») مهما بِيع،
+      // فيقرأ صاحب المطعم أن المخزون لا ينقص أصلًا -- وقد نقص فعلاً. وأسوأ:
+      // needsStockAttention يقيس على النسبة نفسها، فصنفٌ بلا أساس لا يرفع
+      // تنبيه نقصٍ أبدًا مهما فرغ.
       parLevel: par > 0 ? par : qty,
+      parIsSet: par > 0,
       unitCost:Number(s.unit_cost),
       // الكثافة تُشتقّ تلقائيًا؛ لو الخادم ما عبّاها بعد (قبل migration
       // 20260909120000) نشتقّها محليًا فالتحويل يشتغل من الآن.
@@ -7304,6 +7740,13 @@ async function loadBusinessData(){
     (extraCatIdsByItem[r.menu_item_id] ||= []).push(r.menu_category_id);
   });
 
+  // أي مواد مخزون تدخل في وصفة كل منتج. الكميات تبقى على حالها (مشفّرة،
+  // تُجلب لمنتجٍ واحد عند فتح محرّره)؛ المطلوب هنا الارتباط وحده.
+  const recipeStockIdsByItem = {};
+  (recipeLinkRes && recipeLinkRes.data || []).forEach(rl=>{
+    (recipeStockIdsByItem[rl.menu_item_id] ||= []).push(rl.stock_item_id);
+  });
+
   MENU_ITEMS = (itemsRes.data||[]).map(m=>{
     // real per-ingredient recipe (qty/unit) is fetched on demand, per item,
     // only when its editor opens — see openProductEditModal. computeVariableCost
@@ -7323,7 +7766,11 @@ async function loadBusinessData(){
       pointsRedeemPrice: m.points_redeem_price != null ? Number(m.points_redeem_price) : null,
       barcode: m.barcode || '',
       finishedGoodStockItemId: m.finished_good_stock_item_id || null,
-      recipe: [], modifierGroupIds: modGroupIdsByItem[m.id]||[]
+      recipe: [],
+      // معرّفات مواد المخزون الداخلة في وصفته — محمّلة دائمًا، بخلاف
+      // `recipe` التي لا تُملأ إلا عند فتح محرّر هذا المنتج بعينه.
+      recipeStockIds: recipeStockIdsByItem[m.id] || [],
+      modifierGroupIds: modGroupIdsByItem[m.id]||[]
     };
     if(m.cost_mode === 'box'){
       item.componentSlot = {
@@ -7802,7 +8249,7 @@ let REPORT_RANGE_LABEL = 'اليوم';
 let REPORT_RANGE_DATA = null;
 let REPORT_DETAIL_ROWS = null; // itemized rows for shift/purchases/expenses — fetched only when that type is active
 
-const REPORT_TYPES_NEEDING_DETAIL = {shift:true, purchases:true, expenses:true};
+const REPORT_TYPES_NEEDING_DETAIL = {shift:true, purchases:true, expenses:true, discounts:true};
 
 // The document design (screen preview + printed/exported PDF) — remembered
 // per-device since it's a display preference, not shared business data.
@@ -8236,6 +8683,42 @@ async function loadReportDetailRows(type, from, to){
       sales: salesByShift[s.id] || 0
     }));
   }
+  if(type === 'discounts'){
+    // كلّ طلبٍ خُصم منه شيء بهالفترة، مع أصنافه وموظّفه -- تفصيلٌ ما
+    // كان له مكان قبل اليوم غير سطرٍ واحد داخل نافذة تفاصيل الطلب.
+    const { data: orders } = await sb.from('orders')
+      .select('id, created_at, discount_pct, discount_amount, discount_reason, shift_id')
+      .eq('business_id', businessId).gt('discount_pct', 0)
+      .gte('created_at', from.toISOString()).lt('created_at', to.toISOString())
+      .order('created_at', {ascending:false});
+    const rows = orders || [];
+    const orderIds = rows.map(o=>o.id);
+    const shiftIds = Array.from(new Set(rows.map(o=>o.shift_id).filter(id=>id!=null)));
+    const [{data: items}, {data: shifts}] = await Promise.all([
+      orderIds.length ? sb.from('order_items').select('order_id, menu_item_id, qty').in('order_id', orderIds) : Promise.resolve({data:[]}),
+      // نفس الوصلة التي يستعملها تقرير "الوردية" لاسم الكاشير.
+      shiftIds.length ? sb.from('shifts').select('id, opener:staff_members!shifts_staff_member_id_fkey(name)').in('id', shiftIds) : Promise.resolve({data:[]}),
+    ]);
+    const itemsByOrder = {};
+    (items||[]).forEach(it=>{ (itemsByOrder[it.order_id] ||= []).push(it); });
+    const staffByShift = {};
+    (shifts||[]).forEach(s=>{ staffByShift[s.id] = (s.opener && s.opener.name) || null; });
+    return rows.map(o=>{
+      const its = itemsByOrder[o.id] || [];
+      const productsLabel = its.map(it=>{
+        const product = MENU_ITEMS.find(m=>m.id===it.menu_item_id);
+        const name = product ? product.name : ('منتج #' + it.menu_item_id);
+        return Number(it.qty) > 1 ? `${name} ×${it.qty}` : name;
+      }).join('، ');
+      return {
+        id: o.id, date: o.created_at,
+        pct: Number(o.discount_pct), amount: Number(o.discount_amount),
+        reason: o.discount_reason || '',
+        products: productsLabel || '—',
+        cashier: (o.shift_id != null && staffByShift[o.shift_id]) || '—',
+      };
+    });
+  }
   return [];
 }
 
@@ -8323,6 +8806,7 @@ function renderReportPreview(){
   else if(activeReportType === 'tax') body = taxReportHtml(d);
   else if(activeReportType === 'vat_return') body = vatReturnReportHtml(d, VAT_RETURN_INPUT_DATA);
   else if(activeReportType === 'purchases') body = purchasesReportHtml(REPORT_DETAIL_ROWS||[]);
+  else if(activeReportType === 'discounts') body = discountsReportHtml(REPORT_DETAIL_ROWS||[]);
   else if(activeReportType === 'expenses') body = expensesReportHtml(REPORT_DETAIL_ROWS||[]);
   panel.className = 'report-preview-doc theme-' + REPORT_THEME;
   panel.innerHTML = reportDocHeaderHtml() + body;
@@ -8542,6 +9026,43 @@ function shiftReportHtml(rows){
         }).join('')}
       </tbody>
     </table>`}
+  `;
+}
+
+function discountsReportCardsHtml(rows){
+  return rows.map(r=>{
+    const date = new Date(r.date).toLocaleString('ar-SA', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+    return `
+    <div class="report-item-card">
+      <div class="ric-title">طلب #${r.id} — خصم ${r.pct}%</div>
+      <div class="ric-row"><span class="ric-label">الأصناف</span><span>${escapeHtml(r.products)}</span></div>
+      <div class="ric-row"><span class="ric-label">الكاشير</span><span>${escapeHtml(r.cashier)}</span></div>
+      <div class="ric-row"><span class="ric-label">التاريخ</span><span class="mono">${date}</span></div>
+      ${r.reason ? `<div class="ric-row"><span class="ric-label">السبب</span><span>${escapeHtml(r.reason)}</span></div>` : ''}
+      <div class="ric-row total"><span class="ric-label">مبلغ الخصم</span><span class="mono">${r.amount.toFixed(2)}</span></div>
+    </div>`;
+  }).join('');
+}
+function discountsReportHtml(rows){
+  const total = rows.reduce((s,r)=>s+r.amount,0);
+  return `
+    <div class="panel-title">تقرير الخصومات — ${REPORT_RANGE_LABEL}</div>
+    ${rows.length === 0 ? '<div class="orders-empty">ما فيه طلبات فيها خصم بهالفترة</div>' : `
+    <div class="report-cards-mobile">${discountsReportCardsHtml(rows)}</div>
+    <table class="report-table">
+      <thead><tr><th>الطلب</th><th>النسبة</th><th>الأصناف</th><th>الكاشير</th><th>السبب</th><th>المبلغ</th><th>التاريخ</th></tr></thead>
+      <tbody>
+        ${rows.map(r=>{
+          const date = new Date(r.date).toLocaleString('ar-SA', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+          return `<tr>
+            <td class="mono">#${r.id}</td><td class="mono">${r.pct}%</td><td>${escapeHtml(r.products)}</td>
+            <td>${escapeHtml(r.cashier)}</td><td>${r.reason ? escapeHtml(r.reason) : '—'}</td>
+            <td class="mono">${r.amount.toFixed(2)}</td><td>${date}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    <div class="report-stat-row total" style="margin-top:10px;"><span>إجمالي مبلغ الخصومات</span><span class="mono">${total.toFixed(2)} ر.س</span></div>`}
   `;
 }
 
@@ -12958,6 +13479,8 @@ function renderMenuProductTable(){
         <div class="mtr-name-col">
           <div class="mtr-name">${item.name}</div>
           <div class="mtr-meta">${item.category}${isBox ? ' — تركيبة متغيرة ('+item.componentSlot.totalPieces+' قطعة)' : ''}${item.modifierGroupIds.length ? ' — '+item.modifierGroupIds.length+' مجموعة خيارات' : ''}${(item.active && item.hiddenUntil && new Date(item.hiddenUntil) > new Date()) ? ' — يرجع تلقائيًا ' + formatHiddenUntilLabel(item.hiddenUntil) : ''}${(ONLINE_ORDERING_ENABLED && !item.visibleOnline) ? ' — غير ظاهر بالمتجر الإلكتروني' : ''}${item.visiblePos === false ? ' — مخفي عن الكاشير' : ''}${(item.onlinePrice != null && Number(item.onlinePrice) !== Number(item.price)) ? ' — سعر المتجر ' + Number(item.onlinePrice).toFixed(2) : ''}${!item.linkInventory ? ' — بلا ربط مخزون' : ''}</div>
+          ${(item.linkInventory && item.costMode==='recipe' && (item.recipeStockIds||[]).length===0)
+            ? '<div class="mtr-no-recipe-warn">⚠️ ما ينقص المخزون — ما له وصفة</div>' : ''}
           <span class="cost-margin-badge ${tier} mtr-margin-inline">${marginDisplay}</span>
         </div>
       </div>
@@ -13971,17 +14494,38 @@ async function deleteProductFromModal(){
 
 /* ============ Inventory cross-reference — which menu items use each stock ingredient.
    Scans MENU_ITEMS' recipes directly; nothing hand-maintained twice. */
+/**
+ * أي منتج يستهلك أي مادة مخزون — مفتاحه اسم المادة.
+ *
+ * كان يُبنى من `item.recipe`، وهي لا تُملأ إلا للمنتج الذي فُتح محرّره في
+ * هذه الجلسة. فالخريطة كانت فارغة عمليًا دائمًا، وكل شاشات المخزون تقول
+ * عن مادةٍ تدخل في عشر وصفات: «غير مرتبط بوصفة أي منتج حاليًا — حذفه ما
+ * يأثر على القائمة». وهي دعوةٌ إلى حذف مادة مستعملة.
+ *
+ * صار المصدر `item.recipeStockIds` المحمّلة دفعةً واحدة مع بقية البيانات
+ * (معرّفات فقط، لا كميات مشفّرة). ولا يُشترط linkInventory: سطر الوصفة
+ * قائمٌ سواء فُعّل الربط أو لا، والمادة مستعملة في الحالتين.
+ */
 function getUsedInMap(){
   const map = {};
   MENU_ITEMS.forEach(item=>{
-    if(item.linkInventory && item.costMode==='recipe'){
-      (item.recipe||[]).forEach(r=>{
-        if(!map[r.ingredient]) map[r.ingredient] = [];
-        map[r.ingredient].push(item.name);
-      });
-    }
+    (item.recipeStockIds||[]).forEach(stockId=>{
+      const name = STOCK_ITEM_NAME_BY_ID[stockId];
+      if(!name) return;
+      if(!map[name]) map[name] = [];
+      if(!map[name].includes(item.name)) map[name].push(item.name);
+    });
   });
   return map;
+}
+
+/**
+ * منتجات تبيع ولا تُنقص المخزون: مربوطة بالمخزون ونمط تكلفتها وصفة، وما
+ * لها ولا سطر وصفة واحد. الكاشير يبيعها فلا ينزل شيء، بلا أي إشارة.
+ */
+function productsLinkedWithNoRecipe(){
+  return MENU_ITEMS.filter(m=> m.active && m.linkInventory && m.costMode==='recipe'
+    && (m.recipeStockIds||[]).length === 0);
 }
 
 /* ============ Modifier Groups CRUD — the reusable library, same premium table+modal pattern as Products ============ */

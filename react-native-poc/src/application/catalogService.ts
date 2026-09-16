@@ -35,6 +35,9 @@ export interface CatalogResult {
   /** STOCK_UNIT_BY_ID -- each stock item's own tracking unit, which a
    *  recipe's unit has to be converted INTO before decrementing. */
   stockUnitById: Record<number, string>;
+  /** أسماء مواد المخزون -- يحتاجها تسجيل الهدر من الكاشير: من يقع الكوب
+   *  من يده هو من يسجّله، فلا بدّ أن يرى الأسماء على شاشته. */
+  stockNameById: Record<number, string>;
 }
 
 /**
@@ -711,6 +714,7 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
     modifiersByProductId,
     optionStock,
     stockUnitById,
+    stockNameById,
     usingOfflineSnapshot: false,
   };
 
@@ -740,6 +744,7 @@ async function readCache(businessId: number): Promise<CatalogResult | null> {
       modifiersByProductId: parsed.modifiersByProductId ?? {},
       optionStock: parsed.optionStock ?? {},
       stockUnitById: parsed.stockUnitById ?? {},
+      stockNameById: parsed.stockNameById ?? {},
       usingOfflineSnapshot: false,
     };
   } catch {

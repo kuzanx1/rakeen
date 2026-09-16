@@ -594,6 +594,9 @@ export default function OrderHistoryScreen({
                     <Money value={-detail.discountAmount} size={11.5} />
                   </View>
                 )}
+                {detail.discountAmount > 0 && !!detail.discountReason && (
+                  <Text style={styles.discountReasonText}>سبب الخصم: {detail.discountReason}</Text>
+                )}
                 <View style={styles.itemRow}>
                   <Text style={styles.itemName}>الضريبة</Text>
                   <Money value={detail.vatAmount} size={11.5} />
@@ -913,6 +916,7 @@ const useStyles = createStyles(colors =>
   // fills the free space and the amount is pinned at the other end, that
   // reads as the price colliding with the end of the name.
   itemName: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: colors.text, flexShrink: 1 },
+  discountReasonText: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.muted, textAlign: 'right', marginTop: -2, marginBottom: 4 },
   sheetOrderNo: { fontFamily: fonts.sansBold, fontSize: 16.5, color: colors.text, textAlign: 'center', marginBottom: 6 },
   // .receipt-total -- the amount as the sheet's headline figure
   sheetTotal: { alignSelf: 'center', marginBottom: 16 },

@@ -20,6 +20,10 @@ export interface ShiftReportModel {
 
   grossSales: number;
   discountsTotal: number;
+  /** كم طلبًا خُصم بكل نسبة -- "خصم 50%: 10 طلبات" بدل رقمٍ واحدٍ مجمَّع.
+   *  يُطبع تحت سطر الخصومات الإجمالي، لا بدلاً منه: هذه ورقةُ تسويةٍ
+   *  نقدية، والرقمُ الماليّ يبقى كما هو؛ العددُ لكلّ نسبة تفصيلٌ إضافي. */
+  discountBreakdown?: { pct: number; count: number }[] | null;
   refundsTotal: number;
   refundsCount: number;
   vatTotal: number;
@@ -74,7 +78,17 @@ export function layoutShiftReport(input: ShiftLayoutInput): LayoutResult {
   // ١) المبيعات: من الإجمالي إلى الصافي، خطوةً خطوة.
   ctx.centerText('المبيعات · Sales', SHIFT.sectionLabel, true);
   ctx.rowText(money(report.grossSales), 'إجمالي المبيعات · Gross', SHIFT.row, false);
-  if (on('discounts')) ctx.rowText('-' + money(report.discountsTotal), 'الخصومات · Discounts', SHIFT.row, false);
+  if (on('discounts')) {
+    ctx.rowText('-' + money(report.discountsTotal), 'الخصومات · Discounts', SHIFT.row, false);
+    for (const tier of report.discountBreakdown || []) {
+      ctx.rowText(
+        tier.count + ' طلبات · orders',
+        'خصم ' + tier.pct + '% · ' + tier.pct + '% off',
+        SHIFT.metaSmall,
+        false,
+      );
+    }
+  }
   if (on('refunds')) ctx.rowText('-' + money(report.refundsTotal), 'المرتجعات · Refunds (' + report.refundsCount + ')', SHIFT.row, false);
   if (on('vat')) ctx.rowText(money(report.vatTotal), 'ضريبة القيمة المضافة · VAT', SHIFT.row, false);
   ctx.rowText(money(report.netSales), 'صافي المبيعات · Net', SHIFT.net, true);

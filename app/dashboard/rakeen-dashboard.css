@@ -1508,6 +1508,63 @@ button.purchases-hero-btn{
 .mtr-name-col{min-width:0;}
 .mtr-name{font-weight:800; font-size:12.5px;}
 .mtr-meta{font-size:10px; color:var(--muted); font-weight:600; margin-top:1px;}
+/* منتج مربوط بالمخزون وما له وصفة: يبيع ولا ينقص شيء. لا يُكتب بلون
+   التلميحات الرمادي — هذا عطلٌ صامت في الحساب، لا معلومة جانبية. */
+.mtr-no-recipe-warn{font-size:10px; font-weight:800; color:var(--danger,#a3402c); margin-top:2px;}
+
+/* لافتة شاشة المخزون: «تبيع ولا ينقص». مكانها هنا لأن هنا يقف صاحب
+   المطعم وهو يسأل لماذا لم ينقص المخزون. */
+.stock-no-recipe-banner{margin:0 0 14px; padding:14px 16px; border-radius:var(--r-md); border:1px solid rgba(163,64,44,0.35); background:rgba(163,64,44,0.07);}
+.snrb-head{font-size:13px; font-weight:800; color:var(--danger,#a3402c); margin-bottom:6px;}
+.snrb-body{font-size:11.5px; font-weight:600; color:var(--muted); line-height:1.7;}
+.snrb-chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;}
+.snrb-chip{font-size:10.5px; font-weight:700; padding:4px 10px; border-radius:var(--r-full); background:var(--card-bg); border:1px solid rgba(163,64,44,0.3); color:var(--text);}
+.snrb-chip.snrb-more{color:var(--muted);}
+
+/* صنف بلا «مخزون معتاد»: لا شريط أخضر ممتلئ يقول إن مخزونه كامل. */
+.mtr-stock-nobase{font-size:10.5px; font-weight:700; color:var(--muted);}
+.stock-no-baseline{line-height:1.8;}
+
+/* أفعال المخزون الثلاثة: لوحةٌ واحدة مفتوحة، وسؤالٌ واحد فيها. */
+.si-actions{display:flex; gap:8px; margin:16px 0 0;}
+.si-act-btn{flex:1; padding:11px 8px; border-radius:var(--r-md); border:1px solid var(--line); background:var(--card-bg); font-weight:700; font-size:12.5px; color:var(--text);}
+.si-act-btn.active{background:var(--lime); border-color:var(--lime); color:var(--flag-green-deep);}
+.si-act-panel{display:none;}
+.si-act-panel.open{display:block; margin-top:10px; padding:14px; border-radius:var(--r-md); background:var(--surf1); border:1px solid var(--line);}
+.si-field-label{font-size:11px; font-weight:800; color:var(--muted); margin:0 0 6px;}
+.si-act-panel .si-field-label:not(:first-child){margin-top:14px;}
+.si-row{display:flex; gap:8px; align-items:center;}
+.si-row.si-sub{margin-top:8px;}
+.si-act-panel input[type="number"], .si-act-panel input[type="text"]{flex:1; width:100%; padding:11px 12px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--card-bg); color:var(--text); font-size:14px; font-weight:700;}
+.si-act-panel select{width:120px; padding:11px 8px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--card-bg); color:var(--text); font-size:13px; font-weight:700;}
+.si-suffix{font-size:12px; font-weight:700; color:var(--muted); white-space:nowrap;}
+.si-recorded{font-size:12.5px; font-weight:600; color:var(--muted); margin-bottom:12px;}
+.si-choice{display:flex; align-items:center; gap:8px; padding:11px 12px; margin-bottom:8px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--card-bg); font-size:13px; font-weight:600; cursor:pointer;}
+.si-choice.on{border-color:var(--lime-deep); background:rgba(196,255,43,0.1);}
+.si-chips{display:flex; flex-wrap:wrap; gap:6px;}
+.si-chip{padding:8px 13px; border-radius:var(--r-full); border:1px solid var(--line); background:var(--card-bg); font-size:12px; font-weight:700; color:var(--text);}
+.si-chip.on{background:var(--lime); border-color:var(--lime); color:var(--flag-green-deep);}
+.si-preview{margin-top:14px; padding:12px; border-radius:var(--r-sm); background:var(--card-bg); border:1px solid var(--line);}
+.si-preview.warn{border-color:rgba(163,64,44,0.3);}
+.si-preview > div{display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:12.5px; font-weight:600; color:var(--muted);}
+.si-preview > div + div{margin-top:5px;}
+.si-preview b{color:var(--text); font-weight:800;}
+.si-confirm{width:100%; margin-top:14px;}
+.si-confirm:disabled{background:var(--surf2); color:var(--muted);}
+
+/* سجلّ حركة الصنف — كل خصم وكل إرجاع بسطره، والكمية قبل وبعد. */
+.si-ledger{display:flex; flex-direction:column; gap:6px; margin-top:8px; max-height:320px; overflow-y:auto;}
+.si-ledger-loading, .si-ledger-empty{font-size:11.5px; font-weight:600; color:var(--muted); padding:10px 0; text-align:center;}
+.si-ledger-row{padding:9px 11px; border-radius:var(--r-sm); background:var(--surf1); border-inline-start:3px solid var(--line);}
+.si-ledger-row.out{border-inline-start-color:var(--danger,#a3402c);}
+.si-ledger-row.in{border-inline-start-color:var(--lime-deep,#5c8a3a);}
+.slr-head{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:4px;}
+.slr-reason{font-size:11.5px; font-weight:800; color:var(--text);}
+.slr-order{font-size:10.5px; font-weight:700; color:var(--muted);}
+.slr-when{font-size:10px; font-weight:600; color:var(--muted); margin-inline-start:auto;}
+.slr-math{font-size:11.5px; font-weight:700; color:var(--text); direction:ltr; text-align:right; unicode-bidi:isolate;}
+.slr-arrow{color:var(--muted); font-weight:600;}
+.slr-note{font-size:10.5px; font-weight:600; color:var(--muted); margin-top:3px;}
 .mtr-price{width:90px; font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:12.5px;}
 .mtr-margin{width:90px;}
 .mtr-status{width:70px;}

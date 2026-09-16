@@ -141,7 +141,7 @@ export async function loadShiftTotals(shift: Shift | null): Promise<ShiftTotals>
   if (!shift) return EMPTY_SHIFT_TOTALS;
   const { data } = await supabase
     .from('orders')
-    .select('total, subtotal, discount_amount, vat_amount, payment_method, cash_amount, source')
+    .select('total, subtotal, discount_pct, discount_amount, vat_amount, payment_method, cash_amount, source')
     .eq('shift_id', shift.id)
     .eq('payment_status', 'paid')
     // Refunds. refund_pos_order sets status='refunded' and never touches

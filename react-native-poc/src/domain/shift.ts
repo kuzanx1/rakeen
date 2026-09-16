@@ -29,6 +29,7 @@ export interface ShiftOrderRow {
   cash_amount: number | string | null;
   /** المسار المحاسبي: من الإجمالي إلى الصافي. */
   subtotal?: number | string | null;
+  discount_pct?: number | string | null;
   discount_amount?: number | string | null;
   vat_amount?: number | string | null;
   /** 'online' يفصل الدفع الإلكتروني عن شبكة الصالة -- وكلاهما 'card'. */
@@ -62,6 +63,9 @@ export interface ShiftTotals {
   /** المسار المحاسبي، بنفس ما تحسبه ورقة الكاشير حرفياً. */
   grossSales: number;
   discountsTotal: number;
+  /** كم طلبًا خُصم بكل نسبة -- "خصم 50%: 10 طلبات" بدل رقمٍ واحدٍ مجمَّع.
+   *  مرتّبة تصاعديًا بالنسبة. طلبٌ بلا خصم (discount_pct = 0) لا يُحسب. */
+  discountBreakdown: { pct: number; count: number }[];
   vatTotal: number;
   refundsTotal: number;
   refundsCount: number;
@@ -82,6 +86,7 @@ export const EMPTY_SHIFT_TOTALS: ShiftTotals = {
   cashOutTotal: 0,
   grossSales: 0,
   discountsTotal: 0,
+  discountBreakdown: [],
   vatTotal: 0,
   refundsTotal: 0,
   refundsCount: 0,
@@ -115,12 +120,15 @@ export function computeShiftTotals(
   let grossSales = 0;
   let discountsTotal = 0;
   let vatTotal = 0;
+  const discountCounts = new Map<number, number>();
 
   for (const o of orders) {
     const total = Number(o.total) || 0;
     grossSales += Number(o.subtotal) || 0;
     discountsTotal += Number(o.discount_amount) || 0;
     vatTotal += Number(o.vat_amount) || 0;
+    const pct = Math.round(Number(o.discount_pct) || 0);
+    if (pct > 0) discountCounts.set(pct, (discountCounts.get(pct) || 0) + 1);
     // طلب من المتجر الإلكتروني دُفع بغير الكاش هو "دفع إلكتروني" لا شبكة
     // الصالة. الفصل بالمصدر لا بطريقة الدفع، فكلاهما يصل بـ'card'.
     if (o.source === 'online' && o.payment_method !== 'cash') {
@@ -164,6 +172,9 @@ export function computeShiftTotals(
     cashOutTotal: cashOut,
     grossSales,
     discountsTotal,
+    discountBreakdown: Array.from(discountCounts.entries())
+      .map(([pct, count]) => ({ pct, count }))
+      .sort((a, b) => a.pct - b.pct),
     vatTotal,
     refundsTotal: refunds.total,
     refundsCount: refunds.count,
@@ -189,6 +200,8 @@ export interface ClosingReport {
    *  محفوظ من قبل قابلاً للطباعة بما فيه. */
   grossSales?: number;
   discountsTotal?: number;
+  /** كم طلبًا خُصم بكل نسبة، لطباعتها تفصيلاً مختصرًا تحت سطر الخصومات. */
+  discountBreakdown?: { pct: number; count: number }[];
   refundsTotal?: number;
   refundsCount?: number;
   vatTotal?: number;

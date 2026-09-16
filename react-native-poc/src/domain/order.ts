@@ -100,6 +100,9 @@ export interface OrderPayload extends Partial<PaymentTracking> {
   subtotal: number;
   discount_pct: number;
   discount_amount: number;
+  /** Cashier's optional free-text reason for the discount -- never
+   *  required, so null/empty is the common case, not an error. */
+  discount_reason: string | null;
   vat_amount: number;
   total: number;
   payment_method: string;
@@ -130,6 +133,7 @@ export interface DineInRegisterPayload extends Partial<PaymentTracking> {
   customer_id: number | null; // see OrderPayload's own doc comment on this field
   subtotal: number;
   discount_pct: number;
+  discount_reason: string | null;
   items: OrderItemPayload[];
   table_id: number;
   staff_member_id: number | null;
@@ -256,6 +260,8 @@ export interface OrderBuildContext {
   customerId: number | null;
   discountPct: number;
   discountAmount: number;
+  /** Cashier's optional free-text reason for the discount. */
+  discountReason: string | null;
   vatAmount: number;
   total: number;
   subtotal: number;
@@ -340,6 +346,7 @@ export function buildOrderPayload(
     subtotal: ctx.subtotal,
     discount_pct: ctx.discountPct,
     discount_amount: ctx.discountAmount,
+    discount_reason: ctx.discountReason || null,
     vat_amount: ctx.vatAmount,
     total: ctx.total,
     /**
@@ -382,6 +389,7 @@ export function buildDineInRegisterPayload(
     customer_id: ctx.customerId,
     subtotal: ctx.subtotal,
     discount_pct: ctx.discountPct,
+    discount_reason: ctx.discountReason || null,
     items: buildItems(cart, productsById, modifiersByProductId, unitPriceOf, ctx.optionStock, ctx.stockUnitById),
     table_id: ctx.tableId as number,
     staff_member_id: ctx.staffMemberId,

@@ -875,7 +875,17 @@ var RakeenReceiptEngine = (() => {
     ctx.rule(SHIFT_SPACE.afterRule);
     ctx.centerText("المبيعات · Sales", SHIFT.sectionLabel, true);
     ctx.rowText(money(report.grossSales), "إجمالي المبيعات · Gross", SHIFT.row, false);
-    if (on("discounts")) ctx.rowText("-" + money(report.discountsTotal), "الخصومات · Discounts", SHIFT.row, false);
+    if (on("discounts")) {
+      ctx.rowText("-" + money(report.discountsTotal), "الخصومات · Discounts", SHIFT.row, false);
+      for (const tier of report.discountBreakdown || []) {
+        ctx.rowText(
+          tier.count + " طلبات · orders",
+          "خصم " + tier.pct + "% · " + tier.pct + "% off",
+          SHIFT.metaSmall,
+          false
+        );
+      }
+    }
     if (on("refunds")) ctx.rowText("-" + money(report.refundsTotal), "المرتجعات · Refunds (" + report.refundsCount + ")", SHIFT.row, false);
     if (on("vat")) ctx.rowText(money(report.vatTotal), "ضريبة القيمة المضافة · VAT", SHIFT.row, false);
     ctx.rowText(money(report.netSales), "صافي المبيعات · Net", SHIFT.net, true);

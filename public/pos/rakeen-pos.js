@@ -212,6 +212,12 @@ const I18N_EN = {
   'المدفوع': 'Paid',
   'الباقي': 'Change',
   'الخصم': 'Discount',
+  'نسبة أخرى': 'Other %',
+  'سبب الخصم (اختياري)': 'Discount reason (optional)',
+  'مثال: عميل دائم، طلب فيه نقص...': 'e.g. Regular customer, order was short...',
+  'تطبيق الخصم': 'Apply discount',
+  'اختر نسبة': 'Choose a percentage',
+  'إلغاء الخصم': 'Remove discount',
   'الضريبة': 'VAT',
   'المبلغ كاش': 'Cash amount',
   'المبلغ عبر الشبكة (بطاقة)': 'Card amount',
@@ -1109,7 +1115,7 @@ const DELIVERY_PLATFORMS = ['هنقرستيشن','جاهز','ذا شفز','ToYou
 /* ============ STATE ============ */
 let state = {
   activeCat: 'popular', searchQuery: '', showFavOnly:false,
-  cart: [], customer: null, discountPct: 0,
+  cart: [], customer: null, discountPct: 0, discountReason: '',
   activePaymentMethod: 'cash', cashAmount: 0,
   friendsSplitOpen: false, friendsSplitCount: null,
   pinEntry: '', pinTargetLength: 4,
@@ -1961,6 +1967,92 @@ function formatConfigLabelsBilingual(productId, config){
   return labels;
 }
 
+
+/* ============ تسجيل الهدر من الكاشير ============
+   من يقع الكوب من يده هو الباريستا وقت الزحمة، لا صاحب المطعم على
+   مكتبه مساءً. ولو عاش الزرّ في اللوحة وحدها لما سُجّل هدرٌ قط، ولما
+   بقي منه إلا فرقُ جردٍ مجهول آخر الشهر.
+   (نظيرها في التطبيق: src/ui/WasteModal.tsx.) */
+const WASTE_REASONS_POS = ['تلف', 'انسكاب', 'انتهت الصلاحية', 'خطأ تحضير', 'أخرى'];
+let wasteState = {items: [], search: '', pickedId: null, qty: 0, reason: '', other: '', busy: false, error: ''};
+
+async function openWasteModal(){
+  wasteState = {items: [], search: '', pickedId: null, qty: 0, reason: '', other: '', busy: false, error: ''};
+  document.getElementById('paymentModalTitle').textContent = 'تسجيل هدر';
+  paymentModalBody.innerHTML = '<p class="pos-auth-sub">جاري التحميل...</p>';
+  document.getElementById('paymentModal').classList.add('show');
+  const { data } = await window.supabaseClient.from('stock_items').select('id, name, unit').order('name');
+  wasteState.items = (data || []).map(r=>({id:Number(r.id), name:String(r.name), unit:String(r.unit)}));
+  renderWasteModal();
+}
+
+function renderWasteModal(){
+  const st = wasteState;
+  const picked = st.pickedId != null ? st.items.find(i=>i.id===st.pickedId) : null;
+  const unitLabel = picked ? (UNIT_LABELS_POS[picked.unit] || picked.unit) : '';
+  const canSave = !!picked && st.qty > 0 && (st.reason && (st.reason !== 'أخرى' || st.other.trim()));
+
+  if(!picked){
+    const q = st.search.trim();
+    const list = (q ? st.items.filter(i=>i.name.includes(q)) : st.items).slice(0, 40);
+    paymentModalBody.innerHTML = `
+      <div class="pos-auth-field"><label>أي مادة راحت؟</label>
+        <input type="text" id="wasteSearch" placeholder="دوّر بالاسم..." value="${escapeHtml(st.search)}" autocomplete="off"></div>
+      <div class="waste-pick-list">${list.length === 0
+        ? '<p class="pos-auth-sub">ما فيه مادة بهذا الاسم.</p>'
+        : list.map(i=>`<button type="button" class="waste-pick-row" data-id="${i.id}"><span>${escapeHtml(i.name)}</span><span class="waste-pick-unit">${UNIT_LABELS_POS[i.unit]||''}</span></button>`).join('')}</div>`;
+    const se = document.getElementById('wasteSearch');
+    se.addEventListener('input', e=>{ st.search = e.target.value; renderWasteModal(); document.getElementById('wasteSearch').focus(); });
+    paymentModalBody.querySelectorAll('.waste-pick-row').forEach(b=> b.addEventListener('click', ()=>{
+      st.pickedId = parseInt(b.dataset.id, 10); renderWasteModal();
+    }));
+    return;
+  }
+
+  paymentModalBody.innerHTML = `
+    <button type="button" class="waste-picked" id="wasteChange"><span>${escapeHtml(picked.name)}</span><span class="waste-picked-change">تغيير</span></button>
+    <div class="pos-auth-field"><label>كم راح؟</label>
+      <input type="number" id="wasteQty" inputmode="decimal" step="0.01" placeholder="0" value="${st.qty||''}"></div>
+    <div class="pos-auth-field"><label>السبب</label>
+      <div class="waste-chips">${WASTE_REASONS_POS.map(r=>
+        `<button type="button" class="waste-chip ${st.reason===r?'on':''}" data-reason="${r}">${r}</button>`).join('')}</div></div>
+    ${st.reason === 'أخرى' ? `<div class="pos-auth-field"><input type="text" id="wasteOther" placeholder="اكتب السبب" value="${escapeHtml(st.other)}"></div>` : ''}
+    ${st.error ? `<div class="pos-auth-error" style="display:block;">${escapeHtml(st.error)}</div>` : ''}
+    <button class="confirm-pay-btn" id="wasteSave" ${canSave && !st.busy ? '' : 'disabled'}>${st.busy ? 'جارٍ التسجيل...' : 'تسجيل الهدر'}</button>`;
+
+  document.getElementById('wasteChange').addEventListener('click', ()=>{ st.pickedId = null; st.error=''; renderWasteModal(); });
+  document.getElementById('wasteQty').addEventListener('input', e=>{ st.qty = parseFloat(toWesternDigits(e.target.value))||0; const b=document.getElementById('wasteSave'); if(b) b.disabled = !(st.qty>0 && st.reason && (st.reason!=='أخرى'||st.other.trim())); });
+  paymentModalBody.querySelectorAll('.waste-chip').forEach(c=> c.addEventListener('click', ()=>{ st.reason = c.dataset.reason; renderWasteModal(); }));
+  const oth = document.getElementById('wasteOther');
+  if(oth) oth.addEventListener('input', e=>{ st.other = e.target.value; const b=document.getElementById('wasteSave'); if(b) b.disabled = !(st.qty>0 && st.other.trim()); });
+  document.getElementById('wasteSave').addEventListener('click', saveWaste);
+}
+
+async function saveWaste(){
+  const st = wasteState;
+  const picked = st.items.find(i=>i.id===st.pickedId);
+  if(!picked) return;
+  st.busy = true; st.error = ''; renderWasteModal();
+  const { data, error } = await window.supabaseClient.rpc('rk_record_waste', {
+    p_stock_item_id: picked.id,
+    p_qty: st.qty,
+    p_reason: st.reason === 'أخرى' ? st.other.trim() : st.reason,
+    p_unit: picked.unit,
+  });
+  st.busy = false;
+  if(error){
+    const msg = error.message || '';
+    st.error = (/rk_record_waste/.test(msg) || error.code === 'PGRST202')
+      ? 'تسجيل الهدر يحتاج تحديث من لوحة التحكم'
+      : (msg || 'تعذّر تسجيل الهدر');
+    renderWasteModal();
+    return;
+  }
+  const cost = Number((data||{}).cost) || 0;
+  document.getElementById('paymentModal').classList.remove('show');
+  showToast('انسجّل الهدر — ' + picked.name + (cost ? ' (' + cost.toFixed(2) + ' ر.س)' : ''));
+}
+
 /* ============ Smart upselling — configurable, max 2, one-tap, never blocking ============ */
 function maybeShowUpsell(productId){
   const rules = UPSELL_RULES[productId];
@@ -2165,21 +2257,101 @@ function rkSyncCustomerButton(){
   btn.textContent = (c && (c.name || c.phone)) ? ('👤 ' + (c.name || c.phone)) : '+ عميل ولاء';
 }
 
-document.getElementById('discountToggle').addEventListener('click', ()=>{
-  document.getElementById('discountPanel').classList.toggle('open');
-});
-document.getElementById('discountPanel').addEventListener('click', (e)=>{
-  const btn = e.target.closest('.disc-btn');
-  if(!btn) return;
-  state.discountPct = parseInt(btn.dataset.pct);
-  document.querySelectorAll('.disc-btn').forEach(b=>b.classList.remove('active'));
-  if(state.discountPct > 0) btn.classList.add('active');
-  renderOrder();
-  document.getElementById('discountPanel').classList.remove('open');
+/**
+ * نافذة الخصم -- بدّلت صفَّ ".discount-panel" القديم الذي كان يحشر خمس
+ * أزرار "flex:1" داخل عرض غير محدود، فتنكمش كلُّ خانة إلى شريطٍ فارغ (نفس
+ * علّة `discountChip` في التطبيق -- انظر react-native-poc/src/ui/DiscountModal.tsx).
+ * نافذةٌ حقيقية تحلّ المشكلة من جذرها، وتتّسع لنسبةٍ مخصّصة وسببٍ اختياري
+ * لم يكن للصفّ القديم مكانٌ لهما أصلاً.
+ */
+const PRESET_DISCOUNT_PCTS = [5, 10, 15, 20];
+let discountModalState = {pct: 0, customMode: false, customPct: '', reason: ''};
+const discountModal = document.getElementById('discountModal');
+
+function syncDiscountToggleLabel(){
   document.getElementById('discountToggle').textContent = state.discountPct > 0
     ? (LANG === 'en' ? `Discount ${state.discountPct}% active` : `خصم ${state.discountPct}٪ مفعّل`)
     : (LANG === 'en' ? '+ Discount' : '+ خصم');
-});
+}
+
+function openDiscountModal(){
+  const isPreset = PRESET_DISCOUNT_PCTS.includes(state.discountPct);
+  discountModalState = {
+    pct: state.discountPct,
+    customMode: state.discountPct > 0 && !isPreset,
+    customPct: state.discountPct > 0 && !isPreset ? String(state.discountPct) : '',
+    reason: state.discountReason || '',
+  };
+  renderDiscountModalBody();
+  discountModal.classList.add('show');
+}
+document.getElementById('discountToggle').addEventListener('click', openDiscountModal);
+document.getElementById('closeDiscountModal').addEventListener('click', ()=> discountModal.classList.remove('show'));
+discountModal.addEventListener('click', (e)=>{ if(e.target===discountModal) discountModal.classList.remove('show'); });
+
+function discountModalEffectivePct(){
+  if(!discountModalState.customMode) return discountModalState.pct;
+  return Math.max(0, Math.min(99, parseInt(toWesternDigits(discountModalState.customPct), 10) || 0));
+}
+
+function renderDiscountModalBody(){
+  const s = discountModalState;
+  const effectivePct = discountModalEffectivePct();
+  const body = document.getElementById('discountModalBody');
+  body.innerHTML = `
+    <div class="discount-grid">
+      ${PRESET_DISCOUNT_PCTS.map(p => `<button class="discount-chip ${!s.customMode && s.pct===p ? 'active' : ''}" data-pct="${p}">${p}٪</button>`).join('')}
+      <button class="discount-chip ${s.customMode ? 'active' : ''}" id="discountCustomToggle">${t('نسبة أخرى')}</button>
+    </div>
+    ${s.customMode ? `<input type="text" inputmode="numeric" class="discount-custom-input" id="discountCustomInput" placeholder="0-99" value="${escapeHtml(s.customPct)}">` : ''}
+    <label class="discount-reason-label">${t('سبب الخصم (اختياري)')}</label>
+    <input type="text" class="discount-reason-input" id="discountReasonInput" placeholder="${t('مثال: عميل دائم، طلب فيه نقص...')}" value="${escapeHtml(s.reason)}">
+    <button class="confirm-pay-btn discount-confirm-btn" id="discountConfirmBtn" ${effectivePct<=0 ? 'disabled' : ''}>${effectivePct>0 ? `${t('تطبيق الخصم')} — ${effectivePct}٪` : t('اختر نسبة')}</button>
+    ${state.discountPct > 0 ? `<button class="discount-clear-link" id="discountClearBtn">${t('إلغاء الخصم')}</button>` : ''}
+  `;
+  body.querySelectorAll('.discount-chip[data-pct]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      discountModalState.customMode = false;
+      discountModalState.pct = parseInt(btn.dataset.pct, 10);
+      renderDiscountModalBody();
+    });
+  });
+  const customToggle = document.getElementById('discountCustomToggle');
+  if(customToggle) customToggle.addEventListener('click', ()=>{
+    discountModalState.customMode = true;
+    renderDiscountModalBody();
+    const input = document.getElementById('discountCustomInput');
+    if(input) input.focus();
+  });
+  const customInput = document.getElementById('discountCustomInput');
+  if(customInput) customInput.addEventListener('input', (e)=>{
+    discountModalState.customPct = toWesternDigits(e.target.value).replace(/[^0-9]/g,'').slice(0,2);
+    const confirmBtn = document.getElementById('discountConfirmBtn');
+    const p = discountModalEffectivePct();
+    confirmBtn.disabled = p<=0;
+    confirmBtn.textContent = p>0 ? `${t('تطبيق الخصم')} — ${p}٪` : t('اختر نسبة');
+  });
+  document.getElementById('discountReasonInput').addEventListener('input', (e)=>{
+    discountModalState.reason = e.target.value;
+  });
+  document.getElementById('discountConfirmBtn').addEventListener('click', ()=>{
+    const p = discountModalEffectivePct();
+    if(p<=0) return;
+    state.discountPct = p;
+    state.discountReason = discountModalState.reason.trim();
+    renderOrder();
+    syncDiscountToggleLabel();
+    discountModal.classList.remove('show');
+  });
+  const clearBtn = document.getElementById('discountClearBtn');
+  if(clearBtn) clearBtn.addEventListener('click', ()=>{
+    state.discountPct = 0;
+    state.discountReason = '';
+    renderOrder();
+    syncDiscountToggleLabel();
+    discountModal.classList.remove('show');
+  });
+}
 
 /* ============ Customer — step 2 of the payment popup (between channel and
    payment method), not the order panel. Order panel stays pure "build the
@@ -2721,7 +2893,7 @@ document.getElementById('clearOrderBtn').addEventListener('click', function(){
     // المكافأة تعود لصاحبها قبل أن تُفرغ السلة: بعدها لا يبقى ما
     // يقول إن في اليد رصيداً.
     rkReturnUnusedReward();
-    state.cart = []; state.discountPct = 0;
+    state.cart = []; state.discountPct = 0; state.discountReason = '';
     renderOrder();
     showToast('تم إفراغ الطلب');
   }
@@ -2832,7 +3004,7 @@ async function submitTableOrderRegistration(){
   }
   const savedLabel = isAppend ? 'تمت إضافة الأصناف للطلب' : 'تم تسجيل الطلب';
   showToast(savedLabel + (table ? ' — طاولة ' + table.number : '') + (orderId ? '' : ' (بدون اتصال — راح تتزامن تلقائيًا)'));
-  state.cart = []; state.customer = null; state.discountPct = 0;
+  state.cart = []; state.customer = null; state.discountPct = 0; state.discountReason = '';
   // الرصيد يسقط مع الطلب الذي صُرف فيه -- لا يُورَّث لطلب زبونٍ آخر.
   state.freeRewardCredit = 0; state.rewardArm = null;
   document.getElementById('discountToggle').textContent = '+ خصم';
@@ -3714,6 +3886,7 @@ async function sendOrderToServer(payload){
     p_client_order_uuid: payload.client_order_uuid, p_branch_id: payload.branch_id, p_shift_id: payload.shift_id,
     p_customer_name: payload.customer_name, p_customer_phone: payload.customer_phone,
     p_subtotal: payload.subtotal, p_discount_pct: payload.discount_pct, p_discount_amount: payload.discount_amount,
+    p_discount_reason: payload.discount_reason,
     p_vat_amount: payload.vat_amount, p_total: payload.total,
     p_payment_method: payload.payment_method, p_cash_amount: payload.cash_amount, p_items: payload.items,
     p_channel: payload.channel, p_delivery_platform_id: payload.delivery_platform_id,
@@ -3738,7 +3911,8 @@ async function sendDineInRegisterToServer(payload){
   const { data, error } = await window.supabaseClient.rpc('register_dine_in_order', {
     p_client_order_uuid: payload.client_order_uuid, p_branch_id: payload.branch_id, p_shift_id: payload.shift_id,
     p_customer_name: payload.customer_name, p_customer_phone: payload.customer_phone,
-    p_subtotal: payload.subtotal, p_discount_pct: payload.discount_pct, p_items: payload.items,
+    p_subtotal: payload.subtotal, p_discount_pct: payload.discount_pct, p_discount_reason: payload.discount_reason,
+    p_items: payload.items,
     p_table_id: payload.table_id, p_staff_member_id: payload.staff_member_id,
     p_existing_order_id: payload.existing_order_id, p_customer_id: payload.customer_id
   });
@@ -3932,6 +4106,7 @@ function buildOrderPayload(totals){
     customer_phone: state.customer ? state.customer.phone : null,
     customer_id: state.customer ? (state.customer.id || null) : null,
     subtotal: totals.subtotal, discount_pct: state.discountPct, discount_amount: totals.discount,
+    discount_reason: state.discountReason || null,
     vat_amount: totals.vat, total: totals.total,
     payment_method: rkPaymentMethodFor(totals),
     // split's cash half is whatever's left after the cashier-entered card
@@ -3986,7 +4161,7 @@ function buildDineInRegisterPayload(){
     customer_name: state.customer ? state.customer.name : null,
     customer_phone: state.customer ? state.customer.phone : null,
     customer_id: state.customer ? (state.customer.id || null) : null,
-    subtotal, discount_pct: state.discountPct, items,
+    subtotal, discount_pct: state.discountPct, discount_reason: state.discountReason || null, items,
     table_id: state.selectedTableId,
     staff_member_id: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.id : null,
     existing_order_id: state.selectedOrderId || null
@@ -4094,7 +4269,7 @@ async function submitOrder(totals){
    the business's saved preference); this file only decides WHEN to ask —
    after a new order, after a refund, and after checking whether this order's
    stock/sales-total crossed a configured threshold. */
-const UNIT_LABELS_POS = {kg:'كجم', g:'غرام', liter:'لتر', piece:'حبة'};
+const UNIT_LABELS_POS = {kg:'كجم', g:'غرام', liter:'لتر', ml:'مل', piece:'حبة'};
 
 async function sendOwnerPush(type, title, body){
   try {
@@ -5222,7 +5397,7 @@ async function completePayment(){
   // finished even though it had already been paid.
   const receiptData = buildLiveReceiptData(orderPayload, totals);
   const wasResumingOrder = !!state.resumingOrder;
-  state.cart = []; state.customer = null; state.discountPct = 0;
+  state.cart = []; state.customer = null; state.discountPct = 0; state.discountReason = '';
   // الرصيد يسقط مع الطلب الذي صُرف فيه -- لا يُورَّث لطلب زبونٍ آخر.
   state.freeRewardCredit = 0; state.rewardArm = null;
   state.selectedTableId = null; state.selectedOrderId = null; state.resumingOrder = null;
@@ -5669,6 +5844,7 @@ async function openOrderDetail(orderId){
       <div class="receipt-detail-row"><span>المجموع الفرعي</span>${rkMoney(Number(order.subtotal))}</div>
       ${order.delivery_fee > 0 ? `<div class="receipt-detail-row"><span>رسوم التوصيل</span>${rkMoney(Number(order.delivery_fee))}</div>` : ''}
       ${order.discount_amount > 0 ? `<div class="receipt-detail-row"><span>الخصم</span>${rkMoney(-Number(order.discount_amount))}</div>` : ''}
+      ${order.discount_amount > 0 && order.discount_reason ? `<div class="receipt-detail-row" style="border-bottom:none; padding-top:0;"><span style="color:var(--muted); font-size:11px;">سبب الخصم: ${escapeHtml(order.discount_reason)}</span></div>` : ''}
       <div class="receipt-detail-row"><span>الضريبة</span>${rkMoney(Number(order.vat_amount))}</div>
       <div class="receipt-detail-row"><span>طريقة الدفع</span><span class="mono">${PAYMENT_METHOD_LABELS_POS[order.payment_method] || order.payment_method}</span></div>
       <div class="receipt-detail-row"><span>الحالة</span><span class="mono">${ORDER_STATUS_LABELS_POS[order.status] || order.status}</span></div>
@@ -7400,6 +7576,7 @@ setInterval(()=>{
 // has it).
 const QUICK_ACTIONS = [
   {id:'drawer', label:'فتح الدرج', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M2 7l4-4h12l4 4"/><line x1="12" y1="12" x2="12" y2="16"/></svg>'},
+  {id:'waste', label:'تسجيل هدر', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6l1 14h12l1-14"/></svg>'},
   {id:'refund', label:'استرجاع مبلغ', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>'},
   {id:'manager', label:'موافقة مدير', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'},
   {id:'myDisplay', label:'شاشة العميل', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>'},
@@ -7419,6 +7596,7 @@ function handleMoreAction(e){
   const btn = e.target.closest('.more-item'); if(!btn) return;
   const id = btn.dataset.action;
   if(id === 'drawer') openCashDrawer();
+  else if(id === 'waste') openWasteModal();
   else if(id === 'manager') openPinModal();
   /* "مسح باركود" حُذف من "المزيد": كان يمسح بطاقةً ويُلصق صاحبَها بسلّةٍ
      قد تكون فارغة، والكاشير واقفٌ في شاشةٍ غير شاشة الطلب -- فلا يرى
@@ -7682,7 +7860,7 @@ async function loadShiftData(){
   // فالدرج ينقص فعلاً وإن لم يدخله شيء، وبيع كاش أُعيد بعضه فالباقي منه
   // في الدرج. فالاستبعاد كان يُخفي سحباً حقيقياً من الصندوق.
   const { data } = await window.supabaseClient
-    .from('orders').select('total, subtotal, discount_amount, vat_amount, payment_method, cash_amount, source').eq('shift_id', CURRENT_SHIFT.id).eq('payment_status', 'paid');
+    .from('orders').select('total, subtotal, discount_pct, discount_amount, vat_amount, payment_method, cash_amount, source').eq('shift_id', CURRENT_SHIFT.id).eq('payment_status', 'paid');
   const orders = data || [];
   // المرتجعات بورديّة خروج المال لا بورديّة البيع: قد يُرجَع بيع الأمس
   // اليوم، والدرج الذي ينقص هو درج اليوم.
@@ -7700,11 +7878,16 @@ async function loadShiftData(){
   // counted as "card" while the real cash portion went uncounted entirely).
   let cashSales = 0, cardSales = 0, deliveryPlatformSales = 0, onlineSales = 0;
   let grossSales = 0, discountsTotal = 0, vatTotal = 0;
+  // كم طلبًا خُصم بكل نسبة -- "خصم 50%: 10 طلبات" بدل رقم واحد مجمَّع
+  // بالموازنة. نفس الحساب حرفيًا في react-native-poc/src/domain/shift.ts.
+  const discountCounts = new Map();
   orders.forEach(o=>{
     const total = Number(o.total);
     grossSales += Number(o.subtotal) || 0;
     discountsTotal += Number(o.discount_amount) || 0;
     vatTotal += Number(o.vat_amount) || 0;
+    const discPct = Math.round(Number(o.discount_pct) || 0);
+    if(discPct > 0) discountCounts.set(discPct, (discountCounts.get(discPct) || 0) + 1);
     // طلب من المتجر الإلكتروني دُفع بغير الكاش هو "دفع إلكتروني" -- لا
     // شبكةَ الصالة. الفصل بالمصدر لا بطريقة الدفع، لأن كليهما يصل
     // بـ'card' وحدها لا تفرّق بينهما.
@@ -7719,9 +7902,12 @@ async function loadShiftData(){
   });
   // الصافي بعد المرتجعات، والدرج بعد ما خرج منه.
   const netSales = cashSales + cardSales + deliveryPlatformSales + onlineSales - refundsTotal;
+  const discountBreakdown = Array.from(discountCounts.entries())
+    .map(([pct, count]) => ({pct, count}))
+    .sort((a, b) => a.pct - b.pct);
   return {
     ordersCount: orders.length,
-    grossSales, discountsTotal, vatTotal, refundsTotal, refundsCount,
+    grossSales, discountsTotal, discountBreakdown, vatTotal, refundsTotal, refundsCount,
     netSales,
     avgTicket: orders.length ? netSales / orders.length : 0,
     openingCash: Number(CURRENT_SHIFT.opening_cash) || 0,
@@ -7886,6 +8072,7 @@ function renderClosingWizard(){
             shiftStart: closingShiftData.startTime,
             ordersCount: closingShiftData.ordersCount, salesTotal: closingShiftData.salesTotal,
             grossSales: closingShiftData.grossSales, discountsTotal: closingShiftData.discountsTotal,
+            discountBreakdown: closingShiftData.discountBreakdown,
             refundsTotal: closingShiftData.refundsTotal, refundsCount: closingShiftData.refundsCount,
             vatTotal: closingShiftData.vatTotal, netSales: closingShiftData.netSales,
             avgTicket: closingShiftData.avgTicket, openingCash: closingShiftData.openingCash,

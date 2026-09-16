@@ -354,16 +354,27 @@ svg{display:block;}
 .oi-note-text{font-size:10px; color:var(--text); opacity:0.7; margin-top:6px; font-weight:600;}
 
 /* الزرّان في سطرٍ واحد: العميل والخصم إجراءان متجاوران على السلة، لا
-   أحدهما فوق الآخر -- والسلة أضيق من أن تُهدر سطراً لكلٍّ منهما.
-   (ولوحة الخصم تبقى تحتهما بعرضها كاملاً، فتُبقى خارج الالتفاف.) */
+   أحدهما فوق الآخر. الخيارات نفسها صارت بنافذة (#discountModal) لا صفاً
+   يتوسّع تحتهما -- راجع react-native-poc/src/ui/DiscountModal.tsx للسبب:
+   نظيرها بالتطبيق كان يحشر خمس أزرار flex:1 بعرضٍ غير محدود فتنكمش كلُّ
+   خانة إلى شريطٍ فارغ. الويب لم يكن يحمل هذا العطل بالذات (كان عنده
+   `flex:1 0 100%` صريح)، لكن توحيد الواجهتين في نافذةٍ واحدة أسهل صيانةً
+   وأتّسع للنسبة المخصّصة والسبب الاختياري. */
 .op-discount-row{padding:12px 18px 0; display:flex; flex-wrap:wrap; gap:8px;}
 .op-discount-row > .discount-toggle{flex:1 1 0; min-width:0;}
-.op-discount-row > .discount-panel{flex:1 0 100%;}
 .discount-toggle{width:100%; padding:10px; border-radius:var(--r-md); border:1px dashed var(--line); background:none; color:var(--muted); font-size:11.5px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px;}
-.discount-panel{display:none; margin-top:8px; gap:6px;}
-.discount-panel.open{display:flex;}
-.disc-btn{flex:1; padding:10px 4px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--surf1); font-weight:800; font-size:12px;}
-.disc-btn.active{background:var(--lime); color:var(--flag-green-deep); border-color:var(--lime);}
+
+/* #discountModal body -- content-sized chips in a wrapping grid, the
+   actual fix (no flex:1, nothing to divide unboundedly). */
+.discount-grid{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;}
+.discount-chip{padding:12px 18px; border-radius:var(--r-md); border:1px solid var(--line); background:var(--surf1); font-weight:800; font-size:13px; color:var(--text);}
+.discount-chip.active{background:var(--lime); color:var(--flag-green-deep); border-color:var(--lime);}
+.discount-custom-input{width:100%; padding:13px; margin-bottom:16px; border-radius:var(--r-md); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-weight:800; font-size:16px; text-align:center; font-family:'IBM Plex Mono',monospace;}
+.discount-reason-label{display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px;}
+.discount-reason-input{width:100%; padding:13px 14px; margin-bottom:16px; border-radius:var(--r-md); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-weight:600; font-size:13px; text-align:right;}
+.discount-confirm-btn{width:100%;}
+.discount-confirm-btn:disabled{background:var(--surf2); color:var(--muted);}
+.discount-clear-link{display:block; width:100%; text-align:center; margin-top:14px; padding:8px; border:none; background:none; color:var(--danger); font-weight:700; font-size:12px;}
 
 /* The total is the number a cashier reads out loud, and it used to sit a
    couple of points above the VAT line with a dashed rule over it — near
@@ -1090,3 +1101,13 @@ input[type="number"]::-webkit-inner-spin-button{ -webkit-appearance:none; appear
 }
 .stale-shift-when-label{ font-size:11.5px; font-weight:800; color:var(--muted); }
 .stale-shift-when-value{ font-size:14px; font-weight:800; color:var(--text); text-align:center; line-height:1.7; }
+
+/* تسجيل الهدر من الكاشير — قائمة اختيار المادة ثم كم ولماذا. */
+.waste-pick-list{display:flex; flex-direction:column; gap:6px; max-height:46vh; overflow-y:auto; margin-top:4px;}
+.waste-pick-row{display:flex; justify-content:space-between; align-items:center; gap:10px; width:100%; padding:13px 14px; border-radius:var(--r-md); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-weight:700; font-size:13px; text-align:start;}
+.waste-pick-unit{font-weight:600; font-size:11px; color:var(--muted); flex-shrink:0;}
+.waste-picked{display:flex; justify-content:space-between; align-items:center; width:100%; padding:12px 14px; margin-bottom:14px; border-radius:var(--r-md); border:1px solid var(--lime-deep); background:rgba(196,255,43,0.13); color:var(--text); font-weight:800; font-size:13.5px;}
+.waste-picked-change{font-size:11px; font-weight:700; color:var(--lime-deep);}
+.waste-chips{display:flex; flex-wrap:wrap; gap:6px;}
+.waste-chip{padding:9px 14px; border-radius:var(--r-full); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-weight:700; font-size:12px;}
+.waste-chip.on{background:var(--lime); border-color:var(--lime); color:var(--flag-green-deep);}

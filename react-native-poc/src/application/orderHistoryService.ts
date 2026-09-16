@@ -79,6 +79,8 @@ export interface OrderHistoryDetail {
   paymentMethod: string;
   subtotal: number;
   discountAmount: number;
+  /** الكاشير كتبها اختياريًا وقت تطبيق الخصم -- orders.discount_reason. */
+  discountReason?: string;
   vatAmount: number;
   total: number;
   /** ما أُعيد من هذي الفاتورة حتى الآن. الباقي = total - refundedAmount. */
@@ -128,6 +130,7 @@ export async function getOrderHistoryDetail(orderId: number): Promise<OrderHisto
     paymentMethod: order.payment_method,
     subtotal: Number(order.subtotal),
     discountAmount: Number(order.discount_amount || 0),
+    discountReason: order.discount_reason || undefined,
     vatAmount: Number(order.vat_amount),
     total: Number(order.total),
     refundedAmount: Number(order.refunded_amount || 0),

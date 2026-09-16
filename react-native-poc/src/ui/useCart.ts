@@ -35,6 +35,11 @@ export function useCart(
 ) {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [discountPct, setDiscountPct] = useState(0);
+  /** Optional free-text reason the cashier typed in when applying a
+   *  discount -- e.g. "عميل دائم" or "طلب تالف جزئيًا". Never required
+   *  (confirmed with the owner), so an empty string is a perfectly valid,
+   *  common state, not an error. */
+  const [discountReason, setDiscountReason] = useState('');
   const [orderChannel, setOrderChannel] = useState<OrderChannel>('dine_in');
   const [deliveryPlatformId] = useState<string | null>(null); // platform selection is a later, delivery-specific checkpoint
   const lineIdCounter = useRef(1);
@@ -133,6 +138,7 @@ export function useCart(
   const clearCart = useCallback(() => {
     setCart([]);
     setDiscountPct(0);
+    setDiscountReason('');
     setRewardArm(null);
     setFreeRewardCredit(0);
   }, []);
@@ -147,6 +153,8 @@ export function useCart(
     totals,
     discountPct,
     setDiscountPct,
+    discountReason,
+    setDiscountReason,
     orderChannel,
     setOrderChannel,
     addProduct,
