@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-// Fired by the Worker's Cron Trigger at 21:00 UTC = 00:00 Asia/Riyadh
-// (worker-entrypoint.js's scheduled() handler) — every business gets
-// yesterday's full financial report computed and saved automatically, no
+// Fired by the Worker's Cron Trigger every hour on the hour
+// (worker-entrypoint.js's scheduled() handler) — every business gets its own
+// business-day's full financial report computed and saved automatically, no
 // owner action needed. Auth here is a shared secret header, same pattern as
 // /api/cron/win-back, since this is never called by a real user session.
+//
+// Why hourly rather than once at midnight: a café that closes at 2am was
+// having its night cut in half — 00:00-02:00 landed in the NEXT day's report,
+// so the paper never matched the drawer. Each business now sets its own
+// day_cutoff_hour (Riyadh, 0-11), its business day runs [D cutoff, D+1
+// cutoff), and its report is generated the moment that day ends. This route
+// just asks "which hour is it in Riyadh?" and hands that to the RPC, which
+// processes only the businesses whose day ended exactly now. One cron slot,
+// not one per hour — the free plan caps the account at 5 and we're at 5.
 //
 // All the actual computation lives in the generate_daily_reports() Postgres
 // function (see its migration) — this route is just the trigger + date math.
@@ -26,23 +35,36 @@ export async function POST(request: NextRequest) {
   }
   const admin = createClient(supabaseUrl, serviceRoleKey);
 
-  // Riyadh is UTC+3 year-round (no DST), and this route only ever runs from
-  // the 21:00 UTC Cron Trigger — so "the Riyadh calendar day that just
-  // ended" is always exactly [now-24h, now) in UTC, and its Riyadh-local
-  // date is (now - 24h) shifted forward 3h.
-  const dayEnd = new Date();
+  // Riyadh is UTC+3 year-round (no DST), so its wall clock is simply UTC+3.
+  // The trigger fires on the hour; snapping to the hour boundary keeps the
+  // window exactly 24h wide and makes a manual re-run land on the same
+  // boundary as the scheduled one (daily_reports upserts, so a re-run is a
+  // clean recompute rather than a second row).
+  const now = new Date();
+  const dayEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours()));
   const dayStart = new Date(dayEnd.getTime() - 24 * 60 * 60 * 1000);
-  const reportDate = new Date(dayStart.getTime() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+  // The Riyadh hour we just crossed — a business whose day_cutoff_hour equals
+  // it has just finished its business day.
+  const riyadhEnd = new Date(dayEnd.getTime() + 3 * 60 * 60 * 1000);
+  const cutoffHour = riyadhEnd.getUTCHours();
+
+  // The Riyadh calendar date the finished day BEGAN on — that's the day the
+  // report is about. For a 2am cutoff, the night of the 16th→17th is "the
+  // 16th", which is what the owner calls it.
+  const riyadhStart = new Date(dayStart.getTime() + 3 * 60 * 60 * 1000);
+  const reportDate = riyadhStart.toISOString().slice(0, 10);
 
   const { data: count, error } = await admin.rpc("generate_daily_reports", {
     p_report_date: reportDate,
     p_day_start: dayStart.toISOString(),
     p_day_end: dayEnd.toISOString(),
+    p_cutoff_hour: cutoffHour,
   });
   if (error) {
     console.error("daily-report: generate_daily_reports failed", error);
     return NextResponse.json({ error: "generation failed", details: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, reportDate, businessesProcessed: count });
+  return NextResponse.json({ ok: true, reportDate, cutoffHour, businessesProcessed: count });
 }

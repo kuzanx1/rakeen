@@ -68,8 +68,12 @@
   // app/api/cron/usage-check). worker-entrypoint.js's scheduled() handler
   // branches on event.cron to route each schedule to its own endpoint.
   "triggers": {
-    // "0 21 * * *" is 00:00 Asia/Riyadh (UTC+3, no DST) — the automatic
-    // end-of-day report (app/api/cron/daily-report).
+    // "0 * * * *": every hour on the hour — the automatic end-of-day report
+    // (app/api/cron/daily-report). Hourly rather than once at midnight
+    // because each business sets its own closing hour (businesses
+    // .day_cutoff_hour): a café that shuts at 2am had its night split across
+    // two reports. Each run generates only for the businesses whose business
+    // day ended in that hour, so this is still ONE cron slot, not 24.
     // "*/2 * * * *": every 2 minutes — sweeps online pickup orders whose
     // promised ready-by time has passed and auto-marks them ready unless a
     // cashier already did (app/api/cron/auto-ready-pickup).
@@ -79,7 +83,7 @@
     // خمسة لا ستة: حسابُ Workers المجاني يسمح بخمسة مؤقّتات لا أكثر.
     // ودفعُ بطاقات المحفظة يركب "*/2" نفسه بدل أن يطلب سادساً — وهما
     // مكنستان خفيفتان تُنجزان في ثوانٍ، فلا تزاحم إحداهما الأخرى.
-    "crons": ["0 6 * * *", "0 7 * * 1", "0 21 * * *", "*/2 * * * *", "0 5 * * *"]
+    "crons": ["0 6 * * *", "0 7 * * 1", "0 * * * *", "*/2 * * * *", "0 5 * * *"]
   },
   // Report emailing (app/api/reports/send-email/route.ts). The binding
   // works the moment it's deployed, but actually SENDING needs a real

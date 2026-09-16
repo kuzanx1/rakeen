@@ -8289,6 +8289,9 @@ document.getElementById('reportTypeChips').addEventListener('click', (e)=>{
    manually-incremented number that could drift from refunds/cancellations).
    "تصفير" just moves the start point to now; nothing is ever deleted. */
 let SALES_COUNTERS = [];
+// الأعداد تُحسب داخل renderSalesCountersPanel وتُرمى مع الـHTML. ويحتاجها
+// التصدير (Excel/PDF/بريد) بعد الرسم بلحظات، فتُحفظ هنا بدل إعادة حسابها.
+let SALES_COUNTER_COUNTS = {};
 
 async function computeCounterQty(counter){
   const sb = window.supabaseClient;
@@ -8347,6 +8350,8 @@ async function renderSalesCountersPanel(){
 
   panel.innerHTML = '<p style="font-size:12.5px; color:var(--muted); font-weight:600; padding:10px 0; text-align:center;">جاري حساب الأعداد...</p>';
   const counts = await Promise.all(SALES_COUNTERS.map(c=>computeCounterQty(c)));
+  SALES_COUNTER_COUNTS = {};
+  SALES_COUNTERS.forEach((c,i)=>{ SALES_COUNTER_COUNTS[c.id] = counts[i]; });
   const cardsHtml = SALES_COUNTERS.map((c,i)=>{
     const targetName = c.stock_item_id
       ? (STOCK_ITEMS.find(s=>s.id===c.stock_item_id)?.name || 'صنف محذوف') + ' (مكوّن)'
@@ -8455,15 +8460,44 @@ let DAILY_REPORT_CONFIG = null;
 async function loadDailyReportConfig(){
   const sb = window.supabaseClient;
   const { data } = await sb.from('businesses')
-    .select('daily_report_sales, daily_report_products, daily_report_payments, daily_report_financial, daily_report_tax, daily_report_delivery')
+    .select('daily_report_sales, daily_report_products, daily_report_payments, daily_report_financial, daily_report_tax, daily_report_delivery, day_cutoff_hour')
     .eq('id', CURRENT_PROFILE.business_id).maybeSingle();
-  DAILY_REPORT_CONFIG = data || {daily_report_sales:true, daily_report_products:true, daily_report_payments:true, daily_report_financial:true, daily_report_tax:true, daily_report_delivery:true};
+  DAILY_REPORT_CONFIG = data || {daily_report_sales:true, daily_report_products:true, daily_report_payments:true, daily_report_financial:true, daily_report_tax:true, daily_report_delivery:true, day_cutoff_hour:0};
+}
+
+/* ساعة إقفال يوم العمل. مقهى يقفل الثانية فجرًا كانت مبيعاته بين ١٢ و٢
+   تقع في تقرير الغد، فيقرأ ليلته مقصوصةً نصفين ولا تطابق ما في الدرج.
+   فيختار كل مكان ساعته، ويصير يومه [الساعة → الساعة بعد ٢٤]، ويُولَّد
+   تقريره لحظةَ انتهاء يومه هو لا في وقتٍ موحّد للجميع. */
+const DAY_CUTOFF_CHOICES = [
+  {h:0,  label:'١٢ منتصف الليل', hint:'الأغلبية — من يقفل قبل منتصف الليل'},
+  {h:1,  label:'١ فجرًا',        hint:''},
+  {h:2,  label:'٢ فجرًا',        hint:'المقاهي الليلية'},
+  {h:3,  label:'٣ فجرًا',        hint:''},
+  {h:4,  label:'٤ فجرًا',        hint:''},
+  {h:5,  label:'٥ فجرًا',        hint:''},
+  {h:6,  label:'٦ صباحًا',       hint:'يعمل ٢٤ ساعة'},
+];
+
+function dailyReportCutoffLabel(h){
+  const c = DAY_CUTOFF_CHOICES.find(x=>x.h === Number(h||0));
+  return c ? c.label : (h + ':00');
 }
 
 function dailyReportConfigHtml(){
+  const cutoff = Number(DAILY_REPORT_CONFIG.day_cutoff_hour || 0);
   return `
     <div class="rk-section" style="margin-bottom:16px;">
-      ${rkSectionHead('sliders', 'محتوى التقرير اليومي', 'اختر وش يظهر بالتقرير التلقائي اللي يتولد كل ليلة الساعة ١٢')}
+      ${rkSectionHead('clock', 'وقت التقرير اليومي', 'التقرير يغطي يوم عملك كامل، لا اليوم بالتقويم — فحدّد متى يقفل مكانك')}
+      <div class="rk-field" style="max-width:340px; margin-bottom:6px;">
+        <label>يوم العمل يقفل الساعة</label>
+        <select id="dailyReportCutoffSelect">
+          ${DAY_CUTOFF_CHOICES.map(c=>`<option value="${c.h}" ${c.h===cutoff?'selected':''}>${c.label}${c.hint?' — '+c.hint:''}</option>`).join('')}
+        </select>
+      </div>
+      <p class="stock-qty-helper" style="margin-bottom:14px;" id="dailyReportCutoffHelper">${dailyReportCutoffHelperText(cutoff)}</p>
+
+      ${rkSectionHead('sliders', 'محتوى التقرير اليومي', 'اختر وش يظهر بالتقرير')}
       <div class="rk-check-grid" style="grid-template-columns:repeat(3, 1fr); margin-bottom:14px;">
         ${Object.keys(DAILY_REPORT_SECTION_LABELS).map(key=>
           rkCheck(`class="daily-report-section-toggle" data-key="${key}" ${DAILY_REPORT_CONFIG['daily_report_'+key] !== false ? 'checked' : ''}`, DAILY_REPORT_SECTION_LABELS[key])
@@ -8473,7 +8507,20 @@ function dailyReportConfigHtml(){
     </div>`;
 }
 
+function dailyReportCutoffHelperText(h){
+  const cutoff = Number(h||0);
+  if(cutoff === 0) return 'تقرير كل يوم يغطي من ١٢ منتصف الليل إلى ١٢ منتصف الليل، ويجهز الساعة ١٢ بالضبط. تلقاه هنا تحت باسم يومه.';
+  return 'تقرير كل يوم يغطي من ' + dailyReportCutoffLabel(cutoff) + ' إلى ' + dailyReportCutoffLabel(cutoff)
+    + ' اليوم اللي بعده، ويجهز الساعة ' + dailyReportCutoffLabel(cutoff)
+    + '. يعني بيع الساعة وحدة فجرًا ينحسب على ليلة أمس مثل ما تعدّه أنت، لا على يوم جديد. تلقاه هنا تحت باسم يومه.';
+}
+
 function wireDailyReportConfigForm(){
+  const cutoffSel = document.getElementById('dailyReportCutoffSelect');
+  if(cutoffSel) cutoffSel.addEventListener('change', ()=>{
+    const helper = document.getElementById('dailyReportCutoffHelper');
+    if(helper) helper.textContent = dailyReportCutoffHelperText(cutoffSel.value);
+  });
   const btn = document.getElementById('dailyReportConfigSaveBtn');
   if(!btn) return;
   btn.addEventListener('click', async ()=>{
@@ -8481,6 +8528,7 @@ function wireDailyReportConfigForm(){
     document.querySelectorAll('.daily-report-section-toggle').forEach(cb=>{
       update['daily_report_'+cb.dataset.key] = cb.checked;
     });
+    if(cutoffSel) update.day_cutoff_hour = parseInt(cutoffSel.value, 10) || 0;
     rkBtnLoading(btn, true);
     try {
       await updateCurrentBusiness(update);
@@ -8506,8 +8554,9 @@ async function loadDailyAutoReportsList(){
   ]);
   DAILY_REPORTS_LIST = data || [];
   if(DAILY_REPORTS_LIST.length === 0){
+    const cutoffLbl = dailyReportCutoffLabel(DAILY_REPORT_CONFIG.day_cutoff_hour || 0);
     panel.innerHTML = dailyReportConfigHtml() + `<div class="panel-title">التقرير اليومي التلقائي</div>
-      <div class="orders-empty">لسا ما فيه تقرير محفوظ — أول تقرير يتولد تلقائياً الساعة ١٢ صباحاً (منتصف الليل) بعد أول يوم فيه مبيعات.</div>`;
+      <div class="orders-empty">لسا ما فيه تقرير محفوظ — أول تقرير يتولد تلقائياً الساعة ${cutoffLbl} بعد أول يوم فيه مبيعات، ويظهر بالقائمة هنا.</div>`;
     wireDailyReportConfigForm();
     return;
   }
@@ -8546,6 +8595,52 @@ function deliveryPlatformReportHtml(d){
     </table>`;
 }
 
+/* الخصم والاسترجاع والهدر: ثلاثة أبواب يخرج منها المال ولا يظهر منها شيء
+   في تقريرٍ يقرأ المبيعات وحدها. والهدر يُعرض بكلفته لا بكمّيته -- عشرون
+   غرامًا من بنٍّ غالٍ ليست كعشرين من سكّر. */
+function dailyDiscountsSectionHtml(d){
+  const tiers = d.discountBreakdown || [];
+  if(!tiers.length && !(d.discounts > 0)) return '';
+  return `
+    <div class="panel-title">الخصومات</div>
+    <div class="report-stat-row"><span>عدد الطلبات المخصومة</span><span class="mono">${d.discountOrders || 0}</span></div>
+    ${tiers.map(t=>`<div class="report-stat-row"><span>خصم ${t.pct}%</span><span class="mono">${t.count} طلب — ${Number(t.amount||0).toFixed(2)} ر.س</span></div>`).join('')}
+    <div class="report-stat-row total"><span>إجمالي الخصومات</span><span class="mono">${Number(d.discounts||0).toFixed(2)} ر.س</span></div>`;
+}
+
+function dailyRefundsSectionHtml(d){
+  const rows = d.refundRows || [];
+  if(!rows.length && !(d.refundsTotal > 0)) return '';
+  const kindLabel = {full:'كامل الفاتورة', lines:'أسطر منها', amount:'مبلغ محدد'};
+  return `
+    <div class="panel-title">الاسترجاع</div>
+    ${rows.length ? `<table class="report-table">
+      <thead><tr><th>الطلب</th><th>النوع</th><th>السبب</th><th>المبلغ</th></tr></thead>
+      <tbody>${rows.map(r=>`<tr>
+        <td class="mono">#${r.orderId}</td><td>${kindLabel[r.kind] || r.kind}</td>
+        <td>${r.reason ? escapeHtml(r.reason) : '—'}</td><td class="mono">${Number(r.amount||0).toFixed(2)}</td>
+      </tr>`).join('')}</tbody></table>` : ''}
+    <div class="report-stat-row total"><span>إجمالي الاسترجاع (${d.refundsCount || 0})</span><span class="mono">${Number(d.refundsTotal||0).toFixed(2)} ر.س</span></div>`;
+}
+
+function dailyWasteSectionHtml(d){
+  const rows = d.wasteRows || [];
+  if(!rows.length && !(d.wasteCost > 0)) return '';
+  return `
+    <div class="panel-title">الهدر</div>
+    ${rows.length ? `<table class="report-table">
+      <thead><tr><th>الصنف</th><th>الكمية</th><th>السبب</th><th>الكلفة</th></tr></thead>
+      <tbody>${rows.map(r=>`<tr>
+        <td>${escapeHtml(r.name)}</td>
+        <td class="mono">${Number(r.qty||0).toFixed(2)} ${UNIT_LABELS[r.unit] || r.unit || ''}</td>
+        <td>${r.reason ? escapeHtml(r.reason) : '—'}</td>
+        <td class="mono">${Number(r.cost||0).toFixed(2)}</td>
+      </tr>`).join('')}</tbody></table>` : ''}
+    <div class="report-stat-row total"><span>كلفة الهدر</span><span class="mono">${Number(d.wasteCost||0).toFixed(2)} ر.س</span></div>
+    <p class="stock-qty-helper">الهدر معروض لحاله ولا هو مطروح من صافي الربح فوق — عشان الرقم اللي تعودت تقراه ما يتغير من دون ما تطلب.</p>`;
+}
+
+
 function renderDailyAutoReportPanel(){
   const panel = document.getElementById('reportPreviewPanel');
   panel.className = 'report-preview-doc theme-' + REPORT_THEME;
@@ -8561,12 +8656,20 @@ function renderDailyAutoReportPanel(){
   const d = SELECTED_DAILY_REPORT.data;
   const sections = d.sections || {sales:true, products:true, payments:true, financial:true, tax:true, delivery:true};
   const dayLabel = formatDailyReportDate(SELECTED_DAILY_REPORT.report_date);
-  let body = `<div class="panel-title" style="font-size:16px; font-weight:900;">التقرير اليومي — ${dayLabel}</div>`;
+  const cutoffH = Number(d.cutoffHour || 0);
+  const windowNote = cutoffH === 0
+    ? 'من ١٢ منتصف الليل إلى ١٢ منتصف الليل'
+    : 'من ' + dailyReportCutoffLabel(cutoffH) + ' إلى ' + dailyReportCutoffLabel(cutoffH) + ' اليوم اللي بعده';
+  let body = `<div class="panel-title" style="font-size:16px; font-weight:900;">التقرير اليومي — ${dayLabel}</div>
+    <p class="stock-qty-helper" style="margin:-6px 0 14px;">${windowNote}</p>`;
   if(sections.financial !== false) body += financialReportHtml(d);
   if(sections.sales !== false) body += salesReportHtml(d);
   if(sections.products !== false) body += productsReportHtml(d);
   if(sections.delivery !== false) body += deliveryPlatformReportHtml(d);
   if(sections.payments !== false) body += paymentsReportHtml(d);
+  body += dailyDiscountsSectionHtml(d);
+  body += dailyRefundsSectionHtml(d);
+  body += dailyWasteSectionHtml(d);
   if(sections.tax !== false) body += taxReportHtml(d);
 
   panel.innerHTML = dailyReportConfigHtml() + datePicker + reportDocHeaderHtml() + body
@@ -17007,7 +17110,8 @@ function closeAuditDrawer(){
    server-side — report_exports only logs who exported what, when. */
 const REPORT_TYPE_LABELS = {
   sales:'تقرير المبيعات', products:'تقرير المنتجات', payments:'طرق الدفع', financial:'الملخص المالي الكامل',
-  shift:'إغلاق الورديات', tax:'تقرير الضريبة', vat_return:'الإقرار الضريبي', purchases:'تقرير المشتريات', expenses:'تقرير المصاريف'
+  shift:'إغلاق الورديات', tax:'تقرير الضريبة', vat_return:'الإقرار الضريبي', purchases:'تقرير المشتريات', expenses:'تقرير المصاريف',
+  discounts:'تقرير الخصومات', counter:'عدّادات المبيعات', daily_auto:'التقرير اليومي'
 };
 
 // pulls from the exact same REPORT_RANGE_DATA / REPORT_DETAIL_ROWS the on-
@@ -17016,7 +17120,12 @@ const REPORT_TYPE_LABELS = {
 function buildReportPayload(type){
   const now = new Date();
   const generatedAt = now.toLocaleDateString('ar-SA', {year:'numeric', month:'long', day:'numeric'}) + ' — ' + now.toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'});
-  const base = { businessName: RESTAURANT_INFO.name || '', generatedAt, reportTitle: REPORT_TYPE_LABELS[type] + ' — ' + REPORT_RANGE_LABEL };
+  // stats:[] في الأساس لا في كل فرعٍ على حدة -- فنوعٌ جديد يُضاف غدًا ولا
+  // يُكتب له فرعٌ هنا يخرج تقريرًا فارغًا، لا يكسر التصدير. هذا بالضبط ما
+  // وقع مع «التقرير اليومي» و«عدّاد المبيعات» و«الخصومات»: سقطت الثلاثة
+  // على الأساس بلا stats، فانكسر مصدّر Excel على e.stats.length.
+  const base = { businessName: RESTAURANT_INFO.name || '', generatedAt, stats: [],
+    reportTitle: (REPORT_TYPE_LABELS[type] || 'تقرير') + ' — ' + REPORT_RANGE_LABEL };
   const d = REPORT_RANGE_DATA || {};
 
   if(type === 'sales'){
@@ -17077,6 +17186,56 @@ function buildReportPayload(type){
     return { ...base, stats: [{label:'إجمالي المصاريف', value: rows.reduce((s,r)=>s+r.amount,0).toFixed(2)+' ر.س', total:true}],
       table: { headers:['التصنيف','الوصف','المبلغ'], rows: rows.map(r=>[r.category, r.description||'—', r.amount.toFixed(2)]) } };
   }
+  /* الثلاثة التالية ما كان لها فرعٌ هنا إطلاقًا، فكانت تسقط على
+     `return base` بلا stats -- فينكسر مصدّر Excel على e.stats.length،
+     وتنكسر معه الطباعة والإرسال بالبريد لأن الثلاثة تقرأ نفس الحمولة. */
+  if(type === 'discounts'){
+    const rows = REPORT_DETAIL_ROWS || [];
+    const total = rows.reduce((s,r)=>s+r.amount,0);
+    const tiers = new Map();
+    rows.forEach(r=>tiers.set(r.pct, (tiers.get(r.pct)||0)+1));
+    return { ...base, stats: [
+      {label:'عدد الطلبات المخصومة', value: String(rows.length)},
+      ...[...tiers.entries()].sort((a,b)=>b[0]-a[0]).map(([pct,count])=>({label:'خصم '+pct+'%', value: count+' طلب'})),
+      {label:'إجمالي مبلغ الخصومات', value: total.toFixed(2)+' ر.س', total:true},
+    ], table: { headers:['الطلب','النسبة','الأصناف','الكاشير','السبب','المبلغ','التاريخ'],
+      rows: rows.map(r=>['#'+r.id, r.pct+'%', r.products, r.cashier, r.reason || '—', r.amount.toFixed(2),
+        new Date(r.date).toLocaleString('ar-SA', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})]) } };
+  }
+  if(type === 'counter'){
+    const counters = SALES_COUNTERS || [];
+    return { ...base, stats: counters.map(c=>({label: c.name, value: String(SALES_COUNTER_COUNTS[c.id] != null ? SALES_COUNTER_COUNTS[c.id] : '—')})),
+      table: { headers:['العدّاد','الصنف','يعدّ منذ','العدد'], rows: counters.map(c=>[
+        c.name,
+        c.stock_item_id
+          ? ((STOCK_ITEMS.find(x=>x.id===c.stock_item_id)||{}).name || 'صنف محذوف') + ' (مكوّن)'
+          : ((MENU_ITEMS.find(x=>x.id===c.menu_item_id)||{}).name || 'منتج محذوف'),
+        new Date(c.count_since).toLocaleString('ar-SA', {year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}),
+        String(SALES_COUNTER_COUNTS[c.id] != null ? SALES_COUNTER_COUNTS[c.id] : '—'),
+      ]) } };
+  }
+  if(type === 'daily_auto'){
+    const r = SELECTED_DAILY_REPORT;
+    if(!r) return { ...base, stats: [], table: { headers:['اليوم'], rows: [] } };
+    const dd = r.data || {};
+    const num = v => (Number(v)||0).toFixed(2) + ' ر.س';
+    return { ...base,
+      reportTitle: 'التقرير اليومي — ' + formatDailyReportDate(r.report_date),
+      stats: [
+        {label:'صافي المبيعات', value: num(dd.netSales)},
+        {label:'عدد الطلبات', value: String(dd.ordersCount||0)},
+        {label:'متوسط الفاتورة', value: num(dd.avgTicket)},
+        {label:'الخصومات', value: num(dd.discounts)},
+        {label:'الاسترجاع', value: num(dd.refundsTotal) + ' (' + (dd.refundsCount||0) + ')'},
+        {label:'الهدر', value: num(dd.wasteCost)},
+        {label:'ضريبة القيمة المضافة', value: num(dd.vat)},
+        {label:'تكلفة البضاعة المباعة', value: num(dd.cogs)},
+        {label:'المصاريف التشغيلية', value: num(dd.opex)},
+        {label:'صافي الربح', value: num(dd.netProfit), total:true},
+      ],
+      table: { headers:['المنتج','التصنيف','الكمية','الإيرادات'],
+        rows: [...(dd.sellers||[])].sort((a,b)=>b.revenue-a.revenue).map(x=>[x.name, x.cat, x.qty, Number(x.revenue||0).toFixed(2)]) } };
+  }
   if(type === 'shift'){
     const rows = REPORT_DETAIL_ROWS || [];
     return { ...base, stats: [], table: { headers:['فتحها','أقفلها','المبيعات','الكاش المتوقع','الكاش الفعلي','الفرق'],
@@ -17098,7 +17257,7 @@ function renderPrintReport(payload){
   const logoHtml = BUSINESS_LOGO_URL
     ? `<img src="${escapeHtml(BUSINESS_LOGO_URL)}" class="print-report-logo" crossorigin="anonymous">`
     : `<div class="print-report-logo-fallback">${escapeHtml((payload.businessName||'؟').trim().charAt(0))}</div>`;
-  const statsHtml = payload.stats.map(s=>`<div class="print-report-stat${s.total?' total':''}"><span>${escapeHtml(s.label)}</span><span>${escapeHtml(s.value)}</span></div>`).join('');
+  const statsHtml = (payload.stats || []).map(s=>`<div class="print-report-stat${s.total?' total':''}"><span>${escapeHtml(s.label)}</span><span>${escapeHtml(s.value)}</span></div>`).join('');
   const tableHtml = payload.table ? `
     <table class="print-report-table">
       <thead><tr>${payload.table.headers.map(h=>`<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>

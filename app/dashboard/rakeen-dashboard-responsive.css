@@ -1160,6 +1160,36 @@ select.field-invalid {
 .report-preview-doc .report-table td { border-bottom-color: #eee; }
 .report-preview-doc .orders-empty { color: #8a8477; text-align: center; padding: 34px 0; }
 
+/* عدّاد المبيعات والتقرير اليومي شاشتان تفاعليتان تُرسمان داخل هذا السطح
+   -- وهو ورقةٌ بيضاء مثبّتة اللون مهما كان ثيم اللوحة. فحقولها كانت تأخذ
+   ألوان الثيم: في الوضع الليلي يصير لون خيارات القائمة أبيضَ تقريبًا،
+   وفايرفوكس يفتح قائمته على أرضية النظام الفاتحة -- فتُرى قائمةٌ فاضية
+   سطورها موجودة ونصّها غير مرئي.
+
+   فتُثبَّت ألوان كل عنصر إدخالٍ على هذه الورقة بألوان الورقة نفسها، لا
+   بمتغيّرات الثيم. و`option` تنصّ على لونها صراحةً لأنها لا ترث شيئًا من
+   الـselect في قائمة النظام. */
+.report-preview-doc select,
+.report-preview-doc input,
+.report-preview-doc textarea {
+  color: #171717;
+  background-color: #fff;
+  border-color: #ddd;
+}
+.report-preview-doc select option {
+  color: #171717;
+  background-color: #fff;
+}
+.report-preview-doc select:focus,
+.report-preview-doc input:focus,
+.report-preview-doc textarea:focus { background-color: #fff; border-color: #8FCB17; }
+.report-preview-doc label { color: #5b564c; }
+.report-preview-doc .rk-section-title,
+.report-preview-doc .rk-subcard-title { color: #171717; }
+.report-preview-doc .rk-section,
+.report-preview-doc .rk-subcard { background: #fff; border-color: #e6e3dc; }
+.report-preview-doc .stock-qty-helper { color: #8a8477; }
+
 .report-export-action.primary {
   background: var(--graphite);
   border-color: var(--graphite);

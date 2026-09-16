@@ -142,7 +142,7 @@ export default {
     // dispatched together, not in sequence).
     const paths =
       event.cron === "0 7 * * 1" ? ["/api/cron/usage-check"] :
-      event.cron === "0 21 * * *" ? ["/api/cron/daily-report"] :
+      event.cron === "0 * * * *" ? ["/api/cron/daily-report"] :
       event.cron === "*/2 * * * *" ? ["/api/cron/auto-ready-pickup", "/api/cron/wallet-push"] :
       event.cron === "0 5 * * *" ? ["/api/cron/compliance-check"] :
       ["/api/cron/win-back"];
