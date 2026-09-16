@@ -1346,9 +1346,12 @@ button{font-family:inherit; cursor:pointer;}
 .mg-stock-link-row{display:flex; gap:8px;}
 .mg-computed-cost-box{margin-top:4px; padding:9px 12px; border-radius:7px; background:rgba(163,64,44,0.07); border:1px solid rgba(163,64,44,0.2); font-size:11.5px; font-weight:700; color:var(--danger);}
 /* ===== Inventory: stock table mini-bar + supplier price comparison ===== */
-.mtr-stock-bar-cell{display:flex; align-items:center; gap:8px; width:150px;}
-.mtr-stock-bar-cell .stock-bar-track{width:70px; flex:none;}
-.mtr-stock-bar-cell .mtr-stock-pct{font-size:11px; font-weight:700; font-family:'IBM Plex Mono',monospace; width:34px;}
+/* الخانة تُرصّ عموديًا لا أفقيًا: صارت تحمل سطرين تحت الشريط (كم يكفيك،
+   وكم نسبتك)، وصفٌّ أفقيّ في ١٥٠ بكسل كان يقسمها أثلاثًا فيتكسّر كل نصّ
+   على ثلاثة أسطر. */
+.mtr-stock-bar-cell{display:flex; flex-direction:column; align-items:flex-start; gap:2px; width:150px;}
+.mtr-stock-bar-cell .stock-bar-track{width:100%; flex:none;}
+.mtr-stock-bar-cell .mtr-stock-pct{font-size:11px; font-weight:700; font-family:'IBM Plex Mono',monospace; margin-top:4px;}
 
 .supcomp-card{background:var(--card-bg); border:1px solid var(--line); border-radius:var(--r-lg); padding:16px 18px; margin-bottom:14px;}
 .supcomp-verdict{background:rgba(77,107,12,0.08); border:1px solid rgba(77,107,12,0.25); border-radius:var(--r-md); padding:14px 16px; margin-bottom:16px;}
@@ -2214,6 +2217,40 @@ select option{
   font-weight:600;
 }
 select option:disabled{color:var(--muted);}
+
+/* --- المخزون: الأيام عنوانًا، والنسبة تفصيلًا ------------------- */
+/* الترتيب البصري يتبع ترتيب القرار: ما يُتصرَّف بناءً عليه أكبر وأعلى،
+   وما يشرحه أصغر وتحته. */
+.mtr-stock-days{
+  display:block; font-weight:800; font-size:12.5px; margin-top:4px; line-height:1.35;
+  white-space:nowrap;
+}
+.mtr-stock-days.ok{ color:var(--text); }
+.mtr-stock-days.warn{ color:var(--amber); }
+.mtr-stock-days.critical{ color:var(--danger); }
+.mtr-stock-sub{
+  display:block; font-size:10.5px; font-weight:700; color:var(--muted); margin-top:2px; line-height:1.35;
+}
+
+/* ما يحدث للأساس حين لا تحدّده -- يُقال قبل الحفظ لا بعده، وبلا
+   علامة صحٍّ تطلب قرارًا جوابه معروف. */
+.stock-baseline-notice{
+  font-size:11px; font-weight:700; line-height:1.6; color:var(--muted);
+  background:var(--surf1); border:1px solid var(--line);
+  border-radius:var(--r-sm); padding:9px 11px; margin:0 0 10px;
+}
+.stock-baseline-notice b{ color:var(--text); }
+
+/* الأساس المقترَح من الحركة المرصودة، لا من سؤالٍ يوم التأسيس. */
+.stock-par-suggest{
+  display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+  font-size:11px; font-weight:700; line-height:1.65; color:var(--muted);
+  background:color-mix(in srgb, var(--lime) 10%, transparent);
+  border:1px solid color-mix(in srgb, var(--lime) 40%, var(--line));
+  border-radius:var(--r-sm); padding:10px 12px; margin:0 0 12px;
+}
+.stock-par-suggest b{ color:var(--text); }
+.stock-par-suggest > div{ flex:1; min-width:180px; }
 
 /* --- one button look ---------------------------------------------- */
 /* Legacy vocabularies, aliased rather than rewritten at 354 call sites. */

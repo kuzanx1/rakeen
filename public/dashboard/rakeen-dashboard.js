@@ -162,11 +162,48 @@ let STOCK_ITEMS = [
   {id:20, name:'بيكون', qtyOnHand:4, parLevel:10, unitCost:60, unit:'kg', category:'raw'}
 ];
 let stockIdCounter = 21;
+/* النسبة لم تعد تُقصّ عند ١٠٠٪.
+   القصّ هو ما جمّد الشريط أصلًا: من عبّأ من ٣٣٩ إلى ١٠٠٠ كان يقرأ
+   ١٠٠٪ لأسابيع، بينما الرقم الحقيقي ٢٩٥٪ ← ٢٨٩٪ ← ٢٧٠٪ يتحرّك من
+   أول بيع. وما فوق ١٠٠٪ معلومةٌ لا خطأ: فلوسٌ محجوزة في رفّ وخطرُ
+   انتهاء صلاحية. (عرضُ الشريط وحده يُقصّ -- لأن عَرْضًا أطول من
+   الخانة ليس قراءة.) */
 function computeStockPct(item){
   if(!(item.parLevel > 0)) return 100; // ما تحدّد «مخزون معتاد» بعد -- لا نسبة حقيقية تُحسب، ولا "صفر تقسيم صفر" يظهر NaN.
-  return Math.max(0, Math.min(100, Math.round(item.qtyOnHand/item.parLevel*100)));
+  return Math.max(0, Math.round(item.qtyOnHand/item.parLevel*100));
 }
+function stockBarWidth(pct){ return Math.max(0, Math.min(100, pct)); }
+
+/* «١٢ أيام» ليست عربية. والتمييز يتغيّر بالعدد: يوم، يومين، ٣-١٠
+   أيام، وما فوقها يومًا. تُكتب مرّةً هنا وتُقرأ في الجدول والنافذة. */
+function daysCoverLabel(d, qtyOnHand){
+  if(qtyOnHand != null && qtyOnHand <= 0) return 'خلص';
+  if(d == null) return '';
+  if(d < 1)  return 'أقل من يوم';
+  if(d < 2)  return 'يوم واحد';
+  if(d < 3)  return 'يومين';
+  // التقريب قبل التمييز، لا بعده: ١٠٫٦ تُقرّب إلى ١١ فتأخذ «يومًا»
+  // لا «أيام».
+  const r = Math.round(d);
+  return r < 11 ? (r + ' أيام') : (r + ' يومًا');
+}
+
+/* الخطر يُقاس بالأيام لا بالنسبة.
+   صنفان على ٥٠٪: بنٌّ يُباع منه ٢ كجم يوميًا ينفد بكرة، وشرابٌ
+   يُستهلك منه ١٠٠ مل يوميًا يكفي شهرًا. فمتى عرفنا معدّل الاستهلاك
+   حكمنا بالأيام، وإلا رجعنا للنسبة -- ولا نخترع رقمًا لا نملكه. */
 function computeStockTier(pct){ if(pct<20) return 'critical'; if(pct<45) return 'warn'; return 'ok'; }
+function computeStockTierFor(item){
+  if(item && item.qtyOnHand <= 0) return 'critical';
+  const d = item && item.daysLeft;
+  if(d != null){
+    const cycle = (item.cycleDays && item.cycleDays > 0) ? item.cycleDays : 7;
+    if(d < 3) return 'critical';          // ما يوصل حتى لو طلبت اليوم
+    if(d < cycle) return 'warn';          // ما يكمّل للطلبية الجاية
+    return 'ok';
+  }
+  return computeStockTier(computeStockPct(item));
+}
 const UNIT_LABELS = {kg:'كجم', g:'غرام', liter:'لتر', ml:'مل', piece:'حبة'};
 // A per-gram/per-ml cost is often a fraction of a halala (e.g. 46 ر.س ÷ 9600 غ) —
 // toFixed(2) alone shows a misleading "0.00 ر.س" for those. Widen the decimals
@@ -1948,6 +1985,26 @@ async function refreshStockQuantities(){
     s.parLevel  = par > 0 ? par : qty;
     s.parIsSet  = par > 0;
   });
+  await refreshStockInsights();
+}
+
+/* الاستهلاك المقيس من سجلّ الحركات -- لا يُسأل عنه أحد ولا يُخمَّن.
+   وقبل تشغيل ترحيل 20260916080000 لا وجود للدالّة: تُترك الحقول
+   فارغة فترجع الشاشة للنسبة وحدها، بلا خطأ في الوجه. */
+async function refreshStockInsights(){
+  if(!window.supabaseClient) return;
+  const { data, error } = await window.supabaseClient.rpc('rk_stock_insights');
+  if(error || !data) return;
+  const byId = {};
+  data.forEach(r=>{ byId[Number(r.stock_item_id)] = r; });
+  STOCK_ITEMS.forEach(s=>{
+    const r = byId[s.id];
+    s.dailyUsage   = r && r.daily_usage   != null ? Number(r.daily_usage)   : null;
+    s.daysLeft     = r && r.days_left     != null ? Number(r.days_left)     : null;
+    s.historyDays  = r && r.history_days  != null ? Number(r.history_days)  : null;
+    s.cycleDays    = r && r.cycle_days    != null ? Number(r.cycle_days)    : null;
+    s.suggestedPar = r && r.suggested_par != null ? Number(r.suggested_par) : null;
+  });
 }
 
 function renderWasteAndFoodCost(){
@@ -1959,14 +2016,14 @@ function renderWasteAndFoodCost(){
   // from STOCK_ITEMS, plus how many items are running low.
   const stockValuePanel = document.getElementById('stockValuePanel');
   const totalValue = STOCK_ITEMS.reduce((s,i)=> s + Math.max(0, i.qtyOnHand) * i.unitCost, 0);
-  const lowItems = STOCK_ITEMS.filter(i => computeStockTier(computeStockPct(i)) !== 'ok');
+  const lowItems = STOCK_ITEMS.filter(i => computeStockTierFor(i) !== 'ok');
   document.getElementById('stockValueAmount').textContent = totalValue.toFixed(2) + ' ر.س';
   document.getElementById('stockValueDetail').textContent = lowItems.length > 0
     ? lowItems.length + (lowItems.length===1 ? ' صنف منخفض يحتاج انتباه' : ' أصناف منخفضة تحتاج انتباه')
     : 'كل أصنافك بمستوى جيد';
   if(stockValuePanel){
     stockValuePanel.classList.remove('ok','warn','critical');
-    stockValuePanel.classList.add(lowItems.some(i=>computeStockTier(computeStockPct(i))==='critical') ? 'critical' : lowItems.length>0 ? 'warn' : 'ok');
+    stockValuePanel.classList.add(lowItems.some(i=>computeStockTierFor(i)==='critical') ? 'critical' : lowItems.length>0 ? 'warn' : 'ok');
   }
 
   const foodCostPanel = document.getElementById('foodCostPanel');
@@ -2007,10 +2064,62 @@ function computeTodayConsumption(stockItemName){
   return {totalQty, unitsSold, orderCount: unitsSold, qtyKnown};
 }
 
+/* خانة المستوى. ترتيبها مقصود: العنوان هو ما يُتصرَّف بناءً عليه --
+   «يكفيك ٤ أيام» -- والنسبة تحته تفصيلٌ يشرح من أين جاء. وإن لم يكن
+   للصنف حركةٌ بعد قيل ذلك صراحةً بدل تقديرٍ لا نملكه. */
+function stockLevelCellHtml(s, pct, tier){
+  if(s.parIsSet === false && s.daysLeft == null){
+    // بلا أساسٍ ولا حركة: النسبة ١٠٠٪ حسابيًا دائمًا (الموجود ÷ الموجود).
+    // شريطٌ أخضر ممتلئ هنا يقول «مخزونك كامل» عن صنفٍ قد يكون على وشك
+    // النفاد. فلا يُرسم، ويُقال السبب.
+    return `<span class="mtr-stock-nobase">بلا مخزون معتاد</span>`;
+  }
+  const bar = `<div class="stock-bar-track"><div class="stock-bar-fill ${tier}" style="width:${stockBarWidth(pct)}%"></div></div>`;
+  if(s.daysLeft != null){
+    const d = s.daysLeft;
+    const lbl = daysCoverLabel(d, s.qtyOnHand);
+    const head = (s.qtyOnHand <= 0 || d < 1) ? lbl : 'يكفيك ' + lbl;
+    return `${bar}
+      <span class="mtr-stock-days ${tier}">${head}</span>
+      <span class="mtr-stock-sub mono"${pct > 105 ? ' title="فوق مخزونك المعتاد — فلوس محجوزة في الرف"' : ''}>${pct}٪ من معتادك</span>`;
+  }
+  return `${bar}
+    <span class="mtr-stock-pct mono">${pct}٪</span>
+    <span class="mtr-stock-sub">لسا ما نعرف معدّل استهلاكك</span>`;
+}
+
+/* لا علامة صح: أول رقمٍ تسجّله لصنفٍ بلا أساس هو أساسه في كل الحالات
+   تقريبًا، فمربّعٌ مؤشَّر سلفًا لا يفعل إلا أن يضيف نقرة ويوهم بقرار.
+   والنظام كان يفعل هذا صامتًا أصلًا -- فالمكسب هنا أن يُقال، لا أن
+   يُستأذن. */
+function stockBaselineNoticeHtml(){
+  const st = stockModalState || {};
+  if(st.id && st.parIsSet !== false) return '';
+  const unit = UNIT_LABELS[st.unit] || '';
+  const qty  = st.qtyOnHand != null ? st.qtyOnHand : '—';
+  return `<p class="stock-baseline-notice">ما حدّدت «مخزونك المعتاد» لهذا الصنف — فهذا الرقم (<b class="mono">${qty} ${unit}</b>) راح يصير هو، يعني ١٠٠٪، وتُقاس نسبتك عليه. تقدر تغيّره بأي وقت من تحت.</p>`;
+}
+
+/* الأساس المقترَح: استهلاكك المقيس × دورة توريدك المرصودة + يومين
+   احتياط. يُعرض بعد أن تتجمّع حركة كافية، لا يوم التأسيس حين لا يعرف
+   صاحب المطعم رقمًا يكتبه. */
+function stockParSuggestionHtml(){
+  const st = stockModalState || {};
+  const item = st.id ? STOCK_ITEMS.find(x=>x.id===st.id) : null;
+  if(!item || item.suggestedPar == null || !(item.historyDays >= 7)) return '';
+  const unit = UNIT_LABELS[item.unit] || '';
+  const cycle = item.cycleDays && item.cycleDays > 0 ? item.cycleDays : 7;
+  return `<div class="stock-par-suggest">
+      <div>من واقع حركتك: تستهلك <b class="mono">${item.dailyUsage.toFixed(item.dailyUsage < 1 ? 3 : 1)} ${unit}</b> باليوم، وتعبّي كل <b class="mono">${cycle}</b> يوم تقريبًا.
+      فالأساس المناسب ≈ <b class="mono">${item.suggestedPar} ${unit}</b> (دورة كاملة + يومين احتياط).</div>
+      <button type="button" class="rk-btn rk-btn-secondary rk-btn-sm" id="applyParSuggestionBtn" data-par="${item.suggestedPar}">استخدم ${item.suggestedPar}</button>
+    </div>`;
+}
+
 function stockRowHtml(s, usedInMap){
   const usedBy = usedInMap[s.name];
   const pct = computeStockPct(s);
-  const tier = computeStockTier(pct);
+  const tier = computeStockTierFor(s);
   const consumption = computeTodayConsumption(s.name);
   // A negative qty_on_hand (consumption recorded exceeding what was ever
   // purchased, or a data-entry error) is otherwise invisible — the stock
@@ -2031,15 +2140,7 @@ function stockRowHtml(s, usedInMap){
         </div>
       </div>
       <div class="mtr-price mono">${formatUnitCost(s.unitCost)} / ${UNIT_LABELS[s.unit]}</div>
-      <div class="mtr-stock-bar-cell">
-        ${s.parIsSet === false
-          // بلا أساسٍ مسجَّل تكون النسبة ١٠٠٪ حسابيًا دائمًا (الموجود ÷ الموجود).
-          // شريطٌ أخضر ممتلئ هنا يقول «مخزونك كامل» عن صنفٍ قد يكون على وشك
-          // النفاد، ولا يرفع تنبيهًا أبدًا. فلا يُرسم، ويُقال السبب.
-          ? `<span class="mtr-stock-nobase">بلا مخزون معتاد</span>`
-          : `<div class="stock-bar-track"><div class="stock-bar-fill ${tier}" style="width:${pct}%"></div></div>
-        <span class="mtr-stock-pct mono">${pct}٪</span>`}
-      </div>
+      <div class="mtr-stock-bar-cell">${stockLevelCellHtml(s, pct, tier)}</div>
       <div class="mth-col-modused"><span class="mtr-mod-used"${usedBy ? ` title="${escapeHtml(usedBy.join('، '))}"` : ''}>${usedBy ? escapeHtml(usedBy.slice(0,2).join('، ')) + (usedBy.length>2 ? ' +'+(usedBy.length-2) : '') : 'غير مرتبط'}</span></div>
       <div class="mtr-action"><button class="mtr-edit-btn" data-id="${s.id}">تعديل</button></div>
     </div>`;
@@ -2148,6 +2249,7 @@ function openStockItemModal(stockId){
     ${existing ? `<p class="stock-qty-helper" style="margin-top:-8px; margin-bottom:16px;">تغيير التكلفة هنا يطبّق على المبيعات الجاية بس — كل طلب سابق يحتفظ بتكلفته وقت البيع فعليًا، وما يتغيّر بأثر رجعي.</p>` : ''}
 
     <div class="menu-add-field" style="margin-bottom:6px;"><label>${existing ? 'الكمية المتوفّرة الآن' : 'كم عندك الآن؟'}</label><input type="number" id="siQtyOnHand" value="${stockModalState.qtyOnHand}" step="0.1"></div>
+    <div id="siBaselineNotice">${stockBaselineNoticeHtml()}</div>
     <div class="stock-live-bar-box" id="siLiveBarBox"></div>
 
     ${existing ? `
@@ -2166,6 +2268,7 @@ function openStockItemModal(stockId){
       </div>
       <div class="advanced-body${stockModalState.parLevel > 0 ? '' : ' open'}" id="parAdvancedBody">
         <p style="font-size:11px; color:var(--muted); font-weight:600; margin:8px 0 10px;">«مخزونك المعتاد» هو الكمية اللي نعتبرها ١٠٠٪ لهذا الصنف، ونقيس عليها نسبة مخزونك في الجدول. عدّلها بس لو صرت تخزّن كمية أكبر أو أقل بشكل دائم — تحديث «المتوفّر الآن» فوق ما يحتاجه.</p>
+        ${stockParSuggestionHtml()}
         <div class="menu-add-field" style="max-width:220px;"><label>كمية «مخزونك المعتاد» — يعني ١٠٠٪</label><input type="number" id="siParLevel" value="${stockModalState.parLevel}" step="0.1"></div>
       </div>
     </div>` : ''}
@@ -2200,16 +2303,20 @@ function openStockItemModal(stockId){
   const updatePctPreview = ()=>{
     const par = stockModalState.parLevel;
     const pct = par>0 ? Math.max(0,Math.min(100,Math.round(stockModalState.qtyOnHand/par*100))) : 100;
-    const tier = computeStockTier(pct);
+    const tier = existing ? computeStockTierFor({ ...existing, qtyOnHand: stockModalState.qtyOnHand, parLevel: par }) : computeStockTier(pct);
     const unitLabel = UNIT_LABELS[stockModalState.unit];
     // بلا أساسٍ اختاره صاحب المطعم، الأساس هو الموجود الآن -- فالكسر
     // ‏«٣٣٩ من ٣٣٩» يساوي ١٠٠٪ دائمًا مهما بِيع. كان يُعرض شريطًا أخضر
     // ممتلئًا، فيُقرأ: «المخزون ما نقص». والحقيقة أنه نقص، وأن هذا الصنف
     // لا يرفع تنبيه نقصٍ أبدًا. فيُقال الحال كما هو، ويُطلب الأساس.
     const parSet = existing ? (existing.parIsSet !== false) : false;
+    const liveDays = existing && existing.daysLeft != null
+      ? `<div class="stock-live-bar-label">ومن واقع بيعك: <b class="mono">${(stockModalState.qtyOnHand <= 0 || existing.daysLeft < 1) ? '' : 'يكفيك '}${daysCoverLabel(existing.daysLeft, stockModalState.qtyOnHand)}</b></div>`
+      : '';
     document.getElementById('siLiveBarBox').innerHTML = !existing ? '' : (parSet && par > 0 ? `
-      <div class="stock-bar-track" style="height:14px;"><div class="stock-bar-fill ${tier}" style="width:${pct}%"></div></div>
-      <div class="stock-live-bar-label">يعني عندك <b class="mono">${pct}٪</b> من مخزونك المعتاد — ${stockModalState.qtyOnHand} من ${par} ${unitLabel}</div>
+      <div class="stock-bar-track" style="height:14px;"><div class="stock-bar-fill ${tier}" style="width:${stockBarWidth(pct)}%"></div></div>
+      <div class="stock-live-bar-label">يعني عندك <b class="mono">${pct}٪</b> من مخزونك المعتاد — ${stockModalState.qtyOnHand} من ${par} ${unitLabel}${pct > 105 ? ' (فوق معتادك)' : ''}</div>
+      ${liveDays}
     ` : `
       <div class="stock-live-bar-label stock-no-baseline">ما حدّدت «مخزونك المعتاد» لهذا الصنف بعد — الموجود الآن <b class="mono">${stockModalState.qtyOnHand} ${unitLabel}</b>.<br>بدونه ما نقدر نحسب نسبة، وما يوصلك تنبيه لمّا يقرب يخلص. حدّده من «تعديل مخزونك المعتاد» تحت.</div>
     `);
@@ -2226,9 +2333,22 @@ function openStockItemModal(stockId){
     updatePctPreview();
   });
   document.getElementById('siUnitCost').addEventListener('input', (e)=> stockModalState.unitCost = parseFloat(e.target.value)||0);
-  document.getElementById('siQtyOnHand').addEventListener('input', (e)=>{ stockModalState.qtyOnHand = parseFloat(e.target.value)||0; updatePctPreview(); });
+  document.getElementById('siQtyOnHand').addEventListener('input', (e)=>{
+    stockModalState.qtyOnHand = parseFloat(e.target.value)||0;
+    const notice = document.getElementById('siBaselineNotice');
+    if(notice) notice.innerHTML = stockBaselineNoticeHtml();
+    updatePctPreview();
+  });
   if(existing){
     document.getElementById('siParLevel').addEventListener('input', (e)=>{ stockModalState.parLevel = parseFloat(e.target.value)||0; updatePctPreview(); });
+    const suggestBtn = document.getElementById('applyParSuggestionBtn');
+    if(suggestBtn) suggestBtn.addEventListener('click', ()=>{
+      const v = parseFloat(suggestBtn.dataset.par) || 0;
+      if(!(v > 0)) return;
+      stockModalState.parLevel = v;
+      document.getElementById('siParLevel').value = v;
+      updatePctPreview();
+    });
     document.getElementById('parAdvancedToggle').addEventListener('click', ()=>{
       const body = document.getElementById('parAdvancedBody');
       const chevron = document.getElementById('parAdvancedChevron');
