@@ -60,7 +60,9 @@ export default function DiscountModal({
     setReason(discountReason);
   }, [visible, discountPct, discountReason]);
 
-  const effectivePct = customMode ? Math.max(0, Math.min(99, parseInt(toLatinDigits(customPct), 10) || 0)) : pct;
+  // ١٠٠٪ خصمٌ وارد: ضيافة، أو تعويض شكوى، أو وجبة موظف تُسجَّل طلبًا.
+  // كان السقف ٩٩ والحقل يقبل رقمين فقط، فيستحيل كتابتها أصلًا.
+  const effectivePct = customMode ? Math.max(0, Math.min(100, parseInt(toLatinDigits(customPct), 10) || 0)) : pct;
 
   const pickPreset = (p: number) => {
     setCustomMode(false);
@@ -115,11 +117,14 @@ export default function DiscountModal({
             {customMode && (
               <TextInput
                 style={styles.customInput}
-                placeholder="0-99"
+                placeholder="0-100"
                 placeholderTextColor={colors.muted}
                 keyboardType="number-pad"
                 value={customPct}
-                onChangeText={v => setCustomPct(toLatinDigits(v).replace(/[^0-9]/g, '').slice(0, 2))}
+                onChangeText={v => {
+                  const digits = toLatinDigits(v).replace(/[^0-9]/g, '').slice(0, 3);
+                  setCustomPct(parseInt(digits, 10) > 100 ? '100' : digits);
+                }}
                 autoFocus
               />
             )}

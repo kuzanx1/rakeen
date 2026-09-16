@@ -359,7 +359,9 @@ export function buildOrderPayload(
     payment_method:
       ctx.total <= 0 && cart.some(i => i.isFreeReward || i.isPointsRedemption)
         ? 'loyalty'
-        : paymentMethod,
+        : ctx.total <= 0 && ctx.discountPct >= 100
+          ? 'discount'
+          : paymentMethod,
     cash_amount: cashAmount,
     channel: ctx.channel,
     delivery_platform_id: ctx.channel === 'delivery' ? ctx.deliveryPlatformId : null,

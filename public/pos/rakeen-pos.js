@@ -52,6 +52,33 @@ function escapeHtml(value){
 let LANG = 'ar';
 try { LANG = localStorage.getItem('rakeen_pos_lang') || 'ar'; } catch {}
 const I18N_EN = {
+  /* الهدر -- من مادة الرفّ إلى المنتج التامّ. وسببُ الهدر يُخزَّن
+     عربيًّا دائمًا ويُعرض مترجَمًا، فلا تنقسم التقارير بلغة الشاشة. */
+  'تسجيل هدر': 'Record waste',
+  'مادة من المخزون': 'Stock item',
+  'منتج جاهز': 'Finished product',
+  'كيس انسكب، مادة تلفت، شي راح من الرف.': 'A bag spilled, something spoiled, something gone off the shelf.',
+  'وجبة عامل، كوب رجّعه الزبون، صنف احترق — ننقص مكوّناته من المخزون.': 'A staff meal, a returned cup, a burnt item — we deduct its ingredients from stock.',
+  'دوّر بالاسم...': 'Search by name...',
+  'ما فيه مادة بهذا الاسم.': 'No stock item by that name.',
+  'ما فيه منتج بهذا الاسم.': 'No product by that name.',
+  'له خيارات': 'has options',
+  'كم راح؟': 'How much was lost?',
+  'الخيارات اللي دخلت فيه (اختياري)': 'Options that went into it (optional)',
+  'أشّر اللي انحط فعلاً عشان ينخصم معه. تقدر تتخطاها.': 'Tick what actually went in so it is deducted too. You can skip this.',
+  'اكتب السبب': 'Type the reason',
+  'تسجيل الهدر': 'Record waste',
+  'جارٍ التسجيل...': 'Recording...',
+  'انسجّل الهدر': 'Waste recorded',
+  'تعذّر تسجيل الهدر': 'Could not record the waste',
+  'تسجيل الهدر يحتاج تحديث من لوحة التحكم': 'Waste recording needs an update from the dashboard',
+  'ما فيه وصفة مربوطة، فما انخصم من المخزون': 'no recipe linked, so nothing was deducted from stock',
+  'تلف': 'Spoiled',
+  'انسكاب': 'Spilled',
+  'انتهت الصلاحية': 'Expired',
+  'خطأ تحضير': 'Prep mistake',
+  'أخرى': 'Other',
+
   /* ما استُجدّ في شاشات الدفع والعميل ونوع الطلب. وكلُّ نصٍّ يُكتب في
      الواجهة ولا يُسجَّل هنا يبقى عربياً على جهازٍ لغتُه إنجليزية --
      والمترجَمُ نصفُه أسوأ من غير المترجَم: يبدو عطلاً لا خياراً. */
@@ -1974,12 +2001,36 @@ function formatConfigLabelsBilingual(productId, config){
    بقي منه إلا فرقُ جردٍ مجهول آخر الشهر.
    (نظيرها في التطبيق: src/ui/WasteModal.tsx.) */
 const WASTE_REASONS_POS = ['تلف', 'انسكاب', 'انتهت الصلاحية', 'خطأ تحضير', 'أخرى'];
-let wasteState = {items: [], search: '', pickedId: null, qty: 0, reason: '', other: '', busy: false, error: ''};
+/* الهدر نوعان: مادةٌ خام من الرفّ (كيس بنّ انسكب)، ومنتجٌ تامّ (وجبة
+   عامل، كوبٌ رُدّ، صنفٌ احترق). وأكثره في المطاعم النوع الثاني -- ومن
+   يقف على الكاشير لا يعرف أن «وجبة الموظف» تعني ١٨٠غ دجاج و٥٠غ أرزّ،
+   يعرف أنها وجبة. فالخصم يُحسب في الخادم من الوصفة نفسها التي يُحسب بها
+   البيع (rk_record_product_waste).
+
+   والخيارات المرتبطة بالمخزون تُعرض لتُؤشَّر أو تُترك، ولا تُخمَّن --
+   وهذا درس الاسترجاع الذي أعاد ٤٨ من ١٠٨: مصدرُ خصمٍ لا يُسأل عنه
+   يُنسى بصمت. (نظيرتها في التطبيق: WasteModal.tsx) */
+let wasteState = {mode:'stock', items: [], search: '', pickedId: null, qty: 0, reason: '', other: '', busy: false, error: '', options: {}};
+
+function wasteProductOptions(productId){
+  const def = MODIFIER_PRODUCTS[productId];
+  if(!def || !def.groups) return [];
+  const out = [];
+  def.groups.forEach(g=>(g.options||[]).forEach(o=>{
+    const link = MODIFIER_OPTION_STOCK[g.id + '_' + o.id];
+    if(!link) return;
+    out.push({key: g.id + '_' + o.id, groupName: g.name, optionName: o.name,
+              stockItemId: link.stockItemId, qty: link.qty});
+  }));
+  return out;
+}
+
+function wasteProductName(p){ return (LANG === 'en' && p.nameEn) ? p.nameEn : p.name; }
 
 async function openWasteModal(){
-  wasteState = {items: [], search: '', pickedId: null, qty: 0, reason: '', other: '', busy: false, error: ''};
-  document.getElementById('paymentModalTitle').textContent = 'تسجيل هدر';
-  paymentModalBody.innerHTML = '<p class="pos-auth-sub">جاري التحميل...</p>';
+  wasteState = {mode:'stock', items: [], search: '', pickedId: null, qty: 0, reason: '', other: '', busy: false, error: '', options: {}};
+  document.getElementById('paymentModalTitle').textContent = t('تسجيل هدر');
+  paymentModalBody.innerHTML = '<p class="pos-auth-sub">' + t('جاري التحميل...') + '</p>';
   document.getElementById('paymentModal').classList.add('show');
   const { data } = await window.supabaseClient.from('stock_items').select('id, name, unit').order('name');
   wasteState.items = (data || []).map(r=>({id:Number(r.id), name:String(r.name), unit:String(r.unit)}));
@@ -1988,19 +2039,43 @@ async function openWasteModal(){
 
 function renderWasteModal(){
   const st = wasteState;
-  const picked = st.pickedId != null ? st.items.find(i=>i.id===st.pickedId) : null;
-  const unitLabel = picked ? (UNIT_LABELS_POS[picked.unit] || picked.unit) : '';
+  const isProduct = st.mode === 'product';
+  const picked = st.pickedId != null
+    ? (isProduct ? PRODUCTS.find(p=>p.id===st.pickedId) : st.items.find(i=>i.id===st.pickedId))
+    : null;
+  const unitLabel = (picked && !isProduct) ? (UNIT_LABELS_POS[picked.unit] || picked.unit) : t('حبة');
   const canSave = !!picked && st.qty > 0 && (st.reason && (st.reason !== 'أخرى' || st.other.trim()));
 
   if(!picked){
-    const q = st.search.trim();
-    const list = (q ? st.items.filter(i=>i.name.includes(q)) : st.items).slice(0, 40);
-    paymentModalBody.innerHTML = `
-      <div class="pos-auth-field"><label>أي مادة راحت؟</label>
-        <input type="text" id="wasteSearch" placeholder="دوّر بالاسم..." value="${escapeHtml(st.search)}" autocomplete="off"></div>
-      <div class="waste-pick-list">${list.length === 0
-        ? '<p class="pos-auth-sub">ما فيه مادة بهذا الاسم.</p>'
-        : list.map(i=>`<button type="button" class="waste-pick-row" data-id="${i.id}"><span>${escapeHtml(i.name)}</span><span class="waste-pick-unit">${UNIT_LABELS_POS[i.unit]||''}</span></button>`).join('')}</div>`;
+    const q = st.search.trim().toLowerCase();
+    const src = isProduct
+      ? PRODUCTS.filter(p=>p.id > 0 && (!q || p.name.toLowerCase().includes(q) || (p.nameEn||'').toLowerCase().includes(q)))
+      : st.items.filter(i=>!q || i.name.toLowerCase().includes(q));
+    const list = src.slice(0, 40);
+    const rows = list.length === 0
+      ? '<p class="pos-auth-sub">' + (isProduct ? t('ما فيه منتج بهذا الاسم.') : t('ما فيه مادة بهذا الاسم.')) + '</p>'
+      : list.map(i=>{
+          const label = isProduct ? wasteProductName(i) : i.name;
+          const side = isProduct
+            ? (wasteProductOptions(i.id).length ? t('له خيارات') : '')
+            : (UNIT_LABELS_POS[i.unit] || '');
+          return '<button type="button" class="waste-pick-row" data-id="' + i.id + '"><span>'
+            + escapeHtml(label) + '</span><span class="waste-pick-unit">' + escapeHtml(side) + '</span></button>';
+        }).join('');
+    paymentModalBody.innerHTML =
+      '<div class="waste-mode-row">'
+      + '<button type="button" class="waste-mode-tab ' + (!isProduct?'on':'') + '" data-mode="stock">' + t('مادة من المخزون') + '</button>'
+      + '<button type="button" class="waste-mode-tab ' + (isProduct?'on':'') + '" data-mode="product">' + t('منتج جاهز') + '</button>'
+      + '</div>'
+      + '<p class="waste-mode-hint">' + (isProduct
+          ? t('وجبة عامل، كوب رجّعه الزبون، صنف احترق — ننقص مكوّناته من المخزون.')
+          : t('كيس انسكب، مادة تلفت، شي راح من الرف.')) + '</p>'
+      + '<div class="pos-auth-field"><input type="text" id="wasteSearch" placeholder="' + t('دوّر بالاسم...') + '" value="' + escapeHtml(st.search) + '" autocomplete="off"></div>'
+      + '<div class="waste-pick-list">' + rows + '</div>';
+    paymentModalBody.querySelectorAll('.waste-mode-tab').forEach(b=> b.addEventListener('click', ()=>{
+      st.mode = b.dataset.mode; st.pickedId = null; st.search = ''; st.options = {}; st.error = '';
+      renderWasteModal();
+    }));
     const se = document.getElementById('wasteSearch');
     se.addEventListener('input', e=>{ st.search = e.target.value; renderWasteModal(); document.getElementById('wasteSearch').focus(); });
     paymentModalBody.querySelectorAll('.waste-pick-row').forEach(b=> b.addEventListener('click', ()=>{
@@ -2009,19 +2084,39 @@ function renderWasteModal(){
     return;
   }
 
-  paymentModalBody.innerHTML = `
-    <button type="button" class="waste-picked" id="wasteChange"><span>${escapeHtml(picked.name)}</span><span class="waste-picked-change">تغيير</span></button>
-    <div class="pos-auth-field"><label>كم راح؟</label>
-      <input type="number" id="wasteQty" inputmode="decimal" step="0.01" placeholder="0" value="${st.qty||''}"></div>
-    <div class="pos-auth-field"><label>السبب</label>
-      <div class="waste-chips">${WASTE_REASONS_POS.map(r=>
-        `<button type="button" class="waste-chip ${st.reason===r?'on':''}" data-reason="${r}">${r}</button>`).join('')}</div></div>
-    ${st.reason === 'أخرى' ? `<div class="pos-auth-field"><input type="text" id="wasteOther" placeholder="اكتب السبب" value="${escapeHtml(st.other)}"></div>` : ''}
-    ${st.error ? `<div class="pos-auth-error" style="display:block;">${escapeHtml(st.error)}</div>` : ''}
-    <button class="confirm-pay-btn" id="wasteSave" ${canSave && !st.busy ? '' : 'disabled'}>${st.busy ? 'جارٍ التسجيل...' : 'تسجيل الهدر'}</button>`;
+  const opts = isProduct ? wasteProductOptions(picked.id) : [];
+  const optsHtml = opts.length
+    ? '<div class="pos-auth-field"><label>' + t('الخيارات اللي دخلت فيه (اختياري)') + '</label>'
+      + '<p class="waste-mode-hint">' + t('أشّر اللي انحط فعلاً عشان ينخصم معه. تقدر تتخطاها.') + '</p>'
+      + '<div class="waste-opt-list">' + opts.map(o=>
+          '<button type="button" class="waste-opt-row ' + (st.options[o.key]?'on':'') + '" data-key="' + escapeHtml(o.key) + '">'
+          + '<span class="waste-opt-box">' + (st.options[o.key]?'✓':'') + '</span>'
+          + '<span>' + escapeHtml(o.groupName) + ' · ' + escapeHtml(o.optionName) + '</span></button>').join('')
+      + '</div></div>'
+    : '';
 
-  document.getElementById('wasteChange').addEventListener('click', ()=>{ st.pickedId = null; st.error=''; renderWasteModal(); });
+  paymentModalBody.innerHTML =
+    '<button type="button" class="waste-picked" id="wasteChange"><span>'
+      + escapeHtml(isProduct ? wasteProductName(picked) : picked.name)
+      + '</span><span class="waste-picked-change">' + t('تغيير') + '</span></button>'
+    + '<div class="pos-auth-field"><label>' + t('كم راح؟') + ' <span class="waste-unit-hint">' + escapeHtml(unitLabel) + '</span></label>'
+    + '<input type="number" id="wasteQty" inputmode="decimal" step="0.01" placeholder="0" value="' + (st.qty||'') + '"></div>'
+    + optsHtml
+    + '<div class="pos-auth-field"><label>' + t('السبب') + '</label><div class="waste-chips">'
+    + WASTE_REASONS_POS.map(r=>'<button type="button" class="waste-chip ' + (st.reason===r?'on':'') + '" data-reason="' + r + '">' + t(r) + '</button>').join('')
+    + '</div></div>'
+    + (st.reason === 'أخرى'
+        ? '<div class="pos-auth-field"><input type="text" id="wasteOther" placeholder="' + t('اكتب السبب') + '" value="' + escapeHtml(st.other) + '"></div>'
+        : '')
+    + (st.error ? '<div class="pos-auth-error" style="display:block;">' + escapeHtml(st.error) + '</div>' : '')
+    + '<button class="confirm-pay-btn" id="wasteSave" ' + ((canSave && !st.busy) ? '' : 'disabled') + '>'
+    + (st.busy ? t('جارٍ التسجيل...') : t('تسجيل الهدر')) + '</button>';
+
+  document.getElementById('wasteChange').addEventListener('click', ()=>{ st.pickedId = null; st.options = {}; st.error=''; renderWasteModal(); });
   document.getElementById('wasteQty').addEventListener('input', e=>{ st.qty = parseFloat(toWesternDigits(e.target.value))||0; const b=document.getElementById('wasteSave'); if(b) b.disabled = !(st.qty>0 && st.reason && (st.reason!=='أخرى'||st.other.trim())); });
+  paymentModalBody.querySelectorAll('.waste-opt-row').forEach(b=> b.addEventListener('click', ()=>{
+    st.options[b.dataset.key] = !st.options[b.dataset.key]; renderWasteModal();
+  }));
   paymentModalBody.querySelectorAll('.waste-chip').forEach(c=> c.addEventListener('click', ()=>{ st.reason = c.dataset.reason; renderWasteModal(); }));
   const oth = document.getElementById('wasteOther');
   if(oth) oth.addEventListener('input', e=>{ st.other = e.target.value; const b=document.getElementById('wasteSave'); if(b) b.disabled = !(st.qty>0 && st.other.trim()); });
@@ -2030,27 +2125,44 @@ function renderWasteModal(){
 
 async function saveWaste(){
   const st = wasteState;
-  const picked = st.items.find(i=>i.id===st.pickedId);
+  const isProduct = st.mode === 'product';
+  const picked = isProduct ? PRODUCTS.find(p=>p.id===st.pickedId) : st.items.find(i=>i.id===st.pickedId);
   if(!picked) return;
   st.busy = true; st.error = ''; renderWasteModal();
-  const { data, error } = await window.supabaseClient.rpc('rk_record_waste', {
-    p_stock_item_id: picked.id,
-    p_qty: st.qty,
-    p_reason: st.reason === 'أخرى' ? st.other.trim() : st.reason,
-    p_unit: picked.unit,
-  });
+  const reason = st.reason === 'أخرى' ? st.other.trim() : st.reason;
+
+  let res;
+  if(isProduct){
+    const decrements = wasteProductOptions(picked.id)
+      .filter(o=>st.options[o.key])
+      .map(o=>({stock_item_id: o.stockItemId, qty: o.qty * st.qty}));
+    res = await window.supabaseClient.rpc('rk_record_product_waste', {
+      p_menu_item_id: picked.id, p_qty: st.qty, p_reason: reason,
+      p_stock_decrements: decrements, p_box_selections: null,
+    });
+  } else {
+    res = await window.supabaseClient.rpc('rk_record_waste', {
+      p_stock_item_id: picked.id, p_qty: st.qty, p_reason: reason, p_unit: picked.unit,
+    });
+  }
   st.busy = false;
-  if(error){
-    const msg = error.message || '';
-    st.error = (/rk_record_waste/.test(msg) || error.code === 'PGRST202')
-      ? 'تسجيل الهدر يحتاج تحديث من لوحة التحكم'
-      : (msg || 'تعذّر تسجيل الهدر');
+  if(res.error){
+    const msg = res.error.message || '';
+    st.error = (/rk_record_waste|rk_record_product_waste/.test(msg) || res.error.code === 'PGRST202')
+      ? t('تسجيل الهدر يحتاج تحديث من لوحة التحكم')
+      : (msg || t('تعذّر تسجيل الهدر'));
     renderWasteModal();
     return;
   }
-  const cost = Number((data||{}).cost) || 0;
+  const out = res.data || {};
+  const cost = Number(out.cost) || 0;
+  const name = isProduct ? wasteProductName(picked) : picked.name;
   document.getElementById('paymentModal').classList.remove('show');
-  showToast('انسجّل الهدر — ' + picked.name + (cost ? ' (' + cost.toFixed(2) + ' ر.س)' : ''));
+  // صفرُ خصمٍ ليس خطأ -- منتجٌ بلا وصفة يُسجَّل هدره ولا يُنقص منه شيء،
+  // ويُقال ذلك بدل أن يظنّ الكاشير أن المخزون نقص.
+  showToast((isProduct && out.deductedFromStock === false)
+    ? t('انسجّل الهدر') + ' — ' + name + ' · ' + t('ما فيه وصفة مربوطة، فما انخصم من المخزون')
+    : t('انسجّل الهدر') + ' — ' + name + (cost ? ' (' + cost.toFixed(2) + ' ' + t('ر.س') + ')' : ''));
 }
 
 /* ============ Smart upselling — configurable, max 2, one-tap, never blocking ============ */
@@ -2291,7 +2403,8 @@ discountModal.addEventListener('click', (e)=>{ if(e.target===discountModal) disc
 
 function discountModalEffectivePct(){
   if(!discountModalState.customMode) return discountModalState.pct;
-  return Math.max(0, Math.min(99, parseInt(toWesternDigits(discountModalState.customPct), 10) || 0));
+  // ١٠٠٪ خصمٌ وارد: ضيافة، أو تعويض شكوى، أو وجبة موظف تُسجَّل طلبًا.
+  return Math.max(0, Math.min(100, parseInt(toWesternDigits(discountModalState.customPct), 10) || 0));
 }
 
 function renderDiscountModalBody(){
@@ -2303,7 +2416,7 @@ function renderDiscountModalBody(){
       ${PRESET_DISCOUNT_PCTS.map(p => `<button class="discount-chip ${!s.customMode && s.pct===p ? 'active' : ''}" data-pct="${p}">${p}٪</button>`).join('')}
       <button class="discount-chip ${s.customMode ? 'active' : ''}" id="discountCustomToggle">${t('نسبة أخرى')}</button>
     </div>
-    ${s.customMode ? `<input type="text" inputmode="numeric" class="discount-custom-input" id="discountCustomInput" placeholder="0-99" value="${escapeHtml(s.customPct)}">` : ''}
+    ${s.customMode ? `<input type="text" inputmode="numeric" class="discount-custom-input" id="discountCustomInput" placeholder="0-100" value="${escapeHtml(s.customPct)}">` : ''}
     <label class="discount-reason-label">${t('سبب الخصم (اختياري)')}</label>
     <input type="text" class="discount-reason-input" id="discountReasonInput" placeholder="${t('مثال: عميل دائم، طلب فيه نقص...')}" value="${escapeHtml(s.reason)}">
     <button class="confirm-pay-btn discount-confirm-btn" id="discountConfirmBtn" ${effectivePct<=0 ? 'disabled' : ''}>${effectivePct>0 ? `${t('تطبيق الخصم')} — ${effectivePct}٪` : t('اختر نسبة')}</button>
@@ -2325,7 +2438,8 @@ function renderDiscountModalBody(){
   });
   const customInput = document.getElementById('discountCustomInput');
   if(customInput) customInput.addEventListener('input', (e)=>{
-    discountModalState.customPct = toWesternDigits(e.target.value).replace(/[^0-9]/g,'').slice(0,2);
+    const digits = toWesternDigits(e.target.value).replace(/[^0-9]/g,'').slice(0,3);
+    discountModalState.customPct = parseInt(digits, 10) > 100 ? '100' : digits;
     const confirmBtn = document.getElementById('discountConfirmBtn');
     const p = discountModalEffectivePct();
     confirmBtn.disabled = p<=0;
@@ -4073,6 +4187,9 @@ function computeLineBoxSelections(item){
 function rkPaymentMethodFor(totals){
   const covered = state.cart.some(i => i.isFreeReward || i.isPointsRedemption);
   if(covered && Number(totals.total) <= 0) return 'loyalty';
+  // خصمٌ غطّى الفاتورة كاملةً ليس كاشًا بصفر: «٠٫٠٠ كاش» في السجلّ لا
+  // يُعرف من أين جاء. نفس علّة استبدال النقاط، ونفس حلّها.
+  if(Number(state.discountPct) >= 100 && Number(totals.total) <= 0) return 'discount';
   return state.activePaymentMethod;
 }
 

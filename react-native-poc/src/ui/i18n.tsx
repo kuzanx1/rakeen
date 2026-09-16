@@ -49,6 +49,31 @@ const I18N_EN: Record<string, string> = {
   'تم الربط بهذي الشاشة': 'Linked to this screen', 'انفكّ الربط': 'Unlinked',
   'تعذر الربط': 'Could not link',
 
+  /* الهدر -- والسبب العربي هو المخزَّن، والإنجليزي عرضٌ فقط، فتتجمّع
+     التقارير على قيمةٍ واحدة مهما كانت لغة الشاشة. */
+  'تسجيل هدر': 'Record waste',
+  'مادة من المخزون': 'Stock item',
+  'منتج جاهز': 'Finished product',
+  'كيس انسكب، مادة تلفت، شي راح من الرف.': 'A bag spilled, something spoiled, something gone off the shelf.',
+  'وجبة عامل، كوب رجّعه الزبون، صنف احترق — ننقص مكوّناته من المخزون.': 'A staff meal, a returned cup, a burnt item — we deduct its ingredients from stock.',
+  'دوّر بالاسم...': 'Search by name...',
+  'ما فيه مادة بهذا الاسم.': 'No stock item by that name.',
+  'ما فيه منتج بهذا الاسم.': 'No product by that name.',
+  'له خيارات': 'has options',
+  'كم راح؟': 'How much was lost?',
+  'الخيارات اللي دخلت فيه (اختياري)': 'Options that went into it (optional)',
+  'أشّر اللي انحط فعلاً عشان ينخصم معه. تقدر تتخطاها.': 'Tick what actually went in so it is deducted too. You can skip this.',
+  'اكتب السبب': 'Type the reason',
+  'تسجيل الهدر': 'Record waste',
+  'انسجّل الهدر': 'Waste recorded',
+  'تعذّر تسجيل الهدر': 'Could not record the waste',
+  'ما فيه وصفة مربوطة، فما انخصم من المخزون': 'no recipe linked, so nothing was deducted from stock',
+  'ر.س': 'SAR',
+  'تلف': 'Spoiled',
+  'انسكاب': 'Spilled',
+  'انتهت الصلاحية': 'Expired',
+  'خطأ تحضير': 'Prep mistake',
+  'أخرى': 'Other',
   'ابدأ أرباحك': 'Start earning',
   // Mirrors the table in public/pos/rakeen-pos.js. Keep them in step:
   // the same business runs both, and a label that reads one way on the

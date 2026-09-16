@@ -8369,7 +8369,7 @@ let REPORT_RANGE_LABEL = 'اليوم';
 let REPORT_RANGE_DATA = null;
 let REPORT_DETAIL_ROWS = null; // itemized rows for shift/purchases/expenses — fetched only when that type is active
 
-const REPORT_TYPES_NEEDING_DETAIL = {shift:true, purchases:true, expenses:true, discounts:true};
+const REPORT_TYPES_NEEDING_DETAIL = {shift:true, purchases:true, expenses:true, discounts:true, waste:true};
 
 // The document design (screen preview + printed/exported PDF) — remembered
 // per-device since it's a display preference, not shared business data.
@@ -8906,6 +8906,27 @@ async function loadReportDetailRows(type, from, to){
       sales: salesByShift[s.id] || 0
     }));
   }
+  if(type === 'waste'){
+    /* من waste_log لا من stock_movements: السجلّ يعرف المواد وحدها،
+       وأكثر الهدر منتجٌ تامّ. والكلفة محفوظةٌ كما كانت لحظة الواقعة --
+       فسعر المادة يتغيّر، وتقريرُ الشهر الماضي يجب أن يبقى كما وقع. */
+    const { data, error } = await sb.from('waste_log')
+      .select('item_name, stock_item_id, menu_item_id, qty, unit, reason, cost, note, created_at')
+      .eq('business_id', businessId)
+      .gte('created_at', from.toISOString()).lt('created_at', to.toISOString())
+      .order('created_at', {ascending:false});
+    if(error) return [];
+    return (data||[]).map(w=>({
+      name: w.item_name,
+      kind: w.menu_item_id ? 'منتج' : 'مادة مخزون',
+      qty: Number(w.qty),
+      qtyLabel: Number(w.qty) + ' ' + (UNIT_LABELS[w.unit] || w.unit || ''),
+      reason: w.reason,
+      cost: Number(w.cost) || 0,
+      note: w.note || null,
+      date: w.created_at,
+    }));
+  }
   if(type === 'discounts'){
     // كلّ طلبٍ خُصم منه شيء بهالفترة، مع أصنافه وموظّفه -- تفصيلٌ ما
     // كان له مكان قبل اليوم غير سطرٍ واحد داخل نافذة تفاصيل الطلب.
@@ -9030,6 +9051,7 @@ function renderReportPreview(){
   else if(activeReportType === 'vat_return') body = vatReturnReportHtml(d, VAT_RETURN_INPUT_DATA);
   else if(activeReportType === 'purchases') body = purchasesReportHtml(REPORT_DETAIL_ROWS||[]);
   else if(activeReportType === 'discounts') body = discountsReportHtml(REPORT_DETAIL_ROWS||[]);
+  else if(activeReportType === 'waste') body = wasteReportHtml(REPORT_DETAIL_ROWS||[]);
   else if(activeReportType === 'expenses') body = expensesReportHtml(REPORT_DETAIL_ROWS||[]);
   panel.className = 'report-preview-doc theme-' + REPORT_THEME;
   panel.innerHTML = reportDocHeaderHtml() + body;
@@ -9266,6 +9288,48 @@ function discountsReportCardsHtml(rows){
     </div>`;
   }).join('');
 }
+/* تقرير الهدر.
+   يُقرأ من أعلى لأسفل كما يُتَّخذ القرار: كم خسرنا، ولماذا، ثم على أي
+   صنف. فالسبب المجموع هو ما يُغيَّر به شيء -- «انتهت الصلاحية ٤٠٠ ر.س»
+   تعني طلبيةً أكبر من اللازم، و«خطأ تحضير» تعني تدريبًا. */
+function wasteReportHtml(rows){
+  const total = rows.reduce((s,r)=>s+r.cost,0);
+  const byReason = new Map();
+  const byItem = new Map();
+  rows.forEach(r=>{
+    byReason.set(r.reason, (byReason.get(r.reason)||0) + r.cost);
+    byItem.set(r.name, (byItem.get(r.name)||0) + r.cost);
+  });
+  const reasons = [...byReason.entries()].sort((a,b)=>b[1]-a[1]);
+  const items = [...byItem.entries()].sort((a,b)=>b[1]-a[1]).slice(0, 8);
+  return `
+    <div class="panel-title">تقرير الهدر — ${REPORT_RANGE_LABEL}</div>
+    ${rows.length === 0 ? '<div class="orders-empty">ما انسجّل هدر بهالفترة — وهذا إما إن ما صار، أو إن أحد ما سجّله.</div>' : `
+    <div class="report-stat-row total"><span>إجمالي كلفة الهدر</span><span class="mono">${total.toFixed(2)} ر.س</span></div>
+    <div class="report-stat-row"><span>عدد مرّات التسجيل</span><span class="mono">${rows.length}</span></div>
+
+    <div class="panel-title" style="margin-top:18px;">ليش راح</div>
+    ${reasons.map(([reason, cost])=>`<div class="report-stat-row"><span>${escapeHtml(reason)}</span><span class="mono">${cost.toFixed(2)} ر.س — ${total>0?Math.round(cost/total*100):0}٪</span></div>`).join('')}
+
+    <div class="panel-title" style="margin-top:18px;">أكثر الأصناف كلفة</div>
+    ${items.map(([name, cost])=>`<div class="report-stat-row"><span>${escapeHtml(name)}</span><span class="mono">${cost.toFixed(2)} ر.س</span></div>`).join('')}
+
+    <div class="panel-title" style="margin-top:18px;">كل واقعة</div>
+    <table class="report-table">
+      <thead><tr><th>الصنف</th><th>النوع</th><th>الكمية</th><th>السبب</th><th>الكلفة</th><th>التاريخ</th></tr></thead>
+      <tbody>
+        ${rows.map(r=>{
+          const date = new Date(r.date).toLocaleString('ar-SA', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+          return `<tr>
+            <td>${escapeHtml(r.name)}</td><td>${r.kind}</td><td class="mono">${escapeHtml(r.qtyLabel)}</td>
+            <td>${escapeHtml(r.reason)}</td><td class="mono">${r.cost.toFixed(2)}</td><td>${date}</td>
+          </tr>${r.note ? `<tr><td colspan="6" class="report-subtitle">${escapeHtml(r.note)}</td></tr>` : ''}`;
+        }).join('')}
+      </tbody>
+    </table>`}
+  `;
+}
+
 function discountsReportHtml(rows){
   const total = rows.reduce((s,r)=>s+r.amount,0);
   return `
@@ -17231,7 +17295,8 @@ function closeAuditDrawer(){
 const REPORT_TYPE_LABELS = {
   sales:'تقرير المبيعات', products:'تقرير المنتجات', payments:'طرق الدفع', financial:'الملخص المالي الكامل',
   shift:'إغلاق الورديات', tax:'تقرير الضريبة', vat_return:'الإقرار الضريبي', purchases:'تقرير المشتريات', expenses:'تقرير المصاريف',
-  discounts:'تقرير الخصومات', counter:'عدّادات المبيعات', daily_auto:'التقرير اليومي'
+  discounts:'تقرير الخصومات', counter:'عدّادات المبيعات', daily_auto:'التقرير اليومي',
+  waste:'تقرير الهدر'
 };
 
 // pulls from the exact same REPORT_RANGE_DATA / REPORT_DETAIL_ROWS the on-
@@ -17320,6 +17385,19 @@ function buildReportPayload(type){
       {label:'إجمالي مبلغ الخصومات', value: total.toFixed(2)+' ر.س', total:true},
     ], table: { headers:['الطلب','النسبة','الأصناف','الكاشير','السبب','المبلغ','التاريخ'],
       rows: rows.map(r=>['#'+r.id, r.pct+'%', r.products, r.cashier, r.reason || '—', r.amount.toFixed(2),
+        new Date(r.date).toLocaleString('ar-SA', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})]) } };
+  }
+  if(type === 'waste'){
+    const rows = REPORT_DETAIL_ROWS || [];
+    const total = rows.reduce((s,r)=>s+r.cost,0);
+    const byReason = new Map();
+    rows.forEach(r=>byReason.set(r.reason, (byReason.get(r.reason)||0) + r.cost));
+    return { ...base, stats: [
+      {label:'عدد مرّات التسجيل', value: String(rows.length)},
+      ...[...byReason.entries()].sort((a,b)=>b[1]-a[1]).map(([reason,cost])=>({label: reason, value: cost.toFixed(2)+' ر.س'})),
+      {label:'إجمالي كلفة الهدر', value: total.toFixed(2)+' ر.س', total:true},
+    ], table: { headers:['الصنف','النوع','الكمية','السبب','الكلفة','التاريخ'],
+      rows: rows.map(r=>[r.name, r.kind, r.qtyLabel, r.reason, r.cost.toFixed(2),
         new Date(r.date).toLocaleString('ar-SA', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})]) } };
   }
   if(type === 'counter'){

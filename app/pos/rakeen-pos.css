@@ -1111,3 +1111,18 @@ input[type="number"]::-webkit-inner-spin-button{ -webkit-appearance:none; appear
 .waste-chips{display:flex; flex-wrap:wrap; gap:6px;}
 .waste-chip{padding:9px 14px; border-radius:var(--r-full); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-weight:700; font-size:12px;}
 .waste-chip.on{background:var(--lime); border-color:var(--lime); color:var(--flag-green-deep);}
+/* الهدر نوعان -- مادةُ رفٍّ ومنتجٌ تامّ -- فالتبويب أوّل ما يُرى، لأن
+   الاختيار بينهما يغيّر القائمة كلّها لا حقلًا فيها. */
+.waste-mode-row{display:flex; gap:8px; margin-bottom:8px;}
+.waste-mode-tab{flex:1; padding:11px 0; border-radius:var(--r-md); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-weight:800; font-size:12.5px;}
+.waste-mode-tab.on{background:var(--lime); border-color:var(--lime); color:var(--flag-green-deep);}
+.waste-mode-hint{font-size:11px; font-weight:600; color:var(--muted); line-height:1.55; margin:0 0 12px;}
+
+/* الخيارات تُؤشَّر أو تُترك، ولا تُخمَّن -- درسُ الاسترجاع الذي أعاد
+   ٤٨ من ١٠٨ لأن مصدر خصمٍ لم يُسأل عنه. */
+.waste-opt-list{display:flex; flex-direction:column; gap:6px;}
+.waste-opt-row{display:flex; align-items:center; gap:10px; width:100%; padding:11px 12px; border-radius:var(--r-md); border:1px solid var(--line); background:var(--surf1); color:var(--text); font-weight:700; font-size:12.5px; text-align:start;}
+.waste-opt-row.on{border-color:var(--lime-deep); background:rgba(196,255,43,0.10);}
+.waste-opt-box{flex:none; width:20px; height:20px; line-height:18px; text-align:center; border-radius:5px; border:1px solid var(--line); font-size:12px; font-weight:800; color:transparent;}
+.waste-opt-row.on .waste-opt-box{background:var(--lime); border-color:var(--lime); color:var(--flag-green-deep);}
+.waste-unit-hint{font-weight:700; font-size:11px; color:var(--muted);}

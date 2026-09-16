@@ -893,6 +893,7 @@ function App(): React.JSX.Element {
 
       <WasteModal
         visible={wasteOpen}
+        businessId={cashier ? cashier.business_id : null}
         onClose={() => setWasteOpen(false)}
         onRecorded={setStatusMessage}
       />

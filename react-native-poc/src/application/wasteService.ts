@@ -1,4 +1,5 @@
 import { supabase } from '../infrastructure/supabaseClient';
+import { getBusinessType, loadCatalog } from './catalogService';
 
 /**
  * تسجيل الهدر من الكاشير.
@@ -70,4 +71,107 @@ export async function recordWaste(
 
   const out = (data || {}) as { cost?: number };
   return { ok: true, cost: Number(out.cost) || 0 };
+}
+
+/* ═══ هدر المنتجات ═══════════════════════════════════════════
+   أكثر الهدر في المطاعم منتجٌ تامّ لا مادة خام: وجبة عامل، كوبٌ رُدّ،
+   صنفٌ احترق. والباريستا لا يعرف أن «وجبة الموظف» تعني ١٨٠غ دجاج
+   و٥٠غ أرزّ -- يعرف أنها وجبة. فالخصم يُحسب في الخادم من الوصفة
+   نفسها التي يُحسب بها البيع.
+
+   والخيارات المرتبطة بالمخزون تُمرَّر كما يمرّرها البيع، أو تُترك
+   عمدًا -- ويُقال للكاشير أيهما وقع، لا يُخمَّن. */
+
+export interface ProductPick {
+  id: number;
+  name: string;
+  nameEn?: string | null;
+}
+
+export interface WasteOptionPick {
+  key: string;          // `${groupId}_${optionId}`
+  groupName: string;
+  optionName: string;
+  stockItemId: number;
+  qty: number;
+  unit?: string | null;
+}
+
+export interface ProductWasteResult {
+  ok: boolean;
+  cost?: number;
+  /** صفرٌ هنا ليس خطأ: منتجٌ بلا وصفة يُسجَّل هدره ولا يُخصم منه شيء. */
+  deductedFromStock?: boolean;
+  error?: string;
+}
+
+export async function recordProductWaste(
+  menuItemId: number,
+  qty: number,
+  reason: string,
+  stockDecrements: { stock_item_id: number; qty: number }[] = [],
+): Promise<ProductWasteResult> {
+  if (!(qty > 0)) return { ok: false, error: 'اكتب كمية أكبر من صفر' };
+  if (!reason.trim()) return { ok: false, error: 'اختر سبب الهدر' };
+
+  const { data, error } = await supabase.rpc('rk_record_product_waste', {
+    p_menu_item_id: menuItemId,
+    p_qty: qty,
+    p_reason: reason.trim(),
+    p_stock_decrements: stockDecrements,
+    p_box_selections: null,
+  });
+
+  if (error) {
+    const msg = error.message || '';
+    if (/rk_record_product_waste/.test(msg) || (error as { code?: string }).code === 'PGRST202') {
+      return { ok: false, error: 'تسجيل هدر المنتجات يحتاج تحديث من لوحة التحكم' };
+    }
+    return { ok: false, error: msg || 'تعذّر تسجيل الهدر' };
+  }
+
+  const out = (data || {}) as { cost?: number; deductedFromStock?: boolean };
+  return { ok: true, cost: Number(out.cost) || 0, deductedFromStock: !!out.deductedFromStock };
+}
+
+/** المنتجات وخياراتها المرتبطة بالمخزون -- تُجلب من نفس الكتالوج الذي
+ *  يبيع منه الكاشير، فلا يفترق ما يُهدر عمّا يُباع. */
+export interface WasteCatalog {
+  products: ProductPick[];
+  /** `${groupId}_${optionId}` -> الخيار وربطُه بالمخزون */
+  optionsByProduct: Record<number, WasteOptionPick[]>;
+}
+
+export async function loadWasteCatalog(businessId: number): Promise<WasteCatalog> {
+  try {
+    const type = await getBusinessType(businessId);
+    const cat = await loadCatalog(businessId, type);
+    const optionsByProduct: Record<number, WasteOptionPick[]> = {};
+    Object.entries(cat.modifiersByProductId).forEach(([pid, def]) => {
+      const picks: WasteOptionPick[] = [];
+      def.groups.forEach(g => {
+        g.options.forEach(o => {
+          const link = cat.optionStock[`${g.id}_${o.id}`];
+          if (!link) return;
+          picks.push({
+            key: `${g.id}_${o.id}`,
+            groupName: g.name,
+            optionName: o.name,
+            stockItemId: link.stockItemId,
+            qty: link.qty,
+            unit: link.unit,
+          });
+        });
+      });
+      if (picks.length) optionsByProduct[Number(pid)] = picks;
+    });
+    return {
+      products: cat.products
+        .filter(p => p.id > 0)
+        .map(p => ({ id: p.id, name: p.name, nameEn: p.nameEn || null })),
+      optionsByProduct,
+    };
+  } catch {
+    return { products: [], optionsByProduct: {} };
+  }
 }
