@@ -55,7 +55,15 @@ body{
 button{font-family:inherit; cursor:pointer;}
 
 /* ===== Sidebar ===== */
-.sidebar{position:relative; width:var(--sidebar-w); flex-shrink:0; background:var(--card-bg); border-inline-end:1px solid var(--line); display:flex; flex-direction:column; padding:18px 14px; transition:width .22s cubic-bezier(.4,0,.2,1);}
+/* والقائمة تُمرَّر حين لا تتّسع.
+   كان التمرير مضبوطًا في درج الجوال وحده (<=900px). والآيباد الأفقيّ
+   ١٠٢٤px فأكثر، فيقع في وضع سطح المكتب -- حيث الشاشة عريضة لكنها
+   قصيرة (٧٦٨ إلى ١٠٢٤ بكسل ارتفاعًا)، فتفيض بنود القائمة تحت الحافة
+   ولا سبيل إلى بلوغها: لا شريط تمرير ولا استجابة للسحب.
+   والسطر لا يظهر على سطح المكتب أصلًا -- overflow:auto لا يمرّر ما
+   يتّسع. */
+.sidebar{position:relative; width:var(--sidebar-w); flex-shrink:0; background:var(--card-bg); border-inline-end:1px solid var(--line); display:flex; flex-direction:column; padding:18px 14px; transition:width .22s cubic-bezier(.4,0,.2,1);
+  overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;}
 .sidebar-top{display:flex; align-items:center; justify-content:space-between; gap:6px; padding:8px 10px 20px 4px;}
 .sidebar-logo{display:flex; align-items:center; gap:9px; min-width:0;}
 .sidebar-logo img{height:22px; width:auto; display:block;}
@@ -2297,6 +2305,25 @@ select option:disabled{color:var(--muted);}
 }
 .loy-delete-btn:hover{background:color-mix(in srgb, var(--danger) 14%, transparent);}
 
+/* --- السحب للتحديث ------------------------------------------------ */
+/* يُرسم فوق المحتوى لا داخله: لو كان داخله لدفع الصفحة كلَّها عند كل
+   سحبة. ومبدئيًا خارج الشاشة بالكامل، فلا يُرى إلا وأنت تسحب. */
+.rk-ptr{
+  position:fixed; inset-inline:0; top:0; height:56px; z-index:400;
+  display:flex; align-items:center; justify-content:center; gap:9px;
+  pointer-events:none; opacity:0; transform:translateY(-56px);
+}
+.rk-ptr-text{font-size:11.5px; font-weight:700; color:var(--muted);}
+.rk-ptr-spinner{
+  width:17px; height:17px; border-radius:50%;
+  border:2px solid var(--line); border-top-color:var(--lime-deep);
+  transition:transform .15s ease;
+}
+/* بلغ العتبة: يلوّن ويستدير، فيُعرف أن الرفع الآن يُحدّث. */
+.rk-ptr-armed .rk-ptr-spinner{transform:rotate(180deg); border-top-color:var(--lime-deep); border-color:color-mix(in srgb, var(--lime) 45%, var(--line)); border-top-color:var(--lime-deep);}
+.rk-ptr-armed .rk-ptr-text{color:var(--text);}
+.rk-ptr-loading .rk-ptr-spinner{animation:rk-ptr-spin .7s linear infinite;}
+@keyframes rk-ptr-spin{to{transform:rotate(360deg);}}
 /* --- one button look ---------------------------------------------- */
 /* Legacy vocabularies, aliased rather than rewritten at 354 call sites. */
 .menu-add-btn, .add-row-btn, .settings-save-btn, .mtr-edit-btn,

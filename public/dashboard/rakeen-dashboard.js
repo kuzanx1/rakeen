@@ -7474,6 +7474,81 @@ async function ensureCustomersDataLoaded(){
 // scrolling down in one, then switching, silently lands the next view
 // mid-scroll or past its own bottom instead of at the top. Called from
 // every screen- and tab-switch handler below.
+/* ============ السحب من فوق لتحت يحدّث الصفحة ============
+   اللوحة تُثبَّت على التابلت كتطبيق (display:standalone في
+   dashboard-manifest.json)، فلا شريط عنوان ولا زرّ تحديث ولا إيماءة
+   تحديثٍ من المتصفّح. فمن أراد بياناتٍ جديدة أقفل التطبيق وفتحه --
+   وهذا ما كان يفعله صاحب المطعم.
+
+   والإيماءة هنا تُبنى بنفسها على .content، ولا تُفعَّل إلا حين:
+     • اللمس إصبعٌ واحد (لا تكبير ولا تصغير)،
+     • والمحتوى عند قمّته أصلًا (scrollTop <= 0) -- وإلّا كان السحب
+       تمريرًا عاديًا لا طلبَ تحديث،
+     • ولا نافذةٌ مفتوحة فوقه: من يسحب داخل نافذةٍ يريد تمريرها.
+
+   والعتبة ٧٢ بكسلًا: أقلُّ منها تُطلق تحديثًا مع كل تمريرة سهوٍ إلى
+   أعلى، وأكثرُ منها تتطلّب سحبةً لا تخطر على بال. */
+(function pullToRefresh(){
+  const content = document.querySelector('.content');
+  if(!content || !('ontouchstart' in window)) return;
+
+  const THRESHOLD = 72;
+  const MAX_PULL  = 110;
+  let startY = 0, pulling = false, armed = false;
+
+  const ind = document.createElement('div');
+  ind.className = 'rk-ptr';
+  ind.innerHTML = '<div class="rk-ptr-spinner"></div><span class="rk-ptr-text"></span>';
+  document.body.appendChild(ind);
+
+  const setPull = (dist)=>{
+    const d = Math.min(dist, MAX_PULL);
+    ind.style.transform = 'translateY(' + (d - 56) + 'px)';
+    ind.style.opacity = String(Math.min(1, d / THRESHOLD));
+    armed = d >= THRESHOLD;
+    ind.classList.toggle('rk-ptr-armed', armed);
+    ind.querySelector('.rk-ptr-text').textContent = armed ? 'ارفع إصبعك عشان يتحدث' : 'اسحب لتحديث الصفحة';
+  };
+  const reset = ()=>{
+    ind.style.transition = 'transform .2s ease, opacity .2s ease';
+    ind.style.transform = ''; ind.style.opacity = '';
+    setTimeout(()=>{ ind.style.transition = ''; }, 220);
+    pulling = false; armed = false;
+    ind.classList.remove('rk-ptr-armed');
+  };
+
+  const blocked = ()=> !!document.querySelector('.modal-overlay.show, .rka-panel.open, .cmdk-overlay.show');
+
+  content.addEventListener('touchstart', (e)=>{
+    if(e.touches.length !== 1 || content.scrollTop > 0 || blocked()) { pulling = false; return; }
+    startY = e.touches[0].clientY;
+    pulling = true;
+  }, {passive: true});
+
+  content.addEventListener('touchmove', (e)=>{
+    if(!pulling) return;
+    const dy = e.touches[0].clientY - startY;
+    // سحبةٌ لأعلى أو محتوًى تحرّك عن قمّته: تمريرٌ عادي لا تحديث.
+    if(dy <= 0 || content.scrollTop > 0){ if(armed || ind.style.opacity) reset(); pulling = false; return; }
+    // مقاومةٌ متزايدة: السحب يثقل كلما طال، كإيماءة النظام نفسها.
+    setPull(dy * 0.5);
+  }, {passive: true});
+
+  content.addEventListener('touchend', ()=>{
+    if(!pulling) return;
+    if(armed){
+      ind.classList.add('rk-ptr-loading');
+      ind.querySelector('.rk-ptr-text').textContent = 'جاري التحديث...';
+      ind.style.transform = 'translateY(' + (THRESHOLD - 56) + 'px)';
+      location.reload();
+      return;
+    }
+    reset();
+  }, {passive: true});
+
+  content.addEventListener('touchcancel', reset, {passive: true});
+})();
+
 function resetContentScroll(){
   const c = document.querySelector('.content');
   if(c) c.scrollTop = 0;
