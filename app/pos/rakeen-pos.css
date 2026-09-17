@@ -440,7 +440,19 @@ svg{display:block;}
   /* z-index keeps the topbar painted above .screens now that .screens spans
      the full height (see below) instead of starting below it — without
      this, .screens (later in the DOM) would paint over it. */
-  .app > .topbar{ position:absolute; inset-inline-end:0; top:0; inset-inline-start:0; width:auto; z-index:2; }
+  /* والشريط يُزاح عن ساعة النظام وبطاريته.
+     الـPWA تعمل standalone، فالحافة العليا على الآيباد هي شريط النظام لا
+     حافة نافذة متصفّح. وكان env(safe-area-inset-top) مضبوطًا في تخطيط
+     الجوال وحده (<=760px)، فبقي تخطيط الآيباد يبدأ عند الصفر.
+     وارتفاعُه يُقاس حيًّا في --topbar-h (rakeen-pos.js)، فزيادةُ حشوته
+     تجرّ .cat-sidebar و .products-toolbar معها بلا سطرٍ إضافي. */
+  .app > .topbar{ position:absolute; inset-inline-end:0; top:0; inset-inline-start:0; width:auto; z-index:2;
+    padding-top: env(safe-area-inset-top, 0px); height: calc(52px + env(safe-area-inset-top, 0px)); }
+  /* ولوحة الطلب لا يغطّيها الشريط عمدًا (يقف قبلها) -- فتأخذ الإزاحة
+     بنفسها، وإلا التصق أوّل سطرٍ في السلّة بالساعة في الزاوية. الخلفية
+     تبقى بالغةً الحافة كما قُصد؛ المحتوى وحده يُزاح.
+     (نظيرها في التطبيق: cartLinesInset في ProductsScreen.tsx) */
+  .order-items{ padding-top: calc(6px + 14px + env(safe-area-inset-top, 0px)); }
   /* Home is the only screen with an order panel reserving space on the
      left — there, the topbar stops at its width (360px — see .order-panel,
      and the 300px override below for narrower tablets) instead of running

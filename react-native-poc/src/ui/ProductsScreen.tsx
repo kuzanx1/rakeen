@@ -432,10 +432,18 @@ export default function ProductsScreen({
    *   .product-grid    padding-bottom: 22 + 68
    * .order-panel is deliberately left alone -- that is the entire reason
    * the bars stop short of it, so it reaches the true top and bottom.
+   *
+   * لكنّ ذلك يخصّ خلفيةَ العمود لا محتواه. في المتصفّح تبدأ اللوحة
+   * تحت شريط النافذة، وعلى الآيباد تبدأ عند الحافة الفعلية -- فكان
+   * أوّل سطرٍ في السلّة يلتصق بساعة النظام وبطاريته في الزاوية، وقد
+   * يمرّ على الكاشير فلا ينتبه له. فتبقى الخلفية تبلغ الحافة (لا
+   * padding على العمود نفسه) ويُزاح المحتوى وحده -- بنفس مقدار
+   * الشريط الجانبي، فتبدأ الأعمدة الثلاثة على سطرٍ واحد.
    */
   const catRailInset = sideBySide ? { paddingTop: insetTop + 14, paddingBottom: 14 + insetBottom } : null;
   const toolbarInset = sideBySide ? { paddingTop: insetTop + 18 } : null;
   const gridInset = sideBySide ? { paddingBottom: 22 + insetBottom } : null;
+  const cartLinesInset = sideBySide ? { paddingTop: insetTop + 14 } : null;
 
   /**
    * `.product-grid`'s `repeat(auto-fill, minmax(128px,1fr))` -- 122px at
@@ -1480,7 +1488,12 @@ export default function ProductsScreen({
               // sized by its content rather than by a leftover flex share.
               isNarrow ? { flexGrow: 1, flexBasis: 'auto', maxHeight: windowHeight * 0.4 } : styles.cartLinesWide,
             ]}
-            contentContainerStyle={cart.cart.length === 0 ? styles.cartLinesEmpty : undefined}>
+            contentInsetAdjustmentBehavior="never"
+            contentContainerStyle={[
+              cart.cart.length === 0 ? styles.cartLinesEmpty : null,
+              cartLinesInset,
+            ]}
+          >
             {cart.cart.length === 0 ? (
               /* .order-empty -- renderOrder()'s own empty branch
                  (rakeen-pos.js:1054): a 38x38 half-opacity shopping-cart
