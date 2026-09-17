@@ -706,6 +706,18 @@ export default function OrderHistoryScreen({
                 {/* الويب يبدؤها من الحافّة لا من الوسط: قائمةُ أصنافٍ
                     تحتها، وسطرٌ موسَّطٌ فوق قائمةٍ محاذاةٍ يبدو منفصلاً. */}
                 <Text style={[styles.askNote, styles.refundNote]}>اختر الأصناف — اللي تختاره يرجع للمخزون</Text>
+                {/* فاتورةٌ طويلة كانت تُخرج الأزرار من الشاشة.
+
+                    الأسطر كانت تُرسم مباشرةً في البطاقة بلا تمرير،
+                    والبطاقة بلا سقفِ ارتفاع -- ففاتورةٌ بخمسة عشر صنفًا
+                    تمدّها فوق الشاشة وتحتها معًا، فيبقى «استرجاع
+                    المختار» و«إلغاء» خارج المرئي ولا سبيل إليهما. ولا
+                    يبدو ذلك عطلًا بل جمودًا: الكاشير يضغط فلا شيء
+                    يحدث، فيقفل التطبيق قفلًا.
+
+                    فالقائمة وحدها تُمرَّر (flexShrink)، والأزرار تحتها
+                    خارجها -- تبقى في مكانها مهما طالت الفاتورة. */}
+                <ScrollView style={styles.refundLinesScroll} keyboardShouldPersistTaps="handled">
                 {refundLines.map(l => {
                   const left = l.qty - l.refundedQty;
                   const taken = Number(refundPick[l.orderItemId] || 0);
@@ -739,6 +751,7 @@ export default function OrderHistoryScreen({
                     </View>
                   );
                 })}
+                </ScrollView>
 
                 <TouchableOpacity
                   style={styles.askSecondary}
@@ -854,7 +867,10 @@ const useStyles = createStyles(colors =>
   overlay: { flex: 1, backgroundColor: colors.modalOverlay, justifyContent: 'flex-end' },
   // طبقة داخل النافذة المفتوحة -- لا <Modal> ثانية تُقدَّم فوق الأولى.
   innerOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.modalOverlay, justifyContent: 'center', alignItems: 'center', padding: spacing[5] },
-  askCard: { backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing[6], width: '100%', maxWidth: 380 },
+  /* maxHeight لا تضرّ النوافذ القصيرة (مبلغ، رمز مدير) وتمنع الطويلة
+     من تجاوز الشاشة -- والتجاوز هنا لا يُرى عطلًا بل جمودًا. */
+  askCard: { backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing[6], width: '100%', maxWidth: 380, maxHeight: '86%' },
+  refundLinesScroll: { flexShrink: 1 },
   askTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, textAlign: 'center', marginBottom: spacing[2] },
   askNote: { fontFamily: fonts.sansRegular, fontSize: 12.5, lineHeight: 19, color: colors.muted, textAlign: 'center' },
   askInput: {

@@ -531,21 +531,21 @@ export function buildPassJson(
        * والنقاط تُستثنى: لا أختام لها -- موجةٌ هادئة -- فالنصّ فوقها
        * هو ما يقول الرصيد.
        */
-      ...(d.systemType === "points" ? {
-      primaryFields: [
-        ready
-          ? { key: "ready", label: lbl("RK_READY", L.ready), value: rewardVal, changeMessage: M ? "%@" : "RK_CHG_READY" }
-          : {
-              // رقمٌ وحده تحت تسميةٍ مترجمة: الجملة العربية كانت أجمل،
-              // لكنها لا تُترجَم -- و"باقي ٢" بالعربي و"2 left" بالإنجليزي
-              // خيرٌ من جملةٍ عربيةٍ في جوالٍ إنجليزي.
-              key: "left",
-              label: lbl("RK_LEFT", L.left),
-              value: remaining === null ? rewardVal : String(remaining),
-              changeMessage: M ? "%@" : "RK_CHG_LEFT",
-            },
-      ],
-      } : {}),
+      /**
+       * ولا حقلَ أساسيَّ في أي نظام -- لا للنقاط ولا لغيرها.
+       *
+       * كان يُرسم في نظام النقاط وحده، فيخرج على وجه البطاقة نصٌّ كبير
+       * تحت تسميةٍ لا تصفه: "كوب مجاني" تحت "متبقي لكوبك المجاني". وذلك
+       * حين يتعذّر حساب الباقي (remaining === null) فيحلّ اسمُ المكافأة
+       * محلّ الرقم -- فتُقرأ التسميةُ والقيمةُ معاً جملةً لا معنى لها.
+       *
+       * والرصيد معروضٌ أصلاً في الترويسة (حقل progress)، وهي التي تُرى
+       * والبطاقةُ مطويّةٌ في الرصّة. فالحقل الأساسي تكرارٌ يزحم الوجه
+       * ولا يضيف خبراً.
+       *
+       * وإشعارُ "جهزت مكافأتك" لا يضيع معه: حقلُ readyCount في الترويسة
+       * يحمل changeMessage الخاصَّ به.
+       */
       secondaryFields: drop.has("sec") ? [] : [
         { key: "name", label: lbl("RK_CUSTOMER", L.customer), value: d.customerName || "—" },
         /**
