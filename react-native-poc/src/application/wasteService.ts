@@ -17,6 +17,8 @@ export const WASTE_REASONS = ['تلف', 'انسكاب', 'انتهت الصلاح
 export interface StockPick {
   id: number;
   name: string;
+  /** اختياري -- من تركه فارغًا يرى الاسم العربي، لا فراغًا. */
+  nameEn?: string | null;
   unit: string;
 }
 
@@ -28,12 +30,19 @@ export interface StockPick {
  * الكتالوج كلّه إلى جذر التطبيق لأجل قائمةٍ تُفتح مرّة في اليوم.
  */
 export async function listStockItems(): Promise<StockPick[]> {
-  const { data, error } = await supabase
-    .from('stock_items')
-    .select('id, name, unit')
-    .order('name');
-  if (error || !data) return [];
-  return data.map(r => ({ id: Number(r.id), name: String(r.name), unit: String(r.unit) }));
+  // name_en قد لا يكون موجودًا قبل ترحيل 20260917010000 -- فيُطلب على
+  // حدة، وإن فشل الطلب رجعنا إلى الاسم العربي وحده بلا خطأ في الوجه.
+  const withEn = await supabase.from('stock_items').select('id, name, name_en, unit').order('name');
+  const res = withEn.error
+    ? await supabase.from('stock_items').select('id, name, unit').order('name')
+    : withEn;
+  if (res.error || !res.data) return [];
+  return res.data.map(r => ({
+    id: Number(r.id),
+    name: String(r.name),
+    nameEn: (r as { name_en?: string | null }).name_en || null,
+    unit: String(r.unit),
+  }));
 }
 
 export interface WasteResult {

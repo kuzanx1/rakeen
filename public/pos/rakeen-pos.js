@@ -2029,14 +2029,20 @@ function wasteProductOptions(productId){
 }
 
 function wasteProductName(p){ return (LANG === 'en' && p.nameEn) ? p.nameEn : p.name; }
+function wasteStockName(i){ return (LANG === 'en' && i.nameEn) ? i.nameEn : i.name; }
 
 async function openWasteModal(){
   wasteState = {mode:'stock', items: [], search: '', pickedId: null, qty: 0, reason: '', other: '', busy: false, error: '', options: {}};
   document.getElementById('paymentModalTitle').textContent = t('تسجيل هدر');
   paymentModalBody.innerHTML = '<p class="pos-auth-sub">' + t('جاري التحميل...') + '</p>';
   document.getElementById('paymentModal').classList.add('show');
-  const { data } = await window.supabaseClient.from('stock_items').select('id, name, unit').order('name');
-  wasteState.items = (data || []).map(r=>({id:Number(r.id), name:String(r.name), unit:String(r.unit)}));
+  // name_en قد لا يكون موجودًا قبل ترحيل 20260917010000 -- فإن فشل
+  // الطلب رجعنا إلى الاسم العربي وحده بلا خطأ في وجه الكاشير.
+  let res = await window.supabaseClient.from('stock_items').select('id, name, name_en, unit').order('name');
+  if(res.error) res = await window.supabaseClient.from('stock_items').select('id, name, unit').order('name');
+  wasteState.items = (res.data || []).map(r=>({
+    id:Number(r.id), name:String(r.name), nameEn: r.name_en || null, unit:String(r.unit)
+  }));
   renderWasteModal();
 }
 
@@ -2053,12 +2059,12 @@ function renderWasteModal(){
     const q = st.search.trim().toLowerCase();
     const src = isProduct
       ? PRODUCTS.filter(p=>p.id > 0 && (!q || p.name.toLowerCase().includes(q) || (p.nameEn||'').toLowerCase().includes(q)))
-      : st.items.filter(i=>!q || i.name.toLowerCase().includes(q));
+      : st.items.filter(i=>!q || i.name.toLowerCase().includes(q) || (i.nameEn||'').toLowerCase().includes(q));
     const list = src.slice(0, 40);
     const rows = list.length === 0
       ? '<p class="pos-auth-sub">' + (isProduct ? t('ما فيه منتج بهذا الاسم.') : t('ما فيه مادة بهذا الاسم.')) + '</p>'
       : list.map(i=>{
-          const label = isProduct ? wasteProductName(i) : i.name;
+          const label = isProduct ? wasteProductName(i) : wasteStockName(i);
           const side = isProduct
             ? (wasteProductOptions(i.id).length ? t('له خيارات') : '')
             : (UNIT_LABELS_POS[i.unit] || '');
@@ -2100,7 +2106,7 @@ function renderWasteModal(){
 
   paymentModalBody.innerHTML =
     '<button type="button" class="waste-picked" id="wasteChange"><span>'
-      + escapeHtml(isProduct ? wasteProductName(picked) : picked.name)
+      + escapeHtml(isProduct ? wasteProductName(picked) : wasteStockName(picked))
       + '</span><span class="waste-picked-change">' + t('تغيير') + '</span></button>'
     + '<div class="pos-auth-field"><label>' + t('كم راح؟') + ' <span class="waste-unit-hint">' + escapeHtml(unitLabel) + '</span></label>'
     + '<input type="number" id="wasteQty" inputmode="decimal" step="0.01" placeholder="0" value="' + (st.qty||'') + '"></div>'
@@ -2159,7 +2165,7 @@ async function saveWaste(){
   }
   const out = res.data || {};
   const cost = Number(out.cost) || 0;
-  const name = isProduct ? wasteProductName(picked) : picked.name;
+  const name = isProduct ? wasteProductName(picked) : wasteStockName(picked);
   document.getElementById('paymentModal').classList.remove('show');
   // صفرُ خصمٍ ليس خطأ -- منتجٌ بلا وصفة يُسجَّل هدره ولا يُنقص منه شيء،
   // ويُقال ذلك بدل أن يظنّ الكاشير أن المخزون نقص.

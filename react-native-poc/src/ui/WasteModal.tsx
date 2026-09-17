@@ -75,8 +75,8 @@ export default function WasteModal({
   };
 
   const stockItems = useMemo(() => {
-    const q = search.trim();
-    return (q ? stock.filter(i => i.name.includes(q)) : stock).slice(0, 40);
+    const q = search.trim().toLowerCase();
+    return (q ? stock.filter(i => i.name.toLowerCase().includes(q) || (i.nameEn || '').toLowerCase().includes(q)) : stock).slice(0, 40);
   }, [stock, search]);
 
   const productItems = useMemo(() => {
@@ -92,7 +92,8 @@ export default function WasteModal({
   const picked = pickedStock || pickedProduct;
 
   const productName = (p: ProductPick) => (lang === 'en' && p.nameEn ? p.nameEn : p.name);
-  const pickedName = pickedStock ? pickedStock.name : pickedProduct ? productName(pickedProduct) : '';
+  const stockName = (i: StockPick) => (lang === 'en' && i.nameEn ? i.nameEn : i.name);
+  const pickedName = pickedStock ? stockName(pickedStock) : pickedProduct ? productName(pickedProduct) : '';
 
   const availableOptions = pickedProduct ? optionsByProduct[pickedProduct.id] || [] : [];
   const unit = pickedStock ? pickedStock.unit : '';
@@ -177,7 +178,7 @@ export default function WasteModal({
                   ) : (
                     stockItems.map(i => (
                       <TouchableOpacity key={i.id} style={styles.pickRow} onPress={() => setPickedId(i.id)} activeOpacity={0.8}>
-                        <Text style={styles.pickName}>{i.name}</Text>
+                        <Text style={styles.pickName}>{stockName(i)}</Text>
                         <Text style={styles.pickUnit}>{UNIT_LABELS[i.unit] || ''}</Text>
                       </TouchableOpacity>
                     ))

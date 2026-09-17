@@ -2277,6 +2277,26 @@ select option:disabled{color:var(--muted);}
 .disc-preset-missing{color:var(--amber); font-weight:700;}
 .disc-preset-actions{display:flex; gap:6px; flex-wrap:wrap;}
 
+/* --- حذف عميل: منطقة خطر، مفصولة بصريًّا ------------------------- */
+/* لا تُخفى ولا تُزيَّن. زرٌّ أحمر في آخر النافذة بعد فاصل، يُوصَل إليه
+   بالتمرير عمدًا -- فلا يُضغط سهوًا، ولا يُبحث عنه من يريده. */
+.loy-danger-zone{
+  display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+  margin-top:22px; padding:14px 15px;
+  border-radius:var(--r-md);
+  border:1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  background:color-mix(in srgb, var(--danger) 7%, transparent);
+}
+.loy-danger-title{font-size:13px; font-weight:800; color:var(--danger);}
+.loy-danger-sub{font-size:11px; font-weight:600; color:var(--muted); line-height:1.6; margin-top:3px; max-width:420px;}
+.loy-delete-btn{
+  flex:none; padding:10px 16px; border-radius:var(--r-sm);
+  font-weight:800; font-size:12.5px; font-family:inherit; white-space:nowrap;
+  color:var(--danger); background:transparent;
+  border:1px solid color-mix(in srgb, var(--danger) 55%, transparent);
+}
+.loy-delete-btn:hover{background:color-mix(in srgb, var(--danger) 14%, transparent);}
+
 /* --- one button look ---------------------------------------------- */
 /* Legacy vocabularies, aliased rather than rewritten at 354 call sites. */
 .menu-add-btn, .add-row-btn, .settings-save-btn, .mtr-edit-btn,

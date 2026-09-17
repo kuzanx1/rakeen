@@ -2253,11 +2253,11 @@ function openStockItemModal(stockId){
   editingStockId = stockId || null;
   const existing = stockId ? STOCK_ITEMS.find(s=>s.id===stockId) : null;
   stockModalState = existing
-    ? {name:existing.name, unit:existing.unit, unitCost:existing.unitCost, qtyOnHand:existing.qtyOnHand, parLevel:existing.parLevel, category:existing.category||'raw', gramsPerUnit: existing.gramsPerUnit || null,
+    ? {name:existing.name, nameEn:existing.nameEn || '', unit:existing.unit, unitCost:existing.unitCost, qtyOnHand:existing.qtyOnHand, parLevel:existing.parLevel, category:existing.category||'raw', gramsPerUnit: existing.gramsPerUnit || null,
        autoConsumption: existing.autoConsumption
          ? {perQty: existing.autoConsumption.perQty, deductQty: existing.autoConsumption.deductQty, targets: existing.autoConsumption.targets.map(t=>({...t}))}
          : {perQty: null, deductQty: 1, targets: []}}
-    : {name:'', unit:'kg', unitCost:0, qtyOnHand:0, parLevel:0, category:'raw', gramsPerUnit:null,
+    : {name:'', nameEn:'', unit:'kg', unitCost:0, qtyOnHand:0, parLevel:0, category:'raw', gramsPerUnit:null,
        autoConsumption: {perQty: null, deductQty: 1, targets: []}};
 
   document.getElementById('stockItemModalTitle').textContent = existing ? 'تعديل: ' + existing.name : 'إضافة صنف جديد';
@@ -2286,6 +2286,7 @@ function openStockItemModal(stockId){
 
     ${existing ? `<p class="stock-qty-helper" style="margin-top:-8px; margin-bottom:16px;">تغيير التكلفة هنا يطبّق على المبيعات الجاية بس — كل طلب سابق يحتفظ بتكلفته وقت البيع فعليًا، وما يتغيّر بأثر رجعي.</p>` : ''}
 
+    <div class="menu-add-field" style="margin-bottom:6px;"><label>الاسم بالإنجليزي ${helpIcon('يظهر للكاشير اللي مشغّل الإنجليزي — بنافذة الهدر وغيرها. لو تركته فاضي بيشوف الاسم العربي.')}</label><input type="text" id="siNameEn" value="${escapeHtml(stockModalState.nameEn || '')}" placeholder="Colombian coffee beans"></div>
     <div class="menu-add-field" style="margin-bottom:6px;"><label>${existing ? 'الكمية المتوفّرة الآن' : 'كم عندك الآن؟'}</label><input type="number" id="siQtyOnHand" value="${stockModalState.qtyOnHand}" step="0.1"></div>
     <div id="siBaselineNotice">${stockBaselineNoticeHtml()}</div>
     <div class="stock-live-bar-box" id="siLiveBarBox"></div>
@@ -2371,6 +2372,8 @@ function openStockItemModal(stockId){
     updatePctPreview();
   });
   document.getElementById('siUnitCost').addEventListener('input', (e)=> stockModalState.unitCost = parseFloat(e.target.value)||0);
+  const nameEnEl = document.getElementById('siNameEn');
+  if(nameEnEl) nameEnEl.addEventListener('input', (e)=>{ stockModalState.nameEn = e.target.value; });
   document.getElementById('siQtyOnHand').addEventListener('input', (e)=>{
     stockModalState.qtyOnHand = parseFloat(e.target.value)||0;
     const notice = document.getElementById('siBaselineNotice');
@@ -2610,14 +2613,16 @@ async function saveStockItem(){
         if(qErr) data_qty_fallback = true;
       }
 
-      const data = {name, unit: stockModalState.unit, unit_cost: stockModalState.unitCost, category: stockModalState.category,
+      const data = {name, name_en: (stockModalState.nameEn || '').trim() || null,
+        unit: stockModalState.unit, unit_cost: stockModalState.unitCost, category: stockModalState.category,
         grams_per_unit: gpu, updated_at: new Date().toISOString()};
       if(!qtyChanged || data_qty_fallback) data.qty_on_hand = stockModalState.qtyOnHand;
       if(parTyped || parRaised) data.par_level = parValue;
       const { error } = await window.supabaseClient.from('stock_items').update(data).eq('id', editingStockId);
       if(error) throw error;
       Object.assign(prevItem,
-        {name, unit: stockModalState.unit, unitCost: stockModalState.unitCost, category: stockModalState.category,
+        {name, nameEn: (stockModalState.nameEn || '').trim() || null,
+         unit: stockModalState.unit, unitCost: stockModalState.unitCost, category: stockModalState.category,
          qtyOnHand: stockModalState.qtyOnHand, gramsPerUnit: gpu},
         (parTyped || parRaised) ? {parLevel: parValue, parIsSet: true} : {});
       if(parRaised){
@@ -2629,11 +2634,13 @@ async function saveStockItem(){
       showToast('تم حفظ التعديلات');
     } else {
       // new item: whatever quantity is entered right now defines 100% automatically
-      const data = {business_id: CURRENT_PROFILE.business_id, name, unit: stockModalState.unit, unit_cost: stockModalState.unitCost,
+      const data = {business_id: CURRENT_PROFILE.business_id, name, name_en: (stockModalState.nameEn || '').trim() || null,
+        unit: stockModalState.unit, unit_cost: stockModalState.unitCost,
         category: stockModalState.category, qty_on_hand: stockModalState.qtyOnHand, par_level: stockModalState.qtyOnHand, grams_per_unit: gpu};
       const { data: inserted, error } = await window.supabaseClient.from('stock_items').insert(data).select().single();
       if(error) throw error;
-      STOCK_ITEMS.push({id: inserted.id, name, unit: stockModalState.unit, unitCost: stockModalState.unitCost,
+      STOCK_ITEMS.push({id: inserted.id, name, nameEn: (stockModalState.nameEn || '').trim() || null,
+        unit: stockModalState.unit, unitCost: stockModalState.unitCost,
         category: stockModalState.category, qtyOnHand: stockModalState.qtyOnHand, parLevel: stockModalState.qtyOnHand,
         // الكمية المُدخلة عند الإضافة أساسٌ حقيقي اختاره صاحب المطعم.
         parIsSet: true, gramsPerUnit: gpu, aliasNames: [], autoConsumption: null});
@@ -5994,10 +6001,54 @@ async function openMemberDetailModal(customerId){
 
     <div class="panel-title" style="margin:16px 0 8px;">آخر الطلبات</div>
     ${ordersHtml}
+
+    <div class="loy-danger-zone">
+      <div>
+        <div class="loy-danger-title">حذف العميل</div>
+        <div class="loy-danger-sub">يختفي من العملاء ومن أعضاء الولاء، ويروح رصيده ومكافآته. طلباته تبقى بالمبيعات والتقارير زي ما هي — بس بدون اسمه.</div>
+      </div>
+      <button type="button" class="loy-delete-btn" id="loyDeleteCustomerBtn">احذف العميل</button>
+    </div>
   `;
   body.querySelectorAll('[data-order-id]').forEach(row=>{
     row.addEventListener('click', ()=> openOrderDetailModal(row.dataset.orderId));
   });
+
+  const delBtn = document.getElementById('loyDeleteCustomerBtn');
+  if(delBtn) delBtn.addEventListener('click', ()=> deleteCustomerFlow(c));
+}
+
+/* حذف عميل.
+   لا يُحذف بـdelete من العميل: orders.customer_id مفتاحٌ أجنبيّ بلا
+   قاعدة حذف، فالمحاولة تفشل برسالةِ قاعدةِ بياناتٍ لا يفهمها أحد --
+   ولو أُضيفت cascade لمحت طلباته من المبيعات، وهي مالٌ وقع فعلًا ولا
+   علاقة له بمن اشترى. فالخادم (rk_delete_customer) يفصل الطلبات عنه
+   ويُبقيها، ثم يحذفه. */
+async function deleteCustomerFlow(c){
+  const hasBalance = (c.points > 0 || c.stamps > 0 || c.units > 0 || c.freeRewards > 0);
+  const ok = await rkAsk({
+    title: 'حذف «' + c.name + '»؟',
+    body: (hasBalance ? '⚠ عنده رصيد ولاء راح يروح معه. ' : '')
+      + 'طلباته تبقى بالمبيعات والتقارير زي ما هي، بس ما راح تكون منسوبة لاسمه. وما ينرجع.',
+    ok: 'احذفه', cancel: 'خلّه',
+  });
+  if(!ok) return;
+
+  const { data, error } = await window.supabaseClient.rpc('rk_delete_customer', { p_customer_id: c.id });
+  if(error){
+    const msg = error.message || '';
+    showToast(/rk_delete_customer/.test(msg) || error.code === 'PGRST202'
+      ? 'حذف العملاء يحتاج تشغيل تحديث قاعدة البيانات'
+      : ('تعذر الحذف: ' + msg));
+    return;
+  }
+  const out = data || {};
+  closeMemberDetailModal();
+  TOP_CUSTOMERS = (TOP_CUSTOMERS || []).filter(x=>x.id !== c.id);
+  renderLoyaltyMembers();
+  renderLoyaltyKpis();
+  showToast('انحذف «' + (out.name || c.name) + '»'
+    + (out.ordersDetached > 0 ? ' — ' + out.ordersDetached + ' طلب بقوا بالمبيعات بدون اسمه' : ''));
 }
 
 function closeMemberDetailModal(){
@@ -7833,7 +7884,7 @@ async function loadBusinessData(){
     const qty = Number(s.qty_on_hand);
     const par = Number(s.par_level);
     return {
-      id:s.id, name:s.name, category:s.category, unit:s.unit,
+      id:s.id, name:s.name, nameEn:s.name_en || null, category:s.category, unit:s.unit,
       qtyOnHand:qty,
       // بلا «مخزون معتاد» مسجَّل، يُستعمل الموجود الآن أساسًا للحساب حتى لا
       // تُقسم على صفر. لكن `parIsSet` يفرّق بين أساسٍ حقيقي اختاره صاحب
