@@ -52,6 +52,18 @@ function escapeHtml(value){
 let LANG = 'ar';
 try { LANG = localStorage.getItem('rakeen_pos_lang') || 'ar'; } catch {}
 const I18N_EN = {
+  /* وحدات رصيد الولاء -- تتبع نظام المنشأة لا تُثبّت على «نقطة». */
+  'زيارة': 'visit',
+  'كوب': 'cup',
+  'من': 'of',
+  'نقطة': 'point',
+
+  /* وحدات رصيد الولاء -- تتبع نظام المنشأة لا تُثبَّت على «نقطة». */
+  'زيارة': 'visit',
+  'كوب': 'cup',
+  'من': 'of',
+  'نقطة': 'point',
+
   'خصومات جاهزة': 'Saved discounts',
   'أو خصم مخصّص': 'Or a custom discount',
 
@@ -2734,7 +2746,7 @@ function renderCustomerStep(){
         saveBtn.disabled = true;
         saveBtn.textContent = '...';
         const { data } = await window.supabaseClient.from('customers')
-          .select('id, name, phone, loyalty_points, loyalty_free_rewards')
+          .select('id, name, phone, loyalty_points, loyalty_visits, loyalty_units, loyalty_free_rewards')
           .eq('business_id', DEVICE.businessId).eq('phone', phone).maybeSingle();
         if(data){
           setCustomer({ id: data.id, name: data.name, phone: data.phone || null,
@@ -2763,11 +2775,12 @@ function renderCustomerStep(){
       suggestEl.innerHTML = `<div class="customer-suggest-loading">جارٍ البحث...</div>`;
       pmCustomerSearchTimer = setTimeout(async ()=>{
         const { data } = await window.supabaseClient.from('customers')
-          .select('id, name, phone, loyalty_points, loyalty_free_rewards').eq('business_id', DEVICE.businessId)
+          .select('id, name, phone, loyalty_points, loyalty_visits, loyalty_units, loyalty_free_rewards').eq('business_id', DEVICE.businessId)
           .or(`name.ilike.%${q}%,phone.ilike.%${q}%`).limit(6);
         const rows = (data||[]).map(cust=>{
           const initial = (cust.name || cust.phone || '؟').charAt(0);
-          const pointsBadge = cust.loyalty_points > 0 ? `<span class="customer-suggest-points">${cust.loyalty_points} نقطة</span>` : '';
+          const balText = rkLoyaltyBalanceText(cust);
+          const pointsBadge = balText ? `<span class="customer-suggest-points">${escapeHtml(balText)}</span>` : '';
           return `<button class="customer-suggest" data-id="${cust.id}" data-name="${escapeHtml(cust.name)}" data-phone="${escapeHtml(cust.phone||'')}" data-points="${cust.loyalty_points}" data-free="${cust.loyalty_free_rewards || 0}">
             <span class="customer-suggest-avatar">${escapeHtml(initial)}</span>
             <span class="customer-suggest-info"><span class="customer-suggest-name">${escapeHtml(cust.name)}</span>${cust.phone ? `<span class="customer-suggest-phone mono">${escapeHtml(cust.phone)}</span>` : ''}</span>
@@ -3853,6 +3866,38 @@ async function renderLoyaltyWaitStep(){
  */
 function rkLoyaltySystemType(){
   return (window.BUSINESS_LOYALTY && window.BUSINESS_LOYALTY.systemType) || 'points';
+}
+
+/**
+ * رصيدُ العميل كما يُقرأ في النظام الحالي.
+ *
+ * كان يُعرض «نقطة» دائمًا مهما كان النظام -- فمقهى على نظام الزيارات،
+ * عميلُه أتمّ أربعًا من ستّ، يُقرأ على شاشة الكاشير «٠ نقطة». الزيارات
+ * تُحسب في القاعدة صحيحةً ولا أحد يراها.
+ *
+ * (نظيرتها في التطبيق: loyaltyBalanceLabel في domain/customer.ts)
+ */
+function rkLoyaltyBalance(cust){
+  const sys = rkLoyaltySystemType();
+  const biz = window.BUSINESS_LOYALTY || {};
+  if(sys === 'visits'){
+    const v = Number(cust.loyalty_visits || 0);
+    return v > 0 ? {value: v, label: t('زيارة'), threshold: Number(biz.visitsThreshold || 0)} : null;
+  }
+  if(sys === 'products'){
+    const u = Number(cust.loyalty_units || 0);
+    return u > 0 ? {value: u, label: t('كوب'), threshold: Number(biz.unitThreshold || 0)} : null;
+  }
+  const pts = Number(cust.loyalty_points || 0);
+  return pts > 0 ? {value: pts, label: t('نقطة'), threshold: 0} : null;
+}
+
+function rkLoyaltyBalanceText(cust){
+  const b = rkLoyaltyBalance(cust);
+  if(!b) return '';
+  return b.threshold > 0
+    ? (b.value + ' ' + t('من') + ' ' + b.threshold + ' ' + b.label)
+    : (b.value + ' ' + b.label);
 }
 
 /**
@@ -8509,7 +8554,7 @@ async function loadPosData(){
     sb.from('stock_items').select('id, name, unit'),
     sb.from('delivery_platforms').select('id, name, prep_timeout_minutes, logo_url, brand_color').eq('business_id', businessId).eq('active', true).order('name'),
     sb.from('menu_item_platform_prices').select('*'),
-    sb.from('businesses').select('business_type, loyalty_enabled, loyalty_system_type, loyalty_reward_mode, loyalty_reward_label, notify_delivery_prep_warning, notify_delivery_prep_expired, notify_sound_enabled, dine_in_enabled, vat_number, vat_rate, prices_include_vat, vat_registered, logo_url, receipt_custom_message, kitchen_display_enabled, tables_reservations_enabled, tables_reservation_deposit_enabled, tables_reservation_deposit_percent, tables_turn_time_enabled, tables_turn_time_minutes, tables_reservation_conflict_warning_enabled, dine_in_pay_timing, tables_specific_booking_enabled, pos_hide_popular_tab, pos_hide_search, pos_hide_product_images, pos_hide_notif_bell').eq('id', businessId).single(),
+    sb.from('businesses').select('business_type, loyalty_enabled, loyalty_system_type, loyalty_visits_threshold, loyalty_unit_threshold, loyalty_reward_mode, loyalty_reward_label, notify_delivery_prep_warning, notify_delivery_prep_expired, notify_sound_enabled, dine_in_enabled, vat_number, vat_rate, prices_include_vat, vat_registered, logo_url, receipt_custom_message, kitchen_display_enabled, tables_reservations_enabled, tables_reservation_deposit_enabled, tables_reservation_deposit_percent, tables_turn_time_enabled, tables_turn_time_minutes, tables_reservation_conflict_warning_enabled, dine_in_pay_timing, tables_specific_booking_enabled, pos_hide_popular_tab, pos_hide_search, pos_hide_product_images, pos_hide_notif_bell').eq('id', businessId).single(),
     sb.from('table_sections').select('id, name, sort_order').eq('branch_id', DEVICE.branchId).order('sort_order'),
     // Only ever non-empty for a business_type='salon' business — a
     // restaurant's services table is always empty (RLS-scoped by
@@ -8574,6 +8619,10 @@ async function loadPosData(){
    */
   window.BUSINESS_LOYALTY = {
     systemType: (loyaltyRes.data && loyaltyRes.data.loyalty_system_type) || 'points',
+    // العتبتان: بدونهما تُعرض «٤ زيارة» بلا «من ٦» -- والرقم وحده
+    // لا يقول للكاشير إن كان العميل على وشك مكافأة.
+    visitsThreshold: (loyaltyRes.data && loyaltyRes.data.loyalty_visits_threshold) || 0,
+    unitThreshold: (loyaltyRes.data && loyaltyRes.data.loyalty_unit_threshold) || 0,
     rewardMode: (loyaltyRes.data && loyaltyRes.data.loyalty_reward_mode) || 'open',
     rewardLabel: (loyaltyRes.data && loyaltyRes.data.loyalty_reward_label) || 'مكافأة مجانية',
     rewardProductIds: [],

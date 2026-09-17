@@ -3,8 +3,8 @@ import { ActivityIndicator, Modal, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './Text';
 import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
-import { searchCustomers } from '../application/customerService';
-import { validateNewCustomerDraft, looksLikePhoneNumber, Customer } from '../domain/customer';
+import { searchCustomers, getLoyaltySettings } from '../application/customerService';
+import { validateNewCustomerDraft, looksLikePhoneNumber, Customer, LoyaltySettings, loyaltyBalanceLabel } from '../domain/customer';
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
 import KeyboardLift from './KeyboardLift';
 
@@ -31,7 +31,7 @@ export default function CustomerPickerModal({
   visible: boolean;
   businessId: number;
   onCancel: () => void;
-  onSelect: (customer: { id: number | null; name: string; phone: string | null; points: number; freeRewards: number }) => void;
+  onSelect: (customer: { id: number | null; name: string; phone: string | null; points: number; visits: number; units: number; freeRewards: number }) => void;
 }) {
   const { colors } = useTheme();
   const styles = useStyles();
@@ -41,6 +41,9 @@ export default function CustomerPickerModal({
   const [showNewForm, setShowNewForm] = useState(false);
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
+  /* نظام الولاء الحالي -- «نقطة» أو «زيارة» أو «كوب». بدونه كان
+     الكاشير يقرأ «٠ نقطة» لعميلٍ أتمّ أربع زياراتٍ من ستّ. */
+  const [loyalty, setLoyalty] = useState<LoyaltySettings | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -50,8 +53,12 @@ export default function CustomerPickerModal({
       setShowNewForm(false);
       setNewName('');
       setNewPhone('');
+      return;
     }
-  }, [visible]);
+    // يُقرأ عند فتح النافذة لا عند كل بحث: صاحب المطعم يبدّل
+    // نظامه مرّةً في العمر، لا مرّةً في الدقيقة.
+    getLoyaltySettings(businessId).then(setLoyalty).catch(() => setLoyalty(null));
+  }, [visible, businessId]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -93,7 +100,7 @@ export default function CustomerPickerModal({
     // customer_id stays null -- complete_pos_order/register_dine_in_order
     // find-or-create by phone server-side (real RPC behavior, not
     // something this client re-implements).
-    onSelect({ id: null, name: newName.trim(), phone: newPhone.trim(), points: 0, freeRewards: 0 });
+    onSelect({ id: null, name: newName.trim(), phone: newPhone.trim(), points: 0, visits: 0, units: 0, freeRewards: 0 });
   };
 
   return (
@@ -116,7 +123,7 @@ export default function CustomerPickerModal({
                 <TouchableOpacity
                   key={c.id}
                   style={styles.suggest}
-                  onPress={() => onSelect({ id: c.id, name: c.name, phone: c.phone, points: c.points, freeRewards: c.freeRewards })}
+                  onPress={() => onSelect({ id: c.id, name: c.name, phone: c.phone, points: c.points, visits: c.visits, units: c.units, freeRewards: c.freeRewards })}
                   activeOpacity={0.8}>
                   <View style={styles.suggestAvatar}>
                     <Text style={styles.suggestAvatarText}>{c.name.trim().charAt(0) || '؟'}</Text>
@@ -125,11 +132,17 @@ export default function CustomerPickerModal({
                     <Text style={styles.suggestName} numberOfLines={1}>{c.name}</Text>
                     {!!c.phone && <Text style={styles.suggestPhone}>{c.phone}</Text>}
                   </View>
-                  {c.points > 0 && (
-                    <View style={styles.suggestPoints}>
-                      <Text style={styles.suggestPointsText}>{c.points} نقطة</Text>
-                    </View>
-                  )}
+                  {(() => {
+                    const bal = loyaltyBalanceLabel(c, loyalty);
+                    if (!bal) return null;
+                    return (
+                      <View style={styles.suggestPoints}>
+                        <Text style={styles.suggestPointsText}>
+                          {bal.threshold > 0 ? `${bal.value} من ${bal.threshold} ${bal.label}` : `${bal.value} ${bal.label}`}
+                        </Text>
+                      </View>
+                    );
+                  })()}
                 </TouchableOpacity>
               ))}
               {query.trim().length >= 2 && (

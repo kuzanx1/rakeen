@@ -56,7 +56,8 @@ import {
   returnUnusedFreeReward,
   type FreeRewardConfig,
 } from '../application/freeRewardService';
-import type { Customer } from '../domain/customer';
+import type { Customer, LoyaltySettings } from '../domain/customer';
+import { getLoyaltySettings } from '../application/customerService';
 import { formatArabicTime } from '../domain/arabicDate';
 
 /** `.slice(0,8)` in renderProductGrid's popular branch. */
@@ -827,11 +828,21 @@ export default function ProductsScreen({
   useEffect(() => {
     onCheckoutOpenChange?.(paymentModalOpen);
   }, [paymentModalOpen, onCheckoutOpenChange]);
+
+  useEffect(() => {
+    if (cashier.business_id == null) return;
+    getLoyaltySettings(cashier.business_id).then(setLoyaltySettings).catch(() => setLoyaltySettings(null));
+    // settingsVersion يتغيّر مع بثّ تغيّر إعدادات المنشأة، فتبديل نظام
+    // الولاء من اللوحة يصل الكاشير بلا إعادة تشغيل.
+  }, [cashier.business_id, settingsVersion]);
   const [lastRegisteredDineInOrderId, setLastRegisteredDineInOrderId] = useState<number | null>(
     selectedTable?.activeOrderId ?? null,
   );
   const [dineInOrderTotal, setDineInOrderTotal] = useState(0);
   const [loyaltyRedeemOpen, setLoyaltyRedeemOpen] = useState(false);
+  /* نظام الولاء -- يُقرأ مرّةً عند فتح الشاشة. صاحب المطعم يبدّله
+     مرّةً في العمر، لا مرّةً في الدقيقة. */
+  const [loyaltySettings, setLoyaltySettings] = useState<LoyaltySettings | null>(null);
 
   /** DELIVERY_PLATFORMS_LIST and state.deliveryPlatformId. */
   const [deliveryPlatforms, setDeliveryPlatforms] = useState<DeliveryPlatform[]>([]);
@@ -1841,6 +1852,7 @@ export default function ProductsScreen({
           redeemableProducts={catalog.products.filter(p => p.pointsRedeemPrice != null)}
           onRedeem={productId => cart.addPointsRedemptionProduct(productId)}
           hasFreeReward={Number(selectedCustomer.freeRewards ?? 0) > 0}
+          loyaltySystemType={loyaltySettings ? loyaltySettings.systemType : 'points'}
           onArmReward={requestId => {
             cart.setRewardArm(requestId);
             setLoyaltyRedeemOpen(false);

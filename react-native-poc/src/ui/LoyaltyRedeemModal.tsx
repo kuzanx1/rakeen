@@ -46,6 +46,7 @@ export default function LoyaltyRedeemModal({
   onRedeem,
   onArmReward,
   hasFreeReward,
+  loyaltySystemType = 'points',
   onClose,
 }: {
   visible: boolean;
@@ -63,6 +64,10 @@ export default function LoyaltyRedeemModal({
   onArmReward?: (requestId: number) => void;
   /** عنده مكافأةٌ جاهزة = نظام أكوابٍ أو زيارات، لا نقاط. */
   hasFreeReward?: boolean;
+  /** نظام الولاء الحالي. في الزيارات أو الأكواب لا نقاط تُصرف
+   *  أصلًا -- فعرضُ «استبدال منتج بالنقاط» برصيدٍ صفر ضجيجٌ يُربك
+   *  الكاشير. (الويب يفرّق المسارين منذ البداية: rkLoyaltySystemType) */
+  loyaltySystemType?: 'points' | 'visits' | 'products';
   onClose: () => void;
 }) {
   const { colors } = useTheme();
@@ -283,7 +288,22 @@ export default function LoyaltyRedeemModal({
             </View>
           )}
 
-          {phase === 'picking' && (
+          {phase === 'picking' && loyaltySystemType !== 'points' && (
+            <View style={styles.waitBlock}>
+              <Text style={styles.title}>
+                {loyaltySystemType === 'visits' ? 'نظامك زيارات' : 'نظامك أكواب'}
+              </Text>
+              <Text style={styles.subtitle}>
+                ما فيه نقاط تنصرف بهذا النظام. المكافأة تجي لحالها لما يوصل العميل للعدد المطلوب،
+                وتطلع لك بشريط المكافأة فوق القائمة.
+              </Text>
+              <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
+                <Text style={styles.cancelText}>إغلاق</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {phase === 'picking' && loyaltySystemType === 'points' && (
             <>
               <Text style={styles.title}>استبدال منتج بالنقاط</Text>
               <Text style={styles.subtitle}>رصيد {customerName}: {customerPoints} نقطة</Text>

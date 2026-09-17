@@ -11,8 +11,43 @@ export interface Customer {
   name: string;
   phone: string | null;
   points: number;
+  /** زياراتٌ نحو عتبة المكافأة -- customers.loyalty_visits. */
+  visits: number;
+  /** أكوابٌ/قطعٌ نحو عتبة المكافأة -- customers.loyalty_units. */
+  units: number;
   /** مكافآت مجانية جاهزة للصرف -- customers.loyalty_free_rewards. */
   freeRewards: number;
+}
+
+/**
+ * نظام الولاء الذي اختاره صاحب المطعم، وعتبتُه.
+ *
+ * كان الكاشير يعرض «نقطة» دائمًا مهما كان النظام -- فمقهى على نظام
+ * الزيارات، عميلُه أتمّ أربعًا من ستّ، يُقرأ على شاشة الكاشير «٠ نقطة».
+ * الزيارات تُحسب في القاعدة صحيحةً ولا أحد يراها.
+ */
+export type LoyaltySystemType = 'points' | 'visits' | 'products';
+
+export interface LoyaltySettings {
+  systemType: LoyaltySystemType;
+  /** عتبةُ النظام الحالي: زياراتٍ أو أكواب. صفرٌ في نظام النقاط. */
+  threshold: number;
+}
+
+/** الرصيد المعروض للعميل في النظام الحالي -- رقمٌ ونصّه. */
+export function loyaltyBalanceLabel(
+  c: { points: number; visits: number; units: number },
+  settings: LoyaltySettings | null,
+): { value: number; label: string; threshold: number } | null {
+  const sys = settings ? settings.systemType : 'points';
+  const threshold = settings ? settings.threshold : 0;
+  if (sys === 'visits') {
+    return c.visits > 0 ? { value: c.visits, label: 'زيارة', threshold } : null;
+  }
+  if (sys === 'products') {
+    return c.units > 0 ? { value: c.units, label: 'كوب', threshold } : null;
+  }
+  return c.points > 0 ? { value: c.points, label: 'نقطة', threshold: 0 } : null;
 }
 
 export interface NewCustomerDraft {

@@ -25,6 +25,12 @@ import { getItem, setItem } from '../infrastructure/mmkvStorage';
  */
 
 const I18N_EN: Record<string, string> = {
+  /* وحدات رصيد الولاء -- تتبع نظام المنشأة لا تُثبّت على «نقطة». */
+  'زيارة': 'visit',
+  'كوب': 'cup',
+  'من': 'of',
+  'نقطة': 'point',
+
   'خصومات جاهزة': 'Saved discounts',
   'أو خصم مخصّص': 'Or a custom discount',
 
