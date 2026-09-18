@@ -5885,6 +5885,10 @@ function loyCheapestRedeemPoints(){
   return best;
 }
 
+/* الدفعة: كم صفًّا يُرسم قبل «عرض المزيد». */
+const LOY_MEMBERS_PAGE = 25;
+let LOY_MEMBERS_SHOWN = LOY_MEMBERS_PAGE;
+
 function loyMemberSegment(c){
   if(c.lastVisitDays > 30) return 'dormant';
   if(c.vip) return 'vip';
@@ -5928,6 +5932,7 @@ function renderLoyMembersFilters(){
     btn.addEventListener('click', ()=>{
       const seg = btn.dataset.seg || null;
       LOY_MEMBERS_FILTER = LOY_MEMBERS_FILTER === seg ? null : seg;
+      LOY_MEMBERS_SHOWN = LOY_MEMBERS_PAGE;
       renderLoyMembersFilters();
       renderLoyaltyMembers();
     });
@@ -5988,10 +5993,33 @@ function renderLoyaltyMembers(){
   rows = [...rows].sort(sorters[LOY_MEMBERS_SORT] || sorters.lastVisit);
 
   if(summaryEl){
+    /* شريطٌ لا سطرُ نصٍّ رمادي: العدد، ثم ما يُصفّي القائمة الآن ظاهرًا
+       يُرفع بنقرة. كان الفلتر النشط يُعرف من بطاقةٍ مضيئةٍ فوق -- وهي
+       تخرج من الشاشة مع أول تمرير، فيبقى المستخدم يقرأ قائمةً مبتورة
+       ولا يرى لماذا. */
     const readyCount = all.filter(c=>c.freeRewards>0).length;
-    summaryEl.textContent = rows.length === all.length
-      ? `${all.length} عضو${readyCount ? ' — ' + readyCount + ' جاهزون لمكافأة الآن' : ''}`
-      : `${rows.length} من ${all.length} عضو`;
+    const chips = [];
+    if(LOY_MEMBERS_FILTER && LOY_SEGMENT_META[LOY_MEMBERS_FILTER]){
+      chips.push(`<button type="button" class="loy-sum-chip" data-clear="filter">${LOY_SEGMENT_META[LOY_MEMBERS_FILTER].label} <span>✕</span></button>`);
+    }
+    if(LOY_MEMBERS_SEARCH.trim()){
+      chips.push(`<button type="button" class="loy-sum-chip" data-clear="search">بحث: ${escapeHtml(LOY_MEMBERS_SEARCH.trim())} <span>✕</span></button>`);
+    }
+    summaryEl.innerHTML =
+      `<span class="loy-sum-count"><b>${rows.length}</b>${rows.length === all.length ? '' : ' من ' + all.length} عضو</span>`
+      + (readyCount ? `<span class="loy-sum-ready">${readyCount} جاهزون لمكافأة الآن</span>` : '')
+      + chips.join('');
+    summaryEl.querySelectorAll('[data-clear]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        if(btn.dataset.clear === 'filter') LOY_MEMBERS_FILTER = null;
+        else {
+          LOY_MEMBERS_SEARCH = '';
+          const inp = document.getElementById('loyMembersSearch'); if(inp) inp.value = '';
+        }
+        LOY_MEMBERS_SHOWN = LOY_MEMBERS_PAGE;
+        renderLoyaltyMembers();
+      });
+    });
   }
 
   if(rows.length === 0){
@@ -6004,24 +6032,49 @@ function renderLoyaltyMembers(){
   const COLORS = ['var(--acc-ops)','var(--acc-res)','var(--acc-fin)','var(--acc-team)','var(--acc-ai)'];
   const COLORS_BG = ['var(--acc-ops-bg)','var(--acc-res-bg)','var(--acc-fin-bg)','var(--acc-team-bg)','var(--acc-ai-bg)'];
 
-  listEl.innerHTML = rows.map((c,i)=>{
+  /* تُعرض دفعةً دفعة.
+     كانت تُرسم كل الصفوف مرّةً واحدة: مئتا عضوٍ تعني مئتي صفٍّ بأختامها،
+     تُبنى كلها ليُقرأ منها خمسة. والدفعةُ تُصفَّر مع كل بحثٍ أو فلتر. */
+  const visible = rows.slice(0, LOY_MEMBERS_SHOWN);
+  const segLabel = { new:'جديد', regular:'منتظم', dormant:'خامل', vip:'VIP' };
+
+  listEl.innerHTML = visible.map((c,i)=>{
     const progressHtml = loyMemberProgressHtml(c);
-    const rewardBadge = c.freeRewards > 0
+    const ready = Number(c.freeRewards) > 0;
+    const rewardBadge = ready
       ? `<span class="loy-reward-badge">${c.freeRewards > 1 ? c.freeRewards + ' مكافآت جاهزة' : 'مكافأة جاهزة'}</span>`
       : '';
-
-    return `<div class="loy-member-row" data-cust-id="${c.id}" style="cursor:pointer;">
+    const seg = loyMemberSegment(c);
+    /* آخر زيارة وإجمالي الإنفاق: كانا في نافذة العضو وحدها، فلا يُقارَن
+       عضوان إلا بفتح اثنتين. والصفّ يتّسع لهما. */
+    const lastVisit = c.lastVisitDays === 0 ? 'اليوم'
+      : c.lastVisitDays === 1 ? 'أمس'
+      : `قبل ${c.lastVisitDays} يوم`;
+    return `<div class="loy-member-row${ready ? ' is-ready' : ''}" data-cust-id="${c.id}">
       <div class="loy-avatar" style="background:${COLORS_BG[i%5]}; color:${COLORS[i%5]};">${escapeHtml(c.name.charAt(0))}</div>
       <div class="loy-info">
-        <div class="loy-name">${escapeHtml(c.name)}${rewardBadge}</div>
-        <div class="loy-meta">${c.phone ? escapeHtml(c.phone) + ' — ' : ''}آخر زيارة قبل ${c.lastVisitDays} يوم</div>
+        <div class="loy-name">${escapeHtml(c.name)}${rewardBadge}<span class="loy-seg-tag ${seg}">${segLabel[seg] || ''}</span></div>
+        <div class="loy-meta">
+          ${c.phone ? `<span class="mono">${escapeHtml(c.phone)}</span>` : ''}
+          <span>${lastVisit}</span>
+          <span>${c.visits} زيارة</span>
+          <span class="mono">${Math.round(c.spend)} ر.س</span>
+        </div>
       </div>
       <div class="loy-member-end">${progressHtml}</div>
     </div>`;
-  }).join('');
+  }).join('')
+  + (rows.length > visible.length
+      ? `<button type="button" class="loy-more-btn" id="loyMembersMore">عرض ${Math.min(LOY_MEMBERS_PAGE, rows.length - visible.length)} أعضاء أكثر · باقي ${rows.length - visible.length}</button>`
+      : '');
 
   listEl.querySelectorAll('.loy-member-row').forEach(row=>{
     row.addEventListener('click', ()=> openMemberDetailModal(parseInt(row.dataset.custId, 10)));
+  });
+  const moreBtn = document.getElementById('loyMembersMore');
+  if(moreBtn) moreBtn.addEventListener('click', ()=>{
+    LOY_MEMBERS_SHOWN += LOY_MEMBERS_PAGE;
+    renderLoyaltyMembers();
   });
 }
 
@@ -6316,12 +6369,17 @@ document.getElementById('memberDetailModal')?.addEventListener('click', (e)=>{
   if(e.target.id === 'memberDetailModal') closeMemberDetailModal();
 });
 
+/* كل تغيّرٍ في البحث أو الترتيب أو الفئة يبدأ من أول دفعة.
+   وإلّا بقي المستخدم -- بعد أن ضغط «عرض المزيد» مرّاتٍ -- يرى مئةَ صفٍّ
+   من نتيجةٍ جديدة لم يطلب منها إلا أولها. */
 document.getElementById('loyMembersSearch')?.addEventListener('input', (e)=>{
   LOY_MEMBERS_SEARCH = e.target.value;
+  LOY_MEMBERS_SHOWN = LOY_MEMBERS_PAGE;
   renderLoyaltyMembers();
 });
 document.getElementById('loyMembersSort')?.addEventListener('change', (e)=>{
   LOY_MEMBERS_SORT = e.target.value;
+  LOY_MEMBERS_SHOWN = LOY_MEMBERS_PAGE;
   renderLoyaltyMembers();
 });
 
