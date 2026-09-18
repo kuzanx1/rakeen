@@ -4974,6 +4974,15 @@ async function loadCustomersReal(){
     LOYALTY_RATE = Number(business.loyalty_points_divisor);
   }
 
+  // orderList هنا مقصورةٌ أصلاً على الطلبات التي لها عميل
+  // (‎.not('customer_id','is',null)‎)، فلا يلزم استعلامٌ ثانٍ.
+  TODAY_POINTS_ISSUED = (LOYALTY_RATE > 0)
+    ? orderList.reduce((sum, o)=>{
+        if(new Date(o.created_at) < startToday) return sum;
+        return sum + Math.floor(Number(o.total || 0) / LOYALTY_RATE);
+      }, 0)
+    : 0;
+
   // "يفضّل: ..." used to be a hardcoded '—' for every customer — a feature
   // that could structurally never show real data. It's fully computable
   // from data already on hand: tally qty sold per menu item per customer
@@ -5230,6 +5239,22 @@ function renderCustInsight(){
    the same single source of truth used by the Customers and Home screens. The points-per-riyal
    rate is genuinely editable and recomputes every displayed point live (no separate stored values). */
 let LOYALTY_RATE = 10; // 1 point per this many SAR — persisted on businesses.loyalty_points_divisor
+/* النقاط التي مُنحت اليوم فعلاً.
+
+   كانت تُقدَّر بـ(مبيعات اليوم ÷ المعدّل)، وفي ذلك خطآن يتراكمان
+   في اتجاهٍ واحد -- كلاهما يرفع الرقم:
+
+     ١· النقاط لا تُمنح إلا لطلبٍ له عميلٌ معروف
+        (award_loyalty_for_order تعود فورًا حين customer_id فارغ).
+        ومبيعاتُ اليوم تشمل كل طلبٍ عابر بلا اسم -- وهي الأكثر في
+        أي مقهى. فالرقم يعدّ نقاطًا لم تُمنح لأحد.
+
+     ٢· الخادم يُنزّل الكسر لكل طلبٍ على حدة
+        (floor(total / divisor))، والتقدير كان يقسم مجموع اليوم
+        مرّةً واحدة. وعشرون فاتورةً صغيرة تُفقد كسورها العشرين.
+
+   فصار يُجمع من الطلبات نفسها بنفس قاعدة الخادم. */
+let TODAY_POINTS_ISSUED = 0;
 // Real owner feedback: this ladder used to be a fixed constant — every
 // business saw the exact same 4 thresholds/discounts with no way to change
 // them. Now persisted on businesses.loyalty_tiers (jsonb), loaded in
@@ -5294,7 +5319,7 @@ function loyaltyKpisForSystem(){
     ];
   }
   return [
-    {label:'نقاط مصدرة اليوم', value: Math.round(TODAY.netSales / LOYALTY_RATE)},
+    {label:'نقاط مُنحت اليوم', value: TODAY_POINTS_ISSUED},
     {label:'إجمالي الأعضاء', value: st.members},
     {label:'أعضاء تفاعلوا اليوم', value: activeMembersToday},
     {label:'نقاط لم تُصرف', value: st.pointsOutstanding},
@@ -5379,8 +5404,14 @@ function renderLoyaltyLiability(){
     return;
   }
 
+  /* رقمُ الخادم أوّلاً: يجمع كل العملاء، وTOP_CUSTOMERS تُسقط من
+     لا طلبَ له -- ومن مُنح نقاطًا يدويًا بلا شراء له نقاطٌ حقيقية.
+     وبدونه يظهر في الشاشة الواحدة رقمان لشيءٍ واحد: «نقاط لم
+     تُصرف» في المؤشّرات (من الخادم) و«نقاط معلّقة» هنا (محليّ). */
   const members = TOP_CUSTOMERS || [];
-  const outstanding = members.reduce((s,c)=> s + (Number(c.points)||0), 0);
+  const outstanding = (st && st.pointsOutstanding != null)
+    ? Number(st.pointsOutstanding)
+    : members.reduce((s,c)=> s + (Number(c.points)||0), 0);
 
   // أفضل صرف للعميل = أسوأ التزام على المطعم. الصنف الذي يعطي أكثر ريال
   // لكل نقطة هو ما سيختاره العميل العاقل، فهو ما نحسب به.
@@ -5407,7 +5438,10 @@ function renderLoyaltyLiability(){
           <div class="loy-liab-value mono ${liability != null ? 'is-cost' : ''}">${liability != null ? money(liability) + ' ر.س' : '—'}</div>
           <div class="loy-liab-note">${
             liability != null
-              ? 'محسوبة على أرخص صرف عندك: ' + bestItem.name + ' بـ' + bestItem.pointsRedeemPrice + ' نقطة'
+              // الكود يختار الصنف الذي يعطي أكثر ريال لكل نقطة -- وهو ما
+              // سيختاره العميل العاقل، أي أثقلُ التزامٍ عليك. و«أرخص صرف»
+              // تُقرأ من جهته لا من جهتك، فتبدو للمالك عكسَ ما تعنيه.
+              ? 'محسوبة على أعلى قيمة يقدر ياخذها بنقاطه: ' + bestItem.name + ' بـ' + bestItem.pointsRedeemPrice + ' نقطة'
               : 'ما حددت أي منتج يُستبدل بنقاط — النقاط تتراكم بلا ما يقدر العميل يصرفها'
           }</div>
         </div>
