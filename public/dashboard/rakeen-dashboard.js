@@ -6532,17 +6532,70 @@ function updateLoyaltySystemTypeVisibility(){
   // وحجمها يعنيان كليهما، والنقاط وحدها هي التي لا ختم لها.
   document.getElementById('loyaltyPointsConfig').classList.toggle('hidden', !isPoints);
   document.getElementById('loyaltyVisitsConfig').classList.toggle('hidden', !isVisits);
+  // اسمُ المكافأة يخصّ الزيارات والأكواب معاً -- والحفظ يقرؤه في
+  // الحالين. وكان مدفوناً في كتلة الزيارات وحدها، فصاحبُ مقهًى على
+  // نظام الأكواب يُحفظ له اسمٌ لا يراه ولا يقدر يغيّره.
+  const rewardRow = document.getElementById('loyaltyRewardLabelRow');
+  if(rewardRow) rewardRow.classList.toggle('hidden', isPoints);
   document.getElementById('loyaltyIconPickerRow').classList.toggle('hidden', isPoints);
   try { syncLoyaltyStampGroup(); } catch(_){}
   document.getElementById('loyaltyIconSizeRow').classList.toggle('hidden', isPoints);
+  syncLoyaltySystemCards();
+  renderLoyaltyRuleSummary();
 }
+
+/* البطاقة المختارة تُعرف بصنفها لا بلون إطارٍ يُكتب في السطر.
+   خمسةُ مواضع كانت تكتب style.borderColor بيدها -- ثلاثةٌ عند التحميل
+   واثنان عند التبديل -- فكلُّ حالةٍ جديدة (تمرير، تركيز، علامة اختيار)
+   كانت تحتاج خمسَ إضافات. */
+function syncLoyaltySystemCards(){
+  const type = loyaltySystemTypeFormValue();
+  [['loyaltyTypeCardPoints','points'], ['loyaltyTypeCardVisits','visits'], ['loyaltyTypeCardProducts','products']]
+    .forEach(([id, value])=>{
+      const el = document.getElementById(id);
+      if(el) el.classList.toggle('selected', type === value);
+    });
+}
+
+/* القاعدة بجملةٍ يقرأها صاحب المطعم، لا برقمين في حقلين.
+   «١٠» في حقلٍ و«٦» في آخر لا يقولان ماذا سيحدث عند الكاشير فعلاً. */
+function renderLoyaltyRuleSummary(){
+  const ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>';
+  const num = (el, dflt) => {
+    const v = parseInt((document.getElementById(el) || {}).value, 10);
+    return (v > 0) ? v : dflt;
+  };
+  const reward = ((document.getElementById('loyaltyRewardLabelInput') || {}).value || '').trim() || 'مكافأة مجانية';
+
+  const pts = document.getElementById('loyaltyRulePoints');
+  if(pts){
+    const r = num('loyaltyRateInput', 10);
+    pts.innerHTML = ICON + '<span>كل <b>' + r + ' ريال</b> = <b>نقطة واحدة</b>. يعني فاتورة بـ<b>' + (r * 5)
+      + ' ريال</b> تعطيه <b>5 نقاط</b>.</span>';
+  }
+  const vis = document.getElementById('loyaltyRuleVisits');
+  if(vis){
+    const t = num('loyaltyVisitsThresholdInput', 5);
+    vis.innerHTML = ICON + '<span>كل <b>' + t + ' زيارات</b> = <b>' + escapeHtml(reward)
+      + '</b>. الزيارة رقم ' + (t + 1) + ' تبدأ بطاقة جديدة.</span>';
+  }
+  const prd = document.getElementById('loyaltyRuleProducts');
+  if(prd){
+    const u = num('loyaltyUnitThresholdInput', 6);
+    prd.innerHTML = ICON + '<span>كل <b>' + u + ' أكواب</b> من الأصناف المحسوبة = <b>' + escapeHtml(reward) + '</b>.</span>';
+  }
+}
+
+/* والجملة تتبع الكتابة حرفاً بحرف -- لا تنتظر حفظاً. */
+document.addEventListener('input', (e)=>{
+  if(!e.target.closest) return;
+  if(e.target.closest('#loyaltyRateInput, #loyaltyVisitsThresholdInput, #loyaltyUnitThresholdInput, #loyaltyRewardLabelInput')){
+    renderLoyaltyRuleSummary();
+  }
+});
 
 document.querySelectorAll('input[name="loyaltySystemType"]').forEach(radio=>{
   radio.addEventListener('change', ()=>{
-    document.getElementById('loyaltyTypeCardPoints').style.borderColor = radio.value === 'points' ? 'var(--lime-deep)' : 'var(--line)';
-    document.getElementById('loyaltyTypeCardVisits').style.borderColor = radio.value === 'visits' ? 'var(--lime-deep)' : 'var(--line)';
-    const pc = document.getElementById('loyaltyTypeCardProducts');
-    if(pc) pc.style.borderColor = radio.value === 'products' ? 'var(--lime-deep)' : 'var(--line)';
     updateLoyaltySystemTypeVisibility();
     renderLoyaltyProgramPanel();
     // الأرقام نفسها لا تتغيّر بتبديل الاختيار -- المعروض منها هو الذي
@@ -6596,15 +6649,11 @@ function renderLoyaltyBrandingPreview(){
   document.querySelectorAll('input[name="loyaltySystemType"]').forEach(radio=>{
     radio.checked = radio.value === LOYALTY_BRANDING.systemType;
   });
-  document.getElementById('loyaltyTypeCardPoints').style.borderColor = LOYALTY_BRANDING.systemType === 'points' ? 'var(--lime-deep)' : 'var(--line)';
-  const productsCard = document.getElementById('loyaltyTypeCardProducts');
-  if(productsCard) productsCard.style.borderColor = LOYALTY_BRANDING.systemType === 'products' ? 'var(--lime-deep)' : 'var(--line)';
   // القوائم تُجلب مرة ثم تُرسم: الشاشة تظهر بما في الذاكرة ولا تنتظر
   // الشبكة، وتُعاد رسمها حين تصل.
   renderLoyaltyProgramPanel();
   loadLoyaltyProgramData().then(renderLoyaltyProgramPanel);
   loadLoyaltyProgramStats().then(renderLoyaltyKpis);
-  document.getElementById('loyaltyTypeCardVisits').style.borderColor = LOYALTY_BRANDING.systemType === 'visits' ? 'var(--lime-deep)' : 'var(--line)';
   document.querySelectorAll('#loyaltyThemeChips button').forEach(b=>b.classList.toggle('active', b.dataset.theme === LOYALTY_BRANDING.theme));
   renderLoyaltyIconPicker();
   renderLoyaltyPatternPicker();
@@ -18150,46 +18199,65 @@ function renderLoyaltyProgramPanel(){
   if(!el) return;
   const type = loyaltySystemTypeFormValue();
   // النقاط لا تعدّ أصنافاً ولا تُسلَّم منتجاً: هي خصمٌ على الفاتورة.
-  if(type === 'points'){ el.innerHTML = ''; return; }
+  if(type === 'points'){ el.innerHTML = ''; renderLoyaltyRuleSummary(); return; }
 
   const rewardMode = (LOYALTY_BRANDING.rewardMode === 'products') ? 'products' : 'open';
   let html = '';
 
+  /* البطاقتان بنفس لغة بطاقات النظام فوقها -- كانتا مربّعين بأنماطٍ
+     مكتوبةٍ في السطر داخل جافاسكربت، فلا تمريرَ ولا تركيزَ ولا علامةَ
+     اختيار، ولا تشبهان شيئاً آخر في اللوحة. */
+  const modeCard = (value, name, desc) =>
+      '<label class="loy-sys-card' + (rewardMode === value ? ' selected' : '') + '">'
+    +   '<input type="radio" name="loyaltyRewardMode" value="' + value + '"' + (rewardMode === value ? ' checked' : '') + '>'
+    +   '<span class="loy-sys-check">\u2713</span>'
+    +   '<span class="loy-sys-head"><span class="loy-sys-name">' + name + '</span></span>'
+    +   '<span class="loy-sys-desc">' + desc + '</span>'
+    + '</label>';
+
   if(type === 'products'){
-    html += '<div class="rk-field" style="max-width:320px;">'
-      + '<label>كم وحدة قبل المكافأة؟</label>'
-      + '<input type="number" id="loyaltyUnitThresholdInput" min="2" value="' + (LOYALTY_BRANDING.unitThreshold || 6) + '">'
+    html += '<div class="loy-setup">'
+      + '<div class="loy-setup-head">إعداد نظام الأكواب</div>'
+      + '<div class="loy-setup-sub">يُعدّ الصنف نفسه لا الفاتورة — فستة أكواب في فاتورة واحدة تُحسب ستة.</div>'
+      + '<div class="loy-setup-grid">'
+      +   '<div class="rk-field"><label>كم كوب قبل المكافأة؟</label>'
+      +     '<input type="number" id="loyaltyUnitThresholdInput" min="2" value="' + (LOYALTY_BRANDING.unitThreshold || 6) + '"></div>'
       + '</div>'
-      + '<div style="margin-top:14px;">'
-      + '<div style="font-weight:800; font-size:13px; margin-bottom:2px;">وش الأصناف اللي تُعدّ؟</div>'
-      + '<div style="font-size:11.5px; color:var(--muted); margin-bottom:8px; line-height:1.6;">اختر تصنيفاً كاملاً — وأي صنف جديد تضيفه له يدخل العرض تلقائياً — وتقدر تضم صنفاً مفرداً من تصنيف ثاني.</div>'
-      + rkLoyaltyListHtml('counts')
+      + '<div class="loy-rule" id="loyaltyRuleProducts"></div>'
+      + '<div class="loy-divider">'
+      +   '<div class="loy-sub-title">وش الأصناف اللي تُعدّ؟</div>'
+      +   '<div class="loy-sub-note">اختر تصنيفاً كاملاً — وأي صنف جديد تضيفه له يدخل العرض تلقائياً — وتقدر تضم صنفاً مفرداً من تصنيف ثاني.</div>'
+      +   rkLoyaltyListHtml('counts')
+      + '</div>'
       + '</div>';
   }
 
   if(type === 'visits'){
-    html += '<div class="rk-field" style="max-width:320px;">'
-      + '<label>أقل قيمة فاتورة تُحسب زيارة (ريال)</label>'
-      + '<input type="number" id="loyaltyVisitMinInput" min="0" step="0.5" value="' + (LOYALTY_BRANDING.visitMinTotal || 0) + '">'
-      + '<div style="font-size:11.5px; color:var(--muted); margin-top:5px; line-height:1.6;">صفر = كل فاتورة تُحسب. وبدونه تُملأ بطاقة العشر زيارات بعشر مياه.</div>'
+    html += '<div class="loy-setup" style="margin-top:14px;">'
+      + '<div class="loy-setup-head">شرط احتساب الزيارة</div>'
+      + '<div class="loy-setup-sub">بدون حدٍّ أدنى، تُملأ بطاقة العشر زيارات بعشر قوارير ماء.</div>'
+      + '<div class="loy-setup-grid">'
+      +   '<div class="rk-field"><label>أقل قيمة فاتورة تُحسب زيارة (ريال)</label>'
+      +     '<input type="number" id="loyaltyVisitMinInput" min="0" step="0.5" value="' + (LOYALTY_BRANDING.visitMinTotal || 0) + '">'
+      +     '<div class="stock-qty-helper">صفر = كل فاتورة تُحسب زيارة.</div></div>'
+      + '</div>'
       + '</div>';
   }
 
-  html += '<div style="margin-top:18px; padding-top:16px; border-top:1px solid var(--line);">'
-    + '<div style="font-weight:800; font-size:13px; margin-bottom:8px;">وش ياخذ مجاناً؟</div>'
-    + '<div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">'
-    + '<label style="flex:1; min-width:200px; display:flex; flex-direction:column; gap:3px; padding:12px 14px; border:2px solid ' + (rewardMode==='open'?'var(--lime-deep)':'var(--line)') + '; border-radius:12px; cursor:pointer;">'
-    + '<span style="display:flex; align-items:center; gap:8px; font-weight:800; font-size:13px;"><input type="radio" name="loyaltyRewardMode" value="open"' + (rewardMode==='open'?' checked':'') + '> مفتوح</span>'
-    + '<span style="font-size:11.5px; color:var(--muted); margin-inline-start:22px; line-height:1.5;">الكاشير يقرر وش يعطيه.</span></label>'
-    + '<label style="flex:1; min-width:200px; display:flex; flex-direction:column; gap:3px; padding:12px 14px; border:2px solid ' + (rewardMode==='products'?'var(--lime-deep)':'var(--line)') + '; border-radius:12px; cursor:pointer;">'
-    + '<span style="display:flex; align-items:center; gap:8px; font-weight:800; font-size:13px;"><input type="radio" name="loyaltyRewardMode" value="products"' + (rewardMode==='products'?' checked':'') + '> منتج محدد</span>'
-    + '<span style="font-size:11.5px; color:var(--muted); margin-inline-start:22px; line-height:1.5;">الكاشير يضغط ولا يختار — نفس الصنف في كل فرع، ويُخصم من المخزون.</span></label>'
+  html += '<div class="loy-setup" style="margin-top:14px;">'
+    + '<div class="loy-setup-head">وش ياخذ مجاناً؟</div>'
+    + '<div class="loy-setup-sub">لمّا يكمل العميل العدد، كيف تُسلَّم له المكافأة عند الكاشير.</div>'
+    + '<div class="loy-mode-grid">'
+    +   modeCard('open', 'مفتوح', 'الكاشير يقرر وش يعطيه.')
+    +   modeCard('products', 'منتج محدد', 'الكاشير يضغط ولا يختار — نفس الصنف في كل فرع، ويُخصم من المخزون.')
     + '</div>'
-    + '<div id="loyaltyRewardItemsWrap"' + (rewardMode==='products' ? '' : ' class="hidden"') + '>'
-    + rkLoyaltyListHtml('reward')
-    + '</div></div>';
+    + '<div id="loyaltyRewardItemsWrap"' + (rewardMode === 'products' ? '' : ' class="hidden"') + '>'
+    +   rkLoyaltyListHtml('reward')
+    + '</div>'
+    + '</div>';
 
   el.innerHTML = html;
+  renderLoyaltyRuleSummary();
 }
 
 /* التغييرات تُحفظ في القاعدة مباشرة لا تنتظر زرّاً: القائمة صفوفٌ

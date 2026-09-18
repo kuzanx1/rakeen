@@ -2324,6 +2324,90 @@ select option:disabled{color:var(--muted);}
 .rk-ptr-armed .rk-ptr-text{color:var(--text);}
 .rk-ptr-loading .rk-ptr-spinner{animation:rk-ptr-spin .7s linear infinite;}
 @keyframes rk-ptr-spin{to{transform:rotate(360deg);}}
+/* --- برنامج الولاء: اختيار النظام وإعداده ------------------------- */
+/* ثلاثة أنظمة لا خياراتٌ ثلاثة: النقاط تُجمع وتُصرف خصمًا، والزيارات
+   تملأ بطاقة ختم، والأكواب تعدّ الصنف لا الفاتورة. فلكلٍّ بطاقتُه
+   وإعدادُه ونصُّه -- وكان الثلاثة صفًّا من مربّعات radio بأنماطٍ
+   مكتوبةٍ في السطر، بلا أيقونة ولا حالةِ تمرير ولا تركيز. */
+.loy-sys-grid{
+  display:grid; gap:10px; margin-bottom:18px;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+}
+.loy-sys-card{
+  position:relative; display:flex; flex-direction:column; gap:9px;
+  padding:16px; border-radius:var(--r-lg);
+  border:1.5px solid var(--line); background:var(--surf1);
+  cursor:pointer; transition:border-color .15s ease, background .15s ease, transform .12s ease;
+}
+.loy-sys-card:hover{border-color:color-mix(in srgb, var(--lime) 55%, var(--line));}
+.loy-sys-card:active{transform:scale(.995);}
+/* المختار يُعرف من بعيد: إطارٌ لايم وأرضيةٌ خفيفة وعلامةٌ في الزاوية --
+   لا لونُ إطارٍ وحده كما كان. */
+.loy-sys-card.selected{
+  border-color:var(--lime-deep);
+  background:color-mix(in srgb, var(--lime) 9%, var(--surf1));
+}
+/* الحلقة حين يصل إليها بالكيبورد -- ما كان لها أثرٌ مرئيّ إطلاقًا. */
+.loy-sys-card:focus-within{outline:2px solid color-mix(in srgb, var(--lime) 70%, transparent); outline-offset:2px;}
+.loy-sys-card input{position:absolute; opacity:0; pointer-events:none;}
+.loy-sys-head{display:flex; align-items:center; gap:10px;}
+.loy-sys-icon{
+  flex:none; width:34px; height:34px; border-radius:var(--r-md);
+  display:flex; align-items:center; justify-content:center;
+  background:var(--card-bg); border:1px solid var(--line); color:var(--muted);
+  transition:background .15s ease, color .15s ease, border-color .15s ease;
+}
+.loy-sys-card.selected .loy-sys-icon{background:var(--lime); border-color:var(--lime); color:var(--flag-green-deep);}
+.loy-sys-icon svg{width:17px; height:17px;}
+.loy-sys-name{font-size:13.5px; font-weight:800; color:var(--text); line-height:1.35;}
+.loy-sys-desc{font-size:11.5px; font-weight:600; line-height:1.65; color:var(--muted);}
+.loy-sys-check{
+  position:absolute; inset-inline-end:14px; top:14px;
+  width:18px; height:18px; border-radius:50%;
+  border:1.5px solid var(--line); background:var(--card-bg);
+  display:flex; align-items:center; justify-content:center;
+  font-size:10px; font-weight:900; color:transparent; transition:all .15s ease;
+}
+.loy-sys-card.selected .loy-sys-check{background:var(--lime); border-color:var(--lime); color:var(--flag-green-deep);}
+
+/* كتلةُ إعدادِ النظام المختار: عنوانٌ يقول أي نظامٍ يُعدّ الآن، فلا
+   يظنّ أحدٌ أنه يعدّل النظام الآخر. */
+.loy-setup{
+  border:1px solid var(--line); border-radius:var(--r-lg);
+  background:var(--card-bg); padding:18px;
+}
+.loy-setup-head{font-size:13px; font-weight:800; color:var(--text); margin-bottom:3px;}
+.loy-setup-sub{font-size:11.5px; font-weight:600; color:var(--muted); line-height:1.7; margin-bottom:14px;}
+.loy-setup-grid{display:grid; gap:14px; grid-template-columns:repeat(2, minmax(0, 1fr));}
+.loy-setup-grid .span-2{grid-column:1 / -1;}
+
+/* القاعدة بجملةٍ واحدة. رقمان في حقلين لا يقولان ما سيحدث فعلًا،
+   والجملة تقوله: «كل ٦ زيارات = مشروب مجاني». */
+.loy-rule{
+  display:flex; align-items:center; gap:9px; margin-top:16px;
+  padding:12px 14px; border-radius:var(--r-md);
+  background:color-mix(in srgb, var(--lime) 11%, transparent);
+  border:1px solid color-mix(in srgb, var(--lime) 40%, var(--line));
+  font-size:12.5px; font-weight:700; color:var(--text); line-height:1.6;
+}
+.loy-rule svg{flex:none; width:16px; height:16px; color:var(--lime-deep);}
+.loy-rule b{font-weight:900;}
+
+/* طريقة التسليم: بطاقتان بنفس لغة بطاقات النظام، لا مربّعان بأنماطٍ
+   مكتوبةٍ في جافاسكربت. */
+.loy-mode-grid{display:grid; gap:10px; grid-template-columns:repeat(2, minmax(0, 1fr)); margin-bottom:12px;}
+.loy-divider{margin-top:18px; padding-top:16px; border-top:1px solid var(--line);}
+.loy-sub-title{font-weight:800; font-size:12.5px; color:var(--text); margin-bottom:3px;}
+.loy-sub-note{font-size:11.5px; font-weight:600; color:var(--muted); line-height:1.7; margin-bottom:10px;}
+
+@media (max-width: 980px){
+  .loy-sys-grid{grid-template-columns:repeat(2, minmax(0, 1fr));}
+}
+@media (max-width: 620px){
+  .loy-sys-grid, .loy-mode-grid, .loy-setup-grid{grid-template-columns:minmax(0, 1fr);}
+  .loy-setup{padding:15px;}
+}
+
 /* --- one button look ---------------------------------------------- */
 /* Legacy vocabularies, aliased rather than rewritten at 354 call sites. */
 .menu-add-btn, .add-row-btn, .settings-save-btn, .mtr-edit-btn,
