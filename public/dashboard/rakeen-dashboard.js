@@ -5297,32 +5297,35 @@ function loyaltyKpisForSystem(){
   if(!st){
     // قبل وصول الأرقام: أعضاءٌ وتفاعلٌ يُعرفان محلياً، ولا يُخترع غيرهما.
     return [
-      {label:'إجمالي الأعضاء', value: TOP_CUSTOMERS.length},
-      {label:'أعضاء تفاعلوا اليوم', value: activeMembersToday},
+      {label:'إجمالي الأعضاء', value: TOP_CUSTOMERS.length, hint:'كل من أعطى رقم جواله عند الكاشير'},
+      {label:'أعضاء تفاعلوا اليوم', value: activeMembersToday, hint:'اشتروا اليوم وهم مسجّلون'},
     ];
   }
+  /* لكل رقمٍ سطرٌ يقول ما يعنيه.
+     «بطاقات جارية: ٣٤» رقمٌ لا يُتصرَّف به حتى يُعرف أنه عددُ من بدأ ولم
+     يكمل -- وكان المؤشّر تسميةً ورقمًا فقط. وowed يُعلّم ما هو التزامٌ
+     على المطعم لا إنجازٌ له، فلا يُقرأ فخرًا. */
   if(type === 'visits'){
     return [
-      {label:'إجمالي الأعضاء', value: st.members},
-      {label:'بطاقات جارية', value: st.visitsActive},
-      {label:'باقي لهم زيارة واحدة', value: st.visitsNearReward},
-      // التزامٌ قائم لا إنجاز: كل واحدة كوبٌ سيُعطى ولم يُعطَ بعد.
-      {label:'مكافآت جاهزة للصرف', value: st.rewardsReady},
+      {label:'إجمالي الأعضاء', value: st.members, hint:'كل من أعطى رقم جواله عند الكاشير'},
+      {label:'بطاقات جارية', value: st.visitsActive, hint:'بدأوا العدّ ولم يكملوه بعد'},
+      {label:'باقي لهم زيارة واحدة', value: st.visitsNearReward, hint:'هؤلاء تُرسَل لهم رسالة — لا الجميع'},
+      {label:'مكافآت جاهزة للصرف', value: st.rewardsReady, owed:true, hint:'كل واحدة صنفٌ سيُعطى مجاناً ولم يُعطَ'},
     ];
   }
   if(type === 'products'){
     return [
-      {label:'إجمالي الأعضاء', value: st.members},
-      {label:'بطاقات جارية', value: st.unitsActive},
-      {label:'باقي لهم واحدة', value: st.unitsNearReward},
-      {label:'مكافآت جاهزة للصرف', value: st.rewardsReady},
+      {label:'إجمالي الأعضاء', value: st.members, hint:'كل من أعطى رقم جواله عند الكاشير'},
+      {label:'بطاقات جارية', value: st.unitsActive, hint:'بدأوا العدّ ولم يكملوه بعد'},
+      {label:'باقي لهم واحدة', value: st.unitsNearReward, hint:'هؤلاء تُرسَل لهم رسالة — لا الجميع'},
+      {label:'مكافآت جاهزة للصرف', value: st.rewardsReady, owed:true, hint:'كل واحدة صنفٌ سيُعطى مجاناً ولم يُعطَ'},
     ];
   }
   return [
-    {label:'نقاط مُنحت اليوم', value: TODAY_POINTS_ISSUED},
-    {label:'إجمالي الأعضاء', value: st.members},
-    {label:'أعضاء تفاعلوا اليوم', value: activeMembersToday},
-    {label:'نقاط لم تُصرف', value: st.pointsOutstanding},
+    {label:'نقاط مُنحت اليوم', value: TODAY_POINTS_ISSUED, hint:'من طلبات اليوم المنسوبة لعملاء فقط'},
+    {label:'إجمالي الأعضاء', value: st.members, hint:'كل من أعطى رقم جواله عند الكاشير'},
+    {label:'أعضاء تفاعلوا اليوم', value: activeMembersToday, hint:'اشتروا اليوم وهم مسجّلون'},
+    {label:'نقاط لم تُصرف', value: st.pointsOutstanding, owed:true, hint:'رصيدٌ عند عملائك يقدرون يصرفونه'},
   ];
 }
 
@@ -5336,21 +5339,34 @@ function renderLoyaltyKpis(){
   const type = currentLoyaltySystemType();
   const kpis = loyaltyKpisForSystem();
   document.getElementById('loyaltyKpiGrid').innerHTML = kpis.map(k=>
-    `<div class="kpi-card"><div class="kpi-label">${k.label}</div><div class="kpi-value mono">${k.value}</div></div>`
+    `<div class="kpi-card${k.owed ? ' is-owed' : ''}"><div class="kpi-label">${k.label}</div>`
+    + `<div class="kpi-value mono">${k.value}</div>`
+    + `${k.hint ? `<div class="kpi-hint">${k.hint}</div>` : ''}</div>`
   ).join('');
 
   // تصريحٌ صريح بأيّ نظامٍ تتكلّم الشاشة -- لا يُترك ليُستنتج من
   // تسميات الأعمدة وحدها.
+  /* الشريط يقول النظام وقاعدتَه معاً. كان يقول الاسم وحده، فيبقى صاحب
+     المطعم يفتح تبويب البرنامج ليتذكّر العتبة. */
   const badgeEl = document.getElementById('loySystemBadge');
-  if(badgeEl) badgeEl.innerHTML = `نظامك الآن: <b>${loyaltySystemName(type)}</b>`;
+  if(badgeEl){
+    const reward = (LOYALTY_BRANDING.rewardLabel || '').trim() || 'مكافأة مجانية';
+    const rule = type === 'visits'
+      ? `كل <b>${LOYALTY_BRANDING.visitsThreshold || 5} زيارات</b> = <b>${escapeHtml(reward)}</b>`
+      : type === 'products'
+        ? `كل <b>${LOYALTY_BRANDING.unitThreshold || 6} أكواب</b> = <b>${escapeHtml(reward)}</b>`
+        : `كل <b>${LOYALTY_RATE} ريال</b> = <b>نقطة واحدة</b>`;
+    badgeEl.innerHTML = `<span class="loy-sys-strip-name">${loyaltySystemName(type)}</span>`
+      + `<span class="loy-sys-strip-rule">${rule}</span>`;
+  }
 
   const cardsSubEl = document.getElementById('loyaltyCardsSub');
   if(cardsSubEl){
-    cardsSubEl.textContent = type === 'visits'
-      ? `كل ${LOYALTY_BRANDING.visitsThreshold || 5} زيارات = مكافأة`
-      : type === 'products'
-      ? `كل ${LOYALTY_BRANDING.unitThreshold || 6} أكواب = مكافأة`
-      : `١ نقطة لكل ${LOYALTY_RATE} ر.س`;
+    // القاعدة صارت في الشريط فوق، فلا تُكرَّر هنا -- هذا السطر يقول ما
+    // تعرضه القائمة تحته بالضبط.
+    cardsSubEl.textContent = type === 'points'
+      ? 'أعلى خمسة أرصدة عندك'
+      : 'أقرب خمسة لإكمال بطاقتهم — هؤلاء من يستحقّ تذكيرًا';
   }
 
   renderLoyaltyLiability();
@@ -5450,31 +5466,64 @@ function renderLoyaltyLiability(){
 }
 
 function renderLoyaltyCards(){
+  const grid = document.getElementById('loyaltyCardsGrid');
+  if(!grid) return;
+
   if(TOP_CUSTOMERS.length === 0){
-    document.getElementById('loyaltyCardsGrid').innerHTML = '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">ما فيه أعضاء بعد.</p>';
+    grid.innerHTML = '<div class="loy-empty"><b>ما فيه أعضاء بعد</b>'
+      + 'العضوية تبدأ وحدها: أول ما يدخل الكاشير رقم جوال الزبون، يصير عضواً.</div>';
     return;
   }
-  const cardIcon = '<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>';
+
+  /* خمسة لا الكل.
+     كانت تعرض كل عضوٍ في المنشأة -- وهو تبويب «الأعضاء» بعينه، مكرّراً
+     في النظرة العامة. ومئة صفٍّ هنا لا تُقرأ ولا يُتصرَّف بها.
+
+     والترتيب بالأقرب لمكافأة لا بالأكثر إنفاقاً: هؤلاء من يستحقّ
+     تذكيراً اليوم -- زيارةٌ واحدة تفصلهم. أما نظام النقاط فلا عتبة له،
+     فيُرتَّب بالرصيد. */
+  const type = currentLoyaltySystemType();
+  const ranked = [...TOP_CUSTOMERS].sort((a, b)=>{
+    if(type === 'points') return (Number(b.points)||0) - (Number(a.points)||0);
+    const pa = loyMemberProgress(a), pb = loyMemberProgress(b);
+    const left = (p2)=> p2 ? (p2.threshold - p2.current) : 9999;
+    return left(pa) - left(pb);
+  }).slice(0, 5);
+
   const CARD_COLORS = ['var(--acc-ops)','var(--acc-res)','var(--acc-fin)','var(--acc-team)','var(--acc-ai)'];
   const CARD_COLORS_BG = ['var(--acc-ops-bg)','var(--acc-res-bg)','var(--acc-fin-bg)','var(--acc-team-bg)','var(--acc-ai-bg)'];
-  document.getElementById('loyaltyCardsGrid').innerHTML = TOP_CUSTOMERS.map((c,i)=>{
+
+  grid.innerHTML = ranked.map((c,i)=>{
     const progress = loyMemberProgress(c);
     const metaText = progress
       ? `${progress.current} / ${progress.threshold} ${LOY_KIND_LABELS[progress.kind]}`
       : `${Math.round(c.points)} نقطة`;
-    return `<div class="loy-row">
+    const ready = Number(c.freeRewards || 0) > 0;
+    return `<div class="loy-row" data-cust-id="${c.id}" style="cursor:pointer;">
       <div class="loy-avatar" style="background:${CARD_COLORS_BG[i%5]}; color:${CARD_COLORS[i%5]};">${escapeHtml(c.name.charAt(0))}</div>
       <div class="loy-info">
-        <div class="loy-name">${escapeHtml(c.name)}</div>
+        <div class="loy-name">${escapeHtml(c.name)}${ready ? '<span class="loy-reward-badge">مكافأة جاهزة</span>' : ''}</div>
         <div class="loy-meta">${metaText}</div>
       </div>
-      <button class="loy-card-btn" data-token="${c.publicToken}" title="فتح البطاقة الرقمية"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">${cardIcon}</svg></button>
     </div>`;
   }).join('');
-  document.querySelectorAll('.loy-card-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=> window.open('/loyalty-card/' + btn.dataset.token, '_blank'));
+
+  /* والصفّ يفتح بطاقة العضو -- نفس ما يفعله تبويب «الأعضاء».
+     كان فيه زرٌّ يفتح /loyalty-card/{token}: وهي صفحة العميل نفسه، لا
+     شيء فيها لصاحب المطعم. وهي حيّةٌ لكن لغرضٍ آخر تماماً -- عليها
+     يوافق الزبون على صرف مكافأته بنفسه (get_pending_loyalty_request).
+     فتحُها من اللوحة يخلط بينها وبين بطاقة المحفظة، ولا يفيد. */
+  grid.querySelectorAll('.loy-row').forEach(row=>{
+    row.addEventListener('click', ()=> openMemberDetailModal(parseInt(row.dataset.custId, 10)));
   });
 }
+
+/* «شوف كل الأعضاء» ينقل للتبويب الذي يعرضهم كلهم، بدل إطالة هذه
+   القائمة حتى تصير هي ذلك التبويب. */
+document.getElementById('loyaltyCardsAllBtn')?.addEventListener('click', ()=>{
+  const tab = document.querySelector('#loyaltyTabs .loyalty-tab[data-loyalty-tab="members"]');
+  if(tab) tab.click();
+});
 
 
 

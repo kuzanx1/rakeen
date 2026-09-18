@@ -2408,6 +2408,58 @@ select option:disabled{color:var(--muted);}
   .loy-setup{padding:15px;}
 }
 
+/* --- الولاء / نظرة عامة ------------------------------------------- */
+/* شريطٌ يقول أي نظامٍ يعمل وما قاعدتُه في سطرٍ واحد -- كان رقاقةً تقول
+   الاسم وحده، فيبقى صاحب المطعم يفتح تبويب البرنامج ليتذكّر العتبة. */
+.loy-sys-strip{
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  margin-bottom:16px; padding:12px 15px; border-radius:var(--r-md);
+  background:color-mix(in srgb, var(--lime) 10%, var(--card-bg));
+  border:1px solid color-mix(in srgb, var(--lime-deep) 28%, transparent);
+}
+.loy-sys-strip-name{
+  flex:none; display:inline-flex; align-items:center; gap:7px;
+  padding:5px 12px; border-radius:var(--r-full);
+  background:var(--lime); color:var(--flag-green-deep);
+  font-size:12px; font-weight:900;
+}
+.loy-sys-strip-rule{font-size:12.5px; font-weight:700; color:var(--text); line-height:1.6;}
+.loy-sys-strip-rule b{font-weight:900;}
+
+/* تحت كل رقمٍ سطرٌ يقول ما يعنيه.
+   «بطاقات جارية: ٣٤» رقمٌ لا يُتصرَّف به حتى يُعرف أنه عددُ من بدأ ولم
+   يكمل. وكان المؤشّر تسميةً ورقمًا فقط. */
+.kpi-card .kpi-hint{
+  font-size:10.5px; font-weight:600; color:var(--muted);
+  line-height:1.55; margin-top:5px;
+}
+/* المؤشّر الذي يمثّل التزامًا لا إنجازًا يُميَّز، فلا يُقرأ فخرًا. */
+.kpi-card.is-owed{border-color:color-mix(in srgb, var(--amber) 42%, var(--line));}
+.kpi-card.is-owed .kpi-value{color:var(--amber);}
+
+/* رأسُ قسمٍ له فعلٌ على يساره -- «شوف الكل» بدل قائمةٍ لا تنتهي. */
+.loy-head-action{
+  display:flex; align-items:flex-start; justify-content:space-between;
+  gap:12px; flex-wrap:wrap;
+}
+.loy-head-action .rk-section-head{margin-bottom:0;}
+.loy-empty{
+  padding:26px 18px; text-align:center;
+  font-size:12.5px; font-weight:600; color:var(--muted); line-height:1.8;
+}
+.loy-empty b{color:var(--text); font-weight:800; display:block; margin-bottom:4px; font-size:13.5px;}
+
+@media (max-width:640px){
+  .loy-sys-strip{gap:9px; padding:11px 13px;}
+}
+/* عمودٌ واحد على الجوال -- لمؤشّرات الولاء وحدها.
+   .kpi-grid تبقى عمودين حتى أضيق شاشة في كل اللوحة، وهو مقبولٌ لبطاقةٍ
+   فيها تسميةٌ ورقم. لكن سطر الشرح المضاف هنا يجعل العمودين مزدحمين على
+   ٣٧٥ بكسل. والنطاق مقصورٌ على هذه الشبكة، فلا تتغيّر بقيّة الشاشات. */
+@media (max-width:520px){
+  #loyaltyKpiGrid{grid-template-columns:minmax(0, 1fr);}
+}
+
 /* --- one button look ---------------------------------------------- */
 /* Legacy vocabularies, aliased rather than rewritten at 354 call sites. */
 .menu-add-btn, .add-row-btn, .settings-save-btn, .mtr-edit-btn,
