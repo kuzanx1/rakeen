@@ -15,7 +15,7 @@
     "receipt:visual": "node tools/receipt-visual/run.mjs",
     "receipt:visual:update": "node tools/receipt-visual/run.mjs --update",
     "receipt:bench": "node tools/receipt-visual/bench.mjs",
-    "check:accounting": "node tools/accounting-checks/profit-equation.cjs && node tools/accounting-checks/waterfall-consistency.cjs && node tools/accounting-checks/loyalty-points-issued.cjs"
+    "check:accounting": "node tools/accounting-checks/profit-equation.cjs && node tools/accounting-checks/waterfall-consistency.cjs && node tools/accounting-checks/loyalty-points-issued.cjs && node tools/accounting-checks/members-search-sort.cjs"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.20.2",

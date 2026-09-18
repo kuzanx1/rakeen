@@ -5831,14 +5831,32 @@ function loyaltySystemName(type){
  *  أو رقمُ نقاطٍ لنظام النقاط. مستعملةٌ في قائمة تبويب "الأعضاء"
  *  و"أبرز الأعضاء" بالنظرة العامة معاً -- لا تُكتب مرّتين فتختلفا
  *  يوماً بلا قصد. */
+/* الأختام تُعدّ بالنظر، فلها حدّ.
+   كانت تُرسم نقطةً لكل وحدةٍ في العتبة بلا سقف: بطاقةُ عشرين كوبًا
+   تعني عشرين نقطةً في كل صفّ، تلتفّ على سطرين أو ثلاثة داخل ١٧٠ بكسل
+   فلا تُقرأ ولا تُعدّ في لمحة -- وهي غرض الأختام كلّه. ومئتا عضوٍ
+   يعني أربعة آلاف عنصرٍ في الصفحة.
+
+   فما فوق اثنتي عشرة يُعرض شريطًا ورقمًا: «١٤ / ٢٠» تُقرأ أسرع من
+   عشرين دائرة. */
+const LOY_STAMP_DOTS_MAX = 12;
+
 function loyMemberProgressHtml(c){
   const progress = loyMemberProgress(c);
   if(!progress){
     return `<div class="loy-member-points mono">${Math.round(c.points)} نقطة</div>`;
   }
-  return `<div class="loy-stamp-row" title="${progress.current} من ${progress.threshold}">${
-    Array.from({length: progress.threshold}).map((_,d)=>
-      `<span class="loy-stamp-dot ${d < progress.current ? 'filled' : ''}"></span>`
+  const { current, threshold } = progress;
+  if(threshold > LOY_STAMP_DOTS_MAX){
+    const pct = threshold > 0 ? Math.min(100, Math.round((current / threshold) * 100)) : 0;
+    return `<div class="loy-stamp-bar" title="${current} من ${threshold}">
+        <div class="loy-stamp-bar-track"><div class="loy-stamp-bar-fill" style="width:${pct}%"></div></div>
+        <span class="loy-stamp-bar-num mono">${current} / ${threshold}</span>
+      </div>`;
+  }
+  return `<div class="loy-stamp-row" title="${current} من ${threshold}">${
+    Array.from({length: threshold}).map((_,d)=>
+      `<span class="loy-stamp-dot ${d < current ? 'filled' : ''}"></span>`
     ).join('')
   }</div>`;
 }
@@ -5856,6 +5874,17 @@ function loyMemberProgressHtml(c){
  * بالضبط من يستحقّ أن يظهر تحت "خاملون" أيضاً -- خمولُه أهمّ ما
  * فيه الآن، لا قيمتُه التاريخية وحدها.
  */
+/** أرخص صنفٍ يُستبدل بالنقاط -- وهو أقربُ مكافأةٍ يبلغها العميل.
+ *  null حين لا يُستبدل شيءٌ بنقاط أصلاً. */
+function loyCheapestRedeemPoints(){
+  let best = null;
+  (MENU_ITEMS || []).forEach(m=>{
+    const v = Number(m.pointsRedeemPrice);
+    if(v > 0 && (best == null || v < best)) best = v;
+  });
+  return best;
+}
+
 function loyMemberSegment(c){
   if(c.lastVisitDays > 30) return 'dormant';
   if(c.vip) return 'vip';
@@ -5913,20 +5942,46 @@ function renderLoyaltyMembers(){
 
   const all = TOP_CUSTOMERS || [];
   const q = LOY_MEMBERS_SEARCH.trim().toLowerCase();
+  /* الرقم يُبحث به بصورِه الثلاث.
+     كان البحث يقارن النصّ كما كُتب، فمن كتب ٠٥٥ بلوحةٍ عربية لم يجد
+     أحداً -- والأرقام الهندية ليست هي الغربية عند includes. ومن كتب
+     966… أو 55… بلا صفرها لم يجد صاحبَها وهو مسجّلٌ بصيغةٍ أخرى.
+     (toWesternDigits موجودة في هذا الملف منذ البداية -- سطر ٢٣.) */
+  const qDigits = toWesternDigits(q).replace(/\D/g, '');
+  const normPhone = (raw)=>{
+    let d = toWesternDigits(String(raw || '')).replace(/\D/g, '');
+    if(d.startsWith('966')) d = '0' + d.slice(3);
+    else if(d.startsWith('5')) d = '0' + d;
+    return d;
+  };
+  const qPhone = qDigits ? normPhone(qDigits) : '';
   let rows = all.filter(c=>{
     if(!loyMemberMatchesFilter(c, LOY_MEMBERS_FILTER)) return false;
     if(!q) return true;
-    return c.name.toLowerCase().includes(q) || (c.phone||'').includes(q);
+    if(c.name.toLowerCase().includes(q)) return true;
+    if(!qDigits) return false;
+    const phone = normPhone(c.phone);
+    // يُطابَق المحتوى لا البداية: من يتذكّر آخر أربعة أرقام يجده.
+    return phone.includes(qPhone) || phone.includes(qDigits);
   });
 
   const sorters = {
     lastVisit: (a,b)=> a.lastVisitDays - b.lastVisitDays,
     spend: (a,b)=> b.spend - a.spend,
+    /* في الزيارات والأكواب: الباقي على العتبة.
+       وفي النقاط كان loyMemberProgress يعيد null دائماً، فيأخذ الجميع
+       ٩٩٩ ولا يترتّب شيء -- خيارٌ معروضٌ لا يفعل. والنقاط لها عتبةٌ
+       حقيقية: أرخص صنفٍ يُستبدل بها في قائمتك. فالباقي = سعره ناقص
+       رصيده. ومن لا صنف عنده يُرتَّب بالرصيد نزولاً. */
     progress: (a,b)=>{
-      const pa = loyMemberProgress(a), pb = loyMemberProgress(b);
-      const ra = pa ? (pa.threshold - pa.current) : 999;
-      const rb = pb ? (pb.threshold - pb.current) : 999;
-      return ra - rb;
+      const remaining = (c)=>{
+        const pr = loyMemberProgress(c);
+        if(pr) return pr.threshold - pr.current;
+        const cheapest = loyCheapestRedeemPoints();
+        if(cheapest == null) return -(Number(c.points) || 0);
+        return Math.max(0, cheapest - (Number(c.points) || 0));
+      };
+      return remaining(a) - remaining(b);
     },
     name: (a,b)=> a.name.localeCompare(b.name, 'ar'),
   };
