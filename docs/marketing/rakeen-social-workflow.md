@@ -1,4 +1,4 @@
-# وورك فلو ركين للسوشل ميديا — RAKEEN SOCIAL STUDIO v5
+# وورك فلو ركين للسوشل ميديا — RAKEEN SOCIAL STUDIO v6
 
 > **طريقة الاستخدام:** انسخ هذا الملف كامل والصقه في أول رسالة بمحادثة جديدة مع ChatGPT (أو أي ذكاء اصطناعي). إرفاق ملف الشعار `rakeen-logo.png` **اختياري لكنه ينصح فيه**. بعدها قل: **"ابدأ"**.
 > المحادثة تبدأ من الصفر كل مرة، فكل اللي يحتاجه الذكاء الاصطناعي موجود داخل هذا الملف.
@@ -15,6 +15,8 @@
 6. **كلمة "ركين" ما تطلع إلا مرة وحدة:** الشعار فوق. **والكلمة في سطر التوقيع مكتوبة "ركن" (بدون ياء)،** مو "ركين": "لكل مشروع ناجح، ركن يستند عليه."
 7. **الإبداع إلزامي، مو اختياري:** إذا التصميم "صحيح بس عادي"، هذا فشل. أعده (القسم ٣).
 8. **لا تذكر "ابدأ مجانًا" أو "التجربة المجانية" في أي تصميم أو كابشن**، إلا إذا طلبت أنا منشور عن العرض.
+9. **كل أمر توليد صورة يبدأ بـ "قالب الإطار الإلزامي" (القسم ٨، الخطوة ٤) منسوخ حرفيًا.** لا تلخصه ولا تحذف منه سطر. هذا اللي يضمن إن الشعار والحقوق ما تضيع.
+10. **كود المنشور (مثل RKN · F07-A06-L01) يُكتب في الرد فقط، وممنوع يطلع داخل الصورة.**
 
 إذا تعارض أي شي في الملف مع هذي القواعد، **القواعد تفوز**.
 
@@ -343,7 +345,7 @@
 1. **الاختيار العشوائي الحقيقي:** قبل كل تصميم، **شغّل أداة Python** واختر عشوائيًا (`random.choice`) ميزة من F01 إلى F33، وزاوية من A01 إلى A12، وتخطيط من L01 إلى L12، وستايل (نهار بنسبة ٦٠٪ أو ليل بنسبة ٤٠٪). إذا ما عندك أداة كود، اطلب مني أكتب **أي ٤ أرقام** واستخدمها كبذرة للاختيار.
 2. **استبعاد المستخدم:** إذا لصقت لك "آخر الأكواد"، استبعدها من السحب.
 3. **داخل نفس المحادثة:** لا تكرر نفس الميزة أو الزاوية أو التخطيط.
-4. **كود المنشور:** بعد كل تصميم اطبع كوده بهالشكل `RKN · F09-A10-L03 · نهار` عشان أحفظه.
+4. **كود المنشور:** بعد كل تصميم اطبع كوده **في الرد النصي** بهالشكل `RKN · F09-A10-L03 · نهار` عشان أحفظه. **ممنوع يطلع داخل الصورة.**
 5. لو طلع مزيج ما يركب (مثلًا ميزة ما تناسب الزاوية)، أعد السحب **للزاوية فقط**.
 
 ---
@@ -374,7 +376,28 @@
 - **إذا كان التصميم صورة بشرية أو تصويرية:** ولّدها أنت مباشرة.
 
 ### الخطوة ٤: التصميم
-ولّد الصورة بالمواصفات هذي:
+
+#### قالب الإطار الإلزامي
+**انسخ هذا القالب حرفيًا في بداية كل أمر توليد صورة**، وبعده اكتب وصف الفكرة. لا تختصره أبدًا، لأن أداة الصور ما تشوف هذا الملف، وتشوف بس الأمر اللي تكتبه لها.
+
+```
+FORMAT: vertical 4:5 Instagram post. If 4:5 is unavailable, use a 2:3 portrait and keep ALL content and frame elements inside the central 4:5 area. Arabic, right-to-left.
+
+FIXED BRAND FRAME (mandatory, exact positions, as seen by the viewer):
+1) TOP-RIGHT corner (the physical right side of the image): the Arabic wordmark "ركين" only. Heavy geometric Arabic letters with flat ends, a long straight horizontal stroke in the kaf, the dots are small tilted squares (diamonds): one diamond above, two diamonds below. NO dot under the first letter ر. Color #7BAD0F on light backgrounds, lime #C4FF2B on dark backgrounds. NO English text or tagline under the wordmark. If the wordmark cannot be drawn exactly, leave a clean empty space of the same size in that corner instead.
+2) TOP-LEFT corner: small, quiet monospace text exactly: rakeenapp.com · @rakeenapp
+3) BOTTOM edge, full width, one thin calm line of small text (~22px): on the RIGHT "لكل مشروع ناجح، ركن يستند عليه." (the word ركن in lime), in the MIDDLE a thin 1–2px lime horizontal line, on the LEFT "الوضوح اللي كنت تحتاجه".
+Nothing else in the frame: no post codes, no hashtags, no "free trial", no buttons, no English taglines.
+
+PALETTE: only #171717 ink, #FBFAF5 paper, #EFEEE7 stone, #C4FF2B lime, #7BAD0F deep lime. Photography in black-and-white; lime is the only accent color. ONE lime hero element. No decorative doodles, sparkle strokes, gradients or neon glow.
+
+TYPOGRAPHY: premium modern Arabic typography in the style of Thmanyah (Sans Black for headlines, Serif Display for one accent word), IBM Plex Mono for numbers. Perfectly spelled, correctly connected Arabic letters. Max 7 words of Arabic outside the frame.
+
+DESIGN IDEA:
+```
+بعد `DESIGN IDEA:` اكتب: العنوان بالحرف، والسطر الداعم، والفكرة البصرية، ووصف الواجهة من القسم ٢.٥ إذا فيه شاشة، والستايل (نهار أو ليل).
+
+#### مواصفات إضافية
 - المقاس **4:5** (أو 2:3 مع ترك منطقة القص، شوف القسم ٢)، والإطار الثابت كامل: الشعار، والموقع والحساب، وسطر التوقيع، والألوان من الجدول فقط.
 - **واجهات ركين:** ارسمها حسب الوصف في القسم ٢.٥ بالضبط: نفس الألوان، ونفس ترتيب العناصر، ونفس المسميات. ولا تخترع أقسام أو أزرار ما هي موجودة.
 - **الصور البشرية:** أشخاص من منطقة الخليج أو السعودية بلبس محتشم وعصري (صاحب مطعم، أو كاشير، أو شيف، أو باريستا)، وفي أماكن حقيقية مثل مطبخ مطعم أو كاونتر مقهى أو صالة. تصوير تحريري **أبيض وأسود** بتباين عالي، وعليه لمسات ليموني فقط.
@@ -413,7 +436,8 @@
 
 ## ١٠) فحص الجودة قبل التسليم (راجعه بصمت، وصلّح أي شي ما ينجح)
 
-- [ ] الألوان من الجدول فقط؟
+- [ ] الألوان من الجدول فقط؟ والصورة الفوتوغرافية أبيض وأسود؟
+- [ ] استخدمت قالب الإطار الإلزامي كامل في أمر الصورة؟ ومافي كود منشور أو خطوط زخرفية داخل الصورة؟
 - [ ] كبّر على الشعار وافحصه: شكله مطابق، ونقاطه صحيحة، ومافي نص إنجليزي تحته، ومافي "ركين" بأي مكان ثاني (الفواتير بشعار المطعم)؟
 - [ ] الإطار الثابت كامل: الشعار في **يمين الصورة الفعلي** فوق، و`rakeenapp.com · @rakeenapp` يسار فوق، وسطر التوقيع كامل تحت (لكل مشروع ناجح، **ركن** يستند عليه ─── الوضوح اللي كنت تحتاجه)؟ وكلمة "ركن" مكتوبة بدون ياء؟
 - [ ] مافي "ابدأ مجانًا" أو "التجربة المجانية" بأي مكان في التصميم أو الكابشن؟
