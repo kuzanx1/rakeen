@@ -172,8 +172,10 @@
 
 ### ب) الكاشير (POS) — على آيباد أو شاشة كاشير لمس
 - **الجهاز:** آيباد أو شاشة كاشير لمس على الكاونتر. **مو جوال.**
-- **الوضع الداكن (الافتراضي):** أخضر غامق شبه أسود. الخلفية `#0E1F16`، والكروت `#16291F`، والإطار الخارجي `#050C08`، والليموني `#C7FF4D`. نص فاتح `#F4F8F0`.
-- **الوضع الفاتح:** خلفية بيضاء، ونص أخضر غامق `#12261A`، وإطار `#EEF1E6`.
+- **فيه وضعين، واختر واحد حسب ستايل المنشور:**
+  - **الفاتح (الافتراضي):** خلفية بيضاء `#FFFFFF`، وكروت بيضاء بإطار رمادي خفيف، ونص داكن `#12261A`، والإطار الخارجي `#EEF1E6`. يناسب ستايل "نهار".
+  - **الداكن:** شبه أسود `#0E1F16`، وكروت `#16291F`، ونص فاتح. يطلع بالعين **أسود فحمي، مو أخضر**، فلا تلوّنه أخضر. يناسب ستايل "ليل".
+  - **في الوضعين:** الليموني `#C7FF4D` للزر والتبويب النشط والأسعار.
 - **الشريط العلوي** ارتفاعه 64px: حرف "ر" داخل مربع صغير على اليمين، واسم الكاشير، ومؤشرين صغار "متصل" و"الطابعة جاهزة".
 - **يمين الشاشة: شبكة منتجات.** كروت صغيرة زواياها 24px، وفي كل كرت:
   - صورة الصنف فوق بزوايا دائرية.
@@ -187,7 +189,9 @@
 - **شريط تبويبات سفلي:** الرئيسية · الطلبات · الطاولات · المزيد. والتبويب النشط بالليموني.
 - **شاشات ثانية داخل الكاشير:** شبكة الطاولات بحالاتها (متاحة، بانتظار الطلب، قيد التقديم، بانتظار الدفع، تنظيف)، وقائمة الانتظار، وإغلاق الوردية.
 
-> **Prompt:** *"an Arabic RTL point-of-sale app on an iPad, very dark green-black UI (#0E1F16 background, #16291F cards), a grid of small rounded product cards with food photos and tiny lime #C7FF4D monospace price pills, a 'current order' panel on the left side with a big full-width lime 'pay' button at the bottom, a bottom tab bar with four tabs, premium, crisp, realistic device photography"*
+> **Prompt (فاتح):** *"an Arabic RTL point-of-sale app on an iPad, clean light UI with white background and white cards with thin light-grey borders, dark text"* ثم كمّل بالوصف المشترك تحت.
+> **Prompt (داكن):** *"an Arabic RTL point-of-sale app on an iPad, near-black charcoal UI (NOT green), slightly lighter charcoal cards"* ثم كمّل بالوصف المشترك.
+> **الوصف المشترك:** *"a grid of small rounded product cards with food photos and tiny lime #C7FF4D monospace price pills, a 'current order' panel on the left side with a big full-width lime 'pay' button at the bottom, a bottom tab bar with four tabs, premium, crisp, realistic device photography"*
 
 ### ج) الفاتورة المطبوعة (من طابعة حرارية)
 - ورق حراري أبيض، بالأبيض والأسود فقط.
