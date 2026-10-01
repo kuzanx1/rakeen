@@ -50,6 +50,33 @@ export function loyaltyBalanceLabel(
   return c.points > 0 ? { value: c.points, label: 'نقطة', threshold: 0 } : null;
 }
 
+/**
+ * ما يقدر العميل يستبدله بنقاطه الآن -- للشريط الذي ينبّه الكاشير.
+ *
+ * كان الاستبدال بالنقاط لا يُرى إلا لمن دخل من «ادفع» ثم «الولاء»: عميلٌ
+ * نقاطُه تكفي لمنتج، والكاشير لا يدري. والمحسوب هو المتبقّي بعد ما في
+ * السلّة من استبدال، فلا يُعرض ما سيرفضه الخادم عند الإتمام.
+ *
+ * (نظيرها في الويب: rkPointsRedeemOffer في rakeen-pos.js -- نفس الحساب.)
+ */
+export function pointsRedeemOffer(
+  points: number,
+  prices: Array<number | null | undefined>,
+  pointsInCart: number,
+): { remaining: number; count: number } | null {
+  const remaining = Math.floor(Number(points) || 0) - (Number(pointsInCart) || 0);
+  if (remaining <= 0) return null;
+  const count = prices.filter(p => p != null && Number(p) > 0 && Number(p) <= remaining).length;
+  return count > 0 ? { remaining, count } : null;
+}
+
+/** «منتج واحد»، «منتجين»، «٣ منتجات» -- نصُّ الشريط في العميلين. */
+export function redeemableCountText(count: number): string {
+  if (count === 1) return 'منتج واحد';
+  if (count === 2) return 'منتجين';
+  return `${count} منتجات`;
+}
+
 export interface NewCustomerDraft {
   name: string;
   phone: string;

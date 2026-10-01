@@ -2844,6 +2844,19 @@ function proceedFromCustomerStep(){
  * فيظهر الشريط بمجرّد أن يُعرف العميل وعنده مكافأة، ويُضغط فيبدأ
  * التأكيد. والباب القديم يبقى لمن اعتاده.
  */
+/* ما يقدر العميل يستبدله بنقاطه الآن، بعد طرح ما في السلّة من استبدال.
+   (نظيرها في التطبيق: pointsRedeemOffer في domain/customer.ts -- نفس الحساب.) */
+function rkPointsRedeemOffer(points, prices, pointsInCart){
+  const remaining = Math.floor(Number(points) || 0) - (Number(pointsInCart) || 0);
+  if(remaining <= 0) return null;
+  const count = prices.filter(p => p != null && Number(p) > 0 && Number(p) <= remaining).length;
+  return count > 0 ? { remaining, count } : null;
+}
+function rkRedeemableCountText(count){
+  if(count === 1) return 'منتج واحد';
+  if(count === 2) return 'منتجين';
+  return count + ' منتجات';
+}
 function updatePointsRedeemStrip(){
   const strip = document.getElementById('pointsRedeemStrip');
   if(!strip) return;
@@ -2866,6 +2879,25 @@ function updatePointsRedeemStrip(){
   const n = c && Number(c.freeRewards || 0);
   let loyaltyOn = true;
   try { loyaltyOn = LOYALTY_ENABLED; } catch { loyaltyOn = true; }
+
+  // نظام النقاط: الشريط يقول كم نقطة عنده وكم منتجاً تكفيه. كان لا يُرى
+  // إلا لمن دخل من «ادفع» ثم «الولاء». والضغطة تمرّ بتأكيد العميل نفسه
+  // (startLoyaltyRedeem)، لا تفتح القائمة بلا رضاه.
+  if(loyaltyOn && c && c.id && rkLoyaltySystemType() === 'points'){
+    const inCart = state.cart.reduce((s, i)=> s + (i.isPointsRedemption && !i.isFreeReward
+      ? ((MENU_ITEM_META[i.productId] || {}).pointsRedeemPrice || 0) : 0), 0);
+    const offer = rkPointsRedeemOffer(c.points, Object.values(MENU_ITEM_META).map(m => m.pointsRedeemPrice), inCart);
+    if(offer){
+      strip.style.display = '';
+      strip.innerHTML = `<button type="button" class="reward-strip-btn" id="rewardStripBtn">
+          <span class="reward-strip-icon">🎁</span>
+          <span class="reward-strip-text"><b>عنده ${offer.remaining} نقطة</b><span>يقدر يستبدل ${rkRedeemableCountText(offer.count)} — اضغط عشان يستبدل</span></span>
+        </button>`;
+      document.getElementById('rewardStripBtn').addEventListener('click', startLoyaltyRedeem);
+      return;
+    }
+  }
+
   if(!loyaltyOn || !c || !c.id || !n){
     strip.style.display = 'none';
     strip.innerHTML = '';

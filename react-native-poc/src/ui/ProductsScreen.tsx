@@ -23,7 +23,7 @@ import { getOrderHistoryDetail } from '../application/orderHistoryService';
 import { listDeliveryPlatforms } from '../application/catalogService';
 import type { DeliveryPlatform, PosFeatureFlags } from '../application/catalogService';
 import { listTables, seatWalkIn } from '../application/tableService';
-import { toWesternDigits } from '../domain/customer';
+import { pointsRedeemOffer, redeemableCountText, toWesternDigits } from '../domain/customer';
 import { submitOrder } from '../application/orderService';
 import { completePaymentOperation } from '../application/paymentService';
 import { getDeviceConfig } from '../application/authService';
@@ -851,6 +851,19 @@ export default function ProductsScreen({
   /* نظام الولاء -- يُقرأ مرّةً عند فتح الشاشة. صاحب المطعم يبدّله
      مرّةً في العمر، لا مرّةً في الدقيقة. */
   const [loyaltySettings, setLoyaltySettings] = useState<LoyaltySettings | null>(null);
+  /* ما يقدر العميل يستبدله بنقاطه الآن -- بعد طرح ما في السلّة من
+     استبدال. null = لا شريط. */
+  const pointsOffer =
+    flags.loyaltyEnabled && selectedCustomer?.id != null && (loyaltySettings ? loyaltySettings.systemType : 'points') === 'points'
+      ? pointsRedeemOffer(
+          selectedCustomer.points,
+          (catalog ? catalog.products : []).map(p => p.pointsRedeemPrice),
+          cart.cart.reduce(
+            (sum, i) => sum + (i.isPointsRedemption && !i.isFreeReward ? productsById.get(i.productId)?.pointsRedeemPrice || 0 : 0),
+            0,
+          ),
+        )
+      : null;
 
   /** DELIVERY_PLATFORMS_LIST and state.deliveryPlatformId. */
   const [deliveryPlatforms, setDeliveryPlatforms] = useState<DeliveryPlatform[]>([]);
@@ -1692,18 +1705,28 @@ export default function ProductsScreen({
             </TouchableOpacity>
           </View>
 
-          {/* The order panel has NO customer chip and NO points-redeem
-              strip. rakeen-pos.css defines .customer-chip but nothing ever
-              renders it (confirmed live: customerChipExists === false), the
-              customer is attached in the payment popup's own step, and
-              updatePointsRedeemStrip() is a deliberate no-op whose comment
-              gives the reason: the one-tap redeem picker "let a cashier open
-              the redeem picker with one tap and no real cardholder consent".
-              openPointsRedeemModal() is still defined but has no call site
-              anywhere in the source. Redemption's sanctioned path is the
-              الولاء payment tab, which requires the customer's own
-              confirmation. Both rows removed rather than kept as a
-              convenience the source specifically withdrew. */}
+          {/* شريطُ الاستبدال بالنقاط: يظهر حين تكفي نقاطُ العميل لمنتجٍ
+              واحدٍ على الأقل، فلا يحتاج الكاشير أن يتذكّر أن يسأل.
+              والضغطة لا تفتح القائمة مباشرةً -- ذاك ما سُحب قديماً لأنه
+              يصرف بلا رضا صاحب البطاقة -- بل تفتح LoyaltyRedeemModal
+              نفسه، وأوّله تأكيدُ العميل. (نظيره في الويب:
+              updatePointsRedeemStrip.) */}
+          {pointsOffer && (
+            <TouchableOpacity
+              style={styles.pointsStrip}
+              onPress={() => setLoyaltyRedeemOpen(true)}
+              activeOpacity={0.85}>
+              <Text style={styles.pointsStripIcon}>🎁</Text>
+              <View style={styles.pointsStripBody}>
+                <Text style={styles.pointsStripTitle} numberOfLines={1}>
+                  عنده {pointsOffer.remaining} نقطة
+                </Text>
+                <Text style={styles.pointsStripSub} numberOfLines={1}>
+                  يقدر يستبدل {redeemableCountText(pointsOffer.count)} — اضغط عشان يستبدل
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
 
           {/* .order-summary. renderOrder() (rakeen-pos.js:1120) emits these
               rows in exactly this order, and the first one -- the item
@@ -2400,6 +2423,17 @@ const useStyles = createStyles((colors, shadows) =>
     borderStyle: 'solid', borderColor: colors.limeDeep,
     backgroundColor: `rgba(${colors.limeRgb},0.14)`,
   },
+  // .reward-strip-btn -- نفس شريط المكافأة في الويب
+  pointsStrip: {
+    marginTop: 8, marginHorizontal: 18, padding: 10, borderRadius: radii.md,
+    borderWidth: 1, borderColor: colors.limeDeep,
+    backgroundColor: `rgba(${colors.limeRgb},0.14)`,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+  },
+  pointsStripIcon: { fontSize: 18 },
+  pointsStripBody: { flex: 1, minWidth: 0 },
+  pointsStripTitle: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.text },
+  pointsStripSub: { fontFamily: fonts.sansRegular, fontSize: 11, color: colors.muted, marginTop: 1 },
   custBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.muted },
   custBtnTextOn: { color: colors.text },
   discountToggleHalf: { flexGrow: 1, flexBasis: 0, width: undefined, minWidth: 0 },
