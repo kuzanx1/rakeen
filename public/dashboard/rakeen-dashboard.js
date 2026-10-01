@@ -5730,9 +5730,10 @@ async function renderLoyaltySuggestedColors(imgSrc){
 
 async function loadLoyaltyBranding(){
   const { data } = await window.supabaseClient.from('businesses')
-    .select('loyalty_logo_url, loyalty_banner_url, loyalty_accent_color, loyalty_system_type, loyalty_visits_threshold, loyalty_reward_label, loyalty_icon_style, loyalty_pattern_style, loyalty_theme, loyalty_custom_icon_url, loyalty_enabled, loyalty_banner_overlay, loyalty_icon_size, loyalty_tagline, loyalty_unit_threshold, loyalty_reward_mode, loyalty_visit_min_total, notify_win_back, win_back_message, win_back_inactive_days, wallet_offer_text, wallet_offer_at')
+    .select('loyalty_points_divisor, loyalty_logo_url, loyalty_banner_url, loyalty_accent_color, loyalty_system_type, loyalty_visits_threshold, loyalty_reward_label, loyalty_icon_style, loyalty_pattern_style, loyalty_theme, loyalty_custom_icon_url, loyalty_enabled, loyalty_banner_overlay, loyalty_icon_size, loyalty_tagline, loyalty_unit_threshold, loyalty_reward_mode, loyalty_visit_min_total, notify_win_back, win_back_message, win_back_inactive_days, wallet_offer_text, wallet_offer_at')
     .eq('id', CURRENT_PROFILE.business_id).single();
   if(data){
+    if(Number(data.loyalty_points_divisor) > 0) LOYALTY_RATE = Number(data.loyalty_points_divisor);
     LOYALTY_BRANDING = {
       logoUrl: data.loyalty_logo_url, bannerUrl: data.loyalty_banner_url, accentColor: data.loyalty_accent_color || '#C4FF2B',
       systemType: data.loyalty_system_type || 'points', visitsThreshold: data.loyalty_visits_threshold || 5,
@@ -5752,7 +5753,17 @@ async function loadLoyaltyBranding(){
     };
     renderLoyaltyEnabledState(data.loyalty_enabled !== false);
   }
+  syncLoyaltyRateInput();
   await loadWalletAssets();
+}
+
+/* حقل المعدل يُملأ بالمحفوظ. كان في الصفحة بقيمةٍ ثابتة «10» ولا يكتب
+   فيه أحد: فمن حفظ 5 رجع فرأى 10، وأيُّ حفظٍ بعدها يكتب الـ10 فوق
+   ما اختاره -- فيبقى المعدل 10 مهما غُيّر. */
+function syncLoyaltyRateInput(){
+  const el = document.getElementById('loyaltyRateInput');
+  if(el && Number(LOYALTY_RATE) > 0) el.value = LOYALTY_RATE;
+  try { renderLoyaltyRuleSummary(); } catch(_){}
 }
 
 const rkLoyaltyEnabledStatus = c => c
@@ -6836,6 +6847,7 @@ function renderLoyaltyBrandingPreview(){
   LOYALTY_CUSTOM_ICON_FILE_URL = null;
   document.getElementById('loyaltyAccentInput').value = LOYALTY_BRANDING.accentColor;
   document.getElementById('loyaltyVisitsThresholdInput').value = LOYALTY_BRANDING.visitsThreshold;
+  syncLoyaltyRateInput();
   document.getElementById('loyaltyRewardLabelInput').value = LOYALTY_BRANDING.rewardLabel;
   document.getElementById('loyaltyTaglineInput').value = LOYALTY_BRANDING.tagline;
   document.getElementById('loyaltyBannerOverlayInput').value = LOYALTY_BRANDING.bannerOverlay;
@@ -24677,6 +24689,9 @@ function rkaLoySaveBiz(patch, auditMsg){
   return updateCurrentBusiness(patch)
     .then(() => {
       if(typeof logDashboardAudit === 'function' && auditMsg) logDashboardAudit(auditMsg + ' (عبر مدير الولاء)');
+      // المعدل لا يعيش في LOYALTY_BRANDING: بدون هذا يبقى الشريط والحقل
+      // على القديم حتى تُحدَّث الصفحة.
+      if(Number(patch.loyalty_points_divisor) > 0){ LOYALTY_RATE = Number(patch.loyalty_points_divisor); syncLoyaltyRateInput(); }
       try { if(typeof loadLoyaltyBranding === 'function') loadLoyaltyBranding(CURRENT_PROFILE.business_id); } catch(e){}
       rkaLoyRerender();
     })
