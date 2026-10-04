@@ -2106,6 +2106,10 @@ body.quickadd-mode .rk-sidebar-backdrop{display:none !important;}
 .auth-link{font-size:11.5px; font-weight:700; color:var(--lime-deep); text-decoration:none;}
 .auth-submit-btn{width:100%; padding:14px; border-radius:var(--r-sm); border:none; background:var(--graphite); color:var(--lime); font-weight:800; font-size:13.5px; margin-bottom:10px;}
 [data-theme="dark"] .auth-submit-btn{background:var(--lime); color:var(--graphite);}
+/* نسيت كلمة المرور / كلمة مرور جديدة */
+#forgotPanel .auth-error, #resetPanel .auth-error{margin-bottom:14px;}
+.auth-notice{margin-bottom:14px; padding:12px 14px; border-radius:var(--r-sm); border:1px solid var(--lime-deep); background:color-mix(in srgb, var(--lime) 14%, transparent); color:var(--text); font-size:12.5px; font-weight:600; line-height:1.6;}
+.auth-back-row{text-align:center; margin-top:6px;}
 .auth-biometric-btn{width:100%; padding:13px; border-radius:var(--r-sm); border:1px solid var(--line); background:none; color:var(--text); font-weight:700; font-size:12.5px; display:flex; align-items:center; justify-content:center; gap:8px;}
 
 /* ============ Welcome screen ============ */

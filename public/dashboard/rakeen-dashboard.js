@@ -8584,7 +8584,135 @@ function exitSessionCheck(){
   const el = document.getElementById('sessionCheckScreen');
   if(el) el.classList.add('hidden');
 }
+
+/* ============ نسيت كلمة المرور ============
+   كان الرابط href="#" بلا أي كود. الآن: البريد ← Supabase يرسل رابطاً ←
+   الرابط يرجع لـ /dashboard#access_token…&type=recovery ← شاشة «كلمة مرور
+   جديدة» ← updateUser. الطلب بعميلٍ implicit (window.rkRequestPasswordReset
+   في DashboardPage.tsx) فيُفتح الرابط من أي جهاز، لا من المتصفح الذي طلبه فقط. */
+function showAuthPanel(id){
+  ['forgotPanel', 'resetPanel'].forEach(p => document.getElementById(p).classList.toggle('hidden', p !== id));
+  document.querySelector('#loginScreen .auth-form-inner:not(#forgotPanel):not(#resetPanel)').classList.toggle('hidden', !!id);
+}
+function authMsg(id, text){
+  const el = document.getElementById(id);
+  el.textContent = text || '';
+  el.style.display = text ? 'block' : 'none';
+}
+function rkResetRequestError(err){
+  const code = (err && err.code) || '';
+  if(err && (err.status === 429 || /rate_limit/.test(code))) return 'طلبت رابط قبل شوي — انتظر دقائق وجرّب مرة ثانية.';
+  if(code === 'email_address_invalid' || code === 'validation_failed') return 'تأكد من البريد الإلكتروني.';
+  return 'تعذّر إرسال الرابط الحين — جرّب بعد شوي.';
+}
+function rkNewPasswordError(err){
+  const code = (err && err.code) || '';
+  if(code === 'same_password') return 'هذي نفس كلمة المرور القديمة — اختر وحدة جديدة.';
+  if(code === 'weak_password') return 'كلمة المرور ضعيفة — خلّها أطول وفيها أرقام وحروف.';
+  if(code === 'session_not_found' || code === 'session_expired' || (err && err.name === 'AuthSessionMissingError'))
+    return 'الرابط انتهى — ارجع واطلب رابط جديد.';
+  return 'تعذّر حفظ كلمة المرور — جرّب مرة ثانية.';
+}
+/* يقرأ رابط الاسترجاع من #hash. يرجع {session} أو {error} أو null. */
+async function rkTakeRecoveryFromUrl(){
+  const h = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
+  const isRecovery = h.get('type') === 'recovery' && h.get('access_token');
+  const isError = h.get('error_code') || h.get('error_description');
+  if(!isRecovery && !isError) return null;
+  window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
+  if(isError) return { error: true };
+  const { data, error } = await window.supabaseClient.auth.setSession({
+    access_token: h.get('access_token'), refresh_token: h.get('refresh_token') || ''
+  });
+  return (error || !data.session) ? { error: true } : { session: data.session };
+}
+
+document.getElementById('forgotPasswordLink').addEventListener('click', (e)=>{
+  e.preventDefault();
+  document.getElementById('forgotEmail').value = document.getElementById('loginEmail').value.trim();
+  authMsg('forgotError', ''); authMsg('forgotDone', '');
+  document.getElementById('forgotSubmitBtn').classList.remove('hidden');
+  showAuthPanel('forgotPanel');
+  document.getElementById('forgotEmail').focus();
+});
+document.getElementById('forgotBackLink').addEventListener('click', (e)=>{
+  e.preventDefault();
+  showAuthPanel(null);
+});
+document.getElementById('forgotSubmitBtn').addEventListener('click', async ()=>{
+  const email = document.getElementById('forgotEmail').value.trim();
+  const btn = document.getElementById('forgotSubmitBtn');
+  authMsg('forgotError', ''); authMsg('forgotDone', '');
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ authMsg('forgotError', 'اكتب بريدك الإلكتروني صح.'); return; }
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.textContent = 'جاري الإرسال...';
+  try {
+    const { error } = await window.rkRequestPasswordReset(email);
+    if(error) throw error;
+    // نفس الرسالة سواءٌ كان البريد مسجّلاً أو لا -- لا نكشف من عنده حساب.
+    authMsg('forgotDone', 'إذا البريد مسجّل عندنا، بيوصلك رابط تغيير كلمة المرور خلال دقائق. افتحه من أي جهاز. ما وصل؟ شوف مجلد الرسائل غير المرغوبة.');
+    btn.classList.add('hidden');
+  } catch(err){
+    authMsg('forgotError', rkResetRequestError(err));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+});
+document.getElementById('resetSubmitBtn').addEventListener('click', async ()=>{
+  const p1 = document.getElementById('resetPassword').value;
+  const p2 = document.getElementById('resetPassword2').value;
+  const btn = document.getElementById('resetSubmitBtn');
+  authMsg('resetError', '');
+  if(p1.length < 8){ authMsg('resetError', 'كلمة المرور لازم تكون ٨ خانات أو أكثر.'); return; }
+  if(p1 !== p2){ authMsg('resetError', 'الكلمتين مو متطابقتين.'); return; }
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.textContent = 'جاري الحفظ...';
+  try {
+    const { error } = await window.supabaseClient.auth.updateUser({ password: p1 });
+    if(error) throw error;
+  } catch(err){
+    authMsg('resetError', rkNewPasswordError(err));
+    btn.disabled = false;
+    btn.textContent = originalText;
+    return;
+  }
+  // تغيّرت -- والجلسة نفسها صالحة، فيدخل مباشرةً بلا كتابة الكلمة مرّةً ثانية.
+  try {
+    const { data: { session } } = await window.supabaseClient.auth.getSession();
+    await loadProfileAndPermissions(session.user.id);
+    await loadBusinessData();
+    await renderPhase1Screens();
+    showAuthPanel(null);
+    goToWelcome();
+  } catch(e){
+    console.error('post-reset sign-in failed:', e);
+    await window.supabaseClient.auth.signOut();
+    showAuthPanel(null);
+    authMsg('loginError', 'تم تغيير كلمة المرور ✓ — سجّل دخولك بالكلمة الجديدة.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+});
+
 (async function restoreSession(){
+  const recovery = await rkTakeRecoveryFromUrl();
+  if(recovery){
+    exitSessionCheck();
+    document.getElementById('loginScreen').classList.remove('hidden');
+    document.body.dataset.stage = 'login';
+    if(recovery.session){
+      showAuthPanel('resetPanel');
+      document.getElementById('resetPassword').focus();
+    } else {
+      showAuthPanel('forgotPanel');
+      authMsg('forgotError', 'الرابط انتهى أو انستخدم قبل — اطلب رابط جديد.');
+    }
+    return;
+  }
   const { data: { session } } = await window.supabaseClient.auth.getSession();
   if(!session){
     exitSessionCheck();

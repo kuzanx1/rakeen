@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import type { Worker as TesseractWorker, Line as TesseractLine } from "tesseract.js";
 import "./rakeen-dashboard.css";
 import "./rakeen-dashboard-responsive.css";
@@ -69,6 +70,7 @@ export interface BulkImportParsedRow {
 declare global {
   interface Window {
     supabaseClient?: ReturnType<typeof createBrowserClient>;
+    rkRequestPasswordReset?: (email: string) => Promise<{ error: { status?: number; code?: string; message: string } | null }>;
     generateReportExcel?: (payload: ReportPayload) => Promise<void>;
     downloadBulkImportTemplate?: (spec: BulkImportSpec) => Promise<void>;
     parseBulkImportFile?: (file: File, columns: BulkImportColumn[]) => Promise<BulkImportParsedRow[]>;
@@ -162,6 +164,18 @@ export default function DashboardPage() {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       { cookieOptions: { name: 'sb-rakeen-dashboard-auth' } }
     );
+
+    // «نسيت كلمة المرور» يُطلب بعميلٍ مستقلّ بتدفّق implicit، لا بالعميل
+    // أعلاه (PKCE): رابط PKCE لا يُفتح إلا في نفس المتصفح الذي طلبه -- وصاحب
+    // المطعم يطلبه من اللابتوب ويفتح الإيميل من جواله. والرابط الضمنيّ يرجع
+    // بالجلسة في #hash، فتلتقطها restoreSession في rakeen-dashboard.js.
+    const recoveryClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { flowType: "implicit", persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
+    );
+    window.rkRequestPasswordReset = (email) =>
+      recoveryClient.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + "/dashboard" });
 
     // jsqr is dynamically imported for the same reason as exceljs below —
     // only fetched the first time someone actually scans an invoice photo.
