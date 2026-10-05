@@ -77,7 +77,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { ciphertext, iv } = await encryptSecret(apiPassword);
+  // بلا GEIDEA_MASTER_KEY يرمي التشفير، فكان الخادم يرجع خطأً غير JSON وتقول
+  // اللوحة «تعذر الحفظ» فقط -- بعد أن قبلت جيديا المفاتيح فعلاً.
+  let ciphertext: string, iv: string;
+  try {
+    ({ ciphertext, iv } = await encryptSecret(apiPassword));
+  } catch (err) {
+    console.error("geidea credentials: encrypt failed", err);
+    return NextResponse.json(
+      { error: "جيديا قبلت المفاتيح، لكن الخادم ما يقدر يحفظها: مفتاح التشفير GEIDEA_MASTER_KEY غير مضبوط في Cloudflare" },
+      { status: 500 }
+    );
+  }
   const last4 = merchantPublicKey.slice(-4);
 
   const { error: upsertError } = await admin.from("business_payment_gateways").upsert(
