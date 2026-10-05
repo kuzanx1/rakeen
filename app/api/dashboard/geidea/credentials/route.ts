@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { checkDbRateLimit } from "@/lib/dbRateLimit";
-import { createGeideaSession, encryptSecret } from "@/lib/geidea";
+import { createGeideaSession, encryptSecret, geideaPublicOrigin } from "@/lib/geidea";
 
 // Connecting a Geidea merchant account hands Rakeen a real, recoverable
 // payment secret — same bar as changing the manager PIN or linking
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "أدخل مفتاح ركين ورقم الاشتراك السري" }, { status: 400 });
   }
 
-  const origin = request.nextUrl.origin;
+  const origin = geideaPublicOrigin(request.headers.get("host"), request.nextUrl.origin);
   const testResult = await createGeideaSession({
     merchantPublicKey,
     apiPassword,
@@ -68,7 +68,13 @@ export async function POST(request: NextRequest) {
   });
   if (!testResult.ok) {
     console.error("geidea credentials: verification session rejected", { businessId, error: testResult.error });
-    return NextResponse.json({ error: "تعذر التحقق من البيانات — تأكد من صحة المفتاح ورقم الاشتراك" }, { status: 400 });
+    // ردّ جيديا يُعرض هنا لصاحب المتجر وحده (شاشة الإعداد، لا صفحة العميل):
+    // «تأكد من المفتاح» وحدها كانت تُخفي سبباً لا علاقة له بالمفتاح.
+    const detail = String(testResult.error || "").slice(0, 160);
+    return NextResponse.json(
+      { error: "تعذر التحقق من البيانات — تأكد من المفتاح العام وكلمة مرور الـAPI" + (detail ? ` (رد جيديا: ${detail})` : "") },
+      { status: 400 }
+    );
   }
 
   const { ciphertext, iv } = await encryptSecret(apiPassword);

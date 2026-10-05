@@ -52,6 +52,17 @@ export async function decryptSecret(ciphertext: string, iv: string): Promise<str
 const GEIDEA_SESSION_URL = "https://api.ksamerchant.geidea.net/payment-intent/api/v2/direct/session";
 const GEIDEA_CHECKOUT_BASE = "https://www.ksamerchant.geidea.net/hpp/checkout/";
 
+// العنوان العام الذي ترجع إليه جيديا (callbackUrl / returnUrl).
+// كان يُبنى من request.nextUrl.origin -- وخلف Cloudflare/OpenNext قد يطلع
+// http:// فترفضه جيديا بـ «Invalid callback url» (110/009)، فيفشل ربط المفاتيح
+// والدفع معاً. يُبنى الآن من الـ Host وبـ https دائماً، ومحصوراً في نطاقنا.
+export function geideaPublicOrigin(host: string | null, fallbackOrigin: string): string {
+  const h = (host || "").toLowerCase().split(":")[0];
+  if (h === "rakeenapp.com" || h.endsWith(".rakeenapp.com")) return `https://${h}`;
+  if (h === "localhost" || h === "127.0.0.1") return fallbackOrigin;
+  return "https://rakeenapp.com";
+}
+
 function formatAmount(amount: number): string {
   return amount.toFixed(2);
 }

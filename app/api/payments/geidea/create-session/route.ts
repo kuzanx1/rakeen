@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { checkDbRateLimit } from "@/lib/dbRateLimit";
-import { createGeideaSession, decryptSecret } from "@/lib/geidea";
+import { createGeideaSession, decryptSecret, geideaPublicOrigin } from "@/lib/geidea";
 
 // Called right after submit_online_order() returns for a p_payment_method
 // 'card' order — never before, since this route needs a real, already-
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "تعذر بدء عملية الدفع، حاول مرة ثانية" }, { status: 500 });
   }
 
-  const origin = request.nextUrl.origin;
+  const origin = geideaPublicOrigin(request.headers.get("host"), request.nextUrl.origin);
   const result = await createGeideaSession({
     merchantPublicKey: gateway.merchant_public_key,
     apiPassword,
