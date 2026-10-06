@@ -1,4 +1,4 @@
-import { Clause, ContractOffer, ContractParty, featureLabel, firstTermEnd, periodLabel, RAKEEN_PARTY } from "@/lib/contracts";
+import { Clause, ContractOffer, ContractParty, featureLabel, firstTermEnd, jurisdictionLabel, periodLabel, RAKEEN_PARTY } from "@/lib/contracts";
 
 // The contract as a document — used on the signing page, for the PDF, and
 // by the admin panel. Every top-level block carries data-pdf-block so the
@@ -94,6 +94,7 @@ export default function ContractDocument({ rakeen, offer, clauses, termsVersion,
           <div><span>الضريبة</span><b>{offer.vat_mode === "inclusive" ? "شاملة الضريبة" : "غير شاملة الضريبة"}</b></div>
           <div><span>المدة الأولى</span><b>{fmtDate(offer.start_date)} ← {fmtDate(firstTermEnd(offer.start_date, offer.billing_period))}</b></div>
           <div><span>عدد الفروع</span><b className="mono">{offer.branches_count}</b></div>
+          <div><span>الاختصاص القضائي</span><b>{jurisdictionLabel(offer.jurisdiction || "taif")}</b></div>
         </div>
       </section>
 

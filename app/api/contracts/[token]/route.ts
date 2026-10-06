@@ -39,6 +39,7 @@ type Row = {
   branches_count: number;
   features: string[];
   special_terms: string | null;
+  jurisdiction: "taif" | "business_city" | null;
   expires_at: string;
   prefill_business_name: string | null;
   prefill_owner_name: string | null;
@@ -62,6 +63,7 @@ function offerOf(row: Row): ContractOffer {
     branches_count: row.branches_count,
     features: row.features,
     special_terms: row.special_terms,
+    jurisdiction: row.jurisdiction === "business_city" ? "business_city" : "taif",
   };
 }
 

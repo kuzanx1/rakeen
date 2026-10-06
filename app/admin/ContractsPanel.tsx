@@ -78,6 +78,7 @@ export default function ContractsPanel({ token }: { token: string }) {
     branches_count: "1",
     features: DEFAULT_FEATURES as string[],
     special_terms: "",
+    jurisdiction: "taif" as "taif" | "business_city",
     valid_days: "14",
     prefill_business_name: "",
     prefill_owner_name: "",
@@ -214,6 +215,13 @@ export default function ContractsPanel({ token }: { token: string }) {
               <select style={input} value={form.vat_mode} onChange={setF("vat_mode")}>
                 <option value="exclusive">السعر غير شامل الضريبة</option>
                 <option value="inclusive">السعر شامل الضريبة</option>
+              </select>
+            </div>
+            <div>
+              <span style={label}>المحكمة المختصة</span>
+              <select style={input} value={form.jurisdiction} onChange={setF("jurisdiction")}>
+                <option value="taif">الطائف فقط</option>
+                <option value="business_city">مدينة المنشأة فقط</option>
               </select>
             </div>
             <div><span style={label}>تاريخ البدء</span><input style={input} type="date" value={form.start_date} onChange={setF("start_date")} /></div>
