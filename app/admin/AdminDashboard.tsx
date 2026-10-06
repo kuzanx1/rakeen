@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import WhatsAppAdminPanel from "./WhatsAppAdminPanel";
 import UsagePanel from "./UsagePanel";
 import AuditLogPanel from "./AuditLogPanel";
+import ContractsPanel from "./ContractsPanel";
 
 type Business = {
   id: number;
@@ -146,7 +147,7 @@ export default function AdminDashboard() {
   const [mfaError, setMfaError] = useState<string | null>(null);
   const [mfaBusy, setMfaBusy] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<"businesses" | "whatsapp" | "usage" | "audit">("businesses");
+  const [activeTab, setActiveTab] = useState<"businesses" | "whatsapp" | "contracts" | "usage" | "audit">("businesses");
   const [businesses, setBusinesses] = useState<Business[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -716,6 +717,9 @@ export default function AdminDashboard() {
           <button style={{ ...styles.tabBtn, ...(activeTab === "whatsapp" ? styles.tabBtnActive : {}) }} onClick={() => setActiveTab("whatsapp")}>
             واتساب
           </button>
+          <button style={{ ...styles.tabBtn, ...(activeTab === "contracts" ? styles.tabBtnActive : {}) }} onClick={() => setActiveTab("contracts")}>
+            العقود
+          </button>
           <button style={{ ...styles.tabBtn, ...(activeTab === "usage" ? styles.tabBtnActive : {}) }} onClick={() => setActiveTab("usage")}>
             استهلاك البنية التحتية
           </button>
@@ -725,6 +729,7 @@ export default function AdminDashboard() {
         </div>
 
         {activeTab === "whatsapp" && <WhatsAppAdminPanel token={session.token} />}
+        {activeTab === "contracts" && <ContractsPanel token={session.token} />}
         {activeTab === "usage" && <UsagePanel token={session.token} />}
         {activeTab === "audit" && <AuditLogPanel token={session.token} />}
 

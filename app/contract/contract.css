@@ -1,0 +1,127 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+/* Thmanyah, self-hosted like the landing page (app/landing/rakeen-landing.css). */
+@font-face{font-family:'Thmanyah Sans';src:url('/fonts/thmanyah-sans/thmanyahsans-Regular.woff2') format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('/fonts/thmanyah-sans/thmanyahsans-Medium.woff2') format('woff2');font-weight:500;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('/fonts/thmanyah-sans/thmanyahsans-Bold.woff2') format('woff2');font-weight:700;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('/fonts/thmanyah-sans/thmanyahsans-Black.woff2') format('woff2');font-weight:800 900;font-display:swap}
+@font-face{font-family:'Thmanyah Serif Display';src:url('/fonts/thmanyah-serif-display/thmanyahserifdisplay-Bold.woff2') format('woff2');font-weight:700;font-display:swap}
+
+.ct-root,.ct-vars,.cdoc-print-host{
+  --ink:#171717; --paper:#FBFAF5; --stone:#EFEEE7; --lime:#C4FF2B; --deep:#7BAD0F;
+  --line:rgba(23,23,23,.1); --muted:rgba(23,23,23,.56); --danger:#B0402C;
+}
+.ct-vars,.cdoc-print-host{font-family:'Thmanyah Sans','Tajawal',sans-serif}
+.ct-vars *,.cdoc-print-host *{box-sizing:border-box}
+.ct-root{
+  min-height:100vh; background:var(--paper); color:var(--ink);
+  font-family:'Thmanyah Sans','Tajawal',sans-serif; line-height:1.75; -webkit-font-smoothing:antialiased;
+  padding:24px 16px 120px;
+}
+.ct-root *{box-sizing:border-box}
+.mono{font-family:'IBM Plex Mono',monospace; direction:ltr; unicode-bidi:isolate}
+.ct-wrap{max-width:760px; margin:0 auto}
+
+/* ---------- status screens ---------- */
+.ct-state{max-width:420px; margin:18vh auto 0; text-align:center}
+.ct-state img{height:44px; margin-bottom:22px}
+.ct-state h1{font-size:22px; font-weight:800; margin:0 0 8px}
+.ct-state p{color:var(--muted); margin:0}
+
+/* ---------- steps ---------- */
+.ct-intro{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px}
+.ct-intro img{height:34px}
+.ct-steps{display:flex; gap:6px; font-size:12px; font-weight:700; color:var(--muted)}
+.ct-steps span{padding:6px 12px; border-radius:999px; background:var(--stone)}
+.ct-steps span.on{background:var(--ink); color:var(--lime)}
+
+.ct-card{background:#fff; border:1px solid var(--line); border-radius:20px; padding:22px 18px; margin-bottom:16px}
+.ct-card h2{font-size:18px; font-weight:800; margin:0 0 4px}
+.ct-card .ct-hint{font-size:13px; color:var(--muted); margin:0 0 16px}
+
+.ct-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+@media (max-width:560px){ .ct-grid{grid-template-columns:1fr} }
+.ct-field{display:flex; flex-direction:column; gap:6px}
+.ct-field.full{grid-column:1/-1}
+.ct-field label{font-size:13px; font-weight:700}
+.ct-field label i{font-style:normal; color:var(--muted); font-weight:500}
+.ct-field input,.ct-field select{
+  font:inherit; font-size:16px; /* 16px stops iOS zoom-on-focus */
+  padding:12px 14px; border-radius:12px; border:1.5px solid var(--line); background:var(--paper); color:var(--ink); width:100%;
+}
+.ct-field input:focus,.ct-field select:focus{outline:none; border-color:var(--deep); background:#fff}
+.ct-field input.mono{text-align:right}
+
+.ct-sigpad{position:relative; border:1.5px dashed rgba(23,23,23,.25); border-radius:16px; background:var(--paper); height:190px; touch-action:none; overflow:hidden}
+.ct-sigpad canvas{width:100%; height:100%; display:block; cursor:crosshair}
+.ct-sigpad .ct-sigph{position:absolute; inset:0; display:grid; place-items:center; color:var(--muted); font-size:14px; pointer-events:none}
+.ct-sigtools{display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:13px; color:var(--muted)}
+.ct-link{background:none; border:none; font:inherit; color:var(--ink); font-weight:700; text-decoration:underline; cursor:pointer; padding:4px}
+
+.ct-check{display:flex; gap:10px; align-items:flex-start; font-size:14px; font-weight:500; margin:16px 0 4px; cursor:pointer}
+.ct-check input{width:22px; height:22px; accent-color:var(--deep); flex-shrink:0; margin-top:2px}
+
+.ct-error{background:rgba(176,64,44,.08); color:var(--danger); border-radius:12px; padding:10px 14px; font-size:14px; font-weight:700; margin-top:12px}
+
+.ct-bar{position:fixed; inset-inline:0; bottom:0; padding:12px 16px calc(12px + env(safe-area-inset-bottom)); background:rgba(251,250,245,.92); backdrop-filter:blur(12px); border-top:1px solid var(--line); z-index:20}
+.ct-bar .ct-wrap{display:flex; gap:10px}
+.ct-btn{flex:1; font:inherit; font-size:16px; font-weight:800; padding:15px 18px; border-radius:14px; border:none; cursor:pointer; background:var(--ink); color:var(--lime)}
+.ct-btn.alt{background:var(--stone); color:var(--ink); flex:0 0 auto}
+.ct-btn:disabled{opacity:.45; cursor:default}
+.ct-btn:focus-visible,.ct-link:focus-visible{outline:2px solid var(--deep); outline-offset:2px}
+
+.ct-done{display:flex; gap:12px; align-items:center; background:var(--ink); color:var(--paper); border-radius:18px; padding:16px 18px; margin-bottom:16px}
+.ct-done b{color:var(--lime)}
+.ct-done-ic{width:38px; height:38px; border-radius:50%; background:var(--lime); color:var(--ink); display:grid; place-items:center; font-weight:900; flex-shrink:0}
+
+/* ---------- the document ---------- */
+.cdoc{background:#fff; border:1px solid var(--line); border-radius:20px; padding:28px 22px; color:var(--ink); font-size:14px; line-height:1.85}
+.cdoc-head{border-bottom:2px solid var(--ink); padding-bottom:16px; margin-bottom:6px}
+.cdoc-head-top{display:flex; justify-content:space-between; align-items:flex-start; gap:12px}
+.cdoc-logo{height:40px}
+.cdoc-meta{display:grid; grid-template-columns:auto auto; gap:2px 12px; font-size:12px; text-align:left}
+.cdoc-meta span{color:var(--muted)}
+.cdoc-title{font-family:'Thmanyah Serif Display','Thmanyah Sans',serif; font-size:28px; font-weight:700; margin:18px 0 2px; line-height:1.3}
+.cdoc-sub{margin:0; color:var(--muted)}
+.cdoc-sub b{color:var(--deep)}
+.cdoc h2{font-size:16px; font-weight:800; margin:0 0 10px}
+.cdoc-block{padding:16px 0 10px; border-bottom:1px solid var(--line)}
+.cdoc-parties{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+@media (max-width:560px){ .cdoc-parties{grid-template-columns:1fr} }
+.cdoc-party{background:var(--paper); border-radius:14px; padding:14px}
+.cdoc-party h3{font-size:13px; font-weight:800; margin:0 0 8px}
+.cdoc-party dl{display:grid; grid-template-columns:auto 1fr; gap:4px 12px; margin:0; font-size:13px}
+.cdoc-party dt{color:var(--muted)}
+.cdoc-party dd{margin:0; font-weight:700; word-break:break-word}
+.cdoc-party dd.mono{text-align:right}
+.cdoc-offer{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+@media (max-width:560px){ .cdoc-offer{grid-template-columns:1fr} }
+.cdoc-offer div{display:flex; justify-content:space-between; gap:10px; background:var(--paper); border-radius:10px; padding:8px 12px; font-size:13px}
+.cdoc-offer span{color:var(--muted)}
+.cdoc-features{margin:0; padding:0; list-style:none; display:grid; grid-template-columns:1fr 1fr; gap:6px 14px; font-size:13px}
+@media (max-width:560px){ .cdoc-features{grid-template-columns:1fr} }
+.cdoc-features li{display:flex; gap:8px; align-items:baseline}
+.cdoc-features li::before{content:''; width:8px; height:8px; border-radius:2px; background:var(--lime); outline:1px solid var(--deep); flex-shrink:0; transform:translateY(-1px)}
+.cdoc-clause{padding:12px 0 4px}
+.cdoc-clause h3{font-size:14.5px; font-weight:800; margin:0 0 4px; display:flex; gap:10px; align-items:center}
+.cdoc-num{font-size:11px; background:var(--ink); color:var(--lime); border-radius:6px; padding:1px 6px}
+.cdoc-clause p{margin:0 0 4px; color:#2a2a2a}
+.cdoc-sign{border-bottom:none; border-top:2px solid var(--ink); margin-top:12px}
+.cdoc-signs{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+.cdoc-signbox{border:1px solid var(--line); border-radius:14px; padding:12px 14px; min-height:150px}
+.cdoc-signbox h3{font-size:12.5px; color:var(--muted); margin:0}
+.cdoc-signbox p{margin:2px 0; font-weight:700}
+.cdoc-signnote{font-size:12px; color:var(--muted); font-weight:500 !important}
+.cdoc-signature{max-height:90px; max-width:100%; display:block; margin-top:6px}
+.cdoc-signature-empty{height:80px; border-bottom:1px dashed var(--line)}
+.cdoc-evidence{margin-top:12px; display:grid; gap:4px; font-size:12px}
+.cdoc-evidence div{display:flex; justify-content:space-between; gap:10px}
+.cdoc-evidence span{color:var(--muted)}
+.cdoc-hash b{font-size:9.5px; word-break:break-all; text-align:left}
+.cdoc-foot{display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; padding-top:14px; margin-top:10px; border-top:1px solid var(--line); font-size:12px; color:var(--muted)}
+
+/* Off-screen host used by pdf.ts — fixed A4 width so phones and desktops
+   produce the same document. */
+.cdoc-print-host{position:fixed; top:0; left:-10000px; width:794px; direction:rtl}
+.cdoc-print-host .cdoc{border:none; border-radius:0; padding:0 4px; font-size:13.5px}
+.cdoc-print-host .cdoc-parties,.cdoc-print-host .cdoc-offer,.cdoc-print-host .cdoc-features{grid-template-columns:1fr 1fr}
