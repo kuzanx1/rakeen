@@ -1,4 +1,4 @@
-import { Clause, ContractOffer, ContractParty, featureLabel, firstTermEnd, formatIban, jurisdictionLabel, periodLabel, RAKEEN_PARTY } from "@/lib/contracts";
+import { Clause, ContractOffer, ContractParty, discountOf, featureLabel, firstTermEnd, formatIban, jurisdictionLabel, periodLabel, RAKEEN_PARTY } from "@/lib/contracts";
 
 // The contract as a document — used on the signing page, for the PDF, and
 // by the admin panel. Every top-level block carries data-pdf-block so the
@@ -38,6 +38,7 @@ function Sar({ n }: { n: number }) {
 
 export default function ContractDocument({ rakeen, offer, clauses, termsVersion, party, signaturePng, signedAt, signerIp, documentHash }: ContractDocProps) {
   const total = offer.price + offer.setup_fee;
+  const discount = discountOf(offer);
   return (
     <article className="cdoc">
       <header className="cdoc-head" data-pdf-block>
@@ -96,7 +97,16 @@ export default function ContractDocument({ rakeen, offer, clauses, termsVersion,
         <div className="cdoc-offer">
           <div><span>الباقة</span><b>{offer.plan_name}</b></div>
           <div><span>نوع العقد</span><b>{periodLabel(offer.billing_period)}</b></div>
-          <div><span>الرسوم</span><b><Sar n={offer.price} /> / {offer.billing_period === "annual" ? "سنة" : "شهر"}</b></div>
+          {discount && (
+            <>
+              <div><span>السعر الأساسي</span><b className="cdoc-strike"><Sar n={Number(offer.list_price)} /></b></div>
+              <div className="cdoc-discount">
+                <span>الخصم{offer.discount_label ? ` (${offer.discount_label})` : ""}</span>
+                <b><span className="mono">{discount.pct}%</span> · <Sar n={discount.amount} /></b>
+              </div>
+            </>
+          )}
+          <div><span>{discount ? "الرسوم بعد الخصم" : "الرسوم"}</span><b><Sar n={offer.price} /> / {offer.billing_period === "annual" ? "سنة" : "شهر"}</b></div>
           {offer.setup_fee > 0 && <div><span>رسوم التأسيس (مرة واحدة)</span><b><Sar n={offer.setup_fee} /></b></div>}
           {offer.setup_fee > 0 && <div><span>المستحق عند التوقيع</span><b><Sar n={total} /></b></div>}
           <div><span>الضريبة</span><b>{offer.vat_mode === "inclusive" ? "شاملة الضريبة" : "غير شاملة الضريبة"}</b></div>

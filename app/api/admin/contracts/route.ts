@@ -94,6 +94,13 @@ export async function POST(request: NextRequest) {
   const { lines: schedule, error: scheduleError } = validateSchedule(body.payments);
   if (!schedule) return NextResponse.json({ error: scheduleError }, { status: 400 });
 
+  // Discount: `price` is what's charged; list_price is the price before it.
+  const listRaw = body.list_price === undefined || body.list_price === null || body.list_price === "" ? null : num(body.list_price);
+  if (listRaw !== null && (!Number.isFinite(listRaw) || listRaw < 0 || listRaw > 1_000_000)) return NextResponse.json({ error: "السعر الأساسي غير صحيح" }, { status: 400 });
+  if (listRaw !== null && listRaw < price) return NextResponse.json({ error: "السعر بعد الخصم أكبر من السعر الأساسي" }, { status: 400 });
+  const list_price = listRaw !== null && listRaw > price ? Math.round(listRaw * 100) / 100 : null;
+  const discount_label = list_price !== null ? str(body.discount_label, 60) || null : null;
+
   const token = randomToken();
   const { data, error } = await guard.admin
     .from("subscription_contracts")
@@ -114,6 +121,8 @@ export async function POST(request: NextRequest) {
       prefill_owner_name: str(body.prefill_owner_name, 160) || null,
       prefill_phone: prefill_phone_raw ? normalizePhone(prefill_phone_raw) : null,
       business_id,
+      list_price,
+      discount_label,
       created_by: guard.email,
     })
     .select("id, contract_number, token")
@@ -134,6 +143,6 @@ export async function POST(request: NextRequest) {
     await logAdminAction(guard.admin, guard.email, "contract.create", data.contract_number, "failure", { reason: `payments: ${payError.message}` });
     return NextResponse.json({ error: "تعذر حفظ جدول الدفعات، ما انرسل شي. جرّب مرة ثانية" }, { status: 500 });
   }
-  await logAdminAction(guard.admin, guard.email, "contract.create", data.contract_number, "success", { plan_name, billing_period, price, jurisdiction, business_id, payments: schedule.length });
+  await logAdminAction(guard.admin, guard.email, "contract.create", data.contract_number, "success", { plan_name, billing_period, price, list_price, jurisdiction, business_id, payments: schedule.length });
   return NextResponse.json({ contract: data });
 }

@@ -102,6 +102,10 @@
 @media (max-width:560px){ .cdoc-features{grid-template-columns:1fr} }
 .cdoc-features li{display:flex; gap:8px; align-items:baseline}
 .cdoc-features li::before{content:''; width:8px; height:8px; border-radius:2px; background:var(--lime); outline:1px solid var(--deep); flex-shrink:0; transform:translateY(-1px)}
+.cdoc-strike{text-decoration:line-through; text-decoration-color:var(--danger); color:var(--muted)}
+.cdoc-offer .cdoc-discount{background:var(--ink); color:var(--paper)}
+.cdoc-offer .cdoc-discount span{color:rgba(251,250,245,.6)}
+.cdoc-offer .cdoc-discount b,.cdoc-offer .cdoc-discount b span{color:var(--lime)}
 .cdoc-pay{width:100%; border-collapse:collapse; font-size:13px}
 .cdoc-pay th{font-size:11.5px; color:var(--muted); font-weight:700; text-align:right; padding:6px 10px; border-bottom:1px solid var(--line)}
 .cdoc-pay td{padding:7px 10px; border-bottom:1px solid var(--line)}

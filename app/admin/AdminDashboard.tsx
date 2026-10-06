@@ -354,6 +354,27 @@ export default function AdminDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
+  // Receipts waiting for confirmation → counter on the contracts tab, so a
+  // subscriber's upload is visible from anywhere in /admin.
+  const [pendingReceipts, setPendingReceipts] = useState(0);
+  useEffect(() => {
+    if (!session) return;
+    const check = () =>
+      fetch("/api/admin/contracts", { headers: { Authorization: `Bearer ${session.token}` } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          const rows = (d?.contracts || []) as { payments?: { status: string }[] }[];
+          setPendingReceipts(rows.reduce((s, c) => s + (c.payments || []).filter((p) => p.status === "submitted").length, 0));
+        })
+        .catch(() => {});
+    const first = window.setTimeout(check, 0);
+    const t = window.setInterval(check, 2 * 60 * 1000);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(t);
+    };
+  }, [session, activeTab]);
+
   const selected = useMemo(() => businesses?.find((b) => b.id === selectedId) || null, [businesses, selectedId]);
 
   function openDrawer(b: Business) {
@@ -737,6 +758,11 @@ export default function AdminDashboard() {
           ).map(([key, text]) => (
             <button key={key} style={{ ...styles.tabBtn, ...(activeTab === key ? styles.tabBtnActive : {}) }} onClick={() => setActiveTab(key)}>
               {text}
+              {key === "contracts" && pendingReceipts > 0 && (
+                <span style={{ marginInlineStart: "6px", background: "#E5533D", color: "#fff", borderRadius: "999px", padding: "1px 7px", fontSize: "11px", fontWeight: 800 }}>
+                  {pendingReceipts}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -1353,7 +1379,10 @@ export default function AdminDashboard() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  page: { minHeight: "100dvh", background: "#F6F4EC", color: "#171717", fontFamily: "'IBM Plex Sans Arabic', sans-serif", direction: "rtl" },
+  // colorScheme light (inherited): a dark-mode device would otherwise draw
+  // native controls (select lists, date pickers) in dark-mode colours on
+  // this light page — e.g. a contract's account list looking empty.
+  page: { minHeight: "100dvh", background: "#F6F4EC", color: "#171717", colorScheme: "light", fontFamily: "'IBM Plex Sans Arabic', sans-serif", direction: "rtl" },
   wrap: { maxWidth: "1180px", margin: "0 auto", padding: "20px 16px 48px" },
   headerRow: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" },
   hero: {

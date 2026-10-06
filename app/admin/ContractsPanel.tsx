@@ -71,7 +71,9 @@ type Snapshot = {
 };
 
 const C = { ink: "#171717", paper: "#FBFAF5", stone: "#EDEADF", lime: "#C4FF2B", deep: "#7BAD0F", muted: "#8a8375", danger: "#B0402C" };
-const input: React.CSSProperties = { width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1.5px solid rgba(23,23,23,.12)", background: "#fff", fontFamily: "inherit", fontSize: "13px" };
+// colorScheme light: on a dark-mode device the native <select> list would
+// otherwise draw light option text on this white field (blank-looking list).
+const input: React.CSSProperties = { width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1.5px solid rgba(23,23,23,.12)", background: "#fff", color: "#171717", colorScheme: "light", fontFamily: "inherit", fontSize: "13px" };
 const label: React.CSSProperties = { fontSize: "11.5px", fontWeight: 800, display: "block", marginBottom: "5px" };
 const pill = (bg: string, fg: string): React.CSSProperties => ({ padding: "8px 14px", borderRadius: "999px", background: bg, color: fg, fontWeight: 800, fontSize: "11.5px", border: "none", cursor: "pointer", whiteSpace: "nowrap" });
 
@@ -97,7 +99,7 @@ export default function ContractsPanel({ token }: { token: string }) {
   const [detail, setDetail] = useState<{ row: ContractRow & { terms_snapshot: Snapshot | null; signature_png: string | null; document_hash: string | null }; payments: PaymentRow[]; pdfUrl: string | null; uploadedUrl: string | null } | null>(null);
   const [busy, setBusy] = useState(false);
   const docRef = useRef<HTMLDivElement>(null);
-  const [accounts, setAccounts] = useState<{ id: number; name: string }[]>([]);
+  const [accounts, setAccounts] = useState<{ id: number; name: string; is_active: boolean }[]>([]);
   const [schedule, setSchedule] = useState<{ amount: string; due_date: string }[]>([]);
   const [scheduleEdited, setScheduleEdited] = useState(false);
   const [newPay, setNewPay] = useState({ amount: "", due_date: "" });
@@ -137,17 +139,30 @@ export default function ContractsPanel({ token }: { token: string }) {
     prefill_phone: "",
     business_id: "",
     payments_count: "12",
+    discount_mode: "none" as "none" | "pct" | "amount",
+    discount_value: "",
+    discount_label: "",
   });
   const setF = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  // form.price is the price before any discount; finalPrice is what's
+  // charged (goes into the contract as price, and drives the schedule).
+  const basePrice = Number(form.price);
+  const discountValue = Number(form.discount_value || 0);
+  const discountAmount =
+    form.discount_mode === "pct" ? Math.round(basePrice * Math.min(Math.max(discountValue, 0), 100)) / 100
+    : form.discount_mode === "amount" ? Math.min(Math.max(discountValue, 0), basePrice)
+    : 0;
+  const finalPrice = Math.round((basePrice - (Number.isFinite(discountAmount) ? discountAmount : 0)) * 100) / 100;
+  const hasDiscount = form.discount_mode !== "none" && discountAmount > 0;
 
   // The schedule follows the offer until the admin edits a row by hand;
   // "إعادة التوزيع" drops the hand edits and recomputes.
   const autoSchedule = useMemo(() => {
-    const price = Number(form.price);
     const setup = Number(form.setup_fee || 0);
-    if (!Number.isFinite(price) || price < 0 || !Number.isFinite(setup) || !/^\d{4}-\d{2}-\d{2}$/.test(form.start_date)) return [];
-    return buildSchedule(form.billing_period, price, setup, form.start_date, Number(form.payments_count)).map((l) => ({ amount: String(l.amount), due_date: l.due_date }));
-  }, [form.billing_period, form.price, form.setup_fee, form.start_date, form.payments_count]);
+    if (!Number.isFinite(finalPrice) || finalPrice < 0 || !Number.isFinite(setup) || !/^\d{4}-\d{2}-\d{2}$/.test(form.start_date)) return [];
+    return buildSchedule(form.billing_period, finalPrice, setup, form.start_date, Number(form.payments_count)).map((l) => ({ amount: String(l.amount), due_date: l.due_date }));
+  }, [form.billing_period, finalPrice, form.setup_fee, form.start_date, form.payments_count]);
   const lines = scheduleEdited ? schedule : autoSchedule;
 
   const editLine = (i: number, key: "amount" | "due_date", value: string) => {
@@ -166,12 +181,40 @@ export default function ContractsPanel({ token }: { token: string }) {
       })
       .catch(() => setError("تعذر تحميل العقود"));
   }
+  function loadAccounts() {
+    return fetch("/api/admin/businesses", { headers: auth })
+      .then((r) => r.json())
+      .then((d) =>
+        setAccounts(
+          ((d.businesses || []) as { id: number; name: string; is_active: boolean }[])
+            .map((b) => ({ id: b.id, name: b.name, is_active: b.is_active }))
+            .sort((a, b) => a.id - b.id)
+        )
+      )
+      .catch(() => {});
+  }
+
+  // Pause / resume the whole account (dashboard + cashier) — the same
+  // switch as «إيقاف المطعم بالكامل» in the account drawer.
+  async function setAccountActive(id: number, active: boolean) {
+    const name = accounts.find((a) => a.id === id)?.name || `#${id}`;
+    const question = active ? `ترجّع تشغيل لوحة وكاشير «${name}»؟` : `توقف لوحة وكاشير «${name}» مؤقتاً؟ ما يقدرون يستخدمونها لين ترجّعها.`;
+    if (!window.confirm(question)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/businesses/${id}`, { method: "PATCH", headers: { ...auth, "Content-Type": "application/json" }, body: JSON.stringify({ is_active: active }) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) return setError(d.error || "تعذر تغيير حالة الحساب");
+      await loadAccounts();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   useEffect(() => {
     load();
-    fetch("/api/admin/businesses", { headers: auth })
-      .then((r) => r.json())
-      .then((d) => setAccounts(((d.businesses || []) as { id: number; name: string }[]).map((b) => ({ id: b.id, name: b.name })).sort((a, b) => a.id - b.id)))
-      .catch(() => {});
+    loadAccounts();
     fetch("/api/admin/bank", { headers: auth })
       .then((r) => r.json())
       .then((d) => d.bank && setBank(d.bank))
@@ -188,7 +231,9 @@ export default function ContractsPanel({ token }: { token: string }) {
         headers: { ...auth, "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
-          price: Number(form.price),
+          price: finalPrice,
+          list_price: hasDiscount ? basePrice : null,
+          discount_label: hasDiscount ? form.discount_label : "",
           setup_fee: Number(form.setup_fee || 0),
           branches_count: Number(form.branches_count),
           valid_days: Number(form.valid_days),
@@ -390,6 +435,22 @@ export default function ContractsPanel({ token }: { token: string }) {
               </select>
             </div>
             <div><span style={label}>السعر لكل {form.billing_period === "annual" ? "سنة" : "شهر"} (ر.س)</span><input style={input} inputMode="decimal" value={form.price} onChange={setF("price")} /></div>
+            <div>
+              <span style={label}>الخصم</span>
+              <div style={{ display: "flex", gap: "6px" }}>
+                <select style={{ ...input, flex: "0 0 110px" }} value={form.discount_mode} onChange={setF("discount_mode")}>
+                  <option value="none">بدون</option>
+                  <option value="pct">نسبة %</option>
+                  <option value="amount">مبلغ ر.س</option>
+                </select>
+                {form.discount_mode !== "none" && (
+                  <input style={input} inputMode="decimal" placeholder={form.discount_mode === "pct" ? "مثلاً 20" : "مثلاً 30"} value={form.discount_value} onChange={setF("discount_value")} />
+                )}
+              </div>
+            </div>
+            {form.discount_mode !== "none" && (
+              <div><span style={label}>سبب الخصم (يظهر في العقد، اختياري)</span><input style={input} placeholder="عرض الافتتاح" value={form.discount_label} onChange={setF("discount_label")} /></div>
+            )}
             <div><span style={label}>رسوم تأسيس (مرة وحدة)</span><input style={input} inputMode="decimal" value={form.setup_fee} onChange={setF("setup_fee")} /></div>
             <div>
               <span style={label}>الضريبة</span>
@@ -453,7 +514,11 @@ export default function ContractsPanel({ token }: { token: string }) {
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "14px", gap: "10px", flexWrap: "wrap" }}>
             <span style={{ fontSize: "12px", color: C.muted }}>
-              المستحق: {formatSar(Number(form.price || 0))} {periodLabel(form.billing_period)}
+              {hasDiscount && (
+                <span style={{ textDecoration: "line-through", marginInlineEnd: "6px" }}>{formatSar(basePrice)}</span>
+              )}
+              المستحق: <b style={{ color: C.ink }}>{formatSar(Number.isFinite(finalPrice) ? finalPrice : 0)}</b> {periodLabel(form.billing_period)}
+              {hasDiscount ? ` (خصم ${formatSar(discountAmount)})` : ""}
               {Number(form.setup_fee) > 0 ? ` + تأسيس ${formatSar(Number(form.setup_fee))}` : ""}
             </span>
             <button style={pill(C.ink, C.lime)} onClick={create} disabled={busy}>{busy ? "جاري الإنشاء..." : "أنشئ العقد والرابط"}</button>
@@ -485,6 +550,19 @@ export default function ContractsPanel({ token }: { token: string }) {
                 {detail.row.business_id ? `حساب #${detail.row.business_id} · ${detail.row.account_name || "محذوف"}` : "غير مربوط بحساب"}
                 {detail.row.status !== "signed" ? " · تظهر للمشترك بعد التوقيع" : ""}
               </span>
+              <span style={{ flex: 1 }} />
+              {(() => {
+                const acc = accounts.find((a) => a.id === detail.row.business_id);
+                if (!acc) return null;
+                return acc.is_active ? (
+                  <button style={pill("#f1dcd7", C.danger)} disabled={busy} onClick={() => setAccountActive(acc.id, false)}>إيقاف اللوحة والكاشير مؤقتاً</button>
+                ) : (
+                  <>
+                    <span style={{ ...pill("#f1dcd7", C.danger), cursor: "default" }}>الحساب موقوف</span>
+                    <button style={pill(C.deep, "#fff")} disabled={busy} onClick={() => setAccountActive(acc.id, true)}>إعادة التشغيل</button>
+                  </>
+                );
+              })()}
             </div>
             {detail.payments.length === 0 && <p style={{ fontSize: "12px", color: C.muted, margin: 0 }}>ما فيه دفعات.</p>}
             {detail.payments.map((p) => (

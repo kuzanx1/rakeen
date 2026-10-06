@@ -119,7 +119,18 @@ export type ContractOffer = {
   // Added in v3 — absent in contracts signed before it, so always optional.
   business?: { id: number; name: string } | null;
   payments?: PaymentLine[];
+  // Price before the discount (price is what's charged) and its reason.
+  list_price?: number | null;
+  discount_label?: string | null;
 };
+
+// The discount shown on the contract, or null when there is none.
+export function discountOf(offer: Pick<ContractOffer, "price" | "list_price">): { amount: number; pct: number } | null {
+  const list = Number(offer.list_price);
+  if (!Number.isFinite(list) || list <= 0 || list <= offer.price) return null;
+  const amount = Math.round((list - offer.price) * 100) / 100;
+  return { amount, pct: Math.round((amount / list) * 1000) / 10 };
+}
 
 export type PaymentLine = { seq: number; amount: number; due_date: string };
 

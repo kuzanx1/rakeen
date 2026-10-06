@@ -78,8 +78,14 @@ export async function GET(request: NextRequest) {
     }));
   }
 
-  const bank = await getBank(who.admin);
+  const [bank, { data: biz }] = await Promise.all([
+    getBank(who.admin),
+    who.admin.from("businesses").select("is_active").eq("id", who.businessId).maybeSingle(),
+  ]);
   return NextResponse.json({
+    // Suspended from /admin: the dashboard can't load its data (RLS), so
+    // the notice shows a full-page "account paused" screen instead.
+    suspended: biz ? biz.is_active === false : false,
     to_sign: toSign ? { contract_number: toSign.contract_number, token: toSign.token } : null,
     payments,
     bank: { name: bank.bankName, iban: bank.iban, holder: bank.accountHolder },
