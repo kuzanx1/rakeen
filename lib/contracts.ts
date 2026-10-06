@@ -11,12 +11,37 @@ export const RAKEEN_PARTY = {
   website: "rakeenapp.com",
   whatsapp: "0557015282",
   instagram: "@rakeenapp",
-} as const;
+  // Where subscribers transfer their payments (contract + dashboard pay screen).
+  bankName: "بنك D360",
+  iban: "SA3636036036049631065967",
+  accountHolder: "عمار وزير الثقفي",
+};
+
+// The bank part is editable from /admin (platform_settings key "bank");
+// these values are only the fallback. lib/platformBank.ts reads it.
+export type BankDetails = { bankName: string; iban: string; accountHolder: string };
+export type RakeenParty = typeof RAKEEN_PARTY;
+
+export function validateBank(input: Partial<Record<keyof BankDetails, unknown>>): { bank?: BankDetails; error?: string } {
+  const s = (v: unknown, max: number) => (typeof v === "string" ? v.trim().replace(/\s+/g, " ").slice(0, max) : "");
+  const bankName = s(input.bankName, 60);
+  const iban = normalizeDigits(s(input.iban, 40)).toUpperCase();
+  const accountHolder = s(input.accountHolder, 120);
+  if (bankName.length < 2) return { error: "اكتب اسم البنك" };
+  if (!/^SA\d{22}$/.test(iban)) return { error: "الآيبان لازم يبدأ بـ SA وبعده ٢٢ رقم" };
+  if (accountHolder.split(" ").filter(Boolean).length < 2) return { error: "اكتب اسم صاحب الحساب كامل" };
+  return { bank: { bankName, iban, accountHolder } };
+}
+
+// "SA36 3603 6036 0496 3106 5967"
+export function formatIban(iban: string): string {
+  return iban.replace(/\s+/g, "").replace(/(.{4})/g, "$1 ").trim();
+}
 
 // Bump whenever any clause wording changes. The version and the full
 // clause text are both snapshotted into the row at signing, so an old
 // signed contract always re-renders with the exact words that were signed.
-export const TERMS_VERSION = "2026.10-v2";
+export const TERMS_VERSION = "2026.10-v3";
 
 export type BillingPeriod = "monthly" | "annual";
 export type VatMode = "exclusive" | "inclusive";
@@ -91,7 +116,58 @@ export type ContractOffer = {
   features: string[];
   special_terms: string | null;
   jurisdiction: Jurisdiction;
+  // Added in v3 — absent in contracts signed before it, so always optional.
+  business?: { id: number; name: string } | null;
+  payments?: PaymentLine[];
 };
+
+export type PaymentLine = { seq: number; amount: number; due_date: string };
+
+// Calendar month step that never spills into the next month
+// (31 Jan + 1 month = 28/29 Feb, not 2/3 Mar).
+export function addMonths(isoDate: string, months: number): string {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(y, m - 1 + months + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(y, m - 1 + months, Math.min(d, lastDay))).toISOString().slice(0, 10);
+}
+
+// Default schedule the admin starts from (every row stays editable).
+// Monthly: `count` monthly payments of the monthly price. Annual: the
+// yearly price split into `count` equal payments spread over the year.
+// The setup fee rides on the first payment. Halalas are kept exact: the
+// rounding remainder goes on the last payment so the rows sum to the total.
+export function buildSchedule(period: BillingPeriod, price: number, setupFee: number, startDate: string, count: number): PaymentLine[] {
+  const n = Math.max(1, Math.min(60, Math.trunc(count) || 1));
+  const priceH = Math.round(price * 100);
+  const setupH = Math.round(setupFee * 100);
+  const each = period === "annual" ? Math.floor(priceH / n) : priceH;
+  const stepMonths = period === "annual" ? 12 / n : 1;
+  const lines: PaymentLine[] = [];
+  for (let i = 0; i < n; i++) {
+    let h = each;
+    if (period === "annual" && i === n - 1) h = priceH - each * (n - 1);
+    if (i === 0) h += setupH;
+    lines.push({ seq: i + 1, amount: h / 100, due_date: addMonths(startDate, Math.round(i * stepMonths)) });
+  }
+  return lines;
+}
+
+// Server-side check of a schedule sent by the admin form.
+export function validateSchedule(input: unknown): { lines?: PaymentLine[]; error?: string } {
+  if (!Array.isArray(input) || input.length === 0) return { error: "أضف دفعة وحدة على الأقل" };
+  if (input.length > 60) return { error: "أقصى عدد للدفعات ٦٠" };
+  const lines: PaymentLine[] = [];
+  for (let i = 0; i < input.length; i++) {
+    const r = input[i] as Record<string, unknown>;
+    const amount = typeof r?.amount === "number" ? r.amount : Number(r?.amount);
+    const due = typeof r?.due_date === "string" ? r.due_date.trim() : "";
+    if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000_000) return { error: `مبلغ الدفعة ${i + 1} غير صحيح` };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(due) || Number.isNaN(Date.parse(due))) return { error: `تاريخ الدفعة ${i + 1} غير صحيح` };
+    if (i > 0 && due < lines[i - 1].due_date) return { error: `تاريخ الدفعة ${i + 1} قبل الدفعة اللي قبلها` };
+    lines.push({ seq: i + 1, amount: Math.round(amount * 100) / 100, due_date: due });
+  }
+  return { lines };
+}
 
 export type ContractParty = {
   business_name: string;
@@ -127,7 +203,7 @@ export function firstTermEnd(startDate: string, period: BillingPeriod): string {
 // under Saudi law (no interest/penalty clauses, fair termination right,
 // clear jurisdiction). Not a substitute for review by a Saudi-licensed
 // lawyer before real use.
-export function buildClauses(offer: ContractOffer): Clause[] {
+export function buildClauses(offer: ContractOffer, bank: BankDetails = RAKEEN_PARTY): Clause[] {
   const annual = offer.billing_period === "annual";
   const per = annual ? "سنة" : "شهر";
   const noticeDays = annual ? 30 : 7;
@@ -160,7 +236,11 @@ export function buildClauses(offer: ContractOffer): Clause[] {
     {
       title: "الرسوم والسداد",
       body: [
-        `يلتزم الطرف الثاني بسداد رسوم الاشتراك مقدمًا في بداية كل ${per}${offer.setup_fee > 0 ? "، ورسوم التأسيس مرة واحدة عند التوقيع" : ""}.`,
+        offer.payments && offer.payments.length > 0
+          ? `يلتزم الطرف الثاني بسداد الرسوم وفق جدول الدفعات المذكور في هذا العقد، كل دفعة في تاريخ استحقاقها${offer.setup_fee > 0 ? "، وتُضاف رسوم التأسيس إلى الدفعة الأولى" : ""}. وبعد انتهاء الجدول تُسدد رسوم كل ${per} مقدمًا في بدايته ما دام العقد ساريًا.`
+          : `يلتزم الطرف الثاني بسداد رسوم الاشتراك مقدمًا في بداية كل ${per}${offer.setup_fee > 0 ? "، ورسوم التأسيس مرة واحدة عند التوقيع" : ""}.`,
+        `يكون السداد بالتحويل إلى حساب الطرف الأول: ${bank.bankName}، رقم الحساب الدولي (IBAN) ${bank.iban}، باسم ${bank.accountHolder}.`,
+        "يرفع الطرف الثاني إيصال التحويل من لوحة التحكم الخاصة به في المنصة، ولا تُعد الدفعة مسددة إلا بعد تأكيد الطرف الأول استلامها.",
         vatLine,
         "الرسوم المدفوعة، بما فيها رسوم التأسيس، غير قابلة للاسترداد كليًا أو جزئيًا بعد بدء المدة، ولو أنهى الطرف الثاني العقد مبكرًا أو لم يستخدم الخدمة، عدا ما ورد في بند الإنهاء.",
         "يحق للطرف الأول تعديل الأسعار عند التجديد بإشعار مسبق لا يقل عن 30 يومًا، ويُعد التجديد بعد الإشعار قبولًا للسعر الجديد.",

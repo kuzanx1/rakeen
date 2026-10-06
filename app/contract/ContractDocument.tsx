@@ -1,4 +1,4 @@
-import { Clause, ContractOffer, ContractParty, featureLabel, firstTermEnd, jurisdictionLabel, periodLabel, RAKEEN_PARTY } from "@/lib/contracts";
+import { Clause, ContractOffer, ContractParty, featureLabel, firstTermEnd, formatIban, jurisdictionLabel, periodLabel, RAKEEN_PARTY } from "@/lib/contracts";
 
 // The contract as a document — used on the signing page, for the PDF, and
 // by the admin panel. Every top-level block carries data-pdf-block so the
@@ -48,6 +48,14 @@ export default function ContractDocument({ rakeen, offer, clauses, termsVersion,
             <b className="mono">{offer.contract_number}</b>
             <span>تاريخ البدء</span>
             <b>{fmtDate(offer.start_date)}</b>
+            {offer.business && (
+              <>
+                <span>مخصص لحساب</span>
+                <b>
+                  {offer.business.name} · <span className="mono">#{offer.business.id}</span>
+                </b>
+              </>
+            )}
           </div>
         </div>
         <h1 className="cdoc-title">عقد اشتراك في منصة ركين</h1>
@@ -97,6 +105,39 @@ export default function ContractDocument({ rakeen, offer, clauses, termsVersion,
           <div><span>الاختصاص القضائي</span><b>{jurisdictionLabel(offer.jurisdiction || "taif")}</b></div>
         </div>
       </section>
+
+      {offer.payments && offer.payments.length > 0 && (
+        <section className="cdoc-block" data-pdf-block>
+          <h2>جدول الدفعات</h2>
+          <table className="cdoc-pay">
+            <thead>
+              <tr><th>الدفعة</th><th>تاريخ الاستحقاق</th><th>المبلغ</th></tr>
+            </thead>
+            <tbody>
+              {offer.payments.map((p) => (
+                <tr key={p.seq}>
+                  <td className="mono">{p.seq}</td>
+                  <td>{fmtDate(p.due_date)}</td>
+                  <td><Sar n={p.amount} /></td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={2}>الإجمالي</td>
+                <td><Sar n={offer.payments.reduce((s, p) => s + p.amount, 0)} /></td>
+              </tr>
+            </tfoot>
+          </table>
+          {rakeen.iban && (
+            <div className="cdoc-bank">
+              <div><span>البنك</span><b>{rakeen.bankName}</b></div>
+              <div><span>رقم الآيبان</span><b className="mono">{formatIban(rakeen.iban)}</b></div>
+              <div><span>اسم صاحب الحساب</span><b>{rakeen.accountHolder}</b></div>
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="cdoc-block" data-pdf-block>
         <h2>المزايا المفعّلة</h2>

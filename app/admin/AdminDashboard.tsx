@@ -29,6 +29,9 @@ type Business = {
   created_at: string;
   owner_name: string | null;
   owner_id: string | null;
+  // All non-cancelled orders, every channel (null = counts unavailable).
+  total_orders: number | null;
+  online_orders: number | null;
 };
 
 type BusinessStats = {
@@ -647,7 +650,9 @@ export default function AdminDashboard() {
     );
   }
 
-  const filtered = (businesses || []).filter((b) => !search.trim() || b.name.includes(search.trim()) || (b.owner_name || "").includes(search.trim()));
+  const filtered = (businesses || []).filter(
+    (b) => !search.trim() || b.name.includes(search.trim()) || (b.owner_name || "").includes(search.trim()) || String(b.id) === search.trim().replace(/^#/, "")
+  );
   const totalCount = businesses?.length ?? 0;
   const subscribedCount = businesses?.filter((b) => b.online_subscribed).length ?? 0;
   const suspendedCount = businesses?.filter((b) => !b.is_active).length ?? 0;
@@ -768,6 +773,7 @@ export default function AdminDashboard() {
               <tr>
                 <th style={styles.th}>المطعم</th>
                 <th style={styles.th}>المالك</th>
+                <th style={styles.th}>الطلبات الفعلية</th>
                 <th style={styles.th}>الفترة التجريبية</th>
                 <th style={styles.th}>الاشتراك</th>
                 <th style={styles.th}>المتجر مفعّل</th>
@@ -787,11 +793,24 @@ export default function AdminDashboard() {
                         <span style={styles.pendingBadge}>{BUSINESS_TYPE_LABELS[b.business_type]} — قطاع جديد</span>
                       )}
                     </div>
-                    <div style={styles.muted}>
-                      #{b.id} — {new Date(b.created_at).toLocaleDateString("ar-SA")}
+                    <div style={{ ...styles.muted, display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontWeight: 800, background: "#171717", color: "#C4FF2B", borderRadius: "6px", padding: "1px 7px" }}>
+                        معرف الحساب {b.id}
+                      </span>
+                      {new Date(b.created_at).toLocaleDateString("ar-SA")}
                     </div>
                   </td>
                   <td style={styles.td}>{b.owner_name || "—"}</td>
+                  <td style={styles.td}>
+                    {b.total_orders == null ? (
+                      "—"
+                    ) : (
+                      <>
+                        <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontWeight: 800 }}>{b.total_orders.toLocaleString("en-US")}</span>
+                        <div style={styles.muted}>أونلاين {(b.online_orders ?? 0).toLocaleString("en-US")}</div>
+                      </>
+                    )}
+                  </td>
                   <td style={styles.td}>
                     <span
                       style={{
@@ -840,7 +859,9 @@ export default function AdminDashboard() {
         <div style={styles.overlay} onClick={closeDrawer}>
           <div style={styles.drawer} onClick={(e) => e.stopPropagation()}>
             <div style={styles.drawerHeader}>
-              <h2 style={{ fontSize: "16px", fontWeight: 800 }}>{selected.name}</h2>
+              <h2 style={{ fontSize: "16px", fontWeight: 800 }}>
+                {selected.name} <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: "12px", color: "#7BAD0F" }}>معرف {selected.id}</span>
+              </h2>
               <button style={styles.closeBtn} onClick={closeDrawer}>
                 ✕
               </button>
@@ -1263,7 +1284,7 @@ export default function AdminDashboard() {
                   <div>
                     <p style={styles.hint}>
                       هذا يحذف المطعم وكل بياناته (طلبات، منيو، موظفين، عملاء...) نهائياً — ما يرجع بعدها. اكتب اسم المطعم بالضبط
-                      للتأكيد: <b>{selected.name}</b>
+                      للتأكيد: <b>{selected.name}</b> (معرف الحساب <b>{selected.id}</b>)
                     </p>
                     <input
                       style={styles.input}

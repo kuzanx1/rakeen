@@ -102,6 +102,14 @@
 @media (max-width:560px){ .cdoc-features{grid-template-columns:1fr} }
 .cdoc-features li{display:flex; gap:8px; align-items:baseline}
 .cdoc-features li::before{content:''; width:8px; height:8px; border-radius:2px; background:var(--lime); outline:1px solid var(--deep); flex-shrink:0; transform:translateY(-1px)}
+.cdoc-pay{width:100%; border-collapse:collapse; font-size:13px}
+.cdoc-pay th{font-size:11.5px; color:var(--muted); font-weight:700; text-align:right; padding:6px 10px; border-bottom:1px solid var(--line)}
+.cdoc-pay td{padding:7px 10px; border-bottom:1px solid var(--line)}
+.cdoc-pay tfoot td{font-weight:800; border-bottom:none; background:var(--paper)}
+.cdoc-bank{display:grid; gap:4px; margin-top:12px; background:var(--ink); color:var(--paper); border-radius:14px; padding:12px 14px; font-size:13px}
+.cdoc-bank div{display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap}
+.cdoc-bank span{color:rgba(251,250,245,.6)}
+.cdoc-bank .mono{color:var(--lime); direction:ltr; unicode-bidi:isolate}
 .cdoc-clause{padding:12px 0 4px}
 .cdoc-clause h3{font-size:14.5px; font-weight:800; margin:0 0 4px; display:flex; gap:10px; align-items:center}
 .cdoc-num{font-size:11px; background:var(--ink); color:var(--lime); border-radius:6px; padding:1px 6px}

@@ -7,11 +7,11 @@ import {
   buildClauses,
   canonicalJson,
   ContractOffer,
-  RAKEEN_PARTY,
   sha256Hex,
   TERMS_VERSION,
   validateParty,
 } from "@/lib/contracts";
+import { getRakeenParty } from "@/lib/platformBank";
 
 // Public, token-authenticated endpoints behind the signing link. The token
 // (192 random bits) is the only credential; the offer itself is always
@@ -49,10 +49,21 @@ type Row = {
   signature_png: string | null;
   document_hash: string | null;
   pdf_path: string | null;
+  business_id: number | null;
 };
 
-function offerOf(row: Row): ContractOffer {
+// The offer as shown and signed: the row's terms plus the account it is
+// tied to and its payment schedule (both added in terms v3).
+async function offerOf(admin: SupabaseClient, row: Row): Promise<ContractOffer> {
+  const [{ data: pays }, { data: biz }] = await Promise.all([
+    admin.from("contract_payments").select("seq, amount, due_date").eq("contract_id", row.id).order("seq"),
+    row.business_id
+      ? admin.from("businesses").select("id, name").eq("id", row.business_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
   return {
+    business: biz ? { id: Number(biz.id), name: String(biz.name) } : null,
+    payments: (pays || []).map((p) => ({ seq: p.seq, amount: Number(p.amount), due_date: p.due_date })),
     contract_number: row.contract_number,
     plan_name: row.plan_name,
     billing_period: row.billing_period,
@@ -95,12 +106,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
   if (Date.parse(row.expires_at) < Date.now()) return NextResponse.json({ error: "انتهت صلاحية الرابط، تواصل مع ركين لرابط جديد" }, { status: 410 });
 
+  const [offer, rakeen] = await Promise.all([offerOf(admin, row), getRakeenParty(admin)]);
   return NextResponse.json({
     status: "sent",
-    offer: offerOf(row),
-    clauses: buildClauses(offerOf(row)),
+    offer,
+    clauses: buildClauses(offer, rakeen),
     terms_version: TERMS_VERSION,
-    rakeen: RAKEEN_PARTY,
+    rakeen,
     prefill: { business_name: row.prefill_business_name, owner_name: row.prefill_owner_name, phone: row.prefill_phone },
   });
 }
@@ -133,16 +145,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "التوقيع غير صالح، وقّع مرة ثانية" }, { status: 400 });
   }
 
-  const offer = offerOf(row);
+  const [offer, rakeen] = await Promise.all([offerOf(admin, row), getRakeenParty(admin)]);
   const signedAt = new Date().toISOString();
   const ip = request.headers.get("cf-connecting-ip") || "unknown";
   const userAgent = (request.headers.get("user-agent") || "").slice(0, 400);
   const snapshot = {
     terms_version: TERMS_VERSION,
-    rakeen: RAKEEN_PARTY,
+    rakeen,
     offer,
     party,
-    clauses: buildClauses(offer),
+    clauses: buildClauses(offer, rakeen),
     signed_at: signedAt,
     signer_ip: ip,
   };

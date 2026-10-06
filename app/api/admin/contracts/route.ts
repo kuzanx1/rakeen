@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/adminGuard";
 import { logAdminAction } from "@/lib/adminAuth";
-import { isFeatureKey, normalizePhone } from "@/lib/contracts";
+import { isFeatureKey, normalizePhone, validateSchedule } from "@/lib/contracts";
 
 // Platform-admin contracts: list + create. Creating a contract mints a
-// one-off signing link (/contract/<token>) to send to the subscriber.
+// one-off signing link (/contract/<token>) to send to the subscriber, tied
+// to the subscriber's account (business_id) with its payment schedule.
 
 const LIST_COLUMNS =
-  "id, contract_number, token, status, plan_name, billing_period, price, setup_fee, vat_mode, jurisdiction, start_date, branches_count, features, expires_at, prefill_business_name, prefill_owner_name, prefill_phone, business_name, owner_name, phone, email, signed_at, pdf_path, uploaded_file_path, created_at, voided_at";
+  "id, contract_number, token, status, plan_name, billing_period, price, setup_fee, vat_mode, jurisdiction, start_date, branches_count, features, expires_at, prefill_business_name, prefill_owner_name, prefill_phone, business_name, owner_name, phone, email, signed_at, pdf_path, uploaded_file_path, created_at, voided_at, business_id";
 
 export async function GET(request: NextRequest) {
   const guard = await requireAdmin(request);
@@ -18,7 +19,29 @@ export async function GET(request: NextRequest) {
     .order("created_at", { ascending: false })
     .limit(300);
   if (error) return NextResponse.json({ error: "تعذر تحميل العقود" }, { status: 500 });
-  return NextResponse.json({ contracts: data });
+
+  const ids = (data || []).map((c) => c.id);
+  const bizIds = Array.from(new Set((data || []).map((c) => c.business_id).filter((v): v is number => v != null)));
+  const [{ data: pays, error: payErr }, { data: bizs }] = await Promise.all([
+    ids.length
+      ? guard.admin.from("contract_payments").select("id, contract_id, seq, amount, due_date, status").in("contract_id", ids).order("seq")
+      : Promise.resolve({ data: [], error: null }),
+    bizIds.length ? guard.admin.from("businesses").select("id, name").in("id", bizIds) : Promise.resolve({ data: [] }),
+  ]);
+  if (payErr) return NextResponse.json({ error: "تعذر تحميل الدفعات" }, { status: 500 });
+  const nameById = new Map((bizs || []).map((b) => [Number(b.id), String(b.name)]));
+  const paysByContract = new Map<string, unknown[]>();
+  (pays || []).forEach((p) => {
+    const list = paysByContract.get(p.contract_id) || [];
+    list.push({ id: p.id, seq: p.seq, amount: Number(p.amount), due_date: p.due_date, status: p.status });
+    paysByContract.set(p.contract_id, list);
+  });
+  const contracts = (data || []).map((c) => ({
+    ...c,
+    account_name: c.business_id != null ? nameById.get(Number(c.business_id)) || null : null,
+    payments: paysByContract.get(c.id) || [],
+  }));
+  return NextResponse.json({ contracts });
 }
 
 function randomToken(): string {
@@ -63,6 +86,14 @@ export async function POST(request: NextRequest) {
   if (features.length === 0) return NextResponse.json({ error: "اختر ميزة وحدة على الأقل" }, { status: 400 });
   if (!Number.isFinite(validDays) || validDays < 1 || validDays > 90) return NextResponse.json({ error: "مدة صلاحية الرابط بين ١ و٩٠ يوم" }, { status: 400 });
 
+  const business_id = Math.trunc(num(body.business_id));
+  if (!Number.isFinite(business_id) || business_id < 1) return NextResponse.json({ error: "اختر حساب المشترك اللي العقد مخصص له" }, { status: 400 });
+  const { data: biz } = await guard.admin.from("businesses").select("id, name").eq("id", business_id).maybeSingle();
+  if (!biz) return NextResponse.json({ error: "حساب المشترك غير موجود" }, { status: 400 });
+
+  const { lines: schedule, error: scheduleError } = validateSchedule(body.payments);
+  if (!schedule) return NextResponse.json({ error: scheduleError }, { status: 400 });
+
   const token = randomToken();
   const { data, error } = await guard.admin
     .from("subscription_contracts")
@@ -82,6 +113,7 @@ export async function POST(request: NextRequest) {
       prefill_business_name: str(body.prefill_business_name, 160) || null,
       prefill_owner_name: str(body.prefill_owner_name, 160) || null,
       prefill_phone: prefill_phone_raw ? normalizePhone(prefill_phone_raw) : null,
+      business_id,
       created_by: guard.email,
     })
     .select("id, contract_number, token")
@@ -91,6 +123,17 @@ export async function POST(request: NextRequest) {
     await logAdminAction(guard.admin, guard.email, "contract.create", null, "failure", { reason: error?.message });
     return NextResponse.json({ error: "تعذر إنشاء العقد" }, { status: 500 });
   }
-  await logAdminAction(guard.admin, guard.email, "contract.create", data.contract_number, "success", { plan_name, billing_period, price, jurisdiction });
+
+  const { error: payError } = await guard.admin
+    .from("contract_payments")
+    .insert(schedule.map((p) => ({ contract_id: data.id, seq: p.seq, amount: p.amount, due_date: p.due_date })));
+  if (payError) {
+    // A contract without its schedule must never reach the subscriber:
+    // void it so the link stops working, and let the admin create it again.
+    await guard.admin.from("subscription_contracts").update({ status: "void", voided_at: new Date().toISOString(), voided_by: guard.email }).eq("id", data.id);
+    await logAdminAction(guard.admin, guard.email, "contract.create", data.contract_number, "failure", { reason: `payments: ${payError.message}` });
+    return NextResponse.json({ error: "تعذر حفظ جدول الدفعات، ما انرسل شي. جرّب مرة ثانية" }, { status: 500 });
+  }
+  await logAdminAction(guard.admin, guard.email, "contract.create", data.contract_number, "success", { plan_name, billing_period, price, jurisdiction, business_id, payments: schedule.length });
   return NextResponse.json({ contract: data });
 }

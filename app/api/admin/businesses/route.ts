@@ -71,10 +71,22 @@ export async function GET(request: NextRequest) {
     ownerByBusiness[o.business_id] = { id: o.id, full_name: o.full_name };
   });
 
+  // Real order volume (all channels). online_order_free_count is only the
+  // free-trial meter (cash online orders), not how many orders a business
+  // actually has. Missing function (migration not applied) = no counts.
+  const { data: counts, error: countsError } = await admin.rpc("admin_business_order_counts");
+  if (countsError) console.error("admin businesses list: order counts failed", countsError);
+  const countsByBusiness: Record<number, { total: number; online: number }> = {};
+  ((counts as { business_id: number; total_orders: number; online_orders: number }[] | null) || []).forEach((c) => {
+    countsByBusiness[Number(c.business_id)] = { total: Number(c.total_orders), online: Number(c.online_orders) };
+  });
+
   const rows = (businesses || []).map((b) => ({
     ...b,
     owner_name: ownerByBusiness[b.id]?.full_name || null,
     owner_id: ownerByBusiness[b.id]?.id || null,
+    total_orders: countsError ? null : countsByBusiness[b.id]?.total ?? 0,
+    online_orders: countsError ? null : countsByBusiness[b.id]?.online ?? 0,
   }));
 
   return NextResponse.json({ businesses: rows });
