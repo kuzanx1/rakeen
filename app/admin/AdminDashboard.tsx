@@ -654,6 +654,7 @@ export default function AdminDashboard() {
     (b) => !search.trim() || b.name.includes(search.trim()) || (b.owner_name || "").includes(search.trim()) || String(b.id) === search.trim().replace(/^#/, "")
   );
   const totalCount = businesses?.length ?? 0;
+  const totalOrders = businesses && businesses.every((b) => b.total_orders != null) ? businesses.reduce((s, b) => s + (b.total_orders || 0), 0) : null;
   const subscribedCount = businesses?.filter((b) => b.online_subscribed).length ?? 0;
   const suspendedCount = businesses?.filter((b) => !b.is_active).length ?? 0;
   const nearingEndCount =
@@ -663,12 +664,21 @@ export default function AdminDashboard() {
   return (
     <div style={styles.page}>
       <div style={styles.wrap}>
-        <div style={styles.headerRow}>
-          <h1 style={styles.title}>لوحة إدارة ركين</h1>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            {pushError && <span style={{ color: "#B0402C", fontSize: "12px", fontWeight: 600 }}>{pushError}</span>}
+        <div style={styles.hero}>
+          <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/rakeen-wordmark.png" alt="ركين" style={{ height: "34px" }} />
+            <div style={{ borderInlineStart: "1px solid rgba(251,250,245,0.18)", paddingInlineStart: "14px" }}>
+              <h1 style={styles.heroTitle}>لوحة الإدارة</h1>
+              <div style={{ fontSize: "11.5px", color: "rgba(251,250,245,0.55)", fontWeight: 600 }}>
+                {new Date().toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Riyadh" })}
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+            {pushError && <span style={{ color: "#ffb4a6", fontSize: "12px", fontWeight: 600 }}>{pushError}</span>}
             <button
-              style={{ ...styles.logoutBtn, ...(pushEnabled ? { background: "#E4F3D1", color: "#4C7A0A" } : {}) }}
+              style={{ ...styles.logoutBtn, ...(pushEnabled ? { background: "rgba(196,255,43,0.14)", color: "#C4FF2B", borderColor: "rgba(196,255,43,0.3)" } : {}) }}
               onClick={enableAdminPushNotifications}
               disabled={pushBusy || pushEnabled}
             >
@@ -716,21 +726,19 @@ export default function AdminDashboard() {
         )}
 
         <div style={styles.tabRow}>
-          <button style={{ ...styles.tabBtn, ...(activeTab === "businesses" ? styles.tabBtnActive : {}) }} onClick={() => setActiveTab("businesses")}>
-            المطاعم
-          </button>
-          <button style={{ ...styles.tabBtn, ...(activeTab === "whatsapp" ? styles.tabBtnActive : {}) }} onClick={() => setActiveTab("whatsapp")}>
-            واتساب
-          </button>
-          <button style={{ ...styles.tabBtn, ...(activeTab === "contracts" ? styles.tabBtnActive : {}) }} onClick={() => setActiveTab("contracts")}>
-            العقود
-          </button>
-          <button style={{ ...styles.tabBtn, ...(activeTab === "usage" ? styles.tabBtnActive : {}) }} onClick={() => setActiveTab("usage")}>
-            استهلاك البنية التحتية
-          </button>
-          <button style={{ ...styles.tabBtn, ...(activeTab === "audit" ? styles.tabBtnActive : {}) }} onClick={() => setActiveTab("audit")}>
-            سجل التدقيق
-          </button>
+          {(
+            [
+              ["businesses", "المشتركين"],
+              ["contracts", "العقود والدفعات"],
+              ["whatsapp", "واتساب"],
+              ["usage", "استهلاك البنية التحتية"],
+              ["audit", "سجل التدقيق"],
+            ] as const
+          ).map(([key, text]) => (
+            <button key={key} style={{ ...styles.tabBtn, ...(activeTab === key ? styles.tabBtnActive : {}) }} onClick={() => setActiveTab(key)}>
+              {text}
+            </button>
+          ))}
         </div>
 
         {activeTab === "whatsapp" && <WhatsAppAdminPanel token={session.token} />}
@@ -741,29 +749,41 @@ export default function AdminDashboard() {
         {activeTab === "businesses" && (
         <>
         <div style={styles.statsRow}>
-          <div style={styles.statCard}>
-            <div style={styles.statValue}>{totalCount}</div>
-            <div style={styles.statLabel}>إجمالي المطاعم</div>
+          <div style={{ ...styles.statCard, background: "#171717", color: "#FBFAF5" }}>
+            <div style={{ ...styles.statLabel, color: "rgba(251,250,245,0.55)" }}>إجمالي الطلبات</div>
+            <div style={{ ...styles.statValue, color: "#C4FF2B" }}>{totalOrders == null ? "—" : totalOrders.toLocaleString("en-US")}</div>
           </div>
-          <div style={styles.statCard}>
-            <div style={{ ...styles.statValue, color: "#7BAD0F" }}>{subscribedCount}</div>
-            <div style={styles.statLabel}>مشتركين</div>
-          </div>
-          <div style={styles.statCard}>
-            <div style={{ ...styles.statValue, color: nearingEndCount > 0 ? "#B0402C" : "inherit" }}>{nearingEndCount}</div>
-            <div style={styles.statLabel}>قريبين من نهاية التجربة</div>
-          </div>
-          <div style={styles.statCard}>
-            <div style={{ ...styles.statValue, color: pendingReviewCount > 0 ? "#C9822C" : "inherit" }}>{pendingReviewCount}</div>
-            <div style={styles.statLabel}>بانتظار التوثيق</div>
-          </div>
-          <div style={styles.statCard}>
-            <div style={{ ...styles.statValue, color: suspendedCount > 0 ? "#B0402C" : "inherit" }}>{suspendedCount}</div>
-            <div style={styles.statLabel}>موقوفين</div>
-          </div>
+          {(
+            [
+              ["الحسابات", totalCount, null],
+              ["مشتركين", subscribedCount, "#7BAD0F"],
+              ["قريبين من نهاية التجربة", nearingEndCount, nearingEndCount > 0 ? "#B0402C" : null],
+              ["بانتظار التوثيق", pendingReviewCount, pendingReviewCount > 0 ? "#C9822C" : null],
+              ["موقوفين", suspendedCount, suspendedCount > 0 ? "#B0402C" : null],
+            ] as const
+          ).map(([text, value, accent]) => (
+            <div key={text} style={{ ...styles.statCard, ...(accent ? { boxShadow: `inset 0 3px 0 ${accent}, 0 1px 2px rgba(23,23,23,0.04), 0 8px 24px rgba(23,23,23,0.05)` } : {}) }}>
+              <div style={styles.statLabel}>{text}</div>
+              <div style={{ ...styles.statValue, color: accent || "#171717" }}>{value}</div>
+            </div>
+          ))}
         </div>
 
-        <input style={{ ...styles.input, maxWidth: "320px", marginBottom: "16px" }} placeholder="ابحث باسم المطعم أو المالك..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px", flexWrap: "wrap" }}>
+          <div style={{ position: "relative", flex: "0 1 360px" }}>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#8a8375" strokeWidth="2" strokeLinecap="round" style={{ position: "absolute", insetInlineStart: "14px", top: "50%", transform: "translateY(-50%)" }}>
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-3.5-3.5" />
+            </svg>
+            <input
+              style={{ ...styles.input, marginTop: 0, paddingInlineStart: "40px", borderRadius: "999px", background: "#fff" }}
+              placeholder="ابحث بالاسم أو المالك أو رقم المعرف..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <span style={{ fontSize: "11.5px", color: "#8a8375", fontWeight: 700 }}>{filtered.length} حساب</span>
+        </div>
 
         {loadError && <p style={styles.error}>{loadError}</p>}
 
@@ -784,7 +804,10 @@ export default function AdminDashboard() {
               {filtered.map((b) => (
                 <tr key={b.id} style={{ ...styles.tr, opacity: b.is_active ? 1 : 0.55 }}>
                   <td style={styles.td}>
-                    <div style={{ fontWeight: 800, display: "flex", alignItems: "center", gap: "6px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <span style={styles.avatar}>{Array.from(b.name.trim())[0] || "؟"}</span>
+                    <div>
+                    <div style={{ fontWeight: 800, fontSize: "13.5px", display: "flex", alignItems: "center", gap: "6px" }}>
                       {b.name}
                       {!b.is_active && <span style={styles.suspendedBadge}>موقوف</span>}
                       {b.verification_status === "pending" && <span style={styles.pendingBadge}>قيد المراجعة</span>}
@@ -798,6 +821,8 @@ export default function AdminDashboard() {
                         معرف الحساب {b.id}
                       </span>
                       {new Date(b.created_at).toLocaleDateString("ar-SA")}
+                    </div>
+                    </div>
                     </div>
                   </td>
                   <td style={styles.td}>{b.owner_name || "—"}</td>
@@ -1328,9 +1353,23 @@ export default function AdminDashboard() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  page: { minHeight: "100dvh", background: "#FBFAF5", color: "#171717", fontFamily: "'IBM Plex Sans Arabic', sans-serif", direction: "rtl" },
-  wrap: { maxWidth: "1100px", margin: "0 auto", padding: "32px 20px" },
+  page: { minHeight: "100dvh", background: "#F6F4EC", color: "#171717", fontFamily: "'IBM Plex Sans Arabic', sans-serif", direction: "rtl" },
+  wrap: { maxWidth: "1180px", margin: "0 auto", padding: "20px 16px 48px" },
   headerRow: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" },
+  hero: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "16px",
+    flexWrap: "wrap",
+    background: "radial-gradient(120% 140% at 100% 0%, #2a2a2a 0%, #171717 55%)",
+    color: "#FBFAF5",
+    borderRadius: "22px",
+    padding: "20px 22px",
+    marginBottom: "16px",
+    boxShadow: "0 18px 40px rgba(23,23,23,0.18)",
+  },
+  heroTitle: { fontSize: "18px", fontWeight: 800, color: "#FBFAF5", lineHeight: 1.3 },
   title: { fontSize: "19px", fontWeight: 800 },
   subtitle: { fontSize: "12.5px", fontWeight: 600, color: "#8a8375", marginBottom: "18px" },
   loginCard: {
@@ -1373,20 +1412,43 @@ const styles: Record<string, React.CSSProperties> = {
   },
   error: { fontSize: "11.5px", fontWeight: 700, color: "#B0402C", marginTop: "10px" },
   btn: { marginTop: "18px", padding: "13px", borderRadius: "12px", background: "#171717", color: "#C4FF2B", fontWeight: 800, fontSize: "13px", border: "none", cursor: "pointer", width: "100%" },
-  logoutBtn: { padding: "9px 16px", borderRadius: "10px", background: "#EDEADF", color: "#171717", fontWeight: 700, fontSize: "12px", border: "none", cursor: "pointer" },
-  tabRow: { display: "flex", gap: "8px", marginBottom: "20px" },
-  tabBtn: { padding: "9px 18px", borderRadius: "999px", border: "1px solid rgba(23,23,23,0.12)", background: "#fff", color: "#171717", fontWeight: 700, fontSize: "12.5px", cursor: "pointer" },
-  tabBtnActive: { background: "#171717", color: "#C4FF2B", borderColor: "#171717" },
-  statsRow: { display: "flex", gap: "12px", marginBottom: "20px", flexWrap: "wrap" },
-  statCard: { flex: "1 1 140px", background: "#fff", borderRadius: "14px", padding: "16px", textAlign: "center", boxShadow: "0 4px 14px rgba(23,23,23,0.06)" },
-  statValue: { fontSize: "24px", fontWeight: 800, fontFamily: "'IBM Plex Mono',monospace" },
-  statLabel: { fontSize: "11px", fontWeight: 700, color: "#8a8375", marginTop: "4px" },
-  tableWrap: { background: "#fff", borderRadius: "16px", overflow: "auto", boxShadow: "0 4px 14px rgba(23,23,23,0.06)" },
+  logoutBtn: { padding: "9px 15px", borderRadius: "999px", background: "rgba(251,250,245,0.08)", color: "#FBFAF5", fontWeight: 700, fontSize: "12px", border: "1px solid rgba(251,250,245,0.14)", cursor: "pointer", fontFamily: "inherit" },
+  tabRow: {
+    display: "flex",
+    gap: "4px",
+    marginBottom: "18px",
+    background: "#fff",
+    borderRadius: "999px",
+    padding: "5px",
+    overflowX: "auto",
+    width: "fit-content",
+    maxWidth: "100%",
+    boxShadow: "0 1px 2px rgba(23,23,23,0.04), 0 8px 24px rgba(23,23,23,0.05)",
+  },
+  tabBtn: { padding: "9px 18px", borderRadius: "999px", border: "none", background: "transparent", color: "#6b6559", fontWeight: 700, fontSize: "12.5px", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" },
+  tabBtnActive: { background: "#171717", color: "#C4FF2B" },
+  statsRow: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "10px", marginBottom: "18px" },
+  statCard: { background: "#fff", borderRadius: "18px", padding: "16px 18px", boxShadow: "0 1px 2px rgba(23,23,23,0.04), 0 8px 24px rgba(23,23,23,0.05)" },
+  statValue: { fontSize: "26px", fontWeight: 800, fontFamily: "'IBM Plex Mono',monospace", marginTop: "6px", lineHeight: 1.1 },
+  statLabel: { fontSize: "11.5px", fontWeight: 700, color: "#8a8375" },
+  tableWrap: { background: "#fff", borderRadius: "20px", overflow: "auto", boxShadow: "0 1px 2px rgba(23,23,23,0.04), 0 8px 24px rgba(23,23,23,0.05)" },
   table: { width: "100%", borderCollapse: "collapse", fontSize: "12.5px" },
-  th: { textAlign: "start", padding: "12px 14px", fontWeight: 700, color: "#8a8375", fontSize: "11px", borderBottom: "1px solid rgba(23,23,23,0.08)", whiteSpace: "nowrap" },
-  tr: { borderBottom: "1px solid rgba(23,23,23,0.06)" },
-  td: { padding: "12px 14px", verticalAlign: "middle", whiteSpace: "nowrap" },
+  th: { textAlign: "start", padding: "14px 16px", fontWeight: 700, color: "#8a8375", fontSize: "11px", background: "#FBFAF5", borderBottom: "1px solid rgba(23,23,23,0.06)", whiteSpace: "nowrap" },
+  tr: { borderBottom: "1px solid rgba(23,23,23,0.05)" },
+  td: { padding: "14px 16px", verticalAlign: "middle", whiteSpace: "nowrap" },
   muted: { fontSize: "10.5px", color: "#8a8375", fontWeight: 600, marginTop: "2px" },
+  avatar: {
+    width: "38px",
+    height: "38px",
+    borderRadius: "12px",
+    background: "#171717",
+    color: "#C4FF2B",
+    display: "grid",
+    placeItems: "center",
+    fontWeight: 800,
+    fontSize: "16px",
+    flexShrink: 0,
+  },
   link: { color: "#7BAD0F", fontWeight: 700, textDecoration: "none", fontFamily: "'IBM Plex Mono',monospace", fontSize: "11.5px" },
   toggleBtn: { padding: "7px 14px", borderRadius: "999px", border: "none", fontWeight: 800, fontSize: "11px", cursor: "pointer" },
   detailBtn: { padding: "7px 14px", borderRadius: "999px", border: "1px solid rgba(23,23,23,0.15)", background: "transparent", color: "#171717", fontWeight: 700, fontSize: "11px", cursor: "pointer" },

@@ -287,7 +287,17 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     await logAdminAction(admin, caller.email || "unknown", "delete_business", `business:${businessId}`, "failure", {
       reason: deleteError.message,
     });
-    return NextResponse.json({ error: "تعذر الحذف" }, { status: 500 });
+    // Admin-only screen: say why, nothing was deleted either way (the
+    // function is all-or-nothing).
+    const linked = deleteError.message.includes("linked_to_other_business");
+    return NextResponse.json(
+      {
+        error: linked
+          ? "ما انحذف شي: فيه بيانات لمطعم ثاني مربوطة بهالمطعم"
+          : `ما انحذف شي: ${deleteError.message}`.slice(0, 300),
+      },
+      { status: linked ? 409 : 500 }
+    );
   }
 
   await Promise.all(profileIds.map((uid) => admin.auth.admin.deleteUser(uid).catch(() => {})));
