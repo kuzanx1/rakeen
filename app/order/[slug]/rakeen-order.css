@@ -261,6 +261,100 @@ img{max-width:100%; display:block;}
 .om-product-price::after{
   content:''; position:absolute; bottom:0; inset-inline-start:0; width:20px; height:2.5px; border-radius:2px; background:var(--brand);
 }
+
+/* ===== سعر المنتج بالنقاط =====
+
+   تحت السعر لا فوقه ولا بدلاً منه: الريال هو الثمن، والنقاط طريقٌ
+   آخر إليه. ورقاقةٌ ملوّنة لا سطرٌ رماديّ: منتجاتٌ قليلة تحملها في
+   شبكةٍ من عشرات، وما لا يُرى لا يُطلب.
+
+   واللون من علامة المطعم (--brand) لا من لونٍ ثابت: كل متجر يضبط
+   ألوانه، ورقاقةٌ بلوننا تظهر فيه دخيلة. */
+/* الحبر: مزيجٌ داكن لا --brand-ink.
+   --brand-ink محسوبٌ للنصّ فوق لون العلامة **صلباً**، وهذه خلفيتها
+   تخفيفٌ منه فوق البطاقة. فعلامةٌ داكنة (بنّي هبيّة #b7834a) تعطي حبراً
+   أبيض، فيقع الأبيض على البيج: قيس على المتجر الحيّ = 1.26:1، أي نصٌّ
+   لا يُرى. وهذا الملف يعرف الفخ — تعليقُ "brand-ink is only
+   contrast-checked against a SOLID fill" وقائمتُه تحت — لكن تلك القائمة
+   تعالجه في الفخم وحده، وهذه تُولد سليمة في الثيمين فلا تحتاج ترقيعاً
+   لكلّ ثيمٍ جديد: مزجُ 30% علامة مع --ink يبقى داكناً مهما كانت العلامة.
+   (قيس: ليموني 6.8:1، بنّي 7.5:1 — والمطلوب 4.5.)
+
+   وبلا إطار: تعبئةٌ وإطارٌ يؤدّيان العمل نفسه مرّتين، وهو نقدُ هذا
+   الملف على نفسه في .om-mod-chip. */
+.om-points-chip{
+  /* هامشٌ أسفلها: البطاقة تنتهي عند آخر بندٍ في عمودها، فالرقاقة كانت
+     تلتصق بحافّة البطاقة تماماً (قيس على المتجر الحيّ: أسفل الرقاقة 301
+     وأسفل البطاقة 301). وحبّةٌ ملوّنة على الحافة تبدو مقصوصة. */
+  display:inline-flex; align-items:center; gap:5px; width:fit-content; margin:2px 0 5px;
+  padding:3px 9px 3px 7px; border-radius:var(--r-full);
+  background:color-mix(in srgb, var(--brand) 22%, var(--card));
+  color:color-mix(in srgb, var(--brand) 30%, var(--ink));
+  font-size:10px; font-weight:800; line-height:1.45; white-space:nowrap;
+}
+/* النجمة أفتح من النصّ بدرجة، لا أفتح من أن تُرى: 62% كانت 2.66:1 على
+   الليموني — دون حدّ الرسوم (3:1). و48% تعطي 3.94 هناك وأكثر على
+   البنّي، وتبقى أظهرَ برتقالاً/ليمونياً من الحبر. */
+.om-points-chip svg{width:9.5px; height:9.5px; flex:none; color:color-mix(in srgb, var(--brand) 48%, var(--ink));}
+/* الرقم دون السعر لا فوقه.
+   كان 13px/800 والسعر نفسه 12px/700 في الثيم الفخم -- فيصير بديلُ
+   الدفع أعلى صوتاً من الدفع نفسه. والريال هو الثمن، والنقاط طريقٌ آخر
+   إليه. (قيس على المتجر الحيّ: الرقاقة 111×27 والسعر 43×25.) */
+.om-points-n{font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:11px;}
+/* «pts» غلافةٌ لـ«نقطة» لا كلمةٌ ثانية -- فالفاصل يقول ذلك، ووزنُها
+   أخفّ من العربية كما هو نسق اسم المنتج نفسه في هذا المتجر. */
+/* بلا نقطة فاصلة بينهما: العنصران بندان في flex لا كلمتان في سطر، فأي
+   محرفٍ فاصل يُعزل وحده ويقع في طرف الرقاقة — نقطةٌ سائبة عند الحافة
+   تُقرأ خطأً مطبعياً. والفراغُ واختلافُ الوزن يفصلان كفاية. */
+.om-points-en{font-size:9px; font-weight:700; opacity:.62; direction:ltr; unicode-bidi:isolate;}
+
+/* على حافة السعر لا على حافة الاسم.
+   بطاقة الثيم الكلاسيكي تضع الاسم يميناً (بداية الـrtl) والسعر يساراً —
+   لأن .om-product-price نفسه ltr ويُحاذي إلى بدايته هو. ورقاقةٌ بلا
+   محاذاة تسقط عند بداية الـrtl، أي تحت الاسم في الطرف المقابل للسعر،
+   فيصير السطران المتعلّقان بالثمن على حافتين. وflex-end في عمودٍ rtl
+   هو اليسار: نفس حافة السعر.
+
+   والفخم مستثنى: .om-product-info فيه align-items:center — اسمُه وسعرُه
+   كلاهما في الوسط، فرقاقةٌ تُدفع إلى الحافة تكسر عموده وحدها. (قيس ولم
+   يُفترض: الاسم [844,909] والسعر [855,898] داخل بطاقةٍ [763,990].) */
+.om-shell:not([data-theme="luxury"]) .om-product-info > .om-points-chip{align-self:flex-end;}
+
+/* ترويسة ورقة التخصيص مركزيّة النصّ، والرقاقة inline-flex — فتتوسّط
+   بنفسها هناك. الهامش وحده هو الذي تحتاجه. */
+.om-sheet-hero .om-points-chip{margin-top:9px;}
+
+.om-points-chip-lg{
+  margin:10px auto 0; padding:4px 12px 4px 9px; font-size:11.5px;
+}
+.om-points-chip-lg svg{width:12px; height:12px;}
+.om-points-chip-lg .om-points-n{font-size:13px;}
+.om-points-chip-lg .om-points-en{font-size:10px;}
+
+/* وسطرٌ يقول أين تُستبدل: الطلب الإلكتروني لا يخصم نقاطاً،
+   والاستبدال عند الكاشير. يُقال مرّةً فوق المنيو، لا تحت كل رقاقة. */
+.om-points-note{
+  display:flex; align-items:flex-start; gap:9px;
+  margin:0 0 18px; padding:11px 14px; border-radius:var(--r-md);
+  background:color-mix(in srgb, var(--brand) 14%, var(--card));
+  border:1px solid color-mix(in srgb, var(--brand) 40%, transparent);
+  color:var(--ink);
+}
+/* نفس علّة الحبر أعلاه: نجمةٌ بـ--brand-ink فوق تخفيفٍ ١٤٪ تختفي عند
+   كل علامةٍ داكنة. والمزيج يبقى مرئياً في الحالين. */
+.om-points-note svg{width:14px; height:14px; flex:none; margin-top:2px;
+  color:color-mix(in srgb, var(--brand) 55%, var(--ink));}
+.om-points-note-ar{display:block; font-size:12px; font-weight:700; line-height:1.7;}
+.om-points-note-en{display:block; font-size:10.5px; font-weight:600; line-height:1.6; color:var(--muted);
+  direction:ltr; unicode-bidi:isolate; text-align:start; margin-top:2px;}
+
+.om-points-hint{
+  margin-top:8px; font-size:11px; font-weight:600; line-height:1.7; color:var(--muted); text-align:center;
+}
+.om-points-hint span{display:block; font-size:10px; direction:ltr; unicode-bidi:isolate; opacity:.85;}
+
+/* لا تجاوزٌ للجوّال: المقاس الأساس صار أصغر ممّا كان ذاك التجاوز
+   ينزل إليه -- فبقاؤه يعني رقاقةً تَكبُر على الشاشة الصغيرة. */
 /* the + and qty badge float on the PHOTO's own corners, not the whole card —
    pinning them to the card previously let them land on top of the price
    whenever the text column happened to sit on that side (RTL puts the photo

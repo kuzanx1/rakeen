@@ -14,7 +14,7 @@
 @font-face{font-family:'saudi_riyal'; src:url('/fonts/saudi-riyal/saudi_riyal_bold.woff2') format('woff2'); font-weight:700; font-display:swap;}
 
 :root, [data-theme="light"]{
-  --lime:#C4FF2B; --lime-deep:#8FCB17; --graphite:#111111; --ivory:#FAFAF5;
+  --lime:#C4FF2B; --lime-deep:#8FCB17; --graphite:#111111; --ivory:#FAFAF5; --flag-green-deep:#053E22;
   --bg:#FAFAF5; --text:#111111; --card-bg:#FFFFFF;
   --surf1:rgba(17,17,17,0.035); --surf2:rgba(17,17,17,0.06); --line:rgba(17,17,17,0.09);
   --muted:#5a5a5a; --danger:#a3402c; --amber:#7d5a14; --success-text:#4d6b0c;
@@ -29,7 +29,7 @@
   --acc-team:#1FA6A6; --acc-team-bg:rgba(31,166,166,0.1);
 }
 [data-theme="dark"]{
-  --lime:#C4FF2B; --lime-deep:#8FCB17; --graphite:#111111; --ivory:#FAFAF5;
+  --lime:#C4FF2B; --lime-deep:#8FCB17; --graphite:#111111; --ivory:#FAFAF5; --flag-green-deep:#053E22;
   --bg:#161616; --text:#FAFAF5; --card-bg:#1E1E1E;
   --surf1:rgba(250,250,245,0.04); --surf2:rgba(250,250,245,0.075); --line:rgba(250,250,245,0.1);
   --muted:rgba(250,250,245,0.55); --danger:#e08a6a; --amber:#e0b84a; --success-text:var(--lime-deep);
@@ -2740,7 +2740,7 @@ select:not([class]){min-width:150px;}
    بنفس المعامل. ليست "تشبه البطاقة": من ضبط لوناً على معاينةٍ تكذب
    اكتشف كذبها بعد أن تصير في جيوب زبائنه. */
 .rkw-wrap{ display:flex; gap:18px; flex-wrap:wrap; align-items:flex-start; }
-.rkw-phone{ flex:1 1 260px; min-width:0; max-width:320px; }
+.rkw-phone{ flex:1 1 272px; min-width:0; max-width:344px; }
 /* خطُّ البطاقة ليس خطَّنا.
    آبل ترسم كلَّ نصٍّ على البطاقة بخطّها هي -- لا مفتاح في pass.json
    لعائلة خطٍّ ولا حجمٍ ولا وزن. فالمعاينة التي ترسم بخطّ لوحة التحكم
@@ -2795,6 +2795,66 @@ select:not([class]){min-width:150px;}
   margin:22px 0 12px; padding-top:14px; border-top:1px dashed var(--line); }
 
 .rkw-fieldset{ margin-top:20px; padding-top:16px; border-top:1px solid var(--line); }
+
+/* ===== إطار الجهاز حول المعاينة =====
+
+   البطاقة نفسها لم تُمسّ: خطّها خطّ آبل وأوزانها أوزانها، وتجميلها
+   يعني معاينةً تعد بما لا يصل الجهاز. المُضاف هو محيطُها وحده.
+
+   وليس زينةً: البطاقة تُفتح في المحفظة على سواد، ولونٌ يُضبط على بياض
+   اللوحة يخرج غير الذي ضُبِط. فمن حكم على خلفيةٍ داكنة وهي على ورقة،
+   حكم عليها في غير موضعها. */
+.rkw-stage{
+  position:relative; border-radius:30px; padding:0 12px 6px;
+  background:linear-gradient(180deg, #17171a, #09090b);
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 20px 44px rgba(0,0,0,.30), inset 0 0 0 3px rgba(255,255,255,.045);
+}
+.rkw-sb{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:10px 8px 11px; direction:ltr; color:rgba(255,255,255,.90);
+  font:600 11.5px/1 -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  font-variant-numeric:tabular-nums;
+}
+.rkw-sb-time{ padding-inline-start:6px; }
+.rkw-sb-notch{ width:56px; height:16px; border-radius:9px; background:#000; flex:none; }
+.rkw-sb-ico{ display:flex; align-items:center; gap:4px; padding-inline-end:4px; }
+.rkw-sb-ico svg{ display:block; }
+/* شريطُ المنزل: يُغلق الإطار فلا تنتهي البطاقة على حافة مقصوصة. */
+.rkw-stage-home{
+  width:100px; height:4px; border-radius:3px; margin:13px auto 7px;
+  background:rgba(255,255,255,.32);
+}
+/* البطاقة داخل الإطار تأخذ عرضه كلّه -- وظلّها يُخفّف، فالإطار
+   يحمل الظلّ الآن وظلّان متجاوران يُوسِخان الحافة. */
+.rkw-stage > .rkw-card{ max-width:none; box-shadow:0 6px 18px rgba(0,0,0,.34); }
+
+/* ===== نظام البطاقة في أعلى شاشة تصميمها ===== */
+.rk-dsys{
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  margin:14px 0 18px; padding:13px 15px; border-radius:var(--r-md);
+  background:color-mix(in srgb, var(--lime) 11%, var(--card-bg));
+  border:1px solid color-mix(in srgb, var(--lime-deep) 30%, transparent);
+}
+.rk-dsys-main{ flex:1 1 240px; min-width:0; }
+.rk-dsys-top{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+.rk-dsys-tag{ font-size:10.5px; font-weight:800; color:var(--muted); letter-spacing:.3px; }
+.rk-dsys-name{
+  display:inline-flex; align-items:center; padding:4px 12px; border-radius:var(--r-full);
+  background:var(--lime); color:var(--flag-green-deep); font-size:12px; font-weight:900;
+}
+.rk-dsys-line{ font-size:12.5px; font-weight:600; color:var(--text); line-height:1.8; margin-top:7px; }
+.rk-dsys-line b{ font-weight:900; }
+.rk-dsys-go{
+  flex:none; border:1px solid var(--line); background:var(--card-bg); color:var(--text);
+  border-radius:var(--r-full); padding:8px 15px; font-size:11.5px; font-weight:800;
+  font-family:inherit; cursor:pointer; transition:border-color .12s ease, background .12s ease;
+}
+.rk-dsys-go:hover{ border-color:var(--lime-deep); background:var(--surf1); }
+@media (max-width:640px){
+  .rk-dsys{ padding:12px 13px; gap:11px; }
+  .rk-dsys-go{ width:100%; }
+}
 
 /* ===== مجموعات شاشة تصميم البطاقة =====
    ثلاث خطوات مرقّمة ثم درجٌ للمتقدّم. والترقيم ليس زينة: صاحب المطعم

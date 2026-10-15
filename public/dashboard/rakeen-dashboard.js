@@ -690,11 +690,20 @@ function renderTodayHeroes(){
    with zero real sales). TODAY.profit is overwritten right after by
    recomputeAccounting() with the real bottom-up netProfit, so its own
    placeholder value here is only ever transient. */
-async function loadSalesRealData(){
+/* opts.live: called from the realtime live-sync path (an order changed).
+   Yesterday's total, the delivery platforms and their fee tiers can't change
+   because of an order, so the live path reuses what the last full load
+   fetched (same calendar day only; a new day fetches again). Every other
+   caller still gets a full fresh load. Waste and expenses stay live on
+   purpose: they feed today's net profit and another device can log them. */
+const salesStatic = { day: null, yList: null, platforms: null, feeTiers: null };
+async function loadSalesRealData(opts){
   const sb = window.supabaseClient;
   const businessId = CURRENT_PROFILE.business_id;
   const startToday = new Date(); startToday.setHours(0,0,0,0);
   const startYesterday = new Date(startToday); startYesterday.setDate(startYesterday.getDate()-1);
+  const reuseStatic = !!(opts && opts.live) && salesStatic.day === startToday.getTime();
+  const none = Promise.resolve({ data: null });
   // نفس نافذة المبيعات بالضبط -- هدرٌ يُحسب على مدّةٍ غير مدّة البيع
   // يعطي ربحًا لا يطابق أي يوم.
   TODAY_WASTE_COST = await loadWasteCostBetween(startToday, null);
@@ -704,20 +713,25 @@ async function loadSalesRealData(){
   // yesterday's) net sales before any money has actually been collected.
   const [{data: todayOrders}, {data: yesterdayOrders}] = await Promise.all([
     sb.from('orders').select('id, total, subtotal, discount_amount, channel, delivery_platform_id, status, created_at').eq('business_id', businessId).gte('created_at', startToday.toISOString()).eq('payment_status', 'paid'),
-    sb.from('orders').select('total').eq('business_id', businessId).gte('created_at', startYesterday.toISOString()).lt('created_at', startToday.toISOString()).eq('payment_status', 'paid')
+    reuseStatic ? none : sb.from('orders').select('total').eq('business_id', businessId).gte('created_at', startYesterday.toISOString()).lt('created_at', startToday.toISOString()).eq('payment_status', 'paid')
   ]);
   const todayList = todayOrders || [];
-  const yList = yesterdayOrders || [];
+  const yList = reuseStatic ? salesStatic.yList : (yesterdayOrders || []);
 
   const orderIds = todayList.map(o=>o.id);
-  const [{ data: items }, { data: todayExpenses }, { data: platforms }, { data: feeTiers }] = await Promise.all([
+  const [{ data: items }, { data: todayExpenses }, { data: freshPlatforms }, { data: freshFeeTiers }] = await Promise.all([
     orderIds.length
       ? sb.from('order_items').select('order_id, menu_item_id, qty, line_total').in('order_id', orderIds)
       : Promise.resolve({ data: [] }),
     sb.from('general_expenses').select('amount').eq('business_id', businessId).gte('spent_at', startToday.toISOString()),
-    sb.from('delivery_platforms').select('*').eq('business_id', businessId),
-    sb.from('delivery_platform_fee_tiers').select('*')
+    reuseStatic ? none : sb.from('delivery_platforms').select('*').eq('business_id', businessId),
+    reuseStatic ? none : sb.from('delivery_platform_fee_tiers').select('*')
   ]);
+  const platforms = reuseStatic ? salesStatic.platforms : freshPlatforms;
+  const feeTiers = reuseStatic ? salesStatic.feeTiers : freshFeeTiers;
+  if(!reuseStatic){
+    Object.assign(salesStatic, { day: startToday.getTime(), yList, platforms, feeTiers });
+  }
   const orderItemsList = items || [];
   TODAY_GENERAL_EXPENSES_TOTAL = (todayExpenses||[]).reduce((s,e)=>s+Number(e.amount),0);
 
@@ -8401,30 +8415,45 @@ const ORDER_PAYMENT_LABELS = {cash:'كاش', card:'بطاقة', split:'تقسي�
 // case, so this adds nothing to look at until it's actually needed.
 let ORDER_SCREEN_BRANCHES = [];
 let ORDER_SCREEN_PLATFORMS = [];
-async function loadOrdersAndTables(){
+/* scope: what actually changed. A realtime orders event passes {orders:true}
+   and a table event {tables:true}. Neither refetches the sections/turn-time/
+   branches/platforms lookups, which an order or a table flip can't change;
+   they reuse what the last full load (no scope) fetched. This is the live-sync
+   hot path, so every request matters: at measured sizes the response headers
+   (~1.2KB each) outweighed the gzipped bodies, and the old version fired 7
+   requests per event here (plus 8 more in loadSalesRealData). */
+async function loadOrdersAndTables(scope){
+  const full = !scope;
+  const wantOrders = full || scope.orders;
+  const wantTables = full || scope.tables;
   const sb = window.supabaseClient;
   const businessId = CURRENT_PROFILE.business_id;
   const cutoff = orderDateRangeCutoff(orderDateRange);
+  const none = Promise.resolve({ data: null });
   const [{data: orders}, {data: tables}, {data: sections}, {data: biz}, {data: branches}, {data: platforms}] = await Promise.all([
-    sb.from('orders').select('id, created_at, channel, total, payment_method, status, source, branch_id, delivery_platform_id').eq('business_id', businessId).gte('created_at', cutoff).order('created_at', {ascending:false}).limit(500),
-    sb.from('restaurant_tables').select('id, number, status, active_order_id, section_id, branch_id, status_changed_at').eq('business_id', businessId).order('number'),
-    sb.from('table_sections').select('id, name, sort_order').eq('business_id', businessId).order('sort_order'),
-    sb.from('businesses').select('tables_turn_time_minutes').eq('id', businessId).single(),
-    sb.from('branches').select('id, name').eq('business_id', businessId).order('id'),
-    sb.from('delivery_platforms').select('id, name').eq('business_id', businessId)
+    // order_items(count) embeds each order's line count in the same response,
+    // instead of a second request that pulled every item row just to count them.
+    wantOrders ? sb.from('orders').select('id, created_at, channel, total, payment_method, status, source, branch_id, delivery_platform_id, order_items(count)').eq('business_id', businessId).gte('created_at', cutoff).order('created_at', {ascending:false}).limit(500) : none,
+    wantTables ? sb.from('restaurant_tables').select('id, number, status, active_order_id, section_id, branch_id, status_changed_at').eq('business_id', businessId).order('number') : none,
+    full ? sb.from('table_sections').select('id, name, sort_order').eq('business_id', businessId).order('sort_order') : none,
+    full ? sb.from('businesses').select('tables_turn_time_minutes').eq('id', businessId).single() : none,
+    full ? sb.from('branches').select('id, name').eq('business_id', businessId).order('id') : none,
+    full ? sb.from('delivery_platforms').select('id, name').eq('business_id', businessId) : none
   ]);
-  TABLE_SECTIONS = sections || [];
-  TABLES_TURN_TIME_MINUTES = (biz && biz.tables_turn_time_minutes) || 45;
-  ORDER_SCREEN_BRANCHES = branches || [];
-  ORDER_SCREEN_PLATFORMS = platforms || [];
+  if(full){
+    TABLE_SECTIONS = sections || [];
+    TABLES_TURN_TIME_MINUTES = (biz && biz.tables_turn_time_minutes) || 45;
+    ORDER_SCREEN_BRANCHES = branches || [];
+    ORDER_SCREEN_PLATFORMS = platforms || [];
+  }
   const branchNameById = {}; ORDER_SCREEN_BRANCHES.forEach(b=>{ branchNameById[b.id] = b.name; });
   const platformNameById = {}; ORDER_SCREEN_PLATFORMS.forEach(p=>{ platformNameById[p.id] = p.name; });
-  const orderIds = (orders||[]).map(o=>o.id);
-  const { data: items } = orderIds.length
-    ? await sb.from('order_items').select('order_id').in('order_id', orderIds)
-    : { data: [] };
+  if(wantTables){
+    TABLES = (tables||[]).map(t=>({ number: t.number, status: t.status, tableId: t.id, sectionId: t.section_id, branchId: t.branch_id, branchName: branchNameById[t.branch_id] || null, orderId: t.active_order_id ? '#'+t.active_order_id : null, statusChangedAt: t.status_changed_at }));
+  }
+  if(!wantOrders) return;
   const countByOrder = {};
-  (items||[]).forEach(it=>{ countByOrder[it.order_id] = (countByOrder[it.order_id]||0)+1; });
+  (orders||[]).forEach(o=>{ countByOrder[o.id] = (o.order_items && o.order_items[0] && o.order_items[0].count) || 0; });
   RECENT_ORDERS = (orders||[]).map(o=>({
     id: '#'+o.id,
     date: formatRelativeDate(o.created_at),
@@ -8441,37 +8470,49 @@ async function loadOrdersAndTables(){
     platformId: o.delivery_platform_id,
     platformName: o.delivery_platform_id ? (platformNameById[o.delivery_platform_id] || 'منصة محذوفة') : null
   }));
-  TABLES = (tables||[]).map(t=>({ number: t.number, status: t.status, tableId: t.id, sectionId: t.section_id, branchId: t.branch_id, branchName: branchNameById[t.branch_id] || null, orderId: t.active_order_id ? '#'+t.active_order_id : null, statusChangedAt: t.status_changed_at }));
 }
 
-/* live sync with the POS: a table status change made on a cashier's tablet
-   shows up here without a manual refresh, and vice versa (POS subscribes to
-   the same table independently, in rakeen-pos.js). */
-function subscribeToTableChanges(){
-  window.supabaseClient
-    .channel('dashboard-restaurant-tables')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurant_tables' }, async ()=>{
-      await loadOrdersAndTables();
-      if(document.getElementById('tablesFloorGrid')) renderTablesFloorGrid();
-    })
-    .subscribe();
+/* ============ Live sync (orders + tables) ============
+   Realtime events don't trigger a reload directly. They mark what changed and
+   schedule ONE refresh:
+   - bursts coalesce: a checkout's INSERT and the UPDATEs right after it
+     become a single reload instead of one per event;
+   - a hidden tab doesn't reload at all. It remembers what changed and
+     refreshes once, immediately, when the owner comes back, so what they
+     see is exactly as current as before;
+   - a tab hidden for over a minute drops its realtime channels, which frees
+     its Supabase Realtime connection (the free tier caps concurrent
+     connections at 200 for the whole platform). Returning resubscribes and
+     does a full refresh, which also covers anything missed meanwhile.
+   Both filters are scoped to this business. restaurant_tables used to
+   subscribe unfiltered, so Realtime ran an authorization check for every
+   subscriber of every business on every table change platform-wide. */
+const LIVE_SYNC_DEBOUNCE_MS = 1200;
+const LIVE_SYNC_DROP_AFTER_HIDDEN_MS = 60 * 1000;
+const liveSync = { pending: { orders: false, tables: false }, timer: null, dropTimer: null, channels: [], running: false, wired: false };
+
+function queueLiveRefresh(kind){
+  liveSync.pending[kind] = true;
+  if(document.visibilityState !== 'visible') return; // runs on return instead
+  clearTimeout(liveSync.timer);
+  liveSync.timer = setTimeout(runLiveRefresh, LIVE_SYNC_DEBOUNCE_MS);
 }
 
-/* Before this, the Home and Orders screens only ever loaded once at login —
-   a sale rung up on the POS (or an online order arriving/being accepted)
-   never appeared here until the owner manually changed a filter/date-range
-   or reloaded the page. Mirrors subscribeToTableChanges' pattern, scoped to
-   `orders` and business_id (an owner's dashboard spans every branch, unlike
-   the POS/kitchen's single-branch filter) instead of restaurant_tables. */
-function subscribeToOrdersLiveSync(){
-  window.supabaseClient
-    .channel('dashboard-orders-live-sync')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: 'business_id=eq.' + CURRENT_PROFILE.business_id }, async ()=>{
-      await loadOrdersAndTables();
+async function runLiveRefresh(){
+  clearTimeout(liveSync.timer);
+  if(liveSync.running){ liveSync.timer = setTimeout(runLiveRefresh, LIVE_SYNC_DEBOUNCE_MS); return; }
+  const { orders, tables } = liveSync.pending;
+  if(!orders && !tables) return;
+  liveSync.pending = { orders: false, tables: false };
+  liveSync.running = true;
+  try {
+    await loadOrdersAndTables({ orders, tables });
+    if(tables && document.getElementById('tablesFloorGrid')) renderTablesFloorGrid();
+    if(orders){
       computeOrderStatusCounts();
       renderOrderStatusGrid();
       renderOrdersTable();
-      await loadSalesRealData();
+      await loadSalesRealData({ live: true });
       renderStatusHero();
       renderTodayHeroes();
       renderHourGrid();
@@ -8480,8 +8521,53 @@ function subscribeToOrdersLiveSync(){
       // بعد أي تحديث مبيعات وإلا بقي على بيانات ما قبل التحميل (بذور العرض).
       renderStockTable();
       renderWasteAndFoodCost();
-    })
-    .subscribe();
+    }
+  } finally {
+    liveSync.running = false;
+  }
+}
+
+function openLiveSyncChannels(){
+  const sb = window.supabaseClient;
+  const businessId = CURRENT_PROFILE.business_id;
+  liveSync.channels = [
+    sb.channel('dashboard-restaurant-tables')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurant_tables', filter: 'business_id=eq.' + businessId }, ()=> queueLiveRefresh('tables'))
+      .subscribe(),
+    sb.channel('dashboard-orders-live-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: 'business_id=eq.' + businessId }, ()=> queueLiveRefresh('orders'))
+      .subscribe()
+  ];
+}
+
+function onLiveSyncVisibility(){
+  if(document.visibilityState === 'visible'){
+    clearTimeout(liveSync.dropTimer);
+    if(liveSync.channels.length === 0){
+      openLiveSyncChannels();
+      liveSync.pending = { orders: true, tables: true };
+    }
+    runLiveRefresh();
+  } else {
+    clearTimeout(liveSync.dropTimer);
+    liveSync.dropTimer = setTimeout(()=>{
+      const sb = window.supabaseClient;
+      liveSync.channels.forEach(ch=> sb.removeChannel(ch));
+      liveSync.channels = [];
+    }, LIVE_SYNC_DROP_AFTER_HIDDEN_MS);
+  }
+}
+
+/* Before this, the Home and Orders screens only ever loaded once at login —
+   a sale rung up on the POS (or an online order arriving/being accepted)
+   never appeared here until the owner manually changed a filter/date-range
+   or reloaded the page. Table status changes made on a cashier's tablet show
+   up the same way (the POS subscribes independently, in rakeen-pos.js). */
+function subscribeToLiveSync(){
+  if(liveSync.wired) return;
+  liveSync.wired = true;
+  openLiveSyncChannels();
+  document.addEventListener('visibilitychange', onLiveSyncVisibility);
 }
 
 async function renderPhase1Screens(){
@@ -8503,8 +8589,7 @@ async function renderPhase1Screens(){
   renderTablesFloorGrid();
   renderOrdersByType();
   renderOrdersBySource();
-  subscribeToTableChanges();
-  subscribeToOrdersLiveSync();
+  subscribeToLiveSync();
   await loadPaymentBreakdown();
   renderPaymentBreakdown();
   await loadStaffStats();
@@ -14809,7 +14894,7 @@ function productEditBodyHtml(){
         </div>
         <div class="advanced-body" id="pfAdvancedBody">
           <div class="menu-add-field" style="margin-top:12px; max-width:220px;">
-            <label>نقاط الاسترداد ${helpIcon('لو حددت رقم، يقدر العميل يستبدل هذا المنتج بنقاط ولائه بدل الدفع — يظهر خيار الاستبدال بالكاشير إذا كان رصيده كافي. سيبه فاضي عشان ما يكون قابل للاستبدال بالنقاط.')}</label>
+            <label>نقاط الاسترداد ${helpIcon('لو حددت رقم، يقدر العميل يستبدل هذا المنتج بنقاط ولائه بدل الدفع — يظهر خيار الاستبدال بالكاشير إذا كان رصيده كافي. وهذا الرقم يشوفه الزبون تحت سعر المنتج بالمتجر والمنيو الإلكتروني (لو نظام ولائك نقاط)، فالاستبدال نفسه يبقى عند الفرع. سيبه فاضي عشان ما يكون قابل للاستبدال بالنقاط.')}</label>
             <input type="number" id="pfPointsRedeemPrice" value="${productModalState.pointsRedeemPrice != null ? productModalState.pointsRedeemPrice : ''}" placeholder="مثال: ٥٠٠">
           </div>
           <div class="menu-add-field" style="margin-top:12px; max-width:260px;">
@@ -19945,13 +20030,23 @@ function walletCardPreviewHtml(){
   // اكتملت: البطاقة تنقلب إلى حالة "جاهزة" -- وهو ما يفعله النظام حين
   // يبلغ العدّاد حدّه. و"باقي ٠" رقمٌ صحيح وجملةٌ لا تُقال.
   const ready = type !== 'points' && left <= 0;
-  const primaryLabel = ready ? 'جاهزة الآن 🎉' : 'تقدّمك';
-  const primary = type === 'points' ? rewardLabel
-    : ready ? rewardLabel
-    : (left === 1 ? 'باقي وحدة وتاخذها' : left === 2 ? 'باقي ثنتين' : `باقي ${left}`);
 
   const nearbyEl = document.getElementById('walletNearbyInput');
   const nearby = (nearbyEl ? nearbyEl.value : WALLET_ASSETS.nearbyText) || '';
+
+  /**
+   * وحدة العدّ تتبع النظام لا تُكتب مرّة واحدة.
+   *
+   * شريط التجريب كان يقول "زيارات" ولو كان النظام أكواباً --
+   * وهما لا يعدّان شيئاً واحداً: ذاك فاتورة، وهذا صنفْ في الفاتورة.
+   * فصاحب المقهى يسحب الشريط ليرى "٣ من ٦ زيارات" وهو يعدّ
+   * أكواباً -- فيُصدّق الرقم ويُفهم النظام خطأً.
+   */
+  const scrubUnit = type === 'visits' ? 'زيارات' : 'ختوم';
+  const scrubZero = type === 'visits' ? 'قبل أول زيارة' : 'قبل أول صنف يشتريه';
+  const scrubLab = type === 'visits'
+    ? 'جرّب: كيف تطلع بطاقته بعد كل زيارة'
+    : 'جرّب: كيف تطلع بطاقته مع كل صنف';
 
   return `
     <div class="rkw-wrap">
@@ -19960,6 +20055,16 @@ function walletCardPreviewHtml(){
           <button type="button" class="rkw-langbtn${isEn ? '' : ' on'}" data-prevlang="ar">عربي</button>
           <button type="button" class="rkw-langbtn${isEn ? ' on' : ''}" data-prevlang="en">English</button>
         </div>
+        <div class="rkw-stage">
+          <div class="rkw-sb">
+            <span class="rkw-sb-time">9:41</span>
+            <span class="rkw-sb-notch"></span>
+            <span class="rkw-sb-ico">
+              <svg viewBox="0 0 18 12" width="17" height="11" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1" opacity=".4"/></svg>
+              <svg viewBox="0 0 16 12" width="15" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M1.2 4.2a10 10 0 0 1 13.6 0"/><path d="M3.8 7a6.4 6.4 0 0 1 8.4 0"/><circle cx="8" cy="10" r="1.1" fill="currentColor" stroke="none"/></svg>
+              <svg viewBox="0 0 26 12" width="23" height="11" fill="none"><rect x=".7" y=".7" width="21" height="10.6" rx="3" stroke="currentColor" stroke-opacity=".45"/><rect x="2.4" y="2.4" width="15" height="7.2" rx="1.8" fill="currentColor"/><path d="M23.4 4.2v3.6a2.2 2.2 0 0 0 0-3.6z" fill="currentColor" fill-opacity=".45"/></svg>
+            </span>
+          </div>
         <div class="rkw-card" dir="${isEn ? 'ltr' : 'rtl'}" style="background:${bgHex}; color:${fg};">
           <div class="rkw-head">
             ${logoUrl
@@ -19983,7 +20088,12 @@ function walletCardPreviewHtml(){
           <div class="rkw-fields">
             <div class="rkw-f">
               <div class="rkw-flabel" style="color:${faint};">${escapeHtml(rkwLabel('customer','اسمك','Name'))}</div>
-              <div class="rkw-fvalue">${escapeHtml(stamps ? sampleName : primary)}</div>
+              <!-- اسمُه في الحالين.
+                   الخادم يكتب secondaryFields[0] = {key:"name"} لكلّ الأنظمة --
+                   والمعاينة كانت تكتب اسم المكافأة تحت تسمية "اسمك" في نظام
+                   النقاط، فتُقرأ التسمية والقيمة جملةً لا معنى لها، وتتكرّر
+                   المكافأة في الحقلين معاً. -->
+              <div class="rkw-fvalue">${escapeHtml(sampleName)}</div>
             </div>
             ${stamps ? `
             <div class="rkw-f rkw-f-end">
@@ -20009,14 +20119,16 @@ function walletCardPreviewHtml(){
         <div class="rkw-qr"><div class="rkw-qr-box">${rkwFakeQr()}</div>
           <div class="rkw-qr-alt" style="color:${faint};">${sampleCode}</div></div>
         </div>
+          <div class="rkw-stage-home"></div>
+        </div>
       </div>
 
       <div class="rkw-side">
         ${type === 'points' ? '' : `
         <div class="rkw-scrub">
-          <div class="rkw-scrub-lab">جرّب: كيف تطلع بطاقته بعد</div>
+          <div class="rkw-scrub-lab">${scrubLab}</div>
           <input type="range" id="rkwScrub" min="0" max="${threshold}" value="${done}">
-          <div class="rkw-scrub-val">${done === 0 ? 'قبل أول زيارة' : done >= threshold ? 'اكتملت — مكافأته جاهزة' : `${done} من ${threshold} زيارات`}</div>
+          <div class="rkw-scrub-val">${done === 0 ? scrubZero : done >= threshold ? 'اكتملت — مكافأته جاهزة' : `${done} من ${threshold} ${scrubUnit}`}</div>
         </div>`}
         <div class="rkw-lock">
           <div class="rkw-lock-head">
@@ -20351,7 +20463,17 @@ function restructureLoyaltyDesign(){
   place(g3, 'walletIconInput');
 
   // ٤ التسميات تُركَّب بينهما -- mountWalletLabels يضعها بعد "صور إضافية".
-  head.insertAdjacentElement('afterend', g1);
+  /**
+   * وشريطُ النظام يُبنى قبل المجموعات، ويُرسى عليه أولُها.
+   *
+   * وإلا دخلت "هوية البطاقة" بين الترويسة والشريط متى سبق بناءء
+   * الشريط (ويسبقه متى نوديت updateLoyaltySystemTypeVisibility قبل هذه
+   * الدالة) -- فينزل السطر الذي يقول "لأيّ نظامٍ ترسم" تحت
+   * المجموعة الأولى لا فوقها، وهو سطرٌ يُقرأ قبلها أو لا يُقرأ.
+   */
+  try { syncLoyaltyDesignSystem(); } catch(e){ console.error('design system strip', e); }
+  const sysStrip = document.getElementById('rkDesignSysStrip');
+  (sysStrip || head).insertAdjacentElement('afterend', g1);
   g1.insertAdjacentElement('afterend', g2);
   g2.insertAdjacentElement('afterend', g3);
   g3.insertAdjacentElement('afterend', g5);
@@ -20559,15 +20681,83 @@ async function runWalletSelfTest(){
  * فيُخفى ما لا معنى له وحده: شكلُ الختم وصورتاه ومقاسُه وترتيبُه.
  * والخلفيةُ تبقى -- هي خلفية الشريط لا خلفية الأختام.
  */
+/* أيّ نظامٍ تُرسم له البطاقة -- يُقال في أعلاها لا يُستنتَج.
+
+   الأنظمة الثلاثة تُعطي ثلاث بطاقات مختلفة لا ثلاث حالات لبطاقة
+   واحدة: النقاط رصيدٌ في الترويسة وشريطٌ بلا أختام، والزيارات ختمٌ
+   لكل فاتورة، والأكواب ختمٌ لكل صنفٍ في الفاتورة.
+
+   وكانت الشاشة تُخفي خيارات الختم في نظام النقاط بلا كلمة -- فمن فتحها
+   بحث عن "شكل الختم" فلم يجده، فظنّ أنّ اللوحة ناقصة لا أنّ الخيار
+   لا يعنيه. وغيابٌ مُفسَّر غيرُ غيابٍ صامت. */
+const RK_DESIGN_SYSTEMS = {
+  points: {
+    name: 'النقاط',
+    line: 'بطاقته تعرض <b>رصيد نقاطه</b> بأعلى البطاقة، وشريطها موجة هادية — ما فيه أختام تتعبّى. عشان كذا خيارات شكل الختم وترتيبه مو ظاهرة تحت.',
+    strip: 'شريط البطاقة',
+    stripSub: 'أكبر مساحة بالبطاقة. مع نظام النقاط نرسم موجة هادئة بدل الأختام — وتقدر تحط صورتك مكانها.',
+  },
+  visits: {
+    name: 'الزيارات',
+    line: 'بطاقته <b>صفّ أختام</b>، يتعبّى منه ختم واحد كل فاتورة. شكل الختم ولونه وترتيبه ومقاسه كلها لك تحت.',
+    strip: 'شريط الأختام',
+    stripSub: 'أكبر مساحة بالبطاقة، وكل مساحة الإبداع فيها. ختم لكل زيارة.',
+  },
+  products: {
+    name: 'الأكواب / الأصناف',
+    line: 'بطاقته <b>صفّ أختام</b>، يتعبّى ختم لكل صنف — ست أكواب بفاتورة وحدة تعبّي ست ختوم، لا ختم واحد.',
+    strip: 'شريط الأختام',
+    stripSub: 'أكبر مساحة بالبطاقة، وكل مساحة الإبداع فيها. ختم لكل صنف يشتريه.',
+  },
+};
+
+/** يبني شريط النظام مرّة، ثمّ يُحدّث نصّه مع كل تبديل. */
+function syncLoyaltyDesignSystem(){
+  const cfg = RK_DESIGN_SYSTEMS[loyaltySystemTypeFormValue()] || RK_DESIGN_SYSTEMS.visits;
+  let strip = document.getElementById('rkDesignSysStrip');
+  if(!strip){
+    let form = document.getElementById('loyaltyAccentInput');
+    while(form && !form.classList.contains('rk-section')) form = form.parentElement;
+    const head = form && form.querySelector('.rk-section-head');
+    if(!head) return;
+    head.insertAdjacentHTML('afterend', `
+      <div class="rk-dsys" id="rkDesignSysStrip">
+        <div class="rk-dsys-main">
+          <div class="rk-dsys-top">
+            <span class="rk-dsys-tag">نظام بطاقتك الحين</span>
+            <span class="rk-dsys-name" id="rkDesignSysName"></span>
+          </div>
+          <div class="rk-dsys-line" id="rkDesignSysLine"></div>
+        </div>
+        <button type="button" class="rk-dsys-go" id="rkDesignSysGo">غيّر النظام</button>
+      </div>`);
+    strip = document.getElementById('rkDesignSysStrip');
+    const go = document.getElementById('rkDesignSysGo');
+    if(go) go.addEventListener('click', ()=>{
+      const tab = document.querySelector('#loyaltyTabs .loyalty-tab[data-loyalty-tab="program"]');
+      if(tab){ tab.click(); tab.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+    });
+  }
+  const n = document.getElementById('rkDesignSysName');
+  const l = document.getElementById('rkDesignSysLine');
+  if(n) n.textContent = cfg.name;
+  if(l) l.innerHTML = cfg.line;
+}
+
 function syncLoyaltyStampGroup(){
-  const isPoints = loyaltySystemTypeFormValue() === 'points';
+  const sysType = loyaltySystemTypeFormValue();
+  const isPoints = sysType === 'points';
+  const scfg = RK_DESIGN_SYSTEMS[sysType] || RK_DESIGN_SYSTEMS.visits;
+  try { syncLoyaltyDesignSystem(); } catch(_){}
   const g = document.querySelector('.rk-dgroup-stamp');
   if(g){
     g.classList.remove('hidden');
+    // العنوان هو ما يُقرأ، فهو الذي يكذب أوّلاً: "شريط الأختام" فوق
+    // مجموعةٍ لا ختم فيها يجعل صاحب المقهى يبحث عن الأختام تحته.
+    const ttl = g.querySelector('.rk-dgroup-title');
+    if(ttl) ttl.textContent = scfg.strip;
     const sub = g.querySelector('.rk-dgroup-sub');
-    if(sub) sub.textContent = isPoints
-      ? 'أكبر مساحة بالبطاقة. مع نظام النقاط نرسم موجة هادئة بدل الأختام.'
-      : 'أكبر مساحة بالبطاقة، وكل مساحة الإبداع فيها.';
+    if(sub) sub.textContent = scfg.stripSub;
   }
   [rkFieldOf('loyaltyIconPicker'), document.getElementById('rkStampPair'),
    rkFieldOf('walletStampSizeInput'), rkFieldOf('walletLayoutPick')]

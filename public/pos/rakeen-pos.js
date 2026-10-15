@@ -7350,10 +7350,10 @@ function subscribeToHotelChanges(){
   if(hotelRealtimeChannel) return;
   hotelRealtimeChannel = window.supabaseClient
     .channel('pos-hotel')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'hotel_rooms' }, ()=>{
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'hotel_rooms', filter: 'branch_id=eq.' + DEVICE.branchId }, ()=>{
       if(document.getElementById('screen-tables').classList.contains('active')) renderHotelActiveTab();
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'hotel_bookings' }, ()=>{
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'hotel_bookings', filter: 'branch_id=eq.' + DEVICE.branchId }, ()=>{
       if(document.getElementById('screen-tables').classList.contains('active')) renderHotelActiveTab();
     })
     .subscribe();
@@ -9416,7 +9416,7 @@ function subscribeToTableChanges(){
   if(tablesRealtimeChannel) return; // one subscription per boot is enough — a re-login always reloads the whole page first
   tablesRealtimeChannel = window.supabaseClient
     .channel('pos-restaurant-tables')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurant_tables' }, ()=>{
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurant_tables', filter: 'branch_id=eq.' + DEVICE.branchId }, ()=>{
       if(document.getElementById('screen-tables').classList.contains('active')) renderTables();
     })
     .subscribe();

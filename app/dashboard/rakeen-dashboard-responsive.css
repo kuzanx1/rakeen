@@ -1729,7 +1729,7 @@ select.field-invalid {
    either needs to change — they aren't shared code, keep them in sync). */
 .loyalty-design-grid {
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: 1fr 372px;
   gap: 28px;
   align-items: start;
 }

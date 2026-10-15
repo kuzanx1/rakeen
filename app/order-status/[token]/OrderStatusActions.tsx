@@ -242,18 +242,45 @@ export default function OrderStatusActions({ token, initial }: { token: string; 
     return createClient(supabaseUrl, anonKey);
   });
 
+  // The 3s poll only runs while someone is actually looking at a live order.
+  // It used to run forever: a tab left open after delivery kept hitting
+  // Supabase every 3 seconds all night (~1KB each, mostly response headers),
+  // which at scale is a real share of the free-tier egress. A hidden tab
+  // pauses, and coming back fires one poll at once, so a watching customer
+  // sees no difference. A terminal order (delivered/rejected/cancelled/
+  // refunded) stops polling, but still re-checks once on every return to the
+  // tab, so a refund issued later is picked up the moment they look again.
   useEffect(() => {
     let cancelled = false;
+    let interval: ReturnType<typeof setInterval> | null = null;
+    let terminal = stageFor(initial).kind === "terminal";
+    const stop = () => {
+      if (interval) clearInterval(interval);
+      interval = null;
+    };
+    const start = () => {
+      if (!interval && !terminal && document.visibilityState === "visible") interval = setInterval(poll, 3000);
+    };
     const poll = async () => {
       const { data } = await sb.rpc("get_order_status", { p_token: token }).maybeSingle();
-      if (!cancelled && data) setOrder(data as OrderStatus);
+      if (cancelled || !data) return;
+      setOrder(data as OrderStatus);
+      terminal = stageFor(data as OrderStatus).kind === "terminal";
+      if (terminal) stop();
+      else start();
     };
-    const interval = setInterval(poll, 3000);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") poll();
+      else stop();
+    };
+    start();
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [token, sb]);
+  }, [token, sb, initial]);
 
   // Separate, faster tick just for the countdown clock — the 3s poll above
   // is what actually advances the stage (via ready_at flipping), this only

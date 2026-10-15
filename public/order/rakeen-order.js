@@ -35,6 +35,14 @@ if (!window.__rakeenOrderBooted) {
   }
 
   let BUSINESS = null;
+  /**
+   * هل نعرض سعر المنتج بالنقاط؟
+   *
+   * في نظام النقاط وحده. والزيارات والأكواب لا يشتري فيهما الزبون
+   * منتجاً برصيده -- يكمل عدداً فيأخذ مكافأةً واحدة مسمّاة سلفاً.
+   * فرقمٌ بالنقاط تحت سعر المنتج هناك يعد بما لا يُعطَى.
+   */
+  let POINTS_MODE = false;
   let CATEGORIES = []; // top-level category names only — drives the quick-jump rail
   let CATEGORY_ROWS = []; // {id, name, parentId} for every category, top-level and sub
   let PRODUCTS = [];
@@ -596,9 +604,24 @@ if (!window.__rakeenOrderBooted) {
     // on) — so this business's items/groups are fetched first, then used to
     // .in()-scope the rest below instead of pulling the whole platform's
     // modifier/box data on every single storefront page load.
+    /**
+     * نظام الولاء: استعلامٌ مستقلّ لا عمودٌ يُضمّ إلى استعلام المتجر.
+     *
+     * أعمدة businesses ممنوحة لـanon عموداً عموداً (20260814010000)،
+     * وPostgREST يردّ 42501 على الطلب كلّه إن ورد فيه عمودٌ واحد غير
+     * ممنوح -- لا على ذلك العمود وحده. فضمّهما إلى استعلام المتجر
+     * يعني متجراً مُطفأً عند كل مطعم حتّى يُرحّل 20260919000000.
+     * والمستقلّ يسقط وحده: لا نقاط تُعرض، والمنيو كما هو.
+     */
+    try {
+      const { data: loy } = await sb.from('businesses')
+        .select('loyalty_enabled, loyalty_system_type').eq('id', businessId).maybeSingle();
+      POINTS_MODE = !!loy && loy.loyalty_enabled !== false && loy.loyalty_system_type === 'points';
+    } catch (_) { POINTS_MODE = false; }
+
     const [catRes, itemsRes, groupRes] = await Promise.all([
       sb.from('menu_categories').select('*').eq('business_id', businessId).order('sort_order'),
-      sb.from('menu_items').select('id, category_id, name, name_en, price, online_price, image_url, cost_mode, total_pieces, online_tag_label, online_tag_color').eq('business_id', businessId).eq('active', true).eq('visible_online', true).or(`hidden_until.is.null,hidden_until.lt.${new Date().toISOString()}`).order('sort_order').order('id'),
+      sb.from('menu_items').select('id, category_id, name, name_en, price, online_price, image_url, cost_mode, total_pieces, online_tag_label, online_tag_color, points_redeem_price').eq('business_id', businessId).eq('active', true).eq('visible_online', true).or(`hidden_until.is.null,hidden_until.lt.${new Date().toISOString()}`).order('sort_order').order('id'),
       sb.from('modifier_groups').select('*').eq('business_id', businessId),
     ]);
     // فئة مخفية أونلاين (visible_online=false, migration 20260909140000)
@@ -621,6 +644,10 @@ if (!window.__rakeenOrderBooted) {
       categoryIds: [m.category_id],
       image: m.image_url || null, costMode: m.cost_mode, totalPieces: m.total_pieces || 0,
       tagLabel: m.online_tag_label || '', tagColor: m.online_tag_color || '#3E7BFA',
+      // صفرٌ أو فارغٌ ليس سعراً: قيد الجدول نفسه يقول > 0، والمنتج الذي
+      // لم يُسعّر بالنقاط لا رقاقة له -- لا رقاقةٌ تقول صفراً.
+      pointsPrice: (m.points_redeem_price != null && Number(m.points_redeem_price) > 0)
+        ? Number(m.points_redeem_price) : null,
     }));
 
     // فئات إضافية للمنتج (migration 20260909130000). categoryIds = [الأساسية،
@@ -701,6 +728,21 @@ if (!window.__rakeenOrderBooted) {
     });
   }
 
+  /**
+   * رقاقة «كم نقطة يكلّف» -- تحت السعر، لا بدلاً منه.
+   *
+   * والرقم لاتينيّ كسعر المنتج إلى جانبه: رقمان متجاوران
+   * بمنظومتين يُقرآن شيئين مختلفين. والتسمية باللغتين على نسق
+   * اسم المنتج نفسه في هذا المتجر.
+   */
+  const PTS_ICON = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6l2.3 6.1 6.5.3-5.1 4.1 1.8 6.3L12 15.9l-5.5 3.5 1.8-6.3-5.1-4.1 6.5-.3z"/></svg>';
+  function pointsChipHtml(p, size) {
+    if (!POINTS_MODE || !p.pointsPrice) return '';
+    return `<div class="om-points-chip${size === 'lg' ? ' om-points-chip-lg' : ''}">
+      ${PTS_ICON}<span class="om-points-n mono">${p.pointsPrice}</span><span class="om-points-ar">نقطة</span><span class="om-points-en">pts</span>
+    </div>`;
+  }
+
   const PLACEHOLDER_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 2l1.5 20h15L21 2"/><path d="M3 2h18"/><path d="M9 2v6a3 3 0 0 0 6 0V2"/></svg>`;
 
   function visibleProducts() {
@@ -726,8 +768,30 @@ if (!window.__rakeenOrderBooted) {
         </div>
         ${p.costMode === 'box' ? `<div class="om-product-badge">تركيبة حرة — ${p.totalPieces} قطعة</div>` : ''}
         <div class="om-product-price">${formatPrice(p.price)}</div>
+        ${pointsChipHtml(p)}
       </div>
     </button>`;
+  }
+
+  /**
+   * وسطرٌ يقول أين تُستبدل.
+   *
+   * الطلب الإلكتروني لا يخصم نقاطاً (submit_online_order ليس فيه
+   * points_cost أصلاً، والاستبدال عند الكاشير). فرقاقةٌ بلا هذا
+   * السطر تعد زبوناً بزرّ استبدالٍ لا وجود له، ثمّ يصل السلة
+   * فيجد المبلغ كاملاً -- ووعدٌ يُكتشف عند الدفع أسوأ من وعدٍ لم
+   * يُقطع.
+   */
+  const POINTS_REDEEM_HINT_AR = 'المنتجات اللي عليها نقاط تقدر تاخذها برصيدك عند الفرع.';
+  const POINTS_REDEEM_HINT_EN = 'Items with a points tag can be redeemed with your points in-store.';
+
+  function pointsNoteHtml(products) {
+    if (!POINTS_MODE || !products.some(p => p.pointsPrice)) return '';
+    return `<div class="om-points-note">
+      ${PTS_ICON}
+      <div><span class="om-points-note-ar">${POINTS_REDEEM_HINT_AR}</span>
+      <span class="om-points-note-en">${POINTS_REDEEM_HINT_EN}</span></div>
+    </div>`;
   }
 
   function renderMenu() {
@@ -748,7 +812,7 @@ if (!window.__rakeenOrderBooted) {
     CATEGORY_ROWS.forEach(c => { if (c.parentId && idExists(c.parentId)) (childrenByParent[c.parentId] ||= []).push(c); });
     const uncategorized = products.filter(p => !(p.categoryIds || [p.categoryId]).some(cid => CATEGORY_ROWS.some(c => c.id === cid)));
 
-    el.innerHTML = topCats.map(top => {
+    el.innerHTML = pointsNoteHtml(products) + topCats.map(top => {
       const direct = byCatId[top.id] || [];
       const kids = (childrenByParent[top.id] || []).filter(k => (byCatId[k.id] || []).length);
       if (!direct.length && !kids.length) return '';
@@ -855,6 +919,8 @@ if (!window.__rakeenOrderBooted) {
           <span class="om-product-name-ar ${product.nameEn ? 'om-name-sub' : ''}">${product.name}</span>
         </div>
         <div class="om-quickview-price">${formatPrice(product.price)}</div>
+        ${pointsChipHtml(product, 'lg')}
+        ${POINTS_MODE && product.pointsPrice ? `<div class="om-points-hint">${POINTS_REDEEM_HINT_AR}<span>${POINTS_REDEEM_HINT_EN}</span></div>` : ''}
       </div>
     `;
     document.getElementById('omModifierOverlay').classList.add('show');
@@ -876,6 +942,7 @@ if (!window.__rakeenOrderBooted) {
           <span class="om-product-name-ar ${product.nameEn ? 'om-name-sub' : ''}">${product.name}</span>
         </div>
         ${subtitle ? `<div class="om-sheet-hero-sub">${subtitle}</div>` : ''}
+        ${pointsChipHtml(product)}
       </div>
     `;
   }

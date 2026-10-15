@@ -55,11 +55,29 @@ export default function CardActions({ token }: { token: string }) {
         setPending((prev) => (prev ? null : prev));
       }
     };
-    poll();
-    const interval = setInterval(poll, 2500);
+    // Only while the card is on screen: confirming a redemption needs the
+    // customer looking at this page anyway, and a card left open in a
+    // background tab used to poll every 2.5s indefinitely. Returning to the
+    // tab polls immediately, so a request the cashier just started still
+    // shows up at once.
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      if (!interval && document.visibilityState === "visible") {
+        poll();
+        interval = setInterval(poll, 2500);
+      }
+    };
+    const stop = () => {
+      if (interval) clearInterval(interval);
+      interval = null;
+    };
+    const onVisibility = () => (document.visibilityState === "visible" ? start() : stop());
+    start();
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [token]);
 
