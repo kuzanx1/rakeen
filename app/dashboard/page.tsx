@@ -19,7 +19,8 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
   },
   icons: {
-    apple: "/pos-icon.svg",
+    // iOS ignores an SVG apple-touch-icon; a PNG shows on the home screen.
+    apple: "/apple-touch-icon.png",
   },
 };
 
