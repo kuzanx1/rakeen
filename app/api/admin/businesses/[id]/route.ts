@@ -3,6 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 import { requiresStepUp, logAdminAction } from "@/lib/adminAuth";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { checkDbRateLimit } from "@/lib/dbRateLimit";
+import { FEATURE_CATALOG } from "@/lib/contracts";
+import { planByKey } from "@/lib/plans";
+
+const FEATURE_KEYS = new Set<string>(FEATURE_CATALOG.map((f) => f.key));
 
 function isAdminEmail(email: string | undefined | null): boolean {
   const allowed = (process.env.PLATFORM_ADMIN_EMAILS || "")
@@ -44,6 +48,16 @@ const FIELD_VALIDATORS: Record<string, (value: unknown) => boolean> = {
   // (20260818160000); submit_online_order blocks real customer orders until
   // an admin flips this to 'verified'. Never self-serve.
   verification_status: (v) => typeof v === "string" && ["pending", "verified", "rejected"].includes(v),
+  // Packages (20261015120000_business_plans.sql). null = no package (a
+  // business from before packages: everything allowed). The DB trigger turns
+  // these into allowed_features and switches off what the package doesn't
+  // allow; nothing here computes that.
+  plan_tier: (v) => v === null || (typeof v === "string" && planByKey(v) !== null),
+  // The admin's own per-business exceptions on top of the package:
+  // { feature: true } unlocks, { feature: false } locks. Known keys only.
+  feature_overrides: (v) =>
+    !!v && typeof v === "object" && !Array.isArray(v) &&
+    Object.entries(v as Record<string, unknown>).every(([k, val]) => FEATURE_KEYS.has(k) && typeof val === "boolean"),
 
   // Design fields — same columns the owner already edits from their own
   // Settings/loyalty screens (see rakeen-dashboard.js); admin gets a
@@ -140,6 +154,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .maybeSingle(),
   ]);
 
+  // Its own query: before the packages migration runs these columns don't
+  // exist, and folding them into the select above would fail the design
+  // fields with it.
+  const planRow = await admin.from("businesses").select("plan_tier, feature_overrides, allowed_features, branch_limit").eq("id", businessId).maybeSingle();
+
   let ownerEmail: string | null = null;
   const ownerId = ownerProfile.data?.id as string | undefined;
   if (ownerId) {
@@ -155,6 +174,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     branch_count: branchCount.count ?? 0,
     staff_count: staffCount.count ?? 0,
     ...(designRow.data || {}),
+    plans_ready: !planRow.error,
+    ...(planRow.error ? {} : planRow.data || {}),
   });
 }
 
@@ -211,7 +232,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!(await checkDbRateLimit(admin, request, "RL_ADMIN_GENERAL", 60, 60, caller.email || undefined))) {
     return NextResponse.json({ error: "محاولات كثيرة، حاول بعد شوي" }, { status: 429 });
   }
+  // A package includes some branches (صرح: 2). Moving a business onto it
+  // raises branch_limit to at least that, never lowers it: lowering below
+  // the branches it already has would lock the owner out of them.
+  const newPlan = typeof updates.plan_tier === "string" ? planByKey(updates.plan_tier) : null;
+  if (newPlan && !("branch_limit" in updates)) {
+    const { data: cur } = await admin.from("businesses").select("branch_limit").eq("id", businessId).maybeSingle();
+    const current = Number(cur?.branch_limit) || 1;
+    if (current < newPlan.includedBranches) updates.branch_limit = newPlan.includedBranches;
+  }
   const { error } = await admin.from("businesses").update(updates).eq("id", businessId);
+  if (error && /plan_tier|feature_overrides/.test(error.message)) {
+    return NextResponse.json({ error: "الباقات تحتاج تشغيل migration ‎20261015120000 في سوبابيس أولاً" }, { status: 409 });
+  }
   if (error) {
     await logAdminAction(admin, caller.email || "unknown", "update_business", `business:${businessId}`, "failure", {
       fields: Object.keys(updates),

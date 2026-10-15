@@ -52,7 +52,23 @@ function rkMoney(amount){
 // unrepresentable: it selects the row back and throws a clear, catchable
 // error whenever nothing actually changed, so the existing per-panel
 // catch(err) blocks surface a real failure instead of a false success.
+// مفاتيح يشغّلها صاحب المطعم بنفسه، لكن تحت سقف الباقة: الـtrigger في
+// القاعدة يطفئها إن لم تسمح الباقة، فيبقى الحفظ «ناجحًا» والمفتاح مطفأ.
+// فنرفض هنا برسالةٍ واضحة بدل «تم الحفظ» الكاذبة.
+const PLAN_GATED_SWITCHES = {
+  loyalty_enabled: 'loyalty',
+  tables_reservations_enabled: 'tables_reservations',
+  online_booking_enabled: 'booking_page',
+  online_ordering_enabled: 'online_store',
+};
 async function updateCurrentBusiness(updates){
+  if(PLAN_ALLOWED_FEATURES){
+    for(const [col, feature] of Object.entries(PLAN_GATED_SWITCHES)){
+      if(updates[col] === true && !PLAN_ALLOWED_FEATURES.has(feature)){
+        throw new Error('هذي الميزة مو ضمن باقتك الحالية. تواصل مع ركين عشان ترقّي باقتك.');
+      }
+    }
+  }
   const { data, error } = await window.supabaseClient.from('businesses')
     .update(updates).eq('id', CURRENT_PROFILE.business_id).select('id').maybeSingle();
   if(error) throw error;
@@ -8061,6 +8077,8 @@ function screenAllowed(slug){
   // Package-tier entitlement set by Rakeen admin, not a per-employee
   // permission — applies even to the owner, same as kitchen_display_enabled.
   if(slug === 'inventory' && !INVENTORY_ENABLED) return false;
+  const planFeature = PLAN_SCREEN_FEATURE[slug];
+  if(planFeature && PLAN_ALLOWED_FEATURES && !PLAN_ALLOWED_FEATURES.has(planFeature)) return false;
   if(CURRENT_PROFILE.user_type !== 'employee') return true;
   return GRANTED_SCREENS.has('screen:' + slug);
 }
@@ -8222,6 +8240,13 @@ async function loadBusinessData(){
     INVENTORY_ENABLED = businessRes.data.inventory_enabled !== false;
     BUSINESS_TYPE = businessRes.data.business_type || 'restaurant';
     ONLINE_BOOKING_ENABLED = businessRes.data.online_booking_enabled === true;
+  }
+  // الباقة (migration 20261015120000): استعلامٌ مستقلّ، لأن العمود قد لا
+  // يوجد بعد، وضمُّه للاستعلام الكبير أعلاه يُسقط بيانات المطعم كلها معه.
+  // أي خطأ أو null = بلا باقة = كل الشاشات مسموحة.
+  {
+    const { data: planRow, error: planErr } = await sb.from('businesses').select('allowed_features').eq('id', businessId).maybeSingle();
+    PLAN_ALLOWED_FEATURES = (!planErr && planRow && Array.isArray(planRow.allowed_features)) ? new Set(planRow.allowed_features) : null;
   }
 
   STOCK_ITEM_ID_BY_NAME = {}; STOCK_ITEM_NAME_BY_ID = {};
@@ -10520,6 +10545,21 @@ let ONLINE_ORDER_FREE_LIMIT = 350;
 let GEIDEA_CONNECTED = false;
 let GEIDEA_PUBLIC_KEY_LAST4 = '';
 let INVENTORY_ENABLED = true;
+// الباقة: مجموعة المزايا المسموحة (allowed_features)، أو null لمطعمٍ بلا
+// باقة = كل شيء مسموح. والشاشة اللي تتبع ميزةً غير مسموحة تختفي، للمالك
+// أيضًا. الشاشات غير المذكورة هنا (الرئيسية، والكاشير، والطلبات، والقائمة،
+// والموظفون، والإعدادات) أساس كل باقة.
+let PLAN_ALLOWED_FEATURES = null;
+const PLAN_SCREEN_FEATURE = {
+  inventory: 'inventory',
+  purchases: 'purchases_scan',
+  accounting: 'costing_profit',
+  reports: 'reports',
+  customers: 'loyalty',
+  loyalty: 'loyalty',
+  delivery: 'delivery_apps',
+  onlineMenu: 'online_store',
+};
 let BUSINESS_TYPE = 'restaurant';
 let ONLINE_BOOKING_ENABLED = false;
 // Which business types share the services/service_staff booking engine —

@@ -4,7 +4,8 @@ import { useRef, useState } from "react";
 import "../contract/contract.css";
 import QuoteDocument, { QUOTE_PHONE, QuoteProps } from "../contract/QuoteDocument";
 import { contractPdfBlob, downloadBlob } from "../contract/pdf";
-import { buildSchedule, FEATURE_CATALOG, FeatureKey, formatSar, periodLabel } from "@/lib/contracts";
+import { buildSchedule, FeatureKey, formatSar, periodLabel } from "@/lib/contracts";
+import { PlanKey, PLANS, planByKey, planPrice, SELLABLE_FEATURES } from "@/lib/plans";
 
 // Price quotes for prospects: people who haven't registered or subscribed
 // yet. Deliberately separate from ContractsPanel: no account to pick, no
@@ -15,7 +16,7 @@ const input: React.CSSProperties = { width: "100%", padding: "10px 12px", border
 const label: React.CSSProperties = { fontSize: "11.5px", fontWeight: 800, display: "block", marginBottom: "5px" };
 const pill = (bg: string, fg: string): React.CSSProperties => ({ padding: "8px 14px", borderRadius: "999px", background: bg, color: fg, fontWeight: 800, fontSize: "11.5px", border: "none", cursor: "pointer", whiteSpace: "nowrap" });
 
-const DEFAULT_FEATURES: FeatureKey[] = ["pos", "zatca_invoice", "offline", "shift_close", "kds", "inventory", "purchases_scan", "costing_profit", "reports", "online_store", "loyalty", "tables_reservations", "team_permissions", "delivery_apps"];
+const DEFAULT_PLAN = planByKey("emad")!;
 
 function today() {
   return new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
@@ -30,9 +31,11 @@ export default function QuotePanel() {
     project_name: "",
     person_name: "",
     phone: "",
-    plan_name: "باقة ركين",
+    plan: DEFAULT_PLAN.key as PlanKey | "custom",
+    extra_branches: "0",
+    plan_name: `باقة ${DEFAULT_PLAN.name}`,
     billing_period: "monthly" as "monthly" | "annual",
-    price: "149",
+    price: String(DEFAULT_PLAN.monthly),
     discount_mode: "none" as "none" | "pct" | "amount",
     discount_value: "",
     discount_label: "",
@@ -41,12 +44,25 @@ export default function QuotePanel() {
     branches_count: "1",
     valid_days: "14",
     payments_count: "1",
-    features: DEFAULT_FEATURES as string[],
+    features: DEFAULT_PLAN.features as string[],
     notes: "",
   });
   const setF = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const basePrice = Number(form.price);
+  // A package fills in its name, price and features; anything can still be
+  // edited by hand, and "custom" keeps whatever was typed. Extra branches are
+  // priced by the package (half its price each), so they only apply to one.
+  const plan = form.plan === "custom" ? null : planByKey(form.plan);
+  const extraBranches = plan ? Math.max(0, Math.min(50, Math.trunc(Number(form.extra_branches) || 0))) : 0;
+  const branchUnit = plan ? planPrice(plan, form.billing_period, 1).perBranch : 0;
+  const pickPlan = (key: PlanKey | "custom", period: "monthly" | "annual") =>
+    setForm((f) => {
+      const p = key === "custom" ? null : planByKey(key);
+      if (!p) return { ...f, plan: "custom", billing_period: period };
+      return { ...f, plan: p.key, billing_period: period, plan_name: `باقة ${p.name}`, price: String(period === "annual" ? p.annual : p.monthly), features: [...p.features], branches_count: String(p.includedBranches) };
+    });
+
+  const basePrice = Number(form.price) + extraBranches * branchUnit;
   const discountValue = Number(form.discount_value || 0);
   const discountAmount =
     form.discount_mode === "pct" ? Math.round(basePrice * Math.min(Math.max(discountValue, 0), 100)) / 100
@@ -88,7 +104,9 @@ export default function QuotePanel() {
         discountLabel: hasDiscount ? form.discount_label.trim() : "",
         setupFee: setup > 0 ? setup : 0,
         vatMode: form.vat_mode,
-        branchesCount: Math.max(1, Math.trunc(Number(form.branches_count) || 1)),
+        branchesCount: Math.max(1, Math.trunc(Number(form.branches_count) || 1)) + extraBranches,
+        extraBranches,
+        extraBranchPrice: branchUnit,
         features: form.features,
         notes: form.notes,
         acceptQrDataUrl,
@@ -129,18 +147,34 @@ export default function QuotePanel() {
           <div><span style={label}>اسم المشروع</span><input style={input} placeholder="مقهى ..." value={form.project_name} onChange={setF("project_name")} /></div>
           <div><span style={label}>اسم الشخص</span><input style={input} value={form.person_name} onChange={setF("person_name")} /></div>
           <div><span style={label}>جواله (اختياري)</span><input style={input} inputMode="tel" placeholder="05XXXXXXXX" value={form.phone} onChange={setF("phone")} /></div>
-          <div><span style={label}>اسم الباقة</span><input style={input} value={form.plan_name} onChange={setF("plan_name")} /></div>
+          <div>
+            <span style={label}>الباقة</span>
+            <select style={input} value={form.plan} onChange={(e) => pickPlan(e.target.value as PlanKey | "custom", form.billing_period)}>
+              {PLANS.map((p) => (
+                <option key={p.key} value={p.key}>{p.name} · {p.monthly} ر.س شهريًا</option>
+              ))}
+              <option value="custom">مخصّصة (أكتب السعر والمزايا بنفسي)</option>
+            </select>
+          </div>
           <div>
             <span style={label}>نوع الاشتراك</span>
             <select style={input} value={form.billing_period} onChange={(e) => {
               const v = e.target.value as "monthly" | "annual";
-              setForm((f) => ({ ...f, billing_period: v, price: v === "annual" && f.price === "149" ? "1490" : v === "monthly" && f.price === "1490" ? "149" : f.price }));
+              if (plan) pickPlan(plan.key, v);
+              else setForm((f) => ({ ...f, billing_period: v }));
             }}>
               <option value="monthly">شهري (يتجدد تلقائيًا)</option>
-              <option value="annual">سنوي (يتجدد تلقائيًا)</option>
+              <option value="annual">سنوي (شهرين مجانًا)</option>
             </select>
           </div>
-          <div><span style={label}>السعر لكل {annual ? "سنة" : "شهر"} (ر.س)</span><input style={input} inputMode="decimal" value={form.price} onChange={setF("price")} /></div>
+          <div><span style={label}>اسم الباقة في العرض</span><input style={input} value={form.plan_name} onChange={setF("plan_name")} /></div>
+          <div><span style={label}>سعر الباقة لكل {annual ? "سنة" : "شهر"} (ر.س)</span><input style={input} inputMode="decimal" value={form.price} onChange={setF("price")} /></div>
+          {plan && (
+            <div>
+              <span style={label}>فروع إضافية ({formatSar(branchUnit)} للفرع {annual ? "سنويًا" : "شهريًا"})</span>
+              <input style={input} inputMode="numeric" value={form.extra_branches} onChange={setF("extra_branches")} />
+            </div>
+          )}
           <div>
             <span style={label}>الخصم</span>
             <div style={{ display: "flex", gap: "6px" }}>
@@ -165,7 +199,7 @@ export default function QuotePanel() {
               <option value="inclusive">السعر شامل الضريبة</option>
             </select>
           </div>
-          <div><span style={label}>عدد الفروع</span><input style={input} inputMode="numeric" value={form.branches_count} onChange={setF("branches_count")} /></div>
+          <div><span style={label}>{plan ? "فروع ضمن الباقة" : "عدد الفروع"}</span><input style={input} inputMode="numeric" value={form.branches_count} onChange={setF("branches_count")} /></div>
           {annual && (
             <div><span style={label}>تقسيط السنوي على (دفعات)</span><input style={input} inputMode="numeric" value={form.payments_count} onChange={setF("payments_count")} /></div>
           )}
@@ -174,7 +208,7 @@ export default function QuotePanel() {
 
         <span style={{ ...label, marginTop: "16px" }}>المزايا المشمولة</span>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: "6px 14px" }}>
-          {FEATURE_CATALOG.map((f) => (
+          {SELLABLE_FEATURES.map((f) => (
             <label key={f.key} style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "12.5px", cursor: "pointer" }}>
               <input
                 type="checkbox"
@@ -195,6 +229,7 @@ export default function QuotePanel() {
             السعر: <b style={{ color: C.ink }}>{formatSar(Number.isFinite(finalPrice) ? finalPrice : 0)}</b> {periodLabel(form.billing_period)}
             {hasDiscount ? ` (خصم ${formatSar(discountAmount)})` : ""}
             {setup > 0 ? ` + تأسيس ${formatSar(setup)}` : ""}
+            {extraBranches > 0 ? ` · شامل ${extraBranches} ${extraBranches === 1 ? "فرع إضافي" : "فروع إضافية"}` : ""}
             {paymentsCount > 1 ? ` · على ${paymentsCount} دفعات` : ""}
           </span>
           <button style={pill(C.ink, C.lime)} onClick={makeQuote} disabled={busy}>{busy ? "جاري التجهيز..." : "طلّع عرض السعر PDF"}</button>

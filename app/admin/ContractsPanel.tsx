@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "../contract/contract.css";
 import ContractDocument from "../contract/ContractDocument";
 import { contractPdfBlob, downloadBlob } from "../contract/pdf";
-import { buildSchedule, Clause, ContractOffer, ContractParty, FEATURE_CATALOG, FeatureKey, formatSar, periodLabel, RAKEEN_PARTY } from "@/lib/contracts";
+import { buildSchedule, Clause, ContractOffer, ContractParty, FeatureKey, formatSar, periodLabel, RAKEEN_PARTY } from "@/lib/contracts";
+import { SELLABLE_FEATURES } from "@/lib/plans";
 
 type PaymentStatus = "due" | "submitted" | "paid" | "rejected";
 type PaymentRow = {
@@ -497,7 +498,7 @@ export default function ContractsPanel({ token }: { token: string }) {
 
           <span style={{ ...label, marginTop: "16px" }}>المزايا المفعّلة في العقد</span>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: "6px 14px" }}>
-            {FEATURE_CATALOG.map((f) => (
+            {SELLABLE_FEATURES.map((f) => (
               <label key={f.key} style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "12.5px", cursor: "pointer" }}>
                 <input
                   type="checkbox"

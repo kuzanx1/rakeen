@@ -151,6 +151,15 @@ export async function POST(request: NextRequest) {
   // Protects real Gemini API spend — this route bills per call regardless
   // of outcome, so an unbounded loop here is a direct cost-exhaustion vector,
   // not just a nuisance.
+  // The one feature that costs Rakeen money per use (a Gemini call), so the
+  // package is checked here and not only by hiding the screen. Its own query:
+  // before migration 20261015120000 the column doesn't exist, and an error or
+  // null allowed_features means "no package" = allowed.
+  const { data: planRow, error: planErr } = await admin.from("businesses").select("allowed_features").eq("id", profile.business_id).maybeSingle();
+  if (!planErr && Array.isArray(planRow?.allowed_features) && !planRow.allowed_features.includes("purchases_scan")) {
+    return NextResponse.json({ error: "قراءة الفواتير بالتصوير مو ضمن باقتك الحالية. تواصل مع ركين عشان ترقّي باقتك.", code: "plan" }, { status: 403 });
+  }
+
   if (!(await checkRateLimit(request, "RL_UPLOAD", String(profile.business_id)))) {
     return NextResponse.json({ error: "محاولات كثيرة، حاول بعد شوي" }, { status: 429 });
   }

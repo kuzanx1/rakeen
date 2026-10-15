@@ -25,7 +25,11 @@ export type QuoteProps = {
   discountLabel?: string;
   setupFee: number;
   vatMode: VatMode;
-  branchesCount: number;
+  branchesCount: number; // total, extra branches included
+  // Branches bought on top of the package's own, each at extraBranchPrice
+  // per period. Already part of `price`; shown so the total is explained.
+  extraBranches?: number;
+  extraBranchPrice?: number;
   features: string[];
   notes: string;
   acceptQrDataUrl: string | null;
@@ -155,6 +159,9 @@ export default function QuoteDocument(q: QuoteProps) {
           </div>
           <div className="qt-price-rows">
             <div><span>نوع الاشتراك</span><b>{periodLabel(q.billingPeriod)}، يتجدد تلقائيًا</b></div>
+            {(q.extraBranches || 0) > 0 && (
+              <div><span>فروع إضافية</span><b><span className="mono">{q.extraBranches}</span> × <Sar n={q.extraBranchPrice || 0} /></b></div>
+            )}
             {q.setupFee > 0 && <div><span>رسوم التأسيس (مرة واحدة)</span><b><Sar n={q.setupFee} /></b></div>}
             <div className="qt-total"><span>{instalments ? "الدفعة الأولى" : "أول دفعة"}</span><b><Sar n={firstPayment} /></b></div>
             <div><span>الضريبة</span><b>{q.vatMode === "inclusive" ? "الأسعار شاملة الضريبة" : "تُضاف ضريبة القيمة المضافة متى كانت مستحقة"}</b></div>

@@ -7,6 +7,8 @@ import UsagePanel from "./UsagePanel";
 import AuditLogPanel from "./AuditLogPanel";
 import ContractsPanel from "./ContractsPanel";
 import QuotePanel from "./QuotePanel";
+import { allowedFeatures, FeatureOverrides, PLANS, planByKey, SELLABLE_FEATURES } from "@/lib/plans";
+import type { FeatureKey } from "@/lib/contracts";
 
 type Business = {
   id: number;
@@ -52,6 +54,10 @@ type BusinessStats = {
   loyalty_theme: string | null;
   loyalty_icon_style: string | null;
   loyalty_custom_icon_url: string | null;
+  // packages: absent until migration 20261015120000 runs
+  plans_ready?: boolean;
+  plan_tier?: string | null;
+  feature_overrides?: FeatureOverrides | null;
 };
 
 const BUSINESS_TYPE_LABELS: Record<string, string> = {
@@ -448,6 +454,36 @@ export default function AdminDashboard() {
     const ok = await patchBusiness(business.id, { [field]: !business[field] });
     setBusyId(null);
     if (ok) setDrawerError(null);
+  }
+
+  // Package changes can switch flags off (the DB trigger enforces the
+  // package's ceiling) and raise branch_limit, so the list row and the
+  // drawer's stats are both reloaded afterwards rather than patched locally.
+  async function savePlan(business: Business, updates: { plan_tier?: string | null; feature_overrides?: FeatureOverrides }) {
+    if (!session) return;
+    setBusyId(business.id);
+    const ok = await patchBusiness(business.id, updates);
+    if (ok) {
+      setDrawerError(null);
+      const res = await fetch(`/api/admin/businesses/${business.id}`, { headers: { Authorization: `Bearer ${session.token}` } });
+      if (res.ok) setStats(await res.json());
+      await loadBusinesses(session.token);
+    }
+    setBusyId(null);
+  }
+
+  // One click flips whether the business may use a feature. The override is
+  // only kept when it differs from the package; otherwise it's dropped, so a
+  // later package change isn't fighting stale exceptions.
+  function toggleFeature(business: Business, key: FeatureKey) {
+    const plan = planByKey(stats?.plan_tier);
+    if (!plan) return;
+    const overrides: FeatureOverrides = { ...(stats?.feature_overrides || {}) };
+    const nowAllowed = allowedFeatures(plan.key, overrides).has(key);
+    const inPlan = plan.features.includes(key);
+    if (nowAllowed === inPlan) overrides[key] = !inPlan;
+    else delete overrides[key];
+    savePlan(business, { feature_overrides: overrides });
   }
 
   async function toggleSuspend(business: Business) {
@@ -950,6 +986,59 @@ export default function AdminDashboard() {
                   </div>
                 ) : (
                   <p style={styles.hint}>تعذر تحميل الإحصائيات</p>
+                )}
+              </div>
+
+              <div style={styles.section}>
+                <div style={styles.sectionLabel}>الباقة والمزايا</div>
+                {!stats ? (
+                  <p style={styles.hint}>جاري التحميل...</p>
+                ) : !stats.plans_ready ? (
+                  <p style={styles.hint}>الباقات تحتاج تشغيل migration ‎20261015120000 في سوبابيس أولاً.</p>
+                ) : (
+                  <>
+                    <select
+                      style={{ ...styles.input, marginBottom: "10px" }}
+                      value={stats.plan_tier || ""}
+                      disabled={busyId === selected.id}
+                      onChange={(e) => savePlan(selected, { plan_tier: e.target.value || null })}
+                    >
+                      <option value="">بدون باقة (كل المزايا مسموحة)</option>
+                      {PLANS.map((p) => (
+                        <option key={p.key} value={p.key}>{p.name} · {p.monthly} ر.س شهريًا</option>
+                      ))}
+                    </select>
+                    {planByKey(stats.plan_tier) ? (
+                      (() => {
+                        const plan = planByKey(stats.plan_tier)!;
+                        const allowed = allowedFeatures(plan.key, stats.feature_overrides);
+                        return SELLABLE_FEATURES.map((f) => {
+                          const on = allowed.has(f.key);
+                          const inPlan = plan.features.includes(f.key);
+                          const note = on && !inPlan ? "أضفتها أنت" : !on && inPlan ? "قفلتها أنت" : on ? "من الباقة" : "خارج الباقة";
+                          const custom = on !== inPlan;
+                          return (
+                            <div key={f.key} style={styles.moduleRow}>
+                              <span style={{ fontSize: "12.5px" }}>
+                                {f.label}
+                                <span style={{ marginInlineStart: "6px", fontSize: "10.5px", fontWeight: 800, color: custom ? "#B0402C" : "#8a8375" }}>{note}</span>
+                              </span>
+                              <button
+                                style={{ ...styles.toggleBtn, background: on ? "#7BAD0F" : "#EDEADF", color: on ? "#fff" : "#171717" }}
+                                onClick={() => toggleFeature(selected, f.key)}
+                                disabled={busyId === selected.id}
+                              >
+                                {on ? "مسموحة ✓" : "مقفلة"}
+                              </button>
+                            </div>
+                          );
+                        });
+                      })()
+                    ) : (
+                      <p style={styles.hint}>بدون باقة: المطعم يقدر يستخدم كل المزايا. اختر له باقة عشان تتحكم فيها.</p>
+                    )}
+                    <p style={styles.hint}>الباقة تحدد وش يقدر المطعم يستخدم، وأنت تفك له أو تقفل أي ميزة. المقفل ينطفي تلقائيًا حتى لو حاول صاحب المطعم يشغّله.</p>
+                  </>
                 )}
               </div>
 
