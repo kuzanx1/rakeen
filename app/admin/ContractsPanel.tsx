@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "../contract/contract.css";
 import ContractDocument from "../contract/ContractDocument";
+import QuoteDocument, { QuoteProps } from "../contract/QuoteDocument";
 import { contractPdfBlob, downloadBlob } from "../contract/pdf";
 import { buildSchedule, Clause, ContractOffer, ContractParty, FEATURE_CATALOG, FeatureKey, formatSar, periodLabel, RAKEEN_PARTY } from "@/lib/contracts";
 
@@ -99,6 +100,8 @@ export default function ContractsPanel({ token }: { token: string }) {
   const [detail, setDetail] = useState<{ row: ContractRow & { terms_snapshot: Snapshot | null; signature_png: string | null; document_hash: string | null }; payments: PaymentRow[]; pdfUrl: string | null; uploadedUrl: string | null } | null>(null);
   const [busy, setBusy] = useState(false);
   const docRef = useRef<HTMLDivElement>(null);
+  const quoteRef = useRef<HTMLDivElement>(null);
+  const [quote, setQuote] = useState<QuoteProps | null>(null);
   const [accounts, setAccounts] = useState<{ id: number; name: string; is_active: boolean }[]>([]);
   const [schedule, setSchedule] = useState<{ amount: string; due_date: string }[]>([]);
   const [scheduleEdited, setScheduleEdited] = useState(false);
@@ -251,6 +254,62 @@ export default function ContractsPanel({ token }: { token: string }) {
     }
   }
 
+  // Price quote: built from the same form as a contract, rendered off-screen
+  // and turned into a PDF on the spot. Nothing is saved server-side.
+  async function makeQuote() {
+    setError(null);
+    const price = finalPrice;
+    const setup = Number(form.setup_fee || 0);
+    if (!Number.isFinite(price) || price < 0) return setError("السعر غير صحيح");
+    if (form.features.length === 0) return setError("اختر ميزة وحدة على الأقل");
+    setBusy(true);
+    try {
+      const now = new Date();
+      const rnd = new Uint16Array(1);
+      crypto.getRandomValues(rnd);
+      const quoteNumber = `RKN-Q-${now.toISOString().slice(0, 10).replace(/-/g, "")}-${String(rnd[0] % 10000).padStart(4, "0")}`;
+      const QR = await import("qrcode");
+      const acceptText = `السلام عليكم، أوافق على عرض سعر ركين رقم ${quoteNumber}${form.prefill_business_name ? ` — ${form.prefill_business_name}` : ""}`;
+      const acceptQrDataUrl = await QR.toDataURL(`https://wa.me/966${RAKEEN_PARTY.whatsapp.slice(1)}?text=${encodeURIComponent(acceptText)}`, { margin: 0, width: 320, color: { dark: "#171717", light: "#ffffff" } });
+      const props: QuoteProps = {
+        quoteNumber,
+        issuedAt: now.toISOString(),
+        validDays: Math.max(1, Math.min(90, Math.trunc(Number(form.valid_days) || 14))),
+        clientName: form.prefill_business_name.trim(),
+        contactName: form.prefill_owner_name.trim(),
+        phone: form.prefill_phone.trim(),
+        planName: form.plan_name.trim() || "باقة ركين",
+        billingPeriod: form.billing_period,
+        price,
+        listPrice: hasDiscount ? basePrice : null,
+        discountLabel: hasDiscount ? form.discount_label.trim() : "",
+        setupFee: Number.isFinite(setup) && setup > 0 ? setup : 0,
+        vatMode: form.vat_mode,
+        branchesCount: Math.max(1, Math.trunc(Number(form.branches_count) || 1)),
+        features: form.features,
+        notes: form.special_terms,
+        acceptQrDataUrl,
+      };
+      setQuote(props);
+      // let React paint the hidden document and its images before capture
+      await new Promise((r) => setTimeout(r, 400));
+      if (!quoteRef.current) return;
+      const blob = await contractPdfBlob(quoteRef.current, quoteNumber);
+      const filename = `Rakeen-Quote-${quoteNumber}.pdf`;
+      const file = new File([blob], filename, { type: "application/pdf" });
+      // On a phone, open the share sheet (WhatsApp etc.); elsewhere just download.
+      if (typeof navigator.canShare === "function" && navigator.canShare({ files: [file] }) && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
+        await navigator.share({ files: [file], title: `عرض سعر ركين ${quoteNumber}` }).catch(() => downloadBlob(blob, filename));
+      } else {
+        downloadBlob(blob, filename);
+      }
+    } catch {
+      setError("تعذر تجهيز عرض السعر");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function openDetail(id: string) {
     setError(null);
     const res = await fetch(`/api/admin/contracts/${id}`, { headers: auth });
@@ -348,9 +407,9 @@ export default function ContractsPanel({ token }: { token: string }) {
   return (
     <div style={{ maxWidth: "980px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", marginBottom: "16px", flexWrap: "wrap" }}>
-        <p style={{ fontSize: "12.5px", fontWeight: 700, color: C.muted }}>أنشئ عقد، أرسل الرابط للمشترك، يوقّع من جواله ويتحفظ هنا PDF.</p>
+        <p style={{ fontSize: "12.5px", fontWeight: 700, color: C.muted }}>عبّ الباقة مرة وحدة: طلّع منها عرض سعر PDF، أو أنشئ العقد ورابط التوقيع.</p>
         <button style={pill(C.ink, C.lime)} onClick={() => { setShowForm((v) => !v); setCreated(null); }}>
-          {showForm ? "إغلاق" : "+ عقد جديد"}
+          {showForm ? "إغلاق" : "+ عرض سعر أو عقد"}
         </button>
       </div>
 
@@ -468,9 +527,9 @@ export default function ContractsPanel({ token }: { token: string }) {
             </div>
             <div><span style={label}>تاريخ البدء</span><input style={input} type="date" value={form.start_date} onChange={setF("start_date")} /></div>
             <div><span style={label}>عدد الفروع</span><input style={input} inputMode="numeric" value={form.branches_count} onChange={setF("branches_count")} /></div>
-            <div><span style={label}>صلاحية الرابط (أيام)</span><input style={input} inputMode="numeric" value={form.valid_days} onChange={setF("valid_days")} /></div>
-            <div><span style={label}>اسم المنشأة (تعبئة مسبقة، اختياري)</span><input style={input} value={form.prefill_business_name} onChange={setF("prefill_business_name")} /></div>
-            <div><span style={label}>اسم صاحبها (اختياري)</span><input style={input} value={form.prefill_owner_name} onChange={setF("prefill_owner_name")} /></div>
+            <div><span style={label}>صلاحية العرض والرابط (أيام)</span><input style={input} inputMode="numeric" value={form.valid_days} onChange={setF("valid_days")} /></div>
+            <div><span style={label}>اسم المنشأة (العميل)</span><input style={input} value={form.prefill_business_name} onChange={setF("prefill_business_name")} /></div>
+            <div><span style={label}>اسم المسؤول</span><input style={input} value={form.prefill_owner_name} onChange={setF("prefill_owner_name")} /></div>
             <div><span style={label}>جواله (اختياري، للإرسال بالواتساب)</span><input style={input} inputMode="tel" placeholder="05XXXXXXXX" value={form.prefill_phone} onChange={setF("prefill_phone")} /></div>
           </div>
 
@@ -509,7 +568,7 @@ export default function ContractsPanel({ token }: { token: string }) {
             ))}
           </div>
 
-          <span style={{ ...label, marginTop: "16px" }}>شروط خاصة (اختياري، كل سطر بند)</span>
+          <span style={{ ...label, marginTop: "16px" }}>ملاحظات أو شروط خاصة (اختياري، كل سطر بند، تطلع في العرض والعقد)</span>
           <textarea style={{ ...input, minHeight: "80px" }} value={form.special_terms} onChange={setF("special_terms")} placeholder="مثال: خصم ٢٠٪ على أول ٣ أشهر." />
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "14px", gap: "10px", flexWrap: "wrap" }}>
@@ -521,7 +580,10 @@ export default function ContractsPanel({ token }: { token: string }) {
               {hasDiscount ? ` (خصم ${formatSar(discountAmount)})` : ""}
               {Number(form.setup_fee) > 0 ? ` + تأسيس ${formatSar(Number(form.setup_fee))}` : ""}
             </span>
-            <button style={pill(C.ink, C.lime)} onClick={create} disabled={busy}>{busy ? "جاري الإنشاء..." : "أنشئ العقد والرابط"}</button>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button style={pill(C.stone, C.ink)} onClick={makeQuote} disabled={busy}>{busy ? "جاري التجهيز..." : "عرض سعر PDF"}</button>
+              <button style={pill(C.ink, C.lime)} onClick={create} disabled={busy}>{busy ? "جاري الإنشاء..." : "أنشئ العقد والرابط"}</button>
+            </div>
           </div>
         </div>
       )}
@@ -606,6 +668,14 @@ export default function ContractsPanel({ token }: { token: string }) {
           ) : (
             <p style={{ fontSize: "12.5px", color: C.muted }}>العقد ما انوقّع بعد. الرابط: <span style={{ fontFamily: "'IBM Plex Mono',monospace", direction: "ltr", unicodeBidi: "isolate" }}>{linkFor(detail.row.token)}</span></p>
           )}
+        </div>
+      )}
+
+      {quote && (
+        <div aria-hidden style={{ position: "fixed", left: "-10000px", top: 0, width: "794px" }}>
+          <div className="ct-vars" ref={quoteRef}>
+            <QuoteDocument {...quote} />
+          </div>
         </div>
       )}
 
