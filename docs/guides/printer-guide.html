@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>دليل ربط الطابعة — ركين</title>
+<style>
+  @font-face { font-family: 'Thmanyah'; src: url('../../public/fonts/thmanyah-sans/thmanyahsans-Regular.woff2') format('woff2'); font-weight: 400; }
+  @font-face { font-family: 'Thmanyah'; src: url('../../public/fonts/thmanyah-sans/thmanyahsans-Medium.woff2') format('woff2'); font-weight: 500; }
+  @font-face { font-family: 'Thmanyah'; src: url('../../public/fonts/thmanyah-sans/thmanyahsans-Bold.woff2') format('woff2'); font-weight: 700; }
+  @font-face { font-family: 'Thmanyah'; src: url('../../public/fonts/thmanyah-sans/thmanyahsans-Black.woff2') format('woff2'); font-weight: 900; }
+
+  :root { --ink:#111111; --lime:#C4FF2B; --lime-deep:#5f8a08; --ivory:#FAFAF5; --line:rgba(17,17,17,.10); --muted:#5a5a5a; }
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #fff; color: var(--ink); font-family: 'Thmanyah', 'Tajawal', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .page { width: 210mm; height: 297mm; padding: 14mm 15mm 12mm; position: relative; overflow: hidden; page-break-after: always; background: var(--ivory); }
+  .page:last-child { page-break-after: auto; }
+
+  .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7mm; }
+  .top img { height: 11mm; }
+  .top .tag { font-size: 10pt; font-weight: 700; background: var(--ink); color: var(--lime); padding: 2mm 4mm; border-radius: 99px; }
+
+  h1 { font-size: 27pt; font-weight: 900; line-height: 1.25; margin: 0 0 2mm; }
+  h1 span { background: linear-gradient(transparent 58%, var(--lime) 58%); padding: 0 1mm; }
+  .lead { font-size: 13pt; color: var(--muted); margin: 0 0 7mm; }
+
+  .need { background: #fff; border: 1px solid var(--line); border-radius: 5mm; padding: 5mm 6mm; margin-bottom: 7mm; }
+  .need h2 { font-size: 13pt; margin: 0 0 3mm; font-weight: 800; }
+  .need ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 3mm 6mm; }
+  .need li { display: flex; gap: 2.5mm; align-items: flex-start; font-size: 11.5pt; line-height: 1.55; }
+  .tick { flex: 0 0 5.5mm; height: 5.5mm; border-radius: 1.6mm; background: var(--lime); display: flex; align-items: center; justify-content: center; margin-top: .6mm; }
+  .tick svg { width: 3.6mm; height: 3.6mm; }
+
+  .step { display: flex; gap: 5mm; background: #fff; border: 1px solid var(--line); border-radius: 5mm; padding: 5mm 6mm; margin-bottom: 4.5mm; }
+  .num { flex: 0 0 12mm; height: 12mm; border-radius: 3.5mm; background: var(--ink); color: var(--lime); font-size: 19pt; font-weight: 900; display: flex; align-items: center; justify-content: center; }
+  .step h3 { font-size: 14.5pt; font-weight: 800; margin: .5mm 0 1.5mm; }
+  .step p { font-size: 11.5pt; line-height: 1.65; margin: 0; color: #2b2b2b; }
+  .step .body { flex: 1; }
+  .hint { margin-top: 2.5mm; font-size: 10.5pt; color: var(--muted); background: var(--ivory); border-radius: 2.5mm; padding: 2mm 3mm; line-height: 1.6; }
+  .chip { display: inline-block; background: var(--ink); color: var(--lime); border-radius: 1.8mm; padding: .2mm 2mm; font-weight: 700; font-size: 10.5pt; margin: 0 .5mm; }
+  .code { font-family: 'Courier New', monospace; font-weight: 700; direction: ltr; unicode-bidi: embed; background: #fff; border: 1px solid var(--line); border-radius: 1.5mm; padding: 0 1.5mm; }
+
+  .ill { flex: 0 0 34mm; display: flex; align-items: center; justify-content: center; }
+  .ill svg { width: 34mm; height: auto; }
+
+  /* settings mock */
+  .mock { flex: 0 0 62mm; background: var(--ivory); border: 1px solid var(--line); border-radius: 4mm; padding: 3.5mm; font-size: 9.5pt; }
+  .mock .row { margin-bottom: 2.4mm; }
+  .mock .lbl { font-weight: 700; font-size: 8.5pt; color: var(--muted); margin-bottom: 1mm; }
+  .mock .seg { display: flex; gap: 1.2mm; }
+  .mock .seg span { flex: 1; text-align: center; border-radius: 1.6mm; padding: 1mm .5mm; border: 1px solid var(--line); background: #fff; font-size: 7.6pt; white-space: nowrap; }
+  .mock .seg .on { background: var(--ink); color: var(--lime); border-color: var(--ink); font-weight: 700; }
+  .mock .field { background: #fff; border: 1px solid var(--line); border-radius: 1.6mm; padding: 1.2mm 2mm; direction: ltr; text-align: left; font-family: 'Courier New', monospace; font-weight: 700; }
+  .mock .btns { display: flex; gap: 1.5mm; margin-top: 3mm; }
+  .mock .btns span { flex: 1; text-align: center; border-radius: 2mm; padding: 1.6mm 0; font-weight: 800; font-size: 9pt; }
+  .mock .save { background: var(--lime); color: var(--ink); }
+  .mock .test { background: var(--ink); color: var(--lime); }
+
+  .done { background: var(--ink); color: #fff; border-radius: 5mm; padding: 4.5mm 6mm; display: flex; align-items: center; gap: 5mm; margin: 0 0 5mm; }
+  .done .big { font-size: 22pt; }
+  .done b { color: var(--lime); font-size: 14pt; }
+  .done p { margin: 1mm 0 0; font-size: 11pt; color: rgba(255,255,255,.8); }
+
+  .extras { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-bottom: 5mm; }
+  .extra { background: #fff; border: 1px solid var(--line); border-radius: 4mm; padding: 4mm 5mm; }
+  .extra h4 { margin: 0 0 1.5mm; font-size: 12pt; font-weight: 800; }
+  .extra p { margin: 0; font-size: 10.5pt; line-height: 1.6; color: #2b2b2b; }
+
+  .fix h2 { font-size: 14pt; font-weight: 800; margin: 0 0 3mm; }
+  .fix table { width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; border: 1px solid var(--line); border-radius: 4mm; overflow: hidden; }
+  .fix td { padding: 2mm 4mm; font-size: 10pt; line-height: 1.55; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .fix tr:last-child td { border-bottom: 0; }
+  .fix td:first-child { width: 36%; font-weight: 700; }
+
+  .foot { position: absolute; bottom: 10mm; left: 15mm; right: 15mm; display: flex; justify-content: space-between; align-items: center; font-size: 10pt; color: var(--muted); border-top: 1px solid var(--line); padding-top: 3mm; }
+  .foot b { color: var(--ink); }
+</style>
+</head>
+<body>
+
+<!-- ============ صفحة 1 ============ -->
+<section class="page">
+  <div class="top">
+    <img src="../../public/brand/rakeen-wordmark-deep.png" alt="ركين">
+    <span class="tag">دليل الطابعة</span>
+  </div>
+
+  <h1>اربط طابعتك <span>بكاشير ركين</span></h1>
+  <p class="lead">٥ خطوات، ٥ دقايق، وتطبع أول فاتورة. ما تحتاج فني.</p>
+
+  <div class="need">
+    <h2>قبل لا تبدأ، جهّز هذي:</h2>
+    <ul>
+      <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span><span>طابعة فواتير حرارية <b>80مم</b> فيها <b>منفذ شبكة (LAN)</b></span></li>
+      <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span><span><b>كيبل شبكة</b> (يجي غالباً مع الطابعة)</span></li>
+      <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span><span><b>راوتر الإنترنت</b> حق المحل</span></li>
+      <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span><span>جهاز الكاشير فيه <b>تطبيق ركين</b> ومتصل <b>بنفس الواي فاي</b></span></li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <div class="num">١</div>
+    <div class="body">
+      <h3>وصّل الطابعة بالراوتر</h3>
+      <p>ركّب طرف الكيبل في منفذ الشبكة ورا الطابعة، والطرف الثاني في أي منفذ فاضي بالراوتر. حط الورق وشغّل الطابعة.</p>
+    </div>
+    <div class="ill">
+      <svg viewBox="0 0 140 70" fill="none" stroke="#111" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="6" y="22" width="40" height="30" rx="6" fill="#fff"/><rect x="14" y="12" width="24" height="12" rx="2" fill="#fff"/><line x1="16" y1="40" x2="36" y2="40"/>
+        <rect x="94" y="30" width="40" height="22" rx="5" fill="#fff"/><line x1="104" y1="30" x2="100" y2="16"/><line x1="124" y1="30" x2="128" y2="16"/><circle cx="104" cy="41" r="2" fill="#111"/><circle cx="112" cy="41" r="2" fill="#111"/>
+        <path d="M46 44 C64 44 72 56 94 46" stroke="#5f8a08" stroke-width="3.2"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">٢</div>
+    <div class="body">
+      <h3>اعرف رقم الطابعة</h3>
+      <p>طفّ الطابعة. اضغط زر <span class="chip">FEED</span> وخلّك ضاغط، وشغّلها وأنت ضاغط، وفك الزر لما تبدأ تطبع. بتطلع ورقة إعدادات: دوّر فيها على <span class="code">IP Address</span> واكتب الرقم اللي جنبه.</p>
+      <div class="hint">الرقم يبدأ غالباً بـ <span class="code">192.168.</span> مثل <span class="code">192.168.1.50</span>. وإذا ما طلعت الورقة، دوّر في كتيّب طابعتك على كلمة <b>Self-test</b>: كل طابعة لها طريقة.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">٣</div>
+    <div class="body">
+      <h3>افتح إعدادات الطباعة في ركين</h3>
+      <p>من تطبيق كاشير ركين اضغط <span class="chip">المزيد</span> ثم <span class="chip">إعدادات الطباعة</span>.</p>
+      <div class="hint">الإعدادات خاصة بكل جهاز: لو عندك جهازين كاشير، سوّ الخطوات على كل واحد.</div>
+    </div>
+  </div>
+
+  <div class="foot"><span>ركين — <b>rakeenapp.com</b></span><span>١ / ٢</span></div>
+</section>
+
+<!-- ============ صفحة 2 ============ -->
+<section class="page">
+  <div class="top">
+    <img src="../../public/brand/rakeen-wordmark-deep.png" alt="ركين">
+    <span class="tag">دليل الطابعة</span>
+  </div>
+
+  <div class="step">
+    <div class="num">٤</div>
+    <div class="body">
+      <h3>عبّ الإعدادات</h3>
+      <p style="margin-bottom:2mm;"><b>طريقة التوصيل:</b> اختر <span class="chip">شبكة الواي فاي</span></p>
+      <p style="margin-bottom:2mm;"><b>عنوان الطابعة في الشبكة:</b> اكتب الرقم من الخطوة ٢</p>
+      <p style="margin-bottom:2mm;"><b>المنفذ:</b> خلّه <span class="code">9100</span> مثل ما هو</p>
+      <p><b>عرض الورق:</b> اختر <span class="chip">80مم</span> (أو 58مم لو ورقك صغير)</p>
+    </div>
+    <div class="mock">
+      <div class="row"><div class="lbl">طريقة التوصيل</div><div class="seg"><span class="on">شبكة الواي فاي</span><span>بلوتوث</span><span>سلك USB</span></div></div>
+      <div class="row"><div class="lbl">عنوان الطابعة في الشبكة</div><div class="field">192.168.1.50</div></div>
+      <div class="row"><div class="lbl">المنفذ</div><div class="field">9100</div></div>
+      <div class="row"><div class="lbl">عرض الورق</div><div class="seg"><span class="on">80مم (الأشيع)</span><span>58مم</span></div></div>
+      <div class="btns"><span class="save">حفظ الإعدادات</span><span class="test">طباعة اختبار</span></div>
+    </div>
+  </div>
+
+  <div class="done">
+    <div class="num" style="background:var(--lime); color:var(--ink);">٥</div>
+    <div style="flex:1;"><b>احفظ وجرّب</b><p>اضغط <span class="chip" style="background:var(--lime); color:var(--ink);">حفظ الإعدادات</span> ثم <span class="chip" style="background:#fff; color:var(--ink);">طباعة اختبار</span></p></div>
+    <div style="text-align:center;"><div class="big">🎉</div><p style="margin:0; color:var(--lime); font-weight:800;">طلعت الورقة؟ خلصت!</p></div>
+  </div>
+  <p style="font-size:10.5pt; color:var(--muted); margin:-3mm 0 5mm;">من الحين كل فاتورة تطبع لحالها مع كل طلب.</p>
+
+  <div class="extras">
+    <div class="extra">
+      <h4>عندك درج كاش؟</h4>
+      <p>وصّل كيبل الدرج بمنفذ الدرج ورا الطابعة، وفعّل <b>«هذه الطابعة موصولة بدرج كاش»</b> في نفس الصفحة. الدرج ينفتح لحاله مع كل دفع كاش.</p>
+    </div>
+    <div class="extra">
+      <h4>عندك طابعة للمطبخ؟</h4>
+      <p>اعرف رقمها بنفس الخطوة ٢، وفعّل <b>«طباعة تذكرة المطبخ»</b> واكتب رقمها في <b>عنوان طابعة المطبخ</b>. (ميزة المطبخ من باقة عماد)</p>
+    </div>
+  </div>
+
+  <div class="fix">
+    <h2>ما طبع؟ شيّك على هذي:</h2>
+    <table>
+      <tr><td>ما طلع شي أبداً</td><td>تأكد إن الطابعة شغالة وفيها ورق، وإن الكيبل راكب زين في الطابعة والراوتر، وإن جهاز الكاشير على نفس الواي فاي.</td></tr>
+      <tr><td>اشتغلت وبعدين وقفت</td><td>غالباً الراوتر انطفى وأعطى الطابعة رقم جديد. اطبع ورقة الإعدادات من جديد (الخطوة ٢) وحدّث الرقم.</td></tr>
+      <tr><td>الورقة مقصوصة أو الكلام صغير</td><td>غيّر <b>عرض الورق</b>: 80مم للورق العريض، 58مم للصغير.</td></tr>
+      <tr><td>العربي يطلع رموز غريبة؟</td><td>ما يصير مع ركين: الفاتورة تنطبع كصورة، فالعربي يطلع صحيح على أي طابعة.</td></tr>
+      <tr><td>بلوتوث أو سلك USB؟</td><td>الطريقة المعتمدة <b>الشبكة</b>: أثبت وما تنقطع. اختر طابعة فيها منفذ LAN.</td></tr>
+    </table>
+  </div>
+
+  <div class="foot"><span>تحتاج مساعدة؟ واتساب الدعم <b dir="ltr">055 701 5282</b></span><span>٢ / ٢</span></div>
+</section>
+
+</body>
+</html>
