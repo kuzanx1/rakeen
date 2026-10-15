@@ -448,13 +448,17 @@ let CHANNEL_PERF = [
 /* ============ Pulse computation — same tiered-scoring pattern used in the POS shift health card ============ */
 /* ============ Onboarding checklist — real, verifiable completion checks (not just "did they visit
    the page"), matching exactly what Rakeen needs configured to calculate margins correctly. */
+// الخطوات تتبع الباقة: صاحب أساس ما عنده مخزون ولا تكلفة ولا محاسبة، فكان
+// يُطلب منه يجهّز أشياء مو في باقته وتوديه لشاشات مقفولة.
 function getOnboardingSteps(){
   return [
-    {label:'حدد مصاريفك الثابتة الشهرية', desc:'إيجار، رواتب، فواتير — عشان ركين يحسب هامش ربح دقيق لكل منتج', screen:'accounting', tab:'fixedcosts', done: FIXED_COSTS_SET},
-    {label:'سجّل أصناف مخزونك', desc:'المواد الخام والتغليف اللي تستخدمها بمنتجاتك', screen:'inventory', done: STOCK_ITEMS.length > 0},
-    {label:'أضف منتجات قائمتك وحدد تكلفتها', desc:'مباشرة، وصفة، أو بوكس — عشان يطلع هامش ربح كل صنف', screen:'menu', done: MENU_ITEMS.some(m=>m.linkProfit)},
-    {label:'اربط منتجاتك بالمخزون', desc:'عشان يُخصم المخزون تلقائيًا كل ما تبيع، بدون ما تحسبها يدوي', screen:'menu', done: MENU_ITEMS.some(m=>m.linkInventory)}
-  ];
+    {feature:'costing_profit', label:'حدد مصاريفك الثابتة الشهرية', desc:'إيجار، رواتب، فواتير — عشان ركين يحسب هامش ربح دقيق لكل منتج', screen:'accounting', tab:'fixedcosts', done: FIXED_COSTS_SET},
+    {feature:'inventory', label:'سجّل أصناف مخزونك', desc:'المواد الخام والتغليف اللي تستخدمها بمنتجاتك', screen:'inventory', done: STOCK_ITEMS.length > 0},
+    planHas('costing_profit')
+      ? {label:'أضف منتجات قائمتك وحدد تكلفتها', desc:'مباشرة، وصفة، أو بوكس — عشان يطلع هامش ربح كل صنف', screen:'menu', done: MENU_ITEMS.some(m=>m.linkProfit)}
+      : {label:'أضف منتجات قائمتك', desc:'الأصناف والأقسام والأسعار — عشان تبدأ تبيع من الكاشير', screen:'menu', done: MENU_ITEMS.length > 0},
+    {feature:'inventory', label:'اربط منتجاتك بالمخزون', desc:'عشان يُخصم المخزون تلقائيًا كل ما تبيع، بدون ما تحسبها يدوي', screen:'menu', done: MENU_ITEMS.some(m=>m.linkInventory)}
+  ].filter(s=> !s.feature || planHas(s.feature));
 }
 function renderOnboardingChecklist(){
   const el = document.getElementById('onboardingChecklistPanel');
@@ -474,7 +478,7 @@ function renderOnboardingChecklist(){
     <div class="panel onboard-panel">
       <div class="onboard-header">
         <div class="onboard-title">خلّنا نجهّز لوحتك — ${doneCount} من ${steps.length} خطوات</div>
-        <div class="onboard-subtitle">كمّل هالخطوات مرة وحدة، وركين يصير شريكك يحسب كل أرباحك صح تلقائيًا من بعدها</div>
+        <div class="onboard-subtitle">${planHas('costing_profit') ? 'كمّل هالخطوات مرة وحدة، وركين يصير شريكك يحسب كل أرباحك صح تلقائيًا من بعدها' : 'كمّل هالخطوات وتصير جاهز تبيع من الكاشير'}</div>
       </div>
       <div class="onboard-progress-track"><div class="onboard-progress-fill" style="width:${pct}%"></div></div>
       <div class="onboard-steps">
@@ -8088,6 +8092,8 @@ function screenAllowed(slug){
    menu, just without seeing what anything costs or how much profit it makes. */
 function canViewProfit(){
   if(!CURRENT_PROFILE) return false;
+  // التكلفة والهامش ميزة «تكلفة كل منتج وصافي الربح» (عماد)، للمالك أيضًا
+  if(!planHas('costing_profit')) return false;
   if(CURRENT_PROFILE.user_type !== 'employee') return true;
   return GRANTED_SCREENS.has('view_profit');
 }
@@ -8248,6 +8254,7 @@ async function loadBusinessData(){
   {
     const { data: planRow, error: planErr } = await sb.from('businesses').select('allowed_features').eq('id', businessId).maybeSingle();
     PLAN_ALLOWED_FEATURES = (!planErr && planRow && Array.isArray(planRow.allowed_features)) ? new Set(planRow.allowed_features) : null;
+    applyPlanHiding();
   }
 
   STOCK_ITEM_ID_BY_NAME = {}; STOCK_ITEM_NAME_BY_ID = {};
@@ -8981,6 +8988,16 @@ function applyPermissions(){
 
   document.querySelectorAll('.nav-item[data-screen]').forEach(btn=>{
     btn.style.display = allowedScreens.includes(btn.dataset.screen) ? '' : 'none';
+  });
+  // عنوان قسم كل شاشاته مخفية (مثل «المالية» لصاحب أساس) يختفي معها
+  document.querySelectorAll('.nav-section-label').forEach(label=>{
+    let el = label.nextElementSibling, any = false;
+    while(el && !el.classList.contains('nav-section-label')){
+      if(el.matches('.nav-item[data-screen]') && el.style.display !== 'none') any = true;
+      if(el.querySelector && el.querySelector('.nav-item[data-screen]:not([style*="display: none"])')) any = true;
+      el = el.nextElementSibling;
+    }
+    label.style.display = any ? '' : 'none';
   });
 
   // deep-link support (e.g. an "Add to Home Screen" shortcut straight to
@@ -10607,12 +10624,58 @@ const PLAN_SCREEN_FEATURE = {
   inventory: 'inventory',
   purchases: 'purchases_scan',
   accounting: 'costing_profit',
-  reports: 'reports',
+  // التقارير مفتوحة لكل الباقات: أساس يشوف الأساسية (المبيعات، طرق الدفع،
+  // الإغلاق، الضريبة، والتقرير اليومي)، والباقي يختفي بـ PLAN_HIDE_SELECTORS.reports
   customers: 'loyalty',
   loyalty: 'loyalty',
   delivery: 'delivery_apps',
   onlineMenu: 'online_store',
 };
+
+// داخل الشاشات المفتوحة: أجزاء تتبع ميزةً بعينها (تبويب التكلفة في المنتج،
+// نسخة المطبخ، الطاولات، الصلاحيات...). كانت تظهر لصاحب أساس فيلقى المخزون
+// والمحاسبة داخل شاشة المنيو وهي مو في باقته. القاعدة: CSS واحد يخفي كل
+// عنصر عليه data-plan-feature="<ميزة>" والميزة مو في الباقة، فيشمل كل ما
+// يُرسم لاحقًا بلا ما يتذكّره كل قالب. والمحددات تحت لعناصر ثابتة بلا وسم.
+function planHas(feature){
+  return !PLAN_ALLOWED_FEATURES || PLAN_ALLOWED_FEATURES.has(feature);
+}
+// الوسم داخل القوالب. الطاولات لنشاط خدمات (صالون، مغسلة، عيادة) هي
+// مواقعه وغرفه وحجوزاته، أساس شغله، فما تنوسم.
+function planAttr(feature){
+  if(feature === 'tables_reservations' && isServiceBusinessType(BUSINESS_TYPE)) return '';
+  return `data-plan-feature="${feature}"`;
+}
+const PLAN_HIDE_SELECTORS = {
+  costing_profit: ['#productEditTabs [data-tab="cost"]', '#costCompletionBanner', '[data-report="financial"]', '[data-report="expenses"]'],
+  inventory: ['[data-report="waste"]'],
+  purchases_scan: ['[data-report="purchases"]'],
+  delivery_apps: ['#productEditTabs [data-tab="delivery"]'],
+  // أساس: التقارير الأساسية بس (المبيعات، طرق الدفع، الإغلاق، الضريبة،
+  // الإقرار، والتقرير اليومي). الباقي والتصدير لExcel والإرسال بالبريد مع عماد.
+  reports: ['[data-report="counter"]', '[data-report="products"]', '[data-report="discounts"]', '[data-export="excel"]', '#reportEmailToggleBtn', '#reportEmailRow'],
+  // الكاشير يُضاف من «قائمة الموظفين» لكل الباقات. الصلاحيات وحسابات لوحة
+  // التحكم وسجل العمليات والامتثال والأقسام مع «صلاحيات الموظفين» (عماد).
+  team_permissions: ['#settingsTabs [data-tab="permissions"]', '#hrTabs [data-tab="compliance"]', '#hrTabs [data-tab="departments"]', '#auditFooter', '#auditOverlay', '#auditDrawer'],
+};
+function applyPlanHiding(){
+  let style = document.getElementById('rkPlanHiding');
+  if(!style){
+    style = document.createElement('style');
+    style.id = 'rkPlanHiding';
+    document.head.appendChild(style);
+  }
+  if(!PLAN_ALLOWED_FEATURES){ style.textContent = ''; return; }
+  const features = new Set([...Object.keys(PLAN_HIDE_SELECTORS), ...FEATURE_KEYS_IN_MARKUP]);
+  const selectors = [];
+  features.forEach(f=>{
+    if(planHas(f)) return;
+    selectors.push(`[data-plan-feature="${f}"]`, ...(PLAN_HIDE_SELECTORS[f] || []));
+  });
+  style.textContent = selectors.length ? selectors.join(',\n') + '{display:none !important;}' : '';
+}
+// كل ميزة ممكن تنوسم بها عناصر (lib/contracts.ts FEATURE_CATALOG).
+const FEATURE_KEYS_IN_MARKUP = ['kds', 'inventory', 'purchases_scan', 'costing_profit', 'reports', 'online_store', 'loyalty', 'tables_reservations', 'booking_page', 'multi_branch', 'team_permissions', 'delivery_apps'];
 let BUSINESS_TYPE = 'restaurant';
 let ONLINE_BOOKING_ENABLED = false;
 // Which business types share the services/service_staff booking engine —
@@ -11696,7 +11759,7 @@ async function renderPosSettings(){
   const autoReadyDeliveryOnline = !!(kitchenSettings && kitchenSettings.auto_ready_delivery_online);
 
   const kitchenTicketPanel = `
-    <div class="rk-section">
+    <div class="rk-section" ${planAttr('kds')}>
       ${rkSectionHead('coffee', 'نسخة المطبخ', 'شكل الورقة اللي تروح للمطبخ — تشغيلها وتحديد طابعتها من إعدادات كل جهاز كاشير')}
       <div class="rk-theme-cards">
         <button type="button" class="rk-theme-card ${KITCHEN_TICKET_MODE === 'brief' ? 'selected' : ''}" data-kitchenmode="brief">
@@ -11781,7 +11844,7 @@ async function renderPosSettings(){
     </div>`;
 
   const kitchenPanel = `
-    <div class="rk-section">
+    <div class="rk-section" ${planAttr('kds')}>
       ${rkSectionHead('coffee', 'آلية شاشة المطبخ', 'كيف تنتهي فاتورة الطلب من شاشة المطبخ')}
       <div class="rk-field">
         <label>كيف تنتهي الطلبات من شاشة المطبخ؟</label>
@@ -11814,7 +11877,7 @@ async function renderPosSettings(){
     </div>`;
 
   const payTimingPanel = `
-    <div class="rk-section">
+    <div class="rk-section" ${planAttr('tables_reservations')}>
       ${rkSectionHead('creditCard', 'توقيت الدفع للطاولات', 'يتحكم بحالة الطاولة بالكاشير')}
       <div class="rk-field">
         <label>متى يدفع العميل؟</label>
@@ -11828,7 +11891,7 @@ async function renderPosSettings(){
     </div>`;
 
   const reservationsPanel = `
-    <div class="rk-section">
+    <div class="rk-section" ${planAttr('tables_reservations')}>
       ${rkSectionHead('calendar', 'حجوزات الطاولات', 'يتحكم بإمكانية حجز طاولة مسبقًا من شاشة الحجز المستقلة')}
       <div class="rk-switch-row">
         <div class="rk-switch-text">
@@ -11936,7 +11999,7 @@ async function renderPosSettings(){
     const sectionOptionsHtml = (selectedId) => '<option value="">بدون قسم</option>' +
       branchSections.map(s=>`<option value="${s.id}" ${selectedId===s.id?'selected':''}>${s.name}</option>`).join('');
     return `
-    <div class="rk-section">
+    <div class="rk-section" ${planAttr('tables_reservations')}>
       ${rkSectionHead('grid', 'طاولات ' + b.name, 'الأقسام والطاولات الفعلية بهذا الفرع، ورابط شاشة الحجز المستقلة')}
 
       <div class="rk-subsection" style="margin-top:0; padding-top:0; border-top:none;">
@@ -12003,7 +12066,7 @@ async function renderPosSettings(){
     <div class="rk-section">
       ${rkSectionHead('grid', 'الطلب المحلي', 'قراران: المفتاح يقرر هل زر «محلي» موجود، والبطاقة تحته تقرر هل معه طاولات')}
       ${rkSwitchRow('posDineInToggle', DINE_IN_ENABLED, 'تفعيل الطلب المحلي', null, rkDineInStatus)}
-      <div class="rk-subblock" id="dineInModeBlock" style="${DINE_IN_ENABLED ? '' : 'display:none;'}">
+      <div class="rk-subblock" id="dineInModeBlock" ${planAttr('tables_reservations')} style="${DINE_IN_ENABLED ? '' : 'display:none;'}">
         <div class="rk-theme-cards">
           <button type="button" class="rk-theme-card ${DINE_IN_MODE === 'simple' ? 'selected' : ''}" data-dinemode="simple">
             <span class="rk-theme-card-name">محلي بسيط</span>
@@ -12874,7 +12937,7 @@ function restaurantSettingsHtml(){
       </div>
     </div>
 
-    <div class="rk-section">
+    <div class="rk-section" ${planAttr('tables_reservations')}>
       ${rkSectionHead('coffee', 'طريقة التقديم', 'يتحكم بظهور شاشة الطاولات بالكاشير')}
       ${rkSwitchRow('settingsDineInEnabled', DINE_IN_ENABLED, 'يقدّم طلبات "بالمطعم" (فيه صالة/طاولات)', 'أوقفها لو مطعمك سحابي أو توصيل/استلام بس.', rkDineInStatus)}
     </div>
@@ -12886,7 +12949,7 @@ function restaurantSettingsHtml(){
          وحدها -- وإعدادٌ واحدٌ في مكانين يُعدَّل في أحدهما ويُقرأ من
          الآخر. -->
     ${isServiceBusinessType(BUSINESS_TYPE) ? `
-    <div class="rk-section">
+    <div class="rk-section" ${planAttr('booking_page')}>
       ${rkSectionHead('calendar', 'الحجز الذاتي عبر الإنترنت', 'صفحة تسمح لعملائك يحجزون موعدهم بأنفسهم مباشرة بدون اتصال — يختارون الخدمة والموظف والوقت، ويوصل الحجز فورًا لشاشة الحجوزات بالكاشير.')}
       ${rkSwitchRow('settingsOnlineBookingEnabled', ONLINE_BOOKING_ENABLED, 'تفعيل صفحة الحجز الذاتي لعملائك', null, rkBookingStatus)}
       <div id="onlineBookingUrlRow" class="rk-field" style="margin-top:14px; ${ONLINE_BOOKING_ENABLED?'':'display:none;'}">
@@ -14106,7 +14169,7 @@ let activeMenuCategory = null; // null = show all
  */
 let activeMenuFlag = null;
 const MENU_FLAGS = [
-  { key:'uncosted',  label:'بلا تكلفة',        tone:'bad',
+  { key:'uncosted',  label:'بلا تكلفة',        tone:'bad', feature:'costing_profit',
     help:'تبيعها وأنت ما تعرف ربحها — حدّد تكلفتها عشان يطلع الهامش.',
     test:(m)=> m.linkProfit && m.costMode !== 'direct' && computeProductCost(m).variable === 0 && m.price > 0 },
   { key:'hidden',    label:'مخفية الآن',       tone:'warn',
@@ -14116,13 +14179,13 @@ const MENU_FLAGS = [
     help:'مخفية مؤقتاً وترجع تلقائياً قريب — تأكد إنها متوفرة.',
     test:(m)=> m.active && m.hiddenUntil && new Date(m.hiddenUntil) > new Date()
                && (new Date(m.hiddenUntil) - new Date()) < 24*60*60*1000 },
-  { key:'onlineGap', label:'سعرها أونلاين مختلف', tone:'warn',
+  { key:'onlineGap', label:'سعرها أونلاين مختلف', tone:'warn', feature:'online_store',
     help:'سعر المتجر الإلكتروني غير سعر الكاشير.',
     test:(m)=> m.onlinePrice != null && Number(m.onlinePrice) !== Number(m.price) },
   { key:'posHidden', label:'مخفية عن الكاشير', tone:'warn',
     help:'الكاشير ما يشوفها، بس المتجر الإلكتروني يشوفها.',
     test:(m)=> m.visiblePos === false },
-  { key:'noStock',   label:'بلا ربط مخزون',    tone:'muted',
+  { key:'noStock',   label:'بلا ربط مخزون',    tone:'muted', feature:'inventory',
     help:'ما ينخصم منها مخزون لما تنباع.',
     test:(m)=> !m.linkInventory },
 ];
@@ -14397,6 +14460,7 @@ function renderCategoryTabs(){
   const flagEl = document.getElementById('menuFlagTabs');
   if(flagEl){
     const counted = MENU_FLAGS
+      .filter(f=> !f.feature || planHas(f.feature)) // مرشّح لميزة مو في الباقة ما يطلع
       .map(f=>({ ...f, n: countableItems.filter(f.test).length }))
       .filter(f=> f.n > 0);
     flagEl.innerHTML = counted.length === 0
@@ -15034,7 +15098,7 @@ function productEditBodyHtml(){
           <svg class="advanced-chevron" id="pfAdvancedChevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
         <div class="advanced-body" id="pfAdvancedBody">
-          <div class="menu-add-field" style="margin-top:12px; max-width:220px;">
+          <div class="menu-add-field" ${planAttr('loyalty')} style="margin-top:12px; max-width:220px;">
             <label>نقاط الاسترداد ${helpIcon('لو حددت رقم، يقدر العميل يستبدل هذا المنتج بنقاط ولائه بدل الدفع — يظهر خيار الاستبدال بالكاشير إذا كان رصيده كافي. وهذا الرقم يشوفه الزبون تحت سعر المنتج بالمتجر والمنيو الإلكتروني (لو نظام ولائك نقاط)، فالاستبدال نفسه يبقى عند الفرع. سيبه فاضي عشان ما يكون قابل للاستبدال بالنقاط.')}</label>
             <input type="number" id="pfPointsRedeemPrice" value="${productModalState.pointsRedeemPrice != null ? productModalState.pointsRedeemPrice : ''}" placeholder="مثال: ٥٠٠">
           </div>
@@ -15095,7 +15159,7 @@ function productEditBodyHtml(){
 
       <div class="pe-step-label">٣. ربطه بالمخزون والمحاسبة</div>
       <div class="rk-switch-row-group">
-        ${rkSwitchRow('pfLinkInventory', productModalState.linkInventory, 'اربط بالمخزون', 'لو فعّلته: كل ما تنباع وحدة، النظام يخصم المكوّنات تلقائيًا من مخزونك الحقيقي، وتقدر تشوف "استهلك اليوم" بصفحة المخزون. لو ما فعّلته: التكلفة تُحسب زي العادة، بس المخزون ما يتأثر (يفيدك لمنتجات ما عندها مكوّنات متتبّعة، مثل مشروب معلّب جاهز).', rkLinkInventoryStatus)}
+        <div ${planAttr('inventory')}>${rkSwitchRow('pfLinkInventory', productModalState.linkInventory, 'اربط بالمخزون', 'لو فعّلته: كل ما تنباع وحدة، النظام يخصم المكوّنات تلقائيًا من مخزونك الحقيقي، وتقدر تشوف "استهلك اليوم" بصفحة المخزون. لو ما فعّلته: التكلفة تُحسب زي العادة، بس المخزون ما يتأثر (يفيدك لمنتجات ما عندها مكوّنات متتبّعة، مثل مشروب معلّب جاهز).', rkLinkInventoryStatus)}</div>
         ${rkSwitchRow('pfLinkProfit', productModalState.linkProfit, 'احتسب ضمن المحاسبة', 'لو فعّلته: تكلفة هذا المنتج وربحه يدخلون بحساب أرباحك الكلية وهامشه يظهر بجدول القائمة. لو ما فعّلته: المنتج يبقى موجود ويُباع عادي، بس ما يُحتسب بتحليل الربحية (يفيدك لعينات مجانية أو منتجات لسا ما حددت تكلفتها).', rkLinkProfitStatus)}
       </div>
 
@@ -15934,12 +15998,13 @@ function renderMgOptionRows(){
         <input type="number" class="mg-opt-max" data-idx="${i}" value="${o.optionMax!=null?o.optionMax:''}" placeholder="مفتوح">
       </div>` : ''}
 
+      <div ${planAttr('costing_profit')}>
       <div class="mg-cost-divider">
         <span class="field-label-row">تكلفتك الحقيقية (لك أنت، مو للعميل) ${helpIcon('هذا الجزء يحدد كم يكلفك فعليًا لو العميل اختار هذا الخيار — يفيد بحساب هامش ربحك، ومو شرط يطابق السعر اللي تحطه على العميل فوق.')}</span>
       </div>
       <div class="mg-cost-mode-row">
         <button class="mg-cost-mode-btn ${!isStock?'active':''}" data-idx="${i}" data-mode="simple">تكلفة بسيطة (رقم تكتبه)</button>
-        <button class="mg-cost-mode-btn ${isStock?'active':''}" data-idx="${i}" data-mode="stock">من المخزون (يُحسب تلقائيًا)</button>
+        <button class="mg-cost-mode-btn ${isStock?'active':''}" data-idx="${i}" data-mode="stock" ${planAttr('inventory')}>من المخزون (يُحسب تلقائيًا)</button>
       </div>
       ${!isStock ? `
       <div class="mg-field-block">
@@ -15959,6 +16024,7 @@ function renderMgOptionRows(){
       </div>
       <div class="mg-computed-cost-box">التكلفة الفعلية المحسوبة: <span class="mono">${computeModifierOptionCost(o).toFixed(2)} ر.س</span></div>
       `}
+      </div>
     </div>`;
   }).join('');
 
@@ -17583,7 +17649,7 @@ function openEmployeeModal(employee){
     <div class="rk-field" style="margin-bottom:14px;"><label>الاسم الكامل</label><input type="text" id="empName" value="${isEdit?employee.full_name:''}" placeholder="مثال: محمد العتيبي"></div>
     <div class="menu-add-row" style="margin-bottom:14px;">
       <div class="menu-add-field"><label>المسمى الوظيفي</label><input type="text" id="empJobTitle" value="${isEdit?(employee.job_title||''):''}" placeholder="مثال: شيف"></div>
-      <div class="menu-add-field"><label>القسم</label>
+      <div class="menu-add-field" ${planAttr('team_permissions')}><label>القسم</label>
         <select id="empDepartment"><option value="">بدون قسم</option>${DEPARTMENTS.map(d=>`<option value="${d.id}" ${isEdit && employee.department_id===d.id?'selected':''}>${d.name}</option>`).join('')}</select>
       </div>
     </div>
@@ -17614,7 +17680,7 @@ function openEmployeeModal(employee){
           </select>
           <p class="stock-qty-helper" style="margin-top:6px;">لو هذا الموظف مسجّل مسبقًا بجهاز الكاشير باسم قديم، اربطه هنا بدل ما تسوي له اسم مكرر.</p>
         </div>` : ''}
-        ${rkCheck(`id="empReservationHost" ${linkedCashier && linkedCashier.is_reservation_host ? 'checked':''}`, 'مخصص للحجز (يظهر أول قائمة شاشة الحجز)')}
+        <div ${planAttr('tables_reservations')}>${rkCheck(`id="empReservationHost" ${linkedCashier && linkedCashier.is_reservation_host ? 'checked':''}`, 'مخصص للحجز (يظهر أول قائمة شاشة الحجز)')}</div>
       </div>
     </div>`;
     })()}
@@ -17629,7 +17695,7 @@ function openEmployeeModal(employee){
       <div class="menu-add-field"><label>رقم الهوية/الإقامة</label><input type="text" id="empNationalId" value="${isEdit?(employee.national_id_or_iqama||''):''}"></div>
       <div class="menu-add-field"><label>تاريخ انتهاء الإقامة</label><input type="date" id="empIqamaExpiry" value="${isEdit && employee.iqama_expiry ? employee.iqama_expiry : ''}"></div>
     </div>
-    <p class="stock-qty-helper" style="margin:0 0 14px;">مربوط تلقائيًا بوثيقة الإقامة في تبويب «الامتثال والوثائق» — أي تعديل هنا أو هناك يتزامن، وتنبيه الانتهاء يجي من هناك.</p>
+    <p class="stock-qty-helper" ${planAttr('team_permissions')} style="margin:0 0 14px;">مربوط تلقائيًا بوثيقة الإقامة في تبويب «الامتثال والوثائق» — أي تعديل هنا أو هناك يتزامن، وتنبيه الانتهاء يجي من هناك.</p>
     <div class="menu-add-row" style="margin-bottom:14px;">
       <div class="menu-add-field"><label>الجنسية</label><input type="text" id="empNationality" value="${isEdit?(employee.nationality||''):''}"></div>
       <div class="menu-add-field"><label>رقم الجوال</label><input type="text" id="empPhone" value="${isEdit?(employee.phone||''):''}"></div>

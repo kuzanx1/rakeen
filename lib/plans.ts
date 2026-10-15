@@ -31,7 +31,8 @@ const ASAS_ITEMS: PlanItem[] = [
 ];
 const EMAD_ITEMS: PlanItem[] = [
   { text: "شاشة المطبخ وطباعة المطبخ", feature: "kds" },
-  { text: "شاشة العميل: يشوف طلبه وباركود الولاء" },
+  // The cashiers lock it with loyalty (its barcode is the point of it).
+  { text: "شاشة العميل: يشوف طلبه وباركود الولاء", feature: "loyalty" },
   { text: "المخزون والوصفات وتنبيهات النقص والاستهلاك التلقائي", feature: "inventory" },
   { text: "المشتريات، وقراءة فواتير الموردين بالتصوير", feature: "purchases_scan" },
   { text: "تكلفة كل منتج، وصافي الربح، والمصاريف والمحاسبة", feature: "costing_profit" },

@@ -3279,7 +3279,7 @@ async function submitTableOrderRegistration(){
   // completes for a queued round — the cart/UI reset below doesn't wait on it.
   const orderId = await registerTableOrder();
   if(TRIAL && !TRIAL.subscribed) refreshTrialStatus();
-  if(DEVICE.printKitchenTicket === true){
+  if(DEVICE.printKitchenTicket === true && posPlanHas('kds')){
     enqueuePrintJob('kitchen', buildKitchenReceiptData({channel:'dine_in', orderId, tableNumber: table ? table.number : null}));
   }
   const savedLabel = isAppend ? 'تمت إضافة الأصناف للطلب' : 'تم تسجيل الطلب';
@@ -5584,7 +5584,7 @@ async function autoPrintOnCheckout(orderPayload, receiptData, wasResumingOrder){
   // here. Passed in explicitly rather than read live off state.resumingOrder
   // — that flag is already cleared by the time this runs (see completePayment,
   // which resets cart/table state immediately on success, before this call).
-  const printKitchen = DEVICE.printKitchenTicket === true && !wasResumingOrder; // default off
+  const printKitchen = DEVICE.printKitchenTicket === true && posPlanHas('kds') && !wasResumingOrder; // default off; «طباعة المطبخ» من عماد
   // فاتورة العميل أولاً، ثم المطبخ.
   //
   // الورقتان تخرجان من طابعة واحدة، والثانية تنتظر فراغها من الأولى.
@@ -7912,7 +7912,7 @@ function handleMoreAction(e){
   const btn = e.target.closest('.more-item'); if(!btn) return;
   const id = btn.dataset.action;
   if(id === 'drawer') openCashDrawer();
-  else if(id === 'waste') openWasteModal();
+  else if(id === 'waste'){ if(posPlanHas('inventory')) openWasteModal(); }
   else if(id === 'manager') openPinModal();
   /* "مسح باركود" حُذف من "المزيد": كان يمسح بطاقةً ويُلصق صاحبَها بسلّةٍ
      قد تكون فارغة، والكاشير واقفٌ في شاشةٍ غير شاشة الطلب -- فلا يرى
@@ -7965,10 +7965,10 @@ function openPosSettingsModal(){
     <div class="pos-auth-field" style="margin-top:10px;">
       <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:2px;">شكل الفاتورة عند الدفع</label>
       ${posCheck(`id="printCustomerReceiptToggle" ${DEVICE.printCustomerReceipt !== false ? 'checked' : ''}`, 'فاتورة العميل (مع السعر والضريبة ورمز QR)')}
-      ${posCheck(`id="printKitchenTicketToggle" ${DEVICE.printKitchenTicket === true ? 'checked' : ''}`, 'فاتورة المطبخ (الأصناف والملاحظات فقط، بدون أسعار)')}
+      <div ${posPlanHas('kds') ? '' : 'style="display:none"'}>${posCheck(`id="printKitchenTicketToggle" ${DEVICE.printKitchenTicket === true ? 'checked' : ''}`, 'فاتورة المطبخ (الأصناف والملاحظات فقط، بدون أسعار)')}</div>
       ${RECEIPT_LOGO_URL ? posCheck(`id="printReceiptLogoToggle" ${DEVICE.printReceiptLogo !== false ? 'checked' : ''}`, 'طباعة شعار الفاتورة أعلى فاتورة العميل') : ''}
     </div>
-    <div class="pos-auth-field" style="margin-top:10px;">
+    <div class="pos-auth-field" style="margin-top:10px;${posPlanHas('kds') ? '' : 'display:none;'}">
       <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px;">طابعة مطبخ منفصلة (اختياري)</label>
       <div style="display:flex; gap:8px;">
         <input type="text" id="kitchenPrinterIpInput" placeholder="عنوان الطابعة — مثال: 192.168.1.51" value="${DEVICE.kitchenPrinterIp || ''}" style="flex:2;">
@@ -8516,6 +8516,33 @@ let MODIFIER_OPTION_STOCK = {}; // "groupId_optionId" -> {stockItemId, qty, unit
 let STOCK_UNIT_BY_ID = {};      // stockItemId -> the stock item's own tracking unit (kg/g/liter/piece)
 let DELIVERY_PLATFORMS_LIST = []; // [{id, name}] — real delivery_platforms for this branch's business
 let SERVICE_STAFF_BY_SERVICE = {}; // serviceId -> [staffMemberId,...] — empty array means "any active staff eligible" (see service_staff table comment)
+/* ============ الباقة ============
+   allowed_features يحسبها trigger القاعدة من الباقة واستثناءات الأدمن (lib/plans.ts).
+   null = مطعم بلا باقة = كل شي مسموح. الولاء والمطبخ والمتجر لها مفاتيح في
+   المطعم تنطفي بسقف الباقة أصلاً؛ هذي للي ما لها مفتاح: تطبيقات التوصيل،
+   ونسخة المطبخ، والطاولات، والهدر، وشاشة العميل. آخر قراءة تنحفظ في الجهاز
+   عشان الكاشير بدون نت ما يفتح كل شي. التطبيق: react-native-poc/src/application/planService.ts. */
+let PLAN_FEATURES = null;
+async function loadPlanFeatures(sb, businessId){
+  const key = 'rk_plan_features_' + businessId;
+  try {
+    const { data, error } = await sb.from('businesses').select('allowed_features').eq('id', businessId).maybeSingle();
+    if(error) throw error;
+    PLAN_FEATURES = data && Array.isArray(data.allowed_features) ? new Set(data.allowed_features) : null;
+    try { localStorage.setItem(key, JSON.stringify(PLAN_FEATURES ? [...PLAN_FEATURES] : null)); } catch(_){}
+  } catch(_){
+    try { const cached = JSON.parse(localStorage.getItem(key) || 'null'); PLAN_FEATURES = Array.isArray(cached) ? new Set(cached) : null; } catch(_){ PLAN_FEATURES = null; }
+  }
+}
+function posPlanHas(feature){ return !PLAN_FEATURES || PLAN_FEATURES.has(feature); }
+// الهدر يخصم من المخزون (عماد)، وشاشة العميل تعرض باركود الولاء (عماد)
+const PLAN_MORE_ACTIONS = { waste: 'inventory', myDisplay: 'loyalty' };
+function applyPosPlanUi(){
+  Object.entries(PLAN_MORE_ACTIONS).forEach(([action, feature])=>{
+    document.querySelectorAll('.more-item[data-action="' + action + '"]').forEach(b=>{ b.style.display = posPlanHas(feature) ? '' : 'none'; });
+  });
+}
+
 let LOYALTY_ENABLED = true;     // businesses.loyalty_enabled — hides the whole customer/points UI when off
 let DINE_IN_ENABLED = true;     // businesses.dine_in_enabled — hides "بالمطعم" + Tables for delivery-only kitchens
 let BUSINESS_VAT_NUMBER = '';   // businesses.vat_number — required for the ZATCA QR code on printed receipts; blank until the owner sets it in dashboard Settings
@@ -8804,6 +8831,11 @@ async function loadPosData(){
     RECEIPT_THEME = 'classic'; REQUIRE_MANAGER_PIN_FOR_CLOSE = true;
     DINE_IN_MODE = 'simple'; POS_PAGER_ENABLED = false; KITCHEN_TICKET_MODE = 'brief';
   }
+  await loadPlanFeatures(sb, businessId);
+  applyPosPlanUi();
+  // بدون «الطاولات والحجوزات» في الباقة: محلي بسيط، بلا شاشة طاولات. نشاط
+  // الخدمات يبقى: «طاولاته» مواقعه وغرفه، أساس شغله.
+  if(!posPlanHas('tables_reservations') && !isServiceBusiness()) DINE_IN_MODE = 'simple';
   POS_HIDE_POPULAR_TAB = loyaltyRes.data ? loyaltyRes.data.pos_hide_popular_tab === true : false;
   POS_HIDE_SEARCH = loyaltyRes.data ? loyaltyRes.data.pos_hide_search === true : false;
   POS_HIDE_PRODUCT_IMAGES = loyaltyRes.data ? loyaltyRes.data.pos_hide_product_images !== false : true;
@@ -8888,7 +8920,8 @@ async function loadPosData(){
   STOCK_UNIT_BY_ID = {};
   (stockRes.data||[]).forEach(s=>{ stockNameById[s.id] = s.name; STOCK_UNIT_BY_ID[s.id] = s.unit; });
 
-  DELIVERY_PLATFORMS_LIST = platformRes.data || [];
+  // «تطبيقات التوصيل وحساب عمولاتها» مو في الباقة: ولا تطبيق، فزر التوصيل ما يطلع
+  DELIVERY_PLATFORMS_LIST = posPlanHas('delivery_apps') ? (platformRes.data || []) : [];
   PREP_TIMEOUT_MINUTES_BY_PLATFORM = {};
   DELIVERY_PLATFORMS_LIST.forEach(p=>{ PREP_TIMEOUT_MINUTES_BY_PLATFORM[p.id] = Number(p.prep_timeout_minutes) || 17; });
   PLATFORM_PRICES = {};

@@ -42,6 +42,7 @@ import {
 import { profileToPrinterTarget, drawerKickCommandFor, isDrawerSupported } from './src/domain/printerProfile';
 import { startDiagnosticsTracking } from './src/application/diagnosticsService';
 import { getNotifySoundEnabled, getReceiptBranding } from './src/application/catalogService';
+import { loadPlanFeatures, planHas } from './src/application/planService';
 import { setNotifySoundEnabled } from './src/application/soundService';
 import DiagnosticsScreen from './src/ui/DiagnosticsScreen';
 import OrderHistoryScreen from './src/ui/OrderHistoryScreen';
@@ -639,6 +640,8 @@ function App(): React.JSX.Element {
   useEffect(() => {
     if (cashier == null) return;
     return subscribeToBusinessSettings(cashier.business_id, async () => {
+      // الأدمن غيّر الباقة: تنقرى من جديد قبل باقي الإعدادات
+      await loadPlanFeatures(cashier.business_id, true);
       try {
         setHideNotifBell((await getPosFeatureFlags(cashier.business_id)).hideNotifBell);
         setDineInMode((await getServiceSettings(cashier.business_id)).dineInMode);
@@ -1203,11 +1206,14 @@ function MoreScreen({
           <Path d="M12 1v22" stroke={ink} />
           <Path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke={ink} />
         </MoreTile>
-        <MoreTile label="تسجيل هدر" onPress={onOpenWaste}>
-          <Path d="M3 6h18" stroke={ink} />
-          <Path d="M8 6V4h8v2" stroke={ink} />
-          <Path d="M5 6l1 14h12l1-14" stroke={ink} />
-        </MoreTile>
+        {/* الهدر يخصم من المخزون (عماد) */}
+        {planHas('inventory') && (
+          <MoreTile label="تسجيل هدر" onPress={onOpenWaste}>
+            <Path d="M3 6h18" stroke={ink} />
+            <Path d="M8 6V4h8v2" stroke={ink} />
+            <Path d="M5 6l1 14h12l1-14" stroke={ink} />
+          </MoreTile>
+        )}
         <MoreTile label="استرجاع مبلغ" onPress={() => onOpenCompletedOrders('refund')}>
           <Polyline points="9 14 4 9 9 4" stroke={ink} />
           <Path d="M20 20v-7a4 4 0 0 0-4-4H4" stroke={ink} />
@@ -1223,10 +1229,13 @@ function MoreScreen({
         </MoreTile>
         {/* أيُّ شاشةٍ أمام هذا الكاشير -- بلا اختيارٍ يبثّ إلى شاشات
             الفرع كلِّها، فيرى عدّةُ زبائن باركوداً واحداً. */}
-        <MoreTile label="شاشة العميل" onPress={onOpenMyDisplay}>
-          <Rect x={2} y={3} width={20} height={14} rx={2} stroke={ink} />
-          <Path d="M8 21h8M12 17v4" stroke={ink} />
-        </MoreTile>
+        {/* شاشة العميل تعرض باركود الولاء (عماد) */}
+        {planHas('loyalty') && (
+          <MoreTile label="شاشة العميل" onPress={onOpenMyDisplay}>
+            <Rect x={2} y={3} width={20} height={14} rx={2} stroke={ink} />
+            <Path d="M8 21h8M12 17v4" stroke={ink} />
+          </MoreTile>
+        )}
       </View>
 
       <Text style={styles.moreSectionLabel}>الوردية</Text>

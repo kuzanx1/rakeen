@@ -46,6 +46,7 @@ import DiscountModal from './DiscountModal';
 import PaymentModal from './PaymentModal';
 import { TrialBanner, TrialEndedModal, useTrialStatus } from './TrialNotice';
 import { isTrialLocked, refreshTrialStatus } from '../application/trialService';
+import { planHas } from '../application/planService';
 import type { AttachedCustomer } from './PaymentModal';
 import type { PaymentResult } from './PaymentModal';
 import type { PaymentMethod } from '../domain/payment';
@@ -999,7 +1000,7 @@ export default function ProductsScreen({
         // Parity Pass -- Printing Configuration), which defaults OFF
         // just like the PWA's own default.
         const printerProfileForKitchen = await getPrinterProfile();
-        if (shouldPrintKitchenTicket(printerProfileForKitchen)) {
+        if (shouldPrintKitchenTicket(printerProfileForKitchen) && planHas('kds')) {
           enqueuePrintJob('kitchen', {
             orderId: result.orderId ?? null,
             tableNumber: selectedTable?.number ?? null,
@@ -1279,7 +1280,7 @@ export default function ProductsScreen({
           // kitchen ticket for EVERY channel except a resumed dine-in tab
           // close (`!wasResumingOrder`) -- this IS a fresh order, not a
           // resume, so it belongs here exactly like dine-in registration.
-          if (shouldPrintKitchenTicket(printerProfileForReceipt)) {
+          if (shouldPrintKitchenTicket(printerProfileForReceipt) && planHas('kds')) {
             // 'copy' mode queues a SECOND customer receipt rather than a
             // kitchen-shaped ticket. Doing it here, at enqueue time, is
             // what makes the two genuinely identical -- a renderer flag

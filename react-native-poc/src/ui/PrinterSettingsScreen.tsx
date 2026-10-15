@@ -21,6 +21,7 @@ import {
 import type { PrinterProfile, PrinterTransportKind, DiscoveredDevice, PrinterTarget } from '../platform/printer';
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
 import { toLatinDigits } from '../domain/digits';
+import { planHas } from '../application/planService';
 
 const TRANSPORT_LABELS: Record<PrinterTransportKind, string> = {
   network: 'شبكة الواي فاي',
@@ -440,17 +441,20 @@ export default function PrinterSettingsScreen({
           value={profile.printCustomerReceipt !== false}
           onChange={v => update({ printCustomerReceipt: v })}
         />
-        <PosCheck
-          label="طباعة تذكرة المطبخ"
-          value={profile.printKitchenTicket === true}
-          onChange={v => update({ printKitchenTicket: v })}
-        />
+        {/* «طباعة المطبخ» من عماد (planService) */}
+        {planHas('kds') && (
+          <PosCheck
+            label="طباعة تذكرة المطبخ"
+            value={profile.printKitchenTicket === true}
+            onChange={v => update({ printKitchenTicket: v })}
+          />
+        )}
         <PosCheck
           label="طباعة شعار المنشأة على الإيصال"
           value={profile.printReceiptLogo !== false}
           onChange={v => update({ printReceiptLogo: v })}
         />
-        {profile.printKitchenTicket === true && (
+        {profile.printKitchenTicket === true && planHas('kds') && (
           <>
             <FieldLabel>عنوان طابعة المطبخ (اتركه فارغ لو نفس طابعة الكاشير تطبع للمطبخ)</FieldLabel>
             <TextInput

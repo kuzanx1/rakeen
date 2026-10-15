@@ -2,6 +2,7 @@ import * as kvStorage from '../infrastructure/mmkvStorage';
 import { measure } from '../infrastructure/perfLog';
 import { supabase } from '../infrastructure/supabaseClient';
 import { Category, Product, isServiceBusinessType } from '../domain/catalog';
+import { loadPlanFeatures, planHas } from './planService';
 import { ModifierDefinition, ModifierOptionStockMap } from '../domain/cart';
 import { subscribeToPostgresChanges } from '../infrastructure/realtimeChannel';
 
@@ -239,12 +240,16 @@ export async function getServiceSettings(businessId: number): Promise<ServiceSet
   try {
     const { data, error } = await supabase
       .from('businesses')
-      .select('dine_in_mode, pos_pager_enabled, kitchen_ticket_mode')
+      .select('dine_in_mode, pos_pager_enabled, kitchen_ticket_mode, business_type')
       .eq('id', businessId)
       .single();
     if (error || !data) return { dineInMode: 'simple', pagerEnabled: false, kitchenTicketMode: 'brief' };
+    // بدون «الطاولات والحجوزات» في الباقة: محلي بسيط بلا شاشة طاولات. نشاط
+    // الخدمات يبقى: «طاولاته» مواقعه وغرفه، أساس شغله. (الويب: loadPosData)
+    await loadPlanFeatures(businessId);
+    const tablesAllowed = planHas('tables_reservations') || isServiceBusinessType(data.business_type || 'restaurant');
     return {
-      dineInMode: data.dine_in_mode === 'tables' ? 'tables' : 'simple',
+      dineInMode: data.dine_in_mode === 'tables' && tablesAllowed ? 'tables' : 'simple',
       pagerEnabled: data.pos_pager_enabled === true,
       kitchenTicketMode: data.kitchen_ticket_mode === 'copy' ? 'copy' : 'brief',
     };
@@ -493,6 +498,9 @@ export interface DeliveryPlatform {
 }
 
 export async function listDeliveryPlatforms(businessId: number): Promise<DeliveryPlatform[]> {
+  // «تطبيقات التوصيل وحساب عمولاتها» مو في الباقة: ولا تطبيق، فزر التوصيل ما يطلع
+  await loadPlanFeatures(businessId);
+  if (!planHas('delivery_apps')) return [];
   const { data } = await supabase
     .from('delivery_platforms')
     .select('id, name, logo_url, brand_color')
