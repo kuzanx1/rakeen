@@ -11,6 +11,43 @@ import { FEATURE_CATALOG, FeatureKey } from "./contracts";
 
 export type PlanKey = "asas" | "emad" | "sarh";
 
+// What the customer reads in a quote. `feature` ties an item to a lockable
+// key, so unticking that feature in the quote form drops the item; items
+// without one (the menu, orders, settings...) come with every package.
+// `short` is the item's name in the one-line summary of أساس that the
+// higher packages show, so a صرح quote still fits one A4 page.
+export type PlanItem = { text: string; short?: string; feature?: FeatureKey };
+
+const ASAS_ITEMS: PlanItem[] = [
+  { text: "نقطة البيع، وطرق الدفع (كاش، وشبكة، ودفع مقسّم)، وتقسيم الفاتورة", short: "الكاشير", feature: "pos" },
+  { text: "الفاتورة الضريبية برمز QR", short: "الفاتورة الضريبية", feature: "zatca_invoice" },
+  { text: "العمل بدون إنترنت والمزامنة لما يرجع", short: "العمل بدون إنترنت", feature: "offline" },
+  { text: "إغلاق الوردية والموازنة وتقرير الإغلاق", short: "إغلاق الوردية", feature: "shift_close" },
+  { text: "إدارة المنيو: المنتجات والأقسام والإضافات والأسعار", short: "المنيو" },
+  { text: "سجل الطلبات والاسترجاع", short: "الطلبات والاسترجاع" },
+  { text: "ملخّص مبيعات اليوم، والتقرير اليومي التلقائي", short: "التقرير اليومي" },
+  { text: "الموظفين بالاسم والرقم السري", short: "الموظفين" },
+  { text: "الإعدادات وبيانات الفاتورة", short: "الإعدادات" },
+];
+const EMAD_ITEMS: PlanItem[] = [
+  { text: "شاشة المطبخ وطباعة المطبخ", feature: "kds" },
+  { text: "شاشة العميل: يشوف طلبه وباركود الولاء" },
+  { text: "المخزون والوصفات وتنبيهات النقص والاستهلاك التلقائي", feature: "inventory" },
+  { text: "المشتريات، وقراءة فواتير الموردين بالتصوير", feature: "purchases_scan" },
+  { text: "تكلفة كل منتج، وصافي الربح، والمصاريف والمحاسبة", feature: "costing_profit" },
+  { text: "العملاء، وبرنامج الولاء، وبطاقة المحفظة", feature: "loyalty" },
+  { text: "الطاولات والحجوزات وقائمة الانتظار", feature: "tables_reservations" },
+  { text: "تطبيقات التوصيل وحساب عمولاتها", feature: "delivery_apps" },
+  { text: "صلاحيات الموظفين وسجل العمليات", feature: "team_permissions" },
+  { text: "التقارير الكاملة وتصدير Excel", feature: "reports" },
+];
+const SARH_ITEMS: PlanItem[] = [
+  { text: "المتجر الإلكتروني: طلب مباشر وتتبّع ودفع بالبطاقة، بدون عمولة", feature: "online_store" },
+  { text: "صفحة حجز المواعيد للعملاء", feature: "booking_page" },
+  { text: "إدارة الفروع وتقارير لكل فرع", feature: "multi_branch" },
+  { text: "دعم أولوية" },
+];
+
 export type Plan = {
   key: PlanKey;
   name: string;
@@ -22,6 +59,7 @@ export type Plan = {
   extraBranchMonthly: number;
   extraBranchAnnual: number;
   features: FeatureKey[];
+  items: PlanItem[]; // only what this package adds over the one below it
 };
 
 const ASAS: FeatureKey[] = ["pos", "zatca_invoice", "offline", "shift_close"];
@@ -29,9 +67,9 @@ const EMAD: FeatureKey[] = [...ASAS, "kds", "inventory", "purchases_scan", "cost
 const SARH: FeatureKey[] = [...EMAD, "online_store", "booking_page", "multi_branch"];
 
 export const PLANS: Plan[] = [
-  { key: "asas", name: "أساس", tagline: "تبيع، وتطبع، وتقفل يومك", monthly: 99, annual: 990, includedBranches: 1, extraBranchMonthly: 49, extraBranchAnnual: 490, features: ASAS },
-  { key: "emad", name: "عماد", tagline: "تعرف وش تكسب، والعميل يرجع لك", monthly: 179, annual: 1790, includedBranches: 1, extraBranchMonthly: 89, extraBranchAnnual: 890, features: EMAD },
-  { key: "sarh", name: "صرح", tagline: "يطلبون منك مباشرة، وتكبر لأكثر من فرع", monthly: 279, annual: 2790, includedBranches: 2, extraBranchMonthly: 139, extraBranchAnnual: 1390, features: SARH },
+  { key: "asas", name: "أساس", tagline: "تبيع، وتطبع، وتقفل يومك", monthly: 99, annual: 990, includedBranches: 1, extraBranchMonthly: 49, extraBranchAnnual: 490, features: ASAS, items: ASAS_ITEMS },
+  { key: "emad", name: "عماد", tagline: "تعرف وش تكسب، والعميل يرجع لك", monthly: 179, annual: 1790, includedBranches: 1, extraBranchMonthly: 89, extraBranchAnnual: 890, features: EMAD, items: EMAD_ITEMS },
+  { key: "sarh", name: "صرح", tagline: "يطلبون منك مباشرة، وتكبر لأكثر من فرع", monthly: 279, annual: 2790, includedBranches: 2, extraBranchMonthly: 139, extraBranchAnnual: 1390, features: SARH, items: SARH_ITEMS },
 ];
 
 export function planByKey(key: string | null | undefined): Plan | null {
@@ -65,4 +103,21 @@ export function planPrice(plan: Plan, period: "monthly" | "annual", extraBranche
   const base = period === "annual" ? plan.annual : plan.monthly;
   const perBranch = period === "annual" ? plan.extraBranchAnnual : plan.extraBranchMonthly;
   return { base, perBranch, branches: n * perBranch, total: base + n * perBranch };
+}
+
+// The "included" section of a quote for a package. أساس lists its items in
+// full; the higher packages put أساس into one summary line and list the rest,
+// so even صرح stays on a single A4 page. `checked` is what's ticked in the
+// quote form: an unticked feature drops its item, and a ticked feature the
+// package doesn't include is added at the end.
+export function quoteIncluded(plan: Plan, checked: Iterable<string>): { baseLine: string[] | null; bullets: string[] } {
+  const on = new Set(checked);
+  const keep = (i: PlanItem) => !i.feature || on.has(i.feature);
+  const order = PLANS.slice(0, PLANS.indexOf(plan) + 1);
+  const extras = SELLABLE_FEATURES.filter((f) => on.has(f.key) && !plan.features.includes(f.key)).map((f) => f.label);
+  if (plan.key === "asas") return { baseLine: null, bullets: [...ASAS_ITEMS.filter(keep).map((i) => i.text), ...extras] };
+  return {
+    baseLine: ASAS_ITEMS.filter(keep).map((i) => i.short || i.text),
+    bullets: [...order.slice(1).flatMap((p) => p.items.filter(keep).map((i) => i.text)), ...extras],
+  };
 }

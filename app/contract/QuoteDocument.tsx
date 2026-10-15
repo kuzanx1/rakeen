@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { BillingPeriod, featureLabel, periodLabel, RAKEEN_PARTY, VatMode } from "@/lib/contracts";
+import { BillingPeriod, featureLabel, RAKEEN_PARTY, VatMode } from "@/lib/contracts";
 
 // A price quote ("عرض سعر") for a prospect who hasn't registered or signed
 // anything yet. It has its own form (app/admin/QuotePanel.tsx) and is not tied
@@ -31,6 +31,10 @@ export type QuoteProps = {
   extraBranches?: number;
   extraBranchPrice?: number;
   features: string[];
+  // For a package quote: what the customer actually gets, in plain words
+  // (lib/plans.ts quoteIncluded). Without it, the raw feature labels are
+  // listed, which leaves out everything every package has (menu, orders...).
+  included?: { baseLine: string[] | null; bullets: string[] };
   notes: string;
   acceptQrDataUrl: string | null;
   // Optional instalments for an annual price (buildSchedule).
@@ -158,7 +162,6 @@ export default function QuoteDocument(q: QuoteProps) {
             )}
           </div>
           <div className="qt-price-rows">
-            <div><span>نوع الاشتراك</span><b>{periodLabel(q.billingPeriod)}، يتجدد تلقائيًا</b></div>
             {(q.extraBranches || 0) > 0 && (
               <div><span>فروع إضافية</span><b><span className="mono">{q.extraBranches}</span> × <Sar n={q.extraBranchPrice || 0} /></b></div>
             )}
@@ -171,12 +174,20 @@ export default function QuoteDocument(q: QuoteProps) {
 
       <section className="cdoc-block" data-pdf-block>
         <h2>المزايا المشمولة</h2>
-        {/* 15+ features is the one list that can push a quote onto a second page */}
-        <ul className={q.features.length > 14 ? "cdoc-features qt-dense" : "cdoc-features"}>
-          {q.features.map((f) => (
-            <li key={f}>{featureLabel(f)}</li>
-          ))}
-        </ul>
+        {q.included?.baseLine && q.included.baseLine.length > 0 && (
+          <p className="qt-base"><b>كل مزايا باقة أساس:</b> {q.included.baseLine.join(" · ")}</p>
+        )}
+        {/* a long list is what can push a quote onto a second page */}
+        {(() => {
+          const lines = q.included ? q.included.bullets : q.features.map((f) => featureLabel(f));
+          return (
+            <ul className={lines.length > 12 ? "cdoc-features qt-dense" : "cdoc-features"}>
+              {lines.map((t) => (
+                <li key={t}>{t}</li>
+              ))}
+            </ul>
+          );
+        })()}
         <div className="qt-included">
           <span>ومعها:</span> الدعم الفني بالواتساب · تجهيز النظام معك خطوة بخطوة · تحديثات المنصة
         </div>
@@ -197,8 +208,8 @@ export default function QuoteDocument(q: QuoteProps) {
           <li>هذا العرض صالح حتى {fmtDate(validUntil)}.</li>
           <li>
             {instalments
-              ? "الأسعار بالريال السعودي، وتُدفع كل دفعة في موعدها حسب التقسيط الموضح أعلاه."
-              : `الأسعار بالريال السعودي، والرسوم تُدفع مقدمًا في بداية كل ${per}.`}
+              ? "الأسعار بالريال السعودي، وتُدفع كل دفعة في موعدها حسب التقسيط الموضح أعلاه، والاشتراك يتجدد تلقائيًا."
+              : `الأسعار بالريال السعودي، والرسوم تُدفع مقدمًا في بداية كل ${per}، والاشتراك يتجدد تلقائيًا.`}
           </li>
           <li>يخضع الاشتراك لعقد اشتراك منصة ركين، ويُوقّع إلكترونيًا من الجوال.</li>
         </ul>

@@ -5,7 +5,7 @@ import "../contract/contract.css";
 import QuoteDocument, { QUOTE_PHONE, QuoteProps } from "../contract/QuoteDocument";
 import { contractPdfBlob, downloadBlob } from "../contract/pdf";
 import { buildSchedule, FeatureKey, formatSar, periodLabel } from "@/lib/contracts";
-import { PlanKey, PLANS, planByKey, planPrice, SELLABLE_FEATURES } from "@/lib/plans";
+import { PlanKey, PLANS, planByKey, planPrice, quoteIncluded, SELLABLE_FEATURES } from "@/lib/plans";
 
 // Price quotes for prospects: people who haven't registered or subscribed
 // yet. Deliberately separate from ContractsPanel: no account to pick, no
@@ -108,6 +108,7 @@ export default function QuotePanel() {
         extraBranches,
         extraBranchPrice: branchUnit,
         features: form.features,
+        included: plan ? quoteIncluded(plan, form.features) : undefined,
         notes: form.notes,
         acceptQrDataUrl,
         // Only an annual price split into instalments needs a schedule; the
