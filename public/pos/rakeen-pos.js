@@ -9123,19 +9123,99 @@ function showAuthScreen(id){
   else document.getElementById('posApp').classList.remove('hidden');
 }
 
+/* تجهيز الجهاز ورمز الفرع.
+   كان التجهيز يربط الجهاز بالفرع ويطلع، والرمز ينسوّى من لوحة التحكم بس
+   (الكاشير ← رمز الجهاز لهذا الفرع). فرع بلا رمز = شاشة رمز ما أحد يقدر
+   يعدّيها (صار مع Asador). الحين المالك لسا مسجّل دخول وقت التجهيز، فلو
+   الفرع ما له رمز يحطه هنا (نفس /api/pos/provision-branch اللي تناديه
+   اللوحة) ويفتح الكاشير على طول. ومشروع بلا فرع: ينشأ «الفرع الرئيسي».
+   التطبيق: react-native-poc/src/application/authService.ts (نفس الخطوات). */
+let PROV_PIN_BRANCH = null; // {id, name} لما الفرع ينتظر رمزه
+function provSetError(msg){
+  const errEl = document.getElementById('provError');
+  errEl.textContent = msg; errEl.style.display = 'block';
+}
+async function provFinishBranch(branch){
+  const sb = window.supabaseClient;
+  DEVICE.branchId = branch.id; DEVICE.branchName = branch.name;
+  // جهاز الفرع = حساب الكاشير المشترك (نفس فحص لوحة التحكم POS_READINESS)
+  // يطلب رمز جديد بس لو الفحص نجح وأكّد إن الفرع بلا حساب: لو فشل الفحص
+  // ورجّعنا «ما له رمز»، حفظ رمز جديد كان بيغيّر رمز الفرع على كل أجهزته.
+  const { data: till, error: tillErr } = await sb.from('profiles').select('id').eq('branch_id', branch.id).eq('user_type', 'employee').limit(1);
+  if(tillErr || !Array.isArray(till) || till.length){
+    saveDeviceConfig();
+    await sb.auth.signOut();
+    showCashierLogin();
+    return;
+  }
+  showProvPinStep(branch);
+}
+function showProvPinStep(branch){
+  PROV_PIN_BRANCH = branch;
+  ['provEmail', 'provPassword'].forEach(id=>{ const el = document.getElementById(id); if(el) el.style.display = 'none'; });
+  document.getElementById('provBranchField').classList.add('hidden');
+  let box = document.getElementById('provPinField');
+  if(!box){
+    box = document.createElement('div');
+    box.id = 'provPinField';
+    box.innerHTML = `
+      <p style="font-size:13px; line-height:1.7; margin:0 0 10px;">فرع «<b id="provPinBranchName"></b>» ما له رمز بعد. اختر رمز من ٤ أرقام: يدخل فيه الكاشير على هذا الجهاز وكل جهاز بالفرع.</p>
+      <input type="password" id="provPin1" inputmode="numeric" maxlength="4" placeholder="الرمز (٤ أرقام)" autocomplete="new-password" style="margin-bottom:8px;">
+      <input type="password" id="provPin2" inputmode="numeric" maxlength="4" placeholder="أعد كتابة الرمز" autocomplete="new-password">
+      <p style="font-size:11.5px; opacity:.7; margin:8px 0 0;">تجنّب الرموز السهلة مثل 1234 و0000. تقدر تغيّره بعدين من لوحة التحكم ← الكاشير.</p>`;
+    const btn = document.getElementById('provSubmitBtn');
+    btn.parentNode.insertBefore(box, btn);
+  }
+  document.getElementById('provPinBranchName').textContent = branch.name;
+  box.style.display = '';
+  document.getElementById('provSubmitBtn').textContent = 'حفظ الرمز وفتح الكاشير';
+  setTimeout(()=>{ const i = document.getElementById('provPin1'); if(i) i.focus(); }, 50);
+}
+async function provSavePin(){
+  const digits = v => String(v || '').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).trim();
+  const pin = digits(document.getElementById('provPin1').value);
+  const pin2 = digits(document.getElementById('provPin2').value);
+  if(!/^\d{4}$/.test(pin)) return provSetError('الرمز لازم يكون ٤ أرقام.');
+  if(pin !== pin2) return provSetError('الرمزين مو متطابقين.');
+  const sb = window.supabaseClient;
+  const { data: { session } } = await sb.auth.getSession();
+  if(!session) return provSetError('انتهت الجلسة — سجّل دخول مرة ثانية.');
+  const res = await fetch('/api/pos/provision-branch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+    body: JSON.stringify({ branchId: PROV_PIN_BRANCH.id, pin }),
+  });
+  const out = await res.json().catch(()=>({}));
+  if(!res.ok) return provSetError(out.error || 'تعذر حفظ الرمز.');
+  saveDeviceConfig();
+  await sb.auth.signOut();
+  PROV_PIN_BRANCH = null;
+  const box = document.getElementById('provPinField'); if(box) box.style.display = 'none';
+  ['provEmail', 'provPassword'].forEach(id=>{ const el = document.getElementById(id); if(el) el.style.display = ''; });
+  // يفتح بنفس الرمز اللي توه انكتب، بلا ما يكتبه مرة ثانية
+  showCashierLogin();
+  loginPinEntry = pin;
+  renderLoginPin();
+  attemptCashierLogin();
+}
+
 document.getElementById('provSubmitBtn').addEventListener('click', async ()=>{
   const errEl = document.getElementById('provError');
   const branchField = document.getElementById('provBranchField');
   const branchSelect = document.getElementById('provBranchSelect');
   errEl.style.display = 'none';
 
+  if(PROV_PIN_BRANCH){
+    const btn = document.getElementById('provSubmitBtn');
+    btn.disabled = true;
+    try { await provSavePin(); } catch(_){ provSetError('تعذر الاتصال — جرّب مرة ثانية.'); }
+    finally { btn.disabled = false; }
+    return;
+  }
+
   if(!branchField.classList.contains('hidden')){
     if(!branchSelect.value) return;
-    DEVICE.branchId = parseInt(branchSelect.value, 10);
-    DEVICE.branchName = branchSelect.options[branchSelect.selectedIndex].text;
-    saveDeviceConfig();
-    await window.supabaseClient.auth.signOut();
-    showCashierLogin();
+    await provFinishBranch({ id: parseInt(branchSelect.value, 10), name: branchSelect.options[branchSelect.selectedIndex].text });
     return;
   }
 
@@ -9157,15 +9237,18 @@ document.getElementById('provSubmitBtn').addEventListener('click', async ()=>{
     const { data: business } = await window.supabaseClient
       .from('businesses').select('name').eq('id', profile.business_id).single();
     DEVICE.businessName = business ? business.name : '';
-    const { data: branches, error: brErr } = await window.supabaseClient
+    let { data: branches, error: brErr } = await window.supabaseClient
       .from('branches').select('id, name').eq('business_id', profile.business_id);
     if(brErr) throw brErr;
-    if(!branches || branches.length === 0){ throw new Error('ما فيه فروع مسجّلة لهذا المشروع.'); }
+    if(!branches || branches.length === 0){
+      // كل تسجيل ينشئ «الفرع الرئيسي»؛ لو انحذف أو ما انشأ، ننشئه هنا بدل ما يعلق
+      const { data: created, error: createErr } = await window.supabaseClient
+        .from('branches').insert({ business_id: profile.business_id, name: 'الفرع الرئيسي' }).select('id, name').single();
+      if(createErr || !created){ await window.supabaseClient.auth.signOut(); throw new Error('ما فيه فرع لهذا المطعم، وتعذر إنشاؤه — أضف فرع من لوحة التحكم ← الإعدادات ← الفروع.'); }
+      branches = [created];
+    }
     if(branches.length === 1){
-      DEVICE.branchId = branches[0].id; DEVICE.branchName = branches[0].name;
-      saveDeviceConfig();
-      await window.supabaseClient.auth.signOut();
-      showCashierLogin();
+      await provFinishBranch(branches[0]);
       return;
     }
     branchSelect.innerHTML = branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
@@ -9241,6 +9324,7 @@ async function attemptCashierLogin(){
   }
 }
 document.getElementById('reprovisionLink').addEventListener('click', ()=>{
+  PROV_PIN_BRANCH = null;
   localStorage.removeItem('rakeen_pos_device');
   DEVICE = { businessId: null, branchId: null, branchName: null };
   window.location.reload();

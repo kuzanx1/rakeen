@@ -7,6 +7,7 @@ import {
   getDeviceConfig,
   provisionDevice,
   selectBranch,
+  setBranchPin,
   loginCashierWithPin,
   clearDeviceConfig,
 } from '../application/authService';
@@ -58,6 +59,10 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
   const [busy, setBusy] = useState(false);
 
   const [pin, setPin] = useState('');
+  /** فرع ينتظر رمزه وقت التجهيز (authService finishBranch). */
+  const [pinBranch, setPinBranch] = useState<{ businessId: number; businessName: string; branch: BranchOption } | null>(null);
+  const [newPin, setNewPin] = useState('');
+  const [newPin2, setNewPin2] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -76,6 +81,8 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
         setError(result.message);
       } else if (result.status === 'branch-selected') {
         setDevice(result.device);
+      } else if (result.status === 'needs-pin') {
+        setPinBranch({ businessId: result.businessId, businessName: result.businessName, branch: result.branch });
       } else {
         setPendingBusiness({ id: result.businessId, name: result.businessName });
         setBranches(result.branches);
@@ -93,10 +100,13 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
     if (!branch) return;
     setBusy(true);
     try {
-      const cfg = await selectBranch(pendingBusiness.id, pendingBusiness.name, branch);
-      setDevice(cfg);
+      const result = await selectBranch(pendingBusiness.id, pendingBusiness.name, branch);
       setBranches(null);
       setPendingBusiness(null);
+      if (result.status === 'branch-selected') setDevice(result.device);
+      else if (result.status === 'needs-pin') {
+        setPinBranch({ businessId: result.businessId, businessName: result.businessName, branch: result.branch });
+      } else if (result.status === 'error') setError(result.message);
     } finally {
       setBusy(false);
     }
@@ -128,6 +138,33 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
     }
   };
 
+  /** Saves the new branch code, binds the device, and opens the cashier
+   *  with that same code -- no second entry. */
+  const handleSavePin = async () => {
+    if (!pinBranch) return;
+    const toLatin = (v: string) => v.replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).trim();
+    const p1 = toLatin(newPin);
+    if (!/^\d{4}$/.test(p1)) return setError('الرمز لازم يكون ٤ أرقام.');
+    if (p1 !== toLatin(newPin2)) return setError('الرمزين مو متطابقين.');
+    setError('');
+    setBusy(true);
+    try {
+      const result = await setBranchPin(pinBranch.businessId, pinBranch.businessName, pinBranch.branch, p1);
+      if (result.status === 'error') {
+        setError(result.message);
+        return;
+      }
+      setPinBranch(null);
+      setNewPin('');
+      setNewPin2('');
+      setDevice(result.device);
+      const login = await loginCashierWithPin(result.device.branchId!, p1);
+      if (login.status === 'ok') onLoggedIn(login.profile);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleReprovision = async () => {
     await clearDeviceConfig();
     setDevice(EMPTY_DEVICE_CONFIG);
@@ -143,6 +180,49 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
   }
 
   // #posProvisionScreen -- device not yet bound to a branch.
+  if (device.branchId == null && pinBranch) {
+    return (
+      <View style={styles.screen}>
+        <ScrollView contentContainerStyle={styles.centerBox} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+          <View style={styles.card}>
+            <Wordmark styles={styles} />
+            <Text style={styles.title}>رمز الفرع</Text>
+            <Text style={styles.sub}>
+              فرع «{pinBranch.branch.name}» ما له رمز بعد. اختر رمز من ٤ أرقام: يدخل فيه الكاشير على هذا الجهاز وكل جهاز بالفرع.
+            </Text>
+            <View style={styles.field}>
+              <TextInput
+                style={styles.input}
+                placeholder="الرمز (٤ أرقام)"
+                placeholderTextColor={colors.muted}
+                keyboardType="number-pad"
+                maxLength={4}
+                secureTextEntry
+                value={newPin}
+                onChangeText={setNewPin}
+              />
+            </View>
+            <View style={styles.field}>
+              <TextInput
+                style={styles.input}
+                placeholder="أعد كتابة الرمز"
+                placeholderTextColor={colors.muted}
+                keyboardType="number-pad"
+                maxLength={4}
+                secureTextEntry
+                value={newPin2}
+                onChangeText={setNewPin2}
+              />
+            </View>
+            <Text style={styles.sub}>تجنّب الرموز السهلة مثل 1234 و0000. تقدر تغيّره بعدين من لوحة التحكم ← الكاشير.</Text>
+            {!!error && <Text style={styles.error}>{error}</Text>}
+            <ConfirmPayButton styles={styles} label="حفظ الرمز وفتح الكاشير" busy={busy} onPress={handleSavePin} />
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
   if (device.branchId == null) {
     const pickingBranch = branches != null;
     return (

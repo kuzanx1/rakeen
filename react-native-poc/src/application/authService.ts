@@ -45,7 +45,64 @@ export async function clearDeviceConfig(): Promise<void> {
 export type ProvisionResult =
   | { status: 'error'; message: string }
   | { status: 'branch-selected'; device: DeviceConfig }
-  | { status: 'choose-branch'; businessId: number; businessName: string; branches: BranchOption[] };
+  | { status: 'choose-branch'; businessId: number; businessName: string; branches: BranchOption[] }
+  /** The branch has no POS code yet; the owner is still signed in to set it. */
+  | { status: 'needs-pin'; businessId: number; businessName: string; branch: BranchOption };
+
+/**
+ * رمز الفرع وقت التجهيز -- نفس كاشير الويب (rakeen-pos.js provFinishBranch).
+ *
+ * كان التجهيز يربط الجهاز بالفرع ويطلع، والرمز ينسوّى من لوحة التحكم بس.
+ * فرع بلا رمز = شاشة رمز ما أحد يقدر يعدّيها. فلو الفرع ما له حساب كاشير
+ * (نفس فحص اللوحة POS_READINESS) يرجع needs-pin والمالك لسا مسجّل دخول.
+ */
+async function finishBranch(businessId: number, businessName: string, branch: BranchOption): Promise<ProvisionResult> {
+  const { data: till, error: tillError } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('branch_id', branch.id)
+    .eq('user_type', 'employee')
+    .limit(1);
+  // Only when the check itself succeeded: a failed check read as "no code"
+  // would reset the branch's code on every one of its devices.
+  if (!tillError && Array.isArray(till) && till.length === 0) {
+    return { status: 'needs-pin', businessId, businessName, branch };
+  }
+  const device: DeviceConfig = { businessId, businessName, branchId: branch.id, branchName: branch.name };
+  await saveDeviceConfig(device);
+  await supabase.auth.signOut();
+  return { status: 'branch-selected', device };
+}
+
+/** Creates the branch's POS code with the owner's session (the same
+ *  /api/pos/provision-branch the dashboard calls), then binds the device. */
+export async function setBranchPin(
+  businessId: number,
+  businessName: string,
+  branch: BranchOption,
+  pin: string,
+): Promise<{ status: 'error'; message: string } | { status: 'branch-selected'; device: DeviceConfig }> {
+  if (!/^\d{4}$/.test(pin)) return { status: 'error', message: 'الرمز لازم يكون ٤ أرقام.' };
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) return { status: 'error', message: 'انتهت الجلسة — سجّل دخول مرة ثانية.' };
+  try {
+    const res = await fetch(`${RAKEEN_API_BASE_URL}/api/pos/provision-branch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ branchId: branch.id, pin }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) return { status: 'error', message: out.error || 'تعذر حفظ الرمز.' };
+  } catch {
+    return { status: 'error', message: 'تعذر الاتصال — جرّب مرة ثانية.' };
+  }
+  const device: DeviceConfig = { businessId, businessName, branchId: branch.id, branchName: branch.name };
+  await saveDeviceConfig(device);
+  await supabase.auth.signOut();
+  return { status: 'branch-selected', device };
+}
 
 /**
  * Owner/manager signs in once to provision this device with a
@@ -82,26 +139,32 @@ export async function provisionDevice(email: string, password: string): Promise<
     .single();
   const businessName = business?.name || '';
 
-  const { data: branches, error: branchesError } = await supabase
+  const branchesRes = await supabase
     .from('branches')
     .select('id, name')
     .eq('business_id', profile.business_id);
+  let branches: BranchOption[] | null = branchesRes.data;
 
-  if (branchesError || !branches || branches.length === 0) {
+  if (branchesRes.error) {
     await supabase.auth.signOut();
-    return { status: 'error', message: 'ما فيه فروع مسجّلة لهذا المشروع.' };
+    return { status: 'error', message: 'تعذر تحميل الفروع.' };
+  }
+  if (!branches || branches.length === 0) {
+    // كل تسجيل ينشئ «الفرع الرئيسي»؛ لو انحذف أو ما انشأ، ننشئه بدل ما يعلق
+    const { data: created, error: createError } = await supabase
+      .from('branches')
+      .insert({ business_id: profile.business_id, name: 'الفرع الرئيسي' })
+      .select('id, name')
+      .single();
+    if (createError || !created) {
+      await supabase.auth.signOut();
+      return { status: 'error', message: 'ما فيه فرع لهذا المطعم، وتعذر إنشاؤه — أضف فرع من لوحة التحكم ← الإعدادات ← الفروع.' };
+    }
+    branches = [created];
   }
 
   if (branches.length === 1) {
-    const device: DeviceConfig = {
-      businessId: profile.business_id,
-      businessName,
-      branchId: branches[0].id,
-      branchName: branches[0].name,
-    };
-    await saveDeviceConfig(device);
-    await supabase.auth.signOut();
-    return { status: 'branch-selected', device };
+    return finishBranch(profile.business_id, businessName, branches[0]);
   }
 
   return {
@@ -116,16 +179,8 @@ export async function selectBranch(
   businessId: number,
   businessName: string,
   branch: BranchOption,
-): Promise<DeviceConfig> {
-  const device: DeviceConfig = {
-    businessId,
-    businessName,
-    branchId: branch.id,
-    branchName: branch.name,
-  };
-  await saveDeviceConfig(device);
-  await supabase.auth.signOut();
-  return device;
+): Promise<ProvisionResult> {
+  return finishBranch(businessId, businessName, branch);
 }
 
 export type CashierLoginResult =
