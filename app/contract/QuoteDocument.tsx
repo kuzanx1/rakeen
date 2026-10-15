@@ -1,17 +1,22 @@
 import type { ReactNode } from "react";
-import { BankDetails, BillingPeriod, featureLabel, formatIban, periodLabel, RAKEEN_PARTY, VatMode } from "@/lib/contracts";
+import { BillingPeriod, featureLabel, periodLabel, RAKEEN_PARTY, VatMode } from "@/lib/contracts";
 
-// A price quote ("عرض سعر") — same data the admin enters for a contract,
-// rendered as a sales document. Every top-level block carries
+// A price quote ("عرض سعر") for a prospect who hasn't registered or signed
+// anything yet. It has its own form (app/admin/QuotePanel.tsx) and is not tied
+// to a contract or an account. Bank details stay in the contract only. Every top-level block carries
 // data-pdf-block so ./pdf.ts paginates between blocks, exactly like the
 // contract. Nothing here is stored: the quote is generated on demand.
+
+// The quote goes out under the owner's own number. The contract and the
+// support channels keep RAKEEN_PARTY.whatsapp.
+export const QUOTE_PHONE = "0557444227";
 
 export type QuoteProps = {
   quoteNumber: string;
   issuedAt: string; // ISO
   validDays: number;
-  clientName: string;
-  contactName: string;
+  projectName: string;
+  personName: string;
   phone: string;
   planName: string;
   billingPeriod: BillingPeriod;
@@ -24,10 +29,8 @@ export type QuoteProps = {
   features: string[];
   notes: string;
   acceptQrDataUrl: string | null;
-  // The same schedule the contract would get (buildSchedule, or the admin's
-  // hand edits), so the quote's numbers never disagree with the contract's.
+  // Optional instalments for an annual price (buildSchedule).
   payments?: { amount: number; due_date: string }[];
-  bank?: BankDetails | null;
 };
 
 function monthsBetween(a: string, b: string) {
@@ -92,7 +95,6 @@ export default function QuoteDocument(q: QuoteProps) {
   const firstPayment = payments.length > 0 ? payments[0].amount : q.price + q.setupFee;
   const instalments = annual && payments.length > 1;
   const then = afterFirst(payments, annual);
-  const bank = q.bank && q.bank.iban ? q.bank : null;
   const notes = q.notes.trim() ? q.notes.trim().split(/\n+/).map((l) => l.trim()).filter(Boolean) : [];
 
   return (
@@ -118,8 +120,8 @@ export default function QuoteDocument(q: QuoteProps) {
           <div className="cdoc-party">
             <h3>مقدّم إلى</h3>
             <dl>
-              <dt>المنشأة</dt><dd>{q.clientName || "—"}</dd>
-              <dt>المسؤول</dt><dd>{q.contactName || "—"}</dd>
+              <dt>المشروع</dt><dd>{q.projectName || "—"}</dd>
+              <dt>الاسم</dt><dd>{q.personName || "—"}</dd>
               <dt>الجوال</dt><dd className="mono">{q.phone || "—"}</dd>
             </dl>
           </div>
@@ -128,7 +130,7 @@ export default function QuoteDocument(q: QuoteProps) {
             <dl>
               <dt>الاسم</dt><dd>{RAKEEN_PARTY.name} ({RAKEEN_PARTY.nameEn})</dd>
               <dt>رقم التسجيل</dt><dd className="mono">{RAKEEN_PARTY.registrationNumber}</dd>
-              <dt>واتساب</dt><dd className="mono">{RAKEEN_PARTY.whatsapp}</dd>
+              <dt>واتساب</dt><dd className="mono">{QUOTE_PHONE}</dd>
             </dl>
           </div>
         </div>
@@ -198,19 +200,14 @@ export default function QuoteDocument(q: QuoteProps) {
       <section className="cdoc-block qt-accept" data-pdf-block>
         <div>
           <h2>للموافقة على العرض</h2>
-          <p>امسح الرمز أو تواصل معنا على واتساب <b className="mono">{RAKEEN_PARTY.whatsapp}</b>، ونرسل لك رابط العقد توقّعه من جوالك.</p>
-          {bank && (
-            <p className="qt-bank">
-              <span>الدفع بتحويل بنكي:</span> {bank.bankName} · <b className="mono">{formatIban(bank.iban)}</b> · باسم {bank.accountHolder}
-            </p>
-          )}
+          <p>امسح الرمز أو تواصل معنا على واتساب <b className="mono">{QUOTE_PHONE}</b>، ونجهّز لك حسابك ورابط العقد توقّعه من جوالك.</p>
         </div>
         {q.acceptQrDataUrl && <img className="qt-qr" src={q.acceptQrDataUrl} alt="" />}
       </section>
 
       <footer className="cdoc-foot" data-pdf-block>
         <span>الوضوح اللي كنت تحتاجه</span>
-        <span className="mono">{RAKEEN_PARTY.website} · {RAKEEN_PARTY.instagram} · {RAKEEN_PARTY.whatsapp}</span>
+        <span className="mono">{RAKEEN_PARTY.website} · {RAKEEN_PARTY.instagram} · {QUOTE_PHONE}</span>
       </footer>
     </article>
   );

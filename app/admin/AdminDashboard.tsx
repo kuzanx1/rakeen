@@ -6,6 +6,7 @@ import WhatsAppAdminPanel from "./WhatsAppAdminPanel";
 import UsagePanel from "./UsagePanel";
 import AuditLogPanel from "./AuditLogPanel";
 import ContractsPanel from "./ContractsPanel";
+import QuotePanel from "./QuotePanel";
 
 type Business = {
   id: number;
@@ -150,7 +151,7 @@ export default function AdminDashboard() {
   const [mfaError, setMfaError] = useState<string | null>(null);
   const [mfaBusy, setMfaBusy] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<"businesses" | "whatsapp" | "contracts" | "usage" | "audit">("businesses");
+  const [activeTab, setActiveTab] = useState<"businesses" | "whatsapp" | "contracts" | "quotes" | "usage" | "audit">("businesses");
   const [businesses, setBusinesses] = useState<Business[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -751,6 +752,7 @@ export default function AdminDashboard() {
             [
               ["businesses", "المشتركين"],
               ["contracts", "العقود والدفعات"],
+              ["quotes", "عروض الأسعار"],
               ["whatsapp", "واتساب"],
               ["usage", "استهلاك البنية التحتية"],
               ["audit", "سجل التدقيق"],
@@ -769,6 +771,7 @@ export default function AdminDashboard() {
 
         {activeTab === "whatsapp" && <WhatsAppAdminPanel token={session.token} />}
         {activeTab === "contracts" && <ContractsPanel token={session.token} />}
+        {activeTab === "quotes" && <QuotePanel />}
         {activeTab === "usage" && <UsagePanel token={session.token} />}
         {activeTab === "audit" && <AuditLogPanel token={session.token} />}
 
