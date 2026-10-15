@@ -514,6 +514,22 @@ export async function listDeliveryPlatforms(businessId: number): Promise<Deliver
   }));
 }
 
+/** PLATFORM_PRICES -- each delivery app's own price per item (platformId ->
+ *  {menuItemId: price}), same as loadPosData() in the web cashier. RLS keeps
+ *  it to this business, as on the web. */
+export async function listPlatformPrices(businessId: number): Promise<Record<string, Record<number, number>>> {
+  await loadPlanFeatures(businessId);
+  if (!planHas('delivery_apps')) return {};
+  const { data } = await supabase.from('menu_item_platform_prices').select('menu_item_id, platform_id, price');
+  const out: Record<string, Record<number, number>> = {};
+  (data || []).forEach((r: any) => {
+    const key = String(r.platform_id);
+    if (!out[key]) out[key] = {};
+    out[key][Number(r.menu_item_id)] = Number(r.price);
+  });
+  return out;
+}
+
 export async function getReceiptBusinessProfile(businessId: number): Promise<ReceiptBusinessProfile> {
   const { data } = await supabase
     .from('businesses')

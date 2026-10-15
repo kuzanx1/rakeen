@@ -20,7 +20,7 @@ import {
   CatalogResult,
 } from '../application/catalogService';
 import { getOrderHistoryDetail } from '../application/orderHistoryService';
-import { listDeliveryPlatforms } from '../application/catalogService';
+import { listDeliveryPlatforms, listPlatformPrices } from '../application/catalogService';
 import type { DeliveryPlatform, PosFeatureFlags } from '../application/catalogService';
 import { listTables, seatWalkIn } from '../application/tableService';
 import { pointsRedeemOffer, redeemableCountText, toWesternDigits } from '../domain/customer';
@@ -891,8 +891,12 @@ export default function ProductsScreen({
   useEffect(() => {
     (async () => {
       try {
-        const list = await listDeliveryPlatforms(cashier.business_id);
+        const [list, prices] = await Promise.all([
+          listDeliveryPlatforms(cashier.business_id),
+          listPlatformPrices(cashier.business_id),
+        ]);
         setDeliveryPlatforms(list);
+        cart.setPlatformPrices(prices);
         // renderPlatformButtons() preselects the first one, so a delivery
         // order always names a platform even if the cashier never taps.
         if (list.length > 0) setDeliveryPlatformId(prev => prev ?? list[0].id);
@@ -901,6 +905,12 @@ export default function ProductsScreen({
       }
     })();
   }, [cashier.business_id]);
+
+  // The cart prices a delivery line at the chosen app's own price.
+  useEffect(() => {
+    cart.setDeliveryPlatformId(deliveryPlatformId == null ? null : String(deliveryPlatformId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deliveryPlatformId]);
 
   // Loaded when the popup opens rather than held live: the picker only
   // ever appears for a cart that has no table yet, and a list fetched

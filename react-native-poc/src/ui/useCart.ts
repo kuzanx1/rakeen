@@ -41,7 +41,14 @@ export function useCart(
    *  common state, not an error. */
   const [discountReason, setDiscountReason] = useState('');
   const [orderChannel, setOrderChannel] = useState<OrderChannel>('dine_in');
-  const [deliveryPlatformId] = useState<string | null>(null); // platform selection is a later, delivery-specific checkpoint
+  /**
+   * سعر المنتج على تطبيق التوصيل (menu_item_platform_prices) -- مثل
+   * productBasePrice في كاشير الويب. كانت deliveryPlatformId ثابتة null
+   * والأسعار ما تنقرى، فطلب جاهز أو هنقرستيشن من التطبيق ينحسب بسعر
+   * الكاشير والويب بسعر التطبيق. الشاشة تعطيها المنصة المختارة وأسعارها.
+   */
+  const [deliveryPlatformId, setDeliveryPlatformId] = useState<string | null>(null);
+  const [platformPrices, setPlatformPrices] = useState<Record<string, Record<number, number>>>({});
   const lineIdCounter = useRef(1);
   const nextLineId = useCallback(() => lineIdCounter.current++, []);
 
@@ -50,9 +57,9 @@ export function useCart(
       const product = productsById.get(item.productId);
       const basePrice = product?.price ?? 0;
       const modDef = modifiersByProductId[item.productId];
-      return lineUnitPrice(item, basePrice, modDef, orderChannel, deliveryPlatformId);
+      return lineUnitPrice(item, basePrice, modDef, orderChannel, deliveryPlatformId, platformPrices);
     },
-    [productsById, modifiersByProductId, orderChannel, deliveryPlatformId],
+    [productsById, modifiersByProductId, orderChannel, deliveryPlatformId, platformPrices],
   );
 
   /** Simple products (no modifier definition) always fast-add instantly --
@@ -170,5 +177,7 @@ export function useCart(
     setLineNote,
     clearCart,
     unitPriceOf,
+    setDeliveryPlatformId,
+    setPlatformPrices,
   };
 }
