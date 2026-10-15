@@ -185,7 +185,10 @@ export async function POST(request: NextRequest) {
   const businessId = Number(profile?.business_id) || null;
   let setupError: string | null = null;
   if (businessId) {
-    const updates: Record<string, unknown> = { online_subscribed: !trial };
+    // The admin added them himself, so there's nothing to review: a
+    // self-serve signup starts 'pending' (no online orders until verified),
+    // this one starts verified.
+    const updates: Record<string, unknown> = { online_subscribed: !trial, verification_status: "verified" };
     if (plan) {
       updates.plan_tier = plan.key;
       updates.branch_limit = plan.includedBranches;

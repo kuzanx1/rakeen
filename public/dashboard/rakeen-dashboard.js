@@ -10630,7 +10630,55 @@ function renderSettingsPanel(){
   if(activeSettingsTab === 'restaurant'){ panel.innerHTML = restaurantSettingsHtml(); wireRestaurantSettings(); }
   else if(activeSettingsTab === 'branches'){ renderBranchesSettings(); }
   else if(activeSettingsTab === 'notifications'){ renderNotificationsSettings(); }
+  else if(activeSettingsTab === 'account'){ renderAccountSettings(); }
   else { panel.innerHTML = permissionsSettingsHtml(); wirePermissionsSettings(); }
+}
+
+/* ============ حسابي: تغيير كلمة المرور ============
+   قبلها الطريقة الوحيدة «نسيت كلمة المرور» من شاشة الدخول. الحين من داخل
+   اللوحة: الكلمة الحالية أولاً (عشان جهاز مفتوح ما يكفي لتغييرها)، ثم
+   الجديدة مرتين. كل مستخدم يغيّر كلمة مروره هو، مو حساب غيره. */
+async function renderAccountSettings(){
+  const panel = document.getElementById('settingsPanelBody');
+  let email = '';
+  try { const { data } = await window.supabaseClient.auth.getUser(); email = (data && data.user && data.user.email) || ''; } catch(_){}
+  panel.innerHTML = `
+    <div class="rk-section">
+      ${rkSectionHead('shield', 'كلمة المرور', 'غيّر كلمة مرور دخولك للوحة التحكم')}
+      <div class="rk-field" style="max-width:360px;"><label>البريد</label><input type="text" readonly value="${escapeHtml(email)}" style="direction:ltr;"></div>
+      <div class="rk-grid-2" style="max-width:740px; margin-top:12px;">
+        <div class="rk-field" style="grid-column:1 / -1; max-width:360px;"><label>كلمة المرور الحالية</label><input type="password" id="acctPwCurrent" autocomplete="current-password"></div>
+        <div class="rk-field"><label>كلمة المرور الجديدة</label><input type="password" id="acctPwNew" autocomplete="new-password" minlength="8"></div>
+        <div class="rk-field"><label>أعد كتابة الجديدة</label><input type="password" id="acctPwNew2" autocomplete="new-password" minlength="8"></div>
+      </div>
+      <p class="stock-qty-helper" id="acctPwMsg" style="margin-top:10px; min-height:18px;"></p>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="acctPwSaveBtn" type="button">غيّر كلمة المرور</button>
+    </div>`;
+  const msg = (t, bad) => { const el = document.getElementById('acctPwMsg'); el.textContent = t; el.style.color = bad ? 'var(--danger)' : 'var(--success-text)'; };
+  document.getElementById('acctPwSaveBtn').addEventListener('click', async (e)=>{
+    const btn = e.currentTarget;
+    const cur = document.getElementById('acctPwCurrent').value;
+    const p1 = document.getElementById('acctPwNew').value;
+    const p2 = document.getElementById('acctPwNew2').value;
+    if(!cur) return msg('اكتب كلمة المرور الحالية', true);
+    if(p1.length < 8) return msg('كلمة المرور الجديدة لازم تكون ٨ أحرف أو أكثر', true);
+    if(p1 !== p2) return msg('الكلمتين الجديدتين مو متطابقتين', true);
+    if(p1 === cur) return msg('الجديدة نفس الحالية — اختر كلمة ثانية', true);
+    rkBtnLoading(btn, true);
+    try {
+      const sb = window.supabaseClient;
+      const { error: signErr } = await sb.auth.signInWithPassword({ email, password: cur });
+      if(signErr) return msg('كلمة المرور الحالية غلط', true);
+      const { error } = await sb.auth.updateUser({ password: p1 });
+      if(error) return msg(/weak|short|characters/i.test(error.message) ? 'كلمة المرور ضعيفة — خلها أطول وفيها أرقام وحروف' : 'تعذّر التغيير، جرّب مرة ثانية', true);
+      ['acctPwCurrent','acctPwNew','acctPwNew2'].forEach(id => { document.getElementById(id).value = ''; });
+      msg('تم تغيير كلمة المرور ✓ — استخدمها في دخولك الجاي.', false);
+    } catch(_){
+      msg('تعذّر الاتصال، جرّب مرة ثانية', true);
+    } finally {
+      rkBtnLoading(btn, false);
+    }
+  });
 }
 
 /* ============ Owner notifications — real, free Web Push (same VAPID
