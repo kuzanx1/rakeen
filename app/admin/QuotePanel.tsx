@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import "../contract/contract.css";
 import QuoteDocument, { QUOTE_PHONE, QuoteProps } from "../contract/QuoteDocument";
 import { contractPdfBlob, downloadBlob } from "../contract/pdf";
-import { buildSchedule, FeatureKey, formatSar, periodLabel } from "@/lib/contracts";
+import { buildSchedule, DISCOUNT_PERIOD_OPTIONS, discountTermText, FeatureKey, formatSar, periodLabel } from "@/lib/contracts";
 import { PlanKey, PLANS, planByKey, planPrice, quoteIncluded, SELLABLE_FEATURES } from "@/lib/plans";
 
 // Price quotes for prospects: people who haven't registered or subscribed
@@ -12,6 +12,8 @@ import { PlanKey, PLANS, planByKey, planPrice, quoteIncluded, SELLABLE_FEATURES 
 // start date or jurisdiction, nothing saved. Fill it in, get a one-page PDF.
 
 const C = { ink: "#171717", paper: "#FBFAF5", stone: "#EDEADF", lime: "#C4FF2B", deep: "#7BAD0F", muted: "#8a8375", danger: "#B0402C" };
+// Annual instalments: 12 / n is a whole number of months, so they are evenly spaced.
+const PAYMENT_COUNTS = [1, 2, 3, 4, 6, 12];
 const input: React.CSSProperties = { width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1.5px solid rgba(23,23,23,.12)", background: "#fff", color: "#171717", colorScheme: "light", fontFamily: "inherit", fontSize: "13px" };
 const label: React.CSSProperties = { fontSize: "11.5px", fontWeight: 800, display: "block", marginBottom: "5px" };
 const pill = (bg: string, fg: string): React.CSSProperties => ({ padding: "8px 14px", borderRadius: "999px", background: bg, color: fg, fontWeight: 800, fontSize: "11.5px", border: "none", cursor: "pointer", whiteSpace: "nowrap" });
@@ -39,6 +41,7 @@ export default function QuotePanel() {
     discount_mode: "none" as "none" | "pct" | "amount",
     discount_value: "",
     discount_label: "",
+    discount_periods: "1",
     setup_fee: "0",
     vat_mode: "exclusive" as "exclusive" | "inclusive",
     branches_count: "1",
@@ -70,9 +73,17 @@ export default function QuotePanel() {
     : 0;
   const finalPrice = Math.round((basePrice - (Number.isFinite(discountAmount) ? discountAmount : 0)) * 100) / 100;
   const hasDiscount = form.discount_mode !== "none" && discountAmount > 0;
+  // Same as the contract: the discount is for the first period(s), then the list price.
+  const periodChoices = DISCOUNT_PERIOD_OPTIONS[form.billing_period];
+  const discountPeriods = periodChoices.includes(Number(form.discount_periods)) ? Number(form.discount_periods) : 1;
   const setup = Number(form.setup_fee || 0);
   const annual = form.billing_period === "annual";
-  const paymentsCount = annual ? Math.max(1, Math.min(12, Math.trunc(Number(form.payments_count) || 1))) : 1;
+  // Only counts that divide the year into whole, equal months: 5 or 7 gave
+  // instalments 2 and 3 months apart in the same schedule.
+  const paymentsCount = annual && PAYMENT_COUNTS.includes(Number(form.payments_count)) ? Number(form.payments_count) : 1;
+  // A package's included branches come from the package; typing a bigger
+  // number there gave branches away for free. Only "custom" types its own.
+  const includedBranches = plan ? plan.includedBranches : Math.max(1, Math.trunc(Number(form.branches_count) || 1));
 
   async function makeQuote() {
     setError(null);
@@ -102,9 +113,10 @@ export default function QuotePanel() {
         price: finalPrice,
         listPrice: hasDiscount ? basePrice : null,
         discountLabel: hasDiscount ? form.discount_label.trim() : "",
+        discountPeriods: hasDiscount ? discountPeriods : undefined,
         setupFee: setup > 0 ? setup : 0,
         vatMode: form.vat_mode,
-        branchesCount: Math.max(1, Math.trunc(Number(form.branches_count) || 1)) + extraBranches,
+        branchesCount: includedBranches + extraBranches,
         extraBranches,
         extraBranchPrice: branchUnit,
         features: form.features,
@@ -192,6 +204,14 @@ export default function QuotePanel() {
           {form.discount_mode !== "none" && (
             <div><span style={label}>سبب الخصم (اختياري)</span><input style={input} placeholder="عرض الافتتاح" value={form.discount_label} onChange={setF("discount_label")} /></div>
           )}
+          {form.discount_mode !== "none" && (
+            <div>
+              <span style={label}>مدة الخصم (بعدها السعر الأساسي)</span>
+              <select style={input} value={String(discountPeriods)} onChange={setF("discount_periods")}>
+                {periodChoices.map((n) => <option key={n} value={n}>{discountTermText(form.billing_period, n)}</option>)}
+              </select>
+            </div>
+          )}
           <div><span style={label}>رسوم تأسيس (مرة وحدة)</span><input style={input} inputMode="decimal" value={form.setup_fee} onChange={setF("setup_fee")} /></div>
           <div>
             <span style={label}>الضريبة</span>
@@ -200,9 +220,17 @@ export default function QuotePanel() {
               <option value="inclusive">السعر شامل الضريبة</option>
             </select>
           </div>
-          <div><span style={label}>{plan ? "فروع ضمن الباقة" : "عدد الفروع"}</span><input style={input} inputMode="numeric" value={form.branches_count} onChange={setF("branches_count")} /></div>
+          <div><span style={label}>{plan ? "فروع ضمن الباقة" : "عدد الفروع"}</span>{plan ? (
+            <input style={{ ...input, background: "#f4f4f4", color: "#666" }} value={includedBranches} readOnly title="من الباقة نفسها. للفروع الزيادة استخدم «فروع إضافية»" />
+          ) : (
+            <input style={input} inputMode="numeric" value={form.branches_count} onChange={setF("branches_count")} />
+          )}</div>
           {annual && (
-            <div><span style={label}>تقسيط السنوي على (دفعات)</span><input style={input} inputMode="numeric" value={form.payments_count} onChange={setF("payments_count")} /></div>
+            <div><span style={label}>تقسيط السنوي على (دفعات)</span><select style={input} value={String(paymentsCount)} onChange={setF("payments_count")}>
+              {PAYMENT_COUNTS.map((n) => (
+                <option key={n} value={n}>{n === 1 ? "دفعة وحدة مقدمًا" : `${n} دفعات، ${12 / n === 1 ? "شهريًا" : 12 / n === 2 ? "كل شهرين" : `كل ${12 / n} أشهر`}`}</option>
+              ))}
+            </select></div>
           )}
           <div><span style={label}>صلاحية العرض (أيام)</span><input style={input} inputMode="numeric" value={form.valid_days} onChange={setF("valid_days")} /></div>
         </div>

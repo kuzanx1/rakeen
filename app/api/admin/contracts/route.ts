@@ -100,6 +100,9 @@ export async function POST(request: NextRequest) {
   if (listRaw !== null && listRaw < price) return NextResponse.json({ error: "السعر بعد الخصم أكبر من السعر الأساسي" }, { status: 400 });
   const list_price = listRaw !== null && listRaw > price ? Math.round(listRaw * 100) / 100 : null;
   const discount_label = list_price !== null ? str(body.discount_label, 60) || null : null;
+  // How long the discount lasts; after it the subscriber pays list_price.
+  const periodsRaw = Math.trunc(Number(body.discount_periods));
+  const discount_periods = list_price !== null ? (periodsRaw >= 1 && periodsRaw <= 60 ? periodsRaw : 1) : null;
 
   const token = randomToken();
   const { data, error } = await guard.admin
@@ -123,11 +126,15 @@ export async function POST(request: NextRequest) {
       business_id,
       list_price,
       discount_label,
+      ...(discount_periods !== null ? { discount_periods } : {}),
       created_by: guard.email,
     })
     .select("id, contract_number, token")
     .single();
 
+  if (error && /discount_periods/.test(error.message)) {
+    return NextResponse.json({ error: "مدة الخصم تحتاج تشغيل migration ‎20261016090000 في سوبابيس أولاً" }, { status: 409 });
+  }
   if (error || !data) {
     await logAdminAction(guard.admin, guard.email, "contract.create", null, "failure", { reason: error?.message });
     return NextResponse.json({ error: "تعذر إنشاء العقد" }, { status: 500 });

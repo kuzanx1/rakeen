@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { BillingPeriod, featureLabel, RAKEEN_PARTY, VatMode } from "@/lib/contracts";
+import { BillingPeriod, discountTermText, featureLabel, formatSar, RAKEEN_PARTY, VatMode } from "@/lib/contracts";
 
 // A price quote ("عرض سعر") for a prospect who hasn't registered or signed
 // anything yet. It has its own form (app/admin/QuotePanel.tsx) and is not tied
@@ -23,6 +23,8 @@ export type QuoteProps = {
   price: number; // after discount
   listPrice?: number | null; // before discount, when there is one
   discountLabel?: string;
+  // How many periods the discount lasts; after them the list price.
+  discountPeriods?: number;
   setupFee: number;
   vatMode: VatMode;
   branchesCount: number; // total, extra branches included
@@ -69,6 +71,10 @@ function afterFirst(payments: { amount: number; due_date: string }[], annual: bo
     if (!annual && step === 1) return null;
     return <><span className="mono">{rest.length}</span> × <Sar n={rest[0].amount} /> {everyLabel(step)}</>;
   }
+  // evenly spaced but the price doesn't split to the halala (1,790 / 3): the
+  // last one carries the remainder, so give the spacing and the total
+  const count = rest.length === 2 ? <>دفعتين</> : <><span className="mono">{rest.length}</span> دفعات</>;
+  if (step) return <>{count} {everyLabel(step)} بمجموع <Sar n={rest.reduce((t, p) => t + p.amount, 0)} /></>;
   // hand-edited into something irregular: say how many and how much in total
   return <><span className="mono">{rest.length}</span> دفعات بمجموع <Sar n={rest.reduce((t, p) => t + p.amount, 0)} /></>;
 }
@@ -152,6 +158,7 @@ export default function QuoteDocument(q: QuoteProps) {
             {q.listPrice && q.listPrice > q.price && (
               <span className="qt-was">
                 <s><Sar n={q.listPrice} /></s> خصم <Sar n={q.listPrice - q.price} />{q.discountLabel ? ` · ${q.discountLabel}` : ""}
+                {q.discountPeriods ? ` · ${discountTermText(q.billingPeriod, q.discountPeriods)}` : ""}
               </span>
             )}
             <span className="qt-amount"><Sar n={q.price} /> <i>/ {per}</i></span>
@@ -205,7 +212,14 @@ export default function QuoteDocument(q: QuoteProps) {
       <section className="cdoc-block" data-pdf-block>
         <h2>الشروط</h2>
         <ul className="qt-terms">
-          <li>هذا العرض صالح حتى {fmtDate(validUntil)}.</li>
+          {/* one line with the validity, not a line of its own: the heaviest
+              quote (صرح سنوي مقسّط، خصم، ملاحظات) has to stay one page */}
+          <li>
+            هذا العرض صالح حتى {fmtDate(validUntil)}
+            {q.discountPeriods && q.listPrice
+              ? `، والخصم ${discountTermText(q.billingPeriod, q.discountPeriods)} وبعدها السعر الأساسي ${formatSar(q.listPrice)} لكل ${per}.`
+              : "."}
+          </li>
           <li>
             {instalments
               ? "الأسعار بالريال السعودي، وتُدفع كل دفعة في موعدها حسب التقسيط الموضح أعلاه، والاشتراك يتجدد تلقائيًا."

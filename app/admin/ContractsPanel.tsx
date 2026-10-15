@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "../contract/contract.css";
 import ContractDocument from "../contract/ContractDocument";
 import { contractPdfBlob, downloadBlob } from "../contract/pdf";
-import { buildSchedule, Clause, ContractOffer, ContractParty, FeatureKey, formatSar, periodLabel, RAKEEN_PARTY } from "@/lib/contracts";
+import { buildSchedule, Clause, ContractOffer, ContractParty, FeatureKey, formatSar, periodLabel, RAKEEN_PARTY, DISCOUNT_PERIOD_OPTIONS, discountTermText } from "@/lib/contracts";
 import { SELLABLE_FEATURES } from "@/lib/plans";
 
 type PaymentStatus = "due" | "submitted" | "paid" | "rejected";
@@ -143,6 +143,7 @@ export default function ContractsPanel({ token }: { token: string }) {
     discount_mode: "none" as "none" | "pct" | "amount",
     discount_value: "",
     discount_label: "",
+    discount_periods: "1",
   });
   const setF = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -156,14 +157,18 @@ export default function ContractsPanel({ token }: { token: string }) {
     : 0;
   const finalPrice = Math.round((basePrice - (Number.isFinite(discountAmount) ? discountAmount : 0)) * 100) / 100;
   const hasDiscount = form.discount_mode !== "none" && discountAmount > 0;
+  // A discount is for the first period(s) only, then the list price.
+  const periodChoices = DISCOUNT_PERIOD_OPTIONS[form.billing_period];
+  const discountPeriods = periodChoices.includes(Number(form.discount_periods)) ? Number(form.discount_periods) : 1;
 
   // The schedule follows the offer until the admin edits a row by hand;
   // "إعادة التوزيع" drops the hand edits and recomputes.
   const autoSchedule = useMemo(() => {
     const setup = Number(form.setup_fee || 0);
     if (!Number.isFinite(finalPrice) || finalPrice < 0 || !Number.isFinite(setup) || !/^\d{4}-\d{2}-\d{2}$/.test(form.start_date)) return [];
-    return buildSchedule(form.billing_period, finalPrice, setup, form.start_date, Number(form.payments_count)).map((l) => ({ amount: String(l.amount), due_date: l.due_date }));
-  }, [form.billing_period, finalPrice, form.setup_fee, form.start_date, form.payments_count]);
+    const discount = hasDiscount ? { listPrice: basePrice, periods: discountPeriods } : null;
+    return buildSchedule(form.billing_period, finalPrice, setup, form.start_date, Number(form.payments_count), discount).map((l) => ({ amount: String(l.amount), due_date: l.due_date }));
+  }, [form.billing_period, finalPrice, form.setup_fee, form.start_date, form.payments_count, hasDiscount, basePrice, discountPeriods]);
   const lines = scheduleEdited ? schedule : autoSchedule;
 
   const editLine = (i: number, key: "amount" | "due_date", value: string) => {
@@ -235,6 +240,7 @@ export default function ContractsPanel({ token }: { token: string }) {
           price: finalPrice,
           list_price: hasDiscount ? basePrice : null,
           discount_label: hasDiscount ? form.discount_label : "",
+          discount_periods: hasDiscount ? discountPeriods : null,
           setup_fee: Number(form.setup_fee || 0),
           branches_count: Number(form.branches_count),
           valid_days: Number(form.valid_days),
@@ -451,6 +457,14 @@ export default function ContractsPanel({ token }: { token: string }) {
             </div>
             {form.discount_mode !== "none" && (
               <div><span style={label}>سبب الخصم (يظهر في العقد، اختياري)</span><input style={input} placeholder="عرض الافتتاح" value={form.discount_label} onChange={setF("discount_label")} /></div>
+            )}
+            {form.discount_mode !== "none" && (
+              <div>
+                <span style={label}>مدة الخصم (بعدها السعر الأساسي)</span>
+                <select style={input} value={String(discountPeriods)} onChange={setF("discount_periods")}>
+                  {periodChoices.map((n) => <option key={n} value={n}>{discountTermText(form.billing_period, n)}</option>)}
+                </select>
+              </div>
             )}
             <div><span style={label}>رسوم تأسيس (مرة وحدة)</span><input style={input} inputMode="decimal" value={form.setup_fee} onChange={setF("setup_fee")} /></div>
             <div>

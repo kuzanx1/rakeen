@@ -7,6 +7,7 @@ import UsagePanel from "./UsagePanel";
 import AuditLogPanel from "./AuditLogPanel";
 import ContractsPanel from "./ContractsPanel";
 import QuotePanel from "./QuotePanel";
+import AddBusinessPanel from "./AddBusinessPanel";
 import { allowedFeatures, FeatureOverrides, PLANS, planByKey, SELLABLE_FEATURES } from "@/lib/plans";
 import type { FeatureKey } from "@/lib/contracts";
 
@@ -138,6 +139,7 @@ function draftFrom(b: Business): Draft {
 export default function AdminDashboard() {
   const [sb] = useState(() => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!));
   const [session, setSession] = useState<{ email: string; token: string } | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -848,6 +850,16 @@ export default function AdminDashboard() {
             />
           </div>
           <span style={{ fontSize: "11.5px", color: "#8a8375", fontWeight: 700 }}>{filtered.length} حساب</span>
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            style={{ marginInlineStart: "auto", padding: "9px 16px", borderRadius: "999px", background: "#171717", color: "#C4FF2B", fontWeight: 800, fontSize: "12px", border: "none", cursor: "pointer" }}
+          >
+            + إضافة مشترك
+          </button>
+          {addOpen && session && (
+            <AddBusinessPanel token={session.token} onClose={() => setAddOpen(false)} onCreated={() => loadBusinesses(session.token)} />
+          )}
         </div>
 
         {loadError && <p style={styles.error}>{loadError}</p>}

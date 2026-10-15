@@ -122,6 +122,26 @@ export type ContractOffer = {
   // Price before the discount (price is what's charged) and its reason.
   list_price?: number | null;
   discount_label?: string | null;
+  // How many billing periods the discount lasts (months for monthly, years
+  // for annual); after them the subscriber pays list_price. null = a
+  // contract from before this was asked.
+  discount_periods?: number | null;
+};
+
+// "لأول شهر" / "لأول 3 أشهر" / "لأول سنة": the discount's length, as the
+// contract, the quote and the admin forms all say it.
+export function discountTermText(period: BillingPeriod, periods: number): string {
+  const n = Math.max(1, Math.trunc(periods) || 1);
+  if (period === "annual") return n === 1 ? "لأول سنة" : n === 2 ? "لأول سنتين" : `لأول ${n} سنوات`;
+  if (n === 1) return "لأول شهر";
+  if (n === 2) return "لأول شهرين";
+  return n <= 10 ? `لأول ${n} أشهر` : `لأول ${n} شهرًا`;
+}
+
+// The lengths offered in the admin forms.
+export const DISCOUNT_PERIOD_OPTIONS: Record<BillingPeriod, number[]> = {
+  monthly: [1, 2, 3, 6, 12],
+  annual: [1, 2],
 };
 
 // The discount shown on the contract, or null when there is none.
@@ -147,7 +167,18 @@ export function addMonths(isoDate: string, months: number): string {
 // yearly price split into `count` equal payments spread over the year.
 // The setup fee rides on the first payment. Halalas are kept exact: the
 // rounding remainder goes on the last payment so the rows sum to the total.
-export function buildSchedule(period: BillingPeriod, price: number, setupFee: number, startDate: string, count: number): PaymentLine[] {
+//
+// A discount that lasts `discount.periods` months: monthly rows after them
+// are at the list price. (An annual schedule is the first year, which a
+// discount of at least one year always covers.)
+export function buildSchedule(
+  period: BillingPeriod,
+  price: number,
+  setupFee: number,
+  startDate: string,
+  count: number,
+  discount?: { listPrice: number; periods: number } | null,
+): PaymentLine[] {
   const n = Math.max(1, Math.min(60, Math.trunc(count) || 1));
   const priceH = Math.round(price * 100);
   const setupH = Math.round(setupFee * 100);
@@ -156,6 +187,7 @@ export function buildSchedule(period: BillingPeriod, price: number, setupFee: nu
   const lines: PaymentLine[] = [];
   for (let i = 0; i < n; i++) {
     let h = each;
+    if (period === "monthly" && discount && i >= discount.periods) h = Math.round(discount.listPrice * 100);
     if (period === "annual" && i === n - 1) h = priceH - each * (n - 1);
     if (i === 0) h += setupH;
     lines.push({ seq: i + 1, amount: h / 100, due_date: addMonths(startDate, Math.round(i * stepMonths)) });
@@ -252,6 +284,9 @@ export function buildClauses(offer: ContractOffer, bank: BankDetails = RAKEEN_PA
           : `يلتزم الطرف الثاني بسداد رسوم الاشتراك مقدمًا في بداية كل ${per}${offer.setup_fee > 0 ? "، ورسوم التأسيس مرة واحدة عند التوقيع" : ""}.`,
         `يكون السداد بالتحويل إلى حساب الطرف الأول: ${bank.bankName}، رقم الحساب الدولي (IBAN) ${bank.iban}، باسم ${bank.accountHolder}.`,
         "يرفع الطرف الثاني إيصال التحويل من لوحة التحكم الخاصة به في المنصة، ولا تُعد الدفعة مسددة إلا بعد تأكيد الطرف الأول استلامها.",
+        ...(discountOf(offer) && offer.discount_periods
+          ? [`الخصم المذكور في هذا العقد يسري ${discountTermText(offer.billing_period, offer.discount_periods)} من تاريخ البدء فقط، وبعدها تُحسب الرسوم بالسعر الأساسي ${formatSar(Number(offer.list_price))} لكل ${per}.`]
+          : []),
         vatLine,
         "الرسوم المدفوعة، بما فيها رسوم التأسيس، غير قابلة للاسترداد كليًا أو جزئيًا بعد بدء المدة، ولو أنهى الطرف الثاني العقد مبكرًا أو لم يستخدم الخدمة، عدا ما ورد في بند الإنهاء.",
         "يحق للطرف الأول تعديل الأسعار عند التجديد بإشعار مسبق لا يقل عن 30 يومًا، ويُعد التجديد بعد الإشعار قبولًا للسعر الجديد.",

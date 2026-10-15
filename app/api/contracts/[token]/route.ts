@@ -52,6 +52,7 @@ type Row = {
   business_id: number | null;
   list_price: number | null;
   discount_label: string | null;
+  discount_periods?: number | null;
 };
 
 // The offer as shown and signed: the row's terms plus the account it is
@@ -79,6 +80,7 @@ async function offerOf(admin: SupabaseClient, row: Row): Promise<ContractOffer> 
     jurisdiction: row.jurisdiction === "business_city" ? "business_city" : "taif",
     list_price: row.list_price == null ? null : Number(row.list_price),
     discount_label: row.discount_label,
+    discount_periods: row.discount_periods == null ? null : Number(row.discount_periods),
   };
 }
 

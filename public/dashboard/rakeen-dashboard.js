@@ -8235,6 +8235,7 @@ async function loadBusinessData(){
     ONLINE_ORDER_FREE_COUNT = Number(businessRes.data.online_order_free_count) || 0;
     ONLINE_SUBSCRIBED = businessRes.data.online_subscribed === true;
     ONLINE_ORDER_FREE_LIMIT = Number(businessRes.data.online_order_free_limit) || 350;
+    rkRefreshTrial();
     GEIDEA_CONNECTED = businessRes.data.geidea_connected === true;
     GEIDEA_PUBLIC_KEY_LAST4 = businessRes.data.geidea_public_key_last4 || '';
     INVENTORY_ENABLED = businessRes.data.inventory_enabled !== false;
@@ -10542,6 +10543,58 @@ let ONLINE_CONTACT_WHATSAPP = '';
 let ONLINE_ORDER_FREE_COUNT = 0;
 let ONLINE_SUBSCRIBED = false;
 let ONLINE_ORDER_FREE_LIMIT = 350;
+/* الفترة التجريبية: 350 طلب من الكاشير والمتجر مع بعض، بعدها مهلة 24 ساعة
+   ثم البيع ينقفل (migration 20261016090000). الشريط فوق كل صفحات اللوحة
+   يقول كم باقي، ثم كم ساعة باقية على القفل. get_trial_status هي نفسها اللي
+   يناديها الكاشير (الويب والتطبيق)، وقبل تشغيل الـ migration يُكتفى بالعدّاد. */
+let RK_TRIAL = null;
+async function rkRefreshTrial(){
+  try {
+    const { data, error } = await window.supabaseClient.rpc('get_trial_status');
+    if(!error && data){
+      RK_TRIAL = data;
+      ONLINE_ORDER_FREE_COUNT = Number(data.used) || 0;
+      ONLINE_ORDER_FREE_LIMIT = Number(data.limit) || 350;
+      ONLINE_SUBSCRIBED = data.subscribed === true;
+    }
+  } catch(_){}
+  rkRenderTrialBanner();
+}
+function rkTrialText(){
+  if(ONLINE_SUBSCRIBED) return null;
+  const left = Math.max(0, ONLINE_ORDER_FREE_LIMIT - ONLINE_ORDER_FREE_COUNT);
+  const t = RK_TRIAL;
+  if(t && t.locked) return { danger: true, text: 'انتهت الفترة التجريبية والبيع متوقف — اشترك الحين عشان ترجع تبيع من الكاشير والمتجر. بياناتك وتقاريرك محفوظة.' };
+  if(t && t.locks_at){
+    const h = Math.max(0, Math.ceil((Date.parse(t.locks_at) - Date.parse(t.now || new Date().toISOString())) / 3600000));
+    return { danger: true, text: 'خلصت طلبات الفترة التجريبية (' + ONLINE_ORDER_FREE_LIMIT + ' طلب). البيع يتوقف بعد ' + h + ' ساعة — اشترك الحين.' };
+  }
+  if(left === 0) return { danger: true, text: 'خلصت طلبات الفترة التجريبية — اشترك الحين.' };
+  return { danger: left <= 50, text: 'الفترة التجريبية: باقي ' + left + ' طلب من ' + ONLINE_ORDER_FREE_LIMIT + ' (الكاشير والمتجر مع بعض).' };
+}
+function rkRenderTrialBanner(){
+  let bar = document.getElementById('rkTrialBanner');
+  const info = rkTrialText();
+  const content = document.querySelector('.main .content') || document.querySelector('.content');
+  if(!info || !content){ if(bar) bar.remove(); return; }
+  if(!bar){
+    bar = document.createElement('div');
+    bar.id = 'rkTrialBanner';
+    content.parentNode.insertBefore(bar, content);
+  }
+  bar.style.cssText = 'display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:10px 16px 0;padding:10px 14px;border-radius:12px;font-size:13px;font-weight:700;'
+    + (info.danger ? 'background:rgba(var(--danger-rgb,176,64,44),.12);color:var(--danger);' : 'background:rgba(196,255,43,.16);color:var(--success-text);');
+  bar.innerHTML = '';
+  const span = document.createElement('span');
+  span.textContent = info.text;
+  const a = document.createElement('a');
+  a.href = 'https://wa.me/966557444227';
+  a.target = '_blank'; a.rel = 'noopener';
+  a.textContent = 'اشترك الحين';
+  a.style.cssText = 'color:inherit;text-decoration:underline;white-space:nowrap;';
+  bar.append(span, a);
+}
+setInterval(()=>{ if(navigator.onLine && window.supabaseClient && typeof CURRENT_PROFILE !== 'undefined' && CURRENT_PROFILE) rkRefreshTrial(); }, 5 * 60 * 1000);
 let GEIDEA_CONNECTED = false;
 let GEIDEA_PUBLIC_KEY_LAST4 = '';
 let INVENTORY_ENABLED = true;
@@ -13094,15 +13147,15 @@ function onlineStoreSettingsHtml(){
       ` : `
       <div style="margin-top:14px;">
         <div style="display:flex; justify-content:space-between; font-size:11.5px; font-weight:700; color:var(--muted); margin-bottom:6px;">
-          <span>الفترة التجريبية المجانية</span>
+          <span>الفترة التجريبية (الكاشير والمتجر مع بعض)</span>
           <span class="mono">${ONLINE_ORDER_FREE_COUNT} / ${ONLINE_ORDER_FREE_LIMIT}</span>
         </div>
         <div style="height:8px; background:var(--surf2); border-radius:99px; overflow:hidden;">
           <div style="height:100%; width:${Math.min(100, (ONLINE_ORDER_FREE_COUNT/ONLINE_ORDER_FREE_LIMIT)*100)}%; background:${ONLINE_ORDER_FREE_COUNT>=ONLINE_ORDER_FREE_LIMIT?'var(--danger)':'var(--lime-deep)'}; border-radius:99px;"></div>
         </div>
         <p class="stock-qty-helper" style="margin-top:8px;">${ONLINE_ORDER_FREE_COUNT>=ONLINE_ORDER_FREE_LIMIT
-          ? `خلصت أول ${ONLINE_ORDER_FREE_LIMIT} طلب مجاني — المتجر مقفول عن العملاء لين تشترك. تواصل مع ركين لتفعيل الاشتراك.`
-          : `استخدمت ${ONLINE_ORDER_FREE_COUNT} من ${ONLINE_ORDER_FREE_LIMIT} طلب مجاني. بعدها يحتاج اشتراك عشان يفضل متجرك شغال.`}</p>
+          ? `خلصت أول ${ONLINE_ORDER_FREE_LIMIT} طلب مجاني. بعد 24 ساعة من وصولها يتوقف البيع من الكاشير والمتجر لين تشترك.`
+          : `استخدمت ${ONLINE_ORDER_FREE_COUNT} من ${ONLINE_ORDER_FREE_LIMIT} طلب مجاني (طلبات الكاشير والمتجر تنحسب مع بعض). بعدها يحتاج اشتراك عشان يفضل البيع شغال.`}</p>
       </div>
       `}
     </div>

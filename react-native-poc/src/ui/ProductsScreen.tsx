@@ -44,6 +44,8 @@ import { getCachedPosBootstrap, loadPosBootstrap, PosBootstrap } from '../applic
 import ModifierModal from './ModifierModal';
 import DiscountModal from './DiscountModal';
 import PaymentModal from './PaymentModal';
+import { TrialBanner, TrialEndedModal, useTrialStatus } from './TrialNotice';
+import { isTrialLocked, refreshTrialStatus } from '../application/trialService';
 import type { AttachedCustomer } from './PaymentModal';
 import type { PaymentResult } from './PaymentModal';
 import type { PaymentMethod } from '../domain/payment';
@@ -832,6 +834,15 @@ export default function ProductsScreen({
   const { showToast: setSubmitStatus } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  // الفترة التجريبية (domain/trial.ts): بعد القفل طلب جديد ما يبدأ أصلاً.
+  // دفع حساب طاولة مسجّلة من قبل مو طلب جديد، فيمشي.
+  const trial = useTrialStatus();
+  const [trialEndedOpen, setTrialEndedOpen] = useState(false);
+  const blockedByTrial = () => {
+    if (!isTrialLocked()) return false;
+    setTrialEndedOpen(true);
+    return true;
+  };
 
   useEffect(() => {
     onCheckoutOpenChange?.(paymentModalOpen);
@@ -943,6 +954,7 @@ export default function ProductsScreen({
    */
   const handleRegisterDineInOrder = async () => {
     if (cart.cart.length === 0 || !catalog) return;
+    if (blockedByTrial()) return;
     setSubmitting(true);
     setSubmitStatus('');
     try {
@@ -1205,6 +1217,7 @@ export default function ProductsScreen({
       });
       const outcome = await completePaymentOperation(payload, { openDrawer: method === 'cash' });
       setSubmitStatus(paymentOutcomeText(outcome.paymentState));
+      if (trial && !trial.subscribed) refreshTrialStatus(); // العدّاد زاد واحد
       if (outcome.paymentState === 'PAYMENT_COMPLETED' || outcome.paymentState === 'PAYMENT_SYNC_PENDING') {
         // Real receipt enqueue -- matches autoPrintOnCheckout's own
         // customer-receipt step in the PWA. Printing never waits on cloud
@@ -1351,6 +1364,8 @@ export default function ProductsScreen({
 
   return (
     <View style={styles.root}>
+      <TrialBanner status={trial} />
+      <TrialEndedModal visible={trialEndedOpen} limit={trial?.limit ?? 350} onClose={() => setTrialEndedOpen(false)} />
       {selectedTable && (
         <View style={styles.tableBanner}>
           <Text style={styles.tableBannerText}>طاولة {selectedTable.number}</Text>
@@ -1790,7 +1805,9 @@ export default function ProductsScreen({
               <PayButton
                 label={submitting ? 'جارٍ الإرسال...' : t('ادفع')}
                 amount={submitting ? undefined : cart.totals.total}
-                onPress={() => setPaymentModalOpen(true)}
+                onPress={() => {
+                  if (!blockedByTrial()) setPaymentModalOpen(true);
+                }}
                 disabled={cart.cart.length === 0 || submitting}
               />
             )}

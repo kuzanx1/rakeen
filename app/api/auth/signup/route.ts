@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { checkDbRateLimit } from "@/lib/dbRateLimit";
+import { BUSINESS_TYPES, NO_DINING_ROOM_TYPES } from "@/lib/businessTypes";
 
 // Self-serve restaurant signup — the only account-creation route in the app
 // with no caller auth at all (mirrors create-team-member's admin.createUser
@@ -12,9 +13,9 @@ import { checkDbRateLimit } from "@/lib/dbRateLimit";
 // (as of 20260814030000) auto-enables online ordering with a starter slug,
 // so the new owner can open their storefront immediately with zero Rakeen
 // involvement. The first 350 online orders are free (online_order_free_count
-// on businesses); after that submit_online_order rejects new orders until
-// online_subscribed is flipped — there's no live payment gateway yet, so
-// that's a manual step today, not automated here.
+// on businesses — since 20261016090000 the cashier's orders count too);
+// 24 hours after the limit, new orders are refused until online_subscribed
+// is flipped — a manual step today, not automated here.
 export async function POST(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -41,11 +42,7 @@ export async function POST(request: NextRequest) {
   if (!businessName || typeof businessName !== "string" || !businessName.trim()) {
     return NextResponse.json({ error: "اكتب اسم المنشأة" }, { status: 400 });
   }
-  const allowedTypes = [
-    "restaurant", "quick_service", "cafe", "cloud_kitchen",
-    "salon", "ladies_salon", "car_wash", "mobile_car_wash",
-    "clinic", "tailoring", "hotel", "retail", "other",
-  ];
+  const allowedTypes: readonly string[] = BUSINESS_TYPES;
   const safeBusinessType = typeof businessType === "string" && allowedTypes.includes(businessType) ? businessType : "restaurant";
   if (!fullName || typeof fullName !== "string" || !fullName.trim()) {
     return NextResponse.json({ error: "اكتب اسمك" }, { status: 400 });
@@ -81,7 +78,7 @@ export async function POST(request: NextRequest) {
   // defaulted off here so the new owner's POS doesn't show a dining-room
   // workflow they don't have. handle_new_auth_user() already ran
   // synchronously as part of createUser() above, so the business row exists.
-  if (["quick_service", "cafe", "cloud_kitchen"].includes(safeBusinessType)) {
+  if (NO_DINING_ROOM_TYPES.includes(safeBusinessType)) {
     const { data: profile } = await admin.from("profiles").select("business_id").eq("id", created.user.id).single();
     if (profile?.business_id) {
       await admin

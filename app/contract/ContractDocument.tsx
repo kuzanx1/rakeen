@@ -1,4 +1,4 @@
-import { Clause, ContractOffer, ContractParty, discountOf, featureLabel, firstTermEnd, formatIban, jurisdictionLabel, periodLabel, RAKEEN_PARTY } from "@/lib/contracts";
+import { Clause, ContractOffer, ContractParty, discountOf, discountTermText, featureLabel, firstTermEnd, formatIban, jurisdictionLabel, periodLabel, RAKEEN_PARTY } from "@/lib/contracts";
 
 // The contract as a document — used on the signing page, for the PDF, and
 // by the admin panel. Every top-level block carries data-pdf-block so the
@@ -104,6 +104,12 @@ export default function ContractDocument({ rakeen, offer, clauses, termsVersion,
                 <span>الخصم{offer.discount_label ? ` (${offer.discount_label})` : ""}</span>
                 <b><span className="mono">{discount.pct}%</span> · <Sar n={discount.amount} /></b>
               </div>
+              {offer.discount_periods ? (
+                <div>
+                  <span>مدة الخصم</span>
+                  <b>{discountTermText(offer.billing_period, offer.discount_periods)}، ثم <Sar n={Number(offer.list_price)} /> / {offer.billing_period === "annual" ? "سنة" : "شهر"}</b>
+                </div>
+              ) : null}
             </>
           )}
           <div><span>{discount ? "الرسوم بعد الخصم" : "الرسوم"}</span><b><Sar n={offer.price} /> / {offer.billing_period === "annual" ? "سنة" : "شهر"}</b></div>

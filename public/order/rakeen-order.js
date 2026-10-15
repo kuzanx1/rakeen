@@ -456,7 +456,7 @@ if (!window.__rakeenOrderBooted) {
     let biz, error;
     try {
       const res = await sb.from('businesses')
-        .select('id, name, logo_url, online_banner_url, online_theme_color, online_theme_style, online_font_family, online_color_surf, online_color_card, online_color_ink, online_color_muted, online_offers_delivery, online_offers_pickup, online_delivery_fee, online_pickup_prep_minutes, vat_rate, prices_include_vat, vat_registered, online_order_free_count, online_subscribed, online_order_free_limit, is_active, geidea_connected, verification_status, online_contact_whatsapp, online_social_instagram, online_social_tiktok, online_social_twitter, online_tagline_header, online_tagline_hero')
+        .select('id, name, logo_url, online_banner_url, online_theme_color, online_theme_style, online_font_family, online_color_surf, online_color_card, online_color_ink, online_color_muted, online_offers_delivery, online_offers_pickup, online_delivery_fee, online_pickup_prep_minutes, vat_rate, prices_include_vat, vat_registered, online_order_free_count, online_subscribed, online_order_free_limit, trial_limit_reached_at, is_active, geidea_connected, verification_status, online_contact_whatsapp, online_social_instagram, online_social_tiktok, online_social_twitter, online_tagline_header, online_tagline_hero')
         .eq('online_menu_slug', SLUG).eq('online_ordering_enabled', true).maybeSingle();
       biz = res.data; error = res.error;
     } catch (e) { error = e; }
@@ -476,7 +476,14 @@ if (!window.__rakeenOrderBooted) {
       document.body.insertAdjacentHTML('beforeend', `<div class="om-unavailable"><p>هذا المطعم مو متاح للطلب الإلكتروني حاليًا.</p></div>`);
       return;
     }
-    if (!biz.online_subscribed && Number(biz.online_order_free_count) >= Number(biz.online_order_free_limit || 350)) {
+    // الحد = طلبات الكاشير والمتجر مع بعض، وبعد الوصول له مهلة 24 ساعة قبل
+    // ما ينقفل (migration 20261016090000). submit_online_order يرفض بنفس
+    // القاعدة، فهذا عرض بس.
+    const trialReached = biz.trial_limit_reached_at ? Date.parse(biz.trial_limit_reached_at) : null;
+    const trialOver = trialReached !== null
+      ? Date.now() >= trialReached + 24 * 3600 * 1000
+      : Number(biz.online_order_free_count) >= Number(biz.online_order_free_limit || 350);
+    if (!biz.online_subscribed && trialOver) {
       document.getElementById('omApp').style.display = 'none';
       document.body.insertAdjacentHTML('beforeend', `<div class="om-unavailable"><p>انتهت الفترة التجريبية المجانية لهذا المتجر — تواصل مع صاحب المطعم.</p></div>`);
       return;

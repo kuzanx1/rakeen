@@ -3183,8 +3183,74 @@ function modalGoBack(){
 }
 document.getElementById('paymentModalBackBtn').addEventListener('click', modalGoBack);
 
+/* ============ الفترة التجريبية ============
+   350 طلب من الكاشير والمتجر مع بعض (supabase/migrations/20261016090000).
+   بعد الحد مهلة 24 ساعة ثم البيع ينقفل. الخادم يرفض الطلب الجديد أصلاً،
+   لكن الرفض هنا قبل البيع: لو وصل الطلب للخادم ورُفض كان بيبقى في طابور
+   المزامنة، والكاشير يحسب إنه انحفظ ويكمّل يبيع. التطبيق ينادي نفس الدالة
+   (react-native-poc/src/application/trialService.ts). */
+let TRIAL = null;
+let TRIAL_CLOCK_OFFSET = 0; // ساعة الخادم ناقص ساعة الجهاز
+const TRIAL_SUBSCRIBE_WA = 'https://wa.me/966557444227';
+async function refreshTrialStatus(){
+  try {
+    const { data, error } = await window.supabaseClient.rpc('get_trial_status');
+    if(error || !data) return; // قبل تشغيل الـ migration، أو بدون نت: ولا شي يتغيّر
+    TRIAL = data;
+    if(data.now) TRIAL_CLOCK_OFFSET = Date.parse(data.now) - Date.now();
+    renderTrialBanner();
+  } catch(_){}
+}
+function trialLockedNow(){
+  if(!TRIAL || TRIAL.subscribed) return false;
+  if(TRIAL.locked) return true;
+  return !!TRIAL.locks_at && Date.now() + TRIAL_CLOCK_OFFSET >= Date.parse(TRIAL.locks_at);
+}
+function trialHoursLeft(){
+  if(!TRIAL || !TRIAL.locks_at) return null;
+  return Math.max(0, Math.ceil((Date.parse(TRIAL.locks_at) - Date.now() - TRIAL_CLOCK_OFFSET) / 3600000));
+}
+function renderTrialBanner(){
+  let bar = document.getElementById('trialBanner');
+  const show = TRIAL && !TRIAL.subscribed && (TRIAL.reached_at || TRIAL.remaining <= 50);
+  if(!show){ if(bar) bar.remove(); return; }
+  if(!bar){
+    bar = document.createElement('div');
+    bar.id = 'trialBanner';
+    bar.style.cssText = 'position:fixed;top:6px;left:50%;transform:translateX(-50%);max-width:calc(100% - 32px);z-index:9000;padding:6px 14px;border-radius:99px;font-size:12px;font-weight:700;text-align:center;color:#fff;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.18);';
+    document.body.appendChild(bar);
+  }
+  const locked = trialLockedNow();
+  bar.style.background = TRIAL.reached_at ? 'var(--danger)' : 'var(--lime-deep)';
+  bar.textContent = locked
+    ? 'انتهت الفترة التجريبية — اشترك الحين عشان تكمل البيع'
+    : TRIAL.reached_at
+      ? 'خلصت طلبات الفترة التجريبية — البيع يتوقف بعد ' + trialHoursLeft() + ' ساعة. اشترك الحين'
+      : 'باقي ' + TRIAL.remaining + ' طلب في الفترة التجريبية';
+}
+function showTrialEnded(){
+  let ov = document.getElementById('trialEndedOverlay');
+  if(ov){ ov.style.display = 'flex'; return; }
+  ov = document.createElement('div');
+  ov.id = 'trialEndedOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.innerHTML = '<div style="background:var(--card-bg,#fff);color:var(--text,#171717);border-radius:18px;max-width:380px;width:100%;padding:24px;text-align:center;">'
+    + '<div style="font-size:18px;font-weight:800;margin-bottom:8px;">انتهت الفترة التجريبية</div>'
+    + '<p style="font-size:14px;line-height:1.7;margin:0 0 18px;">استخدمت ' + Number((TRIAL && TRIAL.limit) || 350) + ' طلب مجاني. اشترك الحين عشان تكمل البيع من الكاشير والمتجر. بياناتك وتقاريرك محفوظة كلها.</p>'
+    + '<a href="' + TRIAL_SUBSCRIBE_WA + '" target="_blank" rel="noopener" style="display:block;background:var(--lime-deep);color:#fff;border-radius:12px;padding:12px;font-weight:800;text-decoration:none;margin-bottom:8px;">اشترك الحين</a>'
+    + '<button type="button" id="trialEndedClose" style="background:none;border:0;color:inherit;opacity:.7;font:inherit;padding:8px;cursor:pointer;">إغلاق</button>'
+    + '</div>';
+  document.body.appendChild(ov);
+  document.getElementById('trialEndedClose').addEventListener('click', ()=>{ ov.style.display = 'none'; });
+}
+setInterval(()=>{ if(navigator.onLine) refreshTrialStatus(); }, 5 * 60 * 1000);
+setInterval(renderTrialBanner, 60 * 1000); // عدّاد ساعات المهلة
+
 document.getElementById('payBtn').addEventListener('click', ()=>{
   if(state.cart.length === 0) return;
+  // طلب جديد بعد انتهاء التجربة: ما يبدأ أصلاً (إقفال حساب طاولة مسجّلة
+  // من قبل مو طلب جديد، فيمشي)
+  if(!state.resumingOrder && trialLockedNow()){ showTrialEnded(); return; }
   // Pay-after-eating dine-in: this cart is a real kitchen order the moment
   // it's confirmed, but the bill isn't being closed out right now — register
   // it and stay on Home, don't open the payment popup at all.
@@ -3212,6 +3278,7 @@ async function submitTableOrderRegistration(){
   // "serving" happens server-side inside the RPC, so it'll lag until sync
   // completes for a queued round — the cart/UI reset below doesn't wait on it.
   const orderId = await registerTableOrder();
+  if(TRIAL && !TRIAL.subscribed) refreshTrialStatus();
   if(DEVICE.printKitchenTicket === true){
     enqueuePrintJob('kitchen', buildKitchenReceiptData({channel:'dine_in', orderId, tableNumber: table ? table.number : null}));
   }
@@ -5612,6 +5679,7 @@ async function completePayment(){
 
   const orderPayload = await submitOrder(totals);
   completingPayment = false;
+  if(TRIAL && !TRIAL.subscribed) refreshTrialStatus(); // العدّاد زاد واحد
   if(pagerNum && orderPayload && orderPayload.orderId){
     window.supabaseClient.rpc('set_order_pager', {
       p_order_id: orderPayload.orderId, p_pager_number: pagerNum
@@ -8566,6 +8634,7 @@ let POS_USING_OFFLINE_SNAPSHOT = false;
 let POS_SNAPSHOT_AGE_MS = 0;
 
 async function loadPosData(){
+  refreshTrialStatus(); // ما يُنتظر: البيع ما يتأخر عليه
   const sb = window.supabaseClient;
   const businessId = DEVICE.businessId;
 
