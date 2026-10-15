@@ -289,6 +289,10 @@ export default function ContractsPanel({ token }: { token: string }) {
         features: form.features,
         notes: form.special_terms,
         acceptQrDataUrl,
+        // Same lines the contract would be created with (auto or hand-edited).
+        payments: lines.map((l) => ({ amount: Number(l.amount), due_date: l.due_date })),
+        // The /admin-editable bank; RAKEEN_PARTY holds the same fallback lib/platformBank.ts uses.
+        bank: bank ?? { bankName: RAKEEN_PARTY.bankName, iban: RAKEEN_PARTY.iban, accountHolder: RAKEEN_PARTY.accountHolder },
       };
       setQuote(props);
       // let React paint the hidden document and its images before capture

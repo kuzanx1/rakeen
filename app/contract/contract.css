@@ -179,3 +179,14 @@
 .qt .cdoc-foot{padding-top:8px;margin-top:4px}
 .qt-was{font-size:12.5px;color:#BFBEBA}
 .qt-was s{color:#8C8B87}
+/* bank line inside the accept block: one line, no new section (single A4 page) */
+.qt-accept > div{flex:1;min-width:0}
+.qt .qt-bank{margin-top:4px;font-size:11.5px;line-height:1.5;white-space:nowrap;background:var(--ink);color:var(--paper);border-radius:10px;padding:3px 8px;display:inline-block}
+.qt .qt-bank span{color:rgba(251,250,245,.6)}
+.qt .qt-bank .mono{color:var(--lime);direction:ltr;unicode-bidi:isolate}
+/* A typical quote (12 features, two note lines, a discount, a setup fee, the
+   accept QR) measured 266mm against the 261mm a page has: two pages. Slightly
+   denser spacing, same fonts, colours and structure, gives it room to spare. */
+.cdoc-print-host .qt{line-height:1.6}
+.qt .cdoc-block{padding:8px 0 5px}
+.qt .cdoc-features.qt-dense{font-size:12px;line-height:1.45;gap:2px 14px}
