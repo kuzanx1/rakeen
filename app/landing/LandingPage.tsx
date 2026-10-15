@@ -11,7 +11,6 @@
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { PLANS, type Plan, type PlanItem } from "@/lib/plans";
-import { LOYALTY_ICON_PATHS, getContrastTextColor } from "../loyalty-card/[token]/icons";
 import "./rakeen-landing.css";
 
 type Lang = "ar" | "en";
@@ -30,27 +29,47 @@ const DEMO = [
 ];
 const RING = [0, 3, 1, 3, 2]; // the hero cashier rings these up, in order
 
-// Real loyalty-card designs (logo + banner uploaded by each business).
+// Apple Wallet passes, as the real ones are built: lib/wallet-pass.ts
+// (storeCard: logo + header field, strip, name + "left", QR with its code)
+// and lib/wallet-strip.ts (stamps on a strip that is the card colour 80%
+// darker, a photo under a scrim, or a gradient; points get the wave). Logos
+// and banners are real uploads.
 const LB = "https://media.rakeenapp.com/loyalty-branding/1/";
-type Pass = {
-  name: string;
-  customer: string;
-  tenure: string;
-  accent: string;
-  logo: string;
-  banner: string;
-  tier: { emoji: string; label: string };
-  points?: number;
-  visits?: { filled: number; of: number; icon: string; reward: string; ready: number };
-  saved: number;
+// Same stamp shapes as the dashboard preview (RKW_STAMP_PATHS).
+const STAMP: Record<string, string> = {
+  generic: "M12 2.6 L14.5 9.2 L21.4 9.2 L15.9 13.3 L18 20 L12 15.9 L6 20 L8.1 13.3 L2.6 9.2 L9.5 9.2 Z",
+  coffee: "M4.8 5 H17.2 L15.6 20 H6.4 Z M3.4 2.2 H18.6 V4.6 H3.4 Z",
+  burger: "M2 9.4 A10 6.4 0 0 1 22 9.4 Z M2.4 11.4 H21.6 V14.2 H2.4 Z M2.4 16 H21.6 A9.6 5 0 0 1 2.4 16 Z",
+  pastry: "M17.4 2.4 A10.6 10.6 0 0 0 17.4 21.6 A8 10 0 1 1 17.4 2.4 Z",
 };
-// fan order: [0] sits in the middle, [1] and [2] either side.
-const PASSES: Pass[] = [
-  { name: "PASS", customer: "فهد العتيبي", tenure: "معنا من سنة", accent: "#516F6D", logo: LB + "logo-1786636378234.png", banner: LB + "banner-1786636379131.png", tier: { emoji: "💎", label: "Platinum" }, points: 1280, saved: 860 },
-  { name: "عنوب | Anoob", customer: "خالد الحربي", tenure: "معنا من سنة", accent: "#C4FF2B", logo: LB + "logo-1786634917576.png", banner: LB + "banner-1786634918047.jpeg", tier: { emoji: "🥇", label: "Gold" }, points: 240, saved: 500 },
-  { name: "ألدان CAFE", customer: "منال القحطاني", tenure: "معنا من ٨ شهور", accent: "#781414", logo: LB + "logo-1786637275028.png", banner: LB + "banner-1786637277741.png", tier: { emoji: "🥈", label: "Silver" }, visits: { filled: 4, of: 6, icon: "coffee", reward: "قهوة مجانية", ready: 1 }, saved: 120 },
-  { name: "Bunzo's Burger", customer: "نورة الدوسري", tenure: "معنا من شهرين", accent: "#C83C3C", logo: LB + "logo-1786637601603.png", banner: LB + "banner-1786637602818.png", tier: { emoji: "🥉", label: "Bronze" }, visits: { filled: 3, of: 6, icon: "burger", reward: "برقر مجاني", ready: 0 }, saved: 45 },
+type WPass = {
+  key: string;
+  brand: string;
+  logo: string;
+  bg: string;
+  strip: string; // CSS background of the strip
+  stripImg?: string;
+  scrim?: number;
+  stamp?: keyof typeof STAMP;
+  stampOn: string;
+  done: number;
+  of: number;
+  points?: number;
+  tier?: string;
+  customer: string;
+  reward: string;
+  code: string;
+};
+const WALLET: WPass[] = [
+  { key: "anoob", brand: "عنوب", logo: LB + "logo-1786634917576.png", bg: "#17331C", strip: "#0b160c", stripImg: LB + "banner-1786634918047.jpeg", scrim: 0.5, stamp: "generic", stampOn: "#C4FF2B", done: 5, of: 8, customer: "خالد الحربي", reward: "بوكس مجاني", code: "A3F19C42" },
+  { key: "aldan", brand: "ألدان", logo: LB + "logo-1786637275028.png", bg: "#5C1010", strip: "linear-gradient(131deg,#1f0505,#6e1812)", stamp: "coffee", stampOn: "#F3DDB5", done: 4, of: 6, customer: "منال القحطاني", reward: "قهوة مجانية", code: "7C21D0E9" },
+  { key: "pass", brand: "PASS", logo: LB + "logo-1786636378234.png", bg: "#3E5654", strip: "#0d1211", stampOn: "#BFE3D3", done: 0, of: 0, points: 1280, tier: "Platinum", customer: "فهد العتيبي", reward: "مشروب مجاني", code: "5B8E04AF" },
+  { key: "bunzo", brand: "Bunzo's", logo: LB + "logo-1786637601603.png", bg: "#B8302F", strip: "#250a09", stripImg: LB + "banner-1786637602818.png", scrim: 0.64, stamp: "burger", stampOn: "#FFFFFF", done: 3, of: 6, customer: "نورة الدوسري", reward: "برقر مجاني", code: "E40B9C17" },
 ];
+const lumOf = (hex: string) => {
+  const n = parseInt(hex.slice(1), 16);
+  return (((n >> 16) & 255) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000;
+};
 
 /* ---------------- copy ---------------- */
 
@@ -88,9 +107,9 @@ const T = {
       loyalty: {
         k: "الولاء",
         h: "عميلك يرجع لك.",
-        p: "بطاقة بهويتك تنحفظ بجواله بدون تطبيق. يجمع نقاط أو أختام، ويستبدلها عند الكاشير.",
-        b: ["نقاط أو أختام", "مستويات من برونزي لبلاتيني", "تذكير لحاله لو غاب"],
-        real: "بطاقات بنفس شكلها الحقيقي عند العميل",
+        p: "بطاقة بهويتك في Apple Wallet، بدون تطبيق. كل زيارة تنضاف لحالها، ويوصله تنبيه على شاشة جواله.",
+        b: ["أختام أو نقاط بتصميمك", "تنبيه على الشاشة المقفلة", "تذكير لما يقرب من فرعك"],
+        real: "بطاقات Apple Wallet بنفس شكلها في جوال العميل",
       },
       numbers: {
         k: "الأرقام",
@@ -190,9 +209,9 @@ const T = {
       loyalty: {
         k: "Loyalty",
         h: "Customers come back.",
-        p: "A card in your brand, saved to their phone, no app. Points or stamps, redeemed at the cashier.",
-        b: ["Points or stamps", "Tiers from Bronze to Platinum", "Automatic nudge when they drift away"],
-        real: "Exactly how the card looks on the customer's phone",
+        p: "A card in your brand in Apple Wallet, no app. Every visit adds itself, with a nudge on their lock screen.",
+        b: ["Stamps or points in your design", "Lock-screen notifications", "A reminder when they're near a branch"],
+        real: "Apple Wallet passes, exactly as they look on the customer's phone",
       },
       numbers: {
         k: "Numbers",
@@ -397,64 +416,128 @@ function Icon({ name }: { name: IconName }) {
   );
 }
 
-/* A copy of the real loyalty card (app/loyalty-card/[token], classic theme):
-   same three bands, same tier chip, stamps from the same icon set, same
-   "مدعوم من ركين" footer. */
-function LoyaltyPass({ pass, qr }: { pass: Pass; qr: string }) {
-  const on = getContrastTextColor(pass.accent);
-  const v = pass.visits;
+/* One Apple Wallet store card, laid out like the dashboard's preview
+   (walletCardPreviewHtml) and the pass the server signs: system font, the
+   wallet's own field sizes, stamps filled from the right. */
+function WalletPass({ p, qr }: { p: WPass; qr: string }) {
+  const light = lumOf(p.bg) > 150;
+  const fg = light ? "rgb(20,19,14)" : "#fff";
+  const faint = light ? "rgba(20,19,14,.58)" : "rgba(255,255,255,.6)";
+  const off = light ? "rgba(20,19,14,.34)" : "rgba(255,255,255,.4)";
+  const stamps = !p.points;
+  const rows = p.of > 7 ? 2 : 1;
+  const per = Math.ceil(p.of / rows);
+  const left = p.of - p.done;
   return (
-    <div className="pass" style={{ ["--a" as string]: pass.accent, ["--on" as string]: on }}>
-      <div className="pass-head">
-        <div className="pass-top">
-          <img src={pass.logo} alt="" className="pass-logo" />
-          <div className="pass-brand">{pass.name}</div>
-          <div className="pass-tier">
-            <span>{pass.tier.emoji}</span>
-            <span>{pass.tier.label}</span>
+    <div className="wp" style={{ background: p.bg, color: fg }}>
+      <div className="wp-head">
+        <img className="wp-logo" src={p.logo} alt="" />
+        <span className="wp-name">{p.tier ? "" : p.brand}</span>
+        <div className="wp-hfields">
+          {p.tier && (
+            <div className="wp-f">
+              <small style={{ color: faint }}>مستواك</small>
+              <b>{p.tier}</b>
+            </div>
+          )}
+          <div className="wp-f">
+            <small style={{ color: faint }}>{stamps ? (p.stamp === "coffee" ? "ختومك" : "زياراتك") : "نقاطك"}</small>
+            <b>{stamps ? `${p.done} / ${p.of}` : p.points!.toLocaleString("en-US")}</b>
           </div>
         </div>
-        <div className="pass-customer">{pass.customer}</div>
-        <div className="pass-tenure">{pass.tenure}</div>
       </div>
-      <div className="pass-mid" style={{ backgroundImage: `linear-gradient(rgba(247,244,239,.8),rgba(247,244,239,.8)), url(${pass.banner})` }}>
-        {v ? (
-          <div className="pass-stamps">
-            {Array.from({ length: v.of }).map((_, i) => (
-              <svg key={i} viewBox="0 0 24 24" fill={i < v.filled ? pass.accent : "none"} stroke={i < v.filled ? pass.accent : "#c9c4ba"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: LOYALTY_ICON_PATHS[v.icon] || LOYALTY_ICON_PATHS.generic }} />
-            ))}
+      <div className="wp-strip" style={{ background: p.strip }}>
+        {p.stripImg && (
+          <>
+            <img className="wp-strip-img" src={p.stripImg} alt="" />
+            <i className="wp-scrim" style={{ background: `rgba(8,8,10,${p.scrim ?? 0.34})` }} />
+          </>
+        )}
+        {stamps ? (
+          <div className="wp-stamps" style={{ gridTemplateColumns: `repeat(${per}, auto)` }}>
+            {Array.from({ length: p.of }).map((_, i) => {
+              const on = i < p.done;
+              return (
+                <svg key={i} viewBox="0 0 24 24" className={on ? "on" : ""}>
+                  <path d={STAMP[p.stamp || "generic"]} fill={on ? p.stampOn : "none"} stroke={on ? p.stampOn : off} strokeWidth={on ? 0 : 1.9} strokeLinejoin="round" fillRule="evenodd" />
+                </svg>
+              );
+            })}
           </div>
         ) : (
-          <div className="pass-points">
-            <div className="pass-halo" />
-            <svg viewBox="0 0 24 24" fill={pass.accent} className="pass-sparkle">
-              <path d="M12 2l1.8 5.6L19 9l-5.2 1.4L12 16l-1.8-5.6L5 9l5.2-1.4L12 2z" />
-            </svg>
-            <div className="pass-plabel">رصيد النقاط</div>
-            <div className="pass-pval">{(pass.points || 0).toLocaleString("ar-SA")}</div>
-          </div>
+          <svg viewBox="0 0 375 123" preserveAspectRatio="none" className="wp-wave">
+            <path d="M0 78 C 60 56, 110 98, 170 74 S 300 50, 375 68 L375 123 L0 123 Z" fill={p.stampOn} opacity=".13" />
+            <path d="M0 78 C 60 56, 110 98, 170 74 S 300 50, 375 68" fill="none" stroke={p.stampOn} strokeWidth="3.4" opacity=".8" />
+          </svg>
         )}
       </div>
-      <div className="pass-foot">
-        <div className="pass-saved">
-          <span>💰</span>
-          <span>وفرت معنا {pass.saved.toLocaleString("ar-SA")} ر.س</span>
+      <div className="wp-fields">
+        <div className="wp-f">
+          <small style={{ color: faint }}>اسمك</small>
+          <b>{p.customer}</b>
         </div>
-        {v && (
-          <div className="pass-stats">
-            <div>
-              <small>متبقي لـ{v.reward}</small>
-              <b>{v.of - v.filled}</b>
-            </div>
-            <i />
-            <div>
-              <small>هدايا جاهزة</small>
-              <b>{v.ready}</b>
+        <div className="wp-f wp-end">
+          <small style={{ color: faint }}>{stamps ? "باقي" : "مكافأتك"}</small>
+          <b>{stamps ? left : p.reward}</b>
+        </div>
+      </div>
+      <div className="wp-qr">
+        <div className="wp-qr-box" dangerouslySetInnerHTML={{ __html: qr }} />
+        <span style={{ color: faint }}>{p.code}</span>
+      </div>
+    </div>
+  );
+}
+
+/* The iPhone Wallet app: the other passes stack above as their header
+   strips, the chosen one opens in front. It moves through them by itself
+   and a tap picks one. */
+function WalletStack({ qr, lang }: { qr: string; lang: Lang }) {
+  const [front, setFront] = useState(0);
+  const [hold, setHold] = useState(false);
+  useEffect(() => {
+    if (hold || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const id = window.setInterval(() => setFront((f) => (f + 1) % WALLET.length), 3600);
+    return () => window.clearInterval(id);
+  }, [hold]);
+  const order = WALLET.map((_, i) => (front + 1 + i) % WALLET.length).slice(0, WALLET.length - 1);
+  const p = WALLET[front];
+  const left = p.of - p.done;
+  return (
+    <div className="wallet-scene">
+      <div className="iphone wallet-phone">
+        <div className="wallet-screen" dir="rtl">
+          <div className="wl-top">
+            <span>Wallet</span>
+            <i>+</i>
+          </div>
+          <div className="wl-stack">
+            {order.map((i) => {
+              const q = WALLET[i];
+              const light = lumOf(q.bg) > 150;
+              return (
+                <button key={q.key} className="wl-peek" style={{ background: q.bg, color: light ? "#14130e" : "#fff" }} onClick={() => { setFront(i); setHold(true); }} aria-label={q.brand}>
+                  <img src={q.logo} alt="" />
+                  <span>{q.brand}</span>
+                  <b>{q.points ? q.points.toLocaleString("en-US") : `${q.done} / ${q.of}`}</b>
+                </button>
+              );
+            })}
+            <div className="wl-front" key={p.key}>
+              <WalletPass p={p} qr={qr} />
             </div>
           </div>
-        )}
-        <div className="pass-qr" dangerouslySetInnerHTML={{ __html: qr }} />
-        <div className="pass-powered">مدعوم من ركين</div>
+        </div>
+      </div>
+      <div className="lock-note" key={"n" + p.key}>
+        <img src={p.logo} alt="" />
+        <div>
+          <div className="ln-top">
+            <b>{p.brand}</b>
+            <span>{lang === "ar" ? "الآن" : "now"}</span>
+          </div>
+          <p>{p.points ? (lang === "ar" ? `عدّادك صار ${p.points.toLocaleString("en-US")} ☕` : `You're now at ${p.points.toLocaleString("en-US")} ☕`) : lang === "ar" ? `باقي لك ${left} على مكافأتك 🎁` : `${left} to go until your reward 🎁`}</p>
+        </div>
       </div>
     </div>
   );
@@ -842,13 +925,7 @@ export default function LandingPage() {
             <Bullets items={t.ch.loyalty.b} />
           </div>
           <div className="chap-art art-loyalty" data-in>
-            <div className="fan">
-              {PASSES.map((p, i) => (
-                <div key={p.name} className={`fan-card fan-${i}`}>
-                  <LoyaltyPass pass={p} qr={qr} />
-                </div>
-              ))}
-            </div>
+            <WalletStack qr={qr} lang={lang} />
             <p className="real-note">{t.ch.loyalty.real}</p>
           </div>
         </div>

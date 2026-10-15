@@ -135,7 +135,7 @@ body{background:#FBFAF5;}
 
 .iphone{background:#0A0A0A; border-radius:34px; padding:7px; box-shadow:0 40px 80px -24px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.1) inset; position:relative;}
 .iphone::before{content:""; position:absolute; top:13px; left:50%; width:30%; height:15px; transform:translateX(-50%); background:#0A0A0A; border-radius:99px; z-index:2;}
-.iphone img{width:100%; aspect-ratio:390/844; object-fit:cover; object-position:top; border-radius:27px; background:#F7F5EF;}
+.iphone > img{width:100%; aspect-ratio:390/844; object-fit:cover; object-position:top; border-radius:27px; background:#F7F5EF;}
 .hero-phone{position:absolute; width:31%; bottom:0; inset-inline-end:0; rotate:4deg; animation:bob 7s ease-in-out infinite;}
 [dir="ltr"] .hero-phone{rotate:-4deg;}
 
@@ -182,7 +182,7 @@ body{background:#FBFAF5;}
   .pos-qty{font-size:7px; padding:0 5px;}
   .pos-total{font-size:8.5px;} .pos-total .mono{font-size:10.5px;}
   .pos-pay{height:24px; font-size:9px; border-radius:8px;}
-  .iphone{border-radius:22px; padding:4px;} .iphone img{border-radius:18px;} .iphone::before{top:8px; height:9px;}
+  .iphone{border-radius:22px; padding:4px;} .iphone > img{border-radius:18px;} .iphone::before{top:8px; height:9px;}
   .hero-phone{width:34%;}
   .toast{padding:7px 10px; gap:8px; border-radius:13px; font-size:11px;}
   .toast span{font-size:10px;}
@@ -238,43 +238,58 @@ body{background:#FBFAF5;}
 [dir="ltr"] .iphone-lg{rotate:3deg;}
 .t-paid{bottom:22%; inset-inline-end:2%; animation-delay:-2s;}
 
-/* loyalty: copies of the real card (app/loyalty-card/[token], classic) */
-.art-loyalty{min-height:560px;}
-.fan{position:relative; width:100%; height:520px;}
-.fan-card{position:absolute; top:50%; left:50%; width:260px; transition:transform .6s var(--ease);}
-.fan-0{transform:translate(-50%,-50%); z-index:4;}
-.fan-1{transform:translate(-112%,-47%) rotate(-10deg) scale(.86); z-index:3;}
-.fan-2{transform:translate(12%,-47%) rotate(10deg) scale(.86); z-index:3;}
-.fan-3{display:none;}
-.art-loyalty:hover .fan-1{transform:translate(-122%,-48%) rotate(-13deg) scale(.88);}
-.art-loyalty:hover .fan-2{transform:translate(22%,-48%) rotate(13deg) scale(.88);}
-.pass{--a:#C4FF2B; --on:#171717; border-radius:26px; overflow:hidden; background:#F7F4EF; box-shadow:0 30px 60px -20px rgba(18,18,18,.4), 0 0 0 1px rgba(18,18,18,.06); font-family:system-ui,-apple-system,'Segoe UI',sans-serif; direction:rtl; text-align:right;}
-.pass-head,.pass-foot{background:var(--a); color:var(--on);}
-.pass-head{padding:16px 18px 15px;}
-.pass-top{display:flex; align-items:center; gap:10px;}
-.pass-logo{width:32px; height:32px; border-radius:50%; object-fit:cover; border:2px solid rgba(255,255,255,.5); flex:none; background:#fff;}
-.pass-brand{flex:1; min-width:0; font-weight:800; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-.pass-tier{display:flex; align-items:center; gap:3px; padding:4px 8px; border-radius:999px; font-size:9.5px; font-weight:800; background:color-mix(in srgb, var(--on) 13%, transparent); flex:none;}
-.pass-customer{font-weight:800; font-size:19px; margin-top:13px;}
-.pass-tenure{font-size:10px; font-weight:600; margin-top:2px; opacity:.7;}
-.pass-mid{display:flex; align-items:center; justify-content:center; padding:22px 18px; min-height:120px; background-size:cover; background-position:center;}
-.pass-stamps{display:flex; flex-wrap:wrap; gap:12px; justify-content:center; max-width:200px;}
-.pass-stamps svg{width:26px; height:26px;}
-.pass-points{position:relative; text-align:center;}
-.pass-halo{position:absolute; width:170px; height:170px; border-radius:50%; top:50%; left:50%; transform:translate(-50%,-50%); background:radial-gradient(circle, color-mix(in srgb, var(--a) 20%, transparent), transparent 70%);}
-.pass-sparkle{position:relative; width:18px; height:18px; display:block; margin:0 auto 4px;}
-.pass-plabel{position:relative; font-size:10px; font-weight:700; color:#8a8477; letter-spacing:.08em;}
-.pass-pval{position:relative; font-size:52px; font-weight:800; line-height:1.1; color:var(--a); font-variant-numeric:tabular-nums;}
-.pass-foot{padding:16px 18px;}
-.pass-saved{display:flex; align-items:center; justify-content:center; gap:5px; width:fit-content; margin:0 auto 12px; padding:5px 12px; border-radius:999px; font-size:10.5px; font-weight:700; background:color-mix(in srgb, var(--on) 12%, transparent);}
-.pass-stats{display:flex; align-items:center; margin-bottom:14px;}
-.pass-stats > div{flex:1; display:flex; flex-direction:column; gap:2px;}
-.pass-stats small{font-size:9px; font-weight:700; opacity:.75;}
-.pass-stats b{font-size:21px; font-weight:800;}
-.pass-stats i{width:1px; align-self:stretch; background:rgba(255,255,255,.25); margin:0 10px;}
-.pass-qr{background:#FAFAF5; border-radius:11px; padding:11px; width:92px; margin:0 auto;}
-.pass-qr svg{width:100%; height:auto; display:block;}
-.pass-powered{font-size:8.5px; font-weight:700; margin-top:9px; text-align:center; opacity:.4;}
+/* loyalty: Apple Wallet passes (lib/wallet-pass.ts storeCard), sized like
+   the dashboard preview (.rkw-* in rakeen-dashboard.css). Apple draws the
+   pass in its own font, so this does too. */
+.art-loyalty{min-height:620px;}
+.wallet-scene{position:relative; display:flex; justify-content:center; width:100%;}
+.wallet-phone{width:320px;}
+.wallet-screen{height:660px; border-radius:27px; background:#000; overflow:hidden; padding:84px 12px 0; font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','SF Arabic','Segoe UI',system-ui,sans-serif; -webkit-font-smoothing:antialiased;}
+.wl-top{display:flex; justify-content:space-between; align-items:center; color:#fff; padding:0 6px 12px; direction:ltr;}
+.wl-top span{font-size:28px; font-weight:700; letter-spacing:-.02em;}
+.wl-top i{font-style:normal; width:30px; height:30px; border-radius:50%; background:#1c1c1e; display:grid; place-items:center; font-size:20px; color:#0A84FF;}
+.wl-stack{display:flex; flex-direction:column;}
+.wl-peek{display:flex; align-items:center; gap:8px; height:58px; margin-bottom:-12px; padding:10px 13px 22px; border-radius:13px 13px 0 0; text-align:start; box-shadow:0 -1px 0 rgba(255,255,255,.08) inset; transition:transform .25s ease;}
+.wl-peek:hover{transform:translateY(-3px);}
+.wl-peek img{width:24px; height:24px; border-radius:50%; object-fit:cover; background:#fff;}
+.wl-peek span{font-size:13px; font-weight:600; flex:1;}
+.wl-peek b{font-size:13px; font-weight:600; direction:ltr;}
+.wl-front{position:relative; animation:wl-in .55s var(--ease);}
+@keyframes wl-in{from{transform:translateY(60px); opacity:.4;}}
+
+.wp{border-radius:13px; overflow:hidden; box-shadow:0 -6px 18px rgba(0,0,0,.4); direction:rtl;}
+.wp-head{display:flex; align-items:center; gap:8px; padding:12px 14px 10px;}
+.wp-logo{width:30px; height:30px; border-radius:50%; object-fit:cover; background:#fff; flex:none;}
+.wp-name{font-size:14.5px; font-weight:600; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.wp-hfields{display:flex; gap:14px;}
+.wp-f{display:flex; flex-direction:column; min-width:0;}
+.wp-head .wp-f{text-align:end;}
+.wp-f small{font-size:9.5px; font-weight:600; letter-spacing:.3px; text-transform:uppercase;}
+.wp-f b{font-size:14.5px; font-weight:600; margin-top:1px; white-space:nowrap;}
+.wp-head .wp-f b{direction:ltr; unicode-bidi:isolate;}
+.wp-strip{position:relative; height:105px; overflow:hidden;}
+.wp-strip-img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;}
+.wp-scrim{position:absolute; inset:0;}
+.wp-stamps{position:absolute; inset:0; display:grid; place-content:center; justify-items:center; align-items:center; gap:6px 12px; padding:0 7%;}
+.wp-stamps svg{width:27px; height:27px; display:block;}
+.wp-stamps svg.on{filter:drop-shadow(0 2px 6px rgba(0,0,0,.35));}
+.wp-wave{position:absolute; inset:0; width:100%; height:100%;}
+.wp-fields{display:flex; justify-content:space-between; gap:12px; padding:11px 14px 4px;}
+.wp-end{text-align:end;}
+.wp-qr{display:flex; flex-direction:column; align-items:center; gap:5px; padding:10px 0 16px;}
+.wp-qr-box{width:96px; height:96px; border-radius:6px; background:#fff; padding:7px;}
+.wp-qr-box svg{width:100%; height:100%; display:block; shape-rendering:crispEdges;}
+.wp-qr span{font-size:10px; font-weight:500; letter-spacing:.6px; direction:ltr;}
+
+/* the lock-screen notice the pass sends (changeMessage, RK_CHG_LEFT) */
+.lock-note{position:absolute; top:12px; left:50%; margin-left:-146px; z-index:3; width:292px; display:flex; gap:10px; align-items:flex-start; padding:12px 14px; border-radius:22px; background:rgba(245,245,247,.95); backdrop-filter:blur(20px) saturate(1.8); -webkit-backdrop-filter:blur(20px) saturate(1.8); box-shadow:0 20px 40px -16px rgba(0,0,0,.4); font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','SF Arabic','Segoe UI',system-ui,sans-serif; animation:note-in .6s .2s var(--ease) both;}
+.lock-note img{width:36px; height:36px; border-radius:9px; object-fit:cover; background:#fff; flex:none;}
+.lock-note > div{flex:1; min-width:0;}
+.ln-top{display:flex; justify-content:space-between; font-size:13px;}
+.ln-top b{font-weight:600;}
+.ln-top span{color:rgba(0,0,0,.45); font-size:12px;}
+.lock-note p{font-size:13.5px; line-height:1.35; margin-top:2px;}
+@keyframes note-in{from{opacity:0; transform:translateY(-24px) scale(.96);}}
 
 /* numbers (dark) */
 .chap-dark{background:var(--ink); color:#fff; margin-top:120px; padding:110px 0 100px; border-radius:44px;}
@@ -320,11 +335,11 @@ body{background:#FBFAF5;}
   .art-store{min-height:0; padding:10px 0 34px;}
   .iphone-lg{width:220px;}
   .t-paid{bottom:20%; inset-inline-end:-2%;}
-  .art-loyalty{min-height:0; padding-bottom:28px;}
-  .fan{height:440px;}
-  .fan-card{width:220px;}
-  .fan-1,.art-loyalty:hover .fan-1{transform:translate(-92%,-47%) rotate(-9deg) scale(.82);}
-  .fan-2,.art-loyalty:hover .fan-2{transform:translate(-8%,-47%) rotate(9deg) scale(.82);}
+  .art-loyalty{min-height:0; padding:70px 0 34px;}
+  .wallet-phone{width:290px;}
+  .wallet-screen{height:590px;}
+  .art-loyalty{padding-top:10px;}
+  .lock-note{top:16px; width:268px; margin-left:-134px;}
   .chap-dark{border-radius:26px; padding:64px 0;}
   .dash{padding:20px;}
   .dash-row{grid-template-columns:78px 1fr 58px; font-size:12px;}
