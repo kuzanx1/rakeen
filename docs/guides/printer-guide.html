@@ -68,7 +68,7 @@
 
   .fix h2 { font-size: 14pt; font-weight: 800; margin: 0 0 3mm; }
   .fix table { width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; border: 1px solid var(--line); border-radius: 4mm; overflow: hidden; }
-  .fix td { padding: 2mm 4mm; font-size: 10pt; line-height: 1.55; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .fix td { padding: 1.7mm 4mm; font-size: 10pt; line-height: 1.55; border-bottom: 1px solid var(--line); vertical-align: top; }
   .fix tr:last-child td { border-bottom: 0; }
   .fix td:first-child { width: 36%; font-weight: 700; }
 
@@ -87,13 +87,14 @@
 
   <h1>اربط طابعتك <span>بكاشير ركين</span></h1>
   <p class="lead">٥ خطوات، ٥ دقايق، وتطبع أول فاتورة. ما تحتاج فني.</p>
+  <div class="hint" style="margin:-3mm 0 6mm; font-size:11pt; background:#fff; border:1px solid var(--line);"><b>كيف تشتغل؟</b> الآيباد ما يكلّم الطابعة مباشرة: الاثنين يتصلون بنفس الراوتر، والراوتر يوصل أمر الطباعة. كله داخل المحل، فلو انقطع النت تكمل الطباعة عادي.</div>
 
   <div class="need">
     <h2>قبل لا تبدأ، جهّز هذي:</h2>
     <ul>
       <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span><span>طابعة فواتير حرارية <b>80مم</b> فيها <b>منفذ شبكة (LAN)</b></span></li>
       <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span><span><b>كيبل شبكة</b> (يجي غالباً مع الطابعة)</span></li>
-      <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span><span><b>راوتر الإنترنت</b> حق المحل</span></li>
+      <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span><span><b>راوتر واي فاي</b>: أي راوتر يكفي، حتى راوتر شركة الاتصالات. <b>الإنترنت مو شرط</b> للطباعة</span></li>
       <li><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span><span>جهاز الكاشير فيه <b>تطبيق ركين</b> ومتصل <b>بنفس الواي فاي</b></span></li>
     </ul>
   </div>
@@ -162,9 +163,8 @@
   <div class="done">
     <div class="num" style="background:var(--lime); color:var(--ink);">٥</div>
     <div style="flex:1;"><b>احفظ وجرّب</b><p>اضغط <span class="chip" style="background:var(--lime); color:var(--ink);">حفظ الإعدادات</span> ثم <span class="chip" style="background:#fff; color:var(--ink);">طباعة اختبار</span></p></div>
-    <div style="text-align:center;"><div class="big">🎉</div><p style="margin:0; color:var(--lime); font-weight:800;">طلعت الورقة؟ خلصت!</p></div>
+    <div style="text-align:center;"><div class="big">🎉</div><p style="margin:0; color:var(--lime); font-weight:800;">طلعت الورقة؟ خلصت!</p><p style="margin:.5mm 0 0; font-size:9.5pt;">كل فاتورة تطبع لحالها من الحين</p></div>
   </div>
-  <p style="font-size:10.5pt; color:var(--muted); margin:-3mm 0 5mm;">من الحين كل فاتورة تطبع لحالها مع كل طلب.</p>
 
   <div class="extras">
     <div class="extra">
@@ -180,11 +180,12 @@
   <div class="fix">
     <h2>ما طبع؟ شيّك على هذي:</h2>
     <table>
-      <tr><td>ما طلع شي أبداً</td><td>تأكد إن الطابعة شغالة وفيها ورق، وإن الكيبل راكب زين في الطابعة والراوتر، وإن جهاز الكاشير على نفس الواي فاي.</td></tr>
-      <tr><td>اشتغلت وبعدين وقفت</td><td>غالباً الراوتر انطفى وأعطى الطابعة رقم جديد. اطبع ورقة الإعدادات من جديد (الخطوة ٢) وحدّث الرقم.</td></tr>
+      <tr><td>ما طلع شي أبداً</td><td>تأكد إن الطابعة شغالة وفيها ورق، والكيبل راكب زين، والآيباد على <b>نفس الواي فاي</b>، مو «شبكة الضيوف» (Guest) ولا بيانات الجوال.</td></tr>
+      <tr><td>اشتغلت وبعدين وقفت</td><td>غالباً الراوتر انطفى وتغيّر رقم الطابعة. اطبع ورقة الإعدادات (الخطوة ٢) وحدّث الرقم.</td></tr>
       <tr><td>الورقة مقصوصة أو الكلام صغير</td><td>غيّر <b>عرض الورق</b>: 80مم للورق العريض، 58مم للصغير.</td></tr>
       <tr><td>العربي يطلع رموز غريبة؟</td><td>ما يصير مع ركين: الفاتورة تنطبع كصورة، فالعربي يطلع صحيح على أي طابعة.</td></tr>
-      <tr><td>بلوتوث أو سلك USB؟</td><td>الطريقة المعتمدة <b>الشبكة</b>: أثبت وما تنقطع. اختر طابعة فيها منفذ LAN.</td></tr>
+      <tr><td>انقطع الإنترنت؟</td><td>الطباعة تكمل ما دام الراوتر شغال، والطلبات ترتفع لحالها لما يرجع.</td></tr>
+      <tr><td>بلوتوث أو سلك USB؟</td><td>ما يشتغلون مع الآيباد في ركين. استخدم <b>الشبكة</b> (منفذ LAN + راوتر).</td></tr>
     </table>
   </div>
 
