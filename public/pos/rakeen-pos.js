@@ -7911,8 +7911,9 @@ document.getElementById('moreGridShift').innerHTML = SHIFT_ACTIONS.map(a=>`<butt
 function handleMoreAction(e){
   const btn = e.target.closest('.more-item'); if(!btn) return;
   const id = btn.dataset.action;
+  if(posPlanLockedAction(id)) return;
   if(id === 'drawer') openCashDrawer();
-  else if(id === 'waste'){ if(posPlanHas('inventory')) openWasteModal(); }
+  else if(id === 'waste') openWasteModal();
   else if(id === 'manager') openPinModal();
   /* "مسح باركود" حُذف من "المزيد": كان يمسح بطاقةً ويُلصق صاحبَها بسلّةٍ
      قد تكون فارغة، والكاشير واقفٌ في شاشةٍ غير شاشة الطلب -- فلا يرى
@@ -8535,12 +8536,33 @@ async function loadPlanFeatures(sb, businessId){
   }
 }
 function posPlanHas(feature){ return !PLAN_FEATURES || PLAN_FEATURES.has(feature); }
-// الهدر يخصم من المخزون (عماد)، وشاشة العميل تعرض باركود الولاء (عماد)
+// الهدر يخصم من المخزون (عماد)، وشاشة العميل تعرض باركود الولاء (عماد).
+// قرار المالك: تبان لكل الباقات، باهتة عليها قفل واسم الباقة، والضغط عليها
+// يقول وين تنفتح بدل ما يفتحها (مثل لوحة التحكم).
 const PLAN_MORE_ACTIONS = { waste: 'inventory', myDisplay: 'loyalty' };
+const POS_FEATURE_PLAN = { inventory: 'عماد', loyalty: 'عماد' };
 function applyPosPlanUi(){
   Object.entries(PLAN_MORE_ACTIONS).forEach(([action, feature])=>{
-    document.querySelectorAll('.more-item[data-action="' + action + '"]').forEach(b=>{ b.style.display = posPlanHas(feature) ? '' : 'none'; });
+    document.querySelectorAll('.more-item[data-action="' + action + '"]').forEach(b=>{
+      const locked = !posPlanHas(feature);
+      b.classList.toggle('plan-locked', locked);
+      let tag = b.querySelector('.plan-lock-tag');
+      if(locked && !tag){
+        tag = document.createElement('span');
+        tag.className = 'plan-lock-tag';
+        tag.style.cssText = 'display:inline-flex;align-items:center;gap:3px;margin-top:4px;padding:2px 8px;border-radius:999px;background:#111111;color:#C4FF2B;font-size:10px;font-weight:800;';
+        tag.innerHTML = '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="#C4FF2B" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>' + POS_FEATURE_PLAN[feature];
+        b.appendChild(tag);
+      } else if(!locked && tag){ tag.remove(); }
+      b.style.opacity = locked ? '.55' : '';
+    });
   });
+}
+function posPlanLockedAction(id){
+  const feature = PLAN_MORE_ACTIONS[id];
+  if(!feature || posPlanHas(feature)) return false;
+  showToast('متوفرة في باقة ' + POS_FEATURE_PLAN[feature] + ' — اطلب الترقية من لوحة التحكم');
+  return true;
 }
 
 let LOYALTY_ENABLED = true;     // businesses.loyalty_enabled — hides the whole customer/points UI when off

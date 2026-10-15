@@ -11,7 +11,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, AppState, ScrollView, StatusBar, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, ScrollView, StatusBar, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './src/ui/Text';
 import type { AppStateStatus } from 'react-native';
 import { TouchableOpacity } from './src/ui/tappable';
@@ -43,6 +43,11 @@ import { profileToPrinterTarget, drawerKickCommandFor, isDrawerSupported } from 
 import { startDiagnosticsTracking } from './src/application/diagnosticsService';
 import { getNotifySoundEnabled, getReceiptBranding } from './src/application/catalogService';
 import { loadPlanFeatures, planHas } from './src/application/planService';
+
+/** ميزة مو في الباقة: يقول وين تنفتح بدل ما يفتحها (مثل كاشير الويب). */
+function planLockedAlert(plan: string) {
+  Alert.alert(`متوفرة في باقة ${plan}`, 'اطلب الترقية من لوحة التحكم، وتنفتح لك على طول.');
+}
 import { setNotifySoundEnabled } from './src/application/soundService';
 import DiagnosticsScreen from './src/ui/DiagnosticsScreen';
 import OrderHistoryScreen from './src/ui/OrderHistoryScreen';
@@ -1206,14 +1211,15 @@ function MoreScreen({
           <Path d="M12 1v22" stroke={ink} />
           <Path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke={ink} />
         </MoreTile>
-        {/* الهدر يخصم من المخزون (عماد) */}
-        {planHas('inventory') && (
-          <MoreTile label="تسجيل هدر" onPress={onOpenWaste}>
-            <Path d="M3 6h18" stroke={ink} />
-            <Path d="M8 6V4h8v2" stroke={ink} />
-            <Path d="M5 6l1 14h12l1-14" stroke={ink} />
-          </MoreTile>
-        )}
+        {/* الهدر يخصم من المخزون (عماد): يبان لكل الباقات، مقفول باسم الباقة */}
+        <MoreTile
+          label={planHas('inventory') ? 'تسجيل هدر' : 'تسجيل هدر · عماد 🔒'}
+          onPress={planHas('inventory') ? onOpenWaste : () => planLockedAlert('عماد')}
+        >
+          <Path d="M3 6h18" stroke={ink} />
+          <Path d="M8 6V4h8v2" stroke={ink} />
+          <Path d="M5 6l1 14h12l1-14" stroke={ink} />
+        </MoreTile>
         <MoreTile label="استرجاع مبلغ" onPress={() => onOpenCompletedOrders('refund')}>
           <Polyline points="9 14 4 9 9 4" stroke={ink} />
           <Path d="M20 20v-7a4 4 0 0 0-4-4H4" stroke={ink} />
@@ -1229,13 +1235,14 @@ function MoreScreen({
         </MoreTile>
         {/* أيُّ شاشةٍ أمام هذا الكاشير -- بلا اختيارٍ يبثّ إلى شاشات
             الفرع كلِّها، فيرى عدّةُ زبائن باركوداً واحداً. */}
-        {/* شاشة العميل تعرض باركود الولاء (عماد) */}
-        {planHas('loyalty') && (
-          <MoreTile label="شاشة العميل" onPress={onOpenMyDisplay}>
-            <Rect x={2} y={3} width={20} height={14} rx={2} stroke={ink} />
-            <Path d="M8 21h8M12 17v4" stroke={ink} />
-          </MoreTile>
-        )}
+        {/* شاشة العميل تعرض باركود الولاء (عماد): تبان مقفولة باسم الباقة */}
+        <MoreTile
+          label={planHas('loyalty') ? 'شاشة العميل' : 'شاشة العميل · عماد 🔒'}
+          onPress={planHas('loyalty') ? onOpenMyDisplay : () => planLockedAlert('عماد')}
+        >
+          <Rect x={2} y={3} width={20} height={14} rx={2} stroke={ink} />
+          <Path d="M8 21h8M12 17v4" stroke={ink} />
+        </MoreTile>
       </View>
 
       <Text style={styles.moreSectionLabel}>الوردية</Text>

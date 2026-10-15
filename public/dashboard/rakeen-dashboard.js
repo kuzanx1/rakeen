@@ -8076,13 +8076,18 @@ document.getElementById('langToggle').addEventListener('click', function(){
 let CURRENT_PROFILE = null;
 let GRANTED_SCREENS = new Set();
 
-function screenAllowed(slug){
+// ignorePlan: «لو الباقة تسمح، يقدر يدخلها؟» — للشاشة المقفولة بالباقة بس،
+// اللي تبان بالقائمة عليها قفل (applyPermissions).
+function screenAllowed(slug, ignorePlan){
   if(!CURRENT_PROFILE) return false;
-  // Package-tier entitlement set by Rakeen admin, not a per-employee
-  // permission — applies even to the owner, same as kitchen_display_enabled.
-  if(slug === 'inventory' && !INVENTORY_ENABLED) return false;
   const planFeature = PLAN_SCREEN_FEATURE[slug];
-  if(planFeature && PLAN_ALLOWED_FEATURES && !PLAN_ALLOWED_FEATURES.has(planFeature)) return false;
+  if(!ignorePlan){
+    // Package-tier entitlement set by Rakeen admin, not a per-employee
+    // permission — applies even to the owner, same as kitchen_display_enabled.
+    // (Off because the package lacks it = shown locked, below.)
+    if(slug === 'inventory' && !INVENTORY_ENABLED && planHas('inventory')) return false;
+    if(planFeature && PLAN_ALLOWED_FEATURES && !PLAN_ALLOWED_FEATURES.has(planFeature)) return false;
+  }
   if(CURRENT_PROFILE.user_type !== 'employee') return true;
   return GRANTED_SCREENS.has('screen:' + slug);
 }
@@ -8986,8 +8991,18 @@ function applyPermissions(){
     return;
   }
 
+  // شاشة مقفولة بالباقة بس (لو الباقة تسمح كان دخلها): تبان بالقائمة عليها
+  // قفل واسم الباقة، والضغط عليها يفتح بطاقة الترقية (showPlanUpgrade).
+  const planLockedScreens = ALL_DASHBOARD_SCREENS
+    .filter(s=> PLAN_SCREEN_FEATURE[s] && !planHas(PLAN_SCREEN_FEATURE[s]) && screenAllowed(s, true))
+    .filter(s=> s !== 'services' || isServiceBusinessType(BUSINESS_TYPE))
+    .filter(s=> s !== 'rooms' || isHotelBusinessType(BUSINESS_TYPE));
   document.querySelectorAll('.nav-item[data-screen]').forEach(btn=>{
-    btn.style.display = allowedScreens.includes(btn.dataset.screen) ? '' : 'none';
+    const s = btn.dataset.screen;
+    const locked = planLockedScreens.includes(s);
+    btn.style.display = (allowedScreens.includes(s) || locked) ? '' : 'none';
+    if(locked) btn.setAttribute('data-plan-feature', PLAN_SCREEN_FEATURE[s]);
+    else btn.removeAttribute('data-plan-feature');
   });
   // عنوان قسم كل شاشاته مخفية (مثل «المالية» لصاحب أساس) يختفي معها
   document.querySelectorAll('.nav-section-label').forEach(label=>{
@@ -10632,32 +10647,64 @@ const PLAN_SCREEN_FEATURE = {
   onlineMenu: 'online_store',
 };
 
-// داخل الشاشات المفتوحة: أجزاء تتبع ميزةً بعينها (تبويب التكلفة في المنتج،
-// نسخة المطبخ، الطاولات، الصلاحيات...). كانت تظهر لصاحب أساس فيلقى المخزون
-// والمحاسبة داخل شاشة المنيو وهي مو في باقته. القاعدة: CSS واحد يخفي كل
-// عنصر عليه data-plan-feature="<ميزة>" والميزة مو في الباقة، فيشمل كل ما
-// يُرسم لاحقًا بلا ما يتذكّره كل قالب. والمحددات تحت لعناصر ثابتة بلا وسم.
+// داخل الشاشات: أجزاء تتبع ميزةً بعينها (تبويب التكلفة في المنتج، نسخة
+// المطبخ، الطاولات، الصلاحيات...). قرار المالك: الميزة تبان لكل الباقات،
+// واللي ما هي في باقته تطلع باهتة عليها قفل واسم الباقة اللي تفتحها، والضغط
+// عليها يفتح بطاقة «اطلب الترقية». CSS واحد يشمل كل ما يُرسم لاحقًا:
+//   data-plan-feature="<ميزة>"  = يبان مقفول (الشاشات، التبويبات، الأقسام).
+//   data-plan-hide="<ميزة>"     = يختفي (خانات صغيرة تتكرر بكل سطر، قفل على
+//                                كل سطر يزحم الشاشة).
+// والمحددات تحت لعناصر ثابتة بالصفحة بلا وسم في القالب.
 function planHas(feature){
   return !PLAN_ALLOWED_FEATURES || PLAN_ALLOWED_FEATURES.has(feature);
 }
 // الوسم داخل القوالب. الطاولات لنشاط خدمات (صالون، مغسلة، عيادة) هي
 // مواقعه وغرفه وحجوزاته، أساس شغله، فما تنوسم.
-function planAttr(feature){
+function planAttr(feature, mode){
   if(feature === 'tables_reservations' && isServiceBusinessType(BUSINESS_TYPE)) return '';
-  return `data-plan-feature="${feature}"`;
+  return mode === 'hide' ? `data-plan-hide="${feature}"` : `data-plan-feature="${feature}"`;
 }
-const PLAN_HIDE_SELECTORS = {
-  costing_profit: ['#productEditTabs [data-tab="cost"]', '#costCompletionBanner', '[data-report="financial"]', '[data-report="expenses"]'],
+const PLAN_LOCK_SELECTORS = {
+  costing_profit: ['#productEditTabs [data-tab="cost"]', '[data-report="financial"]', '[data-report="expenses"]'],
   inventory: ['[data-report="waste"]'],
   purchases_scan: ['[data-report="purchases"]'],
   delivery_apps: ['#productEditTabs [data-tab="delivery"]'],
-  // أساس: التقارير الأساسية بس (المبيعات، طرق الدفع، الإغلاق، الضريبة،
-  // الإقرار، والتقرير اليومي). الباقي والتصدير لExcel والإرسال بالبريد مع عماد.
-  reports: ['[data-report="counter"]', '[data-report="products"]', '[data-report="discounts"]', '[data-export="excel"]', '#reportEmailToggleBtn', '#reportEmailRow'],
+  // أساس: التقارير الأساسية (المبيعات، طرق الدفع، الإغلاق، الضريبة، الإقرار،
+  // والتقرير اليومي) مفتوحة. الباقي والتصدير لExcel والإرسال بالبريد مع عماد.
+  reports: ['[data-report="counter"]', '[data-report="products"]', '[data-report="discounts"]', '[data-export="excel"]', '#reportEmailToggleBtn'],
   // الكاشير يُضاف من «قائمة الموظفين» لكل الباقات. الصلاحيات وحسابات لوحة
   // التحكم وسجل العمليات والامتثال والأقسام مع «صلاحيات الموظفين» (عماد).
-  team_permissions: ['#settingsTabs [data-tab="permissions"]', '#hrTabs [data-tab="compliance"]', '#hrTabs [data-tab="departments"]', '#auditFooter', '#auditOverlay', '#auditDrawer'],
+  team_permissions: ['#settingsTabs [data-tab="permissions"]', '#hrTabs [data-tab="compliance"]', '#hrTabs [data-tab="departments"]', '#auditFooter'],
 };
+const PLAN_HIDE_SELECTORS = {
+  costing_profit: ['#costCompletionBanner'],
+  reports: ['#reportEmailRow'],
+  team_permissions: ['#auditOverlay', '#auditDrawer'],
+};
+// أصغر باقة فيها الميزة: الاسم اللي يطلع على القفل (lib/plans.ts، والفحص
+// tools/accounting-checks/plan-gating.cjs يتأكد إنهم متطابقين).
+const FEATURE_MIN_PLAN = {
+  kds: 'عماد', inventory: 'عماد', purchases_scan: 'عماد', costing_profit: 'عماد', reports: 'عماد',
+  loyalty: 'عماد', tables_reservations: 'عماد', team_permissions: 'عماد', delivery_apps: 'عماد',
+  online_store: 'صرح', booking_page: 'صرح', multi_branch: 'صرح',
+};
+const FEATURE_UPSELL = {
+  kds: 'شاشة المطبخ ونسخة المطبخ المطبوعة',
+  inventory: 'المخزون والوصفات وتنبيهات النقص والخصم التلقائي',
+  purchases_scan: 'المشتريات وقراءة فواتير الموردين بالتصوير',
+  costing_profit: 'تكلفة كل منتج وصافي الربح والمصاريف والمحاسبة',
+  reports: 'التقارير الكاملة وتصدير Excel والإرسال بالبريد',
+  loyalty: 'العملاء وبرنامج الولاء وبطاقة المحفظة وشاشة العميل',
+  tables_reservations: 'الطاولات والحجوزات وقائمة الانتظار',
+  team_permissions: 'صلاحيات الموظفين وسجل العمليات والامتثال والأقسام',
+  delivery_apps: 'تطبيقات التوصيل وأسعارها وحساب عمولاتها',
+  online_store: 'المتجر الإلكتروني: طلب مباشر وتتبّع ودفع بالبطاقة بدون عمولة',
+  booking_page: 'صفحة حجز المواعيد لعملائك',
+  multi_branch: 'إدارة الفروع وتقارير لكل فرع',
+};
+const PLAN_UPGRADE_WA = '966557444227';
+const PLAN_LOCK_ICON = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23C4FF2B' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 8 0v4'/%3E%3C/svg%3E\")";
+
 function applyPlanHiding(){
   let style = document.getElementById('rkPlanHiding');
   if(!style){
@@ -10666,16 +10713,67 @@ function applyPlanHiding(){
     document.head.appendChild(style);
   }
   if(!PLAN_ALLOWED_FEATURES){ style.textContent = ''; return; }
-  const features = new Set([...Object.keys(PLAN_HIDE_SELECTORS), ...FEATURE_KEYS_IN_MARKUP]);
-  const selectors = [];
-  features.forEach(f=>{
+  // العناصر الثابتة تاخذ الوسم نفسه، فيمشي عليها نفس القفل ونفس الضغط
+  Object.entries(PLAN_LOCK_SELECTORS).forEach(([f, sels])=> sels.forEach(sel=>
+    document.querySelectorAll(sel).forEach(el=> el.setAttribute('data-plan-feature', f))));
+  Object.entries(PLAN_HIDE_SELECTORS).forEach(([f, sels])=> sels.forEach(sel=>
+    document.querySelectorAll(sel).forEach(el=> el.setAttribute('data-plan-hide', f))));
+  const css = [];
+  Object.keys(FEATURE_MIN_PLAN).forEach(f=>{
     if(planHas(f)) return;
-    selectors.push(`[data-plan-feature="${f}"]`, ...(PLAN_HIDE_SELECTORS[f] || []));
+    const lock = `[data-plan-feature="${f}"]`;
+    css.push(`[data-plan-hide="${f}"]{display:none !important;}`);
+    css.push(`${lock}{position:relative; cursor:pointer;}`);
+    css.push(`${lock} > *{opacity:.42; filter:grayscale(.7); pointer-events:none; user-select:none;}`);
+    css.push(`${lock}::after{content:"${FEATURE_MIN_PLAN[f]}"; position:absolute; top:8px; inset-inline-end:8px; z-index:2;
+      display:inline-flex; align-items:center; gap:4px; padding:3px 9px 3px 8px; border-radius:999px;
+      background:#111111 ${PLAN_LOCK_ICON} no-repeat right 7px center / 11px 11px; padding-right:22px;
+      color:#C4FF2B; font-size:10.5px; font-weight:800; line-height:1.4; letter-spacing:0; white-space:nowrap;
+      box-shadow:0 0 0 1px rgba(196,255,43,.35), 0 4px 12px rgba(17,17,17,.18); pointer-events:none;}`);
+    // الأزرار الصغيرة (تبويب، نوع تقرير، عنصر قائمة): القفل جنب الاسم مو فوقه
+    css.push(`button${lock}::after, .nav-item${lock}::after{position:static; margin-inline-start:6px; vertical-align:middle;}`);
+    css.push(`button${lock}:hover > *, .nav-item${lock}:hover > *{opacity:.6;}`);
   });
-  style.textContent = selectors.length ? selectors.join(',\n') + '{display:none !important;}' : '';
+  style.textContent = css.join('\n');
 }
 // كل ميزة ممكن تنوسم بها عناصر (lib/contracts.ts FEATURE_CATALOG).
-const FEATURE_KEYS_IN_MARKUP = ['kds', 'inventory', 'purchases_scan', 'costing_profit', 'reports', 'online_store', 'loyalty', 'tables_reservations', 'booking_page', 'multi_branch', 'team_permissions', 'delivery_apps'];
+const FEATURE_KEYS_IN_MARKUP = Object.keys(FEATURE_MIN_PLAN);
+
+// الضغط على أي شي مقفول: بطاقة الترقية بدل ما يفتح. قبل باقي الضغطات
+// (capture)، فتبويب أو شاشة مقفولة ما تنفتح من تحت البطاقة.
+document.addEventListener('click', (e)=>{
+  const el = e.target.closest && e.target.closest('[data-plan-feature]');
+  if(!el) return;
+  const f = el.getAttribute('data-plan-feature');
+  if(planHas(f)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  showPlanUpgrade(f);
+}, true);
+
+function showPlanUpgrade(feature){
+  const plan = FEATURE_MIN_PLAN[feature] || 'أعلى';
+  const what = FEATURE_UPSELL[feature] || 'هذي الميزة';
+  const bizId = CURRENT_PROFILE ? CURRENT_PROFILE.business_id : '';
+  const msg = `السلام عليكم، أبي أرقّي باقتي في ركين لباقة ${plan} عشان «${what}» — معرّف الحساب ${bizId}`;
+  document.querySelectorAll('.plan-upgrade-ov').forEach(o=>o.remove());
+  const ov = document.createElement('div');
+  ov.className = 'modal-overlay show plan-upgrade-ov';
+  ov.innerHTML = `
+    <div class="modal-card" style="max-width:400px; text-align:center; padding:28px 24px 22px;">
+      <div style="width:56px; height:56px; margin:0 auto 14px; border-radius:18px; background:#111111; display:flex; align-items:center; justify-content:center; box-shadow:0 0 0 1px rgba(196,255,43,.35), 0 10px 26px rgba(17,17,17,.22);">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#C4FF2B" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      </div>
+      <div style="font-size:12px; font-weight:800; color:var(--muted); margin-bottom:6px;">متوفرة في باقة <span style="background:#111111; color:#C4FF2B; padding:2px 10px; border-radius:999px;">${escapeHtml(plan)}</span></div>
+      <h3 style="font-size:18px; font-weight:800; line-height:1.5; margin:0 0 8px;">${escapeHtml(what)}</h3>
+      <p style="font-size:13px; color:var(--muted); line-height:1.7; margin:0 0 20px;">هذي الميزة مو ضمن باقتك الحالية. رقّ باقتك وتنفتح لك على طول، وبياناتك كلها تبقى مثل ما هي.</p>
+      <a class="rk-btn rk-btn-primary rk-btn-md" href="https://wa.me/${PLAN_UPGRADE_WA}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener" style="display:flex; justify-content:center; width:100%; text-decoration:none; margin-bottom:8px;">اطلب الترقية</a>
+      <button type="button" class="rk-btn rk-btn-secondary rk-btn-md plan-upgrade-close" style="width:100%;">لاحقًا</button>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = ()=> ov.remove();
+  ov.addEventListener('click', (ev)=>{ if(ev.target === ov || ev.target.closest('.plan-upgrade-close')) close(); });
+}
 let BUSINESS_TYPE = 'restaurant';
 let ONLINE_BOOKING_ENABLED = false;
 // Which business types share the services/service_staff booking engine —
@@ -15998,13 +16096,13 @@ function renderMgOptionRows(){
         <input type="number" class="mg-opt-max" data-idx="${i}" value="${o.optionMax!=null?o.optionMax:''}" placeholder="مفتوح">
       </div>` : ''}
 
-      <div ${planAttr('costing_profit')}>
+      <div ${planAttr('costing_profit', 'hide')}>
       <div class="mg-cost-divider">
         <span class="field-label-row">تكلفتك الحقيقية (لك أنت، مو للعميل) ${helpIcon('هذا الجزء يحدد كم يكلفك فعليًا لو العميل اختار هذا الخيار — يفيد بحساب هامش ربحك، ومو شرط يطابق السعر اللي تحطه على العميل فوق.')}</span>
       </div>
       <div class="mg-cost-mode-row">
         <button class="mg-cost-mode-btn ${!isStock?'active':''}" data-idx="${i}" data-mode="simple">تكلفة بسيطة (رقم تكتبه)</button>
-        <button class="mg-cost-mode-btn ${isStock?'active':''}" data-idx="${i}" data-mode="stock" ${planAttr('inventory')}>من المخزون (يُحسب تلقائيًا)</button>
+        <button class="mg-cost-mode-btn ${isStock?'active':''}" data-idx="${i}" data-mode="stock" ${planAttr('inventory', 'hide')}>من المخزون (يُحسب تلقائيًا)</button>
       </div>
       ${!isStock ? `
       <div class="mg-field-block">
@@ -17649,7 +17747,7 @@ function openEmployeeModal(employee){
     <div class="rk-field" style="margin-bottom:14px;"><label>الاسم الكامل</label><input type="text" id="empName" value="${isEdit?employee.full_name:''}" placeholder="مثال: محمد العتيبي"></div>
     <div class="menu-add-row" style="margin-bottom:14px;">
       <div class="menu-add-field"><label>المسمى الوظيفي</label><input type="text" id="empJobTitle" value="${isEdit?(employee.job_title||''):''}" placeholder="مثال: شيف"></div>
-      <div class="menu-add-field" ${planAttr('team_permissions')}><label>القسم</label>
+      <div class="menu-add-field" ${planAttr('team_permissions', 'hide')}><label>القسم</label>
         <select id="empDepartment"><option value="">بدون قسم</option>${DEPARTMENTS.map(d=>`<option value="${d.id}" ${isEdit && employee.department_id===d.id?'selected':''}>${d.name}</option>`).join('')}</select>
       </div>
     </div>
@@ -17680,7 +17778,7 @@ function openEmployeeModal(employee){
           </select>
           <p class="stock-qty-helper" style="margin-top:6px;">لو هذا الموظف مسجّل مسبقًا بجهاز الكاشير باسم قديم، اربطه هنا بدل ما تسوي له اسم مكرر.</p>
         </div>` : ''}
-        <div ${planAttr('tables_reservations')}>${rkCheck(`id="empReservationHost" ${linkedCashier && linkedCashier.is_reservation_host ? 'checked':''}`, 'مخصص للحجز (يظهر أول قائمة شاشة الحجز)')}</div>
+        <div ${planAttr('tables_reservations', 'hide')}>${rkCheck(`id="empReservationHost" ${linkedCashier && linkedCashier.is_reservation_host ? 'checked':''}`, 'مخصص للحجز (يظهر أول قائمة شاشة الحجز)')}</div>
       </div>
     </div>`;
     })()}
@@ -17695,7 +17793,7 @@ function openEmployeeModal(employee){
       <div class="menu-add-field"><label>رقم الهوية/الإقامة</label><input type="text" id="empNationalId" value="${isEdit?(employee.national_id_or_iqama||''):''}"></div>
       <div class="menu-add-field"><label>تاريخ انتهاء الإقامة</label><input type="date" id="empIqamaExpiry" value="${isEdit && employee.iqama_expiry ? employee.iqama_expiry : ''}"></div>
     </div>
-    <p class="stock-qty-helper" ${planAttr('team_permissions')} style="margin:0 0 14px;">مربوط تلقائيًا بوثيقة الإقامة في تبويب «الامتثال والوثائق» — أي تعديل هنا أو هناك يتزامن، وتنبيه الانتهاء يجي من هناك.</p>
+    <p class="stock-qty-helper" ${planAttr('team_permissions', 'hide')} style="margin:0 0 14px;">مربوط تلقائيًا بوثيقة الإقامة في تبويب «الامتثال والوثائق» — أي تعديل هنا أو هناك يتزامن، وتنبيه الانتهاء يجي من هناك.</p>
     <div class="menu-add-row" style="margin-bottom:14px;">
       <div class="menu-add-field"><label>الجنسية</label><input type="text" id="empNationality" value="${isEdit?(employee.nationality||''):''}"></div>
       <div class="menu-add-field"><label>رقم الجوال</label><input type="text" id="empPhone" value="${isEdit?(employee.phone||''):''}"></div>
