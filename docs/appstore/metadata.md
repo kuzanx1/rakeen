@@ -142,4 +142,4 @@ The interface is in Arabic; English can be switched from the top bar (EN).
 الترتيب: الكاشير ← الدفع ← طلب أونلاين وصل ← الطاولات ← العملاء ونقاطهم.
 
 كلها شاشات الكاشير الحقيقية (نفس الكود والتصميم اللي في التطبيق، والنصوص نفسها موجودة في التطبيق: PaymentModal، IncomingOrderModal، TablesScreen، CustomerPickerModal)، ببيانات تجريبية بأصناف هَبيّة.
-لإعادة توليدها بعد أي تغيير في الشكل: شغّل السيرفر المحلي، ثم `node tools/appstore-shots/scenes.cjs ipad` و `iphone` ثم `node tools/appstore-shots/make.cjs`.
+لإعادة توليدها بعد أي تغيير في الشكل: شغّل السيرفر المحلي، ثم `node tools/appstore-shots/scenes.cjs ipad` و `iphone` ثم `THEME=cream node tools/appstore-shots/make.cjs`.
