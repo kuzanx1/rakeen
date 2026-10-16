@@ -11,12 +11,15 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { PLANS, type Plan, type PlanItem } from "@/lib/plans";
+import { startWhatsAppLink } from "@/lib/signup";
 import "./rakeen-landing.css";
 
 type Lang = "ar" | "en";
 type Period = "monthly" | "annual";
 
 const WA = "966557444227";
+// No self sign-up for now (lib/signup.ts): every "start" opens WhatsApp.
+const START = startWhatsAppLink();
 const waLink = (text: string) => `https://wa.me/${WA}?text=${encodeURIComponent(text)}`;
 const num = (n: number) => n.toLocaleString("en-US");
 
@@ -172,7 +175,12 @@ const T = {
       h1a: "لكل مطعم ناجح،",
       h1b: "رُكن",
       h1c: "يستند عليه.",
-      sub: "الكاشير، والمتجر، والولاء، وأرباحك. نظام واحد يشتغل عنك.",
+      sub: "الكاشير، والمتجر، والولاء، وأرباحك. نظام واحد يشتغل عن",
+      rot: ["مطعمك.", "كافيهك.", "الفود ترك حقك.", "مخبزك.", "مطبخك السحابي."],
+      today: "صافي اليوم",
+      orders: "طلبات اليوم",
+      kitchen: "المطبخ",
+      stamp: "+1 ختم",
       cta: "ابدأ مجانًا",
       cta2: "شوف الباقات",
       from: "الباقات من",
@@ -263,8 +271,8 @@ const T = {
         { q: "عندي أكثر من فرع؟", a: "الفرع الإضافي بنص سعر الباقة، وباقة صرح فيها فرعين وتقارير لكل فرع." },
       ],
     },
-    close: { h: "مطعمك يستاهل نظام يشتغل عنه.", sub: "سجّل، أضف منيوك، وابدأ البيع خلال دقائق.", cta: "ابدأ مجانًا", wa: "كلّمنا واتساب" },
-    sticky: "ابدأ مجانًا · ٣٥٠ طلب",
+    close: { h: "مطعمك يستاهل نظام يشتغل عنه.", sub: "كلّمنا، نجهّز أصنافك وأسعارك، وتبدأ البيع خلال يوم.", cta: "ابدأ مجانًا", wa: "كلّمنا واتساب" },
+    sticky: "ابدأ مجانًا — أول 350 طلب",
     fits: { k: "يناسب", items: ["المطاعم", "الكافيهات", "الفود ترك", "المخابز", "المطابخ السحابية", "محلات الحلويات", "العصائر", "البرقر والبيتزا"] },
     footer: { tag: "نظام تشغيل مطعمك.", privacy: "الخصوصية", terms: "الشروط", rights: "© ٢٠٢٦ ركين" },
   },
@@ -277,7 +285,12 @@ const T = {
       h1a: "Every great restaurant",
       h1b: "stands",
       h1c: "on something.",
-      sub: "Cashier, online store, loyalty and your profit. One system that works for you.",
+      sub: "Cashier, online store, loyalty and your profit. One system that works for",
+      rot: ["your restaurant.", "your café.", "your food truck.", "your bakery.", "your cloud kitchen."],
+      today: "Today's net",
+      orders: "Orders today",
+      kitchen: "Kitchen",
+      stamp: "+1 stamp",
       cta: "Start free",
       cta2: "See plans",
       from: "Plans from",
@@ -368,8 +381,8 @@ const T = {
         { q: "More than one branch?", a: "An extra branch is half the plan price; Sarh includes two branches with per-branch reports." },
       ],
     },
-    close: { h: "Your restaurant deserves a system that works for it.", sub: "Sign up, add your menu, and start selling in minutes.", cta: "Start free", wa: "WhatsApp us" },
-    sticky: "Start free · 350 orders",
+    close: { h: "Your restaurant deserves a system that works for it.", sub: "Message us, we set up your items and prices, and you start selling within a day.", cta: "Start free", wa: "WhatsApp us" },
+    sticky: "Start free — first 350 orders",
     fits: { k: "Built for", items: ["Restaurants", "Cafés", "Food trucks", "Bakeries", "Cloud kitchens", "Dessert shops", "Juice bars", "Burgers & pizza"] },
     footer: { tag: "Your restaurant's operating system.", privacy: "Privacy", terms: "Terms", rights: "© 2026 Rakeen" },
   },
@@ -840,10 +853,12 @@ function CountUp({ to, ms = 1100 }: { to: number; ms?: number }) {
 
 /* The hero cashier, styled after the real POS (lime category, dark price pill,
    quantity chips), ringing up a few items on a loop. */
-function HeroCashier({ lang }: { lang: Lang }) {
+function HeroCashier({ lang, onPaid }: { lang: Lang; onPaid?: () => void }) {
   const t = T[lang];
   const [lines, setLines] = useState<number[]>([]);
   const [paid, setPaid] = useState(false);
+  const paidRef = useRef(onPaid);
+  paidRef.current = onPaid;
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setLines([0, 3, 1]);
@@ -857,6 +872,7 @@ function HeroCashier({ lang }: { lang: Lang }) {
         setLines(RING.slice(0, step));
       } else if (step === RING.length + 1) {
         setPaid(true);
+        paidRef.current?.();
       } else if (step >= RING.length + 4) {
         step = 0;
         setPaid(false);
@@ -997,6 +1013,21 @@ export default function LandingPage() {
   const root = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLElement>(null);
   const t = T[lang];
+  // hero: rotating word, and the pulse that runs out from each payment
+  const [rot, setRot] = useState(0);
+  const [beat, setBeat] = useState(false);
+  const [paidCount, setPaidCount] = useState(0);
+  const [showTop, setShowTop] = useState(false);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const id = window.setInterval(() => setRot((r) => r + 1), 2400);
+    return () => window.clearInterval(id);
+  }, []);
+  const onPaid = () => {
+    setPaidCount((n) => n + 1);
+    setBeat(true);
+    window.setTimeout(() => setBeat(false), 1600);
+  };
 
   // The hero leans a little toward the pointer: the tablet and the phone at
   // different depths, and a soft light that follows it.
@@ -1044,6 +1075,7 @@ export default function LandingPage() {
       root.current?.style.setProperty("--prog", String(max > 0 ? y / max : 0));
       const end = document.documentElement.scrollHeight - window.innerHeight - 520;
       setSticky(y > 640 && y < end);
+      setShowTop(y > 900);
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -1114,7 +1146,7 @@ export default function LandingPage() {
               {lang === "ar" ? "EN" : "ع"}
             </button>
             <a href="/dashboard" className="nav-login">{t.nav.login}</a>
-            <a href="/signup" className="btn btn-lime btn-sm">{t.nav.start}</a>
+            <a href={START} target="_blank" rel="noopener noreferrer" className="btn btn-lime btn-sm">{t.nav.start}</a>
           </div>
         </div>
       </header>
@@ -1124,6 +1156,9 @@ export default function LandingPage() {
         <div className="hero-grid" aria-hidden />
         <div className="hero-glow" aria-hidden />
         <div className="hero-spot" aria-hidden />
+        <div className="hero-word" aria-hidden>
+          {lang === "ar" ? "ركين" : "RAKEEN"}
+        </div>
         {/* ركن: a corner drawn in two strokes behind the product */}
         <svg className="hero-lines" viewBox="0 0 600 600" aria-hidden>
           <path d="M40 560 V120 a80 80 0 0 1 80 -80 H560" />
@@ -1131,7 +1166,7 @@ export default function LandingPage() {
         </svg>
         <div className="wrap hero-in">
           <div className="hero-copy">
-            <a href="/signup" className="ticket">
+            <a href={START} target="_blank" rel="noopener noreferrer" className="ticket">
               <b className="mono">350</b>
               <span>
                 {t.hero.ticketA}
@@ -1146,9 +1181,14 @@ export default function LandingPage() {
               </span>{" "}
               {splitWords(t.hero.h1c, 4)}
             </h1>
-            <p className="lead">{t.hero.sub}</p>
+            <p className="lead">
+              {t.hero.sub}{" "}
+              <span className="rot" key={rot}>
+                {t.hero.rot[rot % t.hero.rot.length]}
+              </span>
+            </p>
             <div className="cta-row">
-              <a href="/signup" className="btn btn-lime btn-lg">
+              <a href={START} target="_blank" rel="noopener noreferrer" className="btn btn-lime btn-lg">
                 {t.hero.cta}
                 <Icon name="arrow" />
               </a>
@@ -1159,8 +1199,14 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="hero-art">
-            <HeroCashier lang={lang} />
+          <div className={"hero-art" + (beat ? " beat" : "")} key={"art" + lang}>
+            {/* every payment travels out to the kitchen, the loyalty card and the day's total */}
+            <svg className="hero-wires" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
+              <path d="M56 44 C 70 60, 82 70, 94 86" />
+              <path d="M56 44 C 40 20, 22 12, 8 4" />
+              <path d="M56 44 C 54 70, 50 84, 46 98" />
+            </svg>
+            <HeroCashier lang={lang} onPaid={onPaid} />
             <div className="hero-phone">
               <div className="iphone">
                 <img src="/landing/store-anoob.jpg" alt="" />
@@ -1176,6 +1222,33 @@ export default function LandingPage() {
                   <span className="mono">#1043</span> · {t.newOrder.s}
                 </span>
               </div>
+            </div>
+            <div className="sat sat-kds" key={"k" + paidCount}>
+              <span className="sat-k">{t.hero.kitchen}</span>
+              <b className="mono">#{1044 + paidCount}</b>
+              <i>1× {DEMO[0][lang]}</i>
+              <i>1× {DEMO[1][lang]}</i>
+              <i>2× {DEMO[3][lang]}</i>
+              <em className="mono">00:0{(paidCount % 5) + 1}</em>
+            </div>
+            <div className="sat sat-pass">
+              <div className="sp-strip">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <img key={i} src="/landing/hbiah-mark.png" alt="" className={4 - i < (paidCount % 5) + 1 ? "on" : ""} />
+                ))}
+              </div>
+              <span className="sp-label" key={"s" + paidCount}>
+                {t.hero.stamp}
+              </span>
+            </div>
+            <div className="sat sat-net">
+              <span>{t.hero.today}</span>
+              <b className="mono">
+                <Riyal /> <CountUp to={6271 + paidCount * 161} ms={900} />
+              </b>
+              <small>
+                {t.hero.orders} <span className="mono">{128 + paidCount}</span>
+              </small>
             </div>
           </div>
         </div>
@@ -1405,7 +1478,7 @@ export default function LandingPage() {
                     )}
                     <span className="tier-extra">{t.plans.extra(num(extra))}</span>
                   </p>
-                  <a href="/signup" className="btn tier-btn">
+                  <a href={START} target="_blank" rel="noopener noreferrer" className="btn tier-btn">
                     {t.plans.choose}
                   </a>
                   {i > 0 && <p className="tier-inherit">{t.plans.everything(planName(PLANS[i - 1]))}</p>}
@@ -1518,7 +1591,7 @@ export default function LandingPage() {
             <h2>{t.close.h}</h2>
             <p>{t.close.sub}</p>
             <div className="cta-row">
-              <a href="/signup" className="btn btn-lime btn-lg">
+              <a href={START} target="_blank" rel="noopener noreferrer" className="btn btn-lime btn-lg">
                 {t.close.cta}
                 <Icon name="arrow" />
               </a>
@@ -1553,8 +1626,18 @@ export default function LandingPage() {
         <div className="wrap foot-bottom">{t.footer.rights}</div>
       </footer>
 
+      <button
+        className={"to-top" + (showTop ? " show" : "")}
+        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        aria-label={lang === "ar" ? "ارجع لفوق" : "Back to top"}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden>
+          <path d="M12 19V5M6 11l6-6 6 6" />
+        </svg>
+      </button>
+
       {/* phones only: the one action, always in reach */}
-      <a href="/signup" className={"sticky-cta" + (sticky ? " show" : "")}>
+      <a href={START} target="_blank" rel="noopener noreferrer" className={"sticky-cta" + (sticky ? " show" : "")}>
         {t.sticky}
         <Icon name="arrow" />
       </a>

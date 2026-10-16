@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { checkDbRateLimit } from "@/lib/dbRateLimit";
 import { BUSINESS_TYPES, NO_DINING_ROOM_TYPES } from "@/lib/businessTypes";
+import { SELF_SIGNUP_OPEN } from "@/lib/signup";
 
 // Self-serve restaurant signup — the only account-creation route in the app
 // with no caller auth at all (mirrors create-team-member's admin.createUser
@@ -17,6 +18,10 @@ import { BUSINESS_TYPES, NO_DINING_ROOM_TYPES } from "@/lib/businessTypes";
 // 24 hours after the limit, new orders are refused until online_subscribed
 // is flipped — a manual step today, not automated here.
 export async function POST(request: NextRequest) {
+  // Closed while sign-up goes through WhatsApp (lib/signup.ts).
+  if (!SELF_SIGNUP_OPEN) {
+    return NextResponse.json({ error: "التسجيل متوقف حاليًا — تواصل معنا على واتساب 0557444227" }, { status: 403 });
+  }
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

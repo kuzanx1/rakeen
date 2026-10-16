@@ -608,8 +608,7 @@ body{background:#FBFAF5;}
 [dir="rtl"] .ticket b{border-radius:0 11px 11px 0;}
 .ticket span{position:relative; display:flex; flex-direction:column; justify-content:center; padding:6px 18px; font-weight:800; font-size:14.5px; line-height:1.3; border-inline-start:2px dashed rgba(255,255,255,.22); text-align:start;}
 .ticket small{font-weight:500; font-size:12px; color:var(--muted-d);}
-.ticket span::before,.ticket span::after{content:""; position:absolute; inset-inline-start:-8px; width:14px; height:14px; border-radius:50%; background:var(--ink);}
-.ticket span::before{top:-8px;} .ticket span::after{bottom:-8px;}
+
 
 /* plans: a skyline, footing to edifice */
 .tiers{align-items:end; padding-top:130px; position:relative;}
@@ -627,3 +626,57 @@ body{background:#FBFAF5;}
   .tier{margin-top:120px;}
   .tier-art{top:-124px;}
 }
+
+/* ================= v5: hero ================= */
+/* the name, huge and hollow, drifting behind everything */
+.hero-word{position:absolute; z-index:0; bottom:-.18em; inset-inline-start:-1%; font-family:var(--display); font-weight:900; font-size:clamp(150px,23vw,360px); line-height:1; white-space:nowrap; color:transparent; -webkit-text-stroke:1px rgba(196,255,43,.13); pointer-events:none; user-select:none; animation:word-drift 26s ease-in-out infinite alternate;}
+@keyframes word-drift{to{transform:translateX(-4%);}}
+.hero-in{z-index:1;}
+/* the line finishes on a word that keeps changing */
+.rot{display:inline-block; color:var(--lime); font-weight:700; animation:rot-in .7s var(--ease) both;}
+@keyframes rot-in{from{opacity:0; transform:translateY(70%); filter:blur(5px);}}
+/* wires from the cashier to everything it feeds */
+.hero-wires{position:absolute; inset:0; width:100%; height:100%; z-index:0; overflow:visible; pointer-events:none;}
+[dir="ltr"] .hero-wires{transform:scaleX(-1);}
+.hero-wires path{fill:none; stroke:rgba(196,255,43,.3); stroke-width:1.4; vector-effect:non-scaling-stroke; stroke-dasharray:2 7; stroke-linecap:round; animation:flow 1.4s linear infinite; transition:stroke .3s, stroke-width .3s;}
+.beat .hero-wires path{stroke:var(--lime); stroke-width:2.4; filter:drop-shadow(0 0 5px rgba(196,255,43,.9)); animation-duration:.5s;}
+@keyframes flow{to{stroke-dashoffset:-18;}}
+.hero .tablet{z-index:1;}
+.hero-phone{z-index:2;}
+/* satellites */
+.sat{position:absolute; z-index:3; box-shadow:0 24px 44px -16px rgba(0,0,0,.65);}
+.beat .sat{animation:sat-bump .8s var(--ease);}
+@keyframes sat-bump{40%{transform:scale(1.07);}}
+.sat-kds{inset-inline-start:-40px; bottom:-4%; width:150px; padding:12px 14px 14px; border-radius:6px 6px 14px 14px; background:#FFFDF6; color:#222; display:flex; flex-direction:column; gap:1px; font-size:11.5px; rotate:3deg; animation:kds-in .7s var(--ease) both;}
+[dir="ltr"] .sat-kds{rotate:-3deg;}
+@keyframes kds-in{from{clip-path:inset(0 0 100% 0); transform:translateY(-14px);}}
+.sat-k{font-size:9.5px; font-weight:800; letter-spacing:.08em; color:#8a8477;}
+.sat-kds b{font-size:18px; margin-bottom:4px;}
+.sat-kds i{font-style:normal; font-weight:700; border-top:1px dashed #ddd6c4; padding-top:3px;}
+.sat-kds em{position:absolute; top:10px; inset-inline-end:10px; font-style:normal; font-size:10px; font-weight:700; padding:2px 7px; border-radius:99px; background:var(--lime);}
+.sat-pass{inset-inline-end:-8px; top:-20px; width:176px; padding:9px 10px; border-radius:12px; background:#B7834A; rotate:-5deg;}
+[dir="ltr"] .sat-pass{rotate:5deg;}
+.sp-strip{display:flex; justify-content:center; gap:4px;}
+.sp-strip img{width:27px; height:auto; opacity:.42; transition:opacity .4s, filter .4s, transform .4s var(--ease);}
+.sp-strip img.on{opacity:1; filter:brightness(1.2);}
+.sp-label{position:absolute; top:-11px; inset-inline-start:-6px; padding:2px 9px; border-radius:99px; background:var(--lime); color:var(--ink); font-size:11px; font-weight:800; animation:pop .5s cubic-bezier(.34,1.56,.64,1) both;}
+.sat-net{bottom:-30px; left:33%; display:flex; flex-direction:column; padding:10px 16px; border-radius:16px; background:#1b1b1b; border:1px solid var(--line-d); color:#fff;}
+.sat-net > span{font-size:11px; color:var(--muted-d); font-weight:600;}
+.sat-net b{display:flex; align-items:center; gap:6px; font-size:24px; color:var(--lime); letter-spacing:-.03em;}
+.sat-net b .riyal{font-size:.62em;}
+.sat-net small{font-size:11px; color:var(--muted-d);}
+@media (max-width:980px){ .sat-kds{inset-inline-start:-10px;} .sat-pass{inset-inline-end:0;} }
+@media (max-width:640px){
+  .hero-wires,.sat-kds,.sat-pass{display:none;}
+  .sat-net{bottom:-8px; left:auto; inset-inline-start:6px; padding:7px 11px; border-radius:12px;}
+  .sat-net b{font-size:17px;}
+  .hero-word{font-size:120px; bottom:-.1em;}
+}
+
+/* back to top, with the reading progress as its ring */
+.to-top{position:fixed; z-index:66; inset-inline-end:22px; bottom:24px; width:50px; height:50px; border-radius:50%; display:grid; place-items:center; color:var(--lime); background:conic-gradient(var(--lime) calc(var(--prog,0) * 360deg), rgba(18,18,18,.18) 0); box-shadow:0 14px 30px -10px rgba(18,18,18,.55); opacity:0; transform:translateY(20px) scale(.9); pointer-events:none; transition:opacity .35s, transform .45s var(--ease);}
+.to-top::before{content:""; position:absolute; inset:3px; border-radius:50%; background:var(--ink);}
+.to-top svg{position:relative; width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round;}
+.to-top.show{opacity:1; transform:none; pointer-events:auto;}
+.to-top:hover svg{transform:translateY(-2px); transition:transform .2s;}
+@media (max-width:760px){ .to-top{bottom:84px; inset-inline-end:16px; width:46px; height:46px;} }
