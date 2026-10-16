@@ -930,6 +930,13 @@ function MenuLive({ lang, qr }: { lang: Lang; qr: string }) {
         <div className={"ml-saved" + (step === 2 || step === 3 || step === 4 ? " show" : "")}>✓ {ar ? "انحفظ، وتحدّث المنيو" : "Saved, menu updated"}</div>
       </div>
 
+      <div className="ml-flow" aria-hidden>
+        <svg viewBox="0 0 24 24">
+          <path d="M12 4v16M6 14l6 6 6-6" />
+        </svg>
+        {ar ? "يتحدّث عند العميل بنفس اللحظة" : "Updates for the customer instantly"}
+      </div>
+
       {/* the same menu on a tablet at the counter, facing the customer */}
       <div className="ml-counter">
         <div className="ml-tablet">{screen("ml-screen ml-wide")}</div>

@@ -820,3 +820,25 @@ body{background:#FBFAF5;}
   .ml-wide .ml-card img{width:40px; height:40px;}
   .ml-wide .ml-card b{font-size:10px;} .ml-wide .ml-card small{font-size:9.5px;} .ml-wide .ml-card span{font-size:10px;}
 }
+
+/* menu on phones: editor first, then an arrow, then the counter tablet */
+.ml-flow{display:none;}
+@media (max-width:640px){
+  .menu-live{gap:12px;}
+  .ml-dash{order:0; width:100%; max-width:none; padding:12px 12px 10px; border-radius:18px; font-size:12px;}
+  .ml-dash-h{margin-bottom:6px;}
+  .ml-row{grid-template-columns:28px 1fr auto auto; gap:8px; padding:5px 6px;}
+  .ml-row img{width:28px; height:28px;}
+  .ml-price{min-width:36px; padding:2px 6px; font-size:12px;}
+  .ml-switch{width:30px; height:18px;}
+  .ml-switch::after{width:14px; height:14px;}
+  .ml-switch.on::after{inset-inline-start:14px;}
+  .ml-saved{margin-top:4px;}
+  .ml-flow{order:1; display:flex; align-items:center; justify-content:center; gap:8px; font-size:13px; font-weight:800; color:#8a5a28;}
+  .ml-flow svg{width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; animation:flow-down 1.4s ease-in-out infinite;}
+  @keyframes flow-down{50%{transform:translateY(4px);}}
+  .ml-counter{order:2; margin-top:10px;}
+  .ml-wide{aspect-ratio:auto !important;}
+  .ml-wide .ml-grid{padding-bottom:12px;}
+  .ml-stand{width:90px; height:34px;}
+}
