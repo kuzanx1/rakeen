@@ -48,6 +48,7 @@ type WPass = {
   done: number;
   of: number;
   progressLabel?: string;
+  leftLabel?: string;
   points?: number;
   tier?: string;
   customer: string;
@@ -60,20 +61,20 @@ const WALLET: WPass[] = [
     key: "hbiah",
     logo: (
       <span className="lg lg-hbiah">
-        <img src="/landing/hbiah-mark.png" alt="" />
-        <b>HBIAH</b>
+        <b>هَبيّة</b>
+        <small>HBIAH</small>
       </span>
     ),
     bg: "#B7834A",
-    strip: "linear-gradient(180deg,#B07B43,#A97339)",
-    stampImg: "/landing/hbiah-cup.png",
-    done: 4,
-    of: 6,
-    progressLabel: "ختومك",
-    customer: "عبدالله",
+    strip: "#B7834A",
+    done: 2,
+    of: 5,
+    progressLabel: "كم كوب",
+    leftLabel: "متبقي لكوبك المجاني",
+    customer: "Mohammed",
     reward: "قهوة مجانية",
-    code: "184283",
-    note: { brand: "هَبيّة", icon: "/landing/hbiah-mark.png", ar: "باقي لك 2 على مكافأتك 🎁", en: "2 to go until your reward 🎁" },
+    code: "F2ABA3D4",
+    note: { brand: "هَبيّة", icon: "/landing/hbiah-mark.png", ar: "باقي لك 3 على كوبك المجاني ☕", en: "3 to go until your free coffee ☕" },
   },
   {
     key: "sana",
@@ -166,6 +167,8 @@ const T = {
     nav: { features: "المزايا", plans: "الباقات", faq: "الأسئلة", login: "دخول", start: "ابدأ مجانًا" },
     hero: {
       pill: "٣٥٠ طلب مجانًا · بدون بطاقة",
+      ticketA: "طلب مجانًا",
+      ticketB: "بدون بطاقة بنكية",
       h1a: "لكل مطعم ناجح،",
       h1b: "رُكن",
       h1c: "يستند عليه.",
@@ -226,7 +229,7 @@ const T = {
     },
     plans: {
       k: "الباقات",
-      h: "اختر باقتك. وابدأ اليوم.",
+      h: "من الأساس.. إلى الصرح.",
       sub: "كل الباقات تبدأ بتجربة مجانية لين ٣٥٠ طلب.",
       monthly: "شهري",
       annual: "سنوي",
@@ -269,6 +272,8 @@ const T = {
     nav: { features: "Features", plans: "Plans", faq: "FAQ", login: "Log in", start: "Start free" },
     hero: {
       pill: "350 orders free · No card",
+      ticketA: "orders free",
+      ticketB: "No card needed",
       h1a: "Every great restaurant",
       h1b: "stands",
       h1c: "on something.",
@@ -329,7 +334,7 @@ const T = {
     },
     plans: {
       k: "Plans",
-      h: "Pick your plan. Start today.",
+      h: "From the foundation to the edifice.",
       sub: "Every plan starts with a free trial of 350 orders.",
       monthly: "Monthly",
       annual: "Yearly",
@@ -508,12 +513,12 @@ function Icon({ name }: { name: IconName }) {
 
 /* Drawn stamps for the examples: a few flat shapes each, so they read at
    27px like a real stamp. Filled = the brand colours, empty = an outline. */
-function StampArt({ art, c, on, ghost }: { art: Art; c: [string, string, string]; on: boolean; ghost: string }) {
+function StampArt({ art, c, on, ghost, x, y, size }: { art: Art; c: [string, string, string]; on: boolean; ghost: string; x?: number; y?: number; size?: number }) {
   const f = (col: string) => (on ? col : "none");
   const st = on ? "none" : ghost;
   const sw = on ? 0 : 1.4;
   return (
-    <svg viewBox="0 0 32 32" className={on ? "on" : ""}>
+    <svg viewBox="0 0 32 32" className={on ? "on" : ""} x={x} y={y} width={size} height={size}>
       {art === "cup" && (
         <g stroke={st} strokeWidth={sw} strokeLinejoin="round">
           <path d="M7 7.5h18l-1 2.2H8z" fill={f(c[2])} />
@@ -561,6 +566,101 @@ function Guilloche({ color }: { color: string }) {
   );
 }
 
+/* Each card's strip is its own small piece of art, the way a business
+   designs its strip image (هَبيّة's real one: postage stamps of the desert
+   with its mountains as the stamps). Stamps fill from the right. */
+const filledAt = (i: number, of: number, done: number) => of - 1 - i < done;
+function Postage({ x, y, w, h, r, bg }: { x: number; y: number; w: number; h: number; r: number; bg: string }) {
+  const holes: React.ReactNode[] = [];
+  for (let k = -w / 2 + 3; k <= w / 2 - 2; k += 6.5) holes.push(<circle key={"t" + k} cx={k} cy={-h / 2} r="2.1" />, <circle key={"b" + k} cx={k} cy={h / 2} r="2.1" />);
+  for (let k = -h / 2 + 3; k <= h / 2 - 2; k += 6.5) holes.push(<circle key={"l" + k} cx={-w / 2} cy={k} r="2.1" />, <circle key={"r" + k} cx={w / 2} cy={k} r="2.1" />);
+  return (
+    <g transform={`translate(${x} ${y}) rotate(${r})`}>
+      <rect x={-w / 2} y={-h / 2} width={w} height={h} fill="#7B4A21" />
+      <image href="/landing/hbiah-banner.jpg" x={-w / 2 + 4} y={-h / 2 + 4} width={w - 8} height={h - 8} preserveAspectRatio="xMidYMid slice" opacity=".5" style={{ mixBlendMode: "multiply" }} />
+      <g fill={bg}>{holes}</g>
+    </g>
+  );
+}
+function StripScene({ p, ghost }: { p: WPass; ghost: string }) {
+  const vb = "0 0 300 118";
+  if (p.key === "hbiah") {
+    const spots = [
+      [22, 44],
+      [92, 58],
+      [160, 36],
+      [196, 82],
+      [262, 50],
+    ];
+    return (
+      <svg viewBox={vb} preserveAspectRatio="xMidYMid slice" className="scene">
+        <Postage x={30} y={8} w={78} h={56} r={-14} bg={p.bg} />
+        <Postage x={262} y={6} w={74} h={54} r={16} bg={p.bg} />
+        <Postage x={132} y={102} w={70} h={50} r={-9} bg={p.bg} />
+        {spots.map(([x, y], i) => (
+          <image key={i} href="/landing/hbiah-mark.png" x={x - 4} y={y - 2} width="62" height="40" className={filledAt(i, p.of, p.done) ? "mt on" : "mt"} />
+        ))}
+      </svg>
+    );
+  }
+  if (p.key === "sana") {
+    const beans = [[18, 20, 30], [70, 98, -20], [120, 14, 60], [176, 104, 10], [232, 22, -40], [284, 90, 25], [40, 70, 80], [258, 64, -70], [150, 60, 45]];
+    return (
+      <svg viewBox={vb} preserveAspectRatio="xMidYMid slice" className="scene">
+        {beans.map(([x, y, r], i) => (
+          <g key={i} transform={`translate(${x} ${y}) rotate(${r})`}>
+            <ellipse rx="9" ry="6" fill="#28493A" />
+            <path d="M-7 1 C-2 -3 2 3 7 -1" stroke={p.bg} strokeWidth="1.4" fill="none" />
+          </g>
+        ))}
+        <path d="M24 92 H276" stroke="rgba(244,238,223,.18)" strokeWidth="1" />
+        {Array.from({ length: p.of }).map((_, i) => (
+          <StampArt key={i} art="cup" c={p.artColors!} on={filledAt(i, p.of, p.done)} ghost={ghost} x={34 + i * 40} y={56 - Math.sin((i / (p.of - 1)) * Math.PI) * 10} size={34} />
+        ))}
+      </svg>
+    );
+  }
+  if (p.key === "waraq") {
+    const stalk = (x: number, r: number) => (
+      <g transform={`translate(${x} 118) rotate(${r})`} stroke="#C9BA92" strokeWidth="1.2" fill="none">
+        <path d="M0 0 V-92" />
+        {[18, 32, 46, 60, 74].map((y) => (
+          <g key={y}>
+            <path d={`M0 -${y} q-9 -4 -10 -14 q8 3 10 14`} />
+            <path d={`M0 -${y} q9 -4 10 -14 q-8 3 -10 14`} />
+          </g>
+        ))}
+      </g>
+    );
+    const pos = [[44, 18], [100, 18], [156, 18], [212, 18], [72, 62], [128, 62], [184, 62], [240, 62]];
+    return (
+      <svg viewBox={vb} preserveAspectRatio="xMidYMid slice" className="scene">
+        {stalk(14, -14)}
+        {stalk(288, 12)}
+        {pos.map(([x, y], i) => (
+          <StampArt key={i} art="croissant" c={p.artColors!} on={(i < 4 ? 3 - i : 11 - i) < p.done} ghost={ghost} x={x} y={y} size={40} />
+        ))}
+      </svg>
+    );
+  }
+  if (p.key === "brgr") {
+    return (
+      <svg viewBox={vb} preserveAspectRatio="xMidYMid slice" className="scene">
+        <text x="150" y="104" textAnchor="middle" className="scene-word">BRGR.</text>
+        {Array.from({ length: p.of }).map((_, i) => (
+          <StampArt key={i} art="burger" c={p.artColors!} on={filledAt(i, p.of, p.done)} ghost={ghost} x={30 + i * 42} y={40 + Math.sin(i * 1.3) * 9} size={38} />
+        ))}
+      </svg>
+    );
+  }
+  // NOIR: engraved lines and a monogram
+  return (
+    <svg viewBox={vb} preserveAspectRatio="xMidYMid slice" className="scene">
+      <text x="40" y="112" className="scene-mono">N</text>
+    </svg>
+  );
+}
+
 /* One Apple Wallet store card, laid out like the dashboard's preview
    (walletCardPreviewHtml) and the pass the server signs: Apple's font,
    field sizes, stamps filled from the right. */
@@ -570,8 +670,6 @@ function WalletPass({ p, qr }: { p: WPass; qr: string }) {
   const faint = light ? "rgba(28,26,20,.55)" : "rgba(255,255,255,.62)";
   const ghost = light ? "rgba(28,26,20,.28)" : "rgba(255,255,255,.34)";
   const stamps = !p.points;
-  const rows = p.of > 7 || (p.stampImg && p.of > 4) ? 2 : 1;
-  const per = Math.ceil(p.of / rows);
   const left = p.of - p.done;
   return (
     <div className="wp" style={{ background: p.bg, color: fg }}>
@@ -592,17 +690,7 @@ function WalletPass({ p, qr }: { p: WPass; qr: string }) {
       </div>
       <div className="wp-strip" style={{ background: p.strip }}>
         {p.lines && <Guilloche color={p.lines} />}
-        {stamps && (
-          <div className={"wp-stamps" + (rows > 1 ? " two" : "") + (p.stampImg ? " photo" : "")} style={{ gridTemplateColumns: `repeat(${per}, auto)` }}>
-            {Array.from({ length: p.of }).map((_, i) =>
-              p.stampImg ? (
-                <img key={i} src={p.stampImg} alt="" className={i < p.done ? "on" : "off"} />
-              ) : (
-                <StampArt key={i} art={p.art!} c={p.artColors!} on={i < p.done} ghost={ghost} />
-              ),
-            )}
-          </div>
-        )}
+        <StripScene p={p} ghost={ghost} />
       </div>
       <div className="wp-fields">
         <div className="wp-f">
@@ -610,7 +698,7 @@ function WalletPass({ p, qr }: { p: WPass; qr: string }) {
           <b>{p.customer}</b>
         </div>
         <div className="wp-f wp-end">
-          <small style={{ color: faint }}>{stamps ? "باقي" : "مكافأتك"}</small>
+          <small style={{ color: faint }}>{stamps ? p.leftLabel || "باقي" : "مكافأتك"}</small>
           <b>{stamps ? left : p.reward}</b>
         </div>
       </div>
@@ -668,6 +756,44 @@ function WalletFan({ qr, lang }: { qr: string; lang: Lang }) {
         })}
       </div>
     </div>
+  );
+}
+
+/* أساس, عماد, صرح mean foundation, pillar and edifice, so each package
+   is drawn as one: a footing, a column, a building. They draw themselves
+   in when the cards come into view. */
+function TierArt({ k }: { k: string }) {
+  return (
+    <svg className={`tier-art art-${k}`} viewBox="0 0 200 150" aria-hidden>
+      {k === "asas" && (
+        <g>
+          <path d="M20 132 H180" className="ground" />
+          <path d="M34 132 V104 H166 V132" />
+          <path d="M34 118 H166 M67 104 V118 M100 118 V132 M133 104 V118 M50 118 V132 M150 118 V132 M84 104 V118 M117 118 V132" className="fine" />
+          <path d="M26 104 H174" />
+        </g>
+      )}
+      {k === "emad" && (
+        <g>
+          <path d="M20 132 H180" className="ground" />
+          <path d="M60 132 V122 H140 V132 M66 122 V114 H134 V122" />
+          <path d="M78 114 V42 M122 114 V42" />
+          <path d="M89 112 V44 M100 112 V44 M111 112 V44" className="fine" />
+          <path d="M70 42 H130 V34 H70 Z M62 34 H138 V26 H62 Z" />
+        </g>
+      )}
+      {k === "sarh" && (
+        <g>
+          <path d="M14 132 H186" className="ground" />
+          <path d="M28 132 V124 H172 V132 M36 124 V117 H164 V124" />
+          <path d="M48 117 V58 M70 117 V58 M92 117 V58 M108 117 V58 M130 117 V58 M152 117 V58" />
+          <path d="M40 58 H160 V50 H40 Z" />
+          <path d="M34 50 L100 14 L166 50" />
+          <path d="M100 26 V34" className="fine" />
+          <circle cx="100" cy="36" r="5" className="fine" />
+        </g>
+      )}
+    </svg>
   );
 }
 
@@ -1005,9 +1131,12 @@ export default function LandingPage() {
         </svg>
         <div className="wrap hero-in">
           <div className="hero-copy">
-            <a href="/signup" className="pill">
-              <span className="pill-dot" />
-              {t.hero.pill}
+            <a href="/signup" className="ticket">
+              <b className="mono">350</b>
+              <span>
+                {t.hero.ticketA}
+                <small>{t.hero.ticketB}</small>
+              </span>
             </a>
             <h1>
               {splitWords(t.hero.h1a, 0)}
@@ -1138,7 +1267,6 @@ export default function LandingPage() {
                 </span>
               </div>
             </div>
-            <p className="real-note">{t.ch.store.real}</p>
           </div>
         </div>
       </section>
@@ -1155,7 +1283,6 @@ export default function LandingPage() {
           </div>
           <div className="chap-art art-loyalty" data-in>
             <WalletFan qr={qr} lang={lang} />
-            <p className="real-note">{t.ch.loyalty.real}</p>
           </div>
         </div>
       </section>
@@ -1257,6 +1384,7 @@ export default function LandingPage() {
                       {t.plans.top}
                     </span>
                   )}
+                  <TierArt k={p.key} />
                   <div className="tier-head">
                     <h3>{planName(p)}</h3>
                     <span className="tier-count">{t.plans.count(includedCount(i))}</span>

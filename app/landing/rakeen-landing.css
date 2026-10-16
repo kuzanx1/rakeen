@@ -285,8 +285,9 @@ body{background:#FBFAF5;}
 
 /* logos, drawn as a business would upload them */
 .lg{display:flex; align-items:center; gap:7px; line-height:1;}
-.lg-hbiah img{width:34px; height:auto;}
-.lg-hbiah b{font-family:'Thmanyah Sans',sans-serif; font-weight:400; letter-spacing:.22em; font-size:15px; color:#F7EAD0;}
+.lg-hbiah{flex-direction:column; align-items:center; gap:3px;}
+.lg-hbiah b{font-family:var(--display); font-weight:700; font-size:23px; color:#F7EAD0; letter-spacing:.06em;}
+.lg-hbiah small{font-family:'Thmanyah Sans',sans-serif; font-weight:400; font-size:15px; letter-spacing:.32em; color:#F7EAD0;}
 .lg-sana{flex-direction:column; align-items:flex-start; gap:2px;}
 .lg-sana b{font-family:var(--display); font-weight:900; font-size:24px; color:#F4EEDF;}
 .lg-sana small{font-size:7.5px; letter-spacing:.32em; color:#C9D8C8; font-weight:600;}
@@ -399,7 +400,7 @@ body{background:#FBFAF5;}
 .tier-ask{margin-top:auto; padding-top:22px; font-size:13.5px; font-weight:700; text-align:center; color:var(--muted); transition:color .2s;}
 .tier-list + .tier-ask{border-top:1px solid var(--line); margin-top:24px;}
 .tier-ask:hover{color:inherit;}
-.tier-badge{position:absolute; top:-15px; inset-inline-start:26px; display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:800; padding:6px 14px; border-radius:999px; background:var(--ink); color:var(--lime); box-shadow:0 10px 24px -8px rgba(18,18,18,.5);}
+.tier-badge{position:static; align-self:flex-start; margin-bottom:14px; display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:800; padding:6px 14px; border-radius:999px; background:var(--ink); color:var(--lime); box-shadow:0 10px 24px -8px rgba(18,18,18,.5);}
 .tier-badge .ic{width:15px; height:15px;}
 
 /* عماد: lime — the one most restaurants pick */
@@ -511,8 +512,8 @@ body{background:#FBFAF5;}
 /* hero: words rise in turn, a light follows the pointer, the product leans */
 .hero h1 .w{display:inline-block; animation:word-up .9s calc(var(--i) * 90ms + 120ms) var(--ease) both;}
 @keyframes word-up{from{opacity:0; transform:translateY(.55em) rotate(2deg); filter:blur(6px);}}
-.hero .pill,.hero .lead,.hero .cta-row,.hero .from{animation:fade-up .9s var(--ease) both;}
-.hero .pill{animation-delay:.05s;} .hero .lead{animation-delay:.75s;} .hero .cta-row{animation-delay:.9s;} .hero .from{animation-delay:1.05s;}
+.hero .ticket,.hero .lead,.hero .cta-row,.hero .from{animation:fade-up .9s var(--ease) both;}
+.hero .ticket{animation-delay:.05s;} .hero .lead{animation-delay:.75s;} .hero .cta-row{animation-delay:.9s;} .hero .from{animation-delay:1.05s;}
 @keyframes fade-up{from{opacity:0; transform:translateY(18px);}}
 .hero-art{animation:art-in 1.3s .35s var(--ease) both;}
 @keyframes art-in{from{opacity:0; transform:translateY(40px) scale(.97);}}
@@ -589,4 +590,40 @@ body{background:#FBFAF5;}
   .printer-top{width:280px;}
   .fits{margin-top:28px;}
   .fits-k{padding-inline-start:16px;}
+}
+
+/* ================= v4 ================= */
+/* card strips drawn as scenes */
+.scene{position:absolute; inset:0; width:100%; height:100%; display:block;}
+.scene .mt{opacity:.5;}
+.scene .mt.on{opacity:1; filter:brightness(1.18) drop-shadow(0 2px 3px rgba(0,0,0,.2));}
+.scene-word{font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:96px; letter-spacing:-6px; fill:none; stroke:rgba(255,233,184,.2); stroke-width:1.3;}
+.scene-mono{font-family:var(--display); font-weight:900; font-size:180px; fill:rgba(255,255,255,.06);}
+.scene svg.on{filter:drop-shadow(0 3px 4px rgba(0,0,0,.25));}
+
+/* hero: a ticket instead of a pill */
+.ticket{position:relative; display:inline-flex; align-items:stretch; border-radius:12px; border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.04); color:#fff; transition:transform .25s var(--ease), border-color .25s;}
+.ticket:hover{transform:translateY(-2px) rotate(-1deg); border-color:rgba(196,255,43,.5);}
+.ticket b{display:grid; place-items:center; padding:6px 16px; border-radius:11px 0 0 11px; background:var(--lime); color:var(--ink); font-size:24px; font-weight:700; letter-spacing:-.04em;}
+[dir="rtl"] .ticket b{border-radius:0 11px 11px 0;}
+.ticket span{position:relative; display:flex; flex-direction:column; justify-content:center; padding:6px 18px; font-weight:800; font-size:14.5px; line-height:1.3; border-inline-start:2px dashed rgba(255,255,255,.22); text-align:start;}
+.ticket small{font-weight:500; font-size:12px; color:var(--muted-d);}
+.ticket span::before,.ticket span::after{content:""; position:absolute; inset-inline-start:-8px; width:14px; height:14px; border-radius:50%; background:var(--ink);}
+.ticket span::before{top:-8px;} .ticket span::after{bottom:-8px;}
+
+/* plans: a skyline, footing to edifice */
+.tiers{align-items:end; padding-top:130px; position:relative;}
+.tiers::before{content:""; position:absolute; left:0; right:0; bottom:-1px; height:1px; background:linear-gradient(90deg, transparent, rgba(18,18,18,.18), transparent);}
+.tier-art{position:absolute; top:-134px; left:50%; width:178px; margin-left:-89px; overflow:visible; pointer-events:none;}
+.tier-art path,.tier-art circle{fill:none; stroke:var(--ink); stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:700; stroke-dashoffset:700; transition:stroke-dashoffset 2.2s .2s var(--ease);}
+.tier.in .tier-art path,.tier.in .tier-art circle{stroke-dashoffset:0;}
+.tier-art .fine{stroke-width:1.2; opacity:.55;}
+.tier-art .ground{opacity:.3; stroke-dasharray:4 6; stroke-dashoffset:0;}
+.art-emad path,.art-emad circle{stroke:#4E7A06;}
+.art-sarh path,.art-sarh circle{stroke:var(--violet);}
+.art-sarh{filter:drop-shadow(0 6px 18px rgba(94,48,224,.25));}
+@media (max-width:980px){
+  .tiers{padding-top:0; align-items:stretch;}
+  .tier{margin-top:120px;}
+  .tier-art{top:-124px;}
 }
