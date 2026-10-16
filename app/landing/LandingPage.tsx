@@ -189,9 +189,9 @@ const T = {
     pos: { title: "الطلب الحالي", total: "الإجمالي", pay: "ادفع", all: "الكل", search: "ابحث أو امسح باركود…", paid: "تم الدفع" },
     newOrder: { t: "طلب جديد من المتجر", s: "مدفوع · Apple Pay" },
     one: {
-      tools: ["الكاشير", "شاشة المطبخ", "المتجر الإلكتروني", "تطبيقات التوصيل", "العملاء", "برنامج الولاء", "المخزون", "الموظفين", "المحاسبة"],
+      tools: ["الكاشير", "شاشة المطبخ", "المنيو الأونلاين", "المتجر الإلكتروني", "تطبيقات التوصيل", "العملاء", "برنامج الولاء", "المخزون", "الموظفين", "المحاسبة"],
       name: "ركين",
-      line: "بدل ما تشترك في تسعة أنظمة وتربطها ببعض، كلها في نظام واحد واشتراك واحد.",
+      line: "بدل ما تشترك في عشرة أنظمة وتربطها ببعض، كلها في نظام واحد واشتراك واحد.",
       facts: ["يكمل بدون إنترنت", "فاتورة ضريبية برمز QR", "على آيباد أو كمبيوتر أو جوال"],
     },
     ch: {
@@ -207,6 +207,12 @@ const T = {
         p: "عميلك يطلب منك مباشرة، يدفع بالبطاقة، ويتابع طلبه لين يوصله.",
         b: ["بدون عمولة على الطلب", "توصيل أو استلام", "الطلب يوصل الكاشير والمطبخ فورًا"],
         real: "لقطة حقيقية من متجر عنوب على ركين",
+      },
+      menu: {
+        k: "المنيو الأونلاين",
+        h: "منيوك يتحدّث بضغطة زر.",
+        p: "غيّر سعر، أضف صنف جديد، أو خلّه «نفد»، ويتغيّر عند عملائك في نفس اللحظة. بدون مصمم، وبدون ما تطبع من جديد.",
+        b: ["بهوية مطعمك: شعارك وألوانك وصورك", "QR على الطاولة يفتحه العميل بجواله", "عربي وإنجليزي، بصور منتجاتك"],
       },
       loyalty: {
         k: "الولاء",
@@ -304,9 +310,9 @@ const T = {
     pos: { title: "Current order", total: "Total", pay: "Pay", all: "All", search: "Search or scan…", paid: "Paid" },
     newOrder: { t: "New store order", s: "Paid · Apple Pay" },
     one: {
-      tools: ["Cashier", "Kitchen screen", "Online store", "Delivery apps", "Customers", "Loyalty", "Stock", "Staff", "Accounting"],
+      tools: ["Cashier", "Kitchen screen", "Online menu", "Online store", "Delivery apps", "Customers", "Loyalty", "Stock", "Staff", "Accounting"],
       name: "Rakeen",
-      line: "Instead of nine systems you wire together, one system and one subscription.",
+      line: "Instead of ten systems you wire together, one system and one subscription.",
       facts: ["Works offline", "Tax invoice with QR", "On iPad, computer or phone"],
     },
     ch: {
@@ -322,6 +328,12 @@ const T = {
         p: "Customers order from you directly, pay by card, and track the order to their door.",
         b: ["No commission per order", "Delivery or pickup", "Orders land on the cashier and kitchen instantly"],
         real: "A real screenshot of Anoob's store on Rakeen",
+      },
+      menu: {
+        k: "Online menu",
+        h: "Your menu updates in one tap.",
+        p: "Change a price, add an item or mark it sold out, and your customers see it that second. No designer, no reprinting.",
+        b: ["In your brand: logo, colours and photos", "A QR on the table opens it on their phone", "Arabic and English, with your product photos"],
       },
       loyalty: {
         k: "Loyalty",
@@ -817,6 +829,115 @@ function TierArt({ k }: { k: string }) {
         </g>
       )}
     </svg>
+  );
+}
+
+/* The online menu: هَبيّة's real menu (its photos, colours and prices) on a
+   phone, next to the dashboard editing it. Each change in the editor lands
+   on the phone straight away: a new price, a sold-out item, a new item. */
+const MENU_ITEMS = [
+  { id: "am", en: "Americano", ar: "أمريكانو", price: 12, img: "/landing/hb-americano.png" },
+  { id: "co", en: "Cortado", ar: "كورتادو", price: 14, img: "/landing/hb-cortado.png" },
+  { id: "sp", en: "Spanish Latte", ar: "سبانيش لاتيه", price: 16, img: "/landing/hb-spanish.png" },
+  { id: "ia", en: "Iced Americano", ar: "أمريكانو بارد", price: 12, img: "/landing/hb-iced.png" },
+];
+const MENU_NEW = { id: "is", en: "Iced Spanish Latte", ar: "سبانيش لاتيه بارد", price: 17, img: "/landing/hb-iced-spanish.png" };
+function MenuLive({ lang, qr }: { lang: Lang; qr: string }) {
+  // 0 calm · 1 typing the price · 2 price saved · 3 sold out · 4 new item · 5 hold
+  const [step, setStep] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setStep(4);
+      return;
+    }
+    let id = 0;
+    const io = new IntersectionObserver(
+      (es) => {
+        window.clearInterval(id);
+        if (es[0].isIntersecting) id = window.setInterval(() => setStep((x) => (x + 1) % 7), 1700);
+      },
+      { threshold: 0.3 },
+    );
+    if (ref.current) io.observe(ref.current);
+    return () => {
+      io.disconnect();
+      window.clearInterval(id);
+    };
+  }, []);
+  const ar = lang === "ar";
+  const spPrice = step >= 2 ? 18 : 16;
+  const soldOut = step >= 3;
+  const added = step >= 4;
+  const items = added ? [...MENU_ITEMS, MENU_NEW] : MENU_ITEMS;
+  const active = step === 1 || step === 2 ? "sp" : step === 3 ? "ia" : step >= 4 ? "is" : "";
+  return (
+    <div className="menu-live" ref={ref}>
+      {/* the dashboard */}
+      <div className="ml-dash" dir="rtl">
+        <div className="ml-dash-h">
+          <b>{ar ? "المنيو" : "Menu"}</b>
+          <span className={"ml-add" + (step === 4 ? " on" : "")}>＋ {ar ? "منتج جديد" : "New item"}</span>
+        </div>
+        {items.map((it) => {
+          const off = it.id === "ia" && soldOut;
+          return (
+            <div key={it.id} className={"ml-row" + (active === it.id ? " active" : "") + (it.id === "is" ? " fresh" : "")}>
+              <img src={it.img} alt="" />
+              <span className="ml-name">{ar ? it.ar : it.en}</span>
+              <span className={"ml-price mono" + (it.id === "sp" && step === 1 ? " typing" : "")}>
+                {it.id === "sp" ? (step === 1 ? "18" : spPrice) : it.price}
+              </span>
+              <span className={"ml-switch" + (off ? "" : " on")} />
+            </div>
+          );
+        })}
+        <div className={"ml-saved" + (step === 2 || step === 3 || step === 4 ? " show" : "")}>✓ {ar ? "انحفظ، وتحدّث المنيو" : "Saved, menu updated"}</div>
+      </div>
+
+      {/* the customer's phone */}
+      <div className="iphone ml-phone">
+        <div className="ml-screen" dir="rtl">
+          <div className="ml-top">
+            <img src="/landing/hbiah-mark.png" alt="" />
+            <div>
+              <b>Hbiah | هَبيّة</b>
+              <small>Menu</small>
+            </div>
+          </div>
+          <div className="ml-banner" />
+          <div className="ml-tabs">
+            <span className="on">الإسبريسو الحار</span>
+            <span>البارد</span>
+            <span>الماتشا</span>
+          </div>
+          <div className="ml-grid">
+            {items.map((it) => {
+              const off = it.id === "ia" && soldOut;
+              const price = it.id === "sp" ? spPrice : it.price;
+              return (
+                <div key={it.id} className={"ml-card" + (off ? " off" : "") + (active === it.id && step !== 1 ? " flash" : "") + (it.id === "is" ? " fresh" : "")}>
+                  {off && <em className="ml-badge">نفد</em>}
+                  {it.id === "is" && <em className="ml-badge new">جديد</em>}
+                  <img src={it.img} alt="" />
+                  <b>{it.en}</b>
+                  <small>{it.ar}</small>
+                  <span className="mono" key={price}>
+                    {price} SAR
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* the table card */}
+      <div className="ml-tent">
+        <div className="ml-tent-qr" dangerouslySetInnerHTML={{ __html: qr }} />
+        <span>{ar ? "امسح وشوف المنيو" : "Scan for the menu"}</span>
+      </div>
+    </div>
   );
 }
 
@@ -1382,11 +1503,27 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ---------- chapter: online menu ---------- */}
+      <section className="chap">
+        <div className="wrap chap-in">
+          <div className="chap-copy" data-in>
+            <span className="chap-n mono" aria-hidden>03</span>
+            <span className="kicker k-brown">{t.ch.menu.k}</span>
+            <h2>{t.ch.menu.h}</h2>
+            <p>{t.ch.menu.p}</p>
+            <Bullets items={t.ch.menu.b} />
+          </div>
+          <div className="chap-art art-menu" data-in>
+            <MenuLive lang={lang} qr={qr} />
+          </div>
+        </div>
+      </section>
+
       {/* ---------- chapter: loyalty ---------- */}
       <section className="chap chap-wide">
         <div className="wrap chap-in">
           <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>03</span>
+            <span className="chap-n mono" aria-hidden>04</span>
             <span className="kicker">{t.ch.loyalty.k}</span>
             <h2>{t.ch.loyalty.h}</h2>
             <p>{t.ch.loyalty.p}</p>
@@ -1402,7 +1539,7 @@ export default function LandingPage() {
       <section className="chap chap-dark">
         <div className="wrap chap-in">
           <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>04</span>
+            <span className="chap-n mono" aria-hidden>05</span>
             <span className="kicker k-lime">{t.ch.numbers.k}</span>
             <h2>{t.ch.numbers.h}</h2>
             <p>{t.ch.numbers.p}</p>
