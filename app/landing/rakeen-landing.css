@@ -602,7 +602,7 @@ body{background:#FBFAF5;}
 /* hero: a ticket instead of a pill */
 .ticket{position:relative; display:inline-flex; align-items:stretch; border-radius:12px; border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.04); color:#fff; transition:transform .25s var(--ease), border-color .25s;}
 .ticket:hover{transform:translateY(-2px) rotate(-1deg); border-color:rgba(196,255,43,.5);}
-.ticket b{display:grid; place-items:center; padding:6px 16px; border-radius:11px 0 0 11px; background:var(--lime); color:var(--ink); font-size:24px; font-weight:700; letter-spacing:-.04em;}
+.ticket b{display:flex; flex-direction:column; align-items:center; justify-content:center; line-height:1; gap:2px; padding:8px 16px; border-radius:11px 0 0 11px; background:var(--lime); color:var(--ink); font-size:24px; font-weight:700; letter-spacing:-.04em;}
 [dir="rtl"] .ticket b{border-radius:0 11px 11px 0;}
 .ticket span{position:relative; display:flex; flex-direction:column; justify-content:center; padding:6px 18px; font-weight:800; font-size:14.5px; line-height:1.3; border-inline-start:2px dashed rgba(255,255,255,.22); text-align:start;}
 .ticket small{font-weight:500; font-size:12px; color:var(--muted-d);}
@@ -700,4 +700,15 @@ body{background:#FBFAF5;}
   .one-line{font-size:14px;}
   .one-facts{gap:6px 16px; font-size:12px;}
 }
-@media (max-width:640px){ .one-op:not(.one-eqs){display:none;} }
+
+
+.ticket b small{font-family:var(--sans); font-size:11px; font-weight:800; letter-spacing:0;}
+.ticket span{font-size:15px;}
+.ticket small{max-width:22em;}
+.close-free{display:inline-block; margin-top:18px !important; padding:8px 18px; border-radius:999px; background:rgba(196,255,43,.12); border:1px solid rgba(196,255,43,.35); color:var(--lime) !important; font-weight:800; font-size:16px !important;}
+.one-tool{animation-delay:calc(1.1s + var(--i) * .08s);}
+.one-op{animation-delay:calc(1.05s + var(--i) * .08s);}
+@media (max-width:640px){ .ticket span{font-size:13.5px;} .ticket small{font-size:11px;} }
+
+.one-pair{display:inline-flex; align-items:center; gap:12px; white-space:nowrap;}
+@media (max-width:640px){ .one-pair{gap:8px;} }

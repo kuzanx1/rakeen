@@ -170,8 +170,8 @@ const T = {
     nav: { features: "المزايا", plans: "الباقات", faq: "الأسئلة", login: "دخول", start: "ابدأ مجانًا" },
     hero: {
       pill: "٣٥٠ طلب مجانًا · بدون بطاقة",
-      ticketA: "طلب مجانًا",
-      ticketB: "بدون بطاقة بنكية",
+      ticketA: "مجانًا بالكامل",
+      ticketB: "جرّب كل شي بدون ما تدفع ريال، وبلا عقد ولا التزام",
       h1a: "لكل مطعم ناجح،",
       h1b: "رُكن",
       h1c: "يستند عليه.",
@@ -189,9 +189,9 @@ const T = {
     pos: { title: "الطلب الحالي", total: "الإجمالي", pay: "ادفع", all: "الكل", search: "ابحث أو امسح باركود…", paid: "تم الدفع" },
     newOrder: { t: "طلب جديد من المتجر", s: "مدفوع · Apple Pay" },
     one: {
-      tools: ["كاشير", "متجر إلكتروني", "برنامج ولاء", "مخزون", "محاسبة"],
+      tools: ["الكاشير", "شاشة المطبخ", "المتجر الإلكتروني", "تطبيقات التوصيل", "العملاء", "برنامج الولاء", "المخزون", "الموظفين", "المحاسبة"],
       name: "ركين",
-      line: "بدل ما تشترك في خمسة أنظمة، كلها في اشتراك واحد ويكلمون بعض.",
+      line: "بدل ما تشترك في تسعة أنظمة وتربطها ببعض، كلها في نظام واحد واشتراك واحد.",
       facts: ["يكمل بدون إنترنت", "فاتورة ضريبية برمز QR", "على آيباد أو كمبيوتر أو جوال"],
     },
     ch: {
@@ -243,7 +243,7 @@ const T = {
     plans: {
       k: "الباقات",
       h: "من الأساس.. إلى الصرح.",
-      sub: "كل الباقات تبدأ بتجربة مجانية لين ٣٥٠ طلب.",
+      sub: "أول ٣٥٠ طلب مجانًا بكل المزايا: ما تدفع ولا ريال، ولا توقّع أي عقد.",
       monthly: "شهري",
       annual: "سنوي",
       save: "شهرين مجانًا",
@@ -276,7 +276,7 @@ const T = {
         { q: "عندي أكثر من فرع؟", a: "الفرع الإضافي بنص سعر الباقة، وباقة صرح فيها فرعين وتقارير لكل فرع." },
       ],
     },
-    close: { h: "مطعمك يستاهل نظام يشتغل عنه.", sub: "كلّمنا، نجهّز أصنافك وأسعارك، وتبدأ البيع خلال يوم.", cta: "ابدأ مجانًا", wa: "كلّمنا واتساب" },
+    close: { h: "مطعمك يستاهل نظام يشتغل عنه.", free: "أول ٣٥٠ طلب علينا. بدون دفع، وبدون عقد.", sub: "كلّمنا، نجهّز أصنافك وأسعارك، وتبدأ البيع خلال يوم.", cta: "ابدأ مجانًا", wa: "كلّمنا واتساب" },
     sticky: "ابدأ مجانًا — أول 350 طلب",
     fits: { k: "يناسب", items: ["المطاعم", "الكافيهات", "الفود ترك", "المخابز", "المطابخ السحابية", "محلات الحلويات", "العصائر", "البرقر والبيتزا"] },
     footer: { tag: "نظام تشغيل مطعمك.", privacy: "الخصوصية", terms: "الشروط", rights: "© ٢٠٢٦ ركين" },
@@ -285,8 +285,8 @@ const T = {
     nav: { features: "Features", plans: "Plans", faq: "FAQ", login: "Log in", start: "Start free" },
     hero: {
       pill: "350 orders free · No card",
-      ticketA: "orders free",
-      ticketB: "No card needed",
+      ticketA: "Completely free",
+      ticketB: "Try everything without paying a riyal, no contract",
       h1a: "Every great restaurant",
       h1b: "stands",
       h1c: "on something.",
@@ -304,9 +304,9 @@ const T = {
     pos: { title: "Current order", total: "Total", pay: "Pay", all: "All", search: "Search or scan…", paid: "Paid" },
     newOrder: { t: "New store order", s: "Paid · Apple Pay" },
     one: {
-      tools: ["Cashier", "Online store", "Loyalty", "Stock", "Accounting"],
+      tools: ["Cashier", "Kitchen screen", "Online store", "Delivery apps", "Customers", "Loyalty", "Stock", "Staff", "Accounting"],
       name: "Rakeen",
-      line: "Instead of five subscriptions, one — and they all talk to each other.",
+      line: "Instead of nine systems you wire together, one system and one subscription.",
       facts: ["Works offline", "Tax invoice with QR", "On iPad, computer or phone"],
     },
     ch: {
@@ -358,7 +358,7 @@ const T = {
     plans: {
       k: "Plans",
       h: "From the foundation to the edifice.",
-      sub: "Every plan starts with a free trial of 350 orders.",
+      sub: "Your first 350 orders are free with every feature: no payment, no contract.",
       monthly: "Monthly",
       annual: "Yearly",
       save: "2 months free",
@@ -391,7 +391,7 @@ const T = {
         { q: "More than one branch?", a: "An extra branch is half the plan price; Sarh includes two branches with per-branch reports." },
       ],
     },
-    close: { h: "Your restaurant deserves a system that works for it.", sub: "Message us, we set up your items and prices, and you start selling within a day.", cta: "Start free", wa: "WhatsApp us" },
+    close: { h: "Your restaurant deserves a system that works for it.", free: "Your first 350 orders are on us. No payment, no contract.", sub: "Message us, we set up your items and prices, and you start selling within a day.", cta: "Start free", wa: "WhatsApp us" },
     sticky: "Start free — first 350 orders",
     fits: { k: "Built for", items: ["Restaurants", "Cafés", "Food trucks", "Bakeries", "Cloud kitchens", "Dessert shops", "Juice bars", "Burgers & pizza"] },
     footer: { tag: "Your restaurant's operating system.", privacy: "Privacy", terms: "Terms", rights: "© 2026 Rakeen" },
@@ -1177,7 +1177,11 @@ export default function LandingPage() {
         <div className="wrap hero-in">
           <div className="hero-copy">
             <a href={START} target="_blank" rel="noopener noreferrer" className="ticket">
-              <b className="mono">350</b>
+              <b className="mono">
+                <small>{lang === "ar" ? "أول" : "first"}</small>
+                350
+                <small>{lang === "ar" ? "طلب" : "orders"}</small>
+              </b>
               <span>
                 {t.hero.ticketA}
                 <small>{t.hero.ticketB}</small>
@@ -1268,7 +1272,7 @@ export default function LandingPage() {
           <div className="one">
             <div className="one-eq">
               {t.one.tools.map((tool, i) => (
-                <Fragment key={tool}>
+                <span key={tool} className="one-pair">
                   {i > 0 && (
                     <i className="one-op" style={{ ["--i" as string]: i }}>
                       +
@@ -1277,12 +1281,14 @@ export default function LandingPage() {
                   <span className="one-tool" style={{ ["--i" as string]: i }}>
                     {tool}
                   </span>
-                </Fragment>
+                </span>
               ))}
-              <i className="one-op one-eqs" style={{ ["--i" as string]: 5 }}>
-                =
-              </i>
-              <span className="one-name">{t.one.name}</span>
+              <span className="one-pair">
+                <i className="one-op one-eqs" style={{ ["--i" as string]: t.one.tools.length }}>
+                  =
+                </i>
+                <span className="one-name">{t.one.name}</span>
+              </span>
             </div>
             <p className="one-line">{t.one.line}</p>
             <ul className="one-facts">
@@ -1621,6 +1627,7 @@ export default function LandingPage() {
           <div className="close" data-in>
             <div className="close-glow" aria-hidden />
             <h2>{t.close.h}</h2>
+            <p className="close-free">{t.close.free}</p>
             <p>{t.close.sub}</p>
             <div className="cta-row">
               <a href={START} target="_blank" rel="noopener noreferrer" className="btn btn-lime btn-lg">
