@@ -43,12 +43,12 @@ export function trialNotice(
 ): { danger: boolean; text: string } | null {
   if (!status || status.subscribed) return null;
   if (trialLocked(status, deviceNow, offset)) {
-    return { danger: true, text: 'انتهت الفترة التجريبية — اشترك الحين عشان تكمل البيع' };
+    return { danger: true, text: 'انتهت الفترة التجريبية — تواصل معنا عشان تكمل البيع' };
   }
   if (status.reached_at) {
     return {
       danger: true,
-      text: `خلصت طلبات الفترة التجريبية — البيع يتوقف بعد ${trialHoursLeft(status, deviceNow, offset)} ساعة. اشترك الحين`,
+      text: `خلصت طلبات الفترة التجريبية — البيع يتوقف بعد ${trialHoursLeft(status, deviceNow, offset)} ساعة. تواصل معنا`,
     };
   }
   if (status.remaining <= 50) {

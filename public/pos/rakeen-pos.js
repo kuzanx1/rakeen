@@ -3223,9 +3223,9 @@ function renderTrialBanner(){
   const locked = trialLockedNow();
   bar.style.background = TRIAL.reached_at ? 'var(--danger)' : 'var(--lime-deep)';
   bar.textContent = locked
-    ? 'انتهت الفترة التجريبية — اشترك الحين عشان تكمل البيع'
+    ? 'انتهت الفترة التجريبية — تواصل معنا عشان تكمل البيع'
     : TRIAL.reached_at
-      ? 'خلصت طلبات الفترة التجريبية — البيع يتوقف بعد ' + trialHoursLeft() + ' ساعة. اشترك الحين'
+      ? 'خلصت طلبات الفترة التجريبية — البيع يتوقف بعد ' + trialHoursLeft() + ' ساعة. تواصل معنا'
       : 'باقي ' + TRIAL.remaining + ' طلب في الفترة التجريبية';
 }
 function showTrialEnded(){
@@ -3236,8 +3236,8 @@ function showTrialEnded(){
   ov.style.cssText = 'position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;';
   ov.innerHTML = '<div style="background:var(--card-bg,#fff);color:var(--text,#171717);border-radius:18px;max-width:380px;width:100%;padding:24px;text-align:center;">'
     + '<div style="font-size:18px;font-weight:800;margin-bottom:8px;">انتهت الفترة التجريبية</div>'
-    + '<p style="font-size:14px;line-height:1.7;margin:0 0 18px;">استخدمت ' + Number((TRIAL && TRIAL.limit) || 350) + ' طلب مجاني. اشترك الحين عشان تكمل البيع من الكاشير والمتجر. بياناتك وتقاريرك محفوظة كلها.</p>'
-    + '<a href="' + TRIAL_SUBSCRIBE_WA + '" target="_blank" rel="noopener" style="display:block;background:var(--lime-deep);color:#fff;border-radius:12px;padding:12px;font-weight:800;text-decoration:none;margin-bottom:8px;">اشترك الحين</a>'
+    + '<p style="font-size:14px;line-height:1.7;margin:0 0 18px;">استخدمت ' + Number((TRIAL && TRIAL.limit) || 350) + ' طلب مجاني. تواصل معنا عشان تكمل البيع من الكاشير والمتجر. بياناتك وتقاريرك محفوظة كلها.</p>'
+    + '<a href="' + TRIAL_SUBSCRIBE_WA + '" target="_blank" rel="noopener" style="display:block;background:var(--lime-deep);color:#fff;border-radius:12px;padding:12px;font-weight:800;text-decoration:none;margin-bottom:8px;">تواصل معنا</a>'
     + '<button type="button" id="trialEndedClose" style="background:none;border:0;color:inherit;opacity:.7;font:inherit;padding:8px;cursor:pointer;">إغلاق</button>'
     + '</div>';
   document.body.appendChild(ov);

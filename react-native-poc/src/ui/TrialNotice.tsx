@@ -46,10 +46,10 @@ export function TrialEndedModal({ visible, limit, onClose }: { visible: boolean;
         <View style={styles.card}>
           <Text style={styles.title}>انتهت الفترة التجريبية</Text>
           <Text style={styles.body}>
-            استخدمت {limit} طلب مجاني. اشترك الحين عشان تكمل البيع من الكاشير والمتجر. بياناتك وتقاريرك محفوظة كلها.
+            استخدمت {limit} طلب مجاني. تواصل معنا عشان تكمل البيع من الكاشير والمتجر. بياناتك وتقاريرك محفوظة كلها.
           </Text>
           <TouchableOpacity style={styles.primary} onPress={() => Linking.openURL(TRIAL_SUBSCRIBE_WA)}>
-            <Text style={styles.primaryText}>اشترك الحين</Text>
+            <Text style={styles.primaryText}>تواصل معنا</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.secondary} onPress={onClose}>
             <Text style={styles.secondaryText}>إغلاق</Text>
