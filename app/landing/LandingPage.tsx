@@ -211,8 +211,8 @@ const T = {
       menu: {
         k: "المنيو الأونلاين",
         h: "قائمة مطعمك تتحدّث بضغطة زر.",
-        p: "على تابلت عند الكاشير قدام العميل، أو بجواله من QR الطاولة. غيّر سعر، أضف صنف، أو خلّه «نفد»، ويتغيّر في الاثنين بنفس اللحظة. بدون مصمم، وبدون طباعة.",
-        b: ["تابلت عند الكاشير يشوف منه العميل ويختار", "QR على الطاولة يفتحه العميل بجواله", "بهوية مطعمك، عربي وإنجليزي، بصور منتجاتك"],
+        p: "عدّل من اللوحة، ويتغيّر عند الكاشير وبجوال العميل فورًا. بدون مصمم، ولا طباعة.",
+        b: ["تابلت عند الكاشير قدام العميل", "QR على الطاولة يفتح بجواله"],
       },
       loyalty: {
         k: "الولاء",
@@ -332,8 +332,8 @@ const T = {
       menu: {
         k: "Online menu",
         h: "Your menu updates in one tap.",
-        p: "On a tablet at the counter facing the customer, or on their phone from the table QR. Change a price, add an item or mark it sold out and both update that second. No designer, no reprinting.",
-        b: ["A tablet at the counter the customer orders from", "A QR on the table opens it on their phone", "In your brand, Arabic and English, with your photos"],
+        p: "Edit it in the dashboard and it changes at the counter and on their phone instantly. No designer, no reprinting.",
+        b: ["A tablet at the counter, facing the customer", "A table QR that opens on their phone"],
       },
       loyalty: {
         k: "Loyalty",

@@ -842,3 +842,43 @@ body{background:#FBFAF5;}
   .ml-wide .ml-grid{padding-bottom:12px;}
   .ml-stand{width:90px; height:34px;}
 }
+
+/* menu on phones, smaller: editor, arrow, then the tablet and the phone side by side */
+@media (max-width:640px){
+  .menu-live{display:grid; grid-template-columns:1fr 30%; grid-template-areas:"dash dash" "flow flow" "tab phone"; gap:10px 10px; align-items:end;}
+  .ml-dash{grid-area:dash; padding:10px 10px 8px; font-size:11px; border-radius:14px;}
+  .ml-dash-h b{font-size:13px;} .ml-add{font-size:10.5px; padding:3px 9px;}
+  .ml-row{grid-template-columns:22px 1fr auto auto; gap:7px; padding:3px 5px;}
+  .ml-row img{width:22px; height:22px;}
+  .ml-price{min-width:30px; padding:1px 5px; font-size:11px; border-radius:6px;}
+  .ml-switch{width:26px; height:15px;} .ml-switch::after{width:11px; height:11px;} .ml-switch.on::after{inset-inline-start:13px;}
+  .ml-saved{font-size:10.5px;}
+  .ml-flow{grid-area:flow; font-size:12px;}
+  .ml-counter{grid-area:tab; margin-top:6px;}
+  .ml-tablet{padding:5px; border-radius:14px;}
+  .ml-wide{border-radius:10px !important;}
+  .ml-wide .ml-top{padding:5px 7px 3px; gap:5px;}
+  .ml-wide .ml-top img{width:18px; height:18px; padding:2px;}
+  .ml-wide .ml-top b{font-size:9px;} .ml-wide .ml-top small{font-size:7px;}
+  .ml-wide .ml-banner{height:22px;}
+  .ml-wide .ml-tabs{font-size:7px; gap:6px; padding:4px 7px 0;} .ml-wide .ml-tabs span{padding-bottom:3px;}
+  .ml-wide .ml-grid{padding:4px 5px 6px; gap:2px 4px;}
+  .ml-wide .ml-card{padding:3px 2px 4px; border-radius:8px;}
+  .ml-wide .ml-card img{width:28px; height:28px; margin-bottom:1px;}
+  .ml-wide .ml-card b{font-size:7.5px;} .ml-wide .ml-card small{font-size:7px;} .ml-wide .ml-card span{font-size:7.5px; border-bottom-width:1.5px;}
+  .ml-badge{font-size:7px; padding:1px 5px; top:2px; inset-inline-start:2px;}
+  .ml-stand{width:56px; height:22px;}
+  .ml-tag{font-size:9.5px; padding:2px 8px; top:-9px; inset-inline-end:12px;}
+  .ml-phone{display:block; grid-area:phone; position:relative; inset:auto; width:100%; padding:3px; border-radius:16px; rotate:0deg !important; margin-bottom:8px;}
+  .ml-phone::before{top:6px; height:6px;}
+  .ml-phone .ml-screen{height:200px; border-radius:13px;}
+  .ml-phone .ml-top{padding:14px 6px 3px; gap:4px;} .ml-phone .ml-top img{width:14px; height:14px; padding:1px;}
+  .ml-phone .ml-top b{font-size:7px;} .ml-phone .ml-top small{font-size:6px;}
+  .ml-phone .ml-banner{height:20px;}
+  .ml-phone .ml-tabs{font-size:6px; gap:4px; padding:3px 5px 0;}
+  .ml-phone .ml-grid{grid-template-columns:1fr 1fr; padding:3px 4px; gap:2px;}
+  .ml-phone .ml-card{padding:2px 1px 3px;}
+  .ml-phone .ml-card img{width:24px; height:24px;}
+  .ml-phone .ml-card b{font-size:6.5px;} .ml-phone .ml-card small{font-size:6px;} .ml-phone .ml-card span{font-size:6.5px;}
+  .ml-tag-phone{top:-9px; inset-inline-start:4px; font-size:9px; padding:2px 7px;}
+}
