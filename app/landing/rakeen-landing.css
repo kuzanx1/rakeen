@@ -776,3 +776,47 @@ body{background:#FBFAF5;}
   .ml-tent{display:none;}
   .ml-screen{height:520px;}
 }
+
+/* menu: tablet at the counter + phone */
+.art-menu{min-height:640px;}
+.menu-live{height:640px;}
+.ml-counter{position:absolute; top:10px; inset-inline-start:0; width:470px; z-index:1;}
+.ml-tablet{background:#0A0A0A; border-radius:24px; padding:9px; box-shadow:0 40px 80px -30px rgba(18,18,18,.5);}
+.ml-wide{height:auto !important; aspect-ratio:4/3; border-radius:16px !important;}
+.ml-wide .ml-top{padding-top:10px;}
+.ml-wide .ml-banner{height:56px;}
+.ml-wide .ml-grid{grid-template-columns:repeat(4,1fr); gap:4px 8px;}
+.ml-wide .ml-card img{width:56px; height:56px;}
+.ml-stand{width:120px; height:58px; margin:0 auto; background:linear-gradient(180deg,#2a2a2a,#1a1a1a); clip-path:polygon(38% 0,62% 0,72% 82%,100% 82%,100% 100%,0 100%,0 82%,28% 82%); filter:drop-shadow(0 10px 10px rgba(0,0,0,.2));}
+.ml-tag{position:absolute; top:-12px; inset-inline-end:24px; z-index:4; padding:4px 12px; border-radius:99px; background:var(--ink); color:var(--lime); font-size:12px; font-weight:800; white-space:nowrap;}
+.ml-tag-phone{top:-10px; inset-inline-end:auto; inset-inline-start:30px;}
+.ml-phone{top:auto; bottom:0; inset-inline-start:auto; inset-inline-end:150px; width:200px; z-index:3;}
+.ml-phone .ml-screen{height:410px;}
+.ml-phone .ml-card img{width:52px; height:52px;}
+.ml-dash{top:auto; bottom:30px; inset-inline-end:-10px; width:270px; z-index:2;}
+@media (max-width:1180px){ .ml-counter{width:420px;} .ml-phone{inset-inline-end:110px;} }
+@media (max-width:640px){
+  .menu-live{height:auto;}
+  .ml-counter{position:relative; inset:auto; width:100%;}
+  .ml-phone{display:none;}
+  .ml-wide .ml-grid{grid-template-columns:repeat(3,1fr);}
+}
+/* menu layout: tablet on top, the phone and the editor below it on either side */
+@media (min-width:641px){
+.art-menu{min-height:700px;}
+.menu-live{height:700px;}
+.ml-counter{top:0; inset-inline-start:auto; inset-inline-end:40px; width:480px;}
+.ml-phone{bottom:0; inset-inline-end:auto; inset-inline-start:-6px; width:172px; rotate:-4deg;}
+[dir="ltr"] .ml-phone{rotate:4deg;}
+.ml-phone .ml-screen{height:340px;}
+.ml-dash{bottom:0; inset-inline-end:-6px; width:280px;}
+@media (max-width:1180px){ .ml-counter{width:430px; inset-inline-end:10px;} }
+}
+@media (max-width:640px){
+  .ml-wide .ml-top{padding:8px 10px 4px;}
+  .ml-wide .ml-banner{height:34px;}
+  .ml-wide .ml-tabs{padding-top:6px; font-size:10px;}
+  .ml-wide .ml-grid{padding:6px 8px;}
+  .ml-wide .ml-card img{width:40px; height:40px;}
+  .ml-wide .ml-card b{font-size:10px;} .ml-wide .ml-card small{font-size:9.5px;} .ml-wide .ml-card span{font-size:10px;}
+}

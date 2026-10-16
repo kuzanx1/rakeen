@@ -211,8 +211,8 @@ const T = {
       menu: {
         k: "المنيو الأونلاين",
         h: "قائمة مطعمك تتحدّث بضغطة زر.",
-        p: "غيّر سعر، أضف صنف جديد، أو خلّه «نفد»، ويتغيّر عند عملائك في نفس اللحظة. بدون مصمم، وبدون ما تطبع من جديد.",
-        b: ["بهوية مطعمك: شعارك وألوانك وصورك", "QR على الطاولة يفتحه العميل بجواله", "عربي وإنجليزي، بصور منتجاتك"],
+        p: "على تابلت عند الكاشير قدام العميل، أو بجواله من QR الطاولة. غيّر سعر، أضف صنف، أو خلّه «نفد»، ويتغيّر في الاثنين بنفس اللحظة. بدون مصمم، وبدون طباعة.",
+        b: ["تابلت عند الكاشير يشوف منه العميل ويختار", "QR على الطاولة يفتحه العميل بجواله", "بهوية مطعمك، عربي وإنجليزي، بصور منتجاتك"],
       },
       loyalty: {
         k: "الولاء",
@@ -332,8 +332,8 @@ const T = {
       menu: {
         k: "Online menu",
         h: "Your menu updates in one tap.",
-        p: "Change a price, add an item or mark it sold out, and your customers see it that second. No designer, no reprinting.",
-        b: ["In your brand: logo, colours and photos", "A QR on the table opens it on their phone", "Arabic and English, with your product photos"],
+        p: "On a tablet at the counter facing the customer, or on their phone from the table QR. Change a price, add an item or mark it sold out and both update that second. No designer, no reprinting.",
+        b: ["A tablet at the counter the customer orders from", "A QR on the table opens it on their phone", "In your brand, Arabic and English, with your photos"],
       },
       loyalty: {
         k: "Loyalty",
@@ -871,33 +871,8 @@ function MenuLive({ lang, qr }: { lang: Lang; qr: string }) {
   const added = step >= 4;
   const items = added ? [...MENU_ITEMS, MENU_NEW] : MENU_ITEMS;
   const active = step === 1 || step === 2 ? "sp" : step === 3 ? "ia" : step >= 4 ? "is" : "";
-  return (
-    <div className="menu-live" ref={ref}>
-      {/* the dashboard */}
-      <div className="ml-dash" dir="rtl">
-        <div className="ml-dash-h">
-          <b>{ar ? "المنيو" : "Menu"}</b>
-          <span className={"ml-add" + (step === 4 ? " on" : "")}>＋ {ar ? "منتج جديد" : "New item"}</span>
-        </div>
-        {items.map((it) => {
-          const off = it.id === "ia" && soldOut;
-          return (
-            <div key={it.id} className={"ml-row" + (active === it.id ? " active" : "") + (it.id === "is" ? " fresh" : "")}>
-              <img src={it.img} alt="" />
-              <span className="ml-name">{ar ? it.ar : it.en}</span>
-              <span className={"ml-price mono" + (it.id === "sp" && step === 1 ? " typing" : "")}>
-                {it.id === "sp" ? (step === 1 ? "18" : spPrice) : it.price}
-              </span>
-              <span className={"ml-switch" + (off ? "" : " on")} />
-            </div>
-          );
-        })}
-        <div className={"ml-saved" + (step === 2 || step === 3 || step === 4 ? " show" : "")}>✓ {ar ? "انحفظ، وتحدّث المنيو" : "Saved, menu updated"}</div>
-      </div>
-
-      {/* the customer's phone */}
-      <div className="iphone ml-phone">
-        <div className="ml-screen" dir="rtl">
+  const screen = (cls: string) => (
+        <div className={cls} dir="rtl">
           <div className="ml-top">
             <img src="/landing/hbiah-mark.png" alt="" />
             <div>
@@ -930,13 +905,44 @@ function MenuLive({ lang, qr }: { lang: Lang; qr: string }) {
             })}
           </div>
         </div>
+  );
+  return (
+    <div className="menu-live" ref={ref}>
+      {/* the dashboard */}
+      <div className="ml-dash" dir="rtl">
+        <div className="ml-dash-h">
+          <b>{ar ? "المنيو" : "Menu"}</b>
+          <span className={"ml-add" + (step === 4 ? " on" : "")}>＋ {ar ? "منتج جديد" : "New item"}</span>
+        </div>
+        {items.map((it) => {
+          const off = it.id === "ia" && soldOut;
+          return (
+            <div key={it.id} className={"ml-row" + (active === it.id ? " active" : "") + (it.id === "is" ? " fresh" : "")}>
+              <img src={it.img} alt="" />
+              <span className="ml-name">{ar ? it.ar : it.en}</span>
+              <span className={"ml-price mono" + (it.id === "sp" && step === 1 ? " typing" : "")}>
+                {it.id === "sp" ? (step === 1 ? "18" : spPrice) : it.price}
+              </span>
+              <span className={"ml-switch" + (off ? "" : " on")} />
+            </div>
+          );
+        })}
+        <div className={"ml-saved" + (step === 2 || step === 3 || step === 4 ? " show" : "")}>✓ {ar ? "انحفظ، وتحدّث المنيو" : "Saved, menu updated"}</div>
       </div>
 
-      {/* the table card */}
-      <div className="ml-tent">
-        <div className="ml-tent-qr" dangerouslySetInnerHTML={{ __html: qr }} />
-        <span>{ar ? "امسح وشوف المنيو" : "Scan for the menu"}</span>
+      {/* the same menu on a tablet at the counter, facing the customer */}
+      <div className="ml-counter">
+        <div className="ml-tablet">{screen("ml-screen ml-wide")}</div>
+        <div className="ml-stand" />
+        <span className="ml-tag">{ar ? "عند الكاشير" : "At the counter"}</span>
       </div>
+
+      {/* and on the customer's phone */}
+      <div className="iphone ml-phone">
+        {screen("ml-screen")}
+        <span className="ml-tag ml-tag-phone">{ar ? "بجوال العميل" : "On their phone"}</span>
+      </div>
+
     </div>
   );
 }
