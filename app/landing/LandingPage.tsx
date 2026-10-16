@@ -188,12 +188,12 @@ const T = {
     },
     pos: { title: "الطلب الحالي", total: "الإجمالي", pay: "ادفع", all: "الكل", search: "ابحث أو امسح باركود…", paid: "تم الدفع" },
     newOrder: { t: "طلب جديد من المتجر", s: "مدفوع · Apple Pay" },
-    strip: [
-      { t: "يكمل بدون إنترنت", d: "طاح النت؟ يبيع ويحفظ الطلبات" },
-      { t: "فاتورة ضريبية", d: "برمز QR تطلع مع كل طلب" },
-      { t: "على أي جهاز", d: "آيباد، أو كمبيوتر، أو جوال" },
-      { t: "دعم بالعربي", d: "على واتساب، ونرد بسرعة" },
-    ],
+    one: {
+      tools: ["كاشير", "متجر إلكتروني", "برنامج ولاء", "مخزون", "محاسبة"],
+      name: "ركين",
+      line: "بدل ما تشترك في خمسة أنظمة، كلها في اشتراك واحد ويكلمون بعض.",
+      facts: ["يكمل بدون إنترنت", "فاتورة ضريبية برمز QR", "على آيباد أو كمبيوتر أو جوال"],
+    },
     ch: {
       pos: {
         k: "الكاشير",
@@ -303,12 +303,12 @@ const T = {
     },
     pos: { title: "Current order", total: "Total", pay: "Pay", all: "All", search: "Search or scan…", paid: "Paid" },
     newOrder: { t: "New store order", s: "Paid · Apple Pay" },
-    strip: [
-      { t: "Works offline", d: "Internet down? It keeps selling" },
-      { t: "Tax invoice", d: "With a QR code on every order" },
-      { t: "Any device", d: "iPad, computer or phone" },
-      { t: "Arabic support", d: "On WhatsApp, fast replies" },
-    ],
+    one: {
+      tools: ["Cashier", "Online store", "Loyalty", "Stock", "Accounting"],
+      name: "Rakeen",
+      line: "Instead of five subscriptions, one — and they all talk to each other.",
+      facts: ["Works offline", "Tax invoice with QR", "On iPad, computer or phone"],
+    },
     ch: {
       pos: {
         k: "Cashier",
@@ -1121,7 +1121,7 @@ export default function LandingPage() {
   const tr = (s: string) => (lang === "ar" ? s : ITEM_EN[s] || s);
   const card = (s: string) => (lang === "ar" ? CARD_AR[s] || s : CARD_EN[s] || ITEM_EN[s] || s);
   const wordmarkDark = lang === "ar" ? "/brand/rakeen-wordmark-deep.png" : "/brand/rakeen-wordmark-en-deep.png";
-  const stripIcons: IconName[] = ["wifi", "qr", "devices", "chat"];
+  const stripIcons: IconName[] = ["wifi", "qr", "devices"];
   const net = t.dash.rows.reduce((s, r) => s + r.v, 0);
   const maxRow = Math.max(...t.dash.rows.map((r) => Math.abs(r.v)));
 
@@ -1264,19 +1264,36 @@ export default function LandingPage() {
         </div>
 
         <div className="wrap">
-          <ul className="strip">
-            {t.strip.map((s, i) => (
-              <li key={i} style={{ ["--i" as string]: i }}>
-                <span className="strip-ic">
+          {/* the point of it all: five tools you'd buy apart, as one */}
+          <div className="one">
+            <div className="one-eq">
+              {t.one.tools.map((tool, i) => (
+                <Fragment key={tool}>
+                  {i > 0 && (
+                    <i className="one-op" style={{ ["--i" as string]: i }}>
+                      +
+                    </i>
+                  )}
+                  <span className="one-tool" style={{ ["--i" as string]: i }}>
+                    {tool}
+                  </span>
+                </Fragment>
+              ))}
+              <i className="one-op one-eqs" style={{ ["--i" as string]: 5 }}>
+                =
+              </i>
+              <span className="one-name">{t.one.name}</span>
+            </div>
+            <p className="one-line">{t.one.line}</p>
+            <ul className="one-facts">
+              {t.one.facts.map((f, i) => (
+                <li key={f}>
                   <Icon name={stripIcons[i]} />
-                </span>
-                <span className="strip-tx">
-                  <b>{s.t}</b>
-                  <small>{s.d}</small>
-                </span>
-              </li>
-            ))}
-          </ul>
+                  {f}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </section>
 
