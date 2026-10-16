@@ -8,7 +8,7 @@
      تنعاد بـ scratchpad/shot-store.cjs لو تغيّر شكل المتجر).
    الصفحة القديمة محفوظة على /classic. */
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { PLANS, type Plan, type PlanItem } from "@/lib/plans";
 import "./rakeen-landing.css";
@@ -29,42 +29,130 @@ const DEMO = [
 ];
 const RING = [0, 3, 1, 3, 2]; // the hero cashier rings these up, in order
 
-// Apple Wallet passes, as the real ones are built: lib/wallet-pass.ts
-// (storeCard: logo + header field, strip, name + "left", QR with its code)
-// and lib/wallet-strip.ts (stamps on a strip that is the card colour 80%
-// darker, a photo under a scrim, or a gradient; points get the wave). Logos
-// and banners are real uploads.
-const LB = "https://media.rakeenapp.com/loyalty-branding/1/";
-// Same stamp shapes as the dashboard preview (RKW_STAMP_PATHS).
-const STAMP: Record<string, string> = {
-  generic: "M12 2.6 L14.5 9.2 L21.4 9.2 L15.9 13.3 L18 20 L12 15.9 L6 20 L8.1 13.3 L2.6 9.2 L9.5 9.2 Z",
-  coffee: "M4.8 5 H17.2 L15.6 20 H6.4 Z M3.4 2.2 H18.6 V4.6 H3.4 Z",
-  burger: "M2 9.4 A10 6.4 0 0 1 22 9.4 Z M2.4 11.4 H21.6 V14.2 H2.4 Z M2.4 16 H21.6 A9.6 5 0 0 1 2.4 16 Z",
-  pastry: "M17.4 2.4 A10.6 10.6 0 0 0 17.4 21.6 A8 10 0 1 1 17.4 2.4 Z",
-};
+// Apple Wallet passes, laid out the way the real ones are built:
+// lib/wallet-pass.ts (storeCard: logo + header field, strip, name + "left",
+// QR with its code) and lib/wallet-strip.ts (strip colour, photo stamps for
+// a business that uploads its own, empty stamps greyed out, a wave or lines
+// for points). هَبيّة is a real Rakeen cafe: its mark and cups come from its
+// own store (hbiah.rakeenapp.com). The rest are made-up examples.
+type Art = "cup" | "croissant" | "burger";
 type WPass = {
   key: string;
-  brand: string;
-  logo: string;
+  logo: React.ReactNode;
   bg: string;
   strip: string; // CSS background of the strip
-  stripImg?: string;
-  scrim?: number;
-  stamp?: keyof typeof STAMP;
-  stampOn: string;
+  stampImg?: string; // a photo stamp, like a business uploads
+  art?: Art; // or a drawn one
+  artColors?: [string, string, string];
+  lines?: string; // points card: a guilloche of fine lines in this colour
   done: number;
   of: number;
+  progressLabel?: string;
   points?: number;
   tier?: string;
   customer: string;
   reward: string;
   code: string;
+  note: { brand: string; icon: string; ar: string; en: string };
 };
 const WALLET: WPass[] = [
-  { key: "anoob", brand: "عنوب", logo: LB + "logo-1786634917576.png", bg: "#17331C", strip: "#0b160c", stripImg: LB + "banner-1786634918047.jpeg", scrim: 0.5, stamp: "generic", stampOn: "#C4FF2B", done: 5, of: 8, customer: "خالد الحربي", reward: "بوكس مجاني", code: "A3F19C42" },
-  { key: "aldan", brand: "ألدان", logo: LB + "logo-1786637275028.png", bg: "#5C1010", strip: "linear-gradient(131deg,#1f0505,#6e1812)", stamp: "coffee", stampOn: "#F3DDB5", done: 4, of: 6, customer: "منال القحطاني", reward: "قهوة مجانية", code: "7C21D0E9" },
-  { key: "pass", brand: "PASS", logo: LB + "logo-1786636378234.png", bg: "#3E5654", strip: "#0d1211", stampOn: "#BFE3D3", done: 0, of: 0, points: 1280, tier: "Platinum", customer: "فهد العتيبي", reward: "مشروب مجاني", code: "5B8E04AF" },
-  { key: "bunzo", brand: "Bunzo's", logo: LB + "logo-1786637601603.png", bg: "#B8302F", strip: "#250a09", stripImg: LB + "banner-1786637602818.png", scrim: 0.64, stamp: "burger", stampOn: "#FFFFFF", done: 3, of: 6, customer: "نورة الدوسري", reward: "برقر مجاني", code: "E40B9C17" },
+  {
+    key: "hbiah",
+    logo: (
+      <span className="lg lg-hbiah">
+        <img src="/landing/hbiah-mark.png" alt="" />
+        <b>HBIAH</b>
+      </span>
+    ),
+    bg: "#B7834A",
+    strip: "linear-gradient(180deg,#B07B43,#A97339)",
+    stampImg: "/landing/hbiah-cup.png",
+    done: 4,
+    of: 6,
+    progressLabel: "ختومك",
+    customer: "عبدالله",
+    reward: "قهوة مجانية",
+    code: "184283",
+    note: { brand: "هَبيّة", icon: "/landing/hbiah-mark.png", ar: "باقي لك 2 على مكافأتك 🎁", en: "2 to go until your reward 🎁" },
+  },
+  {
+    key: "sana",
+    logo: (
+      <span className="lg lg-sana">
+        <b>سَنا</b>
+        <small>SANA COFFEE</small>
+      </span>
+    ),
+    bg: "#1E3A2B",
+    strip: "#1E3A2B",
+    art: "cup",
+    artColors: ["#F4EEDF", "#2F5A43", "#E8DCC0"],
+    done: 3,
+    of: 6,
+    progressLabel: "ختومك",
+    customer: "ريم",
+    reward: "قهوة مجانية",
+    code: "530912",
+    note: { brand: "سَنا", icon: "", ar: "عدّادك صار 3 ☕", en: "You're now at 3 ☕" },
+  },
+  {
+    key: "noir",
+    logo: (
+      <span className="lg lg-noir">
+        <b>NOIR.</b>
+      </span>
+    ),
+    bg: "#121214",
+    strip: "#121214",
+    lines: "rgba(255,255,255,.42)",
+    done: 0,
+    of: 0,
+    points: 1440,
+    tier: "Platinum",
+    customer: "فهد العتيبي",
+    reward: "عشاء لشخصين",
+    code: "NR0042",
+    note: { brand: "NOIR.", icon: "", ar: "عدّادك صار 1,440 ✨", en: "You're now at 1,440 ✨" },
+  },
+  {
+    key: "waraq",
+    logo: (
+      <span className="lg lg-waraq">
+        <b>وَرَق</b>
+        <small>BAKERY</small>
+      </span>
+    ),
+    bg: "#ECE5D3",
+    strip: "#E3DAC3",
+    art: "croissant",
+    artColors: ["#D79A4E", "#A8642A", "#F2C98B"],
+    done: 5,
+    of: 8,
+    progressLabel: "ختومك",
+    customer: "سارة",
+    reward: "كرواسون مجاني",
+    code: "771904",
+    note: { brand: "وَرَق", icon: "", ar: "باقي لك 3 على مكافأتك 🥐", en: "3 to go until your reward 🥐" },
+  },
+  {
+    key: "brgr",
+    logo: (
+      <span className="lg lg-brgr">
+        <b>BRGR.</b>
+      </span>
+    ),
+    bg: "#C8231C",
+    strip: "repeating-conic-gradient(#b81f19 0 25%, #c8231c 0 50%) 0 0/22px 22px",
+    art: "burger",
+    artColors: ["#F7D38A", "#5B2A12", "#7CB342"],
+    done: 2,
+    of: 6,
+    progressLabel: "زياراتك",
+    customer: "نورة",
+    reward: "برقر مجاني",
+    code: "290377",
+    note: { brand: "BRGR.", icon: "", ar: "باقي لك 4 على مكافأتك 🍔", en: "4 to go until your reward 🍔" },
+  },
 ];
 const lumOf = (hex: string) => {
   const n = parseInt(hex.slice(1), 16);
@@ -109,7 +197,7 @@ const T = {
         h: "عميلك يرجع لك.",
         p: "بطاقة بهويتك في Apple Wallet، بدون تطبيق. كل زيارة تنضاف لحالها، ويوصله تنبيه على شاشة جواله.",
         b: ["أختام أو نقاط بتصميمك", "تنبيه على الشاشة المقفلة", "تذكير لما يقرب من فرعك"],
-        real: "بطاقات Apple Wallet بنفس شكلها في جوال العميل",
+        real: "هَبيّة بطاقة حقيقية على ركين · الباقي أمثلة لتصاميم ممكنة",
       },
       numbers: {
         k: "الأرقام",
@@ -174,6 +262,7 @@ const T = {
     },
     close: { h: "مطعمك يستاهل نظام يشتغل عنه.", sub: "سجّل، أضف منيوك، وابدأ البيع خلال دقائق.", cta: "ابدأ مجانًا", wa: "كلّمنا واتساب" },
     sticky: "ابدأ مجانًا · ٣٥٠ طلب",
+    fits: { k: "يناسب", items: ["المطاعم", "الكافيهات", "الفود ترك", "المخابز", "المطابخ السحابية", "محلات الحلويات", "العصائر", "البرقر والبيتزا"] },
     footer: { tag: "نظام تشغيل مطعمك.", privacy: "الخصوصية", terms: "الشروط", rights: "© ٢٠٢٦ ركين" },
   },
   en: {
@@ -211,7 +300,7 @@ const T = {
         h: "Customers come back.",
         p: "A card in your brand in Apple Wallet, no app. Every visit adds itself, with a nudge on their lock screen.",
         b: ["Stamps or points in your design", "Lock-screen notifications", "A reminder when they're near a branch"],
-        real: "Apple Wallet passes, exactly as they look on the customer's phone",
+        real: "هَبيّة is a real Rakeen card · the rest are design examples",
       },
       numbers: {
         k: "Numbers",
@@ -276,6 +365,7 @@ const T = {
     },
     close: { h: "Your restaurant deserves a system that works for it.", sub: "Sign up, add your menu, and start selling in minutes.", cta: "Start free", wa: "WhatsApp us" },
     sticky: "Start free · 350 orders",
+    fits: { k: "Built for", items: ["Restaurants", "Cafés", "Food trucks", "Bakeries", "Cloud kitchens", "Dessert shops", "Juice bars", "Burgers & pizza"] },
     footer: { tag: "Your restaurant's operating system.", privacy: "Privacy", terms: "Terms", rights: "© 2026 Rakeen" },
   },
 };
@@ -416,23 +506,77 @@ function Icon({ name }: { name: IconName }) {
   );
 }
 
+/* Drawn stamps for the examples: a few flat shapes each, so they read at
+   27px like a real stamp. Filled = the brand colours, empty = an outline. */
+function StampArt({ art, c, on, ghost }: { art: Art; c: [string, string, string]; on: boolean; ghost: string }) {
+  const f = (col: string) => (on ? col : "none");
+  const st = on ? "none" : ghost;
+  const sw = on ? 0 : 1.4;
+  return (
+    <svg viewBox="0 0 32 32" className={on ? "on" : ""}>
+      {art === "cup" && (
+        <g stroke={st} strokeWidth={sw} strokeLinejoin="round">
+          <path d="M7 7.5h18l-1 2.2H8z" fill={f(c[2])} />
+          <path d="M8.2 10.2h15.6l-1.7 18a1.5 1.5 0 0 1-1.5 1.3h-9.2a1.5 1.5 0 0 1-1.5-1.3z" fill={f(c[0])} />
+          <path d="M9 15.5h14l-.7 7.5H9.7z" fill={f(c[1])} />
+          <path d="M10.5 4.2h11l.9 3.3H9.6z" fill={f(c[2])} />
+        </g>
+      )}
+      {art === "croissant" && (
+        <g stroke={st} strokeWidth={sw} strokeLinejoin="round">
+          <path d="M3 20c1-6 6.5-11 13-11s12 5 13 11c-2.2 1.6-4 1.8-5.5 1.2L16 23.5l-7.5-2.3C7 21.8 5.2 21.6 3 20z" fill={f(c[0])} />
+          <path d="M11.5 10.6 13 21.9M20.5 10.6 19 21.9M16 9v14.5" stroke={on ? c[1] : ghost} strokeWidth={on ? 1.3 : 1.2} fill="none" strokeLinecap="round" />
+          <path d="M6.5 13.5 9 20.8M25.5 13.5 23 20.8" stroke={on ? c[2] : ghost} strokeWidth={on ? 1.2 : 1.1} fill="none" strokeLinecap="round" />
+        </g>
+      )}
+      {art === "burger" && (
+        <g stroke={st} strokeWidth={sw} strokeLinejoin="round">
+          <path d="M4.5 14c0-5.5 5-9 11.5-9s11.5 3.5 11.5 9z" fill={f(c[0])} />
+          <path d="M3.8 16.2c2 1.6 3.4-.6 5.5.4s3.6-1 5.6.2 3.4-1 5.6 0 3.4-1.4 5.6-.2c.6.3 1.3.3 2.1-.4v1.2H3.8z" fill={f(c[2])} />
+          <rect x="4" y="17.4" width="24" height="4" rx="2" fill={f(c[1])} />
+          <path d="M4.8 22.6h22.4c0 2.6-2 4.4-4.6 4.4H9.4c-2.6 0-4.6-1.8-4.6-4.4z" fill={f(c[0])} />
+          {on && <path d="M11 9.5h.01M16 8.3h.01M20.5 10h.01M14 11.2h.01" stroke="#fff6dc" strokeWidth="1.3" strokeLinecap="round" />}
+        </g>
+      )}
+    </svg>
+  );
+}
+
+// Fine sine lines across a points strip, like an engraved card.
+function Guilloche({ color }: { color: string }) {
+  const paths = Array.from({ length: 22 }, (_, k) => {
+    let d = "";
+    for (let x = 0; x <= 375; x += 6) {
+      const y = 62 + Math.sin(x / 48 + k * 0.32) * (18 + k * 0.9) + Math.sin(x / 19 + k) * 3;
+      d += (x ? " L" : "M") + x + " " + y.toFixed(1);
+    }
+    return d;
+  });
+  return (
+    <svg viewBox="0 0 375 123" preserveAspectRatio="none" className="wp-wave">
+      {paths.map((d, i) => (
+        <path key={i} d={d} fill="none" stroke={color} strokeWidth=".7" opacity={0.25 + (i % 5) * 0.12} />
+      ))}
+    </svg>
+  );
+}
+
 /* One Apple Wallet store card, laid out like the dashboard's preview
-   (walletCardPreviewHtml) and the pass the server signs: system font, the
-   wallet's own field sizes, stamps filled from the right. */
+   (walletCardPreviewHtml) and the pass the server signs: Apple's font,
+   field sizes, stamps filled from the right. */
 function WalletPass({ p, qr }: { p: WPass; qr: string }) {
   const light = lumOf(p.bg) > 150;
-  const fg = light ? "rgb(20,19,14)" : "#fff";
-  const faint = light ? "rgba(20,19,14,.58)" : "rgba(255,255,255,.6)";
-  const off = light ? "rgba(20,19,14,.34)" : "rgba(255,255,255,.4)";
+  const fg = light ? "rgb(28,26,20)" : "#fff";
+  const faint = light ? "rgba(28,26,20,.55)" : "rgba(255,255,255,.62)";
+  const ghost = light ? "rgba(28,26,20,.28)" : "rgba(255,255,255,.34)";
   const stamps = !p.points;
-  const rows = p.of > 7 ? 2 : 1;
+  const rows = p.of > 7 || (p.stampImg && p.of > 4) ? 2 : 1;
   const per = Math.ceil(p.of / rows);
   const left = p.of - p.done;
   return (
     <div className="wp" style={{ background: p.bg, color: fg }}>
       <div className="wp-head">
-        <img className="wp-logo" src={p.logo} alt="" />
-        <span className="wp-name">{p.tier ? "" : p.brand}</span>
+        <div className="wp-logo">{p.logo}</div>
         <div className="wp-hfields">
           {p.tier && (
             <div className="wp-f">
@@ -441,34 +585,23 @@ function WalletPass({ p, qr }: { p: WPass; qr: string }) {
             </div>
           )}
           <div className="wp-f">
-            <small style={{ color: faint }}>{stamps ? (p.stamp === "coffee" ? "ختومك" : "زياراتك") : "نقاطك"}</small>
-            <b>{stamps ? `${p.done} / ${p.of}` : p.points!.toLocaleString("en-US")}</b>
+            <small style={{ color: faint }}>{stamps ? p.progressLabel : "نقاطك"}</small>
+            <b>{stamps ? `${p.done}/${p.of}` : p.points!.toLocaleString("en-US")}</b>
           </div>
         </div>
       </div>
       <div className="wp-strip" style={{ background: p.strip }}>
-        {p.stripImg && (
-          <>
-            <img className="wp-strip-img" src={p.stripImg} alt="" />
-            <i className="wp-scrim" style={{ background: `rgba(8,8,10,${p.scrim ?? 0.34})` }} />
-          </>
-        )}
-        {stamps ? (
-          <div className="wp-stamps" style={{ gridTemplateColumns: `repeat(${per}, auto)` }}>
-            {Array.from({ length: p.of }).map((_, i) => {
-              const on = i < p.done;
-              return (
-                <svg key={i} viewBox="0 0 24 24" className={on ? "on" : ""}>
-                  <path d={STAMP[p.stamp || "generic"]} fill={on ? p.stampOn : "none"} stroke={on ? p.stampOn : off} strokeWidth={on ? 0 : 1.9} strokeLinejoin="round" fillRule="evenodd" />
-                </svg>
-              );
-            })}
+        {p.lines && <Guilloche color={p.lines} />}
+        {stamps && (
+          <div className={"wp-stamps" + (rows > 1 ? " two" : "") + (p.stampImg ? " photo" : "")} style={{ gridTemplateColumns: `repeat(${per}, auto)` }}>
+            {Array.from({ length: p.of }).map((_, i) =>
+              p.stampImg ? (
+                <img key={i} src={p.stampImg} alt="" className={i < p.done ? "on" : "off"} />
+              ) : (
+                <StampArt key={i} art={p.art!} c={p.artColors!} on={i < p.done} ghost={ghost} />
+              ),
+            )}
           </div>
-        ) : (
-          <svg viewBox="0 0 375 123" preserveAspectRatio="none" className="wp-wave">
-            <path d="M0 78 C 60 56, 110 98, 170 74 S 300 50, 375 68 L375 123 L0 123 Z" fill={p.stampOn} opacity=".13" />
-            <path d="M0 78 C 60 56, 110 98, 170 74 S 300 50, 375 68" fill="none" stroke={p.stampOn} strokeWidth="3.4" opacity=".8" />
-          </svg>
         )}
       </div>
       <div className="wp-fields">
@@ -482,65 +615,101 @@ function WalletPass({ p, qr }: { p: WPass; qr: string }) {
         </div>
       </div>
       <div className="wp-qr">
-        <div className="wp-qr-box" dangerouslySetInnerHTML={{ __html: qr }} />
-        <span style={{ color: faint }}>{p.code}</span>
+        <div className="wp-qr-box">
+          <div dangerouslySetInnerHTML={{ __html: qr }} />
+          <span>{p.code}</span>
+        </div>
       </div>
     </div>
   );
 }
 
-/* The iPhone Wallet app: the other passes stack above as their header
-   strips, the chosen one opens in front. It moves through them by itself
-   and a tap picks one. */
-function WalletStack({ qr, lang }: { qr: string; lang: Lang }) {
+/* The passes fanned out like a hand of cards; the front one changes by
+   itself, and a tap brings any card forward. */
+function WalletFan({ qr, lang }: { qr: string; lang: Lang }) {
   const [front, setFront] = useState(0);
   const [hold, setHold] = useState(false);
   useEffect(() => {
     if (hold || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const id = window.setInterval(() => setFront((f) => (f + 1) % WALLET.length), 3600);
+    const id = window.setInterval(() => setFront((f) => (f + 1) % WALLET.length), 3400);
     return () => window.clearInterval(id);
   }, [hold]);
-  const order = WALLET.map((_, i) => (front + 1 + i) % WALLET.length).slice(0, WALLET.length - 1);
+  const n = WALLET.length;
   const p = WALLET[front];
-  const left = p.of - p.done;
   return (
-    <div className="wallet-scene">
-      <div className="iphone wallet-phone">
-        <div className="wallet-screen" dir="rtl">
-          <div className="wl-top">
-            <span>Wallet</span>
-            <i>+</i>
-          </div>
-          <div className="wl-stack">
-            {order.map((i) => {
-              const q = WALLET[i];
-              const light = lumOf(q.bg) > 150;
-              return (
-                <button key={q.key} className="wl-peek" style={{ background: q.bg, color: light ? "#14130e" : "#fff" }} onClick={() => { setFront(i); setHold(true); }} aria-label={q.brand}>
-                  <img src={q.logo} alt="" />
-                  <span>{q.brand}</span>
-                  <b>{q.points ? q.points.toLocaleString("en-US") : `${q.done} / ${q.of}`}</b>
-                </button>
-              );
-            })}
-            <div className="wl-front" key={p.key}>
-              <WalletPass p={p} qr={qr} />
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="fan" onMouseEnter={() => setHold(true)} onMouseLeave={() => setHold(false)}>
       <div className="lock-note" key={"n" + p.key}>
-        <img src={p.logo} alt="" />
+        {p.note.icon ? <img src={p.note.icon} alt="" style={{ background: p.bg }} /> : <span className="ln-ic" style={{ background: p.bg, color: lumOf(p.bg) > 150 ? "#222" : "#fff" }}>{p.note.brand.replace(/[^\p{L}]/gu, "").slice(0, 1)}</span>}
         <div>
           <div className="ln-top">
-            <b>{p.brand}</b>
+            <b>{p.note.brand}</b>
             <span>{lang === "ar" ? "الآن" : "now"}</span>
           </div>
-          <p>{p.points ? (lang === "ar" ? `عدّادك صار ${p.points.toLocaleString("en-US")} ☕` : `You're now at ${p.points.toLocaleString("en-US")} ☕`) : lang === "ar" ? `باقي لك ${left} على مكافأتك 🎁` : `${left} to go until your reward 🎁`}</p>
+          <p>{lang === "ar" ? p.note.ar : p.note.en}</p>
         </div>
+      </div>
+      <div className="fan-deck">
+        {WALLET.map((q, i) => {
+          let d = i - front;
+          if (d > n / 2) d -= n;
+          if (d < -n / 2) d += n;
+          const a = Math.abs(d);
+          return (
+            <button
+              key={q.key}
+              className={"fan-card" + (d === 0 ? " front" : "")}
+              style={{ ["--d" as string]: d, ["--a" as string]: a, zIndex: 10 - a }}
+              onClick={() => setFront(i)}
+              aria-label={q.note.brand}
+            >
+              <WalletPass p={q} qr={qr} />
+            </button>
+          );
+        })}
       </div>
     </div>
   );
+}
+
+/* Counts up to `to` the first time it scrolls into view (and again when
+   `to` changes, like the monthly/yearly switch). */
+function CountUp({ to, ms = 1100 }: { to: number; ms?: number }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [v, setV] = useState(to);
+  const seen = useRef(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const run = () => {
+      const from = seen.current ? v : 0;
+      seen.current = true;
+      const t0 = performance.now();
+      const tick = (t: number) => {
+        const k = Math.min(1, (t - t0) / ms);
+        const e = 1 - Math.pow(1 - k, 3);
+        setV(Math.round(from + (to - from) * e));
+        if (k < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    };
+    if (seen.current) {
+      run();
+      return;
+    }
+    const io = new IntersectionObserver(
+      (es) => {
+        if (es[0].isIntersecting) {
+          io.disconnect();
+          run();
+        }
+      },
+      { threshold: 0.4 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [to]);
+  return <span ref={ref}>{num(v)}</span>;
 }
 
 /* The hero cashier, styled after the real POS (lime category, dark price pill,
@@ -700,7 +869,29 @@ export default function LandingPage() {
   const [sticky, setSticky] = useState(false);
   const [qr, setQr] = useState("");
   const root = useRef<HTMLDivElement>(null);
+  const heroRef = useRef<HTMLElement>(null);
   const t = T[lang];
+
+  // The hero leans a little toward the pointer: the tablet and the phone at
+  // different depths, and a soft light that follows it.
+  const onHeroMove = (e: React.MouseEvent) => {
+    const el = heroRef.current;
+    if (!el || window.matchMedia("(pointer: coarse)").matches) return;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty("--mx", ((e.clientX - r.left) / r.width - 0.5).toFixed(3));
+    el.style.setProperty("--my", ((e.clientY - r.top) / r.height - 0.5).toFixed(3));
+    el.style.setProperty("--px", `${e.clientX - r.left}px`);
+    el.style.setProperty("--py", `${e.clientY - r.top}px`);
+  };
+  // Hero words rise one after another.
+  const splitWords = (text: string, start: number) =>
+    text.split(" ").map((w, i) => (
+      <Fragment key={i}>
+        <span className="w" style={{ ["--i" as string]: start + i }}>
+          {w}
+        </span>{" "}
+      </Fragment>
+    ));
 
   useEffect(() => {
     try {
@@ -723,6 +914,8 @@ export default function LandingPage() {
     const onScroll = () => {
       const y = window.scrollY;
       setScrolled(y > 12);
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      root.current?.style.setProperty("--prog", String(max > 0 ? y / max : 0));
       const end = document.documentElement.scrollHeight - window.innerHeight - 520;
       setSticky(y > 640 && y < end);
     };
@@ -779,6 +972,7 @@ export default function LandingPage() {
     <div className="rk" ref={root}>
       {/* ---------- nav ---------- */}
       <header className={"nav" + (scrolled ? " scrolled" : "")}>
+        <i className="nav-prog" aria-hidden />
         <div className="wrap nav-in">
           <a href="#top" onClick={go("top")} className="brand" aria-label={lang === "ar" ? "ركين" : "Rakeen"}>
             <img src={lang === "ar" ? "/brand/rakeen-wordmark.png" : "/brand/rakeen-wordmark-en.png"} alt="" className="brand-light" />
@@ -800,9 +994,15 @@ export default function LandingPage() {
       </header>
 
       {/* ---------- hero ---------- */}
-      <section className="hero" id="top">
+      <section className="hero" id="top" onMouseMove={onHeroMove} ref={heroRef}>
         <div className="hero-grid" aria-hidden />
         <div className="hero-glow" aria-hidden />
+        <div className="hero-spot" aria-hidden />
+        {/* ركن: a corner drawn in two strokes behind the product */}
+        <svg className="hero-lines" viewBox="0 0 600 600" aria-hidden>
+          <path d="M40 560 V120 a80 80 0 0 1 80 -80 H560" />
+          <path d="M100 560 V170 a70 70 0 0 1 70 -70 H560" />
+        </svg>
         <div className="wrap hero-in">
           <div className="hero-copy">
             <a href="/signup" className="pill">
@@ -810,9 +1010,12 @@ export default function LandingPage() {
               {t.hero.pill}
             </a>
             <h1>
-              {t.hero.h1a}
+              {splitWords(t.hero.h1a, 0)}
               <br />
-              <span className="mark">{t.hero.h1b}</span> {t.hero.h1c}
+              <span className="w" style={{ ["--i" as string]: 3 }}>
+                <span className="mark">{t.hero.h1b}</span>
+              </span>{" "}
+              {splitWords(t.hero.h1c, 4)}
             </h1>
             <p className="lead">{t.hero.sub}</p>
             <div className="cta-row">
@@ -860,20 +1063,44 @@ export default function LandingPage() {
         </div>
       </section>
 
+      <div className="fits" aria-label={t.fits.k}>
+        <span className="fits-k">{t.fits.k}</span>
+        <div className="fits-track" dir="ltr">
+          <div className="fits-run">
+            {[0, 1].map((k) => (
+              <ul key={k} aria-hidden={k === 1}>
+                {t.fits.items.map((it) => (
+                  <li key={it}>
+                    <i />
+                    {it}
+                  </li>
+                ))}
+              </ul>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div id="features" />
 
       {/* ---------- chapter: cashier ---------- */}
       <section className="chap">
         <div className="wrap chap-in">
           <div className="chap-copy" data-in>
+            <span className="chap-n mono" aria-hidden>01</span>
             <span className="kicker">{t.ch.pos.k}</span>
             <h2>{t.ch.pos.h}</h2>
             <p>{t.ch.pos.p}</p>
             <Bullets items={t.ch.pos.b} />
           </div>
           <div className="chap-art art-receipt" data-in>
-            <div className="paper-wrap">
-              <Receipt lang={lang} qr={qr} />
+            <div className="printer" aria-hidden>
+              <div className="printer-top">
+                <i />
+              </div>
+              <div className="paper-wrap">
+                <Receipt lang={lang} qr={qr} />
+              </div>
             </div>
             <div className="toast t-offline">
               <span className="toast-ic dark">
@@ -889,6 +1116,7 @@ export default function LandingPage() {
       <section className="chap chap-flip">
         <div className="wrap chap-in">
           <div className="chap-copy" data-in>
+            <span className="chap-n mono" aria-hidden>02</span>
             <span className="kicker k-violet">{t.ch.store.k}</span>
             <h2>{t.ch.store.h}</h2>
             <p>{t.ch.store.p}</p>
@@ -916,16 +1144,17 @@ export default function LandingPage() {
       </section>
 
       {/* ---------- chapter: loyalty ---------- */}
-      <section className="chap">
+      <section className="chap chap-wide">
         <div className="wrap chap-in">
           <div className="chap-copy" data-in>
+            <span className="chap-n mono" aria-hidden>03</span>
             <span className="kicker">{t.ch.loyalty.k}</span>
             <h2>{t.ch.loyalty.h}</h2>
             <p>{t.ch.loyalty.p}</p>
             <Bullets items={t.ch.loyalty.b} />
           </div>
           <div className="chap-art art-loyalty" data-in>
-            <WalletStack qr={qr} lang={lang} />
+            <WalletFan qr={qr} lang={lang} />
             <p className="real-note">{t.ch.loyalty.real}</p>
           </div>
         </div>
@@ -935,6 +1164,7 @@ export default function LandingPage() {
       <section className="chap chap-dark">
         <div className="wrap chap-in">
           <div className="chap-copy" data-in>
+            <span className="chap-n mono" aria-hidden>04</span>
             <span className="kicker k-lime">{t.ch.numbers.k}</span>
             <h2>{t.ch.numbers.h}</h2>
             <p>{t.ch.numbers.p}</p>
@@ -950,7 +1180,7 @@ export default function LandingPage() {
                 </span>
               </div>
               <div className="dash-net mono">
-                <Riyal /> {num(net)}
+                <Riyal /> <CountUp to={net} ms={1600} />
               </div>
               <div className="dash-rows">
                 {t.dash.rows.map((r) => (
@@ -1034,7 +1264,9 @@ export default function LandingPage() {
                   <p className="tier-tag">{lang === "ar" ? p.tagline : PLAN_EN[p.key].tagline}</p>
                   <div className="price">
                     <Riyal />
-                    <b className="mono">{num(price)}</b>
+                    <b className="mono">
+                      <CountUp to={price} ms={700} />
+                    </b>
                     <span>{per}</span>
                   </div>
                   <p className="tier-note">
