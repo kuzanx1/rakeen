@@ -188,7 +188,12 @@ const T = {
     },
     pos: { title: "الطلب الحالي", total: "الإجمالي", pay: "ادفع", all: "الكل", search: "ابحث أو امسح باركود…", paid: "تم الدفع" },
     newOrder: { t: "طلب جديد من المتجر", s: "مدفوع · Apple Pay" },
-    strip: ["يكمل بدون إنترنت", "فاتورة ضريبية برمز QR", "آيباد وكمبيوتر وجوال", "دعم بالعربي على واتساب"],
+    strip: [
+      { t: "يكمل بدون إنترنت", d: "طاح النت؟ يبيع ويحفظ الطلبات" },
+      { t: "فاتورة ضريبية", d: "برمز QR تطلع مع كل طلب" },
+      { t: "على أي جهاز", d: "آيباد، أو كمبيوتر، أو جوال" },
+      { t: "دعم بالعربي", d: "على واتساب، ونرد بسرعة" },
+    ],
     ch: {
       pos: {
         k: "الكاشير",
@@ -298,7 +303,12 @@ const T = {
     },
     pos: { title: "Current order", total: "Total", pay: "Pay", all: "All", search: "Search or scan…", paid: "Paid" },
     newOrder: { t: "New store order", s: "Paid · Apple Pay" },
-    strip: ["Works offline", "Tax invoice with QR", "iPad, computer and phone", "Arabic support on WhatsApp"],
+    strip: [
+      { t: "Works offline", d: "Internet down? It keeps selling" },
+      { t: "Tax invoice", d: "With a QR code on every order" },
+      { t: "Any device", d: "iPad, computer or phone" },
+      { t: "Arabic support", d: "On WhatsApp, fast replies" },
+    ],
     ch: {
       pos: {
         k: "Cashier",
@@ -1256,9 +1266,14 @@ export default function LandingPage() {
         <div className="wrap">
           <ul className="strip">
             {t.strip.map((s, i) => (
-              <li key={i}>
-                <Icon name={stripIcons[i]} />
-                {s}
+              <li key={i} style={{ ["--i" as string]: i }}>
+                <span className="strip-ic">
+                  <Icon name={stripIcons[i]} />
+                </span>
+                <span className="strip-tx">
+                  <b>{s.t}</b>
+                  <small>{s.d}</small>
+                </span>
               </li>
             ))}
           </ul>
