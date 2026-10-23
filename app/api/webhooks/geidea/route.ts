@@ -21,10 +21,11 @@ interface GeideaOrderFields {
   timestamp?: string;
   timeStamp?: string;
 }
-// Geidea's callback docs show the order fields inside a top-level `order`
-// object with `signature` beside it; this route used to read them only from
-// the top level, so a nested callback had no merchantReferenceId and was
-// dropped without a word. Both shapes are read now. Nothing is loosened: the
+// Real callbacks (Visa/Mastercard/Mada test payments, 2026-10-23) put the
+// order fields inside a top-level `order` object with `signature` beside it;
+// this route used to read them only from the top level, so every callback
+// had no merchantReferenceId and was dropped without a word. Both shapes are
+// read now. Nothing is loosened: the
 // signature, the amount and responseCode "000" are all still required.
 interface GeideaCallbackPayload extends GeideaOrderFields {
   order?: GeideaOrderFields;
@@ -112,8 +113,9 @@ export async function POST(request: NextRequest) {
     providedSignature: payload.signature ?? "",
   });
   if (!signatureValid) {
-    // TEMP-DIAG: the raw callback (no secrets in it) so the signature scheme
-    // can be checked against a real one. Remove once verified.
+    // The scheme was confirmed against real Visa/Mastercard/Mada callbacks
+    // (2026-10-23), so a mismatch now means a forged or corrupted callback:
+    // kept whole (no secrets in it) to see what was attempted.
     console.error("geidea webhook: signature verification failed", { orderId: order.id }, rawBody.slice(0, 2000));
     return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }
@@ -135,9 +137,7 @@ export async function POST(request: NextRequest) {
   // responseCode, and was left unpaid.
   const responseCode = payload.responseCode ?? o.responseCode;
   const paid = String(o.status || "").toLowerCase() === "success" || responseCode === "000";
-  // TEMP-DIAG: the full callback for every outcome during the Geidea test
-  // round (no secrets in it). Remove once Visa/Mastercard/Mada are confirmed.
-  console.log("geidea webhook: verified callback", { orderId: order.id, paid }, rawBody.slice(0, 2000));
+  if (!paid) console.error("geidea webhook: not paid", { orderId: order.id, status: o.status, responseCode });
   if (paid && order.payment_status === "unpaid") {
     const { data: updated } = await admin
       .from("orders")
