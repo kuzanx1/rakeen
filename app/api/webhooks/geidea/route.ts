@@ -11,7 +11,7 @@ function serviceClient(): SupabaseClient | null {
   return createClient(url, key);
 }
 
-interface GeideaCallbackPayload {
+interface GeideaOrderFields {
   orderId?: string;
   amount?: string | number;
   currency?: string;
@@ -19,6 +19,15 @@ interface GeideaCallbackPayload {
   status?: string;
   responseCode?: string;
   timestamp?: string;
+  timeStamp?: string;
+}
+// Geidea's callback docs show the order fields inside a top-level `order`
+// object with `signature` beside it; this route used to read them only from
+// the top level, so a nested callback had no merchantReferenceId and was
+// dropped without a word. Both shapes are read now. Nothing is loosened: the
+// signature, the amount and responseCode "000" are all still required.
+interface GeideaCallbackPayload extends GeideaOrderFields {
+  order?: GeideaOrderFields;
   signature?: string;
 }
 
@@ -42,9 +51,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  const payload = JSON.parse(rawBody || "null") as GeideaCallbackPayload | null;
-  const merchantReferenceId = payload?.merchantReferenceId;
-  if (!payload || !merchantReferenceId) return NextResponse.json({ ok: true });
+  let payload: GeideaCallbackPayload | null = null;
+  try {
+    payload = JSON.parse(rawBody || "null");
+  } catch {
+    payload = null;
+  }
+  const o: GeideaOrderFields = payload?.order ?? payload ?? {};
+  const merchantReferenceId = o.merchantReferenceId;
+  if (!payload || !merchantReferenceId) {
+    // TEMP-DIAG (remove once a real Geidea callback has been verified): the
+    // exact shape isn't confirmed yet, and this path used to return silently.
+    console.error("geidea webhook: no merchantReferenceId", rawBody.slice(0, 2000));
+    return NextResponse.json({ ok: true });
+  }
 
   const { data: order } = await admin
     .from("orders")
@@ -76,36 +96,42 @@ export async function POST(request: NextRequest) {
   const signatureValid = verifyGeideaCallbackSignature({
     merchantPublicKey: gateway.merchant_public_key,
     apiPassword,
-    amount: payload.amount ?? "",
-    currency: payload.currency ?? "",
-    orderId: payload.orderId ?? "",
-    status: payload.status ?? "",
+    amount: o.amount ?? "",
+    currency: o.currency ?? "",
+    orderId: o.orderId ?? "",
+    status: o.status ?? "",
     merchantReferenceId,
-    timestamp: payload.timestamp ?? "",
+    timestamp: payload.timeStamp ?? payload.timestamp ?? o.timeStamp ?? o.timestamp ?? "",
     providedSignature: payload.signature ?? "",
   });
   if (!signatureValid) {
-    console.error("geidea webhook: signature verification failed", { orderId: order.id });
+    // TEMP-DIAG: the raw callback (no secrets in it) so the signature scheme
+    // can be checked against a real one. Remove once verified.
+    console.error("geidea webhook: signature verification failed", { orderId: order.id }, rawBody.slice(0, 2000));
     return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }
 
   // Defense in depth even after signature verification — the charged
   // amount must match what Rakeen itself computed, not just what the
   // payload claims.
-  const payloadAmount = Number(payload.amount);
+  const payloadAmount = Number(o.amount);
   if (!Number.isFinite(payloadAmount) || payloadAmount.toFixed(2) !== Number(order.total).toFixed(2)) {
-    console.error("geidea webhook: amount mismatch", { orderId: order.id, expected: order.total, got: payload.amount });
+    console.error("geidea webhook: amount mismatch", { orderId: order.id, expected: order.total, got: o.amount });
     return NextResponse.json({ ok: true });
   }
 
-  if (payload.responseCode === "000" && order.payment_status === "unpaid") {
+  const responseCode = payload.responseCode ?? o.responseCode;
+  if (responseCode !== "000") {
+    console.error("geidea webhook: not successful", { orderId: order.id, responseCode, status: o.status });
+  }
+  if (responseCode === "000" && order.payment_status === "unpaid") {
     const { data: updated } = await admin
       .from("orders")
       .update({
         payment_status: "paid",
         status: "pending",
         cash_amount: order.total,
-        gateway_reference: payload.orderId ?? null,
+        gateway_reference: o.orderId ?? null,
       })
       .eq("id", order.id).eq("payment_status", "unpaid")
       .select("id").maybeSingle();
