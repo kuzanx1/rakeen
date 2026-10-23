@@ -29,6 +29,10 @@ interface GeideaOrderFields {
 interface GeideaCallbackPayload extends GeideaOrderFields {
   order?: GeideaOrderFields;
   signature?: string;
+  // a session-level callback (e.g. the customer let the payment page time
+  // out) carries only these, with no order or merchantReferenceId
+  sessionId?: string;
+  orderStatus?: string;
 }
 
 // Geidea's per-merchant signing secret (apiPassword) means — unlike the
@@ -60,9 +64,12 @@ export async function POST(request: NextRequest) {
   const o: GeideaOrderFields = payload?.order ?? payload ?? {};
   const merchantReferenceId = o.merchantReferenceId;
   if (!payload || !merchantReferenceId) {
-    // TEMP-DIAG (remove once a real Geidea callback has been verified): the
-    // exact shape isn't confirmed yet, and this path used to return silently.
-    console.error("geidea webhook: no merchantReferenceId", rawBody.slice(0, 2000));
+    // Seen for real (2026-10-23): when the payment page times out Geidea
+    // sends {sessionId, orderStatus: "TimeOut", signature, timeStamp} and no
+    // order. Nothing was paid, so there's nothing to do; the order just stays
+    // unpaid. Anything else here is unexpected and worth seeing whole.
+    if (payload?.orderStatus) console.log("geidea webhook: session callback", payload.orderStatus);
+    else console.error("geidea webhook: no merchantReferenceId", rawBody.slice(0, 2000));
     return NextResponse.json({ ok: true });
   }
 
@@ -120,11 +127,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  // Success = the order's status is "Success". That field is part of the
+  // signature verified above, so it can't be forged without the merchant's
+  // apiPassword. responseCode, which this route used to require, isn't
+  // signed and isn't even sent: the first real test payment (order 32047,
+  // 2026-10-23) arrived signed and correct with status "Success" and no
+  // responseCode, and was left unpaid.
   const responseCode = payload.responseCode ?? o.responseCode;
-  if (responseCode !== "000") {
-    console.error("geidea webhook: not successful", { orderId: order.id, responseCode, status: o.status });
-  }
-  if (responseCode === "000" && order.payment_status === "unpaid") {
+  const paid = String(o.status || "").toLowerCase() === "success" || responseCode === "000";
+  // TEMP-DIAG: the full callback for every outcome during the Geidea test
+  // round (no secrets in it). Remove once Visa/Mastercard/Mada are confirmed.
+  console.log("geidea webhook: verified callback", { orderId: order.id, paid }, rawBody.slice(0, 2000));
+  if (paid && order.payment_status === "unpaid") {
     const { data: updated } = await admin
       .from("orders")
       .update({
