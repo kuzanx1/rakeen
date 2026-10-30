@@ -146,8 +146,13 @@ export interface ReceiptModel {
   dateLabel: string;
   cashierName?: string | null;
   metaLabel?: string | null;
+  /** وقت الاستلام اللي حدده الزبون في الطلب الإلكتروني، نصاً جاهزاً. */
+  pickupAt?: string | null;
   /** في إشعار الاسترجاع: رقمُ الطلب الذي استُرجع منه. */
   refundOfOrder?: string | null;
+  /** طلبُ تطبيق توصيل: اسمُ التطبيق وآخرُ ٤ أرقام من فاتورته. */
+  platformName?: string | null;
+  platformInvoiceLast4?: string | null;
   customerName?: string | null;
   customerPhone?: string | null;
   items: ReceiptItem[];

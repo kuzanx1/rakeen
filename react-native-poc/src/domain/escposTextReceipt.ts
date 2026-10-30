@@ -148,6 +148,12 @@ export function buildTextReceipt(receipt: ReceiptPrintable, logoKey?: string | n
   line(`${bi('رقم الطلب', 'Order')} #${receipt.orderNumber}`);
   t.bold(false);
   if (receipt.metaLabel) line(receipt.metaLabel);
+  if (receipt.platformName || receipt.platformInvoiceLast4) {
+    t.bold(true).size(0, 1);
+    if (receipt.platformName) line(receipt.platformName);
+    if (receipt.platformInvoiceLast4) line(`${bi('آخر ٤ أرقام فاتورة التطبيق', 'App invoice')} ${receipt.platformInvoiceLast4}`);
+    t.bold(false).size(0, 0);
+  }
 
   // ZATCA Phase 1: heading and seller VAT number are mandatory on a
   // simplified tax invoice, in text mode exactly as in raster.

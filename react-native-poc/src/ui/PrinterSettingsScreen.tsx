@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './Text';
 import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
@@ -22,6 +22,22 @@ import type { PrinterProfile, PrinterTransportKind, DiscoveredDevice, PrinterTar
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
 import { toLatinDigits } from '../domain/digits';
 import { planHas } from '../application/planService';
+import { getPrintStationLastPrinted } from '../application/printStationService';
+import { formatArabicTime } from '../domain/arabicDate';
+import { hasCustomerDisplay } from '../platform/customerDisplay';
+import { startCustomerDisplay, customerDisplayLinked, DISPLAY_COLORS } from '../application/customerDisplayService';
+
+const CUSTOMER_DISPLAY_OPTIONS: { key: 'mirror' | 'brand' | 'banner' | 'url'; label: string; hint: string }[] = [
+  { key: 'mirror', label: 'نفس شاشة الكاشير', hint: 'الزبون يشوف نفس اللي تشوفه.' },
+  {
+    key: 'brand',
+    label: 'اسم المطعم + باركود الولاء',
+    hint: 'اسم المطعم في النص على لونه. وقت الدفع يطلع المبلغ المطلوب، و«اعرض الباركود» يطلع للزبون باركود الولاء دقيقة. وتقدر تثبّت باركود المنيو جنب الاسم.',
+  },
+  { key: 'banner', label: 'صورة المتجر', hint: 'صورة المتجر الإلكتروني (البانر) من لوحة ركين، تملأ الشاشة. لو ما فيه، يطلع الشعار.' },
+  { key: 'url', label: 'صورة من رابط', hint: 'أي صورة لها رابط مباشر (عرض، إعلان، قائمة).' },
+];
+const displayModeOf = (m?: string) => (m === 'logo' || m === 'menu' ? 'brand' : m ?? 'mirror');
 
 const TRANSPORT_LABELS: Record<PrinterTransportKind, string> = {
   network: 'شبكة الواي فاي',
@@ -108,6 +124,12 @@ export default function PrinterSettingsScreen({
   const styles = useStyles();
   const [profile, setProfile] = useState<PrinterProfile>(emptyPrinterProfile());
   const [loading, setLoading] = useState(true);
+  const [stationLast, setStationLast] = useState<{ id: number; at: number } | null>(null);
+  const [hasSecondScreen, setHasSecondScreen] = useState(false);
+  useEffect(() => {
+    getPrintStationLastPrinted().then(setStationLast).catch(() => {});
+    hasCustomerDisplay().then(setHasSecondScreen).catch(() => {});
+  }, []);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState('');
@@ -309,7 +331,17 @@ export default function PrinterSettingsScreen({
       };
       await savePrinterProfile(withCapabilities);
       setSavedSnapshot(JSON.stringify(withCapabilities));
-      setSaveStatus('✅ تم الحفظ على هذا الجهاز');
+      const shown = await startCustomerDisplay(withCapabilities).catch(() => false);
+      const brand = displayModeOf(withCapabilities.customerDisplay) === 'brand';
+      setSaveStatus(
+        !shown && hasSecondScreen
+          ? '✅ انحفظ — بس ما لقينا الصورة (تأكد إنها مرفوعة في لوحة ركين أو إن الرابط صحيح)، فشاشة العميل باقية نفس الكاشير'
+          : brand && (withCapabilities.customerDisplayCode || '').length > 0 && !customerDisplayLinked()
+            ? '✅ انحفظ — بس رمز الشاشة ما انقبل، راجعه في لوحة ركين (الباركود ما بيوصل لين يصح)'
+            : brand && customerDisplayLinked()
+              ? '✅ تم الحفظ — والشاشة مربوطة، الباركود يوصلها'
+              : '✅ تم الحفظ على هذا الجهاز',
+      );
     } catch (e) {
       setSaveStatus('🔴 تعذر الحفظ — جرّب مرة ثانية');
     } finally {
@@ -435,6 +467,118 @@ export default function PrinterSettingsScreen({
         </View>
       </Section>
 
+      <Section title="جهاز الطباعة للفرع">
+        <PosCheck
+          label="هذا الجهاز يطبع طلبات الأجهزة الثانية"
+          value={profile.printStation === true}
+          onChange={v => update({ printStation: v })}
+        />
+        <Text style={styles.themeHint}>
+          مثل عربة الفود ترك: تسوي الطلب من جوالك عند الزبون، وهالجهاز يطبع فاتورته وتذكرة المطبخ تلقائياً خلال ثواني،
+          بنفس خيارات الطباعة اللي تحت. فعّله على جهاز واحد بس في الفرع، وخلّه شغّال ومفتوح على الكاشير.
+        </Text>
+        {profile.printStation === true && stationLast && (
+          <Text style={[styles.themeHint, { marginTop: 6 }]}>
+            آخر طلب انطبع من جهاز ثاني: #{stationLast.id} — {formatArabicTime(new Date(stationLast.at))}
+          </Text>
+        )}
+      </Section>
+
+      {/* شاشة العميل: أجهزة سنمي (أندرويد) بس -- الآيفون والآيباد ما فيهم شاشة قدام الزبون. */}
+      {Platform.OS === 'android' && (
+      <Section title="شاشة العميل">
+        <Text style={styles.themeHint}>
+          {hasSecondScreen
+            ? 'الشاشة الصغيرة اللي قدام الزبون. اختر وش يشوف فيها بدل شاشة الكاشير:'
+            : 'ما لقينا شاشة عميل في هالجهاز. لو جهازك فيه شاشة قدام الزبون، تأكد إنها شغّالة وارجع لهالصفحة.'}
+        </Text>
+        <View style={[styles.row, { marginTop: 8 }]}>
+          {CUSTOMER_DISPLAY_OPTIONS.map(opt => {
+            const active = displayModeOf(profile.customerDisplay) === opt.key;
+            return (
+              <TouchableOpacity
+                key={opt.key}
+                style={[styles.paperOption, active && styles.paperOptionActive]}
+                onPress={() => update({ customerDisplay: opt.key })}
+                activeOpacity={0.8}>
+                <Text style={[styles.paperOptionText, active && styles.paperOptionTextActive]}>{opt.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <Text style={styles.themeHint}>
+          {CUSTOMER_DISPLAY_OPTIONS.find(o => o.key === displayModeOf(profile.customerDisplay))?.hint}
+        </Text>
+        {displayModeOf(profile.customerDisplay) === 'brand' && (
+          <>
+            <FieldLabel>لون الخلفية</FieldLabel>
+            <View style={styles.row}>
+              {DISPLAY_COLORS.map(c => {
+                const active = (profile.customerDisplayColor || DISPLAY_COLORS[0].key) === c.key;
+                return (
+                  <TouchableOpacity
+                    key={c.key}
+                    style={[styles.paperOption, active && styles.paperOptionActive, { flexDirection: 'row', alignItems: 'center', gap: 6 }]}
+                    onPress={() => update({ customerDisplayColor: c.key })}
+                    activeOpacity={0.8}>
+                    {!!c.hex && <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: c.hex }} />}
+                    <Text style={[styles.paperOptionText, active && styles.paperOptionTextActive]}>{c.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <FieldLabel>صورة اسم المطعم (اختياري)</FieldLabel>
+            <TextInput
+              style={styles.input}
+              placeholderTextColor={colors.muted}
+              value={profile.customerDisplayLogoUrl || ''}
+              onChangeText={t => update({ customerDisplayLogoUrl: t.trim() })}
+              placeholder="https://..."
+              autoCapitalize="none"
+            />
+            <Text style={styles.themeHint}>رابط صورة الاسم بخطكم (PNG شفاف بلون فاتح). فاضي = يطلع الاسم كتابة.</Text>
+            <FieldLabel>رابط المنيو الأونلاين (اختياري)</FieldLabel>
+            <TextInput
+              style={styles.input}
+              placeholderTextColor={colors.muted}
+              value={profile.customerDisplayMenuUrl || ''}
+              onChangeText={t => update({ customerDisplayMenuUrl: t.trim() })}
+              placeholder="https://..."
+              autoCapitalize="none"
+            />
+            <Text style={styles.themeHint}>باركود المنيو يطلع ثابت على الشاشة جنب اسم المطعم. فاضي = بدون باركود منيو.</Text>
+          </>
+        )}
+        {displayModeOf(profile.customerDisplay) === 'brand' && (
+          <>
+            <FieldLabel>رمز الشاشة (8 حروف)</FieldLabel>
+            <TextInput
+              style={styles.input}
+              placeholderTextColor={colors.muted}
+              value={profile.customerDisplayCode || ''}
+              onChangeText={t => update({ customerDisplayCode: toLatinDigits(t.split('#').pop() || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 8) })}
+              placeholder="ABCD1234 أو الرابط كامل"
+              autoCapitalize="characters"
+            />
+            <Text style={styles.themeHint}>عشان يوصلها باركود الولاء. تجيبه من لوحة ركين: المتجر الإلكتروني ← إعدادات المتجر ← شاشة العميل ← «أضف شاشة». مرة وحدة بس.</Text>
+          </>
+        )}
+        {profile.customerDisplay === 'url' && (
+          <>
+            <FieldLabel>رابط الصورة (يبدأ بـ https)</FieldLabel>
+            <TextInput
+              style={styles.input}
+              placeholderTextColor={colors.muted}
+              value={profile.customerDisplayUrl || ''}
+              onChangeText={t => update({ customerDisplayUrl: t.trim() })}
+              placeholder="https://..."
+              autoCapitalize="none"
+            />
+          </>
+        )}
+      </Section>
+      )}
+
       <Section title="خيارات الطباعة">
         <PosCheck
           label="طباعة إيصال العميل"
@@ -447,6 +591,13 @@ export default function PrinterSettingsScreen({
             label="طباعة تذكرة المطبخ"
             value={profile.printKitchenTicket === true}
             onChange={v => update({ printKitchenTicket: v })}
+          />
+        )}
+        {profile.printKitchenTicket === true && planHas('kds') && (
+          <PosCheck
+            label="الطابعة ما تقص الورق (تذكرة المطبخ بزر من الطلب)"
+            value={profile.kitchenTicketByButton === true}
+            onChange={v => update({ kitchenTicketByButton: v })}
           />
         )}
         <PosCheck

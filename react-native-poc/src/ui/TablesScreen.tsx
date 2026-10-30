@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, ScrollView, StyleSheet, View } from 'react-native';
+import SheetBottomGap from './SheetBottomGap';
 import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import {
@@ -346,6 +347,8 @@ export default function TablesScreen({
 
               <SheetButton label="إغلاق" muted onPress={closeSheet} />
             </View>
+            {/* keeps the sheet above the system navigation bar (edge-to-edge Android) */}
+            <SheetBottomGap />
           </View>
         </Modal>
       )}
@@ -365,6 +368,8 @@ export default function TablesScreen({
               )}
               <SheetButton label="إغلاق" muted onPress={() => setMovePickerFor(null)} />
             </View>
+            {/* keeps the sheet above the system navigation bar (edge-to-edge Android) */}
+            <SheetBottomGap />
           </View>
         </Modal>
       )}
@@ -379,6 +384,8 @@ export default function TablesScreen({
               <SheetButton label="إلغاء الطلب — إفراغ الطاولة" danger onPress={() => handleCancelOrder(cancelConfirmFor, false)} />
               <SheetButton label="تراجع" muted onPress={() => setCancelConfirmFor(null)} />
             </View>
+            {/* keeps the sheet above the system navigation bar (edge-to-edge Android) */}
+            <SheetBottomGap />
           </View>
         </Modal>
       )}

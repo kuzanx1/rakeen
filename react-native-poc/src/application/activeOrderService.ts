@@ -28,6 +28,9 @@ export interface ActiveOrder {
   readyAt: Date | null;
   outForDeliveryAt: Date | null;
   customerName: string | null;
+  customerPhone: string | null;
+  /** وقت الاستلام اللي حدده الزبون في الطلب الإلكتروني، أو null. */
+  scheduledFor: Date | null;
   /** The call-buzzer handed to this customer, if any. */
   pagerNumber: number | null;
   /** Minutes the platform allows for preparation. Delivery only. */
@@ -38,6 +41,8 @@ export interface ActiveOrder {
    * moves money, so the button has to know.
    */
   isCod: boolean;
+  /** طلب كاش (ينحسب مبلغه عند الاستلام) -- حتى لو السيرفر علّمه مدفوع وقت الإرسال. */
+  isCash: boolean;
 }
 
 /** The source's own default when a platform has no timeout configured. */
@@ -64,11 +69,12 @@ export function remainingPrepSeconds(order: ActiveOrder, now: number = Date.now(
 export async function listActiveOrders(branchId: number): Promise<ActiveOrder[]> {
   const startToday = new Date();
   startToday.setHours(0, 0, 0, 0);
+  const onlineSince = new Date(startToday.getTime() - 3 * 24 * 60 * 60 * 1000);
 
   const { data } = await supabase
     .from('orders')
     .select(
-      'id, total, created_at, ready_at, out_for_delivery_at, channel, source, customer_name, pager_number, payment_method, payment_status, delivery_platform_id, platform_invoice_last4, delivery_platforms(name, prep_timeout_minutes)',
+      'id, total, created_at, ready_at, out_for_delivery_at, channel, source, customer_name, customer_phone, scheduled_for, pager_number, payment_method, payment_status, delivery_platform_id, platform_invoice_last4, delivery_platforms(name, prep_timeout_minutes)',
     )
     .eq('branch_id', branchId)
     // A till pickup order does NOT belong here.
@@ -99,7 +105,10 @@ export async function listActiveOrders(branchId: number): Promise<ActiveOrder[]>
     .neq('status', 'cancelled')
     .neq('status', 'refunded')
     .neq('status', 'rejected')
-    .gte('created_at', startToday.toISOString())
+    // طلبات اليوم، وطلبات المتجر الإلكتروني من آخر ثلاث أيام اللي للحين ما
+    // انسلّمت: طلب استلام مجدول انعمل أمس (أو زبون ما جا) كان يختفي من
+    // القائمة بعد منتصف الليل، فما يقدر الكاشير يسلّمه ولا يلغيه.
+    .or(`created_at.gte."${startToday.toISOString()}",and(source.eq.online,created_at.gte."${onlineSince.toISOString()}")`)
     .order('created_at', { ascending: true });
 
   return (data || []).map((o: any) => {
@@ -118,11 +127,26 @@ export async function listActiveOrders(branchId: number): Promise<ActiveOrder[]>
       readyAt: o.ready_at ? new Date(o.ready_at) : null,
       outForDeliveryAt: o.out_for_delivery_at ? new Date(o.out_for_delivery_at) : null,
       customerName: o.customer_name ?? null,
+      customerPhone: o.customer_phone ?? null,
+      scheduledFor: o.scheduled_for ? new Date(o.scheduled_for) : null,
       prepTimeoutMinutes: Number(platform?.prep_timeout_minutes) || DEFAULT_PREP_TIMEOUT_MINUTES,
       isCod: o.payment_method === 'cash' && o.payment_status === 'unpaid',
+      isCash: o.payment_method === 'cash',
       pagerNumber: o.pager_number != null ? Number(o.pager_number) : null,
     };
   });
+}
+
+/** كم قبل وقت الاستلام المحدد يطلع الطلب من «المجدولة» للتجهيز. */
+export const SCHEDULED_HOLD_MINUTES = 30;
+
+/**
+ * طلبٌ مجدول لسا بدري عليه: الزبون حدد وقت استلام، وباقي عليه أكثر من
+ * نص ساعة، وما جهز. يبقى معلّقاً تحت «مجدولة» بلا زر تجهيز، ويطلع
+ * للتجهيز لحاله لما يقرب وقته -- عشان ما ينطبخ قبل وقته ويبرد.
+ */
+export function isScheduledHold(order: ActiveOrder, now: number = Date.now()): boolean {
+  return !order.readyAt && order.scheduledFor != null && order.scheduledFor.getTime() - SCHEDULED_HOLD_MINUTES * 60_000 > now;
 }
 
 /**
@@ -150,14 +174,19 @@ export function sortActiveOrders(orders: ActiveOrder[], now: number = Date.now()
     .filter(o => o.readyAt)
     .sort((a, b) => (a.readyAt!.getTime() || 0) - (b.readyAt!.getTime() || 0));
 
+  // المجدول يُرتّب على وقته لا على وقت إرساله، والمعلّق منه آخر القائمة.
+  const due = (o: ActiveOrder) => (o.scheduledFor ?? o.createdAt).getTime();
   const pickupNotReady = pickup
-    .filter(o => !o.readyAt)
-    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    .filter(o => !o.readyAt && !isScheduledHold(o, now))
+    .sort((a, b) => due(a) - due(b));
+  const held = orders
+    .filter(o => isScheduledHold(o, now))
+    .sort((a, b) => due(a) - due(b));
   const pickupReady = pickup
     .filter(o => o.readyAt)
     .sort((a, b) => (a.readyAt!.getTime() || 0) - (b.readyAt!.getTime() || 0));
 
-  return [...deliveryNotReady, ...deliveryReady, ...pickupNotReady, ...pickupReady];
+  return [...deliveryNotReady, ...deliveryReady, ...pickupNotReady, ...pickupReady, ...held];
 }
 
 async function callStage(rpc: string, orderId: number, failure: string) {
@@ -218,6 +247,30 @@ export async function confirmCodCollected(orderId: number, shiftId: number) {
   });
   if (error) return { ok: false, error: error.message || 'تعذر تسجيل استلام المبلغ' };
   return { ok: true, error: null };
+}
+
+/** أسباب جاهزة لإلغاء طلب إلكتروني بعد قبوله. */
+export const CANCEL_REASONS = ['العميل طلب الإلغاء', 'العميل ما جا يستلم', 'العميل ما رد', 'صنف خلص', 'المطعم مشغول'];
+
+/**
+ * إلغاء طلب إلكتروني انقبل (قيد التجهيز أو مجدول) ولسا ما انحسب مبلغه.
+ *
+ * cancel_online_order يحفظ السبب ويطلع للزبون في صفحة التتبع. لو القاعدة
+ * لسا ما فيها هالدالة (ملف 20261024120000 ما انشغّل)، يرجع لـ
+ * cancel_dine_in_order اللي يلغي أي طلب غير مدفوع بس بدون سبب --
+ * فالإلغاء يشتغل من اليوم، والسبب يتسجل أول ما تنضاف الدالة.
+ */
+export async function cancelOnlineOrder(
+  orderId: number,
+  reason: string,
+): Promise<{ ok: boolean; error: string | null; reasonSaved: boolean }> {
+  const first = await supabase.rpc('cancel_online_order', { p_order_id: orderId, p_reason: reason });
+  if (!first.error) return { ok: true, error: null, reasonSaved: true };
+  const missing = first.error.code === 'PGRST202' || /could not find the function/i.test(first.error.message || '');
+  if (!missing) return { ok: false, error: first.error.message || 'تعذر إلغاء الطلب', reasonSaved: false };
+  const fallback = await supabase.rpc('cancel_dine_in_order', { p_order_id: orderId, p_still_occupied: false });
+  if (fallback.error) return { ok: false, error: 'تعذر إلغاء الطلب — شغّل ملف cancel_online_order في Supabase أول (الطلب الإلكتروني ينحفظ مدفوع من لحظة إرساله)', reasonSaved: false };
+  return { ok: true, error: null, reasonSaved: false };
 }
 
 /** Pickup: collected by the customer. */

@@ -131,6 +131,8 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+    // باركود شاشة العميل يُرسم على الجهاز (نقطة ركين ترجّع SVG وأندرويد ما يرسمه).
+    implementation("com.google.zxing:core:3.5.3")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

@@ -83,6 +83,8 @@ export interface ReceiptData {
   createdAtISO?: string;
   /** Free-text channel/table meta line, e.g. "بالمطعم — طاولة 4". */
   metaLabel?: string;
+  /** وقت الاستلام اللي حدده الزبون (طلب إلكتروني)، نصاً جاهزاً للطباعة. */
+  pickupAt?: string;
   /** رقمُ الطلب الذي استُرجع منه -- يُطبع في إشعار الاسترجاع وحده. */
   refundOfOrder?: string;
   /** اسم الموظف الذي أصدر الفاتورة -- "تمت بواسطة". */
@@ -103,6 +105,10 @@ export interface ReceiptData {
   branchLabel?: string;
   /** اسم تطبيق التوصيل حين يكون الطلب منه. */
   orderKindLabel?: string;
+  /** طلب تطبيق توصيل: اسم التطبيق وآخر ٤ أرقام من فاتورته -- يُطبعان
+   *  بارزين تحت رقم الطلب. */
+  platformName?: string;
+  platformInvoiceLast4?: string;
   /** Cash change due, when > 0 -- PWA's receipt.change. */
   change?: number;
   /** DEVICE.printerPaperWidth in px at ~203dpi (576=80mm, 384=58mm). */
@@ -122,6 +128,8 @@ export interface KitchenTicketData {
   branchName?: string;
   createdAtISO?: string;
   metaLabel?: string;
+  /** وقت الاستلام اللي حدده الزبون، نصاً جاهزاً. */
+  pickupAt?: string;
   paperWidthPx?: number;
 }
 

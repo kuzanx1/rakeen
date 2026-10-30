@@ -17,6 +17,8 @@ export interface KitchenTicketModel {
   branchName?: string | null;
   dateLabel: string;
   metaLabel: string;
+  /** وقت الاستلام اللي حدده الزبون -- المطبخ يجهّز عليه لا على وقت الطباعة. */
+  pickupAt?: string | null;
   orderNumber?: string | null;
   /** رقمُ جهاز النداء إن وُجد -- يحلّ محلّ رقم الطلب ولا يجتمعان. */
   pagerNumber?: number | string | null;
@@ -47,6 +49,11 @@ export function layoutKitchenTicket(input: KitchenLayoutInput): LayoutResult {
   if (ticket.branchName) ctx.centerText(ticket.branchName, KITCHEN.branch, false);
   ctx.centerText(ticket.dateLabel, KITCHEN.date, false);
   ctx.centerText(ticket.metaLabel, KITCHEN.meta, true);
+  if (ticket.pickupAt) {
+    ctx.y += ctx.gap(KITCHEN_SPACE.beforeCall);
+    ctx.centerText('جهّزه الساعة · Ready at', KITCHEN.callLabel, false);
+    ctx.centerText(ticket.pickupAt, Math.round(KITCHEN.meta * 1.5), true);
+  }
 
   // الرقمُ الذي يُنادى به. ولا يجتمعان -- رقمان كبيران متجاوران يجعلان
   // من يقرؤهما عبر مطبخٍ حارّ يتردّد أيَّهما ينادي.

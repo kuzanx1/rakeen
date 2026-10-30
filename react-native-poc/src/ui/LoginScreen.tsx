@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, View } from 'react-native';
+import KeyboardLift from './KeyboardLift';
 import { Text, TextInput } from './Text';
 import { Pressable, TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
@@ -182,7 +183,7 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
   // #posProvisionScreen -- device not yet bound to a branch.
   if (device.branchId == null && pinBranch) {
     return (
-      <View style={styles.screen}>
+      <KeyboardLift style={styles.screen}>
         <ScrollView contentContainerStyle={styles.centerBox} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
           <View style={styles.card}>
             <Wordmark styles={styles} />
@@ -219,14 +220,14 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
             <ConfirmPayButton styles={styles} label="حفظ الرمز وفتح الكاشير" busy={busy} onPress={handleSavePin} />
           </View>
         </ScrollView>
-      </View>
+      </KeyboardLift>
     );
   }
 
   if (device.branchId == null) {
     const pickingBranch = branches != null;
     return (
-      <View style={styles.screen}>
+      <KeyboardLift style={styles.screen}>
         <ScrollView contentContainerStyle={styles.centerBox} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
           <View style={styles.card}>
             <Wordmark styles={styles} />
@@ -290,7 +291,7 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
             />
           </View>
         </ScrollView>
-      </View>
+      </KeyboardLift>
     );
   }
 

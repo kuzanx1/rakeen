@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, View } from 'react-native';
+import SheetBottomGap from './SheetBottomGap';
 import { Text, TextInput } from './Text';
 import { TouchableOpacity } from './tappable';
 import { requestLoyaltyCode, verifyLoyaltyCode, confirmByCardNumber, confirmByCard } from '../application/loyaltyCodeService';
@@ -354,6 +355,8 @@ export default function LoyaltyRedeemModal({
             }}
           />
         </View>
+        {/* keeps the sheet above the system navigation bar (edge-to-edge Android) */}
+        <SheetBottomGap />
       </KeyboardLift>
     </Modal>
   );

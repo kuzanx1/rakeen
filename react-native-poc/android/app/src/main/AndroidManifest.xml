@@ -1,16 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- مسحُ باركود بطاقة الولاء لإثبات حيازتها -- الباب الذي يعمل
+    <!-- مسحُ باركود بطاقة الولاء لإثبات حيازتها - الباب الذي يعمل
          بلا شبكةٍ عند العميل. -->
     <uses-permission android:name="android.permission.CAMERA" />
 
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Feature Parity Pass -- Bluetooth/USB printing. BLUETOOTH/BLUETOOTH_ADMIN
+    <!-- Feature Parity Pass - Bluetooth/USB printing. BLUETOOTH/BLUETOOTH_ADMIN
          are the pre-API31 permissions (install-time, never runtime-denied);
          BLUETOOTH_SCAN/BLUETOOTH_CONNECT are their API31+ runtime-permission
          replacements (android:usesPermissionFlags="neverForLocation" is
-         deliberately omitted -- discovery on some OEM builds still needs the
+         deliberately omitted - discovery on some OEM builds still needs the
          location association even with BLE-only scanning). ACCESS_FINE_LOCATION
          is required by the OS for classic-Bluetooth discovery pre-API31 only. -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
@@ -19,10 +19,15 @@
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
-    <!-- USB host mode -- android:required="false" since not every device
+    <!-- USB host mode - android:required="false" since not every device
          this app runs on has a USB host port (e.g. a phone used only for
          network/Bluetooth printing must still install fine). -->
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
+
+    <!-- SUNMI printer service (cash drawer): visible to the app on Android 11+. -->
+    <queries>
+        <package android:name="woyou.aidlservice.jiuiv5" />
+    </queries>
 
     <application
       android:name=".MainApplication"

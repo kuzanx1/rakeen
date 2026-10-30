@@ -11,7 +11,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, ScrollView, StatusBar, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, BackHandler, Platform, ScrollView, StatusBar, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './src/ui/Text';
 import type { AppStateStatus } from 'react-native';
 import { TouchableOpacity } from './src/ui/tappable';
@@ -27,6 +27,8 @@ import type { CashierProfile } from './src/domain/auth';
 import { logout, getDeviceConfig } from './src/application/authService';
 import { startAutoSync } from './src/application/syncScheduler';
 import { startPrintQueueAutoProcess } from './src/application/printQueueScheduler';
+import { startPrintStation } from './src/application/printStationService';
+import { startCustomerDisplay, stopCustomerDisplay } from './src/application/customerDisplayService';
 import { resetInterruptedPrintJobsOnBoot } from './src/infrastructure/sqlitePrintQueue';
 import { enqueuePrintJob } from './src/application/printService';
 import PrintQueueScreen from './src/ui/PrintQueueScreen';
@@ -39,7 +41,7 @@ import {
   getRequireManagerPinForClose,
   subscribeToBusinessSettings,
 } from './src/application/catalogService';
-import { profileToPrinterTarget, drawerKickCommandFor, isDrawerSupported } from './src/domain/printerProfile';
+import { profileToPrinterTarget, drawerKickCommandFor, isDrawerSupported, kitchenTicketByButton } from './src/domain/printerProfile';
 import { startDiagnosticsTracking } from './src/application/diagnosticsService';
 import { getNotifySoundEnabled, getReceiptBranding } from './src/application/catalogService';
 import { loadPlanFeatures, planHas } from './src/application/planService';
@@ -61,6 +63,7 @@ import ManagerPinModal from './src/ui/ManagerPinModal';
 import OpenShiftScreen from './src/ui/OpenShiftScreen';
 import StaffPickScreen from './src/ui/StaffPickScreen';
 import IncomingOrderModal from './src/ui/IncomingOrderModal';
+import { formatPickupAt } from './src/domain/arabicDate';
 import {
   listPendingOnlineOrders,
   subscribeToIncomingOnlineOrders,
@@ -164,6 +167,18 @@ type Screen =
 
 type NavTab = 'home' | 'orders' | 'tables' | 'more';
 
+/** «‹ المزيد» above a page opened from «المزيد». Those pages had no way
+ *  back on screen: only the tab bar, or Android's back button, which used
+ *  to close the whole app. */
+function BackToMore({ onPress }: { onPress: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={{ alignSelf: 'flex-start', paddingHorizontal: spacing[4], paddingVertical: spacing[2] }}>
+      <Text style={{ fontFamily: fonts.sansBold, fontSize: 14, color: colors.text }}>› المزيد</Text>
+    </TouchableOpacity>
+  );
+}
+
 function screenToTab(screen: Screen): NavTab {
   switch (screen.name) {
     case 'orderHistory':
@@ -188,6 +203,35 @@ function App(): React.JSX.Element {
   const setTopbarHeight = useSetTopbarHeight();
   const [cashier, setCashier] = useState<CashierProfile | null>(null);
   const [screen, setScreen] = useState<Screen>({ name: 'products', table: null });
+  /**
+   * Android's back button walks back through the app's own screens instead
+   * of leaving it: on a SUNMI terminal it was the only "back" there is, and
+   * one press from the printer settings closed the cashier outright. A sub
+   * page of «المزيد» goes back to it, a tab goes home, a table's order goes
+   * back to the tables, and home keeps the cashier open. (An open <Modal>
+   * takes the press first through its own onRequestClose.)
+   */
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      switch (screen.name) {
+        case 'printQueue':
+        case 'printerSettings':
+        case 'diagnostics':
+          setScreen({ name: 'more' });
+          return true;
+        case 'orderHistory':
+        case 'more':
+        case 'tables':
+          setScreen({ name: 'products', table: null });
+          return true;
+        case 'products':
+          if (screen.table) setScreen({ name: 'tables' });
+          return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, [screen]);
   const [branchId, setBranchId] = useState<number | null>(null);
   /** #posBusinessName / #posBranchName -- .identity-cluster's two lines,
    *  shown only at >=761px (the phone rule hides .identity-text). */
@@ -409,9 +453,12 @@ function App(): React.JSX.Element {
         customerPhone: incomingOrder.customerPhone ?? undefined,
         orderNote: incomingOrder.customerNote ?? undefined,
         createdAtISO,
-        metaLabel: 'طلب إلكتروني',
+        metaLabel: incomingOrder.channel === 'delivery' ? 'طلب إلكتروني — توصيل' : 'طلب إلكتروني — استلام',
+        pickupAt: incomingOrder.scheduledByCustomer && incomingOrder.scheduledFor ? formatPickupAt(incomingOrder.scheduledFor) : undefined,
       });
-      await enqueuePrintJob('kitchen', {
+      // «الطابعة ما تقص الورق»: the receipt alone; the kitchen ticket comes
+      // from its button on the order, once the receipt is torn off.
+      if (!kitchenTicketByButton(await getPrinterProfile())) await enqueuePrintJob('kitchen', {
         orderId,
         tableNumber: null,
         lines,
@@ -419,7 +466,8 @@ function App(): React.JSX.Element {
         logoUrl: branding?.logoUrl || undefined,
         cashierName: staff || undefined,
         createdAtISO,
-        metaLabel: 'طلب إلكتروني',
+        metaLabel: incomingOrder.channel === 'delivery' ? 'طلب إلكتروني — توصيل' : 'طلب إلكتروني — استلام',
+        pickupAt: incomingOrder.scheduledByCustomer && incomingOrder.scheduledFor ? formatPickupAt(incomingOrder.scheduledFor) : undefined,
       });
     } catch {
       // The order is accepted either way; a print failure is the queue's
@@ -496,10 +544,17 @@ function App(): React.JSX.Element {
       setBranchName(device.branchName);
       try {
         const printer = await getPrinterProfile();
+        // A Bluetooth/USB printer (the SUNMI built-in one) is a real printer
+        // too -- the label used to know only network ones, so a working
+        // InnerPrinter showed «بدون طابعة شبكة».
         setPrinterLabel(
           printer?.transport === 'network' && printer.host
             ? `${printer.host}${printer.port ? `:${printer.port}` : ''}`
-            : 'بدون طابعة شبكة',
+            : printer?.transport === 'bluetooth' && printer.bluetoothId
+              ? printer.bluetoothName || 'طابعة بلوتوث'
+              : printer?.transport === 'usb' && printer.usbAccessoryId
+                ? 'طابعة USB'
+                : 'بدون طابعة',
         );
       } catch {
         // an unreadable profile is indistinguishable from an unset one
@@ -624,6 +679,20 @@ function App(): React.JSX.Element {
     };
   }, [cashier]);
 
+  // «جهاز الطباعة للفرع»: يطبع طلبات الأجهزة الثانية. يشتغل دائماً مع
+  // الكاشير، والخدمة نفسها ما تسوي شي لين ينفعّل مفتاحه في إعدادات الطابعة.
+  useEffect(() => {
+    if (!cashier || branchId == null) return;
+    return startPrintStation(branchId);
+  }, [cashier, branchId, resumeTick]);
+
+  // شاشة العميل (سنمي): الصورة أو المنيو اللي اختاره المطعم بدل تكرار شاشة الكاشير.
+  useEffect(() => {
+    if (!cashier) return;
+    startCustomerDisplay().catch(() => {});
+    return () => stopCustomerDisplay();
+  }, [cashier]);
+
   // Checkpoint 13 (Diagnostics, final checkpoint) -- tracks the real
   // Internet signal for the Diagnostics screen; the Cloud signal is
   // reported separately by syncScheduler.ts's own real sync attempts
@@ -696,12 +765,16 @@ function App(): React.JSX.Element {
         timeoutMs: 8000,
         operationId: `manual-${uuid.v4()}`,
       });
+      // The route/detail line is diagnostic: what the SUNMI terminal said.
+      // Android only -- on an iPhone it would just be technical noise.
+      const detail = Platform.OS === 'android' ? [result.route, result.errorDetail].filter(Boolean).join(' · ') : '';
+      const suffix = detail ? ' (' + detail + ')' : '';
       if (result.ok) {
-        setStatusMessage('تم فتح الدرج');
+        setStatusMessage('تم فتح الدرج' + suffix);
       } else if (result.error === 'CASH_DRAWER_UNAVAILABLE') {
         setStatusMessage('هذا الجهاز ما يدعم فتح الدرج');
       } else {
-        setStatusMessage('تعذّر فتح الدرج — تأكد أن الطابعة موصولة وشغّالة');
+        setStatusMessage('تعذّر فتح الدرج — تأكد أن الطابعة موصولة وشغّالة' + suffix);
       }
     } catch (e) {
       setStatusMessage('تعذّر فتح الدرج — جرّب مرة ثانية');
@@ -1041,11 +1114,20 @@ function App(): React.JSX.Element {
             drawerBusy={drawerBusy}
           />
         ) : screen.name === 'printQueue' ? (
-          <PrintQueueScreen />
+          <View style={styles.subScreen}>
+            <BackToMore onPress={() => setScreen({ name: 'more' })} />
+            <PrintQueueScreen />
+          </View>
         ) : screen.name === 'printerSettings' ? (
-          <PrinterSettingsScreen online={online} staffName={staffMember?.name ?? null} />
+          <View style={styles.subScreen}>
+            <BackToMore onPress={() => setScreen({ name: 'more' })} />
+            <PrinterSettingsScreen online={online} staffName={staffMember?.name ?? null} />
+          </View>
         ) : screen.name === 'diagnostics' ? (
-          <DiagnosticsScreen />
+          <View style={styles.subScreen}>
+            <BackToMore onPress={() => setScreen({ name: 'more' })} />
+            <DiagnosticsScreen />
+          </View>
         ) : screen.name === 'orderHistory' && branchId != null ? (
           <OrderHistoryScreen branchId={branchId} shiftId={shift?.id ?? null} />
         ) : null}
@@ -1345,6 +1427,7 @@ function MoreRow({
 const useStyles = createStyles(colors =>
   StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.canvas },
+  subScreen: { flex: 1 },
   /* لا display:'none' وحدها: بعضُ إصدارات أندرويد تُبقي لها مساحةَ لمسٍ.
      صفرُ الشفافية مع pointerEvents='none' يُخفيها ويعزلها معاً. */
   screenHidden: { opacity: 0, zIndex: -1 },

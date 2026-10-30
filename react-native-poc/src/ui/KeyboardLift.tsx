@@ -1,5 +1,5 @@
 import React from 'react';
-import { KeyboardAvoidingView, Platform, StyleProp, ViewStyle } from 'react-native';
+import { KeyboardAvoidingView, StyleProp, ViewStyle } from 'react-native';
 
 /**
  * يرفع محتوى النافذة فوق لوحة المفاتيح بدل أن تُدفن تحتها.
@@ -15,8 +15,11 @@ import { KeyboardAvoidingView, Platform, StyleProp, ViewStyle } from 'react-nati
  *
  * behavior على iOS يكون 'padding': النافذة موسّطة داخل حاوية تملأ
  * الشاشة، فزيادة حشوٍ سفلي بارتفاع اللوحة تدفع المحتوى لأعلى وتُبقيه
- * موسّطاً في ما بقي. و'height' على أندرويد لأن 'padding' هناك يصطدم
- * بـ adjustResize الذي يفعل الشيء نفسه مرتين.
+ * موسّطاً في ما بقي. وعلى أندرويد كذلك: كان 'height' بحجّة أن
+ * adjustResize يرفع النافذة بنفسه، لكن التطبيق مرسومٌ حافةً لحافة
+ * (edgeToEdgeEnabled) والنوافذ <Modal>، وفي الحالتين لا يرفع
+ * adjustResize شيئاً -- فبقي حقل بدء الوردية وزرّه تحت اللوحة على
+ * سنمي D2 mini. فالحشو هنا هو الرافع الوحيد، لا رافعٌ ثانٍ.
  *
  * وهو <View> في كل شيء آخر: يأخذ نفس النمط، ويُوضع مكان طبقة النافذة
  * تماماً، فلا يتغيّر شكل شيء حين تكون اللوحة مغلقة.
@@ -29,7 +32,7 @@ export default function KeyboardLift({
   children: React.ReactNode;
 }) {
   return (
-    <KeyboardAvoidingView style={style} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView style={style} behavior="padding">
       {children}
     </KeyboardAvoidingView>
   );

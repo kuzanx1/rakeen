@@ -1,23 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, View } from 'react-native';
-import { Text, TextInput } from './Text';
-import { TouchableOpacity } from './tappable';
+import { Text } from './Text';
+import { Pressable, TouchableOpacity } from './tappable';
 import { verifyManagerPin } from '../application/managerPinService';
 import { createStyles, fonts, radii, spacing, useTheme } from './theme';
-import { toLatinDigits } from '../domain/digits';
 import KeyboardLift from './KeyboardLift';
 
 const PIN_LENGTH = 4;
+const PIN_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'];
 
 /**
  * Feature Parity Pass -- Refunds/Void/Cancellation. Ported from the PWA's
  * real openPinModal()/verify_pos_manager_pin() flow (public/pos/rakeen-pos.js,
  * ~5450-5517) -- same three-outcome handling (approved/incorrect/not
  * configured/network error), same messages, same "runs onApprove and closes
- * on success" contract. UI simplification, disclosed: a standard OS numeric
- * keyboard via TextInput's keyboardType, not the PWA's custom on-screen
- * keypad grid -- same underlying verify_pos_manager_pin call and PIN length,
- * a styling difference only, not a functional gap.
+ * on success" contract, and the same on-screen keypad as the PWA and
+ * LoginScreen. It used to be a hidden TextInput with autoFocus: Android
+ * never raised the keyboard for it inside a Modal, and an invisible field
+ * can't be tapped, so a SUNMI cashier had no way to enter the PIN at all.
  *
  * Visuals: .modal-overlay/.modal-card/.pin-dots match rakeen-pos.css
  * value-for-value (same tokens as LoginScreen's own PIN dots).
@@ -66,10 +66,9 @@ export default function ManagerPinModal({
     }
   }, [visible]);
 
-  const handleChange = async (text: string) => {
-    // الترجمة قبل التصفية: replace(/\D/g) تعتبر ٠-٩ العربية
-    // "غير رقم" فتحذفها، فكان المدير يضغط أرقامه ولا تظهر نقطة.
-    const digits = toLatinDigits(text).replace(/\D/g, '').slice(0, PIN_LENGTH);
+  const handleKey = async (key: string) => {
+    if (checking) return;
+    const digits = key === '⌫' ? pin.slice(0, -1) : (pin + key).slice(0, PIN_LENGTH);
     setPin(digits);
     setError('');
     if (digits.length !== PIN_LENGTH) return;
@@ -97,16 +96,24 @@ export default function ManagerPinModal({
               <View key={i} style={[styles.dot, i < pin.length && styles.dotFilled]} />
             ))}
           </View>
-          <TextInput
-            style={styles.hiddenInput}
-            value={pin}
-            onChangeText={handleChange}
-            keyboardType="number-pad"
-            secureTextEntry
-            autoFocus
-            maxLength={PIN_LENGTH}
-            editable={!checking}
-          />
+          <View style={styles.pinPad}>
+            {[0, 3, 6, 9].map(r => (
+              <View key={r} style={styles.pinRow}>
+                {PIN_KEYS.slice(r, r + 3).map((key, c) =>
+                  key ? (
+                    <Pressable
+                      key={c}
+                      onPress={() => handleKey(key)}
+                      style={({ pressed }) => [styles.pinKey, pressed && styles.pinKeyActive]}>
+                      <Text style={styles.pinKeyText}>{key}</Text>
+                    </Pressable>
+                  ) : (
+                    <View key={c} style={styles.pinKeySpacer} />
+                  ),
+                )}
+              </View>
+            ))}
+          </View>
           {checking && <ActivityIndicator style={styles.spinner} color={colors.accentText} />}
           {!!error && <Text style={styles.errorText}>{error}</Text>}
           <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
@@ -141,7 +148,23 @@ const useStyles = createStyles(colors =>
   dot: { width: 13, height: 13, borderRadius: 7, borderWidth: 1.5, borderColor: colors.line },
   // .pin-dot.filled uses --lime-deep, overridden to --lime in dark
   dotFilled: { backgroundColor: colors.accentText, borderColor: colors.accentText },
-  hiddenInput: { position: 'absolute', opacity: 0, height: 1, width: '100%' },
+  // LoginScreen's .pin-pad, key for key (digits LTR, 1 top-left).
+  pinPad: { alignSelf: 'center', gap: 11, marginBottom: spacing[3] },
+  pinRow: { flexDirection: 'row', gap: 11, direction: 'ltr' },
+  pinKey: {
+    width: 53,
+    paddingVertical: 17,
+    paddingHorizontal: 17,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surf1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pinKeyActive: { backgroundColor: colors.surf2 },
+  pinKeySpacer: { width: 53 },
+  pinKeyText: { fontFamily: fonts.monoBold, fontSize: 17, color: colors.text },
   spinner: { marginBottom: spacing[2] },
   errorText: { fontFamily: fonts.sansBold, color: colors.danger, fontSize: 12, textAlign: 'center', marginBottom: spacing[2] },
   cancelButton: { padding: spacing[3], marginTop: 6 },

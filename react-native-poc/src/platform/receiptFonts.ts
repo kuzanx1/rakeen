@@ -54,6 +54,15 @@ async function loadTypefaceFromAsset(asset: number): Promise<SkTypeface | null> 
   try {
     const source = Image.resolveAssetSource(asset);
     if (!source?.uri) return null;
+    // في نسخة الإصدار على أندرويد الخط مورد داخلي (اسمٌ بلا http)، وfetch
+    // ما يقرؤه فيرجع الخط null ويُستعار خطّ النظام -- وهو ما فيه ⃁ فيطلع
+    // مربعاً. Skia.Data.fromURI يقرأ الموارد الداخلية وروابط التطوير معاً.
+    try {
+      const face = Skia.Typeface.MakeFreeTypeFaceFromData(await Skia.Data.fromURI(source.uri));
+      if (face) return face;
+    } catch {
+      // نكمل لـ fetch تحت (رابط خادم التطوير)
+    }
     const response = await fetch(source.uri);
     const arrayBuffer = await response.arrayBuffer();
     const data = Skia.Data.fromBytes(new Uint8Array(arrayBuffer));

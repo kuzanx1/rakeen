@@ -449,6 +449,9 @@ const I18N_EN: Record<string, string> = {
   'لا توجد طابعة محفوظة': 'No printer saved',
   'لا يوجد طابعة مُعدّة': 'No printer set up',
   'بدون طابعة شبكة': 'No network printer',
+  'بدون طابعة': 'No printer',
+  'طابعة بلوتوث': 'Bluetooth printer',
+  'طابعة USB': 'USB printer',
   'الطباعة غير متاحة على هذا الجهاز': 'Printing is not available on this device',
   'احفظ الإعدادات أولًا — الطباعة تستخدم الإعداد المحفوظ.': 'Save the settings first — printing uses the saved setup.',
   'الفاتورة بالانتظار — بتنطبع أول ما توصل الطابعة.': 'The receipt is waiting — it prints as soon as the printer connects.',
@@ -457,6 +460,7 @@ const I18N_EN: Record<string, string> = {
   // Print queue
   'إيصال': 'Receipt',
   'تذكرة مطبخ': 'Kitchen ticket',
+  'تذكرة المطبخ': 'Kitchen ticket',
   'بانتظار الطباعة': 'Waiting to print',
   'جارٍ الطباعة': 'Printing',
   'جارٍ الطباعة...': 'Printing...',

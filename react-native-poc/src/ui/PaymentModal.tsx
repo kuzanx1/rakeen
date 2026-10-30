@@ -15,7 +15,8 @@ import { isPagerNumberBusy } from '../application/catalogService';
 import { setOrderPager } from '../application/activeOrderService';
 import { normalisePhoneInput, isSaudiMobile, validateNewCustomerDraft } from '../domain/customer';
 import { findCustomerByPhone } from '../application/customerService';
-import { listPrintJobs, retryPrintJob } from '../application/printService';
+import { enqueuePrintJob, listPrintJobs, retryPrintJob } from '../application/printService';
+import type { KitchenTicketData } from '../domain/receipt';
 import { isPrintJobTerminal } from '../domain/printQueue';
 import type { PrintJobStatus } from '../domain/printQueue';
 import Money from './Money';
@@ -23,6 +24,7 @@ import { createStyles, fonts, gradients, radii, spacing, useTheme } from './them
 import { toLatinDigits } from '../domain/digits';
 import FreeRewardBanner from './FreeRewardBanner';
 import { showLoyaltyBarcodeOnDisplay, onCardAdded } from '../application/displayBarcodeService';
+import { showTotalOnCustomerDisplay } from '../application/customerDisplayService';
 
 /**
  * The payment popup is a WIZARD, not a single sheet -- something only
@@ -75,6 +77,9 @@ export interface PaymentResult {
    *  Null when the sale queued offline and has no server id yet — a
    *  buzzer cannot be recorded against a row that does not exist. */
   orderId?: number | null;
+  /** «الطابعة ما تقص الورق»: the kitchen ticket left the sale's own
+   *  printing and waits for its button on this screen. */
+  kitchen?: KitchenTicketData | null;
 }
 
 /** state.customer. `id` is nullable because a customer typed at checkout
@@ -309,6 +314,12 @@ export default function PaymentModal({
   const [soldCustomerId, setSoldCustomerId] = useState<number | null>(null);
 
   useEffect(() => () => { cardAddedOff.current?.(); }, []);
+
+  // المبلغ على شاشة العميل وقت الدفع، ويرجع الترحيب لما تتم أو تنقفل.
+  useEffect(() => {
+    showTotalOnCustomerDisplay(visible && step !== 'success' ? total : null);
+  }, [visible, step, total]);
+  useEffect(() => () => showTotalOnCustomerDisplay(null), []);
 
   const pushBarcode = useCallback(async (customerId: number) => {
     setBarcodeBusy(true);
@@ -630,6 +641,7 @@ export default function PaymentModal({
     setPaidTotal(captured);
     setResult(outcome);
     setPrintStatus(outcome.printJobId ? 'queued' : null);
+    setKitchenSent(false);
     setStep('success');
   };
 
@@ -646,6 +658,12 @@ export default function PaymentModal({
       // retryPrintJob already leaves the job where it was; the status row
       // keeps polling and will show whatever it settles on.
     }
+  };
+
+  const [kitchenSent, setKitchenSent] = useState(false);
+  const handleKitchenTicket = () => {
+    if (!result?.kitchen) return;
+    enqueuePrintJob('kitchen', { ...result.kitchen }).then(() => setKitchenSent(true)).catch(() => {});
   };
 
   const goBack = () => {
@@ -1555,6 +1573,15 @@ export default function PaymentModal({
                     <Text style={styles.receiptActionText}>{sentWhatsapp ? 'تم الإرسال' : 'واتساب'}</Text>
                   </TouchableOpacity>
                 </View>
+                {result?.kitchen ? (
+                  <TouchableOpacity style={[styles.receiptActionBtn, styles.kitchenTicketBtn]} onPress={handleKitchenTicket} activeOpacity={0.8}>
+                    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={colors.text} strokeWidth={2}>
+                      <Path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z" />
+                      <Path d="M6 17h12" />
+                    </Svg>
+                    <Text style={styles.receiptActionText}>{kitchenSent ? 'انطبعت تذكرة المطبخ' : 'تذكرة المطبخ'}</Text>
+                  </TouchableOpacity>
+                ) : null}
 
                 {/* اعرض باركود الولاء على شاشة العميل -- نظير
                     showOnDisplayBtn في rakeen-pos.js:4596. */}
@@ -1959,6 +1986,7 @@ const useStyles = createStyles(colors =>
   printRetryLink: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accentText, textDecorationLine: 'underline' },
   // .receipt-actions / .receipt-action-btn
   receiptActions: { width: '100%', flexDirection: 'row', gap: 8, marginBottom: 10 },
+  kitchenTicketBtn: { flex: 0, width: '100%', marginBottom: 10 },
   receiptActionBtn: {
     flex: 1,
     paddingVertical: 13,

@@ -2,6 +2,7 @@ import { supabase } from '../infrastructure/supabaseClient';
 import { sqliteOrderQueueStorage } from '../infrastructure/sqliteOrderQueue';
 import { QueuedPayload, OrderPayload, DineInRegisterPayload, DineInPayPayload } from '../domain/order';
 import { syncQueuedOrders, SyncOutcome } from '../domain/orderQueue';
+import { markOwnOrder, markOwnPayment } from './ownOrders';
 
 /**
  * Real RPC dispatch -- exact same three RPCs, exact same parameter names,
@@ -81,12 +82,15 @@ export async function sendDineInPayToServer(payload: DineInPayPayload): Promise<
   return payload.order_id;
 }
 
-export function dispatchQueuedPayload(payload: QueuedPayload): Promise<unknown> {
+export async function dispatchQueuedPayload(payload: QueuedPayload): Promise<unknown> {
+  // قبل الإرسال: لو هالجهاز هو جهاز الطباعة، يعرف إن هالطلب طبعه بنفسه.
+  if (payload.type === 'dine_in_pay') {
+    await markOwnPayment(payload.order_id).catch(() => {});
+    return sendDineInPayToServer(payload);
+  }
+  await markOwnOrder((payload as { client_order_uuid?: string }).client_order_uuid).catch(() => {});
   if (payload.type === 'dine_in_register') {
     return sendDineInRegisterToServer(payload);
-  }
-  if (payload.type === 'dine_in_pay') {
-    return sendDineInPayToServer(payload);
   }
   return sendOrderToServer(payload as OrderPayload);
 }

@@ -102,7 +102,7 @@ export function computeLineStockDecrements(
 ): StockDecrement[] {
   const decrements: StockDecrement[] = [];
   if (!modDef || !line.config) return decrements;
-  for (const group of modDef.groups) {
+  for (const group of modDef.groups ?? []) {
     const selected = line.config[group.id];
     const ids = Array.isArray(selected) ? selected : selected != null ? [selected] : [];
     for (const optId of ids) {
@@ -269,7 +269,10 @@ export function lineUnitPrice(
 ): number {
   if (item.isPointsRedemption) return 0;
   const resolvedBase = productBasePrice(item.productId, basePrice, orderChannel, deliveryPlatformId, platformPrices);
-  if (!modDef || !item.config) return resolvedBase;
+  // A box (the mix platters) has no groups and is sold at its own price,
+  // same as lineUnitPrice() in rakeen-pos.js; walking its groups threw
+  // «Cannot read property 'forEach' of undefined» the moment one was added.
+  if (!modDef || !item.config || (modDef as unknown as { isBox?: boolean }).isBox) return resolvedBase;
   let price = resolvedBase;
   modDef.groups.forEach(g => {
     const sel = item.config![g.id];

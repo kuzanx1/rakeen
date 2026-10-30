@@ -158,7 +158,7 @@ export async function loadWasteCatalog(businessId: number): Promise<WasteCatalog
     const optionsByProduct: Record<number, WasteOptionPick[]> = {};
     Object.entries(cat.modifiersByProductId).forEach(([pid, def]) => {
       const picks: WasteOptionPick[] = [];
-      def.groups.forEach(g => {
+      (def.groups ?? []).forEach(g => {
         g.options.forEach(o => {
           const link = cat.optionStock[`${g.id}_${o.id}`];
           if (!link) return;

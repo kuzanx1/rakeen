@@ -57,6 +57,8 @@ export interface CashDrawerResult {
   ok: boolean;
   error?: CashDrawerErrorCategory;
   errorDetail?: string;
+  /** Android, SUNMI InnerPrinter: which way the command went (diagnostic). */
+  route?: string;
 }
 
 export interface CashDrawerAPI {

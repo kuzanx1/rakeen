@@ -45,8 +45,11 @@ export interface ReceiptPrintable {
   dateLabel: string;
   orderNumber: string;
   metaLabel: string;
+  pickupAt?: string;
   /** رقمُ الطلب الذي استُرجع منه -- يُطبع في إشعار الاسترجاع وحده. */
   refundOfOrder?: string;
+  platformName?: string;
+  platformInvoiceLast4?: string;
   vatNumber: string;
   items: ReceiptItemPrintable[];
   subtotal: number;
@@ -81,6 +84,7 @@ export interface KitchenTicketPrintable {
   branchName: string;
   dateLabel: string;
   metaLabel: string;
+  pickupAt?: string;
   items: KitchenTicketItemPrintable[];
   paperWidthPx: number;
 }
@@ -189,7 +193,10 @@ export function toReceiptPrintable(data: ReceiptData): ReceiptPrintable {
     // server-assigned id yet, and "#null" would be actively misleading.
     orderNumber: data.orderId != null ? `#${data.orderId}` : 'سيُحدَّد عند الاتصال',
     metaLabel: bilingualOrderKind(data.metaLabel ?? ''),
+    pickupAt: data.pickupAt ?? '',
     refundOfOrder: data.refundOfOrder ?? '',
+    platformName: data.platformName ?? '',
+    platformInvoiceLast4: data.platformInvoiceLast4 ?? '',
     customerName: data.customerName ?? '',
     customerPhone: data.customerPhone ?? '',
     orderNote: data.orderNote ?? '',
@@ -219,6 +226,7 @@ export function toKitchenTicketPrintable(data: KitchenTicketData): KitchenTicket
     metaLabel: bilingualOrderKind(
       data.metaLabel ?? (data.tableNumber != null ? `طاولة ${data.tableNumber}` : ''),
     ),
+    pickupAt: data.pickupAt ?? '',
     items: data.lines.map(line => ({
       name: line.name,
       nameEn: line.nameEn ?? '',

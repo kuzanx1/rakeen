@@ -1,5 +1,5 @@
 import React from 'react';
-import { I18nManager, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Text } from './Text';
 import type { StyleProp, TextStyle, ViewStyle } from 'react-native';
 import { fonts, useTheme } from './theme';
@@ -68,11 +68,16 @@ export default function Money({
 
   return (
     <View style={[styles.row, style]}>
+      {/* Whole and fraction are ONE paragraph: inside a single text run the
+          digits and their '.' stay a number ("39.00") whatever direction the
+          box resolves to. As two sibling views they relied on the row's
+          flex direction alone, and on Android (SUNMI D2 mini) that came out
+          mirrored: "00.39". */}
       <Text style={[styles.whole, { fontSize: size, color: ink }]}>
         {sign}
         {whole}
+        <Text style={[styles.frac, { fontSize: size * 0.72, color: ink }]}>.{frac}</Text>
       </Text>
-      <Text style={[styles.frac, { fontSize: size * 0.72, color: ink }]}>.{frac}</Text>
       <Text style={[styles.riyal, { fontSize: size, color: ink }]}>{RIYAL}</Text>
     </View>
   );
@@ -94,7 +99,13 @@ const styles = StyleSheet.create({
   // Done this way rather than with the `direction:'ltr'` style prop
   // because that one is documented iOS-only, and this needs no platform
   // to honour anything beyond flexbox.
-  row: { flexDirection: I18nManager.isRTL ? 'row-reverse' : 'row', alignItems: 'baseline', gap: 3 },
+  //
+  // `I18nManager.isRTL` is read once, when this module loads, and on Android
+  // it can disagree with the direction the views actually lay out in (the
+  // forceRTL in index.js only lands on the next launch), which flipped the
+  // amount. `direction:'ltr'` is a Yoga layout prop honoured on both
+  // platforms, so the box is left-to-right by itself: number, then mark.
+  row: { direction: 'ltr', flexDirection: 'row', alignItems: 'baseline', gap: 3 },
   // This piece carries the minus sign on a discount line. A bare '-' is
   // bidi-neutral, so in an RTL paragraph it would attach to the wrong end
   // of the digits; pinning the direction keeps "-12.50" from rendering as

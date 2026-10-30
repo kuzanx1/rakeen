@@ -137,8 +137,15 @@ export function shouldPrintCustomerReceipt(profile: PrinterProfile | null): bool
   return profile?.printCustomerReceipt !== false;
 }
 
+/** Printed with the order, on its own. Off when the ticket is set to wait
+ *  for its button (a printer that can't cut between the two papers). */
 export function shouldPrintKitchenTicket(profile: PrinterProfile | null): boolean {
-  return profile?.printKitchenTicket === true;
+  return profile?.printKitchenTicket === true && profile?.kitchenTicketByButton !== true;
+}
+
+/** The order's «تذكرة المطبخ» button, beside «إعادة طباعة». */
+export function kitchenTicketByButton(profile: PrinterProfile | null): boolean {
+  return profile?.printKitchenTicket === true && profile?.kitchenTicketByButton === true;
 }
 
 export function shouldPrintReceiptLogo(profile: PrinterProfile | null): boolean {

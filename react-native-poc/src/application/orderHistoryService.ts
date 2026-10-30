@@ -90,12 +90,25 @@ export interface OrderHistoryDetail {
   deliveryFee: number;
   deliveryAddress: string | null;
   tableNumber: number | null;
+  /** orders.source -- 'online' للطلب اللي جا من المتجر الإلكتروني. */
+  source?: string | null;
+  /** وقت الاستلام اللي حدده الزبون (orders.scheduled_for)، أو null. */
+  scheduledFor?: string | null;
+  /** ملاحظة الزبون على الطلب الإلكتروني. */
+  onlineNote?: string | null;
+  /** orders.payment_status / delivered_at -- طلب إلكتروني ما انسلّم ولا
+   *  انحسب مبلغه يقدر الكاشير يلغيه. */
+  paymentStatus?: string | null;
+  deliveredAt?: string | null;
+  /** طلب تطبيق توصيل: اسم التطبيق وآخر ٤ أرقام من فاتورته. */
+  platformName?: string | null;
+  platformInvoiceLast4?: string | null;
   items: OrderHistoryItem[];
 }
 
 export async function getOrderHistoryDetail(orderId: number): Promise<OrderHistoryDetail | null> {
   const [{ data: order }, { data: items }] = await Promise.all([
-    supabase.from('orders').select('*, restaurant_tables!orders_table_id_fkey(number)').eq('id', orderId).maybeSingle(),
+    supabase.from('orders').select('*, restaurant_tables!orders_table_id_fkey(number), delivery_platforms(name)').eq('id', orderId).maybeSingle(),
     supabase.from('order_items').select('*').eq('order_id', orderId),
   ]);
   if (!order) return null;
@@ -137,6 +150,13 @@ export async function getOrderHistoryDetail(orderId: number): Promise<OrderHisto
     deliveryFee: Number(order.delivery_fee || 0),
     deliveryAddress: order.delivery_address ?? null,
     tableNumber: order.restaurant_tables?.number ?? null,
+    source: order.source ?? null,
+    scheduledFor: order.scheduled_for ?? null,
+    onlineNote: order.online_customer_note ?? null,
+    paymentStatus: order.payment_status ?? null,
+    deliveredAt: order.delivered_at ?? null,
+    platformName: order.delivery_platforms?.name ?? null,
+    platformInvoiceLast4: order.platform_invoice_last4 ?? null,
     items: (items || []).map((it: any) => ({
       menuItemId: it.menu_item_id,
       name:

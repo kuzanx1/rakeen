@@ -29,14 +29,14 @@ import { completePaymentOperation } from '../application/paymentService';
 import { getDeviceConfig } from '../application/authService';
 import { enqueuePrintJob } from '../application/printService';
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
-import { shouldPrintCustomerReceipt, shouldPrintKitchenTicket, shouldPrintReceiptLogo } from '../domain/printerProfile';
+import { kitchenTicketByButton, shouldPrintCustomerReceipt, shouldPrintKitchenTicket, shouldPrintReceiptLogo } from '../domain/printerProfile';
 import { supabase } from '../infrastructure/supabaseClient';
 import { buildOrderPayload, buildDineInRegisterPayload, buildDineInPayPayload } from '../domain/order';
 import type { ReceiptData, KitchenTicketData, ReceiptLine, ReceiptLineMod } from '../domain/receipt';
 import type { Product } from '../domain/catalog';
 import { isRetailBusinessType } from '../domain/catalog';
-import { buildDefaultConfig } from '../domain/cart';
-import type { CartLine, ModifierDefinition, OrderChannel } from '../domain/cart';
+import { buildDefaultConfig, formatBoxLabels } from '../domain/cart';
+import type { BoxDefinition, CartLine, ModifierDefinition, OrderChannel } from '../domain/cart';
 import type { CashierProfile } from '../domain/auth';
 import type { Shift } from '../domain/shift';
 import { useCart } from './useCart';
@@ -92,6 +92,8 @@ function cartLineToModLabels(
 ): string[] {
   const def = modifiersByProductId[item.productId];
   if (!def || !item.config) return [];
+  const box = def as unknown as BoxDefinition;
+  if (box.isBox) return formatBoxLabels(item.config, box);
   const labels: string[] = [];
   for (const group of def.groups) {
     const selected = item.config[group.id];
@@ -119,6 +121,8 @@ function cartLineToModEntries(
 ): ReceiptLineMod[] {
   const def = modifiersByProductId[item.productId];
   if (!def || !item.config) return [];
+  const box = def as unknown as BoxDefinition;
+  if (box.isBox) return formatBoxLabels(item.config, box).map(text => ({ text }));
   const entries: ReceiptLineMod[] = [];
   for (const group of def.groups) {
     const selected = item.config[group.id];
@@ -399,7 +403,14 @@ export default function ProductsScreen({
   /** state.lastTransaction -- the sale just completed, shown on the empty
    *  cart so the cashier can reprint without leaving Home. Session-only
    *  in the source too: it is a plain `state` field, never persisted. */
-  const [lastTransaction, setLastTransaction] = useState<{ total: number; time: string } | null>(null);
+  const [lastTransaction, setLastTransaction] = useState<{
+    total: number;
+    time: string;
+    /** The receipt as printed, for «إعادة طباعة». */
+    receipt?: ReceiptData | null;
+    /** Set only when the kitchen ticket waits for its button. */
+    kitchen?: KitchenTicketData | null;
+  } | null>(null);
 
 
   useEffect(
@@ -591,15 +602,24 @@ export default function ProductsScreen({
   );
 
 
-  /** #lastTxReprint. The source's own handler is a toast and nothing
-   *  more (`showToast('تمت إعادة الطباعة')`, rakeen-pos.js:1012) -- it
-   *  does NOT re-enqueue a print job, because by that point the receipt
-   *  payload has already been discarded with the cart. Reproduced as-is
-   *  rather than "improved" into a real reprint, which would be new
-   *  behaviour this app's source does not have. */
+  /** #lastTxReprint. It used to be a toast and nothing more, as in the
+   *  web cashier, so «إعادة طباعة» said «تمت» and printed nothing. The
+   *  sale now keeps its receipt, and this prints it again. */
   const handleReprintLast = useCallback(() => {
-    setSubmitStatus('تمت إعادة الطباعة');
-  }, []);
+    if (!lastTransaction?.receipt) return;
+    enqueuePrintJob('receipt', { ...lastTransaction.receipt })
+      .then(() => setSubmitStatus('تمت إعادة الطباعة'))
+      .catch(() => setSubmitStatus('تعذرت الطباعة — جرّب مرة ثانية'));
+  }, [lastTransaction]);
+
+  /** «تذكرة المطبخ» on the same card: for a printer that can't cut, the
+   *  ticket left the sale's own printing; tear off the receipt, then this. */
+  const handleKitchenLast = useCallback(() => {
+    if (!lastTransaction?.kitchen) return;
+    enqueuePrintJob('kitchen', { ...lastTransaction.kitchen })
+      .then(() => setSubmitStatus('أُرسلت تذكرة المطبخ للطابعة'))
+      .catch(() => setSubmitStatus('تعذرت الطباعة — جرّب مرة ثانية'));
+  }, [lastTransaction]);
 
   /* العميلُ المرفق يُعلَن هنا لا مع بقية الحالة تحت: handleClearOrder
      يحتاجه ليردّ المكافأة قبل التفريغ، وترتيبُ الخطّافات لا يقفز. */
@@ -1245,6 +1265,10 @@ export default function ProductsScreen({
         // Internet/Cloud. A network call here throwing into the outer
         // catch would contradict that by turning an offline-but-successful
         // sale into a false "unexpected error" and skip clearing the cart.
+        // Kept for the «آخر عملية» card: its reprint, and the kitchen ticket
+        // when the printer can't cut and the ticket waits for its button.
+        let lastReceipt: ReceiptData | null = null;
+        let lastKitchen: KitchenTicketData | null = null;
         try {
           // getReceiptBranding لا getReceiptBusinessProfile: الثانية تقرأ
           // logo_url -- شعار المنشأة العام -- ولا تعرف receipt_logo_url
@@ -1253,6 +1277,9 @@ export default function ProductsScreen({
           // المطعم رغم إطفاء مفتاحه -- ثلاثةٌ من مصدرٍ واحد خاطئ.
           const profile = device.businessId != null ? await getReceiptBranding(device.businessId, device.branchId ?? null) : null;
           const printerProfileForReceipt = await getPrinterProfile();
+          const platformName = cart.orderChannel === 'delivery'
+            ? deliveryPlatforms.find((p) => p.id === deliveryPlatformId)?.name ?? ''
+            : '';
           const customerReceipt = {
               orderId: outcome.orderId ?? null,
               lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
@@ -1279,7 +1306,23 @@ export default function ProductsScreen({
               branchLabel: profile?.branchLabel || undefined,
               createdAtISO: new Date().toISOString(),
               metaLabel: CHANNEL_LABELS[cart.orderChannel] || cart.orderChannel,
+              // طلب تطبيق توصيل: اسم التطبيق وآخر ٤ أرقام فاتورته بارزين
+              // تحت رقم الطلب -- كانا يُكتبان في الدفع ولا يُطبعان.
+              platformName: platformName || undefined,
+              platformInvoiceLast4: cart.orderChannel === 'delivery' ? invoiceLast4 || undefined : undefined,
           } satisfies ReceiptData;
+          lastReceipt = customerReceipt;
+          if (kitchenTicketByButton(printerProfileForReceipt) && planHas('kds')) {
+            lastKitchen = {
+              orderId: outcome.orderId ?? null,
+              tableNumber: null,
+              lines: customerReceipt.lines,
+              branchName: device.branchName ?? undefined,
+              createdAtISO: customerReceipt.createdAtISO,
+              metaLabel: customerReceipt.metaLabel + (platformName ? ` — ${platformName}` : ''),
+              pagerNumber,
+            };
+          }
           if (shouldPrintCustomerReceipt(printerProfileForReceipt)) {
             receiptJobId = await enqueuePrintJob('receipt', customerReceipt).catch(() => null);
           }
@@ -1305,7 +1348,7 @@ export default function ProductsScreen({
                 lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
                 branchName: device.branchName ?? undefined,
                 createdAtISO: new Date().toISOString(),
-                metaLabel: CHANNEL_LABELS[cart.orderChannel] || cart.orderChannel,
+                metaLabel: (CHANNEL_LABELS[cart.orderChannel] || cart.orderChannel) + (platformName ? ` — ${platformName}` : ''),
                 pagerNumber,
               } satisfies KitchenTicketData).catch(() => {});
             }
@@ -1320,6 +1363,8 @@ export default function ProductsScreen({
         setLastTransaction({
           total: cart.totals.total,
           time: formatArabicTime(new Date()),
+          receipt: lastReceipt,
+          kitchen: lastKitchen,
         });
         cart.clearCart(); // safe in the SQLite queue either way, per Checkpoint 5
         // `document.getElementById('discountToggle').textContent = '+ خصم'`
@@ -1333,6 +1378,7 @@ export default function ProductsScreen({
           paid: method === 'cash' && cashAmount != null ? cashAmount : soldTotal,
           change: method === 'cash' && cashAmount != null ? Math.max(0, cashAmount - soldTotal) : 0,
           printJobId: receiptJobId,
+          kitchen: lastKitchen,
           // Null when the sale queued offline: there is no server row yet
           // to hang a buzzer number on.
           orderId: outcome.orderId ?? null,
@@ -1560,6 +1606,11 @@ export default function ProductsScreen({
                     <TouchableOpacity style={styles.lastTxReprint} onPress={handleReprintLast} activeOpacity={0.8}>
                       <Text style={styles.lastTxReprintText}>{t('إعادة طباعة')}</Text>
                     </TouchableOpacity>
+                    {!!lastTransaction.kitchen && (
+                      <TouchableOpacity style={styles.lastTxReprint} onPress={handleKitchenLast} activeOpacity={0.8}>
+                        <Text style={styles.lastTxReprintText}>{t('تذكرة المطبخ')}</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 )}
               </View>

@@ -16,6 +16,7 @@ class RakeenPackage : ReactPackage {
             RakeenCashDrawerModule(reactContext),
             RakeenDeviceModule(reactContext),
             RakeenSoundModule(reactContext),
+            RakeenCustomerDisplayModule(reactContext),
         )
     }
 

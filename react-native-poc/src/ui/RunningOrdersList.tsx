@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { Text } from './Text';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Linking, Modal, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from './Text';
+import KeyboardLift from './KeyboardLift';
 import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
 import Money from './Money';
@@ -14,8 +15,15 @@ import {
   markPickupReady,
   markPickupCollected,
   confirmCodCollected,
+  isScheduledHold,
+  cancelOnlineOrder,
+  CANCEL_REASONS,
+  SCHEDULED_HOLD_MINUTES,
 } from '../application/activeOrderService';
 import type { ActiveOrder } from '../application/activeOrderService';
+import { getOrderHistoryDetail } from '../application/orderHistoryService';
+import type { OrderHistoryDetail } from '../application/orderHistoryService';
+import { formatArabicTime } from '../domain/arabicDate';
 import { createStyles, fonts, gradients, radii, useTheme } from './theme';
 
 /**
@@ -37,6 +45,70 @@ import { createStyles, fonts, gradients, radii, useTheme } from './theme';
  * pickup would put a clock on something nobody is timing.
  */
 
+const PAYMENT_LABELS: Record<string, string> = { cash: 'كاش', card: 'شبكة', online: 'دفع إلكتروني' };
+
+/** «٧:٣٠ م»، ومعه اسم اليوم لو مو اليوم. */
+function timeLabel(at: Date): string {
+  const today = at.toDateString() === new Date().toDateString();
+  return (today ? '' : at.toLocaleDateString('ar-SA', { weekday: 'long' }) + ' ') + formatArabicTime(at);
+}
+
+function modLabel(m: unknown): string {
+  return typeof m === 'string' ? m : (m as { text?: string })?.text ?? '';
+}
+
+/**
+ * تفاصيل الطلب كاملة تحت سهم: الأصناف وإضافاتها وملاحظاتها، وملاحظة
+ * الزبون، والعنوان، والدفع. تُجلب أول ما تنفتح بس، لا مع كل تحديث للقائمة.
+ */
+function OrderDetails({ orderId }: { orderId: number }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
+  const [detail, setDetail] = useState<OrderHistoryDetail | null | undefined>(undefined);
+  useEffect(() => {
+    let alive = true;
+    getOrderHistoryDetail(orderId)
+      .then(d => alive && setDetail(d))
+      .catch(() => alive && setDetail(null));
+    return () => {
+      alive = false;
+    };
+  }, [orderId]);
+  if (detail === undefined) return <ActivityIndicator color={colors.muted} style={styles.detailsLoading} />;
+  if (detail === null) return <Text style={styles.detailsMuted}>تعذر تحميل التفاصيل — تحقق من الاتصال.</Text>;
+  return (
+    <View style={styles.details}>
+      {detail.items.map((it, i) => (
+        <View key={i} style={styles.detailItem}>
+          <View style={styles.detailItemRow}>
+            <Text style={styles.detailQty}>{it.qty}×</Text>
+            <Text style={styles.detailName}>{it.name}</Text>
+            <Money value={it.lineTotal} size={12.5} />
+          </View>
+          {it.mods.map((m, j) => (
+            <Text key={j} style={styles.detailMod}>— {modLabel(m)}</Text>
+          ))}
+          {!!it.note && <Text style={styles.detailNote}>ملاحظة: {it.note}</Text>}
+        </View>
+      ))}
+      {!!detail.onlineNote && (
+        <View style={styles.detailNoteBox}>
+          <Text style={styles.detailNoteBoxText}>ملاحظة العميل: {detail.onlineNote}</Text>
+        </View>
+      )}
+      {!!detail.deliveryAddress && <Text style={styles.detailLine}>العنوان: {detail.deliveryAddress}</Text>}
+      <Text style={styles.detailLine}>وقت الطلب: {timeLabel(new Date(detail.createdAt))}</Text>
+      <Text style={styles.detailLine}>الدفع: {PAYMENT_LABELS[detail.paymentMethod] ?? detail.paymentMethod}</Text>
+      {detail.deliveryFee > 0 && (
+        <View style={styles.detailItemRow}>
+          <Text style={[styles.detailLine, styles.detailName]}>رسوم التوصيل</Text>
+          <Money value={detail.deliveryFee} size={12.5} />
+        </View>
+      )}
+    </View>
+  );
+}
+
 function pad2(n: number) {
   return n < 10 ? `0${n}` : String(n);
 }
@@ -52,8 +124,11 @@ function formatMmSs(totalSeconds: number): string {
 export default function RunningOrdersList({
   branchId,
   shiftId,
+  bottomInset = 0,
 }: {
   branchId: number;
+  /** ما تغطيه أشرطة الشاشة تحت القائمة -- آخر كرت وتفاصيله لازم تنسحب فوقها. */
+  bottomInset?: number;
   /** The open shift a collected cash payment belongs to. Null when no
    *  shift is open, which is why the collect button refuses rather than
    *  banking the money nowhere. */
@@ -65,8 +140,21 @@ export default function RunningOrdersList({
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState('');
+  const [cancelFor, setCancelFor] = useState<ActiveOrder | null>(null);
   // Re-renders the countdowns once a second without refetching anything.
   const [, setTick] = useState(0);
+  const [openId, setOpenId] = useState<number | null>(null);
+  // فتح التفاصيل ينزل القائمة لبداية الكرت، فتطلع التفاصيل قدّام العين لا تحت الشاشة.
+  const scrollRef = useRef<React.ElementRef<typeof ScrollView>>(null);
+  const cardY = useRef(new Map<number, number>());
+  const toggleDetails = (id: number) => {
+    const next = openId === id ? null : id;
+    setOpenId(next);
+    if (next != null) {
+      const y = cardY.current.get(next);
+      if (y != null) setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: true }), 50);
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -97,6 +185,13 @@ export default function RunningOrdersList({
     const id = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(id);
   }, [hasCountdown]);
+  // طلب مجدول معلّق يطلع للتجهيز لحاله لما يقرب وقته: فحصٌ كل نص دقيقة يكفي.
+  const hasScheduled = (orders ?? []).some(o => o.scheduledFor != null && !o.readyAt);
+  useEffect(() => {
+    if (!hasScheduled) return;
+    const id = setInterval(() => setOrders(o => (o ? sortActiveOrders(o) : o)), 30_000);
+    return () => clearInterval(id);
+  }, [hasScheduled]);
 
   const advance = async (order: ActiveOrder, step: 'ready' | 'out' | 'done') => {
     setBusyId(order.id);
@@ -171,7 +266,9 @@ export default function RunningOrdersList({
 
   return (
     <ScrollView
-      contentContainerStyle={styles.list}
+      ref={scrollRef}
+      style={styles.scroll}
+      contentContainerStyle={[styles.list, { paddingBottom: 16 + bottomInset + 60 }]}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -185,8 +282,11 @@ export default function RunningOrdersList({
       }>
       {!!error && <Text style={styles.error}>{error}</Text>}
 
-      {orders.map(order => {
+      {orders.map((order, idx) => {
         const isDelivery = order.channel === 'delivery';
+        const held = isScheduledHold(order);
+        const firstHeld = held && (idx === 0 || !isScheduledHold(orders[idx - 1]));
+        const open = openId === order.id;
         const remaining = isDelivery && !order.readyAt ? remainingPrepSeconds(order) : null;
         // Within five minutes of the deadline is the same threshold that
         // drives the source's own warning alert; past it is late.
@@ -194,16 +294,43 @@ export default function RunningOrdersList({
         const soon = remaining != null && remaining >= 0 && remaining <= 300;
 
         return (
-          <View key={order.id} style={styles.card}>
+          <React.Fragment key={order.id}>
+          {firstHeld && <Text style={styles.sectionTitle}>مجدولة — تطلع للتجهيز قبل وقتها بنص ساعة</Text>}
+          <View
+            style={[styles.card, held && styles.cardHeld]}
+            onLayout={e => cardY.current.set(order.id, e.nativeEvent.layout.y)}>
             <View style={styles.cardHead}>
               <View style={styles.cardHeadInfo}>
                 <Text style={styles.cardTitle}>
-                  #{order.id} · {isDelivery ? order.platformName : 'سفري'}
+                  #{order.id} · {isDelivery ? order.platformName : order.isOnline ? 'طلب إلكتروني — استلام' : 'سفري'}
                 </Text>
-                {!!order.customerName && <Text style={styles.cardMeta}>{order.customerName}</Text>}
+                {!!order.customerName && <Text style={styles.cardName}>{order.customerName}</Text>}
               </View>
               <Money value={order.total} size={14.5} />
             </View>
+
+            {!!order.customerPhone && (
+              <TouchableOpacity
+                onPress={() => Linking.openURL('tel:' + order.customerPhone)}
+                activeOpacity={0.8}
+                style={styles.phonePill}>
+                <Text style={styles.phoneLabel}>جوال العميل</Text>
+                <Text style={styles.phoneNum}>{order.customerPhone}</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* الوقت اللي حدده الزبون أهم سطر في الكرت: المطبخ يجهّز عليه. */}
+            {order.scheduledFor != null && !order.readyAt && (
+              <View style={[styles.schedBox, held && styles.schedBoxHeld]}>
+                <Text style={styles.schedLabel}>مطلوب تجهيزه الساعة</Text>
+                <Text style={styles.schedTime}>{timeLabel(order.scheduledFor)}</Text>
+                {held && (
+                  <Text style={styles.schedHint}>
+                    معلّق — يطلع للتجهيز {timeLabel(new Date(order.scheduledFor.getTime() - SCHEDULED_HOLD_MINUTES * 60_000))}
+                  </Text>
+                )}
+              </View>
+            )}
 
             {/* The buzzer number, given the most weight on the card: this
                 is the one thing someone has to read off it and type into
@@ -234,7 +361,9 @@ export default function RunningOrdersList({
 
             <View style={styles.stage}>
               <Text style={styles.stageText}>
-                {!order.readyAt
+                {held
+                  ? 'مجدول — ما بدأ تجهيزه'
+                  : !order.readyAt
                   ? 'قيد التجهيز'
                   : order.outForDeliveryAt
                     ? 'مع المندوب'
@@ -244,7 +373,12 @@ export default function RunningOrdersList({
               </Text>
             </View>
 
-            {busyId === order.id ? (
+            <TouchableOpacity onPress={() => toggleDetails(order.id)} activeOpacity={0.7} style={styles.toggle}>
+              <Text style={styles.toggleText}>{open ? 'إخفاء التفاصيل ▴' : 'تفاصيل الطلب ▾'}</Text>
+            </TouchableOpacity>
+            {open && <OrderDetails orderId={order.id} />}
+
+            {held ? null : busyId === order.id ? (
               <View style={[styles.action, styles.actionBusy]}>
                 <ActivityIndicator color={colors.muted} />
               </View>
@@ -295,16 +429,192 @@ export default function RunningOrdersList({
                 </View>
               </TouchableOpacity>
             )}
+
+            {/* إلغاء طلب إلكتروني انقبل: بس قبل ما ينحسب مبلغه، وبعد تأكيد مع العميل */}
+            {order.isOnline && order.isCash && busyId !== order.id && (
+              <TouchableOpacity onPress={() => setCancelFor(order)} activeOpacity={0.75} style={styles.cancelLink}>
+                <Text style={styles.cancelLinkText}>إلغاء الطلب</Text>
+              </TouchableOpacity>
+            )}
           </View>
+          </React.Fragment>
         );
       })}
+      <CancelOrderModal
+        order={cancelFor}
+        onClose={() => setCancelFor(null)}
+        onDone={async msg => {
+          setCancelFor(null);
+          setError(msg);
+          await load();
+        }}
+      />
     </ScrollView>
+  );
+}
+
+/**
+ * نافذة إلغاء طلب إلكتروني بعد قبوله. الإلغاء بعد ما قلنا للزبون «انقبل
+ * طلبك» يمس الزبون مباشرة، فقبل الزر: تواصل معه وتأكد (زر اتصال جاهز)،
+ * اختر السبب، وعلّم إنك تواصلت -- وبعدها يصير الإلغاء ممكن.
+ */
+export function CancelOrderModal({
+  order,
+  onClose,
+  onDone,
+}: {
+  order: Pick<ActiveOrder, 'id' | 'customerName' | 'customerPhone'> | null;
+  onClose: () => void;
+  onDone: (message: string) => void;
+}) {
+  const { colors, shadows } = useTheme();
+  const styles = useStyles();
+  const [reason, setReason] = useState<string | null>(null);
+  const [other, setOther] = useState('');
+  const [contacted, setContacted] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    setReason(null);
+    setOther('');
+    setContacted(false);
+    setBusy(false);
+    setErr('');
+  }, [order?.id]);
+
+  const finalReason = reason === '__other__' ? other.trim() : reason;
+  const ready = !!finalReason && contacted && !busy;
+
+  const confirm = async () => {
+    if (!order || !finalReason) return;
+    setBusy(true);
+    setErr('');
+    const r = await cancelOnlineOrder(order.id, finalReason);
+    setBusy(false);
+    if (!r.ok) {
+      setErr(r.error ?? 'تعذر إلغاء الطلب');
+      return;
+    }
+    onDone(`انلغى الطلب #${order.id} — ${finalReason}`);
+  };
+
+  return (
+    <Modal visible={order != null} animationType="fade" transparent onRequestClose={onClose}>
+      <KeyboardLift style={styles.cOverlay}>
+        <View style={[styles.cCard, shadows.md]}>
+          <ScrollView contentContainerStyle={styles.cBody} keyboardShouldPersistTaps="handled">
+            <Text style={styles.cTitle}>إلغاء الطلب #{order?.id}</Text>
+
+            <View style={styles.cWarn}>
+              <Text style={styles.cWarnTitle}>تواصل مع العميل أول</Text>
+              <Text style={styles.cWarnText}>
+                الطلب انقبل والعميل يحسبه جاري. كلّمه وتأكد منه قبل ما تلغي.
+              </Text>
+              {!!order?.customerPhone && (
+                <TouchableOpacity
+                  style={styles.cCall}
+                  onPress={() => Linking.openURL('tel:' + order.customerPhone)}
+                  activeOpacity={0.8}>
+                  <Text style={styles.cCallText}>
+                    اتصل على {order.customerName ? order.customerName + ' — ' : ''}{order.customerPhone}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <Text style={styles.cSub}>سبب الإلغاء</Text>
+            <View style={styles.cChips}>
+              {[...CANCEL_REASONS, '__other__'].map(r => {
+                const active = reason === r;
+                return (
+                  <TouchableOpacity
+                    key={r}
+                    style={[styles.cChip, active && styles.cChipActive]}
+                    onPress={() => setReason(r)}
+                    activeOpacity={0.8}>
+                    <Text style={[styles.cChipText, active && styles.cChipTextActive]}>
+                      {r === '__other__' ? 'سبب ثاني' : r}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {reason === '__other__' && (
+              <TextInput
+                style={styles.cInput}
+                placeholder="اكتب السبب..."
+                placeholderTextColor={colors.muted}
+                value={other}
+                onChangeText={setOther}
+                autoFocus
+              />
+            )}
+
+            <TouchableOpacity style={styles.cCheckRow} onPress={() => setContacted(c => !c)} activeOpacity={0.8}>
+              <View style={[styles.cBox, contacted && styles.cBoxOn]}>
+                {contacted && <Text style={styles.cBoxTick}>✓</Text>}
+              </View>
+              <Text style={styles.cCheckText}>تواصلت مع العميل وأكّد الإلغاء</Text>
+            </TouchableOpacity>
+
+            {!!err && <Text style={styles.error}>{err}</Text>}
+
+            <View style={styles.actionRow}>
+              <TouchableOpacity style={[styles.actionHalf, styles.secondary]} onPress={onClose} disabled={busy} activeOpacity={0.8}>
+                <Text style={styles.secondaryText}>رجوع</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionHalf, styles.cConfirm, !ready && styles.cConfirmOff]}
+                onPress={confirm}
+                disabled={!ready}
+                activeOpacity={0.85}>
+                {busy ? (
+                  <ActivityIndicator color={colors.muted} />
+                ) : (
+                  <Text style={[styles.cConfirmText, !ready && styles.cConfirmTextOff]}>تأكيد الإلغاء</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
+      </KeyboardLift>
+    </Modal>
   );
 }
 
 const useStyles = createStyles((colors, shadows) =>
   StyleSheet.create({
     loading: { marginTop: 40 },
+    scroll: { flex: 1 },
+
+    cancelLink: { alignSelf: 'stretch', marginTop: 8, paddingVertical: 10, borderRadius: radii.md, borderWidth: 1.2, borderColor: colors.danger, alignItems: 'center' },
+    cancelLinkText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.danger },
+    cOverlay: { flex: 1, backgroundColor: 'rgba(6,16,10,0.72)', alignItems: 'center', justifyContent: 'center', padding: 16 },
+    cCard: { width: 420, maxWidth: '94%', maxHeight: '90%', backgroundColor: colors.cardBg, borderRadius: radii.xl, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
+    cBody: { padding: 20, gap: 12 },
+    cTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, textAlign: 'center' },
+    cWarn: { padding: 12, borderRadius: radii.md, backgroundColor: 'rgba(224,138,106,0.14)', gap: 6 },
+    cWarnTitle: { fontFamily: fonts.sansBold, fontSize: 13.5, color: colors.danger },
+    cWarnText: { fontFamily: fonts.sansSemiBold, fontSize: 12.5, color: colors.text, lineHeight: 19 },
+    cCall: { marginTop: 2, paddingVertical: 10, borderRadius: radii.md, backgroundColor: colors.cardBg, alignItems: 'center', borderWidth: 1, borderColor: colors.line },
+    cCallText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accentText },
+    cSub: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.muted },
+    cChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    cChip: { paddingVertical: 9, paddingHorizontal: 13, borderRadius: radii.full, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surf1 },
+    cChipActive: { backgroundColor: colors.danger, borderColor: colors.danger },
+    cChipText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text },
+    cChipTextActive: { color: '#ffffff' },
+    cInput: { paddingVertical: 12, paddingHorizontal: 14, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surf1, color: colors.text, fontFamily: fonts.sansSemiBold, fontSize: 13, textAlign: 'right' },
+    cCheckRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
+    cBox: { width: 24, height: 24, borderRadius: 7, borderWidth: 2, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
+    cBoxOn: { backgroundColor: colors.danger, borderColor: colors.danger },
+    cBoxTick: { color: '#ffffff', fontFamily: fonts.sansBold, fontSize: 14 },
+    cCheckText: { flex: 1, fontFamily: fonts.sansBold, fontSize: 13, color: colors.text },
+    cConfirm: { paddingVertical: 13, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.danger },
+    cConfirmOff: { backgroundColor: colors.surf2 },
+    cConfirmText: { fontFamily: fonts.sansBold, fontSize: 13, color: '#ffffff' },
+    cConfirmTextOff: { color: colors.muted },
     list: { padding: 16, gap: 10 },
     emptyBox: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
     empty: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: colors.muted, textAlign: 'center' },
@@ -322,7 +632,51 @@ const useStyles = createStyles((colors, shadows) =>
     cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
     cardHeadInfo: { flex: 1, minWidth: 0 },
     cardTitle: { fontFamily: fonts.sansBold, fontSize: 13.5, color: colors.text },
-    cardMeta: { fontFamily: fonts.sansSemiBold, fontSize: 11, color: colors.muted, marginTop: 2 },
+    cardName: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.text, marginTop: 3 },
+    cardHeld: { opacity: 0.8, borderStyle: 'dashed' },
+    sectionTitle: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.muted, marginTop: 8 },
+
+    phonePill: {
+      alignSelf: 'flex-start',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderRadius: radii.full,
+      backgroundColor: colors.surf2,
+    },
+    phoneLabel: { fontFamily: fonts.sansSemiBold, fontSize: 11, color: colors.muted },
+    phoneNum: { fontFamily: fonts.monoBold, fontSize: 16, color: colors.text, letterSpacing: 0.5 },
+
+    schedBox: {
+      borderWidth: 1.5,
+      borderColor: colors.accentText,
+      borderRadius: radii.md,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      alignItems: 'center',
+      gap: 2,
+    },
+    schedBoxHeld: { borderStyle: 'dashed', borderColor: colors.line },
+    schedLabel: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted },
+    schedTime: { fontFamily: fonts.sansBold, fontSize: 24, color: colors.text },
+    schedHint: { fontFamily: fonts.sansSemiBold, fontSize: 11.5, color: colors.muted },
+
+    toggle: { alignSelf: 'flex-start', paddingVertical: 2 },
+    toggleText: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.accentText },
+    details: { gap: 8, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 10 },
+    detailsLoading: { marginVertical: 8 },
+    detailsMuted: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted },
+    detailItem: { gap: 2 },
+    detailItemRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    detailQty: { fontFamily: fonts.monoBold, fontSize: 13, color: colors.text },
+    detailName: { flex: 1, fontFamily: fonts.sansBold, fontSize: 13, color: colors.text },
+    detailMod: { fontFamily: fonts.sansSemiBold, fontSize: 11.5, color: colors.muted, paddingStart: 22 },
+    detailNote: { fontFamily: fonts.sansSemiBold, fontSize: 11.5, color: colors.text, paddingStart: 22 },
+    detailNoteBox: { backgroundColor: colors.surf1, borderRadius: radii.md, padding: 8 },
+    detailNoteBoxText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text },
+    detailLine: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted },
 
     timer: {
       alignSelf: 'flex-start',

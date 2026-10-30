@@ -34,6 +34,14 @@ class BluetoothClassicPrinterTransport(private val context: Context) {
 
     companion object {
         private val SPP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+        private const val DRAIN_BASE_MS = 400L
+        /** ~16 KB/s: a 40 KB raster receipt waits ~2.9 s before the close. */
+        private const val DRAIN_BYTES_PER_MS = 16
+        /** One job on the wire at a time, across every instance (the printer
+         *  and cash-drawer modules each hold their own transport). A kitchen
+         *  ticket and its receipt go back to back; two sockets open together
+         *  on SUNMI's InnerPrinter interleave their bytes into garbage. */
+        private val sendLock = Any()
     }
 
     data class Device(val id: String, val name: String?)
@@ -70,7 +78,7 @@ class BluetoothClassicPrinterTransport(private val context: Context) {
             callback(emptyList(), "bluetooth_unavailable")
             return
         }
-        if (!hasConnectPermission() || !hasScanPermission()) {
+        if (!hasConnectPermission()) {
             callback(emptyList(), "permission_denied")
             return
         }
@@ -85,6 +93,13 @@ class BluetoothClassicPrinterTransport(private val context: Context) {
             bt.bondedDevices?.forEach { d -> found[d.address] = Device(d.address, d.name) }
         } catch (e: SecurityException) {
             callback(emptyList(), "permission_denied")
+            return
+        }
+        // Paired devices need no scan permission. Before Android 12 discovery
+        // needs location, which nothing in the app asks for, so a SUNMI's
+        // InnerPrinter (always paired) used to hide behind "permission denied".
+        if (!hasScanPermission()) {
+            callback(found.values.toList(), if (found.isEmpty()) "permission_denied" else null)
             return
         }
 
@@ -155,24 +170,36 @@ class BluetoothClassicPrinterTransport(private val context: Context) {
                 callback(false, "permission_denied")
                 return@Thread
             }
-            val socket = openSocket(macAddress)
-            if (socket == null) {
-                callback(false, "device_not_found")
-                return@Thread
+            var ok = false
+            var error: String? = null
+            synchronized(sendLock) {
+                val socket = openSocket(macAddress)
+                if (socket == null) {
+                    error = "device_not_found"
+                } else {
+                    try {
+                        @Suppress("MissingPermission")
+                        socket.connect()
+                        socket.outputStream.write(bytes)
+                        socket.outputStream.flush()
+                        // flush() returns once the bytes are in the local
+                        // Bluetooth buffer, not on the printer: closing now
+                        // drops the tail of the job (a cut-off receipt). Give
+                        // the link time to drain, sized to the job.
+                        Thread.sleep(DRAIN_BASE_MS + bytes.size / DRAIN_BYTES_PER_MS)
+                        ok = true
+                    } catch (e: SecurityException) {
+                        error = "permission_denied"
+                    } catch (e: IOException) {
+                        error = "connection_failed"
+                    } catch (e: InterruptedException) {
+                        ok = true
+                    } finally {
+                        try { socket.close() } catch (e: IOException) { /* already closed/never opened */ }
+                    }
+                }
             }
-            try {
-                @Suppress("MissingPermission")
-                socket.connect()
-                socket.outputStream.write(bytes)
-                socket.outputStream.flush()
-                callback(true, null)
-            } catch (e: SecurityException) {
-                callback(false, "permission_denied")
-            } catch (e: IOException) {
-                callback(false, "connection_failed")
-            } finally {
-                try { socket.close() } catch (e: IOException) { /* already closed/never opened */ }
-            }
+            callback(ok, error)
         }.start()
     }
 

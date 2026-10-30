@@ -47,6 +47,23 @@ export function formatArabicTime(date: Date): string {
   }
 }
 
+/**
+ * وقت الاستلام اللي حدده الزبون: الساعة، ومعها اسم اليوم لو مو نفس يوم
+ * `relativeTo` (الافتراضي الحين). نفس النص على الكاشير والفاتورة والمطبخ.
+ */
+export function formatPickupAt(iso: string | Date, relativeTo: Date = new Date()): string {
+  const at = iso instanceof Date ? iso : new Date(iso);
+  if (!isValid(at)) return '—';
+  if (at.toDateString() === relativeTo.toDateString()) return formatArabicTime(at);
+  let day = '';
+  try {
+    day = at.toLocaleDateString('ar-SA', { weekday: 'long' }) + ' ';
+  } catch {
+    day = '';
+  }
+  return day + formatArabicTime(at);
+}
+
 /** DD/MM/YYYY HH:MM in Arabic-Indic digits where the build can, by hand
  *  where it cannot. */
 export function formatArabicDateTime(date: Date): string {

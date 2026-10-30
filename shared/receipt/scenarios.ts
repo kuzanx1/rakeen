@@ -86,6 +86,7 @@ export const RECEIPT_SCENARIOS: Array<[string, ReceiptModel]> = [
     paymentMethodLabel: 'مقسّمة · نقداً 114.00 ⃁ + شبكة 114.00 ⃁',
   })],
   ['customer', withTotals({ customerName: 'عبدالرحمن الشمري', customerPhone: '0557444227' })],
+  ['delivery-app', withTotals({ metaLabel: 'توصيل', platformName: 'هنقرستيشن', platformInvoiceLast4: '4821', paymentMethodLabel: 'مدفوع عبر التطبيق' })],
 ];
 
 export const THEME_IDS = ['classic', 'compact', 'elegant', 'signature'] as const;

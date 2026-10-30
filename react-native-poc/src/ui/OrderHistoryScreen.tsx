@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import SheetBottomGap from './SheetBottomGap';
 import { profileToPrinterTarget, drawerKickCommandFor } from '../domain/printerProfile';
 import { openCashDrawer } from '../platform/cashDrawer';
 import { Text } from './Text';
-import { TouchableOpacity } from './tappable';
+import { Pressable, TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
 import {
   listOrderHistory,
@@ -21,17 +23,22 @@ import { enqueuePrintJob } from '../application/printService';
 import { getDeviceConfig } from '../application/authService';
 import { getReceiptBranding } from '../application/catalogService';
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
-import { shouldPrintCustomerReceipt, shouldPrintReceiptLogo } from '../domain/printerProfile';
-import type { ReceiptData } from '../domain/receipt';
+import { kitchenTicketByButton, shouldPrintCustomerReceipt, shouldPrintReceiptLogo } from '../domain/printerProfile';
+import type { KitchenTicketData, ReceiptData } from '../domain/receipt';
+import { planHas } from '../application/planService';
 import { useI18n } from './i18n';
 import { createStyles, fonts, gradients, Palette, radii, spacing, useTheme } from './theme';
 import { useShell } from './shell';
 import Svg, { Path, Polyline, Rect } from 'react-native-svg';
 import Money from './Money';
-import RunningOrdersList from './RunningOrdersList';
-import { formatArabicDateTimeShort } from '../domain/arabicDate';
+import RunningOrdersList, { CancelOrderModal } from './RunningOrdersList';
+import { formatArabicDateTimeShort, formatArabicTime } from '../domain/arabicDate';
 import { toLatinDigits } from '../domain/digits';
 import KeyboardLift from './KeyboardLift';
+import { sendToPrintStation } from '../application/printStationService';
+
+const STATION_OK = '🟢 انطبعت على جهاز الطباعة';
+const STATION_NO = '🔴 ما فيه طابعة على هالجهاز، وجهاز الطباعة ما رد — تأكد إنه شغّال ومفتوح على الكاشير';
 
 /**
  * "جارية" first, matching the source's own tab order and for the same
@@ -54,6 +61,25 @@ const STATUS_TABS: { value: OrdersTab; label: string }[] = [
 ];
 
 const CHANNEL_LABELS: Record<string, string> = { dine_in: 'محلي', pickup: 'سفري', delivery: 'تطبيقات التوصيل' };
+
+/**
+ * سطر نوع الطلب على الفاتورة وتذكرة المطبخ عند إعادة الطباعة. الطلب
+ * الإلكتروني يُكتب «طلب إلكتروني — استلام» (لا «سفري»)، ووقت الاستلام
+ * المحدد سطرٌ مستقل (pickupAtLabel): المطبخ يرتّب شغله عليه.
+ */
+function orderMetaLabel(d: OrderHistoryDetail): string {
+  const table = d.tableNumber != null ? ` — طاولة ${d.tableNumber}` : '';
+  if (d.source !== 'online') return (CHANNEL_LABELS[d.channel] || d.channel) + table;
+  return 'طلب إلكتروني — ' + (d.channel === 'delivery' ? 'توصيل' : 'استلام') + table;
+}
+/** وقت الاستلام المحدد سطراً مستقلاً بخط بارز، واليوم معه لو مو نفس يوم الطلب. */
+function pickupAtLabel(d: OrderHistoryDetail): string | undefined {
+  if (!d.scheduledFor) return undefined;
+  const at = new Date(d.scheduledFor);
+  if (Number.isNaN(at.getTime())) return undefined;
+  const sameDay = at.toDateString() === new Date(d.createdAt).toDateString();
+  return (sameDay ? '' : at.toLocaleDateString('ar-SA', { weekday: 'long' }) + ' ') + formatArabicTime(at);
+}
 const PAYMENT_METHOD_LABELS: Record<string, string> = { cash: 'كاش', card: 'بطاقة', split: 'تقسيم دفع', delivery_platform: 'مدفوع عبر التطبيق' };
 /** ORDER_STATUS_LABELS_POS (rakeen-pos.js:3671). */
 const ORDER_STATUS_LABELS: Record<string, string> = {
@@ -182,7 +208,18 @@ export default function OrderHistoryScreen({
   const [refundPick, setRefundPick] = useState<Record<number, number>>({});
   const [refundPickOpen, setRefundPickOpen] = useState(false);
   const [reprintBusy, setReprintBusy] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [reprintStatus, setReprintStatus] = useState('');
+  /** «الطابعة ما تقص الورق» is on: the kitchen ticket left the order and
+   *  waits here, beside «إعادة طباعة». Read when an order opens, so a
+   *  change in the printer settings shows on the next order. */
+  const [kitchenButton, setKitchenButton] = useState(false);
+  useEffect(() => {
+    if (!detail) return;
+    getPrinterProfile()
+      .then(p => setKitchenButton(kitchenTicketByButton(p) && planHas('kds')))
+      .catch(() => setKitchenButton(false));
+  }, [detail]);
 
   const refresh = useCallback(async () => {
     // 'running' has its own component and its own query -- it is a view
@@ -232,6 +269,12 @@ export default function OrderHistoryScreen({
       // التي خرجت أول مرة ورقتان لطلب واحد، لا نسخةٌ منه.
       const profile = device.businessId != null ? await getReceiptBranding(device.businessId, device.branchId ?? null) : null;
       const printerProfile = await getPrinterProfile();
+      // جهاز بدون طابعة (جوال عند الزبون): الطباعة تروح لجهاز الطباعة في الفرع.
+      if (!profileToPrinterTarget(printerProfile)) {
+        const ok = await sendToPrintStation(branchId, detail.id, 'receipt');
+        setReprintStatus(ok ? STATION_OK : STATION_NO);
+        return;
+      }
       if (!shouldPrintCustomerReceipt(printerProfile)) {
         setReprintStatus('⚪ طباعة إيصال العميل معطّلة من الإعدادات');
         return;
@@ -259,9 +302,56 @@ export default function OrderHistoryScreen({
         logoUrl: shouldPrintReceiptLogo(printerProfile) ? profile?.logoUrl || undefined : undefined,
         customMessage: profile?.customMessage || undefined,
         createdAtISO: detail.createdAt,
-        metaLabel: (CHANNEL_LABELS[detail.channel] || detail.channel) + (detail.tableNumber != null ? ` — طاولة ${detail.tableNumber}` : ''),
+        metaLabel: orderMetaLabel(detail),
+        pickupAt: pickupAtLabel(detail),
+        platformName: detail.platformName || undefined,
+        platformInvoiceLast4: detail.platformInvoiceLast4 || undefined,
+        customerName: detail.source === 'online' ? detail.customerName || undefined : undefined,
+        customerPhone: detail.source === 'online' ? detail.customerPhone || undefined : undefined,
+        orderNote: detail.source === 'online' ? detail.onlineNote || undefined : undefined,
       } satisfies ReceiptData);
       setReprintStatus('🟢 أُضيفت الطباعة إلى قائمة الانتظار');
+    } catch (e) {
+      setReprintStatus('🔴 تعذرت الطباعة — جرّب مرة ثانية');
+    } finally {
+      setReprintBusy(false);
+    }
+  };
+
+  /** The kitchen ticket on demand, for a printer that can't cut: the
+   *  cashier tears off the receipt first, then sends this. Same data the
+   *  order itself would have printed (PWA: printKitchenTicketFor). */
+  const handleKitchenTicket = async () => {
+    if (!detail) return;
+    setReprintBusy(true);
+    setReprintStatus('');
+    try {
+      const device = await getDeviceConfig();
+      const printerProfile = await getPrinterProfile();
+      if (!profileToPrinterTarget(printerProfile)) {
+        const ok = await sendToPrintStation(branchId, detail.id, 'kitchen');
+        setReprintStatus(ok ? STATION_OK : STATION_NO);
+        return;
+      }
+      await enqueuePrintJob('kitchen', {
+        orderId: detail.id,
+        tableNumber: detail.tableNumber ?? null,
+        lines: detail.items.map(it => ({
+          name: it.name,
+          nameEn: it.nameEn,
+          qty: it.qty,
+          unitPrice: it.unitPrice,
+          lineTotal: it.lineTotal,
+          mods: it.mods,
+          note: it.note || undefined,
+        })),
+        branchName: device.branchName ?? undefined,
+        createdAtISO: detail.createdAt,
+        // اسم تطبيق التوصيل مع نوع الطلب: المطبخ يعرف لمن يجهّز.
+        metaLabel: orderMetaLabel(detail) + (detail.platformName ? ` — ${detail.platformName}` : ''),
+        pickupAt: pickupAtLabel(detail),
+      } satisfies KitchenTicketData);
+      setReprintStatus('🟢 أُضيفت تذكرة المطبخ إلى قائمة الانتظار');
     } catch (e) {
       setReprintStatus('🔴 تعذرت الطباعة — جرّب مرة ثانية');
     } finally {
@@ -502,7 +592,7 @@ export default function OrderHistoryScreen({
       </View>
 
       {status === 'running' ? (
-        <RunningOrdersList branchId={branchId} shiftId={shiftId} />
+        <RunningOrdersList branchId={branchId} shiftId={shiftId} bottomInset={sideBySide ? insetBottom : 0} />
       ) : loading ? (
         <ActivityIndicator style={styles.center} color={colors.accentText} />
       ) : error ? (
@@ -528,6 +618,9 @@ export default function OrderHistoryScreen({
 
       <Modal visible={detail != null || detailLoading} animationType="slide" transparent onRequestClose={() => setDetail(null)}>
         <View style={styles.overlay}>
+          {/* A tap on the dimmed area above the sheet closes it, as the
+              web cashier's backdrop does -- only «إغلاق» used to. */}
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setDetail(null)} />
           <View style={styles.sheet}>
             {detailLoading && !detail ? (
               <ActivityIndicator color={colors.accentText} />
@@ -659,6 +752,19 @@ export default function OrderHistoryScreen({
                       {reprintBusy ? 'جارٍ الطباعة...' : 'إعادة طباعة'}
                     </Text>
                   </TouchableOpacity>
+                  {kitchenButton && (
+                    <TouchableOpacity
+                      style={styles.detailActionBtn}
+                      disabled={reprintBusy}
+                      onPress={handleKitchenTicket}
+                      activeOpacity={0.8}>
+                      <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={colors.text} strokeWidth={2}>
+                        <Path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z" />
+                        <Path d="M6 17h12" />
+                      </Svg>
+                      <Text style={styles.detailActionText}>تذكرة المطبخ</Text>
+                    </TouchableOpacity>
+                  )}
                   {(detail.status === 'completed' || detail.status === 'partially_refunded') && (
                     <TouchableOpacity
                       style={styles.detailActionBtn}
@@ -677,6 +783,27 @@ export default function OrderHistoryScreen({
                 </View>
                 {!!reprintStatus && <Text style={styles.statusText}>{reprintStatus}</Text>}
                 {!!refundStatus && <Text style={styles.statusText}>{refundStatus}</Text>}
+
+                {/* طلب إلكتروني انقبل وما انسلّم ولا انحسب مبلغه: يقدر ينلغي
+                    من هنا بعد، مو من الطلبات الجارية بس. */}
+                {detail.source === 'online' &&
+                  detail.status === 'completed' &&
+                  detail.paymentMethod === 'cash' &&
+                  !detail.deliveredAt && (
+                    <TouchableOpacity style={styles.cancelOrderBtn} onPress={() => setCancelOpen(true)} activeOpacity={0.8}>
+                      <Text style={styles.cancelOrderText}>إلغاء الطلب</Text>
+                    </TouchableOpacity>
+                  )}
+                <CancelOrderModal
+                  order={cancelOpen ? { id: detail.id, customerName: detail.customerName, customerPhone: detail.customerPhone } : null}
+                  onClose={() => setCancelOpen(false)}
+                  onDone={msg => {
+                    setCancelOpen(false);
+                    setDetail(null);
+                    setError(msg);
+                    refresh();
+                  }}
+                />
 
                 <TouchableOpacity style={styles.closeButton} onPress={() => setDetail(null)}>
                   <Text style={styles.closeButtonText}>إغلاق</Text>
@@ -823,6 +950,8 @@ export default function OrderHistoryScreen({
             }}
             onCancel={() => { setPinPendingRefund(false); setPendingRefundAmount(undefined); setRefundPick({}); }}
           />
+          {/* keeps the sheet above the system navigation bar (edge-to-edge Android) */}
+          <SheetBottomGap />
         </View>
       </Modal>
     </View>
@@ -966,6 +1095,8 @@ const useStyles = createStyles(colors =>
   },
   detailActionText: { fontFamily: fonts.sansBold, fontSize: 10.5, color: colors.text },
   statusText: { fontFamily: fonts.sansSemiBold, textAlign: 'center', marginTop: 10, fontSize: 12, color: colors.muted },
+  cancelOrderBtn: { marginTop: 12, paddingVertical: 12, borderRadius: radii.md, borderWidth: 1.2, borderColor: colors.danger, alignItems: 'center' },
+  cancelOrderText: { fontFamily: fonts.sansBold, fontSize: 13.5, color: colors.danger },
   closeButton: { padding: 14, alignItems: 'center', marginTop: spacing[2] },
   closeButtonText: { fontFamily: fonts.sansBold, color: colors.muted },
   }),

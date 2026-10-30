@@ -125,7 +125,27 @@ export interface PrinterProfile {
    *  opposite. */
   printCustomerReceipt?: boolean;
   printKitchenTicket?: boolean;
+  /** «الطابعة ما تقص الورق»: a printer with no cutter (SUNMI D2 mini) runs
+   *  the kitchen ticket and the receipt together on one strip. On, the
+   *  order prints the receipt alone and the kitchen ticket waits for its
+   *  button on the order (the PWA's DEVICE.kitchenTicketByButton). */
+  kitchenTicketByButton?: boolean;
   printReceiptLogo?: boolean;
+  /** «جهاز الطباعة للفرع»: this device prints the orders other devices
+   *  of the branch make (a phone at the customer, say), with this
+   *  device's own printer and print options. application/printStationService. */
+  printStation?: boolean;
+  /** شاشة العميل في سنمي: mirror (نفس الكاشير) / logo / banner / url. application/customerDisplayService. */
+  customerDisplay?: 'mirror' | 'brand' | 'banner' | 'url' | 'logo' | 'menu';
+  /** لون خلفية شاشة الهوية (hex) أو 'store' = لون المتجر في ركين. */
+  customerDisplayColor?: string;
+  /** صورة اسم المطعم (https) تطلع بدل الكتابة في الهوية. فاضي = الاسم كتابة. */
+  customerDisplayLogoUrl?: string;
+  /** رابط المنيو الأونلاين -- زر «اعرض باركود المنيو» يعرضه على شاشة العميل. */
+  customerDisplayMenuUrl?: string;
+  /** رمز ربط شاشة العميل (8 حروف من لوحة ركين) -- لوضع menu، عشان يوصلها باركود الولاء. */
+  customerDisplayCode?: string;
+  customerDisplayUrl?: string;
   /** A separate kitchen printer target -- ported from the PWA's real
    *  DEVICE.kitchenPrinterIp/kitchenPrinterPort, which itself falls back
    *  to the main printerIp/printerPort when left blank (some kitchens

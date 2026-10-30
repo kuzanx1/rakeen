@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Modal, StyleSheet, View, ScrollView } from 'react-native';
+import SheetBottomGap from './SheetBottomGap';
 import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
@@ -282,6 +283,8 @@ export default function ModifierModal({
           </View>
           )}
         </View>
+        {/* keeps the sheet above the system navigation bar (edge-to-edge Android) */}
+        <SheetBottomGap />
       </View>
     </Modal>
   );

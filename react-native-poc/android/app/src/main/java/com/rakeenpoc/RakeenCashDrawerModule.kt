@@ -15,6 +15,9 @@ import com.facebook.react.bridge.ReadableMap
  *  never overridden anywhere yet -- no real hardware has required
  *  different bytes. */
 private val DEFAULT_KICK_COMMAND = byteArrayOf(0x1B, 0x70, 0x00, 0x19.toByte(), 0xFA.toByte())
+/** The fixed address every SUNMI terminal gives its built-in printer. */
+private const val SUNMI_INNER_PRINTER = "00:11:22:33:44:55"
+private val SUNMI_DRAWER_COMMAND = byteArrayOf(0x10, 0x14, 0x00, 0x00, 0x00)
 
 class RakeenCashDrawerModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
@@ -24,6 +27,19 @@ class RakeenCashDrawerModule(reactContext: ReactApplicationContext) :
     private val usbTransport = UsbPrinterTransport(reactContext)
 
     override fun getName() = "RakeenCashDrawerModule"
+
+    /** SUNMI's built-in printer: its fixed address, or failing that its
+     *  paired name, since not every model is known to keep the address. */
+    private fun isSunmiInnerPrinter(bluetoothId: String): Boolean {
+        if (bluetoothId.equals(SUNMI_INNER_PRINTER, ignoreCase = true)) return true
+        return try {
+            @Suppress("MissingPermission")
+            android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+                ?.getRemoteDevice(bluetoothId)?.name?.contains("InnerPrinter", ignoreCase = true) == true
+        } catch (e: Exception) {
+            false
+        }
+    }
 
     /** options: { target: { transport, host?, port?, bluetoothId?, usbAccessoryId? },
      *  kickCommandBase64?: String, operationId: String, timeoutMs: Int }.
@@ -57,7 +73,25 @@ class RakeenCashDrawerModule(reactContext: ReactApplicationContext) :
             "bluetooth" -> {
                 val bluetoothId = if (target.hasKey("bluetoothId")) target.getString("bluetoothId") else null
                 if (bluetoothId == null) { resolveInvalidTarget(promise); return }
-                bluetoothTransport.send(bluetoothId, bytes) { ok, errorDetail -> resolveOpenResult(promise, ok, errorDetail) }
+                if (!isSunmiInnerPrinter(bluetoothId)) {
+                    bluetoothTransport.send(bluetoothId, bytes) { ok, errorDetail -> resolveOpenResult(promise, ok, errorDetail) }
+                    return
+                }
+                // A SUNMI desktop's drawer hangs off the terminal, not a printer
+                // pulse pin: it opens on DLE DC4 (SUNMI's documented raw
+                // command). Over the Bluetooth InnerPrinter the D2 mini's
+                // drawer stayed shut, so SUNMI's own printer service goes
+                // first, and Bluetooth stays the fallback for a terminal
+                // without it.
+                val sunmiBytes = bytes + SUNMI_DRAWER_COMMAND
+                // route: which way the command went, shown under the manual
+                // «فتح الدرج» message while the D2 mini drawer is diagnosed.
+                SunmiPrinterService.sendRaw(reactApplicationContext, sunmiBytes, 2500L) { ok, info ->
+                    if (ok) resolveOpenResult(promise, true, null, "sunmi " + info)
+                    else bluetoothTransport.send(bluetoothId, sunmiBytes) { btOk, errorDetail ->
+                        resolveOpenResult(promise, btOk, errorDetail, "sunmi(" + info + ") -> bluetooth")
+                    }
+                }
             }
             "usb" -> {
                 val usbAccessoryId = if (target.hasKey("usbAccessoryId")) target.getString("usbAccessoryId") else null
@@ -80,9 +114,10 @@ class RakeenCashDrawerModule(reactContext: ReactApplicationContext) :
         promise.resolve(result)
     }
 
-    private fun resolveOpenResult(promise: Promise, ok: Boolean, errorDetail: String?) {
+    private fun resolveOpenResult(promise: Promise, ok: Boolean, errorDetail: String?, route: String? = null) {
         val result = Arguments.createMap()
         result.putBoolean("ok", ok)
+        if (route != null) result.putString("route", route)
         if (errorDetail != null) {
             result.putString("error", if (errorDetail == "permission_denied") "PERMISSION_DENIED" else "PRINTER_CONNECTION_FAILED")
             result.putString("errorDetail", errorDetail)

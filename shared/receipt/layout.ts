@@ -203,10 +203,26 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
   ctx.y += gap(SPACE.beforeDate);
   divider();
 
+  /* طلبُ تطبيق توصيل: اسمُ التطبيق وآخرُ أربعة أرقامٍ من فاتورته أوّلَ
+     ما يُرى بعد رقم الطلب -- بهما يطابق المندوبُ طلبَه، ويراجع المطعمُ
+     كشفَ التطبيق. كانا يُكتبان في الطلب ولا يُطبعان. */
+  if (receipt.platformName || receipt.platformInvoiceLast4) {
+    if (receipt.platformName) {
+      ctx.y += gap(SPACE.afterInvert);
+      invertBar(receipt.platformName, sz(TYPE.orderInvert));
+    }
+    if (receipt.platformInvoiceLast4) {
+      centerText(bi('آخر ٤ أرقام فاتورة التطبيق', 'App invoice'), sz(TYPE.meta), true);
+      spacedText(receipt.platformInvoiceLast4, sz(TYPE.orderSpacedNumber), true);
+    }
+    divider();
+  }
+
   if (th.sectionLabels) spacedText(bi('الطلب', 'ORDER'), sz(TYPE.sectionLabel), true);
   const metaSz = sz(TYPE.meta);
   if (receipt.cashierName) rowText('', bi('تمت بواسطة', 'Served by') + ': ' + receipt.cashierName, metaSz, false);
   if (receipt.metaLabel) rowText('', bi('نوع الطلب', 'Type') + ': ' + receipt.metaLabel, metaSz, false);
+  if (receipt.pickupAt) rowText('', bi('وقت الاستلام', 'Pickup at') + ': ' + receipt.pickupAt, metaSz, true);
   /* رقمُ الطلب الأصليّ في إشعار الاسترجاع: الورقةُ تُسند إلى ما استُرجع
      منه، وإلّا كانت مبلغاً بلا مصدرٍ عند الجرد. */
   if (receipt.refundOfOrder) rowText('', bi('استرجاع من الطلب', 'Refund of') + ': ' + receipt.refundOfOrder, metaSz, true);
