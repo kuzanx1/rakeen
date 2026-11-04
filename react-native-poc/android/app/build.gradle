@@ -91,11 +91,21 @@ android {
 
     namespace "com.rakeenpoc"
     defaultConfig {
-        applicationId "com.rakeenpoc"
+        applicationId "com.rakeen.pos"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+    }
+    // The APK is also downloaded directly (rakeenapp.com/android), not only
+    // through a store that ships per-device splits. Stored uncompressed (the
+    // default) the native libraries -- Skia alone is ~55MB across ABIs --
+    // doubled the download to 134MB; compressed, they cost a moment's
+    // extraction at install and nothing after.
+    packaging {
+        jniLibs {
+            useLegacyPackaging true
+        }
     }
     signingConfigs {
         debug {

@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Modal, ScrollView, StyleSheet, View } from 'react-native';
+import KeyboardLift from './KeyboardLift';
 import { Text, TextInput } from './Text';
-import { TouchableOpacity } from './tappable';
+import { TouchableOpacity, SMALL_HIT_SLOP } from './tappable';
 import { Image } from 'react-native';
 import GradientFill from './GradientFill';
 import Svg, { Circle, Line, Path, Polyline, Rect } from 'react-native-svg';
@@ -961,10 +962,12 @@ export default function PaymentModal({
           the focused field is scrolled into view); RN does not, so the
           overlay has to shrink by the keyboard's height itself. The card
           is height-capped and its body scrolls, so shrinking the overlay
-          is enough to keep every control reachable. */}
-      <KeyboardAvoidingView
-        style={styles.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          is enough to keep every control reachable.
+          KeyboardLift, not its own KeyboardAvoidingView: on Android this
+          one used 'height', which does nothing inside an edge-to-edge
+          <Modal> (see KeyboardLift) -- the cash field and its confirm
+          button stayed under the keyboard on Android only. */}
+      <KeyboardLift style={styles.overlay}>
         <View style={[styles.card, shadows.md]}>
           {/* .modal-head -- the back circle only exists above the first
               step, matching modalStepStack's own depth check.
@@ -976,13 +979,13 @@ export default function PaymentModal({
             <Text style={styles.title}>{STEP_TITLE[step]}</Text>
             <View style={styles.headBtns}>
               {step !== 'channel' && step !== 'success' && (
-                <TouchableOpacity onPress={goBack} disabled={submitting} style={styles.headCircle}>
+                <TouchableOpacity onPress={goBack} disabled={submitting} style={styles.headCircle} hitSlop={SMALL_HIT_SLOP}>
                   <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={colors.text} strokeWidth={2} strokeLinecap="round">
                     <Polyline points="9 18 15 12 9 6" />
                   </Svg>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity onPress={onCancel} disabled={submitting} style={styles.headCircle}>
+              <TouchableOpacity onPress={onCancel} disabled={submitting} style={styles.headCircle} hitSlop={SMALL_HIT_SLOP}>
                 <Text style={styles.closeGlyph}>✕</Text>
               </TouchableOpacity>
             </View>
@@ -1641,7 +1644,7 @@ export default function PaymentModal({
             )}
           </ScrollView>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardLift>
     </Modal>
   );
 }

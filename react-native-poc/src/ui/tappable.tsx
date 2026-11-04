@@ -8,6 +8,17 @@ import {
 import { playTapSound } from '../application/soundService';
 
 /**
+ * Extra touch area for the few controls drawn smaller than a fingertip
+ * (the 30px back/close circles, the 27px quantity steppers). Apple and
+ * Google both ask for ~44-48px; these stay 30px to match the PWA's look,
+ * so the reach grows instead of the drawing. Vertical gets the full
+ * stretch; horizontal stays under half the gap to the neighbouring
+ * control (8px between the head circles, the count between - and +), so
+ * a tap never lands on the button next to the one aimed at.
+ */
+export const SMALL_HIT_SLOP = { top: 10, bottom: 10, left: 4, right: 4 } as const;
+
+/**
  * Drop-in replacements for react-native's TouchableOpacity/Pressable that
  * play the POS tap tick, so importing them instead of the originals gives
  * the whole app the sound with no change at any call site.

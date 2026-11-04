@@ -2,10 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Animated,
-  Dimensions,
   Easing,
   StyleSheet,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { Text } from './Text';
 
@@ -46,9 +46,6 @@ const REVEAL_MS = 520;
 const HOLD_MS = 300;
 const FADE_MS = 240;
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-/** Diameter that still covers the screen when grown from the centre. */
-const DISC = Math.ceil(Math.hypot(SCREEN_W, SCREEN_H)) + 40;
 
 const MARK_W = 200;
 const MARK_H = 86;
@@ -58,6 +55,11 @@ export function WelcomeSplash({ onDone }: { onDone?: () => void }) {
   const reveal = useRef(new Animated.Value(0)).current;
   const lineIn = useRef(new Animated.Value(0)).current;
   const fade = useRef(new Animated.Value(1)).current;
+  // Live, not read once at import: a tablet turned, or the app opened in
+  // split screen, would otherwise grow a disc sized for the old window.
+  const { width: screenW, height: screenH } = useWindowDimensions();
+  /** Diameter that still covers the screen when grown from the centre. */
+  const disc = Math.ceil(Math.hypot(screenW, screenH)) + 40;
 
   useEffect(() => {
     let cancelled = false;
@@ -147,6 +149,11 @@ export function WelcomeSplash({ onDone }: { onDone?: () => void }) {
         style={[
           styles.disc,
           {
+            width: disc,
+            height: disc,
+            borderRadius: disc / 2,
+            left: (screenW - disc) / 2,
+            top: (screenH - disc) / 2,
             transform: [
               {
                 scale: reveal.interpolate({
@@ -199,12 +206,7 @@ const styles = StyleSheet.create({
   root: { ...(StyleSheet.absoluteFill as object), backgroundColor: GROUND, zIndex: 999 },
   disc: {
     position: 'absolute',
-    width: DISC,
-    height: DISC,
-    borderRadius: DISC / 2,
     backgroundColor: LIME,
-    left: (SCREEN_W - DISC) / 2,
-    top: (SCREEN_H - DISC) / 2,
   },
   center: {
     ...(StyleSheet.absoluteFill as object),

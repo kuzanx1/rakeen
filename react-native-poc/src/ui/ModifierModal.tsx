@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Modal, StyleSheet, View, ScrollView } from 'react-native';
 import SheetBottomGap from './SheetBottomGap';
 import { Text } from './Text';
-import { TouchableOpacity } from './tappable';
+import { TouchableOpacity, SMALL_HIT_SLOP } from './tappable';
 import GradientFill from './GradientFill';
 import { ModifierDefinition, CartLineConfig, buildDefaultConfig } from '../domain/cart';
 import type { BoxDefinition } from '../domain/cart';
@@ -119,7 +119,7 @@ export default function ModifierModal({
         <View style={styles.sheet}>
           <View style={styles.head}>
             <Text style={styles.title}>{productName}</Text>
-            <TouchableOpacity onPress={onCancel} style={styles.closeCircle}>
+            <TouchableOpacity onPress={onCancel} style={styles.closeCircle} hitSlop={SMALL_HIT_SLOP}>
               <Text style={styles.closeCircleText}>✕</Text>
             </TouchableOpacity>
           </View>
@@ -156,11 +156,11 @@ export default function ModifierModal({
                           {it.name}
                         </Text>
                         <View style={styles.boxItemQty}>
-                          <TouchableOpacity style={styles.qtyBtn} onPress={() => bumpPick(it.id, -1)}>
+                          <TouchableOpacity style={styles.qtyBtn} hitSlop={SMALL_HIT_SLOP} onPress={() => bumpPick(it.id, -1)}>
                             <Text style={styles.qtyBtnText}>{'−'}</Text>
                           </TouchableOpacity>
                           <Text style={styles.qtyVal}>{picks[it.id] || 0}</Text>
-                          <TouchableOpacity style={styles.qtyBtn} onPress={() => bumpPick(it.id, 1)}>
+                          <TouchableOpacity style={styles.qtyBtn} hitSlop={SMALL_HIT_SLOP} onPress={() => bumpPick(it.id, 1)}>
                             <Text style={styles.qtyBtnText}>+</Text>
                           </TouchableOpacity>
                         </View>
@@ -258,11 +258,11 @@ export default function ModifierModal({
           <View style={styles.footer}>
             {/* .modifier-qty / .mqty-btn */}
             <View style={styles.qtyStepper}>
-              <TouchableOpacity style={styles.qtyBtn} onPress={() => setQty(q => Math.max(1, q - 1))} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.qtyBtn} hitSlop={SMALL_HIT_SLOP} onPress={() => setQty(q => Math.max(1, q - 1))} activeOpacity={0.8}>
                 <Text style={styles.qtyBtnText}>-</Text>
               </TouchableOpacity>
               <Text style={styles.qtyValue}>{qty}</Text>
-              <TouchableOpacity style={styles.qtyBtn} onPress={() => setQty(q => q + 1)} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.qtyBtn} hitSlop={SMALL_HIT_SLOP} onPress={() => setQty(q => q + 1)} activeOpacity={0.8}>
                 <Text style={styles.qtyBtnText}>+</Text>
               </TouchableOpacity>
             </View>

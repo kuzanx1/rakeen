@@ -54,6 +54,7 @@ import { setNotifySoundEnabled } from './src/application/soundService';
 import DiagnosticsScreen from './src/ui/DiagnosticsScreen';
 import OrderHistoryScreen from './src/ui/OrderHistoryScreen';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import KeyboardLift from './src/ui/KeyboardLift';
 import { createStyles, fonts, radii, spacing, ThemeProvider, useTheme } from './src/ui/theme';
 import { ShellProvider, TOPBAR_FALLBACK_HEIGHT, useShell } from './src/ui/shell';
 import { I18nProvider, useI18n } from './src/ui/i18n';
@@ -925,6 +926,17 @@ function App(): React.JSX.Element {
         لأندرويد القديم، ولا بديلَ لهما إلا هذا.)
       */}
       <StatusBar barStyle={themeMode === 'light' ? 'dark-content' : 'light-content'} />
+      {/* The whole shell shrinks above the keyboard, the way a browser's
+          viewport does. Without it, on Android (edge-to-edge, where
+          adjustResize no longer resizes anything -- see KeyboardLift) the
+          cart's «+ ملاحظة» field and the printer settings' lower fields
+          opened under the keyboard. The inner View is what the absolutely
+          positioned bars and screen area measure against, so they shrink
+          with it instead of staying anchored to the screen's bottom edge
+          behind the keyboard. Where the OS already resized the window,
+          KeyboardAvoidingView measures no overlap and adds nothing. */}
+      <KeyboardLift style={styles.keyboardArea}>
+      <View style={styles.keyboardArea}>
       {/* At >=761px both bars leave normal flow (position:absolute) so the
           screen area spans the full height behind them and .order-panel
           can reach the true top and bottom edges; on Home they also stop
@@ -1186,6 +1198,8 @@ function App(): React.JSX.Element {
           }
         />
       </View>
+      </View>
+      </KeyboardLift>
     </SafeAreaView>
   );
 }
@@ -1427,6 +1441,7 @@ function MoreRow({
 const useStyles = createStyles(colors =>
   StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.canvas },
+  keyboardArea: { flex: 1 },
   subScreen: { flex: 1 },
   /* لا display:'none' وحدها: بعضُ إصدارات أندرويد تُبقي لها مساحةَ لمسٍ.
      صفرُ الشفافية مع pointerEvents='none' يُخفيها ويعزلها معاً. */

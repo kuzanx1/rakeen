@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './Text';
-import { TouchableOpacity } from './tappable';
+import { TouchableOpacity, SMALL_HIT_SLOP } from './tappable';
 import GradientFill from './GradientFill';
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
 import { toLatinDigits } from '../domain/digits';
@@ -103,7 +103,7 @@ export default function DiscountModal({
         <View style={styles.card}>
           <View style={styles.head}>
             <Text style={styles.title}>{t('الخصم')}</Text>
-            <TouchableOpacity onPress={onClose} style={styles.headCircle}>
+            <TouchableOpacity onPress={onClose} style={styles.headCircle} hitSlop={SMALL_HIT_SLOP}>
               <Text style={styles.closeGlyph}>✕</Text>
             </TouchableOpacity>
           </View>

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './Text';
-import { TouchableOpacity } from './tappable';
+import { TouchableOpacity, SMALL_HIT_SLOP } from './tappable';
 import GradientFill from './GradientFill';
 import Money from './Money';
 import ManagerPinModal from './ManagerPinModal';
@@ -58,7 +58,7 @@ function Shell({
       <View style={[styles.card, shadows.md]}>
         <View style={styles.head}>
           <Text style={styles.title}>{title}</Text>
-          <TouchableOpacity onPress={onClose} style={styles.headCircle}>
+          <TouchableOpacity onPress={onClose} style={styles.headCircle} hitSlop={SMALL_HIT_SLOP}>
             <Text style={[styles.closeGlyph, { color: colors.text }]}>✕</Text>
           </TouchableOpacity>
         </View>

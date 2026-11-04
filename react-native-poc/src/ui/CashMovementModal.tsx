@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './Text';
-import { TouchableOpacity } from './tappable';
+import { TouchableOpacity, SMALL_HIT_SLOP } from './tappable';
 import GradientFill from './GradientFill';
 import { recordCashMovement } from '../application/shiftService';
 import type { Shift } from '../domain/shift';
@@ -84,7 +84,7 @@ export default function CashMovementModal({
         <View style={[styles.card, shadows.md]}>
           <View style={styles.head}>
             <Text style={styles.title}>حركة نقدية بالدرج</Text>
-            <TouchableOpacity onPress={onClose} style={styles.headCircle}>
+            <TouchableOpacity onPress={onClose} style={styles.headCircle} hitSlop={SMALL_HIT_SLOP}>
               <Text style={styles.closeGlyph}>✕</Text>
             </TouchableOpacity>
           </View>

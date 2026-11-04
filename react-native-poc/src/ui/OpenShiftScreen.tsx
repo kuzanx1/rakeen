@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './Text';
 import { TouchableOpacity } from './tappable';
+import KeyboardLift from './KeyboardLift';
 import GradientFill from './GradientFill';
 import { openShift } from '../application/shiftService';
 import type { Shift } from '../domain/shift';
@@ -63,7 +64,10 @@ export default function OpenShiftScreen({
   };
 
   return (
-    <View style={styles.screen}>
+    // KeyboardLift like LoginScreen: automaticallyAdjustKeyboardInsets is
+    // iOS-only, so on Android the float field and «ابدأ الوردية» sat under
+    // the keyboard.
+    <KeyboardLift style={styles.screen}>
       <ScrollView contentContainerStyle={styles.centerBox} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         <View style={styles.card}>
           <Image
@@ -102,7 +106,7 @@ export default function OpenShiftScreen({
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </View>
+    </KeyboardLift>
   );
 }
 
