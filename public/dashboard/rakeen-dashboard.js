@@ -8243,6 +8243,15 @@ async function loadBusinessData(){
     // it had deliberately hidden its tagline.
     ONLINE_TAGLINE_HEADER = businessRes.data.online_tagline_header;
     ONLINE_TAGLINE_HERO = businessRes.data.online_tagline_hero;
+    // استعلامٌ مستقلّ: لو العمود ما رُحّل يسقط هذا وحده.
+    try {
+      const { data: calFlags, error: calErr } = await sb.from('businesses')
+        .select('online_show_calories, display_show_calories').eq('id', businessId).maybeSingle();
+      if(!calErr && calFlags){
+        ONLINE_SHOW_CALORIES = calFlags.online_show_calories !== false;
+        DISPLAY_SHOW_CALORIES = calFlags.display_show_calories !== false;
+      }
+    } catch(_){}
     ONLINE_ORDER_FREE_COUNT = Number(businessRes.data.online_order_free_count) || 0;
     ONLINE_SUBSCRIBED = businessRes.data.online_subscribed === true;
     ONLINE_ORDER_FREE_LIMIT = Number(businessRes.data.online_order_free_limit) || 350;
@@ -8361,6 +8370,9 @@ async function loadBusinessData(){
       onlinePrice: m.online_price != null ? Number(m.online_price) : null,
       costMode:m.cost_mode, directCost:Number(m.direct_cost), linkInventory:m.link_inventory, linkProfit:m.link_profit,
       pointsRedeemPrice: m.points_redeem_price != null ? Number(m.points_redeem_price) : null,
+      // undefined (not null) when the column doesn't exist yet: the save
+      // below only sends `calories` when this key was ever real.
+      calories: m.calories === undefined ? undefined : (m.calories != null ? Number(m.calories) : null),
       barcode: m.barcode || '',
       finishedGoodStockItemId: m.finished_good_stock_item_id || null,
       recipe: [],
@@ -10553,6 +10565,8 @@ let ONLINE_SOCIAL_INSTAGRAM = '', ONLINE_SOCIAL_TIKTOK = '', ONLINE_SOCIAL_TWITT
 // rakeen-order.js and the dashboard input pre-fill below rely on this
 // three-way distinction, so never coerce null to '' when reading these.
 let ONLINE_TAGLINE_HEADER = null, ONLINE_TAGLINE_HERO = null;
+// إظهار السعرات للزبون. null = العمود ما رُحّل بعد (20261107130000)، فالمفتاح يختفي من الشاشة.
+let ONLINE_SHOW_CALORIES = null, DISPLAY_SHOW_CALORIES = null;
 const DEFAULT_TAGLINE_HEADER = 'اطلب مباشرة من المطعم';
 const DEFAULT_TAGLINE_HERO = 'طلب مباشر بدون عمولة تطبيقات';
 // Built-in defaults per theme (mirrors :root / .om-shell[data-theme="luxury"]
@@ -13475,6 +13489,14 @@ function onlineMenuDesignHtml(){
           <input type="text" id="settingsOnlineTaglineHero" value="${ONLINE_TAGLINE_HERO===''?'':(ONLINE_TAGLINE_HERO||DEFAULT_TAGLINE_HERO)}" placeholder="${DEFAULT_TAGLINE_HERO}">
         </div>
       </div>
+      ${ONLINE_SHOW_CALORIES === null ? '' : `
+      <div class="rk-section" style="margin-bottom:0;">
+        ${rkSectionHead('fileText', 'السعرات الحرارية', 'تظهر تحت السعر بخط صغير — للأصناف اللي حطيت لها سعرات بس، وتُحفظ مع التصميم')}
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          ${rkCheck(`id="settingsOnlineShowCalories" ${ONLINE_SHOW_CALORIES ? 'checked' : ''}`, 'إظهارها في المتجر الإلكتروني')}
+          ${rkCheck(`id="settingsDisplayShowCalories" ${DISPLAY_SHOW_CALORIES ? 'checked' : ''}`, 'إظهارها في المنيو الإلكتروني (شاشات العرض والتابلت)')}
+        </div>
+      </div>`}
       </div>
 
       <div class="rk-section" style="margin-bottom:0;">
@@ -13709,6 +13731,15 @@ function wireOnlineMenuDesign(){
         updates.logo_url = await uploadMediaFile(logoFile, 'business-branding', 'logo');
       }
       await updateCurrentBusiness(updates);
+      // مفاتيح السعرات بطلبٍ مستقلّ: لو عمودها ما رُحّل ما يفشل حفظ التصميم كله.
+      const calStore = document.getElementById('settingsOnlineShowCalories');
+      const calDisplay = document.getElementById('settingsDisplayShowCalories');
+      if(calStore && calDisplay){
+        try {
+          await updateCurrentBusiness({ online_show_calories: calStore.checked, display_show_calories: calDisplay.checked });
+          ONLINE_SHOW_CALORIES = calStore.checked; DISPLAY_SHOW_CALORIES = calDisplay.checked;
+        } catch(_){}
+      }
       ONLINE_THEME_COLOR = updates.online_theme_color;
       ONLINE_THEME_STYLE = updates.online_theme_style;
       ONLINE_FONT_FAMILY = updates.online_font_family;
@@ -15066,6 +15097,7 @@ async function openProductEditModal(productId, origin){
        costMode:existing.costMode, directCost:existing.directCost, recipe,
        linkInventory:existing.linkInventory, linkProfit:existing.linkProfit,
        pointsRedeemPrice: existing.pointsRedeemPrice,
+       calories: existing.calories, caloriesWasSet: existing.calories != null,
        barcode: existing.barcode || '',
        modifierGroupIds:[...existing.modifierGroupIds],
        totalPieces: slot ? slot.totalPieces : 0,
@@ -15075,7 +15107,7 @@ async function openProductEditModal(productId, origin){
        onlineTagLabel: existing.onlineTagLabel, onlineTagColor: existing.onlineTagColor,
        onlinePrice: existing.onlinePrice}
     : {name:'', nameEn:'', price:0, category:MENU_CATEGORIES[0]||'', extraCategories:[], image:null, imageFile:null,
-       costMode:'direct', directCost:0, recipe:[], linkInventory:false, linkProfit:false, pointsRedeemPrice:null, barcode:'', modifierGroupIds:[],
+       costMode:'direct', directCost:0, recipe:[], linkInventory:false, linkProfit:false, pointsRedeemPrice:null, calories:null, caloriesWasSet:false, barcode:'', modifierGroupIds:[],
        totalPieces:0, eligibleItems:[], defaultMix:[], finishedGoodStockItemId:null,
        visibleOnline: true, visiblePos: true,
        onlineTagLabel: null, onlineTagColor: null, onlinePrice: null};
@@ -15188,6 +15220,7 @@ function productEditBodyHtml(){
       <p class="stock-qty-helper" style="margin-top:-8px; margin-bottom:12px;">الاسم الإنجليزي اختياري — يظهر بالمتجر الإلكتروني وبالكاشير لما تكون لغته إنجليزي.</p>
       <div class="menu-add-field" style="margin-bottom:4px; max-width:260px;"><label>السعر (ر.س) ${helpIcon('هذا السعر عمومًا مرتبط بإعداد "أسعار المنيو شاملة الضريبة" اللي تتحكم فيه من الإعدادات ← الضريبة والفوترة — التوضيح تحت الحقل يعكس إعدادك الحالي.')}</label><input type="number" id="pfPrice" value="${productModalState.price}"></div>
       <p class="stock-qty-helper" id="pfPriceVatNote" style="margin-top:0;"></p>
+      <div class="menu-add-field" style="margin-bottom:12px; max-width:260px;"><label>السعرات الحرارية (اختياري) ${helpIcon('تظهر للزبون تحت السعر بالمتجر والمنيو الإلكتروني بخط صغير. سيبها فاضية لو ما تعرفها.')}</label><input type="number" id="pfCalories" min="0" step="1" value="${productModalState.calories != null ? productModalState.calories : ''}" placeholder="مثال: ٢٣٠"></div>
       <div id="pfCategories" style="margin:4px 0 14px;"></div>
       ${productEditChannelControlHtml()}
       <div class="advanced-section" style="margin-top:6px;">
@@ -15372,6 +15405,10 @@ function renderProductEditBody(){
     productModalState.pointsRedeemPrice = e.target.value.trim() === '' ? null : parseFloat(e.target.value);
   });
   document.getElementById('pfBarcode').addEventListener('input', (e)=> productModalState.barcode = e.target.value.trim());
+  document.getElementById('pfCalories').addEventListener('input', (e)=>{
+    const v = e.target.value.trim();
+    productModalState.calories = v === '' ? null : Math.max(0, Math.round(Number(v)) || 0);
+  });
   document.getElementById('pfVisiblePos').addEventListener('change', (e)=> productModalState.visiblePos = e.target.checked);
   rkWireSwitchStatus('pfVisiblePos', rkVisiblePosStatus);
   const visibleOnlineToggle = document.getElementById('pfVisibleOnline');
@@ -15672,6 +15709,7 @@ async function saveProductEdit(){
     recipe: productModalState.recipe.filter(r=>r.qty>0),
     linkInventory: productModalState.linkInventory, linkProfit: productModalState.linkProfit,
     pointsRedeemPrice: productModalState.pointsRedeemPrice,
+    calories: (productModalState.calories != null || productModalState.caloriesWasSet) ? productModalState.calories : undefined,
     barcode: productModalState.barcode || '',
     visibleOnline: productModalState.visibleOnline, visiblePos: productModalState.visiblePos,
     onlineTagLabel: productModalState.onlineTagLabel, onlineTagColor: productModalState.onlineTagColor,
@@ -15703,6 +15741,9 @@ async function saveProductEdit(){
       cost_mode: productModalState.costMode, direct_cost: productModalState.directCost,
       link_inventory: productModalState.linkInventory, link_profit: productModalState.linkProfit,
       points_redeem_price: productModalState.pointsRedeemPrice,
+      // Sent only when there's something to write or clear, so saving a
+      // product never references the column before its migration is run.
+      ...((productModalState.calories != null || productModalState.caloriesWasSet) ? { calories: productModalState.calories } : {}),
       barcode: productModalState.barcode || null,
       visible_online: productModalState.visibleOnline, visible_pos: productModalState.visiblePos,
       online_tag_label: productModalState.onlineTagLabel, online_tag_color: productModalState.onlineTagLabel ? productModalState.onlineTagColor : null,

@@ -58,21 +58,91 @@ export interface RgbaBuffer {
  *
  * (نظيرها في الويب لا تسقط في هذا: لوحتُها معتمة، فالألفا ٢٥٥ دائماً.)
  */
-function isPixelDark(r: number, g: number, b: number, a: number): boolean {
+function lumOnWhite(r: number, g: number, b: number, a: number): number {
   const cover = a / 255;
   const lum = (r * 299 + g * 587 + b * 114) / 1000;
-  return lum * cover + 255 * (1 - cover) < 160;
+  return lum * cover + 255 * (1 - cover);
 }
 
-function packBitmap(buffer: RgbaBuffer): { bitmap: Uint8Array; bytesPerRow: number } {
+/**
+ * وضوح الطباعة.
+ *
+ * قِيس على خط الفاتورة نفسه (Tajawal Regular، ٢٠٣ نقطة/إنش): ٦٦٪ من
+ * خطوط سطر التاريخ والرقم الضريبي (١٥px) عرضُها نقطةٌ واحدة، و٤١٪ في
+ * اسم الصنف (٢١px). ورأسُ السنمي الداخلي يطبع خطَّ النقطة الواحدة
+ * أسود، والطابعةُ العادية تطبعه باهتاً أو مقطّعاً -- وهو الفرق الذي
+ * يُرى بين الطابعتين على الورقة نفسها.
+ *
+ *   normal  حدّ ١٦٠، بلا تسميك (السلوك الأصلي -- لطابعة السنمي).
+ *   dark    حدّ ٢٠٠ + نقطةٌ أفقية: أقلُّ خطٍّ عمودي نقطتان.
+ *   darker  حدّ ٢٠٠ + نقطةٌ أفقية ورأسية: كل خطٍّ نقطتان على الأقل.
+ *
+ * و«المحمية» (رمز الزكاة، الشعار، الأشرطة السوداء بنصّها الأبيض) تبقى
+ * على حدّ ١٦٠ بلا تسميك: رمزٌ تتضخّم وحداته قد لا يُقرأ، ونصٌّ أبيض
+ * على أسود يرقّ بتسميك الأسود حوله.
+ */
+export type PrintDarkness = 'normal' | 'dark' | 'darker';
+
+export interface RasterRect { x: number; y: number; w: number; h: number }
+
+export interface RasterOptions {
+  darkness?: PrintDarkness;
+  protect?: readonly RasterRect[];
+}
+
+const BASE_THRESHOLD = 160;
+const DARK_THRESHOLD = 200;
+
+/** 1 = حبر، لكل بكسل. */
+export function inkMask(buffer: RgbaBuffer, opts?: RasterOptions): Uint8Array {
   const { width, height, data } = buffer;
+  const darkness = opts?.darkness ?? 'normal';
+  const n = width * height;
+
+  let guard: Uint8Array | null = null;
+  if (darkness !== 'normal' && opts?.protect && opts.protect.length) {
+    guard = new Uint8Array(n);
+    for (const r of opts.protect) {
+      const x0 = Math.max(0, Math.floor(r.x)), x1 = Math.min(width, Math.ceil(r.x + r.w));
+      const y0 = Math.max(0, Math.floor(r.y)), y1 = Math.min(height, Math.ceil(r.y + r.h));
+      for (let y = y0; y < y1; y++) guard.fill(1, y * width + x0, y * width + x1);
+    }
+  }
+
+  const m = new Uint8Array(n);
+  const th = darkness === 'normal' ? BASE_THRESHOLD : DARK_THRESHOLD;
+  for (let i = 0; i < n; i++) {
+    const p = i * 4;
+    const lum = lumOnWhite(data[p], data[p + 1], data[p + 2], data[p + 3]);
+    m[i] = lum < (guard && guard[i] ? BASE_THRESHOLD : th) ? 1 : 0;
+  }
+  if (darkness === 'normal') return m;
+
+  const vertical = darkness === 'darker';
+  const out = m.slice();
+  for (let y = 0; y < height; y++) {
+    const row = y * width;
+    for (let x = 0; x < width; x++) {
+      const k = row + x;
+      if (m[k] || (guard && guard[k])) continue;
+      const src = (j: number) => m[j] === 1 && !(guard && guard[j]);
+      if ((x > 0 && src(k - 1)) || (vertical && y > 0 && (src(k - width) || (x > 0 && src(k - width - 1))))) {
+        out[k] = 1;
+      }
+    }
+  }
+  return out;
+}
+
+function packBitmap(buffer: RgbaBuffer, opts?: RasterOptions): { bitmap: Uint8Array; bytesPerRow: number } {
+  const { width, height } = buffer;
   const bytesPerRow = Math.ceil(width / 8);
   const bitmap = new Uint8Array(bytesPerRow * height);
+  const mask = inkMask(buffer, opts);
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      const pixelIndex = (y * width + x) * 4;
-      if (isPixelDark(data[pixelIndex], data[pixelIndex + 1], data[pixelIndex + 2], data[pixelIndex + 3])) {
+      if (mask[y * width + x]) {
         bitmap[y * bytesPerRow + (x >> 3)] |= 1 << (7 - (x & 7));
       }
     }
@@ -100,9 +170,9 @@ function packBitmap(buffer: RgbaBuffer): { bitmap: Uint8Array; bytesPerRow: numb
  * so a full-length receipt cannot overflow it. The print that follows is
  * the short `GS ( L` form, which takes no data.
  */
-export function rgbaToEscPosRaster(buffer: RgbaBuffer): number[] {
+export function rgbaToEscPosRaster(buffer: RgbaBuffer, opts?: RasterOptions): number[] {
   const { width, height } = buffer;
-  const { bitmap, bytesPerRow } = packBitmap(buffer);
+  const { bitmap, bytesPerRow } = packBitmap(buffer, opts);
 
   const p = 10 + bitmap.length;
   const out: number[] = [
@@ -135,9 +205,9 @@ export function rgbaToEscPosRaster(buffer: RgbaBuffer): number[] {
  * Choosing correct-everywhere over modern costs nothing measurable here:
  * the printers are on the network, and the send was never the slow part.
  */
-export function rgbaToEscPosRasterLegacy(buffer: RgbaBuffer): number[] {
+export function rgbaToEscPosRasterLegacy(buffer: RgbaBuffer, opts?: RasterOptions): number[] {
   const { height } = buffer;
-  const { bitmap, bytesPerRow } = packBitmap(buffer);
+  const { bitmap, bytesPerRow } = packBitmap(buffer, opts);
   return [
     0x1d, 0x76, 0x30, 0x00,
     bytesPerRow & 0xff, (bytesPerRow >> 8) & 0xff,

@@ -262,6 +262,16 @@ img{max-width:100%; display:block;}
   content:''; position:absolute; bottom:0; inset-inline-start:0; width:20px; height:2.5px; border-radius:2px; background:var(--brand);
 }
 
+/* ===== السعرات الحرارية =====
+   سطرٌ رماديّ صغير تحت السعر: معلومةٌ تُقرأ لمن يبحث عنها، لا تنافس
+   السعر ولا رقاقة النقاط. على حافة السعر نفسها في الكلاسيكي، وفي الوسط
+   بالفخم (نفس منطق .om-points-chip تحت). */
+.om-cal{font-size:10.5px; font-weight:600; line-height:1.5; color:var(--muted); margin:1px 0 3px; white-space:nowrap;}
+.om-cal-n{font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:10.5px;}
+.om-shell:not([data-theme="luxury"]) .om-product-info > .om-cal{align-self:flex-end;}
+.om-cal-lg{font-size:12px; margin:6px auto 0; text-align:center;}
+.om-cal-lg .om-cal-n{font-size:12px;}
+
 /* ===== سعر المنتج بالنقاط =====
 
    تحت السعر لا فوقه ولا بدلاً منه: الريال هو الثمن، والنقاط طريقٌ

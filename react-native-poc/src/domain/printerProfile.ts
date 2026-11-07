@@ -168,6 +168,27 @@ export function isDrawerSupported(profile: PrinterProfile | null): boolean {
   return !!profile?.drawerCapabilities.supported;
 }
 
+/** طابعة السنمي الداخلية: تظهر جهاز بلوتوث اسمه InnerPrinter. */
+export function isSunmiInnerPrinter(profile: PrinterProfile | null | undefined): boolean {
+  return !!profile && profile.transport === 'bluetooth' && /innerprinter/i.test(profile.bluetoothName || '');
+}
+
+/**
+ * وضوح الطباعة الفعلي. اختيار صاحب الجهاز أولاً، وإلا فالتلقائي:
+ * رأس السنمي الداخلي يطبع خط النقطة الواحدة أسود فيبقى «عادي» كما هو،
+ * وكل طابعة ثانية «غامق» (انظر قياسات domain/escposRaster.ts).
+ */
+export function resolvePrintDarkness(profile: PrinterProfile | null | undefined): 'normal' | 'dark' | 'darker' {
+  if (profile?.printDarkness) return profile.printDarkness;
+  return isSunmiInnerPrinter(profile) ? 'normal' : 'dark';
+}
+
+export const PRINT_DARKNESS_PRESETS: readonly { label: string; value: 'normal' | 'dark' | 'darker' }[] = [
+  { label: 'عادي', value: 'normal' },
+  { label: 'غامق', value: 'dark' },
+  { label: 'غامق جداً', value: 'darker' },
+];
+
 export const PAPER_WIDTH_PRESETS: readonly { label: string; px: number }[] = [
   { label: '80مم (الأشيع)', px: 576 },
   { label: '58مم', px: 384 },

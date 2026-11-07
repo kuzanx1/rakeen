@@ -20,6 +20,8 @@ if (!window.__rakeenOrderBooted) {
   // to show the menu, with no ordering. Persists across reloads on that one
   // device via localStorage; every other customer's own phone is unaffected.
   let DISPLAY_MODE = false;
+  // إظهار السعرات: المتجر والمنيو الإلكتروني كلٌّ بمفتاحه (loadMenu يقرأهما).
+  let CAL_SHOW_STORE = true, CAL_SHOW_DISPLAY = true;
 
   // Real reported bug: the phone field's digit-strip used /\D/g, which in
   // JS only matches ASCII 0-9 — a customer typing on an Arabic keyboard
@@ -677,6 +679,31 @@ if (!window.__rakeenOrderBooted) {
       return !(all.length > 0 && p.categoryIds.length === 0);
     });
 
+    // السعرات: استعلامٌ مستقلّ لا عمودٌ في استعلام المنيو، فلو العمود ما
+    // رُحّل بعد يسقط هذا وحده والمنيو كما هو.
+    // ومفتاح صاحب المطعم: المتجر له مفتاح، والمنيو الإلكتروني (شاشة العرض)
+    // له مفتاح. لو أعمدتهما ما رُحّلت بعد فالسعرات ظاهرة كما كانت.
+    // والقرار وقت الرسم لا هنا: وضع العرض يُعرف بعد تحميل المنيو، ويتبدّل.
+    try {
+      const { data: calFlags, error: flagErr } = await sb.from('businesses')
+        .select('online_show_calories, display_show_calories').eq('id', businessId).maybeSingle();
+      if (!flagErr && calFlags) {
+        CAL_SHOW_STORE = calFlags.online_show_calories !== false;
+        CAL_SHOW_DISPLAY = calFlags.display_show_calories !== false;
+      }
+    } catch (_) {}
+    if (PRODUCTS.length && (CAL_SHOW_STORE || CAL_SHOW_DISPLAY)) {
+      try {
+        const { data: calRows, error: calErr } = await sb.from('menu_items')
+          .select('id, calories').in('id', PRODUCTS.map(p => p.id)).not('calories', 'is', null);
+        if (!calErr && calRows) {
+          const calById = {};
+          calRows.forEach(r => { calById[r.id] = Number(r.calories); });
+          PRODUCTS.forEach(p => { if (calById[p.id] != null && calById[p.id] >= 0) p.calories = calById[p.id]; });
+        }
+      } catch (_) {}
+    }
+
     const onlineCatIdsWithProducts = new Set();
     PRODUCTS.forEach(p => p.categoryIds.forEach(cid => onlineCatIdsWithProducts.add(String(cid))));
     const onlineCatHasProduct = cat =>
@@ -750,6 +777,12 @@ if (!window.__rakeenOrderBooted) {
     </div>`;
   }
 
+  function caloriesHtml(p, cls) {
+    if (p.calories == null) return '';
+    if (!(DISPLAY_MODE ? CAL_SHOW_DISPLAY : CAL_SHOW_STORE)) return '';
+    return `<div class="om-cal${cls ? ' ' + cls : ''}"><span class="om-cal-n">${p.calories}</span> سعرة حرارية</div>`;
+  }
+
   const PLACEHOLDER_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 2l1.5 20h15L21 2"/><path d="M3 2h18"/><path d="M9 2v6a3 3 0 0 0 6 0V2"/></svg>`;
 
   function visibleProducts() {
@@ -775,6 +808,7 @@ if (!window.__rakeenOrderBooted) {
         </div>
         ${p.costMode === 'box' ? `<div class="om-product-badge">تركيبة حرة — ${p.totalPieces} قطعة</div>` : ''}
         <div class="om-product-price">${formatPrice(p.price)}</div>
+        ${caloriesHtml(p)}
         ${pointsChipHtml(p)}
       </div>
     </button>`;
@@ -926,6 +960,7 @@ if (!window.__rakeenOrderBooted) {
           <span class="om-product-name-ar ${product.nameEn ? 'om-name-sub' : ''}">${product.name}</span>
         </div>
         <div class="om-quickview-price">${formatPrice(product.price)}</div>
+        ${caloriesHtml(product, 'om-cal-lg')}
         ${pointsChipHtml(product, 'lg')}
         ${POINTS_MODE && product.pointsPrice ? `<div class="om-points-hint">${POINTS_REDEEM_HINT_AR}<span>${POINTS_REDEEM_HINT_EN}</span></div>` : ''}
       </div>
@@ -949,6 +984,7 @@ if (!window.__rakeenOrderBooted) {
           <span class="om-product-name-ar ${product.nameEn ? 'om-name-sub' : ''}">${product.name}</span>
         </div>
         ${subtitle ? `<div class="om-sheet-hero-sub">${subtitle}</div>` : ''}
+        ${caloriesHtml(product, 'om-cal-lg')}
         ${pointsChipHtml(product)}
       </div>
     `;

@@ -4905,6 +4905,7 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
   const ctx = out.getContext('2d');
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, layout.width, layout.height);
   paintReceiptOps(ctx, layout, { logo: logoImage, qr: qrImage });
+  out._rkProtect = receiptProtectRects(layout);
   return out;
 }
 
@@ -4934,19 +4935,65 @@ function renderKitchenTicketCanvas(receipt, logoImage){
   const ctx = out.getContext('2d');
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, layout.width, layout.height);
   paintReceiptOps(ctx, layout, { logo: logoImage, qr: null });
+  out._rkProtect = receiptProtectRects(layout);
   return out;
 }
 
+/* وضوح الطباعة -- نفس domain/escposRaster.ts في التطبيق حرفاً بحرف.
+   خطُّ الفاتورة (Tajawal Regular) أكثرُ خطوطه نقطةٌ واحدة عرضاً عند ٢٠٣
+   نقطة/إنش (قِيس: ٦٦٪ في سطر التاريخ)، والطابعةُ العادية تطبعها باهتة.
+   normal = حدّ ١٦٠ (الأصل). dark = حدّ ٢٠٠ + نقطة أفقية. darker = + رأسية.
+   ورمز الزكاة والشعار والأشرطة السوداء (canvas._rkProtect) تبقى كما هي. */
+function receiptProtectRects(layout){
+  const out = [];
+  (layout.ops || []).forEach(function(op){
+    if(op.op === 'image') out.push({x:op.x, y:op.y, w:op.w, h:op.h});
+    else if(op.op === 'rect' && op.color === 'ink' && op.w > 8 && op.h > 8) out.push({x:op.x, y:op.y, w:op.w, h:op.h});
+  });
+  return out;
+}
+function receiptInkMask(imgData, w, h, darkness, protect){
+  const n = w * h;
+  let guard = null;
+  if(darkness !== 'normal' && protect && protect.length){
+    guard = new Uint8Array(n);
+    protect.forEach(function(r){
+      const x0 = Math.max(0, Math.floor(r.x)), x1 = Math.min(w, Math.ceil(r.x + r.w));
+      const y0 = Math.max(0, Math.floor(r.y)), y1 = Math.min(h, Math.ceil(r.y + r.h));
+      for(let y = y0; y < y1; y++) guard.fill(1, y * w + x0, y * w + x1);
+    });
+  }
+  const th = darkness === 'normal' ? 160 : 200;
+  const m = new Uint8Array(n);
+  for(let i = 0; i < n; i++){
+    const idx = i * 4;
+    const luminance = imgData[idx] * 0.299 + imgData[idx + 1] * 0.587 + imgData[idx + 2] * 0.114;
+    m[i] = (imgData[idx + 3] > 10 && luminance < (guard && guard[i] ? 160 : th)) ? 1 : 0;
+  }
+  if(darkness === 'normal') return m;
+  const vertical = darkness === 'darker';
+  const out = m.slice();
+  const src = function(j){ return m[j] === 1 && !(guard && guard[j]); };
+  for(let y = 0; y < h; y++){
+    for(let x = 0; x < w; x++){
+      const k = y * w + x;
+      if(m[k] || (guard && guard[k])) continue;
+      if((x > 0 && src(k - 1)) || (vertical && y > 0 && (src(k - w) || (x > 0 && src(k - w - 1))))) out[k] = 1;
+    }
+  }
+  return out;
+}
 function canvasToEscPosRaster(canvas){
   const w = canvas.width, h = canvas.height;
   const imgData = canvas.getContext('2d').getImageData(0, 0, w, h).data;
   const bytesPerRow = Math.ceil(w / 8);
   const raster = new Uint8Array(bytesPerRow * h);
+  // كاشير الويب يطبع على طابعة شبكة دائماً (لا طابعة سنمي داخلية) فالتلقائي «غامق».
+  const darkness = DEVICE.printDarkness || 'dark';
+  const mask = receiptInkMask(imgData, w, h, darkness, canvas._rkProtect || null);
   for(let y = 0; y < h; y++){
     for(let x = 0; x < w; x++){
-      const idx = (y * w + x) * 4;
-      const luminance = imgData[idx] * 0.299 + imgData[idx + 1] * 0.587 + imgData[idx + 2] * 0.114;
-      if(imgData[idx + 3] > 10 && luminance < 160){
+      if(mask[y * w + x]){
         raster[y * bytesPerRow + (x >> 3)] |= (0x80 >> (x & 7));
       }
     }
@@ -5561,6 +5608,7 @@ function renderShiftReportCanvas(report){
   const ctx = out.getContext('2d');
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, layout.width, layout.height);
   paintReceiptOps(ctx, layout, { logo: null, qr: null });
+  out._rkProtect = receiptProtectRects(layout);
   return out;
 }
 function buildShiftReportEscPosBytes(report){
@@ -8041,6 +8089,15 @@ function openPosSettingsModal(){
       </div>
     </div>
     <div class="pos-auth-field" style="margin-top:10px;">
+      <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px;">وضوح الطباعة</label>
+      <select id="printerDarknessInput" style="width:100%;">
+        <option value="normal" ${DEVICE.printDarkness==='normal'?'selected':''}>عادي</option>
+        <option value="dark" ${(DEVICE.printDarkness||'dark')==='dark'?'selected':''}>غامق</option>
+        <option value="darker" ${DEVICE.printDarkness==='darker'?'selected':''}>غامق جداً</option>
+      </select>
+      <div style="font-size:11px; color:var(--muted); margin-top:4px;">لو الكلام يطلع باهت أو مقطّع اختر «غامق جداً»، واحفظ واطبع تجربة.</div>
+    </div>
+    <div class="pos-auth-field" style="margin-top:10px;">
       <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:2px;">شكل الفاتورة عند الدفع</label>
       ${posCheck(`id="printCustomerReceiptToggle" ${DEVICE.printCustomerReceipt !== false ? 'checked' : ''}`, 'فاتورة العميل (مع السعر والضريبة ورمز QR)')}
       <div ${posPlanHas('kds') ? '' : 'style="display:none"'}>${posCheck(`id="printKitchenTicketToggle" ${DEVICE.printKitchenTicket === true ? 'checked' : ''}`, 'فاتورة المطبخ (الأصناف والملاحظات فقط، بدون أسعار)')}</div>
@@ -8071,6 +8128,7 @@ function openPosSettingsModal(){
     DEVICE.printerIp = document.getElementById('printerIpInput').value.trim() || null;
     DEVICE.printerPort = parseInt(document.getElementById('printerPortInput').value, 10) || 9100;
     DEVICE.printerPaperWidth = parseInt(document.getElementById('printerWidthInput').value, 10) || 576;
+    DEVICE.printDarkness = document.getElementById('printerDarknessInput').value || 'dark';
     DEVICE.printCustomerReceipt = document.getElementById('printCustomerReceiptToggle').checked;
     DEVICE.printKitchenTicket = document.getElementById('printKitchenTicketToggle').checked;
     DEVICE.kitchenTicketByButton = document.getElementById('kitchenTicketByButtonToggle').checked;

@@ -9,7 +9,7 @@ async function getBusiness(slug: string) {
   const sb = createClient(supabaseUrl, anonKey);
   const { data } = await sb
     .from("businesses")
-    .select("name, logo_url, online_theme_color, verification_meta_name, verification_meta_content")
+    .select("name, logo_url, online_theme_color, online_offers_delivery, online_offers_pickup, verification_meta_name, verification_meta_content")
     .eq("online_menu_slug", slug)
     .eq("online_ordering_enabled", true)
     .maybeSingle();
@@ -49,9 +49,31 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     other["x-rakeen-verify"] = business.verification_meta_name;
   }
 
+  /**
+   * معاينة الرابط لما ينشارك (واتساب، تويتر...) تكون بهوية المطعم لا ركين:
+   * شعاره صورتها، واسمه اسم الموقع. والوصف يقول ما يقدّمه فعلاً -- لا
+   * «توصيل» لمطعمٍ أطفأ التوصيل.
+   */
+  const title = business ? `${business.name} — اطلب مباشرة` : "المنيو غير متاح";
+  const channels = business
+    ? [business.online_offers_delivery !== false && "توصيل", business.online_offers_pickup !== false && "استلام"].filter(Boolean).join(" أو ")
+    : "";
+  const description = business
+    ? `منيو ${business.name} الإلكتروني${channels ? ` — اطلب ${channels} مباشرة.` : "."}`
+    : undefined;
+  const image = business?.logo_url
+    ? [{ url: business.logo_url as string, width: 500, height: 500, alt: business.name as string }]
+    : undefined;
+
   return {
-    title: business ? `${business.name} — اطلب مباشرة` : "المنيو غير متاح",
-    description: business ? `منيو ${business.name} الإلكتروني — اطلب توصيل أو استلام مباشرة.` : undefined,
+    title,
+    description,
+    openGraph: business
+      ? { title, description, siteName: business.name as string, locale: "ar_SA", type: "website", ...(image ? { images: image } : {}) }
+      : undefined,
+    twitter: business
+      ? { card: "summary", title, description, ...(image ? { images: [image[0].url] } : {}) }
+      : undefined,
     other: Object.keys(other).length ? other : undefined,
   };
 }

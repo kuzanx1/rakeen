@@ -112,6 +112,9 @@ export interface PrinterProfile {
   capabilityProfileId?: string;
   rasterCommand?: 'modern' | 'legacy';
   bluetoothName?: string;
+  /** وضوح الطباعة (domain/escposRaster.ts). فارغ = تلقائي:
+   *  طابعة السنمي الداخلية «عادي»، وأي طابعة ثانية «غامق». */
+  printDarkness?: 'normal' | 'dark' | 'darker';
   usbAccessoryId?: string;
   usbAccessoryName?: string;
   /** Feature Parity Pass -- Printing Configuration. Ported verbatim from

@@ -3,7 +3,7 @@ import type { SkImage } from '@shopify/react-native-skia';
 import { createReceiptSurface, loadRemoteImage } from '../platform/receiptCanvas';
 import { loadReceiptTypefaces } from '../platform/receiptFonts';
 import { buildReceiptFontProvider, paintTextAnchored, measureTextWidthWeighted } from '../platform/receiptText';
-import { rgbaToEscPosRaster, rgbaToEscPosRasterLegacy, RgbaBuffer } from '../domain/escposRaster';
+import { rgbaToEscPosRaster, rgbaToEscPosRasterLegacy, RgbaBuffer, PrintDarkness, RasterRect } from '../domain/escposRaster';
 import type { PrintTimer } from './printTiming';
 import { bytesToBase64 } from '../domain/escposText';
 import { zatcaQrBase64 } from '../domain/zatca';
@@ -53,8 +53,20 @@ import type { LayoutResult, Measurer, KitchenTicketModel, ShiftReportModel } fro
  * و'modern' باقٍ اختياراً في الإعدادات، يقلبه المالك حين تثبت
  * طابعته على الورق أنها تعرفه.
  */
-function encodeRaster(buffer: RgbaBuffer, command?: 'modern' | 'legacy'): number[] {
-  return command === 'modern' ? rgbaToEscPosRaster(buffer) : rgbaToEscPosRasterLegacy(buffer);
+/** ما لا يُسمَّك عند تغميق الطباعة: رمز الزكاة والشعار (صورٌ لا خطوط)،
+ *  والأشرطة السوداء (نصّها أبيض فيرقّ لو سُمِّك الأسود حوله). */
+function protectRectsOf(layout: LayoutResult): RasterRect[] {
+  const out: RasterRect[] = [];
+  for (const op of layout.ops) {
+    if (op.op === 'image') out.push({ x: op.x, y: op.y, w: op.w, h: op.h });
+    else if (op.op === 'rect' && op.color === 'ink' && op.w > 8 && op.h > 8) out.push({ x: op.x, y: op.y, w: op.w, h: op.h });
+  }
+  return out;
+}
+
+function encodeRaster(buffer: RgbaBuffer, command?: 'modern' | 'legacy', darkness?: PrintDarkness, layout?: LayoutResult): number[] {
+  const opts = { darkness, protect: darkness && darkness !== 'normal' && layout ? protectRectsOf(layout) : undefined };
+  return command === 'modern' ? rgbaToEscPosRaster(buffer, opts) : rgbaToEscPosRasterLegacy(buffer, opts);
 }
 
 /* ولا مقاسَ هنا: كانت PAD وLINE_H وKITCHEN_LINE_H تعيش في هذا الملفّ
@@ -214,6 +226,7 @@ export async function renderReceiptToEscPosBase64(
   themeId?: string | null,
   rasterCommand?: 'modern' | 'legacy',
   timer?: PrintTimer,
+  darkness?: PrintDarkness,
 ): Promise<string> {
   try {
     const receipt = toReceiptPrintable(printerPaperWidthPx != null ? { ...data, paperWidthPx: printerPaperWidthPx } : data);
@@ -285,8 +298,8 @@ export async function renderReceiptToEscPosBase64(
 
     const rgba = timer ? await timer.stage('pixelsRead', () => surface.toRgba(layout.height)) : surface.toRgba(layout.height);
     const raster = timer
-      ? await timer.stage('escposBuild', () => encodeRaster(rgba, rasterCommand))
-      : encodeRaster(rgba, rasterCommand);
+      ? await timer.stage('escposBuild', () => encodeRaster(rgba, rasterCommand, darkness, layout))
+      : encodeRaster(rgba, rasterCommand, darkness, layout);
     const bytes = [0x1b, 0x40, ...raster, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00];
     return timer ? await timer.stage('base64', () => bytesToBase64(bytes)) : bytesToBase64(bytes);
   } catch (e) {
@@ -313,6 +326,7 @@ export async function renderShiftReportToEscPosBase64(
   printerPaperWidthPx?: number,
   rasterCommand?: 'modern' | 'legacy',
   timer?: PrintTimer,
+  darkness?: PrintDarkness,
 ): Promise<string> {
   const width = printerPaperWidthPx ?? DEFAULT_PAPER_WIDTH;
   const provider = await buildFontProviderReady();
@@ -333,12 +347,12 @@ export async function renderShiftReportToEscPosBase64(
   paintReceiptOps(canvas, provider, layout, { logo: null, qrPayload: null });
 
   const rgba = surface.toRgba(layout.height);
-  const raster = encodeRaster(rgba, rasterCommand);
+  const raster = encodeRaster(rgba, rasterCommand, darkness, layout);
   const bytes = [0x1b, 0x40, ...raster, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00];
   return bytesToBase64(bytes);
 }
 
-export async function renderKitchenTicketToEscPosBase64(data: KitchenTicketData, printerPaperWidthPx?: number, rasterCommand?: 'modern' | 'legacy', timer?: PrintTimer): Promise<string> {
+export async function renderKitchenTicketToEscPosBase64(data: KitchenTicketData, printerPaperWidthPx?: number, rasterCommand?: 'modern' | 'legacy', timer?: PrintTimer, darkness?: PrintDarkness): Promise<string> {
   try {
     const ticket = toKitchenTicketPrintable(printerPaperWidthPx != null ? { ...data, paperWidthPx: printerPaperWidthPx } : data);
     const provider = await buildFontProviderReady();
@@ -360,7 +374,7 @@ export async function renderKitchenTicketToEscPosBase64(data: KitchenTicketData,
     paintReceiptOps(canvas, provider, layout, { logo: logoImage, qrPayload: null });
 
     const rgba = surface.toRgba(layout.height);
-    const raster = encodeRaster(rgba, rasterCommand);
+    const raster = encodeRaster(rgba, rasterCommand, darkness, layout);
     const bytes = [0x1b, 0x40, ...raster, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00];
     return bytesToBase64(bytes);
   } catch (e) {

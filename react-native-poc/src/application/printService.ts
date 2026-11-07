@@ -2,7 +2,7 @@ import uuid from 'react-native-uuid';
 import { sqlitePrintQueueStorage } from '../infrastructure/sqlitePrintQueue';
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { PrintTimer } from './printTiming';
-import { profileToPrinterTarget, profileToKitchenPrinterTarget } from '../domain/printerProfile';
+import { profileToPrinterTarget, profileToKitchenPrinterTarget, resolvePrintDarkness } from '../domain/printerProfile';
 import { printReceipt } from '../platform/printer';
 import type { PrinterTarget } from '../platform/printer';
 import {
@@ -113,10 +113,11 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
           await timer.stage('themeRead', () => getReceiptThemeForPrinting()),
           profile?.rasterCommand,
           timer,
+          resolvePrintDarkness(profile),
         )
       : job.type === 'shiftReport'
-        ? await renderShiftReportToEscPosBase64(job.data as unknown as ClosingReport, profile?.paperWidthPx, profile?.rasterCommand, timer)
-        : await renderKitchenTicketToEscPosBase64(job.data as unknown as KitchenTicketData, profile?.paperWidthPx, profile?.rasterCommand, timer);
+        ? await renderShiftReportToEscPosBase64(job.data as unknown as ClosingReport, profile?.paperWidthPx, profile?.rasterCommand, timer, resolvePrintDarkness(profile))
+        : await renderKitchenTicketToEscPosBase64(job.data as unknown as KitchenTicketData, profile?.paperWidthPx, profile?.rasterCommand, timer, resolvePrintDarkness(profile));
   const bytes = base64ByteLength(escPosBase64);
   timer.bytes(bytes);
   // An empty render is the one way this path could report a genuine
