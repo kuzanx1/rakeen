@@ -502,13 +502,24 @@ if (!window.__rakeenOrderBooted) {
       favicon.href = biz.logo_url;
     }
     const omShell = document.getElementById('omShell');
-    // «شعبي» (folk) مبني فوق تخطيط «فخم»: data-theme يبقى luxury للشبكة
-    // والهيدر والسلة، وdata-style="folk" يضيف طبقته فوقه.
-    const themeName = (biz.online_theme_style === 'luxury' || biz.online_theme_style === 'folk') ? 'luxury' : 'classic';
-    const themeStyleName = biz.online_theme_style === 'folk' ? 'folk' : themeName;
+    // «شعبي» (folk) و«واجهة» (facade) مبنية فوق تخطيط «فخم»: data-theme
+    // يبقى luxury للشبكة والهيدر والسلة، وdata-style يضيف طبقة كل شكل.
+    // data-offers="ticket": العروض بشكل تذكرة في الشكلين.
+    const LAYERED_STYLES = ['folk', 'facade'];
+    const themeName = (biz.online_theme_style === 'luxury' || LAYERED_STYLES.includes(biz.online_theme_style)) ? 'luxury' : 'classic';
+    const themeStyleName = LAYERED_STYLES.includes(biz.online_theme_style) ? biz.online_theme_style : themeName;
     omShell.setAttribute('data-theme', themeName);
     omShell.setAttribute('data-style', themeStyleName);
     document.documentElement.setAttribute('data-style', themeStyleName);
+    if (LAYERED_STYLES.includes(themeStyleName)) omShell.setAttribute('data-offers', 'ticket');
+    applyThemeOptions(themeStyleName, {});
+    // خيارات كل شكل (online_theme_options) باستعلام مستقل وبدون انتظار:
+    // الافتراضي مرسوم من الحين، ولو العمود ما رُحّل يبقى الافتراضي.
+    sb.from('businesses').select('online_theme_options').eq('id', biz.id).maybeSingle()
+      .then(({ data, error }) => {
+        if (error || !data || !data.online_theme_options) return;
+        applyThemeOptions(themeStyleName, data.online_theme_options[themeStyleName] || {});
+      }).catch(() => {});
     // ALSO on <html> — the cart bar and every bottom sheet (cart/checkout/
     // modifier/branch-picker) are siblings of #omShell in order-markup.ts,
     // not descendants of it, so a `.om-shell[data-theme=...] .om-cart-bar`
@@ -646,7 +657,7 @@ if (!window.__rakeenOrderBooted) {
     // يُخفى من المنيو (إلا لو بلا فئة).
     CATEGORY_ROWS = (catRes.data || [])
       .filter(c => c.visible_online !== false)
-      .map(c => ({ id: c.id, name: c.name, parentId: c.online_parent_category_id || null }));
+      .map(c => ({ id: c.id, name: c.name, nameEn: c.name_en || '', parentId: c.online_parent_category_id || null }));
     const ONLINE_VISIBLE_CAT_IDS = new Set((catRes.data || []).filter(c => c.visible_online !== false).map(c => c.id));
     // Only top-level categories get a rail chip/anchor — a sub-category
     // renders as a heading nested inside its parent's section instead (see
@@ -767,6 +778,34 @@ if (!window.__rakeenOrderBooted) {
       }).filter(Boolean);
       if (groups.length) MODIFIER_PRODUCTS[p.id] = { groups };
     });
+  }
+
+  /* ============ خيارات الشكل ============
+     كل شكل له خياراته (businesses.online_theme_options[style]). تتطبّق
+     كمتغيرات وسمات على #omShell، والـCSS حق كل شكل يقرأها. */
+  const THEME_OPTION_DEFAULTS = {
+    folk:   { featuredFirst: true, teeth: true },
+    facade: { featuredFirst: true, showIdentity: false, cutout: false, heroColor: '', accent: '#F9A303' },
+  };
+  function applyThemeOptions(style, opts) {
+    const shell = document.getElementById('omShell');
+    if (!shell) return;
+    const d = THEME_OPTION_DEFAULTS[style];
+    if (!d) return;
+    const o = Object.assign({}, d, opts || {});
+    const okHex = v => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
+    shell.setAttribute('data-featured', o.featuredFirst === false ? '0' : '1');
+    if (style === 'folk') shell.setAttribute('data-teeth', o.teeth === false ? '0' : '1');
+    if (style === 'facade') {
+      shell.setAttribute('data-identity', o.showIdentity ? '1' : '0');
+      shell.setAttribute('data-cutout', o.cutout ? '1' : '0');
+      if (okHex(o.heroColor)) { shell.style.setProperty('--hero-bg', o.heroColor); shell.style.setProperty('--hero-ink', inkColorFor(o.heroColor)); document.documentElement.style.setProperty('--hero-bg', o.heroColor); }
+      else { shell.style.removeProperty('--hero-bg'); shell.style.removeProperty('--hero-ink'); document.documentElement.style.removeProperty('--hero-bg'); }
+      const acc = okHex(o.accent) ? o.accent : d.accent;
+      shell.style.setProperty('--accent', acc);
+      document.documentElement.style.setProperty('--accent', acc);
+      shell.style.setProperty('--accent-ink', inkColorFor(acc) === '#16281B' ? 'var(--ink)' : '#FFFFFF');
+    }
   }
 
   /* ============ شريط العروض ============
@@ -940,6 +979,11 @@ if (!window.__rakeenOrderBooted) {
     </div>`;
   }
 
+  // الاسم الإنجليزي للقسم: مخفي في كل الأشكال إلا اللي تعرضه (واجهة)
+  function catEnHtml(cat) {
+    return cat && cat.nameEn ? `<span class="om-cat-en">${escOffer(cat.nameEn)}</span>` : '';
+  }
+
   function renderMenu() {
     const el = document.getElementById('omMenu');
     const products = visibleProducts();
@@ -966,7 +1010,7 @@ if (!window.__rakeenOrderBooted) {
       if (!kids.length) {
         return `
           <section class="om-cat-section" id="cat-${CSS.escape(top.name)}" data-cat="${top.name}">
-            <div class="om-cat-title">${top.name}</div>
+            <div class="om-cat-title">${catEnHtml(top)}${top.name}</div>
             <div class="om-product-list">${direct.map(productCardHtml).join('')}</div>
           </section>
         `;
@@ -982,7 +1026,7 @@ if (!window.__rakeenOrderBooted) {
       ];
       return `
         <section class="om-cat-section has-subcats" id="cat-${CSS.escape(top.name)}" data-cat="${top.name}">
-          <div class="om-cat-title">${top.name}</div>
+          <div class="om-cat-title">${catEnHtml(top)}${top.name}</div>
           <div class="om-subcat-tabs">
             ${views.map((v, i) => `<button class="om-subcat-tab ${i === 0 ? 'active' : ''}" data-view="${v.id}">${v.name}</button>`).join('')}
           </div>

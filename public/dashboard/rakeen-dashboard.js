@@ -8216,7 +8216,7 @@ async function loadBusinessData(){
     ONLINE_ORDERING_ENABLED = businessRes.data.online_ordering_enabled === true;
     ONLINE_MENU_SLUG = businessRes.data.online_menu_slug || null;
     ONLINE_THEME_COLOR = businessRes.data.online_theme_color || '#C7FF4D';
-    ONLINE_THEME_STYLE = ['luxury','folk'].includes(businessRes.data.online_theme_style) ? businessRes.data.online_theme_style : 'classic';
+    ONLINE_THEME_STYLE = ['luxury','folk','facade'].includes(businessRes.data.online_theme_style) ? businessRes.data.online_theme_style : 'classic';
     ONLINE_FONT_FAMILY = businessRes.data.online_font_family === 'thmanyah' ? 'thmanyah' : 'rakeen';
     ONLINE_COLOR_SURF = businessRes.data.online_color_surf || null;
     ONLINE_COLOR_CARD = businessRes.data.online_color_card || null;
@@ -8252,6 +8252,12 @@ async function loadBusinessData(){
         DISPLAY_SHOW_CALORIES = calFlags.display_show_calories !== false;
       }
     } catch(_){}
+    // خيارات كل شكل للمتجر: استعلامٌ مستقلّ كذلك، null = العمود ما رُحّل.
+    try {
+      const { data: themeOptRow, error: themeOptErr } = await sb.from('businesses')
+        .select('online_theme_options').eq('id', businessId).maybeSingle();
+      ONLINE_THEME_OPTIONS = (!themeOptErr && themeOptRow) ? (themeOptRow.online_theme_options || {}) : null;
+    } catch(_){ ONLINE_THEME_OPTIONS = null; }
     ONLINE_ORDER_FREE_COUNT = Number(businessRes.data.online_order_free_count) || 0;
     ONLINE_SUBSCRIBED = businessRes.data.online_subscribed === true;
     ONLINE_ORDER_FREE_LIMIT = Number(businessRes.data.online_order_free_limit) || 350;
@@ -10567,6 +10573,9 @@ let ONLINE_SOCIAL_INSTAGRAM = '', ONLINE_SOCIAL_TIKTOK = '', ONLINE_SOCIAL_TWITT
 let ONLINE_TAGLINE_HEADER = null, ONLINE_TAGLINE_HERO = null;
 // إظهار السعرات للزبون. null = العمود ما رُحّل بعد (20261107130000)، فالمفتاح يختفي من الشاشة.
 let ONLINE_SHOW_CALORIES = null, DISPLAY_SHOW_CALORIES = null;
+// خيارات أشكال المتجر: { folk:{...}, facade:{...} } — كل شكل بخياراته، فالتبديل ما يضيّعها.
+let ONLINE_THEME_OPTIONS = null;
+let THEME_OPTS_DRAFT = {};
 const DEFAULT_TAGLINE_HEADER = 'اطلب مباشرة من المطعم';
 const DEFAULT_TAGLINE_HERO = 'طلب مباشر بدون عمولة تطبيقات';
 // Built-in defaults per theme (mirrors :root / .om-shell[data-theme="luxury"]
@@ -10581,6 +10590,8 @@ const ONLINE_THEME_DEFAULT_COLORS = {
   luxury: {surf:'#FFFAEE', card:'#FFFFFF', ink:'#2A1D12', muted:'#A0876D'},
   // «شعبي»: خلفية بيج دافية وكروت كريمية، والهيرو والعناوين والأسعار بلون الهوية
   folk: {surf:'#FFF7EA', card:'#FFFDF8', ink:'#3A160C', muted:'#9A7363'},
+  // «واجهة»: نفس روح منيو مكبوس زربيان — بيج، ونص ماروني يصير لون الهيدر
+  facade: {surf:'#FFF7EA', card:'#FFFDF8', ink:'#4A1106', muted:'#9A6B5A'},
 };
 let ONLINE_BANNER_URL = '';
 let ONLINE_OFFERS_DELIVERY = true;
@@ -13446,7 +13457,7 @@ function onlineMenuDesignHtml(){
         </div>
         <div class="menu-add-field" style="margin-top:2px;">
           <label>شكل صفحة الطلب</label>
-          <div class="online-radio-card-row" style="display:flex; gap:10px; margin-top:4px;">
+          <div class="online-radio-card-row rk-theme-style-row" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:4px;">
             <label style="flex:1; display:flex; flex-direction:column; gap:4px; padding:12px 14px; border:2px solid ${ONLINE_THEME_STYLE==='classic'?'var(--lime-deep)':'var(--line)'}; border-radius:12px; cursor:pointer;">
               <span style="display:flex; align-items:center; gap:8px; font-weight:800; font-size:13px;">
                 <input type="radio" name="settingsOnlineThemeStyle" value="classic" ${ONLINE_THEME_STYLE==='classic'?'checked':''}> كلاسيكي
@@ -13465,7 +13476,15 @@ function onlineMenuDesignHtml(){
               </span>
               <span style="font-size:11.5px; color:var(--muted); margin-inline-start:22px;">لون الهوية كامل، خط عريض، وعروض بشكل تذكرة</span>
             </label>
+            <label style="flex:1; display:flex; flex-direction:column; gap:4px; padding:12px 14px; border:2px solid ${ONLINE_THEME_STYLE==='facade'?'var(--lime-deep)':'var(--line)'}; border-radius:12px; cursor:pointer;">
+              <span style="display:flex; align-items:center; gap:8px; font-weight:800; font-size:13px;">
+                <input type="radio" name="settingsOnlineThemeStyle" value="facade" ${ONLINE_THEME_STYLE==='facade'?'checked':''}> واجهة
+              </span>
+              <span style="font-size:11.5px; color:var(--muted); margin-inline-start:22px;">هيدر كبير بصورة الغلاف، والقسم الأول بكروت كبيرة</span>
+            </label>
           </div>
+          <style>.rk-theme-style-row > label{min-width:150px;}</style>
+          <div id="themeOptionsHost" style="margin-top:12px;"></div>
         </div>
         <div class="menu-add-field" style="margin-top:14px;">
           <label>الخط</label>
@@ -13535,17 +13554,21 @@ function renderOnlineMenuDesignPreview(){
   const name = RESTAURANT_INFO.name || 'مطعمك';
   const initial = (name||'؟').trim().charAt(0);
   // «شعبي» نفس تخطيط «فخم»، والفرق: رأس الصفحة كله بلون الهوية
-  const isFolk = themeStyle === 'folk';
+  const isFolk = themeStyle === 'folk' || themeStyle === 'facade';
   const isLuxury = themeStyle === 'luxury' || isFolk;
+  // «واجهة»: رأس الصفحة بلون الهيدر (الافتراضي لون النص)، والاسم بلون الهوية
+  const facadeOpts = themeStyle === 'facade' ? Object.assign({}, THEME_OPTION_DEFAULTS_DASH.facade, THEME_OPTS_DRAFT.facade || {}) : null;
+  const heroBg = facadeOpts ? (/^#[0-9a-fA-F]{6}$/.test(facadeOpts.heroColor || '') ? facadeOpts.heroColor : ink) : color;
+  const heroInk = facadeOpts ? dashboardInkColorFor(heroBg) : null;
   const logoInner = logoUrl ? `<img src="${logoUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;">` : initial;
 
   host.innerHTML = `
     <div style="border:1px solid color-mix(in srgb, ${ink} 12%, transparent); border-radius:14px; overflow:hidden; background:${surf}; color:${ink}; font-family:${fontFamily};" dir="rtl">
       <div style="height:${bannerUrl?'70px':'0'}; background:${bannerUrl?`url('${bannerUrl}') center/cover`:'none'};"></div>
-      <div style="padding:14px; ${isFolk ? `background:${color}; color:${brandInk};` : ''} ${!bannerUrl && !isFolk ? `background:color-mix(in srgb, ${color} 16%, ${surf});` : ''}">
+      <div style="padding:14px; ${isFolk ? `background:${heroBg}; color:${heroInk || brandInk};` : ''} ${!bannerUrl && !isFolk ? `background:color-mix(in srgb, ${color} 16%, ${surf});` : ''}">
         <div style="display:flex; align-items:center; gap:10px; ${bannerUrl ? 'margin-top:-30px;' : ''}">
           <div style="width:44px; height:44px; border-radius:${isLuxury?'50%':'12px'}; background:${color}; color:${brandInk}; display:flex; align-items:center; justify-content:center; font-weight:800; border:3px solid ${card}; box-shadow:0 2px 8px rgba(0,0,0,.15); flex-shrink:0; overflow:hidden;">${logoInner}</div>
-          <div style="font-weight:800; font-size:15px; color:${isFolk ? brandInk : ink}; ${isFolk ? "font-family:'Lalezar',sans-serif; font-weight:400; font-size:19px;" : ''}">${name}</div>
+          <div style="font-weight:800; font-size:15px; color:${facadeOpts ? color : (isFolk ? brandInk : ink)}; ${isFolk ? "font-family:'Lalezar',sans-serif; font-weight:400; font-size:19px;" : ''}">${name}</div>
         </div>
         <div style="display:flex; gap:${isLuxury?'16px':'6px'}; margin-top:14px;">
           <span style="${isLuxury
@@ -13878,8 +13901,68 @@ function openStoreOfferModal(offer){
   });
 }
 
+/* ============ خيارات الشكل ============
+   كل شكل له خياراته الخاصة، تنحفظ في businesses.online_theme_options
+   تحت اسم الشكل. نفس الافتراضيات في rakeen-order.js (THEME_OPTION_DEFAULTS)
+   — لو تغيّر واحد غيّر الثاني. */
+const THEME_OPTION_DEFAULTS_DASH = {
+  folk:   { featuredFirst: true, teeth: true },
+  facade: { featuredFirst: true, showIdentity: false, cutout: false, heroColor: '', accent: '#F9A303' },
+};
+function renderThemeOptions(style){
+  const host = document.getElementById('themeOptionsHost');
+  if(!host) return;
+  if(ONLINE_THEME_OPTIONS === null){ host.innerHTML = ''; return; }
+  const d = THEME_OPTION_DEFAULTS_DASH[style];
+  if(!d){
+    host.innerHTML = `<p class="stock-qty-helper" style="margin:0;">ما فيه خيارات إضافية لهذا الشكل.</p>`;
+    return;
+  }
+  const o = Object.assign({}, d, THEME_OPTS_DRAFT[style] || {});
+  const box = (inner) => `<div style="border:1px solid var(--line); border-radius:12px; padding:12px 14px;">
+    <div style="font-weight:800; font-size:13px; margin-bottom:10px;">خيارات شكل «${style === 'folk' ? 'شعبي' : 'واجهة'}»</div>${inner}</div>`;
+  const chk = (key, label) => `<div style="margin-bottom:6px;">${rkCheck(`data-topt="${key}" ${o[key] ? 'checked' : ''}`, label)}</div>`;
+  if(style === 'folk'){
+    host.innerHTML = box(chk('featuredFirst', 'أول صنف في أول قسم كرت عريض') + chk('teeth', 'حافة مسننة تحت رأس الصفحة'));
+  } else {
+    const ink = document.getElementById('settingsOnlineColorInk')?.value || ONLINE_THEME_DEFAULT_COLORS.facade.ink;
+    const heroVal = /^#[0-9a-fA-F]{6}$/.test(o.heroColor || '') ? o.heroColor : ink;
+    const col = (key, label, val, note) => `<div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+      <input type="color" data-topt="${key}" value="${val}" style="width:42px; height:32px; border:1px solid var(--line); border-radius:8px; padding:2px; background:none; cursor:pointer;">
+      <div style="flex:1; min-width:0;"><div style="font-weight:700; font-size:12.5px;">${label}</div><div style="font-size:11px; color:var(--muted);">${note}</div></div>
+      ${key === 'heroColor' && o.heroColor ? `<button type="button" class="rk-offer-btn" data-topt-reset="heroColor" style="font-size:11.5px; padding:5px 9px; border:1px solid var(--line); border-radius:8px; background:none; cursor:pointer;">مثل لون النص</button>` : ''}
+    </div>`;
+    host.innerHTML = box(
+      col('heroColor', 'لون الهيدر والفوتر', heroVal, o.heroColor ? 'لون خاص' : 'الحين نفس «لون النص»') +
+      col('accent', 'لون تذكرة العروض', o.accent || d.accent, 'خلفية بطاقة العرض') +
+      chk('featuredFirst', 'القسم الأول بكروت كبيرة (والباقي بطاقات صغيرة)') +
+      chk('cutout', 'صور الأصناف مفرّغة (PNG بدون خلفية): تطلع كاملة بظل بدل ما تتقص') +
+      chk('showIdentity', 'أظهر الشعار والاسم تحت صورة الغلاف')
+    );
+  }
+  host.querySelectorAll('[data-topt]').forEach(inp => {
+    const ev = inp.type === 'color' ? 'input' : 'change';
+    inp.addEventListener(ev, ()=>{
+      const key = inp.dataset.topt;
+      THEME_OPTS_DRAFT[style] = Object.assign({}, THEME_OPTS_DRAFT[style] || {}, { [key]: inp.type === 'checkbox' ? inp.checked : inp.value.toUpperCase() });
+      renderOnlineMenuDesignPreview();
+    });
+    // زر «مثل لون النص» يطلع بعد ما يختار لون خاص — عند change لا input،
+    // عشان إعادة الرسم ما تقفل نافذة اختيار اللون وهو يسحب.
+    if(inp.dataset.topt === 'heroColor') inp.addEventListener('change', ()=>{ if(!host.querySelector('[data-topt-reset]')) renderThemeOptions(style); });
+  });
+  host.querySelectorAll('[data-topt-reset]').forEach(btn => btn.addEventListener('click', ()=>{
+    const key = btn.dataset.toptReset;
+    THEME_OPTS_DRAFT[style] = Object.assign({}, THEME_OPTS_DRAFT[style] || {}, { [key]: '' });
+    renderThemeOptions(style);
+    renderOnlineMenuDesignPreview();
+  }));
+}
+
 function wireOnlineMenuDesign(){
   window.__rkPrevThemeStyle = ONLINE_THEME_STYLE;
+  THEME_OPTS_DRAFT = JSON.parse(JSON.stringify(ONLINE_THEME_OPTIONS || {}));
+  renderThemeOptions(ONLINE_THEME_STYLE);
   if(storeOffersEnabled()){
     loadStoreOffers().then(renderStoreOffersSection);
   }
@@ -13940,6 +14023,13 @@ function wireOnlineMenuDesign(){
           ONLINE_SHOW_CALORIES = calStore.checked; DISPLAY_SHOW_CALORIES = calDisplay.checked;
         } catch(_){}
       }
+      // خيارات الأشكال بطلبٍ مستقلّ كذلك
+      if(ONLINE_THEME_OPTIONS !== null){
+        try {
+          await updateCurrentBusiness({ online_theme_options: THEME_OPTS_DRAFT });
+          ONLINE_THEME_OPTIONS = JSON.parse(JSON.stringify(THEME_OPTS_DRAFT));
+        } catch(_){}
+      }
       ONLINE_THEME_COLOR = updates.online_theme_color;
       ONLINE_THEME_STYLE = updates.online_theme_style;
       ONLINE_FONT_FAMILY = updates.online_font_family;
@@ -13971,6 +14061,7 @@ function wireOnlineMenuDesign(){
       const prevStyle = window.__rkPrevThemeStyle || ONLINE_THEME_STYLE;
       window.__rkPrevThemeStyle = r.value;
       const fromDefaults = ONLINE_THEME_DEFAULT_COLORS[prevStyle] || ONLINE_THEME_DEFAULT_COLORS.classic;
+      renderThemeOptions(r.value);
       const toDefaults = ONLINE_THEME_DEFAULT_COLORS[r.value];
       // Only nudge a picker to the new theme's default if it was still
       // sitting on the OLD theme's default — a color the merchant actually
@@ -25422,7 +25513,7 @@ RKA.registerManager({
           const steps = [];
           steps.push({ key:'pick', type:'choose', prompt:'وش تبي تضبط في شكل المتجر؟',
             options: [
-              { value:'style', label:'شكل الصفحة (كلاسيكي / فخم / شعبي)' + ' — الآن: ' + ({ classic:'كلاسيكي', luxury:'فخم', folk:'شعبي' }[b.themeStyle] || 'كلاسيكي') },
+              { value:'style', label:'شكل الصفحة (كلاسيكي / فخم / شعبي / واجهة)' + ' — الآن: ' + ({ classic:'كلاسيكي', luxury:'فخم', folk:'شعبي', facade:'واجهة' }[b.themeStyle] || 'كلاسيكي') },
               { value:'color', label:'اللون الرئيسي — الآن: ' + b.themeColor },
               { value:'font', label:'الخط — الآن: ' + (b.font === 'thmanyah' ? 'Thmanyah' : 'ركين') },
               { value:'taglineHeader', label:'العبارة أعلى الصفحة' },
@@ -25431,11 +25522,12 @@ RKA.registerManager({
             ] });
           if(a.pick === 'style'){
             steps.push({ key:'st', type:'choose', prompt:'شكل صفحة الطلب؟',
-              hint:'<b>كلاسيكي</b>: كروت مربّعة مرتّبة — أوضح لمنيو كبير.\n<b>فخم</b>: بنر كبير وصور بلا صناديق — أنسب لمطعم قليل الأصناف ويعتمد على الصور.\n<b>شعبي</b>: رأس الصفحة بلون الهوية كامل، خط عريض للأسماء والأسعار، والعروض بشكل تذكرة.',
-              options: [ { value:'classic', label:'كلاسيكي' + (b.themeStyle === 'classic' ? ' (الحالي)' : ''), primary: b.themeStyle === 'classic' }, { value:'luxury', label:'فخم' + (b.themeStyle === 'luxury' ? ' (الحالي)' : ''), primary: b.themeStyle === 'luxury' }, { value:'folk', label:'شعبي' + (b.themeStyle === 'folk' ? ' (الحالي)' : ''), primary: b.themeStyle === 'folk' } ] });
+              hint:'<b>كلاسيكي</b>: كروت مربّعة مرتّبة — أوضح لمنيو كبير.\n<b>فخم</b>: بنر كبير وصور بلا صناديق — أنسب لمطعم قليل الأصناف ويعتمد على الصور.\n<b>شعبي</b>: رأس الصفحة بلون الهوية كامل، خط عريض للأسماء والأسعار، والعروض بشكل تذكرة.
+<b>واجهة</b>: هيدر كبير بصورة الغلاف، القسم الأول بكروت كبيرة والباقي بطاقات صغيرة.',
+              options: [ { value:'classic', label:'كلاسيكي' + (b.themeStyle === 'classic' ? ' (الحالي)' : ''), primary: b.themeStyle === 'classic' }, { value:'luxury', label:'فخم' + (b.themeStyle === 'luxury' ? ' (الحالي)' : ''), primary: b.themeStyle === 'luxury' }, { value:'folk', label:'شعبي' + (b.themeStyle === 'folk' ? ' (الحالي)' : ''), primary: b.themeStyle === 'folk' }, { value:'facade', label:'واجهة' + (b.themeStyle === 'facade' ? ' (الحالي)' : ''), primary: b.themeStyle === 'facade' } ] });
             if(a.st !== undefined) steps.push({ key:'stExec', type:'execute', idemKind:'ostyle', pending:'أحفظ…',
               run: async (ans) => { await rkaOnlineSaveBiz({ online_theme_style: ans.st }, 'غيّر شكل المتجر', rkaOnlineMirror);
-                return { message:'صار الشكل «' + ({ classic:'كلاسيكي', luxury:'فخم', folk:'شعبي' }[ans.st] || 'كلاسيكي') + '» ✓ — شوف النتيجة في تبويب «التصميم» (معاينة حية).' }; } });
+                return { message:'صار الشكل «' + ({ classic:'كلاسيكي', luxury:'فخم', folk:'شعبي', facade:'واجهة' }[ans.st] || 'كلاسيكي') + '» ✓ — شوف النتيجة في تبويب «التصميم» (معاينة حية).' }; } });
           } else if(a.pick === 'color'){
             steps.push({ key:'col', type:'ask', prompt:'اللون الرئيسي؟ اكتب كود اللون (hex)',
               hint:'مثل <b dir="ltr">C7FF4D</b> أو <b dir="ltr">#B7834A</b>. لو ما تدري الكود، افتح تبويب «التصميم» فيه منتقي ألوان بصري.',

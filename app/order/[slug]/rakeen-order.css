@@ -1100,7 +1100,7 @@ img{max-width:100%; display:block;}
   position:relative; background:var(--brand); color:var(--brand-ink); padding:0 0 46px;
 }
 .om-shell[data-style="folk"] .om-hero:not(.has-banner){padding-top:34px;}
-.om-shell[data-style="folk"] .om-hero::after{
+.om-shell[data-style="folk"]:not([data-teeth="0"]) .om-hero::after{
   content:''; position:absolute; left:0; right:0; bottom:-1px; height:22px; pointer-events:none;
   background:
     linear-gradient(135deg, transparent 50%, var(--surf) 50%) 0 0/22px 22px repeat-x,
@@ -1185,54 +1185,230 @@ img{max-width:100%; display:block;}
 .om-shell[data-style="folk"] .om-product-tag{border-radius:var(--r-full); font-weight:800;}
 /* أول صنف في أول قسم: كرت عريض بطول الصف، مثل «الأكثر طلباً» */
 @media (max-width:639px){
-  .om-shell[data-style="folk"] #omMenu > .om-cat-section:first-of-type > .om-product-list > .om-product-card:first-child{grid-column:1/-1;}
-  .om-shell[data-style="folk"] #omMenu > .om-cat-section:first-of-type > .om-product-list > .om-product-card:first-child .om-product-photo{aspect-ratio:16/9;}
-  .om-shell[data-style="folk"] #omMenu > .om-cat-section:first-of-type > .om-product-list > .om-product-card:first-child .om-product-name-ar{font-size:28px;}
-  .om-shell[data-style="folk"] #omMenu > .om-cat-section:first-of-type > .om-product-list > .om-product-card:first-child .om-product-price{font-size:36px;}
+  .om-shell[data-style="folk"]:not([data-featured="0"]) #omMenu > .om-cat-section:first-of-type > .om-product-list > .om-product-card:first-child{grid-column:1/-1;}
+  .om-shell[data-style="folk"]:not([data-featured="0"]) #omMenu > .om-cat-section:first-of-type > .om-product-list > .om-product-card:first-child .om-product-photo{aspect-ratio:16/9;}
+  .om-shell[data-style="folk"]:not([data-featured="0"]) #omMenu > .om-cat-section:first-of-type > .om-product-list > .om-product-card:first-child .om-product-name-ar{font-size:28px;}
+  .om-shell[data-style="folk"]:not([data-featured="0"]) #omMenu > .om-cat-section:first-of-type > .om-product-list > .om-product-card:first-child .om-product-price{font-size:36px;}
 }
 
 /* العروض: تذكرة بخياطة داخلية وقضمتين على الجنب */
 .om-offer-bite{display:none;}
-.om-shell[data-style="folk"] .om-offers-title{font-weight:400; font-size:28px; color:var(--brand);}
-.om-shell[data-style="folk"] .om-offer{
+.om-shell[data-offers="ticket"] .om-offers-title{font-weight:400; font-size:28px; color:var(--brand);}
+.om-shell[data-offers="ticket"] .om-offer{
   aspect-ratio:auto; min-height:112px; display:flex; align-items:center; gap:14px;
   padding:16px 24px 16px 20px; border-radius:20px; overflow:hidden;
-  background:var(--brand); color:var(--brand-ink);
+  background:var(--ticket-bg, var(--brand)); color:var(--ticket-ink, var(--brand-ink));
   box-shadow:0 18px 34px -20px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.25);
 }
-.om-shell[data-style="folk"] .om-offer::before{
+.om-shell[data-offers="ticket"] .om-offer::before{
   content:''; position:absolute; inset:7px; border:1.5px dashed currentColor; border-radius:14px; opacity:.35; pointer-events:none;
 }
-.om-shell[data-style="folk"] .om-offer::after{
+.om-shell[data-offers="ticket"] .om-offer::after{
   content:''; position:absolute; inset:0; pointer-events:none; opacity:.12; z-index:-1;
   background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60' width='60' height='60'%3E%3Cpath fill='%23fff' d='M30 18l12 12-12 12-12-12zM30 25l-5 5 5 5 5-5z' fill-rule='evenodd'/%3E%3Cpath fill='%23fff' d='M0 -3l3 3-3 3-3-3zM60 -3l3 3-3 3-3-3zM0 57l3 3-3 3-3-3zM60 57l3 3-3 3-3-3z'/%3E%3C/svg%3E") 0 0/60px 60px;
 }
-.om-shell[data-style="folk"] .om-offer-bite{
+.om-shell[data-offers="ticket"] .om-offer-bite{
   display:block; position:absolute; top:50%; width:24px; height:24px; margin-top:-12px; border-radius:50%; background:var(--surf); z-index:1;
 }
-.om-shell[data-style="folk"] .om-offer-bite.b1{right:-12px;}
-.om-shell[data-style="folk"] .om-offer-bite.b2{left:-12px;}
-.om-shell[data-style="folk"] .om-offer-img{
+.om-shell[data-offers="ticket"] .om-offer-bite.b1{right:-12px;}
+.om-shell[data-offers="ticket"] .om-offer-bite.b2{left:-12px;}
+.om-shell[data-offers="ticket"] .om-offer-img{
   position:relative; inset:auto; z-index:0; flex:none; box-sizing:content-box;
   width:74px; height:74px; border-radius:16px; padding-inline-end:16px;
   border-inline-end:2px dashed color-mix(in srgb, currentColor 45%, transparent);
   border-start-end-radius:0; border-end-end-radius:0;
 }
-.om-shell[data-style="folk"] .om-offer-pattern,
-.om-shell[data-style="folk"] .om-offer-shade{display:none;}
-.om-shell[data-style="folk"] .om-offer-body{position:relative; inset:auto; padding:0; flex:1; min-width:0; gap:5px;}
-.om-shell[data-style="folk"] .om-offer-badge,
-.om-shell[data-style="folk"] .om-offer:not(.has-img) .om-offer-badge{
+.om-shell[data-offers="ticket"] .om-offer-pattern,
+.om-shell[data-offers="ticket"] .om-offer-shade{display:none;}
+.om-shell[data-offers="ticket"] .om-offer-body{position:relative; inset:auto; padding:0; flex:1; min-width:0; gap:5px;}
+.om-shell[data-offers="ticket"] .om-offer-badge,
+.om-shell[data-offers="ticket"] .om-offer:not(.has-img) .om-offer-badge{
   background:var(--ink); color:var(--surf); font-weight:900; font-size:12px; padding:5px 14px 5px 22px; border-radius:6px 4px 4px 6px;
   clip-path:polygon(0 0,100% 0,100% 100%,0 100%,9px 50%); box-shadow:none;
 }
-.om-shell[data-style="folk"] .om-offer-name{font-weight:400; font-size:25px; line-height:1.12; text-shadow:none;}
-.om-shell[data-style="folk"] .om-offer-sub{opacity:.88; font-weight:600;}
-.om-shell[data-style="folk"] .om-offer-cta{background:var(--surf); color:var(--ink);}
-.om-shell[data-style="folk"] .om-offer-ends{background:color-mix(in srgb, var(--ink) 22%, transparent); color:inherit; backdrop-filter:none;}
-.om-shell[data-style="folk"] .om-offers-dots span.on{background:var(--brand);}
+.om-shell[data-offers="ticket"] .om-offer-name{font-weight:400; font-size:25px; line-height:1.12; text-shadow:none;}
+.om-shell[data-offers="ticket"] .om-offer-sub{opacity:.88; font-weight:600;}
+.om-shell[data-offers="ticket"] .om-offer-cta{background:var(--surf); color:var(--ink);}
+.om-shell[data-offers="ticket"] .om-offer-ends{background:color-mix(in srgb, var(--ink) 22%, transparent); color:inherit; backdrop-filter:none;}
+.om-shell[data-offers="ticket"] .om-offers-dots span.on{background:var(--brand);}
 
 /* السلة (أخت #omShell، فعلى <html>) */
 html[data-style="folk"] .om-cart-bar{background:var(--ink); color:var(--surf); border-radius:24px;}
 html[data-style="folk"] .om-cart-bar .om-cart-count{background:var(--brand); color:var(--brand-ink);}
 @media (prefers-reduced-motion: reduce){ .om-shell[data-style="folk"] .om-product-card:active{transform:none;} }
+
+/* ============ ثيم «واجهة» (online_theme_style = 'facade') ============
+   منسوخ من منيو مكبوس زربيان (makboos.rakeenapp.com): هيدر كبير بلون
+   داكن يعرض صورة الغلاف كاملة، تحته العرض كتذكرة، شريط أقسام بحبوب،
+   عنوان قسم بالوسط (اسم إنجليزي صغير + نجمة + عنوان عريض + خط قصير)،
+   القسم الأول بكروت كبيرة خلفيتها لون الهوية بنقش نجوم، والباقي بطاقات
+   صغيرة. خياراته في online_theme_options.facade (لون الهيدر، لون العروض،
+   صور مفرّغة، القسم الأول كبير، إظهار الشعار والاسم). */
+.om-shell[data-style="facade"]{
+  --font-display:'Lalezar', 'Alexandria', sans-serif;
+  --fc-latin:'Montserrat', 'Segoe UI', sans-serif;
+  --fc-hero:var(--hero-bg, var(--ink));
+  --fc-hero-ink:var(--hero-ink, var(--surf));
+  --ticket-bg:var(--accent, #F9A303);
+  --ticket-ink:var(--accent-ink, var(--ink));
+  --fc-shadow:0 18px 40px -22px color-mix(in srgb, var(--ink) 75%, transparent);
+  --fc-star:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath d='M20 0l5.9 5.9H34v8.1l6 6-6 6v8.1h-8.1L20 40l-5.9-5.9H6v-8.1L0 20l6-6V5.9h8.1z'/%3E%3C/svg%3E");
+  --fc-star-soft:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath fill='%23000' fill-opacity='.13' d='M20 0l5.9 5.9H34v8.1l6 6-6 6v8.1h-8.1L20 40l-5.9-5.9H6v-8.1L0 20l6-6V5.9h8.1z'/%3E%3C/svg%3E");
+}
+
+/* الهيدر العلوي يندمج مع الهيرو الداكن */
+.om-shell[data-style="facade"] .om-header,
+.om-shell[data-style="facade"] .om-header.scrolled{background:var(--fc-hero); backdrop-filter:none; border-bottom:none; box-shadow:none;}
+.om-shell[data-style="facade"] .om-brand-name{color:var(--fc-hero-ink);}
+.om-shell[data-style="facade"] .om-brand-tag{color:var(--fc-hero-ink); opacity:.7;}
+.om-shell[data-style="facade"] .om-header-search{
+  background:color-mix(in srgb, var(--fc-hero-ink) 12%, transparent); border-color:color-mix(in srgb, var(--fc-hero-ink) 25%, transparent); color:var(--fc-hero-ink);
+}
+.om-shell[data-style="facade"] .om-header-search input{color:var(--fc-hero-ink); background:transparent; border-color:transparent;}
+.om-shell[data-style="facade"] .om-header-search input::placeholder{color:var(--fc-hero-ink); opacity:.6;}
+
+/* الهيرو: الغلاف كامل على الداكن، والحافة المسننة تحت */
+.om-shell[data-style="facade"] .om-hero,
+.om-shell[data-style="facade"] .om-hero:not(.has-banner){
+  position:relative; background:var(--fc-hero); color:var(--fc-hero-ink); padding:0 0 40px;
+}
+.om-shell[data-style="facade"] .om-hero:not(.has-banner){padding-top:30px;}
+.om-shell[data-style="facade"] .om-hero.has-banner .om-hero-banner{
+  height:clamp(170px, 34vw, 380px); background-size:cover; background-position:center; background-color:var(--fc-hero);
+}
+.om-shell[data-style="facade"] .om-hero::after{
+  content:''; position:absolute; left:0; right:0; bottom:-1px; height:22px; pointer-events:none;
+  background:
+    linear-gradient(135deg, transparent 50%, var(--surf) 50%) 0 0/22px 22px repeat-x,
+    linear-gradient(225deg, transparent 50%, var(--surf) 50%) 0 0/22px 22px repeat-x;
+}
+.om-shell[data-style="facade"] .om-hero-card{
+  flex-direction:column; align-items:center; text-align:center; gap:10px; margin:0; padding:14px 22px 0;
+  background:transparent; box-shadow:none;
+}
+.om-shell[data-style="facade"] .om-hero-info{display:flex; flex-direction:column; align-items:center; width:100%;}
+.om-shell[data-style="facade"] .om-hero-logo{width:104px; height:104px; border:4px solid var(--brand); box-shadow:0 12px 30px -10px rgba(0,0,0,.6);}
+.om-shell[data-style="facade"] .om-hero-name{
+  font-family:var(--font-display); font-weight:400; font-size:42px; line-height:1.1; color:var(--brand);
+  white-space:normal; text-wrap:balance;
+}
+/* مع غلاف: الغلاف هو الهوية، فالشعار والاسم مخفيين إلا لو التاجر طلبهم */
+.om-shell[data-style="facade"][data-identity="0"] .om-hero.has-banner .om-hero-logo,
+.om-shell[data-style="facade"][data-identity="0"] .om-hero.has-banner .om-hero-name{display:none;}
+.om-shell[data-style="facade"] .om-hero-chips{justify-content:center;}
+.om-shell[data-style="facade"] .om-hero-chip{
+  background:color-mix(in srgb, var(--fc-hero-ink) 14%, transparent); color:var(--fc-hero-ink); box-shadow:none;
+  border:1px solid color-mix(in srgb, var(--fc-hero-ink) 35%, transparent); font-weight:700; padding:7px 14px;
+}
+.om-shell[data-style="facade"] .om-hero-social{justify-content:center;}
+.om-shell[data-style="facade"] .om-hero-social a{color:var(--fc-hero-ink);}
+
+/* العروض: تذكرة وحدة بعرض الصفحة، بدون عنوان «العروض» */
+.om-shell[data-style="facade"] .om-offers{padding-top:22px; max-width:760px; margin:0 auto;}
+.om-shell[data-style="facade"] .om-offers-head{display:none;}
+.om-shell[data-style="facade"] .om-offers-track .om-offer{flex-basis:100%;}
+
+/* طرق الاستلام + شريط الأقسام: حبوب، والنشط بلون الهيدر */
+.om-shell[data-style="facade"] .om-channel-row{gap:8px;}
+.om-shell[data-style="facade"] .om-channel-btn{padding:8px 16px; border:none; border-radius:var(--r-full); color:var(--ink); font-weight:700;}
+.om-shell[data-style="facade"] .om-channel-btn.active{background:var(--fc-hero); color:var(--fc-hero-ink);}
+.om-shell[data-style="facade"] .om-cat-rail{gap:6px; padding:10px 16px; border-bottom:1px solid var(--line);}
+.om-shell[data-style="facade"] .om-cat-chip{
+  padding:9px 16px; border:none; border-radius:var(--r-full); font-size:15px; font-weight:800; letter-spacing:0; color:var(--ink);
+}
+.om-shell[data-style="facade"] .om-cat-chip.active{background:var(--fc-hero); color:var(--fc-hero-ink); transform:none; border:none;}
+
+/* عنوان القسم بالوسط: EN صغير، نجمة، العنوان، خط قصير */
+.om-cat-en{display:none;}
+.om-shell[data-style="facade"] .om-cat-section{scroll-margin-top:120px; margin-bottom:34px;}
+.om-shell[data-style="facade"] .om-cat-title,
+.om-shell[data-style="facade"] .om-cat-section.has-subcats .om-cat-title{
+  flex-direction:column; align-items:center; text-align:center; gap:8px; margin:26px 0 20px;
+  font-family:var(--font-display); font-weight:400; font-size:38px; line-height:1; color:var(--ink); letter-spacing:0;
+}
+.om-shell[data-style="facade"] .om-cat-en{
+  display:block; order:-2; font-family:var(--fc-latin); font-size:10px; font-weight:700; letter-spacing:.32em; color:var(--brand); line-height:1;
+}
+.om-shell[data-style="facade"] .om-cat-title::before,
+.om-shell[data-style="facade"] .om-cat-section.has-subcats .om-cat-title::before{
+  display:block; content:''; order:-1; width:28px; height:28px; border-radius:0; background:var(--brand);
+  -webkit-mask:var(--fc-star) center/contain no-repeat; mask:var(--fc-star) center/contain no-repeat;
+}
+.om-shell[data-style="facade"] .om-cat-title::after{
+  content:''; display:block; width:44px; height:3px; border-radius:3px; background:var(--brand); margin-top:4px;
+}
+
+/* البطاقات الصغيرة (كل الأقسام، والأول كمان لو «القسم الأول كبير» مطفي) */
+.om-shell[data-style="facade"] .om-product-list{grid-template-columns:repeat(2,1fr); gap:12px;}
+.om-shell[data-style="facade"] .om-product-card{
+  background:var(--card); border:1px solid var(--line); border-radius:20px; padding:10px 10px 12px; gap:6px; box-shadow:none; overflow:hidden;
+}
+.om-shell[data-style="facade"] .om-product-card:active{transform:scale(0.985);}
+.om-shell[data-style="facade"] .om-product-photo{
+  aspect-ratio:auto; height:100px; border-radius:14px; background:color-mix(in srgb, var(--ink) 7%, var(--surf));
+}
+.om-shell[data-style="facade"][data-cutout="1"] .om-product-photo img{
+  object-fit:contain; padding:8px; filter:drop-shadow(0 8px 8px color-mix(in srgb, var(--ink) 30%, transparent));
+}
+.om-shell[data-style="facade"] .om-product-info{align-items:flex-start; text-align:start; padding:0 2px; gap:2px;}
+.om-shell[data-style="facade"] .om-product-name{flex-direction:column-reverse; min-height:0; gap:2px;}
+.om-shell[data-style="facade"] .om-product-name .om-product-name-ar,
+.om-shell[data-style="facade"] .om-product-name:not(:has(.om-product-name-en)) .om-product-name-ar{
+  font-family:var(--font-display); font-weight:400; font-size:20px; line-height:1.2; color:var(--ink);
+}
+.om-shell[data-style="facade"] .om-product-name:not(:has(.om-product-name-en)){display:flex; -webkit-line-clamp:unset;}
+.om-shell[data-style="facade"] .om-product-name-en{
+  font-family:var(--fc-latin); font-size:9px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--brand); opacity:.8;
+}
+.om-shell[data-style="facade"] .om-product-badge{align-self:flex-start;}
+.om-shell[data-style="facade"] .om-product-price{
+  font-family:var(--font-display); font-weight:400; font-size:26px; line-height:1.1; color:var(--brand); margin-top:2px;
+}
+.om-shell[data-style="facade"] .om-product-price::after{display:none;}
+.om-shell[data-style="facade"] .om-product-add{
+  width:36px; height:36px; background:var(--brand); color:var(--brand-ink); box-shadow:0 6px 14px -6px rgba(0,0,0,.5);
+}
+.om-shell[data-style="facade"] .om-product-tag{border-radius:var(--r-full); font-weight:800;}
+
+/* القسم الأول: كروت كبيرة، الصورة على لون الهوية بنقش نجوم، والثاني بلون الهيدر */
+.om-shell[data-style="facade"]:not([data-featured="0"]) #omMenu > .om-cat-section:first-of-type .om-product-card{
+  border:none; border-radius:28px; padding:0 0 16px; gap:0; box-shadow:var(--fc-shadow);
+}
+.om-shell[data-style="facade"]:not([data-featured="0"]) #omMenu > .om-cat-section:first-of-type .om-product-photo{
+  height:auto; aspect-ratio:4/3.2; border-radius:0;
+  background:var(--fc-star-soft) no-repeat 118% -30%/78%, var(--fc-star-soft) no-repeat -34% 135%/66%, var(--brand);
+}
+.om-shell[data-style="facade"]:not([data-featured="0"]) #omMenu > .om-cat-section:first-of-type .om-product-card:nth-child(even) .om-product-photo{
+  background:var(--fc-star-soft) no-repeat 118% -30%/78%, var(--fc-star-soft) no-repeat -34% 135%/66%, var(--fc-hero);
+}
+.om-shell[data-style="facade"][data-cutout="1"]:not([data-featured="0"]) #omMenu > .om-cat-section:first-of-type .om-product-photo img{padding:14px;}
+.om-shell[data-style="facade"]:not([data-featured="0"]) #omMenu > .om-cat-section:first-of-type .om-product-info{padding:14px 16px 0;}
+.om-shell[data-style="facade"]:not([data-featured="0"]) #omMenu > .om-cat-section:first-of-type .om-product-name-ar{font-size:24px;}
+.om-shell[data-style="facade"]:not([data-featured="0"]) #omMenu > .om-cat-section:first-of-type .om-product-price{font-size:34px;}
+.om-shell[data-style="facade"]:not([data-featured="0"]) #omMenu > .om-cat-section:first-of-type .om-product-add{width:44px; height:44px; bottom:12px; inset-inline-end:12px;}
+@media (max-width:639px){
+  .om-shell[data-style="facade"]:not([data-featured="0"]) #omMenu > .om-cat-section:first-of-type .om-product-card:first-child{grid-column:1/-1;}
+  .om-shell[data-style="facade"]:not([data-featured="0"]) #omMenu > .om-cat-section:first-of-type .om-product-card:first-child .om-product-photo{aspect-ratio:16/10;}
+  .om-shell[data-style="facade"]:not([data-featured="0"]) #omMenu > .om-cat-section:first-of-type .om-product-card:first-child .om-product-name-ar{font-size:30px;}
+  .om-shell[data-style="facade"]:not([data-featured="0"]) #omMenu > .om-cat-section:first-of-type .om-product-card:first-child .om-product-price{font-size:42px;}
+}
+@media (min-width:640px){
+  .om-shell[data-style="facade"] .om-product-list{grid-template-columns:repeat(4,1fr); gap:14px;}
+  .om-shell[data-style="facade"]:not([data-featured="0"]) #omMenu > .om-cat-section:first-of-type .om-product-list{grid-template-columns:repeat(3,1fr); gap:20px;}
+  .om-shell[data-style="facade"] .om-cat-title{font-size:44px;}
+}
+
+/* الفوتر: نفس لون الهيدر وحافة مسننة فوق */
+.om-shell[data-style="facade"] .om-footer{position:relative; background:var(--fc-hero); color:var(--fc-hero-ink); margin-top:30px; padding-top:44px;}
+.om-shell[data-style="facade"] .om-footer::before{
+  content:''; position:absolute; left:0; right:0; top:-1px; height:22px; pointer-events:none;
+  background:
+    linear-gradient(315deg, transparent 50%, var(--surf) 50%) 0 0/22px 22px repeat-x,
+    linear-gradient(45deg, transparent 50%, var(--surf) 50%) 0 0/22px 22px repeat-x;
+}
+.om-shell[data-style="facade"] .om-footer-credit{color:var(--fc-hero-ink);}
+
+/* السلة (أخت #omShell، فعلى <html>) */
+html[data-style="facade"] .om-cart-bar{background:var(--hero-bg, var(--ink)); color:var(--surf); border-radius:24px;}
+html[data-style="facade"] .om-cart-bar .om-cart-count{background:var(--accent, #F9A303); color:var(--ink);}
+@media (prefers-reduced-motion: reduce){ .om-shell[data-style="facade"] .om-product-card:active{transform:none;} }
