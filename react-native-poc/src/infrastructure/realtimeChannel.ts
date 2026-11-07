@@ -42,25 +42,42 @@ export interface PostgresChangeFilter {
 
 type Payload = RealtimePostgresChangesPayload<Record<string, unknown>>;
 type Listener = (payload: Payload) => void;
+/** يُنادى عند كل اشتراكٍ ناجح بعد الأول (رجع الاتصال): ما فات وقت الانقطاع يُجلب. */
+type ResubscribeListener = () => void;
 
 interface SharedEntry {
   channel: RealtimeChannel;
   listeners: Set<Listener>;
+  resubscribers: Set<ResubscribeListener>;
 }
 
 const shared = new Map<string, SharedEntry>();
+
+/**
+ * والقناة الفعلية باسمٍ فريد لكل فتحة، لا باسم الموضوع نفسه.
+ *
+ * removeChannel غير متزامنة: تنتظر ردّ الخادم قبل ما تشيل القناة من
+ * القائمة. فشاشةٌ تنفكّ ثم تنركّب فوراً (تنقّل بين «جارية» و«مكتملة»)
+ * كانت تطلب supabase.channel(نفس الاسم) فترجع لها القديمة وهي تُغلق --
+ * و.on('postgres_changes') عليها يرمي، فينقفل التطبيق في نسخة الإنتاج.
+ * اسم postgres_changes لا يعني للخادم شيئاً (الفلتر هو المهم)، فالتفريد آمن.
+ */
+let openSeq = 0;
 
 export function subscribeToPostgresChanges(
   topic: string,
   filter: PostgresChangeFilter,
   listener: Listener,
+  onResubscribe?: ResubscribeListener,
 ): () => void {
   let entry = shared.get(topic);
 
   if (!entry) {
     const listeners = new Set<Listener>();
+    const resubscribers = new Set<ResubscribeListener>();
+    let joinedOnce = false;
     const channel = supabase
-      .channel(topic)
+      .channel(`${topic}#${++openSeq}`)
       // Cast: the overload wants each field as a literal, and this filter
       // arrives as a value. The shape is the same one every call site
       // passed inline before.
@@ -77,12 +94,19 @@ export function subscribeToPostgresChanges(
           }
         }
       })
-      .subscribe();
-    entry = { channel, listeners };
+      .subscribe(status => {
+        if (status !== 'SUBSCRIBED') return;
+        if (!joinedOnce) { joinedOnce = true; return; }
+        for (const r of Array.from(resubscribers)) {
+          try { r(); } catch { /* مثل أعلاه */ }
+        }
+      });
+    entry = { channel, listeners, resubscribers };
     shared.set(topic, entry);
   }
 
   entry.listeners.add(listener);
+  if (onResubscribe) entry.resubscribers.add(onResubscribe);
 
   let released = false;
   return () => {
@@ -93,6 +117,7 @@ export function subscribeToPostgresChanges(
     const current = shared.get(topic);
     if (!current) return;
     current.listeners.delete(listener);
+    if (onResubscribe) current.resubscribers.delete(onResubscribe);
     if (current.listeners.size === 0) {
       shared.delete(topic);
       supabase.removeChannel(current.channel);

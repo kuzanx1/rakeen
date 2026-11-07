@@ -1,4 +1,5 @@
 import { supabase, RAKEEN_API_BASE_URL } from '../infrastructure/supabaseClient';
+import { subscribeToPostgresChanges } from '../infrastructure/realtimeChannel';
 import { getItem, setItem } from '../infrastructure/mmkvStorage';
 import { getPosDeviceId } from './displayScopeService';
 import { pagerOnCustomerDisplay, hidePagerOnCustomerDisplay } from '../platform/customerDisplay';
@@ -233,9 +234,11 @@ export function keyToUuid(key: string): string | null {
 }
 
 let displayWatch: ReturnType<typeof supabase.channel> | null = null;
+let displayWatchUuid: string | null = null;
 let displayTimer: ReturnType<typeof setTimeout> | null = null;
 function unwatchDisplay(): void {
   if (displayTimer) { clearTimeout(displayTimer); displayTimer = null; }
+  displayWatchUuid = null;
   if (!displayWatch) return;
   try { supabase.removeChannel(displayWatch); } catch { /* أُغلقت */ }
   displayWatch = null;
@@ -243,15 +246,26 @@ function unwatchDisplay(): void {
 
 /** البيجر على شاشة العميل: ينزل لما يفتحه الزبون أو يُستلم الطلب. */
 export function watchPagerOnDisplay(url: string, secs: number): void {
-  unwatchDisplay();
   const m = /\/p\/([A-Za-z0-9_-]{22})$/.exec(url);
   const uuid = m ? keyToUuid(m[1]) : null;
   if (!uuid) return;
+  // نفس البيجر مرّتين (الرسم المحلي ثم بثّ الخادم للشاشة نفسها): نبقي
+  // الاستماع القائم ونجدّد المؤقّت فقط. لو أغلقناه وفتحناه رجّع
+  // supabase.channel القناةَ وهي تُغلق، فيضيع الاستماع ولا ينزل الباركود.
+  if (displayWatch && displayWatchUuid === uuid) {
+    if (displayTimer) { clearTimeout(displayTimer); displayTimer = null; }
+    if (secs > 0) displayTimer = setTimeout(() => { displayShown = false; unwatchDisplay(); }, secs * 1000 + 2000);
+    return;
+  }
+  unwatchDisplay();
+  displayWatchUuid = uuid;
   displayWatch = supabase
     .channel(`pager:${uuid}`)
     .on('broadcast', { event: 'pager' }, msg => {
       const p = ((msg as { payload?: { seen?: boolean; collected?: boolean } }).payload) || {};
       if (!p.seen && !p.collected) return;
+      // بثٌّ متأخر لبيجرٍ سابق (قناته تُغلق) لا يُخفي البيجر المعروض الحين.
+      if (displayWatchUuid !== uuid) return;
       hidePagerOnCustomerDisplay();
       displayShown = false;
       unwatchDisplay();
@@ -267,26 +281,24 @@ export function watchPagerOnDisplay(url: string, secs: number): void {
  * عند كل إعادة اشتراك (رجع النت): ما فات وقت الانقطاع.
  */
 export function subscribePagerOrders(branchId: number, onChange: () => void): () => void {
-  let first = true;
   let t: ReturnType<typeof setTimeout> | null = null;
   const kick = () => {
     if (t) return;
     t = setTimeout(() => { t = null; onChange(); }, 400);
   };
-  const onRow = (p: { new?: { pager_eta_at?: string | null } }) => { if (p.new?.pager_eta_at) kick(); };
-  const filter = `branch_id=eq.${branchId}`;
-  const ch = supabase
-    .channel(`rn-pager-orders:${branchId}`)
-    .on('postgres_changes' as never, { event: 'INSERT', schema: 'public', table: 'orders', filter }, onRow)
-    .on('postgres_changes' as never, { event: 'UPDATE', schema: 'public', table: 'orders', filter }, onRow)
-    .subscribe((status: string) => {
-      if (status !== 'SUBSCRIBED') return;
-      if (!first) kick();
-      first = false;
-    });
+  // عبر القناة المشتركة لا قناةٍ خاصة: «جارية» تنفكّ وتنركّب مع كل تنقّل،
+  // وsupabase.channel(نفس الاسم) يرجّع القناة القديمة قبل ما تكمل إغلاقها،
+  // فإضافة postgres_changes عليها ترمي خطأً يقفل التطبيق في نسخة الإنتاج.
+  // (انظر realtimeChannel.ts -- نفس العطل وقع قبل في إعدادات المحل.)
+  const stop = subscribeToPostgresChanges(
+    `rn-pager-orders:${branchId}`,
+    { event: '*', schema: 'public', table: 'orders', filter: `branch_id=eq.${branchId}` },
+    p => { if ((p.new as { pager_eta_at?: string | null } | undefined)?.pager_eta_at) kick(); },
+    kick,
+  );
   return () => {
     if (t) clearTimeout(t);
-    try { supabase.removeChannel(ch); } catch { /* أُغلقت */ }
+    stop();
   };
 }
 

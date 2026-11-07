@@ -55,7 +55,7 @@
    * بلا سؤال: الشاشة تستمع لقناة هذا الطلب، والقاعدة تبثّ فيها لما يفتح
    * الزبون الصفحة (pager_seen_at) أو يُستلم الطلب.
    */
-  var pagerWatch = null;
+  var pagerWatch = null, pagerWatchUuid = null;
   function keyToUuid(k) {
     try {
       var b = atob(k.replace(/-/g, '+').replace(/_/g, '/') + '==');
@@ -68,7 +68,7 @@
   function unwatchPager() {
     if (!pagerWatch) return;
     try { window.supabaseClient.removeChannel(pagerWatch); } catch (_) { /* أُغلقت */ }
-    pagerWatch = null;
+    pagerWatch = null; pagerWatchUuid = null;
   }
   function watchPager(url) {
     unwatchPager();
@@ -76,10 +76,12 @@
     var m = /\/p\/([A-Za-z0-9_-]{22})$/.exec(url || '');
     var u = m && keyToUuid(m[1]);
     if (!sb || !u) return;
+    pagerWatchUuid = u;
     pagerWatch = sb.channel('pager:' + u)
       .on('broadcast', { event: 'pager' }, function (msg) {
         var p = (msg && msg.payload) || {};
-        if (p.seen || p.collected) hidePager();
+        // بثٌّ متأخر لبيجرٍ سابق (قناته تُغلق) لا يُخفي المعروض الحين.
+        if ((p.seen || p.collected) && pagerWatchUuid === u) hidePager();
       })
       .subscribe();
   }

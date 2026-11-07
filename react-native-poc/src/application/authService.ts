@@ -1,5 +1,6 @@
 import * as kvStorage from '../infrastructure/mmkvStorage';
 import { supabase, RAKEEN_API_BASE_URL } from '../infrastructure/supabaseClient';
+import { explainNetworkError } from '../domain/clockSanity';
 import {
   DeviceConfig,
   EMPTY_DEVICE_CONFIG,
@@ -96,7 +97,7 @@ export async function setBranchPin(
     const out = await res.json().catch(() => ({}));
     if (!res.ok) return { status: 'error', message: out.error || 'تعذر حفظ الرمز.' };
   } catch {
-    return { status: 'error', message: 'تعذر الاتصال — جرّب مرة ثانية.' };
+    return { status: 'error', message: explainNetworkError(undefined, 'تعذر الاتصال — جرّب مرة ثانية.') };
   }
   const device: DeviceConfig = { businessId, businessName, branchId: branch.id, branchName: branch.name };
   await saveDeviceConfig(device);
@@ -114,7 +115,10 @@ export async function setBranchPin(
 export async function provisionDevice(email: string, password: string): Promise<ProvisionResult> {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error || !data.user) {
-    return { status: 'error', message: error?.message || 'تعذر تسجيل الدخول.' };
+    // الإيميل أو كلمة السر الغلط ليست خطأ شبكة: تُقال كما هي. أما فشل
+    // الاتصال فقد يكون تاريخ الجهاز (السنمي بعد انطفاء).
+    const netFail = !error || /network request failed|fetch/i.test(error.message || '');
+    return { status: 'error', message: netFail ? explainNetworkError(error?.message, 'تعذر تسجيل الدخول.') : error.message };
   }
 
   const { data: profile, error: profileError } = await supabase
@@ -209,7 +213,7 @@ export async function loginCashierWithPin(branchId: number, pin: string): Promis
       return { status: 'error', message: json.error || 'رمز الفرع غلط.' };
     }
   } catch {
-    return { status: 'error', message: 'تعذر الاتصال بالخادم — تحقق من الإنترنت.' };
+    return { status: 'error', message: explainNetworkError(undefined, 'تعذر الاتصال بالخادم — تحقق من الإنترنت.') };
   }
 
   const { error: sessionError } = await supabase.auth.setSession({
