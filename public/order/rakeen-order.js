@@ -502,8 +502,13 @@ if (!window.__rakeenOrderBooted) {
       favicon.href = biz.logo_url;
     }
     const omShell = document.getElementById('omShell');
-    const themeName = biz.online_theme_style === 'luxury' ? 'luxury' : 'classic';
+    // «شعبي» (folk) مبني فوق تخطيط «فخم»: data-theme يبقى luxury للشبكة
+    // والهيدر والسلة، وdata-style="folk" يضيف طبقته فوقه.
+    const themeName = (biz.online_theme_style === 'luxury' || biz.online_theme_style === 'folk') ? 'luxury' : 'classic';
+    const themeStyleName = biz.online_theme_style === 'folk' ? 'folk' : themeName;
     omShell.setAttribute('data-theme', themeName);
+    omShell.setAttribute('data-style', themeStyleName);
+    document.documentElement.setAttribute('data-style', themeStyleName);
     // ALSO on <html> — the cart bar and every bottom sheet (cart/checkout/
     // modifier/branch-picker) are siblings of #omShell in order-markup.ts,
     // not descendants of it, so a `.om-shell[data-theme=...] .om-cart-bar`
@@ -797,6 +802,7 @@ if (!window.__rakeenOrderBooted) {
           return `<${linked ? 'button' : 'div'} class="om-offer${o.image_url ? ' has-img' : ''}${linked ? ' linked' : ''}" ${linked ? `data-item="${o.menu_item_id}"` : ''}>
             ${o.image_url ? `<img class="om-offer-img" src="${escOffer(o.image_url)}" alt="" loading="lazy">` : '<span class="om-offer-pattern" aria-hidden="true"></span>'}
             <span class="om-offer-shade" aria-hidden="true"></span>
+            <span class="om-offer-bite b1" aria-hidden="true"></span><span class="om-offer-bite b2" aria-hidden="true"></span>
             <span class="om-offer-body">
               ${o.badge ? `<span class="om-offer-badge">${escOffer(o.badge)}</span>` : ''}
               <span class="om-offer-name">${escOffer(o.title)}</span>

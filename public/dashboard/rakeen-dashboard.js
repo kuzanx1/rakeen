@@ -8216,7 +8216,7 @@ async function loadBusinessData(){
     ONLINE_ORDERING_ENABLED = businessRes.data.online_ordering_enabled === true;
     ONLINE_MENU_SLUG = businessRes.data.online_menu_slug || null;
     ONLINE_THEME_COLOR = businessRes.data.online_theme_color || '#C7FF4D';
-    ONLINE_THEME_STYLE = businessRes.data.online_theme_style === 'luxury' ? 'luxury' : 'classic';
+    ONLINE_THEME_STYLE = ['luxury','folk'].includes(businessRes.data.online_theme_style) ? businessRes.data.online_theme_style : 'classic';
     ONLINE_FONT_FAMILY = businessRes.data.online_font_family === 'thmanyah' ? 'thmanyah' : 'rakeen';
     ONLINE_COLOR_SURF = businessRes.data.online_color_surf || null;
     ONLINE_COLOR_CARD = businessRes.data.online_color_card || null;
@@ -10579,6 +10579,8 @@ const DEFAULT_TAGLINE_HERO = 'طلب مباشر بدون عمولة تطبيقا
 const ONLINE_THEME_DEFAULT_COLORS = {
   classic: {surf:'#F7F5EF', card:'#FFFFFF', ink:'#18170F', muted:'#8A8375'},
   luxury: {surf:'#FFFAEE', card:'#FFFFFF', ink:'#2A1D12', muted:'#A0876D'},
+  // «شعبي»: خلفية بيج دافية وكروت كريمية، والهيرو والعناوين والأسعار بلون الهوية
+  folk: {surf:'#FFF7EA', card:'#FFFDF8', ink:'#3A160C', muted:'#9A7363'},
 };
 let ONLINE_BANNER_URL = '';
 let ONLINE_OFFERS_DELIVERY = true;
@@ -13457,6 +13459,12 @@ function onlineMenuDesignHtml(){
               </span>
               <span style="font-size:11.5px; color:var(--muted); margin-inline-start:22px;">بنر كبير وصور بلا صناديق</span>
             </label>
+            <label style="flex:1; display:flex; flex-direction:column; gap:4px; padding:12px 14px; border:2px solid ${ONLINE_THEME_STYLE==='folk'?'var(--lime-deep)':'var(--line)'}; border-radius:12px; cursor:pointer;">
+              <span style="display:flex; align-items:center; gap:8px; font-weight:800; font-size:13px;">
+                <input type="radio" name="settingsOnlineThemeStyle" value="folk" ${ONLINE_THEME_STYLE==='folk'?'checked':''}> شعبي
+              </span>
+              <span style="font-size:11.5px; color:var(--muted); margin-inline-start:22px;">لون الهوية كامل، خط عريض، وعروض بشكل تذكرة</span>
+            </label>
           </div>
         </div>
         <div class="menu-add-field" style="margin-top:14px;">
@@ -13526,16 +13534,18 @@ function renderOnlineMenuDesignPreview(){
   const fontFamily = font === 'thmanyah' ? "'ThmanyahSansPreview', sans-serif" : "'Alexandria', sans-serif";
   const name = RESTAURANT_INFO.name || 'مطعمك';
   const initial = (name||'؟').trim().charAt(0);
-  const isLuxury = themeStyle === 'luxury';
+  // «شعبي» نفس تخطيط «فخم»، والفرق: رأس الصفحة كله بلون الهوية
+  const isFolk = themeStyle === 'folk';
+  const isLuxury = themeStyle === 'luxury' || isFolk;
   const logoInner = logoUrl ? `<img src="${logoUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;">` : initial;
 
   host.innerHTML = `
     <div style="border:1px solid color-mix(in srgb, ${ink} 12%, transparent); border-radius:14px; overflow:hidden; background:${surf}; color:${ink}; font-family:${fontFamily};" dir="rtl">
       <div style="height:${bannerUrl?'70px':'0'}; background:${bannerUrl?`url('${bannerUrl}') center/cover`:'none'};"></div>
-      <div style="padding:14px; ${bannerUrl && isLuxury ? 'padding-top:14px;' : ''} ${!bannerUrl ? `background:color-mix(in srgb, ${color} 16%, ${surf});` : ''}">
+      <div style="padding:14px; ${isFolk ? `background:${color}; color:${brandInk};` : ''} ${!bannerUrl && !isFolk ? `background:color-mix(in srgb, ${color} 16%, ${surf});` : ''}">
         <div style="display:flex; align-items:center; gap:10px; ${bannerUrl ? 'margin-top:-30px;' : ''}">
           <div style="width:44px; height:44px; border-radius:${isLuxury?'50%':'12px'}; background:${color}; color:${brandInk}; display:flex; align-items:center; justify-content:center; font-weight:800; border:3px solid ${card}; box-shadow:0 2px 8px rgba(0,0,0,.15); flex-shrink:0; overflow:hidden;">${logoInner}</div>
-          <div style="font-weight:800; font-size:15px; color:${ink};">${name}</div>
+          <div style="font-weight:800; font-size:15px; color:${isFolk ? brandInk : ink}; ${isFolk ? "font-family:'Lalezar',sans-serif; font-weight:400; font-size:19px;" : ''}">${name}</div>
         </div>
         <div style="display:flex; gap:${isLuxury?'16px':'6px'}; margin-top:14px;">
           <span style="${isLuxury
@@ -13869,6 +13879,7 @@ function openStoreOfferModal(offer){
 }
 
 function wireOnlineMenuDesign(){
+  window.__rkPrevThemeStyle = ONLINE_THEME_STYLE;
   if(storeOffersEnabled()){
     loadStoreOffers().then(renderStoreOffersSection);
   }
@@ -13956,7 +13967,10 @@ function wireOnlineMenuDesign(){
       // radio 'change' only fires on the one that just became checked, so
       // r.value is the NEW theme and its opposite is reliably the old one —
       // no need to track prior state separately.
-      const fromDefaults = ONLINE_THEME_DEFAULT_COLORS[r.value === 'luxury' ? 'classic' : 'luxury'];
+      // صارت ثلاثة أشكال، فالسابق ما عاد «عكس» الجديد: نحفظه بنفسه.
+      const prevStyle = window.__rkPrevThemeStyle || ONLINE_THEME_STYLE;
+      window.__rkPrevThemeStyle = r.value;
+      const fromDefaults = ONLINE_THEME_DEFAULT_COLORS[prevStyle] || ONLINE_THEME_DEFAULT_COLORS.classic;
       const toDefaults = ONLINE_THEME_DEFAULT_COLORS[r.value];
       // Only nudge a picker to the new theme's default if it was still
       // sitting on the OLD theme's default — a color the merchant actually
@@ -25408,7 +25422,7 @@ RKA.registerManager({
           const steps = [];
           steps.push({ key:'pick', type:'choose', prompt:'وش تبي تضبط في شكل المتجر؟',
             options: [
-              { value:'style', label:'شكل الصفحة (كلاسيكي / فخم)' + ' — الآن: ' + (b.themeStyle === 'luxury' ? 'فخم' : 'كلاسيكي') },
+              { value:'style', label:'شكل الصفحة (كلاسيكي / فخم / شعبي)' + ' — الآن: ' + ({ classic:'كلاسيكي', luxury:'فخم', folk:'شعبي' }[b.themeStyle] || 'كلاسيكي') },
               { value:'color', label:'اللون الرئيسي — الآن: ' + b.themeColor },
               { value:'font', label:'الخط — الآن: ' + (b.font === 'thmanyah' ? 'Thmanyah' : 'ركين') },
               { value:'taglineHeader', label:'العبارة أعلى الصفحة' },
@@ -25417,11 +25431,11 @@ RKA.registerManager({
             ] });
           if(a.pick === 'style'){
             steps.push({ key:'st', type:'choose', prompt:'شكل صفحة الطلب؟',
-              hint:'<b>كلاسيكي</b>: كروت مربّعة مرتّبة — أوضح لمنيو كبير.\n<b>فخم</b>: بنر كبير وصور بلا صناديق — أنسب لمطعم قليل الأصناف ويعتمد على الصور.',
-              options: [ { value:'classic', label:'كلاسيكي' + (b.themeStyle === 'classic' ? ' (الحالي)' : ''), primary: b.themeStyle === 'classic' }, { value:'luxury', label:'فخم' + (b.themeStyle === 'luxury' ? ' (الحالي)' : ''), primary: b.themeStyle === 'luxury' } ] });
+              hint:'<b>كلاسيكي</b>: كروت مربّعة مرتّبة — أوضح لمنيو كبير.\n<b>فخم</b>: بنر كبير وصور بلا صناديق — أنسب لمطعم قليل الأصناف ويعتمد على الصور.\n<b>شعبي</b>: رأس الصفحة بلون الهوية كامل، خط عريض للأسماء والأسعار، والعروض بشكل تذكرة.',
+              options: [ { value:'classic', label:'كلاسيكي' + (b.themeStyle === 'classic' ? ' (الحالي)' : ''), primary: b.themeStyle === 'classic' }, { value:'luxury', label:'فخم' + (b.themeStyle === 'luxury' ? ' (الحالي)' : ''), primary: b.themeStyle === 'luxury' }, { value:'folk', label:'شعبي' + (b.themeStyle === 'folk' ? ' (الحالي)' : ''), primary: b.themeStyle === 'folk' } ] });
             if(a.st !== undefined) steps.push({ key:'stExec', type:'execute', idemKind:'ostyle', pending:'أحفظ…',
               run: async (ans) => { await rkaOnlineSaveBiz({ online_theme_style: ans.st }, 'غيّر شكل المتجر', rkaOnlineMirror);
-                return { message:'صار الشكل «' + (ans.st === 'luxury' ? 'فخم' : 'كلاسيكي') + '» ✓ — شوف النتيجة في تبويب «التصميم» (معاينة حية).' }; } });
+                return { message:'صار الشكل «' + ({ classic:'كلاسيكي', luxury:'فخم', folk:'شعبي' }[ans.st] || 'كلاسيكي') + '» ✓ — شوف النتيجة في تبويب «التصميم» (معاينة حية).' }; } });
           } else if(a.pick === 'color'){
             steps.push({ key:'col', type:'ask', prompt:'اللون الرئيسي؟ اكتب كود اللون (hex)',
               hint:'مثل <b dir="ltr">C7FF4D</b> أو <b dir="ltr">#B7834A</b>. لو ما تدري الكود، افتح تبويب «التصميم» فيه منتقي ألوان بصري.',
