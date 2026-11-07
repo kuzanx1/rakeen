@@ -10590,8 +10590,8 @@ const ONLINE_THEME_DEFAULT_COLORS = {
   luxury: {surf:'#FFFAEE', card:'#FFFFFF', ink:'#2A1D12', muted:'#A0876D'},
   // «شعبي»: خلفية بيج دافية وكروت كريمية، والهيرو والعناوين والأسعار بلون الهوية
   folk: {surf:'#FFF7EA', card:'#FFFDF8', ink:'#3A160C', muted:'#9A7363'},
-  // «واجهة»: نفس روح منيو مكبوس زربيان — بيج، ونص ماروني يصير لون الهيدر
-  facade: {surf:'#FFF7EA', card:'#FFFDF8', ink:'#4A1106', muted:'#9A6B5A'},
+  // «واجهة»: نفس ألوان «فخم» الهادئة، والهيدر صورة الغلاف كبيرة
+  facade: {surf:'#FFFAEE', card:'#FFFFFF', ink:'#2A1D12', muted:'#A0876D'},
 };
 let ONLINE_BANNER_URL = '';
 let ONLINE_OFFERS_DELIVERY = true;
@@ -13480,7 +13480,7 @@ function onlineMenuDesignHtml(){
               <span style="display:flex; align-items:center; gap:8px; font-weight:800; font-size:13px;">
                 <input type="radio" name="settingsOnlineThemeStyle" value="facade" ${ONLINE_THEME_STYLE==='facade'?'checked':''}> واجهة
               </span>
-              <span style="font-size:11.5px; color:var(--muted); margin-inline-start:22px;">هيدر كبير بصورة الغلاف، والقسم الأول بكروت كبيرة</span>
+              <span style="font-size:11.5px; color:var(--muted); margin-inline-start:22px;">فخم وبسيط، وصورة الغلاف كبيرة والشعار والاسم فوقها</span>
             </label>
           </div>
           <style>.rk-theme-style-row > label{min-width:150px;}</style>
@@ -13525,6 +13525,7 @@ function onlineMenuDesignHtml(){
         </div>
       </div>`}
       ${storeOffersEnabled() ? `<div class="rk-section" style="margin-bottom:0;" id="storeOffersSection">${storeOffersSectionHtml()}</div>` : ''}
+      ${storeOffersEnabled() ? `<div class="rk-section" style="margin-bottom:0;" id="storeOccasionSection"></div>` : ''}
       </div>
 
       <div class="rk-section" style="margin-bottom:0;">
@@ -13554,21 +13555,24 @@ function renderOnlineMenuDesignPreview(){
   const name = RESTAURANT_INFO.name || 'مطعمك';
   const initial = (name||'؟').trim().charAt(0);
   // «شعبي» نفس تخطيط «فخم»، والفرق: رأس الصفحة كله بلون الهوية
-  const isFolk = themeStyle === 'folk' || themeStyle === 'facade';
-  const isLuxury = themeStyle === 'luxury' || isFolk;
-  // «واجهة»: رأس الصفحة بلون الهيدر (الافتراضي لون النص)، والاسم بلون الهوية
-  const facadeOpts = themeStyle === 'facade' ? Object.assign({}, THEME_OPTION_DEFAULTS_DASH.facade, THEME_OPTS_DRAFT.facade || {}) : null;
-  const heroBg = facadeOpts ? (/^#[0-9a-fA-F]{6}$/.test(facadeOpts.heroColor || '') ? facadeOpts.heroColor : ink) : color;
-  const heroInk = facadeOpts ? dashboardInkColorFor(heroBg) : null;
+  const isFolk = themeStyle === 'folk';
+  const isFacade = themeStyle === 'facade';
+  const isLuxury = themeStyle === 'luxury' || isFolk || isFacade;
+  const facadeOpts = isFacade ? Object.assign({}, THEME_OPTION_DEFAULTS_DASH.facade, THEME_OPTS_DRAFT.facade || {}) : null;
+  const heroBg = color, heroInk = null;
   const logoInner = logoUrl ? `<img src="${logoUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;">` : initial;
 
   host.innerHTML = `
     <div style="border:1px solid color-mix(in srgb, ${ink} 12%, transparent); border-radius:14px; overflow:hidden; background:${surf}; color:${ink}; font-family:${fontFamily};" dir="rtl">
-      <div style="height:${bannerUrl?'70px':'0'}; background:${bannerUrl?`url('${bannerUrl}') center/cover`:'none'};"></div>
+      ${isFacade ? `<div style="position:relative; height:${facadeOpts.heroSize === 'full' ? '210px' : '150px'}; background:${bannerUrl ? `linear-gradient(to top, rgba(0,0,0,.78), rgba(0,0,0,0) 65%), url('${bannerUrl}') center/cover` : `radial-gradient(120% 95% at 50% 0%, color-mix(in srgb, ${color} 42%, ${ink}), ${ink})`}; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:6px; padding-bottom:14px; color:${bannerUrl ? '#fff' : surf};">
+        ${facadeOpts.showIdentity !== false || !bannerUrl ? `<div style="width:40px; height:40px; border-radius:50%; background:${color}; color:${brandInk}; display:flex; align-items:center; justify-content:center; font-weight:800; border:2px solid rgba(255,255,255,.85); overflow:hidden;">${logoUrl ? `<img src="${logoUrl}" style="width:100%; height:100%; object-fit:cover;">` : initial}</div>
+        <div style="font-weight:800; font-size:17px;">${name}</div>` : ''}
+        <span style="font-size:10.5px; font-weight:700; padding:3px 10px; border-radius:99px; border:1px solid rgba(255,255,255,.35); background:rgba(255,255,255,.14);">طلب مباشر</span>
+      </div>` : `<div style="height:${bannerUrl?'70px':'0'}; background:${bannerUrl?`url('${bannerUrl}') center/cover`:'none'};"></div>`}
       <div style="padding:14px; ${isFolk ? `background:${heroBg}; color:${heroInk || brandInk};` : ''} ${!bannerUrl && !isFolk ? `background:color-mix(in srgb, ${color} 16%, ${surf});` : ''}">
-        <div style="display:flex; align-items:center; gap:10px; ${bannerUrl ? 'margin-top:-30px;' : ''}">
+        <div style="display:${isFacade ? 'none' : 'flex'}; align-items:center; gap:10px; ${bannerUrl ? 'margin-top:-30px;' : ''}">
           <div style="width:44px; height:44px; border-radius:${isLuxury?'50%':'12px'}; background:${color}; color:${brandInk}; display:flex; align-items:center; justify-content:center; font-weight:800; border:3px solid ${card}; box-shadow:0 2px 8px rgba(0,0,0,.15); flex-shrink:0; overflow:hidden;">${logoInner}</div>
-          <div style="font-weight:800; font-size:15px; color:${facadeOpts ? color : (isFolk ? brandInk : ink)}; ${isFolk ? "font-family:'Lalezar',sans-serif; font-weight:400; font-size:19px;" : ''}">${name}</div>
+          <div style="font-weight:800; font-size:15px; color:${isFolk ? brandInk : ink}; ${isFolk ? "font-family:'Lalezar',sans-serif; font-weight:400; font-size:19px;" : ''}">${name}</div>
         </div>
         <div style="display:flex; gap:${isLuxury?'16px':'6px'}; margin-top:14px;">
           <span style="${isLuxury
@@ -13907,7 +13911,7 @@ function openStoreOfferModal(offer){
    — لو تغيّر واحد غيّر الثاني. */
 const THEME_OPTION_DEFAULTS_DASH = {
   folk:   { featuredFirst: true, teeth: true },
-  facade: { featuredFirst: true, showIdentity: false, cutout: false, heroColor: '', accent: '#F9A303' },
+  facade: { heroSize: 'tall', showIdentity: true, featuredFirst: true, cutout: false },
 };
 function renderThemeOptions(style){
   const host = document.getElementById('themeOptionsHost');
@@ -13925,38 +13929,142 @@ function renderThemeOptions(style){
   if(style === 'folk'){
     host.innerHTML = box(chk('featuredFirst', 'أول صنف في أول قسم كرت عريض') + chk('teeth', 'حافة مسننة تحت رأس الصفحة'));
   } else {
-    const ink = document.getElementById('settingsOnlineColorInk')?.value || ONLINE_THEME_DEFAULT_COLORS.facade.ink;
-    const heroVal = /^#[0-9a-fA-F]{6}$/.test(o.heroColor || '') ? o.heroColor : ink;
-    const col = (key, label, val, note) => `<div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-      <input type="color" data-topt="${key}" value="${val}" style="width:42px; height:32px; border:1px solid var(--line); border-radius:8px; padding:2px; background:none; cursor:pointer;">
-      <div style="flex:1; min-width:0;"><div style="font-weight:700; font-size:12.5px;">${label}</div><div style="font-size:11px; color:var(--muted);">${note}</div></div>
-      ${key === 'heroColor' && o.heroColor ? `<button type="button" class="rk-offer-btn" data-topt-reset="heroColor" style="font-size:11.5px; padding:5px 9px; border:1px solid var(--line); border-radius:8px; background:none; cursor:pointer;">مثل لون النص</button>` : ''}
-    </div>`;
+    const seg = (key, val, label, note) => `<label style="flex:1; min-width:130px; display:flex; flex-direction:column; gap:3px; padding:9px 12px; border:2px solid ${o[key] === val ? 'var(--lime-deep)' : 'var(--line)'}; border-radius:10px; cursor:pointer;">
+        <span style="display:flex; align-items:center; gap:7px; font-weight:800; font-size:12.5px;"><input type="radio" name="toptHero" data-topt="${key}" value="${val}" ${o[key] === val ? 'checked' : ''}> ${label}</span>
+        <span style="font-size:11px; color:var(--muted); margin-inline-start:21px;">${note}</span></label>`;
     host.innerHTML = box(
-      col('heroColor', 'لون الهيدر والفوتر', heroVal, o.heroColor ? 'لون خاص' : 'الحين نفس «لون النص»') +
-      col('accent', 'لون تذكرة العروض', o.accent || d.accent, 'خلفية بطاقة العرض') +
-      chk('featuredFirst', 'القسم الأول بكروت كبيرة (والباقي بطاقات صغيرة)') +
-      chk('cutout', 'صور الأصناف مفرّغة (PNG بدون خلفية): تطلع كاملة بظل بدل ما تتقص') +
-      chk('showIdentity', 'أظهر الشعار والاسم تحت صورة الغلاف')
+      `<div style="font-weight:700; font-size:12.5px; margin-bottom:6px;">حجم الهيدر</div>
+       <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+         ${seg('heroSize', 'tall', 'كبير', 'صورة الغلاف بعرض الشاشة')}
+         ${seg('heroSize', 'full', 'ملء الشاشة', 'أول ما يفتح يشوف الغلاف بس، يناسب صورة واضحة')}
+       </div>` +
+      chk('showIdentity', 'الشعار والاسم فوق صورة الغلاف (طفّه لو الغلاف فيه الشعار أصلاً)') +
+      chk('featuredFirst', 'القسم الأول بصور أكبر') +
+      chk('cutout', 'صور الأصناف مفرّغة (PNG بدون خلفية): تطلع كاملة بظل بدل ما تتقص')
     );
   }
   host.querySelectorAll('[data-topt]').forEach(inp => {
-    const ev = inp.type === 'color' ? 'input' : 'change';
-    inp.addEventListener(ev, ()=>{
+    inp.addEventListener('change', ()=>{
       const key = inp.dataset.topt;
-      THEME_OPTS_DRAFT[style] = Object.assign({}, THEME_OPTS_DRAFT[style] || {}, { [key]: inp.type === 'checkbox' ? inp.checked : inp.value.toUpperCase() });
+      THEME_OPTS_DRAFT[style] = Object.assign({}, THEME_OPTS_DRAFT[style] || {}, { [key]: inp.type === 'checkbox' ? inp.checked : inp.value });
+      if(inp.type === 'radio') renderThemeOptions(style);
       renderOnlineMenuDesignPreview();
     });
-    // زر «مثل لون النص» يطلع بعد ما يختار لون خاص — عند change لا input،
-    // عشان إعادة الرسم ما تقفل نافذة اختيار اللون وهو يسحب.
-    if(inp.dataset.topt === 'heroColor') inp.addEventListener('change', ()=>{ if(!host.querySelector('[data-topt-reset]')) renderThemeOptions(style); });
   });
-  host.querySelectorAll('[data-topt-reset]').forEach(btn => btn.addEventListener('click', ()=>{
-    const key = btn.dataset.toptReset;
-    THEME_OPTS_DRAFT[style] = Object.assign({}, THEME_OPTS_DRAFT[style] || {}, { [key]: '' });
-    renderThemeOptions(style);
-    renderOnlineMenuDesignPreview();
+}
+
+/* ============ المناسبة (businesses.online_occasion) ============
+   اليوم الوطني، يوم التأسيس، رمضان، العيد، أو مناسبة خاصة بألوان المتجر.
+   تطلع في المتجر بين التاريخين بطابع شكل المتجر. نفس القائمة في
+   rakeen-order.js (OCCASION_PRESETS) — لو تغيّر واحد غيّر الثاني. */
+const OCCASION_PRESETS_DASH = {
+  national: { name: 'اليوم الوطني', kicker: 'اليوم الوطني السعودي', title: 'دام عزّك يا وطن', sub: 'كل عام والوطن بخير', bg: '#0B6138', bg2: '#05391F', ink: '#FFFFFF', gold: '#E9DDB0', when: 'يوافق ٢٣ سبتمبر' },
+  founding: { name: 'يوم التأسيس', kicker: 'يوم التأسيس', title: 'يوم بدينا', sub: 'ذكرى التأسيس، ١٧٢٧م', bg: '#6B4528', bg2: '#3D2614', ink: '#FFF6E6', gold: '#DDB66C', when: 'يوافق ٢٢ فبراير' },
+  ramadan:  { name: 'رمضان', kicker: 'مبارك عليكم الشهر', title: 'رمضان كريم', sub: 'تقبّل الله صيامكم وقيامكم', bg: '#18264A', bg2: '#0A1128', ink: '#FFF8E7', gold: '#DDB862', when: '' },
+  eid:      { name: 'العيد', kicker: 'عيد سعيد', title: 'عيدكم مبارك', sub: 'كل عام وأنتم بخير', bg: '#0F4F5E', bg2: '#062B34', ink: '#FFFFFF', gold: '#EDCB82', when: '' },
+  custom:   { name: 'مناسبة خاصة', kicker: '', title: '', sub: '', bg: '', bg2: '', ink: '', gold: '', when: 'بألوان متجرك: افتتاح فرع، الجمعة البيضاء…' },
+};
+// undefined = ما تحمّل، null = العمود ما رُحّل، كائن = المناسبة
+let ONLINE_OCCASION;
+let OCC_DRAFT = {};
+async function loadOnlineOccasion(){
+  try {
+    const { data, error } = await window.supabaseClient.from('businesses')
+      .select('online_occasion').eq('id', CURRENT_PROFILE.business_id).maybeSingle();
+    ONLINE_OCCASION = (!error && data) ? (data.online_occasion || {}) : null;
+  } catch(_){ ONLINE_OCCASION = null; }
+  OCC_DRAFT = JSON.parse(JSON.stringify(ONLINE_OCCASION || {}));
+  if(!OCC_DRAFT.preset) OCC_DRAFT.preset = 'national';
+}
+function occasionPreviewHtml(){
+  const p = OCCASION_PRESETS_DASH[OCC_DRAFT.preset] || OCCASION_PRESETS_DASH.custom;
+  const brand = document.getElementById('settingsOnlineColor')?.value || '#C7FF4D';
+  const bg = p.bg || brand, bg2 = p.bg2 || `color-mix(in srgb, ${brand} 58%, #000)`;
+  const ink = p.ink || dashboardInkColorFor(brand), gold = p.gold || ink;
+  const fileEl = document.getElementById('occImageInput');
+  const file = fileEl && fileEl.files && fileEl.files[0];
+  const img = file ? URL.createObjectURL(file) : (OCC_DRAFT.clearImage ? '' : (OCC_DRAFT.image_url || ''));
+  if(img) return `<img src="${escapeHtml(img)}" alt="" style="display:block; width:100%; border-radius:12px;">`;
+  const title = (OCC_DRAFT.title || '').trim() || p.title || RESTAURANT_INFO.name || '';
+  const sub = (OCC_DRAFT.subtitle || '').trim() || p.sub;
+  return `<div style="position:relative; border-radius:14px; padding:18px 16px; text-align:center; background:linear-gradient(135deg, ${bg}, ${bg2}); color:${ink};">
+    <div style="position:absolute; inset:6px; border:1px solid ${gold}; border-radius:10px; opacity:.5;"></div>
+    ${p.kicker ? `<div style="font-size:11px; font-weight:700; color:${gold};">${escapeHtml(p.kicker)}</div>` : ''}
+    <div style="font-weight:800; font-size:18px; margin-top:2px;">${escapeHtml(title)}</div>
+    ${sub ? `<div style="font-size:12px; opacity:.85; margin-top:2px;">${escapeHtml(sub)}</div>` : ''}
+  </div>`;
+}
+function renderOccasionSection(){
+  const host = document.getElementById('storeOccasionSection');
+  if(!host) return;
+  const head = rkSectionHead('calendar', 'المناسبات', 'اليوم الوطني، يوم التأسيس، رمضان، العيد… يطلع في متجرك شريط بزخرفة المناسبة وبطابع شكل متجرك، ويختفي لحاله بعد آخر يوم.');
+  if(ONLINE_OCCASION === undefined){ host.innerHTML = head + `<p class="stock-qty-helper">جاري التحميل...</p>`; return; }
+  if(ONLINE_OCCASION === null){ host.innerHTML = head + `<p class="stock-qty-helper">المناسبات تحتاج تحديث قاعدة البيانات أول (online_occasion). تواصل مع ركين.</p>`; return; }
+  const o = OCC_DRAFT;
+  const presetCards = Object.entries(OCCASION_PRESETS_DASH).map(([k, p]) => {
+    const sw = p.bg ? `linear-gradient(135deg, ${p.bg}, ${p.bg2})` : `var(--lime-deep, #6a9a2c)`;
+    return `<button type="button" data-occ-preset="${k}" style="flex:1; min-width:118px; display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:10px; cursor:pointer; text-align:start; background:none; color:inherit; border:2px solid ${o.preset === k ? 'var(--lime-deep)' : 'var(--line)'};">
+      <span style="width:22px; height:22px; border-radius:50%; flex-shrink:0; background:${sw}; box-shadow:inset 0 0 0 2px ${p.gold || 'rgba(255,255,255,.6)'};"></span>
+      <span style="display:flex; flex-direction:column; min-width:0;"><b style="font-size:12.5px;">${p.name}</b>${p.when ? `<span style="font-size:10.5px; color:var(--muted);">${p.when}</span>` : ''}</span>
+    </button>`;
+  }).join('');
+  const p = OCCASION_PRESETS_DASH[o.preset] || OCCASION_PRESETS_DASH.custom;
+  host.innerHTML = head + `
+    <div style="margin-bottom:12px;">${rkCheck(`id="occEnabled" ${o.enabled ? 'checked' : ''}`, 'شغّل المناسبة في المتجر')}</div>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">${presetCards}</div>
+    <div class="menu-add-field"><label>العنوان</label>
+      <input type="text" id="occTitle" maxlength="50" value="${escapeHtml(o.title || '')}" placeholder="${escapeHtml(p.title || 'مثال: افتتاح فرعنا الجديد')}"></div>
+    <div class="menu-add-field"><label>سطر تحته (اختياري)</label>
+      <input type="text" id="occSub" maxlength="90" value="${escapeHtml(o.subtitle || '')}" placeholder="${escapeHtml(p.sub || 'مثال: خصم ١٥٪ على كل الطلبات')}"></div>
+    <div class="menu-add-field"><label>تصميم جاهز (اختياري) ${helpIcon('لو عندك بنر من مصمم للمناسبة، ارفعه هنا ويطلع بدل الزخرفة. المقاس الأنسب ١٥٠٠×٥٠٠.')}</label>
+      ${rkImageUploadHtml('occImageInput', { currentUrl: o.image_url || '', width:1500, height:500, shape:'wide', note:'بدونه تطلع زخرفة المناسبة بألوانها' })}
+      ${o.image_url ? `<div style="margin-top:8px;">${rkCheck(`id="occImageClear" ${o.clearImage ? 'checked' : ''}`, 'إزالة التصميم')}</div>` : ''}</div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <div class="menu-add-field" style="flex:1; min-width:140px;"><label>من يوم (اختياري)</label><input type="date" id="occFrom" value="${escapeHtml(o.starts_on || '')}"></div>
+      <div class="menu-add-field" style="flex:1; min-width:140px;"><label>لين يوم (اختياري)</label><input type="date" id="occTo" value="${escapeHtml(o.ends_on || '')}"></div>
+    </div>
+    <div style="font-size:12px; font-weight:700; margin:4px 0 6px;">كذا تقريباً (وتاخذ طابع شكل متجرك):</div>
+    <div id="occPreview" style="margin-bottom:12px;">${occasionPreviewHtml()}</div>
+    <button type="button" class="rk-btn rk-btn-primary" id="occSaveBtn" style="width:100%;">احفظ المناسبة</button>`;
+  attachImageCropper('occImageInput', { aspect: 3, outputWidth: 1500, outputHeight: 500 });
+  wireImageUploadBoxPreview('occImageInput');
+  const repaint = ()=>{ const el = document.getElementById('occPreview'); if(el) el.innerHTML = occasionPreviewHtml(); };
+  const sync = ()=>{
+    o.enabled = document.getElementById('occEnabled').checked;
+    o.title = document.getElementById('occTitle').value;
+    o.subtitle = document.getElementById('occSub').value;
+    o.starts_on = document.getElementById('occFrom').value || '';
+    o.ends_on = document.getElementById('occTo').value || '';
+    o.clearImage = !!document.getElementById('occImageClear')?.checked;
+  };
+  host.querySelectorAll('input').forEach(inp => inp.addEventListener(inp.type === 'text' ? 'input' : 'change', ()=>{ sync(); repaint(); }));
+  host.querySelectorAll('[data-occ-preset]').forEach(btn => btn.addEventListener('click', ()=>{
+    sync(); o.preset = btn.dataset.occPreset; renderOccasionSection();
   }));
+  const saveBtn = document.getElementById('occSaveBtn');
+  saveBtn.addEventListener('click', async ()=>{
+    sync();
+    if(o.starts_on && o.ends_on && o.ends_on < o.starts_on){ showToast('«لين يوم» قبل «من يوم» — صحّح التاريخ'); return; }
+    rkBtnLoading(saveBtn, true);
+    try {
+      const row = {
+        enabled: !!o.enabled, preset: OCCASION_PRESETS_DASH[o.preset] ? o.preset : 'custom',
+        title: (o.title || '').trim().slice(0, 50), subtitle: (o.subtitle || '').trim().slice(0, 90),
+        image_url: o.clearImage ? '' : (o.image_url || ''), starts_on: o.starts_on || '', ends_on: o.ends_on || '',
+      };
+      const file = await compressImageFile(document.getElementById('occImageInput').files[0]);
+      if(file) row.image_url = await uploadMediaFile(file, 'menu-item-images', 'occasion');
+      await updateCurrentBusiness({ online_occasion: row });
+      ONLINE_OCCASION = row;
+      OCC_DRAFT = JSON.parse(JSON.stringify(row));
+      logDashboardAudit('حدّث مناسبة المتجر: ' + (OCCASION_PRESETS_DASH[row.preset].name) + (row.enabled ? ' (شغّالة)' : ' (موقوفة)'));
+      showToast(row.enabled ? 'تم الحفظ، والمناسبة تطلع في متجرك' + (row.starts_on && row.starts_on > new Date().toLocaleDateString('en-CA') ? ' من ' + row.starts_on : ' الحين') : 'تم الحفظ، والمناسبة موقوفة');
+      renderOccasionSection();
+    } catch(err){
+      rkBtnLoading(saveBtn, false);
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
+  });
 }
 
 function wireOnlineMenuDesign(){
@@ -13965,6 +14073,7 @@ function wireOnlineMenuDesign(){
   renderThemeOptions(ONLINE_THEME_STYLE);
   if(storeOffersEnabled()){
     loadStoreOffers().then(renderStoreOffersSection);
+    loadOnlineOccasion().then(renderOccasionSection);
   }
   // Must run before the 'change' listeners further down (they read
   // input.files[0] for the live preview) so the cropped file is what they
@@ -25522,8 +25631,7 @@ RKA.registerManager({
             ] });
           if(a.pick === 'style'){
             steps.push({ key:'st', type:'choose', prompt:'شكل صفحة الطلب؟',
-              hint:'<b>كلاسيكي</b>: كروت مربّعة مرتّبة — أوضح لمنيو كبير.\n<b>فخم</b>: بنر كبير وصور بلا صناديق — أنسب لمطعم قليل الأصناف ويعتمد على الصور.\n<b>شعبي</b>: رأس الصفحة بلون الهوية كامل، خط عريض للأسماء والأسعار، والعروض بشكل تذكرة.
-<b>واجهة</b>: هيدر كبير بصورة الغلاف، القسم الأول بكروت كبيرة والباقي بطاقات صغيرة.',
+              hint:'<b>كلاسيكي</b>: كروت مربّعة مرتّبة — أوضح لمنيو كبير.\n<b>فخم</b>: بنر كبير وصور بلا صناديق — أنسب لمطعم قليل الأصناف ويعتمد على الصور.\n<b>شعبي</b>: رأس الصفحة بلون الهوية كامل، خط عريض للأسماء والأسعار، والعروض بشكل تذكرة.\n<b>واجهة</b>: فخم وبسيط، وميزته الهيدر: صورة الغلاف كبيرة (أو بطول الشاشة) والشعار والاسم فوقها.',
               options: [ { value:'classic', label:'كلاسيكي' + (b.themeStyle === 'classic' ? ' (الحالي)' : ''), primary: b.themeStyle === 'classic' }, { value:'luxury', label:'فخم' + (b.themeStyle === 'luxury' ? ' (الحالي)' : ''), primary: b.themeStyle === 'luxury' }, { value:'folk', label:'شعبي' + (b.themeStyle === 'folk' ? ' (الحالي)' : ''), primary: b.themeStyle === 'folk' }, { value:'facade', label:'واجهة' + (b.themeStyle === 'facade' ? ' (الحالي)' : ''), primary: b.themeStyle === 'facade' } ] });
             if(a.st !== undefined) steps.push({ key:'stExec', type:'execute', idemKind:'ostyle', pending:'أحفظ…',
               run: async (ans) => { await rkaOnlineSaveBiz({ online_theme_style: ans.st }, 'غيّر شكل المتجر', rkaOnlineMirror);

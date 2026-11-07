@@ -33,6 +33,8 @@ export const orderMarkup = `
       </div>
     </div>
 
+    <section class="om-occasion" id="omOccasion" aria-label="مناسبة" hidden></section>
+
     <div class="om-toolbar">
       <div class="om-channel-row" id="omChannelRow">
         <button class="om-channel-btn active" data-channel="delivery">

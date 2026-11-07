@@ -504,15 +504,19 @@ if (!window.__rakeenOrderBooted) {
     const omShell = document.getElementById('omShell');
     // «شعبي» (folk) و«واجهة» (facade) مبنية فوق تخطيط «فخم»: data-theme
     // يبقى luxury للشبكة والهيدر والسلة، وdata-style يضيف طبقة كل شكل.
-    // data-offers="ticket": العروض بشكل تذكرة في الشكلين.
+    // data-offers: «شعبي» عروضه تذاكر، والباقي بطاقات صور (luxe للفخم والواجهة).
     const LAYERED_STYLES = ['folk', 'facade'];
     const themeName = (biz.online_theme_style === 'luxury' || LAYERED_STYLES.includes(biz.online_theme_style)) ? 'luxury' : 'classic';
     const themeStyleName = LAYERED_STYLES.includes(biz.online_theme_style) ? biz.online_theme_style : themeName;
     omShell.setAttribute('data-theme', themeName);
     omShell.setAttribute('data-style', themeStyleName);
     document.documentElement.setAttribute('data-style', themeStyleName);
-    if (LAYERED_STYLES.includes(themeStyleName)) omShell.setAttribute('data-offers', 'ticket');
+    omShell.setAttribute('data-offers', themeStyleName === 'folk' ? 'ticket' : (themeName === 'luxury' ? 'luxe' : 'card'));
     applyThemeOptions(themeStyleName, {});
+    // المناسبة (اليوم الوطني، رمضان، العيد…) بنفس الطريقة: استعلام مستقل.
+    sb.from('businesses').select('online_occasion').eq('id', biz.id).maybeSingle()
+      .then(({ data, error }) => { if (!error && data) renderOccasion(data.online_occasion); })
+      .catch(() => {});
     // خيارات كل شكل (online_theme_options) باستعلام مستقل وبدون انتظار:
     // الافتراضي مرسوم من الحين، ولو العمود ما رُحّل يبقى الافتراضي.
     sb.from('businesses').select('online_theme_options').eq('id', biz.id).maybeSingle()
@@ -785,7 +789,7 @@ if (!window.__rakeenOrderBooted) {
      كمتغيرات وسمات على #omShell، والـCSS حق كل شكل يقرأها. */
   const THEME_OPTION_DEFAULTS = {
     folk:   { featuredFirst: true, teeth: true },
-    facade: { featuredFirst: true, showIdentity: false, cutout: false, heroColor: '', accent: '#F9A303' },
+    facade: { heroSize: 'tall', showIdentity: true, featuredFirst: true, cutout: false },
   };
   function applyThemeOptions(style, opts) {
     const shell = document.getElementById('omShell');
@@ -797,15 +801,76 @@ if (!window.__rakeenOrderBooted) {
     shell.setAttribute('data-featured', o.featuredFirst === false ? '0' : '1');
     if (style === 'folk') shell.setAttribute('data-teeth', o.teeth === false ? '0' : '1');
     if (style === 'facade') {
-      shell.setAttribute('data-identity', o.showIdentity ? '1' : '0');
+      shell.setAttribute('data-identity', o.showIdentity === false ? '0' : '1');
       shell.setAttribute('data-cutout', o.cutout ? '1' : '0');
-      if (okHex(o.heroColor)) { shell.style.setProperty('--hero-bg', o.heroColor); shell.style.setProperty('--hero-ink', inkColorFor(o.heroColor)); document.documentElement.style.setProperty('--hero-bg', o.heroColor); }
-      else { shell.style.removeProperty('--hero-bg'); shell.style.removeProperty('--hero-ink'); document.documentElement.style.removeProperty('--hero-bg'); }
-      const acc = okHex(o.accent) ? o.accent : d.accent;
-      shell.style.setProperty('--accent', acc);
-      document.documentElement.style.setProperty('--accent', acc);
-      shell.style.setProperty('--accent-ink', inkColorFor(acc) === '#16281B' ? 'var(--ink)' : '#FFFFFF');
+      shell.setAttribute('data-hero', o.heroSize === 'full' ? 'full' : 'tall');
     }
+    void okHex;
+  }
+
+  /* ============ المناسبة ============
+     businesses.online_occasion = { enabled, preset, title, subtitle,
+     image_url, starts_on, ends_on }. تطلع بين التاريخين (شاملة، بتوقيت
+     جهاز الزبون). preset يعطي الألوان والزخرفة والنص الافتراضي؛ وصورة
+     جاهزة من المصمم (image_url) تطلع بدل الزخرفة. كل شكل يرسمها بطابعه
+     في الـCSS (data-style). نفس القائمة في اللوحة (OCCASION_PRESETS_DASH). */
+  const OCCASION_PRESETS = {
+    national: { kicker: 'اليوم الوطني السعودي', title: 'دام عزّك يا وطن', sub: 'كل عام والوطن بخير', bg: '#0B6138', bg2: '#05391F', ink: '#FFFFFF', gold: '#E9DDB0', motif: 'palm' },
+    founding: { kicker: 'يوم التأسيس', title: 'يوم بدينا', sub: 'ذكرى التأسيس، ١٧٢٧م', bg: '#6B4528', bg2: '#3D2614', ink: '#FFF6E6', gold: '#DDB66C', motif: 'sadu' },
+    ramadan:  { kicker: 'مبارك عليكم الشهر', title: 'رمضان كريم', sub: 'تقبّل الله صيامكم وقيامكم', bg: '#18264A', bg2: '#0A1128', ink: '#FFF8E7', gold: '#DDB862', motif: 'crescent' },
+    eid:      { kicker: 'عيد سعيد', title: 'عيدكم مبارك', sub: 'كل عام وأنتم بخير', bg: '#0F4F5E', bg2: '#062B34', ink: '#FFFFFF', gold: '#EDCB82', motif: 'stars' },
+    custom:   { kicker: '', title: '', sub: '', bg: '', bg2: '', ink: '', gold: '', motif: 'spark' },
+  };
+  const OCC_MOTIFS = {
+    palm: '<svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M23 46h2.6l-.5-20c3.7.3 8.6 2.4 11.9 6.6-.5-6.3-5.7-10.4-10.6-10.8 5-1.6 11.1-.4 15 3.4-1.9-6-8.6-8.4-14-7.3 3.4-2.8 8.8-4 12.8-2.7-3.4-4.6-10.4-4-14 .1.9-3.8 4-7.6 7.7-9.1C29.3 5.2 24.9 9 24 14.4 23.1 9 18.7 5.2 14.1 6.2c3.7 1.5 6.8 5.3 7.7 9.1-3.6-4.1-10.6-4.7-14-.1 4-1.3 9.4-.1 12.8 2.7-5.4-1.1-12.1 1.3-14 7.3 3.9-3.8 10-5 15-3.4-4.9.4-10.1 4.5-10.6 10.8 3.3-4.2 8.2-6.3 11.9-6.6z"/></svg>',
+    sadu: '<svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M24 4l8 10H16zM24 44l-8-10h16zM4 24l10-8v16zM44 24l-10 8V16zM24 17l7 7-7 7-7-7z"/></svg>',
+    crescent: '<svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M26.5 6.5A18 18 0 1 0 41.6 33 15 15 0 1 1 26.5 6.5z"/><path d="M35 9l1.6 3.6 3.9.4-2.9 2.6.8 3.9L35 17.5l-3.4 2 .8-3.9-2.9-2.6 3.9-.4z"/></svg>',
+    stars: '<svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M24 3l4.4 6.3 7.6-1.4-1.4 7.6L41 20l-6.3 4.4 1.4 7.6-7.6-1.4L24 37l-4.4-6.3-7.6 1.4 1.4-7.6L7 20l6.3-4.4L11.9 8l7.6 1.4zM24 13a7 7 0 1 0 0 14 7 7 0 0 0 0-14z" fill-rule="evenodd"/><circle cx="40" cy="41" r="2.2"/><circle cx="9" cy="40" r="1.6"/></svg>',
+    spark: '<svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M24 4c1.6 9.4 5.6 13.4 15 15-9.4 1.6-13.4 5.6-15 15-1.6-9.4-5.6-13.4-15-15 9.4-1.6 13.4-5.6 15-15zM39 30c.7 3.6 2.4 5.3 6 6-3.6.7-5.3 2.4-6 6-.7-3.6-2.4-5.3-6-6 3.6-.7 5.3-2.4 6-6z"/></svg>',
+  };
+  function occasionActive(occ) {
+    if (!occ || typeof occ !== 'object' || !occ.enabled) return false;
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const ok = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+    if (ok(occ.starts_on) && today < occ.starts_on) return false;
+    if (ok(occ.ends_on) && today > occ.ends_on) return false;
+    return true;
+  }
+  function renderOccasion(occ) {
+    const el = document.getElementById('omOccasion');
+    if (!el) return;
+    if (!occasionActive(occ)) { el.hidden = true; el.innerHTML = ''; return; }
+    const key = OCCASION_PRESETS[occ.preset] ? occ.preset : 'custom';
+    const p = OCCASION_PRESETS[key];
+    const okHex = v => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
+    const title = String(occ.title || '').trim() || p.title || (BUSINESS && BUSINESS.name) || '';
+    const sub = String(occ.subtitle || '').trim() || p.sub;
+    el.setAttribute('data-preset', key);
+    // custom بدون ألوان: لون هوية المتجر
+    if (p.bg) {
+      el.style.setProperty('--oc-bg', p.bg); el.style.setProperty('--oc-bg2', p.bg2);
+      el.style.setProperty('--oc-ink', p.ink); el.style.setProperty('--oc-gold', p.gold);
+    } else {
+      ['--oc-bg', '--oc-bg2', '--oc-ink', '--oc-gold'].forEach(v => el.style.removeProperty(v));
+    }
+    void okHex;
+    const img = typeof occ.image_url === 'string' && /^https:\/\//.test(occ.image_url) ? occ.image_url : '';
+    const icon = OCC_MOTIFS[p.motif] || OCC_MOTIFS.spark;
+    el.classList.toggle('has-art', !!img);
+    el.innerHTML = img
+      ? `<figure class="om-occ-art"><img src="${escOffer(img)}" alt="${escOffer(title)}" loading="eager" decoding="async"></figure>`
+      : `<div class="om-occ-band">
+          <span class="om-occ-pattern" aria-hidden="true"></span>
+          <span class="om-occ-icon" aria-hidden="true">${icon}</span>
+          <div class="om-occ-text">
+            ${p.kicker ? `<span class="om-occ-kicker">${escOffer(p.kicker)}</span>` : ''}
+            <span class="om-occ-title">${escOffer(title)}</span>
+            ${sub ? `<span class="om-occ-sub">${escOffer(sub)}</span>` : ''}
+          </div>
+          <span class="om-occ-icon om-occ-icon-end" aria-hidden="true">${icon}</span>
+        </div>`;
+    el.hidden = false;
   }
 
   /* ============ شريط العروض ============
@@ -831,6 +896,7 @@ if (!window.__rakeenOrderBooted) {
     const productIds = new Set(PRODUCTS.map(p => p.id));
     el.innerHTML = `
       <div class="om-offers-head">
+        <span class="om-offers-en" aria-hidden="true">OFFERS</span>
         <span class="om-offers-title">العروض</span>
         ${OFFERS.length > 1 ? `<span class="om-offers-count mono">${OFFERS.length}</span>` : ''}
       </div>
