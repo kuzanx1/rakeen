@@ -33,7 +33,13 @@ async function serveMediaBucket(request, env) {
   const headers = new Headers();
   object.writeHttpMetadata(headers);
   headers.set("etag", object.httpEtag);
-  headers.set("cache-control", "public, max-age=31536000, immutable");
+  // الصور والخطوط مفاتيحها ما تتكرر (فيها وقت الرفع)، فتنخزّن للأبد. لكن
+  // help/ (مرجع ركين) نفس المفتاح ينكتب فوقه كل تحديث، فكان الجهاز يحتفظ
+  // بالنسخة القديمة سنة ويلزم نغيّر ?v= كل مرة. الحين يتحقق كل فتحة (etag،
+  // ٣٠٤ لو ما تغيّر) والرابط واحد ما يتغير.
+  headers.set("cache-control", key.startsWith("help/")
+    ? "no-cache"
+    : "public, max-age=31536000, immutable");
   // @font-face (unlike <img>/background-image) enforces CORS even for a
   // same-site-looking cross-origin font load — the online storefront's
   // self-hosted Thmanyah font otherwise silently fails to load with no
