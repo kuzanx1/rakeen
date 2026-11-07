@@ -951,11 +951,20 @@ if (!window.__rakeenOrderBooted) {
     const dots = document.getElementById('omOffersDots');
     if (!track || !dots) return;
     const cards = Array.from(track.children);
+    // وصل آخر الشريط؟ (في الشاشات العريضة يبين أكثر من عرض، فآخرها ما
+    // يقدر يوصل حافة البداية، وبدون هذا كانت النقطة الأخيرة ما تنوصل)
+    const atEnd = () => Math.abs(track.scrollLeft) + track.clientWidth >= track.scrollWidth - 4;
+    const atStart = () => Math.abs(track.scrollLeft) <= 4;
+    // want = آخر عرض طلبناه بالأسهم/النقاط/التقليب. لما يكون الشريط في
+    // آخره يبين أكثر من عرض، فنعتمد المطلوب (ولا نقفز للأخير)، وبعد لمسة
+    // الزبون يرجع القياس الطبيعي.
+    let want = null;
     const current = () => {
       // RTL: scrollLeft سالب أو صفر حسب المتصفح، نقيس بالمسافة من حافة البداية
       const tr = track.getBoundingClientRect();
       let best = 0, bestD = Infinity;
       cards.forEach((c, i) => { const d = Math.abs(c.getBoundingClientRect().right - tr.right); if (d < bestD) { bestD = d; best = i; } });
+      if (atEnd() && !atStart()) return want != null && want >= best ? want : cards.length - 1;
       return best;
     };
     const paint = () => { const i = current(); Array.from(dots.children).forEach((d, k) => d.classList.toggle('on', k === i)); };
@@ -965,10 +974,13 @@ if (!window.__rakeenOrderBooted) {
     // الصفحة عمودياً (scrollIntoView يحرّكها لو الشريط خارج الشاشة).
     const goTo = i => {
       const n = cards.length;
-      const next = cards[((i % n) + n) % n];
+      want = ((i % n) + n) % n;
+      const next = cards[want];
       const pad = parseFloat(getComputedStyle(track).paddingRight) || 0;
       const dx = next.getBoundingClientRect().right - (track.getBoundingClientRect().right - pad);
       track.scrollBy({ left: dx, behavior: 'smooth' });
+      // لو الشريط في آخره ما يتحرك ولا يطلع حدث scroll، فالنقطة تتحدث هنا
+      paint(); setTimeout(paint, 600);
     };
     // يتقلّب لحاله كل ٥ ثواني، ويوقف ما دام الزبون يلمسه أو الماوس فوقه،
     // ويرجع يتقلّب بعد ٦ ثواني من آخر لمسة (كان يوقف للأبد بعد أول لمسة).
@@ -985,7 +997,8 @@ if (!window.__rakeenOrderBooted) {
       }, 5000);
     };
     const touched = () => { lastTouch = Date.now(); };
-    ['touchstart', 'touchmove', 'wheel', 'keydown'].forEach(ev => track.addEventListener(ev, touched, { passive: true }));
+    const userScroll = () => { touched(); want = null; };
+    ['touchstart', 'touchmove', 'wheel', 'keydown'].forEach(ev => track.addEventListener(ev, userScroll, { passive: true }));
     track.addEventListener('mouseenter', () => { hovering = true; });
     track.addEventListener('mouseleave', () => { hovering = false; touched(); });
     // سحب بالماوس (اللمس يسحب لحاله بالتمرير الأفقي)
@@ -993,7 +1006,7 @@ if (!window.__rakeenOrderBooted) {
     track.addEventListener('pointerdown', e => {
       touched();
       if (e.pointerType !== 'mouse' || e.button !== 0) return;
-      drag = { x: e.clientX, left: track.scrollLeft }; dragged = false;
+      drag = { x: e.clientX, left: track.scrollLeft, from: current(), dx: 0 }; dragged = false;
     });
     // الالتقاط يبدأ بعد ما يتحرك فعلاً، عشان الضغطة العادية تفتح الصنف
     track.addEventListener('pointermove', e => {
@@ -1002,12 +1015,17 @@ if (!window.__rakeenOrderBooted) {
       const dx = e.clientX - drag.x;
       if (!dragged && Math.abs(dx) < 6) return;
       if (!dragged) { dragged = true; track.classList.add('dragging'); try { track.setPointerCapture(e.pointerId); } catch (_) {} }
+      drag.dx = dx;
       track.scrollLeft = drag.left - dx;
     });
+    // سحبة قصيرة (٤٠px) تكفي تنقل للعرض الجاي أو اللي قبله، زي سحبة الجوال
     const endDrag = () => {
       if (!drag) return;
-      drag = null; touched();
-      if (dragged) { track.classList.remove('dragging'); goTo(current()); }
+      const d = drag; drag = null; touched();
+      if (!dragged) return;
+      track.classList.remove('dragging');
+      const step = Math.abs(d.dx) >= 40 ? (d.dx > 0 ? 1 : -1) : 0;
+      goTo(step ? Math.max(0, Math.min(cards.length - 1, d.from + step)) : current());
     };
     track.addEventListener('pointerup', endDrag);
     track.addEventListener('pointercancel', endDrag);

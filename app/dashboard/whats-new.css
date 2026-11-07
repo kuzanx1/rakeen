@@ -1,0 +1,99 @@
+/* «جديد ركين» — بهوية ركين (فحمي + ليموني) في الوضعين الفاتح والداكن. */
+@font-face{font-family:'RkDisplay'; src:url('/fonts/thmanyah-serif-display/thmanyahserifdisplay-Black.woff2') format('woff2'); font-weight:900; font-display:swap;}
+
+/* زر الشريط العلوي */
+.rk-wn-btn-slot{display:contents;}
+.rk-wn-btn.topbar-notif-btn{width:auto; padding:0 12px 0 11px; gap:6px; color:var(--text); font-weight:800; font-size:13px; font-family:inherit; cursor:pointer;}
+.rk-wn-btn svg{width:15px; height:15px; color:var(--lime-deep);}
+[data-theme="dark"] .rk-wn-btn svg{color:var(--lime);}
+.rk-wn-dot{position:absolute; top:-3px; inset-inline-end:-3px; width:11px; height:11px; border-radius:50%; background:var(--lime); border:2px solid var(--card-bg); box-shadow:0 0 0 0 rgba(196,255,43,.6); animation:rk-wn-pulse 2.2s ease-out infinite;}
+@keyframes rk-wn-pulse{0%{box-shadow:0 0 0 0 rgba(143,203,23,.55)}70%{box-shadow:0 0 0 9px rgba(143,203,23,0)}100%{box-shadow:0 0 0 0 rgba(143,203,23,0)}}
+@media (max-width:560px){ .rk-wn-btn-label{display:none;} .rk-wn-btn.topbar-notif-btn{width:38px; padding:0;} }
+
+/* بنر الرئيسية */
+#rk-whatsnew-home:empty{display:none;}
+.rk-wn-hero{
+  position:relative; overflow:hidden; isolation:isolate; margin:0 0 18px;
+  display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.08fr); align-items:center; gap:8px;
+  background:#121212; color:#FBFAF5; border-radius:24px; padding:28px 30px 28px 18px;
+  box-shadow:0 24px 50px -28px rgba(0,0,0,.65), inset 0 0 0 1px rgba(251,250,245,.07);
+  animation:rk-wn-in .5s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes rk-wn-in{from{opacity:0; transform:translateY(8px)}to{opacity:1; transform:none}}
+.rk-wn-hero::before{content:''; position:absolute; z-index:-1; width:620px; height:620px; border-radius:50%; inset-inline-end:-160px; top:50%; transform:translateY(-50%);
+  background:radial-gradient(circle, rgba(196,255,43,.22) 0%, rgba(196,255,43,.05) 42%, transparent 68%);}
+.rk-wn-hero::after{content:''; position:absolute; z-index:-1; inset:0; opacity:.06;
+  background-image:linear-gradient(rgba(251,250,245,.9) 1px,transparent 1px),linear-gradient(90deg,rgba(251,250,245,.9) 1px,transparent 1px);
+  background-size:36px 36px; -webkit-mask-image:linear-gradient(90deg,#000,transparent 70%); mask-image:linear-gradient(90deg,#000,transparent 70%);}
+.rk-wn-hero-text{min-width:0; position:relative; z-index:1;}
+.rk-wn-kick{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;}
+.rk-wn-pill{display:inline-flex; align-items:center; gap:6px; background:#C4FF2B; color:#121212; font-weight:900; font-size:12.5px; padding:5px 12px 6px; border-radius:999px;}
+.rk-wn-pill svg{width:13px; height:13px;}
+.rk-wn-date{font-size:12px; font-weight:600; color:rgba(251,250,245,.55);}
+.rk-wn-title{font-family:'RkDisplay', inherit; font-weight:900; font-size:clamp(26px, 3.1vw, 38px); line-height:1.15; margin:0 0 8px; color:#FBFAF5; letter-spacing:-.2px;}
+.rk-wn-body{font-size:14.5px; line-height:1.65; color:rgba(251,250,245,.68); margin:0 0 16px; max-width:46ch;}
+.rk-wn-points{list-style:none; padding:0; margin:0 0 20px; display:flex; flex-wrap:wrap; gap:8px;}
+.rk-wn-points li{display:inline-flex; align-items:center; gap:7px; padding:7px 12px; border-radius:12px; background:rgba(251,250,245,.06); border:1px solid rgba(251,250,245,.1); font-size:13px;}
+.rk-wn-points b{font-weight:800;}
+.rk-wn-n{font-family:'IBM Plex Mono', ui-monospace, monospace; font-weight:700; font-size:11px; color:#C4FF2B; letter-spacing:.06em;}
+.rk-wn-actions{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+.rk-wn-cta{display:inline-flex; align-items:center; gap:6px; background:#C4FF2B; color:#121212; border:0; border-radius:12px; padding:11px 18px; font:inherit; font-weight:900; font-size:14px; cursor:pointer; transition:transform .15s ease, background .2s ease; box-shadow:0 10px 24px -12px rgba(196,255,43,.7);}
+.rk-wn-cta:hover{background:#D9FF73;}
+.rk-wn-cta:active{transform:scale(.97);}
+.rk-wn-cta svg{width:15px; height:15px;}
+.rk-wn-ghost{background:transparent; color:#FBFAF5; border:1px solid rgba(251,250,245,.22); border-radius:12px; padding:10px 16px; font:inherit; font-weight:700; font-size:13.5px; cursor:pointer; transition:background .2s ease;}
+.rk-wn-ghost:hover{background:rgba(251,250,245,.08);}
+.rk-wn-cta:focus-visible,.rk-wn-ghost:focus-visible,.rk-wn-x:focus-visible,.rk-wn-btn:focus-visible{outline:2px solid #C4FF2B; outline-offset:2px;}
+.rk-wn-hero-art{position:relative; z-index:1; align-self:stretch; display:flex; align-items:center; margin:-14px 0;}
+.rk-wn-hero-art img{width:100%; height:auto; display:block; border-radius:16px; -webkit-mask-image:radial-gradient(ellipse 70% 80% at 50% 50%, #000 62%, transparent 100%); mask-image:radial-gradient(ellipse 70% 80% at 50% 50%, #000 62%, transparent 100%);}
+.rk-wn-x{position:absolute; top:12px; inset-inline-end:12px; z-index:3; width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:0; cursor:pointer; background:rgba(251,250,245,.08); color:rgba(251,250,245,.8); transition:background .2s ease;}
+.rk-wn-x:hover{background:rgba(251,250,245,.16);}
+.rk-wn-x svg{width:15px; height:15px;}
+.rk-wn-x.static{position:static;}
+@media (max-width:860px){
+  .rk-wn-hero{grid-template-columns:1fr; padding:20px 18px 20px; gap:0; border-radius:20px;}
+  .rk-wn-hero-art{order:-1; margin:-6px -8px 4px;}
+  .rk-wn-body{margin-bottom:12px;}
+  .rk-wn-points{margin-bottom:16px;}
+}
+@media (max-width:420px){
+  .rk-wn-points li{font-size:12.5px; padding:6px 10px;}
+  .rk-wn-actions > *{flex:1 1 auto; justify-content:center;}
+}
+
+/* اللوحة الجانبية */
+.rk-wn-overlay{position:fixed; inset:0; z-index:9000; background:rgba(10,10,10,.55); backdrop-filter:blur(3px); display:flex; justify-content:flex-end; animation:rk-wn-fade .2s ease both;}
+@keyframes rk-wn-fade{from{opacity:0}to{opacity:1}}
+.rk-wn-panel{width:min(480px, 100vw); height:100%; background:var(--bg); color:var(--text); display:flex; flex-direction:column; box-shadow:-30px 0 60px -20px rgba(0,0,0,.4); animation:rk-wn-slide .32s cubic-bezier(.2,.8,.2,1) both;}
+[dir="rtl"] .rk-wn-overlay{justify-content:flex-end;}
+@keyframes rk-wn-slide{from{transform:translateX(-40px); opacity:0}to{transform:none; opacity:1}}
+.rk-wn-panel-head{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:22px 22px 20px; background:#121212; color:#FBFAF5; position:relative; overflow:hidden;}
+.rk-wn-panel-head::before{content:''; position:absolute; width:360px; height:360px; border-radius:50%; inset-inline-start:-120px; top:-200px; background:radial-gradient(circle, rgba(196,255,43,.22), transparent 65%);}
+.rk-wn-panel-head > *{position:relative;}
+.rk-wn-wm{height:26px; width:auto; display:block; margin-bottom:12px;}
+.rk-wn-panel-title{font-family:'RkDisplay', inherit; font-weight:900; font-size:28px; line-height:1.1;}
+.rk-wn-panel-sub{font-size:13px; color:rgba(251,250,245,.6); margin-top:4px;}
+.rk-wn-feed{flex:1; overflow-y:auto; padding:18px; display:flex; flex-direction:column; gap:16px; overscroll-behavior:contain;}
+.rk-wn-post{background:var(--card-bg); border:1px solid var(--line); border-radius:20px; overflow:hidden; box-shadow:var(--shadow-sm);}
+.rk-wn-post-img{width:100%; aspect-ratio:16/9; object-fit:cover; display:block; background:#121212;}
+.rk-wn-post-body{padding:16px 18px 18px;}
+.rk-wn-post .rk-wn-kick{margin-bottom:8px;}
+.rk-wn-tag{font-size:11.5px; font-weight:900; padding:4px 10px; border-radius:999px; background:#121212; color:#C4FF2B;}
+[data-theme="dark"] .rk-wn-tag{background:#C4FF2B; color:#121212;}
+.rk-wn-post .rk-wn-date{color:var(--muted);}
+.rk-wn-post h3{font-family:'RkDisplay', inherit; font-weight:900; font-size:22px; line-height:1.2; margin:0 0 6px;}
+.rk-wn-post p{font-size:14px; line-height:1.65; color:var(--muted); margin:0 0 12px;}
+.rk-wn-post-points{list-style:none; padding:0; margin:0 0 16px; display:flex; flex-direction:column; gap:10px;}
+.rk-wn-post-points li{display:flex; gap:10px; align-items:flex-start; padding:12px; border-radius:14px; background:var(--surf1);}
+.rk-wn-post-points .rk-wn-n{color:var(--lime-deep); padding-top:2px;}
+[data-theme="dark"] .rk-wn-post-points .rk-wn-n{color:var(--lime);}
+.rk-wn-post-points b{display:block; font-size:14px; font-weight:800; margin-bottom:2px;}
+.rk-wn-post-points span:not(.rk-wn-n){font-size:13px; line-height:1.6; color:var(--muted);}
+
+/* العنصر اللي ينزل له زر «جرّبها» يومض بالليموني لحظة */
+.rk-wn-flash{animation:rk-wn-flash 2.4s ease both;}
+@keyframes rk-wn-flash{0%,100%{box-shadow:0 0 0 0 rgba(196,255,43,0)}15%,55%{box-shadow:0 0 0 4px rgba(196,255,43,.75)}}
+
+@media (prefers-reduced-motion:reduce){
+  .rk-wn-hero,.rk-wn-overlay,.rk-wn-panel,.rk-wn-dot,.rk-wn-flash{animation:none;}
+}

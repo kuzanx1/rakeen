@@ -13726,11 +13726,12 @@ function wireOnlineStoreSettings(){
 }
 
 /* ============ عروض المتجر (store_offers) ============
-   شريط بطاقات فوق المنيو في المتجر والمنيو الإلكتروني. تجريبي: يظهر
-   في اللوحة لحسابات محددة بس لين يثبت، والمتجر يعرض أي عرض نشط. */
-const STORE_OFFERS_BETA_IDS = [1, 114];
+   شريط بطاقات فوق المنيو في المتجر والمنيو الإلكتروني. كانت تجريبية
+   لعنوب ومكبوس (1، 114)، وانفتحت لكل المشتركين ٢٠٢٦-١١-٠٧ بعد مصفوفة
+   tools/offers-occasions-matrix. القسم نفسه داخل تبويب تصميم المتجر،
+   فالباقة اللي ما فيها المتجر الإلكتروني ما توصله أصلاً. */
 function storeOffersEnabled(){
-  return !!(CURRENT_PROFILE && STORE_OFFERS_BETA_IDS.includes(Number(CURRENT_PROFILE.business_id)));
+  return !!CURRENT_PROFILE;
 }
 // null = ما تحمّل بعد، false = الجدول ما رُحّل، مصفوفة = العروض
 let STORE_OFFERS = null;
