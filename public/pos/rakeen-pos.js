@@ -2279,13 +2279,21 @@ function renderOrder(){
       ? `<div class="last-tx-card">
           <div class="last-tx-info"><span>${t('آخر عملية')}</span><span>${rkMoney(state.lastTransaction.total)} — ${state.lastTransaction.time}</span></div>
           <button class="last-tx-reprint" id="lastTxReprint">${t('إعادة طباعة')}</button>
+          ${state.lastTransaction.kitchen ? `<button class="last-tx-reprint" id="lastTxKitchen">${t('تذكرة المطبخ')}</button>` : ''}
         </div>`
       : '';
     itemsEl.innerHTML = `<div class="order-empty">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
       <p>${t('اضغط منتج عشان يضاف')}</p>${lastTxHtml}</div>`;
     const reprintBtn = document.getElementById('lastTxReprint');
-    if(reprintBtn) reprintBtn.addEventListener('click', ()=> showToast('تمت إعادة الطباعة'));
+    if(reprintBtn) reprintBtn.addEventListener('click', ()=>{
+      if(state.lastTransaction.receipt) attemptPrint(state.lastTransaction.receipt);
+    });
+    const lastKitchenBtn = document.getElementById('lastTxKitchen');
+    if(lastKitchenBtn) lastKitchenBtn.addEventListener('click', ()=>{
+      enqueuePrintJob('kitchen', state.lastTransaction.kitchen);
+      showToast('انرسلت تذكرة المطبخ للطابعة');
+    });
   } else {
     itemsEl.innerHTML = state.cart.map(i=>{
       const p = PRODUCTS.find(x=>x.id===i.productId);
@@ -3150,6 +3158,7 @@ let RK_STALE_SHIFT_LOCK = null;
 
 function closePaymentModalNow(){
   paymentModal.classList.remove('show');
+  delete paymentModal.dataset.backdropClose;
   /**
    * ومعالجُ الإقفال لا يُغلق ليُكمل.
    *
@@ -3279,7 +3288,7 @@ async function submitTableOrderRegistration(){
   // completes for a queued round — the cart/UI reset below doesn't wait on it.
   const orderId = await registerTableOrder();
   if(TRIAL && !TRIAL.subscribed) refreshTrialStatus();
-  if(DEVICE.printKitchenTicket === true && posPlanHas('kds')){
+  if(DEVICE.printKitchenTicket === true && DEVICE.kitchenTicketByButton !== true && posPlanHas('kds')){
     enqueuePrintJob('kitchen', buildKitchenReceiptData({channel:'dine_in', orderId, tableNumber: table ? table.number : null}));
   }
   const savedLabel = isAppend ? 'تمت إضافة الأصناف للطلب' : 'تم تسجيل الطلب';
@@ -3298,6 +3307,9 @@ async function submitTableOrderRegistration(){
   document.querySelector('.nav-tab[data-screen="tables"]').click();
 }
 document.getElementById('closePaymentModal').addEventListener('click', closePaymentModalNow);
+paymentModal.addEventListener('click', (e)=>{
+  if(e.target === paymentModal && paymentModal.dataset.backdropClose === '1') closePaymentModalNow();
+});
 paymentModal.addEventListener('click', (e)=>{ if(e.target===paymentModal) closePaymentModalNow(); });
 
 /* ============ Step 1: order type — moved out of the order panel entirely,
@@ -5425,6 +5437,34 @@ function buildKitchenReceiptData(orderPayload){
 // deliberately not resolved via TABLES_CACHE like the live-receipt version,
 // since a reprint can happen for an old order before the cashier has ever
 // opened the Tables screen this session (TABLES_CACHE would still be empty).
+// «جهاز الطباعة للفرع»: جهاز بدون طابعة (جوال عند الزبون) يرسل إعادة
+// الطباعة لجهاز الطباعة في الفرع (تطبيق الكاشير على سنمي، مفتاحه في إعدادات
+// الطابعة). بث على قناة الفرع بدون كتابة في القاعدة، والرد على قناة خاصة
+// بهالطلب. يرجّع true لما جهاز الطباعة يأكّد خلال سبع ثواني.
+function sendToPrintStation(orderId, kind){
+  const sb = window.supabaseClient;
+  if(!sb || !DEVICE.branchId) return Promise.resolve(false);
+  const topic = 'rk-print-station:' + DEVICE.branchId;
+  const reqId = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+  return new Promise(resolve => {
+    let done = false;
+    const reply = sb.channel(topic + ':' + reqId, { config: { broadcast: { self: false } } });
+    const station = sb.channel(topic, { config: { broadcast: { self: false } } });
+    const finish = ok => {
+      if(done) return; done = true; clearTimeout(timer);
+      try { sb.removeChannel(reply); sb.removeChannel(station); } catch (e) {}
+      resolve(ok);
+    };
+    const timer = setTimeout(() => finish(false), 7000);
+    reply.on('broadcast', { event: 'ack' }, () => finish(true)).subscribe(st => {
+      if(st !== 'SUBSCRIBED') return;
+      station.subscribe(s => {
+        if(s === 'SUBSCRIBED') station.send({ type: 'broadcast', event: 'print', payload: { orderId, kind, reqId } });
+      });
+    });
+  });
+}
+
 function buildHistoricalReceiptData(order, items){
   const lineItems = (items || []).map(it=>{
     const product = PRODUCTS.find(p=>p.id===it.menu_item_id);
@@ -5468,6 +5508,13 @@ function buildHistoricalReceiptData(order, items){
 // (would print whatever's in the cashier's current cart, not the accepted online
 // order), so this reads from DB-fetched order_items instead, same source as
 // buildHistoricalReceiptData.
+/** «الطابعة ما تقص الورق»: the kitchen ticket leaves the order's own
+ *  printing and waits for its button on the order (the app's
+ *  kitchenTicketByButton in react-native-poc/src/domain/printerProfile.ts). */
+function kitchenTicketWaitsForButton(){
+  return DEVICE.printKitchenTicket === true && DEVICE.kitchenTicketByButton === true && posPlanHas('kds');
+}
+
 function buildDbKitchenReceiptData(order, items){
   const mapped = (items || []).map(it=>{
     const product = PRODUCTS.find(p=>p.id===it.menu_item_id);
@@ -5576,7 +5623,7 @@ async function attemptPrint(receiptData){
 // by the manual "إعادة طباعة" button); the kitchen ticket has no dedicated
 // UI of its own and just prints silently alongside, same as the loyalty QR/
 // push notification above it.
-async function autoPrintOnCheckout(orderPayload, receiptData, wasResumingOrder){
+async function autoPrintOnCheckout(orderPayload, receiptData, wasResumingOrder, kitchenData){
   const printCustomer = DEVICE.printCustomerReceipt !== false; // default on
   // Closing out an already-registered dine-in tab (wasResumingOrder) has no
   // new items — the kitchen ticket already went out when the order was
@@ -5584,7 +5631,10 @@ async function autoPrintOnCheckout(orderPayload, receiptData, wasResumingOrder){
   // here. Passed in explicitly rather than read live off state.resumingOrder
   // — that flag is already cleared by the time this runs (see completePayment,
   // which resets cart/table state immediately on success, before this call).
-  const printKitchen = DEVICE.printKitchenTicket === true && posPlanHas('kds') && !wasResumingOrder; // default off; «طباعة المطبخ» من عماد
+  // «الطابعة ما تقص الورق» (kitchenTicketByButton): the receipt alone, and
+  // the kitchen ticket waits for its button on the order -- on a printer
+  // with no cutter the two papers otherwise come out as one strip.
+  const printKitchen = DEVICE.printKitchenTicket === true && DEVICE.kitchenTicketByButton !== true && posPlanHas('kds') && !wasResumingOrder; // default off; «طباعة المطبخ» من عماد
   // فاتورة العميل أولاً، ثم المطبخ.
   //
   // الورقتان تخرجان من طابعة واحدة، والثانية تنتظر فراغها من الأولى.
@@ -5597,7 +5647,7 @@ async function autoPrintOnCheckout(orderPayload, receiptData, wasResumingOrder){
     // the renderer would be two code paths that have to be kept looking
     // identical — the exact thing this mode exists to avoid.
     if(KITCHEN_TICKET_MODE === 'copy') enqueuePrintJob('receipt', receiptData);
-    else enqueuePrintJob('kitchen', buildKitchenReceiptData(orderPayload));
+    else enqueuePrintJob('kitchen', kitchenData || buildKitchenReceiptData(orderPayload));
   }
   if(!printCustomer){
     const row = document.getElementById('printStatusRow');
@@ -5712,7 +5762,12 @@ async function completePayment(){
   // items/table badge sitting on Home looking like the order never
   // finished even though it had already been paid.
   const receiptData = buildLiveReceiptData(orderPayload, totals);
+  // Built here, before the cart is cleared just below -- buildKitchenReceiptData
+  // reads state.cart, so building it later printed a ticket with no items.
+  const kitchenData = buildKitchenReceiptData(orderPayload);
   const wasResumingOrder = !!state.resumingOrder;
+  state.lastTransaction.receipt = receiptData;
+  state.lastTransaction.kitchen = kitchenTicketWaitsForButton() ? kitchenData : null;
   state.cart = []; state.customer = null; state.discountPct = 0; state.discountReason = '';
   // الرصيد يسقط مع الطلب الذي صُرف فيه -- لا يُورَّث لطلب زبونٍ آخر.
   state.freeRewardCredit = 0; state.rewardArm = null;
@@ -5733,6 +5788,7 @@ async function completePayment(){
       <button class="receipt-action-btn" id="printBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>طباعة</button>
       <button class="receipt-action-btn" id="waBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>واتساب</button>
     </div>
+    ${state.lastTransaction.kitchen ? `<button class="receipt-action-btn wide" id="successKitchenBtn">فاتورة المطبخ</button>` : ''}
     <button class="receipt-action-btn wide" id="showOnDisplayBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>اعرض باركود الولاء على شاشة العميل</button>
     <div class="display-phone-row" id="displayPhoneRow" hidden>
       <input type="tel" id="displayPhoneInput" inputmode="numeric" maxlength="15" placeholder="رقم جوال العميل" autocomplete="off">
@@ -5743,6 +5799,8 @@ async function completePayment(){
   </div>`;
   document.getElementById('printBtn').addEventListener('click', ()=> attemptPrint(receiptData));
   document.getElementById('waBtn').addEventListener('click', ()=> showToast('تم الإرسال'));
+  const successKitchenBtn = document.getElementById('successKitchenBtn');
+  if(successKitchenBtn) successKitchenBtn.addEventListener('click', ()=>{ enqueuePrintJob('kitchen', kitchenData); showToast('انرسلت تذكرة المطبخ للطابعة'); });
 
   // real "scan to save your loyalty card" QR — only shown when a customer
   // phone was captured on this order (skipped entirely if the customer
@@ -5789,7 +5847,7 @@ async function completePayment(){
       });
   }
 
-  autoPrintOnCheckout(orderPayload, receiptData, wasResumingOrder);
+  autoPrintOnCheckout(orderPayload, receiptData, wasResumingOrder, kitchenData);
 
   // Cart/table/customer state is already cleared above (right after
   // success) — this just closes the modal, whether that happens via the
@@ -6125,6 +6183,10 @@ async function openOrderDetail(orderId){
   document.getElementById('paymentModalTitle').textContent = t('تفاصيل الطلب') + ' #' + orderId;
   body.innerHTML = '<p class="pos-auth-sub">جاري التحميل...</p>';
   modal.classList.add('show');
+  // A tap on the dimmed backdrop closes an order's details (only «إغلاق»
+  // did). Flagged per opening, never for payment: this modal is shared,
+  // and a stray tap must not drop a sale mid-payment.
+  modal.dataset.backdropClose = '1';
 
   const [{data: order}, {data: items}] = await Promise.all([
     window.supabaseClient.from('orders').select('*, delivery_platforms(name), restaurant_tables!orders_table_id_fkey(number)').eq('id', orderId).single(),
@@ -6182,6 +6244,7 @@ async function openOrderDetail(orderId){
       ` : ''}
       <div class="receipt-actions">
         <button class="receipt-action-btn" id="reprintBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>إعادة طباعة</button>
+        ${kitchenTicketWaitsForButton() ? `<button class="receipt-action-btn" id="kitchenTicketBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z"/><path d="M6 17h12"/></svg>فاتورة المطبخ</button>` : ''}
         ${(order.status === 'completed' || order.status === 'partially_refunded') ? `<button class="receipt-action-btn" id="refundOrderBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>استرجاع مبلغ</button>` : ''}
       </div>
     </div>
@@ -6190,7 +6253,21 @@ async function openOrderDetail(orderId){
     showToast('جاري الطباعة...');
     const job = await enqueuePrintJob('receipt', buildHistoricalReceiptData(order, items));
     const settled = await awaitPrintJobSettled(job);
-    if(settled.status === 'printed' || settled.status === 'skipped_no_printer') showToast('تمت الطباعة');
+    if(settled.status === 'skipped_no_printer') showToast(await sendToPrintStation(order.id, 'receipt') ? 'انطبعت على جهاز الطباعة' : 'ما فيه طابعة على هالجهاز، وجهاز الطباعة ما رد');
+    else if(settled.status === 'printed') showToast('تمت الطباعة');
+    else showToast('تعذرت الطباعة — تحقق من الطابعة');
+  });
+  // The kitchen ticket on demand, for a printer that can't cut: tear off the
+  // receipt first, then this. Same paper the order would have printed.
+  const kitchenBtn = document.getElementById('kitchenTicketBtn');
+  if(kitchenBtn) kitchenBtn.addEventListener('click', async ()=>{
+    showToast('جاري الطباعة...');
+    const data = buildDbKitchenReceiptData(order, items);
+    if(order.restaurant_tables) data.metaLabel = bilingualOrderKind((CHANNEL_LABELS[order.channel] || order.channel) + ' — طاولة ' + order.restaurant_tables.number);
+    const job = await enqueuePrintJob('kitchen', data);
+    const settled = await awaitPrintJobSettled(job);
+    if(settled.status === 'skipped_no_printer') showToast(await sendToPrintStation(order.id, 'kitchen') ? 'انطبعت على جهاز الطباعة' : 'ما فيه طابعة على هالجهاز، وجهاز الطباعة ما رد');
+    else if(settled.status === 'printed') showToast('تمت الطباعة');
     else showToast('تعذرت الطباعة — تحقق من الطابعة');
   });
   const refundBtn = document.getElementById('refundOrderBtn');
@@ -7967,6 +8044,7 @@ function openPosSettingsModal(){
       <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:2px;">شكل الفاتورة عند الدفع</label>
       ${posCheck(`id="printCustomerReceiptToggle" ${DEVICE.printCustomerReceipt !== false ? 'checked' : ''}`, 'فاتورة العميل (مع السعر والضريبة ورمز QR)')}
       <div ${posPlanHas('kds') ? '' : 'style="display:none"'}>${posCheck(`id="printKitchenTicketToggle" ${DEVICE.printKitchenTicket === true ? 'checked' : ''}`, 'فاتورة المطبخ (الأصناف والملاحظات فقط، بدون أسعار)')}</div>
+      <div ${posPlanHas('kds') ? '' : 'style="display:none"'}>${posCheck(`id="kitchenTicketByButtonToggle" ${DEVICE.kitchenTicketByButton === true ? 'checked' : ''}`, 'الطابعة ما تقص الورق (فاتورة المطبخ بزر من الطلب)')}</div>
       ${RECEIPT_LOGO_URL ? posCheck(`id="printReceiptLogoToggle" ${DEVICE.printReceiptLogo !== false ? 'checked' : ''}`, 'طباعة شعار الفاتورة أعلى فاتورة العميل') : ''}
     </div>
     <div class="pos-auth-field" style="margin-top:10px;${posPlanHas('kds') ? '' : 'display:none;'}">
@@ -7995,6 +8073,7 @@ function openPosSettingsModal(){
     DEVICE.printerPaperWidth = parseInt(document.getElementById('printerWidthInput').value, 10) || 576;
     DEVICE.printCustomerReceipt = document.getElementById('printCustomerReceiptToggle').checked;
     DEVICE.printKitchenTicket = document.getElementById('printKitchenTicketToggle').checked;
+    DEVICE.kitchenTicketByButton = document.getElementById('kitchenTicketByButtonToggle').checked;
     const logoToggle = document.getElementById('printReceiptLogoToggle');
     if(logoToggle) DEVICE.printReceiptLogo = logoToggle.checked;
     DEVICE.kitchenPrinterIp = document.getElementById('kitchenPrinterIpInput').value.trim() || null;
@@ -9748,7 +9827,7 @@ async function acceptIncomingOrder(orderId){
   // التي يجب أن تكون بيد الكاشير قبل أن تُغلق الشاشة هي فاتورة الزبون.
   const receiptJob = await enqueuePrintJob('receipt', buildHistoricalReceiptData(order, items || []));
   await awaitPrintJobFirstAttempt(receiptJob);
-  await enqueuePrintJob('kitchen', buildDbKitchenReceiptData(order, items || []));
+  if(!kitchenTicketWaitsForButton()) await enqueuePrintJob('kitchen', buildDbKitchenReceiptData(order, items || []));
   // Without this, an accepted delivery order only appears in the "جارية"
   // (running) list after the next page reload — seedActiveDeliveryOrders()
   // would eventually pick it up, but nothing repopulates ACTIVE_DELIVERY_ORDERS

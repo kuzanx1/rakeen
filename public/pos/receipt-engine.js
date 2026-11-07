@@ -671,10 +671,22 @@ var RakeenReceiptEngine = (() => {
     centerText(receipt.dateLabel, sz(TYPE.date), false);
     ctx.y += gap(SPACE.beforeDate);
     divider();
+    if (receipt.platformName || receipt.platformInvoiceLast4) {
+      if (receipt.platformName) {
+        ctx.y += gap(SPACE.afterInvert);
+        invertBar(receipt.platformName, sz(TYPE.orderInvert));
+      }
+      if (receipt.platformInvoiceLast4) {
+        centerText(bi("آخر ٤ أرقام فاتورة التطبيق", "App invoice"), sz(TYPE.meta), true);
+        spacedText(receipt.platformInvoiceLast4, sz(TYPE.orderSpacedNumber), true);
+      }
+      divider();
+    }
     if (th.sectionLabels) spacedText(bi("الطلب", "ORDER"), sz(TYPE.sectionLabel), true);
     const metaSz = sz(TYPE.meta);
     if (receipt.cashierName) rowText("", bi("تمت بواسطة", "Served by") + ": " + receipt.cashierName, metaSz, false);
     if (receipt.metaLabel) rowText("", bi("نوع الطلب", "Type") + ": " + receipt.metaLabel, metaSz, false);
+    if (receipt.pickupAt) rowText("", bi("وقت الاستلام", "Pickup at") + ": " + receipt.pickupAt, metaSz, true);
     if (receipt.refundOfOrder) rowText("", bi("استرجاع من الطلب", "Refund of") + ": " + receipt.refundOfOrder, metaSz, true);
     if (receipt.customerName) rowText("", bi("العميل", "Customer") + ": " + receipt.customerName, metaSz, false);
     if (receipt.customerPhone) rowText("", bi("الجوال", "Phone") + ": " + receipt.customerPhone, metaSz, false);
@@ -810,6 +822,11 @@ var RakeenReceiptEngine = (() => {
     if (ticket.branchName) ctx.centerText(ticket.branchName, KITCHEN.branch, false);
     ctx.centerText(ticket.dateLabel, KITCHEN.date, false);
     ctx.centerText(ticket.metaLabel, KITCHEN.meta, true);
+    if (ticket.pickupAt) {
+      ctx.y += ctx.gap(KITCHEN_SPACE.beforeCall);
+      ctx.centerText("جهّزه الساعة · Ready at", KITCHEN.callLabel, false);
+      ctx.centerText(ticket.pickupAt, Math.round(KITCHEN.meta * 1.5), true);
+    }
     ctx.y += ctx.gap(KITCHEN_SPACE.beforeCall);
     if (ticket.pagerNumber != null && ticket.pagerNumber !== "") {
       ctx.centerText("جهاز النداء · Pager", KITCHEN.callLabel, false);
