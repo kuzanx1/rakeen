@@ -980,11 +980,60 @@ img{max-width:100%; display:block;}
   font-size:clamp(17px, 2.6vw, 22px); font-weight:800; color:var(--ink);
   line-height:1.6; margin-bottom:22px; padding-inline:18px;
 }
-/* الباركود يملأ العين: يُمسح من مسافة ذراع، لا من عشرة سنتيمترات. */
+/* الباركود يملأ العين: يُمسح من مسافة ذراع، لا من عشرة سنتيمترات.
+   وعلى بلاطةٍ بيضاء دائماً: /api/qr يرسم مربّعاتٍ داكنة على شفاف، فمحلٌّ
+   ثيمه داكن كان يعرض باركوداً أسود على بطاقةٍ داكنة -- لا يُمسح. */
 .rk-disp-qr img{
   width:min(62vw, 300px); height:auto; display:block; margin:0 auto;
   image-rendering:pixelated;
+  background:#fff; padding:10px; border-radius:14px; box-sizing:border-box;
 }
+
+/* ===== بيجر الطلب — بطاقةٌ بلون المحل، بجانب الولاء إن ظهرا معاً ===== */
+.rk-disp-stack{
+  display:flex; gap:22px; align-items:stretch; justify-content:center;
+  max-width:100%;
+}
+.rk-disp-stack > .rk-disp-card[hidden]{ display:none; }
+.rk-disp-pager{ padding-top:0; display:flex; flex-direction:column; align-items:center; }
+.rk-disp-pager::after{ background:var(--brand); }
+.rk-disp-pager-band{
+  align-self:stretch; margin:0 -44px 22px; padding:26px 24px 20px;
+  background:var(--brand); color:var(--brand-ink);
+  display:flex; flex-direction:column; align-items:center; gap:2px;
+}
+.rk-disp-pager-band.no-num{ padding:18px 24px; }
+.rk-disp-pager-band.no-num .rk-disp-pager-n{ display:none; }
+.rk-disp-pager-k{ font-size:15px; font-weight:700; opacity:.8; }
+.rk-disp-pager-n{
+  font-size:clamp(44px, 7vw, 68px); font-weight:800; line-height:1.05;
+  direction:ltr; unicode-bidi:isolate; font-variant-numeric:tabular-nums; letter-spacing:-1px;
+}
+.rk-disp-pager .rk-disp-x{
+  background:color-mix(in srgb, var(--brand-ink) 14%, transparent);
+  border-color:transparent; color:var(--brand-ink);
+}
+.rk-disp-pager-msg{ margin-bottom:18px; }
+.rk-disp-pager-sub{ margin-top:12px; font-size:13px; font-weight:700; color:var(--muted); }
+.rk-disp-pager .rk-disp-timer:empty{ display:none; }
+/* بطاقتان معاً: كلٌّ تأخذ نصف العرض، والباركود يصغر بقدره. */
+.rk-disp-two .rk-disp-card{ flex:1 1 0; min-width:0; max-width:460px; padding-inline:30px; }
+.rk-disp-two .rk-disp-pager-band{ margin-inline:-30px; }
+.rk-disp-two .rk-disp-qr img{ width:min(34vw, 260px); }
+@media (max-width:760px){
+  /* عمودٌ يتمرّر: البطاقتان بطولهما الطبيعي (flex:none) -- لو انضغطتا
+     لتسعا الارتفاع لاختفى الباركود داخلهما. */
+  .rk-disp-overlay.rk-disp-two{ align-items:flex-start; overflow-y:auto; }
+  .rk-disp-stack{ flex-direction:column; align-items:center; }
+  .rk-disp-two .rk-disp-card{ flex:none; width:92vw; max-width:92vw; }
+  .rk-disp-two .rk-disp-qr img{ width:min(52vw, 220px); }
+}
+@media (max-height:640px){
+  .rk-disp-pager-band{ padding-block:14px 12px; margin-bottom:12px; }
+  .rk-disp-pager-n{ font-size:40px; }
+  .rk-disp-qr img{ width:min(40vh, 240px); }
+}
+@media (prefers-reduced-motion:reduce){ .rk-disp-overlay{ animation:none; } .rk-disp-card::after{ transition:none; } }
 .rk-disp-timer{
   margin-top:18px; font-size:14px; font-weight:700; color:var(--muted);
   font-variant-numeric:tabular-nums;

@@ -19,6 +19,10 @@
   var BAD_TOKEN = false;
   var TOTAL_MS = 90 * 1000;   // دقيقة ونصف
   var overlay = null, timerId = null, endsAt = 0;
+  // بيجر الطلب: بطاقةٌ ثانية بجانب الولاء، لها مؤقّتها. pagerTotal صفر =
+  // «لين يبدأ الطلب اللي بعده»، فلا عدّ -- والكاشير يرسل hide_pager.
+  var pagerTimer = null, pagerEnds = 0, pagerTotal = 0;
+  var PAGER_CAP_MS = 5 * 60 * 1000; // سقفٌ لو ضاع بثّ الإخفاء
 
   function secret() {
     try { return localStorage.getItem(LS_SECRET) || ''; } catch (_) { return ''; }
@@ -141,20 +145,90 @@
     overlay.className = 'rk-disp-overlay';
     overlay.setAttribute('hidden', '');
     overlay.innerHTML =
-      '<div class="rk-disp-card">' +
-        '<button type="button" class="rk-disp-x" aria-label="إغلاق">&times;</button>' +
-        '<div class="rk-disp-msg" id="rkDispMsg"></div>' +
-        '<div class="rk-disp-qr" id="rkDispQr"></div>' +
-        '<div class="rk-disp-timer" id="rkDispTimer"></div>' +
+      '<div class="rk-disp-stack">' +
+        '<div class="rk-disp-card rk-disp-pager" id="rkDispPager" hidden>' +
+          '<button type="button" class="rk-disp-x" aria-label="إغلاق">&times;</button>' +
+          '<div class="rk-disp-pager-band">' +
+            '<span class="rk-disp-pager-k">رقم طلبك</span>' +
+            '<span class="rk-disp-pager-n" id="rkDispPagerNum"></span>' +
+          '</div>' +
+          '<div class="rk-disp-msg rk-disp-pager-msg">امسح وخلّ جوالك يناديك أول ما يجهز طلبك</div>' +
+          '<div class="rk-disp-qr" id="rkDispPagerQr"></div>' +
+          '<div class="rk-disp-pager-sub">بدون تطبيق • ما يحتاج تسجيل</div>' +
+          '<div class="rk-disp-timer" id="rkDispPagerTimer"></div>' +
+        '</div>' +
+        '<div class="rk-disp-card" id="rkDispLoyal" hidden>' +
+          '<button type="button" class="rk-disp-x" aria-label="إغلاق">&times;</button>' +
+          '<div class="rk-disp-msg" id="rkDispMsg"></div>' +
+          '<div class="rk-disp-qr" id="rkDispQr"></div>' +
+          '<div class="rk-disp-timer" id="rkDispTimer"></div>' +
+        '</div>' +
       '</div>';
     document.body.appendChild(overlay);
-    overlay.querySelector('.rk-disp-x').addEventListener('click', hide);
+    overlay.querySelector('#rkDispLoyal .rk-disp-x').addEventListener('click', hide);
+    overlay.querySelector('#rkDispPager .rk-disp-x').addEventListener('click', hidePager);
     return overlay;
+  }
+
+  /** اللوح يبقى ما دامت فيه بطاقةٌ واحدة ظاهرة، ويُطوى مع آخرها. */
+  function syncOverlay() {
+    if (!overlay) return;
+    var any = !document.getElementById('rkDispLoyal').hidden || !document.getElementById('rkDispPager').hidden;
+    if (any) overlay.removeAttribute('hidden'); else overlay.setAttribute('hidden', '');
+    overlay.classList.toggle('rk-disp-two', !document.getElementById('rkDispLoyal').hidden && !document.getElementById('rkDispPager').hidden);
   }
 
   function hide() {
     if (timerId) { clearInterval(timerId); timerId = null; }
-    if (overlay) overlay.setAttribute('hidden', '');
+    var c = document.getElementById('rkDispLoyal');
+    if (c) c.hidden = true;
+    syncOverlay();
+  }
+
+  function hidePager() {
+    if (pagerTimer) { clearInterval(pagerTimer); pagerTimer = null; }
+    var c = document.getElementById('rkDispPager');
+    if (c) c.hidden = true;
+    syncOverlay();
+  }
+
+  function pagerTick() {
+    var card = document.getElementById('rkDispPager');
+    var el = document.getElementById('rkDispPagerTimer');
+    var left = Math.max(0, Math.round((pagerEnds - Date.now()) / 1000));
+    if (pagerTotal > 0) {
+      if (el) el.textContent = left + ' ثانية';
+      if (card) card.style.setProperty('--rk-disp-progress', (left / pagerTotal) * 100 + '%');
+    } else {
+      if (el) el.textContent = '';
+      if (card) card.style.setProperty('--rk-disp-progress', '0%');
+    }
+    if (left <= 0) hidePager();
+  }
+
+  /** بيجر الطلب: الرقم بلون المحل، والباركود على بلاطةٍ بيضاء تُمسح في أي ثيم. */
+  function showPager(url, number, secs) {
+    ensureOverlay();
+    var n = document.getElementById('rkDispPagerNum');
+    if (n) n.textContent = number ? '#' + number : '';
+    var band = document.querySelector('#rkDispPager .rk-disp-pager-band');
+    if (band) band.classList.toggle('no-num', !number);
+    var qr = document.getElementById('rkDispPagerQr');
+    if (qr) {
+      qr.innerHTML = '';
+      var img = document.createElement('img');
+      img.alt = 'باركود بيجر الطلب';
+      img.src = '/api/qr?data=' + encodeURIComponent(url);
+      qr.appendChild(img);
+    }
+    var s = parseInt(secs, 10);
+    pagerTotal = Number.isFinite(s) && s > 0 ? Math.min(s, 300) : 0;
+    pagerEnds = Date.now() + (pagerTotal ? pagerTotal * 1000 : PAGER_CAP_MS);
+    document.getElementById('rkDispPager').hidden = false;
+    syncOverlay();
+    pagerTick();
+    if (pagerTimer) clearInterval(pagerTimer);
+    pagerTimer = setInterval(pagerTick, 1000);
   }
 
   function tick() {
@@ -166,7 +240,7 @@
     }
     // شريط يتقلّص: الرقم يُقرأ، والشريط يُلمح. والعميل ينظر إلى جواله
     // لا إلى الشاشة، فيحتاج ما يُدرَك بطرف العين.
-    var bar = overlay && overlay.querySelector('.rk-disp-card');
+    var bar = document.getElementById('rkDispLoyal');
     if (bar) bar.style.setProperty('--rk-disp-progress', (left / (TOTAL_MS / 1000)) * 100 + '%');
     if (left <= 0) hide();
   }
@@ -185,7 +259,8 @@
       qr.appendChild(img);
     }
     endsAt = Date.now() + TOTAL_MS;
-    overlay.removeAttribute('hidden');
+    document.getElementById('rkDispLoyal').hidden = false;
+    syncOverlay();
     tick();
     if (timerId) clearInterval(timerId);
     timerId = setInterval(tick, 1000);
@@ -241,6 +316,11 @@
         if (p.url) show(p.url, p.message);
       })
       .on('broadcast', { event: 'hide_barcode' }, hide)
+      .on('broadcast', { event: 'show_pager' }, function (m) {
+        var p = (m && m.payload) || {};
+        if (p.url && /^https:\/\/[a-z0-9.-]+\/p\/[A-Za-z0-9_-]{22}$/.test(p.url)) showPager(p.url, p.number, p.secs);
+      })
+      .on('broadcast', { event: 'hide_pager' }, hidePager)
       .subscribe();
 
     /**
@@ -283,7 +363,7 @@
         if (r && r.then) r.then(function (out) {
           if (out && !out.error && out.data === false) {
             if (++misses >= 3) {
-              hide();
+              hide(); hidePager();
               console.warn('[شاشة العميل] الخادم لا يعرف هذا السرّ — الاقتران محذوف من اللوحة.');
               askForPairing('انحذف ربط هذي الشاشة من لوحة التحكم.');
             }
@@ -334,4 +414,6 @@
   });
 
   window.rakeenDisplayReconnect = listen;
+  // للفحص الآلي ومعاينة اللوحة: نفس دوال البثّ، بلا قناة.
+  window.rakeenDisplayPreview = { show: show, hide: hide, showPager: showPager, hidePager: hidePager };
 })();

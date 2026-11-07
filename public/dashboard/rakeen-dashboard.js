@@ -12218,6 +12218,9 @@ async function renderPosSettings(){
       ${reservationsPanel}
     </div>`;
 
+  if(activePosSettingsTab === 'pager'){
+    await loadPagerSettingsTab({ dine_in: autoReadyDineIn, pickup: autoReadyPickup }, !!(DINE_IN_ENABLED && DINE_IN_MODE === 'tables'));
+  }
   const POS_SETTINGS_TABS_HTML = {
     receipt: receiptPreviewHtml() + receiptBrandPanel + receiptMessagePanel + kitchenTicketPanel + shiftReportPanel,
     interface: simplifyPanel,
@@ -12225,9 +12228,11 @@ async function renderPosSettings(){
     kitchen: kitchenPanel + autoReadyPanel,
     branches: managerPinPanel + branchSecurityPanelsHtml,
     discounts: discountPresetsPanelHtml(),
+    pager: activePosSettingsTab === 'pager' ? pagerSettingsTabHtml() : '',
   };
   panel.innerHTML = POS_SETTINGS_TABS_HTML[activePosSettingsTab] || POS_SETTINGS_TABS_HTML.tables;
   if(activePosSettingsTab === 'discounts') wireDiscountPresets();
+  if(activePosSettingsTab === 'pager') wirePagerSettingsTab();
   posSnapshotSwitches();
   panel.addEventListener('change', posRefreshDirty);
 
@@ -12914,6 +12919,334 @@ const RK_ICON_PATHS = {
 // list" (screen access grid, either inline-saved per member or inside the
 // add/edit form), as distinct from .rk-switch: a switch is one immediate
 // on/off action, this is a multi-select.
+/* ============ بيجر ركين — تبويب الإعدادات ============
+   كل خيارٍ هنا يجيب سؤالاً يسأله صاحب المحل بلغته: «متى يشتغل؟»،
+   «كم أوعد الزبون؟»، «وين يطلع الباركود؟»، «وش يصير لو تأخرنا؟».
+   والمعاينة فوقها بألوان محلّه هو (ألوان المتجر الإلكتروني) وتتغيّر مع
+   كل خيار: يرى ما سيراه زبونه قبل أن يحفظ.
+
+   يُقرأ في استعلامٍ مستقلّ: قاعدةٌ لم يُشغَّل فيها ملفّ البيجر تُظهر
+   تنبيهاً وتعطّل الحفظ، ولا تُسقط بقيّة إعدادات الكاشير معها. */
+const PGS_DEFAULTS = { channels:['dine_in','pickup'], prep_min:10, buffer_min:5, receipt:true, display:true,
+  display_secs:60, remind_min:3, close_min:20, wifi:'', ready_msg:'', late_alert:true, tone:'chime' };
+let PGS_STATE = null;   // { enabled, s, brand, autoReady, tablesMode, schemaOk }
+let PGS_SAVED = '';     // لقطة آخر حفظ — لزرّ «فيه تغييرات ما انحفظت»
+
+function pgsNormalize(raw){
+  const s = Object.assign({}, PGS_DEFAULTS, (raw && typeof raw === 'object') ? raw : {});
+  const int = (v, d, lo, hi)=>{ const n = parseInt(v, 10); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
+  s.channels = Array.isArray(s.channels) ? s.channels.filter(c => c === 'dine_in' || c === 'pickup') : PGS_DEFAULTS.channels.slice();
+  s.prep_min = int(s.prep_min, 10, 1, 120);
+  s.buffer_min = int(s.buffer_min, 5, 0, 60);
+  s.display_secs = int(s.display_secs, 60, 0, 300);
+  s.remind_min = int(s.remind_min, 3, 0, 60);
+  s.close_min = int(s.close_min, 20, 0, 240);
+  s.receipt = s.receipt !== false; s.display = s.display !== false; s.late_alert = s.late_alert !== false;
+  s.tone = ['chime','bell','beep'].includes(s.tone) ? s.tone : 'chime';
+  s.wifi = String(s.wifi || '').slice(0, 40);
+  s.ready_msg = String(s.ready_msg || '').slice(0, 80);
+  return s;
+}
+
+async function loadPagerSettingsTab(autoReady, tablesMode){
+  const sb = window.supabaseClient;
+  const bizId = CURRENT_PROFILE.business_id;
+  const [pg, br] = await Promise.all([
+    sb.from('businesses').select('pager_enabled, pager_settings').eq('id', bizId).single(),
+    sb.from('businesses').select('name, logo_url, online_theme_color, online_color_surf, online_color_card, online_color_ink, online_color_muted').eq('id', bizId).single(),
+  ]);
+  const b = (br && br.data) || {};
+  PGS_STATE = {
+    schemaOk: !(pg && pg.error),
+    enabled: !!(pg && pg.data && pg.data.pager_enabled === true),
+    s: pgsNormalize(pg && pg.data && pg.data.pager_settings),
+    brand: {
+      name: b.name || RESTAURANT_INFO.name || 'محلك',
+      logo: b.logo_url || null,
+      accent: b.online_theme_color || '#C7FF4D',
+      surf: b.online_color_surf || '#141414',
+      card: b.online_color_card || '#1E1E1E',
+      ink: b.online_color_ink || '#FAFAF5',
+      muted: b.online_color_muted || '#9A9A92',
+    },
+    autoReady, tablesMode,
+  };
+  PGS_SAVED = pgsSnapshot();
+}
+
+function pgsSnapshot(){ return JSON.stringify({ e: PGS_STATE.enabled, s: PGS_STATE.s }); }
+
+/** حبرٌ مقروء فوق لون: أسود على الفاتح، أبيض على الداكن. */
+function pgsInkOn(hex){
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '')); if(!m) return '#111';
+  const n = parseInt(m[1], 16), r = n >> 16, g = (n >> 8) & 255, bl = n & 255;
+  return (0.299 * r + 0.587 * g + 0.114 * bl) > 150 ? '#111111' : '#FFFFFF';
+}
+
+/** باركودٌ زخرفيّ للمعاينة -- ثابتٌ لا عشوائيّ، فلا يرتجف مع كل رسم. */
+function pgsFakeQr(px){
+  const n = 21, c = px / n; let r = '';
+  const finder = (x, y)=> `<rect x="${x*c}" y="${y*c}" width="${7*c}" height="${7*c}" fill="#111"/><rect x="${(x+1)*c}" y="${(y+1)*c}" width="${5*c}" height="${5*c}" fill="#fff"/><rect x="${(x+2)*c}" y="${(y+2)*c}" width="${3*c}" height="${3*c}" fill="#111"/>`;
+  for(let y = 0; y < n; y++) for(let x = 0; x < n; x++){
+    if((x < 8 && y < 8) || (x > 12 && y < 8) || (x < 8 && y > 12)) continue;
+    if(((x * 7 + y * 13 + x * y) % 5) < 2) r += `<rect x="${x*c}" y="${y*c}" width="${c}" height="${c}" fill="#111"/>`;
+  }
+  return `<svg viewBox="0 0 ${px} ${px}" width="${px}" height="${px}" aria-hidden="true"><rect width="${px}" height="${px}" fill="#fff"/>${r}${finder(0,0)}${finder(14,0)}${finder(0,14)}</svg>`;
+}
+
+function pgsPreviewHtml(){
+  const { s, brand, enabled } = PGS_STATE;
+  const eta = s.prep_min + s.buffer_min;
+  const accentInk = pgsInkOn(brand.accent);
+  const initial = escapeHtml((brand.name || 'م').trim().charAt(0));
+  const logo = brand.logo ? `<img src="${escapeHtml(brand.logo)}" alt="">` : `<span>${initial}</span>`;
+  const readyMsg = escapeHtml(s.ready_msg || 'تفضّل استلمه من الكاونتر');
+  const vars = `--pv-accent:${brand.accent}; --pv-accent-ink:${accentInk}; --pv-surf:${brand.surf}; --pv-card:${brand.card}; --pv-ink:${brand.ink}; --pv-muted:${brand.muted};`;
+  const receipt = s.receipt ? `
+      <div class="pgs-receipt">
+        <div class="pgs-r-lines"><i></i><i></i><i class="short"></i></div>
+        <div class="pgs-r-bar">
+          ${pgsFakeQr(54)}
+          <div><b>امسح وخلّ جوالك يناديك</b><small>أول ما يجهز طلبك يرن جوالك</small><em>طلب 1042</em></div>
+        </div>
+        ${s.wifi ? `<div class="pgs-r-wifi">Wi-Fi: ${escapeHtml(s.wifi)}</div>` : ''}
+        <div class="pgs-r-zatca">${pgsFakeQr(30)}</div>
+      </div>` : `<div class="pgs-receipt off"><span>الباركود ما ينطبع على الفاتورة</span></div>`;
+  return `
+    <div class="pgs-stage ${enabled ? '' : 'is-off'}" style="${vars}">
+      <div class="pgs-stage-col">
+        <div class="pgs-cap">١ · الفاتورة</div>
+        ${receipt}
+      </div>
+      <div class="pgs-flow" aria-hidden="true">←</div>
+      <div class="pgs-stage-col">
+        <div class="pgs-cap">٢ · جوال الزبون</div>
+        <div class="pgs-phone">
+          <div class="pgs-ph-head"><div class="pgs-ph-logo">${logo}</div><b>${escapeHtml(brand.name)}</b></div>
+          <div class="pgs-ph-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" class="t"/><circle cx="50" cy="50" r="44" class="p"/></svg><div><small>رقم طلبك</small><b>1042</b></div></div>
+          <div class="pgs-ph-eta">متوقع يجهز خلال <b>${eta}</b> دقيقة</div>
+          <div class="pgs-ph-btn">🔔 شغّل البيجر</div>
+        </div>
+      </div>
+      <div class="pgs-flow" aria-hidden="true">←</div>
+      <div class="pgs-stage-col">
+        <div class="pgs-cap">٣ · ضغطت «جاهز»</div>
+        <div class="pgs-phone ready">
+          <div class="pgs-ph-burst"><i></i><i></i></div>
+          <div class="pgs-ph-core">1042</div>
+          <div class="pgs-ph-ready">طلبك جاهز!</div>
+          <div class="pgs-ph-msg">${readyMsg}</div>
+          <div class="pgs-ph-stop">شفته، وقّف الصوت</div>
+        </div>
+      </div>
+      ${enabled ? '' : '<div class="pgs-off-badge">مطفأ — فعّله تحت وتشتغل هذي كلها</div>'}
+    </div>`;
+}
+
+function pgsSeg(id, value, options){
+  return `<div class="rk-seg pgs-seg" id="${id}" role="radiogroup">${options.map(([v, label]) =>
+    `<button type="button" role="radio" aria-checked="${String(v) === String(value)}" class="${String(v) === String(value) ? 'active' : ''}" data-v="${v}">${label}</button>`).join('')}</div>`;
+}
+
+function pgsStepper(id, value, min, max, unit){
+  return `<div class="pgs-step" data-min="${min}" data-max="${max}">
+    <button type="button" class="pgs-step-btn" data-d="-1" aria-label="أنقص">−</button>
+    <div class="pgs-step-val"><input type="number" id="${id}" value="${value}" min="${min}" max="${max}" inputmode="numeric"><span>${unit}</span></div>
+    <button type="button" class="pgs-step-btn" data-d="1" aria-label="زد">+</button>
+  </div>`;
+}
+
+function pgsChannelWarn(){
+  const { s, autoReady, tablesMode } = PGS_STATE;
+  const w = [];
+  if(s.channels.includes('dine_in') && autoReady.dine_in) w.push('«المحلي» عليه «تخطي مرحلة جاهز» من تبويب شاشة المطبخ — طلباته تنحسب جاهزة لحظة الطلب، فما يطلع لها بيجر.');
+  if(s.channels.includes('pickup') && autoReady.pickup) w.push('«السفري» عليه «تخطي مرحلة جاهز» من تبويب شاشة المطبخ — طلباته تنحسب جاهزة لحظة الطلب، فما يطلع لها بيجر.');
+  if(s.channels.includes('dine_in') && tablesMode) w.push('المحلي عندك بالطاولات — الطلب يوصل الطاولة، فالبيجر يشتغل للسفري بس.');
+  if(!s.channels.length) w.push('ما اخترت ولا نوع — البيجر ما راح يطلع لأي طلب.');
+  return w.map(t => `<div class="pgs-warn">${t}</div>`).join('');
+}
+
+function pagerSettingsTabHtml(){
+  if(!PGS_STATE) return '<div class="panel"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>';
+  const { s, enabled, schemaOk } = PGS_STATE;
+  const eta = s.prep_min + s.buffer_min;
+  const schemaNote = schemaOk ? '' : `<div class="pgs-warn strong">قاعدة البيانات ما فيها البيجر للحين — نحدّثها ونرجع لك. الحفظ موقّف لين يكتمل التحديث.</div>`;
+  return `
+  <div class="rk-section pgs-hero">
+    <div class="pgs-hero-top">
+      <div class="pgs-hero-text">
+        <div class="pgs-kicker">جديد · بيجر ركين</div>
+        <h3>جوال زبونك هو جهاز النداء</h3>
+        <p>يمسح الباركود من الفاتورة أو من شاشة العميل، ويجلس براحته. أول ما تضغط «جاهز» من قسم الطلبات يرن جواله ويهتز — بدون تطبيق ولا تسجيل، ولا أجهزة تضيع أو تنكسر.</p>
+      </div>
+      <label class="pgs-master">
+        <span class="pgs-master-label">${enabled ? 'مفعّل' : 'مطفأ'}</span>
+        <span class="rk-switch"><input type="checkbox" id="pgsEnabled" ${enabled ? 'checked' : ''} ${schemaOk ? '' : 'disabled'}><span class="rk-switch-track"></span></span>
+      </label>
+    </div>
+    ${schemaNote}
+    <div id="pgsPreview">${pgsPreviewHtml()}</div>
+  </div>
+
+  <div id="pgsBody" class="${enabled ? '' : 'pgs-dim'}">
+    <div class="rk-section">
+      ${rkSectionHead('zap', 'متى يشتغل؟', 'أنواع الطلبات اللي يطلع لها بيجر. التوصيل والطلبات الأونلاين لها تتبّعها الخاص.')}
+      <div class="pgs-chips" id="pgsChannels">
+        <button type="button" class="pgs-chip ${s.channels.includes('pickup') ? 'on' : ''}" data-ch="pickup" aria-pressed="${s.channels.includes('pickup')}"><b>سفري</b><small>يستلم ويمشي</small></button>
+        <button type="button" class="pgs-chip ${s.channels.includes('dine_in') ? 'on' : ''}" data-ch="dine_in" aria-pressed="${s.channels.includes('dine_in')}"><b>محلي</b><small>ياكل عندك</small></button>
+      </div>
+      <div id="pgsChannelWarn">${pgsChannelWarn()}</div>
+    </div>
+
+    <div class="rk-section">
+      ${rkSectionHead('clock', 'كم توعد الزبون؟', 'الوقت اللي يشوفه في جواله. وقت الاحتياط يحميك: توعد بأطول شوي، فيجهز قبل الوعد بدل ما يتأخر عليه.')}
+      <div class="pgs-time-grid">
+        <div><label class="pgs-label" for="pgsPrep">وقت التحضير المعتاد</label>${pgsStepper('pgsPrep', s.prep_min, 1, 120, 'دقيقة')}</div>
+        <div><label class="pgs-label" for="pgsBuffer">وقت احتياط</label>${pgsStepper('pgsBuffer', s.buffer_min, 0, 60, 'دقيقة')}</div>
+      </div>
+      <div class="pgs-timeline" id="pgsTimeline">
+        <div class="pgs-tl-bar"><span class="prep" style="flex:${s.prep_min}"></span><span class="buf" style="flex:${Math.max(s.buffer_min, 0.0001)}"></span></div>
+        <div class="pgs-tl-legend"><span><i class="prep"></i>تحضير ${s.prep_min} د</span><span><i class="buf"></i>احتياط ${s.buffer_min} د</span><span class="sum">الزبون يشوف: <b>${eta} دقيقة</b></span></div>
+      </div>
+      <p class="pgs-help">لو تجاوز الطلب وقت التحضير تصفرّ بطاقته في «جارية»، ولو تجاوز الوعد تحمرّ — وتقدر تمدّ الوعد ٥ دقايق بضغطة، والزبون يوصله «تأخرنا عليك شوي».</p>
+    </div>
+
+    <div class="rk-section">
+      ${rkSectionHead('grid', 'وين يطلع الباركود؟', null)}
+      ${rkSwitchRow('pgsReceipt', s.receipt, 'على فاتورة الزبون', null, c => c ? {text:'شريط أسود بالباركود فوق باركود الضريبة — يُمسح من بعيد', tone:'ok'} : {text:'ما ينطبع — يمسحه من شاشة العميل بس', tone:'warn'})}
+      ${rkSwitchRow('pgsDisplay', s.display, 'على شاشة العميل بعد الدفع', null, c => c ? {text:'يطلع لحاله بعد كل طلب، وجنب باركود الولاء لو ضغطته', tone:'ok'} : {text:'ما يطلع على الشاشة', tone:''})}
+      <div id="pgsDisplayRow" class="pgs-sub" style="${s.display ? '' : 'display:none;'}">
+        <label class="pgs-label">كم يبقى على الشاشة؟</label>
+        ${pgsSeg('pgsDisplaySecs', s.display_secs, [[30,'٣٠ ثانية'],[60,'دقيقة'],[90,'دقيقة ونص'],[0,'لين يبدأ الطلب اللي بعده']])}
+      </div>
+    </div>
+
+    <div class="rk-section">
+      ${rkSectionHead('bell', 'التنبيهات والرنّة', null)}
+      <label class="pgs-label">صوت الرنّة في جوال الزبون</label>
+      <div class="pgs-tones" id="pgsTones">
+        ${[['chime','جرس هادئ','تِن-تِن-تون'],['bell','جرس مطعم','دِنغ دِنغ'],['beep','بيجر كلاسيكي','بيب بيب بيب']].map(([v, n, d]) => `
+          <button type="button" class="pgs-tone ${s.tone === v ? 'on' : ''}" data-tone="${v}" aria-pressed="${s.tone === v}">
+            <span class="pgs-tone-play" aria-hidden="true">▶</span><span><b>${n}</b><small>${d}</small></span>
+          </button>`).join('')}
+      </div>
+      <div class="pgs-sub">
+        <label class="pgs-label">لو ما جا ياخذ طلبه، نرنّ عليه مرة ثانية بعد</label>
+        ${pgsSeg('pgsRemind', s.remind_min, [[0,'لا'],[2,'دقيقتين'],[3,'٣ دقايق'],[5,'٥ دقايق']])}
+      </div>
+      <div class="pgs-sub">
+        <label class="pgs-label">ينقفل البيجر لحاله بعد ما يجهز بـ</label>
+        ${pgsSeg('pgsClose', s.close_min, [[0,'أقفله بيدي'],[10,'١٠ د'],[20,'٢٠ د'],[45,'٤٥ د']])}
+        <p class="pgs-help">ينفع لو الكاشير نسي يضغط «استلمه»: الطلب يطلع من «جارية» والزبون يشوف «بالعافية عليك».</p>
+      </div>
+      ${rkSwitchRow('pgsLate', s.late_alert, 'نبّه الكاشير لو طلب تجاوز الوعد', null, c => c ? {text:'تنبيه بالكاشير + البطاقة تحمرّ', tone:'ok'} : {text:'البطاقة تحمرّ بس، بدون تنبيه', tone:''})}
+    </div>
+
+    <div class="rk-section">
+      ${rkSectionHead('award', 'لمسات محلّك', 'اختيارية — تطلع للزبون بإسم محلك.')}
+      <div class="rk-field"><label for="pgsReadyMsg">رسالة «طلبك جاهز»</label>
+        <input type="text" id="pgsReadyMsg" maxlength="80" value="${escapeHtml(s.ready_msg)}" placeholder="تفضّل استلمه من الكاونتر"></div>
+      <div class="rk-field"><label for="pgsWifi">اسم شبكة الواي فاي (ينطبع تحت الباركود)</label>
+        <input type="text" id="pgsWifi" maxlength="40" value="${escapeHtml(s.wifi)}" placeholder="مثال: Anoob-Guests" dir="auto"></div>
+    </div>
+
+    <div class="pgs-savebar">
+      <span id="pgsDirty" class="pgs-dirty" hidden>فيه تغييرات ما انحفظت</span>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="pgsSaveBtn" ${schemaOk ? '' : 'disabled'}>حفظ إعدادات البيجر</button>
+    </div>
+  </div>`;
+}
+
+function pgsRefresh(){
+  const pv = document.getElementById('pgsPreview'); if(pv) pv.innerHTML = pgsPreviewHtml();
+  const w = document.getElementById('pgsChannelWarn'); if(w) w.innerHTML = pgsChannelWarn();
+  const s = PGS_STATE.s;
+  const tl = document.getElementById('pgsTimeline');
+  if(tl){
+    tl.querySelector('.prep').style.flex = s.prep_min;
+    tl.querySelector('.buf').style.flex = Math.max(s.buffer_min, 0.0001);
+    tl.querySelector('.pgs-tl-legend').innerHTML = `<span><i class="prep"></i>تحضير ${s.prep_min} د</span><span><i class="buf"></i>احتياط ${s.buffer_min} د</span><span class="sum">الزبون يشوف: <b>${s.prep_min + s.buffer_min} دقيقة</b></span>`;
+  }
+  const body = document.getElementById('pgsBody'); if(body) body.classList.toggle('pgs-dim', !PGS_STATE.enabled);
+  const ml = document.querySelector('.pgs-master-label'); if(ml) ml.textContent = PGS_STATE.enabled ? 'مفعّل' : 'مطفأ';
+  const d = document.getElementById('pgsDirty'); if(d) d.hidden = pgsSnapshot() === PGS_SAVED;
+}
+
+let pgsAudio = null;
+function pgsPlayTone(t){
+  try {
+    if(pgsAudio){ pgsAudio.pause(); }
+    pgsAudio = new Audio('/pager/' + t + '.wav');
+    pgsAudio.play().catch(()=>{});
+  } catch(_){}
+}
+
+function wirePagerSettingsTab(){
+  if(!PGS_STATE) return;
+  const s = PGS_STATE.s;
+  const on = (id, ev, fn)=>{ const el = document.getElementById(id); if(el) el.addEventListener(ev, fn); };
+  on('pgsEnabled', 'change', e => { PGS_STATE.enabled = e.target.checked; pgsRefresh(); });
+  on('pgsChannels', 'click', e => {
+    const b = e.target.closest('[data-ch]'); if(!b) return;
+    const ch = b.dataset.ch, i = s.channels.indexOf(ch);
+    if(i === -1) s.channels.push(ch); else s.channels.splice(i, 1);
+    b.classList.toggle('on', i === -1); b.setAttribute('aria-pressed', String(i === -1));
+    pgsRefresh();
+  });
+  document.querySelectorAll('#pgsBody .pgs-step').forEach(st => {
+    const input = st.querySelector('input');
+    const lo = +st.dataset.min, hi = +st.dataset.max;
+    const apply = (v)=>{
+      v = Math.max(lo, Math.min(hi, Math.round(Number(v) || lo)));
+      input.value = v;
+      if(input.id === 'pgsPrep') s.prep_min = v; else s.buffer_min = v;
+      pgsRefresh();
+    };
+    st.querySelectorAll('.pgs-step-btn').forEach(btn => btn.addEventListener('click', ()=> apply(Number(input.value) + Number(btn.dataset.d))));
+    input.addEventListener('change', ()=> apply(input.value));
+  });
+  const segs = { pgsDisplaySecs: 'display_secs', pgsRemind: 'remind_min', pgsClose: 'close_min' };
+  Object.keys(segs).forEach(id => on(id, 'click', e => {
+    const b = e.target.closest('button[data-v]'); if(!b) return;
+    s[segs[id]] = Number(b.dataset.v);
+    b.parentElement.querySelectorAll('button').forEach(x => { x.classList.toggle('active', x === b); x.setAttribute('aria-checked', String(x === b)); });
+    pgsRefresh();
+  }));
+  const sw = { pgsReceipt: 'receipt', pgsDisplay: 'display', pgsLate: 'late_alert' };
+  Object.keys(sw).forEach(id => on(id, 'change', e => {
+    s[sw[id]] = e.target.checked;
+    if(id === 'pgsDisplay'){ const r = document.getElementById('pgsDisplayRow'); if(r) r.style.display = e.target.checked ? '' : 'none'; }
+    pgsRefresh();
+  }));
+  rkWireSwitchStatus('pgsReceipt', c => c ? {text:'شريط أسود بالباركود فوق باركود الضريبة — يُمسح من بعيد', tone:'ok'} : {text:'ما ينطبع — يمسحه من شاشة العميل بس', tone:'warn'});
+  rkWireSwitchStatus('pgsDisplay', c => c ? {text:'يطلع لحاله بعد كل طلب، وجنب باركود الولاء لو ضغطته', tone:'ok'} : {text:'ما يطلع على الشاشة', tone:''});
+  rkWireSwitchStatus('pgsLate', c => c ? {text:'تنبيه بالكاشير + البطاقة تحمرّ', tone:'ok'} : {text:'البطاقة تحمرّ بس، بدون تنبيه', tone:''});
+  on('pgsTones', 'click', e => {
+    const b = e.target.closest('[data-tone]'); if(!b) return;
+    s.tone = b.dataset.tone;
+    document.querySelectorAll('#pgsTones .pgs-tone').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', String(x === b)); });
+    pgsPlayTone(s.tone);
+    pgsRefresh();
+  });
+  on('pgsReadyMsg', 'input', e => { s.ready_msg = e.target.value.slice(0, 80); pgsRefresh(); });
+  on('pgsWifi', 'input', e => { s.wifi = e.target.value.slice(0, 40); pgsRefresh(); });
+  on('pgsSaveBtn', 'click', async ()=>{
+    const btn = document.getElementById('pgsSaveBtn');
+    rkBtnLoading(btn, true);
+    try {
+      const clean = pgsNormalize(s);
+      await updateCurrentBusiness({ pager_enabled: PGS_STATE.enabled, pager_settings: clean });
+      PGS_STATE.s = clean; PGS_SAVED = pgsSnapshot();
+      logDashboardAudit(PGS_STATE.enabled ? 'حدّث إعدادات بيجر ركين (مفعّل)' : 'أوقف بيجر ركين');
+      rkBtnSuccess(btn, '✓ تم الحفظ — يوصل الكاشير مع أول طلب');
+      pgsRefresh();
+    } catch(err){
+      rkBtnLoading(btn, false);
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
+  });
+}
+
 function rkCheck(inputAttrs, label){
   return `<label class="rk-check"><input type="checkbox" ${inputAttrs}><span class="rk-check-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>${label}</span></label>`;
 }

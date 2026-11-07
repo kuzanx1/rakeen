@@ -64,6 +64,14 @@ function withTotals(over: Partial<ReceiptModel>): ReceiptModel {
   return { ...model, subtotal: gross, total, vat: vatOf(total) };
 }
 
+/** بيجر ركين كما يطبعه الكاشير -- رابطٌ بطول الرابط الحقيقي. */
+const PAGER_SPEC = {
+  url: 'https://rakeenapp.com/p/q7Xb2LmN9pRsT4vWx8YzAa',
+  title: 'امسح وخلّ جوالك يناديك',
+  line: 'اجلس براحتك، أول ما يجهز طلبك يرن جوالك',
+  tag: 'طلب 1042',
+};
+
 export const RECEIPT_SCENARIOS: Array<[string, ReceiptModel]> = [
   ['one-item', withTotals({})],
   ['ten-items', withTotals({ items: many(10) })],
@@ -86,6 +94,8 @@ export const RECEIPT_SCENARIOS: Array<[string, ReceiptModel]> = [
     paymentMethodLabel: 'مقسّمة · نقداً 114.00 ⃁ + شبكة 114.00 ⃁',
   })],
   ['customer', withTotals({ customerName: 'عبدالرحمن الشمري', customerPhone: '0557444227' })],
+  ['pager', withTotals({ items: many(3), pagerBlock: PAGER_SPEC })],
+  ['pager-wifi', withTotals({ items: many(3), pagerBlock: { ...PAGER_SPEC, wifi: 'Hebbiya-Guest' } })],
   ['delivery-app', withTotals({ metaLabel: 'توصيل', platformName: 'هنقرستيشن', platformInvoiceLast4: '4821', paymentMethodLabel: 'مدفوع عبر التطبيق' })],
 ];
 
@@ -135,6 +145,11 @@ export function buildScenarios(): Scenario[] {
       theme, width: PAPER.mm58,
     });
   }
+  out.push({
+    id: 'receipt-pager-58mm', doc: 'receipt',
+    model: withTotals({ items: many(3), pagerBlock: { ...PAGER_SPEC, wifi: 'Hebbiya-Guest' } }),
+    theme: 'classic', width: PAPER.mm58,
+  });
   out.push({ id: 'kitchen-full', doc: 'kitchen', model: KITCHEN_SCENARIO });
   out.push({ id: 'kitchen-pager', doc: 'kitchen', model: { ...KITCHEN_SCENARIO, pagerNumber: 17 } });
   out.push({ id: 'kitchen-58mm', doc: 'kitchen', model: KITCHEN_SCENARIO, width: PAPER.mm58 });

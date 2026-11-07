@@ -1,4 +1,4 @@
-import type { ReceiptData, KitchenTicketData, ReceiptLineMod } from './receipt';
+import type { ReceiptData, KitchenTicketData, ReceiptLineMod, ReceiptPagerData } from './receipt';
 
 /**
  * Feature Parity Pass -- Real Receipt Rendering. Pure (zero-I/O, no
@@ -59,6 +59,8 @@ export interface ReceiptPrintable {
   paymentMethodLabel: string;
   change: number;
   customMessage: string;
+  /** بيجر ركين، أو null. */
+  pager?: ReceiptPagerData | null;
   timestampISO: string;
   paperWidthPx: number;
 }
@@ -209,6 +211,7 @@ export function toReceiptPrintable(data: ReceiptData): ReceiptPrintable {
     paymentMethodLabel: PAYMENT_METHOD_LABELS[data.paymentMethod] ?? data.paymentMethod,
     change: data.change ?? 0,
     customMessage: data.customMessage || 'شكراً لزيارتكم',
+    pager: data.pager && data.pager.url ? data.pager : null,
     timestampISO,
     paperWidthPx: data.paperWidthPx ?? 576,
   };

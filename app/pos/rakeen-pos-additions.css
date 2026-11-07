@@ -749,3 +749,68 @@ input:focus-visible, select:focus-visible, button:focus-visible{
 .mydisp-state{ font-size:11px; font-weight:700; color:var(--muted); }
 .mydisp-row.active{ border-color:var(--lime-deep); background:rgba(var(--lime-rgb),0.13); }
 .mydisp-row.active .mydisp-state{ color:var(--lime-deep); }
+
+/* ============ بيجر ركين — بطاقة الطلب في «جارية» ============
+   الرقم كبير لأن الكاشير ينادي به من بعيد، والوقت الباقي تحته بنفس منطق
+   التوصيل: عادي ← تجاوز وقت التحضير (warn) ← تجاوز الوعد (urgent).
+   وبعد «جاهز» تصير البطاقة خضراء وتنبض حلقةٌ هادئة -- الزبون جاي. */
+.pager-card { gap: 4px; padding: 12px 10px 10px; }
+.pager-top {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  margin-bottom: 2px;
+}
+.pager-chip {
+  font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: var(--r-full);
+  background: rgba(var(--lime-rgb), 0.22); color: var(--flag-green-deep); white-space: nowrap;
+}
+[data-theme="dark"] .pager-chip { color: var(--lime); }
+.pager-seen {
+  font-size: 9.5px; font-weight: 700; color: var(--flag-green); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+[data-theme="dark"] .pager-seen { color: var(--lime); }
+.pager-seen.off { color: var(--muted); font-weight: 600; }
+.pager-num {
+  font-size: 26px; font-weight: 800; line-height: 1.05; letter-spacing: -0.5px;
+  direction: ltr; unicode-bidi: isolate; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+}
+.pager-time {
+  font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: var(--r-full);
+  background: var(--surf1); color: var(--ink, inherit); margin-top: 2px; white-space: nowrap;
+}
+.pager-time.warn { background: rgba(var(--amber-rgb), 0.16); color: var(--amber); }
+.pager-time.urgent { background: rgba(var(--danger-rgb), 0.14); color: var(--danger); }
+.pager-btns { width: 100%; display: flex; gap: 6px; margin-top: 8px; }
+.pager-btn {
+  flex: 1 1 0; min-width: 0; min-height: 36px; padding: 7px 4px; border-radius: var(--r-full);
+  font-weight: 800; font-size: 11.5px; cursor: pointer; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; font-family: inherit;
+  transition: transform .1s ease, opacity .15s ease;
+}
+.pager-btn:active { transform: scale(0.95); }
+.pager-btn:disabled { opacity: .55; cursor: progress; }
+.pager-btn:focus-visible { outline: 2px solid var(--lime-deep); outline-offset: 2px; }
+.pager-ready-btn, .pager-done-btn {
+  border: none; color: var(--flag-green-deep);
+  background: linear-gradient(155deg, var(--lime), var(--lime-deep));
+  box-shadow: 0 3px 10px rgba(var(--lime-deep-rgb), 0.28);
+}
+.pager-ready-btn { flex-grow: 2; }
+.pager-delay-btn, .pager-ring-btn {
+  border: 1.5px solid var(--line); background: transparent; color: inherit;
+}
+.pager-delay-btn { flex-grow: 1; }
+@keyframes pagerReadyGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--lime-deep-rgb), 0.45); }
+  50% { box-shadow: 0 0 0 6px rgba(var(--lime-deep-rgb), 0); }
+}
+.pager-card.ready {
+  border-color: var(--lime-deep);
+  background: linear-gradient(165deg, rgba(var(--lime-rgb), 0.18), var(--card-bg) 70%);
+  animation: pagerReadyGlow 2.2s ease-in-out infinite;
+}
+.pager-card.ready .pager-time { background: rgba(var(--lime-rgb), 0.28); color: var(--flag-green-deep); }
+[data-theme="dark"] .pager-card.ready .pager-time { color: var(--lime); }
+@media (prefers-reduced-motion: reduce) {
+  .pager-card.ready, .pager-card.warn, .pager-card.urgent { animation: none; }
+}

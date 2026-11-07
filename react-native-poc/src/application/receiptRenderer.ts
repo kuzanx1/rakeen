@@ -220,6 +220,11 @@ export function paintReceiptOps(
   }
 }
 
+function pagerQrGrid(url: string) {
+  const m = buildQrMatrix(url);
+  return { size: m.size, dark: (r: number, c: number) => m.isDark(r, c) };
+}
+
 export async function renderReceiptToEscPosBase64(
   data: ReceiptData,
   printerPaperWidthPx?: number,
@@ -281,6 +286,9 @@ export async function renderReceiptToEscPosBase64(
       // هيئةُ الزكاة: الرمزُ إلزاميٌّ متى وُجد رقمٌ ضريبيّ، وحجمُه وحدَه
       // ما يختلف بالقالب -- ولا ينزل عمّا يُقرأ.
       qr: receipt.vatNumber ? { width: 1, height: 1 } : null,
+      // بيجر ركين: نفس بلوك الويب من نفس المحرّك، والباركود يُبنى هنا
+      // من الرابط بلا شبكة (qrMatrix) -- فالفاتورة تطلع والجهاز أوفلاين.
+      pager: receipt.pager ? { ...receipt.pager, qr: pagerQrGrid(receipt.pager.url) } : null,
     });
 
     /* ارتفاعٌ محسوبٌ بالضبط قبل أن تُحجز اللوحة.

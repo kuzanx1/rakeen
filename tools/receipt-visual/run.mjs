@@ -56,7 +56,7 @@ async function shippedFunctions() {
     }
     throw new Error('لم يُغلق قوسُ ' + name);
   };
-  const names = ['receiptFontString', 'paintReceiptOps', 'renderReceiptCanvas',
+  const names = ['receiptFontString', 'paintReceiptOps', 'receiptProtectRects', 'renderReceiptCanvas',
                  'renderKitchenTicketCanvas', 'renderShiftReportCanvas'];
   /* والعملةُ تُنتزع كذلك لا تُكتب هنا: قيمةٌ مكرّرةٌ في أداة الفحص
      تجعل الفحصَ يمرّ على رمزٍ لم يعد الكاشيرُ يطبعه. */

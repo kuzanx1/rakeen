@@ -17,7 +17,7 @@ export { createContext, leaderDots } from './context';
 export type { LayoutContext } from './context';
 export {
   PAPER, PAD, LINE, TYPE, WEIGHT, SPACE, BORDER, DASH, COLUMNS,
-  ORDER_BOX, TOTAL_BOX, LOGO, INVERT_BAR, TRACKING, QR_MAX,
+  ORDER_BOX, TOTAL_BOX, LOGO, INVERT_BAR, TRACKING, QR_MAX, PAGER,
   KITCHEN, KITCHEN_SPACE, SHIFT, SHIFT_SPACE, HEART, LARGE_TYPE_ABOVE,
   THEMES, themeTokens, dotsFromCss, dotsFromMm,
   PRINTER_DPI, CSS_DPI, DEFAULT_PAPER_WIDTH,
@@ -25,7 +25,7 @@ export {
 export type { ReceiptThemeTokens } from './tokens';
 export type {
   Align, Dir, Family, Ink, DrawOp, TextOp, RectOp, DashOp, ImageOp, GlyphOp,
-  Measurer, ImageSize, ReceiptItem, ReceiptItemMod, ReceiptModel, LayoutInput, LayoutResult,
+  Measurer, ImageSize, QrGrid, PagerBlock, ReceiptItem, ReceiptItemMod, ReceiptModel, LayoutInput, LayoutResult,
 } from './types';
 export { stubMeasure } from './stubMeasure';
 /* والحالاتُ المرجعيةُ ليست هنا قصداً (`./scenarios`).

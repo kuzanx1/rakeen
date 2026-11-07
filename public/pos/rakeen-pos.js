@@ -1654,6 +1654,7 @@ function addToCart(productId){
  * يُبتلع الضغطُ صامتاً.
  */
 async function addToCartWithConfig(product, config, qty){
+  rkPagerHideOnNextOrder(); // الطلب الجديد يبدأ: بيجر اللي قبله ينزل من شاشة العميل
   const cfg = (window.BUSINESS_LOYALTY || {});
   const armed = state.rewardArm || state.freeRewardCredit > 0;
   if(armed && qty === 1){
@@ -4895,7 +4896,12 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
     theme: RECEIPT_THEME,
     currency: RECEIPT_RIYAL,
     logo: sizeOf(logoImage),
-    qr: sizeOf(qrImage)
+    qr: sizeOf(qrImage),
+    /* بيجر ركين: الباركودُ يُولَّد هنا بلا شبكة (qrGrid من محرّك
+       الطباعة نفسِه)، فالكاشيرُ بلا نتّ يطبعه كما يطبعه متّصلاً. */
+    pager: (receipt.pagerBlock && receipt.pagerBlock.url && E.qrGrid)
+      ? Object.assign({}, receipt.pagerBlock, { qr: E.qrGrid(receipt.pagerBlock.url) })
+      : null
   });
 
   /* ارتفاعٌ محسوبٌ بالضبط، فلا لوحةَ مؤقّتةٌ سخيّةُ التقدير ثم نسخٌ
@@ -5447,7 +5453,8 @@ function buildLiveReceiptData(orderPayload, totals){
     customMessage: RECEIPT_CUSTOM_MESSAGE,
     items, subtotal: totals.subtotal, discount: totals.discount, vat: totals.vat, total: totals.total,
     paymentMethodLabel: PAYMENT_METHOD_LABELS_POS[orderPayload.payment_method] || orderPayload.payment_method,
-    change: orderPayload.payment_method === 'cash' ? Math.max(0, (state.cashAmount || 0) - totals.total) : 0
+    change: orderPayload.payment_method === 'cash' ? Math.max(0, (state.cashAmount || 0) - totals.total) : 0,
+    pagerBlock: rkPagerReceiptBlock(orderPayload)
   };
 }
 
@@ -5790,6 +5797,7 @@ async function completePayment(){
   // a pickup/delivery sale offline, not a failure. Proceed to the normal
   // success receipt in every case.
   if(navigator.onLine) runOwnerNotificationChecks(orderPayload);
+  try { rkPagerAfterCheckout(orderPayload); } catch(_){}
   if(orderPayload.channel === 'delivery' && orderPayload.orderId) registerActiveDeliveryOrder(orderPayload.orderId, orderPayload);
   // Hotel checkout hook (roadmap item 7) — startHotelCheckout() loaded the
   // booking's room-type service into this exact cart before sending the
@@ -6077,14 +6085,16 @@ async function renderOrdersList(){
      * ولهذا كانت الطلبات "لا تُسجَّل" في نظره -- وهي مسجّلة، إنما لا
      * تُعرض.
      */
-    if(deliveryRows.length === 0 && pickupRows.length === 0){ el.innerHTML = '<div class="list-empty">ما فيه طلبات جارية حاليًا</div>'; return; }
-    const gridCards = deliveryRows.map(({order, remaining})=> renderDeliveryCard(order, remaining)).join('')
+    // طلبات بيجر ركين أولاً: هي ما ينتظره زبونٌ واقفٌ عند الكاونتر الحين.
+    const pagerRows = PAGER_ENABLED ? rkPagerSortedRows() : [];
+    if(deliveryRows.length === 0 && pickupRows.length === 0 && pagerRows.length === 0){ el.innerHTML = '<div class="list-empty">ما فيه طلبات جارية حاليًا</div>'; return; }
+    const gridCards = pagerRows.map(o=> renderPagerCard(o)).join('') + deliveryRows.map(({order, remaining})=> renderDeliveryCard(order, remaining)).join('')
       + pickupRows.map(order=> renderPickupCard(order)).join('');
     el.innerHTML = gridCards ? `<div class="dorder-grid">${gridCards}</div>` : '';
     el.querySelectorAll('.dorder-card').forEach(card=>{
       card.addEventListener('click', (e)=>{
         if(e.target.closest('.dorder-ready-btn') || e.target.closest('.dorder-delivered-btn') || e.target.closest('.dorder-out-btn')
-          || e.target.closest('.pickup-ready-btn') || e.target.closest('.pickup-delivered-btn')) return;
+          || e.target.closest('.pickup-ready-btn') || e.target.closest('.pickup-delivered-btn') || e.target.closest('[data-pager-action]')) return;
         resetModalStack(()=> openOrderDetail(parseInt(card.dataset.order, 10)));
       });
     });
@@ -6102,6 +6112,15 @@ async function renderOrdersList(){
     });
     el.querySelectorAll('.pickup-delivered-btn').forEach(btn=>{
       btn.addEventListener('click', (e)=>{ e.stopPropagation(); markPickupOrderDelivered(parseInt(btn.dataset.orderId, 10)); });
+    });
+    el.querySelectorAll('[data-pager-action]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        if(btn.disabled) return;
+        btn.disabled = true;
+        rkPagerAction(parseInt(btn.dataset.orderId, 10), btn.dataset.pagerAction, { minutes: 5 })
+          .finally(()=>{ btn.disabled = false; });
+      });
     });
     return;
   }
@@ -7973,6 +7992,309 @@ async function markPickupOrderDelivered(orderId){
   renderOrdersList();
 }
 
+/* ============ بيجر ركين — جوال الزبون هو جهاز النداء ============
+   الفاتورة (وشاشة العميل) تحمل باركوداً يفتح صفحة الطلب في جوال الزبون.
+   والطلب يظهر هنا في «جارية» إلى أن يُستلم: «جاهز» يرن جواله، و«+٥»
+   يمدّ الوعد ويقول له إننا تأخرنا، و«رنّ مرة ثانية» لمن لم يأتِ، و«تم
+   الاستلام» يُنهيه.
+
+   كلُّ الأزرار تمرّ من /api/pager/notify -- المسارِ نفسه الذي يناديه
+   التطبيق وشاشة المطبخ -- فلا يختلف ما يصل الزبونَ باختلاف الجهاز.
+
+   والمفتاح client_order_uuid لا رقم الطلب: الفاتورة تُطبع قبل أن يصل
+   الطلب للخادم إن كان الكاشير بلا نت، والرقم لم يُعرف بعد. */
+const PAGER_DEFAULTS = { channels:['dine_in','pickup'], prep_min:10, buffer_min:5, receipt:true, display:true,
+  display_secs:60, remind_min:3, close_min:20, wifi:'', ready_msg:'', late_alert:true, tone:'chime' };
+let PAGER_ENABLED = false;
+let PAGER_SETTINGS = Object.assign({}, PAGER_DEFAULTS);
+let PAGER_AUTO_READY = { dine_in:false, pickup:false };
+let ACTIVE_PAGER_ORDERS = []; // [{id, uuid, createdAt, etaAt, readyAt, delayedAt, seenAt, ringCount, customerName, channel, total, mine, lateWarned, autoRung}]
+let pagerDisplayShown = false;
+
+function rkPagerSettings(raw){
+  const s = Object.assign({}, PAGER_DEFAULTS, (raw && typeof raw === 'object') ? raw : {});
+  const int = (v, d, lo, hi)=>{ const n = parseInt(v, 10); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
+  s.channels = Array.isArray(s.channels) ? s.channels.filter(c => c === 'dine_in' || c === 'pickup') : PAGER_DEFAULTS.channels.slice();
+  s.prep_min = int(s.prep_min, 10, 1, 120);
+  s.buffer_min = int(s.buffer_min, 5, 0, 60);
+  s.display_secs = int(s.display_secs, 60, 0, 300);
+  s.remind_min = int(s.remind_min, 3, 0, 60);
+  s.close_min = int(s.close_min, 20, 0, 240);
+  s.receipt = s.receipt !== false; s.display = s.display !== false; s.late_alert = s.late_alert !== false;
+  s.wifi = String(s.wifi || '').slice(0, 40);
+  s.ready_msg = String(s.ready_msg || '').slice(0, 80);
+  return s;
+}
+
+async function loadPagerSettings(sb, businessId){
+  try {
+    const r = await sb.from('businesses')
+      .select('pager_enabled, pager_settings, auto_ready_dine_in, auto_ready_pickup').eq('id', businessId).single();
+    if(r.error || !r.data) throw r.error;
+    PAGER_ENABLED = r.data.pager_enabled === true;
+    PAGER_SETTINGS = rkPagerSettings(r.data.pager_settings);
+    PAGER_AUTO_READY = { dine_in: r.data.auto_ready_dine_in === true, pickup: r.data.auto_ready_pickup === true };
+  } catch(_){
+    // قاعدةٌ قبل ملف البيجر: مطفأ، والكاشير يعمل كما كان.
+    PAGER_ENABLED = false; PAGER_SETTINGS = rkPagerSettings(null);
+  }
+}
+
+const RK_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** هل لهذا الطلب بيجر؟ نفسُ قرار الخادم (orders_set_pager_eta) حرفاً بحرف. */
+function rkPagerEligible(payload){
+  if(!PAGER_ENABLED || !payload || !payload.client_order_uuid || !RK_UUID_RE.test(payload.client_order_uuid)) return false;
+  if(state.resumingOrder) return false;
+  const ch = payload.channel;
+  if(ch !== 'dine_in' && ch !== 'pickup') return false;
+  if(PAGER_SETTINGS.channels.indexOf(ch) === -1) return false;
+  if(ch === 'dine_in' && (payload.table_id || DINE_IN_MODE === 'tables')) return false;
+  // «تخطي مرحلة جاهز» لقناته: الطلب جاهزٌ من لحظته، فلا بيجر.
+  if(PAGER_AUTO_READY[ch]) return false;
+  return true;
+}
+
+function rkPagerKey(uuid){
+  const hex = String(uuid).replace(/-/g, '');
+  let bin = '';
+  for(let i = 0; i < 32; i += 2) bin += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16));
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function rkPagerUrl(uuid){ return 'https://rakeenapp.com/p/' + rkPagerKey(uuid); }
+
+/** بلوك الفاتورة -- بيانات فقط، والمحرّك يرسم الباركود. */
+function rkPagerReceiptBlock(orderPayload){
+  if(!PAGER_SETTINGS.receipt || !rkPagerEligible(orderPayload)) return null;
+  return {
+    url: rkPagerUrl(orderPayload.client_order_uuid),
+    title: 'امسح وخلّ جوالك يناديك',
+    line: 'اجلس براحتك، أول ما يجهز طلبك يرن جوالك',
+    tag: orderPayload.orderId ? 'طلب ' + orderPayload.orderId : 'بيجر طلبك',
+    wifi: PAGER_SETTINGS.wifi || null
+  };
+}
+
+function rkPagerRow(o){
+  return {
+    id: o.id, uuid: o.client_order_uuid, channel: o.channel, total: Number(o.total || 0),
+    customerName: o.customer_name || '',
+    createdAt: new Date(o.created_at), etaAt: o.pager_eta_at ? new Date(o.pager_eta_at) : null,
+    readyAt: o.ready_at ? new Date(o.ready_at) : null, delayedAt: o.pager_delayed_at ? new Date(o.pager_delayed_at) : null,
+    seenAt: o.pager_seen_at ? new Date(o.pager_seen_at) : null, ringCount: Number(o.pager_ring_count || 0)
+  };
+}
+
+async function seedActivePagerOrders(){
+  if(!PAGER_ENABLED) { ACTIVE_PAGER_ORDERS = []; return; }
+  try {
+    const startToday = new Date(); startToday.setHours(0,0,0,0);
+    const { data, error } = await window.supabaseClient
+      .from('orders').select('id, client_order_uuid, total, created_at, customer_name, channel, status, ready_at, delivered_at, pager_eta_at, pager_delayed_at, pager_seen_at, pager_ring_count')
+      .eq('branch_id', DEVICE.branchId).not('pager_eta_at', 'is', null).is('delivered_at', null).eq('status', 'completed')
+      .gte('created_at', startToday.toISOString()).order('created_at', { ascending: true });
+    if(error) return;
+    const prev = new Map(ACTIVE_PAGER_ORDERS.map(o => [o.id, o]));
+    ACTIVE_PAGER_ORDERS = (data || []).map(o => {
+      const row = rkPagerRow(o);
+      const old = prev.get(o.id);
+      if(old){ row.mine = old.mine; row.lateWarned = old.lateWarned; row.autoRung = old.autoRung; }
+      return row;
+    });
+  } catch(_){ /* الشبكة: تبقى القائمة كما هي */ }
+}
+
+/** البثّ اللحظيّ لجدول الطلبات: طلبٌ جديد من جهازٍ آخر، أو المطبخ جهّزه. */
+function syncActivePagerOrderFromRow(row){
+  if(!PAGER_ENABLED || !row || !row.id) return;
+  const i = ACTIVE_PAGER_ORDERS.findIndex(o => o.id === row.id);
+  const done = row.delivered_at || (row.status && row.status !== 'completed');
+  if(!row.pager_eta_at || done){
+    if(i !== -1) ACTIVE_PAGER_ORDERS.splice(i, 1);
+    return;
+  }
+  const fresh = rkPagerRow(row);
+  if(i === -1) ACTIVE_PAGER_ORDERS.push(fresh);
+  else { const old = ACTIVE_PAGER_ORDERS[i]; fresh.mine = old.mine; fresh.lateWarned = old.lateWarned; fresh.autoRung = old.autoRung; ACTIVE_PAGER_ORDERS[i] = fresh; }
+}
+
+/** بعد إتمام الدفع: الطلب في «جارية» حالاً، والباركود على شاشة العميل. */
+function rkPagerAfterCheckout(orderPayload){
+  if(!rkPagerEligible(orderPayload)) return;
+  if(orderPayload.orderId && !ACTIVE_PAGER_ORDERS.some(o => o.id === orderPayload.orderId)){
+    const now = new Date();
+    ACTIVE_PAGER_ORDERS.push({
+      id: orderPayload.orderId, uuid: orderPayload.client_order_uuid, channel: orderPayload.channel,
+      total: Number(orderPayload.total || 0), customerName: orderPayload.customer_name || '',
+      createdAt: now, etaAt: new Date(now.getTime() + (PAGER_SETTINGS.prep_min + PAGER_SETTINGS.buffer_min) * 60000),
+      readyAt: null, delayedAt: null, seenAt: null, ringCount: 0, mine: true
+    });
+    updateNotifBell();
+  } else if(orderPayload.orderId){
+    const o = ACTIVE_PAGER_ORDERS.find(x => x.id === orderPayload.orderId); if(o) o.mine = true;
+  }
+  if(PAGER_SETTINGS.display && navigator.onLine){
+    // secs 0 = «لين يبدأ الطلب اللي بعده»: الشاشة بلا عدّاد، وتنزل مع أول صنف.
+    rkPagerDisplay({
+      uuid: orderPayload.client_order_uuid, number: orderPayload.orderId || '',
+      secs: PAGER_SETTINGS.display_secs
+    });
+    // وتنزل مع الطلب التالي في كل المدد -- لا في «لين الطلب اللي بعده» وحده:
+    // الزبون التالي واقفٌ قدّام الشاشة، ولو مسح باركود اللي قبله رنّ جواله
+    // على طلبٍ مو له.
+    pagerDisplayShown = true;
+  }
+}
+
+async function rkPagerDisplay(body){
+  try {
+    const { data: { session } } = await window.supabaseClient.auth.getSession();
+    if(!session) return;
+    await fetch('/api/pos/show-pager', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+      body: JSON.stringify(Object.assign({ branchId: DEVICE.branchId || null, posDeviceId: ensurePosDeviceId() }, body))
+    });
+  } catch(_){ /* شاشة العميل كماليّة: لا توقف البيع */ }
+}
+
+/** «لين يبدأ الطلب اللي بعده»: أوّلُ صنفٍ في سلّةٍ فارغة يُخفي البيجر. */
+function rkPagerHideOnNextOrder(){
+  if(!pagerDisplayShown) return;
+  pagerDisplayShown = false;
+  rkPagerDisplay({ hide: true });
+}
+
+const PAGER_ACTION_MSG = {
+  ready: 'تعذر تسجيل الطلب جاهز', ring: 'تعذر الرنين', delay: 'تعذر التأجيل', collected: 'تعذر تسجيل الاستلام'
+};
+
+async function rkPagerAction(orderId, action, opts){
+  opts = opts || {};
+  const o = ACTIVE_PAGER_ORDERS.find(x => x.id === orderId);
+  if(action === 'ready' || action === 'collected') selfMarkedReadyOrderIds.add(orderId);
+  let out = null;
+  try {
+    const { data: { session } } = await window.supabaseClient.auth.getSession();
+    if(!session) throw new Error('no session');
+    const resp = await fetch('/api/pager/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+      body: JSON.stringify({ orderId, action, minutes: opts.minutes || 5 })
+    });
+    out = await resp.json().catch(()=>null);
+    if(!resp.ok) throw new Error((out && out.error) || PAGER_ACTION_MSG[action]);
+  } catch(e){
+    if(!opts.silent) showToast((e && e.message && !/fetch|network|session/i.test(e.message)) ? e.message : PAGER_ACTION_MSG[action] + ' — تأكد من النت');
+    return false;
+  }
+  const r = out && out.order;
+  if(action === 'collected'){
+    ACTIVE_PAGER_ORDERS = ACTIVE_PAGER_ORDERS.filter(x => x.id !== orderId);
+  } else if(o && r){
+    o.readyAt = r.ready_at ? new Date(r.ready_at) : o.readyAt;
+    o.etaAt = r.eta_at ? new Date(r.eta_at) : o.etaAt;
+    o.delayedAt = r.delayed_at ? new Date(r.delayed_at) : o.delayedAt;
+    o.seenAt = r.seen_at ? new Date(r.seen_at) : o.seenAt;
+    o.ringCount = Number(r.ring_count || 0);
+    if(action === 'ready') o.mine = true;
+  }
+  if(!opts.silent){
+    const reached = out && (out.pushed > 0 || (o && o.seenAt));
+    const msg = {
+      ready: reached ? '🔔 رنّ جوال الزبون — طلب #' + orderId + ' جاهز' : 'طلب #' + orderId + ' جاهز — الزبون ما فتح البيجر، ناده برقمه',
+      ring: '🔔 رنّينا عليه مرة ثانية — طلب #' + orderId,
+      delay: '⏱ أضفنا ' + (opts.minutes || 5) + ' دقايق وبلّغنا الزبون — طلب #' + orderId,
+      collected: '✓ استلم طلبه — #' + orderId
+    }[action];
+    showToast(msg);
+  }
+  updateNotifBell();
+  if(document.getElementById('screen-orders').classList.contains('active')) renderOrdersList();
+  return true;
+}
+
+function renderPagerCard(o){
+  const now = Date.now();
+  const tag = o.channel === 'dine_in' ? 'محلي' : 'سفري';
+  const who = o.customerName ? escapeHtml(o.customerName) : tag;
+  const seen = o.seenAt ? '<span class="pager-seen" title="الزبون فاتح البيجر في جواله">📱 متابع</span>' : '<span class="pager-seen off" title="الزبون ما فتح البيجر">ما فتحه</span>';
+  if(o.readyAt){
+    const waiting = Math.max(0, Math.round((now - o.readyAt.getTime()) / 1000));
+    return `<div class="dorder-card pager-card ready" data-order="${o.id}">
+      <div class="pager-top"><span class="pager-chip">📟 بيجر</span>${seen}</div>
+      <div class="pager-num mono">#${o.id}</div>
+      <div class="dorder-platform">${who}</div>
+      <div class="pager-time mono">ينتظر ${formatMmSs(waiting)}${o.ringCount ? ' · رنّة ' + (o.ringCount + 1) : ''}</div>
+      <div class="pager-btns">
+        <button class="pager-btn pager-ring-btn" data-pager-action="ring" data-order-id="${o.id}">🔔 رنّ ثاني</button>
+        <button class="pager-btn pager-done-btn" data-pager-action="collected" data-order-id="${o.id}">استلمه ✓</button>
+      </div>
+    </div>`;
+  }
+  const prepAt = o.createdAt.getTime() + PAGER_SETTINGS.prep_min * 60000;
+  const eta = o.etaAt ? o.etaAt.getTime() : prepAt;
+  const left = Math.round((eta - now) / 1000);
+  const state = now > eta ? 'urgent' : now > prepAt ? 'warn' : '';
+  const label = left >= 0 ? 'باقي ' + formatMmSs(left) : 'متأخر ' + formatMmSs(-left);
+  return `<div class="dorder-card pager-card ${state}" data-order="${o.id}">
+    <div class="pager-top"><span class="pager-chip">📟 بيجر</span>${seen}</div>
+    <div class="pager-num mono">#${o.id}</div>
+    <div class="dorder-platform">${who}${o.delayedAt ? ' · أُجّل' : ''}</div>
+    <div class="pager-time mono ${state}">${label}</div>
+    <div class="pager-btns">
+      <button class="pager-btn pager-ready-btn" data-pager-action="ready" data-order-id="${o.id}">جاهز</button>
+      <button class="pager-btn pager-delay-btn" data-pager-action="delay" data-order-id="${o.id}" title="أضف ٥ دقايق وبلّغ الزبون">+٥ د</button>
+    </div>
+  </div>`;
+}
+
+function rkPagerSortedRows(){
+  const notReady = ACTIVE_PAGER_ORDERS.filter(o => !o.readyAt)
+    .sort((a, b) => (a.etaAt ? a.etaAt.getTime() : 0) - (b.etaAt ? b.etaAt.getTime() : 0));
+  const ready = ACTIVE_PAGER_ORDERS.filter(o => o.readyAt).sort((a, b) => a.readyAt - b.readyAt);
+  return notReady.concat(ready);
+}
+
+/* المؤقّت: تنبيهُ التأخير، والرنّةُ الثانية تلقائياً، والإقفالُ التلقائيّ.
+   والتلقائيُّ يفعله الجهازُ الذي أنشأ الطلب أو جهّزه وحده (mine) -- لو
+   فعله كلُّ كاشيرٍ في الفرع لَرنّ جوالُ الزبون مرّتين وثلاثاً. */
+setInterval(()=>{
+  if(!PAGER_ENABLED || !ACTIVE_PAGER_ORDERS.length) return;
+  const now = Date.now();
+  ACTIVE_PAGER_ORDERS.slice().forEach(o=>{
+    if(!o.readyAt){
+      if(PAGER_SETTINGS.late_alert && !o.lateWarned && o.etaAt && now > o.etaAt.getTime()){
+        o.lateWarned = true;
+        if(NOTIFY_SOUND_ENABLED) playAlertSound('warning');
+        showToast('⏱ طلب #' + o.id + ' تأخر على الزبون — جهّزه أو أضف ٥ دقايق');
+      }
+      return;
+    }
+    if(!o.mine) return;
+    const waitedMin = (now - o.readyAt.getTime()) / 60000;
+    if(PAGER_SETTINGS.remind_min > 0 && !o.autoRung && o.ringCount === 0 && waitedMin >= PAGER_SETTINGS.remind_min){
+      o.autoRung = true;
+      rkPagerAction(o.id, 'ring', { silent: true });
+    }
+    if(PAGER_SETTINGS.close_min > 0 && waitedMin >= PAGER_SETTINGS.close_min && !o.autoClosing){
+      o.autoClosing = true;
+      rkPagerAction(o.id, 'collected', { silent: true });
+    }
+  });
+  const scr = document.getElementById('screen-orders');
+  if(scr && scr.classList.contains('active') && ordersActiveTab === 'running') renderOrdersList();
+}, 5000);
+
+// وتحديثٌ هادئ كل نصف دقيقة: كاشيرٌ آخر في الفرع قد يكون جهّز أو سلّم.
+setInterval(()=>{
+  if(!PAGER_ENABLED || !navigator.onLine || !DEVICE || !DEVICE.branchId) return;
+  seedActivePagerOrders().then(()=>{
+    const scr = document.getElementById('screen-orders');
+    if(scr && scr.classList.contains('active') && ordersActiveTab === 'running') renderOrdersList();
+  });
+}, 30000);
+
 // Ticks every second regardless of which POS screen is focused — the
 // warning/expired alert must fire even if the cashier is busy on the order
 // screen, not only while they happen to be looking at "التوصيل". The visual
@@ -8990,6 +9312,7 @@ async function loadPosData(){
     RECEIPT_THEME = 'classic'; REQUIRE_MANAGER_PIN_FOR_CLOSE = true;
     DINE_IN_MODE = 'simple'; POS_PAGER_ENABLED = false; KITCHEN_TICKET_MODE = 'brief';
   }
+  await loadPagerSettings(sb, businessId);
   await loadPlanFeatures(sb, businessId);
   applyPosPlanUi();
   // بدون «الطاولات والحجوزات» في الباقة: محلي بسيط، بلا شاشة طاولات. نشاط
@@ -10085,6 +10408,7 @@ function subscribeToOrdersLiveSync(){
   const onOrdersChange = (payload)=>{
     syncActiveDeliveryOrderFromRow(payload.new);
     syncActivePickupOrderFromRow(payload.new);
+    syncActivePagerOrderFromRow(payload.new);
     if(document.getElementById('screen-orders').classList.contains('active')) renderOrdersList();
   };
   ordersLiveSyncChannel = window.supabaseClient
@@ -10130,6 +10454,7 @@ async function bootPos(){
   renderOrder();
   await seedActiveDeliveryOrders();
   await seedActivePickupOrders();
+  await seedActivePagerOrders();
   updateNotifBell();
   renderOrdersList();
   // mobile_car_wash lands on the waitlist pane by default (no floor grid —

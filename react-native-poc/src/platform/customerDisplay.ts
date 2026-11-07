@@ -17,6 +17,9 @@ interface CustomerDisplayAPI {
   /** data = نص الباركود (رابط)، يُرسم QR على الجهاز. */
   code(data: string, title: string, msg: string, secs: number): void;
   hideCode(): void;
+  /** بيجر ركين: باركود الطلب برقمه. secs=0 يبقى لين hidePager. */
+  pager?(qrUrl: string, number: string, secs: number): void;
+  hidePager?(): void;
 }
 
 const Native: CustomerDisplayAPI | undefined = NativeModules.RakeenCustomerDisplay;
@@ -57,6 +60,22 @@ export function codeOnCustomerDisplay(qrUrl: string, title: string, msg: string,
 export function hideCodeOnCustomerDisplay(): void {
   try {
     Native?.hideCode();
+  } catch {
+    // ما فيه شاشة.
+  }
+}
+
+export function pagerOnCustomerDisplay(qrUrl: string, number: string, secs: number): void {
+  try {
+    Native?.pager?.(qrUrl, number, secs);
+  } catch {
+    // ما فيه شاشة، أو نسخة أصلية قبل البيجر.
+  }
+}
+
+export function hidePagerOnCustomerDisplay(): void {
+  try {
+    Native?.hidePager?.();
   } catch {
     // ما فيه شاشة.
   }

@@ -27,7 +27,24 @@ const BANNER = `/* مولَّد -- لا يُحرَّر. المصدر: shared/rec
 
 async function bundle() {
   const result = await build({
-    entryPoints: [ENTRY],
+    /* ومع المحرّك مولّدُ رمز الاستجابة نفسُه الذي يستعمله التطبيق
+       (qrcode-generator)، ليرسم الويبُ باركودَ البيجر بلا شبكة كما
+       يرسمه التطبيق. وهو من حزم التطبيق، فلا نسختان منه. */
+    stdin: {
+      contents: [
+        `export * from ${JSON.stringify(ENTRY.split('\\').join('/'))};`,
+        `import qrcodegen from 'qrcode-generator';`,
+        `export function qrGrid(text) {`,
+        `  const q = qrcodegen(0, 'M'); q.addData(String(text)); q.make();`,
+        `  const n = q.getModuleCount();`,
+        `  return { size: n, dark: (r, c) => q.isDark(r, c) };`,
+        `}`,
+      ].join('\n'),
+      resolveDir: root,
+      sourcefile: 'receipt-engine-entry.js',
+      loader: 'js',
+    },
+    nodePaths: [resolve(root, 'react-native-poc/node_modules')],
     bundle: true,
     format: 'iife',
     globalName: 'RakeenReceiptEngine',

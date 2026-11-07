@@ -22,11 +22,16 @@ export async function sendPushToSubscription(
   // which table to delete from on 404/410 — callers share this helper across
   // customer (push_subscriptions) and owner (owner_push_subscriptions) tables,
   // so this can't be hardcoded without risking deleting the wrong row.
-  table: string = "push_subscriptions"
+  table: string = "push_subscriptions",
+  // بيجر ركين يحتاج "عاجل": أندرويد في وضع توفير الطاقة يؤخّر العاديّ
+  // دقائق، والزبونُ ينتظر عند الكاونتر. وعمرٌ قصير: «طلبك جاهز» بعد
+  // ساعة إزعاجٌ لا خبر.
+  options?: { urgency?: "very-low" | "low" | "normal" | "high"; TTL?: number }
 ): Promise<boolean> {
   const details = webpush.generateRequestDetails(
     { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-    payload
+    payload,
+    options
   );
   const headers = { ...details.headers } as Record<string, string>;
   delete headers["Content-Length"];

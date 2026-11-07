@@ -113,6 +113,17 @@ export interface ReceiptData {
   change?: number;
   /** DEVICE.printerPaperWidth in px at ~203dpi (576=80mm, 384=58mm). */
   paperWidthPx?: number;
+  /** بيجر ركين: شريطٌ أسود بباركودٍ يفتح صفحة الطلب في جوال الزبون.
+   *  بياناتٌ فقط -- الراسم يبني الباركود محلّياً، فيُطبع والجهاز بلا نت. */
+  pager?: ReceiptPagerData | null;
+}
+
+export interface ReceiptPagerData {
+  url: string;
+  title: string;
+  line: string;
+  tag: string;
+  wifi?: string | null;
 }
 
 export interface KitchenTicketData {

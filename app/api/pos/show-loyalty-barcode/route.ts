@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { serviceClient } from "@/lib/wallet-service";
+import { displayTargets } from "@/lib/display-targets";
 
 /**
  * "اعرض باركود الولاء على شاشة العميل."
@@ -59,10 +60,6 @@ export async function POST(request: NextRequest) {
    * والأولوية لشاشة الفرع حين توجد: فرعان لكلٍّ شاشته لا تُخلط
    * باركوداتهما.
    */
-  const { data: displays } = await asCashier
-    .from("display_devices")
-    .select("id, device_secret, branch_id, pos_device_id");
-
   /**
    * وكلُّ شاشات الفرع تُعرض عليها، لا أوّلها.
    *
@@ -92,15 +89,7 @@ export async function POST(request: NextRequest) {
    *   ٢) منها: المربوطةُ بنقطة البيع هذي إن وُجدت، وإلا غيرُ المربوطة.
    *      وشاشةٌ مربوطةٌ بنقطةِ بيعٍ أخرى لا تُبثّ إليها أبداً.
    */
-  const all = displays || [];
-  const inBranch = branchId
-    ? all.filter(d => d.branch_id === branchId || d.branch_id == null)
-    : all.filter(d => d.branch_id == null);
-
-  const mine = posDeviceId ? inBranch.filter(d => d.pos_device_id === posDeviceId) : [];
-  const targets = mine.length
-    ? mine
-    : inBranch.filter(d => d.pos_device_id == null);
+  const targets = await displayTargets(asCashier, branchId, posDeviceId);
 
   const display = targets[0];
   if (!display) {

@@ -110,6 +110,21 @@ class RakeenCustomerDisplayModule(private val ctx: ReactApplicationContext) :
         UiThreadUtil.runOnUiThread { presentation?.hideCode() }
     }
 
+    /**
+     * بيجر ركين: باركود الطلب برقمه، بجانب باركود الولاء إن ظهرا معاً.
+     * secs = 0 يعني «لين يبدأ الطلب اللي بعده» -- يبقى إلى hidePager
+     * (بسقف خمس دقائق لو ضاع الإخفاء). يُرسم محلّياً فيعمل والجهاز بلا نت.
+     */
+    @ReactMethod
+    fun pager(qrUrl: String, number: String, secs: Double) {
+        UiThreadUtil.runOnUiThread { presentation?.showPager(qrUrl, number, secs.toLong()) }
+    }
+
+    @ReactMethod
+    fun hidePager() {
+        UiThreadUtil.runOnUiThread { presentation?.hidePager() }
+    }
+
     private fun apply() {
         presentation?.dismiss()
         presentation = null
@@ -199,6 +214,14 @@ class CustomerPresentation(
     private lateinit var totalBox: LinearLayout
     private lateinit var totalAmount: TextView
     private lateinit var codeBox: LinearLayout
+    private lateinit var loyaltyCard: LinearLayout
+    private lateinit var pagerCard: LinearLayout
+    private lateinit var pagerNum: TextView
+    private lateinit var pagerImg: ImageView
+    private lateinit var pagerBar: View
+    private lateinit var pagerTrack: View
+    private var pagerAnim: ValueAnimator? = null
+    private val hidePagerRun = Runnable { hidePager() }
     private lateinit var codeTitle: TextView
     private lateinit var codeImg: ImageView
     private lateinit var codeMsg: TextView
@@ -335,9 +358,13 @@ class CustomerPresentation(
         totalBox.visibility = View.GONE
         root.addView(totalBox, full)
 
-        // الباركود: كرت كريمي في النص.
-        codeBox = centered()
+        // الباركود: كرت كريمي في النص -- وبيجر الطلب بجانبه إن ظهرا معاً.
+        codeBox = LinearLayout(context)
+        codeBox.orientation = LinearLayout.HORIZONTAL
+        codeBox.gravity = Gravity.CENTER
+        codeBox.layoutDirection = View.LAYOUT_DIRECTION_RTL
         val card = centered()
+        loyaltyCard = card
         card.background = GradientDrawable().apply { setColor(cream); cornerRadius = unit * 5 }
         card.setPadding((unit * 6).toInt(), (unit * 4).toInt(), (unit * 6).toInt(), (unit * 3.5f).toInt())
         codeTitle = text("", 8f, dark, bold)
@@ -361,9 +388,102 @@ class CustomerPresentation(
         codeBar.pivotX = (unit * 52) // الشريط يقصر من اليسار لليمين
         track.addView(codeBar, FrameLayout.LayoutParams((unit * 52).toInt(), (unit * 1.2f).toInt()))
         card.addView(track, LinearLayout.LayoutParams((unit * 52).toInt(), (unit * 1.2f).toInt()).apply { topMargin = (unit * 2.6f).toInt() })
-        codeBox.addView(card, wrap())
+        buildPagerCard(bold, regular)
+        // RTL: الأول يمين -- البيجر يمين لأنه أول ما يظهر بعد الدفع.
+        codeBox.addView(pagerCard, wrap())
+        codeBox.addView(card, wrap().apply { marginStart = (unit * 4).toInt() })
+        card.visibility = View.GONE
+        pagerCard.visibility = View.GONE
         codeBox.visibility = View.GONE
         root.addView(codeBox, full)
+    }
+
+    /** بطاقة البيجر: شريطٌ بلون المحل فيه رقم الطلب، ثم الباركود على أبيض. */
+    private fun buildPagerCard(bold: Typeface, regular: Typeface) {
+        pagerCard = LinearLayout(context)
+        pagerCard.orientation = LinearLayout.VERTICAL
+        pagerCard.gravity = Gravity.CENTER_HORIZONTAL
+        pagerCard.background = GradientDrawable().apply { setColor(cream); cornerRadius = unit * 5 }
+        pagerCard.clipToOutline = true
+        val band = centered()
+        band.background = GradientDrawable().apply {
+            setColor(bg)
+            cornerRadii = floatArrayOf(unit * 5, unit * 5, unit * 5, unit * 5, 0f, 0f, 0f, 0f)
+        }
+        band.setPadding((unit * 6).toInt(), (unit * 2.6f).toInt(), (unit * 6).toInt(), (unit * 2.2f).toInt())
+        band.addView(text("رقم طلبك", 4.2f, soft, bold), wrap())
+        pagerNum = text("", 13f, ink, bold)
+        pagerNum.textDirection = View.TEXT_DIRECTION_LTR
+        band.addView(pagerNum, wrap().apply { topMargin = (unit * 0.6f).toInt() })
+        pagerCard.addView(band, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        val body = centered()
+        body.setPadding((unit * 5).toInt(), (unit * 2.4f).toInt(), (unit * 5).toInt(), (unit * 3).toInt())
+        val msg = text("امسح وخلّ جوالك يناديك\nأول ما يجهز طلبك", 4.4f, dark, bold)
+        msg.setLineSpacing(0f, 1.15f)
+        body.addView(msg, wrap())
+        val side = (unit * 40).toInt()
+        val frame = FrameLayout(context)
+        frame.background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = unit * 3 }
+        val pad = (unit * 1.8f).toInt()
+        frame.setPadding(pad, pad, pad, pad)
+        pagerImg = ImageView(context)
+        pagerImg.scaleType = ImageView.ScaleType.FIT_CENTER
+        frame.addView(pagerImg, FrameLayout.LayoutParams(side, side))
+        body.addView(frame, wrap().apply { topMargin = (unit * 2).toInt() })
+        body.addView(text("بدون تطبيق • ما يحتاج تسجيل", 3.4f, Color.argb(170, 42, 13, 6), regular), wrap().apply { topMargin = (unit * 1.8f).toInt() })
+        val track = FrameLayout(context)
+        track.background = GradientDrawable().apply { setColor(Color.argb(30, 42, 13, 6)); cornerRadius = unit }
+        pagerBar = View(context)
+        pagerBar.background = GradientDrawable().apply { setColor(bg); cornerRadius = unit }
+        pagerBar.pivotX = unit * 40
+        track.addView(pagerBar, FrameLayout.LayoutParams((unit * 40).toInt(), (unit * 1.1f).toInt()))
+        body.addView(track, LinearLayout.LayoutParams((unit * 40).toInt(), (unit * 1.1f).toInt()).apply { topMargin = (unit * 2).toInt() })
+        pagerTrack = track
+        pagerCard.addView(body, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+    }
+
+    /** اللوح ظاهر ما دامت فيه بطاقة، والمبلغ/الترحيب يرجع مع آخرها. */
+    private fun syncCodeBox() {
+        val any = loyaltyCard.visibility == View.VISIBLE || pagerCard.visibility == View.VISIBLE
+        if (any) {
+            idle.visibility = View.GONE
+            totalBox.visibility = View.GONE
+            codeBox.visibility = View.VISIBLE
+        } else {
+            codeBox.visibility = View.GONE
+            setTotal(pendingTotal)
+        }
+    }
+
+    fun showPager(qrUrl: String, number: String, secs: Long) {
+        if (!built || mode != "brand") return
+        pagerNum.text = if (number.isEmpty()) "" else "#" + number
+        pagerNum.visibility = if (number.isEmpty()) View.GONE else View.VISIBLE
+        pagerImg.setImageBitmap(Qr.bitmap(qrUrl, (unit * 40).toInt()))
+        pagerCard.visibility = View.VISIBLE
+        syncCodeBox()
+        pagerAnim?.cancel()
+        handler.removeCallbacks(hidePagerRun)
+        val ms = if (secs > 0) secs * 1000 else 5 * 60 * 1000L
+        pagerTrack.visibility = if (secs > 0) View.VISIBLE else View.GONE
+        if (secs > 0) {
+            pagerBar.scaleX = 1f
+            pagerAnim = ValueAnimator.ofFloat(1f, 0f).apply {
+                duration = ms
+                interpolator = LinearInterpolator()
+                addUpdateListener { pagerBar.scaleX = it.animatedValue as Float }
+                start()
+            }
+        }
+        handler.postDelayed(hidePagerRun, ms)
+    }
+
+    fun hidePager() {
+        if (!built || mode != "brand") return
+        handler.removeCallbacks(hidePagerRun)
+        pagerAnim?.cancel()
+        pagerCard.visibility = View.GONE
+        syncCodeBox()
     }
 
     fun setTotal(s: String) {
@@ -381,9 +501,8 @@ class CustomerPresentation(
         codeMsg.text = msg
         codeMsg.visibility = if (msg.isEmpty()) View.GONE else View.VISIBLE
         codeImg.setImageBitmap(Qr.bitmap(qrUrl, (unit * 48).toInt()))
-        idle.visibility = View.GONE
-        totalBox.visibility = View.GONE
-        codeBox.visibility = View.VISIBLE
+        loyaltyCard.visibility = View.VISIBLE
+        syncCodeBox()
         barAnim?.cancel()
         codeBar.scaleX = 1f
         barAnim = ValueAnimator.ofFloat(1f, 0f).apply {
@@ -400,13 +519,15 @@ class CustomerPresentation(
         if (!built || mode != "brand") return
         handler.removeCallbacks(hideRun)
         barAnim?.cancel()
-        codeBox.visibility = View.GONE
-        setTotal(pendingTotal)
+        loyaltyCard.visibility = View.GONE
+        syncCodeBox()
     }
 
     override fun onStop() {
         handler.removeCallbacks(hideRun)
+        handler.removeCallbacks(hidePagerRun)
         barAnim?.cancel()
+        pagerAnim?.cancel()
         super.onStop()
     }
 }

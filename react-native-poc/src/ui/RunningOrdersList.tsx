@@ -22,6 +22,20 @@ import {
 } from '../application/activeOrderService';
 import type { ActiveOrder } from '../application/activeOrderService';
 import { getOrderHistoryDetail } from '../application/orderHistoryService';
+import {
+  listPagerOrders,
+  sortPagerOrders,
+  pagerAction,
+  pagerActionToast,
+  pagerConfig,
+  pagerUrgency,
+  pagerDueAutoActions,
+  markAutoDone,
+  isOwnPagerOrder,
+} from '../application/pagerService';
+import type { PagerAction, PagerOrder } from '../application/pagerService';
+import PagerOrderCard from './PagerOrderCard';
+import { playAlertSound } from '../application/soundService';
 import type { OrderHistoryDetail } from '../application/orderHistoryService';
 import { formatArabicTime } from '../domain/arabicDate';
 import { createStyles, fonts, gradients, radii, useTheme } from './theme';
@@ -137,6 +151,11 @@ export default function RunningOrdersList({
   const { colors } = useTheme();
   const styles = useStyles();
   const [orders, setOrders] = useState<ActiveOrder[] | null>(null);
+  // بيجر ركين: قائمة مستقلّة فوق الجارية (استعلامها يسقط وحده لو القاعدة قديمة).
+  const [pagerOrders, setPagerOrders] = useState<PagerOrder[]>([]);
+  const [pagerBusy, setPagerBusy] = useState<number | null>(null);
+  const [notice, setNotice] = useState('');
+  const lateWarned = useRef(new Set<number>());
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState('');
@@ -156,7 +175,16 @@ export default function RunningOrdersList({
     }
   };
 
+  const loadPager = useCallback(async () => {
+    try {
+      setPagerOrders(sortPagerOrders(await listPagerOrders(branchId)));
+    } catch {
+      // الشبكة: تبقى كما هي.
+    }
+  }, [branchId]);
+
   const load = useCallback(async () => {
+    loadPager();
     try {
       setOrders(sortActiveOrders(await listActiveOrders(branchId)));
       setError('');
@@ -170,6 +198,48 @@ export default function RunningOrdersList({
     load();
   }, [load]);
 
+  /* البيجر: طلباتٌ من أجهزةٍ أخرى أو «جاهز» من المطبخ تظهر خلال ثوانٍ. */
+  const pagerOn = pagerConfig().enabled;
+  useEffect(() => {
+    if (!pagerOn) return;
+    const id = setInterval(loadPager, 10_000);
+    return () => clearInterval(id);
+  }, [pagerOn, loadPager]);
+
+  const runPager = useCallback(async (o: PagerOrder, action: PagerAction, auto = false) => {
+    if (!auto) setPagerBusy(o.id);
+    const r = await pagerAction(o.id, action, 5);
+    if (!auto) setPagerBusy(null);
+    if (!auto || r.ok) setNotice(auto ? (action === 'ring' ? `🔔 رنّة تذكير تلقائية — طلب #${o.id}` : `أُقفل بيجر طلب #${o.id} تلقائياً`) : pagerActionToast(o.id, action, r));
+    if (!r.ok && !auto) setError(r.error || 'تعذر التحديث');
+    await loadPager();
+  }, [loadPager]);
+
+  /* كل ٥ ثوانٍ، لطلبات هذا الجهاز وحده: رنّة التذكير، والإقفال التلقائي،
+     وتنبيه التأخّر مرّة. (نفس مؤقّت الويب.) */
+  useEffect(() => {
+    if (!pagerOrders.length) return;
+    const id = setInterval(() => {
+      const now = Date.now();
+      for (const a of pagerDueAutoActions(pagerOrders, now)) {
+        markAutoDone(a.id, a.action);
+        const o = pagerOrders.find(x => x.id === a.id);
+        if (o) runPager(o, a.action, true);
+      }
+      if (pagerConfig().settings.late_alert) {
+        for (const o of pagerOrders) {
+          if (o.readyAt || lateWarned.current.has(o.id)) continue;
+          if (pagerUrgency(o, now).urgency === 'urgent') {
+            lateWarned.current.add(o.id);
+            playAlertSound('warning');
+            setNotice(`⏰ طلب #${o.id} تجاوز الوقت اللي وعدنا فيه الزبون — جهّزه أو اضغط «+٥ د»`);
+          }
+        }
+      }
+    }, 5000);
+    return () => clearInterval(id);
+  }, [pagerOrders, runPager]);
+
   /**
    * ولا تدور النبضةُ إلا حين يوجد ما يُعدّ.
    *
@@ -179,7 +249,7 @@ export default function RunningOrdersList({
    * عدّادَ فيه قطّ.
    */
   // نفسُ شرط العرض تحت: channel==='delivery' وبلا readyAt.
-  const hasCountdown = (orders ?? []).some(o => o.channel === 'delivery' && !o.readyAt);
+  const hasCountdown = (orders ?? []).some(o => o.channel === 'delivery' && !o.readyAt) || pagerOrders.length > 0;
   useEffect(() => {
     if (!hasCountdown) return;
     const id = setInterval(() => setTick(t => t + 1), 1000);
@@ -244,6 +314,44 @@ export default function RunningOrdersList({
     return <ActivityIndicator color={colors.accentText} style={styles.loading} />;
   }
 
+  const pagerIds = new Set(pagerOrders.map(o => o.id));
+  const pagerSection = pagerOrders.length > 0 ? (
+    <View style={styles.pagerSection}>
+      <Text style={styles.sectionTitle}>📟 بيجر ركين — الزبون ينتظر جواله يرن</Text>
+      {!!notice && <Text style={styles.notice}>{notice}</Text>}
+      <View style={styles.pagerGrid}>
+        {pagerOrders.map(o => (
+          <View key={o.id} style={styles.pagerCell}>
+            <PagerOrderCard order={o} busy={pagerBusy === o.id} onAction={a => runPager(o, a)} />
+          </View>
+        ))}
+      </View>
+    </View>
+  ) : null;
+  const restOrders = orders.filter(o => !pagerIds.has(o.id));
+
+  if (restOrders.length === 0 && pagerOrders.length > 0) {
+    return (
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.list, { paddingBottom: 16 + bottomInset + 60 }]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              setRefreshing(true);
+              await load();
+              setRefreshing(false);
+            }}
+            tintColor={colors.muted}
+          />
+        }>
+        {!!error && <Text style={styles.error}>{error}</Text>}
+        {pagerSection}
+      </ScrollView>
+    );
+  }
+
   if (orders.length === 0) {
     return (
       <ScrollView
@@ -281,11 +389,12 @@ export default function RunningOrdersList({
         />
       }>
       {!!error && <Text style={styles.error}>{error}</Text>}
+      {pagerSection}
 
-      {orders.map((order, idx) => {
+      {restOrders.map((order, idx) => {
         const isDelivery = order.channel === 'delivery';
         const held = isScheduledHold(order);
-        const firstHeld = held && (idx === 0 || !isScheduledHold(orders[idx - 1]));
+        const firstHeld = held && (idx === 0 || !isScheduledHold(restOrders[idx - 1]));
         const open = openId === order.id;
         const remaining = isDelivery && !order.readyAt ? remainingPrepSeconds(order) : null;
         // Within five minutes of the deadline is the same threshold that
@@ -635,6 +744,10 @@ const useStyles = createStyles((colors, shadows) =>
     cardName: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.text, marginTop: 3 },
     cardHeld: { opacity: 0.8, borderStyle: 'dashed' },
     sectionTitle: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.muted, marginTop: 8 },
+    pagerSection: { gap: 8 },
+    pagerGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    pagerCell: { flexGrow: 1, flexBasis: 230, maxWidth: '100%' },
+    notice: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.text, textAlign: 'center' },
 
     phonePill: {
       alignSelf: 'flex-start',

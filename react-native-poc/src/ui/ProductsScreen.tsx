@@ -62,6 +62,7 @@ import {
 import type { Customer, LoyaltySettings } from '../domain/customer';
 import { getLoyaltySettings } from '../application/customerService';
 import { formatArabicTime } from '../domain/arabicDate';
+import { loadPagerConfig, pagerReceiptBlock, pagerAfterCheckout, pagerHideOnNextOrder } from '../application/pagerService';
 
 /** `.slice(0,8)` in renderProductGrid's popular branch. */
 const POPULAR_TAB_SIZE = 8;
@@ -537,6 +538,10 @@ export default function ProductsScreen({
       // happens to sort first) hid every other product behind a tap.
     };
 
+    // بيجر ركين: إعداداته مستقلّة عن الإقلاع (قاعدةٌ قبل ملفه لا تُسقطه)،
+    // ومحفوظة على الجهاز فيُطبع الباركود والجهاز بلا نت.
+    loadPagerConfig(cashier.business_id).catch(() => {});
+
     const cached = getCachedPosBootstrap(cashier.business_id);
     if (cached) {
       apply(cached, true);
@@ -620,6 +625,17 @@ export default function ProductsScreen({
       .then(() => setSubmitStatus('أُرسلت تذكرة المطبخ للطابعة'))
       .catch(() => setSubmitStatus('تعذرت الطباعة — جرّب مرة ثانية'));
   }, [lastTransaction]);
+
+  /* بيجر ركين: أول صنفٍ في سلّةٍ فاضية = طلبٌ جديد بدأ، فبيجر اللي قبله
+     ينزل من شاشة العميل (خيار «لين يبدأ الطلب اللي بعده»، ويقصّر غيره). */
+  const cartHadItems = useRef(false);
+  useEffect(() => {
+    const has = cart.cart.length > 0;
+    if (has && !cartHadItems.current) {
+      getDeviceConfig().then(d => pagerHideOnNextOrder(d.branchId ?? null)).catch(() => {});
+    }
+    cartHadItems.current = has;
+  }, [cart.cart.length]);
 
   /* العميلُ المرفق يُعلَن هنا لا مع بقية الحالة تحت: handleClearOrder
      يحتاجه ليردّ المكافأة قبل التفريغ، وترتيبُ الخطّافات لا يقفز. */
@@ -1310,6 +1326,8 @@ export default function ProductsScreen({
               // تحت رقم الطلب -- كانا يُكتبان في الدفع ولا يُطبعان.
               platformName: platformName || undefined,
               platformInvoiceLast4: cart.orderChannel === 'delivery' ? invoiceLast4 || undefined : undefined,
+              // بيجر ركين: باركود يحوّل جوال الزبون جهاز نداء (null لو مطفأ أو لا ينطبق).
+              pager: pagerReceiptBlock(payload, outcome.orderId ?? null, service.dineInMode),
           } satisfies ReceiptData;
           lastReceipt = customerReceipt;
           if (kitchenTicketByButton(printerProfileForReceipt) && planHas('kds')) {
@@ -1366,6 +1384,8 @@ export default function ProductsScreen({
           receipt: lastReceipt,
           kitchen: lastKitchen,
         });
+        // بيجر ركين: الباركود على شاشة العميل (سنمي محلّياً، والويب عبر الخادم).
+        pagerAfterCheckout(payload, outcome.orderId ?? null, service.dineInMode, device.branchId ?? null).catch(() => {});
         cart.clearCart(); // safe in the SQLite queue either way, per Checkpoint 5
         // `document.getElementById('discountToggle').textContent = '+ خصم'`
         // (:3269) -- the toggle's label AND its panel go back to rest.

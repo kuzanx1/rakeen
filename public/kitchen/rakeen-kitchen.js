@@ -228,12 +228,32 @@ function renderBoard(){
     btn.addEventListener('click', async ()=>{
       const orderId = parseInt(btn.dataset.orderId, 10);
       btn.disabled = true;
-      const { error } = await window.supabaseClient.rpc('mark_order_ready', { p_order_id: orderId });
+      const { error } = await kdsMarkReady(orderId);
       if(error){ btn.disabled = false; return; }
       ACTIVE_ORDERS = ACTIVE_ORDERS.filter(o=>o.id !== orderId);
       renderBoard();
     });
   });
+}
+
+/* «تم التجهيز» من المطبخ يرن جوال الزبون كذلك (بيجر ركين): نفس المسار
+   الذي يناديه الكاشير، فيُسجَّل جاهزاً ويُبثّ للصفحة ويُرسل الإشعار. وإن
+   تعذّر المسار (شبكة/نشرٌ قديم) سُجّل بالدالّة مباشرةً كما كان -- المطبخ
+   لا يتوقّف على البيجر. */
+async function kdsMarkReady(orderId){
+  try {
+    const { data: { session } } = await window.supabaseClient.auth.getSession();
+    if(session){
+      const res = await fetch('/api/pager/notify', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + session.access_token },
+        body: JSON.stringify({ orderId, action: 'ready' })
+      });
+      if(res.ok) return { error: null };
+      if(res.status === 403) return { error: new Error('forbidden') };
+    }
+  } catch(_){ /* يسقط إلى الدالّة */ }
+  return window.supabaseClient.rpc('mark_order_ready', { p_order_id: orderId });
 }
 
 // Auto mode's silent equivalent of tapping "تم التجهيز" — fires from the 1s
@@ -244,7 +264,7 @@ const autoReadyInFlight = new Set();
 async function autoMarkReady(orderId){
   if(autoReadyInFlight.has(orderId)) return;
   autoReadyInFlight.add(orderId);
-  const { error } = await window.supabaseClient.rpc('mark_order_ready', { p_order_id: orderId });
+  const { error } = await kdsMarkReady(orderId);
   autoReadyInFlight.delete(orderId);
   if(error) return;
   ACTIVE_ORDERS = ACTIVE_ORDERS.filter(o=>o.id !== orderId);

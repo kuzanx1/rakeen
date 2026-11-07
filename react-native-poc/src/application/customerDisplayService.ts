@@ -2,6 +2,7 @@ import { supabase, RAKEEN_API_BASE_URL } from '../infrastructure/supabaseClient'
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { getItem, setItem } from '../infrastructure/mmkvStorage';
 import { getDeviceConfig } from './authService';
+import { pagerOnCustomerDisplay, hidePagerOnCustomerDisplay } from '../platform/customerDisplay';
 import {
   codeOnCustomerDisplay,
   hideCodeOnCustomerDisplay,
@@ -190,6 +191,14 @@ export async function startCustomerDisplay(profile?: PrinterProfile | null): Pro
       codeOnCustomerDisplay(pl.url, 'امسح الباركود', pl.message || 'بجوالك، وتنضاف بطاقة الولاء حقتنا ويتجمّع لك', BARCODE_SECONDS);
     })
     .on('broadcast', { event: 'hide_barcode' }, () => hideCodeOnCustomerDisplay())
+    // بيجر ركين من الخادم (نفس قناة الويب). نفس الجهاز يرسمه محلّياً قبلها
+    // -- والتكرار يعيد رسم نفس الباركود فلا يضرّ.
+    .on('broadcast', { event: 'show_pager' }, m => {
+      const pl = ((m as { payload?: { url?: string; number?: number | null; secs?: number } }).payload) || {};
+      if (!pl.url || !/^https:\/\/[a-z0-9.-]+\/p\/[A-Za-z0-9_-]{22}$/.test(pl.url)) return;
+      pagerOnCustomerDisplay(pl.url, pl.number != null ? String(pl.number) : '', Number(pl.secs) || 0);
+    })
+    .on('broadcast', { event: 'hide_pager' }, () => hidePagerOnCustomerDisplay())
     .subscribe();
   // نبضة كل خمس دقائق: لوحة ركين تعرف إن الشاشة حيّة.
   const beat = () => {

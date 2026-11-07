@@ -164,10 +164,41 @@ export interface ReceiptModel {
   paymentMethodLabel: string;
   change: number;
   customMessage?: string | null;
+  /**
+   * بيجر ركين، بياناتٍ لا رسماً: الرابطُ والكلام. والمنفّذُ يولّد منه
+   * مصفوفةَ الباركود (qrGrid في الويب، buildQrMatrix في التطبيق) ويمرّرها
+   * للمحرّك في LayoutInput.pager. فالفاتورةُ المحفوظةُ تبقى JSON خالصاً.
+   */
+  pagerBlock?: { url: string; title: string; line: string; tag: string; wifi?: string | null } | null;
+}
+
+/**
+ * مصفوفةُ رمزِ استجابةٍ جاهزة -- يرسمها المحرّكُ مربّعاتٍ لا صورة.
+ *
+ * فلا يحتاج المنفّذُ صورةً ولا شبكة: الكاشيرُ بلا نت يطبع باركودَ البيجر
+ * كما يطبعه متّصلاً، والتطبيقُ والويبُ يرسمان المربّعاتِ نفسَها.
+ */
+export interface QrGrid {
+  size: number;
+  dark: (row: number, col: number) => boolean;
+}
+
+/** بلوكُ «بيجر ركين»: باركودٌ يحوّل جوالَ الزبون جهازَ نداء. */
+export interface PagerBlock {
+  qr: QrGrid;
+  /** «امسح وخلّ جوالك يناديك» */
+  title: string;
+  /** سطرٌ يشرح -- يلتفّ إن طال. */
+  line: string;
+  /** «طلب 127» داخل إطار. */
+  tag: string;
+  /** اسمُ شبكة الضيوف، يُطبع تحت البلوك لمن لا نتّ معه. */
+  wifi?: string | null;
 }
 
 export interface LayoutInput {
   receipt: ReceiptModel;
+  pager?: PagerBlock | null;
   measure: Measurer;
   /** عرضُ الورق بالنقاط: ٥٧٦ لثمانين ملّيمتراً، ٣٨٤ لثمانٍ وخمسين. */
   paperWidth: number;

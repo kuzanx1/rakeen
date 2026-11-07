@@ -16,8 +16,8 @@
 
 import { createContext, leaderDots } from './context';
 import {
-  BORDER, COLUMNS, DASH, LINE, LOGO, ORDER_BOX, PAD,
-  QR_MAX, SPACE, TOTAL_BOX, TYPE, WEIGHT, themeTokens,
+  BORDER, COLUMNS, DASH, INVERT_BAR, LINE, LOGO, ORDER_BOX, PAD,
+  PAGER, QR_MAX, SPACE, TOTAL_BOX, TYPE, WEIGHT, themeTokens,
 } from './tokens';
 import type { LayoutInput, LayoutResult, ReceiptItem, ReceiptItemMod } from './types';
 
@@ -125,6 +125,120 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
   };
 
   const money = (n: number): string => n.toFixed(2) + ' ' + currency;
+
+  /**
+   * بيجر ركين: شريطٌ أسود، فيه باركودٌ على إطارٍ أبيض، وبجانبه الكلام.
+   *
+   * على ٨٠ملم صفٌّ واحد: الباركودُ يميناً (أوّلُ ما تقع عليه العين في
+   * العربية) والكلامُ يساره. وعلى ٥٨ملم لا يتّسع العمودان، فيُرصّ:
+   * العنوانُ ثم الباركودُ ثم الشرح.
+   */
+  const pagerBlock = (pg: NonNullable<LayoutInput['pager']>): void => {
+    const barX = PAD * INVERT_BAR.inset;
+    const barW = width - PAD;
+    const qrOuter = PAGER.qr + PAGER.quiet * 2;
+    const titleSz = PAGER.title;
+    const lineSz = PAGER.line;
+    const tagSz = PAGER.tag;
+    const titleLH = Math.round(titleSz * 1.3);
+    const lineLH = Math.round(lineSz * 1.5);
+    const tagPadX = 12;
+    const tagPadY = 7;
+    const tagH = tagSz + tagPadY * 2;
+    const wide = barW - PAGER.padX * 2 - qrOuter - PAGER.gapX >= PAGER.minTextW;
+    const textW = wide ? barW - PAGER.padX * 2 - qrOuter - PAGER.gapX : barW - PAGER.padX * 2;
+
+    const titleLines = wrap(pg.title, titleSz, WEIGHT.bold, 'sans', textW);
+    const lineLines = pg.line ? wrap(pg.line, lineSz, WEIGHT.regular, 'sans', textW) : [];
+    const tagTextW = measure(pg.tag, tagSz, WEIGHT.bold, 'sans');
+    const tagW = Math.min(textW, Math.round(tagTextW + tagPadX * 2));
+
+    const qrAt = (x: number, y: number): void => {
+      rect(x, y, qrOuter, qrOuter, 'paper');
+      const n = Math.max(1, pg.qr.size);
+      const unit = Math.max(1, Math.floor(PAGER.qr / n));
+      const side = unit * n;
+      const ox = x + PAGER.quiet + Math.floor((PAGER.qr - side) / 2);
+      const oy = y + PAGER.quiet + Math.floor((PAGER.qr - side) / 2);
+      // صفٌّ صفّ، والمتجاورُ الداكن مستطيلٌ واحد: أوامرُ أقلّ ونفسُ الرسم.
+      for (let r = 0; r < n; r++) {
+        let c = 0;
+        while (c < n) {
+          if (!pg.qr.dark(r, c)) { c++; continue; }
+          const start = c;
+          while (c < n && pg.qr.dark(r, c)) c++;
+          rect(ox + start * unit, oy + r * unit, (c - start) * unit, unit, 'ink');
+        }
+      }
+    };
+
+    const tagAt = (rightX: number, top: number, align: 'right' | 'center'): void => {
+      const x = align === 'right' ? rightX - tagW : Math.round((width - tagW) / 2);
+      const t = PAGER.tagBorder;
+      rect(x, top, tagW, t, 'paper');
+      rect(x, top + tagH - t, tagW, t, 'paper');
+      rect(x, top, t, tagH, 'paper');
+      rect(x + tagW - t, top, t, tagH, 'paper');
+      text(pg.tag, x + tagW / 2, tagSz, WEIGHT.bold, 'sans', 'center', 'rtl',
+        { at: top + tagH / 2, color: 'paper' });
+    };
+
+    const textH = titleLines.length * titleLH
+      + (lineLines.length ? 6 + lineLines.length * lineLH : 0)
+      + 12 + tagH;
+
+    ctx.y += gap(PAGER.before);
+    const top = Math.round(ctx.y);
+
+    if (wide) {
+      const innerH = Math.max(qrOuter, textH);
+      const barH = innerH + PAGER.padY * 2;
+      rect(barX, top, barW, barH, 'ink');
+      const qrX = barX + barW - PAGER.padX - qrOuter;
+      qrAt(qrX, top + PAGER.padY + Math.round((innerH - qrOuter) / 2));
+      const right = qrX - PAGER.gapX;
+      let y = top + PAGER.padY + Math.round((innerH - textH) / 2);
+      titleLines.forEach(l => {
+        text(l, right, titleSz, WEIGHT.bold, 'sans', 'right', 'rtl', { at: y + titleLH / 2, color: 'paper' });
+        y += titleLH;
+      });
+      if (lineLines.length) {
+        y += 6;
+        lineLines.forEach(l => {
+          text(l, right, lineSz, WEIGHT.regular, 'sans', 'right', 'rtl', { at: y + lineLH / 2, color: 'paper' });
+          y += lineLH;
+        });
+      }
+      tagAt(right, y + 12, 'right');
+      ctx.y = top + barH;
+    } else {
+      const barH = PAGER.padY * 2 + titleLines.length * titleLH + 10 + qrOuter + 10
+        + (lineLines.length ? lineLines.length * lineLH + 6 : 0) + 8 + tagH;
+      rect(barX, top, barW, barH, 'ink');
+      let y = top + PAGER.padY;
+      titleLines.forEach(l => {
+        text(l, width / 2, titleSz, WEIGHT.bold, 'sans', 'center', 'rtl', { at: y + titleLH / 2, color: 'paper' });
+        y += titleLH;
+      });
+      y += 10;
+      qrAt(Math.round((width - qrOuter) / 2), y);
+      y += qrOuter + 10;
+      lineLines.forEach(l => {
+        text(l, width / 2, lineSz, WEIGHT.regular, 'sans', 'center', 'rtl', { at: y + lineLH / 2, color: 'paper' });
+        y += lineLH;
+      });
+      if (lineLines.length) y += 6;
+      tagAt(0, y + 8, 'center');
+      ctx.y = top + barH;
+    }
+
+    ctx.y += gap(PAGER.after);
+    if (pg.wifi) {
+      ctx.y += gap(0.3);
+      wrap('ما عندك نت؟ واي فاي الضيوف: ' + pg.wifi, sz(PAGER.wifi), WEIGHT.regular, 'sans', contentWidth)
+        .forEach(l => centerText(l, sz(PAGER.wifi), false));
+    }
+  };
 
   // ── الترويسة ────────────────────────────────────────────────────────
   if (logoW > 0) {
@@ -369,6 +483,12 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
   const paySz = sz(TYPE.payment);
   rowText('', receipt.paymentMethodLabel, paySz, false);
   if (receipt.change > 0) rowText(receipt.change.toFixed(2), 'الباقي', paySz, false);
+
+  // ── بيجر ركين ───────────────────────────────────────────────────────
+  // قبل باركود الضريبة وبعيداً عنه: شريطٌ أسودُ يُرى أوّلاً ويُمسح أوّلاً،
+  // ورمزُ الهيئة يبقى تحته كما هو -- فلا يمسح الزبونُ رمزَ الزكاة يبحث
+  // عن طلبه.
+  if (input.pager) pagerBlock(input.pager);
 
   // ── الخاتمة ─────────────────────────────────────────────────────────
   if (qr) {
