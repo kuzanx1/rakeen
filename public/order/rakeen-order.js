@@ -573,6 +573,10 @@ if (!window.__rakeenOrderBooted) {
       const heroEl = document.getElementById('omHero');
       heroEl.classList.add('has-banner');
       document.getElementById('omHeroBanner').style.backgroundImage = `url("${biz.online_banner_url}")`;
+      // «واجهة»: الغلاف يطلع كامل بنسبته الأصلية (ما ينقص منه شي)
+      const probe = new Image();
+      probe.onload = () => { if (probe.naturalWidth && probe.naturalHeight) heroEl.style.setProperty('--hero-ar', String(probe.naturalWidth / probe.naturalHeight)); };
+      probe.src = biz.online_banner_url;
     }
     renderSocialLinks(biz);
     applyTagline('omBrandTag', biz.online_tagline_header, DEFAULT_TAGLINE_HEADER);
@@ -731,10 +735,13 @@ if (!window.__rakeenOrderBooted) {
     // الشريط مخفياً، والمنيو كما هو.
     OFFERS = [];
     try {
-      const { data: offRows, error: offErr } = await sb.from('store_offers')
-        .select('id, title, subtitle, badge, image_url, menu_item_id, ends_at, sort_order')
+      // price/compare_price (20261107180000) لو موجودين، وإلا الأعمدة القديمة
+      const offQ = cols => sb.from('store_offers').select(cols)
         .eq('business_id', businessId).eq('active', true)
         .order('sort_order', { ascending: true }).order('id', { ascending: true });
+      const OFF_COLS = 'id, title, subtitle, badge, image_url, menu_item_id, ends_at, sort_order';
+      let { data: offRows, error: offErr } = await offQ(OFF_COLS + ', price, compare_price');
+      if (offErr) ({ data: offRows, error: offErr } = await offQ(OFF_COLS));
       if (!offErr && offRows) {
         const now = Date.now();
         OFFERS = offRows.filter(o => !o.ends_at || new Date(o.ends_at).getTime() > now);
@@ -904,6 +911,16 @@ if (!window.__rakeenOrderBooted) {
         ${OFFERS.map(o => {
           const linked = o.menu_item_id != null && productIds.has(o.menu_item_id);
           const ends = offerEndsLabel(o.ends_at);
+          // المربوط: سعر الصنف نفسه (اللي يندفع فعلاً)، وغيره: سعر العرض
+          const lp = linked ? PRODUCTS.find(p => p.id === o.menu_item_id) : null;
+          const price = lp ? Number(lp.price) : (o.price != null ? Number(o.price) : null);
+          const was = o.compare_price != null ? Number(o.compare_price) : null;
+          const showWas = price != null && was != null && was > price;
+          const pct = showWas && was > 0 ? Math.round((1 - price / was) * 100) : 0;
+          const priceHtml = price != null && price > 0 ?`<span class="om-offer-price">
+                <span class="om-offer-now mono">${formatPrice(price)}</span>
+                ${showWas ? `<s class="om-offer-was mono">${formatPrice(was)}</s>${pct >= 1 ? `<span class="om-offer-off mono">-${pct}%</span>` : ''}` : ''}
+              </span>` : '';
           return `<${linked ? 'button' : 'div'} class="om-offer${o.image_url ? ' has-img' : ''}${linked ? ' linked' : ''}" ${linked ? `data-item="${o.menu_item_id}"` : ''}>
             ${o.image_url ? `<img class="om-offer-img" src="${escOffer(o.image_url)}" alt="" loading="lazy">` : '<span class="om-offer-pattern" aria-hidden="true"></span>'}
             <span class="om-offer-shade" aria-hidden="true"></span>
@@ -912,7 +929,8 @@ if (!window.__rakeenOrderBooted) {
               ${o.badge ? `<span class="om-offer-badge">${escOffer(o.badge)}</span>` : ''}
               <span class="om-offer-name">${escOffer(o.title)}</span>
               ${o.subtitle ? `<span class="om-offer-sub">${escOffer(o.subtitle)}</span>` : ''}
-              ${(linked || ends) ? `<span class="om-offer-foot">
+              ${priceHtml}
+              ${(linked || ends) ?`<span class="om-offer-foot">
                 ${linked && !DISPLAY_MODE ? `<span class="om-offer-cta">اطلبه الحين<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></span>` : ''}
                 ${ends ? `<span class="om-offer-ends">${ends}</span>` : ''}
               </span>` : ''}
@@ -920,7 +938,11 @@ if (!window.__rakeenOrderBooted) {
           </${linked ? 'button' : 'div'}>`;
         }).join('')}
       </div>
-      ${OFFERS.length > 1 ? `<div class="om-offers-dots" id="omOffersDots">${OFFERS.map((_, i) => `<span class="${i === 0 ? 'on' : ''}"></span>`).join('')}</div>` : ''}`;
+      ${OFFERS.length > 1 ? `<div class="om-offers-nav">
+        <button type="button" class="om-offers-arrow" data-dir="prev" aria-label="العرض السابق"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+        <div class="om-offers-dots" id="omOffersDots">${OFFERS.map((_, i) => `<span role="button" tabindex="0" aria-label="العرض ${i + 1}" class="${i === 0 ? 'on' : ''}"></span>`).join('')}</div>
+        <button type="button" class="om-offers-arrow" data-dir="next" aria-label="العرض التالي"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+      </div>` : ''}`;
     el.hidden = false;
     el.querySelectorAll('.om-offer.linked').forEach(card => {
       card.addEventListener('click', () => openProduct(parseInt(card.dataset.item, 10)));
@@ -939,22 +961,66 @@ if (!window.__rakeenOrderBooted) {
     const paint = () => { const i = current(); Array.from(dots.children).forEach((d, k) => d.classList.toggle('on', k === i)); };
     let raf = 0;
     track.addEventListener('scroll', () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(paint); }, { passive: true });
-    const stop = () => { if (offersTimer) { clearInterval(offersTimer); offersTimer = null; } };
-    track.addEventListener('pointerdown', stop, { passive: true });
-    track.addEventListener('touchstart', stop, { passive: true });
-    track.addEventListener('wheel', stop, { passive: true });
+    // scrollBy بفرق الحافتين: يشتغل في RTL بكل المتصفحات، وما يحرّك
+    // الصفحة عمودياً (scrollIntoView يحرّكها لو الشريط خارج الشاشة).
+    const goTo = i => {
+      const n = cards.length;
+      const next = cards[((i % n) + n) % n];
+      const pad = parseFloat(getComputedStyle(track).paddingRight) || 0;
+      const dx = next.getBoundingClientRect().right - (track.getBoundingClientRect().right - pad);
+      track.scrollBy({ left: dx, behavior: 'smooth' });
+    };
+    // يتقلّب لحاله كل ٥ ثواني، ويوقف ما دام الزبون يلمسه أو الماوس فوقه،
+    // ويرجع يتقلّب بعد ٦ ثواني من آخر لمسة (كان يوقف للأبد بعد أول لمسة).
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (!reduce && track.scrollWidth > track.clientWidth + 4) {
+    let hovering = false, lastTouch = 0;
+    const start = () => {
+      if (offersTimer) clearInterval(offersTimer);
+      if (reduce) return;
       offersTimer = setInterval(() => {
-        if (document.hidden) return;
-        const next = cards[(current() + 1) % cards.length];
-        // scrollBy بفرق الحافتين: يشتغل في RTL بكل المتصفحات، وما يحرّك
-        // الصفحة عمودياً (scrollIntoView يحرّكها لو الشريط خارج الشاشة).
-        const pad = parseFloat(getComputedStyle(track).paddingRight) || 0;
-        const dx = next.getBoundingClientRect().right - (track.getBoundingClientRect().right - pad);
-        track.scrollBy({ left: dx, behavior: 'smooth' });
+        if (document.hidden || hovering || Date.now() - lastTouch < 6000) return;
+        if (!track.isConnected) { clearInterval(offersTimer); offersTimer = null; return; }
+        if (track.scrollWidth <= track.clientWidth + 4) return;
+        goTo(current() + 1);
       }, 5000);
-    }
+    };
+    const touched = () => { lastTouch = Date.now(); };
+    ['touchstart', 'touchmove', 'wheel', 'keydown'].forEach(ev => track.addEventListener(ev, touched, { passive: true }));
+    track.addEventListener('mouseenter', () => { hovering = true; });
+    track.addEventListener('mouseleave', () => { hovering = false; touched(); });
+    // سحب بالماوس (اللمس يسحب لحاله بالتمرير الأفقي)
+    let drag = null, dragged = false;
+    track.addEventListener('pointerdown', e => {
+      touched();
+      if (e.pointerType !== 'mouse' || e.button !== 0) return;
+      drag = { x: e.clientX, left: track.scrollLeft }; dragged = false;
+    });
+    // الالتقاط يبدأ بعد ما يتحرك فعلاً، عشان الضغطة العادية تفتح الصنف
+    track.addEventListener('pointermove', e => {
+      if (!drag) return;
+      if (!e.buttons) { endDrag(); return; }
+      const dx = e.clientX - drag.x;
+      if (!dragged && Math.abs(dx) < 6) return;
+      if (!dragged) { dragged = true; track.classList.add('dragging'); try { track.setPointerCapture(e.pointerId); } catch (_) {} }
+      track.scrollLeft = drag.left - dx;
+    });
+    const endDrag = () => {
+      if (!drag) return;
+      drag = null; touched();
+      if (dragged) { track.classList.remove('dragging'); goTo(current()); }
+    };
+    track.addEventListener('pointerup', endDrag);
+    track.addEventListener('pointercancel', endDrag);
+    track.addEventListener('lostpointercapture', endDrag);
+    // السحب ما يحسب ضغطة على العرض
+    track.addEventListener('click', e => { if (dragged) { e.stopPropagation(); e.preventDefault(); dragged = false; } }, true);
+    track.addEventListener('dragstart', e => e.preventDefault());
+    // النقاط والأسهم
+    Array.from(dots.children).forEach((d, k) => d.addEventListener('click', () => { touched(); goTo(k); }));
+    el.querySelectorAll('.om-offers-arrow').forEach(a => a.addEventListener('click', () => {
+      touched(); goTo(current() + (a.dataset.dir === 'next' ? 1 : -1));
+    }));
+    start();
   }
 
   function renderCatRail() {

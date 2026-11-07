@@ -13480,7 +13480,7 @@ function onlineMenuDesignHtml(){
               <span style="display:flex; align-items:center; gap:8px; font-weight:800; font-size:13px;">
                 <input type="radio" name="settingsOnlineThemeStyle" value="facade" ${ONLINE_THEME_STYLE==='facade'?'checked':''}> واجهة
               </span>
-              <span style="font-size:11.5px; color:var(--muted); margin-inline-start:22px;">فخم وبسيط، وصورة الغلاف كبيرة والشعار والاسم فوقها</span>
+              <span style="font-size:11.5px; color:var(--muted); margin-inline-start:22px;">فخم وبسيط، وصورة الغلاف كبيرة ونظيفة والشعار والاسم تحتها</span>
             </label>
           </div>
           <style>.rk-theme-style-row > label{min-width:150px;}</style>
@@ -13564,11 +13564,16 @@ function renderOnlineMenuDesignPreview(){
 
   host.innerHTML = `
     <div style="border:1px solid color-mix(in srgb, ${ink} 12%, transparent); border-radius:14px; overflow:hidden; background:${surf}; color:${ink}; font-family:${fontFamily};" dir="rtl">
-      ${isFacade ? `<div style="position:relative; height:${facadeOpts.heroSize === 'full' ? '210px' : '150px'}; background:${bannerUrl ? `linear-gradient(to top, rgba(0,0,0,.78), rgba(0,0,0,0) 65%), url('${bannerUrl}') center/cover` : `radial-gradient(120% 95% at 50% 0%, color-mix(in srgb, ${color} 42%, ${ink}), ${ink})`}; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:6px; padding-bottom:14px; color:${bannerUrl ? '#fff' : surf};">
-        ${facadeOpts.showIdentity !== false || !bannerUrl ? `<div style="width:40px; height:40px; border-radius:50%; background:${color}; color:${brandInk}; display:flex; align-items:center; justify-content:center; font-weight:800; border:2px solid rgba(255,255,255,.85); overflow:hidden;">${logoUrl ? `<img src="${logoUrl}" style="width:100%; height:100%; object-fit:cover;">` : initial}</div>
+      ${isFacade && bannerUrl ? `<div style="${facadeOpts.heroSize === 'full' ? 'height:230px; background:url(\'' + bannerUrl + '\') center/cover;' : ''}">${facadeOpts.heroSize === 'full' ? '' : `<img src="${bannerUrl}" alt="" style="display:block; width:100%; height:auto;">`}</div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:6px; padding:0 14px 4px; ${facadeOpts.showIdentity !== false ? 'margin-top:10px;' : 'margin-top:10px;'}">
+        ${facadeOpts.showIdentity !== false ? `<div style="width:48px; height:48px; border-radius:50%; background:${color}; color:${brandInk}; display:flex; align-items:center; justify-content:center; font-weight:800; border:3px solid ${surf}; box-shadow:0 6px 14px -6px rgba(0,0,0,.45); overflow:hidden;">${logoInner}</div>
         <div style="font-weight:800; font-size:17px;">${name}</div>` : ''}
+        <span style="font-size:10.5px; font-weight:700; padding:3px 10px; border-radius:99px; border:1px solid color-mix(in srgb, ${ink} 18%, transparent);">طلب مباشر</span>
+      </div>` : isFacade ? `<div style="height:${facadeOpts.heroSize === 'full' ? '210px' : '150px'}; background:radial-gradient(120% 95% at 50% 0%, color-mix(in srgb, ${color} 42%, ${ink}), ${ink}); display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:6px; padding-bottom:14px; color:${surf};">
+        <div style="width:40px; height:40px; border-radius:50%; background:${color}; color:${brandInk}; display:flex; align-items:center; justify-content:center; font-weight:800; border:2px solid rgba(255,255,255,.85); overflow:hidden;">${logoInner}</div>
+        <div style="font-weight:800; font-size:17px;">${name}</div>
         <span style="font-size:10.5px; font-weight:700; padding:3px 10px; border-radius:99px; border:1px solid rgba(255,255,255,.35); background:rgba(255,255,255,.14);">طلب مباشر</span>
-      </div>` : `<div style="height:${bannerUrl?'70px':'0'}; background:${bannerUrl?`url('${bannerUrl}') center/cover`:'none'};"></div>`}
+      </div>` :`<div style="height:${bannerUrl?'70px':'0'}; background:${bannerUrl?`url('${bannerUrl}') center/cover`:'none'};"></div>`}
       <div style="padding:14px; ${isFolk ? `background:${heroBg}; color:${heroInk || brandInk};` : ''} ${!bannerUrl && !isFolk ? `background:color-mix(in srgb, ${color} 16%, ${surf});` : ''}">
         <div style="display:${isFacade ? 'none' : 'flex'}; align-items:center; gap:10px; ${bannerUrl ? 'margin-top:-30px;' : ''}">
           <div style="width:44px; height:44px; border-radius:${isLuxury?'50%':'12px'}; background:${color}; color:${brandInk}; display:flex; align-items:center; justify-content:center; font-weight:800; border:3px solid ${card}; box-shadow:0 2px 8px rgba(0,0,0,.15); flex-shrink:0; overflow:hidden;">${logoInner}</div>
@@ -13729,12 +13734,17 @@ function storeOffersEnabled(){
 }
 // null = ما تحمّل بعد، false = الجدول ما رُحّل، مصفوفة = العروض
 let STORE_OFFERS = null;
+// السعر وقبل الخصم (migration 20261107180000): لو ما رُحّلت، الحقول تختفي
+let STORE_OFFERS_HAS_PRICE = false;
 async function loadStoreOffers(){
   try {
-    const { data, error } = await window.supabaseClient.from('store_offers')
-      .select('id, title, subtitle, badge, image_url, menu_item_id, active, sort_order, ends_at')
+    const q = cols => window.supabaseClient.from('store_offers').select(cols)
       .eq('business_id', CURRENT_PROFILE.business_id)
       .order('sort_order', { ascending: true }).order('id', { ascending: true });
+    const COLS = 'id, title, subtitle, badge, image_url, menu_item_id, active, sort_order, ends_at';
+    let { data, error } = await q(COLS + ', price, compare_price');
+    STORE_OFFERS_HAS_PRICE = !error;
+    if(error) ({ data, error } = await q(COLS));
     STORE_OFFERS = error ? false : (data || []);
   } catch(_){ STORE_OFFERS = false; }
 }
@@ -13846,6 +13856,13 @@ function openStoreOfferModal(offer){
         <select id="offItem"><option value="">بدون، العرض للعرض بس</option>
           ${products.map(m => `<option value="${m.id}" ${o.menu_item_id === m.id ? 'selected' : ''}>${escapeHtml(m.name)}</option>`).join('')}
         </select></div>
+      ${STORE_OFFERS_HAS_PRICE ? `<div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <div class="menu-add-field" id="offPriceWrap" style="flex:1; min-width:140px;"><label>سعر العرض (اختياري) ${helpIcon('يطلع على بطاقة العرض. لو العرض مربوط بصنف، السعر ينسحب من الصنف نفسه تلقائياً (عشان يطابق اللي يندفع).')}</label>
+          <input type="number" inputmode="decimal" min="0" step="0.01" id="offPrice" value="${o.price != null ? escapeHtml(String(Number(o.price))) : ''}" placeholder="مثال: 39"></div>
+        <div class="menu-add-field" style="flex:1; min-width:140px;"><label>السعر قبل الخصم (اختياري) ${helpIcon('لو حطيته أكبر من سعر العرض، يطلع مشطوب جنب السعر ومعه نسبة الخصم، مثل: 39 ر.س ~~49~~ -20%')}</label>
+          <input type="number" inputmode="decimal" min="0" step="0.01" id="offWas" value="${o.compare_price != null ? escapeHtml(String(Number(o.compare_price))) : ''}" placeholder="مثال: 49"></div>
+      </div>
+      <p class="stock-qty-helper" id="offPriceNote" style="margin:-4px 0 12px;"></p>` : ''}
       <div class="menu-add-field"><label>آخر يوم للعرض (اختياري) ${helpIcon('يختفي العرض لحاله بعد نهاية هذا اليوم، ويطلع للزبون «ينتهي خلال...». سيبه فاضي لو العرض مفتوح.')}</label>
         <input type="date" id="offEnds" value="${endsVal}"></div>
       <div style="margin:4px 0 14px;">${rkCheck(`id="offActive" ${o.active === false ? '' : 'checked'}`, 'العرض شغّال ويطلع في المتجر')}</div>
@@ -13858,6 +13875,18 @@ function openStoreOfferModal(offer){
   requestAnimationFrame(()=> ov.classList.add('show'));
   attachImageCropper('offImageInput', { aspect: 2, outputWidth: 1200, outputHeight: 600 });
   wireImageUploadBoxPreview('offImageInput');
+  // المربوط بصنف: السعر من الصنف (اللي يندفع فعلاً)، فحقل السعر يختفي
+  const syncOfferPrice = ()=>{
+    const wrap = ov.querySelector('#offPriceWrap'), note = ov.querySelector('#offPriceNote');
+    if(!wrap) return;
+    const id = Number(ov.querySelector('#offItem').value) || null;
+    const m = id ? MENU_ITEMS.find(x => x.id === id) : null;
+    wrap.style.display = m ? 'none' : '';
+    note.textContent = m ? 'السعر على البطاقة = سعر «' + m.name + '» نفسه: ' + Number(m.price || 0) + ' ر.س' : '';
+    note.style.display = m ? '' : 'none';
+  };
+  ov.querySelector('#offItem').addEventListener('change', syncOfferPrice);
+  syncOfferPrice();
   const close = ()=>{ ov.classList.remove('show'); setTimeout(()=> ov.remove(), 180); };
   ov.querySelector('#offCancel').addEventListener('click', close);
   ov.addEventListener('click', e => { if(e.target === ov) close(); });
@@ -13878,6 +13907,11 @@ function openStoreOfferModal(offer){
         ends_at: endsStr ? new Date(endsStr + 'T23:59:59').toISOString() : null,
         active: ov.querySelector('#offActive').checked,
       };
+      if(STORE_OFFERS_HAS_PRICE){
+        const num = sel => { const v = ov.querySelector(sel).value.trim(); const n = Number(v); return v !== '' && isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null; };
+        row.price = row.menu_item_id ? null : num('#offPrice');
+        row.compare_price = num('#offWas');
+      }
       const file = await compressImageFile(ov.querySelector('#offImageInput').files[0]);
       if(file){
         row.image_url = await uploadMediaFile(file, 'menu-item-images', 'offer');
@@ -13935,10 +13969,10 @@ function renderThemeOptions(style){
     host.innerHTML = box(
       `<div style="font-weight:700; font-size:12.5px; margin-bottom:6px;">حجم الهيدر</div>
        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
-         ${seg('heroSize', 'tall', 'كبير', 'صورة الغلاف بعرض الشاشة')}
+         ${seg('heroSize', 'tall', 'الصورة كاملة', 'الغلاف بعرض الشاشة وبنسبته، ما ينقص منه شي')}
          ${seg('heroSize', 'full', 'ملء الشاشة', 'أول ما يفتح يشوف الغلاف بس، يناسب صورة واضحة')}
        </div>` +
-      chk('showIdentity', 'الشعار والاسم فوق صورة الغلاف (طفّه لو الغلاف فيه الشعار أصلاً)') +
+      chk('showIdentity', 'الشعار والاسم تحت صورة الغلاف (طفّه لو الغلاف فيه الشعار والاسم أصلاً)') +
       chk('featuredFirst', 'القسم الأول بصور أكبر') +
       chk('cutout', 'صور الأصناف مفرّغة (PNG بدون خلفية): تطلع كاملة بظل بدل ما تتقص')
     );
@@ -25631,7 +25665,7 @@ RKA.registerManager({
             ] });
           if(a.pick === 'style'){
             steps.push({ key:'st', type:'choose', prompt:'شكل صفحة الطلب؟',
-              hint:'<b>كلاسيكي</b>: كروت مربّعة مرتّبة — أوضح لمنيو كبير.\n<b>فخم</b>: بنر كبير وصور بلا صناديق — أنسب لمطعم قليل الأصناف ويعتمد على الصور.\n<b>شعبي</b>: رأس الصفحة بلون الهوية كامل، خط عريض للأسماء والأسعار، والعروض بشكل تذكرة.\n<b>واجهة</b>: فخم وبسيط، وميزته الهيدر: صورة الغلاف كبيرة (أو بطول الشاشة) والشعار والاسم فوقها.',
+              hint:'<b>كلاسيكي</b>: كروت مربّعة مرتّبة — أوضح لمنيو كبير.\n<b>فخم</b>: بنر كبير وصور بلا صناديق — أنسب لمطعم قليل الأصناف ويعتمد على الصور.\n<b>شعبي</b>: رأس الصفحة بلون الهوية كامل، خط عريض للأسماء والأسعار، والعروض بشكل تذكرة.\n<b>واجهة</b>: فخم وبسيط، وميزته الهيدر: صورة الغلاف كبيرة (أو بطول الشاشة) ونظيفة بدون كتابة فوقها، والشعار والاسم تحتها.',
               options: [ { value:'classic', label:'كلاسيكي' + (b.themeStyle === 'classic' ? ' (الحالي)' : ''), primary: b.themeStyle === 'classic' }, { value:'luxury', label:'فخم' + (b.themeStyle === 'luxury' ? ' (الحالي)' : ''), primary: b.themeStyle === 'luxury' }, { value:'folk', label:'شعبي' + (b.themeStyle === 'folk' ? ' (الحالي)' : ''), primary: b.themeStyle === 'folk' }, { value:'facade', label:'واجهة' + (b.themeStyle === 'facade' ? ' (الحالي)' : ''), primary: b.themeStyle === 'facade' } ] });
             if(a.st !== undefined) steps.push({ key:'stExec', type:'execute', idemKind:'ostyle', pending:'أحفظ…',
               run: async (ans) => { await rkaOnlineSaveBiz({ online_theme_style: ans.st }, 'غيّر شكل المتجر', rkaOnlineMirror);
