@@ -3,6 +3,7 @@ import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { getItem, setItem } from '../infrastructure/mmkvStorage';
 import { getDeviceConfig } from './authService';
 import { pagerOnCustomerDisplay, hidePagerOnCustomerDisplay } from '../platform/customerDisplay';
+import { watchPagerOnDisplay } from './pagerService';
 import {
   codeOnCustomerDisplay,
   hideCodeOnCustomerDisplay,
@@ -197,6 +198,7 @@ export async function startCustomerDisplay(profile?: PrinterProfile | null): Pro
       const pl = ((m as { payload?: { url?: string; number?: number | null; secs?: number } }).payload) || {};
       if (!pl.url || !/^https:\/\/[a-z0-9.-]+\/p\/[A-Za-z0-9_-]{22}$/.test(pl.url)) return;
       pagerOnCustomerDisplay(pl.url, pl.number != null ? String(pl.number) : '', Number(pl.secs) || 0);
+      watchPagerOnDisplay(pl.url, Number(pl.secs) || 0);
     })
     .on('broadcast', { event: 'hide_pager' }, () => hidePagerOnCustomerDisplay())
     .subscribe();

@@ -202,6 +202,7 @@ export async function pagerAfterCheckout(p: PagerEligibleInput, orderId: number 
   const url = pagerUrl(p.client_order_uuid!);
   pagerOnCustomerDisplay(url, orderId != null ? String(orderId) : '', s.display_secs);
   displayShown = true;
+  watchPagerOnDisplay(url, s.display_secs);
   try {
     await authed('/api/pos/show-pager', {
       uuid: p.client_order_uuid, number: orderId, branchId, posDeviceId: await getPosDeviceId(), secs: s.display_secs,
@@ -211,10 +212,89 @@ export async function pagerAfterCheckout(p: PagerEligibleInput, orderId: number 
   }
 }
 
+/* ── بلا سؤال دوري ──────────────────────────────────────────────────
+   القاعدة تبثّ على قناة كل طلب بيجر (orders_pager_broadcast) عند كل تغيّر
+   فيه، ومنها: فتح الزبون الصفحة. فالشاشة تستمع لقناة البيجر المعروض،
+   وأول ما يمسحه الزبون ينزل -- ما يمسحه أحدٌ غيره، ولا طلب إخفاءٍ بعدها. */
+
+/** المفتاح (base64url 22 حرفاً) ← uuid. عكس pagerKey. */
+export function keyToUuid(key: string): string | null {
+  if (!/^[A-Za-z0-9_-]{22}$/.test(key)) return null;
+  const bytes: number[] = [];
+  let buf = 0, bits = 0;
+  for (const ch of key) {
+    buf = (buf << 6) | B64.indexOf(ch);
+    bits += 6;
+    if (bits >= 8) { bits -= 8; bytes.push((buf >> bits) & 255); }
+  }
+  if (bytes.length !== 16) return null;
+  const h = bytes.map(b => (b < 16 ? '0' : '') + b.toString(16)).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+let displayWatch: ReturnType<typeof supabase.channel> | null = null;
+let displayTimer: ReturnType<typeof setTimeout> | null = null;
+function unwatchDisplay(): void {
+  if (displayTimer) { clearTimeout(displayTimer); displayTimer = null; }
+  if (!displayWatch) return;
+  try { supabase.removeChannel(displayWatch); } catch { /* أُغلقت */ }
+  displayWatch = null;
+}
+
+/** البيجر على شاشة العميل: ينزل لما يفتحه الزبون أو يُستلم الطلب. */
+export function watchPagerOnDisplay(url: string, secs: number): void {
+  unwatchDisplay();
+  const m = /\/p\/([A-Za-z0-9_-]{22})$/.exec(url);
+  const uuid = m ? keyToUuid(m[1]) : null;
+  if (!uuid) return;
+  displayWatch = supabase
+    .channel(`pager:${uuid}`)
+    .on('broadcast', { event: 'pager' }, msg => {
+      const p = ((msg as { payload?: { seen?: boolean; collected?: boolean } }).payload) || {};
+      if (!p.seen && !p.collected) return;
+      hidePagerOnCustomerDisplay();
+      displayShown = false;
+      unwatchDisplay();
+    })
+    .subscribe();
+  // انتهت مدّته: الشاشة أخفته بعدّادها -- فلا استماع ولا طلب إخفاء بعدها.
+  if (secs > 0) displayTimer = setTimeout(() => { displayShown = false; unwatchDisplay(); }, secs * 1000 + 2000);
+}
+
+/**
+ * قائمة البيجر في «جارية» تتحدّث بالبثّ لا بالسؤال: طلبٌ جديد من جهازٍ آخر،
+ * المطبخ جهّز، الزبون فتح البيجر -- كلها تغيّرٌ في orders. ويُجلب مرّةً
+ * عند كل إعادة اشتراك (رجع النت): ما فات وقت الانقطاع.
+ */
+export function subscribePagerOrders(branchId: number, onChange: () => void): () => void {
+  let first = true;
+  let t: ReturnType<typeof setTimeout> | null = null;
+  const kick = () => {
+    if (t) return;
+    t = setTimeout(() => { t = null; onChange(); }, 400);
+  };
+  const onRow = (p: { new?: { pager_eta_at?: string | null } }) => { if (p.new?.pager_eta_at) kick(); };
+  const filter = `branch_id=eq.${branchId}`;
+  const ch = supabase
+    .channel(`rn-pager-orders:${branchId}`)
+    .on('postgres_changes' as never, { event: 'INSERT', schema: 'public', table: 'orders', filter }, onRow)
+    .on('postgres_changes' as never, { event: 'UPDATE', schema: 'public', table: 'orders', filter }, onRow)
+    .subscribe((status: string) => {
+      if (status !== 'SUBSCRIBED') return;
+      if (!first) kick();
+      first = false;
+    });
+  return () => {
+    if (t) clearTimeout(t);
+    try { supabase.removeChannel(ch); } catch { /* أُغلقت */ }
+  };
+}
+
 /** الطلب الجديد يبدأ: بيجر اللي قبله ينزل من شاشة العميل. */
 export async function pagerHideOnNextOrder(branchId: number | null): Promise<void> {
   if (!displayShown) return;
   displayShown = false;
+  unwatchDisplay();
   hidePagerOnCustomerDisplay();
   try {
     await authed('/api/pos/show-pager', { hide: true, branchId, posDeviceId: await getPosDeviceId() });

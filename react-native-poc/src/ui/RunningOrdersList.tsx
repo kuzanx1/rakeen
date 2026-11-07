@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Modal, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, AppState, Linking, Modal, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './Text';
 import KeyboardLift from './KeyboardLift';
 import { TouchableOpacity } from './tappable';
@@ -31,6 +31,7 @@ import {
   pagerUrgency,
   pagerDueAutoActions,
   markAutoDone,
+  subscribePagerOrders,
   isOwnPagerOrder,
 } from '../application/pagerService';
 import type { PagerAction, PagerOrder } from '../application/pagerService';
@@ -198,13 +199,16 @@ export default function RunningOrdersList({
     load();
   }, [load]);
 
-  /* البيجر: طلباتٌ من أجهزةٍ أخرى أو «جاهز» من المطبخ تظهر خلال ثوانٍ. */
+  /* البيجر: طلباتٌ من أجهزةٍ أخرى، و«جاهز» من المطبخ، وفتح الزبون للبيجر
+     -- تصل بالبثّ اللحظي، لا بسؤالٍ كل ثوانٍ. ويُجلب مرّة لما يرجع
+     التطبيق للواجهة (ما فات وهو بالخلفية). */
   const pagerOn = pagerConfig().enabled;
   useEffect(() => {
     if (!pagerOn) return;
-    const id = setInterval(loadPager, 10_000);
-    return () => clearInterval(id);
-  }, [pagerOn, loadPager]);
+    const stop = subscribePagerOrders(branchId, loadPager);
+    const app = AppState.addEventListener('change', st => { if (st === 'active') loadPager(); });
+    return () => { stop(); app.remove(); };
+  }, [pagerOn, branchId, loadPager]);
 
   const runPager = useCallback(async (o: PagerOrder, action: PagerAction, auto = false) => {
     if (!auto) setPagerBusy(o.id);

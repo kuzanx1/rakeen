@@ -24,6 +24,66 @@
   var pagerTimer = null, pagerEnds = 0, pagerTotal = 0;
   var PAGER_CAP_MS = 5 * 60 * 1000; // سقفٌ لو ضاع بثّ الإخفاء
 
+  /**
+   * صورة الباركود تُرسم هنا (محرّك الفاتورة نفسه) لا تُطلب من /api/qr:
+   * كل عرضٍ كان طلباً على Cloudflare. والطلب يبقى احتياطاً لو المحرّك ما
+   * تحمّل بعد.
+   */
+  function qrImg(url, alt) {
+    var img = document.createElement('img');
+    img.alt = alt;
+    try {
+      var E = window.RakeenReceiptEngine;
+      if (E && E.qrGrid) {
+        var g = E.qrGrid(url), n = g.size, q = 2, d = '';
+        for (var r = 0; r < n; r++) for (var c = 0; c < n; c++) if (g.dark(r, c)) d += 'M' + (c + q) + ' ' + (r + q) + 'h1v1h-1z';
+        var w = n + q * 2;
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + w + '" shape-rendering="crispEdges">' +
+          '<rect width="' + w + '" height="' + w + '" fill="#fff"/><path fill="#000" d="' + d + '"/></svg>');
+        return img;
+      }
+    } catch (_) { /* نرجع للطلب */ }
+    img.src = '/api/qr?data=' + encodeURIComponent(url);
+    return img;
+  }
+
+  /**
+   * الزبون مسح باركود البيجر؟ يختفي من الشاشة في لحظتها -- لا ينتظر
+   * المهلة ولا الطلب اللي بعده، فما يمسحه أحدٌ غيره.
+   *
+   * بلا سؤال: الشاشة تستمع لقناة هذا الطلب، والقاعدة تبثّ فيها لما يفتح
+   * الزبون الصفحة (pager_seen_at) أو يُستلم الطلب.
+   */
+  var pagerWatch = null;
+  function keyToUuid(k) {
+    try {
+      var b = atob(k.replace(/-/g, '+').replace(/_/g, '/') + '==');
+      if (b.length !== 16) return null;
+      var h = '';
+      for (var i = 0; i < 16; i++) h += ('0' + b.charCodeAt(i).toString(16)).slice(-2);
+      return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
+    } catch (_) { return null; }
+  }
+  function unwatchPager() {
+    if (!pagerWatch) return;
+    try { window.supabaseClient.removeChannel(pagerWatch); } catch (_) { /* أُغلقت */ }
+    pagerWatch = null;
+  }
+  function watchPager(url) {
+    unwatchPager();
+    var sb = window.supabaseClient;
+    var m = /\/p\/([A-Za-z0-9_-]{22})$/.exec(url || '');
+    var u = m && keyToUuid(m[1]);
+    if (!sb || !u) return;
+    pagerWatch = sb.channel('pager:' + u)
+      .on('broadcast', { event: 'pager' }, function (msg) {
+        var p = (msg && msg.payload) || {};
+        if (p.seen || p.collected) hidePager();
+      })
+      .subscribe();
+  }
+
   function secret() {
     try { return localStorage.getItem(LS_SECRET) || ''; } catch (_) { return ''; }
   }
@@ -187,6 +247,7 @@
 
   function hidePager() {
     if (pagerTimer) { clearInterval(pagerTimer); pagerTimer = null; }
+    unwatchPager();
     var c = document.getElementById('rkDispPager');
     if (c) c.hidden = true;
     syncOverlay();
@@ -216,10 +277,7 @@
     var qr = document.getElementById('rkDispPagerQr');
     if (qr) {
       qr.innerHTML = '';
-      var img = document.createElement('img');
-      img.alt = 'باركود بيجر الطلب';
-      img.src = '/api/qr?data=' + encodeURIComponent(url);
-      qr.appendChild(img);
+      qr.appendChild(qrImg(url, 'باركود بيجر الطلب'));
     }
     var s = parseInt(secs, 10);
     pagerTotal = Number.isFinite(s) && s > 0 ? Math.min(s, 300) : 0;
@@ -229,6 +287,7 @@
     pagerTick();
     if (pagerTimer) clearInterval(pagerTimer);
     pagerTimer = setInterval(pagerTick, 1000);
+    watchPager(url);
   }
 
   function tick() {
@@ -253,10 +312,7 @@
     var qr = document.getElementById('rkDispQr');
     if (qr) {
       qr.innerHTML = '';
-      var img = document.createElement('img');
-      img.alt = 'باركود بطاقة الولاء';
-      img.src = '/api/qr?data=' + encodeURIComponent(url);
-      qr.appendChild(img);
+      qr.appendChild(qrImg(url, 'باركود بطاقة الولاء'));
     }
     endsAt = Date.now() + TOTAL_MS;
     document.getElementById('rkDispLoyal').hidden = false;

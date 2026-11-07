@@ -63,6 +63,8 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
   const [showIosHelp, setShowIosHelp] = useState(false);
 
   const sbRef = useRef<SupabaseClient | null>(null);
+  // البثّ متصل؟ ما دام متصلاً لا سؤال أبداً.
+  const liveRef = useRef(false);
   const keepRef = useRef<HTMLAudioElement | null>(null);
   const toneRef = useRef<HTMLAudioElement | null>(null);
   const wakeRef = useRef<{ release: () => Promise<void> } | null>(null);
@@ -108,20 +110,34 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
     if (!url || !anon) return;
     const sb = createClient(url, anon, { auth: { persistSession: false } });
     sbRef.current = sb;
-    // البثُّ اللحظيّ: الكاشيرُ يضغط «جاهز» فيصل هنا في نصف ثانية.
+    // البثُّ اللحظيّ: القاعدة نفسها تبثّ عند كل تغيّر في الطلب (وصل،
+    // جاهز، رنّة، تأجيل، استُلم) فيصل هنا في نصف ثانية -- ولا سؤال دوري.
+    // وكل (إعادة) اشتراك يجلب مرّة: ما فات والاتصال مقطوع لا يضيع.
+    // جلبةٌ أولى دائماً لو ما جاب الخادم الحالة -- ولو البثّ محجوب.
+    if (!initial) void fetchStatus();
+    let first = true;
     const ch = sb.channel(`pager:${uuid}`)
       .on("broadcast", { event: "pager" }, () => { void fetchStatus(); })
-      .subscribe();
-    if (!initial) void fetchStatus();
+      .subscribe((status) => {
+        liveRef.current = status === "SUBSCRIBED";
+        if (status !== "SUBSCRIBED") return;
+        // أول اشتراك بعد جلبةٍ لتوّها: لا داعي. وكل اشتراكٍ غيره (رجع
+        // الاتصال، أو بين تحميل الخادم والاشتراك): جلبة واحدة.
+        if (first && !initial) { first = false; return; }
+        first = false;
+        void fetchStatus();
+      });
     return () => { try { sb.removeChannel(ch); } catch { /* أُغلقت */ } };
   }, [uuid, fetchStatus, initial]);
 
-  // والاحتياطُ سؤالٌ هادئ: البثُّ قد ينقطع على شبكة المحل.
+  // ولا سؤالَ كل ثوانٍ: يُجلب لما يرجع الزبون للصفحة أو يرجع النت (والبثّ
+  // يعيد الاشتراك وحده، وأعلاه يجلب عند كل اشتراك). والسؤال الدوري احتياطٌ
+  // لا يشتغل إلا والبثّ مقطوع (شبكةٌ تحجب الاتصال اللحظي) -- وفي العادة
+  // لا يشتغل أبداً.
   useEffect(() => {
     if (phase === "collected" || phase === "cancelled") return;
-    const every = phase === "waiting" ? 5000 : 15000;
-    const t = window.setInterval(() => { void fetchStatus(); }, every);
     const vis = () => { if (document.visibilityState === "visible") void fetchStatus(); };
+    const t = window.setInterval(() => { if (!liveRef.current) void fetchStatus(); }, 20000);
     document.addEventListener("visibilitychange", vis);
     window.addEventListener("online", vis);
     return () => { window.clearInterval(t); document.removeEventListener("visibilitychange", vis); window.removeEventListener("online", vis); };

@@ -44,7 +44,7 @@ function status(kind, brand, extra = {}) {
 
 let pass = 0, fail = 0;
 const fails = [];
-function check(name, ok, info) { if (ok) pass++; else { fail++; fails.push(name + (info ? ' — ' + info : '')); } }
+function check(name, ok, info) { if (ok) pass++; else { fail++; fails.push(name + (info ? ' — ' + info : '')); if (process.env.V) console.log('  ✗ ' + fails[fails.length - 1]); } }
 
 (async () => {
   const b = await chromium.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', args: ['--autoplay-policy=no-user-gesture-required'] });

@@ -8010,6 +8010,8 @@ let PAGER_SETTINGS = Object.assign({}, PAGER_DEFAULTS);
 let PAGER_AUTO_READY = { dine_in:false, pickup:false };
 let ACTIVE_PAGER_ORDERS = []; // [{id, uuid, createdAt, etaAt, readyAt, delayedAt, seenAt, ringCount, customerName, channel, total, mine, lateWarned, autoRung}]
 let pagerDisplayShown = false;
+let pagerDisplayUuid = null;   // أيّ بيجرٍ على الشاشة الحين
+let pagerDisplayTimer = null;
 
 function rkPagerSettings(raw){
   const s = Object.assign({}, PAGER_DEFAULTS, (raw && typeof raw === 'object') ? raw : {});
@@ -8113,6 +8115,11 @@ function syncActivePagerOrderFromRow(row){
     if(i !== -1) ACTIVE_PAGER_ORDERS.splice(i, 1);
     return;
   }
+  // الزبون فتح البيجر: الشاشة أخفته لحالها (تستمع لقناة الطلب)، فلا
+  // طلب إخفاءٍ زائد مع الطلب اللي بعده.
+  if(pagerDisplayShown && row.client_order_uuid === pagerDisplayUuid && row.pager_seen_at){
+    pagerDisplayShown = false; pagerDisplayUuid = null;
+  }
   const fresh = rkPagerRow(row);
   if(i === -1) ACTIVE_PAGER_ORDERS.push(fresh);
   else { const old = ACTIVE_PAGER_ORDERS[i]; fresh.mine = old.mine; fresh.lateWarned = old.lateWarned; fresh.autoRung = old.autoRung; ACTIVE_PAGER_ORDERS[i] = fresh; }
@@ -8143,6 +8150,12 @@ function rkPagerAfterCheckout(orderPayload){
     // الزبون التالي واقفٌ قدّام الشاشة، ولو مسح باركود اللي قبله رنّ جواله
     // على طلبٍ مو له.
     pagerDisplayShown = true;
+    pagerDisplayUuid = orderPayload.client_order_uuid;
+    // انتهت مدّته؟ الشاشة أخفته بعدّادها، فلا داعي لطلب إخفاء.
+    if(pagerDisplayTimer) clearTimeout(pagerDisplayTimer);
+    pagerDisplayTimer = PAGER_SETTINGS.display_secs > 0
+      ? setTimeout(()=>{ pagerDisplayShown = false; pagerDisplayUuid = null; }, PAGER_SETTINGS.display_secs * 1000 + 2000)
+      : null;
   }
 }
 
@@ -8161,7 +8174,8 @@ async function rkPagerDisplay(body){
 /** «لين يبدأ الطلب اللي بعده»: أوّلُ صنفٍ في سلّةٍ فارغة يُخفي البيجر. */
 function rkPagerHideOnNextOrder(){
   if(!pagerDisplayShown) return;
-  pagerDisplayShown = false;
+  pagerDisplayShown = false; pagerDisplayUuid = null;
+  if(pagerDisplayTimer){ clearTimeout(pagerDisplayTimer); pagerDisplayTimer = null; }
   rkPagerDisplay({ hide: true });
 }
 
@@ -8286,14 +8300,18 @@ setInterval(()=>{
   if(scr && scr.classList.contains('active') && ordersActiveTab === 'running') renderOrdersList();
 }, 5000);
 
-// وتحديثٌ هادئ كل نصف دقيقة: كاشيرٌ آخر في الفرع قد يكون جهّز أو سلّم.
-setInterval(()=>{
+// لا سؤال دوري: ما يغيّره كاشيرٌ آخر أو المطبخ أو الزبون يصل بالبثّ
+// اللحظي (pos-orders-live-sync). ويُعاد الجلب مرّةً فقط لما يرجع الاتصال
+// أو يصحى الجهاز -- ما فات وقت الانقطاع.
+function rkPagerResync(){
   if(!PAGER_ENABLED || !navigator.onLine || !DEVICE || !DEVICE.branchId) return;
   seedActivePagerOrders().then(()=>{
     const scr = document.getElementById('screen-orders');
     if(scr && scr.classList.contains('active') && ordersActiveTab === 'running') renderOrdersList();
   });
-}, 30000);
+}
+window.addEventListener('online', rkPagerResync);
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') rkPagerResync(); });
 
 // Ticks every second regardless of which POS screen is focused — the
 // warning/expired alert must fire even if the cashier is busy on the order
@@ -10415,7 +10433,12 @@ function subscribeToOrdersLiveSync(){
     .channel('pos-orders-live-sync')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders', filter: 'branch_id=eq.' + DEVICE.branchId }, onOrdersChange)
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: 'branch_id=eq.' + DEVICE.branchId }, onOrdersChange)
-    .subscribe();
+    .subscribe((status)=>{
+      // إعادة اشتراكٍ بعد انقطاع: ما فات وقتها يُجلب مرّة.
+      if(status !== 'SUBSCRIBED') return;
+      if(ordersLiveSyncChannel && ordersLiveSyncChannel.__rkSubscribedOnce) rkPagerResync();
+      if(ordersLiveSyncChannel) ordersLiveSyncChannel.__rkSubscribedOnce = true;
+    });
 }
 
 // Catches orders that arrived while this device was offline/asleep/reloading —

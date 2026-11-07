@@ -20,6 +20,9 @@ import { orderMarkup } from "../../order/[slug]/order-markup";
 
 const SCRIPT_SRC = "/order/rakeen-order.js?b=" + (process.env.NEXT_PUBLIC_BUILD_ID || "dev");
 const DISPLAY_SCRIPT_SRC = "/display/rakeen-display.js?b=" + (process.env.NEXT_PUBLIC_BUILD_ID || "dev");
+// يرسم باركود الولاء والبيجر في الشاشة نفسها، بدل طلب صورةٍ من /api/qr لكل
+// عرض (طلبٌ على Cloudflare كل طلب). ملفٌّ ثابت: يُخزَّن ولا يُحسب طلباً.
+const QR_ENGINE_SRC = "/pos/receipt-engine.js?b=" + (process.env.NEXT_PUBLIC_BUILD_ID || "dev");
 
 declare global {
   interface Window {
@@ -61,6 +64,11 @@ export default function DisplayPage({ slug }: { slug: string }) {
     menu.src = SCRIPT_SRC;
     document.body.appendChild(menu);
 
+    const qrEngine = document.createElement("script");
+    qrEngine.src = QR_ENGINE_SRC;
+    qrEngine.async = true;
+    document.body.appendChild(qrEngine);
+
     // لوح الباركود يُحمَّل بعد المنيو: يعتمد على عرضه لا على منطقه.
     const overlay = document.createElement("script");
     overlay.src = DISPLAY_SCRIPT_SRC;
@@ -69,6 +77,7 @@ export default function DisplayPage({ slug }: { slug: string }) {
 
     return () => {
       menu.remove();
+      qrEngine.remove();
       overlay.remove();
       delete window.__rakeenOrderBooted;
       delete window.supabaseClient;

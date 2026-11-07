@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { serviceClient } from "@/lib/wallet-service";
 import { ensureVapidConfigured, sendPushToSubscription } from "@/lib/push";
-import { pagerChannel, uuidToKey } from "@/lib/pager";
+import { uuidToKey } from "@/lib/pager";
 
 /**
  * بيجر ركين -- أزرار الكاشير كلُّها من هنا.
@@ -78,17 +78,8 @@ export async function POST(request: NextRequest) {
   let pushed = 0;
   let subscribed = 0;
   if (admin) {
-    const payload = {
-      action,
-      ready_at: order.ready_at,
-      delivered_at: order.delivered_at,
-      eta_at: order.pager_eta_at,
-      delayed_at: order.pager_delayed_at,
-      ring_count: order.pager_ring_count,
-    };
-    const broadcast = admin.channel(pagerChannel(uuid))
-      .send({ type: "broadcast", event: "pager", payload })
-      .catch(err => console.error("pager broadcast failed", err));
+    // البثّ لصفحة الزبون وشاشة العميل تتولاه القاعدة (orders_pager_broadcast)
+    // لكل تغيّر، من أي مسار -- فلا يُبثّ هنا مرّةً ثانية. هنا الإشعار وحده.
 
     const { data: subs } = await admin
       .from("pager_push_subscriptions")
@@ -120,7 +111,6 @@ export async function POST(request: NextRequest) {
         sendPushToSubscription(s, msg, admin, "pager_push_subscriptions", { urgency: "high", TTL: 1800 }).catch(() => false)));
       pushed = results.filter(Boolean).length;
     }
-    await broadcast;
   }
 
   return NextResponse.json({

@@ -132,6 +132,30 @@ const SIZES = [[1366, 768], [1280, 800], [1024, 600], [800, 1280], [768, 1024], 
         check('checkout → row in جارية, mine, eta=prep+buffer', after.row && after.row.mine && after.row.eta === 15, JSON.stringify(after.row));
         check('next order hides display once', after.hid && after.hid.body.hide === true && after.again === 0);
 
+        // الزبون فتح البيجر: الشاشة أخفته لحالها، فالطلب التالي لا يرسل إخفاءً
+        // (طلبٌ أقل على Cloudflare). وبيجر غيره مفتوح لا يلغي إخفاء هذا.
+        const seenSkip = await p.evaluate(async () => {
+          const iso = new Date().toISOString();
+          const U = crypto.randomUUID();
+          window.__calls = []; ACTIVE_PAGER_ORDERS = [];
+          rkPagerAfterCheckout({ client_order_uuid: U, channel: 'pickup', orderId: 556, total: 30 });
+          await new Promise(r => setTimeout(r, 50));
+          syncActivePagerOrderFromRow({ id: 999, client_order_uuid: crypto.randomUUID(), channel: 'pickup', status: 'completed', created_at: iso, pager_eta_at: iso, pager_seen_at: iso });
+          window.__calls = [];
+          rkPagerHideOnNextOrder(); await new Promise(r => setTimeout(r, 50));
+          const otherSeen = window.__calls.filter(c => c.url === '/api/pos/show-pager').length;
+          rkPagerAfterCheckout({ client_order_uuid: U, channel: 'pickup', orderId: 556, total: 30 });
+          await new Promise(r => setTimeout(r, 50));
+          syncActivePagerOrderFromRow({ id: 556, client_order_uuid: U, channel: 'pickup', status: 'completed', created_at: iso, pager_eta_at: iso, pager_seen_at: iso });
+          window.__calls = [];
+          rkPagerHideOnNextOrder(); await new Promise(r => setTimeout(r, 50));
+          const row = ACTIVE_PAGER_ORDERS.find(o => o.id === 556);
+          return { otherSeen, ownSeen: window.__calls.filter(c => c.url === '/api/pos/show-pager').length, seenOnCard: !!(row && row.seenAt) };
+        });
+        check('another order seen → still hides this one', seenSkip.otherSeen === 1, JSON.stringify(seenSkip));
+        check('customer opened it → no hide request', seenSkip.ownSeen === 0, JSON.stringify(seenSkip));
+        check('seen reaches the card («📱 متابع»)', seenSkip.seenOnCard);
+
         // الأزرار: نفس المسار، والنتيجة تنعكس على البطاقة.
         const acts = await p.evaluate(async () => {
           const now = Date.now();
@@ -232,6 +256,17 @@ const SIZES = [[1366, 768], [1280, 800], [1024, 600], [800, 1280], [768, 1024], 
     process.stdout.write(`${theme}: ${pass} pass, ${fail} fail\n`);
   }
   await br.close();
+  // بلا سؤال دوري: لا setInterval يجلب طلبات البيجر، لا في الويب ولا التطبيق
+  // ولا صفحة الزبون إلا والبثّ مقطوع.
+  {
+    const intervals = (s) => [...s.matchAll(/setInterval\(([\s\S]*?)\}?,\s*([\d_]+)\)/g)].map(m => m[1]);
+    const rn = fs.readFileSync(R + '/react-native-poc/src/ui/RunningOrdersList.tsx', 'utf8');
+    const page = fs.readFileSync(R + '/app/p/[key]/PagerClient.tsx', 'utf8');
+    check('web POS: no interval refetches pager orders', !intervals(src).some(b => /seedActivePagerOrders|from\('orders'\)/.test(b)));
+    check('RN: no interval refetches pager orders', !/setInterval\(loadPager/.test(rn) && !intervals(rn).some(b => /listPagerOrders|loadPager\b/.test(b)));
+    check('RN: subscribes to orders instead', /subscribePagerOrders\(branchId, loadPager\)/.test(rn));
+    check('pager page: interval only while realtime is down', /if \(!liveRef\.current\) void fetchStatus\(\)/.test(page) && !/phase === "waiting" \? 5000/.test(page));
+  }
   console.log(`\nCHECKS ${pass + fail} | PASS ${pass} | FAIL ${fail}`);
   fails.slice(0, 40).forEach(f => console.log('  ✗ ' + f));
   process.exit(fail ? 1 : 0);

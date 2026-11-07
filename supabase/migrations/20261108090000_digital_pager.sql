@@ -265,3 +265,60 @@ begin
 end;
 $$;
 grant execute on function pager_bump_eta(bigint, int) to authenticated;
+
+-- ─────────────────────────────────────────────── البثّ من القاعدة نفسها
+-- لا أحد يسأل كل شوي: صفحة الزبون وشاشة العميل تستمعان لقناة الطلب،
+-- والقاعدة تبثّ عند كل تغيّرٍ يهمّهما -- وصل الطلب، جاهز، رنّة، تأجيل،
+-- استُلم، فتحه الزبون. فأيّ مسارٍ غيّر الطلب (الكاشير، المطبخ، دالةٌ
+-- قديمة) يصل بثّه، ولا طلب على Cloudflare.
+-- والبثّ بلا تفاصيل: من عرف المفتاح يجلبها بـ get_pager_status.
+create or replace function orders_pager_broadcast()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'UPDATE'
+     and new.ready_at is not distinct from old.ready_at
+     and new.delivered_at is not distinct from old.delivered_at
+     and new.status is not distinct from old.status
+     and new.pager_eta_at is not distinct from old.pager_eta_at
+     and new.pager_seen_at is not distinct from old.pager_seen_at
+     and new.pager_ring_count is not distinct from old.pager_ring_count then
+    return null;
+  end if;
+  begin
+    perform realtime.send(
+      jsonb_build_object(
+        'seen', new.pager_seen_at is not null,
+        'ready', new.ready_at is not null,
+        'collected', new.delivered_at is not null,
+        'ring_count', new.pager_ring_count),
+      'pager',
+      'pager:' || new.client_order_uuid::text,
+      false);
+  exception when others then
+    -- البثّ لا يُسقط حفظ الطلب أبداً.
+    null;
+  end;
+  return null;
+end;
+$$;
+
+drop trigger if exists orders_pager_broadcast on orders;
+create trigger orders_pager_broadcast
+  after insert or update on orders
+  for each row
+  when (new.pager_eta_at is not null)
+  execute function orders_pager_broadcast();
+
+-- البثّ يعتمد على realtime.send (Broadcast from Database). لو ما وُجدت في
+-- المشروع يفشل الملف هنا بصوتٍ عالٍ، بدل بيجرٍ لا يرن أبداً بصمت.
+do $chk$
+begin
+  if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is null then
+    raise exception 'realtime.send غير موجودة: فعّل Realtime في المشروع ثم أعد تشغيل الملف';
+  end if;
+end;
+$chk$;

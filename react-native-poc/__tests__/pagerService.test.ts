@@ -5,6 +5,7 @@ jest.mock('../src/platform/customerDisplay', () => ({ pagerOnCustomerDisplay: je
 
 import {
   pagerKey,
+  keyToUuid,
   pagerUrl,
   pagerEligible,
   normalizePagerSettings,
@@ -147,4 +148,13 @@ it('sort: not-ready by promise first, then ready oldest-first', () => {
     order({ id: 4, etaAt: new Date(300) }),
   ]);
   expect(rows.map(r => r.id)).toEqual([4, 2, 3, 1]);
+});
+
+it('keyToUuid inverts pagerKey (the display hides the right pager)', () => {
+  for (let i = 1; i <= 300; i++) {
+    const u = randomUuid(i);
+    expect(keyToUuid(pagerKey(u))).toBe(u);
+  }
+  expect(keyToUuid('short')).toBeNull();
+  expect(keyToUuid('!!!!!!!!!!!!!!!!!!!!!!')).toBeNull();
 });
