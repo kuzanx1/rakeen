@@ -1001,3 +1001,84 @@ img{max-width:100%; display:block;}
   border:1px solid var(--line); background:var(--surf);
 }
 .rk-disp-pair-hint b{ color:var(--ink); }
+
+/* ============ شريط العروض (store_offers) ============
+   بطاقات عريضة بنسبة 2:1 تتمرّر أفقياً، البطاقة الجاية تبين طرفها عشان
+   الزبون يعرف إن فيه أكثر. بدون صورة: تدرّج لون الهوية مع نقش خفيف.
+   كله مبني على متغيرات الثيم، فيمشي على الكلاسيكي والفخم وألوان التاجر. */
+.om-offers{padding:18px 0 4px;}
+.om-offers[hidden]{display:none;}
+.om-offers-head{display:flex; align-items:center; gap:8px; padding:0 18px 10px;}
+.om-offers-title{font-family:var(--font-display); font-weight:800; font-size:17px; color:var(--ink);}
+.om-offers-count{
+  font-size:11px; font-weight:700; min-width:22px; height:22px; padding:0 6px; border-radius:var(--r-full);
+  display:inline-flex; align-items:center; justify-content:center;
+  background:color-mix(in srgb, var(--brand) 22%, transparent); color:var(--ink);
+}
+.om-offers-track{
+  display:flex; gap:12px; overflow-x:auto; padding:2px 18px 6px; scroll-snap-type:x mandatory;
+  scroll-padding-inline:18px; scrollbar-width:none; overscroll-behavior-x:contain;
+}
+.om-offers-track::-webkit-scrollbar{display:none;}
+.om-offer{
+  position:relative; flex:0 0 86%; aspect-ratio:2/1; border-radius:var(--r-lg); overflow:hidden;
+  scroll-snap-align:start; text-align:start; color:#fff; display:block; padding:0;
+  background:linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 45%, #000));
+  box-shadow:var(--shadow-sm); isolation:isolate;
+  transition:transform .25s ease;
+}
+.om-offers-track.single .om-offer{flex-basis:100%;}
+.om-offer.linked:active{transform:scale(0.985);}
+.om-offer-img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:-2;}
+.om-offer-pattern{
+  position:absolute; inset:0; z-index:-2; opacity:.18;
+  background:
+    radial-gradient(circle at 85% 20%, rgba(255,255,255,.55) 0 18%, transparent 19%),
+    radial-gradient(circle at 10% 110%, rgba(255,255,255,.4) 0 30%, transparent 31%),
+    repeating-linear-gradient(135deg, rgba(255,255,255,.25) 0 2px, transparent 2px 14px);
+}
+.om-offer-shade{
+  position:absolute; inset:0; z-index:-1;
+  background:linear-gradient(to top, rgba(0,0,0,.78) 0%, rgba(0,0,0,.35) 45%, rgba(0,0,0,0) 75%);
+}
+.om-offer:not(.has-img) .om-offer-shade{background:linear-gradient(to top, rgba(0,0,0,.28), rgba(0,0,0,0) 70%);}
+.om-offer-body{
+  position:absolute; inset:auto 0 0 0; padding:14px 16px 14px;
+  display:flex; flex-direction:column; align-items:flex-start; gap:4px;
+}
+.om-offer-badge{
+  font-size:11.5px; font-weight:800; padding:4px 10px; border-radius:var(--r-full); margin-bottom:2px;
+  background:var(--brand); color:var(--brand-ink); box-shadow:0 4px 14px rgba(0,0,0,.25);
+}
+.om-offer:not(.has-img) .om-offer-badge{background:#fff; color:#111;}
+.om-offer-name{
+  font-family:var(--font-display); font-weight:800; font-size:19px; line-height:1.3;
+  text-shadow:0 2px 12px rgba(0,0,0,.35);
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.om-offer-sub{
+  font-size:12.5px; line-height:1.5; opacity:.9;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.om-offer-foot{display:flex; align-items:center; gap:10px; margin-top:6px; flex-wrap:wrap;}
+.om-offer-cta{
+  display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:800;
+  padding:6px 12px; border-radius:var(--r-full); background:rgba(255,255,255,.95); color:#111;
+}
+.om-offer-ends{
+  font-size:11px; font-weight:700; padding:5px 10px; border-radius:var(--r-full);
+  background:rgba(0,0,0,.35); backdrop-filter:blur(6px); color:#fff;
+}
+.om-offers-dots{display:flex; justify-content:center; gap:6px; padding:8px 0 2px;}
+.om-offers-dots span{width:6px; height:6px; border-radius:var(--r-full); background:color-mix(in srgb, var(--ink) 18%, transparent); transition:all .3s ease;}
+.om-offers-dots span.on{width:18px; background:var(--brand);}
+.om-shell[data-theme="luxury"] .om-offers{padding-top:22px;}
+.om-shell[data-theme="luxury"] .om-offers-head{padding-inline:22px;}
+.om-shell[data-theme="luxury"] .om-offers-track{padding-inline:22px; scroll-padding-inline:22px;}
+.om-shell[data-theme="luxury"] .om-offer{border-radius:var(--r-xl);}
+@media (min-width:768px){
+  .om-offer{flex-basis:calc(50% - 6px);}
+  .om-offers-track.single .om-offer{flex-basis:min(100%, 720px); aspect-ratio:3/1;}
+  .om-offer-name{font-size:22px;}
+}
+@media (prefers-reduced-motion: reduce){ .om-offers-track{scroll-behavior:auto;} }

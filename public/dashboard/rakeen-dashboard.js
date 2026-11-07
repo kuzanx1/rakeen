@@ -13497,6 +13497,7 @@ function onlineMenuDesignHtml(){
           ${rkCheck(`id="settingsDisplayShowCalories" ${DISPLAY_SHOW_CALORIES ? 'checked' : ''}`, 'إظهارها في المنيو الإلكتروني (شاشات العرض والتابلت)')}
         </div>
       </div>`}
+      ${storeOffersEnabled() ? `<div class="rk-section" style="margin-bottom:0;" id="storeOffersSection">${storeOffersSectionHtml()}</div>` : ''}
       </div>
 
       <div class="rk-section" style="margin-bottom:0;">
@@ -13682,7 +13683,195 @@ function wireOnlineStoreSettings(){
   });
 }
 
+/* ============ عروض المتجر (store_offers) ============
+   شريط بطاقات فوق المنيو في المتجر والمنيو الإلكتروني. تجريبي: يظهر
+   في اللوحة لحسابات محددة بس لين يثبت، والمتجر يعرض أي عرض نشط. */
+const STORE_OFFERS_BETA_IDS = [1, 114];
+function storeOffersEnabled(){
+  return !!(CURRENT_PROFILE && STORE_OFFERS_BETA_IDS.includes(Number(CURRENT_PROFILE.business_id)));
+}
+// null = ما تحمّل بعد، false = الجدول ما رُحّل، مصفوفة = العروض
+let STORE_OFFERS = null;
+async function loadStoreOffers(){
+  try {
+    const { data, error } = await window.supabaseClient.from('store_offers')
+      .select('id, title, subtitle, badge, image_url, menu_item_id, active, sort_order, ends_at')
+      .eq('business_id', CURRENT_PROFILE.business_id)
+      .order('sort_order', { ascending: true }).order('id', { ascending: true });
+    STORE_OFFERS = error ? false : (data || []);
+  } catch(_){ STORE_OFFERS = false; }
+}
+function storeOfferEndsText(o){
+  if(!o.ends_at) return 'بدون تاريخ انتهاء';
+  const d = new Date(o.ends_at);
+  if(d.getTime() <= Date.now()) return 'انتهى';
+  return 'ينتهي ' + d.toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { day:'numeric', month:'long' });
+}
+function storeOffersSectionHtml(){
+  const head = rkSectionHead('zap', 'العروض', 'بطاقات عروض كبيرة فوق المنيو في المتجر والمنيو الإلكتروني، مثل «خصم ٢٠٪ على البوكسات» أو «صنف جديد». تقدر تربط العرض بصنف يفتح على طول.');
+  if(STORE_OFFERS === null) return head + `<p class="stock-qty-helper">جاري التحميل...</p>`;
+  if(STORE_OFFERS === false) return head + `<p class="stock-qty-helper">العروض تحتاج تحديث قاعدة البيانات أول (store_offers). تواصل مع ركين.</p>`;
+  const itemName = id => { const m = MENU_ITEMS.find(x => x.id === id); return m ? m.name : null; };
+  const rows = STORE_OFFERS.map((o, i) => {
+    const expired = o.ends_at && new Date(o.ends_at).getTime() <= Date.now();
+    const linked = o.menu_item_id != null ? itemName(o.menu_item_id) : null;
+    return `<div class="rk-offer-row${(!o.active || expired) ? ' off' : ''}" data-id="${o.id}">
+      <div class="rk-offer-thumb">${o.image_url ? `<img src="${escapeHtml(o.image_url)}" alt="">` : `<span>${escapeHtml((o.badge || o.title || '').slice(0, 10))}</span>`}</div>
+      <div class="rk-offer-info">
+        <div class="rk-offer-title">${escapeHtml(o.title)}${o.badge ? ` <span class="rk-offer-badge">${escapeHtml(o.badge)}</span>` : ''}</div>
+        <div class="rk-offer-meta">${!o.active ? 'موقوف · ' : ''}${storeOfferEndsText(o)}${linked ? ' · يفتح «' + escapeHtml(linked) + '»' : ''}</div>
+      </div>
+      <div class="rk-offer-actions">
+        ${i > 0 ? `<button type="button" class="rk-offer-btn" data-act="up" title="قدّمه">↑</button>` : ''}
+        <button type="button" class="rk-offer-btn" data-act="toggle">${o.active ? 'إيقاف' : 'تشغيل'}</button>
+        <button type="button" class="rk-offer-btn" data-act="edit">تعديل</button>
+        <button type="button" class="rk-offer-btn danger" data-act="delete">حذف</button>
+      </div>
+    </div>`;
+  }).join('');
+  return head + `
+    <style>
+      .rk-offer-row{display:flex; align-items:center; gap:12px; padding:10px; border:1px solid var(--line); border-radius:12px; margin-bottom:8px;}
+      .rk-offer-row.off{opacity:.55;}
+      .rk-offer-thumb{width:84px; aspect-ratio:2/1; border-radius:8px; overflow:hidden; flex-shrink:0; background:var(--lime-deep, #6a9a2c); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px; text-align:center;}
+      .rk-offer-thumb img{width:100%; height:100%; object-fit:cover;}
+      .rk-offer-info{flex:1; min-width:0;}
+      .rk-offer-title{font-weight:800; font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+      .rk-offer-badge{font-size:11px; font-weight:800; padding:2px 8px; border-radius:99px; background:color-mix(in srgb, var(--lime-deep, #6a9a2c) 18%, transparent);}
+      .rk-offer-meta{font-size:11.5px; color:var(--muted); margin-top:3px;}
+      .rk-offer-actions{display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end;}
+      .rk-offer-btn{font-size:12px; font-weight:700; padding:6px 10px; border-radius:8px; border:1px solid var(--line); background:transparent; color:inherit; cursor:pointer;}
+      .rk-offer-btn.danger{color:#c0392b;}
+      @media (max-width:600px){ .rk-offer-row{flex-wrap:wrap;} .rk-offer-actions{width:100%; justify-content:flex-start;} }
+    </style>
+    ${rows || `<p class="stock-qty-helper" style="margin-bottom:10px;">ما فيه عروض. أضف أول عرض ويطلع في متجرك فوق المنيو على طول.</p>`}
+    <button type="button" class="rk-btn rk-btn-primary" id="storeOfferAddBtn" style="width:100%; margin-top:4px;">+ أضف عرض</button>`;
+}
+function renderStoreOffersSection(){
+  const host = document.getElementById('storeOffersSection');
+  if(!host) return;
+  host.innerHTML = storeOffersSectionHtml();
+  const add = document.getElementById('storeOfferAddBtn');
+  if(add) add.addEventListener('click', ()=> openStoreOfferModal(null));
+  host.querySelectorAll('.rk-offer-row').forEach(row => {
+    const id = Number(row.dataset.id);
+    const offer = STORE_OFFERS.find(o => o.id === id);
+    row.querySelectorAll('.rk-offer-btn').forEach(btn => btn.addEventListener('click', async ()=>{
+      const act = btn.dataset.act;
+      try {
+        if(act === 'edit') return openStoreOfferModal(offer);
+        if(act === 'delete'){
+          const ok = await rkAsk({ title: 'حذف العرض «' + offer.title + '»؟', body: 'يختفي من المتجر على طول. ما ينحذف أي صنف.', ok: 'احذف العرض', cancel: 'خلّه' });
+          if(!ok) return;
+          const { error } = await window.supabaseClient.from('store_offers').delete().eq('id', id);
+          if(error) throw error;
+          logDashboardAudit('حذف عرض من المتجر: ' + offer.title);
+        } else if(act === 'toggle'){
+          const { error } = await window.supabaseClient.from('store_offers').update({ active: !offer.active }).eq('id', id);
+          if(error) throw error;
+        } else if(act === 'up'){
+          // يعيد ترقيم الكل بالترتيب الجديد: أبسط من تبديل رقمين قد يتساويان.
+          const idx = STORE_OFFERS.findIndex(o => o.id === id);
+          const order = STORE_OFFERS.map(o => o.id);
+          [order[idx - 1], order[idx]] = [order[idx], order[idx - 1]];
+          for(let k = 0; k < order.length; k++){
+            const { error } = await window.supabaseClient.from('store_offers').update({ sort_order: k }).eq('id', order[k]);
+            if(error) throw error;
+          }
+        }
+        await loadStoreOffers();
+        renderStoreOffersSection();
+      } catch(err){
+        showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+      }
+    }));
+  });
+}
+function openStoreOfferModal(offer){
+  const o = offer || {};
+  const products = MENU_ITEMS.filter(m => m.active !== false).slice().sort((a,b)=> String(a.name).localeCompare(String(b.name), 'ar'));
+  const endsVal = o.ends_at ? new Date(o.ends_at).toLocaleDateString('en-CA') : '';
+  const ov = document.createElement('div');
+  ov.className = 'modal-overlay';
+  ov.innerHTML = `
+    <div class="modal-card" style="max-width:520px; width:calc(100% - 32px); max-height:90dvh; overflow-y:auto;">
+      <div class="rk-ask-title" style="margin-bottom:14px;">${offer ? 'تعديل العرض' : 'عرض جديد'}</div>
+      <div class="menu-add-field"><label>عنوان العرض</label>
+        <input type="text" id="offTitle" maxlength="60" value="${escapeHtml(o.title || '')}" placeholder="مثال: بوكس العائلة بسعر خاص"></div>
+      <div class="menu-add-field"><label>الشارة (اختياري) ${helpIcon('كلمة قصيرة تبرز فوق العنوان: «خصم ٢٠٪» أو «جديد» أو «لفترة محدودة».')}</label>
+        <input type="text" id="offBadge" maxlength="24" value="${escapeHtml(o.badge || '')}" placeholder="خصم ٢٠٪"></div>
+      <div class="menu-add-field"><label>وصف قصير (اختياري)</label>
+        <input type="text" id="offSub" maxlength="140" value="${escapeHtml(o.subtitle || '')}" placeholder="مثال: يكفي ٤ أشخاص ومعه ٣ صوصات"></div>
+      <div class="menu-add-field"><label>صورة العرض (اختياري)</label>
+        ${rkImageUploadHtml('offImageInput', { currentUrl: o.image_url || '', width:1200, height:600, shape:'wide', note:'بدونها يطلع العرض بلون هويتك' })}
+        ${o.image_url ? `<div style="margin-top:8px;">${rkCheck('id="offImageClear"', 'إزالة الصورة')}</div>` : ''}</div>
+      <div class="menu-add-field"><label>يفتح صنف لما يضغطه الزبون (اختياري)</label>
+        <select id="offItem"><option value="">بدون، العرض للعرض بس</option>
+          ${products.map(m => `<option value="${m.id}" ${o.menu_item_id === m.id ? 'selected' : ''}>${escapeHtml(m.name)}</option>`).join('')}
+        </select></div>
+      <div class="menu-add-field"><label>آخر يوم للعرض (اختياري) ${helpIcon('يختفي العرض لحاله بعد نهاية هذا اليوم، ويطلع للزبون «ينتهي خلال...». سيبه فاضي لو العرض مفتوح.')}</label>
+        <input type="date" id="offEnds" value="${endsVal}"></div>
+      <div style="margin:4px 0 14px;">${rkCheck(`id="offActive" ${o.active === false ? '' : 'checked'}`, 'العرض شغّال ويطلع في المتجر')}</div>
+      <div class="rk-ask-foot">
+        <button type="button" class="menu-add-btn menu-add-btn-primary" id="offSave">${offer ? 'حفظ التعديل' : 'أضف العرض'}</button>
+        <button type="button" class="rk-ask-cancel" id="offCancel">إلغاء</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  requestAnimationFrame(()=> ov.classList.add('show'));
+  attachImageCropper('offImageInput', { aspect: 2, outputWidth: 1200, outputHeight: 600 });
+  wireImageUploadBoxPreview('offImageInput');
+  const close = ()=>{ ov.classList.remove('show'); setTimeout(()=> ov.remove(), 180); };
+  ov.querySelector('#offCancel').addEventListener('click', close);
+  ov.addEventListener('click', e => { if(e.target === ov) close(); });
+  const saveBtn = ov.querySelector('#offSave');
+  saveBtn.addEventListener('click', async ()=>{
+    const title = ov.querySelector('#offTitle').value.trim();
+    if(!title){ showToast('اكتب عنوان العرض'); ov.querySelector('#offTitle').focus(); return; }
+    rkBtnLoading(saveBtn, true);
+    try {
+      const endsStr = ov.querySelector('#offEnds').value;
+      const itemVal = ov.querySelector('#offItem').value;
+      const row = {
+        title,
+        badge: ov.querySelector('#offBadge').value.trim() || null,
+        subtitle: ov.querySelector('#offSub').value.trim() || null,
+        menu_item_id: itemVal ? Number(itemVal) : null,
+        // نهاية اليوم بتوقيت الجهاز، مو بدايته
+        ends_at: endsStr ? new Date(endsStr + 'T23:59:59').toISOString() : null,
+        active: ov.querySelector('#offActive').checked,
+      };
+      const file = await compressImageFile(ov.querySelector('#offImageInput').files[0]);
+      if(file){
+        row.image_url = await uploadMediaFile(file, 'menu-item-images', 'offer');
+      } else if(ov.querySelector('#offImageClear')?.checked){
+        row.image_url = null;
+      }
+      let error;
+      if(offer){
+        ({ error } = await window.supabaseClient.from('store_offers').update(row).eq('id', offer.id));
+      } else {
+        row.business_id = CURRENT_PROFILE.business_id;
+        row.sort_order = (STORE_OFFERS || []).reduce((m, x) => Math.max(m, x.sort_order || 0), -1) + 1;
+        ({ error } = await window.supabaseClient.from('store_offers').insert(row));
+      }
+      if(error) throw error;
+      logDashboardAudit((offer ? 'عدّل' : 'أضاف') + ' عرض في المتجر: ' + title);
+      close();
+      showToast(offer ? 'تم حفظ العرض' : 'تمت إضافة العرض، ويطلع في متجرك الحين');
+      await loadStoreOffers();
+      renderStoreOffersSection();
+    } catch(err){
+      rkBtnLoading(saveBtn, false);
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
+  });
+}
+
 function wireOnlineMenuDesign(){
+  if(storeOffersEnabled()){
+    loadStoreOffers().then(renderStoreOffersSection);
+  }
   // Must run before the 'change' listeners further down (they read
   // input.files[0] for the live preview) so the cropped file is what they
   // see, not the raw upload.

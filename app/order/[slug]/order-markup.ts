@@ -47,6 +47,8 @@ export const orderMarkup = `
       <div class="om-branch-note" id="omBranchNote" style="display:none;"></div>
     </div>
 
+    <section class="om-offers" id="omOffers" aria-label="العروض" hidden></section>
+
     <nav class="om-cat-rail" id="omCatRail"></nav>
 
     <main class="om-menu" id="omMenu"></main>

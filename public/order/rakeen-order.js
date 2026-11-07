@@ -22,6 +22,8 @@ if (!window.__rakeenOrderBooted) {
   let DISPLAY_MODE = false;
   // إظهار السعرات: المتجر والمنيو الإلكتروني كلٌّ بمفتاحه (loadMenu يقرأهما).
   let CAL_SHOW_STORE = true, CAL_SHOW_DISPLAY = true;
+  // عروض المتجر (جدول store_offers) — loadMenu يعبّيها، renderOffers يرسمها.
+  let OFFERS = [];
 
   // Real reported bug: the phone field's digit-strip used /\D/g, which in
   // JS only matches ASCII 0-9 — a customer typing on an Arabic keyboard
@@ -590,6 +592,7 @@ if (!window.__rakeenOrderBooted) {
       return;
     }
     loadDisplayMode();
+    renderOffers();
     renderCatRail();
     renderMenu();
     loadCartFromStorage();
@@ -704,6 +707,20 @@ if (!window.__rakeenOrderBooted) {
       } catch (_) {}
     }
 
+    // العروض: استعلامٌ مستقلّ أيضاً. لو الجدول ما رُحّل يرجع خطأ ويبقى
+    // الشريط مخفياً، والمنيو كما هو.
+    OFFERS = [];
+    try {
+      const { data: offRows, error: offErr } = await sb.from('store_offers')
+        .select('id, title, subtitle, badge, image_url, menu_item_id, ends_at, sort_order')
+        .eq('business_id', businessId).eq('active', true)
+        .order('sort_order', { ascending: true }).order('id', { ascending: true });
+      if (!offErr && offRows) {
+        const now = Date.now();
+        OFFERS = offRows.filter(o => !o.ends_at || new Date(o.ends_at).getTime() > now);
+      }
+    } catch (_) {}
+
     const onlineCatIdsWithProducts = new Set();
     PRODUCTS.forEach(p => p.categoryIds.forEach(cid => onlineCatIdsWithProducts.add(String(cid))));
     const onlineCatHasProduct = cat =>
@@ -745,6 +762,88 @@ if (!window.__rakeenOrderBooted) {
       }).filter(Boolean);
       if (groups.length) MODIFIER_PRODUCTS[p.id] = { groups };
     });
+  }
+
+  /* ============ شريط العروض ============
+     بطاقات عريضة تتمرّر أفقياً بالسحب، وتتقلّب لحالها كل ٥ ثواني لين
+     يلمسها الزبون. البطاقة المربوطة بصنف تفتحه مباشرة. */
+  const escOffer = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  function offerEndsLabel(endsAt) {
+    if (!endsAt) return '';
+    const ms = new Date(endsAt).getTime() - Date.now();
+    if (!(ms > 0)) return '';
+    const h = Math.floor(ms / 3600000);
+    if (h < 1) return 'ينتهي خلال دقائق';
+    if (h < 24) return h <= 2 ? 'ينتهي خلال ساعتين' : `ينتهي خلال ${h} ساعة`;
+    const d = Math.ceil(h / 24);
+    return d === 1 ? 'ينتهي بكرة' : d === 2 ? 'ينتهي خلال يومين' : d <= 10 ? `ينتهي خلال ${d} أيام` : `ينتهي خلال ${d} يوم`;
+  }
+  let offersTimer = null;
+  function renderOffers() {
+    const el = document.getElementById('omOffers');
+    if (!el) return;
+    if (offersTimer) { clearInterval(offersTimer); offersTimer = null; }
+    if (!OFFERS.length) { el.hidden = true; el.innerHTML = ''; return; }
+    const productIds = new Set(PRODUCTS.map(p => p.id));
+    el.innerHTML = `
+      <div class="om-offers-head">
+        <span class="om-offers-title">العروض</span>
+        ${OFFERS.length > 1 ? `<span class="om-offers-count mono">${OFFERS.length}</span>` : ''}
+      </div>
+      <div class="om-offers-track${OFFERS.length === 1 ? ' single' : ''}" id="omOffersTrack">
+        ${OFFERS.map(o => {
+          const linked = o.menu_item_id != null && productIds.has(o.menu_item_id);
+          const ends = offerEndsLabel(o.ends_at);
+          return `<${linked ? 'button' : 'div'} class="om-offer${o.image_url ? ' has-img' : ''}${linked ? ' linked' : ''}" ${linked ? `data-item="${o.menu_item_id}"` : ''}>
+            ${o.image_url ? `<img class="om-offer-img" src="${escOffer(o.image_url)}" alt="" loading="lazy">` : '<span class="om-offer-pattern" aria-hidden="true"></span>'}
+            <span class="om-offer-shade" aria-hidden="true"></span>
+            <span class="om-offer-body">
+              ${o.badge ? `<span class="om-offer-badge">${escOffer(o.badge)}</span>` : ''}
+              <span class="om-offer-name">${escOffer(o.title)}</span>
+              ${o.subtitle ? `<span class="om-offer-sub">${escOffer(o.subtitle)}</span>` : ''}
+              ${(linked || ends) ? `<span class="om-offer-foot">
+                ${linked && !DISPLAY_MODE ? `<span class="om-offer-cta">اطلبه الحين<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></span>` : ''}
+                ${ends ? `<span class="om-offer-ends">${ends}</span>` : ''}
+              </span>` : ''}
+            </span>
+          </${linked ? 'button' : 'div'}>`;
+        }).join('')}
+      </div>
+      ${OFFERS.length > 1 ? `<div class="om-offers-dots" id="omOffersDots">${OFFERS.map((_, i) => `<span class="${i === 0 ? 'on' : ''}"></span>`).join('')}</div>` : ''}`;
+    el.hidden = false;
+    el.querySelectorAll('.om-offer.linked').forEach(card => {
+      card.addEventListener('click', () => openProduct(parseInt(card.dataset.item, 10)));
+    });
+    const track = document.getElementById('omOffersTrack');
+    const dots = document.getElementById('omOffersDots');
+    if (!track || !dots) return;
+    const cards = Array.from(track.children);
+    const current = () => {
+      // RTL: scrollLeft سالب أو صفر حسب المتصفح، نقيس بالمسافة من حافة البداية
+      const tr = track.getBoundingClientRect();
+      let best = 0, bestD = Infinity;
+      cards.forEach((c, i) => { const d = Math.abs(c.getBoundingClientRect().right - tr.right); if (d < bestD) { bestD = d; best = i; } });
+      return best;
+    };
+    const paint = () => { const i = current(); Array.from(dots.children).forEach((d, k) => d.classList.toggle('on', k === i)); };
+    let raf = 0;
+    track.addEventListener('scroll', () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(paint); }, { passive: true });
+    const stop = () => { if (offersTimer) { clearInterval(offersTimer); offersTimer = null; } };
+    track.addEventListener('pointerdown', stop, { passive: true });
+    track.addEventListener('touchstart', stop, { passive: true });
+    track.addEventListener('wheel', stop, { passive: true });
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!reduce && track.scrollWidth > track.clientWidth + 4) {
+      offersTimer = setInterval(() => {
+        if (document.hidden) return;
+        const next = cards[(current() + 1) % cards.length];
+        // scrollBy بفرق الحافتين: يشتغل في RTL بكل المتصفحات، وما يحرّك
+        // الصفحة عمودياً (scrollIntoView يحرّكها لو الشريط خارج الشاشة).
+        const pad = parseFloat(getComputedStyle(track).paddingRight) || 0;
+        const dx = next.getBoundingClientRect().right - (track.getBoundingClientRect().right - pad);
+        track.scrollBy({ left: dx, behavior: 'smooth' });
+      }, 5000);
+    }
   }
 
   function renderCatRail() {
