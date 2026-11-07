@@ -74,7 +74,8 @@
 .rk-wn-panel-title{font-family:'RkDisplay', inherit; font-weight:900; font-size:28px; line-height:1.1;}
 .rk-wn-panel-sub{font-size:13px; color:rgba(251,250,245,.6); margin-top:4px;}
 .rk-wn-feed{flex:1; overflow-y:auto; padding:18px; display:flex; flex-direction:column; gap:16px; overscroll-behavior:contain;}
-.rk-wn-post{background:var(--card-bg); border:1px solid var(--line); border-radius:20px; overflow:hidden; box-shadow:var(--shadow-sm);}
+/* flex-shrink:0: عمودٌ مرن + overflow:hidden يخلّي المتصفح يضغط البطاقة لطول الشاشة ويقصّ نقاطها بدل ما تنزل بالتمرير. */
+.rk-wn-post{flex-shrink:0; background:var(--card-bg); border:1px solid var(--line); border-radius:20px; overflow:hidden; box-shadow:var(--shadow-sm);}
 .rk-wn-post-img{width:100%; aspect-ratio:16/9; object-fit:cover; display:block; background:#121212;}
 .rk-wn-post-body{padding:16px 18px 18px;}
 .rk-wn-post .rk-wn-kick{margin-bottom:8px;}
