@@ -2004,7 +2004,7 @@ const useStyles = createStyles(colors =>
   receiptActionText: { fontFamily: fonts.sansBold, fontSize: 10.5, color: colors.text },
   // .new-order-btn
   newOrderWrap: { width: '100%', marginTop: 6 },
-  newOrderBtn: { width: '100%', paddingVertical: 14, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  newOrderBtn: { width: '100%', paddingVertical: 14, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: colors.lime },
   newOrderText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.flagGreenDeep },
   // .auto-reset-note
   // .confirm-pay-btn

@@ -483,7 +483,7 @@ const useStyles = createStyles(colors =>
 
     error: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.danger, marginTop: 10, textAlign: 'center' },
 
-    submit: { width: '100%', paddingVertical: 16, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+    submit: { width: '100%', paddingVertical: 16, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: colors.lime },
     submitSpaced: { marginTop: 16 },
     submitDisabled: { backgroundColor: colors.surf2 },
     submitText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.flagGreenDeep },

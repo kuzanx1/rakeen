@@ -371,7 +371,7 @@ const useStyles = createStyles(colors =>
     otherInput: { marginTop: 2 },
 
     error: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.danger, textAlign: 'center', marginBottom: 10 },
-    submit: { width: '100%', paddingVertical: 16, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginTop: spacing[1] },
+    submit: { width: '100%', paddingVertical: 16, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginTop: spacing[1], backgroundColor: colors.lime },
     submitDisabled: { backgroundColor: colors.surf2 },
     submitText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.flagGreenDeep },
     submitTextDisabled: { color: colors.muted },

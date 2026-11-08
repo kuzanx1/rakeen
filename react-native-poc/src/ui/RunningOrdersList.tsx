@@ -839,6 +839,7 @@ const useStyles = createStyles((colors, shadows) =>
       alignItems: 'center',
       justifyContent: 'center',
       overflow: 'hidden',
+      backgroundColor: colors.lime, // تحت التدرّج: لو ما ترسم يبقى الزر ظاهر (GradientFill)
     },
     actionBusy: { backgroundColor: colors.surf2 },
     actionText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.flagGreenDeep },

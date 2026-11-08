@@ -198,6 +198,7 @@ const useStyles = createStyles((colors, shadows) =>
       alignItems: 'center',
       justifyContent: 'center',
       overflow: 'hidden',
+      backgroundColor: colors.lime, // تحت التدرّج: لو ما ترسم يبقى الزر ظاهر (GradientFill)
     },
     submitText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.flagGreenDeep },
     footNote: { fontFamily: fonts.sansSemiBold, fontSize: 11, color: colors.muted, textAlign: 'center', marginTop: 12 },

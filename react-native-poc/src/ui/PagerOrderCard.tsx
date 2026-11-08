@@ -76,23 +76,23 @@ export default function PagerOrderCard({
           <ActivityIndicator color={colors.muted} />
         </View>
       ) : ready ? (
-        <View style={styles.row}>
+        <View key="ready" style={styles.row}>
           <TouchableOpacity style={styles.half} onPress={() => onAction('ring')} activeOpacity={0.8} accessibilityRole="button">
             <View style={[styles.btn, styles.btnGhost]}>
               <Text style={styles.ghostText}>🔔 رنّ ثاني</Text>
             </View>
           </TouchableOpacity>
           <TouchableOpacity style={styles.half} onPress={() => onAction('collected')} activeOpacity={0.85} accessibilityRole="button">
-            <View style={styles.btn}>
+            <View style={[styles.btn, styles.btnPrimary]}>
               <GradientFill gradient={gradients.payButton} radius={radii.md} />
               <Text style={styles.btnText}>استلمه ✓</Text>
             </View>
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={styles.row}>
+        <View key="prep" style={styles.row}>
           <TouchableOpacity style={styles.wide} onPress={() => onAction('ready')} activeOpacity={0.85} accessibilityRole="button">
-            <View style={styles.btn}>
+            <View style={[styles.btn, styles.btnPrimary]}>
               <GradientFill gradient={gradients.payButton} radius={radii.md} />
               <Text style={styles.btnText}>جاهز — رنّ جواله</Text>
             </View>
@@ -153,6 +153,10 @@ const useStyles = createStyles((colors) =>
     justifyContent: 'center',
     overflow: 'hidden',
   },
+  // لونٌ صلب تحت التدرّج (قاعدة GradientFill): على أندرويد التدرّج أحياناً ما
+  // يترسم أول ما ينركّب الزر بعد «جاهز»، فكان «استلمه» نصّاً أخضر غامقاً على
+  // خلفيةٍ غامقة -- موجود ويُضغط لكنه ما يبان لين يُعاد الرسم.
+  btnPrimary: { backgroundColor: colors.lime },
   btnBusy: { alignSelf: 'stretch', backgroundColor: colors.surf1 },
   btnGhost: { borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surf1 },
   btnText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.flagGreenDeep },

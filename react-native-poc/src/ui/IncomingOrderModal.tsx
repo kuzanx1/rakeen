@@ -365,7 +365,7 @@ const useStyles = createStyles(colors =>
 
     actions: { flexDirection: 'row', gap: 8, marginTop: 16, alignItems: 'stretch' },
     primaryWrap: { flex: 1 },
-    primaryBtn: { width: '100%', paddingVertical: 16, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+    primaryBtn: { width: '100%', paddingVertical: 16, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: colors.lime },
     primaryDisabled: { backgroundColor: colors.surf2 },
     primaryBtnText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.flagGreenDeep },
     primaryTextDisabled: { color: colors.muted },

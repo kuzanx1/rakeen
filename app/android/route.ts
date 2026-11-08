@@ -14,7 +14,7 @@ import { NextResponse } from "next/server";
 //     --content-type application/vnd.android.package-archive \
 //     --content-disposition 'attachment; filename="rakeen.apk"'
 // ثم يتغيّر APK_KEY ويُنشر الموقع.
-const APK_KEY = "apps/rakeen-android-1.5-20261108.apk";
+const APK_KEY = "apps/rakeen-android-1.6-20261108.apk";
 
 export function GET() {
   return NextResponse.redirect(`https://media.rakeenapp.com/${APK_KEY}`, 302);
