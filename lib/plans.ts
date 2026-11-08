@@ -33,6 +33,7 @@ const EMAD_ITEMS: PlanItem[] = [
   { text: "شاشة المطبخ وطباعة المطبخ", feature: "kds" },
   // The cashiers lock it with loyalty (its barcode is the point of it).
   { text: "شاشة العميل: يشوف طلبه وباركود الولاء", feature: "loyalty" },
+  { text: "بيجر ركين: الزبون يمسح الباركود، وجواله يرن لما يجهز طلبه — بدل أجهزة النداء", feature: "pager" },
   { text: "المخزون والوصفات وتنبيهات النقص والاستهلاك التلقائي", feature: "inventory" },
   { text: "المشتريات، وقراءة فواتير الموردين بالتصوير", feature: "purchases_scan" },
   { text: "تكلفة كل منتج، وصافي الربح، والمصاريف والمحاسبة", feature: "costing_profit" },
@@ -64,7 +65,7 @@ export type Plan = {
 };
 
 const ASAS: FeatureKey[] = ["pos", "zatca_invoice", "offline", "shift_close"];
-const EMAD: FeatureKey[] = [...ASAS, "kds", "inventory", "purchases_scan", "costing_profit", "reports", "loyalty", "tables_reservations", "team_permissions", "delivery_apps"];
+const EMAD: FeatureKey[] = [...ASAS, "kds", "inventory", "purchases_scan", "costing_profit", "reports", "loyalty", "tables_reservations", "team_permissions", "delivery_apps", "pager"];
 const SARH: FeatureKey[] = [...EMAD, "online_store", "booking_page", "multi_branch"];
 
 export const PLANS: Plan[] = [

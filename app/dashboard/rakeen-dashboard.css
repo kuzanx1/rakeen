@@ -3513,6 +3513,12 @@ select:not([class]){min-width:150px;}
 .pgs-ph-ring b{ font-size:20px; font-weight:800; color:var(--pv-accent); direction:ltr; }
 .pgs-ph-eta{ font-size:9.5px; font-weight:700; text-align:center; line-height:1.5; }
 .pgs-ph-eta b{ color:var(--pv-accent); font-size:12px; }
+.pgs-ph-items{ align-self:stretch; background:var(--pv-card); border-radius:7px; padding:5px 7px; font-size:7.5px; font-weight:700; }
+.pgs-ph-items div{ display:flex; justify-content:space-between; font-weight:800; font-size:8px; padding-bottom:3px; margin-bottom:2px; border-bottom:1px solid color-mix(in srgb, var(--pv-ink) 12%, transparent); }
+.pgs-ph-items em{ font-style:normal; color:var(--pv-muted); font-weight:700; }
+.pgs-ph-items p{ margin:3px 0 0; display:flex; gap:4px; flex-wrap:wrap; }
+.pgs-ph-items p b{ color:var(--pv-accent); font-family:ui-monospace,monospace; }
+.pgs-ph-items small{ flex-basis:100%; padding-inline-start:14px; font-size:6.5px; color:var(--pv-muted); }
 .pgs-ph-btn{ margin-top:auto; align-self:stretch; text-align:center; background:var(--pv-accent); color:var(--pv-accent-ink);
   font-size:9.5px; font-weight:800; padding:7px 4px; border-radius:10px; }
 .pgs-phone.ready{ background:var(--pv-accent); color:var(--pv-accent-ink); justify-content:center; }

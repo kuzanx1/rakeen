@@ -24,12 +24,14 @@ const BRANDS = {
 };
 
 function status(kind, brand, extra = {}) {
+  const now = Date.now();
   if (kind === 'waiting') return { found: false };
   const base = {
     found: true, order_id: 48213, channel: 'pickup', status: 'completed',
     created_at: iso(now - 4 * 60000), eta_at: iso(now + 11 * 60000), ready_at: null, delivered_at: null,
     delayed_at: null, rung_at: null, ring_count: 0, customer: 'محمد', business: BRANDS[brand],
     branch: 'فرع النرجس', ready_msg: null, tone: 'chime',
+    items: [{ n: 'قهوة مختصة', q: 2, m: 'إثيوبي، حليب شوفان', note: null }, { n: 'كرواسون زعتر', q: 1, m: null, note: 'سخّنه' }],
   };
   if (kind === 'late') Object.assign(base, { eta_at: iso(now - 60000) });
   if (kind === 'delayed') Object.assign(base, { delayed_at: iso(now - 30000), eta_at: iso(now + 6 * 60000) });
@@ -38,7 +40,8 @@ function status(kind, brand, extra = {}) {
   if (kind === 'collected') Object.assign(base, { ready_at: iso(now - 200000), delivered_at: iso(now - 1000) });
   if (kind === 'cancelled') Object.assign(base, { status: 'cancelled' });
   if (kind === 'longnum') Object.assign(base, { order_id: 1234567 });
-  if (kind === 'noeta') Object.assign(base, { eta_at: null, customer: null });
+  if (kind === 'noeta') Object.assign(base, { eta_at: null, customer: null, items: null });
+  if (kind === 'manyitems') Object.assign(base, { items: Array.from({ length: 9 }, (_, i) => ({ n: i === 3 ? 'ساندويتش دجاج مشوي بالجبنة والخضار الطازجة مع صوص الثوم الخاص' : 'صنف رقم ' + (i + 1), q: i === 0 ? 12 : 1, m: i === 3 ? 'بدون بصل، زيادة جبن، خبز بر، صوص حار، مخلل، خس' : null, note: null })) });
   return Object.assign(base, extra);
 }
 
@@ -48,7 +51,7 @@ function check(name, ok, info) { if (ok) pass++; else { fail++; fails.push(name 
 
 (async () => {
   const b = await chromium.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', args: ['--autoplay-policy=no-user-gesture-required'] });
-  const kinds = ['waiting', 'preparing', 'late', 'delayed', 'ready', 'rung', 'collected', 'cancelled', 'longnum', 'noeta'];
+  const kinds = ['waiting', 'preparing', 'late', 'delayed', 'ready', 'rung', 'collected', 'cancelled', 'longnum', 'noeta', 'manyitems'];
   for (const brand of Object.keys(BRANDS)) {
     for (const kind of kinds) {
       for (const [w, h] of SIZES) {
@@ -92,10 +95,22 @@ function check(name, ok, info) { if (ok) pass++; else { fail++; fails.push(name 
         const expect = {
           waiting: 'طلبك في الطريق', preparing: 'متوقع يجهز خلال', late: 'على وشك يجهز', delayed: 'تأخرنا عليك شوي',
           ready: 'طلبك جاهز!', rung: 'نناديك مرة ثانية', collected: 'بالعافية عليك', cancelled: 'انلغى الطلب',
-          longnum: '1234567', noeta: 'نجهزه لك الحين',
+          longnum: '1234567', noeta: 'نجهزه لك الحين', manyitems: 'متوقع يجهز خلال',
         }[kind];
+        // تفاصيل الطلب: تظهر وقت التجهيز فقط، بلا أسعار، وتنطوي لو كثيرة.
+        const it = await p.evaluate(() => { const d = document.querySelector('.pg-items'); return d ? { open: d.open, t: d.innerText } : null; });
+        if (['preparing', 'late', 'delayed', 'longnum'].includes(kind)) check(tag + ' items card open', !!it && it.open && it.t.includes('3 أصناف') && it.t.includes('حليب شوفان') && it.t.includes('«سخّنه»'), JSON.stringify(it));
+        else if (kind === 'manyitems') check(tag + ' many items → collapsed, count', !!it && !it.open && it.t.includes('20 صنف'), JSON.stringify(it));
+        else check(tag + ' no items card', !it, JSON.stringify(it));
+        if (kind === 'manyitems' && w === 320) {
+          await p.evaluate(() => { document.querySelector('.pg-items').open = true; });
+          await p.waitForTimeout(150);
+          const o = await p.evaluate(() => { const over = []; document.querySelectorAll('.pg-items *').forEach(el => { const b = el.getBoundingClientRect(); if (b.right > innerWidth + 1 || b.left < -1) over.push(el.className || el.tagName); }); return { open: document.querySelector('.pg-items').open, over, sw: document.documentElement.scrollWidth }; });
+          check(tag + ' expanded list fits', o.open && !o.over.length && o.sw <= 321, JSON.stringify(o));
+        }
+        check(tag + ' no prices or steps', !/ر\.س|﷼|SAR|استلمناه/.test(m.txt));
         check(tag + ' shows "' + expect + '"', m.txt.includes(expect), m.txt.slice(0, 80).replace(/\n/g, ' | '));
-        if (['preparing', 'late', 'delayed', 'longnum', 'noeta'].includes(kind)) {
+        if (['preparing', 'late', 'delayed', 'longnum', 'noeta', 'manyitems'].includes(kind)) {
           check(tag + ' has arm button', m.txt.includes('شغّل البيجر'));
           // «تبي صوت؟» تطلع أول ما تنفتح، وأزرارها كاملة داخل الشاشة.
           const ask = await p.evaluate(() => {

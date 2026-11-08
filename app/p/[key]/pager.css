@@ -50,15 +50,19 @@ html, body { margin: 0; background: var(--pg-surf, #121212); }
 .pg-delay { margin: 10px 0 0; padding: 8px 14px; border-radius: 999px; font-size: 14px; font-weight: 700;
   background: color-mix(in srgb, var(--pg-accent) 16%, transparent); color: var(--pg-ink); }
 
-/* ── المراحل */
-.pg-steps { list-style: none; display: flex; justify-content: space-between; align-self: stretch; margin: 26px 8px 0; padding: 0; position: relative; }
-.pg-steps::before { content: ""; position: absolute; top: 10px; inset-inline: 34px; height: 3px; border-radius: 3px; background: color-mix(in srgb, var(--pg-ink) 14%, transparent); }
-.pg-steps li { position: relative; width: 33%; display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: var(--pg-muted); }
-.pg-steps i { width: 23px; height: 23px; border-radius: 50%; background: color-mix(in srgb, var(--pg-ink) 16%, var(--pg-surf)); display: block; }
-.pg-steps li.on { color: var(--pg-ink); }
-.pg-steps li.on i { background: var(--pg-accent); }
-.pg-steps li.now i { box-shadow: 0 0 0 7px color-mix(in srgb, var(--pg-accent) 25%, transparent); animation: pg-now 1.8s ease-in-out infinite; }
-@keyframes pg-now { 50% { box-shadow: 0 0 0 11px color-mix(in srgb, var(--pg-accent) 10%, transparent); } }
+/* ── تفاصيل الطلب: بطاقة هادئة، بلا أسعار */
+.pg-items { align-self: stretch; margin-top: 22px; background: var(--pg-card); border-radius: 18px; padding: 4px 16px; text-align: right; }
+.pg-items summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 12px 0; font-weight: 800; font-size: 16px; }
+.pg-items summary::-webkit-details-marker { display: none; }
+.pg-items summary b { font-size: 14px; font-weight: 700; color: var(--pg-muted); display: inline-flex; align-items: center; gap: 6px; }
+.pg-items summary svg { transition: transform .2s; }
+.pg-items[open] summary svg { transform: rotate(180deg); }
+.pg-items ul { list-style: none; margin: 0; padding: 0 0 10px; border-top: 1px solid color-mix(in srgb, var(--pg-ink) 10%, transparent); }
+.pg-items li { display: flex; gap: 10px; align-items: baseline; padding: 9px 0 0; font-size: 16px; font-weight: 700; }
+.pg-it-q { flex: none; min-width: 26px; color: var(--pg-accent); font-family: PgMono, ui-monospace, monospace; direction: ltr; unicode-bidi: isolate; text-align: left; }
+.pg-it-n { min-width: 0; overflow-wrap: anywhere; }
+.pg-it-n small { display: block; margin-top: 2px; font-size: 13.5px; font-weight: 600; color: var(--pg-muted); }
+
 
 /* ── زر التشغيل */
 .pg-arm { margin-top: 28px; align-self: stretch; display: flex; align-items: center; gap: 14px; text-align: right;
@@ -83,7 +87,6 @@ html, body { margin: 0; background: var(--pg-surf, #121212); }
   box-shadow: 0 0 0 0 color-mix(in srgb, var(--pg-accent) 60%, transparent); animation: pg-dot 1.6s ease-out infinite; }
 @keyframes pg-dot { 100% { box-shadow: 0 0 0 12px transparent; } }
 .pg-link { margin-top: 8px; padding: 0; border: 0; background: none; color: var(--pg-accent); font: inherit; font-size: 14px; font-weight: 700; text-decoration: underline; cursor: pointer; }
-.pg-ios { color: var(--pg-ink) !important; }
 .pg-offline { margin-top: 16px; font-size: 14px; color: var(--pg-muted); }
 
 .pg-foot { margin-top: auto; padding-top: 26px; font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--pg-muted); opacity: .8;
@@ -148,7 +151,7 @@ html, body { margin: 0; background: var(--pg-surf, #121212); }
 @media (max-height: 640px) {
   .pg-ring { width: min(60vw, 230px); margin-top: 10px; }
   .pg-hi { margin-top: 12px; }
-  .pg-steps { margin-top: 16px; }
+  .pg-items { margin-top: 14px; }
   .pg-arm, .pg-armed { margin-top: 18px; }
   .pg-ready-core { margin-top: 26px; width: min(60vw, 230px); }
   .pg-burst { top: 92px; width: min(62vw, 240px); }

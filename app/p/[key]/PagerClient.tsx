@@ -25,6 +25,8 @@ export interface PagerStatus {
   tone?: string | null;
   /** false: المحل ما يبي يوعد بوقت. (قاعدة قديمة لا ترجعه = يُعرض.) */
   show_eta?: boolean;
+  /** الأصناف (بلا أسعار) -- null لو صاحب المحل أطفأ «تفاصيل الطلب». */
+  items?: { n: string; q: number; m?: string | null; note?: string | null }[] | null;
 }
 
 type Phase = "waiting" | "preparing" | "ready" | "collected" | "cancelled";
@@ -62,19 +64,19 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
   const [notif, setNotif] = useState<NotifState>("idle");
   const [alarm, setAlarm] = useState(false);
   const [offline, setOffline] = useState(false);
-  const [showIosHelp, setShowIosHelp] = useState(false);
+  // يتغيّر = اشتراكٌ لحظيّ جديد (لما يتبيّن أن الاتصال القديم مات بصمت).
+  const [rtGen, setRtGen] = useState(0);
+  const lastBcRef = useRef(0);
   // «تبي صوت؟» تطلع أول ما تنفتح الصفحة -- الضغطة نفسها هي اللي تفتح الصوت
-  // (المتصفح ما يسمح بصوتٍ بلا ضغطة). «بدون صوت»: هزّ وإشعار وشاشة فقط.
+  // (المتصفح ما يسمح بصوتٍ بلا ضغطة). «بدون صوت»: الحالة تتحدّث على الشاشة فقط.
   const [asked, setAsked] = useState(false);
   const [silent, setSilent] = useState(false);
   const silentRef = useRef(false);
   // «استلمت طلبي»: الزبون يقفل البيجر عنده بنفسه -- ما يغيّر شي عند الكاشير.
   const [selfDone, setSelfDone] = useState(false);
-  // الآيفون (سفاري وكل متصفحاته) ما يسمح لموقعٍ يهز الجوال أصلاً -- لا نعِد
-  // بهزٍّ ما يصير. وفي أندرويد الهزّ من الصفحة يشتغل وهي ظاهرة فقط؛ وهي
-  // بالخلفية يهزّ الإشعار.
-  const [canVibrate, setCanVibrate] = useState(true);
-  useEffect(() => { setCanVibrate(typeof navigator !== "undefined" && typeof navigator.vibrate === "function"); }, []);
+  // لا نعِد بهزٍّ أبداً: الآيفون يمنعه على المواقع، وأجهزة أندرويد كثيرة
+  // تتجاهله (جُرّب على جوال المالك: «بدون صوت» ما هزّ). نداء vibrate يبقى
+  // محاولةً صامتة، والنص ما يذكره.
   const selfDoneRef = useRef(false);
 
   const sbRef = useRef<SupabaseClient | null>(null);
@@ -132,7 +134,7 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
     if (!initial) void fetchStatus();
     let first = true;
     const ch = sb.channel(`pager:${uuid}`)
-      .on("broadcast", { event: "pager" }, () => { void fetchStatus(); })
+      .on("broadcast", { event: "pager" }, () => { lastBcRef.current = Date.now(); void fetchStatus(); })
       .subscribe((status) => {
         liveRef.current = status === "SUBSCRIBED";
         if (status !== "SUBSCRIBED") return;
@@ -143,7 +145,7 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
         void fetchStatus();
       });
     return () => { try { sb.removeChannel(ch); } catch { /* أُغلقت */ } };
-  }, [uuid, fetchStatus, initial]);
+  }, [uuid, fetchStatus, initial, rtGen]);
 
   // ولا سؤالَ كل ثوانٍ: يُجلب لما يرجع الزبون للصفحة أو يرجع النت (والبثّ
   // يعيد الاشتراك وحده، وأعلاه يجلب عند كل اشتراك). والسؤال الدوري احتياطٌ
@@ -152,11 +154,12 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
   useEffect(() => {
     if (phase === "collected" || phase === "cancelled") return;
     const vis = () => { if (document.visibilityState === "visible") void fetchStatus(); };
-    const t = window.setInterval(() => { if (!liveRef.current) void fetchStatus(); }, 20000);
+    // والجوال يرن والاتصال مقطوع: أسرع، عشان «استلمه» يسكّته في ثوانٍ.
+    const t = window.setInterval(() => { if (!liveRef.current) void fetchStatus(); }, alarm ? 5000 : 20000);
     document.addEventListener("visibilitychange", vis);
     window.addEventListener("online", vis);
     return () => { window.clearInterval(t); document.removeEventListener("visibilitychange", vis); window.removeEventListener("online", vis); };
-  }, [phase, fetchStatus]);
+  }, [phase, fetchStatus, alarm]);
 
   useEffect(() => {
     const t = window.setInterval(() => setNow(Date.now()), 1000);
@@ -330,10 +333,19 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
   // الخادم ردّ برسالة من عامل الخدمة والصفحة مفتوحة.
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
-    const onMsg = (e: MessageEvent) => { if (e.data?.type === "pager-push") void fetchStatus(); };
+    const onMsg = (e: MessageEvent) => {
+      if (e.data?.type !== "pager-push") return;
+      // «استلمه» من الكاشير: يسكت فوراً، قبل حتى ما ترجع الحالة.
+      if (e.data?.data?.kind === "collected") stopAlarm();
+      void fetchStatus();
+      // القاعدة تبثّ قبل الإشعار دائماً. وصل الإشعار وما وصل بثٌّ قبله؟ الاتصال
+      // اللحظي مات بصمت (جوالٌ مقفول) وهو يحسب نفسه متصلاً: اشتراكٌ جديد،
+      // وإلى أن يتصل يشتغل الاحتياط أعلاه.
+      if (Date.now() - lastBcRef.current > 8000) { liveRef.current = false; setRtGen(g => g + 1); }
+    };
     navigator.serviceWorker.addEventListener("message", onMsg);
     return () => navigator.serviceWorker.removeEventListener("message", onMsg);
-  }, [fetchStatus]);
+  }, [fetchStatus, stopAlarm]);
 
   // ── الوقت
   const created = s?.created_at ? Date.parse(s.created_at) : now;
@@ -367,6 +379,23 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
     </a>
   );
 
+  // تفاصيل الطلب: الأصناف وكمياتها وإضافاتها -- بلا أسعار. مطويّة لو كثيرة.
+  const list = phase === "preparing" && Array.isArray(s?.items) ? s!.items! : [];
+  const count = list.reduce((a, it) => a + (Number(it.q) || 0), 0);
+  const items = list.length ? (
+    <details className="pg-items" open={list.length <= 4}>
+      <summary><span>طلبك</span><b>{count} {count === 1 ? "صنف" : count === 2 ? "صنفين" : count <= 10 ? "أصناف" : "صنف"}<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></b></summary>
+      <ul>
+        {list.map((it, i) => (
+          <li key={i}>
+            <span className="pg-it-q">{Number(it.q) % 1 ? Number(it.q).toFixed(1) : Number(it.q)}×</span>
+            <span className="pg-it-n">{it.n}{it.m ? <small>{it.m}</small> : null}{it.note ? <small>«{it.note}»</small> : null}</span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  ) : null;
+
   const header = (
     <header className="pg-head">
       {logo ? <img className="pg-logo" src={logo} alt="" /> : <span className="pg-logo pg-logo-txt">{(biz.name || "ر").trim().charAt(0)}</span>}
@@ -391,7 +420,7 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
         {(s?.ring_count || 0) > 0 ? <p className="pg-again">نناديك مرة ثانية — طلبك ينتظرك</p> : null}
         <div className="pg-ready-acts">
           {alarm
-            ? <button className="pg-btn pg-btn-dark" onClick={stopAlarm}>{!silent ? "شفته، وقّف الصوت" : canVibrate ? "شفته، وقّف الهزّ" : "شفته"}</button>
+            ? <button className="pg-btn pg-btn-dark" onClick={stopAlarm}>{!silent ? "شفته، وقّف الصوت" : "شفته"}</button>
             : !armed ? <button className="pg-btn pg-btn-dark" onClick={() => { void arm(true); }}>شغّل الصوت</button> : null}
           <button className="pg-btn pg-btn-ghost" onClick={markSelfDone}>استلمت طلبي ✓</button>
         </div>
@@ -417,7 +446,7 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
   return (
     <main className="pg-root" style={style} dir="rtl">
       {header}
-      <p className="pg-hi">{phase === "waiting" ? "طلبك في الطريق لنا…" : s?.customer ? `هلا ${s.customer}، طلبك عندنا` : "هلا، طلبك عندنا"}</p>
+      {phase === "waiting" ? <p className="pg-hi">طلبك في الطريق لنا…</p> : s?.customer ? <p className="pg-hi">هلا {s.customer}</p> : null}
 
       <section className="pg-ring" aria-label={`رقم طلبك ${num}`}>
         <svg viewBox="0 0 260 260" aria-hidden="true">
@@ -435,11 +464,7 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
       <p className="pg-eta">{phase === "waiting" ? "أول ما يوصل للنظام تظهر حالته هنا" : etaText}</p>
       {s?.delayed_at && phase === "preparing" && s?.show_eta !== false ? <p className="pg-delay">تأخرنا عليك شوي، سامحنا — نجهزه لك الحين</p> : null}
 
-      <ol className="pg-steps">
-        <li className={phase !== "waiting" ? "on" : ""}><i />استلمناه</li>
-        <li className={phase === "preparing" ? "on now" : ""}><i />يتجهز</li>
-        <li><i />جاهز</li>
-      </ol>
+      {items}
 
       {!armed ? (
         <button className="pg-arm" onClick={() => { void arm(true); }}>
@@ -448,7 +473,7 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
           </span>
           <span className="pg-arm-txt">
             <b>شغّل البيجر</b>
-            <small>عشان نرن ونهز جوالك أول ما يجهز طلبك</small>
+            <small>عشان نرن جوالك أول ما يجهز طلبك</small>
           </span>
         </button>
       ) : (
@@ -456,21 +481,9 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
           <span className="pg-armed-dot" aria-hidden="true" />
           <div>
             <b>{silent ? "البيجر شغّال — بدون صوت" : "البيجر شغّال"}</b>
-            <small>
-              {silent
-                ? (canVibrate ? "بنهزّ جوالك ونطلّع لك تنبيه أول ما يجهز." : "بتتحدّث حالة طلبك هنا أول ما يجهز.")
-                : notif === "granted"
-                ? "بيوصلك تنبيه حتى لو قفلت الجوال."
-                : "خلّ الصفحة مفتوحة وحط الجوال قدامك — بنرن ونهزّه لما يجهز."}
-            </small>
+            {silent ? <small>بتتحدّث حالة طلبك هنا أول ما يجهز.</small> : null}
             {silent ? (
               <button className="pg-link" onClick={() => { silentRef.current = false; setSilent(false); try { void new Audio("/pager/armed.wav").play().catch(() => {}); } catch { /* */ } }}>شغّل الصوت</button>
-            ) : null}
-            {notif === "ios-home" ? (
-              <button className="pg-link" onClick={() => setShowIosHelp(v => !v)}>تبي التنبيه وجوالك مقفول؟</button>
-            ) : null}
-            {showIosHelp ? (
-              <small className="pg-ios">في سفاري: زر المشاركة ← «إضافة إلى الشاشة الرئيسية»، وافتحه من هناك وشغّل البيجر.</small>
             ) : null}
           </div>
         </div>
@@ -483,9 +496,8 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
               <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
             </span>
             <b id="pg-ask-t">نرن جوالك لما يجهز طلبك؟</b>
-            <small>اضغط «موافق» ونشغّل لك الصوت. خلّ الصفحة مفتوحة أو بالخلفية.</small>
             <button className="pg-ask-yes" onClick={() => { void arm(true); }}>موافق، شغّل الصوت</button>
-            <button className="pg-ask-no" onClick={() => { void arm(false); }}>{canVibrate ? "بدون صوت — هزّ بس" : "بدون صوت"}</button>
+            <button className="pg-ask-no" onClick={() => { void arm(false); }}>بدون صوت</button>
           </div>
         </div>
       ) : null}

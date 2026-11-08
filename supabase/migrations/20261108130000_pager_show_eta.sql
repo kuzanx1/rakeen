@@ -1,7 +1,10 @@
--- بيجر ركين: خيار «اعرض للزبون وقت متوقع» (pager_settings.show_eta).
+-- بيجر ركين: خياران في pager_settings --
+--   show_eta   «اعرض للزبون وقت متوقع»
+--   show_items «اعرض تفاصيل الطلب للزبون» (الأصناف وكمياتها وإضافاتها، بلا أسعار)
 -- مطفأ: صفحة الزبون ما تعرض وقتاً، والكاشير يعدّ على وقت التحضير بلا «+٥ د».
 -- pager_eta_at يبقى يُحسب كما هو (هو علامة «طلب بيجر» نفسها) -- الصفحة فقط
--- تخفيه. كل ما يتغيّر هنا: get_pager_status يرجّع show_eta.
+-- تخفيه. كل ما يتغيّر هنا: get_pager_status يرجّع show_eta، و items (لو
+-- show_items غير مطفأ). بلا أسعار: الصفحة تُفتح من باركود قد يراه غيره.
 -- يُعاد تشغيله بلا ضرر.
 
 create or replace function get_pager_status(p_key uuid)
@@ -13,6 +16,7 @@ as $fn$
 declare
   o record;
   v_settings jsonb;
+  v_items jsonb;
 begin
   -- الحدّ على المفتاح لا على الـ IP: زبائن المحل كلهم على واي فاي واحد.
   if not check_rate_limit('pager_key:' || p_key, 40, 60) then
@@ -40,6 +44,20 @@ begin
   end if;
 
   v_settings := coalesce(o.pager_settings, '{}'::jsonb);
+  if coalesce(v_settings -> 'show_items' <> 'false'::jsonb, true) then
+    select coalesce(jsonb_agg(jsonb_build_object(
+             'n', left(coalesce(mi.name, sv.name, ''), 60),
+             'q', oi.qty,
+             'm', nullif(left((select string_agg(x ->> 'text', '، ')
+                               from jsonb_array_elements(case when jsonb_typeof(oi.selected_modifiers) = 'array'
+                                                              then oi.selected_modifiers else '[]'::jsonb end) x), 80), ''),
+             'note', nullif(left(coalesce(oi.note, ''), 60), '')
+           ) order by oi.id), '[]'::jsonb)
+      into v_items
+      from (select * from order_items where order_id = o.id order by id limit 30) oi
+      left join menu_items mi on mi.id = oi.menu_item_id
+      left join services sv on sv.id = oi.service_id;
+  end if;
   return jsonb_build_object(
     'found', true,
     'order_id', o.id,
@@ -61,7 +79,8 @@ begin
     'branch', o.branch_name,
     'ready_msg', nullif(left(coalesce(v_settings ->> 'ready_msg', ''), 80), ''),
     'tone', coalesce(nullif(v_settings ->> 'tone', ''), 'chime'),
-    'show_eta', coalesce(v_settings -> 'show_eta' <> 'false'::jsonb, true)
+    'show_eta', coalesce(v_settings -> 'show_eta' <> 'false'::jsonb, true),
+    'items', v_items
   );
 end;
 $fn$;

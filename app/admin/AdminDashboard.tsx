@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import WhatsAppAdminPanel from "./WhatsAppAdminPanel";
 import UsagePanel from "./UsagePanel";
+import BroadcastPanel from "./BroadcastPanel";
 import AuditLogPanel from "./AuditLogPanel";
 import ContractsPanel from "./ContractsPanel";
 import QuotePanel from "./QuotePanel";
@@ -159,7 +160,7 @@ export default function AdminDashboard() {
   const [mfaError, setMfaError] = useState<string | null>(null);
   const [mfaBusy, setMfaBusy] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<"businesses" | "whatsapp" | "contracts" | "quotes" | "usage" | "audit">("businesses");
+  const [activeTab, setActiveTab] = useState<"businesses" | "whatsapp" | "broadcast" | "contracts" | "quotes" | "usage" | "audit">("businesses");
   const [businesses, setBusinesses] = useState<Business[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -792,6 +793,7 @@ export default function AdminDashboard() {
               ["contracts", "العقود والدفعات"],
               ["quotes", "عروض الأسعار"],
               ["whatsapp", "واتساب"],
+              ["broadcast", "رسائل للمشتركين"],
               ["usage", "استهلاك البنية التحتية"],
               ["audit", "سجل التدقيق"],
             ] as const
@@ -808,6 +810,7 @@ export default function AdminDashboard() {
         </div>
 
         {activeTab === "whatsapp" && <WhatsAppAdminPanel token={session.token} />}
+        {activeTab === "broadcast" && <BroadcastPanel token={session.token} />}
         {activeTab === "contracts" && <ContractsPanel token={session.token} />}
         {activeTab === "quotes" && <QuotePanel />}
         {activeTab === "usage" && <UsagePanel token={session.token} />}

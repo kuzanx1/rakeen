@@ -178,11 +178,16 @@ function check(n, ok, info) { if (ok) pass++; else { fail++; fails.push(n + (inf
           check(tag + ' show_eta off → buffer/timeline hidden, phone has no time', r.buf === 'none' && r.tl === 'none' && r.help === '' && r.eta.includes('نجهزه لك الحين') && !/\d/.test(r.eta), JSON.stringify(r));
           if (SHOTS) await p.locator('.rk-section', { has: p.locator('#pgsPrep') }).screenshot({ path: path.join(OUT, `dash-noeta-${w}.png`) });
           if (SHOTS) await p.locator('.pgs-stage').screenshot({ path: path.join(OUT, `dash-noeta-stage-${w}.png`) });
+          // «اعرض تفاصيل الطلب»: يطلع في الجوال مفعّلاً، ويختفي لما ينطفئ.
+          check(tag + ' items shown in phone by default', await p.evaluate(() => !!document.querySelector('.pgs-ph-items') && document.getElementById('pgsShowItems').checked));
+          if (SHOTS) await p.locator('.rk-section', { has: p.locator('#pgsShowItems') }).screenshot({ path: path.join(OUT, `dash-items-${w}.png`) });
+          await p.evaluate(() => { const i = document.getElementById('pgsShowItems'); i.checked = false; i.dispatchEvent(new Event('change', { bubbles: true })); });
+          check(tag + ' show_items off → phone list gone', await p.evaluate(() => !document.querySelector('.pgs-ph-items')));
           await p.click('#pgsSaveBtn');
           await p.waitForTimeout(200);
           const saved = await p.evaluate(() => window.__saved);
           if (!saved) console.log('DEBUG', await p.evaluate(() => JSON.stringify({ t: window.__toasts, dis: document.getElementById('pgsSaveBtn').disabled, cls: document.getElementById('pgsSaveBtn').className })));
-          const exp = { pager_enabled: true, pager_settings: { channels: ['pickup'], prep_min: 15, buffer_min: 0, receipt: false, display: false, display_secs: 0, remind_min: 5, close_min: 0, wifi: 'Cafe-5G', ready_msg: 'طلبك ينتظرك <b>هنا</b>', late_alert: true, tone: 'beep', show_eta: false } };
+          const exp = { pager_enabled: true, pager_settings: { channels: ['pickup'], prep_min: 15, buffer_min: 0, receipt: false, display: false, display_secs: 0, remind_min: 5, close_min: 0, wifi: 'Cafe-5G', ready_msg: 'طلبك ينتظرك <b>هنا</b>', late_alert: true, tone: 'beep', show_eta: false, show_items: false } };
           const ok = saved && saved.pager_enabled === true && Object.keys(exp.pager_settings).every(k => JSON.stringify(saved.pager_settings[k]) === JSON.stringify(exp.pager_settings[k]));
           check(tag + ' save payload exact', ok, JSON.stringify(saved));
           check(tag + ' dirty cleared after save', await p.evaluate(() => document.getElementById('pgsDirty').hidden));

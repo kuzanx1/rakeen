@@ -5,7 +5,7 @@
  */
 const fs = require('fs');
 const ts = fs.readFileSync(process.argv[2] || 'lib/plans.ts', 'utf8');
-const sql = fs.readFileSync(process.argv[3] || 'supabase/migrations/20261015120000_business_plans.sql', 'utf8');
+const sql = fs.readFileSync(process.argv[3] || 'supabase/migrations/20261108150000_pager_plan_gate.sql', 'utf8');
 
 const quoted = (s) => [...s.matchAll(/["']([a-z_]+)["']/g)].map((m) => m[1]);
 

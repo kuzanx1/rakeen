@@ -89,11 +89,16 @@ export async function POST(request: NextRequest) {
 
     const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
     const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
-    if (subscribed && vapidPublicKey && vapidPrivateKey && (action === "ready" || action === "ring" || action === "delay")) {
+    if (subscribed && vapidPublicKey && vapidPrivateKey && (action === "ready" || action === "ring" || action === "delay" || action === "collected")) {
       const { data: biz } = await asCashier.from("businesses").select("name, logo_url").limit(1).maybeSingle();
       const key = uuidToKey(uuid);
       const title = biz?.name || "ركين";
-      const body = action === "delay"
+      // «استلمه» يُرسَل إشعاراً هادئاً أيضاً: الجوال المقفول (والاتصال اللحظي
+      // نائم) ما يدري بالاستلام إلا به -- وبدونه يظل يرن لين تنتهي الدقيقة ونص.
+      // نفس الوسم، فيحلّ محلّ «جاهز» على شاشة القفل بدل ما يتكدّس.
+      const body = action === "collected"
+        ? `استلمت طلبك #${order.id} — بالعافية عليك`
+        : action === "delay"
         ? `تأخرنا عليك شوي في طلب #${order.id} — نجهزه لك الحين`
         : action === "ring"
           ? `طلبك #${order.id} ينتظرك! تفضّل استلمه`
@@ -105,7 +110,9 @@ export async function POST(request: NextRequest) {
         icon: biz?.logo_url || undefined,
         tag: `pager-${order.id}`,
         // الجاهزُ والرنينُ يرنّان ويبقيان حتى يُلمسا؛ التأخيرُ خبرٌ هادئ.
-        urgent: action !== "delay",
+        urgent: action === "ready" || action === "ring",
+        quiet: action === "collected",
+        kind: action,
       });
       const results = await Promise.all((subs || []).map(s =>
         sendPushToSubscription(s, msg, admin, "pager_push_subscriptions", { urgency: "high", TTL: 1800 }).catch(() => false)));

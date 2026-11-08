@@ -9,6 +9,8 @@ self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch (_) { /* حمولة تالفة */ }
   const urgent = data.urgent !== false;
+  // «استُلم»: يستبدل إشعار «جاهز» بصمت -- بلا صوت ولا هزّ.
+  const quiet = data.quiet === true;
   event.waitUntil((async () => {
     await self.registration.showNotification(data.title || 'ركين', {
       body: data.body || 'طلبك جاهز',
@@ -18,9 +20,10 @@ self.addEventListener('push', (event) => {
       lang: 'ar',
       tag: data.tag || 'pager',
       // نفسُ الوسم مع renotify: الرنّةُ الثانية ترنّ ولا تتكدّس.
-      renotify: true,
-      requireInteraction: urgent,
-      vibrate: urgent ? [500, 200, 500, 200, 900] : [200],
+      renotify: !quiet,
+      silent: quiet,
+      requireInteraction: urgent && !quiet,
+      vibrate: quiet ? [] : urgent ? [500, 200, 500, 200, 900] : [200],
       data: { url: data.url || '/' },
     });
     // الصفحةُ مفتوحة؟ تُخبَر لترنّ بصوتها هي أيضاً.

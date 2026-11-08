@@ -69,6 +69,7 @@ export type FeatureKey =
   | "multi_branch"
   | "team_permissions"
   | "delivery_apps"
+  | "pager"
   | "ai_advisor";
 
 // Everything here is a capability that exists in the product today (see
@@ -91,6 +92,7 @@ export const FEATURE_CATALOG: { key: FeatureKey; label: string }[] = [
   { key: "multi_branch", label: "تعدد الفروع" },
   { key: "team_permissions", label: "الموظفين والصلاحيات وسجل العمليات" },
   { key: "delivery_apps", label: "إدارة تطبيقات التوصيل وعمولاتها" },
+  { key: "pager", label: "بيجر ركين: جوال الزبون يرن لما يجهز طلبه" },
   { key: "ai_advisor", label: "مستشار ركين الذكي" },
 ];
 

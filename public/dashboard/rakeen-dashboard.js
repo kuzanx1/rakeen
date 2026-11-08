@@ -10701,6 +10701,7 @@ const PLAN_LOCK_SELECTORS = {
   reports: ['[data-report="counter"]', '[data-report="products"]', '[data-report="discounts"]', '[data-export="excel"]', '#reportEmailToggleBtn'],
   // الكاشير يُضاف من «قائمة الموظفين» لكل الباقات. الصلاحيات وحسابات لوحة
   // التحكم وسجل العمليات والامتثال والأقسام مع «صلاحيات الموظفين» (عماد).
+  pager: ['#posSettingsTabs [data-tab="pager"]'],
   team_permissions: ['#settingsTabs [data-tab="permissions"]', '#hrTabs [data-tab="compliance"]', '#hrTabs [data-tab="departments"]', '#auditFooter'],
 };
 const PLAN_HIDE_SELECTORS = {
@@ -10712,7 +10713,7 @@ const PLAN_HIDE_SELECTORS = {
 // tools/accounting-checks/plan-gating.cjs يتأكد إنهم متطابقين).
 const FEATURE_MIN_PLAN = {
   kds: 'عماد', inventory: 'عماد', purchases_scan: 'عماد', costing_profit: 'عماد', reports: 'عماد',
-  loyalty: 'عماد', tables_reservations: 'عماد', team_permissions: 'عماد', delivery_apps: 'عماد',
+  loyalty: 'عماد', tables_reservations: 'عماد', team_permissions: 'عماد', delivery_apps: 'عماد', pager: 'عماد',
   online_store: 'صرح', booking_page: 'صرح', multi_branch: 'صرح',
 };
 const FEATURE_UPSELL = {
@@ -10728,6 +10729,7 @@ const FEATURE_UPSELL = {
   online_store: 'المتجر الإلكتروني: طلب مباشر وتتبّع ودفع بالبطاقة بدون عمولة',
   booking_page: 'صفحة حجز المواعيد لعملائك',
   multi_branch: 'إدارة الفروع وتقارير لكل فرع',
+  pager: 'بيجر ركين: جوال الزبون يرن لما يجهز طلبه',
 };
 const PLAN_UPGRADE_WA = '966557444227';
 const PLAN_LOCK_ICON = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23C4FF2B' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 8 0v4'/%3E%3C/svg%3E\")";
@@ -12916,6 +12918,7 @@ const RK_ICON_PATHS = {
   grid: '<rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect>',
   bag: '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path>',
   shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10"></polyline>',
+  list: '<line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>',
 };
 // Custom checkbox — a proper checkmark-in-a-box for "pick several from a
 // list" (screen access grid, either inline-saved per member or inside the
@@ -12930,12 +12933,16 @@ const RK_ICON_PATHS = {
    يُقرأ في استعلامٍ مستقلّ: قاعدةٌ لم يُشغَّل فيها ملفّ البيجر تُظهر
    تنبيهاً وتعطّل الحفظ، ولا تُسقط بقيّة إعدادات الكاشير معها. */
 const PGS_DEFAULTS = { channels:['dine_in','pickup'], prep_min:10, buffer_min:5, receipt:true, display:true,
-  display_secs:60, remind_min:3, close_min:20, wifi:'', ready_msg:'', late_alert:true, tone:'chime', show_eta:true };
+  display_secs:60, remind_min:3, close_min:20, wifi:'', ready_msg:'', late_alert:true, tone:'chime', show_eta:true, show_items:true };
 let PGS_STATE = null;   // { enabled, s, brand, autoReady, tablesMode, schemaOk }
 let PGS_SAVED = '';     // لقطة آخر حفظ — لزرّ «فيه تغييرات ما انحفظت»
 
 function pgsEtaStatus(c){
   return c ? {text:'يشوف «متوقع يجهز خلال …» وعدّاد', tone:'ok'} : {text:'بدون وقت — يشوف «نجهزه لك الحين» بس', tone:''};
+}
+
+function pgsItemsStatus(c){
+  return c ? {text:'يشوف أصناف طلبه وإضافاتها — بدون أسعار', tone:'ok'} : {text:'رقم الطلب والوقت بس', tone:''};
 }
 
 function pgsNormalize(raw){
@@ -12949,6 +12956,7 @@ function pgsNormalize(raw){
   s.close_min = int(s.close_min, 20, 0, 240);
   s.receipt = s.receipt !== false; s.display = s.display !== false; s.late_alert = s.late_alert !== false;
   s.show_eta = s.show_eta !== false;
+  s.show_items = s.show_items !== false;
   s.tone = ['chime','bell','beep'].includes(s.tone) ? s.tone : 'chime';
   s.wifi = String(s.wifi || '').slice(0, 40);
   s.ready_msg = String(s.ready_msg || '').slice(0, 80);
@@ -13032,6 +13040,7 @@ function pgsPreviewHtml(){
           <div class="pgs-ph-head"><div class="pgs-ph-logo">${logo}</div><b>${escapeHtml(brand.name)}</b></div>
           <div class="pgs-ph-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" class="t"/><circle cx="50" cy="50" r="44" class="p"/></svg><div><small>رقم طلبك</small><b>1042</b></div></div>
           <div class="pgs-ph-eta">${s.show_eta ? `متوقع يجهز خلال <b>${eta}</b> دقيقة` : 'نجهزه لك الحين'}</div>
+          ${s.show_items ? `<div class="pgs-ph-items"><div><span>طلبك</span><em>٣ أصناف</em></div><p><b>2×</b> قهوة مختصة<small>إثيوبي</small></p><p><b>1×</b> كرواسون</p></div>` : ''}
           <div class="pgs-ph-btn">🔔 شغّل البيجر</div>
         </div>
       </div>
@@ -13152,6 +13161,11 @@ function pagerSettingsTabHtml(){
     </div>
 
     <div class="rk-section">
+      ${rkSectionHead('list', 'وش يشوف الزبون في جواله؟', null)}
+      ${rkSwitchRow('pgsShowItems', s.show_items, 'اعرض تفاصيل الطلب', null, pgsItemsStatus)}
+    </div>
+
+    <div class="rk-section">
       ${rkSectionHead('award', 'لمسات محلّك', 'اختيارية — تطلع للزبون بإسم محلك.')}
       <div class="rk-field"><label for="pgsReadyMsg">رسالة «طلبك جاهز»</label>
         <input type="text" id="pgsReadyMsg" maxlength="80" value="${escapeHtml(s.ready_msg)}" placeholder="تفضّل استلمه من الكاونتر"></div>
@@ -13221,7 +13235,7 @@ function wirePagerSettingsTab(){
     b.parentElement.querySelectorAll('button').forEach(x => { x.classList.toggle('active', x === b); x.setAttribute('aria-checked', String(x === b)); });
     pgsRefresh();
   }));
-  const sw = { pgsReceipt: 'receipt', pgsDisplay: 'display', pgsLate: 'late_alert', pgsShowEta: 'show_eta' };
+  const sw = { pgsReceipt: 'receipt', pgsDisplay: 'display', pgsLate: 'late_alert', pgsShowEta: 'show_eta', pgsShowItems: 'show_items' };
   Object.keys(sw).forEach(id => on(id, 'change', e => {
     s[sw[id]] = e.target.checked;
     if(id === 'pgsDisplay'){ const r = document.getElementById('pgsDisplayRow'); if(r) r.style.display = e.target.checked ? '' : 'none'; }
@@ -13232,6 +13246,7 @@ function wirePagerSettingsTab(){
     pgsRefresh();
   }));
   rkWireSwitchStatus('pgsShowEta', pgsEtaStatus);
+  rkWireSwitchStatus('pgsShowItems', pgsItemsStatus);
   rkWireSwitchStatus('pgsReceipt', c => c ? {text:'مربع بالباركود فوق باركود الضريبة — يُمسح من بعيد', tone:'ok'} : {text:'ما ينطبع — يمسحه من شاشة العميل بس', tone:'warn'});
   rkWireSwitchStatus('pgsDisplay', c => c ? {text:'يطلع لحاله بعد كل طلب، وجنب باركود الولاء لو ضغطته', tone:'ok'} : {text:'ما يطلع على الشاشة', tone:''});
   rkWireSwitchStatus('pgsLate', c => c ? {text:'تنبيه بالكاشير + البطاقة تحمرّ', tone:'ok'} : {text:'البطاقة تحمرّ بس، بدون تنبيه', tone:''});
