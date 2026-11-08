@@ -91,7 +91,8 @@ export default function BroadcastPanel({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
   const [filter, setFilter] = useState("all");
-  const [activeOnly, setActiveOnly] = useState(true);
+  // الكل يظهر افتراضياً (حتى الموقوف: الرسالة لكل من سجّل)، والموقوف عليه شارة.
+  const [activeOnly, setActiveOnly] = useState(false);
   const [q, setQ] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [typed, setTyped] = useState<Record<string, string>>({});
@@ -209,7 +210,7 @@ export default function BroadcastPanel({ token }: { token: string }) {
             <button key={k} type="button" style={{ ...S.chip, ...(filter === k ? S.chipOn : {}) }} onClick={() => setFilter(k)}>{t}</button>
           ))}
           <label style={{ ...S.muted, display: "inline-flex", alignItems: "center", gap: "6px", marginInlineStart: "auto", cursor: "pointer" }}>
-            <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} /> النشطين بس
+            <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} /> اخفِ الموقوفين
           </label>
         </div>
         <div style={{ display: "flex", gap: "8px", marginBottom: "10px", flexWrap: "wrap" }}>
