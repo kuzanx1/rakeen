@@ -10,6 +10,15 @@
 // call site keeps working unchanged. The one access token works across all
 // numbers under the same WhatsApp Business Account; only the target
 // phone_number_id in the URL path changes.
+/**
+ * «ربط واتساب» (المالك يكلّم رقم ركين ويسأله عن مبيعاته) -- موقوف مؤقتاً
+ * بطلب المالك 2026-11-08. يُطفئ: الربط الجديد (request-otp)، ومطابقة الرمز
+ * في الـwebhook، وردود البوت على الأرقام المربوطة (تُعامل كرسائل دعم عادية
+ * تصل صندوق /admin). اللوحة تخفي القسم بمفتاحها WA_LINK_ENABLED.
+ * الأرقام المربوطة تبقى في القاعدة كما هي: إرجاعه = true هنا وهناك وننشر.
+ */
+export const WHATSAPP_OWNER_LINK_ENABLED = false;
+
 export type WhatsAppSendResult = { ok: boolean; messageId?: string; error?: string };
 
 async function callWhatsAppApi(phoneNumberId: string | undefined, body: object): Promise<WhatsAppSendResult> {

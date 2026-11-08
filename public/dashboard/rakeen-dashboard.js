@@ -10917,13 +10917,13 @@ async function renderNotificationsSettings(){
         <button class="rk-sound-test-btn" id="testSoundAlarmBtn" type="button"><span class="rk-sound-test-icon">${rkIcon('zap')}</span>صوت انتهاء الوقت</button>
       </div>
     </div>
-    <div class="rk-section" id="waLinkPanel">
+    ${WA_LINK_ENABLED ? `<div class="rk-section" id="waLinkPanel">
       ${rkSectionHead('messageCircle', 'ربط واتساب', 'اربط رقم واتساب حقك عشان تكلم رقم ركين وتسأله عن مبيعاتك، طلباتك، ومخزونك مباشرة — بدون فتح لوحة التحكم.')}
       <div id="waLinkBody">جارٍ التحميل...</div>
-    </div>
+    </div>` : ''}
   `;
 
-  renderWaLinkPanel(d);
+  if(WA_LINK_ENABLED) renderWaLinkPanel(d);
 
   const playTestSound = (btn, sound)=>{
     playAlertSound(sound);
@@ -10986,6 +10986,8 @@ async function renderNotificationsSettings(){
 // the owner in the confirmation toast so what they see matches what got saved.
 // Rakeen's WhatsApp number, shown to owners linking their own number to it —
 // update once the real production number replaces the Meta test number.
+// «ربط واتساب» موقوف مؤقتاً (2026-11-08) -- مع WHATSAPP_OWNER_LINK_ENABLED في lib/whatsapp.ts.
+const WA_LINK_ENABLED = false;
 const RAKEEN_WHATSAPP_DISPLAY_NUMBER = '+966 55 701 5282';
 let waLinkPollTimer = null;
 

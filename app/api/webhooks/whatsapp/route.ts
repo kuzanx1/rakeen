@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { sendWhatsAppText, sendWhatsAppList, WhatsAppListRow, WhatsAppSendResult } from "@/lib/whatsapp";
+import { sendWhatsAppText, sendWhatsAppList, WhatsAppListRow, WhatsAppSendResult, WHATSAPP_OWNER_LINK_ENABLED } from "@/lib/whatsapp";
 import { ensureVapidConfigured, sendPushToSubscription } from "@/lib/push";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { checkDbRateLimit } from "@/lib/dbRateLimit";
@@ -280,7 +280,7 @@ export async function POST(request: NextRequest) {
         // template. A reply to an inbound message is always free; this
         // check runs before any other routing since the sender isn't a
         // recognized owner yet — that's the whole point.
-        if (msg.type === "text" && msg.text?.body) {
+        if (WHATSAPP_OWNER_LINK_ENABLED && msg.type === "text" && msg.text?.body) {
           const code = msg.text.body.trim();
           if (/^\d{6}$/.test(code)) {
             const { data: pendingBusiness } = await admin
@@ -305,9 +305,12 @@ export async function POST(request: NextRequest) {
         // change between messages) which of the two audiences this phone
         // is: a linked restaurant owner (control panel), or someone
         // genuinely interested in Rakeen (prospect/support).
-        const { data: linkedBusiness } = await admin
-          .from("businesses").select("id, name")
-          .eq("whatsapp_link_phone", msg.from).eq("whatsapp_link_verified", true).maybeSingle();
+        // الميزة موقوفة: المالك المربوط يُعامل كأي مراسل (رسالته تصل /admin).
+        const { data: linkedBusiness } = WHATSAPP_OWNER_LINK_ENABLED
+          ? await admin
+            .from("businesses").select("id, name")
+            .eq("whatsapp_link_phone", msg.from).eq("whatsapp_link_verified", true).maybeSingle()
+          : { data: null as { id: number; name: string } | null };
 
         const kind: "owner" | "prospect" = linkedBusiness ? "owner" : "prospect";
         const businessId: number | null = linkedBusiness?.id ?? null;

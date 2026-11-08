@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { WHATSAPP_OWNER_LINK_ENABLED } from "@/lib/whatsapp";
 import { createClient } from "@supabase/supabase-js";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { checkDbRateLimit } from "@/lib/dbRateLimit";
@@ -36,6 +37,7 @@ async function authorizeOwnerOrManager(request: NextRequest) {
 // business-initiated message — free, and no phone number to type/validate
 // up front (we learn it from whichever number actually sends the code).
 export async function POST(request: NextRequest) {
+  if (!WHATSAPP_OWNER_LINK_ENABLED) return NextResponse.json({ error: "ربط واتساب موقوف مؤقتاً" }, { status: 503 });
   const auth = await authorizeOwnerOrManager(request);
   if ("error" in auth) return auth.error;
   const { admin, businessId } = auth;
