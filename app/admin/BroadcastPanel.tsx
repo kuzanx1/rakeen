@@ -61,10 +61,11 @@ async function posterPng(src: string): Promise<Blob> {
   c.getContext("2d")!.drawImage(img, 0, 0);
   return await new Promise<Blob>((ok, no) => c.toBlob((b) => (b ? ok(b) : no(new Error("png"))), "image/png"));
 }
-function copyPoster(src: string): Promise<void> {
-  // يُستدعى داخل الضغطة نفسها (المتصفح يرفض الكتابة للحافظة بعدها)، والصورة
-  // تجهز في الخلفية عبر الـPromise.
-  return navigator.clipboard.write([new ClipboardItem({ "image/png": posterPng(src) })]);
+// الصورة تُجهَّز مسبقاً (لحظة اختيار القالب) وتُنسخ قبل فتح واتساب: لو
+// انفتح تبويب واتساب والصورة لسّا تتجهّز، الصفحة تفقد التركيز وChrome يرفض
+// الكتابة للحافظة («Document is not focused») -- فتوصل الرسالة بلا صورة.
+function copyPoster(png: Blob | Promise<Blob>): Promise<void> {
+  return navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
 }
 const TEMPLATES = RAKEEN_UPDATES.filter((u): u is RakeenUpdate & { whatsapp: string } => !!u.whatsapp);
 
@@ -98,6 +99,14 @@ export default function BroadcastPanel({ token }: { token: string }) {
   const [poster, setPoster] = useState<string | null>(null);
   const [withPoster, setWithPoster] = useState(true);
   const [copied, setCopied] = useState<"" | "ok" | "fail">("");
+  const [png, setPng] = useState<Blob | null>(null);
+  useEffect(() => {
+    setPng(null);
+    if (!poster) return;
+    let live = true;
+    posterPng(poster).then((b) => { if (live) setPng(b); }, () => {});
+    return () => { live = false; };
+  }, [poster]);
 
   useEffect(() => {
     setMsg(readJson(DRAFT_KEY, "السلام عليكم {الاسم} 👋\nجديد ركين لـ{المحل}:\n\n"));
@@ -125,13 +134,17 @@ export default function BroadcastPanel({ token }: { token: string }) {
   function markSent(id: string) {
     const s = new Set(sent); s.add(id); setSent(s); writeJson(sentKey, [...s]);
   }
-  function send(r: Recipient) {
+  async function send(r: Recipient) {
     const phone = phoneOf(r);
     if (!phone || !msg.trim()) return;
-    // نفس التبويب كل مرة (rk-wa): ما تتكدّس عشرات التبويبات.
-    if (poster && withPoster) copyPoster(poster).then(() => setCopied("ok"), () => setCopied("fail"));
-    window.open(`https://web.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(fill(msg, r))}`, "rk-wa");
     markSent(r.key);
+    if (poster && withPoster) {
+      // ننتظر النسخ (أجزاء من الثانية والصورة جاهزة) ثم نفتح واتساب؛ الضغطة
+      // تبقى صالحة لفتح التبويب خلال هالمدة.
+      try { await copyPoster(png || posterPng(poster)); setCopied("ok"); } catch { setCopied("fail"); }
+    }
+    // نفس التبويب كل مرة (rk-wa): ما تتكدّس عشرات التبويبات.
+    window.open(`https://web.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(fill(msg, r))}`, "rk-wa");
   }
   function toggle(id: string) {
     const s = new Set(picked); if (s.has(id)) s.delete(id); else s.add(id); setPicked(s);
@@ -177,10 +190,10 @@ export default function BroadcastPanel({ token }: { token: string }) {
                 <input type="checkbox" checked={withPoster} onChange={(e) => setWithPoster(e.target.checked)} /> أرسل التصميم مع الرسالة
               </label>
               <p style={{ ...S.muted, marginTop: "6px", lineHeight: 1.7 }}>
-                مع كل «إرسال» ينتسخ التصميم. في واتساب: <b>Enter</b> يرسل الرسالة، بعدها <b>Ctrl+V</b> ثم <b>Enter</b> يرسل التصميم.
+                مع كل «إرسال» ينتسخ التصميم. في واتساب اضغط <b>Ctrl+V</b> أول (تنلصق الصورة)، ثم <b>Enter</b>. ولو بقي نص الرسالة في الخانة، <b>Enter</b> مرة ثانية.
               </p>
               <div style={{ display: "flex", gap: "8px", marginTop: "8px", flexWrap: "wrap" }}>
-                <button type="button" style={S.ghost} onClick={() => copyPoster(poster).then(() => setCopied("ok"), () => setCopied("fail"))}>انسخ التصميم</button>
+                <button type="button" style={S.ghost} onClick={() => copyPoster(png || posterPng(poster)).then(() => setCopied("ok"), () => setCopied("fail"))}>انسخ التصميم</button>
                 <a href={poster} download style={{ ...S.ghost, textDecoration: "none", display: "inline-block" }}>نزّله</a>
               </div>
               {copied === "ok" ? <p style={{ ...S.muted, color: "#4C7A0A", marginTop: "6px" }}>انتسخ ✓ — الصقه بـ Ctrl+V</p> : null}
@@ -247,7 +260,15 @@ export default function BroadcastPanel({ token }: { token: string }) {
         <div style={{ ...S.card, position: "sticky", bottom: "12px", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", boxShadow: "0 10px 30px rgba(17,17,17,.12)" }}>
           <div style={{ flex: "1 1 200px" }}>
             <div style={{ fontWeight: 800 }}>{next ? `التالي: ${next.name}` : "خلصت المحددين ✓"}</div>
-            <div style={S.muted}>باقي {queue.length} من {picked.size} محدد · كل ضغطة تفتح واتساب ويب والرسالة جاهزة{poster && withPoster ? " والتصميم منسوخ: Enter، ثم Ctrl+V وEnter" : "، اضغط Enter هناك"} ثم ارجع هنا.</div>
+            <div style={S.muted}>باقي {queue.length} من {picked.size} محدد · كل ضغطة تفتح واتساب ويب والرسالة جاهزة{poster && withPoster ? "" : "، اضغط Enter هناك ثم ارجع هنا"}.</div>
+            {poster && withPoster ? (
+              // واتساب ويب ما يقبل صورة في الرابط: الصورة لازم تنلصق باليد.
+              <div style={{ marginTop: "8px", fontSize: "13.5px", fontWeight: 800, lineHeight: 1.7, color: copied === "fail" ? "#B0402C" : "#111", background: copied === "fail" ? "rgba(176,64,44,.08)" : "rgba(196,255,43,.35)", borderRadius: "10px", padding: "8px 12px" }}>
+                {copied === "fail"
+                  ? "المتصفح ما سمح بنسخ الصورة — نزّلها من فوق وأرفقها بيدك."
+                  : <>📋 الصورة تنسخ لحالها — بواتساب: <span dir="ltr">Ctrl+V</span> ثم Enter. ولو بقي النص بالخانة: Enter مرة ثانية.</>}
+              </div>
+            ) : null}
           </div>
           {next ? <button type="button" style={S.btn} disabled={!msg.trim()} onClick={() => send(next)}>افتح واتساب للتالي</button> : null}
           {sent.size ? <button type="button" style={S.ghost} onClick={() => { setSent(new Set()); writeJson(sentKey, []); }}>مسح سجل الإرسال</button> : null}
