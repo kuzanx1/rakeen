@@ -75,19 +75,29 @@ export async function GET(request: NextRequest) {
   const ownerByBiz = new Map<number, { id: string; full_name: string | null }>();
   (owners || []).forEach((o) => { if (!ownerByBiz.has(o.business_id)) ownerByBiz.set(o.business_id, o); });
 
-  // جوال التسجيل محفوظ في بيانات حساب المالك، لا في جدول.
-  const signupPhone = new Map<string, string>();
+  // جوال التسجيل محفوظ في بيانات الحساب، لا في جدول.
+  type Meta = { phone?: string; full_name?: string; business_name?: string };
+  const users: { id: string; email: string | null; meta: Meta; created_at: string }[] = [];
   for (let page = 1; page <= 20; page++) {
     const { data, error: uErr } = await admin.auth.admin.listUsers({ page, perPage: 200 });
     if (uErr || !data?.users?.length) break;
-    data.users.forEach((u) => {
-      const p = (u.user_metadata as { phone?: string } | null)?.phone;
-      if (p) signupPhone.set(u.id, p);
-    });
+    data.users.forEach((u) => users.push({ id: u.id, email: u.email || null, meta: (u.user_metadata || {}) as Meta, created_at: u.created_at }));
     if (data.users.length < 200) break;
   }
+  const signupPhone = new Map(users.filter((u) => u.meta.phone).map((u) => [u.id, u.meta.phone as string]));
 
-  const recipients = (businesses || []).map((b) => {
+  type Kind = "business" | "signup" | "contract" | "contact";
+  type R = { key: string; kind: Kind; name: string; owner: string | null; plan: string | null; active: boolean; phone: string | null; source: string | null };
+  const out: R[] = [];
+  const seen = new Set<string>();
+  // رقمٌ واحد = مستلمٌ واحد: الأولوية للمشترك، ثم العقد، ثم الحساب، ثم المحادثة.
+  const add = (r: R) => {
+    if (r.phone) { if (seen.has(r.phone)) return; seen.add(r.phone); }
+    out.push(r);
+  };
+
+  // 1) المشتركين: مطعمٌ قائم.
+  (businesses || []).forEach((b) => {
     const owner = ownerByBiz.get(b.id);
     const candidates: [string | null, string][] = [
       [b.whatsapp_link_verified ? waNumber(b.whatsapp_link_phone) : null, "واتساب المالك المؤكّد"],
@@ -95,16 +105,44 @@ export async function GET(request: NextRequest) {
       [waNumber(b.online_contact_whatsapp), "واتساب المتجر"],
     ];
     const hit = candidates.find(([n]) => n);
-    return {
-      id: b.id,
-      name: b.name,
-      owner: owner?.full_name || null,
-      plan: b.plan_tier || null,
-      active: b.is_active !== false,
-      phone: hit ? hit[0] : null,
-      source: hit ? hit[1] : null,
-    };
+    add({ key: `b:${b.id}`, kind: "business", name: b.name, owner: owner?.full_name || null, plan: b.plan_tier || null,
+      active: b.is_active !== false, phone: hit ? hit[0] : null, source: hit ? hit[1] : null });
   });
 
-  return NextResponse.json({ recipients });
+  // 2) العقود: اللي وقّع (أو جهّزنا له عقداً) وما عنده مطعمٌ بعد أو رقمه غير.
+  const { data: contracts } = await admin
+    .from("subscription_contracts")
+    .select("id, phone, prefill_phone, owner_name, prefill_owner_name, business_name, prefill_business_name, voided_at")
+    .is("voided_at", null);
+  (contracts || []).forEach((c) => {
+    const phone = waNumber(c.phone) || waNumber(c.prefill_phone);
+    if (!phone) return;
+    add({ key: `c:${c.id}`, kind: "contract", name: c.business_name || c.prefill_business_name || "عقد بدون اسم",
+      owner: c.owner_name || c.prefill_owner_name || null, plan: null, active: true, phone, source: "رقم العقد" });
+  });
+
+  // 3) سجّلوا وما كمّلوا: حسابٌ بلا مطعم (حسابات أجهزة الكاشير مستثناة).
+  const { data: profiles } = await admin.from("profiles").select("id");
+  const hasProfile = new Set((profiles || []).map((p) => p.id));
+  users.forEach((u) => {
+    if (hasProfile.has(u.id) || /@rakeen\.internal$/i.test(u.email || "")) return;
+    const phone = waNumber(u.meta.phone);
+    if (!phone) return;
+    add({ key: `u:${u.id}`, kind: "signup", name: u.meta.business_name || u.meta.full_name || u.email || "حساب بدون اسم",
+      owner: u.meta.full_name || null, plan: null, active: true, phone, source: "سجّل وما كمّل" });
+  });
+
+  // 4) تواصلوا مع واتساب ركين (محادثات الدعم).
+  const { data: convs } = await admin
+    .from("rakeen_support_conversations")
+    .select("id, customer_phone, customer_name, admin_label")
+    .order("last_message_at", { ascending: false });
+  (convs || []).forEach((c) => {
+    const phone = waNumber(c.customer_phone);
+    if (!phone) return;
+    add({ key: `s:${c.id}`, kind: "contact", name: c.admin_label || c.customer_name || "+" + phone,
+      owner: c.customer_name || null, plan: null, active: true, phone, source: "تواصل مع واتساب ركين" });
+  });
+
+  return NextResponse.json({ recipients: out });
 }

@@ -9,7 +9,8 @@ import { RAKEEN_UPDATES, type RakeenUpdate } from "@/app/dashboard/rakeen-update
 // المتصفح قائمة من وصلتهم نفس الرسالة، فما ينرسل لأحد مرتين بالغلط.
 
 type Recipient = {
-  id: number;
+  key: string;
+  kind: "business" | "signup" | "contract" | "contact";
   name: string;
   owner: string | null;
   plan: "asas" | "emad" | "sarh" | null;
@@ -19,7 +20,19 @@ type Recipient = {
 };
 
 const PLAN_NAME: Record<string, string> = { asas: "أساس", emad: "عماد", sarh: "صرح" };
-const FILTERS: [string, string][] = [["all", "الكل"], ["asas", "أساس"], ["emad", "عماد"], ["sarh", "صرح"], ["none", "بدون باقة"]];
+// مين يوصله: المشتركين (وتقسيمهم بالباقة)، واللي سجّلوا وما كمّلوا، وأصحاب
+// العقود، واللي راسلوا واتساب ركين. زبائن المطاعم أنفسهم مو هنا عمداً:
+// أرقامهم ملك المطعم، لا لركين.
+const FILTERS: [string, string][] = [
+  ["all", "الكل"], ["business", "المشتركين"], ["asas", "أساس"], ["emad", "عماد"], ["sarh", "صرح"],
+  ["signup", "سجّلوا وما كمّلوا"], ["contract", "عقود"], ["contact", "راسلونا"],
+];
+const KIND_NAME: Record<string, string> = { signup: "سجّل وما كمّل", contract: "عقد", contact: "راسلنا" };
+function matches(r: Recipient, f: string): boolean {
+  if (f === "all") return true;
+  if (f in PLAN_NAME) return r.kind === "business" && r.plan === f;
+  return r.kind === f;
+}
 const DRAFT_KEY = "rk-bc-draft";
 
 function hash(s: string): string {
@@ -79,9 +92,9 @@ export default function BroadcastPanel({ token }: { token: string }) {
   const [filter, setFilter] = useState("all");
   const [activeOnly, setActiveOnly] = useState(true);
   const [q, setQ] = useState("");
-  const [picked, setPicked] = useState<Set<number>>(new Set());
-  const [typed, setTyped] = useState<Record<number, string>>({});
-  const [sent, setSent] = useState<Set<number>>(new Set());
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [typed, setTyped] = useState<Record<string, string>>({});
+  const [sent, setSent] = useState<Set<string>>(new Set());
   const [poster, setPoster] = useState<string | null>(null);
   const [withPoster, setWithPoster] = useState(true);
   const [copied, setCopied] = useState<"" | "ok" | "fail">("");
@@ -91,25 +104,25 @@ export default function BroadcastPanel({ token }: { token: string }) {
     fetch("/api/admin/broadcast-recipients", { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((d) => (d.error ? setError(d.error) : setList(d.recipients)))
-      .catch(() => setError("تعذر تحميل المشتركين"));
+      .catch(() => setError("تعذر تحميل القائمة"));
   }, [token]);
 
   // سجل «وصلته» مربوط بنص الرسالة: رسالة جديدة = سجل جديد.
   const sentKey = "rk-bc-sent:" + hash(msg.trim());
-  useEffect(() => { setSent(new Set(readJson<number[]>(sentKey, []))); }, [sentKey]);
+  useEffect(() => { setSent(new Set(readJson<string[]>(sentKey, []))); }, [sentKey]);
   // يُحفظ فوراً (لا تأخير): تبويبٌ يُقفل بعد الكتابة مباشرة ما يضيّع المسودة.
   const [draftLoaded, setDraftLoaded] = useState(false);
   useEffect(() => { if (draftLoaded) writeJson(DRAFT_KEY, msg); else if (msg) setDraftLoaded(true); }, [msg, draftLoaded]);
 
-  const phoneOf = (r: Recipient) => r.phone || waNumber(typed[r.id] || "");
+  const phoneOf = (r: Recipient) => r.phone || waNumber(typed[r.key] || "");
   const shown = useMemo(() => (list || []).filter((r) =>
     (!activeOnly || r.active) &&
-    (filter === "all" || (filter === "none" ? !r.plan : r.plan === filter)) &&
+    matches(r, filter) &&
     (!q.trim() || `${r.name} ${r.owner || ""} ${r.phone || ""}`.includes(q.trim()))), [list, filter, activeOnly, q]);
-  const queue = (list || []).filter((r) => picked.has(r.id) && phoneOf(r) && !sent.has(r.id));
+  const queue = (list || []).filter((r) => picked.has(r.key) && phoneOf(r) && !sent.has(r.key));
   const next = queue[0] || null;
 
-  function markSent(id: number) {
+  function markSent(id: string) {
     const s = new Set(sent); s.add(id); setSent(s); writeJson(sentKey, [...s]);
   }
   function send(r: Recipient) {
@@ -118,17 +131,17 @@ export default function BroadcastPanel({ token }: { token: string }) {
     // نفس التبويب كل مرة (rk-wa): ما تتكدّس عشرات التبويبات.
     if (poster && withPoster) copyPoster(poster).then(() => setCopied("ok"), () => setCopied("fail"));
     window.open(`https://web.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(fill(msg, r))}`, "rk-wa");
-    markSent(r.id);
+    markSent(r.key);
   }
-  function toggle(id: number) {
+  function toggle(id: string) {
     const s = new Set(picked); if (s.has(id)) s.delete(id); else s.add(id); setPicked(s);
   }
-  const allShownPicked = shown.length > 0 && shown.every((r) => picked.has(r.id));
+  const allShownPicked = shown.length > 0 && shown.every((r) => picked.has(r.key));
 
   if (error) return <p style={{ color: "#B0402C", fontWeight: 700 }}>{error}</p>;
   if (!list) return <p style={S.muted}>جاري التحميل…</p>;
 
-  const sample = list.find((r) => picked.has(r.id)) || shown[0];
+  const sample = list.find((r) => picked.has(r.key)) || shown[0];
 
   return (
     <div style={{ maxWidth: "860px" }}>
@@ -191,7 +204,7 @@ export default function BroadcastPanel({ token }: { token: string }) {
             style={{ flex: "1 1 200px", borderRadius: "10px", border: "1px solid rgba(17,17,17,.18)", padding: "9px 12px", fontSize: "13px", fontFamily: "inherit" }} />
           <button type="button" style={S.ghost} onClick={() => {
             const s = new Set(picked);
-            shown.forEach((r) => (allShownPicked ? s.delete(r.id) : (phoneOf(r) || !r.phone) && s.add(r.id)));
+            shown.forEach((r) => (allShownPicked ? s.delete(r.key) : (phoneOf(r) || !r.phone) && s.add(r.key)));
             setPicked(s);
           }}>{allShownPicked ? "إلغاء تحديد الظاهرين" : `حدّد الظاهرين (${shown.length})`}</button>
         </div>
@@ -199,14 +212,15 @@ export default function BroadcastPanel({ token }: { token: string }) {
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
           {shown.map((r) => {
             const phone = phoneOf(r);
-            const done = sent.has(r.id);
+            const done = sent.has(r.key);
             return (
-              <div key={r.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "10px", background: picked.has(r.id) ? "rgba(196,255,43,.16)" : "rgba(17,17,17,.03)", flexWrap: "wrap" }}>
-                <input type="checkbox" checked={picked.has(r.id)} onChange={() => toggle(r.id)} aria-label={r.name} />
+              <div key={r.key} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "10px", background: picked.has(r.key) ? "rgba(196,255,43,.16)" : "rgba(17,17,17,.03)", flexWrap: "wrap" }}>
+                <input type="checkbox" checked={picked.has(r.key)} onChange={() => toggle(r.key)} aria-label={r.name} />
                 <div style={{ flex: "1 1 180px", minWidth: 0 }}>
                   <div style={{ fontWeight: 800, fontSize: "14px" }}>
                     {r.name}
                     {r.plan ? <span style={{ marginInlineStart: "8px", background: "#111", color: "#C4FF2B", borderRadius: "999px", padding: "1px 8px", fontSize: "11px" }}>{PLAN_NAME[r.plan]}</span> : null}
+                    {KIND_NAME[r.kind] ? <span style={{ marginInlineStart: "8px", border: "1px solid rgba(17,17,17,.25)", borderRadius: "999px", padding: "0 8px", fontSize: "11px", fontWeight: 700 }}>{KIND_NAME[r.kind]}</span> : null}
                     {!r.active ? <span style={{ ...S.muted, marginInlineStart: "8px" }}>موقوف</span> : null}
                   </div>
                   <div style={S.muted}>{r.owner || "—"}{r.source ? ` · ${r.source}` : ""}</div>
@@ -214,7 +228,7 @@ export default function BroadcastPanel({ token }: { token: string }) {
                 {r.phone ? (
                   <span dir="ltr" style={{ fontSize: "13px", fontWeight: 700, fontFamily: "ui-monospace, monospace" }}>+{r.phone}</span>
                 ) : (
-                  <input dir="ltr" placeholder="ما فيه رقم — اكتبه" value={typed[r.id] || ""} onChange={(e) => setTyped({ ...typed, [r.id]: e.target.value })}
+                  <input dir="ltr" placeholder="ما فيه رقم — اكتبه" value={typed[r.key] || ""} onChange={(e) => setTyped({ ...typed, [r.key]: e.target.value })}
                     style={{ width: "150px", borderRadius: "8px", border: "1px solid rgba(17,17,17,.2)", padding: "6px 8px", fontSize: "12.5px", fontFamily: "inherit" }} />
                 )}
                 {done ? (
@@ -225,7 +239,7 @@ export default function BroadcastPanel({ token }: { token: string }) {
               </div>
             );
           })}
-          {!shown.length ? <p style={S.muted}>ما فيه مشتركين بهالتصفية.</p> : null}
+          {!shown.length ? <p style={S.muted}>ما فيه أحد بهالتصفية.</p> : null}
         </div>
       </div>
 

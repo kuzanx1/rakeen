@@ -793,7 +793,7 @@ export default function AdminDashboard() {
               ["contracts", "العقود والدفعات"],
               ["quotes", "عروض الأسعار"],
               ["whatsapp", "واتساب"],
-              ["broadcast", "رسائل للمشتركين"],
+              ["broadcast", "رسائل واتساب"],
               ["usage", "استهلاك البنية التحتية"],
               ["audit", "سجل التدقيق"],
             ] as const
