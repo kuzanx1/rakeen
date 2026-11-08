@@ -70,6 +70,11 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
   const silentRef = useRef(false);
   // «استلمت طلبي»: الزبون يقفل البيجر عنده بنفسه -- ما يغيّر شي عند الكاشير.
   const [selfDone, setSelfDone] = useState(false);
+  // الآيفون (سفاري وكل متصفحاته) ما يسمح لموقعٍ يهز الجوال أصلاً -- لا نعِد
+  // بهزٍّ ما يصير. وفي أندرويد الهزّ من الصفحة يشتغل وهي ظاهرة فقط؛ وهي
+  // بالخلفية يهزّ الإشعار.
+  const [canVibrate, setCanVibrate] = useState(true);
+  useEffect(() => { setCanVibrate(typeof navigator !== "undefined" && typeof navigator.vibrate === "function"); }, []);
   const selfDoneRef = useRef(false);
 
   const sbRef = useRef<SupabaseClient | null>(null);
@@ -377,7 +382,7 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
         {(s?.ring_count || 0) > 0 ? <p className="pg-again">نناديك مرة ثانية — طلبك ينتظرك</p> : null}
         <div className="pg-ready-acts">
           {alarm
-            ? <button className="pg-btn pg-btn-dark" onClick={stopAlarm}>{silent ? "شفته، وقّف الهزّ" : "شفته، وقّف الصوت"}</button>
+            ? <button className="pg-btn pg-btn-dark" onClick={stopAlarm}>{!silent ? "شفته، وقّف الصوت" : canVibrate ? "شفته، وقّف الهزّ" : "شفته"}</button>
             : !armed ? <button className="pg-btn pg-btn-dark" onClick={() => { void arm(true); }}>شغّل الصوت</button> : null}
           <button className="pg-btn pg-btn-ghost" onClick={markSelfDone}>استلمت طلبي ✓</button>
         </div>
@@ -444,7 +449,7 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
             <b>{silent ? "البيجر شغّال — بدون صوت" : "البيجر شغّال"}</b>
             <small>
               {silent
-                ? "بنهزّ جوالك ونطلّع لك تنبيه أول ما يجهز."
+                ? (canVibrate ? "بنهزّ جوالك ونطلّع لك تنبيه أول ما يجهز." : "بتتغيّر الشاشة ويطلع لك تنبيه أول ما يجهز — الآيفون ما يسمح للمواقع تهزّ الجوال.")
                 : notif === "granted"
                 ? "بيوصلك تنبيه حتى لو قفلت الجوال."
                 : "خلّ الصفحة مفتوحة وحط الجوال قدامك — بنرن ونهزّه لما يجهز."}
@@ -471,7 +476,7 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
             <b id="pg-ask-t">نرن جوالك لما يجهز طلبك؟</b>
             <small>اضغط «موافق» ونشغّل لك الصوت. خلّ الصفحة مفتوحة أو بالخلفية.</small>
             <button className="pg-ask-yes" onClick={() => { void arm(true); }}>موافق، شغّل الصوت</button>
-            <button className="pg-ask-no" onClick={() => { void arm(false); }}>بدون صوت — هزّ بس</button>
+            <button className="pg-ask-no" onClick={() => { void arm(false); }}>{canVibrate ? "بدون صوت — هزّ بس" : "بدون صوت"}</button>
           </div>
         </div>
       ) : null}
