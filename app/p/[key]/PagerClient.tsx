@@ -358,6 +358,15 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
 
   const logo = biz.logo && /^https:\/\//.test(biz.logo) ? biz.logo : null;
 
+  // نفس توقيع المتجر الإلكتروني: «Made by» وشعار ركين. الشعار قناعٌ يُلوَّن
+  // بلون النص، فيقرأ على أي لون محل وعلى شاشة «جاهز».
+  const madeBy = (
+    <a className="pg-foot" href="https://rakeenapp.com" target="_blank" rel="noopener noreferrer" aria-label="Made by ركين">
+      <span>Made by</span>
+      <i className="pg-foot-logo" aria-hidden="true" />
+    </a>
+  );
+
   const header = (
     <header className="pg-head">
       {logo ? <img className="pg-logo" src={logo} alt="" /> : <span className="pg-logo pg-logo-txt">{(biz.name || "ر").trim().charAt(0)}</span>}
@@ -386,7 +395,7 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
             : !armed ? <button className="pg-btn pg-btn-dark" onClick={() => { void arm(true); }}>شغّل الصوت</button> : null}
           <button className="pg-btn pg-btn-ghost" onClick={markSelfDone}>استلمت طلبي ✓</button>
         </div>
-        <footer className="pg-foot">بيجر ركين</footer>
+        {madeBy}
       </main>
     );
   }
@@ -400,7 +409,7 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
           <h1>{phase === "cancelled" ? "انلغى الطلب" : "بالعافية عليك"}</h1>
           <p>{phase === "cancelled" ? "لو عندك سؤال كلّم الكاشير." : `استلمت طلبك #${num}. نشوفك مرة ثانية!`}</p>
         </section>
-        <footer className="pg-foot">بيجر ركين</footer>
+        {madeBy}
       </main>
     );
   }
@@ -449,7 +458,7 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
             <b>{silent ? "البيجر شغّال — بدون صوت" : "البيجر شغّال"}</b>
             <small>
               {silent
-                ? (canVibrate ? "بنهزّ جوالك ونطلّع لك تنبيه أول ما يجهز." : "بتتغيّر الشاشة ويطلع لك تنبيه أول ما يجهز — الآيفون ما يسمح للمواقع تهزّ الجوال.")
+                ? (canVibrate ? "بنهزّ جوالك ونطلّع لك تنبيه أول ما يجهز." : "بتتحدّث حالة طلبك هنا أول ما يجهز.")
                 : notif === "granted"
                 ? "بيوصلك تنبيه حتى لو قفلت الجوال."
                 : "خلّ الصفحة مفتوحة وحط الجوال قدامك — بنرن ونهزّه لما يجهز."}
@@ -482,7 +491,7 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
       ) : null}
 
       {offline ? <p className="pg-offline">النت عندك مقطوع — أول ما يرجع نكمل، وتقدر تتابع رقمك على شاشة المحل.</p> : null}
-      <footer className="pg-foot">بيجر ركين</footer>
+      {madeBy}
     </main>
   );
 }

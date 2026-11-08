@@ -2,8 +2,7 @@ import React from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
-import GradientFill from './GradientFill';
-import { createStyles, fonts, gradients, radii, useTheme } from './theme';
+import { createStyles, fonts, radii, useTheme } from './theme';
 import { pagerConfig, pagerUrgency } from '../application/pagerService';
 import type { PagerAction, PagerOrder } from '../application/pagerService';
 
@@ -84,7 +83,6 @@ export default function PagerOrderCard({
           </TouchableOpacity>
           <TouchableOpacity style={styles.half} onPress={() => onAction('collected')} activeOpacity={0.85} accessibilityRole="button">
             <View style={[styles.btn, styles.btnPrimary]}>
-              <GradientFill gradient={gradients.payButton} radius={radii.md} />
               <Text style={styles.btnText}>استلمه ✓</Text>
             </View>
           </TouchableOpacity>
@@ -93,7 +91,6 @@ export default function PagerOrderCard({
         <View key="prep" style={styles.row}>
           <TouchableOpacity style={pagerConfig().settings.show_eta ? styles.wide : styles.half} onPress={() => onAction('ready')} activeOpacity={0.85} accessibilityRole="button">
             <View style={[styles.btn, styles.btnPrimary]}>
-              <GradientFill gradient={gradients.payButton} radius={radii.md} />
               <Text style={styles.btnText}>جاهز — رنّ جواله</Text>
             </View>
           </TouchableOpacity>
@@ -153,9 +150,10 @@ const useStyles = createStyles((colors) =>
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  // لونٌ صلب تحت التدرّج (قاعدة GradientFill): على أندرويد التدرّج أحياناً ما
-  // يترسم أول ما ينركّب الزر بعد «جاهز»، فكان «استلمه» نصّاً أخضر غامقاً على
-  // خلفيةٍ غامقة -- موجود ويُضغط لكنه ما يبان لين يُعاد الرسم.
+  // لونٌ صلب، بلا GradientFill: هذه الأزرار تنركّب وسط تحديث (بعد «جاهز»)،
+  // و react-native-linear-gradient مكوّنٌ قديم يمرّ بطبقة التوافق في Fabric
+  // -- وعلى السنمي «استلمه» طلع مخفياً كلّه (لا تدرّج ولا نص). لونٌ ثابت لا
+  // يعتمد على تلك الطبقة أبداً.
   btnPrimary: { backgroundColor: colors.lime },
   btnBusy: { alignSelf: 'stretch', backgroundColor: colors.surf1 },
   btnGhost: { borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surf1 },

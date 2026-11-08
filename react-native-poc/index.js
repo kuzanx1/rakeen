@@ -7,6 +7,11 @@
 // URLSearchParams, which the Supabase SDK relies on. Documented Supabase
 // React Native requirement, not a guess.
 import 'react-native-url-polyfill/auto';
+// Hermes has TextEncoder but no TextDecoder; realtime-js decodes every
+// database-originated broadcast (realtime.send) with `new TextDecoder()`,
+// so without this the app crashed the instant a customer scanned the pager.
+// See the file for the full trace.
+import './src/infrastructure/textDecoderPolyfill';
 import { AppRegistry, I18nManager } from 'react-native';
 import App from './App';
 import { name as appName } from './app.json';

@@ -86,7 +86,10 @@ html, body { margin: 0; background: var(--pg-surf, #121212); }
 .pg-ios { color: var(--pg-ink) !important; }
 .pg-offline { margin-top: 16px; font-size: 14px; color: var(--pg-muted); }
 
-.pg-foot { margin-top: auto; padding-top: 26px; font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--pg-muted); opacity: .8; }
+.pg-foot { margin-top: auto; padding-top: 26px; font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--pg-muted); opacity: .8;
+  display: inline-flex; align-items: center; gap: 7px; direction: ltr; text-decoration: none; align-self: center; }
+.pg-foot-logo { display: block; height: 15px; aspect-ratio: 721 / 311; background: currentColor;
+  -webkit-mask: url(/brand/rakeen-wordmark.png) center / contain no-repeat; mask: url(/brand/rakeen-wordmark.png) center / contain no-repeat; }
 
 .pg-btn { margin-top: 26px; min-width: 240px; border: 0; border-radius: 999px; padding: 16px 26px; font: inherit; font-size: 19px; font-weight: 900; cursor: pointer; }
 .pg-btn:active { transform: scale(.98); }
