@@ -882,3 +882,30 @@ body{background:#FBFAF5;}
   .ml-phone .ml-card b{font-size:6.5px;} .ml-phone .ml-card small{font-size:6px;} .ml-phone .ml-card span{font-size:6.5px;}
   .ml-tag-phone{top:-9px; inset-inline-start:4px; font-size:9px; padding:2px 7px;}
 }
+
+/* pager (بيجر ركين): جوالان حقيقيان، الخلفي ينتظر والأمامي «جاهز» */
+.k-orange{background:#FF5C1E; color:#fff;}
+.kicker .ic{width:15px; height:15px;}
+.pager-plan{display:inline-flex; align-items:center; gap:9px; margin-top:22px; padding:10px 18px; border-radius:14px; background:var(--ink); color:var(--lime); font-weight:800; font-size:15px; text-decoration:none;}
+.pager-plan .ic{width:18px; height:18px;}
+.art-pager{min-height:600px;}
+.pager-blob{position:absolute; width:440px; height:440px; border-radius:50%; background:radial-gradient(closest-side, rgba(255,92,30,.20), transparent);}
+.art-pager .iphone{position:absolute; width:240px;}
+.pg-back{rotate:-8deg; translate:-38% 4%; opacity:.92;}
+.pg-front{rotate:4deg; translate:30% -2%; z-index:2;}
+[dir="ltr"] .pg-back{translate:38% 4%; rotate:8deg;}
+[dir="ltr"] .pg-front{translate:-30% -2%; rotate:-4deg;}
+.t-ring{bottom:6%; inset-inline-start:4%; animation-delay:-3s; z-index:4;}
+.toast-ic.ring{background:#FF5C1E; color:#fff;}
+.art-pager .iphone{transform:translateY(60px); opacity:0; transition:transform 1.1s var(--ease), opacity 1.1s;}
+.art-pager.in .iphone{transform:none; opacity:1;}
+.art-pager.in .pg-back{opacity:.92;}
+.art-pager .t-ring{opacity:0; scale:.9; transition:opacity .6s 1s, scale .6s 1s var(--ease);}
+.art-pager.in .t-ring{opacity:1; scale:1;}
+@media (prefers-reduced-motion: reduce){ .art-pager .iphone,.art-pager .t-ring{opacity:1; transform:none; scale:1; transition:none;} }
+@media (max-width: 900px){
+  .art-pager{min-height:480px;}
+  .art-pager .iphone{width:190px;}
+  .pager-blob{width:320px; height:320px;}
+  .t-ring{bottom:2%; inset-inline-start:0;}
+}

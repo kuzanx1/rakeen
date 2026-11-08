@@ -205,14 +205,24 @@ const T = {
         k: "المتجر الإلكتروني",
         h: "متجرك بهويتك. بدون عمولة.",
         p: "عميلك يطلب منك مباشرة، يدفع بالبطاقة، ويتابع طلبه لين يوصله.",
-        b: ["بدون عمولة على الطلب", "توصيل أو استلام", "الطلب يوصل الكاشير والمطبخ فورًا"],
+        b: ["بدون عمولة على الطلب", "توصيل أو استلام", "الطلب يوصل الكاشير والمطبخ فورًا", "عروض بالصور، وبنر للمناسبات"],
         real: "لقطة حقيقية من متجر عنوب على ركين",
       },
       menu: {
         k: "المنيو الأونلاين",
         h: "قائمة مطعمك تتحدّث بضغطة زر.",
         p: "عدّل من اللوحة، ويتغيّر عند الكاشير وبجوال العميل فورًا. بدون مصمم، ولا طباعة.",
-        b: ["تابلت عند الكاشير قدام العميل", "QR على الطاولة يفتح بجواله"],
+        b: ["تابلت عند الكاشير قدام العميل", "QR على الطاولة يفتح بجواله", "أربعة تصاميم: ديوان، مخمل، أصيل، إطلالة"],
+      },
+      pager: {
+        k: "بيجر ركين",
+        h: "جوال زبونك صار جهاز النداء.",
+        p: "يمسح باركود الفاتورة ويجلس براحته، وأول ما تضغط «جاهز» يرن جواله. بدون أجهزة نداء تشتريها وتشحنها وتضيع.",
+        b: ["بدون تطبيق ولا تسجيل", "يشوف رقمه والوقت المتوقع وأصنافه", "«استلمه» يوقف الرنين فورًا", "بشعار محلّك وألوانه"],
+        plan: "ضمن باقتي عماد وصرح",
+        ready: "طلبك جاهز!",
+        readyS: "رقم ١٢٧ · يرن الحين",
+        real: "لقطات حقيقية من صفحة البيجر",
       },
       loyalty: {
         k: "الولاء",
@@ -326,14 +336,24 @@ const T = {
         k: "Online store",
         h: "Your brand. Zero commission.",
         p: "Customers order from you directly, pay by card, and track the order to their door.",
-        b: ["No commission per order", "Delivery or pickup", "Orders land on the cashier and kitchen instantly"],
+        b: ["No commission per order", "Delivery or pickup", "Orders land on the cashier and kitchen instantly", "Photo offers and occasion banners"],
         real: "A real screenshot of Anoob's store on Rakeen",
       },
       menu: {
         k: "Online menu",
         h: "Your menu updates in one tap.",
         p: "Edit it in the dashboard and it changes at the counter and on their phone instantly. No designer, no reprinting.",
-        b: ["A tablet at the counter, facing the customer", "A table QR that opens on their phone"],
+        b: ["A tablet at the counter, facing the customer", "A table QR that opens on their phone", "Four designs: Diwan, Makhmal, Aseel, Itlala"],
+      },
+      pager: {
+        k: "Rakeen Pager",
+        h: "Their phone is the pager.",
+        p: "They scan the receipt barcode and sit back. The moment you tap \"Ready\", their phone rings. No pagers to buy, charge or lose.",
+        b: ["No app, no sign-up", "Order number, ETA and items on screen", "\"Collected\" stops the ringing instantly", "In your logo and colors"],
+        plan: "In the Emad and Sarh plans",
+        ready: "Your order is ready!",
+        readyS: "No. 127 · ringing now",
+        real: "Real screenshots of the pager page",
       },
       loyalty: {
         k: "Loyalty",
@@ -491,13 +511,14 @@ function Riyal() {
   return <span className="riyal" aria-label="SAR">{"⃁"}</span>;
 }
 
-type IconName = "check" | "wifi" | "qr" | "devices" | "chat" | "plus" | "arrow" | "bag" | "alert" | "scan" | "crown" | "minus";
+type IconName = "check" | "wifi" | "qr" | "devices" | "chat" | "plus" | "arrow" | "bag" | "alert" | "scan" | "crown" | "minus" | "bell";
 function Icon({ name }: { name: IconName }) {
   const p = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   return (
     <svg viewBox="0 0 24 24" className="ic" aria-hidden>
       {name === "check" && <path {...p} d="M5 12.5l4.5 4.5L19 7" />}
       {name === "minus" && <path {...p} d="M8 12h8" />}
+      {name === "bell" && <path {...p} d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15L6 16zM10 20.5a2 2 0 0 0 4 0" />}
       {name === "wifi" && (
         <g {...p}>
           <path d="M3 4l18 16" />
@@ -1532,11 +1553,49 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ---------- chapter: pager (عماد وصرح) ---------- */}
+      <section className="chap chap-flip" id="pager">
+        <div className="wrap chap-in">
+          <div className="chap-copy" data-in>
+            <span className="chap-n mono" aria-hidden>04</span>
+            <span className="kicker k-orange">
+              <Icon name="bell" />
+              {t.ch.pager.k}
+            </span>
+            <h2>{t.ch.pager.h}</h2>
+            <p>{t.ch.pager.p}</p>
+            <Bullets items={t.ch.pager.b} />
+            <a href="#plans" onClick={go("plans")} className="pager-plan">
+              <Icon name="crown" />
+              {t.ch.pager.plan}
+            </a>
+          </div>
+          <div className="chap-art art-pager" data-in>
+            <div className="pager-blob" aria-hidden />
+            <div className="iphone pg-back">
+              <img src="/landing/pager-wait.jpg" alt={t.ch.pager.real} loading="lazy" />
+            </div>
+            <div className="iphone pg-front">
+              <img src="/landing/pager-ready.jpg" alt={t.ch.pager.real} loading="lazy" />
+            </div>
+            <div className="toast t-ring">
+              <span className="toast-ic ring">
+                <Icon name="bell" />
+              </span>
+              <div>
+                <b>{t.ch.pager.ready}</b>
+                <span>{t.ch.pager.readyS}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ---------- chapter: loyalty ---------- */}
       <section className="chap chap-wide">
         <div className="wrap chap-in">
           <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>04</span>
+            <span className="chap-n mono" aria-hidden>05</span>
             <span className="kicker">{t.ch.loyalty.k}</span>
             <h2>{t.ch.loyalty.h}</h2>
             <p>{t.ch.loyalty.p}</p>
@@ -1552,7 +1611,7 @@ export default function LandingPage() {
       <section className="chap chap-dark">
         <div className="wrap chap-in">
           <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>05</span>
+            <span className="chap-n mono" aria-hidden>06</span>
             <span className="kicker k-lime">{t.ch.numbers.k}</span>
             <h2>{t.ch.numbers.h}</h2>
             <p>{t.ch.numbers.p}</p>
