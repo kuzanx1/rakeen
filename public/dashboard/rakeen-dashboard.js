@@ -13822,27 +13822,27 @@ function onlineMenuDesignHtml(){
           <div class="online-radio-card-row rk-theme-style-row" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:4px;">
             <label style="flex:1; display:flex; flex-direction:column; gap:4px; padding:12px 14px; border:2px solid ${ONLINE_THEME_STYLE==='classic'?'var(--lime-deep)':'var(--line)'}; border-radius:12px; cursor:pointer;">
               <span style="display:flex; align-items:center; gap:8px; font-weight:800; font-size:13px;">
-                <input type="radio" name="settingsOnlineThemeStyle" value="classic" ${ONLINE_THEME_STYLE==='classic'?'checked':''}> كلاسيكي
+                <input type="radio" name="settingsOnlineThemeStyle" value="classic" ${ONLINE_THEME_STYLE==='classic'?'checked':''}> ديوان
               </span>
               <span style="font-size:11.5px; color:var(--muted); margin-inline-start:22px;">كروت مربعة مرتبة</span>
             </label>
             <label style="flex:1; display:flex; flex-direction:column; gap:4px; padding:12px 14px; border:2px solid ${ONLINE_THEME_STYLE==='luxury'?'var(--lime-deep)':'var(--line)'}; border-radius:12px; cursor:pointer;">
               <span style="display:flex; align-items:center; gap:8px; font-weight:800; font-size:13px;">
-                <input type="radio" name="settingsOnlineThemeStyle" value="luxury" ${ONLINE_THEME_STYLE==='luxury'?'checked':''}> فخم
+                <input type="radio" name="settingsOnlineThemeStyle" value="luxury" ${ONLINE_THEME_STYLE==='luxury'?'checked':''}> مخمل
               </span>
               <span style="font-size:11.5px; color:var(--muted); margin-inline-start:22px;">بنر كبير وصور بلا صناديق</span>
             </label>
             <label style="flex:1; display:flex; flex-direction:column; gap:4px; padding:12px 14px; border:2px solid ${ONLINE_THEME_STYLE==='folk'?'var(--lime-deep)':'var(--line)'}; border-radius:12px; cursor:pointer;">
               <span style="display:flex; align-items:center; gap:8px; font-weight:800; font-size:13px;">
-                <input type="radio" name="settingsOnlineThemeStyle" value="folk" ${ONLINE_THEME_STYLE==='folk'?'checked':''}> شعبي
+                <input type="radio" name="settingsOnlineThemeStyle" value="folk" ${ONLINE_THEME_STYLE==='folk'?'checked':''}> أصيل
               </span>
               <span style="font-size:11.5px; color:var(--muted); margin-inline-start:22px;">لون الهوية كامل، خط عريض، وعروض بشكل تذكرة</span>
             </label>
             <label style="flex:1; display:flex; flex-direction:column; gap:4px; padding:12px 14px; border:2px solid ${ONLINE_THEME_STYLE==='facade'?'var(--lime-deep)':'var(--line)'}; border-radius:12px; cursor:pointer;">
               <span style="display:flex; align-items:center; gap:8px; font-weight:800; font-size:13px;">
-                <input type="radio" name="settingsOnlineThemeStyle" value="facade" ${ONLINE_THEME_STYLE==='facade'?'checked':''}> واجهة
+                <input type="radio" name="settingsOnlineThemeStyle" value="facade" ${ONLINE_THEME_STYLE==='facade'?'checked':''}> إطلالة
               </span>
-              <span style="font-size:11.5px; color:var(--muted); margin-inline-start:22px;">فخم وبسيط، وصورة الغلاف كبيرة ونظيفة والشعار والاسم تحتها</span>
+              <span style="font-size:11.5px; color:var(--muted); margin-inline-start:22px;">هادئ وبسيط، وصورة الغلاف كبيرة ونظيفة والشعار والاسم تحتها</span>
             </label>
           </div>
           <style>.rk-theme-style-row > label{min-width:150px;}</style>
@@ -14321,7 +14321,7 @@ function renderThemeOptions(style){
   }
   const o = Object.assign({}, d, THEME_OPTS_DRAFT[style] || {});
   const box = (inner) => `<div style="border:1px solid var(--line); border-radius:12px; padding:12px 14px;">
-    <div style="font-weight:800; font-size:13px; margin-bottom:10px;">خيارات شكل «${style === 'folk' ? 'شعبي' : 'واجهة'}»</div>${inner}</div>`;
+    <div style="font-weight:800; font-size:13px; margin-bottom:10px;">خيارات شكل «${style === 'folk' ? 'أصيل' : 'إطلالة'}»</div>${inner}</div>`;
   const chk = (key, label) => `<div style="margin-bottom:6px;">${rkCheck(`data-topt="${key}" ${o[key] ? 'checked' : ''}`, label)}</div>`;
   if(style === 'folk'){
     host.innerHTML = box(chk('featuredFirst', 'أول صنف في أول قسم كرت عريض') + chk('teeth', 'حافة مسننة تحت رأس الصفحة'));
@@ -26019,7 +26019,7 @@ RKA.registerManager({
           const steps = [];
           steps.push({ key:'pick', type:'choose', prompt:'وش تبي تضبط في شكل المتجر؟',
             options: [
-              { value:'style', label:'شكل الصفحة (كلاسيكي / فخم / شعبي / واجهة)' + ' — الآن: ' + ({ classic:'كلاسيكي', luxury:'فخم', folk:'شعبي', facade:'واجهة' }[b.themeStyle] || 'كلاسيكي') },
+              { value:'style', label:'شكل الصفحة (ديوان / مخمل / أصيل / إطلالة)' + ' — الآن: ' + ({ classic:'ديوان', luxury:'مخمل', folk:'أصيل', facade:'إطلالة' }[b.themeStyle] || 'ديوان') },
               { value:'color', label:'اللون الرئيسي — الآن: ' + b.themeColor },
               { value:'font', label:'الخط — الآن: ' + (b.font === 'thmanyah' ? 'Thmanyah' : 'ركين') },
               { value:'taglineHeader', label:'العبارة أعلى الصفحة' },
@@ -26028,11 +26028,11 @@ RKA.registerManager({
             ] });
           if(a.pick === 'style'){
             steps.push({ key:'st', type:'choose', prompt:'شكل صفحة الطلب؟',
-              hint:'<b>كلاسيكي</b>: كروت مربّعة مرتّبة — أوضح لمنيو كبير.\n<b>فخم</b>: بنر كبير وصور بلا صناديق — أنسب لمطعم قليل الأصناف ويعتمد على الصور.\n<b>شعبي</b>: رأس الصفحة بلون الهوية كامل، خط عريض للأسماء والأسعار، والعروض بشكل تذكرة.\n<b>واجهة</b>: فخم وبسيط، وميزته الهيدر: صورة الغلاف كبيرة (أو بطول الشاشة) ونظيفة بدون كتابة فوقها، والشعار والاسم تحتها.',
-              options: [ { value:'classic', label:'كلاسيكي' + (b.themeStyle === 'classic' ? ' (الحالي)' : ''), primary: b.themeStyle === 'classic' }, { value:'luxury', label:'فخم' + (b.themeStyle === 'luxury' ? ' (الحالي)' : ''), primary: b.themeStyle === 'luxury' }, { value:'folk', label:'شعبي' + (b.themeStyle === 'folk' ? ' (الحالي)' : ''), primary: b.themeStyle === 'folk' }, { value:'facade', label:'واجهة' + (b.themeStyle === 'facade' ? ' (الحالي)' : ''), primary: b.themeStyle === 'facade' } ] });
+              hint:'<b>ديوان</b>: كروت مربّعة مرتّبة — أوضح لمنيو كبير.\n<b>مخمل</b>: بنر كبير وصور بلا صناديق — أنسب لمطعم قليل الأصناف ويعتمد على الصور.\n<b>أصيل</b>: رأس الصفحة بلون الهوية كامل، خط عريض للأسماء والأسعار، والعروض بشكل تذكرة.\n<b>إطلالة</b>: هادئ وبسيط، وميزته الهيدر: صورة الغلاف كبيرة (أو بطول الشاشة) ونظيفة بدون كتابة فوقها، والشعار والاسم تحتها.',
+              options: [ { value:'classic', label:'ديوان' + (b.themeStyle === 'classic' ? ' (الحالي)' : ''), primary: b.themeStyle === 'classic' }, { value:'luxury', label:'مخمل' + (b.themeStyle === 'luxury' ? ' (الحالي)' : ''), primary: b.themeStyle === 'luxury' }, { value:'folk', label:'أصيل' + (b.themeStyle === 'folk' ? ' (الحالي)' : ''), primary: b.themeStyle === 'folk' }, { value:'facade', label:'إطلالة' + (b.themeStyle === 'facade' ? ' (الحالي)' : ''), primary: b.themeStyle === 'facade' } ] });
             if(a.st !== undefined) steps.push({ key:'stExec', type:'execute', idemKind:'ostyle', pending:'أحفظ…',
               run: async (ans) => { await rkaOnlineSaveBiz({ online_theme_style: ans.st }, 'غيّر شكل المتجر', rkaOnlineMirror);
-                return { message:'صار الشكل «' + ({ classic:'كلاسيكي', luxury:'فخم', folk:'شعبي', facade:'واجهة' }[ans.st] || 'كلاسيكي') + '» ✓ — شوف النتيجة في تبويب «التصميم» (معاينة حية).' }; } });
+                return { message:'صار الشكل «' + ({ classic:'ديوان', luxury:'مخمل', folk:'أصيل', facade:'إطلالة' }[ans.st] || 'ديوان') + '» ✓ — شوف النتيجة في تبويب «التصميم» (معاينة حية).' }; } });
           } else if(a.pick === 'color'){
             steps.push({ key:'col', type:'ask', prompt:'اللون الرئيسي؟ اكتب كود اللون (hex)',
               hint:'مثل <b dir="ltr">C7FF4D</b> أو <b dir="ltr">#B7834A</b>. لو ما تدري الكود، افتح تبويب «التصميم» فيه منتقي ألوان بصري.',
