@@ -167,11 +167,22 @@ function check(n, ok, info) { if (ok) pass++; else { fail++; fails.push(n + (inf
           check(tag + ' receipt off → preview says so', r);
           await p.evaluate(() => { const i = document.getElementById('pgsDisplay'); i.checked = false; i.dispatchEvent(new Event('change', { bubbles: true })); });
           check(tag + ' display off hides duration', await p.evaluate(() => document.getElementById('pgsDisplayRow').style.display === 'none'));
+          // «اعرض للزبون وقت متوقع» مطفأ: الاحتياط والخط الزمني يختفون، والجوال بلا وقت.
+          await p.evaluate(() => { const i = document.getElementById('pgsShowEta'); i.checked = false; i.dispatchEvent(new Event('change', { bubbles: true })); });
+          r = await p.evaluate(() => ({
+            buf: document.getElementById('pgsBuffer').closest('.pgs-eta-only').style.display,
+            tl: document.getElementById('pgsTimeline').style.display,
+            help: document.querySelector('.pgs-noeta-only').style.display,
+            eta: document.querySelector('.pgs-ph-eta').innerText,
+          }));
+          check(tag + ' show_eta off → buffer/timeline hidden, phone has no time', r.buf === 'none' && r.tl === 'none' && r.help === '' && r.eta.includes('نجهزه لك الحين') && !/\d/.test(r.eta), JSON.stringify(r));
+          if (SHOTS) await p.locator('.rk-section', { has: p.locator('#pgsPrep') }).screenshot({ path: path.join(OUT, `dash-noeta-${w}.png`) });
+          if (SHOTS) await p.locator('.pgs-stage').screenshot({ path: path.join(OUT, `dash-noeta-stage-${w}.png`) });
           await p.click('#pgsSaveBtn');
           await p.waitForTimeout(200);
           const saved = await p.evaluate(() => window.__saved);
           if (!saved) console.log('DEBUG', await p.evaluate(() => JSON.stringify({ t: window.__toasts, dis: document.getElementById('pgsSaveBtn').disabled, cls: document.getElementById('pgsSaveBtn').className })));
-          const exp = { pager_enabled: true, pager_settings: { channels: ['pickup'], prep_min: 15, buffer_min: 0, receipt: false, display: false, display_secs: 0, remind_min: 5, close_min: 0, wifi: 'Cafe-5G', ready_msg: 'طلبك ينتظرك <b>هنا</b>', late_alert: true, tone: 'beep' } };
+          const exp = { pager_enabled: true, pager_settings: { channels: ['pickup'], prep_min: 15, buffer_min: 0, receipt: false, display: false, display_secs: 0, remind_min: 5, close_min: 0, wifi: 'Cafe-5G', ready_msg: 'طلبك ينتظرك <b>هنا</b>', late_alert: true, tone: 'beep', show_eta: false } };
           const ok = saved && saved.pager_enabled === true && Object.keys(exp.pager_settings).every(k => JSON.stringify(saved.pager_settings[k]) === JSON.stringify(exp.pager_settings[k]));
           check(tag + ' save payload exact', ok, JSON.stringify(saved));
           check(tag + ' dirty cleared after save', await p.evaluate(() => document.getElementById('pgsDirty').hidden));

@@ -236,7 +236,9 @@ export default function RunningOrdersList({
           if (pagerUrgency(o, now).urgency === 'urgent') {
             lateWarned.current.add(o.id);
             playAlertSound('warning');
-            setNotice(`⏰ طلب #${o.id} تجاوز الوقت اللي وعدنا فيه الزبون — جهّزه أو اضغط «+٥ د»`);
+            setNotice(pagerConfig().settings.show_eta
+              ? `⏰ طلب #${o.id} تجاوز الوقت اللي وعدنا فيه الزبون — جهّزه أو اضغط «+٥ د»`
+              : `⏰ طلب #${o.id} تجاوز وقت التحضير — جهّزه`);
           }
         }
       }

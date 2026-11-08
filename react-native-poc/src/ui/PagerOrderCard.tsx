@@ -4,7 +4,7 @@ import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
 import { createStyles, fonts, gradients, radii, useTheme } from './theme';
-import { pagerUrgency } from '../application/pagerService';
+import { pagerConfig, pagerUrgency } from '../application/pagerService';
 import type { PagerAction, PagerOrder } from '../application/pagerService';
 
 /**
@@ -91,13 +91,13 @@ export default function PagerOrderCard({
         </View>
       ) : (
         <View key="prep" style={styles.row}>
-          <TouchableOpacity style={styles.wide} onPress={() => onAction('ready')} activeOpacity={0.85} accessibilityRole="button">
+          <TouchableOpacity style={pagerConfig().settings.show_eta ? styles.wide : styles.half} onPress={() => onAction('ready')} activeOpacity={0.85} accessibilityRole="button">
             <View style={[styles.btn, styles.btnPrimary]}>
               <GradientFill gradient={gradients.payButton} radius={radii.md} />
               <Text style={styles.btnText}>جاهز — رنّ جواله</Text>
             </View>
           </TouchableOpacity>
-          <TouchableOpacity
+          {pagerConfig().settings.show_eta && <TouchableOpacity
             style={styles.narrow}
             onPress={() => onAction('delay')}
             activeOpacity={0.8}
@@ -106,7 +106,7 @@ export default function PagerOrderCard({
             <View style={[styles.btn, styles.btnGhost]}>
               <Text style={styles.ghostText}>+٥ د</Text>
             </View>
-          </TouchableOpacity>
+          </TouchableOpacity>}
         </View>
       )}
     </View>

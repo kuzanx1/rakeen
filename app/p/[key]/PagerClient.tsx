@@ -23,6 +23,8 @@ export interface PagerStatus {
   branch?: string | null;
   ready_msg?: string | null;
   tone?: string | null;
+  /** false: المحل ما يبي يوعد بوقت. (قاعدة قديمة لا ترجعه = يُعرض.) */
+  show_eta?: boolean;
 }
 
 type Phase = "waiting" | "preparing" | "ready" | "collected" | "cancelled";
@@ -330,7 +332,7 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
 
   // ── الوقت
   const created = s?.created_at ? Date.parse(s.created_at) : now;
-  const eta = s?.eta_at ? Date.parse(s.eta_at) : null;
+  const eta = s?.eta_at && s?.show_eta !== false ? Date.parse(s.eta_at) : null;
   const leftMin = eta ? Math.ceil((eta - now) / 60000) : null;
   const progress = eta && eta > created ? Math.max(0.04, Math.min(1, (now - created) / (eta - created))) : 0.35;
   const etaText = phase !== "preparing" ? "" : eta == null
@@ -417,7 +419,7 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
       </section>
 
       <p className="pg-eta">{phase === "waiting" ? "أول ما يوصل للنظام تظهر حالته هنا" : etaText}</p>
-      {s?.delayed_at && phase === "preparing" ? <p className="pg-delay">تأخرنا عليك شوي، سامحنا — نجهزه لك الحين</p> : null}
+      {s?.delayed_at && phase === "preparing" && s?.show_eta !== false ? <p className="pg-delay">تأخرنا عليك شوي، سامحنا — نجهزه لك الحين</p> : null}
 
       <ol className="pg-steps">
         <li className={phase !== "waiting" ? "on" : ""}><i />استلمناه</li>

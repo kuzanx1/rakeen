@@ -116,6 +116,23 @@ describe('urgency: ok → warn (past prep) → urgent (past promise)', () => {
   });
 });
 
+describe('show_eta off: no promise, the prep time is the deadline', () => {
+  const s = { ...PAGER_DEFAULTS, prep_min: 10, buffer_min: 5, show_eta: false };
+  const o = order({ id: 1, createdAt: new Date(0), etaAt: new Date(15 * 60_000) });
+  it.each([
+    [5 * 60_000, 'ok', 300],
+    [11 * 60_000, 'urgent', -60],
+  ])('at %i ms', (now, u, left) => {
+    const r = pagerUrgency(o, now as number, s);
+    expect(r.urgency).toBe(u);
+    expect(r.secondsLeft).toBe(left);
+  });
+  it('missing in stored settings = on (old businesses keep their promise)', () => {
+    expect(normalizePagerSettings({}).show_eta).toBe(true);
+    expect(normalizePagerSettings({ show_eta: false }).show_eta).toBe(false);
+  });
+});
+
 describe('auto actions: only this device, once each', () => {
   const s = { ...PAGER_DEFAULTS, remind_min: 3, close_min: 20 };
   const ready = new Date(0);

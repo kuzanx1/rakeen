@@ -12930,9 +12930,13 @@ const RK_ICON_PATHS = {
    يُقرأ في استعلامٍ مستقلّ: قاعدةٌ لم يُشغَّل فيها ملفّ البيجر تُظهر
    تنبيهاً وتعطّل الحفظ، ولا تُسقط بقيّة إعدادات الكاشير معها. */
 const PGS_DEFAULTS = { channels:['dine_in','pickup'], prep_min:10, buffer_min:5, receipt:true, display:true,
-  display_secs:60, remind_min:3, close_min:20, wifi:'', ready_msg:'', late_alert:true, tone:'chime' };
+  display_secs:60, remind_min:3, close_min:20, wifi:'', ready_msg:'', late_alert:true, tone:'chime', show_eta:true };
 let PGS_STATE = null;   // { enabled, s, brand, autoReady, tablesMode, schemaOk }
 let PGS_SAVED = '';     // لقطة آخر حفظ — لزرّ «فيه تغييرات ما انحفظت»
+
+function pgsEtaStatus(c){
+  return c ? {text:'يشوف «متوقع يجهز خلال …» وعدّاد', tone:'ok'} : {text:'بدون وقت — يشوف «نجهزه لك الحين» بس', tone:''};
+}
 
 function pgsNormalize(raw){
   const s = Object.assign({}, PGS_DEFAULTS, (raw && typeof raw === 'object') ? raw : {});
@@ -12944,6 +12948,7 @@ function pgsNormalize(raw){
   s.remind_min = int(s.remind_min, 3, 0, 60);
   s.close_min = int(s.close_min, 20, 0, 240);
   s.receipt = s.receipt !== false; s.display = s.display !== false; s.late_alert = s.late_alert !== false;
+  s.show_eta = s.show_eta !== false;
   s.tone = ['chime','bell','beep'].includes(s.tone) ? s.tone : 'chime';
   s.wifi = String(s.wifi || '').slice(0, 40);
   s.ready_msg = String(s.ready_msg || '').slice(0, 80);
@@ -13026,7 +13031,7 @@ function pgsPreviewHtml(){
         <div class="pgs-phone">
           <div class="pgs-ph-head"><div class="pgs-ph-logo">${logo}</div><b>${escapeHtml(brand.name)}</b></div>
           <div class="pgs-ph-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" class="t"/><circle cx="50" cy="50" r="44" class="p"/></svg><div><small>رقم طلبك</small><b>1042</b></div></div>
-          <div class="pgs-ph-eta">متوقع يجهز خلال <b>${eta}</b> دقيقة</div>
+          <div class="pgs-ph-eta">${s.show_eta ? `متوقع يجهز خلال <b>${eta}</b> دقيقة` : 'نجهزه لك الحين'}</div>
           <div class="pgs-ph-btn">🔔 شغّل البيجر</div>
         </div>
       </div>
@@ -13102,20 +13107,22 @@ function pagerSettingsTabHtml(){
 
     <div class="rk-section">
       ${rkSectionHead('clock', 'كم توعد الزبون؟', 'الوقت اللي يشوفه في جواله. وقت الاحتياط يحميك: توعد بأطول شوي، فيجهز قبل الوعد بدل ما يتأخر عليه.')}
+      ${rkSwitchRow('pgsShowEta', s.show_eta, 'اعرض للزبون وقت متوقع', null, pgsEtaStatus)}
       <div class="pgs-time-grid">
         <div><label class="pgs-label" for="pgsPrep">وقت التحضير المعتاد</label>${pgsStepper('pgsPrep', s.prep_min, 1, 120, 'دقيقة')}</div>
-        <div><label class="pgs-label" for="pgsBuffer">وقت احتياط</label>${pgsStepper('pgsBuffer', s.buffer_min, 0, 60, 'دقيقة')}</div>
+        <div class="pgs-eta-only" style="${s.show_eta ? '' : 'display:none;'}"><label class="pgs-label" for="pgsBuffer">وقت احتياط</label>${pgsStepper('pgsBuffer', s.buffer_min, 0, 60, 'دقيقة')}</div>
       </div>
-      <div class="pgs-timeline" id="pgsTimeline">
+      <div class="pgs-timeline pgs-eta-only" id="pgsTimeline" style="${s.show_eta ? '' : 'display:none;'}">
         <div class="pgs-tl-bar"><span class="prep" style="flex:${s.prep_min}"></span><span class="buf" style="flex:${Math.max(s.buffer_min, 0.0001)}"></span></div>
         <div class="pgs-tl-legend"><span><i class="prep"></i>تحضير ${s.prep_min} د</span><span><i class="buf"></i>احتياط ${s.buffer_min} د</span><span class="sum">الزبون يشوف: <b>${eta} دقيقة</b></span></div>
       </div>
-      <p class="pgs-help">لو تجاوز الطلب وقت التحضير تصفرّ بطاقته في «جارية»، ولو تجاوز الوعد تحمرّ — وتقدر تمدّ الوعد ٥ دقايق بضغطة، والزبون يوصله «تأخرنا عليك شوي».</p>
+      <p class="pgs-help pgs-eta-only" style="${s.show_eta ? '' : 'display:none;'}">لو تجاوز الطلب وقت التحضير تصفرّ بطاقته في «جارية»، ولو تجاوز الوعد تحمرّ — وتقدر تمدّ الوعد ٥ دقايق بضغطة، والزبون يوصله «تأخرنا عليك شوي».</p>
+      <p class="pgs-help pgs-noeta-only" style="${s.show_eta ? 'display:none;' : ''}">الزبون يشوف «نجهزه لك الحين» بدون وقت. وقت التحضير لك أنت بس: لو تجاوزه الطلب تحمرّ بطاقته في «جارية».</p>
     </div>
 
     <div class="rk-section">
       ${rkSectionHead('grid', 'وين يطلع الباركود؟', null)}
-      ${rkSwitchRow('pgsReceipt', s.receipt, 'على فاتورة الزبون', null, c => c ? {text:'شريط أسود بالباركود فوق باركود الضريبة — يُمسح من بعيد', tone:'ok'} : {text:'ما ينطبع — يمسحه من شاشة العميل بس', tone:'warn'})}
+      ${rkSwitchRow('pgsReceipt', s.receipt, 'على فاتورة الزبون', null, c => c ? {text:'مربع بالباركود فوق باركود الضريبة — يُمسح من بعيد', tone:'ok'} : {text:'ما ينطبع — يمسحه من شاشة العميل بس', tone:'warn'})}
       ${rkSwitchRow('pgsDisplay', s.display, 'على شاشة العميل بعد الدفع', null, c => c ? {text:'يطلع لحاله بعد كل طلب، وجنب باركود الولاء لو ضغطته', tone:'ok'} : {text:'ما يطلع على الشاشة', tone:''})}
       <div id="pgsDisplayRow" class="pgs-sub" style="${s.display ? '' : 'display:none;'}">
         <label class="pgs-label">كم يبقى على الشاشة؟</label>
@@ -13214,13 +13221,18 @@ function wirePagerSettingsTab(){
     b.parentElement.querySelectorAll('button').forEach(x => { x.classList.toggle('active', x === b); x.setAttribute('aria-checked', String(x === b)); });
     pgsRefresh();
   }));
-  const sw = { pgsReceipt: 'receipt', pgsDisplay: 'display', pgsLate: 'late_alert' };
+  const sw = { pgsReceipt: 'receipt', pgsDisplay: 'display', pgsLate: 'late_alert', pgsShowEta: 'show_eta' };
   Object.keys(sw).forEach(id => on(id, 'change', e => {
     s[sw[id]] = e.target.checked;
     if(id === 'pgsDisplay'){ const r = document.getElementById('pgsDisplayRow'); if(r) r.style.display = e.target.checked ? '' : 'none'; }
+    if(id === 'pgsShowEta'){
+      document.querySelectorAll('.pgs-eta-only').forEach(x => { x.style.display = e.target.checked ? '' : 'none'; });
+      document.querySelectorAll('.pgs-noeta-only').forEach(x => { x.style.display = e.target.checked ? 'none' : ''; });
+    }
     pgsRefresh();
   }));
-  rkWireSwitchStatus('pgsReceipt', c => c ? {text:'شريط أسود بالباركود فوق باركود الضريبة — يُمسح من بعيد', tone:'ok'} : {text:'ما ينطبع — يمسحه من شاشة العميل بس', tone:'warn'});
+  rkWireSwitchStatus('pgsShowEta', pgsEtaStatus);
+  rkWireSwitchStatus('pgsReceipt', c => c ? {text:'مربع بالباركود فوق باركود الضريبة — يُمسح من بعيد', tone:'ok'} : {text:'ما ينطبع — يمسحه من شاشة العميل بس', tone:'warn'});
   rkWireSwitchStatus('pgsDisplay', c => c ? {text:'يطلع لحاله بعد كل طلب، وجنب باركود الولاء لو ضغطته', tone:'ok'} : {text:'ما يطلع على الشاشة', tone:''});
   rkWireSwitchStatus('pgsLate', c => c ? {text:'تنبيه بالكاشير + البطاقة تحمرّ', tone:'ok'} : {text:'البطاقة تحمرّ بس، بدون تنبيه', tone:''});
   on('pgsTones', 'click', e => {

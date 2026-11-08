@@ -8004,7 +8004,7 @@ async function markPickupOrderDelivered(orderId){
    والمفتاح client_order_uuid لا رقم الطلب: الفاتورة تُطبع قبل أن يصل
    الطلب للخادم إن كان الكاشير بلا نت، والرقم لم يُعرف بعد. */
 const PAGER_DEFAULTS = { channels:['dine_in','pickup'], prep_min:10, buffer_min:5, receipt:true, display:true,
-  display_secs:60, remind_min:3, close_min:20, wifi:'', ready_msg:'', late_alert:true, tone:'chime' };
+  display_secs:60, remind_min:3, close_min:20, wifi:'', ready_msg:'', late_alert:true, tone:'chime', show_eta:true };
 let PAGER_ENABLED = false;
 let PAGER_SETTINGS = Object.assign({}, PAGER_DEFAULTS);
 let PAGER_AUTO_READY = { dine_in:false, pickup:false };
@@ -8023,6 +8023,7 @@ function rkPagerSettings(raw){
   s.remind_min = int(s.remind_min, 3, 0, 60);
   s.close_min = int(s.close_min, 20, 0, 240);
   s.receipt = s.receipt !== false; s.display = s.display !== false; s.late_alert = s.late_alert !== false;
+  s.show_eta = s.show_eta !== false;
   s.wifi = String(s.wifi || '').slice(0, 40);
   s.ready_msg = String(s.ready_msg || '').slice(0, 80);
   return s;
@@ -8247,7 +8248,8 @@ function renderPagerCard(o){
     </div>`;
   }
   const prepAt = o.createdAt.getTime() + PAGER_SETTINGS.prep_min * 60000;
-  const eta = o.etaAt ? o.etaAt.getTime() : prepAt;
+  // بلا وعد للزبون: الحدّ هو وقت التحضير نفسه.
+  const eta = PAGER_SETTINGS.show_eta && o.etaAt ? o.etaAt.getTime() : prepAt;
   const left = Math.round((eta - now) / 1000);
   const state = now > eta ? 'urgent' : now > prepAt ? 'warn' : '';
   const label = left >= 0 ? 'باقي ' + formatMmSs(left) : 'متأخر ' + formatMmSs(-left);
@@ -8258,7 +8260,7 @@ function renderPagerCard(o){
     <div class="pager-time mono ${state}">${label}</div>
     <div class="pager-btns">
       <button class="pager-btn pager-ready-btn" data-pager-action="ready" data-order-id="${o.id}">جاهز</button>
-      <button class="pager-btn pager-delay-btn" data-pager-action="delay" data-order-id="${o.id}" title="أضف ٥ دقايق وبلّغ الزبون">+٥ د</button>
+      ${PAGER_SETTINGS.show_eta ? `<button class="pager-btn pager-delay-btn" data-pager-action="delay" data-order-id="${o.id}" title="أضف ٥ دقايق وبلّغ الزبون">+٥ د</button>` : ''}
     </div>
   </div>`;
 }
@@ -8278,10 +8280,11 @@ setInterval(()=>{
   const now = Date.now();
   ACTIVE_PAGER_ORDERS.slice().forEach(o=>{
     if(!o.readyAt){
-      if(PAGER_SETTINGS.late_alert && !o.lateWarned && o.etaAt && now > o.etaAt.getTime()){
+      const deadline = PAGER_SETTINGS.show_eta && o.etaAt ? o.etaAt.getTime() : o.createdAt.getTime() + PAGER_SETTINGS.prep_min * 60000;
+      if(PAGER_SETTINGS.late_alert && !o.lateWarned && now > deadline){
         o.lateWarned = true;
         if(NOTIFY_SOUND_ENABLED) playAlertSound('warning');
-        showToast('⏱ طلب #' + o.id + ' تأخر على الزبون — جهّزه أو أضف ٥ دقايق');
+        showToast(PAGER_SETTINGS.show_eta ? '⏱ طلب #' + o.id + ' تأخر على الزبون — جهّزه أو أضف ٥ دقايق' : '⏱ طلب #' + o.id + ' تجاوز وقت التحضير — جهّزه');
       }
       return;
     }

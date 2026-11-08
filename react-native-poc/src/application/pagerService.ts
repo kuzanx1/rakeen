@@ -34,11 +34,14 @@ export interface PagerSettings {
   ready_msg: string;
   late_alert: boolean;
   tone: 'chime' | 'bell' | 'beep';
+  /** يشوف الزبون وقتاً متوقعاً؟ مطفأ: لا وقت عنده، والكاشير يعدّ على وقت التحضير بلا «+٥ د». */
+  show_eta: boolean;
 }
 
 export const PAGER_DEFAULTS: PagerSettings = {
   channels: ['dine_in', 'pickup'], prep_min: 10, buffer_min: 5, receipt: true, display: true,
   display_secs: 60, remind_min: 3, close_min: 20, wifi: '', ready_msg: '', late_alert: true, tone: 'chime',
+  show_eta: true,
 };
 
 export function normalizePagerSettings(raw: unknown): PagerSettings {
@@ -62,6 +65,7 @@ export function normalizePagerSettings(raw: unknown): PagerSettings {
     wifi: String(s.wifi ?? '').slice(0, 40),
     ready_msg: String(s.ready_msg ?? '').slice(0, 80),
     late_alert: s.late_alert !== false,
+    show_eta: s.show_eta !== false,
     tone: s.tone === 'bell' || s.tone === 'beep' ? s.tone : 'chime',
   };
 }
@@ -408,7 +412,8 @@ export type PagerUrgency = 'ok' | 'warn' | 'urgent';
 /** عادي ← تجاوز وقت التحضير (warn) ← تجاوز الوعد (urgent). */
 export function pagerUrgency(o: PagerOrder, now = Date.now(), s: PagerSettings = config.settings): { urgency: PagerUrgency; secondsLeft: number } {
   const prepAt = o.createdAt.getTime() + s.prep_min * 60_000;
-  const eta = o.etaAt ? o.etaAt.getTime() : prepAt;
+  // بلا وعد للزبون: الحدّ هو وقت التحضير نفسه.
+  const eta = s.show_eta && o.etaAt ? o.etaAt.getTime() : prepAt;
   return { urgency: now > eta ? 'urgent' : now > prepAt ? 'warn' : 'ok', secondsLeft: Math.round((eta - now) / 1000) };
 }
 
