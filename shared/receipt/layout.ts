@@ -127,7 +127,8 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
   const money = (n: number): string => n.toFixed(2) + ' ' + currency;
 
   /**
-   * بيجر ركين: شريطٌ أسود، فيه باركودٌ على إطارٍ أبيض، وبجانبه الكلام.
+   * بيجر ركين: إطارٌ أسودُ رفيع على أبيض، فيه الباركود وبجانبه الكلام.
+   * (لا شريطَ مصمت: الحبرُ الكثيف يُبطئ الطابعة الحرارية -- انظر PAGER.frame.)
    *
    * على ٨٠ملم صفٌّ واحد: الباركودُ يميناً (أوّلُ ما تقع عليه العين في
    * العربية) والكلامُ يساره. وعلى ٥٨ملم لا يتّسع العمودان، فيُرصّ:
@@ -153,8 +154,15 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
     const tagTextW = measure(pg.tag, tagSz, WEIGHT.bold, 'sans');
     const tagW = Math.min(textW, Math.round(tagTextW + tagPadX * 2));
 
+    const frameAt = (x: number, y: number, w: number, h: number): void => {
+      const t = PAGER.frame;
+      rect(x, y, w, t, 'ink');
+      rect(x, y + h - t, w, t, 'ink');
+      rect(x, y, t, h, 'ink');
+      rect(x + w - t, y, t, h, 'ink');
+    };
+
     const qrAt = (x: number, y: number): void => {
-      rect(x, y, qrOuter, qrOuter, 'paper');
       const n = Math.max(1, pg.qr.size);
       const unit = Math.max(1, Math.floor(PAGER.qr / n));
       const side = unit * n;
@@ -175,12 +183,12 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
     const tagAt = (rightX: number, top: number, align: 'right' | 'center'): void => {
       const x = align === 'right' ? rightX - tagW : Math.round((width - tagW) / 2);
       const t = PAGER.tagBorder;
-      rect(x, top, tagW, t, 'paper');
-      rect(x, top + tagH - t, tagW, t, 'paper');
-      rect(x, top, t, tagH, 'paper');
-      rect(x + tagW - t, top, t, tagH, 'paper');
+      rect(x, top, tagW, t, 'ink');
+      rect(x, top + tagH - t, tagW, t, 'ink');
+      rect(x, top, t, tagH, 'ink');
+      rect(x + tagW - t, top, t, tagH, 'ink');
       text(pg.tag, x + tagW / 2, tagSz, WEIGHT.bold, 'sans', 'center', 'rtl',
-        { at: top + tagH / 2, color: 'paper' });
+        { at: top + tagH / 2 });
     };
 
     const textH = titleLines.length * titleLH
@@ -193,19 +201,19 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
     if (wide) {
       const innerH = Math.max(qrOuter, textH);
       const barH = innerH + PAGER.padY * 2;
-      rect(barX, top, barW, barH, 'ink');
+      frameAt(barX, top, barW, barH);
       const qrX = barX + barW - PAGER.padX - qrOuter;
       qrAt(qrX, top + PAGER.padY + Math.round((innerH - qrOuter) / 2));
       const right = qrX - PAGER.gapX;
       let y = top + PAGER.padY + Math.round((innerH - textH) / 2);
       titleLines.forEach(l => {
-        text(l, right, titleSz, WEIGHT.bold, 'sans', 'right', 'rtl', { at: y + titleLH / 2, color: 'paper' });
+        text(l, right, titleSz, WEIGHT.bold, 'sans', 'right', 'rtl', { at: y + titleLH / 2 });
         y += titleLH;
       });
       if (lineLines.length) {
         y += 6;
         lineLines.forEach(l => {
-          text(l, right, lineSz, WEIGHT.regular, 'sans', 'right', 'rtl', { at: y + lineLH / 2, color: 'paper' });
+          text(l, right, lineSz, WEIGHT.regular, 'sans', 'right', 'rtl', { at: y + lineLH / 2 });
           y += lineLH;
         });
       }
@@ -214,17 +222,17 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
     } else {
       const barH = PAGER.padY * 2 + titleLines.length * titleLH + 10 + qrOuter + 10
         + (lineLines.length ? lineLines.length * lineLH + 6 : 0) + 8 + tagH;
-      rect(barX, top, barW, barH, 'ink');
+      frameAt(barX, top, barW, barH);
       let y = top + PAGER.padY;
       titleLines.forEach(l => {
-        text(l, width / 2, titleSz, WEIGHT.bold, 'sans', 'center', 'rtl', { at: y + titleLH / 2, color: 'paper' });
+        text(l, width / 2, titleSz, WEIGHT.bold, 'sans', 'center', 'rtl', { at: y + titleLH / 2 });
         y += titleLH;
       });
       y += 10;
       qrAt(Math.round((width - qrOuter) / 2), y);
       y += qrOuter + 10;
       lineLines.forEach(l => {
-        text(l, width / 2, lineSz, WEIGHT.regular, 'sans', 'center', 'rtl', { at: y + lineLH / 2, color: 'paper' });
+        text(l, width / 2, lineSz, WEIGHT.regular, 'sans', 'center', 'rtl', { at: y + lineLH / 2 });
         y += lineLH;
       });
       if (lineLines.length) y += 6;

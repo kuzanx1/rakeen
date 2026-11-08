@@ -97,11 +97,21 @@ function check(name, ok, info) { if (ok) pass++; else { fail++; fails.push(name 
         check(tag + ' shows "' + expect + '"', m.txt.includes(expect), m.txt.slice(0, 80).replace(/\n/g, ' | '));
         if (['preparing', 'late', 'delayed', 'longnum', 'noeta'].includes(kind)) {
           check(tag + ' has arm button', m.txt.includes('شغّل البيجر'));
+          // «تبي صوت؟» تطلع أول ما تنفتح، وأزرارها كاملة داخل الشاشة.
+          const ask = await p.evaluate(() => {
+            const yes = document.querySelector('.pg-ask-yes'), no = document.querySelector('.pg-ask-no');
+            if (!yes || !no) return null;
+            const a = yes.getBoundingClientRect(), b = no.getBoundingClientRect();
+            return { inView: a.top >= 0 && b.bottom <= innerHeight, yes: yes.textContent, no: no.textContent };
+          });
+          check(tag + ' sound popup on open, buttons in view', !!ask && ask.inView && ask.yes.includes('موافق') && ask.no.includes('بدون صوت'), JSON.stringify(ask));
           if (w === 390) {
             // الضغطة: تنتقل لـ«البيجر شغّال»، وتطلب الإشعار.
             await ctx.grantPermissions(['notifications'], { origin: BASE });
-            await p.click('.pg-arm');
+            await p.click(brand === 'anoob' ? '.pg-ask-no' : '.pg-ask-yes');
             await p.waitForTimeout(500);
+            check(tag + ' popup closes', !(await p.$('.pg-ask')));
+            if (brand === 'anoob') check(tag + ' silent mode labelled', (await p.evaluate(() => document.querySelector('.pg-root').innerText)).includes('بدون صوت'));
             const t2 = await p.evaluate(() => document.querySelector('.pg-root').innerText);
             check(tag + ' arm → armed', t2.includes('البيجر شغّال'), t2.slice(0, 60));
             // الكاشير يضغط جاهز: الصفحة ترن وتتلوّن.
@@ -110,8 +120,10 @@ function check(name, ok, info) { if (ok) pass++; else { fail++; fails.push(name 
             await p.waitForTimeout(900);
             const r2 = await p.evaluate(() => ({ ring: !!document.querySelector('.pg-ringing'), t: document.querySelector('.pg-root').innerText }));
             check(tag + ' ready → ringing', r2.ring && r2.t.includes('طلبك جاهز!'), r2.t.slice(0, 60));
-            await p.click('.pg-btn');
+            check(tag + ' «استلمت طلبي» visible while ringing', await p.evaluate(() => { const x = [...document.querySelectorAll('.pg-btn')].find(b => b.textContent.includes('استلمت طلبي')); if (!x) return false; const r = x.getBoundingClientRect(); return r.bottom <= innerHeight && r.top >= 0; }));
+            await p.click('.pg-btn-dark');
             await p.waitForTimeout(200);
+            check(tag + ' «استلمت طلبي» still there after stop', !!(await p.$('.pg-btn-ghost')));
             check(tag + ' stop button stops', !(await p.$('.pg-ringing')));
             // رنّة ثانية من الكاشير.
             current = status('rung', brand);
@@ -123,6 +135,25 @@ function check(name, ok, info) { if (ok) pass++; else { fail++; fails.push(name 
             await p.waitForTimeout(900);
             const t3 = await p.evaluate(() => document.querySelector('.pg-root').innerText);
             check(tag + ' collected → done, ringing stops', t3.includes('بالعافية عليك') && !(await p.$('.pg-ringing')));
+            // الزبون يضغط «استلمت طلبي» بنفسه (صفحة جديدة): يقفل عنده، والرنّة الثانية ما ترن.
+            await p.evaluate(() => Object.keys(localStorage).forEach(k => k.startsWith('rk-pager-done:') && localStorage.removeItem(k)));
+            current = status('ready', brand);
+            await p.reload({ waitUntil: 'domcontentloaded' });
+            await p.waitForSelector('.pg-btn-ghost', { timeout: 30000 });
+            await p.waitForTimeout(600);
+            await p.click('.pg-btn-ghost');
+            await p.waitForTimeout(200);
+            const t4 = await p.evaluate(() => document.querySelector('.pg-root').innerText);
+            check(tag + ' self-collected → done screen, silent', t4.includes('بالعافية عليك') && !(await p.$('.pg-ringing')));
+            current = status('rung', brand);
+            await p.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+            await p.waitForTimeout(900);
+            check(tag + ' self-collected → later ring stays quiet', !(await p.$('.pg-ringing')));
+            await p.reload({ waitUntil: 'domcontentloaded' });
+            await p.waitForFunction(() => /بالعافية عليك|طلبك جاهز/.test(document.body.innerText), null, { timeout: 30000 }).catch(() => {});
+            await p.waitForTimeout(300);
+            check(tag + ' self-collected survives reload', (await p.evaluate(() => document.querySelector('.pg-root').innerText)).includes('بالعافية عليك'));
+            await p.evaluate(() => Object.keys(localStorage).forEach(k => k.startsWith('rk-pager-done:') && localStorage.removeItem(k)));
           }
         }
         if (SHOTS && (w === 390 || w === 320 || w === 1280)) {

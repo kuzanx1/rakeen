@@ -61,6 +61,14 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
   const [alarm, setAlarm] = useState(false);
   const [offline, setOffline] = useState(false);
   const [showIosHelp, setShowIosHelp] = useState(false);
+  // «تبي صوت؟» تطلع أول ما تنفتح الصفحة -- الضغطة نفسها هي اللي تفتح الصوت
+  // (المتصفح ما يسمح بصوتٍ بلا ضغطة). «بدون صوت»: هزّ وإشعار وشاشة فقط.
+  const [asked, setAsked] = useState(false);
+  const [silent, setSilent] = useState(false);
+  const silentRef = useRef(false);
+  // «استلمت طلبي»: الزبون يقفل البيجر عنده بنفسه -- ما يغيّر شي عند الكاشير.
+  const [selfDone, setSelfDone] = useState(false);
+  const selfDoneRef = useRef(false);
 
   const sbRef = useRef<SupabaseClient | null>(null);
   // البثّ متصل؟ ما دام متصلاً لا سؤال أبداً.
@@ -210,7 +218,10 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
   }, [uuid]);
 
   // ── «شغّل البيجر»: ضغطةٌ واحدة تفتح الصوت والاهتزاز وتمسك الشاشة وتطلب الإشعار.
-  const arm = useCallback(async () => {
+  const arm = useCallback(async (withSound = true) => {
+    setAsked(true);
+    silentRef.current = !withSound;
+    setSilent(!withSound);
     if (armedRef.current) return;
     armedRef.current = true;
     setArmed(true);
@@ -225,8 +236,10 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
       // يُفتح داخل الضغطة نفسها -- وإلا رفض المتصفح تشغيله لاحقاً.
       t.muted = true;
       void t.play().then(() => { t.pause(); t.currentTime = 0; t.muted = false; }).catch(() => { t.muted = false; });
-      const ok = new Audio("/pager/armed.wav");
-      void ok.play().catch(() => {});
+      if (withSound) {
+        const ok = new Audio("/pager/armed.wav");
+        void ok.play().catch(() => {});
+      }
     } catch { /* لا صوت */ }
     try { navigator.vibrate?.(80); } catch { /* لا اهتزاز */ }
     setNowPlaying(s?.order_id ? `طلب #${s.order_id} — يتجهز` : "طلبك — بانتظار التأكيد");
@@ -253,7 +266,7 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
     toneRef.current = t;
     t.loop = true;
     t.currentTime = 0;
-    void t.play().catch(() => {});
+    if (!silentRef.current) void t.play().catch(() => {});
     const buzz = () => { try { navigator.vibrate?.([500, 180, 500, 180, 900]); } catch { /* */ } };
     buzz();
     alarmTimers.current.push(window.setInterval(buzz, 3000));
@@ -280,7 +293,8 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
     const prev = lastPhase.current;
     lastPhase.current = phase;
     const ring = s?.ring_count || 0;
-    if (phase === "ready" && prev !== "ready") startAlarm(false);
+    if (selfDoneRef.current) { /* قفله بنفسه: لا رنين */ }
+    else if (phase === "ready" && prev !== "ready") startAlarm(false);
     else if (phase === "ready" && ring > lastRing.current) startAlarm(true);
     else if (phase !== "ready" && alarm) stopAlarm();
     lastRing.current = ring;
@@ -293,6 +307,18 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, s?.ring_count]);
+
+  useEffect(() => {
+    try { if (localStorage.getItem("rk-pager-done:" + uuid)) { selfDoneRef.current = true; setSelfDone(true); } } catch { /* خاصّ */ }
+  }, [uuid]);
+  const markSelfDone = useCallback(() => {
+    selfDoneRef.current = true;
+    setSelfDone(true);
+    stopAlarm();
+    try { keepRef.current?.pause(); } catch { /* */ }
+    try { void wakeRef.current?.release(); } catch { /* */ }
+    try { localStorage.setItem("rk-pager-done:" + uuid, "1"); } catch { /* خاصّ */ }
+  }, [uuid, stopAlarm]);
 
   // الخادم ردّ برسالة من عامل الخدمة والصفحة مفتوحة.
   useEffect(() => {
@@ -335,7 +361,7 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
     </header>
   );
 
-  if (phase === "ready") {
+  if (phase === "ready" && !selfDone) {
     return (
       <main className={"pg-root pg-ready" + (alarm ? " pg-ringing" : "")} style={style} dir="rtl">
         {header}
@@ -347,22 +373,25 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
         <h1 className="pg-ready-title">طلبك جاهز!</h1>
         <p className="pg-ready-sub">{s?.ready_msg || "تفضّل استلمه من الكاونتر"}</p>
         {(s?.ring_count || 0) > 0 ? <p className="pg-again">نناديك مرة ثانية — طلبك ينتظرك</p> : null}
-        {alarm
-          ? <button className="pg-btn pg-btn-dark" onClick={stopAlarm}>شفته، وقّف الصوت</button>
-          : !armed ? <button className="pg-btn pg-btn-dark" onClick={() => { void arm(); }}>شغّل الصوت</button> : null}
+        <div className="pg-ready-acts">
+          {alarm
+            ? <button className="pg-btn pg-btn-dark" onClick={stopAlarm}>{silent ? "شفته، وقّف الهزّ" : "شفته، وقّف الصوت"}</button>
+            : !armed ? <button className="pg-btn pg-btn-dark" onClick={() => { void arm(true); }}>شغّل الصوت</button> : null}
+          <button className="pg-btn pg-btn-ghost" onClick={markSelfDone}>استلمت طلبي ✓</button>
+        </div>
         <footer className="pg-foot">بيجر ركين</footer>
       </main>
     );
   }
 
-  if (phase === "collected" || phase === "cancelled") {
+  if (phase === "collected" || phase === "cancelled" || (phase === "ready" && selfDone)) {
     return (
       <main className="pg-root pg-done" style={style} dir="rtl">
         {header}
         <section className="pg-done-core">
-          <div className="pg-done-mark" aria-hidden="true">{phase === "collected" ? "✓" : "×"}</div>
-          <h1>{phase === "collected" ? "بالعافية عليك" : "انلغى الطلب"}</h1>
-          <p>{phase === "collected" ? `استلمت طلبك #${num}. نشوفك مرة ثانية!` : "لو عندك سؤال كلّم الكاشير."}</p>
+          <div className="pg-done-mark" aria-hidden="true">{phase === "cancelled" ? "×" : "✓"}</div>
+          <h1>{phase === "cancelled" ? "انلغى الطلب" : "بالعافية عليك"}</h1>
+          <p>{phase === "cancelled" ? "لو عندك سؤال كلّم الكاشير." : `استلمت طلبك #${num}. نشوفك مرة ثانية!`}</p>
         </section>
         <footer className="pg-foot">بيجر ركين</footer>
       </main>
@@ -397,7 +426,7 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
       </ol>
 
       {!armed ? (
-        <button className="pg-arm" onClick={() => { void arm(); }}>
+        <button className="pg-arm" onClick={() => { void arm(true); }}>
           <span className="pg-arm-ic" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
           </span>
@@ -410,12 +439,17 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
         <div className="pg-armed">
           <span className="pg-armed-dot" aria-hidden="true" />
           <div>
-            <b>البيجر شغّال</b>
+            <b>{silent ? "البيجر شغّال — بدون صوت" : "البيجر شغّال"}</b>
             <small>
-              {notif === "granted"
+              {silent
+                ? "بنهزّ جوالك ونطلّع لك تنبيه أول ما يجهز."
+                : notif === "granted"
                 ? "بيوصلك تنبيه حتى لو قفلت الجوال."
                 : "خلّ الصفحة مفتوحة وحط الجوال قدامك — بنرن ونهزّه لما يجهز."}
             </small>
+            {silent ? (
+              <button className="pg-link" onClick={() => { silentRef.current = false; setSilent(false); try { void new Audio("/pager/armed.wav").play().catch(() => {}); } catch { /* */ } }}>شغّل الصوت</button>
+            ) : null}
             {notif === "ios-home" ? (
               <button className="pg-link" onClick={() => setShowIosHelp(v => !v)}>تبي التنبيه وجوالك مقفول؟</button>
             ) : null}
@@ -425,6 +459,20 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
           </div>
         </div>
       )}
+
+      {!armed && !asked && (phase === "preparing" || phase === "waiting") ? (
+        <div className="pg-ask" role="dialog" aria-modal="true" aria-labelledby="pg-ask-t">
+          <div className="pg-ask-card">
+            <span className="pg-arm-ic pg-ask-ic" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
+            </span>
+            <b id="pg-ask-t">نرن جوالك لما يجهز طلبك؟</b>
+            <small>اضغط «موافق» ونشغّل لك الصوت. خلّ الصفحة مفتوحة أو بالخلفية.</small>
+            <button className="pg-ask-yes" onClick={() => { void arm(true); }}>موافق، شغّل الصوت</button>
+            <button className="pg-ask-no" onClick={() => { void arm(false); }}>بدون صوت — هزّ بس</button>
+          </div>
+        </div>
+      ) : null}
 
       {offline ? <p className="pg-offline">النت عندك مقطوع — أول ما يرجع نكمل، وتقدر تتابع رقمك على شاشة المحل.</p> : null}
       <footer className="pg-foot">بيجر ركين</footer>

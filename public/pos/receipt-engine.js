@@ -266,8 +266,14 @@ var RakeenReceiptEngine = (() => {
     qr: 200,
     /** عرضُ الإطار الأبيض حول الباركود. */
     quiet: 12,
-    /** الحشوةُ داخل الشريط الأسود. */
-    padY: 20,
+    /** الحشوةُ داخل الإطار. */
+    padY: 14,
+    /**
+     * سُمك إطار البلوك. كان شريطاً أسودَ مصمتاً: الفاتورة صارت تطبع أبطأ
+     * بوضوح (2026-11-08) -- النقاط السوداء تسعة أضعاف، وأكثف شريطٍ فيها
+     * 91–96% أسود، والطابعة الحرارية تُبطئ رأسها على الكثافة. فصار إطاراً.
+     */
+    frame: 3,
     padX: 18,
     /** المسافةُ بين الباركود والكلام في الصفّ العريض. */
     gapX: 18,
@@ -647,8 +653,14 @@ var RakeenReceiptEngine = (() => {
       const lineLines = pg.line ? wrap(pg.line, lineSz, WEIGHT.regular, "sans", textW) : [];
       const tagTextW = measure(pg.tag, tagSz, WEIGHT.bold, "sans");
       const tagW = Math.min(textW, Math.round(tagTextW + tagPadX * 2));
+      const frameAt = (x, y, w, h) => {
+        const t = PAGER.frame;
+        rect(x, y, w, t, "ink");
+        rect(x, y + h - t, w, t, "ink");
+        rect(x, y, t, h, "ink");
+        rect(x + w - t, y, t, h, "ink");
+      };
       const qrAt = (x, y) => {
-        rect(x, y, qrOuter, qrOuter, "paper");
         const n = Math.max(1, pg.qr.size);
         const unit = Math.max(1, Math.floor(PAGER.qr / n));
         const side = unit * n;
@@ -670,10 +682,10 @@ var RakeenReceiptEngine = (() => {
       const tagAt = (rightX, top2, align) => {
         const x = align === "right" ? rightX - tagW : Math.round((width - tagW) / 2);
         const t = PAGER.tagBorder;
-        rect(x, top2, tagW, t, "paper");
-        rect(x, top2 + tagH - t, tagW, t, "paper");
-        rect(x, top2, t, tagH, "paper");
-        rect(x + tagW - t, top2, t, tagH, "paper");
+        rect(x, top2, tagW, t, "ink");
+        rect(x, top2 + tagH - t, tagW, t, "ink");
+        rect(x, top2, t, tagH, "ink");
+        rect(x + tagW - t, top2, t, tagH, "ink");
         text(
           pg.tag,
           x + tagW / 2,
@@ -682,7 +694,7 @@ var RakeenReceiptEngine = (() => {
           "sans",
           "center",
           "rtl",
-          { at: top2 + tagH / 2, color: "paper" }
+          { at: top2 + tagH / 2 }
         );
       };
       const textH = titleLines.length * titleLH + (lineLines.length ? 6 + lineLines.length * lineLH : 0) + 12 + tagH;
@@ -691,19 +703,19 @@ var RakeenReceiptEngine = (() => {
       if (wide) {
         const innerH = Math.max(qrOuter, textH);
         const barH = innerH + PAGER.padY * 2;
-        rect(barX, top, barW, barH, "ink");
+        frameAt(barX, top, barW, barH);
         const qrX = barX + barW - PAGER.padX - qrOuter;
         qrAt(qrX, top + PAGER.padY + Math.round((innerH - qrOuter) / 2));
         const right = qrX - PAGER.gapX;
         let y = top + PAGER.padY + Math.round((innerH - textH) / 2);
         titleLines.forEach((l) => {
-          text(l, right, titleSz, WEIGHT.bold, "sans", "right", "rtl", { at: y + titleLH / 2, color: "paper" });
+          text(l, right, titleSz, WEIGHT.bold, "sans", "right", "rtl", { at: y + titleLH / 2 });
           y += titleLH;
         });
         if (lineLines.length) {
           y += 6;
           lineLines.forEach((l) => {
-            text(l, right, lineSz, WEIGHT.regular, "sans", "right", "rtl", { at: y + lineLH / 2, color: "paper" });
+            text(l, right, lineSz, WEIGHT.regular, "sans", "right", "rtl", { at: y + lineLH / 2 });
             y += lineLH;
           });
         }
@@ -711,17 +723,17 @@ var RakeenReceiptEngine = (() => {
         ctx.y = top + barH;
       } else {
         const barH = PAGER.padY * 2 + titleLines.length * titleLH + 10 + qrOuter + 10 + (lineLines.length ? lineLines.length * lineLH + 6 : 0) + 8 + tagH;
-        rect(barX, top, barW, barH, "ink");
+        frameAt(barX, top, barW, barH);
         let y = top + PAGER.padY;
         titleLines.forEach((l) => {
-          text(l, width / 2, titleSz, WEIGHT.bold, "sans", "center", "rtl", { at: y + titleLH / 2, color: "paper" });
+          text(l, width / 2, titleSz, WEIGHT.bold, "sans", "center", "rtl", { at: y + titleLH / 2 });
           y += titleLH;
         });
         y += 10;
         qrAt(Math.round((width - qrOuter) / 2), y);
         y += qrOuter + 10;
         lineLines.forEach((l) => {
-          text(l, width / 2, lineSz, WEIGHT.regular, "sans", "center", "rtl", { at: y + lineLH / 2, color: "paper" });
+          text(l, width / 2, lineSz, WEIGHT.regular, "sans", "center", "rtl", { at: y + lineLH / 2 });
           y += lineLH;
         });
         if (lineLines.length) y += 6;
