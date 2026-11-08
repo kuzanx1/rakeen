@@ -143,6 +143,46 @@ html, body { margin: 0; background: var(--pg-surf, #121212); }
 .pg-done h1 { margin: 26px 0 0; font-family: PgDisplay, PgSans, serif; font-weight: 900; font-size: 46px; }
 .pg-done p { margin: 10px 0 0; font-size: 17px; color: var(--pg-muted); font-weight: 700; }
 
+/* ── قيّم طلبك (بعد الاستلام): الشاشة تتقسم -- الشكر فوق والتقييم تحت */
+.pg-done-rate .pg-done-core { margin: 34px 0 0; }
+.pg-done-rate .pg-done-mark { width: 84px; height: 84px; font-size: 42px; }
+.pg-done-rate h1 { margin-top: 18px; font-size: 40px; }
+.pg-rate { align-self: stretch; margin-top: 26px; background: var(--pg-card); border-radius: 24px; padding: 22px 18px 20px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px; animation: pg-arm-in .45s ease both; }
+.pg-rate-q { font-size: 21px; font-weight: 900; line-height: 1.35; }
+.pg-rate-p { margin: 0; font-size: 15.5px; font-weight: 700; line-height: 1.55; color: var(--pg-muted); }
+.pg-rate-hint { font-size: 13px; font-weight: 700; color: var(--pg-muted); opacity: .85; }
+.pg-stars { display: flex; gap: 6px; direction: rtl; }
+.pg-star { width: 50px; height: 50px; padding: 4px; border: 0; background: none; cursor: pointer; border-radius: 14px; }
+.pg-star svg { width: 100%; height: 100%; fill: color-mix(in srgb, var(--pg-ink) 24%, transparent); transition: fill .15s, transform .15s; }
+.pg-star.on svg { fill: var(--pg-accent); filter: drop-shadow(0 0 8px color-mix(in srgb, var(--pg-accent) 45%, transparent)); }
+.pg-star:active svg { transform: scale(.88); }
+.pg-rate-go { margin-top: 6px; align-self: stretch; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border-radius: 999px; padding: 16px 20px; font-size: 18px; font-weight: 900; text-decoration: none;
+  background: var(--pg-accent); color: var(--pg-on-accent); }
+.pg-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }
+.pg-tag { border: 0; border-radius: 999px; padding: 9px 14px; font: inherit; font-size: 14.5px; font-weight: 800; cursor: pointer;
+  background: transparent; color: var(--pg-ink); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--pg-ink) 22%, transparent); }
+.pg-tag.on { background: var(--pg-accent); color: var(--pg-on-accent); box-shadow: none; }
+.pg-rate-txt { align-self: stretch; margin-top: 4px; border: 0; border-radius: 16px; padding: 12px 14px; resize: none; text-align: right;
+  font: inherit; font-size: 16px; font-weight: 600; color: var(--pg-ink); background: color-mix(in srgb, var(--pg-ink) 7%, transparent); }
+.pg-rate-txt::placeholder { color: var(--pg-muted); }
+.pg-rate-txt:focus { outline: none; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--pg-accent) 60%, transparent); }
+.pg-rate-wa { align-self: stretch; display: flex; flex-direction: column; gap: 6px; text-align: right; margin-top: 4px; }
+.pg-rate-wa label { font-size: 15px; font-weight: 800; }
+.pg-rate-wa label small { font-weight: 700; color: var(--pg-muted); }
+.pg-rate-wa input { border: 0; border-radius: 14px; padding: 13px 14px; font: inherit; font-size: 17px; font-weight: 700; letter-spacing: .04em; text-align: left;
+  color: var(--pg-ink); background: color-mix(in srgb, var(--pg-ink) 7%, transparent); }
+.pg-rate-wa input::placeholder { color: var(--pg-muted); letter-spacing: .04em; }
+.pg-rate-wa input:focus { outline: none; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--pg-accent) 60%, transparent); }
+.pg-rate-wa > small { font-size: 13px; font-weight: 700; color: var(--pg-muted); line-height: 1.5; }
+.pg-rate-err { margin: 2px 0 0; font-size: 14px; font-weight: 800; color: #FF8A7A; }
+.pg-rate-send { align-self: stretch; margin-top: 4px; border: 0; border-radius: 999px; padding: 15px 20px; font: inherit; font-size: 17px; font-weight: 900; cursor: pointer;
+  background: var(--pg-accent); color: var(--pg-on-accent); }
+.pg-rate-send:disabled { opacity: .4; cursor: default; }
+.pg-rate-ok { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; font-size: 28px; font-weight: 900;
+  background: color-mix(in srgb, var(--pg-accent) 18%, transparent); color: var(--pg-accent); }
+
 /* ── رابط غلط */
 .pg-bad { justify-content: center; }
 .pg-bad-card { background: #1E1E1E; border-radius: 20px; padding: 26px; display: flex; flex-direction: column; gap: 8px; color: #FBFAF5; }

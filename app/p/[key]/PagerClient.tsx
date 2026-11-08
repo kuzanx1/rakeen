@@ -27,6 +27,105 @@ export interface PagerStatus {
   show_eta?: boolean;
   /** الأصناف (بلا أسعار) -- null لو صاحب المحل أطفأ «تفاصيل الطلب». */
   items?: { n: string; q: number; m?: string | null; note?: string | null }[] | null;
+  /** «قيّم طلبك» بعد الاستلام -- يطلع بس لو صاحب المحل فعّله. google: رابط
+   *  تقييم المحل في قوقل (اختياري). done: الزبون قيّم هذا الطلب من قبل. */
+  rating?: { google?: string | null; done?: boolean } | null;
+}
+
+const SAD_TAGS = ["تأخّر الطلب", "الطعم", "الطلب ناقص أو غلط", "التعامل", "النظافة", "السعر"];
+
+function Stars({ value, onPick }: { value: number; onPick: (n: number) => void }) {
+  return (
+    <div className="pg-stars" role="radiogroup" aria-label="تقييمك من ٥">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button key={n} type="button" role="radio" aria-checked={value === n} aria-label={`${n} من ٥`}
+          className={"pg-star" + (n <= value ? " on" : "")} onClick={() => onPick(n)}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z" /></svg>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** بعد الاستلام: نجوم. ٤-٥ ← رابط قوقل. ١-٣ ← ملاحظة خاصة لصاحب المحل فقط. */
+function RateCard({ bizName, google, onSend }: {
+  bizName: string; google: string | null;
+  onSend: (stars: number, tags: string[], text: string, phone: string) => Promise<void>;
+}) {
+  const [stars, setStars] = useState(0);
+  const [step, setStep] = useState<"ask" | "happy" | "sad" | "sent">("ask");
+  const [tags, setTags] = useState<string[]>([]);
+  const [text, setText] = useState("");
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const pick = (n: number) => {
+    setStars(n);
+    // الراضي: يُحفظ تقييمه فوراً (ما ننتظره يرجع من قوقل).
+    if (n >= 4) { setStep("happy"); onSend(n, [], "", "").catch(() => {}); } else setStep("sad");
+  };
+  const send = async () => {
+    setBusy(true); setErr("");
+    try { await onSend(stars, tags, text.trim(), phone.trim()); setStep("sent"); }
+    catch (e) { setErr(e instanceof Error ? e.message : "تعذر الإرسال"); }
+    finally { setBusy(false); }
+  };
+  const toggle = (t: string) => setTags((x) => (x.includes(t) ? x.filter((y) => y !== t) : [...x, t]));
+
+  if (step === "ask") return (
+    <section className="pg-rate">
+      <b className="pg-rate-q">كيف كان طلبك؟</b>
+      <Stars value={stars} onPick={pick} />
+      <small className="pg-rate-hint">تقييمك يوصل لـ{bizName}</small>
+    </section>
+  );
+  if (step === "happy") return (
+    <section className="pg-rate">
+      <Stars value={stars} onPick={pick} />
+      <b className="pg-rate-q">يسعدنا إنه عجبك!</b>
+      {google ? (
+        <>
+          <p className="pg-rate-p">تساعدنا بتقييم في قوقل؟ ما ياخذ منك دقيقة.</p>
+          <a className="pg-rate-go" href={google} target="_blank" rel="noopener noreferrer">
+            قيّمنا في قوقل
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+          </a>
+        </>
+      ) : <p className="pg-rate-p">شكراً لك، نتشرف فيك مرة ثانية.</p>}
+    </section>
+  );
+  if (step === "sad") return (
+    <section className="pg-rate">
+      <Stars value={stars} onPick={pick} />
+      <b className="pg-rate-q">نعتذر منك</b>
+      <p className="pg-rate-p">وش اللي ما عجبك؟ ملاحظتك توصل لصاحب المحل مباشرة.</p>
+      <div className="pg-tags">
+        {SAD_TAGS.map((t) => (
+          <button key={t} type="button" className={"pg-tag" + (tags.includes(t) ? " on" : "")} aria-pressed={tags.includes(t)} onClick={() => toggle(t)}>{t}</button>
+        ))}
+      </div>
+      <textarea className="pg-rate-txt" rows={3} maxLength={500} placeholder="تبي تضيف شي؟ (اختياري)" value={text} onChange={(e) => setText(e.target.value)} />
+      <div className="pg-rate-wa">
+        <label htmlFor="pgRateWa">رقم واتسابك <small>(اختياري)</small></label>
+        <input id="pgRateWa" type="tel" inputMode="tel" dir="ltr" maxLength={16} placeholder="05XXXXXXXX" autoComplete="tel"
+          value={phone} onChange={(e) => { setPhone(e.target.value); setErr(""); }} />
+        <small>عشان {bizName} يتواصلون معك ويحلّون المشكلة.</small>
+      </div>
+      {err ? <p className="pg-rate-err" role="alert">{err}</p> : null}
+      <button className="pg-rate-send" disabled={busy || (!tags.length && !text.trim() && !phone.trim())} onClick={send}>
+        {busy ? "يرسل…" : "أرسل لصاحب المحل"}
+      </button>
+      <small className="pg-rate-hint">ملاحظتك ورقمك يوصلون لصاحب المحل بس، ما ينشرون في أي مكان</small>
+    </section>
+  );
+  return (
+    <section className="pg-rate">
+      <span className="pg-rate-ok" aria-hidden="true">✓</span>
+      <b className="pg-rate-q">وصلت ملاحظتك</b>
+      <p className="pg-rate-p">{phone.trim() ? `شكراً لصراحتك، ${bizName} بيتواصلون معك على الواتساب.` : `شكراً لصراحتك، ${bizName} بيهتمون فيها.`}</p>
+    </section>
+  );
 }
 
 type Phase = "waiting" | "preparing" | "ready" | "collected" | "cancelled";
@@ -430,14 +529,27 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
   }
 
   if (phase === "collected" || phase === "cancelled" || (phase === "ready" && selfDone)) {
+    // التقييم: بعد الاستلام الفعلي فقط (مو الإلغاء)، ولو المحل فعّله، ومرة وحدة لكل طلب.
+    const rate = phase !== "cancelled" && s?.rating && !s.rating.done;
     return (
-      <main className="pg-root pg-done" style={style} dir="rtl">
+      <main className={"pg-root pg-done" + (rate ? " pg-done-rate" : "")} style={style} dir="rtl">
         {header}
         <section className="pg-done-core">
           <div className="pg-done-mark" aria-hidden="true">{phase === "cancelled" ? "×" : "✓"}</div>
           <h1>{phase === "cancelled" ? "انلغى الطلب" : "بالعافية عليك"}</h1>
           <p>{phase === "cancelled" ? "لو عندك سؤال كلّم الكاشير." : `استلمت طلبك #${num}. نشوفك مرة ثانية!`}</p>
         </section>
+        {rate ? (
+          <RateCard bizName={biz.name || "المحل"} google={s!.rating!.google || null}
+            onSend={async (stars, tags, text, phone) => {
+              const r = await fetch("/api/pager/rate", { method: "POST", headers: { "content-type": "application/json" },
+                body: JSON.stringify({ key: uuid, stars, tags, text: text || null, phone: phone || null }) });
+              if (!r.ok && r.status === 400) {
+                const d = await r.json().catch(() => ({}));
+                throw new Error(d.error || "تعذر الإرسال");
+              }
+            }} />
+        ) : null}
         {madeBy}
       </main>
     );

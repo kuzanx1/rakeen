@@ -12918,6 +12918,7 @@ const RK_ICON_PATHS = {
   grid: '<rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect>',
   bag: '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path>',
   shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10"></polyline>',
+  star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>',
   list: '<line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>',
 };
 // Custom checkbox — a proper checkmark-in-a-box for "pick several from a
@@ -12933,7 +12934,7 @@ const RK_ICON_PATHS = {
    يُقرأ في استعلامٍ مستقلّ: قاعدةٌ لم يُشغَّل فيها ملفّ البيجر تُظهر
    تنبيهاً وتعطّل الحفظ، ولا تُسقط بقيّة إعدادات الكاشير معها. */
 const PGS_DEFAULTS = { channels:['dine_in','pickup'], prep_min:10, buffer_min:5, receipt:true, display:true,
-  display_secs:60, remind_min:3, close_min:20, wifi:'', ready_msg:'', late_alert:true, tone:'chime', show_eta:true, show_items:true };
+  display_secs:60, remind_min:3, close_min:20, wifi:'', ready_msg:'', late_alert:true, tone:'chime', show_eta:true, show_items:true, rate:false, google_url:'' };
 let PGS_STATE = null;   // { enabled, s, brand, autoReady, tablesMode, schemaOk }
 let PGS_SAVED = '';     // لقطة آخر حفظ — لزرّ «فيه تغييرات ما انحفظت»
 
@@ -12943,6 +12944,46 @@ function pgsEtaStatus(c){
 
 function pgsItemsStatus(c){
   return c ? {text:'يشوف أصناف طلبه وإضافاتها — بدون أسعار', tone:'ok'} : {text:'رقم الطلب والوقت بس', tone:''};
+}
+
+function pgsRateStatus(c){
+  return c ? {text:'يطلع له بعد الاستلام — مرة وحدة لكل طلب', tone:'ok'} : {text:'ما يسأله', tone:''};
+}
+function pgsGoogleHelp(url){
+  if(url) return '✓ الراضي ينفتح له هالرابط مباشرة.';
+  return 'من «ملفك التجاري في قوقل» (Google Business): اضغط «اطلب تقييمات» وانسخ الرابط والصقه هنا. بدون رابط، الراضي يشوف «شكراً» بس.';
+}
+const PGS_TAG_ORDER = ['تأخّر الطلب','الطعم','الطلب ناقص أو غلط','التعامل','النظافة','السعر'];
+/** آخر التقييمات ومتوسطها: من pager_ratings (قراءة المحل نفسه بالـRLS). قاعدة
+    ما فيها الجدول = القسم يختفي بهدوء. */
+async function pgsLoadRatings(){
+  const box = document.getElementById('pgsRatings'); if(!box) return;
+  const sb = window.supabaseClient;
+  const since = new Date(Date.now() - 30 * 864e5).toISOString();
+  const { data, error } = await sb.from('pager_ratings').select('order_id, stars, tags, note, whatsapp, created_at')
+    .eq('business_id', CURRENT_PROFILE.business_id).gte('created_at', since).order('created_at', { ascending:false }).limit(200);
+  if(error || !data || !data.length){ box.innerHTML = (error || !PGS_STATE || !PGS_STATE.s.rate) ? '' : '<p class="pgs-help">ما وصل أي تقييم للحين — أول ما يقيّم زبون يطلع هنا.</p>'; return; }
+  const avg = data.reduce((a, r) => a + r.stars, 0) / data.length;
+  const low = data.filter(r => r.stars <= 3);
+  const tagCount = {}; low.forEach(r => (r.tags || []).forEach(t => { tagCount[t] = (tagCount[t] || 0) + 1; }));
+  const topTags = PGS_TAG_ORDER.filter(t => tagCount[t]).sort((a, b) => tagCount[b] - tagCount[a]).slice(0, 3);
+  const stars = n => '<span class="pgs-stars" aria-label="' + n + ' من ٥">' + '★'.repeat(n) + '<i>' + '★'.repeat(5 - n) + '</i></span>';
+  const when = iso => { try { return new Date(iso).toLocaleString('ar-SA-u-nu-latn', { day:'numeric', month:'short', hour:'numeric', minute:'2-digit' }); } catch(_) { return ''; } };
+  box.innerHTML = `
+    <div class="pgs-rate-sum">
+      <div><b class="mono">${avg.toFixed(1)}</b>${stars(Math.round(avg))}<span>متوسط آخر ٣٠ يوم · ${data.length} تقييم</span></div>
+      <div><b class="mono">${data.length - low.length}</b><span>راحوا لقوقل (٤-٥)</span></div>
+      <div class="${low.length ? 'warn' : ''}"><b class="mono">${low.length}</b><span>ملاحظات لك (١-٣)</span></div>
+    </div>
+    ${topTags.length ? `<p class="pgs-help">أكثر شي يشتكون منه: ${topTags.map(t => `<b>${escapeHtml(t)}</b> (${tagCount[t]})`).join('، ')}</p>` : ''}
+    ${low.length ? `<label class="pgs-label" style="margin-top:14px">الملاحظات</label>
+    <div class="pgs-rate-list">${low.slice(0, 30).map(r => `
+      <div class="pgs-rate-item">
+        <div class="pgs-rate-top">${stars(r.stars)}<span>طلب #${r.order_id} · ${when(r.created_at)}</span></div>
+        ${(r.tags || []).length ? `<div class="pgs-rate-tags">${r.tags.map(t => `<em>${escapeHtml(t)}</em>`).join('')}</div>` : ''}
+        ${r.note ? `<p>${escapeHtml(r.note)}</p>` : ''}
+        ${r.whatsapp ? `<a class="rk-btn rk-btn-secondary rk-btn-sm" href="https://wa.me/${encodeURIComponent(r.whatsapp)}" target="_blank" rel="noopener">${rkIcon('messageCircle')} كلّمه على الواتساب</a>` : ''}
+      </div>`).join('')}</div>` : ''}`;
 }
 
 function pgsNormalize(raw){
@@ -12957,6 +12998,9 @@ function pgsNormalize(raw){
   s.receipt = s.receipt !== false; s.display = s.display !== false; s.late_alert = s.late_alert !== false;
   s.show_eta = s.show_eta !== false;
   s.show_items = s.show_items !== false;
+  // التقييم مطفأ إلا لو فعّله صاحب المحل بنفسه.
+  s.rate = s.rate === true;
+  s.google_url = /^https:\/\/\S+$/.test(String(s.google_url || '').trim()) ? String(s.google_url).trim().slice(0, 300) : '';
   s.tone = ['chime','bell','beep'].includes(s.tone) ? s.tone : 'chime';
   s.wifi = String(s.wifi || '').slice(0, 40);
   s.ready_msg = String(s.ready_msg || '').slice(0, 80);
@@ -13165,6 +13209,21 @@ function pagerSettingsTabHtml(){
       ${rkSwitchRow('pgsShowItems', s.show_items, 'اعرض تفاصيل الطلب', null, pgsItemsStatus)}
     </div>
 
+    <div class="rk-section" id="pgsRateSection">
+      ${rkSectionHead('star', 'قيّم طلبك', 'بعد ما يستلم الزبون طلبه، يسأله البيجر عن تقييمه.')}
+      ${rkSwitchRow('pgsRate', s.rate, 'اسأل الزبون عن تقييمه', null, pgsRateStatus)}
+      <div class="pgs-rate-opts" ${s.rate ? '' : 'hidden'}>
+        <div class="pgs-rate-flow">
+          <div><b>★★★★★ و ★★★★</b><span>يفتح له تقييم محلك في قوقل</span></div>
+          <div><b>★ إلى ★★★</b><span>يكتب ملاحظته ورقم واتسابه، وتوصلك أنت بس مع إشعار</span></div>
+        </div>
+        <div class="rk-field"><label for="pgsGoogle">رابط تقييم محلك في قوقل</label>
+          <input type="url" id="pgsGoogle" dir="ltr" maxlength="300" value="${escapeHtml(s.google_url)}" placeholder="https://g.page/r/…/review"></div>
+        <p class="pgs-help" id="pgsGoogleHelp">${pgsGoogleHelp(s.google_url)}</p>
+      </div>
+      <div id="pgsRatings"></div>
+    </div>
+
     <div class="rk-section">
       ${rkSectionHead('award', 'لمسات محلّك', 'اختيارية — تطلع للزبون بإسم محلك.')}
       <div class="rk-field"><label for="pgsReadyMsg">رسالة «طلبك جاهز»</label>
@@ -13247,6 +13306,20 @@ function wirePagerSettingsTab(){
   }));
   rkWireSwitchStatus('pgsShowEta', pgsEtaStatus);
   rkWireSwitchStatus('pgsShowItems', pgsItemsStatus);
+  on('pgsRate', 'change', e => {
+    s.rate = e.target.checked;
+    const o = document.querySelector('.pgs-rate-opts'); if(o) o.hidden = !e.target.checked;
+    pgsRefresh();
+  });
+  rkWireSwitchStatus('pgsRate', pgsRateStatus);
+  on('pgsGoogle', 'input', e => {
+    s.google_url = e.target.value.trim().slice(0, 300);
+    const h = document.getElementById('pgsGoogleHelp');
+    const ok = /^https:\/\/\S+$/.test(s.google_url);
+    if(h) h.innerHTML = s.google_url && !ok ? '<span style="color:var(--danger,#C2412D)">الرابط لازم يبدأ بـ https://</span>' : pgsGoogleHelp(ok ? s.google_url : '');
+    pgsRefresh();
+  });
+  pgsLoadRatings();
   rkWireSwitchStatus('pgsReceipt', c => c ? {text:'مربع بالباركود فوق باركود الضريبة — يُمسح من بعيد', tone:'ok'} : {text:'ما ينطبع — يمسحه من شاشة العميل بس', tone:'warn'});
   rkWireSwitchStatus('pgsDisplay', c => c ? {text:'يطلع لحاله بعد كل طلب، وجنب باركود الولاء لو ضغطته', tone:'ok'} : {text:'ما يطلع على الشاشة', tone:''});
   rkWireSwitchStatus('pgsLate', c => c ? {text:'تنبيه بالكاشير + البطاقة تحمرّ', tone:'ok'} : {text:'البطاقة تحمرّ بس، بدون تنبيه', tone:''});

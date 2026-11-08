@@ -3538,6 +3538,28 @@ select:not([class]){min-width:150px;}
 .pgs-label{ display:block; font-size:12.5px; font-weight:800; color:var(--text); margin-bottom:8px; }
 .pgs-help{ font-size:12px; line-height:1.8; color:var(--muted); margin:10px 0 0; font-weight:600; }
 .pgs-sub{ margin-top:16px; }
+/* «قيّم طلبك» */
+.pgs-rate-opts{ margin-top:12px; }
+.pgs-rate-flow{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+.pgs-rate-flow > div{ border:1px solid var(--line); border-radius:12px; padding:10px 12px; display:flex; flex-direction:column; gap:4px; }
+.pgs-rate-flow b{ color:#E0A526; font-size:13px; letter-spacing:1px; }
+.pgs-rate-flow span{ font-size:12px; font-weight:700; color:var(--muted); line-height:1.6; }
+.pgs-stars{ color:#E0A526; letter-spacing:1px; white-space:nowrap; }
+.pgs-stars i{ font-style:normal; color:color-mix(in srgb, var(--muted) 35%, transparent); }
+.pgs-rate-sum{ display:grid; grid-template-columns:1.4fr 1fr 1fr; gap:8px; margin-top:16px; }
+.pgs-rate-sum > div{ border:1px solid var(--line); border-radius:12px; padding:10px 12px; display:flex; flex-direction:column; gap:2px; }
+.pgs-rate-sum b{ font-size:20px; font-weight:800; color:var(--text); }
+.pgs-rate-sum span{ font-size:11.5px; font-weight:700; color:var(--muted); }
+.pgs-rate-sum .warn b{ color:#C2412D; }
+.pgs-rate-sum span.pgs-stars{ color:#E0A526; font-size:13px; }
+.pgs-rate-list{ display:flex; flex-direction:column; gap:8px; max-height:420px; overflow:auto; }
+.pgs-rate-item{ border:1px solid var(--line); border-radius:12px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; align-items:flex-start; }
+.pgs-rate-top{ display:flex; gap:10px; align-items:center; font-size:12px; font-weight:700; color:var(--muted); flex-wrap:wrap; }
+.pgs-rate-tags{ display:flex; gap:6px; flex-wrap:wrap; }
+.pgs-rate-tags em{ font-style:normal; font-size:11.5px; font-weight:800; padding:3px 9px; border-radius:99px; background:rgba(194,65,45,.1); color:#A33722; }
+[data-theme="dark"] .pgs-rate-tags em{ color:#F0A68A; }
+.pgs-rate-item p{ margin:0; font-size:13px; font-weight:600; line-height:1.7; color:var(--text); overflow-wrap:anywhere; }
+@media (max-width:560px){ .pgs-rate-flow, .pgs-rate-sum{ grid-template-columns:1fr; } }
 .pgs-warn{ margin-top:10px; padding:10px 12px; border-radius:10px; font-size:12px; font-weight:700; line-height:1.7;
   background:rgba(224,184,74,.13); color:#7a5a10; border:1px solid rgba(224,184,74,.35); }
 [data-theme="dark"] .pgs-warn{ color:#E8C46A; }
