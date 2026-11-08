@@ -6,6 +6,11 @@
 // cta.screen = data-screen في القائمة الجانبية، cta.tab = التبويب داخل
 // الشاشة، cta.focus = عنصر ينزل له بعد الفتح. لو الشاشة مو متاحة للحساب
 // (صلاحية/باقة) الزر يختفي لحاله.
+//
+// قاعدة المالك: كل بوست له رسالة واتساب جاهزة (whatsapp) وتصميم (poster،
+// 1080x1350 @2x في public/dashboard/updates/<id>-post.jpg) -- لوحة الأدمن
+// «رسائل للمشتركين» تعرضها قالباً جاهزاً يُرسل للمشتركين بضغطة. المولّد:
+// scratchpad/haraj/ads.html + render.cjs (نفس هوية ركين).
 export type RakeenUpdate = {
   id: string;
   date: string; // YYYY-MM-DD
@@ -15,6 +20,10 @@ export type RakeenUpdate = {
   points?: { title: string; text: string }[];
   image?: string;
   cta?: { label: string; screen: string; tab?: string; focus?: string };
+  /** تصميم الواتساب (1080x1350). */
+  poster?: string;
+  /** رسالة الواتساب للمشتركين. {الاسم} و{المحل} يتعبّون لكل مشترك. */
+  whatsapp?: string;
 };
 
 export const RAKEEN_UPDATES: RakeenUpdate[] = [
@@ -30,6 +39,8 @@ export const RAKEEN_UPDATES: RakeenUpdate[] = [
       { title: "بدون وقت لو تبي", text: "تقدر تطفّي الوقت المتوقع، والزبون يشوف «نجهزه لك الحين»." },
     ],
     cta: { label: "شوف الإعدادات", screen: "pos", tab: "pager" },
+    poster: "/dashboard/updates/2026-11-pager-details-post.jpg",
+    whatsapp: "السلام عليكم {الاسم} 👋\n\n*جديد ركين: البيجر صار يعرض طلب زبونك* 🔔\n\n▫️ *تفاصيل الطلب*: زبونك يشوف أصنافه وكمياتها وإضافاتها في جواله، بدون أسعار. تقدر تخفيها بضغطة.\n▫️ *«استلمه» يسكّته فوراً*: أول ما تسلّمه طلبه يوقف الرنين في جواله، حتى لو جواله مقفول.\n▫️ *بدون وقت لو تبي*: تطفّي الوقت المتوقع ويشوف «نجهزه لك الحين».\n\n📍 من لوحة التحكم ← إعدادات الكاشير ← بيجر ركين\n\nركين 💚",
   },
   {
     id: "2026-11-pager",
@@ -44,6 +55,8 @@ export const RAKEEN_UPDATES: RakeenUpdate[] = [
     ],
     image: "/dashboard/updates/2026-11-pager.jpg",
     cta: { label: "فعّله الحين", screen: "pos", tab: "pager" },
+    poster: "/dashboard/updates/2026-11-pager-post.jpg",
+    whatsapp: "السلام عليكم {الاسم} 👋\n\n*جديد ركين: جوال زبونك صار جهاز النداء* 📱🔔\n\nزبونك يمسح باركود الفاتورة ويجلس براحته، وأول ما تضغط «جاهز» يرن جواله — بدون أجهزة نداء ولا تطبيق، وبهوية {المحل}.\n\n▫️ باركود البيجر ينطبع بالفاتورة ويطلع على شاشة العميل\n▫️ «جاهز» و«+٥ د» من قسم الطلبات\n▫️ رنّة تذكير لو ما جا، وإقفال تلقائي\n\n📍 من لوحة التحكم ← إعدادات الكاشير ← بيجر ركين\n(ضمن باقتي عماد وصرح)\n\nركين 💚",
   },
   {
     id: "2026-11-store-luxe",
@@ -58,5 +71,7 @@ export const RAKEEN_UPDATES: RakeenUpdate[] = [
     ],
     image: "/dashboard/updates/2026-11-store.jpg",
     cta: { label: "جرّبها الحين", screen: "onlineMenu", tab: "design", focus: "storeOffersSection" },
+    poster: "/dashboard/updates/2026-11-store-luxe-post.jpg",
+    whatsapp: "السلام عليكم {الاسم} 👋\n\n*جديد ركين: متجرك صار أفخم ويبيع أكثر* ✨\n\n▫️ *شكل «واجهة»*: غلاف كبير يبرز {المحل} بفخامة\n▫️ *العروض*: بطاقات بالصور والسعر قبل وبعد الخصم، تتقلّب لحالها\n▫️ *المناسبات*: بنر اليوم الوطني ويوم التأسيس ورمضان والعيد\n\n📍 من لوحة التحكم ← المتجر الإلكتروني ← التصميم\n\nركين 💚",
   },
 ];

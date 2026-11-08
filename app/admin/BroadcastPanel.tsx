@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { RAKEEN_UPDATES, type RakeenUpdate } from "@/app/dashboard/rakeen-updates";
 
 // «رسائل واتساب»: الأدمن يكتب الرسالة مرّة، ويختار المستلمين، وكل ضغطة
 // «إرسال» تفتح واتساب ويب عنده والرسالة جاهزة باسم المحل -- وهو يضغط Enter.
@@ -38,6 +39,22 @@ function waNumber(raw: string): string | null {
   if (/^[1-9]\d{9,14}$/.test(d)) return d;
   return null;
 }
+// تصميم البوست للحافظة: واتساب ويب يلصقه بـ Ctrl+V. الحافظة تقبل PNG فقط،
+// فالـJPG يُرسم على canvas ويُحوّل.
+async function posterPng(src: string): Promise<Blob> {
+  const img = await createImageBitmap(await (await fetch(src)).blob());
+  const c = document.createElement("canvas");
+  c.width = img.width; c.height = img.height;
+  c.getContext("2d")!.drawImage(img, 0, 0);
+  return await new Promise<Blob>((ok, no) => c.toBlob((b) => (b ? ok(b) : no(new Error("png"))), "image/png"));
+}
+function copyPoster(src: string): Promise<void> {
+  // يُستدعى داخل الضغطة نفسها (المتصفح يرفض الكتابة للحافظة بعدها)، والصورة
+  // تجهز في الخلفية عبر الـPromise.
+  return navigator.clipboard.write([new ClipboardItem({ "image/png": posterPng(src) })]);
+}
+const TEMPLATES = RAKEEN_UPDATES.filter((u): u is RakeenUpdate & { whatsapp: string } => !!u.whatsapp);
+
 function readJson<T>(key: string, fallback: T): T {
   try { const v = localStorage.getItem(key); return v ? (JSON.parse(v) as T) : fallback; } catch { return fallback; }
 }
@@ -65,6 +82,9 @@ export default function BroadcastPanel({ token }: { token: string }) {
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [typed, setTyped] = useState<Record<number, string>>({});
   const [sent, setSent] = useState<Set<number>>(new Set());
+  const [poster, setPoster] = useState<string | null>(null);
+  const [withPoster, setWithPoster] = useState(true);
+  const [copied, setCopied] = useState<"" | "ok" | "fail">("");
 
   useEffect(() => {
     setMsg(readJson(DRAFT_KEY, "السلام عليكم {الاسم} 👋\nجديد ركين لـ{المحل}:\n\n"));
@@ -96,6 +116,7 @@ export default function BroadcastPanel({ token }: { token: string }) {
     const phone = phoneOf(r);
     if (!phone || !msg.trim()) return;
     // نفس التبويب كل مرة (rk-wa): ما تتكدّس عشرات التبويبات.
+    if (poster && withPoster) copyPoster(poster).then(() => setCopied("ok"), () => setCopied("fail"));
     window.open(`https://web.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(fill(msg, r))}`, "rk-wa");
     markSent(r.id);
   }
@@ -112,6 +133,16 @@ export default function BroadcastPanel({ token }: { token: string }) {
   return (
     <div style={{ maxWidth: "860px" }}>
       <div style={S.card}>
+        <label style={S.label} htmlFor="bcTpl">قالب جاهز</label>
+        <select id="bcTpl" defaultValue="" onChange={(e) => {
+          const u = TEMPLATES.find((t) => t.id === e.target.value);
+          setMsg(u ? u.whatsapp : "");
+          setPoster(u?.poster || null);
+          setCopied("");
+        }} style={{ width: "100%", borderRadius: "10px", border: "1px solid rgba(17,17,17,.18)", padding: "10px 12px", fontSize: "14px", fontFamily: "inherit", marginBottom: "14px", background: "transparent", color: "inherit" }}>
+          <option value="">رسالة من عندي</option>
+          {TEMPLATES.map((u) => <option key={u.id} value={u.id}>{u.date} — {u.title}</option>)}
+        </select>
         <label style={S.label} htmlFor="bcMsg">الرسالة</label>
         <textarea id="bcMsg" value={msg} onChange={(e) => setMsg(e.target.value)} rows={7}
           style={{ width: "100%", boxSizing: "border-box", borderRadius: "10px", border: "1px solid rgba(17,17,17,.18)", padding: "12px", fontSize: "14px", lineHeight: 1.7, fontFamily: "inherit", resize: "vertical" }} />
@@ -122,6 +153,26 @@ export default function BroadcastPanel({ token }: { token: string }) {
           <div style={{ marginTop: "12px", background: "#DCF8C6", color: "#111", borderRadius: "12px 12px 4px 12px", padding: "10px 12px", whiteSpace: "pre-wrap", fontSize: "13.5px", lineHeight: 1.7, maxWidth: "460px" }}>
             {fill(msg, sample)}
             <div style={{ ...S.muted, marginTop: "4px", fontSize: "11px" }}>معاينة — {sample.name}</div>
+          </div>
+        ) : null}
+        {poster ? (
+          <div style={{ marginTop: "14px", display: "flex", gap: "14px", alignItems: "flex-start", flexWrap: "wrap" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={poster} alt="تصميم التحديث" style={{ width: "150px", borderRadius: "10px", boxShadow: "0 6px 18px rgba(17,17,17,.18)" }} />
+            <div style={{ flex: "1 1 220px" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 800, fontSize: "13.5px", cursor: "pointer" }}>
+                <input type="checkbox" checked={withPoster} onChange={(e) => setWithPoster(e.target.checked)} /> أرسل التصميم مع الرسالة
+              </label>
+              <p style={{ ...S.muted, marginTop: "6px", lineHeight: 1.7 }}>
+                مع كل «إرسال» ينتسخ التصميم. في واتساب: <b>Enter</b> يرسل الرسالة، بعدها <b>Ctrl+V</b> ثم <b>Enter</b> يرسل التصميم.
+              </p>
+              <div style={{ display: "flex", gap: "8px", marginTop: "8px", flexWrap: "wrap" }}>
+                <button type="button" style={S.ghost} onClick={() => copyPoster(poster).then(() => setCopied("ok"), () => setCopied("fail"))}>انسخ التصميم</button>
+                <a href={poster} download style={{ ...S.ghost, textDecoration: "none", display: "inline-block" }}>نزّله</a>
+              </div>
+              {copied === "ok" ? <p style={{ ...S.muted, color: "#4C7A0A", marginTop: "6px" }}>انتسخ ✓ — الصقه بـ Ctrl+V</p> : null}
+              {copied === "fail" ? <p style={{ ...S.muted, color: "#B0402C", marginTop: "6px" }}>المتصفح ما سمح بالنسخ — نزّله وأرفقه بيدك.</p> : null}
+            </div>
           </div>
         ) : null}
       </div>
@@ -182,7 +233,7 @@ export default function BroadcastPanel({ token }: { token: string }) {
         <div style={{ ...S.card, position: "sticky", bottom: "12px", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", boxShadow: "0 10px 30px rgba(17,17,17,.12)" }}>
           <div style={{ flex: "1 1 200px" }}>
             <div style={{ fontWeight: 800 }}>{next ? `التالي: ${next.name}` : "خلصت المحددين ✓"}</div>
-            <div style={S.muted}>باقي {queue.length} من {picked.size} محدد · كل ضغطة تفتح واتساب ويب والرسالة جاهزة، اضغط Enter هناك ثم ارجع هنا.</div>
+            <div style={S.muted}>باقي {queue.length} من {picked.size} محدد · كل ضغطة تفتح واتساب ويب والرسالة جاهزة{poster && withPoster ? " والتصميم منسوخ: Enter، ثم Ctrl+V وEnter" : "، اضغط Enter هناك"} ثم ارجع هنا.</div>
           </div>
           {next ? <button type="button" style={S.btn} disabled={!msg.trim()} onClick={() => send(next)}>افتح واتساب للتالي</button> : null}
           {sent.size ? <button type="button" style={S.ghost} onClick={() => { setSent(new Set()); writeJson(sentKey, []); }}>مسح سجل الإرسال</button> : null}
