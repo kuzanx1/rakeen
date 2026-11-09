@@ -1,0 +1,17 @@
+Anonymous analytics enabled. To opt out, set MAESTRO_CLI_NO_ANALYTICS environment variable to any value before running Maestro.
+
+Running on iPhone 17 Pro Max - iOS 26.5 - 5277349A-B219-4ED4-853A-8AE666B9F5B1
+ > Flow store-login
+Launch app "com.rakeen.pos" with clear state... COMPLETED
+Assert that "البريد الإلكتروني" is visible... COMPLETED
+Tap on "البريد الإلكتروني"... COMPLETED
+Input text ${REVIEW_EMAIL}... COMPLETED
+Tap on "كلمة المرور"... COMPLETED
+Input text ${REVIEW_PASSWORD}... COMPLETED
+Tap on "تجهيز هذا الجهاز"... COMPLETED
+Tap on "ربط الجهاز"... COMPLETED
+Assert that "إعادة تجهيز الجهاز" is visible... COMPLETED
+Tap on "${REVIEW_PIN.charAt(0)}"... COMPLETED
+Tap on "${REVIEW_PIN.charAt(1)}"... COMPLETED
+Tap on "${REVIEW_PIN.charAt(2)}"... COMPLETED
+Tap on "${REVIEW_PIN.charAt(3)}"... COMPLETED
