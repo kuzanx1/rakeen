@@ -44,6 +44,7 @@ appId: com.rakeen.pos
     text: ".*الكل.*"
     retryTapIfNoChange: true
 - waitForAnimationToEnd
+- takeScreenshot: 05-menu
 
 # البوكس: الشاشة اللي تبيّن اختيار القطع
 - scrollUntilVisible:
@@ -74,6 +75,11 @@ appId: com.rakeen.pos
     element: ".*مياه.*"
     direction: DOWN
 - tapOn: ".*مياه.*"
+- waitForAnimationToEnd
+# On a phone the order panel sits below the products.
+- scrollUntilVisible:
+    element: ".*ادفع.*"
+    direction: DOWN
 - waitForAnimationToEnd
 - takeScreenshot: 01-cart
 

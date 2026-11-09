@@ -131,7 +131,7 @@ jobs:
               # Maestro writes takeScreenshot files outside the working directory.
               # Only the four named shots are collected, never its debug captures,
               # and only this device's, thanks to the timestamp.
-              find "$HOME/.maestro/tests" "$GITHUB_WORKSPACE/react-native-poc" -type f -name '0[1-4]-*.png' -newer .start -not -path '*/node_modules/*' -exec mv {} . \; || true
+              find "$HOME/.maestro/tests" "$GITHUB_WORKSPACE/react-native-poc" -type f -name '0[1-5]-*.png' -newer .start -not -path '*/node_modules/*' -exec mv {} . \; || true
               find "$HOME/.maestro/tests" "$FLOWS" -type f -newer .start | sed "s#$HOME##" | tail -n 40 > output-files.log || true
             else
               status=1
