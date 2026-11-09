@@ -1,0 +1,32 @@
+Running on iPad Pro 13-inch (M5) - iOS 26.5 - 9F9B4A17-4195-40F0-8B46-728F6A6AA8EB
+ > Flow store-login
+Launch app "com.rakeen.pos" with clear state... COMPLETED
+Assert that "البريد الإلكتروني" is visible... COMPLETED
+Tap on "البريد الإلكتروني"... COMPLETED
+Input text ${REVIEW_EMAIL}... COMPLETED
+Tap on "كلمة المرور"... COMPLETED
+Input text ${REVIEW_PASSWORD}... COMPLETED
+Tap on "تجهيز هذا الجهاز"... COMPLETED
+Wait for animation to end... COMPLETED
+Repeat while "إعادة تجهيز الجهاز" is not visible (up to 4 times)...
+  Run flow when "ربط الجهاز" is visible...
+    Tap on (Optional) "ربط الجهاز"... COMPLETED
+  Run flow when "ربط الجهاز" is visible... COMPLETED
+  Assert that (Optional) "إعادة تجهيز الجهاز" is visible... WARNED
+Repeat while "إعادة تجهيز الجهاز" is not visible (up to 4 times)... COMPLETED
+Assert that "إعادة تجهيز الجهاز" is visible... COMPLETED
+Wait for animation to end... COMPLETED
+Repeat while "إعادة تجهيز الجهاز" is visible (up to 3 times)...
+  Repeat 4 times...
+    Tap on "⌫"... COMPLETED
+    Wait for animation to end... COMPLETED
+  Repeat 4 times... COMPLETED
+  Tap on "${REVIEW_PIN.charAt(0)}"... COMPLETED
+  Wait for animation to end... COMPLETED
+  Tap on "${REVIEW_PIN.charAt(1)}"... COMPLETED
+  Wait for animation to end... COMPLETED
+  Tap on "${REVIEW_PIN.charAt(2)}"... COMPLETED
+  Wait for animation to end... COMPLETED
+  Tap on "${REVIEW_PIN.charAt(3)}"... COMPLETED
+  Assert that (Optional) "إعادة تجهيز الجهاز" is not visible... COMPLETED
+Repeat while "إعادة تجهيز الجهاز" is visible (up to 3 times)... COMPLETED
