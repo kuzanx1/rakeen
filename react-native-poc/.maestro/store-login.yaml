@@ -20,19 +20,26 @@ appId: com.rakeen.pos
 - inputText: "${REVIEW_PASSWORD}"
 - tapOn: "تجهيز هذا الجهاز"
 - waitForAnimationToEnd
+# A request can time out on a loaded CI simulator and bring the form back, so
+# the loop keys on the PIN screen arriving, not on the button disappearing
+# (it also disappears while the request is merely in flight).
 - repeat:
     while:
-      visible: "ربط الجهاز"
-    times: 3
+      notVisible: "إعادة تجهيز الجهاز"
+    times: 4
     commands:
-      - tapOn: "ربط الجهاز"
+      - runFlow:
+          when:
+            visible: "ربط الجهاز"
+          commands:
+            - tapOn: "ربط الجهاز"
       - extendedWaitUntil:
-          notVisible: "ربط الجهاز"
-          timeout: 30000
+          visible: "إعادة تجهيز الجهاز"
+          timeout: 40000
           optional: true
 - extendedWaitUntil:
     visible: "إعادة تجهيز الجهاز"
-    timeout: 90000
+    timeout: 30000
 - waitForAnimationToEnd
 - repeat:
     while:

@@ -1,9 +1,13 @@
 # App Store screenshots of the real app. Stops on the payment screen and never
 # taps «تأكيد الدفع», so no sale is recorded.
+#
+# Labels are matched with .* because a touchable's accessibility text merges
+# everything inside it (icon, name, price, category), and Maestro needs the
+# pattern to match that whole string.
 appId: com.rakeen.pos
 ---
 - extendedWaitUntil:
-    visible: "مين اللي مداوم؟|الرصيد الافتتاحي|الكل"
+    visible: "مين اللي مداوم؟|الرصيد الافتتاحي|.*الكل.*"
     timeout: 90000
 - runFlow:
     when:
@@ -21,7 +25,7 @@ appId: com.rakeen.pos
                 timeout: 12000
                 optional: true
       - extendedWaitUntil:
-          visible: "الرصيد الافتتاحي|الكل"
+          visible: "الرصيد الافتتاحي|.*الكل.*"
           timeout: 60000
 - runFlow:
     when:
@@ -34,19 +38,19 @@ appId: com.rakeen.pos
           text: "بدء الوردية"
           index: 1
 - extendedWaitUntil:
-    visible: "الكل"
+    visible: ".*الكل.*"
     timeout: 90000
 - tapOn:
-    text: "الكل"
+    text: ".*الكل.*"
     retryTapIfNoChange: true
 - waitForAnimationToEnd
 
 # البوكس: الشاشة اللي تبيّن اختيار القطع
 - scrollUntilVisible:
-    element: "بوكس وسط مشكّل"
+    element: ".*بوكس وسط مشكّل.*"
     direction: DOWN
 - tapOn:
-    text: "بوكس وسط مشكّل"
+    text: ".*بوكس وسط مشكّل.*"
     retryTapIfNoChange: true
 - extendedWaitUntil:
     visible: ".*اختيار.*"
@@ -58,41 +62,41 @@ appId: com.rakeen.pos
 
 # طلب من ثلاثة أصناف بلا خيارات
 - scrollUntilVisible:
-    element: "بشميل لحم"
+    element: ".*بشميل لحم.*"
     direction: DOWN
-- tapOn: "بشميل لحم"
-- tapOn: "بشميل لحم"
+- tapOn: ".*بشميل لحم.*"
+- tapOn: ".*بشميل لحم.*"
 - scrollUntilVisible:
-    element: "بيبسي"
+    element: ".*بيبسي.*"
     direction: DOWN
-- tapOn: "بيبسي"
+- tapOn: ".*بيبسي.*"
 - scrollUntilVisible:
-    element: "مياه"
+    element: ".*مياه.*"
     direction: DOWN
-- tapOn: "مياه"
+- tapOn: ".*مياه.*"
 - waitForAnimationToEnd
 - takeScreenshot: 01-cart
 
 # الدفع: نوع الطلب ثم العميل ثم طريقة الدفع
 - tapOn:
-    text: "ادفع.*"
+    text: ".*ادفع.*"
     retryTapIfNoChange: true
 - extendedWaitUntil:
-    visible: "سفري"
+    visible: ".*سفري.*"
     timeout: 20000
 - tapOn:
-    text: "سفري"
+    text: ".*سفري.*"
     retryTapIfNoChange: true
 - extendedWaitUntil:
-    visible: "تخطي"
+    visible: ".*تخطي.*"
     timeout: 20000
 - waitForAnimationToEnd
 - takeScreenshot: 03-customer
 - tapOn:
-    text: "تخطي"
+    text: ".*تخطي.*"
     retryTapIfNoChange: true
 - extendedWaitUntil:
-    visible: "تأكيد الدفع"
+    visible: ".*تأكيد الدفع.*"
     timeout: 20000
 - waitForAnimationToEnd
 - takeScreenshot: 02-payment
