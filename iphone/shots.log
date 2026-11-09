@@ -1,0 +1,46 @@
+Running on iPhone 17 Pro Max - iOS 26.5 - 5277349A-B219-4ED4-853A-8AE666B9F5B1
+ > Flow store-shots
+Assert that "مين اللي مداوم؟|الرصيد الافتتاحي|.*الكل.*" is visible... COMPLETED
+Run flow when "مين اللي مداوم؟" is visible...
+  Wait for animation to end... COMPLETED
+  Repeat while "مين اللي مداوم؟" is visible (up to 6 times)...
+    Tap on "عمار"... COMPLETED
+    Assert that (Optional) "مين اللي مداوم؟" is not visible... COMPLETED
+  Repeat while "مين اللي مداوم؟" is visible (up to 6 times)... COMPLETED
+  Assert that "الرصيد الافتتاحي|.*الكل.*" is visible... COMPLETED
+Run flow when "مين اللي مداوم؟" is visible... COMPLETED
+Run flow when "الرصيد الافتتاحي" is visible...
+Run flow when "الرصيد الافتتاحي" is visible... SKIPPED
+Assert that ".*الكل.*" is visible... COMPLETED
+Tap on ".*الكل.*"... COMPLETED
+Wait for animation to end... COMPLETED
+Scrolling DOWN until ".*بوكس وسط مشكّل.*" is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on ".*بوكس وسط مشكّل.*"... COMPLETED
+Assert that ".*اختيار.*" is visible... COMPLETED
+Wait for animation to end... COMPLETED
+Take screenshot 04-box... COMPLETED
+Tap on "✕"... COMPLETED
+Wait for animation to end... COMPLETED
+Scrolling DOWN until ".*بشميل لحم.*" is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on ".*بشميل لحم.*"... COMPLETED
+Tap on ".*بشميل لحم.*"... COMPLETED
+Scrolling DOWN until ".*بيبسي.*" is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on ".*بيبسي.*"... COMPLETED
+Scrolling DOWN until ".*مياه.*" is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on ".*مياه.*"... COMPLETED
+Wait for animation to end... COMPLETED
+Take screenshot 01-cart... COMPLETED
+Tap on ".*ادفع.*"... FAILED
+
+Element not found: Text matching regex: .*ادفع.*
+
+Element with Text matching regex: .*ادفع.* not found. Check the UI hierarchy in debug artifacts to verify if the element exists.
+
+Possible causes:
+- Element selector may be incorrect - check if there are similar elements with slightly different names/properties.
+- Element may be temporarily unavailable due to loading state.
+- This could be a real regression that needs to be addressed.
+
+==== Debug output (logs & screenshots) ====
+
+/Users/runner/.maestro/tests/2026-11-09_150538
