@@ -33,6 +33,7 @@ jobs:
       REVIEW_EMAIL: ${{ secrets.REVIEW_EMAIL }}
       REVIEW_PASSWORD: ${{ secrets.REVIEW_PASSWORD }}
       REVIEW_PIN: ${{ secrets.REVIEW_PIN }}
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
     steps:
       - uses: actions/checkout@v4
 

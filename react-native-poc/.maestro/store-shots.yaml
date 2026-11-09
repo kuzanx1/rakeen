@@ -9,7 +9,17 @@ appId: com.rakeen.pos
     when:
       visible: "مين اللي مداوم؟"
     commands:
-      - tapOn: "عمار"
+      - waitForAnimationToEnd
+      - repeat:
+          while:
+            visible: "مين اللي مداوم؟"
+          times: 6
+          commands:
+            - tapOn: "عمار"
+            - extendedWaitUntil:
+                notVisible: "مين اللي مداوم؟"
+                timeout: 12000
+                optional: true
       - extendedWaitUntil:
           visible: "الرصيد الافتتاحي|الكل"
           timeout: 60000
