@@ -123,10 +123,16 @@ jobs:
             mkdir -p "$OUT/$kind"
             cd "$OUT/$kind"
             if maestro --device "$udid" test -e REVIEW_EMAIL="$REVIEW_EMAIL" -e REVIEW_PASSWORD="$REVIEW_PASSWORD" -e REVIEW_PIN="$REVIEW_PIN" "$FLOWS/store-login.yaml" > login.log 2>&1; then
+              touch .start
               if ! maestro --device "$udid" test "$FLOWS/store-shots.yaml" > shots.log 2>&1; then
                 status=1
                 xcrun simctl io "$udid" screenshot failed.png || true
               fi
+              # Maestro writes takeScreenshot files outside the working directory.
+              # Only the four named shots are collected, never its debug captures,
+              # and only this device's, thanks to the timestamp.
+              find "$HOME/.maestro/tests" "$GITHUB_WORKSPACE/react-native-poc" -type f -name '0[1-4]-*.png' -newer .start -not -path '*/node_modules/*' -exec mv {} . \; || true
+              find "$HOME/.maestro/tests" "$FLOWS" -type f -newer .start | sed "s#$HOME##" | tail -n 40 > output-files.log || true
             else
               status=1
               # Text only and scrubbed below: never a picture of the login form.

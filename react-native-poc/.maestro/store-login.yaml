@@ -32,7 +32,10 @@ appId: com.rakeen.pos
           when:
             visible: "ربط الجهاز"
           commands:
-            - tapOn: "ربط الجهاز"
+            # The form can leave between the check and the tap; that is success.
+            - tapOn:
+                text: "ربط الجهاز"
+                optional: true
       - extendedWaitUntil:
           visible: "إعادة تجهيز الجهاز"
           timeout: 40000
