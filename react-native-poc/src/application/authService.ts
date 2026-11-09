@@ -161,8 +161,9 @@ export async function provisionDevice(email: string, password: string): Promise<
   if (error || !data.user) {
     // الإيميل أو كلمة السر الغلط ليست خطأ شبكة: تُقال كما هي. أما فشل
     // الاتصال فقد يكون تاريخ الجهاز (السنمي بعد انطفاء).
-    const netFail = !error || /network request failed|fetch/i.test(error.message || '');
-    return { status: 'error', message: netFail ? explainNetworkError(error?.message, 'تعذر تسجيل الدخول.') : error.message };
+    // ومهلة الطلب تصل بنصّ المحرّك الإنجليزي "Aborted"، فلا يُعرض كما هو.
+    const netFail = !error || /network request failed|fetch|abort/i.test(error.message || '');
+    return { status: 'error', message: netFail ? explainNetworkError(undefined, 'تعذر الاتصال بالخادم — تحقق من الإنترنت وحاول مرة ثانية.') : error.message };
   }
 
   const { data: profile, error: profileError } = await supabase
