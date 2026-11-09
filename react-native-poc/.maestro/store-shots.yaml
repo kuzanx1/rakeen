@@ -36,14 +36,18 @@ appId: com.rakeen.pos
 - extendedWaitUntil:
     visible: "الكل"
     timeout: 90000
-- tapOn: "الكل"
+- tapOn:
+    text: "الكل"
+    retryTapIfNoChange: true
 - waitForAnimationToEnd
 
 # البوكس: الشاشة اللي تبيّن اختيار القطع
 - scrollUntilVisible:
     element: "بوكس وسط مشكّل"
     direction: DOWN
-- tapOn: "بوكس وسط مشكّل"
+- tapOn:
+    text: "بوكس وسط مشكّل"
+    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible: ".*اختيار.*"
     timeout: 20000
@@ -70,17 +74,23 @@ appId: com.rakeen.pos
 - takeScreenshot: 01-cart
 
 # الدفع: نوع الطلب ثم العميل ثم طريقة الدفع
-- tapOn: "ادفع.*"
+- tapOn:
+    text: "ادفع.*"
+    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible: "سفري"
     timeout: 20000
-- tapOn: "سفري"
+- tapOn:
+    text: "سفري"
+    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible: "تخطي"
     timeout: 20000
 - waitForAnimationToEnd
 - takeScreenshot: 03-customer
-- tapOn: "تخطي"
+- tapOn:
+    text: "تخطي"
+    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible: "تأكيد الدفع"
     timeout: 20000

@@ -1,6 +1,10 @@
 # Pairs a fresh simulator with the review account and passes the branch PIN.
 # Kept apart from store-shots.yaml so the workflow can publish screenshots of
 # everything AFTER this point and never a picture of the login form.
+#
+# Every step checks that the screen actually moved and retries: on a loaded CI
+# simulator a tap can be lost, and the PIN pad clears itself first so a lost
+# digit can never become a wrong PIN attempt.
 appId: com.rakeen.pos
 ---
 - launchApp:
@@ -15,11 +19,39 @@ appId: com.rakeen.pos
 - tapOn: "كلمة المرور"
 - inputText: "${REVIEW_PASSWORD}"
 - tapOn: "تجهيز هذا الجهاز"
-- tapOn: "ربط الجهاز"
+- waitForAnimationToEnd
+- repeat:
+    while:
+      visible: "ربط الجهاز"
+    times: 3
+    commands:
+      - tapOn: "ربط الجهاز"
+      - extendedWaitUntil:
+          notVisible: "ربط الجهاز"
+          timeout: 30000
+          optional: true
 - extendedWaitUntil:
     visible: "إعادة تجهيز الجهاز"
     timeout: 90000
-- tapOn: "${REVIEW_PIN.charAt(0)}"
-- tapOn: "${REVIEW_PIN.charAt(1)}"
-- tapOn: "${REVIEW_PIN.charAt(2)}"
-- tapOn: "${REVIEW_PIN.charAt(3)}"
+- waitForAnimationToEnd
+- repeat:
+    while:
+      visible: "إعادة تجهيز الجهاز"
+    times: 3
+    commands:
+      - repeat:
+          times: 4
+          commands:
+            - tapOn: "⌫"
+            - waitForAnimationToEnd
+      - tapOn: "${REVIEW_PIN.charAt(0)}"
+      - waitForAnimationToEnd
+      - tapOn: "${REVIEW_PIN.charAt(1)}"
+      - waitForAnimationToEnd
+      - tapOn: "${REVIEW_PIN.charAt(2)}"
+      - waitForAnimationToEnd
+      - tapOn: "${REVIEW_PIN.charAt(3)}"
+      - extendedWaitUntil:
+          notVisible: "إعادة تجهيز الجهاز"
+          timeout: 25000
+          optional: true
