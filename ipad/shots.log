@@ -1,0 +1,43 @@
+Running on iPad Pro 13-inch (M5) - iOS 26.5 - 9F9B4A17-4195-40F0-8B46-728F6A6AA8EB
+ > Flow store-shots
+Assert that "مين اللي مداوم؟|الرصيد الافتتاحي|.*الكل.*" is visible... COMPLETED
+Run flow when "مين اللي مداوم؟" is visible...
+  Wait for animation to end... COMPLETED
+  Repeat while "مين اللي مداوم؟" is visible (up to 6 times)...
+    Tap on "عمار"... COMPLETED
+    Assert that (Optional) "مين اللي مداوم؟" is not visible... WARNED
+  Repeat while "مين اللي مداوم؟" is visible (up to 6 times)... COMPLETED
+  Assert that "الرصيد الافتتاحي|.*الكل.*" is visible... COMPLETED
+Run flow when "مين اللي مداوم؟" is visible... COMPLETED
+Run flow when "الرصيد الافتتاحي" is visible...
+Run flow when "الرصيد الافتتاحي" is visible... SKIPPED
+Assert that ".*الكل.*" is visible... COMPLETED
+Tap on ".*الكل.*"... COMPLETED
+Wait for animation to end... COMPLETED
+Scrolling DOWN until ".*بوكس وسط مشكّل.*" is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on ".*بوكس وسط مشكّل.*"... COMPLETED
+Assert that ".*اختيار.*" is visible... COMPLETED
+Wait for animation to end... COMPLETED
+Take screenshot 04-box... COMPLETED
+Tap on "✕"... COMPLETED
+Wait for animation to end... COMPLETED
+Scrolling DOWN until ".*بشميل لحم.*" is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on ".*بشميل لحم.*"... COMPLETED
+Tap on ".*بشميل لحم.*"... COMPLETED
+Scrolling DOWN until ".*بيبسي.*" is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on ".*بيبسي.*"... COMPLETED
+Scrolling DOWN until ".*مياه.*" is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on ".*مياه.*"... COMPLETED
+Wait for animation to end... COMPLETED
+Take screenshot 01-cart... COMPLETED
+Tap on ".*ادفع.*"... COMPLETED
+Assert that ".*سفري.*" is visible... COMPLETED
+Tap on ".*سفري.*"... COMPLETED
+Assert that ".*تخطي.*" is visible... COMPLETED
+Wait for animation to end...WARNING: GL pipe is running in software mode (Renderer ID=0x1020400)
+ COMPLETED
+Take screenshot 03-customer... COMPLETED
+Tap on ".*تخطي.*"... COMPLETED
+Assert that ".*تأكيد الدفع.*" is visible... COMPLETED
+Wait for animation to end... COMPLETED
+Take screenshot 02-payment... COMPLETED
