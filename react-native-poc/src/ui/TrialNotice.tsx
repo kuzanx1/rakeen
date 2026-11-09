@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Linking, Modal, View } from 'react-native';
+import { Linking, Modal, Platform, View } from 'react-native';
 import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import { createStyles, fonts, radii, spacing } from './theme';
 import { TrialStatus, TRIAL_SUBSCRIBE_WA, trialNotice } from '../domain/trial';
 import { getTrialClockOffset, getTrialStatus, refreshTrialStatus, subscribeTrial } from '../application/trialService';
+
+/** iOS بلا رابط أو دعوة للاشتراك خارج التطبيق (App Store 3.1.1). */
+const CAN_CONTACT = Platform.OS !== 'ios';
 
 /** يتابع حالة التجربة: قراءة أول ما تنفتح الشاشة ثم كل 5 دقايق. */
 export function useTrialStatus(): TrialStatus | null {
@@ -28,7 +31,7 @@ export function useTrialStatus(): TrialStatus | null {
 /** الشريط فوق الكاشير: كم باقي، ثم كم ساعة على القفل. */
 export function TrialBanner({ status }: { status: TrialStatus | null }) {
   const styles = useStyles();
-  const notice = trialNotice(status, Date.now(), getTrialClockOffset());
+  const notice = trialNotice(status, Date.now(), getTrialClockOffset(), CAN_CONTACT);
   if (!notice) return null;
   return (
     <View style={[styles.banner, notice.danger ? styles.bannerDanger : styles.bannerInfo]}>
@@ -46,11 +49,13 @@ export function TrialEndedModal({ visible, limit, onClose }: { visible: boolean;
         <View style={styles.card}>
           <Text style={styles.title}>انتهت الفترة التجريبية</Text>
           <Text style={styles.body}>
-            استخدمت {limit} طلب مجاني. تواصل معنا عشان تكمل البيع من الكاشير والمتجر. بياناتك وتقاريرك محفوظة كلها.
+            استخدمت {limit} طلب مجاني. {CAN_CONTACT ? 'تواصل معنا عشان تكمل البيع من الكاشير والمتجر.' : 'راجع صاحب المحل.'} بياناتك وتقاريرك محفوظة كلها.
           </Text>
-          <TouchableOpacity style={styles.primary} onPress={() => Linking.openURL(TRIAL_SUBSCRIBE_WA)}>
-            <Text style={styles.primaryText}>تواصل معنا</Text>
-          </TouchableOpacity>
+          {CAN_CONTACT ? (
+            <TouchableOpacity style={styles.primary} onPress={() => Linking.openURL(TRIAL_SUBSCRIBE_WA)}>
+              <Text style={styles.primaryText}>تواصل معنا</Text>
+            </TouchableOpacity>
+          ) : null}
           <TouchableOpacity style={styles.secondary} onPress={onClose}>
             <Text style={styles.secondaryText}>إغلاق</Text>
           </TouchableOpacity>

@@ -33,7 +33,7 @@
 
 ### Promotional Text (170)
 ```
-أول 350 طلب مجانًا بكل المزايا: كاشير، مطبخ، مخزون، وولاء. بدون عقد ولا التزام.
+كاشير ومطبخ ومخزون وولاء لمطعمك في تطبيق واحد، ويكمل البيع حتى لو انقطع الإنترنت.
 ```
 
 ### Description (4000)
@@ -62,7 +62,7 @@
 
 يتصل مع لوحة تحكم ركين على الويب: المنيو، المخزون، التقارير، الموظفين، وصافي الربح.
 
-التطبيق لأصحاب المطاعم المشتركين في ركين. للاشتراك والتجربة: rakeenapp.com
+التطبيق لأصحاب المطاعم والكافيهات اللي عندهم حساب في ركين، ولموظفيهم.
 ```
 
 ### Keywords (100) ← 80 حرف
@@ -92,7 +92,7 @@ https://rakeenapp.com
 ## 4) App Review Information (أهم جزء)
 
 **Sign-in required:** ✅
-- **User name:** _(إيميل مطعم تجريبي، تسويه أنت من لوحة الأدمن)_
+- **User name:** _(إيميل مطعم تجريبي باشتراك مفعّل، تسويه أنت من لوحة الأدمن)_
 - **Password:** _(كلمته)_
 
 **Contact:** اسمك، جوالك `+966557444227`، إيميلك.
@@ -104,10 +104,13 @@ Rakeen is a point-of-sale (cashier) app for restaurants and cafes in Saudi Arabi
 How to test:
 1. Sign in with the demo account above. This links the device to the demo restaurant.
 2. Enter the cashier PIN: ____ (4 digits).
-3. Tap any product to add it to the order, then tap "ادفع" (Pay) and choose Cash to complete a sale.
+3. Choose the staff member "____" from the list.
+4. Enter any opening cash amount (for example 100) and tap "بدء الوردية" (Start shift).
+5. Tap any product to add it to the order, then tap "ادفع" (Pay).
+6. Choose the order type, tap "تخطي" (Skip) on the customer step, keep Cash selected, and tap "تأكيد الدفع" (Confirm payment).
 
 A receipt printer is optional; without one the sale completes normally.
-Accounts are created by Rakeen for each restaurant; businesses subscribe with us directly (B2B). There are no in-app purchases.
+Accounts cannot be created in the app; restaurant owners register on our website. Businesses deal with us directly (B2B). The app offers no purchases and no links to buy anything.
 The interface is in Arabic; English can be switched from the top bar (EN).
 ```
 

@@ -40,15 +40,17 @@ export function trialNotice(
   status: TrialStatus | null,
   deviceNow: number,
   offset: number,
+  /** false على iOS: قاعدة آبل 3.1.1 تمنع توجيه المستخدم للشراء خارج التطبيق. */
+  canContact = true,
 ): { danger: boolean; text: string } | null {
   if (!status || status.subscribed) return null;
   if (trialLocked(status, deviceNow, offset)) {
-    return { danger: true, text: 'انتهت الفترة التجريبية — تواصل معنا عشان تكمل البيع' };
+    return { danger: true, text: canContact ? 'انتهت الفترة التجريبية — تواصل معنا عشان تكمل البيع' : 'انتهت الفترة التجريبية — راجع صاحب المحل' };
   }
   if (status.reached_at) {
     return {
       danger: true,
-      text: `خلصت طلبات الفترة التجريبية — البيع يتوقف بعد ${trialHoursLeft(status, deviceNow, offset)} ساعة. تواصل معنا`,
+      text: `خلصت طلبات الفترة التجريبية — البيع يتوقف بعد ${trialHoursLeft(status, deviceNow, offset)} ساعة.${canContact ? ' تواصل معنا' : ''}`,
     };
   }
   if (status.remaining <= 50) {
