@@ -106,3 +106,27 @@ appId: com.rakeen.pos
     timeout: 20000
 - waitForAnimationToEnd
 - takeScreenshot: 02-payment
+
+# Closes the payment sheet without paying, then the read-only screens. «إغلاق
+# الوردية» is never tapped.
+- tapOn: "✕"
+- waitForAnimationToEnd
+- tapOn: ".*الطلبات.*"
+- extendedWaitUntil:
+    visible: ".*#.*|لا يوجد طلبات."
+    timeout: 25000
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: 06-orders
+- tapOn: ".*المزيد.*"
+- extendedWaitUntil:
+    visible: ".*ملخص الوردية.*"
+    timeout: 20000
+- waitForAnimationToEnd
+- takeScreenshot: 08-more
+- tapOn: ".*ملخص الوردية.*"
+- extendedWaitUntil:
+    visible: ".*إجمالي المبيعات.*"
+    timeout: 25000
+- waitForAnimationToEnd
+- takeScreenshot: 07-shift
