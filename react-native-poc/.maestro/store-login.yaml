@@ -1,0 +1,25 @@
+# Pairs a fresh simulator with the review account and passes the branch PIN.
+# Kept apart from store-shots.yaml so the workflow can publish screenshots of
+# everything AFTER this point and never a picture of the login form.
+appId: com.rakeen.pos
+---
+- launchApp:
+    clearState: true
+    permissions:
+      all: allow
+- extendedWaitUntil:
+    visible: "البريد الإلكتروني"
+    timeout: 120000
+- tapOn: "البريد الإلكتروني"
+- inputText: "${REVIEW_EMAIL}"
+- tapOn: "كلمة المرور"
+- inputText: "${REVIEW_PASSWORD}"
+- tapOn: "تجهيز هذا الجهاز"
+- tapOn: "ربط الجهاز"
+- extendedWaitUntil:
+    visible: "إعادة تجهيز الجهاز"
+    timeout: 90000
+- tapOn: "${REVIEW_PIN.charAt(0)}"
+- tapOn: "${REVIEW_PIN.charAt(1)}"
+- tapOn: "${REVIEW_PIN.charAt(2)}"
+- tapOn: "${REVIEW_PIN.charAt(3)}"

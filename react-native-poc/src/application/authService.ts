@@ -1,5 +1,6 @@
 import * as kvStorage from '../infrastructure/mmkvStorage';
 import { supabase, RAKEEN_API_BASE_URL } from '../infrastructure/supabaseClient';
+import { Platform } from 'react-native';
 import { explainNetworkError } from '../domain/clockSanity';
 import {
   DeviceConfig,
@@ -112,6 +113,49 @@ export async function setBranchPin(
  * as the current web app already works (see rakeen-pos.js's own comment:
  * "الفرع أدناه هو الحساب الحقيقي").
  */
+/** نفس نص lib/accountSuspended.ts. آيفون بلا ذكر الدفع (App Store 3.1.1). */
+export function accountSuspendedMessage(): string {
+  return Platform.OS === 'ios'
+    ? 'هذا الحساب موقوف مؤقتاً. راجع صاحب المحل.'
+    : 'حسابك موقوف مؤقتاً: توقف الكاشير بسبب اشتراك غير مسدد. تواصل مع دعم ركين عشان يرجع.';
+}
+
+/** الموقوف تخفي القاعدة ملفه عنه، والخادم وحده يفرّقه عن فشل التحميل. */
+async function fetchAccountSuspended(accessToken: string): Promise<boolean | null> {
+  try {
+    const res = await fetch(`${RAKEEN_API_BASE_URL}/api/pos/account-status`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return null;
+    const out = await res.json();
+    return out.suspended === true;
+  } catch {
+    return null;
+  }
+}
+
+/** null = ما عرفنا (بلا نت مثلاً): تبقى الشاشة على حالها ولا ينقفل أحد بالغلط. */
+export async function checkAccountSuspended(): Promise<boolean | null> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  return session ? fetchAccountSuspended(session.access_token) : null;
+}
+
+/** ينادي onChange لحظة يوقف الأدمن المطعم أو يفعّله (lib/accountSuspended.ts). */
+export function subscribeToAccountStatus(businessId: number, onChange: () => void): () => void {
+  try {
+    const channel = supabase.channel(`account-status:${businessId}`);
+    channel.on('broadcast', { event: 'changed' }, () => onChange()).subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  } catch {
+    // إعادة دخول سريعة على قناة لسا تنغلق: يكفي فحص الرجوع للتطبيق وعودة النت.
+    return () => {};
+  }
+}
+
 export async function provisionDevice(email: string, password: string): Promise<ProvisionResult> {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error || !data.user) {
@@ -128,8 +172,9 @@ export async function provisionDevice(email: string, password: string): Promise<
     .single();
 
   if (profileError || !profile) {
+    const suspended = !!data.session && (await fetchAccountSuspended(data.session.access_token)) === true;
     await supabase.auth.signOut();
-    return { status: 'error', message: 'تعذر تحميل الحساب' };
+    return { status: 'error', message: suspended ? accountSuspendedMessage() : 'تعذر تحميل الحساب' };
   }
   if (profile.user_type === 'employee') {
     await supabase.auth.signOut();
@@ -201,7 +246,7 @@ export type CashierLoginResult =
  * reimplementing its lockout logic here.
  */
 export async function loginCashierWithPin(branchId: number, pin: string): Promise<CashierLoginResult> {
-  let json: { session?: { access_token: string; refresh_token: string }; userId?: string; error?: string };
+  let json: { session?: { access_token: string; refresh_token: string }; userId?: string; error?: string; code?: string };
   try {
     const res = await fetch(`${RAKEEN_API_BASE_URL}/api/pos/login`, {
       method: 'POST',
@@ -209,6 +254,7 @@ export async function loginCashierWithPin(branchId: number, pin: string): Promis
       body: JSON.stringify({ branchId, pin }),
     });
     json = await res.json();
+    if (json.code === 'account_suspended') return { status: 'error', message: accountSuspendedMessage() };
     if (!res.ok || !json.session || !json.userId) {
       return { status: 'error', message: json.error || 'رمز الفرع غلط.' };
     }

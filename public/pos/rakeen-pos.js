@@ -577,6 +577,8 @@ const I18N_EN = {
   'رمز الفرع غلط.': 'Wrong branch code.',
   'تعذر تسجيل الدخول.': 'Could not sign in.',
   'تعذر تحميل الحساب': 'Could not load the account',
+  'الحساب موقوف': 'Account paused',
+  'حسابك موقوف مؤقتاً: توقف الكاشير بسبب اشتراك غير مسدد. تواصل مع دعم ركين عشان يرجع.': 'Your account is paused: the cashier stopped because of an unpaid subscription. Contact Rakeen support to restore it.',
   'تعذر تحميل بيانات الجهاز': 'Could not load this device',
   'تعذر الاتصال بالخادم': 'Could not reach the service',
   'تعذر الاتصال بالخادم — تحقق من الإنترنت.': 'Could not reach the service — check your internet.',
@@ -9712,7 +9714,16 @@ document.getElementById('provSubmitBtn').addEventListener('click', async ()=>{
     if(error) throw error;
     const { data: profile, error: profErr } = await window.supabaseClient
       .from('profiles').select('business_id, user_type').eq('id', data.user.id).single();
-    if(profErr || !profile) throw profErr || new Error('تعذر تحميل الحساب');
+    if(profErr || !profile){
+      // الموقوف تخفي القاعدة ملفه عنه، والخادم وحده يفرّقه عن فشل التحميل.
+      let suspended = false;
+      try {
+        const st = await fetch('/api/pos/account-status', { headers: { Authorization: 'Bearer ' + data.session.access_token } });
+        suspended = (await st.json()).suspended === true;
+      } catch(_) { /* يبقى الخطأ العام */ }
+      await window.supabaseClient.auth.signOut();
+      throw new Error(suspended ? 'حسابك موقوف مؤقتاً: توقف الكاشير بسبب اشتراك غير مسدد. تواصل مع دعم ركين عشان يرجع.' : 'تعذر تحميل الحساب');
+    }
     if(profile.user_type === 'employee'){ await window.supabaseClient.auth.signOut(); throw new Error('لازم تسجّل دخول كمدير أو مالك عشان تجهّز الجهاز.'); }
     DEVICE.businessId = profile.business_id;
     const { data: business } = await window.supabaseClient
@@ -9820,6 +9831,48 @@ document.getElementById('posSwitchStaffBtn').addEventListener('click', ()=>{
   showStaffPick();
 });
 
+/* ACCOUNT-WATCH:START */
+// إيقاف المطعم من الأدمن يوصل الجهاز المفتوح بالحدث، بلا استعلام دوري:
+// لحظة الإيقاف، وعند الرجوع للصفحة، وعند عودة النت، وعند الإقلاع.
+let rkAccountWatchBiz = null;
+function rkSetSuspendedScreen(on){
+  let el = document.getElementById('rkSuspendedScreen');
+  if(!on){ if(el) el.remove(); return; }
+  if(el) return;
+  el = document.createElement('div');
+  el.id = 'rkSuspendedScreen';
+  el.dir = 'rtl';
+  el.setAttribute('role', 'alertdialog');
+  el.setAttribute('aria-modal', 'true');
+  el.style.cssText = 'position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:28px;background:#EEF0E8;color:#14291B;text-align:center;font-family:inherit';
+  el.innerHTML = '<div style="font-size:24px;font-weight:800"></div><div style="font-size:16px;line-height:1.75;color:#4F5B52;max-width:520px"></div><button type="button" style="margin-top:10px;border:0;border-radius:18px;padding:15px 44px;font:inherit;font-size:16px;font-weight:800;background:#C4FF2B;color:#14291B;cursor:pointer"></button>';
+  el.children[0].textContent = t('الحساب موقوف');
+  el.children[1].textContent = t('حسابك موقوف مؤقتاً: توقف الكاشير بسبب اشتراك غير مسدد. تواصل مع دعم ركين عشان يرجع.');
+  el.children[2].textContent = t('إعادة المحاولة');
+  el.children[2].addEventListener('click', rkCheckAccount);
+  document.body.appendChild(el);
+}
+async function rkCheckAccount(){
+  try {
+    const { data: { session } } = await window.supabaseClient.auth.getSession();
+    if(!session) return;
+    const res = await fetch('/api/pos/account-status', { headers: { Authorization: 'Bearer ' + session.access_token } });
+    if(!res.ok) return; // ما عرفنا: تبقى الشاشة على حالها ولا ينقفل أحد بالغلط
+    rkSetSuspendedScreen((await res.json()).suspended === true);
+  } catch(_) { /* بلا نت */ }
+}
+function rkWatchAccount(businessId){
+  rkCheckAccount();
+  if(!businessId || rkAccountWatchBiz === businessId) return;
+  rkAccountWatchBiz = businessId;
+  try {
+    window.supabaseClient.channel('account-status:' + businessId).on('broadcast', { event: 'changed' }, rkCheckAccount).subscribe();
+  } catch(_) { /* يكفي فحص الرجوع وعودة النت */ }
+  window.addEventListener('online', rkCheckAccount);
+  document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') rkCheckAccount(); });
+}
+/* ACCOUNT-WATCH:END */
+
 async function loadCashierProfile(userId){
   const { data: profile, error } = await window.supabaseClient
     .from('profiles').select('id, business_id, branch_id, full_name, user_type').eq('id', userId).single();
@@ -9838,6 +9891,7 @@ async function loadCashierProfile(userId){
   }
   document.getElementById('posBusinessName').textContent = DEVICE.businessName || '';
   document.getElementById('posBranchName').textContent = DEVICE.branchName || '';
+  rkWatchAccount(CURRENT_PROFILE && CURRENT_PROFILE.business_id);
 }
 
 /* ============ Staff picker — who's on duty, purely for attributing orders

@@ -1,0 +1,148 @@
+name: iOS Store Screenshots
+
+# Runs the real iOS app on an iPhone and an iPad simulator and photographs the
+# screens App Store Connect needs. Uploads nothing to Apple and stops before
+# confirming payment, so no sale is recorded.
+#
+# Requires 3 repository secrets: REVIEW_EMAIL, REVIEW_PASSWORD, REVIEW_PIN.
+#
+# The PNGs go to a new branch per run (store-shots-<run id>). This repository
+# is public, so nothing from the login step is ever published: the login flow
+# is separate, failure screenshots are taken only after it passed, and the
+# Maestro log is scrubbed of the three secrets first.
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [react-native-migration]
+    paths:
+      - .github/workflows/ios-store-shots.yml
+      - react-native-poc/.maestro/**
+
+permissions:
+  contents: write
+
+jobs:
+  shots:
+    runs-on: macos-26
+    timeout-minutes: 75
+    defaults:
+      run:
+        working-directory: react-native-poc
+    env:
+      REVIEW_EMAIL: ${{ secrets.REVIEW_EMAIL }}
+      REVIEW_PASSWORD: ${{ secrets.REVIEW_PASSWORD }}
+      REVIEW_PIN: ${{ secrets.REVIEW_PIN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require the review secrets
+        run: |
+          for n in REVIEW_EMAIL REVIEW_PASSWORD REVIEW_PIN; do
+            if [ -z "${!n}" ]; then echo "::error::missing secret $n"; exit 1; fi
+          done
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: npm ci
+        run: npm ci
+
+      - name: Install CocoaPods dependencies
+        working-directory: react-native-poc/ios
+        run: |
+          bundle install
+          bundle exec pod install
+
+      - name: Build for the simulator
+        working-directory: react-native-poc/ios
+        run: |
+          set -o pipefail
+          xcodebuild -workspace RakeenPOC.xcworkspace -scheme RakeenPOC \
+            -configuration Release -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO \
+            | tail -n 40
+
+      - name: Install Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Photograph iPhone and iPad
+        id: run
+        continue-on-error: true
+        run: |
+          APP="$PWD/ios/build/Build/Products/Release-iphonesimulator/RakeenPOC.app"
+          FLOWS="$PWD/.maestro"
+          OUT="$GITHUB_WORKSPACE/out"
+          mkdir -p "$OUT"
+          pick() {
+            xcrun simctl list devices available -j | python3 -c "
+          import json,sys,re
+          pat=sys.argv[1]
+          found=[]
+          for rt,ds in json.load(sys.stdin)['devices'].items():
+              if 'iOS' not in rt: continue
+              v=[int(x) for x in re.findall(r'\d+',rt.split('iOS')[-1])]
+              for d in ds:
+                  if re.search(pat,d['name']): found.append((v,d['name'],d['udid']))
+          found.sort()
+          print(found[-1][2])
+          print(found[-1][1],file=sys.stderr)
+          " "$1"
+          }
+          status=0
+          for kind in iphone ipad; do
+            if [ "$kind" = iphone ]; then pat='iPhone.*Pro Max'; else pat='iPad Pro 13'; fi
+            udid=$(pick "$pat")
+            xcrun simctl boot "$udid"
+            xcrun simctl bootstatus "$udid" -b >/dev/null
+            xcrun simctl status_bar "$udid" override --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4
+            xcrun simctl install "$udid" "$APP"
+            mkdir -p "$OUT/$kind"
+            cd "$OUT/$kind"
+            if maestro --device "$udid" test -e REVIEW_EMAIL="$REVIEW_EMAIL" -e REVIEW_PASSWORD="$REVIEW_PASSWORD" -e REVIEW_PIN="$REVIEW_PIN" "$FLOWS/store-login.yaml" > login.log 2>&1; then
+              if ! maestro --device "$udid" test "$FLOWS/store-shots.yaml" > shots.log 2>&1; then
+                status=1
+                xcrun simctl io "$udid" screenshot failed.png || true
+              fi
+            else
+              status=1
+            fi
+            cd - >/dev/null
+            xcrun simctl shutdown "$udid" || true
+          done
+          exit $status
+
+      - name: Publish screenshots to a branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_OUTCOME: ${{ steps.run.outcome }}
+        working-directory: .
+        run: |
+          mkdir -p out
+          python3 - <<'PY'
+          import glob, os
+          secrets = [os.environ[k] for k in ('REVIEW_EMAIL', 'REVIEW_PASSWORD', 'REVIEW_PIN') if os.environ.get(k)]
+          for path in glob.glob('out/*/*.log'):
+              text = open(path, encoding='utf8', errors='replace').read()
+              for s in secrets:
+                  text = text.replace(s, '***')
+              open(path, 'w', encoding='utf8').write(text)
+          PY
+          echo "$RUN_OUTCOME" > out/outcome.txt
+          cd out
+          git init -q -b "store-shots-$GITHUB_RUN_ID"
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -- outcome.txt $(find . -type f \( -name '*.png' -o -name '*.log' \) -not -path './.git/*')
+          git commit -q -m "Store screenshots run $GITHUB_RUN_ID"
+          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "store-shots-$GITHUB_RUN_ID"

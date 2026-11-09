@@ -5,6 +5,7 @@ import { checkRateLimit } from "@/lib/rateLimit";
 import { checkDbRateLimit } from "@/lib/dbRateLimit";
 import { FEATURE_CATALOG } from "@/lib/contracts";
 import { planByKey } from "@/lib/plans";
+import { notifyAccountStatusChanged } from "@/lib/accountSuspended";
 
 const FEATURE_KEYS = new Set<string>(FEATURE_CATALOG.map((f) => f.key));
 
@@ -256,6 +257,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   await logAdminAction(admin, caller.email || "unknown", "update_business", `business:${businessId}`, "success", {
     fields: Object.keys(updates),
   });
+  if ("is_active" in updates) {
+    await notifyAccountStatusChanged(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, businessId);
+  }
   return NextResponse.json({ ok: true });
 }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { ACCOUNT_SUSPENDED_CODE, ACCOUNT_SUSPENDED_MESSAGE } from "@/lib/accountSuspended";
 
 // H5 (security hardening phase 2) — the cashier PIN is only 4 digits
 // (10,000 combinations), checked before this route existed by calling
@@ -75,6 +76,15 @@ export async function POST(request: NextRequest) {
   // Success — clear the counter so a run of typos doesn't leave the branch
   // sitting near a lockout threshold for the rest of the day.
   await admin.from("pos_login_attempts").delete().eq("branch_id", branchId);
+
+  // Said only after a correct PIN, so it can't be used to probe branches.
+  const { data: branch } = await admin.from("branches").select("business_id").eq("id", branchId).maybeSingle();
+  if (branch?.business_id) {
+    const { data: business } = await admin.from("businesses").select("is_active").eq("id", branch.business_id).maybeSingle();
+    if (business?.is_active === false) {
+      return NextResponse.json({ error: ACCOUNT_SUSPENDED_MESSAGE, code: ACCOUNT_SUSPENDED_CODE }, { status: 403 });
+    }
+  }
 
   return NextResponse.json({
     session: {

@@ -1,0 +1,78 @@
+# App Store screenshots of the real app. Stops on the payment screen and never
+# taps «تأكيد الدفع», so no sale is recorded.
+appId: com.rakeen.pos
+---
+- extendedWaitUntil:
+    visible: "مين اللي مداوم؟|الرصيد الافتتاحي|الكل"
+    timeout: 90000
+- runFlow:
+    when:
+      visible: "مين اللي مداوم؟"
+    commands:
+      - tapOn: "عمار"
+      - extendedWaitUntil:
+          visible: "الرصيد الافتتاحي|الكل"
+          timeout: 60000
+- runFlow:
+    when:
+      visible: "الرصيد الافتتاحي"
+    commands:
+      - tapOn: "0.00"
+      - inputText: "100"
+      - tapOn: "الرصيد الافتتاحي"
+      - tapOn:
+          text: "بدء الوردية"
+          index: 1
+- extendedWaitUntil:
+    visible: "الكل"
+    timeout: 90000
+- tapOn: "الكل"
+- waitForAnimationToEnd
+
+# البوكس: الشاشة اللي تبيّن اختيار القطع
+- scrollUntilVisible:
+    element: "بوكس وسط مشكّل"
+    direction: DOWN
+- tapOn: "بوكس وسط مشكّل"
+- extendedWaitUntil:
+    visible: ".*اختيار.*"
+    timeout: 20000
+- waitForAnimationToEnd
+- takeScreenshot: 04-box
+- tapOn: "✕"
+- waitForAnimationToEnd
+
+# طلب من ثلاثة أصناف بلا خيارات
+- scrollUntilVisible:
+    element: "بشميل لحم"
+    direction: DOWN
+- tapOn: "بشميل لحم"
+- tapOn: "بشميل لحم"
+- scrollUntilVisible:
+    element: "بيبسي"
+    direction: DOWN
+- tapOn: "بيبسي"
+- scrollUntilVisible:
+    element: "مياه"
+    direction: DOWN
+- tapOn: "مياه"
+- waitForAnimationToEnd
+- takeScreenshot: 01-cart
+
+# الدفع: نوع الطلب ثم العميل ثم طريقة الدفع
+- tapOn: "ادفع.*"
+- extendedWaitUntil:
+    visible: "سفري"
+    timeout: 20000
+- tapOn: "سفري"
+- extendedWaitUntil:
+    visible: "تخطي"
+    timeout: 20000
+- waitForAnimationToEnd
+- takeScreenshot: 03-customer
+- tapOn: "تخطي"
+- extendedWaitUntil:
+    visible: "تأكيد الدفع"
+    timeout: 20000
+- waitForAnimationToEnd
+- takeScreenshot: 02-payment

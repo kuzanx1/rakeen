@@ -21,10 +21,11 @@ import { Printer, printReceipt } from './src/platform/printer';
 import { CashDrawer, openCashDrawer } from './src/platform/cashDrawer';
 import { getDeviceInfo, DeviceInfo } from './src/platform/device';
 import LoginScreen from './src/ui/LoginScreen';
+import AccountSuspendedScreen from './src/ui/AccountSuspendedScreen';
 import ProductsScreen, { SelectedTableContext } from './src/ui/ProductsScreen';
 import TablesScreen from './src/ui/TablesScreen';
 import type { CashierProfile } from './src/domain/auth';
-import { logout, getDeviceConfig } from './src/application/authService';
+import { logout, getDeviceConfig, checkAccountSuspended, subscribeToAccountStatus } from './src/application/authService';
 import { startAutoSync } from './src/application/syncScheduler';
 import { startPrintQueueAutoProcess } from './src/application/printQueueScheduler';
 import { startPrintStation } from './src/application/printStationService';
@@ -710,6 +711,33 @@ function App(): React.JSX.Element {
     [],
   );
 
+  // إيقاف المطعم من الأدمن يوصل الجهاز المفتوح بالحدث، بلا استعلام دوري:
+  // لحظة الإيقاف، وعند الرجوع للتطبيق، وعند عودة النت، وعند الإقلاع.
+  const [accountSuspended, setAccountSuspended] = useState(false);
+  const recheckAccount = useCallback(() => {
+    checkAccountSuspended().then(s => {
+      if (s !== null) setAccountSuspended(s);
+    });
+  }, []);
+  const accountBusinessId = cashier?.business_id ?? null;
+  useEffect(() => {
+    if (accountBusinessId == null) {
+      setAccountSuspended(false);
+      return;
+    }
+    const unsubscribe = subscribeToAccountStatus(accountBusinessId, recheckAccount);
+    const appState = AppState.addEventListener('change', next => {
+      if (next === 'active') recheckAccount();
+    });
+    return () => {
+      unsubscribe();
+      appState.remove();
+    };
+  }, [accountBusinessId, recheckAccount]);
+  useEffect(() => {
+    if (accountBusinessId != null && online) recheckAccount();
+  }, [accountBusinessId, online, recheckAccount]);
+
   // The bell flag lives up here rather than in ProductsScreen, so it needs
   // its own re-read when the owner changes it.
   useEffect(() => {
@@ -825,6 +853,10 @@ function App(): React.JSX.Element {
 
   if (!cashier) {
     return <LoginScreen onLoggedIn={setCashier} />;
+  }
+
+  if (accountSuspended) {
+    return <AccountSuspendedScreen onRetry={recheckAccount} />;
   }
 
   // afterStaffReady() (rakeen-pos.js:6206) runs the shift check only AFTER
