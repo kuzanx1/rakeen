@@ -909,3 +909,13 @@ body{background:#FBFAF5;}
   .pager-blob{width:320px; height:320px;}
   .t-ring{bottom:2%; inset-inline-start:0;}
 }
+
+/* التطبيق على App Store: نفس تركيب جوالي البيجر، بلون ركين */
+.app-dl{display:flex; flex-wrap:wrap; gap:12px; margin-top:24px;}
+.btn-ink{background:var(--ink); color:var(--lime);}
+.btn-ink:hover{box-shadow:0 12px 30px -10px rgba(0,0,0,.45);}
+.btn-line{border:1.5px solid rgba(18,18,18,.22); color:var(--ink); background:transparent;}
+.btn-line:hover{border-color:var(--ink);}
+.app-plan{background:rgba(196,255,43,.28); color:var(--ink);}
+.app-blob{background:radial-gradient(closest-side, rgba(196,255,43,.38), transparent);}
+@media (max-width:640px){ .app-dl .btn{flex:1 1 100%;} }

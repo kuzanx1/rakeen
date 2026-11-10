@@ -18,6 +18,7 @@ type Lang = "ar" | "en";
 type Period = "monthly" | "annual";
 
 const WA = "966557444227";
+const APP_STORE = "https://apps.apple.com/sa/app/id6808202307";
 // No self sign-up for now (lib/signup.ts): every "start" opens WhatsApp.
 const START = startWhatsAppLink();
 const waLink = (text: string) => `https://wa.me/${WA}?text=${encodeURIComponent(text)}`;
@@ -237,6 +238,16 @@ const T = {
         p: "تكلفة كل طبق من وصفاتك الفعلية، والمخزون ينقص مع كل بيعة. صوّر فاتورة المورد وخلاص.",
         b: ["صافي الربح الحقيقي", "تنبيه قبل ما يخلص صنف", "قراءة فواتير الموردين بالتصوير"],
       },
+      app: {
+        k: "تطبيق ركين",
+        h: "ركين صار على App Store.",
+        p: "كاشيرك على الآيفون والآيباد، بنفس حسابك ونفس بياناتك. حمّله مجاناً، سجّل دخولك، وكمّل شغلك.",
+        b: ["أصنافك والسلة والدفع في شاشة وحدة", "الطلبات وملخص الوردية من جوالك", "وأجهزة الأندرويد والسنمي بتحميل مباشر"],
+        ios: "حمّله من App Store",
+        android: "أندرويد · تحميل مباشر",
+        plan: "في كل الباقات",
+        real: "لقطات حقيقية من تطبيق ركين على الآيفون",
+      },
     },
     rcpt: { title: "فاتورة ضريبية مبسطة", no: "رقم الفاتورة", sub: "المجموع قبل الضريبة", vat: "ضريبة القيمة المضافة ١٥٪", total: "الإجمالي", cash: "شبكة", thanks: "شكرًا لزيارتكم" },
     off: "بدون اتصال · ٣ طلبات محفوظة",
@@ -367,6 +378,16 @@ const T = {
         h: "Know what you make. To the riyal.",
         p: "Every dish costed from your real recipes, stock that drops with each sale. Snap the supplier invoice and you're done.",
         b: ["Real net profit", "Heads-up before an item runs out", "Supplier invoices read from a photo"],
+      },
+      app: {
+        k: "Rakeen app",
+        h: "Rakeen is on the App Store.",
+        p: "Your cashier on iPhone and iPad, with the same account and the same data. Download it free, sign in, and carry on.",
+        b: ["Items, cart and payment on one screen", "Orders and the shift summary on your phone", "Android and SUNMI devices by direct download"],
+        ios: "Download on the App Store",
+        android: "Android · direct download",
+        plan: "In every plan",
+        real: "Real screenshots from the Rakeen iPhone app",
       },
     },
     rcpt: { title: "Simplified tax invoice", no: "Invoice no.", sub: "Subtotal", vat: "VAT 15%", total: "Total", cash: "Card", thanks: "Thank you for visiting" },
@@ -1668,6 +1689,43 @@ export default function LandingPage() {
               <li key={m}>{m}</li>
             ))}
           </ul>
+        </div>
+      </section>
+
+      {/* ---------- chapter: the app on the App Store ---------- */}
+      <section className="chap chap-flip" id="app">
+        <div className="wrap chap-in">
+          <div className="chap-copy" data-in>
+            <span className="chap-n mono" aria-hidden>07</span>
+            <span className="kicker">
+              <Icon name="devices" />
+              {t.ch.app.k}
+            </span>
+            <h2>{t.ch.app.h}</h2>
+            <p>{t.ch.app.p}</p>
+            <Bullets items={t.ch.app.b} />
+            <div className="app-dl">
+              <a href={APP_STORE} target="_blank" rel="noopener noreferrer" className="btn btn-ink">
+                {t.ch.app.ios}
+              </a>
+              <a href="/android" className="btn btn-line">
+                {t.ch.app.android}
+              </a>
+            </div>
+            <span className="pager-plan app-plan">
+              <Icon name="check" />
+              {t.ch.app.plan}
+            </span>
+          </div>
+          <div className="chap-art art-pager art-app" data-in>
+            <div className="pager-blob app-blob" aria-hidden />
+            <div className="iphone pg-back">
+              <img src="/landing/app-pay.jpg" alt={t.ch.app.real} loading="lazy" />
+            </div>
+            <div className="iphone pg-front">
+              <img src="/landing/app-menu.jpg" alt={t.ch.app.real} loading="lazy" />
+            </div>
+          </div>
         </div>
       </section>
 
