@@ -731,6 +731,26 @@ if (!window.__rakeenOrderBooted) {
       } catch (_) {}
     }
 
+    // الوصف (اختياري): استعلامٌ مستقلّ مثل السعرات، فقبل ترحيل العمود يرجع
+    // خطأ ويبقى المنيو كما هو بدون وصف.
+    if (PRODUCTS.length) {
+      try {
+        const { data: dRows, error: dErr } = await sb.from('menu_items')
+          .select('id, description, description_en').in('id', PRODUCTS.map(p => p.id))
+          .or('description.not.is.null,description_en.not.is.null');
+        if (!dErr && dRows) {
+          const byId = {};
+          dRows.forEach(r => { byId[r.id] = r; });
+          PRODUCTS.forEach(p => {
+            const r = byId[p.id];
+            if (!r) return;
+            p.description = (r.description || '').trim();
+            p.descriptionEn = (r.description_en || '').trim();
+          });
+        }
+      } catch (_) {}
+    }
+
     // العروض: استعلامٌ مستقلّ أيضاً. لو الجدول ما رُحّل يرجع خطأ ويبقى
     // الشريط مخفياً، والمنيو كما هو.
     OFFERS = [];
@@ -1071,6 +1091,24 @@ if (!window.__rakeenOrderBooted) {
     </div>`;
   }
 
+  // الوصف الاختياري: سطر واحد في البطاقة، وكامل (عربي + إنجليزي) في نافذة الصنف.
+  function escDesc(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+  function hasDesc(p) { return !!(p.description || p.descriptionEn); }
+  function descLineHtml(p) {
+    if (!hasDesc(p)) return '';
+    const ar = !!p.description;
+    return `<div class="om-product-desc" dir="${ar ? 'rtl' : 'ltr'}">${escDesc(p.description || p.descriptionEn)}</div>`;
+  }
+  function descFullHtml(p) {
+    if (!hasDesc(p)) return '';
+    return `<div class="om-desc-full">
+      ${p.description ? `<p dir="rtl">${escDesc(p.description)}</p>` : ''}
+      ${p.descriptionEn ? `<p dir="ltr" class="om-desc-en">${escDesc(p.descriptionEn)}</p>` : ''}
+    </div>`;
+  }
+
   function caloriesHtml(p, cls) {
     if (p.calories == null) return '';
     if (!(DISPLAY_MODE ? CAL_SHOW_DISPLAY : CAL_SHOW_STORE)) return '';
@@ -1100,6 +1138,7 @@ if (!window.__rakeenOrderBooted) {
           ${p.nameEn ? `<span class="om-product-name-en">${p.nameEn}</span>` : ''}
           <span class="om-product-name-ar ${p.nameEn ? 'om-name-sub' : ''}">${p.name}</span>
         </div>
+        ${descLineHtml(p)}
         ${p.costMode === 'box' ? `<div class="om-product-badge">تركيبة حرة — ${p.totalPieces} قطعة</div>` : ''}
         <div class="om-product-price">${formatPrice(p.price)}</div>
         ${caloriesHtml(p)}
@@ -1230,18 +1269,20 @@ if (!window.__rakeenOrderBooted) {
   function openProduct(productId) {
     const product = PRODUCTS.find(p => p.id === productId);
     if (product.costMode === 'box') { openBoxBuilder(product); return; }
-    const modDef = MODIFIER_PRODUCTS[productId];
-    if (!modDef) {
+    const realDef = MODIFIER_PRODUCTS[productId];
+    if (!realDef) {
       if (DISPLAY_MODE) { openDisplayQuickView(product); return; }
-      addToCart(product, null, 1); showToast('أُضيف — ' + product.name); return;
+      // بدون وصف: يضاف بضغطة مثل قبل. مع وصف: تفتح نافذته عشان ينقرأ كامل.
+      if (!hasDesc(product)) { addToCart(product, null, 1); showToast('أُضيف — ' + product.name); return; }
     }
+    const modDef = realDef || { groups: [] };
     const config = {};
     modDef.groups.forEach(g => {
       const def = g.options.find(o => o.default) || g.options[0];
       config[g.id] = def.id;
     });
     modifierState = { product, modDef, config, qty: 1 };
-    document.getElementById('omModifierTitle').textContent = 'خصّص طلبك';
+    document.getElementById('omModifierTitle').textContent = modDef.groups.length ? 'خصّص طلبك' : 'تفاصيل الطلب';
     renderModifierSheet();
     document.getElementById('omModifierOverlay').classList.add('show');
   }
@@ -1258,6 +1299,7 @@ if (!window.__rakeenOrderBooted) {
           ${product.nameEn ? `<span class="om-product-name-en">${product.nameEn}</span>` : ''}
           <span class="om-product-name-ar ${product.nameEn ? 'om-name-sub' : ''}">${product.name}</span>
         </div>
+        ${descFullHtml(product)}
         <div class="om-quickview-price">${formatPrice(product.price)}</div>
         ${caloriesHtml(product, 'om-cal-lg')}
         ${pointsChipHtml(product, 'lg')}
@@ -1283,6 +1325,7 @@ if (!window.__rakeenOrderBooted) {
           <span class="om-product-name-ar ${product.nameEn ? 'om-name-sub' : ''}">${product.name}</span>
         </div>
         ${subtitle ? `<div class="om-sheet-hero-sub">${subtitle}</div>` : ''}
+        ${descFullHtml(product)}
         ${caloriesHtml(product, 'om-cal-lg')}
         ${pointsChipHtml(product)}
       </div>
@@ -1328,7 +1371,9 @@ if (!window.__rakeenOrderBooted) {
     const confirmBtn = document.getElementById('omModConfirm');
     if (confirmBtn) confirmBtn.addEventListener('click', () => {
       const label = modDef.groups.map(g => g.options.find(o => o.id === config[g.id])?.name).filter(Boolean).join('، ');
-      addToCart(product, { ...config }, qty, label);
+      // صنف بدون إضافات (فُتح عشان وصفه): نفس سطر السلة اللي تعطيه الضغطة المباشرة
+      if (modDef.groups.length) addToCart(product, { ...config }, qty, label);
+      else addToCart(product, null, qty);
       document.getElementById('omModifierOverlay').classList.remove('show');
       showToast('أُضيف — ' + product.name);
     });

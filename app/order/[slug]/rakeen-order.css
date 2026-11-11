@@ -1585,3 +1585,17 @@ html[data-style="folk"] .om-cart-bar .om-cart-count{background:var(--brand); col
   .om-shell[data-style="folk"] .om-occ-title{font-size:38px;}
   .om-shell[data-style="facade"] .om-occ-title{font-size:32px;}
 }
+
+/* ============ وصف الصنف (اختياري) ============
+   سطر واحد هادئ في البطاقة، وكامل في نافذة الصنف. أصناف بدون وصف ما
+   يتغير فيها شي. */
+.om-product-desc{
+  font-size:11.5px; font-weight:500; line-height:1.55; color:var(--muted);
+  margin:2px 0 4px; align-self:stretch;
+  width:0; min-width:100%; /* لا يوسّع البطاقة: عرضه من البطاقة مو من النص */
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.om-shell[data-theme="luxury"] .om-product-desc{text-align:center;}
+.om-desc-full{margin:10px auto 2px; max-width:440px; text-align:center;}
+.om-desc-full p{font-size:14px; line-height:1.75; color:var(--ink); opacity:.82; margin:0;}
+.om-desc-full p.om-desc-en{font-size:12.5px; color:var(--muted); opacity:1; margin-top:4px;}

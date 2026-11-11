@@ -8379,6 +8379,9 @@ async function loadBusinessData(){
       // undefined (not null) when the column doesn't exist yet: the save
       // below only sends `calories` when this key was ever real.
       calories: m.calories === undefined ? undefined : (m.calories != null ? Number(m.calories) : null),
+      // Same idea for the optional description: undefined until the column exists.
+      description: m.description === undefined ? undefined : (m.description || ''),
+      descriptionEn: m.description_en === undefined ? undefined : (m.description_en || ''),
       barcode: m.barcode || '',
       finishedGoodStockItemId: m.finished_good_stock_item_id || null,
       recipe: [],
@@ -15971,6 +15974,8 @@ async function openProductEditModal(productId, origin){
        linkInventory:existing.linkInventory, linkProfit:existing.linkProfit,
        pointsRedeemPrice: existing.pointsRedeemPrice,
        calories: existing.calories, caloriesWasSet: existing.calories != null,
+       description: existing.description || '', descriptionEn: existing.descriptionEn || '',
+       descWasSet: !!(existing.description || existing.descriptionEn),
        barcode: existing.barcode || '',
        modifierGroupIds:[...existing.modifierGroupIds],
        totalPieces: slot ? slot.totalPieces : 0,
@@ -15980,7 +15985,7 @@ async function openProductEditModal(productId, origin){
        onlineTagLabel: existing.onlineTagLabel, onlineTagColor: existing.onlineTagColor,
        onlinePrice: existing.onlinePrice}
     : {name:'', nameEn:'', price:0, category:MENU_CATEGORIES[0]||'', extraCategories:[], image:null, imageFile:null,
-       costMode:'direct', directCost:0, recipe:[], linkInventory:false, linkProfit:false, pointsRedeemPrice:null, calories:null, caloriesWasSet:false, barcode:'', modifierGroupIds:[],
+       costMode:'direct', directCost:0, recipe:[], linkInventory:false, linkProfit:false, pointsRedeemPrice:null, calories:null, caloriesWasSet:false, description:'', descriptionEn:'', descWasSet:false, barcode:'', modifierGroupIds:[],
        totalPieces:0, eligibleItems:[], defaultMix:[], finishedGoodStockItemId:null,
        visibleOnline: true, visiblePos: true,
        onlineTagLabel: null, onlineTagColor: null, onlinePrice: null};
@@ -16091,6 +16096,16 @@ function productEditBodyHtml(){
         </div>
       </div>
       <p class="stock-qty-helper" style="margin-top:-8px; margin-bottom:12px;">الاسم الإنجليزي اختياري — يظهر بالمتجر الإلكتروني وبالكاشير لما تكون لغته إنجليزي.</p>
+      <div class="menu-add-row" style="margin-bottom:12px;">
+        <div class="menu-add-field">
+          <label>الوصف (اختياري) ${helpIcon('يظهر للزبون في المتجر الإلكتروني بس: سطر صغير تحت اسم المنتج، وكامل لما يفتحه. ما يظهر في الكاشير. سيبه فاضي لو ما تحتاجه.')}</label>
+          <textarea id="pfDesc" rows="2" maxlength="300" placeholder="مثال: 3 أسياخ كباب دجاج مع الأرز والبطاطس">${escapeHtml(productModalState.description||'')}</textarea>
+        </div>
+        <div class="menu-add-field">
+          <label>Description (optional)</label>
+          <textarea id="pfDescEn" rows="2" maxlength="300" dir="ltr" placeholder="e.g: 3 chicken kebab skewers with rice and fries">${escapeHtml(productModalState.descriptionEn||'')}</textarea>
+        </div>
+      </div>
       <div class="menu-add-field" style="margin-bottom:4px; max-width:260px;"><label>السعر (ر.س) ${helpIcon('هذا السعر عمومًا مرتبط بإعداد "أسعار المنيو شاملة الضريبة" اللي تتحكم فيه من الإعدادات ← الضريبة والفوترة — التوضيح تحت الحقل يعكس إعدادك الحالي.')}</label><input type="number" id="pfPrice" value="${productModalState.price}"></div>
       <p class="stock-qty-helper" id="pfPriceVatNote" style="margin-top:0;"></p>
       <div class="menu-add-field" style="margin-bottom:12px; max-width:260px;"><label>السعرات الحرارية (اختياري) ${helpIcon('تظهر للزبون تحت السعر بالمتجر والمنيو الإلكتروني بخط صغير. سيبها فاضية لو ما تعرفها.')}</label><input type="number" id="pfCalories" min="0" step="1" value="${productModalState.calories != null ? productModalState.calories : ''}" placeholder="مثال: ٢٣٠"></div>
@@ -16271,6 +16286,8 @@ function renderProductEditBody(){
   });
   document.getElementById('pfName').addEventListener('input', (e)=> productModalState.name = e.target.value);
   document.getElementById('pfNameEn').addEventListener('input', (e)=> productModalState.nameEn = e.target.value);
+  document.getElementById('pfDesc').addEventListener('input', (e)=> productModalState.description = e.target.value);
+  document.getElementById('pfDescEn').addEventListener('input', (e)=> productModalState.descriptionEn = e.target.value);
   document.getElementById('pfPrice').addEventListener('input', (e)=>{ productModalState.price = parseFloat(e.target.value)||0; updateCostPreview(); updatePfPriceVatNote(); });
   updatePfPriceVatNote();
   renderProductCategories();
@@ -16583,6 +16600,7 @@ async function saveProductEdit(){
     linkInventory: productModalState.linkInventory, linkProfit: productModalState.linkProfit,
     pointsRedeemPrice: productModalState.pointsRedeemPrice,
     calories: (productModalState.calories != null || productModalState.caloriesWasSet) ? productModalState.calories : undefined,
+    description: (productModalState.description||'').trim(), descriptionEn: (productModalState.descriptionEn||'').trim(),
     barcode: productModalState.barcode || '',
     visibleOnline: productModalState.visibleOnline, visiblePos: productModalState.visiblePos,
     onlineTagLabel: productModalState.onlineTagLabel, onlineTagColor: productModalState.onlineTagColor,
@@ -16617,6 +16635,10 @@ async function saveProductEdit(){
       // Sent only when there's something to write or clear, so saving a
       // product never references the column before its migration is run.
       ...((productModalState.calories != null || productModalState.caloriesWasSet) ? { calories: productModalState.calories } : {}),
+      // Optional description: only sent when there's text or one existed, so a
+      // business that never uses it never touches the column.
+      ...((((productModalState.description||'').trim() || (productModalState.descriptionEn||'').trim()) || productModalState.descWasSet)
+        ? { description: (productModalState.description||'').trim() || null, description_en: (productModalState.descriptionEn||'').trim() || null } : {}),
       barcode: productModalState.barcode || null,
       visible_online: productModalState.visibleOnline, visible_pos: productModalState.visiblePos,
       online_tag_label: productModalState.onlineTagLabel, online_tag_color: productModalState.onlineTagLabel ? productModalState.onlineTagColor : null,
