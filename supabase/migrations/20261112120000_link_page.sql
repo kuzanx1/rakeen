@@ -1,5 +1,5 @@
 -- «روابطك» -- صفحة روابط المطعم (link in bio): واتساب، المنيو، الموقع،
--- السوشال، تطبيقات التوصيل... بثلاثة تصاميم، كل تصميم بخياراته.
+-- السوشال، تطبيقات التوصيل، أصناف من المنيو... بخمسة تصاميم، كل تصميم بخياراته.
 -- ميزة باقتي «عماد» و«صرح» (نفس lib/plans.ts -- plans-matrix-sync يرسب لو اختلفا).
 --
 -- الملف يُعاد تشغيله بأمان. businesses جدول ساخن: lock_timeout قصير، ولو
@@ -58,7 +58,20 @@ as $fn$
     'slug', b.online_menu_slug,
     'store', coalesce(b.online_ordering_enabled, false),
     'booking', coalesce(b.online_booking_enabled, false),
-    'page', b.link_page
+    'page', b.link_page,
+    -- أصناف «من المنيو» اللي اختارها، بترتيبه، بسعرها الحالي (سعر الأونلاين
+    -- لو له)، والمخفي أونلاين أو الموقوف ما يطلع.
+    'menu', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+               'id', m.id, 'name', m.name, 'price', coalesce(m.online_price, m.price), 'image', m.image_url
+             ) order by e.ord), '[]'::jsonb)
+        from jsonb_array_elements_text(
+               case when jsonb_typeof(b.link_page->'menu'->'items') = 'array' then b.link_page->'menu'->'items' else '[]'::jsonb end
+             ) with ordinality as e(v, ord)
+        join menu_items m
+          on m.id = (case when e.v ~ '^[0-9]{1,15}$' then e.v::bigint end)
+         and m.business_id = b.id and m.active and m.visible_online is not false
+    )
   )
   from businesses b
   where b.online_menu_slug = lower(p_slug)

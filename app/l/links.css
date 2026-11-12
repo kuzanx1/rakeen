@@ -26,6 +26,8 @@
   border: 1.2px solid var(--lk-accent); color: var(--lk-ink); transition: background .2s, color .2s, transform .2s;
   animation: lk-rise .55s both cubic-bezier(.2,.7,.2,1); }
 .lk-btn:hover { transform: translateY(-1px); }
+.lk-btn.has-ic { position: relative; padding-inline: 50px; }
+.lk-btn-ic { position: absolute; inset-inline-start: 15px; top: 50%; transform: translateY(-50%); display: grid; opacity: .92; }
 .lk[data-corner="sharp"] .lk-btn { border-radius: 2px; }
 .lk[data-corner="soft"] .lk-btn { border-radius: 12px; }
 .lk[data-corner="pill"] .lk-btn { border-radius: 999px; }

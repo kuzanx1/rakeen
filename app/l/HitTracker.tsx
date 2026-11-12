@@ -16,18 +16,30 @@ function hit(slug: string, link: string) {
   }).catch(() => {});
 }
 
-export default function HitTracker({ slug }: { slug: string }) {
+export default function HitTracker({ slug, name }: { slug: string; name: string }) {
   useEffect(() => {
     const key = "lk-seen-" + slug;
     let seen = false;
     try { seen = sessionStorage.getItem(key) === "1"; sessionStorage.setItem(key, "1"); } catch {}
     if (!seen) hit(slug, "");
     const onClick = (e: MouseEvent) => {
+      const sh = (e.target as Element | null)?.closest?.("[data-share]") as HTMLElement | null;
+      if (sh) {
+        // مشاركة الجوال الأصلية، وإلا ننسخ الرابط ونقول «نُسخ».
+        const url = location.href.split("#")[0];
+        if (navigator.share) navigator.share({ title: name, url }).catch(() => {});
+        else navigator.clipboard?.writeText(url).then(() => {
+          sh.setAttribute("data-done", "");
+          setTimeout(() => sh.removeAttribute("data-done"), 1800);
+        }).catch(() => {});
+        hit(slug, "share");
+        return;
+      }
       const a = (e.target as Element | null)?.closest?.("a[data-lid]");
       if (a) hit(slug, a.getAttribute("data-lid") || "");
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
-  }, [slug]);
+  }, [slug, name]);
   return null;
 }

@@ -2,10 +2,12 @@
 // (app/l/[slug])، ومعاينة لوحة التحكم، ومحرّرها. والإعدادات كلها في
 // businesses.link_page (jsonb) -- migration 20261112120000.
 
+import { ICON_KEYS, type IconKey } from "./icon-keys";
+
 export type LinkType =
   | "whatsapp" | "phone" | "email" | "order" | "booking" | "location"
   | "instagram" | "tiktok" | "snapchat" | "x" | "facebook" | "youtube"
-  | "website" | "delivery" | "review" | "custom";
+  | "website" | "delivery" | "review" | "custom" | "heading";
 
 export type LinkItem = {
   id: string;
@@ -13,22 +15,24 @@ export type LinkItem = {
   label: string;
   value: string;
   on: boolean;
-  /** مميّز: يبرز عن غيره (معبّأ في «مخملي» و«غلاف»، وعلامة في «جريء»). */
+  /** مميّز: يبرز عن غيره. */
   star?: boolean;
-  /** سطر صغير تحت الاسم في «جريء». */
+  /** سطر صغير تحت الاسم («جريء» و«لؤلؤي»). */
   note?: string;
+  /** أيقونة من المكتبة بدل أيقونة النوع. */
+  icon?: IconKey | "";
 };
 
 export type Stat = { value: string; label: string };
 
-export type TemplateKey = "velvet" | "cover" | "bold";
+export type TemplateKey = "velvet" | "cover" | "bold" | "ivory" | "pearl";
 export type Corner = "sharp" | "soft" | "pill";
-export type FontKey = "ruqaa" | "amiri" | "messiri" | "kufi" | "alexandria" | "lalezar";
+export type FontKey = "ruqaa" | "amiri" | "messiri" | "kufi" | "alexandria" | "lalezar" | "naskh" | "tajawal";
 
 export type VelvetOpts = {
   bg: string; bgColor: string; overlay: number; tint: string; blur: number;
   font: FontKey; avatar: "oval" | "circle" | "none"; btn: "outline" | "glass" | "solid";
-  corner: Corner; ink: string; accent: string; socialsAt: "top" | "bottom";
+  corner: Corner; ink: string; accent: string; socialsAt: "top" | "bottom"; grain: boolean;
 };
 export type CoverOpts = {
   cover: string; coverH: "s" | "m" | "l"; fade: boolean; panel: string; ink: string;
@@ -38,6 +42,16 @@ export type CoverOpts = {
 export type BoldOpts = {
   hero: string; heroInk: string; panel: string; ink: string; accent: string; tile: string;
   tileInk: string; font: FontKey; photo: string; showStats: boolean; rows: "list" | "grid";
+};
+/** «عاجي»: ورق أوف وايت، إطار رفيع، وقائمة مثل منيو المطاعم الراقية. */
+export type IvoryOpts = {
+  paper: string; ink: string; accent: string; font: FontKey; frame: "double" | "single" | "none";
+  mark: "logo" | "monogram" | "none"; rows: "lines" | "boxed" | "center"; texture: boolean; ornament: boolean;
+};
+/** «لؤلؤي»: أبيض نظيف، بطاقات بظل ناعم، وأيقونة في مربع ملوّن. */
+export type PearlOpts = {
+  bg: string; card: string; ink: string; accent: string; font: FontKey; cover: string;
+  cards: "float" | "line" | "flat"; corner: Corner; tile: "tint" | "solid" | "none"; glow: boolean;
 };
 
 export type LinkPageConfig = {
@@ -52,18 +66,31 @@ export type LinkPageConfig = {
   socials: LinkItem[];
   stats: Stat[];
   cta: { on: boolean; label: string; type: LinkType; value: string };
-  opts: { velvet: VelvetOpts; cover: CoverOpts; bold: BoldOpts };
+  /** أيقونة جنب نص كل زر (في التصاميم اللي الأيقونة فيها اختيارية). */
+  icons: boolean;
+  /** زر مشاركة الصفحة أعلى الشاشة. */
+  share: boolean;
+  /** شريط إعلان أعلى الصفحة: عرض، افتتاح فرع، ساعات رمضان. link: "order" أو رابط. */
+  announce: { on: boolean; text: string; link: string };
+  /** أصناف من المنيو داخل الصفحة. items = أرقام الأصناف بالترتيب. */
+  menu: { on: boolean; title: string; items: string[]; price: boolean; at: "top" | "bottom" };
+  opts: { velvet: VelvetOpts; cover: CoverOpts; bold: BoldOpts; ivory: IvoryOpts; pearl: PearlOpts };
 };
 
+/** صنف كما يرجّعه الخادم (get_link_page) أو يقرؤه المحرّر. */
+export type MenuCard = { id: number; name: string; price: number; image: string | null };
+
 /** ما يعرفه الخادم عن المطعم (get_link_page). */
-export type LinkBiz = { name: string; logo: string | null; slug: string; store: boolean; booking: boolean };
+export type LinkBiz = { name: string; logo: string | null; slug: string; store: boolean; booking: boolean; menu?: MenuCard[] };
 
 export const FONTS: Record<FontKey, { label: string; family: string; google: string }> = {
   ruqaa: { label: "رقعة", family: "'Aref Ruqaa', serif", google: "Aref+Ruqaa:wght@400;700" },
   amiri: { label: "نسخ", family: "'Amiri', serif", google: "Amiri:ital,wght@0,400;0,700;1,400" },
+  naskh: { label: "نسخ ناعم", family: "'Noto Naskh Arabic', serif", google: "Noto+Naskh+Arabic:wght@500;700" },
   messiri: { label: "مسيري", family: "'El Messiri', serif", google: "El+Messiri:wght@500;700" },
   kufi: { label: "كوفي", family: "'Reem Kufi', sans-serif", google: "Reem+Kufi:wght@500;700" },
   alexandria: { label: "عصري", family: "'Alexandria', sans-serif", google: "Alexandria:wght@400;600;800;900" },
+  tajawal: { label: "نظيف", family: "'Tajawal', sans-serif", google: "Tajawal:wght@500;700;800" },
   lalezar: { label: "عريض", family: "'Lalezar', sans-serif", google: "Lalezar" },
 };
 
@@ -73,11 +100,14 @@ export function fontsHref(keys: FontKey[]): string {
   return "https://fonts.googleapis.com/css2?" + [...set].map((k) => "family=" + FONTS[k].google).join("&") + "&display=swap";
 }
 
-export const TEMPLATES: { key: TemplateKey; name: string; hint: string }[] = [
-  { key: "velvet", name: "مخملي", hint: "صورة تملأ الصفحة، وخط فاخر، وأزرار بإطار رفيع" },
-  { key: "cover", name: "غلاف", hint: "صورة غلاف فوق، وشعارك في دائرة، ولون هويتك تحت" },
-  { key: "bold", name: "جريء", hint: "اسمك بخط كبير، وأرقامك في بطاقات، وزر طلب عائم" },
+export const TEMPLATES: { key: TemplateKey; name: string; hint: string; tone: "dark" | "light" | "color" }[] = [
+  { key: "ivory", name: "عاجي", hint: "ورق أوف وايت، إطار رفيع، وروابطك مثل منيو المطاعم الراقية", tone: "light" },
+  { key: "pearl", name: "لؤلؤي", hint: "أبيض نظيف، بطاقات بظل ناعم، وأيقونة ملوّنة لكل رابط", tone: "light" },
+  { key: "velvet", name: "مخملي", hint: "صورة تملأ الصفحة، وخط فاخر، وأزرار بإطار رفيع", tone: "dark" },
+  { key: "cover", name: "غلاف", hint: "صورة غلاف فوق، وشعارك في دائرة، ولون هويتك تحت", tone: "color" },
+  { key: "bold", name: "جريء", hint: "اسمك بخط كبير، وأرقامك في بطاقات، وزر طلب عائم", tone: "color" },
 ];
+export const TEMPLATE_KEYS = TEMPLATES.map((t) => t.key);
 
 /** كل نوع رابط: اسمه في المحرّر، وما يُطلب من صاحب المطعم، ونصّ الزر الافتراضي. */
 export const LINK_TYPES: Record<LinkType, { name: string; ask: string; placeholder: string; label: string; social?: boolean; auto?: boolean }> = {
@@ -97,11 +127,12 @@ export const LINK_TYPES: Record<LinkType, { name: string; ask: string; placehold
   review: { name: "تقييم قوقل", ask: "رابط التقييم", placeholder: "https://g.page/r/...", label: "قيّمنا في قوقل" },
   website: { name: "موقع إلكتروني", ask: "الرابط", placeholder: "https://...", label: "موقعنا الإلكتروني", social: true },
   custom: { name: "رابط آخر", ask: "الرابط", placeholder: "https://...", label: "رابط" },
+  heading: { name: "عنوان قسم", ask: "", placeholder: "", label: "تواصل معنا" },
 };
 
 const DEFAULT_VELVET: VelvetOpts = {
   bg: "", bgColor: "#3A0A10", overlay: 45, tint: "#1A0306", blur: 0, font: "ruqaa", avatar: "oval",
-  btn: "outline", corner: "sharp", ink: "#FFF8F0", accent: "#FFF8F0", socialsAt: "bottom",
+  btn: "outline", corner: "sharp", ink: "#FFF8F0", accent: "#FFF8F0", socialsAt: "bottom", grain: true,
 };
 const DEFAULT_COVER: CoverOpts = {
   cover: "", coverH: "m", fade: false, panel: "#6E0414", ink: "#FFF6EE", accent: "#FFF6EE", ring: "#FFFFFF",
@@ -111,6 +142,14 @@ const DEFAULT_BOLD: BoldOpts = {
   hero: "#C9D9B4", heroInk: "#1F3A17", panel: "#26401E", ink: "#FFFFFF", accent: "#F2F05A", tile: "#FFFFFF",
   tileInk: "#141414", font: "lalezar", photo: "", showStats: true, rows: "list",
 };
+const DEFAULT_IVORY: IvoryOpts = {
+  paper: "#F5EFE4", ink: "#2A241D", accent: "#9A7A4A", font: "amiri", frame: "double",
+  mark: "logo", rows: "lines", texture: true, ornament: true,
+};
+const DEFAULT_PEARL: PearlOpts = {
+  bg: "#F6F5F2", card: "#FFFFFF", ink: "#17161A", accent: "#1F6F5C", font: "tajawal", cover: "",
+  cards: "float", corner: "soft", tile: "tint", glow: true,
+};
 
 export function newId(): string {
   return Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3);
@@ -118,7 +157,7 @@ export function newId(): string {
 
 export function defaultConfig(name = ""): LinkPageConfig {
   return {
-    v: 1, enabled: false, template: "velvet", name, bio: "", avatar: "", badge: "",
+    v: 1, enabled: false, template: "ivory", name, bio: "", avatar: "", badge: "",
     links: [
       { id: newId(), type: "order", label: "اطلب أونلاين", value: "", on: true, star: true },
       { id: newId(), type: "whatsapp", label: "راسلنا واتساب", value: "", on: true },
@@ -127,7 +166,14 @@ export function defaultConfig(name = ""): LinkPageConfig {
     socials: [],
     stats: [{ value: "4.9", label: "تقييم" }, { value: "+12", label: "سنة خبرة" }, { value: "3", label: "فروع" }],
     cta: { on: true, label: "اطلب الآن", type: "order", value: "" },
-    opts: { velvet: { ...DEFAULT_VELVET }, cover: { ...DEFAULT_COVER }, bold: { ...DEFAULT_BOLD } },
+    icons: true,
+    share: true,
+    announce: { on: false, text: "", link: "" },
+    menu: { on: false, title: "الأكثر طلباً", items: [], price: true, at: "bottom" },
+    opts: {
+      velvet: { ...DEFAULT_VELVET }, cover: { ...DEFAULT_COVER }, bold: { ...DEFAULT_BOLD },
+      ivory: { ...DEFAULT_IVORY }, pearl: { ...DEFAULT_PEARL },
+    },
   };
 }
 
@@ -137,54 +183,70 @@ const num = (v: unknown, lo: number, hi: number, d: number) => (typeof v === "nu
 const pick = <T extends string>(v: unknown, ok: readonly T[], d: T): T => (ok.includes(v as T) ? (v as T) : d);
 const color = (v: unknown, d: string) => (typeof v === "string" && HEX.test(v) ? v : d);
 const img = (v: unknown) => (typeof v === "string" && /^https:\/\//.test(v) ? v.slice(0, 500) : "");
+const bool = (v: unknown, d: boolean) => (typeof v === "boolean" ? v : d);
 const FONT_KEYS = Object.keys(FONTS) as FontKey[];
 const TYPE_KEYS = Object.keys(LINK_TYPES) as LinkType[];
+const CORNERS = ["sharp", "soft", "pill"] as const;
 
 function cleanItem(raw: unknown): LinkItem | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
   const type = pick(r.type, TYPE_KEYS, "custom");
+  const icon = typeof r.icon === "string" && (ICON_KEYS as readonly string[]).includes(r.icon) ? (r.icon as IconKey) : "";
   return {
     id: str(r.id, 20).replace(/[^A-Za-z0-9_-]/g, "") || newId(),
-    type, label: str(r.label, 60), value: str(r.value, 400), on: r.on !== false, star: r.star === true, note: str(r.note, 60),
+    type, label: str(r.label, 60), value: str(r.value, 400), on: r.on !== false, star: r.star === true, note: str(r.note, 60), icon,
   };
 }
+
+const rec = (v: unknown) => (v && typeof v === "object" ? (v as Record<string, unknown>) : {});
 
 /** ما يُخزَّن قد يكون من نسخة أقدم أو ناقصاً أو معبوثاً به: يُقرأ دائماً من هنا. */
 export function normalizeConfig(raw: unknown, fallbackName = ""): LinkPageConfig {
   const d = defaultConfig(fallbackName);
   if (!raw || typeof raw !== "object") return d;
   const r = raw as Record<string, unknown>;
-  const o = (r.opts && typeof r.opts === "object" ? r.opts : {}) as Record<string, Record<string, unknown>>;
-  const v = o.velvet || {}, c = o.cover || {}, b = o.bold || {};
-  const cta = (r.cta && typeof r.cta === "object" ? r.cta : {}) as Record<string, unknown>;
+  const o = rec(r.opts);
+  const v = rec(o.velvet), c = rec(o.cover), b = rec(o.bold), iv = rec(o.ivory), p = rec(o.pearl);
+  const cta = rec(r.cta), an = rec(r.announce), mn = rec(r.menu);
   return {
     v: 1,
     enabled: r.enabled === true,
-    template: pick(r.template, ["velvet", "cover", "bold"] as const, "velvet"),
+    template: pick(r.template, TEMPLATE_KEYS, "velvet"),
     name: str(r.name, 60) || fallbackName,
     bio: str(r.bio, 140),
     avatar: img(r.avatar),
     badge: str(r.badge, 24),
-    links: Array.isArray(r.links) ? (r.links.map(cleanItem).filter(Boolean) as LinkItem[]).slice(0, 20) : d.links,
-    socials: Array.isArray(r.socials) ? (r.socials.map(cleanItem).filter(Boolean) as LinkItem[]).slice(0, 10) : [],
+    links: Array.isArray(r.links) ? (r.links.map(cleanItem).filter(Boolean) as LinkItem[]).slice(0, 24) : d.links,
+    socials: Array.isArray(r.socials) ? (r.socials.map(cleanItem).filter(Boolean) as LinkItem[]).filter((s) => s.type !== "heading").slice(0, 10) : [],
     stats: Array.isArray(r.stats)
       ? r.stats.slice(0, 3).map((s) => ({ value: str((s as Stat)?.value, 8), label: str((s as Stat)?.label, 16) }))
       : d.stats,
-    cta: { on: cta.on !== false, label: str(cta.label, 24) || d.cta.label, type: pick(cta.type, TYPE_KEYS, "order"), value: str(cta.value, 400) },
+    cta: { on: cta.on !== false, label: str(cta.label, 24) || d.cta.label, type: pick(cta.type, TYPE_KEYS.filter((t) => t !== "heading"), "order"), value: str(cta.value, 400) },
+    icons: bool(r.icons, true),
+    share: bool(r.share, true),
+    announce: { on: an.on === true, text: str(an.text, 80), link: str(an.link, 400) },
+    menu: {
+      on: mn.on === true,
+      title: str(mn.title, 30) || d.menu.title,
+      items: Array.isArray(mn.items) ? mn.items.map(String).filter((x) => /^\d{1,15}$/.test(x)).slice(0, 8) : [],
+      price: mn.price !== false,
+      at: pick(mn.at, ["top", "bottom"] as const, "bottom"),
+    },
     opts: {
       velvet: {
         bg: img(v.bg), bgColor: color(v.bgColor, DEFAULT_VELVET.bgColor), overlay: num(v.overlay, 0, 90, DEFAULT_VELVET.overlay),
         tint: color(v.tint, DEFAULT_VELVET.tint), blur: num(v.blur, 0, 12, 0), font: pick(v.font, FONT_KEYS, DEFAULT_VELVET.font),
         avatar: pick(v.avatar, ["oval", "circle", "none"] as const, "oval"), btn: pick(v.btn, ["outline", "glass", "solid"] as const, "outline"),
-        corner: pick(v.corner, ["sharp", "soft", "pill"] as const, "sharp"), ink: color(v.ink, DEFAULT_VELVET.ink),
+        corner: pick(v.corner, CORNERS, "sharp"), ink: color(v.ink, DEFAULT_VELVET.ink),
         accent: color(v.accent, DEFAULT_VELVET.accent), socialsAt: pick(v.socialsAt, ["top", "bottom"] as const, "bottom"),
+        grain: bool(v.grain, true),
       },
       cover: {
         cover: img(c.cover), coverH: pick(c.coverH, ["s", "m", "l"] as const, "m"), fade: c.fade === true,
         panel: color(c.panel, DEFAULT_COVER.panel), ink: color(c.ink, DEFAULT_COVER.ink), accent: color(c.accent, DEFAULT_COVER.accent),
         ring: color(c.ring, DEFAULT_COVER.ring), avatar: pick(c.avatar, ["circle", "rounded", "square"] as const, "circle"),
-        btn: pick(c.btn, ["outline", "solid", "soft"] as const, "outline"), corner: pick(c.corner, ["sharp", "soft", "pill"] as const, "sharp"),
+        btn: pick(c.btn, ["outline", "solid", "soft"] as const, "outline"), corner: pick(c.corner, CORNERS, "sharp"),
         font: pick(c.font, FONT_KEYS, DEFAULT_COVER.font), rule: c.rule !== false,
       },
       bold: {
@@ -192,6 +254,18 @@ export function normalizeConfig(raw: unknown, fallbackName = ""): LinkPageConfig
         ink: color(b.ink, DEFAULT_BOLD.ink), accent: color(b.accent, DEFAULT_BOLD.accent), tile: color(b.tile, DEFAULT_BOLD.tile),
         tileInk: color(b.tileInk, DEFAULT_BOLD.tileInk), font: pick(b.font, FONT_KEYS, DEFAULT_BOLD.font), photo: img(b.photo),
         showStats: b.showStats !== false, rows: pick(b.rows, ["list", "grid"] as const, "list"),
+      },
+      ivory: {
+        paper: color(iv.paper, DEFAULT_IVORY.paper), ink: color(iv.ink, DEFAULT_IVORY.ink), accent: color(iv.accent, DEFAULT_IVORY.accent),
+        font: pick(iv.font, FONT_KEYS, DEFAULT_IVORY.font), frame: pick(iv.frame, ["double", "single", "none"] as const, "double"),
+        mark: pick(iv.mark, ["logo", "monogram", "none"] as const, "logo"), rows: pick(iv.rows, ["lines", "boxed", "center"] as const, "lines"),
+        texture: bool(iv.texture, true), ornament: bool(iv.ornament, true),
+      },
+      pearl: {
+        bg: color(p.bg, DEFAULT_PEARL.bg), card: color(p.card, DEFAULT_PEARL.card), ink: color(p.ink, DEFAULT_PEARL.ink),
+        accent: color(p.accent, DEFAULT_PEARL.accent), font: pick(p.font, FONT_KEYS, DEFAULT_PEARL.font), cover: img(p.cover),
+        cards: pick(p.cards, ["float", "line", "flat"] as const, "float"), corner: pick(p.corner, CORNERS, "soft"),
+        tile: pick(p.tile, ["tint", "solid", "none"] as const, "tint"), glow: bool(p.glow, true),
       },
     },
   };
@@ -226,17 +300,22 @@ function social(v: string, base: string): string {
   return h ? base + h : "";
 }
 
+function storeUrl(biz: Pick<LinkBiz, "slug" | "store">): string {
+  return biz.store && biz.slug ? `https://${biz.slug}.rakeenapp.com/` : "";
+}
+
 /** رابط الزر الفعلي، أو "" لو ما يكتمل (فالزر لا يظهر في الصفحة). */
 export function resolveHref(item: Pick<LinkItem, "type" | "value">, biz: Pick<LinkBiz, "slug" | "store" | "booking">): string {
   const v = item.value || "";
   switch (item.type) {
-    case "order": return biz.store && biz.slug ? `https://${biz.slug}.rakeenapp.com/` : "";
+    case "heading": return "";
+    case "order": return storeUrl(biz);
     case "booking": return biz.booking && biz.slug ? `https://rakeenapp.com/book/${biz.slug}` : "";
     case "whatsapp": { const n = saPhone(v); return n.length >= 8 ? `https://wa.me/${n}` : ""; }
     case "phone": { const n = v.replace(/[^\d+]/g, ""); return n.length >= 6 ? `tel:${n}` : ""; }
     case "email": return /^[^\s@<>"']+@[^\s@<>"']+\.[a-z]{2,}$/i.test(v.trim()) ? `mailto:${v.trim()}` : "";
     case "instagram": return social(v, "https://instagram.com/");
-    case "tiktok": { const u = social(v, "https://www.tiktok.com/@"); return u; }
+    case "tiktok": return social(v, "https://www.tiktok.com/@");
     case "snapchat": return social(v, "https://snapchat.com/add/");
     case "x": return social(v, "https://x.com/");
     case "facebook": return social(v, "https://facebook.com/");
@@ -245,7 +324,19 @@ export function resolveHref(item: Pick<LinkItem, "type" | "value">, biz: Pick<Li
   }
 }
 
-/** نص صغير يوضّح الرابط (سطر «جريء» لما ما فيه ملاحظة). */
+/** رابط شريط الإعلان: "order" = المتجر، أو أي رابط. */
+export function announceHref(link: string, biz: Pick<LinkBiz, "slug" | "store">): string {
+  if (link === "order") return storeUrl(biz);
+  return web(link);
+}
+
+/** صنف من المنيو يفتح نفسه في المتجر (?item=). بدون متجر = بطاقة بلا رابط. */
+export function menuHref(id: number, biz: Pick<LinkBiz, "slug" | "store">): string {
+  const s = storeUrl(biz);
+  return s ? `${s}?item=${id}` : "";
+}
+
+/** نص صغير يوضّح الرابط (سطر تحت الاسم لما ما فيه ملاحظة). */
 export function shortHref(href: string): string {
   if (href.startsWith("tel:")) return href.slice(4);
   if (href.startsWith("mailto:")) return href.slice(7);
@@ -263,6 +354,23 @@ export function linkPageUrl(slug: string): string {
   return `https://${slug}.rakeenapp.com/links`;
 }
 
+/** الخط اللي يحتاجه التصميم المختار (للصفحة العامة). */
+export function templateFont(cfg: LinkPageConfig): FontKey {
+  return cfg.opts[cfg.template].font;
+}
+
+/** لون شريط المتصفح وخلفية ما وراء الصفحة. */
+export function themeColor(cfg: LinkPageConfig): string {
+  const o = cfg.opts;
+  switch (cfg.template) {
+    case "cover": return o.cover.panel;
+    case "bold": return o.bold.hero;
+    case "ivory": return o.ivory.paper;
+    case "pearl": return o.pearl.bg;
+    default: return o.velvet.tint;
+  }
+}
+
 /** لون نص مقروء فوق لون. */
 export function onColor(hex: string): string {
   if (!HEX.test(hex)) return "#111";
@@ -272,4 +380,9 @@ export function onColor(hex: string): string {
     return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
   });
   return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.45 ? "#111111" : "#FFFFFF";
+}
+
+/** السعر بالريال بأرقام إنجليزية: 32 أو 32.50. */
+export function price(n: number): string {
+  return (Number.isInteger(n) ? String(n) : n.toFixed(2)) + " ر.س";
 }

@@ -1,10 +1,11 @@
 import { cache } from "react";
 import { createClient } from "@supabase/supabase-js";
 import type { Metadata, Viewport } from "next";
-import { normalizeConfig, fontsHref, type LinkBiz, type LinkPageConfig } from "@/lib/links/model";
+import { normalizeConfig, fontsHref, templateFont, themeColor, type LinkBiz, type LinkPageConfig, type MenuCard } from "@/lib/links/model";
 import LinkPageView from "../LinkPageView";
 import HitTracker from "../HitTracker";
 import "../links.css";
+import "../links-v2.css";
 
 /**
  * «روابطك» -- صفحة روابط المطعم: {slug}.rakeenapp.com/links (أو /l/{slug}).
@@ -21,21 +22,15 @@ const load = cache(async (slug: string): Promise<Loaded> => {
     const sb = createClient(url, anon, { auth: { persistSession: false } });
     const { data, error } = await sb.rpc("get_link_page", { p_slug: slug.toLowerCase() });
     if (error || !data) return null;
-    const d = data as { name: string; logo: string | null; slug: string; store: boolean; booking: boolean; page: unknown };
+    const d = data as { name: string; logo: string | null; slug: string; store: boolean; booking: boolean; page: unknown; menu?: MenuCard[] };
     return {
       cfg: normalizeConfig(d.page, d.name),
-      biz: { name: d.name, logo: d.logo, slug: d.slug, store: d.store, booking: d.booking },
+      biz: { name: d.name, logo: d.logo, slug: d.slug, store: d.store, booking: d.booking, menu: Array.isArray(d.menu) ? d.menu : [] },
     };
   } catch {
     return null;
   }
 });
-
-function themeColor(cfg: LinkPageConfig): string {
-  if (cfg.template === "cover") return cfg.opts.cover.panel;
-  if (cfg.template === "bold") return cfg.opts.bold.hero;
-  return cfg.opts.velvet.tint;
-}
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -67,8 +62,7 @@ export default async function LinksPage({ params }: { params: Promise<{ slug: st
       </main>
     );
   }
-  const o = p.cfg.opts;
-  const font = p.cfg.template === "cover" ? o.cover.font : p.cfg.template === "bold" ? o.bold.font : o.velvet.font;
+  const font = templateFont(p.cfg);
   return (
     <>
       <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -76,7 +70,7 @@ export default async function LinksPage({ params }: { params: Promise<{ slug: st
       <link rel="stylesheet" href={fontsHref([font])} />
       <style>{`html,body{margin:0;background:${themeColor(p.cfg)}}`}</style>
       <LinkPageView cfg={p.cfg} biz={p.biz} />
-      <HitTracker slug={p.biz.slug} />
+      <HitTracker slug={p.biz.slug} name={p.cfg.name} />
     </>
   );
 }
