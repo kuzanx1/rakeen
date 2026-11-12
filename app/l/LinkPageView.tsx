@@ -63,20 +63,20 @@ function Share({ on }: { on: boolean }) {
   );
 }
 
-function Announce({ cfg, biz, className = "" }: { cfg: LinkPageConfig; biz: LinkBiz; className?: string }) {
+/** شريط إعلان بلون الأزرار أعلى الصفحة (نفسه في التصاميم الثلاثة). */
+function Announce({ cfg, biz }: { cfg: LinkPageConfig; biz: LinkBiz }) {
   const a = cfg.announce;
   if (!a.on || !a.text.trim()) return null;
   const href = a.link ? announceHref(a.link, biz) : "";
   const inner = (
     <>
-      <span className="lk-ann-dot" aria-hidden />
       <span className="lk-ann-txt">{a.text}</span>
       {href && <Icon name="chev" size={14} className="lk-ann-go" />}
     </>
   );
   return href
-    ? <a className={"lk-ann " + className} href={href} data-lid="ann" {...ext(href)}>{inner}</a>
-    : <div className={"lk-ann " + className}>{inner}</div>;
+    ? <a className="lk-ann" href={href} data-lid="ann" {...ext(href)}>{inner}</a>
+    : <div className="lk-ann">{inner}</div>;
 }
 
 function Grain({ on }: { on: boolean }) {
@@ -91,7 +91,7 @@ function Ornament() {
   );
 }
 
-/** أزرار «مخملي» و«غلاف»: نص في الوسط، والأيقونة اختيارية على الطرف. */
+/** أزرار «سَمَر» و«واجهة»: نص في الوسط، والأيقونة اختيارية على الطرف. */
 function Buttons({ links, icons }: { links: Ready[]; icons: boolean }) {
   return (
     <div className="lk-btns">
@@ -121,9 +121,9 @@ function Velvet({ cfg, biz, links, socials }: Parts) {
       <div className="lk-v-bg" style={o.bg ? { backgroundImage: `url("${o.bg}")` } : undefined} />
       <div className="lk-v-veil" />
       <Grain on={o.grain} />
+      <Announce cfg={cfg} biz={biz} />
       <Share on={cfg.share} />
       <main className="lk-v-body">
-        <Announce cfg={cfg} biz={biz} />
         {o.socialsAt === "top" && <Socials items={socials} className="lk-v-top" />}
         {o.avatar !== "none" && <Avatar src={avatar} name={cfg.name} className={"lk-v-av lk-v-av-" + o.avatar} />}
         <h1 className="lk-v-name">{cfg.name}</h1>
@@ -152,6 +152,7 @@ function Cover({ cfg, biz, links, socials }: Parts) {
   } as CSSProperties;
   return (
     <div className="lk lk-cover" data-btn={o.btn} data-corner={o.corner} data-h={o.coverH} data-fade={o.fade ? "1" : "0"} style={vars}>
+      <Announce cfg={cfg} biz={biz} />
       <div className="lk-c-cover" style={o.cover ? { backgroundImage: `url("${o.cover}")` } : undefined} />
       <Share on={cfg.share} />
       <main className="lk-c-body">
@@ -159,7 +160,6 @@ function Cover({ cfg, biz, links, socials }: Parts) {
         <h1 className="lk-c-name">{cfg.name}</h1>
         {cfg.bio && <p className="lk-c-bio">{cfg.bio}</p>}
         {o.rule && <i className="lk-c-rule" />}
-        <Announce cfg={cfg} biz={biz} />
         <Buttons links={links} icons={cfg.icons} />
         <Socials items={socials} />
         <Footer />
@@ -194,7 +194,7 @@ function Bold({ cfg, biz, links, socials, cta }: Parts) {
   });
   return (
     <div className="lk lk-bold" data-rows={o.rows} data-photo={o.photo ? "1" : "0"} style={vars}>
-      <Announce cfg={cfg} biz={biz} className="bar" />
+      <Announce cfg={cfg} biz={biz} />
       <header className="lk-b-hero">
         <div className="lk-b-top">
           <Avatar src={avatar} name={cfg.name} className="lk-b-av" />

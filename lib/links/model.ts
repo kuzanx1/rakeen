@@ -17,7 +17,7 @@ export type LinkItem = {
   on: boolean;
   /** مميّز: يبرز عن غيره. */
   star?: boolean;
-  /** سطر صغير تحت الاسم («جريء»). */
+  /** سطر صغير تحت الاسم («لافتة»). */
   note?: string;
   /** أيقونة من المكتبة بدل أيقونة النوع. */
   icon?: IconKey | "";
@@ -87,9 +87,9 @@ export function fontsHref(keys: FontKey[]): string {
 }
 
 export const TEMPLATES: { key: TemplateKey; name: string; hint: string; tone: "dark" | "light" | "color" }[] = [
-  { key: "velvet", name: "مخملي", hint: "صورة تملأ الصفحة، وخط فاخر، وأزرار بإطار رفيع", tone: "dark" },
-  { key: "cover", name: "غلاف", hint: "صورة غلاف فوق، وشعارك في دائرة، ولون هويتك تحت", tone: "color" },
-  { key: "bold", name: "جريء", hint: "اسمك بخط كبير، وأرقامك في بطاقات، وزر طلب عائم", tone: "color" },
+  { key: "velvet", name: "سَمَر", hint: "صورة تملأ الصفحة، وخط فاخر، وأزرار بإطار رفيع", tone: "dark" },
+  { key: "cover", name: "واجهة", hint: "صورة غلاف فوق، وشعارك في دائرة، ولون هويتك تحت", tone: "color" },
+  { key: "bold", name: "لافتة", hint: "اسمك بخط كبير، وأرقامك في بطاقات، وزر طلب عائم", tone: "color" },
 ];
 export const TEMPLATE_KEYS = TEMPLATES.map((t) => t.key);
 

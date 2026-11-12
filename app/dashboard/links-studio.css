@@ -196,3 +196,7 @@
 .ls-btn.sel { background: var(--graphite); color: var(--lime); }
 [data-theme="dark"] .ls-btn.sel { background: var(--lime); color: #111; }
 @media (max-width: 520px) { .ls-row2 { grid-template-columns: 1fr; } .ls-fonts { grid-template-columns: repeat(2, 1fr); } }
+
+/* المعاينة: شريط الإعلان ينزل تحت النتوء مثل الجوال الحقيقي. */
+.ls-screen .lk-ann { padding-top: 46px; }
+.ls-screen .lk-ann ~ .lk-share { top: 90px; }
