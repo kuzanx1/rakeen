@@ -816,3 +816,51 @@ button.mn-stat{cursor:pointer;}
   .iv-name{white-space:normal;}
 }
 .iv-foot[hidden]{display:none;}
+
+/* ==========================================================================
+   الكاشير (ps-)
+   ========================================================================== */
+.ps{max-width:1280px; margin:0 auto; padding-bottom:40px;}
+.ps-ready{margin-bottom:var(--rk2-gap);}
+.ps-ready .rk2-btn svg{width:16px; height:16px;}
+.ps-head{margin-top:6px;}
+
+/* بطاقات «وش تبي تضبط؟» */
+.ps-tiles{display:grid; grid-template-columns:repeat(auto-fill, minmax(232px, 1fr)); gap:10px; margin-bottom:var(--rk2-gap);}
+.rk2 .ps-tile{position:relative; display:flex; align-items:center; gap:12px; min-width:0; padding:14px; border-radius:var(--rk2-r-md); background:var(--card-bg); border:1px solid var(--line); color:var(--text); text-align:start; cursor:pointer; box-shadow:var(--rk2-card-shadow); transition:transform .18s ease, border-color .2s ease, background .2s ease;}
+.rk2 .ps-tile:hover{transform:translateY(-2px); border-color:color-mix(in srgb, var(--text) 22%, transparent);}
+.rk2 .ps-tile:active{transform:scale(.98);}
+.rk2 .ps-tile:focus-visible{outline:3px solid var(--lime-deep); outline-offset:2px;}
+.ps-tile-ic{width:40px; height:40px; border-radius:12px; flex-shrink:0; display:flex; align-items:center; justify-content:center; background:var(--surf1); color:var(--text); transition:background .2s ease;}
+.ps-tile-ic svg{width:19px; height:19px;}
+.ps-tile-txt{display:flex; flex-direction:column; gap:2px; min-width:0;}
+.ps-tile-txt b{font-size:14.5px; font-weight:900; line-height:1.35;}
+.ps-tile-txt small{font-size:12px; color:var(--muted); font-weight:600; line-height:1.4; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.rk2 .ps-tile.active{background:var(--rk2-ink); border-color:var(--rk2-ink); color:var(--rk2-on-ink);}
+.rk2 .ps-tile.active .ps-tile-ic{background:var(--lime); color:#111;}
+.rk2 .ps-tile.active small{color:color-mix(in srgb, var(--rk2-on-ink) 70%, transparent);}
+[data-theme="dark"] .rk2 .ps-tile.active{background:#2a2a2a; border-color:var(--lime);}
+.rk2 .ps-tile .pgs-tab-new{vertical-align:middle;}
+/* قفل الباقة: فوق الزاوية، مو جنب الاسم */
+.rk2 .ps-tile[data-plan-feature]::after{position:absolute; top:-8px; inset-inline-end:10px; margin:0;}
+
+/* لوحة الإعدادات تحت: نفس أقسامها، بلبس rk2 */
+.ps-body:empty{display:none;}
+@media (prefers-reduced-motion: no-preference){
+  .ps-body > *, #posReadiness > *{animation:rk2-in .35s cubic-bezier(.2,.8,.2,1) both;}
+  .ps-body > *:nth-child(2){animation-delay:.04s} .ps-body > *:nth-child(n+3){animation-delay:.08s}
+}
+.rk2 .ps-body .rk-section{border-radius:var(--rk2-r); box-shadow:var(--rk2-card-shadow); padding:22px; margin-bottom:var(--rk2-gap);}
+.rk2 .ps-body .rk-section-title{font-size:17px; font-weight:900;}
+.rk2 .ps-body .rk-btn-primary{background:var(--lime); color:#111; border-radius:12px; font-weight:800;}
+.rk2 .ps-body .panel{border-radius:var(--rk2-r);}
+@keyframes ps-flash{0%{box-shadow:0 0 0 0 rgba(196,255,43,.85)}100%{box-shadow:0 0 0 14px rgba(196,255,43,0)}}
+.rk2 .ps-body .rk-section.ps-flash{animation:ps-flash 1s ease-out 2; border-color:var(--lime-deep);}
+
+@media (max-width:700px){
+  .ps-tiles{grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px;}
+  .rk2 .ps-tile{flex-direction:column; align-items:flex-start; gap:8px; padding:12px;}
+  .ps-tile-ic{width:36px; height:36px;}
+  .ps-tile-txt small{white-space:normal;}
+  .rk2 .ps-body .rk-section{padding:16px;}
+}

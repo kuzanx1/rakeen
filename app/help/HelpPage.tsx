@@ -95,13 +95,13 @@ export default function HelpPage() {
         <section className="help-feat" id="pos-manager-pin">
           <span className="help-feat-kicker">نقطة البيع</span>
           <h2>رمز الموافقة اللي يطلبه الاسترجاع، وين أضبطه؟ وهل هو نفس رمز الفرع؟</h2>
-          <p className="sub">لا — رمزين مختلفين تمامًا. رمز الفرع يفتح الجهاز لأي كاشير، أما "كلمة سر المدير" رمز عام واحد لكل المطعم يُطلب بس بالعمليات الحساسة: الاسترجاع وإلغاء الطلبات دائمًا، وإغلاق الوردية اختياريًا لو حبيت. تضبطه من نفس تبويب "الفروع والأمان".</p>
+          <p className="sub">لا — رمزين مختلفين تمامًا. رمز الفرع يفتح الجهاز لأي كاشير، أما "كلمة سر المدير" رمز عام واحد لكل المطعم يُطلب بس بالعمليات الحساسة: الاسترجاع وإلغاء الطلبات دائمًا، وإغلاق الوردية اختياريًا لو حبيت. تضبطه من نفس تبويب "الأجهزة والأمان".</p>
 
           <div className="device-frame browser">
             <div className="browser-bar"><span className="dot r" /><span className="dot y" /><span className="dot g" /></div>
             <div className="frame-view"><iframe src="/help/previews/manager-pin-settings.html" title="كلمة سر المدير" loading="lazy" /></div>
           </div>
-          <div className="device-caption"><span className="dot" />معاينة حيّة من إعدادات الكاشير ← الفروع والأمان</div>
+          <div className="device-caption"><span className="dot" />معاينة حيّة من إعدادات الكاشير ← الأجهزة والأمان</div>
         </section>
 
         <section className="help-feat" id="kitchen">

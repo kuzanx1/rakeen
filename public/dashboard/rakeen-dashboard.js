@@ -10543,16 +10543,12 @@ document.getElementById('settingsTabs').addEventListener('click', (e)=>{
 
 // Order types first: it is the decision every other tab depends on.
 let activePosSettingsTab = 'tables';
-document.getElementById('posSettingsTabs').addEventListener('click', async (e)=>{
-  const b = e.target.closest('button'); if(!b) return;
-  document.querySelectorAll('#posSettingsTabs button').forEach(x=>x.classList.remove('active'));
-  b.classList.add('active');
-  activePosSettingsTab = b.dataset.tab;
+document.getElementById('screen-pos').addEventListener('click', (e)=>{
+  const go = e.target.closest('[data-ps-go]');
+  if(go){ psGoTo(go.dataset.psGo, go.dataset.psFocus); return; }
+  const b = e.target.closest('#posSettingsTabs [data-tab]'); if(!b) return;
   resetContentScroll();
-  // القوالب تُجلب عند فتح تبويبها لا عند إقلاع اللوحة: قائمةٌ تُفتح
-  // مرّةً في الشهر لا تستحقّ نداءً في كل تسجيل دخول.
-  if(activePosSettingsTab === 'discounts') await loadDiscountPresets();
-  renderPosSettings();
+  psOpenTab(b.dataset.tab);
 });
 
 const RESTAURANT_INFO = {name:''};
@@ -11893,64 +11889,120 @@ function posRefreshDirty(){
   });
 }
 
+/* ============ شاشة «الكاشير» (ps-) ============
+   فوق: «كاشيرك» -- حلقة تقدّم وثلاث خطوات تخلّي الجهاز يشتغل فعلاً
+   (اقتران الجهاز، كلمة سر المدير، الفاتورة). تحت: بطاقات أفعال، كل
+   وحدة تقول حالها الحين، وتفتح إعداداتها تحت. */
+const PS_IC = {
+  device:'<rect x="4" y="3" width="16" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',
+  key:'<circle cx="7.5" cy="15.5" r="4.5"/><path d="M21 2l-9.6 9.6"/><path d="M15.5 7.5l3 3L22 7l-3-3"/>',
+  receipt:'<path d="M4 2v20l3-2 3 2 3-2 3 2 3-2 1 .7V2l-1 .7-3-2-3 2-3-2-3 2-3-2z"/><path d="M8 7h8M8 11h8M8 15h5"/>',
+  seat:'<path d="M5 11V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v6"/><path d="M3 11h18v4H3z"/><path d="M5 15v6M19 15v6"/>',
+  sliders:'<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
+  bell:'<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
+  chef:'<path d="M6 13.9A4 4 0 0 1 7 6a5 5 0 0 1 10 0 4 4 0 0 1 1 7.9V20H6z"/><line x1="6" y1="17" x2="18" y2="17"/>',
+  percent:'<line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>',
+  shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  open:'<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>',
+};
+function psIc(n){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (PS_IC[n] || HM_IC[n] || '') + '</svg>'; }
+
+const PS_TILES = [
+  ['tables', 'seat', 'وين ياكل عميلك؟', 'سفري، محلي، طاولات'],
+  ['receipt', 'receipt', 'شكل فاتورتك', 'الشعار والرسالة والطباعة'],
+  ['interface', 'sliders', 'بسّط شاشة الكاشير', 'أخفِ اللي ما تحتاجه'],
+  ['pager', 'bell', 'بيجر ركين', 'نادِ عميلك على جواله'],
+  ['kitchen', 'chef', 'شاشة المطبخ', 'متى ينتهي الطلب'],
+  ['discounts', 'percent', 'خصومات جاهزة', 'بضغطة من الكاشير'],
+  ['branches', 'shield', 'الأجهزة والأمان', 'رمز الجهاز وكلمة سر المدير'],
+];
+/* البطاقات تنبني مرّة. الحالة تحت كل اسم تتحدّث بعد كل جلب. */
+function psBuildTiles(){
+  const el = document.getElementById('posSettingsTabs');
+  if(!el || el.querySelector('.ps-tile')) return; // الترميز فيه البطاقات أصلاً
+  el.innerHTML = PS_TILES.map(([tab, ic, title, hint])=>
+    '<button type="button" class="ps-tile' + (tab === activePosSettingsTab ? ' active' : '') + '" data-tab="' + tab + '">'
+    + '<span class="ps-tile-ic">' + psIc(ic) + '</span>'
+    + '<span class="ps-tile-txt"><b>' + title + (tab === 'pager' ? ' <span class="pgs-tab-new">جديد</span>' : '') + '</b><small data-ps-sum="' + tab + '">' + hint + '</small></span></button>').join('');
+  if(typeof applyPlanHiding === 'function') applyPlanHiding();
+}
+function psSetSums(sums){
+  Object.entries(sums).forEach(([k, v])=>{
+    const s = document.querySelector('[data-ps-sum="' + k + '"]');
+    if(s && v) s.textContent = v;
+  });
+}
+
+let psPrevLeft = null;
 function renderPosReadiness(){
   const el = document.getElementById('posReadiness');
   if(!el) return;
+  psBuildTiles();
   const r = POS_READINESS;
-  const fmt = iso => { try { return new Date(iso).toLocaleDateString('ar-SA', {day:'numeric', month:'long'}); } catch(_){ return ''; } };
-
-  const rows = [
-    posReadyRow(
-      'كلمة سر المدير',
-      r.managerPinSet,
-      'معيّنة — الكاشير يقدر يعتمد الإغلاق والاسترجاع',
-      'ما تعيّنت — الكاشير ما يقدر يقفل وردية ولا يسترجع مبلغ',
-      r.managerPinSet ? 'تغييرها' : 'تعيينها',
-      'branches', '#managerPinInput'),
-    ...r.branches.map(b => {
-      const at = r.tillByBranch[b.id];
-      return posReadyRow(
-        'جهاز الكاشير — ' + b.name,
-        !!at,
-        'مقترن منذ ' + fmt(at),
-        'ما اقترن بعد — ما يفتح أي جهاز على هذا الفرع',
-        at ? 'تغيير الرمز' : 'اقتران الجهاز',
-        // اقتباس مفرد داخل السمة: data-focus نفسها بمزدوج، والمزدوج
-        // الداخلي كان يقفلها مبكراً فيصل المحدِّد مبتوراً.
-        'branches', ".pos-pin-input[data-branch=" + "'" + b.id + "'" + "]");
-    }),
+  const unpaired = r.branches.filter(b=>!r.tillByBranch[b.id]);
+  const firstUnpaired = unpaired[0];
+  const receiptReady = !!(RECEIPT_LOGO_URL || (RECEIPT_TAGLINE && RECEIPT_TAGLINE.trim()));
+  const steps = [
+    { done: r.branches.length > 0 && !unpaired.length, label: r.branches.length > 1 ? 'اقرن جهاز الكاشير لكل فرع' : 'اقرن جهاز الكاشير',
+      desc: unpaired.length ? (unpaired.length === 1 ? '«' + escapeHtml(unpaired[0].name) + '» ما له جهاز للحين' : hmPlural(unpaired.length, '', 'فرعين', 'فروع', 'فرع') + ' ما لها جهاز للحين') + '. حط رمز من ٤ أرقام وافتح فيه الكاشير' : 'كل فروعك لها جهاز',
+      tab: 'branches', focus: firstUnpaired ? '.pos-pin-input[data-branch="' + firstUnpaired.id + '"]' : '' },
+    { done: r.managerPinSet, label: 'عيّن كلمة سر المدير',
+      desc: 'بدونها الكاشير ما يقدر يقفل الوردية ولا يسترجع مبلغ', tab: 'branches', focus: '#managerPinInput' },
+    { done: receiptReady, label: 'جهّز فاتورتك',
+      desc: 'حط شعارك أو سطر تعريفي يطلع فوق كل فاتورة', tab: 'receipt', focus: '#settingsReceiptTagline' },
   ];
-  const pending = (r.managerPinSet ? 0 : 1) + r.branches.filter(b => !r.tillByBranch[b.id]).length;
+  const done = steps.filter(s=>s.done).length;
+  const left = steps.length - done;
+  const celebrate = psPrevLeft !== null && psPrevLeft > 0 && left === 0;
+  psPrevLeft = left;
+  const go = s => ' data-ps-go="' + s.tab + '" data-ps-focus="' + escapeHtml(s.focus) + '"';
+  if(left === 0){
+    const paired = Object.keys(r.tillByBranch).length;
+    el.innerHTML = '<div class="rk2-card mn-done ps-ready' + (celebrate ? ' mn-celebrate' : '') + '">'
+      + '<span class="mn-done-ic">' + hmIc('check') + '</span>'
+      + '<div class="mn-done-txt"><b>كاشيرك جاهز</b><small>' + (paired === 1 ? 'جهاز مقترن' : hmPlural(paired, 'جهاز', 'جهازين', 'أجهزة', 'جهاز') + ' مقترنة') + '، وكلمة سر المدير معيّنة، وفاتورتك عليها اسمك</small></div>'
+      + '<a class="rk2-btn lime" href="/pos" target="_blank" rel="noopener">' + psIc('open') + 'افتح الكاشير</a></div>';
+    if(celebrate) showToast('كاشيرك جاهز 🎉');
+    return;
+  }
+  const nextIdx = steps.findIndex(s=>!s.done);
+  const next = steps[nextIdx];
+  const pct = Math.round(done / steps.length * 100);
+  el.innerHTML = '<div class="rk2-card hm-quest ps-quest">'
+    + '<div class="hm-quest-top"><div class="hm-ring" style="--p:' + pct + '"><b>' + done + '<small>/' + steps.length + '</small></b></div>'
+    + '<div><div class="hm-kicker">' + psIc('device') + 'كاشيرك</div>'
+    + '<h3>' + (done === 0 ? 'ثلاث خطوات ويشتغل كاشيرك' : 'باقي ' + hmPlural(left, 'خطوة وحدة', 'خطوتين', 'خطوات', 'خطوة') + ' ويصير جاهز') + '</h3>'
+    + '<p>كل خطوة دقيقة، والباقي اختياري تحت</p></div></div>'
+    + '<button type="button" class="hm-quest-next"' + go(next) + '>'
+    + '<span class="hm-quest-n">' + (nextIdx + 1) + '</span><span class="hm-quest-txt"><b>' + next.label + '</b><small>' + next.desc + '</small></span><span class="rk2-btn lime sm">ابدأ' + hmIc('arrow') + '</span></button>'
+    + '<div class="hm-quest-list">' + steps.map((s,i)=> i === nextIdx ? '' :
+        '<button type="button" class="hm-qstep' + (s.done ? ' done' : '') + '"' + (s.done ? ' disabled' : go(s)) + '>'
+        + '<span class="hm-qcheck">' + (s.done ? hmIc('check') : (i + 1)) + '</span>' + s.label + '</button>').join('') + '</div>'
+    + '</div>';
+}
 
-  // قائمة تحقّقٍ اكتملت لم تعد قائمة تحقّق.
-  //
-  // شريطٌ كله علامات صحّ لا يطلب شيئاً، ووجوده يعلّم صاحب المطعم أن
-  // يتجاهل أعلى الصفحة -- وهو أسوأ ما يمكن أن يتعلّمه عن مكانٍ سيحمل
-  // تنبيهاً حقيقياً يوماً ما. ويعود وحده إن نقص شيء.
-  if(pending === 0){ el.innerHTML = ''; return; }
-
-  el.innerHTML = `
-    <div class="rk-section pos-ready">
-      ${rkSectionHead('crosshair', 'جاهزية الكاشير',
-        pending ? 'ناقص ' + pending + ' عشان يشتغل جهاز الكاشير' : 'كل شي مضبوط — الباقي تحت تفضيلات')}
-      <div class="pos-ready-rows">${rows.join('')}</div>
-    </div>`;
-
-  el.querySelectorAll('.pos-ready-go').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tabBtn = document.querySelector('#posSettingsTabs button[data-tab="' + btn.dataset.tab + '"]');
-      if(!tabBtn) return;
-      tabBtn.click();
-      // اللوحة تُبنى بعد جلب غير متزامن، فالتركيز ينتظر ظهور الحقل
-      // بدل تخمين مهلة.
-      let tries = 0;
-      const seek = setInterval(() => {
-        const target = document.querySelector(btn.dataset.focus);
-        if(target){ clearInterval(seek); target.focus(); target.scrollIntoView({block:'center'}); }
-        else if(++tries > 40) clearInterval(seek);
-      }, 100);
-    });
-  });
+/* يفتح القسم وينتظر إن اللوحة انبنت فعلاً، بعدين يركّز على الحقل. */
+async function psGoTo(tab, focusSel){
+  const btn = document.querySelector('#posSettingsTabs [data-tab="' + tab + '"]');
+  if(!btn) return;
+  if(btn.hasAttribute('data-plan-feature') && !planHas(btn.getAttribute('data-plan-feature'))) return showPlanUpgrade(btn.getAttribute('data-plan-feature'));
+  await psOpenTab(tab);
+  const target = focusSel && document.querySelector(focusSel);
+  const body = document.getElementById('posSettingsPanelBody');
+  if(target){
+    target.scrollIntoView({block:'center', behavior:'smooth'});
+    target.focus({preventScroll:true});
+    const sec = target.closest('.rk-section');
+    if(sec){ sec.classList.remove('ps-flash'); void sec.offsetWidth; sec.classList.add('ps-flash'); }
+  } else if(body) body.scrollIntoView({block:'start', behavior:'smooth'});
+}
+async function psOpenTab(tab){
+  document.querySelectorAll('#posSettingsTabs [data-tab]').forEach(x=>x.classList.toggle('active', x.dataset.tab === tab));
+  activePosSettingsTab = tab;
+  // القوالب تُجلب عند فتح تبويبها لا عند إقلاع اللوحة: قائمةٌ تُفتح
+  // مرّةً في الشهر لا تستحقّ نداءً في كل تسجيل دخول.
+  if(tab === 'discounts') await loadDiscountPresets();
+  await renderPosSettings();
 }
 
 async function renderPosSettings(){
@@ -12359,6 +12411,20 @@ async function renderPosSettings(){
     pager: activePosSettingsTab === 'pager' ? pagerSettingsTabHtml() : '',
   };
   panel.innerHTML = POS_SETTINGS_TABS_HTML[activePosSettingsTab] || POS_SETTINGS_TABS_HTML.tables;
+  {
+    const nHidden = [hidePopular, hideSearch, hideImages, hideBell].filter(Boolean).length;
+    const paired = (branches||[]).filter(b=>POS_READINESS.tillByBranch[b.id]).length;
+    const theme = (RECEIPT_THEMES.find(t=>t.id === RECEIPT_THEME) || RECEIPT_THEMES[0]).label;
+    const nPresets = DISCOUNT_PRESETS.filter(p=>p.active !== false).length;
+    psSetSums({
+      tables: !DINE_IN_ENABLED ? 'سفري بس' : DINE_IN_MODE === 'tables' ? 'سفري + طاولات (' + (tables||[]).length + ')' : 'سفري + محلي بسيط',
+      receipt: theme + (RECEIPT_LOGO_URL ? ' · بشعارك' : ' · بدون شعار'),
+      interface: nHidden ? hmPlural(nHidden, 'شي واحد مخفي', 'شيئين مخفية', 'أشياء مخفية', 'شي مخفي') : 'كل شي ظاهر',
+      kitchen: kMode === 'auto' ? 'ينتهي لحاله بعد ' + kMinutes + ' دقيقة' : 'الموظف يضغط «تم التجهيز»',
+      discounts: nPresets ? hmPlural(nPresets, 'خصم واحد جاهز', 'خصمين جاهزة', 'خصومات جاهزة', 'خصم جاهز') : '',
+      branches: (branches||[]).length ? paired + ' من ' + (branches||[]).length + ' أجهزة مقترنة' + (POS_READINESS.managerPinSet ? '' : ' · بدون كلمة سر') : '',
+    });
+  }
   if(activePosSettingsTab === 'discounts') wireDiscountPresets();
   if(activePosSettingsTab === 'pager') wirePagerSettingsTab();
   posSnapshotSwitches();
@@ -12873,7 +12939,8 @@ async function renderPosSettings(){
 
   panel.querySelectorAll('.section-remove-btn').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
-      if(!window.confirm('تأكيد حذف هذا القسم؟ الطاولات المرتبطة فيه ترجع "بدون قسم".')) return;
+      const ok = await rkAsk({ title:'تحذف هذا القسم؟', body:'طاولاته ما تنحذف، بس ترجع «بدون قسم».', ok:'احذفه', cancel:'خلّه' });
+      if(!ok) return;
       try {
         const { error } = await window.supabaseClient.from('table_sections').delete().eq('id', btn.dataset.id);
         if(error) throw error;
@@ -12919,7 +12986,8 @@ async function renderPosSettings(){
   panel.querySelectorAll('.table-remove-btn').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       if(btn.dataset.active){ showToast('هذي الطاولة عليها طلب شغّال حاليًا — تقدر تحذفها بعد ما ينتهي'); return; }
-      if(!window.confirm('تأكيد حذف هذي الطاولة؟')) return;
+      const ok = await rkAsk({ title:'تحذف هذي الطاولة؟', body:'تختفي من شاشة الطاولات بالكاشير. طلباتها القديمة تبقى بالتقارير.', ok:'احذفها', cancel:'خلّها' });
+      if(!ok) return;
       try {
         const { error } = await window.supabaseClient.from('restaurant_tables').delete().eq('id', btn.dataset.id);
         if(error) throw error;
