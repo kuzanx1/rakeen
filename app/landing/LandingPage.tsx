@@ -285,7 +285,7 @@ const T = {
     },
     more: {
       h: "وكل اللي يحتاجه يومك.",
-      items: ["شاشة المطبخ", "تطبيقات التوصيل", "الطاولات والحجوزات", "صلاحيات الموظفين", "تعدد الفروع", "تقارير وتصدير Excel", "شاشة العميل", "صفحة حجز المواعيد"],
+      items: ["شاشة المطبخ", "تطبيقات التوصيل", "الطاولات والحجوزات", "صلاحيات الموظفين", "تعدد الفروع", "تقارير وتصدير Excel", "شاشة العميل", "صفحة حجز المواعيد", "مستشار يفحص يومك"],
     },
     plans: {
       k: "الباقات",
@@ -446,7 +446,7 @@ const T = {
     },
     more: {
       h: "And everything your day needs.",
-      items: ["Kitchen screen", "Delivery apps", "Tables & reservations", "Staff permissions", "Multiple branches", "Reports & Excel export", "Customer display", "Booking page"],
+      items: ["Kitchen screen", "Delivery apps", "Tables & reservations", "Staff permissions", "Multiple branches", "Reports & Excel export", "Customer display", "Booking page", "An advisor that checks your day"],
     },
     plans: {
       k: "Plans",

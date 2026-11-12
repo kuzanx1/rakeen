@@ -520,17 +520,6 @@ select.field-invalid {
   .attach-group-item {
     min-height: 44px;
   }
-  /* Owner's explicit call: these read as too big/spaced-out on a phone —
-     wants them small and packed close together, not full touch-target
-     sized. Deliberately smaller than the 44px floor used elsewhere. */
-  .ai-suggested-questions {
-    gap: 6px;
-  }
-  .ai-suggest-chip {
-    min-height: 30px;
-    padding: 6px 11px;
-    font-size: 11px;
-  }
   /* A checkbox+label toggle row (win-back settings, notification prefs) —
      the raw checkbox measures ~17px, and while the whole <label> text is
      already clickable (wider hit area than the box alone), it had no

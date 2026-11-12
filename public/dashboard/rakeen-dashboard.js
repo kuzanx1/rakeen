@@ -1035,7 +1035,7 @@ async function loadSalesRealData(opts){
   orderItemsList.forEach(it=>{
     const product = MENU_ITEMS.find(m=>m.id===it.menu_item_id);
     if(!product) return;
-    const bucket = (byProduct[it.menu_item_id] ||= {name: product.name, cat: product.category, qty:0, revenue:0});
+    const bucket = (byProduct[it.menu_item_id] ||= {id: it.menu_item_id, name: product.name, cat: product.category, qty:0, revenue:0});
     bucket.qty += Number(it.qty);
     bucket.revenue += Number(it.line_total);
     // same per-unit ingredient+packaging cost logic as the Menu screen's margin
@@ -1175,7 +1175,7 @@ async function loadSalesRangeData(from, to){
   itemsList.forEach(it=>{
     const product = MENU_ITEMS.find(m=>m.id===it.menu_item_id);
     if(!product) return;
-    const bucket = (byProduct[it.menu_item_id] ||= {name: product.name, cat: product.category, qty:0, revenue:0});
+    const bucket = (byProduct[it.menu_item_id] ||= {id: it.menu_item_id, name: product.name, cat: product.category, qty:0, revenue:0});
     bucket.qty += Number(it.qty);
     bucket.revenue += Number(it.line_total);
     // same per-unit ingredient+packaging cost logic as the Menu screen's
@@ -9025,6 +9025,7 @@ async function runLiveRefresh(){
       renderTodayHeroes();
       renderHourGrid();
       renderTodaySalesSummary();
+      aiRender();
       // المخزون: سطر "استهلك اليوم" مشتقّ من ALL_SELLERS، فلازم يُعاد رسمه
       // بعد أي تحديث مبيعات وإلا بقي على بيانات ما قبل التحميل (بذور العرض).
       renderStockTable();
@@ -9111,6 +9112,8 @@ async function renderPhase1Screens(){
   renderStockTable();
   renderWasteAndFoodCost();
   await loadWeekTrend();
+  AI_READY = true;
+  aiRender();
   renderStatusHero();
   renderOnboardingChecklist();
   renderTodayHeroes();
@@ -11088,98 +11091,295 @@ function stockCoverage(stockItem){
   return best;
 }
 
-const AI_QA = [
-  {q:'كيف أزيد الأرباح؟', a: ()=>{
-    const items = computeRealAttentionItems();
-    if(items.length > 0) return items.map(i=>'• '+i.text+(i.sub?' — '+i.sub:'')).join('<br>');
-    return 'ما فيه شي حرج يحتاج تصليح الحين — ركّز على زيادة متوسط الفاتورة أو تسويق أوقات الذروة.';
-  }},
-  {q:'كم مبيعاتي اليوم؟', a: ()=>
-    TODAY.ordersCount > 0
-      ? `مبيعاتك اليوم ${TODAY.netSales.toFixed(2)} ر.س من ${TODAY.ordersCount} طلب، بمتوسط فاتورة ${TODAY.avgTicket.toFixed(2)} ر.س.`
-      : 'ما فيه مبيعات مسجّلة اليوم بعد.'
-  },
-  {q:'ليش أرباحي نزلت هالأسبوع؟', a: ()=>{
-    const delta = TODAY.netSales - YESTERDAY.netSales;
-    const items = computeRealAttentionItems();
-    const warnText = items.length ? items[0].text + (items[0].sub ? ' — ' + items[0].sub : '') : '';
-    return delta >= 0
-      ? `مبيعاتك اليوم (${TODAY.netSales.toFixed(2)} ر.س) فعليًا أعلى من أمس (${YESTERDAY.netSales.toFixed(2)} ر.س) — ما فيه انخفاض حاليًا.${warnText ? ' بس عندك تنبيه يستاهل انتباه: ' + warnText : ''}`
-      : `مبيعاتك اليوم أقل من أمس بـ${Math.abs(delta).toFixed(2)} ر.س.${warnText ? ' تنبيه مرتبط: ' + warnText : ''}`;
-  }},
-  {q:'وش أكثر منتج يحقق ربح؟', a: ()=>{
-    if(!TODAY.topProducts || TODAY.topProducts.length === 0) return 'ما فيه مبيعات مسجّلة اليوم بعد.';
-    const top = [...TODAY.topProducts].sort((a,b)=>b.revenue-a.revenue)[0];
-    return `${top.name} — باع ${top.qty} قطعة وحقق ${top.revenue.toFixed(2)} ر.س اليوم، وهو الأعلى مبيعًا حاليًا.`;
-  }},
-  {q:'متى وقت الذروة عندي؟', a: ()=>{
-    if(HOURLY_SALES.length === 0) return 'ما فيه مبيعات مسجّلة اليوم بعد لتحديد وقت الذروة.';
-    const peak = HOURLY_SALES.reduce((a,b)=> b.revenue>a.revenue?b:a);
-    return `الساعة ${peak.hour}:00 هي أعلى ساعة مبيعات اليوم — ${peak.revenue.toFixed(2)} ر.س و${peak.orders} طلب.`;
-  }},
-  {q:'كيف حال المخزون؟', a: ()=>{
-    const critical = STOCK_ITEMS
-      .map(s=>({...s, tier: computeStockTier(s.parLevel>0 ? (s.qtyOnHand/s.parLevel*100) : 100)}))
-      .filter(s=> s.tier==='critical' || s.tier==='warn');
-    if(critical.length === 0) return 'المخزون بحالة جيدة، ما فيه أصناف حرجة حاليًا.';
-    return critical.map(s=>{
-      const level = s.tier==='critical' ? 'حرج' : 'منخفض';
-      const qtyText = `${s.qtyOnHand} ${UNIT_LABELS[s.unit]||s.unit}`;
-      const coverage = stockCoverage(s);
-      return coverage
-        ? `• ${s.name}: ${level} (${qtyText}) — يكفي تقريبًا ${coverage.servings} من "${coverage.name}"`
-        : `• ${s.name}: ${level} (${qtyText})`;
-    }).join('<br>');
-  }},
-  {q:'مين أفضل موظف اليوم؟', a: ()=>{
-    if(STAFF_STATS.length === 0) return 'ما فيه موظفو كاشير مضافين بعد.';
-    const top = [...STAFF_STATS].sort((a,b)=>b.sales-a.sales)[0];
-    return top.sales > 0
-      ? `${top.name} — حقق ${top.sales.toFixed(2)} ر.س مبيعات من ${top.orders} طلب اليوم.`
-      : 'ما فيه مبيعات مسجّلة اليوم بعد.';
-  }}
-];
-// No more free-text matching — this is a fixed picker now (tap a question,
-// get its answer), not a chat you type into, so every call is always the
-// exact q string off a button's own data-q. Kept as a lookup (not just
-// calling item.a() straight from the click handler) purely so the "answer
-// computation threw" guard stays in one place.
-function aiFindAnswer(text){
-  const item = AI_QA.find(i=>i.q === text);
-  if(!item) return null;
-  try { return item.a(); }
-  catch(err){ console.error('AI advisor answer failed', item.q, err); return 'صار خطأ وأنا أجهّز الإجابة — جرّب مرة ثانية.'; }
+/* ============ مستشار ركين (ad-) =====================================
+   فحص يومك فوق («وش وضعي؟» و«وش أسوي الحين؟»)، وتحته بطاقات أسئلة:
+   تضغط وحدة ويطلع جوابها في بطاقة وحدة -- رقم كبير، جملة، رسم صغير،
+   وزر يوديك للمكان اللي تتصرف فيه. كل الأرقام من بيانات المطعم نفسها
+   (TODAY/ALL_SELLERS/WEEK_HOUR_GRID/STOCK_ITEMS/STAFF_STATS)، ولا شي
+   يُرسم قبل ما يوصل التحميل الحقيقي (AI_READY) -- قبلها البذور وهمية.
+   ويُعاد الرسم مع المزامنة الحية (runLiveRefresh)، بدون أي polling. */
+let AI_READY = false;
+let adCur = null;
+const AD_SEEN_KEY = 'rk-ai-seen';
+function adToday(){ const d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+function adSeen(){
+  try { const v = JSON.parse(localStorage.getItem(AD_SEEN_KEY) || 'null'); return v && v.day === adToday() && Array.isArray(v.keys) ? v.keys : []; }
+  catch(_){ return []; }
 }
-function aiAddMessage(html, sender){
-  const el = document.createElement('div');
-  el.className = 'ai-msg ' + sender;
-  el.innerHTML = html;
-  document.getElementById('aiConversation').appendChild(el);
-  return el;
+function adMarkSeen(k){
+  const keys = adSeen(); if(keys.includes(k)) return false;
+  keys.push(k);
+  try { localStorage.setItem(AD_SEEN_KEY, JSON.stringify({ day: adToday(), keys })); } catch(_){}
+  return true;
 }
-function aiAsk(text){
-  document.querySelectorAll('.ai-suggest-chip').forEach(chip=> chip.classList.toggle('active', chip.dataset.q === text));
-  aiAddMessage(text, 'user');
-  const conv = document.getElementById('aiConversation');
-  const typing = document.createElement('div');
-  typing.className = 'ai-typing';
-  typing.innerHTML = '<span></span><span></span><span></span>';
-  conv.appendChild(typing);
-  typing.scrollIntoView({block:'end', behavior:'smooth'});
-  setTimeout(()=>{
-    typing.remove();
-    const el = aiAddMessage(aiFindAnswer(text), 'bot');
-    el.scrollIntoView({block:'end', behavior:'smooth'});
-  }, 500);
+function adPct(n){ return Math.round(Number(n) || 0) + '٪'; }
+/* سبب القفل: الباقة أول، بعدها صلاحية الموظف. null = مفتوح. */
+function adLockPlan(feature){ return planHas(feature) ? null : { plan: feature, why: 'ضمن باقة ' + (FEATURE_MIN_PLAN[feature] || 'أعلى') }; }
+function adLockScreen(slug, label){
+  if(!document.querySelector('.nav-item[data-screen="' + slug + '"]')) return { hide: true };
+  return hmScreenOk(slug) ? null : { why: 'تحتاج صلاحية «' + label + '»' };
 }
-function renderAiSuggestions(){
-  document.getElementById('aiSuggestedQuestions').innerHTML = AI_QA.map(item=>
-    `<button class="ai-suggest-chip" data-q="${item.q}">${item.q}</button>`
-  ).join('');
-  document.querySelectorAll('.ai-suggest-chip').forEach(chip=>{
-    chip.addEventListener('click', ()=> aiAsk(chip.dataset.q));
+function adLockProfit(){ return adLockPlan('costing_profit') || (canViewProfit() ? null : { why: 'تحتاج صلاحية «الأرباح»' }); }
+function adStockIssues(){
+  return computeRealAttentionItems().filter(a => a.screen === 'inventory');
+}
+function adProductProfits(){
+  const rows = [], uncosted = [];
+  (ALL_SELLERS || []).forEach(p => {
+    const item = MENU_ITEMS.find(m => m.id === p.id) || MENU_ITEMS.find(m => m.name === p.name);
+    const cost = item ? computeVariableCost(item, 'default') : 0;
+    if(!(cost > 0) && !(item && item.costMode === 'direct')){ uncosted.push(p); return; }
+    rows.push({ name: p.name, qty: p.qty, profit: p.revenue / 1.15 - p.qty * cost });
   });
+  return { rows: rows.sort((a, b) => b.profit - a.profit), uncosted };
 }
+/* معدّل كل ساعة بالأيام اللي فيها بيع، آخر ٧ أيام (اليوم معها). */
+function adHours(){
+  const days = (WEEK_HOUR_GRID || []).filter(d => d.total > 0);
+  const sum = {};
+  days.forEach(d => Object.keys(d.hours || {}).forEach(h => {
+    const s = (sum[h] ||= { total: 0, count: 0 }); s.total += Number(d.hours[h].total) || 0; s.count += Number(d.hours[h].count) || 0;
+  }));
+  const hrs = Object.keys(sum).map(h => ({ h: Number(h), avg: sum[h].total / days.length, orders: sum[h].count / days.length })).sort((a, b) => a.h - b.h);
+  return { days: days.length, hrs };
+}
+function adBars(rows, nowIdx){
+  const max = Math.max(1, ...rows.map(r => r.v));
+  return '<div class="ad-bars">' + rows.map((r, i) => '<div class="ad-bar' + (r.top ? ' top' : '') + (i === nowIdx ? ' now' : '') + '" title="' + escapeHtml(r.title || r.k) + '">'
+    + '<div class="ad-bar-col"><i style="height:' + Math.max(3, r.v / max * 100).toFixed(1) + '%"></i></div><span>' + r.k + '</span></div>').join('') + '</div>';
+}
+function adRows(rows, money){
+  const max = Math.max(1, ...rows.map(r => Math.abs(r.v)));
+  return '<div class="ad-rows">' + rows.map((r, i) => '<div class="hm-row best"><span class="hm-rank">' + (i + 1) + '</span>'
+    + '<span class="hm-row-main"><span class="hm-row-top"><b>' + escapeHtml(r.name) + '</b>' + (money ? hmMoney(r.v, r.v < 0 ? 'neg' : '') : '<span class="hm-num">' + hmFmt(r.v) + '</span>') + '</span>'
+    + '<span class="hm-track"><i style="width:' + Math.max(3, Math.abs(r.v) / max * 100).toFixed(1) + '%"></i></span>'
+    + (r.sub ? '<small>' + r.sub + '</small>' : '') + '</span></div>').join('') + '</div>';
+}
+const AD_GO_POS = { label: 'افتح الكاشير', screen: '@pos' };
+
+/* ===== الأسئلة ===== */
+const AD_QS = [
+  { k: 'sales', ic: 'wallet', c: 'fin', q: 'كم بعت اليوم؟', hint: 'ومقارنة بأمس لنفس الساعة', a: () => {
+    const sales = Number(TODAY.netSales) || 0, n = Number(TODAY.ordersCount) || 0;
+    if(!n) return { big: hmMoney(0), sub: 'ولا طلب لسا', body: 'أول ما تبيع من الكاشير يطلع هنا كم بعت، ومتوسط فاتورتك، ويومك مقارنة بأمس لنفس الساعة.', go: AD_GO_POS };
+    const y = hmYesterdaySoFar();
+    let cmp = '';
+    if(y > 0){ const p = Math.round((sales - y) / y * 100); cmp = p >= 0 ? '<b class="ad-up">↑ ' + p + '٪</b> أكثر من أمس لنفس الساعة (أمس ' + hmMoney(y) + ')' : '<b class="ad-down">↓ ' + Math.abs(p) + '٪</b> أقل من أمس لنفس الساعة (أمس ' + hmMoney(y) + ')'; }
+    else cmp = 'أمس ما كان فيه بيع لنفس الساعة.';
+    const byH = {}; (HOURLY_SALES || []).forEach(h => { byH[Number(h.hour)] = Number(h.revenue) || 0; });
+    const hs = Object.keys(byH).map(Number), nowH = new Date().getHours();
+    const lo = Math.min(nowH, ...hs), hi = Math.max(nowH, ...hs), bars = [];
+    for(let h = lo; h <= hi; h++) bars.push({ k: (h - lo) % 3 === 0 || h === nowH ? fmtHour12(h) : '', v: byH[h] || 0, title: fmtHour12(h) + ' — ' + hmFmt(byH[h] || 0) });
+    return { big: hmMoney(sales), sub: hmOrders(n) + ' · متوسط الفاتورة ' + hmMoney(TODAY.avgTicket), body: cmp, viz: adBars(bars, nowH - lo),
+      go: hmScreenOk('orders') ? { label: 'شوف الطلبات', screen: 'orders' } : null };
+  } },
+  { k: 'top', ic: 'tag', c: 'res', q: 'وش أكثر منتج ينباع؟', hint: 'ترتيب منتجاتك اليوم', a: () => {
+    const s = [...(ALL_SELLERS || [])].sort((a, b) => b.qty - a.qty || b.revenue - a.revenue);
+    if(!s.length) return { big: '—', sub: 'ما انباع شي لسا اليوم', body: 'أول ما تبيع يطلع لك ترتيب منتجاتك: وش يطلبونه أكثر، وبكم جابت.', go: AD_GO_POS };
+    return { big: escapeHtml(s[0].name), sub: 'انباع ' + hmFmt(s[0].qty) + ' اليوم بـ ' + hmMoney(s[0].revenue),
+      body: s.length > 1 ? 'وبعده ' + escapeHtml(s[1].name) + '. حطّ الأكثر طلب أول شي بالقائمة وبالمتجر.' : '',
+      viz: adRows(s.slice(0, 5).map(p => ({ name: p.name, v: p.qty, sub: hmMoney(p.revenue) }))),
+      go: hmScreenOk('menu') ? { label: 'افتح القائمة', screen: 'menu' } : null };
+  } },
+  { k: 'profit', ic: 'trophy', c: 'fin', q: 'أي منتج يربحني أكثر؟', hint: 'بعد تكلفة مكوّناته', lock: adLockProfit, a: () => {
+    const { rows, uncosted } = adProductProfits();
+    const note = uncosted.length ? '<span class="ad-note">' + hmPlural(uncosted.length, 'منتج واحد', 'منتجين', 'منتجات', 'منتج') + ' انباع اليوم بدون تكلفة، فما دخل الحساب.</span>' : '';
+    if(!rows.length) return { big: '—', sub: (ALL_SELLERS || []).length ? 'منتجاتك اللي انباعت ما لها تكلفة' : 'ما انباع شي لسا اليوم',
+      body: (ALL_SELLERS || []).length ? 'حط تكلفة كل منتج (مكوّناته أو تكلفة مباشرة) ونحسب لك ربحك من كل واحد.' : 'أول ما تبيع نحسب ربحك من كل منتج بعد تكلفته.',
+      go: hmScreenOk('menu') ? { label: 'حط التكاليف', screen: 'menu' } : null };
+    return { big: escapeHtml(rows[0].name), sub: 'ربحك منه اليوم ' + hmMoney(rows[0].profit) + ' من ' + hmFmt(rows[0].qty) + ' قطعة',
+      body: 'الربح = سعره بدون الضريبة ناقص تكلفة مكوّناته. ' + note,
+      viz: adRows(rows.slice(0, 5).map(r => ({ name: r.name, v: r.profit, sub: 'انباع ' + hmFmt(r.qty) })), true),
+      go: hmScreenOk('menu') ? { label: 'افتح القائمة', screen: 'menu' } : null };
+  } },
+  { k: 'peak', ic: 'clock', c: 'ops', q: 'متى أزحم ساعة عندي؟', hint: 'من آخر ٧ أيام', a: () => {
+    const { days, hrs } = adHours();
+    if(!hrs.length) return { big: '—', sub: 'نحتاج يوم بيع على الأقل', body: 'بعد أول يوم بيع نقول لك أزحم ساعة وأهداها، عشان تجهّز موظفينك وتعرف متى تسوي عرض.', go: AD_GO_POS };
+    const peak = hrs.reduce((a, b) => b.avg > a.avg ? b : a);
+    const quiet = hrs.length > 2 ? hrs.reduce((a, b) => b.avg < a.avg ? b : a) : null;
+    const bars = hrs.map(x => ({ k: fmtHour12(x.h), v: x.avg, top: x === peak, title: fmtHour12(x.h) + ' — معدّل ' + hmFmt(x.avg) }));
+    return { big: fmtHour12(peak.h), sub: 'معدّلها ' + hmMoney(peak.avg) + ' · ' + hmPlural(days, 'يوم واحد', 'يومين', 'أيام', 'يوم') + ' فيها بيع',
+      body: 'جهّز المطبخ والموظفين قبلها بنص ساعة.' + (quiet && quiet !== peak ? ' وأهدى ساعة عندك ' + fmtHour12(quiet.h) + '، عرض بهالوقت يحرّكها.' : ''),
+      viz: adBars(bars.length > 12 ? bars.map((b, i) => Object.assign(b, { k: i % 2 && !b.top ? '' : b.k })) : bars) };
+  } },
+  { k: 'days', ic: 'reports', c: 'team', q: 'أي يوم أقوى عندي؟', hint: 'آخر ٧ أيام يوم بيوم', a: () => {
+    const w = WEEK_TREND || [], sold = w.filter(d => d.total > 0);
+    if(!sold.length) return { big: '—', sub: 'ما فيه بيع بآخر ٧ أيام', body: 'كل يوم تبيع فيه يطلع هنا، وتعرف أي يوم يجيب أكثر.', go: AD_GO_POS };
+    const best = sold.reduce((a, b) => b.total > a.total ? b : a);
+    const avg = sold.reduce((s, d) => s + d.total, 0) / sold.length;
+    return { big: best.day, sub: hmMoney(best.total) + ' · معدّل يومك ' + hmMoney(avg),
+      body: sold.length < 3 ? 'كل ما زادت أيام البيع صارت المقارنة أدق.' : 'جهّز مشترياتك وموظفينك لهاليوم.',
+      viz: adBars(w.map((d, i) => ({ k: d.day, v: d.total, top: d === best, title: d.day + ' — ' + hmFmt(d.total) })), w.length - 1),
+      go: hmScreenOk('reports') ? { label: 'افتح التقارير', screen: 'reports' } : null };
+  } },
+  { k: 'stock', ic: 'inventory', c: 'res', q: 'وش ناقص في المخزون؟', hint: 'اللي قرب يخلص', lock: () => (typeof INVENTORY_ENABLED !== 'undefined' && !INVENTORY_ENABLED) ? { hide: true } : (adLockPlan('inventory') || adLockScreen('inventory', 'المخزون')), a: () => {
+    if(!STOCK_ITEMS.length) return { big: '—', sub: 'ما أضفت مخزون لسا', body: 'أضف موادك (رز، دجاج، لبن…) وكم عندك منها، ونقول لك وش قرب يخلص قبل ما يخلص.', go: { label: 'أضف مخزونك', screen: 'inventory' } };
+    const iss = adStockIssues();
+    if(!iss.length) return { big: 'كله تمام', sub: hmPlural(STOCK_ITEMS.length, 'مادة وحدة', 'مادتين', 'مواد', 'مادة') + ' وكلها فوق الحد', body: 'ما فيه شي قرب يخلص. نشيّك لك مع كل بيعة.', go: { label: 'افتح المخزون', screen: 'inventory' } };
+    return { big: hmPlural(iss.length, 'شي واحد', 'شيئين', 'أشياء', 'شي'), sub: 'قرب يخلص أو خلص', body: 'اطلبها من المورد قبل الذروة.',
+      viz: '<div class="ad-list">' + iss.map(a => '<div class="ad-li ' + a.level + '"><span class="pu-todo-ic">' + hmIc('alert') + '</span><span><b>' + escapeHtml(a.text) + '</b><small>' + escapeHtml(a.sub) + '</small></span></div>').join('') + '</div>',
+      go: { label: 'افتح المخزون', screen: 'inventory' } };
+  } },
+  { k: 'staff', ic: 'team', c: 'team', q: 'مين باع أكثر اليوم؟', hint: 'مبيعات كل موظف', lock: () => adLockScreen('hr', 'الموظفين'), a: () => {
+    const s = [...(STAFF_STATS || [])].filter(x => x.orders > 0).sort((a, b) => b.sales - a.sales);
+    if(!(STAFF_STATS || []).length) return { big: '—', sub: 'ما أضفت موظفين', body: 'أضف موظفين الكاشير، وكل واحد يفتح ورديته باسمه، ونقول لك مين باع أكثر.', go: { label: 'أضف موظف', screen: 'hr' } };
+    if(!s.length) return { big: '—', sub: 'ولا موظف باع لسا اليوم', body: 'أول ما يبيعون من الكاشير يطلع ترتيبهم هنا.', go: { label: 'افتح الموظفين', screen: 'hr' } };
+    return { big: escapeHtml(s[0].name), sub: hmMoney(s[0].sales) + ' من ' + hmOrders(s[0].orders),
+      body: s.length > 1 ? 'كلمة شكر قدام الفريق تفرق كثير.' : '',
+      viz: adRows(s.slice(0, 5).map(x => ({ name: x.name, v: x.sales, sub: hmOrders(x.orders) })), true),
+      go: { label: 'افتح الموظفين', screen: 'hr' } };
+  } },
+  { k: 'grow', ic: 'accounting', c: 'fin', q: 'كيف أزيد أرباحي؟', hint: 'وش ياكل ربحك اليوم', lock: adLockProfit, a: () => {
+    const L = [];
+    const unc = MENU_ITEMS.filter(m => m.active && m.linkProfit && m.price > 0 && m.costMode !== 'direct' && !(computeVariableCost(m, 'default') > 0));
+    if(unc.length) L.push({ ic: 'alert', t: hmPlural(unc.length, 'منتج واحد', 'منتجين', 'منتجات', 'منتج') + ' بدون تكلفة', h: 'ربحها يطلع أعلى من الحقيقي. حط تكلفتها وتعرف وش يربحك فعلاً', go: 'menu', b: 'حطها' });
+    const costed = MENU_ITEMS.filter(m => m.active && m.price > 0 && computeVariableCost(m, 'default') > 0)
+      .map(m => { const net = m.price / 1.15, c = computeVariableCost(m, 'default'); return { m, pct: (net - c) / net * 100 }; }).sort((a, b) => a.pct - b.pct);
+    if(costed.length && costed[0].pct < 50) L.push({ ic: 'tag', t: escapeHtml(costed[0].m.name) + ': يبقى لك ' + Math.floor(costed[0].pct) + '٪ بس من سعره', h: 'أقل هامش عندك. راجع سعره أو كميات مكوّناته', go: 'menu', b: 'راجعه' });
+    const net = Number(TODAY.netSales) || 0;
+    if(net > 0 && TODAY_DELIVERY_PLATFORM_COST / net >= 0.08) L.push({ ic: 'orders', t: 'التطبيقات أخذت ' + hmMoney(TODAY_DELIVERY_PLATFORM_COST) + ' اليوم', h: adPct(TODAY_DELIVERY_PLATFORM_COST / net * 100) + ' من مبيعاتك. ارفع أسعارك فيها بنسبة تغطي عمولتها', go: 'delivery', b: 'ارفعها' });
+    if(TODAY_WASTE_COST > 0) L.push({ ic: 'inventory', t: 'هدر اليوم ' + hmMoney(TODAY_WASTE_COST), h: 'شوف وش انرمى وليش', go: 'inventory', b: 'شوفه' });
+    if(!FIXED_COSTS_SET) L.push({ ic: 'wallet', t: 'حدد مصاريفك الثابتة', h: 'الإيجار والرواتب، عشان ربحك الصافي يطلع صح', go: 'accounting', tab: 'fixedcosts', b: 'حدّدها' });
+    const rows = L.filter(l => hmScreenOk(l.go));
+    if(!rows.length) return { big: 'ما فيه شي واضح', sub: 'ما لقينا شي ياكل ربحك اليوم 👌', body: 'كمّل كذا. ونرجع نشيّك مع كل بيعة.' };
+    return { big: hmPlural(rows.length, 'شي واحد', 'شيئين', 'أشياء', 'شي'), sub: 'تزيد ربحك لو سويتها', body: '',
+      viz: '<div class="ad-list">' + rows.map(l => '<div class="ad-li"><span class="pu-todo-ic">' + hmIc(l.ic) + '</span><span><b>' + l.t + '</b><small>' + l.h + '</small></span>'
+        + '<button type="button" class="rk2-btn mn-ghost sm" data-ad-go="' + l.go + '"' + (l.tab ? ' data-ad-tab="' + l.tab + '"' : '') + '>' + l.b + '</button></div>').join('') + '</div>' };
+  } },
+];
+function adQState(q){
+  const l = q.lock ? q.lock() : null;
+  return l && l.hide ? null : l;
+}
+function adVisibleQs(){ return AD_QS.filter(q => { const l = q.lock ? q.lock() : null; return !(l && l.hide); }); }
+
+/* ===== فحص يومك ===== */
+function adChecks(){
+  const C = [];
+  const sales = Number(TODAY.netSales) || 0, n = Number(TODAY.ordersCount) || 0, y = hmYesterdaySoFar();
+  if(!n) C.push({ st: 'wait', t: 'أول طلب اليوم', d: 'أول ما تبيع نبدأ نقارن يومك بأمس', go: '@pos', b: 'افتح الكاشير' });
+  else if(y > 0 && sales < y) C.push({ st: 'bad', t: 'مبيعاتك أقل من أمس', d: 'أقل بـ ' + Math.round((y - sales) / y * 100) + '٪ لنفس الساعة. شوف أي منتج نزل', go: '@q:top', b: 'شوف' });
+  else C.push({ st: 'ok', t: 'مبيعاتك ماشية', d: y > 0 ? 'أكثر من أمس لنفس الساعة' : 'وأمس ما كان فيه بيع لنفس الساعة', go: '@q:sales' });
+  const stk = AD_QS.find(q => q.k === 'stock');
+  if(!adQState(stk) && adVisibleQs().includes(stk) && STOCK_ITEMS.length){
+    const iss = adStockIssues();
+    C.push(iss.length ? { st: 'bad', t: iss[0].text, d: iss[0].sub, go: 'inventory', b: 'افتح المخزون' } : { st: 'ok', t: 'المخزون تمام', d: 'ما فيه شي قرب يخلص', go: '@q:stock' });
+  }
+  if(hmScreenOk('orders')){
+    const bad = TODAY.cancelledCount >= 3 || TODAY.refundedCount >= 2;
+    C.push(bad ? { st: 'bad', t: TODAY.cancelledCount >= 3 ? TODAY.cancelledCount + ' طلبات ملغاة اليوم' : TODAY.refundedCount + ' عمليات استرجاع اليوم', d: 'أعلى من المعتاد. شوف وش السبب', go: 'orders', b: 'افتح الطلبات' }
+      : { st: 'ok', t: 'الطلبات بدون مشاكل', d: 'ما فيه إلغاء ولا استرجاع كثير', go: hmScreenOk('orders') ? 'orders' : '' });
+  }
+  if(canViewProfit()){
+    const unc = MENU_ITEMS.filter(m => m.active && m.linkProfit && m.price > 0 && m.costMode !== 'direct' && !(computeVariableCost(m, 'default') > 0));
+    C.push(unc.length ? { st: 'bad', t: hmPlural(unc.length, 'منتج واحد', 'منتجين', 'منتجات', 'منتج') + ' بدون تكلفة', d: 'بدونها ربحك يطلع أعلى من الحقيقي', go: 'menu', b: 'حط التكاليف' }
+      : { st: 'ok', t: 'تكاليف منتجاتك كاملة', d: 'ربح كل منتج محسوب صح', go: '@q:profit' });
+    if(n){
+      const p = Number(TODAY.profit) || 0;
+      C.push(p > 0 ? { st: 'ok', t: 'يومك رابح', d: 'صافي ربحك اليوم ' + acR(p) + ' ر.س', go: '@q:grow' }
+        : { st: 'bad', t: 'يومك لسا بخسارة', d: 'صافي اليوم ' + acR(p) + ' ر.س بعد المصاريف. شوف وش ياكل ربحك', go: '@q:grow', b: 'شوف' });
+    }
+  }
+  return C;
+}
+let adPrevBad = null;
+function adRenderHero(){
+  const el = document.getElementById('aiHero');
+  if(!el) return;
+  const C = adChecks(), ok = C.filter(c => c.st === 'ok').length, bad = C.filter(c => c.st === 'bad'), wait = C.some(c => c.st === 'wait');
+  const visible = !!document.getElementById('screen-ai')?.offsetParent;
+  const celebrate = visible && adPrevBad !== null && adPrevBad > 0 && bad.length === 0 && !wait;
+  adPrevBad = visible ? bad.length : null;
+  const next = bad[0] || C.find(c => c.st === 'wait');
+  const h = new Date().getHours();
+  const hello = h < 5 ? 'مساك الله بالخير' : h < 12 ? 'صباح الخير' : 'مساء الخير';
+  const title = wait && !bad.length ? 'يومك لسا ما بدأ' : !bad.length ? 'كل شي تمام اليوم 👌' : (bad.length === 1 ? 'فيه شي واحد يحتاجك' : 'فيه ' + hmPlural(bad.length, 'شي واحد', 'شيئين', 'أشياء', 'شي') + ' تحتاجك');
+  const sub = wait && !bad.length ? 'أول ما تبيع يشتغل الفحص ويقول لك وضعك' : !bad.length ? 'فحصت يومك وما لقيت شي يقلق. اسألني تحت عن أي شي' : 'ابدأ بالأهم، وكل ما خلّصت شي تزيد علامتك';
+  const step = c => '<button type="button" class="hm-qstep ad-chk ' + c.st + (c === next ? ' is-next' : '') + '"' + (c.go ? ' data-ad-go="' + c.go + '"' : ' disabled') + '>'
+    + '<span class="hm-qcheck">' + (c.st === 'ok' ? hmIc('check') : c.st === 'bad' ? '!' : '•') + '</span>' + c.t + '</button>';
+  el.innerHTML = '<div class="rk2-card hm-quest ad-hero' + (celebrate ? ' mn-celebrate' : '') + (!bad.length && !wait ? ' all-ok' : '') + '">'
+    + '<div class="hm-quest-top"><div class="hm-ring" style="--p:' + Math.round(ok / Math.max(1, C.length) * 100) + '"><b>' + ok + '<small>/' + C.length + '</small></b></div>'
+    + '<div><div class="hm-kicker">' + hmIc('flag') + 'فحص يومك · ' + hello + '</div><h3>' + title + '</h3><p>' + sub + '</p></div></div>'
+    + (next ? '<button type="button" class="hm-quest-next" data-ad-go="' + next.go + '"><span class="hm-quest-n">' + (next.st === 'bad' ? '!' : hmIc('clock')) + '</span>'
+      + '<span class="hm-quest-txt"><small class="ad-now">وش أسوي الحين؟</small><b>' + next.t + '</b><small>' + next.d + '</small></span><span class="rk2-btn lime sm">' + (next.b || 'ابدأ') + hmIc('arrow') + '</span></button>' : '')
+    + '<div class="hm-quest-list">' + C.filter(c => c !== next).map(step).join('') + '</div></div>';
+  if(celebrate) showToast('خلّصت كل اللي يحتاجك اليوم 🎉');
+}
+
+/* ===== بطاقات الأسئلة والجواب ===== */
+function adRenderQs(){
+  const el = document.getElementById('aiQs');
+  if(!el) return;
+  const seen = adSeen(), qs = adVisibleQs();
+  const open = qs.filter(q => !adQState(q));
+  const done = open.filter(q => seen.includes(q.k)).length;
+  const pr = document.getElementById('aiProgress');
+  if(pr) pr.innerHTML = done >= open.length && open.length ? 'جاوبتك على كل أسئلة اليوم ✓ وترجع تتحدّث مع كل بيعة'
+    : 'اكتشفت ' + done + ' من ' + open.length + ' اليوم <span class="ad-prog"><i style="width:' + Math.round(done / Math.max(1, open.length) * 100) + '%"></i></span>';
+  el.innerHTML = qs.map((q, i) => {
+    const l = adQState(q), on = adCur === q.k, s = seen.includes(q.k);
+    return '<button type="button" class="ad-q' + (on ? ' active' : '') + (s ? ' seen' : '') + (l ? ' locked' : '') + '" data-ad-q="' + q.k + '"'
+      + (l && l.plan ? ' data-plan-feature="' + l.plan + '"' : '') + ' style="animation-delay:' + (i * 0.03).toFixed(2) + 's">'
+      + '<span class="rk2-ic c-' + q.c + '">' + hmIc(q.ic) + '</span><b>' + q.q + '</b><small>' + (l ? '🔒 ' + l.why : q.hint) + '</small>'
+      + (s && !l ? '<span class="ad-tick">' + hmIc('check') + '</span>' : '') + '</button>';
+  }).join('');
+}
+function adRenderAnswer(){
+  const el = document.getElementById('aiAnswer');
+  if(!el) return;
+  const q = AD_QS.find(x => x.k === adCur);
+  if(!q || adQState(q)){ el.innerHTML = ''; return; }
+  let r;
+  try { r = q.a(); } catch(err){ console.error('advisor answer failed', q.k, err); r = { big: '—', sub: 'صار خطأ وأنا أجهّز الجواب', body: 'جرّب مرة ثانية بعد شوي.' }; }
+  const go = r.go ? (r.go.screen === '@pos' ? '<button type="button" class="rk2-btn lime" data-ad-go="@pos">' + hmIc('cash') + r.go.label + '</button>'
+    : '<button type="button" class="rk2-btn lime" data-ad-go="' + r.go.screen + '"' + (r.go.tab ? ' data-ad-tab="' + r.go.tab + '"' : '') + '>' + r.go.label + hmIc('arrow') + '</button>') : '';
+  el.innerHTML = '<div class="rk2-card ad-ans" data-k="' + q.k + '">'
+    + '<div class="ad-ans-top"><span class="rk2-ic c-' + q.c + '">' + hmIc(q.ic) + '</span><div class="ad-ans-q"><span>' + q.q + '</span>'
+    + '<div class="ad-big">' + r.big + '</div>' + (r.sub ? '<div class="ad-sub">' + r.sub + '</div>' : '') + '</div>'
+    + '<button type="button" class="pu-ic-btn ad-close" data-ad-close aria-label="سكّر">' + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>'
+    + (r.body ? '<p class="ad-body">' + r.body + '</p>' : '') + (r.viz || '')
+    + (go ? '<div class="ad-acts">' + go + '</div>' : '') + '</div>';
+}
+function aiRender(){
+  const hero = document.getElementById('aiHero');
+  if(!hero) return;
+  if(!AI_READY){
+    hero.innerHTML = '<div class="rk2-card ad-hero"><div class="ac-loading">' + hmIc('clock') + 'أفحص يومك…</div></div>';
+    return;
+  }
+  adRenderHero(); adRenderQs(); adRenderAnswer();
+}
+function adAsk(k){
+  const q = AD_QS.find(x => x.k === k);
+  if(!q) return;
+  const l = adQState(q);
+  if(l){ if(!l.plan) showToast('🔒 ' + l.why); return; }
+  adCur = adCur === k ? null : k;
+  if(adCur){
+    const fresh = adMarkSeen(k);
+    const open = adVisibleQs().filter(x => !adQState(x));
+    if(fresh && open.every(x => adSeen().includes(x.k))) showToast('اكتشفت كل أسئلة اليوم 🎉 ارجع بكرة وتلقى أرقام جديدة');
+  }
+  adRenderQs(); adRenderAnswer();
+  const a = document.querySelector('#aiAnswer .ad-ans');
+  if(a){ const r = a.getBoundingClientRect(); if(r.top < 60 || r.top > innerHeight - 160) a.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+}
+(function wireAd(){
+  const root = document.getElementById('screen-ai');
+  if(!root) return;
+  root.addEventListener('click', e => {
+    const q = e.target.closest('[data-ad-q]');
+    if(q){ adAsk(q.dataset.adQ); return; }
+    if(e.target.closest('[data-ad-close]')){ adCur = null; adRenderQs(); adRenderAnswer(); return; }
+    const g = e.target.closest('[data-ad-go]');
+    if(!g) return;
+    const to = g.dataset.adGo;
+    if(to === '@pos'){ window.open('/pos', '_blank', 'noopener'); return; }
+    if(to.startsWith('@q:')){ adCur = null; adAsk(to.slice(3)); return; }
+    if(to) goToScreenTab(to, g.dataset.adTab);
+  });
+  aiRender();
+})();
 
 /* ============ قوالب الخصم =====================================
    «خصم ٣٠٪» في تقريرٍ لا يقول إن كانت عروض اليوم الوطني أم ضيافةً أم
@@ -20998,7 +21198,6 @@ wireBulkImportModal();
 renderEmployeeCards();
 renderAchievements();
 renderDeliveryPlatforms();
-renderAiSuggestions();
 // Reports/Settings/Customers/Loyalty skeleton rendering deferred to their
 // nav-item's first visit (see the .nav-item click handler) rather than
 // running unconditionally here at script-parse time — before restoreSession()
