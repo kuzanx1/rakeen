@@ -89,7 +89,7 @@ const NOISE = /eval\(\) is not supported|Internal Next\.js error|hasn.t mounted 
     await page.waitForTimeout(1200);
     const full = async name => {
       const tall = await page.evaluate(() => { const c = document.querySelector('.content'); return c ? c.scrollHeight + c.getBoundingClientRect().top + 40 : 0; });
-      await page.setViewportSize({ width: w, height: Math.max(h, tall) });
+      await page.setViewportSize({ width: w, height: Math.ceil(Math.max(h, tall)) });
       await page.waitForTimeout(400);
       await page.screenshot({ path: path.join(OUT, `${name}-${w}.png`) });
       await page.setViewportSize({ width: w, height: h });

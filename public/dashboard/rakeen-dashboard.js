@@ -11919,11 +11919,11 @@ const PS_TILES = [
 /* البطاقات تنبني مرّة. الحالة تحت كل اسم تتحدّث بعد كل جلب. */
 function psBuildTiles(){
   const el = document.getElementById('posSettingsTabs');
-  if(!el || el.querySelector('.ps-tile')) return; // الترميز فيه البطاقات أصلاً
+  if(!el || el.querySelector('.rk2-tile')) return; // الترميز فيه البطاقات أصلاً
   el.innerHTML = PS_TILES.map(([tab, ic, title, hint])=>
-    '<button type="button" class="ps-tile' + (tab === activePosSettingsTab ? ' active' : '') + '" data-tab="' + tab + '">'
-    + '<span class="ps-tile-ic">' + psIc(ic) + '</span>'
-    + '<span class="ps-tile-txt"><b>' + title + (tab === 'pager' ? ' <span class="pgs-tab-new">جديد</span>' : '') + '</b><small data-ps-sum="' + tab + '">' + hint + '</small></span></button>').join('');
+    '<button type="button" class="rk2-tile' + (tab === activePosSettingsTab ? ' active' : '') + '" data-tab="' + tab + '">'
+    + '<span class="rk2-tile-ic">' + psIc(ic) + '</span>'
+    + '<span class="rk2-tile-txt"><b>' + title + (tab === 'pager' ? ' <span class="pgs-tab-new">جديد</span>' : '') + '</b><small data-ps-sum="' + tab + '">' + hint + '</small></span></button>').join('');
   if(typeof applyPlanHiding === 'function') applyPlanHiding();
 }
 function psSetSums(sums){
@@ -11993,7 +11993,7 @@ async function psGoTo(tab, focusSel){
     target.scrollIntoView({block:'center', behavior:'smooth'});
     target.focus({preventScroll:true});
     const sec = target.closest('.rk-section');
-    if(sec){ sec.classList.remove('ps-flash'); void sec.offsetWidth; sec.classList.add('ps-flash'); }
+    if(sec){ sec.classList.remove('rk2-flash'); void sec.offsetWidth; sec.classList.add('rk2-flash'); }
   } else if(body) body.scrollIntoView({block:'start', behavior:'smooth'});
 }
 async function psOpenTab(tab){
@@ -13043,6 +13043,7 @@ function wireGeideaPanel(){
       const result = await res.json().catch(()=>({}));
       if(!res.ok){ rkBtnLoading(connectBtn, false); showToast(result.error || 'تعذر الحفظ'); return; }
       GEIDEA_CONNECTED = true;
+      if(typeof renderOnlineHero === 'function') renderOnlineHero();
       GEIDEA_PUBLIC_KEY_LAST4 = result.last4 || '';
       logDashboardAudit('ربط بوابة دفع Geidea');
       rkBtnSuccess(connectBtn, '✓ تم الربط');
@@ -13067,6 +13068,7 @@ function wireGeideaPanel(){
       });
       if(!res.ok){ rkBtnLoading(disconnectBtn, false); showToast('تعذر الفصل'); return; }
       GEIDEA_CONNECTED = false;
+      if(typeof renderOnlineHero === 'function') renderOnlineHero();
       GEIDEA_PUBLIC_KEY_LAST4 = '';
       logDashboardAudit('فصل بوابة دفع Geidea');
       rkBtnSuccess(disconnectBtn, '✓ تم الفصل');
@@ -13815,14 +13817,125 @@ function wireRestaurantSettings(){
    display categories (subcategory grouping for the storefront only — the
    products themselves are managed from "القائمة", not here). */
 let activeOnlineMenuTab = 'settings';
-document.getElementById('onlineMenuTabs').addEventListener('click', (e)=>{
-  const b = e.target.closest('button'); if(!b) return;
-  document.querySelectorAll('#onlineMenuTabs button').forEach(x=>x.classList.remove('active'));
-  b.classList.add('active');
-  activeOnlineMenuTab = b.dataset.tab;
+document.getElementById('screen-onlineMenu').addEventListener('click', (e)=>{
+  const go = e.target.closest('[data-ol-go]');
+  if(go){ olGoTo(go.dataset.olGo, go.dataset.olFocus); return; }
+  if(e.target.closest('[data-ol-copy]')){
+    const url = onlineMenuPublicUrl();
+    navigator.clipboard?.writeText(url).then(()=> showToast('نسخنا رابط متجرك')).catch(()=> showToast('انسخه من الخانة: ' + url));
+    return;
+  }
+  if(e.target.closest('[data-ol-upgrade]')) return showPlanUpgrade('online_store');
+  const b = e.target.closest('#onlineMenuTabs [data-tab]'); if(!b) return;
   resetContentScroll();
-  renderOnlineMenuPanel();
+  olOpenTab(b.dataset.tab);
 });
+/* ============ شاشة «المتجر الإلكتروني» (ol-) ============
+   فوق: «متجرك» -- الرابط كبير مع نسخ وفتح، وأربع خطوات تخلي المتجر
+   يبيع (الرابط، واتساب، الشكل، الدفع بالبطاقة). تحت: بطاقات أفعال
+   (rk2-tile) كل وحدة تقول حالها، وتفتح إعداداتها تحت. */
+const OL_THEME_LABEL = {classic:'ديوان', luxury:'مخمل', folk:'أصيل', facade:'إطلالة'};
+const OL_IC = {
+  globe:'<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+  copy:'<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/>',
+  card:'<rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>',
+  brush:'<path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/>',
+};
+function olIc(n){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (OL_IC[n] || PS_IC[n] || HM_IC[n] || '') + '</svg>'; }
+
+let olPrevLeft = null;
+function renderOnlineHero(){
+  const el = document.getElementById('olHero');
+  if(!el) return;
+  olSetSums();
+  if(typeof planHas === 'function' && !planHas('online_store')){
+    el.innerHTML = '<div class="rk2-card ol-locked"><span class="mn-done-ic">' + mnIc('lock') + '</span>'
+      + '<div class="mn-done-txt"><b>متجرك الإلكتروني مع باقة ' + (FEATURE_MIN_PLAN.online_store || 'صرح') + '</b><small>صفحة طلب برابطك، يطلب منها عميلك توصيل أو استلام ويوصلك الطلب على الكاشير</small></div>'
+      + '<button type="button" class="rk2-btn lime" data-ol-upgrade>شوف الباقة</button></div>';
+    return;
+  }
+  if(!ONLINE_ORDERING_ENABLED){
+    el.innerHTML = '<div class="rk2-card ol-locked"><span class="mn-done-ic">' + olIc('globe') + '</span>'
+      + '<div class="mn-done-txt"><b>المتجر مو مفعّل لمطعمك للحين</b><small>كلّم فريق ركين ونفعّله لك، وبعدها تضبطه من هنا</small></div></div>';
+    return;
+  }
+  const url = onlineMenuPublicUrl();
+  const shown = url.replace(/^https?:\/\//, '');
+  const trial = ONLINE_SUBSCRIBED ? '' : (()=>{
+    const used = ONLINE_ORDER_FREE_COUNT, lim = ONLINE_ORDER_FREE_LIMIT, out = used >= lim;
+    return '<div class="ol-trial' + (out ? ' out' : '') + '"><div class="ol-trial-top"><span>' + (out ? 'خلصت الطلبات المجانية' : 'الفترة التجريبية') + '</span><b class="hm-num">' + used + ' / ' + lim + '</b></div>'
+      + '<span class="hm-track"><i style="width:' + Math.min(100, used / lim * 100).toFixed(1) + '%"></i></span>'
+      + '<small>' + (out ? 'بعد ٢٤ ساعة من وصولها يوقف البيع من الكاشير والمتجر لين تشترك' : 'طلبات الكاشير والمتجر تنحسب مع بعض') + '</small></div>';
+  })();
+  const link = ONLINE_MENU_SLUG
+    ? '<div class="ol-link"><span class="ol-link-ic">' + olIc('globe') + '</span>'
+      + '<div class="ol-link-txt"><small>رابط متجرك — شاركه مع عملائك</small><b id="olHeroUrl" dir="ltr">' + escapeHtml(shown) + '</b></div>'
+      + '<div class="ol-link-acts"><button type="button" class="rk2-btn lime sm" data-ol-copy>' + olIc('copy') + 'انسخ الرابط</button>'
+      + '<a class="rk2-btn mn-ghost sm" href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' + psIc('open') + 'افتح متجرك</a></div></div>'
+    : '';
+  const steps = [
+    { done: !!ONLINE_MENU_SLUG, label: 'اختر رابط متجرك', desc: 'اسم إنجليزي قصير يصير هو رابط متجرك اللي تشاركه', tab: 'settings', focus: '#storeSlugInput' },
+    { done: !!(ONLINE_CONTACT_WHATSAPP && ONLINE_CONTACT_WHATSAPP.trim()), label: 'حط رقم واتساب', desc: 'عميلك يكلمك منه لو عنده سؤال عن طلبه', tab: 'settings', focus: '#settingsOnlineWhatsapp' },
+    { done: !!(BUSINESS_LOGO_URL || ONLINE_BANNER_URL), label: 'صمّم متجرك', desc: 'شعارك وصورة غلاف، ويصير المتجر يشبهك', tab: 'design', focus: '' },
+    { done: !!GEIDEA_CONNECTED, label: 'خلّ عميلك يدفع بالبطاقة', desc: 'اربط حسابك في Geidea ويدفع وقت الطلب', tab: 'gateway', focus: '#geideaPanelBody input' },
+  ];
+  const done = steps.filter(s=>s.done).length;
+  const left = steps.length - done;
+  const celebrate = olPrevLeft !== null && olPrevLeft > 0 && left === 0;
+  olPrevLeft = left;
+  const go = s => ' data-ol-go="' + s.tab + '" data-ol-focus="' + escapeHtml(s.focus) + '"';
+  if(left === 0){
+    el.innerHTML = '<div class="rk2-card ol-hero ol-ready' + (celebrate ? ' mn-celebrate' : '') + '">'
+      + '<div class="mn-done ol-done-row"><span class="mn-done-ic">' + hmIc('check') + '</span>'
+      + '<div class="mn-done-txt"><b>متجرك جاهز يبيع</b><small>رابطك وشكلك وواتسابك والدفع بالبطاقة، كله مضبوط</small></div></div>'
+      + link + trial + '</div>';
+    if(celebrate) showToast('متجرك جاهز 🎉');
+    return;
+  }
+  const nextIdx = steps.findIndex(s=>!s.done);
+  const next = steps[nextIdx];
+  const pct = Math.round(done / steps.length * 100);
+  el.innerHTML = '<div class="rk2-card hm-quest ol-hero ol-quest">'
+    + '<div class="hm-quest-top"><div class="hm-ring" style="--p:' + pct + '"><b>' + done + '<small>/' + steps.length + '</small></b></div>'
+    + '<div><div class="hm-kicker">' + olIc('globe') + 'متجرك</div>'
+    + '<h3>' + (done === 0 ? 'أربع خطوات ويبيع متجرك' : 'باقي ' + hmPlural(left, 'خطوة وحدة', 'خطوتين', 'خطوات', 'خطوة') + ' ويصير متجرك كامل') + '</h3>'
+    + '<p>' + (ONLINE_MENU_SLUG ? 'متجرك شغّال الحين، والخطوات تخليه أحسن' : 'أول خطوة تعطيك رابط تشاركه') + '</p></div></div>'
+    + link
+    + '<button type="button" class="hm-quest-next"' + go(next) + '>'
+    + '<span class="hm-quest-n">' + (nextIdx + 1) + '</span><span class="hm-quest-txt"><b>' + next.label + '</b><small>' + next.desc + '</small></span><span class="rk2-btn lime sm">ابدأ' + hmIc('arrow') + '</span></button>'
+    + '<div class="hm-quest-list">' + steps.map((s,i)=> i === nextIdx ? '' :
+        '<button type="button" class="hm-qstep' + (s.done ? ' done' : '') + '"' + (s.done ? ' disabled' : go(s)) + '>'
+        + '<span class="hm-qcheck">' + (s.done ? hmIc('check') : (i + 1)) + '</span>' + s.label + '</button>').join('') + '</div>'
+    + trial + '</div>';
+}
+function olSetSums(){
+  const sums = {
+    settings: [ONLINE_OFFERS_DELIVERY ? 'توصيل' : '', ONLINE_OFFERS_PICKUP ? 'استلام' : ''].filter(Boolean).join(' + ') || 'ما فيه طريقة استلام!',
+    design: (OL_THEME_LABEL[ONLINE_THEME_STYLE] || 'ديوان') + (BUSINESS_LOGO_URL ? ' · بشعارك' : ' · بدون شعار'),
+    gateway: GEIDEA_CONNECTED ? 'مربوط، البطاقة شغّالة' : 'مو مربوط للحين',
+  };
+  Object.entries(sums).forEach(([k, v])=>{
+    const s = document.querySelector('#onlineMenuTabs [data-ol-sum="' + k + '"]');
+    if(s) s.textContent = v;
+  });
+}
+async function olOpenTab(tab){
+  document.querySelectorAll('#onlineMenuTabs [data-tab]').forEach(x=>x.classList.toggle('active', x.dataset.tab === tab));
+  activeOnlineMenuTab = tab;
+  await renderOnlineMenuPanel();
+}
+async function olGoTo(tab, focusSel){
+  await olOpenTab(tab);
+  const target = focusSel && document.querySelector(focusSel);
+  const body = document.getElementById('onlineMenuPanelBody');
+  if(target){
+    target.scrollIntoView({block:'center', behavior:'smooth'});
+    target.focus({preventScroll:true});
+    const sec = target.closest('.rk-section');
+    if(sec){ sec.classList.remove('rk2-flash'); void sec.offsetWidth; sec.classList.add('rk2-flash'); }
+  } else if(body) body.scrollIntoView({block:'start', behavior:'smooth'});
+}
 
 // The subdomain form ({slug}.rakeenapp.com) is what merchants should actually
 // share — middleware.ts rewrites it to /order/{slug} internally. Only shown
@@ -13835,6 +13948,7 @@ function onlineMenuPublicUrl(){
 
 function renderOnlineMenuPanel(){
   const panel = document.getElementById('onlineMenuPanelBody');
+  renderOnlineHero();
   if(!ONLINE_ORDERING_ENABLED){
     panel.innerHTML = `<div class="panel"><p class="stock-qty-helper">هذي الميزة غير مفعّلة لمطعمك حاليًا — تواصل مع فريق ركين لتفعيلها.</p></div>`;
     return;
@@ -14005,22 +14119,7 @@ function onlineStoreSettingsHtml(){
           <button class="rk-btn rk-btn-secondary rk-btn-md" id="copyOnlineMenuUrlBtn" type="button">نسخ</button>
         </div>
       </div>
-      ${ONLINE_SUBSCRIBED ? `
-      <div class="rk-badge" style="background:rgba(196,255,43,0.16); color:var(--success-text); margin-top:12px;">مشترك — طلبات بلا حد</div>
-      ` : `
-      <div style="margin-top:14px;">
-        <div style="display:flex; justify-content:space-between; font-size:11.5px; font-weight:700; color:var(--muted); margin-bottom:6px;">
-          <span>الفترة التجريبية (الكاشير والمتجر مع بعض)</span>
-          <span class="mono">${ONLINE_ORDER_FREE_COUNT} / ${ONLINE_ORDER_FREE_LIMIT}</span>
-        </div>
-        <div style="height:8px; background:var(--surf2); border-radius:99px; overflow:hidden;">
-          <div style="height:100%; width:${Math.min(100, (ONLINE_ORDER_FREE_COUNT/ONLINE_ORDER_FREE_LIMIT)*100)}%; background:${ONLINE_ORDER_FREE_COUNT>=ONLINE_ORDER_FREE_LIMIT?'var(--danger)':'var(--lime-deep)'}; border-radius:99px;"></div>
-        </div>
-        <p class="stock-qty-helper" style="margin-top:8px;">${ONLINE_ORDER_FREE_COUNT>=ONLINE_ORDER_FREE_LIMIT
-          ? `خلصت أول ${ONLINE_ORDER_FREE_LIMIT} طلب مجاني. بعد 24 ساعة من وصولها يتوقف البيع من الكاشير والمتجر لين تشترك.`
-          : `استخدمت ${ONLINE_ORDER_FREE_COUNT} من ${ONLINE_ORDER_FREE_LIMIT} طلب مجاني (طلبات الكاشير والمتجر تنحسب مع بعض). بعدها يحتاج اشتراك عشان يفضل البيع شغال.`}</p>
-      </div>
-      `}
+      ${ONLINE_SUBSCRIBED ? `<div class="rk-badge" style="background:rgba(196,255,43,0.16); color:var(--success-text); margin-top:12px;">مشترك — طلبات بلا حد</div>` : ''}
     </div>
 
     <div class="rk-section">
@@ -14259,6 +14358,7 @@ function wireOnlineStoreSettings(){
       await updateCurrentBusiness({ name: nameAr, online_menu_slug: slug });
       RESTAURANT_INFO.name = nameAr;
       ONLINE_MENU_SLUG = slug;
+      if(typeof renderOnlineHero === 'function') renderOnlineHero();
       logDashboardAudit('غيّر اسم المتجر ورابطه');
       rkBtnSuccess(namesBtn, '✓ تم الحفظ');
       // الروابط المعروضة تُعاد كتابتها: رابط المتجر وشاشة العميل مبنيان
@@ -14340,6 +14440,7 @@ function wireOnlineStoreSettings(){
       ONLINE_DELIVERY_FEE = updates.online_delivery_fee;
       ONLINE_PICKUP_PREP_MINUTES = updates.online_pickup_prep_minutes;
       ONLINE_CONTACT_WHATSAPP = updates.online_contact_whatsapp || '';
+      if(typeof renderOnlineHero === 'function') renderOnlineHero();
       ONLINE_SOCIAL_INSTAGRAM = updates.online_social_instagram || '';
       ONLINE_SOCIAL_TIKTOK = updates.online_social_tiktok || '';
       ONLINE_SOCIAL_TWITTER = updates.online_social_twitter || '';
@@ -26258,13 +26359,13 @@ RKA.registerManager({
           // 4) طريقة دفع
           if(!(b.cod || rkaOnlineCardUsable(b))){
             steps.push({ key:'opay', type:'choose', prompt:'ما فيه طريقة دفع شغّالة. وش تفعّل؟',
-              hint:'<b>الدفع عند الاستلام</b>: العميل يدفع كاش/شبكة وقت الاستلام أو التوصيل — أسهل بداية.\n<b>الدفع الإلكتروني</b>: يدفع بالبطاقة وقت الطلب — يحتاج ربط بوابة دفع (Geidea) من تبويب «بوابة الدفع».',
+              hint:'<b>الدفع عند الاستلام</b>: العميل يدفع كاش/شبكة وقت الاستلام أو التوصيل — أسهل بداية.\n<b>الدفع الإلكتروني</b>: يدفع بالبطاقة وقت الطلب — يحتاج ربط بوابة دفع (Geidea) من بطاقة «الدفع بالبطاقة».',
               options: rkaOnlineGeidea()
                 ? [ { value:'cod', label:'الدفع عند الاستلام', primary:true }, { value:'card', label:'الدفع الإلكتروني (بوابتك مربوطة)' }, { value:'both', label:'الاثنين' } ]
                 : [ { value:'cod', label:'الدفع عند الاستلام', primary:true }, { value:'gateway', label:'أبي أربط بوابة دفع أول' } ] });
             if(a.opay === 'gateway'){
-              steps.push({ key:'ogwInfo', type:'info', text:'تمام — بوابة الدفع تُربط من تبويب «بوابة الدفع» في هذه الصفحة. بفتح لك المكان.' });
-              steps.push({ key:'ogwExec', type:'execute', idemKind:'ogw', run:() => { rkaOnlineOpenTab('gateway'); return { closePanel:true, message:'فتحت لك تبويب «بوابة الدفع» ✓ — بعد الربط ارجع وكمّل التجهيز.' }; } });
+              steps.push({ key:'ogwInfo', type:'info', text:'تمام — بوابة الدفع تُربط من بطاقة «الدفع بالبطاقة» في هذه الصفحة. بفتح لك المكان.' });
+              steps.push({ key:'ogwExec', type:'execute', idemKind:'ogw', run:() => { rkaOnlineOpenTab('gateway'); return { closePanel:true, message:'فتحت لك بطاقة «الدفع بالبطاقة» ✓ — بعد الربط ارجع وكمّل التجهيز.' }; } });
             } else if(a.opay !== undefined){
               steps.push({ key:'opayExec', type:'execute', idemKind:'opay', pending:'أحفظ…',
                 run: async (ans) => { const p = { online_cod_enabled: ans.opay === 'cod' || ans.opay === 'both', online_card_enabled: ans.opay === 'card' || ans.opay === 'both' || rkaOnlineBiz().card };
@@ -26341,8 +26442,8 @@ RKA.registerManager({
                 return { message: on ? 'الدفع عند الاستلام مفعّل ✓' : 'الدفع عند الاستلام مطفّأ ✓' }; } });
           } else if(a.pick === 'card'){
             if(!rkaOnlineGeidea()){
-              steps.push({ key:'cardInfo', type:'info', text:'الدفع الإلكتروني يحتاج ربط بوابة دفع (Geidea) أول — من تبويب «بوابة الدفع» في هذه الصفحة. بفتح لك المكان.' });
-              steps.push({ key:'cardGw', type:'execute', idemKind:'ocardgw', run:() => { rkaOnlineOpenTab('gateway'); return { closePanel:true, message:'فتحت لك تبويب «بوابة الدفع» ✓' }; } });
+              steps.push({ key:'cardInfo', type:'info', text:'الدفع الإلكتروني يحتاج ربط بوابة دفع (Geidea) أول — من بطاقة «الدفع بالبطاقة» في هذه الصفحة. بفتح لك المكان.' });
+              steps.push({ key:'cardGw', type:'execute', idemKind:'ocardgw', run:() => { rkaOnlineOpenTab('gateway'); return { closePanel:true, message:'فتحت لك بطاقة «الدفع بالبطاقة» ✓' }; } });
             } else {
               steps.push({ key:'krOn', type:'choose', prompt:'الدفع الإلكتروني الآن: «' + (b.card ? 'مفعّل' : 'مطفّأ') + '» (بوابتك مربوطة). نخليه؟',
                 options: [ { value:'on', label:'مفعّل', primary:true }, { value:'off', label:'مطفّأ' } ] });
@@ -26409,15 +26510,15 @@ RKA.registerManager({
               options: [ { value:'classic', label:'ديوان' + (b.themeStyle === 'classic' ? ' (الحالي)' : ''), primary: b.themeStyle === 'classic' }, { value:'luxury', label:'مخمل' + (b.themeStyle === 'luxury' ? ' (الحالي)' : ''), primary: b.themeStyle === 'luxury' }, { value:'folk', label:'أصيل' + (b.themeStyle === 'folk' ? ' (الحالي)' : ''), primary: b.themeStyle === 'folk' }, { value:'facade', label:'إطلالة' + (b.themeStyle === 'facade' ? ' (الحالي)' : ''), primary: b.themeStyle === 'facade' } ] });
             if(a.st !== undefined) steps.push({ key:'stExec', type:'execute', idemKind:'ostyle', pending:'أحفظ…',
               run: async (ans) => { await rkaOnlineSaveBiz({ online_theme_style: ans.st }, 'غيّر شكل المتجر', rkaOnlineMirror);
-                return { message:'صار الشكل «' + ({ classic:'ديوان', luxury:'مخمل', folk:'أصيل', facade:'إطلالة' }[ans.st] || 'ديوان') + '» ✓ — شوف النتيجة في تبويب «التصميم» (معاينة حية).' }; } });
+                return { message:'صار الشكل «' + ({ classic:'ديوان', luxury:'مخمل', folk:'أصيل', facade:'إطلالة' }[ans.st] || 'ديوان') + '» ✓ — شوف النتيجة في بطاقة «صمّم متجرك» (معاينة حية).' }; } });
           } else if(a.pick === 'color'){
             steps.push({ key:'col', type:'ask', prompt:'اللون الرئيسي؟ اكتب كود اللون (hex)',
-              hint:'مثل <b dir="ltr">C7FF4D</b> أو <b dir="ltr">#B7834A</b>. لو ما تدري الكود، افتح تبويب «التصميم» فيه منتقي ألوان بصري.',
+              hint:'مثل <b dir="ltr">C7FF4D</b> أو <b dir="ltr">#B7834A</b>. لو ما تدري الكود، افتح بطاقة «صمّم متجرك» فيه منتقي ألوان بصري.',
               parse: raw => { let v = String(raw || '').trim().replace(/^#/, ''); return /^[0-9a-fA-F]{6}$/.test(v) ? ('#' + v.toUpperCase()) : null; },
               validate: v => v ? null : 'اكتب كود لون صحيح — ٦ خانات (٠-٩ / A-F)، مثل C7FF4D.' });
             if(a.col !== undefined) steps.push({ key:'colExec', type:'execute', idemKind:'ocolor', pending:'أحفظ…',
               run: async (ans) => { await rkaOnlineSaveBiz({ online_theme_color: ans.col }, 'غيّر لون هوية المتجر', rkaOnlineMirror);
-                return { message:'صار اللون الرئيسي ' + ans.col + ' ✓ — تبويب «التصميم» يوريك النتيجة.' }; } });
+                return { message:'صار اللون الرئيسي ' + ans.col + ' ✓ — بطاقة «صمّم متجرك» يوريك النتيجة.' }; } });
           } else if(a.pick === 'font'){
             steps.push({ key:'fn', type:'choose', prompt:'خط المتجر؟',
               options: [ { value:'rakeen', label:'خط ركين' + (b.font === 'rakeen' ? ' (الحالي)' : ''), primary: b.font === 'rakeen' }, { value:'thmanyah', label:'خط Thmanyah' + (b.font === 'thmanyah' ? ' (الحالي)' : ''), primary: b.font === 'thmanyah' } ] });
@@ -26437,8 +26538,8 @@ RKA.registerManager({
                 await rkaOnlineSaveBiz(p, 'عدّل عبارة المتجر', rkaOnlineMirror);
                 return { message: ans.tg ? 'صارت العبارة «' + ans.tg + '» ✓' : 'أخفيت العبارة ✓' }; } });
           } else if(a.pick === 'images'){
-            steps.push({ key:'imgInfo', type:'info', text:'الشعار وصورة الغلاف تُرفع صور (مو نص) — أفتح لك تبويب «التصميم» فيه رفع الصور والمعاينة الحية.' });
-            steps.push({ key:'imgExec', type:'execute', idemKind:'oimg', run:() => { rkaOnlineOpenTab('design'); return { closePanel:true, message:'فتحت لك تبويب «التصميم» ✓' }; } });
+            steps.push({ key:'imgInfo', type:'info', text:'الشعار وصورة الغلاف تُرفع صور (مو نص) — أفتح لك بطاقة «صمّم متجرك» فيه رفع الصور والمعاينة الحية.' });
+            steps.push({ key:'imgExec', type:'execute', idemKind:'oimg', run:() => { rkaOnlineOpenTab('design'); return { closePanel:true, message:'فتحت لك بطاقة «صمّم متجرك» ✓' }; } });
           }
           return steps;
         },
