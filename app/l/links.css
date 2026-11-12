@@ -1,8 +1,22 @@
+/* خطوط ركين (عائلة ثمانية) -- ما تنزل إلا لو الصفحة استخدمتها. */
+@font-face { font-family: 'Thmanyah Sans'; src: url('/fonts/thmanyah-sans/thmanyahsans-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Thmanyah Sans'; src: url('/fonts/thmanyah-sans/thmanyahsans-Medium.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+@font-face { font-family: 'Thmanyah Sans'; src: url('/fonts/thmanyah-sans/thmanyahsans-Bold.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Thmanyah Sans'; src: url('/fonts/thmanyah-sans/thmanyahsans-Black.woff2') format('woff2'); font-weight: 900; font-display: swap; }
+@font-face { font-family: 'Thmanyah Serif Display'; src: url('/fonts/thmanyah-serif-display/thmanyahserifdisplay-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Thmanyah Serif Display'; src: url('/fonts/thmanyah-serif-display/thmanyahserifdisplay-Medium.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+@font-face { font-family: 'Thmanyah Serif Display'; src: url('/fonts/thmanyah-serif-display/thmanyahserifdisplay-Bold.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Thmanyah Serif Display'; src: url('/fonts/thmanyah-serif-display/thmanyahserifdisplay-Black.woff2') format('woff2'); font-weight: 900; font-display: swap; }
+@font-face { font-family: 'Thmanyah Serif Text'; src: url('/fonts/thmanyah-serif-text/thmanyahseriftext-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Thmanyah Serif Text'; src: url('/fonts/thmanyah-serif-text/thmanyahseriftext-Medium.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+@font-face { font-family: 'Thmanyah Serif Text'; src: url('/fonts/thmanyah-serif-text/thmanyahseriftext-Bold.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Thmanyah Serif Text'; src: url('/fonts/thmanyah-serif-text/thmanyahseriftext-Black.woff2') format('woff2'); font-weight: 900; font-display: swap; }
+
 /* «روابطك» -- ثلاثة تصاميم. كل الألوان والخطوط من متغيّرات --lk-* يضبطها
    LinkPageView من إعدادات المطعم. نفس الملف للصفحة العامة ولمعاينة اللوحة. */
 
 .lk { position: relative; isolation: isolate; min-height: 100dvh; box-sizing: border-box; overflow: clip;
-  font-family: 'Alexandria', system-ui, sans-serif; direction: rtl; text-align: center;
+  font-family: 'Thmanyah Sans', system-ui, sans-serif; direction: rtl; text-align: center;
   -webkit-tap-highlight-color: transparent; color: var(--lk-ink); }
 .lk *, .lk *::before, .lk *::after { box-sizing: border-box; }
 .lk a { color: inherit; text-decoration: none; }

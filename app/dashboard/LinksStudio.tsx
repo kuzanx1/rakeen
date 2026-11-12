@@ -77,13 +77,32 @@ function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) =
     </button>
   );
 }
+/** خانة كود اللون: تقبل #RRGGBB أو #RGB، بالـ# أو بدونها، وتعتمد أول ما يكتمل. */
+function HexIn({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [txt, setTxt] = useState(value);
+  useEffect(() => setTxt(value), [value]);
+  const take = (raw: string) => {
+    const v = "#" + raw.replace(/[^0-9a-f]/gi, "").slice(0, 6);
+    setTxt(v);
+    const full = /^#[0-9a-f]{3}$/i.test(v) ? "#" + v.slice(1).split("").map((c) => c + c).join("") : v;
+    if (v.length === 7) onChange(full.toUpperCase());
+  };
+  const commit = () => {
+    if (/^#[0-9a-f]{3}$/i.test(txt)) onChange(("#" + txt.slice(1).split("").map((c) => c + c).join("")).toUpperCase());
+    else setTxt(value);
+  };
+  return (
+    <input className="ls-hex" dir="ltr" value={txt} maxLength={7} spellCheck={false} aria-label="كود اللون" placeholder="#000000"
+      onChange={(e) => take(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+  );
+}
 function ColorIn({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
-    <label className="ls-color">
-      <input type="color" value={value} onChange={(e) => onChange(e.target.value.toUpperCase())} />
+    <div className="ls-color">
+      <input type="color" value={value} aria-label={label} onChange={(e) => onChange(e.target.value.toUpperCase())} />
       <span>{label}</span>
-      <code>{value}</code>
-    </label>
+      <HexIn value={value} onChange={onChange} />
+    </div>
   );
 }
 function Range({ label, value, min, max, onChange, unit = "" }: { label: string; value: number; min: number; max: number; onChange: (v: number) => void; unit?: string }) {
@@ -387,6 +406,7 @@ function BrandPanel({ cfg, detected, onPrimary, onTone }: {
             <input type="color" value={primary} onChange={(e) => onPrimary(e.target.value.toUpperCase())} />
             <Icon name="plus" size={16} />
           </label>
+          <HexIn value={primary} onChange={onPrimary} />
         </div>
       </Field>
       <Field label={`ألوان «${TEMPLATES.find((x) => x.key === t)!.name}»`} hint={cur < 0 ? "ألوانك يدوية الحين -- اختر وحدة من فوق ترجع لهويتك" : undefined}>

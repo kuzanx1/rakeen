@@ -57,11 +57,17 @@
 .ls-toggle.on i { background: var(--lime-deep); }
 .ls-toggle.on i::after { right: 20px; }
 
-.ls-colors { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.ls-colors { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
 .ls-color { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--line); cursor: pointer; }
-.ls-color input { width: 30px; height: 30px; border: 0; padding: 0; border-radius: 8px; background: none; cursor: pointer; flex: none; }
-.ls-color span { flex: 1; font-size: 12.5px; font-weight: 700; }
-.ls-color code { font-size: 10.5px; color: var(--muted); }
+.ls-color input[type="color"] { width: 30px; height: 30px; border: 0; padding: 0; border-radius: 8px; background: none; cursor: pointer; flex: none; }
+.ls-color span { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 700; line-height: 1.35; }
+.ls-color { cursor: default; }
+.ls-hex { width: 82px; flex: none; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card-bg); color: var(--text);
+  font: 600 12px/1.2 'IBM Plex Mono', ui-monospace, monospace; text-transform: uppercase; }
+.ls-hex:focus { outline: 2px solid var(--lime-deep); outline-offset: 0; }
+.ls input.ls-hex { width: 88px; min-width: 0; height: 32px; margin: 0; padding: 0 8px; box-sizing: border-box; flex: none; direction: ltr; text-align: left;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--card-bg); font: 600 12px/1 'IBM Plex Mono', ui-monospace, monospace; }
+.ls .ls-brand input.ls-hex { width: 104px; height: 38px; border-radius: 19px; padding: 0 12px; }
 .ls-range { width: 100%; accent-color: var(--lime-deep); }
 
 .ls-fonts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }

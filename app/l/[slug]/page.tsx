@@ -62,12 +62,11 @@ export default async function LinksPage({ params }: { params: Promise<{ slug: st
       </main>
     );
   }
-  const font = templateFont(p.cfg);
+  const fonts = fontsHref([templateFont(p.cfg)]);
   return (
     <>
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      <link rel="stylesheet" href={fontsHref([font])} />
+      {fonts && <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />}
+      {fonts && <link rel="stylesheet" href={fonts} />}
       <style>{`html,body{margin:0;background:${themeColor(p.cfg)}}`}</style>
       <LinkPageView cfg={p.cfg} biz={p.biz} />
       <HitTracker slug={p.biz.slug} name={p.cfg.name} />

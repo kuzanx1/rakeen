@@ -27,7 +27,7 @@ export type Stat = { value: string; label: string };
 
 export type TemplateKey = "velvet" | "cover" | "bold";
 export type Corner = "sharp" | "soft" | "pill";
-export type FontKey = "ruqaa" | "amiri" | "messiri" | "kufi" | "alexandria" | "lalezar" | "naskh" | "tajawal";
+export type FontKey = "sans" | "display" | "serif" | "plex" | "readex" | "tajawal" | "naskh";
 
 export type VelvetOpts = {
   bg: string; bgColor: string; overlay: number; tint: string; blur: number;
@@ -69,21 +69,22 @@ export type LinkPageConfig = {
 /** ما يعرفه الخادم عن المطعم (get_link_page). */
 export type LinkBiz = { name: string; logo: string | null; slug: string; store: boolean; booking: boolean };
 
-export const FONTS: Record<FontKey, { label: string; family: string; google: string }> = {
-  ruqaa: { label: "رقعة", family: "'Aref Ruqaa', serif", google: "Aref+Ruqaa:wght@400;700" },
-  amiri: { label: "نسخ", family: "'Amiri', serif", google: "Amiri:ital,wght@0,400;0,700;1,400" },
-  naskh: { label: "نسخ ناعم", family: "'Noto Naskh Arabic', serif", google: "Noto+Naskh+Arabic:wght@500;700" },
-  messiri: { label: "مسيري", family: "'El Messiri', serif", google: "El+Messiri:wght@500;700" },
-  kufi: { label: "كوفي", family: "'Reem Kufi', sans-serif", google: "Reem+Kufi:wght@500;700" },
-  alexandria: { label: "عصري", family: "'Alexandria', sans-serif", google: "Alexandria:wght@400;600;800;900" },
-  tajawal: { label: "نظيف", family: "'Tajawal', sans-serif", google: "Tajawal:wght@500;700;800" },
-  lalezar: { label: "عريض", family: "'Lalezar', sans-serif", google: "Lalezar" },
+// خطوط هادية ونظيفة: عائلة ثمانية (خط ركين نفسه، من /fonts في الموقع -- @font-face
+// في app/l/links.css) وثلاثة من قوقل بنفس الروح. google = يُحمّل من قوقل.
+export const FONTS: Record<FontKey, { label: string; family: string; google?: string }> = {
+  sans: { label: "ركين", family: "'Thmanyah Sans', sans-serif" },
+  display: { label: "ركين فاخر", family: "'Thmanyah Serif Display', serif" },
+  serif: { label: "ركين كلاسيك", family: "'Thmanyah Serif Text', serif" },
+  plex: { label: "بلكس", family: "'IBM Plex Sans Arabic', sans-serif", google: "IBM+Plex+Sans+Arabic:wght@400;500;700" },
+  readex: { label: "ريدكس", family: "'Readex Pro', sans-serif", google: "Readex+Pro:wght@400;600;700" },
+  tajawal: { label: "تجوال", family: "'Tajawal', sans-serif", google: "Tajawal:wght@500;700;800" },
+  naskh: { label: "نسخ", family: "'Noto Naskh Arabic', serif", google: "Noto+Naskh+Arabic:wght@500;700" },
 };
 
-/** رابط خطوط قوقل لما تحتاجه الصفحة فقط (+ Alexandria للنصوص دائماً). */
+/** رابط خطوط قوقل لما تحتاجه الصفحة فقط، أو "" لو كلها من خطوط ركين. */
 export function fontsHref(keys: FontKey[]): string {
-  const set = new Set<FontKey>(["alexandria", ...keys]);
-  return "https://fonts.googleapis.com/css2?" + [...set].map((k) => "family=" + FONTS[k].google).join("&") + "&display=swap";
+  const g = [...new Set(keys)].map((k) => FONTS[k].google).filter(Boolean);
+  return g.length ? "https://fonts.googleapis.com/css2?" + g.map((x) => "family=" + x).join("&") + "&display=swap" : "";
 }
 
 export const TEMPLATES: { key: TemplateKey; name: string; hint: string; tone: "dark" | "light" | "color" }[] = [
@@ -116,16 +117,16 @@ export const LINK_TYPES: Record<LinkType, { name: string; ask: string; placehold
 };
 
 const DEFAULT_VELVET: VelvetOpts = {
-  bg: "", bgColor: "#3A0A10", overlay: 45, tint: "#1A0306", blur: 0, font: "ruqaa", avatar: "oval",
+  bg: "", bgColor: "#3A0A10", overlay: 45, tint: "#1A0306", blur: 0, font: "display", avatar: "oval",
   btn: "outline", corner: "sharp", ink: "#FFF8F0", accent: "#FFF8F0", socialsAt: "bottom", grain: true,
 };
 const DEFAULT_COVER: CoverOpts = {
   cover: "", coverH: "m", fade: false, panel: "#6E0414", ink: "#FFF6EE", accent: "#FFF6EE", ring: "#FFFFFF",
-  avatar: "circle", btn: "outline", corner: "sharp", font: "amiri", rule: true,
+  avatar: "circle", btn: "outline", corner: "sharp", font: "serif", rule: true,
 };
 const DEFAULT_BOLD: BoldOpts = {
   hero: "#C9D9B4", heroInk: "#1F3A17", panel: "#26401E", ink: "#FFFFFF", accent: "#F2F05A", tile: "#FFFFFF",
-  tileInk: "#141414", font: "lalezar", photo: "", showStats: true, rows: "list",
+  tileInk: "#141414", font: "sans", photo: "", showStats: true, rows: "list",
 };
 export function newId(): string {
   return Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3);

@@ -9,7 +9,7 @@
   display: grid; place-items: center; border-radius: 50%; cursor: pointer; color: var(--lk-ink);
   background: color-mix(in srgb, var(--lk-ink) 12%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transition: transform .2s; }
 .lk-share:active { transform: scale(.92); }
-.lk-share[data-done]::after { content: "✓ نُسخ الرابط"; position: absolute; top: 44px; left: 0; white-space: nowrap; font: 700 11px 'Alexandria', sans-serif;
+.lk-share[data-done]::after { content: "✓ نُسخ الرابط"; position: absolute; top: 44px; left: 0; white-space: nowrap; font: 700 11px 'Thmanyah Sans', sans-serif;
   background: #111; color: #fff; padding: 5px 9px; border-radius: 8px; }
 
 /* الإعلان: شريط بلون الأزرار أعلى الصفحة، وزر المشاركة ينزل تحته. */
