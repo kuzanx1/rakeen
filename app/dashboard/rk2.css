@@ -1580,7 +1580,7 @@ button.mn-stat{cursor:pointer;}
 @media (prefers-reduced-motion: reduce){ .rk2 .ad-q, .ad-ans, .ad-tick, .ad-bar-col i{animation:none;} }
 
 /* ═══════════ القائمة الجانبية + الشريط العلوي (nav-) ═══════════
-   زر «افتح الكاشير» فوق، «جهّز محلك» لين تخلص، مجموعات بلغة صاحب المحل،
+   «جهّز محلك» لين تخلص، مجموعات بلغة صاحب المحل،
    ورقم على كل شاشة فيها شي يحتاجه (navSyncBadges). */
 .sidebar{padding-inline:12px;}
 @media (min-width:901px){ .sidebar{padding-top:14px; padding-bottom:12px; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin;} .sidebar-top{padding-bottom:12px;} }
@@ -1593,15 +1593,6 @@ button.mn-stat{cursor:pointer;}
 .nav-section-label.nav-divider::before{display:none;}
 .nav-sec-stock::before{background:var(--acc-res);}
 .nav-sec-team::before{background:var(--acc-team);}
-/* زر الكاشير */
-.nav-launch{display:flex; align-items:center; gap:10px; width:100%; margin:0 0 6px; padding:9px 12px; border-radius:14px; border:none; cursor:pointer;
-  background:var(--lime); color:#111; font-family:inherit; font-size:14px; font-weight:900; text-align:start;
-  box-shadow:0 8px 18px -12px rgba(143,203,23,.95); transition:transform .15s ease, box-shadow .2s ease;}
-.nav-launch:hover{transform:translateY(-1px); box-shadow:0 12px 22px -12px rgba(143,203,23,1);}
-.nav-launch:active{transform:scale(.97);}
-.nav-launch svg{width:18px; height:18px; flex-shrink:0;}
-.nav-launch-go{display:flex; width:24px; height:24px; border-radius:8px; background:rgba(17,17,17,.1); align-items:center; justify-content:center; flex-shrink:0;}
-.nav-launch-go svg{width:13px; height:13px;}
 /* جهّز محلك */
 .nav-setup{display:flex; align-items:center; gap:10px; width:100%; margin:0 0 4px; padding:7px 10px; border-radius:14px; cursor:pointer; font-family:inherit; color:var(--text); text-align:start;
   border:1.5px dashed color-mix(in srgb, var(--lime-deep) 60%, transparent); background:color-mix(in srgb, var(--lime) 10%, var(--card-bg)); animation:rk2-in .35s ease both; transition:transform .15s ease, border-color .2s ease;}
@@ -1639,8 +1630,7 @@ button.mn-stat{cursor:pointer;}
 @media (hover:none){ .cmdk-kbd{display:none;} }
 /* القائمة المطوية (ديسكتوب بس -- بالجوال درج كامل) */
 @media (min-width:901px){
-  .sidebar.collapsed .nav-launch{justify-content:center; padding:11px 0;}
-  .sidebar.collapsed .nav-launch-go, .sidebar.collapsed .nav-setup-txt, .sidebar.collapsed .nav-setup-go{display:none;}
+  .sidebar.collapsed .nav-setup-txt, .sidebar.collapsed .nav-setup-go{display:none;}
   .sidebar.collapsed .nav-setup{justify-content:center; padding:8px 0;}
   .sidebar.collapsed .nav-item .nav-badge{position:absolute; top:3px; inset-inline-end:6px; min-width:16px; height:16px; font-size:9.5px; padding:0 4px;}
   .sidebar.collapsed .nav-item[data-plan-feature]::after{display:none;}
@@ -1650,3 +1640,9 @@ button.mn-stat{cursor:pointer;}
   .cmdk-trigger{min-width:0;}
 }
 @media (prefers-reduced-motion: reduce){ .nav-setup, .nav-badge{animation:none;} }
+
+/* خطوة تصير على جهاز الكاشير (مو من اللوحة): بدون زر، تقول وين تصير */
+.hm-quest-next:disabled{cursor:default;}
+.hm-quest-next:disabled:hover{transform:none; box-shadow:none;}
+.hm-quest-dev{display:inline-flex; align-items:center; gap:6px; flex-shrink:0; padding:6px 10px; border-radius:99px; font-size:12px; font-weight:800; color:var(--muted); background:var(--surf2);}
+.hm-quest-dev svg{width:14px; height:14px;}

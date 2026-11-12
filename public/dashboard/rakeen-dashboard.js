@@ -457,6 +457,8 @@ const HM_IC = {
   wallet:'<path d="M17 14h.01"/><path d="M7 7h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14"/>',
   flag:'<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>',
 };
+/* البيع نفسه يصير على جهاز الكاشير، فما فيه زر يودّي له من اللوحة. */
+const HM_DEVICE_PILL = '<span class="hm-quest-dev">' + hmIc('cash') + 'من جهاز الكاشير</span>';
 function hmIc(name){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (HM_IC[name]||'') + '</svg>'; }
 function hmFmt(n, dec){ const d = dec||0; return (Number(n)||0).toLocaleString('en-US', {minimumFractionDigits:d, maximumFractionDigits:d}); }
 function hmMoney(n, cls){
@@ -548,7 +550,7 @@ function renderHomeHero(){
     stats.push({ k:'صافي الربح', v: hmMoney(p, p < 0 ? 'neg' : ''),
       note: FIXED_COSTS_SET ? '' : '<span class="hm-note">قبل الإيجار والرواتب · <button type="button" class="hm-note-link" data-hm-go="accounting" data-hm-tab="fixedcosts">حدّدها</button></span>' });
   }
-  const ordersBtn = hmScreenOk('orders') ? '<button type="button" class="rk2-btn ghost-dark" data-hm-go="orders">الطلبات</button>' : '';
+  const ordersBtn = hmScreenOk('orders') ? '<button type="button" class="rk2-btn lime" data-hm-go="orders">' + hmIc('orders') + 'شوف طلباتك</button>' : '';
   el.innerHTML =
     '<div class="hm-hero-main">'
       + '<div class="hm-hello">' + hello + (first ? '، ' + escapeHtml(first) : '') + '</div>'
@@ -556,7 +558,7 @@ function renderHomeHero(){
       + '<div class="hm-label">مبيعات اليوم</div>'
       + '<div class="hm-big">' + hmMoney(sales) + '</div>'
       + delta
-      + '<div class="hm-actions"><button type="button" class="rk2-btn lime" data-hm-pos>' + hmIc('cash') + 'افتح الكاشير</button>' + ordersBtn + '</div>'
+      + (ordersBtn ? '<div class="hm-actions">' + ordersBtn + '</div>' : '')
     + '</div>'
     + '<div class="hm-hero-side">'
       + '<div class="hm-chart-head"><span>ساعات اليوم</span><span class="hm-legend"><i class="t"></i>اليوم' + (bars.hasAvg ? '<i class="a"></i>معدّلك' : '') + '</span></div>'
@@ -817,8 +819,6 @@ function renderHourGrid(){
 document.addEventListener('click', (e)=>{
   const t = e.target;
   if(!t || !t.closest || !t.closest('#screen-home')) return;
-  const pos = t.closest('[data-hm-pos]');
-  if(pos){ window.open('/pos', '_blank', 'noopener'); return; }
   const more = t.closest('[data-hm-more]');
   if(more){ const box = document.getElementById('statusBanner'); box.classList.toggle('open'); more.textContent = box.classList.contains('open') ? 'أقل' : more.dataset.label; return; }
   const sw = t.closest('[data-hm-sellers]');
@@ -5134,8 +5134,7 @@ function acOverviewHtml(st){
   const head = hmHead('accounting', 'fin', 'وين راحت فلوسك اليوم؟', 'من أول ريال بعته لين ربحك، نفس حساب محاسبك');
   if(!(a.netSales > 0)){
     return '<div class="rk2-card ac-card">' + head + '<div class="hm-empty"><span class="hm-empty-ic">' + hmIc('accounting') + '</span><b>أرقام اليوم تطلع هنا مع أول بيعة</b>'
-      + '<span>كل طلب من الكاشير أو المتجر ينحسب لحاله: تكلفته وضريبته وعمولته' + (st.dailyFixed > 0 ? '. مصاريفك الثابتة اليوم ' + acR(st.dailyFixed) + ' ر.س' : '') + '</span>'
-      + (hmScreenOk('pos') ? '<button type="button" class="rk2-btn lime sm" data-ac-nav="pos">افتح الكاشير</button>' : '') + '</div></div>';
+      + '<span>كل طلب من الكاشير أو المتجر ينحسب لحاله: تكلفته وضريبته وعمولته' + (st.dailyFixed > 0 ? '. مصاريفك الثابتة اليوم ' + acR(st.dailyFixed) + ' ر.س' : '') + '</span>' + '</div></div>';
   }
   const max = Math.max(a.netSales, a.opex, 1);
   const line = (sign, label, hint, v, cls) => '<div class="ac-wf' + (cls ? ' ' + cls : '') + '"><div class="ac-wf-l"><b>' + (sign ? '<span class="ac-sign">' + sign + '</span>' : '') + label + '</b><small>' + hint + '</small></div>'
@@ -5509,7 +5508,7 @@ function cuRenderHero(){
   if(!el) return;
   const st = cuStats();
   const steps = [
-    { done: st.n > 0, label: 'سجّل جوال أول عميل', desc: 'عند الدفع في الكاشير اكتب جوال العميل، ويصير عندك هنا على طول', go: '@pos' },
+    { done: st.n > 0, label: 'سجّل جوال أول عميل', desc: 'عند الدفع في الكاشير اكتب جوال العميل، ويصير عندك هنا على طول', device: true },
     { done: CU_LOYALTY_ON !== false, label: 'شغّل نادي الولاء', desc: 'العميل يجمع نقاط أو أختام ويرجع لك عشان مكافأته', go: '@loyalty' },
     { done: st.back > 0, label: 'أول عميل يرجع لك', desc: 'الزيارة الثانية هي اللي تصنع العميل الدايم -- النادي يساعدك عليها', go: '@loyalty' },
   ];
@@ -5533,14 +5532,14 @@ function cuRenderHero(){
     return;
   }
   const nextIdx = steps.findIndex(s => !s.done), next = steps[nextIdx];
-  const go = s => ' data-cu-go="' + s.go + '"';
+  const go = s => s.device ? ' disabled' : ' data-cu-go="' + s.go + '"';
   el.innerHTML = '<div class="rk2-card hm-quest cu-hero">'
     + '<div class="hm-quest-top"><div class="hm-ring" style="--p:' + Math.round(done / steps.length * 100) + '"><b>' + done + '<small>/' + steps.length + '</small></b></div>'
     + '<div><div class="hm-kicker">' + cuIc('users') + 'عملاؤك</div>'
     + '<h3>' + (st.n ? (st.n.toLocaleString('en-US') + (st.n === 1 ? ' عميل مسجّل' : ' عميل مسجّلين') + '، خلّهم يرجعون لك') : 'ثلاث خطوات ويصير عندك عملاء يرجعون لك') + '</h3>'
     + '<p>' + (st.n ? 'كل عميل يكتب الكاشير جواله ينضاف هنا تلقائياً' : 'العميل ينضاف هنا أول ما يكتب الكاشير جواله عند الدفع') + '</p></div></div>'
     + '<button type="button" class="hm-quest-next"' + go(next) + '>'
-    + '<span class="hm-quest-n">' + (nextIdx + 1) + '</span><span class="hm-quest-txt"><b>' + next.label + '</b><small>' + next.desc + '</small></span><span class="rk2-btn lime sm">ابدأ' + hmIc('arrow') + '</span></button>'
+    + '<span class="hm-quest-n">' + (nextIdx + 1) + '</span><span class="hm-quest-txt"><b>' + next.label + '</b><small>' + next.desc + '</small></span>' + (next.device ? HM_DEVICE_PILL : '<span class="rk2-btn lime sm">ابدأ' + hmIc('arrow') + '</span>') + '</button>'
     + '<div class="hm-quest-list">' + steps.map((s, i) => i === nextIdx ? '' :
         '<button type="button" class="hm-qstep' + (s.done ? ' done' : '') + '"' + (s.done ? ' disabled' : go(s)) + '>'
         + '<span class="hm-qcheck">' + (s.done ? hmIc('check') : (i + 1)) + '</span>' + s.label + '</button>').join('') + '</div>'
@@ -5625,8 +5624,7 @@ function renderCustList(){
   if(!(TOP_CUSTOMERS || []).length){
     if(card) card.classList.add('cu-empty-card');
     el.innerHTML = '<div class="hm-empty"><span class="hm-empty-ic">' + cuIc('users') + '</span><b>عملاؤك يطلعون هنا</b>'
-      + '<span>أول ما يكتب الكاشير جوال العميل عند الدفع، ينضاف هنا مع زياراته وصرفه وأكثر شي يطلبه</span>'
-      + '<a class="rk2-btn lime sm" href="/pos" target="_blank" rel="noopener">افتح الكاشير</a></div>';
+      + '<span>أول ما يكتب الكاشير جوال العميل عند الدفع، ينضاف هنا مع زياراته وصرفه وأكثر شي يطلبه</span></div>';
     if(filterBar) filterBar.innerHTML = '';
     return;
   }
@@ -5680,7 +5678,6 @@ function renderCustList(){
     const go = e.target.closest('[data-cu-go]');
     if(go){
       const g = go.dataset.cuGo;
-      if(g === '@pos') return window.open('/pos', '_blank', 'noopener');
       document.querySelector('.nav-item[data-screen="loyalty"]')?.click();
       if(g === '@winback') setTimeout(() => lyGoTo('notify', '#walletWinBackOn'), 450);
       return;
@@ -5901,7 +5898,7 @@ function lyRenderHero(){
       desc: type === 'points' ? 'من «القائمة» حط لأي منتج «سعره بالنقاط»، وبدونه النقاط تتجمّع وما تنصرف'
         : 'وش يكسب عميلك، وبعد كم زيارة', tab: type === 'points' ? '@menu' : 'program', focus: type === 'products' ? '#loyaltyUnitThresholdInput' : '#loyaltyRewardLabelInput' },
     { done: !!b.logoUrl, label: 'صمّم بطاقتك', desc: 'شعارك ولونك على البطاقة اللي في جوال عميلك', tab: 'design', focus: '' },
-    { done: lyHasMembers(), label: 'سجّل أول عضو', desc: 'عند الدفع في الكاشير اكتب جوال العميل، ويصير عضو على طول', tab: '@pos', focus: '' },
+    { done: lyHasMembers(), label: 'سجّل أول عضو', desc: 'عند الدفع في الكاشير اكتب جوال العميل، ويصير عضو على طول', device: true, focus: '' },
     { done: !!b.winBackOn, label: 'رجّع اللي طوّلوا عنك', desc: 'رسالة تلقائية تذكّر العميل الغايب، بدون ما تتابع بنفسك', tab: 'notify', focus: '#walletWinBackOn' },
   ];
   const done = steps.filter(s=>s.done).length;
@@ -5910,7 +5907,7 @@ function lyRenderHero(){
   // قبل وصولها كل الخطوات تبان ناقصة.
   const celebrate = lyPrevLeft !== null && lyPrevLeft > 0 && left === 0;
   if(LOYALTY_STATS && loyaltyBrandingLoaded) lyPrevLeft = left;
-  const go = s => ' data-ly-go="' + s.tab + '" data-ly-focus="' + escapeHtml(s.focus) + '"';
+  const go = s => s.device ? ' disabled' : ' data-ly-go="' + s.tab + '" data-ly-focus="' + escapeHtml(s.focus) + '"';
 
   const kpis = loyaltyKpisForSystem();
   // النقاط اللي ما انصرفت: قيمتها بالريال تنكتب تحتها، مو بطاقة خامسة.
@@ -5940,7 +5937,7 @@ function lyRenderHero(){
     + '<p>' + (lyHasMembers() ? 'ناديك شغّال الحين، والخطوات تخليه يجيب عملاء أكثر' : 'العميل يصير عضو من أول فاتورة فيها جواله') + '</p></div></div>'
     + rule
     + '<button type="button" class="hm-quest-next"' + go(next) + '>'
-    + '<span class="hm-quest-n">' + (nextIdx + 1) + '</span><span class="hm-quest-txt"><b>' + next.label + '</b><small>' + next.desc + '</small></span><span class="rk2-btn lime sm">ابدأ' + hmIc('arrow') + '</span></button>'
+    + '<span class="hm-quest-n">' + (nextIdx + 1) + '</span><span class="hm-quest-txt"><b>' + next.label + '</b><small>' + next.desc + '</small></span>' + (next.device ? HM_DEVICE_PILL : '<span class="rk2-btn lime sm">ابدأ' + hmIc('arrow') + '</span>') + '</button>'
     + '<div class="hm-quest-list">' + steps.map((s,i)=> i === nextIdx ? '' :
         '<button type="button" class="hm-qstep' + (s.done ? ' done' : '') + '"' + (s.done ? ' disabled' : go(s)) + '>'
         + '<span class="hm-qcheck">' + (s.done ? hmIc('check') : (i + 1)) + '</span>' + s.label + '</button>').join('') + '</div>'
@@ -5996,8 +5993,7 @@ function lyOpenTab(tab){
   document.querySelectorAll('#screen-loyalty .loyalty-tab-panel').forEach(p=> p.classList.toggle('active', p.dataset.loyaltyPanel === tab));
 }
 function lyGoTo(tab, focusSel){
-  if(tab === '@menu' || tab === '@pos'){
-    if(tab === '@pos') return window.open('/pos', '_blank', 'noopener');
+  if(tab === '@menu'){
     return document.querySelector('.nav-item[data-screen="menu"]')?.click();
   }
   lyOpenTab(tab);
@@ -8127,7 +8123,7 @@ const SCREEN_TITLES = {
    تجاوب «وين أروح الحين؟» بدون ما يفتح شي: رقم على كل شاشة فيها شي
    يحتاجه (من computeRealAttentionItems نفسها اللي تغذّي الجرس والرئيسية،
    مو مصدر ثاني)، وبطاقة «جهّز محلك» تختفي أول ما تخلص الخطوات،
-   وزر «افتح الكاشير» فوق لأنه أكثر شي ينضغط. كل شي يتحدّث مع نفس
+   والبيع نفسه على جهاز الكاشير، فما فيه زر يفتحه من هنا. كل شي يتحدّث مع نفس
    الأحداث اللي ترسم الرئيسية -- ما فيه polling. */
 const NAV_IC = {
   alert:'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
@@ -8188,7 +8184,6 @@ function navSyncBottomItems(){
   });
 }
 (function wireNav(){
-  document.getElementById('navLaunchPos')?.addEventListener('click', ()=> window.open('/pos', '_blank', 'noopener'));
   document.getElementById('navSetup')?.addEventListener('click', e=>{
     const el = e.currentTarget;
     goToScreenTab(el.dataset.go, el.dataset.tab || undefined);
@@ -8474,7 +8469,6 @@ function cmdkNavItems(){
     .map(b=>({ type:'nav', key:b.dataset.screen, label:SCREEN_TITLES[b.dataset.screen] || b.textContent.trim(), svg:(b.querySelector('svg')||{}).outerHTML || '' }));
 }
 const CMDK_QUICK_ACTIONS = [
-  {key:'pos', label:'افتح الكاشير', words:'بيع كاشير', icon:'<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>', run:()=> window.open('/pos', '_blank', 'noopener')},
   {key:'product', screen:'menu', label:'أضف منتج للقائمة', words:'منتج صنف قائمة منيو', icon:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>', run:()=> setTimeout(()=> document.getElementById('openAddProductBtn')?.click(), 60)},
   {key:'scan', screen:'purchases', label:'صوّر فاتورة مشتريات', words:'فاتورة مشتريات مورد', icon:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>', run:()=> setTimeout(()=> puOpenScan(), 60)},
   {key:'stock', screen:'inventory', label:'أضف مادة للمخزون', words:'مخزون مادة خام', icon:'<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>', run:()=> setTimeout(()=> document.getElementById('openAddStockBtn')?.click(), 60)},
@@ -10112,8 +10106,7 @@ function rpRenderHero(){
   if(!d.ordersCount){
     el.innerHTML = '<div class="hm-empty rp-empty"><span class="hm-empty-ic">' + hmIc('cash') + '</span><b>ما فيه مبيعات ' + escapeHtml(REPORT_RANGE_LABEL === 'اليوم' ? 'اليوم للحين' : 'في «' + REPORT_RANGE_LABEL + '»') + '</b>'
       + '<span>كل فاتورة تقفلها من الكاشير تنحسب هنا على طول</span>'
-      + '<div class="rp-empty-acts">' + (REPORT_RANGE_LABEL === 'اليوم' ? '<button type="button" class="rk2-btn mn-ghost sm" data-rp-preset="7d">شوف آخر ٧ أيام</button>' : '')
-      + '<a class="rk2-btn lime sm" href="/pos" target="_blank" rel="noopener">افتح الكاشير</a></div></div>' + nudge;
+      + '<div class="rp-empty-acts">' + (REPORT_RANGE_LABEL === 'اليوم' ? '<button type="button" class="rk2-btn mn-ghost sm" data-rp-preset="7d">شوف آخر ٧ أيام</button>' : '') + '</div></div>' + nudge;
     return;
   }
   const stats = [
@@ -11221,13 +11214,13 @@ function adRows(rows, money){
     + '<span class="hm-track"><i style="width:' + Math.max(3, Math.abs(r.v) / max * 100).toFixed(1) + '%"></i></span>'
     + (r.sub ? '<small>' + r.sub + '</small>' : '') + '</span></div>').join('') + '</div>';
 }
-const AD_GO_POS = { label: 'افتح الكاشير', screen: '@pos' };
+
 
 /* ===== الأسئلة ===== */
 const AD_QS = [
   { k: 'sales', ic: 'wallet', c: 'fin', q: 'كم بعت اليوم؟', hint: 'ومقارنة بأمس لنفس الساعة', a: () => {
     const sales = Number(TODAY.netSales) || 0, n = Number(TODAY.ordersCount) || 0;
-    if(!n) return { big: hmMoney(0), sub: 'ولا طلب لسا', body: 'أول ما تبيع من الكاشير يطلع هنا كم بعت، ومتوسط فاتورتك، ويومك مقارنة بأمس لنفس الساعة.', go: AD_GO_POS };
+    if(!n) return { big: hmMoney(0), sub: 'ولا طلب لسا', body: 'أول ما تبيع من الكاشير يطلع هنا كم بعت، ومتوسط فاتورتك، ويومك مقارنة بأمس لنفس الساعة.' };
     const y = hmYesterdaySoFar();
     let cmp = '';
     if(y > 0){ const p = Math.round((sales - y) / y * 100); cmp = p >= 0 ? '<b class="ad-up">↑ ' + p + '٪</b> أكثر من أمس لنفس الساعة (أمس ' + hmMoney(y) + ')' : '<b class="ad-down">↓ ' + Math.abs(p) + '٪</b> أقل من أمس لنفس الساعة (أمس ' + hmMoney(y) + ')'; }
@@ -11241,7 +11234,7 @@ const AD_QS = [
   } },
   { k: 'top', ic: 'tag', c: 'res', q: 'وش أكثر منتج ينباع؟', hint: 'ترتيب منتجاتك اليوم', a: () => {
     const s = [...(ALL_SELLERS || [])].sort((a, b) => b.qty - a.qty || b.revenue - a.revenue);
-    if(!s.length) return { big: '—', sub: 'ما انباع شي لسا اليوم', body: 'أول ما تبيع يطلع لك ترتيب منتجاتك: وش يطلبونه أكثر، وبكم جابت.', go: AD_GO_POS };
+    if(!s.length) return { big: '—', sub: 'ما انباع شي لسا اليوم', body: 'أول ما تبيع يطلع لك ترتيب منتجاتك: وش يطلبونه أكثر، وبكم جابت.' };
     return { big: escapeHtml(s[0].name), sub: 'انباع ' + hmFmt(s[0].qty) + ' اليوم بـ ' + hmMoney(s[0].revenue),
       body: s.length > 1 ? 'وبعده ' + escapeHtml(s[1].name) + '. حطّ الأكثر طلب أول شي بالقائمة وبالمتجر.' : '',
       viz: adRows(s.slice(0, 5).map(p => ({ name: p.name, v: p.qty, sub: hmMoney(p.revenue) }))),
@@ -11260,7 +11253,7 @@ const AD_QS = [
   } },
   { k: 'peak', ic: 'clock', c: 'ops', q: 'متى أزحم ساعة عندي؟', hint: 'من آخر ٧ أيام', a: () => {
     const { days, hrs } = adHours();
-    if(!hrs.length) return { big: '—', sub: 'نحتاج يوم بيع على الأقل', body: 'بعد أول يوم بيع نقول لك أزحم ساعة وأهداها، عشان تجهّز موظفينك وتعرف متى تسوي عرض.', go: AD_GO_POS };
+    if(!hrs.length) return { big: '—', sub: 'نحتاج يوم بيع على الأقل', body: 'بعد أول يوم بيع نقول لك أزحم ساعة وأهداها، عشان تجهّز موظفينك وتعرف متى تسوي عرض.' };
     const peak = hrs.reduce((a, b) => b.avg > a.avg ? b : a);
     const quiet = hrs.length > 2 ? hrs.reduce((a, b) => b.avg < a.avg ? b : a) : null;
     const bars = hrs.map(x => ({ k: fmtHour12(x.h), v: x.avg, top: x === peak, title: fmtHour12(x.h) + ' — معدّل ' + hmFmt(x.avg) }));
@@ -11270,7 +11263,7 @@ const AD_QS = [
   } },
   { k: 'days', ic: 'reports', c: 'team', q: 'أي يوم أقوى عندي؟', hint: 'آخر ٧ أيام يوم بيوم', a: () => {
     const w = WEEK_TREND || [], sold = w.filter(d => d.total > 0);
-    if(!sold.length) return { big: '—', sub: 'ما فيه بيع بآخر ٧ أيام', body: 'كل يوم تبيع فيه يطلع هنا، وتعرف أي يوم يجيب أكثر.', go: AD_GO_POS };
+    if(!sold.length) return { big: '—', sub: 'ما فيه بيع بآخر ٧ أيام', body: 'كل يوم تبيع فيه يطلع هنا، وتعرف أي يوم يجيب أكثر.' };
     const best = sold.reduce((a, b) => b.total > a.total ? b : a);
     const avg = sold.reduce((s, d) => s + d.total, 0) / sold.length;
     return { big: best.day, sub: hmMoney(best.total) + ' · معدّل يومك ' + hmMoney(avg),
@@ -11323,7 +11316,7 @@ function adVisibleQs(){ return AD_QS.filter(q => { const l = q.lock ? q.lock() :
 function adChecks(){
   const C = [];
   const sales = Number(TODAY.netSales) || 0, n = Number(TODAY.ordersCount) || 0, y = hmYesterdaySoFar();
-  if(!n) C.push({ st: 'wait', t: 'أول طلب اليوم', d: 'أول ما تبيع نبدأ نقارن يومك بأمس', go: '@pos', b: 'افتح الكاشير' });
+  if(!n) C.push({ st: 'wait', t: 'أول طلب اليوم', d: 'أول ما تبيع نبدأ نقارن يومك بأمس', device: true });
   else if(y > 0 && sales < y) C.push({ st: 'bad', t: 'مبيعاتك أقل من أمس', d: 'أقل بـ ' + Math.round((y - sales) / y * 100) + '٪ لنفس الساعة. شوف أي منتج نزل', go: '@q:top', b: 'شوف' });
   else C.push({ st: 'ok', t: 'مبيعاتك ماشية', d: y > 0 ? 'أكثر من أمس لنفس الساعة' : 'وأمس ما كان فيه بيع لنفس الساعة', go: '@q:sales' });
   const stk = AD_QS.find(q => q.k === 'stock');
@@ -11361,13 +11354,13 @@ function adRenderHero(){
   const hello = h < 5 ? 'مساك الله بالخير' : h < 12 ? 'صباح الخير' : 'مساء الخير';
   const title = wait && !bad.length ? 'يومك لسا ما بدأ' : !bad.length ? 'كل شي تمام اليوم 👌' : (bad.length === 1 ? 'فيه شي واحد يحتاجك' : 'فيه ' + hmPlural(bad.length, 'شي واحد', 'شيئين', 'أشياء', 'شي') + ' تحتاجك');
   const sub = wait && !bad.length ? 'أول ما تبيع يشتغل الفحص ويقول لك وضعك' : !bad.length ? 'فحصت يومك وما لقيت شي يقلق. اسألني تحت عن أي شي' : 'ابدأ بالأهم، وكل ما خلّصت شي تزيد علامتك';
-  const step = c => '<button type="button" class="hm-qstep ad-chk ' + c.st + (c === next ? ' is-next' : '') + '"' + (c.go ? ' data-ad-go="' + c.go + '"' : ' disabled') + '>'
+  const step = c => '<button type="button" class="hm-qstep ad-chk ' + c.st + (c === next ? ' is-next' : '') + '"' + (c.go && !c.device ? ' data-ad-go="' + c.go + '"' : ' disabled') + '>'
     + '<span class="hm-qcheck">' + (c.st === 'ok' ? hmIc('check') : c.st === 'bad' ? '!' : '•') + '</span>' + c.t + '</button>';
   el.innerHTML = '<div class="rk2-card hm-quest ad-hero' + (celebrate ? ' mn-celebrate' : '') + (!bad.length && !wait ? ' all-ok' : '') + '">'
     + '<div class="hm-quest-top"><div class="hm-ring" style="--p:' + Math.round(ok / Math.max(1, C.length) * 100) + '"><b>' + ok + '<small>/' + C.length + '</small></b></div>'
     + '<div><div class="hm-kicker">' + hmIc('flag') + 'فحص يومك · ' + hello + '</div><h3>' + title + '</h3><p>' + sub + '</p></div></div>'
-    + (next ? '<button type="button" class="hm-quest-next" data-ad-go="' + next.go + '"><span class="hm-quest-n">' + (next.st === 'bad' ? '!' : hmIc('clock')) + '</span>'
-      + '<span class="hm-quest-txt"><small class="ad-now">وش أسوي الحين؟</small><b>' + next.t + '</b><small>' + next.d + '</small></span><span class="rk2-btn lime sm">' + (next.b || 'ابدأ') + hmIc('arrow') + '</span></button>' : '')
+    + (next ? '<button type="button" class="hm-quest-next"' + (next.device ? ' disabled' : ' data-ad-go="' + next.go + '"') + '><span class="hm-quest-n">' + (next.st === 'bad' ? '!' : hmIc('clock')) + '</span>'
+      + '<span class="hm-quest-txt"><small class="ad-now">وش أسوي الحين؟</small><b>' + next.t + '</b><small>' + next.d + '</small></span>' + (next.device ? HM_DEVICE_PILL : '<span class="rk2-btn lime sm">' + (next.b || 'ابدأ') + hmIc('arrow') + '</span>') + '</button>' : '')
     + '<div class="hm-quest-list">' + C.filter(c => c !== next).map(step).join('') + '</div></div>';
   if(celebrate) showToast('خلّصت كل اللي يحتاجك اليوم 🎉');
 }
@@ -11397,8 +11390,7 @@ function adRenderAnswer(){
   if(!q || adQState(q)){ el.innerHTML = ''; return; }
   let r;
   try { r = q.a(); } catch(err){ console.error('advisor answer failed', q.k, err); r = { big: '—', sub: 'صار خطأ وأنا أجهّز الجواب', body: 'جرّب مرة ثانية بعد شوي.' }; }
-  const go = r.go ? (r.go.screen === '@pos' ? '<button type="button" class="rk2-btn lime" data-ad-go="@pos">' + hmIc('cash') + r.go.label + '</button>'
-    : '<button type="button" class="rk2-btn lime" data-ad-go="' + r.go.screen + '"' + (r.go.tab ? ' data-ad-tab="' + r.go.tab + '"' : '') + '>' + r.go.label + hmIc('arrow') + '</button>') : '';
+  const go = r.go ? ('<button type="button" class="rk2-btn lime" data-ad-go="' + r.go.screen + '"' + (r.go.tab ? ' data-ad-tab="' + r.go.tab + '"' : '') + '>' + r.go.label + hmIc('arrow') + '</button>') : '';
   el.innerHTML = '<div class="rk2-card ad-ans" data-k="' + q.k + '">'
     + '<div class="ad-ans-top"><span class="rk2-ic c-' + q.c + '">' + hmIc(q.ic) + '</span><div class="ad-ans-q"><span>' + q.q + '</span>'
     + '<div class="ad-big">' + r.big + '</div>' + (r.sub ? '<div class="ad-sub">' + r.sub + '</div>' : '') + '</div>'
@@ -11440,7 +11432,6 @@ function adAsk(k){
     const g = e.target.closest('[data-ad-go]');
     if(!g) return;
     const to = g.dataset.adGo;
-    if(to === '@pos'){ window.open('/pos', '_blank', 'noopener'); return; }
     if(to.startsWith('@q:')){ adCur = null; adAsk(to.slice(3)); return; }
     if(to) goToScreenTab(to, g.dataset.adTab);
   });
@@ -13015,8 +13006,7 @@ function renderPosReadiness(){
     const paired = Object.keys(r.tillByBranch).length;
     el.innerHTML = '<div class="rk2-card mn-done ps-ready' + (celebrate ? ' mn-celebrate' : '') + '">'
       + '<span class="mn-done-ic">' + hmIc('check') + '</span>'
-      + '<div class="mn-done-txt"><b>كاشيرك جاهز</b><small>' + (paired === 1 ? 'جهاز مقترن' : hmPlural(paired, 'جهاز', 'جهازين', 'أجهزة', 'جهاز') + ' مقترنة') + '، وكلمة سر المدير معيّنة، وفاتورتك عليها اسمك</small></div>'
-      + '<a class="rk2-btn lime" href="/pos" target="_blank" rel="noopener">' + psIc('open') + 'افتح الكاشير</a></div>';
+      + '<div class="mn-done-txt"><b>كاشيرك جاهز</b><small>' + (paired === 1 ? 'جهاز مقترن' : hmPlural(paired, 'جهاز', 'جهازين', 'أجهزة', 'جهاز') + ' مقترنة') + '، وكلمة سر المدير معيّنة، وفاتورتك عليها اسمك</small></div>' + '</div>';
     if(celebrate) showToast('كاشيرك جاهز 🎉');
     return;
   }
