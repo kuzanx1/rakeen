@@ -5116,12 +5116,13 @@ async function loadCustomersReal(){
   const [{data: customers}, {data: orders}, {data: business}] = await Promise.all([
     sb.from('customers').select('id, name, phone, created_at, public_token, loyalty_points, loyalty_visits, loyalty_free_rewards, loyalty_units').eq('business_id', businessId),
     sb.from('orders').select('id, customer_id, total, created_at').eq('business_id', businessId).not('customer_id', 'is', null),
-    sb.from('businesses').select('loyalty_points_divisor, loyalty_tiers').eq('id', businessId).single()
+    sb.from('businesses').select('loyalty_points_divisor, loyalty_tiers, loyalty_enabled').eq('id', businessId).single()
   ]);
   const customerList = customers || [];
   const orderList = orders || [];
   if(business){
     LOYALTY_RATE = Number(business.loyalty_points_divisor);
+    CU_LOYALTY_ON = business.loyalty_enabled !== false;
   }
 
   // orderList هنا مقصورةٌ أصلاً على الطلبات التي لها عميل
@@ -5206,31 +5207,121 @@ async function loadCustomersReal(){
        why: returningCount + ' من أصل ' + total + ' عميل زاروك اليوم سبق وزاروا قبل كذا.'};
 }
 
-function renderCustKpis(){
-  const total = CUSTOMERS_TODAY.newCount + CUSTOMERS_TODAY.returningCount;
-  const returningPct = total > 0 ? (CUSTOMERS_TODAY.returningCount/total*100).toFixed(0) : '0';
-  const kpis = [
-    {label:'عملاء جدد اليوم', value: CUSTOMERS_TODAY.newCount},
-    {label:'عملاء عائدون اليوم', value: CUSTOMERS_TODAY.returningCount},
-    {label:'متوسط الإنفاق للطلب', value: TODAY.avgTicket.toFixed(2)+' ر.س'},
-    {label:'نسبة العملاء العائدين', value: returningPct+'٪'}
-  ];
-  document.getElementById('custKpiGrid').innerHTML = kpis.map(k=>
-    `<div class="kpi-card"><div class="kpi-label">${k.label}</div><div class="kpi-value mono">${k.value}</div></div>`
-  ).join('');
+/* ============ شاشة «العملاء» (cu-) ============
+   فوق: «عملاؤك» -- كم عميل، وكم رجع لك، ومين زارك هالشهر. لو للحين ما فيه
+   عملاء: ثلاث خطوات (أول جوال في الكاشير، نادي الولاء، أول عميل يرجع).
+   بعدها «وش أسوي الحين؟» من المجموعات نفسها، والمجموعات بطاقات تفلتر
+   القائمة تحتها (بحث + ترتيب + اتصال وواتساب). */
+let CU_LOYALTY_ON = null;   // من businesses.loyalty_enabled -- يتعبّى في loadCustomersReal
+let cuPrevLeft = null;
+let cuQuery = '', cuSort = 'spend', cuShowAll = false;
+const CU_PAGE = 30;
+const CU_IC = {
+  phone:'<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>',
+  wa:'<path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.5A8.4 8.4 0 1 1 21 11.5z"/>',
+  users:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  repeat:'<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
+  gift:'<polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>',
+  sprout:'<path d="M7 20h10"/><path d="M12 20v-8"/><path d="M12 12c0-4 3-6 7-6 0 4-3 6-7 6z"/><path d="M12 13c0-3-2-5-6-5 0 3 2 5 6 5z"/>',
+};
+function cuIc(n){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (CU_IC[n] || HM_IC[n] || '') + '</svg>'; }
+function cuAgo(d){ d = Number(d) || 0; return d <= 0 ? 'اليوم' : d === 1 ? 'أمس' : d === 2 ? 'قبل يومين' : 'قبل ' + d + (d <= 10 ? ' أيام' : ' يوم'); }
+function cuFirst(name){ return String(name || '').trim().split(/\s+/)[0] || ''; }
+function cuWaUrl(c, kind){
+  const digits = String(c.phone || '').replace(/\D/g, '');
+  if(!digits) return '';
+  const intl = digits.startsWith('966') ? digits : '966' + digits.replace(/^0/, '');
+  const shop = (RESTAURANT_INFO && RESTAURANT_INFO.name) || '';
+  const msg = kind === 'at-risk' || kind === 'lost'
+    ? 'هلا ' + cuFirst(c.name) + '، وحشتنا في ' + shop + '! متى نشوفك؟'
+    : 'هلا ' + cuFirst(c.name) + '، شكراً إنك من عملاء ' + shop + ' 🌟';
+  return 'https://wa.me/' + intl + '?text=' + encodeURIComponent(msg);
+}
+function cuStats(){
+  const list = TOP_CUSTOMERS || [];
+  const visits = list.reduce((a, c) => a + c.visits, 0);
+  const spend = list.reduce((a, c) => a + c.spend, 0);
+  const back = list.filter(c => c.visits >= 2).length;
+  const month = list.filter(c => c.lastVisitDays <= 30).length;
+  return { n: list.length, back, backPct: list.length ? Math.round(back / list.length * 100) : 0, month, avg: visits ? spend / visits : 0 };
 }
 
-/* ============ RFM Analysis — every score derives from TOP_CUSTOMERS' real visits/spend/lastVisitDays,
-   the same fields already used by the Loyalty program. Segment logic verified against known cases
-   before implementation: high-R/F/M customer -> Champions, good-history-but-gone-quiet -> At Risk,
+function renderCustKpis(){ cuRenderHero(); cuRenderTodo(); }
+
+function cuRenderHero(){
+  const el = document.getElementById('cuHero');
+  if(!el) return;
+  const st = cuStats();
+  const steps = [
+    { done: st.n > 0, label: 'سجّل جوال أول عميل', desc: 'عند الدفع في الكاشير اكتب جوال العميل، ويصير عندك هنا على طول', go: '@pos' },
+    { done: CU_LOYALTY_ON !== false, label: 'شغّل نادي الولاء', desc: 'العميل يجمع نقاط أو أختام ويرجع لك عشان مكافأته', go: '@loyalty' },
+    { done: st.back > 0, label: 'أول عميل يرجع لك', desc: 'الزيارة الثانية هي اللي تصنع العميل الدايم -- النادي يساعدك عليها', go: '@loyalty' },
+  ];
+  const done = steps.filter(s => s.done).length, left = steps.length - done;
+  const celebrate = cuPrevLeft !== null && cuPrevLeft > 0 && left === 0;
+  cuPrevLeft = left;
+  const today = CUSTOMERS_TODAY || { newCount: 0, returningCount: 0 };
+  const stat = (k, v, hint, cls) => '<div class="iv-stat' + (cls ? ' ' + cls : '') + '"><span>' + k + '</span><b>' + v + '</b>' + (hint ? '<small>' + hint + '</small>' : '') + '</div>';
+  const stats = st.n ? '<div class="cu-stats">'
+    + stat('رجعوا لك', '<span class="hm-num">' + st.back + '</span>', st.backPct + '٪ من عملائك زاروك أكثر من مرة', st.backPct >= 30 ? 'good' : '')
+    + stat('زاروك آخر ٣٠ يوم', '<span class="hm-num">' + st.month + '</span>', st.n - st.month ? (st.n - st.month) + ' ما زاروك من شهر' : 'كلهم زاروك هالشهر')
+    + stat('متوسط فاتورة العميل', hmMoney(st.avg), 'من فواتير عملائك المسجّلين بس')
+    + stat('اليوم', '<span class="hm-num">' + (today.newCount + today.returningCount) + '</span>', today.newCount + ' جديد · ' + today.returningCount + ' رجع لك')
+    + '</div>' : '';
+  if(left === 0){
+    el.innerHTML = '<div class="rk2-card cu-hero' + (celebrate ? ' mn-celebrate' : '') + '">'
+      + '<div class="cu-hero-top"><span class="iv-hero-ic">' + cuIc('users') + '</span>'
+      + '<div class="cu-hero-txt"><div class="hm-kicker">عملاؤك</div><div class="cu-big"><b class="hm-num">' + st.n.toLocaleString('en-US') + '</b> ' + (st.n === 1 ? 'عميل مسجّل' : 'عميل مسجّلين') + '</div></div></div>'
+      + stats + '</div>';
+    if(celebrate) showToast('أول عميل رجع لك 🎉');
+    return;
+  }
+  const nextIdx = steps.findIndex(s => !s.done), next = steps[nextIdx];
+  const go = s => ' data-cu-go="' + s.go + '"';
+  el.innerHTML = '<div class="rk2-card hm-quest cu-hero">'
+    + '<div class="hm-quest-top"><div class="hm-ring" style="--p:' + Math.round(done / steps.length * 100) + '"><b>' + done + '<small>/' + steps.length + '</small></b></div>'
+    + '<div><div class="hm-kicker">' + cuIc('users') + 'عملاؤك</div>'
+    + '<h3>' + (st.n ? (st.n.toLocaleString('en-US') + (st.n === 1 ? ' عميل مسجّل' : ' عميل مسجّلين') + '، خلّهم يرجعون لك') : 'ثلاث خطوات ويصير عندك عملاء يرجعون لك') + '</h3>'
+    + '<p>' + (st.n ? 'كل عميل يكتب الكاشير جواله ينضاف هنا تلقائياً' : 'العميل ينضاف هنا أول ما يكتب الكاشير جواله عند الدفع') + '</p></div></div>'
+    + '<button type="button" class="hm-quest-next"' + go(next) + '>'
+    + '<span class="hm-quest-n">' + (nextIdx + 1) + '</span><span class="hm-quest-txt"><b>' + next.label + '</b><small>' + next.desc + '</small></span><span class="rk2-btn lime sm">ابدأ' + hmIc('arrow') + '</span></button>'
+    + '<div class="hm-quest-list">' + steps.map((s, i) => i === nextIdx ? '' :
+        '<button type="button" class="hm-qstep' + (s.done ? ' done' : '') + '"' + (s.done ? ' disabled' : go(s)) + '>'
+        + '<span class="hm-qcheck">' + (s.done ? hmIc('check') : (i + 1)) + '</span>' + s.label + '</button>').join('') + '</div>'
+    + stats + '</div>';
+}
+
+/* «وش أسوي الحين؟» -- كل سطر مجموعة فيها ناس حقيقيين، وزر يطلّعهم. */
+function cuRenderTodo(){
+  const el = document.getElementById('cuTodo');
+  if(!el) return;
+  const by = {};
+  (TOP_CUSTOMERS || []).forEach(c => { const k = rfmScoreCustomer(c).segment.key; (by[k] ||= []).push(c); });
+  const names = list => list.slice(0, 2).map(c => cuFirst(c.name)).join(' و') + (list.length > 2 ? ' و' + (list.length - 2) + ' غيرهم' : '');
+  const rows = [];
+  if(by['at-risk']) rows.push({ cls: 'critical', ic: 'alert', t: names(by['at-risk']) + ' غابوا عنك', h: 'كانوا يجونك كثير، وآخر زيارة لهم من أكثر من أسبوعين. رسالة بسيطة ترجّعهم',
+    acts: '<button type="button" class="rk2-btn lime sm" data-seg-go="at-risk">شوفهم</button>' + (CU_LOYALTY_ON !== false ? '<button type="button" class="rk2-btn mn-ghost sm" data-cu-go="@winback">رسالة رجوع تلقائية</button>' : '') });
+  if(by.champions) rows.push({ ic: 'trophy', t: (by.champions.length === 1 ? cuFirst(by.champions[0].name) + ' من أفضل عملائك' : names(by.champions) + ' أفضل عملائك'), h: 'يزورونك كثير ويصرفون أكثر. كلمة شكر أو مكافأة بسيطة تخليهم معك',
+    acts: '<button type="button" class="rk2-btn mn-ghost sm" data-seg-go="champions">شوفهم</button>' });
+  const fresh = (TOP_CUSTOMERS || []).filter(c => c.visits === 1 && c.lastVisitDays <= 7);
+  if(fresh.length) rows.push({ ic: 'sprout', t: hmPlural(fresh.length, 'عميل', 'عميلين', 'عملاء', 'عميل') + ' زاروك أول مرة هالأسبوع', h: 'الزيارة الثانية هي اللي تصنع العميل الدايم -- النادي يعطيهم سبب يرجعون',
+    acts: '<button type="button" class="rk2-btn mn-ghost sm" data-seg-go="new">شوفهم</button>' });
+  if(!rows.length){ el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="rk2-card iv-todo cu-todo">' + hmHead('flag', 'ops', 'وش أسوي الحين؟', 'من عملائك أنفسهم، مو أرقام عامة')
+    + rows.map(r => '<div class="iv-todo-row' + (r.cls ? ' ' + r.cls : '') + '"><span class="cu-todo-ic">' + cuIc(r.ic) + '</span><div class="iv-todo-name"><b>' + r.t + '</b><span class="iv-todo-hint">' + r.h + '</span></div><div class="iv-todo-acts">' + r.acts + '</div></div>').join('')
+    + '</div>';
+}
+
+/* ============ RFM Analysis — every score derives from TOP_CUSTOMERS' real visits/spend/lastVisitDays.
+   high-R/F/M -> Champions, good-history-but-gone-quiet -> At Risk,
    moderate-across-the-board -> Loyal, low-everything -> Lost. */
 function rfmRScore(days){ if(days<=3) return 5; if(days<=7) return 4; if(days<=14) return 3; if(days<=21) return 2; return 1; }
 function rfmFScore(visits){ if(visits>=20) return 5; if(visits>=15) return 4; if(visits>=10) return 3; if(visits>=5) return 2; return 1; }
 function rfmMScore(spend){ if(spend>=1000) return 5; if(spend>=500) return 4; if(spend>=200) return 3; if(spend>=50) return 2; return 1; }
 function rfmSegment(r,f,m){
   if(r>=4 && f>=4 && m>=4) return {key:'champions', label:'الأبرز'};
-  if(r<=2 && f>=3 && m>=3) return {key:'at-risk', label:'مهددون بالانقطاع'};
-  if(f>=3 && m>=3) return {key:'loyal', label:'دائمون'};
+  if(r<=2 && f>=3 && m>=3) return {key:'at-risk', label:'غابوا عنك'};
+  if(f>=3 && m>=3) return {key:'loyal', label:'دايمون'};
   if(r>=4 && f<=2) return {key:'new', label:'جدد'};
   if(r>=3 && f<=3) return {key:'potential', label:'واعدون'};
   return {key:'lost', label:'منقطعون'};
@@ -5239,101 +5330,116 @@ function rfmScoreCustomer(c){
   const r = rfmRScore(c.lastVisitDays), f = rfmFScore(c.visits), m = rfmMScore(c.spend);
   return {r, f, m, segment: rfmSegment(r,f,m)};
 }
-// Segment names were shown in raw English (RFM analysis jargon —
-// "Champions"/"At Risk"/"Lost") straight to the owner, with only the
-// description translated. Names are now plain Arabic; the logic/thresholds
-// computing who lands in which segment are unchanged.
+// مرتّبة من الأهم للتصرّف: الغايبين أول.
 const RFM_SEGMENT_META = {
-  champions:{label:'الأبرز', desc:'الأفضل — زيارات حديثة ومتكررة وإنفاق عالٍ.'},
-  loyal:{label:'دائمون', desc:'ثابتون ويعودون بانتظام.'},
-  potential:{label:'واعدون', desc:'زاروا مؤخرًا، بحاجة لتشجيع أكثر.'},
-  new:{label:'جدد', desc:'زيارات أولى — فرصة لبناء ولاء.'},
-  'at-risk':{label:'مهددون بالانقطاع', desc:'كانوا جيدين، بدأوا يبتعدون — يستاهلون تواصل.'},
-  lost:{label:'منقطعون', desc:'ما زاروا من فترة طويلة وتفاعلهم قليل.'}
+  'at-risk':{label:'غابوا عنك', desc:'كانوا يجونك كثير وطوّلوا', ic:'alert'},
+  champions:{label:'الأبرز', desc:'يزورونك كثير ويصرفون أكثر', ic:'trophy'},
+  loyal:{label:'دايمون', desc:'يرجعون لك بانتظام', ic:'repeat'},
+  new:{label:'جدد', desc:'أول زيارة أو ثانية', ic:'sprout'},
+  potential:{label:'واعدون', desc:'زاروك قريب، يبون تشجيع', ic:'gift'},
+  lost:{label:'منقطعون', desc:'من زمان ما شفناهم', ic:'clock'}
 };
+let custSegmentFilter = null;
 function renderRfmSegments(){
+  const el = document.getElementById('rfmSegmentGrid');
+  if(!el) return;
   const counts = {champions:0, loyal:0, potential:0, new:0, 'at-risk':0, lost:0};
-  TOP_CUSTOMERS.forEach(c=>{ counts[rfmScoreCustomer(c).segment.key]++; });
-  const allCard = `<button type="button" class="rfm-seg-card all${custSegmentFilter===null?' selected':''}" data-seg="">
-      <div class="rfm-seg-count mono">${TOP_CUSTOMERS.length}</div>
-      <div class="rfm-seg-name">الكل</div>
-      <div class="rfm-seg-desc">كل العملاء، بلا تصنيف.</div>
-    </button>`;
-  document.getElementById('rfmSegmentGrid').innerHTML = allCard + Object.entries(RFM_SEGMENT_META).map(([key,meta])=>
-    `<button type="button" class="rfm-seg-card ${key}${custSegmentFilter===key?' selected':''}" data-seg="${key}">
-      <div class="rfm-seg-count mono">${counts[key]}</div>
-      <div class="rfm-seg-name">${meta.label}</div>
-      <div class="rfm-seg-desc">${meta.desc}</div>
-    </button>`
-  ).join('');
-  document.querySelectorAll('.rfm-seg-card').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const seg = btn.dataset.seg || null;
-      custSegmentFilter = custSegmentFilter === seg ? null : seg;
-      renderRfmSegments();
-      renderCustList();
-    });
-  });
+  (TOP_CUSTOMERS || []).forEach(c=>{ counts[rfmScoreCustomer(c).segment.key]++; });
+  const head = document.getElementById('cuSegHead');
+  if(head) head.hidden = !(TOP_CUSTOMERS || []).length;
+  if(!(TOP_CUSTOMERS || []).length){ el.innerHTML = ''; return; }
+  const tile = (key, label, desc, n, ic) => '<button type="button" class="cu-seg ' + (key || 'all') + (custSegmentFilter === (key || null) ? ' active' : '') + (n ? '' : ' zero') + '" data-seg="' + key + '">'
+    + '<span class="cu-seg-ic">' + cuIc(ic) + '</span><span class="cu-seg-txt"><b>' + label + '</b><small>' + desc + '</small></span><span class="cu-seg-n hm-num">' + n + '</span></button>';
+  el.innerHTML = tile('', 'الكل', 'كل عملائك', TOP_CUSTOMERS.length, 'users')
+    + Object.entries(RFM_SEGMENT_META).map(([k, m]) => tile(k, m.label, m.desc, counts[k], m.ic)).join('');
+}
+function cuSetSegment(seg, scroll){
+  custSegmentFilter = seg || null;
+  cuShowAll = false;
+  renderRfmSegments();
+  renderCustList();
+  if(scroll) document.getElementById('cuListCard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// Filtering by segment (click a Champions/At Risk/... tile above) is what
-// actually connects "how many are at risk" to "who, specifically" — before
-// this, the segment counts and the customer list below were two disconnected
-// numbers with no way to go from one to the other.
-let custSegmentFilter = null;
 function renderCustList(){
   const el = document.getElementById('custList');
   const filterBar = document.getElementById('custListFilterBar');
-  if(TOP_CUSTOMERS.length === 0){
-    el.innerHTML = '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">ما فيه عملاء مسجّلين بعد — يتسجلون تلقائيًا أول ما يدخل الكاشير رقم جوالهم بالكاشير.</p>';
+  const card = document.getElementById('cuListCard');
+  if(!el) return;
+  if(!(TOP_CUSTOMERS || []).length){
+    if(card) card.classList.add('cu-empty-card');
+    el.innerHTML = '<div class="hm-empty"><span class="hm-empty-ic">' + cuIc('users') + '</span><b>عملاؤك يطلعون هنا</b>'
+      + '<span>أول ما يكتب الكاشير جوال العميل عند الدفع، ينضاف هنا مع زياراته وصرفه وأكثر شي يطلبه</span>'
+      + '<a class="rk2-btn lime sm" href="/pos" target="_blank" rel="noopener">افتح الكاشير</a></div>';
     if(filterBar) filterBar.innerHTML = '';
     return;
   }
-  const rows = custSegmentFilter
-    ? TOP_CUSTOMERS.filter(c=>rfmScoreCustomer(c).segment.key===custSegmentFilter)
-    : TOP_CUSTOMERS;
+  if(card) card.classList.remove('cu-empty-card');
+  const q = cuQuery.trim(), qd = q.replace(/\D/g, '');
+  let rows = TOP_CUSTOMERS.filter(c => (q || !custSegmentFilter || rfmScoreCustomer(c).segment.key === custSegmentFilter)
+    && (!q || String(c.name || '').includes(q) || (qd.length >= 3 && String(c.phone || '').replace(/\D/g, '').includes(qd))));
+  if(cuSort === 'recent') rows = [...rows].sort((a, b) => a.lastVisitDays - b.lastVisitDays);
+  else if(cuSort === 'visits') rows = [...rows].sort((a, b) => b.visits - a.visits);
 
   if(filterBar){
-    filterBar.innerHTML = custSegmentFilter
-      ? `<span>عرض: <b>${RFM_SEGMENT_META[custSegmentFilter].label}</b> (${rows.length})</span><button type="button" id="custClearSegFilter">مسح الفلتر ✕</button>`
+    filterBar.innerHTML = (custSegmentFilter && !q)
+      ? '<span>تشوف: <b>' + RFM_SEGMENT_META[custSegmentFilter].label + '</b> (' + rows.length + ')</span><button type="button" data-seg-go="">رجّع الكل ✕</button>'
       : '';
-    const clearBtn = document.getElementById('custClearSegFilter');
-    if(clearBtn) clearBtn.addEventListener('click', ()=>{ custSegmentFilter = null; renderRfmSegments(); renderCustList(); });
   }
-
-  if(rows.length === 0){
-    el.innerHTML = '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">ما فيه عملاء بهذا التصنيف حاليًا.</p>';
+  if(!rows.length){
+    el.innerHTML = '<div class="hm-empty"><span class="hm-empty-ic">' + hmIc('info') + '</span><b>' + (q ? 'ما لقينا «' + escapeHtml(q) + '»' : 'ما فيه أحد في «' + RFM_SEGMENT_META[custSegmentFilter].label + '» الحين') + '</b>'
+      + '<span>' + (q ? 'جرّب جزء من الاسم، أو آخر ٤ أرقام من الجوال' : 'زين! يعني ما أحد بهالوضع') + '</span>'
+      + '<button type="button" class="rk2-btn mn-ghost sm" data-cu-reset>شوف كل العملاء</button></div>';
     return;
   }
-  const COLORS = ['var(--acc-ops)','var(--acc-res)','var(--acc-fin)','var(--acc-team)','var(--acc-ai)'];
-  const COLORS_BG = ['var(--acc-ops-bg)','var(--acc-res-bg)','var(--acc-fin-bg)','var(--acc-team-bg)','var(--acc-ai-bg)'];
-  const phoneIcon = '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>';
-  el.innerHTML = rows.map((c,i)=>{
-    const rfm = rfmScoreCustomer(c);
-    return `<div class="cust-row" data-cust-id="${c.id}" style="cursor:pointer;">
-      <div class="cust-avatar" style="background:${COLORS_BG[i%5]}; color:${COLORS[i%5]};">${escapeHtml(c.name.charAt(0))}</div>
-      <div class="cust-info">
-        <div class="cust-name">${escapeHtml(c.name)}${c.vip?'<span class="cust-vip-badge">VIP</span>':''}<span class="cust-rfm-tag ${rfm.segment.key}">${escapeHtml(rfm.segment.label)}</span></div>
-        <div class="cust-meta">${c.visits} زيارة — آخر زيارة قبل ${c.lastVisitDays} يوم${c.favorite ? ' — يفضّل: '+escapeHtml(c.favorite) : ''}</div>
-      </div>
-      <div class="cust-end">
-        <div class="cust-spend">${rkMoney(c.spend)}</div>
-        ${c.phone ? `<a class="cust-call-btn" href="tel:${escapeHtml(c.phone)}" title="اتصال" onclick="event.stopPropagation()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">${phoneIcon}</svg></a>` : ''}
-      </div>
-    </div>`;
-  }).join('');
-  el.querySelectorAll('.cust-row').forEach(row=>{
-    row.addEventListener('click', ()=> openCustomerDetailModal(parseInt(row.dataset.custId)));
-  });
+  const shown = cuShowAll ? rows : rows.slice(0, CU_PAGE);
+  const COLORS = ['ops','res','fin','team','ai'];
+  el.innerHTML = shown.map((c, i) => {
+    const seg = rfmScoreCustomer(c).segment;
+    const wa = cuWaUrl(c, seg.key);
+    const col = COLORS[(c.id || i) % 5];
+    return '<div class="cu-row" data-cust-id="' + c.id + '" role="button" tabindex="0">'
+      + '<span class="cu-av" style="background:var(--acc-' + col + '-bg); color:var(--acc-' + col + ');">' + escapeHtml(String(c.name || '؟').charAt(0)) + '</span>'
+      + '<div class="cu-info"><div class="cu-name"><b>' + escapeHtml(c.name) + '</b>' + (c.vip ? '<span class="cu-vip">VIP</span>' : '') + '<span class="cust-rfm-tag ' + seg.key + '">' + escapeHtml(seg.label) + '</span></div>'
+      + '<div class="cu-meta">' + hmPlural(c.visits, 'زيارة وحدة', 'زيارتين', 'زيارات', 'زيارة') + ' · آخر زيارة ' + cuAgo(c.lastVisitDays) + (c.favorite ? ' · يحب ' + escapeHtml(c.favorite) : '') + '</div></div>'
+      + '<div class="cu-end"><span class="cu-spend">' + hmMoney(c.spend) + '</span>'
+      + (c.phone ? '<a class="cu-act" href="tel:' + escapeHtml(c.phone) + '" title="اتصل" aria-label="اتصل">' + cuIc('phone') + '</a>' : '')
+      + (wa ? '<a class="cu-act wa" href="' + escapeHtml(wa) + '" target="_blank" rel="noopener" title="واتساب" aria-label="واتساب">' + cuIc('wa') + '</a>' : '')
+      + '</div></div>';
+  }).join('')
+    + (rows.length > shown.length ? '<button type="button" class="rk2-btn mn-ghost cu-more" data-cu-more>اعرض الكل (' + rows.length + ')</button>' : '');
 }
 
-// A customer row used to be a dead end — the row itself had no click
-// handler at all (only the tiny phone-call icon was interactive, and it
-// already called stopPropagation as if a row click was expected to do
-// something). There was no way to see a customer's actual order history
-// anywhere in the dashboard. This reuses the same real order data and the
-// existing order-detail modal (openOrderDetailModal, from Orders) rather
-// than inventing a second, parallel order-detail view.
+(function wireCu(){
+  const scr = document.getElementById('screen-customers');
+  if(!scr) return;
+  scr.addEventListener('click', (e) => {
+    if(e.target.closest('a')) return;   // اتصال/واتساب/الكاشير: الرابط نفسه يكفي
+    const sg = e.target.closest('[data-seg]');
+    if(sg){ const k = sg.dataset.seg || null; cuSetSegment(custSegmentFilter === k ? null : k, false); return; }
+    const sgo = e.target.closest('[data-seg-go]');
+    if(sgo){ cuSetSegment(sgo.dataset.segGo || null, !!sgo.dataset.segGo); return; }
+    if(e.target.closest('[data-cu-more]')){ cuShowAll = true; renderCustList(); return; }
+    if(e.target.closest('[data-cu-reset]')){ cuQuery = ''; const s = document.getElementById('cuSearch'); if(s) s.value = ''; cuSetSegment(null, false); return; }
+    const go = e.target.closest('[data-cu-go]');
+    if(go){
+      const g = go.dataset.cuGo;
+      if(g === '@pos') return window.open('/pos', '_blank', 'noopener');
+      document.querySelector('.nav-item[data-screen="loyalty"]')?.click();
+      if(g === '@winback') setTimeout(() => lyGoTo('notify', '#walletWinBackOn'), 450);
+      return;
+    }
+    const row = e.target.closest('.cu-row');
+    if(row) openCustomerDetailModal(Number(row.dataset.custId));
+  });
+  scr.addEventListener('keydown', (e) => {
+    const row = e.target.closest && e.target.closest('.cu-row');
+    if(row && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); openCustomerDetailModal(Number(row.dataset.custId)); }
+  });
+  document.getElementById('cuSearch')?.addEventListener('input', (e) => { cuQuery = e.target.value; cuShowAll = false; renderCustList(); });
+  document.getElementById('cuSort')?.addEventListener('change', (e) => { cuSort = e.target.value; renderCustList(); });
+})();
+
 function closeCustomerDetailModal(){
   document.getElementById('customerDetailModal').classList.remove('show');
 }
@@ -5343,47 +5449,47 @@ async function openCustomerDetailModal(customerId){
   const modal = document.getElementById('customerDetailModal');
   const body = document.getElementById('customerDetailModalBody');
   document.getElementById('customerDetailModalTitle').textContent = c.name;
-  body.innerHTML = '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p>';
+  body.innerHTML = '<div class="rp-skel"></div>';
   modal.classList.add('show');
 
-  const rfm = rfmScoreCustomer(c);
+  const seg = rfmScoreCustomer(c).segment;
   const { data: orders } = await window.supabaseClient.from('orders')
     .select('id, created_at, channel, total, status')
     .eq('customer_id', customerId).order('created_at', {ascending:false}).limit(20);
+  const wa = cuWaUrl(c, seg.key);
 
   const ordersHtml = (orders||[]).length ? (orders||[]).map(o=>`
-    <div class="cpb-row" data-order-id="${o.id}" style="cursor:pointer;">
-      <span>${new Date(o.created_at).toLocaleDateString('ar-SA')} — ${orderChannelTagsHtml(o.channel, false)}${o.status!=='completed' ? ' <span class="order-status-tag '+o.status+'">'+(ORDER_STATUS_LABELS[o.status]||o.status)+'</span>' : ''}</span>
-      ${rkMoney(o.total)}
-    </div>`).join('') : '<p class="stock-qty-helper">ما فيه طلبات مسجّلة لهذا العميل بعد.</p>';
+    <button type="button" class="cu-ord" data-order-id="${o.id}">
+      <span>${new Date(o.created_at).toLocaleDateString('ar-SA', {day:'numeric', month:'short'})} · ${orderChannelTagsHtml(o.channel, false)}${o.status!=='completed' ? ' <span class="order-status-tag '+o.status+'">'+(ORDER_STATUS_LABELS[o.status]||o.status)+'</span>' : ''}</span>
+      ${hmMoney(o.total)}
+    </button>`).join('') : '<div class="hm-empty"><b>ما فيه طلبات له للحين</b><span>أول طلب بجواله يطلع هنا</span></div>';
 
   body.innerHTML = `
-    <div class="cost-preview-box" style="margin-bottom:14px;">
-      ${c.phone ? `<div class="cpb-row"><span>الجوال</span><a href="tel:${escapeHtml(c.phone)}" class="mono" style="color:var(--lime-deep); font-weight:700;">${escapeHtml(c.phone)}</a></div>` : ''}
-      <div class="cpb-row"><span>التصنيف</span><span class="cust-rfm-tag ${rfm.segment.key}">${escapeHtml(rfm.segment.label)}</span></div>
-      <div class="cpb-row"><span>نقاط الولاء</span><span class="mono">${c.points}</span></div>
-      ${c.favorite ? `<div class="cpb-row"><span>يفضّل</span><span class="mono">${escapeHtml(c.favorite)}</span></div>` : ''}
+    <div class="cu-mod-top">
+      <span class="cust-rfm-tag ${seg.key}">${escapeHtml(seg.label)}</span>
+      ${c.favorite ? `<span class="cu-mod-fav">يحب <b>${escapeHtml(c.favorite)}</b></span>` : ''}
+      ${c.phone ? `<span class="cu-mod-acts"><a class="rk2-btn mn-ghost sm" href="tel:${escapeHtml(c.phone)}">${cuIc('phone')}<span dir="ltr">${escapeHtml(c.phone)}</span></a>${wa ? `<a class="rk2-btn lime sm" href="${escapeHtml(wa)}" target="_blank" rel="noopener">${cuIc('wa')}واتساب</a>` : ''}</span>` : ''}
     </div>
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
-      <div class="kpi-card"><div class="kpi-label">إجمالي الزيارات</div><div class="kpi-value mono">${c.visits}</div></div>
-      <div class="kpi-card"><div class="kpi-label">إجمالي الإنفاق</div><div class="kpi-value">${rkMoney(c.spend)}</div></div>
+    <div class="cu-mod-stats">
+      <div class="iv-stat"><span>زياراته</span><b class="hm-num">${c.visits}</b><small>آخرها ${cuAgo(c.lastVisitDays)}</small></div>
+      <div class="iv-stat"><span>صرف عندك</span>${hmMoney(c.spend)}</div>
+      <div class="iv-stat"><span>نقاط الولاء</span><b class="hm-num">${Number(c.points || 0).toLocaleString('en-US')}</b></div>
     </div>
-    <div class="panel-title" style="margin-bottom:8px;">آخر الطلبات</div>
-    ${ordersHtml}
+    <div class="cu-mod-h">آخر طلباته</div>
+    <div class="cu-ords">${ordersHtml}</div>
   `;
   body.querySelectorAll('[data-order-id]').forEach(row=>{
-    row.addEventListener('click', ()=> openOrderDetailModal(row.dataset.orderId));
+    row.addEventListener('click', ()=>{ closeCustomerDetailModal(); openOrderDetailModal(row.dataset.orderId); });
   });
 }
+
 function wireCustomersScreen(){
   document.getElementById('customerDetailModalClose').addEventListener('click', closeCustomerDetailModal);
   document.getElementById('customerDetailModal').addEventListener('click', (e)=>{ if(e.target.id==='customerDetailModal') closeCustomerDetailModal(); });
 }
 
-function renderCustInsight(){
-  document.getElementById('custInsightCard').innerHTML =
-    `<div class="decision-card"><div class="decision-what">${CUSTOMER_INSIGHT.what}</div><div class="decision-why">${CUSTOMER_INSIGHT.why}</div></div>`;
-}
+// «ملاحظة ركين» كانت تكرّر نسبة العائدين اليوم -- صارت في «عملاؤك» فوق.
+function renderCustInsight(){}
 
 /* ============ Loyalty Program — every number derives from TOP_CUSTOMERS / TODAY / CUSTOMERS_TODAY,
    the same single source of truth used by the Customers and Home screens. The points-per-riyal
