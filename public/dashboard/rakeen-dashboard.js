@@ -9187,20 +9187,26 @@ function initReportThemePicker(){
   const picker = document.getElementById('reportThemePicker');
   if(!picker) return;
   const syncActive = ()=> picker.querySelectorAll('.report-theme-swatch').forEach(b=>{
-    b.classList.toggle('active', b.dataset.theme === REPORT_THEME);
+    b.classList.toggle('active', b.dataset.rtheme === REPORT_THEME);
   });
   syncActive();
   picker.addEventListener('click', (e)=>{
     const b = e.target.closest('.report-theme-swatch'); if(!b) return;
-    REPORT_THEME = b.dataset.theme;
-    localStorage.setItem('rakeen_report_theme', REPORT_THEME);
+    REPORT_THEME = b.dataset.rtheme;
+    try { localStorage.setItem('rakeen_report_theme', REPORT_THEME); } catch(_){}
     syncActive();
     renderReportPreview();
   });
 }
 
 document.getElementById('reportTypeChips').addEventListener('click', (e)=>{
-  const b = e.target.closest('button'); if(!b) return;
+  const b = e.target.closest('button[data-report]'); if(!b) return;
+  // الأرباح بصلاحيتها: الباقة فيها الميزة، بس هالموظف ما أُعطي «يشوف الأرباح».
+  if(b.dataset.report === 'financial' && planHas('costing_profit') && !canViewProfit()){
+    showToast('«كم ربحت؟» يبيله صلاحية الأرباح — كلّم صاحب الحساب');
+    return;
+  }
+  if(e.isTrusted) setTimeout(()=> document.getElementById('rpDoc')?.scrollIntoView({behavior:'smooth', block:'start'}), 60);
   document.querySelectorAll('#reportTypeChips button').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');
   activeReportType = b.dataset.report;
@@ -9290,8 +9296,8 @@ async function renderSalesCountersPanel(){
     <div class="rk-subcard sales-counter-card" style="margin-bottom:12px;" data-id="${c.id}">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
         <div>
-          <div class="rk-subcard-title" style="margin-bottom:2px;">${c.name}</div>
-          <div class="stock-qty-helper">${targetName} — منذ ${sinceLabel}</div>
+          <div class="rk-subcard-title" style="margin-bottom:2px;">${escapeHtml(c.name)}</div>
+          <div class="stock-qty-helper">${escapeHtml(targetName)} — منذ ${sinceLabel}</div>
         </div>
         <div class="acct-hero-value mono" style="font-size:26px;">${counts[i]}</div>
       </div>
@@ -9339,7 +9345,8 @@ function wireSalesCounterHandlers(){
 
   document.querySelectorAll('.counter-reset-btn').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
-      if(!confirm('تصفير العدّاد يبدأ العدّ من الآن — الرقم الحالي ما ينحذف من سجل مبيعاتك، بس ما راح يظهر بهالعدّاد بعد التصفير. تأكيد؟')) return;
+      const ok = await rkAsk({ title:'تصفّر العدّاد؟', body:'يبدأ العدّ من الحين. مبيعاتك ما تنحذف، بس الرقم الحالي ما يطلع بهالعدّاد بعدها.', ok:'صفّره', cancel:'خلّه' });
+      if(!ok) return;
       const id = parseInt(btn.dataset.id, 10);
       const { error } = await window.supabaseClient.from('sales_counters').update({count_since: new Date().toISOString()}).eq('id', id);
       if(error){ showToast('تعذر التصفير: ' + error.message); return; }
@@ -9348,7 +9355,8 @@ function wireSalesCounterHandlers(){
   });
   document.querySelectorAll('.counter-delete-btn').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
-      if(!confirm('حذف هذا العدّاد نهائياً؟')) return;
+      const ok = await rkAsk({ title:'تحذف العدّاد؟', body:'ينشال العدّاد بس، ومبيعاتك تبقى مثل ما هي.', ok:'احذفه', cancel:'خلّه' });
+      if(!ok) return;
       const id = parseInt(btn.dataset.id, 10);
       const { error } = await window.supabaseClient.from('sales_counters').delete().eq('id', id);
       if(error){ showToast('تعذر الحذف: ' + error.message); return; }
@@ -9649,8 +9657,100 @@ function printDailyAutoReport(dayLabel, bodyHtml){
   window.addEventListener('afterprint', cleanup);
 }
 
+/* ============ شاشة «التقارير» (rp-) ============
+   فوق: «وش وضعي؟» -- الفترة، ورقم المبيعات كبير وجنبه الطلبات والفاتورة
+   والربح (لمن يحق له). بعدها التقارير بطاقات بأسئلة، كل وحدة تحتها رقمها
+   للفترة، والتقرير نفسه تحتها مع أزرار التصدير. */
+function rpFmt(n){ return Number(n || 0).toLocaleString('en-US', {maximumFractionDigits:0}); }
+
+/* الربع اللي يبي إقراره: في أول شهر من كل ربع، الإقرار المستحق هو
+   للربع اللي قبله (آخر موعد نهاية الشهر اللي بعد الربع). */
+function rpDueQuarter(){
+  const now = new Date();
+  if(now.getMonth() % 3 !== 0) return null;
+  const qIdx = Math.floor(now.getMonth() / 3);
+  const prev = qIdx === 0 ? 3 : qIdx - 1;
+  const year = qIdx === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  return { n: prev + 1, year, from: new Date(year, prev * 3, 1), to: new Date(year, prev * 3 + 3, 1) };
+}
+
+function rpRenderHero(){
+  const el = document.getElementById('rpHero');
+  if(!el) return;
+  rpSetSums();
+  const d = REPORT_RANGE_DATA;
+  if(!d){ el.innerHTML = '<div class="rp-skel"></div>'; return; }
+  const due = rpDueQuarter();
+  const nudge = due ? '<div class="rp-nudge">' + hmIc('flag') + '<span>وقت إقرار <b>الربع ' + due.n + '</b> — آخر موعد نهاية هالشهر</span>'
+    + '<button type="button" class="rk2-btn lime sm" data-rp-due>طلّعه</button></div>' : '';
+  if(!d.ordersCount){
+    el.innerHTML = '<div class="hm-empty rp-empty"><span class="hm-empty-ic">' + hmIc('cash') + '</span><b>ما فيه مبيعات ' + escapeHtml(REPORT_RANGE_LABEL === 'اليوم' ? 'اليوم للحين' : 'في «' + REPORT_RANGE_LABEL + '»') + '</b>'
+      + '<span>كل فاتورة تقفلها من الكاشير تنحسب هنا على طول</span>'
+      + '<div class="rp-empty-acts">' + (REPORT_RANGE_LABEL === 'اليوم' ? '<button type="button" class="rk2-btn mn-ghost sm" data-rp-preset="7d">شوف آخر ٧ أيام</button>' : '')
+      + '<a class="rk2-btn lime sm" href="/pos" target="_blank" rel="noopener">افتح الكاشير</a></div></div>' + nudge;
+    return;
+  }
+  const stats = [
+    ['الطلبات', '<b class="hm-num">' + rpFmt(d.ordersCount) + '</b>'],
+    ['متوسط الفاتورة', hmMoney(d.avgTicket)],
+    ['الضريبة المحصّلة', hmMoney(d.vat)],
+  ];
+  if(canViewProfit()) stats.push(['صافي الربح', hmMoney(d.netProfit, d.netProfit < 0 ? 'neg' : '')]);
+  el.innerHTML = '<div class="rp-hero-main"><div class="hm-kicker">صافي المبيعات · ' + escapeHtml(REPORT_RANGE_LABEL) + '</div>'
+    + '<div class="rp-big">' + hmMoney(d.netSales) + '</div></div>'
+    + '<div class="rp-stats">' + stats.map(([k, v])=> '<div class="iv-stat"><span>' + k + '</span>' + v + '</div>').join('') + '</div>' + nudge;
+}
+
+/* تحت كل بطاقة رقمها للفترة نفسها -- من نفس البيانات، مو حساب ثاني. */
+function rpSetSums(){
+  const d = REPORT_RANGE_DATA;
+  const set = (k, v)=>{ const s = document.querySelector('#reportTypeChips [data-rp-sum="' + k + '"]'); if(s && v != null) s.textContent = v; };
+  if(!canViewProfit()){
+    const fin = document.querySelector('#reportTypeChips [data-report="financial"]');
+    if(fin && planHas('costing_profit')){ fin.classList.add('rp-no-perm'); set('financial', 'تحتاج صلاحية «الأرباح»'); }
+  }
+  if(!d) return;
+  if(!d.ordersCount){ ['sales','products','payments'].forEach(k=> set(k, 'ما فيه مبيعات بالفترة')); return; }
+  const RS = ' ر.س';
+  set('sales', rpFmt(d.netSales) + RS + ' · ' + hmPlural(d.ordersCount, 'طلب واحد', 'طلبين', 'طلبات', 'طلب'));
+  const top = [...(d.sellers || [])].sort((a,b)=> b.qty - a.qty)[0];
+  if(top) set('products', 'الأول: ' + top.name);
+  const pay = [...(d.paymentBreakdown || [])].sort((a,b)=> b.amount - a.amount)[0];
+  if(pay && d.netSales > 0) set('payments', pay.name + ' ' + Math.round(pay.amount / d.netSales * 100) + '٪');
+  if(canViewProfit()) set('financial', 'صافي الربح ' + rpFmt(d.netProfit) + RS);
+  set('discounts', rpFmt(d.discounts) + RS + ' خصومات');
+  set('tax', rpFmt(d.vat) + RS + ' ضريبة');
+}
+
+function rpSelectType(type){
+  const b = document.querySelector('#reportTypeChips [data-report="' + type + '"]');
+  if(b) b.click();
+}
+document.getElementById('screen-reports')?.addEventListener('click', (e)=>{
+  if(e.target.closest('[data-rp-due]')){
+    const due = rpDueQuarter(); if(!due) return;
+    REPORT_RANGE = { from: due.from, to: due.to };
+    REPORT_RANGE_LABEL = 'الربع ' + due.n + ' ' + due.year;
+    document.querySelectorAll('#reportRangePresets button').forEach(x=>x.classList.remove('active'));
+    rpSelectType('vat_return');
+    return;
+  }
+  const pre = e.target.closest('[data-rp-preset]');
+  if(pre){ document.querySelector('#reportRangePresets [data-preset="' + pre.dataset.rpPreset + '"]')?.click(); return; }
+});
+document.getElementById('rpQuarter')?.addEventListener('change', (e)=>{
+  const q = e.target.value; if(!q) return;
+  REPORT_RANGE = salesRangeBounds(q);
+  REPORT_RANGE_LABEL = e.target.options[e.target.selectedIndex].textContent;
+  document.querySelectorAll('#reportRangePresets button').forEach(x=>x.classList.remove('active'));
+  document.getElementById('reportRangeFrom').value = '';
+  document.getElementById('reportRangeTo').value = '';
+  refreshReportData();
+});
+
 document.getElementById('reportRangePresets').addEventListener('click', (e)=>{
   const b = e.target.closest('button'); if(!b) return;
+  const qs = document.getElementById('rpQuarter'); if(qs) qs.value = '';
   document.querySelectorAll('#reportRangePresets button').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');
   REPORT_RANGE = salesRangeBounds(b.dataset.preset);
@@ -9667,6 +9767,7 @@ document.getElementById('reportRangeApplyBtn').addEventListener('click', ()=>{
   const to = new Date(toVal + 'T00:00:00'); to.setDate(to.getDate()+1);
   if(from >= to){ showToast('تاريخ البداية لازم يكون قبل النهاية'); return; }
   REPORT_RANGE = {from, to};
+  const qs = document.getElementById('rpQuarter'); if(qs) qs.value = '';
   REPORT_RANGE_LABEL = fromVal === toVal ? dateInputValue(from) : (fromVal + ' – ' + toVal);
   document.querySelectorAll('#reportRangePresets button').forEach(x=>x.classList.remove('active'));
   refreshReportData();
@@ -9822,6 +9923,7 @@ async function refreshReportData(){
     ? await loadVatReturnInputData(REPORT_RANGE.from, REPORT_RANGE.to)
     : null;
   renderReportPreview();
+  rpRenderHero();
 }
 
 // The on-screen preview wears the exact same letterhead as the printed/
@@ -9930,8 +10032,8 @@ function salesReportHtml(d){
 function productsReportCardsHtml(sorted){
   return sorted.map(p=>`
     <div class="report-item-card">
-      <div class="ric-title">${p.name}</div>
-      <div class="ric-row"><span class="ric-label">التصنيف</span><span>${p.cat}</span></div>
+      <div class="ric-title">${escapeHtml(p.name)}</div>
+      <div class="ric-row"><span class="ric-label">التصنيف</span><span>${escapeHtml(p.cat)}</span></div>
       <div class="ric-row"><span class="ric-label">الكمية</span><span class="mono">${p.qty}</span></div>
       <div class="ric-row total"><span class="ric-label">الإيرادات</span><span class="mono">${p.revenue.toFixed(2)} ر.س</span></div>
     </div>`).join('');
@@ -9946,7 +10048,7 @@ function productsReportHtml(d){
       <thead><tr><th>المنتج</th><th>التصنيف</th><th>الكمية</th><th>الإيرادات</th></tr></thead>
       <tbody>
         ${sorted.map(p=>`<tr>
-          <td>${p.name}</td><td>${p.cat}</td><td class="mono">${p.qty}</td><td class="mono">${p.revenue.toFixed(2)}</td>
+          <td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.cat)}</td><td class="mono">${p.qty}</td><td class="mono">${p.revenue.toFixed(2)}</td>
         </tr>`).join('')}
       </tbody>
     </table>`}
@@ -19912,7 +20014,7 @@ async function loadReportHistory(){
     .eq('business_id', CURRENT_PROFILE.business_id)
     .order('exported_at', {ascending:false})
     .limit(10);
-  if(!data || data.length === 0){ listEl.innerHTML = '<div class="orders-empty">ما فيه تقارير مصدّرة بعد</div>'; return; }
+  if(!data || data.length === 0){ listEl.innerHTML = '<div class="rp-hist-empty">أول ما تطبع تقرير أو تنزّله أو ترسله، يطلع هنا مين طلّعه ومتى</div>'; return; }
   listEl.innerHTML = data.map(r=>{
     const dt = new Date(r.exported_at);
     const dateStr = dt.toLocaleDateString('ar-SA', {day:'numeric', month:'short'}) + ' — ' + dt.toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'});
@@ -19934,7 +20036,7 @@ async function loadReportHistory(){
       chip.classList.add('active');
       activeReportType = type;
       refreshReportData();
-      document.getElementById('reportPreviewPanel').scrollIntoView({behavior:'smooth', block:'start'});
+      document.getElementById('rpDoc').scrollIntoView({behavior:'smooth', block:'start'});
     });
   });
 }

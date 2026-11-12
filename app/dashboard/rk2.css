@@ -949,3 +949,68 @@ button.mn-stat{cursor:pointer;}
 }
 .ly-stats .iv-stat small .hm-money{font-size:inherit; font-weight:900;}
 .ly-off:not(.hidden) ~ .ly-adv{display:none;}
+
+/* ==========================================================================
+   التقارير (rp-)
+   ========================================================================== */
+.rp-top{padding:18px 20px; margin-bottom:var(--rk2-gap);}
+.rp-period{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+.rp-more{position:relative;}
+.rp-more summary{list-style:none; cursor:pointer; font-size:13px; font-weight:800; padding:8px 12px; border-radius:11px; border:1px dashed var(--line); color:var(--muted);}
+.rp-more summary::-webkit-details-marker{display:none;}
+.rp-more[open] summary{color:var(--text); border-style:solid;}
+.rp-more-body{display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; margin-top:10px;}
+.rp-more-body .rk-field{margin:0; min-width:150px;}
+.rp-hero{margin-top:16px; display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap; animation:rk2-in .35s cubic-bezier(.2,.8,.2,1) both;}
+.rp-hero-main{flex:1 1 240px; min-width:0;}
+.rp-big .hm-money{font-size:40px; font-weight:900; letter-spacing:-.5px; line-height:1.15;}
+.rp-stats{display:flex; gap:10px; flex-wrap:wrap;}
+.rp-stats .iv-stat{min-width:130px;}
+.rp-stats .hm-money.neg{color:var(--danger);}
+.rp-skel{height:72px; flex:1; border-radius:var(--rk2-r-md); background:linear-gradient(90deg, var(--surf1), var(--surf2), var(--surf1)); background-size:200% 100%; animation:rp-shimmer 1.2s linear infinite;}
+@keyframes rp-shimmer{to{background-position:-200% 0}}
+.rp-empty{flex:1; padding:18px; text-align:center;}
+.rp-empty-acts{display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:10px;}
+.rp-nudge{flex-basis:100%; display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 14px; border-radius:var(--rk2-r-md); background:color-mix(in srgb, var(--lime) 16%, var(--card-bg)); border:1px solid color-mix(in srgb, var(--lime-deep) 40%, var(--line)); font-size:13.5px; font-weight:700;}
+.rp-nudge > svg{width:17px; height:17px;}
+.rp-nudge span{flex:1; min-width:0;}
+.rp-group{margin-bottom:14px;}
+.rp-group-label{display:flex; align-items:baseline; gap:8px; margin:0 2px 8px;}
+.rp-group-label b{font-size:14px; font-weight:900;}
+.rp-group-label span{font-size:12px; color:var(--muted); font-weight:600;}
+.rp-tiles{margin-bottom:0;}
+.rk2 .rp-tile.rp-no-perm{opacity:.6;}
+.rp-doc{padding:16px; margin:6px 0 var(--rk2-gap); scroll-margin-top:12px;}
+.rp-doc-bar{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:12px;}
+.rp-doc-acts{display:flex; gap:8px; flex-wrap:wrap;}
+.rp-doc-acts .rk2-btn svg{width:15px; height:15px;}
+.rp-theme{position:relative;}
+.rp-theme summary{list-style:none; cursor:pointer; font-size:12.5px; font-weight:800; color:var(--muted); text-decoration:underline; text-underline-offset:3px;}
+.rp-theme summary::-webkit-details-marker{display:none;}
+.rp-theme .report-theme-picker{margin-top:8px;}
+.rk2 .rp-email{display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; padding:12px 14px; margin:0 0 12px; border-radius:var(--rk2-r-md); background:var(--surf1); border:1px solid var(--line);}
+.rk2 .rp-email.hidden{display:none;}
+.rp-email .rk-field{margin:0; flex:1 1 240px;}
+.rk2 .rp-doc .report-preview-doc{margin:0; box-shadow:none;}
+.rp-history{padding:0; overflow:hidden;}
+.rp-history summary{list-style:none; cursor:pointer; padding:14px 18px; font-size:13.5px; font-weight:800; color:var(--muted);}
+.rp-history summary::-webkit-details-marker{display:none;}
+.rp-history[open] summary{color:var(--text); border-bottom:1px solid var(--line);}
+.rp-history #reportHistoryList{padding:8px 18px 14px;}
+.rp-hist-empty{font-size:12.5px; color:var(--muted); padding:8px 0;}
+
+@media (max-width:700px){
+  .rp-top{padding:14px;}
+  .rp-period .rk2-seg{flex:1 1 100%;}
+  .rp-big .hm-money{font-size:32px;}
+  .rp-stats{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); width:100%;}
+  .rp-stats .iv-stat{min-width:0;}
+  .rp-doc{padding:10px;}
+  .rp-doc-acts{width:100%;}
+  .rp-doc-acts .rk2-btn{flex:1 1 auto; justify-content:center;}
+}
+@media (max-width:700px){
+  .rp-tiles .rk2-tile-ic{display:none;}
+  .rk2 .rp-tiles .rk2-tile{padding:11px 12px; gap:0;}
+  .rp-tiles .rk2-tile-txt b{font-size:14px;}
+}
