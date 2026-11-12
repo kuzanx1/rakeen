@@ -7989,6 +7989,7 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
     if(target === 'settings' && !settingsPanelLoaded){
       settingsPanelLoaded = true;
       renderSettingsPanel();
+      stLoad();
     }
 
     if(target === 'onlineMenu' && !onlineMenuScreenLoaded){
@@ -10607,12 +10608,12 @@ function wireDiscountPresets(){
 /* ============ Settings: Restaurant identity + Menu management ============ */
 let activeSettingsTab = 'restaurant';
 document.getElementById('settingsTabs').addEventListener('click', (e)=>{
-  const b = e.target.closest('button'); if(!b) return;
-  document.querySelectorAll('#settingsTabs button').forEach(x=>x.classList.remove('active'));
-  b.classList.add('active');
-  activeSettingsTab = b.dataset.tab;
-  resetContentScroll();
-  renderSettingsPanel();
+  const b = e.target.closest('[data-tab]'); if(!b) return;
+  stOpenTab(b.dataset.tab).then(()=>{
+    // الإعدادات تحت البطاقات: لو ما تبان، ننزل لها.
+    const p = document.getElementById('settingsPanelBody');
+    if(e.isTrusted && p && p.getBoundingClientRect().top > window.innerHeight * 0.6) p.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 });
 
 // Order types first: it is the decision every other tab depends on.
@@ -11009,13 +11010,154 @@ const SERVICE_BUSINESS_TYPES = ['salon', 'ladies_salon', 'car_wash', 'mobile_car
 function isHotelBusinessType(t){ return t === 'hotel'; }
 function isServiceBusinessType(t){ return SERVICE_BUSINESS_TYPES.includes(t); }
 
+/* ============ شاشة «الإعدادات» (st-) ============
+   فوق: «مطعمك مضبوط؟» -- أربع خطوات من بياناتك الحقيقية (الشعار، الرقم
+   الضريبي، موقع الفرع، تنبيهات هالجهاز)، كل وحدة «ابدأ» يفتح خانتها.
+   تحت: خمس بطاقات (rk2-tile) كل وحدة تقول حالها، وتفتح إعداداتها تحت. */
+let ST_BRANCHES = null;   // [{id, name, lat, lng}] -- أول تحميل، وتتحدّث من تبويب الفروع
+let ST_TEAM = null;       // عدد حسابات لوحة التحكم
+let stPrevLeft = null;
+const ST_IC = {
+  pin:'<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
+  home:'<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+  user:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  locate:'<circle cx="12" cy="12" r="8"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/>',
+};
+function stIc(n){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ST_IC[n] || PS_IC[n] || MN_IC[n] || HM_IC[n] || '') + '</svg>'; }
+function stIsOwner(){ return rkaSettingsIsOwner(); }
+function stPushOn(){ try { return localStorage.getItem('rakeen_owner_push_enabled') === '1'; } catch(_){ return false; } }
+function stHasLoc(b){ return b && b.lat != null && b.lng != null && b.lat !== '' && b.lng !== ''; }
+
+/* أول ما تنفتح الشاشة: الفروع (للموقع) وعدد الحسابات -- مرّة وحدة، بدون تحديث دوري. */
+async function stLoad(){
+  const biz = CURRENT_PROFILE.business_id;
+  const teamOk = typeof planHas !== 'function' || planHas('team_permissions');
+  try {
+    const [br, team] = await Promise.all([
+      ST_BRANCHES ? null : window.supabaseClient.from('branches').select('id, name, lat, lng').eq('business_id', biz).order('id'),
+      teamOk ? window.supabaseClient.from('profiles').select('id', { count: 'exact', head: true }).eq('business_id', biz).is('branch_id', null) : null,
+    ]);
+    if(br && br.data && !ST_BRANCHES) ST_BRANCHES = br.data;
+    if(team && typeof team.count === 'number' && ST_TEAM == null) ST_TEAM = team.count;
+  } catch(_){}
+  if(!ST_BRANCHES) ST_BRANCHES = [];
+  stRenderHero();
+}
+
+function stSteps(){
+  const brs = ST_BRANCHES || [];
+  const noLoc = brs.find(b => !stHasLoc(b));
+  return [
+    { k:'logo', done: !!BUSINESS_LOGO_URL, label:'حط شعارك', desc:'يطلع على فواتيرك وتقاريرك ومتجرك', tab:'restaurant', focus:'#stIdentity' },
+    { k:'vat', done: !VAT_REGISTERED || /^\d{15}$/.test(String(BUSINESS_VAT_NUMBER || '')), label:'كمّل رقمك الضريبي',
+      desc:'بدونه فاتورة الكاشير تنطبع بدون رمز QR حق هيئة الزكاة', tab:'restaurant', focus:'#settingsVatNumber' },
+    { k:'loc', done: !!ST_BRANCHES && brs.length > 0 && !noLoc, label: noLoc && brs.length > 1 ? 'حدّد موقع «' + escapeHtml(noLoc.name) + '»' : 'حدّد موقع فرعك',
+      desc:'المتجر يختار أقرب فرع لعميل التوصيل من موقعه', tab:'branches', focus: noLoc ? '.rk-subcard[data-branch="' + noLoc.id + '"] .branch-locate-btn' : '' },
+    { k:'push', done: stPushOn(), label:'خلّ التنبيهات توصل جوالك', desc:'طلب جديد، استرجاع، مخزون ناقص -- يوصلك ولو اللوحة مقفلة', tab:'notifications', focus:'#ownerPushEnableBtn' },
+  ];
+}
+
+function stFacts(){
+  const brs = ST_BRANCHES || [];
+  const miss = brs.filter(b => !stHasLoc(b)).length;
+  const f = (k, v, hint, tab) => '<button type="button" class="iv-stat st-fact" data-st-tab="' + tab + '"><span>' + k + '</span><b>' + v + '</b>' + (hint ? '<small>' + hint + '</small>' : '') + '</button>';
+  return '<div class="st-facts">'
+    + f('الضريبة', VAT_REGISTERED ? rkaSettingsPctFmt(BUSINESS_VAT_RATE) + '٪' : 'غير مسجّل', VAT_REGISTERED ? (PRICES_INCLUDE_VAT ? 'أسعارك شاملة الضريبة' : 'تنضاف فوق سعر المنيو') : 'فواتيرك بدون ضريبة', 'restaurant')
+    + f('الفروع', '<span class="hm-num">' + brs.length + '</span>', miss ? hmPlural(miss, 'فرع', 'فرعين', 'فروع', 'فرع') + ' بدون موقع' : 'كلها بموقعها', 'branches')
+    + f('التقديم', DINE_IN_ENABLED ? 'صالة وسفري' : 'سفري وتوصيل', DINE_IN_ENABLED ? 'شاشة الطاولات ظاهرة' : 'بدون طاولات', 'restaurant')
+    + (ST_TEAM != null ? f('فريق اللوحة', '<span class="hm-num">' + ST_TEAM + '</span>', ST_TEAM <= 1 ? 'بس أنت' : 'يدخلون لوحتك', 'permissions') : '')
+    + '</div>';
+}
+
+function stRenderHero(){
+  const el = document.getElementById('stHero');
+  if(!el) return;
+  stSetSums();
+  if(!ST_BRANCHES){ el.innerHTML = '<div class="rk2-card st-hero"><div class="rp-skel"></div></div>'; return; }
+  const owner = stIsOwner();
+  // الموظف ما يقدر يعدّل الشعار والضريبة (سياسة القاعدة: المالك بس) -- ما نعطيه خطوة ما يقدر يسويها.
+  const steps = stSteps().filter(s => owner || s.k === 'loc' || s.k === 'push');
+  const done = steps.filter(s => s.done).length;
+  const left = steps.length - done;
+  const celebrate = stPrevLeft !== null && stPrevLeft > 0 && left === 0;
+  stPrevLeft = left;
+  const go = s => ' data-st-go="' + s.k + '"';
+  if(left === 0){
+    el.innerHTML = '<div class="rk2-card st-hero' + (celebrate ? ' mn-celebrate' : '') + '">'
+      + '<div class="mn-done st-done"><span class="mn-done-ic">' + hmIc('check') + '</span>'
+      + '<div class="mn-done-txt"><b>مطعمك مضبوط</b><small>شعارك وضريبتك وفروعك وتنبيهاتك، كلها جاهزة. هنا تغيّر أي شي متى ما احتجت.</small></div></div>'
+      + stFacts() + '</div>';
+    if(celebrate) showToast('مطعمك مضبوط 🎉');
+    return;
+  }
+  const nextIdx = steps.findIndex(s => !s.done);
+  const next = steps[nextIdx];
+  const pct = Math.round(done / steps.length * 100);
+  el.innerHTML = '<div class="rk2-card hm-quest st-hero">'
+    + '<div class="hm-quest-top"><div class="hm-ring" style="--p:' + pct + '"><b>' + done + '<small>/' + steps.length + '</small></b></div>'
+    + '<div><div class="hm-kicker">' + stIc('gear') + 'إعداداتك</div>'
+    + '<h3>' + (done === 0 ? 'كم خطوة ويصير مطعمك مضبوط' : 'باقي ' + hmPlural(left, 'خطوة وحدة', 'خطوتين', 'خطوات', 'خطوة') + ' ويصير مطعمك مضبوط') + '</h3>'
+    + '<p>' + (owner ? 'كل خطوة دقيقة، وتطلع على فواتيرك ومتجرك على طول' : 'بيانات المطعم والضريبة يضبطها المالك. هذي اللي تقدر تسويها أنت') + '</p></div></div>'
+    + '<button type="button" class="hm-quest-next"' + go(next) + '>'
+    + '<span class="hm-quest-n">' + (nextIdx + 1) + '</span><span class="hm-quest-txt"><b>' + next.label + '</b><small>' + next.desc + '</small></span><span class="rk2-btn lime sm">ابدأ' + hmIc('arrow') + '</span></button>'
+    + '<div class="hm-quest-list">' + steps.map((s, i) => i === nextIdx ? '' :
+        '<button type="button" class="hm-qstep' + (s.done ? ' done' : '') + '"' + (s.done ? ' disabled' : go(s)) + '>'
+        + '<span class="hm-qcheck">' + (s.done ? hmIc('check') : (i + 1)) + '</span>' + s.label + '</button>').join('') + '</div>'
+    + stFacts() + '</div>';
+}
+
+/* تحت كل بطاقة حالها -- من نفس البيانات، مو حساب ثاني. */
+function stSetSums(){
+  const set = (k, v) => { const s = document.querySelector('#settingsTabs [data-st-sum="' + k + '"]'); if(s) s.textContent = v; };
+  set('restaurant', (RESTAURANT_INFO.name || 'مطعمك') + (BUSINESS_LOGO_URL ? ' · بشعارك' : ' · بدون شعار'));
+  if(ST_BRANCHES){
+    const n = ST_BRANCHES.length, miss = ST_BRANCHES.filter(b => !stHasLoc(b)).length;
+    set('branches', (n ? hmPlural(n, 'فرع واحد', 'فرعين', 'فروع', 'فرع') : 'ما فيه فروع') + (miss ? ' · ' + miss + ' بدون موقع' : n ? ' · بموقعها' : ''));
+  }
+  if(typeof planHas === 'function' && !planHas('team_permissions')) set('permissions', 'مع باقة ' + (FEATURE_MIN_PLAN.team_permissions || 'عماد'));
+  else set('permissions', ST_TEAM == null ? 'مين يدخل ووش يشوف' : ST_TEAM <= 1 ? 'بس أنت تدخل اللوحة' : hmPlural(ST_TEAM, 'حساب واحد', 'حسابين', 'حسابات', 'حساب') + ' في لوحتك');
+  set('notifications', stPushOn() ? 'توصل على هالجهاز ✓' : 'مو مفعّلة على هالجهاز');
+}
+
+async function stOpenTab(tab, focus){
+  document.querySelectorAll('#settingsTabs [data-tab]').forEach(x => x.classList.toggle('active', x.dataset.tab === tab));
+  activeSettingsTab = tab;
+  await renderSettingsPanel();
+  if(focus) stFocus(focus);
+}
+/* «ابدأ»: يوصلك للخانة نفسها، يلمّعها، ويحط المؤشر فيها. */
+function stFocus(sel){
+  const el = document.querySelector('#settingsPanelBody ' + sel);
+  if(!el) return;
+  const sec = el.closest('.rk-section, .rk-subcard') || el;
+  sec.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  sec.classList.remove('rk2-flash'); void sec.offsetWidth; sec.classList.add('rk2-flash');
+  if(el.matches('input, button, select')) setTimeout(() => el.focus({ preventScroll: true }), 350);
+}
+
+document.getElementById('screen-settings')?.addEventListener('click', (e) => {
+  const g = e.target.closest('[data-st-go]');
+  if(g){ const s = stSteps().find(x => x.k === g.dataset.stGo); if(s) stOpenTab(s.tab, s.focus); return; }
+  const t = e.target.closest('[data-st-tab]');
+  if(t){ stOpenTab(t.dataset.stTab).then(() => document.getElementById('settingsPanelBody')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); return; }
+  const up = e.target.closest('[data-st-upgrade]');
+  if(up){ showPlanUpgrade(up.dataset.stUpgrade); return; }
+  const cp = e.target.closest('[data-st-copy]');
+  if(cp){ navigator.clipboard?.writeText(cp.dataset.stCopy).then(() => showToast('✓ نسخناه')).catch(() => showToast('انسخه من الخانة: ' + cp.dataset.stCopy)); }
+});
+
 function renderSettingsPanel(){
   const panel = document.getElementById('settingsPanelBody');
+  panel.classList.remove('st-in'); void panel.offsetWidth; panel.classList.add('st-in');
+  let p = null;
   if(activeSettingsTab === 'restaurant'){ panel.innerHTML = restaurantSettingsHtml(); wireRestaurantSettings(); }
-  else if(activeSettingsTab === 'branches'){ renderBranchesSettings(); }
-  else if(activeSettingsTab === 'notifications'){ renderNotificationsSettings(); }
-  else if(activeSettingsTab === 'account'){ renderAccountSettings(); }
+  else if(activeSettingsTab === 'branches'){ p = renderBranchesSettings(); }
+  else if(activeSettingsTab === 'notifications'){ p = renderNotificationsSettings(); }
+  else if(activeSettingsTab === 'account'){ p = renderAccountSettings(); }
   else { panel.innerHTML = permissionsSettingsHtml(); wirePermissionsSettings(); }
+  stRenderHero();
+  return Promise.resolve(p).then(()=> stRenderHero());
 }
 
 /* ============ حسابي: تغيير كلمة المرور ============
@@ -11026,10 +11168,19 @@ async function renderAccountSettings(){
   const panel = document.getElementById('settingsPanelBody');
   let email = '';
   try { const { data } = await window.supabaseClient.auth.getUser(); email = (data && data.user && data.user.email) || ''; } catch(_){}
+  const bizId = String(CURRENT_PROFILE.business_id || '');
   panel.innerHTML = `
+    <div class="rk-section st-me">
+      <div class="st-me-row">
+        <span class="mn-done-ic">${stIc('user')}</span>
+        <div class="mn-done-txt"><b>${escapeHtml((CURRENT_PROFILE && CURRENT_PROFILE.full_name) || 'حسابك')}</b><small dir="ltr">${escapeHtml(email)}</small></div>
+        <div class="st-id"><small>رقم حسابك عند ركين</small><b class="mono" id="settingsBusinessIdDisplay">${escapeHtml(bizId)}</b>
+          <button type="button" class="rk2-btn mn-ghost sm" id="copyBusinessIdBtn" data-st-copy="${escapeHtml(bizId)}">انسخه</button></div>
+      </div>
+      <p class="st-hint">أعطِ هالرقم للدعم الفني لو طلبت تعديل أو حذف أو عندك سؤال عن حسابك. الاسم والجوال ممكن يتشابهون، الرقم لا.</p>
+    </div>
     <div class="rk-section">
-      ${rkSectionHead('shield', 'كلمة المرور', 'غيّر كلمة مرور دخولك للوحة التحكم')}
-      <div class="rk-field" style="max-width:360px;"><label>البريد</label><input type="text" readonly value="${escapeHtml(email)}" style="direction:ltr;"></div>
+      ${rkSectionHead('shield', 'غيّر كلمة المرور', 'اكتب الحالية أول، بعدها الجديدة مرتين')}
       <div class="rk-grid-2" style="max-width:740px; margin-top:12px;">
         <div class="rk-field" style="grid-column:1 / -1; max-width:360px;"><label>كلمة المرور الحالية</label><input type="password" id="acctPwCurrent" autocomplete="current-password"></div>
         <div class="rk-field"><label>كلمة المرور الجديدة</label><input type="password" id="acctPwNew" autocomplete="new-password" minlength="8"></div>
@@ -11078,39 +11229,41 @@ async function renderNotificationsSettings(){
     .eq('id', CURRENT_PROFILE.business_id).single();
   const d = data || {};
 
+  const pushOn = stPushOn();
   panel.innerHTML = `
-    <div class="rk-section">
-      ${rkSectionHead('bell', 'تنبيهات فورية لك', 'إشعارات مجانية بالكامل تصلك على جوالك أو جهازك — مافيها أي تكلفة. أول مرة، ثبّت لوحة التحكم كتطبيق (من قائمة المتصفح اختر "إضافة إلى الشاشة الرئيسية")، وبعدها فعّل الإشعارات من هنا.')}
-      <button class="rk-btn rk-btn-primary rk-btn-md" id="ownerPushEnableBtn">فعّل الإشعارات على هذا الجهاز</button>
-      <p class="stock-qty-helper" id="ownerPushStatus" style="margin-top:10px;"></p>
+    <div class="rk-section st-push${pushOn ? ' on' : ''}">
+      <div class="st-push-row">
+        <span class="mn-done-ic">${rkIcon('bell')}</span>
+        <div class="mn-done-txt"><b id="ownerPushStatus">${pushOn ? 'التنبيهات توصل على هالجهاز ✓' : 'التنبيهات مو مفعّلة على هالجهاز'}</b>
+          <small>${pushOn ? 'تبيها على جوال ثاني؟ افتح اللوحة منه وفعّلها هناك.' : 'مجانية. في الجوال: ثبّت اللوحة أول من قائمة المتصفح «إضافة إلى الشاشة الرئيسية»، بعدها فعّلها.'}</small></div>
+        <button class="rk2-btn ${pushOn ? 'mn-ghost' : 'lime'} sm" id="ownerPushEnableBtn">${pushOn ? 'فعّلها من جديد' : 'فعّلها على هالجهاز'}</button>
+      </div>
     </div>
-    <div class="rk-section">
-      ${rkSectionHead('activity', 'وش تبي يوصلك؟', 'كل إشعار هنا مستقل — فعّل بس اللي تبيه')}
+    <div class="rk-section" id="stNotifyPrefs">
+      ${rkSectionHead('activity', 'وش تبي يوصلك؟', 'شغّل اللي تبيه بس -- كل تغيير ينحفظ على طول')}
       ${rkSwitchRow('notifyNewOrder', d.notify_new_order, 'طلب جديد من الكاشير')}
       ${rkSwitchRow('notifyRefundCancel', d.notify_refund_cancel, 'عملية استرجاع أو إلغاء طلب')}
       <div class="rk-switch-row">
         <div class="rk-switch-text">
-          <span class="rk-switch-label"><label for="notifyLowStock">مخزون صنف ينزل عن</label><input type="number" class="rk-inline-num" id="notifyLowStockPct" min="1" max="99" value="${d.notify_low_stock_pct ?? 20}">٪ ${helpIcon('النسبة محسوبة من "الحد الأدنى" اللي تحدده لكل صنف بشاشة المخزون، مو من كمية ثابتة — نفس الصنف ينبهك عند كمية مختلفة حسب الحد الأدنى المحدد له.')}</span>
+          <span class="rk-switch-label"><label for="notifyLowStock">مخزون صنف ينزل عن</label><input type="number" class="rk-inline-num" id="notifyLowStockPct" min="1" max="99" value="${d.notify_low_stock_pct ?? 20}">٪ ${helpIcon('النسبة من «مخزونك المعتاد» لكل صنف في شاشة المخزون، مو كمية ثابتة.')}</span>
         </div>
         <label class="rk-switch"><input type="checkbox" id="notifyLowStock" ${d.notify_low_stock?'checked':''}><span class="rk-switch-track"></span></label>
       </div>
       <div class="rk-switch-row">
         <div class="rk-switch-text">
-          <span class="rk-switch-label"><label for="notifySalesTarget">مبيعات اليوم توصل</label><input type="number" class="rk-inline-num" id="notifySalesTargetAmount" min="0" value="${d.notify_sales_target_amount ?? 0}">ر.س ${helpIcon('إشعار واحد فقط أول ما مبيعات اليوم (صافي المبيعات) توصل هذا الرقم — ما يتكرر بعدها لبقية اليوم، ويرجع يشتغل تلقائيًا اليوم اللي بعده.')}</span>
+          <span class="rk-switch-label"><label for="notifySalesTarget">مبيعات اليوم توصل</label><input type="number" class="rk-inline-num" id="notifySalesTargetAmount" min="0" value="${d.notify_sales_target_amount ?? 0}">ر.س ${helpIcon('تنبيه واحد أول ما صافي مبيعات اليوم يوصل الرقم، ويرجع يشتغل اليوم اللي بعده.')}</span>
         </div>
         <label class="rk-switch"><input type="checkbox" id="notifySalesTarget" ${d.notify_sales_target?'checked':''}><span class="rk-switch-track"></span></label>
       </div>
       ${rkSwitchRow('notifyDeliveryPrepWarning', d.notify_delivery_prep_warning, 'باقي ٥ دقائق على وقت تجهيز طلب توصيل')}
       ${rkSwitchRow('notifyDeliveryPrepExpired', d.notify_delivery_prep_expired, 'انتهى وقت تجهيز طلب توصيل')}
-      ${rkSwitchRow('notifyDocExpiry', d.notify_document_expiry !== false, 'قرب انتهاء وثيقة موظف (إقامة، عقد، شهادة...)', 'ينبهك مرة وحدة لما تقترب الوثيقة من تاريخ انتهائها (حسب المهلة المحددة لكل وثيقة)، ومرة لما تنتهي فعلًا. تقدر توقف التنبيه لوثيقة معيّنة من شاشة الموارد البشرية.')}
-      <button class="rk-btn rk-btn-primary rk-btn-md" id="notifyPrefsSaveBtn" style="margin-top:14px;">حفظ التفضيلات</button>
-    </div>
-    <div class="rk-section">
-      ${rkSectionHead('volume', 'الصوت', 'صوت تنبيه لطيف يشتغل تلقائيًا وأنت فاتح لوحة التحكم أو شاشة الكاشير — لو الصفحة مقفولة، صوت التنبيه الافتراضي من الجهاز نفسه هو اللي يشتغل، مو صوتنا المخصص.')}
-      ${rkSwitchRow('notifySoundEnabled', d.notify_sound_enabled, 'تشغيل صوت التنبيهات')}
-      <div class="rk-sound-test-row">
-        <button class="rk-sound-test-btn" id="testSoundChimeBtn" type="button"><span class="rk-sound-test-icon">${rkIcon('volume')}</span>صوت التنبيه العادي</button>
-        <button class="rk-sound-test-btn" id="testSoundAlarmBtn" type="button"><span class="rk-sound-test-icon">${rkIcon('zap')}</span>صوت انتهاء الوقت</button>
+      ${rkSwitchRow('notifyDocExpiry', d.notify_document_expiry !== false, 'قرب انتهاء وثيقة موظف (إقامة، عقد، شهادة...)', 'مرة لما تقرب من تاريخ انتهائها، ومرة لما تنتهي. توقفه لوثيقة وحدة من شاشة الموظفين.')}
+      <div class="st-sound">
+        ${rkSwitchRow('notifySoundEnabled', d.notify_sound_enabled, 'صوت التنبيه وأنت فاتح اللوحة أو الكاشير', 'لو الصفحة مقفلة يشتغل صوت جهازك العادي.')}
+        <div class="rk-sound-test-row">
+          <button class="rk-sound-test-btn" id="testSoundChimeBtn" type="button"><span class="rk-sound-test-icon">${rkIcon('volume')}</span>اسمع صوت التنبيه</button>
+          <button class="rk-sound-test-btn" id="testSoundAlarmBtn" type="button"><span class="rk-sound-test-icon">${rkIcon('zap')}</span>اسمع صوت انتهاء الوقت</button>
+        </div>
       </div>
     </div>
     ${WA_LINK_ENABLED ? `<div class="rk-section" id="waLinkPanel">
@@ -11132,9 +11285,6 @@ async function renderNotificationsSettings(){
   document.getElementById('testSoundAlarmBtn').addEventListener('click', (e)=> playTestSound(e.currentTarget, 'alarm'));
 
   const statusEl = document.getElementById('ownerPushStatus');
-  if(localStorage.getItem('rakeen_owner_push_enabled') === '1'){
-    statusEl.textContent = '✓ الإشعارات مفعّلة على هذا الجهاز';
-  }
 
   document.getElementById('ownerPushEnableBtn').addEventListener('click', async ()=>{
     const btn = document.getElementById('ownerPushEnableBtn');
@@ -11143,38 +11293,42 @@ async function renderNotificationsSettings(){
       if(!window.enableOwnerPushNotifications) throw new Error('جاري التجهيز، أعد المحاولة بعد لحظة');
       await window.enableOwnerPushNotifications();
       localStorage.setItem('rakeen_owner_push_enabled', '1');
-      statusEl.textContent = '✓ الإشعارات مفعّلة على هذا الجهاز';
+      statusEl.textContent = 'التنبيهات توصل على هالجهاز ✓';
       rkBtnSuccess(btn, '✓ تم التفعيل');
+      stRenderHero();
     } catch(err){
       rkBtnLoading(btn, false);
       showToast('تعذر تفعيل الإشعارات: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
     }
   });
 
-  document.getElementById('notifyPrefsSaveBtn').addEventListener('click', async ()=>{
-    const btn = document.getElementById('notifyPrefsSaveBtn');
-    rkBtnLoading(btn, true);
-    try {
-      const updates = {
-        notify_new_order: document.getElementById('notifyNewOrder').checked,
-        notify_refund_cancel: document.getElementById('notifyRefundCancel').checked,
-        notify_low_stock: document.getElementById('notifyLowStock').checked,
-        notify_low_stock_pct: parseFloat(document.getElementById('notifyLowStockPct').value) || 20,
-        notify_sales_target: document.getElementById('notifySalesTarget').checked,
-        notify_sales_target_amount: parseFloat(document.getElementById('notifySalesTargetAmount').value) || 0,
-        notify_delivery_prep_warning: document.getElementById('notifyDeliveryPrepWarning').checked,
-        notify_delivery_prep_expired: document.getElementById('notifyDeliveryPrepExpired').checked,
-        notify_document_expiry: document.getElementById('notifyDocExpiry').checked,
-        notify_sound_enabled: document.getElementById('notifySoundEnabled').checked,
-      };
-      await updateCurrentBusiness(updates);
-      NOTIFY_SOUND_ENABLED = updates.notify_sound_enabled;
-      logDashboardAudit('عدّل تفضيلات الإشعارات');
-      rkBtnSuccess(btn, '✓ تم الحفظ');
-    } catch(err){
-      rkBtnLoading(btn, false);
-      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-    }
+  // كل تغيير ينحفظ لحاله: ما فيه زر «حفظ» ينساه أحد.
+  let saving = Promise.resolve();
+  const prefs = document.getElementById('stNotifyPrefs');
+  prefs.addEventListener('change', (e)=>{
+    if(!e.target.matches('input')) return;
+    const updates = {
+      notify_new_order: document.getElementById('notifyNewOrder').checked,
+      notify_refund_cancel: document.getElementById('notifyRefundCancel').checked,
+      notify_low_stock: document.getElementById('notifyLowStock').checked,
+      notify_low_stock_pct: parseFloat(document.getElementById('notifyLowStockPct').value) || 20,
+      notify_sales_target: document.getElementById('notifySalesTarget').checked,
+      notify_sales_target_amount: parseFloat(document.getElementById('notifySalesTargetAmount').value) || 0,
+      notify_delivery_prep_warning: document.getElementById('notifyDeliveryPrepWarning').checked,
+      notify_delivery_prep_expired: document.getElementById('notifyDeliveryPrepExpired').checked,
+      notify_document_expiry: document.getElementById('notifyDocExpiry').checked,
+      notify_sound_enabled: document.getElementById('notifySoundEnabled').checked,
+    };
+    saving = saving.then(async ()=>{
+      try {
+        await updateCurrentBusiness(updates);
+        NOTIFY_SOUND_ENABLED = updates.notify_sound_enabled;
+        logDashboardAudit('عدّل تفضيلات الإشعارات');
+        showToast('✓ انحفظ');
+      } catch(err){
+        showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+      }
+    });
   });
 }
 
@@ -11485,42 +11639,58 @@ async function renderBranchesSettings(){
   const count = (branches||[]).length;
   const atLimit = count >= limit;
 
+  ST_BRANCHES = (branches || []).map(b => ({ id: b.id, name: b.name, lat: b.lat, lng: b.lng }));
+  const multiOk = typeof planHas !== 'function' || planHas('multi_branch');
+  const hhmm = t => (t || '').slice(0, 5);
   panel.innerHTML = `
-    <div class="rk-section">
+    <div class="rk-section st-branches">
       <div class="rk-section-head">
         <div class="rk-section-icon">${rkIcon('mapPin')}</div>
         <div>
-          <div class="rk-section-title">الفروع <span class="rk-badge${atLimit?' warn':''}">${count} من ${limit}</span></div>
-          <div class="rk-section-sub">موقع كل فرع يُستخدم بالمتجر الإلكتروني — يختار العميل فرع الاستلام، وللتوصيل يتحدد أقرب فرع لموقعه تلقائيًا.</div>
+          <div class="rk-section-title">فروعك <span class="rk-badge${atLimit?' warn':''}">${count} من ${limit}</span></div>
+          <div class="rk-section-sub">موقع الفرع يخلي المتجر يختار أقرب فرع لعميل التوصيل، والحي والمدينة يطلعون في رأس الفاتورة.</div>
         </div>
       </div>
-      ${(branches||[]).map(b=>`
-        <div class="rk-subcard" data-branch="${b.id}">
-          <div class="rk-subcard-title">${b.name}</div>
-          <div class="rk-grid-2" style="margin-bottom:14px;">
-            <div class="rk-field"><label>الحي</label><input type="text" class="branch-district-input" value="${b.district||''}" placeholder="حي البيعة" maxlength="40"></div>
-            <div class="rk-field"><label>المدينة</label><input type="text" class="branch-city-input" value="${b.city||''}" placeholder="الطائف" maxlength="40"></div>
+      ${(branches||[]).map(b => {
+        const has = stHasLoc(b);
+        return `
+        <div class="rk-subcard st-branch" data-branch="${b.id}">
+          <div class="st-branch-head">
+            <b class="rk-subcard-title">${escapeHtml(b.name)}</b>
+            <span class="st-chip ${has ? 'ok' : 'warn'}" data-st-loc>${has ? 'موقعه محدد' : 'بدون موقع'}</span>
+            ${b.opening_time && b.closing_time ? `<span class="st-chip">${hhmm(b.opening_time)} – ${hhmm(b.closing_time)}</span>` : ''}
           </div>
-          <p class="stock-qty-helper" style="margin:-6px 0 14px;">الحي والمدينة يطبعان في ترويسة الفاتورة تحت اسم المطعم.</p>
-          <div class="rk-field" style="margin-bottom:14px;"><label>العنوان الكامل</label><input type="text" class="branch-address-input" value="${b.address||''}" placeholder="طريق الملك فهد، حي البيعة، الطائف"></div>
-          <div class="rk-grid-2" style="margin-bottom:14px;">
-            <div class="rk-field"><label>خط العرض (Lat)</label><input type="number" class="branch-lat-input" value="${b.lat??''}" step="0.000001"></div>
-            <div class="rk-field"><label>خط الطول (Lng)</label><input type="number" class="branch-lng-input" value="${b.lng??''}" step="0.000001"></div>
+          <div class="st-loc">
+            <button class="rk2-btn ${has ? 'mn-ghost' : 'lime'} sm branch-locate-btn" type="button">${stIc('locate')}${has ? 'حدّث الموقع من مكانك' : 'استخدم موقعي الحالي'}</button>
+            ${has ? `<a class="st-maplink" href="https://maps.google.com/?q=${b.lat},${b.lng}" target="_blank" rel="noopener">شوفه على الخريطة</a>` : '<small>افتح اللوحة وأنت داخل الفرع، ونحدد موقعه بضغطة</small>'}
           </div>
-          <button class="rk-btn rk-btn-secondary rk-btn-sm branch-locate-btn" type="button" style="margin-bottom:14px;">${rkIcon('crosshair')}استخدم موقعي الحالي</button>
           <div class="rk-grid-2">
-            <div class="rk-field"><label>وقت الفتح ${helpIcon('تُستخدم لتحديد وقت استلام الطلبات بالمتجر الإلكتروني — سيبها فاضية لو ما تبي خيار "وقت لاحق" للاستلام.')}</label><input type="time" class="branch-open-input" value="${(b.opening_time||'').slice(0,5)}"></div>
-            <div class="rk-field"><label>وقت الإغلاق</label><input type="time" class="branch-close-input" value="${(b.closing_time||'').slice(0,5)}"></div>
+            <div class="rk-field"><label>يفتح الساعة ${helpIcon('يحدد أوقات الاستلام في المتجر الإلكتروني. فاضي = بدون خيار «وقت لاحق».')}</label><input type="time" class="branch-open-input" value="${hhmm(b.opening_time)}"></div>
+            <div class="rk-field"><label>يقفل الساعة</label><input type="time" class="branch-close-input" value="${hhmm(b.closing_time)}"></div>
           </div>
-          <button class="rk-btn rk-btn-primary rk-btn-sm branch-save-btn" style="margin-top:14px;">حفظ موقع الفرع</button>
+          <div class="rk-grid-2" style="margin-top:12px;">
+            <div class="rk-field"><label>الحي</label><input type="text" class="branch-district-input" value="${escapeHtml(b.district||'')}" placeholder="حي البيعة" maxlength="40"></div>
+            <div class="rk-field"><label>المدينة</label><input type="text" class="branch-city-input" value="${escapeHtml(b.city||'')}" placeholder="الطائف" maxlength="40"></div>
+          </div>
+          <details class="st-adv">
+            <summary>العنوان الكامل والإحداثيات</summary>
+            <div class="rk-field" style="margin:12px 0;"><label>العنوان الكامل</label><input type="text" class="branch-address-input" value="${escapeHtml(b.address||'')}" placeholder="طريق الملك فهد، حي البيعة، الطائف"></div>
+            <div class="rk-grid-2">
+              <div class="rk-field"><label>خط العرض (Lat)</label><input type="number" class="branch-lat-input" value="${b.lat??''}" step="0.000001" dir="ltr"></div>
+              <div class="rk-field"><label>خط الطول (Lng)</label><input type="number" class="branch-lng-input" value="${b.lng??''}" step="0.000001" dir="ltr"></div>
+            </div>
+          </details>
+          <button class="rk2-btn lime sm branch-save-btn" type="button">احفظ الفرع</button>
           ${branchWeeklyHoursHtml(b.id, weeklyHours)}
-        </div>
-      `).join('') || '<p class="stock-qty-helper">ما فيه فروع بعد.</p>'}
-      <div style="display:flex; gap:10px; align-items:flex-end; margin-top:18px;">
-        <div class="rk-field" style="flex:1; margin-bottom:0;"><label>اسم الفرع الجديد</label><input type="text" id="newBranchName" placeholder="مثال: فرع العليا" ${atLimit?'disabled':''}></div>
-        <button class="rk-btn rk-btn-primary rk-btn-md" id="addBranchBtn" ${atLimit?'disabled':''} style="flex-shrink:0;">${rkIcon('plus')}إضافة</button>
+        </div>`;
+      }).join('') || `<div class="hm-empty"><span class="hm-empty-ic">${stIc('pin')}</span><b>ما فيه فروع للحين</b><span>اكتب اسم فرعك تحت، وبعدها حدّد موقعه وأوقاته</span></div>`}
+      <div class="st-add">
+        <div class="rk-field" style="flex:1; margin-bottom:0;"><label>أضف فرع</label><input type="text" id="newBranchName" placeholder="مثال: فرع العليا" ${atLimit?'disabled':''}></div>
+        <button class="rk2-btn lime" id="addBranchBtn" type="button" ${atLimit?'disabled':''}>${rkIcon('plus')}أضف الفرع</button>
       </div>
-      ${atLimit ? '<p class="stock-qty-helper" style="margin-top:12px; color:var(--amber); font-weight:700; background:rgba(224,134,46,0.1);">وصلت الحد الأقصى لعدد الفروع المسموح باشتراكك الحالي — لزيادة العدد تواصل مع ركين.</p>' : ''}
+      ${atLimit ? (multiOk
+        ? '<p class="st-limit">وصلت حد فروعك (' + limit + '). تبي أكثر؟ كلّم فريق ركين ونزيده لك.</p>'
+        : '<div class="st-limit">' + stIc('lock') + '<span>فروع أكثر مع باقة ' + (FEATURE_MIN_PLAN.multi_branch || 'صرح') + '، وتقارير لكل فرع.</span><button type="button" class="rk2-btn lime sm" data-st-upgrade="multi_branch">شوف الباقة</button></div>') : ''}
     </div>`;
 
   // Ticking "مغلق" greys that day's times out — a closed day with times on
@@ -11589,7 +11759,10 @@ async function renderBranchesSettings(){
         (pos)=>{
           row.querySelector('.branch-lat-input').value = pos.coords.latitude.toFixed(6);
           row.querySelector('.branch-lng-input').value = pos.coords.longitude.toFixed(6);
-          showToast('تم تحديد الموقع — لا تنسى تحفظ');
+          const chip = row.querySelector('[data-st-loc]');
+          if(chip){ chip.className = 'st-chip ok'; chip.textContent = 'تحدد -- اضغط «احفظ الفرع»'; }
+          row.querySelector('.branch-save-btn')?.classList.add('st-pulse');
+          showToast('✓ حددنا الموقع — اضغط «احفظ الفرع»');
         },
         ()=> showToast('تعذر الوصول للموقع — تأكد من إذن الموقع بالمتصفح')
       );
@@ -11612,7 +11785,14 @@ async function renderBranchesSettings(){
         }).eq('id', branchId);
         if(error) throw error;
         logDashboardAudit('عدّل موقع فرع');
-        rkBtnSuccess(saveBtn, '✓ تم الحفظ');
+        rkBtnSuccess(saveBtn, '✓ انحفظ');
+        saveBtn.classList.remove('st-pulse');
+        const lat = latVal===''?null:parseFloat(latVal), lng = lngVal===''?null:parseFloat(lngVal);
+        const sb = (ST_BRANCHES || []).find(x => String(x.id) === String(branchId));
+        if(sb){ sb.lat = lat; sb.lng = lng; }
+        const chip = row.querySelector('[data-st-loc]');
+        if(chip){ const has = lat != null && lng != null; chip.className = 'st-chip ' + (has ? 'ok' : 'warn'); chip.textContent = has ? 'موقعه محدد' : 'بدون موقع'; }
+        stRenderHero();
       } catch(err){
         rkBtnLoading(saveBtn, false);
         showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
@@ -11631,7 +11811,9 @@ async function renderBranchesSettings(){
         .insert({ business_id: CURRENT_PROFILE.business_id, name });
       if(error) throw error;
       logDashboardAudit('أضاف فرع جديد: ' + name);
-      renderBranchesSettings();
+      ST_BRANCHES = null;
+      await renderBranchesSettings();
+      showToast('✓ انضاف «' + name + '» — حدّد موقعه وأوقاته');
     } catch(err){
       rkBtnLoading(addBtn, false);
       const msg = (err && err.message && err.message.includes('branch_limit_reached'))
@@ -13731,65 +13913,53 @@ const rkBookingStatus = c => c
   : {text:'الحجز الذاتي غير متاح لعملائك حاليًا', tone:''};
 
 function restaurantSettingsHtml(){
+  const owner = stIsOwner();
   return `
-    <div class="rk-section">
-      ${rkSectionHead('home', 'هوية المطعم', 'الاسم والشعار اللي يظهر بالفواتير والتقارير ولوحة التحكم')}
-      <div class="settings-identity-preview">
-        ${BUSINESS_LOGO_URL
-          ? `<img src="${BUSINESS_LOGO_URL}" style="width:48px; height:48px; border-radius:50%; object-fit:cover;">`
-          : `<div class="rk-avatar" style="width:48px;height:48px;font-size:20px;">${(RESTAURANT_INFO.name||'؟').trim().charAt(0)}</div>`}
-        <div><div style="font-weight:800; font-size:14px;">${RESTAURANT_INFO.name}</div></div>
-      </div>
+    ${owner ? '' : '<div class="st-note">' + stIc('lock') + '<span>بيانات المطعم والضريبة يعدّلها <b>المالك</b> بس (حماية لمطعمك). تقدر تشوفها هنا، والتعديل من حساب المالك.</span></div>'}
+    <fieldset class="st-fs" ${owner ? '' : 'disabled'}>
+    <div class="rk-section" id="stIdentity">
+      ${rkSectionHead('home', 'اسمك وشعارك', 'يطلعون على فواتيرك وتقاريرك ومتجرك ولوحتك')}
       <div class="rk-grid-2">
-        <div class="rk-field"><label>اسم المطعم</label><input type="text" id="settingsRestName" value="${RESTAURANT_INFO.name}"></div>
-        <div class="rk-field"><label>شعار المطعم ${helpIcon('يظهر بأعلى تقارير PDF، وبهوية مطعمك داخل لوحة التحكم.')}</label>${rkImageUploadHtml('settingsLogoInput', {currentUrl: BUSINESS_LOGO_URL, width:500, height:500, shape:'circle'})}</div>
-      </div>
-      <div class="rk-field" style="margin-top:14px; max-width:260px;">
-        <label>معرّف الحساب ${helpIcon('رقمٌ ثابتٌ لحسابك عند ركين، لا يتكرر عند أي حسابٍ آخر. أعطه للدعم الفني عند أي طلب تعديل أو حذف أو استفسار على بياناتك -- الاسم أو رقم الجوال قد يتشابه مع حساباتٍ أخرى، وهذا الرقم لا.')}</label>
-        <div style="display:flex; gap:8px; align-items:center;">
-          <input type="text" id="settingsBusinessIdDisplay" readonly value="${CURRENT_PROFILE.business_id}" class="mono">
-          <button class="rk-btn rk-btn-secondary rk-btn-md" id="copyBusinessIdBtn" type="button">نسخ</button>
-        </div>
+        <div class="rk-field"><label>اسم المطعم</label><input type="text" id="settingsRestName" value="${escapeHtml(RESTAURANT_INFO.name || '')}"></div>
+        <div class="rk-field"><label>الشعار ${BUSINESS_LOGO_URL ? '' : '<span class="st-chip warn">ما حطيته للحين</span>'}</label>${rkImageUploadHtml('settingsLogoInput', {currentUrl: BUSINESS_LOGO_URL, width:500, height:500, shape:'circle'})}</div>
       </div>
     </div>
 
-    <div class="rk-section">
-      ${rkSectionHead('fileText', 'الضريبة والفوترة', 'تتحكم بحساب ضريبة القيمة المضافة ورمز QR على فاتورة الكاشير')}
-      ${rkSwitchRow('settingsVatRegistered', VAT_REGISTERED, 'مسجّل في ضريبة القيمة المضافة', 'سجّل عادةً لازم لو دخلك السنوي فوق ٣٧٥,٠٠٠ ريال. لو غير مسجّل فعليًا، عطّلها.', rkVatRegisteredStatus)}
+    <div class="rk-section" id="stTax">
+      ${rkSectionHead('fileText', 'الضريبة', 'تحدد حساب ضريبة القيمة المضافة ورمز QR على فاتورة الكاشير')}
+      ${rkSwitchRow('settingsVatRegistered', VAT_REGISTERED, 'مسجّل في ضريبة القيمة المضافة', 'لازم لو دخلك السنوي فوق ٣٧٥,٠٠٠ ريال. لو مو مسجّل فعلاً، طفّها.', rkVatRegisteredStatus)}
       <div id="vatRegisteredFields" style="${VAT_REGISTERED?'':'display:none;'}">
         <div class="rk-grid-2" style="margin-top:14px;">
-          <div class="rk-field"><label>نسبة الضريبة (%) ${helpIcon('تُستخدم أيضًا للتحقق من فواتير المشتريات الممسوحة تلقائيًا — لو تغيّرت النسبة رسميًا، عدّلها هنا.')}</label><input type="number" id="settingsVatRate" value="${(BUSINESS_VAT_RATE*100).toFixed(2)}" min="0" max="100" step="0.01" inputmode="decimal"></div>
-          <div class="rk-field"><label>الرقم الضريبي ${helpIcon('يطبع رمز QR على فاتورة الكاشير (فاتورة ضريبية مبسطة متوافقة مع هيئة الزكاة والضريبة والجمارك). بدونه، تُطبع الفاتورة بدون الرمز.')}</label><input type="text" id="settingsVatNumber" value="${BUSINESS_VAT_NUMBER}" placeholder="٣xxxxxxxxxxxxx03" inputmode="numeric" maxlength="15"></div>
+          <div class="rk-field"><label>الرقم الضريبي ${helpIcon('بدونه تنطبع فاتورة الكاشير بدون رمز QR حق هيئة الزكاة والضريبة والجمارك.')}</label><input type="text" id="settingsVatNumber" value="${escapeHtml(BUSINESS_VAT_NUMBER || '')}" placeholder="١٥ رقم يبدأ بـ ٣" inputmode="numeric" maxlength="15" dir="ltr"></div>
+          <div class="rk-field"><label>النسبة (%) ${helpIcon('١٥٪ في السعودية. نستخدمها بعد للتحقق من فواتير المشتريات الممسوحة.')}</label><input type="number" id="settingsVatRate" value="${(BUSINESS_VAT_RATE*100).toFixed(2)}" min="0" max="100" step="0.01" inputmode="decimal"></div>
         </div>
-        ${rkSwitchRow('settingsPricesIncludeVat', PRICES_INCLUDE_VAT, 'أسعار المنيو شاملة الضريبة', 'المعيار القانوني بالسعودية إن السعر المعروض للعميل شامل الضريبة. اتركها مفعّلة إلا لو أسعار المنيو عندك مسجّلة فعلًا بدون الضريبة.', rkPricesIncludeVatStatus)}
+        ${rkSwitchRow('settingsPricesIncludeVat', PRICES_INCLUDE_VAT, 'أسعار المنيو شاملة الضريبة', 'هذا المعتاد في السعودية: السعر اللي يشوفه العميل شامل. طفّها بس لو أسعارك مكتوبة بدون ضريبة.', rkPricesIncludeVatStatus)}
       </div>
     </div>
 
     <div class="rk-section" ${planAttr('tables_reservations')}>
-      ${rkSectionHead('coffee', 'طريقة التقديم', 'يتحكم بظهور شاشة الطاولات بالكاشير')}
-      ${rkSwitchRow('settingsDineInEnabled', DINE_IN_ENABLED, 'يقدّم طلبات "بالمطعم" (فيه صالة/طاولات)', 'أوقفها لو مطعمك سحابي أو توصيل/استلام بس.', rkDineInStatus)}
+      ${rkSectionHead('coffee', 'كيف تقدّم طلباتك؟', 'يحدد هل تطلع شاشة الطاولات في الكاشير')}
+      ${rkSwitchRow('settingsDineInEnabled', DINE_IN_ENABLED, 'عندي صالة وطاولات (طلبات «محلي»)', 'طفّها لو مطعمك سحابي أو سفري وتوصيل بس.', rkDineInStatus)}
     </div>
 
-    <button class="rk-btn rk-btn-primary rk-btn-lg" id="settingsSaveBtn" style="width:100%; margin-bottom:16px;">حفظ التغييرات</button>
+    <button class="rk2-btn lime st-save" id="settingsSaveBtn" type="button">احفظ التغييرات</button>
 
-    <!-- بوابةُ الدفع انتقلت إلى المتجر الإلكتروني ← تبويب "بوابة الدفع":
-         هي لا تعمل إلا هناك -- زرُّ البطاقة في صفحة الطلب مشروطٌ بها
-         وحدها -- وإعدادٌ واحدٌ في مكانين يُعدَّل في أحدهما ويُقرأ من
-         الآخر. -->
+    <!-- بوابةُ الدفع انتقلت إلى المتجر الإلكتروني ← تبويب "بوابة الدفع". -->
     ${isServiceBusinessType(BUSINESS_TYPE) ? `
     <div class="rk-section" ${planAttr('booking_page')}>
-      ${rkSectionHead('calendar', 'الحجز الذاتي عبر الإنترنت', 'صفحة تسمح لعملائك يحجزون موعدهم بأنفسهم مباشرة بدون اتصال — يختارون الخدمة والموظف والوقت، ويوصل الحجز فورًا لشاشة الحجوزات بالكاشير.')}
-      ${rkSwitchRow('settingsOnlineBookingEnabled', ONLINE_BOOKING_ENABLED, 'تفعيل صفحة الحجز الذاتي لعملائك', null, rkBookingStatus)}
+      ${rkSectionHead('calendar', 'خلّ عملاءك يحجزون بنفسهم', 'صفحة يختار منها العميل الخدمة والموظف والوقت، ويوصل الحجز لشاشة الحجوزات في الكاشير.')}
+      ${rkSwitchRow('settingsOnlineBookingEnabled', ONLINE_BOOKING_ENABLED, 'صفحة الحجز شغّالة', null, rkBookingStatus)}
       <div id="onlineBookingUrlRow" class="rk-field" style="margin-top:14px; ${ONLINE_BOOKING_ENABLED?'':'display:none;'}">
         <label>رابط صفحة الحجز</label>
         <div style="display:flex; gap:8px; align-items:center;">
-          <input type="text" id="onlineBookingUrlDisplay" readonly value="${window.location.origin}/book/${ONLINE_MENU_SLUG||''}" style="flex:1;">
-          <button class="rk-btn rk-btn-secondary rk-btn-md" id="copyOnlineBookingUrlBtn" type="button">نسخ</button>
+          <input type="text" id="onlineBookingUrlDisplay" readonly value="${window.location.origin}/book/${ONLINE_MENU_SLUG||''}" style="flex:1;" dir="ltr">
+          <button class="rk-btn rk-btn-secondary rk-btn-md" id="copyOnlineBookingUrlBtn" type="button">انسخ</button>
         </div>
       </div>
-      <button class="rk-btn rk-btn-primary rk-btn-md" id="settingsOnlineBookingSaveBtn" style="margin-top:14px;">حفظ</button>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="settingsOnlineBookingSaveBtn" style="margin-top:14px;">احفظ</button>
     </div>
     ` : ''}
+    </fieldset>
   `;
 }
 function wireRestaurantSettings(){
@@ -18517,10 +18687,10 @@ function permissionsSettingsHtml(){
       <div class="rk-section-head">
         <div class="rk-section-icon">${rkIcon('users')}</div>
         <div>
-          <div class="rk-section-title">فريق العمل</div>
-          <div class="rk-section-sub">شاشات لوحة التحكم اللي يقدر يشوفها كل موظف — منفصلة تمامًا عن صلاحية الدخول بجهاز الكاشير ${helpIcon('أي موظف مسجّل بجهاز الكاشير بالفرع يقدر يبيع فورًا، حتى لو ما فعّلت له ولا شاشة من القائمة تحت — لأن جهاز الكاشير شي منفصل كليًا عن شاشات لوحة التحكم هذي. أما "عرض التكلفة والهامش" فصلاحية مستقلة بذاتها: حتى لو فعّلت له شاشة المحاسبة أو المنيو، يقدر يشتغل فيها بدون ما يشوف تكلفة أي منتج أو هامش ربحه إلا لو فعّلت له هذي بالتحديد.')}</div>
+          <div class="rk-section-title">مين يدخل لوحتك؟</div>
+          <div class="rk-section-sub">كل حساب يشوف الشاشات اللي تختارها له بس. موظفين الكاشير منفصلين، تضيفهم من «الموظفين» ${helpIcon('أي موظف مسجّل بجهاز الكاشير بالفرع يقدر يبيع فورًا، حتى لو ما فعّلت له ولا شاشة من القائمة تحت — لأن جهاز الكاشير شي منفصل كليًا عن شاشات لوحة التحكم هذي. أما "عرض التكلفة والهامش" فصلاحية مستقلة بذاتها: حتى لو فعّلت له شاشة المحاسبة أو المنيو، يقدر يشتغل فيها بدون ما يشوف تكلفة أي منتج أو هامش ربحه إلا لو فعّلت له هذي بالتحديد.')}</div>
         </div>
-        <button class="rk-btn rk-btn-primary rk-btn-sm rk-section-head-actions" id="addTeamMemberBtn">${rkIcon('plus')}إضافة عضو</button>
+        <button class="rk2-btn lime sm rk-section-head-actions" id="addTeamMemberBtn" type="button">${rkIcon('plus')}أضف حساب</button>
       </div>
       <div id="teamMembersList"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>
     </div>
@@ -18541,6 +18711,8 @@ async function renderTeamMembers(){
   (perms||[]).forEach(p=>{ (permsByUser[p.user_id] ||= new Set()).add(p.permission_key); });
   TEAM_MEMBERS = members || [];
   TEAM_PERMISSIONS_BY_USER = permsByUser;
+  ST_TEAM = TEAM_MEMBERS.length;
+  stSetSums();
 
   el.innerHTML = TEAM_MEMBERS.map(m=>{
     const granted = permsByUser[m.id] || new Set();
@@ -18561,7 +18733,7 @@ async function renderTeamMembers(){
     <div class="team-member-block" style="border-bottom:1px solid var(--line); padding:2px 0;">
       <div class="users-table-row" style="border-bottom:none;">
         <div class="users-table-identity">
-          <span class="u-name">${m.full_name}</span>
+          <span class="u-name">${escapeHtml(m.full_name)}</span>
           <span class="u-role">${USER_TYPE_LABELS[m.user_type]||m.user_type}</span>
           <span class="u-status"><span class="u-status-badge ${m.active?'active':'disabled'}">${m.active?'نشط':'معطّل'}</span></span>
         </div>
@@ -18570,13 +18742,14 @@ async function renderTeamMembers(){
           ${m.user_type !== 'owner' ? `
             <button class="rk-btn rk-btn-secondary rk-btn-sm team-edit-btn" data-id="${m.id}">تعديل</button>
             <button class="rk-btn rk-btn-secondary rk-btn-sm team-toggle-active" data-id="${m.id}" data-active="${m.active}">${m.active?'تعطيل':'تفعيل'}</button>
-            <button class="rk-btn rk-btn-secondary rk-btn-sm team-delete-btn" data-id="${m.id}" data-name="${m.full_name}" style="color:var(--danger); border-color:var(--danger);">حذف</button>
+            <button class="rk-btn rk-btn-secondary rk-btn-sm team-delete-btn" data-id="${m.id}" data-name="${escapeHtml(m.full_name)}" style="color:var(--danger); border-color:var(--danger);">حذف</button>
           ` : `<span class="rk-badge">صلاحية كاملة دائمًا</span>`}
         </div>
       </div>
       ${permsHtml}
     </div>`;
-  }).join('') || '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">ما فيه أعضاء فريق بعد.</p>';
+  }).join('') + (TEAM_MEMBERS.length <= 1 ? `<div class="hm-empty st-team-empty"><span class="hm-empty-ic">${rkIcon('users')}</span><b>بس أنت تدخل اللوحة</b><span>عندك مدير أو محاسب؟ سوّ له حساب، واختر وش يشوف: القائمة، المخزون، التقارير...</span><button type="button" class="rk2-btn lime sm" data-st-add-member>أضف أول حساب</button></div>` : '');
+  el.querySelector('[data-st-add-member]')?.addEventListener('click', ()=> openTeamMemberModal());
 
   el.querySelectorAll('.team-perms-toggle').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -18642,7 +18815,8 @@ async function renderTeamMembers(){
 }
 
 async function deleteTeamMember(userId, name){
-  if(!window.confirm('متأكد إنك تبي تحذف "' + name + '"؟ هذا يلغي دخوله نهائيًا وما يتراجع.')) return;
+  const ok = await rkAsk({ title: 'تحذف حساب «' + name + '»؟', body: 'ما يقدر يدخل اللوحة بعدها، والحذف ما يتراجع. لو تبي توقفه مؤقتاً اضغط «تعطيل» بدال الحذف.', ok: 'احذف الحساب', cancel: 'خلّه' });
+  if(!ok) return;
   try {
     const { data: { session } } = await window.supabaseClient.auth.getSession();
     const res = await fetch('/api/dashboard/team-member/' + userId, {
