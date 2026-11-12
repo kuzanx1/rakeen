@@ -131,23 +131,7 @@ let WEEK_HOUR_GRID = []; // [{day, total, hours:{0..23:{total,count}}}] — real
    (see computeOrderStatusCounts()) once real orders are fetched; this is just the
    pre-login placeholder shown before loadOrdersAndTables() runs. */
 let ORDER_STATUS_COUNTS = { completed: 0, cancelled: 0, refunded: 0 };
-let RECENT_ORDERS = [
-  {id:'#1096', time:'٩:٤٢ م', type:'داخل المطعم', items:3, total:86.50, payment:'بطاقة', status:'completed'},
-  {id:'#1095', time:'٩:٣٨ م', type:'توصيل', items:2, total:64.00, payment:'كاش', status:'completed'},
-  {id:'#1094', time:'٩:٣٠ م', type:'سفري', items:1, total:18.00, payment:'Apple Pay', status:'completed'},
-  {id:'#1093', time:'٩:٢١ م', type:'داخل المطعم', items:4, total:142.30, payment:'بطاقة', status:'completed'},
-  {id:'#1092', time:'٩:١٠ م', type:'داخل المطعم', items:2, total:45.00, payment:'كاش', status:'refunded'},
-  {id:'#1091', time:'٩:٠٢ م', type:'سفري', items:3, total:97.60, payment:'بطاقة', status:'completed'},
-  {id:'#1090', time:'٨:٥٥ م', type:'درايف ثرو', items:1, total:32.00, payment:'كاش', status:'completed'},
-  {id:'#1089', time:'٨:٤٨ م', type:'توصيل', items:5, total:168.00, payment:'بطاقة', status:'completed'},
-  {id:'#1088', time:'٨:٤٠ م', type:'داخل المطعم', items:2, total:58.00, payment:'كاش', status:'cancelled'},
-  {id:'#1087', time:'٨:٣٣ م', type:'سفري', items:1, total:12.00, payment:'كاش', status:'voided'},
-  {id:'#1086', time:'٨:٢٥ م', type:'داخل المطعم', items:3, total:76.50, payment:'Apple Pay', status:'completed'},
-  {id:'#1085', time:'٨:١٨ م', type:'توصيل', items:2, total:54.00, payment:'بطاقة', status:'completed'},
-  {id:'#1084', time:'٨:١٠ م', type:'داخل المطعم', items:1, total:22.00, payment:'كاش', status:'cancelled'},
-  {id:'#1083', time:'٨:٠٢ م', type:'سفري', items:4, total:118.40, payment:'بطاقة', status:'completed'},
-  {id:'#1082', time:'٧:٥٥ م', type:'درايف ثرو', items:2, total:41.00, payment:'كاش', status:'cancelled'}
-];
+let RECENT_ORDERS = []; // يتعبّى من loadOrdersAndTables -- لا بذور وهمية تطلع قبل التحميل
 const AVG_PREP_TIME = 8.4; // minutes
 
 /* ============ Inventory data ============
@@ -1371,15 +1355,20 @@ function showHourGridTooltip(cell){
 
 
 /* ============ Operations Center ============ */
-/* ============ Orders screen ============ */
+/* ============ الطلبات (تصميم ٢٠٢٦-١١، بادئة od-) ============
+   أول سؤال: «كم طلب جاني وكم دخّلت؟» وبعده «وين الطلب الفلاني؟». فالشاشة:
+   بطاقة «طلباتك» (الفترة + الأرقام + الحالات كترشيح)، الصالة الحين لو فيه
+   طاولات، القائمة مقسّمة بالأيام وتنعرض على دفعات، وتحتها «كيف يطلبون» و«من
+   وين يجون» بأشرطة. orders.status فيها completed/cancelled/refunded/
+   partially_refunded بس -- ما فيه «ملغى الصنف» (انحذفت بطاقته الوهمية). */
 const ORDER_STATUS_LABELS = {completed:'مكتمل', cancelled:'ملغى', refunded:'مسترجع', partially_refunded:'مسترجع جزئياً'};
 let orderStatusFilter = 'all', orderSearchQuery = '';
 let orderDateRange = '7d';
+let odShown = 40;
+const OD_PAGE = 40;
+const OD_RANGES = [['today','اليوم'], ['7d','٧ أيام'], ['month','هالشهر'], ['3m','٣ شهور'], ['1y','سنة']];
+const OD_RANGE_PHRASE = {today:'اليوم', '7d':'آخر ٧ أيام', month:'هالشهر', '3m':'آخر ٣ شهور', '6m':'آخر ٦ شهور', '1y':'آخر سنة'};
 
-// Which channel an order came through used to be plain text buried in a
-// table cell — same visual weight as "6 أصناف". A colored tag reads at a
-// glance the same way the status column already does, and the online badge
-// gets promoted to its own tag instead of a tiny inline icon.
 const ORDER_CHANNEL_TAG_META = {
   dine_in: {label:'داخل المطعم', icon:'home'},
   pickup: {label:'سفري', icon:'bag'},
@@ -1390,42 +1379,43 @@ function orderChannelTagsHtml(channel, isOnline){
   return `<span class="order-channel-tag ${channel}">${rkIcon(meta.icon)}${meta.label}</span>`
     + (isOnline ? `<span class="order-online-tag">${rkIcon('globe')}إلكتروني</span>` : '');
 }
+function odStatusKey(s){ return s === 'partially_refunded' ? 'refunded' : s; }
 
-/* orders.status in the DB only ever holds completed/cancelled/refunded — there is
-   no per-order "voided" concept anywhere in the schema (no column, no migration
-   ever added one). The 4th "ملغاة الصنف" card that used to sit here was
-   structurally incapable of ever showing anything but 0, on every business,
-   forever — removed rather than left as a permanent fake zero. */
 function computeOrderStatusCounts(){
   const counts = { completed: 0, cancelled: 0, refunded: 0 };
-  RECENT_ORDERS.forEach(o=>{ if(counts[o.status] !== undefined) counts[o.status]++; });
+  RECENT_ORDERS.forEach(o=>{ const k = odStatusKey(o.status); if(counts[k] !== undefined) counts[k]++; });
   ORDER_STATUS_COUNTS = counts;
 }
 
+// بطاقة «طلباتك»: الفترة، الأرقام، والحالات (هي نفسها الترشيح).
 function renderOrderStatusGrid(){
-  // Orders' own visual language: status = color, not a neutral card with an
-  // accent border. Same 3 semantic tokens the status tags already use
-  // (success/danger/amber), just carried through boldly here so the
-  // grid reads at a glance like a traffic light, not a stat sheet.
-  const cards = [
-    {key:'completed', label:'مكتملة', icon:'<path d="M9 12l2 2l4 -4"/><path d="M21 12a9 9 0 1 1 -18 0a9 9 0 0 1 18 0"/>'},
-    {key:'cancelled', label:'ملغاة', icon:'<path d="M21 12a9 9 0 1 1 -18 0a9 9 0 0 1 18 0"/><path d="M10 10l4 4m0 -4l-4 4"/>'},
-    {key:'refunded', label:'مسترجعة', icon:'<path d="M9 13l-4 -4l4 -4"/><path d="M5 9h7a4 4 0 1 1 0 8h-1"/>'}
-  ];
-  document.getElementById('orderStatusGrid').innerHTML = cards.map(c=>
-    `<div class="order-status-card ${c.key}">
-      <div class="osc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${c.icon}</svg></div>
-      <div class="osc-body">
-        <div class="osc-count mono">${ORDER_STATUS_COUNTS[c.key]}</div>
-        <div class="osc-label">${c.label}</div>
-      </div>
-    </div>`
-  ).join('');
+  const el = document.getElementById('orderStatusGrid');
+  if(!el) return;
+  const done = RECENT_ORDERS.filter(o=>o.status === 'completed');
+  const sales = done.reduce((s,o)=>s + o.total, 0);
+  const avg = done.length ? sales / done.length : 0;
+  const c = ORDER_STATUS_COUNTS;
+  const chips = [['all','الكل', RECENT_ORDERS.length], ['completed','مكتملة', c.completed], ['cancelled','ملغاة', c.cancelled], ['refunded','مسترجعة', c.refunded]];
+  const capped = RECENT_ORDERS.length >= 500;
+  el.innerHTML = '<div class="rk2-card od-sum-card">'
+    + '<div class="od-sum-top"><div><div class="hm-kicker">' + hmIc('orders') + 'طلباتك ' + OD_RANGE_PHRASE[orderDateRange] + '</div>'
+    + '<h3>' + (done.length ? hmPlural(done.length, 'طلب واحد', 'طلبين', 'طلبات', 'طلب') + ' مكتمل' + (done.length > 2 && done.length <= 10 ? 'ة' : '') : 'ما فيه طلبات مكتملة') + '</h3></div>'
+    + '<div class="rk2-seg sm od-range">' + OD_RANGES.map(([k,l])=>'<button type="button" data-od-range="' + k + '" class="' + (orderDateRange === k ? 'active' : '') + '">' + l + '</button>').join('') + '</div></div>'
+    + '<div class="od-stats">'
+    + '<div class="od-stat"><small>المبيعات</small>' + hmMoney(sales) + '</div>'
+    + '<div class="od-stat"><small>متوسط الطلب</small>' + hmMoney(avg) + '</div>'
+    + '<div class="od-stat"><small>ملغى ومسترجع</small><span class="hm-num' + ((c.cancelled + c.refunded) ? ' od-warn' : '') + '">' + (c.cancelled + c.refunded) + '</span></div>'
+    + '</div>'
+    + '<div class="od-chips" role="group" aria-label="رشّح بالحالة">' + chips.map(([k,l,n])=>
+        '<button type="button" class="od-chip ' + k + (orderStatusFilter === k ? ' active' : '') + '" data-od-status="' + k + '"' + (k !== 'all' && !n ? ' disabled' : '') + '><i></i>' + l + ' <b>' + n + '</b></button>').join('') + '</div>'
+    + (capped ? '<p class="od-cap">يطلع هنا آخر 500 طلب بهالفترة. للأرقام الكاملة شف «التقارير».</p>' : '')
+    + '</div>';
 }
 
 function orderDateRangeCutoff(range){
   const now = new Date();
   switch(range){
+    case 'today': { const d = new Date(now); d.setHours(0,0,0,0); return d.toISOString(); }
     case 'month': { const d = new Date(now.getFullYear(), now.getMonth(), 1); return d.toISOString(); }
     case '3m': { const d = new Date(now); d.setMonth(d.getMonth()-3); return d.toISOString(); }
     case '6m': { const d = new Date(now); d.setMonth(d.getMonth()-6); return d.toISOString(); }
@@ -1435,50 +1425,127 @@ function orderDateRangeCutoff(range){
   }
 }
 
-function renderOrdersTable(){
-  let rows = RECENT_ORDERS;
-  if(orderStatusFilter !== 'all') rows = rows.filter(o=>o.status===orderStatusFilter);
-  if(orderSearchQuery.trim()) rows = rows.filter(o=>o.id.includes(orderSearchQuery.trim()));
+function odDayLabel(iso){
+  const d = new Date(iso); const t = new Date(); t.setHours(0,0,0,0);
+  const day = new Date(d); day.setHours(0,0,0,0);
+  const diff = Math.round((t - day) / 86400000);
+  if(diff === 0) return 'اليوم';
+  if(diff === 1) return 'أمس';
+  return d.toLocaleDateString('ar-SA-u-nu-latn', { weekday:'long', day:'numeric', month:'long' });
+}
 
-  const head = `<div class="order-row head"><span>رقم الطلب</span><span>التاريخ</span><span>النوع</span><span>الأصناف</span><span>الإجمالي</span><span>الدفع</span><span>الحالة</span></div>`;
+function renderOrdersTable(){
+  const el = document.getElementById('ordersTable');
+  if(!el) return;
+  let rows = RECENT_ORDERS;
+  if(orderStatusFilter !== 'all') rows = rows.filter(o=>odStatusKey(o.status) === orderStatusFilter);
+  const q = orderSearchQuery.trim().replace(/^#/, '');
+  if(q) rows = rows.filter(o=>o.id.replace('#','').includes(q));
+
   if(rows.length === 0){
-    document.getElementById('ordersTable').innerHTML = head + '<div class="orders-empty">ما فيه طلبات مطابقة</div>';
+    el.innerHTML = RECENT_ORDERS.length === 0
+      ? hmEmpty('orders', orderDateRange === 'today' ? 'ما جاك طلب اليوم للحين' : 'ما فيه طلبات بهالفترة', 'كل طلب يطلع من الكاشير أو المتجر يوصل هنا على طول، بدون تحديث')
+        + (orderDateRange !== '1y' ? '<button type="button" class="rk2-btn od-ghost sm" data-od-range="' + (orderDateRange === 'today' ? '7d' : '1y') + '">شف ' + (orderDateRange === 'today' ? 'آخر ٧ أيام' : 'آخر سنة') + '</button>' : '')
+      : hmEmpty('search', q ? 'ما لقينا طلب بهالرقم' : 'ما فيه طلبات بهالحالة', q ? 'تأكد من الرقم، أو وسّع الفترة فوق' : 'كفو، ما فيه شي هنا')
+        + '<button type="button" class="rk2-btn od-ghost sm" data-od-clear>ورّني كل الطلبات</button>';
     return;
   }
-  document.getElementById('ordersTable').innerHTML = head + rows.map(o=>
-    `<div class="order-row" data-order-id="${o.id.replace('#','')}" style="cursor:pointer;">
-      <span class="order-id mono">${o.id}</span>
-      <span class="mono" style="line-height:1.4;">${o.date}<br><span style="color:var(--muted); font-weight:600;">${o.time}</span></span>
-      <span class="order-channel-tags">${orderChannelTagsHtml(o.channel, o.isOnline)}${ORDER_SCREEN_BRANCHES.length > 1 && o.branchName ? `<span class="order-branch-note">${escapeHtml(o.branchName)}</span>` : ''}</span>
-      <span>${o.items}</span>
-      <span class="order-total">${rkMoney(o.total)}</span>
-      <span>${o.payment}</span>
-      <span class="order-status-tag ${o.status}">${ORDER_STATUS_LABELS[o.status]}</span>
-    </div>`
-  ).join('');
-  document.getElementById('ordersTable').querySelectorAll('.order-row:not(.head)').forEach(row=>{
-    row.addEventListener('click', ()=> openOrderDetailModal(row.dataset.orderId));
+  const shown = rows.slice(0, odShown);
+  // عنوان اليوم يحسب طلبات اليوم كلها (مو بس المعروضة)، عشان ما يكذب الرقم.
+  const dayTotals = {};
+  rows.forEach(o=>{ const k = (o.createdAt || '').slice(0,10); const t = dayTotals[k] || (dayTotals[k] = {n:0, sum:0}); t.n++; if(o.status === 'completed') t.sum += o.total; });
+  let html = '', lastDay = null;
+  shown.forEach(o=>{
+    const k = (o.createdAt || '').slice(0,10);
+    if(k !== lastDay){
+      if(lastDay !== null) html += '</div>';
+      lastDay = k;
+      html += '<div class="od-day"><div class="od-day-head"><b>' + (o.createdAt ? odDayLabel(o.createdAt) : o.date) + '</b><span>' + hmOrders(dayTotals[k].n) + ' · ' + hmMoney(dayTotals[k].sum) + '</span></div>';
+    }
+    const st = odStatusKey(o.status);
+    const plat = o.platformName ? '<span class="od-plat">' + escapeHtml(o.platformName) + '</span>' : '';
+    html += '<button type="button" class="od-row ' + st + '" data-order-id="' + o.id.replace('#','') + '">'
+      + '<span class="od-dot" data-st="' + st + '"></span>'
+      + '<span class="od-main"><span class="od-line1"><b class="hm-num">' + o.id + '</b><span class="od-time">' + o.time + '</span></span>'
+      + '<span class="od-line2">' + orderChannelTagsHtml(o.channel, o.isOnline) + plat
+      + (ORDER_SCREEN_BRANCHES.length > 1 && o.branchName ? '<span class="od-plat">' + escapeHtml(o.branchName) + '</span>' : '')
+      + '<span class="od-sub">' + hmPlural(o.items, 'صنف واحد', 'صنفين', 'أصناف', 'صنف') + ' · ' + escapeHtml(o.payment || '') + '</span></span></span>'
+      + '<span class="od-end">' + hmMoney(o.total, st !== 'completed' ? 'od-struck' : '')
+      + (st !== 'completed' ? '<span class="od-pill ' + st + '">' + (ORDER_STATUS_LABELS[o.status] || o.status) + '</span>' : '') + '</span>'
+      + '</button>';
   });
+  html += '</div>';
+  if(rows.length > shown.length){
+    const left = rows.length - shown.length;
+    html += '<button type="button" class="od-more" data-od-more>اعرض ' + Math.min(left, OD_PAGE) + ' كمان <small>(باقي ' + left + ')</small></button>';
+  }
+  el.innerHTML = html;
+}
+
+async function odSetRange(range){
+  if(!range || range === orderDateRange) return;
+  orderDateRange = range;
+  odShown = OD_PAGE;
+  document.querySelectorAll('[data-od-range]').forEach(b=>b.classList.toggle('active', b.dataset.odRange === range));
+  const list = document.getElementById('ordersTable');
+  if(list) list.classList.add('od-loading');
+  try {
+    await loadOrdersAndTables();
+  } finally {
+    if(list) list.classList.remove('od-loading');
+  }
+  computeOrderStatusCounts();
+  renderOrderStatusGrid();
+  renderOrdersTable();
+  renderTablesFloorGrid();
+  renderOrdersByType();
+  renderOrdersBySource();
+}
+
+function wireOrdersScreen(){
+  const scr = document.getElementById('screen-orders');
+  if(!scr || scr.dataset.odWired) return;
+  scr.dataset.odWired = '1';
+  scr.addEventListener('click', (e)=>{
+    const r = e.target.closest('[data-od-range]');
+    if(r){ odSetRange(r.dataset.odRange); return; }
+    const s = e.target.closest('[data-od-status]');
+    if(s){
+      orderStatusFilter = s.dataset.odStatus; odShown = OD_PAGE;
+      renderOrderStatusGrid(); renderOrdersTable(); return;
+    }
+    if(e.target.closest('[data-od-more]')){ odShown += OD_PAGE; renderOrdersTable(); return; }
+    if(e.target.closest('[data-od-clear]')){
+      orderStatusFilter = 'all'; orderSearchQuery = ''; odShown = OD_PAGE;
+      const inp = document.getElementById('orderSearchInput'); if(inp) inp.value = '';
+      renderOrderStatusGrid(); renderOrdersTable(); return;
+    }
+    const row = e.target.closest('.od-row[data-order-id]');
+    if(row) openOrderDetailModal(row.dataset.orderId);
+  });
+  const inp = document.getElementById('orderSearchInput');
+  if(inp) inp.addEventListener('input', (e)=>{ orderSearchQuery = e.target.value; odShown = OD_PAGE; renderOrdersTable(); });
 }
 
 async function openOrderDetailModal(orderId){
   const modal = document.getElementById('orderDetailModal');
   const body = document.getElementById('orderDetailModalBody');
-  document.getElementById('orderDetailModalTitle').textContent = 'تفاصيل الطلب #' + orderId;
-  body.innerHTML = '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p>';
+  document.getElementById('orderDetailModalTitle').textContent = 'طلب #' + orderId;
+  body.innerHTML = '<p class="od-dt-loading">لحظة، نجيب الطلب...</p>';
   modal.classList.add('show');
 
   const [{data: order}, {data: items}] = await Promise.all([
     window.supabaseClient.from('orders').select('*').eq('id', orderId).single(),
     window.supabaseClient.from('order_items').select('*').eq('order_id', orderId)
   ]);
-  if(!order){ body.innerHTML = '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">تعذر تحميل الطلب.</p>'; return; }
+  if(!order){ body.innerHTML = '<p class="od-dt-loading">ما قدرنا نجيب الطلب. جرّب مرة ثانية.</p>'; return; }
 
   const itemsHtml = (items||[]).map(it=>{
     const product = MENU_ITEMS.find(m=>m.id===it.menu_item_id);
     const name = escapeHtml(product ? product.name : ('منتج #' + it.menu_item_id));
     const mods = (it.selected_modifiers||[]).map(m=>escapeHtml(m.option_name || m.text)).filter(Boolean).join('، ');
-    return `<div class="cpb-row"><span>${it.qty} × ${name}${mods ? ' (' + mods + ')' : ''}${it.note ? ' — ' + escapeHtml(it.note) : ''}</span>${rkMoney(it.line_total)}</div>`;
+    return '<div class="od-dt-item"><span class="od-dt-qty">' + it.qty + '×</span><span class="od-dt-name">' + name
+      + (mods ? '<small>' + mods + '</small>' : '') + (it.note ? '<small>' + escapeHtml(it.note) + '</small>' : '') + '</span>' + hmMoney(it.line_total) + '</div>';
   }).join('');
 
   const isOnline = order.source === 'online';
@@ -1487,96 +1554,76 @@ async function openOrderDetailModal(orderId){
   const waMessage = `مرحبًا ${order.customer_name || ''}! طلبك رقم #${order.id} جاري تجهيزه وراح يوصلك بأقرب وقت.`;
   const waPhone = (order.customer_phone || '').replace(/\D/g, '');
   const waUrl = waPhone ? `https://wa.me/${waPhone.startsWith('966') ? waPhone : '966' + waPhone.replace(/^0/, '')}?text=${encodeURIComponent(waMessage)}` : null;
+  const st = odStatusKey(order.status);
+  const branch = ORDER_SCREEN_BRANCHES.length > 1 ? (ORDER_SCREEN_BRANCHES.find(b=>b.id===order.branch_id)||{}).name : null;
+  const plat = order.delivery_platform_id ? ((ORDER_SCREEN_PLATFORMS.find(p=>p.id===order.delivery_platform_id)||{}).name || 'منصة محذوفة') : null;
+  const info = [];
+  if(order.customer_name) info.push(['العميل', escapeHtml(order.customer_name)]);
+  if(order.customer_phone) info.push(['جواله', '<span class="hm-num">' + escapeHtml(order.customer_phone) + '</span>']);
+  if(order.delivery_address) info.push(['العنوان', escapeHtml(order.delivery_address)]);
+  if(order.platform_invoice_last4) info.push(['فاتورة المنصة', '<span class="hm-num">…' + escapeHtml(String(order.platform_invoice_last4)) + '</span>']);
+  if(order.channel === 'delivery') info.push(['التجهيز', order.ready_at ? 'جهز خلال ' + Math.floor((order.prep_duration_seconds||0)/60) + 'د ' + ((order.prep_duration_seconds||0)%60) + 'ث' : 'قيد التجهيز']);
 
-  body.innerHTML = `
-    ${isOnline ? `<div class="cost-preview-box" style="margin-bottom:14px; background:color-mix(in srgb, var(--lime, #C4FF2B) 14%, transparent); border:1px solid color-mix(in srgb, var(--lime, #C4FF2B) 35%, transparent);">
-      <div class="cpb-row"><span style="font-weight:800; display:flex; align-items:center; gap:6px;" class="order-online-badge">${rkIcon('globe')} طلب إلكتروني — من متجر المطعم مباشرة</span><span></span></div>
-    </div>` : ''}
-    <div class="cost-preview-box" style="margin-bottom:14px;">
-      <div class="cpb-row"><span>التاريخ</span><span class="mono">${new Date(order.created_at).toLocaleString('ar-SA')}</span></div>
-      ${ORDER_SCREEN_BRANCHES.length > 1 ? `<div class="cpb-row"><span>الفرع</span><span class="mono">${escapeHtml((ORDER_SCREEN_BRANCHES.find(b=>b.id===order.branch_id)||{}).name || '—')}</span></div>` : ''}
-      <div class="cpb-row"><span>النوع</span><span>${orderChannelTagsHtml(order.channel, false)}</span></div>
-      ${order.customer_name ? `<div class="cpb-row"><span>العميل</span><span class="mono">${escapeHtml(order.customer_name)}</span></div>` : ''}
-      ${order.customer_phone ? `<div class="cpb-row"><span>جوال العميل</span><span class="mono">${escapeHtml(order.customer_phone)}</span></div>` : ''}
-      ${order.delivery_address ? `<div class="cpb-row"><span>عنوان التوصيل</span><span class="mono">${escapeHtml(order.delivery_address)}</span></div>` : ''}
-      <div class="cpb-row"><span>الحالة</span><span class="mono">${ORDER_STATUS_LABELS[order.status] || order.status}</span></div>
-      ${order.channel === 'delivery' ? `
-      ${order.platform_invoice_last4 ? `<div class="cpb-row"><span>فاتورة المنصة</span><span class="mono">...${order.platform_invoice_last4}</span></div>` : ''}
-      <div class="cpb-row"><span>التجهيز</span><span class="mono">${order.ready_at
-        ? 'جهز خلال ' + Math.floor((order.prep_duration_seconds||0)/60) + 'د ' + ((order.prep_duration_seconds||0)%60) + 'ث'
-        : 'قيد التجهيز'}</span></div>` : ''}
-    </div>
-    ${hasLocation ? `
-    <div class="cost-preview-box" style="margin-bottom:14px; text-align:center;">
-      <div class="oh-loc-title" style="font-weight:800; font-size:12.5px; margin-bottom:10px; display:flex; align-items:center; justify-content:center; gap:5px;"><span class="oh-inline-icon">${rkIcon('mapPin')}</span> موقع العميل — للمندوب</div>
-      <img src="/api/qr?data=${encodeURIComponent(mapsUrl)}" alt="QR موقع العميل" style="width:120px; height:120px; margin:0 auto 10px; display:block;">
-      <a href="${escapeHtml(mapsUrl)}" target="_blank" rel="noopener" class="mtr-edit-btn" style="display:inline-block; text-decoration:none; margin-bottom:8px;">فتح بخرائط جوجل</a>
-      ${waUrl ? `<a href="${escapeHtml(waUrl)}" target="_blank" rel="noopener" class="settings-save-btn" style="display:flex; align-items:center; justify-content:center; gap:6px; text-decoration:none; background:#25D366;"><span class="oh-inline-icon">${rkIcon('messageCircle')}</span> إرسال تحديث للعميل عبر واتساب</a>` : ''}
-    </div>` : ''}
-    <div class="cost-preview-box">
-      ${itemsHtml}
-      <div class="cpb-row"><span>المجموع الفرعي</span>${rkMoney(order.subtotal)}</div>
-      ${order.delivery_fee > 0 ? `<div class="cpb-row"><span>رسوم التوصيل</span>${rkMoney(order.delivery_fee)}</div>` : ''}
-      ${order.discount_amount > 0 ? `<div class="cpb-row"><span>الخصم</span>${rkMoney(-order.discount_amount)}</div>` : ''}
-      ${order.discount_amount > 0 && order.discount_reason ? `<div class="cpb-row"><span style="color:var(--muted); font-size:11px; font-weight:600;">سبب الخصم: ${escapeHtml(order.discount_reason)}</span></div>` : ''}
-      <div class="cpb-row"><span>الضريبة</span>${rkMoney(order.vat_amount)}</div>
-      <div class="cpb-row total"><span>الإجمالي</span>${rkMoney(order.total)}</div>
-      <div class="cpb-row"><span>طريقة الدفع</span><span class="mono">${ORDER_PAYMENT_LABELS[order.payment_method] || order.payment_method}</span></div>
-    </div>
-    ${order.status === 'completed' ? `
-    <p class="stock-qty-helper" style="margin-top:14px;">الاسترجاع يرجّع كمية المخزون المرتبطة بوصفة كل صنف تلقائيًا (حسب الوصفة الحالية). الاستثناء: صناديق التجميع المخصصة والإضافات المرتبطة بالمخزون يدويًا — هذي ترجّعها بنفسك من شاشة المخزون لو احتجت.</p>
-    <div class="product-edit-footer" style="margin-top:10px; padding-top:0; border-top:none;">
-      <span></span>
-      <button class="mtr-edit-btn" id="refundOrderBtn" style="color:var(--danger, #a3402c); border-color:var(--danger, #a3402c);">استرجاع مبلغ الطلب</button>
-    </div>` : ''}
-  `;
+  body.innerHTML = '<div class="od-dt">'
+    + '<div class="od-dt-hero ' + st + '"><div>' + hmMoney(order.total, 'od-dt-total')
+    + '<div class="od-dt-when">' + new Date(order.created_at).toLocaleString('ar-SA-u-nu-latn', { weekday:'long', day:'numeric', month:'long', hour:'numeric', minute:'2-digit' }) + (branch ? ' · ' + escapeHtml(branch) : '') + '</div></div>'
+    + '<span class="od-pill ' + st + '">' + (ORDER_STATUS_LABELS[order.status] || order.status) + '</span></div>'
+    + '<div class="od-dt-tags">' + orderChannelTagsHtml(order.channel, isOnline) + (plat ? '<span class="od-plat">' + escapeHtml(plat) + '</span>' : '')
+    + '<span class="od-plat">' + escapeHtml(ORDER_PAYMENT_LABELS[order.payment_method] || order.payment_method || '') + '</span></div>'
+    + (info.length ? '<div class="od-dt-box">' + info.map(([k,v])=>'<div class="od-dt-kv"><span>' + k + '</span><b>' + v + '</b></div>').join('') + '</div>' : '')
+    + (hasLocation ? '<div class="od-dt-box od-dt-loc"><img src="/api/qr?data=' + encodeURIComponent(mapsUrl) + '" alt="باركود موقع العميل"><div><b>موقع العميل للمندوب</b><small>صوّره بجوال المندوب</small>'
+      + '<a href="' + escapeHtml(mapsUrl) + '" target="_blank" rel="noopener" class="rk2-btn od-ghost sm">افتح بخرائط جوجل</a>'
+      + (waUrl ? '<a href="' + escapeHtml(waUrl) + '" target="_blank" rel="noopener" class="rk2-btn sm od-wa">' + rkIcon('messageCircle') + 'طمّن العميل بواتساب</a>' : '') + '</div></div>' : '')
+    + '<div class="od-dt-box"><div class="od-dt-items">' + (itemsHtml || '<p class="od-dt-loading">ما فيه أصناف مسجّلة</p>') + '</div>'
+    + '<div class="od-dt-sums">'
+    + '<div class="od-dt-kv"><span>قبل الضريبة</span>' + hmMoney(order.subtotal) + '</div>'
+    + (order.delivery_fee > 0 ? '<div class="od-dt-kv"><span>التوصيل</span>' + hmMoney(order.delivery_fee) + '</div>' : '')
+    + (order.discount_amount > 0 ? '<div class="od-dt-kv"><span>الخصم' + (order.discount_reason ? ' <small>(' + escapeHtml(order.discount_reason) + ')</small>' : '') + '</span>' + hmMoney(-order.discount_amount) + '</div>' : '')
+    + '<div class="od-dt-kv"><span>الضريبة</span>' + hmMoney(order.vat_amount) + '</div>'
+    + '<div class="od-dt-kv total"><span>الإجمالي</span>' + hmMoney(order.total) + '</div></div></div>'
+    + (order.status === 'completed' ? '<div class="od-dt-refund" id="odRefundZone">'
+      + '<button type="button" class="od-refund-btn" id="refundOrderBtn">' + hmIc('wallet') + 'استرجع مبلغ الطلب</button></div>' : '')
+    + '</div>';
+
   const refundBtn = document.getElementById('refundOrderBtn');
   if(refundBtn){
-    refundBtn.addEventListener('click', async ()=>{
-      if(!window.confirm('متأكد إنك تبي تسترجع مبلغ هذا الطلب؟ يرجّع كمية مخزون الأصناف المرتبطة بوصفة تلقائيًا.')) return;
-      refundBtn.disabled = true;
-      try {
-        const { error } = await window.supabaseClient.rpc('refund_pos_order', { p_order_id: orderId });
-        if(error) throw error;
-        logDashboardAudit('استرجع مبلغ الطلب #' + orderId);
-        showToast('تم استرجاع مبلغ الطلب');
-        await loadOrdersAndTables();
-        computeOrderStatusCounts();
-        renderOrderStatusGrid();
-        renderOrdersTable();
-        openOrderDetailModal(orderId);
-      } catch(err){
-        showToast('تعذر الاسترجاع: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-        refundBtn.disabled = false;
-      }
+    // التأكيد داخل نفس النافذة (ممنوع confirm المتصفح، وممنوع نافذة فوق نافذة).
+    refundBtn.addEventListener('click', ()=>{
+      const zone = document.getElementById('odRefundZone');
+      zone.innerHTML = '<div class="od-refund-ask"><b>نرجّع ' + hmMoney(order.total) + ' للعميل؟</b>'
+        + '<small>الطلب يصير «مسترجع»، وكميات الأصناف اللي لها وصفة ترجع للمخزون لحالها. الصناديق المخصصة والإضافات المربوطة يدوياً ترجّعها أنت من «المخزون».</small>'
+        + '<div class="od-refund-acts"><button type="button" class="rk2-btn sm od-danger" id="refundConfirmBtn">إيه، استرجع</button><button type="button" class="rk2-btn sm od-ghost" id="refundCancelBtn">لا، خلّه</button></div></div>';
+      document.getElementById('refundCancelBtn').addEventListener('click', ()=> openOrderDetailModal(orderId));
+      const ok = document.getElementById('refundConfirmBtn');
+      ok.addEventListener('click', async ()=>{
+        rkBtnLoading(ok, true);
+        try {
+          const { error } = await window.supabaseClient.rpc('refund_pos_order', { p_order_id: orderId });
+          if(error) throw error;
+          logDashboardAudit('استرجع مبلغ الطلب #' + orderId);
+          showToast('رجّعنا مبلغ الطلب #' + orderId);
+          await loadOrdersAndTables();
+          computeOrderStatusCounts();
+          renderOrderStatusGrid();
+          renderOrdersTable();
+          renderOrdersByType();
+          renderOrdersBySource();
+          openOrderDetailModal(orderId);
+        } catch(err){
+          showToast('تعذر الاسترجاع: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+          rkBtnLoading(ok, false);
+        }
+      });
     });
   }
 }
 document.getElementById('orderDetailModalClose').addEventListener('click', ()=>{
   document.getElementById('orderDetailModal').classList.remove('show');
 });
-
-document.getElementById('orderStatusTabs').addEventListener('click', (e)=>{
-  const btn = e.target.closest('.seg-tab'); if(!btn) return;
-  document.querySelectorAll('#orderStatusTabs .seg-tab').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  orderStatusFilter = btn.dataset.status;
-  renderOrdersTable();
+document.getElementById('orderDetailModal').addEventListener('click', (e)=>{
+  if(e.target.id === 'orderDetailModal') e.target.classList.remove('show');
 });
-document.getElementById('orderSearchInput').addEventListener('input', (e)=>{
-  orderSearchQuery = e.target.value;
-  renderOrdersTable();
-});
-document.getElementById('orderDateRangeSelect').addEventListener('change', async (e)=>{
-  orderDateRange = e.target.value;
-  await loadOrdersAndTables();
-  computeOrderStatusCounts();
-  renderOrderStatusGrid();
-  renderOrdersTable();
-  renderTablesFloorGrid();
-  renderOrdersByType();
-  renderOrdersBySource();
-});
+wireOrdersScreen();
 
 /* ============ Table Management — occupied tables link to real dine-in orders from RECENT_ORDERS,
    not invented data. Table #7 is intentionally seated-but-not-yet-ordered (a real, common floor state). */
@@ -1591,20 +1638,7 @@ function turnTimerSeverityClass(mins){
   if(mins > TABLES_TURN_TIME_MINUTES) return ' warn';
   return ' ok';
 }
-let TABLES = [
-  {number:1, status:'serving', orderId:'#1096'},
-  {number:2, status:'available'},
-  {number:3, status:'awaiting_payment', orderId:'#1093'},
-  {number:4, status:'reserved'},
-  {number:5, status:'available'},
-  {number:6, status:'cleaning'},
-  {number:7, status:'awaiting_order', orderId:null},
-  {number:8, status:'available'},
-  {number:9, status:'available'},
-  {number:10, status:'reserved'},
-  {number:11, status:'available'},
-  {number:12, status:'available'}
-];
+let TABLES = []; // restaurant_tables الحقيقية من loadOrdersAndTables
 const TABLE_STATUS_LABEL = {available:'فارغة', awaiting_order:'بانتظار الطلب', serving:'قيد التقديم', awaiting_payment:'بانتظار الدفع', reserved:'محجوزة', cleaning:'تحتاج تنظيف'};
 
 function renderTablesFloorGrid(){
@@ -1616,7 +1650,7 @@ function renderTablesFloorGrid(){
     let meta = '';
     if((t.status === 'serving' || t.status === 'awaiting_payment') && t.orderId){
       const order = RECENT_ORDERS.find(o=>o.id===t.orderId);
-      if(order) meta = `<span class="ft-meta mono">${order.total.toFixed(2)} ر.س</span>`;
+      if(order) meta = `<span class="ft-meta">${hmMoney(order.total)}</span>`;
     }
     // Same green/amber/red read as the cashier's own Tables screen — an
     // owner checking the floor remotely sees at a glance not just that a
@@ -1677,7 +1711,7 @@ function renderTablesFloorGrid(){
   }).join('');
   document.querySelectorAll('.floor-table').forEach(btn=>{
     btn.addEventListener('click', ()=> showTableDetail(parseInt(btn.dataset.tableId)));
-  });
+  });  odFloorSummary();
 }
 
 function showTableDetail(tableId){
@@ -1698,111 +1732,71 @@ function showTableDetail(tableId){
     if(order){
       bodyHtml += `<div class="tdp-row"><span>رقم الطلب</span><span class="mono">${order.id}</span></div>`;
       bodyHtml += `<div class="tdp-row"><span>عدد الأصناف</span><span class="mono">${order.items}</span></div>`;
-      bodyHtml += `<div class="tdp-row"><span>الإجمالي</span><span class="mono">${order.total.toFixed(2)} ر.س</span></div>`;
+      bodyHtml += `<div class="tdp-row"><span>الإجمالي</span>${hmMoney(order.total)}</div>`;
+      bodyHtml += `<button type="button" class="rk2-btn sm od-ghost tdp-open" data-tdp-order="${order.id.replace('#','')}">افتح الطلب</button>`;
     }
   }
   bodyHtml += `<div class="tdp-row"><span>تبديل الحالة من</span><span class="mono">الكاشير</span></div>`;
 
   panel.innerHTML = `<div class="tdp-head"><span class="tdp-title">طاولة ${t.number}</span><button class="tdp-close" id="tdpCloseBtn">✕</button></div>` + bodyHtml;
   panel.style.display = 'block';
+  const op = panel.querySelector('[data-tdp-order]'); if(op) op.addEventListener('click', ()=> openOrderDetailModal(op.dataset.tdpOrder));
   document.getElementById('tdpCloseBtn').addEventListener('click', ()=>{
     panel.style.display = 'none';
     document.querySelectorAll('.floor-table').forEach(b=> b.classList.remove('selected'));
   });
 }
 
+// أشرطة بدل الدونات: تنقرى من نظرة، وتشتغل على الجوال بدون أسطورة ألوان.
+// من RECENT_ORDERS (مقيّدة بفترة الشاشة نفسها، مو باليوم بس).
+function odBarsHtml(rows, icon, title, sub){
+  const total = rows.reduce((s,r)=>s + r.n, 0);
+  const head = '<div class="rk2-card-head"><span class="rk2-ic c-ops">' + hmIc(icon) + '</span><div class="rk2-card-title"><h3>' + title + '</h3><p>' + sub + '</p></div></div>';
+  if(!total) return head + hmEmpty(icon, 'تطلع هنا أول ما تبيع', 'نقسم طلبات الفترة اللي فوق ونوريك النسب');
+  const ranked = [...rows].filter(r=>r.n > 0).sort((a,b)=>b.n - a.n);
+  const max = ranked[0].n;
+  return head + '<div class="od-bars">' + ranked.map((r,i)=>
+    '<div class="od-bar' + (i === 0 ? ' lead' : '') + '"><div class="od-bar-top"><b>' + escapeHtml(r.name) + '</b><span><span class="hm-num">' + Math.round(r.n / total * 100) + '%</span> · ' + hmOrders(r.n) + '</span></div>'
+    + '<span class="hm-track"><i style="width:' + Math.max(3, r.n / max * 100).toFixed(1) + '%"></i></span></div>').join('') + '</div>';
+}
 function renderOrdersByType(){
-  // Computed from RECENT_ORDERS (already scoped to the Orders screen's own
-  // date-range selector) rather than the Home screen's CHANNEL_PERF, which
-  // only ever covers today — before this fix these two donut charts silently
-  // kept showing today's split no matter which range was picked above them.
-  const byType = {};
-  RECENT_ORDERS.forEach(o=>{ (byType[o.type] ||= {name:o.type, orders:0}).orders++; });
   const el = document.getElementById('ordersByType');
-  const typeCounts = Object.values(byType);
-  const total = typeCounts.reduce((s,c)=>s+c.orders,0);
-  if(total === 0){ el.innerHTML = '<div class="orders-empty">ما فيه طلبات بهالفترة</div>'; return; }
-  const COLORS = ['var(--acc-ops)','var(--acc-res)','var(--acc-fin)','var(--acc-team)','var(--acc-ai)'];
-  const COLORS_BG = ['var(--acc-ops-bg)','var(--acc-res-bg)','var(--acc-fin-bg)','var(--acc-team-bg)','var(--acc-ai-bg)'];
-  const ranked = typeCounts.sort((a,b)=>b.orders-a.orders);
-  const r = 50, circumference = 2*Math.PI*r;
-  let cumulative = 0;
-  const segments = ranked.map((c,i)=>{
-    const share = c.orders/total;
-    const segLen = share*circumference;
-    const seg = `<circle cx="60" cy="60" r="${r}" fill="none" stroke="${COLORS[i%5]}" stroke-width="16"
-      stroke-dasharray="${segLen} ${circumference}" stroke-dashoffset="${-cumulative}" stroke-linecap="butt"/>`;
-    cumulative += segLen;
-    return seg;
-  }).join('');
-  const legend = ranked.map((c,i)=>{
-    const share = ((c.orders/total)*100).toFixed(0);
-    const color = COLORS[i%5], bg = COLORS_BG[i%5];
-    return `<div class="donut-legend-row"><span class="donut-swatch" style="background:${color}"></span>
-      <span class="donut-legend-name">${c.name}</span>
-      <span class="donut-legend-stats">
-        <span class="donut-legend-count mono">${c.orders} طلب</span>
-        <span class="donut-legend-pct mono" style="background:${bg}; color:${color};">${share}٪</span>
-      </span></div>`;
-  }).join('');
-  el.innerHTML = `<div class="donut-wrap">
-    <svg class="donut-svg" viewBox="0 0 120 120" style="transform:rotate(-90deg)">
-      <circle cx="60" cy="60" r="${r}" fill="none" stroke="var(--surf2)" stroke-width="16"/>
-      ${segments}
-    </svg>
-    <div class="donut-legend">${legend}</div>
-  </div>`;
+  if(!el) return;
+  const by = {};
+  RECENT_ORDERS.forEach(o=>{ (by[o.type] ||= {name:o.type, n:0}).n++; });
+  el.innerHTML = odBarsHtml(Object.values(by), 'store', 'كيف يطلبون؟', 'داخل المطعم وسفري وتوصيل');
+}
+function renderOrdersBySource(){
+  // المنصة الحقيقية من delivery_platform_id اللي يحطه الكاشير على كل طلب توصيل.
+  const el = document.getElementById('ordersBySource');
+  if(!el) return;
+  const by = {};
+  let direct = 0, online = 0;
+  RECENT_ORDERS.forEach(o=>{
+    if(o.channel === 'delivery' && o.platformName) (by[o.platformName] ||= {name:o.platformName, n:0}).n++;
+    else if(o.isOnline) online++;
+    else direct++;
+  });
+  const rows = [{name:'زبونك مباشرة', n:direct}].concat(online ? [{name:'متجرك الإلكتروني', n:online}] : [], Object.values(by));
+  el.innerHTML = odBarsHtml(rows, 'links', 'من وين يجون؟', 'زبونك مباشرة، متجرك، وتطبيقات التوصيل');
 }
 
-function renderOrdersBySource(){
-  // Real per-platform counts from each order's own delivery_platform_id —
-  // this used to fabricate a proportional even split across a hardcoded
-  // platform list ("split delivery orders... to keep this illustrative but
-  // non-arbitrary") even though the cashier already tags every delivery
-  // order with its real platform. That data was just never being read.
-  const bySource = {};
-  let walkInTotal = 0;
-  RECENT_ORDERS.forEach(o=>{
-    if(o.channel === 'delivery' && o.platformName){
-      (bySource[o.platformName] ||= {name:o.platformName, orders:0}).orders++;
-    } else {
-      walkInTotal++;
-    }
-  });
-  const sources = [{name:'زبون مباشر (بدون تطبيق)', orders:walkInTotal}].concat(Object.values(bySource));
-  const el = document.getElementById('ordersBySource');
-  const total = sources.reduce((s,x)=>s+x.orders,0);
-  if(total === 0){ el.innerHTML = '<div class="orders-empty">ما فيه طلبات بهالفترة</div>'; return; }
-  const ranked = [...sources].sort((a,b)=>b.orders-a.orders);
-  const COLORS = ['var(--acc-ops)','var(--acc-res)','var(--acc-fin)','var(--acc-team)','var(--acc-ai)'];
-  const COLORS_BG = ['var(--acc-ops-bg)','var(--acc-res-bg)','var(--acc-fin-bg)','var(--acc-team-bg)','var(--acc-ai-bg)'];
-  const r = 50, circumference = 2*Math.PI*r;
-  let cumulative = 0;
-  const segments = ranked.map((s,i)=>{
-    const share = s.orders/total;
-    const segLen = share*circumference;
-    const seg = `<circle cx="60" cy="60" r="${r}" fill="none" stroke="${COLORS[i%5]}" stroke-width="16"
-      stroke-dasharray="${segLen} ${circumference}" stroke-dashoffset="${-cumulative}" stroke-linecap="butt"/>`;
-    cumulative += segLen;
-    return seg;
-  }).join('');
-  const legend = ranked.map((s,i)=>{
-    const share = ((s.orders/total)*100).toFixed(0);
-    const color = COLORS[i%5], bg = COLORS_BG[i%5];
-    return `<div class="donut-legend-row"><span class="donut-swatch" style="background:${color}"></span>
-      <span class="donut-legend-name">${s.name}</span>
-      <span class="donut-legend-stats">
-        <span class="donut-legend-count mono">${s.orders} طلب</span>
-        <span class="donut-legend-pct mono" style="background:${bg}; color:${color};">${share}٪</span>
-      </span></div>`;
-  }).join('');
-  el.innerHTML = `<div class="donut-wrap">
-    <svg class="donut-svg" viewBox="0 0 120 120" style="transform:rotate(-90deg)">
-      <circle cx="60" cy="60" r="${r}" fill="none" stroke="var(--surf2)" stroke-width="16"/>
-      ${segments}
-    </svg>
-    <div class="donut-legend">${legend}</div>
-  </div>`;
+// ملخص الصالة فوق الطاولات + إخفاء البطاقة لمطعم ما عنده طاولات.
+function odFloorSummary(){
+  const wrap = document.getElementById('odFloor');
+  if(!wrap) return;
+  const show = TABLES.length > 0 && planHas('tables_reservations');
+  wrap.hidden = !show;
+  if(!show) return;
+  const busy = TABLES.filter(t=>t.status !== 'available' && t.status !== 'reserved').length;
+  const order = ['awaiting_payment','serving','awaiting_order','cleaning','reserved','available'];
+  const counts = {};
+  TABLES.forEach(t=>{ counts[t.status] = (counts[t.status] || 0) + 1; });
+  const sum = document.getElementById('odFloorSum');
+  if(sum) sum.innerHTML = '<h3>' + (busy ? busy + ' من ' + TABLES.length + ' طاولة مشغولة' : 'الصالة فاضية الحين') + '</h3>'
+    + '<p>تتحدث لحالها من الكاشير. اضغط أي طاولة تشوف طلبها</p>';
+  const leg = document.getElementById('odFloorLegend');
+  if(leg) leg.innerHTML = order.filter(s=>counts[s]).map(s=>'<span class="od-leg ' + s + '"><i></i>' + TABLE_STATUS_LABEL[s] + ' <b>' + counts[s] + '</b></span>').join('');
 }
 
 /* ============ Inventory screen ============ */
@@ -8566,7 +8560,8 @@ async function loadOrdersAndTables(scope){
   RECENT_ORDERS = (orders||[]).map(o=>({
     id: '#'+o.id,
     date: formatRelativeDate(o.created_at),
-    time: new Date(o.created_at).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}),
+    createdAt: o.created_at,
+    time: new Date(o.created_at).toLocaleTimeString('ar-SA-u-nu-latn',{hour:'numeric',minute:'2-digit'}),
     type: ORDER_CHANNEL_TYPE_LABELS[o.channel] || o.channel,
     channel: o.channel,
     isOnline: o.source === 'online',

@@ -515,3 +515,177 @@ button.mn-stat{cursor:pointer;}
   .product-edit-tabs.mn-steps{margin:12px 14px 2px;}
   .product-edit-tabs.mn-steps button{flex:0 0 auto; font-size:12.5px;}
 }
+
+/* ==========================================================================
+   الطلبات (od-)
+   ========================================================================== */
+.od{max-width:1280px; margin:0 auto; padding-bottom:40px; display:flex; flex-direction:column; gap:var(--rk2-gap);}
+@media (prefers-reduced-motion: no-preference){
+  .od > *{animation:rk2-in .4s cubic-bezier(.2,.8,.2,1) both;}
+  .od > *:nth-child(2){animation-delay:.04s} .od > *:nth-child(3){animation-delay:.08s} .od > *:nth-child(4){animation-delay:.12s}
+}
+.rk2-btn.od-ghost{background:var(--card-bg); color:var(--text); border:1px solid var(--line);}
+.rk2-btn.od-ghost:hover{background:var(--surf1);}
+.od .hm-empty + .rk2-btn{display:flex; margin:0 auto 18px;}
+
+/* بطاقة «طلباتك» */
+.od-sum-card{padding:20px 22px;}
+.od-sum-top{display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap;}
+.od-sum-top h3{font-size:24px; font-weight:900; margin-top:4px; letter-spacing:-.2px;}
+.od-range{flex-shrink:0;}
+.od-stats{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px; margin-top:18px;}
+.od-stat{display:flex; flex-direction:column; gap:4px; padding:14px 16px; border-radius:var(--rk2-r-md); background:var(--surf1); border:1px solid var(--line); min-width:0;}
+.od-stat small{font-size:12.5px; color:var(--muted); font-weight:700;}
+.od-stat .hm-money, .od-stat .hm-num{font-size:22px; font-weight:900;}
+.od-warn{color:var(--danger);}
+.od-chips{display:flex; flex-wrap:wrap; gap:8px; margin-top:16px;}
+.od-chip{display:inline-flex; align-items:center; gap:7px; height:38px; padding:0 14px; border-radius:99px; border:1px solid var(--line); background:var(--card-bg); color:var(--text); font-size:13.5px; font-weight:700; cursor:pointer; transition:background .2s ease, border-color .2s ease, transform .15s ease;}
+.od-chip:active:not(:disabled){transform:scale(.96);}
+.od-chip b{font-weight:900; opacity:.65;}
+.od-chip i{width:8px; height:8px; border-radius:50%; background:var(--muted);}
+.od-chip.completed i{background:var(--lime-deep);}
+.od-chip.cancelled i{background:var(--danger);}
+.od-chip.refunded i{background:var(--amber);}
+.od-chip.all i{display:none;}
+.od-chip:disabled{opacity:.45; cursor:default;}
+.od-chip.active{background:var(--rk2-ink); color:var(--rk2-on-ink); border-color:var(--rk2-ink);}
+[data-theme="dark"] .od-chip.active{background:var(--lime); color:#111; border-color:var(--lime);}
+.od-cap{margin-top:12px; font-size:12px; color:var(--muted);}
+
+/* الصالة الحين */
+.od-floor .rk2-card-head{margin-bottom:10px;}
+.od-floor .rk2-card-title h3{font-size:17px;}
+.od-live{display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:800; color:var(--muted); padding:5px 10px; border-radius:99px; background:var(--surf1);}
+.od-live i{width:7px; height:7px; border-radius:50%; background:var(--lime-deep); animation:ftPulse 1.8s ease-in-out infinite;}
+.od-legend{display:flex; flex-wrap:wrap; gap:6px;}
+.od-leg{display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; padding:5px 10px; border-radius:99px; background:var(--surf1); color:var(--text);}
+.od-leg b{font-weight:900;}
+.od-leg i{width:8px; height:8px; border-radius:50%; background:var(--line);}
+.od-leg.serving i{background:var(--lime-deep);} .od-leg.awaiting_payment i{background:var(--danger);}
+.od-leg.awaiting_order i, .od-leg.reserved i{background:var(--amber);} .od-leg.cleaning i{background:var(--muted);}
+.rk2 .tables-floor-grid{grid-template-columns:repeat(auto-fill, minmax(96px,1fr)); gap:10px; margin-top:14px;}
+.rk2 .tables-floor-grid .tables-section-header{font-size:13.5px; font-weight:900; border:0; padding:8px 2px 0; color:var(--muted);}
+.rk2 .floor-table{border-radius:18px; border-width:1.5px; font-family:inherit; cursor:pointer; color:var(--text); transition:transform .15s ease, box-shadow .2s ease;}
+.rk2 .floor-table:hover{transform:translateY(-2px); box-shadow:0 10px 22px -16px rgba(17,17,17,.45);}
+.rk2 .floor-table.available{border-style:dashed; background:transparent;}
+.rk2 .ft-num{font-size:22px; font-weight:900;}
+.rk2 .ft-status{font-size:11px; font-weight:800;}
+.rk2 .ft-meta{font-size:11.5px; color:var(--text);}
+.rk2 .ft-turn-timer{font-family:inherit; font-size:11px; direction:rtl;}
+.rk2 .table-detail-panel{border-radius:var(--rk2-r-md); padding:16px 18px;}
+.rk2 .tdp-title{font-size:16px; font-weight:900;}
+.rk2 .tdp-row{font-size:13px; align-items:center;}
+.rk2 .tdp-row .mono{font-family:inherit; font-weight:800; color:var(--text);}
+.rk2 .tdp-open{margin-top:12px; width:100%;}
+
+/* القائمة بالأيام */
+.od-list-head{display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:6px;}
+.od-list-head .rk2-card-head{margin-bottom:0; flex:1; min-width:240px;}
+.od-search{display:flex; align-items:center; gap:9px; height:44px; width:min(260px, 100%); padding:0 14px; border-radius:14px; background:var(--surf1); border:1px solid var(--line); color:var(--muted); transition:border-color .2s ease, box-shadow .2s ease;}
+.od-search:focus-within{border-color:var(--lime-deep); box-shadow:0 0 0 3px color-mix(in srgb, var(--lime) 30%, transparent);}
+.od-search svg{width:17px; height:17px; flex-shrink:0;}
+.rk2 .od-search input{flex:1; min-width:0; border:0; outline:0; background:transparent; color:var(--text); font-size:14px; padding:0; height:auto; box-shadow:none;}
+.od-days{transition:opacity .2s ease;}
+.od-days.od-loading{opacity:.45; pointer-events:none;}
+.od-day{margin-top:14px;}
+.od-day-head{position:sticky; top:0; z-index:1; display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:8px 4px; background:var(--card-bg); border-bottom:1px solid var(--line); margin-bottom:4px;}
+.od-day-head b{font-size:15px; font-weight:900;}
+.od-day-head span{font-size:12.5px; color:var(--muted); font-weight:700; display:inline-flex; align-items:baseline; gap:4px;}
+.od-day-head .hm-money{color:var(--text);}
+.od-row{display:flex; align-items:center; gap:12px; width:100%; padding:12px 10px; border:0; border-radius:14px; background:transparent; color:var(--text); text-align:right; cursor:pointer; transition:background .15s ease;}
+.od-row + .od-row{box-shadow:0 -1px 0 var(--line);}
+.od-row:hover{background:var(--surf1); box-shadow:none;}
+.od-row:hover + .od-row{box-shadow:none;}
+.od-row:focus-visible{outline:3px solid var(--lime-deep); outline-offset:-3px;}
+.od-dot{width:10px; height:10px; border-radius:50%; flex-shrink:0; background:var(--lime-deep);}
+.od-dot[data-st="cancelled"]{background:var(--danger);}
+.od-dot[data-st="refunded"]{background:var(--amber);}
+.od-main{flex:1; min-width:0; display:flex; flex-direction:column; gap:5px;}
+.od-line1{display:flex; align-items:baseline; gap:10px;}
+.od-line1 b{font-size:15px;}
+.od-time{font-size:12.5px; color:var(--muted); font-weight:700;}
+.od-line2{display:flex; flex-wrap:wrap; align-items:center; gap:6px;}
+.rk2 .order-channel-tag, .rk2 .order-online-tag{font-size:11.5px; padding:3px 9px;}
+.od-plat{display:inline-flex; align-items:center; font-size:11.5px; font-weight:800; padding:3px 9px; border-radius:99px; background:var(--surf2); color:var(--text);}
+.od-sub{font-size:12px; color:var(--muted); font-weight:600;}
+.od-end{display:flex; flex-direction:column; align-items:flex-end; gap:4px; flex-shrink:0;}
+.od-end .hm-money{font-size:17px;}
+.hm-money.od-struck{text-decoration:line-through; opacity:.55;}
+.od-pill{font-size:11.5px; font-weight:800; padding:3px 9px; border-radius:99px; white-space:nowrap; background:color-mix(in srgb, var(--lime) 35%, transparent); color:var(--text);}
+.od-pill.cancelled{background:color-mix(in srgb, var(--danger) 14%, transparent); color:var(--danger);}
+.od-pill.refunded{background:color-mix(in srgb, var(--amber) 18%, transparent); color:var(--amber);}
+.od-more{display:flex; align-items:center; justify-content:center; gap:6px; width:100%; margin-top:12px; height:44px; border-radius:14px; border:1.5px dashed var(--line); background:transparent; color:var(--text); font-size:14px; font-weight:800; cursor:pointer;}
+.od-more small{color:var(--muted); font-weight:700;}
+.od-more:hover{border-color:var(--lime-deep); background:color-mix(in srgb, var(--lime) 10%, transparent);}
+
+/* كيف يطلبون / من وين يجون */
+.od-split{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:var(--rk2-gap);}
+.od-bars{display:flex; flex-direction:column; gap:14px;}
+.od-bar-top{display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:6px;}
+.od-bar-top b{font-size:14px; font-weight:800;}
+.od-bar-top span{font-size:12.5px; color:var(--muted); font-weight:700;}
+.od-bar .hm-track{display:block; height:9px;}
+.od-bar .hm-track i{background:var(--acc-ops);}
+.od-bar.lead .hm-track i{background:var(--lime-deep);}
+
+/* نافذة الطلب */
+#orderDetailModal .modal-card{font-family:'RkSans','IBM Plex Sans Arabic',sans-serif; font-feature-settings:"tnum" 1;}
+#orderDetailModal .modal-head span{font-size:18px; font-weight:900;}
+.od-dt{display:flex; flex-direction:column; gap:12px;}
+.od-dt-loading{font-size:13px; color:var(--muted); font-weight:600; padding:20px 0; text-align:center;}
+.od-dt-hero{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:18px; border-radius:18px; background:linear-gradient(135deg, rgba(196,255,43,.18), rgba(196,255,43,.04)); border:1px solid color-mix(in srgb, var(--lime-deep) 40%, transparent);}
+.od-dt-hero.cancelled{background:color-mix(in srgb, var(--danger) 8%, transparent); border-color:color-mix(in srgb, var(--danger) 30%, transparent);}
+.od-dt-hero.refunded{background:color-mix(in srgb, var(--amber) 10%, transparent); border-color:color-mix(in srgb, var(--amber) 35%, transparent);}
+.od-dt-total{font-size:30px; font-weight:900;}
+.od-dt-when{font-size:12.5px; color:var(--muted); font-weight:700; margin-top:4px;}
+.od-dt-tags{display:flex; flex-wrap:wrap; gap:6px;}
+.od-dt-box{padding:14px 16px; border-radius:16px; background:var(--surf1); border:1px solid var(--line);}
+.od-dt-kv{display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:6px 0; font-size:13px; color:var(--muted); font-weight:600;}
+.od-dt-kv b{color:var(--text); font-weight:800; text-align:left;}
+.od-dt-kv .hm-money{color:var(--text); font-weight:800;}
+.od-dt-kv.total{border-top:1px dashed var(--line); margin-top:4px; padding-top:10px; color:var(--text); font-weight:900; font-size:15px;}
+.od-dt-kv.total .hm-money{font-size:18px; font-weight:900;}
+.od-dt-items{display:flex; flex-direction:column; gap:2px; padding-bottom:8px; margin-bottom:6px; border-bottom:1px solid var(--line);}
+.od-dt-item{display:flex; align-items:baseline; gap:10px; padding:6px 0; font-size:14px;}
+.od-dt-qty{font-weight:900; color:var(--muted); min-width:26px;}
+.od-dt-name{flex:1; min-width:0; font-weight:700; display:flex; flex-direction:column; gap:2px;}
+.od-dt-name small{font-size:12px; color:var(--muted); font-weight:600;}
+.od-dt-item .hm-money{font-weight:800;}
+.od-dt-loc{display:flex; gap:14px; align-items:center;}
+.od-dt-loc img{width:96px; height:96px; border-radius:10px; background:#fff; padding:4px; flex-shrink:0;}
+.od-dt-loc div{display:flex; flex-direction:column; gap:6px; align-items:flex-start;}
+.od-dt-loc small{font-size:12px; color:var(--muted);}
+.rk2-btn.od-wa{background:#25D366; color:#fff;}
+.rk2-btn.od-wa svg{width:15px; height:15px;}
+.od-dt-refund{padding-top:4px;}
+.od-refund-btn{display:inline-flex; align-items:center; gap:7px; border:0; background:none; color:var(--danger); font-size:13.5px; font-weight:800; cursor:pointer; padding:6px 0;}
+.od-refund-btn svg{width:16px; height:16px;}
+.od-refund-ask{display:flex; flex-direction:column; gap:8px; padding:14px 16px; border-radius:16px; border:1.5px solid color-mix(in srgb, var(--danger) 40%, var(--line)); background:color-mix(in srgb, var(--danger) 6%, transparent); animation:rk2-in .25s ease both;}
+.od-refund-ask b{font-size:15px; font-weight:900; display:inline-flex; align-items:baseline; gap:4px; flex-wrap:wrap;}
+.od-refund-ask small{font-size:12.5px; color:var(--muted); line-height:1.6;}
+.od-refund-acts{display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;}
+.rk2-btn.od-danger{background:var(--danger); color:#fff;}
+
+@media (max-width:1024px){
+  .od-split{grid-template-columns:1fr;}
+}
+@media (max-width:700px){
+  .od-sum-card{padding:16px;}
+  .od-sum-top h3{font-size:21px;}
+  .od-range{width:100%;}
+  .od-range button{flex:1;}
+  .od-stats{grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px;}
+  .od-stats .od-stat:nth-child(3){grid-column:1 / -1; flex-direction:row; justify-content:space-between; align-items:center;}
+  .od-stat{padding:12px;}
+  .od-stat .hm-money, .od-stat .hm-num{font-size:18px;}
+  .od-chips{gap:6px;}
+  .od-chip{height:34px; padding:0 11px; font-size:12.5px;}
+  .od-search{width:100%;}
+  .od-row{padding:11px 4px; gap:10px;}
+  .od-end .hm-money{font-size:15px;}
+  .rk2 .tables-floor-grid{grid-template-columns:repeat(auto-fill, minmax(72px,1fr)); gap:8px;}
+  .rk2 .ft-num{font-size:19px;}
+  .rk2 .floor-table{aspect-ratio:auto; min-height:86px; padding:10px 4px;}
+  .od-live{display:none;}
+  .od-dt-total{font-size:26px;}
+}
