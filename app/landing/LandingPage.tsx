@@ -225,6 +225,16 @@ const T = {
         readyS: "رقم ١٢٧ · يرن الحين",
         real: "لقطات حقيقية من صفحة البيجر",
       },
+      links: {
+        k: "روابطك",
+        h: "كل روابط مطعمك في صفحة فخمة.",
+        p: "رابط واحد تحطه في بايو إنستقرام وتيك توك وسناب: زر الطلب، وواتساب، والموقع، وتطبيقات التوصيل، وحساباتك.",
+        b: ["٣ تصاميم: مخملي، غلاف، جريء", "كل تصميم بألوانه وخطوطه وخياراته", "تضيف وتحذف وترتّب وتميّز روابطك", "معاينة حيّة قبل ما تنشر", "كم زيارة وكم ضغطة على كل رابط"],
+        plan: "ضمن باقتي عماد وصرح",
+        url: "anoob.rakeenapp.com/links",
+        urlS: "رابط صفحتك",
+        real: "صفحات روابط بتصاميم ركين",
+      },
       loyalty: {
         k: "الولاء",
         h: "عميلك يرجع لك.",
@@ -365,6 +375,16 @@ const T = {
         ready: "Your order is ready!",
         readyS: "No. 127 · ringing now",
         real: "Real screenshots of the pager page",
+      },
+      links: {
+        k: "Your Links",
+        h: "All your restaurant's links on one beautiful page.",
+        p: "One link for your Instagram, TikTok and Snapchat bio: order button, WhatsApp, location, delivery apps and your socials.",
+        b: ["3 designs: Velvet, Cover, Bold", "Each with its own colors, fonts and options", "Add, remove, reorder and highlight links", "Live preview before you publish", "Visits and taps per link"],
+        plan: "In the Emad and Sarh plans",
+        url: "anoob.rakeenapp.com/links",
+        urlS: "Your page link",
+        real: "Link pages built with Rakeen designs",
       },
       loyalty: {
         k: "Loyalty",
@@ -532,13 +552,14 @@ function Riyal() {
   return <span className="riyal" aria-label="SAR">{"⃁"}</span>;
 }
 
-type IconName = "check" | "wifi" | "qr" | "devices" | "chat" | "plus" | "arrow" | "bag" | "alert" | "scan" | "crown" | "minus" | "bell";
+type IconName = "check" | "wifi" | "qr" | "devices" | "chat" | "plus" | "arrow" | "bag" | "alert" | "scan" | "crown" | "minus" | "bell" | "link";
 function Icon({ name }: { name: IconName }) {
   const p = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   return (
     <svg viewBox="0 0 24 24" className="ic" aria-hidden>
       {name === "check" && <path {...p} d="M5 12.5l4.5 4.5L19 7" />}
       {name === "minus" && <path {...p} d="M8 12h8" />}
+      {name === "link" && <path {...p} d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />}
       {name === "bell" && <path {...p} d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15L6 16zM10 20.5a2 2 0 0 0 4 0" />}
       {name === "wifi" && (
         <g {...p}>
@@ -1612,11 +1633,49 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ---------- chapter: links ---------- */}
+      <section className="chap" id="links">
+        <div className="wrap chap-in">
+          <div className="chap-copy" data-in>
+            <span className="chap-n mono" aria-hidden>05</span>
+            <span className="kicker k-lime">
+              <Icon name="link" />
+              {t.ch.links.k}
+            </span>
+            <h2>{t.ch.links.h}</h2>
+            <p>{t.ch.links.p}</p>
+            <Bullets items={t.ch.links.b} />
+            <a href="#plans" onClick={go("plans")} className="pager-plan">
+              <Icon name="crown" />
+              {t.ch.links.plan}
+            </a>
+          </div>
+          <div className="chap-art art-pager art-links" data-in>
+            <div className="pager-blob links-blob" aria-hidden />
+            <div className="iphone pg-back">
+              <img src="/landing/links-velvet.jpg" alt={t.ch.links.real} loading="lazy" />
+            </div>
+            <div className="iphone pg-front">
+              <img src="/landing/links-bold.jpg" alt={t.ch.links.real} loading="lazy" />
+            </div>
+            <div className="toast t-ring">
+              <span className="toast-ic ring">
+                <Icon name="link" />
+              </span>
+              <div>
+                <b dir="ltr">{t.ch.links.url}</b>
+                <span>{t.ch.links.urlS}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ---------- chapter: loyalty ---------- */}
       <section className="chap chap-wide">
         <div className="wrap chap-in">
           <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>05</span>
+            <span className="chap-n mono" aria-hidden>06</span>
             <span className="kicker">{t.ch.loyalty.k}</span>
             <h2>{t.ch.loyalty.h}</h2>
             <p>{t.ch.loyalty.p}</p>
@@ -1632,7 +1691,7 @@ export default function LandingPage() {
       <section className="chap chap-dark">
         <div className="wrap chap-in">
           <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>06</span>
+            <span className="chap-n mono" aria-hidden>07</span>
             <span className="kicker k-lime">{t.ch.numbers.k}</span>
             <h2>{t.ch.numbers.h}</h2>
             <p>{t.ch.numbers.p}</p>
@@ -1696,7 +1755,7 @@ export default function LandingPage() {
       <section className="chap chap-flip" id="app">
         <div className="wrap chap-in">
           <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>07</span>
+            <span className="chap-n mono" aria-hidden>08</span>
             <span className="kicker">
               <Icon name="devices" />
               {t.ch.app.k}

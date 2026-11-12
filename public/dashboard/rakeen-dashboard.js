@@ -7647,7 +7647,7 @@ document.getElementById('campaignBuildBtn').addEventListener('click', ()=>{
 
 /* ============ Sidebar navigation ============ */
 const SCREEN_TITLES = {
-  home:'الرئيسية', pos:'الكاشير', orders:'الطلبات', purchases:'المشتريات', menu:'القائمة', onlineMenu:'المتجر الإلكتروني', services:'الخدمات', rooms:'الغرف', inventory:'المخزون',
+  home:'الرئيسية', pos:'الكاشير', orders:'الطلبات', purchases:'المشتريات', menu:'القائمة', onlineMenu:'المتجر الإلكتروني', links:'روابطك', services:'الخدمات', rooms:'الغرف', inventory:'المخزون',
   hr:'الموظفون', customers:'العملاء', loyalty:'نادي الولاء', accounting:'المحاسبة', delivery:'تطبيقات التوصيل',
   ai:'مستشار ركين الذكي', reports:'التقارير', settings:'الإعدادات'
 };
@@ -8975,7 +8975,7 @@ function enterDashboard(){
 // cashier-name management from Settings -> POS. Deliberately dropped from
 // this list (not just hidden) so the old nav button — still present in the
 // markup, unreachable now — never shows for anyone, owner included.
-const ALL_DASHBOARD_SCREENS = ['home','pos','orders','purchases','menu','onlineMenu','services','rooms','inventory','hr','customers','loyalty','accounting','delivery','ai','reports','settings'];
+const ALL_DASHBOARD_SCREENS = ['home','pos','orders','purchases','menu','onlineMenu','links','services','rooms','inventory','hr','customers','loyalty','accounting','delivery','ai','reports','settings'];
 const USER_TYPE_LABELS = {owner:'مالك', manager:'مدير', employee:'موظف'};
 
 function applyPermissions(){
@@ -10675,6 +10675,7 @@ const PLAN_SCREEN_FEATURE = {
   loyalty: 'loyalty',
   delivery: 'delivery_apps',
   onlineMenu: 'online_store',
+  links: 'link_page',
 };
 
 // داخل الشاشات: أجزاء تتبع ميزةً بعينها (تبويب التكلفة في المنتج، نسخة
@@ -10716,7 +10717,7 @@ const PLAN_HIDE_SELECTORS = {
 // tools/accounting-checks/plan-gating.cjs يتأكد إنهم متطابقين).
 const FEATURE_MIN_PLAN = {
   kds: 'عماد', inventory: 'عماد', purchases_scan: 'عماد', costing_profit: 'عماد', reports: 'عماد',
-  loyalty: 'عماد', tables_reservations: 'عماد', team_permissions: 'عماد', delivery_apps: 'عماد', pager: 'عماد',
+  loyalty: 'عماد', tables_reservations: 'عماد', team_permissions: 'عماد', delivery_apps: 'عماد', pager: 'عماد', link_page: 'عماد',
   online_store: 'صرح', booking_page: 'صرح', multi_branch: 'صرح',
 };
 const FEATURE_UPSELL = {
@@ -10733,6 +10734,7 @@ const FEATURE_UPSELL = {
   booking_page: 'صفحة حجز المواعيد لعملائك',
   multi_branch: 'إدارة الفروع وتقارير لكل فرع',
   pager: 'بيجر ركين: جوال الزبون يرن لما يجهز طلبه',
+  link_page: 'روابطك: صفحة روابط مطعمك للبايو، بثلاثة تصاميم فاخرة',
 };
 const PLAN_UPGRADE_WA = '966557444227';
 const PLAN_LOCK_ICON = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23C4FF2B' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 8 0v4'/%3E%3C/svg%3E\")";
@@ -18043,6 +18045,7 @@ const PERMISSION_CATEGORIES = [
   {label:'المشتريات', screen:'purchases'},
   {label:'القائمة', screen:'menu'},
   {label:'المتجر الإلكتروني', screen:'onlineMenu'},
+  {label:'روابطك', screen:'links'},
   {label:'الخدمات', screen:'services'},
   {label:'الغرف', screen:'rooms'},
   {label:'المخزون', screen:'inventory'},

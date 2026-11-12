@@ -9,6 +9,7 @@ import "./rakeen-dashboard-responsive.css";
 import { dashboardMarkup } from "./dashboard-markup";
 import BillingNotice from "./BillingNotice";
 import WhatsNew from "./WhatsNew";
+import LinksStudio from "./LinksStudio";
 
 const SCRIPT_SRC = "/dashboard/rakeen-dashboard.js?b=" + (process.env.NEXT_PUBLIC_BUILD_ID || "dev");
 
@@ -664,6 +665,7 @@ export default function DashboardPage() {
       <button type="button" className="rk-fab hidden" id="rkFab" aria-label="إجراء سريع" />
       <BillingNotice />
       <WhatsNew />
+      <LinksStudio />
     </>
   );
 }

@@ -42,6 +42,13 @@ export function middleware(request: NextRequest) {
    * و"menu" لا "display": الكلمة يقرؤها من يمرّ بالجهاز، ويكتبها من
    * يُعدّه. وdisplay اسمُنا الداخلي للوضع، لا اسمُه عندهم.
    */
+  // hbiah.rakeenapp.com/links -- «روابطك»: صفحة روابط المطعم (للبايو).
+  if (request.nextUrl.pathname === "/links" || request.nextUrl.pathname === "/links/") {
+    const url = request.nextUrl.clone();
+    url.pathname = `/l/${slug}`;
+    return NextResponse.rewrite(url);
+  }
+
   if (request.nextUrl.pathname === "/menu" || request.nextUrl.pathname === "/menu/") {
     const url = request.nextUrl.clone();
     url.pathname = `/display/${slug}`;

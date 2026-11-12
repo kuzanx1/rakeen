@@ -4,7 +4,7 @@ import { FEATURE_CATALOG, FeatureKey } from "./contracts";
 // the contract feature lists.
 //
 // The DB has its own copy of the feature matrix: rk_plan_features() in
-// supabase/migrations/20261015120000_business_plans.sql, which the businesses
+// supabase/migrations/20261112120000_link_page.sql, which the businesses
 // trigger uses to compute allowed_features and enforce the ceiling. Change
 // both together; tools/accounting-checks/plans-matrix-sync.cjs fails when they
 // drift.
@@ -34,6 +34,7 @@ const EMAD_ITEMS: PlanItem[] = [
   // The cashiers lock it with loyalty (its barcode is the point of it).
   { text: "شاشة العميل: يشوف طلبه وباركود الولاء", feature: "loyalty" },
   { text: "بيجر ركين: الزبون يمسح الباركود، وجواله يرن لما يجهز طلبه — بدل أجهزة النداء", feature: "pager" },
+  { text: "روابطك: صفحة روابط فخمة لمطعمك (واتساب، المنيو، الموقع، حساباتك) للبايو، بثلاثة تصاميم وإحصائيات الضغطات", feature: "link_page" },
   { text: "المخزون والوصفات وتنبيهات النقص والاستهلاك التلقائي", feature: "inventory" },
   { text: "المشتريات، وقراءة فواتير الموردين بالتصوير", feature: "purchases_scan" },
   { text: "تكلفة كل منتج، وصافي الربح، والمصاريف والمحاسبة", feature: "costing_profit" },
@@ -65,7 +66,7 @@ export type Plan = {
 };
 
 const ASAS: FeatureKey[] = ["pos", "zatca_invoice", "offline", "shift_close"];
-const EMAD: FeatureKey[] = [...ASAS, "kds", "inventory", "purchases_scan", "costing_profit", "reports", "loyalty", "tables_reservations", "team_permissions", "delivery_apps", "pager"];
+const EMAD: FeatureKey[] = [...ASAS, "kds", "inventory", "purchases_scan", "costing_profit", "reports", "loyalty", "tables_reservations", "team_permissions", "delivery_apps", "pager", "link_page"];
 const SARH: FeatureKey[] = [...EMAD, "online_store", "booking_page", "multi_branch"];
 
 export const PLANS: Plan[] = [
