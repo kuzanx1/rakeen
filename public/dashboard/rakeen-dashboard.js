@@ -5055,56 +5055,10 @@ async function loadStaffStats(){
   }).filter(s => s.active || s.orders > 0);
 }
 
-function renderEmployeeCards(){
-  const el = document.getElementById('hrEmpCards');
-  if(!el) return;
-  if(STAFF_STATS.length === 0){
-    el.innerHTML = '<p class="stock-qty-helper">ما فيه موظف مفعّل على الكاشير بعد — فعّل "الكاشير" لأي موظف من تبويب "قائمة الموظفين".</p>';
-    return;
-  }
-  const COLORS = ['var(--acc-ops)','var(--acc-res)','var(--acc-fin)','var(--acc-team)','var(--acc-ai)'];
-  const COLORS_BG = ['var(--acc-ops-bg)','var(--acc-res-bg)','var(--acc-fin-bg)','var(--acc-team-bg)','var(--acc-ai-bg)'];
-  const topSalesId = STAFF_STATS.reduce((top,e)=> (e.sales > (top ? top.sales : 0) && e.sales > 0) ? e : top, null)?.id;
-  const crownIcon = '<path d="M12 2 15 8.5 21 9.5 16.5 14 17.7 20.5 12 17.3 6.3 20.5 7.5 14 3 9.5 9 8.5z"/>';
-
-  el.innerHTML = STAFF_STATS.map((e,i)=>{
-    const color = COLORS[i%5], bg = COLORS_BG[i%5];
-    const isTop = e.id === topSalesId;
-    return `<div class="emp-card${isTop?' emp-card-top':''}">
-      <div class="emp-card-head">
-        <div class="emp-avatar" style="background:${bg}; color:${color};">${e.name.charAt(0)}${isTop?`<span class="emp-crown"><svg viewBox="0 0 24 24" fill="currentColor">${crownIcon}</svg></span>`:''}</div>
-        <div><div class="emp-name">${e.name}</div><div class="emp-role">${e.branchName}${e.active?'':' — معطّل'}</div></div>
-      </div>
-      <div class="emp-stats">
-        <div><div class="emp-stat-label">مبيعات اليوم</div><div class="emp-stat-value mono">${e.sales.toFixed(2)}</div></div>
-        <div><div class="emp-stat-label">عدد الطلبات اليوم</div><div class="emp-stat-value mono">${e.orders}</div></div>
-        <div><div class="emp-stat-label">آخر طلب</div><div class="emp-stat-value mono">${e.lastOrderAt ? new Date(e.lastOrderAt).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}) : '—'}</div></div>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function renderAchievements(){
-  const panel = document.getElementById('hrAchievementsPanel');
-  const row = document.getElementById('hrAchievementsRow');
-  if(!panel || !row) return;
-  const active = STAFF_STATS.filter(s=>s.orders>0);
-  if(active.length === 0){ panel.style.display = 'none'; return; }
-
-  const starIcon = '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.123 2.123 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>';
-  const boltIcon = '<path d="M13 3l0 7l6 0l-8 11l0 -7l-6 0l8 -11"/>';
-
-  const topSales = [...active].sort((a,b)=>b.sales-a.sales)[0];
-  const topOrders = [...active].sort((a,b)=>b.orders-a.orders)[0];
-  const chips = [{ icon: starIcon, text: topSales.name + ' — أعلى مبيعات اليوم (' + topSales.sales.toFixed(2) + ' ر.س)' }];
-  if(topOrders.id !== topSales.id){
-    chips.push({ icon: boltIcon, text: topOrders.name + ' — أكثر طلبات اليوم (' + topOrders.orders + ')' });
-  }
-  panel.style.display = '';
-  row.innerHTML = chips.map(c=>
-    `<div class="achievement-chip"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">${c.icon}</svg><span>${c.text}</span></div>`
-  ).join('');
-}
+// «مين باع اليوم» صار جزء من صفحة الموظفين (hrBoardHtml). تبقى هذي لأن
+// التحميل الأول والصلاحيات ينادونها بعد loadStaffStats.
+function renderEmployeeCards(){ if(typeof HR_LOADED !== 'undefined' && HR_LOADED) hrRenderAll(); }
+function renderAchievements(){}
 
 /* ============ Customers screen — real, from the customers table (found-or-
    created server-side at POS checkout when a phone number is captured). ============ */
@@ -19066,7 +19020,7 @@ function wirePermissionsSettings(){
    modal (#hrModal, built once by ensureHrModal — no static markup for it,
    same idea as showToast's on-demand element) instead of three separate
    static modals in dashboard-markup.ts, dispatching by modal.dataset.mode. */
-let activeHrTab = 'overview';
+let activeHrTab = 'employees';
 let EMPLOYEES = [];
 let DEPARTMENTS = [];
 let COMPLIANCE_ITEMS = [];
@@ -19127,51 +19081,399 @@ function requiredEmployeeDocs(){
   return docs;
 }
 
-document.getElementById('hrTabs').addEventListener('click', (e)=>{
-  const b = e.target.closest('button'); if(!b) return;
-  document.querySelectorAll('#hrTabs button').forEach(x=>x.classList.remove('active'));
-  b.classList.add('active');
-  activeHrTab = b.dataset.tab;
-  resetContentScroll();
-  renderHrPanel();
-});
+/* ═══════════ «الموظفين» (rk2) ═══════════
+   كل البيانات تنجاب مرة وحدة (hrReload) وتتوزّع على: البطاقة اللي فوق
+   («فريقك»)، و«وش أسوي الحين؟»، وملخّص كل بطاقة، واللوحة المفتوحة. أي
+   حفظ يرجّع hrReload. التبويبات نفس المفاتيح القديمة (employees/overview/
+   compliance/departments) عشان قفل الباقة و«مدير الموظفين» يلقونها. */
+let HR_LOADED = false, hrPrevLeft = null, hrLoading = null;
+const HR_IC = {
+  plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>',
+  doc: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  card: '<rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M13 10h5M13 14h3"/>',
+  heart: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  crown: '<path d="M2 18h20M3 7l5 5 4-7 4 7 5-5-2 11H5z"/>',
+  pos: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+  belloff: '<path d="M13.73 21a2 2 0 0 1-3.46 0M18.63 13A17.9 17.9 0 0 1 18 8M6.26 6.26A5.9 5.9 0 0 0 6 8c0 7-3 9-3 9h14M18 8a6 6 0 0 0-9.33-5M1 1l22 22"/>',
+};
+function hrIc(n){ return HR_IC[n] ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + HR_IC[n] + '</svg>' : hmIc(n); }
+const HR_DOC_IC = { iqama: 'card', health_cert: 'heart', insurance: 'shield', contract: 'doc', other: 'doc' };
+const HR_DOC_OF = { iqama: 'إقامة', health_cert: 'الشهادة الصحية', insurance: 'التأمين الطبي', contract: 'عقد', other: 'وثيقة' };
+function hrDocOf(dt, who){ return dt === 'health_cert' ? 'شهادة ' + who + ' الصحية' : dt === 'insurance' ? 'تأمين ' + who + ' الطبي' : dt === 'iqama' ? 'إقامة ' + who : dt === 'contract' ? 'عقد ' + who : 'وثيقة ' + who; }
+function hrFirst(name){ return String(name || '').trim().split(/\s+/)[0] || ''; }
+function hrNames(list){ return list.slice(0, 2).map(e => hrFirst(e.full_name)).join(' و') + (list.length > 2 ? ' و' + (list.length - 2) + ' غيرهم' : ''); }
+function hrDocsOn(){ return typeof planHas !== 'function' || planHas('team_permissions'); }
+function hrEmpName(id){ return (EMPLOYEES.find(e => e.id === id) || {}).full_name || ''; }
+function hrBranchName(id){ return (HR_BRANCHES.find(b => b.id === id) || {}).name || ''; }
+function hrDeptName(id){ return (DEPARTMENTS.find(d => d.id === id) || {}).name || ''; }
+// حالة الوثيقة من تاريخها نفسه، مو من آخر مرة مرّ عليها الفحص اليومي.
+function hrDocState(item){
+  const d = daysUntil(item.expiry_date);
+  if(d === null) return 'valid';
+  if(d < 0) return 'expired';
+  return d <= Math.max(30, Number(item.reminder_days_before) || 0) ? 'soon' : 'valid';
+}
+function hrDocWhen(item){
+  const d = daysUntil(item.expiry_date);
+  if(d === null) return '';
+  if(d < 0) return 'انتهت من ' + hmPlural(-d, 'يوم', 'يومين', 'أيام', 'يوم');
+  if(d === 0) return 'تنتهي اليوم';
+  if(d === 1) return 'تنتهي بكرة';
+  return 'تنتهي بعد ' + hmPlural(d, 'يوم', 'يومين', 'أيام', 'يوم');
+}
+
+function hrStats(){
+  const active = EMPLOYEES.filter(e => e.status === 'active');
+  const leave = EMPLOYEES.filter(e => e.status === 'on_leave');
+  const activeIds = new Set(active.map(e => e.id));
+  const cashiers = Object.keys(STAFF_MEMBER_BY_EMPLOYEE_ID).length;
+  const sold = (STAFF_STATS || []).filter(s => s.orders > 0);
+  const live = COMPLIANCE_ITEMS.filter(c => EMPLOYEES.some(e => e.id === c.employee_id && e.status !== 'terminated'));
+  const expired = live.filter(c => hrDocState(c) === 'expired');
+  const soon = live.filter(c => hrDocState(c) === 'soon');
+  const missing = [];
+  requiredEmployeeDocs().forEach(dt => {
+    const emps = active.filter(e => !live.some(c => c.employee_id === e.id && c.document_type === dt && hrDocState(c) !== 'expired'));
+    // اللي وثيقته منتهية يطلع في «انتهت»، مو مرتين
+    const noDoc = emps.filter(e => !live.some(c => c.employee_id === e.id && c.document_type === dt));
+    if(noDoc.length) missing.push({ dt, emps: noDoc });
+  });
+  const missingCount = missing.reduce((s, m) => s + m.emps.length, 0);
+  const payroll = active.reduce((s, e) => s + (Number(e.base_salary) || 0), 0);
+  return { active, leave, activeIds, cashiers, sold, expired, soon, missing, missingCount, payroll,
+    docIssues: expired.length + soon.length + missingCount };
+}
+
+async function hrReload(){
+  if(hrLoading) return hrLoading;
+  const bid = CURRENT_PROFILE.business_id, sb = window.supabaseClient;
+  hrLoading = (async () => {
+    const [{ data: employees }, { data: departments }, { data: branches }, { data: staffMembers }, { data: items }] = await Promise.all([
+      sb.from('employees')
+        .select('id, full_name, job_title, department_id, branch_id, employment_type, status, hire_date, base_salary, national_id_or_iqama, iqama_expiry, nationality, phone, emergency_contact_name, emergency_contact_phone')
+        .eq('business_id', bid).order('created_at'),
+      sb.from('departments').select('id, name, parent_department_id').eq('business_id', bid).order('name'),
+      sb.from('branches').select('id, name').eq('business_id', bid).order('id'),
+      sb.from('staff_members').select('id, employee_id, branch_id, name, is_reservation_host').eq('business_id', bid).eq('active', true),
+      sb.from('compliance_items')
+        .select('id, employee_id, document_type, document_number, issued_date, expiry_date, status, reminder_days_before, reminder_enabled')
+        .eq('business_id', bid).order('expiry_date'),
+      loadStaffStats().catch(() => {}),
+    ]);
+    EMPLOYEES = employees || [];
+    DEPARTMENTS = departments || [];
+    HR_BRANCHES = branches || [];
+    COMPLIANCE_ITEMS = items || [];
+    STAFF_MEMBER_BY_EMPLOYEE_ID = {};
+    UNLINKED_STAFF_MEMBERS = [];
+    (staffMembers || []).forEach(sm => {
+      if(sm.employee_id) STAFF_MEMBER_BY_EMPLOYEE_ID[sm.employee_id] = sm;
+      else UNLINKED_STAFF_MEMBERS.push(sm);
+    });
+    HR_LOADED = true;
+  })();
+  try { await hrLoading; } finally { hrLoading = null; }
+  hrRenderAll();
+}
+function hrRenderAll(){ hrRenderHero(); hrRenderTodo(); hrSetSums(); renderHrPanel(); }
+
+// كل اللي كان يرسم تبويب لحاله صار يرجّع البيانات ويرسم الصفحة كلها.
+function renderHrEmployeesTab(){ return hrReload(); }
+function renderHrOverviewTab(){ return hrReload(); }
+function renderHrComplianceTab(){ return hrReload(); }
+function renderHrDepartmentsTab(){ return hrReload(); }
+
+function hrRenderHero(){
+  const el = document.getElementById('hrHero');
+  if(!el || !HR_LOADED) return;
+  const st = hrStats();
+  const docs = hrDocsOn();
+  const steps = [
+    { done: EMPLOYEES.length > 0, label: 'أضف أول موظف', desc: 'الاسم والمسمى والفرع بس، والباقي بعدين', go: '@add' },
+    { done: st.cashiers > 0, label: 'فعّل الكاشير لموظف', desc: 'يدخل باسمه في جهاز الكاشير، وتعرف مين باع وش', go: '@cashier' },
+    docs
+      ? { done: COMPLIANCE_ITEMS.length > 0, label: 'سجّل أول وثيقة', desc: 'الشهادة الصحية والتأمين، ونذكّرك قبل ما تنتهي', go: '@docs' }
+      : { done: st.sold.length > 0, label: 'أول بيع باسم موظف', desc: 'الكاشير يختار اسمه أول ما يفتح الوردية', go: '@board' },
+  ];
+  const done = steps.filter(s => s.done).length, left = steps.length - done;
+  const celebrate = hrPrevLeft !== null && hrPrevLeft > 0 && left === 0;
+  hrPrevLeft = left;
+  const stat = (k, v, hint, cls, go) => '<' + (go ? 'button type="button" data-hr-go="' + go + '"' : 'div') + ' class="iv-stat' + (cls ? ' ' + cls : '') + '"><span>' + k + '</span><b>' + v + '</b>' + (hint ? '<small>' + hint + '</small>' : '') + '</' + (go ? 'button' : 'div') + '>';
+  const num = n => '<span class="hm-num">' + n + '</span>';
+  const stats = EMPLOYEES.length ? '<div class="hr2-stats">'
+    + stat('باعوا اليوم', num(st.sold.length), st.cashiers ? 'من ' + hmPlural(st.cashiers, 'كاشير واحد', 'كاشيرين', 'كاشير', 'كاشير') + ' مفعّلين' : 'ما فعّلت الكاشير لأحد', '', '@board')
+    + stat('بالإجازة', num(st.leave.length), st.leave.length ? hrNames(st.leave) : 'كل فريقك على رأس العمل')
+    + (docs ? stat('وثائق تبي شغل', num(st.docIssues), st.docIssues ? [st.expired.length ? st.expired.length + ' انتهت' : '', st.soon.length ? st.soon.length + ' تنتهي قريب' : '', st.missingCount ? st.missingCount + ' ناقصة' : ''].filter(Boolean).join(' · ') : 'كلها سارية', st.docIssues ? 'warn' : 'good', '@docs') : '')
+    + (canViewSalary() && st.payroll ? stat('رواتب الشهر', hmMoney(st.payroll), 'الراتب الأساسي لـ' + hmPlural(st.active.filter(e => e.base_salary).length, 'موظف واحد', 'موظفين', 'موظفين', 'موظف')) : '')
+    + '</div>' : '';
+  const addBtn = '<button type="button" class="rk2-btn lime sm hr2-add" data-hr-go="@add">' + hrIc('plus') + 'أضف موظف</button>';
+  if(left === 0){
+    el.innerHTML = '<div class="rk2-card hr2-hero' + (celebrate ? ' mn-celebrate' : '') + '">'
+      + '<div class="hr2-hero-top"><span class="iv-hero-ic">' + hmIc('team') + '</span>'
+      + '<div class="hr2-hero-txt"><div class="hm-kicker">فريقك</div><div class="hr2-big"><b class="hm-num">' + st.active.length + '</b> ' + (st.active.length === 1 ? 'موظف على رأس العمل' : 'موظفين على رأس العمل') + '</div></div>' + addBtn + '</div>'
+      + stats + '</div>';
+    if(celebrate) showToast('فريقك جاهز 🎉');
+    return;
+  }
+  const nextIdx = steps.findIndex(s => !s.done), next = steps[nextIdx];
+  const go = s => ' data-hr-go="' + s.go + '"';
+  el.innerHTML = '<div class="rk2-card hm-quest hr2-hero">'
+    + '<div class="hm-quest-top"><div class="hm-ring" style="--p:' + Math.round(done / steps.length * 100) + '"><b>' + done + '<small>/' + steps.length + '</small></b></div>'
+    + '<div><div class="hm-kicker">' + hmIc('team') + 'فريقك</div>'
+    + '<h3>' + (EMPLOYEES.length ? hmPlural(EMPLOYEES.length, 'موظف واحد', 'موظفين', 'موظفين', 'موظف') + ' عندك، باقي ' + hmPlural(left, 'خطوة', 'خطوتين', 'خطوات', 'خطوة') : 'ثلاث خطوات ويصير فريقك كله هنا') + '</h3>'
+    + '<p>' + (EMPLOYEES.length ? 'كمّلها وتعرف مين باع، ومين وثيقته قربت تنتهي' : 'سجّل اللي يشتغلون عندك، والكاشير منهم يدخل باسمه في الجهاز') + '</p></div></div>'
+    + '<button type="button" class="hm-quest-next"' + go(next) + '>'
+    + '<span class="hm-quest-n">' + (nextIdx + 1) + '</span><span class="hm-quest-txt"><b>' + next.label + '</b><small>' + next.desc + '</small></span><span class="rk2-btn lime sm">ابدأ' + hmIc('arrow') + '</span></button>'
+    + '<div class="hm-quest-list">' + steps.map((s, i) => i === nextIdx ? '' :
+        '<button type="button" class="hm-qstep' + (s.done ? ' done' : '') + '"' + (s.done ? ' disabled' : go(s)) + '>'
+        + '<span class="hm-qcheck">' + (s.done ? hmIc('check') : (i + 1)) + '</span>' + s.label + '</button>').join('') + '</div>'
+    + stats + '</div>';
+}
+
+/* «وش أسوي الحين؟» -- وثائق منتهية وقربت، وناقصة، وأسماء كاشير بلا ملف. */
+function hrRenderTodo(){
+  const el = document.getElementById('hrTodo');
+  if(!el || !HR_LOADED) return;
+  const st = hrStats();
+  const rows = [];
+  if(hrDocsOn()){
+    const docRow = (c, critical) => rows.push({ cls: critical ? 'critical' : '', ic: HR_DOC_IC[c.document_type] || 'doc',
+      t: hrDocOf(c.document_type, escapeHtml(hrFirst(hrEmpName(c.employee_id)))) + ' ' + hrDocWhen(c),
+      h: critical ? 'جدّدها وحدّث التاريخ هنا، عشان ما تنمسك عليك مخالفة' : 'جدّدها قبل ما تنتهي، ونذكّرك مرة ثانية قبلها',
+      acts: '<button type="button" class="rk2-btn ' + (critical ? 'lime' : 'mn-ghost') + ' sm" data-hr-doc="' + c.id + '">جدّدها</button>' });
+    st.expired.slice(0, 3).forEach(c => docRow(c, true));
+    st.soon.slice(0, Math.max(0, 3 - Math.min(3, st.expired.length))).forEach(c => docRow(c, false));
+    const moreDocs = st.expired.length + st.soon.length - rows.length;
+    if(moreDocs > 0) rows.push({ ic: 'doc', t: 'و' + hmPlural(moreDocs, 'وثيقة ثانية', 'وثيقتين ثانيات', 'وثائق ثانية', 'وثيقة ثانية'), h: 'كلها في «وثائقهم» مرتّبة باللي ينتهي أول',
+      acts: '<button type="button" class="rk2-btn mn-ghost sm" data-hr-go="@docs">شوفها</button>' });
+    st.missing.forEach(m => rows.push({ ic: HR_DOC_IC[m.dt] || 'doc', t: escapeHtml(hrNames(m.emps)) + ' بدون ' + (HR_DOC_OF[m.dt] || ''),
+      h: m.dt === 'health_cert' ? 'الشهادة الصحية لازمة لكل من يتعامل مع الأكل' : 'التأمين الطبي لازم لكل موظف في القطاع الخاص',
+      acts: '<button type="button" class="rk2-btn mn-ghost sm" data-hr-newdoc="' + m.emps[0].id + ':' + m.dt + '">سجّلها</button>' }));
+  }
+  if(UNLINKED_STAFF_MEMBERS.length){
+    const sm = UNLINKED_STAFF_MEMBERS[0];
+    rows.push({ ic: 'pos', t: UNLINKED_STAFF_MEMBERS.length === 1 ? '«' + escapeHtml(sm.name) + '» على الكاشير بدون ملف' : hmPlural(UNLINKED_STAFF_MEMBERS.length, 'اسم', 'اسمين', 'أسماء', 'اسم') + ' على الكاشير بدون ملف',
+      h: 'اسم كاشير قديم مو مربوط بموظف. سوّ له ملف وتنحسب مبيعاته عليه',
+      acts: '<button type="button" class="rk2-btn mn-ghost sm" data-hr-link="' + sm.id + '">سوّ له ملف</button>' });
+  }
+  if(!rows.length){ el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="rk2-card iv-todo hr2-todo">' + hmHead('flag', 'team', 'وش أسوي الحين؟', 'من بيانات فريقك أنفسهم')
+    + rows.slice(0, 6).map(r => '<div class="iv-todo-row' + (r.cls ? ' ' + r.cls : '') + '"><span class="hr2-todo-ic">' + hrIc(r.ic) + '</span><div class="iv-todo-name"><b>' + r.t + '</b><span class="iv-todo-hint">' + r.h + '</span></div><div class="iv-todo-acts">' + r.acts + '</div></div>').join('')
+    + '</div>';
+}
+
+function hrSetSums(){
+  if(!HR_LOADED) return;
+  const st = hrStats();
+  const set = (k, v) => { const s = document.querySelector('#hrTabs [data-hr-sum="' + k + '"]'); if(s) s.textContent = v; };
+  set('employees', EMPLOYEES.length ? hmPlural(EMPLOYEES.length, 'موظف واحد', 'موظفين', 'موظفين', 'موظف') + (st.cashiers ? ' · ' + st.cashiers + ' على الكاشير' : '') : 'أضف أول موظف');
+  const top = [...st.sold].sort((a, b) => b.sales - a.sales)[0];
+  set('overview', top ? hrFirst(top.name) + ' في الصدارة' : (st.cashiers || (STAFF_STATS || []).length ? 'ما أحد باع للحين' : 'فعّل الكاشير لموظف'));
+  set('compliance', !EMPLOYEES.length ? 'إقامة وشهادة صحية وتأمين' : st.docIssues ? hmPlural(st.docIssues, 'وثيقة تبي شغل', 'وثيقتين تبي شغل', 'وثائق تبي شغل', 'وثيقة تبي شغل') : 'كلها سارية ✓');
+  set('departments', DEPARTMENTS.length ? hmPlural(DEPARTMENTS.length, 'قسم واحد', 'قسمين', 'أقسام', 'قسم') : 'المطبخ، الصالة…');
+}
 
 function renderHrPanel(){
-  if(activeHrTab === 'employees') renderHrEmployeesTab();
-  else if(activeHrTab === 'compliance') renderHrComplianceTab();
-  else if(activeHrTab === 'departments') renderHrDepartmentsTab();
-  else renderHrOverviewTab();
+  const panel = document.getElementById('hrPanelBody');
+  if(!panel) return;
+  if(!HR_LOADED){
+    panel.innerHTML = '<div class="rk2-card"><div class="rp-skel"></div><div class="rp-skel"></div><div class="rp-skel"></div></div>';
+    if(CURRENT_PROFILE) hrReload();
+    return;
+  }
+  document.querySelectorAll('#hrTabs [data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === activeHrTab));
+  if(activeHrTab === 'overview') panel.innerHTML = hrBoardHtml();
+  else if(activeHrTab === 'compliance') panel.innerHTML = hrDocsHtml();
+  else if(activeHrTab === 'departments') panel.innerHTML = hrDeptsHtml();
+  else panel.innerHTML = hrTeamHtml();
+}
+function hrOpenTab(tab){
+  activeHrTab = tab;
+  renderHrPanel();
+  const t = document.getElementById('hrTabs');
+  if(t && window.innerWidth < 900) t.nextElementSibling?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-/* -------- Overview: today's real per-cashier sales, same STAFF_STATS the
-   old standalone "الموظفين" leaderboard screen used (loadStaffStats/
-   renderEmployeeCards/renderAchievements, defined earlier near the Home
-   screen's data loaders) — just re-hosted here as the HR screen's first
-   tab instead of its own nav item, and re-targeted at hrEmpCards/
-   hrAchievementsPanel/hrAchievementsRow instead of the old empCards/
-   achievementsPanel/achievementsRow ids. */
-async function renderHrOverviewTab(){
-  const panel = document.getElementById('hrPanelBody');
-  panel.innerHTML = `
-    <div class="rk-section">
-      <div class="rk-section-head">
-        <div class="rk-section-icon">${rkIcon('trendingUp')}</div>
-        <div>
-          <div class="rk-section-title">أداء اليوم</div>
-          <div class="rk-section-sub">مبيعات وطلبات كل موظف مفعّل على الكاشير، لحظة بلحظة.</div>
-        </div>
-      </div>
-      <div class="emp-cards" id="hrEmpCards"></div>
-      <div class="panel" id="hrAchievementsPanel" style="display:none; margin-top:16px;">
-        <div class="panel-title">أبطال اليوم</div>
-        <div class="achievements-row" id="hrAchievementsRow"></div>
-      </div>
-    </div>
-  `;
-  await loadStaffStats();
-  renderEmployeeCards();
-  renderAchievements();
+/* ── فريقك ── */
+const HR_AV = ['ops', 'res', 'fin', 'team', 'ai'];
+function hrRowHtml(e, st){
+  const cashier = STAFF_MEMBER_BY_EMPLOYEE_ID[e.id];
+  const meta = [e.job_title, hrDeptName(e.department_id), HR_BRANCHES.length > 1 ? hrBranchName(e.branch_id) : ''].filter(Boolean).join(' · ') || 'اضغط وأضف مسمّاه';
+  let flags = '';
+  if(hrDocsOn() && e.status === 'active'){
+    const mine = COMPLIANCE_ITEMS.filter(c => c.employee_id === e.id);
+    mine.forEach(c => { const s = hrDocState(c); if(s !== 'valid') flags += '<span class="hr-chip ' + (s === 'expired' ? 'danger' : 'warn') + '">' + (HR_DOC_OF[c.document_type] || '') + ': ' + hrDocWhen(c) + '</span>'; });
+    st.missing.forEach(m => { if(m.emps.some(x => x.id === e.id)) flags += '<span class="hr-chip danger">بدون ' + HR_DOC_OF[m.dt] + '</span>'; });
+  }
+  return '<div class="hr2-row' + (e.status !== 'active' ? ' off' : '') + '" role="button" tabindex="0" data-hr-emp="' + e.id + '">'
+    + '<span class="hr2-av c-' + HR_AV[e.id % 5] + '">' + escapeHtml((e.full_name || '؟').trim().charAt(0)) + '</span>'
+    + '<div class="hr2-info"><div class="hr2-name"><b>' + escapeHtml(e.full_name) + '</b>'
+    + (e.status !== 'active' ? '<span class="hr-chip">' + (EMP_STATUS_LABELS[e.status] || e.status) + '</span>' : '')
+    + (cashier ? '<span class="hr-chip lime">على الكاشير</span>' : '') + '</div>'
+    + '<div class="hr2-meta">' + escapeHtml(meta) + '</div>'
+    + (flags ? '<div class="hr2-flags">' + flags + '</div>' : '') + '</div>'
+    + (e.phone ? '<a class="hr2-act" href="tel:' + escapeHtml(e.phone) + '" aria-label="اتصل على ' + escapeHtml(e.full_name) + '">' + hrIc('phone') + '</a>' : '')
+    + '<span class="hr2-go">' + hmIc('arrow') + '</span></div>';
 }
+function hrTeamHtml(){
+  const st = hrStats();
+  const head = hmHead('team', 'team', 'فريقك', 'اضغط أي موظف وعدّل بياناته', '<button type="button" class="rk2-btn lime sm" data-hr-go="@add">' + hrIc('plus') + 'أضف موظف</button>');
+  if(!EMPLOYEES.length){
+    return '<div class="rk2-card hr2-card">' + head + '<div class="hm-empty"><span class="hm-empty-ic">' + hmIc('team') + '</span><b>فريقك يطلع هنا</b>'
+      + '<span>أضف كل اللي يشتغلون عندك: الشيف والكاشير والمندوب. الكاشير منهم يدخل باسمه في جهاز الكاشير وتنحسب مبيعاته عليه</span>'
+      + '<button type="button" class="rk2-btn lime sm" data-hr-go="@add">أضف أول موظف</button></div></div>' + hrLegacyHtml();
+  }
+  const now = EMPLOYEES.filter(e => e.status !== 'terminated').sort((a, b) => (a.status === 'active' ? 0 : 1) - (b.status === 'active' ? 0 : 1));
+  const past = EMPLOYEES.filter(e => e.status === 'terminated');
+  return '<div class="rk2-card hr2-card">' + head
+    + '<div class="hr2-list">' + (now.length ? now.map(e => hrRowHtml(e, st)).join('') : '<div class="hm-empty"><b>ما فيه أحد على رأس العمل</b><span>كل اللي سجّلتهم انتهت خدمتهم</span><button type="button" class="rk2-btn lime sm" data-hr-go="@add">أضف موظف</button></div>') + '</div>'
+    + (past.length ? '<details class="hr2-past"><summary>انتهت خدمتهم (' + past.length + ')</summary><div class="hr2-list">' + past.map(e => hrRowHtml(e, st)).join('') + '</div></details>' : '')
+    + '</div>' + hrLegacyHtml();
+}
+function hrLegacyHtml(){
+  if(!UNLINKED_STAFF_MEMBERS.length) return '';
+  const host = typeof planHas !== 'function' || planHas('tables_reservations');
+  return '<div class="rk2-card hr2-card hr2-legacy">' + hmHead('info', 'ops', 'أسماء على الكاشير بدون ملف', 'انضافت قبل صفحة الموظفين. سوّ لكل واحد ملف، أو احذفه لو ما عاد يشتغل')
+    + '<div class="hr2-list">' + UNLINKED_STAFF_MEMBERS.map(s => '<div class="hr2-row static">'
+      + '<span class="hr2-av c-ops">' + escapeHtml((s.name || '؟').trim().charAt(0)) + '</span>'
+      + '<div class="hr2-info"><div class="hr2-name"><b>' + escapeHtml(s.name) + '</b></div><div class="hr2-meta">' + escapeHtml(hrBranchName(s.branch_id)) + '</div>'
+      + (host ? '<label class="hr2-host"><input type="checkbox" class="legacy-staff-host-toggle" data-id="' + s.id + '"' + (s.is_reservation_host ? ' checked' : '') + '> مخصص للحجز</label>' : '') + '</div>'
+      + '<button type="button" class="rk2-btn lime sm" data-hr-link="' + s.id + '">سوّ له ملف</button>'
+      + '<button type="button" class="rk2-btn mn-ghost sm" data-hr-legacy-del="' + s.id + '">احذفه</button></div>').join('') + '</div></div>';
+}
+
+/* ── مين باع اليوم ── */
+function hrBoardHtml(){
+  const list = [...(STAFF_STATS || [])].sort((a, b) => b.sales - a.sales || b.orders - a.orders);
+  const head = hmHead('trophy', 'fin', 'مين باع اليوم؟', 'مبيعات كل كاشير من بداية اليوم');
+  if(!list.length){
+    return '<div class="rk2-card hr2-card">' + head + '<div class="hm-empty"><span class="hm-empty-ic">' + hmIc('trophy') + '</span><b>الترتيب يطلع هنا</b>'
+      + '<span>فعّل الكاشير لموظف، وأول ما يبيع باسمه يدخل السباق</span>'
+      + '<button type="button" class="rk2-btn lime sm" data-hr-go="@cashier">فعّل الكاشير لموظف</button></div></div>';
+  }
+  const max = Math.max(1, ...list.map(s => s.sales));
+  const sold = list.filter(s => s.orders > 0), idle = list.filter(s => !s.orders);
+  const row = (s, i) => '<div class="hr2-rank' + (i === 0 ? ' top' : '') + '">'
+    + '<span class="hr2-pos">' + (i === 0 ? hrIc('crown') : (i + 1)) + '</span>'
+    + '<div class="hr2-info"><div class="hr2-name"><b>' + escapeHtml(s.name) + '</b>' + (s.active ? '' : '<span class="hr-chip">معطّل</span>') + '</div>'
+    + '<div class="hr2-bar"><i style="width:' + Math.max(4, Math.round(s.sales / max * 100)) + '%"></i></div>'
+    + '<div class="hr2-meta">' + hmPlural(s.orders, 'طلب واحد', 'طلبين', 'طلبات', 'طلب') + (s.lastOrderAt ? ' · آخر طلب ' + new Date(s.lastOrderAt).toLocaleTimeString('ar-SA-u-nu-latn', { hour: 'numeric', minute: '2-digit' }) : '') + (HR_BRANCHES.length > 1 ? ' · ' + escapeHtml(s.branchName) : '') + '</div></div>'
+    + '<span class="hr2-sales">' + hmMoney(s.sales) + '</span></div>';
+  return '<div class="rk2-card hr2-card">' + head
+    + (sold.length ? '<div class="hr2-list">' + sold.map(row).join('') + '</div>' : '<div class="hm-empty"><b>ما أحد باع للحين اليوم</b><span>أول طلب باسم كاشير يطلع هنا</span></div>')
+    + (idle.length ? '<div class="hr2-idle"><span>ما باعوا للحين:</span> ' + idle.map(s => '<b>' + escapeHtml(s.name) + '</b>').join('، ') + '</div>' : '')
+    + '</div>';
+}
+
+/* ── وثائقهم ── */
+function hrDocsHtml(){
+  const st = hrStats();
+  const head = hmHead('flag', 'res', 'وثائق فريقك', 'نذكّرك قبل ما تنتهي الإقامة أو الشهادة الصحية أو التأمين', EMPLOYEES.length ? '<button type="button" class="rk2-btn lime sm" data-hr-newdoc="">' + hrIc('plus') + 'أضف وثيقة</button>' : '');
+  if(!EMPLOYEES.length){
+    return '<div class="rk2-card hr2-card">' + head + '<div class="hm-empty"><span class="hm-empty-ic">' + hrIc('doc') + '</span><b>أضف موظف أول</b><span>بعدها سجّل إقامته وشهادته الصحية وتأمينه، ونذكّرك قبل ما تنتهي</span>'
+      + '<button type="button" class="rk2-btn lime sm" data-hr-go="@add">أضف موظف</button></div></div>';
+  }
+  const docRow = c => { const s = hrDocState(c);
+    return '<div class="hr2-row" role="button" tabindex="0" data-hr-doc="' + c.id + '"><span class="hr2-av doc ' + s + '">' + hrIc(HR_DOC_IC[c.document_type] || 'doc') + '</span>'
+      + '<div class="hr2-info"><div class="hr2-name"><b>' + escapeHtml(hrEmpName(c.employee_id) || '—') + '</b><span class="hr2-doc-type">' + (COMPLIANCE_TYPE_LABELS[c.document_type] || c.document_type) + '</span></div>'
+      + '<div class="hr2-meta">' + (c.document_number ? '<span class="mono">' + escapeHtml(c.document_number) + '</span> · ' : '') + c.expiry_date + (c.reminder_enabled === false ? ' · <span class="hr2-mute">' + hrIc('belloff') + 'بدون تذكير</span>' : '') + '</div></div>'
+      + '<span class="hr-chip ' + (s === 'expired' ? 'danger' : s === 'soon' ? 'warn' : '') + '">' + hrDocWhen(c) + '</span></div>'; };
+  const live = COMPLIANCE_ITEMS.filter(c => EMPLOYEES.some(e => e.id === c.employee_id));
+  const group = (title, list, cls) => list.length ? '<div class="hr2-group ' + (cls || '') + '"><div class="hr2-group-h">' + title + ' <span>' + list.length + '</span></div><div class="hr2-list">' + list.join('') + '</div></div>' : '';
+  const missRows = [];
+  st.missing.forEach(m => m.emps.forEach(e => missRows.push('<div class="hr2-row static"><span class="hr2-av doc expired">' + hrIc(HR_DOC_IC[m.dt]) + '</span><div class="hr2-info"><div class="hr2-name"><b>' + escapeHtml(e.full_name) + '</b><span class="hr2-doc-type">' + COMPLIANCE_TYPE_LABELS[m.dt] + '</span></div><div class="hr2-meta">ما سجّلتها للحين</div></div><button type="button" class="rk2-btn mn-ghost sm" data-hr-newdoc="' + e.id + ':' + m.dt + '">سجّلها</button></div>')));
+  const body = group('انتهت', live.filter(c => hrDocState(c) === 'expired').map(docRow), 'bad')
+    + group('ناقصة', missRows, 'bad')
+    + group('تنتهي قريب', live.filter(c => hrDocState(c) === 'soon').map(docRow), 'warn')
+    + group('سارية', live.filter(c => hrDocState(c) === 'valid').map(docRow), 'ok');
+  return '<div class="rk2-card hr2-card">' + head + (body || '<div class="hm-empty"><span class="hm-empty-ic">' + hrIc('doc') + '</span><b>ما سجّلت وثائق للحين</b><span>ابدأ بالإقامة أو الشهادة الصحية، ونذكّرك قبل ما تنتهي بشهر</span><button type="button" class="rk2-btn lime sm" data-hr-newdoc="">سجّل أول وثيقة</button></div>') + '</div>';
+}
+
+/* ── الأقسام ── */
+function hrDeptsHtml(){
+  const head = hmHead('tag', 'ops', 'الأقسام', 'قسّم فريقك: المطبخ، الصالة، التوصيل…', DEPARTMENTS.length ? '<button type="button" class="rk2-btn lime sm" data-hr-dept="">' + hrIc('plus') + 'أضف قسم</button>' : '');
+  if(!DEPARTMENTS.length){
+    return '<div class="rk2-card hr2-card">' + head + '<div class="hm-empty"><span class="hm-empty-ic">' + hmIc('tag') + '</span><b>اختر أقسامك بضغطة</b><span>اضغط على اللي عندك وينضاف على طول، وبعدها حط كل موظف في قسمه</span>'
+      + '<div class="hr2-quick">' + ['المطبخ', 'الصالة', 'الكاشير', 'التوصيل', 'الإدارة'].map(n => '<button type="button" class="rk2-btn mn-ghost sm" data-hr-quickdept="' + n + '">' + hrIc('plus') + n + '</button>').join('') + '</div>'
+      + '<button type="button" class="rk2-btn lime sm" data-hr-dept="">أو اكتب اسم قسم</button></div></div>';
+  }
+  return '<div class="rk2-card hr2-card">' + head + '<div class="hr2-list">' + DEPARTMENTS.map(d => {
+    const n = EMPLOYEES.filter(e => e.department_id === d.id && e.status !== 'terminated').length;
+    const parent = d.parent_department_id ? hrDeptName(d.parent_department_id) : '';
+    return '<div class="hr2-row" role="button" tabindex="0" data-hr-dept="' + d.id + '"><span class="hr2-av c-ops">' + hmIc('tag') + '</span>'
+      + '<div class="hr2-info"><div class="hr2-name"><b>' + escapeHtml(d.name) + '</b></div><div class="hr2-meta">' + (n ? hmPlural(n, 'موظف واحد', 'موظفين', 'موظفين', 'موظف') : 'ما فيه أحد للحين') + (parent ? ' · تابع لـ' + escapeHtml(parent) : '') + '</div></div>'
+      + '<span class="hr2-go">' + hmIc('arrow') + '</span></div>';
+  }).join('') + '</div></div>';
+}
+
+/* ── الضغطات (مرة وحدة على الصفحة) ── */
+async function hrGo(go){
+  if(go === '@add') return openEmployeeModal();
+  if(go === '@docs') return hrOpenTab('compliance');
+  if(go === '@board') return hrOpenTab('overview');
+  if(go === '@team') return hrOpenTab('employees');
+  if(go === '@cashier'){
+    const emp = EMPLOYEES.find(e => e.status === 'active' && !STAFF_MEMBER_BY_EMPLOYEE_ID[e.id]);
+    if(!emp) return openEmployeeModal(null, { cashier: true });
+    openEmployeeModal(emp, { cashier: true });
+  }
+}
+(function wireHr(){
+  const root = document.getElementById('screen-hr');
+  if(!root) return;
+  root.addEventListener('click', async (e) => {
+    const t = e.target;
+    const tile = t.closest('#hrTabs [data-tab]');
+    if(tile){
+      if(tile.hasAttribute('data-plan-feature') && typeof planHas === 'function' && !planHas(tile.getAttribute('data-plan-feature'))) return;
+      activeHrTab = tile.dataset.tab; resetContentScroll(); renderHrPanel(); return;
+    }
+    if(t.closest('a[href]')) return;
+    const g = t.closest('[data-hr-go]'); if(g){ hrGo(g.dataset.hrGo); return; }
+    const doc = t.closest('[data-hr-doc]'); if(doc){ const it = COMPLIANCE_ITEMS.find(c => c.id === Number(doc.dataset.hrDoc)); if(it) openComplianceModal(it); return; }
+    const nd = t.closest('[data-hr-newdoc]'); if(nd){ const [emp, dt] = (nd.dataset.hrNewdoc || '').split(':'); openComplianceModal(null, emp ? { employee_id: Number(emp), document_type: dt } : null); return; }
+    const dp = t.closest('[data-hr-dept]'); if(dp){ const d = DEPARTMENTS.find(x => x.id === Number(dp.dataset.hrDept)); openDepartmentModal(d || undefined); return; }
+    const qd = t.closest('[data-hr-quickdept]');
+    if(qd){
+      qd.disabled = true;
+      const { error } = await window.supabaseClient.from('departments').insert({ business_id: CURRENT_PROFILE.business_id, name: qd.dataset.hrQuickdept, parent_department_id: null });
+      if(error){ qd.disabled = false; showToast('تعذر الإضافة: ' + error.message); return; }
+      logDashboardAudit('أضاف قسم جديد: ' + qd.dataset.hrQuickdept);
+      qd.classList.add('done'); qd.innerHTML = hmIc('check') + qd.dataset.hrQuickdept;
+      showToast('انضاف قسم ' + qd.dataset.hrQuickdept);
+      clearTimeout(hrGo._t); hrGo._t = setTimeout(() => hrReload(), 900);
+      return;
+    }
+    const ln = t.closest('[data-hr-link]'); if(ln){ const sm = UNLINKED_STAFF_MEMBERS.find(s => s.id === Number(ln.dataset.hrLink)); if(sm) openEmployeeModal(null, { link: sm }); return; }
+    const del = t.closest('[data-hr-legacy-del]');
+    if(del){
+      const sm = UNLINKED_STAFF_MEMBERS.find(s => s.id === Number(del.dataset.hrLegacyDel));
+      const ok = await rkAsk({ title: 'نحذف «' + (sm ? sm.name : '') + '» من الكاشير؟', body: 'ما يقدر يدخل باسمه في جهاز الكاشير بعدها. طلباته القديمة تبقى في التقارير.', ok: 'احذفه', cancel: 'خلّه' });
+      if(!ok) return;
+      const { error } = await window.supabaseClient.from('staff_members').update({ active: false }).eq('id', del.dataset.hrLegacyDel);
+      if(error){ showToast('تعذر الحذف: ' + error.message); return; }
+      showToast('انحذف'); hrReload(); return;
+    }
+    const row = t.closest('[data-hr-emp]'); if(row){ const emp = EMPLOYEES.find(x => x.id === Number(row.dataset.hrEmp)); if(emp) openEmployeeModal(emp); }
+  });
+  root.addEventListener('keydown', (e) => {
+    if(e.key !== 'Enter' && e.key !== ' ') return;
+    const r = e.target.closest('.hr2-row[role="button"]'); if(!r) return;
+    e.preventDefault(); r.click();
+  });
+  root.addEventListener('change', async (e) => {
+    const cb = e.target.closest('.legacy-staff-host-toggle'); if(!cb) return;
+    cb.disabled = true;
+    try {
+      const { error } = await window.supabaseClient.from('staff_members').update({ is_reservation_host: cb.checked }).eq('id', cb.dataset.id);
+      if(error) throw error;
+      showToast('تم الحفظ');
+    } catch(err){ cb.checked = !cb.checked; showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع')); }
+    finally { cb.disabled = false; }
+  });
+})();
 
 /* One shared modal for all three HR forms — created once, reused every
    open, same reason showToast() lazily creates #dashToast: touching
@@ -19222,267 +19524,90 @@ function ensureHrModal(){
   return modal;
 }
 
-/* -------- Employees -------- */
-async function renderHrEmployeesTab(){
-  const panel = document.getElementById('hrPanelBody');
-  panel.innerHTML = '<div class="rk-section"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>';
-  const [{data: employees}, {data: departments}, {data: branches}, {data: staffMembers}, {data: compItems}] = await Promise.all([
-    window.supabaseClient.from('employees')
-      .select('id, full_name, job_title, department_id, branch_id, employment_type, status, hire_date, base_salary, national_id_or_iqama, iqama_expiry, nationality, phone, emergency_contact_name, emergency_contact_phone')
-      .eq('business_id', CURRENT_PROFILE.business_id).order('created_at'),
-    window.supabaseClient.from('departments').select('id, name, parent_department_id').eq('business_id', CURRENT_PROFILE.business_id).order('name'),
-    window.supabaseClient.from('branches').select('id, name').eq('business_id', CURRENT_PROFILE.business_id).order('id'),
-    window.supabaseClient.from('staff_members').select('id, employee_id, branch_id, name, is_reservation_host')
-      .eq('business_id', CURRENT_PROFILE.business_id).eq('active', true),
-    window.supabaseClient.from('compliance_items').select('employee_id, document_type, status').eq('business_id', CURRENT_PROFILE.business_id),
-  ]);
-  EMPLOYEES = employees || [];
-  // {employeeId: {health_cert:'valid'|'expiring_soon'|'expired', insurance:...}}
-  const empDocStatus = {};
-  (compItems||[]).forEach(c=>{ (empDocStatus[c.employee_id] ||= {})[c.document_type] = c.status; });
-  DEPARTMENTS = departments || [];
-  HR_BRANCHES = branches || [];
-  STAFF_MEMBER_BY_EMPLOYEE_ID = {};
-  UNLINKED_STAFF_MEMBERS = [];
-  (staffMembers||[]).forEach(sm=>{
-    if(sm.employee_id) STAFF_MEMBER_BY_EMPLOYEE_ID[sm.employee_id] = sm;
-    else UNLINKED_STAFF_MEMBERS.push(sm);
-  });
-  const deptName = id => (DEPARTMENTS.find(d=>d.id===id)||{}).name || '';
-  const branchName = id => (HR_BRANCHES.find(b=>b.id===id)||{}).name || '';
-  const canSalary = canViewSalary();
-
-  const activeEmps = EMPLOYEES.filter(e=>e.status === 'active');
-  const missingByDoc = requiredEmployeeDocs().map(dt=>({
-    dt,
-    count: activeEmps.filter(e=>{ const st = (empDocStatus[e.id]||{})[dt]; return !st || st === 'expired'; }).length,
-  })).filter(x=>x.count > 0);
-
-  // The summary banner is dismissible with "حسنًا"; once dismissed it stays
-  // hidden until a NEW gap appears (a freshly added employee, or an existing
-  // doc that just expired) — we remember exactly which employee/doc pairs the
-  // owner already acknowledged, per business, in localStorage. The per-card
-  // chips are always shown regardless — this only silences the top banner.
-  const compGapPairs = [];
-  requiredEmployeeDocs().forEach(dt=>{
-    activeEmps.forEach(e=>{ const st = (empDocStatus[e.id]||{})[dt]; if(!st || st === 'expired') compGapPairs.push(e.id + ':' + dt); });
-  });
-  const compDismissKey = 'rakeen_hr_comp_dismissed_' + CURRENT_PROFILE.business_id;
-  let compDismissed = new Set();
-  try { compDismissed = new Set(JSON.parse(localStorage.getItem(compDismissKey) || '[]')); } catch(e){}
-  const showComplianceBanner = missingByDoc.length > 0 && compGapPairs.some(p => !compDismissed.has(p));
-
-  panel.innerHTML = `
-    <div class="rk-section">
-      <div class="rk-section-head">
-        <div class="rk-section-icon">${rkIcon('users')}</div>
-        <div>
-          <div class="rk-section-title">قائمة الموظفين</div>
-          <div class="rk-section-sub">سجل موظفين حقيقي — راتب، تاريخ تعيين، إقامة/هوية، ومستنداتهم — ونفس المكان لتفعيل دخولهم لجهاز الكاشير.</div>
-        </div>
-        <button class="rk-btn rk-btn-primary rk-btn-sm rk-section-head-actions" id="addEmployeeBtn">${rkIcon('plus')}إضافة موظف</button>
-      </div>
-      ${showComplianceBanner ? `<div class="hr-compliance-banner">${rkIcon('shield')}<span>${missingByDoc.map(x=>`${COMPLIANCE_TYPE_LABELS[x.dt]} — <b>${x.count}</b> ${x.count === 1 ? 'موظف' : 'موظفين'} بدون وثيقة سارية`).join(' · ')}. أضف وثائقهم من تبويب «الامتثال والوثائق».</span><button type="button" class="hr-compliance-dismiss" id="hrComplianceDismiss">حسنًا</button></div>` : ''}
-      <div id="employeesList" class="hr-emp-grid">
-        ${EMPLOYEES.length === 0 ? '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">ما فيه موظفين مسجّلين بعد.</p>' : EMPLOYEES.map(emp => {
-          const cashier = STAFF_MEMBER_BY_EMPLOYEE_ID[emp.id];
-          return `
-          <div class="hr-emp-card">
-            <div class="hr-emp-head">
-              <div class="hr-emp-avatar">${(emp.full_name||'؟').trim().charAt(0)}</div>
-              <div class="hr-emp-id">
-                <span class="hr-emp-name">${emp.full_name}</span>
-                <span class="hr-emp-role">${[emp.job_title, deptName(emp.department_id)].filter(Boolean).join(' · ') || 'بدون مسمى'}</span>
-              </div>
-              <span class="u-status-badge ${emp.status==='active'?'active':'disabled'}">${EMP_STATUS_LABELS[emp.status]||emp.status}</span>
-            </div>
-
-            <div class="hr-emp-facts">
-              ${hrFact('الفرع', emp.branch_id ? branchName(emp.branch_id) : '')}
-              ${hrFact('نوع الدوام', EMP_TYPE_LABELS[emp.employment_type] || '')}
-              ${hrFact('تاريخ التعيين', emp.hire_date ? `<span class="mono">${emp.hire_date}</span>` : '')}
-              ${hrFact('الجوال', emp.phone ? `<a class="mono hr-link" href="tel:${emp.phone}">${emp.phone}</a>` : '')}
-              ${hrFact('الجنسية', emp.nationality || '')}
-              ${hrFact('الهوية / الإقامة', emp.national_id_or_iqama ? `<span class="mono">${emp.national_id_or_iqama}</span>` : '')}
-              ${emp.iqama_expiry ? hrFact('انتهاء الإقامة', expiryChip(emp.iqama_expiry)) : ''}
-              ${canSalary && emp.base_salary ? hrFact('الراتب', `<span class="mono">${Number(emp.base_salary).toLocaleString('en-US')}</span> ر.س`) : ''}
-              ${emp.emergency_contact_phone ? hrFact('للطوارئ', `${emp.emergency_contact_name||''} <span class="mono">${emp.emergency_contact_phone}</span>`) : ''}
-            </div>
-
-            ${(()=>{
-              if(emp.status !== 'active') return '';
-              const have = empDocStatus[emp.id] || {};
-              const chips = requiredEmployeeDocs().map(dt=>{
-                const st = have[dt];
-                const label = COMPLIANCE_TYPE_LABELS[dt];
-                if(!st) return `<span class="hr-chip danger">بدون ${label}</span>`;
-                if(st === 'expired') return `<span class="hr-chip danger">${label}: منتهية الصلاحية</span>`;
-                if(st === 'expiring_soon') return `<span class="hr-chip warn">قرب انتهاء ${label}</span>`;
-                return '';
-              }).filter(Boolean).join('');
-              return chips ? `<div class="hr-emp-flags">${chips}</div>` : '';
-            })()}
-
-            <div class="hr-emp-foot">
-              ${cashier ? `<span class="hr-chip lime">كاشير · ${branchName(cashier.branch_id)}</span>` : '<span></span>'}
-              <div class="hr-emp-actions">
-                <button class="rk-btn rk-btn-secondary rk-btn-sm hr-emp-edit-btn" data-id="${emp.id}">تعديل</button>
-                <button class="rk-btn rk-btn-secondary rk-btn-sm hr-emp-delete-btn" data-id="${emp.id}" data-name="${emp.full_name}">حذف</button>
-              </div>
-            </div>
-          </div>
-        `; }).join('')}
-      </div>
-    </div>
-    ${UNLINKED_STAFF_MEMBERS.length ? `
-    <div class="rk-section">
-      <div class="rk-section-head">
-        <div class="rk-section-icon">${rkIcon('users')}</div>
-        <div>
-          <div class="rk-section-title">أسماء كاشير قديمة</div>
-          <div class="rk-section-sub">أسماء أُضيفت قبل شاشة الموظفين هذي، مو مرتبطة بسجل موظف بعد. اربطها بموظف من نموذج "إضافة موظف" فوق، أو أدرها هنا مباشرة.</div>
-        </div>
-      </div>
-      <div id="legacyStaffList">
-        ${UNLINKED_STAFF_MEMBERS.map(s=>`
-          <div class="users-table-row">
-            <div class="users-table-identity">
-              <span class="u-name">${s.name}</span>
-              <span class="u-role">${branchName(s.branch_id)}</span>
-            </div>
-            <div class="users-table-actions">
-              <label style="display:flex; align-items:center; gap:5px; font-size:11px; font-weight:600; color:var(--muted); cursor:pointer;">
-                <input type="checkbox" class="legacy-staff-host-toggle" data-id="${s.id}" ${s.is_reservation_host?'checked':''}> مخصص للحجز
-              </label>
-              <button class="rk-btn rk-btn-secondary rk-btn-sm legacy-staff-remove-btn" data-id="${s.id}" style="color:var(--danger); border-color:var(--danger);">حذف</button>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    </div>` : ''}
-  `;
-
-  document.getElementById('addEmployeeBtn').addEventListener('click', ()=> openEmployeeModal());
-  const compDismissBtn = document.getElementById('hrComplianceDismiss');
-  if(compDismissBtn) compDismissBtn.addEventListener('click', ()=>{
-    try { localStorage.setItem(compDismissKey, JSON.stringify([...new Set([...compDismissed, ...compGapPairs])])); } catch(e){}
-    const banner = panel.querySelector('.hr-compliance-banner');
-    if(banner) banner.remove();
-  });
-  panel.querySelectorAll('.hr-emp-edit-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const emp = EMPLOYEES.find(e=>e.id===Number(btn.dataset.id));
-      if(emp) openEmployeeModal(emp);
-    });
-  });
-  panel.querySelectorAll('.hr-emp-delete-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=> deleteEmployee(Number(btn.dataset.id), btn.dataset.name));
-  });
-  panel.querySelectorAll('.legacy-staff-host-toggle').forEach(cb=>{
-    cb.addEventListener('change', async ()=>{
-      cb.disabled = true;
-      try {
-        const { error } = await window.supabaseClient.from('staff_members').update({ is_reservation_host: cb.checked }).eq('id', cb.dataset.id);
-        if(error) throw error;
-        showToast('تم الحفظ');
-      } catch(err){
-        cb.checked = !cb.checked;
-        showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-      } finally {
-        cb.disabled = false;
-      }
-    });
-  });
-  panel.querySelectorAll('.legacy-staff-remove-btn').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      if(!window.confirm('تأكيد حذف هذا الاسم من قائمة الكاشير؟')) return;
-      try {
-        const { error } = await window.supabaseClient.from('staff_members').update({active:false}).eq('id', btn.dataset.id);
-        if(error) throw error;
-        renderHrEmployeesTab();
-      } catch(err){
-        showToast('تعذر الحذف: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-      }
-    });
-  });
-}
-
-function openEmployeeModal(employee){
+// نموذج الموظف: الأساسيات فوق (الاسم، المسمى، الفرع، الكاشير)، والباقي
+// (الجوال، الإقامة، الراتب، الطوارئ…) مطوي تحت «بيانات أكثر». preset:
+// {cashier:true} يفتح والكاشير مفعّل، {link: staff_member} يربط اسم كاشير قديم.
+function openEmployeeModal(employee, preset){
   const isEdit = !!employee;
+  const pre = preset || {};
   const modal = ensureHrModal();
-  document.getElementById('hrModalTitle').textContent = isEdit ? 'تعديل بيانات موظف' : 'إضافة موظف';
-  document.getElementById('hrModalSaveBtn').textContent = isEdit ? 'حفظ التعديلات' : 'إضافة الموظف';
+  modal.classList.add('hr2-modal');
+  document.getElementById('hrModalTitle').textContent = isEdit ? employee.full_name : (pre.link ? 'سوّ ملف لـ' + pre.link.name : 'أضف موظف');
+  document.getElementById('hrModalSaveBtn').textContent = isEdit ? 'احفظ' : 'أضفه لفريقك';
   const delLink = document.getElementById('hrModalDeleteLink');
-  delLink.textContent = 'حذف الموظف';
+  delLink.textContent = 'احذف الموظف';
   delLink.style.display = isEdit ? '' : 'none';
+  const v = k => isEdit ? escapeHtml(employee[k] == null ? '' : String(employee[k])) : '';
+  const opts = (list, sel) => list.map(x => '<option value="' + escapeHtml(x) + '"' + (x === sel ? ' selected' : '') + '>').join('');
+  const titles = [...new Set(EMPLOYEES.map(e => e.job_title).filter(Boolean).concat(['كاشير', 'شيف', 'مساعد شيف', 'باريستا', 'مندوب توصيل', 'مضيف', 'مدير فرع']))];
+  const nats = [...new Set(EMPLOYEES.map(e => e.nationality).filter(Boolean).concat(['السعودية', 'مصر', 'الهند', 'باكستان', 'بنغلاديش', 'الفلبين', 'اليمن', 'السودان']))];
+  const oneBranch = HR_BRANCHES.length === 1 ? HR_BRANCHES[0].id : null;
+  const branchSel = isEdit ? employee.branch_id : (pre.link ? pre.link.branch_id : oneBranch);
+  const linkedCashier = isEdit ? STAFF_MEMBER_BY_EMPLOYEE_ID[employee.id] : null;
+  const cashierChecked = !!linkedCashier || !!pre.cashier || !!pre.link;
+  const unlinkedOptions = (!isEdit && UNLINKED_STAFF_MEMBERS.length) ? UNLINKED_STAFF_MEMBERS.map(sm =>
+    '<option value="' + sm.id + '"' + (pre.link && pre.link.id === sm.id ? ' selected' : '') + '>' + escapeHtml(sm.name) + ' · ' + escapeHtml(hrBranchName(sm.branch_id)) + '</option>').join('') : '';
+  const moreFilled = isEdit && ['phone', 'national_id_or_iqama', 'iqama_expiry', 'nationality', 'hire_date', 'base_salary', 'emergency_contact_phone'].some(k => employee[k]);
 
   document.getElementById('hrModalBody').innerHTML = `
-    <div class="rk-field" style="margin-bottom:14px;"><label>الاسم الكامل</label><input type="text" id="empName" value="${isEdit?employee.full_name:''}" placeholder="مثال: محمد العتيبي"></div>
-    <div class="menu-add-row" style="margin-bottom:14px;">
-      <div class="menu-add-field"><label>المسمى الوظيفي</label><input type="text" id="empJobTitle" value="${isEdit?(employee.job_title||''):''}" placeholder="مثال: شيف"></div>
-      <div class="menu-add-field" ${planAttr('team_permissions', 'hide')}><label>القسم</label>
-        <select id="empDepartment"><option value="">بدون قسم</option>${DEPARTMENTS.map(d=>`<option value="${d.id}" ${isEdit && employee.department_id===d.id?'selected':''}>${d.name}</option>`).join('')}</select>
+    <div class="hr2-form">
+      <div class="rk-field"><label>اسمه</label><input type="text" id="empName" value="${isEdit ? v('full_name') : (pre.link ? escapeHtml(pre.link.name) : '')}" placeholder="مثال: محمد العتيبي" autocomplete="off"></div>
+      <div class="hr2-pair">
+        <div class="menu-add-field"><label>وش يشتغل؟</label><input type="text" id="empJobTitle" list="hrTitleList" value="${v('job_title')}" placeholder="كاشير، شيف…" autocomplete="off"><datalist id="hrTitleList">${opts(titles)}</datalist></div>
+        <div class="menu-add-field"><label>الفرع</label>
+          <select id="empBranch"><option value="">اختر الفرع</option>${HR_BRANCHES.map(b => '<option value="' + b.id + '"' + (branchSel === b.id ? ' selected' : '') + '>' + escapeHtml(b.name) + '</option>').join('')}</select>
+        </div>
       </div>
-    </div>
-    <div class="menu-add-row" style="margin-bottom:14px;">
-      <div class="menu-add-field"><label>الفرع</label>
-        <select id="empBranch"><option value="">—</option>${HR_BRANCHES.map(b=>`<option value="${b.id}" ${isEdit && employee.branch_id===b.id?'selected':''}>${b.name}</option>`).join('')}</select>
+      <div class="hr2-cashier">
+        ${rkSwitchRow('empCashierEnabled', cashierChecked, 'يشتغل على الكاشير', null, () => ({ text: 'يختار اسمه في جهاز الكاشير، وتنحسب مبيعاته عليه في «مين باع اليوم».' }))}
+        <div id="empCashierFields" style="${cashierChecked ? '' : 'display:none;'}">
+          ${unlinkedOptions ? `
+          <div class="rk-field"><label>هو نفسه اسم موجود على الكاشير؟</label>
+            <select id="empLinkExisting"><option value="">لا، سوّ له اسم جديد</option>${unlinkedOptions}</select>
+          </div>` : ''}
+          <div ${planAttr('tables_reservations', 'hide')}>${rkCheck(`id="empReservationHost" ${linkedCashier && linkedCashier.is_reservation_host ? 'checked' : ''}`, 'مخصص للحجز (يطلع أول القائمة في شاشة الحجز)')}</div>
+        </div>
       </div>
-      <div class="menu-add-field"><label>نوع الدوام</label>
-        <select id="empType">${Object.keys(EMP_TYPE_LABELS).map(k=>`<option value="${k}" ${(isEdit?employee.employment_type:'full_time')===k?'selected':''}>${EMP_TYPE_LABELS[k]}</option>`).join('')}</select>
+      <div class="hr2-pair">
+        <div class="menu-add-field" ${planAttr('team_permissions', 'hide')}><label>القسم</label>
+          <select id="empDepartment"><option value="">بدون قسم</option>${DEPARTMENTS.map(d => '<option value="' + d.id + '"' + (isEdit && employee.department_id === d.id ? ' selected' : '') + '>' + escapeHtml(d.name) + '</option>').join('')}</select>
+        </div>
+        <div class="menu-add-field"><label>الدوام</label>
+          <select id="empType">${Object.keys(EMP_TYPE_LABELS).map(k => '<option value="' + k + '"' + ((isEdit ? employee.employment_type : 'full_time') === k ? ' selected' : '') + '>' + EMP_TYPE_LABELS[k] + '</option>').join('')}</select>
+        </div>
+        <div class="menu-add-field" ${isEdit ? '' : 'hidden'}><label>حالته</label>
+          <select id="empStatus">${Object.keys(EMP_STATUS_LABELS).map(k => '<option value="' + k + '"' + ((isEdit ? employee.status : 'active') === k ? ' selected' : '') + '>' + EMP_STATUS_LABELS[k] + '</option>').join('')}</select>
+        </div>
       </div>
+      <details class="hr2-more"${moreFilled ? ' open' : ''}>
+        <summary>بيانات أكثر <small>الجوال، الإقامة${canViewSalary() ? '، الراتب' : ''}، الطوارئ</small></summary>
+        <div class="hr2-pair">
+          <div class="menu-add-field"><label>جواله</label><input type="tel" inputmode="tel" id="empPhone" value="${v('phone')}" placeholder="05xxxxxxxx"></div>
+          <div class="menu-add-field"><label>بدأ عندك</label><input type="date" id="empHireDate" value="${v('hire_date')}"></div>
+        </div>
+        ${canViewSalary() ? `<div class="rk-field"><label>الراتب الأساسي (ر.س)</label><input type="number" inputmode="decimal" id="empSalary" value="${isEdit && employee.base_salary != null ? employee.base_salary : ''}" placeholder="0"></div>` : ''}
+        <div class="hr2-pair">
+          <div class="menu-add-field"><label>الجنسية</label><input type="text" id="empNationality" list="hrNatList" value="${v('nationality')}" autocomplete="off"><datalist id="hrNatList">${opts(nats)}</datalist></div>
+          <div class="menu-add-field"><label>رقم الهوية أو الإقامة</label><input type="text" inputmode="numeric" id="empNationalId" value="${v('national_id_or_iqama')}"></div>
+        </div>
+        <div class="rk-field"><label>تنتهي الإقامة</label><input type="date" id="empIqamaExpiry" value="${v('iqama_expiry')}">
+          <p class="hr2-hint" ${planAttr('team_permissions', 'hide')}>نسجّلها في «وثائقهم» ونذكّرك قبل ما تنتهي.</p></div>
+        <div class="hr2-pair">
+          <div class="menu-add-field"><label>نكلّم مين وقت الطوارئ؟</label><input type="text" id="empEmergencyName" value="${v('emergency_contact_name')}"></div>
+          <div class="menu-add-field"><label>جواله</label><input type="tel" inputmode="tel" id="empEmergencyPhone" value="${v('emergency_contact_phone')}"></div>
+        </div>
+      </details>
+      <div class="pos-auth-error" id="empError" style="display:none;"></div>
     </div>
-    ${(()=>{
-      const linkedCashier = isEdit ? STAFF_MEMBER_BY_EMPLOYEE_ID[employee.id] : null;
-      const cashierChecked = !!linkedCashier;
-      const unlinkedOptions = (!isEdit && UNLINKED_STAFF_MEMBERS.length) ? UNLINKED_STAFF_MEMBERS.map(sm=>
-        `<option value="${sm.id}">${(HR_BRANCHES.find(b=>b.id===sm.branch_id)||{}).name || ''} — اسم كاشير قديم #${sm.id}</option>`
-      ).join('') : '';
-      return `
-    <div style="border-top:1px solid var(--line); margin:4px 0 14px; padding-top:12px;">
-      ${rkSwitchRow('empCashierEnabled', cashierChecked, 'تفعيل الكاشير لهذا الموظف', null, ()=>({text:'يقدر يسجّل حضوره بجهاز الكاشير بالفرع المحدد فوق، ويظهر بمبيعات اليوم بتبويب "نظرة عامة".'}))}
-      <div id="empCashierFields" style="${cashierChecked?'':'display:none;'} margin-top:10px;">
-        ${unlinkedOptions ? `
-        <div class="rk-field" style="margin-bottom:12px;">
-          <label>ربط باسم كاشير موجود (اختياري)</label>
-          <select id="empLinkExisting">
-            <option value="">— إنشاء اسم جديد باسم الموظف —</option>
-            ${unlinkedOptions}
-          </select>
-          <p class="stock-qty-helper" style="margin-top:6px;">لو هذا الموظف مسجّل مسبقًا بجهاز الكاشير باسم قديم، اربطه هنا بدل ما تسوي له اسم مكرر.</p>
-        </div>` : ''}
-        <div ${planAttr('tables_reservations', 'hide')}>${rkCheck(`id="empReservationHost" ${linkedCashier && linkedCashier.is_reservation_host ? 'checked':''}`, 'مخصص للحجز (يظهر أول قائمة شاشة الحجز)')}</div>
-      </div>
-    </div>`;
-    })()}
-    <div class="menu-add-row" style="margin-bottom:14px;">
-      <div class="menu-add-field"><label>تاريخ التعيين</label><input type="date" id="empHireDate" value="${isEdit && employee.hire_date ? employee.hire_date : ''}"></div>
-      <div class="menu-add-field"><label>الحالة</label>
-        <select id="empStatus">${Object.keys(EMP_STATUS_LABELS).map(k=>`<option value="${k}" ${(isEdit?employee.status:'active')===k?'selected':''}>${EMP_STATUS_LABELS[k]}</option>`).join('')}</select>
-      </div>
-    </div>
-    ${canViewSalary() ? `<div class="rk-field" style="margin-bottom:14px;"><label>الراتب الأساسي (ر.س)</label><input type="number" id="empSalary" value="${isEdit && employee.base_salary!=null ? employee.base_salary : ''}" placeholder="0.00"></div>` : ''}
-    <div class="menu-add-row" style="margin-bottom:4px;">
-      <div class="menu-add-field"><label>رقم الهوية/الإقامة</label><input type="text" id="empNationalId" value="${isEdit?(employee.national_id_or_iqama||''):''}"></div>
-      <div class="menu-add-field"><label>تاريخ انتهاء الإقامة</label><input type="date" id="empIqamaExpiry" value="${isEdit && employee.iqama_expiry ? employee.iqama_expiry : ''}"></div>
-    </div>
-    <p class="stock-qty-helper" ${planAttr('team_permissions', 'hide')} style="margin:0 0 14px;">مربوط تلقائيًا بوثيقة الإقامة في تبويب «الامتثال والوثائق» — أي تعديل هنا أو هناك يتزامن، وتنبيه الانتهاء يجي من هناك.</p>
-    <div class="menu-add-row" style="margin-bottom:14px;">
-      <div class="menu-add-field"><label>الجنسية</label><input type="text" id="empNationality" value="${isEdit?(employee.nationality||''):''}"></div>
-      <div class="menu-add-field"><label>رقم الجوال</label><input type="text" id="empPhone" value="${isEdit?(employee.phone||''):''}"></div>
-    </div>
-    <div class="menu-add-row" style="margin-bottom:14px;">
-      <div class="menu-add-field"><label>جهة اتصال الطوارئ</label><input type="text" id="empEmergencyName" value="${isEdit?(employee.emergency_contact_name||''):''}"></div>
-      <div class="menu-add-field"><label>جوال الطوارئ</label><input type="text" id="empEmergencyPhone" value="${isEdit?(employee.emergency_contact_phone||''):''}"></div>
-    </div>
-    <div class="pos-auth-error" id="empError" style="display:none; margin-top:10px;"></div>
   `;
-  document.getElementById('empCashierEnabled').addEventListener('change', (e)=>{
+  document.getElementById('empCashierEnabled').addEventListener('change', (e) => {
     document.getElementById('empCashierFields').style.display = e.target.checked ? '' : 'none';
   });
   modal.dataset.editingId = isEdit ? employee.id : '';
   modal.dataset.mode = 'employee';
   modal.classList.add('show');
+  if(!isEdit) setTimeout(() => document.getElementById(pre.link ? 'empJobTitle' : 'empName')?.focus(), 80);
+  else if(pre.cashier) setTimeout(() => document.querySelector('#hrModal .hr2-cashier')?.scrollIntoView({ block: 'center' }), 80);
 }
 
 async function saveEmployeeFromModal(modal){
@@ -19538,7 +19663,7 @@ async function saveEmployeeFromModal(modal){
     await syncEmployeeCashierLink(employeeId, fullName, cashierEnabled, branchVal ? Number(branchVal) : null);
     await syncEmployeeIqamaDoc(employeeId, payload.national_id_or_iqama, payload.iqama_expiry);
     modal.classList.remove('show');
-    showToast('تم الحفظ');
+    showToast(editingId ? 'انحفظ' : 'انضاف ' + fullName + ' لفريقك 🎉');
     renderHrEmployeesTab();
   } catch(err){
     errEl.textContent = 'تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع');
@@ -19618,7 +19743,7 @@ async function syncEmployeeCashierLink(employeeId, fullName, cashierEnabled, bra
 }
 
 async function deleteEmployee(id, name){
-  if(!window.confirm('متأكد إنك تبي تحذف "' + name + '"؟ هذا يحذف سجله وكل بيانات الامتثال المرتبطة فيه ويعطّل دخوله للكاشير، وما يتراجع.')) return;
+  if(!await rkAsk({ title: 'نحذف «' + name + '» نهائياً؟', body: 'ينحذف ملفه ووثائقه، وما يقدر يدخل الكاشير. طلباته القديمة تبقى. لو بس ترك الشغل، غيّر حالته لـ«منتهي خدمته» بدل الحذف.', ok: 'احذفه', cancel: 'خلّه' })) return;
   try {
     const linkedCashier = STAFF_MEMBER_BY_EMPLOYEE_ID[id];
     if(linkedCashier){
@@ -19638,61 +19763,7 @@ async function deleteEmployee(id, name){
 /* -------- Compliance / expiry reminders (internal only — manually entered
    dates, no live GOSI/Muqeem lookup; status is recomputed daily by the
    check_compliance_expiries() cron, see app/api/cron/compliance-check) -------- */
-async function renderHrComplianceTab(){
-  const panel = document.getElementById('hrPanelBody');
-  panel.innerHTML = '<div class="rk-section"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>';
-  const [{data: items}, {data: employees}] = await Promise.all([
-    window.supabaseClient.from('compliance_items')
-      .select('id, employee_id, document_type, document_number, issued_date, expiry_date, status, reminder_days_before, reminder_enabled')
-      .eq('business_id', CURRENT_PROFILE.business_id).order('expiry_date'),
-    window.supabaseClient.from('employees').select('id, full_name').eq('business_id', CURRENT_PROFILE.business_id).order('full_name'),
-  ]);
-  COMPLIANCE_ITEMS = items || [];
-  EMPLOYEES = employees || []; // light shape (id, full_name) — the Employees tab re-fetches its own full shape whenever it's opened, so this never goes stale for that tab
-  const empName = id => (EMPLOYEES.find(e=>e.id===id)||{}).full_name || '—';
-
-  panel.innerHTML = `
-    <div class="rk-section">
-      <div class="rk-section-head">
-        <div class="rk-section-icon">${rkIcon('bell')}</div>
-        <div>
-          <div class="rk-section-title">الامتثال والوثائق</div>
-          <div class="rk-section-sub">تواريخ انتهاء الإقامات والعقود والشهادات — تنبيه داخلي قبل الانتهاء، بدون أي ربط مباشر مع أنظمة حكومية.</div>
-        </div>
-        <button class="rk-btn rk-btn-primary rk-btn-sm rk-section-head-actions" id="addComplianceBtn" ${EMPLOYEES.length===0?'disabled':''}>${rkIcon('plus')}إضافة وثيقة</button>
-      </div>
-      <div id="complianceList">
-        ${EMPLOYEES.length===0 ? '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">أضف موظف أولًا من تبويب "الموظفون" قبل تسجيل وثائقه.</p>'
-        : COMPLIANCE_ITEMS.length === 0 ? '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">ما فيه وثائق مسجّلة بعد.</p>' : COMPLIANCE_ITEMS.map(item => `
-          <div class="users-table-row">
-            <div class="users-table-identity">
-              <span class="u-name">${empName(item.employee_id)} — ${COMPLIANCE_TYPE_LABELS[item.document_type]||item.document_type}</span>
-              <span class="u-role">${item.document_number || '—'} · ينتهي ${item.expiry_date}${item.reminder_enabled === false ? ' · 🔕 التنبيه موقوف' : ''}</span>
-              <span class="u-status"><span class="u-status-badge ${item.status==='valid'?'active':'disabled'}" style="${item.status!=='valid'?'color:var(--danger);':''}">${COMPLIANCE_STATUS_LABELS[item.status]||item.status}</span></span>
-            </div>
-            <div class="users-table-actions">
-              <button class="rk-btn rk-btn-secondary rk-btn-sm hr-comp-edit-btn" data-id="${item.id}">تعديل</button>
-              <button class="rk-btn rk-btn-secondary rk-btn-sm hr-comp-delete-btn" data-id="${item.id}" style="color:var(--danger); border-color:var(--danger);">حذف</button>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `;
-
-  document.getElementById('addComplianceBtn').addEventListener('click', ()=> openComplianceModal());
-  panel.querySelectorAll('.hr-comp-edit-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const item = COMPLIANCE_ITEMS.find(c=>c.id===Number(btn.dataset.id));
-      if(item) openComplianceModal(item);
-    });
-  });
-  panel.querySelectorAll('.hr-comp-delete-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=> deleteComplianceItem(Number(btn.dataset.id)));
-  });
-}
-
-function openComplianceModal(item){
+function openComplianceModal(item, preset){
   const isEdit = !!item;
   const modal = ensureHrModal();
   document.getElementById('hrModalTitle').textContent = isEdit ? 'تعديل وثيقة' : 'إضافة وثيقة';
@@ -19703,11 +19774,11 @@ function openComplianceModal(item){
 
   document.getElementById('hrModalBody').innerHTML = `
     <div class="rk-field" style="margin-bottom:14px;"><label>الموظف</label>
-      <select id="compEmployee">${EMPLOYEES.map(e=>`<option value="${e.id}" ${isEdit && item.employee_id===e.id?'selected':''}>${e.full_name}</option>`).join('')}</select>
+      <select id="compEmployee">${EMPLOYEES.filter(e=>e.status!=='terminated' || (isEdit && item.employee_id===e.id)).map(e=>`<option value="${e.id}" ${(isEdit ? item.employee_id : (preset && preset.employee_id))===e.id?'selected':''}>${escapeHtml(e.full_name)}</option>`).join('')}</select>
     </div>
     <div class="menu-add-row" style="margin-bottom:14px;">
       <div class="menu-add-field"><label>نوع الوثيقة</label>
-        <select id="compType">${Object.keys(COMPLIANCE_TYPE_LABELS).map(k=>`<option value="${k}" ${(isEdit?item.document_type:'iqama')===k?'selected':''}>${COMPLIANCE_TYPE_LABELS[k]}</option>`).join('')}</select>
+        <select id="compType">${Object.keys(COMPLIANCE_TYPE_LABELS).map(k=>`<option value="${k}" ${(isEdit?item.document_type:((preset && preset.document_type)||'iqama'))===k?'selected':''}>${COMPLIANCE_TYPE_LABELS[k]}</option>`).join('')}</select>
       </div>
       <div class="menu-add-field"><label>رقم الوثيقة</label><input type="text" id="compNumber" value="${isEdit?(item.document_number||''):''}"></div>
     </div>
@@ -19829,7 +19900,7 @@ async function saveComplianceFromModal(modal){
 }
 
 async function deleteComplianceItem(id){
-  if(!window.confirm('متأكد إنك تبي تحذف هذه الوثيقة؟')) return;
+  if(!await rkAsk({ title: 'نحذف هالوثيقة؟', body: 'ما راح نذكّرك فيها بعدها.', ok: 'احذفها', cancel: 'خلّها' })) return;
   try {
     const { error } = await window.supabaseClient.from('compliance_items').delete().eq('id', id);
     if(error) throw error;
@@ -19842,53 +19913,6 @@ async function deleteComplianceItem(id){
 }
 
 /* -------- Org structure (departments) -------- */
-async function renderHrDepartmentsTab(){
-  const panel = document.getElementById('hrPanelBody');
-  panel.innerHTML = '<div class="rk-section"><p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p></div>';
-  const { data: departments } = await window.supabaseClient.from('departments')
-    .select('id, name, parent_department_id').eq('business_id', CURRENT_PROFILE.business_id).order('name');
-  DEPARTMENTS = departments || [];
-  const parentName = id => (DEPARTMENTS.find(d=>d.id===id)||{}).name || '';
-
-  panel.innerHTML = `
-    <div class="rk-section">
-      <div class="rk-section-head">
-        <div class="rk-section-icon">${rkIcon('grid')}</div>
-        <div>
-          <div class="rk-section-title">الأقسام</div>
-          <div class="rk-section-sub">أقسام العمل — تُستخدم لتصنيف الموظفين بتبويب "قائمة الموظفين".</div>
-        </div>
-        <button class="rk-btn rk-btn-primary rk-btn-sm rk-section-head-actions" id="addDepartmentBtn">${rkIcon('plus')}إضافة قسم</button>
-      </div>
-      <div id="departmentsList">
-        ${DEPARTMENTS.length === 0 ? '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">ما فيه أقسام مسجّلة بعد.</p>' : DEPARTMENTS.map(d => `
-          <div class="users-table-row">
-            <div class="users-table-identity">
-              <span class="u-name">${d.name}</span>
-              ${d.parent_department_id ? `<span class="u-role">تابع لـ ${parentName(d.parent_department_id)}</span>` : ''}
-            </div>
-            <div class="users-table-actions">
-              <button class="rk-btn rk-btn-secondary rk-btn-sm hr-dept-edit-btn" data-id="${d.id}">تعديل</button>
-              <button class="rk-btn rk-btn-secondary rk-btn-sm hr-dept-delete-btn" data-id="${d.id}" data-name="${d.name}" style="color:var(--danger); border-color:var(--danger);">حذف</button>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `;
-
-  document.getElementById('addDepartmentBtn').addEventListener('click', ()=> openDepartmentModal());
-  panel.querySelectorAll('.hr-dept-edit-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const d = DEPARTMENTS.find(x=>x.id===Number(btn.dataset.id));
-      if(d) openDepartmentModal(d);
-    });
-  });
-  panel.querySelectorAll('.hr-dept-delete-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=> deleteDepartment(Number(btn.dataset.id), btn.dataset.name));
-  });
-}
-
 function openDepartmentModal(dept){
   const isEdit = !!dept;
   const modal = ensureHrModal();
@@ -19946,7 +19970,7 @@ async function saveDepartmentFromModal(modal){
 }
 
 async function deleteDepartment(id, name){
-  if(!window.confirm('متأكد إنك تبي تحذف قسم "' + name + '"؟')) return;
+  if(!await rkAsk({ title: 'نحذف قسم «' + name + '»؟', body: 'الموظفين اللي فيه يصيرون بدون قسم.', ok: 'احذفه', cancel: 'خلّه' })) return;
   try {
     const { error } = await window.supabaseClient.from('departments').delete().eq('id', id);
     if(error) throw error;
