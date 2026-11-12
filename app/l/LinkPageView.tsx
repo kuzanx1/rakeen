@@ -33,6 +33,14 @@ function Avatar({ src, name, className }: { src: string | null; name: string; cl
     : <span className={className + " lk-av-txt"}>{name.trim().slice(0, 1) || "★"}</span>;
 }
 
+/** الاسم: مكتوب بخط التصميم، أو صورة اسم المطعم (شعاره بالكتابة) لو مرفوعة. */
+function Name({ cfg, className }: { cfg: LinkPageConfig; className: string }) {
+  return cfg.wordmark
+    // eslint-disable-next-line @next/next/no-img-element
+    ? <h1 className={className + " lk-wm"}><img src={cfg.wordmark} alt={cfg.name} /></h1>
+    : <h1 className={className}>{cfg.name}</h1>;
+}
+
 function Socials({ items, className = "", size = 22 }: { items: Ready[]; className?: string; size?: number }) {
   if (!items.length) return null;
   return (
@@ -126,7 +134,7 @@ function Velvet({ cfg, biz, links, socials }: Parts) {
       <main className="lk-v-body">
         {o.socialsAt === "top" && <Socials items={socials} className="lk-v-top" />}
         {o.avatar !== "none" && <Avatar src={avatar} name={cfg.name} className={"lk-v-av lk-v-av-" + o.avatar} />}
-        <h1 className="lk-v-name">{cfg.name}</h1>
+        <Name cfg={cfg} className="lk-v-name" />
         <Ornament />
         {cfg.bio && <p className="lk-v-bio">{cfg.bio}</p>}
         <Buttons links={links} icons={cfg.icons} />
@@ -157,7 +165,7 @@ function Cover({ cfg, biz, links, socials }: Parts) {
       <Share on={cfg.share} />
       <main className="lk-c-body">
         <Avatar src={avatar} name={cfg.name} className={"lk-c-av lk-c-av-" + o.avatar} />
-        <h1 className="lk-c-name">{cfg.name}</h1>
+        <Name cfg={cfg} className="lk-c-name" />
         {cfg.bio && <p className="lk-c-bio">{cfg.bio}</p>}
         {o.rule && <i className="lk-c-rule" />}
         <Buttons links={links} icons={cfg.icons} />
@@ -203,7 +211,7 @@ function Bold({ cfg, biz, links, socials, cta }: Parts) {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         {o.photo && <img className="lk-b-photo" src={o.photo} alt="" />}
         <div className="lk-b-txt">
-          <BigName name={cfg.name} />
+          {cfg.wordmark ? <Name cfg={cfg} className="lk-b-name" /> : <BigName name={cfg.name} />}
           {cfg.bio && <p className="lk-b-bio">{cfg.bio}</p>}
           <div className="lk-b-chips">
             {cfg.badge && <span className="lk-b-badge">{cfg.badge}</span>}

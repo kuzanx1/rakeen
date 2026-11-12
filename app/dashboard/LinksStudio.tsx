@@ -714,6 +714,8 @@ export default function LinksStudio() {
                 <Field label="الاسم"><input value={cfg.name} maxLength={60} onChange={(e) => setCfg({ name: e.target.value })} /></Field>
                 <Field label="وصف قصير" hint="سطر واحد: وش يميزكم؟"><input value={cfg.bio} maxLength={140} placeholder="مشويات على الفحم منذ ٢٠١٢" onChange={(e) => setCfg({ bio: e.target.value })} /></Field>
                 <ImagePick label="الشعار" value={cfg.avatar} onChange={(avatar) => setCfg({ avatar })} hint={biz?.logo_url ? "فاضي = شعار مطعمك من الإعدادات" : undefined} />
+                <ImagePick label="الاسم كشعار (اختياري)" value={cfg.wordmark} onChange={(wordmark) => setCfg({ wordmark })} keepAlpha
+                  hint="صورة اسم مطعمك بخلفية شفافة (PNG) -- تطلع بدل الاسم المكتوب" />
                 <Field label="اسم الرابط بالإنجليزي" hint={`نفس اسم متجرك -- الرابط: ${slug || "name"}.rakeenapp.com/links`}>
                   <input dir="ltr" value={slug} maxLength={40} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} />
                 </Field>

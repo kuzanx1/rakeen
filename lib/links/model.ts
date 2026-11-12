@@ -50,6 +50,8 @@ export type LinkPageConfig = {
   name: string;
   bio: string;
   avatar: string;
+  /** صورة الاسم (PNG شفاف) بدل الاسم المكتوب. */
+  wordmark: string;
   badge: string;
   links: LinkItem[];
   socials: LinkItem[];
@@ -134,7 +136,7 @@ export function newId(): string {
 
 export function defaultConfig(name = ""): LinkPageConfig {
   return {
-    v: 1, enabled: false, template: "velvet", name, bio: "", avatar: "", badge: "",
+    v: 1, enabled: false, template: "velvet", name, bio: "", avatar: "", wordmark: "", badge: "",
     links: [
       { id: newId(), type: "order", label: "اطلب أونلاين", value: "", on: true, star: true },
       { id: newId(), type: "menu", label: "المنيو", value: "", on: true },
@@ -193,6 +195,7 @@ export function normalizeConfig(raw: unknown, fallbackName = ""): LinkPageConfig
     name: str(r.name, 60) || fallbackName,
     bio: str(r.bio, 140),
     avatar: img(r.avatar),
+    wordmark: img(r.wordmark),
     badge: str(r.badge, 24),
     links: Array.isArray(r.links) ? (r.links.map(cleanItem).filter(Boolean) as LinkItem[]).slice(0, 24) : d.links,
     socials: Array.isArray(r.socials) ? (r.socials.map(cleanItem).filter(Boolean) as LinkItem[]).filter((s) => s.type !== "heading").slice(0, 10) : [],
