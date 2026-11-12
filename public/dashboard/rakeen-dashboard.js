@@ -10647,64 +10647,424 @@ function discountsReportHtml(rows){
   `;
 }
 
-/* ============ Delivery Platforms — same profit formula as the landing page's live comparison tool
-   (price - commission - VAT - packaging - food cost), applied to today's real average delivery
-   order value from CHANNEL_PERF and the real food-cost % from Inventory. Commission rates are the
-   exact ones already shown on the landing page. */
-const DELIVERY_PLATFORM_RATES = [
-  {name:'هنقرستيشن', rate:0.30}, {name:'جاهز', rate:0.28}, {name:'ذا شفز', rate:0.27},
-  {name:'كيتا', rate:0.25}, {name:'نينجا', rate:0.22}
-];
-function computeDeliveryProfits(){
-  const deliveryChannel = CHANNEL_PERF.find(c=>c.name==='توصيل');
-  if(!deliveryChannel || !deliveryChannel.orders) return null;
-  const avgOrder = deliveryChannel.revenue / deliveryChannel.orders;
-  const estCost = avgOrder * ((realFoodCostPct() ?? FOOD_COST_STATS.pct)/100);
-  const packaging = 3;
-  const results = DELIVERY_PLATFORM_RATES.map(p=>{
-    const commission = avgOrder * p.rate;
-    const vat = avgOrder * 0.15;
-    const profitPerOrder = avgOrder - commission - vat - packaging - estCost;
-    const monthlyProjection = profitPerOrder * deliveryChannel.orders * 30;
-    return {...p, profitPerOrder, monthlyProjection};
-  }).sort((a,b)=>b.profitPerOrder-a.profitPerOrder);
-  return {results, avgOrder, deliveryChannel};
+/* ============ «تطبيقات التوصيل» (rk2) -- وش تاخذ مني كل منصة؟ وأيها يربحني؟
+   كل الأرقام من إعدادات المنصات نفسها (delivery_platforms + fee tiers) ومن
+   طلبات التوصيل الحقيقية آخر ٣٠ يوم، وبنفس الحساب اللي تستخدمه تسوية
+   «المحاسبة» (computeOrderDeliveryPlatformCost). كانت هنا مقارنة بنسب
+   «معروفة بالسوق» لمنصات ما يشتغل معها المطعم وتغليف ثابت ٣ ريال -- انحذفت. ============ */
+const DL_KNOWN = ['هنقرستيشن', 'جاهز', 'كيتا', 'ذا شفز', 'نينجا', 'مرسول', 'تويو'];
+let DL = { loaded: false, loading: false, err: '', platforms: [], tiers: {}, prices: [], orders: [] };
+let dlTab = 'apps';
+let dlOpen = null;          // المنصة المفتوح محرّرها
+let dlPrevLeft = null;
+async function dlLoad(){
+  if(!window.supabaseClient || !CURRENT_PROFILE) return;
+  DL.loading = true; DL.err = '';
+  dlRender();
+  try {
+    const sb = window.supabaseClient, biz = CURRENT_PROFILE.business_id;
+    const since = acDayStart(); since.setDate(since.getDate() - 29);
+    const [p, t, pr, o] = await Promise.all([
+      sb.from('delivery_platforms').select('*').eq('business_id', biz).order('id'),
+      sb.from('delivery_platform_fee_tiers').select('*').order('min_order_value'),
+      sb.from('menu_item_platform_prices').select('menu_item_id, platform_id, price'),
+      sb.from('orders').select('total, subtotal, delivery_platform_id, created_at')
+        .eq('business_id', biz).eq('channel', 'delivery').not('delivery_platform_id', 'is', null)
+        .gte('created_at', since.toISOString())
+    ]);
+    if(p.error) throw p.error;
+    DL.platforms = p.data || [];
+    const ids = new Set(DL.platforms.map(x => x.id));
+    DL.tiers = {};
+    (t.data || []).forEach(x => { if(ids.has(x.delivery_platform_id)) (DL.tiers[x.delivery_platform_id] ||= []).push(x); });
+    DL.prices = (pr.data || []).filter(x => ids.has(x.platform_id));
+    DL.orders = o.error ? [] : (o.data || []);
+    DL.loaded = true;
+  } catch(err){
+    DL.err = (err && err.message) || 'خطأ غير متوقع';
+  }
+  DL.loading = false;
+  dlRender();
 }
-function renderDeliveryPlatforms(){
-  const computed = computeDeliveryProfits();
-  if(!computed){
-    document.getElementById('deliveryContext').innerHTML = 'ما فيه طلبات توصيل مسجّلة اليوم بعد — المقارنة بين المنصات بتظهر أول ما يوصلك طلب توصيل حقيقي.';
-    document.getElementById('platformProfitList').innerHTML = '';
-    document.getElementById('deliveryDecisionCard').innerHTML = '';
+// الأسماء القديمة: التنقّل وأول تحميل ينادونها
+function renderDeliveryPlatformsSettings(){ return dlLoad(); }
+function renderDeliveryPlatforms(){ dlRender(); }
+
+function dlPlat(id){ return DL.platforms.find(p => String(p.id) === String(id)); }
+function dlItems(){ return (typeof mnItems === 'function' ? mnItems() : MENU_ITEMS).filter(m => m.active !== false && Number(m.price) > 0); }
+function dlPriceCount(pid){ const ids = new Set(dlItems().map(m => m.id)); return DL.prices.filter(x => String(x.platform_id) === String(pid) && ids.has(x.menu_item_id)).length; }
+function dlSuggestPct(p){ const c = Number(p.commission_pct) || 0; return c > 0 ? Math.min(30, Math.max(10, Math.ceil(c / 5) * 5)) : 20; }
+function dlOrdersWord(n){ return hmPlural(n, 'طلب واحد', 'طلبين', 'طلبات', 'طلب'); }
+function dlFeeText(p){
+  if(p.fee_model === 'tiered') return 'رسوم حسب قيمة الطلب' + (Number(p.flat_fee) > 0 ? ' + ' + acR(p.flat_fee) + ' ر.س' : '');
+  return Number(p.flat_fee) > 0 ? 'توصيل ' + Number(p.flat_fee).toFixed(Number(p.flat_fee) % 1 ? 2 : 0) + ' ر.س' : 'بدون رسم توصيل';
+}
+function dlStats(){
+  const today = acDayStart().getTime();
+  const rows = DL.platforms.map(p => {
+    const po = DL.orders.filter(o => o.delivery_platform_id === p.id);
+    let gross = 0, cut = 0;
+    po.forEach(o => { gross += Number(o.total) || 0; cut += computeOrderDeliveryPlatformCost(o, p, DL.tiers[p.id]).total; });
+    return { p, count: po.length, gross, cut, net: gross - cut, today: po.filter(o => new Date(o.created_at).getTime() >= today).length };
+  });
+  const T = rows.reduce((s, r) => ({ count: s.count + r.count, gross: s.gross + r.gross, cut: s.cut + r.cut, today: s.today + r.today }), { count: 0, gross: 0, cut: 0, today: 0 });
+  const active = DL.platforms.filter(p => p.active !== false);
+  return { rows, T, active, top: rows.filter(r => r.count).sort((a, b) => b.count - a.count)[0] || null,
+    noCommission: active.filter(p => !(Number(p.commission_pct) > 0)),
+    priced: active.filter(p => dlPriceCount(p.id) > 0) };
+}
+
+function dlRender(){
+  if(!document.getElementById('dlHero')) return;
+  if(!DL.loaded){
+    document.getElementById('dlHero').innerHTML = '<div class="rk2-card dl-hero"><div class="ac-loading">' + hmIc('clock') + (DL.err ? 'ما قدرنا نجيب تطبيقاتك: ' + escapeHtml(DL.err) + ' <button type="button" class="rk2-btn mn-ghost sm" data-dl-reload>جرّب مرة ثانية</button>' : 'نجيب تطبيقاتك…') + '</div></div>';
     return;
   }
-  const {results, avgOrder, deliveryChannel} = computed;
-  document.getElementById('deliveryContext').innerHTML =
-    `اليوم عندك <b>${deliveryChannel.orders}</b> طلب توصيل بمتوسط <b>${avgOrder.toFixed(2)} ر.س</b> للطلب. المقارنة تحسب ربحك الفعلي بعد العمولة والضريبة والتغليف وتكلفة الطعام لو كل الطلبات راحت على نفس المنصة.`;
-  const maxProfit = Math.max(...results.map(p=>p.profitPerOrder), 0.01);
-  const crownIcon = '<path d="M12 2 15 8.5 21 9.5 16.5 14 17.7 20.5 12 17.3 6.3 20.5 7.5 14 3 9.5 9 8.5z"/>';
-  document.getElementById('platformProfitList').innerHTML = results.map((p,i)=>{
-    const barPct = Math.max(0, Math.round((p.profitPerOrder/maxProfit)*100));
-    return `
-    <div class="pp-row ${i===0?'best':''}">
-      <div class="pp-bar" style="width:${barPct}%"></div>
-      <div class="pp-rank">${i===0?`<svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13">${crownIcon}</svg>`:i+1}</div>
-      <div class="pp-info"><div class="pp-name">${p.name}</div><div class="pp-meta">عمولة ${(p.rate*100).toFixed(0)}٪</div></div>
-      <div class="pp-figures">
-        <div class="pp-per-order">${p.profitPerOrder.toFixed(2)} ر.س/طلب</div>
-        <div class="pp-monthly">لو كل طلباتك عليها: ${p.monthlyProjection.toFixed(0)} ر.س/شهر</div>
-      </div>
-    </div>`;
-  }).join('');
-
-  const best = results[0], worst = results[results.length-1];
-  const monthlyDiff = (best.profitPerOrder - worst.profitPerOrder) * deliveryChannel.orders * 30;
-  document.getElementById('deliveryDecisionCard').innerHTML = `
-    <div class="decision-card">
-      <div class="decision-what">لو ركّزت طلبات التوصيل أكثر على ${best.name} بدل ${worst.name}، ممكن تربح حوالي <b>${monthlyDiff.toFixed(0)} ر.س إضافية شهريًا</b>.</div>
-      <div class="decision-why">الفرق مبني على متوسط قيمة طلب التوصيل الحالي (${avgOrder.toFixed(2)} ر.س) وعدد طلبات اليوم (${deliveryChannel.orders}) — راجع اتفاقك الفعلي مع كل منصة قبل القرار.</div>
-    </div>`;
+  const st = dlStats();
+  dlRenderHero(st);
+  dlRenderTodo(st);
+  dlSetSums(st);
+  dlRenderPanel(st);
 }
+
+function dlRenderHero(st){
+  const el = document.getElementById('dlHero');
+  const T = st.T;
+  const steps = [
+    { done: DL.platforms.length > 0, label: 'أضف التطبيقات اللي تشتغل معها', desc: 'هنقرستيشن، جاهز، كيتا… بضغطة وحدة', go: '@add' },
+    { done: DL.platforms.length > 0 && !st.noCommission.length, label: 'حدد عمولة كل تطبيق', desc: st.noCommission.length ? escapeHtml(st.noCommission[0].name) + ' بدون عمولة، فربح طلباته يطلع أعلى من الحقيقي' : 'من عقدك معهم', go: st.noCommission.length ? '@edit:' + st.noCommission[0].id : '@add' },
+    { done: st.priced.length > 0, label: 'سعّر منتجاتك في التطبيقات', desc: 'ارفع أسعارك فيها بنسبة تغطي العمولة، بضغطة لكل المنتجات', go: st.active.length ? '@edit:' + (st.active.find(p => Number(p.commission_pct) > 0) || st.active[0]).id : '@add' },
+  ];
+  const done = steps.filter(s => s.done).length, left = steps.length - done;
+  const visible = !!document.getElementById('screen-delivery')?.offsetParent;
+  const celebrate = visible && dlPrevLeft !== null && dlPrevLeft > 0 && left === 0;
+  dlPrevLeft = visible ? left : null;
+  const stat = (k, v, hint, cls, go) => '<' + (go ? 'button type="button" data-dl-go="' + go + '"' : 'div') + ' class="iv-stat' + (cls ? ' ' + cls : '') + '"><span>' + k + '</span><b>' + v + '</b>' + (hint ? '<small>' + hint + '</small>' : '') + '</' + (go ? 'button' : 'div') + '>';
+  const settleOk = hmScreenOk('accounting');
+  const stats = T.count ? '<div class="ac-stats">'
+    + stat('طلبات اليوم', String(T.today), T.today ? 'من التطبيقات' : 'لسا ما جاك اليوم', '', '')
+    + stat('أخذت التطبيقات', hmMoney(T.cut), (T.gross > 0 ? Math.round(T.cut / T.gross * 100) : 0) + '٪ من قيمة الطلبات', T.gross > 0 && T.cut / T.gross > 0.25 ? 'warn' : '', '@compare')
+    + (st.top ? stat('أكثر تطبيق', escapeHtml(st.top.p.name), dlOrdersWord(st.top.count), 'pu-top', '@compare') : '')
+    + stat('يبقى لك', hmMoney(T.gross - T.cut), settleOk ? 'شوف كم تحوّل لك كل منصة' : 'بعد العمولة والرسوم', 'good', settleOk ? '@settle' : '')
+    + '</div>' : '';
+  if(left === 0){
+    const sub = T.count ? dlOrdersWord(T.count) + ' بـ ' + acR(T.gross) + ' ر.س، وأخذت التطبيقات ' + acR(T.cut) + ' ر.س'
+      : 'أول ما الكاشير يسجّل طلب توصيل ويختار التطبيق، يطلع هنا كم جاك وكم أخذوا';
+    el.innerHTML = '<div class="rk2-card dl-hero' + (celebrate ? ' mn-celebrate' : '') + '">'
+      + '<div class="ac-hero-top"><span class="iv-hero-ic">' + hmIc('orders') + '</span>'
+      + '<div class="ac-hero-txt"><div class="hm-kicker">يبقى لك من التطبيقات · آخر ٣٠ يوم</div>'
+      + '<div class="ac-big">' + hmMoney(T.gross - T.cut) + (T.count ? '<small>' + dlOrdersWord(T.count) + '</small>' : '') + '</div>'
+      + '<div class="ac-sub">' + sub + '</div></div>'
+      + '<div class="ac-cta"><button type="button" class="rk2-btn lime" data-dl-go="@add">+ أضف تطبيق</button></div></div>'
+      + stats + '</div>';
+    if(celebrate) showToast('تطبيقاتك جاهزة، وربح التوصيل صار دقيق 🎉');
+    return;
+  }
+  const nextIdx = steps.findIndex(s => !s.done), next = steps[nextIdx];
+  const go = s => ' data-dl-go="' + s.go + '"';
+  el.innerHTML = '<div class="rk2-card hm-quest dl-hero">'
+    + '<div class="hm-quest-top"><div class="hm-ring" style="--p:' + Math.round(done / steps.length * 100) + '"><b>' + done + '<small>/' + steps.length + '</small></b></div>'
+    + '<div><div class="hm-kicker">' + hmIc('orders') + 'تطبيقات التوصيل</div>'
+    + '<h3>' + (done ? 'باقي ' + hmPlural(left, 'خطوة', 'خطوتين', 'خطوات', 'خطوة') + ' وتعرف وش يبقى لك من كل طلب' : 'ثلاث خطوات وتعرف كم تاخذ منك كل منصة') + '</h3>'
+    + '<p>الكاشير يحسب عمولة كل طلب لحاله، ويطبّق أسعار كل تطبيق</p></div></div>'
+    + '<button type="button" class="hm-quest-next"' + go(next) + '>'
+    + '<span class="hm-quest-n">' + (nextIdx + 1) + '</span><span class="hm-quest-txt"><b>' + next.label + '</b><small>' + next.desc + '</small></span><span class="rk2-btn lime sm">ابدأ' + hmIc('arrow') + '</span></button>'
+    + '<div class="hm-quest-list">' + steps.map((s, i) => i === nextIdx ? '' :
+        '<button type="button" class="hm-qstep' + (s.done ? ' done' : '') + '"' + (s.done ? ' disabled' : go(s)) + '>'
+        + '<span class="hm-qcheck">' + (s.done ? hmIc('check') : (i + 1)) + '</span>' + s.label + '</button>').join('') + '</div>'
+    + stats + '</div>';
+}
+
+function dlRenderTodo(st){
+  const el = document.getElementById('dlTodo');
+  if(!el) return;
+  const rows = [];
+  st.noCommission.forEach(p => rows.push({ cls: 'critical', ic: 'alert', t: escapeHtml(p.name) + ' بدون عمولة',
+    h: 'كم تاخذ منك من كل طلب؟ بدونها الربح والتسوية يطلعون غلط', acts: '<button type="button" class="rk2-btn lime sm" data-dl-go="@edit:' + p.id + '">حدّدها</button>' }));
+  st.active.filter(p => Number(p.commission_pct) >= 15 && !dlPriceCount(p.id)).slice(0, 2).forEach(p => {
+    const pct = dlSuggestPct(p);
+    rows.push({ ic: 'tag', t: 'أسعارك في ' + escapeHtml(p.name) + ' نفس سعر القائمة',
+      h: 'تاخذ ' + Number(p.commission_pct) + '٪، يعني من طلب بـ ١٠٠ يروح لها ' + Math.round(Number(p.commission_pct)) + ' ريال. ارفع أسعارها ' + pct + '٪ وتغطيها',
+      acts: '<button type="button" class="rk2-btn mn-ghost sm" data-dl-price="' + p.id + '" data-dl-pct="' + pct + '">ارفعها ' + pct + '٪</button>' });
+  });
+  if(st.T.count >= 10) st.rows.filter(r => r.p.active !== false && !r.count && Number(r.p.commission_pct) > 0).slice(0, 1).forEach(r => rows.push({ ic: 'clock',
+    t: 'ما جاك ولا طلب من ' + escapeHtml(r.p.name) + ' بـ ٣٠ يوم', h: 'لو وقّفت الشغل معها، وقّفها هنا وتختفي من الكاشير',
+    acts: '<button type="button" class="rk2-btn mn-ghost sm" data-dl-toggle="' + r.p.id + '">وقّفها</button>' }));
+  if(!rows.length){ el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="rk2-card iv-todo ac-todo">' + hmHead('flag', 'res', 'وش أسوي الحين؟', 'من إعدادات تطبيقاتك وطلباتها')
+    + rows.map(r => '<div class="iv-todo-row' + (r.cls ? ' ' + r.cls : '') + '"><span class="pu-todo-ic">' + hmIc(r.ic) + '</span><div class="iv-todo-name"><b>' + r.t + '</b><span class="iv-todo-hint">' + r.h + '</span></div><div class="iv-todo-acts">' + r.acts + '</div></div>').join('')
+    + '</div>';
+}
+
+function dlSetSums(st){
+  const set = (k, v) => { const s = document.querySelector('#dlTabs [data-dl-sum="' + k + '"]'); if(s) s.textContent = v; };
+  set('apps', DL.platforms.length ? hmPlural(st.active.length, 'تطبيق شغّال', 'تطبيقين شغّالين', 'تطبيقات شغّالة', 'تطبيق شغّال') : 'أضف أول تطبيق');
+  const best = dlCompareRows()[0];
+  set('compare', best ? 'الأربح: ' + best.p.name : 'تبدأ لما تضيف تطبيق');
+  set('settle', st.T.count ? acR(st.T.gross - st.T.cut) + ' ر.س آخر ٣٠ يوم' : 'كم المفروض يحوّلون لك');
+  const s = document.querySelector('#dlTabs [data-dl-tab="settle"]');
+  if(s) s.style.display = hmScreenOk('accounting') ? '' : 'none';
+}
+
+function dlRenderPanel(st){
+  const el = document.getElementById('dlPanel');
+  if(!el) return;
+  document.querySelectorAll('#dlTabs [data-dl-tab]').forEach(b => b.classList.toggle('active', b.dataset.dlTab === dlTab));
+  el.innerHTML = dlTab === 'compare' ? dlCompareHtml(st) : dlAppsHtml(st);
+}
+
+/* ── تطبيقاتك ── */
+function dlAppsHtml(st){
+  const have = new Set(DL.platforms.map(p => (p.name || '').trim()));
+  const chips = DL_KNOWN.filter(n => !have.has(n));
+  const add = '<div class="dl-add"><div class="dl-add-cap">' + (DL.platforms.length ? 'تشتغل مع تطبيق ثاني؟' : 'وش التطبيقات اللي تشتغل معها؟ اضغطها:') + '</div>'
+    + (chips.length ? '<div class="dl-chips">' + chips.map(n => '<button type="button" class="dl-chip" data-dl-quick="' + escapeHtml(n) + '">+ ' + escapeHtml(n) + '</button>').join('') + '</div>' : '')
+    + '<div class="dl-add-row"><input type="text" id="dlNewName" maxlength="40" placeholder="اسم ثاني…" autocomplete="off"><button type="button" class="rk2-btn mn-ghost sm" data-dl-addname>أضف</button></div></div>';
+  if(!DL.platforms.length){
+    return '<div class="rk2-card ac-card">' + hmHead('orders', 'res', 'تطبيقاتك', 'كل تطبيق تضيفه يطلع للكاشير لما يسجّل طلب توصيل')
+      + '<div class="hm-empty"><span class="hm-empty-ic">' + hmIc('orders') + '</span><b>تطبيقاتك تطلع هنا</b><span>أضفها مرة وحدة، وكل طلب منها ينحسب: عمولته ورسومه وكم يبقى لك</span></div>' + add + '</div>';
+  }
+  const cards = DL.platforms.map(p => {
+    const r = st.rows.find(x => x.p === p) || { count: 0 };
+    const on = p.active !== false, open = String(dlOpen) === String(p.id), n = dlPriceCount(p.id);
+    const comm = Number(p.commission_pct) > 0 ? 'عمولة ' + Number(p.commission_pct) + '٪' : '<span class="dl-miss">بدون عمولة</span>';
+    return '<div class="dl-plat' + (open ? ' open' : '') + (on ? '' : ' off') + '" data-dl-card="' + p.id + '">'
+      + '<div class="dl-plat-row"><span class="pu-av c-res">' + escapeHtml((p.name || 'م').trim().charAt(0)) + '</span>'
+      + '<div class="pu-info"><b>' + escapeHtml(p.name) + (on ? '' : ' <span class="dl-pill">موقّف</span>') + '</b>'
+      + '<div class="pu-meta">' + comm + ' · ' + dlFeeText(p) + ' · تجهيز ' + (p.prep_timeout_minutes || 17) + ' د' + (n ? ' · ' + mnN(n) + ' بسعر خاص' : '') + '</div></div>'
+      + '<span class="dl-count">' + (r.count ? dlOrdersWord(r.count) + '<small>آخر ٣٠ يوم</small>' : '') + '</span>'
+      + '<label class="dl-switch" title="' + (on ? 'شغّال في الكاشير' : 'موقّف') + '"><input type="checkbox" data-dl-toggle="' + p.id + '"' + (on ? ' checked' : '') + '><i></i></label>'
+      + '<button type="button" class="rk2-btn ' + (open ? 'lime' : 'mn-ghost') + ' sm" data-dl-edit="' + p.id + '">' + (open ? 'سكّر' : 'عدّل') + '</button></div>'
+      + (open ? dlEditorHtml(p) : '') + '</div>';
+  }).join('');
+  return '<div class="rk2-card ac-card">' + hmHead('orders', 'res', 'تطبيقاتك', 'المفعّل يطلع للكاشير، والموقّف يختفي منه') + '<div class="dl-list">' + cards + '</div>' + add + '</div>';
+}
+
+function dlEditorHtml(p){
+  const tiered = p.fee_model === 'tiered';
+  const f = (label, input, hint) => '<label class="ac-fc-field"><span>' + label + '</span>' + input + '<small>' + hint + '</small></label>';
+  const tiers = (DL.tiers[p.id] || []).map(t => dlTierRow(t.min_order_value, t.fee)).join('');
+  const advOpen = tiered || Number(p.compensation_pct) > 0 || p.commission_base === 'subtotal';
+  const items = dlItems(), n = dlPriceCount(p.id), pct = dlSuggestPct(p);
+  const ex = items[0];
+  return '<div class="dl-edit">'
+    + '<div class="dl-fields">'
+    + f('كم عمولتهم؟ (٪)', '<input type="number" class="dl-f-commission" inputmode="decimal" min="0" max="100" step="0.1" value="' + (Number(p.commission_pct) || '') + '" placeholder="مثال: 22">', 'من عقدك معهم')
+    + f(tiered ? 'رسم ثابت فوق الشريحة (ر.س)' : 'رسم التوصيل اللي يخصمونه (ر.س)', '<input type="number" class="dl-f-fee" inputmode="decimal" min="0" step="0.01" value="' + (Number(p.flat_fee) || '') + '" placeholder="0">', 'لكل طلب. صفر لو ما فيه')
+    + f('وقت التجهيز (دقيقة)', '<input type="number" class="dl-f-prep" inputmode="numeric" min="1" step="1" value="' + (p.prep_timeout_minutes || 17) + '">', 'الكاشير ينبّهك قبل ما يخلص')
+    + '</div>'
+    + '<details class="dl-adv"' + (advOpen ? ' open' : '') + '><summary>خيارات متقدمة</summary><div class="dl-fields">'
+    + f('العمولة تنحسب من', '<select class="dl-f-base"><option value="total"' + (p.commission_base !== 'subtotal' ? ' selected' : '') + '>الإجمالي شامل الضريبة</option><option value="subtotal"' + (p.commission_base === 'subtotal' ? ' selected' : '') + '>المجموع قبل الضريبة</option></select>', 'حسب عقدك')
+    + f('رسوم التوصيل', '<select class="dl-f-model"><option value="flat"' + (!tiered ? ' selected' : '') + '>رسم واحد لكل الطلبات</option><option value="tiered"' + (tiered ? ' selected' : '') + '>تتغيّر حسب قيمة الطلب</option></select>', 'أغلب المنصات رسم واحد')
+    + f('تعويضات مفترضة (٪)', '<input type="number" class="dl-f-comp" inputmode="decimal" min="0" max="100" step="0.1" value="' + (Number(p.compensation_pct) || '') + '" placeholder="0">', 'نسبة طلبات تتوقع يخصمونها كتعويض. اختياري')
+    + '</div><div class="dl-tiers"' + (tiered ? '' : ' hidden') + '><div class="dl-tiers-cap">الرسم حسب قيمة الطلب (يطبّق أعلى حد يوصله الطلب):</div><div class="dl-tier-list">' + tiers + '</div>'
+    + '<button type="button" class="rk2-btn mn-ghost sm" data-dl-tier-add>+ أضف شريحة</button></div></details>'
+    + '<div class="dl-prices"><div class="dl-prices-top"><b>أسعارك في ' + escapeHtml(p.name) + '</b><span>' + (n ? n + ' من ' + items.length + ' منتج بسعر خاص' : 'كل منتجاتك بسعر القائمة') + '</span></div>'
+    + (items.length ? '<div class="dl-prices-acts"><select class="dl-f-pct" aria-label="نسبة الرفع">' + [10, 15, 20, 25, 30].map(v => '<option value="' + v + '"' + (v === pct ? ' selected' : '') + '>أغلى ' + v + '٪</option>').join('') + '</select>'
+      + '<button type="button" class="rk2-btn mn-ghost sm" data-dl-price="' + p.id + '">طبّقها على كل المنتجات</button>'
+      + (n ? '<button type="button" class="rk2-btn mn-ghost sm" data-dl-reset="' + p.id + '">رجّعها لسعر القائمة</button>' : '') + '</div>'
+      + '<p class="ac-note">مثلاً ' + escapeHtml(ex.name) + ': ' + acR(ex.price) + ' ← ' + Math.ceil(ex.price * (1 + pct / 100)) + ' ر.س. سعر منتج واحد تعدّله من «القائمة» ← المنتج ← «أسعار التوصيل».</p>'
+      : '<p class="ac-note">أضف منتجات للقائمة أول، وبعدها تسعّرها هنا.</p>')
+    + '</div>'
+    + '<div class="dl-edit-acts"><button type="button" class="rk2-btn lime" data-dl-save="' + p.id + '">احفظ ' + escapeHtml(p.name) + '</button>'
+    + '<button type="button" class="rk2-btn mn-ghost sm dl-del" data-dl-del="' + p.id + '">احذف التطبيق</button></div>'
+    + '</div>';
+}
+function dlTierRow(min, fee){
+  return '<div class="dl-tier"><label>من <input type="number" class="dl-t-min" inputmode="decimal" min="0" step="0.01" value="' + (min != null ? min : '') + '" placeholder="0"> ر.س</label>'
+    + '<label>الرسم <input type="number" class="dl-t-fee" inputmode="decimal" min="0" step="0.01" value="' + (fee != null ? fee : '') + '" placeholder="0"> ر.س</label>'
+    + '<button type="button" class="pu-ic-btn del" data-dl-tier-del aria-label="احذف الشريحة">✕</button></div>';
+}
+
+/* ── أي تطبيق يربحك أكثر؟ -- من إعداداتك أنت، على متوسط طلب التوصيل الحقيقي ── */
+function dlAvgOrder(){
+  const tot = DL.orders.reduce((s, o) => s + (Number(o.total) || 0), 0);
+  return DL.orders.length ? tot / DL.orders.length : 60;
+}
+function dlCompareRows(){
+  const avg = dlAvgOrder();
+  const probe = { total: avg, subtotal: avg / 1.15 };
+  return DL.platforms.filter(p => p.active !== false).map(p => {
+    const d = computeOrderDeliveryPlatformCost(probe, p, DL.tiers[p.id]);
+    return { p, cut: d.total, keep: avg - d.total, keepPct: avg > 0 ? (avg - d.total) / avg * 100 : 0, unset: !(Number(p.commission_pct) > 0) };
+  }).sort((a, b) => (a.unset - b.unset) || (b.keep - a.keep));
+}
+function dlCompareHtml(st){
+  const head = hmHead('trophy', 'res', 'أي تطبيق يربحك أكثر؟', 'كم يبقى لك من نفس الطلب في كل تطبيق، بعد عمولته ورسومه');
+  const rows = dlCompareRows();
+  if(!rows.length){
+    return '<div class="rk2-card ac-card">' + head + '<div class="hm-empty"><span class="hm-empty-ic">' + hmIc('trophy') + '</span><b>المقارنة تطلع لما تضيف تطبيقاتك</b><span>نحسبها من عمولة كل تطبيق في عقدك، مو أرقام عامة</span>'
+      + '<button type="button" class="rk2-btn lime sm" data-dl-go="@add">أضف تطبيقاتك</button></div></div>';
+  }
+  const avg = dlAvgOrder(), real = DL.orders.length > 0;
+  const list = rows.map((r, i) => {
+    const sr = st.rows.find(x => x.p === r.p) || { count: 0, gross: 0, cut: 0 };
+    return '<div class="dl-cmp' + (i === 0 && !r.unset ? ' best' : '') + '"><span class="dl-rank">' + (i === 0 && !r.unset ? hmIc('trophy') : (i + 1)) + '</span>'
+      + '<div class="dl-cmp-main"><div class="dl-cmp-top"><b>' + escapeHtml(r.p.name) + '</b>'
+      + (r.unset ? '<button type="button" class="dl-miss-btn" data-dl-go="@edit:' + r.p.id + '">حدد عمولتها</button>' : '<span>يبقى لك <b>' + hmMoney(r.keep) + '</b></span>') + '</div>'
+      + '<div class="dl-cmp-bar"><i style="width:' + (r.unset ? 0 : Math.max(0, Math.min(100, r.keepPct))).toFixed(1) + '%"></i></div>'
+      + '<div class="pu-meta">' + (r.unset ? 'بدون عمولة محددة، فما نقدر نقارنها' : 'تاخذ ' + acR(r.cut) + ' ر.س (' + Math.round(100 - r.keepPct) + '٪)')
+      + (sr.count ? ' · فعلياً آخر ٣٠ يوم: ' + dlOrdersWord(sr.count) + '، أخذت ' + acR(sr.cut) + ' ر.س' : '') + '</div></div></div>';
+  }).join('');
+  const ok = rows.filter(r => !r.unset);
+  const tip = ok.length > 1 && ok[0].keep - ok[ok.length - 1].keep >= 0.5
+    ? '<div class="dl-tip">' + hmIc('info') + '<span>نفس الطلب يبقى لك منه <b>' + acR(ok[0].keep - ok[ok.length - 1].keep) + ' ريال زيادة</b> من ' + escapeHtml(ok[0].p.name) + ' عن ' + escapeHtml(ok[ok.length - 1].p.name) + '. روّج لـ' + escapeHtml(ok[0].p.name) + ' أكثر، أو ارفع أسعارك في ' + escapeHtml(ok[ok.length - 1].p.name) + '.</span></div>' : '';
+  return '<div class="rk2-card ac-card">' + head
+    + '<div class="dl-cmp-cap">على طلب بـ <b>' + acR(avg) + ' ر.س</b> ' + (real ? '(متوسط طلبات التوصيل عندك آخر ٣٠ يوم)' : '(لسا ما جاك طلب، فهذا مثال)') + '</div>'
+    + '<div class="dl-cmps">' + list + '</div>' + tip + '</div>';
+}
+function dlGo(go){
+  if(go === '@add'){ dlTab = 'apps'; dlRender(); setTimeout(() => { const i = document.getElementById('dlNewName'); const c = document.querySelector('#screen-delivery .dl-add'); if(c) c.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 30); return; }
+  if(go === '@compare'){ dlTab = 'compare'; dlRender(); document.getElementById('dlTabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+  if(go === '@settle'){ if(typeof acDel !== 'undefined') acDel.loadedFor = null; goToScreenTab('accounting', 'delivery'); return; }
+  if(go.indexOf('@edit:') === 0){ dlTab = 'apps'; dlOpen = go.slice(6); dlRender(); dlFocusCard(dlOpen); }
+}
+function dlFocusCard(id){
+  setTimeout(() => {
+    const card = document.querySelector('#screen-delivery [data-dl-card="' + id + '"]');
+    if(!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const inp = card.querySelector('.dl-f-commission'); if(inp) try { inp.focus({ preventScroll: true }); } catch(e){}
+  }, 40);
+}
+function dlAfterChange(){
+  // التسوية في «المحاسبة» والكاشير يقرأون نفس المنصات
+  if(typeof acDel !== 'undefined') acDel.loadedFor = null;
+  return dlLoad();
+}
+function dlErr(prefix, err){ showToast(prefix + ': ' + (err && err.message ? err.message : 'خطأ غير متوقع')); }
+
+async function dlAdd(name, btn){
+  name = (name || '').trim();
+  if(!name){ showToast('اكتب اسم التطبيق'); document.getElementById('dlNewName')?.focus(); return; }
+  if(DL.platforms.some(p => (p.name || '').trim() === name)){ showToast(name + ' موجود عندك'); return; }
+  if(btn) btn.disabled = true;
+  try {
+    const { data, error } = await window.supabaseClient.from('delivery_platforms')
+      .insert({ business_id: CURRENT_PROFILE.business_id, name }).select().single();
+    if(error) throw error;
+    logDashboardAudit('أضاف منصة توصيل جديدة: ' + name);
+    showToast('انضاف ' + name + ' ✓ حدد عمولته');
+    dlOpen = data && data.id != null ? data.id : null;
+    await dlAfterChange();
+    if(dlOpen != null) dlFocusCard(dlOpen);
+  } catch(err){ dlErr('تعذرت الإضافة', err); }
+  finally { if(btn) btn.disabled = false; }
+}
+async function dlSave(id, btn){
+  const p = dlPlat(id), card = document.querySelector('#screen-delivery [data-dl-card="' + id + '"]');
+  if(!p || !card) return;
+  const num = (sel, d) => { const v = parseFloat((card.querySelector(sel) || {}).value); return isFinite(v) ? v : d; };
+  const commission = num('.dl-f-commission', 0);
+  if(commission < 0 || commission > 100){ showToast('العمولة لازم بين ٠ و١٠٠٪'); return; }
+  const feeModel = (card.querySelector('.dl-f-model') || {}).value || 'flat';
+  const tiers = [...card.querySelectorAll('.dl-tier')].map(r => ({ delivery_platform_id: p.id,
+    min_order_value: parseFloat(r.querySelector('.dl-t-min').value) || 0, fee: parseFloat(r.querySelector('.dl-t-fee').value) || 0 }));
+  const row = { commission_pct: commission, commission_base: (card.querySelector('.dl-f-base') || {}).value || 'total', fee_model: feeModel,
+    flat_fee: Math.max(0, num('.dl-f-fee', 0)), compensation_pct: Math.max(0, num('.dl-f-comp', 0)), prep_timeout_minutes: Math.max(1, Math.round(num('.dl-f-prep', 17))) };
+  btn.disabled = true;
+  try {
+    const sb = window.supabaseClient;
+    const { error } = await sb.from('delivery_platforms').update(row).eq('id', p.id);
+    if(error) throw error;
+    const { error: e2 } = await sb.from('delivery_platform_fee_tiers').delete().eq('delivery_platform_id', p.id);
+    if(e2) throw e2;
+    if(feeModel === 'tiered' && tiers.length){
+      const { error: e3 } = await sb.from('delivery_platform_fee_tiers').insert(tiers);
+      if(e3) throw e3;
+    }
+    logDashboardAudit('حدّث إعدادات منصة توصيل: ' + p.name);
+    showToast('انحفظ ' + p.name + ' ✓');
+    dlOpen = null;
+    await dlAfterChange();
+  } catch(err){ dlErr('تعذر الحفظ', err); }
+  finally { btn.disabled = false; }
+}
+async function dlToggle(id, el){
+  const p = dlPlat(id); if(!p) return;
+  const makeActive = p.active === false;
+  if(el) el.disabled = true;
+  try {
+    const { error } = await window.supabaseClient.from('delivery_platforms').update({ active: makeActive }).eq('id', p.id);
+    if(error) throw error;
+    logDashboardAudit((makeActive ? 'فعّل' : 'أوقف') + ' منصة توصيل: ' + p.name);
+    showToast(makeActive ? p.name + ' رجعت للكاشير ✓' : 'وقّفنا ' + p.name + '، ما تطلع في الكاشير');
+    await dlAfterChange();
+  } catch(err){ if(el){ el.checked = !makeActive; el.disabled = false; } dlErr('تعذر الحفظ', err); }
+}
+async function dlDelete(id){
+  const p = dlPlat(id); if(!p) return;
+  if(!await rkAsk({ title: 'نحذف ' + p.name + '؟', body: 'تختفي من الكاشير، وتنحذف عمولتها وأسعارها. لو بس وقّفت الشغل معها مؤقتاً، الأفضل توقّفها من المفتاح.', ok: 'احذفها', cancel: 'خلّها' })) return;
+  try {
+    const { error } = await window.supabaseClient.from('delivery_platforms').delete().eq('id', p.id);
+    if(error) throw error;
+    logDashboardAudit('حذف منصة توصيل: ' + p.name);
+    showToast('انحذف ' + p.name);
+    dlOpen = null;
+    await dlAfterChange();
+  } catch(err){ dlErr('تعذر الحذف (لو لها طلبات قديمة، وقّفها بدل ما تحذفها)', err); }
+}
+async function dlApplyPrices(id, pct){
+  const p = dlPlat(id); if(!p) return;
+  pct = Number(pct) || 20;
+  const items = dlItems();
+  if(!items.length){ showToast('أضف منتجات للقائمة أول'); return; }
+  const np = v => Math.ceil(Number(v) * (1 + pct / 100));
+  const ex = items[0];
+  if(!await rkAsk({ title: 'نخلّي أسعار ' + p.name + ' أغلى ' + pct + '٪؟',
+    body: 'كل منتجاتك (' + items.length + ') في ' + escapeHtml(p.name) + ' تصير أغلى ' + pct + '٪ ومقرّبة لأعلى ريال. مثلاً <b>' + escapeHtml(ex.name) + '</b>: ' + acR(ex.price) + ' ← <b>' + np(ex.price) + ' ر.س</b>.<br>سعر القائمة عندك ما يتغيّر، والكاشير يطبّق السعر الجديد على طلبات ' + escapeHtml(p.name) + ' بس.',
+    ok: 'طبّقها', cancel: 'لا' })) return;
+  try {
+    const { error } = await window.supabaseClient.from('menu_item_platform_prices')
+      .upsert(items.map(m => ({ menu_item_id: m.id, platform_id: p.id, price: np(m.price) })));
+    if(error) throw error;
+    logDashboardAudit('رفع أسعار ' + p.name + ' ' + pct + '٪ لكل المنتجات (' + items.length + ')');
+    showToast('صارت أسعار ' + p.name + ' أغلى ' + pct + '٪ ✓');
+    await dlAfterChange();
+  } catch(err){ dlErr('تعذر حفظ الأسعار', err); }
+}
+async function dlResetPrices(id){
+  const p = dlPlat(id); if(!p) return;
+  const n = dlPriceCount(p.id);
+  if(!await rkAsk({ title: 'نرجّع أسعار ' + p.name + ' لسعر القائمة؟', body: mnN(n) + ' عندها سعر خاص في ' + escapeHtml(p.name) + '، ترجع كلها لنفس سعر القائمة.', ok: 'رجّعها', cancel: 'خلّها' })) return;
+  try {
+    const { error } = await window.supabaseClient.from('menu_item_platform_prices').delete()
+      .eq('platform_id', p.id).in('menu_item_id', dlItems().map(m => m.id));
+    if(error) throw error;
+    logDashboardAudit('رجّع أسعار ' + p.name + ' لسعر القائمة');
+    showToast('رجعت أسعار ' + p.name + ' لسعر القائمة');
+    await dlAfterChange();
+  } catch(err){ dlErr('تعذر الحفظ', err); }
+}
+
+(function wireDl(){
+  const root = document.getElementById('screen-delivery');
+  if(!root) return;
+  root.addEventListener('click', (e) => {
+    const t = e.target;
+    const tile = t.closest('#dlTabs [data-dl-tab]');
+    if(tile){ const k = tile.dataset.dlTab; if(k === 'settle') return dlGo('@settle'); dlTab = k; dlRender(); return; }
+    const g = t.closest('[data-dl-go]'); if(g){ dlGo(g.dataset.dlGo); return; }
+    const q = t.closest('[data-dl-quick]'); if(q){ dlAdd(q.dataset.dlQuick, q); return; }
+    if(t.closest('[data-dl-addname]')){ dlAdd((document.getElementById('dlNewName') || {}).value, t.closest('button')); return; }
+    const ed = t.closest('[data-dl-edit]'); if(ed){ const id = ed.dataset.dlEdit; dlOpen = String(dlOpen) === String(id) ? null : id; dlRender(); if(dlOpen) dlFocusCard(dlOpen); return; }
+    const tb = t.closest('button[data-dl-toggle]'); if(tb){ dlToggle(tb.dataset.dlToggle, null); return; }
+    const sv = t.closest('[data-dl-save]'); if(sv){ dlSave(sv.dataset.dlSave, sv); return; }
+    const dl = t.closest('[data-dl-del]'); if(dl){ dlDelete(dl.dataset.dlDel); return; }
+    const pr = t.closest('[data-dl-price]');
+    if(pr){ const sel = pr.closest('.dl-prices')?.querySelector('.dl-f-pct'); dlApplyPrices(pr.dataset.dlPrice, pr.dataset.dlPct || (sel && sel.value)); return; }
+    const rs = t.closest('[data-dl-reset]'); if(rs){ dlResetPrices(rs.dataset.dlReset); return; }
+    if(t.closest('[data-dl-tier-add]')){ const list = t.closest('.dl-tiers').querySelector('.dl-tier-list'); list.insertAdjacentHTML('beforeend', dlTierRow(null, null)); return; }
+    const td = t.closest('[data-dl-tier-del]'); if(td){ td.closest('.dl-tier').remove(); return; }
+    if(t.closest('[data-dl-reload]')){ dlLoad(); }
+  });
+  root.addEventListener('change', (e) => {
+    const t = e.target;
+    if(t.matches && t.matches('input[data-dl-toggle]')){ dlToggle(t.dataset.dlToggle, t); return; }
+    if(t.classList && t.classList.contains('dl-f-model')){ const tz = t.closest('.dl-edit').querySelector('.dl-tiers'); if(tz) tz.hidden = t.value !== 'tiered'; }
+  });
+  root.addEventListener('keydown', (e) => { if(e.key === 'Enter' && e.target && e.target.id === 'dlNewName'){ e.preventDefault(); dlAdd(e.target.value); } });
+})();
 
 /* ============ AI Advisor — every answer is computed from real, already-established data.
    No answer here invents a number that doesn't exist elsewhere in the dashboard. */
@@ -11779,189 +12139,6 @@ async function waLinkApiCall(method, url, body){
     showToast('خطأ غير متوقع');
     return false;
   }
-}
-
-/* ============ Delivery platforms — real commission/fee/VAT-base config per
-   platform, used by the monthly reconciliation report (renderDeliveryReconciliation)
-   to compute exactly what each platform keeps vs. owes the business. */
-async function renderDeliveryPlatformsSettings(){
-  const panel = document.getElementById('deliveryPlatformsPanelBody');
-  if(!panel) return;
-  panel.innerHTML = '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p>';
-  const [{data: platforms}, {data: tiers}] = await Promise.all([
-    window.supabaseClient.from('delivery_platforms').select('*').eq('business_id', CURRENT_PROFILE.business_id).order('id'),
-    window.supabaseClient.from('delivery_platform_fee_tiers').select('*').order('min_order_value')
-  ]);
-  const tiersByPlatform = {};
-  (tiers||[]).forEach(t=>{ (tiersByPlatform[t.delivery_platform_id] ||= []).push(t); });
-
-  panel.innerHTML = (platforms||[]).map(p=>{
-    const platformTiers = tiersByPlatform[p.id] || [];
-    return `
-    <div class="rk-subcard" data-platform-panel="${p.id}">
-      <div class="rk-subcard-title">${p.name}${p.active?'':' <span class="rk-badge warn">معطّلة</span>'}</div>
-      <div class="rk-grid-2" style="margin-bottom:14px;">
-        <div class="rk-field"><label>نسبة عمولة المنصة (٪)</label><input type="number" step="0.1" class="dp-commission" value="${p.commission_pct}"></div>
-        <div class="rk-field"><label>تحسب العمولة من</label>
-          <select class="dp-commission-base">
-            <option value="total" ${p.commission_base==='total'?'selected':''}>الإجمالي شامل الضريبة</option>
-            <option value="subtotal" ${p.commission_base==='subtotal'?'selected':''}>المجموع قبل الضريبة</option>
-          </select>
-        </div>
-      </div>
-      <div class="rk-field" style="margin-bottom:14px; max-width:280px;">
-        <label>نموذج رسوم التوصيل</label>
-        <select class="dp-fee-model">
-          <option value="flat" ${p.fee_model==='flat'?'selected':''}>رسم ثابت لكل الطلبات</option>
-          <option value="tiered" ${p.fee_model==='tiered'?'selected':''}>يتدرّج حسب قيمة الطلب</option>
-        </select>
-      </div>
-      <div class="dp-flat-fee-field rk-field" style="margin-bottom:14px; max-width:280px;">
-        <label class="dp-flat-fee-label">${p.fee_model==='tiered' ? 'رسم ثابت إضافي لكل طلب (اختياري)' : 'رسم التوصيل الثابت (ر.س)'}</label>
-        <input type="number" step="0.01" class="dp-flat-fee" value="${p.flat_fee}">
-        ${p.fee_model==='tiered' ? `<p class="stock-qty-helper" style="margin-top:6px;">يُضاف فوق رسم الشريحة في كل طلب — مثال: هنقرستيشن تاخذ رسم شريحة + 2 ر.س ثابتة لكل طلب. سيبه صفر إذا ما فيه رسم إضافي.</p>` : ''}
-      </div>
-      <div class="dp-tiers-field" style="display:${p.fee_model==='tiered'?'block':'none'}; margin-bottom:14px;">
-        <label style="font-size:11.5px; font-weight:700; color:var(--muted);">درجات الرسوم — الرسم يطبّق لأعلى حد أدنى تحقق قيمة الطلب</label>
-        <div class="dp-tiers-list" style="margin-top:8px;">
-          ${platformTiers.map((t,i)=>`
-            <div class="dp-tier-row" data-idx="${i}" style="display:flex; gap:10px; align-items:flex-end; margin-bottom:8px;">
-              <div class="rk-field" style="flex:1;"><label>الطلب من (ر.س)</label><input type="number" step="0.01" class="dp-tier-min" value="${t.min_order_value}"></div>
-              <div class="rk-field" style="flex:1;"><label>رسم التوصيل (ر.س)</label><input type="number" step="0.01" class="dp-tier-fee" value="${t.fee}"></div>
-              <button class="rk-btn rk-btn-ghost rk-btn-sm dp-tier-remove" data-idx="${i}" style="flex-shrink:0;">حذف</button>
-            </div>`).join('')}
-        </div>
-        <button class="rk-btn rk-btn-secondary rk-btn-sm dp-tier-add" style="margin-top:6px;">${rkIcon('plus')}إضافة درجة</button>
-      </div>
-      <div class="rk-grid-2" style="margin-bottom:14px;">
-        <div class="rk-field"><label>نسبة تعويضات/استرجاعات مفترضة (٪) ${helpIcon('تقدير اختياري — لو حاب تفترض إن نسبة معينة من طلبات هذي المنصة تنتهي بتعويض أو استرجاع يخصمه منك، حط النسبة هنا وبينحسب ضمن التكلفة. سيبه صفر لو ما تبي تفترض شي.')}</label><input type="number" step="0.1" class="dp-compensation" value="${p.compensation_pct}"></div>
-        <div class="rk-field"><label>الحد الأقصى لتجهيز طلب توصيل (دقيقة) ${helpIcon('المؤقت اللي يبدأ بالكاشير فور ما يضرب طلب توصيل من هذي المنصة — تنبيه أول عند بقاء ٥ دقائق، وتنبيه ثاني إذا انتهى الوقت.')}</label><input type="number" step="1" min="1" class="dp-prep-timeout" value="${p.prep_timeout_minutes}"></div>
-      </div>
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <button class="rk-btn rk-btn-primary rk-btn-sm dp-save-btn" data-id="${p.id}">حفظ إعدادات ${p.name}</button>
-        <button class="rk-btn rk-btn-secondary rk-btn-sm dp-toggle-active" data-id="${p.id}" data-active="${p.active}">${p.active?'تعطيل المنصة':'تفعيل المنصة'}</button>
-        <button class="rk-btn rk-btn-secondary rk-btn-sm dp-delete-btn" data-id="${p.id}" data-name="${p.name}" style="color:var(--danger); border-color:var(--danger);">حذف</button>
-      </div>
-    </div>`;
-  }).join('') || '<p class="stock-qty-helper">ما فيه منصات توصيل مضافة بعد.</p>';
-
-  panel.innerHTML += `
-    <div style="display:flex; gap:10px; align-items:flex-end; margin-top:${(platforms||[]).length?'12px':'0'};">
-      <div class="rk-field" style="flex:1; margin-bottom:0;"><label>منصة توصيل جديدة</label><input type="text" id="newPlatformName" placeholder="مثال: هنقرستيشن"></div>
-      <button class="rk-btn rk-btn-primary rk-btn-md" id="addPlatformBtn" style="flex-shrink:0;">${rkIcon('plus')}إضافة</button>
-    </div>`;
-
-  panel.querySelectorAll('[data-platform-panel]').forEach(block=>{
-    const feeModelSelect = block.querySelector('.dp-fee-model');
-    feeModelSelect.addEventListener('change', ()=>{
-      const tiered = feeModelSelect.value==='tiered';
-      block.querySelector('.dp-tiers-field').style.display = tiered ? 'block' : 'none';
-      const label = block.querySelector('.dp-flat-fee-label');
-      if(label) label.textContent = tiered ? 'رسم ثابت إضافي لكل طلب (اختياري)' : 'رسم التوصيل الثابت (ر.س)';
-    });
-    block.querySelector('.dp-tier-add').addEventListener('click', ()=>{
-      const list = block.querySelector('.dp-tiers-list');
-      const row = document.createElement('div');
-      row.className = 'dp-tier-row';
-      row.style.cssText = 'display:flex; gap:10px; align-items:flex-end; margin-bottom:8px;';
-      row.innerHTML = `
-        <div class="rk-field" style="flex:1;"><label>الطلب من (ر.س)</label><input type="number" step="0.01" class="dp-tier-min" value="0"></div>
-        <div class="rk-field" style="flex:1;"><label>رسم التوصيل (ر.س)</label><input type="number" step="0.01" class="dp-tier-fee" value="0"></div>
-        <button class="rk-btn rk-btn-ghost rk-btn-sm dp-tier-remove" style="flex-shrink:0;">حذف</button>`;
-      list.appendChild(row);
-      row.querySelector('.dp-tier-remove').addEventListener('click', ()=> row.remove());
-    });
-    block.querySelectorAll('.dp-tier-remove').forEach(btn=>{
-      btn.addEventListener('click', ()=> btn.closest('.dp-tier-row').remove());
-    });
-  });
-
-  panel.querySelectorAll('.dp-save-btn').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      const platformId = parseInt(btn.dataset.id,10);
-      const block = panel.querySelector('[data-platform-panel="'+platformId+'"]');
-      const commissionPct = parseFloat(block.querySelector('.dp-commission').value) || 0;
-      const commissionBase = block.querySelector('.dp-commission-base').value;
-      const feeModel = block.querySelector('.dp-fee-model').value;
-      const flatFee = parseFloat(block.querySelector('.dp-flat-fee').value) || 0;
-      const tierRows = Array.from(block.querySelectorAll('.dp-tier-row')).map(row=>({
-        delivery_platform_id: platformId,
-        min_order_value: parseFloat(row.querySelector('.dp-tier-min').value) || 0,
-        fee: parseFloat(row.querySelector('.dp-tier-fee').value) || 0
-      }));
-      const compensationPct = parseFloat(block.querySelector('.dp-compensation').value) || 0;
-      const prepTimeoutMinutes = parseInt(block.querySelector('.dp-prep-timeout').value, 10) || 17;
-      rkBtnLoading(btn, true);
-      try {
-        const { error: updateError } = await window.supabaseClient.from('delivery_platforms').update({
-          commission_pct: commissionPct, commission_base: commissionBase, fee_model: feeModel,
-          flat_fee: flatFee, compensation_pct: compensationPct, prep_timeout_minutes: prepTimeoutMinutes
-        }).eq('id', platformId);
-        if(updateError) throw updateError;
-
-        const { error: deleteTiersError } = await window.supabaseClient.from('delivery_platform_fee_tiers').delete().eq('delivery_platform_id', platformId);
-        if(deleteTiersError) throw deleteTiersError;
-        if(feeModel === 'tiered' && tierRows.length){
-          const { error: insertTiersError } = await window.supabaseClient.from('delivery_platform_fee_tiers').insert(tierRows);
-          if(insertTiersError) throw insertTiersError;
-        }
-        logDashboardAudit('حدّث إعدادات منصة توصيل');
-        rkBtnSuccess(btn, '✓ تم الحفظ');
-      } catch(err){
-        rkBtnLoading(btn, false);
-        showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-      }
-    });
-  });
-
-  panel.querySelectorAll('.dp-toggle-active').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      const makeActive = btn.dataset.active !== 'true';
-      rkBtnLoading(btn, true);
-      try {
-        const { error } = await window.supabaseClient.from('delivery_platforms').update({active: makeActive}).eq('id', btn.dataset.id);
-        if(error) throw error;
-        renderDeliveryPlatformsSettings();
-      } catch(err){
-        rkBtnLoading(btn, false);
-        showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-      }
-    });
-  });
-
-  panel.querySelectorAll('.dp-delete-btn').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      if(!window.confirm('متأكد إنك تبي تحذف "' + btn.dataset.name + '"؟')) return;
-      rkBtnLoading(btn, true);
-      try {
-        const { error } = await window.supabaseClient.from('delivery_platforms').delete().eq('id', btn.dataset.id);
-        if(error) throw error;
-        logDashboardAudit('حذف منصة توصيل: ' + btn.dataset.name);
-        renderDeliveryPlatformsSettings();
-      } catch(err){
-        rkBtnLoading(btn, false);
-        showToast('تعذر الحذف: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-      }
-    });
-  });
-
-  const addBtn = document.getElementById('addPlatformBtn');
-  if(addBtn) addBtn.addEventListener('click', async ()=>{
-    const input = document.getElementById('newPlatformName');
-    const name = input.value.trim();
-    if(!name){ showToast('اكتب اسم المنصة'); return; }
-    rkBtnLoading(addBtn, true);
-    try {
-      const { error } = await window.supabaseClient.from('delivery_platforms')
-        .insert({ business_id: CURRENT_PROFILE.business_id, name });
-      if(error) throw error;
-      logDashboardAudit('أضاف منصة توصيل جديدة: ' + name);
-      renderDeliveryPlatformsSettings();
-    } catch(err){
-      rkBtnLoading(addBtn, false);
-      showToast('تعذرت الإضافة: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-    }
-  });
 }
 
 /* ============ Branches — capped per business (branch_limit, a plan-tier
