@@ -16,7 +16,7 @@
 .ls-card h3 { margin: 0; font-size: 15px; font-weight: 800; }
 .ls-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 
-.ls-tpls { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(118px, 1fr); gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.ls-tpls { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(118px, 180px); justify-content: start; gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
 .ls-tpl { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 4px; padding: 8px; border-radius: 14px; border: 2px solid var(--line); background: var(--surf1); text-align: right; transition: border-color .2s, transform .2s; }
 .ls-tpl:hover { transform: translateY(-2px); }
 .ls-tpl.on { border-color: var(--lime-deep); background: color-mix(in srgb, var(--lime) 10%, var(--card-bg)); }
