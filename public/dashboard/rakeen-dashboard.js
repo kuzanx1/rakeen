@@ -2840,93 +2840,313 @@ async function saveStockItem(){
   }
 }
 
-/* ============ Supplier price comparison — every number derives from PURCHASE_INVOICES (qty/totalCost),
-   never a hand-typed unit price. "استخدم هذا السعر" writes straight into STOCK_ITEMS, which is the
-   same source the Menu costing engine reads from — so the connection is real, not decorative. */
-let supplierMonthlyQty = {}; // per-item editable "how much do you buy monthly" for the savings projection
-
-function renderSupplierComparison(){
-  const titleEl = document.getElementById('supplierComparisonTitle');
-  if(titleEl) titleEl.innerHTML = 'مقارنة أسعار الموردين ' + helpIcon('كل ما تسجّل فاتورة شراء لنفس الصنف من مورد جديد، ركين يقارن السعر تلقائيًا مع الموردين اللي سجّلتهم قبل، ويوريك مين الأرخص.');
-  const el = document.getElementById('supplierComparisonList');
-  if(!el) return;
-  const itemNames = [...new Set(PURCHASE_INVOICES.map(i=>i.stockItem))];
-  if(itemNames.length === 0){ el.innerHTML = '<div class="supcomp-empty">ما فيه فواتير مسجّلة لسا — سجّل أول فاتورة من الزر فوق.</div>'; return; }
-
-  el.innerHTML = itemNames.map(itemName=>{
-    const stockItem = STOCK_ITEMS.find(s=>s.name===itemName);
-    const entries = PURCHASE_INVOICES.filter(i=>i.stockItem===itemName)
-      .map(i=>({...i, unitPrice: i.totalCost/i.qty}))
-      .sort((a,b)=>a.unitPrice-b.unitPrice);
-    const best = entries[0];
-    const unitLabel = UNIT_LABELS[best.unit]||best.unit;
-    const currentCost = stockItem ? stockItem.unitCost : null;
-    const hasSavings = currentCost !== null && best.unitPrice < currentCost - 0.01;
-    if(!supplierMonthlyQty[itemName]) supplierMonthlyQty[itemName] = 20;
-    const monthlyQty = supplierMonthlyQty[itemName];
-    const monthlySavings = hasSavings ? (currentCost - best.unitPrice) * monthlyQty : 0;
-
-    return `<div class="supcomp-card">
-      ${hasSavings ? `
-      <div class="supcomp-verdict">
-        <div class="supcomp-verdict-text"><b>${escapeHtml(best.supplier)}</b> أفضل خيار لـ<b>${escapeHtml(itemName)}</b></div>
-        <div class="supcomp-verdict-calc">
-          لو تشتري <input type="number" class="supcomp-qty-input" data-item="${escapeHtml(itemName)}" value="${monthlyQty}" min="1"> ${escapeHtml(unitLabel)} بالشهر،
-          توفر ${rkMoney(monthlySavings)} شهريًا
-        </div>
-        <button class="supcomp-use-btn" data-item="${escapeHtml(itemName)}" data-price="${best.unitPrice}">اعتمد ${escapeHtml(best.supplier)} الآن</button>
-      </div>` : `
-      <div class="supcomp-verdict supcomp-verdict-ok">
-        <div class="supcomp-verdict-text">أنت أصلًا عند أفضل سعر مسجّل لـ<b>${escapeHtml(itemName)}</b> (${escapeHtml(best.supplier)})</div>
-      </div>`}
-      <div class="supcomp-head">
-        <span class="supcomp-item-name">كل الأسعار المسجّلة</span>
-        <span class="supcomp-current">التكلفة المعتمدة حاليًا: ${currentCost !== null ? formatUnitCost(currentCost)+' ر.س' : '—'}</span>
-      </div>
-      ${entries.map((e,i)=>`
-        <div class="supcomp-row ${i===0?'best':''}">
-          <span class="supcomp-rank">${i+1}</span>
-          <div style="flex:1;">
-            <div class="supcomp-supplier">${escapeHtml(e.supplier)}</div>
-            <div class="supcomp-meta">${e.qty} ${escapeHtml(UNIT_LABELS[e.unit]||e.unit)} — ${rkMoney(e.totalCost)} — ${escapeHtml(e.date)}</div>
-          </div>
-          <span class="supcomp-unit-price">${formatUnitCost(e.unitPrice)} ر.س/${escapeHtml(UNIT_LABELS[e.unit]||e.unit)}</span>
-        </div>
-      `).join('')}
-    </div>`;
-  }).join('');
-
-  el.querySelectorAll('.supcomp-qty-input').forEach(inp=>{
-    inp.addEventListener('input', ()=>{
-      supplierMonthlyQty[inp.dataset.item] = parseFloat(inp.value)||1;
-      renderSupplierComparison();
-    });
-  });
-  el.querySelectorAll('.supcomp-use-btn').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      const itemName = btn.dataset.item;
-      const newPrice = parseFloat(btn.dataset.price);
-      const stockItem = STOCK_ITEMS.find(s=>s.name===itemName);
-      if(!stockItem) return;
-      const oldPrice = stockItem.unitCost;
-      try {
-        const { error } = await window.supabaseClient.from('stock_items')
-          .update({unit_cost: newPrice, updated_at: new Date().toISOString()}).eq('id', stockItem.id);
-        if(error) throw error;
-      } catch(err){
-        showToast('تعذر تحديث التكلفة: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-        return;
-      }
-      stockItem.unitCost = newPrice;
-      logDashboardAudit('حدّث تكلفة ' + itemName + ' من ' + oldPrice.toFixed(2) + ' إلى ' + newPrice.toFixed(2) + ' (مقارنة موردين)');
-      showToast('تم تحديث التكلفة — هامش المنتجات المرتبطة تحدّث تلقائيًا');
-      renderSupplierComparison();
-      renderStockTable();
-      renderWasteAndFoodCost();
-      if(typeof renderMenuProductTable === 'function') renderMenuProductTable();
-    });
-  });
+/* ═══════════ «المشتريات» (rk2) ═══════════
+   كل شي هنا من PURCHASE_INVOICES وSTOCK_ITEMS الحقيقية: البطاقة اللي فوق،
+   و«وش أسوي الحين؟» (اللي قرّب يخلص + الأرخص عند مورد ثاني)، وثلاث
+   بطاقات: فواتيرك، قارن الأسعار، مورّدينك. التوفير الشهري يُحسب من
+   الكمية اللي اشتريتها فعلاً، مو من رقم مفترض. */
+let puTab = 'invoices', puRange = 'week', puSupplier = null, puPrevLeft = null, puQueued = false;
+function renderSupplierComparison(){ puRender(); }
+function puRender(){
+  if(puQueued) return;
+  puQueued = true;
+  queueMicrotask(() => { puQueued = false; puRenderNow(); });
 }
+function puRenderNow(){
+  if(!document.getElementById('puHero')) return;
+  puRenderHero(); puRenderTodo(); puSetSums(); puRenderPanel();
+}
+const PU_AV = ['ops', 'res', 'fin', 'team', 'ai'];
+function puUnit(u){ return UNIT_LABELS[u] || u || ''; }
+function puDayStart(offsetDays){ const d = new Date(); d.setHours(0, 0, 0, 0); if(offsetDays) d.setDate(d.getDate() - offsetDays); return d; }
+function puMonthStart(){ const d = puDayStart(); d.setDate(1); return d; }
+function puTime(inv){ return inv.invoicedAt ? new Date(inv.invoicedAt).getTime() : 0; }
+// فاتورة وحدة = invoice_group_id وحدة (فيها كم صنف)
+function puGroups(filterFn){
+  const groups = {};
+  PURCHASE_INVOICES.forEach(inv => {
+    if(filterFn && !filterFn(inv)) return;
+    const gid = inv.invoiceGroupId || ('__' + inv.id);
+    const g = (groups[gid] ||= { gid, editable: !!inv.invoiceGroupId, supplier: inv.supplier || '—', lines: [], total: 0, date: inv.date, t: puTime(inv) });
+    g.lines.push(inv); g.total += Number(inv.totalCost) || 0;
+  });
+  return Object.values(groups).sort((a, b) => b.t - a.t);
+}
+function puSum(groups){ return groups.reduce((s, g) => s + g.total, 0); }
+function puInvWord(n){ return hmPlural(n, 'فاتورة وحدة', 'فاتورتين', 'فواتير', 'فاتورة'); }
+
+// المقارنة: آخر سعر من كل مورد لكل صنف، بنفس وحدة الصنف.
+function puCompare(){
+  const byItem = {};
+  PURCHASE_INVOICES.forEach(inv => { if(inv.stockItem && inv.qty > 0) (byItem[inv.stockItem] ||= []).push(inv); });
+  const t30 = Date.now() - 30 * 864e5, t90 = Date.now() - 90 * 864e5;
+  return Object.entries(byItem).map(([name, list]) => {
+    const stock = STOCK_ITEMS.find(s => s.name === name);
+    const unit = stock ? stock.unit : list[0].unit;
+    const latest = {};
+    list.filter(i => i.unit === unit).sort((a, b) => puTime(b) - puTime(a)).forEach(i => { if(!latest[i.supplier]) latest[i.supplier] = { supplier: i.supplier, price: i.totalCost / i.qty, date: i.date, t: puTime(i) }; });
+    const offers = Object.values(latest).sort((a, b) => a.price - b.price);
+    const q30 = list.filter(i => i.unit === unit && puTime(i) >= t30).reduce((s, i) => s + i.qty, 0);
+    const q90 = list.filter(i => i.unit === unit && puTime(i) >= t90).reduce((s, i) => s + i.qty, 0);
+    const monthlyQty = q30 || (q90 / 3);
+    const current = stock ? stock.unitCost : null;
+    const best = offers[0];
+    const saving = best && current != null && offers.length > 1 && best.price < current - 0.01 ? (current - best.price) * monthlyQty : 0;
+    return { name, unit, stock, offers, best, current, monthlyQty, saving };
+  }).filter(c => c.offers.length);
+}
+
+function puStats(){
+  const all = puGroups();
+  const today = puGroups(i => puTime(i) >= puDayStart().getTime());
+  const week = puGroups(i => puTime(i) >= puDayStart(6).getTime());
+  const month = puGroups(i => puTime(i) >= puMonthStart().getTime());
+  const bySup = {};
+  month.forEach(g => { bySup[g.supplier] = (bySup[g.supplier] || 0) + g.total; });
+  const topSup = Object.entries(bySup).sort((a, b) => b[1] - a[1])[0];
+  const cmp = puCompare();
+  const multi = cmp.filter(c => c.offers.length > 1);
+  const savings = multi.filter(c => c.saving > 0.5);
+  const suppliers = new Set(PURCHASE_INVOICES.map(i => i.supplier).filter(Boolean));
+  return { all, today, week, month, topSup, cmp, multi, savings, saveTotal: savings.reduce((s, c) => s + c.saving, 0), suppliers,
+    lastT: all.length ? all[0].t : 0 };
+}
+
+function puRenderHero(){
+  const el = document.getElementById('puHero');
+  if(!el) return;
+  const st = puStats();
+  const steps = [
+    { done: st.all.length > 0, label: 'سجّل أول فاتورة', desc: 'صوّرها وركين يقرأ الأصناف والأسعار، ويزيد مخزونك لحاله', go: '@scan' },
+    { done: st.suppliers.size > 1, label: 'سجّل فاتورة من مورد ثاني', desc: 'كل مورد تسجّله ينحفظ، والمرة الجاية تختاره بس', go: '@manual' },
+    { done: st.multi.length > 0, label: 'اشترِ نفس الصنف من موردين', desc: 'نقارن لك الأسعار ونقول لك مين الأرخص وكم توفّر', go: '@compare' },
+  ];
+  const done = steps.filter(s => s.done).length, left = steps.length - done;
+  const celebrate = puPrevLeft !== null && puPrevLeft > 0 && left === 0;
+  puPrevLeft = left;
+  const stat = (k, v, hint, cls, go) => '<' + (go ? 'button type="button" data-pu-go="' + go + '"' : 'div') + ' class="iv-stat' + (cls ? ' ' + cls : '') + '"><span>' + k + '</span><b>' + v + '</b>' + (hint ? '<small>' + hint + '</small>' : '') + '</' + (go ? 'button' : 'div') + '>';
+  const stats = st.all.length ? '<div class="pu-stats">'
+    + stat('اليوم', hmMoney(puSum(st.today)), st.today.length ? puInvWord(st.today.length) : 'ما سجّلت شي اليوم', '', '@today')
+    + stat('آخر ٧ أيام', hmMoney(puSum(st.week)), st.week.length ? puInvWord(st.week.length) : 'ولا فاتورة', '', '@week')
+    + stat('أكثر مورد هالشهر', st.topSup ? escapeHtml(st.topSup[0]) : '—', st.topSup ? hmMoney(st.topSup[1]) : 'ما فيه فواتير هالشهر', 'pu-top', st.topSup ? '@suppliers' : '')
+    + (st.multi.length ? stat('تقدر توفّر', st.saveTotal > 0.5 ? hmMoney(st.saveTotal) : '✓', st.saveTotal > 0.5 ? 'بالشهر لو اشتريت من الأرخص' : 'أنت عند أرخص سعر مسجّل', 'good', '@compare') : '')
+    + '</div>' : '';
+  const btns = '<div class="pu-cta"><button type="button" class="rk2-btn lime" data-pu-go="@scan">' + puIc('camera') + 'صوّر فاتورة</button>'
+    + '<button type="button" class="rk2-btn mn-ghost" data-pu-go="@manual">أدخلها يدوي</button></div>';
+  if(left === 0){
+    el.innerHTML = '<div class="rk2-card pu-hero' + (celebrate ? ' mn-celebrate' : '') + '">'
+      + '<div class="pu-hero-top"><span class="iv-hero-ic">' + hmIc('purchases') + '</span>'
+      + '<div class="pu-hero-txt"><div class="hm-kicker">مشترياتك هالشهر</div><div class="pu-big">' + hmMoney(puSum(st.month)) + '<small>' + (st.month.length ? puInvWord(st.month.length) : 'ما فيه فواتير هالشهر') + '</small></div></div>' + btns + '</div>'
+      + stats + '</div>';
+    if(celebrate) showToast('صرت تقارن أسعار مورّدينك 🎉');
+    return;
+  }
+  const nextIdx = steps.findIndex(s => !s.done), next = steps[nextIdx];
+  const go = s => ' data-pu-go="' + s.go + '"';
+  el.innerHTML = '<div class="rk2-card hm-quest pu-hero">'
+    + '<div class="hm-quest-top"><div class="hm-ring" style="--p:' + Math.round(done / steps.length * 100) + '"><b>' + done + '<small>/' + steps.length + '</small></b></div>'
+    + '<div><div class="hm-kicker">' + hmIc('purchases') + 'مشترياتك</div>'
+    + '<h3>' + (st.all.length ? 'باقي ' + hmPlural(left, 'خطوة', 'خطوتين', 'خطوات', 'خطوة') + ' وتعرف مين أرخص مورد' : 'ثلاث خطوات وتعرف وين تروح فلوس مشترياتك') + '</h3>'
+    + '<p>كل فاتورة تسجّلها تزيد مخزونك وتحدّث تكلفة منتجاتك لحالها</p></div></div>'
+    + '<button type="button" class="hm-quest-next"' + go(next) + '>'
+    + '<span class="hm-quest-n">' + (nextIdx + 1) + '</span><span class="hm-quest-txt"><b>' + next.label + '</b><small>' + next.desc + '</small></span><span class="rk2-btn lime sm">ابدأ' + hmIc('arrow') + '</span></button>'
+    + '<div class="hm-quest-list">' + steps.map((s, i) => i === nextIdx ? '' :
+        '<button type="button" class="hm-qstep' + (s.done ? ' done' : '') + '"' + (s.done ? ' disabled' : go(s)) + '>'
+        + '<span class="hm-qcheck">' + (s.done ? hmIc('check') : (i + 1)) + '</span>' + s.label + '</button>').join('') + '</div>'
+    + stats + '</div>';
+}
+
+/* «وش أسوي الحين؟» -- اللي قرّب يخلص (اشترِه)، والأرخص عند مورد ثاني. */
+function puRenderTodo(){
+  const el = document.getElementById('puTodo');
+  if(!el) return;
+  const st = puStats();
+  const rows = [];
+  if(typeof planHas !== 'function' || planHas('inventory')){
+    STOCK_ITEMS.filter(s => s.parIsSet !== false || s.qtyOnHand <= 0)
+      .map(s => ({ s, tier: computeStockTierFor(s), pct: s.parLevel > 0 ? s.qtyOnHand / s.parLevel : 1 }))
+      .filter(x => x.tier !== 'ok').sort((a, b) => a.pct - b.pct).slice(0, 3)
+      .forEach(({ s, tier }) => {
+        const last = PURCHASE_INVOICES.filter(i => i.stockItem === s.name && i.qty > 0).sort((a, b) => puTime(b) - puTime(a))[0];
+        const out = s.qtyOnHand <= 0;
+        rows.push({ cls: tier === 'critical' ? 'critical' : '', ic: 'inventory',
+          t: escapeHtml(s.name) + (out ? ' خلص' : ' قرّب يخلص') + (out ? '' : ' · باقي ' + ivNum(s.qtyOnHand) + ' ' + puUnit(s.unit) + (s.parIsSet !== false ? ' من ' + ivNum(s.parLevel) : '')),
+          h: last ? 'آخر مرة من ' + escapeHtml(last.supplier) + ' بـ' + formatUnitCost(last.totalCost / last.qty) + ' ر.س لل' + puUnit(last.unit) + ' (' + escapeHtml(last.date) + ')' : 'اشتريته؟ سجّل فاتورته ويرجع مخزونه',
+          acts: '<button type="button" class="rk2-btn ' + (tier === 'critical' ? 'lime' : 'mn-ghost') + ' sm" data-pu-buy="' + escapeHtml(s.name) + '">سجّل فاتورته</button>' });
+      });
+  }
+  st.savings.sort((a, b) => b.saving - a.saving).slice(0, 2).forEach(c => rows.push({ ic: 'tag',
+    t: escapeHtml(c.name) + ' أرخص عند ' + escapeHtml(c.best.supplier),
+    h: formatUnitCost(c.best.price) + ' ر.س لل' + puUnit(c.unit) + ' بدل ' + formatUnitCost(c.current) + '، توفّر تقريباً ' + Math.round(c.saving).toLocaleString('en-US') + ' ر.س بالشهر',
+    acts: '<button type="button" class="rk2-btn mn-ghost sm" data-pu-use="' + escapeHtml(c.name) + '">اعتمد السعر</button>' }));
+  const days = st.lastT ? Math.floor((puDayStart().getTime() - new Date(st.lastT).setHours(0, 0, 0, 0)) / 864e5) : 0;
+  if(st.all.length && days >= 7) rows.push({ ic: 'clock', t: 'ما سجّلت فواتير من ' + hmPlural(days, 'يوم', 'يومين', 'أيام', 'يوم'),
+    h: 'لو اشتريت ولا سجّلت، مخزونك وتكلفة منتجاتك يطلعون غلط', acts: '<button type="button" class="rk2-btn mn-ghost sm" data-pu-go="@scan">صوّر فاتورة</button>' });
+  if(!rows.length){ el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="rk2-card iv-todo pu-todo">' + hmHead('flag', 'ops', 'وش أسوي الحين؟', 'من مخزونك وفواتيرك أنفسها')
+    + rows.map(r => '<div class="iv-todo-row' + (r.cls ? ' ' + r.cls : '') + '"><span class="pu-todo-ic">' + hmIc(r.ic) + '</span><div class="iv-todo-name"><b>' + r.t + '</b><span class="iv-todo-hint">' + r.h + '</span></div><div class="iv-todo-acts">' + r.acts + '</div></div>').join('')
+    + '</div>';
+}
+
+function puSetSums(){
+  const st = puStats();
+  const set = (k, v) => { const s = document.querySelector('#puTabs [data-pu-sum="' + k + '"]'); if(s) s.textContent = v; };
+  set('invoices', st.week.length ? puInvWord(st.week.length) + ' آخر ٧ أيام' : st.all.length ? 'ولا فاتورة هالأسبوع' : 'سجّل أول فاتورة');
+  set('compare', st.saveTotal > 0.5 ? 'توفّر ' + Math.round(st.saveTotal).toLocaleString('en-US') + ' ر.س بالشهر' : st.multi.length ? 'أنت عند الأرخص ✓' : 'نفس الصنف من موردين');
+  set('suppliers', st.suppliers.size ? hmPlural(st.suppliers.size, 'مورد واحد', 'موردين', 'موردين', 'مورد') : 'مورّدينك يطلعون هنا');
+}
+
+function puRenderPanel(){
+  const el = document.getElementById('puPanel');
+  if(!el) return;
+  document.querySelectorAll('#puTabs [data-pu-tab]').forEach(b => b.classList.toggle('active', b.dataset.puTab === puTab));
+  el.innerHTML = puTab === 'compare' ? puCompareHtml() : puTab === 'suppliers' ? puSuppliersHtml() : puInvoicesHtml();
+}
+
+/* ── فواتيرك ── */
+function puInvoicesHtml(){
+  const cut = puRange === 'today' ? puDayStart().getTime() : puRange === 'week' ? puDayStart(6).getTime() : puRange === 'month' ? puMonthStart().getTime() : 0;
+  const groups = puGroups(i => puTime(i) >= cut && (!puSupplier || i.supplier === puSupplier));
+  const seg = '<div class="rk2-seg pu-range">' + [['today', 'اليوم'], ['week', '٧ أيام'], ['month', 'هالشهر'], ['all', 'الكل']]
+    .map(([k, t]) => '<button type="button" data-pu-range="' + k + '"' + (puRange === k ? ' class="active"' : '') + '>' + t + '</button>').join('') + '</div>';
+  const head = hmHead('purchases', 'ops', 'فواتيرك', groups.length ? puInvWord(groups.length) + ' بمجموع ' + Math.round(puSum(groups)).toLocaleString('en-US') + ' ر.س' : 'اضغط الفاتورة تشوف أصنافها');
+  const chip = puSupplier ? '<div class="pu-filter">تشوف فواتير <b>' + escapeHtml(puSupplier) + '</b> بس <button type="button" data-pu-sup="">رجّع الكل ✕</button></div>' : '';
+  if(!PURCHASE_INVOICES.length){
+    return '<div class="rk2-card pu-card">' + head + '<div class="hm-empty"><span class="hm-empty-ic">' + hmIc('purchases') + '</span><b>فواتيرك تطلع هنا</b>'
+      + '<span>كل ما تشتري مواد أو تغليف، صوّر الفاتورة. ركين يقرأها ويزيد مخزونك ويحدّث تكلفة منتجاتك</span>'
+      + '<button type="button" class="rk2-btn lime sm" data-pu-go="@scan">صوّر أول فاتورة</button></div></div>';
+  }
+  const body = groups.length ? '<div class="pu-list">' + groups.map((g, i) => {
+    const ic = PU_AV[(g.supplier.charCodeAt(0) || i) % 5];
+    return '<div class="pu-inv">'
+      + '<div class="pu-inv-row" role="button" tabindex="0" data-pu-open>'
+      + '<span class="pu-av c-' + ic + '">' + escapeHtml(g.supplier.trim().charAt(0)) + '</span>'
+      + '<div class="pu-info"><b>' + escapeHtml(g.supplier) + '</b><div class="pu-meta">' + escapeHtml(g.date || '') + ' · ' + hmPlural(g.lines.length, 'صنف واحد', 'صنفين', 'أصناف', 'صنف') + ': ' + escapeHtml(g.lines.slice(0, 3).map(l => l.stockItem).join('، ')) + (g.lines.length > 3 ? '…' : '') + '</div></div>'
+      + '<span class="pu-total">' + hmMoney(g.total) + '</span>'
+      + (g.editable ? '<button type="button" class="pu-ic-btn" data-pu-edit="' + escapeHtml(g.gid) + '" aria-label="عدّل الفاتورة">' + puIc('edit') + '</button>'
+        + '<button type="button" class="pu-ic-btn del" data-pu-del="' + escapeHtml(g.gid) + '" aria-label="احذف الفاتورة">' + puIc('trash') + '</button>' : '')
+      + '</div><div class="pu-lines">' + g.lines.map(l => '<div class="pu-line"><span>' + escapeHtml(l.stockItem || '—') + '</span><span class="pu-line-q">' + ivNum(l.qty) + ' ' + puUnit(l.unit) + ' × ' + formatUnitCost(l.totalCost / (l.qty || 1)) + '</span>' + hmMoney(l.totalCost) + '</div>').join('') + '</div></div>';
+  }).join('') + '</div>'
+    : '<div class="hm-empty"><span class="hm-empty-ic">' + hmIc('clock') + '</span><b>' + (puSupplier ? 'ما فيه فواتير من ' + escapeHtml(puSupplier) + ' بهالفترة' : puRange === 'today' ? 'ما سجّلت فواتير اليوم' : 'ما فيه فواتير بهالفترة') + '</b><span>اشتريت شي؟ صوّر فاتورته وتطلع هنا على طول</span>'
+      + '<div class="pu-empty-acts"><button type="button" class="rk2-btn lime sm" data-pu-go="@scan">صوّر فاتورة</button>' + (puRange !== 'all' ? '<button type="button" class="rk2-btn mn-ghost sm" data-pu-range="all">اعرض الكل</button>' : '') + '</div></div>';
+  return '<div class="rk2-card pu-card">' + head + seg + chip + body + '</div>';
+}
+
+/* ── قارن الأسعار ── */
+function puCompareHtml(){
+  const st = puStats();
+  const head = hmHead('tag', 'fin', 'قارن الأسعار', 'آخر سعر من كل مورد، للوحدة نفسها');
+  if(!st.multi.length){
+    const single = st.cmp.slice(0, 6);
+    return '<div class="rk2-card pu-card">' + head + '<div class="hm-empty"><span class="hm-empty-ic">' + hmIc('tag') + '</span><b>المقارنة تبدأ لما تشتري نفس الصنف من موردين</b>'
+      + '<span>' + (single.length ? 'للحين كل صنف من مورد واحد. المرة الجاية جرّب مورد ثاني وسجّل فاتورته' : 'سجّل فواتيرك أول، وبعدها نقارن لك') + '</span>'
+      + '<button type="button" class="rk2-btn lime sm" data-pu-go="@manual">سجّل فاتورة</button></div>'
+      + (single.length ? '<div class="pu-list">' + single.map(c => '<div class="pu-single"><b>' + escapeHtml(c.name) + '</b><span>' + escapeHtml(c.best.supplier) + ' · ' + formatUnitCost(c.best.price) + ' ر.س لل' + puUnit(c.unit) + '</span></div>').join('') + '</div>' : '') + '</div>';
+  }
+  const cards = st.multi.sort((a, b) => b.saving - a.saving).map(c => {
+    const max = Math.max(...c.offers.map(o => o.price));
+    return '<div class="pu-cmp">'
+      + '<div class="pu-cmp-head"><b>' + escapeHtml(c.name) + '</b>'
+      + (c.saving > 0.5 ? '<span class="pu-save">توفّر ' + hmMoney(c.saving) + ' بالشهر</span>' : '<span class="pu-ok">' + hmIc('check') + 'أنت عند الأرخص</span>') + '</div>'
+      + c.offers.map((o, i) => '<div class="pu-offer' + (i === 0 ? ' best' : '') + '"><span class="pu-offer-name">' + escapeHtml(o.supplier) + '<small>' + escapeHtml(o.date || '') + '</small></span>'
+        + '<span class="pu-offer-bar"><i style="width:' + Math.max(8, Math.round(o.price / max * 100)) + '%"></i></span>'
+        + '<span class="pu-offer-price">' + formatUnitCost(o.price) + ' <small>ر.س/' + puUnit(c.unit) + '</small></span></div>').join('')
+      + '<div class="pu-cmp-foot"><span>' + (c.current != null ? 'تكلفتك المعتمدة: ' + formatUnitCost(c.current) + ' ر.س' : '') + (c.monthlyQty ? ' · تشتري تقريباً ' + ivNum(Math.round(c.monthlyQty * 10) / 10) + ' ' + puUnit(c.unit) + ' بالشهر' : '') + '</span>'
+      + (c.saving > 0.5 ? '<button type="button" class="rk2-btn lime sm" data-pu-use="' + escapeHtml(c.name) + '">اعتمد سعر ' + escapeHtml(c.best.supplier) + '</button>' : '') + '</div></div>';
+  }).join('');
+  const singles = st.cmp.filter(c => c.offers.length === 1);
+  return '<div class="rk2-card pu-card">' + head + '<div class="pu-list">' + cards + '</div>'
+    + (singles.length ? '<details class="pu-more"><summary>أصناف من مورد واحد (' + singles.length + ')</summary><div class="pu-list">' + singles.map(c => '<div class="pu-single"><b>' + escapeHtml(c.name) + '</b><span>' + escapeHtml(c.best.supplier) + ' · ' + formatUnitCost(c.best.price) + ' ر.س لل' + puUnit(c.unit) + '</span></div>').join('') + '</div></details>' : '')
+    + '</div>';
+}
+
+/* ── مورّدينك ── */
+function puSuppliersHtml(){
+  const head = hmHead('team', 'res', 'مورّدينك', 'اضغط المورد تشوف فواتيره');
+  const all = puGroups();
+  if(!all.length){
+    return '<div class="rk2-card pu-card">' + head + '<div class="hm-empty"><span class="hm-empty-ic">' + hmIc('team') + '</span><b>مورّدينك يطلعون هنا</b><span>كل مورد تكتب اسمه في فاتورة ينحفظ، وتشوف كم صرفت عنده</span>'
+      + '<button type="button" class="rk2-btn lime sm" data-pu-go="@scan">صوّر أول فاتورة</button></div></div>';
+  }
+  const m0 = puMonthStart().getTime();
+  const sups = {};
+  all.forEach(g => {
+    const s = (sups[g.supplier] ||= { name: g.supplier, n: 0, total: 0, month: 0, last: g, items: {} });
+    s.n++; s.total += g.total; if(g.t >= m0) s.month += g.total;
+    g.lines.forEach(l => { if(l.stockItem) s.items[l.stockItem] = (s.items[l.stockItem] || 0) + 1; });
+  });
+  const list = Object.values(sups).sort((a, b) => b.month - a.month || b.total - a.total);
+  return '<div class="rk2-card pu-card">' + head + '<div class="pu-list">' + list.map((s, i) => {
+    const items = Object.entries(s.items).sort((a, b) => b[1] - a[1]).slice(0, 3).map(x => x[0]);
+    const vat = SUPPLIER_VAT_REGISTERED_BY_NAME[s.name] !== false;
+    return '<div class="pu-inv-row pu-sup" role="button" tabindex="0" data-pu-sup="' + escapeHtml(s.name) + '">'
+      + '<span class="pu-av c-' + PU_AV[(s.name.charCodeAt(0) || i) % 5] + '">' + escapeHtml(s.name.trim().charAt(0)) + '</span>'
+      + '<div class="pu-info"><b>' + escapeHtml(s.name) + (vat ? '' : ' <span class="hr-chip">بدون ضريبة</span>') + '</b><div class="pu-meta">' + puInvWord(s.n) + ' · آخرها ' + escapeHtml(s.last.date || '') + (items.length ? ' · ' + escapeHtml(items.join('، ')) : '') + '</div></div>'
+      + '<span class="pu-total">' + hmMoney(s.month) + '<small>هالشهر</small></span><span class="pu-go">' + hmIc('arrow') + '</span></div>';
+  }).join('') + '</div></div>';
+}
+
+const PU_IC = {
+  camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+  edit: '<path d="M4 20h4L18.5 9.5a2.83 2.83 0 1 0-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>',
+  trash: '<path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/>',
+};
+function puIc(n){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (PU_IC[n] || '') + '</svg>'; }
+
+// «اعتمد السعر»: يكتب أرخص سعر في تكلفة الصنف، اللي تحسب منه تكلفة منتجاتك.
+async function puUsePrice(itemName){
+  const c = puCompare().find(x => x.name === itemName);
+  if(!c || !c.stock || !c.best) return;
+  const ok = await rkAsk({ title: 'نعتمد سعر ' + c.best.supplier + ' لـ' + itemName + '؟',
+    body: 'تكلفة ' + escapeHtml(itemName) + ' تصير <b>' + formatUnitCost(c.best.price) + ' ر.س</b> لل' + puUnit(c.unit) + ' بدل ' + formatUnitCost(c.current) + '، وتتحدّث تكلفة وربح كل منتج فيه.', ok: 'اعتمده', cancel: 'خلّه' });
+  if(!ok) return;
+  const oldPrice = c.stock.unitCost, newPrice = c.best.price;
+  const { error } = await window.supabaseClient.from('stock_items').update({ unit_cost: newPrice, updated_at: new Date().toISOString() }).eq('id', c.stock.id);
+  if(error){ showToast('تعذر تحديث التكلفة: ' + error.message); return; }
+  c.stock.unitCost = newPrice;
+  logDashboardAudit('حدّث تكلفة ' + itemName + ' من ' + oldPrice.toFixed(2) + ' إلى ' + newPrice.toFixed(2) + ' (مقارنة موردين)');
+  showToast('اعتمدنا السعر — تكلفة منتجاتك تحدّثت 🎉');
+  puRender();
+  if(typeof renderStockTable === 'function') renderStockTable();
+  if(typeof renderWasteAndFoodCost === 'function') renderWasteAndFoodCost();
+  if(typeof renderMenuProductTable === 'function') renderMenuProductTable();
+}
+function puOpenScan(){
+  openInvoiceModal();
+  const btn = document.querySelector('#invoiceBlocksContainer .inv-block-scan-btn');
+  if(btn) btn.click();
+}
+
+(function wirePu(){
+  const root = document.getElementById('screen-purchases');
+  if(!root) return;
+  root.addEventListener('click', (e) => {
+    const t = e.target;
+    const tile = t.closest('#puTabs [data-pu-tab]');
+    if(tile){ puTab = tile.dataset.puTab; puRenderPanel(); return; }
+    const g = t.closest('[data-pu-go]');
+    if(g){
+      const go = g.dataset.puGo;
+      if(go === '@scan') return puOpenScan();
+      if(go === '@manual') return openInvoiceModal();
+      if(go === '@compare' || go === '@suppliers'){ puTab = go.slice(1); puRenderPanel(); document.getElementById('puTabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+      if(go === '@today' || go === '@week'){ puTab = 'invoices'; puRange = go.slice(1); puSupplier = null; puRenderPanel(); document.getElementById('puTabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+      return;
+    }
+    const rg = t.closest('[data-pu-range]'); if(rg){ puRange = rg.dataset.puRange; puRenderPanel(); return; }
+    const ed = t.closest('[data-pu-edit]'); if(ed){ openInvoiceModal(ed.dataset.puEdit); return; }
+    const dl = t.closest('[data-pu-del]'); if(dl){ deletePurchaseInvoice(dl.dataset.puDel); return; }
+    const us = t.closest('[data-pu-use]'); if(us){ puUsePrice(us.dataset.puUse); return; }
+    const by = t.closest('[data-pu-buy]'); if(by){ openInvoiceModal(null, [{ stockItemName: by.dataset.puBuy }]); return; }
+    const sp = t.closest('[data-pu-sup]'); if(sp){ puSupplier = sp.dataset.puSup || null; puTab = 'invoices'; if(puSupplier) puRange = 'all'; puRenderPanel(); return; }
+    const op = t.closest('[data-pu-open]'); if(op){ op.parentElement.classList.toggle('open'); }
+  });
+  root.addEventListener('keydown', (e) => {
+    if(e.key !== 'Enter' && e.key !== ' ') return;
+    const r = e.target.closest('.pu-inv-row[role="button"]'); if(!r) return;
+    e.preventDefault(); r.click();
+  });
+})();
 
 let invLineIdCounter = 0;
 
@@ -3513,7 +3733,7 @@ function invBlockHtml(blockId){
       <div class="inv-block-header">
         <div class="menu-add-field" style="margin-bottom:10px; flex:1;">
           <label>اسم المورد</label>
-          <input type="text" class="inv-block-supplier" placeholder="مثال: مزرعة الشرق">
+          <input type="text" class="inv-block-supplier" list="puSupList" autocomplete="off" placeholder="مثال: مزرعة الشرق">
           <div class="inv-block-supplier-suggestion hidden"></div>
         </div>
         <button type="button" class="inv-block-remove hidden" title="حذف هذه الفاتورة">✕</button>
@@ -3669,8 +3889,8 @@ function wireInvoiceBlock(blockEl, prefillLines){
     prefillLines.forEach(pl=>{
       const row = addRow();
       row.querySelector('.inv-line-item').value = pl.stockItemName;
-      row.querySelector('.inv-line-qty').value = pl.qty;
-      row.querySelector('.inv-line-total').value = pl.totalCost.toFixed(2);
+      if(pl.qty != null) row.querySelector('.inv-line-qty').value = pl.qty;
+      if(pl.totalCost != null) row.querySelector('.inv-line-total').value = Number(pl.totalCost).toFixed(2);
     });
   } else {
     addRow();
@@ -4053,11 +4273,11 @@ function wireInvoiceBlock(blockEl, prefillLines){
   });
 }
 
-function openInvoiceModal(editGroupId){
+function openInvoiceModal(editGroupId, prefill){
   invLineIdCounter = 0;
   invBlockIdCounter = 1;
   EDITING_GROUP_ID = editGroupId || null;
-  let prefillSupplier = '', prefillLines = null, prefillDate = null;
+  let prefillSupplier = '', prefillLines = (!editGroupId && prefill) ? prefill : null, prefillDate = null;
   if(editGroupId){
     const groupRows = PURCHASE_INVOICES.filter(p => p.invoiceGroupId === editGroupId);
     if(groupRows.length){
@@ -4074,6 +4294,7 @@ function openInvoiceModal(editGroupId){
   document.getElementById('invoiceModalBody').innerHTML = `
     <div class="menu-add-field" style="margin-bottom:14px;"><label>تاريخ الفاتورة</label><input type="date" id="invDate" value="${prefillDate || today}" max="${today}"></div>
     <div id="invoiceBlocksContainer">${invBlockHtml(1)}</div>
+    <datalist id="puSupList">${Object.keys(SUPPLIER_ID_BY_NAME || {}).map(n => '<option value="' + escapeHtml(n) + '">').join('')}</datalist>
     <button type="button" class="inv-add-block-btn" id="invAddBlockBtn">+ إضافة فاتورة من مورد آخر</button>
     <div class="cost-preview-box inv-grand-total" id="invGrandTotal"><div class="cpb-row total"><span>إجمالي كل الفواتير</span><span class="mono">0.00 ر.س</span></div></div>
   `;
@@ -4352,102 +4573,16 @@ async function saveInvoice(){
    today so the owner isn't hunting through everything ever logged. */
 let purchaseHistoryRange = 'today';
 
-function renderAcctTodayStat(){
-  const el = document.getElementById('acctTodayStat');
-  if(!el) return;
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const todayGroupIds = new Set();
-  let todayTotal = 0;
-  PURCHASE_INVOICES.forEach(inv=>{
-    const t = inv.invoicedAt ? new Date(inv.invoicedAt) : null;
-    if(t && t >= todayStart){
-      todayGroupIds.add(inv.invoiceGroupId || inv.id);
-      todayTotal += inv.totalCost;
-    }
-  });
-  const count = todayGroupIds.size;
-  const icon = '<path d="M4 4h16v15l-3-2-3 2-3-2-3 2-3-2-1 1z"/><path d="M8 9h8"/><path d="M8 12.5h8"/><path d="M8 16h5"/>';
-  el.innerHTML = `
-    <div class="purchases-today-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">${icon}</svg></div>
-    <div class="purchases-today-body">
-      <div class="purchases-today-label">مشتريات اليوم</div>
-      ${count > 0
-        ? `<div class="purchases-today-value">${count} ${count===1?'فاتورة':'فواتير'} — ${rkMoney(todayTotal)}</div>`
-        : `<div class="purchases-today-value empty">ما سجّلت أي مشتريات اليوم بعد</div>`}
-    </div>`;
-}
-
-function renderPurchaseHistory(){
-  const el = document.getElementById('purchaseHistoryList');
-  if(!el) return;
-  const now = new Date();
-  let cutoff = null;
-  if(purchaseHistoryRange === 'today') cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  else if(purchaseHistoryRange === 'week'){ cutoff = new Date(now); cutoff.setDate(cutoff.getDate() - 7); }
-
-  const groups = {};
-  PURCHASE_INVOICES.forEach(inv=>{
-    const gid = inv.invoiceGroupId || ('__' + inv.id);
-    const t = inv.invoicedAt ? new Date(inv.invoicedAt) : null;
-    if(cutoff && (!t || t < cutoff)) return;
-    if(!groups[gid]) groups[gid] = {supplier: inv.supplier, lines: [], total: 0, date: inv.date, sortTime: t ? t.getTime() : 0};
-    groups[gid].lines.push(inv);
-    groups[gid].total += inv.totalCost;
-  });
-  const groupList = Object.entries(groups).sort((a,b)=> b[1].sortTime - a[1].sortTime);
-
-  if(groupList.length === 0){
-    el.innerHTML = '<div class="orders-empty">ما فيه فواتير مسجّلة بهالفترة</div>';
-    return;
-  }
-  // Detail (what's actually registered in the invoice) stays hidden until
-  // tapped — keeps the list scannable while still answering "وش المسجل
-  // فيها" one tap away, instead of always-on clutter.
-  const editIcon = '<path d="M4 20h4L18.5 9.5a2.83 2.83 0 1 0-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>';
-  const deleteIcon = '<path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/>';
-  el.innerHTML = groupList.map(([gid, g])=>`
-    <div class="purchase-history-card">
-      <div class="purchase-history-row" data-group-id="${gid}">
-        <div class="purchase-history-info">
-          <div class="purchase-history-supplier">${escapeHtml(g.supplier)}</div>
-          <div class="purchase-history-meta">${g.lines.length} ${g.lines.length===1?'صنف':'أصناف'} — ${rkMoney(g.total)} — ${g.date}</div>
-        </div>
-        <div class="purchase-history-actions">
-          <button type="button" class="purchase-history-edit-btn" data-group-id="${gid}" title="تعديل"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${editIcon}</svg></button>
-          <button type="button" class="purchase-history-delete-btn" data-group-id="${gid}" title="حذف"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${deleteIcon}</svg></button>
-        </div>
-      </div>
-      <div class="purchase-history-detail hidden">
-        ${g.lines.map(l=>`
-          <div class="purchase-history-detail-line">
-            <span>${l.stockItem}</span>
-            <span class="mono">${l.qty} ${UNIT_LABELS[l.unit] || l.unit}</span>
-            ${rkMoney(l.totalCost)}
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `).join('');
-  el.querySelectorAll('.purchase-history-row').forEach(row=>{
-    row.querySelector('.purchase-history-info').addEventListener('click', ()=>{
-      row.parentElement.querySelector('.purchase-history-detail').classList.toggle('hidden');
-    });
-  });
-  el.querySelectorAll('.purchase-history-edit-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=> openInvoiceModal(btn.dataset.groupId));
-  });
-  el.querySelectorAll('.purchase-history-delete-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=> deletePurchaseInvoice(btn.dataset.groupId));
-  });
-}
+// صارت أجزاء من صفحة «المشتريات» الجديدة (puRender) -- تبقى لأن الحفظ والتحميل ينادونها.
+function renderAcctTodayStat(){ puRender(); }
+function renderPurchaseHistory(){ puRender(); }
 
 async function deletePurchaseInvoice(groupId){
   const groupRows = PURCHASE_INVOICES.filter(p => p.invoiceGroupId === groupId);
   if(!groupRows.length) return;
   const supplier = groupRows[0].supplier;
   const total = groupRows.reduce((s,r)=>s+r.totalCost, 0);
-  if(!window.confirm('متأكد إنك تبي تحذف فاتورة "' + supplier + '" بقيمة ' + total.toFixed(2) + ' ر.س؟ المخزون بيترجع تلقائيًا.')) return;
+  if(!await rkAsk({ title: 'نحذف فاتورة ' + supplier + '؟', body: 'بقيمة <b>' + total.toFixed(2) + ' ر.س</b>. الكميات اللي زادتها في المخزون ترجع لحالها.', ok: 'احذفها', cancel: 'خلّها' })) return;
   try {
     const sb = window.supabaseClient;
     const { error } = await sb.from('purchase_invoices').delete().eq('invoice_group_id', groupId);
@@ -4898,24 +5033,6 @@ function wireAccountingScreen(){
 // (daily operations — supplier invoices affect stock, not financial
 // reporting) — see rakeen-dashboard.css/dashboard-markup.ts screen-purchases.
 function wirePurchasesScreen(){
-  document.getElementById('purchaseHistoryRangeChips').addEventListener('click', (e)=>{
-    const btn = e.target.closest('button'); if(!btn) return;
-    document.querySelectorAll('#purchaseHistoryRangeChips button').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    purchaseHistoryRange = btn.dataset.range;
-    renderPurchaseHistory();
-  });
-
-  document.querySelectorAll('.acct-collapsible-toggle').forEach(toggle=>{
-    toggle.addEventListener('click', ()=>{
-      const body = toggle.parentElement.querySelector('.acct-collapsible-body');
-      const collapsing = !body.classList.contains('hidden');
-      body.classList.toggle('hidden', collapsing);
-      toggle.classList.toggle('open', !collapsing);
-    });
-  });
-
-  document.getElementById('openAddInvoiceBtn2').addEventListener('click', ()=> openInvoiceModal());
   document.getElementById('invoiceModalClose').addEventListener('click', closeInvoiceModal);
   document.getElementById('invoiceModal').addEventListener('click', (e)=>{ if(e.target.id==='invoiceModal') closeInvoiceModal(); });
   document.getElementById('invoiceSaveBtn').addEventListener('click', saveInvoice);
