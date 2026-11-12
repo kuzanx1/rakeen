@@ -15628,7 +15628,7 @@ async function confirmCategoryRename(input){
 // screen.
 /* ============ القائمة (تصميم ٢٠٢٦-١١، بادئة mn-) ============
    أول سؤال في بال صاحب المطعم هنا: «منيوي كامل؟ وش ناقصه؟». فالشاشة تبدأ
-   بـ«منيوك»: حلقة تقدّم وخطوات مرقّمة كل وحدة توديه لمكان إصلاحها (نافذة
+   بـ«قائمتك»: حلقة تقدّم وخطوات مرقّمة كل وحدة توديه لمكان إصلاحها (نافذة
    الفئة، منتج جديد، ترشيح «بلا صورة»/«بلا تكلفة»، تبويب الخيارات). بعدها
    المنتجات بطاقات بالصورة والسعر والربح، وزر الظهور على البطاقة نفسها. */
 const MN_IC = {
@@ -15658,7 +15658,7 @@ function mnSteps(){
   const has = items.length > 0;
   const noImg = items.filter(m=>!m.image).length;
   const steps = [
-    { label:'أنشئ فئات منيوك', desc:'مثل: الأطباق، المشروبات، الحلا — تترتب فيها منتجاتك بالكاشير والمتجر', done:CATEGORY_ROWS.length > 0, go:'cat' },
+    { label:'أنشئ فئات قائمتك', desc:'مثل: الأطباق، المشروبات، الحلا — تترتب فيها منتجاتك بالكاشير والمتجر', done:CATEGORY_ROWS.length > 0, go:'cat' },
     { label:has ? 'أضف منتجاتك' : 'أضف أول منتج', desc:'الاسم والسعر يكفون عشان تبدأ تبيع، والباقي بعدين', done:has, go:'add' },
     { label:has && noImg ? (noImg === 1 ? 'حط صورة للمنتج الباقي' : 'حط صور لـ' + mnN(noImg)) : 'حط صور منتجاتك', desc:'الصورة تبيع: تطلع بالمتجر الإلكتروني وشاشة العميل', done:has && noImg === 0, go:'flag:noImage' },
   ];
@@ -15698,19 +15698,19 @@ function renderMenuHero(){
     }
     el.innerHTML = '<div class="rk2-card mn-done' + (celebrate ? ' mn-celebrate' : '') + '">'
       + '<span class="mn-done-ic">' + hmIc('check') + '</span>'
-      + '<div class="mn-done-txt"><b>منيوك كامل</b><small>كل منتج له فئة وصورة' + (mnCostOn() ? ' وتكلفة' : '') + '</small></div>'
+      + '<div class="mn-done-txt"><b>قائمتك كاملة</b><small>كل منتج له فئة وصورة' + (mnCostOn() ? ' وتكلفة' : '') + '</small></div>'
       + '<div class="mn-stats"><span class="mn-stat"><b>' + items.length + '</b> منتج</span><span class="mn-stat"><b>' + CATEGORY_ROWS.length + '</b> فئة</span>'
       + (hidden ? '<button type="button" class="mn-stat warn" data-mn-go="flag:hidden"><b>' + hidden + '</b> مخفي الحين</button>' : '') + avg + '</div></div>';
-    if(celebrate) showToast('كمّلت منيوك 🎉');
+    if(celebrate) showToast('كمّلت قائمتك 🎉');
     return;
   }
   const nextIdx = steps.findIndex(s=>!s.locked && !s.done);
   const next = steps[nextIdx];
   el.innerHTML = '<div class="rk2-card hm-quest mn-hero">'
     + '<div class="hm-quest-top"><div class="hm-ring" style="--p:' + pct + '"><b>' + done + '<small>/' + real.length + '</small></b></div>'
-    + '<div><div class="hm-kicker">' + hmIc('menu') + 'منيوك</div>'
-    + '<h3>' + (items.length ? mnN(items.length) + ' في ' + hmPlural(CATEGORY_ROWS.length, 'فئة وحدة', 'فئتين', 'فئات', 'فئة') : 'منيوك فاضي، خلنا نعبّيه') + '</h3>'
-    + '<p>باقي ' + hmPlural(left, 'خطوة وحدة', 'خطوتين', 'خطوات', 'خطوة') + ' ويصير منيوك كامل' + (planHas('online_store') ? ' بالكاشير والمتجر' : '') + '</p></div></div>'
+    + '<div><div class="hm-kicker">' + hmIc('menu') + 'قائمتك</div>'
+    + '<h3>' + (items.length ? mnN(items.length) + ' في ' + hmPlural(CATEGORY_ROWS.length, 'فئة وحدة', 'فئتين', 'فئات', 'فئة') : 'قائمتك فاضية، خلنا نعبّيها') + '</h3>'
+    + '<p>باقي ' + hmPlural(left, 'خطوة وحدة', 'خطوتين', 'خطوات', 'خطوة') + ' وتصير قائمتك كاملة' + (planHas('online_store') ? ' بالكاشير والمتجر' : '') + '</p></div></div>'
     + '<button type="button" class="hm-quest-next"' + goAttr(next) + '>'
     + '<span class="hm-quest-n">' + (nextIdx + 1) + '</span><span class="hm-quest-txt"><b>' + next.label + '</b><small>' + next.desc + '</small></span><span class="rk2-btn lime sm">ابدأ' + hmIc('arrow') + '</span></button>'
     + '<div class="hm-quest-list">' + steps.map((s,i)=> i === nextIdx ? '' :
@@ -15769,7 +15769,7 @@ function renderMenuProductTable(){
   if(items.length === 0){
     const filtering = !!(menuSearchQuery.trim() || activeMenuCategory || flag);
     el.innerHTML = '<div class="rk2-card mn-empty">' + (visibleItems.length === 0
-      ? hmEmpty('menu', 'منيوك ينتظر أول منتج', 'كل منتج تضيفه يطلع هنا بصورته وسعره وربحه، ويطلع بالكاشير على طول')
+      ? hmEmpty('menu', 'قائمتك تنتظر أول منتج', 'كل منتج تضيفه يطلع هنا بصورته وسعره وربحه، ويطلع بالكاشير على طول')
         + '<button type="button" class="rk2-btn lime" data-mn-go="add">' + mnIc('plus') + 'أضف أول منتج</button>'
       : filtering
         ? hmEmpty('search', flag ? 'ما فيه منتج ' + flag.label : 'ما لقينا منتج بهالاسم', flag ? 'كفو، كلها تمام هنا' : 'جرّب اسم ثاني أو شيل الترشيح')

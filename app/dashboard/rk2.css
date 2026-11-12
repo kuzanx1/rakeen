@@ -361,7 +361,7 @@ button.hm-cell:hover{transform:scale(1.12); box-shadow:0 0 0 2px var(--text);}
 .mn-tab-n:empty{display:none;}
 .mn-tabs button.active .mn-tab-n{background:var(--lime); color:#111;}
 
-/* منيوك: الحالة والخطوة الجاية (قطع hm-quest من الرئيسية) */
+/* قائمتك: الحالة والخطوة الجاية (قطع hm-quest من الرئيسية) */
 .mn-hero-slot:empty{display:none;}
 .mn-hero{margin-bottom:var(--rk2-gap);}
 .hm-qstep.mn-locked{color:var(--muted);}

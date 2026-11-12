@@ -30,7 +30,7 @@ const ITEMS = EMPTY ? [] : [
   ITEM(507, 3, 'ببسي', 3, { direct_cost: 1.5, link_profit: true, visible_online: false }),
   ITEM(508, 4, 'كنافة', 14, { image_url: IMG + 'an-bg2.jpg', active: false }),
 ];
-// COMPLETE=1: منيو كامل (كل منتج له صورة وتكلفة) -- يطلع شريط «منيوك كامل».
+// COMPLETE=1: منيو كامل (كل منتج له صورة وتكلفة) -- يطلع شريط «قائمتك كاملة».
 if (process.env.COMPLETE) ITEMS.forEach(i => Object.assign(i, { image_url: i.image_url || IMG + 'mk-plate.png', cost_mode: 'direct', direct_cost: i.direct_cost || i.price * .3, link_profit: true }));
 const GROUPS = EMPTY ? [] : [{ id: 31, business_id: BIZ, name: 'الحجم', type: 'single', max_select: 1, min_select: 1 }, { id: 32, business_id: BIZ, name: 'الإضافات', type: 'multi', max_select: 4, min_select: 0 }];
 const OPTS = EMPTY ? [] : [
