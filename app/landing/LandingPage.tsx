@@ -235,16 +235,6 @@ const T = {
         urlS: "رابط صفحتك",
         real: "صفحات روابط بتصاميم ركين",
       },
-      delivery: {
-        k: "تطبيقات التوصيل",
-        h: "تعرف وش يبقى لك من كل طلب.",
-        p: "حط عمولة كل تطبيق مرة وحدة، وركين يحسب لك وش يروح لهم ووش يبقى لك من كل طلب، ويقول لك أي تطبيق يربحك أكثر.",
-        b: ["ارفع أسعارك في أي تطبيق بنسبة، على كل المنتجات بضغطة", "الكاشير يطبّق سعر التطبيق لحاله", "مقارنة: أي تطبيق يبقى لك منه أكثر", "كم يحوّلون لك وتطابقها مع حسابك", "تنبيه لو تطبيق بدون عمولة أو أسعارك فيه نفس سعر القائمة"],
-        plan: "ضمن باقتي عماد وصرح",
-        best: "أكثر تطبيق يربحك",
-        bestS: "من عمولاتك وطلباتك أنت",
-        real: "لقطات حقيقية من لوحة ركين",
-      },
       loyalty: {
         k: "الولاء",
         h: "عميلك يرجع لك.",
@@ -285,7 +275,7 @@ const T = {
     },
     more: {
       h: "وكل اللي يحتاجه يومك.",
-      items: ["شاشة المطبخ", "تطبيقات التوصيل", "الطاولات والحجوزات", "صلاحيات الموظفين", "تعدد الفروع", "تقارير وتصدير Excel", "شاشة العميل", "صفحة حجز المواعيد", "مستشار يفحص يومك"],
+      items: ["شاشة المطبخ", "الطاولات والحجوزات", "صلاحيات الموظفين", "تعدد الفروع", "تقارير وتصدير Excel", "شاشة العميل", "صفحة حجز المواعيد"],
     },
     plans: {
       k: "الباقات",
@@ -396,16 +386,6 @@ const T = {
         urlS: "Your page link",
         real: "Link pages built with Rakeen designs",
       },
-      delivery: {
-        k: "Delivery apps",
-        h: "Know what you keep from every order.",
-        p: "Set each app's commission once. Rakeen works out what goes to them and what stays with you on every order, and shows which app pays you best.",
-        b: ["Raise your prices on any app by a percentage, across the whole menu, in one tap", "The cashier applies each app's price automatically", "A comparison of which app leaves you the most", "What they owe you, ready to match with your account", "Alerts for apps with no commission set or menu-level prices"],
-        plan: "In the Emad and Sarh plans",
-        best: "Your most profitable app",
-        bestS: "From your own commissions and orders",
-        real: "Real screenshots of the Rakeen dashboard",
-      },
       loyalty: {
         k: "Loyalty",
         h: "Customers come back.",
@@ -446,7 +426,7 @@ const T = {
     },
     more: {
       h: "And everything your day needs.",
-      items: ["Kitchen screen", "Delivery apps", "Tables & reservations", "Staff permissions", "Multiple branches", "Reports & Excel export", "Customer display", "Booking page", "An advisor that checks your day"],
+      items: ["Kitchen screen", "Tables & reservations", "Staff permissions", "Multiple branches", "Reports & Excel export", "Customer display", "Booking page"],
     },
     plans: {
       k: "Plans",
@@ -572,7 +552,7 @@ function Riyal() {
   return <span className="riyal" aria-label="SAR">{"⃁"}</span>;
 }
 
-type IconName = "check" | "wifi" | "qr" | "devices" | "chat" | "plus" | "arrow" | "bag" | "alert" | "scan" | "crown" | "minus" | "bell" | "link" | "truck";
+type IconName = "check" | "wifi" | "qr" | "devices" | "chat" | "plus" | "arrow" | "bag" | "alert" | "scan" | "crown" | "minus" | "bell" | "link";
 function Icon({ name }: { name: IconName }) {
   const p = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   return (
@@ -580,7 +560,6 @@ function Icon({ name }: { name: IconName }) {
       {name === "check" && <path {...p} d="M5 12.5l4.5 4.5L19 7" />}
       {name === "minus" && <path {...p} d="M8 12h8" />}
       {name === "link" && <path {...p} d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />}
-      {name === "truck" && <path {...p} d="M2 6h12v10H2zM14 10h4l3 3v3h-7M6.5 19.5a1.8 1.8 0 1 0 0-.01M17.5 19.5a1.8 1.8 0 1 0 0-.01" />}
       {name === "bell" && <path {...p} d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15L6 16zM10 20.5a2 2 0 0 0 4 0" />}
       {name === "wifi" && (
         <g {...p}>
@@ -1692,49 +1671,11 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ---------- chapter: delivery apps (عماد وصرح) ---------- */}
-      <section className="chap chap-flip" id="delivery">
-        <div className="wrap chap-in">
-          <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>06</span>
-            <span className="kicker k-orange">
-              <Icon name="truck" />
-              {t.ch.delivery.k}
-            </span>
-            <h2>{t.ch.delivery.h}</h2>
-            <p>{t.ch.delivery.p}</p>
-            <Bullets items={t.ch.delivery.b} />
-            <a href="#plans" onClick={go("plans")} className="pager-plan">
-              <Icon name="crown" />
-              {t.ch.delivery.plan}
-            </a>
-          </div>
-          <div className="chap-art art-pager" data-in>
-            <div className="pager-blob" aria-hidden />
-            <div className="iphone pg-back">
-              <img src="/landing/delivery-compare.jpg" alt={t.ch.delivery.real} loading="lazy" />
-            </div>
-            <div className="iphone pg-front">
-              <img src="/landing/delivery-edit.jpg" alt={t.ch.delivery.real} loading="lazy" />
-            </div>
-            <div className="toast t-ring">
-              <span className="toast-ic ring">
-                <Icon name="truck" />
-              </span>
-              <div>
-                <b>{t.ch.delivery.best}</b>
-                <span>{t.ch.delivery.bestS}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ---------- chapter: loyalty ---------- */}
       <section className="chap chap-wide">
         <div className="wrap chap-in">
           <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>07</span>
+            <span className="chap-n mono" aria-hidden>06</span>
             <span className="kicker">{t.ch.loyalty.k}</span>
             <h2>{t.ch.loyalty.h}</h2>
             <p>{t.ch.loyalty.p}</p>
@@ -1750,7 +1691,7 @@ export default function LandingPage() {
       <section className="chap chap-dark">
         <div className="wrap chap-in">
           <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>08</span>
+            <span className="chap-n mono" aria-hidden>07</span>
             <span className="kicker k-lime">{t.ch.numbers.k}</span>
             <h2>{t.ch.numbers.h}</h2>
             <p>{t.ch.numbers.p}</p>
@@ -1814,7 +1755,7 @@ export default function LandingPage() {
       <section className="chap chap-flip" id="app">
         <div className="wrap chap-in">
           <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>09</span>
+            <span className="chap-n mono" aria-hidden>08</span>
             <span className="kicker">
               <Icon name="devices" />
               {t.ch.app.k}
