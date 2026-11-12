@@ -132,6 +132,17 @@ function urlBase64ToUint8Array(base64String: string) {
   return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
 }
 
+const BOTTOM_NAV: { s: string; label: string; icon: string }[] = [
+  { s: "home", label: "الرئيسية", icon: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>' },
+  { s: "orders", label: "الطلبات", icon: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>' },
+  { s: "menu", label: "القائمة", icon: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>' },
+  { s: "inventory", label: "المخزون", icon: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>' },
+  { s: "purchases", label: "المشتريات", icon: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>' },
+  { s: "customers", label: "العملاء", icon: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/>' },
+  { s: "accounting", label: "المحاسبة", icon: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>' },
+  { s: "reports", label: "التقارير", icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>' },
+];
+
 export default function DashboardPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -633,27 +644,20 @@ export default function DashboardPage() {
           mechanism. Buttons just forward to the existing .nav-item click
           handlers in rakeen-dashboard.js — no screen-switching logic is
           duplicated here. */}
+      {/* الشريط السفلي بالجوال: مرشّحين بالترتيب، وrakeen-dashboard.js
+          (navSyncBottomItems) يطلّع أول ٤ تسمح لها صلاحية الحساب وباقته
+          ويخفي الباقي. data-bn = data-screen. */}
       <nav className="rk-bottom-nav" aria-label="التنقل الرئيسي">
-        <button type="button" className="rk-bn-item" onClick={() => document.querySelector<HTMLButtonElement>('.nav-item[data-screen="home"]')?.click()}>
-          <span className="rk-bn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg></span>
-          <span>الرئيسية</span>
-        </button>
-        <button type="button" className="rk-bn-item" onClick={() => document.querySelector<HTMLButtonElement>('.nav-item[data-screen="orders"]')?.click()}>
-          <span className="rk-bn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg></span>
-          <span>الطلبات</span>
-        </button>
-        <button type="button" className="rk-bn-item" onClick={() => document.querySelector<HTMLButtonElement>('.nav-item[data-screen="inventory"]')?.click()}>
-          <span className="rk-bn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" /></svg></span>
-          <span>المخزون</span>
-        </button>
-        <button type="button" className="rk-bn-item" onClick={() => document.querySelector<HTMLButtonElement>('.nav-item[data-screen="purchases"]')?.click()}>
-          <span className="rk-bn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" /></svg></span>
-          <span>المشتريات</span>
-        </button>
+        {BOTTOM_NAV.map((b) => (
+          <button key={b.s} type="button" className="rk-bn-item" data-bn={b.s} hidden={b.s !== "home"} onClick={() => document.querySelector<HTMLButtonElement>(`.nav-item[data-screen="${b.s}"]`)?.click()}>
+            <span className="rk-bn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: b.icon }} /></span>
+            <span>{b.label}</span>
+          </button>
+        ))}
         {/* Opens the same drawer as the hamburger — deliberately a grid icon,
             not more hamburger bars, so it doesn't read as a second, redundant
             menu trigger next to the real one. */}
-        <button type="button" className="rk-bn-item" onClick={() => setSidebarOpen(true)}>
+        <button type="button" className="rk-bn-item" data-bn="more" onClick={() => setSidebarOpen(true)}>
           <span className="rk-bn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg></span>
           <span>المزيد</span>
         </button>

@@ -596,6 +596,7 @@ function hmQuestLayout(){
   wrap.hidden = n === 0;
 }
 function renderOnboardingChecklist(){
+  navRenderSetup();
   const el = document.getElementById('onboardingChecklistPanel');
   if(!el) return;
   const steps = getOnboardingSteps();
@@ -621,6 +622,7 @@ function renderOnboardingChecklist(){
 }
 function renderStatusHero(){
   const items = computeRealAttentionItems();
+  navSyncBadges(items);
   const status = computeOverallStatus(items);
   const banner = document.getElementById('statusBanner');
   if(!banner) return;
@@ -908,7 +910,11 @@ function computeRealAttentionItems(){
     });
   }
 
-  return items.sort((a,b)=> (a.level==='urgent'?0:1) - (b.level==='urgent'?0:1));
+  // تنبيه يودّي لشاشة مقفلة بالباقة أو بصلاحية الموظف ما له فايدة -- كان
+  // صاحب «أساس» يشوف «المخزون نفد» على الجرس والقائمة والرئيسية، والضغط
+  // يفتح بطاقة الترقية. (قبل تسجيل الدخول ما فيه صلاحيات نقيس عليها.)
+  const usable = items.filter(i=> !CURRENT_PROFILE || !i.screen || screenAllowed(i.screen));
+  return usable.sort((a,b)=> (a.level==='urgent'?0:1) - (b.level==='urgent'?0:1));
 }
 
 function computeOverallStatus(items){
@@ -8096,8 +8102,8 @@ document.getElementById('campaignBuildBtn').addEventListener('click', ()=>{
 
 /* ============ Sidebar navigation ============ */
 const SCREEN_TITLES = {
-  home:'الرئيسية', pos:'الكاشير', orders:'الطلبات', purchases:'المشتريات', menu:'القائمة', onlineMenu:'المتجر الإلكتروني', links:'روابطك', services:'الخدمات', rooms:'الغرف', inventory:'المخزون',
-  hr:'الموظفون', customers:'العملاء', loyalty:'نادي الولاء', accounting:'المحاسبة', delivery:'تطبيقات التوصيل',
+  home:'الرئيسية', pos:'إعدادات الكاشير', orders:'الطلبات', purchases:'المشتريات', menu:'القائمة', onlineMenu:'المتجر الإلكتروني', links:'روابطك', services:'الخدمات', rooms:'الغرف', inventory:'المخزون',
+  hr:'الموظفين', customers:'العملاء', loyalty:'نادي الولاء', accounting:'المحاسبة', delivery:'تطبيقات التوصيل',
   ai:'مستشار ركين الذكي', reports:'التقارير', settings:'الإعدادات'
 };
 // Desktop-only collapsible rail — persisted per-browser so the choice
@@ -8114,6 +8120,81 @@ const SCREEN_TITLES = {
     const isCollapsed = sidebar.classList.toggle('collapsed');
     localStorage.setItem(STORAGE_KEY, isCollapsed ? '1' : '0');
   });
+})();
+
+
+/* ============ القائمة الجانبية (nv-) ============
+   تجاوب «وين أروح الحين؟» بدون ما يفتح شي: رقم على كل شاشة فيها شي
+   يحتاجه (من computeRealAttentionItems نفسها اللي تغذّي الجرس والرئيسية،
+   مو مصدر ثاني)، وبطاقة «جهّز محلك» تختفي أول ما تخلص الخطوات،
+   وزر «افتح الكاشير» فوق لأنه أكثر شي ينضغط. كل شي يتحدّث مع نفس
+   الأحداث اللي ترسم الرئيسية -- ما فيه polling. */
+const NAV_IC = {
+  alert:'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+};
+function navSyncBadges(items){
+  const by = {};
+  (items || []).forEach(a=>{ if(!a.screen) return; const b = (by[a.screen] ||= { n: 0, urgent: false }); b.n++; if(a.level === 'urgent') b.urgent = true; });
+  document.querySelectorAll('.nav-item[data-screen], .rk-bn-item[data-bn]').forEach(btn=>{
+    const s = btn.dataset.screen || btn.dataset.bn;
+    let badge = btn.querySelector('.nav-badge');
+    const v = by[s];
+    if(!v){ if(badge) badge.remove(); btn.removeAttribute('data-nav-need'); return; }
+    if(!badge){ badge = document.createElement('span'); badge.className = 'nav-badge'; btn.appendChild(badge); }
+    badge.textContent = v.n > 9 ? '9+' : String(v.n);
+    badge.classList.toggle('urgent', v.urgent);
+    btn.setAttribute('data-nav-need', v.urgent ? 'urgent' : 'warn');
+    btn.title = (SCREEN_TITLES[s] || '') + ' · ' + hmPlural(v.n, 'شي واحد يحتاجك', 'شيئين يحتاجونك', 'أشياء تحتاجك', 'شي يحتاجك');
+  });
+}
+let navSetupLeft = null;
+function navRenderSetup(){
+  const el = document.getElementById('navSetup');
+  if(!el || !CURRENT_PROFILE) return;
+  // جهّز محلك شغل صاحب المحل -- الموظف ما يشوفها
+  const steps = CURRENT_PROFILE.user_type === 'employee' ? [] : getOnboardingSteps();
+  const done = steps.filter(s=>s.done).length, left = steps.length - done;
+  if(!steps.length || !left){
+    if(navSetupLeft > 0 && left === 0) showToast('محلك جاهز 🎉 ركين صار يحسب كل شي صح');
+    navSetupLeft = steps.length ? 0 : null;
+    el.hidden = true; el.innerHTML = ''; return;
+  }
+  navSetupLeft = left;
+  const next = steps.find(s=>!s.done);
+  el.hidden = false;
+  el.dataset.go = next.screen; el.dataset.tab = next.tab || '';
+  el.title = 'جهّز محلك: ' + next.label;
+  el.innerHTML = '<span class="hm-ring nav-ring" style="--p:' + Math.round(done / steps.length * 100) + '"><b>' + done + '<small>/' + steps.length + '</small></b></span>'
+    + '<span class="nav-setup-txt"><b>جهّز محلك</b><small>' + (done ? 'باقي ' : '') + hmPlural(left, 'خطوة', 'خطوتين', 'خطوات', 'خطوة') + '</small></span>'
+    + '<span class="nav-setup-go">ابدأ</span>';
+}
+function navOwnerText(){
+  const roleEl = document.getElementById('ownerRole');
+  if(!roleEl || !CURRENT_PROFILE) return;
+  const role = USER_TYPE_LABELS[CURRENT_PROFILE.user_type] || CURRENT_PROFILE.user_type || '';
+  roleEl.textContent = role + (RESTAURANT_INFO && RESTAURANT_INFO.name ? ' · ' + RESTAURANT_INFO.name : '');
+}
+/* الشريط السفلي بالجوال: أول ٤ شاشات مسموحة من قائمة الأولوية، بدل ٤
+   ثابتة كانت تطلع للموظف شاشات ما عنده صلاحيتها (وتفتحها). */
+const NAV_BN_ORDER = ['home', 'orders', 'menu', 'inventory', 'purchases', 'customers', 'accounting', 'reports'];
+function navSyncBottomItems(){
+  const ok = s => { const n = document.querySelector('.sidebar .nav-item[data-screen="' + s + '"]'); return !!n && n.style.display !== 'none' && !n.hasAttribute('data-plan-feature'); };
+  const pick = NAV_BN_ORDER.filter(ok).slice(0, 4);
+  document.querySelectorAll('.rk-bn-item[data-bn]').forEach(b=>{
+    const s = b.dataset.bn;
+    if(s === 'more') return;
+    b.hidden = !pick.includes(s);
+    b.style.order = String(pick.indexOf(s));
+  });
+}
+(function wireNav(){
+  document.getElementById('navLaunchPos')?.addEventListener('click', ()=> window.open('/pos', '_blank', 'noopener'));
+  document.getElementById('navSetup')?.addEventListener('click', e=>{
+    const el = e.currentTarget;
+    goToScreenTab(el.dataset.go, el.dataset.tab || undefined);
+  });
+  const kbd = document.getElementById('cmdkKbd');
+  if(kbd) kbd.textContent = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘K' : 'Ctrl K';
 })();
 
 // Header bell — mirrors the real Home status banner (computeRealAttentionItems
@@ -8133,20 +8214,6 @@ document.getElementById('topbarNotifBtn')?.addEventListener('click', ()=>{
   document.getElementById('statusBanner')?.scrollIntoView({behavior:'smooth', block:'start'});
 });
 
-const PLACEHOLDER_ICONS = {
-  orders:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
-  purchases:'<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>',
-  inventory:'<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
-  accounting:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
-  staff:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>',
-  hr:'<rect x="2" y="4" width="20" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M15 8h4"/><path d="M15 12h4"/><path d="M6 16c.5-2 2-3 3-3s2.5 1 3 3"/>',
-  customers:'<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/>',
-  delivery:'<rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
-  ai:'<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
-  reports:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
-  settings:'<circle cx="12" cy="12" r="3"/>'
-};
-
 // Bottom-nav FAB: only screens with a real, single obvious "add" action get
 // one — Orders has no order-creation flow in this dashboard (orders come
 // from the POS terminal), so it deliberately has no FAB rather than forcing
@@ -8160,10 +8227,7 @@ const FAB_ACTIONS = {
   // the exact same thing would just be a duplicate to figure out between.
 };
 function syncBottomNav(target){
-  document.querySelectorAll('.rk-bn-item').forEach(b=>b.classList.remove('active'));
-  const bnMap = {home:0, orders:1, inventory:2, purchases:3};
-  const bnItems = document.querySelectorAll('.rk-bn-item');
-  if(target in bnMap && bnItems[bnMap[target]]) bnItems[bnMap[target]].classList.add('active');
+  document.querySelectorAll('.rk-bn-item').forEach(b=> b.classList.toggle('active', b.dataset.bn === target));
 
   const fab = document.getElementById('rkFab');
   if(!fab) return;
@@ -8297,6 +8361,9 @@ function resetContentScroll(){
 document.querySelectorAll('.nav-item').forEach(btn=>{
   btn.addEventListener('click', async ()=>{
     const target = btn.dataset.screen;
+    // شاشة مخفية بالصلاحيات: ما تنفتح ولو انضغط زرها برمجياً (الشريط
+    // السفلي كان يفتح المخزون والمشتريات لموظف ما عنده صلاحيتها).
+    if(CURRENT_PROFILE && btn.style.display === 'none'){ showToast('ما عندك صلاحية «' + (SCREEN_TITLES[target] || '') + '»'); return; }
     document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
@@ -8305,18 +8372,6 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
     document.body.dataset.activeScreen = target;
     resetContentScroll();
     syncBottomNav(target);
-
-    if(target !== 'home'){
-      const el = document.getElementById('screen-'+target);
-      if(!el.dataset.rendered){
-        el.innerHTML = `<div class="placeholder">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${PLACEHOLDER_ICONS[target]}</svg>
-          <h3>${SCREEN_TITLES[target]} — جاية بالمرحلة الجاية</h3>
-          <p>هذا القسم جزء من خارطة الطريق، بس ما بنيناه لسا بنفس الجودة اللي نلتزم فيها بكل شي بركين.</p>
-        </div>`;
-        el.dataset.rendered = '1';
-      }
-    }
 
     // Purchases moved out of Accounting's tab system into its own top-level
     // screen — re-render on every visit (same freshness the old accounting
@@ -8411,18 +8466,21 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
 });
 
 /* ============ Command Bar (⌘K) ============ */
-const CMDK_NAV_ITEMS = Object.keys(SCREEN_TITLES).map(key=>({
-  type:'nav', key, label:SCREEN_TITLES[key],
-  icon:'<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'
-}));
+/* الأقسام: بس اللي تبان بالقائمة (صلاحية + باقة + نوع النشاط)، بأيقونتها.
+   والإجراءات: كل واحد يفتح زر موجود فعلاً بشاشته -- كانت ٦ إجراءات
+   وهمية («فتح وردية»، «طباعة تقرير»…) تكتب في الكونسول بس. */
+function cmdkNavItems(){
+  return [...document.querySelectorAll('.sidebar .nav-item[data-screen]')].filter(b=> b.style.display !== 'none' && !b.hasAttribute('data-plan-feature'))
+    .map(b=>({ type:'nav', key:b.dataset.screen, label:SCREEN_TITLES[b.dataset.screen] || b.textContent.trim(), svg:(b.querySelector('svg')||{}).outerHTML || '' }));
+}
 const CMDK_QUICK_ACTIONS = [
-  {type:'action', key:'new-product', label:'إنشاء منتج جديد', icon:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'},
-  {type:'action', key:'refund', label:'استرجاع طلب', icon:'<polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/>'},
-  {type:'action', key:'open-shift', label:'فتح وردية', icon:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'},
-  {type:'action', key:'close-shift', label:'إغلاق وردية', icon:'<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>'},
-  {type:'action', key:'new-invoice', label:'إنشاء فاتورة', icon:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>'},
-  {type:'action', key:'print-report', label:'طباعة تقرير', icon:'<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>'}
+  {key:'pos', label:'افتح الكاشير', words:'بيع كاشير', icon:'<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>', run:()=> window.open('/pos', '_blank', 'noopener')},
+  {key:'product', screen:'menu', label:'أضف منتج للقائمة', words:'منتج صنف قائمة منيو', icon:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>', run:()=> setTimeout(()=> document.getElementById('openAddProductBtn')?.click(), 60)},
+  {key:'scan', screen:'purchases', label:'صوّر فاتورة مشتريات', words:'فاتورة مشتريات مورد', icon:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>', run:()=> setTimeout(()=> puOpenScan(), 60)},
+  {key:'stock', screen:'inventory', label:'أضف مادة للمخزون', words:'مخزون مادة خام', icon:'<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>', run:()=> setTimeout(()=> document.getElementById('openAddStockBtn')?.click(), 60)},
+  {key:'expense', screen:'accounting', label:'سجّل مصروف', words:'مصروف صرف محاسبة', icon:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>', run:()=> setTimeout(()=> openExpenseModal(), 60)},
 ];
+function cmdkActions(){ return CMDK_QUICK_ACTIONS.filter(a=> !a.screen || hmScreenOk(a.screen)); }
 let cmdkHighlighted = 0;
 
 function openCmdk(){
@@ -8436,22 +8494,22 @@ function closeCmdk(){ document.getElementById('cmdkOverlay').classList.remove('s
 
 function renderCmdkResults(query){
   const q = query.trim();
-  const navMatches = CMDK_NAV_ITEMS.filter(i=> !q || i.label.includes(q));
-  const actionMatches = CMDK_QUICK_ACTIONS.filter(i=> !q || i.label.includes(q));
+  const navMatches = cmdkNavItems().filter(i=> !q || i.label.includes(q));
+  const actionMatches = cmdkActions().filter(i=> !q || i.label.includes(q) || (i.words || '').includes(q));
   const el = document.getElementById('cmdkResults');
   cmdkHighlighted = 0;
 
   if(navMatches.length === 0 && actionMatches.length === 0){
-    el.innerHTML = '<div class="cmdk-empty">ما فيه نتائج مطابقة</div>';
+    el.innerHTML = '<div class="cmdk-empty">ما لقيت «' + escapeHtml(q) + '». جرّب كلمة ثانية مثل: منتج، مخزون، مصروف</div>';
     return;
   }
   let html = '';
   if(navMatches.length){
-    html += '<div class="cmdk-group-label">الأقسام</div>';
-    html += navMatches.map(i=>`<button class="cmdk-item" data-type="nav" data-key="${i.key}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${i.icon}</svg>${i.label}</button>`).join('');
+    html += '<div class="cmdk-group-label">روح لـ</div>';
+    html += navMatches.map(i=>`<button class="cmdk-item" data-type="nav" data-key="${i.key}">${i.svg}${i.label}</button>`).join('');
   }
   if(actionMatches.length){
-    html += '<div class="cmdk-group-label">إجراءات سريعة</div>';
+    html += '<div class="cmdk-group-label">سوّ على طول</div>';
     html += actionMatches.map(i=>`<button class="cmdk-item" data-type="action" data-key="${i.key}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${i.icon}</svg>${i.label}</button>`).join('');
   }
   el.innerHTML = html;
@@ -8469,7 +8527,9 @@ function executeCmdk(type, key){
     if(navBtn) navBtn.click();
   } else {
     const action = CMDK_QUICK_ACTIONS.find(a=>a.key===key);
-    console.log('[command bar] quick action triggered:', action ? action.label : key);
+    if(!action) return;
+    if(action.screen) document.querySelector('.nav-item[data-screen="'+action.screen+'"]')?.click();
+    action.run();
   }
 }
 
@@ -8653,6 +8713,7 @@ async function loadBusinessData(){
 
   if(businessRes.data){
     RESTAURANT_INFO.name = businessRes.data.name;
+    navOwnerText();
     BUSINESS_LOGO_URL = businessRes.data.logo_url;
     if(businessRes.data.vat_rate != null) BUSINESS_VAT_RATE = Number(businessRes.data.vat_rate);
     BUSINESS_VAT_NUMBER = businessRes.data.vat_number || '';
@@ -9165,6 +9226,9 @@ document.getElementById('loginSubmitBtn').addEventListener('click', async ()=>{
 });
 
 document.getElementById('logoutBtn').addEventListener('click', async ()=>{
+  // ضغطة وحدة كانت تطلّعه من حسابه على طول -- وهو جنب اسمه بالضبط
+  const ok = await rkAsk({ title: 'تطلع من حسابك؟', body: 'بترجع تدخل بإيميلك وكلمة المرور.', ok: 'اطلع', cancel: 'خلّني' });
+  if(!ok) return;
   await window.supabaseClient.auth.signOut();
   window.location.reload();
 });
@@ -9438,6 +9502,7 @@ function applyPermissions(){
   if(ownerNameEl) ownerNameEl.textContent = CURRENT_PROFILE.full_name;
   if(ownerRoleEl) ownerRoleEl.textContent = USER_TYPE_LABELS[CURRENT_PROFILE.user_type] || CURRENT_PROFILE.user_type;
   if(ownerAvatarEl) ownerAvatarEl.textContent = (CURRENT_PROFILE.full_name || '؟').charAt(0);
+  navOwnerText();
 
   // 'services' is additionally gated by sector: only service-based business
   // types (salon/ladies_salon/car_wash/mobile_car_wash/clinic) get the nav
@@ -9486,6 +9551,7 @@ function applyPermissions(){
     }
     label.style.display = any ? '' : 'none';
   });
+  navSyncBottomItems();
 
   // deep-link support (e.g. an "Add to Home Screen" shortcut straight to
   // /dashboard?screen=accounting) — takes priority over the default active

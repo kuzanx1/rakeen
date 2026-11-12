@@ -1578,3 +1578,75 @@ button.mn-stat{cursor:pointer;}
   .ad-li{flex-wrap:wrap;}
 }
 @media (prefers-reduced-motion: reduce){ .rk2 .ad-q, .ad-ans, .ad-tick, .ad-bar-col i{animation:none;} }
+
+/* ═══════════ القائمة الجانبية + الشريط العلوي (nav-) ═══════════
+   زر «افتح الكاشير» فوق، «جهّز محلك» لين تخلص، مجموعات بلغة صاحب المحل،
+   ورقم على كل شاشة فيها شي يحتاجه (navSyncBadges). */
+.sidebar{padding-inline:12px;}
+@media (min-width:901px){ .sidebar{padding-top:14px; padding-bottom:12px; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin;} .sidebar-top{padding-bottom:12px;} }
+.sidebar .nav-item{position:relative; gap:11px; padding:8px 12px; border-radius:12px; font-size:13.5px; margin-bottom:2px; transition:background .15s ease, color .15s ease, transform .12s ease;}
+.sidebar .nav-item:active{transform:scale(.97);}
+.sidebar .nav-item svg{width:18px; height:18px;}
+.sidebar .nav-label{flex:1 1 auto; min-width:0;}
+.nav-section-label{font-size:11px; font-weight:800; letter-spacing:0; text-transform:none; padding:12px 12px 4px;}
+.nav-section-label.nav-divider{height:1px; padding:0; margin:10px 12px; font-size:0; background:var(--line);}
+.nav-section-label.nav-divider::before{display:none;}
+.nav-sec-stock::before{background:var(--acc-res);}
+.nav-sec-team::before{background:var(--acc-team);}
+/* زر الكاشير */
+.nav-launch{display:flex; align-items:center; gap:10px; width:100%; margin:0 0 6px; padding:9px 12px; border-radius:14px; border:none; cursor:pointer;
+  background:var(--lime); color:#111; font-family:inherit; font-size:14px; font-weight:900; text-align:start;
+  box-shadow:0 8px 18px -12px rgba(143,203,23,.95); transition:transform .15s ease, box-shadow .2s ease;}
+.nav-launch:hover{transform:translateY(-1px); box-shadow:0 12px 22px -12px rgba(143,203,23,1);}
+.nav-launch:active{transform:scale(.97);}
+.nav-launch svg{width:18px; height:18px; flex-shrink:0;}
+.nav-launch-go{display:flex; width:24px; height:24px; border-radius:8px; background:rgba(17,17,17,.1); align-items:center; justify-content:center; flex-shrink:0;}
+.nav-launch-go svg{width:13px; height:13px;}
+/* جهّز محلك */
+.nav-setup{display:flex; align-items:center; gap:10px; width:100%; margin:0 0 4px; padding:7px 10px; border-radius:14px; cursor:pointer; font-family:inherit; color:var(--text); text-align:start;
+  border:1.5px dashed color-mix(in srgb, var(--lime-deep) 60%, transparent); background:color-mix(in srgb, var(--lime) 10%, var(--card-bg)); animation:rk2-in .35s ease both; transition:transform .15s ease, border-color .2s ease;}
+.nav-setup[hidden]{display:none;}
+.nav-setup:hover{transform:translateY(-1px); border-color:var(--lime-deep);}
+.hm-ring.nav-ring{width:36px; height:36px;}
+.hm-ring.nav-ring::before{inset:4px;}
+.hm-ring.nav-ring b{font-size:13px;}
+.hm-ring.nav-ring small{font-size:9px;}
+.nav-setup-txt{flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.3;}
+.nav-setup-txt b{font-size:13px; font-weight:900;}
+.nav-setup-txt small{font-size:11.5px; color:var(--muted); font-weight:700;}
+.nav-setup-go{font-size:11.5px; font-weight:900; padding:4px 10px; border-radius:99px; background:var(--lime); color:#111; flex-shrink:0;}
+/* أرقام «يحتاجك» */
+.nav-badge{min-width:20px; height:20px; padding:0 6px; border-radius:99px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;
+  background:var(--amber); color:#111; font-size:11px; font-weight:900; line-height:1; animation:ad-pop .35s cubic-bezier(.2,1.6,.4,1) both;}
+.nav-badge.urgent{background:var(--danger); color:#fff;}
+.sidebar .nav-item.active .nav-badge{box-shadow:0 0 0 2px #111;}
+.rk-bn-item{position:relative;}
+.rk-bn-item[hidden]{display:none !important;}
+.rk-bn-item .nav-badge{position:absolute; top:4px; inset-inline-end:calc(50% - 26px); min-width:17px; height:17px; font-size:10px; padding:0 4px;}
+/* المقفل بالباقة: الاسم كامل والقفل بآخر السطر */
+.sidebar .nav-item[data-plan-feature]::after{margin-inline-start:auto !important; flex-shrink:0;}
+/* صاحب الحساب */
+.sidebar-owner{gap:10px; padding:8px 10px 8px 8px; border-radius:14px; margin-top:8px;}
+.owner-name{font-size:13px;}
+.owner-role{font-size:11px;}
+.nav-logout{width:34px; height:34px; margin-inline-start:auto; flex-shrink:0; cursor:pointer;}
+.nav-logout svg{width:16px; height:16px;}
+.nav-logout:hover{color:var(--danger); border-color:var(--danger);}
+/* الشريط العلوي */
+.topbar h1{font-size:18px; font-weight:900;}
+.cmdk-trigger{min-width:260px; height:40px; border-radius:12px; font-size:13px; transition:border-color .2s ease, background .2s ease;}
+.cmdk-trigger:hover{border-color:var(--lime-deep); background:var(--card-bg);}
+@media (hover:none){ .cmdk-kbd{display:none;} }
+/* القائمة المطوية (ديسكتوب بس -- بالجوال درج كامل) */
+@media (min-width:901px){
+  .sidebar.collapsed .nav-launch{justify-content:center; padding:11px 0;}
+  .sidebar.collapsed .nav-launch-go, .sidebar.collapsed .nav-setup-txt, .sidebar.collapsed .nav-setup-go{display:none;}
+  .sidebar.collapsed .nav-setup{justify-content:center; padding:8px 0;}
+  .sidebar.collapsed .nav-item .nav-badge{position:absolute; top:3px; inset-inline-end:6px; min-width:16px; height:16px; font-size:9.5px; padding:0 4px;}
+  .sidebar.collapsed .nav-item[data-plan-feature]::after{display:none;}
+  .sidebar.collapsed .nav-section-label.nav-divider{margin-inline:8px;}
+}
+@media (max-width:900px){
+  .cmdk-trigger{min-width:0;}
+}
+@media (prefers-reduced-motion: reduce){ .nav-setup, .nav-badge{animation:none;} }
