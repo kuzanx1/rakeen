@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
-  FONTS, LINK_TYPES, TEMPLATES, defaultConfig, fontsHref, linkPageUrl, newId, normalizeConfig, resolveHref,
-  type BoldOpts, type CoverOpts, type FontKey, type IvoryOpts, type LinkBiz, type LinkItem, type LinkPageConfig, type LinkType,
-  type PearlOpts, type TemplateKey, type VelvetOpts,
+  FONTS, LINK_TYPES, TEMPLATES, TEMPLATE_KEYS, defaultConfig, fontsHref, linkPageUrl, newId, normalizeConfig, resolveHref,
+  type BoldOpts, type CoverOpts, type FontKey, type LinkBiz, type LinkItem, type LinkPageConfig, type LinkType,
+  type TemplateKey, type VelvetOpts,
 } from "@/lib/links/model";
+import { COLOR_KEYS, FALLBACK_BRAND, brandTones, isHex, logoColors, near } from "@/lib/links/brand";
 import { ICON_LIBRARY, ICON_NAMES, type IconKey } from "@/lib/links/icon-keys";
 import LinkPageView from "../l/LinkPageView";
 import { Icon, type IconName } from "../l/icons";
@@ -35,52 +36,20 @@ type BizRow = {
   id: number; name: string; logo_url: string | null; online_menu_slug: string | null;
   online_ordering_enabled: boolean | null; online_booking_enabled: boolean | null; link_page: unknown;
   online_contact_whatsapp?: string | null; online_social_instagram?: string | null;
-  online_social_tiktok?: string | null; online_social_twitter?: string | null;
+  online_social_tiktok?: string | null; online_social_twitter?: string | null; online_theme_color?: string | null;
 };
 
-type Pal = { name: string; light?: boolean; v: Record<string, string> };
-const PALETTES: Record<TemplateKey, Pal[]> = {
-  ivory: [
-    { name: "عاجي", light: true, v: { paper: "#F5EFE4", ink: "#2A241D", accent: "#9A7A4A" } },
-    { name: "حليبي", light: true, v: { paper: "#FBF9F4", ink: "#1E1E1C", accent: "#1E1E1C" } },
-    { name: "زيتوني", light: true, v: { paper: "#F1F0E6", ink: "#27301E", accent: "#6B7A45" } },
-    { name: "وردي", light: true, v: { paper: "#F7EEEA", ink: "#3B1E1E", accent: "#9E4A4A" } },
-    { name: "رملي", light: true, v: { paper: "#EFE4D2", ink: "#3A2A18", accent: "#A0662E" } },
-    { name: "حبري", v: { paper: "#14171F", ink: "#EDE6D6", accent: "#C9A86A" } },
-  ],
-  pearl: [
-    { name: "أبيض", light: true, v: { bg: "#F6F5F2", card: "#FFFFFF", ink: "#17161A", accent: "#1F6F5C" } },
-    { name: "أسود وأبيض", light: true, v: { bg: "#F4F4F4", card: "#FFFFFF", ink: "#111111", accent: "#111111" } },
-    { name: "ذهبي", light: true, v: { bg: "#FAF7F0", card: "#FFFFFF", ink: "#221C12", accent: "#B08A3E" } },
-    { name: "عنابي", light: true, v: { bg: "#FBF6F4", card: "#FFFFFF", ink: "#2A1015", accent: "#7A1426" } },
-    { name: "سماوي", light: true, v: { bg: "#F2F6FA", card: "#FFFFFF", ink: "#0F1B2B", accent: "#2563EB" } },
-    { name: "ليلي", v: { bg: "#0E0F12", card: "#1A1C21", ink: "#F2F2F2", accent: "#C4FF2B" } },
-  ],
-  velvet: [
-    { name: "عنابي", v: { tint: "#1A0306", bgColor: "#3A0A10", ink: "#FFF8F0", accent: "#FFF8F0" } },
-    { name: "ليلي ذهبي", v: { tint: "#05070F", bgColor: "#0E1424", ink: "#F3EFE6", accent: "#D8B46A" } },
-    { name: "زيتي", v: { tint: "#0B1407", bgColor: "#1E2B16", ink: "#F4F1E6", accent: "#C9D3A6" } },
-    { name: "رملي", v: { tint: "#2A1E12", bgColor: "#7A5C3E", ink: "#FFF7EA", accent: "#F1D9B5" } },
-    { name: "ثلجي", light: true, v: { tint: "#F7F3EC", bgColor: "#EFE8DC", ink: "#2A2119", accent: "#2A2119" } },
-    { name: "لؤلؤي", light: true, v: { tint: "#FFFFFF", bgColor: "#F4F2EE", ink: "#1C1C1C", accent: "#9A7A4A" } },
-  ],
-  cover: [
-    { name: "عنابي", v: { panel: "#6E0414", ink: "#FFF6EE", accent: "#FFF6EE", ring: "#FFFFFF" } },
-    { name: "كحلي ذهبي", v: { panel: "#0F1E3A", ink: "#F1F4FA", accent: "#E7C77D", ring: "#E7C77D" } },
-    { name: "أخضر", v: { panel: "#326927", ink: "#FAF8EB", accent: "#7ADC69", ring: "#FAF8EB" } },
-    { name: "عاجي", light: true, v: { panel: "#F4EEE3", ink: "#3A2A1E", accent: "#3A2A1E", ring: "#FFFFFF" } },
-    { name: "أبيض", light: true, v: { panel: "#FFFFFF", ink: "#141414", accent: "#141414", ring: "#FFFFFF" } },
-    { name: "أوف وايت ذهبي", light: true, v: { panel: "#FAF6EE", ink: "#2B241A", accent: "#B08A3E", ring: "#B08A3E" } },
-  ],
-  bold: [
-    { name: "ليموني", v: { hero: "#C9D9B4", heroInk: "#1F3A17", panel: "#26401E", ink: "#FFFFFF", accent: "#F2F05A", tile: "#FFFFFF", tileInk: "#141414" } },
-    { name: "برتقالي", v: { hero: "#FFD9B8", heroInk: "#4A1E05", panel: "#2B1408", ink: "#FFFFFF", accent: "#FF7A2F", tile: "#FFF4EA", tileInk: "#2B1408" } },
-    { name: "بنفسجي", v: { hero: "#DCD6FF", heroInk: "#251A5C", panel: "#1C1640", ink: "#FFFFFF", accent: "#B4F25A", tile: "#FFFFFF", tileInk: "#1C1640" } },
-    { name: "فحمي", v: { hero: "#EDEDE8", heroInk: "#111111", panel: "#111111", ink: "#FFFFFF", accent: "#C4FF2B", tile: "#1E1E1E", tileInk: "#FFFFFF" } },
-    { name: "أوف وايت", light: true, v: { hero: "#EFE7D8", heroInk: "#1E1B16", panel: "#FBF8F2", ink: "#1E1B16", accent: "#1E1B16", tile: "#FFFFFF", tileInk: "#1E1B16" } },
-    { name: "أبيض وأحمر", light: true, v: { hero: "#FFFFFF", heroInk: "#141414", panel: "#F5F3F0", ink: "#141414", accent: "#D92D20", tile: "#FFFFFF", tileInk: "#141414" } },
-  ],
-};
+/** يلوّن كل التصاميم (اللي على نغمة، مو يدوية) من ألوان الهوية. */
+function applyBrand(c: LinkPageConfig): LinkPageConfig {
+  const opts = { ...c.opts };
+  TEMPLATE_KEYS.forEach(<K extends TemplateKey>(t: K) => {
+    const i = c.brand.tone[t];
+    if (i < 0) return;
+    const tone = brandTones(t, c.brand)[i] || brandTones(t, c.brand)[0];
+    opts[t] = { ...opts[t], ...tone.v } as LinkPageConfig["opts"][K];
+  });
+  return { ...c, opts };
+}
 
 /* ───────── عناصر تحكّم صغيرة ───────── */
 function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
@@ -346,42 +315,6 @@ function CoverPanel({ o, set }: { o: CoverOpts; set: (p: Partial<CoverOpts>) => 
     </>
   );
 }
-function IvoryPanel({ o, set }: { o: IvoryOpts; set: (p: Partial<IvoryOpts>) => void }) {
-  return (
-    <>
-      <div className="ls-colors">
-        <ColorIn label="لون الورق" value={o.paper} onChange={(paper) => set({ paper })} />
-        <ColorIn label="لون النص" value={o.ink} onChange={(ink) => set({ ink })} />
-        <ColorIn label="اللون الذهبي" value={o.accent} onChange={(accent) => set({ accent })} />
-      </div>
-      <Field label="خط الاسم والروابط"><FontPick value={o.font} onChange={(font) => set({ font })} /></Field>
-      <Field label="فوق الاسم"><Seg value={o.mark} options={[["logo", "الشعار"], ["monogram", "أول حرف"], ["none", "بدون"]]} onChange={(mark) => set({ mark })} /></Field>
-      <Field label="شكل الروابط"><Seg value={o.rows} options={[["lines", "سطور"], ["boxed", "مربعات"], ["center", "منيو كلاسيك"]]} onChange={(rows) => set({ rows })} /></Field>
-      <Field label="الإطار"><Seg value={o.frame} options={[["double", "مزدوج"], ["single", "مفرد"], ["none", "بدون"]]} onChange={(frame) => set({ frame })} /></Field>
-      <Toggle on={o.ornament} onChange={(ornament) => set({ ornament })} label="زخرفة تحت الاسم" />
-      <Toggle on={o.texture} onChange={(texture) => set({ texture })} label="ملمس ورق" />
-    </>
-  );
-}
-function PearlPanel({ o, set, cfg, setCfg }: { o: PearlOpts; set: (p: Partial<PearlOpts>) => void; cfg: LinkPageConfig; setCfg: (p: Partial<LinkPageConfig>) => void }) {
-  return (
-    <>
-      <ImagePick label="صورة غلاف (اختياري)" value={o.cover} onChange={(cover) => set({ cover })} hint="صورة عرضية بزوايا ناعمة فوق الشعار" />
-      <div className="ls-colors">
-        <ColorIn label="الخلفية" value={o.bg} onChange={(bg) => set({ bg })} />
-        <ColorIn label="البطاقات" value={o.card} onChange={(card) => set({ card })} />
-        <ColorIn label="النص" value={o.ink} onChange={(ink) => set({ ink })} />
-        <ColorIn label="لون هويتك" value={o.accent} onChange={(accent) => set({ accent })} />
-      </div>
-      <Field label="خط الاسم"><FontPick value={o.font} onChange={(font) => set({ font })} /></Field>
-      <Field label="البطاقات"><Seg value={o.cards} options={[["float", "بظل"], ["line", "بإطار"], ["flat", "مسطّحة"]]} onChange={(cards) => set({ cards })} /></Field>
-      <Field label="الزوايا"><Seg value={o.corner} options={[["sharp", "حادّة"], ["soft", "ناعمة"], ["pill", "دائرية"]]} onChange={(corner) => set({ corner })} /></Field>
-      <Field label="مربع الأيقونة"><Seg value={o.tile} options={[["tint", "لون خفيف"], ["solid", "معبّأ"], ["none", "بدون"]]} onChange={(tile) => set({ tile })} /></Field>
-      <Toggle on={o.glow} onChange={(glow) => set({ glow })} label="توهّج بلون هويتك أعلى الصفحة" />
-      <Field label="شارة صغيرة" hint="مثل: مفتوح الآن، توصيل مجاني، جديدنا"><input value={cfg.badge} maxLength={24} onChange={(e) => setCfg({ badge: e.target.value })} /></Field>
-    </>
-  );
-}
 function BoldPanel({ o, set, cfg, setCfg }: { o: BoldOpts; set: (p: Partial<BoldOpts>) => void; cfg: LinkPageConfig; setCfg: (p: Partial<LinkPageConfig>) => void }) {
   return (
     <>
@@ -430,6 +363,42 @@ function BoldPanel({ o, set, cfg, setCfg }: { o: BoldOpts; set: (p: Partial<Bold
           )}
         </div>
       )}
+    </>
+  );
+}
+
+/* ───────── ألوان الهوية ───────── */
+function BrandPanel({ cfg, detected, onPrimary, onTone }: {
+  cfg: LinkPageConfig; detected: string[]; onPrimary: (c: string) => void; onTone: (i: number) => void;
+}) {
+  const t = cfg.template;
+  const tones = brandTones(t, cfg.brand);
+  const cur = cfg.brand.tone[t];
+  const primary = cfg.brand.primary || FALLBACK_BRAND;
+  const chips = detected.some((c) => near(c, primary)) ? detected : [primary, ...detected];
+  return (
+    <>
+      <Field label="لون هويتك" hint={detected.length ? "طلعناها من شعارك. اختر لونك، وكل التصاميم تتلوّن عليه." : "ارفع شعارك ونطلّع ألوانه، أو اختر لونك."}>
+        <div className="ls-brand">
+          {chips.map((c) => (
+            <button key={c} type="button" className={"ls-sw" + (near(c, primary) ? " on" : "")} style={{ background: c }} aria-label={c} onClick={() => onPrimary(c)} />
+          ))}
+          <label className="ls-sw ls-sw-add" title="لون آخر">
+            <input type="color" value={primary} onChange={(e) => onPrimary(e.target.value.toUpperCase())} />
+            <Icon name="plus" size={16} />
+          </label>
+        </div>
+      </Field>
+      <Field label={`ألوان «${TEMPLATES.find((x) => x.key === t)!.name}»`} hint={cur < 0 ? "ألوانك يدوية الحين -- اختر وحدة من فوق ترجع لهويتك" : undefined}>
+        <div className="ls-pals">
+          {tones.map((p, i) => (
+            <button key={p.name} type="button" className={cur === i ? "on" : ""} onClick={() => onTone(i)}>
+              <span>{Object.values(p.v).slice(0, 4).map((c, k) => <i key={k} style={{ background: c as string }} />)}</span>
+              {p.name}{p.light && <em className="ls-tone">فاتح</em>}
+            </button>
+          ))}
+        </div>
+      </Field>
     </>
   );
 }
@@ -516,6 +485,8 @@ export default function LinksStudio() {
   const [busy, setBusy] = useState(false);
   const [slug, setSlug] = useState("");
   const [mobilePreview, setMobilePreview] = useState(false);
+  const [detected, setDetected] = useState<string[]>([]);
+  const lastSrc = useRef<string | null>(null);
 
   // الشاشة نفسها من ترميز اللوحة: ننتظرها، ونحمّل أول ما تنفتح.
   useEffect(() => {
@@ -546,7 +517,7 @@ export default function LinksStudio() {
     if (!uid) return setState("error");
     const { data: prof } = await client.from("profiles").select("business_id").eq("id", uid).single();
     if (!prof) return setState("error");
-    const cols = "id, name, logo_url, online_menu_slug, online_ordering_enabled, online_booking_enabled, online_contact_whatsapp, online_social_instagram, online_social_tiktok, online_social_twitter";
+    const cols = "id, name, logo_url, online_menu_slug, online_ordering_enabled, online_booking_enabled, online_contact_whatsapp, online_social_instagram, online_social_tiktok, online_social_twitter, online_theme_color";
     let { data, error } = await client.from("businesses").select(cols + ", link_page").eq("id", prof.business_id).single();
     if (error) {
       // العمود ما انضاف بعد (migration 20261112120000)
@@ -574,8 +545,43 @@ export default function LinksStudio() {
   }, [active]);
 
   const setCfg = useCallback((p: Partial<LinkPageConfig>) => setCfgState((c) => (c ? { ...c, ...p } : c)), []);
+  // تعديل لون يدوياً يطلع التصميم من نغمة الهوية (ما نرجع نكتب فوقه).
   const setOpt = useCallback(<K extends TemplateKey>(k: K, p: Partial<LinkPageConfig["opts"][K]>) =>
-    setCfgState((c) => (c ? { ...c, opts: { ...c.opts, [k]: { ...c.opts[k], ...p } } } : c)), []);
+    setCfgState((c) => {
+      if (!c) return c;
+      const manual = Object.keys(p).some((x) => COLOR_KEYS[k].includes(x));
+      return {
+        ...c, opts: { ...c.opts, [k]: { ...c.opts[k], ...p } },
+        brand: manual ? { ...c.brand, tone: { ...c.brand.tone, [k]: -1 } } : c.brand,
+      };
+    }), []);
+
+  const setPrimary = useCallback((primary: string, pool: string[]) =>
+    setCfgState((c) => c && applyBrand({ ...c, brand: { ...c.brand, primary, second: pool.find((x) => !near(x, primary)) || "" } })), []);
+  const setTone = useCallback((i: number) =>
+    setCfgState((c) => c && applyBrand({ ...c, brand: { ...c.brand, tone: { ...c.brand.tone, [c.template]: i } } })), []);
+
+  // ألوان الهوية من الشعار (+ لون المتجر). أول مرة (صفحة جديدة) أو لما يتغيّر
+  // الشعار: كل التصاميم تتلوّن عليها تلقائياً.
+  const brandSrc = cfg ? cfg.avatar || biz?.logo_url || "" : null;
+  const hasPrimary = !!cfg?.brand.primary;
+  useEffect(() => {
+    if (brandSrc === null || !biz) return;
+    let off = false;
+    logoColors(brandSrc).then((cols) => {
+      if (off) return;
+      const sc = (biz.online_theme_color || "").toUpperCase();
+      const store = isHex(sc) && sc !== "#C7FF4D" && !cols.some((c) => near(c, sc)) ? [sc] : [];
+      const list = [...cols, ...store].slice(0, 6);
+      setDetected(list);
+      const first = lastSrc.current === null;
+      const changed = !first && lastSrc.current !== brandSrc;
+      lastSrc.current = brandSrc;
+      if ((first && !hasPrimary) || changed) setPrimary(list[0] || FALLBACK_BRAND, list);
+    });
+    return () => { off = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brandSrc, biz]);
 
   const linkBiz: LinkBiz | null = useMemo(() => biz && {
     name: biz.name, logo: biz.logo_url, slug: slug || biz.online_menu_slug || "",
@@ -633,7 +639,7 @@ export default function LinksStudio() {
   if (!host) return null;
   const url = linkBiz?.slug ? linkPageUrl(linkBiz.slug) : "";
   const tpl = cfg ? TEMPLATES.find((t) => t.key === cfg.template)! : TEMPLATES[0];
-  const iconsMatter = cfg && (cfg.template === "velvet" || cfg.template === "cover" || cfg.template === "ivory");
+  const iconsMatter = cfg && (cfg.template === "velvet" || cfg.template === "cover");
 
   const body = !cfg || !linkBiz ? (
     <div className="ls-loading">{state === "error" ? "تعذر التحميل. حدّث الصفحة." : "يحمّل..."}</div>
@@ -715,7 +721,7 @@ export default function LinksStudio() {
               <section className="ls-card">
                 <h3>الأزرار</h3>
                 <p className="ls-hint">اضغط الأيقونة جنب أي رابط واختر من المكتبة. و«عنوان قسم» يرتّب روابطك مجموعات: «اطلب»، «تواصل»، «فروعنا».</p>
-                <LinkList items={cfg.links} onChange={(links) => setCfg({ links })} biz={linkBiz} showNote={cfg.template === "bold" || cfg.template === "pearl" || cfg.template === "ivory"} />
+                <LinkList items={cfg.links} onChange={(links) => setCfg({ links })} biz={linkBiz} showNote={cfg.template === "bold"} />
               </section>
 
 
@@ -732,18 +738,7 @@ export default function LinksStudio() {
           {tab === "design" && (
             <section className="ls-card">
               <h3>خيارات «{tpl.name}»</h3>
-              <Field label="ألوان جاهزة">
-                <div className="ls-pals">
-                  {PALETTES[cfg.template].map((p) => (
-                    <button key={p.name} type="button" onClick={() => setOpt(cfg.template, p.v as never)}>
-                      <span>{Object.values(p.v).slice(0, 4).map((c, i) => <i key={i} style={{ background: c }} />)}</span>
-                      {p.name}{p.light && <em className="ls-tone">فاتح</em>}
-                    </button>
-                  ))}
-                </div>
-              </Field>
-              {cfg.template === "ivory" && <IvoryPanel o={cfg.opts.ivory} set={(p) => setOpt("ivory", p)} />}
-              {cfg.template === "pearl" && <PearlPanel o={cfg.opts.pearl} set={(p) => setOpt("pearl", p)} cfg={cfg} setCfg={setCfg} />}
+              <BrandPanel cfg={cfg} detected={detected} onPrimary={(c) => setPrimary(c, detected)} onTone={setTone} />
               {cfg.template === "velvet" && <VelvetPanel o={cfg.opts.velvet} set={(p) => setOpt("velvet", p)} />}
               {cfg.template === "cover" && <CoverPanel o={cfg.opts.cover} set={(p) => setOpt("cover", p)} />}
               {cfg.template === "bold" && <BoldPanel o={cfg.opts.bold} set={(p) => setOpt("bold", p)} cfg={cfg} setCfg={setCfg} />}

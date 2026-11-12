@@ -17,7 +17,7 @@ export type LinkItem = {
   on: boolean;
   /** مميّز: يبرز عن غيره. */
   star?: boolean;
-  /** سطر صغير تحت الاسم («جريء» و«لؤلؤي»). */
+  /** سطر صغير تحت الاسم («جريء»). */
   note?: string;
   /** أيقونة من المكتبة بدل أيقونة النوع. */
   icon?: IconKey | "";
@@ -25,7 +25,7 @@ export type LinkItem = {
 
 export type Stat = { value: string; label: string };
 
-export type TemplateKey = "velvet" | "cover" | "bold" | "ivory" | "pearl";
+export type TemplateKey = "velvet" | "cover" | "bold";
 export type Corner = "sharp" | "soft" | "pill";
 export type FontKey = "ruqaa" | "amiri" | "messiri" | "kufi" | "alexandria" | "lalezar" | "naskh" | "tajawal";
 
@@ -43,17 +43,6 @@ export type BoldOpts = {
   hero: string; heroInk: string; panel: string; ink: string; accent: string; tile: string;
   tileInk: string; font: FontKey; photo: string; showStats: boolean; rows: "list" | "grid";
 };
-/** «عاجي»: ورق أوف وايت، إطار رفيع، وقائمة مثل منيو المطاعم الراقية. */
-export type IvoryOpts = {
-  paper: string; ink: string; accent: string; font: FontKey; frame: "double" | "single" | "none";
-  mark: "logo" | "monogram" | "none"; rows: "lines" | "boxed" | "center"; texture: boolean; ornament: boolean;
-};
-/** «لؤلؤي»: أبيض نظيف، بطاقات بظل ناعم، وأيقونة في مربع ملوّن. */
-export type PearlOpts = {
-  bg: string; card: string; ink: string; accent: string; font: FontKey; cover: string;
-  cards: "float" | "line" | "flat"; corner: Corner; tile: "tint" | "solid" | "none"; glow: boolean;
-};
-
 export type LinkPageConfig = {
   v: 1;
   enabled: boolean;
@@ -72,7 +61,9 @@ export type LinkPageConfig = {
   share: boolean;
   /** شريط إعلان أعلى الصفحة: عرض، افتتاح فرع، ساعات رمضان. link: "order" أو رابط. */
   announce: { on: boolean; text: string; link: string };
-  opts: { velvet: VelvetOpts; cover: CoverOpts; bold: BoldOpts; ivory: IvoryOpts; pearl: PearlOpts };
+  opts: { velvet: VelvetOpts; cover: CoverOpts; bold: BoldOpts };
+  /** ألوان الهوية (من الشعار ولون المتجر) ونغمة كل تصميم -- المحرّر يولّد منها الألوان. tone -1 = ألوان يدوية. */
+  brand: { primary: string; second: string; tone: Record<TemplateKey, number> };
 };
 
 /** ما يعرفه الخادم عن المطعم (get_link_page). */
@@ -96,8 +87,6 @@ export function fontsHref(keys: FontKey[]): string {
 }
 
 export const TEMPLATES: { key: TemplateKey; name: string; hint: string; tone: "dark" | "light" | "color" }[] = [
-  { key: "ivory", name: "عاجي", hint: "ورق أوف وايت، إطار رفيع، وروابطك مثل منيو المطاعم الراقية", tone: "light" },
-  { key: "pearl", name: "لؤلؤي", hint: "أبيض نظيف، بطاقات بظل ناعم، وأيقونة ملوّنة لكل رابط", tone: "light" },
   { key: "velvet", name: "مخملي", hint: "صورة تملأ الصفحة، وخط فاخر، وأزرار بإطار رفيع", tone: "dark" },
   { key: "cover", name: "غلاف", hint: "صورة غلاف فوق، وشعارك في دائرة، ولون هويتك تحت", tone: "color" },
   { key: "bold", name: "جريء", hint: "اسمك بخط كبير، وأرقامك في بطاقات، وزر طلب عائم", tone: "color" },
@@ -138,22 +127,13 @@ const DEFAULT_BOLD: BoldOpts = {
   hero: "#C9D9B4", heroInk: "#1F3A17", panel: "#26401E", ink: "#FFFFFF", accent: "#F2F05A", tile: "#FFFFFF",
   tileInk: "#141414", font: "lalezar", photo: "", showStats: true, rows: "list",
 };
-const DEFAULT_IVORY: IvoryOpts = {
-  paper: "#F5EFE4", ink: "#2A241D", accent: "#9A7A4A", font: "amiri", frame: "double",
-  mark: "logo", rows: "lines", texture: true, ornament: true,
-};
-const DEFAULT_PEARL: PearlOpts = {
-  bg: "#F6F5F2", card: "#FFFFFF", ink: "#17161A", accent: "#1F6F5C", font: "tajawal", cover: "",
-  cards: "float", corner: "soft", tile: "tint", glow: true,
-};
-
 export function newId(): string {
   return Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3);
 }
 
 export function defaultConfig(name = ""): LinkPageConfig {
   return {
-    v: 1, enabled: false, template: "ivory", name, bio: "", avatar: "", badge: "",
+    v: 1, enabled: false, template: "velvet", name, bio: "", avatar: "", badge: "",
     links: [
       { id: newId(), type: "order", label: "اطلب أونلاين", value: "", on: true, star: true },
       { id: newId(), type: "menu", label: "المنيو", value: "", on: true },
@@ -168,8 +148,8 @@ export function defaultConfig(name = ""): LinkPageConfig {
     announce: { on: false, text: "", link: "" },
     opts: {
       velvet: { ...DEFAULT_VELVET }, cover: { ...DEFAULT_COVER }, bold: { ...DEFAULT_BOLD },
-      ivory: { ...DEFAULT_IVORY }, pearl: { ...DEFAULT_PEARL },
     },
+    brand: { primary: "", second: "", tone: { velvet: 0, cover: 0, bold: 0 } },
   };
 }
 
@@ -203,7 +183,7 @@ export function normalizeConfig(raw: unknown, fallbackName = ""): LinkPageConfig
   if (!raw || typeof raw !== "object") return d;
   const r = raw as Record<string, unknown>;
   const o = rec(r.opts);
-  const v = rec(o.velvet), c = rec(o.cover), b = rec(o.bold), iv = rec(o.ivory), p = rec(o.pearl);
+  const v = rec(o.velvet), c = rec(o.cover), b = rec(o.bold), br = rec(r.brand), bt = rec(br.tone);
   const cta = rec(r.cta), an = rec(r.announce);
   return {
     v: 1,
@@ -244,18 +224,10 @@ export function normalizeConfig(raw: unknown, fallbackName = ""): LinkPageConfig
         tileInk: color(b.tileInk, DEFAULT_BOLD.tileInk), font: pick(b.font, FONT_KEYS, DEFAULT_BOLD.font), photo: img(b.photo),
         showStats: b.showStats !== false, rows: pick(b.rows, ["list", "grid"] as const, "list"),
       },
-      ivory: {
-        paper: color(iv.paper, DEFAULT_IVORY.paper), ink: color(iv.ink, DEFAULT_IVORY.ink), accent: color(iv.accent, DEFAULT_IVORY.accent),
-        font: pick(iv.font, FONT_KEYS, DEFAULT_IVORY.font), frame: pick(iv.frame, ["double", "single", "none"] as const, "double"),
-        mark: pick(iv.mark, ["logo", "monogram", "none"] as const, "logo"), rows: pick(iv.rows, ["lines", "boxed", "center"] as const, "lines"),
-        texture: bool(iv.texture, true), ornament: bool(iv.ornament, true),
-      },
-      pearl: {
-        bg: color(p.bg, DEFAULT_PEARL.bg), card: color(p.card, DEFAULT_PEARL.card), ink: color(p.ink, DEFAULT_PEARL.ink),
-        accent: color(p.accent, DEFAULT_PEARL.accent), font: pick(p.font, FONT_KEYS, DEFAULT_PEARL.font), cover: img(p.cover),
-        cards: pick(p.cards, ["float", "line", "flat"] as const, "float"), corner: pick(p.corner, CORNERS, "soft"),
-        tile: pick(p.tile, ["tint", "solid", "none"] as const, "tint"), glow: bool(p.glow, true),
-      },
+    },
+    brand: {
+      primary: color(br.primary, ""), second: color(br.second, ""),
+      tone: { velvet: num(bt.velvet, -1, 9, 0), cover: num(bt.cover, -1, 9, 0), bold: num(bt.bold, -1, 9, 0) },
     },
   };
 }
@@ -350,8 +322,6 @@ export function themeColor(cfg: LinkPageConfig): string {
   switch (cfg.template) {
     case "cover": return o.cover.panel;
     case "bold": return o.bold.hero;
-    case "ivory": return o.ivory.paper;
-    case "pearl": return o.pearl.bg;
     default: return o.velvet.tint;
   }
 }

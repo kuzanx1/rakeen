@@ -247,83 +247,6 @@ function Bold({ cfg, biz, links, socials, cta }: Parts) {
   );
 }
 
-/** «عاجي»: ورق أوف وايت وإطار رفيع، والروابط مثل صفحة منيو راقية. */
-function Ivory({ cfg, biz, links, socials }: Parts) {
-  const o = cfg.opts.ivory;
-  const avatar = cfg.avatar || biz.logo;
-  const vars = {
-    "--lk-paper": o.paper, "--lk-ink": o.ink, "--lk-accent": o.accent, "--lk-on-accent": onColor(o.accent),
-    "--lk-font": FONTS[o.font].family,
-  } as CSSProperties;
-  return (
-    <div className="lk lk-ivory" data-frame={o.frame} data-rows={o.rows} style={vars}>
-      <Grain on={o.texture} />
-      {o.frame !== "none" && <div className="lk-i-frame" aria-hidden />}
-      <Share on={cfg.share} />
-      <main className="lk-i-body">
-        <Announce cfg={cfg} biz={biz} />
-        {o.mark === "logo" && <Avatar src={avatar} name={cfg.name} className="lk-i-logo" />}
-        {o.mark === "monogram" && <span className="lk-i-mono" aria-hidden>{cfg.name.trim().slice(0, 1)}</span>}
-        <h1 className="lk-i-name">{cfg.name}</h1>
-        {o.ornament && <Ornament />}
-        {cfg.bio && <p className="lk-i-bio">{cfg.bio}</p>}
-        <nav className="lk-i-list">
-          {links.map((l, i) => l.type === "heading" ? (
-            <h3 key={l.id} className="lk-sec">{l.label}</h3>
-          ) : (
-            <a key={l.id} href={l.href} data-lid={l.id} className={"lk-i-row" + (l.star ? " star" : "")}
-              style={{ animationDelay: `${120 + i * 60}ms` }} {...ext(l.href)}>
-              {o.rows !== "center" && cfg.icons && <span className="lk-i-ic"><Icon name={iconOf(l)} size={20} stroke={1.4} /></span>}
-              <span className="lk-i-lbl"><b>{label(l)}</b>{l.note && <small>{l.note}</small>}</span>
-              {o.rows !== "center" && <span className="lk-i-go"><Icon name="chev" size={16} /></span>}
-            </a>
-          ))}
-        </nav>
-        {socials.length > 0 && <Socials items={socials} className="lk-i-soc" size={20} />}
-        <Footer />
-      </main>
-    </div>
-  );
-}
-
-/** «لؤلؤي»: أبيض نظيف، كل رابط بطاقة، وأيقونته في مربع بلون هويتك. */
-function Pearl({ cfg, biz, links, socials }: Parts) {
-  const o = cfg.opts.pearl;
-  const avatar = cfg.avatar || biz.logo;
-  const vars = {
-    "--lk-bg": o.bg, "--lk-card": o.card, "--lk-ink": o.ink, "--lk-accent": o.accent, "--lk-on-accent": onColor(o.accent),
-    "--lk-font": FONTS[o.font].family,
-  } as CSSProperties;
-  return (
-    <div className="lk lk-pearl" data-cards={o.cards} data-corner={o.corner} data-tile={o.tile} data-cover={o.cover ? "1" : "0"} style={vars}>
-      {o.glow && <div className="lk-p-glow" aria-hidden />}
-      <Share on={cfg.share} />
-      <main className="lk-p-body">
-        {o.cover && <div className="lk-p-cover" style={{ backgroundImage: `url("${o.cover}")` }} />}
-        <Avatar src={avatar} name={cfg.name} className="lk-p-av" />
-        <h1 className="lk-p-name">{cfg.name}</h1>
-        {cfg.bio && <p className="lk-p-bio">{cfg.bio}</p>}
-        {cfg.badge && <span className="lk-p-badge"><i />{cfg.badge}</span>}
-        <Socials items={socials} className="lk-p-soc" size={19} />
-        <Announce cfg={cfg} biz={biz} />
-        <nav className="lk-p-list">
-          {links.map((l, i) => l.type === "heading" ? (
-            <h3 key={l.id} className="lk-sec">{l.label}</h3>
-          ) : (
-            <a key={l.id} href={l.href} data-lid={l.id} className={"lk-p-card" + (l.star ? " star" : "")}
-              style={{ animationDelay: `${120 + i * 60}ms` }} {...ext(l.href)}>
-              {o.tile !== "none" && <span className="lk-p-tile"><Icon name={iconOf(l)} size={21} /></span>}
-              <span className="lk-p-lbl"><b>{label(l)}</b><small>{l.note || shortHref(l.href)}</small></span>
-              <span className="lk-p-go"><Icon name="chev" size={18} /></span>
-            </a>
-          ))}
-        </nav>
-        <Footer />
-      </main>
-    </div>
-  );
-}
-
 type Parts = { cfg: LinkPageConfig; biz: LinkBiz; links: Ready[]; socials: Ready[]; cta: { href: string; label: string } | null };
 
 export default function LinkPageView({ cfg, biz }: { cfg: LinkPageConfig; biz: LinkBiz }): ReactNode {
@@ -334,8 +257,6 @@ export default function LinkPageView({ cfg, biz }: { cfg: LinkPageConfig; biz: L
   switch (cfg.template) {
     case "cover": return <Cover {...parts} />;
     case "bold": return <Bold {...parts} />;
-    case "ivory": return <Ivory {...parts} />;
-    case "pearl": return <Pearl {...parts} />;
     default: return <Velvet {...parts} />;
   }
 }

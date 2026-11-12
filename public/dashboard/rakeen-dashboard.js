@@ -7327,6 +7327,9 @@ async function uploadMediaFile(file, folder, prefix) {
   if (!res.ok) throw new Error(data.error || 'تعذر رفع الملف');
   return data.url;
 }
+// محرّر «روابطك» (React) يرفع بنفس المسار -- الملف مغلّف بـIIFE فلازم نكشفه.
+window.uploadMediaFile = uploadMediaFile;
+window.compressImageFile = compressImageFile;
 
 /**
  * ختمُ المحفظة يُقيَّس قبل رفعه.
@@ -19264,6 +19267,7 @@ if('serviceWorker' in navigator){
 
 /* ============ Toast (lightweight, for export feedback) ============ */
 let toastTimer;
+window.showToast = showToast;
 function showToast(msg){
   let t = document.getElementById('dashToast');
   if(!t){
