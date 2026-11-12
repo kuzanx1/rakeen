@@ -15205,10 +15205,6 @@ function computeModifierOptionCost(option){
   return option.extraCost || 0;
 }
 
-function menuSettingsHtml(){
-  // kept for reference but no longer used directly — Menu now lives on its own screen
-  return '';
-}
 
 /* ============ Category tabs — simple, standard, renameable ============ */
 let menuSearchQuery = '';
@@ -15228,7 +15224,7 @@ let activeMenuFlag = null;
 const MENU_FLAGS = [
   { key:'uncosted',  label:'بلا تكلفة',        tone:'bad', feature:'costing_profit',
     help:'تبيعها وأنت ما تعرف ربحها — حدّد تكلفتها عشان يطلع الهامش.',
-    test:(m)=> m.linkProfit && m.costMode !== 'direct' && computeProductCost(m).variable === 0 && m.price > 0 },
+    test:(m)=> mnCostMissing(m) },
   { key:'hidden',    label:'مخفية الآن',       tone:'warn',
     help:'ما تظهر للزبون حالياً.',
     test:(m)=> !m.active || (m.hiddenUntil && new Date(m.hiddenUntil) > new Date()) },
@@ -15242,6 +15238,9 @@ const MENU_FLAGS = [
   { key:'posHidden', label:'مخفية عن الكاشير', tone:'warn',
     help:'الكاشير ما يشوفها، بس المتجر الإلكتروني يشوفها.',
     test:(m)=> m.visiblePos === false },
+  { key:'noImage',   label:'بلا صورة',         tone:'muted',
+    help:'الصورة تبيع — تطلع بالمتجر الإلكتروني وشاشة العميل.',
+    test:(m)=> !m.image },
   { key:'noStock',   label:'بلا ربط مخزون',    tone:'muted', feature:'inventory',
     help:'ما ينخصم منها مخزون لما تنباع.',
     test:(m)=> !m.linkInventory },
@@ -15518,6 +15517,9 @@ function renderCategoryTabs(){
   if(flagEl){
     const counted = MENU_FLAGS
       .filter(f=> !f.feature || planHas(f.feature)) // مرشّح لميزة مو في الباقة ما يطلع
+      .filter(f=> f.key !== 'uncosted' || canViewProfit())
+      // «بلا ربط مخزون» ضجيج لمطعم ما يربط المخزون أصلاً (كانت تطلع على كل منتج).
+      .filter(f=> f.key !== 'noStock' || countableItems.some(m=>m.linkInventory))
       .map(f=>({ ...f, n: countableItems.filter(f.test).length }))
       .filter(f=> f.n > 0);
     flagEl.innerHTML = counted.length === 0
@@ -15624,30 +15626,247 @@ async function confirmCategoryRename(input){
 // dozens of them. Collapsed by default now; the count alone is the
 // permanent signal, the actual names are one click away, not forced on
 // screen.
-let costCompletionBannerOpen = false;
-function renderCostCompletionBanner(){
+/* ============ القائمة (تصميم ٢٠٢٦-١١، بادئة mn-) ============
+   أول سؤال في بال صاحب المطعم هنا: «منيوي كامل؟ وش ناقصه؟». فالشاشة تبدأ
+   بـ«منيوك»: حلقة تقدّم وخطوات مرقّمة كل وحدة توديه لمكان إصلاحها (نافذة
+   الفئة، منتج جديد، ترشيح «بلا صورة»/«بلا تكلفة»، تبويب الخيارات). بعدها
+   المنتجات بطاقات بالصورة والسعر والربح، وزر الظهور على البطاقة نفسها. */
+const MN_IC = {
+  search:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+  image:'<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>',
+  layers:'<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>',
+  lock:'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  sparkle:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>',
+};
+HM_IC.search = MN_IC.search; HM_IC.layers = MN_IC.layers;
+function mnIc(n){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (MN_IC[n] || HM_IC[n] || '') + '</svg>'; }
+function mnItems(){ return MENU_ITEMS.filter(m=>!m.name.includes('(مؤرشف)')); }
+function mnCostOn(){ return planHas('costing_profit') && canViewProfit(); }
+// «بلا تكلفة» = ما يدخل حساب الأرباح، أو داخل لكن تكلفته صفر (ما تعبّت).
+function mnCostMissing(m){
+  if(!(m.price > 0)) return false;
+  if(!m.linkProfit) return true;
+  return computeProductCost(m).variable === 0;
+}
+function mnN(n){ return hmPlural(n, 'منتج واحد', 'منتجين', 'منتجات', 'منتج'); }
+
+function mnSteps(){
+  const items = mnItems();
+  const has = items.length > 0;
+  const noImg = items.filter(m=>!m.image).length;
+  const steps = [
+    { label:'أنشئ فئات منيوك', desc:'مثل: الأطباق، المشروبات، الحلا — تترتب فيها منتجاتك بالكاشير والمتجر', done:CATEGORY_ROWS.length > 0, go:'cat' },
+    { label:has ? 'أضف منتجاتك' : 'أضف أول منتج', desc:'الاسم والسعر يكفون عشان تبدأ تبيع، والباقي بعدين', done:has, go:'add' },
+    { label:has && noImg ? (noImg === 1 ? 'حط صورة للمنتج الباقي' : 'حط صور لـ' + mnN(noImg)) : 'حط صور منتجاتك', desc:'الصورة تبيع: تطلع بالمتجر الإلكتروني وشاشة العميل', done:has && noImg === 0, go:'flag:noImage' },
+  ];
+  if(canViewProfit()){
+    if(planHas('costing_profit')){
+      const nc = items.filter(mnCostMissing).length;
+      steps.push({ label:has && nc ? 'حدد تكلفة ' + mnN(nc) : 'حدد تكلفة منتجاتك', desc:'رقم واحد لكل منتج، وركين يطلع لك ربحك منه', done:has && nc === 0, go:'flag:uncosted' });
+    } else {
+      steps.push({ label:'اعرف ربح كل منتج', desc:'تكلفة وربح كل منتج متوفرة بباقة أعلى', locked:true, go:'upgrade:costing_profit' });
+    }
+  }
+  steps.push({ label:'أضف خيارات مثل الحجم والإضافات', desc:'تسويها مرة وحدة وتربطها بأي منتج', done:MODIFIER_GROUPS.length > 0, go:'mods' });
+  return steps;
+}
+
+let mnPrevLeft = null;
+function renderMenuHero(){
   const el = document.getElementById('costCompletionBanner');
   if(!el) return;
-  const incomplete = MENU_ITEMS.filter(m => !m.linkProfit);
-  if(incomplete.length === 0){ el.innerHTML = ''; return; }
-  el.innerHTML = `<div class="cost-completion-banner" style="flex-direction:column; align-items:stretch; gap:0;">
-    <div class="advanced-toggle-row" id="ccbToggle" style="padding:0;">
-      <div style="display:flex; align-items:center; gap:10px;">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        <span><b>${incomplete.length}</b> منتج لسا بدون تكلفة محددة (ما يدخل بحساب الأرباح)</span>
-      </div>
-      <svg class="advanced-chevron ${costCompletionBannerOpen?'open':''}" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-    </div>
-    <div class="advanced-body ${costCompletionBannerOpen?'open':''}" style="margin-top:${costCompletionBannerOpen?'8px':'0'};">
-      ${incomplete.map(m=>`<button class="ccb-item-link" data-id="${m.id}">${m.name}</button>`).join('، ')}
-    </div>
-  </div>`;
-  document.getElementById('ccbToggle').addEventListener('click', ()=>{
-    costCompletionBannerOpen = !costCompletionBannerOpen;
-    renderCostCompletionBanner();
+  const items = mnItems();
+  const tp = document.getElementById('mnTabCountP'); if(tp) tp.textContent = items.length || '';
+  const tm = document.getElementById('mnTabCountM'); if(tm) tm.textContent = MODIFIER_GROUPS.length || '';
+  const steps = mnSteps();
+  const real = steps.filter(s=>!s.locked);
+  const done = real.filter(s=>s.done).length;
+  const left = real.length - done;
+  const pct = Math.round(done / real.length * 100);
+  const celebrate = mnPrevLeft !== null && mnPrevLeft > 0 && left === 0;
+  mnPrevLeft = left;
+  const goAttr = s => ' data-mn-go="' + s.go + '"';
+  if(left === 0){
+    const hidden = items.filter(m=> !m.active || (m.hiddenUntil && new Date(m.hiddenUntil) > new Date())).length;
+    let avg = '';
+    if(mnCostOn()){
+      const ms = items.filter(m=>m.linkProfit && !mnCostMissing(m)).map(m=>computeProductCost(m).marginPct).filter(v=>isFinite(v));
+      if(ms.length) avg = '<span class="mn-stat"><b>' + Math.round(ms.reduce((a,b)=>a+b,0) / ms.length) + '%</b> متوسط ربحك</span>';
+    }
+    el.innerHTML = '<div class="rk2-card mn-done' + (celebrate ? ' mn-celebrate' : '') + '">'
+      + '<span class="mn-done-ic">' + hmIc('check') + '</span>'
+      + '<div class="mn-done-txt"><b>منيوك كامل</b><small>كل منتج له فئة وصورة' + (mnCostOn() ? ' وتكلفة' : '') + '</small></div>'
+      + '<div class="mn-stats"><span class="mn-stat"><b>' + items.length + '</b> منتج</span><span class="mn-stat"><b>' + CATEGORY_ROWS.length + '</b> فئة</span>'
+      + (hidden ? '<button type="button" class="mn-stat warn" data-mn-go="flag:hidden"><b>' + hidden + '</b> مخفي الحين</button>' : '') + avg + '</div></div>';
+    if(celebrate) showToast('كمّلت منيوك 🎉');
+    return;
+  }
+  const nextIdx = steps.findIndex(s=>!s.locked && !s.done);
+  const next = steps[nextIdx];
+  el.innerHTML = '<div class="rk2-card hm-quest mn-hero">'
+    + '<div class="hm-quest-top"><div class="hm-ring" style="--p:' + pct + '"><b>' + done + '<small>/' + real.length + '</small></b></div>'
+    + '<div><div class="hm-kicker">' + hmIc('menu') + 'منيوك</div>'
+    + '<h3>' + (items.length ? mnN(items.length) + ' في ' + hmPlural(CATEGORY_ROWS.length, 'فئة وحدة', 'فئتين', 'فئات', 'فئة') : 'منيوك فاضي، خلنا نعبّيه') + '</h3>'
+    + '<p>باقي ' + hmPlural(left, 'خطوة وحدة', 'خطوتين', 'خطوات', 'خطوة') + ' ويصير منيوك كامل' + (planHas('online_store') ? ' بالكاشير والمتجر' : '') + '</p></div></div>'
+    + '<button type="button" class="hm-quest-next"' + goAttr(next) + '>'
+    + '<span class="hm-quest-n">' + (nextIdx + 1) + '</span><span class="hm-quest-txt"><b>' + next.label + '</b><small>' + next.desc + '</small></span><span class="rk2-btn lime sm">ابدأ' + hmIc('arrow') + '</span></button>'
+    + '<div class="hm-quest-list">' + steps.map((s,i)=> i === nextIdx ? '' :
+        '<button type="button" class="hm-qstep' + (s.done ? ' done' : '') + (s.locked ? ' mn-locked' : '') + '"' + (s.done ? ' disabled' : goAttr(s)) + (s.locked ? ' title="' + s.desc + '"' : '') + '>'
+        + '<span class="hm-qcheck">' + (s.done ? hmIc('check') : s.locked ? mnIc('lock') : (i + 1)) + '</span>' + s.label + '</button>').join('') + '</div>'
+    + '</div>';
+}
+function renderCostCompletionBanner(){ renderMenuHero(); }
+
+function mnGo(go){
+  if(!go) return;
+  if(go === 'cat') return openCategoryModal(null);
+  if(go === 'add') return openProductEditModal(null);
+  if(go === 'mods') return mnShowTab('modifiers');
+  if(go.startsWith('upgrade:')) return showPlanUpgrade(go.slice(8));
+  if(go.startsWith('flag:')){
+    mnShowTab('products');
+    activeMenuFlag = go.slice(5);
+    activeMenuCategory = null;
+    menuSearchQuery = '';
+    const s = document.getElementById('menuSearchInput'); if(s) s.value = '';
+    renderCategoryTabs();
+    renderMenuProductTable();
+    const g = document.getElementById('menuFlagTabs');
+    if(g) g.scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+}
+function mnShowTab(tab){
+  document.querySelectorAll('#menuScreenTabs button').forEach(b=>b.classList.toggle('active', b.dataset.tab === tab));
+  document.getElementById('menuTabProducts').style.display = tab === 'products' ? 'block' : 'none';
+  document.getElementById('menuTabModifiers').style.display = tab === 'modifiers' ? 'block' : 'none';
+  resetContentScroll();
+}
+
+function mnThumb(item){
+  if(item.image) return '<img src="' + escapeHtml(item.image) + '" alt="" loading="lazy">';
+  const ch = (item.name || '؟').trim().charAt(0);
+  let h = 0; for(const c of (item.category || item.name || '')) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return '<span class="mn-ph" style="--h:' + h + '"><b>' + escapeHtml(ch) + '</b><small>' + mnIc('image') + 'أضف صورة</small></span>';
+}
+
+function renderMenuProductTable(){
+  // المؤرشف (منتج انحذف وله طلبات قديمة) ما يطلع -- انظر deleteProductFromModal.
+  const visibleItems = mnItems();
+  const totalEl = document.getElementById('menuTotalCount');
+  if(totalEl) totalEl.textContent = visibleItems.length;
+  let items = activeMenuCategory === null ? visibleItems : visibleItems.filter(m=>itemInCat(m, activeMenuCategory));
+  if(menuSearchQuery.trim()) items = items.filter(m=>m.name.includes(menuSearchQuery.trim()) || (m.nameEn||'').toLowerCase().includes(menuSearchQuery.trim().toLowerCase()));
+  const flag = MENU_FLAGS.find(f=>f.key===activeMenuFlag);
+  if(flag) items = items.filter(flag.test);
+  // moveProductOrder يغيّر sortOrder بدون ما يعيد ترتيب المصفوفة، فالترتيب كل رسمة.
+  items = [...items].sort((a,b) => (a.sortOrder ?? a.id) - (b.sortOrder ?? b.id) || a.id - b.id);
+
+  const el = document.getElementById('menuProductTable');
+  renderMenuHero();
+  if(items.length === 0){
+    const filtering = !!(menuSearchQuery.trim() || activeMenuCategory || flag);
+    el.innerHTML = '<div class="rk2-card mn-empty">' + (visibleItems.length === 0
+      ? hmEmpty('menu', 'منيوك ينتظر أول منتج', 'كل منتج تضيفه يطلع هنا بصورته وسعره وربحه، ويطلع بالكاشير على طول')
+        + '<button type="button" class="rk2-btn lime" data-mn-go="add">' + mnIc('plus') + 'أضف أول منتج</button>'
+      : filtering
+        ? hmEmpty('search', flag ? 'ما فيه منتج ' + flag.label : 'ما لقينا منتج بهالاسم', flag ? 'كفو، كلها تمام هنا' : 'جرّب اسم ثاني أو شيل الترشيح')
+          + '<button type="button" class="rk2-btn mn-ghost" data-mn-clear>ورّني كل المنتجات</button>'
+        : hmEmpty('menu', 'الفئة فاضية', 'افتح أي منتج واختر له هذي الفئة، أو أضف منتج جديد')
+          + '<button type="button" class="rk2-btn lime" data-mn-go="add">' + mnIc('plus') + 'أضف منتج</button>') + '</div>';
+    return;
+  }
+
+  // الترتيب له معنى داخل فئة وحدة بدون بحث بس.
+  const canReorderProducts = activeMenuCategory !== null && !menuSearchQuery.trim() && !flag;
+  const showProfit = canViewProfit();
+
+  el.innerHTML = items.map((item, itemIdx)=>{
+    const cost = computeProductCost(item);
+    const isBox = item.costMode === 'box' && item.componentSlot;
+    const missing = mnCostMissing(item);
+    let profit = '';
+    if(showProfit){
+      if(missing) profit = planHas('costing_profit') ? '<span class="mn-profit warn">حدد التكلفة</span>' : '';
+      else {
+        const tier = marginTier(cost.marginPct);
+        // الهامش صافي (بعد حصة المصاريف الثابتة)، فالسالب خسارة فعلية تنقال بوضوح.
+        const lo = isBox ? cost.marginWorst : cost.marginPct;
+        const pctTxt = isBox ? Math.abs(cost.marginWorst).toFixed(0) + '–' + Math.abs(cost.marginBest).toFixed(0) : Math.abs(cost.marginPct).toFixed(0);
+        profit = '<span class="mn-profit ' + tier + '" title="بعد حصته من الإيجار والرواتب">' + (lo < 0 ? 'خسارة ' : 'ربح ') + '<span class="hm-num">' + pctTxt + '%</span></span>';
+      }
+    }
+    const isTempHidden = item.active && item.hiddenUntil && new Date(item.hiddenUntil) > new Date();
+    const isHiddenNow = !item.active || isTempHidden;
+    // نحفظ وقت الرجوع بس، فنقرّب منه أي خيار انضغط.
+    const currentChoice = !item.active ? 'forever' : !isTempHidden ? 'show'
+      : (new Date(item.hiddenUntil) - new Date()) < 36*60*60*1000 ? 'today'
+      : (new Date(item.hiddenUntil) - new Date()) < 4*24*60*60*1000 ? '3days' : 'week';
+    const notes = [];
+    if(isTempHidden) notes.push('يرجع ' + formatHiddenUntilLabel(item.hiddenUntil));
+    if(ONLINE_ORDERING_ENABLED && !item.visibleOnline) notes.push('مو بالمتجر');
+    if(item.visiblePos === false) notes.push('مو بالكاشير');
+    if(item.onlinePrice != null && Number(item.onlinePrice) !== Number(item.price)) notes.push('بالمتجر ' + Number(item.onlinePrice).toFixed(2));
+    if(item.linkInventory && item.costMode === 'recipe' && (item.recipeStockIds||[]).length === 0) notes.push('<span class="mn-bad">ما له وصفة، ما ينقص المخزون</span>');
+    const meta = [item.category, isBox ? 'تركيبة ' + item.componentSlot.totalPieces + ' قطعة' : '', item.modifierGroupIds.length ? hmPlural(item.modifierGroupIds.length, 'خيار واحد', 'خيارين', 'خيارات', 'خيار') : ''].filter(Boolean).join(' · ');
+    return '<article class="mn-card' + (isHiddenNow ? ' off' : '') + '" data-id="' + item.id + '" tabindex="0" role="button" aria-label="عدّل ' + escapeHtml(item.name) + '">'
+      + '<div class="mn-img">' + mnThumb(item)
+      + (isHiddenNow ? '<span class="mn-off-tag">' + (item.active ? 'مخفي مؤقتاً' : 'موقوف') + '</span>' : '')
+      + '<span class="mn-edit" aria-hidden="true">' + mnIc('edit') + '</span></div>'
+      + '<div class="mn-body"><b class="mn-name">' + escapeHtml(item.name) + '</b>'
+      + '<small class="mn-meta">' + escapeHtml(meta) + '</small>'
+      + (notes.length ? '<small class="mn-notes">' + notes.join(' · ') + '</small>' : '')
+      + '<div class="mn-price-row">' + hmMoney(item.price, 'mn-price') + profit + '</div>'
+      + '<div class="mn-foot"><label class="mn-vis' + (isHiddenNow ? ' is-off' : '') + '"><i></i><select class="mtr-hide-select" data-id="' + item.id + '" aria-label="ظهور المنتج">'
+      + '<option value="show"' + (currentChoice==='show'?' selected':'') + '>ظاهر</option>'
+      + '<option value="today"' + (currentChoice==='today'?' selected':'') + '>أخفه اليوم</option>'
+      + '<option value="3days"' + (currentChoice==='3days'?' selected':'') + '>أخفه ٣ أيام</option>'
+      + '<option value="week"' + (currentChoice==='week'?' selected':'') + '>أخفه أسبوع</option>'
+      + '<option value="forever"' + (currentChoice==='forever'?' selected':'') + '>أوقفه نهائياً</option>'
+      + '</select></label>'
+      + (canReorderProducts ? '<span class="mn-move">'
+        + '<button type="button" class="prod-move-btn" data-move="up" data-id="' + item.id + '"' + (itemIdx===0?' disabled':'') + ' title="قدّمه">' + CAT_MOVE_UP_SVG + '</button>'
+        + '<button type="button" class="prod-move-btn" data-move="down" data-id="' + item.id + '"' + (itemIdx===items.length-1?' disabled':'') + ' title="أخّره">' + CAT_MOVE_DOWN_SVG + '</button></span>' : '')
+      + '</div></div></article>';
+  }).join('');
+
+  el.querySelectorAll('.mn-card').forEach(card=>{
+    const open = ()=> openProductEditModal(parseInt(card.dataset.id, 10));
+    card.addEventListener('click', (e)=>{
+      if(e.target.closest('.mn-vis') || e.target.closest('.prod-move-btn')) return;
+      open();
+    });
+    card.addEventListener('keydown', (e)=>{ if((e.key === 'Enter' || e.key === ' ') && e.target === card){ e.preventDefault(); open(); } });
   });
-  el.querySelectorAll('.ccb-item-link').forEach(btn=>{
-    btn.addEventListener('click', ()=> openProductEditModal(parseInt(btn.dataset.id)));
+  el.querySelectorAll('.prod-move-btn').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{ e.stopPropagation(); moveProductOrder(parseInt(btn.dataset.id, 10), btn.dataset.move === 'up' ? -1 : 1); });
+  });
+  el.querySelectorAll('.mtr-hide-select').forEach(sel=>{
+    sel.addEventListener('click', e=>e.stopPropagation());
+    sel.addEventListener('change', async ()=>{
+      const item = MENU_ITEMS.find(m=>m.id===parseInt(sel.dataset.id, 10));
+      const nextActive = sel.value !== 'forever';
+      const nextHiddenUntil = hiddenUntilForChoice(sel.value);
+      sel.disabled = true;
+      try {
+        const { error } = await window.supabaseClient.from('menu_items')
+          .update({active: nextActive, hidden_until: nextHiddenUntil}).eq('id', item.id);
+        if(error) throw error;
+        item.active = nextActive;
+        item.hiddenUntil = nextHiddenUntil;
+        const labels = {show:'أظهر', today:'أخفى (اليوم)', '3days':'أخفى (٣ أيام)', week:'أخفى (أسبوع)', forever:'أوقف نهائيًا'};
+        logDashboardAudit(labels[sel.value] + ' صنف ' + item.name);
+        showToast(sel.value === 'show' ? 'رجع ' + item.name + ' للمنيو' : 'انخفى ' + item.name);
+      } catch(err){
+        showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+      } finally {
+        sel.disabled = false;
+        renderCategoryTabs();
+        renderMenuProductTable();
+      }
+    });
   });
 }
 
@@ -15757,141 +15976,6 @@ async function applyMenuUnify(){
   }
 }
 
-function renderMenuProductTable(){
-  // Deleting a product that already has real order history can't hard-delete
-  // the row (order_items still points at it, on purpose — see
-  // deleteProductFromModal) — it gets archived instead: active:false, name
-  // suffixed "(مؤرشف)". That's the right call for the data, but it used to
-  // leave a permanent, un-removable ghost row sitting in this table forever
-  // (an owner who "deletes" a product expects it gone from the list, not
-  // renamed-and-greyed-out). Excluded here — a plain toggled-off-but-not-
-  // archived item (temporarily out of stock, say) still shows normally.
-  const visibleItems = MENU_ITEMS.filter(m=>!m.name.includes('(مؤرشف)'));
-  const totalEl = document.getElementById('menuTotalCount');
-  if(totalEl) totalEl.textContent = visibleItems.length;
-  let items = activeMenuCategory === null ? visibleItems : visibleItems.filter(m=>itemInCat(m, activeMenuCategory));
-  if(menuSearchQuery.trim()) items = items.filter(m=>m.name.includes(menuSearchQuery.trim()));
-  const flag = MENU_FLAGS.find(f=>f.key===activeMenuFlag);
-  if(flag) items = items.filter(flag.test);
-  // MENU_ITEMS is only ever re-fetched in the DB's sort_order, not re-sorted
-  // in place after a local reorder — moveProductOrder mutates .sortOrder on
-  // the two swapped items but leaves their array position untouched, so this
-  // has to re-sort every render or a swap would look like it did nothing
-  // until the next full reload.
-  items = [...items].sort((a,b) => (a.sortOrder ?? a.id) - (b.sortOrder ?? b.id) || a.id - b.id);
-
-  const el = document.getElementById('menuProductTable');
-  if(items.length === 0){
-    // النص يقول ما حدث فعلاً.
-    //
-    // كان يقول "ما فيه منتجات تطابق هذا البحث أو القسم" لمنشأة جديدة بلا
-    // بحث ولا قسم -- فيقرأ صاحب المطعم أن ترشيحاً خفياً يخفي منتجاته،
-    // ويبحث عن زر يلغيه لا وجود له. وهذي أول شاشة يراها في المنيو.
-    const filtering = !!(menuSearchQuery.trim() || activeMenuCategory || flag);
-    el.innerHTML = visibleItems.length === 0
-      ? `<div class="menu-table-empty">
-           <div class="mte-title">ما أضفت منتجات بعد</div>
-           <div class="mte-sub">أضف أول منتج وحدّد سعره وتكلفته — بعدها يظهر لك هامش ربحه هنا على طول.</div>
-         </div>`
-      : filtering
-        ? `<div class="menu-table-empty">
-             <div class="mte-title">ما فيه منتج يطابق</div>
-             <div class="mte-sub">جرّب تشيل البحث أو الترشيح.</div>
-           </div>`
-        : '<div class="menu-table-empty"><div class="mte-title">ما فيه منتجات هنا</div></div>';
-    return;
-  }
-
-  // Reordering only makes sense against the true, unfiltered order within
-  // ONE category — with "كل المنتجات" active or a search applied, adjacent
-  // rows in the visible list aren't actually adjacent in the real order.
-  const canReorderProducts = activeMenuCategory !== null && !menuSearchQuery.trim();
-
-  el.innerHTML = items.map((item, itemIdx)=>{
-    const cost = computeProductCost(item);
-    const isBox = item.costMode === 'box' && item.componentSlot;
-    // costMode isn't 'direct' but the resolved variable cost is exactly 0 —
-    // no recipe/mix was ever filled in, so the "margin" below is meaningless
-    // (would otherwise read as a deceptive ~100%), not a real 0-cost product.
-    const uncosted = item.costMode !== 'direct' && cost.variable === 0 && item.price > 0;
-    const tier = !item.linkProfit || !canViewProfit() ? 'none' : uncosted ? 'bad' : marginTier(cost.marginPct);
-    const marginDisplay = !canViewProfit() ? '—'
-      : !item.linkProfit ? '—'
-      : uncosted ? 'غير محددة ⚠️'
-      : isBox ? cost.marginWorst.toFixed(0)+'٪–'+cost.marginBest.toFixed(0)+'٪'
-      : cost.marginPct.toFixed(0)+'٪';
-    const isTempHidden = item.active && item.hiddenUntil && new Date(item.hiddenUntil) > new Date();
-    const isHiddenNow = !item.active || isTempHidden;
-    // Only the resulting timestamp is stored, not which button was clicked —
-    // approximate it back for the select's own display so a temporarily
-    // hidden row doesn't confusingly show "ظاهر" as selected.
-    const currentChoice = !item.active ? 'forever' : !isTempHidden ? 'show'
-      : (new Date(item.hiddenUntil) - new Date()) < 36*60*60*1000 ? 'today'
-      : (new Date(item.hiddenUntil) - new Date()) < 4*24*60*60*1000 ? '3days' : 'week';
-    return `<div class="menu-table-row ${isHiddenNow?'inactive':''}" data-id="${item.id}">
-      ${canReorderProducts ? `<div class="mtr-move">
-        <button class="cat-move-btn prod-move-btn" data-move="up" data-id="${item.id}" ${itemIdx===0?'disabled':''} title="نقل لأعلى">${CAT_MOVE_UP_SVG}</button>
-        <button class="cat-move-btn prod-move-btn" data-move="down" data-id="${item.id}" ${itemIdx===items.length-1?'disabled':''} title="نقل لأسفل">${CAT_MOVE_DOWN_SVG}</button>
-      </div>` : ''}
-      <div class="mtr-product">
-        <div class="mtr-thumb">${item.image ? `<img src="${item.image}">` : productImagePlaceholderSvg()}</div>
-        <div class="mtr-name-col">
-          <div class="mtr-name">${item.name}</div>
-          <div class="mtr-meta">${item.category}${isBox ? ' — تركيبة متغيرة ('+item.componentSlot.totalPieces+' قطعة)' : ''}${item.modifierGroupIds.length ? ' — '+item.modifierGroupIds.length+' مجموعة خيارات' : ''}${(item.active && item.hiddenUntil && new Date(item.hiddenUntil) > new Date()) ? ' — يرجع تلقائيًا ' + formatHiddenUntilLabel(item.hiddenUntil) : ''}${(ONLINE_ORDERING_ENABLED && !item.visibleOnline) ? ' — غير ظاهر بالمتجر الإلكتروني' : ''}${item.visiblePos === false ? ' — مخفي عن الكاشير' : ''}${(item.onlinePrice != null && Number(item.onlinePrice) !== Number(item.price)) ? ' — سعر المتجر ' + Number(item.onlinePrice).toFixed(2) : ''}${!item.linkInventory ? ' — بلا ربط مخزون' : ''}</div>
-          ${(item.linkInventory && item.costMode==='recipe' && (item.recipeStockIds||[]).length===0)
-            ? '<div class="mtr-no-recipe-warn">⚠️ ما ينقص المخزون — ما له وصفة</div>' : ''}
-          <span class="cost-margin-badge ${tier} mtr-margin-inline">${marginDisplay}</span>
-        </div>
-      </div>
-      <div class="mtr-price mono">${item.price.toFixed(2)}</div>
-      <div class="mtr-margin"><span class="cost-margin-badge ${tier}">${marginDisplay}</span></div>
-      <div class="mtr-status mtr-status-wide">
-        <select class="mtr-hide-select" data-id="${item.id}" title="ظهور المنتج">
-          <option value="show" ${currentChoice==='show'?'selected':''}>ظاهر</option>
-          <option value="today" ${currentChoice==='today'?'selected':''}>إخفاء اليوم</option>
-          <option value="3days" ${currentChoice==='3days'?'selected':''}>إخفاء ٣ أيام</option>
-          <option value="week" ${currentChoice==='week'?'selected':''}>إخفاء أسبوع</option>
-          <option value="forever" ${currentChoice==='forever'?'selected':''}>إخفاء نهائي</option>
-        </select>
-      </div>
-      <div class="mtr-action"><button class="mtr-edit-btn" data-id="${item.id}">تعديل</button></div>
-    </div>`;
-  }).join('');
-
-  el.querySelectorAll('.menu-table-row').forEach(row=>{
-    row.addEventListener('click', (e)=>{
-      if(e.target.closest('.mtr-hide-select') || e.target.closest('.prod-move-btn')) return;
-      openProductEditModal(parseInt(row.dataset.id));
-    });
-  });
-  el.querySelectorAll('.prod-move-btn').forEach(btn=>{
-    btn.addEventListener('click', (e)=>{ e.stopPropagation(); moveProductOrder(parseInt(btn.dataset.id, 10), btn.dataset.move === 'up' ? -1 : 1); });
-  });
-  el.querySelectorAll('.mtr-hide-select').forEach(sel=>{
-    sel.addEventListener('click', e=>e.stopPropagation());
-    sel.addEventListener('change', async ()=>{
-      const item = MENU_ITEMS.find(m=>m.id===parseInt(sel.dataset.id));
-      const nextActive = sel.value !== 'forever';
-      const nextHiddenUntil = hiddenUntilForChoice(sel.value);
-      sel.disabled = true;
-      try {
-        const { error } = await window.supabaseClient.from('menu_items')
-          .update({active: nextActive, hidden_until: nextHiddenUntil}).eq('id', item.id);
-        if(error) throw error;
-        item.active = nextActive;
-        item.hiddenUntil = nextHiddenUntil;
-        const labels = {show:'أظهر', today:'أخفى (اليوم)', '3days':'أخفى (٣ أيام)', week:'أخفى (أسبوع)', forever:'أوقف نهائيًا'};
-        logDashboardAudit(labels[sel.value] + ' صنف ' + item.name);
-        showToast(sel.value === 'show' ? 'تم إظهار الصنف' : 'تم إخفاء الصنف');
-      } catch(err){
-        showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-      } finally {
-        sel.disabled = false;
-        renderMenuProductTable();
-      }
-    });
-  });
-}
 
 async function moveProductOrder(itemId, direction){
   const visibleItems = MENU_ITEMS.filter(m=>!m.name.includes('(مؤرشف)'));
@@ -16922,26 +17006,29 @@ let modGroupModalState = {name:'', type:'single', max:4, options:[]};
 function renderModifierGroupsTable(){
   const el = document.getElementById('modifierGroupsTable');
   if(!el) return;
+  const tm = document.getElementById('mnTabCountM'); if(tm) tm.textContent = MODIFIER_GROUPS.length || '';
   if(MODIFIER_GROUPS.length === 0){
-    el.innerHTML = '<div class="menu-table-empty">ما فيه مجموعات خيارات لسا — أنشئ أول وحدة من الزر فوق.</div>';
+    el.innerHTML = '<div class="rk2-card mn-empty">'
+      + hmEmpty('layers', 'ما سويت خيارات بعد', 'مثل «الحجم: عادي / كبير +8» أو «الإضافات». تسويها مرة هنا، وبعدها تختارها لأي منتج من نافذته، والكاشير يسأل عنها وقت البيع')
+      + '<button type="button" class="rk2-btn lime" data-mn-newmod>' + mnIc('plus') + 'سوّ أول مجموعة</button></div>';
     return;
   }
   el.innerHTML = MODIFIER_GROUPS.map(g=>{
-    const usedByProducts = MENU_ITEMS.filter(m=>m.modifierGroupIds.includes(g.id));
-    return `<div class="menu-table-row" data-id="${g.id}">
-      <div class="mtr-product">
-        <div class="mtr-name-col">
-          <div class="mtr-name">${g.name}</div>
-          <div class="mtr-mod-chips">${g.options.map(o=>`<span class="mtr-mod-chip">${o.name}${o.priceDelta?' +'+o.priceDelta:''}</span>`).join('')}</div>
-        </div>
-      </div>
-      <div class="mth-col-modtype"><span class="mtr-mod-type-badge">${g.type==='single'?'اختيار واحد':g.type==='quantity'?'كمية (حتى '+g.max+')':'اختيار متعدد'}</span></div>
-      <div class="mth-col-modused"><span class="mtr-mod-used">${usedByProducts.length ? '<b>'+usedByProducts.length+'</b> منتج' : 'ما تستخدم بعد'}</span></div>
-      <div class="mtr-action"><button class="mtr-edit-btn" data-id="${g.id}">تعديل</button></div>
-    </div>`;
+    const used = MENU_ITEMS.filter(m=>m.modifierGroupIds.includes(g.id)).length;
+    const type = g.type==='single' ? 'يختار واحد' : g.type==='quantity' ? 'كمية لين ' + g.max : 'يختار أكثر من واحد';
+    const req = (g.minSelect || g.min_select || 0) > 0 ? '<span class="mn-mod-pill req">إجباري</span>' : '';
+    return '<article class="rk2-card mn-mod" data-id="' + g.id + '" tabindex="0" role="button">'
+      + '<div class="mn-mod-head"><span class="rk2-ic c-res">' + mnIc('layers') + '</span><div class="mn-mod-title"><b>' + escapeHtml(g.name) + '</b>'
+      + '<small>' + (used ? 'على ' + mnN(used) : '<span class="mn-bad">ما ربطتها بأي منتج</span>') + '</small></div>'
+      + '<span class="mn-mod-edit">' + mnIc('edit') + '</span></div>'
+      + '<div class="mn-mod-pills"><span class="mn-mod-pill">' + type + '</span>' + req + '</div>'
+      + '<div class="mn-mod-opts">' + g.options.map(o=>'<span>' + escapeHtml(o.name) + (o.priceDelta ? ' <em>+' + o.priceDelta + '</em>' : '') + '</span>').join('') + '</div>'
+      + '</article>';
   }).join('');
-  el.querySelectorAll('.menu-table-row').forEach(row=>{
-    row.addEventListener('click', ()=> openModGroupModal(parseInt(row.dataset.id)));
+  el.querySelectorAll('.mn-mod').forEach(card=>{
+    const open = ()=> openModGroupModal(parseInt(card.dataset.id, 10));
+    card.addEventListener('click', open);
+    card.addEventListener('keydown', (e)=>{ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); open(); } });
   });
 }
 
@@ -17565,7 +17652,6 @@ function wireMenuScreen(){
   renderMenuUnifyBanner();
 
   document.getElementById('openAddCategoryBtn').addEventListener('click', ()=> openCategoryModal(null));
-  { const inl = document.getElementById('addCategoryInline'); if(inl) inl.style.display = 'none'; }
   document.getElementById('menuSearchInput').addEventListener('input', (e)=>{
     menuSearchQuery = e.target.value;
     renderMenuProductTable();
@@ -17576,12 +17662,18 @@ function wireMenuScreen(){
   document.getElementById('openBulkImportModifiersBtn').addEventListener('click', ()=> openBulkImportModal('modifiers'));
   document.getElementById('menuScreenTabs').addEventListener('click', (e)=>{
     const btn = e.target.closest('button'); if(!btn) return;
-    document.querySelectorAll('#menuScreenTabs button').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    const tab = btn.dataset.tab;
-    document.getElementById('menuTabProducts').style.display = tab==='products' ? 'block' : 'none';
-    document.getElementById('menuTabModifiers').style.display = tab==='modifiers' ? 'block' : 'none';
-    resetContentScroll();
+    mnShowTab(btn.dataset.tab);
+  });
+  // أزرار الخطوات والحالات الفاضية (تنرسم من جديد كل مرة، فالاستماع على الشاشة).
+  document.getElementById('screen-menu').addEventListener('click', (e)=>{
+    const go = e.target.closest('[data-mn-go]');
+    if(go){ mnGo(go.dataset.mnGo); return; }
+    if(e.target.closest('[data-mn-newmod]')){ openModGroupModal(null); return; }
+    if(e.target.closest('[data-mn-clear]')){
+      activeMenuFlag = null; activeMenuCategory = null; menuSearchQuery = '';
+      const s = document.getElementById('menuSearchInput'); if(s) s.value = '';
+      renderCategoryTabs(); renderMenuProductTable();
+    }
   });
 
   // unified product edit modal wiring
