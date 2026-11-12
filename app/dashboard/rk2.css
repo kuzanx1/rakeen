@@ -902,3 +902,50 @@ button.mn-stat{cursor:pointer;}
   .ol-link-acts .rk2-btn{flex:1; justify-content:center;}
   .ol-link-txt b{font-size:15px;}
 }
+
+/* ==========================================================================
+   نادي الولاء (ly-)
+   ========================================================================== */
+.ly-hero{margin-bottom:var(--rk2-gap);}
+.ly-hero-top{display:flex; align-items:center; gap:14px;}
+.ly-hero-txt h3{font-size:20px; font-weight:900; margin:3px 0 0; line-height:1.35;}
+.ly-rule{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:14px 0 4px; padding:11px 14px; border-radius:var(--rk2-r-md); background:color-mix(in srgb, var(--lime) 16%, var(--card-bg)); border:1px solid color-mix(in srgb, var(--lime-deep) 40%, var(--line));}
+.ly-rule-sys{font-size:11.5px; font-weight:800; padding:3px 10px; border-radius:99px; background:var(--rk2-ink); color:var(--rk2-on-ink);}
+.ly-rule-txt{flex:1 1 auto; font-size:15px; font-weight:700; min-width:0;}
+.ly-rule-txt b{font-weight:900;}
+.ly-rule-edit{background:none; border:0; padding:2px 4px; font:inherit; font-size:12.5px; font-weight:800; color:var(--text); text-decoration:underline; text-underline-offset:3px; cursor:pointer;}
+.ly-stats{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-top:14px;}
+.ly-stats .iv-stat{min-width:0;}
+.ly-stats .iv-stat small{max-width:none;}
+.ly-todo-row{border-inline-start-color:var(--acc-res, var(--amber));}
+.ly-todo-row.ok{border-inline-start-color:var(--lime-deep);}
+.ly-todo-ic{width:30px; height:30px; border-radius:10px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; background:var(--card-bg); border:1px solid var(--line);}
+.ly-todo-ic svg{width:15px; height:15px;}
+.ly-near{padding:18px 20px; margin-bottom:var(--rk2-gap);}
+.ly-near .rk2-card-head .rk2-btn{margin-inline-start:auto;}
+.ly-near .loyalty-cards-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:8px; margin-top:12px;}
+.rk2 .ly-near .loy-row{margin:0; flex-wrap:wrap; cursor:pointer; background:var(--surf1); border-radius:var(--rk2-r-md); transition:transform .18s ease, border-color .2s ease;}
+.rk2 .ly-near .loy-row:hover{transform:translateY(-2px);}
+.ly-near .loy-row .loy-info{flex:1; min-width:0;}
+.ly-near .loy-row .loy-stamp-row, .ly-near .loy-row .loy-stamp-bar{flex-basis:100%;}
+.rk2 .ly-panels .loyalty-tab-panel.active{animation:rk2-in .35s cubic-bezier(.2,.8,.2,1) both;}
+.rk2 .ly-panels .loyalty-tab-panel{scroll-margin-top:12px;}
+.rk2 .ly-off.loyalty-disabled-notice{display:flex; align-items:center; gap:14px; flex-wrap:wrap; text-align:start; padding:18px 20px; margin-bottom:var(--rk2-gap); color:var(--text);}
+.rk2 .ly-off.loyalty-disabled-notice.hidden{display:none;}
+.ly-off .mn-done-ic{background:color-mix(in srgb, var(--amber) 20%, var(--card-bg)); color:var(--amber);}
+.ly-off .mn-done-ic svg{width:20px; height:20px;}
+.ly-adv{padding:0; margin-top:6px; overflow:hidden;}
+.ly-adv summary{display:flex; align-items:center; gap:8px; padding:14px 18px; font-size:13.5px; font-weight:800; color:var(--muted); cursor:pointer; list-style:none;}
+.ly-adv summary::-webkit-details-marker{display:none;}
+.ly-adv summary svg{width:16px; height:16px;}
+.ly-adv[open] summary{color:var(--text); border-bottom:1px solid var(--line);}
+.ly-adv .rk-switch-row{padding:14px 18px; margin:0;}
+
+@media (max-width:700px){
+  .ly-stats{grid-template-columns:repeat(2, minmax(0, 1fr));}
+  .ly-rule-txt{font-size:14px;}
+  .ly-near{padding:14px;}
+  .ly-near .rk2-card-head{flex-wrap:wrap;}
+}
+.ly-stats .iv-stat small .hm-money{font-size:inherit; font-weight:900;}
+.ly-off:not(.hidden) ~ .ly-adv{display:none;}

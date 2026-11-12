@@ -5485,145 +5485,217 @@ function currentLoyaltySystemType(){
   return (LOYALTY_STATS && LOYALTY_STATS.systemType) || (LOYALTY_BRANDING && LOYALTY_BRANDING.systemType) || 'points';
 }
 
-function renderLoyaltyKpis(){
-  const type = currentLoyaltySystemType();
-  const kpis = loyaltyKpisForSystem();
-  document.getElementById('loyaltyKpiGrid').innerHTML = kpis.map(k=>
-    `<div class="kpi-card${k.owed ? ' is-owed' : ''}"><div class="kpi-label">${k.label}</div>`
-    + `<div class="kpi-value mono">${k.value}</div>`
-    + `${k.hint ? `<div class="kpi-hint">${k.hint}</div>` : ''}</div>`
-  ).join('');
+/* ============ شاشة «نادي الولاء» (ly-) ============
+   فوق: «ناديك» -- قاعدة النظام بجملة وحدة، وأرقامه الحقيقية، أو أربع
+   خطوات لين يصير شغّال. بعدها «وش أسوي الحين؟» (مين يستاهل تذكير، مين
+   غايب، وش ناقص). بعدها أقرب العملاء لمكافأة، وبطاقات أفعال تفتح
+   إعداداتها تحت. */
+const LY_IC = {
+  star:'<polygon points="12 2 15.1 8.3 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.3 12 2"/>',
+  users:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  gift:'<polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>',
+  card:'<rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>',
+  send:'<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+  moon:'<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+  power:'<path d="M18.4 6.6a9 9 0 1 1-12.8 0"/><line x1="12" y1="2" x2="12" y2="12"/>',
+};
+function lyIc(n){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (LY_IC[n] || PS_IC[n] || HM_IC[n] || '') + '</svg>'; }
 
-  // تصريحٌ صريح بأيّ نظامٍ تتكلّم الشاشة -- لا يُترك ليُستنتج من
-  // تسميات الأعمدة وحدها.
-  /* الشريط يقول النظام وقاعدتَه معاً. كان يقول الاسم وحده، فيبقى صاحب
-     المطعم يفتح تبويب البرنامج ليتذكّر العتبة. */
-  const badgeEl = document.getElementById('loySystemBadge');
-  if(badgeEl){
-    const reward = (LOYALTY_BRANDING.rewardLabel || '').trim() || 'مكافأة مجانية';
-    const rule = type === 'visits'
-      ? `كل <b>${LOYALTY_BRANDING.visitsThreshold || 5} زيارات</b> = <b>${escapeHtml(reward)}</b>`
-      : type === 'products'
-        ? `كل <b>${LOYALTY_BRANDING.unitThreshold || 6} أكواب</b> = <b>${escapeHtml(reward)}</b>`
-        : `كل <b>${LOYALTY_RATE} ريال</b> = <b>نقطة واحدة</b>`;
-    badgeEl.innerHTML = `<span class="loy-sys-strip-name">${loyaltySystemName(type)}</span>`
-      + `<span class="loy-sys-strip-rule">${rule}</span>`;
-  }
-
-  const cardsSubEl = document.getElementById('loyaltyCardsSub');
-  if(cardsSubEl){
-    // القاعدة صارت في الشريط فوق، فلا تُكرَّر هنا -- هذا السطر يقول ما
-    // تعرضه القائمة تحته بالضبط.
-    cardsSubEl.textContent = type === 'points'
-      ? 'أعلى خمسة أرصدة عندك'
-      : 'أقرب خمسة لإكمال بطاقتهم — هؤلاء من يستحقّ تذكيرًا';
-  }
-
-  renderLoyaltyLiability();
-  // الأعضاءُ يعتمدون البياناتِ نفسَها (TOP_CUSTOMERS)، فيتحدّثون معها
-  // دائماً -- لا في بعض مواضع النداء الخمسة وتُنسى في السادس.
-  renderLoyaltyMembers();
+/* القاعدة بجملة وحدة يفهمها صاحب المطعم. */
+function lyRuleText(type){
+  const b = LOYALTY_BRANDING || {};
+  const reward = escapeHtml((b.rewardLabel || '').trim() || 'مكافأة مجانية');
+  if(type === 'visits') return 'كل <b class="hm-num">' + (b.visitsThreshold || 5) + '</b> زيارات = <b>' + reward + '</b>';
+  if(type === 'products') return 'كل <b class="hm-num">' + (b.unitThreshold || 6) + '</b> أكواب = <b>' + reward + '</b>';
+  return 'كل <b class="hm-num">' + LOYALTY_RATE + '</b> ريال = نقطة';
+}
+/* النقاط اللي عند العملاء بالريال: محسوبة على أعلى قيمة يقدر ياخذها
+   العميل بنقاطه (أثقل التزام عليك). null لو ما فيه منتج ينصرف بالنقاط. */
+function lyPointsLiability(){
+  const st = LOYALTY_STATS;
+  const outstanding = (st && st.pointsOutstanding != null) ? Number(st.pointsOutstanding)
+    : (TOP_CUSTOMERS || []).reduce((s,c)=> s + (Number(c.points)||0), 0);
+  let best = 0, item = null;
+  (MENU_ITEMS || []).forEach(m=>{
+    if(m.pointsRedeemPrice > 0 && m.price > 0 && m.price / m.pointsRedeemPrice > best){ best = m.price / m.pointsRedeemPrice; item = m; }
+  });
+  return { outstanding, value: best ? outstanding * best : null, item };
+}
+function lyHasMembers(){
+  return (TOP_CUSTOMERS || []).length > 0 || !!(LOYALTY_STATS && LOYALTY_STATS.members > 0);
 }
 
-/**
- * ما التزم به البرنامج -- لا ما يفعله. ونظامٌ مختلفٌ يعني التزاماً
- * مختلف الشكل: نقاطٌ تُقارَن بالريال، أو مكافآتٌ ثابتة العدد لا تحتاج
- * تسعيراً لأنها صنفٌ محدَّد لا رقمٌ يُحوَّل.
- *
- * نظامُ النقاط وحده يملك حساب "تعادل من قائمتك": معدّل الكسب هنا،
- * وسعر الاسترداد في صفحة القائمة على كل صنف، ولا واحدة منهما تعرف
- * بالأخرى قبل هذا الحساب. فصاحب المطعم يضبط "نقطة لكل عشرة ريال" وهو
- * لا يرى أن قهوته تُستبدل بمئة نقطة -- أي أن ألف ريال من المبيعات
- * تشتري كوباً. والنقاط ليست رقماً تجميلياً: الكاشير يصرفها فعلاً
- * (انظر شاشة الاسترداد في rakeen-pos.js)، فمجموع أرصدة العملاء دَينٌ
- * قائم.
- *
- * أما الزيارات والأكواب فمكافآتها أصنافٌ لا نقاط -- "مكافأةٌ جاهزة"
- * تعني صنفاً واحداً سيُعطى مجاناً، بلا حاجة لتحويلها لريال.
- */
-function renderLoyaltyLiability(){
-  const el = document.getElementById('loyaltyLiability');
+let lyPrevLeft = null;
+function lyRenderHero(){
+  const el = document.getElementById('lyHero');
   if(!el) return;
+  lySetSums();
   const type = currentLoyaltySystemType();
-  const st = LOYALTY_STATS;
+  const b = LOYALTY_BRANDING || {};
+  const rewardOk = type === 'points' ? !!loyCheapestRedeemPoints()
+    : type === 'products' ? LOYALTY_PROGRAM.counts.length > 0 : true;
+  const steps = [
+    { done: rewardOk, label: type === 'points' ? 'حدّد وش تشتري النقاط' : type === 'products' ? 'حدّد وش الأصناف اللي تنعدّ' : 'حدّد مكافأتك',
+      desc: type === 'points' ? 'من «القائمة» حط لأي منتج «سعره بالنقاط»، وبدونه النقاط تتجمّع وما تنصرف'
+        : 'وش يكسب عميلك، وبعد كم زيارة', tab: type === 'points' ? '@menu' : 'program', focus: type === 'products' ? '#loyaltyUnitThresholdInput' : '#loyaltyRewardLabelInput' },
+    { done: !!b.logoUrl, label: 'صمّم بطاقتك', desc: 'شعارك ولونك على البطاقة اللي في جوال عميلك', tab: 'design', focus: '' },
+    { done: lyHasMembers(), label: 'سجّل أول عضو', desc: 'عند الدفع في الكاشير اكتب جوال العميل، ويصير عضو على طول', tab: '@pos', focus: '' },
+    { done: !!b.winBackOn, label: 'رجّع اللي طوّلوا عنك', desc: 'رسالة تلقائية تذكّر العميل الغايب، بدون ما تتابع بنفسك', tab: 'notify', focus: '#walletWinBackOn' },
+  ];
+  const done = steps.filter(s=>s.done).length;
+  const left = steps.length - done;
+  // الاحتفال لما تخلص خطوة فعلاً، مو لما توصل البيانات أول مرّة:
+  // قبل وصولها كل الخطوات تبان ناقصة.
+  const celebrate = lyPrevLeft !== null && lyPrevLeft > 0 && left === 0;
+  if(LOYALTY_STATS && loyaltyBrandingLoaded) lyPrevLeft = left;
+  const go = s => ' data-ly-go="' + s.tab + '" data-ly-focus="' + escapeHtml(s.focus) + '"';
 
-  if(type !== 'points'){
-    const rewardsReady = (st && st.rewardsReady) || 0;
-    const progressSum = type === 'visits' ? ((st && st.visitsSum) || 0) : ((st && st.unitsSum) || 0);
-    const progressLabel = type === 'visits' ? 'زيارات متراكمة عند العملاء' : 'أكواب متراكمة عند العملاء';
-    el.innerHTML = `
-      <div class="rk-section">
-        ${rkSectionHead('award', 'التزام البرنامج', 'مكافآتٌ ستُعطى مجاناً -- الكاشير يصرفها فعلاً')}
-        <div class="loy-liab-row">
-          <div class="loy-liab-cell">
-            <div class="loy-liab-label">مكافآت مستحقّة لم تُصرف بعد</div>
-            <div class="loy-liab-value mono ${rewardsReady > 0 ? 'is-cost' : ''}">${rewardsReady.toLocaleString('en-US')}</div>
-            <div class="loy-liab-note">كل مكافأة = صنفٌ سيُعطى مجاناً عند أوّل طلبٍ قادم</div>
-          </div>
-          <div class="loy-liab-cell">
-            <div class="loy-liab-label">${progressLabel}</div>
-            <div class="loy-liab-value mono">${progressSum.toLocaleString('en-US')}</div>
-            <div class="loy-liab-note">تقدّمٌ لم يكتمل بعد -- لا يُصرف حتى يعبر العتبة</div>
-          </div>
-        </div>
-      </div>`;
+  const kpis = loyaltyKpisForSystem();
+  // النقاط اللي ما انصرفت: قيمتها بالريال تنكتب تحتها، مو بطاقة خامسة.
+  const L = type === 'points' ? lyPointsLiability() : null;
+  const stats = kpis.map(k=>{
+    let hint = k.hint || '';
+    if(k.owed && L && L.value != null && L.outstanding > 0) hint = 'تعادل تقريبًا ' + hmMoney(L.value) + ' لو صرفوها على ' + escapeHtml(L.item.name);
+    return '<div class="iv-stat' + (k.owed && k.value > 0 ? ' warn' : '') + '"><span>' + k.label + '</span><b class="hm-num">' + Number(k.value || 0).toLocaleString('en-US') + '</b>' + (hint ? '<small>' + hint + '</small>' : '') + '</div>';
+  }).join('');
+  const rule = '<div class="ly-rule"><span class="ly-rule-sys">' + loyaltySystemName(type) + '</span><span class="ly-rule-txt">' + lyRuleText(type) + '</span>'
+    + '<button type="button" class="ly-rule-edit" data-ly-go="program" data-ly-focus="">غيّرها</button></div>';
+
+  if(left === 0){
+    el.innerHTML = '<div class="rk2-card ly-hero' + (celebrate ? ' mn-celebrate' : '') + '">'
+      + '<div class="ly-hero-top"><span class="iv-hero-ic">' + lyIc('star') + '</span><div class="ly-hero-txt"><div class="hm-kicker">ناديك شغّال</div><h3>عملاؤك يجمعون ويرجعون لك</h3></div></div>'
+      + rule + '<div class="ly-stats">' + stats + '</div></div>';
+    if(celebrate) showToast('ناديك جاهز 🎉');
     return;
   }
+  const nextIdx = steps.findIndex(s=>!s.done);
+  const next = steps[nextIdx];
+  const pct = Math.round(done / steps.length * 100);
+  el.innerHTML = '<div class="rk2-card hm-quest ly-hero ly-quest">'
+    + '<div class="hm-quest-top"><div class="hm-ring" style="--p:' + pct + '"><b>' + done + '<small>/' + steps.length + '</small></b></div>'
+    + '<div><div class="hm-kicker">' + lyIc('star') + 'ناديك</div>'
+    + '<h3>' + (done === 0 ? 'أربع خطوات ويرجع لك عميلك' : 'باقي ' + hmPlural(left, 'خطوة وحدة', 'خطوتين', 'خطوات', 'خطوة') + ' ويصير ناديك كامل') + '</h3>'
+    + '<p>' + (lyHasMembers() ? 'ناديك شغّال الحين، والخطوات تخليه يجيب عملاء أكثر' : 'العميل يصير عضو من أول فاتورة فيها جواله') + '</p></div></div>'
+    + rule
+    + '<button type="button" class="hm-quest-next"' + go(next) + '>'
+    + '<span class="hm-quest-n">' + (nextIdx + 1) + '</span><span class="hm-quest-txt"><b>' + next.label + '</b><small>' + next.desc + '</small></span><span class="rk2-btn lime sm">ابدأ' + hmIc('arrow') + '</span></button>'
+    + '<div class="hm-quest-list">' + steps.map((s,i)=> i === nextIdx ? '' :
+        '<button type="button" class="hm-qstep' + (s.done ? ' done' : '') + '"' + (s.done ? ' disabled' : go(s)) + '>'
+        + '<span class="hm-qcheck">' + (s.done ? hmIc('check') : (i + 1)) + '</span>' + s.label + '</button>').join('') + '</div>'
+    + (lyHasMembers() ? '<div class="ly-stats">' + stats + '</div>' : '')
+    + '</div>';
+}
 
-  /* رقمُ الخادم أوّلاً: يجمع كل العملاء، وTOP_CUSTOMERS تُسقط من
-     لا طلبَ له -- ومن مُنح نقاطًا يدويًا بلا شراء له نقاطٌ حقيقية.
-     وبدونه يظهر في الشاشة الواحدة رقمان لشيءٍ واحد: «نقاط لم
-     تُصرف» في المؤشّرات (من الخادم) و«نقاط معلّقة» هنا (محليّ). */
-  const members = TOP_CUSTOMERS || [];
-  const outstanding = (st && st.pointsOutstanding != null)
-    ? Number(st.pointsOutstanding)
-    : members.reduce((s,c)=> s + (Number(c.points)||0), 0);
+/* «وش أسوي الحين؟» -- كل سطر شي يقدر يسويه الحين، بزرّه. */
+function lyRenderTodo(){
+  const el = document.getElementById('lyTodo');
+  if(!el) return;
+  const all = TOP_CUSTOMERS || [];
+  const type = currentLoyaltySystemType();
+  const rows = [];
+  const near = type === 'points' ? [] : all.filter(c=>{ const p = loyMemberProgress(c); return p && p.threshold - p.current === 1; });
+  if(near.length) rows.push({ tier:'', ic:'gift', title: hmPlural(near.length, 'عميل واحد', 'عميلين', 'عملاء', 'عميل') + ' باقي ' + (near.length === 1 ? 'له' : 'لهم') + ' ' + (type === 'visits' ? 'زيارة' : 'كوب') + ' ويكسب',
+    hint: near.slice(0, 4).map(c=>escapeHtml(c.name)).join('، ') + (near.length > 4 ? ' +' + (near.length - 4) : '') + ' — رسالة وحدة ترجّعهم', act:'notify', btn:'ذكّرهم' });
+  const dormant = all.filter(c=> loyMemberSegment(c) === 'dormant');
+  if(dormant.length) rows.push({ tier:'', ic:'moon', title: hmPlural(dormant.length, 'عميل واحد', 'عميلين', 'عملاء', 'عميل') + ' ما ' + (dormant.length === 1 ? 'زارك' : 'زاروك') + ' من شهر',
+    hint: (LOYALTY_BRANDING && LOYALTY_BRANDING.winBackOn) ? 'رسالة «رجّع اللي طوّلوا عنك» شغّالة وتوصلهم لحالها' : 'شغّل رسالة «رجّع اللي طوّلوا عنك» وتوصلهم لحالها', act:'dormant', btn:'شوفهم' });
+  const ready = Number((LOYALTY_STATS && LOYALTY_STATS.rewardsReady) || all.reduce((s,c)=> s + (Number(c.freeRewards)||0), 0));
+  if(ready > 0) rows.push({ tier:'ok', ic:'gift', title: hmPlural(ready, 'مكافأة وحدة جاهزة', 'مكافأتين جاهزة', 'مكافآت جاهزة', 'مكافأة جاهزة'),
+    hint: 'تطلع للكاشير لحالها أول ما يجي صاحبها — ما عليك شي', act:'ready', btn:'مين هم؟' });
+  if(type === 'points' && !loyCheapestRedeemPoints() && all.length) rows.push({ tier:'critical', ic:'alert', title:'النقاط تتجمّع وما تنصرف',
+    hint:'ما فيه منتج له «سعر بالنقاط». حطه من القائمة وعميلك يقدر يصرف', act:'menu', btn:'افتح القائمة' });
+  if(!rows.length){ el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="rk2-card iv-todo">' + hmHead('flag', 'ops', 'وش أسوي الحين؟', 'اللي يرجّع لك عميلك أول')
+    + '<div class="iv-todo-list">' + rows.map(r=>
+      '<div class="iv-todo-row ly-todo-row ' + r.tier + '"><div class="iv-todo-name"><span class="ly-todo-ic">' + lyIc(r.ic) + '</span><b>' + r.title + '</b></div>'
+      + '<small class="iv-todo-hint">' + r.hint + '</small>'
+      + '<div class="iv-todo-acts"><button type="button" class="rk2-btn ' + (r.tier === 'ok' ? 'mn-ghost' : 'lime') + ' sm" data-ly-act="' + r.act + '">' + r.btn + '</button></div></div>').join('')
+    + '</div></div>';
+}
 
-  // أفضل صرف للعميل = أسوأ التزام على المطعم. الصنف الذي يعطي أكثر ريال
-  // لكل نقطة هو ما سيختاره العميل العاقل، فهو ما نحسب به.
-  const redeemables = (MENU_ITEMS||[]).filter(m=> m.pointsRedeemPrice != null && m.pointsRedeemPrice > 0 && m.price > 0);
-  let bestRiyalPerPoint = 0, bestItem = null;
-  redeemables.forEach(m=>{
-    const r = m.price / m.pointsRedeemPrice;
-    if(r > bestRiyalPerPoint){ bestRiyalPerPoint = r; bestItem = m; }
+function lySetSums(){
+  const type = currentLoyaltySystemType();
+  const b = LOYALTY_BRANDING || {};
+  const n = (TOP_CUSTOMERS || []).length || ((LOYALTY_STATS && LOYALTY_STATS.members) || 0);
+  const sums = {
+    members: n ? hmPlural(n, 'عضو واحد', 'عضوين', 'أعضاء', 'عضو') : 'يتسجّلون من الكاشير',
+    program: loyaltySystemName(type),
+    design: b.logoUrl ? 'بشعارك' : 'بدون شعار للحين',
+    notify: b.offerText ? 'عرض شغّال الحين' : (b.winBackOn ? 'رجّع الغايبين شغّالة' : 'عروض وتذكيرات لجوالهم'),
+  };
+  Object.entries(sums).forEach(([k, v])=>{
+    const s = document.querySelector('#loyaltyTabs [data-ly-sum="' + k + '"]');
+    if(s) s.textContent = v;
   });
-  const liability = bestRiyalPerPoint ? outstanding * bestRiyalPerPoint : null;
+}
 
-  const money = v => v.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+function lyOpenTab(tab){
+  document.querySelectorAll('#loyaltyTabs .loyalty-tab').forEach(b=> b.classList.toggle('active', b.dataset.loyaltyTab === tab));
+  document.querySelectorAll('#screen-loyalty .loyalty-tab-panel').forEach(p=> p.classList.toggle('active', p.dataset.loyaltyPanel === tab));
+}
+function lyGoTo(tab, focusSel){
+  if(tab === '@menu' || tab === '@pos'){
+    if(tab === '@pos') return window.open('/pos', '_blank', 'noopener');
+    return document.querySelector('.nav-item[data-screen="menu"]')?.click();
+  }
+  lyOpenTab(tab);
+  const panel = document.querySelector('#screen-loyalty .loyalty-tab-panel[data-loyalty-panel="' + tab + '"]');
+  const target = focusSel && document.querySelector(focusSel);
+  if(target && target.offsetParent){
+    target.scrollIntoView({block:'center', behavior:'smooth'});
+    target.focus({preventScroll:true});
+    const sec = target.closest('.rk-section');
+    if(sec){ sec.classList.remove('rk2-flash'); void sec.offsetWidth; sec.classList.add('rk2-flash'); }
+  } else if(panel) panel.scrollIntoView({block:'start', behavior:'smooth'});
+}
+function lyShowMembers(filter, sort){
+  LOY_MEMBERS_FILTER = filter || null;
+  if(sort){ LOY_MEMBERS_SORT = sort; const s = document.getElementById('loyMembersSort'); if(s) s.value = sort; }
+  LOY_MEMBERS_SHOWN = LOY_MEMBERS_PAGE;
+  renderLoyaltyMembers();
+  lyGoTo('members', '');
+}
 
-  el.innerHTML = `
-    <div class="rk-section">
-      ${rkSectionHead('award', 'التزام البرنامج', 'النقاط اللي عند عملائك دَين عليك — الكاشير يصرفها فعلاً')}
-      <div class="loy-liab-row">
-        <div class="loy-liab-cell">
-          <div class="loy-liab-label">نقاط معلّقة عند العملاء</div>
-          <div class="loy-liab-value mono">${outstanding.toLocaleString('en-US')}</div>
-        </div>
-        <div class="loy-liab-cell">
-          <div class="loy-liab-label">تعادل من قائمتك</div>
-          <div class="loy-liab-value mono ${liability != null ? 'is-cost' : ''}">${liability != null ? money(liability) + ' ر.س' : '—'}</div>
-          <div class="loy-liab-note">${
-            liability != null
-              // الكود يختار الصنف الذي يعطي أكثر ريال لكل نقطة -- وهو ما
-              // سيختاره العميل العاقل، أي أثقلُ التزامٍ عليك. و«أرخص صرف»
-              // تُقرأ من جهته لا من جهتك، فتبدو للمالك عكسَ ما تعنيه.
-              ? 'محسوبة على أعلى قيمة يقدر ياخذها بنقاطه: ' + bestItem.name + ' بـ' + bestItem.pointsRedeemPrice + ' نقطة'
-              : 'ما حددت أي منتج يُستبدل بنقاط — النقاط تتراكم بلا ما يقدر العميل يصرفها'
-          }</div>
-        </div>
-      </div>
-    </div>`;
+document.getElementById('screen-loyalty')?.addEventListener('click', async (e)=>{
+  const go = e.target.closest('[data-ly-go]');
+  if(go) return lyGoTo(go.dataset.lyGo, go.dataset.lyFocus);
+  const act = e.target.closest('[data-ly-act]');
+  if(act){
+    const a = act.dataset.lyAct;
+    if(a === 'notify') return lyGoTo('notify', '#walletBroadcastText');
+    if(a === 'dormant') return lyShowMembers('dormant');
+    if(a === 'ready') return lyShowMembers(null, 'progress');
+    if(a === 'menu') return lyGoTo('@menu');
+    return;
+  }
+  if(e.target.closest('[data-ly-enable]')){
+    const t = document.getElementById('loyaltyEnabledToggle');
+    if(t && !t.checked){ t.checked = true; t.dispatchEvent(new Event('change')); }
+    return;
+  }
+  const tab = e.target.closest('#loyaltyTabs .loyalty-tab');
+  if(tab){
+    const t = tab.dataset.loyaltyTab;
+    lyOpenTab(t);
+    document.querySelector('#screen-loyalty .loyalty-tab-panel.active')?.scrollIntoView({block:'start', behavior:'smooth'});
+  }
+});
+
+/* الأرقام والخطوات وقائمة الأعضاء تتحدّث مع بعض من نفس البيانات. */
+function renderLoyaltyKpis(){
+  lyRenderHero();
+  lyRenderTodo();
+  renderLoyaltyMembers();
 }
 
 function renderLoyaltyCards(){
   const grid = document.getElementById('loyaltyCardsGrid');
   if(!grid) return;
 
-  if(TOP_CUSTOMERS.length === 0){
-    grid.innerHTML = '<div class="loy-empty"><b>ما فيه أعضاء بعد</b>'
-      + 'العضوية تبدأ وحدها: أول ما يدخل الكاشير رقم جوال الزبون، يصير عضواً.</div>';
-    return;
-  }
+  // بلا أعضاء: البطاقة تختفي، و«ناديك» فوق يقول كيف يتسجّل أول عضو.
+  const wrap = document.getElementById('lyNear');
+  if(wrap) wrap.hidden = TOP_CUSTOMERS.length === 0;
+  if(TOP_CUSTOMERS.length === 0){ grid.innerHTML = ''; return; }
 
   /* خمسة لا الكل.
      كانت تعرض كل عضوٍ في المنشأة -- وهو تبويب «الأعضاء» بعينه، مكرّراً
@@ -5655,6 +5727,7 @@ function renderLoyaltyCards(){
         <div class="loy-name">${escapeHtml(c.name)}${ready ? '<span class="loy-reward-badge">مكافأة جاهزة</span>' : ''}</div>
         <div class="loy-meta">${metaText}</div>
       </div>
+      ${progress ? loyMemberProgressHtml(c) : ''}
     </div>`;
   }).join('');
 
@@ -6544,13 +6617,6 @@ document.getElementById('loyMembersSort')?.addEventListener('change', (e)=>{
   renderLoyaltyMembers();
 });
 
-document.getElementById('loyaltyTabs').addEventListener('click', (e)=>{
-  const btn = e.target.closest('.loyalty-tab'); if(!btn) return;
-  const target = btn.dataset.loyaltyTab;
-  document.querySelectorAll('#loyaltyTabs .loyalty-tab').forEach(b=> b.classList.toggle('active', b===btn));
-  document.querySelectorAll('.loyalty-tab-panel').forEach(p=> p.classList.toggle('active', p.dataset.loyaltyPanel === target));
-  resetContentScroll();
-});
 
 document.getElementById('loyaltyEnabledToggle').addEventListener('change', async (e)=>{
   const enabled = e.target.checked;
@@ -6564,55 +6630,6 @@ document.getElementById('loyaltyEnabledToggle').addEventListener('change', async
   }
   logDashboardAudit(enabled ? 'فعّل نظام الولاء' : 'عطّل نظام الولاء');
   showToast(enabled ? 'تم تفعيل نظام الولاء' : 'تم تعطيل نظام الولاء — اختفى من شاشة الكاشير');
-});
-
-const rkWinBackStatus = c => {
-  const days = document.getElementById('winBackDaysInput')?.value || 30;
-  return c
-    ? {text:`مفعّل — يرسل تلقائيًا كل يوم لأي عميل غايب أكثر من ${days} يوم`, tone:'ok'}
-    : {text:'معطّل — ما يوصل أي تذكير تلقائي للعملاء الخاملين', tone:''};
-};
-function renderWinBackStatus(){
-  const status = document.getElementById('winBackToggleStatus');
-  const checked = document.getElementById('winBackToggle')?.checked;
-  if(!status) return;
-  const s = rkWinBackStatus(checked);
-  status.textContent = s.text;
-  status.className = 'rk-switch-desc ' + s.tone;
-}
-rkWireSwitchStatus('winBackToggle', rkWinBackStatus);
-document.getElementById('winBackDaysInput').addEventListener('input', renderWinBackStatus);
-
-async function loadWinBackSettings(){
-  const { data } = await window.supabaseClient.from('businesses')
-    .select('notify_win_back, win_back_inactive_days, win_back_message')
-    .eq('id', CURRENT_PROFILE.business_id).single();
-  if(!data) return;
-  const toggle = document.getElementById('winBackToggle');
-  const days = document.getElementById('winBackDaysInput');
-  const msg = document.getElementById('winBackMessageInput');
-  if(toggle) toggle.checked = !!data.notify_win_back;
-  if(days) days.value = data.win_back_inactive_days || 30;
-  if(msg) msg.value = data.win_back_message || 'مشتقنالك! زورنا قريب — عندنا شي يسعدك';
-  renderWinBackStatus();
-}
-
-document.getElementById('winBackSaveBtn').addEventListener('click', async ()=>{
-  const btn = document.getElementById('winBackSaveBtn');
-  rkBtnLoading(btn, true);
-  try {
-    const updates = {
-      notify_win_back: document.getElementById('winBackToggle').checked,
-      win_back_inactive_days: Math.max(1, parseInt(document.getElementById('winBackDaysInput').value, 10) || 30),
-      win_back_message: document.getElementById('winBackMessageInput').value.trim() || 'مشتقنالك! زورنا قريب — عندنا شي يسعدك'
-    };
-    await updateCurrentBusiness(updates);
-    logDashboardAudit('حدّث إعدادات استرجاع العملاء الخاملين');
-    rkBtnSuccess(btn, '✓ تم الحفظ');
-  } catch(err){
-    rkBtnLoading(btn, false);
-    showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-  }
 });
 
 function renderLoyaltyIconPicker(){
@@ -7629,58 +7646,6 @@ document.getElementById('loyaltyBrandingSaveBtn').addEventListener('click', asyn
   }
 });
 
-// Free-form push broadcast ("خصم 20% اليوم!") to every customer who opted
-// into loyalty-card notifications — same VAPID pipeline as the per-order
-// points-update push, just fanned out to the whole business instead of one
-// customer. Genuinely free (no per-message cost, no external account), and
-// has no hard send limit from our side — the only real ceiling is that it
-// only reaches customers who already enabled notifications on their card.
-async function loadLoyaltySubscriberCount(){
-  const countEl = document.getElementById('loyaltySubCount');
-  if(!countEl) return;
-  try {
-    const { data: { session } } = await window.supabaseClient.auth.getSession();
-    if(!session) return;
-    const res = await fetch('/api/dashboard/send-loyalty-broadcast', {
-      headers: { 'Authorization': 'Bearer ' + session.access_token }
-    });
-    const result = await res.json();
-    if(res.ok) countEl.textContent = result.count;
-  } catch { /* count is a nice-to-have, not worth surfacing an error for */ }
-}
-const loyaltyBroadcastBtn = document.getElementById('loyaltyBroadcastSendBtn');
-if(loyaltyBroadcastBtn) loyaltyBroadcastBtn.addEventListener('click', async ()=>{
-  const title = document.getElementById('loyaltyBroadcastTitle').value.trim();
-  const body = document.getElementById('loyaltyBroadcastBody').value.trim();
-  if(!title){ showToast('لازم تكتب عنوان للإشعار'); return; }
-  const subCount = document.getElementById('loyaltySubCount')?.textContent;
-  const countPhrase = subCount && subCount !== '...' ? `لـ${subCount} مشترك` : 'لكل المشتركين حاليًا';
-  if(!window.confirm(`متأكد إنك تبي ترسل هذا الإشعار الآن؟ بيوصل فورًا ${countPhrase} وما يترجع.`)) return;
-  rkBtnLoading(loyaltyBroadcastBtn, true);
-  try {
-    const { data: { session } } = await window.supabaseClient.auth.getSession();
-    if(!session){ showToast('جلسة غير صالحة'); return; }
-    const res = await fetch('/api/dashboard/send-loyalty-broadcast', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
-      body: JSON.stringify({ title, body })
-    });
-    const result = await res.json();
-    if(!res.ok) throw new Error(result.error || 'تعذر الإرسال');
-    showToast(result.total > 0 ? `تم الإرسال لـ ${result.sent} من ${result.total} مشترك` : 'ما فيه عملاء مشتركين بالتنبيهات بعد');
-    if(result.sent > 0){
-      logDashboardAudit('أرسل إشعار ترويجي: ' + title);
-      document.getElementById('loyaltyBroadcastTitle').value = '';
-      document.getElementById('loyaltyBroadcastBody').value = '';
-    }
-    loadLoyaltySubscriberCount();
-  } catch(err){
-    showToast('تعذر الإرسال: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
-  } finally {
-    rkBtnLoading(loyaltyBroadcastBtn, false);
-  }
-});
-
 document.getElementById('loyaltyRateSaveBtn').addEventListener('click', async ()=>{
   const btn = document.getElementById('loyaltyRateSaveBtn');
   const systemType = loyaltySystemTypeFormValue();
@@ -7726,6 +7691,15 @@ document.getElementById('loyaltyRateSaveBtn').addEventListener('click', async ()
       renderLoyaltyCards();
     }
     LOYALTY_BRANDING.systemType = systemType;
+    if(LOYALTY_STATS) LOYALTY_STATS.systemType = systemType;
+    // القاعدة اللي فوق («كل ٦ زيارات = …») تقرأ من هنا، فتتحدّث مع الحفظ.
+    if(updates.loyalty_visits_threshold) LOYALTY_BRANDING.visitsThreshold = updates.loyalty_visits_threshold;
+    if(updates.loyalty_unit_threshold) LOYALTY_BRANDING.unitThreshold = updates.loyalty_unit_threshold;
+    if(updates.loyalty_reward_label) LOYALTY_BRANDING.rewardLabel = updates.loyalty_reward_label;
+    if(updates.loyalty_reward_mode) LOYALTY_BRANDING.rewardMode = updates.loyalty_reward_mode;
+    renderLoyaltyKpis();
+    renderLoyaltyCards();
+    loadLoyaltyProgramStats().then(renderLoyaltyKpis);
     logDashboardAudit('حدّث إعداد برنامج الولاء (' + (systemType==='visits'?'زيارات':'نقاط') + ')');
     rkBtnSuccess(btn, '✓ تم الحفظ');
   } catch(err){
@@ -7742,7 +7716,7 @@ document.getElementById('campaignBuildBtn').addEventListener('click', ()=>{
     el.innerHTML = '<div style="font-size:12px; color:var(--muted); font-weight:600; padding:10px 0;">ما فيه عملاء يطابقون هذي الشروط حاليًا.</div>';
   } else {
     el.innerHTML = matches.map(c=>
-      `<div class="campaign-result-row"><span style="flex:1; font-weight:700;">${c.name}</span><span style="color:var(--muted);">آخر زيارة قبل ${c.lastVisitDays} يوم</span><span class="mono" style="font-weight:800;">${c.spend.toFixed(2)} ر.س</span></div>`
+      `<div class="campaign-result-row"><span style="flex:1; font-weight:700;">${escapeHtml(c.name)}</span><span style="color:var(--muted);">آخر زيارة قبل ${c.lastVisitDays} يوم</span><span class="mono" style="font-weight:800;">${c.spend.toFixed(2)} ر.س</span></div>`
     ).join('') + `<button class="menu-add-btn" id="campaignExportBtn" style="margin-top:12px;">تصدير القائمة (${matches.length})</button>`;
     document.getElementById('campaignExportBtn').addEventListener('click', ()=>{
       const header = 'الاسم,الجوال,آخر زيارة (يوم),إجمالي الإنفاق\n';
@@ -8064,8 +8038,6 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
       if(!loyaltyBrandingLoaded){
         loyaltyBrandingLoaded = true;
         await loadLoyaltyBranding();
-        loadLoyaltySubscriberCount();
-        loadWinBackSettings();
         // كلُّ ما رُسم قبل سطرين رُسم بنظام النقاط الافتراضي (قيمةُ
         // LOYALTY_BRANDING قبل وصول المحفوظ) -- فمطعمٌ يشغّل بطاقة ختم
         // حقيقية كان يرى "نقاط" لحظة أوّل فتحٍ للتبويب: شارة النظام،
@@ -23098,7 +23070,8 @@ function walletMessagesHtml(){
 function rkFoldContactTab(){
   const tab = document.querySelector('[data-loyalty-tab="contact"]');
   const panel = document.querySelector('[data-loyalty-panel="contact"]');
-  if(!tab || !panel || tab.hidden) return;
+  // البطاقة مخفية من الترميز نفسه، فالعلامة إن القسم انتقل هي rkTargetedMoved.
+  if(!tab || !panel || document.getElementById('rkTargetedMoved')) return;
 
   // "عرض مستهدف" ينتقل إلى تبويب الإشعارات قبل أن يُطوى ما حوله.
   const msgBlock = document.getElementById('walletMsgBlock');
@@ -23129,6 +23102,7 @@ function rkFoldContactTab(){
  * يُرى.
  */
 function renderActiveOffer(){
+  try { lySetSums(); } catch(_){}
   const host = document.getElementById('walletActiveOffer');
   if(!host) return;
   const txt = (LOYALTY_BRANDING || {}).offerText;
@@ -23163,7 +23137,9 @@ function mountWalletMessages(){
   panel.className = 'loyalty-tab-panel';
   panel.dataset.loyaltyPanel = 'notify';
   panel.innerHTML = walletMessagesHtml();
-  panels[panels.length - 1].insertAdjacentElement('afterend', panel);
+  // بعد «التصميم» مباشرة: لو انبنى من جديد يجي قبل «عرض مستهدف»، مو تحته.
+  const anchor = document.querySelector('.loyalty-tab-panel[data-loyalty-panel="design"]') || panels[panels.length - 1];
+  anchor.insertAdjacentElement('afterend', panel);
 
   const out = document.getElementById('walletBroadcastOut');
   window.rkSendBroadcast = async (text, btn, done) => {
@@ -23268,6 +23244,7 @@ function mountWalletMessages(){
         winBackDays: updates.win_back_inactive_days,
       });
       WALLET_ASSETS.labels = updates.wallet_labels;
+      try { lyRenderHero(); lyRenderTodo(); } catch(_){}
       /**
        * والبطاقات تُوقظ: نصُّ الإشعار جزءٌ من البطاقة نفسها، فتغييرُه
        * لا يصل الزبون حتى تُبنى له من جديد.
