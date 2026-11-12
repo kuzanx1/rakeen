@@ -206,3 +206,39 @@
 /* المعاينة: شريط الإعلان ينزل تحت النتوء مثل الجوال الحقيقي. */
 .ls-screen .lk-ann { padding-top: 46px; }
 .ls-screen .lk-ann ~ .lk-share { top: 90px; }
+
+/* ───── إعادة التصميم rk2: «وش وضعي؟» فوق + «وش تبي تسوي؟» (lsx-) ───── */
+.lsx-hero { margin-bottom: 18px; }
+.lsx-top { display: flex; align-items: center; gap: 16px; }
+.lsx-top-txt { flex: 1; min-width: 0; }
+.lsx-top-txt h3 { font-size: 19px; font-weight: 900; margin-top: 2px; }
+.lsx-top-txt p { font-size: 13px; color: var(--muted); margin-top: 3px; line-height: 1.6; max-width: 62ch; }
+.lsx-state { display: inline-flex; align-items: center; gap: 5px; margin-inline-start: 4px; padding: 2px 9px; border-radius: 99px; background: var(--surf2); color: var(--muted); font-size: 11.5px; }
+.lsx-state::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.lsx-state.on { background: color-mix(in srgb, var(--lime) 30%, transparent); color: var(--text); }
+.lsx-state.on::before { background: var(--lime-deep); }
+.lsx-hero .ls-live { flex-shrink: 0; padding: 8px 12px; align-items: center; }
+.lsx-url { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; padding: 10px; border-radius: var(--rk2-r-md, 14px); background: var(--surf1); border: 1px solid var(--line); }
+.lsx-url code { flex: 1 1 200px; min-width: 0; font-size: 14px; font-weight: 700; padding: 4px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.lsx-url .rk2-btn svg { margin-inline-end: 4px; }
+.lsx-hero .rk2-btn.lime svg { margin-inline-start: 4px; transform: rotate(-90deg); }
+.lsx-done .mn-done-ic { width: 52px; height: 52px; border-radius: 16px; }
+.lsx-stats { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+.lsx-stats .iv-stat { flex: 1 1 130px; }
+.lsx-sec { font-size: 16px; font-weight: 900; margin: 2px 0 -4px; }
+.rk2 .lsx-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 0; }
+.lsx-flash { animation: lsx-flash 1s ease-out 2; }
+@keyframes lsx-flash { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--lime) 80%, transparent); } 100% { box-shadow: 0 0 0 12px transparent; } }
+.lsx-empty { padding: 26px 10px; }
+@media (max-width: 1180px) { .rk2 .lsx-tiles .rk2-tile-ic { display: none; } }
+@media (max-width: 700px) {
+  .lsx-top { flex-wrap: wrap; }
+  .lsx-top-txt { flex-basis: calc(100% - 90px); }
+  .lsx-hero .ls-live { width: 100%; align-items: flex-start; }
+  .lsx-top-txt h3 { font-size: 17px; }
+  .rk2 .lsx-tiles { gap: 6px; }
+  .rk2 .lsx-tiles .rk2-tile { padding: 10px; }
+  .rk2 .lsx-tiles .rk2-tile-txt b { font-size: 13px; }
+  .rk2 .lsx-tiles .rk2-tile-txt small { white-space: normal; font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) { .lsx-flash { animation: none; } }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   FONTS, LINK_TYPES, TEMPLATES, TEMPLATE_KEYS, defaultConfig, fontsHref, linkPageUrl, newId, normalizeConfig, resolveHref,
@@ -223,7 +223,7 @@ function LinkList({ items, onChange, biz, social, showNote }: {
         );
         if (it.type === "heading") {
           return (
-            <div key={it.id} className={"ls-link ls-heading" + (it.on ? "" : " off")}>
+            <div key={it.id} data-ls-link={it.id} className={"ls-link ls-heading" + (it.on ? "" : " off")}>
               <div className="ls-link-head">
                 <span className="ls-heading-tag">عنوان قسم</span>
                 <input value={it.label} maxLength={40} placeholder="مثلاً: تواصل معنا" onChange={(e) => set(i, { label: e.target.value })} />
@@ -235,7 +235,7 @@ function LinkList({ items, onChange, biz, social, showNote }: {
         const href = resolveHref(it, biz);
         const broken = it.on && !href;
         return (
-          <div key={it.id} className={"ls-link" + (it.on ? "" : " off") + (broken ? " bad" : "")}>
+          <div key={it.id} data-ls-link={it.id} className={"ls-link" + (it.on ? "" : " off") + (broken ? " bad" : "")}>
             <div className="ls-link-head">
               <button type="button" className={"ls-link-ic pick" + (it.icon ? " custom" : "")} title="غيّر الأيقونة" onClick={() => setPicking(picking === it.id ? null : it.id)}>
                 <Icon name={(it.icon || it.type) as IconName} size={18} />
@@ -424,16 +424,25 @@ function BrandPanel({ cfg, detected, onPrimary, onTone }: {
 }
 
 /* ───────── الإحصائيات ───────── */
-function Stats({ sb, bizId, cfg }: { sb: Sb; bizId: number; cfg: LinkPageConfig }) {
-  const [rows, setRows] = useState<{ day: string; link_id: string; hits: number }[] | null>(null);
-  const [err, setErr] = useState(false);
-  useEffect(() => {
-    const since = new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10);
-    sb.from("link_page_hits").select("day, link_id, hits").eq("business_id", bizId).gte("day", since)
-      .then(({ data, error }: { data: typeof rows; error: unknown }) => { if (error) setErr(true); else setRows(data || []); });
-  }, [sb, bizId]);
+type HitRow = { day: string; link_id: string; hits: number };
+/** مجموع آخر ٣٠ يوم: زيارات الصفحة، وضغطات الروابط (بدون زر المشاركة). */
+function hitTotals(rows: HitRow[]) {
+  const views = rows.filter((r) => r.link_id === "").reduce((a, r) => a + r.hits, 0);
+  const clicks = rows.filter((r) => r.link_id && r.link_id !== "share").reduce((a, r) => a + r.hits, 0);
+  return { views, clicks };
+}
+function Stats({ rows, err, cfg, enabled }: { rows: HitRow[] | null; err: boolean; cfg: LinkPageConfig; enabled: boolean }) {
   if (err) return <p className="ls-empty">الإحصائيات تشتغل بعد تفعيل الميزة من ركين.</p>;
   if (!rows) return <p className="ls-empty">يحمّل...</p>;
+  if (!rows.length) {
+    return (
+      <div className="hm-empty lsx-empty">
+        <span className="hm-empty-ic"><Icon name="users" size={22} /></span>
+        <b>{enabled ? "ما زارها أحد للحين" : "صفحتك مخفية -- محد يقدر يزورها"}</b>
+        <span>{enabled ? "حط رابطها في بايو إنستقرام وتيك توك وسناب، وأول ما يدخلها أحد يطلع هنا." : "انشرها من فوق، وبعدها كل زيارة وضغطة تنحسب هنا."}</span>
+      </div>
+    );
+  }
   const days: string[] = [];
   for (let i = 29; i >= 0; i--) days.push(new Date(Date.now() - i * 86400000 + 3 * 3600000).toISOString().slice(0, 10));
   const views = days.map((d) => rows.filter((r) => r.day === d && r.link_id === "").reduce((a, r) => a + r.hits, 0));
@@ -506,7 +515,11 @@ export default function LinksStudio() {
   const [slug, setSlug] = useState("");
   const [mobilePreview, setMobilePreview] = useState(false);
   const [detected, setDetected] = useState<string[]>([]);
+  const [hits, setHits] = useState<HitRow[] | null>(null);
+  const [hitsErr, setHitsErr] = useState(false);
+  const [celebrate, setCelebrate] = useState(false);
   const lastSrc = useRef<string | null>(null);
+  const prevLeft = useRef<number | null>(null);
 
   // الشاشة نفسها من ترميز اللوحة: ننتظرها، ونحمّل أول ما تنفتح.
   useEffect(() => {
@@ -555,6 +568,15 @@ export default function LinksStudio() {
   }, []);
 
   useEffect(() => { if (active && !biz && state !== "loading") load(); }, [active, biz, state, load]);
+
+  // زيارات آخر ٣٠ يوم: مرّة وحدة مع التحميل، للبطاقة فوق وتبويب «مين زارها».
+  const bizId = biz?.id;
+  useEffect(() => {
+    if (!sb || !bizId) return;
+    const since = new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10);
+    sb.from("link_page_hits").select("day, link_id, hits").eq("business_id", bizId).gte("day", since)
+      .then(({ data, error }: { data: HitRow[] | null; error: unknown }) => { if (error) setHitsErr(true); else setHits(data || []); });
+  }, [sb, bizId]);
 
   // الخطوط كلها مرّة وحدة للمعاينة ومنتقي الخط
   useEffect(() => {
@@ -656,38 +678,155 @@ export default function LinksStudio() {
     toast(`انضاف ${add.length} من إعدادات متجرك`);
   };
 
+  // «وش وضعي؟» -- أربع خطوات من نفس البيانات اللي يشوفها الزبون.
+  const quest = useMemo(() => {
+    if (!cfg || !linkBiz) return null;
+    const real = cfg.links.filter((l) => l.type !== "heading" && l.on);
+    const working = real.filter((l) => resolveHref(l, linkBiz));
+    const broken = real.filter((l) => !resolveHref(l, linkBiz));
+    const socials = cfg.socials.filter((s) => s.on && s.value.trim());
+    let live = false;
+    try { live = !!(saved && JSON.parse(saved).enabled); } catch { /* محفوظ تالف = مو منشور */ }
+    const b = broken[0];
+    const bMeta = b ? LINK_TYPES[b.type] : null;
+    const steps = [
+      { key: "slug", done: /^[a-z0-9][a-z0-9-]{1,39}$/.test(slug), label: "اكتب اسم رابطك",
+        desc: "بالإنجليزي وحروف صغيرة، مثل makboos -- ويصير رابطك makboos.rakeenapp.com/links" },
+      { key: "links", done: working.length > 0 && !b, label: b ? `كمّل زر «${b.label || bMeta!.name}»` : "حط روابطك",
+        desc: !b ? "الطلب، المنيو، واتساب، الموقع -- اللي يدوّره زبونك أول ما يدخل"
+          : b.type === "order" ? "المتجر الإلكتروني مقفل، فزر الطلب ما يطلع -- فعّل المتجر أو أخفِ الزر"
+          : b.type === "booking" ? "صفحة الحجز مقفلة، فالزر ما يطلع -- فعّلها أو أخفِ الزر"
+          : `ناقص ${bMeta!.ask} -- بدونه الزر ما يطلع لزبونك` },
+      { key: "socials", done: socials.length > 0, label: "أضف حساباتك", desc: "إنستقرام وتيك توك وسناب تطلع أيقونات في صفحتك" },
+      { key: "publish", done: live && !dirty, label: live ? "احفظ تعديلاتك" : "انشر صفحتك",
+        desc: live ? "زبونك يشوف النسخة القديمة لين تحفظ" : "بعدها حط الرابط في البايو، وزبونك يوصل لكل شي من مكان واحد" },
+    ];
+    return { steps, live, working: working.length, broken: broken.length };
+  }, [cfg, linkBiz, slug, saved, dirty]);
+  const left = quest ? quest.steps.filter((s) => !s.done).length : null;
+  // احتفال صغير لما تخلص آخر خطوة فعلاً -- مو أول ما تنفتح الشاشة وهي جاهزة.
+  useEffect(() => {
+    if (left === null) return;
+    const was = prevLeft.current;
+    prevLeft.current = left;
+    if (was === null || was === 0 || left !== 0) return;
+    setCelebrate(true);
+    toast("صفحتك شغّالة 🎉 حط رابطها في البايو");
+    const t = window.setTimeout(() => setCelebrate(false), 1600);
+    return () => window.clearTimeout(t);
+  }, [left]);
+
   if (!host) return null;
   const url = linkBiz?.slug ? linkPageUrl(linkBiz.slug) : "";
   const tpl = cfg ? TEMPLATES.find((t) => t.key === cfg.template)! : TEMPLATES[0];
   const iconsMatter = cfg && (cfg.template === "velvet" || cfg.template === "cover");
+  const totals = hits ? hitTotals(hits) : null;
+
+  /** «ابدأ»: يفتح المكان نفسه ويوقف المؤشر فيه. */
+  const focusLater = (sel: string, inputSel = "input") => window.setTimeout(() => {
+    const el = host.querySelector<HTMLElement>(sel);
+    if (!el) return;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    el.classList.remove("lsx-flash"); void el.offsetWidth; el.classList.add("lsx-flash");
+    (el.matches("input") ? el : el.querySelector<HTMLElement>(inputSel))?.focus({ preventScroll: true });
+  }, 60);
+  const goStep = (key: string) => {
+    if (!cfg || !linkBiz) return;
+    setMobilePreview(false);
+    if (key === "publish") { save({ enabled: true }); return; }
+    setTab("content");
+    if (key === "slug") focusLater("#lsSlug");
+    else if (key === "socials") focusLater("#lsSocials", "button.add");
+    else {
+      const b = cfg.links.find((l) => l.type !== "heading" && l.on && !resolveHref(l, linkBiz));
+      focusLater(b ? `[data-ls-link="${b.id}"]` : "#lsLinks", b && !LINK_TYPES[b.type].auto ? "input[dir=ltr]" : "button.add");
+    }
+  };
+  const plural = (n: number) => (n === 1 ? "خطوة وحدة" : n === 2 ? "خطوتين" : `${n} خطوات`);
+
+  const hero = !quest || !cfg || !linkBiz ? null : (() => {
+    const done = quest.steps.length - left!;
+    const nextIdx = quest.steps.findIndex((s) => !s.done);
+    const next = quest.steps[nextIdx];
+    return (
+      <section className={"rk2-card lsx-hero" + (left ? " hm-quest" : " lsx-done") + (celebrate ? " mn-celebrate" : "")}>
+        <div className="lsx-top">
+          {left ? (
+            <div className="hm-ring" style={{ "--p": Math.round((done / quest.steps.length) * 100) } as CSSProperties}><b>{done}<small>/{quest.steps.length}</small></b></div>
+          ) : <span className="mn-done-ic"><Icon name="check" size={20} /></span>}
+          <div className="lsx-top-txt">
+            <div className="hm-kicker"><Icon name="share" size={14} /> صفحة روابطك <span className={"lsx-state" + (quest.live ? " on" : "")}>{quest.live ? "منشورة" : "مخفية"}</span></div>
+            <h3>{!left ? "صفحتك شغّالة" : done === 0 ? "أربع خطوات وتصير لمطعمك صفحة روابط" : `باقي ${plural(left)} و${quest.live ? "تكمل صفحتك" : "تنشرها"}`}</h3>
+            <p>{!left ? "رابط واحد في البايو يوصل زبونك للطلب والمنيو وواتساب والموقع" : "صفحة وحدة فيها الطلب والمنيو وواتساب والموقع وحساباتك -- رابطها يروح في بايو إنستقرام وتيك توك وسناب"}</p>
+          </div>
+          <div className={"ls-live" + (cfg.enabled ? " on" : "")}>
+            <Toggle on={cfg.enabled} onChange={(enabled) => save({ enabled })} label="ظاهرة للزباين" />
+          </div>
+        </div>
+        {url ? (
+          <div className="lsx-url">
+            <code dir="ltr">{url.replace("https://", "")}</code>
+            <button type="button" className="rk2-btn mn-ghost sm" onClick={() => { navigator.clipboard?.writeText(url); toast("✓ نسخت الرابط"); }}>انسخ الرابط</button>
+            <button type="button" className="rk2-btn mn-ghost sm" title="باركود للطباعة" onClick={() => downloadQr(url, linkBiz.slug)}><Icon name="qr" size={15} /> باركود للطاولات</button>
+            {quest.live && <a className="rk2-btn mn-ghost sm" href={url} target="_blank" rel="noopener">افتحها</a>}
+          </div>
+        ) : null}
+        {next && (
+          <>
+            <button type="button" className="hm-quest-next" data-lsx-go={next.key} onClick={() => goStep(next.key)}>
+              <span className="hm-quest-n">{nextIdx + 1}</span>
+              <span className="hm-quest-txt"><b>{next.label}</b><small>{next.desc}</small></span>
+              <span className="rk2-btn lime sm">{next.key === "publish" ? (quest.live ? "احفظ" : "انشرها") : "ابدأ"}<Icon name="arrow" size={15} /></span>
+            </button>
+            <div className="hm-quest-list">
+              {quest.steps.map((s, i) => i === nextIdx ? null : (
+                <button key={s.key} type="button" className={"hm-qstep" + (s.done ? " done" : "")} disabled={s.done} data-lsx-go={s.done ? undefined : s.key} onClick={() => goStep(s.key)}>
+                  <span className="hm-qcheck">{s.done ? <Icon name="check" size={12} stroke={2.4} /> : i + 1}</span>{s.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        {!left && (
+          <div className="lsx-stats">
+            <div className="iv-stat"><span>زيارات · آخر ٣٠ يوم</span><b className="hm-num">{totals ? totals.views.toLocaleString("en") : "—"}</b>{totals && !totals.views && <small>حط الرابط في البايو وتبدأ تنحسب</small>}</div>
+            <div className="iv-stat"><span>ضغطات على الأزرار</span><b className="hm-num">{totals ? totals.clicks.toLocaleString("en") : "—"}</b></div>
+            {totals && totals.views > 0 && <div className="iv-stat"><span>نسبة الضغط</span><b className="hm-num">{Math.round((totals.clicks / totals.views) * 100)}٪</b></div>}
+            <button type="button" className="rk2-btn mn-ghost sm" data-lsx-go="stats" onClick={() => setTab("stats")}>التفاصيل</button>
+          </div>
+        )}
+      </section>
+    );
+  })();
+
+  const tiles: [typeof tab, IconName, string, string][] = !quest ? [] : [
+    ["content", "website", "اكتب روابطك", `${quest.working} ${quest.working === 1 ? "زر شغّال" : "أزرار شغّالة"}` + (quest.broken ? ` · ${quest.broken} ناقص` : "")],
+    ["design", "sparkle", "لوّنها", `تصميم «${tpl.name}» · ألوانك`],
+    ["stats", "users", "مين زارها", hitsErr ? "تشتغل بعد التفعيل" : !totals ? "يحمّل..." : totals.views ? `${totals.views.toLocaleString("en")} زيارة · آخر ٣٠ يوم` : "ما فيه زيارات بعد"],
+  ];
 
   const body = !cfg || !linkBiz ? (
     <div className="ls-loading">{state === "error" ? "تعذر التحميل. حدّث الصفحة." : "يحمّل..."}</div>
   ) : (
     <div className={"ls" + (mobilePreview ? " show-preview" : "")}>
-      <div className="ls-head">
-        <div className="ls-head-txt">
-          <h2>روابطك</h2>
-          <p>صفحة وحدة فيها كل روابط مطعمك: الطلب، المنيو، واتساب، الموقع، حساباتك. حط رابطها في بايو إنستقرام وتيك توك وسناب.</p>
-        </div>
-        <div className={"ls-live" + (cfg.enabled ? " on" : "")}>
-          <Toggle on={cfg.enabled} onChange={(enabled) => save({ enabled })} label={cfg.enabled ? "الصفحة منشورة" : "الصفحة مخفية"} />
-          {url && (
-            <div className="ls-url">
-              <code dir="ltr">{url.replace("https://", "")}</code>
-              <button type="button" className="ls-btn" onClick={() => { navigator.clipboard?.writeText(url); toast("✓ نسخت الرابط"); }}>نسخ</button>
-              <button type="button" className="ls-btn" title="باركود للطباعة" onClick={() => downloadQr(url, linkBiz.slug)}><Icon name="qr" size={15} /> باركود</button>
-              {cfg.enabled && !dirty && <a className="ls-btn" href={url} target="_blank" rel="noopener">افتح</a>}
-            </div>
-          )}
-        </div>
-      </div>
       {state === "nocol" && <div className="ls-note">الميزة جاهزة، تحتاج تفعيل بسيط من فريق ركين قبل الحفظ. تقدر تجرّب التصاميم الحين.</div>}
+      {hero}
 
       <div className="ls-grid">
         <div className="ls-side">
+          <h3 className="lsx-sec">وش تبي تسوي؟</h3>
+          <div className="rk2-tiles lsx-tiles" role="tablist">
+            {tiles.map(([k, ic, title, sum]) => (
+              <button key={k} type="button" role="tab" aria-selected={tab === k} data-ls-tab={k} className={"rk2-tile" + (tab === k ? " active on" : "")} onClick={() => setTab(k)}>
+                <span className="rk2-tile-ic"><Icon name={ic} size={19} /></span>
+                <span className="rk2-tile-txt"><b>{title}</b><small>{sum}</small></span>
+              </button>
+            ))}
+          </div>
+
+          {tab === "design" && (
           <section className="ls-card">
-            <h3>التصميم</h3>
+            <h3>اختر شكل صفحتك</h3>
             <div className="ls-tpls">
               {TEMPLATES.map((t) => (
                 // div لا button: المصغّرة فيها أزرار وروابط الصفحة نفسها (زر داخل زر ممنوع).
@@ -700,12 +839,7 @@ export default function LinksStudio() {
               ))}
             </div>
           </section>
-
-          <div className="ls-tabs">
-            {([["content", "المحتوى"], ["design", "الألوان والخيارات"], ["stats", "الإحصائيات"]] as const).map(([k, l]) => (
-              <button key={k} type="button" className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>
-            ))}
-          </div>
+          )}
 
           {tab === "content" && (
             <>
@@ -717,7 +851,7 @@ export default function LinksStudio() {
                 <ImagePick label="الاسم كشعار (اختياري)" value={cfg.wordmark} onChange={(wordmark) => setCfg({ wordmark })} keepAlpha
                   hint="صورة اسم مطعمك بخلفية شفافة (PNG) -- تطلع بدل الاسم المكتوب" />
                 <Field label="اسم الرابط بالإنجليزي" hint={`نفس اسم متجرك -- الرابط: ${slug || "name"}.rakeenapp.com/links`}>
-                  <input dir="ltr" value={slug} maxLength={40} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} />
+                  <input id="lsSlug" dir="ltr" value={slug} maxLength={40} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} />
                 </Field>
               </section>
 
@@ -740,14 +874,14 @@ export default function LinksStudio() {
                 )}
               </section>
 
-              <section className="ls-card">
+              <section className="ls-card" id="lsLinks">
                 <h3>الأزرار</h3>
                 <p className="ls-hint">اضغط الأيقونة جنب أي رابط واختر من المكتبة. و«عنوان قسم» يرتّب روابطك مجموعات: «اطلب»، «تواصل»، «فروعنا».</p>
                 <LinkList items={cfg.links} onChange={(links) => setCfg({ links })} biz={linkBiz} showNote={cfg.template === "bold"} />
               </section>
 
 
-              <section className="ls-card">
+              <section className="ls-card" id="lsSocials">
                 <div className="ls-card-head">
                   <h3>أيقونات الحسابات</h3>
                   <button type="button" className="ls-btn ghost" onClick={importFromStore}>استورد من متجرك</button>
@@ -771,7 +905,7 @@ export default function LinksStudio() {
             </section>
           )}
 
-          {tab === "stats" && sb && biz && <section className="ls-card"><h3>الإحصائيات</h3><Stats sb={sb} bizId={biz.id} cfg={cfg} /></section>}
+          {tab === "stats" && <section className="ls-card"><h3>مين زار صفحتك؟</h3><Stats rows={hits} err={hitsErr} cfg={cfg} enabled={!!quest?.live} /></section>}
         </div>
 
         <div className="ls-preview">
