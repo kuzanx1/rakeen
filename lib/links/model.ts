@@ -7,7 +7,7 @@ import { ICON_KEYS, type IconKey } from "./icon-keys";
 export type LinkType =
   | "whatsapp" | "phone" | "email" | "order" | "booking" | "location"
   | "instagram" | "tiktok" | "snapchat" | "x" | "facebook" | "youtube"
-  | "website" | "delivery" | "review" | "custom" | "heading";
+  | "website" | "delivery" | "review" | "menu" | "custom" | "heading";
 
 export type LinkItem = {
   id: string;
@@ -72,16 +72,11 @@ export type LinkPageConfig = {
   share: boolean;
   /** شريط إعلان أعلى الصفحة: عرض، افتتاح فرع، ساعات رمضان. link: "order" أو رابط. */
   announce: { on: boolean; text: string; link: string };
-  /** أصناف من المنيو داخل الصفحة. items = أرقام الأصناف بالترتيب. */
-  menu: { on: boolean; title: string; items: string[]; price: boolean; at: "top" | "bottom" };
   opts: { velvet: VelvetOpts; cover: CoverOpts; bold: BoldOpts; ivory: IvoryOpts; pearl: PearlOpts };
 };
 
-/** صنف كما يرجّعه الخادم (get_link_page) أو يقرؤه المحرّر. */
-export type MenuCard = { id: number; name: string; price: number; image: string | null };
-
 /** ما يعرفه الخادم عن المطعم (get_link_page). */
-export type LinkBiz = { name: string; logo: string | null; slug: string; store: boolean; booking: boolean; menu?: MenuCard[] };
+export type LinkBiz = { name: string; logo: string | null; slug: string; store: boolean; booking: boolean };
 
 export const FONTS: Record<FontKey, { label: string; family: string; google: string }> = {
   ruqaa: { label: "رقعة", family: "'Aref Ruqaa', serif", google: "Aref+Ruqaa:wght@400;700" },
@@ -112,6 +107,7 @@ export const TEMPLATE_KEYS = TEMPLATES.map((t) => t.key);
 /** كل نوع رابط: اسمه في المحرّر، وما يُطلب من صاحب المطعم، ونصّ الزر الافتراضي. */
 export const LINK_TYPES: Record<LinkType, { name: string; ask: string; placeholder: string; label: string; social?: boolean; auto?: boolean }> = {
   order: { name: "المتجر الإلكتروني", ask: "", placeholder: "", label: "اطلب أونلاين", auto: true },
+  menu: { name: "المنيو", ask: "رابط المنيو", placeholder: "https://... (فاضي = منيو متجرك في ركين)", label: "المنيو" },
   booking: { name: "صفحة الحجز", ask: "", placeholder: "", label: "احجز موعدك", auto: true },
   whatsapp: { name: "واتساب", ask: "رقم الجوال", placeholder: "05xxxxxxxx", label: "راسلنا واتساب", social: true },
   phone: { name: "اتصال", ask: "رقم الجوال", placeholder: "05xxxxxxxx", label: "اتصل بنا", social: true },
@@ -160,6 +156,7 @@ export function defaultConfig(name = ""): LinkPageConfig {
     v: 1, enabled: false, template: "ivory", name, bio: "", avatar: "", badge: "",
     links: [
       { id: newId(), type: "order", label: "اطلب أونلاين", value: "", on: true, star: true },
+      { id: newId(), type: "menu", label: "المنيو", value: "", on: true },
       { id: newId(), type: "whatsapp", label: "راسلنا واتساب", value: "", on: true },
       { id: newId(), type: "location", label: "موقعنا", value: "", on: true },
     ],
@@ -169,7 +166,6 @@ export function defaultConfig(name = ""): LinkPageConfig {
     icons: true,
     share: true,
     announce: { on: false, text: "", link: "" },
-    menu: { on: false, title: "الأكثر طلباً", items: [], price: true, at: "bottom" },
     opts: {
       velvet: { ...DEFAULT_VELVET }, cover: { ...DEFAULT_COVER }, bold: { ...DEFAULT_BOLD },
       ivory: { ...DEFAULT_IVORY }, pearl: { ...DEFAULT_PEARL },
@@ -208,7 +204,7 @@ export function normalizeConfig(raw: unknown, fallbackName = ""): LinkPageConfig
   const r = raw as Record<string, unknown>;
   const o = rec(r.opts);
   const v = rec(o.velvet), c = rec(o.cover), b = rec(o.bold), iv = rec(o.ivory), p = rec(o.pearl);
-  const cta = rec(r.cta), an = rec(r.announce), mn = rec(r.menu);
+  const cta = rec(r.cta), an = rec(r.announce);
   return {
     v: 1,
     enabled: r.enabled === true,
@@ -226,13 +222,6 @@ export function normalizeConfig(raw: unknown, fallbackName = ""): LinkPageConfig
     icons: bool(r.icons, true),
     share: bool(r.share, true),
     announce: { on: an.on === true, text: str(an.text, 80), link: str(an.link, 400) },
-    menu: {
-      on: mn.on === true,
-      title: str(mn.title, 30) || d.menu.title,
-      items: Array.isArray(mn.items) ? mn.items.map(String).filter((x) => /^\d{1,15}$/.test(x)).slice(0, 8) : [],
-      price: mn.price !== false,
-      at: pick(mn.at, ["top", "bottom"] as const, "bottom"),
-    },
     opts: {
       velvet: {
         bg: img(v.bg), bgColor: color(v.bgColor, DEFAULT_VELVET.bgColor), overlay: num(v.overlay, 0, 90, DEFAULT_VELVET.overlay),
@@ -310,6 +299,8 @@ export function resolveHref(item: Pick<LinkItem, "type" | "value">, biz: Pick<Li
   switch (item.type) {
     case "heading": return "";
     case "order": return storeUrl(biz);
+    // رابط منيو خارجي (PDF، موقع)، وإلا منيو متجره في ركين.
+    case "menu": return v.trim() ? web(v) : storeUrl(biz);
     case "booking": return biz.booking && biz.slug ? `https://rakeenapp.com/book/${biz.slug}` : "";
     case "whatsapp": { const n = saPhone(v); return n.length >= 8 ? `https://wa.me/${n}` : ""; }
     case "phone": { const n = v.replace(/[^\d+]/g, ""); return n.length >= 6 ? `tel:${n}` : ""; }
@@ -328,12 +319,6 @@ export function resolveHref(item: Pick<LinkItem, "type" | "value">, biz: Pick<Li
 export function announceHref(link: string, biz: Pick<LinkBiz, "slug" | "store">): string {
   if (link === "order") return storeUrl(biz);
   return web(link);
-}
-
-/** صنف من المنيو يفتح نفسه في المتجر (?item=). بدون متجر = بطاقة بلا رابط. */
-export function menuHref(id: number, biz: Pick<LinkBiz, "slug" | "store">): string {
-  const s = storeUrl(biz);
-  return s ? `${s}?item=${id}` : "";
 }
 
 /** نص صغير يوضّح الرابط (سطر تحت الاسم لما ما فيه ملاحظة). */
@@ -382,7 +367,3 @@ export function onColor(hex: string): string {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.45 ? "#111111" : "#FFFFFF";
 }
 
-/** السعر بالريال بأرقام إنجليزية: 32 أو 32.50. */
-export function price(n: number): string {
-  return (Number.isInteger(n) ? String(n) : n.toFixed(2)) + " ر.س";
-}

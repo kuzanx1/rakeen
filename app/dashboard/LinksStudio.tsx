@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
-  FONTS, LINK_TYPES, TEMPLATES, defaultConfig, fontsHref, linkPageUrl, newId, normalizeConfig, price, resolveHref,
+  FONTS, LINK_TYPES, TEMPLATES, defaultConfig, fontsHref, linkPageUrl, newId, normalizeConfig, resolveHref,
   type BoldOpts, type CoverOpts, type FontKey, type IvoryOpts, type LinkBiz, type LinkItem, type LinkPageConfig, type LinkType,
-  type MenuCard, type PearlOpts, type TemplateKey, type VelvetOpts,
+  type PearlOpts, type TemplateKey, type VelvetOpts,
 } from "@/lib/links/model";
 import { ICON_LIBRARY, ICON_NAMES, type IconKey } from "@/lib/links/icon-keys";
 import LinkPageView from "../l/LinkPageView";
@@ -304,66 +304,6 @@ function LinkList({ items, onChange, biz, social, showNote }: {
   );
 }
 
-/* ───────── أصناف من المنيو ───────── */
-function MenuPicker({ cfg, setCfg, menu, loading }: { cfg: LinkPageConfig; setCfg: (p: Partial<LinkPageConfig>) => void; menu: MenuCard[]; loading: boolean }) {
-  const [q, setQ] = useState("");
-  const m = cfg.menu;
-  const setM = (p: Partial<LinkPageConfig["menu"]>) => setCfg({ menu: { ...m, ...p } });
-  const byId = new Map(menu.map((x) => [String(x.id), x]));
-  const chosen = m.items.map((id) => byId.get(id)).filter(Boolean) as MenuCard[];
-  const term = q.trim();
-  const pool = menu.filter((x) => !m.items.includes(String(x.id)) && (!term || x.name.includes(term))).slice(0, 40);
-  const move = (i: number, d: number) => {
-    const j = i + d;
-    if (j < 0 || j >= m.items.length) return;
-    const n = [...m.items];
-    [n[i], n[j]] = [n[j], n[i]];
-    setM({ items: n });
-  };
-  return (
-    <>
-      <Toggle on={m.on} onChange={(on) => setM({ on })} label="اعرض أصناف من المنيو في الصفحة" />
-      {m.on && (
-        <>
-          <div className="ls-row2">
-            <Field label="عنوان القسم"><input value={m.title} maxLength={30} placeholder="الأكثر طلباً" onChange={(e) => setM({ title: e.target.value })} /></Field>
-            <Field label="مكانه"><Seg value={m.at} options={[["top", "فوق الروابط"], ["bottom", "تحت الروابط"]]} onChange={(at) => setM({ at })} /></Field>
-          </div>
-          <Toggle on={m.price} onChange={(p) => setM({ price: p })} label="اعرض السعر" />
-          <div className="ls-dishes">
-            {chosen.length === 0 && <p className="ls-empty">اختر لين ٨ أصناف من تحت -- أشهر أطباقك.</p>}
-            {chosen.map((d, i) => (
-              <div key={d.id} className="ls-dish">
-                <span className="ls-dish-img" style={d.image ? { backgroundImage: `url("${d.image}")` } : undefined}>{!d.image && <Icon name="utensils" size={16} />}</span>
-                <b>{d.name}</b><small>{price(d.price)}</small>
-                <button type="button" className="ls-ic-btn" onClick={() => move(i, -1)} disabled={i === 0}>▲</button>
-                <button type="button" className="ls-ic-btn" onClick={() => move(i, 1)} disabled={i === chosen.length - 1}>▼</button>
-                <button type="button" className="ls-ic-btn danger" onClick={() => setM({ items: m.items.filter((x) => x !== String(d.id)) })}>✕</button>
-              </div>
-            ))}
-          </div>
-          {m.items.length < 8 && (
-            <div className="ls-dish-pick">
-              <input value={q} placeholder="ابحث في المنيو..." onChange={(e) => setQ(e.target.value)} />
-              <div className="ls-dish-pool">
-                {loading && <p className="ls-empty">يحمّل المنيو...</p>}
-                {!loading && menu.length === 0 && <p className="ls-empty">ما فيه أصناف في المنيو.</p>}
-                {pool.map((d) => (
-                  <button key={d.id} type="button" onClick={() => setM({ items: [...m.items, String(d.id)] })}>
-                    <span className="ls-dish-img" style={d.image ? { backgroundImage: `url("${d.image}")` } : undefined}>{!d.image && <Icon name="utensils" size={14} />}</span>
-                    <span>{d.name}</span><small>{price(d.price)}</small><Icon name="plus" size={16} />
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          <small className="ls-hint">الصنف المخفي من المتجر أو الموقوف ما يطلع. وإذا متجرك الإلكتروني مفعّل، الضغط على الصنف يفتحه في المتجر.</small>
-        </>
-      )}
-    </>
-  );
-}
-
 /* ───────── خيارات كل تصميم ───────── */
 function VelvetPanel({ o, set }: { o: VelvetOpts; set: (p: Partial<VelvetOpts>) => void }) {
   return (
@@ -495,7 +435,7 @@ function BoldPanel({ o, set, cfg, setCfg }: { o: BoldOpts; set: (p: Partial<Bold
 }
 
 /* ───────── الإحصائيات ───────── */
-function Stats({ sb, bizId, cfg, menu }: { sb: Sb; bizId: number; cfg: LinkPageConfig; menu: MenuCard[] }) {
+function Stats({ sb, bizId, cfg }: { sb: Sb; bizId: number; cfg: LinkPageConfig }) {
   const [rows, setRows] = useState<{ day: string; link_id: string; hits: number }[] | null>(null);
   const [err, setErr] = useState(false);
   useEffect(() => {
@@ -517,11 +457,6 @@ function Stats({ sb, bizId, cfg, menu }: { sb: Sb; bizId: number; cfg: LinkPageC
   const nameOf = (id: string): { name: string; icon?: IconName } => {
     if (id === "cta") return { name: `الزر العائم: ${cfg.cta.label}`, icon: "order" };
     if (id === "ann") return { name: `الإعلان: ${cfg.announce.text || "—"}`, icon: "megaphone" };
-    if (id === "menu") return { name: "«المنيو كامل»", icon: "menu" };
-    if (/^m\d+$/.test(id)) {
-      const d = menu.find((x) => String(x.id) === id.slice(1));
-      return { name: `صنف: ${d ? d.name : "محذوف"}`, icon: "utensils" };
-    }
     const it = all.find((x) => x.id === id);
     return it ? { name: it.label || LINK_TYPES[it.type].name, icon: (it.icon || it.type) as IconName } : { name: "رابط محذوف" };
   };
@@ -581,8 +516,6 @@ export default function LinksStudio() {
   const [busy, setBusy] = useState(false);
   const [slug, setSlug] = useState("");
   const [mobilePreview, setMobilePreview] = useState(false);
-  const [menu, setMenu] = useState<MenuCard[]>([]);
-  const [menuLoading, setMenuLoading] = useState(false);
 
   // الشاشة نفسها من ترميز اللوحة: ننتظرها، ونحمّل أول ما تنفتح.
   useEffect(() => {
@@ -628,15 +561,6 @@ export default function LinksStudio() {
     setSlug(row.online_menu_slug || "");
     setCfgState(c);
     setSaved(row.link_page ? JSON.stringify(c) : "");
-    // المنيو للمعاينة ومنتقي الأصناف (نفس شروط ما يعرضه get_link_page).
-    setMenuLoading(true);
-    client.from("menu_items").select("id, name, price, online_price, image_url, visible_online")
-      .eq("business_id", row.id).eq("active", true).order("sort_order").order("id").limit(600)
-      .then(({ data: items }: { data: any[] | null }) => {
-        setMenu((items || []).filter((m) => m.visible_online !== false)
-          .map((m) => ({ id: m.id, name: m.name, price: Number(m.online_price ?? m.price) || 0, image: m.image_url || null })));
-        setMenuLoading(false);
-      });
   }, []);
 
   useEffect(() => { if (active && !biz && state !== "loading") load(); }, [active, biz, state, load]);
@@ -655,8 +579,8 @@ export default function LinksStudio() {
 
   const linkBiz: LinkBiz | null = useMemo(() => biz && {
     name: biz.name, logo: biz.logo_url, slug: slug || biz.online_menu_slug || "",
-    store: !!biz.online_ordering_enabled, booking: !!biz.online_booking_enabled, menu,
-  }, [biz, slug, menu]);
+    store: !!biz.online_ordering_enabled, booking: !!biz.online_booking_enabled,
+  }, [biz, slug]);
 
   const dirty = !!cfg && JSON.stringify(cfg) !== saved;
 
@@ -718,7 +642,7 @@ export default function LinksStudio() {
       <div className="ls-head">
         <div className="ls-head-txt">
           <h2>روابطك</h2>
-          <p>صفحة وحدة فيها كل روابط مطعمك: الطلب، واتساب، الموقع، أطباقك، حساباتك. حط رابطها في بايو إنستقرام وتيك توك وسناب.</p>
+          <p>صفحة وحدة فيها كل روابط مطعمك: الطلب، المنيو، واتساب، الموقع، حساباتك. حط رابطها في بايو إنستقرام وتيك توك وسناب.</p>
         </div>
         <div className={"ls-live" + (cfg.enabled ? " on" : "")}>
           <Toggle on={cfg.enabled} onChange={(enabled) => save({ enabled })} label={cfg.enabled ? "الصفحة منشورة" : "الصفحة مخفية"} />
@@ -794,10 +718,6 @@ export default function LinksStudio() {
                 <LinkList items={cfg.links} onChange={(links) => setCfg({ links })} biz={linkBiz} showNote={cfg.template === "bold" || cfg.template === "pearl" || cfg.template === "ivory"} />
               </section>
 
-              <section className="ls-card">
-                <h3>من المنيو</h3>
-                <MenuPicker cfg={cfg} setCfg={setCfg} menu={menu} loading={menuLoading} />
-              </section>
 
               <section className="ls-card">
                 <div className="ls-card-head">
@@ -834,7 +754,7 @@ export default function LinksStudio() {
             </section>
           )}
 
-          {tab === "stats" && sb && biz && <section className="ls-card"><h3>الإحصائيات</h3><Stats sb={sb} bizId={biz.id} cfg={cfg} menu={menu} /></section>}
+          {tab === "stats" && sb && biz && <section className="ls-card"><h3>الإحصائيات</h3><Stats sb={sb} bizId={biz.id} cfg={cfg} /></section>}
         </div>
 
         <div className="ls-preview">

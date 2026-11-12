@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { createClient } from "@supabase/supabase-js";
 import type { Metadata, Viewport } from "next";
-import { normalizeConfig, fontsHref, templateFont, themeColor, type LinkBiz, type LinkPageConfig, type MenuCard } from "@/lib/links/model";
+import { normalizeConfig, fontsHref, templateFont, themeColor, type LinkBiz, type LinkPageConfig } from "@/lib/links/model";
 import LinkPageView from "../LinkPageView";
 import HitTracker from "../HitTracker";
 import "../links.css";
@@ -22,10 +22,10 @@ const load = cache(async (slug: string): Promise<Loaded> => {
     const sb = createClient(url, anon, { auth: { persistSession: false } });
     const { data, error } = await sb.rpc("get_link_page", { p_slug: slug.toLowerCase() });
     if (error || !data) return null;
-    const d = data as { name: string; logo: string | null; slug: string; store: boolean; booking: boolean; page: unknown; menu?: MenuCard[] };
+    const d = data as { name: string; logo: string | null; slug: string; store: boolean; booking: boolean; page: unknown };
     return {
       cfg: normalizeConfig(d.page, d.name),
-      biz: { name: d.name, logo: d.logo, slug: d.slug, store: d.store, booking: d.booking, menu: Array.isArray(d.menu) ? d.menu : [] },
+      biz: { name: d.name, logo: d.logo, slug: d.slug, store: d.store, booking: d.booking },
     };
   } catch {
     return null;

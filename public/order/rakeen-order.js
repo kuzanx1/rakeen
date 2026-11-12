@@ -630,24 +630,6 @@ if (!window.__rakeenOrderBooted) {
     renderBranchNote();
     renderFooterLocation();
     if (state.channel === 'delivery') locateNearestBranch();
-    openLinkedItem();
-  }
-
-  // «روابطك»: بطاقة صنف في صفحة الروابط تفتح المتجر على ?item=ID -- ننزل
-  // للصنف ونبرزه، وإن كان له خيارات أو وصف تنفتح نافذته (بدون إضافة للسلة).
-  function openLinkedItem() {
-    try {
-      const id = Number(new URLSearchParams(location.search).get('item'));
-      if (!id) return;
-      const product = PRODUCTS.find(p => p.id === id);
-      if (!product) return;
-      const card = document.querySelector(`.om-product-card[data-id="${id}"]`);
-      if (card) {
-        card.scrollIntoView({ block: 'center' });
-        if (card.animate) card.animate([{ boxShadow: '0 0 0 0 rgba(0,0,0,0)' }, { boxShadow: '0 0 0 4px var(--om-accent, #3E7BFA)' }, { boxShadow: '0 0 0 0 rgba(0,0,0,0)' }], { duration: 1600, iterations: 2 });
-      }
-      if (product.costMode === 'box' || MODIFIER_PRODUCTS[id] || hasDesc(product)) openProduct(id);
-    } catch {}
   }
 
   async function loadMenu(businessId) {

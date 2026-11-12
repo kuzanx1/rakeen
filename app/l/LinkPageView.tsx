@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import {
-  FONTS, LINK_TYPES, announceHref, menuHref, onColor, price, resolveHref, shortHref,
-  type LinkBiz, type LinkItem, type LinkPageConfig, type MenuCard,
+  FONTS, LINK_TYPES, announceHref, onColor, resolveHref, shortHref,
+  type LinkBiz, type LinkItem, type LinkPageConfig,
 } from "@/lib/links/model";
 import { Icon, type IconName } from "./icons";
 
@@ -79,43 +79,6 @@ function Announce({ cfg, biz, className = "" }: { cfg: LinkPageConfig; biz: Link
     : <div className={"lk-ann " + className}>{inner}</div>;
 }
 
-/** أصناف من المنيو: بطاقات تنسحب يمين ويسار، وكل وحدة تفتح الصنف في المتجر. */
-function MenuStrip({ cfg, biz, at }: { cfg: LinkPageConfig; biz: LinkBiz; at: "top" | "bottom" }) {
-  const m = cfg.menu;
-  if (!m.on || m.at !== at || !biz.menu?.length) return null;
-  const byId = new Map(biz.menu.map((x) => [String(x.id), x]));
-  const items = m.items.map((id) => byId.get(id)).filter(Boolean) as MenuCard[];
-  if (!items.length) return null;
-  const store = menuHref(0, biz) ? biz.slug : "";
-  return (
-    <section className="lk-menu">
-      <div className="lk-menu-head">
-        <h2>{m.title}</h2>
-        {store && <a href={`https://${store}.rakeenapp.com/`} data-lid="menu" target="_blank" rel="noopener noreferrer">المنيو كامل</a>}
-      </div>
-      <div className="lk-menu-row">
-        {items.map((d) => {
-          const href = menuHref(d.id, biz);
-          const body = (
-            <>
-              <span className="lk-dish-img" style={d.image ? { backgroundImage: `url("${d.image}")` } : undefined}>
-                {!d.image && <Icon name="utensils" size={26} />}
-              </span>
-              <span className="lk-dish-txt">
-                <b>{d.name}</b>
-                {m.price && <small dir="rtl">{price(d.price)}</small>}
-              </span>
-            </>
-          );
-          return href
-            ? <a key={d.id} className="lk-dish" href={href} data-lid={"m" + d.id} {...ext(href)}>{body}</a>
-            : <div key={d.id} className="lk-dish">{body}</div>;
-        })}
-      </div>
-    </section>
-  );
-}
-
 function Grain({ on }: { on: boolean }) {
   return on ? <div className="lk-grain" aria-hidden /> : null;
 }
@@ -166,9 +129,7 @@ function Velvet({ cfg, biz, links, socials }: Parts) {
         <h1 className="lk-v-name">{cfg.name}</h1>
         <Ornament />
         {cfg.bio && <p className="lk-v-bio">{cfg.bio}</p>}
-        <MenuStrip cfg={cfg} biz={biz} at="top" />
         <Buttons links={links} icons={cfg.icons} />
-        <MenuStrip cfg={cfg} biz={biz} at="bottom" />
         {o.socialsAt === "bottom" && socials.length > 0 && (
           <div className="lk-v-contact">
             <span>تواصل معنا</span>
@@ -199,9 +160,7 @@ function Cover({ cfg, biz, links, socials }: Parts) {
         {cfg.bio && <p className="lk-c-bio">{cfg.bio}</p>}
         {o.rule && <i className="lk-c-rule" />}
         <Announce cfg={cfg} biz={biz} />
-        <MenuStrip cfg={cfg} biz={biz} at="top" />
         <Buttons links={links} icons={cfg.icons} />
-        <MenuStrip cfg={cfg} biz={biz} at="bottom" />
         <Socials items={socials} />
         <Footer />
       </main>
@@ -263,7 +222,6 @@ function Bold({ cfg, biz, links, socials, cta }: Parts) {
             </div>
           </section>
         )}
-        <MenuStrip cfg={cfg} biz={biz} at="top" />
         {groups.filter((g) => g.items.length).map((g, gi) => (
           <section key={gi}>
             <h2>{g.title}</h2>
@@ -279,7 +237,6 @@ function Bold({ cfg, biz, links, socials, cta }: Parts) {
             </div>
           </section>
         ))}
-        <MenuStrip cfg={cfg} biz={biz} at="bottom" />
         <Footer />
         {cta && <div className="lk-b-cta-space" />}
       </main>
@@ -310,7 +267,6 @@ function Ivory({ cfg, biz, links, socials }: Parts) {
         <h1 className="lk-i-name">{cfg.name}</h1>
         {o.ornament && <Ornament />}
         {cfg.bio && <p className="lk-i-bio">{cfg.bio}</p>}
-        <MenuStrip cfg={cfg} biz={biz} at="top" />
         <nav className="lk-i-list">
           {links.map((l, i) => l.type === "heading" ? (
             <h3 key={l.id} className="lk-sec">{l.label}</h3>
@@ -323,7 +279,6 @@ function Ivory({ cfg, biz, links, socials }: Parts) {
             </a>
           ))}
         </nav>
-        <MenuStrip cfg={cfg} biz={biz} at="bottom" />
         {socials.length > 0 && <Socials items={socials} className="lk-i-soc" size={20} />}
         <Footer />
       </main>
@@ -351,7 +306,6 @@ function Pearl({ cfg, biz, links, socials }: Parts) {
         {cfg.badge && <span className="lk-p-badge"><i />{cfg.badge}</span>}
         <Socials items={socials} className="lk-p-soc" size={19} />
         <Announce cfg={cfg} biz={biz} />
-        <MenuStrip cfg={cfg} biz={biz} at="top" />
         <nav className="lk-p-list">
           {links.map((l, i) => l.type === "heading" ? (
             <h3 key={l.id} className="lk-sec">{l.label}</h3>
@@ -364,7 +318,6 @@ function Pearl({ cfg, biz, links, socials }: Parts) {
             </a>
           ))}
         </nav>
-        <MenuStrip cfg={cfg} biz={biz} at="bottom" />
         <Footer />
       </main>
     </div>
