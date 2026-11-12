@@ -139,28 +139,7 @@ const AVG_PREP_TIME = 8.4; // minutes
    established in the Welcome screen, Attention Center, and Health Score "why" text — this
    screen explains those facts, it doesn't invent new ones. Waste (7%, 3,200 SAR/month) matches
    the exact figures from the original landing page's health radar scene. */
-let STOCK_ITEMS = [
-  {id:1, name:'دجاج', qtyOnHand:3, parLevel:20, unitCost:18, unit:'kg', category:'raw'},
-  {id:2, name:'جبن', qtyOnHand:3, parLevel:15, unitCost:32, unit:'kg', category:'raw'},
-  {id:3, name:'بطاطس', qtyOnHand:10, parLevel:40, unitCost:4, unit:'kg', category:'raw'},
-  {id:4, name:'خبز برجر', qtyOnHand:90, parLevel:200, unitCost:1.2, unit:'piece', category:'raw'},
-  {id:5, name:'حليب', qtyOnHand:15, parLevel:25, unitCost:6, unit:'liter', category:'raw'},
-  {id:6, name:'حبوب قهوة', qtyOnHand:8, parLevel:10, unitCost:55, unit:'kg', category:'raw'},
-  {id:7, name:'لحم برجر', qtyOnHand:5, parLevel:13, unitCost:45, unit:'kg', category:'raw'},
-  {id:8, name:'طماطم', qtyOnHand:8, parLevel:20, unitCost:6, unit:'kg', category:'raw'},
-  {id:9, name:'صوص', qtyOnHand:4, parLevel:10, unitCost:14, unit:'kg', category:'raw'},
-  {id:10, name:'كيس تغليف', qtyOnHand:150, parLevel:300, unitCost:0.30, unit:'piece', category:'packaging'},
-  {id:11, name:'كرتون تغليف', qtyOnHand:120, parLevel:250, unitCost:1.20, unit:'piece', category:'packaging'},
-  {id:12, name:'كوب وغطاء (حار)', qtyOnHand:100, parLevel:200, unitCost:0.40, unit:'piece', category:'packaging'},
-  {id:13, name:'كوب وغطاء (بارد)', qtyOnHand:80, parLevel:200, unitCost:0.60, unit:'piece', category:'packaging'},
-  {id:14, name:'ملعقة', qtyOnHand:300, parLevel:500, unitCost:0.05, unit:'piece', category:'packaging'},
-  {id:15, name:'سمبوسة دجاج', qtyOnHand:80, parLevel:200, unitCost:1.20, unit:'piece', category:'raw'},
-  {id:16, name:'سمبوسة لحم', qtyOnHand:60, parLevel:200, unitCost:1.40, unit:'piece', category:'raw'},
-  {id:17, name:'ورق عنب', qtyOnHand:100, parLevel:250, unitCost:0.90, unit:'piece', category:'raw'},
-  {id:18, name:'مسخن', qtyOnHand:50, parLevel:150, unitCost:1.60, unit:'piece', category:'raw'},
-  {id:19, name:'كرتون تغليف كبير', qtyOnHand:60, parLevel:150, unitCost:1.80, unit:'piece', category:'packaging'},
-  {id:20, name:'بيكون', qtyOnHand:4, parLevel:10, unitCost:60, unit:'kg', category:'raw'}
-];
+let STOCK_ITEMS = [];
 let stockIdCounter = 21;
 /* النسبة لم تعد تُقصّ عند ١٠٠٪.
    القصّ هو ما جمّد الشريط أصلًا: من عبّأ من ٣٣٩ إلى ١٠٠٠ كان يقرأ
@@ -2120,36 +2099,6 @@ async function refreshStockInsights(){
   });
 }
 
-function renderWasteAndFoodCost(){
-  // The old "نسبة الهدر" (waste %) card was a hardcoded constant
-  // (WASTE_STATS = {pct:7, monthlyCost:3200}) shown as if real on every
-  // business's dashboard — there's no actual waste-logging feature behind
-  // it. Swapped for something equally useful in the same slot that's
-  // fully real: total value currently sitting in stock, computed straight
-  // from STOCK_ITEMS, plus how many items are running low.
-  const stockValuePanel = document.getElementById('stockValuePanel');
-  const totalValue = STOCK_ITEMS.reduce((s,i)=> s + Math.max(0, i.qtyOnHand) * i.unitCost, 0);
-  const lowItems = STOCK_ITEMS.filter(i => computeStockTierFor(i) !== 'ok');
-  document.getElementById('stockValueAmount').textContent = totalValue.toFixed(2) + ' ر.س';
-  document.getElementById('stockValueDetail').textContent = lowItems.length > 0
-    ? lowItems.length + (lowItems.length===1 ? ' صنف منخفض يحتاج انتباه' : ' أصناف منخفضة تحتاج انتباه')
-    : 'كل أصنافك بمستوى جيد';
-  if(stockValuePanel){
-    stockValuePanel.classList.remove('ok','warn','critical');
-    stockValuePanel.classList.add(lowItems.some(i=>computeStockTierFor(i)==='critical') ? 'critical' : lowItems.length>0 ? 'warn' : 'ok');
-  }
-
-  const foodCostPanel = document.getElementById('foodCostPanel');
-  const realPct = realFoodCostPct();
-  document.getElementById('foodCostPct').textContent = (realPct ?? FOOD_COST_STATS.pct) + '٪';
-  document.getElementById('foodCostDetail').textContent = realPct === null
-    ? 'بعد أول عملية بيع بيصير هذا الرقم حقيقي'
-    : realPct <= 33 ? 'ضمن المعدل الصحي لمطاعم الكوفي (٢٨-٣٣٪)' : 'أعلى من المعدل الصحي لمطاعم الكوفي (٢٨-٣٣٪) — راجع تكلفة وصفاتك';
-  if(foodCostPanel){
-    foodCostPanel.classList.remove('ok','warn','critical');
-    foodCostPanel.classList.add(realPct === null ? 'ok' : realPct <= 33 ? 'ok' : 'warn');
-  }
-}
 
 /* ============ Today's real consumption — computed from actual units sold (ALL_SELLERS) x each
    recipe's quantities, unit-converted to the stock item's own tracking unit. This is the literal
@@ -2180,26 +2129,6 @@ function computeTodayConsumption(stockItemName){
 /* خانة المستوى. ترتيبها مقصود: العنوان هو ما يُتصرَّف بناءً عليه --
    «يكفيك ٤ أيام» -- والنسبة تحته تفصيلٌ يشرح من أين جاء. وإن لم يكن
    للصنف حركةٌ بعد قيل ذلك صراحةً بدل تقديرٍ لا نملكه. */
-function stockLevelCellHtml(s, pct, tier){
-  if(s.parIsSet === false && s.daysLeft == null){
-    // بلا أساسٍ ولا حركة: النسبة ١٠٠٪ حسابيًا دائمًا (الموجود ÷ الموجود).
-    // شريطٌ أخضر ممتلئ هنا يقول «مخزونك كامل» عن صنفٍ قد يكون على وشك
-    // النفاد. فلا يُرسم، ويُقال السبب.
-    return `<span class="mtr-stock-nobase">بلا مخزون معتاد</span>`;
-  }
-  const bar = `<div class="stock-bar-track"><div class="stock-bar-fill ${tier}" style="width:${stockBarWidth(pct)}%"></div></div>`;
-  if(s.daysLeft != null){
-    const d = s.daysLeft;
-    const lbl = daysCoverLabel(d, s.qtyOnHand);
-    const head = (s.qtyOnHand <= 0 || d < 1) ? lbl : 'يكفيك ' + lbl;
-    return `${bar}
-      <span class="mtr-stock-days ${tier}">${head}</span>
-      <span class="mtr-stock-sub mono"${pct > 105 ? ' title="فوق مخزونك المعتاد — فلوس محجوزة في الرف"' : ''}>${pct}٪ من معتادك</span>`;
-  }
-  return `${bar}
-    <span class="mtr-stock-pct mono">${pct}٪</span>
-    <span class="mtr-stock-sub">لسا ما نعرف معدّل استهلاكك</span>`;
-}
 
 /* لا علامة صح: أول رقمٍ تسجّله لصنفٍ بلا أساس هو أساسه في كل الحالات
    تقريبًا، فمربّعٌ مؤشَّر سلفًا لا يفعل إلا أن يضيف نقرة ويوهم بقرار.
@@ -2229,106 +2158,263 @@ function stockParSuggestionHtml(){
     </div>`;
 }
 
-function stockRowHtml(s, usedInMap){
+/* ============ شاشة «المخزون» (iv-) ============
+   تجاوب أول ما تنفتح: وش وضع مخزوني؟ وش أسوي الحين؟
+   ١) بطاقة الحال: كم صنف قرّب يخلص، قيمة اللي على الرف، تكلفة الأكل اليوم.
+   ٢) «وش أسوي الحين»: الأصناف اللي بتخلص قبل الطلبية الجاية، كل واحد بزرّه.
+   ٣) الأصناف كلها بطاقات مرتّبة بالأولوية، مع بحث وترشيح.
+   الخطر يُقاس بالأيام (computeStockTierFor) في كل مكان -- لا بالنسبة في
+   مكان وبالأيام في مكان، فيختلف العدّاد عن البطاقة. */
+const IV_IC = {
+  box: HM_IC.inventory,
+  truck:'<rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
+  count:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+  link:'<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  copy:'<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+};
+function ivIc(n){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IV_IC[n] || HM_IC[n] || MN_IC[n] || '') + '</svg>'; }
+function ivNum(n){ const v = Number(n) || 0; return (Math.round(v * 100) / 100).toLocaleString('en-US', {maximumFractionDigits:2}); }
+function ivUnit(s){ return UNIT_LABELS[s.unit] || ''; }
+function needsStockAttention(s){ return computeStockTierFor(s) !== 'ok'; }
+const IV_RANK = {critical:0, warn:1, ok:2};
+function ivSorted(list){
+  return [...list].sort((a,b)=>{
+    const ta = IV_RANK[computeStockTierFor(a)], tb = IV_RANK[computeStockTierFor(b)];
+    if(ta !== tb) return ta - tb;
+    const da = a.qtyOnHand <= 0 ? -1 : (a.daysLeft != null ? a.daysLeft : 1e9);
+    const db = b.qtyOnHand <= 0 ? -1 : (b.daysLeft != null ? b.daysLeft : 1e9);
+    if(da !== db) return da - db;
+    return a.name.localeCompare(b.name, 'ar');
+  });
+}
+/* السطر اللي يقرأه صاحب المطعم قبل الأرقام: كم يكفيك. */
+function ivStatus(s){
+  const tier = computeStockTierFor(s);
+  if(s.qtyOnHand < 0) return {tier:'critical', text:'الكمية سالبة'};
+  if(s.qtyOnHand <= 0) return {tier:'critical', text:'خلص'};
+  if(s.daysLeft != null){
+    const lbl = daysCoverLabel(s.daysLeft, s.qtyOnHand);
+    return {tier, text: s.daysLeft < 1 ? 'يخلص اليوم' : 'يكفيك ' + lbl};
+  }
+  if(s.parIsSet === false) return {tier:'none', text:'بلا مخزون معتاد'};
+  return {tier, text: computeStockPct(s) + '% من معتادك'};
+}
+/* كم تطلب: الأساس المقترح من واقع حركتك ناقص اللي عندك. ما نخترع رقم
+   إذا ما تجمّعت حركة كافية. */
+function ivSuggestBuy(s){
+  if(s.suggestedPar == null || !(s.historyDays >= 7)) return null;
+  const need = s.suggestedPar - Math.max(0, s.qtyOnHand);
+  return need > 0 ? Math.ceil(need) : null;
+}
+
+function renderWasteAndFoodCost(){ ivRenderSummary(); }
+
+function ivRenderSummary(){
+  const el = document.getElementById('ivSummary');
+  if(!el) return;
+  if(!STOCK_ITEMS.length){
+    el.innerHTML = '<div class="rk2-card iv-start">'
+      + '<div class="hm-kicker">' + ivIc('box') + 'مخزونك</div>'
+      + '<h3>سجّل موادك، والكاشير يخصم منها لحاله</h3>'
+      + '<p>ثلاث خطوات وتعرف كل يوم وش قرّب يخلص قبل لا يخلص فعلاً</p>'
+      + '<ol class="iv-steps">'
+      + '<li><b>أضف موادك</b><span>الرز والدجاج والعلب… وكم عندك منها الحين</span></li>'
+      + '<li><b>اربطها بمنتجاتك</b><span>من «القائمة» حدّد وش يدخل في كل منتج</span></li>'
+      + '<li><b>بيع عادي</b><span>كل طلب ينقص من المخزون، ونقولك كم يكفيك</span></li></ol>'
+      + '<div class="iv-start-acts"><button type="button" class="rk2-btn lime" data-iv-go="add">' + ivIc('plus') + 'أضف أول صنف</button>'
+      + '<button type="button" class="rk2-btn mn-ghost" data-iv-go="import">' + ivIc('upload') + 'عندي قائمة جاهزة</button></div>'
+      + '</div>';
+    return;
+  }
+  const crit = STOCK_ITEMS.filter(s=>computeStockTierFor(s) === 'critical');
+  const warn = STOCK_ITEMS.filter(s=>computeStockTierFor(s) === 'warn');
+  const out = crit.filter(s=>s.qtyOnHand <= 0).length;
+  const anyDays = STOCK_ITEMS.some(s=>s.daysLeft != null);
+  let title, sub, mood;
+  if(crit.length || warn.length){
+    const n = crit.length + warn.length;
+    mood = crit.length ? 'critical' : 'warn';
+    title = hmPlural(n, 'صنف واحد', 'صنفين', 'أصناف', 'صنف').replace(/^(\d+)/, '<span class="hm-num">$1</span>') + (n === 1 ? ' لازم تطلبه قريب' : ' لازم تطلبها قريب');
+    sub = out ? (out === 1 ? 'صنف واحد خلص فعلاً' : hmPlural(out, '', 'صنفين', 'أصناف', 'صنف') + ' خلصت فعلاً') + '، ابدأ فيها' : 'قبل لا تخلص وتوقف عليك طلبات';
+  } else {
+    mood = 'ok';
+    title = 'مخزونك مطمّن';
+    sub = anyDays ? 'كل أصنافك تكفيك لين الطلبية الجاية' : 'نحسب كم يكفيك كل صنف من واقع بيعك، أول ما تتجمّع حركة كافية';
+  }
+  const stats = [];
+  stats.push('<div class="iv-stat"><span>عدد الأصناف</span><b class="hm-num">' + STOCK_ITEMS.length + '</b></div>');
+  if(canViewProfit()){
+    const value = STOCK_ITEMS.reduce((sum,i)=> sum + Math.max(0, i.qtyOnHand) * (i.unitCost || 0), 0);
+    stats.push('<div class="iv-stat"><span>قيمة اللي على الرف</span>' + hmMoney(value) + '</div>');
+    if(planHas('costing_profit')){
+      const pct = realFoodCostPct();
+      stats.push(pct === null
+        ? '<div class="iv-stat muted"><span>تكلفة الأكل اليوم</span><b>—</b><small>تطلع بعد أول بيع اليوم</small></div>'
+        : '<div class="iv-stat ' + (pct <= 33 ? 'good' : 'warn') + '"><span>تكلفة الأكل اليوم</span><b class="hm-num">' + pct + '%</b><small>' + (pct <= 33 ? 'ضمن المعدل الصحي (28–33%)' : 'أعلى من المعدل (28–33%)، راجع تكلفة وصفاتك') + '</small></div>');
+    }
+  }
+  el.innerHTML = '<div class="rk2-card iv-hero ' + mood + '">'
+    + '<div class="iv-hero-main"><span class="iv-hero-ic">' + ivIc(mood === 'ok' ? 'check' : 'alert') + '</span>'
+    + '<div><div class="hm-kicker">' + ivIc('box') + 'مخزونك الحين</div><h3>' + title + '</h3><p>' + sub + '</p></div></div>'
+    + '<div class="iv-stats">' + stats.join('') + '</div></div>';
+}
+
+/* «وش أسوي الحين»: أقرب خمسة للنفاد، كل واحد بفعله المباشر. */
+function ivRenderTodo(){
+  const el = document.getElementById('ivTodo');
+  if(!el) return;
+  const noRecipe = typeof productsLinkedWithNoRecipe === 'function' ? productsLinkedWithNoRecipe() : [];
+  const urgent = ivSorted(STOCK_ITEMS.filter(needsStockAttention));
+  if(!urgent.length && !noRecipe.length){ el.innerHTML = ''; return; }
+  const rows = urgent.slice(0, 5).map(s=>{
+    const st = ivStatus(s);
+    const buy = ivSuggestBuy(s);
+    const negative = s.qtyOnHand < 0;
+    const hint = negative ? 'الرقم ما يركب — جرّد الرف واكتب اللي عندك فعلاً'
+      : buy ? 'اطلب تقريبًا <b class="hm-num">' + ivNum(buy) + '</b> ' + ivUnit(s) + ' عشان تكمّل دورتك'
+      : 'عندك <b class="hm-num">' + ivNum(s.qtyOnHand) + '</b> ' + ivUnit(s);
+    return '<div class="iv-todo-row ' + st.tier + '">'
+      + '<button type="button" class="iv-todo-name" data-iv-open="' + s.id + '"><b>' + escapeHtml(s.name) + '</b><span class="iv-pill ' + st.tier + '">' + st.text + '</span></button>'
+      + '<small class="iv-todo-hint">' + hint + '</small>'
+      + '<div class="iv-todo-acts">'
+      + (negative
+        ? '<button type="button" class="rk2-btn lime sm" data-iv-act="count" data-id="' + s.id + '">' + ivIc('count') + 'جرد</button>'
+        : '<button type="button" class="rk2-btn lime sm" data-iv-act="receive" data-id="' + s.id + '">' + ivIc('truck') + 'استلمت كمية</button>'
+          + '<button type="button" class="rk2-btn mn-ghost sm" data-iv-act="count" data-id="' + s.id + '">جرد</button>')
+      + '</div></div>';
+  }).join('');
+  const more = urgent.length > 5 ? '<button type="button" class="iv-more" data-iv-filter="attention">وفيه ' + hmPlural(urgent.length - 5, 'صنف ثاني', 'صنفين ثانيين', 'أصناف ثانية', 'صنف ثاني') + ' ←</button>' : '';
+  const recipeWarn = noRecipe.length ? '<div class="iv-recipe-warn">' + ivIc('link')
+    + '<div><b>' + hmPlural(noRecipe.length, 'منتج واحد يبيع', 'منتجين يبيعون', 'منتجات تبيع', 'منتج يبيع') + ' بدون ما ينقص المخزون</b>'
+    + '<small>' + noRecipe.slice(0, 6).map(m=>escapeHtml(m.name)).join('، ') + (noRecipe.length > 6 ? ' +' + (noRecipe.length - 6) : '') + ' — حدّد وش يدخل فيها من القائمة</small></div>'
+    + '<button type="button" class="rk2-btn mn-ghost sm" data-iv-go="menu">افتح القائمة</button></div>' : '';
+  el.innerHTML = '<div class="rk2-card iv-todo">'
+    + hmHead('flag', 'ops', 'وش أسوي الحين؟', urgent.length ? 'الأقرب للنفاد أول. سجّل اللي استلمته، أو جرّد إذا الرقم غلط' : 'عشان يصير المخزون دقيق')
+    + (rows ? '<div class="iv-todo-list">' + rows + '</div>' : '') + more + recipeWarn + '</div>';
+}
+
+function ivCardHtml(s, usedInMap){
+  const st = ivStatus(s);
   const usedBy = usedInMap[s.name];
   const pct = computeStockPct(s);
-  const tier = computeStockTierFor(s);
-  const consumption = computeTodayConsumption(s.name);
-  // A negative qty_on_hand (consumption recorded exceeding what was ever
-  // purchased, or a data-entry error) is otherwise invisible — the stock
-  // bar clamps to 0% same as a legitimately-empty item, so nothing visually
-  // distinguishes "genuinely out of stock" from "the numbers don't add up
-  // and need investigation." Confirmed this is a real, live case, not
-  // hypothetical.
-  const negativeWarning = s.qtyOnHand < 0
-    ? `<div class="mtr-negative-warning"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4"/><path d="M10.4 3.9 1.7 18a2 2 0 0 0 1.7 3h17.2a2 2 0 0 0 1.7-3L13.6 3.9a2 2 0 0 0-3.2 0z"/><path d="M12 16h.01"/></svg>الكمية سالبة (${s.qtyOnHand} ${UNIT_LABELS[s.unit]}) — راجع سجل المشتريات والاستهلاك لهذا الصنف</div>`
-    : '';
-  return `<div class="menu-table-row" data-id="${s.id}">
-      <div class="mtr-product">
-        <div class="mtr-name-col">
-          <div class="mtr-name">${s.name}</div>
-          <div class="mtr-meta">${s.parLevel > 0 ? s.qtyOnHand + ' من ' + s.parLevel + ' ' + UNIT_LABELS[s.unit] + ' متبقي' : s.qtyOnHand + ' ' + UNIT_LABELS[s.unit] + ' — سجّل أول كمية لهذا الصنف'}${consumption.totalQty>0 ? ' — استهلك اليوم '+consumption.totalQty.toFixed(consumption.totalQty<10?2:0)+' '+UNIT_LABELS[s.unit]+' (في '+consumption.unitsSold+' قطعة مباعة)' : ''}</div>
-          ${s.autoConsumption ? `<div class="mtr-auto-cons">⚙️ استهلاك تلقائي: كل ${s.autoConsumption.perQty} مبيعة من ${s.autoConsumption.targets.length} ${s.autoConsumption.targets.length===1?'هدف':'أهداف'}</div>` : ''}
-          ${negativeWarning}
-        </div>
-      </div>
-      <div class="mtr-price mono">${formatUnitCost(s.unitCost)} / ${UNIT_LABELS[s.unit]}</div>
-      <div class="mtr-stock-bar-cell">${stockLevelCellHtml(s, pct, tier)}</div>
-      <div class="mth-col-modused"><span class="mtr-mod-used"${usedBy ? ` title="${escapeHtml(usedBy.join('، '))}"` : ''}>${usedBy ? escapeHtml(usedBy.slice(0,2).join('، ')) + (usedBy.length>2 ? ' +'+(usedBy.length-2) : '') : 'غير مرتبط'}</span></div>
-      <div class="mtr-action"><button class="mtr-edit-btn" data-id="${s.id}">تعديل</button></div>
-    </div>`;
+  const showBar = !(s.parIsSet === false && s.daysLeft == null);
+  const cost = canViewProfit() ? '<span>' + formatUnitCost(s.unitCost) + ' / ' + ivUnit(s) + '</span>' : '';
+  return '<div class="iv-card ' + st.tier + '" data-id="' + s.id + '" role="button" tabindex="0">'
+    + '<div class="iv-card-top"><b class="iv-name">' + escapeHtml(s.name) + '</b><span class="iv-pill ' + st.tier + '">' + st.text + '</span></div>'
+    + '<div class="iv-qty"><b class="hm-num">' + ivNum(s.qtyOnHand) + '</b><small>' + ivUnit(s) + '</small>'
+    + (s.parIsSet !== false && s.parLevel > 0 ? '<span class="iv-of">من <span class="hm-num">' + ivNum(s.parLevel) + '</span> معتادك</span>' : '') + '</div>'
+    + (showBar ? '<span class="hm-track iv-track"><i class="' + st.tier + '" style="width:' + Math.max(2, stockBarWidth(pct)) + '%"></i></span>' : '<span class="iv-nobase">حدّد كم تخزّن عادةً عشان ننبّهك قبل لا يخلص</span>')
+    + '<div class="iv-meta">' + cost
+    + '<span class="' + (usedBy ? '' : 'iv-unlinked') + '"' + (usedBy ? ' title="' + escapeHtml(usedBy.join('، ')) + '"' : '') + '>'
+    + (usedBy ? 'في ' + escapeHtml(usedBy.slice(0,2).join('، ')) + (usedBy.length > 2 ? ' +' + (usedBy.length - 2) : '') : 'مو داخل في أي منتج') + '</span></div>'
+    + (s.autoConsumption ? '<div class="iv-auto">ينقص لحاله: كل ' + s.autoConsumption.perQty + ' مبيعة</div>' : '')
+    + '</div>';
 }
+
 let stockSearchQuery = '';
 let stockAttentionFilter = 'all';
-// Collapsed state persists across re-renders (search, filter toggles) so
-// folding away "تغليف" while you work through raw materials doesn't keep
-// popping back open.
-let stockCatCollapsed = {raw:false, packaging:false};
-function needsStockAttention(s){ return computeStockTier(computeStockPct(s)) !== 'ok'; }
-
-function stockCatGroupHtml(key, label, items, usedInMap){
-  if(items.length === 0) return '';
-  const collapsed = stockCatCollapsed[key];
-  return `
-    <div class="stock-cat-group">
-      <button type="button" class="stock-cat-toggle" data-cat="${key}">
-        <span>${label} <span class="stock-cat-count">${items.length}</span></span>
-        <svg class="stock-cat-chevron ${collapsed?'':'open'}" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-      </button>
-      <div class="stock-cat-body ${collapsed?'hidden':''}">
-        ${items.map(s=>stockRowHtml(s, usedInMap)).join('')}
-      </div>
-    </div>`;
+const IV_FILTERS = [
+  ['all', 'الكل', ()=>true],
+  ['attention', 'يحتاج طلب', needsStockAttention],
+  ['raw', 'مواد خام', s=>s.category !== 'packaging'],
+  ['packaging', 'تغليف', s=>s.category === 'packaging'],
+];
+function ivRenderFilters(){
+  const el = document.getElementById('ivFilters');
+  if(!el) return;
+  if(!STOCK_ITEMS.length){ el.innerHTML = ''; return; }
+  el.innerHTML = IV_FILTERS.map(([k, label, fn])=>{
+    const n = STOCK_ITEMS.filter(fn).length;
+    if(k !== 'all' && k !== 'attention' && !n) return '';
+    return '<button type="button" data-iv-filter="' + k + '" class="' + (stockAttentionFilter === k ? 'active' : '') + (k === 'attention' && n ? ' iv-f-warn' : '') + '">' + label + ' <span class="mn-tab-n">' + n + '</span></button>';
+  }).join('');
 }
 
 function renderStockTable(){
-  const usedInMap = getUsedInMap();
+  ivRenderSummary();
+  ivRenderTodo();
+  ivRenderFilters();
   const el = document.getElementById('stockTable');
   if(!el) return;
+  const tools = document.getElementById('ivTools');
+  if(tools) tools.hidden = !STOCK_ITEMS.length;
+  const foot = document.querySelector('#screen-inventory .iv-foot');
+  if(foot) foot.hidden = !STOCK_ITEMS.length;
+  if(!STOCK_ITEMS.length){ el.innerHTML = ''; return; }
   const q = stockSearchQuery.trim();
-  let filtered = q ? STOCK_ITEMS.filter(s=>s.name.includes(q)) : STOCK_ITEMS;
-  if(stockAttentionFilter === 'attention') filtered = filtered.filter(needsStockAttention);
-
-  const attentionCountEl = document.getElementById('stockAttentionCount');
-  if(attentionCountEl) attentionCountEl.textContent = '(' + STOCK_ITEMS.filter(needsStockAttention).length + ')';
-
-  if(filtered.length === 0){
-    el.innerHTML = `<div class="menu-table-empty">${q ? 'ما فيه أصناف تطابق هذا البحث.' : 'كل أصنافك بمستوى جيد — ما فيه شي يحتاج انتباه الحين.'}</div>`;
+  const f = (IV_FILTERS.find(x=>x[0] === stockAttentionFilter) || IV_FILTERS[0])[2];
+  const list = ivSorted(STOCK_ITEMS.filter(s=>(!q || s.name.includes(q) || (s.nameEn || '').toLowerCase().includes(q.toLowerCase())) && f(s)));
+  if(!list.length){
+    el.innerHTML = '<div class="mn-empty">' + (q
+      ? hmEmpty('search', 'ما لقينا «' + escapeHtml(q) + '»', 'جرّب اسم ثاني، أو أضفه صنف جديد') + '<button type="button" class="rk2-btn mn-ghost sm" data-iv-clear>امسح البحث</button>'
+      : hmEmpty('check', 'ولا صنف هنا', stockAttentionFilter === 'attention' ? 'كل أصنافك تكفيك لين الطلبية الجاية' : 'جرّب ترشيح ثاني')) + '</div>';
     return;
   }
-  const raw = filtered.filter(s=>s.category!=='packaging');
-  const packaging = filtered.filter(s=>s.category==='packaging');
-  // منتجات تبيع بلا ما تنقص شيئًا: أول ما يُسأل عنه حين «المخزون ما نقص».
-  // يُقال هنا لأن هنا يقف صاحب المطعم وهو يسأل، لا في شاشة القائمة.
-  const noRecipe = productsLinkedWithNoRecipe();
-  const noRecipeBanner = noRecipe.length ? `
-    <div class="stock-no-recipe-banner">
-      <div class="snrb-head">⚠️ ${noRecipe.length} منتج يبيع بدون ما ينقص المخزون</div>
-      <div class="snrb-body">هذي المنتجات مربوطة بالمخزون لكن ما لها وصفة (ولا مكوّن واحد)، فالكاشير يبيعها وما ينزل منها شيء. افتح كل واحد من: القائمة ← تعديل المنتج ← التكلفة والمخزون، وأضف مكوّناته.</div>
-      <div class="snrb-chips">${noRecipe.slice(0,12).map(m=>`<span class="snrb-chip">${escapeHtml(m.name)}</span>`).join('')}${noRecipe.length>12 ? `<span class="snrb-chip snrb-more">+${noRecipe.length-12}</span>` : ''}</div>
-    </div>` : '';
-  el.innerHTML = noRecipeBanner + stockCatGroupHtml('raw', 'مواد خام أساسية', raw, usedInMap) + stockCatGroupHtml('packaging', 'تغليف ومستلزمات', packaging, usedInMap);
+  const usedInMap = getUsedInMap();
+  el.innerHTML = list.map(s=>ivCardHtml(s, usedInMap)).join('');
+}
 
-  el.querySelectorAll('.menu-table-row').forEach(row=>{
-    row.addEventListener('click', ()=> openStockItemModal(parseInt(row.dataset.id)));
-  });
-  el.querySelectorAll('.stock-cat-toggle').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const key = btn.dataset.cat;
-      stockCatCollapsed[key] = !stockCatCollapsed[key];
-      renderStockTable();
-    });
-  });
+function ivSetFilter(k){
+  stockAttentionFilter = k;
+  renderStockTable();
+}
+
+
+/* الحذف: تأكيد داخل النافذة نفسها -- لا نافذة متصفح ولا نافذة فوق نافذة. */
+function ivAskDelete(){
+  if(!editingStockId) return;
+  const item = STOCK_ITEMS.find(s=>s.id===editingStockId);
+  if(!item) return;
+  const usedBy = getUsedInMap()[item.name];
+  if(usedBy && usedBy.length){ showToast('ما تقدر تحذفه — داخل في: ' + usedBy.join('، ') + '. شيله منها أول.'); return; }
+  const foot = document.querySelector('#stockItemModal .product-edit-footer');
+  let ask = document.getElementById('ivDelConfirm');
+  if(!ask){
+    ask = document.createElement('div');
+    ask.id = 'ivDelConfirm';
+    ask.className = 'iv-del-ask';
+    foot.parentNode.insertBefore(ask, foot);
+  }
+  ask.hidden = false;
+  ask.innerHTML = '<span>تحذف «' + escapeHtml(item.name) + '» نهائيًا مع سجل حركته؟</span>'
+    + '<button type="button" class="rk2-btn sm iv-del-yes" id="ivDelYes">احذفه</button>'
+    + '<button type="button" class="rk2-btn mn-ghost sm" id="ivDelNo">لا، خلّه</button>';
+  document.getElementById('ivDelNo').onclick = ()=>{ ask.hidden = true; };
+  document.getElementById('ivDelYes').onclick = ()=> deleteStockItem();
+}
+function ivHideDeleteAsk(){ const a = document.getElementById('ivDelConfirm'); if(a) a.hidden = true; }
+
+async function deleteStockItem(){
+  if(!editingStockId) return;
+  const item = STOCK_ITEMS.find(s=>s.id===editingStockId);
+  const yes = document.getElementById('ivDelYes');
+  if(yes && typeof rkBtnLoading === 'function') rkBtnLoading(yes, true);
+  try {
+    const { error } = await window.supabaseClient.from('stock_items').delete().eq('id', editingStockId);
+    if(error) throw error;
+    STOCK_ITEMS = STOCK_ITEMS.filter(s=>s.id!==editingStockId);
+    delete STOCK_ITEM_ID_BY_NAME[item.name]; delete STOCK_ITEM_NAME_BY_ID[editingStockId];
+    logDashboardAudit('حذف صنف مخزون: ' + item.name);
+    closeStockItemModal();
+    renderStockTable();
+    renderWasteAndFoodCost();
+    showToast('انحذف «' + item.name + '»');
+  } catch(err){
+    showToast('تعذر الحذف: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+  } finally {
+    if(yes && typeof rkBtnLoading === 'function') rkBtnLoading(yes, false);
+  }
 }
 
 let stockModalState = {};
 let editingStockId = null;
 
-function openStockItemModal(stockId){
+function openStockItemModal(stockId, act){
   editingStockId = stockId || null;
+  ivHideDeleteAsk();
   const existing = stockId ? STOCK_ITEMS.find(s=>s.id===stockId) : null;
   stockModalState = existing
-    ? {name:existing.name, nameEn:existing.nameEn || '', unit:existing.unit, unitCost:existing.unitCost, qtyOnHand:existing.qtyOnHand, parLevel:existing.parLevel, category:existing.category||'raw', gramsPerUnit: existing.gramsPerUnit || null,
+    ? {id:existing.id, parIsSet:existing.parIsSet, name:existing.name, nameEn:existing.nameEn || '', unit:existing.unit, unitCost:existing.unitCost, qtyOnHand:existing.qtyOnHand, parLevel:existing.parLevel, category:existing.category||'raw', gramsPerUnit: existing.gramsPerUnit || null,
        autoConsumption: existing.autoConsumption
          ? {perQty: existing.autoConsumption.perQty, deductQty: existing.autoConsumption.deductQty, targets: existing.autoConsumption.targets.map(t=>({...t}))}
          : {perQty: null, deductQty: 1, targets: []}}
@@ -2368,7 +2454,7 @@ function openStockItemModal(stockId){
 
     ${existing ? `
     <div class="si-actions" id="siActions">
-      <button type="button" class="si-act-btn" data-act="receive">أضفت كمية</button>
+      <button type="button" class="si-act-btn" data-act="receive">استلمت كمية</button>
       <button type="button" class="si-act-btn" data-act="count">جرد</button>
       <button type="button" class="si-act-btn" data-act="waste">هدر</button>
     </div>
@@ -2495,6 +2581,14 @@ function openStockItemModal(stockId){
   renderStockAutoConsumption();
 
   document.getElementById('stockItemModal').classList.add('show');
+  // جاي من زر «استلمت كمية» أو «جرد» في الشاشة: نفتح الفعل نفسه جاهز.
+  if(existing && (act === 'receive' || act === 'count' || act === 'waste')){
+    siActiveAction = act;
+    siActState = act === 'receive' ? {priceMode:'same', unit: existing.unit} : act === 'waste' ? {unit: existing.unit} : {};
+    renderStockActionPanel();
+    const acts = document.getElementById('siActions');
+    if(acts) setTimeout(()=> acts.scrollIntoView({block:'start', behavior:'smooth'}), 60);
+  }
 }
 
 /* ============ استهلاك تلقائي (صنف تشغيل غير مربوط بوصفة) ============
@@ -2743,26 +2837,6 @@ async function saveStockItem(){
     showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
   } finally {
     saveBtn.disabled = false;
-  }
-}
-async function deleteStockItem(){
-  if(!editingStockId) return;
-  const item = STOCK_ITEMS.find(s=>s.id===editingStockId);
-  const usedBy = getUsedInMap()[item.name];
-  if(usedBy && usedBy.length){ showToast('ما تقدر تحذفه — مستخدم بوصفة: ' + usedBy.join('، ') + '. شيله من الوصفة أول.'); return; }
-  if(!window.confirm('متأكد إنك تبي تحذف "' + item.name + '" من المخزون؟ هذا يحذف سجله وتكلفته نهائيًا.')) return;
-  try {
-    const { error } = await window.supabaseClient.from('stock_items').delete().eq('id', editingStockId);
-    if(error) throw error;
-    STOCK_ITEMS = STOCK_ITEMS.filter(s=>s.id!==editingStockId);
-    delete STOCK_ITEM_ID_BY_NAME[item.name]; delete STOCK_ITEM_NAME_BY_ID[editingStockId];
-    logDashboardAudit('حذف صنف مخزون: ' + item.name);
-    closeStockItemModal();
-    renderStockTable();
-    renderWasteAndFoodCost();
-    showToast('تم حذف الصنف');
-  } catch(err){
-    showToast('تعذر الحذف: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
   }
 }
 
@@ -4627,18 +4701,42 @@ function wireInventoryScreen(){
   document.getElementById('stockItemModalClose').addEventListener('click', closeStockItemModal);
   document.getElementById('stockItemModal').addEventListener('click', (e)=>{ if(e.target.id==='stockItemModal') closeStockItemModal(); });
   document.getElementById('stockItemSaveBtn').addEventListener('click', saveStockItem);
-  document.getElementById('stockItemDeleteLink').addEventListener('click', deleteStockItem);
+  document.getElementById('stockItemDeleteLink').addEventListener('click', ivAskDelete);
   document.getElementById('checkDuplicateStockBtn').addEventListener('click', renderDuplicateStockCheck);
   document.getElementById('stockSearchInput').addEventListener('input', (e)=>{
     stockSearchQuery = e.target.value;
     renderStockTable();
   });
-  document.getElementById('stockAttentionFilter').addEventListener('click', (e)=>{
-    const btn = e.target.closest('button[data-filter]'); if(!btn) return;
-    document.querySelectorAll('#stockAttentionFilter button').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    stockAttentionFilter = btn.dataset.filter;
-    renderStockTable();
+  const scr = document.getElementById('screen-inventory');
+  scr.addEventListener('click', (e)=>{
+    const act = e.target.closest('[data-iv-act]');
+    if(act){ e.stopPropagation(); return openStockItemModal(parseInt(act.dataset.id), act.dataset.ivAct); }
+    const open = e.target.closest('[data-iv-open]');
+    if(open) return openStockItemModal(parseInt(open.dataset.ivOpen));
+    const fl = e.target.closest('[data-iv-filter]');
+    if(fl){
+      ivSetFilter(fl.dataset.ivFilter);
+      if(fl.classList.contains('iv-more')) document.getElementById('ivFilters')?.scrollIntoView({behavior:'smooth', block:'start'});
+      return;
+    }
+    if(e.target.closest('[data-iv-clear]')){
+      const inp = document.getElementById('stockSearchInput');
+      inp.value = ''; stockSearchQuery = ''; renderStockTable(); inp.focus(); return;
+    }
+    const go = e.target.closest('[data-iv-go]');
+    if(go){
+      const g = go.dataset.ivGo;
+      if(g === 'add') return openStockItemModal(null);
+      if(g === 'import') return openBulkImportModal('stock');
+      if(g === 'menu') return document.querySelector('.nav-item[data-screen="menu"]')?.click();
+      return;
+    }
+    const card = e.target.closest('.iv-card');
+    if(card) openStockItemModal(parseInt(card.dataset.id));
+  });
+  scr.addEventListener('keydown', (e)=>{
+    const card = e.target.closest && e.target.closest('.iv-card');
+    if(card && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); openStockItemModal(parseInt(card.dataset.id)); }
   });
 }
 
@@ -4823,29 +4921,6 @@ function wirePurchasesScreen(){
   document.getElementById('invoiceSaveBtn').addEventListener('click', saveInvoice);
 }
 
-function renderMovers(){
-  if(ALL_SELLERS.length === 0){
-    document.getElementById('fastMoversList').innerHTML = '<div class="orders-empty">ما فيه مبيعات بهالفترة</div>';
-    document.getElementById('slowMoversList').innerHTML = '<div class="orders-empty">ما فيه مبيعات بهالفترة</div>';
-    return;
-  }
-  const sorted = [...ALL_SELLERS].sort((a,b)=>b.qty-a.qty);
-  // Same overlap bug as renderBestWorstSellers on Home (fixed earlier this
-  // session), found again here: slice(0,4)/slice(-4) share items whenever
-  // there are under 8 distinct sold products — a very normal day for a
-  // small menu — showing one product as both "fastest" and "slowest"
-  // moving at once. Same half-split fix.
-  const half = Math.ceil(sorted.length / 2);
-  const fastCount = Math.min(4, sorted.length >= 8 ? 4 : half);
-  const fast = sorted.slice(0, fastCount);
-  const slow = sorted.length >= 8 ? sorted.slice(-4).reverse() : sorted.slice(fastCount).reverse();
-  document.getElementById('fastMoversList').innerHTML = fast.map(p=>
-    `<div class="mover-row"><div style="flex:1;"><div class="mover-name">${p.name}</div><div class="mover-meta">${p.cat}</div></div><span class="mover-badge fast">${p.qty} قطعة اليوم</span></div>`
-  ).join('');
-  document.getElementById('slowMoversList').innerHTML = slow.length ? slow.map(p=>
-    `<div class="mover-row"><div style="flex:1;"><div class="mover-name">${p.name}</div><div class="mover-meta">${p.cat}</div></div><span class="mover-badge slow">${p.qty} قطعة اليوم</span></div>`
-  ).join('') : '<div class="orders-empty">ما فيه تنوع كافٍ بالمبيعات لعرض قائمة منفصلة</div>';
-}
 
 /* ============ Accounting screen ============ */
 function renderAcctHeroProfit(){
@@ -8712,7 +8787,6 @@ async function renderPhase1Screens(){
   renderTodayHeroes();
   renderHourGrid();
   renderBestWorstSellers();
-  renderMovers();
   renderCategoryPerf();
   renderChannelCards();
   renderTodaySalesSummary();
@@ -19810,7 +19884,6 @@ renderOrdersByType();
 renderOrdersBySource();
 renderWasteAndFoodCost();
 wireInventoryScreen(); // renderStockTable() itself now runs post-login, once real data is fetched (loadBusinessData/renderPhase1Screens)
-renderMovers();
 renderWaterfall();
 renderOpexBreakdown();
 renderVatAndMargin();
