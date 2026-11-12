@@ -4611,25 +4611,30 @@ async function deletePurchaseInvoice(groupId){
 /* ============ General Expenses — non-inventory spending (rent extras, maintenance, marketing...).
    Deliberately NOT linked to stock quantities or product costing — this is a simple record-keeping
    log, separate from the monthly Fixed Costs rate used for product margins (Settings). */
-let GENERAL_EXPENSES = [
-  {id:1, category:'صيانة', amount:450, description:'إصلاح ماكينة القهوة', date:'قبل يومين'},
-  {id:2, category:'تسويق', amount:300, description:'إعلان سوشال ميديا', date:'قبل ٤ أيام'}
-];
-let expenseIdCounter = 3;
+let GENERAL_EXPENSES = [];
 const EXPENSE_CATEGORIES = ['صيانة','تسويق','نقل وتوصيل','رسوم حكومية','أخرى'];
 
 function openExpenseModal(){
+  const cats = [...new Set([...EXPENSE_CATEGORIES, ...Object.keys(EXPENSE_CATEGORY_ID_BY_NAME || {})])];
+  const d = new Date();
+  const today = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   document.getElementById('expenseModalBody').innerHTML = `
-    <div class="menu-add-row" style="margin-bottom:14px;">
-      <div class="menu-add-field"><label>الفئة</label>
-        <select id="expCategory">${EXPENSE_CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('')}</select>
+    <div class="hr2-form">
+      <div class="hr2-pair">
+        <div class="menu-add-field"><label>كم صرفت؟ (ر.س)</label><input type="number" id="expAmount" inputmode="decimal" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="menu-add-field"><label>على وش؟</label>
+          <select id="expCategory">${cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}</select>
+        </div>
       </div>
-      <div class="menu-add-field"><label>المبلغ (ر.س)</label><input type="number" id="expAmount" placeholder="0.00"></div>
+      <div class="menu-add-field" style="margin-top:12px;"><label>وصف مختصر</label><input type="text" id="expDescription" maxlength="120" placeholder="مثال: تصليح المكيف"></div>
+      <div class="hr2-pair" style="margin-top:12px;">
+        <div class="menu-add-field"><label>متى؟</label><input type="date" id="expDate" value="${today}" max="${today}"></div>
+      </div>
+      <p class="hr2-hint">ينحسب في ربحك لحاله. فواتير المواد والتغليف تسجّلها من «المشتريات»، والإيجار والرواتب من «المصاريف الثابتة».</p>
     </div>
-    <div class="menu-add-field"><label>وصف مختصر</label><input type="text" id="expDescription" placeholder="مثال: إصلاح تكييف"></div>
-    <div class="stock-qty-helper" style="margin-top:14px;">هذا سجل للمصروف بس — ما يأثر على مخزونك ولا على تكلفة أي منتج. لو تبي تغيّر معدل مصاريفك الثابتة الشهرية (إيجار، رواتب)، روح تبويب "المصاريف الثابتة" بنفس الشاشة.</div>
   `;
   document.getElementById('expenseModal').classList.add('show');
+  setTimeout(() => { try { document.getElementById('expAmount').focus(); } catch(e){} }, 60);
 }
 function closeExpenseModal(){ document.getElementById('expenseModal').classList.remove('show'); }
 // Adding or deleting a general expense changes today's real opex — without
@@ -4646,21 +4651,20 @@ async function refreshTodayAccountingAfterExpenseChange(){
   // اللوحة، وهدرٌ سُجّل في الكاشير بينهما لا يصل إلا بإعادة السؤال.
   TODAY_WASTE_COST = await loadWasteCostBetween(startToday, null);
   recomputeAccounting();
-  renderWaterfall();
-  renderOpexBreakdown();
-  renderVatAndMargin();
+  acRender();
 }
 async function deleteGeneralExpense(id){
-  const expense = GENERAL_EXPENSES.find(e=>e.id===id);
+  const expense = GENERAL_EXPENSES.find(e => String(e.id) === String(id));
   if(!expense) return;
-  if(!window.confirm('متأكد إنك تبي تحذف مصروف "' + expense.description + '" بقيمة ' + expense.amount.toFixed(2) + ' ر.س؟')) return;
+  const name = expense.description || expense.category || 'المصروف';
+  if(!await rkAsk({ title: 'نحذف «' + name + '»؟', body: 'بقيمة <b>' + Number(expense.amount).toFixed(2) + ' ر.س</b>. ربحك يتعدّل لحاله.', ok: 'احذفه', cancel: 'خلّه' })) return;
   try {
-    const { error } = await window.supabaseClient.from('general_expenses').delete().eq('id', id);
+    const { error } = await window.supabaseClient.from('general_expenses').delete().eq('id', expense.id);
     if(error) throw error;
-    GENERAL_EXPENSES = GENERAL_EXPENSES.filter(e=>e.id!==id);
-    logDashboardAudit('حذف مصروف عام: ' + expense.description + ' (' + expense.amount.toFixed(2) + ' ر.س)');
-    showToast('تم حذف المصروف');
-    renderGeneralExpensesList();
+    GENERAL_EXPENSES = GENERAL_EXPENSES.filter(e => e !== expense);
+    logDashboardAudit('حذف مصروف عام: ' + name + ' (' + Number(expense.amount).toFixed(2) + ' ر.س)');
+    showToast('انحذف المصروف');
+    acRender();
     refreshTodayAccountingAfterExpenseChange();
   } catch(err){
     showToast('تعذر الحذف: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
@@ -4670,8 +4674,13 @@ async function saveExpense(){
   const category = document.getElementById('expCategory').value;
   const amount = parseFloat(document.getElementById('expAmount').value);
   const description = document.getElementById('expDescription').value.trim();
-  if(!(amount > 0)){ showToast('لازم تدخل مبلغ صحيح'); return; }
-  if(!description){ showToast('لازم تكتب وصف مختصر'); return; }
+  const dateVal = (document.getElementById('expDate') || {}).value || '';
+  if(!(amount > 0)){ showToast('اكتب كم صرفت'); document.getElementById('expAmount').focus(); return; }
+  if(!description){ showToast('اكتب وش المصروف بكلمتين'); document.getElementById('expDescription').focus(); return; }
+  const d = new Date();
+  const todayKey = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  // مصروف يوم سابق ينحفظ على ظهر ذاك اليوم -- اليوم نفسه يترك الوقت للقاعدة (now)
+  const spentAt = dateVal && dateVal < todayKey ? new Date(dateVal + 'T12:00:00').toISOString() : null;
 
   const saveBtn = document.getElementById('expenseSaveBtn');
   saveBtn.disabled = true;
@@ -4685,15 +4694,16 @@ async function saveExpense(){
       categoryId = newCat.id;
       EXPENSE_CATEGORY_ID_BY_NAME[category] = categoryId;
     }
-    const { data: inserted, error } = await sb.from('general_expenses').insert({
-      business_id: CURRENT_PROFILE.business_id, category_id: categoryId, amount, description, created_by: CURRENT_PROFILE.id
-    }).select().single();
+    const row = { business_id: CURRENT_PROFILE.business_id, category_id: categoryId, amount, description, created_by: CURRENT_PROFILE.id };
+    if(spentAt) row.spent_at = spentAt;
+    const { data: inserted, error } = await sb.from('general_expenses').insert(row).select().single();
     if(error) throw error;
-    GENERAL_EXPENSES.unshift({id: inserted.id, category, amount, description, date:'اليوم'});
+    const at = (inserted && inserted.spent_at) || spentAt || new Date().toISOString();
+    GENERAL_EXPENSES.unshift({id: inserted.id, category, amount, description, date: formatRelativeDate(at), spentAt: at});
     logDashboardAudit('سجّل مصروف عام: ' + description + ' (' + amount.toFixed(2) + ' ر.س)');
-    showToast('تم تسجيل المصروف');
+    showToast('انسجّل المصروف ✓');
     closeExpenseModal();
-    renderGeneralExpensesList();
+    acRender();
     refreshTodayAccountingAfterExpenseChange();
   } catch(err){
     showToast('تعذر تسجيل المصروف: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
@@ -4701,27 +4711,8 @@ async function saveExpense(){
     saveBtn.disabled = false;
   }
 }
-function renderGeneralExpensesList(){
-  const el = document.getElementById('generalExpensesList');
-  if(!el) return;
-  if(GENERAL_EXPENSES.length === 0){ el.innerHTML = '<div class="supcomp-empty">ما فيه مصروفات مسجّلة لسا.</div>'; return; }
-  const total = GENERAL_EXPENSES.reduce((s,e)=>s+e.amount,0);
-  el.innerHTML = `<div class="stock-qty-helper">إجمالي المصروفات المسجّلة: <b class="mono">${total.toFixed(2)} ر.س</b></div>` +
-    [...GENERAL_EXPENSES].reverse().map(e=>`
-    <div class="supcomp-row">
-      <span class="mtr-mod-type-badge">${e.category}</span>
-      <div style="flex:1;">
-        <div class="supcomp-supplier">${e.description}</div>
-        <div class="supcomp-meta">${e.date}</div>
-      </div>
-      <span class="supcomp-unit-price">${e.amount.toFixed(2)} ر.س</span>
-      <button type="button" class="expense-row-delete-btn" data-id="${e.id}" title="حذف المصروف"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg></button>
-    </div>
-  `).join('');
-  el.querySelectorAll('.expense-row-delete-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=> deleteGeneralExpense(Number(btn.dataset.id)));
-  });
-}
+// صارت جزء من صفحة «المحاسبة» الجديدة (acRender) -- يبقى الاسم لأن التحميل ومدير المحاسبة ينادونه.
+function renderGeneralExpensesList(){ acRender(); }
 
 const PARSE_REASON_LABELS = {
   arithmetic_mismatch: 'عدم تطابق حسابي (الأرقام ما تجمع صح)',
@@ -4936,94 +4927,368 @@ function computeOrderDeliveryPlatformCost(order, platform, tiers){
   const compensation = total * (Number(platform.compensation_pct)/100);
   return { commission, fee, compensation, total: commission + fee + compensation };
 }
-async function renderDeliveryReconciliation(){
-  const monthInput = document.getElementById('deliveryReconMonth');
-  if(!monthInput.value){
-    const now = new Date();
-    monthInput.value = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
-  }
-  const summaryEl = document.getElementById('deliveryReconSummary');
-  summaryEl.innerHTML = '<p style="font-size:12.5px; color:var(--muted); font-weight:600;">جاري التحميل...</p>';
+/* ============ «المحاسبة» (rk2) -- وش وضعي اليوم؟ ربحك، ووين راحت فلوسك، ومصاريفك.
+   كل الأرقام من ACCOUNTING (recomputeAccounting) نفسه اللي في الرئيسية والتقارير،
+   فما فيه رقمين مختلفين لنفس الشي. تبويبات #acctScreenTabs [data-tab] باقية
+   بنفس المفاتيح لأن goToScreenTab ومدير المحاسبة يضغطونها. ============ */
+let acTab = null;            // null = أول تبويب مسموح
+let acShown = null;          // التبويب المرسوم الحين (عشان ما نمسح خانات المصاريف الثابتة وهو يكتب)
+let acPrevLeft = null;
+let acExpRange = 'month';
+let acDel = { month: null, loadedFor: null, rows: null, loading: false, err: '' };
+let acQueued = false;
+function acRender(){
+  if(acQueued) return;
+  acQueued = true;
+  Promise.resolve().then(() => { acQueued = false; acRenderNow(); });
+}
+function acProfitOn(){ return typeof canViewProfit === 'function' ? canViewProfit() : true; }
+function acDayStart(){ const d = new Date(); d.setHours(0, 0, 0, 0); return d; }
+function acMonthStart(back){ const d = acDayStart(); d.setDate(1); if(back) d.setMonth(d.getMonth() - back); return d; }
+function acDaysInMonth(){ const n = new Date(); return new Date(n.getFullYear(), n.getMonth() + 1, 0).getDate(); }
+function acExpTime(e){ return e.spentAt ? new Date(e.spentAt).getTime() : Date.now(); }
+function acExpIn(from, to){ return GENERAL_EXPENSES.filter(e => { const t = acExpTime(e); return t >= from && (!to || t < to); }); }
+function acSum(list){ return list.reduce((s, e) => s + (Number(e.amount) || 0), 0); }
+function acR(n){ return Math.round(Math.abs(Number(n) || 0)).toLocaleString('en-US'); }
+function acExpWord(n){ return hmPlural(n, 'مصروف واحد', 'مصروفين', 'مصاريف', 'مصروف'); }
+function acMonthKey(d){ d = d || new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+function acMissingCost(){
+  try { return (typeof mnItems === 'function' && typeof mnCostMissing === 'function') ? mnItems().filter(m => m.active !== false && mnCostMissing(m)).length : 0; }
+  catch(e){ return 0; }
+}
+function acStats(){
+  const a = ACCOUNTING;
+  const dailyFixed = getMonthlyFixedCostsTotal() / acDaysInMonth();
+  // من كل ريال تبيعه، كم يبقى بعد الضريبة والمواد والعمولات والهدر -- منها تُغطّى المصاريف الثابتة
+  const ratio = a.netSales > 0 ? (a.subtotal - a.cogs - a.deliveryPlatformCost - (a.wasteCost || 0)) / a.netSales : 0;
+  const month = acExpIn(acMonthStart().getTime());
+  return { a, dailyFixed, ratio, breakEven: ratio > 0 && dailyFixed > 0 ? dailyFixed / ratio : 0,
+    month, monthTotal: acSum(month), missing: acMissingCost(), margin: a.netSales > 0 ? a.netProfit / a.netSales * 100 : 0 };
+}
 
-  const [year, month] = monthInput.value.split('-').map(Number);
-  const monthStart = new Date(year, month-1, 1);
-  const monthEnd = new Date(year, month, 1);
+function acRenderNow(){
+  if(!document.getElementById('acHero')) return;
+  const st = acStats();
+  acRenderHero(st);
+  acRenderTodo(st);
+  acSetSums(st);
+  acRenderPanel(false);
+}
 
-  const sb = window.supabaseClient;
-  const businessId = CURRENT_PROFILE.business_id;
-  const [{data: platforms}, {data: tiers}, {data: orders}] = await Promise.all([
-    sb.from('delivery_platforms').select('*').eq('business_id', businessId),
-    sb.from('delivery_platform_fee_tiers').select('*'),
-    sb.from('orders').select('total, subtotal, delivery_platform_id, created_at')
-      .eq('business_id', businessId).eq('channel', 'delivery').not('delivery_platform_id', 'is', null)
-      .gte('created_at', monthStart.toISOString()).lt('created_at', monthEnd.toISOString())
-  ]);
+/* «من كل ١٠٠ ريال بعتها» -- شريط واحد يوضح وين راح كل ريال. */
+function acFlowHtml(st){
+  const a = st.a;
+  if(!(a.netSales > 0)) return '';
+  const parts = [
+    { k: 'المواد والتغليف', v: a.cogs, c: 'ops' },
+    { k: 'الضريبة', v: a.vat, c: 'team' },
+    { k: 'عمولات التطبيقات', v: a.deliveryPlatformCost, c: 'res' },
+    { k: 'الهدر', v: a.wasteCost || 0, c: 'warn' },
+    { k: 'المصاريف', v: a.opex, c: 'ai' },
+    { k: 'ربحك', v: Math.max(0, a.netProfit), c: 'lime' },
+  ].filter(p => p.v > 0.005);
+  const base = parts.reduce((s, p) => s + p.v, 0) || 1;
+  return '<div class="ac-flow"><div class="ac-flow-cap">من كل <b>١٠٠ ريال</b> بعتها اليوم:</div>'
+    + '<div class="ac-flow-bar">' + parts.map(p => '<i class="ac-c-' + p.c + '" style="width:' + (p.v / base * 100).toFixed(2) + '%" title="' + p.k + '"></i>').join('') + '</div>'
+    + '<div class="ac-flow-legend">' + parts.map(p => '<span><i class="ac-c-' + p.c + '"></i>' + p.k + ' <b>' + Math.round(p.v / a.netSales * 100) + '</b></span>').join('') + '</div>'
+    + (a.netProfit < 0 ? '<div class="ac-flow-loss">' + hmIc('alert') + 'صرفت اليوم أكثر من اللي بعته بـ <b>' + acR(a.netProfit) + ' ر.س</b></div>' : '')
+    + '</div>';
+}
 
-  const tiersByPlatform = {};
-  (tiers||[]).forEach(t=>{ (tiersByPlatform[t.delivery_platform_id] ||= []).push(t); });
+function acCta(){ return '<div class="ac-cta"><button type="button" class="rk2-btn lime" data-ac-go="@expense">' + hmIc('wallet') + 'سجّل مصروف</button></div>'; }
 
-  const results = (platforms||[]).map(p=>{
-    const platformOrders = (orders||[]).filter(o=>o.delivery_platform_id===p.id);
-    let grossRevenue = 0, totalCommission = 0, totalFees = 0, totalCompensation = 0;
-    platformOrders.forEach(o=>{
-      const deduction = computeOrderDeliveryPlatformCost(o, p, tiersByPlatform[p.id]);
-      grossRevenue += Number(o.total); totalCommission += deduction.commission; totalFees += deduction.fee; totalCompensation += deduction.compensation;
-    });
-    const netToRestaurant = grossRevenue - totalCommission - totalFees - totalCompensation;
-    return { name:p.name, ordersCount:platformOrders.length, grossRevenue, totalCommission, totalFees, totalCompensation, netToRestaurant };
-  }).filter(r=>r.ordersCount > 0);
-
-  if(results.length === 0){
-    summaryEl.innerHTML = '<p style="font-size:12.5px; color:var(--muted); font-weight:600; margin-top:12px;">ما فيه طلبات توصيل مربوطة بمنصة لهذا الشهر.</p>';
+function acRenderHero(st){
+  const el = document.getElementById('acHero');
+  if(!el) return;
+  const a = st.a;
+  const stat = (k, v, hint, cls, go) => '<' + (go ? 'button type="button" data-ac-go="' + go + '"' : 'div') + ' class="iv-stat' + (cls ? ' ' + cls : '') + '"><span>' + k + '</span><b>' + v + '</b>' + (hint ? '<small>' + hint + '</small>' : '') + '</' + (go ? 'button' : 'div') + '>';
+  if(!acProfitOn()){
+    // موظف بدون صلاحية «الأرباح»: يشوف المصاريف ويسجّلها، بدون أي رقم ربح
+    el.innerHTML = '<div class="rk2-card ac-hero"><div class="ac-hero-top"><span class="iv-hero-ic">' + hmIc('wallet') + '</span>'
+      + '<div class="ac-hero-txt"><div class="hm-kicker">مصاريفك هالشهر</div><div class="ac-big">' + hmMoney(st.monthTotal) + '<small>' + (st.month.length ? acExpWord(st.month.length) : 'ما سجّلت شي هالشهر') + '</small></div></div>' + acCta() + '</div></div>';
+    acPrevLeft = null;
     return;
   }
-
-  summaryEl.innerHTML = `
-    <table class="report-table" style="margin-top:12px;">
-      <thead><tr><th>المنصة</th><th>عدد الطلبات</th><th>إجمالي الطلبات</th><th>عمولة المنصة</th><th>رسوم التوصيل</th><th>تعويضات مفترضة</th><th>صافي المستحق من المنصة</th></tr></thead>
-      <tbody>
-        ${results.map(r=>`<tr>
-          <td>${r.name}</td>
-          <td class="mono">${r.ordersCount}</td>
-          <td class="mono">${r.grossRevenue.toFixed(2)}</td>
-          <td class="mono">${r.totalCommission.toFixed(2)}</td>
-          <td class="mono">${r.totalFees.toFixed(2)}</td>
-          <td class="mono">${r.totalCompensation.toFixed(2)}</td>
-          <td class="mono" style="font-weight:800;">${r.netToRestaurant.toFixed(2)}</td>
-        </tr>`).join('')}
-        <tr style="font-weight:800; border-top:2px solid var(--line);">
-          <td>الإجمالي</td>
-          <td class="mono">${results.reduce((s,r)=>s+r.ordersCount,0)}</td>
-          <td class="mono">${results.reduce((s,r)=>s+r.grossRevenue,0).toFixed(2)}</td>
-          <td class="mono">${results.reduce((s,r)=>s+r.totalCommission,0).toFixed(2)}</td>
-          <td class="mono">${results.reduce((s,r)=>s+r.totalFees,0).toFixed(2)}</td>
-          <td class="mono">${results.reduce((s,r)=>s+r.totalCompensation,0).toFixed(2)}</td>
-          <td class="mono">${results.reduce((s,r)=>s+r.netToRestaurant,0).toFixed(2)}</td>
-        </tr>
-      </tbody>
-    </table>
-    <p class="stock-qty-helper" style="margin-top:10px;">"صافي المستحق من المنصة" هو المبلغ المفروض تحوّله لك المنصة عن طلبات هذا الشهر — بعد خصم عمولتها ورسوم التوصيل وأي تعويضات افترضتها. راجع كشف حساب المنصة الفعلي وقارنه بهذا الرقم.</p>
-  `;
+  const steps = [
+    { done: FIXED_COSTS_SET, label: 'حدد مصاريفك الثابتة', desc: 'الإيجار والرواتب والفواتير. بدونها ربحك يطلع أعلى من الحقيقي', go: '@fixedcosts' },
+    { done: GENERAL_EXPENSES.length > 0, label: 'سجّل أول مصروف', desc: 'صيانة، تسويق، رسوم. كل ريال يطلع من جيبك ينحسب في ربحك', go: '@expense' },
+    { done: st.missing === 0, label: 'كمّل تكلفة منتجاتك', desc: st.missing ? mnN(st.missing) + ' بدون تكلفة، فربحها يطلع كامل وهو مو كامل' : 'كل منتج له تكلفة', go: '@menu' },
+  ];
+  const done = steps.filter(s => s.done).length, left = steps.length - done;
+  const visible = !!document.getElementById('screen-accounting')?.offsetParent;
+  const celebrate = visible && acPrevLeft !== null && acPrevLeft > 0 && left === 0;
+  acPrevLeft = visible ? left : null;
+  const stats = (a.netSales > 0 || GENERAL_EXPENSES.length || FIXED_COSTS_SET) ? '<div class="ac-stats">'
+    + stat('مبيعات اليوم', hmMoney(a.netSales), TODAY.ordersCount ? hmPlural(TODAY.ordersCount, 'طلب واحد', 'طلبين', 'طلبات', 'طلب') + (a.discounts > 0.005 ? ' · خصومات ' + acR(a.discounts) : '') : 'لسا ما بعت اليوم', '', '@overview')
+    + (st.breakEven > 0 ? stat('تبيع باليوم عشان ما تخسر', hmMoney(st.breakEven), a.netSales >= st.breakEven ? '✓ اليوم غطّيتها' : 'باقي لك ' + acR(st.breakEven - a.netSales) + ' ر.س', a.netSales >= st.breakEven ? 'good' : 'warn', '@overview') : '')
+    + stat('الضريبة اللي عليك اليوم', hmMoney(a.vat), 'تجمعها للزكاة والضريبة، مو ربح', '', '')
+    + stat('مصاريفك هالشهر', hmMoney(st.monthTotal), st.month.length ? acExpWord(st.month.length) : 'ولا مصروف هالشهر', '', '@expenses')
+    + (a.deliveryPlatformCost > 0.005 ? stat('عمولات التطبيقات اليوم', hmMoney(a.deliveryPlatformCost), 'شوف كم تحوّل لك كل منصة', '', '@delivery') : '')
+    + '</div>' : '';
+  if(left === 0){
+    const loss = a.netProfit < 0;
+    const sub = a.netSales > 0
+      ? (loss ? 'بعت بـ ' + acR(a.netSales) + ' ر.س، بس مصاريف اليوم أكثر' : 'بعت بـ ' + acR(a.netSales) + ' ر.س وبقى لك هذا بعد كل شي')
+      : 'لسا ما بعت اليوم. مصاريفك الثابتة تمشي ' + acR(st.dailyFixed) + ' ر.س باليوم';
+    el.innerHTML = '<div class="rk2-card ac-hero' + (celebrate ? ' mn-celebrate' : '') + '">'
+      + '<div class="ac-hero-top"><span class="iv-hero-ic' + (loss ? ' ac-loss' : '') + '">' + hmIc(loss ? 'alert' : 'accounting') + '</span>'
+      + '<div class="ac-hero-txt"><div class="hm-kicker">' + (loss ? 'خسارتك اليوم' : 'ربحك اليوم') + '</div>'
+      + '<div class="ac-big">' + hmMoney(a.netProfit, loss ? 'neg' : '') + (a.netSales > 0 ? '<small>هامش ' + Math.round(st.margin) + '٪</small>' : '') + '</div>'
+      + '<div class="ac-sub">' + sub + '</div></div>' + acCta() + '</div>'
+      + acFlowHtml(st) + stats + '</div>';
+    if(celebrate) showToast('حساباتك صارت دقيقة 🎉');
+    return;
+  }
+  const nextIdx = steps.findIndex(s => !s.done), next = steps[nextIdx];
+  const go = s => ' data-ac-go="' + s.go + '"';
+  el.innerHTML = '<div class="rk2-card hm-quest ac-hero">'
+    + '<div class="hm-quest-top"><div class="hm-ring" style="--p:' + Math.round(done / steps.length * 100) + '"><b>' + done + '<small>/' + steps.length + '</small></b></div>'
+    + '<div><div class="hm-kicker">' + hmIc('accounting') + 'أرباحك</div>'
+    + '<h3>' + (done ? 'باقي ' + hmPlural(left, 'خطوة', 'خطوتين', 'خطوات', 'خطوة') + ' ويصير ربحك دقيق' : 'ثلاث خطوات ويطلع لك ربحك الحقيقي كل يوم') + '</h3>'
+    + '<p>ركين يحسب ربحك من كل بيعة لحاله، بس يحتاج يعرف وش تصرف</p></div></div>'
+    + '<button type="button" class="hm-quest-next"' + go(next) + '>'
+    + '<span class="hm-quest-n">' + (nextIdx + 1) + '</span><span class="hm-quest-txt"><b>' + next.label + '</b><small>' + next.desc + '</small></span><span class="rk2-btn lime sm">ابدأ' + hmIc('arrow') + '</span></button>'
+    + '<div class="hm-quest-list">' + steps.map((s, i) => i === nextIdx ? '' :
+        '<button type="button" class="hm-qstep' + (s.done ? ' done' : '') + '"' + (s.done ? ' disabled' : go(s)) + '>'
+        + '<span class="hm-qcheck">' + (s.done ? hmIc('check') : (i + 1)) + '</span>' + s.label + '</button>').join('') + '</div>'
+    + acFlowHtml(st) + stats + '</div>';
 }
-document.getElementById('deliveryReconMonth').addEventListener('change', renderDeliveryReconciliation);
+
+/* «وش أسوي الحين؟» -- من أرقام اليوم نفسها. */
+function acRenderTodo(st){
+  const el = document.getElementById('acTodo');
+  if(!el) return;
+  const a = st.a, rows = [], on = acProfitOn();
+  if(on && a.netSales > 0 && a.netProfit < 0){
+    const big = [['المصاريف', a.opex], ['المواد والتغليف', a.cogs], ['عمولات التطبيقات', a.deliveryPlatformCost], ['الهدر', a.wasteCost || 0]].sort((x, y) => y[1] - x[1])[0];
+    rows.push({ cls: 'critical', ic: 'alert', t: 'خسران اليوم ' + acR(a.netProfit) + ' ر.س',
+      h: 'أكثر شي أكل ربحك: ' + big[0] + ' (' + acR(big[1]) + ' ر.س)' + (st.breakEven > a.netSales ? '. تحتاج تبيع بـ ' + acR(st.breakEven - a.netSales) + ' ر.س زيادة عشان تتعادل' : ''),
+      acts: '<button type="button" class="rk2-btn lime sm" data-ac-go="@overview">شوف وين راحت</button>' });
+  }
+  if(on && a.deliveryPlatformCost > 0.005 && a.deliveryPlatformCost >= a.netSales * 0.05){
+    rows.push({ ic: 'tag', t: 'التطبيقات أخذت ' + acR(a.deliveryPlatformCost) + ' ر.س عمولة اليوم',
+      h: 'خلّ سعر منتجاتك في التطبيقات أعلى شوي يغطّي العمولة، وراجع كم تحوّل لك كل منصة',
+      acts: '<button type="button" class="rk2-btn mn-ghost sm" data-ac-go="@delivery">شوف المنصات</button>' });
+  }
+  if(on && (a.wasteCost || 0) > 0.005 && a.wasteCost >= a.netSales * 0.02){
+    rows.push({ ic: 'inventory', t: 'هدرت بـ ' + acR(a.wasteCost) + ' ر.س اليوم', h: 'شوف وش انهدر وليش، يمكن تقلّل الكمية اللي تجهّزها',
+      acts: hmScreenOk('inventory') ? '<button type="button" class="rk2-btn mn-ghost sm" data-ac-nav="inventory">شوف الهدر</button>' : '' });
+  }
+  if(GENERAL_EXPENSES.length && !st.month.length && new Date().getDate() >= 7){
+    rows.push({ ic: 'wallet', t: 'ما سجّلت ولا مصروف هالشهر', h: 'صيانة، تسويق، رسوم... لو صرفت ولا سجّلت، ربحك يطلع أعلى من الحقيقي',
+      acts: '<button type="button" class="rk2-btn mn-ghost sm" data-ac-go="@expense">سجّل مصروف</button>' });
+  }
+  if(!rows.length){ el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="rk2-card iv-todo ac-todo">' + hmHead('flag', 'fin', 'وش أسوي الحين؟', 'من أرقام اليوم نفسها')
+    + rows.map(r => '<div class="iv-todo-row' + (r.cls ? ' ' + r.cls : '') + '"><span class="pu-todo-ic">' + hmIc(r.ic) + '</span><div class="iv-todo-name"><b>' + r.t + '</b><span class="iv-todo-hint">' + r.h + '</span></div><div class="iv-todo-acts">' + r.acts + '</div></div>').join('')
+    + '</div>';
+}
+
+function acSetSums(st){
+  const a = st.a;
+  const set = (k, v) => { const s = document.querySelector('#acctScreenTabs [data-ac-sum="' + k + '"]'); if(s) s.textContent = v; };
+  set('overview', a.netSales > 0 ? (a.netProfit < 0 ? 'خسارة اليوم ' : 'ربح اليوم ') + acR(a.netProfit) + ' ر.س' : 'تبدأ مع أول بيعة');
+  set('expenses', st.monthTotal > 0 ? acR(st.monthTotal) + ' ر.س هالشهر' : GENERAL_EXPENSES.length ? 'ولا مصروف هالشهر' : 'سجّل أول مصروف');
+  set('fixedcosts', FIXED_COSTS_SET ? acR(getMonthlyFixedCostsTotal()) + ' ر.س بالشهر' : 'ما حدّدتها لسا');
+  set('delivery', acDel.rows && acDel.loadedFor === acMonthKey() && acDel.rows.length
+    ? acR(acDel.rows.reduce((s, r) => s + r.net, 0)) + ' ر.س تحوّل لك هالشهر' : 'كم تحوّل لك كل منصة');
+}
+
+function acRenderPanel(force){
+  const el = document.getElementById('acPanel');
+  if(!el) return;
+  const on = acProfitOn();
+  const tab = acCurTab();
+  document.querySelectorAll('#acctScreenTabs [data-tab]').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+    b.style.display = (b.dataset.tab === 'overview' && !on) ? 'none' : '';
+  });
+  if(!force && acShown === 'fixedcosts' && tab === 'fixedcosts') return;
+  acShown = tab;
+  if(tab === 'fixedcosts'){ el.innerHTML = '<div id="fixedCostsPanelBody"></div>'; renderFixedCostsTab(); return; }
+  if(tab === 'delivery'){
+    if(!acDel.month) acDel.month = acMonthKey();
+    el.innerHTML = acDeliveryHtml();
+    if(acDel.loadedFor !== acDel.month && !acDel.loading) acLoadDelivery();
+    return;
+  }
+  el.innerHTML = tab === 'expenses' ? acExpensesHtml() : acOverviewHtml(acStats());
+}
+// التبويب الحالي -- ما نحفظ البديل (قبل تسجيل الدخول ما فيه صلاحية أرباح بعد)
+function acCurTab(){ const on = acProfitOn(); return (!acTab || (!on && acTab === 'overview')) ? (on ? 'overview' : 'expenses') : acTab; }
+function acGoTab(tab){
+  acTab = tab;
+  acRenderPanel(true);
+  document.getElementById('acctScreenTabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ── وين راحت فلوسك ── */
+function acOverviewHtml(st){
+  const a = st.a;
+  const head = hmHead('accounting', 'fin', 'وين راحت فلوسك اليوم؟', 'من أول ريال بعته لين ربحك، نفس حساب محاسبك');
+  if(!(a.netSales > 0)){
+    return '<div class="rk2-card ac-card">' + head + '<div class="hm-empty"><span class="hm-empty-ic">' + hmIc('accounting') + '</span><b>أرقام اليوم تطلع هنا مع أول بيعة</b>'
+      + '<span>كل طلب من الكاشير أو المتجر ينحسب لحاله: تكلفته وضريبته وعمولته' + (st.dailyFixed > 0 ? '. مصاريفك الثابتة اليوم ' + acR(st.dailyFixed) + ' ر.س' : '') + '</span>'
+      + (hmScreenOk('pos') ? '<button type="button" class="rk2-btn lime sm" data-ac-nav="pos">افتح الكاشير</button>' : '') + '</div></div>';
+  }
+  const max = Math.max(a.netSales, a.opex, 1);
+  const line = (sign, label, hint, v, cls) => '<div class="ac-wf' + (cls ? ' ' + cls : '') + '"><div class="ac-wf-l"><b>' + (sign ? '<span class="ac-sign">' + sign + '</span>' : '') + label + '</b><small>' + hint + '</small></div>'
+    + '<div class="ac-wf-bar"><i style="width:' + Math.min(100, Math.abs(v) / max * 100).toFixed(1) + '%"></i></div>'
+    + '<div class="ac-wf-v">' + hmMoney(sign === '−' ? -Math.abs(v) : v, (sign === '−' || v < 0) ? 'neg' : '') + '</div></div>';
+  const dim = acDaysInMonth();
+  const opexParts = [['الإيجار', FIXED_COSTS.rent / dim], ['الرواتب', FIXED_COSTS.salaries / dim], ['الفواتير', FIXED_COSTS.utilities / dim], ['ثابت ثاني', FIXED_COSTS.other / dim], ['مصاريف اليوم', TODAY_GENERAL_EXPENSES_TOTAL]].filter(p => p[1] > 0.005);
+  const more = '<details class="ac-more"><summary>تفاصيل للمحاسب</summary><div class="ac-more-grid">'
+    + '<div class="ac-kv"><span>الإجمالي قبل الخصم</span>' + hmMoney(a.revenue) + '</div>'
+    + '<div class="ac-kv"><span>الخصومات</span>' + hmMoney(a.discounts) + '</div>'
+    + '<div class="ac-kv"><span>المبيعات بدون ضريبة</span>' + hmMoney(a.subtotal) + '</div>'
+    + '<div class="ac-kv"><span>ضريبة القيمة المضافة (١٥٪)</span>' + hmMoney(a.vat) + '</div>'
+    + '<div class="ac-kv"><span>هامش مجمل الربح</span><b>' + (a.subtotal > 0 ? (a.grossProfit / a.subtotal * 100).toFixed(1) : '0') + '٪</b></div>'
+    + '<div class="ac-kv"><span>هامش صافي الربح</span><b' + (st.margin < 0 ? ' class="ac-neg"' : '') + '>' + st.margin.toFixed(1) + '٪</b></div>'
+    + '</div>' + (opexParts.length ? '<div class="ac-more-sub">المصاريف اليوم، منين جت؟</div>' + opexParts.map(p => '<div class="ac-opex"><span>' + p[0] + '</span><div class="ac-opex-bar"><i style="width:' + (a.opex > 0 ? p[1] / a.opex * 100 : 0).toFixed(1) + '%"></i></div>' + hmMoney(p[1]) + '</div>').join('') : '')
+    + '</details>';
+  return '<div class="rk2-card ac-card">' + head + '<div class="ac-wfs">'
+    + line('', 'مبيعاتك', a.discounts > 0.005 ? 'بعد خصومات ' + acR(a.discounts) + ' ر.س' : 'كل الطلبات المدفوعة اليوم', a.netSales, 'ac-in')
+    + line('−', 'الضريبة', 'مو لك، تدفعها للزكاة والضريبة', a.vat)
+    + line('−', 'المواد والتغليف', 'تكلفة كل اللي بعته' + (st.missing ? ' (' + mnN(st.missing) + ' بدون تكلفة)' : ''), a.cogs)
+    + (a.deliveryPlatformCost > 0.005 ? line('−', 'عمولات التطبيقات', 'عمولة ورسوم كل منصة على طلبات اليوم', a.deliveryPlatformCost) : '')
+    + line('=', 'مجمل ربحك', 'اللي بقى من البيع نفسه', a.grossProfit, 'ac-mid')
+    + ((a.wasteCost || 0) > 0.005 ? line('−', 'الهدر', 'كلفة اللي انسجّل هدره اليوم', a.wasteCost) : '')
+    + line('−', 'المصاريف', FIXED_COSTS_SET ? 'الثابتة موزّعة على اليوم (' + acR(st.dailyFixed) + ')' + (TODAY_GENERAL_EXPENSES_TOTAL > 0 ? ' + مصاريف اليوم (' + acR(TODAY_GENERAL_EXPENSES_TOTAL) + ')' : '') : 'ما حدّدت مصاريفك الثابتة، فالرقم ناقص', a.opex)
+    + line('=', a.netProfit < 0 ? 'خسارتك' : 'صافي ربحك', 'هذا الرقم نفسه في الرئيسية والتقارير', a.netProfit, 'ac-final' + (a.netProfit < 0 ? ' ac-lossrow' : ''))
+    + '</div>' + more + '</div>';
+}
+
+/* ── مصاريفك ── */
+function acExpensesHtml(){
+  const ranges = [['month', 'هالشهر'], ['last', 'الشهر اللي فات'], ['q', '٣ شهور'], ['all', 'الكل']];
+  const from = acExpRange === 'month' ? acMonthStart().getTime() : acExpRange === 'last' ? acMonthStart(1).getTime() : acExpRange === 'q' ? acMonthStart(2).getTime() : 0;
+  const to = acExpRange === 'last' ? acMonthStart().getTime() : 0;
+  const list = acExpIn(from, to).sort((x, y) => acExpTime(y) - acExpTime(x));
+  const total = acSum(list);
+  const add = '<button type="button" class="rk2-btn lime sm" data-ac-go="@expense">+ سجّل مصروف</button>';
+  const head = hmHead('wallet', 'fin', 'مصاريفك', list.length ? acExpWord(list.length) + ' بمجموع ' + acR(total) + ' ر.س' : 'اللي تصرفه خارج المشتريات والمصاريف الثابتة', add);
+  if(!GENERAL_EXPENSES.length){
+    return '<div class="rk2-card ac-card">' + hmHead('wallet', 'fin', 'مصاريفك', 'اللي تصرفه خارج المشتريات والمصاريف الثابتة') + '<div class="hm-empty"><span class="hm-empty-ic">' + hmIc('wallet') + '</span><b>مصاريفك تطلع هنا</b>'
+      + '<span>صلّحت مكيف؟ دفعت إعلان؟ جدّدت رخصة؟ سجّله، وينحسب في ربحك لحاله</span>'
+      + '<button type="button" class="rk2-btn lime sm" data-ac-go="@expense">سجّل أول مصروف</button></div></div>';
+  }
+  const seg = '<div class="rk2-seg ac-range">' + ranges.map(([k, t]) => '<button type="button" data-ac-range="' + k + '"' + (acExpRange === k ? ' class="active"' : '') + '>' + t + '</button>').join('') + '</div>';
+  if(!list.length){
+    return '<div class="rk2-card ac-card">' + head + seg + '<div class="hm-empty"><span class="hm-empty-ic">' + hmIc('wallet') + '</span><b>ما فيه مصاريف بهالفترة</b><span>جرّب «الكل» أو سجّل مصروف جديد</span></div></div>';
+  }
+  const byCat = {};
+  list.forEach(e => { const k = e.category || 'أخرى'; byCat[k] = (byCat[k] || 0) + (Number(e.amount) || 0); });
+  const cats = Object.entries(byCat).sort((x, y) => y[1] - x[1]);
+  const catsHtml = cats.length > 1 ? '<div class="ac-cats">' + cats.map(([k, v]) => '<div class="ac-cat"><span>' + escapeHtml(k) + '</span><div class="ac-cat-bar"><i style="width:' + (v / cats[0][1] * 100).toFixed(1) + '%"></i></div><b>' + acR(v) + '</b></div>').join('') + '</div>' : '';
+  const rows = list.map(e => {
+    const when = e.spentAt ? formatRelativeDate(e.spentAt) : (e.date || 'اليوم');
+    const day = e.spentAt ? new Date(e.spentAt).toLocaleDateString('ar-SA-u-nu-latn', { day: 'numeric', month: 'short' }) : '';
+    return '<div class="ac-exp"><span class="pu-av c-' + PU_AV[Math.abs(String(e.category || '').length) % PU_AV.length] + '">' + escapeHtml((e.category || 'م').trim().charAt(0)) + '</span>'
+      + '<div class="pu-info"><b>' + escapeHtml(e.description || e.category || 'مصروف') + '</b><div class="pu-meta">' + escapeHtml(e.category || '') + ' · ' + when + (day && when !== 'اليوم' && when !== 'أمس' ? ' (' + day + ')' : '') + '</div></div>'
+      + '<div class="pu-total">' + hmMoney(e.amount) + '</div>'
+      + (e.id != null ? '<button type="button" class="pu-ic-btn del" data-ac-del="' + escapeHtml(String(e.id)) + '" aria-label="احذف المصروف" title="احذف المصروف"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg></button>' : '')
+      + '</div>';
+  }).join('');
+  return '<div class="rk2-card ac-card">' + head + seg + catsHtml + '<div class="pu-list">' + rows + '</div>'
+    + '<p class="ac-note">فواتير المواد والتغليف من «المشتريات»، والإيجار والرواتب من «المصاريف الثابتة». هنا الباقي.</p></div>';
+}
+
+/* ── منصات التوصيل: كم المفروض تحوّل لك كل منصة بعد عمولتها ── */
+function acDeliveryHtml(){
+  const head = hmHead('orders', 'res', 'منصات التوصيل', 'كم المفروض تحوّل لك كل منصة بعد عمولتها ورسومها',
+    '<input type="month" id="deliveryReconMonth" class="ac-month" value="' + escapeHtml(acDel.month || acMonthKey()) + '" max="' + acMonthKey() + '" aria-label="الشهر">');
+  let body;
+  if(acDel.loading || acDel.loadedFor !== acDel.month) body = '<div class="ac-loading">' + hmIc('clock') + 'نحسب طلبات الشهر…</div>';
+  else if(acDel.err) body = '<div class="hm-empty"><b>ما قدرنا نجيب الطلبات</b><span>' + escapeHtml(acDel.err) + '</span><button type="button" class="rk2-btn mn-ghost sm" data-ac-reload>جرّب مرة ثانية</button></div>';
+  else if(!acDel.rows || !acDel.rows.length){
+    const canSet = hmScreenOk('delivery');
+    body = '<div class="hm-empty"><span class="hm-empty-ic">' + hmIc('orders') + '</span><b>ما فيه طلبات من التطبيقات بهالشهر</b>'
+      + '<span>' + (acDel.platforms ? 'لما يجيك طلب من هنقرستيشن أو جاهز أو غيرهم، نحسب لك هنا كم المفروض يحوّلون لك' : 'أضف التطبيقات اللي تشتغل معها وعمولة كل وحدة، ونحسب لك كم المفروض يحوّلون لك') + '</span>'
+      + (canSet ? '<button type="button" class="rk2-btn lime sm" data-ac-nav="delivery">' + (acDel.platforms ? 'شوف التطبيقات' : 'أضف تطبيقات التوصيل') + '</button>' : '') + '</div>';
+  } else {
+    const rows = acDel.rows;
+    const card = r => '<div class="ac-plat"><div class="ac-plat-top"><span class="pu-av c-res">' + escapeHtml(r.name.trim().charAt(0)) + '</span>'
+      + '<div class="pu-info"><b>' + escapeHtml(r.name) + '</b><div class="pu-meta">' + hmPlural(r.count, 'طلب واحد', 'طلبين', 'طلبات', 'طلب') + ' بـ ' + acR(r.gross) + ' ر.س</div></div>'
+      + '<div class="ac-plat-net"><small>تحوّل لك</small>' + hmMoney(r.net) + '</div></div>'
+      + '<div class="ac-plat-bar"><i style="width:' + (r.gross > 0 ? Math.max(0, r.net / r.gross * 100) : 0).toFixed(1) + '%"></i></div>'
+      + '<div class="ac-plat-cut"><span>عمولة <b>' + acR(r.commission) + '</b></span>' + (r.fees > 0.005 ? '<span>رسوم توصيل <b>' + acR(r.fees) + '</b></span>' : '') + (r.comp > 0.005 ? '<span>تعويضات <b>' + acR(r.comp) + '</b></span>' : '')
+      + '<span>تاخذ <b>' + (r.gross > 0 ? Math.round((r.gross - r.net) / r.gross * 100) : 0) + '٪</b> من الطلب</span></div></div>';
+    const T = rows.reduce((s, r) => ({ count: s.count + r.count, gross: s.gross + r.gross, net: s.net + r.net }), { count: 0, gross: 0, net: 0 });
+    body = '<div class="ac-plats">' + rows.map(card).join('') + '</div>'
+      + (rows.length > 1 ? '<div class="ac-plat-total"><span>المجموع: ' + hmPlural(T.count, 'طلب واحد', 'طلبين', 'طلبات', 'طلب') + ' بـ ' + acR(T.gross) + ' ر.س</span><b>تحوّل لك ' + hmMoney(T.net) + '</b></div>' : '')
+      + '<p class="ac-note">قارن هالرقم بكشف حساب المنصة. لو حوّلت لك أقل، كلّمهم بالرقم.</p>';
+  }
+  return '<div class="rk2-card ac-card">' + head + body + '</div>';
+}
+async function acLoadDelivery(){
+  if(!acDel.month) acDel.month = acMonthKey();
+  const month = acDel.month;
+  acDel.loading = true; acDel.err = '';
+  if(acCurTab() === 'delivery') { const el = document.getElementById('acPanel'); if(el) el.innerHTML = acDeliveryHtml(); }
+  try {
+    const [year, mo] = month.split('-').map(Number);
+    const monthStart = new Date(year, mo - 1, 1), monthEnd = new Date(year, mo, 1);
+    const sb = window.supabaseClient, businessId = CURRENT_PROFILE.business_id;
+    const [{ data: platforms, error: e1 }, { data: tiers }, { data: orders, error: e2 }] = await Promise.all([
+      sb.from('delivery_platforms').select('*').eq('business_id', businessId),
+      sb.from('delivery_platform_fee_tiers').select('*'),
+      sb.from('orders').select('total, subtotal, delivery_platform_id, created_at')
+        .eq('business_id', businessId).eq('channel', 'delivery').not('delivery_platform_id', 'is', null)
+        .gte('created_at', monthStart.toISOString()).lt('created_at', monthEnd.toISOString())
+    ]);
+    if(e1 || e2) throw (e1 || e2);
+    const tiersByPlatform = {};
+    (tiers || []).forEach(t => { (tiersByPlatform[t.delivery_platform_id] ||= []).push(t); });
+    const rows = (platforms || []).map(p => {
+      const po = (orders || []).filter(o => o.delivery_platform_id === p.id);
+      let gross = 0, commission = 0, fees = 0, comp = 0;
+      po.forEach(o => { const d = computeOrderDeliveryPlatformCost(o, p, tiersByPlatform[p.id]); gross += Number(o.total); commission += d.commission; fees += d.fee; comp += d.compensation; });
+      return { name: p.name || 'منصة', count: po.length, gross, commission, fees, comp, net: gross - commission - fees - comp };
+    }).filter(r => r.count > 0).sort((x, y) => y.gross - x.gross);
+    if(acDel.month !== month) return;
+    acDel.rows = rows; acDel.platforms = (platforms || []).length; acDel.loadedFor = month;
+  } catch(err){
+    if(acDel.month !== month) return;
+    acDel.rows = null; acDel.loadedFor = month; acDel.err = (err && err.message) || 'خطأ غير متوقع';
+  } finally {
+    if(acDel.month === month) acDel.loading = false;
+  }
+  if(acCurTab() === 'delivery') acRenderPanel(true);
+  acSetSums(acStats());
+}
+// الاسم القديم -- مستخدم في تعليقات وأماكن ثانية تنادي التسوية
+function renderDeliveryReconciliation(){ acDel.loadedFor = null; return acLoadDelivery(); }
+
+(function wireAc(){
+  const root = document.getElementById('screen-accounting');
+  if(!root) return;
+  root.addEventListener('click', (e) => {
+    const t = e.target;
+    const tile = t.closest('#acctScreenTabs [data-tab]');
+    if(tile){ acTab = tile.dataset.tab; acRenderPanel(true); return; }
+    const g = t.closest('[data-ac-go]');
+    if(g){
+      const go = g.dataset.acGo;
+      if(go === '@expense') return openExpenseModal();
+      if(go === '@menu'){
+        if(hmScreenOk('menu')) goToScreenTab('menu');
+        else showToast('تكلفة المنتجات تنضبط من شاشة «القائمة»');
+        return;
+      }
+      if(go.charAt(0) === '@') acGoTab(go.slice(1));
+      return;
+    }
+    const nv = t.closest('[data-ac-nav]'); if(nv){ goToScreenTab(nv.dataset.acNav); return; }
+    const rg = t.closest('[data-ac-range]'); if(rg){ acExpRange = rg.dataset.acRange; acRenderPanel(true); return; }
+    const dl = t.closest('[data-ac-del]'); if(dl){ deleteGeneralExpense(dl.dataset.acDel); return; }
+    if(t.closest('[data-ac-reload]')){ renderDeliveryReconciliation(); }
+  });
+  root.addEventListener('change', (e) => {
+    if(e.target && e.target.id === 'deliveryReconMonth' && e.target.value){ acDel.month = e.target.value; acLoadDelivery(); }
+  });
+})();
 
 function wireAccountingScreen(){
-  document.getElementById('acctScreenTabs').addEventListener('click', (e)=>{
-    const btn = e.target.closest('button'); if(!btn) return;
-    document.querySelectorAll('#acctScreenTabs button').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    const tab = btn.dataset.tab;
-    document.getElementById('acctTabOverview').style.display = tab==='overview' ? 'block' : 'none';
-    document.getElementById('acctTabExpenses').style.display = tab==='expenses' ? 'block' : 'none';
-    document.getElementById('acctTabFixedCosts').style.display = tab==='fixedcosts' ? 'block' : 'none';
-    document.getElementById('acctTabDelivery').style.display = tab==='delivery' ? 'block' : 'none';
-    resetContentScroll();
-    if(tab==='expenses'){ renderGeneralExpensesList(); }
-    if(tab==='fixedcosts'){ renderFixedCostsTab(); }
-    if(tab==='delivery'){ renderDeliveryReconciliation(); }
-  });
-
-  document.getElementById('openAddExpenseBtn').addEventListener('click', openExpenseModal);
   document.getElementById('expenseModalClose').addEventListener('click', closeExpenseModal);
   document.getElementById('expenseModal').addEventListener('click', (e)=>{ if(e.target.id==='expenseModal') closeExpenseModal(); });
   document.getElementById('expenseSaveBtn').addEventListener('click', saveExpense);
@@ -5039,98 +5304,12 @@ function wirePurchasesScreen(){
 }
 
 
-/* ============ Accounting screen ============ */
-function renderAcctHeroProfit(){
-  const el = document.getElementById('acctHeroProfit');
-  if(!el) return;
-  const a = ACCOUNTING;
-  const positive = a.netProfit >= 0;
-  const marginPct = a.revenue > 0 ? Math.round((a.netProfit/a.revenue)*100) : 0;
-  el.className = 'acct-hero-profit ' + (positive ? 'pos' : 'neg');
-  el.innerHTML = `
-    <div class="acct-hero-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        ${positive
-          ? '<path d="M12 16v5"/><path d="M16 14.639V21"/><path d="M20 10.656V21"/><path d="m22 3-8.646 8.646a.5.5 0 0 1-.708 0L9.354 8.354a.5.5 0 0 0-.707 0L2 15"/><path d="M4 18.463V21"/><path d="M8 14.656V21"/>'
-          : '<path d="M22 17l-8.5-8.5-5 5L2 7"/><path d="M16 17h6v-6"/>'}
-      </svg>
-    </div>
-    <div class="acct-hero-body">
-      <div class="acct-hero-label">صافي الربح اليوم</div>
-      <div class="acct-hero-value mono">${a.netProfit.toFixed(2)} ر.س</div>
-      <div class="acct-hero-sub">${a.revenue>0 ? `هامش ${marginPct}٪ من إجمالي مبيعات ${a.revenue.toFixed(2)} ر.س` : 'ما فيه مبيعات اليوم بعد'}</div>
-    </div>
-  `;
-}
-
-function renderWaterfall(){
-  renderAcctHeroProfit();
-  const a = ACCOUNTING;
-  const steps = [
-    {label:'الإيرادات', explain:'إجمالي المبيعات قبل أي خصم', amount:a.revenue, cls:'pos'},
-    {label:'الخصومات', explain:'خصومات مطبّقة على الطلبات', amount:-a.discounts, cls:'neg'},
-    {label:'صافي المبيعات', explain:'بعد الخصم — نفس رقم "الربح الحقيقي" بالرئيسية', amount:a.netSales, cls:'pos'},
-    {label:'ضريبة القيمة المضافة', explain:'١٥٪ محتسبة من صافي المبيعات', amount:-a.vat, cls:'neg'},
-    {label:'تكلفة البضاعة المباعة', explain:'التكلفة الحقيقية لمكونات وتغليف كل ما بيع اليوم', amount:-a.cogs, cls:'neg'},
-    {label:'عمولات ورسوم تطبيقات التوصيل', explain:'عمولة كل منصة + رسوم توصيلها لطلبات اليوم عبر تطبيقات التوصيل', amount:-a.deliveryPlatformCost, cls:'neg'},
-    {label:'مجمل الربح', explain:'المبيعات بعد خصم تكلفة البضاعة وعمولات التوصيل', amount:a.grossProfit, cls:'pos'},
-    {label:'الهدر', explain:'كلفة اللي انسجّل هدره اليوم — مواد ومنتجات', amount:-(a.wasteCost||0), cls:'neg'},
-    {label:'المصاريف التشغيلية', explain:'المصاريف الثابتة الشهرية موزّعة على اليوم + مصاريف اليوم الإضافية', amount:-a.opex, cls:'neg'},
-    {label:'صافي الربح', explain:'نفس رقم "الربح الحقيقي" بالضبط — كل شي متطابق', amount:a.netProfit, cls:'final'}
-  ];
-  // scale reference falls back to opex when there's no revenue yet today (still
-  // a real, meaningful state — fixed costs accrue whether or not anything sold)
-  const max = Math.max(a.revenue, a.opex, 1);
-  document.getElementById('waterfall').innerHTML = steps.map(s=>{
-    const pct = Math.min(100, Math.round((Math.abs(s.amount)/max)*100));
-    return `<div class="waterfall-row">
-      <div class="wf-label-col"><div class="wf-label">${s.label}</div><div class="wf-explain">${s.explain}</div></div>
-      <div class="wf-bar-track"><div class="wf-bar-fill ${s.cls}" style="width:${pct}%"></div></div>
-      <div class="wf-amount ${s.amount<0?'neg':''} ${s.cls==='final'?'final':''} mono">${s.amount<0?'−':''}${Math.abs(s.amount).toFixed(2)}</div>
-    </div>`;
-  }).join('');
-}
-
-function renderOpexBreakdown(){
-  const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).getDate();
-  const items = [
-    {name:'الإيجار', amount: FIXED_COSTS.rent/daysInMonth},
-    {name:'رواتب الموظفين', amount: FIXED_COSTS.salaries/daysInMonth},
-    {name:'كهرباء وخدمات', amount: FIXED_COSTS.utilities/daysInMonth},
-    {name:'مصاريف ثابتة أخرى', amount: FIXED_COSTS.other/daysInMonth},
-    {name:'مصاريف اليوم الإضافية', amount: TODAY_GENERAL_EXPENSES_TOTAL}
-  ].filter(o=>o.amount>0);
-  if(items.length === 0){
-    document.getElementById('opexBreakdown').innerHTML = '<div class="orders-empty">لسا ما حددت مصاريفك الثابتة — تبويب "المصاريف الثابتة" بنفس الشاشة</div>';
-    return;
-  }
-  document.getElementById('opexBreakdown').innerHTML = items.map(o=>{
-    const pct = ACCOUNTING.opex > 0 ? Math.round(o.amount/ACCOUNTING.opex*100) : 0;
-    return `<div class="perf-row">
-      <div class="perf-top-line"><span>${o.name}</span><span class="mono">${o.amount.toFixed(2)} ر.س — ${pct}٪</span></div>
-      <div class="perf-bar-track"><div class="perf-bar-fill" style="width:${pct}%"></div></div>
-    </div>`;
-  }).join('');
-}
-
-function renderVatAndMargin(){
-  document.getElementById('vatDue').textContent = ACCOUNTING.vat.toFixed(2) + ' ر.س';
-  const marginPct = ACCOUNTING.netSales > 0 ? (ACCOUNTING.netProfit / ACCOUNTING.netSales * 100) : 0;
-  const marginEl = document.getElementById('marginValue');
-  const marginIconEl = document.querySelector('.acct-stat-icon-margin');
-  marginEl.textContent = marginPct.toFixed(1) + '٪';
-  marginEl.classList.toggle('neg', marginPct < 0);
-  if(marginIconEl) marginIconEl.classList.toggle('neg', marginPct < 0);
-  document.getElementById('marginBarFill').style.width = Math.max(0, Math.min(100, Math.round(marginPct*2))) + '%'; // scaled for visibility
-}
-
-document.getElementById('acctDetailToggle').addEventListener('click', ()=>{
-  const body = document.getElementById('acctDetailBody');
-  const chevron = document.getElementById('acctDetailChevron');
-  const open = !body.classList.contains('open');
-  body.classList.toggle('open', open);
-  chevron.classList.toggle('open', open);
-});
+/* ============ Accounting screen -- صارت صفحة rk2 (acRender). الأسماء باقية لأن
+   التحميل والرئيسية ومدير المحاسبة ينادونها بعد أي تغيير في الأرقام. ============ */
+function renderAcctHeroProfit(){ acRender(); }
+function renderWaterfall(){ acRender(); }
+function renderOpexBreakdown(){ acRender(); }
+function renderVatAndMargin(){ acRender(); }
 
 /* ============ Employees screen — real cashiers (staff_members, same rows the
    POS staff-picker uses) with real stats computed from today's real orders
@@ -8728,7 +8907,7 @@ async function loadBusinessData(){
   (expCatRes.data||[]).forEach(c=> EXPENSE_CATEGORY_ID_BY_NAME[c.name]=c.id);
   const expCatNameById = {}; (expCatRes.data||[]).forEach(c=> expCatNameById[c.id]=c.name);
   GENERAL_EXPENSES = (expRes.data||[]).map(e=>({
-    id:e.id, category:expCatNameById[e.category_id]||'', amount:Number(e.amount), description:e.description||'', date:formatRelativeDate(e.spent_at)
+    id:e.id, category:expCatNameById[e.category_id]||'', amount:Number(e.amount), description:e.description||'', date:formatRelativeDate(e.spent_at), spentAt:e.spent_at
   }));
 }
 
@@ -15632,33 +15811,34 @@ function renderFixedCostsTab(){
 }
 
 function fixedCostsSettingsHtml(){
-  return `
-    <div class="rk-section">
-      ${rkSectionHead('sliders', 'المصاريف الثابتة', 'مصاريف تدفعها كل شهر بغض النظر عن مبيعاتك — إيجار، رواتب، فواتير. ركين يوزّعها تلقائيًا على كل منتج حسب عدد القطع المباعة، عشان يطلع لك صافي ربح دقيق لكل صنف — هذا الرقم بالضبط اللي يظهر بكل منتج تحت "حصة المصاريف الثابتة"')}
-      <div class="rk-field-grid" style="display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px;">
-        <div class="rk-field"><label>الإيجار الشهري (ر.س) ${helpIcon('إيجار المحل أو الفرع شهريًا.')}</label><input type="number" id="fcRent" value="${FIXED_COSTS_SET ? FIXED_COSTS.rent : ''}" placeholder="0.00"></div>
-        <div class="rk-field"><label>الرواتب الشهرية (ر.س) ${helpIcon('إجمالي رواتب كل الموظفين شهريًا.')}</label><input type="number" id="fcSalaries" value="${FIXED_COSTS_SET ? FIXED_COSTS.salaries : ''}" placeholder="0.00"></div>
-        <div class="rk-field"><label>الفواتير والخدمات (ر.س) ${helpIcon('كهرباء، ماء، إنترنت، اشتراكات — كل شي يتكرر شهريًا بغض النظر عن المبيعات.')}</label><input type="number" id="fcUtilities" value="${FIXED_COSTS_SET ? FIXED_COSTS.utilities : ''}" placeholder="0.00"></div>
-        <div class="rk-field"><label>مصاريف أخرى (ر.س) ${helpIcon('أي شي ثابت شهري ما يندرج تحت الفئات فوق — صيانة، تأمين، وغيرها.')}</label><input type="number" id="fcOther" value="${FIXED_COSTS_SET ? FIXED_COSTS.other : ''}" placeholder="0.00"></div>
-      </div>
-
-      <div class="cost-preview-box" id="fcPreviewBox" style="margin-top:16px;"></div>
-      <button class="rk-btn rk-btn-primary rk-btn-lg" id="fcSaveBtn" style="margin-top:16px; width:100%;">حفظ المصاريف الثابتة</button>
-    </div>
-  `;
+  const v = k => FIXED_COSTS_SET ? FIXED_COSTS[k] : '';
+  const f = (id, k, label, hint) => '<label class="ac-fc-field"><span>' + label + '</span><input type="number" inputmode="decimal" min="0" step="0.01" id="' + id + '" value="' + v(k) + '" placeholder="0"><small>' + hint + '</small></label>';
+  return '<div class="rk2-card ac-card">'
+    + hmHead('clock', 'fin', 'المصاريف الثابتة', 'اللي تدفعه كل شهر حتى لو ما بعت شي. ركين يوزّعه على أيام الشهر وعلى كل منتج تبيعه')
+    + '<div class="ac-fc-grid">'
+    + f('fcRent', 'rent', 'الإيجار بالشهر', 'إيجار المحل أو الفرع')
+    + f('fcSalaries', 'salaries', 'الرواتب بالشهر', 'كل رواتب الموظفين مع بعض')
+    + f('fcUtilities', 'utilities', 'الفواتير بالشهر', 'كهرباء، ماء، إنترنت، اشتراكات')
+    + f('fcOther', 'other', 'ثابت ثاني بالشهر', 'تأمين، أقساط، صيانة شهرية')
+    + '</div>'
+    + '<div class="ac-fc-preview" id="fcPreviewBox"></div>'
+    + '<button type="button" class="rk-btn rk-btn-primary rk-btn-lg ac-fc-save" id="fcSaveBtn">احفظ المصاريف الثابتة</button>'
+    + '</div>';
 }
 function updateFixedCostsPreview(){
-  const rent = parseFloat(document.getElementById('fcRent').value)||0;
-  const salaries = parseFloat(document.getElementById('fcSalaries').value)||0;
-  const utilities = parseFloat(document.getElementById('fcUtilities').value)||0;
-  const other = parseFloat(document.getElementById('fcOther').value)||0;
-  const total = rent+salaries+utilities+other;
+  const val = id => parseFloat(document.getElementById(id).value) || 0;
+  const total = val('fcRent') + val('fcSalaries') + val('fcUtilities') + val('fcOther');
+  const daily = total / acDaysInMonth();
   const totalUnitsToday = ALL_SELLERS.reduce((s,p)=>s+p.qty, 0);
   const perUnit = totalUnitsToday>0 ? total/(totalUnitsToday*30) : 0;
-  document.getElementById('fcPreviewBox').innerHTML = `
-    <div class="cpb-row total"><span>إجمالي المصاريف الثابتة الشهرية</span><span class="mono">${total.toFixed(2)} ر.س</span></div>
-    <div class="cpb-row"><span class="field-label-row">حصة كل قطعة مباعة ${helpIcon('الإجمالي الشهري ÷ (متوسط قطعك المباعة يوميًا × ٣٠ يوم) — هذا الرقم بالضبط اللي يظهر بتكلفة كل منتج.')}</span><span class="mono">${perUnit.toFixed(2)} ر.س</span></div>
-  `;
+  const st = acStats();
+  const kv = (k, v, hint, cls) => '<div class="ac-fc-kv' + (cls ? ' ' + cls : '') + '"><span>' + k + (hint ? '<small>' + hint + '</small>' : '') + '</span>' + v + '</div>';
+  document.getElementById('fcPreviewBox').innerHTML = total > 0
+    ? kv('المجموع بالشهر', hmMoney(total), '', 'big')
+      + kv('يعني باليوم', hmMoney(daily), 'ينخصم من ربح كل يوم')
+      + (perUnit > 0 ? kv('على كل قطعة تبيعها', hmMoney(perUnit), 'حسب مبيعاتك اليوم × ٣٠ يوم، ويطلع في تكلفة كل منتج') : '')
+      + (st.ratio > 0 && acProfitOn() ? kv('عشان ما تخسر، بِع باليوم', hmMoney(daily / st.ratio), 'حسب اللي يبقى لك من كل بيعة اليوم', 'lime') : '')
+    : '<div class="ac-fc-empty">اكتب مبالغك فوق، ونقول لك كم تكلّفك باليوم وكم لازم تبيع عشان ما تخسر</div>';
 }
 function wireFixedCostsSettings(){
   ['fcRent','fcSalaries','fcUtilities','fcOther'].forEach(id=> document.getElementById(id).addEventListener('input', updateFixedCostsPreview));
