@@ -1,0 +1,347 @@
+/* ==========================================================================
+   rk2 — نظام التصميم الجديد للوحة ركين (٢٠٢٦-١١)
+   --------------------------------------------------------------------------
+   كل شاشة يُعاد تصميمها تلبس class="rk2" على الـ<section>، وتستخدم القطع
+   المشتركة هنا (البطاقة، رأس القسم، الأزرار، المقاطع، الأيقونات الملوّنة،
+   الحالات الفاضية). ما يتغيّر بين شاشة وثانية: طريقة العرض والشرح، لا
+   الهوية. التنسيق الخاص بكل شاشة بعد القسم المشترك، ببادئة الشاشة
+   (الرئيسية = hm-).
+   الخطوط: ثمانية (Sans للنص، والأرقام بنفسها tabular)، نفس خط ركين.
+   الألوان: من متغيّرات اللوحة (--card-bg, --text, --muted, --line, --lime,
+   --acc-*) فتشتغل في الفاتح والداكن تلقائياً.
+   ========================================================================== */
+@font-face{font-family:'RkSans'; src:url('/fonts/thmanyah-sans/thmanyahsans-Regular.woff2') format('woff2'); font-weight:400; font-display:swap;}
+@font-face{font-family:'RkSans'; src:url('/fonts/thmanyah-sans/thmanyahsans-Medium.woff2') format('woff2'); font-weight:500; font-display:swap;}
+@font-face{font-family:'RkSans'; src:url('/fonts/thmanyah-sans/thmanyahsans-Bold.woff2') format('woff2'); font-weight:700; font-display:swap;}
+@font-face{font-family:'RkSans'; src:url('/fonts/thmanyah-sans/thmanyahsans-Black.woff2') format('woff2'); font-weight:900; font-display:swap;}
+
+.rk2{
+  --rk2-r:22px; --rk2-r-md:16px; --rk2-r-sm:12px;
+  --rk2-gap:18px;
+  --rk2-ink:#0F0F0F; --rk2-ink-2:#1A1A1A; --rk2-on-ink:#F7F6EF;
+  --rk2-card-shadow:0 1px 0 rgba(17,17,17,.03), 0 10px 30px -18px rgba(17,17,17,.18);
+  font-family:'RkSans','IBM Plex Sans Arabic',sans-serif;
+  font-feature-settings:"tnum" 1;
+}
+[data-theme="dark"] .rk2{ --rk2-card-shadow:0 1px 0 rgba(255,255,255,.02), 0 12px 30px -18px rgba(0,0,0,.6); --rk2-ink:#0B0B0B; }
+.rk2 button, .rk2 input, .rk2 select, .rk2 textarea{font-family:inherit;}
+.rk2 h2, .rk2 h3, .rk2 p{margin:0;}
+.rk2 [hidden]{display:none !important;}
+
+/* أقسام الشاشة: عنوان كبير واضح + سطر شرح قصير */
+.rk2-sec{margin-top:34px;}
+.rk2-sec-head{display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px;}
+.rk2-sec-head h2{font-size:22px; font-weight:900; letter-spacing:-.2px; line-height:1.25;}
+.rk2-sec-head p{font-size:13.5px; color:var(--muted); margin-top:3px; font-weight:500;}
+
+/* البطاقة */
+.rk2-card{background:var(--card-bg); border:1px solid var(--line); border-radius:var(--rk2-r); padding:20px; box-shadow:var(--rk2-card-shadow); min-width:0;}
+.rk2-card-head{display:flex; align-items:center; gap:12px; margin-bottom:16px;}
+.rk2-card-title{flex:1; min-width:0;}
+.rk2-card-title h3{font-size:16.5px; font-weight:800; line-height:1.3;}
+.rk2-card-title p{font-size:12.5px; color:var(--muted); margin-top:2px; font-weight:500;}
+
+/* أيقونة ملوّنة حسب مجال الشاشة */
+.rk2-ic{width:40px; height:40px; border-radius:13px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;}
+.rk2-ic svg{width:19px; height:19px;}
+.c-ops{--c:var(--acc-ops); --cb:var(--acc-ops-bg);} .c-res{--c:var(--acc-res); --cb:var(--acc-res-bg);}
+.c-fin{--c:var(--acc-fin); --cb:var(--acc-fin-bg);} .c-team{--c:var(--acc-team); --cb:var(--acc-team-bg);}
+.c-ai{--c:var(--acc-ai); --cb:var(--acc-ai-bg);}
+.rk2-ic[class*="c-"]{color:var(--c); background:var(--cb);}
+
+/* الأزرار */
+.rk2-btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; height:46px; padding:0 20px; border-radius:14px; border:0; font-size:15px; font-weight:800; cursor:pointer; transition:transform .15s ease, background .2s ease, box-shadow .2s ease; white-space:nowrap;}
+.rk2-btn svg{width:18px; height:18px;}
+.rk2-btn:active{transform:scale(.97);}
+.rk2-btn.lime{background:var(--lime); color:#111; box-shadow:0 12px 26px -14px rgba(143,203,23,.9);}
+.rk2-btn.lime:hover{background:#D4FF5E;}
+.rk2-btn.ghost-dark{background:rgba(247,246,239,.08); color:var(--rk2-on-ink); border:1px solid rgba(247,246,239,.16);}
+.rk2-btn.ghost-dark:hover{background:rgba(247,246,239,.14);}
+.rk2-btn.sm{height:36px; padding:0 14px; font-size:13.5px; border-radius:11px;}
+.rk2-btn.sm svg{width:15px; height:15px;}
+
+/* مقاطع الاختيار (فترات، أكثر/أقل...) */
+.rk2-seg{display:inline-flex; gap:4px; padding:4px; border-radius:14px; background:var(--surf2); max-width:100%; overflow-x:auto; scrollbar-width:none;}
+.rk2-seg::-webkit-scrollbar{display:none;}
+.rk2-seg button{border:0; background:transparent; color:var(--muted); font-size:13.5px; font-weight:700; padding:8px 14px; border-radius:10px; white-space:nowrap; transition:background .2s ease, color .2s ease;}
+.rk2-seg button:hover{color:var(--text);}
+.rk2-seg button.active{background:var(--card-bg); color:var(--text); box-shadow:0 2px 8px rgba(17,17,17,.1);}
+[data-theme="dark"] .rk2-seg button.active{background:#2a2a2a;}
+.rk2-seg.sm{border-radius:11px; padding:3px;}
+.rk2-seg.sm button{font-size:12.5px; padding:6px 11px; border-radius:8px;}
+
+/* حالة فاضية: تشرح وش بيطلع هنا ومتى، بدل «لا توجد بيانات» */
+.hm-empty{display:flex; flex-direction:column; align-items:center; text-align:center; gap:6px; padding:26px 12px 20px; color:var(--muted);}
+.hm-empty-ic{width:52px; height:52px; border-radius:18px; background:var(--surf1); border:1px dashed var(--line); display:flex; align-items:center; justify-content:center; margin-bottom:6px; color:var(--muted);}
+.hm-empty-ic svg{width:22px; height:22px;}
+.hm-empty b{color:var(--text); font-size:15px; font-weight:800;}
+.hm-empty span{font-size:13px; max-width:30ch; line-height:1.6;}
+
+/* المبالغ: الهللات أصغر، والريال برمزه الرسمي */
+.hm-money{font-weight:800; white-space:nowrap; direction:ltr; unicode-bidi:isolate; display:inline-flex; align-items:baseline; gap:0;}
+.hm-money small{font-size:.62em; opacity:.6; font-weight:700;}
+.hm-money .rk-riyal{font-size:.8em; margin-inline-start:.28em; opacity:.85; font-weight:400;}
+.hm-money.neg{color:var(--danger);}
+.hm-num{direction:ltr; unicode-bidi:isolate; font-weight:800;}
+
+/* ظهور ناعم */
+@keyframes rk2-in{from{opacity:0; transform:translateY(10px)}to{opacity:1; transform:none}}
+@media (prefers-reduced-motion: no-preference){
+  .rk2 .hm > *{animation:rk2-in .45s cubic-bezier(.2,.8,.2,1) both;}
+  .rk2 .hm > *:nth-child(2){animation-delay:.04s} .rk2 .hm > *:nth-child(3){animation-delay:.08s}
+  .rk2 .hm > *:nth-child(4){animation-delay:.12s} .rk2 .hm > *:nth-child(5){animation-delay:.16s} .rk2 .hm > *:nth-child(6){animation-delay:.2s}
+}
+
+/* ==========================================================================
+   الرئيسية (hm-)
+   ========================================================================== */
+.hm{max-width:1280px; margin:0 auto; padding-bottom:30px;}
+
+/* ===== ١) يومك ===== */
+.hm-hero{position:relative; isolation:isolate; overflow:hidden; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); gap:28px;
+  background:var(--rk2-ink); color:var(--rk2-on-ink); border-radius:28px; padding:30px 32px;
+  box-shadow:0 30px 60px -36px rgba(0,0,0,.7), inset 0 0 0 1px rgba(247,246,239,.06);}
+.hm-hero::before{content:''; position:absolute; z-index:-1; width:640px; height:640px; border-radius:50%; inset-inline-start:-220px; top:-300px;
+  background:radial-gradient(circle, rgba(196,255,43,.20) 0%, rgba(196,255,43,.05) 40%, transparent 68%);}
+.hm-hero::after{content:''; position:absolute; z-index:-1; inset:0; opacity:.05;
+  background-image:linear-gradient(rgba(247,246,239,.9) 1px,transparent 1px),linear-gradient(90deg,rgba(247,246,239,.9) 1px,transparent 1px);
+  background-size:34px 34px; -webkit-mask-image:linear-gradient(270deg,#000,transparent 60%); mask-image:linear-gradient(270deg,#000,transparent 60%);}
+.hm-hero:empty{min-height:300px;}
+.hm-hello{font-size:15px; font-weight:700; color:rgba(247,246,239,.9);}
+.hm-date{display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; color:rgba(247,246,239,.5); margin-top:3px; font-weight:500;}
+.hm-live{display:inline-flex; align-items:center; gap:6px; color:var(--lime); font-weight:800; font-size:12px; padding:3px 10px; border-radius:99px; background:rgba(196,255,43,.1);}
+.hm-live i{width:7px; height:7px; border-radius:50%; background:var(--lime); box-shadow:0 0 0 0 rgba(196,255,43,.6); animation:hm-pulse 2s ease-out infinite;}
+@keyframes hm-pulse{0%{box-shadow:0 0 0 0 rgba(196,255,43,.55)}70%{box-shadow:0 0 0 8px rgba(196,255,43,0)}100%{box-shadow:0 0 0 0 rgba(196,255,43,0)}}
+.hm-label{margin-top:26px; font-size:14px; font-weight:700; color:rgba(247,246,239,.62);}
+.hm-big{margin-top:2px; line-height:1; text-align:right;}
+.hm-big .hm-money{font-size:clamp(46px, 5.4vw, 74px); font-weight:900; letter-spacing:-1.5px; color:#fff;}
+.hm-big .hm-money small{opacity:.45;}
+.hm-big .hm-money .rk-riyal{color:var(--lime); opacity:1; font-size:.55em; margin-inline-start:.22em;}
+.hm-delta{display:inline-flex; align-items:center; gap:8px; margin-top:14px; font-size:13.5px; font-weight:600; color:rgba(247,246,239,.72); flex-wrap:wrap;}
+.hm-delta b{display:inline-flex; align-items:center; padding:4px 10px; border-radius:99px; font-weight:900; font-size:13px; direction:ltr;}
+.hm-delta.up b{background:var(--lime); color:#111;}
+.hm-delta.down b{background:rgba(255,120,90,.16); color:#FF9C84;}
+.hm-delta.idle b{background:rgba(247,246,239,.1); color:var(--lime); font-size:9px; padding:6px 8px;}
+.hm-delta-y{font-size:12.5px; color:rgba(247,246,239,.45); padding-inline-start:10px; border-inline-start:1px solid rgba(247,246,239,.14);}
+.hm-delta .hm-money{font-weight:700; color:rgba(247,246,239,.7);}
+.hm-actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:26px;}
+
+.hm-hero-side{display:flex; flex-direction:column; min-width:0;}
+.hm-chart-head{display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12.5px; font-weight:700; color:rgba(247,246,239,.55);}
+.hm-legend{display:inline-flex; align-items:center; gap:7px; font-weight:600;}
+.hm-legend i{width:10px; height:10px; border-radius:3px; display:inline-block; margin-inline-start:6px;}
+.hm-legend i.t{background:var(--lime);}
+.hm-legend i.a{background:transparent; border:1.5px dashed rgba(247,246,239,.4);}
+.hm-chart{flex:1; display:flex; align-items:stretch; gap:5px; min-height:150px; margin-top:12px;}
+.hm-col{flex:1; min-width:0; display:flex; flex-direction:column; gap:6px;}
+.hm-col-bars{position:relative; flex:1; border-radius:8px; background:rgba(247,246,239,.035);}
+.hm-col-bars i{position:absolute; bottom:0; left:0; right:0; border-radius:7px; transition:height .6s cubic-bezier(.2,.8,.2,1);}
+.hm-avg{border:1.5px dashed rgba(247,246,239,.28); border-bottom:0; background:transparent;}
+.hm-today{background:linear-gradient(180deg, #D8FF6A, #9ED21F); left:18% !important; right:18% !important; box-shadow:0 0 18px -4px rgba(196,255,43,.5);}
+.hm-col.later .hm-col-bars{background:transparent; outline:1px dashed rgba(247,246,239,.06); outline-offset:-1px;}
+.hm-col.now .hm-col-bars{background:rgba(196,255,43,.08); box-shadow:inset 0 0 0 1px rgba(196,255,43,.35);}
+.hm-col span{height:14px; font-size:10.5px; font-weight:600; color:rgba(247,246,239,.42); text-align:center; white-space:nowrap; overflow:visible;}
+.hm-col.now span{color:var(--lime); font-weight:800;}
+.hm-stats{display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:10px; margin-top:18px;}
+.hm-stat{background:rgba(247,246,239,.05); border:1px solid rgba(247,246,239,.08); border-radius:16px; padding:12px 14px; min-width:0;}
+.hm-stat > span{display:block; font-size:12px; font-weight:600; color:rgba(247,246,239,.55);}
+.hm-stat > b{display:block; font-size:21px; font-weight:900; margin-top:2px; color:#fff;}
+.hm-stat .hm-money.neg{color:#FF9C84;}
+.hm-note{display:block; margin-top:4px; font-size:11.5px; color:rgba(247,246,239,.5); font-weight:600;}
+.hm-note-link{padding:0; border:0; background:none; color:var(--lime); font-size:11.5px; font-weight:700; text-decoration:underline; text-underline-offset:3px; cursor:pointer; text-align:right;}
+
+/* «جديد ركين» تحت «يومك» -- بطاقة مختصرة (التفاصيل كاملة في لوحة «جديد») */
+#rkHomeNews:empty{display:none;}
+#rkHomeNews{margin-top:var(--rk2-gap);}
+#rkHomeNews .rk-wn-hero{margin:0; grid-template-columns:minmax(0,1fr) minmax(0,380px); padding:20px 24px; border-radius:22px; gap:20px;}
+#rkHomeNews .rk-wn-title{font-size:clamp(20px, 2vw, 26px);}
+#rkHomeNews .rk-wn-body{font-size:13.5px; margin-bottom:14px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
+#rkHomeNews .rk-wn-points{display:none;}
+#rkHomeNews .rk-wn-kick{margin-bottom:8px;}
+
+/* ===== ٢) مهمّاتك ===== */
+.hm-quests{display:grid; gap:var(--rk2-gap); margin-top:var(--rk2-gap);}
+.hm-quests[data-n="2"]{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); align-items:start;}
+.hm-quests > div:empty, .hm-quests > .status-banner.hidden{display:none;}
+.hm-kicker{display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:800; color:var(--muted);}
+.hm-kicker svg{width:14px; height:14px;}
+.hm-quest-top{display:flex; align-items:center; gap:16px;}
+.hm-quest-top h3, .hm-alerts-head h3{font-size:19px; font-weight:900; margin-top:2px;}
+.hm-quest-top p{font-size:13px; color:var(--muted); margin-top:2px;}
+.hm-ring{--p:0; width:68px; height:68px; flex-shrink:0; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background:conic-gradient(var(--lime-deep) calc(var(--p) * 1%), var(--surf2) 0); position:relative;}
+.hm-ring::before{content:''; position:absolute; inset:7px; border-radius:50%; background:var(--card-bg);}
+.hm-ring b{position:relative; font-size:20px; font-weight:900; direction:ltr;}
+.hm-ring small{font-size:12px; color:var(--muted); font-weight:700;}
+.hm-quest-next{display:flex; align-items:center; gap:14px; width:100%; margin-top:16px; padding:14px; border-radius:18px; text-align:right; cursor:pointer;
+  background:linear-gradient(135deg, rgba(196,255,43,.16), rgba(196,255,43,.04)); border:1.5px solid color-mix(in srgb, var(--lime-deep) 55%, transparent); color:var(--text); transition:transform .15s ease, box-shadow .2s ease;}
+.hm-quest-next:hover{transform:translateY(-1px); box-shadow:0 12px 26px -18px rgba(143,203,23,.9);}
+.hm-quest-n{width:34px; height:34px; border-radius:11px; background:var(--lime); color:#111; display:flex; align-items:center; justify-content:center; font-weight:900; flex-shrink:0;}
+.hm-quest-txt{flex:1; min-width:0; display:flex; flex-direction:column; gap:2px;}
+.hm-quest-txt b{font-size:15px; font-weight:800;}
+.hm-quest-txt small{font-size:12.5px; color:var(--muted); line-height:1.5;}
+.hm-quest-next .rk2-btn{pointer-events:none;}
+.hm-quest-list{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;}
+.hm-qstep{display:inline-flex; align-items:center; gap:8px; padding:7px 12px 7px 14px; border-radius:99px; border:1px solid var(--line); background:var(--surf1); color:var(--text); font-size:12.5px; font-weight:700; cursor:pointer;}
+.hm-qstep:hover:not(:disabled){border-color:var(--lime-deep);}
+.hm-qcheck{width:20px; height:20px; border-radius:50%; background:var(--surf2); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:900;}
+.hm-qcheck svg{width:12px; height:12px;}
+.hm-qstep.done{color:var(--muted); cursor:default; text-decoration:line-through; text-decoration-color:color-mix(in srgb, var(--muted) 50%, transparent);}
+.hm-qstep.done .hm-qcheck{background:var(--lime); color:#111;}
+
+.hm-alerts{padding:20px;}
+.hm-alerts-head{display:flex; align-items:center; gap:14px; margin-bottom:12px;}
+.hm-alerts-ic{width:46px; height:46px; border-radius:15px; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+.hm-alerts-ic svg{width:22px; height:22px;}
+.hm-alerts.is-urgent .hm-alerts-ic{background:color-mix(in srgb, var(--danger) 14%, transparent); color:var(--danger);}
+.hm-alerts.is-warn .hm-alerts-ic{background:color-mix(in srgb, var(--amber) 16%, transparent); color:var(--amber);}
+.hm-alerts.is-urgent{border-color:color-mix(in srgb, var(--danger) 35%, var(--line));}
+.hm-alert-list{display:flex; flex-direction:column; gap:8px;}
+.hm-alert{display:flex; align-items:center; gap:12px; width:100%; padding:12px 14px; border-radius:15px; border:1px solid var(--line); background:var(--surf1); color:var(--text); text-align:right; cursor:pointer; transition:border-color .2s ease, background .2s ease;}
+.hm-alert:hover{border-color:color-mix(in srgb, var(--text) 25%, transparent); background:var(--surf2);}
+.hm-alert.more{display:none;}
+.hm-alerts.open .hm-alert.more{display:flex;}
+.hm-alert-dot{width:10px; height:10px; border-radius:50%; flex-shrink:0; background:var(--amber);}
+.hm-alert.urgent .hm-alert-dot{background:var(--danger); box-shadow:0 0 0 4px color-mix(in srgb, var(--danger) 18%, transparent);}
+.hm-alert-txt{flex:1; min-width:0; display:flex; flex-direction:column; gap:2px;}
+.hm-alert-txt b{font-size:14px; font-weight:800;}
+.hm-alert-txt small{font-size:12px; color:var(--muted); line-height:1.5;}
+.hm-alert-go{display:inline-flex; align-items:center; gap:4px; font-size:12.5px; font-weight:800; color:var(--text); white-space:nowrap; opacity:.75;}
+.hm-alert-go svg{width:14px; height:14px;}
+.hm-more{margin-top:10px; border:0; background:none; color:var(--text); font-weight:800; font-size:13px; text-decoration:underline; text-underline-offset:4px; cursor:pointer; padding:4px 0;}
+
+/* ===== ٣) اختصارات ===== */
+.hm-tiles{display:grid; grid-template-columns:repeat(6, minmax(0,1fr)); gap:12px;}
+.hm-tile{display:flex; flex-direction:column; align-items:flex-start; gap:4px; padding:16px; border-radius:20px; border:1px solid var(--line); background:var(--card-bg); color:var(--text); text-align:right; cursor:pointer;
+  box-shadow:var(--rk2-card-shadow); transition:transform .18s cubic-bezier(.2,.8,.2,1), border-color .2s ease, box-shadow .2s ease; min-width:0;}
+.hm-tile .rk2-ic{margin-bottom:10px; transition:transform .25s cubic-bezier(.3,1.6,.5,1);}
+.hm-tile b{font-size:15px; font-weight:800;}
+.hm-tile small{font-size:12px; color:var(--muted); font-weight:500;}
+.hm-tile:hover{transform:translateY(-3px); border-color:color-mix(in srgb, var(--c, var(--text)) 40%, var(--line)); box-shadow:0 18px 30px -22px rgba(17,17,17,.35);}
+.hm-tile:hover .rk2-ic{transform:scale(1.1) rotate(-4deg);}
+.hm-tile:active{transform:scale(.97);}
+
+/* ===== ٤) أبطال اليوم ===== */
+.hm-champs{display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); gap:var(--rk2-gap);}
+.hm-podium{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); align-items:end; gap:10px; padding-top:6px;}
+.hm-pod{display:flex; flex-direction:column; align-items:center; text-align:center; gap:3px; min-width:0;}
+.hm-medal{width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:16px; color:#111; margin-bottom:4px;
+  box-shadow:inset 0 -3px 0 rgba(0,0,0,.14), 0 6px 14px -8px rgba(0,0,0,.4);}
+.hm-pod.r1 .hm-medal{background:linear-gradient(160deg,#FFE27A,#E7B520); width:46px; height:46px; font-size:19px;}
+.hm-pod.r2 .hm-medal{background:linear-gradient(160deg,#F1F1F1,#BDBDBD);}
+.hm-pod.r3 .hm-medal{background:linear-gradient(160deg,#F2C29A,#C98652);}
+.hm-pod-name{font-size:14.5px; font-weight:800; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.hm-pod-qty{font-size:12px; color:var(--muted); font-weight:600;}
+.hm-pod-block{width:100%; margin-top:8px; border-radius:16px 16px 6px 6px; display:flex; align-items:flex-start; justify-content:center; padding-top:14px; font-size:14px;}
+.hm-pod.r1 .hm-pod-block{height:118px; background:linear-gradient(180deg, var(--lime), color-mix(in srgb, var(--lime) 55%, var(--card-bg))); color:#111;}
+.hm-pod.r2 .hm-pod-block{height:84px; background:var(--surf2);}
+.hm-pod.r3 .hm-pod-block{height:60px; background:var(--surf1); border:1px solid var(--line);}
+.hm-pod.r1 .hm-pod-block .hm-money{font-size:17px;}
+.hm-board{display:flex; flex-direction:column; gap:12px;}
+.hm-runner, .hm-row{display:flex; align-items:center; gap:12px;}
+.hm-rank{width:30px; height:30px; border-radius:10px; background:var(--surf2); display:flex; align-items:center; justify-content:center; font-weight:900; font-size:13px; flex-shrink:0;}
+.hm-runner.lead .hm-rank, .hm-row.best:first-child .hm-rank{background:var(--lime); color:#111;}
+.hm-runner-main, .hm-row-main{flex:1; min-width:0; display:flex; flex-direction:column; gap:5px;}
+.hm-runner-top, .hm-row-top{display:flex; align-items:baseline; justify-content:space-between; gap:10px;}
+.hm-runner-top b, .hm-row-top b{font-size:14.5px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.hm-runner-top .hm-money, .hm-row-top .hm-money{font-size:14px;}
+.hm-runner small, .hm-row small{font-size:11.5px; color:var(--muted); font-weight:600;}
+.hm-track{height:7px; border-radius:99px; background:var(--surf2); overflow:hidden;}
+.hm-track i{display:block; height:100%; border-radius:99px; background:var(--acc-team); transition:width .7s cubic-bezier(.2,.8,.2,1);}
+.hm-runner.lead .hm-track i{background:var(--lime-deep);}
+.hm-row.best .hm-track i{background:var(--acc-res);}
+.hm-row.low .hm-track i{background:color-mix(in srgb, var(--muted) 55%, transparent);}
+.hm-row.low .hm-rank{background:var(--surf1); color:var(--muted);}
+#bestSellersList, #worstSellersList{display:flex; flex-direction:column; gap:12px;}
+
+/* ===== ٥) حلّل مبيعاتك ===== */
+.hm-an-head{align-items:center;}
+.hm-period{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+.hm-custom{position:relative;}
+.hm-custom > summary{list-style:none; cursor:pointer; font-size:13px; font-weight:700; color:var(--text); padding:9px 14px; border-radius:12px; border:1px dashed var(--line); background:var(--card-bg);}
+.hm-custom > summary::-webkit-details-marker{display:none;}
+.hm-custom[open] > summary{border-style:solid; border-color:var(--text);}
+.hm-custom .sales-range-custom-body{position:absolute; z-index:20; inset-inline-end:0; top:calc(100% + 8px); width:300px; display:flex; flex-direction:column; gap:10px; padding:16px; border-radius:18px; background:var(--card-bg); border:1px solid var(--line); box-shadow:0 24px 40px -20px rgba(0,0,0,.35);}
+.hm-strip{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:10px; margin-bottom:var(--rk2-gap);}
+.hm-kpi{display:flex; flex-direction:column; gap:2px; padding:14px 16px; border-radius:18px; background:var(--card-bg); border:1px solid var(--line); min-width:0;}
+.hm-kpi-ic{width:28px; height:28px; border-radius:9px; background:var(--surf2); display:flex; align-items:center; justify-content:center; margin-bottom:6px;}
+.hm-kpi-ic svg{width:15px; height:15px;}
+.hm-kpi > span:not(.hm-kpi-ic){font-size:12px; color:var(--muted); font-weight:700;}
+.hm-kpi > b{font-size:20px; font-weight:900;}
+.hm-grid{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:var(--rk2-gap);}
+.hm-grid .hm-hours{grid-column:1 / -1;}
+.hm-stack{display:flex; gap:3px; height:14px; border-radius:99px; overflow:hidden; margin-bottom:14px;}
+.hm-stack i{display:block; min-width:4px; background:var(--c);}
+.hm-legend-rows{display:flex; flex-direction:column; gap:2px;}
+.hm-lrow{display:flex; align-items:center; gap:10px; padding:9px 2px; border-bottom:1px solid var(--line); font-size:14px;}
+.hm-lrow:last-child{border-bottom:0;}
+.hm-lrow b{font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.hm-lrow small{font-size:12px; color:var(--muted); font-weight:600; white-space:nowrap;}
+.hm-pct{margin-inline-start:auto; font-size:12px; font-weight:800; color:var(--muted); background:var(--surf1); border-radius:8px; padding:2px 8px; direction:ltr;}
+.hm-lrow .hm-money{font-size:14px; min-width:84px; justify-content:flex-start;}
+.hm-dot{width:10px; height:10px; border-radius:3px; flex-shrink:0; background:var(--c);}
+.hm-mix-empty{font-size:13px; color:var(--muted); padding:18px 0; text-align:center;}
+
+.hm-insights{display:grid; grid-template-columns:repeat(2, minmax(0, 260px)); gap:10px; margin-bottom:16px;}
+.hm-insight{padding:12px 16px; border-radius:16px; background:var(--surf1); border:1px solid var(--line); display:flex; flex-direction:column; gap:1px;}
+.hm-insight > span{font-size:12px; color:var(--muted); font-weight:700;}
+.hm-insight > b{font-size:18px; font-weight:900;}
+.hm-insight > small{font-size:12px; color:var(--muted);}
+.hm-insight .hm-money{font-size:13px; color:var(--muted); font-weight:700;}
+.hm-heat-scroll{overflow-x:auto; padding-bottom:4px; scrollbar-width:thin;}
+.hm-heat{display:grid; grid-template-columns:62px repeat(var(--cols), minmax(22px, 1fr)); gap:4px; min-width:calc(62px + var(--cols) * 26px); direction:rtl;}
+.hm-heat-day{font-size:12px; font-weight:700; color:var(--muted); display:flex; align-items:center;}
+.hm-cell{display:block; height:26px; border-radius:7px; background:var(--surf1); border:0; padding:0;}
+button.hm-cell{cursor:pointer; transition:transform .12s ease;}
+button.hm-cell:hover{transform:scale(1.12); box-shadow:0 0 0 2px var(--text);}
+.hm-cell.l1, .hm-heat-key i.l1{background:color-mix(in srgb, var(--lime-deep) 22%, var(--surf1));}
+.hm-cell.l2, .hm-heat-key i.l2{background:color-mix(in srgb, var(--lime-deep) 48%, var(--surf1));}
+.hm-cell.l3, .hm-heat-key i.l3{background:var(--lime-deep);}
+.hm-cell.l4, .hm-heat-key i.l4{background:var(--lime);}
+.hm-heat-h{font-size:10px; color:var(--muted); font-weight:600; text-align:center; white-space:nowrap; padding-top:4px;}
+.hm-heat-key{display:flex; align-items:center; gap:5px; margin-top:12px; font-size:11.5px; color:var(--muted); font-weight:600; flex-wrap:wrap;}
+.hm-heat-key i{width:14px; height:14px; border-radius:4px; display:inline-block;}
+.hm-heat-key em{font-style:normal; margin-inline-start:auto;}
+
+/* ===== مقاسات ===== */
+@media (max-width:1200px){
+  .hm-tiles{grid-template-columns:repeat(3, minmax(0,1fr));}
+}
+@media (max-width:1024px){
+  .hm-hero{grid-template-columns:1fr; gap:22px;}
+  .hm-quests[data-n="2"], .hm-champs, .hm-grid{grid-template-columns:1fr;}
+  #rkHomeNews .rk-wn-hero{grid-template-columns:1fr;}
+  #rkHomeNews .rk-wn-hero-art{display:none;}
+}
+@media (max-width:700px){
+  .rk2-sec{margin-top:28px;}
+  .rk2-sec-head h2{font-size:20px;}
+  .rk2-card{padding:16px; border-radius:20px;}
+  .hm-hero{padding:22px 18px 18px; border-radius:24px;}
+  .hm-label{margin-top:18px;}
+  .hm-actions{margin-top:18px;}
+  .hm-actions .rk2-btn{flex:1;}
+  .hm-chart{min-height:120px; gap:3px;}
+  .hm-col span{font-size:9.5px;}
+  .hm-stats{grid-template-columns:repeat(2, minmax(0,1fr));}
+  .hm-stats .hm-stat:nth-child(3){grid-column:1 / -1;}
+  .hm-tiles{grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px;}
+  .hm-tile{padding:12px 10px; align-items:center; text-align:center; border-radius:18px;}
+  .hm-tile .rk2-ic{margin-bottom:6px;}
+  .hm-tile b{font-size:13px;}
+  .hm-tile small{display:none;}
+  .hm-an-head{align-items:flex-start;}
+  .hm-period{width:100%;}
+  .hm-period .rk2-seg{flex:1;}
+  .hm-custom .sales-range-custom-body{inset-inline-end:auto; inset-inline-start:0; width:min(300px, calc(100vw - 40px));}
+  .hm-insights{grid-template-columns:1fr 1fr;}
+  .hm-quest-top{gap:12px;}
+  .hm-ring{width:58px; height:58px;}
+  .hm-quest-next{flex-wrap:wrap;}
+  .hm-quest-next .rk2-btn{display:none;}
+  .hm-lrow .hm-money{min-width:0;}
+  .hm-heat{grid-template-columns:44px repeat(var(--cols), minmax(11px, 1fr)); gap:3px; min-width:0;}
+  .hm-cell{height:22px; border-radius:5px;}
+  .hm-heat-day{font-size:11px;}
+  .hm-heat-h{font-size:9px;}
+}

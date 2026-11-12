@@ -460,45 +460,413 @@ function getOnboardingSteps(){
     {feature:'inventory', label:'اربط منتجاتك بالمخزون', desc:'عشان يُخصم المخزون تلقائيًا كل ما تبيع، بدون ما تحسبها يدوي', screen:'menu', done: MENU_ITEMS.some(m=>m.linkInventory)}
   ].filter(s=> !s.feature || planHas(s.feature));
 }
+/* ============ الرئيسية (تصميم ٢٠٢٦-١١) ============
+   الشاشة تحكي يوم المطعم بالترتيب اللي يفكّر فيه صاحبه:
+     ١) «يومك»: كم بعت اليوم، مقارنةً بأمس لنفس الساعة (لا بيوم أمس كامل:
+        الساعة ١٢ الظهر ما تنقارن بيوم كامل وتطلع دايم «أقل ٧٠٪»)، ورسم
+        ساعات اليوم فوق معدّل آخر ٦ أيام.
+     ٢) مهمّاتك: «جهّز مطعمك» كمستويات + اللي يحتاج انتباهك. ما يطلعون
+        إلا لو فيه شي فعلاً (قاعدة المالك: لا بنر «كل شي تمام» كل يوم).
+     ٣) اختصارات بأفعال واضحة، حسب صلاحيات الحساب وباقته.
+     ٤) أبطال اليوم: منصة أكثر ٣ أصناف + ترتيب الفريق.
+     ٥) حلّل مبيعاتك: نفس محدّد الفترة، والبطاقات تتبعه.
+   كل الأرقام حقيقية من الطلبات؛ لا شي مزروع. التنسيق في rk2.css. */
+let YESTERDAY_ORDERS = null; // طلبات أمس المدفوعة (total, created_at) من loadSalesRealData
+const HM_IC = {
+  cash:'<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/>',
+  orders:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+  menu:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+  inventory:'<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
+  purchases:'<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>',
+  accounting:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  store:'<path d="M3 9l1.5-5h15L21 9"/><path d="M3 9h18v2a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0z"/><path d="M5 13v8h14v-8"/>',
+  reports:'<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>',
+  customers:'<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/>',
+  links:'<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  trophy:'<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/>',
+  team:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  alert:'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  info:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+  check:'<polyline points="20 6 9 17 4 12"/>',
+  arrow:'<polyline points="15 18 9 12 15 6"/>',
+  tag:'<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  wallet:'<path d="M17 14h.01"/><path d="M7 7h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14"/>',
+  flag:'<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>',
+};
+function hmIc(name){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (HM_IC[name]||'') + '</svg>'; }
+function hmFmt(n, dec){ const d = dec||0; return (Number(n)||0).toLocaleString('en-US', {minimumFractionDigits:d, maximumFractionDigits:d}); }
+function hmMoney(n, cls){
+  const v = Number(n) || 0;
+  const parts = Math.abs(v).toFixed(2).split('.');
+  return '<span class="hm-money' + (cls ? ' ' + cls : '') + '">' + (v < 0 ? '-' : '') + Number(parts[0]).toLocaleString('en-US')
+    + '<small>.' + parts[1] + '</small><span class="rk-riyal">' + RK_RIYAL_CHAR + '</span></span>';
+}
+function hmHead(icon, color, title, sub, extra){
+  return '<div class="rk2-card-head"><span class="rk2-ic c-' + color + '">' + hmIc(icon) + '</span><div class="rk2-card-title"><h3>' + title + '</h3>'
+    + (sub ? '<p>' + sub + '</p>' : '') + '</div>' + (extra || '') + '</div>';
+}
+function hmEmpty(icon, title, text){
+  return '<div class="hm-empty"><span class="hm-empty-ic">' + hmIc(icon) + '</span><b>' + title + '</b><span>' + text + '</span></div>';
+}
+/* الشاشة متاحة؟ نفس منطق القائمة الجانبية (صلاحية الموظف + باقة المطعم). */
+function hmScreenOk(slug){
+  if(!document.querySelector('.nav-item[data-screen="' + slug + '"]')) return false;
+  return typeof screenAllowed === 'function' && !!CURRENT_PROFILE && screenAllowed(slug);
+}
+/* مبيعات أمس من بداية اليوم لين نفس الساعة الحين -- المقارنة العادلة. */
+function hmYesterdaySoFar(){
+  if(!Array.isArray(YESTERDAY_ORDERS)) return null;
+  const start = new Date(); start.setHours(0,0,0,0);
+  const yStart = new Date(start); yStart.setDate(yStart.getDate()-1);
+  const cut = yStart.getTime() + (Date.now() - start.getTime());
+  return YESTERDAY_ORDERS.reduce((s,o)=>{
+    const t = o.created_at ? new Date(o.created_at).getTime() : NaN;
+    return t >= yStart.getTime() && t <= cut ? s + Number(o.total||0) : s;
+  }, 0);
+}
+function hmPlural(n, one, two, few, many){ return n === 1 ? one : n === 2 ? two : (n >= 3 && n <= 10 ? n + ' ' + few : n + ' ' + many); }
+function hmOrders(n){ n = Number(n) || 0; return n === 0 ? 'ولا طلب' : hmPlural(n, 'طلب واحد', 'طلبين', 'طلبات', 'طلب'); }
+
+/* ===== ١) يومك ===== */
+function hmHourBars(){
+  const today = {};
+  (HOURLY_SALES||[]).forEach(h=>{ today[Number(h.hour)] = Number(h.revenue)||0; });
+  // معدّل نفس الساعة في آخر ٦ أيام (اللي فيها بيع)
+  const past = (WEEK_HOUR_GRID||[]).slice(0, -1).filter(d=>d.total > 0);
+  const avg = {};
+  past.forEach(d=> Object.keys(d.hours||{}).forEach(h=>{ avg[h] = (avg[h]||0) + Number(d.hours[h].total||0); }));
+  Object.keys(avg).forEach(h=>{ avg[h] = avg[h] / past.length; });
+  const nowH = new Date().getHours();
+  const hrs = Object.keys(today).concat(Object.keys(avg)).map(Number);
+  let lo = hrs.length ? Math.min.apply(null, hrs) : 8;
+  let hi = hrs.length ? Math.max.apply(null, hrs) : 23;
+  lo = Math.min(lo, nowH); hi = Math.max(hi, nowH);
+  if(hi - lo < 9){ lo = Math.max(0, hi - 9); }
+  const max = Math.max(1, ...Object.values(today), ...Object.values(avg));
+  let cols = '';
+  for(let h = lo; h <= hi; h++){
+    const t = today[h] || 0, a = avg[h] || 0;
+    const lbl = (h - lo) % 3 === 0 || h === nowH ? fmtHour12(h) : '';
+    cols += '<div class="hm-col' + (h === nowH ? ' now' : '') + (h > nowH ? ' later' : '') + '" title="' + fmtHour12(h) + ' — اليوم ' + hmFmt(t) + '، معدّلك ' + hmFmt(a) + '">'
+      + '<div class="hm-col-bars"><i class="hm-avg" style="height:' + (a / max * 100).toFixed(1) + '%"></i><i class="hm-today" style="height:' + (t / max * 100).toFixed(1) + '%"></i></div>'
+      + '<span>' + lbl + '</span></div>';
+  }
+  return { cols, hasAvg: past.length > 0 };
+}
+function renderHomeHero(){
+  const el = document.getElementById('homeHero');
+  if(!el) return;
+  const h = new Date().getHours();
+  const hello = h < 5 ? 'مساك الله بالخير' : h < 12 ? 'صباح الخير' : 'مساء الخير';
+  // «أبو فيصل» / «عبد الله»: الاسم الأول كلمتين
+  const words = (CURRENT_PROFILE && CURRENT_PROFILE.full_name ? String(CURRENT_PROFILE.full_name) : '').trim().split(/\s+/).filter(Boolean);
+  const first = words.length > 1 && /^(أبو|ابو|أم|ام|عبد|بو)$/.test(words[0]) ? words[0] + ' ' + words[1] : (words[0] || '');
+  const dateStr = new Date().toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', {weekday:'long', day:'numeric', month:'long'});
+  const sales = Number(TODAY.netSales) || 0;
+  const ySoFar = hmYesterdaySoFar();
+  let delta;
+  if(ySoFar && ySoFar > 0){
+    const pct = Math.round((sales - ySoFar) / ySoFar * 100);
+    const up = pct >= 0;
+    delta = '<div class="hm-delta ' + (up ? 'up' : 'down') + '"><b>' + (up ? '↑' : '↓') + ' ' + Math.abs(pct) + '٪</b><span>' + (up ? 'أكثر' : 'أقل') + ' من أمس لنفس الساعة</span><span class="hm-delta-y">أمس ' + hmMoney(ySoFar) + '</span></div>';
+  } else if(sales === 0){
+    delta = '<div class="hm-delta idle"><b>●</b><span>أول طلب اليوم بانتظارك</span></div>';
+  } else {
+    delta = '<div class="hm-delta up"><b>↑</b><span>أمس ما كان فيه بيع لنفس الساعة</span></div>';
+  }
+  const bars = hmHourBars();
+  const stats = [
+    { k:'الطلبات', v:'<span class="hm-num">' + hmFmt(TODAY.ordersCount) + '</span>' },
+    { k:'متوسط الفاتورة', v: hmMoney(TODAY.avgTicket || 0) },
+  ];
+  if(canViewProfit()){
+    const p = Number(TODAY.profit) || 0;
+    stats.push({ k:'صافي الربح', v: hmMoney(p, p < 0 ? 'neg' : ''),
+      note: FIXED_COSTS_SET ? '' : '<span class="hm-note">قبل الإيجار والرواتب · <button type="button" class="hm-note-link" data-hm-go="accounting" data-hm-tab="fixedcosts">حدّدها</button></span>' });
+  }
+  const ordersBtn = hmScreenOk('orders') ? '<button type="button" class="rk2-btn ghost-dark" data-hm-go="orders">الطلبات</button>' : '';
+  el.innerHTML =
+    '<div class="hm-hero-main">'
+      + '<div class="hm-hello">' + hello + (first ? '، ' + escapeHtml(first) : '') + '</div>'
+      + '<div class="hm-date">' + dateStr + '<span class="hm-live"><i></i>مباشر</span></div>'
+      + '<div class="hm-label">مبيعات اليوم</div>'
+      + '<div class="hm-big">' + hmMoney(sales) + '</div>'
+      + delta
+      + '<div class="hm-actions"><button type="button" class="rk2-btn lime" data-hm-pos>' + hmIc('cash') + 'افتح الكاشير</button>' + ordersBtn + '</div>'
+    + '</div>'
+    + '<div class="hm-hero-side">'
+      + '<div class="hm-chart-head"><span>ساعات اليوم</span><span class="hm-legend"><i class="t"></i>اليوم' + (bars.hasAvg ? '<i class="a"></i>معدّلك' : '') + '</span></div>'
+      + '<div class="hm-chart">' + bars.cols + '</div>'
+      + '<div class="hm-stats">' + stats.map(s=> '<div class="hm-stat"><span>' + s.k + '</span><b>' + s.v + '</b>' + (s.note || '') + '</div>').join('') + '</div>'
+    + '</div>';
+  renderHomeTiles();
+}
+
+/* ===== ٣) اختصارات ===== */
+const HM_TILES = [
+  { s:'orders', ic:'orders', c:'ops', t:'تابع الطلبات', d:'من الكاشير والمتجر' },
+  { s:'menu', ic:'menu', c:'res', t:'عدّل المنيو', d:'أصناف وأسعار وصور' },
+  { s:'inventory', ic:'inventory', c:'res', t:'شيّك المخزون', d:'وش باقي ووش ناقص' },
+  { s:'purchases', ic:'purchases', c:'ops', t:'سجّل مشترياتك', d:'فواتير الموردين' },
+  { s:'accounting', ic:'accounting', c:'fin', t:'شوف أرباحك', d:'الربح والمصاريف' },
+  { s:'onlineMenu', ic:'store', c:'team', t:'متجرك الإلكتروني', d:'الطلب أونلاين' },
+  { s:'customers', ic:'customers', c:'ai', t:'عملاؤك', d:'مين يرجع لك' },
+  { s:'reports', ic:'reports', c:'fin', t:'التقارير', d:'يومية وشهرية' },
+];
+function renderHomeTiles(){
+  const el = document.getElementById('homeTiles');
+  if(!el) return;
+  const tiles = HM_TILES.filter(t=> hmScreenOk(t.s)).slice(0, 6);
+  el.closest('.rk2-sec').hidden = tiles.length === 0;
+  el.innerHTML = tiles.map(t=> '<button type="button" class="hm-tile" data-hm-go="' + t.s + '"><span class="rk2-ic c-' + t.c + '">' + hmIc(t.ic) + '</span><b>' + t.t + '</b><small>' + t.d + '</small></button>').join('');
+}
+
+/* ===== ٢) مهمّاتك ===== */
+function hmQuestLayout(){
+  const wrap = document.getElementById('homeQuests');
+  if(!wrap) return;
+  const ob = document.getElementById('onboardingChecklistPanel');
+  const st = document.getElementById('statusBanner');
+  const n = (ob && ob.innerHTML.trim() ? 1 : 0) + (st && !st.classList.contains('hidden') && st.innerHTML.trim() ? 1 : 0);
+  wrap.dataset.n = String(n);
+  wrap.hidden = n === 0;
+}
 function renderOnboardingChecklist(){
   const el = document.getElementById('onboardingChecklistPanel');
   if(!el) return;
   const steps = getOnboardingSteps();
   const doneCount = steps.filter(s=>s.done).length;
-  const pct = Math.round(doneCount/steps.length*100);
-
-  // Once every step is done, this panel has done its job — a permanent
-  // "you're all set" banner is just clutter on a screen that should lead
-  // with today's real numbers, not a completed checklist.
-  if(pct === 100){
-    el.innerHTML = '';
+  // خلصت كل الخطوات = اللوحة سوّت شغلها، فتختفي.
+  if(!steps.length || doneCount === steps.length){ el.innerHTML = ''; hmQuestLayout(); return; }
+  const left = steps.length - doneCount;
+  const nextIdx = steps.findIndex(s=>!s.done);
+  const next = steps[nextIdx];
+  const pct = Math.round(doneCount / steps.length * 100);
+  const tabAttr = s => s.tab ? ' data-hm-tab="' + s.tab + '"' : '';
+  el.innerHTML = '<div class="rk2-card hm-quest">'
+    + '<div class="hm-quest-top"><div class="hm-ring" style="--p:' + pct + '"><b>' + doneCount + '<small>/' + steps.length + '</small></b></div>'
+    + '<div><div class="hm-kicker">' + hmIc('flag') + 'جهّز مطعمك</div><h3>' + (doneCount === 0 ? 'ابدأ من هنا: ' : 'باقي لك ') + hmPlural(left, 'خطوة وحدة', 'خطوتين', 'خطوات', 'خطوة') + '</h3>'
+    + '<p>' + (planHas('costing_profit') ? 'كمّلها مرة وحدة، وبعدها ركين يحسب أرباحك صح لحاله' : 'كمّلها وتصير جاهز تبيع من الكاشير') + '</p></div></div>'
+    + '<button type="button" class="hm-quest-next" data-hm-go="' + next.screen + '"' + tabAttr(next) + '>'
+    + '<span class="hm-quest-n">' + (nextIdx + 1) + '</span><span class="hm-quest-txt"><b>' + next.label + '</b><small>' + next.desc + '</small></span><span class="rk2-btn lime sm">ابدأ' + hmIc('arrow') + '</span></button>'
+    + '<div class="hm-quest-list">' + steps.map((s,i)=> i === nextIdx ? '' :
+        '<button type="button" class="hm-qstep' + (s.done ? ' done' : '') + '"' + (s.done ? ' disabled' : ' data-hm-go="' + s.screen + '"' + tabAttr(s)) + '>'
+        + '<span class="hm-qcheck">' + (s.done ? hmIc('check') : (i + 1)) + '</span>' + s.label + '</button>').join('') + '</div>'
+    + '</div>';
+  hmQuestLayout();
+}
+function renderStatusHero(){
+  const items = computeRealAttentionItems();
+  const status = computeOverallStatus(items);
+  const banner = document.getElementById('statusBanner');
+  if(!banner) return;
+  // «كل شي تمام» ما يحتاج بنر كل يوم (قاعدة المالك): يطلع بس لو فيه شي.
+  if(items.length === 0){
+    banner.className = 'status-banner hidden';
+    banner.innerHTML = '';
+    syncHeaderNotifBadge(0);
+    hmQuestLayout();
     return;
   }
-  el.innerHTML = `
-    <div class="panel onboard-panel">
-      <div class="onboard-header">
-        <div class="onboard-title">خلّنا نجهّز لوحتك — ${doneCount} من ${steps.length} خطوات</div>
-        <div class="onboard-subtitle">${planHas('costing_profit') ? 'كمّل هالخطوات مرة وحدة، وركين يصير شريكك يحسب كل أرباحك صح تلقائيًا من بعدها' : 'كمّل هالخطوات وتصير جاهز تبيع من الكاشير'}</div>
-      </div>
-      <div class="onboard-progress-track"><div class="onboard-progress-fill" style="width:${pct}%"></div></div>
-      <div class="onboard-steps">
-        ${steps.map((s,i)=>`
-          <div class="onboard-step ${s.done?'done':''}" data-screen="${s.screen}" ${s.tab?`data-tab="${s.tab}"`:''}>
-            <div class="onboard-step-check">${s.done?'<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>':(i+1)}</div>
-            <div class="onboard-step-text">
-              <div class="onboard-step-label">${s.label}</div>
-              <div class="onboard-step-desc">${s.desc}</div>
-            </div>
-            ${!s.done ? '<span class="onboard-step-arrow">←</span>' : ''}
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `;
-  el.querySelectorAll('.onboard-step:not(.done)').forEach(step=>{
-    step.addEventListener('click', ()=> goToScreenTab(step.dataset.screen, step.dataset.tab));
+  const SHOW = 3;
+  const urgent = status.tier === 'critical';
+  banner.className = 'status-banner rk2-card hm-alerts ' + (urgent ? 'is-urgent' : 'is-warn');
+  banner.innerHTML = '<div class="hm-alerts-head"><span class="hm-alerts-ic">' + hmIc(urgent ? 'alert' : 'info') + '</span><div>'
+    + '<div class="hm-kicker">' + (urgent ? 'يحتاج تدخّلك الحين' : 'يستاهل نظرة') + '</div>'
+    + '<h3>' + hmPlural(items.length, 'شي واحد', 'شيئين', 'أشياء', 'شي') + ' ' + (items.length === 1 ? 'يحتاج انتباهك' : 'تحتاج انتباهك') + '</h3></div></div>'
+    + '<div class="hm-alert-list" id="attentionList">' + items.map((a,i)=>
+        '<button type="button" class="hm-alert ' + a.level + (i >= SHOW ? ' more' : '') + '" data-hm-go="' + a.screen + '">'
+        + '<span class="hm-alert-dot"></span><span class="hm-alert-txt"><b>' + a.text + '</b><small>' + a.sub + '</small></span>'
+        + '<span class="hm-alert-go">' + a.action + hmIc('arrow') + '</span></button>').join('') + '</div>'
+    + (items.length > SHOW ? '<button type="button" class="hm-more" id="attentionToggle" data-hm-more data-label="+' + (items.length - SHOW) + ' ثانية">+' + (items.length - SHOW) + ' ثانية</button>' : '');
+  syncHeaderNotifBadge(items.length, status.tier);
+  hmQuestLayout();
+}
+
+/* ===== ٤) أبطال اليوم ===== */
+function renderTodayHeroes(){
+  const productEl = document.getElementById('heroProductCard');
+  if(productEl){
+    const top = [...(TODAY.topProducts||[])].sort((a,b)=>b.revenue-a.revenue).slice(0, 3);
+    let body;
+    if(!top.length){
+      body = hmEmpty('trophy', 'المنصة فاضية', 'أول ما تبيع، يطلع هنا أكثر 3 أصناف مبيعًا اليوم');
+    } else {
+      const order = [top[1], top[0], top[2]];
+      const rank = [2, 1, 3];
+      body = '<div class="hm-podium">' + order.map((p,i)=> !p ? '<div class="hm-pod empty"></div>' :
+        '<div class="hm-pod r' + rank[i] + '"><span class="hm-medal">' + rank[i] + '</span>'
+        + '<b class="hm-pod-name">' + escapeHtml(p.name) + '</b><span class="hm-pod-qty">انباع ' + hmFmt(p.qty) + '</span>'
+        + '<div class="hm-pod-block">' + hmMoney(p.revenue) + '</div></div>').join('') + '</div>';
+    }
+    productEl.innerHTML = hmHead('trophy', 'res', 'منصة الأصناف', 'أكثر 3 أصناف دخّلت فلوس اليوم') + body;
+  }
+  const staffEl = document.getElementById('heroStaffCard');
+  if(staffEl){
+    const ranked = [...STAFF_STATS].filter(s=>s.sales > 0).sort((a,b)=>b.sales-a.sales).slice(0, 5);
+    let body;
+    if(!ranked.length){
+      body = hmEmpty('team', 'السباق ما بدأ', 'ترتيب فريقك يطلع هنا أول ما يبيعون من الكاشير');
+    } else {
+      const max = ranked[0].sales || 1;
+      body = '<div class="hm-board">' + ranked.map((s,i)=>
+        '<div class="hm-runner' + (i === 0 ? ' lead' : '') + '"><span class="hm-rank">' + (i + 1) + '</span>'
+        + '<span class="hm-runner-main"><span class="hm-runner-top"><b>' + escapeHtml(s.name) + '</b>' + hmMoney(s.sales) + '</span>'
+        + '<span class="hm-track"><i style="width:' + Math.max(4, s.sales / max * 100).toFixed(1) + '%"></i></span>'
+        + '<small>' + hmOrders(s.orders) + '</small></span></div>').join('') + '</div>';
+    }
+    staffEl.innerHTML = hmHead('team', 'team', 'سباق الفريق', 'مين باع أكثر اليوم') + body;
+  }
+}
+
+/* ===== ٥) حلّل مبيعاتك ===== */
+function renderSalesRangeSummary(data){
+  const el = document.getElementById('salesRangeSummary');
+  if(!el) return;
+  // «اليوم» معروض في «يومك» فوق بالتفصيل -- ما نكرره.
+  const active = document.querySelector('#salesRangePresets button.active');
+  const isToday = active && active.dataset.preset === 'today';
+  el.hidden = !!isToday;
+  if(isToday){ el.innerHTML = ''; return; }
+  const avg = typeof data.avgTicket === 'number' && isFinite(data.avgTicket) ? data.avgTicket : (data.ordersCount > 0 ? data.netSales / data.ordersCount : 0);
+  const hours = Array.isArray(data.hourly) ? data.hourly.filter(h => Number(h.revenue) > 0) : [];
+  const peak = hours.length ? hours.reduce((a, b) => (Number(b.revenue) > Number(a.revenue) ? b : a)) : null;
+  const profit = data.profit ?? data.netProfit ?? 0;
+  const cells = [
+    { ic:'wallet', k:'المبيعات', v: hmMoney(data.netSales) },
+    { ic:'orders', k:'الطلبات', v: '<span class="hm-num">' + hmFmt(data.ordersCount) + '</span>' },
+    { ic:'tag', k:'متوسط الفاتورة', v: hmMoney(avg) },
+    { ic:'clock', k:'أزحم ساعة', v: peak ? fmtHour12(Number(peak.hour)) : '—' },
+  ];
+  if(canViewProfit()) cells.splice(2, 0, { ic:'accounting', k:'صافي الربح', v: hmMoney(profit, profit < 0 ? 'neg' : '') });
+  el.innerHTML = cells.map(c=> '<div class="hm-kpi"><span class="hm-kpi-ic">' + hmIc(c.ic) + '</span><span>' + c.k + '</span><b>' + c.v + '</b></div>').join('');
+}
+/* أرقام اليوم مجمّعة في مكان واحد -- «يومك» + شريط الفترة. */
+function renderTodaySalesSummary(){
+  renderHomeHero();
+  renderSalesRangeSummary({
+    netSales: TODAY.netSales, ordersCount: TODAY.ordersCount, avgTicket: TODAY.avgTicket, profit: TODAY.profit,
+    hourly: typeof HOURLY_SALES !== 'undefined' ? HOURLY_SALES : null,
   });
 }
+function renderBestWorstSellers(sellers){
+  sellers = sellers || ALL_SELLERS;
+  const best = document.getElementById('bestSellersList');
+  const worst = document.getElementById('worstSellersList');
+  if(!best || !worst) return;
+  if(sellers.length === 0){
+    best.innerHTML = worst.innerHTML = hmEmpty('tag', 'ما فيه مبيعات بهالفترة', 'جرّب فترة أطول من فوق');
+    return;
+  }
+  const sorted = [...sellers].sort((a,b)=>b.revenue-a.revenue);
+  // أقل من ٨ أصناف: نقسم القائمة نصّين عشان ما يطلع صنف في «الأكثر» و«الأقل» مع بعض.
+  const half = Math.ceil(sorted.length / 2);
+  const bestCount = Math.min(5, sorted.length >= 10 ? 5 : half);
+  const top = sorted.slice(0, bestCount);
+  const low = sorted.length >= 10 ? sorted.slice(-5).reverse() : sorted.slice(bestCount).reverse();
+  const max = sorted[0].revenue || 1;
+  const row = (p, i, kind) => '<div class="hm-row ' + kind + '"><span class="hm-rank">' + (i + 1) + '</span>'
+    + '<span class="hm-row-main"><span class="hm-row-top"><b>' + escapeHtml(p.name) + '</b>' + hmMoney(p.revenue) + '</span>'
+    + '<span class="hm-track"><i style="width:' + Math.max(3, p.revenue / max * 100).toFixed(1) + '%"></i></span>'
+    + '<small>انباع ' + hmFmt(p.qty) + ' · ' + escapeHtml(p.cat || '') + '</small></span></div>';
+  best.innerHTML = top.map((p,i)=>row(p,i,'best')).join('');
+  worst.innerHTML = low.length ? low.map((p,i)=>row(p,i,'low')).join('')
+    : hmEmpty('tag', 'أصنافك قليلة بهالفترة', 'ما فيه تنوّع كافي نطلع منه قائمة «الأقل»');
+}
+function renderCategoryPerf(categoryPerf){
+  categoryPerf = categoryPerf || CATEGORY_PERF;
+  const el = document.getElementById('categoryPerf');
+  if(!el) return;
+  if(categoryPerf.length === 0){ el.innerHTML = hmEmpty('menu', 'ما فيه مبيعات بهالفترة', 'أول ما تبيع تشوف أي قسم يجيب أكثر'); return; }
+  const ranked = [...categoryPerf].sort((a,b)=>b.revenue-a.revenue);
+  const total = ranked.reduce((s,c)=>s+c.revenue, 0) || 1;
+  const COLORS = ['ops','res','fin','team','ai'];
+  el.innerHTML = '<div class="hm-stack">' + ranked.map((c,i)=> '<i class="c-' + COLORS[i%5] + '" style="flex:' + c.revenue + '"></i>').join('') + '</div>'
+    + '<div class="hm-legend-rows">' + ranked.map((c,i)=> '<div class="hm-lrow"><span class="hm-dot c-' + COLORS[i%5] + '"></span><b>' + escapeHtml(c.name) + '</b>'
+      + '<span class="hm-pct">' + Math.round(c.revenue / total * 100) + '٪</span>' + hmMoney(c.revenue) + '</div>').join('') + '</div>';
+}
+function hmMix(el, rows, emptyText){
+  if(!el) return;
+  const total = rows.reduce((s,r)=>s+r.amount, 0);
+  if(!total){ el.innerHTML = '<div class="hm-mix-empty">' + emptyText + '</div>'; return; }
+  const COLORS = ['ops','res','fin','team','ai'];
+  el.innerHTML = '<div class="hm-stack">' + rows.map((r,i)=> '<i class="c-' + COLORS[i%5] + '" style="flex:' + r.amount + '"></i>').join('') + '</div>'
+    + '<div class="hm-legend-rows">' + rows.map((r,i)=> '<div class="hm-lrow"><span class="hm-dot c-' + COLORS[i%5] + '"></span><b>' + r.name + '</b>'
+      + (r.sub ? '<small>' + r.sub + '</small>' : '') + '<span class="hm-pct">' + Math.round(r.amount / total * 100) + '٪</span>' + hmMoney(r.amount) + '</div>').join('') + '</div>';
+}
+function renderChannelCards(channelPerf){
+  channelPerf = channelPerf || CHANNEL_PERF;
+  const rows = [...channelPerf].sort((a,b)=>b.revenue-a.revenue).map(c=>({ name:c.name, amount:c.revenue, sub: hmOrders(c.orders) }));
+  hmMix(document.getElementById('channelCards'), rows, 'ما فيه طلبات بهالفترة');
+}
+function renderPaymentBreakdown(breakdown){
+  breakdown = breakdown || PAYMENT_BREAKDOWN;
+  const rows = [...breakdown].sort((a,b)=>b.amount-a.amount).map(p=>({ name: p.name === 'توصيل — مدفوع عبر التطبيق' ? 'عبر تطبيق التوصيل' : p.name, amount: p.amount }));
+  hmMix(document.getElementById('paymentBreakdown'), rows, 'ما فيه مدفوعات بهالفترة');
+}
+/* متى يزحم مطعمك: خريطة أيام × ساعات (آخر ٧ أيام). المربع يُضغط فيطلع
+   الوقت والمبلغ وعدد الطلبات ومقارنته بمعدّل نفس الساعة. */
+function renderHourGrid(){
+  const el = document.getElementById('hourGridWrap');
+  if(!el) return;
+  const days = WEEK_HOUR_GRID;
+  const hourSet = new Set();
+  (days||[]).forEach(d => Object.keys(d.hours).forEach(h => hourSet.add(Number(h))));
+  const hours = Array.from(hourSet).sort((a,b)=>a-b);
+  if(!days || !days.length || !hours.length){ el.innerHTML = hmEmpty('clock', 'ما فيه مبيعات هالأسبوع بعد', 'بعد كم يوم بيع تشوف هنا أزحم أوقاتك'); return; }
+  const lo = hours[0], hi = hours[hours.length-1];
+  const rowAvg = {}, hourSum = {};
+  for(let h = lo; h <= hi; h++){
+    const vals = days.map(d=>d.hours[h]?.total||0).filter(v=>v>0);
+    rowAvg[h] = vals.length ? vals.reduce((s,v)=>s+v,0)/vals.length : 0;
+    hourSum[h] = vals.reduce((s,v)=>s+v,0);
+  }
+  const max = Math.max(...days.flatMap(d=>Object.values(d.hours).map(x=>x.total)), 0);
+  const level = v => { const t = max > 0 ? v / max : 0; return t > .75 ? 4 : t > .5 ? 3 : t > .25 ? 2 : 1; };
+  const busyDay = [...days].sort((a,b)=>b.total-a.total)[0];
+  const busyHour = Object.keys(hourSum).map(Number).sort((a,b)=>hourSum[b]-hourSum[a])[0];
+  let grid = '<div class="hm-heat" style="--cols:' + (hi - lo + 1) + '">';
+  days.forEach(d=>{
+    grid += '<div class="hm-heat-day">' + d.day + '</div>';
+    for(let h = lo; h <= hi; h++){
+      const cell = d.hours[h];
+      if(!cell || cell.total <= 0){ grid += '<i class="hm-cell"></i>'; continue; }
+      const pct = rowAvg[h] > 0 ? Math.round(((cell.total - rowAvg[h]) / rowAvg[h]) * 100) : 0;
+      grid += '<button type="button" class="hm-cell l' + level(cell.total) + ' hg-cell" data-day="' + d.day + '" data-hour="' + h + '" data-total="' + cell.total.toFixed(2) + '" data-count="' + cell.count + '" data-pct="' + pct + '" aria-label="' + d.day + ' ' + fmtHour12(h) + '"></button>';
+    }
+  });
+  grid += '<span></span>';
+  for(let h = lo; h <= hi; h++) grid += '<span class="hm-heat-h">' + ((h - lo) % 2 === 0 ? fmtHour12(h) : '') + '</span>';
+  grid += '</div>';
+  el.innerHTML = '<div class="hm-insights">'
+    + '<div class="hm-insight"><span>أزحم يوم</span><b>' + busyDay.day + '</b>' + hmMoney(busyDay.total) + '</div>'
+    + '<div class="hm-insight"><span>أزحم ساعة</span><b>' + fmtHour12(busyHour) + ' – ' + fmtHour12((busyHour + 1) % 24) + '</b><small>جهّز فريقك قبلها</small></div>'
+    + '</div><div class="hm-heat-scroll">' + grid + '</div>'
+    + '<div class="hm-heat-key"><span>أهدأ</span><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i><span>أزحم</span><em>اضغط أي مربع للتفاصيل</em></div>';
+  el.querySelectorAll('.hm-cell.hg-cell').forEach(cell=>{
+    cell.addEventListener('click', (e)=>{ e.stopPropagation(); showHourGridTooltip(cell); });
+  });
+}
+/* أزرار الرئيسية كلها بمستمع واحد. */
+document.addEventListener('click', (e)=>{
+  const t = e.target;
+  if(!t || !t.closest || !t.closest('#screen-home')) return;
+  const pos = t.closest('[data-hm-pos]');
+  if(pos){ window.open('/pos', '_blank', 'noopener'); return; }
+  const more = t.closest('[data-hm-more]');
+  if(more){ const box = document.getElementById('statusBanner'); box.classList.toggle('open'); more.textContent = box.classList.contains('open') ? 'أقل' : more.dataset.label; return; }
+  const sw = t.closest('[data-hm-sellers]');
+  if(sw){
+    document.querySelectorAll('[data-hm-sellers]').forEach(b=>b.classList.toggle('active', b === sw));
+    document.getElementById('bestSellersList').hidden = sw.dataset.hmSellers !== 'best';
+    document.getElementById('worstSellersList').hidden = sw.dataset.hmSellers !== 'worst';
+    return;
+  }
+  const go = t.closest('[data-hm-go]');
+  if(go){ goToScreenTab(go.dataset.hmGo, go.dataset.hmTab); }
+});
+
 
 /* The accounting tabs only exist once their screen has rendered, hence the
    deferral. Shared with the Home profit card's "حدّدها" so both land in the
@@ -607,97 +975,14 @@ function computeOverallStatus(items){
    AI insights + Health Score + Attention Center + Decision Cards (5 separate
    widgets showing overlapping "what needs attention" framings). One real,
    prioritized answer instead. */
-function renderStatusHero(){
-  const items = computeRealAttentionItems();
-  const status = computeOverallStatus(items);
-  const banner = document.getElementById('statusBanner');
-  if(!banner) return;
 
-  // An "everything's fine" banner is still a banner — real estate and
-  // visual weight at the very top of Home, every single day, for a state
-  // that by definition needs no action. Owner feedback: only show this
-  // block at all when there's actually something to say.
-  if(items.length === 0){
-    banner.className = 'status-banner hidden';
-    banner.innerHTML = '';
-    syncHeaderNotifBadge(0);
-    return;
-  }
-
-  banner.className = 'status-banner ' + (status.tier === 'critical' ? 'tier-critical' : status.tier === 'attention' ? 'tier-attention' : '');
-  const headIcon = status.tier === 'critical'
-    ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
-    : '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
-  // The reason line already states the single most urgent item clearly —
-  // the full list is real detail, not the headline, so it stays collapsed
-  // behind an explicit toggle instead of always expanded and eating space.
-  banner.innerHTML = `
-    <div class="status-banner-head">${headIcon}${status.label}</div>
-    <div class="status-banner-reason">${status.reason}</div>
-    <button type="button" class="attention-toggle" id="attentionToggle">
-      <span>عرض التفاصيل (${items.length})</span>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-    </button>
-    <div class="attention-list" id="attentionList" hidden>
-      ${items.map(a=>{
-        const icon = a.level === 'urgent'
-          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
-          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
-        return `<button type="button" class="attention-item ${a.level}" data-screen="${a.screen}">
-          <div class="attention-icon">${icon}</div>
-          <div class="attention-info"><div class="attention-text">${a.text}</div><div class="attention-sub">${a.sub}</div></div>
-          <svg class="attention-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>`;
-      }).join('')}
-    </div>
-  `;
-  banner.querySelectorAll('.attention-item').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const nav = document.querySelector('.nav-item[data-screen="'+btn.dataset.screen+'"]');
-      if(nav) nav.click();
-    });
-  });
-  const toggle = document.getElementById('attentionToggle');
-  const list = document.getElementById('attentionList');
-  toggle.addEventListener('click', ()=>{
-    const open = !list.hidden;
-    list.hidden = open;
-    toggle.classList.toggle('open', !open);
-  });
-  syncHeaderNotifBadge(items.length, status.tier);
-}
 
 /* ============ Render: hero money card — the one number that matters most,
    given real visual weight instead of sitting in an equal-sized grid cell
    among three others. Ring shows real progress toward SALES_TARGET. ============ */
 /* ============ Render: أبطال اليوم — real recognition (top product + top
    staff), not a third copy of the Sales screen's best-sellers list. ============ */
-function renderTodayHeroes(){
-  const productEl = document.getElementById('heroProductCard');
-  if(productEl){
-    const top = [...(TODAY.topProducts||[])].sort((a,b)=>b.revenue-a.revenue)[0];
-    productEl.innerHTML = `
-      <div class="hero-spotlight-medal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 14.66v1.626a2 2 0 0 1-.976 1.696A5 5 0 0 0 7 21.978"/><path d="M14 14.66v1.626a2 2 0 0 0 .976 1.696A5 5 0 0 1 17 21.978"/><path d="M18 9h1.5a1 1 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M6 9a6 6 0 0 0 12 0V3a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1z"/><path d="M6 9H4.5a1 1 0 0 1 0-5H6"/></svg></div>
-      <div class="hero-spotlight-body">
-        <div class="hero-spotlight-kicker">المنتج الأكثر مبيعًا اليوم</div>
-        ${top
-          ? `<div class="hero-spotlight-name">${top.name}</div><div class="hero-spotlight-meta">${top.qty} طلب — ${top.revenue.toFixed(2)} ر.س</div>`
-          : `<div class="hero-spotlight-name" style="color:var(--muted);">ما فيه مبيعات بعد</div>`}
-      </div>`;
-  }
-  const staffEl = document.getElementById('heroStaffCard');
-  if(staffEl){
-    const topStaff = [...STAFF_STATS].filter(s=>s.sales>0).sort((a,b)=>b.sales-a.sales)[0];
-    staffEl.innerHTML = `
-      <div class="hero-spotlight-medal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg></div>
-      <div class="hero-spotlight-body">
-        <div class="hero-spotlight-kicker">بطل الفريق اليوم</div>
-        ${topStaff
-          ? `<div class="hero-spotlight-name">${topStaff.name}</div><div class="hero-spotlight-meta">${topStaff.sales.toFixed(2)} ر.س — ${topStaff.orders} طلب</div>`
-          : `<div class="hero-spotlight-name" style="color:var(--muted);">ما فيه مبيعات مسجّلة بعد</div>`}
-      </div>`;
-  }
-}
+
 
 /* ============ Sales screen — real data ============
    Replaces HOURLY_SALES/ALL_SELLERS/CATEGORY_PERF/CHANNEL_PERF (and the
@@ -733,10 +1018,11 @@ async function loadSalesRealData(opts){
   // yesterday's) net sales before any money has actually been collected.
   const [{data: todayOrders}, {data: yesterdayOrders}] = await Promise.all([
     sb.from('orders').select('id, total, subtotal, discount_amount, channel, delivery_platform_id, status, created_at').eq('business_id', businessId).gte('created_at', startToday.toISOString()).eq('payment_status', 'paid'),
-    reuseStatic ? none : sb.from('orders').select('total').eq('business_id', businessId).gte('created_at', startYesterday.toISOString()).lt('created_at', startToday.toISOString()).eq('payment_status', 'paid')
+    reuseStatic ? none : sb.from('orders').select('total, created_at').eq('business_id', businessId).gte('created_at', startYesterday.toISOString()).lt('created_at', startToday.toISOString()).eq('payment_status', 'paid')
   ]);
   const todayList = todayOrders || [];
   const yList = reuseStatic ? salesStatic.yList : (yesterdayOrders || []);
+  YESTERDAY_ORDERS = yList;
 
   const orderIds = todayList.map(o=>o.id);
   const [{ data: items }, { data: todayExpenses }, { data: freshPlatforms }, { data: freshFeeTiers }] = await Promise.all([
@@ -981,103 +1267,12 @@ async function loadSalesRangeData(from, to){
     revenue, discounts, vat, subtotal, cogs, deliveryPlatformCost, wasteCost, opex, grossProfit, netProfit, expensesTotal, salesByShift };
 }
 
-function renderSalesRangeSummary(data){
-  const el = document.getElementById('salesRangeSummary');
-  if(!el) return;
-  const profit = data.profit ?? data.netProfit ?? 0;
-  const profitUp = profit >= 0;
-  const hasDelta = typeof data.salesDelta === 'number' && isFinite(data.salesDelta);
-  const deltaUp = hasDelta && data.salesDelta >= 0;
-  const walletIcon = '<path d="M17 14h.01"/><path d="M7 7h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14"/>';
-  const receiptIcon = '<path d="M13 16H8"/><path d="M14 8H8"/><path d="M16 12H8"/><path d="M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z"/>';
-  const trendUpIcon = '<path d="M3 17l6-6 4 4 8-8"/><path d="M14 7l7 0l0 7"/>';
-  const trendDownIcon = '<path d="M3 7l6 6 4-4 8 8"/><path d="M21 10l0 7l-7 0"/>';
-  const pillArrowUp = '<path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>';
-  const pillArrowDown = '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>';
 
-  // متوسط الفاتورة: يُمرَّر إلى هنا منذ البداية ولم يكن يُعرض. وهو
-  // الرقم الذي يفصل «زبائن أقل» عن «الزبون يشتري أقل» — وهما مشكلتان
-  // مختلفتان تماماً، وعلاجهما مختلف.
-  const avg = typeof data.avgTicket === 'number' && isFinite(data.avgTicket)
-    ? data.avgTicket
-    : (data.ordersCount > 0 ? data.netSales / data.ordersCount : 0);
-
-  // ساعة الذروة: تُحسب في loadSalesRangeData بمرور كامل على الطلبات،
-  // ثم تُرجَع ولا تُقرأ. هذه أول مرة تصل الشاشة.
-  const hours = Array.isArray(data.hourly) ? data.hourly.filter(h => Number(h.revenue) > 0) : [];
-  const peak = hours.length ? hours.reduce((a, b) => (Number(b.revenue) > Number(a.revenue) ? b : a)) : null;
-  const peakLabel = peak
-    ? `${String(peak.hour).padStart(2, '0')}:00 — ${String((Number(peak.hour) + 1) % 24).padStart(2, '0')}:00`
-    : '—';
-  const peakShare = peak && data.netSales > 0
-    ? Math.round((Number(peak.revenue) / data.netSales) * 100)
-    : null;
-
-  const clockIcon = '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>';
-  const ticketIcon = '<path d="M3 9V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 6v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-6z"/><path d="M12 8v8"/>';
-
-  const secondRow = `
-    <div class="sales-kpi-row">
-      <div class="sales-kpi-card">
-        <div class="sales-kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ticketIcon}</svg></div>
-        <div class="sales-kpi-label">متوسط الفاتورة</div>
-        <div class="sales-kpi-value mono">${avg.toFixed(2)} ر.س</div>
-      </div>
-      <div class="sales-kpi-card sales-kpi-peak">
-        <div class="sales-kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${clockIcon}</svg></div>
-        <div class="sales-kpi-label">ساعة الذروة</div>
-        <div class="sales-kpi-value mono">${peakLabel}</div>
-        ${peakShare != null ? `<div class="sales-kpi-note">${peakShare}٪ من مبيعات الفترة</div>` : ''}
-      </div>
-    </div>`;
-
-  const deltaHtml = !hasDelta ? '' : `
-    <div class="sales-kpi-hero-delta ${deltaUp?'up':'down'}">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">${deltaUp?pillArrowUp:pillArrowDown}</svg>
-      ${deltaUp?'+':''}${data.salesDelta.toFixed(0)}%
-    </div>`;
-
-  el.innerHTML = `
-    <div class="sales-kpi-card sales-kpi-hero">
-      <div class="sales-kpi-hero-top">
-        <div class="sales-kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${walletIcon}</svg></div>
-        ${deltaHtml}
-      </div>
-      <div class="sales-kpi-label">إجمالي المبيعات</div>
-      <div class="sales-kpi-value sales-kpi-hero-value mono" title="${data.netSales.toFixed(2)} ر.س">${data.netSales.toFixed(2)} ر.س</div>
-    </div>
-    <div class="sales-kpi-row">
-      <div class="sales-kpi-card">
-        <div class="sales-kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${receiptIcon}</svg></div>
-        <div class="sales-kpi-label">عدد الطلبات</div>
-        <div class="sales-kpi-value mono" title="${data.ordersCount}">${data.ordersCount}</div>
-      </div>
-      <div class="sales-kpi-card">
-        <div class="sales-kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${profitUp?trendUpIcon:trendDownIcon}</svg></div>
-        <div class="sales-kpi-label">صافي الأرباح</div>
-        <div class="sales-kpi-value mono${profitUp?'':' negative'}" title="${profit.toFixed(2)} ر.س">${profit.toFixed(2)} ر.س</div>
-        ${FIXED_COSTS_SET ? '' : '<div class="sales-kpi-note">قبل الإيجار والرواتب — <button type="button" class="sales-kpi-note-link" data-goto-fixedcosts>حدّدها</button></div>'}
-      </div>
-    </div>
-    ${secondRow}`;
-
-  const fixedLink = el.querySelector('[data-goto-fixedcosts]');
-  if(fixedLink) fixedLink.addEventListener('click', ()=> goToScreenTab('accounting', 'fixedcosts'));
-}
 
 /* Today's numbers, assembled in one place. Three call sites used to build
    this object inline and each of them left `hourly` out, which is why the
    peak-hour tile showed "—" until the range picker was touched. */
-function renderTodaySalesSummary(){
-  renderSalesRangeSummary({
-    netSales: TODAY.netSales,
-    ordersCount: TODAY.ordersCount,
-    avgTicket: TODAY.avgTicket,
-    profit: TODAY.profit,
-    hourly: typeof HOURLY_SALES !== 'undefined' ? HOURLY_SALES : null,
-    salesDelta: YESTERDAY.netSales > 0 ? (TODAY.netSales - YESTERDAY.netSales) / YESTERDAY.netSales * 100 : null,
-  });
-}
+
 
 function isTodayRange(from, to){
   const today = salesRangeBounds('today');
@@ -1144,57 +1339,7 @@ function fmtHour12(h){
   return h12 + ' ' + period;
 }
 
-function renderHourGrid(){
-  const el = document.getElementById('hourGridWrap');
-  if(!el) return;
-  const days = WEEK_HOUR_GRID;
-  if(!days || days.length === 0){ el.innerHTML = '<div class="orders-empty">ما فيه مبيعات هالأسبوع بعد</div>'; return; }
 
-  const hourSet = new Set();
-  days.forEach(d => Object.keys(d.hours).forEach(h => hourSet.add(Number(h))));
-  const hours = Array.from(hourSet).sort((a,b)=>a-b);
-  if(hours.length === 0){ el.innerHTML = '<div class="orders-empty">ما فيه مبيعات هالأسبوع بعد</div>'; return; }
-
-  const rowAvg = {};
-  hours.forEach(h=>{
-    const vals = days.map(d=>d.hours[h]?.total||0).filter(v=>v>0);
-    rowAvg[h] = vals.length ? vals.reduce((s,v)=>s+v,0)/vals.length : 0;
-  });
-  const allTotals = days.flatMap(d=>Object.values(d.hours).map(h=>h.total));
-  const max = Math.max(...allTotals, 0);
-  // Three discrete tiers in the brand's own lime family (not a rainbow
-  // gradient) — عادي/جيد/ممتاز. Simple to read at a glance: neutral means
-  // quiet, lime-deep means solid, full lime means the best hour.
-  function tierFor(v){
-    const t = max>0 ? v/max : 0;
-    if(t > 0.66) return { bg:'var(--lime)', text:'var(--graphite)' };
-    if(t > 0.33) return { bg:'var(--lime-deep)', text:'#fff' };
-    return { bg:'var(--surf2)', text:'var(--text)' };
-  }
-
-  let html = `<div class="hour-grid" style="grid-template-columns:40px repeat(${days.length},1fr);">`;
-  html += '<div class="hg-corner"></div>';
-  days.forEach(d=> html += `<div class="hg-day-label">${d.day}</div>`);
-  hours.forEach(h=>{
-    html += `<div class="hg-hour-label">${fmtHour12(h)}</div>`;
-    days.forEach(d=>{
-      const cell = d.hours[h];
-      if(!cell || cell.total<=0){ html += '<div class="hg-cell empty"></div>'; return; }
-      const pct = rowAvg[h]>0 ? Math.round(((cell.total-rowAvg[h])/rowAvg[h])*100) : 0;
-      const tier = tierFor(cell.total);
-      html += `<button type="button" class="hg-cell" style="background:${tier.bg}; color:${tier.text};"
-        data-day="${d.day}" data-hour="${h}" data-total="${cell.total.toFixed(2)}" data-count="${cell.count}" data-pct="${pct}">
-        <span class="hg-val mono">${Math.round(cell.total)}</span>
-      </button>`;
-    });
-  });
-  html += '</div>';
-  el.innerHTML = html;
-
-  el.querySelectorAll('.hg-cell:not(.empty)').forEach(cell=>{
-    cell.addEventListener('click', (e)=>{ e.stopPropagation(); showHourGridTooltip(cell); });
-  });
-}
 
 function showHourGridTooltip(cell){
   document.querySelectorAll('.hg-tooltip').forEach(t=>t.remove());
@@ -1217,111 +1362,13 @@ function showHourGridTooltip(cell){
   }, 0);
 }
 
-function renderBestWorstSellers(sellers){
-  sellers = sellers || ALL_SELLERS;
-  if(sellers.length === 0){
-    document.getElementById('bestSellersList').innerHTML = '<div class="orders-empty">ما فيه مبيعات بهالفترة</div>';
-    document.getElementById('worstSellersList').innerHTML = '<div class="orders-empty">ما فيه مبيعات بهالفترة</div>';
-    return;
-  }
-  const sorted = [...sellers].sort((a,b)=>b.revenue-a.revenue);
-  // With 8+ distinct sellers today, a genuine top-4/bottom-4 split never
-  // overlaps. Below that (very common for a small cafe, or just a slow
-  // day) slice(0,4) and slice(-4) share items — a product would show up
-  // simultaneously as "best selling" AND "worst selling", which is both
-  // confusing and undermines trust in the whole panel. Splitting the
-  // already-sorted list exactly down the middle instead guarantees the two
-  // lists never share a product, whatever the count.
-  const half = Math.ceil(sorted.length / 2);
-  const bestCount = Math.min(4, sorted.length >= 8 ? 4 : half);
-  const best = sorted.slice(0, bestCount);
-  const worst = sorted.length >= 8 ? sorted.slice(-4).reverse() : sorted.slice(bestCount).reverse();
-  document.getElementById('bestSellersList').innerHTML = best.map((p,i)=>
-    `<div class="seller-row"><div class="seller-rank best">${i===0?rkIcon('award'):i+1}</div><div class="seller-info"><div class="seller-name">${p.name}</div><div class="seller-meta">${p.qty} طلب — ${p.cat}</div></div><div class="seller-value mono">${p.revenue.toFixed(2)}</div></div>`
-  ).join('');
-  document.getElementById('worstSellersList').innerHTML = worst.length ? worst.map((p,i)=>
-    `<div class="seller-row"><div class="seller-rank low">${i+1}</div><div class="seller-info"><div class="seller-name">${p.name}</div><div class="seller-meta">${p.qty} طلب — ${p.cat}</div></div><div class="seller-value low mono">${p.revenue.toFixed(2)}</div></div>`
-  ).join('') : '<div class="orders-empty">ما فيه تنوع كافٍ بالمبيعات لعرض قائمة منفصلة</div>';
-}
 
-function renderCategoryPerf(categoryPerf){
-  categoryPerf = categoryPerf || CATEGORY_PERF;
-  const el = document.getElementById('categoryPerf');
-  if(categoryPerf.length === 0){
-    el.innerHTML = '<div class="orders-empty">ما فيه مبيعات بهالفترة</div>';
-    return;
-  }
-  // Calmer than a bar+track+badge stack: one line per category, a subtle
-  // proportional color wash behind the text instead of a separate bar row.
-  const ranked = [...categoryPerf].sort((a,b)=>b.revenue-a.revenue);
-  const max = ranked[0].revenue;
-  const COLORS = ['var(--acc-ops)','var(--acc-res)','var(--acc-fin)','var(--acc-team)','var(--acc-ai)'];
-  el.innerHTML = ranked.map((c,i)=>{
-    const pct = Math.round((c.revenue/max)*100);
-    const color = COLORS[i%5];
-    return `<div class="perf-row-clean">
-      <div class="fill" style="width:${pct}%; background:${color};"></div>
-      <div class="perf-row-content">
-        <span class="name"><span class="dot" style="background:${color};"></span>${c.name}</span>
-        <span class="value mono">${c.revenue.toFixed(2)} ر.س</span>
-      </div>
-    </div>`;
-  }).join('');
-}
 
-function renderPaymentBreakdown(breakdown){
-  breakdown = breakdown || PAYMENT_BREAKDOWN;
-  const el = document.getElementById('paymentBreakdown');
-  const total = breakdown.reduce((s,p)=>s+p.amount,0);
-  if(total === 0){
-    el.innerHTML = '<div class="orders-empty">ما فيه مبيعات بهالفترة</div>';
-    return;
-  }
-  const DONUT_COLORS = ['var(--acc-ops)','var(--acc-res)','var(--acc-fin)','var(--acc-team)','var(--acc-ai)'];
-  const r = 50, circumference = 2*Math.PI*r;
-  let cumulative = 0;
-  const segments = breakdown.map((p,i)=>{
-    const share = p.amount/total;
-    const segLen = share*circumference;
-    const seg = `<circle cx="60" cy="60" r="${r}" fill="none" stroke="${DONUT_COLORS[i%5]}" stroke-width="16"
-      stroke-dasharray="${segLen} ${circumference}" stroke-dashoffset="${-cumulative}" stroke-linecap="butt"/>`;
-    cumulative += segLen;
-    return seg;
-  }).join('');
-  const legend = breakdown.map((p,i)=>{
-    const share = ((p.amount/total)*100).toFixed(0);
-    return `<div class="donut-legend-row"><span class="donut-swatch" style="background:${DONUT_COLORS[i%5]}"></span>
-      <span class="donut-legend-name">${p.name}</span><span class="donut-legend-val mono">${share}٪</span></div>`;
-  }).join('');
-  el.innerHTML = `<div class="donut-wrap">
-    <svg class="donut-svg" viewBox="0 0 120 120" style="transform:rotate(-90deg)">
-      <circle cx="60" cy="60" r="${r}" fill="none" stroke="var(--surf2)" stroke-width="16"/>
-      ${segments}
-    </svg>
-    <div class="donut-legend">${legend}</div>
-  </div>`;
-}
 
-function renderChannelCards(channelPerf){
-  channelPerf = channelPerf || CHANNEL_PERF;
-  if(channelPerf.length === 0){
-    document.getElementById('channelCards').innerHTML = '<div class="orders-empty">ما فيه مبيعات بهالفترة</div>';
-    return;
-  }
-  const icons = {
-    'داخل المطعم':'<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
-    'سفري':'<path d="M20 12v-2a2 2 0 0 0-2-2h-2m-8 0H6a2 2 0 0 0-2 2v2m0 4v2a2 2 0 0 0 2 2h2m8 0h2a2 2 0 0 0 2-2v-2"/>',
-    'توصيل':'<rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>'
-  };
-  document.getElementById('channelCards').innerHTML = channelPerf.map((c,i)=>
-    `<div class="channel-card" data-c="${i%3}">
-      <div class="channel-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${icons[c.name]||''}</svg></div>
-      <div class="channel-card-name">${c.name}</div>
-      <div class="channel-card-value mono">${c.revenue.toFixed(2)}</div>
-      <div class="channel-card-sub">${c.orders} طلب</div>
-    </div>`
-  ).join('');
-}
+
+
+
+
 
 /* ============ Operations Center ============ */
 /* ============ Orders screen ============ */

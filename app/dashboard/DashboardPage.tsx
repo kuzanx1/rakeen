@@ -6,6 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { Worker as TesseractWorker, Line as TesseractLine } from "tesseract.js";
 import "./rakeen-dashboard.css";
 import "./rakeen-dashboard-responsive.css";
+import "./rk2.css";
 import { dashboardMarkup } from "./dashboard-markup";
 import BillingNotice from "./BillingNotice";
 import WhatsNew from "./WhatsNew";

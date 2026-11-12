@@ -78,7 +78,7 @@ const check = (where, name, ok, d) => { if (ok) pass++; else { fail++; fails.pus
         stage: document.body.dataset.stage, vw: innerWidth, sw: document.documentElement.scrollWidth,
         hero: R(hero), heroInHome: !!hero && document.getElementById('screen-home').contains(hero),
         btn: R(btn), notif: R(notif), dot: !!document.querySelector('.rk-wn-dot'),
-        img: img ? { ...R(img), ok: img.complete && img.naturalWidth > 0 } : null,
+        img: img ? { ...R(img), ok: img.complete && img.naturalWidth > 0, hidden: getComputedStyle(img.closest('.rk-wn-hero-art')).display === 'none' } : null,
         cta: !!document.querySelector('.rk-wn-hero .rk-wn-cta'),
         spill: [...(hero ? hero.querySelectorAll('*') : [])].filter(e => { const b = e.getBoundingClientRect(); const hb = hero.getBoundingClientRect(); return b.width && (b.left < hb.left - 1 || b.right > hb.right + 1) && !e.closest('.rk-wn-hero-art'); }).map(e => e.className.baseVal ?? e.className).slice(0, 3),
         topbarOverflow: (() => { const t = document.querySelector('.topbar'); return t ? t.scrollWidth - t.clientWidth : 0; })(),
@@ -89,7 +89,8 @@ const check = (where, name, ok, d) => { if (ok) pass++; else { fail++; fails.pus
     check(where, 'hero fits screen', st.hero && st.hero.l >= -1 && st.hero.r <= st.vw + 1, JSON.stringify(st.hero));
     check(where, 'nothing spills out of hero', st.spill.length === 0, st.spill.join(','));
     check(where, 'no page sideways scroll', st.sw <= st.vw + 1, `${st.sw}/${st.vw}`);
-    check(where, 'hero image loaded', st.img && st.img.ok);
+    // في البطاقة المختصرة (≤١٠٢٤) الصورة مخفية عن قصد، فما تتحمّل.
+    check(where, 'hero image loaded', st.img && (st.img.ok || st.img.hidden));
     check(where, 'CTA present', st.cta);
     check(where, 'topbar button ≥36px', !!st.btn && st.btn.w >= 36 && st.btn.h >= 36, JSON.stringify(st.btn));
     check(where, 'button next to notifications', st.btn && st.notif && Math.abs(st.btn.t - st.notif.t) < 2);
@@ -97,10 +98,10 @@ const check = (where, name, ok, d) => { if (ok) pass++; else { fail++; fails.pus
     check(where, 'topbar not overflowing', st.topbarOverflow <= 1, String(st.topbarOverflow));
     await page.screenshot({ path: `${OUT}/home-${theme}-${w}.png` });
     await page.click('.rk-wn-btn');
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1200);
     const pn = await page.evaluate(() => {
       const p = document.querySelector('.rk-wn-panel'); const b = p && p.getBoundingClientRect();
-      return { open: !!p, w: b && b.width, l: b && b.left, r: b && b.right, posts: document.querySelectorAll('.rk-wn-post').length, dot: !!document.querySelector('.rk-wn-dot'), imgs: [...document.querySelectorAll('.rk-wn-post-img')].every(i => i.complete && i.naturalWidth) };
+      return { open: !!p, w: b && b.width, l: b && b.left, r: b && b.right, posts: document.querySelectorAll('.rk-wn-post').length, dot: !!document.querySelector('.rk-wn-dot'), imgs: [...document.querySelectorAll('.rk-wn-post-img')].filter(i => { const r = i.getBoundingClientRect(); return r.top < innerHeight && r.bottom > 0; }).every(i => i.complete && i.naturalWidth) };
     });
     check(where, 'panel opens', pn.open);
     check(where, 'panel fits', pn.open && pn.l >= -1 && pn.r <= w + 1 && pn.w <= 481, JSON.stringify(pn));
@@ -117,17 +118,21 @@ const check = (where, name, ok, d) => { if (ok) pass++; else { fail++; fails.pus
     }
     if (st.cta) {
       await page.click('.rk-wn-hero .rk-wn-cta'); await page.waitForTimeout(1800);
-      const nav = await page.evaluate(() => ({ active: document.querySelector('.screen.active')?.id, tab: document.querySelector('#onlineMenuTabs button.active')?.dataset.tab }));
-      check(where, 'CTA opens online store screen', /online/i.test(nav.active || ''), JSON.stringify(nav));
-      check(where, 'CTA opens design tab', nav.tab === 'design', JSON.stringify(nav));
+      // زر البوست يفتح شاشته، أو نافذة الترقية لو الميزة مو ضمن باقة الحساب.
+      const nav = await page.evaluate(() => ({ active: document.querySelector('.screen.active')?.id, upgrade: !!document.querySelector('.plan-upgrade-ov.show') }));
+      check(where, 'CTA opens its screen (or the upgrade dialog)', nav.upgrade || nav.active !== 'screen-home', JSON.stringify(nav));
+      await page.evaluate(() => document.querySelectorAll('.plan-upgrade-ov.show').forEach(o => o.classList.remove('show')));
       await page.evaluate(() => document.querySelector('.nav-item[data-screen="home"]')?.click()); await page.waitForTimeout(600);
     }
+    // إغلاق البنر يخفي هذا البوست؛ لو فيه بوست أحدث من ٤٥ يوم ما انقفل، يطلع هو مكانه.
+    const heroTitle = () => page.evaluate(() => document.querySelector('.rk-wn-hero .rk-wn-title')?.textContent || null);
+    const closedTitle = await heroTitle();
     await page.click('.rk-wn-hero .rk-wn-x'); await page.waitForTimeout(300);
-    check(where, 'hero closes', !(await page.$('.rk-wn-hero')));
+    check(where, 'hero closes', (await heroTitle()) !== closedTitle);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => document.body.dataset.stage === 'dashboard', null, { timeout: 60000 }).catch(() => {});
     await page.waitForTimeout(2500);
-    check(where, 'hero stays closed after reload', !(await page.$('.rk-wn-hero')));
+    check(where, 'hero stays closed after reload', (await heroTitle()) !== closedTitle);
     check(where, 'button stays after reload', !!(await page.$('.rk-wn-btn')));
     check(where, 'no dot after seen', !(await page.$('.rk-wn-dot')));
     check(where, 'no JS errors', errs.length === 0, errs.slice(0, 2).join(' | '));

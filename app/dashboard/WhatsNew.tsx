@@ -103,12 +103,17 @@ export default function WhatsNew() {
       setStage(document.body.dataset.stage || "");
       const home = document.getElementById("screen-home");
       if (home) {
+        // مكانه في الرئيسية تحت «يومك» (#rkHomeNews)؛ ولو ما لقيناه، أعلى الشاشة.
+        const anchor = document.getElementById("rkHomeNews");
         let slot = document.getElementById("rk-whatsnew-home");
-        if (!slot || !home.contains(slot)) {
-          slot = document.createElement("div");
-          slot.id = "rk-whatsnew-home";
+        if (!slot || !(anchor && home.contains(anchor) ? anchor.contains(slot) : home.contains(slot))) {
+          if (!slot) {
+            slot = document.createElement("div");
+            slot.id = "rk-whatsnew-home";
+          }
           const billing = document.getElementById("rk-billing-home");
-          if (billing && home.contains(billing)) billing.after(slot);
+          if (anchor && home.contains(anchor)) anchor.appendChild(slot);
+          else if (billing && home.contains(billing)) billing.after(slot);
           else home.prepend(slot);
         }
         setHomeEl((cur) => (cur === slot ? cur : slot));
