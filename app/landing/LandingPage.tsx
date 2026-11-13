@@ -20,6 +20,8 @@ type Period = "monthly" | "annual";
 const WA = "966557444227";
 // No self sign-up for now (lib/signup.ts): every "start" opens WhatsApp.
 const START = startWhatsAppLink();
+const APP_STORE = "https://apps.apple.com/sa/app/id6808202307";
+const ANDROID = "/android";
 const waLink = (text: string) => `https://wa.me/${WA}?text=${encodeURIComponent(text)}`;
 const num = (n: number) => n.toLocaleString("en-US");
 
@@ -258,7 +260,7 @@ const T = {
     },
     more: {
       h: "وكل اللي يحتاجه يومك.",
-      items: ["شاشة المطبخ", "الطاولات والحجوزات", "صلاحيات الموظفين", "تعدد الفروع", "تقارير وتصدير Excel", "شاشة العميل", "صفحة حجز المواعيد"],
+      items: ["شاشة المطبخ", "الطاولات والحجوزات", "شؤون الموظفين", "تعدد الفروع", "تقارير وتصدير Excel", "شاشة العميل", "صفحة حجز المواعيد"],
     },
     plans: {
       k: "الباقات",
@@ -299,7 +301,7 @@ const T = {
     close: { h: "مطعمك يستاهل نظام يشتغل عنه.", free: "أول ٣٥٠ طلب علينا. بدون دفع، وبدون عقد.", sub: "كلّمنا، نجهّز أصنافك وأسعارك، وتبدأ البيع خلال يوم.", cta: "ابدأ مجانًا", wa: "كلّمنا واتساب" },
     sticky: "ابدأ مجانًا — أول 350 طلب",
     fits: { k: "يناسب", items: ["المطاعم", "الكافيهات", "الفود ترك", "المخابز", "المطابخ السحابية", "محلات الحلويات", "العصائر", "البرقر والبيتزا"] },
-    footer: { tag: "نظام تشغيل مطعمك.", privacy: "الخصوصية", terms: "الشروط", rights: "© ٢٠٢٦ ركين" },
+    footer: { tag: "نظام تشغيل مطعمك.", privacy: "الخصوصية", terms: "الشروط", rights: "© ٢٠٢٦ ركين", product: "ركين", talk: "كلّمنا", legal: "قانوني", wa: "واتساب", apps: "التطبيق على جهازك", iosA: "حمّله من", iosB: "App Store", andA: "أندرويد وسنمي", andB: "حمّل التطبيق" },
   },
   en: {
     nav: { features: "Features", plans: "Plans", faq: "FAQ", login: "Log in", start: "Start free" },
@@ -393,7 +395,7 @@ const T = {
     },
     more: {
       h: "And everything your day needs.",
-      items: ["Kitchen screen", "Tables & reservations", "Staff permissions", "Multiple branches", "Reports & Excel export", "Customer display", "Booking page"],
+      items: ["Kitchen screen", "Tables & reservations", "Staff & documents", "Multiple branches", "Reports & Excel export", "Customer display", "Booking page"],
     },
     plans: {
       k: "Plans",
@@ -434,7 +436,7 @@ const T = {
     close: { h: "Your restaurant deserves a system that works for it.", free: "Your first 350 orders are on us. No payment, no contract.", sub: "Message us, we set up your items and prices, and you start selling within a day.", cta: "Start free", wa: "WhatsApp us" },
     sticky: "Start free — first 350 orders",
     fits: { k: "Built for", items: ["Restaurants", "Cafés", "Food trucks", "Bakeries", "Cloud kitchens", "Dessert shops", "Juice bars", "Burgers & pizza"] },
-    footer: { tag: "Your restaurant's operating system.", privacy: "Privacy", terms: "Terms", rights: "© 2026 Rakeen" },
+    footer: { tag: "Your restaurant's operating system.", privacy: "Privacy", terms: "Terms", rights: "© 2026 Rakeen", product: "Rakeen", talk: "Talk to us", legal: "Legal", wa: "WhatsApp", apps: "The app on your device", iosA: "Download on the", iosB: "App Store", andA: "Android & SUNMI", andB: "Get the app" },
   },
 };
 
@@ -534,6 +536,31 @@ function Riyal() {
 }
 
 type IconName = "check" | "wifi" | "qr" | "devices" | "chat" | "plus" | "arrow" | "bag" | "alert" | "scan" | "crown" | "minus" | "bell" | "link";
+function StoreBadges({ f, dark }: { f: { iosA: string; iosB: string; andA: string; andB: string }; dark?: boolean }) {
+  return (
+    <div className={"badges" + (dark ? " on-dark" : "")}>
+      <a className="badge" href={APP_STORE} target="_blank" rel="noopener noreferrer">
+        <svg viewBox="0 0 24 24" aria-hidden>
+          <path fill="currentColor" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701" />
+        </svg>
+        <span>
+          <small>{f.iosA}</small>
+          <b>{f.iosB}</b>
+        </span>
+      </a>
+      <a className="badge" href={ANDROID}>
+        <svg viewBox="0 0 24 24" aria-hidden>
+          <path fill="currentColor" d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4483-.9993.9993-.9993c.5511 0 .9993.4483.9993.9993.0001.5511-.4482.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4483.9993.9993 0 .5511-.4483.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.2439 13.8533 7.8508 12 7.8508s-3.5902.3931-5.1367 1.0989L4.841 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3435-4.1021-2.6892-7.5743-6.1185-9.4396" />
+        </svg>
+        <span>
+          <small>{f.andA}</small>
+          <b>{f.andB}</b>
+        </span>
+      </a>
+    </div>
+  );
+}
+
 function Icon({ name }: { name: IconName }) {
   const p = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   return (
@@ -1770,6 +1797,7 @@ export default function LandingPage() {
                 {t.close.wa}
               </a>
             </div>
+            <StoreBadges f={t.footer} dark />
           </div>
         </div>
       </section>
@@ -1779,20 +1807,28 @@ export default function LandingPage() {
         <div className="wrap foot-in">
           <div className="foot-brand">
             <img src={wordmarkDark} alt={lang === "ar" ? "ركين" : "Rakeen"} />
-            <span>{t.footer.tag}</span>
+            <p>{t.footer.tag}</p>
+            <StoreBadges f={t.footer} />
           </div>
-          <nav>
+          <nav className="foot-col" aria-label={t.footer.product}>
+            <b>{t.footer.product}</b>
             <a href="#features" onClick={go("features")}>{t.nav.features}</a>
             <a href="#plans" onClick={go("plans")}>{t.nav.plans}</a>
+            <a href="#faq" onClick={go("faq")}>{t.nav.faq}</a>
+            <a href="/dashboard">{t.nav.login}</a>
+          </nav>
+          <nav className="foot-col" aria-label={t.footer.talk}>
+            <b>{t.footer.talk}</b>
+            <a href={`https://wa.me/${WA}`} target="_blank" rel="noopener noreferrer">
+              {t.footer.wa} <span className="mono" dir="ltr">055 744 4227</span>
+            </a>
+            <a href="mailto:support@rakeenapp.com">support@rakeenapp.com</a>
+          </nav>
+          <nav className="foot-col" aria-label={t.footer.legal}>
+            <b>{t.footer.legal}</b>
             <a href="/privacy">{t.footer.privacy}</a>
             <a href="/terms">{t.footer.terms}</a>
           </nav>
-          <div className="foot-contact">
-            <a href={`https://wa.me/${WA}`} target="_blank" rel="noopener noreferrer" className="mono">
-              055 744 4227
-            </a>
-            <a href="mailto:support@rakeenapp.com">support@rakeenapp.com</a>
-          </div>
         </div>
         <div className="wrap foot-bottom">{t.footer.rights}</div>
       </footer>
