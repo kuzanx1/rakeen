@@ -18,7 +18,6 @@ type Lang = "ar" | "en";
 type Period = "monthly" | "annual";
 
 const WA = "966557444227";
-const APP_STORE = "https://apps.apple.com/sa/app/id6808202307";
 // No self sign-up for now (lib/signup.ts): every "start" opens WhatsApp.
 const START = startWhatsAppLink();
 const waLink = (text: string) => `https://wa.me/${WA}?text=${encodeURIComponent(text)}`;
@@ -209,12 +208,6 @@ const T = {
         b: ["بدون عمولة على الطلب", "توصيل أو استلام", "الطلب يوصل الكاشير والمطبخ فورًا", "عروض بالصور، وبنر للمناسبات"],
         real: "لقطة حقيقية من متجر عنوب على ركين",
       },
-      menu: {
-        k: "المنيو الأونلاين",
-        h: "قائمة مطعمك تتحدّث بضغطة زر.",
-        p: "عدّل من اللوحة، ويتغيّر عند الكاشير وبجوال العميل فورًا. بدون مصمم، ولا طباعة.",
-        b: ["تابلت عند الكاشير قدام العميل", "QR على الطاولة يفتح بجواله", "أربعة تصاميم: ديوان، مخمل، أصيل، إطلالة"],
-      },
       pager: {
         k: "بيجر ركين",
         h: "جوال زبونك صار جهاز النداء.",
@@ -235,16 +228,6 @@ const T = {
         urlS: "رابط صفحتك",
         real: "صفحات روابط بتصاميم ركين",
       },
-      qr: {
-        k: "باركودك",
-        h: "باركود بهوية مطعمك، جاهز للطباعة.",
-        p: "باركود يفتح منيوك أو متجرك، بشعارك وألوانك. اطبعه ستاند على الطاولة، أو لوحة عند الكاشير، أو بوستر على الواجهة.",
-        b: ["٤ أشكال: ستاند، كاشير، واجهة، ملصق", "شعارك في وسط الباركود وألوانك تلقائياً", "رقم لكل طاولة بطباعة وحدة", "اطبعه أو احفظه PDF، على A4 جاهز للقص"],
-        plan: "ضمن باقتي عماد وصرح",
-        toast: "امسح واطلب",
-        toastS: "يفتح المنيو والطلب",
-        real: "تصاميم حقيقية من «باركودك» بشعار مكبوس زربيان",
-      },
       loyalty: {
         k: "الولاء",
         h: "عميلك يرجع لك.",
@@ -257,16 +240,6 @@ const T = {
         h: "تعرف وش تكسب. بالريال.",
         p: "تكلفة كل طبق من وصفاتك الفعلية، والمخزون ينقص مع كل بيعة. صوّر فاتورة المورد وخلاص.",
         b: ["صافي الربح الحقيقي", "تنبيه قبل ما يخلص صنف", "قراءة فواتير الموردين بالتصوير"],
-      },
-      app: {
-        k: "تطبيق ركين",
-        h: "ركين صار على App Store.",
-        p: "كاشيرك على الآيفون والآيباد، بنفس حسابك ونفس بياناتك. حمّله مجاناً، سجّل دخولك، وكمّل شغلك.",
-        b: ["أصنافك والسلة والدفع في شاشة وحدة", "الطلبات وملخص الوردية من جوالك", "وأجهزة الأندرويد والسنمي بتحميل مباشر"],
-        ios: "حمّله من App Store",
-        android: "أندرويد · تحميل مباشر",
-        plan: "في كل الباقات",
-        real: "لقطات حقيقية من تطبيق ركين على الآيفون",
       },
     },
     rcpt: { title: "فاتورة ضريبية مبسطة", no: "رقم الفاتورة", sub: "المجموع قبل الضريبة", vat: "ضريبة القيمة المضافة ١٥٪", total: "الإجمالي", cash: "شبكة", thanks: "شكرًا لزيارتكم" },
@@ -370,12 +343,6 @@ const T = {
         b: ["No commission per order", "Delivery or pickup", "Orders land on the cashier and kitchen instantly", "Photo offers and occasion banners"],
         real: "A real screenshot of Anoob's store on Rakeen",
       },
-      menu: {
-        k: "Online menu",
-        h: "Your menu updates in one tap.",
-        p: "Edit it in the dashboard and it changes at the counter and on their phone instantly. No designer, no reprinting.",
-        b: ["A tablet at the counter, facing the customer", "A table QR that opens on their phone", "Four designs: Diwan, Makhmal, Aseel, Itlala"],
-      },
       pager: {
         k: "Rakeen Pager",
         h: "Their phone is the pager.",
@@ -396,16 +363,6 @@ const T = {
         urlS: "Your page link",
         real: "Link pages built with Rakeen designs",
       },
-      qr: {
-        k: "Your QR",
-        h: "A QR code in your brand, ready to print.",
-        p: "A QR that opens your menu or store, with your logo and colors. Print it as a table stand, a counter sign, or a window poster.",
-        b: ["4 formats: stand, counter, window, sticker", "Your logo in the center, your colors automatically", "A number for every table in one print", "Print or save as PDF, on A4 ready to cut"],
-        plan: "In the Emad and Sarh plans",
-        toast: "Scan to order",
-        toastS: "Opens your menu",
-        real: "Real designs from Your QR with Makboos Zurbian's logo",
-      },
       loyalty: {
         k: "Loyalty",
         h: "Customers come back.",
@@ -418,16 +375,6 @@ const T = {
         h: "Know what you make. To the riyal.",
         p: "Every dish costed from your real recipes, stock that drops with each sale. Snap the supplier invoice and you're done.",
         b: ["Real net profit", "Heads-up before an item runs out", "Supplier invoices read from a photo"],
-      },
-      app: {
-        k: "Rakeen app",
-        h: "Rakeen is on the App Store.",
-        p: "Your cashier on iPhone and iPad, with the same account and the same data. Download it free, sign in, and carry on.",
-        b: ["Items, cart and payment on one screen", "Orders and the shift summary on your phone", "Android and SUNMI devices by direct download"],
-        ios: "Download on the App Store",
-        android: "Android · direct download",
-        plan: "In every plan",
-        real: "Real screenshots from the Rakeen iPhone app",
       },
     },
     rcpt: { title: "Simplified tax invoice", no: "Invoice no.", sub: "Subtotal", vat: "VAT 15%", total: "Total", cash: "Card", thanks: "Thank you for visiting" },
@@ -501,7 +448,9 @@ const ITEM_EN: Record<string, string> = {
   "المنيو": "Menu management",
   "الطلبات والاسترجاع": "Orders and refunds",
   "التقرير اليومي": "Daily report",
-  "الموظفين": "Staff with PIN",
+  "تطبيق الآيفون والأندرويد": "iPhone and Android app",
+  "الموظفين ومبيعاتهم": "Staff with PIN and their sales",
+  "مستشار ركين": "Rakeen Advisor: checks your day",
   "شاشة المطبخ وطباعة المطبخ": "Kitchen screen and printing",
   "شاشة العميل: يشوف طلبه وباركود الولاء": "Customer display with loyalty barcode",
   "المخزون والوصفات وتنبيهات النقص والاستهلاك التلقائي": "Stock, recipes and low-stock alerts",
@@ -510,7 +459,11 @@ const ITEM_EN: Record<string, string> = {
   "العملاء، وبرنامج الولاء، وبطاقة المحفظة": "Customers, loyalty and wallet card",
   "الطاولات والحجوزات وقائمة الانتظار": "Tables, reservations and waitlist",
   "تطبيقات التوصيل وحساب عمولاتها": "Delivery apps and commissions",
-  "صلاحيات الموظفين وسجل العمليات": "Staff permissions and activity log",
+  "شؤون الموظفين: الصلاحيات، والأقسام، ووثائقهم وتنبيه قبل انتهاء الإقامة، وسجل العمليات": "Staff: permissions, departments, documents with iqama expiry alerts, activity log",
+  "بيجر ركين: الزبون يمسح الباركود، وجواله يرن لما يجهز طلبه — بدل أجهزة النداء": "Rakeen Pager: their phone rings when the order is ready",
+  "روابطك: صفحة روابط فخمة لمطعمك (واتساب، المنيو، الموقع، حساباتك) للبايو، بثلاثة تصاميم وإحصائيات الضغطات": "Your Links: a link-in-bio page with 3 designs and click stats",
+  "باركودك: باركود بهوية مطعمك للطاولة والكاشير والواجهة، جاهز للطباعة": "Your QR: a branded QR for tables, counter and window, ready to print",
+  "المنيو الأونلاين بأربعة تصاميم: على تابلت الكاشير، وبجوال العميل من باركود الطاولة": "Online menu in 4 designs: on the counter tablet and from the table QR",
   "التقارير الكاملة وتصدير Excel": "Full reports and Excel export",
   "المتجر الإلكتروني: طلب مباشر وتتبّع ودفع بالبطاقة، بدون عمولة": "Online store: direct orders, tracking, card payment, no commission",
   "صفحة حجز المواعيد للعملاء": "Appointment booking page",
@@ -534,7 +487,11 @@ const CARD_AR: Record<string, string> = {
   "العملاء، وبرنامج الولاء، وبطاقة المحفظة": "برنامج الولاء وبطاقة الجوال",
   "الطاولات والحجوزات وقائمة الانتظار": "الطاولات والحجوزات",
   "تطبيقات التوصيل وحساب عمولاتها": "تطبيقات التوصيل",
-  "صلاحيات الموظفين وسجل العمليات": "صلاحيات الموظفين",
+  "شؤون الموظفين: الصلاحيات، والأقسام، ووثائقهم وتنبيه قبل انتهاء الإقامة، وسجل العمليات": "شؤون الموظفين ووثائقهم",
+  "بيجر ركين: الزبون يمسح الباركود، وجواله يرن لما يجهز طلبه — بدل أجهزة النداء": "بيجر ركين",
+  "روابطك: صفحة روابط فخمة لمطعمك (واتساب، المنيو، الموقع، حساباتك) للبايو، بثلاثة تصاميم وإحصائيات الضغطات": "روابطك: صفحة روابط للبايو",
+  "باركودك: باركود بهوية مطعمك للطاولة والكاشير والواجهة، جاهز للطباعة": "باركودك للطاولة والكاشير",
+  "المنيو الأونلاين بأربعة تصاميم: على تابلت الكاشير، وبجوال العميل من باركود الطاولة": "المنيو الأونلاين بأربعة تصاميم",
   "التقارير الكاملة وتصدير Excel": "التقارير الكاملة وExcel",
   "المتجر الإلكتروني: طلب مباشر وتتبّع ودفع بالبطاقة، بدون عمولة": "متجر إلكتروني بدون عمولة",
   "صفحة حجز المواعيد للعملاء": "صفحة حجز المواعيد",
@@ -549,7 +506,11 @@ const CARD_EN: Record<string, string> = {
   "العملاء، وبرنامج الولاء، وبطاقة المحفظة": "Loyalty & phone wallet card",
   "الطاولات والحجوزات وقائمة الانتظار": "Tables & reservations",
   "تطبيقات التوصيل وحساب عمولاتها": "Delivery apps",
-  "صلاحيات الموظفين وسجل العمليات": "Staff permissions",
+  "شؤون الموظفين: الصلاحيات، والأقسام، ووثائقهم وتنبيه قبل انتهاء الإقامة، وسجل العمليات": "Staff & documents",
+  "بيجر ركين: الزبون يمسح الباركود، وجواله يرن لما يجهز طلبه — بدل أجهزة النداء": "Rakeen Pager",
+  "روابطك: صفحة روابط فخمة لمطعمك (واتساب، المنيو، الموقع، حساباتك) للبايو، بثلاثة تصاميم وإحصائيات الضغطات": "Your Links page",
+  "باركودك: باركود بهوية مطعمك للطاولة والكاشير والواجهة، جاهز للطباعة": "Branded table QR",
+  "المنيو الأونلاين بأربعة تصاميم: على تابلت الكاشير، وبجوال العميل من باركود الطاولة": "Online menu, 4 designs",
   "التقارير الكاملة وتصدير Excel": "Full reports & Excel",
   "المتجر الإلكتروني: طلب مباشر وتتبّع ودفع بالبطاقة، بدون عمولة": "Online store, zero commission",
   "صفحة حجز المواعيد للعملاء": "Booking page",
@@ -912,128 +873,6 @@ function TierArt({ k }: { k: string }) {
         </g>
       )}
     </svg>
-  );
-}
-
-/* The online menu: هَبيّة's real menu (its photos, colours and prices) on a
-   phone, next to the dashboard editing it. Each change in the editor lands
-   on the phone straight away: a new price, a sold-out item, a new item. */
-const MENU_ITEMS = [
-  { id: "am", en: "Americano", ar: "أمريكانو", price: 12, img: "/landing/hb-americano.png" },
-  { id: "co", en: "Cortado", ar: "كورتادو", price: 14, img: "/landing/hb-cortado.png" },
-  { id: "sp", en: "Spanish Latte", ar: "سبانيش لاتيه", price: 16, img: "/landing/hb-spanish.png" },
-  { id: "ia", en: "Iced Americano", ar: "أمريكانو بارد", price: 12, img: "/landing/hb-iced.png" },
-];
-const MENU_NEW = { id: "is", en: "Iced Spanish Latte", ar: "سبانيش لاتيه بارد", price: 17, img: "/landing/hb-iced-spanish.png" };
-function MenuLive({ lang, qr }: { lang: Lang; qr: string }) {
-  // 0 calm · 1 typing the price · 2 price saved · 3 sold out · 4 new item · 5 hold
-  const [step, setStep] = useState(0);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setStep(4);
-      return;
-    }
-    let id = 0;
-    const io = new IntersectionObserver(
-      (es) => {
-        window.clearInterval(id);
-        if (es[0].isIntersecting) id = window.setInterval(() => setStep((x) => (x + 1) % 7), 1700);
-      },
-      { threshold: 0.3 },
-    );
-    if (ref.current) io.observe(ref.current);
-    return () => {
-      io.disconnect();
-      window.clearInterval(id);
-    };
-  }, []);
-  const ar = lang === "ar";
-  const spPrice = step >= 2 ? 18 : 16;
-  const soldOut = step >= 3;
-  const added = step >= 4;
-  const items = added ? [...MENU_ITEMS, MENU_NEW] : MENU_ITEMS;
-  const active = step === 1 || step === 2 ? "sp" : step === 3 ? "ia" : step >= 4 ? "is" : "";
-  const screen = (cls: string) => (
-        <div className={cls} dir="rtl">
-          <div className="ml-top">
-            <img src="/landing/hbiah-mark.png" alt="" />
-            <div>
-              <b>Hbiah | هَبيّة</b>
-              <small>Menu</small>
-            </div>
-          </div>
-          <div className="ml-banner" />
-          <div className="ml-tabs">
-            <span className="on">الإسبريسو الحار</span>
-            <span>البارد</span>
-            <span>الماتشا</span>
-          </div>
-          <div className="ml-grid">
-            {items.map((it) => {
-              const off = it.id === "ia" && soldOut;
-              const price = it.id === "sp" ? spPrice : it.price;
-              return (
-                <div key={it.id} className={"ml-card" + (off ? " off" : "") + (active === it.id && step !== 1 ? " flash" : "") + (it.id === "is" ? " fresh" : "")}>
-                  {off && <em className="ml-badge">نفد</em>}
-                  {it.id === "is" && <em className="ml-badge new">جديد</em>}
-                  <img src={it.img} alt="" />
-                  <b>{it.en}</b>
-                  <small>{it.ar}</small>
-                  <span className="mono" key={price}>
-                    {price} SAR
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-  );
-  return (
-    <div className="menu-live" ref={ref}>
-      {/* the dashboard */}
-      <div className="ml-dash" dir="rtl">
-        <div className="ml-dash-h">
-          <b>{ar ? "المنيو" : "Menu"}</b>
-          <span className={"ml-add" + (step === 4 ? " on" : "")}>＋ {ar ? "منتج جديد" : "New item"}</span>
-        </div>
-        {items.map((it) => {
-          const off = it.id === "ia" && soldOut;
-          return (
-            <div key={it.id} className={"ml-row" + (active === it.id ? " active" : "") + (it.id === "is" ? " fresh" : "")}>
-              <img src={it.img} alt="" />
-              <span className="ml-name">{ar ? it.ar : it.en}</span>
-              <span className={"ml-price mono" + (it.id === "sp" && step === 1 ? " typing" : "")}>
-                {it.id === "sp" ? (step === 1 ? "18" : spPrice) : it.price}
-              </span>
-              <span className={"ml-switch" + (off ? "" : " on")} />
-            </div>
-          );
-        })}
-        <div className={"ml-saved" + (step === 2 || step === 3 || step === 4 ? " show" : "")}>✓ {ar ? "انحفظ، وتحدّث المنيو" : "Saved, menu updated"}</div>
-      </div>
-
-      <div className="ml-flow" aria-hidden>
-        <svg viewBox="0 0 24 24">
-          <path d="M12 4v16M6 14l6 6 6-6" />
-        </svg>
-        {ar ? "يتحدّث عند العميل بنفس اللحظة" : "Updates for the customer instantly"}
-      </div>
-
-      {/* the same menu on a tablet at the counter, facing the customer */}
-      <div className="ml-counter">
-        <div className="ml-tablet">{screen("ml-screen ml-wide")}</div>
-        <div className="ml-stand" />
-        <span className="ml-tag">{ar ? "عند الكاشير" : "At the counter"}</span>
-      </div>
-
-      {/* and on the customer's phone */}
-      <div className="iphone ml-phone">
-        {screen("ml-screen")}
-        <span className="ml-tag ml-tag-phone">{ar ? "بجوال العميل" : "On their phone"}</span>
-      </div>
-
-    </div>
   );
 }
 
@@ -1599,27 +1438,11 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ---------- chapter: online menu ---------- */}
-      <section className="chap">
+      {/* ---------- chapter: pager (عماد وصرح) ---------- */}
+      <section className="chap" id="pager">
         <div className="wrap chap-in">
           <div className="chap-copy" data-in>
             <span className="chap-n mono" aria-hidden>03</span>
-            <span className="kicker k-brown">{t.ch.menu.k}</span>
-            <h2>{t.ch.menu.h}</h2>
-            <p>{t.ch.menu.p}</p>
-            <Bullets items={t.ch.menu.b} />
-          </div>
-          <div className="chap-art art-menu" data-in>
-            <MenuLive lang={lang} qr={qr} />
-          </div>
-        </div>
-      </section>
-
-      {/* ---------- chapter: pager (عماد وصرح) ---------- */}
-      <section className="chap chap-flip" id="pager">
-        <div className="wrap chap-in">
-          <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>04</span>
             <span className="kicker k-orange">
               <Icon name="bell" />
               {t.ch.pager.k}
@@ -1654,10 +1477,10 @@ export default function LandingPage() {
       </section>
 
       {/* ---------- chapter: links ---------- */}
-      <section className="chap" id="links">
+      <section className="chap chap-flip" id="links">
         <div className="wrap chap-in">
           <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>05</span>
+            <span className="chap-n mono" aria-hidden>04</span>
             <span className="kicker k-lime">
               <Icon name="link" />
               {t.ch.links.k}
@@ -1691,45 +1514,11 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ---------- chapter: qr ---------- */}
-      <section className="chap" id="qr">
-        <div className="wrap chap-in">
-          <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>06</span>
-            <span className="kicker k-lime">
-              <Icon name="qr" />
-              {t.ch.qr.k}
-            </span>
-            <h2>{t.ch.qr.h}</h2>
-            <p>{t.ch.qr.p}</p>
-            <Bullets items={t.ch.qr.b} />
-            <a href="#plans" onClick={go("plans")} className="pager-plan">
-              <Icon name="crown" />
-              {t.ch.qr.plan}
-            </a>
-          </div>
-          <div className="chap-art art-pager art-qr" data-in>
-            <div className="pager-blob" aria-hidden />
-            <img className="qr-print pg-back" src="/landing/qr-counter.jpg" alt={t.ch.qr.real} loading="lazy" />
-            <img className="qr-print pg-front" src="/landing/qr-stand.jpg" alt={t.ch.qr.real} loading="lazy" />
-            <div className="toast t-ring">
-              <span className="toast-ic ring">
-                <Icon name="qr" />
-              </span>
-              <div>
-                <b>{t.ch.qr.toast}</b>
-                <span>{t.ch.qr.toastS}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ---------- chapter: loyalty ---------- */}
       <section className="chap chap-wide">
         <div className="wrap chap-in">
           <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>07</span>
+            <span className="chap-n mono" aria-hidden>05</span>
             <span className="kicker">{t.ch.loyalty.k}</span>
             <h2>{t.ch.loyalty.h}</h2>
             <p>{t.ch.loyalty.p}</p>
@@ -1745,7 +1534,7 @@ export default function LandingPage() {
       <section className="chap chap-dark">
         <div className="wrap chap-in">
           <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>08</span>
+            <span className="chap-n mono" aria-hidden>06</span>
             <span className="kicker k-lime">{t.ch.numbers.k}</span>
             <h2>{t.ch.numbers.h}</h2>
             <p>{t.ch.numbers.p}</p>
@@ -1802,43 +1591,6 @@ export default function LandingPage() {
               <li key={m}>{m}</li>
             ))}
           </ul>
-        </div>
-      </section>
-
-      {/* ---------- chapter: the app on the App Store ---------- */}
-      <section className="chap chap-flip" id="app">
-        <div className="wrap chap-in">
-          <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>09</span>
-            <span className="kicker">
-              <Icon name="devices" />
-              {t.ch.app.k}
-            </span>
-            <h2>{t.ch.app.h}</h2>
-            <p>{t.ch.app.p}</p>
-            <Bullets items={t.ch.app.b} />
-            <div className="app-dl">
-              <a href={APP_STORE} target="_blank" rel="noopener noreferrer" className="btn btn-ink">
-                {t.ch.app.ios}
-              </a>
-              <a href="/android" className="btn btn-line">
-                {t.ch.app.android}
-              </a>
-            </div>
-            <span className="pager-plan app-plan">
-              <Icon name="check" />
-              {t.ch.app.plan}
-            </span>
-          </div>
-          <div className="chap-art art-pager art-app" data-in>
-            <div className="pager-blob app-blob" aria-hidden />
-            <div className="iphone pg-back">
-              <img src="/landing/app-pay.jpg" alt={t.ch.app.real} loading="lazy" />
-            </div>
-            <div className="iphone pg-front">
-              <img src="/landing/app-menu.jpg" alt={t.ch.app.real} loading="lazy" />
-            </div>
-          </div>
         </div>
       </section>
 
