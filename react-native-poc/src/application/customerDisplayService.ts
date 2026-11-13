@@ -189,7 +189,7 @@ export async function startCustomerDisplay(profile?: PrinterProfile | null): Pro
     .on('broadcast', { event: 'show_barcode' }, m => {
       const pl = ((m as { payload?: { url?: string; message?: string } }).payload) || {};
       if (!pl.url) return;
-      codeOnCustomerDisplay(pl.url, 'امسح الباركود', pl.message || 'بجوالك، وتنضاف بطاقة الولاء حقتنا ويتجمّع لك', BARCODE_SECONDS);
+      showBarcodeOnBuiltInDisplay(pl.url, pl.message);
     })
     .on('broadcast', { event: 'hide_barcode' }, () => hideCodeOnCustomerDisplay())
     // بيجر ركين من الخادم (نفس قناة الويب). نفس الجهاز يرسمه محلّياً قبلها
@@ -217,6 +217,21 @@ export async function startCustomerDisplay(profile?: PrinterProfile | null): Pro
     }
   };
   return shown;
+}
+
+/** شاشةُ الجهاز المدمجة على الهوية الآن؟ (الباركود والمبلغ يُرسمان عليها وحدها) */
+export function builtInDisplayShowsCodes(): boolean {
+  return brandOn;
+}
+
+/**
+ * باركود الولاء على شاشة الجهاز المدمجة -- يُرسم محلّياً كالبيجر.
+ * يُنادى من البثّ (شاشةٌ مقترنة) ومن ردّ الخادم مباشرةً (غير مقترنة).
+ * والتكرارُ يعيد رسم الباركود نفسِه فلا يضرّ.
+ */
+export function showBarcodeOnBuiltInDisplay(url: string, message?: string): void {
+  if (!brandOn || !/^https:\/\//i.test(url)) return;
+  codeOnCustomerDisplay(url, 'امسح الباركود', message || 'بجوالك، وتنضاف بطاقة الولاء حقتنا ويتجمّع لك', BARCODE_SECONDS);
 }
 
 export function stopCustomerDisplay(): void {

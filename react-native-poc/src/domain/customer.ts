@@ -140,6 +140,21 @@ export function isSaudiMobile(phone: string): boolean {
   return SAUDI_MOBILE_RE.test(phone);
 }
 
+/** «باقي رقم واحد»، «باقي رقمين»، «باقي ٣ أرقام». */
+export function digitsLeftText(left: number): string {
+  if (left === 1) return 'باقي رقم واحد';
+  if (left === 2) return 'باقي رقمين';
+  return `باقي ${left} أرقام`;
+}
+
+/**
+ * رقمٌ ناقص يُقال كم بقي منه، لا أنه «خطأ».
+ * الجوّال السعودي عشرُ خانات: 05 ثم ثمانٍ. (نظيرها في الويب: rkCompletePhoneText.)
+ */
+export function completePhoneText(left: number): string {
+  return `أكمل رقم الجوال، ${digitsLeftText(left)}.`;
+}
+
 export function validateNewCustomerDraft(draft: NewCustomerDraft): ValidationResult {
   const errors: string[] = [];
   if (!draft.name.trim()) errors.push('الاسم مطلوب');
@@ -155,6 +170,7 @@ export function validateNewCustomerDraft(draft: NewCustomerDraft): ValidationRes
   // number. This app had inherited only the non-empty half of that.
   const phone = toWesternDigits(draft.phone).replace(/\D/g, '');
   if (!phone) errors.push('رقم الجوال مطلوب لإنشاء عميل حقيقي قابل للبحث لاحقًا');
+  else if (phone.startsWith('05') && phone.length < 10) errors.push(completePhoneText(10 - phone.length));
   else if (!SAUDI_MOBILE_RE.test(phone)) errors.push('رقم الجوال لازم يبدأ بـ 05 ويكون 10 أرقام');
   return { valid: errors.length === 0, errors };
 }

@@ -1,5 +1,7 @@
 import { supabase, RAKEEN_API_BASE_URL } from '../infrastructure/supabaseClient';
 import { getPosDeviceId } from './displayScopeService';
+import { builtInDisplayShowsCodes, showBarcodeOnBuiltInDisplay } from './customerDisplayService';
+import { hideCodeOnCustomerDisplay } from '../platform/customerDisplay';
 
 /**
  * "اعرض باركود الولاء على شاشة العميل" -- التطبيق يلحق الويب.
@@ -38,12 +40,19 @@ export async function showLoyaltyBarcodeOnDisplay(
        * بثلاث نقاطٍ وثلاثِ شاشات يعرض باركوداً واحداً على الثلاث، ومن
        * مسحه من غير أصحابه أخذ بطاقتَه -- والرمزُ يُصرف مرّةً واحدة.
        */
-      body: JSON.stringify({ customerId, branchId, posDeviceId: await getPosDeviceId() }),
+      body: JSON.stringify({
+        customerId, branchId, posDeviceId: await getPosDeviceId(),
+        // شاشةُ الجهاز المدمجة (سنمي) تُرسم من هنا، فلا يُشترط اقترانُ شاشةٍ
+        // والخادمُ يردّ الرابط. كانت لا تستقبل إلا بثَّ شاشةٍ مقترنة برمز،
+        // فيظهر عليها البيجر (المرسوم محلّياً) ولا يظهر الباركود.
+        localDisplay: builtInDisplayShowsCodes(),
+      }),
     });
     const data = await response.json();
     // ورسالةُ الخادم تُعرض كما هي: هو وحده يعرف أيّ الأسباب الثلاثة وقع
     // -- جهازٌ غير مقترن، أو حسابٌ بلا صلاحية كاشير، أو عميلٌ غير مسجّل.
     if (!response.ok) return { ok: false, error: data.error || 'تعذر العرض' };
+    if (typeof data.url === 'string') showBarcodeOnBuiltInDisplay(data.url, data.message);
     return { ok: true, posSession: data.posSession };
   } catch {
     return { ok: false, error: 'تعذر الاتصال بالخادم' };
@@ -58,7 +67,12 @@ export async function showLoyaltyBarcodeOnDisplay(
  */
 export function onCardAdded(posSession: string, done: () => void): () => void {
   const channel = supabase.channel(`pos-session:${posSession}`);
-  channel.on('broadcast', { event: 'card_added' }, done).subscribe();
+  channel.on('broadcast', { event: 'card_added' }, () => {
+    // ويُرفع عن الشاشة المدمجة: الخادمُ يُخفيه عن المقترنة ببثّ، وهذي
+    // قد لا تكون مقترنة.
+    hideCodeOnCustomerDisplay();
+    done();
+  }).subscribe();
   return () => {
     try {
       supabase.removeChannel(channel);

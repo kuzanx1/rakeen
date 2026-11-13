@@ -31,10 +31,20 @@ export async function POST(request: NextRequest) {
   let customerId: number | null = null;
   let branchId: number | null = null;
   let posDeviceId: string | null = null;
+  /**
+   * الجهازُ نفسُه له شاشةُ عميلٍ مدمجة (سنمي بشاشتين) وسيرسم الباركود عليها.
+   *
+   * كانت الشاشةُ المدمجة لا تستقبل الباركود إلا إن اقترنت كشاشة ويب برمز،
+   * وأكثرُ الأجهزة لم تقترن: الكاشير يضغط فيُقال «ما فيه شاشة مقترنة»
+   * وشاشةُ العميل أمامه في الجهاز نفسه -- والبيجر يظهر عليها لأنه يُرسم
+   * محلّياً. فصار الباركودُ مثلَه.
+   */
+  let localDisplay = false;
   try {
     const body = (await request.json()) as {
-      customerId?: number; branchId?: number; posDeviceId?: string;
+      customerId?: number; branchId?: number; posDeviceId?: string; localDisplay?: boolean;
     };
+    localDisplay = body?.localDisplay === true;
     customerId = Number(body?.customerId) || null;
     branchId = Number(body?.branchId) || null;
     posDeviceId = typeof body?.posDeviceId === "string" ? body.posDeviceId : null;
@@ -92,7 +102,7 @@ export async function POST(request: NextRequest) {
   const targets = await displayTargets(asCashier, branchId, posDeviceId);
 
   const display = targets[0];
-  if (!display) {
+  if (!display && !localDisplay) {
     return NextResponse.json(
       { error: "ما فيه شاشة عميل مقترنة بهذا الفرع. اقترنها أولاً من لوحة التحكم." },
       { status: 409 },
@@ -101,7 +111,7 @@ export async function POST(request: NextRequest) {
 
   const { data: made, error: mkErr } = await asCashier.rpc("create_wallet_add_token", {
     p_customer_id: customerId,
-    p_display_device_id: display.id,
+    p_display_device_id: display ? display.id : null,
   });
   const addToken = (made as { token?: string } | null)?.token;
   const posSession = (made as { posSession?: string } | null)?.posSession;
@@ -149,5 +159,11 @@ export async function POST(request: NextRequest) {
   // الرمز لا يُردّ إلى المتصفح: من ملكه ملك البطاقة، والكاشير لا يحتاجه
   // -- هو يعرضه لا يستعمله. ويُردّ معرّف الجلسة وحده: قناةٌ يسمع بها
   // نتيجة عرضه هو، ولا تُغني عن الرمز ولا تكشفه.
-  return NextResponse.json({ ok: true, posSession });
+  //
+  // إلا لجهازٍ يرسمه على شاشته المدمجة: لا يُعرض ما لم يُسلَّم. وصاحبُه
+  // كاشيرٌ بصلاحية pos:register أنشأ الرمزَ بجلسته، والرمزُ يُصرف مرّةً
+  // وينتهي بعد خمس دقائق.
+  return NextResponse.json(
+    localDisplay ? { ok: true, posSession, url: payload.url, message: payload.message } : { ok: true, posSession },
+  );
 }

@@ -551,7 +551,7 @@ export default function PrinterSettingsScreen({
         )}
         {displayModeOf(profile.customerDisplay) === 'brand' && (
           <>
-            <FieldLabel>رمز الشاشة (8 حروف)</FieldLabel>
+            <FieldLabel>رمز الشاشة (8 حروف) — اختياري</FieldLabel>
             <TextInput
               style={styles.input}
               placeholderTextColor={colors.muted}
@@ -560,7 +560,7 @@ export default function PrinterSettingsScreen({
               placeholder="ABCD1234 أو الرابط كامل"
               autoCapitalize="characters"
             />
-            <Text style={styles.themeHint}>عشان يوصلها باركود الولاء. تجيبه من لوحة ركين: المتجر الإلكتروني ← إعدادات المتجر ← شاشة العميل ← «أضف شاشة». مرة وحدة بس.</Text>
+            <Text style={styles.themeHint}>باركود الولاء يطلع على هالشاشة من هالجهاز بدون رمز. الرمز تحتاجه بس لو تبي كاشير ثاني يعرض عليها: تجيبه من لوحة ركين: المتجر الإلكتروني ← إعدادات المتجر ← شاشة العميل ← «أضف شاشة».</Text>
           </>
         )}
         {profile.customerDisplay === 'url' && (

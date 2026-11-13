@@ -2592,6 +2592,19 @@ function rkMountCustomerButton(){
    never actually become a loyalty member, and never be found again on a repeat
    visit. Whichever field the cashier already typed in the search box is
    pre-filled here; the other is required before continuing. */
+/* «باقي رقم واحد / رقمين / ٣ أرقام» -- نظيرُ digitsLeftText و
+   completePhoneText في التطبيق (domain/customer.ts). */
+function rkDigitsLeftText(left){
+  if(LANG === 'en') return left + (left === 1 ? ' digit to go' : ' digits to go');
+  if(left === 1) return 'باقي رقم واحد';
+  if(left === 2) return 'باقي رقمين';
+  return 'باقي ' + left + ' أرقام';
+}
+function rkCompletePhoneText(left){
+  return LANG === 'en' ? 'Complete the mobile number, ' + rkDigitsLeftText(left) + '.'
+                       : 'أكمل رقم الجوال، ' + rkDigitsLeftText(left) + '.';
+}
+
 function renderNewCustomerStep(prefill){
   document.getElementById('paymentModalTitle').textContent = 'عميل جديد';
   paymentModalBody.innerHTML = `
@@ -2623,6 +2636,7 @@ function renderNewCustomerStep(prefill){
     newCustHint.textContent = (!nm && !ph) ? ''
       : !nm ? (en ? 'Name is required' : 'الاسم مطلوب')
       : !ph ? (en ? 'Mobile number is required' : 'رقم الجوال مطلوب')
+      : (ph.startsWith('05') && ph.length < 10) ? rkCompletePhoneText(10 - ph.length)
       : !phOk ? (en ? 'Mobile must start with 05 and be 10 digits' : 'رقم الجوال لازم يبدأ بـ 05 ويكون 10 أرقام')
       : '';
   };
@@ -2743,10 +2757,12 @@ function renderCustomerStep(){
         const left = 8 - v.length;
         // جملةٌ تُبنى بترتيب لغتها: "٣ أرقام باقية" لا تُركَّب من ترجمة
         // "باقي" + رقم + ترجمة "أرقام" -- الترتيبُ يختلف والنتيجةُ ركيكة.
+        if(v === '') warned = false;
+        // بعد محاولةٍ رُدّت يبقى العدُّ أحمرَ وهو يكتب، لين يكتمل.
         hintEl.textContent = (!ok && v.length > 0)
-          ? (LANG === 'en' ? left + ' digits to go' : 'باقي ' + left + ' أرقام')
+          ? (warned ? rkCompletePhoneText(left) : rkDigitsLeftText(left))
           : '';
-        hintEl.className = 'cust-hint';
+        hintEl.className = (warned && !ok) ? 'cust-hint err' : 'cust-hint';
       } else {
         saveBtn.disabled = v === '';
         saveBtn.classList.toggle('cust-save-off', v.length < 2);
@@ -2764,12 +2780,12 @@ function renderCustomerStep(){
      * نصفُ رقمٍ أو حروف: يظنّ الكاشير أنه سجّل العميل، والطلبُ خرج بلا
      * عميلٍ ولا نقاط، ولم يُقل له شيء.
      */
-    const showErr = (msg)=>{ hintEl.textContent = msg; hintEl.className = 'cust-hint err'; };
+    let warned = false;
+    const showErr = (msg)=>{ warned = true; hintEl.textContent = msg; hintEl.className = 'cust-hint err'; };
     const entryError = ()=>{
       const en = LANG === 'en';
       return isPhoneish(input.value.trim())
-        ? (en ? 'Mobile number is incomplete. Type 8 digits after 05, or clear it and press Skip.'
-              : 'رقم الجوال ناقص. اكتب 8 أرقام بعد 05، أو امسحه واضغط «تخطي».')
+        ? rkCompletePhoneText(8 - input.value.trim().length) + (en ? ' Or clear it and press Skip.' : ' أو امسحه واضغط «تخطي».')
         : (en ? 'Pick the customer from the list, or clear the name and press Skip.'
               : 'اختر العميل من القائمة، أو امسح الاسم واضغط «تخطي».');
     };

@@ -14,7 +14,7 @@ import { searchCustomers } from '../application/customerService';
 import type { DeliveryPlatform } from '../application/catalogService';
 import { isPagerNumberBusy } from '../application/catalogService';
 import { setOrderPager } from '../application/activeOrderService';
-import { normalisePhoneInput, isSaudiMobile, validateNewCustomerDraft } from '../domain/customer';
+import { normalisePhoneInput, isSaudiMobile, validateNewCustomerDraft, digitsLeftText, completePhoneText } from '../domain/customer';
 import { findCustomerByPhone } from '../application/customerService';
 import { enqueuePrintJob, listPrintJobs, retryPrintJob } from '../application/printService';
 import type { KitchenTicketData } from '../domain/receipt';
@@ -246,7 +246,9 @@ export default function PaymentModal({
   const [friendsCount, setFriendsCount] = useState<number | null>(null);
   const [query, setQuery] = useState('');
   /** خطأُ إدخال العميل -- يُقال عند الفعل (حفظ/تخطي) لا أثناء الكتابة. */
-  const [custError, setCustError] = useState('');
+  const [custError, setCustErrorText] = useState('');
+  const [custWarn, setCustWarn] = useState(false);
+  const setCustError = (t: string) => { setCustErrorText(t); if (t !== '') setCustWarn(true); };
   const [suggestions, setSuggestions] = useState<Customer[] | null>(null);
   const [searching, setSearching] = useState(false);
 
@@ -871,7 +873,7 @@ export default function PaymentModal({
   // ولا يُقال "خطأ" وهو لم يُكمل بعد.
   const customerHint =
     queryLooksNumeric(query) && !queryPhoneValid && trimmedQuery.length > 0
-      ? `باقي ${8 - trimmedQuery.length} أرقام`
+      ? digitsLeftText(8 - trimmedQuery.length)
       : '';
 
   /**
@@ -905,7 +907,7 @@ export default function PaymentModal({
    * بلا عميلٍ ولا نقاط، ولم يُقل له شيء.
    */
   const customerEntryError = queryLooksNumeric(query)
-    ? 'رقم الجوال ناقص. اكتب 8 أرقام بعد 05، أو امسحه واضغط «تخطي».'
+    ? `${completePhoneText(8 - trimmedQuery.length)} أو امسحه واضغط «تخطي».`
     : 'اختر العميل من القائمة، أو امسح الاسم واضغط «تخطي».';
   const trySaveCustomer = () => {
     if (!canSaveCustomer) { setCustError(customerEntryError); return; }
@@ -1151,7 +1153,7 @@ export default function PaymentModal({
                           placeholder="xxxxxxxx"
                           placeholderTextColor={colors.line}
                           value={query}
-                          onChangeText={t => { setCustError(''); setQuery(queryLooksNumeric(t) ? shapePhoneTail(t) : toLatinDigits(t)); }}
+                          onChangeText={t => { setCustError(''); if (t.trim() === '') setCustWarn(false); setQuery(queryLooksNumeric(t) ? shapePhoneTail(t) : toLatinDigits(t)); }}
                           onSubmitEditing={trySaveCustomer}
                           returnKeyType="go"
                           autoFocus
@@ -1171,7 +1173,12 @@ export default function PaymentModal({
                     </View>
                     {custError !== ''
                       ? <Text style={[styles.custHint, styles.custError]}>{custError}</Text>
-                      : customerHint !== '' && <Text style={styles.custHint}>{customerHint}</Text>}
+                      : customerHint !== '' && (
+                          // بعد محاولةٍ رُدّت يبقى العدُّ أحمرَ وهو يكتب، لين يكتمل.
+                          <Text style={[styles.custHint, custWarn && styles.custError]}>
+                            {custWarn ? `أكمل رقم الجوال، ${customerHint}` : customerHint}
+                          </Text>
+                        )}
                     <View style={styles.customerPanelRow}>
                       {searching && <Text style={styles.suggestLoading}>جارٍ البحث...</Text>}
                       {!searching &&
