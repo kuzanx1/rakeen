@@ -1061,12 +1061,12 @@ svg{display:block;}
   background:linear-gradient(155deg, var(--lime), var(--lime-deep));
   color:var(--flag-green-deep); font-weight:800; font-size:14px;
 }
-.cust-save:disabled{ background:var(--surf2); color:var(--muted); }
+.cust-save:disabled, .cust-save.cust-save-off{ background:var(--surf2); color:var(--muted); }
 .cust-save:active:not(:disabled){ transform:scale(0.97); }
 
 /* يقول كم بقي، لا "خطأ" وهو لم يُكمل بعد. */
 .cust-hint{ min-height:16px; margin:7px 2px 0; font-size:11.5px; font-weight:700; color:var(--muted); }
-.cust-hint.err{ color:var(--danger); }
+.cust-hint.err{ color:var(--danger); font-size:12.5px; }
 
 
 /* "تخطي" ليس الفعلَ المقصود: يُترك ظاهراً ولا يُلبَس لباسَ الزرّ

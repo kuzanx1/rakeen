@@ -94,8 +94,8 @@ android {
         applicationId "com.rakeen.pos"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 9
-        versionName "1.8"
+        versionCode 13
+        versionName "1.12"
     }
     // The APK is also downloaded directly (rakeenapp.com/android), not only
     // through a store that ships per-device splits. Stored uncompressed (the
@@ -135,6 +135,16 @@ android {
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
+    }
+}
+
+// The receipt layout lives in ../../shared (outside this project's root), and
+// the bundle task only tracks files under the root. So a change in shared/
+// alone left the task UP-TO-DATE and the APK shipped the previous JS: 1.11
+// went out with the old logo size. Declare shared/ as an input.
+tasks.configureEach { t ->
+    if (t.name.startsWith("createBundle") && t.name.endsWith("JsAndAssets")) {
+        t.inputs.dir(rootProject.file("../../shared")).withPropertyName("rakeenSharedSources")
     }
 }
 

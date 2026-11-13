@@ -245,6 +245,8 @@ export default function PaymentModal({
   const [friendsOpen, setFriendsOpen] = useState(false);
   const [friendsCount, setFriendsCount] = useState<number | null>(null);
   const [query, setQuery] = useState('');
+  /** خطأُ إدخال العميل -- يُقال عند الفعل (حفظ/تخطي) لا أثناء الكتابة. */
+  const [custError, setCustError] = useState('');
   const [suggestions, setSuggestions] = useState<Customer[] | null>(null);
   const [searching, setSearching] = useState(false);
 
@@ -890,7 +892,33 @@ export default function PaymentModal({
     }
     const list = suggestions || [];
     if (list.length === 1) { onCustomerChange(list[0]); proceedToPayment(); return; }
-    if (list.length === 0) { setNewName(trimmedQuery); setNewPhone(''); setStep('newCustomer'); }
+    if (list.length === 0) { setNewName(trimmedQuery); setNewPhone(''); setStep('newCustomer'); return; }
+    setCustError('أكثر من عميل بهذا الاسم. اختر واحد من القائمة.');
+  };
+
+  /**
+   * لا يمضي الطلبُ وفي الحقل ما لم يُحسم: رقمٌ صحيحٌ يُحفظ، أو حقلٌ فارغٌ
+   * يُتخطّى -- ولا ثالث.
+   *
+   * كان زرُّ «حفظ» يُعطَّل صامتاً على الرقم الناقص، و«تخطي» يمضي وفي
+   * الحقل نصفُ رقمٍ أو حروف: يظنّ الكاشير أنه سجّل العميل، والطلبُ خرج
+   * بلا عميلٍ ولا نقاط، ولم يُقل له شيء.
+   */
+  const customerEntryError = queryLooksNumeric(query)
+    ? 'رقم الجوال ناقص. اكتب 8 أرقام بعد 05، أو امسحه واضغط «تخطي».'
+    : 'اختر العميل من القائمة، أو امسح الاسم واضغط «تخطي».';
+  const trySaveCustomer = () => {
+    if (!canSaveCustomer) { setCustError(customerEntryError); return; }
+    void saveCustomerAndGo();
+  };
+  const skipCustomerStep = () => {
+    if (!customer && trimmedQuery !== '') {
+      setCustError(canSaveCustomer && queryLooksNumeric(query)
+        ? 'اضغط «حفظ» عشان يتسجّل الرقم، أو امسحه واضغط «تخطي».'
+        : customerEntryError);
+      return;
+    }
+    proceedToPayment();
   };
   // والمقارنةُ بالرقم الكامل: الحقلُ صار يحمل ذيلَه وحده، وذيلٌ من
   // ثمانٍ لا يساوي رقماً من عشر مهما كان صاحبُهما واحداً.
@@ -1123,8 +1151,8 @@ export default function PaymentModal({
                           placeholder="xxxxxxxx"
                           placeholderTextColor={colors.line}
                           value={query}
-                          onChangeText={t => setQuery(queryLooksNumeric(t) ? shapePhoneTail(t) : toLatinDigits(t))}
-                          onSubmitEditing={() => { void saveCustomerAndGo(); }}
+                          onChangeText={t => { setCustError(''); setQuery(queryLooksNumeric(t) ? shapePhoneTail(t) : toLatinDigits(t)); }}
+                          onSubmitEditing={trySaveCustomer}
                           returnKeyType="go"
                           autoFocus
                         />
@@ -1135,13 +1163,15 @@ export default function PaymentModal({
                           ثانية على سطرٍ لا خيارَ فيه. */}
                       <TouchableOpacity
                         style={[styles.custSave, !canSaveCustomer && styles.custSaveOff]}
-                        onPress={() => { void saveCustomerAndGo(); }}
-                        disabled={!canSaveCustomer}
+                        onPress={trySaveCustomer}
+                        disabled={trimmedQuery === ''}
                         activeOpacity={0.85}>
                         <Text style={[styles.custSaveText, !canSaveCustomer && styles.custSaveTextOff]}>حفظ</Text>
                       </TouchableOpacity>
                     </View>
-                    {customerHint !== '' && <Text style={styles.custHint}>{customerHint}</Text>}
+                    {custError !== ''
+                      ? <Text style={[styles.custHint, styles.custError]}>{custError}</Text>
+                      : customerHint !== '' && <Text style={styles.custHint}>{customerHint}</Text>}
                     <View style={styles.customerPanelRow}>
                       {searching && <Text style={styles.suggestLoading}>جارٍ البحث...</Text>}
                       {!searching &&
@@ -1194,7 +1224,7 @@ export default function PaymentModal({
                 )}
                 {/* The label really does change: متابعة once a customer is
                     attached, تخطي while none is. */}
-                <TouchableOpacity onPress={proceedToPayment} activeOpacity={0.85} style={styles.nextWrapTight}>
+                <TouchableOpacity onPress={skipCustomerStep} activeOpacity={0.85} style={styles.nextWrapTight}>
                   <View style={styles.confirmButton}>
                     <GradientFill gradient={gradients.payButton} radius={radii.md} />
                     <Text style={styles.confirmText}>{customer ? 'متابعة' : 'تخطي'}</Text>
@@ -1700,6 +1730,7 @@ const useStyles = createStyles(colors =>
   custSaveText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.graphite },
   custSaveTextOff: { color: colors.muted },
   custHint: { marginTop: 7, marginHorizontal: 2, fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.muted },
+  custError: { color: colors.danger, fontSize: 12.5 },
   phoneAskRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
   phoneAskInput: {
     flex: 1, paddingVertical: 11, paddingHorizontal: 14,

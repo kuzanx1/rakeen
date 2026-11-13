@@ -2603,6 +2603,7 @@ function renderNewCustomerStep(prefill){
       <label>رقم الجوال</label>
       <input type="tel" id="newCustPhoneInput" placeholder="05xxxxxxxx" inputmode="tel" maxlength="10" value="${prefill.phone || ''}">
     </div>
+    <p class="cust-hint err" id="newCustHint"></p>
     <button class="confirm-pay-btn" id="newCustSaveBtn" disabled>متابعة</button>
   `;
   const nameInput = document.getElementById('newCustNameInput');
@@ -2612,7 +2613,19 @@ function renderNewCustomerStep(prefill){
   // (only "non-empty") — a customer got saved with an 11-digit number.
   // Same maxlength+strip+regex pattern already used by the online-order
   // checkout's #omPhone field, applied here too.
-  const validate = ()=>{ saveBtn.disabled = !(nameInput.value.trim() && /^05\d{8}$/.test(phoneInput.value.trim())); };
+  const newCustHint = document.getElementById('newCustHint');
+  const validate = ()=>{
+    const nm = nameInput.value.trim(), ph = phoneInput.value.trim();
+    const phOk = /^05\d{8}$/.test(ph);
+    saveBtn.disabled = !(nm && phOk);
+    // يُقال لماذا الزرُّ معطَّل -- كما في التطبيق (validateNewCustomerDraft).
+    const en = LANG === 'en';
+    newCustHint.textContent = (!nm && !ph) ? ''
+      : !nm ? (en ? 'Name is required' : 'الاسم مطلوب')
+      : !ph ? (en ? 'Mobile number is required' : 'رقم الجوال مطلوب')
+      : !phOk ? (en ? 'Mobile must start with 05 and be 10 digits' : 'رقم الجوال لازم يبدأ بـ 05 ويكون 10 أرقام')
+      : '';
+  };
   nameInput.addEventListener('input', validate);
   phoneInput.addEventListener('input', ()=>{
     phoneInput.value = toWesternDigits(phoneInput.value).replace(/\D/g, '').slice(0, 10);
@@ -2725,7 +2738,8 @@ function renderCustomerStep(){
       if(prefixEl) prefixEl.hidden = !numeric;
       if(numeric){
         const ok = phoneValid();
-        saveBtn.disabled = !ok;
+        saveBtn.disabled = v === '';
+        saveBtn.classList.toggle('cust-save-off', !ok);
         const left = 8 - v.length;
         // جملةٌ تُبنى بترتيب لغتها: "٣ أرقام باقية" لا تُركَّب من ترجمة
         // "باقي" + رقم + ترجمة "أرقام" -- الترتيبُ يختلف والنتيجةُ ركيكة.
@@ -2734,10 +2748,39 @@ function renderCustomerStep(){
           : '';
         hintEl.className = 'cust-hint';
       } else {
-        saveBtn.disabled = v.length < 2;
+        saveBtn.disabled = v === '';
+        saveBtn.classList.toggle('cust-save-off', v.length < 2);
         hintEl.textContent = '';
         hintEl.className = 'cust-hint';
       }
+    };
+
+    /**
+     * لا يمضي الطلبُ وفي الحقل ما لم يُحسم: رقمٌ صحيحٌ يُحفظ، أو حقلٌ
+     * فارغٌ يُتخطّى -- ولا ثالث. (نظيرها في التطبيق: customerEntryError
+     * و skipCustomerStep في PaymentModal.tsx.)
+     *
+     * كان «حفظ» يُعطَّل صامتاً على الرقم الناقص، و«تخطي» يمضي وفي الحقل
+     * نصفُ رقمٍ أو حروف: يظنّ الكاشير أنه سجّل العميل، والطلبُ خرج بلا
+     * عميلٍ ولا نقاط، ولم يُقل له شيء.
+     */
+    const showErr = (msg)=>{ hintEl.textContent = msg; hintEl.className = 'cust-hint err'; };
+    const entryError = ()=>{
+      const en = LANG === 'en';
+      return isPhoneish(input.value.trim())
+        ? (en ? 'Mobile number is incomplete. Type 8 digits after 05, or clear it and press Skip.'
+              : 'رقم الجوال ناقص. اكتب 8 أرقام بعد 05، أو امسحه واضغط «تخطي».')
+        : (en ? 'Pick the customer from the list, or clear the name and press Skip.'
+              : 'اختر العميل من القائمة، أو امسح الاسم واضغط «تخطي».');
+    };
+    input._rkBlockSkip = ()=>{
+      const v = input.value.trim();
+      if(v === '') return false;
+      showErr(isPhoneish(v) && phoneValid()
+        ? (LANG === 'en' ? 'Press Save to register the number, or clear it and press Skip.'
+                         : 'اضغط «حفظ» عشان يتسجّل الرقم، أو امسحه واضغط «تخطي».')
+        : entryError());
+      return true;
     };
 
     /**
@@ -2752,7 +2795,7 @@ function renderCustomerStep(){
       const v = input.value.trim();
       if(saveBtn.disabled) return;
       if(isPhoneish(v)){
-        if(!phoneValid()) return;
+        if(!phoneValid()){ showErr(entryError()); return; }
         const phone = fullPhone();
         saveBtn.disabled = true;
         saveBtn.textContent = '...';
@@ -2770,9 +2813,12 @@ function renderCustomerStep(){
         return;
       }
       // بالاسم: نتيجةٌ واحدة تُختار وحدها، وأكثرُ يُترك للعين.
+      if(v.length < 2){ showErr(entryError()); return; }
       const rows = suggestEl.querySelectorAll('.customer-suggest:not(.customer-suggest-new)');
       if(rows.length === 1){ rows[0].click(); return; }
-      if(rows.length === 0) openModalStep(()=> renderNewCustomerStep({ name: v, phone: null }));
+      if(rows.length === 0){ openModalStep(()=> renderNewCustomerStep({ name: v, phone: null })); return; }
+      showErr(LANG === 'en' ? 'More than one customer has this name. Pick one from the list.'
+                            : 'أكثر من عميل بهذا الاسم. اختر واحد من القائمة.');
     };
 
     saveBtn.addEventListener('click', saveAndGo);
@@ -2823,7 +2869,11 @@ function renderCustomerStep(){
     });
   }
 
-  document.getElementById('pmCustomerNextBtn').addEventListener('click', proceedFromCustomerStep);
+  document.getElementById('pmCustomerNextBtn').addEventListener('click', ()=>{
+    const inp = document.getElementById('pmCustomerInput');
+    if(inp && typeof inp._rkBlockSkip === 'function' && inp._rkBlockSkip()) return;
+    proceedFromCustomerStep();
+  });
 }
 
 function proceedFromCustomerStep(){
