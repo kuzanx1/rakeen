@@ -168,31 +168,31 @@ const lumOf = (hex: string) => {
 
 const T = {
   ar: {
-    nav: { features: "المزايا", plans: "الباقات", faq: "الأسئلة", login: "دخول", start: "ابدأ مجانًا" },
+    nav: { features: "الحلول", check: "يناسبني؟", plans: "الباقات", faq: "الأسئلة", login: "دخول", start: "ابدأ مجانًا" },
     hero: {
       pill: "٣٥٠ طلب مجانًا · بدون بطاقة",
       ticketA: "مجانًا بالكامل",
       ticketB: "جرّب كل شي بدون ما تدفع ريال، وبلا عقد ولا التزام",
-      h1a: "لكل مطعم ناجح،",
-      h1b: "رُكن",
-      h1c: "يستند عليه.",
-      sub: "الكاشير، والمتجر، والولاء، وأرباحك. نظام واحد يشتغل عن",
+      h1a: "شغّل مطعمك",
+      h1b: "بالأرقام،",
+      h1c: "مو بالتخمين.",
+      sub: "كاشير ما يوقف، وربح تعرفه بالريال، وعميل يرجع لك. نظام واحد يشتغل عن",
       rot: ["مطعمك.", "كافيهك.", "الفود ترك حقك.", "مخبزك.", "مطبخك السحابي."],
       today: "صافي اليوم",
       orders: "طلبات اليوم",
       kitchen: "المطبخ",
       stamp: "+1 ختم",
       cta: "ابدأ مجانًا",
-      cta2: "شوف الباقات",
+      cta2: "وش يحتاج محلي؟",
       from: "الباقات من",
       perMonth: "شهريًا",
     },
     pos: { title: "الطلب الحالي", total: "الإجمالي", pay: "ادفع", all: "الكل", search: "ابحث أو امسح باركود…", paid: "تم الدفع" },
     newOrder: { t: "طلب جديد من المتجر", s: "مدفوع · Apple Pay" },
     one: {
-      tools: ["الكاشير", "شاشة المطبخ", "المنيو الأونلاين", "المتجر الإلكتروني", "تطبيقات التوصيل", "العملاء", "برنامج الولاء", "المخزون", "الموظفين", "المحاسبة"],
+      tools: ["الكاشير", "شاشة المطبخ", "المنيو الأونلاين", "المتجر الإلكتروني", "العملاء", "برنامج الولاء", "المخزون", "الموظفين", "المحاسبة"],
       name: "ركين",
-      line: "بدل ما تشترك في عشرة أنظمة وتربطها ببعض، كلها في نظام واحد واشتراك واحد.",
+      line: "بدل ما تشترك في كل وحدة لحالها وتربطها ببعض، كلها في نظام واحد واشتراك واحد.",
       facts: ["يكمل بدون إنترنت", "فاتورة ضريبية برمز QR", "على آيباد أو كمبيوتر أو جوال"],
     },
     ch: {
@@ -259,6 +259,102 @@ const T = {
         real: "لقطات حقيقية من تطبيق ركين على الآيفون",
       },
     },
+    check: {
+      k: "قبل كل شي",
+      h: "وش اللي يتعبك في محلك؟",
+      sub: "اختر كل اللي يصير عندك، ونقول لك وش يحلّه ركين وأي باقة تكفيك. بدون تسجيل.",
+      pick: "المشاكل اللي تصير عندك",
+      emptyH: "اختر اللي يصير عندك",
+      emptyP: "وتطلع لك هنا الحلول، والباقة اللي تكفيك بسعرها.",
+      noneH: "ولا وحدة منها تصير عندك؟",
+      noneP: "يمكن نظامك الحالي كافي، وهذا شي زين. ولو حاب تشوف بنفسك، أول ٣٥٠ طلب علينا.",
+      noneCta: "جرّب بدون التزام",
+      recK: "الباقة اللي تكفيك",
+      fixes: "وش بيحلّه لك ركين:",
+      try: "جرّبها مجانًا",
+      see: "شوف الحلول بالتفصيل",
+      free: "أول ٣٥٠ طلب مجانًا بكل المزايا. بدون بطاقة، وبدون عقد.",
+      bar: (n: number, plan: string) => `${n === 1 ? "مشكلة وحدة" : n === 2 ? "مشكلتين" : `${n} مشاكل`} · باقتك ${plan}`,
+      barGo: "شوف",
+      waMsg: (items: string[], plan: string) => ["السلام عليكم، أبي أجرب ركين.", "اللي يصير عندي:", ...items.map((i) => "- " + i), "والباقة اللي طلعت لي بالموقع: " + plan].join(String.fromCharCode(10)),
+    },
+    sol: {
+      k: "الحلول",
+      h: "خمس مشاكل يومية. خمسة حلول في نظام واحد.",
+      sub: "كل حل هنا مبني على مشكلة نسمعها من أصحاب المطاعم والكافيهات كل يوم.",
+      prob: "المشكلة",
+      fix: "الحل في ركين",
+      res: "النتيجة",
+      items: {
+        sell: {
+          k: "البيع والتشغيل",
+          tab: "البيع",
+          h: "الكاشير ما يوقف، والمطبخ ما يغلط.",
+          p: "زحمة عند الكاونتر، وورقة طلب تضيع بين الكاشير والمطبخ، والنت يطيح فيوقف البيع.",
+          b: ["كاشير سريع على آيباد أو كمبيوتر أو جوال، يكمل البيع حتى لو طاح النت", "الطلب يوصل شاشة المطبخ أو ينطبع له لحاله", "بيجر ركين: جوال الزبون يرن لما يجهز طلبه، بدون أجهزة نداء", "فاتورة ضريبية برمز QR، وإغلاق الوردية بضغطة"],
+          r: "طابور أقصر، وطلبات أقل غلط، وما تخسر بيعة لأن النت طاح.",
+          plan: "الكاشير في كل الباقات · المطبخ والبيجر من عماد",
+        },
+        profit: {
+          k: "الأرباح والمخزون",
+          tab: "الأرباح",
+          h: "تعرف وش تكسب. بالريال، مو بالتخمين.",
+          p: "المبيعات زينة، وآخر الشهر الفلوس ما تبان. ما تدري أي طبق يربحك، والمخزون يخلص فجأة أو يتسرّب.",
+          b: ["تكلفة كل طبق من وصفتك الفعلية، وصافي ربحك بعد المصاريف", "المخزون ينقص لحاله مع كل بيعة، وينبهك قبل ما يخلص", "صوّر فاتورة المورد، وتنقرأ وتدخل المخزون", "تقارير كاملة وتصدير Excel لمحاسبك"],
+          r: "تسعّر وتطلب من المورد على أرقام حقيقية، مو على إحساس.",
+          plan: "ضمن باقتي عماد وصرح",
+        },
+        direct: {
+          k: "الطلب المباشر",
+          tab: "الطلب المباشر",
+          h: "عميلك يطلب منك، مو من تطبيق ياخذ نصيبه.",
+          p: "عمولة على كل طلب يجيك من التطبيقات، ومنيو مطبوع لازم تعيد طباعته مع كل تغيير سعر.",
+          b: ["متجر إلكتروني بهويتك: توصيل أو استلام، ودفع بالبطاقة، بدون عمولة", "منيو أونلاين برمز QR يتحدّث بنفس اللحظة اللي تعدّل فيها", "«روابطك»: زر الطلب وواتساب والموقع بصفحة وحدة للبايو", "الطلب يوصل الكاشير والمطبخ على طول"],
+          r: "طلبات توصلك كاملة بدون عمولة، وقائمتك دايم محدّثة.",
+          plan: "المنيو في كل الباقات · روابطك من عماد · المتجر في صرح",
+        },
+        loyal: {
+          k: "رجوع العميل",
+          tab: "رجوع العميل",
+          h: "العميل يجيك مرة. ركين يرجّعه.",
+          p: "أغلب الزباين يجون مرة ويختفون، وبطاقة الأختام الورقية تضيع، وما عندك طريقة توصل لهم.",
+          b: ["بطاقة ولاء بهويتك في Apple Wallet، بدون تطبيق", "كل زيارة تنضاف لحالها، وتنبيه يوصله على شاشة جواله", "رسالة تلقائية ترجّع اللي طوّلوا عنك", "يشوف نقاطه على شاشة العميل وهو يدفع"],
+          r: "زيارات متكررة أكثر، بدون ما تلاحق أحد.",
+          plan: "ضمن باقتي عماد وصرح",
+        },
+        control: {
+          k: "التحكم والفروع",
+          tab: "التحكم",
+          h: "محلك تحت عينك، حتى وأنت برا.",
+          p: "ما تقدر تكون بالمحل كل وقت، وما تعرف مين أعطى خصم أو رجّع طلب، وكل فرع له دفتره.",
+          b: ["تطبيق ركين على الآيفون والأندرويد: مبيعاتك وطلباتك من جوالك", "كل موظف برقمه السري وصلاحياته، وسجل لكل عملية", "تقرير يومي تلقائي، وإغلاق وردية يطابق الدرج", "كل فروعك بحساب واحد، وتقرير لكل فرع"],
+          r: "تطمّن على شغلك من أي مكان، وتكبر بدون فوضى.",
+          plan: "التطبيق في كل الباقات · الصلاحيات من عماد · الفروع في صرح",
+        },
+      },
+    },
+    why: {
+      k: "ليش ركين؟",
+      h: "نظام واحد، مبني لسوقنا.",
+      items: [
+        { h: "نظام واحد، مو أنظمة متفرقة", p: "الكاشير والمطبخ والمخزون والمحاسبة والعملاء والمتجر يتكلمون مع بعض. بيانات وحدة، واشتراك واحد." },
+        { h: "مبني للسعودية", p: "عربي من أول شاشة، وفاتورة ضريبية مبسطة برمز QR، وأرقامك بالريال." },
+        { h: "ما يوقف لو طاح النت", p: "الكاشير يكمل البيع ويحفظ الطلبات، ويرسلها لحاله أول ما يرجع الاتصال." },
+        { h: "على أجهزتك", p: "آيباد أو آيفون أو أندرويد أو كمبيوتر أو أجهزة سنمي، ومع أي طابعة فواتير شبكية." },
+        { h: "نجهّزه معك", p: "نضيف أصنافك وأسعارك ونربط جهازك، وتكلّم ناس حقيقيين على واتساب، مو تذاكر." },
+        { h: "بدون مخاطرة", p: "أول ٣٥٠ طلب مجانًا بكل المزايا، بدون بطاقة ولا عقد. وترقّي باقتك متى ما تبي." },
+      ],
+    },
+    steps: {
+      k: "كيف تبدأ",
+      h: "من أول رسالة لأول فاتورة: يوم واحد.",
+      items: [
+        { h: "كلّمنا واتساب", p: "قل لنا وش محلك وكم فرع عندك. دقيقة وحدة." },
+        { h: "نجهّز لك كل شي", p: "نضيف منتجاتك وأسعارك، ونربط جهازك وطابعتك." },
+        { h: "ابدأ البيع", p: "خلال يوم تبيع، وأول ٣٥٠ طلب علينا." },
+      ],
+      cta: "ابدأ الحين",
+    },
     rcpt: { title: "فاتورة ضريبية مبسطة", no: "رقم الفاتورة", sub: "المجموع قبل الضريبة", vat: "ضريبة القيمة المضافة ١٥٪", total: "الإجمالي", cash: "شبكة", thanks: "شكرًا لزيارتكم" },
     off: "بدون اتصال · ٣ طلبات محفوظة",
     dash: {
@@ -273,10 +369,6 @@ const T = {
       scan: "فاتورة المورد انقرأت",
       scanS: "بصل ١٨ كجم · طماط ٢٤ كجم",
     },
-    more: {
-      h: "وكل اللي يحتاجه يومك.",
-      items: ["شاشة المطبخ", "الطاولات والحجوزات", "صلاحيات الموظفين", "تعدد الفروع", "تقارير وتصدير Excel", "شاشة العميل", "صفحة حجز المواعيد"],
-    },
     plans: {
       k: "الباقات",
       h: "من الأساس.. إلى الصرح.",
@@ -288,6 +380,7 @@ const T = {
       perYear: "سنويًا",
       saveAmt: (n: string) => `توفّر ${n} بالسنة`,
       popular: "الأكثر طلبًا",
+      rec: "يناسبك",
       top: "الأشمل",
       count: (n: number) => `${n} ${n <= 10 ? "مزايا" : "ميزة"}`,
       branches: (n: number) => (n === 1 ? "فرع واحد" : n === 2 ? "فرعين" : `${n} فروع`),
@@ -306,7 +399,8 @@ const T = {
       k: "الأسئلة",
       h: "قبل ما تبدأ.",
       items: [
-        { q: "وش أحتاج عشان أبدأ؟", a: "آيباد أو كمبيوتر، وإنترنت للتسجيل. الطابعة اختيارية: أي طابعة فواتير شبكية (Wi‑Fi أو LAN) تدعم ESC/POS." },
+        { q: "أقدر أستخدم أجهزتي الحالية؟", a: "إيه. ركين يشتغل على الآيباد والآيفون والأندرويد والكمبيوتر وأجهزة سنمي. والطابعة اختيارية: أي طابعة فواتير شبكية (Wi‑Fi أو LAN) تدعم ESC/POS." },
+        { q: "كم ياخذ التجهيز؟", a: "غالبًا يوم واحد: نضيف أصنافك وأسعارك، ونربط جهازك وطابعتك، وتبدأ تبيع." },
         { q: "لو انقطع النت؟", a: "الكاشير يكمل البيع ويحفظ الطلبات، ويرسلها لحاله أول ما يرجع الاتصال." },
         { q: "كيف التجربة المجانية؟", a: "كل المزايا مفتوحة لين ٣٥٠ طلب، الكاشير والمتجر مع بعض. لما توصل لها عندك يوم كامل تختار فيه باقتك." },
         { q: "أقدر أغيّر باقتي بعدين؟", a: "إيه، ترقّي أي وقت والمزايا تنفتح على طول." },
@@ -319,31 +413,31 @@ const T = {
     footer: { tag: "نظام تشغيل مطعمك.", privacy: "الخصوصية", terms: "الشروط", rights: "© ٢٠٢٦ ركين" },
   },
   en: {
-    nav: { features: "Features", plans: "Plans", faq: "FAQ", login: "Log in", start: "Start free" },
+    nav: { features: "Solutions", check: "Is it for me?", plans: "Plans", faq: "FAQ", login: "Log in", start: "Start free" },
     hero: {
       pill: "350 orders free · No card",
       ticketA: "Completely free",
       ticketB: "Try everything without paying a riyal, no contract",
-      h1a: "Every great restaurant",
-      h1b: "stands",
-      h1c: "on something.",
-      sub: "Cashier, online store, loyalty and your profit. One system that works for",
+      h1a: "Run your restaurant",
+      h1b: "on facts,",
+      h1c: "not guesses.",
+      sub: "A cashier that never stops, profit you know to the riyal, and customers who come back. One system that works for",
       rot: ["your restaurant.", "your café.", "your food truck.", "your bakery.", "your cloud kitchen."],
       today: "Today's net",
       orders: "Orders today",
       kitchen: "Kitchen",
       stamp: "+1 stamp",
       cta: "Start free",
-      cta2: "See plans",
+      cta2: "What does my place need?",
       from: "Plans from",
       perMonth: "/ month",
     },
     pos: { title: "Current order", total: "Total", pay: "Pay", all: "All", search: "Search or scan…", paid: "Paid" },
     newOrder: { t: "New store order", s: "Paid · Apple Pay" },
     one: {
-      tools: ["Cashier", "Kitchen screen", "Online menu", "Online store", "Delivery apps", "Customers", "Loyalty", "Stock", "Staff", "Accounting"],
+      tools: ["Cashier", "Kitchen screen", "Online menu", "Online store", "Customers", "Loyalty", "Stock", "Staff", "Accounting"],
       name: "Rakeen",
-      line: "Instead of ten systems you wire together, one system and one subscription.",
+      line: "Instead of a separate system for each, wired together by hand: one system, one subscription.",
       facts: ["Works offline", "Tax invoice with QR", "On iPad, computer or phone"],
     },
     ch: {
@@ -410,6 +504,102 @@ const T = {
         real: "Real screenshots from the Rakeen iPhone app",
       },
     },
+    check: {
+      k: "First things first",
+      h: "What's wearing you down?",
+      sub: "Pick everything that happens at your place. We'll show what Rakeen fixes and which plan is enough. No sign-up.",
+      pick: "Problems you have",
+      emptyH: "Pick what happens to you",
+      emptyP: "The fixes, and the plan that covers them with its price, show up here.",
+      noneH: "None of these happen to you?",
+      noneP: "Your current setup may be enough, and that's fine. If you'd like to see for yourself, your first 350 orders are on us.",
+      noneCta: "Try it, no strings",
+      recK: "The plan that covers you",
+      fixes: "What Rakeen fixes for you:",
+      try: "Try it free",
+      see: "See the solutions",
+      free: "First 350 orders free with every feature. No card, no contract.",
+      bar: (n: number, plan: string) => `${n} ${n === 1 ? "problem" : "problems"} · your plan: ${plan}`,
+      barGo: "See",
+      waMsg: (items: string[], plan: string) => ["Hi, I'd like to try Rakeen.", "What happens at my place:", ...items.map((i) => "- " + i), "The plan the site suggested: " + plan].join(String.fromCharCode(10)),
+    },
+    sol: {
+      k: "Solutions",
+      h: "Five everyday problems. Five fixes in one system.",
+      sub: "Each one starts from a problem restaurant and café owners tell us about every day.",
+      prob: "The problem",
+      fix: "The fix in Rakeen",
+      res: "The result",
+      items: {
+        sell: {
+          k: "Selling & operations",
+          tab: "Selling",
+          h: "A cashier that never stops. A kitchen that gets it right.",
+          p: "A rush at the counter, a ticket lost between the cashier and the kitchen, and the internet drops so sales stop.",
+          b: ["A fast cashier on iPad, computer or phone that keeps selling even offline", "Orders land on the kitchen screen or print by themselves", "Rakeen Pager: the customer's phone rings when the order is ready, no pagers", "Tax invoice with QR, and shift close in one tap"],
+          r: "Shorter queues, fewer wrong orders, and no lost sale because the internet dropped.",
+          plan: "Cashier in every plan · kitchen and pager from Emad",
+        },
+        profit: {
+          k: "Profit & stock",
+          tab: "Profit",
+          h: "Know what you make. To the riyal, not a guess.",
+          p: "Sales look good, yet the money isn't there at month's end. You don't know which dish pays, and stock runs out or leaks.",
+          b: ["Every dish costed from your real recipe, and net profit after expenses", "Stock drops with each sale and warns you before it runs out", "Snap the supplier invoice and it's read into stock", "Full reports and Excel export for your accountant"],
+          r: "Price and order on real numbers, not on a feeling.",
+          plan: "In the Emad and Sarh plans",
+        },
+        direct: {
+          k: "Direct orders",
+          tab: "Direct orders",
+          h: "Customers order from you, not from an app that takes a cut.",
+          p: "A commission on every app order, and a printed menu you reprint every time a price changes.",
+          b: ["An online store in your brand: delivery or pickup, card payment, zero commission", "A QR online menu that updates the moment you edit it", "Your Links: order button, WhatsApp and location on one bio page", "Orders land on the cashier and kitchen instantly"],
+          r: "Full-value orders with no commission, and a menu that's always current.",
+          plan: "Menu in every plan · Links from Emad · Store in Sarh",
+        },
+        loyal: {
+          k: "Repeat customers",
+          tab: "Repeat customers",
+          h: "They come once. Rakeen brings them back.",
+          p: "Most customers come once and vanish, paper stamp cards get lost, and you have no way to reach them.",
+          b: ["A loyalty card in your brand in Apple Wallet, no app", "Every visit adds itself, with a nudge on their lock screen", "An automatic message that brings back the ones you haven't seen", "They see their points on the customer display as they pay"],
+          r: "More repeat visits, without chasing anyone.",
+          plan: "In the Emad and Sarh plans",
+        },
+        control: {
+          k: "Control & branches",
+          tab: "Control",
+          h: "Your place in view, even when you're out.",
+          p: "You can't be there all the time, you don't know who gave a discount or refunded an order, and every branch keeps its own books.",
+          b: ["The Rakeen app on iPhone and Android: sales and orders on your phone", "Every employee with a PIN and permissions, and a log of every action", "An automatic daily report, and a shift close that matches the drawer", "All branches in one account, with a report for each"],
+          r: "Peace of mind from anywhere, and growth without the mess.",
+          plan: "App in every plan · permissions from Emad · branches in Sarh",
+        },
+      },
+    },
+    why: {
+      k: "Why Rakeen?",
+      h: "One system, built for our market.",
+      items: [
+        { h: "One system, not a patchwork", p: "Cashier, kitchen, stock, accounting, customers and store all talk to each other. One set of data, one subscription." },
+        { h: "Built for Saudi", p: "Arabic from the first screen, a simplified tax invoice with QR, and your numbers in riyals." },
+        { h: "Keeps going offline", p: "The cashier keeps selling, saves the orders and sends them once the connection is back." },
+        { h: "On your devices", p: "iPad, iPhone, Android, computer or SUNMI, with any network receipt printer." },
+        { h: "We set it up with you", p: "We add your items and prices and connect your device, and you talk to real people on WhatsApp, not tickets." },
+        { h: "No risk", p: "First 350 orders free with every feature, no card, no contract. Upgrade whenever you like." },
+      ],
+    },
+    steps: {
+      k: "How to start",
+      h: "From first message to first invoice: one day.",
+      items: [
+        { h: "Message us on WhatsApp", p: "Tell us about your place and how many branches. One minute." },
+        { h: "We set everything up", p: "We add your items and prices, and connect your device and printer." },
+        { h: "Start selling", p: "You're selling within a day, and the first 350 orders are on us." },
+      ],
+      cta: "Start now",
+    },
     rcpt: { title: "Simplified tax invoice", no: "Invoice no.", sub: "Subtotal", vat: "VAT 15%", total: "Total", cash: "Card", thanks: "Thank you for visiting" },
     off: "Offline · 3 orders saved",
     dash: {
@@ -424,10 +614,6 @@ const T = {
       scan: "Supplier invoice read",
       scanS: "Onion 18 kg · Tomato 24 kg",
     },
-    more: {
-      h: "And everything your day needs.",
-      items: ["Kitchen screen", "Tables & reservations", "Staff permissions", "Multiple branches", "Reports & Excel export", "Customer display", "Booking page"],
-    },
     plans: {
       k: "Plans",
       h: "From the foundation to the edifice.",
@@ -439,6 +625,7 @@ const T = {
       perYear: "/ year",
       saveAmt: (n: string) => `Save ${n} a year`,
       popular: "Most popular",
+      rec: "Your fit",
       top: "Everything",
       count: (n: number) => `${n} features`,
       branches: (n: number) => (n === 1 ? "1 branch" : `${n} branches`),
@@ -457,7 +644,8 @@ const T = {
       k: "FAQ",
       h: "Before you start.",
       items: [
-        { q: "What do I need to start?", a: "An iPad or computer, and internet to sign up. A printer is optional: any network (Wi‑Fi or LAN) receipt printer that speaks ESC/POS." },
+        { q: "Can I use the devices I already have?", a: "Yes. Rakeen runs on iPad, iPhone, Android, computers and SUNMI devices. A printer is optional: any network (Wi‑Fi or LAN) receipt printer that speaks ESC/POS." },
+        { q: "How long does setup take?", a: "Usually one day: we add your items and prices, connect your device and printer, and you start selling." },
         { q: "What if the internet drops?", a: "The cashier keeps selling, saves the orders and sends them by itself once you're back online." },
         { q: "How does the free trial work?", a: "Every feature is open for 350 orders, cashier and store combined. When you reach it you get a full day to pick a plan." },
         { q: "Can I change plans later?", a: "Yes. Upgrade any time and the features open right away." },
@@ -545,6 +733,25 @@ function planAdds(plan: Plan): string[] {
 const LADDER = PLANS.map((p) => planAdds(p));
 const includedCount = (i: number) => LADDER.slice(0, i + 1).reduce((s, l) => s + l.length, 0);
 
+/* «وش اللي يتعبك؟»: كل مشكلة مربوطة بأقل باقة تحلّها (نفس توزيع
+   lib/plans.ts) وبالحل اللي يشرحها تحت. الباقة المقترحة = أعلى باقة
+   تحتاجها المشاكل اللي اختارها. */
+type SolKey = "sell" | "profit" | "direct" | "loyal" | "control";
+const SOL_KEYS: SolKey[] = ["sell", "profit", "direct", "loyal", "control"];
+const PROBS: { k: string; plan: number; ar: string; en: string; fix: { ar: string; en: string } }[] = [
+  { k: "net", plan: 0, ar: "النت يطيح ويوقف البيع", en: "The internet drops and sales stop", fix: { ar: "الكاشير يكمل بدون نت، ويرسل كل شي لما يرجع", en: "The cashier keeps selling offline and syncs later" } },
+  { k: "rush", plan: 1, ar: "زحمة عند الكاونتر، وطلبات تغلط في المطبخ", en: "Counter rush, and orders go wrong in the kitchen", fix: { ar: "شاشة المطبخ، وبيجر يرن بجوال الزبون", en: "A kitchen screen, and a pager that rings their phone" } },
+  { k: "profit", plan: 1, ar: "آخر الشهر ما أعرف كم ربحت فعلًا", en: "At month's end I don't know what I really made", fix: { ar: "تكلفة كل طبق، وصافي ربحك بالريال", en: "Every dish costed, net profit to the riyal" } },
+  { k: "stock", plan: 1, ar: "المخزون يخلص فجأة أو يتسرّب", en: "Stock runs out suddenly or goes missing", fix: { ar: "مخزون ينقص مع كل بيعة، وتنبيه قبل ما يخلص", en: "Stock that drops with each sale, and a heads-up before it runs out" } },
+  { k: "commission", plan: 2, ar: "عمولات التطبيقات تاكل ربحي", en: "App commissions eat my margin", fix: { ar: "متجرك الإلكتروني، بدون عمولة", en: "Your own online store, zero commission" } },
+  { k: "menu", plan: 0, ar: "كل تغيير سعر يعني منيو جديد ينطبع", en: "Every price change means reprinting the menu", fix: { ar: "منيو أونلاين يتحدّث بضغطة", en: "An online menu that updates in one tap" } },
+  { k: "return", plan: 1, ar: "الزبون يجي مرة وما يرجع", en: "Customers come once and never return", fix: { ar: "بطاقة ولاء بجواله، ورسالة ترجّعه", en: "A loyalty card on their phone, and a nudge to come back" } },
+  { k: "away", plan: 1, ar: "ما أعرف وش يصير في المحل وأنا برا", en: "I don't know what happens when I'm away", fix: { ar: "تطبيق بجوالك، وصلاحيات وسجل لكل موظف", en: "An app on your phone, permissions and a log per employee" } },
+  { k: "branches", plan: 2, ar: "عندي أكثر من فرع، وكل فرع بحاله", en: "I have several branches, each on its own", fix: { ar: "كل فروعك بحساب واحد، وتقرير لكل فرع", en: "All branches in one account, a report for each" } },
+  { k: "systems", plan: 0, ar: "أدفع لأكثر من نظام وما يتكلمون مع بعض", en: "I pay for several systems that don't talk", fix: { ar: "نظام واحد واشتراك واحد", en: "One system, one subscription" } },
+];
+const WHY_IC: IconName[] = ["layers", "qr", "wifi", "devices", "chat", "shield"];
+
 /* ---------------- small pieces ---------------- */
 
 // U+20C1, the official riyal sign; only the self-hosted saudi_riyal font has it.
@@ -552,7 +759,7 @@ function Riyal() {
   return <span className="riyal" aria-label="SAR">{"⃁"}</span>;
 }
 
-type IconName = "check" | "wifi" | "qr" | "devices" | "chat" | "plus" | "arrow" | "bag" | "alert" | "scan" | "crown" | "minus" | "bell" | "link";
+type IconName = "check" | "wifi" | "qr" | "devices" | "chat" | "plus" | "arrow" | "bag" | "alert" | "scan" | "crown" | "minus" | "bell" | "link" | "layers" | "shield";
 function Icon({ name }: { name: IconName }) {
   const p = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   return (
@@ -604,6 +811,8 @@ function Icon({ name }: { name: IconName }) {
           <path d="M8 9h8M8 12h8M8 15h5" />
         </g>
       )}
+      {name === "layers" && <path {...p} d="M12 3.5 3 8l9 4.5L21 8l-9-4.5ZM3 12.2l9 4.5 9-4.5M3 16.4l9 4.5 9-4.5" />}
+      {name === "shield" && <path {...p} d="M12 3.2 19.5 6v5.6c0 4.6-3.1 8-7.5 9.2-4.4-1.2-7.5-4.6-7.5-9.2V6L12 3.2ZM8.6 12.2l2.3 2.3 4.6-4.8" />}
       {name === "crown" && <path {...p} d="M4 17h16M5 17 3.5 7.5l5 3.5L12 5l3.5 6 5-3.5L19 17" />}
     </svg>
   );
@@ -1225,6 +1434,33 @@ export default function LandingPage() {
   const [beat, setBeat] = useState(false);
   const [paidCount, setPaidCount] = useState(0);
   const [showTop, setShowTop] = useState(false);
+  // «وش اللي يتعبك؟»
+  const [picked, setPicked] = useState<string[]>([]);
+  const [touched, setTouched] = useState(false);
+  const [inCheck, setInCheck] = useState(false);
+  const [resSeen, setResSeen] = useState(false);
+  const checkRef = useRef<HTMLElement>(null);
+  const toggle = (k: string) => {
+    setTouched(true);
+    setPicked((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
+  };
+  const pickedProbs = PROBS.filter((p) => picked.includes(p.k));
+  const rec = pickedProbs.length ? PLANS[Math.max(...pickedProbs.map((p) => p.plan))] : null;
+  // The phone "start" bar steps aside while the check shows its own bar.
+  useEffect(() => {
+    const el = checkRef.current;
+    if (!el || !("IntersectionObserver" in window)) return;
+    const io = new IntersectionObserver((es) => setInCheck(es[0].isIntersecting), { threshold: 0 });
+    io.observe(el);
+    // and the bar itself hides while the result card is already on screen
+    const res = document.getElementById("check-result");
+    const io2 = new IntersectionObserver((es) => setResSeen(es[0].isIntersecting), { threshold: 0.35 });
+    if (res) io2.observe(res);
+    return () => {
+      io.disconnect();
+      io2.disconnect();
+    };
+  }, []);
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const id = window.setInterval(() => setRot((r) => r + 1), 2400);
@@ -1332,6 +1568,36 @@ export default function LandingPage() {
       ))}
     </ul>
   );
+  // One solution's copy: the problem in the owner's words, the fix, the result.
+  const solCopy = (k: SolKey, i: number, extra?: React.ReactNode) => {
+    const s = t.sol.items[k];
+    return (
+      <div className="chap-copy sol-copy" data-in>
+        <span className="chap-n mono" aria-hidden>
+          0{i + 1}
+        </span>
+        <span className="kicker">{s.k}</span>
+        <h2>{s.h}</h2>
+        <div className="sol-prob">
+          <span className="sol-lab">{t.sol.prob}</span>
+          <p>{s.p}</p>
+        </div>
+        <div className="sol-fix">
+          <span className="sol-lab">{t.sol.fix}</span>
+          <Bullets items={s.b} />
+        </div>
+        <p className="sol-res">
+          <span className="sol-lab">{t.sol.res}</span>
+          {s.r}
+        </p>
+        {extra}
+        <span className="sol-plan">
+          <Icon name="crown" />
+          {s.plan}
+        </span>
+      </div>
+    );
+  };
 
   return (
     <div className="rk" ref={root}>
@@ -1344,7 +1610,8 @@ export default function LandingPage() {
             <img src={wordmarkDark} alt="" className="brand-dark" />
           </a>
           <nav className="nav-links">
-            <a href="#features" onClick={go("features")}>{t.nav.features}</a>
+            <a href="#solutions" onClick={go("solutions")}>{t.nav.features}</a>
+            <a href="#check" onClick={go("check")}>{t.nav.check}</a>
             <a href="#plans" onClick={go("plans")}>{t.nav.plans}</a>
             <a href="#faq" onClick={go("faq")}>{t.nav.faq}</a>
           </nav>
@@ -1389,7 +1656,8 @@ export default function LandingPage() {
               <br />
               <span className="w" style={{ ["--i" as string]: 3 }}>
                 <span className="mark">{t.hero.h1b}</span>
-              </span>{" "}
+              </span>
+              <br />
               {splitWords(t.hero.h1c, 4)}
             </h1>
             <p className="lead">
@@ -1403,7 +1671,7 @@ export default function LandingPage() {
                 {t.hero.cta}
                 <Icon name="arrow" />
               </a>
-              <a href="#plans" onClick={go("plans")} className="btn btn-glass btn-lg">{t.hero.cta2}</a>
+              <a href="#check" onClick={go("check")} className="btn btn-glass btn-lg">{t.hero.cta2}</a>
             </div>
             <p className="from">
               {t.hero.from} <Riyal /> <b className="mono">{PLANS[0].monthly}</b> {t.hero.perMonth}
@@ -1465,38 +1733,14 @@ export default function LandingPage() {
         </div>
 
         <div className="wrap">
-          {/* the point of it all: five tools you'd buy apart, as one */}
-          <div className="one">
-            <div className="one-eq">
-              {t.one.tools.map((tool, i) => (
-                <span key={tool} className="one-pair">
-                  {i > 0 && (
-                    <i className="one-op" style={{ ["--i" as string]: i }}>
-                      +
-                    </i>
-                  )}
-                  <span className="one-tool" style={{ ["--i" as string]: i }}>
-                    {tool}
-                  </span>
-                </span>
-              ))}
-              <span className="one-pair">
-                <i className="one-op one-eqs" style={{ ["--i" as string]: t.one.tools.length }}>
-                  =
-                </i>
-                <span className="one-name">{t.one.name}</span>
-              </span>
-            </div>
-            <p className="one-line">{t.one.line}</p>
-            <ul className="one-facts">
-              {t.one.facts.map((f, i) => (
-                <li key={f}>
-                  <Icon name={stripIcons[i]} />
-                  {f}
-                </li>
-              ))}
-            </ul>
-          </div>
+          <ul className="one-facts hero-facts">
+            {t.one.facts.map((f, i) => (
+              <li key={f}>
+                <Icon name={stripIcons[i]} />
+                {f}
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 
@@ -1518,272 +1762,301 @@ export default function LandingPage() {
         </div>
       </div>
 
-      <div id="features" />
-
-      {/* ---------- chapter: cashier ---------- */}
-      <section className="chap">
-        <div className="wrap chap-in">
-          <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>01</span>
-            <span className="kicker">{t.ch.pos.k}</span>
-            <h2>{t.ch.pos.h}</h2>
-            <p>{t.ch.pos.p}</p>
-            <Bullets items={t.ch.pos.b} />
+      {/* ---------- وش اللي يتعبك؟ ---------- */}
+      <section className="sec chk" id="check" ref={checkRef}>
+        <div className="wrap">
+          <div className="sec-h" data-in>
+            <span className="kicker">{t.check.k}</span>
+            <h2>{t.check.h}</h2>
+            <p className="sec-sub">{t.check.sub}</p>
           </div>
-          <div className="chap-art art-receipt" data-in>
-            <div className="printer" aria-hidden>
-              <div className="printer-top">
-                <i />
-              </div>
-              <div className="paper-wrap">
-                <Receipt lang={lang} qr={qr} />
-              </div>
+          <div className="chk-in">
+            <div className="chk-list" role="group" aria-label={t.check.pick} data-in>
+              {PROBS.map((p) => {
+                const on = picked.includes(p.k);
+                return (
+                  <button key={p.k} className={"chk-item" + (on ? " on" : "")} aria-pressed={on} onClick={() => toggle(p.k)}>
+                    <span className="chk-box">
+                      <Icon name="check" />
+                    </span>
+                    <span>{p[lang]}</span>
+                  </button>
+                );
+              })}
             </div>
-            <div className="toast t-offline">
-              <span className="toast-ic dark">
-                <Icon name="wifi" />
-              </span>
-              <b>{t.off}</b>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ---------- chapter: store ---------- */}
-      <section className="chap chap-flip">
-        <div className="wrap chap-in">
-          <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>02</span>
-            <span className="kicker k-violet">{t.ch.store.k}</span>
-            <h2>{t.ch.store.h}</h2>
-            <p>{t.ch.store.p}</p>
-            <Bullets items={t.ch.store.b} />
-          </div>
-          <div className="chap-art art-store" data-in>
-            <div className="store-blob" aria-hidden />
-            <div className="iphone iphone-lg">
-              <img src="/landing/store-anoob.jpg" alt={t.ch.store.real} loading="lazy" />
-            </div>
-            <div className="toast t-paid">
-              <span className="toast-ic ok">
-                <Icon name="check" />
-              </span>
-              <div>
-                <b>{t.newOrder.t}</b>
-                <span>
-                  <span className="mono">#1043</span> · {t.newOrder.s}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ---------- chapter: online menu ---------- */}
-      <section className="chap">
-        <div className="wrap chap-in">
-          <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>03</span>
-            <span className="kicker k-brown">{t.ch.menu.k}</span>
-            <h2>{t.ch.menu.h}</h2>
-            <p>{t.ch.menu.p}</p>
-            <Bullets items={t.ch.menu.b} />
-          </div>
-          <div className="chap-art art-menu" data-in>
-            <MenuLive lang={lang} qr={qr} />
-          </div>
-        </div>
-      </section>
-
-      {/* ---------- chapter: pager (عماد وصرح) ---------- */}
-      <section className="chap chap-flip" id="pager">
-        <div className="wrap chap-in">
-          <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>04</span>
-            <span className="kicker k-orange">
-              <Icon name="bell" />
-              {t.ch.pager.k}
-            </span>
-            <h2>{t.ch.pager.h}</h2>
-            <p>{t.ch.pager.p}</p>
-            <Bullets items={t.ch.pager.b} />
-            <a href="#plans" onClick={go("plans")} className="pager-plan">
-              <Icon name="crown" />
-              {t.ch.pager.plan}
-            </a>
-          </div>
-          <div className="chap-art art-pager" data-in>
-            <div className="pager-blob" aria-hidden />
-            <div className="iphone pg-back">
-              <img src="/landing/pager-wait.jpg" alt={t.ch.pager.real} loading="lazy" />
-            </div>
-            <div className="iphone pg-front">
-              <img src="/landing/pager-ready.jpg" alt={t.ch.pager.real} loading="lazy" />
-            </div>
-            <div className="toast t-ring">
-              <span className="toast-ic ring">
-                <Icon name="bell" />
-              </span>
-              <div>
-                <b>{t.ch.pager.ready}</b>
-                <span>{t.ch.pager.readyS}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ---------- chapter: links ---------- */}
-      <section className="chap" id="links">
-        <div className="wrap chap-in">
-          <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>05</span>
-            <span className="kicker k-lime">
-              <Icon name="link" />
-              {t.ch.links.k}
-            </span>
-            <h2>{t.ch.links.h}</h2>
-            <p>{t.ch.links.p}</p>
-            <Bullets items={t.ch.links.b} />
-            <a href="#plans" onClick={go("plans")} className="pager-plan">
-              <Icon name="crown" />
-              {t.ch.links.plan}
-            </a>
-          </div>
-          <div className="chap-art art-pager art-links" data-in>
-            <div className="pager-blob links-blob" aria-hidden />
-            <div className="iphone pg-back">
-              <img src="/landing/links-velvet.jpg" alt={t.ch.links.real} loading="lazy" />
-            </div>
-            <div className="iphone pg-front">
-              <img src="/landing/links-bold.jpg" alt={t.ch.links.real} loading="lazy" />
-            </div>
-            <div className="toast t-ring">
-              <span className="toast-ic ring">
-                <Icon name="link" />
-              </span>
-              <div>
-                <b dir="ltr">{t.ch.links.url}</b>
-                <span>{t.ch.links.urlS}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ---------- chapter: loyalty ---------- */}
-      <section className="chap chap-wide">
-        <div className="wrap chap-in">
-          <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>06</span>
-            <span className="kicker">{t.ch.loyalty.k}</span>
-            <h2>{t.ch.loyalty.h}</h2>
-            <p>{t.ch.loyalty.p}</p>
-            <Bullets items={t.ch.loyalty.b} />
-          </div>
-          <div className="chap-art art-loyalty" data-in>
-            <WalletFan qr={qr} lang={lang} />
-          </div>
-        </div>
-      </section>
-
-      {/* ---------- chapter: numbers ---------- */}
-      <section className="chap chap-dark">
-        <div className="wrap chap-in">
-          <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>07</span>
-            <span className="kicker k-lime">{t.ch.numbers.k}</span>
-            <h2>{t.ch.numbers.h}</h2>
-            <p>{t.ch.numbers.p}</p>
-            <Bullets items={t.ch.numbers.b} />
-          </div>
-          <div className="chap-art art-dash" data-in>
-            <div className="dash">
-              <div className="dash-h">
-                <span>{t.dash.title}</span>
-                <span className="dash-live">
-                  <i />
-                  {lang === "ar" ? "مباشر" : "Live"}
-                </span>
-              </div>
-              <div className="dash-net mono">
-                <Riyal /> <CountUp to={net} ms={1600} />
-              </div>
-              <div className="dash-rows">
-                {t.dash.rows.map((r) => (
-                  <div key={r.n} className={"dash-row" + (r.v < 0 ? " neg" : "")}>
-                    <span>{r.n}</span>
-                    <div className="dash-bar">
-                      <i style={{ width: `${(Math.abs(r.v) / maxRow) * 100}%` }} />
-                    </div>
-                    <span className="mono">{num(r.v)}</span>
+            <aside className="chk-res" data-has={rec ? "" : undefined} id="check-result" aria-live="polite" data-in>
+              <div className="chk-res-glow" aria-hidden />
+              {rec ? (
+                <div className="chk-res-in" key={rec.key}>
+                  <span className="chk-res-k">{t.check.recK}</span>
+                  <div className="chk-plan">
+                    <h3>{planName(rec)}</h3>
+                    <p className="chk-price">
+                      <Riyal /> <b className="mono">{rec.monthly}</b> <span>{t.plans.perMonth}</span>
+                    </p>
                   </div>
-                ))}
-              </div>
-            </div>
-            <div className="toast t-alert">
-              <span className="toast-ic warn">
-                <Icon name="alert" />
-              </span>
-              <div>
-                <b>{t.dash.alert}</b>
-                <span>{t.dash.alertS}</span>
-              </div>
-            </div>
-            <div className="toast t-scan">
-              <span className="toast-ic ok">
-                <Icon name="scan" />
-              </span>
-              <div>
-                <b>{t.dash.scan}</b>
-                <span>{t.dash.scanS}</span>
-              </div>
-            </div>
+                  <p className="chk-tag">{lang === "ar" ? rec.tagline : PLAN_EN[rec.key].tagline}</p>
+                  <p className="chk-fixes-h">{t.check.fixes}</p>
+                  <ul className="chk-fixes">
+                    {pickedProbs.map((p) => (
+                      <li key={p.k}>
+                        <Icon name="check" />
+                        <span>{p.fix[lang]}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="chk-acts">
+                    <a href={startWhatsAppLink(t.check.waMsg(pickedProbs.map((p) => p[lang]), planName(rec)))} target="_blank" rel="noopener noreferrer" className="btn btn-lime">
+                      {t.check.try}
+                      <Icon name="arrow" />
+                    </a>
+                    <a href="#solutions" onClick={go("solutions")} className="chk-see">{t.check.see}</a>
+                  </div>
+                  <p className="chk-free">{t.check.free}</p>
+                </div>
+              ) : touched ? (
+                <div className="chk-res-in" key="none">
+                  <span className="chk-res-ic">
+                    <Icon name="check" />
+                  </span>
+                  <h3>{t.check.noneH}</h3>
+                  <p className="chk-p">{t.check.noneP}</p>
+                  <div className="chk-acts">
+                    <a href={START} target="_blank" rel="noopener noreferrer" className="btn btn-glass">{t.check.noneCta}</a>
+                  </div>
+                </div>
+              ) : (
+                <div className="chk-res-in" key="idle">
+                  <span className="chk-res-ic idle">
+                    <Icon name="plus" />
+                  </span>
+                  <h3>{t.check.emptyH}</h3>
+                  <p className="chk-p">{t.check.emptyP}</p>
+                  <div className="chk-ghost">
+                    {PLANS.map((p) => (
+                      <span key={p.key}>
+                        {planName(p)}
+                        <b className="mono">{p.monthly}</b>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </aside>
           </div>
-        </div>
-        <div className="wrap more" data-in>
-          <h3>{t.more.h}</h3>
-          <ul>
-            {t.more.items.map((m) => (
-              <li key={m}>{m}</li>
-            ))}
-          </ul>
+          {/* phones: the result sits under the list, so a bar follows the taps */}
+          <a href="#check-result" onClick={go("check-result")} className={"chk-bar" + (rec && !resSeen ? " show" : "")} aria-hidden={!rec || resSeen} tabIndex={rec && !resSeen ? 0 : -1}>
+            <span>{rec ? t.check.bar(pickedProbs.length, planName(rec)) : ""}</span>
+            <b>
+              {t.check.barGo}
+              <Icon name="arrow" />
+            </b>
+          </a>
         </div>
       </section>
 
-      {/* ---------- chapter: the app on the App Store ---------- */}
-      <section className="chap chap-flip" id="app">
-        <div className="wrap chap-in">
-          <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>08</span>
-            <span className="kicker">
-              <Icon name="devices" />
-              {t.ch.app.k}
-            </span>
-            <h2>{t.ch.app.h}</h2>
-            <p>{t.ch.app.p}</p>
-            <Bullets items={t.ch.app.b} />
-            <div className="app-dl">
-              <a href={APP_STORE} target="_blank" rel="noopener noreferrer" className="btn btn-ink">
-                {t.ch.app.ios}
-              </a>
-              <a href="/android" className="btn btn-line">
-                {t.ch.app.android}
-              </a>
-            </div>
-            <span className="pager-plan app-plan">
-              <Icon name="check" />
-              {t.ch.app.plan}
-            </span>
+      {/* ---------- الحلول ---------- */}
+      <section className="sols" id="solutions">
+        <div className="wrap">
+          <div className="sec-h" data-in>
+            <span className="kicker">{t.sol.k}</span>
+            <h2>{t.sol.h}</h2>
+            <p className="sec-sub">{t.sol.sub}</p>
           </div>
-          <div className="chap-art art-pager art-app" data-in>
-            <div className="pager-blob app-blob" aria-hidden />
-            <div className="iphone pg-back">
-              <img src="/landing/app-pay.jpg" alt={t.ch.app.real} loading="lazy" />
+          <nav className="sol-index" data-in aria-label={t.sol.k}>
+            {SOL_KEYS.map((k, i) => (
+              <a key={k} href={"#sol-" + k} onClick={go("sol-" + k)}>
+                <span className="mono">0{i + 1}</span>
+                {t.sol.items[k].tab}
+              </a>
+            ))}
+          </nav>
+        </div>
+
+        {/* 01 البيع */}
+        <section className="chap sol" id="sol-sell">
+          <div className="wrap chap-in">
+            {solCopy("sell", 0)}
+            <div className="chap-art art-receipt" data-in>
+              <div className="printer" aria-hidden>
+                <div className="printer-top">
+                  <i />
+                </div>
+                <div className="paper-wrap">
+                  <Receipt lang={lang} qr={qr} />
+                </div>
+              </div>
+              <div className="iphone sol-pager">
+                <img src="/landing/pager-ready.jpg" alt={t.ch.pager.real} loading="lazy" />
+              </div>
+              <div className="toast t-offline">
+                <span className="toast-ic dark">
+                  <Icon name="wifi" />
+                </span>
+                <b>{t.off}</b>
+              </div>
             </div>
-            <div className="iphone pg-front">
-              <img src="/landing/app-menu.jpg" alt={t.ch.app.real} loading="lazy" />
+          </div>
+        </section>
+
+        {/* 02 الأرباح */}
+        <section className="chap chap-flip chap-dark sol" id="sol-profit">
+          <div className="wrap chap-in">
+            {solCopy("profit", 1)}
+            <div className="chap-art art-dash" data-in>
+              <div className="dash">
+                <div className="dash-h">
+                  <span>{t.dash.title}</span>
+                  <span className="dash-live">
+                    <i />
+                    {lang === "ar" ? "مباشر" : "Live"}
+                  </span>
+                </div>
+                <div className="dash-net mono">
+                  <Riyal /> <CountUp to={net} ms={1600} />
+                </div>
+                <div className="dash-rows">
+                  {t.dash.rows.map((r) => (
+                    <div key={r.n} className={"dash-row" + (r.v < 0 ? " neg" : "")}>
+                      <span>{r.n}</span>
+                      <div className="dash-bar">
+                        <i style={{ width: `${(Math.abs(r.v) / maxRow) * 100}%` }} />
+                      </div>
+                      <span className="mono">{num(r.v)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="toast t-alert">
+                <span className="toast-ic warn">
+                  <Icon name="alert" />
+                </span>
+                <div>
+                  <b>{t.dash.alert}</b>
+                  <span>{t.dash.alertS}</span>
+                </div>
+              </div>
+              <div className="toast t-scan">
+                <span className="toast-ic ok">
+                  <Icon name="scan" />
+                </span>
+                <div>
+                  <b>{t.dash.scan}</b>
+                  <span>{t.dash.scanS}</span>
+                </div>
+              </div>
             </div>
+          </div>
+        </section>
+
+        {/* 03 الطلب المباشر */}
+        <section className="chap sol" id="sol-direct">
+          <div className="wrap chap-in">
+            {solCopy("direct", 2)}
+            <div className="chap-art art-menu" data-in>
+              <MenuLive lang={lang} qr={qr} />
+            </div>
+          </div>
+        </section>
+
+        {/* 04 رجوع العميل */}
+        <section className="chap chap-wide sol" id="sol-loyal">
+          <div className="wrap chap-in">
+            {solCopy("loyal", 3)}
+            <div className="chap-art art-loyalty" data-in>
+              <WalletFan qr={qr} lang={lang} />
+            </div>
+          </div>
+        </section>
+
+        {/* 05 التحكم */}
+        <section className="chap chap-flip sol" id="sol-control">
+          <div className="wrap chap-in">
+            {solCopy(
+              "control",
+              4,
+              <div className="app-dl">
+                <a href={APP_STORE} target="_blank" rel="noopener noreferrer" className="btn btn-ink">
+                  {t.ch.app.ios}
+                </a>
+                <a href="/android" className="btn btn-line">
+                  {t.ch.app.android}
+                </a>
+              </div>,
+            )}
+            <div className="chap-art art-pager art-app" data-in>
+              <div className="pager-blob app-blob" aria-hidden />
+              <div className="iphone pg-back">
+                <img src="/landing/app-pay.jpg" alt={t.ch.app.real} loading="lazy" />
+              </div>
+              <div className="iphone pg-front">
+                <img src="/landing/app-menu.jpg" alt={t.ch.app.real} loading="lazy" />
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      {/* ---------- ليش ركين ---------- */}
+      <section className="sec why" id="why">
+        <div className="wrap">
+          <div className="why-box">
+            <div className="why-glow" aria-hidden />
+            <div className="sec-h" data-in>
+              <span className="kicker k-lime">{t.why.k}</span>
+              <h2>{t.why.h}</h2>
+            </div>
+            <div className="one" data-in>
+              <div className="one-eq">
+                {t.one.tools.map((tool, i) => (
+                  <span key={tool} className="one-pair">
+                    {i > 0 && <i className="one-op">+</i>}
+                    <span className="one-tool">{tool}</span>
+                  </span>
+                ))}
+                <span className="one-pair">
+                  <i className="one-op one-eqs">=</i>
+                  <span className="one-name">{t.one.name}</span>
+                </span>
+              </div>
+              <p className="one-line">{t.one.line}</p>
+            </div>
+            <div className="why-grid">
+              {t.why.items.map((w, i) => (
+                <div key={w.h} className="why-card" data-in style={{ transitionDelay: `${(i % 3) * 80}ms` }}>
+                  <span className="why-ic">
+                    <Icon name={WHY_IC[i]} />
+                  </span>
+                  <h3>{w.h}</h3>
+                  <p>{w.p}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------- كيف تبدأ ---------- */}
+      <section className="sec steps" id="start">
+        <div className="wrap">
+          <div className="sec-h" data-in>
+            <span className="kicker">{t.steps.k}</span>
+            <h2>{t.steps.h}</h2>
+          </div>
+          <ol className="steps-list">
+            {t.steps.items.map((s, i) => (
+              <li key={s.h} data-in style={{ transitionDelay: `${i * 120}ms` }}>
+                <span className="step-n mono">{i + 1}</span>
+                <h3>{s.h}</h3>
+                <p>{s.p}</p>
+              </li>
+            ))}
+          </ol>
+          <div className="steps-cta" data-in>
+            <a href={START} target="_blank" rel="noopener noreferrer" className="btn btn-lime btn-lg">
+              {t.steps.cta}
+              <Icon name="arrow" />
+            </a>
           </div>
         </div>
       </section>
@@ -1811,11 +2084,18 @@ export default function LandingPage() {
               const price = period === "annual" ? p.annual : p.monthly;
               const extra = period === "annual" ? p.extraBranchAnnual : p.extraBranchMonthly;
               const per = period === "annual" ? t.plans.perYear : t.plans.perMonth;
+              const isRec = rec?.key === p.key;
               const cls = ["tier", `tier-${p.key}`].join(" ");
               return (
-                <article key={p.key} className={cls} data-in style={{ transitionDelay: `${i * 90}ms` }}>
-                  {p.key === "emad" && <span className="tier-badge">{t.plans.popular}</span>}
-                  {p.key === "sarh" && (
+                <article key={p.key} className={cls} data-rec={isRec ? "" : undefined} data-in style={{ transitionDelay: `${i * 90}ms` }}>
+                  {isRec && (
+                    <span className="tier-badge badge-rec">
+                      <Icon name="check" />
+                      {t.plans.rec}
+                    </span>
+                  )}
+                  {!isRec && p.key === "emad" && <span className="tier-badge">{t.plans.popular}</span>}
+                  {!isRec && p.key === "sarh" && (
                     <span className="tier-badge badge-top">
                       <Icon name="crown" />
                       {t.plans.top}
@@ -1976,7 +2256,8 @@ export default function LandingPage() {
             <span>{t.footer.tag}</span>
           </div>
           <nav>
-            <a href="#features" onClick={go("features")}>{t.nav.features}</a>
+            <a href="#solutions" onClick={go("solutions")}>{t.nav.features}</a>
+            <a href="#check" onClick={go("check")}>{t.nav.check}</a>
             <a href="#plans" onClick={go("plans")}>{t.nav.plans}</a>
             <a href="/privacy">{t.footer.privacy}</a>
             <a href="/terms">{t.footer.terms}</a>
@@ -1992,7 +2273,7 @@ export default function LandingPage() {
       </footer>
 
       <button
-        className={"to-top" + (showTop ? " show" : "")}
+        className={"to-top" + (showTop && !inCheck ? " show" : "")}
         onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
         aria-label={lang === "ar" ? "ارجع لفوق" : "Back to top"}
       >
@@ -2002,7 +2283,7 @@ export default function LandingPage() {
       </button>
 
       {/* phones only: the one action, always in reach */}
-      <a href={START} target="_blank" rel="noopener noreferrer" className={"sticky-cta" + (sticky ? " show" : "")}>
+      <a href={START} target="_blank" rel="noopener noreferrer" className={"sticky-cta" + (sticky && !inCheck ? " show" : "")}>
         {t.sticky}
         <Icon name="arrow" />
       </a>
