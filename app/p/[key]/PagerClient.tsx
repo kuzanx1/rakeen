@@ -48,6 +48,26 @@ function Stars({ value, onPick }: { value: number; onPick: (n: number) => void }
 }
 
 /**
+ * نسخٌ متزامن قبل ما ينفتح قوقل: clipboard.writeText وعدٌ يكمل بعد ما تنتقل
+ * الصفحة للخلفية فيُرفض («الصفحة مو مركّزة»). execCommand ينسخ لحظتها، وهو
+ * المعتمد في سفاري آيفون من داخل ضغطة.
+ */
+function copyNow(t: string) {
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = t; ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;top:0;opacity:0;font-size:16px";
+    document.body.appendChild(ta);
+    ta.select(); ta.setSelectionRange(0, t.length);
+    const ok = document.execCommand("copy");
+    ta.remove();
+    if (!ok) void navigator.clipboard?.writeText(t).catch(() => {});
+  } catch {
+    void navigator.clipboard?.writeText(t).catch(() => {});
+  }
+}
+
+/**
  * بعد الاستلام: نجوم. ٤-٥ ← رابط قوقل. ١-٣ ← ملاحظة خاصة لصاحب المحل فقط.
  *
  * ولو للمحل رقم واتساب (إعدادات البيجر): «أرسل» يحفظ الملاحظة ثم يفتح واتساب
@@ -97,6 +117,24 @@ function RateCard({ bizName, google, pageKey, orderNum, onSend }: {
     finally { setBusy(false); }
   };
   const toggle = (t: string) => setTags((x) => (x.includes(t) ? x.filter((y) => y !== t) : [...x, t]));
+  /**
+   * الراضي: يكتب رأيه هنا، و«إرسال التقييم» ينسخه ويفتح تقييم المحل في قوقل.
+   *
+   * قوقل ما يسمح لأحد يكتب تقييماً عن الزبون ولا يعبّي النجوم أو النص في
+   * رابطه -- لازم الزبون نفسه بحسابه. فأقصر طريق: رأيه منسوخ، يختار النجوم
+   * ويلصق. والنسخُ والفتحُ في نفس الضغطة (بلا انتظار): آيفون يمنع فتح نافذةٍ
+   * بعد await.
+   */
+  const toGoogle = () => {
+    const t = text.trim();
+    if (t) copyNow(t);
+    // بلا "noopener" في الخصائص: معه يرجع window.open دايماً null، فينفتح
+    // قوقل مرتين (تبويب جديد + هذي الصفحة نفسها).
+    const w = window.open(google!, "_blank");
+    if (w) { try { w.opener = null; } catch { /* */ } }
+    else window.location.href = google!;
+    setStep("sent");
+  };
 
   if (step === "ask") return (
     <section className="pg-rate">
@@ -111,11 +149,10 @@ function RateCard({ bizName, google, pageKey, orderNum, onSend }: {
       <b className="pg-rate-q">يسعدنا إنه عجبك!</b>
       {google ? (
         <>
-          <p className="pg-rate-p">تساعدنا بتقييم في قوقل؟ ما ياخذ منك دقيقة.</p>
-          <a className="pg-rate-go" href={google} target="_blank" rel="noopener noreferrer">
-            قيّمنا في قوقل
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
-          </a>
+          <p className="pg-rate-p">وش عجبك؟ رأيك يساعد غيرك يجربنا.</p>
+          <textarea className="pg-rate-txt" rows={3} maxLength={500} placeholder="اكتب رأيك (اختياري)" value={text} onChange={(e) => setText(e.target.value)} />
+          <button type="button" className="pg-rate-send" onClick={toGoogle}>إرسال التقييم</button>
+          <small className="pg-rate-hint">ينفتح لك تقييم {bizName} في قوقل: اختر النجوم{text.trim() ? " والصق رأيك، تراه منسوخ" : ""}</small>
         </>
       ) : <p className="pg-rate-p">شكراً لك، نتشرف فيك مرة ثانية.</p>}
     </section>
@@ -139,7 +176,7 @@ function RateCard({ bizName, google, pageKey, orderNum, onSend }: {
       </div>}
       {err ? <p className="pg-rate-err" role="alert">{err}</p> : null}
       <button className="pg-rate-send" disabled={busy || (!tags.length && !text.trim() && (shopWa ? true : !phone.trim()))} onClick={send}>
-        {busy ? "يرسل…" : shopWa ? "أرسلها واتساب للمحل" : "أرسل لصاحب المحل"}
+        {busy ? "يرسل…" : "إرسال التقييم"}
       </button>
       <small className="pg-rate-hint">{shopWa
         ? "ينفتح لك واتساب والرسالة جاهزة، اضغط «إرسال» بس"
@@ -149,8 +186,15 @@ function RateCard({ bizName, google, pageKey, orderNum, onSend }: {
   return (
     <section className="pg-rate">
       <span className="pg-rate-ok" aria-hidden="true">✓</span>
+      {stars >= 4 ? (
+        <>
+          <b className="pg-rate-q">شكراً لك!</b>
+          <p className="pg-rate-p">لو ما انفتح قوقل، <a href={google || "#"} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline" }}>اضغط هنا</a>.</p>
+        </>
+      ) : <>
       <b className="pg-rate-q">وصلت ملاحظتك</b>
       <p className="pg-rate-p">{phone.trim() ? `شكراً لصراحتك، ${bizName} بيتواصلون معك على الواتساب.` : `شكراً لصراحتك، ${bizName} بيهتمون فيها.`}</p>
+      </>}
     </section>
   );
 }
