@@ -658,6 +658,9 @@ body{background:#FBFAF5;}
 @keyframes flow{to{stroke-dashoffset:-18;}}
 .hero .tablet{z-index:1;}
 .hero-phone{z-index:2;}
+/* the phone stands beside the cashier, not on its cart and pay button */
+@media (min-width:981px){ .hero-art{padding-inline-end:132px;} .hero-phone{width:26%; inset-inline-end:-6px;} }
+@media (min-width:1300px){ .hero-art{padding-inline-end:96px;} .hero-phone{inset-inline-end:-58px;} }
 /* satellites */
 .sat{position:absolute; z-index:3; box-shadow:0 24px 44px -16px rgba(0,0,0,.65);}
 .beat .sat{animation:sat-bump .8s var(--ease);}
