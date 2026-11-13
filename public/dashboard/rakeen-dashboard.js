@@ -14173,7 +14173,7 @@ const RK_ICON_PATHS = {
    يُقرأ في استعلامٍ مستقلّ: قاعدةٌ لم يُشغَّل فيها ملفّ البيجر تُظهر
    تنبيهاً وتعطّل الحفظ، ولا تُسقط بقيّة إعدادات الكاشير معها. */
 const PGS_DEFAULTS = { channels:['dine_in','pickup'], prep_min:10, buffer_min:5, receipt:true, display:true,
-  display_secs:60, remind_min:3, close_min:20, wifi:'', ready_msg:'', late_alert:true, tone:'chime', show_eta:true, show_items:true, rate:false, google_url:'' };
+  display_secs:60, remind_min:3, close_min:20, wifi:'', ready_msg:'', late_alert:true, tone:'chime', show_eta:true, show_items:true, rate:false, google_url:'', wa:'' };
 let PGS_STATE = null;   // { enabled, s, brand, autoReady, tablesMode, schemaOk }
 let PGS_SAVED = '';     // لقطة آخر حفظ — لزرّ «فيه تغييرات ما انحفظت»
 
@@ -14191,6 +14191,27 @@ function pgsRateStatus(c){
 function pgsGoogleHelp(url){
   if(url) return '✓ الراضي ينفتح له هالرابط مباشرة.';
   return 'من «ملفك التجاري في قوقل» (Google Business): اضغط «اطلب تقييمات» وانسخ الرابط والصقه هنا. بدون رابط، الراضي يشوف «شكراً» بس.';
+}
+/* رقم واتساب المحل للملاحظات (pager_settings.wa): الزبون الزعلان ينفتح له
+   واتساب على هالرقم والرسالة مكتوبة. يُحفظ أرقاماً بمفتاح الدولة -- نفس
+   قواعد waNumber في app/api/pager/rate/route.ts. */
+function pgsWaNumber(raw){
+  const d = String(raw || '').replace(/[٠-٩]/g, c => String('٠١٢٣٤٥٦٧٨٩'.indexOf(c))).replace(/\D/g, '');
+  if(/^05\d{8}$/.test(d)) return '966' + d.slice(1);
+  if(/^5\d{8}$/.test(d)) return '966' + d;
+  if(/^9665\d{8}$/.test(d)) return d;
+  if(/^00\d{9,14}$/.test(d)) return d.slice(2);
+  if(/^[1-9]\d{9,14}$/.test(d)) return d;
+  return null;
+}
+function pgsWaDisplay(wa){ return /^9665\d{8}$/.test(wa || '') ? '0' + wa.slice(3) : (wa || ''); }
+function pgsWaHelp(wa){
+  if(wa) return '✓ الزبون ينفتح له واتساب على هالرقم ورسالته جاهزة، يضغط «إرسال» بس.';
+  return 'اختياري. بدون رقم، الملاحظة توصلك هنا في اللوحة مع إشعار.';
+}
+function pgsSadFlowText(wa){
+  return wa ? 'يكتب ملاحظته وتوصلك رسالة واتساب على رقم المحل، وتنحفظ هنا بعد'
+            : 'يكتب ملاحظته ورقم واتسابه، وتوصلك أنت بس مع إشعار';
 }
 const PGS_TAG_ORDER = ['تأخّر الطلب','الطعم','الطلب ناقص أو غلط','التعامل','النظافة','السعر'];
 /** آخر التقييمات ومتوسطها: من pager_ratings (قراءة المحل نفسه بالـRLS). قاعدة
@@ -14240,6 +14261,7 @@ function pgsNormalize(raw){
   // التقييم مطفأ إلا لو فعّله صاحب المحل بنفسه.
   s.rate = s.rate === true;
   s.google_url = /^https:\/\/\S+$/.test(String(s.google_url || '').trim()) ? String(s.google_url).trim().slice(0, 300) : '';
+  s.wa = pgsWaNumber(s.wa) || '';
   s.tone = ['chime','bell','beep'].includes(s.tone) ? s.tone : 'chime';
   s.wifi = String(s.wifi || '').slice(0, 40);
   s.ready_msg = String(s.ready_msg || '').slice(0, 80);
@@ -14454,11 +14476,14 @@ function pagerSettingsTabHtml(){
       <div class="pgs-rate-opts" ${s.rate ? '' : 'hidden'}>
         <div class="pgs-rate-flow">
           <div><b>★★★★★ و ★★★★</b><span>يفتح له تقييم محلك في قوقل</span></div>
-          <div><b>★ إلى ★★★</b><span>يكتب ملاحظته ورقم واتسابه، وتوصلك أنت بس مع إشعار</span></div>
+          <div><b>★ إلى ★★★</b><span id="pgsSadFlow">${pgsSadFlowText(s.wa)}</span></div>
         </div>
         <div class="rk-field"><label for="pgsGoogle">رابط تقييم محلك في قوقل</label>
           <input type="url" id="pgsGoogle" dir="ltr" maxlength="300" value="${escapeHtml(s.google_url)}" placeholder="https://g.page/r/…/review"></div>
         <p class="pgs-help" id="pgsGoogleHelp">${pgsGoogleHelp(s.google_url)}</p>
+        <div class="rk-field"><label for="pgsWa">رقم واتساب المحل للملاحظات</label>
+          <input type="tel" id="pgsWa" dir="ltr" inputmode="tel" maxlength="16" value="${escapeHtml(pgsWaDisplay(s.wa))}" placeholder="05XXXXXXXX"></div>
+        <p class="pgs-help" id="pgsWaHelp">${pgsWaHelp(s.wa)}</p>
       </div>
       <div id="pgsRatings"></div>
     </div>
@@ -14556,6 +14581,15 @@ function wirePagerSettingsTab(){
     const h = document.getElementById('pgsGoogleHelp');
     const ok = /^https:\/\/\S+$/.test(s.google_url);
     if(h) h.innerHTML = s.google_url && !ok ? '<span style="color:var(--danger,#C2412D)">الرابط لازم يبدأ بـ https://</span>' : pgsGoogleHelp(ok ? s.google_url : '');
+    pgsRefresh();
+  });
+  on('pgsWa', 'input', e => {
+    const raw = e.target.value.trim();
+    const wa = pgsWaNumber(raw);
+    s.wa = wa || '';
+    const h = document.getElementById('pgsWaHelp');
+    if(h) h.innerHTML = raw && !wa ? '<span style="color:var(--danger,#C2412D)">اكتب الرقم كامل، مثل 05XXXXXXXX</span>' : pgsWaHelp(s.wa);
+    const f = document.getElementById('pgsSadFlow'); if(f) f.textContent = pgsSadFlowText(s.wa);
     pgsRefresh();
   });
   pgsLoadRatings();

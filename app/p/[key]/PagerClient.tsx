@@ -47,11 +47,18 @@ function Stars({ value, onPick }: { value: number; onPick: (n: number) => void }
   );
 }
 
-/** بعد الاستلام: نجوم. ٤-٥ ← رابط قوقل. ١-٣ ← ملاحظة خاصة لصاحب المحل فقط. */
-function RateCard({ bizName, google, onSend }: {
-  bizName: string; google: string | null;
+/**
+ * بعد الاستلام: نجوم. ٤-٥ ← رابط قوقل. ١-٣ ← ملاحظة خاصة لصاحب المحل فقط.
+ *
+ * ولو للمحل رقم واتساب (إعدادات البيجر): «أرسل» يحفظ الملاحظة ثم يفتح واتساب
+ * الزبون على رقم المحل والرسالة مكتوبة، يضغط «إرسال» بس. صاحب المحل عايش على
+ * الواتساب، واللوحة ما يفتحها كل شوي -- ويرد على الزبون من نفس المحادثة.
+ */
+function RateCard({ bizName, google, pageKey, orderNum, onSend }: {
+  bizName: string; google: string | null; pageKey: string; orderNum: string;
   onSend: (stars: number, tags: string[], text: string, phone: string) => Promise<void>;
 }) {
+  const [shopWa, setShopWa] = useState<string | null>(null);
   const [stars, setStars] = useState(0);
   const [step, setStep] = useState<"ask" | "happy" | "sad" | "sent">("ask");
   const [tags, setTags] = useState<string[]>([]);
@@ -63,11 +70,29 @@ function RateCard({ bizName, google, onSend }: {
   const pick = (n: number) => {
     setStars(n);
     // الراضي: يُحفظ تقييمه فوراً (ما ننتظره يرجع من قوقل).
-    if (n >= 4) { setStep("happy"); onSend(n, [], "", "").catch(() => {}); } else setStep("sad");
+    if (n >= 4) { setStep("happy"); onSend(n, [], "", "").catch(() => {}); }
+    else {
+      setStep("sad");
+      if (shopWa === null) {
+        fetch(`/api/pager/rate?key=${encodeURIComponent(pageKey)}`)
+          .then((r) => r.json()).then((d) => { if (typeof d?.wa === "string") setShopWa(d.wa); })
+          .catch(() => { /* بلا واتساب: الملاحظة توصل اللوحة كالعادة */ });
+      }
+    }
   };
+  const waText = () => [
+    `السلام عليكم، تقييمي لطلبي رقم #${orderNum} عند ${bizName}: ${"★".repeat(stars)}${"☆".repeat(5 - stars)} (${stars} من ٥)`,
+    tags.length ? `اللي ما عجبني: ${tags.join("، ")}` : "",
+    text.trim(),
+  ].filter(Boolean).join("\n");
   const send = async () => {
     setBusy(true); setErr("");
-    try { await onSend(stars, tags, text.trim(), phone.trim()); setStep("sent"); }
+    try {
+      await onSend(stars, tags, text.trim(), shopWa ? "" : phone.trim());
+      setStep("sent");
+      // بعد الحفظ: واتساب الزبون على رقم المحل والرسالة جاهزة.
+      if (shopWa) window.location.href = `https://wa.me/${shopWa}?text=${encodeURIComponent(waText())}`;
+    }
     catch (e) { setErr(e instanceof Error ? e.message : "تعذر الإرسال"); }
     finally { setBusy(false); }
   };
@@ -106,17 +131,19 @@ function RateCard({ bizName, google, onSend }: {
         ))}
       </div>
       <textarea className="pg-rate-txt" rows={3} maxLength={500} placeholder="تبي تضيف شي؟ (اختياري)" value={text} onChange={(e) => setText(e.target.value)} />
-      <div className="pg-rate-wa">
+      {shopWa ? null : <div className="pg-rate-wa">
         <label htmlFor="pgRateWa">رقم واتسابك <small>(اختياري)</small></label>
         <input id="pgRateWa" type="tel" inputMode="tel" dir="ltr" maxLength={16} placeholder="05XXXXXXXX" autoComplete="tel"
           value={phone} onChange={(e) => { setPhone(e.target.value); setErr(""); }} />
         <small>عشان {bizName} يتواصلون معك ويحلّون المشكلة.</small>
-      </div>
+      </div>}
       {err ? <p className="pg-rate-err" role="alert">{err}</p> : null}
-      <button className="pg-rate-send" disabled={busy || (!tags.length && !text.trim() && !phone.trim())} onClick={send}>
-        {busy ? "يرسل…" : "أرسل لصاحب المحل"}
+      <button className="pg-rate-send" disabled={busy || (!tags.length && !text.trim() && (shopWa ? true : !phone.trim()))} onClick={send}>
+        {busy ? "يرسل…" : shopWa ? "أرسلها واتساب للمحل" : "أرسل لصاحب المحل"}
       </button>
-      <small className="pg-rate-hint">ملاحظتك ورقمك يوصلون لصاحب المحل بس، ما ينشرون في أي مكان</small>
+      <small className="pg-rate-hint">{shopWa
+        ? "ينفتح لك واتساب والرسالة جاهزة، اضغط «إرسال» بس"
+        : "ملاحظتك ورقمك يوصلون لصاحب المحل بس، ما ينشرون في أي مكان"}</small>
     </section>
   );
   return (
@@ -540,7 +567,7 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
           <p>{phase === "cancelled" ? "لو عندك سؤال كلّم الكاشير." : `استلمت طلبك #${num}. نشوفك مرة ثانية!`}</p>
         </section>
         {rate ? (
-          <RateCard bizName={biz.name || "المحل"} google={s!.rating!.google || null}
+          <RateCard bizName={biz.name || "المحل"} google={s!.rating!.google || null} pageKey={uuid} orderNum={num}
             onSend={async (stars, tags, text, phone) => {
               const r = await fetch("/api/pager/rate", { method: "POST", headers: { "content-type": "application/json" },
                 body: JSON.stringify({ key: uuid, stars, tags, text: text || null, phone: phone || null }) });

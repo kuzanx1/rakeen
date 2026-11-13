@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { ensureVapidConfigured, sendPushToSubscription } from "@/lib/push";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { checkDbRateLimit } from "@/lib/dbRateLimit";
@@ -9,7 +9,9 @@ import { checkDbRateLimit } from "@/lib/dbRateLimit";
  *
  *   ٤-٥ نجوم: يُحفظ التقييم، والصفحة نفسها تفتح رابط قوقل.
  *   ١-٣:      يُحفظ مع الملاحظة ورقم الواتساب (اختياري)، ويوصل صاحب
- *             المحل إشعارٌ فوري.
+ *             المحل إشعارٌ فوري. ولو صاحب المحل حطّ رقم واتساب المحل
+ *             (pager_settings.wa)، تفتح الصفحة واتساب الزبون على ذاك الرقم
+ *             والرسالة مكتوبة -- يضغط «إرسال» بس.
  *
  * تقييمٌ واحد لكل طلب (order_id فريد)، وبعد ما يجهز فقط، ولو المحل مفعّل
  * التقييم والبيجر -- والبيجر نفسه مقفول على عماد وصرح في القاعدة.
@@ -28,6 +30,42 @@ function waNumber(raw: unknown): string | null {
   if (/^00\d{9,14}$/.test(d)) return d.slice(2);
   if (/^[1-9]\d{9,14}$/.test(d)) return d;
   return null;
+}
+
+type RateOrder = { id: number; business_id: number; status: string; ready_at: string | null;
+  businesses?: { pager_enabled?: boolean; pager_settings?: { rate?: boolean; wa?: string } | null } };
+
+/** رقم واتساب المحل للملاحظات -- محفوظ أرقاماً بمفتاح الدولة من لوحة التحكم. */
+function shopWa(o: RateOrder | null): string | null {
+  const wa = String(o?.businesses?.pager_settings?.wa || "");
+  return /^[1-9]\d{9,14}$/.test(wa) ? wa : null;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function findOrder(admin: SupabaseClient<any, any, any>, key: string): Promise<RateOrder | null> {
+  const { data } = await admin
+    .from("orders")
+    .select("id, business_id, status, ready_at, businesses!inner(pager_enabled, pager_settings)")
+    .eq("client_order_uuid", key)
+    .maybeSingle();
+  return (data as unknown as RateOrder) || null;
+}
+
+/**
+ * الصفحة تسأل قبل ما يكتب الزبون: هل للمحل واتساب؟ عشان تعرض «أرسل
+ * واتساب للمحل» وتشيل خانة رقم الزبون (رقمه يوصل مع رسالته أصلاً).
+ * رقم المحل نفسه رقمٌ يعلنه صاحبه للزبائن، والمفتاح هو باركود الطلب.
+ */
+export async function GET(request: NextRequest) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) return NextResponse.json({ wa: null });
+  const key = request.nextUrl.searchParams.get("key") || "";
+  if (!UUID.test(key)) return NextResponse.json({ wa: null });
+  const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
+  const o = await findOrder(admin, key);
+  if (!o?.businesses?.pager_enabled || o.businesses.pager_settings?.rate !== true) return NextResponse.json({ wa: null });
+  return NextResponse.json({ wa: shopWa(o) });
 }
 
 export async function POST(request: NextRequest) {
@@ -57,12 +95,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "محاولات كثيرة، حاول بعد شوي" }, { status: 429 });
   }
 
-  const { data: o } = await admin
-    .from("orders")
-    .select("id, business_id, status, ready_at, businesses!inner(pager_enabled, pager_settings)")
-    .eq("client_order_uuid", key)
-    .maybeSingle();
-  const biz = (o as unknown as { businesses?: { pager_enabled?: boolean; pager_settings?: { rate?: boolean } | null } } | null)?.businesses;
+  const o = await findOrder(admin, key);
+  const biz = o?.businesses;
   if (!o || !biz?.pager_enabled || biz.pager_settings?.rate !== true) {
     return NextResponse.json({ error: "التقييم غير متاح" }, { status: 404 });
   }
@@ -75,7 +109,7 @@ export async function POST(request: NextRequest) {
   });
   if (error) {
     // 23505 = قيّم هذا الطلب من قبل: مو خطأ عند الزبون.
-    if (error.code === "23505") return NextResponse.json({ ok: true, already: true });
+    if (error.code === "23505") return NextResponse.json({ ok: true, already: true, wa: low ? shopWa(o) : null, orderId: o.id });
     console.error("pager rate: insert failed", error);
     return NextResponse.json({ error: "تعذر الحفظ" }, { status: 500 });
   }
@@ -103,5 +137,5 @@ export async function POST(request: NextRequest) {
       console.error("pager rate: owner push failed", e);
     }
   }
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, wa: low ? shopWa(o) : null, orderId: o.id });
 }
