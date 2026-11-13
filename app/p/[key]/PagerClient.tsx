@@ -152,7 +152,6 @@ function RateCard({ bizName, google, pageKey, orderNum, onSend }: {
           <p className="pg-rate-p">وش عجبك؟ رأيك يساعد غيرك يجربنا.</p>
           <textarea className="pg-rate-txt" rows={3} maxLength={500} placeholder="اكتب رأيك (اختياري)" value={text} onChange={(e) => setText(e.target.value)} />
           <button type="button" className="pg-rate-send" onClick={toGoogle}>إرسال التقييم</button>
-          <small className="pg-rate-hint">ينفتح لك تقييم {bizName} في قوقل: اختر النجوم{text.trim() ? " والصق رأيك، تراه منسوخ" : ""}</small>
         </>
       ) : <p className="pg-rate-p">شكراً لك، نتشرف فيك مرة ثانية.</p>}
     </section>
@@ -178,9 +177,6 @@ function RateCard({ bizName, google, pageKey, orderNum, onSend }: {
       <button className="pg-rate-send" disabled={busy || (!tags.length && !text.trim() && (shopWa ? true : !phone.trim()))} onClick={send}>
         {busy ? "يرسل…" : "إرسال التقييم"}
       </button>
-      <small className="pg-rate-hint">{shopWa
-        ? "ينفتح لك واتساب والرسالة جاهزة، اضغط «إرسال» بس"
-        : "ملاحظتك ورقمك يوصلون لصاحب المحل بس، ما ينشرون في أي مكان"}</small>
     </section>
   );
   return (
