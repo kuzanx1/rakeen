@@ -17,10 +17,10 @@ import "./rakeen-landing.css";
 type Lang = "ar" | "en";
 type Period = "monthly" | "annual";
 
-const WA = "966557444227";
-const APP_STORE = "https://apps.apple.com/sa/app/id6808202307";
+export const WA = "966557444227";
+export const APP_STORE = "https://apps.apple.com/sa/app/id6808202307";
 // No self sign-up for now (lib/signup.ts): every "start" opens WhatsApp.
-const START = startWhatsAppLink();
+export const START = startWhatsAppLink();
 const waLink = (text: string) => `https://wa.me/${WA}?text=${encodeURIComponent(text)}`;
 const num = (n: number) => n.toLocaleString("en-US");
 
@@ -166,7 +166,7 @@ const lumOf = (hex: string) => {
 
 /* ---------------- copy ---------------- */
 
-const T = {
+export const T = {
   ar: {
     nav: { features: "الحلول", check: "يناسبني؟", plans: "الباقات", faq: "الأسئلة", login: "دخول", start: "ابدأ مجانًا" },
     hero: {
@@ -271,6 +271,7 @@ const T = {
       noneCta: "جرّب بدون التزام",
       recK: "الباقة اللي تكفيك",
       fixes: "وش بيحلّه لك ركين:",
+      all: (name: string, n: number) => `وفوقها، كل مزايا ${name} (${n} ${n <= 10 ? "مزايا" : "ميزة"}):`,
       try: "جرّبها مجانًا",
       see: "شوف الحلول بالتفصيل",
       free: "أول ٣٥٠ طلب مجانًا بكل المزايا. بدون بطاقة، وبدون عقد.",
@@ -516,6 +517,7 @@ const T = {
       noneCta: "Try it, no strings",
       recK: "The plan that covers you",
       fixes: "What Rakeen fixes for you:",
+      all: (name: string, n: number) => `Plus everything in ${name} (${n} features):`,
       try: "Try it free",
       see: "See the solutions",
       free: "First 350 orders free with every feature. No card, no contract.",
@@ -661,7 +663,7 @@ const T = {
 
 // English names for the package items (lib/plans.ts is Arabic only). A
 // missing one falls back to the Arabic text rather than disappearing.
-const ITEM_EN: Record<string, string> = {
+export const ITEM_EN: Record<string, string> = {
   "الكاشير": "Point of sale",
   "الفاتورة الضريبية": "Tax invoice with QR",
   "العمل بدون إنترنت": "Works offline",
@@ -685,7 +687,7 @@ const ITEM_EN: Record<string, string> = {
   "إدارة الفروع وتقارير لكل فرع": "Multi-branch with per-branch reports",
   "دعم أولوية": "Priority support",
 };
-const PLAN_EN: Record<string, { name: string; tagline: string }> = {
+export const PLAN_EN: Record<string, { name: string; tagline: string }> = {
   asas: { name: "Asas", tagline: "Sell, print and close your day" },
   emad: { name: "Emad", tagline: "Know what you earn, and bring customers back" },
   sarh: { name: "Sarh", tagline: "Direct orders, and room for more branches" },
@@ -693,7 +695,7 @@ const PLAN_EN: Record<string, { name: string; tagline: string }> = {
 
 // Short names for the cards (the quote keeps the full sentences). An item
 // missing here shows its full text, so a new item in lib/plans.ts still shows.
-const CARD_AR: Record<string, string> = {
+export const CARD_AR: Record<string, string> = {
   "شاشة المطبخ وطباعة المطبخ": "شاشة المطبخ وطباعته",
   "شاشة العميل: يشوف طلبه وباركود الولاء": "شاشة العميل",
   "المخزون والوصفات وتنبيهات النقص والاستهلاك التلقائي": "المخزون والوصفات والتنبيهات",
@@ -708,7 +710,7 @@ const CARD_AR: Record<string, string> = {
   "صفحة حجز المواعيد للعملاء": "صفحة حجز المواعيد",
   "إدارة الفروع وتقارير لكل فرع": "تعدد الفروع وتقارير لكل فرع",
 };
-const CARD_EN: Record<string, string> = {
+export const CARD_EN: Record<string, string> = {
   "شاشة المطبخ وطباعة المطبخ": "Kitchen screen & printing",
   "شاشة العميل: يشوف طلبه وباركود الولاء": "Customer display",
   "المخزون والوصفات وتنبيهات النقص والاستهلاك التلقائي": "Stock, recipes & alerts",
@@ -730,8 +732,8 @@ function planAdds(plan: Plan): string[] {
 }
 // Every item a package includes (its own plus the ones below it), for the
 // feature count and the comparison table.
-const LADDER = PLANS.map((p) => planAdds(p));
-const includedCount = (i: number) => LADDER.slice(0, i + 1).reduce((s, l) => s + l.length, 0);
+export const LADDER = PLANS.map((p) => planAdds(p));
+export const includedCount = (i: number) => LADDER.slice(0, i + 1).reduce((s, l) => s + l.length, 0);
 
 /* «وش اللي يتعبك؟»: كل مشكلة مربوطة بأقل باقة تحلّها (نفس توزيع
    lib/plans.ts) وبالحل اللي يشرحها تحت. الباقة المقترحة = أعلى باقة
@@ -755,7 +757,7 @@ const WHY_IC: IconName[] = ["layers", "qr", "wifi", "devices", "chat", "shield"]
 /* ---------------- small pieces ---------------- */
 
 // U+20C1, the official riyal sign; only the self-hosted saudi_riyal font has it.
-function Riyal() {
+export function Riyal() {
   return <span className="riyal" aria-label="SAR">{"⃁"}</span>;
 }
 
@@ -1021,7 +1023,7 @@ function WalletPass({ p, qr }: { p: WPass; qr: string }) {
 
 /* The passes fanned out like a hand of cards; the front one changes by
    itself, and a tap brings any card forward. */
-function WalletFan({ qr, lang }: { qr: string; lang: Lang }) {
+export function WalletFan({ qr, lang }: { qr: string; lang: Lang }) {
   const [front, setFront] = useState(0);
   const [hold, setHold] = useState(false);
   useEffect(() => {
@@ -1269,7 +1271,7 @@ function CountUp({ to, ms = 1100 }: { to: number; ms?: number }) {
 
 /* The hero cashier, styled after the real POS (lime category, dark price pill,
    quantity chips), ringing up a few items on a loop. */
-function HeroCashier({ lang, onPaid }: { lang: Lang; onPaid?: () => void }) {
+export function HeroCashier({ lang, onPaid }: { lang: Lang; onPaid?: () => void }) {
   const t = T[lang];
   const [lines, setLines] = useState<number[]>([]);
   const [paid, setPaid] = useState(false);
@@ -1363,7 +1365,7 @@ function HeroCashier({ lang, onPaid }: { lang: Lang; onPaid?: () => void }) {
   );
 }
 
-function Receipt({ lang, qr }: { lang: Lang; qr: string }) {
+export function Receipt({ lang, qr }: { lang: Lang; qr: string }) {
   const r = T[lang].rcpt;
   const items = [
     { q: 1, d: DEMO[0] },
@@ -1803,6 +1805,13 @@ export default function LandingPage() {
                         <Icon name="check" />
                         <span>{p.fix[lang]}</span>
                       </li>
+                    ))}
+                  </ul>
+                  {/* the fixes are only what was ticked; the plan carries far more */}
+                  <p className="chk-fixes-h">{t.check.all(planName(rec), includedCount(PLANS.indexOf(rec)))}</p>
+                  <ul className="chk-chips">
+                    {LADDER.slice(0, PLANS.indexOf(rec) + 1).flat().map((s) => (
+                      <li key={s}>{card(s).split(":")[0]}</li>
                     ))}
                   </ul>
                   <div className="chk-acts">

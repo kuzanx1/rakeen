@@ -1,4 +1,4 @@
-import LandingPage from "./landing/LandingPage";
+import LandingPage from "./landing/RakeenHome";
 
 /* رابط «نسيت كلمة المرور» يرجع لـ /dashboard. لكن لو لم يكن /dashboard في
    قائمة روابط Supabase المسموحة، يرجعه Supabase لعنوان الموقع الأساسي --
