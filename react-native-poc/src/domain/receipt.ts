@@ -54,6 +54,8 @@ export interface ReceiptLine {
  */
 export interface ReceiptData {
   orderId: number | null;
+  /** «م-7» بلا نت، بدل «سيُحدَّد عند الاتصال» (application/offlineRefService.ts). */
+  offlineRef?: string;
   lines: ReceiptLine[];
   subtotal: number;
   discount: number;
@@ -130,6 +132,8 @@ export interface KitchenTicketData {
   /** Call-buzzer number, when the shop hands them out. */
   pagerNumber?: number | null;
   orderId: number | null;
+  /** see ReceiptData.offlineRef */
+  offlineRef?: string;
   /** شعار المطعم، يتصدّر التذكرة بدل كلمة "طلب مطبخ". */
   logoUrl?: string;
   /** من طبعها. المطبخ يحتاج أن يعرف بمن يسأل عن صنف غير مفهوم. */

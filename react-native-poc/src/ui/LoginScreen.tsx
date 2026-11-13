@@ -10,6 +10,7 @@ import {
   selectBranch,
   setBranchPin,
   loginCashierWithPin,
+  restoreCashierSession,
   clearDeviceConfig,
 } from '../application/authService';
 import type { DeviceConfig, BranchOption, CashierProfile } from '../domain/auth';
@@ -68,6 +69,14 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
   useEffect(() => {
     (async () => {
       const cfg = await getDeviceConfig();
+      // الجلسة المحفوظة أولاً: إعادة تشغيل الجهاز -- بنت أو بدونه -- ترجعه للكاشير.
+      if (cfg.branchId != null) {
+        const restored = await restoreCashierSession(cfg.branchId).catch(() => null);
+        if (restored) {
+          onLoggedIn(restored);
+          return;
+        }
+      }
       setDevice(cfg);
       setLoading(false);
     })();

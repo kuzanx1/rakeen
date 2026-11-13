@@ -4274,6 +4274,42 @@ async function getQueuedOrders(){
     req.onerror = ()=> reject(req.error);
   });
 }
+/* رقمٌ مؤقت «م-7» لطلبٍ انحفظ بلا نت -- نظيرُ offlineRefService.ts في التطبيق.
+   رقم الطلب يعطيه الخادم (ما يتكرر بين أجهزة الفرع)، فكانت فاتورة بلا نت
+   تنطبع «سيُحدَّد عند الاتصال» وما عند الكاشير شي ينادي به الزبون. فينطبع
+   رقمٌ من الجهاز يبدأ من 1 كل يوم، ولما يرتفع الطلب يُحفظ الربط (م-7 ← #1234):
+   تنبيهٌ لحظتها، وسجلّ الطلبات يكتب «كان م-7». */
+function rkOfflineRefToday(){ const d = new Date(); return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate(); }
+function rkNextOfflineRef(){
+  let n = 1;
+  try {
+    const seq = JSON.parse(localStorage.getItem('rakeen_offline_ref_seq') || 'null');
+    if(seq && seq.day === rkOfflineRefToday()) n = seq.n + 1;
+    localStorage.setItem('rakeen_offline_ref_seq', JSON.stringify({ day: rkOfflineRefToday(), n }));
+  } catch(_) { /* أسوأ ما يصير رقمٌ مؤقت يتكرر */ }
+  return 'م-' + n;
+}
+function rkOfflineRefMap(){
+  try { return JSON.parse(localStorage.getItem('rakeen_offline_ref_map') || '{}') || {}; } catch(_) { return {}; }
+}
+function rkRememberOfflineRef(orderId, ref){
+  const map = rkOfflineRefMap();
+  if(map[String(orderId)] === ref) return;
+  map[String(orderId)] = ref;
+  const ids = Object.keys(map).sort((a, b) => Number(a) - Number(b));
+  ids.slice(0, Math.max(0, ids.length - 300)).forEach(id => { delete map[id]; });
+  try { localStorage.setItem('rakeen_offline_ref_map', JSON.stringify(map)); } catch(_) {}
+  showToast((LANG === 'en' ? 'Temporary order ' + ref + ' is now #' : 'الطلب المؤقت ' + ref + ' صار رقمه #') + orderId);
+}
+/* يعطي الطلبَ المعلّق رقماً مؤقتاً ويحفظه معه في الطابور -- مرة وحدة. */
+async function rkAssignOfflineRef(queued){
+  if(!queued || queued.type === 'dine_in_pay') return null;
+  if(!queued.offline_ref){
+    queued.offline_ref = rkNextOfflineRef();
+    try { await queueOrder(queued); } catch(_) {}
+  }
+  return queued.offline_ref;
+}
 async function sendOrderToServer(payload){
   const { data, error } = await window.supabaseClient.rpc('complete_pos_order', {
     p_client_order_uuid: payload.client_order_uuid, p_branch_id: payload.branch_id, p_shift_id: payload.shift_id,
@@ -4370,6 +4406,7 @@ async function syncQueue(){
       try {
         const orderId = await dispatchQueuedPayload(payload);
         await removeQueuedOrder(payload.client_order_uuid);
+        if(payload.offline_ref && typeof orderId === 'number') rkRememberOfflineRef(orderId, payload.offline_ref);
         if(payload.channel === 'delivery' && orderId) registerActiveDeliveryOrder(orderId, payload);
         anySucceeded = true;
       } catch (e) {
@@ -4642,6 +4679,7 @@ async function submitOrder(totals){
         payload.orderId = orderId;
       } catch(e){ /* stays queued — syncQueue() retries it */ }
     }
+    if(!payload.orderId) payload.offlineRef = await rkAssignOfflineRef(combinedPayload);
     return payload;
   }
 
@@ -4656,6 +4694,7 @@ async function submitOrder(totals){
     }
   }
   payload.orderId = orderId;
+  if(!orderId) payload.offlineRef = await rkAssignOfflineRef(payload);
   return payload;
 }
 
@@ -5520,7 +5559,7 @@ function buildLiveReceiptData(orderPayload, totals){
     // not assigned by the server yet. Printing nothing would leave the
     // customer with zero way to reference this order; say so honestly
     // instead of silently dropping the line.
-    orderNumber: orderPayload.orderId ? ('#' + orderPayload.orderId) : 'سيُحدَّد عند الاتصال',
+    orderNumber: orderPayload.orderId ? ('#' + orderPayload.orderId) : orderPayload.offlineRef ? (orderPayload.offlineRef + ' (مؤقت)') : 'سيُحدَّد عند الاتصال',
     metaLabel: bilingualOrderKind((CHANNEL_LABELS[orderPayload.channel] || orderPayload.channel) + liveTableLabel),
     showLogo: DEVICE.printReceiptLogo !== false && !!RECEIPT_LOGO_URL, logoUrl: RECEIPT_LOGO_URL,
     cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
@@ -5555,7 +5594,7 @@ function buildKitchenReceiptData(orderPayload){
     cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
     dateLabel: new Date().toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
     // رقم الطلب سطر قائم بذاته الآن، فلا يُطوى هنا داخل نص النوع.
-    orderNumber: orderPayload.orderId ? '#' + orderPayload.orderId : '—',
+    orderNumber: orderPayload.orderId ? '#' + orderPayload.orderId : (orderPayload.offlineRef || '—'),
     metaLabel: bilingualOrderKind((CHANNEL_LABELS[orderPayload.channel] || orderPayload.channel) + tableLabel),
     items,
     // Printed larger than anything else on the ticket: whoever finishes the
@@ -6223,6 +6262,7 @@ async function renderOrdersList(){
   // tab or every cancelled order would wrongly vanish from it.
   if(ordersActiveTab === 'completed') completedQuery = completedQuery.or('channel.not.in.(pickup,delivery),source.neq.online,delivered_at.not.is.null');
   const { data } = await completedQuery.order('created_at', {ascending:false}).limit(30);
+  const offlineRefs = rkOfflineRefMap();
   const real = (data||[]).map(o=>{
     let extra = '';
     if(o.channel === 'delivery'){
@@ -6231,7 +6271,7 @@ async function renderOrdersList(){
       extra = ' — استلام ' + new Date(o.scheduled_for).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'});
     }
     return {
-      id: '#' + o.id, orderId: o.id,
+      id: '#' + o.id + (offlineRefs[String(o.id)] ? ' (كان ' + escapeHtml(offlineRefs[String(o.id)]) + ')' : ''), orderId: o.id,
       meta: new Date(o.created_at).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}) + (o.customer_name ? ' — ' + escapeHtml(o.customer_name) : '') + escapeHtml(extra),
       total: Number(o.total)
     };

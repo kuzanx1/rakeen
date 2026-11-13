@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { getOfflineRefMap, onOfflineRefResolved } from '../application/offlineRefService';
 import { ActivityIndicator, FlatList, Modal, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import SheetBottomGap from './SheetBottomGap';
@@ -191,6 +192,14 @@ export default function OrderHistoryScreen({
   const [refundBusy, setRefundBusy] = useState(false);
   const [pendingRefundAmount, setPendingRefundAmount] = useState<number | undefined>(undefined);
   const [refundStatus, setRefundStatus] = useState('');
+  /** رقمٌ حقيقي ← رقمه المؤقت «م-7» لطلبات انحفظت بلا نت على هذا الجهاز. */
+  const [offlineRefs, setOfflineRefs] = useState<Record<string, string>>({});
+  useEffect(() => {
+    getOfflineRefMap().then(setOfflineRefs).catch(() => {});
+    return onOfflineRefResolved(() => {
+      getOfflineRefMap().then(setOfflineRefs).catch(() => {});
+    });
+  }, []);
   const [pinPendingRefund, setPinPendingRefund] = useState(false);
   const [refundAskOpen, setRefundAskOpen] = useState(false);
   const [refundAmountText, setRefundAmountText] = useState('');
@@ -607,7 +616,7 @@ export default function OrderHistoryScreen({
             <TouchableOpacity style={styles.row} onPress={() => openDetail(item.id)} activeOpacity={0.8}>
               <View style={[styles.rowBadge, { backgroundColor: ROW_BADGE_COLOR[status as OrderHistoryStatus] }]} />
               <View style={styles.rowInfo}>
-                <Text style={styles.rowTitle}>#{item.id} — {item.customerName || CHANNEL_LABELS[item.channel] || item.channel}</Text>
+                <Text style={styles.rowTitle}>#{item.id}{offlineRefs[String(item.id)] ? ` (كان ${offlineRefs[String(item.id)]})` : ''} — {item.customerName || CHANNEL_LABELS[item.channel] || item.channel}</Text>
                 <Text style={styles.rowMeta}>{formatArabicDateTimeShort(new Date(item.createdAt))}</Text>
               </View>
               <Money value={item.total} size={14.5} />

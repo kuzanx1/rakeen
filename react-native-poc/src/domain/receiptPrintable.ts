@@ -193,7 +193,8 @@ export function toReceiptPrintable(data: ReceiptData): ReceiptPrintable {
     // Ported from the PWA's own real orderNumber fallback text
     // (rakeen-pos.js:2923) -- an order still offline-queued has no
     // server-assigned id yet, and "#null" would be actively misleading.
-    orderNumber: data.orderId != null ? `#${data.orderId}` : 'سيُحدَّد عند الاتصال',
+    // وبلا نت: الرقم المؤقت «م-7 (مؤقت)» ينادى به الزبون لين يرتفع.
+    orderNumber: data.orderId != null ? `#${data.orderId}` : data.offlineRef ? `${data.offlineRef} (مؤقت)` : 'سيُحدَّد عند الاتصال',
     metaLabel: bilingualOrderKind(data.metaLabel ?? ''),
     pickupAt: data.pickupAt ?? '',
     refundOfOrder: data.refundOfOrder ?? '',
@@ -224,7 +225,7 @@ export function toKitchenTicketPrintable(data: KitchenTicketData): KitchenTicket
     dateLabel: formatArabicDateLabel(createdAt),
     // رقم الطلب سطر قائم بذاته الآن، لا مطويّاً في نص النوع: المطبخ
     // ينادي به، والكاشير يطابق به الكيس بصاحبه.
-    orderNumber: data.orderId != null ? `#${data.orderId}` : '—',
+    orderNumber: data.orderId != null ? `#${data.orderId}` : data.offlineRef ?? '—',
     cashierName: data.cashierName ?? '',
     metaLabel: bilingualOrderKind(
       data.metaLabel ?? (data.tableNumber != null ? `طاولة ${data.tableNumber}` : ''),

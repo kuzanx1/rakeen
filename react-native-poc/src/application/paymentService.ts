@@ -2,7 +2,7 @@ import { recordDuration } from '../infrastructure/perfLog';
 import { sqliteOrderQueueStorage } from '../infrastructure/sqliteOrderQueue';
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { openCashDrawer } from '../platform/cashDrawer';
-import { dispatchQueuedPayload } from './orderService';
+import { dispatchQueuedPayload, assignOfflineRef } from './orderService';
 import { QueuedPayload } from '../domain/order';
 import { PaymentState, DrawerState, drawerAlreadyCompleted } from '../domain/payment';
 import { profileToPrinterTarget, drawerKickCommandFor, isDrawerSupported } from '../domain/printerProfile';
@@ -40,6 +40,8 @@ export interface PaymentOutcome {
    *  so completed pickup/delivery sales printed "Order (offline)" on the
    *  receipt even when a real id existed the whole time. */
   orderId?: number;
+  /** «م-7» -- رقمٌ مؤقت للفاتورة لما ينحفظ الطلب بلا نت (offlineRefService). */
+  offlineRef?: string;
 }
 
 /**
@@ -154,6 +156,7 @@ async function runCompletePayment(
   let paymentState: PaymentState;
   let paymentError: string | undefined;
   let orderId: number | undefined;
+  let offlineRef: string | undefined;
   try {
     /**
      * ولا تُنتظر الشبكةُ إلى ما لا نهاية.
@@ -179,8 +182,9 @@ async function runCompletePayment(
   } catch (e) {
     paymentState = 'PAYMENT_SYNC_PENDING';
     paymentError = e instanceof Error ? e.message : String(e);
+    offlineRef = await assignOfflineRef(afterDrawer).catch(() => undefined);
     await sqliteOrderQueueStorage.put({ ...afterDrawer, payment_state: paymentState, last_error: paymentError });
   }
 
-  return { paymentState, drawerState, drawerError, paymentError, orderId };
+  return { paymentState, drawerState, drawerError, paymentError, orderId, offlineRef };
 }

@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 import * as kvStorage from '../infrastructure/mmkvStorage';
 import { supabase, RAKEEN_API_BASE_URL } from '../infrastructure/supabaseClient';
 import { Platform } from 'react-native';
@@ -278,6 +280,58 @@ export async function loginCashierWithPin(branchId: number, pin: string): Promis
   return { status: 'ok', profile };
 }
 
+/** مفتاحُ supabase-js لجلسته في AsyncStorage: sb-<project ref>-auth-token. */
+const SUPABASE_SESSION_KEY = 'sb-jgrlefclttoazamzvwca-auth-token';
+
+/**
+ * يرجّع الكاشير المحفوظ عند فتح التطبيق -- بلا رمز وبلا نت.
+ *
+ * كان التطبيق يبدأ كل مرة من شاشة الرمز، والرمز يُتحقق منه عند الخادم
+ * (/api/pos/login). فسنمي فُصل عنه النت ثم أُعيد تشغيله لا يدخل أبداً:
+ * «تعذر الاتصال بالخادم» -- والكاشير نفسه يبيع ويطبع بلا نت ما دام مفتوحاً.
+ * وكاشير الويب يرجع جلسته المحفوظة من أول يوم (initAuth)، فصار مثله.
+ *
+ * بلا نت لا يُسأل الخادم أصلاً: getSession بتوكن منتهٍ يحاول تجديده ويعيد
+ * المحاولة نصف دقيقة، فتُقرأ الجلسة المحفوظة كما هي، والملف من آخر نسخة
+ * محفوظة. وsupabase-js لا يمسح جلسته عند فشل الشبكة -- يمسحها فقط حين
+ * يرفضها الخادم -- فالجلسة الموجودة هنا جلسةٌ صالحة، وتتجدد وحدها لما يرجع النت.
+ */
+export async function restoreCashierSession(branchId: number): Promise<CashierProfile | null> {
+  const net = await NetInfo.fetch().catch(() => null);
+  const offline = net?.isConnected === false;
+  let userId: string | null = null;
+  if (!offline) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      userId = session?.user?.id ?? null;
+    } catch {
+      userId = null;
+    }
+  }
+  if (!userId) {
+    try {
+      const raw = await AsyncStorage.getItem(SUPABASE_SESSION_KEY);
+      userId = raw ? (JSON.parse(raw)?.user?.id ?? null) : null;
+    } catch {
+      userId = null;
+    }
+  }
+  if (!userId) return null;
+  const profile = offline ? await cachedCashierProfile(userId) : await loadCashierProfile(userId);
+  // جلسةُ مالكٍ أو جهازٌ أُعيد ربطه بفرع آخر: شاشةُ الرمز كما كانت.
+  if (!profile || profile.user_type !== 'employee' || profile.branch_id !== branchId) return null;
+  return profile;
+}
+
+async function cachedCashierProfile(userId: string): Promise<CashierProfile | null> {
+  try {
+    const cached = await kvStorage.getItem(CASHIER_PROFILE_CACHE_PREFIX + userId);
+    return cached ? JSON.parse(cached) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Same offline-boot fallback pattern as the web app's loadCashierProfile:
  * a cold boot with no network can't run this query at all, so fall back
@@ -291,14 +345,7 @@ async function loadCashierProfile(userId: string): Promise<CashierProfile | null
     .eq('id', userId)
     .single();
 
-  if (error || !profile) {
-    try {
-      const cached = await kvStorage.getItem(CASHIER_PROFILE_CACHE_PREFIX + userId);
-      return cached ? JSON.parse(cached) : null;
-    } catch {
-      return null;
-    }
-  }
+  if (error || !profile) return cachedCashierProfile(userId);
 
   try {
     await kvStorage.setItem(CASHIER_PROFILE_CACHE_PREFIX + userId, JSON.stringify(profile));
@@ -309,5 +356,8 @@ async function loadCashierProfile(userId: string): Promise<CashierProfile | null
 }
 
 export async function logout(): Promise<void> {
-  await supabase.auth.signOut();
+  // بلا نت يرجع signOut بخطأ ويترك الجلسة محفوظة -- وrestoreCashierSession
+  // يرجّعها عند التشغيل التالي. فالخروج يمسحها من الجهاز في كل حال.
+  const { error } = await supabase.auth.signOut();
+  if (error) await supabase.auth.signOut({ scope: 'local' });
 }

@@ -116,6 +116,9 @@ export interface OrderPayload extends Partial<PaymentTracking> {
   platform_invoice_last4: string | null;
   table_id: number | null;
   items: OrderItemPayload[];
+  /** رقمٌ مؤقت «م-7» انطبع على فاتورةٍ بلا نت -- محلّي، لا يُرسل للخادم
+   *  (application/offlineRefService.ts). */
+  offline_ref?: string;
   // Queue bookkeeping -- added once persisted, absent on a fresh payload.
   retry_count?: number;
   next_retry_at?: number;
@@ -138,6 +141,8 @@ export interface DineInRegisterPayload extends Partial<PaymentTracking> {
   table_id: number;
   staff_member_id: number | null;
   existing_order_id: number | null;
+  /** see OrderPayload.offline_ref */
+  offline_ref?: string;
   retry_count?: number;
   next_retry_at?: number;
   stuck?: boolean;

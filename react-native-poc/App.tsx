@@ -89,6 +89,7 @@ import { WelcomeSplash } from './src/ui/WelcomeSplash';
 import ShiftClosedScreen from './src/ui/ShiftClosedScreen';
 import CashMovementModal from './src/ui/CashMovementModal';
 import WasteModal from './src/ui/WasteModal';
+import { onOfflineRefResolved } from './src/application/offlineRefService';
 import type { ClosingReport } from './src/domain/shift';
 
 /** React Native's Hermes runtime has no global `btoa` (unlike a browser) —
@@ -271,6 +272,11 @@ function App(): React.JSX.Element {
   // should not look like a different class of event from every other
   // message in the app.
   const { showToast: setStatusMessage } = useToast();
+  // طلبٌ انطبع بلا نت برقمٍ مؤقت ارتفع الآن: الكاشير يعرف رقمه الحقيقي.
+  useEffect(
+    () => onOfflineRefResolved((id, ref) => setStatusMessage(`الطلب المؤقت ${ref} صار رقمه #${id}`)),
+    [setStatusMessage],
+  );
   /** موافقة مدير -- openPinModal() in the source (rakeen-pos.js:5157). */
   const [managerPinOpen, setManagerPinOpen] = useState(false);
   /** أيُّ شاشةِ عميلٍ تخصّ هذي النقطة -- يختارها الكاشير، لا المالك. */

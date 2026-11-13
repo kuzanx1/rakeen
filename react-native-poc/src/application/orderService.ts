@@ -3,6 +3,7 @@ import { sqliteOrderQueueStorage } from '../infrastructure/sqliteOrderQueue';
 import { QueuedPayload, OrderPayload, DineInRegisterPayload, DineInPayPayload } from '../domain/order';
 import { syncQueuedOrders, SyncOutcome } from '../domain/orderQueue';
 import { markOwnOrder, markOwnPayment } from './ownOrders';
+import { nextOfflineRef, rememberOfflineRef } from './offlineRefService';
 
 /**
  * Real RPC dispatch -- exact same three RPCs, exact same parameter names,
@@ -89,10 +90,24 @@ export async function dispatchQueuedPayload(payload: QueuedPayload): Promise<unk
     return sendDineInPayToServer(payload);
   }
   await markOwnOrder((payload as { client_order_uuid?: string }).client_order_uuid).catch(() => {});
-  if (payload.type === 'dine_in_register') {
-    return sendDineInRegisterToServer(payload);
+  const result =
+    payload.type === 'dine_in_register'
+      ? await sendDineInRegisterToServer(payload)
+      : await sendOrderToServer(payload as OrderPayload);
+  // طلبٌ انطبع برقمٍ مؤقت بلا نت: الآن عرفنا رقمه الحقيقي.
+  if (payload.offline_ref && typeof result === 'number') {
+    await rememberOfflineRef(result, payload.offline_ref).catch(() => {});
   }
-  return sendOrderToServer(payload as OrderPayload);
+  return result;
+}
+
+/** يعطي الطلبَ المعلّق رقماً مؤقتاً ويحفظه معه في الطابور -- مرة وحدة. */
+export async function assignOfflineRef(payload: QueuedPayload): Promise<string | undefined> {
+  if (payload.type === 'dine_in_pay') return undefined; // له رقمه الحقيقي من قبل
+  if (payload.offline_ref) return payload.offline_ref;
+  const ref = await nextOfflineRef();
+  payload.offline_ref = ref;
+  return ref;
 }
 
 /**
@@ -104,14 +119,18 @@ export async function dispatchQueuedPayload(payload: QueuedPayload): Promise<unk
  * whether the immediate attempt succeeded, but the order is safe in the
  * queue either way.
  */
-export async function submitOrder(payload: QueuedPayload): Promise<{ immediate: boolean; orderId?: number; error?: string }> {
+export async function submitOrder(
+  payload: QueuedPayload,
+): Promise<{ immediate: boolean; orderId?: number; offlineRef?: string; error?: string }> {
   await sqliteOrderQueueStorage.put(payload);
   try {
     const result = await dispatchQueuedPayload(payload);
     await sqliteOrderQueueStorage.remove(payload.client_order_uuid);
     return { immediate: true, orderId: typeof result === 'number' ? result : undefined };
   } catch (e) {
-    return { immediate: false, error: e instanceof Error ? e.message : String(e) };
+    const offlineRef = await assignOfflineRef(payload).catch(() => undefined);
+    if (offlineRef) await sqliteOrderQueueStorage.put(payload).catch(() => {});
+    return { immediate: false, offlineRef, error: e instanceof Error ? e.message : String(e) };
   }
 }
 

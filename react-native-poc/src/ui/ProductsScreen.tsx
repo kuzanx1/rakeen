@@ -1049,6 +1049,7 @@ export default function ProductsScreen({
         if (shouldPrintKitchenTicket(printerProfileForKitchen) && planHas('kds')) {
           enqueuePrintJob('kitchen', {
             orderId: result.orderId ?? null,
+            offlineRef: result.offlineRef,
             tableNumber: selectedTable?.number ?? null,
             lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
             branchName: device.branchName ?? undefined,
@@ -1298,6 +1299,7 @@ export default function ProductsScreen({
             : '';
           const customerReceipt = {
               orderId: outcome.orderId ?? null,
+              offlineRef: outcome.offlineRef,
               lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
               subtotal: cart.totals.subtotal,
               discount: cart.totals.discount,
@@ -1333,6 +1335,7 @@ export default function ProductsScreen({
           if (kitchenTicketByButton(printerProfileForReceipt) && planHas('kds')) {
             lastKitchen = {
               orderId: outcome.orderId ?? null,
+              offlineRef: outcome.offlineRef,
               tableNumber: null,
               lines: customerReceipt.lines,
               branchName: device.branchName ?? undefined,
@@ -1362,6 +1365,7 @@ export default function ProductsScreen({
             } else {
               enqueuePrintJob('kitchen', {
                 orderId: outcome.orderId ?? null,
+                offlineRef: outcome.offlineRef,
                 tableNumber: null,
                 lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
                 branchName: device.branchName ?? undefined,
