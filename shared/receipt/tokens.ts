@@ -66,72 +66,84 @@ export const TYPE = {
   /** اسمُ المنشأة -- أكبرُ ما في الترويسة. */
   businessName: 30,
   /** السطرُ التعريفيّ تحت الاسم. */
-  tagline: 17,
+  tagline: 19,
   /** الفرعُ والحيُّ والمدينة. */
-  where: 16,
+  where: 18,
   /** اسمُ الفرع وحدَه حين لا يوجد عنوان. */
-  branchOnly: 19,
+  branchOnly: 21,
 
   /** عنوانُ "فاتورة ضريبية مبسطة" -- تفرضه هيئةُ الزكاة. */
-  zatcaHeading: 16,
+  zatcaHeading: 18,
   /** الرقمُ الضريبيّ. */
-  zatcaVatNo: 15,
+  zatcaVatNo: 18,
 
   /** ملصقُ "رقم الطلب" داخل الصندوق. */
-  orderLabel: 16,
+  orderLabel: 18,
   /** رقمُ الطلب داخل الصندوق -- أكبرُ رقمٍ على الورقة. */
   orderNumber: 38,
   /** رقمُ الطلب في القالب المضغوط: سطرٌ واحد بلا صندوق. */
-  orderPlain: 17,
+  orderPlain: 20,
   /** رقمُ الطلب في الشريط المقلوب. */
   orderInvert: 24,
   /** الملصقُ والرقم في القالب الأنيق (حروفٌ متباعدة). */
-  orderSpacedLabel: 15,
+  orderSpacedLabel: 17,
   orderSpacedNumber: 28,
 
   /** تاريخُ الطلب. */
-  date: 15,
+  date: 18,
   /** عناوينُ الأقسام الصغيرة: «الطلب»، «الحساب». */
-  sectionLabel: 14,
+  sectionLabel: 17,
   /** الكاشير، نوعُ الطلب، العميل، الجوال. */
-  meta: 15,
+  meta: 18,
 
   /** اسمُ الصنف. */
-  itemName: 21,
+  itemName: 22,
   /** الكميةُ والسعرُ في عمودَيهما. */
-  itemNumeric: 19,
+  itemNumeric: 21,
   /** الإضافاتُ والملاحظاتُ تحت الصنف. */
-  itemSub: 16,
+  itemSub: 18,
   /** سطرُ «٢ × ١٢٫٠٠» حين تتعدّد الكمية. */
-  itemUnitPrice: 15,
+  itemUnitPrice: 18,
   /** الصنفُ في قالب النقاط الموصِلة. */
-  itemLeader: 17,
+  itemLeader: 20,
 
   /** ملاحظةُ الطلب كلِّه. */
-  orderNote: 15,
+  orderNote: 18,
 
   /** المجموعُ الفرعيّ، والخصم، والضريبة. */
-  totalRow: 18,
+  totalRow: 20,
   /** الإجماليُّ النهائيّ، بحسب القالب. */
   grandTotalBold: 24,
-  grandTotalPlain: 19,
+  grandTotalPlain: 22,
   grandTotalBox: 22,
   grandTotalInvert: 21,
 
   /** طريقةُ الدفع والباقي. */
-  payment: 17,
+  payment: 19,
   /** رسالةُ الخاتمة. */
-  footer: 18,
+  footer: 19,
 } as const;
 
 export type TypeToken = keyof typeof TYPE;
 
 /** أوزانُ الخطّ. */
+/**
+ * وما من وزنٍ دون السبعمئة، وهذا مقصود.
+ *
+ * كان «العاديّ» ستَّمئة، وليس في الخطوط المحزومة ستُّمئة: التطبيقُ والويبُ
+ * كلاهما ينزلان بها إلى Tajawal Regular (٤٠٠). وقِيس ذلك الوزنُ على دقّة
+ * الطابعة: ٦٢٪ من خطوط سطرٍ بمقاس ١٥ عرضُها نقطةٌ واحدة، والرأسُ الحراريُّ
+ * يطبع النقطةَ المفردة باهتةً أو لا يطبعها -- فتخرج الفاتورةُ كأنها تُمحى.
+ * والوزنُ الثقيل (Tajawal Bold) بالمقاس نفسه: ٥٪.
+ *
+ * فالتراتبُ على الورقة بالمقاس لا بالوزن. والخطُّ الأحاديُّ كذلك: سبعمئة
+ * تأخذ IBM Plex Mono SemiBold في العميلين.
+ */
 export const WEIGHT = {
-  regular: 600,
+  regular: 700,
   medium: 700,
   bold: 800,
-  mono: 500,
+  mono: 700,
 } as const;
 
 /**
@@ -163,9 +175,9 @@ export const SPACE = {
   hairlineAbove: 0.3,
   hairlineBelow: 0.45,
   /** سطرُ اسمِ الصنف. */
-  itemNameLine: 0.85,
+  itemNameLine: 0.9,
   /** سطرُ إضافةٍ أو ملاحظة. */
-  itemSubLine: 0.7,
+  itemSubLine: 0.78,
   /** بعد الصنف وقبل الذي يليه. */
   afterItem: 0.25,
   /** قبل صندوق رقم الطلب. */
@@ -310,9 +322,9 @@ export const PAGER = {
   /** أضيقُ عمودِ كلامٍ يُقبل بجانب الباركود؛ دونه يُرصّ عمودياً. */
   minTextW: 220,
   title: 26,
-  line: 17,
+  line: 19,
   tag: 19,
-  wifi: 15,
+  wifi: 17,
   /** سُمك إطار «طلب ١٢٧». */
   tagBorder: 2,
   before: 0.6,
@@ -350,7 +362,7 @@ export const THEMES: Record<string, ReceiptThemeTokens> = {
   // المضغوط: أقصرُ ورقةٍ ممكنة. بلا شعارٍ ولا خطوطٍ ولا عناوين -- الفراغُ
   // وحدَه يفصل، والصنفُ وسعرُه على سطرٍ واحد تصلهما نقاط.
   compact: {
-    density: 0.68, typeScale: 0.88, showLogo: false, logoWidth: 0.24,
+    density: 0.72, typeScale: 0.94, showLogo: false, logoWidth: 0.24,
     rule: 'none', orderStyle: 'plain', totalStyle: 'plain', itemStyle: 'leaders',
     sectionLabels: false, headerBand: false, boxedTotal: false, qrMaxSize: 170,
   },
@@ -388,13 +400,13 @@ export const KITCHEN = {
   titleWithLogo: 24,
   titleAlone: 32,
   branch: 18,
-  date: 16,
+  date: 18,
   /** نوعُ الطلب: محلي، سفري، توصيل. */
   meta: 20,
   /** الرقمُ الذي يُنادى به -- جهازُ النداء إن وُجد، وإلّا رقمُ الطلب.
    *  ولا يجتمعان: رقمان كبيران متجاوران يجعلان القارئَ يتردّد أيَّهما
    *  ينادي، وهو واقفٌ في زحام. */
-  callLabel: 16,
+  callLabel: 18,
   pagerNumber: 44,
   orderNumber: 40,
   /** الصنفُ وكميتُه -- أكبرُ نصٍّ يُقرأ في العمل. */
@@ -402,7 +414,7 @@ export const KITCHEN = {
   /** الإضافاتُ والملاحظات. */
   sub: 18,
   /** «طبعها» في الأسفل. */
-  by: 16,
+  by: 18,
   /** «بالعافية عليكم». */
   blessing: 22,
   logoWidth: 0.34,
@@ -418,7 +430,7 @@ export const KITCHEN_SPACE = {
   beforeCall: 0.2,
   afterRule: 0.6,
   itemLine: 0.9,
-  subLine: 0.7,
+  subLine: 0.75,
   afterItem: 0.3,
   beforeBy: 0.15,
   beforeBlessing: 0.35,
@@ -437,20 +449,20 @@ export const SHIFT = {
   businessName: 30,
   branch: 19,
   title: 20,
-  titleEn: 15,
-  date: 16,
+  titleEn: 17,
+  date: 18,
   /** الكاشيرُ ووقتُ البدء. */
-  meta: 17,
-  metaSmall: 16,
+  meta: 18,
+  metaSmall: 18,
   /** عناوينُ الأقسام: المبيعات، طرق الدفع، الصندوق. */
-  sectionLabel: 16,
-  row: 18,
+  sectionLabel: 18,
+  row: 19,
   /** صافي المبيعات -- خلاصةُ قسم المبيعات. */
   net: 20,
   /** الفرق -- السطرُ الوحيد الذي يُفتح عليه تحقيق، فله إطارُه. */
   variance: 22,
-  counts: 17,
-  signature: 15,
+  counts: 18,
+  signature: 17,
 } as const;
 
 export const SHIFT_SPACE = {

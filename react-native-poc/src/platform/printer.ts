@@ -112,9 +112,11 @@ export interface PrinterProfile {
   capabilityProfileId?: string;
   rasterCommand?: 'modern' | 'legacy';
   bluetoothName?: string;
-  /** وضوح الطباعة (domain/escposRaster.ts). فارغ = تلقائي:
-   *  طابعة السنمي الداخلية «عادي»، وأي طابعة ثانية «غامق». */
+  /** وضوح الطباعة (domain/escposRaster.ts). فارغ = «عادي».
+   *  ولا يُعتدّ به إلا مع printDarknessRev === 2: ما حُفظ قبل تثقيل خطّ
+   *  الفاتورة كان مُعايَراً على الخطّ الرفيع، وهو على الثقيل يُلصق الحروف. */
   printDarkness?: 'normal' | 'dark' | 'darker';
+  printDarknessRev?: number;
   usbAccessoryId?: string;
   usbAccessoryName?: string;
   /** Feature Parity Pass -- Printing Configuration. Ported verbatim from

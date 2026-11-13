@@ -83,14 +83,16 @@ describe('print darkness', () => {
 describe('resolvePrintDarkness', () => {
   test('SUNMI InnerPrinter defaults to normal, any other printer to dark', () => {
     const net = emptyPrinterProfile();
-    expect(resolvePrintDarkness(net)).toBe('dark');
+    expect(resolvePrintDarkness(net)).toBe('normal');
     expect(resolvePrintDarkness({ ...net, transport: 'bluetooth', bluetoothId: 'x', bluetoothName: 'InnerPrinter' })).toBe('normal');
-    expect(resolvePrintDarkness({ ...net, transport: 'bluetooth', bluetoothId: 'x', bluetoothName: 'XP-P323B' })).toBe('dark');
-    expect(resolvePrintDarkness(null)).toBe('dark');
+    expect(resolvePrintDarkness({ ...net, transport: 'bluetooth', bluetoothId: 'x', bluetoothName: 'XP-P323B' })).toBe('normal');
+    expect(resolvePrintDarkness(null)).toBe('normal');
+    // a choice saved against the old thin font is ignored
+    expect(resolvePrintDarkness({ ...net, printDarkness: 'dark' })).toBe('normal');
   });
   test('an explicit choice always wins', () => {
     const inner = { ...emptyPrinterProfile(), transport: 'bluetooth' as const, bluetoothId: 'x', bluetoothName: 'InnerPrinter' };
-    expect(resolvePrintDarkness({ ...inner, printDarkness: 'darker' })).toBe('darker');
+    expect(resolvePrintDarkness({ ...inner, printDarkness: 'darker', printDarknessRev: 2 })).toBe('darker');
     expect(resolvePrintDarkness({ ...emptyPrinterProfile(), printDarkness: 'normal' })).toBe('normal');
   });
 });

@@ -128,16 +128,28 @@ export function createContext(opts: {
       return lines.length > 0 ? lines : [''];
     },
 
+    /* والسطرُ الذي لا يسعه عرضُ الورق يلتفّ -- هنا وفي rowText. كان يُرسم
+       سطراً واحداً بلا حدّ، فاسمُ عميلٍ طويل على ورق الثمانٍ والخمسين يخرج
+       من حافّة الورقة ويُقصّ. والسطرُ الذي يسعه العرضُ يخرج كما كان. */
     centerText(t, size, bold, step) {
-      ctx.text(t, width / 2, size, bold ? WEIGHT.bold : WEIGHT.regular, 'sans', 'center', 'rtl');
-      ctx.y += ctx.gap(step ?? (size > 22 ? 1.3 : 1));
+      const weight = bold ? WEIGHT.bold : WEIGHT.regular;
+      for (const line of ctx.wrap(t, size, weight, 'sans', ctx.contentWidth)) {
+        ctx.text(line, width / 2, size, weight, 'sans', 'center', 'rtl');
+        ctx.y += ctx.gap(step ?? (size > 22 ? 1.3 : 1));
+      }
     },
 
     /** عربيٌّ يميناً ورقمٌ يساراً -- وهو ترتيبُ كلّ سطور الحساب. */
     rowText(leftMono, rightArabic, size, bold, step) {
-      ctx.text(rightArabic, width - PAD, size, bold ? WEIGHT.bold : WEIGHT.regular, 'sans', 'right', 'rtl');
-      if (leftMono) ctx.text(leftMono, PAD, size, WEIGHT.mono, 'mono', 'left', 'ltr');
-      ctx.y += ctx.gap(step ?? 1);
+      const weight = bold ? WEIGHT.bold : WEIGHT.regular;
+      const taken = leftMono ? measure(leftMono, size, WEIGHT.mono, 'mono') + size : 0;
+      const lines = ctx.wrap(rightArabic, size, weight, 'sans', ctx.contentWidth - taken);
+      lines.forEach((line, i) => {
+        ctx.text(line, width - PAD, size, weight, 'sans', 'right', 'rtl');
+        // المبلغُ على السطر الأخير: هو الذي تنتهي عنده العينُ
+        if (leftMono && i === lines.length - 1) ctx.text(leftMono, PAD, size, WEIGHT.mono, 'mono', 'left', 'ltr');
+        ctx.y += ctx.gap(step ?? 1);
+      });
     },
 
     rule(after) {

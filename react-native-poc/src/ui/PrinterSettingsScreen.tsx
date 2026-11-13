@@ -17,6 +17,7 @@ import {
   PAPER_WIDTH_PRESETS,
   PRINT_DARKNESS_PRESETS,
   resolvePrintDarkness,
+  PRINT_DARKNESS_REV,
   SUPPORTED_TRANSPORTS,
   profileToPrinterTarget,
 } from '../domain/printerProfile';
@@ -475,7 +476,7 @@ export default function PrinterSettingsScreen({
               <TouchableOpacity
                 key={preset.value}
                 style={[styles.paperOption, active && styles.paperOptionActive]}
-                onPress={() => update({ printDarkness: preset.value })}
+                onPress={() => update({ printDarkness: preset.value, printDarknessRev: PRINT_DARKNESS_REV })}
                 activeOpacity={0.8}>
                 <Text style={[styles.paperOptionText, active && styles.paperOptionTextActive]}>{preset.label}</Text>
               </TouchableOpacity>

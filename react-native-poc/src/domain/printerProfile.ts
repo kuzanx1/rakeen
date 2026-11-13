@@ -173,14 +173,20 @@ export function isSunmiInnerPrinter(profile: PrinterProfile | null | undefined):
   return !!profile && profile.transport === 'bluetooth' && /innerprinter/i.test(profile.bluetoothName || '');
 }
 
+/** نسخةُ معايرة «وضوح الطباعة». ٢ = بعد تثقيل خطّ الفاتورة كلِّه. */
+export const PRINT_DARKNESS_REV = 2;
+
 /**
- * وضوح الطباعة الفعلي. اختيار صاحب الجهاز أولاً، وإلا فالتلقائي:
- * رأس السنمي الداخلي يطبع خط النقطة الواحدة أسود فيبقى «عادي» كما هو،
- * وكل طابعة ثانية «غامق» (انظر قياسات domain/escposRaster.ts).
+ * وضوح الطباعة الفعلي: «عادي» لكلّ طابعة، إلا أن يختار صاحبُ الجهاز غيره.
+ *
+ * كان التلقائيُّ «غامق» لغير السنمي، يومَ كان خطُّ الفاتورة رفيعاً وأكثرُ
+ * خطوطه نقطةً واحدة. وعولج ذلك من أصله بالوزن الثقيل
+ * (shared/receipt/tokens.ts، WEIGHT) -- والتسميكُ فوق الثقيل يُلصق الحروف.
+ * فاختيارٌ حُفظ على المعايرة القديمة لا يُعتدّ به.
  */
 export function resolvePrintDarkness(profile: PrinterProfile | null | undefined): 'normal' | 'dark' | 'darker' {
-  if (profile?.printDarkness) return profile.printDarkness;
-  return isSunmiInnerPrinter(profile) ? 'normal' : 'dark';
+  if (profile?.printDarkness && profile.printDarknessRev === PRINT_DARKNESS_REV) return profile.printDarkness;
+  return 'normal';
 }
 
 export const PRINT_DARKNESS_PRESETS: readonly { label: string; value: 'normal' | 'dark' | 'darker' }[] = [
