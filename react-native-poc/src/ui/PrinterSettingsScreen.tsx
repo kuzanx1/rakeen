@@ -15,9 +15,6 @@ import {
   validatePrinterProfile,
   emptyPrinterProfile,
   PAPER_WIDTH_PRESETS,
-  PRINT_DARKNESS_PRESETS,
-  resolvePrintDarkness,
-  PRINT_DARKNESS_REV,
   SUPPORTED_TRANSPORTS,
   profileToPrinterTarget,
 } from '../domain/printerProfile';
@@ -468,24 +465,6 @@ export default function PrinterSettingsScreen({
             );
           })}
         </View>
-        <FieldLabel>وضوح الطباعة</FieldLabel>
-        <View style={styles.row}>
-          {PRINT_DARKNESS_PRESETS.map(preset => {
-            const active = resolvePrintDarkness(profile) === preset.value;
-            return (
-              <TouchableOpacity
-                key={preset.value}
-                style={[styles.paperOption, active && styles.paperOptionActive]}
-                onPress={() => update({ printDarkness: preset.value, printDarknessRev: PRINT_DARKNESS_REV })}
-                activeOpacity={0.8}>
-                <Text style={[styles.paperOptionText, active && styles.paperOptionTextActive]}>{preset.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-        <Text style={styles.themeHint}>
-          لو الكلام يطلع باهت أو مقطّع، اختر «غامق» أو «غامق جداً» واحفظ واطبع اختبار. طابعة السنمي «عادي»، وغيرها «غامق» تلقائياً.
-        </Text>
       </Section>
 
       <Section title="جهاز الطباعة للفرع">

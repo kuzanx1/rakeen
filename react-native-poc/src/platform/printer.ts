@@ -112,7 +112,9 @@ export interface PrinterProfile {
   capabilityProfileId?: string;
   rasterCommand?: 'modern' | 'legacy';
   bluetoothName?: string;
-  /** وضوح الطباعة (domain/escposRaster.ts). فارغ = «عادي».
+  /** متروك: أُزيل إعدادُ «وضوح الطباعة» والطباعةُ «عادي» دائماً
+   *  (domain/printerProfile.ts). يبقى الحقلان لأنهما في ملفّاتٍ محفوظة.
+   *  كان: وضوح الطباعة (domain/escposRaster.ts). فارغ = «عادي».
    *  ولا يُعتدّ به إلا مع printDarknessRev === 2: ما حُفظ قبل تثقيل خطّ
    *  الفاتورة كان مُعايَراً على الخطّ الرفيع، وهو على الثقيل يُلصق الحروف. */
   printDarkness?: 'normal' | 'dark' | 'darker';

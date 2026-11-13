@@ -173,27 +173,18 @@ export function isSunmiInnerPrinter(profile: PrinterProfile | null | undefined):
   return !!profile && profile.transport === 'bluetooth' && /innerprinter/i.test(profile.bluetoothName || '');
 }
 
-/** نسخةُ معايرة «وضوح الطباعة». ٢ = بعد تثقيل خطّ الفاتورة كلِّه. */
-export const PRINT_DARKNESS_REV = 2;
-
 /**
- * وضوح الطباعة الفعلي: «عادي» لكلّ طابعة، إلا أن يختار صاحبُ الجهاز غيره.
+ * وضوح الطباعة: «عادي» دائماً، ولا إعدادَ له.
  *
- * كان التلقائيُّ «غامق» لغير السنمي، يومَ كان خطُّ الفاتورة رفيعاً وأكثرُ
+ * كان اختياراً (عادي/غامق/غامق جداً) يومَ كان خطُّ الفاتورة رفيعاً وأكثرُ
  * خطوطه نقطةً واحدة. وعولج ذلك من أصله بالوزن الثقيل
- * (shared/receipt/tokens.ts، WEIGHT) -- والتسميكُ فوق الثقيل يُلصق الحروف.
- * فاختيارٌ حُفظ على المعايرة القديمة لا يُعتدّ به.
+ * (shared/receipt/tokens.ts، WEIGHT) فصارت الفاتورةُ واضحةً على كلّ طابعة،
+ * والتسميكُ فوق الثقيل يُلصق الحروف -- فأُزيل الاختيار. وما حُفظ منه في
+ * ملفّ الطابعة (printDarkness) يُهمل.
  */
-export function resolvePrintDarkness(profile: PrinterProfile | null | undefined): 'normal' | 'dark' | 'darker' {
-  if (profile?.printDarkness && profile.printDarknessRev === PRINT_DARKNESS_REV) return profile.printDarkness;
+export function resolvePrintDarkness(_profile: PrinterProfile | null | undefined): 'normal' | 'dark' | 'darker' {
   return 'normal';
 }
-
-export const PRINT_DARKNESS_PRESETS: readonly { label: string; value: 'normal' | 'dark' | 'darker' }[] = [
-  { label: 'عادي', value: 'normal' },
-  { label: 'غامق', value: 'dark' },
-  { label: 'غامق جداً', value: 'darker' },
-];
 
 export const PAPER_WIDTH_PRESETS: readonly { label: string; px: number }[] = [
   { label: '80مم (الأشيع)', px: 576 },

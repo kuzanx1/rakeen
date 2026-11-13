@@ -4957,8 +4957,10 @@ function renderKitchenTicketCanvas(receipt, logoImage){
 /* الاختيارُ المحفوظ قبل تثقيل خطّ الفاتورة (printDarknessRev غير ٢) كان
    مُعايَراً على الخطّ الرفيع، و«غامق» كان يُحفظ تلقائياً بلا اختيار. وهو
    على الخطّ الثقيل يُلصق الحروف -- فيُهمل، والأصلُ «عادي». */
+/* ثم أُزيل الاختيارُ نفسه من الإعدادات: الخطُّ الثقيل واضحٌ على كلّ طابعة،
+   فلا إعدادَ يُضبط. وما حُفظ قديماً يُهمل. */
 function receiptDarkness(){
-  return (DEVICE.printDarknessRev === 2 && DEVICE.printDarkness) || 'normal';
+  return 'normal';
 }
 function receiptProtectRects(layout){
   const out = [];
@@ -8442,15 +8444,6 @@ function openPosSettingsModal(){
       </div>
     </div>
     <div class="pos-auth-field" style="margin-top:10px;">
-      <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px;">وضوح الطباعة</label>
-      <select id="printerDarknessInput" style="width:100%;">
-        <option value="normal" ${receiptDarkness()==='normal'?'selected':''}>عادي</option>
-        <option value="dark" ${receiptDarkness()==='dark'?'selected':''}>غامق</option>
-        <option value="darker" ${receiptDarkness()==='darker'?'selected':''}>غامق جداً</option>
-      </select>
-      <div style="font-size:11px; color:var(--muted); margin-top:4px;">لو الكلام يطلع باهت أو مقطّع اختر «غامق جداً»، واحفظ واطبع تجربة.</div>
-    </div>
-    <div class="pos-auth-field" style="margin-top:10px;">
       <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:2px;">شكل الفاتورة عند الدفع</label>
       ${posCheck(`id="printCustomerReceiptToggle" ${DEVICE.printCustomerReceipt !== false ? 'checked' : ''}`, 'فاتورة العميل (مع السعر والضريبة ورمز QR)')}
       <div ${posPlanHas('kds') ? '' : 'style="display:none"'}>${posCheck(`id="printKitchenTicketToggle" ${DEVICE.printKitchenTicket === true ? 'checked' : ''}`, 'فاتورة المطبخ (الأصناف والملاحظات فقط، بدون أسعار)')}</div>
@@ -8481,8 +8474,6 @@ function openPosSettingsModal(){
     DEVICE.printerIp = document.getElementById('printerIpInput').value.trim() || null;
     DEVICE.printerPort = parseInt(document.getElementById('printerPortInput').value, 10) || 9100;
     DEVICE.printerPaperWidth = parseInt(document.getElementById('printerWidthInput').value, 10) || 576;
-    DEVICE.printDarkness = document.getElementById('printerDarknessInput').value || 'normal';
-    DEVICE.printDarknessRev = 2;
     DEVICE.printCustomerReceipt = document.getElementById('printCustomerReceiptToggle').checked;
     DEVICE.printKitchenTicket = document.getElementById('printKitchenTicketToggle').checked;
     DEVICE.kitchenTicketByButton = document.getElementById('kitchenTicketByButtonToggle').checked;
