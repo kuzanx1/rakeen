@@ -243,7 +243,7 @@ var RakeenReceiptEngine = (() => {
   };
   var LOGO = {
     /** سقفُ ارتفاعه من عرض الورق: شعارٌ طويل كان يبتلع نصف الورقة. */
-    maxHeight: 0.34,
+    maxHeight: 0.4,
     /**
      * أكبرُ بالنصف ممّا يقرّره القالب.
      *
@@ -294,7 +294,7 @@ var RakeenReceiptEngine = (() => {
       density: 1,
       typeScale: 1,
       showLogo: true,
-      logoWidth: 0.3,
+      logoWidth: 0.42,
       rule: "solid",
       orderStyle: "box",
       totalStyle: "bold",
@@ -326,7 +326,7 @@ var RakeenReceiptEngine = (() => {
       density: 1.15,
       typeScale: 1.04,
       showLogo: true,
-      logoWidth: 0.34,
+      logoWidth: 0.44,
       rule: "dotted",
       orderStyle: "spaced",
       totalStyle: "box",
@@ -342,7 +342,7 @@ var RakeenReceiptEngine = (() => {
       density: 1.12,
       typeScale: 1.02,
       showLogo: true,
-      logoWidth: 0.52,
+      logoWidth: 0.56,
       rule: "bar",
       orderStyle: "invert",
       totalStyle: "invert",

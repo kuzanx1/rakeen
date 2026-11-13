@@ -271,7 +271,7 @@ export const TOTAL_BOX = {
 /** الشعار. */
 export const LOGO = {
   /** سقفُ ارتفاعه من عرض الورق: شعارٌ طويل كان يبتلع نصف الورقة. */
-  maxHeight: 0.34,
+  maxHeight: 0.4,
   /**
    * أكبرُ بالنصف ممّا يقرّره القالب.
    *
@@ -355,7 +355,7 @@ export interface ReceiptThemeTokens {
 export const THEMES: Record<string, ReceiptThemeTokens> = {
   // التقليديّ: أعمدةٌ وخطوطٌ صلبة، كما تُطبع الفواتيرُ منذ عُرفت الطابعات.
   classic: {
-    density: 1, typeScale: 1, showLogo: true, logoWidth: 0.3,
+    density: 1, typeScale: 1, showLogo: true, logoWidth: 0.42,
     rule: 'solid', orderStyle: 'box', totalStyle: 'bold', itemStyle: 'columns',
     sectionLabels: false, headerBand: false, boxedTotal: false, qrMaxSize: 220,
   },
@@ -369,14 +369,14 @@ export const THEMES: Record<string, ReceiptThemeTokens> = {
   // الأنيق: هادئٌ ومتّسع. خطوطٌ منقّطةٌ رفيعة، وعناوينُ أقسامٍ بحروفٍ
   // متباعدة، ونقاطٌ موصِلة -- مظهرُ المطاعم الراقية.
   elegant: {
-    density: 1.15, typeScale: 1.04, showLogo: true, logoWidth: 0.34,
+    density: 1.15, typeScale: 1.04, showLogo: true, logoWidth: 0.44,
     rule: 'dotted', orderStyle: 'spaced', totalStyle: 'box', itemStyle: 'leaders',
     sectionLabels: true, headerBand: true, boxedTotal: true, qrMaxSize: 220,
   },
   // الفخم: بيان. شعارٌ كبير، ورقمُ الطلب والإجماليُّ أبيضُ على أسود.
   // تُعرف الورقةُ من آخر الصالة.
   signature: {
-    density: 1.12, typeScale: 1.02, showLogo: true, logoWidth: 0.52,
+    density: 1.12, typeScale: 1.02, showLogo: true, logoWidth: 0.56,
     rule: 'bar', orderStyle: 'invert', totalStyle: 'invert', itemStyle: 'columns',
     sectionLabels: true, headerBand: false, boxedTotal: true, qrMaxSize: 220,
   },
