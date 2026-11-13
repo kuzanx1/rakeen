@@ -235,6 +235,16 @@ const T = {
         urlS: "رابط صفحتك",
         real: "صفحات روابط بتصاميم ركين",
       },
+      qr: {
+        k: "باركودك",
+        h: "باركود بهوية مطعمك، جاهز للطباعة.",
+        p: "باركود يفتح منيوك أو متجرك، بشعارك وألوانك. اطبعه ستاند على الطاولة، أو لوحة عند الكاشير، أو بوستر على الواجهة.",
+        b: ["٤ أشكال: ستاند، كاشير، واجهة، ملصق", "شعارك في وسط الباركود وألوانك تلقائياً", "رقم لكل طاولة بطباعة وحدة", "اطبعه أو احفظه PDF، على A4 جاهز للقص"],
+        plan: "ضمن باقتي عماد وصرح",
+        toast: "امسح واطلب",
+        toastS: "يفتح المنيو والطلب",
+        real: "تصاميم حقيقية من «باركودك» بشعار مكبوس زربيان",
+      },
       loyalty: {
         k: "الولاء",
         h: "عميلك يرجع لك.",
@@ -385,6 +395,16 @@ const T = {
         url: "anoob.rakeenapp.com/links",
         urlS: "Your page link",
         real: "Link pages built with Rakeen designs",
+      },
+      qr: {
+        k: "Your QR",
+        h: "A QR code in your brand, ready to print.",
+        p: "A QR that opens your menu or store, with your logo and colors. Print it as a table stand, a counter sign, or a window poster.",
+        b: ["4 formats: stand, counter, window, sticker", "Your logo in the center, your colors automatically", "A number for every table in one print", "Print or save as PDF, on A4 ready to cut"],
+        plan: "In the Emad and Sarh plans",
+        toast: "Scan to order",
+        toastS: "Opens your menu",
+        real: "Real designs from Your QR with Makboos Zurbian's logo",
       },
       loyalty: {
         k: "Loyalty",
@@ -1671,11 +1691,45 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ---------- chapter: qr ---------- */}
+      <section className="chap" id="qr">
+        <div className="wrap chap-in">
+          <div className="chap-copy" data-in>
+            <span className="chap-n mono" aria-hidden>06</span>
+            <span className="kicker k-lime">
+              <Icon name="qr" />
+              {t.ch.qr.k}
+            </span>
+            <h2>{t.ch.qr.h}</h2>
+            <p>{t.ch.qr.p}</p>
+            <Bullets items={t.ch.qr.b} />
+            <a href="#plans" onClick={go("plans")} className="pager-plan">
+              <Icon name="crown" />
+              {t.ch.qr.plan}
+            </a>
+          </div>
+          <div className="chap-art art-pager art-qr" data-in>
+            <div className="pager-blob" aria-hidden />
+            <img className="qr-print pg-back" src="/landing/qr-counter.jpg" alt={t.ch.qr.real} loading="lazy" />
+            <img className="qr-print pg-front" src="/landing/qr-stand.jpg" alt={t.ch.qr.real} loading="lazy" />
+            <div className="toast t-ring">
+              <span className="toast-ic ring">
+                <Icon name="qr" />
+              </span>
+              <div>
+                <b>{t.ch.qr.toast}</b>
+                <span>{t.ch.qr.toastS}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ---------- chapter: loyalty ---------- */}
       <section className="chap chap-wide">
         <div className="wrap chap-in">
           <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>06</span>
+            <span className="chap-n mono" aria-hidden>07</span>
             <span className="kicker">{t.ch.loyalty.k}</span>
             <h2>{t.ch.loyalty.h}</h2>
             <p>{t.ch.loyalty.p}</p>
@@ -1691,7 +1745,7 @@ export default function LandingPage() {
       <section className="chap chap-dark">
         <div className="wrap chap-in">
           <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>07</span>
+            <span className="chap-n mono" aria-hidden>08</span>
             <span className="kicker k-lime">{t.ch.numbers.k}</span>
             <h2>{t.ch.numbers.h}</h2>
             <p>{t.ch.numbers.p}</p>
@@ -1755,7 +1809,7 @@ export default function LandingPage() {
       <section className="chap chap-flip" id="app">
         <div className="wrap chap-in">
           <div className="chap-copy" data-in>
-            <span className="chap-n mono" aria-hidden>08</span>
+            <span className="chap-n mono" aria-hidden>09</span>
             <span className="kicker">
               <Icon name="devices" />
               {t.ch.app.k}

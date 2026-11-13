@@ -8098,7 +8098,7 @@ document.getElementById('campaignBuildBtn').addEventListener('click', ()=>{
 
 /* ============ Sidebar navigation ============ */
 const SCREEN_TITLES = {
-  home:'الرئيسية', pos:'إعدادات الكاشير', orders:'الطلبات', purchases:'المشتريات', menu:'القائمة', onlineMenu:'المتجر الإلكتروني', links:'روابطك', services:'الخدمات', rooms:'الغرف', inventory:'المخزون',
+  home:'الرئيسية', pos:'إعدادات الكاشير', orders:'الطلبات', purchases:'المشتريات', menu:'القائمة', onlineMenu:'المتجر الإلكتروني', links:'روابطك', qr:'باركودك', services:'الخدمات', rooms:'الغرف', inventory:'المخزون',
   hr:'الموظفين', customers:'العملاء', loyalty:'نادي الولاء', accounting:'المحاسبة', delivery:'تطبيقات التوصيل',
   ai:'مستشار ركين الذكي', reports:'التقارير', settings:'الإعدادات'
 };
@@ -9484,7 +9484,7 @@ function enterDashboard(){
 // cashier-name management from Settings -> POS. Deliberately dropped from
 // this list (not just hidden) so the old nav button — still present in the
 // markup, unreachable now — never shows for anyone, owner included.
-const ALL_DASHBOARD_SCREENS = ['home','pos','orders','purchases','menu','onlineMenu','links','services','rooms','inventory','hr','customers','loyalty','accounting','delivery','ai','reports','settings'];
+const ALL_DASHBOARD_SCREENS = ['home','pos','orders','purchases','menu','onlineMenu','links','qr','services','rooms','inventory','hr','customers','loyalty','accounting','delivery','ai','reports','settings'];
 const USER_TYPE_LABELS = {owner:'مالك', manager:'مدير', employee:'موظف'};
 
 function applyPermissions(){
@@ -11839,6 +11839,8 @@ const PLAN_SCREEN_FEATURE = {
   delivery: 'delivery_apps',
   onlineMenu: 'online_store',
   links: 'link_page',
+  // «باركودك» مع «روابطك» بنفس الباقات (عماد وصرح).
+  qr: 'link_page',
 };
 
 // داخل الشاشات: أجزاء تتبع ميزةً بعينها (تبويب التكلفة في المنتج، نسخة
@@ -14892,6 +14894,12 @@ document.getElementById('screen-onlineMenu').addEventListener('click', (e)=>{
     navigator.clipboard?.writeText(url).then(()=> showToast('نسخنا رابط متجرك')).catch(()=> showToast('انسخه من الخانة: ' + url));
     return;
   }
+  if(e.target.closest('[data-ol-qr]')){
+    // «باركودك» (عماد وصرح): يفتح على المنيو والطلب.
+    window.dispatchEvent(new CustomEvent('rk-qr-open', { detail: { dest: 'store' } }));
+    const nav = document.querySelector('.nav-item[data-screen="qr"]'); if(nav) nav.click();
+    return;
+  }
   if(e.target.closest('[data-ol-upgrade]')) return showPlanUpgrade('online_store');
   const b = e.target.closest('#onlineMenuTabs [data-tab]'); if(!b) return;
   resetContentScroll();
@@ -15184,6 +15192,7 @@ function onlineStoreSettingsHtml(){
         <div style="display:flex; gap:8px; align-items:center;">
           <input type="text" id="onlineMenuUrlDisplay" readonly value="${onlineMenuPublicUrl()}" style="flex:1;">
           <button class="rk-btn rk-btn-secondary rk-btn-md" id="copyOnlineMenuUrlBtn" type="button">نسخ</button>
+          <button class="rk-btn rk-btn-secondary rk-btn-md" type="button" data-ol-qr ${planHas('link_page') ? '' : 'hidden'}>باركود للطباعة</button>
         </div>
       </div>
       ${ONLINE_SUBSCRIBED ? `<div class="rk-badge" style="background:rgba(196,255,43,0.16); color:var(--success-text); margin-top:12px;">مشترك — طلبات بلا حد</div>` : ''}
@@ -19494,6 +19503,7 @@ const PERMISSION_CATEGORIES = [
   {label:'القائمة', screen:'menu'},
   {label:'المتجر الإلكتروني', screen:'onlineMenu'},
   {label:'روابطك', screen:'links'},
+  {label:'باركودك', screen:'qr'},
   {label:'الخدمات', screen:'services'},
   {label:'الغرف', screen:'rooms'},
   {label:'المخزون', screen:'inventory'},

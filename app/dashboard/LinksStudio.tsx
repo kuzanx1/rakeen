@@ -486,19 +486,10 @@ function Stats({ rows, err, cfg, enabled }: { rows: HitRow[] | null; err: boolea
   );
 }
 
-/* ───────── QR للطاولات والكاشير ───────── */
-async function downloadQr(url: string, slug: string) {
-  try {
-    const QR = (await import("qrcode")).default;
-    const data = await QR.toDataURL(url, { width: 1200, margin: 2, errorCorrectionLevel: "M", color: { dark: "#111111", light: "#FFFFFF" } });
-    const a = document.createElement("a");
-    a.href = data;
-    a.download = `${slug}-links-qr.png`;
-    a.click();
-    toast("✓ نزل الباركود -- اطبعه على الطاولات أو الكاشير");
-  } catch {
-    toast("تعذر إنشاء الباركود");
-  }
+/** يفتح «باركودك» على صفحة الروابط (التصميم والطباعة هناك). */
+function openQr() {
+  window.dispatchEvent(new CustomEvent("rk-qr-open", { detail: { dest: "links" } }));
+  document.querySelector<HTMLButtonElement>('.nav-item[data-screen="qr"]')?.click();
 }
 
 /* ───────── الشاشة ───────── */
@@ -767,7 +758,7 @@ export default function LinksStudio() {
           <div className="lsx-url">
             <code dir="ltr">{url.replace("https://", "")}</code>
             <button type="button" className="rk2-btn mn-ghost sm" onClick={() => { navigator.clipboard?.writeText(url); toast("✓ نسخت الرابط"); }}>انسخ الرابط</button>
-            <button type="button" className="rk2-btn mn-ghost sm" title="باركود للطباعة" onClick={() => downloadQr(url, linkBiz.slug)}><Icon name="qr" size={15} /> باركود للطاولات</button>
+            <button type="button" className="rk2-btn mn-ghost sm" title="باركود للطباعة" onClick={openQr}><Icon name="qr" size={15} /> صمّم باركودها</button>
             {quest.live && <a className="rk2-btn mn-ghost sm" href={url} target="_blank" rel="noopener">افتحها</a>}
           </div>
         ) : null}

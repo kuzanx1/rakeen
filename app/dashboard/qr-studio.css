@@ -1,0 +1,52 @@
+/* «باركودك» -- يعتمد على ستايلات .ls-* من links-studio.css */
+.qs { padding-bottom: 40px; }
+.qs-hero { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 16px; }
+.qs-hero h3 { margin: 0 0 4px; font-size: 17px; font-weight: 800; }
+.qs-hero p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.7; }
+.qs-hero-ic { flex: none; width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--graphite); color: var(--lime); }
+.qs-grid { grid-template-columns: minmax(0, 1fr) 420px; }
+.qs-miss { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; }
+.qs-miss .ls-btn { padding: 5px 10px; font-size: 12px; }
+
+.qs-formats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.qs-format { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+  padding: 14px 6px 10px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--card-bg); }
+.qs-format:hover { border-color: color-mix(in srgb, var(--text) 30%, var(--line)); }
+.qs-format.on { border-color: var(--text); box-shadow: 0 0 0 1px var(--text) inset; }
+.qs-format:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.qs-format b { font-size: 13px; font-weight: 800; }
+.qs-format small { font-size: 11px; color: var(--muted); }
+.qs-shape { display: block; border: 2px solid currentColor; border-radius: 4px; opacity: .55; position: relative; }
+.qs-shape::after { content: ""; position: absolute; inset: 30% 28%; border: 2px solid currentColor; border-radius: 2px; }
+.qs-format.on .qs-shape { opacity: 1; }
+.qs-shape-stand { width: 26px; height: 36px; }
+.qs-shape-counter { width: 30px; height: 42px; }
+.qs-shape-poster { width: 34px; height: 48px; }
+.qs-shape-sticker { width: 32px; height: 32px; }
+.qs-shape-sticker::after { inset: 24%; }
+
+.qs-check { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.qs-check input { width: 18px; height: 18px; accent-color: var(--graphite); }
+.qs-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.qs-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.qs-actions .ls-btn { min-height: 44px; box-sizing: border-box; }
+.qs-actions .ls-btn:not(.primary) { border: 1px solid var(--line); }
+
+.qs-preview { gap: 12px; }
+.qs-frame { width: 100%; display: flex; justify-content: center; padding: 22px; box-sizing: border-box; border-radius: 18px;
+  background: repeating-linear-gradient(45deg, var(--surf1) 0 10px, transparent 10px 20px); border: 1px solid var(--line); }
+.qs-frame canvas { display: block; width: 100%; height: auto; border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,.18), 0 2px 6px rgba(0,0,0,.08); }
+.qs-frame-stand canvas { max-width: 300px; }
+.qs-frame-counter canvas { max-width: 330px; }
+.qs-frame-poster canvas { max-width: 340px; }
+.qs-frame-sticker canvas { max-width: 320px; border-radius: 10px; }
+.qs-empty { min-height: 360px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--muted); font-size: 13px; }
+
+@media (max-width: 1180px) { .qs-grid { grid-template-columns: minmax(0, 1fr) 340px; } }
+@media (max-width: 900px) {
+  .qs-grid { grid-template-columns: 1fr; }
+  .qs .ls-preview { display: flex; position: static; order: -1; }
+  .qs-frame { padding: 16px; }
+  .qs-frame canvas { max-width: 240px !important; }
+  .qs-formats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
