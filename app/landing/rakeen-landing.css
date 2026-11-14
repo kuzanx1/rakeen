@@ -489,7 +489,10 @@ body{background:#FBFAF5;}
 .clients-in{display:flex; flex-direction:column; align-items:center; gap:22px;}
 .clients p{font-size:14px; font-weight:700; color:var(--muted); letter-spacing:.01em;}
 .clients-win{width:min(100%,430px); direction:ltr; overflow:hidden; padding:10px 0 18px; -webkit-mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent); mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent);}
-.clients-track{display:flex; width:max-content; direction:ltr; animation:marquee 30s linear infinite;}
+.clients-win{min-height:82px;}
+.clients-track{display:flex; width:max-content; direction:ltr; opacity:0; transition:opacity .5s; animation:marquee calc(var(--n,7) * 4.3s) linear infinite;}
+.clients-track.on{opacity:1;}
+.clients-track img{background:#fff;}
 .clients-track li{flex:none; margin-right:30px;}
 .clients-track img{display:block; width:54px; height:54px; border-radius:16px; object-fit:cover; box-shadow:0 0 0 1px rgba(18,18,18,.08), 0 12px 22px -14px rgba(0,0,0,.4);}
 .clients + #features + .chap{padding-top:96px;}

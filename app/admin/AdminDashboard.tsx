@@ -9,6 +9,7 @@ import AuditLogPanel from "./AuditLogPanel";
 import ContractsPanel from "./ContractsPanel";
 import QuotePanel from "./QuotePanel";
 import AddBusinessPanel from "./AddBusinessPanel";
+import LandingClientsPanel from "./LandingClientsPanel";
 import { allowedFeatures, FeatureOverrides, PLANS, planByKey, SELLABLE_FEATURES } from "@/lib/plans";
 import type { FeatureKey } from "@/lib/contracts";
 
@@ -160,7 +161,7 @@ export default function AdminDashboard() {
   const [mfaError, setMfaError] = useState<string | null>(null);
   const [mfaBusy, setMfaBusy] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<"businesses" | "whatsapp" | "broadcast" | "contracts" | "quotes" | "usage" | "audit">("businesses");
+  const [activeTab, setActiveTab] = useState<"businesses" | "whatsapp" | "broadcast" | "contracts" | "quotes" | "usage" | "audit" | "landing">("businesses");
   const [businesses, setBusinesses] = useState<Business[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -794,6 +795,7 @@ export default function AdminDashboard() {
               ["quotes", "عروض الأسعار"],
               ["whatsapp", "واتساب"],
               ["broadcast", "رسائل واتساب"],
+              ["landing", "عملاء الهبوط"],
               ["usage", "استهلاك البنية التحتية"],
               ["audit", "سجل التدقيق"],
             ] as const
@@ -815,6 +817,7 @@ export default function AdminDashboard() {
         {activeTab === "quotes" && <QuotePanel />}
         {activeTab === "usage" && <UsagePanel token={session.token} />}
         {activeTab === "audit" && <AuditLogPanel token={session.token} />}
+        {activeTab === "landing" && <LandingClientsPanel token={session.token} />}
 
         {activeTab === "businesses" && (
         <>

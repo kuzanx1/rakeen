@@ -22,16 +22,6 @@ const WA = "966557444227";
 const START = startWhatsAppLink();
 const APP_STORE = "https://apps.apple.com/sa/app/id6808202307";
 const ANDROID = "/android";
-// Real businesses running on Rakeen, shown with the owner's approval.
-const CLIENTS: { img: string; ar: string; en: string }[] = [
-  { img: "hbiah", ar: "هَبيّة", en: "Hbiah" },
-  { img: "anoob", ar: "عنوب", en: "Anoob" },
-  { img: "makboos", ar: "مكبوس زربيان", en: "Makboos Zurbian" },
-  { img: "hil", ar: "هيل كوفي", en: "Hil Coffee" },
-  { img: "tareq", ar: "كباب طارق", en: "Tareq Kebab" },
-  { img: "baheer", ar: "بهير", en: "Baheer" },
-  { img: "mlm", ar: "ملم", en: "Mlm" },
-];
 const waLink = (text: string) => `https://wa.me/${WA}?text=${encodeURIComponent(text)}`;
 const num = (n: number) => n.toLocaleString("en-US");
 
@@ -546,6 +536,44 @@ function Riyal() {
 }
 
 type IconName = "check" | "wifi" | "qr" | "devices" | "chat" | "plus" | "arrow" | "bag" | "alert" | "scan" | "crown" | "minus" | "bell" | "link";
+// The customers strip: logos chosen from /admin («عملاء الهبوط»), read live
+// from each business's own logo. Repeated until one pass is wider than the
+// window, then doubled, so the loop never shows a gap however few there are.
+function ClientsStrip({ lang }: { lang: Lang }) {
+  const [list, setList] = useState<{ logo: string; name: string }[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/landing/clients")
+      .then((r) => r.json())
+      .then((d) => alive && setList(Array.isArray(d.clients) ? d.clients : []))
+      .catch(() => alive && setList([]));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  if (list && !list.length) return null;
+  const pass: { logo: string; name: string }[] = [];
+  if (list) while (pass.length < 7) pass.push(...list);
+  return (
+    <section className="clients" aria-label={lang === "ar" ? "يشتغلون على ركين" : "Running on Rakeen"}>
+      <div className="wrap clients-in">
+        <p>{lang === "ar" ? "مطاعم وكافيهات تشتغل على ركين" : "Restaurants and cafés running on Rakeen"}</p>
+        <div className="clients-win">
+          <ul className={"clients-track" + (list ? " on" : "")} style={{ ["--n" as string]: pass.length }}>
+            {[0, 1].map((k) =>
+              pass.map((c, i) => (
+                <li key={k + "-" + i} aria-hidden={k === 1 || i >= (list?.length || 0)}>
+                  <img src={c.logo} alt={k || i >= (list?.length || 0) ? "" : c.name} width={54} height={54} decoding="async" />
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function StoreBadges({ f, dark }: { f: { iosA: string; iosB: string; andA: string; andB: string }; dark?: boolean }) {
   return (
     <div className={"badges" + (dark ? " on-dark" : "")}>
@@ -1415,22 +1443,7 @@ export default function LandingPage() {
       </div>
 
       {/* ---------- who runs on it ---------- */}
-      <section className="clients" aria-label={lang === "ar" ? "يشتغلون على ركين" : "Running on Rakeen"}>
-        <div className="wrap clients-in" data-in>
-          <p>{lang === "ar" ? "مطاعم وكافيهات تشتغل على ركين" : "Restaurants and cafés running on Rakeen"}</p>
-          <div className="clients-win">
-            <ul className="clients-track">
-              {[0, 1].map((k) =>
-                CLIENTS.map((c) => (
-                  <li key={c.img + k} aria-hidden={k === 1}>
-                    <img src={`/landing/clients/${c.img}.jpg`} alt={k ? "" : lang === "ar" ? c.ar : c.en} width={54} height={54} />
-                  </li>
-                ))
-              )}
-            </ul>
-          </div>
-        </div>
-      </section>
+      <ClientsStrip lang={lang} />
 
       <div id="features" />
 
