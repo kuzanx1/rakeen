@@ -620,12 +620,12 @@ function SaleFilm({ lang }: { lang: Lang }) {
     <section className="film" aria-label={ar ? "فيلم: طلب واحد على ركين" : "Film: one order on Rakeen"}>
       <div className="wrap">
         <div className="film-head" data-in>
-          <span className="kicker">{ar ? "٣٤ ثانية" : "34 seconds"}</span>
+          <span className="kicker">{ar ? "٤٥ ثانية" : "45 seconds"}</span>
           <h2>{ar ? "شف طلب واحد يمشي في ركين." : "Watch one order move through Rakeen."}</h2>
           <p>
             {ar
-              ? "من ضغطة الكاشير، للولاء، للفاتورة والمطبخ، لجوال العميل وهو يرن، لنقاطه في محفظته — كله من الشاشات الحقيقية."
-              : "From the cashier tap to loyalty, receipt, kitchen, the customer's phone ringing and points landing in their wallet — all real screens."}
+              ? "من ضغطة الكاشير، للولاء، للدفع حتى لو طاح النت، للفاتورة والمطبخ، لجوال العميل وهو يرن، لنقاطه في محفظته، للمخزون اللي ينخصم لحاله، لطلب الأونلاين — كله من الشاشات الحقيقية."
+              : "From the cashier tap to loyalty, paying even offline, receipt, kitchen, the customer's phone ringing, points in their wallet, stock deducting itself and an online order — all real screens."}
           </p>
         </div>
         <div className={"film-frame" + (cut === "port" ? " port" : "")} data-in>
@@ -634,7 +634,7 @@ function SaleFilm({ lang }: { lang: Lang }) {
               key={cut}
               ref={ref}
               className="film-v"
-              src={`https://media.rakeenapp.com/landing/film/v1/sale-${cut}.mp4`}
+              src={`https://media.rakeenapp.com/landing/film/v2/sale-${cut}.mp4`}
               poster={`/landing/film/sale-${cut}.jpg`}
               muted
               loop
