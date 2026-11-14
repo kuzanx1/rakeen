@@ -22,6 +22,14 @@ const WA = "966557444227";
 const START = startWhatsAppLink();
 const APP_STORE = "https://apps.apple.com/sa/app/id6808202307";
 const ANDROID = "/android";
+// Real businesses running on Rakeen, shown with the owner's approval.
+const CLIENTS: { img: string; ar: string; en: string }[] = [
+  { img: "hbiah", ar: "هَبيّة", en: "Hbiah" },
+  { img: "anoob", ar: "عنوب", en: "Anoob" },
+  { img: "makboos", ar: "مكبوس زربيان", en: "Makboos Zurbian" },
+  { img: "hil", ar: "هيل كوفي", en: "Hil Coffee" },
+  { img: "tareq", ar: "كباب طارق", en: "Tareq Kebab" },
+];
 const waLink = (text: string) => `https://wa.me/${WA}?text=${encodeURIComponent(text)}`;
 const num = (n: number) => n.toLocaleString("en-US");
 
@@ -1403,6 +1411,21 @@ export default function LandingPage() {
           </div>
         </div>
       </div>
+
+      {/* ---------- who runs on it ---------- */}
+      <section className="clients" aria-label={lang === "ar" ? "يشتغلون على ركين" : "Running on Rakeen"}>
+        <div className="wrap clients-in" data-in>
+          <p>{lang === "ar" ? "مطاعم وكافيهات تشتغل على ركين" : "Restaurants and cafés running on Rakeen"}</p>
+          <ul>
+            {CLIENTS.map((c) => (
+              <li key={c.img}>
+                <img src={`/landing/clients/${c.img}.jpg`} alt="" width={64} height={64} loading="lazy" />
+                <span>{lang === "ar" ? c.ar : c.en}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
 
       <div id="features" />
 

@@ -484,6 +484,20 @@ body{background:#FBFAF5;}
 @media (max-width:640px){ .close{padding:60px 20px; border-radius:28px;} .close .btn{flex:1;} }
 
 /* ---------- footer ---------- */
+/* who runs on it: real logos, quiet */
+.clients{padding:64px 0 0;}
+.clients-in{display:flex; flex-direction:column; align-items:center; gap:26px;}
+.clients p{font-size:14px; font-weight:700; color:var(--muted); letter-spacing:.01em;}
+.clients ul{display:flex; flex-wrap:wrap; justify-content:center; gap:22px 44px;}
+.clients li{display:flex; align-items:center; gap:13px; font-size:16.5px; font-weight:800; color:var(--ink); white-space:nowrap;}
+.clients img{flex:none; width:56px; height:56px; border-radius:17px; object-fit:cover; box-shadow:0 0 0 1px rgba(18,18,18,.08), 0 12px 22px -14px rgba(0,0,0,.4);}
+.clients + #features + .chap{padding-top:96px;}
+@media (max-width:640px){
+  .clients{padding-top:44px;}
+  .clients ul{gap:16px 22px;}
+  .clients li{font-size:14.5px; gap:10px;}
+  .clients img{width:44px; height:44px; border-radius:13px;}
+}
 .foot{margin-top:80px; border-top:1px solid var(--line); padding:56px 0 28px;}
 .foot-in{display:grid; grid-template-columns:1.7fr 1fr 1.2fr .8fr; gap:40px 32px; align-items:start;}
 .foot-brand img{height:28px; width:auto;}
