@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
 
   const { data: order } = await asCashier
     .from("orders")
-    .select("id, client_order_uuid, ready_at, delivered_at, pager_eta_at, pager_delayed_at, pager_ring_count, pager_seen_at")
+    .select("id, order_no, client_order_uuid, ready_at, delivered_at, pager_eta_at, pager_delayed_at, pager_ring_count, pager_seen_at")
     .eq("id", orderId)
     .maybeSingle();
   // طلبٌ بلا بيجر (المطبخ ينادي هذا المسار لكل «جاهز»): سُجّل، ولا أحد ينتظر بثّاً.
@@ -96,13 +96,14 @@ export async function POST(request: NextRequest) {
       // «استلمه» يُرسَل إشعاراً هادئاً أيضاً: الجوال المقفول (والاتصال اللحظي
       // نائم) ما يدري بالاستلام إلا به -- وبدونه يظل يرن لين تنتهي الدقيقة ونص.
       // نفس الوسم، فيحلّ محلّ «جاهز» على شاشة القفل بدل ما يتكدّس.
+      const no = order.order_no ?? order.id; // رقم الطلب في المنشأة
       const body = action === "collected"
-        ? `استلمت طلبك #${order.id} — بالعافية عليك`
+        ? `استلمت طلبك #${no} — بالعافية عليك`
         : action === "delay"
-        ? `تأخرنا عليك شوي في طلب #${order.id} — نجهزه لك الحين`
+        ? `تأخرنا عليك شوي في طلب #${no} — نجهزه لك الحين`
         : action === "ring"
-          ? `طلبك #${order.id} ينتظرك! تفضّل استلمه`
-          : `طلبك #${order.id} جاهز! تفضّل استلمه`;
+          ? `طلبك #${no} ينتظرك! تفضّل استلمه`
+          : `طلبك #${no} جاهز! تفضّل استلمه`;
       ensureVapidConfigured(vapidPublicKey, vapidPrivateKey);
       const msg = JSON.stringify({
         title, body,

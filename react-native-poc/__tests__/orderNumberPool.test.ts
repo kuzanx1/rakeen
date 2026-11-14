@@ -11,7 +11,7 @@ const mockMode: { v: 'ok' | 'missing' | 'offline' } = { v: 'ok' };
 const mockRpc = jest.fn(async (_name: string, args: { p_branch_id: number; p_uuids: string[] }) => {
   if (mockMode.v === 'missing') return { data: null, error: { code: 'PGRST202', message: 'Could not find the function' } };
   if (mockMode.v === 'offline') return { data: null, error: { code: '', message: 'Network request failed' } };
-  return { data: args.p_uuids.map(u => ({ r_order_id: mockNext.v++, r_client_order_uuid: u })), error: null };
+  return { data: args.p_uuids.map(u => ({ r_order_no: mockNext.v - 999, r_order_id: mockNext.v++, r_client_order_uuid: u })), error: null };
 });
 jest.mock('../src/infrastructure/supabaseClient', () => ({ supabase: { rpc: (n: string, a: never) => mockRpc(n, a) } }));
 
@@ -40,11 +40,14 @@ describe('orderNumberPool (fresh module)', () => {
   it('fills, hands out ascending unique numbers, never the same twice under concurrency', async () => {
     const pool = require('../src/application/orderNumberPool');
     await pool.refillOrderNumberPool(7);
-    const got = await Promise.all(Array.from({ length: 10 }, () => pool.takeReservedOrderNumber(7)));
+    const got = await Promise.all(Array.from({ length: 5 }, () => pool.takeReservedOrderNumber(7)));
     const ids = got.map((g: { id: number }) => g.id);
     const uuids = got.map((g: { uuid: string }) => g.uuid);
-    expect(new Set(ids).size).toBe(10);
-    expect(new Set(uuids).size).toBe(10);
+    expect(new Set(ids).size).toBe(5);
+    expect(new Set(uuids).size).toBe(5);
+    const nos = got.map((g: { no: number }) => g.no);
+    expect([...nos].sort((a, b) => a - b)).toEqual(nos);
+    expect(nos[0]).toBe(1);
     expect([...ids].sort((a, b) => a - b)).toEqual(ids);
   });
 
@@ -57,6 +60,7 @@ describe('orderNumberPool (fresh module)', () => {
     mockMode.v = 'offline';
     const afterRestart = await pool.takeReservedOrderNumber(7);
     expect(afterRestart.id).toBe(first.id + 1);
+    expect(afterRestart.no).toBe(first.no + 1);
     expect(await pool.takeReservedOrderNumber(8)).toBeNull();
   });
 

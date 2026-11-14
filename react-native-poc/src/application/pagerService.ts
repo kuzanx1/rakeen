@@ -161,13 +161,13 @@ export function pagerUrl(uuid: string): string {
 }
 
 /** بلوك الفاتورة -- بيانات فقط، والراسم يبني الباركود. */
-export function pagerReceiptBlock(p: PagerEligibleInput, orderId: number | null, dineInMode: 'simple' | 'tables'): ReceiptPagerData | null {
+export function pagerReceiptBlock(p: PagerEligibleInput, orderNo: number | null, dineInMode: 'simple' | 'tables'): ReceiptPagerData | null {
   if (!config.settings.receipt || !pagerEligible(p, dineInMode)) return null;
   return {
     url: pagerUrl(p.client_order_uuid!),
     title: 'امسح وخلّ جوالك يناديك',
     line: 'اجلس براحتك، أول ما يجهز طلبك يرن جوالك',
-    tag: orderId != null ? `طلب ${orderId}` : 'بيجر طلبك',
+    tag: orderNo != null ? `طلب ${orderNo}` : 'بيجر طلبك',
     wifi: config.settings.wifi || null,
   };
 }
@@ -199,18 +199,26 @@ export function isOwnPagerOrder(id: number): boolean {
  * شاشة سنمي المدمجة تُرسم هنا مباشرةً -- بلا شبكة، فتعمل والجهاز
  * أوفلاين -- وشاشات الويب المقترنة عبر الخادم (نفس مسار الويب).
  */
-export async function pagerAfterCheckout(p: PagerEligibleInput, orderId: number | null, dineInMode: 'simple' | 'tables', branchId: number | null): Promise<void> {
+export async function pagerAfterCheckout(
+  p: PagerEligibleInput,
+  orderId: number | null,
+  dineInMode: 'simple' | 'tables',
+  branchId: number | null,
+  /** الرقم المعروض للزبون (رقم المنشأة)؛ غائب = orderId. */
+  orderNo: number | null = null,
+): Promise<void> {
   if (!pagerEligible(p, dineInMode)) return;
   if (orderId != null) ownPagerOrders.add(orderId);
   const s = config.settings;
   if (!s.display) return;
   const url = pagerUrl(p.client_order_uuid!);
-  pagerOnCustomerDisplay(url, orderId != null ? String(orderId) : '', s.display_secs);
+  const shown = orderNo ?? orderId;
+  pagerOnCustomerDisplay(url, shown != null ? String(shown) : '', s.display_secs);
   displayShown = true;
   watchPagerOnDisplay(url, s.display_secs);
   try {
     await authed('/api/pos/show-pager', {
-      uuid: p.client_order_uuid, number: orderId, branchId, posDeviceId: await getPosDeviceId(), secs: s.display_secs,
+      uuid: p.client_order_uuid, number: shown, branchId, posDeviceId: await getPosDeviceId(), secs: s.display_secs,
     });
   } catch {
     // بلا نت: الشاشة المدمجة كفت.
@@ -340,23 +348,25 @@ export async function pagerAction(orderId: number, action: PagerAction, minutes 
   }
 }
 
-export function pagerActionToast(orderId: number, action: PagerAction, r: PagerActionResult, minutes = 5): string {
+export function pagerActionToast(orderNo: number, action: PagerAction, r: PagerActionResult, minutes = 5): string {
   if (!r.ok) return r.error || 'تعذر التحديث';
   const reached = r.pushed > 0 || r.seen;
   switch (action) {
     case 'ready':
-      return reached ? `🔔 رنّ جوال الزبون — طلب #${orderId} جاهز` : `طلب #${orderId} جاهز — الزبون ما فتح البيجر، ناده برقمه`;
+      return reached ? `🔔 رنّ جوال الزبون — طلب #${orderNo} جاهز` : `طلب #${orderNo} جاهز — الزبون ما فتح البيجر، ناده برقمه`;
     case 'ring':
-      return `🔔 رنّينا عليه مرة ثانية — طلب #${orderId}`;
+      return `🔔 رنّينا عليه مرة ثانية — طلب #${orderNo}`;
     case 'delay':
-      return `⏱ أضفنا ${minutes} دقايق وبلّغنا الزبون — طلب #${orderId}`;
+      return `⏱ أضفنا ${minutes} دقايق وبلّغنا الزبون — طلب #${orderNo}`;
     default:
-      return `✓ استلم طلبه — #${orderId}`;
+      return `✓ استلم طلبه — #${orderNo}`;
   }
 }
 
 export interface PagerOrder {
   id: number;
+  /** رقم الطلب في المنشأة؛ null = ما تفعّل، يُعرض id. */
+  orderNo?: number | null;
   channel: PagerChannel;
   total: number;
   customerName: string | null;
@@ -378,7 +388,7 @@ export async function listPagerOrders(branchId: number): Promise<PagerOrder[]> {
   startToday.setHours(0, 0, 0, 0);
   const { data, error } = await supabase
     .from('orders')
-    .select('id, total, created_at, customer_name, channel, ready_at, pager_eta_at, pager_delayed_at, pager_seen_at, pager_ring_count')
+    .select('id, order_no, total, created_at, customer_name, channel, ready_at, pager_eta_at, pager_delayed_at, pager_seen_at, pager_ring_count')
     .eq('branch_id', branchId)
     .not('pager_eta_at', 'is', null)
     .is('delivered_at', null)
@@ -388,6 +398,7 @@ export async function listPagerOrders(branchId: number): Promise<PagerOrder[]> {
   if (error) return [];
   return (data || []).map((o: any) => ({
     id: Number(o.id),
+    orderNo: o.order_no != null ? Number(o.order_no) : null,
     channel: o.channel === 'dine_in' ? 'dine_in' : 'pickup',
     total: Number(o.total || 0),
     customerName: o.customer_name ?? null,

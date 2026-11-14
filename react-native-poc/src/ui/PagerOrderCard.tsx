@@ -46,7 +46,7 @@ export default function PagerOrderCard({
   return (
     <View
       style={[styles.card, ready ? styles.cardReady : urgency === 'urgent' ? styles.cardUrgent : urgency === 'warn' ? styles.cardWarn : null]}
-      accessibilityLabel={`بيجر طلب ${order.id}`}>
+      accessibilityLabel={`بيجر طلب ${order.orderNo ?? order.id}`}>
       <View style={styles.top}>
         <View style={styles.chip}>
           <Text style={styles.chipText}>📟 بيجر · {kind}</Text>
@@ -54,7 +54,7 @@ export default function PagerOrderCard({
         <Text style={[styles.seen, !order.seenAt && styles.seenOff]}>{order.seenAt ? '📱 متابع' : 'ما فتحه'}</Text>
       </View>
 
-      <Text style={styles.num}>#{order.id}</Text>
+      <Text style={styles.num}>#{order.orderNo ?? order.id}</Text>
       <Text style={styles.who} numberOfLines={1}>
         {who}
         {order.delayedAt && !ready ? ' · أُجّل' : ''}

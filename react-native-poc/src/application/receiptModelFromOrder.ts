@@ -61,7 +61,7 @@ export function receiptModelFromOrder(data: ReceiptData): ReceiptModel {
     branchLabel: data.branchLabel || undefined,
     vatNumber: data.vatNumber || undefined,
 
-    orderNumber: data.orderId != null ? String(data.orderId) : '—',
+    orderNumber: data.orderId != null ? String(data.orderNo ?? data.orderId) : '—',
     orderKind: orderKindFrom(data.metaLabel),
     orderKindLabel: data.orderKindLabel || undefined,
     cashierName: data.cashierName || undefined,

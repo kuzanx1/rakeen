@@ -55,7 +55,7 @@ interface StationState {
   /** طلبات طاولة من أجهزة ثانية تنتظر الدفع: id → وقت إنشائها. */
   watch: Record<string, number>;
   /** آخر طلب انطبع من جهاز ثاني -- يطلع في إعدادات الطابعة. */
-  lastPrinted?: { id: number; at: number };
+  lastPrinted?: { id: number; no?: number | null; at: number };
 }
 
 async function loadState(): Promise<StationState | null> {
@@ -110,6 +110,7 @@ async function receiptFor(d: OrderHistoryDetail): Promise<ReceiptData> {
   const branding = device.businessId != null ? await getReceiptBranding(device.businessId, device.branchId ?? null) : null;
   return {
     orderId: d.id,
+    orderNo: d.orderNo ?? null,
     lines: linesOf(d),
     subtotal: d.subtotal,
     discount: d.discountAmount,
@@ -142,6 +143,7 @@ async function kitchenFor(d: OrderHistoryDetail): Promise<KitchenTicketData> {
   const device = await getDeviceConfig();
   return {
     orderId: d.id,
+    orderNo: d.orderNo ?? null,
     tableNumber: d.tableNumber ?? null,
     lines: linesOf(d),
     branchName: device.branchName ?? undefined,
@@ -262,7 +264,7 @@ async function tickOnce(branchId: number): Promise<void> {
         const paid = r.payment_status === 'paid';
         await printNewOrder(d, paid);
         if (!paid) state.watch[String(id)] = created;
-        state.lastPrinted = { id, at: Date.now() };
+        state.lastPrinted = { id, no: d.orderNo ?? null, at: Date.now() };
       }
     }
     // يُسجَّل بعد كل طلب، عشان انقطاع بالنص ما يعيد طباعة اللي انطبع.
@@ -303,7 +305,7 @@ async function tickOnce(branchId: number): Promise<void> {
         const d = await getOrderHistoryDetail(id);
         if (d) {
           await printPaidReceipt(d);
-          state.lastPrinted = { id, at: Date.now() };
+          state.lastPrinted = { id, no: d.orderNo ?? null, at: Date.now() };
         }
       }
     }
@@ -327,7 +329,7 @@ export async function handleRemotePrint(orderId: number, kind: RemotePrintKind):
   if (kind === 'kitchen') await enqueuePrintJob('kitchen', { ...(await kitchenFor(d)) });
   else await enqueuePrintJob('receipt', { ...(await receiptFor(d)) });
   const state = await loadState();
-  if (state) await saveState({ ...state, lastPrinted: { id: orderId, at: Date.now() } });
+  if (state) await saveState({ ...state, lastPrinted: { id: orderId, no: d.orderNo ?? null, at: Date.now() } });
   return true;
 }
 

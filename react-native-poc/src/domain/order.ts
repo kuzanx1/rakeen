@@ -89,6 +89,8 @@ export interface OrderPayload extends Partial<PaymentTracking> {
   /** رقم محجوز لهذا الـ uuid (orderNumberPool.ts): ينطبع فوراً، والخادم
    *  يعطي الطلب نفس الرقم. محلي فقط -- ما يُرسل؛ الربط بالـ uuid. */
   reserved_order_id?: number;
+  /** رقم المنشأة المحجوز معه -- هذا اللي ينطبع. محلي فقط. */
+  reserved_order_no?: number;
   branch_id: number;
   shift_id: number | null;
   staff_member_id: number | null;

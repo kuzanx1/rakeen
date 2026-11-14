@@ -290,6 +290,7 @@ export default function OrderHistoryScreen({
       }
       await enqueuePrintJob('receipt', {
         orderId: detail.id,
+        orderNo: detail.orderNo ?? null,
         lines: detail.items.map(it => ({
           name: it.name,
           nameEn: it.nameEn,
@@ -344,6 +345,7 @@ export default function OrderHistoryScreen({
       }
       await enqueuePrintJob('kitchen', {
         orderId: detail.id,
+        orderNo: detail.orderNo ?? null,
         tableNumber: detail.tableNumber ?? null,
         lines: detail.items.map(it => ({
           name: it.name,
@@ -407,6 +409,7 @@ export default function OrderHistoryScreen({
 
       await enqueuePrintJob('receipt', {
         orderId: detail.id,
+        orderNo: detail.orderNo ?? null,
         lines: items,
         subtotal: amount, discount: 0, vat: 0, total: amount,
         paymentMethod: 'cash',
@@ -418,7 +421,7 @@ export default function OrderHistoryScreen({
         customMessage: 'تم استرجاع هذا المبلغ نقداً',
         createdAtISO: new Date().toISOString(),
         metaLabel: 'إشعار دائن — استرجاع',
-        refundOfOrder: `#${detail.id}`,
+        refundOfOrder: `#${detail.orderNo ?? detail.id}`,
       } satisfies ReceiptData);
     } catch {
       // الطباعة لا تُبطل استرجاعاً وقع.
@@ -616,7 +619,7 @@ export default function OrderHistoryScreen({
             <TouchableOpacity style={styles.row} onPress={() => openDetail(item.id)} activeOpacity={0.8}>
               <View style={[styles.rowBadge, { backgroundColor: ROW_BADGE_COLOR[status as OrderHistoryStatus] }]} />
               <View style={styles.rowInfo}>
-                <Text style={styles.rowTitle}>#{item.id}{offlineRefs[String(item.id)] ? ` (كان ${offlineRefs[String(item.id)]})` : ''} — {item.customerName || CHANNEL_LABELS[item.channel] || item.channel}</Text>
+                <Text style={styles.rowTitle}>#{item.orderNo ?? item.id}{offlineRefs[String(item.id)] ? ` (كان ${offlineRefs[String(item.id)]})` : ''} — {item.customerName || CHANNEL_LABELS[item.channel] || item.channel}</Text>
                 <Text style={styles.rowMeta}>{formatArabicDateTimeShort(new Date(item.createdAt))}</Text>
               </View>
               <Money value={item.total} size={14.5} />
@@ -658,7 +661,7 @@ export default function OrderHistoryScreen({
                     ("تفاصيل الطلب #123"); this sheet has no head bar, so it
                     leads with it -- without it the cashier cannot tell
                     which order they opened. */}
-                <Text style={styles.sheetOrderNo}>تفاصيل الطلب #{detail.id}</Text>
+                <Text style={styles.sheetOrderNo}>تفاصيل الطلب #{detail.orderNo ?? detail.id}</Text>
                 <Text style={styles.sheetTitle}>
                   {CHANNEL_LABELS[detail.channel] || detail.channel}
                   {detail.customerName ? ` — ${detail.customerName}` : ''}

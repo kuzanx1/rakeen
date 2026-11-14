@@ -124,7 +124,7 @@ export default function PrinterSettingsScreen({
   const styles = useStyles();
   const [profile, setProfile] = useState<PrinterProfile>(emptyPrinterProfile());
   const [loading, setLoading] = useState(true);
-  const [stationLast, setStationLast] = useState<{ id: number; at: number } | null>(null);
+  const [stationLast, setStationLast] = useState<{ id: number; no?: number | null; at: number } | null>(null);
   const [hasSecondScreen, setHasSecondScreen] = useState(false);
   useEffect(() => {
     getPrintStationLastPrinted().then(setStationLast).catch(() => {});
@@ -479,7 +479,7 @@ export default function PrinterSettingsScreen({
         </Text>
         {profile.printStation === true && stationLast && (
           <Text style={[styles.themeHint, { marginTop: 6 }]}>
-            آخر طلب انطبع من جهاز ثاني: #{stationLast.id} — {formatArabicTime(new Date(stationLast.at))}
+            آخر طلب انطبع من جهاز ثاني: #{stationLast.no ?? stationLast.id} — {formatArabicTime(new Date(stationLast.at))}
           </Text>
         )}
       </Section>

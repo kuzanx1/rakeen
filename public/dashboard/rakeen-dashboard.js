@@ -1425,7 +1425,7 @@ function renderOrdersTable(){
   let rows = RECENT_ORDERS;
   if(orderStatusFilter !== 'all') rows = rows.filter(o=>odStatusKey(o.status) === orderStatusFilter);
   const q = orderSearchQuery.trim().replace(/^#/, '');
-  if(q) rows = rows.filter(o=>o.id.replace('#','').includes(q));
+  if(q) rows = rows.filter(o=>(o.no || o.id).replace('#','').includes(q));
 
   if(rows.length === 0){
     el.innerHTML = RECENT_ORDERS.length === 0
@@ -1451,7 +1451,7 @@ function renderOrdersTable(){
     const plat = o.platformName ? '<span class="od-plat">' + escapeHtml(o.platformName) + '</span>' : '';
     html += '<button type="button" class="od-row ' + st + '" data-order-id="' + o.id.replace('#','') + '">'
       + '<span class="od-dot" data-st="' + st + '"></span>'
-      + '<span class="od-main"><span class="od-line1"><b class="hm-num">' + o.id + '</b><span class="od-time">' + o.time + '</span></span>'
+      + '<span class="od-main"><span class="od-line1"><b class="hm-num">' + (o.no || o.id) + '</b><span class="od-time">' + o.time + '</span></span>'
       + '<span class="od-line2">' + orderChannelTagsHtml(o.channel, o.isOnline) + plat
       + (ORDER_SCREEN_BRANCHES.length > 1 && o.branchName ? '<span class="od-plat">' + escapeHtml(o.branchName) + '</span>' : '')
       + '<span class="od-sub">' + hmPlural(o.items, 'صنف واحد', 'صنفين', 'أصناف', 'صنف') + ' · ' + escapeHtml(o.payment || '') + '</span></span></span>'
@@ -1512,10 +1512,18 @@ function wireOrdersScreen(){
   if(inp) inp.addEventListener('input', (e)=>{ orderSearchQuery = e.target.value; odShown = OD_PAGE; renderOrdersTable(); });
 }
 
+/* رقم الطلب في المنشأة (orders.order_no): ١، ٢، ٣… لكل منشأة. id يبقى
+   داخلياً للربط. كل «#…» يمرّ بـ rkNo: يعرف رقم المنشأة؟ يعرضه، وإلا id
+   (المنشأة غير المفعّلة ما لها رقم خاص). */
+function rkOrderNos(){ return window.__rkOrderNos || (window.__rkOrderNos = new Map()); }
+function rkRememberNo(id, no){ if(Number(id) > 0 && Number(no) > 0) rkOrderNos().set(Number(id), Number(no)); }
+function rkRememberRows(rows){ (rows || []).forEach(r => { if(r) rkRememberNo(r.id, r.order_no); }); }
+function rkNo(id){ const n = rkOrderNos().get(Number(id)); return n != null ? n : id; }
+
 async function openOrderDetailModal(orderId){
   const modal = document.getElementById('orderDetailModal');
   const body = document.getElementById('orderDetailModalBody');
-  document.getElementById('orderDetailModalTitle').textContent = 'طلب #' + orderId;
+  document.getElementById('orderDetailModalTitle').textContent = 'طلب #' + rkNo(orderId);
   body.innerHTML = '<p class="od-dt-loading">لحظة، نجيب الطلب...</p>';
   modal.classList.add('show');
 
@@ -1533,10 +1541,12 @@ async function openOrderDetailModal(orderId){
       + (mods ? '<small>' + mods + '</small>' : '') + (it.note ? '<small>' + escapeHtml(it.note) + '</small>' : '') + '</span>' + hmMoney(it.line_total) + '</div>';
   }).join('');
 
+  rkRememberNo(order.id, order.order_no);
+  document.getElementById('orderDetailModalTitle').textContent = 'طلب #' + rkNo(order.id);
   const isOnline = order.source === 'online';
   const hasLocation = order.channel === 'delivery' && order.customer_lat != null && order.customer_lng != null;
   const mapsUrl = hasLocation ? `https://www.google.com/maps?q=${order.customer_lat},${order.customer_lng}` : null;
-  const waMessage = `مرحبًا ${order.customer_name || ''}! طلبك رقم #${order.id} جاري تجهيزه وراح يوصلك بأقرب وقت.`;
+  const waMessage = `مرحبًا ${order.customer_name || ''}! طلبك رقم #${rkNo(order.id)} جاري تجهيزه وراح يوصلك بأقرب وقت.`;
   const waPhone = (order.customer_phone || '').replace(/\D/g, '');
   const waUrl = waPhone ? `https://wa.me/${waPhone.startsWith('966') ? waPhone : '966' + waPhone.replace(/^0/, '')}?text=${encodeURIComponent(waMessage)}` : null;
   const st = odStatusKey(order.status);
@@ -1585,8 +1595,8 @@ async function openOrderDetailModal(orderId){
         try {
           const { error } = await window.supabaseClient.rpc('refund_pos_order', { p_order_id: orderId });
           if(error) throw error;
-          logDashboardAudit('استرجع مبلغ الطلب #' + orderId);
-          showToast('رجّعنا مبلغ الطلب #' + orderId);
+          logDashboardAudit('استرجع مبلغ الطلب #' + rkNo(orderId));
+          showToast('رجّعنا مبلغ الطلب #' + rkNo(orderId));
           await loadOrdersAndTables();
           computeOrderStatusCounts();
           renderOrderStatusGrid();
@@ -1715,7 +1725,7 @@ function showTableDetail(tableId){
   if(t.orderId){
     const order = RECENT_ORDERS.find(o=>o.id===t.orderId);
     if(order){
-      bodyHtml += `<div class="tdp-row"><span>رقم الطلب</span><span class="mono">${order.id}</span></div>`;
+      bodyHtml += `<div class="tdp-row"><span>رقم الطلب</span><span class="mono">${order.no || order.id}</span></div>`;
       bodyHtml += `<div class="tdp-row"><span>عدد الأصناف</span><span class="mono">${order.items}</span></div>`;
       bodyHtml += `<div class="tdp-row"><span>الإجمالي</span>${hmMoney(order.total)}</div>`;
       bodyHtml += `<button type="button" class="rk2-btn sm od-ghost tdp-open" data-tdp-order="${order.id.replace('#','')}">افتح الطلب</button>`;
@@ -2040,7 +2050,7 @@ async function renderStockItemLedger(stockItemId){
     return `<div class="si-ledger-row ${r.cls}">
       <div class="slr-head">
         <span class="slr-reason">${r.label}${src ? ' · ' + src : ''}</span>
-        ${m.order_id ? `<span class="slr-order mono">طلب #${m.order_id}</span>` : ''}
+        ${m.order_id ? `<span class="slr-order mono">طلب #${rkNo(m.order_id)}</span>` : ''}
         <span class="slr-when mono">${when}</span>
       </div>
       <div class="slr-math mono">${Number(m.qty_before)} ${unit} <span class="slr-arrow">←</span> <b>${sign}${delta}</b> <span class="slr-arrow">←</span> ${Number(m.qty_after)} ${unit}</div>
@@ -8995,7 +9005,7 @@ async function loadOrdersAndTables(scope){
   const [{data: orders}, {data: tables}, {data: sections}, {data: biz}, {data: branches}, {data: platforms}] = await Promise.all([
     // order_items(count) embeds each order's line count in the same response,
     // instead of a second request that pulled every item row just to count them.
-    wantOrders ? sb.from('orders').select('id, created_at, channel, total, payment_method, status, source, branch_id, delivery_platform_id, order_items(count)').eq('business_id', businessId).gte('created_at', cutoff).order('created_at', {ascending:false}).limit(500) : none,
+    wantOrders ? sb.from('orders').select('id, order_no, created_at, channel, total, payment_method, status, source, branch_id, delivery_platform_id, order_items(count)').eq('business_id', businessId).gte('created_at', cutoff).order('created_at', {ascending:false}).limit(500) : none,
     wantTables ? sb.from('restaurant_tables').select('id, number, status, active_order_id, section_id, branch_id, status_changed_at').eq('business_id', businessId).order('number') : none,
     full ? sb.from('table_sections').select('id, name, sort_order').eq('business_id', businessId).order('sort_order') : none,
     full ? sb.from('businesses').select('tables_turn_time_minutes').eq('id', businessId).single() : none,
@@ -9016,8 +9026,10 @@ async function loadOrdersAndTables(scope){
   if(!wantOrders) return;
   const countByOrder = {};
   (orders||[]).forEach(o=>{ countByOrder[o.id] = (o.order_items && o.order_items[0] && o.order_items[0].count) || 0; });
+  rkRememberRows(orders);
   RECENT_ORDERS = (orders||[]).map(o=>({
     id: '#'+o.id,
+    no: o.order_no != null ? '#' + o.order_no : null, // المعروض؛ id للربط
     date: formatRelativeDate(o.created_at),
     createdAt: o.created_at,
     time: new Date(o.created_at).toLocaleTimeString('ar-SA-u-nu-latn',{hour:'numeric',minute:'2-digit'}),
@@ -10013,7 +10025,7 @@ function dailyRefundsSectionHtml(d){
     ${rows.length ? `<table class="report-table">
       <thead><tr><th>الطلب</th><th>النوع</th><th>السبب</th><th>المبلغ</th></tr></thead>
       <tbody>${rows.map(r=>`<tr>
-        <td class="mono">#${r.orderId}</td><td>${kindLabel[r.kind] || r.kind}</td>
+        <td class="mono">#${rkNo(r.orderId)}</td><td>${kindLabel[r.kind] || r.kind}</td>
         <td>${r.reason ? escapeHtml(r.reason) : '—'}</td><td class="mono">${Number(r.amount||0).toFixed(2)}</td>
       </tr>`).join('')}</tbody></table>` : ''}
     <div class="report-stat-row total"><span>إجمالي الاسترجاع (${d.refundsCount || 0})</span><span class="mono">${Number(d.refundsTotal||0).toFixed(2)} ر.س</span></div>`;
@@ -10299,7 +10311,7 @@ async function loadReportDetailRows(type, from, to){
     // كلّ طلبٍ خُصم منه شيء بهالفترة، مع أصنافه وموظّفه -- تفصيلٌ ما
     // كان له مكان قبل اليوم غير سطرٍ واحد داخل نافذة تفاصيل الطلب.
     const { data: orders } = await sb.from('orders')
-      .select('id, created_at, discount_pct, discount_amount, discount_reason, shift_id')
+      .select('id, order_no, created_at, discount_pct, discount_amount, discount_reason, shift_id')
       .eq('business_id', businessId).gt('discount_pct', 0)
       .gte('created_at', from.toISOString()).lt('created_at', to.toISOString())
       .order('created_at', {ascending:false});
@@ -10323,7 +10335,7 @@ async function loadReportDetailRows(type, from, to){
         return Number(it.qty) > 1 ? `${name} ×${it.qty}` : name;
       }).join('، ');
       return {
-        id: o.id, date: o.created_at,
+        id: o.order_no != null ? o.order_no : o.id, date: o.created_at,
         pct: Number(o.discount_pct), amount: Number(o.discount_amount),
         reason: o.discount_reason || '',
         products: productsLabel || '—',
@@ -14281,7 +14293,7 @@ async function pgsLoadRatings(){
     ${low.length ? `<label class="pgs-label" style="margin-top:14px">الملاحظات</label>
     <div class="pgs-rate-list">${low.slice(0, 30).map(r => `
       <div class="pgs-rate-item">
-        <div class="pgs-rate-top">${stars(r.stars)}<span>طلب #${r.order_id} · ${when(r.created_at)}</span></div>
+        <div class="pgs-rate-top">${stars(r.stars)}<span>طلب #${rkNo(r.order_id)} · ${when(r.created_at)}</span></div>
         ${(r.tags || []).length ? `<div class="pgs-rate-tags">${r.tags.map(t => `<em>${escapeHtml(t)}</em>`).join('')}</div>` : ''}
         ${r.note ? `<p>${escapeHtml(r.note)}</p>` : ''}
         ${r.whatsapp ? `<a class="rk-btn rk-btn-secondary rk-btn-sm" href="https://wa.me/${encodeURIComponent(r.whatsapp)}" target="_blank" rel="noopener">${rkIcon('messageCircle')} كلّمه على الواتساب</a>` : ''}

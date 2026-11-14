@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: { params: Promise<{ key: stri
   const s = uuid ? await load(uuid) : null;
   const name = s && s.found ? s.business?.name : null;
   return {
-    title: s && s.found ? `طلبك #${s.order_id}${name ? " — " + name : ""}` : "بيجر ركين",
+    title: s && s.found ? `طلبك #${s.order_no ?? s.order_id}${name ? " — " + name : ""}` : "بيجر ركين",
     robots: { index: false, follow: false },
   };
 }

@@ -32,7 +32,7 @@ function waNumber(raw: unknown): string | null {
   return null;
 }
 
-type RateOrder = { id: number; business_id: number; status: string; ready_at: string | null;
+type RateOrder = { id: number; order_no?: number | null; business_id: number; status: string; ready_at: string | null;
   businesses?: { pager_enabled?: boolean; pager_settings?: { rate?: boolean; wa?: string } | null } };
 
 /** رقم واتساب المحل للملاحظات -- محفوظ أرقاماً بمفتاح الدولة من لوحة التحكم. */
@@ -45,7 +45,7 @@ function shopWa(o: RateOrder | null): string | null {
 async function findOrder(admin: SupabaseClient<any, any, any>, key: string): Promise<RateOrder | null> {
   const { data } = await admin
     .from("orders")
-    .select("id, business_id, status, ready_at, businesses!inner(pager_enabled, pager_settings)")
+    .select("id, order_no, business_id, status, ready_at, businesses!inner(pager_enabled, pager_settings)")
     .eq("client_order_uuid", key)
     .maybeSingle();
   return (data as unknown as RateOrder) || null;
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
         ensureVapidConfigured(vapidPublicKey, vapidPrivateKey);
         const why = [tags.join("، "), note].filter(Boolean).join(" — ").slice(0, 120);
         const payload = JSON.stringify({
-          title: `تقييم ${stars} من ٥ — طلب #${o.id}`,
+          title: `تقييم ${stars} من ٥ — طلب #${o.order_no ?? o.id}`,
           body: (why || "زبون ما كان راضي عن طلبه") + (whatsapp ? " · ترك رقم واتساب" : ""),
           url: "/dashboard",
         });

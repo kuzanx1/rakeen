@@ -4,6 +4,7 @@ import { QueuedPayload, OrderPayload, DineInRegisterPayload, DineInPayPayload } 
 import { syncQueuedOrders, SyncOutcome } from '../domain/orderQueue';
 import { markOwnOrder, markOwnPayment } from './ownOrders';
 import { nextOfflineRef, rememberOfflineRef } from './offlineRefService';
+import { orderNoFor } from './orderNumberPool';
 
 /**
  * Real RPC dispatch -- exact same three RPCs, exact same parameter names,
@@ -121,12 +122,14 @@ export async function assignOfflineRef(payload: QueuedPayload): Promise<string |
  */
 export async function submitOrder(
   payload: QueuedPayload,
-): Promise<{ immediate: boolean; orderId?: number; offlineRef?: string; error?: string }> {
+): Promise<{ immediate: boolean; orderId?: number; orderNo?: number; offlineRef?: string; error?: string }> {
   await sqliteOrderQueueStorage.put(payload);
   try {
     const result = await dispatchQueuedPayload(payload);
     await sqliteOrderQueueStorage.remove(payload.client_order_uuid);
-    return { immediate: true, orderId: typeof result === 'number' ? result : undefined };
+    const orderId = typeof result === 'number' ? result : undefined;
+    const orderNo = (await orderNoFor(orderId)) ?? undefined;
+    return { immediate: true, orderId, orderNo };
   } catch (e) {
     const offlineRef = await assignOfflineRef(payload).catch(() => undefined);
     if (offlineRef) await sqliteOrderQueueStorage.put(payload).catch(() => {});

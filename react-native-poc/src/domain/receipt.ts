@@ -54,6 +54,8 @@ export interface ReceiptLine {
  */
 export interface ReceiptData {
   orderId: number | null;
+  /** رقم الطلب في المنشأة -- يُطبع بدل orderId متى وُجد. */
+  orderNo?: number | null;
   /** «م-7» بلا نت، بدل «سيُحدَّد عند الاتصال» (application/offlineRefService.ts). */
   offlineRef?: string;
   lines: ReceiptLine[];
@@ -132,6 +134,8 @@ export interface KitchenTicketData {
   /** Call-buzzer number, when the shop hands them out. */
   pagerNumber?: number | null;
   orderId: number | null;
+  /** رقم الطلب في المنشأة -- يُطبع بدل orderId متى وُجد. */
+  orderNo?: number | null;
   /** see ReceiptData.offlineRef */
   offlineRef?: string;
   /** شعار المطعم، يتصدّر التذكرة بدل كلمة "طلب مطبخ". */
@@ -178,7 +182,7 @@ export function buildReceiptEscPosBase64(data: ReceiptData): string {
   const bytes: number[] = [];
   bytes.push(ESC, 0x40); // init
   textToBytes(bytes, 'RAKEEN POS');
-  textToBytes(bytes, data.orderId != null ? `Order #${data.orderId}` : 'Order (offline)');
+  textToBytes(bytes, data.orderId != null ? `Order #${data.orderNo ?? data.orderId}` : 'Order (offline)');
   textToBytes(bytes, '------------------------');
   for (const line of data.lines) {
     textToBytes(bytes, `${line.qty} x ${line.name} - ${line.lineTotal.toFixed(2)}`);
@@ -198,7 +202,7 @@ export function buildKitchenTicketEscPosBase64(data: KitchenTicketData): string 
   const bytes: number[] = [];
   bytes.push(ESC, 0x40);
   textToBytes(bytes, 'KITCHEN TICKET');
-  textToBytes(bytes, data.orderId != null ? `Order #${data.orderId}` : 'Order (offline)');
+  textToBytes(bytes, data.orderId != null ? `Order #${data.orderNo ?? data.orderId}` : 'Order (offline)');
   if (data.tableNumber != null) textToBytes(bytes, `Table ${data.tableNumber}`);
   textToBytes(bytes, '------------------------');
   for (const line of data.lines) {

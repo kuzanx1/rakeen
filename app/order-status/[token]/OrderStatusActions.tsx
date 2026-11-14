@@ -328,7 +328,7 @@ export default function OrderStatusActions({ token, initial }: { token: string; 
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${order.business_name}-طلب-${order.order_id}.png`;
+      a.download = `${order.business_name}-طلب-${order.order_no ?? order.order_id}.png`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -390,7 +390,7 @@ export default function OrderStatusActions({ token, initial }: { token: string; 
         <div style={styles.metaRow}>
           <div style={styles.metaBlock}>
             <div style={styles.metaLabel}>رقم الطلب</div>
-            <div style={styles.metaValueBig}>#{order.order_id}</div>
+            <div style={styles.metaValueBig}>#{order.order_no ?? order.order_id}</div>
           </div>
           <div style={styles.metaDivider} />
           <div style={styles.metaBlock}>
@@ -466,7 +466,7 @@ export default function OrderStatusActions({ token, initial }: { token: string; 
       })()}
 
       {order.contact_whatsapp && (
-        <a href={whatsappUrl(order.contact_whatsapp, order.order_id)} target="_blank" rel="noopener noreferrer" style={styles.waBtn}>
+        <a href={whatsappUrl(order.contact_whatsapp, order.order_no ?? order.order_id)} target="_blank" rel="noopener noreferrer" style={styles.waBtn}>
           <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M17.5 14.4c-.3-.1-1.6-.8-1.9-.9-.2-.1-.4-.1-.6.1-.2.3-.7.9-.8 1-.1.2-.3.2-.5.1-.3-.1-1.2-.4-2.2-1.4-.8-.7-1.4-1.6-1.5-1.9-.2-.3 0-.4.1-.6l.4-.4c.1-.1.2-.3.2-.4.1-.2 0-.3 0-.5-.1-.1-.6-1.5-.8-2-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.2s1 2.5 1.1 2.7c.1.2 2 3 4.7 4.2.7.3 1.2.5 1.6.6.7.2 1.3.2 1.8.1.5-.1 1.6-.7 1.9-1.3.2-.6.2-1.1.2-1.2-.1-.2-.3-.2-.6-.4z"/><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.1l-.3-.2-3.1.8.8-3-.2-.3A8.2 8.2 0 1 1 20.2 12 8.2 8.2 0 0 1 12 20.2z"/></svg>
           <span>تواصل معنا عبر واتساب</span>
         </a>
@@ -779,7 +779,7 @@ async function drawReceiptCard(canvas: HTMLCanvasElement, order: OrderStatus, ac
   ctx.fillText("رقم الطلب", cx, headerH + 30);
   ctx.fillStyle = "#18170F";
   ctx.font = "800 44px 'IBM Plex Mono'";
-  ctx.fillText("#" + order.order_id, cx, headerH + 80);
+  ctx.fillText("#" + (order.order_no ?? order.order_id), cx, headerH + 80);
   ctx.fillStyle = "#8a8375";
   ctx.font = "700 11px Alexandria";
   ctx.fillText(timeLabel(order.created_at), cx, headerH + 100);

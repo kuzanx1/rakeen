@@ -214,7 +214,7 @@ export default function RunningOrdersList({
     if (!auto) setPagerBusy(o.id);
     const r = await pagerAction(o.id, action, 5);
     if (!auto) setPagerBusy(null);
-    if (!auto || r.ok) setNotice(auto ? (action === 'ring' ? `🔔 رنّة تذكير تلقائية — طلب #${o.id}` : `أُقفل بيجر طلب #${o.id} تلقائياً`) : pagerActionToast(o.id, action, r));
+    if (!auto || r.ok) setNotice(auto ? (action === 'ring' ? `🔔 رنّة تذكير تلقائية — طلب #${o.orderNo ?? o.id}` : `أُقفل بيجر طلب #${o.orderNo ?? o.id} تلقائياً`) : pagerActionToast(o.orderNo ?? o.id, action, r));
     if (!r.ok && !auto) setError(r.error || 'تعذر التحديث');
     await loadPager();
   }, [loadPager]);
@@ -237,8 +237,8 @@ export default function RunningOrdersList({
             lateWarned.current.add(o.id);
             playAlertSound('warning');
             setNotice(pagerConfig().settings.show_eta
-              ? `⏰ طلب #${o.id} تجاوز الوقت اللي وعدنا فيه الزبون — جهّزه أو اضغط «+٥ د»`
-              : `⏰ طلب #${o.id} تجاوز وقت التحضير — جهّزه`);
+              ? `⏰ طلب #${o.orderNo ?? o.id} تجاوز الوقت اللي وعدنا فيه الزبون — جهّزه أو اضغط «+٥ د»`
+              : `⏰ طلب #${o.orderNo ?? o.id} تجاوز وقت التحضير — جهّزه`);
           }
         }
       }
@@ -417,7 +417,7 @@ export default function RunningOrdersList({
             <View style={styles.cardHead}>
               <View style={styles.cardHeadInfo}>
                 <Text style={styles.cardTitle}>
-                  #{order.id} · {isDelivery ? order.platformName : order.isOnline ? 'طلب إلكتروني — استلام' : 'سفري'}
+                  #{order.orderNo ?? order.id} · {isDelivery ? order.platformName : order.isOnline ? 'طلب إلكتروني — استلام' : 'سفري'}
                 </Text>
                 {!!order.customerName && <Text style={styles.cardName}>{order.customerName}</Text>}
               </View>
@@ -578,7 +578,7 @@ export function CancelOrderModal({
   onClose,
   onDone,
 }: {
-  order: Pick<ActiveOrder, 'id' | 'customerName' | 'customerPhone'> | null;
+  order: Pick<ActiveOrder, 'id' | 'orderNo' | 'customerName' | 'customerPhone'> | null;
   onClose: () => void;
   onDone: (message: string) => void;
 }) {
@@ -611,7 +611,7 @@ export function CancelOrderModal({
       setErr(r.error ?? 'تعذر إلغاء الطلب');
       return;
     }
-    onDone(`انلغى الطلب #${order.id} — ${finalReason}`);
+    onDone(`انلغى الطلب #${order.orderNo ?? order.id} — ${finalReason}`);
   };
 
   return (
@@ -619,7 +619,7 @@ export function CancelOrderModal({
       <KeyboardLift style={styles.cOverlay}>
         <View style={[styles.cCard, shadows.md]}>
           <ScrollView contentContainerStyle={styles.cBody} keyboardShouldPersistTaps="handled">
-            <Text style={styles.cTitle}>إلغاء الطلب #{order?.id}</Text>
+            <Text style={styles.cTitle}>إلغاء الطلب #{order?.orderNo ?? order?.id}</Text>
 
             <View style={styles.cWarn}>
               <Text style={styles.cWarnTitle}>تواصل مع العميل أول</Text>

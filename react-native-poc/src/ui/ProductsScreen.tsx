@@ -25,7 +25,7 @@ import type { DeliveryPlatform, PosFeatureFlags } from '../application/catalogSe
 import { listTables, seatWalkIn } from '../application/tableService';
 import { pointsRedeemOffer, redeemableCountText, toWesternDigits } from '../domain/customer';
 import { submitOrder } from '../application/orderService';
-import { takeReservedOrderNumber } from '../application/orderNumberPool';
+import { orderNoFor, takeReservedOrderNumber } from '../application/orderNumberPool';
 import { completePaymentOperation } from '../application/paymentService';
 import { getDeviceConfig } from '../application/authService';
 import { enqueuePrintJob } from '../application/printService';
@@ -926,6 +926,18 @@ export default function ProductsScreen({
     selectedTable?.activeOrderId ?? null,
   );
   const [dineInOrderTotal, setDineInOrderTotal] = useState(0);
+  // رقم الطلب في المنشأة للزر «دفع الطلب #…» (null = يُعرض الداخلي).
+  const [lastRegisteredDineInOrderNo, setLastRegisteredDineInOrderNo] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setLastRegisteredDineInOrderNo(null);
+    orderNoFor(lastRegisteredDineInOrderId).then(n => {
+      if (alive) setLastRegisteredDineInOrderNo(n);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [lastRegisteredDineInOrderId]);
   const [loyaltyRedeemOpen, setLoyaltyRedeemOpen] = useState(false);
   /* نظام الولاء -- يُقرأ مرّةً عند فتح الشاشة. صاحب المطعم يبدّله
      مرّةً في العمر، لا مرّةً في الدقيقة. */
@@ -1080,6 +1092,7 @@ export default function ProductsScreen({
         if (shouldPrintKitchenTicket(printerProfileForKitchen) && planHas('kds')) {
           enqueuePrintJob('kitchen', {
             orderId: result.orderId ?? null,
+            orderNo: result.orderNo ?? null,
             offlineRef: result.offlineRef,
             tableNumber: selectedTable?.number ?? null,
             lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
@@ -1173,6 +1186,7 @@ export default function ProductsScreen({
           if (shouldPrintCustomerReceipt(printerProfileForReceipt)) {
             receiptJobId = await enqueuePrintJob('receipt', {
               orderId: lastRegisteredDineInOrderId,
+              orderNo: orderDetail?.orderNo ?? null,
               lines: (orderDetail?.items ?? []).map(it => ({
                 name: it.name,
                 nameEn: it.nameEn,
@@ -1298,7 +1312,7 @@ export default function ProductsScreen({
       // الخادم. ما فيه؟ نفس المسار القديم بالضبط.
       const reserved = await takeReservedOrderNumber(device.branchId).catch(() => null);
       const payload = reserved
-        ? { ...built, client_order_uuid: reserved.uuid, operation_id: operationIdForOrder(reserved.uuid), reserved_order_id: reserved.id }
+        ? { ...built, client_order_uuid: reserved.uuid, operation_id: operationIdForOrder(reserved.uuid), reserved_order_id: reserved.id, reserved_order_no: reserved.no }
         : built;
       const outcome = await completePaymentOperation(payload, { openDrawer: method === 'cash' });
       setSubmitStatus(outcome.reservedNumber ? paymentOutcomeText('PAYMENT_COMPLETED') : paymentOutcomeText(outcome.paymentState));
@@ -1336,6 +1350,7 @@ export default function ProductsScreen({
             : '';
           const customerReceipt = {
               orderId: outcome.orderId ?? null,
+              orderNo: outcome.orderNo ?? null,
               offlineRef: outcome.offlineRef,
               lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
               subtotal: cart.totals.subtotal,
@@ -1366,12 +1381,13 @@ export default function ProductsScreen({
               platformName: platformName || undefined,
               platformInvoiceLast4: cart.orderChannel === 'delivery' ? invoiceLast4 || undefined : undefined,
               // بيجر ركين: باركود يحوّل جوال الزبون جهاز نداء (null لو مطفأ أو لا ينطبق).
-              pager: pagerReceiptBlock(payload, outcome.orderId ?? null, service.dineInMode),
+              pager: pagerReceiptBlock(payload, outcome.orderNo ?? outcome.orderId ?? null, service.dineInMode),
           } satisfies ReceiptData;
           lastReceipt = customerReceipt;
           if (kitchenTicketByButton(printerProfileForReceipt) && planHas('kds')) {
             lastKitchen = {
               orderId: outcome.orderId ?? null,
+              orderNo: outcome.orderNo ?? null,
               offlineRef: outcome.offlineRef,
               tableNumber: null,
               lines: customerReceipt.lines,
@@ -1402,6 +1418,7 @@ export default function ProductsScreen({
             } else {
               enqueuePrintJob('kitchen', {
                 orderId: outcome.orderId ?? null,
+                orderNo: outcome.orderNo ?? null,
                 offlineRef: outcome.offlineRef,
                 tableNumber: null,
                 lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
@@ -1426,7 +1443,7 @@ export default function ProductsScreen({
           kitchen: lastKitchen,
         });
         // بيجر ركين: الباركود على شاشة العميل (سنمي محلّياً، والويب عبر الخادم).
-        pagerAfterCheckout(payload, outcome.orderId ?? null, service.dineInMode, device.branchId ?? null).catch(() => {});
+        pagerAfterCheckout(payload, outcome.orderId ?? null, service.dineInMode, device.branchId ?? null, outcome.orderNo ?? null).catch(() => {});
         cart.clearCart(); // safe in the SQLite queue either way, per Checkpoint 5
         // `document.getElementById('discountToggle').textContent = '+ خصم'`
         // (:3269) -- the toggle's label AND its panel go back to rest.
@@ -1915,7 +1932,7 @@ export default function ProductsScreen({
                 />
                 {lastRegisteredDineInOrderId != null && (
                   <PayButton
-                    label={`دفع الطلب #${lastRegisteredDineInOrderId}`}
+                    label={`دفع الطلب #${lastRegisteredDineInOrderNo ?? lastRegisteredDineInOrderId}`}
                     onPress={handleOpenDineInPayment}
                     disabled={submitting}
                   />

@@ -16,6 +16,8 @@ import { supabase } from '../infrastructure/supabaseClient';
 
 export interface ActiveOrder {
   id: number;
+  /** رقم الطلب في المنشأة (١، ٢، ٣…)؛ null = ما تفعّل، يُعرض id. */
+  orderNo?: number | null;
   channel: 'delivery' | 'pickup';
   createdAt: Date;
   total: number;
@@ -74,7 +76,7 @@ export async function listActiveOrders(branchId: number): Promise<ActiveOrder[]>
   const { data } = await supabase
     .from('orders')
     .select(
-      'id, total, created_at, ready_at, out_for_delivery_at, channel, source, customer_name, customer_phone, scheduled_for, pager_number, payment_method, payment_status, delivery_platform_id, platform_invoice_last4, delivery_platforms(name, prep_timeout_minutes)',
+      'id, order_no, total, created_at, ready_at, out_for_delivery_at, channel, source, customer_name, customer_phone, scheduled_for, pager_number, payment_method, payment_status, delivery_platform_id, platform_invoice_last4, delivery_platforms(name, prep_timeout_minutes)',
     )
     .eq('branch_id', branchId)
     // A till pickup order does NOT belong here.
@@ -116,6 +118,7 @@ export async function listActiveOrders(branchId: number): Promise<ActiveOrder[]>
     const isOnline = o.source === 'online';
     return {
       id: Number(o.id),
+      orderNo: o.order_no != null ? Number(o.order_no) : null,
       channel: o.channel === 'delivery' ? 'delivery' : 'pickup',
       createdAt: new Date(o.created_at),
       total: Number(o.total),

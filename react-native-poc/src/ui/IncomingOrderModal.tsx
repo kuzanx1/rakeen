@@ -79,7 +79,7 @@ export default function IncomingOrderModal({
           <View style={styles.head}>
             <GradientFill gradient={gradients.productIcon} radius={0} />
             <Text style={styles.headKicker}>طلب إلكتروني جديد</Text>
-            {order && <Text style={styles.headNumber}>#{order.id}</Text>}
+            {order && <Text style={styles.headNumber}>#{order.orderNo ?? order.id}</Text>}
             {order && (
               <View style={styles.headPill}>
                 <Text style={styles.headPillText}>

@@ -16,6 +16,8 @@ export type OrderHistoryStatus = 'completed' | 'cancelled' | 'refunded' | 'parti
 
 export interface OrderHistoryRow {
   id: number;
+  /** رقم الطلب في المنشأة (١، ٢، ٣…)؛ null = ما تفعّل، يُعرض id. */
+  orderNo?: number | null;
   total: number;
   createdAt: string;
   customerName: string | null;
@@ -36,7 +38,7 @@ export interface OrderHistoryRow {
 export async function listOrderHistory(branchId: number, status: OrderHistoryStatus): Promise<OrderHistoryRow[]> {
   let q = supabase
     .from('orders')
-    .select('id, total, created_at, customer_name, channel, status')
+    .select('id, order_no, total, created_at, customer_name, channel, status')
     .eq('branch_id', branchId);
   q = status === 'refunded'
     ? q.in('status', ['refunded', 'partially_refunded'])
@@ -47,6 +49,7 @@ export async function listOrderHistory(branchId: number, status: OrderHistorySta
   if (error) throw error;
   return (data || []).map(o => ({
     id: o.id,
+    orderNo: o.order_no != null ? Number(o.order_no) : null,
     total: Number(o.total),
     createdAt: o.created_at,
     customerName: o.customer_name,
@@ -69,6 +72,8 @@ export interface OrderHistoryItem {
 
 export interface OrderHistoryDetail {
   id: number;
+  /** رقم الطلب في المنشأة (١، ٢، ٣…)؛ null = ما تفعّل، يُعرض id. */
+  orderNo?: number | null;
   status: OrderHistoryStatus | string;
   createdAt: string;
   customerName: string | null;
@@ -134,6 +139,7 @@ export async function getOrderHistoryDetail(orderId: number): Promise<OrderHisto
 
   return {
     id: order.id,
+    orderNo: order.order_no != null ? Number(order.order_no) : null,
     status: order.status,
     createdAt: order.created_at,
     customerName: order.customer_name,

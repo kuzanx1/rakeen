@@ -192,7 +192,7 @@ function cardBadge(order){
   const badge = p && p.logo_url
     ? `<img src="${escapeHtml(p.logo_url)}" alt="" class="kds-card-logo">`
     : `<span class="kds-card-logo-initial" style="background:${(p && p.brand_color) || 'var(--surf2)'}">${escapeHtml(((p && p.name) || '؟').charAt(0))}</span>`;
-  return badge + `<span>#${order.id}${order.platform_invoice_last4 ? ' — ...' + escapeHtml(order.platform_invoice_last4) : ''}</span>`;
+  return badge + `<span>#${order.order_no != null ? order.order_no : order.id}${order.platform_invoice_last4 ? ' — ...' + escapeHtml(order.platform_invoice_last4) : ''}</span>`;
 }
 function renderCard(order){
   const { elapsedSec, remaining, urgency } = orderUrgency(order);
@@ -275,7 +275,7 @@ async function loadActiveOrders(){
   const startToday = new Date(); startToday.setHours(0,0,0,0);
   const { data } = await window.supabaseClient
     .from('orders')
-    .select('id, channel, created_at, customer_name, table_id, delivery_platform_id, platform_invoice_last4, ' +
+    .select('id, order_no, channel, created_at, customer_name, table_id, delivery_platform_id, platform_invoice_last4, ' +
       'restaurant_tables!orders_table_id_fkey(number), delivery_platforms(name, logo_url, brand_color, prep_timeout_minutes), ' +
       'order_items(qty, note, selected_modifiers, menu_items(name))')
     .eq('branch_id', DEVICE.branchId).eq('status', 'completed').is('ready_at', null)

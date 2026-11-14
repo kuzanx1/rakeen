@@ -3,6 +3,7 @@ import { sqliteOrderQueueStorage } from '../infrastructure/sqliteOrderQueue';
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { openCashDrawer } from '../platform/cashDrawer';
 import { dispatchQueuedPayload, assignOfflineRef } from './orderService';
+import { orderNoFor } from './orderNumberPool';
 import { OrderPayload, QueuedPayload } from '../domain/order';
 import { PaymentState, DrawerState, drawerAlreadyCompleted } from '../domain/payment';
 import { profileToPrinterTarget, drawerKickCommandFor, isDrawerSupported } from '../domain/printerProfile';
@@ -42,6 +43,9 @@ export interface PaymentOutcome {
    *  so completed pickup/delivery sales printed "Order (offline)" on the
    *  receipt even when a real id existed the whole time. */
   orderId?: number;
+  /** رقم الطلب في المنشأة (١، ٢، ٣…) -- هذا اللي ينطبع ويُعرض. غائب:
+   *  المنشأة ما تفعّل لها رقم خاص، فيُعرض orderId مثل قبل. */
+  orderNo?: number;
   /** «م-7» -- رقمٌ مؤقت للفاتورة لما ينحفظ الطلب بلا نت (offlineRefService). */
   offlineRef?: string;
 }
@@ -158,6 +162,7 @@ async function runCompletePayment(
   let paymentState: PaymentState;
   let paymentError: string | undefined;
   let orderId: number | undefined;
+  let orderNo: number | undefined;
   let offlineRef: string | undefined;
 
   /*
@@ -176,7 +181,15 @@ async function runCompletePayment(
     const pending: QueuedPayload = { ...afterDrawer, payment_state: 'PAYMENT_SYNC_PENDING' };
     await sqliteOrderQueueStorage.put(pending);
     sendReservedInBackground(pending, reservedId);
-    return { paymentState: 'PAYMENT_SYNC_PENDING', drawerState, drawerError, orderId: reservedId, reservedNumber: true };
+    const reservedNo = (afterDrawer as OrderPayload).reserved_order_no;
+    return {
+      paymentState: 'PAYMENT_SYNC_PENDING',
+      drawerState,
+      drawerError,
+      orderId: reservedId,
+      orderNo: reservedNo != null && reservedNo > 0 ? reservedNo : undefined,
+      reservedNumber: true,
+    };
   }
 
   try {
@@ -201,6 +214,7 @@ async function runCompletePayment(
     orderId = typeof result === 'number' ? result : undefined;
     paymentState = 'PAYMENT_COMPLETED';
     await sqliteOrderQueueStorage.remove(afterDrawer.client_order_uuid);
+    orderNo = (await orderNoFor(orderId)) ?? undefined;
   } catch (e) {
     paymentState = 'PAYMENT_SYNC_PENDING';
     paymentError = e instanceof Error ? e.message : String(e);
@@ -208,7 +222,7 @@ async function runCompletePayment(
     await sqliteOrderQueueStorage.put({ ...afterDrawer, payment_state: paymentState, last_error: paymentError });
   }
 
-  return { paymentState, drawerState, drawerError, paymentError, orderId, offlineRef };
+  return { paymentState, drawerState, drawerError, paymentError, orderId, orderNo, offlineRef };
 }
 
 /** الإرسال بعد ما انطبعت الفاتورة. نجح: يطلع من الطابور. فشل: يبقى للمزامن. */

@@ -28,6 +28,8 @@ export interface IncomingOrderItem {
 
 export interface IncomingOrder {
   id: number;
+  /** رقم الطلب في المنشأة (١، ٢، ٣…)؛ null = ما تفعّل، يُعرض id. */
+  orderNo?: number | null;
   channel: string;
   customerName: string | null;
   customerPhone: string | null;
@@ -104,6 +106,7 @@ export async function getIncomingOrder(orderId: number): Promise<IncomingOrder |
 
   return {
     id: Number(order.id),
+    orderNo: order.order_no != null ? Number(order.order_no) : null,
     channel: String(order.channel),
     customerName: order.customer_name ?? null,
     customerPhone: order.customer_phone ?? null,

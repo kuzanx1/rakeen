@@ -4,6 +4,8 @@ import OrderStatusActions from "./OrderStatusActions";
 
 export type OrderStatus = {
   order_id: number;
+  /** رقم الطلب في المنشأة؛ null = ما تفعّل، يُعرض order_id. */
+  order_no?: number | null;
   channel: "dine_in" | "pickup" | "delivery";
   status: "pending" | "completed" | "cancelled" | "refunded" | "rejected" | "awaiting_payment";
   ready_at: string | null;

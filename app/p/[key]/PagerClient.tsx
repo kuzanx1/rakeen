@@ -6,6 +6,8 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 export interface PagerStatus {
   found: boolean;
   order_id?: number;
+  /** رقم الطلب في المنشأة؛ غائب = ما تفعّل، يُعرض order_id. */
+  order_no?: number | null;
   channel?: string;
   status?: string;
   created_at?: string;
@@ -418,11 +420,11 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
       }
     } catch { /* لا صوت */ }
     try { navigator.vibrate?.(80); } catch { /* لا اهتزاز */ }
-    setNowPlaying(s?.order_id ? `طلب #${s.order_id} — يتجهز` : "طلبك — بانتظار التأكيد");
+    setNowPlaying(s?.order_id ? `طلب #${s.order_no ?? s.order_id} — يتجهز` : "طلبك — بانتظار التأكيد");
     void holdScreen();
     try { sessionStorage.setItem("rk-pager-armed:" + uuid, "1"); } catch { /* خاصّ */ }
     void askNotifications();
-  }, [tone, setNowPlaying, holdScreen, askNotifications, uuid, s?.order_id]);
+  }, [tone, setNowPlaying, holdScreen, askNotifications, uuid, s?.order_id, s?.order_no]);
 
   // ── الرنين
   const stopAlarm = useCallback(() => {
@@ -452,17 +454,17 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
     // يكفّ وحده بعد دقيقة ونصف -- ورنّةُ الكاشير الثانية تعيده.
     const stopAt = window.setTimeout(() => stopAlarm(), 90000);
     alarmTimers.current.push(stopAt as unknown as number);
-    setNowPlaying(`طلبك #${s?.order_id ?? ""} جاهز!`);
+    setNowPlaying(`طلبك #${s?.order_no ?? s?.order_id ?? ""} جاهز!`);
     // الصفحةُ في الخلفية والإذنُ معطى: إشعارٌ محلّي احتياطاً لإشعار الخادم.
     if (document.visibilityState !== "visible" && swRef.current && typeof Notification !== "undefined" && Notification.permission === "granted") {
       void swRef.current.showNotification(biz.name || "ركين", {
-        body: again ? `طلبك #${s?.order_id} ينتظرك! تفضّل استلمه` : `طلبك #${s?.order_id} جاهز! تفضّل استلمه`,
+        body: again ? `طلبك #${s?.order_no ?? s?.order_id} ينتظرك! تفضّل استلمه` : `طلبك #${s?.order_no ?? s?.order_id} جاهز! تفضّل استلمه`,
         tag: `pager-${s?.order_id}`, dir: "rtl", lang: "ar", requireInteraction: true,
         icon: biz.logo || "/pos-icon-192.png", data: { url: `/p/${pageKey}` },
         ...({ renotify: true, vibrate: [500, 180, 500, 180, 900] } as Record<string, unknown>),
       }).catch(() => {});
     }
-  }, [tone, stopAlarm, setNowPlaying, s?.order_id, biz.name, biz.logo, pageKey]);
+  }, [tone, stopAlarm, setNowPlaying, s?.order_id, s?.order_no, biz.name, biz.logo, pageKey]);
 
   // الحالةُ تغيّرت: جاهز؟ رنّة ثانية؟ استُلم؟
   useEffect(() => {
@@ -479,7 +481,7 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
       try { void wakeRef.current?.release(); } catch { /* */ }
       setNowPlaying(phase === "collected" ? "بالعافية عليك" : "انلغى الطلب");
     } else if (phase === "preparing" && armedRef.current) {
-      setNowPlaying(`طلب #${s?.order_id} — يتجهز`);
+      setNowPlaying(`طلب #${s?.order_no ?? s?.order_id} — يتجهز`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, s?.ring_count]);
@@ -526,7 +528,7 @@ export default function PagerClient({ uuid, pageKey, initial }: { uuid: string; 
 
   const R = 118;
   const C = 2 * Math.PI * R;
-  const num = s?.order_id != null ? String(s.order_id) : "…";
+  const num = s?.order_id != null ? String(s.order_no ?? s.order_id) : "…";
   const numSize = num.length > 6 ? "pg-num pg-num-s" : num.length > 4 ? "pg-num pg-num-m" : "pg-num";
 
   const style = {

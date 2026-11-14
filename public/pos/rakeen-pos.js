@@ -3382,6 +3382,7 @@ async function submitTableOrderRegistration(){
   // "serving" happens server-side inside the RPC, so it'll lag until sync
   // completes for a queued round — the cart/UI reset below doesn't wait on it.
   const orderId = await registerTableOrder();
+  if(orderId) await rkOrderNoFor(orderId);
   if(TRIAL && !TRIAL.subscribed) refreshTrialStatus();
   if(DEVICE.printKitchenTicket === true && DEVICE.kitchenTicketByButton !== true && posPlanHas('kds')){
     enqueuePrintJob('kitchen', buildKitchenReceiptData({channel:'dine_in', orderId, tableNumber: table ? table.number : null}));
@@ -4325,7 +4326,7 @@ function rkRememberOfflineRef(orderId, ref){
   const ids = Object.keys(map).sort((a, b) => Number(a) - Number(b));
   ids.slice(0, Math.max(0, ids.length - 300)).forEach(id => { delete map[id]; });
   try { localStorage.setItem('rakeen_offline_ref_map', JSON.stringify(map)); } catch(_) {}
-  showToast((LANG === 'en' ? 'Temporary order ' + ref + ' is now #' : 'الطلب المؤقت ' + ref + ' صار رقمه #') + orderId);
+  rkOrderNoFor(orderId).then(() => showToast((LANG === 'en' ? 'Temporary order ' + ref + ' is now #' : 'الطلب المؤقت ' + ref + ' صار رقمه #') + rkNo(orderId)));
 }
 /* يعطي الطلبَ المعلّق رقماً مؤقتاً ويحفظه معه في الطابور -- مرة وحدة. */
 async function rkAssignOfflineRef(queued){
@@ -4649,15 +4650,43 @@ async function registerTableOrder(){
 }
 
 /* ============ أرقام طلبات محجوزة لهذا الجهاز ============
-   كانت الفاتورة تنتظر complete_pos_order (بلا حدّ) لتعرف رقم الطلب. الآن
-   الجهاز يحجز دفعة أرقام، كل رقم مربوط بـ uuid ولّده هو، والخادم يعطي
-   الطلب نفس الرقم (supabase/migrations/20261114150000_order_number_blocks.sql).
+   لكل منشأة عدّادها: ١، ٢، ٣… (orders.order_no)، و orders.id رقم داخلي
+   للربط فقط. الجهاز يحجز دفعة صغيرة (٦) من عدّاد منشأته، كل رقم مربوط
+   بـ uuid ولّده هو ومعه id داخلي، والخادم يعطي الطلب نفس الاثنين
+   (supabase/migrations/20261114180000_business_order_numbers.sql).
    فتنطبع الفاتورة برقمها النهائي فوراً، والإرسال بالخلفية.
-   ما فيه حجز (الدالة ما نزلت، أو خلص بلا نت)؟ نفس المسار القديم بالضبط.
+   ما فيه حجز (المنشأة ما تفعّلت، أو خلص بلا نت)؟ نفس المسار القديم بالضبط.
    بلا مؤقّت: يُعبّأ عند الدخول ورجوع النت وبعد كل بيع.
    التطبيق: react-native-poc/src/application/orderNumberPool.ts */
-const RK_POOL_KEY = 'rk_order_number_pool_v1';
-const RK_POOL_TARGET = 30, RK_POOL_REFILL_BELOW = 15;
+const RK_POOL_KEY = 'rk_order_number_pool_v2';
+const RK_POOL_TARGET = 6, RK_POOL_REFILL_BELOW = 3;
+const RK_NUMBERS_ON_KEY = 'rk_order_numbers_on';
+function rkNumbersOn(){ try { return localStorage.getItem(RK_NUMBERS_ON_KEY) === '1'; } catch(_) { return false; } }
+function rkSetNumbersOn(v){ try { localStorage.setItem(RK_NUMBERS_ON_KEY, v ? '1' : '0'); } catch(_) {} }
+/** رقم المنشأة لطلب عُرف رقمه الداخلي فقط (بلا حجز). سؤال واحد، وبس للمنشأة
+ *  المفعّلة. فشل أو تأخّر؟ null، ويُعرض الرقم الداخلي. */
+async function rkOrderNoFor(orderId){
+  if(!(Number(orderId) > 0) || !rkNumbersOn() || !window.supabaseClient) return null;
+  try {
+    const q = window.supabaseClient.from('orders').select('order_no').eq('id', orderId).maybeSingle();
+    const res = await Promise.race([q, new Promise(r => setTimeout(() => r(null), 2000))]);
+    const no = res && res.data ? Number(res.data.order_no) : 0;
+    if(no > 0) rkRememberNo(orderId, no);
+    return no > 0 ? no : null;
+  } catch(_) { return null; }
+}
+/* id الداخلي ← رقم المنشأة، لكل طلب مرّ على هذا الجهاز (قوائم، تفاصيل،
+   بيع). كل مكان يعرض «#…» يمرّ بـ rkNo: يعرف رقم المنشأة؟ يعرضه، وإلا id
+   مثل قبل (المنشأة غير المفعّلة ما لها رقم خاص أصلاً). */
+function rkOrderNos(){ return window.__rkOrderNos || (window.__rkOrderNos = new Map()); }
+function rkRememberNo(id, no){
+  if(Number(id) > 0 && Number(no) > 0){
+    const m = rkOrderNos(); m.set(Number(id), Number(no));
+    if(m.size > 3000) m.delete(m.keys().next().value);
+  }
+}
+function rkRememberRows(rows){ (rows || []).forEach(r => { if(r) rkRememberNo(r.id, r.order_no); }); }
+function rkNo(id){ const n = rkOrderNos().get(Number(id)); return n != null ? n : id; }
 const RK_POOL_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 let rkPoolRefilling = null, rkPoolUnsupportedUntil = 0;
 function rkPoolLoad(branchId){
@@ -4665,18 +4694,18 @@ function rkPoolLoad(branchId){
   try { p = JSON.parse(localStorage.getItem(RK_POOL_KEY) || 'null'); } catch(_) { p = null; }
   if(!p || p.branchId !== branchId || !Array.isArray(p.items)) p = { branchId, items: [] };
   const now = Date.now();
-  p.items = p.items.filter(i => i && i.u && i.id > 0 && now - i.at < RK_POOL_MAX_AGE_MS);
+  p.items = p.items.filter(i => i && i.u && i.id > 0 && i.no > 0 && now - i.at < RK_POOL_MAX_AGE_MS);
   return p;
 }
 function rkPoolSave(p){ try { localStorage.setItem(RK_POOL_KEY, JSON.stringify(p)); } catch(_) {} }
-/** رقم محجوز {uuid,id} أو null. متزامن: بيعان ما ياخذون نفس الرقم. */
+/** رقم محجوز {uuid,id,no} أو null. متزامن: بيعان ما ياخذون نفس الرقم. */
 function rkTakeReservedOrderNumber(branchId){
   if(branchId == null) return null;
   const p = rkPoolLoad(branchId);
   const item = p.items.shift();
   rkPoolSave(p);
   rkRefillOrderNumberPool(branchId);
-  return item ? { uuid: item.u, id: item.id } : null;
+  return item ? { uuid: item.u, id: item.id, no: item.no } : null;
 }
 function rkRefillOrderNumberPool(branchId){
   if(branchId == null || rkPoolRefilling || Date.now() < rkPoolUnsupportedUntil) return rkPoolRefilling;
@@ -4686,21 +4715,22 @@ function rkRefillOrderNumberPool(branchId){
   const uuids = Array.from({ length: RK_POOL_TARGET - have }, () => crypto.randomUUID());
   rkPoolRefilling = (async () => {
     try {
-      const { data, error } = await window.supabaseClient.rpc('reserve_order_ids', { p_branch_id: branchId, p_uuids: uuids });
+      const { data, error } = await window.supabaseClient.rpc('reserve_order_numbers', { p_branch_id: branchId, p_uuids: uuids });
       if(error){
         if(/PGRST202|42883|could not find the function/i.test((error.code || '') + ' ' + (error.message || ''))) rkPoolUnsupportedUntil = Date.now() + 60 * 60 * 1000;
         return;
       }
-      if(!data || data.length === 0){ rkPoolUnsupportedUntil = Date.now() + 60 * 60 * 1000; return; } // المنشأة ما تفعّلت
+      if(!data || data.length === 0){ rkPoolUnsupportedUntil = Date.now() + 60 * 60 * 1000; rkSetNumbersOn(false); return; } // المنشأة ما تفعّلت
+      rkSetNumbersOn(true);
       const asked = new Set(uuids), now = Date.now();
       const p = rkPoolLoad(branchId);
       const known = new Set(p.items.map(i => i.u));
       for(const r of (data || [])){
-        const id = Number(r.r_order_id);
-        if(!asked.has(r.r_client_order_uuid) || known.has(r.r_client_order_uuid) || !(id > 0)) continue;
-        p.items.push({ u: r.r_client_order_uuid, id, at: now });
+        const id = Number(r.r_order_id), no = Number(r.r_order_no);
+        if(!asked.has(r.r_client_order_uuid) || known.has(r.r_client_order_uuid) || !(id > 0) || !(no > 0)) continue;
+        p.items.push({ u: r.r_client_order_uuid, id, no, at: now });
       }
-      p.items.sort((a, b) => a.id - b.id);
+      p.items.sort((a, b) => a.no - b.no);
       rkPoolSave(p);
     } catch(_) { /* بلا نت: المرة الجاية */ }
     finally { rkPoolRefilling = null; }
@@ -4739,6 +4769,7 @@ async function submitOrder(totals){
         await sendDineInPayToServer(payQueueEntry);
         await removeQueuedOrder(payQueueEntry.client_order_uuid);
         payload.orderId = state.resumingOrder.id;
+        payload.orderNo = state.resumingOrder.order_no != null ? state.resumingOrder.order_no : null;
       } catch(e){ /* stays queued — syncQueue() retries it */ }
     }
     return payload;
@@ -4764,6 +4795,7 @@ async function submitOrder(totals){
         const orderId = await sendDineInRegisterAndPayToServer(combinedPayload);
         await removeQueuedOrder(combinedPayload.client_order_uuid);
         payload.orderId = orderId;
+        payload.orderNo = await rkOrderNoFor(orderId);
       } catch(e){ /* stays queued — syncQueue() retries it */ }
     }
     if(!payload.orderId) payload.offlineRef = await rkAssignOfflineRef(combinedPayload);
@@ -4777,6 +4809,8 @@ async function submitOrder(totals){
     payload.client_order_uuid = reserved.uuid;
     try { await queueOrder(payload); } catch (e) { /* IndexedDB unavailable — the direct send below still runs */ }
     payload.orderId = reserved.id;
+    payload.orderNo = reserved.no;
+    rkRememberNo(reserved.id, reserved.no);
     if(navigator.onLine){
       sendOrderToServer(payload)
         .then(id => {
@@ -4799,6 +4833,7 @@ async function submitOrder(totals){
     }
   }
   payload.orderId = orderId;
+  if(orderId) payload.orderNo = await rkOrderNoFor(orderId);
   if(!orderId) payload.offlineRef = await rkAssignOfflineRef(payload);
   return payload;
 }
@@ -5664,7 +5699,7 @@ function buildLiveReceiptData(orderPayload, totals){
     // not assigned by the server yet. Printing nothing would leave the
     // customer with zero way to reference this order; say so honestly
     // instead of silently dropping the line.
-    orderNumber: orderPayload.orderId ? ('#' + orderPayload.orderId) : orderPayload.offlineRef ? (orderPayload.offlineRef + ' (مؤقت)') : 'سيُحدَّد عند الاتصال',
+    orderNumber: orderPayload.orderId ? ('#' + rkNo(orderPayload.orderId)) : orderPayload.offlineRef ? (orderPayload.offlineRef + ' (مؤقت)') : 'سيُحدَّد عند الاتصال',
     metaLabel: bilingualOrderKind((CHANNEL_LABELS[orderPayload.channel] || orderPayload.channel) + liveTableLabel),
     showLogo: DEVICE.printReceiptLogo !== false && !!RECEIPT_LOGO_URL, logoUrl: RECEIPT_LOGO_URL,
     cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
@@ -5699,7 +5734,7 @@ function buildKitchenReceiptData(orderPayload){
     cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
     dateLabel: new Date().toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
     // رقم الطلب سطر قائم بذاته الآن، فلا يُطوى هنا داخل نص النوع.
-    orderNumber: orderPayload.orderId ? '#' + orderPayload.orderId : (orderPayload.offlineRef || '—'),
+    orderNumber: orderPayload.orderId ? '#' + rkNo(orderPayload.orderId) : (orderPayload.offlineRef || '—'),
     metaLabel: bilingualOrderKind((CHANNEL_LABELS[orderPayload.channel] || orderPayload.channel) + tableLabel),
     items,
     // Printed larger than anything else on the ticket: whoever finishes the
@@ -5758,7 +5793,7 @@ function buildHistoricalReceiptData(order, items){
     businessName: DEVICE.businessName || 'ركين', branchName: DEVICE.branchName || '',
     dateLabel: new Date(order.created_at).toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
     timestampISO: order.created_at, vatNumber: BUSINESS_VAT_NUMBER,
-    orderNumber: '#' + order.id,
+    orderNumber: '#' + (order.order_no || rkNo(order.id)),
     metaLabel: bilingualOrderKind((CHANNEL_LABELS[order.channel] || order.channel) + histTableLabel),
     // صاحب الطلب وملاحظته: الطلب الإلكتروني والتوصيل تكون الورقة فيهما
     // الشيء الوحيد الذي يربط الكيس بصاحبه.
@@ -5807,7 +5842,7 @@ function buildDbKitchenReceiptData(order, items){
     logoUrl: RECEIPT_LOGO_URL,
     cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
     dateLabel: new Date(order.created_at).toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
-    orderNumber: '#' + order.id,
+    orderNumber: '#' + (order.order_no || rkNo(order.id)),
     metaLabel: bilingualOrderKind(CHANNEL_LABELS[order.channel] || order.channel),
     items: mapped
   };
@@ -6353,7 +6388,7 @@ async function renderOrdersList(){
   // the merge, just without that extra context).
   el.innerHTML = '<div class="list-empty">جارٍ التحميل...</div>';
   let completedQuery = window.supabaseClient
-    .from('orders').select('id, total, created_at, customer_name, channel, ready_at, prep_duration_seconds, platform_invoice_last4, scheduled_for, delivery_platforms(name)')
+    .from('orders').select('id, order_no, total, created_at, customer_name, channel, ready_at, prep_duration_seconds, platform_invoice_last4, scheduled_for, delivery_platforms(name)')
     .eq('branch_id', DEVICE.branchId);
   // والجزئيُّ مسترجَع: طلبٌ رُجّع صنفٌ منه حالتُه partially_refunded،
   // فلو سُئل عن 'refunded' وحدها لسقط من التبويب الذي بُني له.
@@ -6367,6 +6402,7 @@ async function renderOrdersList(){
   // tab or every cancelled order would wrongly vanish from it.
   if(ordersActiveTab === 'completed') completedQuery = completedQuery.or('channel.not.in.(pickup,delivery),source.neq.online,delivered_at.not.is.null');
   const { data } = await completedQuery.order('created_at', {ascending:false}).limit(30);
+  rkRememberRows(data);
   const offlineRefs = rkOfflineRefMap();
   const real = (data||[]).map(o=>{
     let extra = '';
@@ -6376,7 +6412,7 @@ async function renderOrdersList(){
       extra = ' — استلام ' + new Date(o.scheduled_for).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'});
     }
     return {
-      id: '#' + o.id + (offlineRefs[String(o.id)] ? ' (كان ' + escapeHtml(offlineRefs[String(o.id)]) + ')' : ''), orderId: o.id,
+      id: '#' + rkNo(o.id) + (offlineRefs[String(o.id)] ? ' (كان ' + escapeHtml(offlineRefs[String(o.id)]) + ')' : ''), orderId: o.id,
       meta: new Date(o.created_at).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}) + (o.customer_name ? ' — ' + escapeHtml(o.customer_name) : '') + escapeHtml(extra),
       total: Number(o.total)
     };
@@ -6443,7 +6479,7 @@ function renderDeliveryCard(order, remaining){
          <button class="dorder-out-btn" data-order-id="${order.id}">خرج للتوصيل</button>`;
     return `<div class="dorder-card out-for-delivery" data-order="${order.id}">
       <div class="dorder-out-icon">🛵</div>
-      <div class="dorder-info">${badge}<span class="dorder-id">#${order.id}</span></div>
+      <div class="dorder-info">${badge}<span class="dorder-id">#${rkNo(order.id)}</span></div>
       <div class="dorder-platform">${order.platformName}${order.invoiceLast4 ? ' — ...' + order.invoiceLast4 : ''}</div>
       ${outForDeliveryBlock}
       <div class="dorder-total">${rkMoney(order.total)}</div>
@@ -6456,7 +6492,7 @@ function renderDeliveryCard(order, remaining){
   const ring = deliveryRingSvg(remaining, timeoutMin, urgency);
   return `<div class="dorder-card ${urgency !== 'ok' ? urgency : ''}" data-order="${order.id}">
     <div class="dorder-ring-wrap">${ring}<span class="dorder-ring-time mono">${formatMmSs(remaining)}</span></div>
-    <div class="dorder-info">${badge}<span class="dorder-id">#${order.id}</span></div>
+    <div class="dorder-info">${badge}<span class="dorder-id">#${rkNo(order.id)}</span></div>
     <div class="dorder-platform">${order.platformName}${order.invoiceLast4 ? ' — ...' + order.invoiceLast4 : ''}</div>
     <div class="dorder-total">${rkMoney(order.total)}</div>
     <button class="dorder-ready-btn" data-order-id="${order.id}">جاهز</button>
@@ -6470,7 +6506,7 @@ function renderDeliveryCard(order, remaining){
 async function openOrderDetail(orderId){
   const modal = document.getElementById('paymentModal');
   const body = document.getElementById('paymentModalBody');
-  document.getElementById('paymentModalTitle').textContent = t('تفاصيل الطلب') + ' #' + orderId;
+  document.getElementById('paymentModalTitle').textContent = t('تفاصيل الطلب') + ' #' + rkNo(orderId);
   body.innerHTML = '<p class="pos-auth-sub">جاري التحميل...</p>';
   modal.classList.add('show');
   // A tap on the dimmed backdrop closes an order's details (only «إغلاق»
@@ -6491,11 +6527,12 @@ async function openOrderDetail(orderId){
     return `<div class="receipt-detail-row"><span>${it.qty} × ${name}${mods ? ' (' + mods + ')' : ''}${it.note ? ' — ' + escapeHtml(it.note) : ''}</span>${rkMoney(Number(it.line_total))}</div>`;
   }).join('');
 
+  rkRememberNo(order.id, order.order_no);
   const isOnline = order.source === 'online';
   const hasLocation = order.channel === 'delivery' && order.customer_lat != null && order.customer_lng != null;
   const mapsUrl = hasLocation ? `https://www.google.com/maps?q=${order.customer_lat},${order.customer_lng}` : null;
   const waPhone = (order.customer_phone || '').replace(/\D/g, '');
-  const waMessage = `مرحبًا ${order.customer_name || ''}! طلبك رقم #${order.id} جاري تجهيزه وراح يوصلك بأقرب وقت 🚴`;
+  const waMessage = `مرحبًا ${order.customer_name || ''}! طلبك رقم #${rkNo(order.id)} جاري تجهيزه وراح يوصلك بأقرب وقت 🚴`;
   const waUrl = waPhone ? `https://wa.me/${waPhone.startsWith('966') ? waPhone : '966' + waPhone.replace(/^0/, '')}?text=${encodeURIComponent(waMessage)}` : null;
 
   body.innerHTML = `
@@ -6658,7 +6695,7 @@ async function openOrderDetail(orderId){
               ? 'استُرجعت الفاتورة كاملة — ' + Number(data.amount || 0).toFixed(2) + ' ريال'
               : 'استُرجع ' + Number(data.amount || 0).toFixed(2) + ' ريال — باقي ' + Number(data.remaining || 0).toFixed(2));
             sendOwnerPush('refund_cancel', 'استرجاع طلب',
-              `تم استرجاع ${Number(data.amount || 0).toFixed(2)} ر.س (طلب #${orderId}).`);
+              `تم استرجاع ${Number(data.amount || 0).toFixed(2)} ر.س (طلب #${rkNo(orderId)}).`);
             printRefundReceipt(orderId, payload, lines, Number(data.amount || 0));
             openOrderDetail(orderId);
             renderOrdersList();
@@ -6698,7 +6735,7 @@ async function openOrderDetail(orderId){
           showToast(res.full === false
             ? 'تم استرجاع ' + shown.toFixed(2) + ' ريال — باقي ' + Number(res.remaining || 0).toFixed(2)
             : 'تم استرجاع مبلغ الطلب كامل');
-          sendOwnerPush('refund_cancel', 'استرجاع طلب', `تم استرجاع مبلغ ${shown.toFixed(2)} ر.س (طلب #${orderId}).`);
+          sendOwnerPush('refund_cancel', 'استرجاع طلب', `تم استرجاع مبلغ ${shown.toFixed(2)} ر.س (طلب #${rkNo(orderId)}).`);
           printRefundReceipt(orderId, null, null, shown);
           openOrderDetail(orderId);
           renderOrdersList();
@@ -6737,7 +6774,7 @@ function printRefundReceipt(orderId, picked, lines, amount){
       businessName: DEVICE.businessName || 'ركين', branchName: DEVICE.branchName || '',
       dateLabel: new Date().toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
       timestampISO: new Date().toISOString(), vatNumber: BUSINESS_VAT_NUMBER,
-      orderNumber: '#' + orderId,
+      orderNumber: '#' + rkNo(orderId),
       /**
        * ويُقرأ من أول سطر أنها ليست فاتورة بيع.
        *
@@ -6745,7 +6782,7 @@ function printRefundReceipt(orderId, picked, lines, amount){
        * وإشعارٌ بلا رقمِ ما استُرجع منه ورقةٌ لا تُسند إلى شيء.
        */
       metaLabel: 'إشعار دائن — استرجاع',
-      refundOfOrder: '#' + orderId,
+      refundOfOrder: '#' + rkNo(orderId),
       showLogo: DEVICE.printReceiptLogo !== false && !!RECEIPT_LOGO_URL, logoUrl: RECEIPT_LOGO_URL,
       cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
       tagline: RECEIPT_TAGLINE,
@@ -7161,8 +7198,9 @@ async function resumePaymentForTable(table){
   ]);
   if(!order){ showToast('تعذر تحميل تفاصيل الطلب'); renderTables(); return; }
 
+  rkRememberNo(order.id, order.order_no);
   state.resumingOrder = {
-    id: order.id, table_id: order.table_id,
+    id: order.id, order_no: order.order_no != null ? order.order_no : null, table_id: order.table_id,
     subtotal: order.subtotal, discount_amount: order.discount_amount, vat_amount: order.vat_amount, total: order.total,
     items: (items||[]).map(it => {
       const p = PRODUCTS.find(x=>x.id===it.menu_item_id);
@@ -8050,9 +8088,10 @@ async function seedActiveDeliveryOrders(){
   // still belongs on this list (awaiting a delivered confirmation); only a
   // genuinely delivered order is done and should drop off.
   const { data } = await window.supabaseClient
-    .from('orders').select('id, total, created_at, ready_at, out_for_delivery_at, delivery_platform_id, platform_invoice_last4, source, payment_method, payment_status, delivery_platforms(name)')
+    .from('orders').select('id, order_no, total, created_at, ready_at, out_for_delivery_at, delivery_platform_id, platform_invoice_last4, source, payment_method, payment_status, delivery_platforms(name)')
     .eq('branch_id', DEVICE.branchId).eq('channel', 'delivery').is('delivered_at', null)
     .gte('created_at', startToday.toISOString()).order('created_at', {ascending:true});
+  rkRememberRows(data);
   ACTIVE_DELIVERY_ORDERS = (data||[]).map(o=>({
     id: o.id, createdAt: new Date(o.created_at), platformId: o.delivery_platform_id,
     platformName: o.source === 'online' ? 'متجر المطعم' : (o.delivery_platforms ? o.delivery_platforms.name : 'توصيل'),
@@ -8120,7 +8159,7 @@ async function markDeliveryOrderDelivered(orderId){
     if(error){ showToast('تعذر تسجيل الطلب مُسلَّم'); return; }
   }
   ACTIVE_DELIVERY_ORDERS = ACTIVE_DELIVERY_ORDERS.filter(o=>o.id !== orderId);
-  showToast(collected.ok ? 'تم التسليم واستلام المبلغ — طلب #' + orderId : 'تم تسليم الطلب #' + orderId);
+  showToast(collected.ok ? 'تم التسليم واستلام المبلغ — طلب #' + rkNo(orderId) : 'تم تسليم الطلب #' + rkNo(orderId));
   updateNotifBell();
   renderOrdersList();
 }
@@ -8133,7 +8172,7 @@ async function markDeliveryOrderOutForDelivery(orderId){
   if(error){ showToast('تعذر تسجيل خروج الطلب للتوصيل'); return; }
   const tracked = ACTIVE_DELIVERY_ORDERS.find(o=>o.id === orderId);
   if(tracked) tracked.outForDeliveryAt = new Date();
-  showToast('الطلب #' + orderId + ' خرج للتوصيل');
+  showToast('الطلب #' + rkNo(orderId) + ' خرج للتوصيل');
   renderOrdersList();
 }
 
@@ -8150,9 +8189,10 @@ let ACTIVE_PICKUP_ORDERS = []; // [{id, createdAt, customerName, total, schedule
 async function seedActivePickupOrders(){
   const startToday = new Date(); startToday.setHours(0,0,0,0);
   const { data } = await window.supabaseClient
-    .from('orders').select('id, total, created_at, customer_name, ready_at, scheduled_for, scheduled_by_customer, payment_method, payment_status')
+    .from('orders').select('id, order_no, total, created_at, customer_name, ready_at, scheduled_for, scheduled_by_customer, payment_method, payment_status')
     .eq('branch_id', DEVICE.branchId).eq('channel', 'pickup').eq('source', 'online').eq('status', 'completed').is('delivered_at', null)
     .gte('created_at', startToday.toISOString()).order('created_at', {ascending:true});
+  rkRememberRows(data);
   ACTIVE_PICKUP_ORDERS = (data||[]).map(o=>({
     id: o.id, createdAt: new Date(o.created_at), customerName: o.customer_name, total: Number(o.total),
     isCod: o.payment_method === 'cash' && o.payment_status === 'unpaid',
@@ -8166,7 +8206,7 @@ function renderPickupCard(order){
     const waitingSec = Math.round((Date.now() - order.readyAt.getTime()) / 1000);
     return `<div class="dorder-card out-for-delivery" data-order="${order.id}">
       <div class="dorder-out-icon">🛍️</div>
-      <div class="dorder-info"><span class="dorder-id">#${order.id}</span></div>
+      <div class="dorder-info"><span class="dorder-id">#${rkNo(order.id)}</span></div>
       <div class="dorder-platform">${order.customerName ? escapeHtml(order.customerName) : 'استلام من الفرع'}</div>
       <div class="dorder-out-waiting mono">بانتظار الاستلام — ${formatMmSs(waitingSec)}</div>
       <div class="dorder-total">${rkMoney(order.total)}</div>
@@ -8181,7 +8221,7 @@ function renderPickupCard(order){
     ? 'استلام ' + order.scheduledFor.toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'})
     : 'استلام الآن';
   return `<div class="dorder-card" data-order="${order.id}">
-    <div class="dorder-info"><span class="dorder-logo-initial" style="background:var(--lime);">🛍️</span><span class="dorder-id">#${order.id}</span></div>
+    <div class="dorder-info"><span class="dorder-logo-initial" style="background:var(--lime);">🛍️</span><span class="dorder-id">#${rkNo(order.id)}</span></div>
     <div class="dorder-platform">${order.customerName ? escapeHtml(order.customerName) + ' — ' : ''}${timeLabel}</div>
     <div class="dorder-total">${rkMoney(order.total)}</div>
     <button class="pickup-ready-btn" data-order-id="${order.id}">جاهز</button>
@@ -8211,7 +8251,7 @@ async function markPickupOrderDelivered(orderId){
     if(error){ showToast('تعذر تسجيل تسليم الطلب'); return; }
   }
   ACTIVE_PICKUP_ORDERS = ACTIVE_PICKUP_ORDERS.filter(o=>o.id !== orderId);
-  showToast(collected.ok ? 'تم التسليم واستلام المبلغ — طلب #' + orderId : 'تم تسليم الطلب #' + orderId);
+  showToast(collected.ok ? 'تم التسليم واستلام المبلغ — طلب #' + rkNo(orderId) : 'تم تسليم الطلب #' + rkNo(orderId));
   renderOrdersList();
 }
 
@@ -8296,7 +8336,7 @@ function rkPagerReceiptBlock(orderPayload){
     url: rkPagerUrl(orderPayload.client_order_uuid),
     title: 'امسح وخلّ جوالك يناديك',
     line: 'اجلس براحتك، أول ما يجهز طلبك يرن جوالك',
-    tag: orderPayload.orderId ? 'طلب ' + orderPayload.orderId : 'بيجر طلبك',
+    tag: orderPayload.orderId ? 'طلب ' + rkNo(orderPayload.orderId) : 'بيجر طلبك',
     wifi: PAGER_SETTINGS.wifi || null
   };
 }
@@ -8316,10 +8356,11 @@ async function seedActivePagerOrders(){
   try {
     const startToday = new Date(); startToday.setHours(0,0,0,0);
     const { data, error } = await window.supabaseClient
-      .from('orders').select('id, client_order_uuid, total, created_at, customer_name, channel, status, ready_at, delivered_at, pager_eta_at, pager_delayed_at, pager_seen_at, pager_ring_count')
+      .from('orders').select('id, order_no, client_order_uuid, total, created_at, customer_name, channel, status, ready_at, delivered_at, pager_eta_at, pager_delayed_at, pager_seen_at, pager_ring_count')
       .eq('branch_id', DEVICE.branchId).not('pager_eta_at', 'is', null).is('delivered_at', null).eq('status', 'completed')
       .gte('created_at', startToday.toISOString()).order('created_at', { ascending: true });
     if(error) return;
+    rkRememberRows(data);
     const prev = new Map(ACTIVE_PAGER_ORDERS.map(o => [o.id, o]));
     ACTIVE_PAGER_ORDERS = (data || []).map(o => {
       const row = rkPagerRow(o);
@@ -8367,7 +8408,7 @@ function rkPagerAfterCheckout(orderPayload){
   if(PAGER_SETTINGS.display && navigator.onLine){
     // secs 0 = «لين يبدأ الطلب اللي بعده»: الشاشة بلا عدّاد، وتنزل مع أول صنف.
     rkPagerDisplay({
-      uuid: orderPayload.client_order_uuid, number: orderPayload.orderId || '',
+      uuid: orderPayload.client_order_uuid, number: orderPayload.orderId ? rkNo(orderPayload.orderId) : '',
       secs: PAGER_SETTINGS.display_secs
     });
     // وتنزل مع الطلب التالي في كل المدد -- لا في «لين الطلب اللي بعده» وحده:
@@ -8440,10 +8481,10 @@ async function rkPagerAction(orderId, action, opts){
   if(!opts.silent){
     const reached = out && (out.pushed > 0 || (o && o.seenAt));
     const msg = {
-      ready: reached ? '🔔 رنّ جوال الزبون — طلب #' + orderId + ' جاهز' : 'طلب #' + orderId + ' جاهز — الزبون ما فتح البيجر، ناده برقمه',
-      ring: '🔔 رنّينا عليه مرة ثانية — طلب #' + orderId,
-      delay: '⏱ أضفنا ' + (opts.minutes || 5) + ' دقايق وبلّغنا الزبون — طلب #' + orderId,
-      collected: '✓ استلم طلبه — #' + orderId
+      ready: reached ? '🔔 رنّ جوال الزبون — طلب #' + rkNo(orderId) + ' جاهز' : 'طلب #' + rkNo(orderId) + ' جاهز — الزبون ما فتح البيجر، ناده برقمه',
+      ring: '🔔 رنّينا عليه مرة ثانية — طلب #' + rkNo(orderId),
+      delay: '⏱ أضفنا ' + (opts.minutes || 5) + ' دقايق وبلّغنا الزبون — طلب #' + rkNo(orderId),
+      collected: '✓ استلم طلبه — #' + rkNo(orderId)
     }[action];
     showToast(msg);
   }
@@ -8461,7 +8502,7 @@ function renderPagerCard(o){
     const waiting = Math.max(0, Math.round((now - o.readyAt.getTime()) / 1000));
     return `<div class="dorder-card pager-card ready" data-order="${o.id}">
       <div class="pager-top"><span class="pager-chip">📟 بيجر</span>${seen}</div>
-      <div class="pager-num mono">#${o.id}</div>
+      <div class="pager-num mono">#${rkNo(o.id)}</div>
       <div class="dorder-platform">${who}</div>
       <div class="pager-time mono">ينتظر ${formatMmSs(waiting)}${o.ringCount ? ' · رنّة ' + (o.ringCount + 1) : ''}</div>
       <div class="pager-btns">
@@ -8478,7 +8519,7 @@ function renderPagerCard(o){
   const label = left >= 0 ? 'باقي ' + formatMmSs(left) : 'متأخر ' + formatMmSs(-left);
   return `<div class="dorder-card pager-card ${state}" data-order="${o.id}">
     <div class="pager-top"><span class="pager-chip">📟 بيجر</span>${seen}</div>
-    <div class="pager-num mono">#${o.id}</div>
+    <div class="pager-num mono">#${rkNo(o.id)}</div>
     <div class="dorder-platform">${who}${o.delayedAt ? ' · أُجّل' : ''}</div>
     <div class="pager-time mono ${state}">${label}</div>
     <div class="pager-btns">
@@ -8507,7 +8548,7 @@ setInterval(()=>{
       if(PAGER_SETTINGS.late_alert && !o.lateWarned && now > deadline){
         o.lateWarned = true;
         if(NOTIFY_SOUND_ENABLED) playAlertSound('warning');
-        showToast(PAGER_SETTINGS.show_eta ? '⏱ طلب #' + o.id + ' تأخر على الزبون — جهّزه أو أضف ٥ دقايق' : '⏱ طلب #' + o.id + ' تجاوز وقت التحضير — جهّزه');
+        showToast(PAGER_SETTINGS.show_eta ? '⏱ طلب #' + rkNo(o.id) + ' تأخر على الزبون — جهّزه أو أضف ٥ دقايق' : '⏱ طلب #' + rkNo(o.id) + ' تجاوز وقت التحضير — جهّزه');
       }
       return;
     }
@@ -8552,14 +8593,14 @@ setInterval(()=>{
       order.warnedAt5min = true;
       if(NOTIFY_DELIVERY_PREP_WARNING){
         if(NOTIFY_SOUND_ENABLED) playAlertSound('warning');
-        showToast('طلب #' + order.id + ' — باقي ٥ دقائق على وقت التجهيز');
+        showToast('طلب #' + rkNo(order.id) + ' — باقي ٥ دقائق على وقت التجهيز');
       }
     }
     if(!order.alertedExpired && remaining <= 0){
       order.alertedExpired = true;
       if(NOTIFY_DELIVERY_PREP_EXPIRED){
         if(NOTIFY_SOUND_ENABLED) playAlertSound('alarm');
-        showToast('طلب #' + order.id + ' — انتهى وقت التجهيز المحدد');
+        showToast('طلب #' + rkNo(order.id) + ' — انتهى وقت التجهيز المحدد');
       }
     }
   });
@@ -10528,7 +10569,7 @@ function subscribeToOrderReadyAlerts(){
       if(!order || !order.ready_at) return;
       if(selfMarkedReadyOrderIds.has(order.id)){ selfMarkedReadyOrderIds.delete(order.id); return; }
       if(NOTIFY_SOUND_ENABLED) playAlertSound('order_ready');
-      showToast('✅ طلب #' + order.id + ' جاهز — سلّمه للعميل');
+      showToast('✅ طلب #' + (order.order_no || rkNo(order.id)) + ' جاهز — سلّمه للعميل');
     })
     .subscribe();
 }
@@ -10578,6 +10619,7 @@ async function showNextIncomingOrder(){
     incomingOrderQueue.shift();
     return showNextIncomingOrder();
   }
+  rkRememberNo(order.id, order.order_no);
   incomingOrderCurrent = { order, items: items || [] };
   renderIncomingOrderModal(order, items || []);
   document.getElementById('incomingOrderModal').classList.add('show');
@@ -10653,7 +10695,7 @@ async function acceptIncomingOrder(orderId){
       readyAt: null
     });
   }
-  showToast('تم قبول الطلب #' + orderId);
+  showToast('تم قبول الطلب #' + rkNo(orderId));
   if(document.getElementById('screen-orders').classList.contains('active')) renderOrdersList();
   advanceIncomingQueue(orderId);
 }
@@ -10661,7 +10703,7 @@ async function acceptIncomingOrder(orderId){
 async function rejectIncomingOrder(orderId, reason){
   const { error } = await window.supabaseClient.rpc('reject_online_order', { p_order_id: orderId, p_reason: reason });
   if(error){ showToast('تعذر رفض الطلب: ' + error.message); return advanceIncomingQueue(orderId); }
-  showToast('تم رفض الطلب #' + orderId);
+  showToast('تم رفض الطلب #' + rkNo(orderId));
   advanceIncomingQueue(orderId);
 }
 
