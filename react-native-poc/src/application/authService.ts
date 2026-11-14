@@ -297,6 +297,33 @@ const SUPABASE_SESSION_KEY = 'sb-jgrlefclttoazamzvwca-auth-token';
  * يرفضها الخادم -- فالجلسة الموجودة هنا جلسةٌ صالحة، وتتجدد وحدها لما يرجع النت.
  */
 export async function restoreCashierSession(branchId: number): Promise<CashierProfile | null> {
+  /*
+   * المحفوظ أولاً، حتى والنت شغّال.
+   *
+   * كان التشغيل -- مع وجود جلسة صالحة -- ينتظر رحلتين قبل أن يظهر أي شيء:
+   * تجديد التوكن ثم قراءة الملف. فكل فتحٍ للتطبيق دوّارة تحميل طولها طول
+   * الشبكة. والملف المحفوظ هو نفسه الذي يُدخَل به بلا نت؛ فيُدخَل به فوراً،
+   * والتجديد والقراءة يمضيان في الخلفية.
+   *
+   * وإن رفض الخادم الجلسة (أُلغيت أو انتهت نهائياً) تمسحها supabase-js
+   * وتُطلق SIGNED_OUT، فيرجع التطبيق لشاشة الرمز (onCashierSignedOut).
+   */
+  try {
+    const raw = await AsyncStorage.getItem(SUPABASE_SESSION_KEY);
+    const storedUserId: string | null = raw ? (JSON.parse(raw)?.user?.id ?? null) : null;
+    if (storedUserId) {
+      const cached = await cachedCashierProfile(storedUserId);
+      if (cached && cached.user_type === 'employee' && cached.branch_id === branchId) {
+        void supabase.auth
+          .getSession()
+          .then(({ data }) => (data.session ? loadCashierProfile(storedUserId) : null))
+          .catch(() => null);
+        return cached;
+      }
+    }
+  } catch {
+    // لا محفوظ صالح: المسار العادي تحته.
+  }
   const net = await NetInfo.fetch().catch(() => null);
   const offline = net?.isConnected === false;
   let userId: string | null = null;
@@ -353,6 +380,14 @@ async function loadCashierProfile(userId: string): Promise<CashierProfile | null
     // Cache write failure is never fatal -- next offline boot just won't have this fallback.
   }
   return profile;
+}
+
+/** يُنادى حين تُسقِط supabase-js الجلسة (رفضها الخادم، أو خروجٌ صريح). */
+export function onCashierSignedOut(listener: () => void): () => void {
+  const { data } = supabase.auth.onAuthStateChange(event => {
+    if (event === 'SIGNED_OUT') listener();
+  });
+  return () => data.subscription.unsubscribe();
 }
 
 export async function logout(): Promise<void> {

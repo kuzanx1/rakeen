@@ -26,7 +26,7 @@ import AccountSuspendedScreen from './src/ui/AccountSuspendedScreen';
 import ProductsScreen, { SelectedTableContext } from './src/ui/ProductsScreen';
 import TablesScreen from './src/ui/TablesScreen';
 import type { CashierProfile } from './src/domain/auth';
-import { logout, getDeviceConfig, checkAccountSuspended, subscribeToAccountStatus } from './src/application/authService';
+import { onCashierSignedOut, logout, getDeviceConfig, checkAccountSuspended, subscribeToAccountStatus } from './src/application/authService';
 import { startAutoSync } from './src/application/syncScheduler';
 import { startPrintQueueAutoProcess } from './src/application/printQueueScheduler';
 import { startPrintStation } from './src/application/printStationService';
@@ -681,6 +681,9 @@ function App(): React.JSX.Element {
       cancelled = true;
     };
   }, [cashier]);
+
+  // الجلسة سقطت عند الخادم؟ شاشة الرمز -- لا كاشير يبدو شغّالاً وكل طلباته تُرفض.
+  useEffect(() => onCashierSignedOut(() => setCashier(null)), []);
 
   useEffect(() => {
     if (!cashier) return;
