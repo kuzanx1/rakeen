@@ -1017,8 +1017,10 @@ button{font-family:inherit; cursor:pointer;}
 /* z-index was 300 — under the mobile bottom nav (510), FAB (511) and
    hamburger (520), so on any phone the toast rendered fully hidden behind
    the (opaque) nav bar instead of on top of it. 600 clears all three. */
-.dash-toast{position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(10px); background:var(--graphite); color:var(--ivory); padding:12px 22px; border-radius:var(--r-md); font-weight:700; font-size:13px; z-index:600; opacity:0; transition:opacity .2s ease, transform .2s ease; pointer-events:none;}
+.dash-toast{position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(14px); display:flex; align-items:center; gap:10px; max-width:min(92vw,460px); background:#111; color:#FAFAF5; padding:13px 20px; border-radius:16px; border:1px solid rgba(255,255,255,.14); box-shadow:0 18px 40px -14px rgba(0,0,0,.55); font-weight:800; font-size:14.5px; line-height:1.5; z-index:600; opacity:0; transition:opacity .22s ease, transform .22s ease; pointer-events:none;}
+.dash-toast.ok::before{content:""; flex:none; width:22px; height:22px; border-radius:50%; background:#C4FF2B url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23111' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4L18 8'/%3E%3C/svg%3E") center/14px no-repeat;}
 .dash-toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+@media (prefers-reduced-motion:reduce){ .dash-toast{transition:opacity .15s;} }
 
 /* ===== Delivery Platforms screen ===== */
 .delivery-context{padding:14px 16px; border-radius:var(--r-md); background:var(--surf1); font-size:12.5px; font-weight:700; color:var(--muted); margin-bottom:18px;}

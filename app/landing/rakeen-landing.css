@@ -488,7 +488,7 @@ body{background:#FBFAF5;}
 .clients{padding:64px 0 0;}
 .clients-in{display:flex; flex-direction:column; align-items:center; gap:26px;}
 .clients p{font-size:14px; font-weight:700; color:var(--muted); letter-spacing:.01em;}
-.clients ul{display:flex; flex-wrap:wrap; justify-content:center; gap:22px 44px;}
+.clients ul{display:flex; flex-wrap:wrap; justify-content:center; gap:22px 34px;}
 .clients li{display:flex; align-items:center; gap:13px; font-size:16.5px; font-weight:800; color:var(--ink); white-space:nowrap;}
 .clients img{flex:none; width:56px; height:56px; border-radius:17px; object-fit:cover; box-shadow:0 0 0 1px rgba(18,18,18,.08), 0 12px 22px -14px rgba(0,0,0,.4);}
 .clients + #features + .chap{padding-top:96px;}

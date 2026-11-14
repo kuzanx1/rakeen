@@ -178,7 +178,26 @@ export default function DashboardPage() {
     window.supabaseClient = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookieOptions: { name: 'sb-rakeen-dashboard-auth' } }
+      {
+        cookieOptions: { name: 'sb-rakeen-dashboard-auth' },
+        // Every finished request is reported to rakeen-dashboard.js, which
+        // shows «انحفظ» after a write the owner triggered (rkAfterFetch).
+        global: {
+          fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+            const started = Date.now();
+            const res = await fetch(input, init);
+            try {
+              (window as unknown as { rkAfterFetch?: (u: string, m: string, ok: boolean, t: number) => void }).rkAfterFetch?.(
+                typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
+                (init?.method || (typeof input === 'object' && 'method' in input ? input.method : 'GET')).toUpperCase(),
+                res.ok,
+                started
+              );
+            } catch { /* feedback must never break a request */ }
+            return res;
+          },
+        },
+      }
     );
 
     // «نسيت كلمة المرور» يُطلب بعميلٍ مستقلّ بتدفّق implicit، لا بالعميل

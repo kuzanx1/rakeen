@@ -29,6 +29,8 @@ const CLIENTS: { img: string; ar: string; en: string }[] = [
   { img: "makboos", ar: "مكبوس زربيان", en: "Makboos Zurbian" },
   { img: "hil", ar: "هيل كوفي", en: "Hil Coffee" },
   { img: "tareq", ar: "كباب طارق", en: "Tareq Kebab" },
+  { img: "baheer", ar: "بهير", en: "Baheer" },
+  { img: "mlm", ar: "ملم", en: "Mlm" },
 ];
 const waLink = (text: string) => `https://wa.me/${WA}?text=${encodeURIComponent(text)}`;
 const num = (n: number) => n.toLocaleString("en-US");

@@ -14656,6 +14656,8 @@ function rkBtnSuccess(btn, label){
   btn.disabled = false;
   btn.dataset.successLabel = label || '✓ تم';
   btn.classList.add('is-success');
+  // نص الزر يتغير ثانية وحدة ثم الشاشة تنعاد رسمها؛ التنبيه يبقى ظاهر.
+  showToast(label || '✓ تم');
   // بعد حفظ ناجح داخل شاشة الكاشير، القيم المعروضة صارت هي المحفوظة.
   const posSection = btn.closest('#posSettingsPanelBody .rk-section');
   if(posSection && typeof posSnapshotSwitches === 'function') posSnapshotSwitches(posSection);
@@ -20796,6 +20798,7 @@ if('serviceWorker' in navigator){
 
 /* ============ Toast (lightweight, for export feedback) ============ */
 let toastTimer;
+let RK_LAST_TOAST_AT = 0;
 window.showToast = showToast;
 function showToast(msg){
   let t = document.getElementById('dashToast');
@@ -20803,13 +20806,53 @@ function showToast(msg){
     t = document.createElement('div');
     t.id = 'dashToast';
     t.className = 'dash-toast';
+    t.setAttribute('role', 'status');
+    t.setAttribute('aria-live', 'polite');
     document.body.appendChild(t);
   }
-  t.textContent = msg;
+  RK_LAST_TOAST_AT = Date.now();
+  const text = String(msg == null ? '' : msg);
+  // «✓ ...» = نجاح: العلامة تنرسم دائرة خضراء بدل حرف صغير ضايع في النص.
+  const ok = text.charAt(0) === '✓';
+  t.classList.toggle('ok', ok);
+  t.textContent = ok ? text.slice(1).trim() : text;
+  t.classList.remove('show');
+  void t.offsetWidth; // تنبيه ثاني ورا الأول ينعاد دخوله، ما يتبدل نصه بصمت
   t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(()=> t.classList.remove('show'), 2200);
+  toastTimer = setTimeout(()=> t.classList.remove('show'), ok ? 2600 : 3600);
 }
+
+/* ============ ما ينحفظ شي بصمت ============
+   كان كل زر حفظ مسؤول عن تنبيهه، فطلع كثير منها بدون تنبيه (أو بتغيير نص
+   الزر لثانية وحدة ثم تنعاد رسم الشاشة). الحين عميل Supabase يبلّغ هنا عن
+   كل طلب خلص (rkAfterFetch من DashboardPage.tsx)، وأي كتابة ناجحة جت من
+   ضغطة صاحب المطعم يطلع لها «انحفظ» إذا الشاشة نفسها ما قالت شي. */
+(function(){
+  // كتابات خلفية ما يشوفها صاحب المطعم كحفظ.
+  const QUIET_TABLES = new Set(['invoice_scan_events', 'report_exports']);
+  const WRITE_RPC = /^(adjust_|attach_|create_|refund_|reset_|rk_delete|rk_receive|rk_record|rk_set|rk_stocktake|save_|set_|update_)/;
+  let lastGesture = 0, timer = null, allDeletes = true;
+  ['pointerdown', 'keydown', 'change'].forEach(ev => document.addEventListener(ev, ()=>{ lastGesture = Date.now(); }, true));
+  window.rkAfterFetch = function(url, method, ok, startedAt){
+    if(!ok) return;
+    const m = /\/rest\/v1\/(rpc\/)?(\w+)/.exec(url || '');
+    if(!m) return;
+    const isWrite = m[1] ? WRITE_RPC.test(m[2]) : (method !== 'GET' && method !== 'HEAD' && !QUIET_TABLES.has(m[2]));
+    if(!isWrite) return;
+    // لازم تكون من ضغطة قريبة (رفع صورة قبل الحفظ ياخذ وقت)، مو من تحديث تلقائي.
+    if(!lastGesture || startedAt - lastGesture > 20000) return;
+    const gesture = lastGesture;
+    if(!timer) allDeletes = true;
+    if(method !== 'DELETE') allDeletes = false;
+    clearTimeout(timer);
+    timer = setTimeout(()=>{
+      timer = null;
+      if(RK_LAST_TOAST_AT >= gesture) return; // الشاشة قالت كلمتها (نجاح أو خطأ)
+      showToast(allDeletes ? '✓ انحذف' : '✓ انحفظ');
+    }, 450);
+  };
+})();
 
 /* ============ Audit Trail — footer bar on every page + full drawer.
    Persisted server-side in dashboard_audit_log (see migration
