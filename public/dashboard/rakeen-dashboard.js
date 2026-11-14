@@ -9201,23 +9201,62 @@ document.getElementById('loginSubmitBtn').addEventListener('click', async ()=>{
     return;
   }
   submitBtn.disabled = true;
+  submitBtn.classList.add('busy');
+  errEl.classList.remove('ok');
   const originalText = submitBtn.textContent;
   submitBtn.textContent = 'جاري الدخول...';
+  /* كل فشل كان يُقال عنه «بيانات الدخول غير صحيحة»: انقطاع النت، وتعثّر
+     تحميل بيانات المطعم بعد دخولٍ صحيح. فيعيد صاحب المحل كتابة كلمة مرورٍ
+     صحيحة مرّة بعد مرّة. الآن كل سبب باسمه. */
+  let signedIn = false;
   try {
     const { data, error } = await window.supabaseClient.auth.signInWithPassword({ email, password });
     if(error) throw error;
+    signedIn = true;
     await loadProfileAndPermissions(data.user.id);
     await loadBusinessData();
     await renderPhase1Screens();
     goToWelcome();
-  } catch {
-    errEl.textContent = 'بيانات الدخول غير صحيحة. تأكد من البريد وكلمة المرور.';
+  } catch (err) {
+    const code = (err && err.code) || '';
+    const offline = navigator.onLine === false || (err && (err.name === 'AuthRetryableFetchError' || /fetch|network/i.test(err.message || '')));
+    if(signedIn) errEl.textContent = 'دخلت حسابك، بس تعذّر تحميل بيانات المطعم — حدّث الصفحة وجرّب.';
+    else if(offline) errEl.textContent = 'ما فيه اتصال بالإنترنت — تأكد من الشبكة وجرّب مرة ثانية.';
+    else if(err && (err.status === 429 || /rate_limit/.test(code))) errEl.textContent = 'محاولات كثيرة — انتظر دقيقة وجرّب مرة ثانية.';
+    else if(code === 'email_not_confirmed') errEl.textContent = 'بريدك ما تأكّد بعد — افتح رسالة التأكيد اللي وصلتك.';
+    else errEl.textContent = 'البريد أو كلمة المرور غير صحيحة.';
     errEl.style.display = 'block';
   } finally {
     submitBtn.disabled = false;
+    submitBtn.classList.remove('busy');
     submitBtn.textContent = originalText;
   }
 });
+
+/* Enter يرسل: الحقول ليست داخل <form>، فكان الضغط على Enter لا يفعل شيئاً. */
+[['loginEmail','loginSubmitBtn'],['loginPassword','loginSubmitBtn'],['forgotEmail','forgotSubmitBtn'],['resetPassword','resetSubmitBtn'],['resetPassword2','resetSubmitBtn']].forEach(([inputId, btnId])=>{
+  const input = document.getElementById(inputId);
+  if(input) input.addEventListener('keydown', (e)=>{
+    if(e.key !== 'Enter' || e.isComposing) return;
+    e.preventDefault();
+    const btn = document.getElementById(btnId);
+    if(btn && !btn.disabled) btn.click();
+  });
+});
+
+/* إظهار/إخفاء كلمة المرور. */
+(function(){
+  const btn = document.getElementById('loginPassToggle');
+  const input = document.getElementById('loginPassword');
+  if(!btn || !input) return;
+  btn.addEventListener('click', ()=>{
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    btn.setAttribute('aria-pressed', show ? 'true' : 'false');
+    btn.setAttribute('aria-label', show ? 'أخفِ كلمة المرور' : 'أظهر كلمة المرور');
+    input.focus();
+  });
+})();
 
 document.getElementById('logoutBtn').addEventListener('click', async ()=>{
   // ضغطة وحدة كانت تطلّعه من حسابه على طول -- وهو جنب اسمه بالضبط
@@ -9345,6 +9384,7 @@ document.getElementById('resetSubmitBtn').addEventListener('click', async ()=>{
     await window.supabaseClient.auth.signOut();
     showAuthPanel(null);
     authMsg('loginError', 'تم تغيير كلمة المرور ✓ — سجّل دخولك بالكلمة الجديدة.');
+    document.getElementById('loginError').classList.add('ok');
   } finally {
     btn.disabled = false;
     btn.textContent = originalText;

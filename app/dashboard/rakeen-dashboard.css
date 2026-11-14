@@ -3605,3 +3605,122 @@ select:not([class]){min-width:150px;}
   .pgs-chips{ grid-template-columns:1fr; }
 }
 @media (prefers-reduced-motion:reduce){ .pgs-ph-burst i{ animation:none; opacity:.5; } .pgs-tl-bar span{ transition:none; } }
+
+/* ============ Login v2 ============
+   صفحة فاتحة هادئة: النموذج في جهة، وشاشة الكاشير الحقيقية في الجهة
+   الثانية -- بدل اللوحة السوداء والدوائر المجرّدة. */
+#loginScreen{background:var(--card-bg);}
+#loginScreen .auth-show{
+  flex:1; min-width:0; position:relative; overflow:hidden; isolation:isolate;
+  display:flex; flex-direction:column; align-items:stretch; justify-content:flex-start;
+  padding:clamp(40px,6vh,72px) clamp(36px,5vw,72px) 0;
+  background:#F3F2EA; color:#111;
+}
+#loginScreen .auth-show::before{
+  content:""; position:absolute; z-index:-1; width:820px; height:820px; border-radius:50%;
+  inset-inline-end:-220px; top:18%;
+  background:radial-gradient(closest-side, rgba(196,255,43,.5), rgba(196,255,43,0));
+}
+[data-theme="dark"] #loginScreen .auth-show{background:#1A1A19; color:var(--ivory);}
+[data-theme="dark"] #loginScreen .auth-show::before{background:radial-gradient(closest-side, rgba(196,255,43,.16), rgba(196,255,43,0));}
+.auth-show-copy{max-width:540px;}
+.auth-show-mark{height:30px; width:auto; display:block; margin-bottom:clamp(22px,4vh,40px);}
+[data-theme="dark"] .auth-show-mark{content:url("/brand/rakeen-wordmark.png");}
+.auth-show-copy h2{font-size:clamp(30px,3.3vw,48px); font-weight:800; line-height:1.28; letter-spacing:-.01em;}
+.auth-show-copy p{margin-top:14px; font-size:clamp(14.5px,1.15vw,17px); font-weight:500; line-height:1.85; color:rgba(17,17,17,.62); max-width:440px;}
+[data-theme="dark"] .auth-show-copy p{color:rgba(250,250,245,.6);}
+.auth-show-device{position:relative; flex:1; min-height:220px; margin-top:clamp(28px,5vh,52px);}
+.auth-show-screen{
+  position:absolute; top:0; inset-inline-start:0; width:max(112%, 760px); max-width:1080px;
+  padding:12px 12px 0; border-radius:30px 30px 0 0; background:#0B0B0B;
+  box-shadow:0 0 0 1px rgba(255,255,255,.06) inset, 0 50px 100px -40px rgba(17,17,17,.45);
+}
+.auth-show-screen img{display:block; width:100%; height:auto; border-radius:19px 19px 0 0;}
+
+#loginScreen .auth-panel-form{
+  flex:0 0 min(500px,100%); width:auto; padding:48px 44px; background:var(--card-bg);
+  border-inline-start:1px solid var(--line);
+}
+#loginScreen .auth-form-inner{max-width:364px;}
+#loginScreen .auth-logo-row{margin-bottom:44px;}
+#loginScreen .auth-logo-row img{height:28px;}
+#loginScreen .auth-title{font-size:32px; line-height:1.25; margin-bottom:8px; letter-spacing:-.01em;}
+#loginScreen .auth-sub{font-size:14.5px; font-weight:500; line-height:1.75; margin-bottom:30px;}
+#loginScreen .auth-field{margin-bottom:18px;}
+#loginScreen .auth-field label{font-size:13px; font-weight:700; color:var(--text); margin-bottom:8px;}
+.auth-label-row{display:flex; align-items:baseline; justify-content:space-between; gap:12px;}
+#loginScreen .auth-link{font-size:13px; color:var(--success-text); text-underline-offset:3px;}
+#loginScreen .auth-link:hover{text-decoration:underline;}
+#loginScreen .auth-logo-row{display:none;}
+#loginScreen .auth-logo-row img{content:url("/brand/rakeen-wordmark-deep.png");}
+[data-theme="dark"] #loginScreen .auth-logo-row img{content:url("/brand/rakeen-wordmark.png");}
+#loginScreen .auth-field input{
+  height:54px; padding:0 16px; border-radius:14px; font-size:16px; font-weight:500;
+  background:var(--bg); border:1.5px solid var(--line);
+  transition:border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}
+#loginScreen .auth-field input::placeholder{color:color-mix(in srgb, var(--muted) 60%, transparent);}
+#loginScreen .auth-field input:hover{border-color:color-mix(in srgb, var(--text) 26%, transparent);}
+#loginScreen .auth-field input:focus{
+  background:var(--card-bg); border-color:var(--lime-deep);
+  box-shadow:0 0 0 4px color-mix(in srgb, var(--lime) 34%, transparent);
+}
+.auth-pass-wrap{position:relative;}
+#loginScreen .auth-pass-wrap input{padding-right:54px;}
+.auth-eye{
+  position:absolute; top:50%; right:6px; transform:translateY(-50%);
+  width:42px; height:42px; border:none; border-radius:11px; background:none; color:var(--muted);
+  display:grid; place-items:center; cursor:pointer;
+}
+.auth-eye:hover{background:var(--surf1); color:var(--text);}
+.auth-eye:focus-visible{outline:2px solid var(--lime-deep); outline-offset:1px;}
+.auth-eye .eye-off{display:none;}
+.auth-eye[aria-pressed="true"] .eye-on{display:none;}
+.auth-eye[aria-pressed="true"] .eye-off{display:block;}
+#loginScreen .auth-error{
+  margin:2px 0 16px; padding:12px 14px; border-radius:12px; font-size:13.5px; line-height:1.65;
+  background:color-mix(in srgb, var(--danger) 9%, transparent);
+  border:1px solid color-mix(in srgb, var(--danger) 28%, transparent);
+}
+#loginScreen .auth-error.ok{
+  color:var(--text); background:color-mix(in srgb, var(--lime) 16%, transparent); border-color:var(--lime-deep);
+}
+#loginScreen .auth-submit-btn{
+  position:relative; height:56px; padding:0 18px; margin:8px 0 0; border-radius:15px; font-size:16px;
+  display:flex; align-items:center; justify-content:center; gap:10px;
+  box-shadow:0 14px 30px -14px rgba(17,17,17,.55);
+  transition:transform .16s ease, box-shadow .2s ease, opacity .2s ease;
+}
+#loginScreen .auth-submit-btn:hover:not(:disabled){transform:translateY(-1px); box-shadow:0 18px 34px -14px rgba(17,17,17,.6);}
+#loginScreen .auth-submit-btn:active:not(:disabled){transform:translateY(0) scale(.99);}
+#loginScreen .auth-submit-btn:focus-visible{outline:3px solid var(--lime-deep); outline-offset:3px;}
+#loginScreen .auth-submit-btn:disabled{opacity:.86; cursor:progress;}
+#loginScreen .auth-submit-btn.busy::before{
+  content:""; width:18px; height:18px; border-radius:50%;
+  border:2.5px solid color-mix(in srgb, currentColor 30%, transparent); border-top-color:currentColor;
+  animation:rk-spin .7s linear infinite;
+}
+.auth-foot{margin-top:22px; text-align:center; font-size:13.5px; font-weight:600; color:var(--muted);}
+#loginScreen .auth-back-row{margin-top:18px;}
+#loginScreen .auth-notice{border-radius:12px; font-size:13.5px;}
+
+@media (prefers-reduced-motion: no-preference){
+  #loginScreen:not(.hidden) .auth-form-inner:not(.hidden) > *{animation:auth-rise .5s cubic-bezier(.2,.8,.2,1) both;}
+  #loginScreen:not(.hidden) .auth-form-inner:not(.hidden) > *:nth-child(2){animation-delay:.04s;}
+  #loginScreen:not(.hidden) .auth-form-inner:not(.hidden) > *:nth-child(3){animation-delay:.08s;}
+  #loginScreen:not(.hidden) .auth-form-inner:not(.hidden) > *:nth-child(4){animation-delay:.12s;}
+  #loginScreen:not(.hidden) .auth-form-inner:not(.hidden) > *:nth-child(5){animation-delay:.16s;}
+  #loginScreen:not(.hidden) .auth-form-inner:not(.hidden) > *:nth-child(n+6){animation-delay:.2s;}
+  #loginScreen:not(.hidden) .auth-show-copy{animation:auth-rise .6s cubic-bezier(.2,.8,.2,1) both;}
+  #loginScreen:not(.hidden) .auth-show-screen{animation:auth-device .9s .1s cubic-bezier(.2,.8,.2,1) both;}
+}
+@keyframes auth-rise{from{opacity:0; transform:translateY(12px);} to{opacity:1; transform:none;}}
+@keyframes auth-device{from{opacity:0; transform:translateY(46px);} to{opacity:1; transform:none;}}
+
+@media (max-width:960px){
+  #loginScreen .auth-show{display:none;}
+  #loginScreen .auth-panel-form{flex:1 1 auto; border:none; padding:84px 22px 32px; align-items:flex-start; overflow-y:auto;}
+  #loginScreen .auth-form-inner{margin:0 auto;}
+  #loginScreen .auth-title{font-size:28px;}
+  #loginScreen .auth-logo-row{display:flex; margin-bottom:34px;}
+}
