@@ -10094,7 +10094,7 @@ async function showStaffPick(){
     return;
   }
   const rememberedId = CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.id : null;
-  el.innerHTML = staff.map(s=>`<button class="pos-staff-btn${s.id===rememberedId?' is-remembered':''}" data-id="${s.id}" data-name="${s.name}">${s.name}${s.id===rememberedId?' <span class="pos-staff-remembered">آخر مرة</span>':''}</button>`).join('');
+  el.innerHTML = staff.map(s=>`<button class="pos-staff-btn${s.id===rememberedId?' is-remembered':''}" data-id="${s.id}" data-name="${s.name}" data-initial="${escapeHtml(String(s.name||'').trim().charAt(0))}">${s.name}${s.id===rememberedId?' <span class="pos-staff-remembered">آخر مرة</span>':''}</button>`).join('');
   el.querySelectorAll('.pos-staff-btn').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       applyStaffMember({ id: parseInt(btn.dataset.id,10), name: btn.dataset.name });

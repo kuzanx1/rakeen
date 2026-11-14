@@ -5,7 +5,8 @@ import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
 import { listBranchStaff, readCachedBranchStaff, rememberStaff } from '../application/staffService';
 import type { StaffMember } from '../application/staffService';
-import { createStyles, fonts, gradients, radii, useTheme } from './theme';
+import { createStyles, fonts, gradients, useTheme } from './theme';
+import { authBaseStyles } from './authLook';
 
 /**
  * #posStaffPickScreen -- "مين اللي مداوم؟" (rakeen-pos.js:6206).
@@ -85,7 +86,7 @@ export default function StaffPickScreen({
               </Text>
               <TouchableOpacity onPress={() => pick(null)} activeOpacity={0.85} style={styles.submitWrap}>
                 <View style={styles.submit}>
-                  <GradientFill gradient={gradients.payButton} radius={radii.md} />
+                  <GradientFill gradient={gradients.payButton} radius={17} />
                   <Text style={styles.submitText}>متابعة بدون اسم</Text>
                 </View>
               </TouchableOpacity>
@@ -99,7 +100,10 @@ export default function StaffPickScreen({
                   style={styles.staffBtn}
                   onPress={() => pick(member)}
                   activeOpacity={0.8}>
-                  <Text style={styles.staffBtnText}>{member.name}</Text>
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>{member.name.trim().charAt(0)}</Text>
+                  </View>
+                  <Text style={styles.staffBtnText} numberOfLines={1}>{member.name}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -112,56 +116,28 @@ export default function StaffPickScreen({
 
 const useStyles = createStyles((colors, shadows) =>
   StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.canvas },
-    centerBox: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
-    card: {
-      width: '100%',
-      maxWidth: 420,
-      backgroundColor: colors.cardBg,
-      borderRadius: 28,
-      paddingTop: 36,
-      paddingHorizontal: 30,
-      paddingBottom: 30,
-      alignItems: 'center',
-      ...shadows.md,
-    },
-    wordmark: { height: 28, width: 65, marginBottom: 14 },
-    title: { fontFamily: fonts.sansBold, fontSize: 21, color: colors.text, marginBottom: 6 },
-    sub: {
-      fontFamily: fonts.sansMedium,
-      fontSize: 12.5,
-      lineHeight: 20.625,
-      color: colors.muted,
-      textAlign: 'center',
-      marginBottom: 18,
-    },
+    ...authBaseStyles(colors, shadows),
     loading: { marginVertical: 20 },
     preparing: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 20 },
-    preparingText: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.muted },
+    preparingText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.muted },
     // .pos-staff-list
-    list: { width: '100%', gap: 8 },
-    // .pos-staff-btn
+    list: { width: '100%', gap: 11 },
+    // .pos-staff-btn v2: حرف الاسم في دائرة، والاسم بجانبه
     staffBtn: {
       width: '100%',
-      paddingVertical: 15,
+      minHeight: 62,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 13,
+      paddingVertical: 10,
       paddingHorizontal: 16,
-      borderRadius: radii.md,
+      borderRadius: 18,
       backgroundColor: colors.surf1,
-      borderWidth: 1,
+      borderWidth: 1.5,
       borderColor: colors.line,
-      alignItems: 'center',
     },
-    staffBtnText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.text },
-    submitWrap: { width: '100%' },
-    submit: {
-      width: '100%',
-      paddingVertical: 16,
-      borderRadius: radii.md,
-      alignItems: 'center',
-      justifyContent: 'center',
-      overflow: 'hidden',
-      backgroundColor: colors.lime, // تحت التدرّج: لو ما ترسم يبقى الزر ظاهر (GradientFill)
-    },
-    submitText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.flagGreenDeep },
+    avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.graphite ?? '#111', alignItems: 'center', justifyContent: 'center' },
+    avatarText: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.lime },
+    staffBtnText: { flex: 1, fontFamily: fonts.sansBold, fontSize: 16.5, color: colors.text, textAlign: 'left' },
   }),
 );

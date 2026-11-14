@@ -6,7 +6,8 @@ import KeyboardLift from './KeyboardLift';
 import GradientFill from './GradientFill';
 import { openShift } from '../application/shiftService';
 import type { Shift } from '../domain/shift';
-import { createStyles, fonts, gradients, radii, useTheme } from './theme';
+import { createStyles, fonts, gradients, useTheme } from './theme';
+import { authBaseStyles } from './authLook';
 import { toLatinDigits } from '../domain/digits';
 
 /**
@@ -80,7 +81,7 @@ export default function OpenShiftScreen({
           <Text style={styles.sub}>أدخل المبلغ النقدي الموجود بالدرج عشان تبدأ الوردية</Text>
 
           <View style={styles.field}>
-            <Text style={styles.label}>الرصيد الافتتاحي</Text>
+            <Text style={styles.label}>الرصيد الافتتاحي (ر.س)</Text>
             <TextInput
               style={styles.input}
               placeholder="0.00"
@@ -94,9 +95,9 @@ export default function OpenShiftScreen({
 
           {!!error && <Text style={styles.error}>{error}</Text>}
 
-          <TouchableOpacity onPress={submit} disabled={busy} activeOpacity={0.85}>
+          <TouchableOpacity onPress={submit} disabled={busy} activeOpacity={0.85} style={styles.submitWrap}>
             <View style={[styles.submit, busy && styles.submitBusy]}>
-              {!busy && <GradientFill gradient={gradients.payButton} radius={radii.md} />}
+              {!busy && <GradientFill gradient={gradients.payButton} radius={17} />}
               {busy ? (
                 <ActivityIndicator color={colors.muted} />
               ) : (
@@ -112,57 +113,21 @@ export default function OpenShiftScreen({
 
 const useStyles = createStyles((colors, shadows) =>
   StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.canvas },
-    centerBox: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
-    // .pos-auth-card
-    card: {
-      width: '100%',
-      maxWidth: 420,
-      backgroundColor: colors.cardBg,
-      borderRadius: 28,
-      paddingTop: 36,
-      paddingHorizontal: 30,
-      paddingBottom: 30,
-      alignItems: 'center',
-      ...shadows.md,
-    },
-    wordmark: { height: 28, width: 65, marginBottom: 14 },
-    // .pos-auth-title
-    title: { fontFamily: fonts.sansBold, fontSize: 21, color: colors.text, marginBottom: 6 },
-    // .pos-auth-sub
-    sub: {
-      fontFamily: fonts.sansMedium,
-      fontSize: 12.5,
-      lineHeight: 20.625,
-      color: colors.muted,
-      textAlign: 'center',
-      marginBottom: 18,
-    },
-    field: { width: '100%', marginBottom: 12 },
-    label: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.muted, marginBottom: 6 },
+    ...authBaseStyles(colors, shadows),
+    label: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.text, marginBottom: 8, alignSelf: 'stretch' },
+    // المبلغ كبير بخط الأرقام، مثل #posOpenShiftScreen في الويب
     input: {
       width: '100%',
-      backgroundColor: colors.surf1,
+      height: 72,
       borderRadius: 16,
-      paddingVertical: 13,
-      paddingHorizontal: 15,
+      borderWidth: 1.5,
+      borderColor: colors.line,
+      backgroundColor: colors.surf1,
       color: colors.text,
       fontFamily: fonts.monoBold,
-      fontSize: 15,
+      fontSize: 30,
       textAlign: 'center',
+      paddingHorizontal: 18,
     },
-    // .pos-auth-error
-    error: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.danger, marginBottom: 10, textAlign: 'center' },
-    submit: {
-      width: '100%',
-      paddingVertical: 16,
-      borderRadius: radii.md,
-      alignItems: 'center',
-      justifyContent: 'center',
-      overflow: 'hidden',
-      backgroundColor: colors.lime, // تحت التدرّج: لو ما ترسم يبقى الزر ظاهر (GradientFill)
-    },
-    submitBusy: { backgroundColor: colors.surf2 },
-    submitText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.flagGreenDeep },
   }),
 );

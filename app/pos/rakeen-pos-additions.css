@@ -814,3 +814,124 @@ input:focus-visible, select:focus-visible, button:focus-visible{
 @media (prefers-reduced-motion: reduce) {
   .pager-card.ready, .pager-card.warn, .pager-card.urgent { animation: none; }
 }
+
+/* ============ Auth screens v2 ============
+   تجهيز الجهاز، رمز الفرع، مين المداوم، بدء الوردية.
+   كانت بطاقة ٣٦٠ عائمة وسط تابلت: أزرار صغيرة وشعار باهت. الآن بطاقة
+   بحجم الشاشة التي تُلمس بالإصبع، ولوحة أرقام مرتّبة مثل أي لوحة (١ ٢ ٣
+   من اليسار). نفس المقاسات في التطبيق: LoginScreen / StaffPickScreen /
+   OpenShiftScreen. */
+.pos-auth-screen {
+  background:
+    radial-gradient(60% 55% at 50% 0%, rgba(196,255,43,.20), rgba(196,255,43,0) 70%),
+    var(--canvas);
+  padding: 24px;
+}
+[data-theme="dark"] .pos-auth-screen {
+  background:
+    radial-gradient(60% 55% at 50% 0%, rgba(196,255,43,.07), rgba(196,255,43,0) 70%),
+    var(--canvas);
+}
+.pos-auth-card {
+  width: 440px;
+  padding: 44px 40px 34px;
+  border-radius: 32px;
+  box-shadow: 0 40px 80px -40px rgba(17,17,17,.28), 0 0 0 1px var(--line);
+  border: none;
+}
+.pos-auth-card > img.brand-avatar {
+  height: 34px !important;
+  margin-bottom: 22px !important;
+  content: url("/brand/rakeen-wordmark-deep.png");
+}
+[data-theme="dark"] .pos-auth-card > img.brand-avatar { content: url("/brand/rakeen-wordmark.png"); }
+.pos-auth-title { font-size: 25px; line-height: 1.3; margin-bottom: 8px; letter-spacing: -.01em; }
+.pos-auth-sub { font-size: 14.5px; font-weight: 500; line-height: 1.75; margin-bottom: 26px; }
+.pos-auth-card .pos-auth-field { margin-bottom: 12px; }
+.pos-auth-card .pos-auth-field label:not(.pos-check) { font-size: 13px; color: var(--text); margin-bottom: 8px; }
+.pos-auth-card .pos-auth-field input:not([type="checkbox"]),
+.pos-auth-card .pos-auth-field select {
+  height: 56px; padding: 0 18px; border-radius: 16px; font-size: 16px;
+  border-width: 1.5px;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.pos-auth-card .pos-auth-field input:focus,
+.pos-auth-card .pos-auth-field select:focus {
+  box-shadow: 0 0 0 4px rgba(196,255,43,.34);
+}
+.pos-auth-card .confirm-pay-btn { height: 58px; border-radius: 17px; font-size: 16.5px; margin-top: 8px; }
+.pos-auth-card .pos-auth-error {
+  width: 100%; margin: 4px 0 12px; padding: 11px 14px; border-radius: 13px; font-size: 13.5px; line-height: 1.6;
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 26%, transparent);
+}
+.pos-auth-reprovision { margin-top: 22px; font-size: 13px; padding: 8px 12px; border-radius: 10px; }
+.pos-auth-reprovision:hover { background: var(--surf1); color: var(--text); }
+
+/* رمز الفرع */
+.pos-auth-card .pin-dots { gap: 18px; margin-bottom: 30px; direction: ltr; }
+.pos-auth-card .pin-dot {
+  width: 17px; height: 17px; border-width: 2px;
+  transition: transform .16s cubic-bezier(.2,1.6,.4,1), background .12s ease, border-color .12s ease;
+}
+.pos-auth-card .pin-dot.filled { transform: scale(1.18); }
+.pos-auth-card .pin-pad {
+  direction: ltr; /* ١ ٢ ٣ من اليسار، مثل كل لوحة أرقام */
+  grid-template-columns: repeat(3, 84px);
+  justify-content: center;
+  gap: 16px 22px;
+}
+.pos-auth-card .pin-key {
+  width: 84px; height: 84px; padding: 0; border-radius: 50%;
+  font-size: 28px; font-weight: 600;
+  background: var(--surf1); border: 1.5px solid var(--line); color: var(--text);
+  display: grid; place-items: center;
+  transition: transform .08s ease, background .1s ease, border-color .1s ease;
+}
+.pos-auth-card .pin-key:active { transform: scale(.93); background: var(--lime); border-color: var(--lime); color: var(--flag-green-deep); }
+.pos-auth-card .pin-key[data-key="⌫"] { background: none; border-color: transparent; font-size: 26px; color: var(--muted); }
+.pos-auth-card .pin-key[data-key="⌫"]:active { background: var(--surf2); color: var(--text); }
+.pos-auth-card .pin-verifying { font-size: 14px; margin: 26px 0 8px; }
+
+/* مين اللي مداوم */
+.pos-auth-card .pos-staff-list { gap: 11px; max-height: min(52vh, 420px); overflow-y: auto; padding: 2px; }
+.pos-auth-card .pos-staff-btn {
+  min-height: 62px; padding: 10px 16px; border-radius: 18px; font-size: 16.5px; border-width: 1.5px;
+  display: flex; align-items: center; gap: 13px; text-align: start;
+}
+.pos-auth-card .pos-staff-btn::before {
+  content: attr(data-initial);
+  width: 40px; height: 40px; flex: none; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--graphite, #111); color: var(--lime); font-weight: 800; font-size: 16px;
+}
+.pos-auth-card .pos-staff-btn:not([data-initial])::before { display: none; }
+.pos-auth-card .pos-staff-btn:hover { border-color: color-mix(in srgb, var(--text) 28%, transparent); }
+.pos-auth-card .pos-staff-remembered { font-size: 12px; margin-inline-start: auto; }
+
+/* بدء الوردية */
+#posOpenShiftScreen .pos-auth-field input {
+  height: 72px; font-size: 30px; font-weight: 700; text-align: center;
+  font-family: 'IBM Plex Mono', monospace; direction: ltr;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pos-auth-screen:not(.hidden) > .pos-auth-card { animation: pos-auth-rise .42s cubic-bezier(.2,.8,.2,1) both; }
+}
+@keyframes pos-auth-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 560px) {
+  .pos-auth-screen { padding: 14px; }
+  .pos-auth-card { width: 100%; padding: 34px 22px 26px; border-radius: 28px; }
+  .pos-auth-title { font-size: 22px; }
+  .pos-auth-card .pin-pad { grid-template-columns: repeat(3, 76px); gap: 14px 20px; }
+  .pos-auth-card .pin-key { width: 76px; height: 76px; font-size: 26px; }
+}
+@media (max-height: 700px) {
+  .pos-auth-card { padding-top: 28px; padding-bottom: 22px; }
+  .pos-auth-card > img.brand-avatar { margin-bottom: 12px !important; }
+  .pos-auth-sub { margin-bottom: 16px; }
+  .pos-auth-card .pin-dots { margin-bottom: 18px; }
+  .pos-auth-card .pin-pad { grid-template-columns: repeat(3, 68px); gap: 10px 18px; }
+  .pos-auth-card .pin-key { width: 68px; height: 68px; font-size: 24px; }
+}

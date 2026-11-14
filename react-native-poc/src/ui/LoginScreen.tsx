@@ -15,7 +15,8 @@ import {
 } from '../application/authService';
 import type { DeviceConfig, BranchOption, CashierProfile } from '../domain/auth';
 import { EMPTY_DEVICE_CONFIG } from '../domain/auth';
-import { createStyles, fonts, gradients, radii, useTheme } from './theme';
+import { createStyles, fonts, gradients, useTheme } from './theme';
+import { authBaseStyles, useAuthFit } from './authLook';
 
 /** ['1'..'9', '', '0', '⌫'] -- exactly renderLoginPin()'s own key array
  *  (rakeen-pos.js). '' is the empty grid cell the source renders as a bare
@@ -48,6 +49,7 @@ const PIN_LENGTH = 4;
 export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: CashierProfile) => void }) {
   const { colors } = useTheme();
   const styles = useStyles();
+  const fit = useAuthFit();
 
   const [loading, setLoading] = useState(true);
   const [device, setDevice] = useState<DeviceConfig>(EMPTY_DEVICE_CONFIG);
@@ -308,15 +310,15 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
   return (
     <View style={styles.screen}>
       <View style={styles.centerBox}>
-        <View style={styles.card}>
-          <Wordmark styles={styles} />
+        <View style={[styles.card, fit.card]}>
+          <Wordmark styles={styles} extra={fit.wordmark} />
           <Text style={styles.title}>رمز الفرع</Text>
-          <Text style={styles.sub}>
+          <Text style={[styles.sub, fit.sub]}>
             {device.branchName ? `أدخل رمز فرع: ${device.branchName}` : 'أدخل رمز نقطة البيع لهذا الفرع'}
           </Text>
 
           {/* .pin-dots */}
-          <View style={styles.pinDots}>
+          <View style={[styles.pinDots, fit.dots]}>
             {Array.from({ length: PIN_LENGTH }).map((_, i) => (
               <View key={i} style={[styles.pinDot, i < pin.length && styles.pinDotFilled]} />
             ))}
@@ -330,7 +332,7 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
               <Text style={styles.pinVerifyingText}>جارٍ التحقق من الرمز...</Text>
             </View>
           ) : (
-            <PinPad styles={styles} onKey={handlePinKey} />
+            <PinPad styles={styles} fit={fit} onKey={handlePinKey} />
           )}
 
           {!!error && <Text style={styles.error}>{error}</Text>}
@@ -344,11 +346,11 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
   );
 }
 
-function Wordmark({ styles }: { styles: Styles }) {
+function Wordmark({ styles, extra }: { styles: Styles; extra?: object | null }) {
   return (
     <Image
       source={require('../../assets/brand/rakeen-wordmark.png')}
-      style={styles.wordmark}
+      style={[styles.wordmark, extra]}
       resizeMode="contain"
     />
   );
@@ -367,26 +369,43 @@ function Wordmark({ styles }: { styles: Styles }) {
  * Digit ORDER is intentionally not the PWA's -- see .pinRow's own note:
  * 1 sits top-left here, iPhone-style, instead of top-right.
  */
-function PinPad({ styles, onKey }: { styles: Styles; onKey: (key: string) => void }) {
+function PinPad({ styles, fit, onKey }: { styles: Styles; fit: ReturnType<typeof useAuthFit>; onKey: (key: string) => void }) {
   const rows: string[][] = [];
   for (let i = 0; i < PIN_KEYS.length; i += 3) rows.push(PIN_KEYS.slice(i, i + 3));
+  const size = { width: fit.key, height: fit.key, borderRadius: fit.key / 2 };
   return (
-    <View style={styles.pinPad}>
+    <View style={[styles.pinPad, { gap: fit.rowGap }]}>
       {rows.map((row, r) => (
-        <View key={r} style={styles.pinRow}>
-          {row.map((key, c) =>
-            key ? (
+        <View key={r} style={[styles.pinRow, { gap: fit.colGap }]}>
+          {row.map((key, c) => {
+            if (!key) return <View key={c} style={size} />;
+            const back = key === '⌫';
+            return (
               <Pressable
                 key={c}
                 onPress={() => onKey(key)}
-                style={({ pressed }) => [styles.pinKey, pressed && styles.pinKeyActive]}>
-                <Text style={styles.pinKeyText}>{key}</Text>
+                accessibilityLabel={back ? 'مسح' : key}
+                style={({ pressed }) => [
+                  styles.pinKey,
+                  size,
+                  back && styles.pinKeyBack,
+                  pressed && (back ? styles.pinKeyBackActive : styles.pinKeyActive),
+                  pressed && styles.pinKeyPressed,
+                ]}>
+                {({ pressed }) => (
+                  <Text
+                    style={[
+                      styles.pinKeyText,
+                      { fontSize: back ? fit.keyFont - 2 : fit.keyFont },
+                      back && styles.pinKeyBackText,
+                      pressed && !back && styles.pinKeyTextActive,
+                    ]}>
+                    {key}
+                  </Text>
+                )}
               </Pressable>
-            ) : (
-              // the source's bare <span></span> placeholder cell
-              <View key={c} style={styles.pinKeySpacer} />
-            ),
-          )}
+            );
+          })}
         </View>
       ))}
     </View>
@@ -408,16 +427,16 @@ function ConfirmPayButton({
   const { colors } = useTheme();
   if (busy) {
     return (
-      <View style={[styles.confirmButton, styles.confirmButtonDisabled]}>
+      <View style={[styles.submitWrap, styles.submit, styles.submitBusy]}>
         <ActivityIndicator color={colors.muted} />
       </View>
     );
   }
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.confirmButtonWrap}>
-      <View style={styles.confirmButton}>
-        <GradientFill gradient={gradients.payButton} radius={radii.md} />
-        <Text style={styles.confirmButtonText}>{label}</Text>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.submitWrap}>
+      <View style={styles.submit}>
+        <GradientFill gradient={gradients.payButton} radius={17} />
+        <Text style={styles.submitText}>{label}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -427,129 +446,45 @@ type Styles = ReturnType<typeof useStyles>;
 
 const useStyles = createStyles((colors, shadows) =>
   StyleSheet.create({
-    // .pos-auth-screen -- inset:0, centered, background:var(--canvas), padding:20px
-    screen: { flex: 1, backgroundColor: colors.canvas },
-    centerBox: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
-    // .pos-auth-card
-    card: {
-      width: 360,
-      maxWidth: '100%',
-      alignItems: 'center',
-      backgroundColor: colors.cardBg,
-      borderWidth: 1,
-      borderColor: colors.line,
-      borderRadius: radii.xl,
-      paddingTop: 36,
-      paddingHorizontal: 30,
-      paddingBottom: 30,
-      ...shadows.panel,
-    },
-    // .brand-avatar inline style: height:28px; width:auto; margin-bottom:14px
-    // Measured off the live PWA at 375px: the wordmark box is 64.9x28,
-    // not the 132 previously assumed here. `.pos-wordmark{height:28px}`
-    // sets only the height; the width is whatever the SVG's own aspect
-    // ratio yields, and at 2x wide it rendered the mark cartoonishly
-    // oversized against the auth card.
-    wordmark: { height: 28, width: 65, marginBottom: 14 },
-    // .pos-auth-title
-    title: { fontFamily: fonts.sansBold, fontSize: 18, color: colors.text, marginBottom: 7, textAlign: 'center' },
-    // .pos-auth-sub -- line-height 1.65 * 12.5px
-    sub: { fontFamily: fonts.sansSemiBold, fontSize: 12.5, color: colors.muted, marginBottom: 22, textAlign: 'center', lineHeight: 20.625 },
-    // .pos-auth-field
-    field: { width: '100%', marginBottom: 11 },
-    // .pos-auth-field input
-    input: {
-      width: '100%',
-      paddingVertical: 13,
-      paddingHorizontal: 15,
-      borderRadius: radii.md,
-      borderWidth: 1,
-      borderColor: colors.line,
-      backgroundColor: colors.surf1,
-      color: colors.text,
-      fontFamily: fonts.sansSemiBold,
-      fontSize: 14,
-      // The source sets no text-align: the field simply inherits the
-      // document's dir="rtl", so even a Latin value (an email) sits
-      // against the right edge. RN's 'auto' would flip to left as soon
-      // as Latin characters are typed, so it is pinned explicitly.
-      textAlign: 'right',
-    },
+    ...authBaseStyles(colors, shadows),
     // #provBranchField rows -- field box styling, .pos-staff-btn:active tint when chosen
     branchOption: {
       width: '100%',
-      paddingVertical: 13,
-      paddingHorizontal: 15,
-      borderRadius: radii.md,
-      borderWidth: 1,
+      minHeight: 56,
+      justifyContent: 'center',
+      paddingHorizontal: 18,
+      borderRadius: 16,
+      borderWidth: 1.5,
       borderColor: colors.line,
       backgroundColor: colors.surf1,
       marginBottom: 8,
     },
     branchOptionActive: { backgroundColor: colors.lime, borderColor: colors.lime },
-    branchOptionText: { fontFamily: fonts.sansSemiBold, fontSize: 14, color: colors.text },
+    branchOptionText: { fontFamily: fonts.sansSemiBold, fontSize: 16, color: colors.text },
     branchOptionTextActive: { color: colors.flagGreenDeep },
-    // .pos-auth-error
-    error: { fontFamily: fonts.sansBold, color: colors.danger, fontSize: 12, marginBottom: 10, textAlign: 'center' },
-    // .confirm-pay-btn
-    confirmButtonWrap: { width: '100%' },
-    confirmButton: { width: '100%', paddingVertical: 16, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.lime },
-    confirmButtonDisabled: { backgroundColor: colors.surf2 },
-    confirmButtonText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.flagGreenDeep },
-    // .pin-dots / .pin-dot / .pin-dot.filled
-    // row-reverse, which under forceRTL lays out LEFT to right: the dots
-    // fill the way a passcode does on the phone itself, from the left.
-    // Plain 'row' filled from the right, which reads as the code being
-    // entered backwards.
-    pinDots: { flexDirection: 'row-reverse', justifyContent: 'center', gap: 13, marginBottom: 24 },
-    pinDot: { width: 13, height: 13, borderRadius: 7, borderWidth: 1.5, borderColor: colors.line },
-    pinDotFilled: { backgroundColor: colors.accentText, borderColor: colors.accentText },
-    /**
-     * .pin-pad is `display:grid; grid-template-columns:repeat(3,1fr)` --
-     * but it sits in `.pos-auth-card`, which is a flex COLUMN with
-     * `align-items:center`. A flex item there shrinks to its content, so
-     * the grid never gets free space to distribute and each 1fr column
-     * collapses to max-content. Measured on the real page: the pad is
-     * 181px wide inside a 300px-wide card interior, keys 53x55, centred.
-     *
-     * This was `width:'100%'` with `flex:1` keys, which stretched the pad
-     * across the whole card and made every key ~92px -- a visibly
-     * different keypad from the source's.
-     */
-    pinPad: { alignSelf: 'center', gap: 11 },
-    /**
-   * `direction:'ltr'` is a DELIBERATE divergence from the PWA, asked for
-   * directly. The web .pin-pad is a plain `repeat(3,1fr)` grid inside an
-   * RTL document, so its cells lay out right-to-left and "1" lands in the
-   * top-RIGHT corner. Every numeric keypad a cashier already knows -- the
-   * iPhone passcode screen, an ATM, a calculator -- puts 1 at the top
-   * LEFT regardless of language, because digits themselves are LTR. Yoga
-   * honours `direction` per-node, so forcing it here flips just these
-   * three cells without touching the RTL layout around them.
-   */
-  pinRow: { flexDirection: 'row', gap: 11, direction: 'ltr' },
-    // .pin-key
+    // .pin-dots: row-reverse = يسار لليمين تحت forceRTL، مثل رمز الجوال.
+    pinDots: { flexDirection: 'row-reverse', justifyContent: 'center', gap: 18, marginBottom: 30 },
+    pinDot: { width: 17, height: 17, borderRadius: 9, borderWidth: 2, borderColor: colors.line },
+    pinDotFilled: { backgroundColor: colors.accentText, borderColor: colors.accentText, transform: [{ scale: 1.18 }] },
+    pinPad: { alignSelf: 'center' },
+    /** direction:'ltr' مقصود: ١ ٢ ٣ من اليسار مثل كل لوحة أرقام (والويب الآن مثلها). */
+    pinRow: { flexDirection: 'row', direction: 'ltr' },
     pinKey: {
-      // 53 is the measured column width, not a guess: with no free space
-      // every 1fr column resolves to the same max-content width, so all
-      // three are equal and the widest glyph (the backspace) sets it.
-      width: 53,
-      paddingVertical: 17,
-      paddingHorizontal: 17,
-      borderRadius: radii.md,
-      borderWidth: 1,
+      borderWidth: 1.5,
       borderColor: colors.line,
       backgroundColor: colors.surf1,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    pinKeyActive: { backgroundColor: colors.surf2 },
-    pinKeySpacer: { width: 53 },
-    pinKeyText: { fontFamily: fonts.monoBold, fontSize: 17, color: colors.text },
-    // .pin-verifying
-    pinVerifying: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 22 },
-    pinVerifyingText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.muted },
-    // .pos-auth-reprovision
-    reprovision: { fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.muted, marginTop: 18 },
+    pinKeyActive: { backgroundColor: colors.lime, borderColor: colors.lime },
+    pinKeyPressed: { transform: [{ scale: 0.93 }] },
+    pinKeyBack: { backgroundColor: 'transparent', borderColor: 'transparent' },
+    pinKeyBackActive: { backgroundColor: colors.surf2 },
+    pinKeyText: { fontFamily: fonts.monoBold, color: colors.text },
+    pinKeyTextActive: { color: colors.flagGreenDeep },
+    pinKeyBackText: { color: colors.muted },
+    pinVerifying: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 26 },
+    pinVerifyingText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.muted },
+    reprovision: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.muted, marginTop: 22, paddingVertical: 8, paddingHorizontal: 12 },
   }),
 );
