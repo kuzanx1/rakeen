@@ -1,3 +1,4 @@
+import { emitOrderQueueChanged } from './orderQueueEvents';
 import type { DB } from '@op-engineering/op-sqlite';
 import { getSharedDb } from './sqliteDb';
 import type { QueuedPayload } from '../domain/order';
@@ -76,11 +77,13 @@ export const sqliteOrderQueueStorage: QueueStorage = {
         Date.now(),
       ],
     );
+    emitOrderQueueChanged();
   },
 
   async remove(clientOrderUuid: string): Promise<void> {
     const db = getDb();
     await db.execute(`DELETE FROM ${TABLE} WHERE client_order_uuid = ?;`, [clientOrderUuid]);
+    emitOrderQueueChanged();
   },
 
   async getAll(): Promise<QueuedPayload[]> {
@@ -89,3 +92,13 @@ export const sqliteOrderQueueStorage: QueueStorage = {
     return result.rows.map(row => JSON.parse(row.payload_json as string) as QueuedPayload);
   },
 };
+
+/** الطلبات اللي بانتظار الإرسال، مع وقت حفظها -- لشاشة الطلبات. */
+export async function listQueuedWithTime(): Promise<{ payload: QueuedPayload; queuedAt: number }[]> {
+  const db = getDb();
+  const result = await db.execute(`SELECT payload_json, created_at FROM ${TABLE} ORDER BY created_at DESC;`);
+  return result.rows.map(row => ({
+    payload: JSON.parse(row.payload_json as string) as QueuedPayload,
+    queuedAt: Number(row.created_at) || Date.now(),
+  }));
+}

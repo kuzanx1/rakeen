@@ -620,7 +620,24 @@ export async function getReceiptBusinessProfile(businessId: number): Promise<Rec
   };
 }
 
+/** أسماء آخر قائمة انحملت (حيّة أو محفوظة) -- لعرض أصناف طلب ما ارتفع
+ *  بعد (بانتظار الإرسال) بدون نت. */
+const knownNames = new Map<number, { name: string; nameEn: string | null }>();
+
+/** اسم الصنف من آخر قائمة: menu_item_id، أو service_id (سالب في Product.id). */
+export function catalogItemName(menuItemId: number | null, serviceId: number | null): { name: string; nameEn: string | null } | null {
+  if (menuItemId != null) return knownNames.get(menuItemId) ?? null;
+  if (serviceId != null) return knownNames.get(-serviceId) ?? null;
+  return null;
+}
+
 export async function loadCatalog(businessId: number, businessType: string): Promise<CatalogResult> {
+  const r = await loadCatalogRaw(businessId, businessType);
+  r.products.forEach(p => knownNames.set(p.id, { name: p.name, nameEn: p.nameEn }));
+  return r;
+}
+
+async function loadCatalogRaw(businessId: number, businessType: string): Promise<CatalogResult> {
   const isService = isServiceBusinessType(businessType);
 
   const [catRes, itemsRes, servicesRes, groupRes, optRes, itemModRes, stockRes, boxEligRes, itemCatRes] = await Promise.all([

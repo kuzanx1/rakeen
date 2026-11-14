@@ -53,6 +53,8 @@ export interface PagerSettings {
   wifi: string;
   ready_msg: string;
   late_alert: boolean;
+  /** صوت التأخر بالكاشير -- مطفي افتراضياً. */
+  late_sound: boolean;
   tone: string;
 }
 
@@ -68,5 +70,6 @@ export const PAGER_DEFAULTS: PagerSettings = {
   wifi: "",
   ready_msg: "",
   late_alert: true,
+  late_sound: false,
   tone: "chime",
 };

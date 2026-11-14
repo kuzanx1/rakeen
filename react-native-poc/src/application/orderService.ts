@@ -97,7 +97,8 @@ export async function dispatchQueuedPayload(payload: QueuedPayload): Promise<unk
       : await sendOrderToServer(payload as OrderPayload);
   // طلبٌ انطبع برقمٍ مؤقت بلا نت: الآن عرفنا رقمه الحقيقي.
   if (payload.offline_ref && typeof result === 'number') {
-    await rememberOfflineRef(result, payload.offline_ref).catch(() => {});
+    const no = await orderNoFor(result);
+    await rememberOfflineRef(result, payload.offline_ref, no).catch(() => {});
   }
   return result;
 }

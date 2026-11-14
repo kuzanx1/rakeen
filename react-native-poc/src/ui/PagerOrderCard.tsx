@@ -1,10 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import { createStyles, fonts, radii, useTheme } from './theme';
 import { pagerConfig, pagerUrgency } from '../application/pagerService';
 import type { PagerAction, PagerOrder } from '../application/pagerService';
+import { getOrderHistoryDetail } from '../application/orderHistoryService';
+
+/** أصناف كل طلب تنجاب مرة وحدة: الطلب ما تتغيّر أصنافه بعد الدفع. */
+const itemsCache = new Map<number, { name: string; qty: number; mods: string }[]>();
+
+function modText(m: unknown): string {
+  if (typeof m === 'string') return m;
+  const t = (m as { text?: string } | null)?.text;
+  return t ?? '';
+}
 
 /**
  * بطاقة «بيجر ركين» في «جارية» -- نفس بطاقة الويب (renderPagerCard):
@@ -37,6 +47,26 @@ export default function PagerOrderCard({
 }) {
   const { colors } = useTheme();
   const styles = useStyles();
+  const [showItems, setShowItems] = useState(false);
+  const [items, setItems] = useState(() => itemsCache.get(order.id) ?? null);
+  const [itemsErr, setItemsErr] = useState(false);
+  const toggleItems = () => {
+    const next = !showItems;
+    setShowItems(next);
+    if (!next || items) return;
+    setItemsErr(false);
+    getOrderHistoryDetail(order.id)
+      .then(d => {
+        const list = (d?.items ?? []).map(it => ({
+          name: it.name,
+          qty: it.qty,
+          mods: (it.mods || []).map(modText).filter(Boolean).join('، '),
+        }));
+        itemsCache.set(order.id, list);
+        setItems(list);
+      })
+      .catch(() => setItemsErr(true));
+  };
   const kind = order.channel === 'dine_in' ? 'محلي' : 'سفري';
   const who = order.customerName || kind;
   const ready = !!order.readyAt;
@@ -59,6 +89,31 @@ export default function PagerOrderCard({
         {who}
         {order.delayedAt && !ready ? ' · أُجّل' : ''}
       </Text>
+
+      {/* أصناف هذا الطلب فقط -- الكاشير يجهّز/يسلّم وهو شايف وش فيه. */}
+      <TouchableOpacity onPress={toggleItems} activeOpacity={0.7} style={styles.itemsToggle} accessibilityRole="button">
+        <Text style={styles.itemsToggleText}>{showItems ? 'إخفاء الأصناف ▴' : 'الأصناف ▾'}</Text>
+      </TouchableOpacity>
+      {showItems && (
+        <View style={styles.items}>
+          {items ? (
+            items.length === 0 ? (
+              <Text style={styles.itemText}>—</Text>
+            ) : (
+              items.map((it, i) => (
+                <Text key={i} style={styles.itemText}>
+                  {it.qty} × {it.name}
+                  {it.mods ? <Text style={styles.itemMods}>{`  (${it.mods})`}</Text> : null}
+                </Text>
+              ))
+            )
+          ) : itemsErr ? (
+            <Text style={styles.itemText}>تعذر جلب الأصناف — تحقق من النت</Text>
+          ) : (
+            <ActivityIndicator color={colors.muted} />
+          )}
+        </View>
+      )}
 
       <View style={[styles.time, ready ? styles.timeReady : urgency === 'urgent' ? styles.timeUrgent : urgency === 'warn' ? styles.timeWarn : null]}>
         <Text style={[styles.timeText, (ready || urgency !== 'ok') && styles.timeTextStrong]}>
@@ -138,6 +193,11 @@ const useStyles = createStyles((colors) =>
   timeText: { fontFamily: fonts.monoBold, fontSize: 12.5, color: colors.muted },
   timeTextStrong: { color: colors.text },
   row: { alignSelf: 'stretch', flexDirection: 'row', gap: 8, marginTop: 4 },
+  itemsToggle: { minHeight: 34, justifyContent: 'center', paddingHorizontal: 8 },
+  itemsToggleText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accentText },
+  items: { alignSelf: 'stretch', backgroundColor: colors.surf1, borderRadius: 12, padding: 10, gap: 4 },
+  itemText: { fontFamily: fonts.sansSemiBold, fontSize: 13.5, color: colors.text },
+  itemMods: { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.muted },
   wide: { flex: 2.4 },
   narrow: { flex: 1 },
   half: { flex: 1 },

@@ -17,6 +17,7 @@ import type { DeviceConfig, BranchOption, CashierProfile } from '../domain/auth'
 import { EMPTY_DEVICE_CONFIG } from '../domain/auth';
 import { createStyles, fonts, gradients, useTheme } from './theme';
 import { authBaseStyles, useAuthFit } from './authLook';
+import AuthScroll, { useKeyboardOpen } from './AuthScroll';
 import AuthLangButton from './AuthLangButton';
 import { checkSignInInput, explainSignInError } from '../domain/signInInput';
 import type { SignInField } from '../domain/signInInput';
@@ -53,6 +54,7 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
   const { colors } = useTheme();
   const styles = useStyles();
   const fit = useAuthFit();
+  const kb = useKeyboardOpen();
 
   const [loading, setLoading] = useState(true);
   const [device, setDevice] = useState<DeviceConfig>(EMPTY_DEVICE_CONFIG);
@@ -206,15 +208,14 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
   // #posProvisionScreen -- device not yet bound to a branch.
   if (device.branchId == null && pinBranch) {
     return (
-      <KeyboardLift style={styles.screen}>
-        <ScrollView contentContainerStyle={styles.centerBox} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
-          <View style={styles.card}>
+      <AuthScroll style={styles.screen} contentContainerStyle={[styles.centerBox, kb && styles.centerBoxKb]}>
+          <View style={[styles.card, kb && styles.cardKb]}>
             <AuthLangButton />
-            <Wordmark styles={styles} />
-            <Text style={styles.title}>رمز الفرع</Text>
-            <Text style={styles.sub}>
+            {!kb && <Wordmark styles={styles} />}
+            <Text style={[styles.title, kb && styles.titleKb]}>رمز الفرع</Text>
+            {!kb && <Text style={styles.sub}>
               فرع «{pinBranch.branch.name}» ما له رمز بعد. اختر رمز من ٤ أرقام: يدخل فيه الكاشير على هذا الجهاز وكل جهاز بالفرع.
-            </Text>
+            </Text>}
             <View style={styles.field}>
               <TextInput
                 style={styles.input}
@@ -239,25 +240,23 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
                 onChangeText={setNewPin2}
               />
             </View>
-            <Text style={styles.sub}>تجنّب الرموز السهلة مثل 1234 و0000. تقدر تغيّره بعدين من لوحة التحكم ← الكاشير.</Text>
+            {!kb && <Text style={styles.sub}>تجنّب الرموز السهلة مثل 1234 و0000. تقدر تغيّره بعدين من لوحة التحكم ← الكاشير.</Text>}
             {!!error && <Text style={styles.error}>{error}</Text>}
             <ConfirmPayButton styles={styles} label="حفظ الرمز وفتح الكاشير" busy={busy} onPress={handleSavePin} />
           </View>
-        </ScrollView>
-      </KeyboardLift>
+        </AuthScroll>
     );
   }
 
   if (device.branchId == null) {
     const pickingBranch = branches != null;
     return (
-      <KeyboardLift style={styles.screen}>
-        <ScrollView contentContainerStyle={styles.centerBox} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
-          <View style={styles.card}>
+      <AuthScroll style={styles.screen} contentContainerStyle={[styles.centerBox, kb && styles.centerBoxKb]}>
+          <View style={[styles.card, kb && styles.cardKb]}>
             <AuthLangButton />
-            <Wordmark styles={styles} />
-            <Text style={styles.title}>تجهيز هذا الجهاز</Text>
-            <Text style={styles.sub}>سجّل دخولك كمدير أو مالك مرة وحدة بس، عشان نربط هذا التابلت بفرعك.</Text>
+            {!kb && <Wordmark styles={styles} />}
+            <Text style={[styles.title, kb && styles.titleKb]}>تجهيز هذا الجهاز</Text>
+            {!kb && <Text style={styles.sub}>سجّل دخولك كمدير أو مالك مرة وحدة بس، عشان نربط هذا التابلت بفرعك.</Text>}
 
             <View style={styles.field}>
               <TextInput
@@ -325,8 +324,7 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
               onPress={pickingBranch ? handleConfirmBranch : handleProvision}
             />
           </View>
-        </ScrollView>
-      </KeyboardLift>
+        </AuthScroll>
     );
   }
 

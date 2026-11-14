@@ -37,6 +37,10 @@ import { formatArabicDateTimeShort, formatArabicTime } from '../domain/arabicDat
 import { toLatinDigits } from '../domain/digits';
 import KeyboardLift from './KeyboardLift';
 import { sendToPrintStation } from '../application/printStationService';
+import NetInfo from '@react-native-community/netinfo';
+import * as kvStorage from '../infrastructure/mmkvStorage';
+import { onOrderQueueChanged } from '../infrastructure/orderQueueEvents';
+import PendingOrdersStrip from './PendingOrdersStrip';
 
 const STATION_OK = '🟢 انطبعت على جهاز الطباعة';
 const STATION_NO = '🔴 ما فيه طابعة على هالجهاز، وجهاز الطباعة ما رد — تأكد إنه شغّال ومفتوح على الكاشير';
@@ -236,11 +240,22 @@ export default function OrderHistoryScreen({
     if (status === 'running') return;
     setLoading(true);
     setError('');
+    const cacheKey = `rk_order_history_cache:${branchId}:${status}`;
     try {
       const result = await listOrderHistory(branchId, status);
       setRows(result);
+      kvStorage.setItem(cacheKey, JSON.stringify(result)).catch(() => {});
     } catch (e) {
-      setError('تعذر تحميل الطلبات — جرّب مرة ثانية');
+      // بلا نت: آخر قائمة انحفظت بدل شاشة فاضية.
+      const cached = await kvStorage.getItem(cacheKey).catch(() => null);
+      let saved: OrderHistoryRow[] = [];
+      try {
+        saved = cached ? (JSON.parse(cached) as OrderHistoryRow[]) : [];
+      } catch {
+        saved = [];
+      }
+      setRows(saved);
+      setError(saved.length > 0 ? 'بدون نت — هذي آخر قائمة محفوظة، وتتحدّث لحالها أول ما يرجع' : 'تعذر تحميل الطلبات — تحقق من النت');
     } finally {
       setLoading(false);
     }
@@ -248,6 +263,27 @@ export default function OrderHistoryScreen({
 
   useEffect(() => {
     refresh();
+  }, [refresh]);
+
+  // طلب ارتفع من الطابور، أو رجع النت: القائمة تتحدّث لحالها.
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const soon = () => {
+      if (t) clearTimeout(t);
+      t = setTimeout(() => refresh(), 600);
+    };
+    const offQueue = onOrderQueueChanged(soon);
+    let wasOnline: boolean | null = null;
+    const offNet = NetInfo.addEventListener(st => {
+      const on = !!st.isConnected;
+      if (wasOnline === false && on) soon();
+      wasOnline = on;
+    });
+    return () => {
+      if (t) clearTimeout(t);
+      offQueue();
+      offNet();
+    };
   }, [refresh]);
 
   const openDetail = async (orderId: number) => {
@@ -603,14 +639,17 @@ export default function OrderHistoryScreen({
         })}
       </View>
 
+      <PendingOrdersStrip branchId={branchId} />
+
       {status === 'running' ? (
         <RunningOrdersList branchId={branchId} shiftId={shiftId} bottomInset={sideBySide ? insetBottom : 0} />
       ) : loading ? (
         <ActivityIndicator style={styles.center} color={colors.accentText} />
-      ) : error ? (
+      ) : error && rows.length === 0 ? (
         <Text style={styles.error}>{error}</Text>
       ) : (
         <FlatList
+          ListHeaderComponent={error ? <Text style={styles.error}>{error}</Text> : undefined}
           data={rows}
           keyExtractor={r => String(r.id)}
           contentContainerStyle={[styles.list, listInset]}
@@ -619,7 +658,11 @@ export default function OrderHistoryScreen({
             <TouchableOpacity style={styles.row} onPress={() => openDetail(item.id)} activeOpacity={0.8}>
               <View style={[styles.rowBadge, { backgroundColor: ROW_BADGE_COLOR[status as OrderHistoryStatus] }]} />
               <View style={styles.rowInfo}>
-                <Text style={styles.rowTitle}>#{item.orderNo ?? item.id}{offlineRefs[String(item.id)] ? ` (كان ${offlineRefs[String(item.id)]})` : ''} — {item.customerName || CHANNEL_LABELS[item.channel] || item.channel}</Text>
+                <Text style={styles.rowTitle}>
+                  #{item.orderNo ?? item.id}
+                  {offlineRefs[String(item.id)] ? <Text style={styles.rowWas}>{`  كان ${offlineRefs[String(item.id)]}`}</Text> : null}
+                  {` — ${item.customerName || CHANNEL_LABELS[item.channel] || item.channel}`}
+                </Text>
                 <Text style={styles.rowMeta}>{formatArabicDateTimeShort(new Date(item.createdAt))}</Text>
               </View>
               <Money value={item.total} size={14.5} />
@@ -1000,6 +1043,8 @@ const useStyles = createStyles(colors =>
   rowInfo: { flex: 1, minWidth: 0 },
   // .order-row-title
   rowTitle: { fontFamily: fonts.sansBold, fontSize: 13.5, color: colors.text },
+  /** الرقم المؤقت اللي على فاتورة الزبون -- ظاهر عشان الكاشير يلقاه. */
+  rowWas: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.amber },
   // .order-row-meta
   rowMeta: { fontFamily: fonts.sansSemiBold, fontSize: 11, color: colors.muted, marginTop: 2 },
   // .order-row-total

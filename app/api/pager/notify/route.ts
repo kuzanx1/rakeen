@@ -56,6 +56,21 @@ export async function POST(request: NextRequest) {
     const { error } = await asCashier.rpc("mark_order_delivered", { p_order_id: orderId });
     if (error) return fail("تعذر تسجيل الاستلام");
   }
+  // ضغطتان متتاليتان (أو جهازان معاً) = إشعاران للزبون، و«+٥» مرتين = ١٠
+  // دقائق. الزر يتعطّل بالجهاز نفسه، لكن الحاجز الحقيقي هنا: آخر رنّة/تأجيل
+  // قبل ثوانٍ؟ يرجع «تم» بلا إعادة ولا إشعار.
+  if (action === "ring" || action === "delay") {
+    const { data: last } = await asCashier
+      .from("orders")
+      .select("pager_rung_at, pager_delayed_at")
+      .eq("id", orderId)
+      .maybeSingle();
+    const at = action === "ring" ? last?.pager_rung_at : last?.pager_delayed_at;
+    const windowMs = action === "ring" ? 15_000 : 8_000;
+    if (at && Date.now() - new Date(at).getTime() < windowMs) {
+      return NextResponse.json({ ok: true, order: null, pushed: 0, throttled: true });
+    }
+  }
   if (action === "ring") {
     const { error } = await asCashier.rpc("pager_ring", { p_order_id: orderId });
     if (error) return fail(error.message || "تعذر الرنين");

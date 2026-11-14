@@ -13,6 +13,10 @@ export function authBaseStyles(colors: any, shadows: any) {
   return {
     screen: { flex: 1, backgroundColor: colors.canvas },
     centerBox: { flexGrow: 1, alignItems: 'center' as const, justifyContent: 'center' as const, padding: 24 },
+    /** لوحة المفاتيح مفتوحة (AuthScroll): من فوق، بحشوة أقل. */
+    centerBoxKb: { justifyContent: 'flex-start' as const, paddingVertical: 10 },
+    cardKb: { paddingTop: 20, paddingBottom: 18 },
+    titleKb: { fontSize: 21, lineHeight: 28, marginBottom: 14 },
     card: {
       width: 440,
       maxWidth: '100%' as const,

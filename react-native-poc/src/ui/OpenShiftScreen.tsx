@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './Text';
 import { TouchableOpacity } from './tappable';
-import KeyboardLift from './KeyboardLift';
+import AuthScroll, { useKeyboardOpen } from './AuthScroll';
 import GradientFill from './GradientFill';
 import { openShift } from '../application/shiftService';
 import type { Shift } from '../domain/shift';
@@ -42,6 +42,7 @@ export default function OpenShiftScreen({
   const { colors } = useTheme();
   const styles = useStyles();
   const [cash, setCash] = useState('');
+  const kb = useKeyboardOpen();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -69,18 +70,19 @@ export default function OpenShiftScreen({
     // KeyboardLift like LoginScreen: automaticallyAdjustKeyboardInsets is
     // iOS-only, so on Android the float field and «ابدأ الوردية» sat under
     // the keyboard.
-    <KeyboardLift style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.centerBox} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
-        <View style={styles.card}>
+    <AuthScroll style={styles.screen} contentContainerStyle={[styles.centerBox, kb && styles.centerBoxKb]}>
+        <View style={[styles.card, kb && styles.cardKb]}>
           <AuthLangButton />
-          <Image
-            source={require('../../assets/brand/rakeen-wordmark.png')}
-            style={styles.wordmark}
-            resizeMode="contain"
-            accessibilityLabel="ركين"
-          />
-          <Text style={styles.title}>بدء الوردية</Text>
-          <Text style={styles.sub}>أدخل المبلغ النقدي الموجود بالدرج عشان تبدأ الوردية</Text>
+          {!kb && (
+            <Image
+              source={require('../../assets/brand/rakeen-wordmark.png')}
+              style={styles.wordmark}
+              resizeMode="contain"
+              accessibilityLabel="ركين"
+            />
+          )}
+          <Text style={[styles.title, kb && styles.titleKb]}>بدء الوردية</Text>
+          {!kb && <Text style={styles.sub}>أدخل المبلغ النقدي الموجود بالدرج عشان تبدأ الوردية</Text>}
 
           <View style={styles.field}>
             <Text style={styles.label}>الرصيد الافتتاحي (ر.س)</Text>
@@ -108,8 +110,7 @@ export default function OpenShiftScreen({
             </View>
           </TouchableOpacity>
         </View>
-      </ScrollView>
-    </KeyboardLift>
+    </AuthScroll>
   );
 }
 

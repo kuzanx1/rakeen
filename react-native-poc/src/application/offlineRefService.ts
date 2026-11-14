@@ -15,6 +15,15 @@ import * as kvStorage from '../infrastructure/mmkvStorage';
  * (نظيره في الويب: rkNextOfflineRef في rakeen-pos.js.)
  */
 
+/**
+ * «OF01»، «OF02»… -- كان «م-1 (مؤقت)» ويطلع بالفاتورة مزحوماً وبلا ترتيب.
+ * الحرفان يفرقونه عن رقم طلب حقيقي (#45)، والصفر يخلي الأرقام بنفس
+ * العرض لين ٩٩. يبدأ من ١ كل يوم. (الويب: rkNextOfflineRef.)
+ */
+export function formatOfflineRef(n: number): string {
+  return 'OF' + String(n).padStart(2, '0');
+}
+
 const SEQ_KEY = 'rakeen_offline_ref_seq';
 const MAP_KEY = 'rakeen_offline_ref_map';
 const MAP_LIMIT = 300;
@@ -38,7 +47,7 @@ export async function nextOfflineRef(): Promise<string> {
   } catch {
     // ما انحفظ العدّاد: أسوأ ما يصير رقمٌ مؤقت يتكرر، والطلب نفسه سليم.
   }
-  return `م-${n}`;
+  return formatOfflineRef(n);
 }
 
 type RefMap = Record<string, string>;
@@ -52,10 +61,10 @@ async function readMap(): Promise<RefMap> {
   }
 }
 
-const listeners = new Set<(orderId: number, ref: string) => void>();
+const listeners = new Set<(orderId: number, ref: string, orderNo: number | null) => void>();
 
 /** يُنادى لما يرتفع طلبٌ كان بلا نت ويأخذ رقمه الحقيقي. */
-export async function rememberOfflineRef(orderId: number, ref: string): Promise<void> {
+export async function rememberOfflineRef(orderId: number, ref: string, orderNo: number | null = null): Promise<void> {
   const map = await readMap();
   if (map[String(orderId)] === ref) return;
   map[String(orderId)] = ref;
@@ -68,7 +77,7 @@ export async function rememberOfflineRef(orderId: number, ref: string): Promise<
   } catch {
     // التنبيه يطلع ولو ما انحفظ.
   }
-  listeners.forEach(fn => fn(orderId, ref));
+  listeners.forEach(fn => fn(orderId, ref, orderNo));
 }
 
 /** رقمُ الطلب الحقيقي ← رقمه المؤقت، للطلبات اللي انحفظت بلا نت على هذا الجهاز. */
@@ -76,7 +85,7 @@ export async function getOfflineRefMap(): Promise<RefMap> {
   return readMap();
 }
 
-export function onOfflineRefResolved(fn: (orderId: number, ref: string) => void): () => void {
+export function onOfflineRefResolved(fn: (orderId: number, ref: string, orderNo: number | null) => void): () => void {
   listeners.add(fn);
   return () => {
     listeners.delete(fn);

@@ -14,7 +14,7 @@ import { searchCustomers } from '../application/customerService';
 import type { DeliveryPlatform } from '../application/catalogService';
 import { isPagerNumberBusy } from '../application/catalogService';
 import { setOrderPager } from '../application/activeOrderService';
-import { normalisePhoneInput, isSaudiMobile, validateNewCustomerDraft, digitsLeftText, completePhoneText } from '../domain/customer';
+import { normalisePhoneInput, isSaudiMobile, validateNewCustomerDraft, digitsLeftText, completePhoneText, isOverTypedPhoneTail, PHONE_FULL_TEXT } from '../domain/customer';
 import { findCustomerByPhone } from '../application/customerService';
 import { enqueuePrintJob, listPrintJobs, retryPrintJob } from '../application/printService';
 import type { KitchenTicketData } from '../domain/receipt';
@@ -885,8 +885,21 @@ export default function PaymentModal({
   const saveCustomerAndGo = async () => {
     if (!canSaveCustomer) return;
     if (queryLooksNumeric(query)) {
-      const found = await findCustomerByPhone(businessId, fullPhone).catch(() => null);
+      let found: Awaited<ReturnType<typeof findCustomerByPhone>> = null;
+      let offline = false;
+      try {
+        found = await findCustomerByPhone(businessId, fullPhone);
+      } catch {
+        offline = true;
+      }
       if (found) { onCustomerChange(found); proceedToPayment(); return; }
+      if (offline) {
+        // بلا نت: الرقم ينحفظ مع الطلب، والخادم يربطه بصاحبه (أو ينشئه)
+        // أول ما يرتفع الطلب -- النقاط ما تضيع، والكاشير ما يُسأل عن اسم.
+        onCustomerChange({ id: null, name: '', phone: fullPhone, points: 0, freeRewards: 0 });
+        proceedToPayment();
+        return;
+      }
       setNewName('');
       setNewPhone(fullPhone);
       setStep('newCustomer');
@@ -1153,7 +1166,15 @@ export default function PaymentModal({
                           placeholder="xxxxxxxx"
                           placeholderTextColor={colors.line}
                           value={query}
-                          onChangeText={t => { setCustError(''); if (t.trim() === '') setCustWarn(false); setQuery(queryLooksNumeric(t) ? shapePhoneTail(t) : toLatinDigits(t)); }}
+                          onChangeText={t => {
+                            if (t.trim() === '') setCustWarn(false);
+                            if (queryLooksNumeric(t) && isOverTypedPhoneTail(query, toLatinDigits(t).replace(/[^0-9]/g, ''))) {
+                              setCustError(PHONE_FULL_TEXT);
+                              return; // ما ينقبل الرقم الزائد، والرقم المكتوب يبقى كما هو
+                            }
+                            setCustError('');
+                            setQuery(queryLooksNumeric(t) ? shapePhoneTail(t) : toLatinDigits(t));
+                          }}
                           onSubmitEditing={trySaveCustomer}
                           returnKeyType="go"
                           autoFocus

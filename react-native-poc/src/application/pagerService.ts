@@ -33,6 +33,8 @@ export interface PagerSettings {
   wifi: string;
   ready_msg: string;
   late_alert: boolean;
+  /** صوت بالكاشير لو تأخر طلب. مطفي افتراضياً: التأخر تبيّنه البطاقة الحمراء. */
+  late_sound: boolean;
   tone: 'chime' | 'bell' | 'beep';
   /** يشوف الزبون وقتاً متوقعاً؟ مطفأ: لا وقت عنده، والكاشير يعدّ على وقت التحضير بلا «+٥ د». */
   show_eta: boolean;
@@ -40,7 +42,7 @@ export interface PagerSettings {
 
 export const PAGER_DEFAULTS: PagerSettings = {
   channels: ['dine_in', 'pickup'], prep_min: 10, buffer_min: 5, receipt: true, display: true,
-  display_secs: 60, remind_min: 3, close_min: 20, wifi: '', ready_msg: '', late_alert: true, tone: 'chime',
+  display_secs: 60, remind_min: 3, close_min: 20, wifi: '', ready_msg: '', late_alert: true, late_sound: false, tone: 'chime',
   show_eta: true,
 };
 
@@ -65,6 +67,7 @@ export function normalizePagerSettings(raw: unknown): PagerSettings {
     wifi: String(s.wifi ?? '').slice(0, 40),
     ready_msg: String(s.ready_msg ?? '').slice(0, 80),
     late_alert: s.late_alert !== false,
+    late_sound: s.late_sound === true,
     show_eta: s.show_eta !== false,
     tone: s.tone === 'bell' || s.tone === 'beep' ? s.tone : 'chime',
   };
@@ -336,13 +339,15 @@ export interface PagerActionResult {
   pushed: number;
   /** فتح الزبون الصفحة؟ */
   seen: boolean;
+  /** الخادم ردّها: نفس الزر انضغط قبل ثوانٍ (ضغطة مكررة أو جهاز ثاني). */
+  throttled?: boolean;
 }
 
 export async function pagerAction(orderId: number, action: PagerAction, minutes = 5): Promise<PagerActionResult> {
   try {
     const r = await authed('/api/pager/notify', { orderId, action, minutes });
     if (!r.ok) return { ok: false, error: r.data?.error || 'تعذر التحديث', pushed: 0, seen: false };
-    return { ok: true, pushed: Number(r.data?.pushed || 0), seen: !!r.data?.order?.seen_at };
+    return { ok: true, pushed: Number(r.data?.pushed || 0), seen: !!r.data?.order?.seen_at, throttled: r.data?.throttled === true };
   } catch {
     return { ok: false, error: 'تعذر الاتصال بالخادم', pushed: 0, seen: false };
   }
@@ -350,6 +355,7 @@ export async function pagerAction(orderId: number, action: PagerAction, minutes 
 
 export function pagerActionToast(orderNo: number, action: PagerAction, r: PagerActionResult, minutes = 5): string {
   if (!r.ok) return r.error || 'تعذر التحديث';
+  if (r.throttled) return action === 'ring' ? `رنّينا عليه قبل ثواني — طلب #${orderNo}` : `انضاف التأجيل قبل ثواني — طلب #${orderNo}`;
   const reached = r.pushed > 0 || r.seen;
   switch (action) {
     case 'ready':

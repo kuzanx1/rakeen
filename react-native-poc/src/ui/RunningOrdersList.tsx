@@ -1,3 +1,5 @@
+import NetInfo from '@react-native-community/netinfo';
+import { onOrderQueueChanged } from '../infrastructure/orderQueueEvents';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Linking, Modal, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './Text';
@@ -190,13 +192,34 @@ export default function RunningOrdersList({
       setOrders(sortActiveOrders(await listActiveOrders(branchId)));
       setError('');
     } catch {
-      setOrders([]);
-      setError('تعذر تحميل الطلبات الجارية — تحقق من الاتصال.');
+      // بلا نت: تبقى آخر قائمة ظاهرة بدل ما تفضى (كانت تُمسح فيختفي كل شي).
+      setError('بدون نت — هذي آخر حالة للطلبات، وتتحدّث أول ما يرجع.');
     }
   }, [branchId]);
 
   useEffect(() => {
     load();
+  }, [load]);
+
+  // رجع النت، أو ارتفع طلب من الطابور: تتحدّث مرة -- بلا سؤال دوري.
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const soon = () => {
+      if (t) clearTimeout(t);
+      t = setTimeout(() => load(), 600);
+    };
+    const offQueue = onOrderQueueChanged(soon);
+    let wasOnline: boolean | null = null;
+    const offNet = NetInfo.addEventListener(st => {
+      const on = !!st.isConnected;
+      if (wasOnline === false && on) soon();
+      wasOnline = on;
+    });
+    return () => {
+      if (t) clearTimeout(t);
+      offQueue();
+      offNet();
+    };
   }, [load]);
 
   /* البيجر: طلباتٌ من أجهزةٍ أخرى، و«جاهز» من المطبخ، وفتح الزبون للبيجر
@@ -230,7 +253,9 @@ export default function RunningOrdersList({
         const o = pagerOrders.find(x => x.id === a.id);
         if (o) runPager(o, a.action, true);
       }
-      if (pagerConfig().settings.late_alert) {
+      // التأخر تبيّنه البطاقة الحمراء دائماً. الصوت والتنبيه بس لو فعّله
+      // صاحب المحل (لوحة التحكم ← بيجر ركين) -- مطفي افتراضياً.
+      if (pagerConfig().settings.late_sound) {
         for (const o of pagerOrders) {
           if (o.readyAt || lateWarned.current.has(o.id)) continue;
           if (pagerUrgency(o, now).urgency === 'urgent') {

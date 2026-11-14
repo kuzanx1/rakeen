@@ -140,6 +140,20 @@ export function isSaudiMobile(phone: string): boolean {
   return SAUDI_MOBILE_RE.test(phone);
 }
 
+/**
+ * حقل الجوال (الذيل بعد 05، ٨ أرقام) وقد كتب الكاشير رقماً زائداً.
+ *
+ * كان الحقل يحسب الرقم التاسع لصقاً لرقمٍ يبدأ بـ5 فيحذف أوله: «55744422»
+ * + «7» صارت «57444227» -- رقم ثاني غير اللي كتبه، والكاشير ما ينتبه.
+ * الحين: الحقل مكتمل والزيادة حرف واحد (كتابة، مو لصق) = ما تنقبل.
+ * اللصق (رقم كامل بـ 05 أو 966) يزيد أكثر من حرف فيمرّ على التنظيف.
+ */
+export function isOverTypedPhoneTail(prevTail: string, nextRawDigits: string): boolean {
+  return /^[0-9]{8}$/.test(prevTail) && nextRawDigits.length === prevTail.length + 1;
+}
+
+export const PHONE_FULL_TEXT = 'الرقم مكتمل — ٨ أرقام بعد 05';
+
 /** «باقي رقم واحد»، «باقي رقمين»، «باقي ٣ أرقام». */
 export function digitsLeftText(left: number): string {
   if (left === 1) return 'باقي رقم واحد';

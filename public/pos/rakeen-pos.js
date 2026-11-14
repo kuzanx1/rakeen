@@ -2841,9 +2841,16 @@ function renderCustomerStep(){
         const phone = fullPhone();
         saveBtn.disabled = true;
         saveBtn.textContent = '...';
-        const { data } = await window.supabaseClient.from('customers')
+        const { data, error } = await window.supabaseClient.from('customers')
           .select('id, name, phone, loyalty_points, loyalty_visits, loyalty_units, loyalty_free_rewards')
           .eq('business_id', DEVICE.businessId).eq('phone', phone).maybeSingle();
+        if(error && !data){
+          // بلا نت: الرقم ينحفظ مع الطلب، والخادم يربطه بصاحبه (أو ينشئه)
+          // أول ما يرتفع -- بدل ما يُسأل عن اسم عميل ممكن يكون مسجّل أصلاً.
+          setCustomer({ id: null, name: '', phone, points: 0, freeRewards: 0 });
+          proceedFromCustomerStep();
+          return;
+        }
         if(data){
           setCustomer({ id: data.id, name: data.name, phone: data.phone || null,
             points: Number(data.loyalty_points), freeRewards: Number(data.loyalty_free_rewards || 0) });
@@ -2865,9 +2872,22 @@ function renderCustomerStep(){
 
     saveBtn.addEventListener('click', saveAndGo);
 
+    /* الحقل مكتمل (٨) وكُتب رقم زائد: ما ينقبل. كان يُحسب لصقاً لرقمٍ يبدأ
+       بـ5 فيُحذف أول الرقم -- «55744422» + «7» صارت «57444227»، رقم ثاني.
+       اللصق يزيد أكثر من حرف فيمرّ على التنظيف. التطبيق: isOverTypedPhoneTail. */
+    let prevTail = input.value.trim();
     input.addEventListener('input', (e)=>{
       clearTimeout(pmCustomerSearchTimer);
-      if(isPhoneish(e.target.value)) e.target.value = shapeTail(e.target.value);
+      if(isPhoneish(e.target.value)){
+        const digits = toWesternDigits(e.target.value).replace(/[^0-9]/g, '');
+        if(/^[0-9]{8}$/.test(prevTail) && digits.length === prevTail.length + 1){
+          e.target.value = prevTail;
+          showErr(LANG === 'en' ? 'The number is complete — 8 digits after 05' : 'الرقم مكتمل — ٨ أرقام بعد 05');
+          return;
+        }
+        e.target.value = shapeTail(e.target.value);
+      }
+      prevTail = e.target.value.trim();
       syncSave();
       const q = isPhoneish(e.target.value) ? (e.target.value.trim() ? fullPhone() : '') : e.target.value.trim();
       if(q.length < 2){ suggestEl.innerHTML = ''; return; }
@@ -4280,16 +4300,26 @@ async function queueOrder(payload){
   const db = await openPosDb();
   return new Promise((resolve, reject)=>{
     const tx = db.transaction(POS_STORE, 'readwrite');
+    if(!payload.queued_at) payload.queued_at = Date.now(); // محلي: لعرضه في «بانتظار الإرسال»
     tx.objectStore(POS_STORE).put(payload);
-    tx.oncomplete = resolve; tx.onerror = ()=> reject(tx.error);
+    tx.oncomplete = ()=>{ rkQueueChanged(); resolve(); }; tx.onerror = ()=> reject(tx.error);
   });
+}
+/* الطابور تغيّر (انحفظ طلب بلا نت، أو ارتفع): شاشة الطلبات المفتوحة تتحدّث. */
+let rkQueueChangedTimer = null;
+function rkQueueChanged(){
+  clearTimeout(rkQueueChangedTimer);
+  rkQueueChangedTimer = setTimeout(()=>{
+    const scr = document.getElementById('screen-orders');
+    if(scr && scr.classList.contains('active')) renderOrdersList();
+  }, 600);
 }
 async function removeQueuedOrder(uuid){
   const db = await openPosDb();
   return new Promise((resolve, reject)=>{
     const tx = db.transaction(POS_STORE, 'readwrite');
     tx.objectStore(POS_STORE).delete(uuid);
-    tx.oncomplete = resolve; tx.onerror = ()=> reject(tx.error);
+    tx.oncomplete = ()=>{ rkQueueChanged(); resolve(); }; tx.onerror = ()=> reject(tx.error);
   });
 }
 async function getQueuedOrders(){
@@ -4314,8 +4344,10 @@ function rkNextOfflineRef(){
     if(seq && seq.day === rkOfflineRefToday()) n = seq.n + 1;
     localStorage.setItem('rakeen_offline_ref_seq', JSON.stringify({ day: rkOfflineRefToday(), n }));
   } catch(_) { /* أسوأ ما يصير رقمٌ مؤقت يتكرر */ }
-  return 'م-' + n;
+  return rkFormatOfflineRef(n);
 }
+/* «OF01»، «OF02»… بدل «م-1 (مؤقت)»: مرتّب، وما يُخلط برقم طلب حقيقي. التطبيق: formatOfflineRef. */
+function rkFormatOfflineRef(n){ return 'OF' + String(n).padStart(2, '0'); }
 function rkOfflineRefMap(){
   try { return JSON.parse(localStorage.getItem('rakeen_offline_ref_map') || '{}') || {}; } catch(_) { return {}; }
 }
@@ -4807,9 +4839,9 @@ async function submitOrder(totals){
   const reserved = rkTakeReservedOrderNumber(payload.branch_id);
   if(reserved){
     payload.client_order_uuid = reserved.uuid;
-    try { await queueOrder(payload); } catch (e) { /* IndexedDB unavailable — the direct send below still runs */ }
     payload.orderId = reserved.id;
-    payload.orderNo = reserved.no;
+    payload.orderNo = reserved.no; // قبل الطابور: «بانتظار الإرسال» يعرضه برقمه
+    try { await queueOrder(payload); } catch (e) { /* IndexedDB unavailable — the direct send below still runs */ }
     rkRememberNo(reserved.id, reserved.no);
     if(navigator.onLine){
       sendOrderToServer(payload)
@@ -5699,7 +5731,7 @@ function buildLiveReceiptData(orderPayload, totals){
     // not assigned by the server yet. Printing nothing would leave the
     // customer with zero way to reference this order; say so honestly
     // instead of silently dropping the line.
-    orderNumber: orderPayload.orderId ? ('#' + rkNo(orderPayload.orderId)) : orderPayload.offlineRef ? (orderPayload.offlineRef + ' (مؤقت)') : 'سيُحدَّد عند الاتصال',
+    orderNumber: orderPayload.orderId ? ('#' + rkNo(orderPayload.orderId)) : orderPayload.offlineRef ? orderPayload.offlineRef : 'سيُحدَّد عند الاتصال',
     metaLabel: bilingualOrderKind((CHANNEL_LABELS[orderPayload.channel] || orderPayload.channel) + liveTableLabel),
     showLogo: DEVICE.printReceiptLogo !== false && !!RECEIPT_LOGO_URL, logoUrl: RECEIPT_LOGO_URL,
     cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
@@ -6307,7 +6339,43 @@ document.getElementById('ordersTabs').addEventListener('click', (e)=>{
   // reads as "the tab moved" even though nothing in its own layout changed.
   window.scrollTo(0, 0);
 });
+/* «بانتظار الإرسال»: الطلبات اللي انحفظت بهالجهاز وما وصلت الخادم. كانت
+   شاشة الطلبات تسأل الخادم وحده، فبلا نت ما يطلع شي والزبون واقف بفاتورة
+   «OF03» والكاشير ما يلقاه. التطبيق: PendingOrdersStrip. */
+async function rkPendingStripHtml(){
+  let list = [];
+  try { list = await getQueuedOrders(); } catch(_) { return ''; }
+  list = list.filter(p => p && p.type !== 'dine_in_pay' && (p.branch_id == null || typeof DEVICE === 'undefined' || p.branch_id === DEVICE.branchId));
+  if(!list.length) return '';
+  list.sort((a, b) => (b.queued_at || 0) - (a.queued_at || 0));
+  const rows = list.map(p => {
+    const label = p.offline_ref || (p.client_order_uuid && rkPoolLabelFor(p)) || '—';
+    const items = (p.items || []).map(it => {
+      const prod = (typeof PRODUCTS !== 'undefined' ? PRODUCTS : []).find(x => x.id === it.menu_item_id);
+      return '<li>' + (Number(it.qty) || 1) + ' × ' + escapeHtml(prod ? prod.name : 'صنف') + '</li>';
+    }).join('');
+    const when = p.queued_at ? new Date(p.queued_at).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'}) : '';
+    return `<details class="rk-pending-row"><summary><b class="mono">${escapeHtml(label)}</b><span class="rk-pending-meta">${when}${p.customer_name ? ' · ' + escapeHtml(p.customer_name) : ''}${p.stuck ? ' · تعذّر الإرسال، يعيد المحاولة' : ''}</span>${rkMoney(Number(p.total) || 0)}<span class="rk-pending-toggle">الأصناف</span></summary><ul>${items || '<li>—</li>'}</ul></details>`;
+  }).join('');
+  return `<div class="rk-pending"><div class="rk-pending-title">بانتظار الإرسال (${list.length})</div><div class="rk-pending-hint">انحفظت بهالجهاز وتنرسل لحالها أول ما يرجع النت — نادِ الزبون بالرقم اللي على فاتورته.</div>${rows}</div>`;
+}
+function rkPoolLabelFor(p){ return p.orderNo ? '#' + p.orderNo : p.orderId ? '#' + p.orderId : ''; }
+
 async function renderOrdersList(){
+  await renderOrdersListInner();
+  const el = document.getElementById('ordersList');
+  const strip = await rkPendingStripHtml();
+  if(el && strip){
+    const old = el.querySelector(':scope > .rk-pending'); if(old) old.remove();
+    el.insertAdjacentHTML('afterbegin', strip);
+  }
+}
+window.addEventListener('online', ()=> setTimeout(()=>{
+  const scr = document.getElementById('screen-orders');
+  if(scr && scr.classList.contains('active')) renderOrdersList();
+}, 1500));
+
+async function renderOrdersListInner(){
   const el = document.getElementById('ordersList');
   if(ordersActiveTab === 'running'){
     // merged with what used to be the separate "التوصيل" screen — a held
@@ -6401,7 +6469,18 @@ async function renderOrdersList(){
   // have delivered_at null legitimately, so this filter must never touch that
   // tab or every cancelled order would wrongly vanish from it.
   if(ordersActiveTab === 'completed') completedQuery = completedQuery.or('channel.not.in.(pickup,delivery),source.neq.online,delivered_at.not.is.null');
-  const { data } = await completedQuery.order('created_at', {ascending:false}).limit(30);
+  const res = await completedQuery.order('created_at', {ascending:false}).limit(30);
+  let data = res.data;
+  const cacheKey = 'rk_orders_cache:' + DEVICE.branchId + ':' + ordersActiveTab;
+  let offlineNote = '';
+  if(res.error || !data){
+    // بلا نت: آخر قائمة انحفظت بدل شاشة فاضية.
+    try { data = JSON.parse(localStorage.getItem(cacheKey) || '[]'); } catch(_) { data = []; }
+    offlineNote = data.length ? '<div class="list-empty">بدون نت — هذي آخر قائمة محفوظة، وتتحدّث لحالها أول ما يرجع</div>' : '';
+    if(!data.length){ el.innerHTML = '<div class="list-empty">تعذر تحميل الطلبات — تحقق من النت</div>'; return; }
+  } else {
+    try { localStorage.setItem(cacheKey, JSON.stringify(data)); } catch(_) {}
+  }
   rkRememberRows(data);
   const offlineRefs = rkOfflineRefMap();
   const real = (data||[]).map(o=>{
@@ -6412,13 +6491,13 @@ async function renderOrdersList(){
       extra = ' — استلام ' + new Date(o.scheduled_for).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'});
     }
     return {
-      id: '#' + rkNo(o.id) + (offlineRefs[String(o.id)] ? ' (كان ' + escapeHtml(offlineRefs[String(o.id)]) + ')' : ''), orderId: o.id,
+      id: '#' + rkNo(o.id) + (offlineRefs[String(o.id)] ? ' <span class="rk-was">كان ' + escapeHtml(offlineRefs[String(o.id)]) + '</span>' : ''), orderId: o.id,
       meta: new Date(o.created_at).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}) + (o.customer_name ? ' — ' + escapeHtml(o.customer_name) : '') + escapeHtml(extra),
       total: Number(o.total)
     };
   });
   if(real.length === 0){ el.innerHTML = '<div class="list-empty">ما فيه طلبات هنا حاليًا</div>'; return; }
-  el.innerHTML = real.map(o=>
+  el.innerHTML = offlineNote + real.map(o=>
     `<div class="order-row" data-order="${o.orderId}">
       <span class="order-row-badge ${ordersActiveTab}"></span>
       <div class="order-row-info"><div class="order-row-title">${o.id}</div><div class="order-row-meta">${o.meta}</div></div>
@@ -8267,7 +8346,7 @@ async function markPickupOrderDelivered(orderId){
    والمفتاح client_order_uuid لا رقم الطلب: الفاتورة تُطبع قبل أن يصل
    الطلب للخادم إن كان الكاشير بلا نت، والرقم لم يُعرف بعد. */
 const PAGER_DEFAULTS = { channels:['dine_in','pickup'], prep_min:10, buffer_min:5, receipt:true, display:true,
-  display_secs:60, remind_min:3, close_min:20, wifi:'', ready_msg:'', late_alert:true, tone:'chime', show_eta:true };
+  display_secs:60, remind_min:3, close_min:20, wifi:'', ready_msg:'', late_alert:true, late_sound:false, tone:'chime', show_eta:true };
 let PAGER_ENABLED = false;
 let PAGER_SETTINGS = Object.assign({}, PAGER_DEFAULTS);
 let PAGER_AUTO_READY = { dine_in:false, pickup:false };
@@ -8286,6 +8365,7 @@ function rkPagerSettings(raw){
   s.remind_min = int(s.remind_min, 3, 0, 60);
   s.close_min = int(s.close_min, 20, 0, 240);
   s.receipt = s.receipt !== false; s.display = s.display !== false; s.late_alert = s.late_alert !== false;
+  s.late_sound = s.late_sound === true; // صوت التأخر: مطفي افتراضياً، البطاقة تحمرّ بس
   s.show_eta = s.show_eta !== false;
   s.wifi = String(s.wifi || '').slice(0, 40);
   s.ready_msg = String(s.ready_msg || '').slice(0, 80);
@@ -8478,6 +8558,11 @@ async function rkPagerAction(orderId, action, opts){
     o.ringCount = Number(r.ring_count || 0);
     if(action === 'ready') o.mine = true;
   }
+  if(!opts.silent && out && out.throttled){
+    // الخادم ردّها: نفس الزر قبل ثوانٍ (ضغطة مكررة أو جهاز ثاني) -- ما انرسل إشعار ثاني.
+    showToast(action === 'ring' ? 'رنّينا عليه قبل ثواني — طلب #' + rkNo(orderId) : 'انضاف التأجيل قبل ثواني — طلب #' + rkNo(orderId));
+    return true;
+  }
   if(!opts.silent){
     const reached = out && (out.pushed > 0 || (o && o.seenAt));
     const msg = {
@@ -8504,6 +8589,7 @@ function renderPagerCard(o){
       <div class="pager-top"><span class="pager-chip">📟 بيجر</span>${seen}</div>
       <div class="pager-num mono">#${rkNo(o.id)}</div>
       <div class="dorder-platform">${who}</div>
+      <button type="button" class="pager-items-btn">الأصناف ▾</button>
       <div class="pager-time mono">ينتظر ${formatMmSs(waiting)}${o.ringCount ? ' · رنّة ' + (o.ringCount + 1) : ''}</div>
       <div class="pager-btns">
         <button class="pager-btn pager-ring-btn" data-pager-action="ring" data-order-id="${o.id}">🔔 رنّ ثاني</button>
@@ -8521,6 +8607,7 @@ function renderPagerCard(o){
     <div class="pager-top"><span class="pager-chip">📟 بيجر</span>${seen}</div>
     <div class="pager-num mono">#${rkNo(o.id)}</div>
     <div class="dorder-platform">${who}${o.delayedAt ? ' · أُجّل' : ''}</div>
+    <button type="button" class="pager-items-btn">الأصناف ▾</button>
     <div class="pager-time mono ${state}">${label}</div>
     <div class="pager-btns">
       <button class="pager-btn pager-ready-btn" data-pager-action="ready" data-order-id="${o.id}">جاهز</button>
@@ -8545,7 +8632,7 @@ setInterval(()=>{
   ACTIVE_PAGER_ORDERS.slice().forEach(o=>{
     if(!o.readyAt){
       const deadline = PAGER_SETTINGS.show_eta && o.etaAt ? o.etaAt.getTime() : o.createdAt.getTime() + PAGER_SETTINGS.prep_min * 60000;
-      if(PAGER_SETTINGS.late_alert && !o.lateWarned && now > deadline){
+      if(PAGER_SETTINGS.late_sound && !o.lateWarned && now > deadline){
         o.lateWarned = true;
         if(NOTIFY_SOUND_ENABLED) playAlertSound('warning');
         showToast(PAGER_SETTINGS.show_eta ? '⏱ طلب #' + rkNo(o.id) + ' تأخر على الزبون — جهّزه أو أضف ٥ دقايق' : '⏱ طلب #' + rkNo(o.id) + ' تجاوز وقت التحضير — جهّزه');
@@ -8592,7 +8679,7 @@ setInterval(()=>{
     if(!order.warnedAt5min && remaining <= 300 && remaining > 0){
       order.warnedAt5min = true;
       if(NOTIFY_DELIVERY_PREP_WARNING){
-        if(NOTIFY_SOUND_ENABLED) playAlertSound('warning');
+        if(NOTIFY_SOUND_ENABLED && PAGER_SETTINGS.late_sound) playAlertSound('warning');
         showToast('طلب #' + rkNo(order.id) + ' — باقي ٥ دقائق على وقت التجهيز');
       }
     }

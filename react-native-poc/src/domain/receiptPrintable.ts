@@ -194,7 +194,7 @@ export function toReceiptPrintable(data: ReceiptData): ReceiptPrintable {
     // (rakeen-pos.js:2923) -- an order still offline-queued has no
     // server-assigned id yet, and "#null" would be actively misleading.
     // وبلا نت: الرقم المؤقت «م-7 (مؤقت)» ينادى به الزبون لين يرتفع.
-    orderNumber: data.orderId != null ? `#${data.orderNo ?? data.orderId}` : data.offlineRef ? `${data.offlineRef} (مؤقت)` : 'سيُحدَّد عند الاتصال',
+    orderNumber: data.orderId != null ? `#${data.orderNo ?? data.orderId}` : data.offlineRef ? data.offlineRef : 'سيُحدَّد عند الاتصال',
     metaLabel: bilingualOrderKind(data.metaLabel ?? ''),
     pickupAt: data.pickupAt ?? '',
     refundOfOrder: data.refundOfOrder ?? '',

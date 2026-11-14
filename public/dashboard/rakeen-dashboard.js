@@ -14227,7 +14227,7 @@ const RK_ICON_PATHS = {
    يُقرأ في استعلامٍ مستقلّ: قاعدةٌ لم يُشغَّل فيها ملفّ البيجر تُظهر
    تنبيهاً وتعطّل الحفظ، ولا تُسقط بقيّة إعدادات الكاشير معها. */
 const PGS_DEFAULTS = { channels:['dine_in','pickup'], prep_min:10, buffer_min:5, receipt:true, display:true,
-  display_secs:60, remind_min:3, close_min:20, wifi:'', ready_msg:'', late_alert:true, tone:'chime', show_eta:true, show_items:true, rate:false, google_url:'', wa:'' };
+  display_secs:60, remind_min:3, close_min:20, wifi:'', ready_msg:'', late_alert:true, late_sound:false, tone:'chime', show_eta:true, show_items:true, rate:false, google_url:'', wa:'' };
 let PGS_STATE = null;   // { enabled, s, brand, autoReady, tablesMode, schemaOk }
 let PGS_SAVED = '';     // لقطة آخر حفظ — لزرّ «فيه تغييرات ما انحفظت»
 
@@ -14310,6 +14310,7 @@ function pgsNormalize(raw){
   s.remind_min = int(s.remind_min, 3, 0, 60);
   s.close_min = int(s.close_min, 20, 0, 240);
   s.receipt = s.receipt !== false; s.display = s.display !== false; s.late_alert = s.late_alert !== false;
+  s.late_sound = s.late_sound === true;
   s.show_eta = s.show_eta !== false;
   s.show_items = s.show_items !== false;
   // التقييم مطفأ إلا لو فعّله صاحب المحل بنفسه.
@@ -14516,7 +14517,7 @@ function pagerSettingsTabHtml(){
         ${pgsSeg('pgsClose', s.close_min, [[0,'أقفله بيدي'],[10,'١٠ د'],[20,'٢٠ د'],[45,'٤٥ د']])}
         <p class="pgs-help">ينفع لو الكاشير نسي يضغط «استلمه»: الطلب يطلع من «جارية» والزبون يشوف «بالعافية عليك».</p>
       </div>
-      ${rkSwitchRow('pgsLate', s.late_alert, 'نبّه الكاشير لو طلب تجاوز الوعد', null, c => c ? {text:'تنبيه بالكاشير + البطاقة تحمرّ', tone:'ok'} : {text:'البطاقة تحمرّ بس، بدون تنبيه', tone:''})}
+      ${rkSwitchRow('pgsLate', s.late_sound, 'صوت تنبيه بالكاشير لو تأخر طلب', null, c => c ? {text:'صوت + تنبيه + البطاقة تحمرّ', tone:'ok'} : {text:'البطاقة تحمرّ بس، بدون صوت', tone:''})}
     </div>
 
     <div class="rk-section">
@@ -14612,7 +14613,7 @@ function wirePagerSettingsTab(){
     b.parentElement.querySelectorAll('button').forEach(x => { x.classList.toggle('active', x === b); x.setAttribute('aria-checked', String(x === b)); });
     pgsRefresh();
   }));
-  const sw = { pgsReceipt: 'receipt', pgsDisplay: 'display', pgsLate: 'late_alert', pgsShowEta: 'show_eta', pgsShowItems: 'show_items' };
+  const sw = { pgsReceipt: 'receipt', pgsDisplay: 'display', pgsLate: 'late_sound', pgsShowEta: 'show_eta', pgsShowItems: 'show_items' };
   Object.keys(sw).forEach(id => on(id, 'change', e => {
     s[sw[id]] = e.target.checked;
     if(id === 'pgsDisplay'){ const r = document.getElementById('pgsDisplayRow'); if(r) r.style.display = e.target.checked ? '' : 'none'; }
@@ -14649,7 +14650,7 @@ function wirePagerSettingsTab(){
   pgsLoadRatings();
   rkWireSwitchStatus('pgsReceipt', c => c ? {text:'مربع بالباركود فوق باركود الضريبة — يُمسح من بعيد', tone:'ok'} : {text:'ما ينطبع — يمسحه من شاشة العميل بس', tone:'warn'});
   rkWireSwitchStatus('pgsDisplay', c => c ? {text:'يطلع لحاله بعد كل طلب، وجنب باركود الولاء لو ضغطته', tone:'ok'} : {text:'ما يطلع على الشاشة', tone:''});
-  rkWireSwitchStatus('pgsLate', c => c ? {text:'تنبيه بالكاشير + البطاقة تحمرّ', tone:'ok'} : {text:'البطاقة تحمرّ بس، بدون تنبيه', tone:''});
+  rkWireSwitchStatus('pgsLate', c => c ? {text:'صوت + تنبيه + البطاقة تحمرّ', tone:'ok'} : {text:'البطاقة تحمرّ بس، بدون صوت', tone:''});
   on('pgsTones', 'click', e => {
     const b = e.target.closest('[data-tone]'); if(!b) return;
     s.tone = b.dataset.tone;

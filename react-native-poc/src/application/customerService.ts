@@ -44,7 +44,11 @@ export async function findCustomerByPhone(businessId: number, rawPhone: string):
     .eq('business_id', businessId)
     .eq('phone', phone)
     .maybeSingle();
-  if (error || !data) return null;
+  // خطأ (بلا نت) يُرمى، و«ما فيه» يرجع null -- المتصل يفرّق بينهما: بلا نت
+  // الرقم يُحفظ مع الطلب وينربط بصاحبه بالخادم، بدل ما يُسأل عن اسم عميل
+  // ممكن يكون مسجّل أصلاً.
+  if (error) throw error;
+  if (!data) return null;
   return rowToCustomer(data);
 }
 

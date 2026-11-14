@@ -276,7 +276,7 @@ function App(): React.JSX.Element {
   const { showToast: setStatusMessage } = useToast();
   // طلبٌ انطبع بلا نت برقمٍ مؤقت ارتفع الآن: الكاشير يعرف رقمه الحقيقي.
   useEffect(
-    () => onOfflineRefResolved((id, ref) => setStatusMessage(`الطلب المؤقت ${ref} صار رقمه #${id}`)),
+    () => onOfflineRefResolved((id, ref, no) => setStatusMessage(`الطلب المؤقت ${ref} صار رقمه #${no ?? id}`)),
     [setStatusMessage],
   );
   /** موافقة مدير -- openPinModal() in the source (rakeen-pos.js:5157). */
