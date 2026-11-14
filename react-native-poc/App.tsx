@@ -79,7 +79,7 @@ import { startIncomingOrderSound, stopIncomingOrderSound } from './src/applicati
 import { loadRememberedStaff, rememberStaff } from './src/application/staffService';
 import type { StaffMember } from './src/application/staffService';
 import { ShiftSummaryModal, CloseShiftModal } from './src/ui/ShiftModals';
-import { findOpenShift, readCachedOpenShift, getLastClosingReport, getBranchClosingTime } from './src/application/shiftService';
+import { findOpenShift, subscribeToShiftClosed, readCachedOpenShift, getLastClosingReport, getBranchClosingTime } from './src/application/shiftService';
 import type { Shift } from './src/domain/shift';
 import { isShiftStale } from './src/domain/shift';
 import StaleShiftScreen from './src/ui/StaleShiftScreen';
@@ -653,7 +653,10 @@ function App(): React.JSX.Element {
         setShift(known);
         setShiftChecked(true);
       }
-      const open = await findOpenShift(cashier.id);
+      // بالفرع لا بالحساب: الوردية للفرع (انظر findOpenShift).
+      const deviceBranchId = await getDeviceConfig().then(d => d.branchId ?? null).catch(() => null);
+      if (cancelled) return;
+      const open = await findOpenShift(cashier.id, deviceBranchId);
       if (cancelled) return;
       // نفس الوردية؟ يبقى الكائن نفسه، فلا يُعاد تحميل ما يتبعه.
       setShift(prev => (prev && open && prev.id === open.id ? prev : open));
@@ -683,6 +686,40 @@ function App(): React.JSX.Element {
     if (!cashier) return;
     return startAutoSync();
   }, [cashier]);
+
+  /**
+   * الوردية أُقفلت من جهاز ثانٍ؟ هذا الجهاز يعرف فوراً.
+   *
+   * الوردية واحدة للفرع، وجهازان فيه يتشاركانها. كان إقفالها من أحدهما لا
+   * يصل الآخر، فيبقى يبيع على وردية موقَّعة: مبيعاته تسقط من موازنة الأمس
+   * ولا تدخل موازنة اليوم. الآن بالحدث -- وعند الرجوع للتطبيق وعودة النت
+   * يُتحقَّق مرة، لأن الحدث قد يفوت والجهاز نائم. بلا استعلام دوري.
+   */
+  const shiftId = shift?.id ?? null;
+  const cashierIdForShift = cashier?.id ?? null;
+  useEffect(() => {
+    if (shiftId == null || cashierIdForShift == null) return;
+    let alive = true;
+    const closedElsewhere = () => {
+      if (!alive) return;
+      setShift(prev => (prev && prev.id === shiftId ? null : prev));
+      setCloseShiftOpen(false);
+      setStatusMessage('الوردية انقفلت من جهاز ثاني — ابدأ وردية جديدة');
+    };
+    const unsubscribe = subscribeToShiftClosed(shiftId, closedElsewhere);
+    // مرة عند كل رجوع للتطبيق أو عودة النت (resumeTick/online)، لا دورياً.
+    if (online) {
+      findOpenShift(cashierIdForShift, branchId).then(open => {
+        // null هنا قد يكون "تعذّر السؤال" فيُرجع المحفوظ؛ فلا يُتصرَّف إلا
+        // على وردية مفتوحة أخرى مؤكّدة، أو على إقفال مؤكّد من الحدث.
+        if (alive && open && open.id !== shiftId) setShift(open);
+      });
+    }
+    return () => {
+      alive = false;
+      unsubscribe();
+    };
+  }, [shiftId, cashierIdForShift, branchId, resumeTick, online]);
 
   // Checkpoint 10 (Print Queue) -- same shape: reset anything left
   // stuck mid-flight from a previous killed session BEFORE the

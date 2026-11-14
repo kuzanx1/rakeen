@@ -5,7 +5,7 @@ import { TouchableOpacity, SMALL_HIT_SLOP } from './tappable';
 import GradientFill from './GradientFill';
 import Money from './Money';
 import ManagerPinModal from './ManagerPinModal';
-import { loadShiftTotals, closeShift } from '../application/shiftService';
+import { loadShiftTotals, closeShift, countUnsyncedShiftOrders } from '../application/shiftService';
 import { listBranchStaff } from '../application/staffService';
 import type { StaffMember } from '../application/staffService';
 import { getShiftReportSettings } from '../application/catalogService';
@@ -25,21 +25,50 @@ import KeyboardLift from './KeyboardLift';
 function useShiftTotals(shift: Shift | null, visible: boolean) {
   const [totals, setTotals] = useState<ShiftTotals>(EMPTY_SHIFT_TOTALS);
   const [loading, setLoading] = useState(true);
+  // تعذّرت القراءة: لا تُعرض أصفار كأنها أرقام الوردية (انظر loadShiftTotals).
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (!visible) return;
     let cancelled = false;
     setLoading(true);
+    setFailed(false);
     (async () => {
-      const t = await loadShiftTotals(shift);
-      if (cancelled) return;
-      setTotals(t);
-      setLoading(false);
+      try {
+        const t = await loadShiftTotals(shift);
+        if (cancelled) return;
+        setTotals(t);
+      } catch {
+        if (cancelled) return;
+        setTotals(EMPTY_SHIFT_TOTALS);
+        setFailed(true);
+      }
+      if (!cancelled) setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [shift, visible]);
-  return { totals, loading };
+  }, [shift, visible, attempt]);
+  return { totals, loading, failed, retry: () => setAttempt(a => a + 1) };
+}
+
+/** بدل الأرقام حين تتعذّر قراءتها: سبب واضح وزر إعادة، لا أصفار. */
+function TotalsUnreadable({ onRetry }: { onRetry: () => void }) {
+  const styles = useStyles();
+  return (
+    <View>
+      <Text style={styles.unreadTitle}>ما قدرنا نقرأ مبيعات الوردية</Text>
+      <Text style={styles.unreadBody}>
+        تأكد من الإنترنت وجرّب مرة ثانية. ما نعرض أرقام ناقصة عشان ما تطلع الموازنة غلط.
+      </Text>
+      <TouchableOpacity onPress={onRetry} activeOpacity={0.85} style={styles.submitSpaced}>
+        <View style={styles.submit}>
+          <GradientFill gradient={gradients.payButton} radius={radii.md} />
+          <Text style={styles.submitText}>جرّب مرة ثانية</Text>
+        </View>
+      </TouchableOpacity>
+    </View>
+  );
 }
 
 function Shell({
@@ -91,7 +120,7 @@ export function ShiftSummaryModal({
 }) {
   const { colors } = useTheme();
   const styles = useStyles();
-  const { totals, loading } = useShiftTotals(shift, visible);
+  const { totals, loading, failed, retry } = useShiftTotals(shift, visible);
 
   const startTime = shift
     ? formatArabicTime(new Date(shift.opened_at))
@@ -102,6 +131,8 @@ export function ShiftSummaryModal({
       <Shell title="ملخص الوردية" onClose={onClose}>
         {loading ? (
           <ActivityIndicator color={colors.accentText} style={styles.loading} />
+        ) : failed ? (
+          <TotalsUnreadable onRetry={retry} />
         ) : (
           <>
             <Text style={styles.sinceLine}>من بداية الوردية — {startTime}</Text>
@@ -168,7 +199,23 @@ export function CloseShiftModal({
 }) {
   const { colors } = useTheme();
   const styles = useStyles();
-  const { totals, loading } = useShiftTotals(shift, visible);
+  const { totals, loading, failed, retry } = useShiftTotals(shift, visible);
+  // طلبات على الجهاز ما ارتفعت: مبالغها مو في أرقام الخادم (انظر
+  // countUnsyncedShiftOrders). تُحاوَل مزامنتها عند فتح النافذة.
+  const [unsynced, setUnsynced] = useState<{ count: number; total: number }>({ count: 0, total: 0 });
+  useEffect(() => {
+    if (!visible || !shift) return;
+    let alive = true;
+    setUnsynced({ count: 0, total: 0 });
+    countUnsyncedShiftOrders(shift.id).then(u => {
+      if (!alive) return;
+      setUnsynced(u);
+      // ارتفع شيء للتوّ؟ الأرقام تُعاد قراءتها لتشمله.
+      if (u.count === 0) retry();
+    });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, shift]);
   const [step, setStep] = useState<1 | 2>(1);
   const [counted, setCounted] = useState('');
   const [pinOpen, setPinOpen] = useState(false);
@@ -285,6 +332,8 @@ export function CloseShiftModal({
       <Shell title={step === 1 ? 'إغلاق الوردية — عدّ الكاش' : 'إغلاق الوردية — المطابقة'} onClose={onClose}>
         {loading ? (
           <ActivityIndicator color={colors.accentText} style={styles.loading} />
+        ) : failed ? (
+          <TotalsUnreadable onRetry={retry} />
         ) : step === 1 ? (
           <>
             {/*
@@ -339,6 +388,14 @@ export function CloseShiftModal({
           </>
         ) : (
           <>
+            {unsynced.count > 0 && (
+              <View style={styles.unsyncedBox}>
+                <Text style={styles.unsyncedText}>
+                  فيه {unsynced.count} طلب على هذا الجهاز ما ارتفع للخادم (بدون نت)، ومبلغه مو محسوب في «المتوقع».
+                  وصّل الإنترنت وافتح الإقفال من جديد قبل لا تأكد.
+                </Text>
+              </View>
+            )}
             <StatRow label="المتوقع" value={totals.cashTotal} />
             <StatRow label="المعدود فعليًا" value={countedNum} />
             <View style={[styles.statRow, styles.statRowTotal]}>
@@ -482,6 +539,10 @@ const useStyles = createStyles(colors =>
     varianceText_urgent: { color: colors.danger },
 
     error: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.danger, marginTop: 10, textAlign: 'center' },
+    unreadTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, textAlign: 'center', marginTop: 6 },
+    unreadBody: { fontFamily: fonts.sansRegular, fontSize: 13, lineHeight: 21, color: colors.muted, textAlign: 'center', marginTop: 8 },
+    unsyncedBox: { borderRadius: radii.md, borderWidth: 1, borderColor: colors.danger, padding: 12, marginBottom: 12 },
+    unsyncedText: { fontFamily: fonts.sansSemiBold, fontSize: 12.5, lineHeight: 20, color: colors.danger, textAlign: 'right' },
 
     submit: { width: '100%', paddingVertical: 16, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: colors.lime },
     submitSpaced: { marginTop: 16 },

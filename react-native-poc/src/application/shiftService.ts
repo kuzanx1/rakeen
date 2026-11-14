@@ -1,4 +1,7 @@
 import { supabase } from '../infrastructure/supabaseClient';
+import { subscribeToPostgresChanges } from '../infrastructure/realtimeChannel';
+import { sqliteOrderQueueStorage } from '../infrastructure/sqliteOrderQueue';
+import { syncQueuedOrdersNow } from './orderService';
 import { getItem, setItem } from '../infrastructure/mmkvStorage';
 import { computeShiftTotals, EMPTY_SHIFT_TOTALS } from '../domain/shift';
 import type { CashMovement, ClosingReport, Shift, ShiftOrderRow, ShiftTotals } from '../domain/shift';
@@ -35,11 +38,17 @@ export async function readCachedOpenShift(cashierId: string): Promise<Shift | nu
   }
 }
 
-export async function findOpenShift(cashierId: string): Promise<Shift | null> {
-  const { data, error } = await supabase
-    .from('shifts')
-    .select('*')
-    .eq('cashier_id', cashierId)
+/*
+ * `branchId` حين يُعرف: الوردية للفرع لا للحساب.
+ *
+ * قاعدة البيانات تسمح بوردية مفتوحة واحدة لكل فرع (shifts_one_open_per_branch).
+ * فالبحث بالحساب وحده يُخطئ متى اختلف الحساب: الجهاز لا يرى وردية الفرع
+ * المفتوحة، فيعرض «بدء الوردية»، فيرفض الخادم الإدراج -- إلى ما لا نهاية.
+ */
+export async function findOpenShift(cashierId: string, branchId?: number | null): Promise<Shift | null> {
+  const base = supabase.from('shifts').select('*');
+  const scoped = branchId != null ? base.eq('branch_id', branchId) : base.eq('cashier_id', cashierId);
+  const { data, error } = await scoped
     .is('closed_at', null)
     .order('opened_at', { ascending: false })
     .limit(1);
@@ -72,7 +81,9 @@ export interface OpenShiftInput {
   openingCash: number;
 }
 
-export async function openShift(input: OpenShiftInput): Promise<{ shift: Shift | null; error: string | null }> {
+export async function openShift(
+  input: OpenShiftInput,
+): Promise<{ shift: Shift | null; error: string | null; joined?: boolean }> {
   const { data, error } = await supabase
     .from('shifts')
     .insert({
@@ -85,7 +96,16 @@ export async function openShift(input: OpenShiftInput): Promise<{ shift: Shift |
     .select()
     .single();
 
-  if (error || !data) return { shift: null, error: 'تعذر بدء الوردية — تحقق من الاتصال وجرّب مرة ثانية' };
+  if (error || !data) {
+    /* 23505: للفرع وردية مفتوحة أصلاً -- فتحها جهاز ثانٍ قبل لحظة، أو
+       ضُغط الزر مرتين. ليست "مشكلة اتصال": الوردية موجودة، وهذا الجهاز
+       ينضمّ لها. ورصيدها الافتتاحي هو ما كتبه من فتحها، لا ما كُتب هنا. */
+    if (error && (error as { code?: string }).code === '23505') {
+      const existing = await findOpenShift(input.cashierId, input.branchId);
+      if (existing) return { shift: existing, error: null, joined: true };
+    }
+    return { shift: null, error: 'تعذر بدء الوردية — تحقق من الاتصال وجرّب مرة ثانية' };
+  }
   try {
     await setItem(cacheKey(input.cashierId), JSON.stringify(data));
   } catch {
@@ -134,12 +154,27 @@ export async function recordCashMovement(
   return { ok: true, error: null };
 }
 
+/** جدول غير موجود بعد (ترحيل لم يُشغَّل): لا حركات، وليس فشل قراءة. */
+function isMissingTable(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return error.code === '42P01' || error.code === 'PGRST205' || /does not exist|schema cache/i.test(error.message || '');
+}
+
+/** تُرمى حين يتعذّر قراءة أرقام الوردية -- انظر loadShiftTotals. */
+export class ShiftTotalsUnreadableError extends Error {
+  constructor() {
+    super('shift_totals_unreadable');
+    this.name = 'ShiftTotalsUnreadableError';
+  }
+}
+
 export async function listCashMovements(shiftId: number): Promise<CashMovement[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('shift_cash_movements')
     .select('direction, amount, reason')
     .eq('shift_id', shiftId)
     .order('created_at');
+  if (error && !isMissingTable(error)) throw new ShiftTotalsUnreadableError();
   return (data || []).map((m: any) => ({
     direction: m.direction === 'in' ? 'in' : 'out',
     amount: Number(m.amount) || 0,
@@ -147,9 +182,18 @@ export async function listCashMovements(shiftId: number): Promise<CashMovement[]
   }));
 }
 
+/**
+ * أرقام الوردية -- أو خطأ صريح. لا أصفار أبداً.
+ *
+ * supabase-js لا يرمي عند فشل الشبكة: يُرجع data فارغة مع error. وكان هذا
+ * يُقرأ "لا مبيعات": انقطاعٌ لحظة فتح الإقفال يجعل المتوقع في الدرج هو
+ * الرصيد الافتتاحي وحده، فيعدّ الكاشير ألفاً ومئتين أمام متوقعٍ مئتين،
+ * ويُسجَّل "زيادة ألف" على ورقة يوقّعها المدير -- أو عجزٌ وهمي بالعكس مع
+ * المرتجعات والسحوبات. رقمٌ خاطئ على موازنة أسوأ من موازنة تنتظر الشبكة.
+ */
 export async function loadShiftTotals(shift: Shift | null): Promise<ShiftTotals> {
   if (!shift) return EMPTY_SHIFT_TOTALS;
-  const { data } = await supabase
+  const { data, error: ordersError } = await supabase
     .from('orders')
     .select('total, subtotal, discount_pct, discount_amount, vat_amount, payment_method, cash_amount, source')
     .eq('shift_id', shift.id)
@@ -169,22 +213,29 @@ export async function loadShiftTotals(shift: Shift | null): Promise<ShiftTotals>
     // أُعيد كاملاً كاشاً -- أما بيع شبكة أُعيد كاشاً فينقص الدرج وإن لم
     // يدخله شيء، وبيع كاش أُعيد بعضه فالباقي منه فيه.
     ;
+  if (ordersError) throw new ShiftTotalsUnreadableError();
   // A missing table (migration not run yet) must not stop a shift being
-  // read or closed -- it just means no movements are recorded.
-  const movements = await listCashMovements(shift.id).catch(() => [] as CashMovement[]);
+  // read or closed -- it just means no movements are recorded. A failed
+  // READ is different: listCashMovements throws, and so does this.
+  const movements = await listCashMovements(shift.id);
   // المرتجعات بورديّة خروج المال لا بورديّة البيع: بيع الأمس قد يُرجَع
   // اليوم، والدرج الذي ينقص هو درج اليوم.
   let refunds = { total: 0, count: 0 };
   try {
-    const { data: refunded } = await supabase
+    const { data: refunded, error: refundsError } = await supabase
       .from('orders')
       .select('refunded_amount')
       .eq('refund_shift_id', shift.id);
+    // عمود غير موجود بعد (42703) يُتسامح معه؛ فشل قراءة لا.
+    if (refundsError && (refundsError as { code?: string }).code !== '42703' && !isMissingTable(refundsError)) {
+      throw new ShiftTotalsUnreadableError();
+    }
     for (const r of refunded ?? []) {
       const amt = Number((r as { refunded_amount?: number }).refunded_amount) || 0;
       if (amt > 0) { refunds.total += amt; refunds.count += 1; }
     }
-  } catch {
+  } catch (e) {
+    if (e instanceof ShiftTotalsUnreadableError) throw e;
     // بلا سطر مرتجعات خير من وردية لا تُقرأ.
   }
   return computeShiftTotals((data as ShiftOrderRow[]) || [], Number(shift.opening_cash), movements, refunds);
@@ -249,7 +300,11 @@ export interface CloseShiftInput {
  * reverse, a filed report for a shift that is still open, would let the
  * next sale land inside a shift that has already been signed off.
  */
+/** ورديات يقفلها هذا الجهاز نفسه الآن: حدث إقفالها ليس "من جهاز ثانٍ". */
+const closingHere = new Set<number>();
+
 export async function closeShift(input: CloseShiftInput): Promise<{ ok: boolean; error: string | null }> {
+  closingHere.add(input.shift.id);
   const { error: updateError } = await supabase
     .from('shifts')
     .update({
@@ -258,7 +313,10 @@ export async function closeShift(input: CloseShiftInput): Promise<{ ok: boolean;
       closed_by_staff_member_id: input.closedByStaffMemberId,
     })
     .eq('id', input.shift.id);
-  if (updateError) return { ok: false, error: 'تعذر إغلاق الوردية — تحقق من الاتصال وجرّب مرة ثانية' };
+  if (updateError) {
+    closingHere.delete(input.shift.id);
+    return { ok: false, error: 'تعذر إغلاق الوردية — تحقق من الاتصال وجرّب مرة ثانية' };
+  }
 
   try {
     const { data: userData } = await supabase.auth.getUser();
@@ -270,7 +328,7 @@ export async function closeShift(input: CloseShiftInput): Promise<{ ok: boolean;
     if (!closedBy) {
       return { ok: true, error: 'أُغلقت الوردية، لكن ما انحفظ تقرير الموازنة — سجّل الدخول وأعد الطباعة' };
     }
-    await supabase.from('shift_closing_reports').insert({
+    const { error: reportError } = await supabase.from('shift_closing_reports').insert({
       shift_id: input.shift.id,
       business_id: input.shift.business_id,
       branch_id: input.shift.branch_id,
@@ -283,6 +341,12 @@ export async function closeShift(input: CloseShiftInput): Promise<{ ok: boolean;
       card_total: input.report.cardTotal,
       delivery_platform_total: input.report.deliveryPlatformTotal,
     });
+    // الإدراج لا يرمي عند الفشل، فكان فشله يمرّ صامتاً: وردية مقفلة بلا
+    // تقرير محفوظ، وزر «أعد طباعة آخر موازنة» يطبع موازنة الأمس.
+    if (reportError) {
+      try { await setItem(cacheKey(input.shift.cashier_id), JSON.stringify(null)); } catch { /* see findOpenShift */ }
+      return { ok: true, error: 'أُغلقت الوردية، لكن ما انحفظ تقرير الموازنة — اطبعها الحين من هذي الشاشة' };
+    }
   } catch {
     // The shift is closed and the count recorded on the shift row itself.
     // A missing report row means the reprint has nothing to fetch, not
@@ -341,4 +405,52 @@ export async function getLastClosingReport(
     cashCounted: Number(row.cash_counted) || 0,
     cashVariance: Number(row.cash_variance) || 0,
   };
+}
+
+/**
+ * طلبات هذي الوردية اللي لسا على الجهاز وما ارتفعت للخادم.
+ *
+ * أرقام الإقفال تُقرأ من الخادم، وطلبٌ بيع بلا نت يعيش في طابور الجهاز حتى
+ * يُرفع. فإقفالٌ قبل رفعه يُنقص المتوقع بمبلغه، ثم يُرفع الطلب بعد التوقيع
+ * إلى وردية مقفلة. تُحاوَل المزامنة أولاً، ثم يُعدّ ما بقي ليُقال للكاشير.
+ */
+export async function countUnsyncedShiftOrders(shiftId: number): Promise<{ count: number; total: number }> {
+  try {
+    await syncQueuedOrdersNow();
+  } catch {
+    // يُعدّ ما على الجهاز كما هو.
+  }
+  try {
+    const queued = await sqliteOrderQueueStorage.getAll();
+    let count = 0;
+    let total = 0;
+    for (const q of queued as Array<{ shift_id?: number | null; total?: number; type?: string }>) {
+      if (q.type === 'dine_in_pay') continue;
+      if (Number(q.shift_id) === shiftId) {
+        count += 1;
+        total += Number(q.total) || 0;
+      }
+    }
+    return { count, total };
+  } catch {
+    return { count: 0, total: 0 };
+  }
+}
+
+/**
+ * يخبر الجهاز متى أُقفلت ورديته من جهاز آخر.
+ *
+ * الوردية واحدة للفرع، فجهازان في فرع واحد يتشاركانها. وكان إقفالها من
+ * أحدهما لا يصل الآخر: يبقى يبيع على وردية مقفلة وموقَّعة، فتسقط مبيعاته
+ * من موازنة الأمس ولا تدخل موازنة اليوم. بالحدث لا بالاستعلام الدوري.
+ */
+export function subscribeToShiftClosed(shiftId: number, onClosed: () => void): () => void {
+  return subscribeToPostgresChanges(
+    `pos-shift:${shiftId}`,
+    { event: 'UPDATE', schema: 'public', table: 'shifts', filter: `id=eq.${shiftId}` },
+    payload => {
+      const row = (payload as { new?: { closed_at?: string | null } }).new;
+      if (row && row.closed_at && !closingHere.has(shiftId)) onClosed();
+    },
+  );
 }
