@@ -25,6 +25,16 @@ const cacheKey = (cashierId: string) => `shift:${cashierId}`;
  * successful read overwrites it -- including with null, so a shift closed
  * while online cannot leave a stale "still open" entry behind.
  */
+/** آخر وردية مفتوحة معروفة على هذا الجهاز -- بلا شبكة. */
+export async function readCachedOpenShift(cashierId: string): Promise<Shift | null> {
+  try {
+    const cached = await getItem(cacheKey(cashierId));
+    return cached ? (JSON.parse(cached) as Shift | null) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function findOpenShift(cashierId: string): Promise<Shift | null> {
   const { data, error } = await supabase
     .from('shifts')

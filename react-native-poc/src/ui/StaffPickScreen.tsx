@@ -3,7 +3,7 @@ import { ActivityIndicator, Image, ScrollView, StyleSheet, View } from 'react-na
 import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
-import { listBranchStaff, rememberStaff } from '../application/staffService';
+import { listBranchStaff, readCachedBranchStaff, rememberStaff } from '../application/staffService';
 import type { StaffMember } from '../application/staffService';
 import { createStyles, fonts, gradients, radii, useTheme } from './theme';
 
@@ -33,8 +33,15 @@ export default function StaffPickScreen({
 
   useEffect(() => {
     let cancelled = false;
+    // الأسماء المحفوظة تظهر فوراً، والخادم يصحّحها حين يردّ: القائمة
+    // تتغيّر مرّة في الشهر، ولا معنى لدوّارة تحميل أمامها كل صباح.
+    let fresh = false;
+    readCachedBranchStaff(branchId).then(cached => {
+      if (!cancelled && !fresh && cached && cached.length > 0) setStaff(cached);
+    });
     (async () => {
       const rows = await listBranchStaff(branchId);
+      fresh = true;
       if (!cancelled) setStaff(rows);
     })();
     return () => {

@@ -11,6 +11,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { hydratePosBootstrap, loadPosBootstrap } from './src/application/posBootstrap';
 import { ActivityIndicator, Alert, AppState, BackHandler, Platform, ScrollView, StatusBar, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './src/ui/Text';
 import type { AppStateStatus } from 'react-native';
@@ -78,7 +79,7 @@ import { startIncomingOrderSound, stopIncomingOrderSound } from './src/applicati
 import { loadRememberedStaff, rememberStaff } from './src/application/staffService';
 import type { StaffMember } from './src/application/staffService';
 import { ShiftSummaryModal, CloseShiftModal } from './src/ui/ShiftModals';
-import { findOpenShift, getLastClosingReport, getBranchClosingTime } from './src/application/shiftService';
+import { findOpenShift, readCachedOpenShift, getLastClosingReport, getBranchClosingTime } from './src/application/shiftService';
 import type { Shift } from './src/domain/shift';
 import { isShiftStale } from './src/domain/shift';
 import StaleShiftScreen from './src/ui/StaleShiftScreen';
@@ -525,6 +526,11 @@ function App(): React.JSX.Element {
 
   useEffect(() => {
     if (!cashier) return;
+    // المنيو والإعدادات تبدأ من لحظة الدخول، لا من لحظة ظهور الشاشة:
+    // اختيار الموظف وفحص الوردية يأخذان وقتهما، وهذا يمضي بجانبهما --
+    // فتُفتح الرئيسية كاملة بدل أن تبدأ التحميل حين تُفتح.
+    void hydratePosBootstrap(cashier.business_id);
+    void loadPosBootstrap(cashier.business_id).catch(() => {});
     (async () => {
       const device = await getDeviceConfig();
       setBranchId(device.branchId);
@@ -633,9 +639,24 @@ function App(): React.JSX.Element {
     }
     let cancelled = false;
     (async () => {
+      // وقت إقفال الفرع يُطلب مع الوردية لا بعدها: رحلتان متتابعتان كانتا
+      // تُبقيان دوّارة التحميل ضعف ما يلزم.
+      const closingTimeP = getDeviceConfig()
+        .then(d => (d.branchId != null ? getBranchClosingTime(d.branchId) : null))
+        .catch(() => null);
+      // وردية مفتوحة معروفة على الجهاز تُفتح بها الشاشة فوراً، والخادم
+      // يؤكّد أو يصحّح حين يردّ. كان كل تشغيل ينتظر الخادم أمام دوّارة --
+      // وبلا مهلة، فشبكةٌ ضعيفة تُبقيها. (وبلا نت كانت تُستعمل أصلاً.)
+      const known = await readCachedOpenShift(cashier.id);
+      if (cancelled) return;
+      if (known) {
+        setShift(known);
+        setShiftChecked(true);
+      }
       const open = await findOpenShift(cashier.id);
       if (cancelled) return;
-      setShift(open);
+      // نفس الوردية؟ يبقى الكائن نفسه، فلا يُعاد تحميل ما يتبعه.
+      setShift(prev => (prev && open && prev.id === open.id ? prev : open));
       if (open) {
         // Nothing closes a shift on its own. A cashier who locks up
         // without running the wizard leaves it open, so the next day's
@@ -643,9 +664,7 @@ function App(): React.JSX.Element {
         // against a float declared a day or two ago. Detect that and make
         // it the first thing the cashier deals with.
         try {
-          const device = await getDeviceConfig();
-          const closingTime =
-            device.branchId != null ? await getBranchClosingTime(device.branchId) : null;
+          const closingTime = await closingTimeP;
           if (!cancelled) setShiftStale(isShiftStale(open, closingTime));
         } catch {
           if (!cancelled) setShiftStale(false);

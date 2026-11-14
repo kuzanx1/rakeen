@@ -19,14 +19,41 @@ export interface StaffMember {
 /** The source's own key, so a device that has used the PWA keeps its pick. */
 const STAFF_KEY = 'rakeen_pos_staff';
 
+const staffListKey = (branchId: number) => `rakeen_pos_staff_list:${branchId}`;
+
+/** آخر قائمة موظفين محفوظة لهذا الفرع، أو null إن لم يُحفظ شيء بعد. */
+export async function readCachedBranchStaff(branchId: number): Promise<StaffMember[] | null> {
+  try {
+    const raw = await getItem(staffListKey(branchId));
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) ? (parsed as StaffMember[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * موظفو الفرع من الخادم -- ومن المحفوظ إن لم يردّ الخادم.
+ *
+ * كان فشل الشبكة يُقرأ "ما فيه موظفين": supabase-js لا يرمي، يُرجع
+ * data فارغة مع error. فجهازٌ بلا نت يعرض «متابعة بدون اسم»، وتُفتح
+ * وردية لا يُعرف صاحبها -- عكس القاعدة التي وُضعت الشاشة من أجلها.
+ */
 export async function listBranchStaff(branchId: number): Promise<StaffMember[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('staff_members')
     .select('id, name')
     .eq('branch_id', branchId)
     .eq('active', true)
     .order('name');
-  return (data || []).map(s => ({ id: Number(s.id), name: String(s.name) }));
+  if (error || !data) return (await readCachedBranchStaff(branchId)) ?? [];
+  const rows = data.map(s => ({ id: Number(s.id), name: String(s.name) }));
+  try {
+    await setItem(staffListKey(branchId), JSON.stringify(rows));
+  } catch {
+    // بلا محفوظ للمرة القادمة؛ ليس خطأً الآن.
+  }
+  return rows;
 }
 
 /**

@@ -40,7 +40,7 @@ import type { BoxDefinition, CartLine, ModifierDefinition, OrderChannel } from '
 import type { CashierProfile } from '../domain/auth';
 import type { Shift } from '../domain/shift';
 import { useCart } from './useCart';
-import { getCachedPosBootstrap, loadPosBootstrap, PosBootstrap } from '../application/posBootstrap';
+import { getCachedPosBootstrap, hydratePosBootstrap, loadPosBootstrap, PosBootstrap } from '../application/posBootstrap';
 import ModifierModal from './ModifierModal';
 import DiscountModal from './DiscountModal';
 import PaymentModal from './PaymentModal';
@@ -294,20 +294,29 @@ export default function ProductsScreen({
   selectedTable?: SelectedTableContext | null;
   onExitTableContext?: () => void;
 }) {
-  const [loading, setLoading] = useState(true);
+  /**
+   * ما في الذاكرة يدخل في أول رسم نفسه، لا بعده.
+   *
+   * كان يُطبَّق من useEffect: فأول إطار دوّارة تحميل دائماً، ثم الشاشة --
+   * حتى والبيانات حاضرة. وفي ذلك الإطار يظهر الشريط العلوي والسفلي (هما
+   * خارج هذه الشاشة) وعمود الطلب لم يُرسم بعد، فيبدو أن جهة سبقت جهة.
+   * الآن الأعمدة الثلاثة تظهر معاً في إطار واحد.
+   */
+  const boot0 = useRef(getCachedPosBootstrap(cashier.business_id)).current;
+  const [loading, setLoading] = useState(!boot0);
   const [error, setError] = useState('');
-  const [catalog, setCatalog] = useState<CatalogResult | null>(null);
-  const [financial, setFinancial] = useState({ vatRegistered: true, vatRate: 0.15, pricesIncludeVat: true });
+  const [catalog, setCatalog] = useState<CatalogResult | null>(boot0?.catalog ?? null);
+  const [financial, setFinancial] = useState(boot0?.financial ?? { vatRegistered: true, vatRate: 0.15, pricesIncludeVat: true });
   // businesses.dine_in_pay_timing. 'before' is the source's own default
   // (rakeen-pos.js:5660) and the only safe one: it means the pay button
   // stays a pay button.
-  const [dineInPayTiming, setDineInPayTiming] = useState<'before' | 'after'>('before');
+  const [dineInPayTiming, setDineInPayTiming] = useState<'before' | 'after'>(boot0?.dineInPayTiming ?? 'before');
   /** state.activeCat (rakeen-pos.js:355) -- 'popular' by default, falling
    *  back to 'all' when the business hides the popular tab (:5835). Real
    *  category ids are strings, so these two shortcut ids cannot collide. */
-  const [activeCategoryId, setActiveCategoryId] = useState<string>('popular');
+  const [activeCategoryId, setActiveCategoryId] = useState<string>(boot0?.hidePopularTab ? 'all' : 'popular');
   const [modifierTarget, setModifierTarget] = useState<Product | null>(null);
-  const [businessType, setBusinessType] = useState('');
+  const [businessType, setBusinessType] = useState(boot0?.businessType ?? '');
   const [searchQuery, setSearchQuery] = useState('');
   /**
    * searchInput's 'input' listener debounces the grid re-render by 200ms
@@ -339,17 +348,17 @@ export default function ProductsScreen({
    *  true so the very first paint matches what loadPosData() would have
    *  had -- starting at false would flash real photos onto every tile and
    *  then pull them back once the businesses row arrives. */
-  const [hideImages, setHideImages] = useState(true);
+  const [hideImages, setHideImages] = useState(boot0?.hideImages ?? true);
 
   /** businesses.pos_hide_popular_tab (rakeen-pos.js:5661) -- defaults to
    *  SHOWN, unlike pos_hide_product_images which defaults to hidden. */
   /** Bumped by the settings subscription to re-run the load. */
   const [settingsVersion, setSettingsVersion] = useState(0);
-  const [hidePopularTab, setHidePopularTab] = useState(false);
+  const [hidePopularTab, setHidePopularTab] = useState(boot0?.hidePopularTab ?? false);
 
   /** The owner's POS switches. Defaults match each flag's own polarity so
    *  the first paint behaves like a business that has set nothing. */
-  const [flags, setFlags] = useState<PosFeatureFlags>({
+  const [flags, setFlags] = useState<PosFeatureFlags>(boot0?.flags ?? {
     loyaltyEnabled: true,
     dineInEnabled: true,
     hideSearch: false,
@@ -367,7 +376,7 @@ export default function ProductsScreen({
     dineInMode: 'simple' | 'tables';
     pagerEnabled: boolean;
     kitchenTicketMode: 'brief' | 'copy';
-  }>({
+  }>(boot0?.service ?? {
     dineInMode: 'simple',
     pagerEnabled: false,
     kitchenTicketMode: 'brief',
@@ -542,22 +551,43 @@ export default function ProductsScreen({
     // ومحفوظة على الجهاز فيُطبع الباركود والجهاز بلا نت.
     loadPagerConfig(cashier.business_id).catch(() => {});
 
+    // `shown`: هل على الشاشة شيء حقيقي؟ من الذاكرة، أو من القرص، أو من الشبكة.
+    let shown = false;
+    let gotFresh = false;
     const cached = getCachedPosBootstrap(cashier.business_id);
     if (cached) {
       apply(cached, true);
       setLoading(false);
+      shown = true;
+    } else {
+      // أول فتح بعد تشغيل التطبيق: آخر ما حُفظ على الجهاز يُعرض فوراً،
+      // والشبكة تمضي بجانبه. جلبٌ وصل قبله لا يُكتب فوقه.
+      hydratePosBootstrap(cashier.business_id).then(disk => {
+        if (!alive || gotFresh || shown || !disk) return;
+        apply(disk, true);
+        setLoading(false);
+        shown = true;
+      });
     }
 
     (async () => {
       try {
         const fresh = await loadPosBootstrap(cashier.business_id);
         if (!alive) return;
-        // أول تطبيق حقيقي فقط حين لم تكن هناك ذاكرة تسبقه.
-        apply(fresh, !cached);
+        gotFresh = true;
+        // أول تطبيق حقيقي فقط حين لم يسبقه شيء على الشاشة.
+        apply(fresh, !shown);
+        shown = true;
       } catch (e) {
-        // شاشة معروضة من الذاكرة لا تُمحى برسالة خطأ: الكاشير يبيع
+        // شاشة معروضة من المحفوظ لا تُمحى برسالة خطأ: الكاشير يبيع
         // منها الآن، والشبكة وحدها هي التي سقطت.
-        if (alive && !cached) setError('تعذر تحميل المنتجات — تحقق من الاتصال.');
+        if (alive && !shown) {
+          // الجلب سقط قبل أن ينتهي القرص؟ يُنتظر القرص قبل إعلان الخطأ.
+          const disk = await hydratePosBootstrap(cashier.business_id);
+          if (!alive) return;
+          if (disk) { apply(disk, true); shown = true; }
+          else setError('تعذر تحميل المنتجات — تحقق من الاتصال.');
+        }
       } finally {
         if (alive) setLoading(false);
       }

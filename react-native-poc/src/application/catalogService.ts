@@ -48,8 +48,58 @@ export interface CatalogResult {
  * loyalty, dine-in toggles, POS display flags, etc.) are out of scope
  * here and belong to whichever later checkpoint actually needs them.
  */
+/**
+ * صفّ المنشأة يُقرأ مرّة، لا تسع مرّات.
+ *
+ * كل إعداد هنا كان استعلاماً مستقلاً على الصفّ نفسه: نوع النشاط، الضريبة،
+ * الصور، التبويب، المفاتيح، الخدمة، الصوت، رمز المدير... تسع رحلات إلى
+ * الخادم عند كل فتح للكاشير، وثلاث منها متتابعة -- والكاشير أمام علامة
+ * التحميل. الآن رحلة واحدة يتقاسمها الجميع.
+ *
+ * العمر قصير عمداً (ثانيتان ونصف): الغرض جمع النداءات المتزامنة لا حفظ
+ * الإعدادات. وحدث تغيير الإعدادات يُبطله قبل أن تُعاد القراءة.
+ *
+ * وإن فشل `select('*')` لأي سبب، يعود كل قارئ إلى استعلامه الخاص كما كان.
+ */
+const BUSINESS_ROW_TTL_MS = 2500;
+let businessRowMemo: { id: number; at: number; promise: Promise<Record<string, any> | null> } | null = null;
+
+export function invalidateBusinessRow(): void {
+  businessRowMemo = null;
+}
+
+function businessRow(businessId: number): Promise<Record<string, any> | null> {
+  const now = Date.now();
+  if (businessRowMemo && businessRowMemo.id === businessId && now - businessRowMemo.at < BUSINESS_ROW_TTL_MS) {
+    return businessRowMemo.promise;
+  }
+  const promise = (async () => {
+    try {
+      const { data, error } = await supabase.from('businesses').select('*').eq('id', businessId).single();
+      return error || !data ? null : (data as Record<string, any>);
+    } catch {
+      return null;
+    }
+  })();
+  businessRowMemo = { id: businessId, at: now, promise };
+  // صفّ لم يُقرأ لا يُحفظ: النداء التالي يحاول من جديد.
+  void promise.then(row => { if (!row && businessRowMemo?.promise === promise) businessRowMemo = null; });
+  return promise;
+}
+
+async function bizCols(businessId: number, legacyColumns: string): Promise<Record<string, any> | null> {
+  const row = await businessRow(businessId);
+  if (row) return row;
+  try {
+    const { data, error } = await supabase.from('businesses').select(legacyColumns).eq('id', businessId).single();
+    return error || !data ? null : (data as unknown as Record<string, any>);
+  } catch {
+    return null;
+  }
+}
+
 export async function getBusinessType(businessId: number): Promise<string> {
-  const { data } = await supabase.from('businesses').select('business_type').eq('id', businessId).single();
+  const data = await bizCols(businessId, 'business_type');
   return data?.business_type || 'restaurant';
 }
 
@@ -65,11 +115,7 @@ export interface FinancialSettings {
 }
 
 export async function getFinancialSettings(businessId: number): Promise<FinancialSettings> {
-  const { data } = await supabase
-    .from('businesses')
-    .select('vat_registered, vat_rate, prices_include_vat')
-    .eq('id', businessId)
-    .single();
+  const data = await bizCols(businessId, 'vat_registered, vat_rate, prices_include_vat');
   return {
     vatRegistered: data ? data.vat_registered !== false : true,
     vatRate: data && data.vat_rate != null ? Number(data.vat_rate) : 0.15,
@@ -94,20 +140,12 @@ export async function getFinancialSettings(businessId: number): Promise<Financia
  * registerMode in ProductsScreen.
  */
 export async function getDineInPayTiming(businessId: number): Promise<'before' | 'after'> {
-  const { data } = await supabase
-    .from('businesses')
-    .select('dine_in_pay_timing')
-    .eq('id', businessId)
-    .single();
+  const data = await bizCols(businessId, 'dine_in_pay_timing');
   return data && data.dine_in_pay_timing === 'after' ? 'after' : 'before';
 }
 
 export async function getNotifySoundEnabled(businessId: number): Promise<boolean> {
-  const { data } = await supabase
-    .from('businesses')
-    .select('notify_sound_enabled')
-    .eq('id', businessId)
-    .single();
+  const data = await bizCols(businessId, 'notify_sound_enabled');
   return data ? data.notify_sound_enabled !== false : true;
 }
 
@@ -124,11 +162,7 @@ export async function getNotifySoundEnabled(businessId: number): Promise<boolean
  *  showing a category icon rather than the uploaded photo is the correct,
  *  intended default -- not a missing-image bug. */
 export async function getHideProductImages(businessId: number): Promise<boolean> {
-  const { data } = await supabase
-    .from('businesses')
-    .select('pos_hide_product_images')
-    .eq('id', businessId)
-    .single();
+  const data = await bizCols(businessId, 'pos_hide_product_images');
   return data ? data.pos_hide_product_images !== false : true;
 }
 
@@ -136,11 +170,7 @@ export async function getHideProductImages(businessId: number): Promise<boolean>
  *  polarity to getHideProductImages: `=== true`, so the tab is SHOWN unless
  *  the business explicitly hid it, and an unreadable row leaves it shown. */
 export async function getHidePopularTab(businessId: number): Promise<boolean> {
-  const { data } = await supabase
-    .from('businesses')
-    .select('pos_hide_popular_tab')
-    .eq('id', businessId)
-    .single();
+  const data = await bizCols(businessId, 'pos_hide_popular_tab');
   return data ? data.pos_hide_popular_tab === true : false;
 }
 
@@ -180,11 +210,7 @@ export interface PosFeatureFlags {
 }
 
 export async function getPosFeatureFlags(businessId: number): Promise<PosFeatureFlags> {
-  const { data } = await supabase
-    .from('businesses')
-    .select('loyalty_enabled, dine_in_enabled, pos_hide_search, pos_hide_notif_bell')
-    .eq('id', businessId)
-    .single();
+  const data = await bizCols(businessId, 'loyalty_enabled, dine_in_enabled, pos_hide_search, pos_hide_notif_bell');
   return {
     loyaltyEnabled: data ? data.loyalty_enabled !== false : true,
     dineInEnabled: data ? data.dine_in_enabled !== false : true,
@@ -238,11 +264,8 @@ export interface ServiceSettings {
 
 export async function getServiceSettings(businessId: number): Promise<ServiceSettings> {
   try {
-    const { data, error } = await supabase
-      .from('businesses')
-      .select('dine_in_mode, pos_pager_enabled, kitchen_ticket_mode, business_type')
-      .eq('id', businessId)
-      .single();
+    const data = await bizCols(businessId, 'dine_in_mode, pos_pager_enabled, kitchen_ticket_mode, business_type');
+    const error = null;
     if (error || !data) return { dineInMode: 'simple', pagerEnabled: false, kitchenTicketMode: 'brief' };
     // بدون «الطاولات والحجوزات» في الباقة: محلي بسيط بلا شاشة طاولات. نشاط
     // الخدمات يبقى: «طاولاته» مواقعه وغرفه، أساس شغله. (الويب: loadPosData)
@@ -286,11 +309,8 @@ export async function isPagerNumberBusy(branchId: number, pager: number): Promis
 
 export async function getRequireManagerPinForClose(businessId: number): Promise<boolean> {
   try {
-    const { data, error } = await supabase
-      .from('businesses')
-      .select('pos_require_manager_pin_for_close')
-      .eq('id', businessId)
-      .single();
+    const data = await bizCols(businessId, 'pos_require_manager_pin_for_close');
+    const error = null;
     if (error || !data) return true;
     return data.pos_require_manager_pin_for_close !== false;
   } catch {
@@ -537,7 +557,10 @@ export function subscribeToBusinessSettings(businessId: number, onChange: () => 
   return subscribeToPostgresChanges(
     `pos-business-settings:${businessId}`,
     { event: 'UPDATE', schema: 'public', table: 'businesses', filter: `id=eq.${businessId}` },
-    () => onChange(),
+    () => {
+      invalidateBusinessRow();
+      onChange();
+    },
   );
 }
 
@@ -803,6 +826,10 @@ export async function loadCatalog(businessId: number, businessType: string): Pro
   }
 
   return result;
+}
+
+export async function readCatalogCache(businessId: number): Promise<CatalogResult | null> {
+  return readCache(businessId);
 }
 
 async function readCache(businessId: number): Promise<CatalogResult | null> {

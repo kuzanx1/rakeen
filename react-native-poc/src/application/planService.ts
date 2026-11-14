@@ -43,6 +43,23 @@ export async function loadPlanFeatures(businessId: number, force = false): Promi
   }
 }
 
+/**
+ * آخر باقة معروفة من القرص، قبل أن تردّ الشبكة.
+ *
+ * الشاشة صارت تظهر من المحفوظ فوراً، و`planHas` بلا باقة محمّلة يسمح بكل
+ * شيء -- فتظهر لحظةً أزرارُ ميزاتٍ ليست في الباقة ثم تختفي. هذا يملأ
+ * الباقة من آخر ما حُفظ، ولا يعلّمها "محمّلة": الجلب الحقيقي يمضي كما هو.
+ */
+export async function hydratePlanFeatures(businessId: number): Promise<void> {
+  if (loadedFor === businessId || features) return;
+  try {
+    const cached = JSON.parse((await getItem(cacheKey(businessId))) || 'null');
+    if (loadedFor !== businessId && !features && Array.isArray(cached)) features = new Set(cached as string[]);
+  } catch {
+    // لا محفوظ: يبقى الافتراض حتى تردّ الشبكة.
+  }
+}
+
 export function planHas(feature: string): boolean {
   return !features || features.has(feature);
 }
