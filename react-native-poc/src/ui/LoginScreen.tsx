@@ -320,7 +320,7 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
 
             <ConfirmPayButton
               styles={styles}
-              label={pickingBranch ? 'تأكيد الفرع' : 'ربط الجهاز'}
+              label={pickingBranch ? 'تأكيد الفرع' : 'دخول'}
               busy={busy}
               onPress={pickingBranch ? handleConfirmBranch : handleProvision}
             />

@@ -133,7 +133,7 @@ const I18N_EN = {
   'فيه خيارات — اضغط مطولًا للتخصيص': 'Has options — hold to customize',
 
   // Provisioning and sign-in.
-  'تجهيز هذا الجهاز': 'Set up this device', 'ربط الجهاز': 'Link device',
+  'تجهيز هذا الجهاز': 'Set up this device', 'ربط الجهاز': 'Link device', 'دخول': 'Sign in',
   'رمز الفرع': 'Branch code', 'أدخل رمز نقطة البيع لهذا الفرع': 'Enter this branch\u2019s POS code',
   'سجّل دخولك كمدير أو مالك مرة وحدة بس، عشان نربط هذا التابلت بفرعك.':
     'Sign in as a manager or owner once, to link this tablet to your branch.',
@@ -4648,6 +4648,67 @@ async function registerTableOrder(){
   }
 }
 
+/* ============ أرقام طلبات محجوزة لهذا الجهاز ============
+   كانت الفاتورة تنتظر complete_pos_order (بلا حدّ) لتعرف رقم الطلب. الآن
+   الجهاز يحجز دفعة أرقام، كل رقم مربوط بـ uuid ولّده هو، والخادم يعطي
+   الطلب نفس الرقم (supabase/migrations/20261114150000_order_number_blocks.sql).
+   فتنطبع الفاتورة برقمها النهائي فوراً، والإرسال بالخلفية.
+   ما فيه حجز (الدالة ما نزلت، أو خلص بلا نت)؟ نفس المسار القديم بالضبط.
+   بلا مؤقّت: يُعبّأ عند الدخول ورجوع النت وبعد كل بيع.
+   التطبيق: react-native-poc/src/application/orderNumberPool.ts */
+const RK_POOL_KEY = 'rk_order_number_pool_v1';
+const RK_POOL_TARGET = 30, RK_POOL_REFILL_BELOW = 15;
+const RK_POOL_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+let rkPoolRefilling = null, rkPoolUnsupportedUntil = 0;
+function rkPoolLoad(branchId){
+  let p = null;
+  try { p = JSON.parse(localStorage.getItem(RK_POOL_KEY) || 'null'); } catch(_) { p = null; }
+  if(!p || p.branchId !== branchId || !Array.isArray(p.items)) p = { branchId, items: [] };
+  const now = Date.now();
+  p.items = p.items.filter(i => i && i.u && i.id > 0 && now - i.at < RK_POOL_MAX_AGE_MS);
+  return p;
+}
+function rkPoolSave(p){ try { localStorage.setItem(RK_POOL_KEY, JSON.stringify(p)); } catch(_) {} }
+/** رقم محجوز {uuid,id} أو null. متزامن: بيعان ما ياخذون نفس الرقم. */
+function rkTakeReservedOrderNumber(branchId){
+  if(branchId == null) return null;
+  const p = rkPoolLoad(branchId);
+  const item = p.items.shift();
+  rkPoolSave(p);
+  rkRefillOrderNumberPool(branchId);
+  return item ? { uuid: item.u, id: item.id } : null;
+}
+function rkRefillOrderNumberPool(branchId){
+  if(branchId == null || rkPoolRefilling || Date.now() < rkPoolUnsupportedUntil) return rkPoolRefilling;
+  if(!(window.crypto && crypto.randomUUID) || !window.supabaseClient || !navigator.onLine) return null;
+  const have = rkPoolLoad(branchId).items.length;
+  if(have >= RK_POOL_REFILL_BELOW) return null;
+  const uuids = Array.from({ length: RK_POOL_TARGET - have }, () => crypto.randomUUID());
+  rkPoolRefilling = (async () => {
+    try {
+      const { data, error } = await window.supabaseClient.rpc('reserve_order_ids', { p_branch_id: branchId, p_uuids: uuids });
+      if(error){
+        if(/PGRST202|42883|could not find the function/i.test((error.code || '') + ' ' + (error.message || ''))) rkPoolUnsupportedUntil = Date.now() + 60 * 60 * 1000;
+        return;
+      }
+      if(!data || data.length === 0){ rkPoolUnsupportedUntil = Date.now() + 60 * 60 * 1000; return; } // المنشأة ما تفعّلت
+      const asked = new Set(uuids), now = Date.now();
+      const p = rkPoolLoad(branchId);
+      const known = new Set(p.items.map(i => i.u));
+      for(const r of (data || [])){
+        const id = Number(r.r_order_id);
+        if(!asked.has(r.r_client_order_uuid) || known.has(r.r_client_order_uuid) || !(id > 0)) continue;
+        p.items.push({ u: r.r_client_order_uuid, id, at: now });
+      }
+      p.items.sort((a, b) => a.id - b.id);
+      rkPoolSave(p);
+    } catch(_) { /* بلا نت: المرة الجاية */ }
+    finally { rkPoolRefilling = null; }
+  })();
+  return rkPoolRefilling;
+}
+window.addEventListener('online', () => { if(typeof DEVICE !== 'undefined' && CURRENT_PROFILE) rkRefillOrderNumberPool(DEVICE.branchId); });
+
 async function submitOrder(totals){
   if(state.resumingOrder){
     // Flow D: closing out an already-registered, already-kitchen-printed
@@ -4706,6 +4767,24 @@ async function submitOrder(totals){
       } catch(e){ /* stays queued — syncQueue() retries it */ }
     }
     if(!payload.orderId) payload.offlineRef = await rkAssignOfflineRef(combinedPayload);
+    return payload;
+  }
+
+  // رقم محجوز: الفاتورة برقمها النهائي الحين، والإرسال بالخلفية. الطلب
+  // بالطابور قبل الإرسال، فلو انقطع يرفعه syncQueue() بنفس الـ uuid ونفس الرقم.
+  const reserved = rkTakeReservedOrderNumber(payload.branch_id);
+  if(reserved){
+    payload.client_order_uuid = reserved.uuid;
+    try { await queueOrder(payload); } catch (e) { /* IndexedDB unavailable — the direct send below still runs */ }
+    payload.orderId = reserved.id;
+    if(navigator.onLine){
+      sendOrderToServer(payload)
+        .then(id => {
+          if(id != null && Number(id) !== reserved.id) console.warn('[orderNumberPool] reserved', reserved.id, 'but server gave', id);
+          return removeQueuedOrder(payload.client_order_uuid);
+        })
+        .catch(() => { /* stays queued — syncQueue() retries it */ });
+    }
     return payload;
   }
 
@@ -10811,6 +10890,7 @@ async function bootPos(){
     subscribeToTableChanges();
   }
   subscribeToShiftClosed();
+  rkRefillOrderNumberPool(DEVICE.branchId);
   subscribeToOrderReadyAlerts();
   subscribeToIncomingOnlineOrders();
   subscribeToOrdersLiveSync();

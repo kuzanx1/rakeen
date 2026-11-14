@@ -28,8 +28,12 @@ import { shouldTriggerSyncOnNetChange } from '../domain/sync';
  * - طاولة انسجلت بدون دفع: تنتظر، وفاتورتها تنطبع لما تندفع.
  * - طلبات هالجهاز نفسه (ownOrders) والطلبات الإلكترونية (لها مسار القبول)
  *   ما تنطبع هنا.
- * - رجوع الجهاز بعد انقطاع: يكمل من آخر طلب شافه، بس ما يطبع طلبات أقدم
+ * - رجوع الجهاز بعد انقطاع: يطبع اللي ما شافه، بس ما يطبع طلبات أقدم
  *   من نص ساعة -- ورق طلبات خلصت يربك أكثر مما يفيد.
+ *
+ * يتذكّر الطلبات اللي شافها (seen)، مو "آخر رقم": أرقام الطلبات محجوزة
+ * لكل جهاز (orderNumberPool.ts)، فطلب رقمه ١٣٠ ممكن يوصل بعد ١٥١. كان
+ * `id > lastId` يتخطّاه ولا ينطبع أبداً.
  *
  * الحدث المباشر (realtime) يسرّع، والفحص كل ثمان ثواني هو الضامن.
  */
@@ -38,10 +42,16 @@ const KEY = 'rk_print_station_v1';
 const POLL_MS = 60000;
 const MAX_AGE_MS = 30 * 60 * 1000;
 const WATCH_MAX_MS = 12 * 60 * 60 * 1000;
+/** نافذة القراءة: أوسع من MAX_AGE_MS عشان فرق ساعة الجهاز ما يضيّع طلب. */
+const WINDOW_MS = 2 * 60 * 60 * 1000;
+const WINDOW_ROWS = 200;
 
 interface StationState {
   branchId: number;
-  lastId: number;
+  /** الطلبات اللي انشافت: id → وقت إنشائها. يُقصّ بعد النافذة. */
+  seen?: Record<string, number>;
+  /** النسخة القديمة (قبل الأرقام المحجوزة): يُقرأ مرة للترحيل ثم يُترك. */
+  lastId?: number;
   /** طلبات طاولة من أجهزة ثانية تنتظر الدفع: id → وقت إنشائها. */
   watch: Record<string, number>;
   /** آخر طلب انطبع من جهاز ثاني -- يطلع في إعدادات الطابعة. */
@@ -205,31 +215,40 @@ async function tickOnce(branchId: number): Promise<void> {
     return;
   }
 
-  let state = await loadState();
-  if (!state || state.branchId !== branchId) {
-    // أول تشغيل: يبدأ من الحين، ما يطبع اللي قبل.
-    const { data } = await supabase
-      .from('orders')
-      .select('id')
-      .eq('branch_id', branchId)
-      .order('id', { ascending: false })
-      .limit(1);
-    state = { branchId, lastId: data?.[0]?.id != null ? Number(data[0].id) : 0, watch: {} };
-    await saveState(state);
-    return;
-  }
-
-  const { data: rows, error } = await supabase
+  // الأحدث أولاً بالحدّ، ثم يُعالَج من الأقدم: فرع زحمة ما يعلق على أول ٢٠٠.
+  const since = new Date(Date.now() - WINDOW_MS).toISOString();
+  const { data: recent, error } = await supabase
     .from('orders')
     .select('id, client_order_uuid, source, status, payment_status, created_at')
     .eq('branch_id', branchId)
-    .gt('id', state.lastId)
-    .order('id', { ascending: true })
-    .limit(30);
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(WINDOW_ROWS);
   if (error) throw error;
+  const rows = ((recent || []) as OrderRow[]).slice().reverse();
 
-  for (const r of (rows || []) as OrderRow[]) {
+  let state = await loadState();
+  if (!state || state.branchId !== branchId) {
+    // أول تشغيل: يبدأ من الحين، ما يطبع اللي قبل.
+    const seen: Record<string, number> = {};
+    for (const r of rows) seen[String(r.id)] = new Date(r.created_at).getTime() || Date.now();
+    await saveState({ branchId, seen, watch: {} });
+    return;
+  }
+  if (!state.seen) {
+    // ترحيل من lastId: اللي رقمه تحته انعالج بالنسخة القديمة.
+    const seen: Record<string, number> = {};
+    for (const r of rows) {
+      if (Number(r.id) <= (state.lastId ?? 0)) seen[String(r.id)] = new Date(r.created_at).getTime() || Date.now();
+    }
+    state = { ...state, seen };
+    delete state.lastId;
+  }
+  const seen = state.seen!;
+
+  for (const r of rows) {
     const id = Number(r.id);
+    if (seen[String(id)] != null) continue;
     const created = new Date(r.created_at).getTime();
     const skip =
       r.source === 'online' ||
@@ -246,10 +265,21 @@ async function tickOnce(branchId: number): Promise<void> {
         state.lastPrinted = { id, at: Date.now() };
       }
     }
-    // يتقدّم بعد كل طلب، عشان انقطاع بالنص ما يعيد طباعة اللي انطبع.
-    state.lastId = id;
+    // يُسجَّل بعد كل طلب، عشان انقطاع بالنص ما يعيد طباعة اللي انطبع.
+    seen[String(id)] = Number.isNaN(created) ? Date.now() : created;
     await saveState(state);
   }
+
+  // قصّ: ما عاد يرجع بالقراءة، فما يلزم تذكّره.
+  const cutoff = Date.now() - WINDOW_MS - 60 * 60 * 1000;
+  let pruned = false;
+  for (const k of Object.keys(seen)) {
+    if (seen[k] < cutoff) {
+      delete seen[k];
+      pruned = true;
+    }
+  }
+  if (pruned) await saveState(state);
 
   // طاولات تنتظر الدفع.
   const waiting = Object.keys(state.watch).map(Number);

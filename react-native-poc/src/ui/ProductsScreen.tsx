@@ -25,13 +25,14 @@ import type { DeliveryPlatform, PosFeatureFlags } from '../application/catalogSe
 import { listTables, seatWalkIn } from '../application/tableService';
 import { pointsRedeemOffer, redeemableCountText, toWesternDigits } from '../domain/customer';
 import { submitOrder } from '../application/orderService';
+import { takeReservedOrderNumber } from '../application/orderNumberPool';
 import { completePaymentOperation } from '../application/paymentService';
 import { getDeviceConfig } from '../application/authService';
 import { enqueuePrintJob } from '../application/printService';
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { kitchenTicketByButton, shouldPrintCustomerReceipt, shouldPrintKitchenTicket, shouldPrintReceiptLogo } from '../domain/printerProfile';
 import { supabase } from '../infrastructure/supabaseClient';
-import { buildOrderPayload, buildDineInRegisterPayload, buildDineInPayPayload } from '../domain/order';
+import { operationIdForOrder, buildOrderPayload, buildDineInRegisterPayload, buildDineInPayPayload } from '../domain/order';
 import type { ReceiptData, KitchenTicketData, ReceiptLine, ReceiptLineMod } from '../domain/receipt';
 import type { Product } from '../domain/catalog';
 import { isRetailBusinessType } from '../domain/catalog';
@@ -1267,7 +1268,7 @@ export default function ProductsScreen({
         setSubmitStatus('ما فيه فرع مرتبط بهذا الجهاز — أعد تجهيز الجهاز');
         return { ok: false, paid: 0, change: 0, printJobId: null };
       }
-      const payload = buildOrderPayload(cart.cart, productsById, catalog.modifiersByProductId, cart.unitPriceOf, {
+      const built = buildOrderPayload(cart.cart, productsById, catalog.modifiersByProductId, cart.unitPriceOf, {
         branchId: device.branchId,
         // The catalog's own stock maps, so a modifier extra actually
         // decrements what it draws from.
@@ -1293,8 +1294,14 @@ export default function ProductsScreen({
         paymentMethod: method,
         cashAmount,
       });
+      // رقم محجوز لهذا الجهاز: الفاتورة تنطبع برقمها النهائي بلا انتظار
+      // الخادم. ما فيه؟ نفس المسار القديم بالضبط.
+      const reserved = await takeReservedOrderNumber(device.branchId).catch(() => null);
+      const payload = reserved
+        ? { ...built, client_order_uuid: reserved.uuid, operation_id: operationIdForOrder(reserved.uuid), reserved_order_id: reserved.id }
+        : built;
       const outcome = await completePaymentOperation(payload, { openDrawer: method === 'cash' });
-      setSubmitStatus(paymentOutcomeText(outcome.paymentState));
+      setSubmitStatus(outcome.reservedNumber ? paymentOutcomeText('PAYMENT_COMPLETED') : paymentOutcomeText(outcome.paymentState));
       if (trial && !trial.subscribed) refreshTrialStatus(); // العدّاد زاد واحد
       if (outcome.paymentState === 'PAYMENT_COMPLETED' || outcome.paymentState === 'PAYMENT_SYNC_PENDING') {
         // Real receipt enqueue -- matches autoPrintOnCheckout's own

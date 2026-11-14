@@ -9,16 +9,19 @@ let mockRows: Row[] = [];
 function mockQuery() {
   let list = mockRows.slice();
   let desc = false;
+  let key = 'id';
   let lim = Infinity;
   const q: any = {
     select: () => q,
     eq: (k: string, v: unknown) => ((list = list.filter((r: any) => k === 'branch_id' || r[k] === v)), q),
     gt: (k: string, v: number) => ((list = list.filter((r: any) => r[k] > v)), q),
+    gte: (k: string, v: string) => ((list = list.filter((r: any) => r[k] >= v)), q),
     in: (k: string, vs: number[]) => ((list = list.filter((r: any) => vs.includes(r[k]))), q),
-    order: (_k: string, o: { ascending: boolean }) => ((desc = !o.ascending), q),
+    order: (k: string, o: { ascending: boolean }) => ((key = k), (desc = !o.ascending), q),
     limit: (n: number) => ((lim = n), q),
     then: (res: (v: unknown) => void) => {
-      const out = [...list].sort((a, b) => (desc ? b.id - a.id : a.id - b.id)).slice(0, lim);
+      const cmp = (a: any, b: any) => (a[key] < b[key] ? -1 : a[key] > b[key] ? 1 : a.id - b.id);
+      const out = [...list].sort((a, b) => (desc ? -cmp(a, b) : cmp(a, b))).slice(0, lim);
       res({ data: out, error: null });
     },
   };
@@ -135,6 +138,29 @@ describe('print station', () => {
     add({ id: 11 });
     await printStationTick(7);
     expect(mockJobs).toEqual([{ type: 'receipt', orderId: 11 }]);
+  });
+});
+
+describe('reserved order numbers (one block per device)', () => {
+  it('an order with an OLDER number that arrives later still prints', async () => {
+    await printStationTick(7);
+    add({ id: 151 }); // device B sold first
+    await printStationTick(7);
+    add({ id: 130 }); // device A's number is older, arrives after
+    await printStationTick(7);
+    await printStationTick(7);
+    expect(mockJobs).toEqual([
+      { type: 'receipt', orderId: 151 }, { type: 'kitchen', orderId: 151 },
+      { type: 'receipt', orderId: 130 }, { type: 'kitchen', orderId: 130 },
+    ]);
+  });
+
+  it('upgrading from the old lastId state: does not reprint, still catches new ones', async () => {
+    add({ id: 40 });
+    mockKv.set('rk_print_station_v1', JSON.stringify({ branchId: 7, lastId: 40, watch: {} }));
+    add({ id: 41 });
+    await printStationTick(7);
+    expect(mockJobs).toEqual([{ type: 'receipt', orderId: 41 }, { type: 'kitchen', orderId: 41 }]);
   });
 });
 

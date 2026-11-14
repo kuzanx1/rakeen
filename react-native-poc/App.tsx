@@ -33,6 +33,7 @@ import { startPrintStation } from './src/application/printStationService';
 import { startCustomerDisplay, stopCustomerDisplay } from './src/application/customerDisplayService';
 import { resetInterruptedPrintJobsOnBoot } from './src/infrastructure/sqlitePrintQueue';
 import { enqueuePrintJob, warmPrintPath } from './src/application/printService';
+import { refillOrderNumberPool } from './src/application/orderNumberPool';
 import PrintQueueScreen from './src/ui/PrintQueueScreen';
 import PrinterSettingsScreen from './src/ui/PrinterSettingsScreen';
 import uuid from 'react-native-uuid';
@@ -747,6 +748,13 @@ function App(): React.JSX.Element {
       stopScheduler?.();
     };
   }, [cashier]);
+
+  // أرقام طلبات محجوزة: تتعبّى عند الدخول، ورجوع النت، ورجوع التطبيق --
+  // وبعد كل بيع (orderNumberPool.ts). بلا مؤقّت.
+  useEffect(() => {
+    if (!cashier || branchId == null || !online) return;
+    void refillOrderNumberPool(branchId);
+  }, [cashier, branchId, online, resumeTick]);
 
   // «جهاز الطباعة للفرع»: يطبع طلبات الأجهزة الثانية. يشتغل دائماً مع
   // الكاشير، والخدمة نفسها ما تسوي شي لين ينفعّل مفتاحه في إعدادات الطابعة.

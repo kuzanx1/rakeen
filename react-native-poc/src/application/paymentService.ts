@@ -3,7 +3,7 @@ import { sqliteOrderQueueStorage } from '../infrastructure/sqliteOrderQueue';
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { openCashDrawer } from '../platform/cashDrawer';
 import { dispatchQueuedPayload, assignOfflineRef } from './orderService';
-import { QueuedPayload } from '../domain/order';
+import { OrderPayload, QueuedPayload } from '../domain/order';
 import { PaymentState, DrawerState, drawerAlreadyCompleted } from '../domain/payment';
 import { profileToPrinterTarget, drawerKickCommandFor, isDrawerSupported } from '../domain/printerProfile';
 
@@ -29,6 +29,8 @@ import { profileToPrinterTarget, drawerKickCommandFor, isDrawerSupported } from 
 
 export interface PaymentOutcome {
   paymentState: PaymentState;
+  /** الرقم محجوز ونهائي: انطبع فوراً والإرسال ماضٍ بالخلفية. */
+  reservedNumber?: boolean;
   drawerState: DrawerState;
   drawerError?: string;
   paymentError?: string;
@@ -157,6 +159,26 @@ async function runCompletePayment(
   let paymentError: string | undefined;
   let orderId: number | undefined;
   let offlineRef: string | undefined;
+
+  /*
+   * رقمٌ محجوز: لا انتظار.
+   *
+   * الرقم معروف ونهائي (الخادم يعطي هذا الـ uuid نفس الرقم -- انظر
+   * orderNumberPool.ts)، فالفاتورة تنطبع الحين والإرسال يمضي بالخلفية.
+   * الطلب محفوظ بالطابور قبل هذا السطر، فلو انقطع الإرسال أو انقفل
+   * التطبيق يرفعه المزامن مثل أي طلب معلّق، بنفس الرقم.
+   */
+  const reservedId =
+    afterDrawer.type !== 'dine_in_register' && afterDrawer.type !== 'dine_in_pay'
+      ? (afterDrawer as OrderPayload).reserved_order_id
+      : undefined;
+  if (reservedId != null && reservedId > 0) {
+    const pending: QueuedPayload = { ...afterDrawer, payment_state: 'PAYMENT_SYNC_PENDING' };
+    await sqliteOrderQueueStorage.put(pending);
+    sendReservedInBackground(pending, reservedId);
+    return { paymentState: 'PAYMENT_SYNC_PENDING', drawerState, drawerError, orderId: reservedId, reservedNumber: true };
+  }
+
   try {
     /**
      * ولا تُنتظر الشبكةُ إلى ما لا نهاية.
@@ -187,4 +209,22 @@ async function runCompletePayment(
   }
 
   return { paymentState, drawerState, drawerError, paymentError, orderId, offlineRef };
+}
+
+/** الإرسال بعد ما انطبعت الفاتورة. نجح: يطلع من الطابور. فشل: يبقى للمزامن. */
+function sendReservedInBackground(payload: QueuedPayload, reservedId: number): void {
+  withTimeout(dispatchQueuedPayload(payload), 30000)
+    .then(async result => {
+      await sqliteOrderQueueStorage.remove(payload.client_order_uuid);
+      if (typeof result === 'number' && result !== reservedId) {
+        // ما يصير إلا لو الحجز ما انطبق (فرع ثاني مثلاً). يُسجَّل ليُرى.
+        console.warn('[orderNumberPool] reserved', reservedId, 'but server gave', result);
+      }
+    })
+    .catch(async e => {
+      const msg = e instanceof Error ? e.message : String(e);
+      await sqliteOrderQueueStorage
+        .put({ ...payload, payment_state: 'PAYMENT_SYNC_PENDING', last_error: msg })
+        .catch(() => {});
+    });
 }

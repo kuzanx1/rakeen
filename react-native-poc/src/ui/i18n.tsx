@@ -124,6 +124,7 @@ const I18N_EN: Record<string, string> = {
   'فيه خيارات — اضغط مطولًا للتخصيص': 'Has options — hold to customize',
   'تجهيز هذا الجهاز': 'Set up this device',
   'ربط الجهاز': 'Link device',
+  'دخول': 'Sign in',
   'رمز الفرع': 'Branch code',
   'أدخل رمز نقطة البيع لهذا الفرع': 'Enter this branch\u2019s POS code',
   'سجّل دخولك كمدير أو مالك مرة وحدة بس، عشان نربط هذا التابلت بفرعك.': 'Sign in as a manager or owner once, to link this tablet to your branch.',
