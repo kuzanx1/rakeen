@@ -20815,7 +20815,18 @@ function showToast(msg){
   // «✓ ...» = نجاح: العلامة تنرسم دائرة خضراء بدل حرف صغير ضايع في النص.
   const ok = text.charAt(0) === '✓';
   t.classList.toggle('ok', ok);
-  t.textContent = ok ? text.slice(1).trim() : text;
+  t.textContent = '';
+  if(ok){
+    // دائرة خضراء تنط، والعلامة تنرسم داخلها.
+    const ic = document.createElement('span');
+    ic.className = 'dt-ic';
+    ic.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 12.5l3.8 3.8L17.5 8.5"/></svg>';
+    t.appendChild(ic);
+  }
+  const tx = document.createElement('span');
+  tx.className = 'dt-txt';
+  tx.textContent = ok ? text.slice(1).trim() : text;
+  t.appendChild(tx);
   t.classList.remove('show');
   void t.offsetWidth; // تنبيه ثاني ورا الأول ينعاد دخوله، ما يتبدل نصه بصمت
   t.classList.add('show');

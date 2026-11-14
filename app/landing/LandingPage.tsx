@@ -1418,14 +1418,17 @@ export default function LandingPage() {
       <section className="clients" aria-label={lang === "ar" ? "يشتغلون على ركين" : "Running on Rakeen"}>
         <div className="wrap clients-in" data-in>
           <p>{lang === "ar" ? "مطاعم وكافيهات تشتغل على ركين" : "Restaurants and cafés running on Rakeen"}</p>
-          <ul>
-            {CLIENTS.map((c) => (
-              <li key={c.img}>
-                <img src={`/landing/clients/${c.img}.jpg`} alt="" width={64} height={64} loading="lazy" />
-                <span>{lang === "ar" ? c.ar : c.en}</span>
-              </li>
-            ))}
-          </ul>
+          <div className="clients-win">
+            <ul className="clients-track">
+              {[0, 1].map((k) =>
+                CLIENTS.map((c) => (
+                  <li key={c.img + k} aria-hidden={k === 1}>
+                    <img src={`/landing/clients/${c.img}.jpg`} alt={k ? "" : lang === "ar" ? c.ar : c.en} width={54} height={54} />
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
         </div>
       </section>
 

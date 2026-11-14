@@ -1017,10 +1017,20 @@ button{font-family:inherit; cursor:pointer;}
 /* z-index was 300 — under the mobile bottom nav (510), FAB (511) and
    hamburger (520), so on any phone the toast rendered fully hidden behind
    the (opaque) nav bar instead of on top of it. 600 clears all three. */
-.dash-toast{position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(14px); display:flex; align-items:center; gap:10px; max-width:min(92vw,460px); background:#111; color:#FAFAF5; padding:13px 20px; border-radius:16px; border:1px solid rgba(255,255,255,.14); box-shadow:0 18px 40px -14px rgba(0,0,0,.55); font-weight:800; font-size:14.5px; line-height:1.5; z-index:600; opacity:0; transition:opacity .22s ease, transform .22s ease; pointer-events:none;}
-.dash-toast.ok::before{content:""; flex:none; width:22px; height:22px; border-radius:50%; background:#C4FF2B url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23111' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4L18 8'/%3E%3C/svg%3E") center/14px no-repeat;}
-.dash-toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
-@media (prefers-reduced-motion:reduce){ .dash-toast{transition:opacity .15s;} }
+.dash-toast{position:fixed; bottom:30px; left:50%; transform:translateX(-50%) translateY(26px) scale(.9); display:flex; align-items:center; gap:12px; max-width:min(92vw,460px); background:linear-gradient(180deg,#1d1d1b,#0e0e0d); color:#FAFAF5; padding:11px 22px 11px 22px; border-radius:999px; border:1px solid rgba(255,255,255,.12); box-shadow:0 24px 50px -18px rgba(0,0,0,.6), 0 2px 0 rgba(255,255,255,.06) inset; font-weight:800; font-size:15px; line-height:1.5; z-index:600; opacity:0; transition:opacity .2s ease, transform .2s ease; pointer-events:none;}
+.dash-toast.ok{padding-inline-start:11px; border-color:rgba(196,255,43,.38); box-shadow:0 24px 50px -18px rgba(0,0,0,.6), 0 0 44px -12px rgba(196,255,43,.5), 0 2px 0 rgba(255,255,255,.06) inset;}
+.dash-toast:not(.ok){border-radius:18px; padding:13px 20px;}
+.dash-toast.show{opacity:1; transform:translateX(-50%) translateY(0) scale(1); transition:opacity .25s ease, transform .55s cubic-bezier(.2,1.5,.35,1);}
+.dt-ic{position:relative; flex:none; width:32px; height:32px; border-radius:50%; background:#C4FF2B; display:grid; place-items:center; transform:scale(0);}
+.dt-ic::after{content:""; position:absolute; inset:0; border-radius:50%; border:2px solid #C4FF2B; opacity:0;}
+.dt-ic svg{width:20px; height:20px; fill:none; stroke:#111; stroke-width:3.2; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:18; stroke-dashoffset:18;}
+.dash-toast.show .dt-ic{animation:dt-pop .5s .08s cubic-bezier(.2,1.7,.4,1) forwards;}
+.dash-toast.show .dt-ic::after{animation:dt-ring .9s .25s ease-out;}
+.dash-toast.show .dt-ic svg{animation:dt-draw .34s .32s ease-out forwards;}
+@keyframes dt-pop{to{transform:scale(1);}}
+@keyframes dt-ring{from{opacity:.75; transform:scale(1);} to{opacity:0; transform:scale(2.1);}}
+@keyframes dt-draw{to{stroke-dashoffset:0;}}
+@media (prefers-reduced-motion:reduce){ .dash-toast,.dash-toast.show{transition:opacity .15s; transform:translateX(-50%);} .dt-ic{transform:none; animation:none !important;} .dt-ic::after{display:none;} .dt-ic svg{stroke-dashoffset:0; animation:none !important;} }
 
 /* ===== Delivery Platforms screen ===== */
 .delivery-context{padding:14px 16px; border-radius:var(--r-md); background:var(--surf1); font-size:12.5px; font-weight:700; color:var(--muted); margin-bottom:18px;}

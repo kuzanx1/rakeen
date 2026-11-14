@@ -484,19 +484,25 @@ body{background:#FBFAF5;}
 @media (max-width:640px){ .close{padding:60px 20px; border-radius:28px;} .close .btn{flex:1;} }
 
 /* ---------- footer ---------- */
-/* who runs on it: real logos, quiet */
+/* who runs on it: logos only, drifting through a small window */
 .clients{padding:64px 0 0;}
-.clients-in{display:flex; flex-direction:column; align-items:center; gap:26px;}
+.clients-in{display:flex; flex-direction:column; align-items:center; gap:22px;}
 .clients p{font-size:14px; font-weight:700; color:var(--muted); letter-spacing:.01em;}
-.clients ul{display:flex; flex-wrap:wrap; justify-content:center; gap:22px 34px;}
-.clients li{display:flex; align-items:center; gap:13px; font-size:16.5px; font-weight:800; color:var(--ink); white-space:nowrap;}
-.clients img{flex:none; width:56px; height:56px; border-radius:17px; object-fit:cover; box-shadow:0 0 0 1px rgba(18,18,18,.08), 0 12px 22px -14px rgba(0,0,0,.4);}
+.clients-win{width:min(100%,430px); direction:ltr; overflow:hidden; padding:10px 0 18px; -webkit-mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent); mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent);}
+.clients-track{display:flex; width:max-content; direction:ltr; animation:marquee 30s linear infinite;}
+.clients-track li{flex:none; margin-right:30px;}
+.clients-track img{display:block; width:54px; height:54px; border-radius:16px; object-fit:cover; box-shadow:0 0 0 1px rgba(18,18,18,.08), 0 12px 22px -14px rgba(0,0,0,.4);}
 .clients + #features + .chap{padding-top:96px;}
 @media (max-width:640px){
   .clients{padding-top:44px;}
-  .clients ul{gap:16px 22px;}
-  .clients li{font-size:14.5px; gap:10px;}
-  .clients img{width:44px; height:44px; border-radius:13px;}
+  .clients-win{width:min(100%,300px);}
+  .clients-track li{margin-right:22px;}
+  .clients-track img{width:46px; height:46px; border-radius:14px;}
+}
+@media (prefers-reduced-motion:reduce){
+  .clients-win{width:auto; -webkit-mask-image:none; mask-image:none;}
+  .clients-track{animation:none; flex-wrap:wrap; justify-content:center; width:auto; row-gap:16px;}
+  .clients-track li[aria-hidden="true"]{display:none;}
 }
 .foot{margin-top:80px; border-top:1px solid var(--line); padding:56px 0 28px;}
 .foot-in{display:grid; grid-template-columns:1.7fr 1fr 1.2fr .8fr; gap:40px 32px; align-items:start;}
