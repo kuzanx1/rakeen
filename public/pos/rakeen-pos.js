@@ -8764,9 +8764,29 @@ async function loadShiftData(){
   // بيع كاش أُعيد كاملاً كاشاً -- دخل وخرج فصفر. أما بيع شبكة أُعيد كاشاً
   // فالدرج ينقص فعلاً وإن لم يدخله شيء، وبيع كاش أُعيد بعضه فالباقي منه
   // في الدرج. فالاستبعاد كان يُخفي سحباً حقيقياً من الصندوق.
-  const { data } = await window.supabaseClient
+  /* فشل القراءة ليس "لا مبيعات". supabase-js لا يرمي: يُرجع data فارغة مع
+     error، فكان انقطاعٌ لحظة فتح الإقفال يجعل المتوقع في الدرج هو الرصيد
+     الافتتاحي وحده، ويُسجَّل فرقٌ وهمي على ورقة يوقّعها المدير. الآن يُرمى
+     خطأ، ومن ينادي يعرض «جرّب مرة ثانية» بدل أرقام ناقصة.
+     (نظيرها في التطبيق: loadShiftTotals.) */
+  const { data, error: ordersError } = await window.supabaseClient
     .from('orders').select('total, subtotal, discount_pct, discount_amount, vat_amount, payment_method, cash_amount, source').eq('shift_id', CURRENT_SHIFT.id).eq('payment_status', 'paid');
+  if(ordersError) throw new Error('shift_totals_unreadable');
   const orders = data || [];
+  /* إيداع وسحب الدرج. التطبيق يسجّلها (shift_cash_movements) ويحسبها، والويب
+     ما كان يقرؤها أصلاً: وردية سُحب منها ٢٠٠ من التطبيق ثم أُقفلت من الويب
+     يطلع فيها عجز ٢٠٠ على كاشير ما نقصه شي. جدول غير موجود = لا حركات. */
+  let cashInTotal = 0, cashOutTotal = 0;
+  {
+    const mv = await window.supabaseClient
+      .from('shift_cash_movements').select('direction, amount').eq('shift_id', CURRENT_SHIFT.id);
+    const missing = mv.error && (mv.error.code === '42P01' || mv.error.code === 'PGRST205' || /does not exist|schema cache/i.test(mv.error.message || ''));
+    if(mv.error && !missing) throw new Error('shift_totals_unreadable');
+    (mv.data || []).forEach(m=>{
+      const amt = Math.abs(Number(m.amount) || 0);
+      if(m.direction === 'in') cashInTotal += amt; else cashOutTotal += amt;
+    });
+  }
   // المرتجعات بورديّة خروج المال لا بورديّة البيع: قد يُرجَع بيع الأمس
   // اليوم، والدرج الذي ينقص هو درج اليوم.
   let refundsTotal = 0, refundsCount = 0;
@@ -8820,7 +8840,8 @@ async function loadShiftData(){
     onlineTotal: onlineSales,
     salesTotal: netSales,
     // الاسترجاع كاش دائماً، فهو سحبٌ من الدرج مهما كانت طريقة دفع البيع.
-    cashTotal: Number(CURRENT_SHIFT.opening_cash) + cashSales - refundsTotal,
+    cashInTotal, cashOutTotal,
+    cashTotal: Number(CURRENT_SHIFT.opening_cash) + cashSales + cashInTotal - cashOutTotal - refundsTotal,
     cardTotal: cardSales,
     deliveryPlatformTotal: deliveryPlatformSales,
     startTime: new Date(CURRENT_SHIFT.opened_at).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'})
@@ -8831,15 +8852,31 @@ async function openShiftSummary(){
   document.getElementById('paymentModalTitle').textContent = 'ملخص الوردية';
   paymentModalBody.innerHTML = '<p class="pos-auth-sub">جاري التحميل...</p>';
   document.getElementById('paymentModal').classList.add('show');
-  const data = await loadShiftData();
+  let data;
+  try { data = await loadShiftData(); }
+  catch(_){ renderShiftTotalsUnreadable(openShiftSummary); return; }
   paymentModalBody.innerHTML = `
     <div style="text-align:center; margin-bottom:16px;"><div style="font-size:11px; font-weight:700; color:var(--muted);">من بداية الوردية — ${data.startTime}</div></div>
     <div class="shift-stat-row"><span>عدد الطلبات</span><span class="mono">${data.ordersCount}</span></div>
     <div class="shift-stat-row"><span>إجمالي المبيعات</span>${rkMoney(data.salesTotal)}</div>
+    ${data.cashInTotal > 0 ? `<div class="shift-stat-row"><span>إيداع بالدرج</span>${rkMoney(data.cashInTotal)}</div>` : ''}
+    ${data.cashOutTotal > 0 ? `<div class="shift-stat-row"><span>سحب من الدرج</span>${rkMoney(-data.cashOutTotal)}</div>` : ''}
     <div class="shift-stat-row"><span>كاش (شامل الرصيد الافتتاحي)</span>${rkMoney(data.cashTotal)}</div>
     <div class="shift-stat-row"><span>بطاقة / Apple Pay</span>${rkMoney(data.cardTotal)}</div>
     <div class="shift-stat-row total"><span>توصيل — مدفوع عبر التطبيق</span>${rkMoney(data.deliveryPlatformTotal)}</div>
   `;
+}
+
+/* بدل الأرقام حين تتعذّر قراءتها: سبب واضح وزر إعادة، لا أصفار. */
+function renderShiftTotalsUnreadable(retry){
+  paymentModalBody.innerHTML = `
+    <div style="text-align:center; padding:8px 4px 4px;">
+      <div style="font-size:16px; font-weight:800;">ما قدرنا نقرأ مبيعات الوردية</div>
+      <p class="pos-auth-sub" style="margin-top:8px;">تأكد من الإنترنت وجرّب مرة ثانية. ما نعرض أرقام ناقصة عشان ما تطلع الموازنة غلط.</p>
+      <button class="confirm-pay-btn" id="shiftTotalsRetryBtn" style="margin-top:16px;">جرّب مرة ثانية</button>
+    </div>`;
+  const b = document.getElementById('shiftTotalsRetryBtn');
+  if(b) b.addEventListener('click', ()=>retry());
 }
 
 /* ============ Closing Wizard ============ */
@@ -8884,10 +8921,17 @@ async function openClosingWizard(){
   document.getElementById('paymentModalTitle').textContent = 'إغلاق الوردية — عدّ الكاش';
   paymentModalBody.innerHTML = '<p class="pos-auth-sub">جاري التحميل...</p>';
   document.getElementById('paymentModal').classList.add('show');
-  const [shiftData, staffRes] = await Promise.all([
-    loadShiftData(),
-    window.supabaseClient.from('staff_members').select('id, name').eq('branch_id', DEVICE.branchId).eq('active', true).order('name'),
-  ]);
+  let shiftData, staffRes;
+  try {
+    [shiftData, staffRes] = await Promise.all([
+      loadShiftData(),
+      window.supabaseClient.from('staff_members').select('id, name').eq('branch_id', DEVICE.branchId).eq('active', true).order('name'),
+    ]);
+  } catch(_){
+    document.getElementById('paymentModalTitle').textContent = 'إغلاق الوردية';
+    renderShiftTotalsUnreadable(openClosingWizard);
+    return;
+  }
   closingShiftData = shiftData;
   closingStaffList = (staffRes && staffRes.data) || [];
   renderClosingWizard();
@@ -8961,6 +9005,7 @@ function renderClosingWizard(){
         const btn = document.getElementById('confirmCloseBtn');
         const errEl = document.getElementById('closingWizardError');
         if(btn) btn.disabled = true;
+        RK_CLOSING_SHIFT_HERE = true;
         try {
           const { error } = await window.supabaseClient.from('shifts')
             .update({
@@ -8988,15 +9033,22 @@ function renderClosingWizard(){
             cashExpected: closingShiftData.cashTotal, cashCounted: counted, cashVariance: variance
           };
           const { data: { user } } = await window.supabaseClient.auth.getUser();
-          await window.supabaseClient.from('shift_closing_reports').insert({
+          const reportIns = await window.supabaseClient.from('shift_closing_reports').insert({
             shift_id: CURRENT_SHIFT.id, business_id: DEVICE.businessId, branch_id: DEVICE.branchId,
             closed_by: user.id, orders_count: report.ordersCount, sales_total: report.salesTotal,
             cash_expected: report.cashExpected, cash_counted: report.cashCounted, cash_variance: report.cashVariance,
             card_total: report.cardTotal, delivery_platform_total: report.deliveryPlatformTotal
           });
-          sendShiftReportToPrinter(report).then(result=>{
-            if(result.ok) showToast('تمت طباعة تقرير الإغلاق');
-          });
+          /* الإدراج لا يرمي عند الفشل، فكان يمرّ صامتاً: وردية مقفلة بلا تقرير
+             محفوظ، و«أعد طباعة آخر موازنة» يطبع موازنة الأمس. الطباعة تمضي
+             (الورقة بيد الكاشير)، ويُنتظر تأكيده قبل الخروج. */
+          const printing = sendShiftReportToPrinter(report);
+          if(reportIns && reportIns.error){
+            await printing.catch(()=>null);
+            await rkPosAsk({ title: 'انقفلت الوردية', body: 'بس تقرير الموازنة ما انحفظ في النظام. احتفظ بالورقة المطبوعة — ما تقدر تعيد طباعتها بعدين.', ok: 'فهمت', cancel: null }).catch(()=>null);
+          } else {
+            printing.then(result=>{ if(result.ok) showToast('تمت طباعة تقرير الإغلاق'); });
+          }
 
           document.getElementById('paymentModal').classList.remove('show');
           CURRENT_SHIFT = null;
@@ -9004,6 +9056,7 @@ function renderClosingWizard(){
           await window.supabaseClient.auth.signOut();
           window.location.reload();
         } catch(err){
+          RK_CLOSING_SHIFT_HERE = false;
           if(errEl){
             errEl.textContent = err && err.message ? err.message : 'تعذر إغلاق الوردية.';
             errEl.style.display = 'block';
@@ -10081,8 +10134,12 @@ async function findOpenShift(){
   // throwing). That meant a cold boot with no network always landed on
   // "بدء الوردية" even when a shift was genuinely already open, since it
   // couldn't tell "confirmed no open shift" apart from "couldn't check".
-  const { data, error } = await window.supabaseClient
-    .from('shifts').select('*').eq('cashier_id', CURRENT_PROFILE.id).is('closed_at', null)
+  // بالفرع لا بالحساب: قاعدة البيانات تسمح بوردية مفتوحة واحدة لكل فرع،
+  // فالبحث بالحساب وحده يفوّت وردية الفرع متى اختلف الحساب -- فيظهر «بدء
+  // الوردية» ويرفض الخادم الإدراج بلا نهاية. (نظيرها في التطبيق: findOpenShift.)
+  let q = window.supabaseClient.from('shifts').select('*');
+  q = (DEVICE && DEVICE.branchId != null) ? q.eq('branch_id', DEVICE.branchId) : q.eq('cashier_id', CURRENT_PROFILE.id);
+  const { data, error } = await q.is('closed_at', null)
     .order('opened_at', {ascending:false}).limit(1);
   if(error){
     const cached = await getCacheValue('shift:' + CURRENT_PROFILE.id).catch(()=>null);
@@ -10251,7 +10308,15 @@ document.getElementById('openShiftSubmitBtn').addEventListener('click', async ()
       staff_member_id: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.id : null,
       opening_cash: openingCash
     }).select().single();
-    if(error) throw error;
+    if(error){
+      /* 23505: للفرع وردية مفتوحة أصلاً -- فتحها جهاز ثانٍ قبل لحظة أو ضُغط
+         الزر مرتين. هذا الجهاز ينضمّ لها، ورصيدها الافتتاحي ما كتبه من فتحها. */
+      if(error.code === '23505'){
+        const existing = await findOpenShift();
+        if(existing){ CURRENT_SHIFT = existing; showToast('فيه وردية مفتوحة لهذا الفرع — انضمّيت لها'); await bootPos(); return; }
+      }
+      throw new Error('تعذر بدء الوردية — تحقق من الاتصال وجرّب مرة ثانية');
+    }
     CURRENT_SHIFT = data;
     await bootPos();
   } catch(err){
@@ -10259,6 +10324,35 @@ document.getElementById('openShiftSubmitBtn').addEventListener('click', async ()
     errEl.style.display = 'block';
   }
 });
+
+/* الوردية واحدة للفرع، وجهازان فيه يتشاركانها. كان إقفالها من أحدهما لا يصل
+   الآخر، فيبقى يبيع على وردية موقَّعة: مبيعاته تسقط من موازنة الأمس ولا تدخل
+   موازنة اليوم. بالحدث، وعند الرجوع للصفحة مرة -- بلا استعلام دوري.
+   (نظيرها في التطبيق: subscribeToShiftClosed.) */
+let RK_CLOSING_SHIFT_HERE = false;
+let shiftClosedChannel = null, shiftClosedHandled = false;
+async function rkShiftClosedElsewhere(){
+  if(shiftClosedHandled || RK_CLOSING_SHIFT_HERE) return;
+  shiftClosedHandled = true;
+  await rkPosAsk({ title: 'الوردية انقفلت من جهاز ثاني', body: 'لازم تبدأ وردية جديدة قبل لا تكمل البيع.', ok: 'تمام', cancel: null }).catch(()=>null);
+  window.location.reload();
+}
+function subscribeToShiftClosed(){
+  if(shiftClosedChannel || !CURRENT_SHIFT) return;
+  const shiftId = CURRENT_SHIFT.id;
+  shiftClosedChannel = window.supabaseClient
+    .channel('pos-shift-' + shiftId)
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'shifts', filter: 'id=eq.' + shiftId }, (payload)=>{
+      if(payload && payload.new && payload.new.closed_at) rkShiftClosedElsewhere();
+    })
+    .subscribe();
+  // الحدث قد يفوت والتبويب نائم: عند الرجوع يُسأل الخادم مرة.
+  document.addEventListener('visibilitychange', async ()=>{
+    if(document.visibilityState !== 'visible' || !CURRENT_SHIFT || RK_CLOSING_SHIFT_HERE || !navigator.onLine) return;
+    const { data, error } = await window.supabaseClient.from('shifts').select('closed_at').eq('id', shiftId).maybeSingle();
+    if(!error && data && data.closed_at) rkShiftClosedElsewhere();
+  });
+}
 
 let tablesRealtimeChannel = null;
 function subscribeToTableChanges(){
@@ -10651,6 +10745,7 @@ async function bootPos(){
     else renderTables();
     subscribeToTableChanges();
   }
+  subscribeToShiftClosed();
   subscribeToOrderReadyAlerts();
   subscribeToIncomingOnlineOrders();
   subscribeToOrdersLiveSync();
