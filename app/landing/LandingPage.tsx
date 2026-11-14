@@ -574,6 +574,90 @@ function ClientsStrip({ lang }: { lang: Lang }) {
   );
 }
 
+// The sale film: one real order on the real cashier — loyalty, payment,
+// receipt, kitchen screen, the customer's phone ringing, points landing in
+// the wallet, the owner's day updating. Landscape cut on wide screens,
+// portrait cut on phones. Plays only while on screen; never autoplays for
+// reduced-motion visitors (poster + play button instead).
+function SaleFilm({ lang }: { lang: Lang }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const [cut, setCut] = useState<"land" | "port" | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const calm = useRef(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 700px)");
+    calm.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const pick = () => setCut(mq.matches ? "port" : "land");
+    pick();
+    mq.addEventListener("change", pick);
+    return () => mq.removeEventListener("change", pick);
+  }, []);
+
+  useEffect(() => {
+    const v = ref.current;
+    if (!v || !cut || calm.current) return;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) v.play().catch(() => {});
+        else v.pause();
+      },
+      { threshold: 0.35 }
+    );
+    io.observe(v);
+    return () => io.disconnect();
+  }, [cut]);
+
+  const toggle = () => {
+    const v = ref.current;
+    if (!v) return;
+    if (v.paused) v.play().catch(() => {});
+    else v.pause();
+  };
+
+  const ar = lang === "ar";
+  return (
+    <section className="film" aria-label={ar ? "فيلم: طلب واحد على ركين" : "Film: one order on Rakeen"}>
+      <div className="wrap">
+        <div className="film-head" data-in>
+          <span className="kicker">{ar ? "٣٤ ثانية" : "34 seconds"}</span>
+          <h2>{ar ? "شف طلب واحد يمشي في ركين." : "Watch one order move through Rakeen."}</h2>
+          <p>
+            {ar
+              ? "من ضغطة الكاشير، للولاء، للفاتورة والمطبخ، لجوال العميل وهو يرن، لنقاطه في محفظته — كله من الشاشات الحقيقية."
+              : "From the cashier tap to loyalty, receipt, kitchen, the customer's phone ringing and points landing in their wallet — all real screens."}
+          </p>
+        </div>
+        <div className={"film-frame" + (cut === "port" ? " port" : "")} data-in>
+          {cut && (
+            <video
+              key={cut}
+              ref={ref}
+              className="film-v"
+              src={`https://media.rakeenapp.com/landing/film/v1/sale-${cut}.mp4`}
+              poster={`/landing/film/sale-${cut}.jpg`}
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              onPlay={() => setPlaying(true)}
+              onPause={() => setPlaying(false)}
+              onClick={toggle}
+            />
+          )}
+          <button type="button" className={"film-btn" + (playing ? " on" : "")} onClick={toggle} aria-label={playing ? (ar ? "إيقاف الفيلم" : "Pause film") : ar ? "شغّل الفيلم" : "Play film"}>
+            {playing ? (
+              <svg viewBox="0 0 24 24" aria-hidden><rect x="6" y="5" width="4" height="14" rx="1.2" /><rect x="14" y="5" width="4" height="14" rx="1.2" /></svg>
+            ) : (
+              <svg viewBox="0 0 24 24" aria-hidden><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" /></svg>
+            )}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function StoreBadges({ f, dark }: { f: { iosA: string; iosB: string; andA: string; andB: string }; dark?: boolean }) {
   return (
     <div className={"badges" + (dark ? " on-dark" : "")}>
@@ -1444,6 +1528,9 @@ export default function LandingPage() {
 
       {/* ---------- who runs on it ---------- */}
       <ClientsStrip lang={lang} />
+
+      {/* ---------- the sale film ---------- */}
+      <SaleFilm lang={lang} />
 
       <div id="features" />
 

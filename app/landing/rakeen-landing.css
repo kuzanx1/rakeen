@@ -963,3 +963,19 @@ body{background:#FBFAF5;}
 .app-plan{background:rgba(196,255,43,.28); color:var(--ink);}
 .app-blob{background:radial-gradient(closest-side, rgba(196,255,43,.38), transparent);}
 @media (max-width:640px){ .app-dl .btn{flex:1 1 100%;} }
+
+/* ---------- sale film ---------- */
+.film{padding:96px 0 0;}
+.film-head{max-width:640px; margin:0 auto 34px; text-align:center;}
+.film-head h2{font-size:clamp(28px,4vw,44px); line-height:1.25; font-weight:800; margin:0 0 12px; letter-spacing:-.01em;}
+.film-head p{font-size:17px; line-height:1.8; color:var(--muted,#5f5b52); margin:0;}
+.film-frame{position:relative; max-width:1120px; margin:0 auto; aspect-ratio:16/9; border-radius:28px; overflow:hidden; background:#EFEEE8; box-shadow:0 0 0 1px var(--line), 0 40px 90px -40px rgba(18,18,18,.35);}
+.film-frame.port{aspect-ratio:4/5; max-width:520px; border-radius:24px;}
+.film-v{display:block; width:100%; height:100%; object-fit:cover; cursor:pointer;}
+.film-btn{position:absolute; bottom:16px; inset-inline-start:16px; width:44px; height:44px; border-radius:50%; border:none; display:grid; place-items:center; background:var(--ink); color:var(--lime); cursor:pointer; box-shadow:0 10px 24px -10px rgba(0,0,0,.5); transition:opacity .3s, transform .2s;}
+.film-btn svg{width:18px; height:18px; fill:currentColor;}
+.film-btn.on{opacity:.0;}
+.film-frame:hover .film-btn.on,.film-btn.on:focus-visible{opacity:.85;}
+.film-btn:active{transform:scale(.92);}
+@media (hover:none){ .film-btn.on{opacity:.6;} }
+@media (max-width:700px){ .film{padding-top:72px;} .film-head p{font-size:15.5px;} .film-btn{width:40px; height:40px; bottom:12px; inset-inline-start:12px;} }

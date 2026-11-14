@@ -35,6 +35,10 @@ const CSP = [
   // CSP was silently blocking (no thrown JS error, the <img> just never
   // loads) until this was added.
   "img-src 'self' data: blob: https:",
+  // Landing film videos live in R2 (media.rakeenapp.com): Workers static
+  // assets ignore Range and always answer 200 with the whole file, and
+  // iPhone Safari refuses to play a <video> that can't get a 206.
+  `media-src 'self' blob: ${MEDIA_ORIGIN}`,
   `connect-src 'self' ${SUPABASE_ORIGIN} ${SUPABASE_WS_ORIGIN} https://cloudflareinsights.com`,
   // Storefront footer/order-status branch map embeds (iframe to Google Maps);
   // 'self' additionally covers the help center's real-screen previews

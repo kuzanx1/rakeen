@@ -25,9 +25,22 @@ async function serveMediaBucket(request, env) {
   if (!key) return new Response("Not found", { status: 404 });
 
   const ifNoneMatch = request.headers.get("if-none-match");
-  const object = await env.MEDIA_BUCKET.get(key, {
-    onlyIf: ifNoneMatch ? { etagDoesNotMatch: ifNoneMatch } : undefined,
-  });
+  // Range: iPhone Safari won't play a <video> unless the server answers a
+  // byte range with 206 (it probes "bytes=0-1" first). R2 takes the request's
+  // Range header as-is and returns only that slice.
+  const hasRange = /^bytes=\d*-\d*$/.test(request.headers.get("range") || "");
+  let object;
+  try {
+    object = await env.MEDIA_BUCKET.get(key, {
+      onlyIf: ifNoneMatch ? { etagDoesNotMatch: ifNoneMatch } : undefined,
+      range: hasRange ? request.headers : undefined,
+    });
+  } catch {
+    // unsatisfiable range (past the end of the object)
+    const head = await env.MEDIA_BUCKET.head(key);
+    if (!head) return new Response("Not found", { status: 404 });
+    return new Response(null, { status: 416, headers: { "content-range": `bytes */${head.size}` } });
+  }
   if (object === null) return new Response("Not found", { status: 404 });
 
   const headers = new Headers();
@@ -47,8 +60,20 @@ async function serveMediaBucket(request, env) {
   // already fully public, so a blanket allow-origin costs nothing.
   headers.set("access-control-allow-origin", "*");
 
+  headers.set("accept-ranges", "bytes");
+
   if (!object.body) return new Response(null, { status: 304, headers });
-  return new Response(request.method === "HEAD" ? null : object.body, { headers });
+  const body = request.method === "HEAD" ? null : object.body;
+  const r = object.range;
+  if (hasRange && r) {
+    const suffix = "suffix" in r ? Math.min(r.suffix, object.size) : null;
+    const start = suffix != null ? object.size - suffix : r.offset || 0;
+    const len = suffix != null ? suffix : r.length ?? object.size - start;
+    headers.set("content-range", `bytes ${start}-${start + len - 1}/${object.size}`);
+    headers.set("content-length", String(len));
+    return new Response(body, { status: 206, headers });
+  }
+  return new Response(body, { headers });
 }
 
 // وسم توثيق ملكية النطاق يُرفَع إلى <head>.
