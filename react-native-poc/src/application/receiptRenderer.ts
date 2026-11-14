@@ -3,9 +3,8 @@ import type { SkImage } from '@shopify/react-native-skia';
 import { createReceiptSurface, loadRemoteImage } from '../platform/receiptCanvas';
 import { loadReceiptTypefaces } from '../platform/receiptFonts';
 import { buildReceiptFontProvider, paintTextAnchored, measureTextWidthWeighted } from '../platform/receiptText';
-import { rgbaToEscPosRaster, rgbaToEscPosRasterLegacy, RgbaBuffer, PrintDarkness, RasterRect } from '../domain/escposRaster';
+import { rasterJobBase64, RgbaBuffer, PrintDarkness, RasterRect } from '../domain/escposRaster';
 import type { PrintTimer } from './printTiming';
-import { bytesToBase64 } from '../domain/escposText';
 import { zatcaQrBase64 } from '../domain/zatca';
 import { buildQrMatrix } from '../domain/qrMatrix';
 import { toReceiptPrintable, toKitchenTicketPrintable, ReceiptPrintable, KitchenTicketPrintable } from '../domain/receiptPrintable';
@@ -64,9 +63,10 @@ function protectRectsOf(layout: LayoutResult): RasterRect[] {
   return out;
 }
 
-function encodeRaster(buffer: RgbaBuffer, command?: 'modern' | 'legacy', darkness?: PrintDarkness, layout?: LayoutResult): number[] {
+/** من البكسلات إلى مهمّة طباعة كاملة base64 -- في مرّة واحدة (انظر rasterJobBase64). */
+function encodeJob(buffer: RgbaBuffer, command?: 'modern' | 'legacy', darkness?: PrintDarkness, layout?: LayoutResult): string {
   const opts = { darkness, protect: darkness && darkness !== 'normal' && layout ? protectRectsOf(layout) : undefined };
-  return command === 'modern' ? rgbaToEscPosRaster(buffer, opts) : rgbaToEscPosRasterLegacy(buffer, opts);
+  return rasterJobBase64(buffer, command, opts);
 }
 
 /* ولا مقاسَ هنا: كانت PAD وLINE_H وKITCHEN_LINE_H تعيش في هذا الملفّ
@@ -124,9 +124,31 @@ function drawQrMatrix(canvas: ReturnType<typeof createReceiptSurface>['canvas'],
  */
 const RIYAL = '⃁';
 
+/* مزوِّد الخطوط يُبنى مرّة: الخطوط نفسها لا تتغيّر بين فاتورة وأخرى، وكان
+   يُعاد تسجيل الستّة مع كل ورقة. ولا يُحفظ إلا إن اكتمل -- خطٌّ لم يُحمَّل
+   يُعاد طلبه في الورقة التالية. */
+let fontProviderMemo: ReturnType<typeof buildReceiptFontProvider> | null = null;
 async function buildFontProviderReady() {
+  if (fontProviderMemo) return fontProviderMemo;
   const { regular, bold, riyalRegular, riyalBold, monoRegular, monoBold } = await loadReceiptTypefaces();
-  return buildReceiptFontProvider(regular, bold, riyalRegular, riyalBold, monoRegular, monoBold);
+  const provider = buildReceiptFontProvider(regular, bold, riyalRegular, riyalBold, monoRegular, monoBold);
+  if (regular && bold && riyalRegular && riyalBold && monoRegular && monoBold) fontProviderMemo = provider;
+  return provider;
+}
+
+/**
+ * يجهّز ما تحتاجه أول فاتورة قبل أن تُطلب: الخطوط والشعار.
+ *
+ * أول فاتورة بعد فتح التطبيق كانت تدفع ثمن تحميل ستة خطوط وجلب الشعار
+ * من الشبكة، والكاشير ينتظرها. تُنادى بلا انتظار بعد ظهور الكاشير.
+ */
+export async function warmReceiptRenderer(logoUrl?: string | null): Promise<void> {
+  try {
+    await buildFontProviderReady();
+    if (logoUrl) await loadRemoteImage(logoUrl);
+  } catch {
+    // تجهيزٌ لا أكثر: الفاتورة تحمّل ما نقص بنفسها.
+  }
 }
 
 /**
@@ -305,11 +327,9 @@ export async function renderReceiptToEscPosBase64(
     paintReceiptOps(canvas, provider, layout, { logo: logoImage, qrPayload });
 
     const rgba = timer ? await timer.stage('pixelsRead', () => surface.toRgba(layout.height)) : surface.toRgba(layout.height);
-    const raster = timer
-      ? await timer.stage('escposBuild', () => encodeRaster(rgba, rasterCommand, darkness, layout))
-      : encodeRaster(rgba, rasterCommand, darkness, layout);
-    const bytes = [0x1b, 0x40, ...raster, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00];
-    return timer ? await timer.stage('base64', () => bytesToBase64(bytes)) : bytesToBase64(bytes);
+    return timer
+      ? await timer.stage('escposBuild', () => encodeJob(rgba, rasterCommand, darkness, layout))
+      : encodeJob(rgba, rasterCommand, darkness, layout);
   } catch (e) {
     // Never let a rendering bug silently fail to print at all -- falls
     // back to the ASCII placeholder (domain/receipt.ts), a real
@@ -355,9 +375,7 @@ export async function renderShiftReportToEscPosBase64(
   paintReceiptOps(canvas, provider, layout, { logo: null, qrPayload: null });
 
   const rgba = surface.toRgba(layout.height);
-  const raster = encodeRaster(rgba, rasterCommand, darkness, layout);
-  const bytes = [0x1b, 0x40, ...raster, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00];
-  return bytesToBase64(bytes);
+  return encodeJob(rgba, rasterCommand, darkness, layout);
 }
 
 export async function renderKitchenTicketToEscPosBase64(data: KitchenTicketData, printerPaperWidthPx?: number, rasterCommand?: 'modern' | 'legacy', timer?: PrintTimer, darkness?: PrintDarkness): Promise<string> {
@@ -382,9 +400,7 @@ export async function renderKitchenTicketToEscPosBase64(data: KitchenTicketData,
     paintReceiptOps(canvas, provider, layout, { logo: logoImage, qrPayload: null });
 
     const rgba = surface.toRgba(layout.height);
-    const raster = encodeRaster(rgba, rasterCommand, darkness, layout);
-    const bytes = [0x1b, 0x40, ...raster, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00];
-    return bytesToBase64(bytes);
+    return encodeJob(rgba, rasterCommand, darkness, layout);
   } catch (e) {
     console.error('[receiptRenderer] kitchen ticket rendering failed, falling back to ASCII:', e);
     return buildKitchenTicketEscPosBase64(data);

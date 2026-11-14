@@ -304,18 +304,70 @@ export async function getRequireManagerPinForClose(businessId: number): Promise<
  * migration runs, and PostgREST fails an entire select over one unknown
  * column. Falls back to 'classic'.
  */
-export async function getReceiptTheme(businessId: number): Promise<string> {
+/**
+ * شكل الفاتورة يُقرأ من الذاكرة، ويُحدَّث في الخلفية.
+ *
+ * كان رحلةً إلى الخادم داخل مسار الطباعة نفسه، مع كل فاتورة: الطابعة
+ * ساكتة والكاشير واقف حتى يردّ الخادم -- وبلا مهلة، فشبكةٌ ضعيفة تُبقي
+ * الفاتورة معلّقة. وهو إعدادٌ يتغيّر مرّةً في السنة.
+ *
+ * نفس نمط هويّة الفاتورة تحته: المحفوظ يُرجَع فوراً، والتحديث لا يُنتظر.
+ * `fresh` لشاشة الإعدادات وحدها، حيث يُراد ما في الخادم الآن.
+ */
+const THEME_KEY = 'rakeen_receipt_theme';
+let themeMemo: Record<string, string> = {};
+let themeLoaded = false;
+
+async function fetchReceiptTheme(businessId: number): Promise<string | null> {
   try {
     const { data, error } = await supabase
       .from('businesses')
       .select('receipt_theme')
       .eq('id', businessId)
       .single();
-    if (error || !data?.receipt_theme) return 'classic';
-    return String(data.receipt_theme);
+    if (error) return null;
+    return data?.receipt_theme ? String(data.receipt_theme) : 'classic';
   } catch {
-    return 'classic';
+    return null;
   }
+}
+
+async function refreshReceiptTheme(businessId: number): Promise<string | null> {
+  const fresh = await fetchReceiptTheme(businessId);
+  if (fresh == null) return null; // الشبكة ما ردّت: المحفوظ يبقى
+  if (themeMemo[String(businessId)] !== fresh) {
+    themeMemo[String(businessId)] = fresh;
+    try {
+      await kvStorage.setItem(THEME_KEY, JSON.stringify(themeMemo));
+    } catch {
+      // الذاكرة الحيّة تكفي هذي الجلسة.
+    }
+  }
+  return fresh;
+}
+
+export async function getReceiptTheme(businessId: number, opts?: { fresh?: boolean }): Promise<string> {
+  const key = String(businessId);
+  if (opts?.fresh) return (await refreshReceiptTheme(businessId)) ?? themeMemo[key] ?? 'classic';
+  if (!themeLoaded) {
+    themeLoaded = true;
+    try {
+      const raw = await kvStorage.getItem(THEME_KEY);
+      if (raw) themeMemo = { ...(JSON.parse(raw) as Record<string, string>), ...themeMemo };
+    } catch {
+      // مخزونٌ تالف: يُتجاهل.
+    }
+  }
+  if (themeMemo[key]) {
+    void refreshReceiptTheme(businessId).catch(() => {});
+    return themeMemo[key];
+  }
+  // أوّل مرّة على هذا الجهاز: لا تنتظر الشبكة أكثر من ثانية ونصف.
+  const first = await Promise.race([
+    refreshReceiptTheme(businessId),
+    new Promise<null>(resolve => { setTimeout(() => resolve(null), 1500); }),
+  ]);
+  return first ?? 'classic';
 }
 
 export interface ReceiptBranding {
@@ -411,6 +463,8 @@ async function getReceiptBrandingInner(businessId: number, branchId: number | nu
 export function clearReceiptBrandingCache(): void {
   brandingMemo = {};
   void kvStorage.removeItem(BRANDING_KEY).catch(() => {});
+  themeMemo = {};
+  void kvStorage.removeItem(THEME_KEY).catch(() => {});
 }
 
 async function fetchReceiptBranding(businessId: number, branchId: number | null): Promise<ReceiptBranding> {

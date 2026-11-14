@@ -31,7 +31,7 @@ import { startPrintQueueAutoProcess } from './src/application/printQueueSchedule
 import { startPrintStation } from './src/application/printStationService';
 import { startCustomerDisplay, stopCustomerDisplay } from './src/application/customerDisplayService';
 import { resetInterruptedPrintJobsOnBoot } from './src/infrastructure/sqlitePrintQueue';
-import { enqueuePrintJob } from './src/application/printService';
+import { enqueuePrintJob, warmPrintPath } from './src/application/printService';
 import PrintQueueScreen from './src/ui/PrintQueueScreen';
 import PrinterSettingsScreen from './src/ui/PrinterSettingsScreen';
 import uuid from 'react-native-uuid';
@@ -680,6 +680,8 @@ function App(): React.JSX.Element {
     (async () => {
       await resetInterruptedPrintJobsOnBoot();
       if (!cancelled) stopScheduler = startPrintQueueAutoProcess();
+      // أول فاتورة ما تدفع ثمن تحميل الخطوط والشعار وشكل الفاتورة.
+      if (!cancelled) void warmPrintPath();
     })();
     return () => {
       cancelled = true;

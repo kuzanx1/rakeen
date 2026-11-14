@@ -2,7 +2,7 @@ import uuid from 'react-native-uuid';
 import { sqlitePrintQueueStorage } from '../infrastructure/sqlitePrintQueue';
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { PrintTimer } from './printTiming';
-import { profileToPrinterTarget, profileToKitchenPrinterTarget, resolvePrintDarkness } from '../domain/printerProfile';
+import { profileToPrinterTarget, profileToKitchenPrinterTarget, resolvePrintDarkness, shouldPrintReceiptLogo } from '../domain/printerProfile';
 import { printReceipt } from '../platform/printer';
 import type { PrinterTarget } from '../platform/printer';
 import {
@@ -20,10 +20,11 @@ import {
   renderReceiptToEscPosBase64,
   renderKitchenTicketToEscPosBase64,
   renderShiftReportToEscPosBase64,
+  warmReceiptRenderer,
 } from './receiptRenderer';
 import type { ClosingReport } from '../domain/shift';
 import { getDeviceConfig } from './authService';
-import { getReceiptTheme } from './catalogService';
+import { getReceiptTheme, getReceiptBranding } from './catalogService';
 
 /**
  * Checkpoint 10 (Print Queue) -- application-layer orchestration,
@@ -181,6 +182,25 @@ async function getReceiptThemeForPrinting(): Promise<string> {
     return await getReceiptTheme(device.businessId);
   } catch {
     return 'classic';
+  }
+}
+
+/**
+ * يسخّن مسار الطباعة بعد فتح الكاشير: إعدادات الطابعة، شكل الفاتورة،
+ * هويّتها، الخطوط، والشعار -- فلا تدفع أول فاتورة ثمنها والزبون واقف.
+ * لا تُنتظر ولا ترمي.
+ */
+export async function warmPrintPath(): Promise<void> {
+  try {
+    const [profile, device] = await Promise.all([getPrinterProfile(), getDeviceConfig()]);
+    if (!profile || device.businessId == null) return;
+    const [, branding] = await Promise.all([
+      getReceiptTheme(device.businessId),
+      getReceiptBranding(device.businessId, device.branchId ?? null),
+    ]);
+    await warmReceiptRenderer(shouldPrintReceiptLogo(profile) ? branding?.logoUrl || null : null);
+  } catch {
+    // تسخين فقط.
   }
 }
 

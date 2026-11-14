@@ -174,7 +174,7 @@ export default function PrinterSettingsScreen({
       setSavedSnapshot(existing ? JSON.stringify(existing) : null);
       const cfg = await getDeviceConfig();
       setDevice(cfg);
-      if (cfg.businessId != null) setThemeId(await getReceiptTheme(cfg.businessId));
+      if (cfg.businessId != null) setThemeId(await getReceiptTheme(cfg.businessId, { fresh: true }));
       setLoading(false);
     })();
   }, []);

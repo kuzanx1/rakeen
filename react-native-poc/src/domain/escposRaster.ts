@@ -134,6 +134,118 @@ export function inkMask(buffer: RgbaBuffer, opts?: RasterOptions): Uint8Array {
   return out;
 }
 
+/**
+ * المسار السريع: من البكسل إلى البت في مرّة واحدة.
+ *
+ * المسار العام يمرّ على الصورة ثلاث مرات (قناع، تسميك، حزم) ويستدعي
+ * دالّة لكل بكسل بحساب عشري -- وفاتورة ٥٧٦×١٨٠٠ فيها مليون بكسل. على
+ * معالج سنمي تحت Hermes هذا يُحَسّ: الكاشير يدفع ثم ينتظر والطابعة
+ * ساكتة، ثم تطبع بسرعة. وهو بالضبط ما اشتكى منه صاحب المحل.
+ *
+ * والتغميق مطفأ اليوم لكل الطابعات (resolvePrintDarkness)، فالمسار العام
+ * لا يفعل شيئاً زائداً إلا الوقت. هنا حسابٌ صحيح بلا دوال ولا مصفوفة
+ * وسيطة، والناتج مطابق بالبايت (يحرسه escposRasterFast.test.ts).
+ */
+function packBitmapFast(buffer: RgbaBuffer): { bitmap: Uint8Array; bytesPerRow: number } {
+  const { width, height, data } = buffer;
+  const bytesPerRow = Math.ceil(width / 8);
+  const bitmap = new Uint8Array(bytesPerRow * height);
+  // lum < 160  <=>  r*299 + g*587 + b*114 < 160000 حين الألفا ٢٥٥ (وهي
+  // كذلك دائماً: السطح يُملأ أبيض قبل الرسم).
+  const LIMIT = BASE_THRESHOLD * 1000;
+  let p = 0;
+  for (let y = 0; y < height; y++) {
+    const rowStart = y * bytesPerRow;
+    for (let x = 0; x < width; x++, p += 4) {
+      const a = data[p + 3];
+      let dark: boolean;
+      if (a === 255) {
+        dark = data[p] * 299 + data[p + 1] * 587 + data[p + 2] * 114 < LIMIT;
+      } else {
+        dark = lumOnWhite(data[p], data[p + 1], data[p + 2], a) < BASE_THRESHOLD;
+      }
+      if (dark) bitmap[rowStart + (x >> 3)] |= 0x80 >> (x & 7);
+    }
+  }
+  return { bitmap, bytesPerRow };
+}
+
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const B64_CODES = (() => { const t = new Uint8Array(64); for (let i = 0; i < 64; i++) t[i] = B64.charCodeAt(i); return t; })();
+
+/**
+ * base64 لمصفوفة بايتات، سريعاً.
+ *
+ * النسخة القديمة تلصق حرفاً حرفاً: سبعمئة ألف لصقة لفاتورة واحدة. هذه
+ * تكتب رموز الحروف في مصفوفة ثم تحوّلها نصاً على دفعات.
+ */
+export function bytesToBase64Fast(bytes: Uint8Array): string {
+  const n = bytes.length;
+  const out = new Uint8Array(Math.ceil(n / 3) * 4);
+  let o = 0;
+  let i = 0;
+  for (; i + 2 < n; i += 3) {
+    const b0 = bytes[i], b1 = bytes[i + 1], b2 = bytes[i + 2];
+    out[o++] = B64_CODES[b0 >> 2];
+    out[o++] = B64_CODES[((b0 & 3) << 4) | (b1 >> 4)];
+    out[o++] = B64_CODES[((b1 & 15) << 2) | (b2 >> 6)];
+    out[o++] = B64_CODES[b2 & 63];
+  }
+  if (i < n) {
+    const b0 = bytes[i], b1 = i + 1 < n ? bytes[i + 1] : 0;
+    out[o++] = B64_CODES[b0 >> 2];
+    out[o++] = B64_CODES[((b0 & 3) << 4) | (b1 >> 4)];
+    out[o++] = i + 1 < n ? B64_CODES[(b1 & 15) << 2] : 61;
+    out[o++] = 61;
+  }
+  let s = '';
+  const CHUNK = 8192;
+  for (let k = 0; k < out.length; k += CHUNK) {
+    s += String.fromCharCode.apply(null, out.subarray(k, Math.min(out.length, k + CHUNK)) as unknown as number[]);
+  }
+  return s;
+}
+
+/**
+ * مهمّة الطباعة كاملة (تهيئة + صورة + تغذية + قصّ) base64 جاهزاً للإرسال.
+ *
+ * مصفوفة بايتات واحدة من أولها لآخرها: لا number[] بمئة وثلاثين ألف
+ * عنصر، ولا نسخها مرتين بالـ spread.
+ */
+export function rasterJobBase64(buffer: RgbaBuffer, command: 'modern' | 'legacy' | undefined, opts?: RasterOptions): string {
+  const darkness = opts?.darkness ?? 'normal';
+  const { bitmap, bytesPerRow } = darkness === 'normal' ? packBitmapFast(buffer) : packBitmap(buffer, opts);
+  const { width, height } = buffer;
+  let head: number[];
+  let tail: number[];
+  if (command === 'modern') {
+    const p = 10 + bitmap.length;
+    head = [
+      0x1b, 0x40,
+      0x1d, 0x38, 0x4c,
+      p & 0xff, (p >> 8) & 0xff, (p >> 16) & 0xff, (p >> 24) & 0xff,
+      0x30, 0x70, 0x30,
+      0x01, 0x01, 0x31,
+      width & 0xff, (width >> 8) & 0xff,
+      height & 0xff, (height >> 8) & 0xff,
+    ];
+    tail = [0x1d, 0x28, 0x4c, 0x02, 0x00, 0x30, 0x32, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00];
+  } else {
+    head = [
+      0x1b, 0x40,
+      0x1d, 0x76, 0x30, 0x00,
+      bytesPerRow & 0xff, (bytesPerRow >> 8) & 0xff,
+      height & 0xff, (height >> 8) & 0xff,
+    ];
+    tail = [0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00];
+  }
+  const job = new Uint8Array(head.length + bitmap.length + tail.length);
+  job.set(head, 0);
+  job.set(bitmap, head.length);
+  job.set(tail, head.length + bitmap.length);
+  return bytesToBase64Fast(job);
+}
+
 function packBitmap(buffer: RgbaBuffer, opts?: RasterOptions): { bitmap: Uint8Array; bytesPerRow: number } {
   const { width, height } = buffer;
   const bytesPerRow = Math.ceil(width / 8);
