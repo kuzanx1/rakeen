@@ -138,6 +138,13 @@ const I18N_EN = {
   'سجّل دخولك كمدير أو مالك مرة وحدة بس، عشان نربط هذا التابلت بفرعك.':
     'Sign in as a manager or owner once, to link this tablet to your branch.',
   'جارٍ التحقق من الرمز...': 'Checking the code...', 'جارٍ التحقق...': 'Checking...',
+  'اكتب بريدك الإلكتروني.': 'Enter your email.',
+  'البريد ناقص أو غلط. اكتبه كامل، مثل: name@gmail.com': 'That email looks incomplete. Type it in full, like: name@gmail.com',
+  'اكتب كلمة المرور.': 'Enter your password.',
+  'كلمة المرور قصيرة: ٦ أحرف أو أكثر.': 'Password is too short: 6 characters or more.',
+  'البريد أو كلمة المرور غلط. تأكد منهم وجرّب مرة ثانية.': 'Wrong email or password. Check them and try again.',
+  'بريدك ما تأكّد بعد. افتح رسالة التأكيد اللي وصلتك، وبعدها ارجع هنا.': 'Your email isn\u2019t confirmed yet. Open the confirmation email, then come back here.',
+  'محاولات كثيرة. انتظر دقيقة وجرّب مرة ثانية.': 'Too many attempts. Wait a minute and try again.',
   'إعادة تجهيز الجهاز': 'Re-provision device', 'البريد الإلكتروني': 'Email',
   'كلمة المرور': 'Password',
 
@@ -916,6 +923,7 @@ function applyLang(){
   document.documentElement.lang = LANG;
   const langBtn = document.getElementById('langToggle');
   if(langBtn) langBtn.textContent = LANG === 'en' ? 'ع' : 'EN';
+  document.querySelectorAll('.pos-auth-lang').forEach(b => { b.textContent = LANG === 'en' ? 'ع' : 'EN'; });
 
   // The generic pass first; the hand-written lines below stay because a few
   // of them carry real logic (the discount button's active state, the hold
@@ -974,6 +982,24 @@ document.getElementById('langToggle').addEventListener('click', ()=>{
   LANG = LANG === 'en' ? 'ar' : 'en';
   try { localStorage.setItem('rakeen_pos_lang', LANG); } catch {}
   applyLang();
+});
+/*
+ * زر اللغة على بطاقات الدخول (تجهيز الجهاز، رمز الفرع، مين المداوم، بدء
+ * الوردية). زر الشريط العلوي مخفي قبل الدخول، فمن لا يقرأ العربية كان
+ * يقف أمام «رمز الفرع» بلا مخرج. نفس LANG ونفس الحفظ. والتطبيق: AuthLangButton.tsx.
+ */
+document.querySelectorAll('.pos-auth-card').forEach(card => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'pos-auth-lang';
+  b.setAttribute('data-no-i18n', '');
+  b.setAttribute('aria-label', 'Language / اللغة');
+  b.addEventListener('click', () => {
+    LANG = LANG === 'en' ? 'ar' : 'en';
+    try { localStorage.setItem('rakeen_pos_lang', LANG); } catch {}
+    applyLang();
+  });
+  card.prepend(b);
 });
 applyLang(); // apply the stored preference immediately — even pre-login, the topbar/nav chrome should already match
 
@@ -9841,6 +9867,38 @@ async function provSavePin(){
   attemptCashierLogin();
 }
 
+/*
+ * فحص البريد وكلمة المرور قبل الإرسال، وترجمة رفض الخادم.
+ * كان الزر يرسل بريداً بلا @ أو خانة فاضية، فيرجع "Invalid login
+ * credentials" بالإنجليزي ولا يُعرف أيّ الخانتين الغلط. نفس النصوص في
+ * التطبيق: react-native-poc/src/domain/signInInput.ts.
+ */
+function provCheckInput(email, password){
+  const e = String(email || '').trim();
+  if(!e) return { field: 'provEmail', message: 'اكتب بريدك الإلكتروني.' };
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)) return { field: 'provEmail', message: 'البريد ناقص أو غلط. اكتبه كامل، مثل: name@gmail.com' };
+  if(!password) return { field: 'provPassword', message: 'اكتب كلمة المرور.' };
+  if(password.length < 6) return { field: 'provPassword', message: 'كلمة المرور قصيرة: ٦ أحرف أو أكثر.' };
+  return null;
+}
+function provExplainSignInError(message){
+  const m = String(message || '');
+  if(/invalid login credentials|invalid_credentials/i.test(m)) return 'البريد أو كلمة المرور غلط. تأكد منهم وجرّب مرة ثانية.';
+  if(/email not confirmed/i.test(m)) return 'بريدك ما تأكّد بعد. افتح رسالة التأكيد اللي وصلتك، وبعدها ارجع هنا.';
+  if(/too many|rate limit/i.test(m)) return 'محاولات كثيرة. انتظر دقيقة وجرّب مرة ثانية.';
+  if(/failed to fetch|network/i.test(m)) return 'تعذر الاتصال — تحقق من الإنترنت وجرّب مرة ثانية.';
+  return m;
+}
+['provEmail', 'provPassword'].forEach(id => {
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.addEventListener('input', () => {
+    if(!el.classList.contains('is-invalid')) return;
+    el.classList.remove('is-invalid');
+    const errEl = document.getElementById('provError'); if(errEl) errEl.style.display = 'none';
+  });
+  el.addEventListener('keydown', ev => { if(ev.key === 'Enter'){ ev.preventDefault(); document.getElementById('provSubmitBtn').click(); } });
+});
 document.getElementById('provSubmitBtn').addEventListener('click', async ()=>{
   const errEl = document.getElementById('provError');
   const branchField = document.getElementById('provBranchField');
@@ -9863,7 +9921,14 @@ document.getElementById('provSubmitBtn').addEventListener('click', async ()=>{
 
   const email = document.getElementById('provEmail').value.trim();
   const password = document.getElementById('provPassword').value;
-  if(!email || !password){ errEl.textContent = 'اكتب البريد وكلمة المرور.'; errEl.style.display='block'; return; }
+  ['provEmail', 'provPassword'].forEach(id => document.getElementById(id).classList.remove('is-invalid'));
+  const problem = provCheckInput(email, password);
+  if(problem){
+    errEl.textContent = t(problem.message); errEl.style.display = 'block';
+    const bad = document.getElementById(problem.field);
+    bad.classList.add('is-invalid'); bad.focus();
+    return;
+  }
   const submitBtn = document.getElementById('provSubmitBtn');
   const originalBtnText = submitBtn.textContent;
   submitBtn.disabled = true;
@@ -9906,7 +9971,7 @@ document.getElementById('provSubmitBtn').addEventListener('click', async ()=>{
     branchField.classList.remove('hidden');
     submitBtn.textContent = 'تأكيد الفرع';
   } catch(err){
-    errEl.textContent = err && err.message ? err.message : 'تعذر تسجيل الدخول.';
+    errEl.textContent = t(err && err.message ? provExplainSignInError(err.message) : 'تعذر تسجيل الدخول.');
     errEl.style.display = 'block';
     submitBtn.textContent = originalBtnText;
   } finally {

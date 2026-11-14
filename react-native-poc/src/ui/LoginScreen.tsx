@@ -17,6 +17,9 @@ import type { DeviceConfig, BranchOption, CashierProfile } from '../domain/auth'
 import { EMPTY_DEVICE_CONFIG } from '../domain/auth';
 import { createStyles, fonts, gradients, useTheme } from './theme';
 import { authBaseStyles, useAuthFit } from './authLook';
+import AuthLangButton from './AuthLangButton';
+import { checkSignInInput, explainSignInError } from '../domain/signInInput';
+import type { SignInField } from '../domain/signInInput';
 
 /** ['1'..'9', '', '0', '⌫'] -- exactly renderLoginPin()'s own key array
  *  (rakeen-pos.js). '' is the empty grid cell the source renders as a bare
@@ -60,6 +63,8 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
   const [pendingBusiness, setPendingBusiness] = useState<{ id: number; name: string } | null>(null);
   const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
   const [error, setError] = useState('');
+  /** الخانة التي فيها الخطأ -- تُعلَّم بالأحمر حتى يُكتب فيها. */
+  const [badField, setBadField] = useState<SignInField | null>(null);
   const [busy, setBusy] = useState(false);
 
   const [pin, setPin] = useState('');
@@ -86,11 +91,18 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
 
   const handleProvision = async () => {
     setError('');
+    setBadField(null);
+    const problem = checkSignInInput(email, password);
+    if (problem) {
+      setError(problem.message);
+      setBadField(problem.field);
+      return;
+    }
     setBusy(true);
     try {
       const result = await provisionDevice(email.trim(), password);
       if (result.status === 'error') {
-        setError(result.message);
+        setError(explainSignInError(result.message));
       } else if (result.status === 'branch-selected') {
         setDevice(result.device);
       } else if (result.status === 'needs-pin') {
@@ -197,6 +209,7 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
       <KeyboardLift style={styles.screen}>
         <ScrollView contentContainerStyle={styles.centerBox} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
           <View style={styles.card}>
+            <AuthLangButton />
             <Wordmark styles={styles} />
             <Text style={styles.title}>رمز الفرع</Text>
             <Text style={styles.sub}>
@@ -241,33 +254,44 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
       <KeyboardLift style={styles.screen}>
         <ScrollView contentContainerStyle={styles.centerBox} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
           <View style={styles.card}>
+            <AuthLangButton />
             <Wordmark styles={styles} />
             <Text style={styles.title}>تجهيز هذا الجهاز</Text>
             <Text style={styles.sub}>سجّل دخولك كمدير أو مالك مرة وحدة بس، عشان نربط هذا التابلت بفرعك.</Text>
 
             <View style={styles.field}>
               <TextInput
-                style={styles.input}
+                style={[styles.input, badField === 'email' && styles.inputBad]}
                 placeholder="البريد الإلكتروني"
                 placeholderTextColor={colors.muted}
                 autoCapitalize="none"
+                autoCorrect={false}
                 autoComplete="username"
                 keyboardType="email-address"
+                returnKeyType="next"
                 editable={!pickingBranch}
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={v => {
+                  setEmail(v);
+                  if (badField === 'email') { setBadField(null); setError(''); }
+                }}
               />
             </View>
             <View style={styles.field}>
               <TextInput
-                style={styles.input}
+                style={[styles.input, badField === 'password' && styles.inputBad]}
                 placeholder="كلمة المرور"
                 placeholderTextColor={colors.muted}
                 secureTextEntry
                 autoComplete="current-password"
+                returnKeyType="go"
+                onSubmitEditing={() => !busy && !pickingBranch && handleProvision()}
                 editable={!pickingBranch}
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={v => {
+                  setPassword(v);
+                  if (badField === 'password') { setBadField(null); setError(''); }
+                }}
               />
             </View>
 
@@ -311,6 +335,7 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: (profile: Cash
     <View style={styles.screen}>
       <View style={styles.centerBox}>
         <View style={[styles.card, fit.card]}>
+          <AuthLangButton />
           <Wordmark styles={styles} extra={fit.wordmark} />
           <Text style={styles.title}>رمز الفرع</Text>
           <Text style={[styles.sub, fit.sub]}>
@@ -447,6 +472,7 @@ type Styles = ReturnType<typeof useStyles>;
 const useStyles = createStyles((colors, shadows) =>
   StyleSheet.create({
     ...authBaseStyles(colors, shadows),
+    inputBad: { borderColor: colors.danger },
     // #provBranchField rows -- field box styling, .pos-staff-btn:active tint when chosen
     branchOption: {
       width: '100%',

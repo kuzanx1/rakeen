@@ -935,3 +935,21 @@ input:focus-visible, select:focus-visible, button:focus-visible{
   .pos-auth-card .pin-pad { grid-template-columns: repeat(3, 68px); gap: 10px 18px; }
   .pos-auth-card .pin-key { width: 68px; height: 68px; font-size: 24px; }
 }
+
+/* زر اللغة على بطاقات الدخول (rakeen-pos.js يضيفه لكل .pos-auth-card) */
+.pos-auth-card { position: relative; }
+.pos-auth-lang {
+  position: absolute; top: 18px; inset-inline-end: 18px;
+  min-width: 44px; height: 34px; padding: 0 12px; border-radius: 17px;
+  border: 1.5px solid var(--line); background: var(--surf1); color: var(--text);
+  font: 800 12px/1 'IBM Plex Mono', monospace; cursor: pointer;
+}
+.pos-auth-lang:hover { border-color: color-mix(in srgb, var(--text) 28%, transparent); }
+.pos-auth-card .pos-auth-field input.is-invalid,
+.pos-auth-card .pos-auth-field input.is-invalid:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 16%, transparent);
+}
+/* بالإنجليزي: البطاقة من اليسار، عشان النقطة والنص ما ينقلبون (".Enter your email") */
+html[lang="en"] .pos-auth-card { direction: ltr; }
+html[lang="en"] .pos-auth-card .pos-auth-field input:not([type="checkbox"]) { text-align: left; }

@@ -7,6 +7,7 @@ import { listBranchStaff, readCachedBranchStaff, rememberStaff } from '../applic
 import type { StaffMember } from '../application/staffService';
 import { createStyles, fonts, gradients, useTheme } from './theme';
 import { authBaseStyles } from './authLook';
+import AuthLangButton from './AuthLangButton';
 
 /**
  * #posStaffPickScreen -- "مين اللي مداوم؟" (rakeen-pos.js:6206).
@@ -63,6 +64,7 @@ export default function StaffPickScreen({
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.centerBox} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
+          <AuthLangButton />
           <Image
             source={require('../../assets/brand/rakeen-wordmark.png')}
             style={styles.wordmark}

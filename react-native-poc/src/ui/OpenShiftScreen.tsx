@@ -8,6 +8,7 @@ import { openShift } from '../application/shiftService';
 import type { Shift } from '../domain/shift';
 import { createStyles, fonts, gradients, useTheme } from './theme';
 import { authBaseStyles } from './authLook';
+import AuthLangButton from './AuthLangButton';
 import { toLatinDigits } from '../domain/digits';
 
 /**
@@ -71,6 +72,7 @@ export default function OpenShiftScreen({
     <KeyboardLift style={styles.screen}>
       <ScrollView contentContainerStyle={styles.centerBox} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         <View style={styles.card}>
+          <AuthLangButton />
           <Image
             source={require('../../assets/brand/rakeen-wordmark.png')}
             style={styles.wordmark}
