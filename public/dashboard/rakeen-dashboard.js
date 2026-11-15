@@ -8154,7 +8154,7 @@ document.getElementById('campaignBuildBtn').addEventListener('click', ()=>{
 
 /* ============ Sidebar navigation ============ */
 const SCREEN_TITLES = {
-  home:'الرئيسية', pos:'إعدادات الكاشير', orders:'الطلبات', purchases:'المشتريات', menu:'القائمة', onlineMenu:'المتجر الإلكتروني', links:'روابطك', qr:'باركودك', services:'الخدمات', rooms:'الغرف', inventory:'المخزون',
+  home:'الرئيسية', pos:'إعدادات الكاشير', orders:'الطلبات', purchases:'المشتريات', menu:'القائمة', onlineMenu:'المتجر الإلكتروني', links:'روابطك', qr:'باركودك', discounts:'الخصومات والكوبونات', services:'الخدمات', rooms:'الغرف', inventory:'المخزون',
   hr:'الموظفين', customers:'العملاء', loyalty:'نادي الولاء', accounting:'المحاسبة', delivery:'تطبيقات التوصيل',
   ai:'مستشار ركين الذكي', reports:'التقارير', settings:'الإعدادات'
 };
@@ -8459,6 +8459,9 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
       renderOnlineMenuPanel();
     }
 
+    // كل دخول: «كم خصمت هالشهر» والعدّادات تتغيّر مع كل طلب
+    if(target === 'discounts') dcLoad();
+
     if(target === 'pos' && !posSettingsScreenLoaded){
       posSettingsScreenLoaded = true;
       renderPosSettings();
@@ -8647,6 +8650,8 @@ function screenAllowed(slug, ignorePlan){
     if(planFeature && PLAN_ALLOWED_FEATURES && !PLAN_ALLOWED_FEATURES.has(planFeature)) return false;
   }
   if(CURRENT_PROFILE.user_type !== 'employee') return true;
+  // الخصومات والكوبونات كتابتها بصلاحية الإعدادات (RLS: has_permission('screen:settings')).
+  if(slug === 'discounts') return GRANTED_SCREENS.has('screen:settings');
   return GRANTED_SCREENS.has('screen:' + slug);
 }
 
@@ -9583,7 +9588,7 @@ function enterDashboard(){
 // cashier-name management from Settings -> POS. Deliberately dropped from
 // this list (not just hidden) so the old nav button — still present in the
 // markup, unreachable now — never shows for anyone, owner included.
-const ALL_DASHBOARD_SCREENS = ['home','pos','orders','purchases','menu','onlineMenu','links','qr','services','rooms','inventory','hr','customers','loyalty','accounting','delivery','ai','reports','settings'];
+const ALL_DASHBOARD_SCREENS = ['home','pos','orders','purchases','menu','onlineMenu','links','qr','discounts','services','rooms','inventory','hr','customers','loyalty','accounting','delivery','ai','reports','settings'];
 const USER_TYPE_LABELS = {owner:'مالك', manager:'مدير', employee:'موظف'};
 
 function applyPermissions(){
@@ -11528,15 +11533,18 @@ function adAsk(k){
   aiRender();
 })();
 
-/* ============ الكوبونات =========================================
-   كود يكتبه العميل بالمتجر أو يعطيه للكاشير: نسبة أو مبلغ، بحدّ أدنى
-   للطلب، وعدد مرات، وتاريخ انتهاء، ووين يشتغل. الاستخدام ينعدّ في القاعدة
-   من مكان واحد (zz_orders_record_coupon)، فالرقم هنا هو نفسه للعميلين.
+/* ============ شاشة «الخصومات والكوبونات» (dc-) ===================
+   صفحة لحالها (كانت تبويب داخل إعدادات الكاشير). نفس نمط «تطبيقات
+   التوصيل»: فوق وضعك (كم خصمت هالشهر) أو خطوات «ابدأ»، تحته «وش أسوي
+   الحين؟»، ثم ثلاث بطاقات: الكوبونات، الخصومات الجاهزة، وعلى وش راحت.
+
+   الكوبون: كود يكتبه العميل بالمتجر أو يعطيه للكاشير. الاستخدام ينعدّ في
+   القاعدة من مكان واحد (zz_orders_record_coupon)، فالرقم هنا نفسه للعميلين.
+   الخصم الجاهز: اسم + نسبة أو مبلغ، يطلع للكاشير زر، ويتكتب اسمه سبباً
+   للخصم فتتجمّع عليه الأرقام.
    (supabase/migrations/20261115160000_discount_amount_and_coupons.sql) */
 let COUPONS = [];
 let COUPONS_READY = true; // الجدول نزل بالقاعدة؟
-let editingCouponId = null;
-
 async function loadCoupons(){
   if(!window.supabaseClient || !CURRENT_PROFILE) return;
   const { data, error } = await window.supabaseClient.from('coupons')
@@ -11552,174 +11560,10 @@ function couponStatus(c){
   if(c.max_uses && c.uses_count >= c.max_uses) return { t: 'خلص', cls: 'off' };
   return { t: 'شغّال', cls: 'on' };
 }
-function couponsPanelHtml(){
-  if(!COUPONS_READY) return `
-    <div class="rk-section" id="couponsSection">
-      ${rkSectionHead('tag', 'الكوبونات', 'كود خصم يكتبه عميلك بالمتجر أو يعطيه للكاشير')}
-      <div class="orders-empty">الكوبونات تحتاج تحديث القاعدة أول — كلّم الدعم.</div>
-    </div>`;
-  const rows = COUPONS.map(c => {
-    const st = couponStatus(c);
-    const where = c.for_store && c.for_pos ? 'المتجر والكاشير' : c.for_store ? 'المتجر بس' : 'الكاشير بس';
-    const bits = [where];
-    if(Number(c.min_order) > 0) bits.push('لطلب ' + Number(c.min_order) + ' ﷼ وفوق');
-    if(c.expires_at) bits.push('ينتهي ' + new Date(c.expires_at).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'short' }));
-    return `
-    <div class="disc-preset-row coupon-row ${st.cls === 'off' ? 'off' : ''}" data-id="${c.id}">
-      <div class="disc-preset-pct mono">${couponValueLabel(c)}</div>
-      <div class="disc-preset-names">
-        <div class="disc-preset-name"><span class="mono coupon-code" dir="ltr">${escapeHtml(c.code)}</span> <span class="st-chip ${st.cls === 'on' ? 'ok' : 'warn'}">${st.t}</span></div>
-        <div class="disc-preset-name-en">${escapeHtml(bits.join(' · '))} · استُخدم ${c.uses_count}${c.max_uses ? ' من ' + c.max_uses : ''} مرة</div>
-      </div>
-      <div class="disc-preset-actions">
-        <button class="rk-btn rk-btn-secondary rk-btn-sm coupon-toggle" data-id="${c.id}">${c.active ? 'إيقاف' : 'تشغيل'}</button>
-        <button class="rk-btn rk-btn-secondary rk-btn-sm coupon-edit" data-id="${c.id}">تعديل</button>
-        <button class="rk-btn rk-btn-secondary rk-btn-sm coupon-del" data-id="${c.id}">حذف</button>
-      </div>
-    </div>`;
-  }).join('');
-  return `
-    <div class="rk-section" id="couponsSection">
-      ${rkSectionHead('tag', 'الكوبونات', 'كود خصم يكتبه عميلك بالمتجر أو يعطيه للكاشير')}
-      <p class="stock-qty-helper" style="margin-bottom:16px;">
-        مثال: <b class="mono">RAMADAN10</b> = خصم ١٠٪. انشره بحساباتك، والعميل يكتبه وقت الطلب من متجرك، أو يقوله للكاشير وهو يضغط «+ خصم» ← «كوبون».
-        تشوف هنا كم مرة انستخدم كل كوبون.
-      </p>
-      <div class="disc-preset-list">${rows || '<div class="orders-empty">ما فيه كوبونات — سوّ أول واحد تحت.</div>'}</div>
 
-      <div class="rk-subcard" style="margin-top:16px;">
-        <div class="rk-subcard-title" id="couponFormTitle">كوبون جديد</div>
-        <div class="rk-grid-2" style="margin-top:12px;">
-          <div class="rk-field"><label>الكود ${helpIcon('حروف إنجليزية وأرقام، من ٣ إلى ٢٠. العميل يكتبه بالضبط، الحروف الصغيرة والكبيرة سواء.')}</label>
-            <input type="text" id="couponCode" maxlength="20" placeholder="RAMADAN10" dir="ltr" style="text-transform:uppercase; letter-spacing:1px;"></div>
-          <div class="rk-field"><label>نوع الخصم</label>
-            <select id="couponKind"><option value="pct">نسبة ٪ من الطلب</option><option value="amount">مبلغ ﷼ من الطلب</option></select></div>
-          <div class="rk-field"><label id="couponValueLabel">النسبة ٪</label>
-            <input type="number" id="couponValue" min="1" max="100" step="1" placeholder="10"></div>
-          <div class="rk-field"><label>أقل مبلغ للطلب ﷼ ${helpIcon('اتركه صفر لو الكوبون لأي طلب.')}</label>
-            <input type="number" id="couponMinOrder" min="0" step="1" placeholder="0"></div>
-          <div class="rk-field"><label>كم مرة ينستخدم؟ ${helpIcon('مجموع المرات لكل العملاء. اتركه فاضي لو بلا حد.')}</label>
-            <input type="number" id="couponMaxUses" min="1" step="1" placeholder="بلا حد"></div>
-          <div class="rk-field"><label>آخر يوم ${helpIcon('يشتغل لين نهاية هاليوم. اتركه فاضي لو بلا تاريخ.')}</label>
-            <input type="date" id="couponExpires"></div>
-        </div>
-        <div class="rk-check-grid" style="grid-template-columns:repeat(2, 1fr); margin-top:12px;">
-          ${rkCheck('id="couponForStore" checked', 'يشتغل بالمتجر الإلكتروني')}
-          ${rkCheck('id="couponForPos" checked', 'يشتغل بالكاشير')}
-        </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
-          <button class="rk-btn rk-btn-primary rk-btn-md" id="couponSave">حفظ الكوبون</button>
-          <button class="rk-btn rk-btn-secondary rk-btn-md hidden" id="couponCancel">إلغاء التعديل</button>
-        </div>
-      </div>
-    </div>`;
-}
-function wireCoupons(){
-  const $ = id => document.getElementById(id);
-  const saveBtn = $('couponSave');
-  if(!saveBtn) return;
-  const kindEl = $('couponKind'), valEl = $('couponValue'), codeEl = $('couponCode');
-  const syncKind = ()=>{
-    const amt = kindEl.value === 'amount';
-    $('couponValueLabel').textContent = amt ? 'المبلغ ﷼' : 'النسبة ٪';
-    valEl.max = amt ? '' : '100'; valEl.step = amt ? '0.5' : '1';
-  };
-  kindEl.addEventListener('change', syncKind);
-  codeEl.addEventListener('input', ()=>{
-    const v = toWesternDigits(codeEl.value).toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 20);
-    if(codeEl.value !== v) codeEl.value = v;
-  });
-  const reset = ()=>{
-    editingCouponId = null;
-    codeEl.value = ''; valEl.value = ''; $('couponMinOrder').value = ''; $('couponMaxUses').value = ''; $('couponExpires').value = '';
-    kindEl.value = 'pct'; syncKind(); $('couponForStore').checked = true; $('couponForPos').checked = true;
-    $('couponFormTitle').textContent = 'كوبون جديد'; $('couponCancel').classList.add('hidden');
-  };
-  $('couponCancel').addEventListener('click', reset);
-  saveBtn.addEventListener('click', async ()=>{
-    const code = codeEl.value.trim();
-    const kind = kindEl.value;
-    const v = parseFloat(valEl.value);
-    const forStore = $('couponForStore').checked, forPos = $('couponForPos').checked;
-    if(code.length < 3){ showToast('الكود لازم ٣ حروف أو أرقام على الأقل'); return; }
-    if(kind === 'pct' && !(v >= 1 && v <= 100)){ showToast('النسبة لازم بين ١ و١٠٠'); return; }
-    if(kind === 'amount' && !(v > 0)){ showToast('اكتب مبلغ الخصم'); return; }
-    if(!forStore && !forPos){ showToast('اختر وين يشتغل الكوبون: المتجر أو الكاشير'); return; }
-    const maxUses = parseInt($('couponMaxUses').value, 10);
-    const exp = $('couponExpires').value;
-    const payload = {
-      code, kind,
-      pct: kind === 'pct' ? Math.round(v) : null,
-      amount: kind === 'amount' ? Math.round(v * 100) / 100 : null,
-      min_order: Math.max(0, parseFloat($('couponMinOrder').value) || 0),
-      max_uses: maxUses > 0 ? maxUses : null,
-      // آخر يوم كامل بتوقيت الرياض
-      expires_at: exp ? new Date(exp + 'T23:59:59+03:00').toISOString() : null,
-      for_store: forStore, for_pos: forPos,
-    };
-    rkBtnLoading(saveBtn, true);
-    const sb = window.supabaseClient;
-    const { error } = editingCouponId
-      ? await sb.from('coupons').update(payload).eq('id', editingCouponId)
-      : await sb.from('coupons').insert({ ...payload, business_id: CURRENT_PROFILE.business_id });
-    if(error){
-      rkBtnLoading(saveBtn, false);
-      showToast(/coupons_business_code_key|duplicate/i.test(error.message || '') ? 'فيه كوبون بنفس الكود — اختر كود ثاني' : 'تعذر الحفظ: ' + error.message);
-      return;
-    }
-    logDashboardAudit((editingCouponId ? 'عدّل' : 'أضاف') + ' كوبون ' + code + ' (' + (kind === 'amount' ? payload.amount + ' ريال' : payload.pct + '%') + ')');
-    reset();
-    await loadCoupons();
-    renderPosSettings();
-  });
-  document.querySelectorAll('.coupon-edit').forEach(b => b.addEventListener('click', ()=>{
-    const c = COUPONS.find(x => x.id === parseInt(b.dataset.id, 10));
-    if(!c) return;
-    editingCouponId = c.id;
-    codeEl.value = c.code; kindEl.value = c.kind; syncKind();
-    valEl.value = c.kind === 'amount' ? Number(c.amount) : Number(c.pct);
-    $('couponMinOrder').value = Number(c.min_order) || '';
-    $('couponMaxUses').value = c.max_uses || '';
-    $('couponExpires').value = c.expires_at ? new Date(new Date(c.expires_at).getTime() + 3 * 3600000).toISOString().slice(0, 10) : '';
-    $('couponForStore').checked = !!c.for_store; $('couponForPos').checked = !!c.for_pos;
-    $('couponFormTitle').textContent = 'تعديل: ' + c.code; $('couponCancel').classList.remove('hidden');
-    codeEl.focus();
-  }));
-  document.querySelectorAll('.coupon-toggle').forEach(b => b.addEventListener('click', async ()=>{
-    const c = COUPONS.find(x => x.id === parseInt(b.dataset.id, 10));
-    if(!c) return;
-    const { error } = await window.supabaseClient.from('coupons').update({ active: !c.active }).eq('id', c.id);
-    if(error){ showToast('تعذر التعديل: ' + error.message); return; }
-    await loadCoupons(); renderPosSettings();
-  }));
-  document.querySelectorAll('.coupon-del').forEach(b => b.addEventListener('click', async ()=>{
-    const c = COUPONS.find(x => x.id === parseInt(b.dataset.id, 10));
-    if(!c) return;
-    const ok = await rkAsk({
-      title: 'حذف كوبون ' + c.code + '؟',
-      body: 'الطلبات اللي انخصمت فيه تبقى بخصمها زي ما هي. بس الكود ما راح يشتغل بعدين، وعدّاد استخدامه ينمسح. لو تبيه يوقف بس، اضغط «إيقاف» بدال الحذف.',
-      ok: 'احذفه', cancel: 'خلّه',
-    });
-    if(!ok) return;
-    const { error } = await window.supabaseClient.from('coupons').delete().eq('id', c.id);
-    if(error){ showToast('تعذر الحذف: ' + error.message); return; }
-    logDashboardAudit('حذف كوبون ' + c.code);
-    await loadCoupons(); renderPosSettings();
-  }));
-}
-
-/* ============ قوالب الخصم =====================================
-   «خصم ٣٠٪» في تقريرٍ لا يقول إن كانت عروض اليوم الوطني أم ضيافةً أم
-   تسويةَ شكوى. فيعرّف صاحب المطعم خصوماته بأسمائها، وتظهر للكاشير
-   أزرارًا جاهزة، ويملأ القالبُ سببَ الخصم بعنوانه -- فتتجمّع إحصاءات
-   التقرير عليه بلا عمودٍ جديد على الطلبات.
-
-   والخصم المفتوح يبقى: قوالبُ بلا حرّيةٍ تعني كاشيرًا يختار أقربها
-   ويكذب على التقرير. */
 let DISCOUNT_PRESETS = [];
 /** عمود amount (خصم بمبلغ ثابت) نزل بالقاعدة؟ قبله الخصم بالنسبة بس. */
 let DISCOUNT_PRESETS_HAVE_AMOUNT = false;
-
 async function loadDiscountPresets(){
   if(!window.supabaseClient || !CURRENT_PROFILE) return;
   const q = cols => window.supabaseClient.from('discount_presets').select(cols)
@@ -11734,144 +11578,466 @@ function discPresetValueLabel(p){
   return Number(p.amount) > 0 ? Number(Number(p.amount).toFixed(2)) + ' ﷼' : Number(p.pct) + '٪';
 }
 
-function discountPresetsPanelHtml(){
-  const rows = DISCOUNT_PRESETS.map(p=>`
-    <div class="disc-preset-row ${p.active ? '' : 'off'}" data-id="${p.id}">
-      <div class="disc-preset-pct mono">${discPresetValueLabel(p)}</div>
-      <div class="disc-preset-names">
-        <div class="disc-preset-name">${escapeHtml(p.name)}</div>
-        <div class="disc-preset-name-en">${p.name_en ? escapeHtml(p.name_en) : '<span class="disc-preset-missing">ما فيه اسم إنجليزي</span>'}</div>
-      </div>
-      <div class="disc-preset-actions">
-        <button class="rk-btn rk-btn-secondary rk-btn-sm disc-preset-toggle" data-id="${p.id}">${p.active ? 'إيقاف' : 'تشغيل'}</button>
-        <button class="rk-btn rk-btn-secondary rk-btn-sm disc-preset-edit" data-id="${p.id}">تعديل</button>
-        <button class="rk-btn rk-btn-secondary rk-btn-sm disc-preset-del" data-id="${p.id}">حذف</button>
-      </div>
-    </div>`).join('');
+const DC = { loaded: false, err: '', usage: [] };
+let dcTab = 'coupons';
+let dcOpen = null;       // 'c:new' | 'c:<id>' | 'p:new' | 'p:<id>'
+let dcPrevLeft = null;   // للاحتفال لما تخلص الخطوات
+const DC_COUPON_IDEAS = [
+  { code: 'WELCOME10', kind: 'pct', v: 10, label: 'ترحيبي ١٠٪' },
+  { code: 'SAVE25', kind: 'amount', v: 25, min: 100, label: '٢٥ ﷼ لطلب ١٠٠ وفوق' },
+  { code: 'WEEKEND15', kind: 'pct', v: 15, label: 'الويكند ١٥٪' },
+];
+const DC_PRESET_IDEAS = [
+  { name: 'خصم الموظفين', en: 'Staff', kind: 'pct', v: 20 },
+  { name: 'عسكريين', en: 'Military', kind: 'pct', v: 10 },
+  { name: 'تعويض طلب متأخر', en: 'Late order', kind: 'amount', v: 10 },
+  { name: 'ضيافة', en: 'On the house', kind: 'pct', v: 100 },
+];
 
-  return `
-    <div class="rk-section">
-      ${rkSectionHead('award', 'خصومات جاهزة', 'عرّف خصوماتك بأسمائها — تطلع للكاشير زر واحد، وتطلع بالتقارير باسمها لا برقمها')}
-      <p class="stock-qty-helper" style="margin-bottom:16px;">
-        مثال: «عروض اليوم الوطني ٣٠٪» أو «خصم الموظفين ١٠ ﷼». الكاشير يضغطها فينكتب الاسم مع الطلب، وتقدر بعدين تعرف كم طلب راح على هالعرض بالضبط.
-        والخصم المفتوح يبقى موجود للحالات اللي ما لها قالب.
-      </p>
+/** بداية الشهر بيوم العمل (مو ١٢ الليل). */
+function dcMonthStart(){ const n = new Date(); return rkDayStart(new Date(n.getFullYear(), n.getMonth(), 1, 12)); }
 
-      <div class="disc-preset-list">${rows || '<div class="orders-empty">ما فيه خصومات جاهزة — أضف أول وحدة تحت.</div>'}</div>
-
-      <div class="rk-subcard" style="margin-top:16px;">
-        <div class="rk-subcard-title" id="discPresetFormTitle">خصم جديد</div>
-        <div class="rk-grid-2" style="margin-top:12px;">
-          <div class="rk-field"><label>الاسم بالعربي</label>
-            <input type="text" id="discPresetName" placeholder="عروض اليوم الوطني"></div>
-          <div class="rk-field"><label>الاسم بالإنجليزي ${helpIcon('يظهر للكاشير اللي مشغّل الإنجليزي. لو تركته فاضي بيشوف الاسم العربي.')}</label>
-            <input type="text" id="discPresetNameEn" placeholder="National Day offer"></div>
-          <div class="rk-field"><label>نوع الخصم</label>
-            <select id="discPresetKind">
-              <option value="pct">نسبة ٪ من الفاتورة</option>
-              <option value="amount">مبلغ ﷼ من الفاتورة</option>
-            </select></div>
-          <div class="rk-field"><label id="discPresetValueLabel">النسبة ٪</label>
-            <input type="number" id="discPresetPct" min="1" max="100" step="1" placeholder="30"></div>
-        </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
-          <button class="rk-btn rk-btn-primary rk-btn-md" id="discPresetSave">حفظ</button>
-          <button class="rk-btn rk-btn-secondary rk-btn-md hidden" id="discPresetCancel">إلغاء التعديل</button>
-        </div>
-      </div>
-    </div>`;
+async function dcLoad(){
+  if(!window.supabaseClient || !CURRENT_PROFILE) return;
+  DC.err = '';
+  dcRender();
+  try {
+    const [, , o] = await Promise.all([loadDiscountPresets(), loadCoupons(),
+      // نفس استعلام تقرير الخصومات: كل طلب انخصم منه شي، بالنسبة أو بالمبلغ
+      window.supabaseClient.from('orders').select('discount_amount, discount_reason')
+        .eq('business_id', CURRENT_PROFILE.business_id).gt('discount_amount', 0)
+        .gte('created_at', dcMonthStart().toISOString())]);
+    DC.usage = o.error ? [] : (o.data || []);
+    DC.loaded = true;
+  } catch(err){
+    DC.err = (err && err.message) || 'خطأ غير متوقع';
+  }
+  dcRender();
 }
 
-let editingPresetId = null;
-
-function wireDiscountPresets(){
-  const nameEl = document.getElementById('discPresetName');
-  const nameEnEl = document.getElementById('discPresetNameEn');
-  const pctEl = document.getElementById('discPresetPct');
-  const kindEl = document.getElementById('discPresetKind');
-  const saveBtn = document.getElementById('discPresetSave');
-  const cancelBtn = document.getElementById('discPresetCancel');
-  if(!saveBtn) return;
-  const syncKind = ()=>{
-    const amt = kindEl.value === 'amount';
-    document.getElementById('discPresetValueLabel').textContent = amt ? 'المبلغ ﷼' : 'النسبة ٪';
-    pctEl.max = amt ? '' : '100'; pctEl.step = amt ? '0.5' : '1'; pctEl.placeholder = amt ? '10' : '30';
-  };
-  kindEl.addEventListener('change', syncKind);
-
-  const resetForm = ()=>{
-    editingPresetId = null;
-    nameEl.value = ''; nameEnEl.value = ''; pctEl.value = ''; kindEl.value = 'pct'; syncKind();
-    document.getElementById('discPresetFormTitle').textContent = 'خصم جديد';
-    cancelBtn.classList.add('hidden');
-  };
-
-  saveBtn.addEventListener('click', async ()=>{
-    const name = nameEl.value.trim();
-    const isAmount = kindEl.value === 'amount';
-    const pct = parseInt(pctEl.value, 10);
-    const amount = Math.round((parseFloat(pctEl.value) || 0) * 100) / 100;
-    if(!name){ showToast('اكتب اسم الخصم'); return; }
-    if(isAmount && !(amount > 0)){ showToast('اكتب مبلغ الخصم بالريال'); return; }
-    if(!isAmount && !(pct > 0 && pct <= 100)){ showToast('النسبة لازم بين ١ و١٠٠'); return; }
-    if(isAmount && !DISCOUNT_PRESETS_HAVE_AMOUNT){ showToast('الخصم بالمبلغ يحتاج تحديث القاعدة أول — كلّم الدعم'); return; }
-    rkBtnLoading(saveBtn, true);
-    const payload = { name, name_en: nameEnEl.value.trim() || null, pct: isAmount ? null : pct };
-    if(DISCOUNT_PRESETS_HAVE_AMOUNT) payload.amount = isAmount ? amount : null;
-    const sb = window.supabaseClient;
-    const { error } = editingPresetId
-      ? await sb.from('discount_presets').update(payload).eq('id', editingPresetId)
-      : await sb.from('discount_presets').insert({ ...payload, business_id: CURRENT_PROFILE.business_id,
-          sort_order: DISCOUNT_PRESETS.length });
-    if(error){ rkBtnLoading(saveBtn, false); showToast('تعذر الحفظ: ' + error.message); return; }
-    logDashboardAudit((editingPresetId ? 'عدّل' : 'أضاف') + ' خصمًا جاهزًا: ' + name + ' ' + (isAmount ? amount + ' ريال' : pct + '%'));
-    resetForm();
-    await loadDiscountPresets();
-    renderPosSettings();
+function dcStats(){
+  const live = COUPONS.filter(c => couponStatus(c).cls === 'on');
+  const presets = DISCOUNT_PRESETS.filter(p => p.active !== false);
+  const total = DC.usage.reduce((s, o) => s + (Number(o.discount_amount) || 0), 0);
+  const by = new Map();
+  DC.usage.forEach(o => {
+    const k = (o.discount_reason || '').trim() || 'خصم بدون سبب';
+    const c = by.get(k) || { n: 0, amt: 0 };
+    c.n++; c.amt += Number(o.discount_amount) || 0;
+    by.set(k, c);
   });
-
-  cancelBtn.addEventListener('click', resetForm);
-
-  document.querySelectorAll('.disc-preset-edit').forEach(b=> b.addEventListener('click', ()=>{
-    const p = DISCOUNT_PRESETS.find(x=>x.id === parseInt(b.dataset.id, 10));
-    if(!p) return;
-    editingPresetId = p.id;
-    nameEl.value = p.name; nameEnEl.value = p.name_en || '';
-    kindEl.value = Number(p.amount) > 0 ? 'amount' : 'pct'; syncKind();
-    pctEl.value = Number(p.amount) > 0 ? Number(p.amount) : p.pct;
-    document.getElementById('discPresetFormTitle').textContent = 'تعديل: ' + p.name;
-    cancelBtn.classList.remove('hidden');
-    nameEl.focus();
-  }));
-
-  document.querySelectorAll('.disc-preset-toggle').forEach(b=> b.addEventListener('click', async ()=>{
-    const p = DISCOUNT_PRESETS.find(x=>x.id === parseInt(b.dataset.id, 10));
-    if(!p) return;
-    const { error } = await window.supabaseClient.from('discount_presets')
-      .update({ active: !p.active }).eq('id', p.id);
-    if(error){ showToast('تعذر التعديل: ' + error.message); return; }
-    await loadDiscountPresets();
-    renderPosSettings();
-  }));
-
-  document.querySelectorAll('.disc-preset-del').forEach(b=> b.addEventListener('click', async ()=>{
-    const p = DISCOUNT_PRESETS.find(x=>x.id === parseInt(b.dataset.id, 10));
-    if(!p) return;
-    // الطلبات القديمة تحمل اسم الخصم نصًّا لا مفتاحًا، فحذف القالب لا
-    // يمسّ تقاريرها -- ويُقال ذلك صراحةً بدل أن يخاف صاحب المطعم.
-    const ok = await rkAsk({
-      title: 'حذف «' + p.name + '»؟',
-      body: 'الطلبات اللي انخصمت بهذا الخصم تبقى بتقاريرها زي ما هي — الاسم محفوظ معها. بس ما راح يظهر للكاشير بعدين.',
-      ok: 'احذفه', cancel: 'خلّه',
-    });
-    if(!ok) return;
-    const { error } = await window.supabaseClient.from('discount_presets').delete().eq('id', p.id);
-    if(error){ showToast('تعذر الحذف: ' + error.message); return; }
-    logDashboardAudit('حذف خصمًا جاهزًا: ' + p.name);
-    await loadDiscountPresets();
-    renderPosSettings();
-  }));
+  const reasons = [...by.entries()].map(([k, v]) => ({ k, n: v.n, amt: v.amt })).sort((a, b) => b.amt - a.amt);
+  const couponAmt = reasons.filter(r => r.k.indexOf('كوبون ') === 0).reduce((s, r) => s + r.amt, 0);
+  const top = [...COUPONS].sort((a, b) => b.uses_count - a.uses_count)[0];
+  return { live, presets, total, reasons, couponAmt, topCoupon: top && top.uses_count > 0 ? top : null, used: COUPONS.some(c => c.uses_count > 0) };
 }
+
+function dcRender(){
+  const hero = document.getElementById('dcHero');
+  if(!hero) return;
+  if(!DC.loaded){
+    hero.innerHTML = '<div class="rk2-card dl-hero"><div class="ac-loading">' + hmIc('clock') + (DC.err ? 'ما قدرنا نجيب خصوماتك: ' + escapeHtml(DC.err) + ' <button type="button" class="rk2-btn mn-ghost sm" data-dc-reload>جرّب مرة ثانية</button>' : 'نجيب خصوماتك…') + '</div></div>';
+    return;
+  }
+  const st = dcStats();
+  dcRenderHero(st);
+  dcRenderTodo(st);
+  dcSetSums(st);
+  dcRenderPanel(st);
+}
+
+function dcRenderHero(st){
+  const el = document.getElementById('dcHero');
+  const firstCoupon = COUPONS[0];
+  const steps = [
+    { done: COUPONS.length > 0, label: 'سوّ أول كوبون', desc: 'كود مثل WELCOME10 يكتبه عميلك بالمتجر أو يقوله للكاشير', go: '@new-coupon' },
+    { done: DISCOUNT_PRESETS.length > 0, label: 'جهّز خصم للكاشير', desc: 'مثل «خصم الموظفين ٢٠٪»: يطلع له زر واحد بدل ما يحسب', go: '@new-preset' },
+    { done: st.used, label: 'انشر كوبونك', desc: firstCoupon ? 'ننسخ لك رسالة فيها الكود ورابط متجرك، الصقها بحساباتك' : 'بعد ما تسوي الكوبون', go: firstCoupon ? '@share:' + firstCoupon.id : '@new-coupon' },
+  ];
+  if(!COUPONS_READY) steps.splice(0, 1), steps.pop(); // قبل تحديث القاعدة: الخصومات الجاهزة بس
+  const done = steps.filter(s => s.done).length, left = steps.length - done;
+  const visible = !!document.getElementById('screen-discounts')?.offsetParent;
+  const celebrate = visible && dcPrevLeft !== null && dcPrevLeft > 0 && left === 0;
+  dcPrevLeft = visible ? left : null;
+  const stat = (k, v, hint, cls, go) => '<' + (go ? 'button type="button" data-dc-go="' + go + '"' : 'div') + ' class="iv-stat' + (cls ? ' ' + cls : '') + '"><span>' + k + '</span><b>' + v + '</b>' + (hint ? '<small>' + hint + '</small>' : '') + '</' + (go ? 'button' : 'div') + '>';
+  const stats = (st.total > 0 || COUPONS.length || DISCOUNT_PRESETS.length) ? '<div class="ac-stats">'
+    + (COUPONS_READY ? stat('كوبونات شغّالة', String(st.live.length), COUPONS.length > st.live.length ? 'من ' + COUPONS.length : (st.live.length ? 'عميلك يقدر يستخدمها الحين' : 'سوّ أول واحد'), '', '@tab:coupons') : '')
+    + (st.topCoupon ? stat('أكثر كوبون', '<span dir="ltr">' + escapeHtml(st.topCoupon.code) + '</span>', 'استُخدم ' + st.topCoupon.uses_count + ' مرة', 'pu-top', '@tab:coupons') : '')
+    + stat('خصومات جاهزة', String(st.presets.length), st.presets.length ? 'تطلع للكاشير أزرار' : 'أضف أول وحدة', '', '@tab:presets')
+    + (st.reasons[0] ? stat('أكثر خصم', escapeHtml(st.reasons[0].k), hmMoney(st.reasons[0].amt) + ' هالشهر', '', '@tab:usage') : '')
+    + '</div>' : '';
+  if(left === 0){
+    const sub = st.total > 0
+      ? hmOrders(DC.usage.length) + ' فيها خصم' + (st.couponAmt > 0 ? '، منها ' + acR(st.couponAmt) + ' ر.س بكوبونات' : '')
+      : 'أول ما الكاشير يخصم أو عميل يستخدم كوبون، يطلع هنا كم خصمت';
+    el.innerHTML = '<div class="rk2-card dl-hero' + (celebrate ? ' mn-celebrate' : '') + '">'
+      + '<div class="ac-hero-top"><span class="iv-hero-ic">' + hmIc('tag') + '</span>'
+      + '<div class="ac-hero-txt"><div class="hm-kicker">خصمت هالشهر</div>'
+      + '<div class="ac-big">' + hmMoney(st.total) + '</div>'
+      + '<div class="ac-sub">' + sub + '</div></div>'
+      + '<div class="ac-cta"><button type="button" class="rk2-btn lime" data-dc-go="' + (COUPONS_READY ? '@new-coupon">+ كوبون جديد' : '@new-preset">+ خصم جاهز') + '</button></div></div>'
+      + stats + '</div>';
+    if(celebrate) showToast('خصوماتك جاهزة، وكوبونك وصل لعملائك 🎉');
+    return;
+  }
+  const nextIdx = steps.findIndex(s => !s.done), next = steps[nextIdx];
+  const go = s => ' data-dc-go="' + s.go + '"';
+  el.innerHTML = '<div class="rk2-card hm-quest dl-hero">'
+    + '<div class="hm-quest-top"><div class="hm-ring" style="--p:' + Math.round(done / steps.length * 100) + '"><b>' + done + '<small>/' + steps.length + '</small></b></div>'
+    + '<div><div class="hm-kicker">' + hmIc('tag') + 'الخصومات والكوبونات</div>'
+    + '<h3>' + (done ? 'باقي ' + hmPlural(left, 'خطوة', 'خطوتين', 'خطوات', 'خطوة') + ' ويجيك عميل بكوبونك' : 'ثلاث خطوات ويجيك أول عميل بكوبونك') + '</h3>'
+    + '<p>كوبون لعملائك، وأزرار خصم جاهزة للكاشير</p></div></div>'
+    + '<button type="button" class="hm-quest-next"' + go(next) + '>'
+    + '<span class="hm-quest-n">' + (nextIdx + 1) + '</span><span class="hm-quest-txt"><b>' + next.label + '</b><small>' + next.desc + '</small></span><span class="rk2-btn lime sm">ابدأ' + hmIc('arrow') + '</span></button>'
+    + '<div class="hm-quest-list">' + steps.map((s, i) => i === nextIdx ? '' :
+        '<button type="button" class="hm-qstep' + (s.done ? ' done' : '') + '"' + (s.done ? ' disabled' : go(s)) + '>'
+        + '<span class="hm-qcheck">' + (s.done ? hmIc('check') : (i + 1)) + '</span>' + s.label + '</button>').join('') + '</div>'
+    + stats + '</div>';
+}
+
+/** ٧.٥ تبقى ٧.٥ (acR يقرّب لأقرب ريال). */
+function dcN(n){ return Number((Number(n) || 0).toFixed(2)).toLocaleString('en-US'); }
+function dcDate(iso){ return new Date(iso).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'long' }); }
+
+function dcRenderTodo(){
+  const el = document.getElementById('dcTodo');
+  if(!el) return;
+  const rows = [];
+  const now = Date.now();
+  if(!COUPONS_READY) rows.push({ ic: 'info', t: 'الكوبونات تحتاج تحديث بسيط في النظام', h: 'الخصومات الجاهزة شغّالة الحين. كلّم الدعم ونفعّل لك الكوبونات', acts: '' });
+  COUPONS.filter(c => c.active).forEach(c => {
+    const code = '<span dir="ltr">' + escapeHtml(c.code) + '</span>';
+    const exp = c.expires_at ? new Date(c.expires_at).getTime() : null;
+    if(exp && exp < now) rows.push({ cls: 'critical', ic: 'alert', t: 'كوبون ' + code + ' انتهى وهو شغّال',
+      h: 'اللي يكتبه يطلع له «الكوبون انتهى». مدّد آخر يوم، أو وقّفه', acts: '<button type="button" class="rk2-btn lime sm" data-dc-go="@edit:c:' + c.id + '">مدّده</button>' });
+    else if(c.max_uses && c.uses_count >= c.max_uses) rows.push({ ic: 'alert', t: 'كوبون ' + code + ' خلص: استُخدم ' + c.uses_count + ' من ' + c.max_uses,
+      h: 'زوّد العدد لو تبيه يكمّل', acts: '<button type="button" class="rk2-btn mn-ghost sm" data-dc-go="@edit:c:' + c.id + '">زوّد العدد</button>' });
+    else if(exp && exp - now < 3 * 86400000) rows.push({ ic: 'clock', t: 'كوبون ' + code + ' ينتهي ' + dcDate(c.expires_at),
+      h: 'لو ماشي معك، مدّده قبل لا يوقف', acts: '<button type="button" class="rk2-btn mn-ghost sm" data-dc-go="@edit:c:' + c.id + '">مدّده</button>' });
+  });
+  if(!rows.length){ el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="rk2-card iv-todo ac-todo">' + hmHead('flag', 'res', 'وش أسوي الحين؟', 'من كوبوناتك')
+    + rows.slice(0, 4).map(r => '<div class="iv-todo-row' + (r.cls ? ' ' + r.cls : '') + '"><span class="pu-todo-ic">' + hmIc(r.ic) + '</span><div class="iv-todo-name"><b>' + r.t + '</b><span class="iv-todo-hint">' + r.h + '</span></div><div class="iv-todo-acts">' + r.acts + '</div></div>').join('')
+    + '</div>';
+}
+
+function dcSetSums(st){
+  const set = (k, v) => { const s = document.querySelector('#dcTabs [data-dc-sum="' + k + '"]'); if(s) s.innerHTML = v; };
+  set('coupons', !COUPONS_READY ? 'تحتاج تحديث' : COUPONS.length ? hmPlural(st.live.length, 'كوبون شغّال', 'كوبونين شغّالين', 'كوبونات شغّالة', 'كوبون شغّال') + (st.live.length ? '' : ' (' + COUPONS.length + ' موقوفة)') : 'سوّ أول كوبون');
+  set('presets', DISCOUNT_PRESETS.length ? hmPlural(st.presets.length, 'خصم جاهز', 'خصمين جاهزين', 'خصومات جاهزة', 'خصم جاهز') : 'أضف خصم للكاشير');
+  set('usage', st.total > 0 ? acR(st.total) + ' ر.س هالشهر' : 'لسا ما خصمت هالشهر');
+}
+
+function dcRenderPanel(st){
+  const el = document.getElementById('dcPanel');
+  if(!el) return;
+  document.querySelectorAll('#dcTabs [data-dc-tab]').forEach(b => b.classList.toggle('active', b.dataset.dcTab === dcTab));
+  el.innerHTML = dcTab === 'presets' ? dcPresetsHtml() : dcTab === 'usage' ? dcUsageHtml(st) : dcCouponsHtml();
+  const ed = el.querySelector('.dc-edit'); if(ed) dcSyncPreview(ed);
+}
+
+/* ── الكوبونات ── */
+function dcWhere(c){ return c.for_store && c.for_pos ? 'المتجر والكاشير' : c.for_store ? 'المتجر بس' : 'الكاشير بس'; }
+function dcCouponsHtml(){
+  if(!COUPONS_READY) return '<div class="rk2-card ac-card">' + hmHead('tag', 'res', 'الكوبونات', 'كود خصم يكتبه عميلك')
+    + hmEmpty('tag', 'الكوبونات تحتاج تحديث بسيط', 'كلّم الدعم ونفعّلها لك. الخصومات الجاهزة شغّالة الحين') + '</div>';
+  const cards = COUPONS.map(c => {
+    const s = couponStatus(c), open = dcOpen === 'c:' + c.id;
+    const bits = [dcWhere(c)];
+    if(Number(c.min_order) > 0) bits.push('لطلب ' + Number(c.min_order) + ' ﷼ وفوق');
+    if(c.expires_at) bits.push((new Date(c.expires_at) < new Date() ? 'انتهى ' : 'لين ') + dcDate(c.expires_at));
+    bits.push(c.uses_count ? 'استُخدم ' + c.uses_count + (c.max_uses ? ' من ' + c.max_uses : '') + ' مرة' : (c.max_uses ? 'لـ' + c.max_uses + ' مرة' : 'لسا ما انستخدم'));
+    return '<div class="dl-plat dc-item' + (open ? ' open' : '') + (s.cls === 'on' ? '' : ' off') + '" data-dc-card="c:' + c.id + '">'
+      + '<div class="dl-plat-row"><span class="dc-val">' + couponValueLabel(c) + '</span>'
+      + '<div class="pu-info"><b><span class="dc-code" dir="ltr">' + escapeHtml(c.code) + '</span>' + (s.cls === 'on' ? '' : ' <span class="dl-pill">' + s.t + '</span>') + '</b>'
+      + '<div class="pu-meta">' + escapeHtml(bits.join(' · ')) + '</div></div>'
+      + (c.for_store && s.cls === 'on' ? '<button type="button" class="rk2-btn mn-ghost sm dc-share" data-dc-go="@share:' + c.id + '" title="انسخ رسالة فيها الكود">' + olIc('copy') + '<span>انشره</span></button>' : '')
+      + '<label class="dl-switch" title="' + (c.active ? 'شغّال' : 'موقوف') + '"><input type="checkbox" data-dc-toggle="c:' + c.id + '"' + (c.active ? ' checked' : '') + '><i></i></label>'
+      + '<button type="button" class="rk2-btn ' + (open ? 'lime' : 'mn-ghost') + ' sm" data-dc-edit="c:' + c.id + '">' + (open ? 'سكّر' : 'عدّل') + '</button></div>'
+      + (open ? dcCouponEditorHtml(c) : '') + '</div>';
+  }).join('');
+  const have = new Set(COUPONS.map(c => c.code));
+  const ideas = DC_COUPON_IDEAS.filter(i => !have.has(i.code));
+  const add = dcOpen === 'c:new'
+    ? '<div class="dl-plat dc-item open dc-new" data-dc-card="c:new">' + dcCouponEditorHtml(null) + '</div>'
+    : '<div class="dl-add"><div class="dl-add-cap">' + (COUPONS.length ? 'كوبون ثاني؟ اضغط فكرة جاهزة أو سوّ واحد من الصفر:' : 'ابدأ بفكرة جاهزة وعدّلها، أو سوّ واحد من الصفر:') + '</div>'
+      + (ideas.length ? '<div class="dl-chips">' + ideas.map((i, n) => '<button type="button" class="dl-chip" data-dc-idea="c:' + DC_COUPON_IDEAS.indexOf(i) + '">' + i.label + ' <span dir="ltr">' + i.code + '</span></button>').join('') + '</div>' : '')
+      + '<button type="button" class="rk2-btn lime sm" data-dc-go="@new-coupon">+ كوبون جديد</button></div>';
+  return '<div class="rk2-card ac-card">' + hmHead('tag', 'res', 'الكوبونات', 'كود يكتبه عميلك بالمتجر، أو يقوله للكاشير وهو يضغط «+ خصم» ← «كوبون»')
+    + (COUPONS.length ? '<div class="dl-list">' + cards + '</div>' : (dcOpen === 'c:new' ? '' : hmEmpty('tag', 'كوبوناتك تطلع هنا', 'كل كوبون معه عدّاد: كم مرة انستخدم، ولين متى')))
+    + add + '</div>';
+}
+function dcKindSeg(kind){
+  return '<div class="rk2-seg sm dc-kind" role="group" aria-label="نوع الخصم">'
+    + '<button type="button" data-dc-kind="pct" class="' + (kind === 'pct' ? 'active' : '') + '">نسبة ٪</button>'
+    + '<button type="button" data-dc-kind="amount" class="' + (kind === 'amount' ? 'active' : '') + '">مبلغ ﷼</button></div>';
+}
+function dcCouponEditorHtml(c, idea){
+  const src = c || idea || {};
+  const kind = c ? c.kind : (idea ? idea.kind : 'pct');
+  const v = c ? (c.kind === 'amount' ? Number(c.amount) : Number(c.pct)) : (idea ? idea.v : '');
+  const where = c ? (c.for_store && c.for_pos ? 'both' : c.for_store ? 'store' : 'pos') : 'both';
+  const exp = c && c.expires_at ? new Date(new Date(c.expires_at).getTime() + 3 * 3600000).toISOString().slice(0, 10) : '';
+  const min = c ? (Number(c.min_order) || '') : (idea && idea.min) || '';
+  const maxU = c ? (c.max_uses || '') : '';
+  const advOpen = !!(min || maxU || exp);
+  const f = (label, input, hint) => '<label class="ac-fc-field"><span>' + label + '</span>' + input + (hint ? '<small>' + hint + '</small>' : '') + '</label>';
+  return '<div class="dl-edit dc-edit" data-dc-form="c:' + (c ? c.id : 'new') + '" data-kind="' + kind + '">'
+    + (c ? '' : '<div class="dc-edit-title">كوبون جديد</div>')
+    + '<div class="dc-fields">'
+    + f('الكود', '<input type="text" class="dc-f-code" maxlength="20" dir="ltr" autocomplete="off" autocapitalize="characters" placeholder="WELCOME10" value="' + escapeHtml(src.code || '') + '">', 'حروف إنجليزي وأرقام')
+    + f('الخصم', dcKindSeg(kind) + '<input type="number" class="dc-f-value" inputmode="decimal" min="0" step="0.5" value="' + v + '" placeholder="' + (kind === 'amount' ? '25' : '10') + '">', '')
+    + f('وين يشتغل؟', '<select class="dc-f-where"><option value="both"' + (where === 'both' ? ' selected' : '') + '>المتجر والكاشير</option><option value="store"' + (where === 'store' ? ' selected' : '') + '>المتجر الإلكتروني بس</option><option value="pos"' + (where === 'pos' ? ' selected' : '') + '>الكاشير بس</option></select>', '')
+    + '</div>'
+    + '<details class="dl-adv"' + (advOpen ? ' open' : '') + '><summary>حدود الكوبون (اختياري)</summary><div class="dc-fields">'
+    + f('أقل مبلغ للطلب ﷼', '<input type="number" class="dc-f-min" inputmode="decimal" min="0" step="1" placeholder="بلا حد" value="' + min + '">', '')
+    + f('كم مرة ينستخدم؟', '<input type="number" class="dc-f-max" inputmode="numeric" min="1" step="1" placeholder="بلا حد" value="' + maxU + '">', 'لكل العملاء مع بعض')
+    + f('آخر يوم', '<input type="date" class="dc-f-exp" value="' + exp + '">', 'يشتغل لين نهاية هاليوم')
+    + '</div></details>'
+    + '<div class="dc-preview" aria-live="polite"></div>'
+    + '<div class="dl-edit-acts"><div class="dc-acts-main"><button type="button" class="rk2-btn lime sm" data-dc-save="c:' + (c ? c.id : 'new') + '">' + (c ? 'احفظ' : 'سوّ الكوبون') + '</button>'
+    + '<button type="button" class="rk2-btn mn-ghost sm" data-dc-cancel>إلغاء</button></div>'
+    + (c ? '<button type="button" class="rk2-btn mn-ghost sm dl-del" data-dc-del="c:' + c.id + '">احذفه</button>' : '') + '</div></div>';
+}
+
+/* ── الخصومات الجاهزة ── */
+function dcPresetsHtml(){
+  const cards = DISCOUNT_PRESETS.map(p => {
+    const on = p.active !== false, open = dcOpen === 'p:' + p.id;
+    return '<div class="dl-plat dc-item' + (open ? ' open' : '') + (on ? '' : ' off') + '" data-dc-card="p:' + p.id + '">'
+      + '<div class="dl-plat-row"><span class="dc-val">' + discPresetValueLabel(p) + '</span>'
+      + '<div class="pu-info"><b>' + escapeHtml(p.name) + (on ? '' : ' <span class="dl-pill">موقوف</span>') + '</b>'
+      + '<div class="pu-meta">' + (on ? 'زر جاهز عند الكاشير' : 'مخفي من الكاشير') + (p.name_en ? ' · ' + escapeHtml(p.name_en) : '') + '</div></div>'
+      + '<label class="dl-switch" title="' + (on ? 'ظاهر للكاشير' : 'مخفي') + '"><input type="checkbox" data-dc-toggle="p:' + p.id + '"' + (on ? ' checked' : '') + '><i></i></label>'
+      + '<button type="button" class="rk2-btn ' + (open ? 'lime' : 'mn-ghost') + ' sm" data-dc-edit="p:' + p.id + '">' + (open ? 'سكّر' : 'عدّل') + '</button></div>'
+      + (open ? dcPresetEditorHtml(p) : '') + '</div>';
+  }).join('');
+  const have = new Set(DISCOUNT_PRESETS.map(p => (p.name || '').trim()));
+  const ideas = DC_PRESET_IDEAS.filter(i => !have.has(i.name) && (i.kind === 'pct' || DISCOUNT_PRESETS_HAVE_AMOUNT));
+  const add = dcOpen === 'p:new'
+    ? '<div class="dl-plat dc-item open dc-new" data-dc-card="p:new">' + dcPresetEditorHtml(null) + '</div>'
+    : '<div class="dl-add"><div class="dl-add-cap">' + (DISCOUNT_PRESETS.length ? 'خصم ثاني؟' : 'اضغط خصم تستخدمه، وعدّل رقمه:') + '</div>'
+      + (ideas.length ? '<div class="dl-chips">' + ideas.map(i => '<button type="button" class="dl-chip" data-dc-idea="p:' + DC_PRESET_IDEAS.indexOf(i) + '">' + escapeHtml(i.name) + ' ' + (i.kind === 'amount' ? i.v + ' ﷼' : i.v + '٪') + '</button>').join('') + '</div>' : '')
+      + '<button type="button" class="rk2-btn lime sm" data-dc-go="@new-preset">+ خصم جديد</button></div>';
+  return '<div class="rk2-card ac-card">' + hmHead('trophy', 'res', 'خصومات جاهزة للكاشير', 'كل خصم يطلع للكاشير زر، وينكتب اسمه مع الطلب فتعرف كم راح عليه')
+    + (DISCOUNT_PRESETS.length ? '<div class="dl-list">' + cards + '</div>' : (dcOpen === 'p:new' ? '' : hmEmpty('trophy', 'خصوماتك الجاهزة تطلع هنا', 'بدل ما الكاشير يحسب بنفسه: يضغط «خصم الموظفين» وخلاص')))
+    + add + '</div>';
+}
+function dcPresetEditorHtml(p, idea){
+  const src = p || idea || {};
+  const isAmt = p ? Number(p.amount) > 0 : (idea ? idea.kind === 'amount' : false);
+  const v = p ? (isAmt ? Number(p.amount) : Number(p.pct)) : (idea ? idea.v : '');
+  const f = (label, input, hint) => '<label class="ac-fc-field"><span>' + label + '</span>' + input + (hint ? '<small>' + hint + '</small>' : '') + '</label>';
+  return '<div class="dl-edit dc-edit" data-dc-form="p:' + (p ? p.id : 'new') + '" data-kind="' + (isAmt ? 'amount' : 'pct') + '">'
+    + (p ? '' : '<div class="dc-edit-title">خصم جديد</div>')
+    + '<div class="dc-fields dc-fields-2">'
+    + f('اسم الخصم', '<input type="text" class="dc-f-name" maxlength="40" placeholder="خصم الموظفين" value="' + escapeHtml(src.name || '') + '">', 'يشوفه الكاشير، ويطلع بالتقارير')
+    + f('الخصم', (DISCOUNT_PRESETS_HAVE_AMOUNT ? dcKindSeg(isAmt ? 'amount' : 'pct') : '') + '<input type="number" class="dc-f-value" inputmode="decimal" min="0" step="0.5" value="' + v + '" placeholder="' + (isAmt ? '10' : '20') + '">', '')
+    + '</div>'
+    + '<details class="dl-adv"' + (src.name_en || src.en ? '' : '') + '><summary>اسم بالإنجليزي (اختياري)</summary><div class="dc-fields dc-fields-2">'
+    + f('الاسم بالإنجليزي', '<input type="text" class="dc-f-en" maxlength="40" dir="ltr" placeholder="Staff discount" value="' + escapeHtml(src.name_en || src.en || '') + '">', 'للكاشير اللي مشغّل الإنجليزي')
+    + '</div></details>'
+    + '<div class="dc-preview" aria-live="polite"></div>'
+    + '<div class="dl-edit-acts"><div class="dc-acts-main"><button type="button" class="rk2-btn lime sm" data-dc-save="p:' + (p ? p.id : 'new') + '">' + (p ? 'احفظ' : 'أضف الخصم') + '</button>'
+    + '<button type="button" class="rk2-btn mn-ghost sm" data-dc-cancel>إلغاء</button></div>'
+    + (p ? '<button type="button" class="rk2-btn mn-ghost sm dl-del" data-dc-del="p:' + p.id + '">احذفه</button>' : '') + '</div></div>';
+}
+
+/* الجملة تحت النموذج: وش بيصير بالضبط، بكلام العميل. */
+function dcSyncPreview(ed){
+  const pv = ed.querySelector('.dc-preview'); if(!pv) return;
+  const kind = ed.dataset.kind, v = parseFloat(ed.querySelector('.dc-f-value')?.value) || 0;
+  const val = v > 0 ? (kind === 'amount' ? dcN(v) + ' ﷼' : Math.round(v) + '٪') : '…';
+  ed.querySelectorAll('[data-dc-kind]').forEach(b => b.classList.toggle('active', b.dataset.dcKind === kind));
+  const inp = ed.querySelector('.dc-f-value'); if(inp){ inp.max = kind === 'amount' ? '' : '100'; inp.step = kind === 'amount' ? '0.5' : '1'; }
+  if(ed.dataset.dcForm.indexOf('c:') === 0){
+    const code = (ed.querySelector('.dc-f-code')?.value || '').trim() || '…';
+    const where = ed.querySelector('.dc-f-where')?.value;
+    const min = parseFloat(ed.querySelector('.dc-f-min')?.value) || 0;
+    const exp = ed.querySelector('.dc-f-exp')?.value;
+    pv.innerHTML = hmIc('info') + '<span>عميلك يكتب <b dir="ltr">' + escapeHtml(code) + '</b> '
+      + (where === 'store' ? 'بالمتجر' : where === 'pos' ? 'للكاشير' : 'بالمتجر أو للكاشير') + ' وينخصم <b>' + val + '</b> من طلبه'
+      + (min > 0 ? ' (لو طلبه ' + dcN(min) + ' ﷼ وفوق)' : '') + (exp ? '، لين ' + dcDate(exp + 'T12:00:00+03:00') : '') + '.'
+      + (kind === 'amount' && where !== 'store' ? ' <small>طلب الطاولة بالكاشير ينخصم بالنسبة بس.</small>' : '') + '</span>';
+  } else {
+    const name = (ed.querySelector('.dc-f-name')?.value || '').trim() || '…';
+    pv.innerHTML = hmIc('info') + '<span>يطلع للكاشير زر <b>«' + escapeHtml(name) + ' — ' + val + '»</b>، يضغطه وينخصم على طول.</span>';
+  }
+}
+
+/* ── على وش راحت ── */
+function dcUsageHtml(st){
+  const head = hmHead('reports', 'fin', 'على وش راحت خصوماتك؟', 'هالشهر، من كل طلب فيه خصم');
+  const full = hmScreenOk('reports') ? '<button type="button" class="rk2-btn mn-ghost sm" data-dc-go="@report">' + hmIc('reports') + 'كل طلب بالتفصيل</button>' : '';
+  if(!st.reasons.length) return '<div class="rk2-card ac-card">' + head + hmEmpty('reports', 'لسا ما خصمت هالشهر', 'أول ما الكاشير يخصم أو عميل يستخدم كوبون، يطلع هنا كم راح على كل خصم وكوبون') + '</div>';
+  const max = st.reasons[0].amt || 1;
+  const rows = st.reasons.slice(0, 8).map((r, i) => '<div class="dl-cmp' + (i === 0 ? ' best' : '') + '">'
+    + '<span class="dl-rank">' + (i + 1) + '</span><div class="dl-cmp-main"><div class="dl-cmp-top"><b>' + escapeHtml(r.k) + '</b><span>' + hmOrders(r.n) + ' · <b>' + hmMoney(r.amt) + '</b> · ' + Math.round(r.amt / (st.total || 1) * 100) + '٪</span></div>'
+    + '<div class="dc-bar"><i style="width:' + Math.max(4, Math.round(r.amt / max * 100)) + '%"></i></div></div></div>').join('');
+  return '<div class="rk2-card ac-card">' + head
+    + '<div class="dl-cmp-cap">خصمت <b>' + acR(st.total) + ' ر.س</b> على ' + hmOrders(DC.usage.length) + (st.reasons.length > 8 ? '. هذي أكثر ٨' : '') + '</div>'
+    + '<div class="dl-cmps">' + rows + '</div>'
+    + (full ? '<div class="dc-usage-foot">' + full + '</div>' : '') + '</div>';
+}
+
+/* ── الأفعال ── */
+function dcGo(go){
+  if(go === '@new-coupon'){ if(!COUPONS_READY) return showToast('الكوبونات تحتاج تحديث بسيط — كلّم الدعم'); dcTab = 'coupons'; dcOpen = 'c:new'; dcRender(); dcFocus('c:new'); return; }
+  if(go === '@new-preset'){ dcTab = 'presets'; dcOpen = 'p:new'; dcRender(); dcFocus('p:new'); return; }
+  if(go.indexOf('@tab:') === 0){ dcTab = go.slice(5); dcOpen = null; dcRender(); document.getElementById('dcTabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+  if(go.indexOf('@edit:') === 0){ const k = go.slice(6); dcTab = k[0] === 'c' ? 'coupons' : 'presets'; dcOpen = k; dcRender(); dcFocus(k); return; }
+  if(go.indexOf('@share:') === 0) return dcShare(go.slice(7));
+  if(go === '@report'){
+    document.querySelector('.nav-item[data-screen="reports"]')?.click();
+    setTimeout(() => document.querySelector('#reportTypeChips button[data-report="discounts"]')?.click(), 80);
+  }
+}
+function dcFocus(key){
+  setTimeout(() => {
+    const card = document.querySelector('#screen-discounts [data-dc-card="' + key + '"]');
+    if(!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const inp = card.querySelector('.dc-f-code, .dc-f-name'); if(inp) try { inp.focus({ preventScroll: true }); } catch(e){}
+  }, 40);
+}
+function dcShare(id){
+  const c = COUPONS.find(x => String(x.id) === String(id)); if(!c) return;
+  const url = c.for_store && typeof onlineMenuPublicUrl === 'function' && ONLINE_MENU_SLUG ? onlineMenuPublicUrl() : '';
+  const msg = 'عندنا لكم كود خصم 🎁\n' + c.code + ' = خصم ' + couponValueLabel(c)
+    + (Number(c.min_order) > 0 ? ' على الطلب من ' + Number(c.min_order) + ' ﷼ وفوق' : '')
+    + (c.expires_at ? '\nلين ' + dcDate(c.expires_at) : '')
+    + (url ? '\nاطلب من هنا واكتب الكود: ' + url : '\nقوله للكاشير وقت الطلب');
+  // بعض المتصفحات بدون حافظة: نعرض الكود بدل ما يسكت الزر
+  const fail = () => showToast('انسخ الكود: ' + c.code);
+  try { navigator.clipboard.writeText(msg).then(() => showToast('نسخنا رسالة فيها الكود ✓ الصقها بحساباتك'), fail); } catch(_) { fail(); }
+}
+function dcReadForm(ed){
+  const g = s => ed.querySelector(s);
+  return { kind: ed.dataset.kind, v: parseFloat(g('.dc-f-value')?.value) };
+}
+async function dcSave(key, btn){
+  const ed = document.querySelector('#screen-discounts [data-dc-form="' + key + '"]'); if(!ed) return;
+  const isCoupon = key[0] === 'c', id = key.slice(2), isNew = id === 'new';
+  const { kind, v } = dcReadForm(ed);
+  const sb = window.supabaseClient;
+  if(kind === 'pct' && !(v >= 1 && v <= 100)){ showToast('النسبة لازم بين ١ و١٠٠'); ed.querySelector('.dc-f-value')?.focus(); return; }
+  if(kind === 'amount' && !(v > 0)){ showToast('اكتب مبلغ الخصم'); ed.querySelector('.dc-f-value')?.focus(); return; }
+  let payload, table, label;
+  if(isCoupon){
+    const code = (ed.querySelector('.dc-f-code').value || '').trim();
+    if(code.length < 3){ showToast('الكود لازم ٣ حروف أو أرقام على الأقل'); ed.querySelector('.dc-f-code').focus(); return; }
+    const where = ed.querySelector('.dc-f-where').value;
+    const maxUses = parseInt(ed.querySelector('.dc-f-max').value, 10);
+    const exp = ed.querySelector('.dc-f-exp').value;
+    payload = { code, kind,
+      pct: kind === 'pct' ? Math.round(v) : null,
+      amount: kind === 'amount' ? Math.round(v * 100) / 100 : null,
+      min_order: Math.max(0, parseFloat(ed.querySelector('.dc-f-min').value) || 0),
+      max_uses: maxUses > 0 ? maxUses : null,
+      expires_at: exp ? new Date(exp + 'T23:59:59+03:00').toISOString() : null, // آخر يوم كامل بتوقيت الرياض
+      for_store: where !== 'pos', for_pos: where !== 'store' };
+    table = 'coupons'; label = 'كوبون ' + code;
+  } else {
+    const name = (ed.querySelector('.dc-f-name').value || '').trim();
+    if(!name){ showToast('اكتب اسم الخصم'); ed.querySelector('.dc-f-name').focus(); return; }
+    if(kind === 'amount' && !DISCOUNT_PRESETS_HAVE_AMOUNT){ showToast('الخصم بالمبلغ يحتاج تحديث بسيط — كلّم الدعم'); return; }
+    payload = { name, name_en: (ed.querySelector('.dc-f-en')?.value || '').trim() || null, pct: kind === 'amount' ? null : Math.round(v) };
+    if(DISCOUNT_PRESETS_HAVE_AMOUNT) payload.amount = kind === 'amount' ? Math.round(v * 100) / 100 : null;
+    if(isNew) payload.sort_order = DISCOUNT_PRESETS.length;
+    table = 'discount_presets'; label = 'خصم «' + name + '»';
+  }
+  rkBtnLoading(btn, true);
+  const { error } = isNew
+    ? await sb.from(table).insert({ ...payload, business_id: CURRENT_PROFILE.business_id })
+    : await sb.from(table).update(payload).eq('id', id);
+  if(error){
+    rkBtnLoading(btn, false);
+    showToast(/coupons_business_code_key|duplicate/i.test(error.message || '') ? 'فيه كوبون بنفس الكود — اختر كود ثاني' : 'تعذر الحفظ: ' + error.message);
+    return;
+  }
+  logDashboardAudit((isNew ? 'أضاف ' : 'عدّل ') + label + ' (' + (kind === 'amount' ? Math.round(v * 100) / 100 + ' ريال' : Math.round(v) + '%') + ')');
+  showToast(isNew ? (isCoupon ? 'سوّينا الكوبون ✓ انشره لعملائك' : 'انضاف ✓ يطلع للكاشير الحين') : 'انحفظ ✓');
+  dcOpen = null;
+  await (isCoupon ? loadCoupons() : loadDiscountPresets());
+  dcRender();
+}
+async function dcToggle(key, input){
+  const isCoupon = key[0] === 'c', id = key.slice(2);
+  const list = isCoupon ? COUPONS : DISCOUNT_PRESETS;
+  const it = list.find(x => String(x.id) === id); if(!it) return;
+  const next = input ? input.checked : !(it.active !== false);
+  const { error } = await window.supabaseClient.from(isCoupon ? 'coupons' : 'discount_presets').update({ active: next }).eq('id', it.id);
+  if(error){ if(input) input.checked = !next; showToast('تعذر التعديل: ' + error.message); return; }
+  it.active = next;
+  showToast(next ? (isCoupon ? 'الكوبون شغّال ✓' : 'يطلع للكاشير ✓') : (isCoupon ? 'وقّفنا الكوبون' : 'اختفى من الكاشير'));
+  dcRender();
+}
+async function dcDelete(key){
+  const isCoupon = key[0] === 'c', id = key.slice(2);
+  const it = (isCoupon ? COUPONS : DISCOUNT_PRESETS).find(x => String(x.id) === id); if(!it) return;
+  const ok = await rkAsk(isCoupon ? {
+    title: 'حذف كوبون ' + it.code + '؟',
+    body: 'الطلبات اللي انخصمت فيه تبقى بخصمها زي ما هي. بس الكود ما راح يشتغل بعدين، وعدّاده ينمسح. تبيه يوقف بس؟ طفّ زره بدال الحذف.',
+    ok: 'احذفه', cancel: 'خلّه',
+  } : {
+    // الطلبات القديمة تحمل اسم الخصم نصًّا لا مفتاحًا، فحذفه ما يمسّ تقاريرها.
+    title: 'حذف «' + it.name + '»؟',
+    body: 'الطلبات اللي انخصمت فيه تبقى بتقاريرها زي ما هي — الاسم محفوظ معها. بس ما راح يطلع للكاشير بعدين.',
+    ok: 'احذفه', cancel: 'خلّه',
+  });
+  if(!ok) return;
+  const { error } = await window.supabaseClient.from(isCoupon ? 'coupons' : 'discount_presets').delete().eq('id', it.id);
+  if(error){ showToast('تعذر الحذف: ' + error.message); return; }
+  logDashboardAudit('حذف ' + (isCoupon ? 'كوبون ' + it.code : 'خصمًا جاهزًا: ' + it.name));
+  dcOpen = null;
+  await (isCoupon ? loadCoupons() : loadDiscountPresets());
+  dcRender();
+}
+
+(function wireDc(){
+  const root = document.getElementById('screen-discounts');
+  if(!root) return;
+  root.addEventListener('click', (e) => {
+    const t = e.target;
+    const tile = t.closest('#dcTabs [data-dc-tab]');
+    if(tile){ dcTab = tile.dataset.dcTab; dcOpen = null; dcRender(); return; }
+    const g = t.closest('[data-dc-go]'); if(g){ dcGo(g.dataset.dcGo); return; }
+    const idea = t.closest('[data-dc-idea]');
+    if(idea){
+      const [k, n] = idea.dataset.dcIdea.split(':');
+      const pick = (k === 'c' ? DC_COUPON_IDEAS : DC_PRESET_IDEAS)[Number(n)];
+      dcOpen = k + ':new'; dcRender();
+      const card = root.querySelector('[data-dc-card="' + k + ':new"]');
+      if(card && pick){ card.innerHTML = k === 'c' ? dcCouponEditorHtml(null, pick) : dcPresetEditorHtml(null, pick); dcSyncPreview(card.querySelector('.dc-edit')); }
+      dcFocus(k + ':new');
+      return;
+    }
+    const kb = t.closest('[data-dc-kind]');
+    if(kb){ const ed = kb.closest('.dc-edit'); ed.dataset.kind = kb.dataset.dcKind; dcSyncPreview(ed); ed.querySelector('.dc-f-value')?.focus(); return; }
+    const ed = t.closest('[data-dc-edit]'); if(ed){ const k = ed.dataset.dcEdit; dcOpen = dcOpen === k ? null : k; dcRender(); if(dcOpen) dcFocus(dcOpen); return; }
+    if(t.closest('[data-dc-cancel]')){ dcOpen = null; dcRender(); return; }
+    const sv = t.closest('[data-dc-save]'); if(sv){ dcSave(sv.dataset.dcSave, sv); return; }
+    const dl = t.closest('[data-dc-del]'); if(dl){ dcDelete(dl.dataset.dcDel); return; }
+    if(t.closest('[data-dc-reload]')) dcLoad();
+  });
+  root.addEventListener('change', (e) => {
+    const t = e.target;
+    if(t.matches && t.matches('input[data-dc-toggle]')){ dcToggle(t.dataset.dcToggle, t); return; }
+    const ed = t.closest && t.closest('.dc-edit'); if(ed) dcSyncPreview(ed);
+  });
+  root.addEventListener('input', (e) => {
+    const t = e.target;
+    if(t.classList && t.classList.contains('dc-f-code')){
+      const v = toWesternDigits(t.value).toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 20);
+      if(t.value !== v) t.value = v;
+    }
+    const ed = t.closest && t.closest('.dc-edit'); if(ed) dcSyncPreview(ed);
+  });
+  root.addEventListener('keydown', (e) => {
+    if(e.key !== 'Enter' || !e.target.closest('.dc-edit') || e.target.tagName === 'TEXTAREA') return;
+    const b = e.target.closest('.dc-edit').querySelector('[data-dc-save]'); if(b){ e.preventDefault(); b.click(); }
+  });
+})();
 
 /* ============ Settings: Restaurant identity + Menu management ============ */
 let activeSettingsTab = 'restaurant';
@@ -13262,7 +13428,7 @@ const PS_TILES = [
   ['interface', 'sliders', 'بسّط شاشة الكاشير', 'أخفِ اللي ما تحتاجه'],
   ['pager', 'bell', 'بيجر ركين', 'نادِ عميلك على جواله'],
   ['kitchen', 'chef', 'شاشة المطبخ', 'متى ينتهي الطلب'],
-  ['discounts', 'percent', 'الخصومات والكوبونات', 'خصومات جاهزة وأكواد خصم'],
+  ['discounts', 'percent', 'الخصومات والكوبونات', 'صارت صفحة لحالها ←'],
   ['branches', 'shield', 'الأجهزة والأمان', 'رمز الجهاز وكلمة سر المدير'],
 ];
 /* البطاقات تنبني مرّة. الحالة تحت كل اسم تتحدّث بعد كل جلب. */
@@ -13349,7 +13515,8 @@ async function psOpenTab(tab){
   activePosSettingsTab = tab;
   // القوالب تُجلب عند فتح تبويبها لا عند إقلاع اللوحة: قائمةٌ تُفتح
   // مرّةً في الشهر لا تستحقّ نداءً في كل تسجيل دخول.
-  if(tab === 'discounts') await Promise.all([loadDiscountPresets(), loadCoupons()]);
+  // الخصومات والكوبونات صارت صفحة لحالها: البطاقة هنا توديك لها.
+  if(tab === 'discounts'){ goToScreenTab('discounts'); return; }
   await renderPosSettings();
 }
 
@@ -13756,7 +13923,6 @@ async function renderPosSettings(){
     tables: orderTypesIntro + dineInMasterPanel + tablesGatedContent,
     kitchen: kitchenPanel + autoReadyPanel,
     branches: managerPinPanel + branchSecurityPanelsHtml,
-    discounts: discountPresetsPanelHtml() + couponsPanelHtml(),
     pager: activePosSettingsTab === 'pager' ? pagerSettingsTabHtml() : '',
   };
   panel.innerHTML = POS_SETTINGS_TABS_HTML[activePosSettingsTab] || POS_SETTINGS_TABS_HTML.tables;
@@ -13764,18 +13930,15 @@ async function renderPosSettings(){
     const nHidden = [hidePopular, hideSearch, hideImages, hideBell].filter(Boolean).length;
     const paired = (branches||[]).filter(b=>POS_READINESS.tillByBranch[b.id]).length;
     const theme = (RECEIPT_THEMES.find(t=>t.id === RECEIPT_THEME) || RECEIPT_THEMES[0]).label;
-    const nPresets = DISCOUNT_PRESETS.filter(p=>p.active !== false).length;
     psSetSums({
       tables: !DINE_IN_ENABLED ? 'سفري بس' : DINE_IN_MODE === 'tables' ? 'سفري + طاولات (' + (tables||[]).length + ')' : 'سفري + محلي بسيط',
       receipt: theme + (RECEIPT_LOGO_URL ? ' · بشعارك' : ' · بدون شعار'),
       interface: nHidden ? hmPlural(nHidden, 'شي واحد مخفي', 'شيئين مخفية', 'أشياء مخفية', 'شي مخفي') : 'كل شي ظاهر',
       kitchen: kMode === 'auto' ? 'ينتهي لحاله بعد ' + kMinutes + ' دقيقة' : 'الموظف يضغط «تم التجهيز»',
-      discounts: [nPresets ? hmPlural(nPresets, 'خصم واحد جاهز', 'خصمين جاهزين', 'خصومات جاهزة', 'خصم جاهز') : '',
-        COUPONS.length ? hmPlural(COUPONS.length, 'كوبون واحد', 'كوبونين', 'كوبونات', 'كوبون') : ''].filter(Boolean).join(' · '),
+      discounts: 'صارت صفحة لحالها ←',
       branches: (branches||[]).length ? paired + ' من ' + (branches||[]).length + ' أجهزة مقترنة' + (POS_READINESS.managerPinSet ? '' : ' · بدون كلمة سر') : '',
     });
   }
-  if(activePosSettingsTab === 'discounts'){ wireDiscountPresets(); wireCoupons(); }
   if(activePosSettingsTab === 'pager') wirePagerSettingsTab();
   posSnapshotSwitches();
   panel.addEventListener('change', posRefreshDirty);
@@ -15084,9 +15247,9 @@ function restaurantSettingsHtml(){
       ${rkSwitchRow('settingsDineInEnabled', DINE_IN_ENABLED, 'عندي صالة وطاولات (طلبات «محلي»)', 'طفّها لو مطعمك سحابي أو سفري وتوصيل بس.', rkDineInStatus)}
     </div>
 
-    <button class="rk2-btn lime st-save" id="settingsSaveBtn" type="button">احفظ التغييرات</button>
-
     ${businessDaySettingsHtml()}
+
+    <button class="rk2-btn lime st-save" id="settingsSaveBtn" type="button">احفظ التغييرات</button>
 
     <!-- بوابةُ الدفع انتقلت إلى المتجر الإلكتروني ← تبويب "بوابة الدفع". -->
     ${isServiceBusinessType(BUSINESS_TYPE) ? `
@@ -15126,40 +15289,33 @@ function businessDaySettingsHtml(){
         <label>يوم العمل يقفل الساعة</label>
         <select id="settingsDayCutoff">${opts}</select>
       </div>
-      <p class="stock-qty-helper" id="settingsDayCutoffHelper" style="margin-bottom:14px;">${businessDayHelperText(DAY_CUTOFF_AUTO, DAY_CUTOFF)}</p>
-      <button class="rk-btn rk-btn-primary rk-btn-md" id="settingsDayCutoffSaveBtn" type="button">احفظ يوم العمل</button>
+      <p class="stock-qty-helper" id="settingsDayCutoffHelper">${businessDayHelperText(DAY_CUTOFF_AUTO, DAY_CUTOFF)}</p>
     </div>`;
 }
 function wireBusinessDaySettings(){
   const sel = document.getElementById('settingsDayCutoff');
-  const btn = document.getElementById('settingsDayCutoffSaveBtn');
-  if(!sel || !btn) return;
+  if(!sel) return;
   sel.addEventListener('change', ()=>{
     const help = document.getElementById('settingsDayCutoffHelper');
     if(help) help.textContent = sel.value === 'auto' ? businessDayHelperText(true, DAY_CUTOFF) : businessDayHelperText(false, Number(sel.value));
   });
-  btn.addEventListener('click', async ()=>{
-    const auto = sel.value === 'auto';
-    const update = auto ? { day_cutoff_auto: true } : { day_cutoff_auto: false, day_cutoff_hour: Number(sel.value) };
-    rkBtnLoading(btn, true);
-    try {
-      await updateCurrentBusiness(update);
-    } catch(err){
-      rkBtnLoading(btn, false);
-      const msg = err && err.message ? err.message : '';
-      showToast(/day_cutoff_auto/.test(msg) ? 'يوم العمل يحتاج تحديث القاعدة أول — كلّم الدعم' : 'تعذر الحفظ: ' + (msg || 'خطأ غير متوقع'));
-      return;
-    }
-    await loadDayCutoff(true);
-    if(DAILY_REPORT_CONFIG) DAILY_REPORT_CONFIG.day_cutoff_hour = DAY_CUTOFF;
-    rkBtnSuccess(btn, '✓ انحفظ — يومك يقفل ' + rkDayCutoffLabel(DAY_CUTOFF));
-    const help = document.getElementById('settingsDayCutoffHelper');
-    if(help) help.textContent = businessDayHelperText(DAY_CUTOFF_AUTO, DAY_CUTOFF);
-    try {
-      await loadPaymentBreakdown(); await loadSalesRealData(); recomputeAccounting(); await loadWeekTrend();
-      if(typeof renderHomeHero === 'function') renderHomeHero();
-    } catch(_) { /* الأرقام تتحدث مع أول تحديث للصفحة */ }
-  });
+}
+/** اللي تغيّر في «يوم العمل» (أو null لو ما تغيّر شي) -- ينحفظ مع باقي «مطعمك». */
+function businessDayUpdate(){
+  const sel = document.getElementById('settingsDayCutoff');
+  if(!sel) return null;
+  if(sel.value === 'auto') return DAY_CUTOFF_AUTO ? null : { day_cutoff_auto: true };
+  const h = Number(sel.value);
+  return (!DAY_CUTOFF_AUTO && h === DAY_CUTOFF) ? null : { day_cutoff_auto: false, day_cutoff_hour: h };
+}
+/** بعد ما يتغيّر يوم العمل: الساعة الجديدة، وأرقام «اليوم» من جديد. */
+async function businessDayApplied(){
+  await loadDayCutoff(true);
+  if(DAILY_REPORT_CONFIG) DAILY_REPORT_CONFIG.day_cutoff_hour = DAY_CUTOFF;
+  try {
+    await loadPaymentBreakdown(); await loadSalesRealData(); recomputeAccounting(); await loadWeekTrend();
+    if(typeof renderHomeHero === 'function') renderHomeHero();
+  } catch(_) { /* الأرقام تتحدث مع أول تحديث للصفحة */ }
 }
 function wireRestaurantSettings(){
   wireBusinessDaySettings();
@@ -15201,7 +15357,17 @@ function wireRestaurantSettings(){
       if(logoFile){
         updates.logo_url = await uploadMediaFile(logoFile, 'business-branding', 'logo');
       }
-      await updateCurrentBusiness(updates);
+      const dayUpd = businessDayUpdate();
+      let dayNote = '';
+      try {
+        await updateCurrentBusiness(dayUpd ? { ...updates, ...dayUpd } : updates);
+      } catch(err){
+        // قبل تحديث القاعدة: باقي «مطعمك» ينحفظ، ويوم العمل يقول السبب
+        if(!dayUpd || !/day_cutoff/.test((err && err.message) || '')) throw err;
+        await updateCurrentBusiness(updates);
+        dayNote = 'يوم العمل يحتاج تحديث بسيط — كلّم الدعم';
+      }
+      if(dayUpd && !dayNote) await businessDayApplied();
       RESTAURANT_INFO.name = name;
       VAT_REGISTERED = vatRegistered;
       BUSINESS_VAT_RATE = updates.vat_rate;
@@ -15209,8 +15375,9 @@ function wireRestaurantSettings(){
       PRICES_INCLUDE_VAT = pricesIncludeVat;
       DINE_IN_ENABLED = dineInEnabled;
       if(updates.logo_url) BUSINESS_LOGO_URL = updates.logo_url;
-      logDashboardAudit('عدّل معلومات المطعم');
-      rkBtnSuccess(btn, '✓ تم الحفظ');
+      logDashboardAudit('عدّل معلومات المطعم' + (dayUpd && !dayNote ? ' (يوم العمل يقفل ' + rkDayCutoffLabel(DAY_CUTOFF) + ')' : ''));
+      rkBtnSuccess(btn, dayUpd && !dayNote ? '✓ انحفظ — يومك يقفل ' + rkDayCutoffLabel(DAY_CUTOFF) : '✓ تم الحفظ');
+      if(dayNote) showToast(dayNote);
       setTimeout(renderSettingsPanel, 1100);
     } catch(err){
       rkBtnLoading(btn, false);

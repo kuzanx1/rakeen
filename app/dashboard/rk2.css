@@ -1647,3 +1647,42 @@ button.mn-stat{cursor:pointer;}
 .hm-quest-next:disabled:hover{transform:none; box-shadow:none;}
 .hm-quest-dev{display:inline-flex; align-items:center; gap:6px; flex-shrink:0; padding:6px 10px; border-radius:99px; font-size:12px; font-weight:800; color:var(--muted); background:var(--surf2);}
 .hm-quest-dev svg{width:14px; height:14px;}
+
+/* ═══════════ الخصومات والكوبونات (dc-) — تستعمل قطع dl- و ac- (البطل، القائمة، المحرّر) ═══════════ */
+.dc-val{min-width:58px; height:40px; padding:0 10px; border-radius:12px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;
+  background:color-mix(in srgb, var(--lime) 35%, var(--surf1)); color:var(--text); font-weight:900; font-size:15px; direction:ltr; unicode-bidi:isolate;}
+.dl-plat.off .dc-val{background:var(--surf2); color:var(--muted);}
+.dc-code{font-family:'IBM Plex Mono', ui-monospace, monospace; font-weight:700; letter-spacing:.5px; unicode-bidi:isolate;}
+.rk2 .dc-share{flex-shrink:0;}
+.dc-new{border-style:dashed;}
+.dc-new .dl-edit{border-top:0; padding-top:14px;}
+.dc-edit-title{font-size:15px; font-weight:900; margin-bottom:2px;}
+.dc-fields{display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin-top:12px; align-items:start;}
+.dc-fields-2{grid-template-columns:repeat(2, minmax(0, 1fr));}
+.rk2 .dc-edit select{width:100%; font-family:inherit; font-size:15px; font-weight:800; padding:11px 12px; border-radius:12px; border:1px solid var(--line); background:var(--surf1); color:var(--text);}
+.rk2 .dc-f-code{text-transform:uppercase; letter-spacing:1px; font-family:'IBM Plex Mono', ui-monospace, monospace !important;}
+.dc-kind{margin-bottom:6px; align-self:flex-start;}
+.dc-preview{display:flex; gap:8px; align-items:flex-start; margin-top:14px; padding:12px 14px; border-radius:12px; font-size:13.5px; font-weight:600; line-height:1.6;
+  background:color-mix(in srgb, var(--lime) 14%, var(--surf1));}
+.dc-preview:empty{display:none;}
+.dc-preview svg{width:17px; height:17px; flex-shrink:0; margin-top:3px; color:var(--lime-deep);}
+.dc-preview b{font-weight:900;}
+.dc-preview small{display:block; color:var(--muted); font-size:12px; font-weight:700;}
+.dc-acts-main{display:flex; gap:8px; flex-wrap:wrap;}
+.dc-bar{height:9px; border-radius:99px; background:var(--surf1); overflow:hidden;}
+.dc-bar i{display:block; height:100%; border-radius:inherit; background:var(--lime-deep); animation:hr2-grow .6s ease both; transform-origin:right;}
+.dc-usage-foot{display:flex; justify-content:flex-end; margin-top:14px;}
+@media (max-width:900px){
+  .dc-fields{grid-template-columns:1fr 1fr;}
+  .dc-fields > :first-child{grid-column:1 / -1;}
+}
+@media (max-width:700px){
+  .dc-fields, .dc-fields-2{grid-template-columns:1fr;}
+  .dc-item .dl-plat-row{flex-wrap:wrap;}
+  .dc-item .dl-plat-row .pu-info{flex:1 1 calc(100% - 80px);}
+  .dc-item .pu-meta{white-space:normal;}
+  .dc-item .dc-share{margin-inline-start:auto;}
+}
+/* أربع بطاقات: أربعة بصف أو اثنين اثنين، ما تطلع ثلاث وواحدة لحالها */
+.dc .ac-stats{grid-template-columns:repeat(4, minmax(0, 1fr));}
+@media (max-width:1100px){ .dc .ac-stats{grid-template-columns:1fr 1fr;} }
