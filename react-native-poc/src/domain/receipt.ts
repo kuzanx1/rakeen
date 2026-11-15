@@ -100,6 +100,8 @@ export interface ReceiptData {
   orderNote?: string;
   /** businesses.receipt_show_name -- هل يُطبع الاسم تحت الشعار. */
   showBusinessName?: boolean;
+  /** businesses.receipt_show_invoice_no -- false: ما ينطبع «رقم الفاتورة». */
+  showInvoiceNo?: boolean;
   /** businesses.receipt_tagline -- سطر تحت الاسم يكتبه صاحب المطعم. */
   tagline?: string;
   /** الحي والمدينة، مركّبين من branches.district/city. */

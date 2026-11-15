@@ -11668,6 +11668,7 @@ let RECEIPT_CUSTOM_MESSAGE = '';
 let RECEIPT_LOGO_URL = '';
 let RECEIPT_TAGLINE = '';
 let RECEIPT_SHOW_NAME = true;
+let RECEIPT_SHOW_INVOICE_NO = true; // businesses.receipt_show_invoice_no
 /** تُطبع فاتورةُ استرجاعٍ بعد كل استرجاع. الافتراضُ نعم. */
 let RECEIPT_PRINT_REFUND = true;
 let SHIFT_REPORT_OPTIONS = {};
@@ -12728,6 +12729,11 @@ async function loadReceiptBranding(businessId){
     // يُسأل يُفترض أنه يريد الأثر لا أن يفقده.
     RECEIPT_PRINT_REFUND = !(res.data && res.data.receipt_print_refund === false);
     SHIFT_REPORT_OPTIONS = (res.data && res.data.shift_report_options) || {};
+    // سؤال لحاله: قبل ما ينزل العمود يرجع خطأ وما يمسّ باقي الهوية.
+    try {
+      const inv = await window.supabaseClient.from('businesses').select('receipt_show_invoice_no').eq('id', businessId).single();
+      if(!inv.error && inv.data) RECEIPT_SHOW_INVOICE_NO = inv.data.receipt_show_invoice_no !== false;
+    } catch(_) {}
   } catch(_){
     RECEIPT_LOGO_URL = '';
     RECEIPT_TAGLINE = '';
@@ -13195,6 +13201,7 @@ async function renderPosSettings(){
         </div>
       </div>
       ${rkSwitchRow('settingsReceiptShowName', RECEIPT_SHOW_NAME, 'اطبع اسم المطعم تحت الشعار', 'أغلب الشعارات فيها الاسم أصلاً، فتكراره تحتها زيادة. وإذا ما فيه شعار يطبع الاسم دايم.')}
+      ${rkSwitchRow('settingsReceiptShowInvoiceNo', RECEIPT_SHOW_INVOICE_NO, 'اطبع رقم الفاتورة تحت رقم الطلب', 'رقم الطلب يرجع ١ مع كل وردية، ورقم الفاتورة ما يتكرر أبداً — الفاتورة الضريبية تحتاجه. لو أخفيته يبقى محفوظ بالطلبات والتقارير.')}
       ${rkSwitchRow('settingsReceiptPrintRefund', RECEIPT_PRINT_REFUND, 'اطبع فاتورة استرجاع', 'ورقة تثبت المبلغ اللي طلع من الدرج — يأخذها العميل، وتُطابق بها الوردية عند الإقفال. أوقفها لو استرجاعاتك صغيرة وما تبي ورق.')}
       <div class="rk-field">
         <label>السطر التعريفي</label>
@@ -13787,6 +13794,16 @@ async function renderPosSettings(){
       updates.receipt_logo_url = await uploadMediaFile(await compressImageFile(toUpload), 'business-branding', 'receipt-logo');
       }
       await updateCurrentBusiness(updates);
+      // عمود جديد: يُحفظ لحاله، فلو ما نزل بالقاعدة ما يفشل باقي الحفظ.
+      const showInvEl = document.getElementById('settingsReceiptShowInvoiceNo');
+      if(showInvEl && showInvEl.checked !== RECEIPT_SHOW_INVOICE_NO){
+        try {
+          await updateCurrentBusiness({ receipt_show_invoice_no: showInvEl.checked });
+          RECEIPT_SHOW_INVOICE_NO = showInvEl.checked;
+        } catch(_) {
+          showToast('خيار «رقم الفاتورة» يحتاج تحديث القاعدة أول — باقي الإعدادات انحفظت');
+        }
+      }
       RECEIPT_TAGLINE = tagline;
       RECEIPT_SHOW_NAME = showName;
       RECEIPT_PRINT_REFUND = printRefund;

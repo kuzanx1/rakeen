@@ -198,7 +198,7 @@ export function toReceiptPrintable(data: ReceiptData): ReceiptPrintable {
     // وبلا نت: الرقم المؤقت «م-7 (مؤقت)» ينادى به الزبون لين يرتفع.
     orderNumber: data.orderId != null ? `#${data.orderNo ?? data.orderId}` : data.offlineRef ? data.offlineRef : 'سيُحدَّد عند الاتصال',
     // رقم الطلب يرجع ١ كل وردية؛ الفاتورة الضريبية تحمل رقماً ما يتكرر.
-    invoiceRef: data.orderId != null && data.orderNo != null ? String(data.orderId) : '',
+    invoiceRef: data.showInvoiceNo !== false && data.orderId != null && data.orderNo != null ? String(data.orderId) : '',
     metaLabel: bilingualOrderKind(data.metaLabel ?? ''),
     pickupAt: data.pickupAt ?? '',
     refundOfOrder: data.refundOfOrder ?? '',

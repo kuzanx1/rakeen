@@ -394,6 +394,8 @@ export interface ReceiptBranding {
   logoUrl: string;
   tagline: string;
   showBusinessName: boolean;
+  /** «رقم الفاتورة» الصغير تحت رقم الطلب (businesses.receipt_show_invoice_no). */
+  showInvoiceNo: boolean;
   /** تُطبع فاتورة استرجاع بعد كل استرجاع. */
   printRefundReceipt: boolean;
   vatNumber: string;
@@ -403,7 +405,7 @@ export interface ReceiptBranding {
 }
 
 const EMPTY_BRANDING: ReceiptBranding = {
-  logoUrl: '', tagline: '', showBusinessName: true, printRefundReceipt: true,
+  logoUrl: '', tagline: '', showBusinessName: true, showInvoiceNo: true, printRefundReceipt: true,
   vatNumber: '', customMessage: '', locationLine: '', branchLabel: '',
 };
 
@@ -507,6 +509,13 @@ async function fetchReceiptBranding(businessId: number, branchId: number | null)
     }
   } catch {
     // تبقى القيم الافتراضية.
+  }
+  // سؤال لحاله: قبل ما ينزل العمود بالقاعدة يرجع خطأ، وما يمسّ الشعار والاسم.
+  try {
+    const { data, error } = await supabase.from('businesses').select('receipt_show_invoice_no').eq('id', businessId).single();
+    if (!error && data) out.showInvoiceNo = data.receipt_show_invoice_no !== false;
+  } catch {
+    // يبقى مطبوعاً.
   }
   try {
     const { data } = await supabase

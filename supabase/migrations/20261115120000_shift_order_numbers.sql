@@ -227,3 +227,9 @@ drop trigger if exists aaa_orders_assign_order_no on public.orders;
 create trigger aaa_orders_assign_order_no
   before insert on public.orders
   for each row execute function public.orders_assign_order_no();
+
+
+-- ---------- خيار: إخفاء «رقم الفاتورة» من الإيصال ----------
+-- مثل فوديكس (Check Number): يبقى محفوظ بالطلب والتقارير، والإيصال يطبع
+-- رقم الطلب بس. الافتراضي: يُطبع.
+alter table public.businesses add column if not exists receipt_show_invoice_no boolean not null default true;

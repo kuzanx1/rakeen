@@ -5746,7 +5746,7 @@ function buildLiveReceiptData(orderPayload, totals){
     // instead of silently dropping the line.
     orderNumber: orderPayload.orderId ? ('#' + rkNo(orderPayload.orderId)) : orderPayload.offlineRef ? orderPayload.offlineRef : 'سيُحدَّد عند الاتصال',
     // رقم الطلب يرجع ١ كل وردية؛ الفاتورة الضريبية تحمل رقماً ما يتكرر (orders.id).
-    invoiceRef: (orderPayload.orderId && Number(rkNo(orderPayload.orderId)) !== Number(orderPayload.orderId)) ? String(orderPayload.orderId) : '',
+    invoiceRef: (RECEIPT_SHOW_INVOICE_NO && orderPayload.orderId && Number(rkNo(orderPayload.orderId)) !== Number(orderPayload.orderId)) ? String(orderPayload.orderId) : '',
     metaLabel: bilingualOrderKind((CHANNEL_LABELS[orderPayload.channel] || orderPayload.channel) + liveTableLabel),
     showLogo: DEVICE.printReceiptLogo !== false && !!RECEIPT_LOGO_URL, logoUrl: RECEIPT_LOGO_URL,
     cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
@@ -5841,7 +5841,7 @@ function buildHistoricalReceiptData(order, items){
     dateLabel: new Date(order.created_at).toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
     timestampISO: order.created_at, vatNumber: BUSINESS_VAT_NUMBER,
     orderNumber: '#' + (order.order_no || rkNo(order.id)),
-    invoiceRef: order.order_no ? String(order.id) : '',
+    invoiceRef: (RECEIPT_SHOW_INVOICE_NO && order.order_no) ? String(order.id) : '',
     metaLabel: bilingualOrderKind((CHANNEL_LABELS[order.channel] || order.channel) + histTableLabel),
     // صاحب الطلب وملاحظته: الطلب الإلكتروني والتوصيل تكون الورقة فيهما
     // الشيء الوحيد الذي يربط الكيس بصاحبه.
@@ -9465,6 +9465,7 @@ let RECEIPT_LOGO_URL = '';      // businesses.receipt_logo_url — شعار ال
 let ONLINE_PAYMENTS_ENABLED = false; // businesses.geidea_connected — صف "دفع إلكتروني" في تقرير الإغلاق
 let SHIFT_REPORT_OPTIONS = {};       // businesses.shift_report_options — ما يظهر في التقرير وما لا يظهر
 let RECEIPT_SHOW_NAME = true;   // businesses.receipt_show_name — هل يُطبع الاسم تحت الشعار
+let RECEIPT_SHOW_INVOICE_NO = true; // businesses.receipt_show_invoice_no — «رقم الفاتورة» تحت رقم الطلب
 let RECEIPT_TAGLINE = '';       // businesses.receipt_tagline — سطر تحت الاسم
 /** businesses.receipt_print_refund — ورقةٌ تُثبت ما خرج من الدرج. */
 let RECEIPT_PRINT_REFUND = true;
@@ -9704,6 +9705,9 @@ async function loadPosData(){
       RECEIPT_TAGLINE = (brandRes.data && brandRes.data.receipt_tagline) || '';
       // إلا إذا أُطفئ صراحةً: قاعدة بلا هذا العمود تبقى تطبع الاسم.
       RECEIPT_SHOW_NAME = !(brandRes.data && brandRes.data.receipt_show_name === false);
+      // سؤال لحاله: قبل ما ينزل العمود يرجع خطأ وما يمسّ باقي هوية الفاتورة.
+      window.supabaseClient.from('businesses').select('receipt_show_invoice_no').eq('id', businessId).single()
+        .then(r => { if(!r.error && r.data) RECEIPT_SHOW_INVOICE_NO = r.data.receipt_show_invoice_no !== false; }, () => {});
       // وكذلك فاتورةُ الاسترجاع: من لم يُسأل يُفترض أنه يريد الأثر.
       RECEIPT_PRINT_REFUND = !(brandRes.data && brandRes.data.receipt_print_refund === false);
     } catch(_){ RECEIPT_LOGO_URL = ''; RECEIPT_TAGLINE = ''; RECEIPT_SHOW_NAME = true; RECEIPT_PRINT_REFUND = true; }

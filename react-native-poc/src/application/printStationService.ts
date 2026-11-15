@@ -125,6 +125,7 @@ async function receiptFor(d: OrderHistoryDetail): Promise<ReceiptData> {
     customMessage: branding?.customMessage || undefined,
     tagline: branding?.tagline || undefined,
     showBusinessName: branding?.showBusinessName,
+    showInvoiceNo: branding?.showInvoiceNo,
     locationLine: branding?.locationLine || undefined,
     branchLabel: branding?.branchLabel || undefined,
     createdAtISO: d.createdAt,
