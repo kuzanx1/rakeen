@@ -1,0 +1,14 @@
+/**
+ * آخر نسخة أندرويد على الرابط المباشر (rakeenapp.com/android) -- مكان واحد.
+ *
+ * يقرأه مساران: /android (يحوّل للملف) و /api/app-version (التطبيق يسأله
+ * عند الفتح، ولو نسخته أقدم يطلع للكاشير «فيه تحديث جديد»).
+ *
+ * نسخة جديدة: ارفع الملف لـ R2 (الأمر في app/android/route.ts)، وغيّر
+ * الثلاثة هنا مع versionCode/versionName في android/app/build.gradle، وانشر.
+ */
+export const ANDROID_RELEASE = {
+  versionName: "1.20",
+  versionCode: 22,
+  apkKey: "apps/rakeen-android-1.20-20261115.apk",
+} as const;

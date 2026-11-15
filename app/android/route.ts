@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ANDROID_RELEASE } from "@/lib/appRelease";
 
 // rakeenapp.com/android -- تحميل تطبيق ركين للأندرويد مباشرة، لمن لا يصله
 // المتجر بعد (والسنمي وأجهزة الكاشير اللي فيها متجر قوقل كذلك).
@@ -13,8 +14,9 @@ import { NextResponse } from "next/server";
 //     --file react-native-poc/android/app/build/outputs/apk/release/app-release.apk \
 //     --content-type application/vnd.android.package-archive \
 //     --content-disposition 'attachment; filename="rakeen.apk"'
-// ثم يتغيّر APK_KEY ويُنشر الموقع.
-const APK_KEY = "apps/rakeen-android-1.19-20261115.apk";
+// ثم تتغيّر النسخة في lib/appRelease.ts ويُنشر الموقع -- ومنه يعرف التطبيق
+// إن فيه تحديث (/api/app-version).
+const APK_KEY = ANDROID_RELEASE.apkKey;
 
 export function GET() {
   return NextResponse.redirect(`https://media.rakeenapp.com/${APK_KEY}`, 302);

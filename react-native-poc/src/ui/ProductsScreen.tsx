@@ -46,6 +46,8 @@ import ModifierModal from './ModifierModal';
 import DiscountModal from './DiscountModal';
 import PaymentModal from './PaymentModal';
 import { TrialBanner, TrialEndedModal, useTrialStatus } from './TrialNotice';
+import UpdateBanner from './UpdateBanner';
+import { maybeAskForReview } from '../application/reviewService';
 import { isTrialLocked, refreshTrialStatus } from '../application/trialService';
 import { planHas } from '../application/planService';
 import type { AttachedCustomer } from './PaymentModal';
@@ -1319,6 +1321,8 @@ export default function ProductsScreen({
       setSubmitStatus(outcome.reservedNumber ? paymentOutcomeText('PAYMENT_COMPLETED') : paymentOutcomeText(outcome.paymentState));
       if (trial && !trial.subscribed) refreshTrialStatus(); // العدّاد زاد واحد
       if (outcome.paymentState === 'PAYMENT_COMPLETED' || outcome.paymentState === 'PAYMENT_SYNC_PENDING') {
+        // «قيّم ركين» -- مرة وحدة بعد أول طلب بهالجهاز (reviewService.ts).
+        void maybeAskForReview();
         // Real receipt enqueue -- matches autoPrintOnCheckout's own
         // customer-receipt step in the PWA. Printing never waits on cloud
         // confirmation (queue-first): PAYMENT_SYNC_PENDING still prints,
@@ -1502,6 +1506,7 @@ export default function ProductsScreen({
   return (
     <View style={styles.root}>
       <TrialBanner status={trial} />
+      <UpdateBanner />
       <TrialEndedModal visible={trialEndedOpen} limit={trial?.limit ?? 350} onClose={() => setTrialEndedOpen(false)} />
       {selectedTable && (
         <View style={styles.tableBanner}>
