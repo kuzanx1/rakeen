@@ -263,6 +263,10 @@ const I18N_EN = {
   'الخصم': 'Discount',
   'نسبة أخرى': 'Other %',
   'سبب الخصم (اختياري)': 'Discount reason (optional)',
+  'سبب الخصم (لازم)': 'Discount reason (required)',
+  'اكتب سبب الخصم أول': 'Type the discount reason first',
+  'يحتاج موافقة المدير': 'needs manager approval',
+  'بموافقة المدير': 'manager approved',
   'مثال: عميل دائم، طلب فيه نقص...': 'e.g. Regular customer, order was short...',
   'تطبيق الخصم': 'Apply discount',
   'اختر نسبة': 'Choose a percentage',
@@ -2486,6 +2490,47 @@ async function loadDiscountPresetsPos(){
 
 function discountPresetName(p){ return (LANG === 'en' && p.name_en) ? p.name_en : p.name; }
 
+/* قواعد خصم الكاشير -- يفعّلها المالك من اللوحة («الخصومات والكوبونات ←
+   قواعد الكاشير»). تنطبق على الخصم اللي يكتبه الكاشير من عنده بس:
+   الخصم الجاهز والكوبون حطّهم المالك بنفسه.
+   - reason: السبب إجباري.
+   - pct / amt: أعلى خصم بدون موافقة. فوقه: رمز المدير (openPinModal).
+   تنجلب مع كل فتح لنافذة الخصم، فتغيير المالك يوصل بدون إعادة تشغيل.
+   قبل ترحيل 20261115200000 الأعمدة ما توجد: نبقى على آخر قيمة (بدون قيود).
+   (نظيرها في التطبيق: react-native-poc/src/application/discountRulesService.ts) */
+let POS_DISCOUNT_RULES = { reason: false, pct: null, amt: null };
+async function loadPosDiscountRules(){
+  try {
+    if(!CURRENT_PROFILE || !CURRENT_PROFILE.business_id) return;
+    const { data, error } = await window.supabaseClient.from('businesses')
+      .select('pos_discount_reason_required, pos_discount_max_pct, pos_discount_max_amount')
+      .eq('id', CURRENT_PROFILE.business_id).maybeSingle();
+    if(error || !data) return;
+    POS_DISCOUNT_RULES = {
+      reason: data.pos_discount_reason_required === true,
+      pct: data.pos_discount_max_pct != null ? Number(data.pos_discount_max_pct) : null,
+      amt: data.pos_discount_max_amount != null ? Number(data.pos_discount_max_amount) : null,
+    };
+  } catch(_) { /* بدون نت: آخر قواعد عرفناها */ }
+}
+/** خصم كتبه الكاشير من عنده (مو جاهز ولا كوبون). */
+function discountModalIsOwn(){ return discountModalState.mode !== 'coupon' && discountModalState.presetId === null; }
+/** فوق الحد اللي حطّه المالك؟ */
+function discountModalOverCap(){
+  if(!discountModalIsOwn()) return false;
+  const isAmt = discountModalState.mode === 'amount';
+  const cap = isAmt ? POS_DISCOUNT_RULES.amt : POS_DISCOUNT_RULES.pct;
+  const v = isAmt ? discountModalEffectiveAmount() : discountModalEffectivePct();
+  return cap != null && v > cap;
+}
+function discountCapText(){
+  const isAmt = discountModalState.mode === 'amount';
+  const cap = isAmt ? POS_DISCOUNT_RULES.amt : POS_DISCOUNT_RULES.pct;
+  if(cap == null) return '';
+  const v = Number(Number(cap).toFixed(2));
+  return LANG === 'en' ? `Over ${v}${isAmt ? ' SAR' : '%'} needs manager approval` : `فوق ${v}${isAmt ? ' ﷼' : '٪'} ${t('يحتاج موافقة المدير')}`;
+}
+
 /* كوبون يعطيه العميل للكاشير: check_coupon يتحقق ويرجّع الخصم، ويُطبَّق
    خصماً عادياً سببه «كوبون CODE» -- ومنه ينعدّ الاستخدام في القاعدة لما
    يوصل الطلب (20261115160000_discount_amount_and_coupons.sql).
@@ -2528,7 +2573,7 @@ function openDiscountModal(){
   }
   renderDiscountModalBody();
   discountModal.classList.add('show');
-  loadDiscountPresetsPos().then(renderDiscountModalBody);
+  Promise.all([loadDiscountPresetsPos(), loadPosDiscountRules()]).then(renderDiscountModalBody);
 }
 document.getElementById('discountToggle').addEventListener('click', openDiscountModal);
 document.getElementById('closeDiscountModal').addEventListener('click', ()=> discountModal.classList.remove('show'));
@@ -2549,12 +2594,13 @@ function discountModalCouponBlocked(){ const q = discountModalState.quote; retur
 function discountModalConfirmText(){
   const s = discountModalState;
   if(s.mode === 'coupon') return s.quote && s.quote.ok && !discountModalCouponBlocked() ? `${t('تطبيق الكوبون')} — ${rkCouponLabel(s.quote)}` : t('تحقق من الكوبون أول');
+  const lock = discountModalOverCap() ? ' 🔒 ' + t('بموافقة المدير') : '';
   if(s.mode === 'amount'){
     const a = discountModalEffectiveAmount();
-    return a > 0 ? `${t('تطبيق الخصم')} — ${Number(a.toFixed(2))} ﷼` : t('اختر مبلغ');
+    return a > 0 ? `${t('تطبيق الخصم')} — ${Number(a.toFixed(2))} ﷼${lock}` : t('اختر مبلغ');
   }
   const p = discountModalEffectivePct();
-  return p > 0 ? `${t('تطبيق الخصم')} — ${p}٪` : t('اختر نسبة');
+  return p > 0 ? `${t('تطبيق الخصم')} — ${p}٪${lock}` : t('اختر نسبة');
 }
 function discountModalReady(){
   const s = discountModalState;
@@ -2596,7 +2642,8 @@ function renderDiscountModalBody(){
       <button class="discount-chip ${s.customMode ? 'active' : ''}" id="discountCustomToggle">${s.mode==='amount' ? t('مبلغ آخر') : t('نسبة أخرى')}</button>
     </div>
     ${s.customMode ? `<input type="text" inputmode="${s.mode==='amount' ? 'decimal' : 'numeric'}" class="discount-custom-input" id="discountCustomInput" placeholder="${s.mode==='amount' ? t('المبلغ بالريال') : '0-100'}" value="${escapeHtml(s.customPct)}">` : ''}
-    <label class="discount-reason-label">${t('سبب الخصم (اختياري)')}</label>
+    ${discountModalIsOwn() && discountCapText() ? `<p class="discount-mode-note discount-cap-note">🔒 ${discountCapText()}</p>` : ''}
+    <label class="discount-reason-label">${discountModalIsOwn() && POS_DISCOUNT_RULES.reason ? t('سبب الخصم (لازم)') : t('سبب الخصم (اختياري)')}</label>
     <input type="text" class="discount-reason-input" id="discountReasonInput" placeholder="${t('مثال: عميل دائم، طلب فيه نقص...')}" value="${escapeHtml(s.reason)}">
     `}
     <button class="confirm-pay-btn discount-confirm-btn" id="discountConfirmBtn" ${discountModalReady() ? '' : 'disabled'}>${discountModalConfirmText()}</button>
@@ -2659,6 +2706,7 @@ function renderDiscountModalBody(){
   const reasonInput = document.getElementById('discountReasonInput');
   if(reasonInput) reasonInput.addEventListener('input', (e)=>{
     discountModalState.reason = e.target.value;
+    if(e.target.value.trim()) e.target.classList.remove('need');
   });
   const couponInput = document.getElementById('discountCouponInput');
   const couponCheck = document.getElementById('discountCouponCheck');
@@ -2693,12 +2741,25 @@ function renderDiscountModalBody(){
       discountModal.classList.remove('show');
       return;
     }
-    if(discountModalState.mode === 'amount'){ state.discountFixed = discountModalEffectiveAmount(); state.discountPct = 0; }
-    else { state.discountPct = discountModalEffectivePct(); state.discountFixed = 0; }
-    state.discountReason = discountModalState.reason.trim();
-    renderOrder();
-    syncDiscountToggleLabel();
+    const reason = discountModalState.reason.trim();
+    if(discountModalIsOwn() && POS_DISCOUNT_RULES.reason && !reason){
+      showToast(t('اكتب سبب الخصم أول'));
+      const ri = document.getElementById('discountReasonInput');
+      if(ri){ ri.classList.add('need'); ri.focus(); }
+      return;
+    }
+    const isAmt = discountModalState.mode === 'amount';
+    const fixed = isAmt ? discountModalEffectiveAmount() : 0, pct = isAmt ? 0 : discountModalEffectivePct();
+    const apply = (approved)=>{
+      state.discountFixed = fixed; state.discountPct = pct;
+      // الموافقة تنكتب مع السبب: تطلع بالتقارير وتقرير الوردية
+      state.discountReason = approved ? (reason ? reason + ' (بموافقة المدير)' : 'بموافقة المدير') : reason;
+      renderOrder();
+      syncDiscountToggleLabel();
+    };
     discountModal.classList.remove('show');
+    if(discountModalOverCap()){ openPinModal(()=> apply(true)); return; }
+    apply(false);
   });
   const clearBtn = document.getElementById('discountClearBtn');
   if(clearBtn) clearBtn.addEventListener('click', ()=>{

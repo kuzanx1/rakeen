@@ -12,6 +12,15 @@ import type { DiscountPreset } from '../application/discountService';
 import { checkCoupon, COUPON_REASON_PREFIX, normalizeCouponCode } from '../application/couponService';
 import type { CouponQuote } from '../application/couponService';
 import { discountLabel } from '../domain/discount';
+import ManagerPinModal from './ManagerPinModal';
+import {
+  approvedReason,
+  discountCap,
+  getDiscountRules,
+  isOverDiscountCap,
+  NO_DISCOUNT_RULES,
+} from '../application/discountRulesService';
+import type { DiscountRules } from '../application/discountRulesService';
 
 /**
  * Replaces the old inline `.discount-panel` row (5 `flex:1` chips crammed
@@ -25,9 +34,10 @@ import { discountLabel } from '../domain/discount';
  *
  * Adds the two things the owner asked for on top of the fix:
  *  - a custom percentage (typed, not just presets)
- *  - an OPTIONAL reason, never required (confirmed) -- recorded with the
- *    order so the shift closing report and the dashboard's discounts
- *    report can show why, not just how much.
+ *  - a reason, recorded with the order so the shift closing report and
+ *    the dashboard's discounts report can show why, not just how much.
+ *    Optional by default; the owner can make it required, and cap what
+ *    the cashier may give without the manager PIN (discountRulesService).
  */
 
 const PRESET_PERCENTAGES = [5, 10, 15, 20];
@@ -74,6 +84,10 @@ export default function DiscountModal({
   const [couponText, setCouponText] = useState('');
   const [quote, setQuote] = useState<CouponQuote | null>(null);
   const [checking, setChecking] = useState(false);
+  const [rules, setRules] = useState<DiscountRules>(NO_DISCOUNT_RULES);
+  const [reasonMissing, setReasonMissing] = useState(false);
+  // رمز المدير طبقة «inline» داخل هالنافذة: نافذتين <Modal> مع بعض على iOS = تجمّد.
+  const [pinOpen, setPinOpen] = useState(false);
 
   // Re-seed from the cart's current discount every time the modal opens --
   // not on every render, so typing isn't clobbered mid-edit.
@@ -94,6 +108,9 @@ export default function DiscountModal({
     setChecking(false);
     if (discountReason.startsWith(COUPON_REASON_PREFIX)) setMode('coupon');
     listDiscountPresets().then(setPresets).catch(() => setPresets([]));
+    setReasonMissing(false);
+    setPinOpen(false);
+    getDiscountRules().then(setRules).catch(() => {});
   }, [visible, discountPct, discountFixed, discountReason]);
 
   // ١٠٠٪ خصمٌ وارد: ضيافة، أو تعويض شكوى، أو وجبة موظف تُسجَّل طلبًا.
@@ -103,6 +120,12 @@ export default function DiscountModal({
   const couponBlocked = quote?.ok && quote.kind === 'amount' && !fixedAllowed;
   const ready =
     mode === 'coupon' ? !!quote?.ok && !couponBlocked : mode === 'pct' ? effectivePct > 0 : effectiveAmount > 0;
+  // خصم كتبه الكاشير من عنده -- القواعد تنطبق عليه بس، مو على الجاهز والكوبون.
+  const own = mode !== 'coupon' && pickedPresetId === null;
+  const kind: 'pct' | 'amount' = mode === 'amount' ? 'amount' : 'pct';
+  const cap = own ? discountCap(rules, kind) : null;
+  const overCap = own && isOverDiscountCap(rules, kind, kind === 'amount' ? effectiveAmount : effectivePct);
+  const reasonRequired = own && rules.reasonRequired;
 
   const verifyCoupon = async () => {
     setChecking(true);
@@ -153,8 +176,20 @@ export default function DiscountModal({
       onClose();
       return;
     }
-    if (mode === 'amount') onConfirm(0, reason.trim(), effectiveAmount);
-    else onConfirm(effectivePct, reason.trim(), 0);
+    if (reasonRequired && !reason.trim()) {
+      setReasonMissing(true);
+      return;
+    }
+    if (overCap) {
+      setPinOpen(true);
+      return;
+    }
+    apply(reason.trim());
+  };
+
+  const apply = (why: string) => {
+    if (mode === 'amount') onConfirm(0, why, effectiveAmount);
+    else onConfirm(effectivePct, why, 0);
     onClose();
   };
 
@@ -322,14 +357,25 @@ export default function DiscountModal({
               />
             )}
 
-            <Text style={styles.label}>{t('سبب الخصم (اختياري)')}</Text>
+            {cap != null && (
+              <Text style={styles.capNote}>
+                {lang === 'en'
+                  ? `🔒 Over ${discountLabel(kind === 'pct' ? cap : 0, kind === 'amount' ? cap : 0)} needs manager approval`
+                  : `🔒 فوق ${discountLabel(kind === 'pct' ? cap : 0, kind === 'amount' ? cap : 0)} ${t('يحتاج موافقة المدير')}`}
+              </Text>
+            )}
+            <Text style={styles.label}>{reasonRequired ? t('سبب الخصم (لازم)') : t('سبب الخصم (اختياري)')}</Text>
             <TextInput
-              style={styles.reasonInput}
+              style={[styles.reasonInput, reasonMissing && styles.reasonInputNeed]}
               placeholder={t('مثال: عميل دائم، طلب فيه نقص...')}
               placeholderTextColor={colors.muted}
               value={reason}
-              onChangeText={setReason}
+              onChangeText={v => {
+                setReason(v);
+                if (v.trim()) setReasonMissing(false);
+              }}
             />
+            {reasonMissing && <Text style={styles.needText}>{t('اكتب سبب الخصم أول')}</Text>}
             </>
             )}
 
@@ -342,7 +388,7 @@ export default function DiscountModal({
                       ? `${t('تطبيق الكوبون')} — ${discountLabel(quote.kind === 'pct' ? quote.pct : 0, quote.kind === 'amount' ? quote.amount : 0)}`
                       : t('تحقق من الكوبون أول')
                     : ready
-                    ? `${t('تطبيق الخصم')} — ${discountLabel(effectivePct, effectiveAmount)}`
+                    ? `${t('تطبيق الخصم')} — ${discountLabel(effectivePct, effectiveAmount)}${overCap ? ` 🔒 ${t('بموافقة المدير')}` : ''}`
                     : mode === 'pct'
                       ? t('اختر نسبة')
                       : t('اختر مبلغ')}
@@ -358,6 +404,15 @@ export default function DiscountModal({
           </ScrollView>
         </View>
       </KeyboardLift>
+      <ManagerPinModal
+        presentation="inline"
+        visible={pinOpen}
+        onApprove={() => {
+          setPinOpen(false);
+          apply(approvedReason(reason));
+        }}
+        onCancel={() => setPinOpen(false)}
+      />
     </Modal>
   );
 }
@@ -426,6 +481,9 @@ const useStyles = createStyles(colors =>
     modeText: { fontFamily: fonts.sansBold, fontSize: 13.5, color: colors.text },
     modeTextOn: { color: colors.lime },
     modeNote: { fontFamily: fonts.sansMedium, fontSize: 11.5, color: colors.muted, marginBottom: 10 },
+    capNote: { fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.amber, marginBottom: 10 },
+    reasonInputNeed: { borderColor: colors.danger, borderWidth: 1.5 },
+    needText: { fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.danger, marginTop: -10, marginBottom: 12 },
     disabled: { opacity: 0.4 },
     couponBox: { marginBottom: spacing[4] },
     couponRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
