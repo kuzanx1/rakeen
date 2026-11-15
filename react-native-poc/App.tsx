@@ -28,6 +28,7 @@ import TablesScreen from './src/ui/TablesScreen';
 import type { CashierProfile } from './src/domain/auth';
 import { onCashierSignedOut, logout, getDeviceConfig, checkAccountSuspended, subscribeToAccountStatus } from './src/application/authService';
 import { startAutoSync } from './src/application/syncScheduler';
+import { appInfo } from './src/application/appUpdateService';
 import { startPrintQueueAutoProcess } from './src/application/printQueueScheduler';
 import { startPrintStation } from './src/application/printStationService';
 import { startCustomerDisplay, stopCustomerDisplay } from './src/application/customerDisplayService';
@@ -1403,6 +1404,8 @@ function MoreScreen({
   const inset = sideBySide ? { paddingTop: insetTop + 18, paddingBottom: 28 + insetBottom } : null;
 
   const ink = colors.accentText;
+  const info = appInfo();
+  const version = info ? `${info.versionName} (${info.versionCode})` : '';
   return (
     <ScrollView style={styles.moreRoot} contentContainerStyle={[styles.moreScroll, inset]}>
       <Text style={[styles.moreSectionLabel, styles.moreSectionLabelFirst]}>إجراءات سريعة — وقت الخدمة</Text>
@@ -1484,6 +1487,8 @@ function MoreScreen({
           <Path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke={ink} />
         </MoreTile>
       </View>
+      {/* رقم النسخة: صغير وباهت آخر الصفحة -- عشان نعرف بنظرة إن الجهاز تحدّث. */}
+      {version ? <Text style={styles.moreVersion}>{`ركين ${version}`}</Text> : null}
     </ScrollView>
   );
 }
@@ -1617,6 +1622,7 @@ const useStyles = createStyles(colors =>
   },
   // .more-section-label:first-child
   moreSectionLabelFirst: { marginTop: 0 },
+  moreVersion: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.muted, textAlign: 'center', marginTop: 22, opacity: 0.8 },
   /* .more-grid is `repeat(auto-fill, minmax(154px,1fr))` with gap 12. RN
      has no auto-fill, so this wraps instead and each tile takes a minimum
      of 154 while still growing to share the row -- the same result at
