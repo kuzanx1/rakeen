@@ -147,6 +147,7 @@ export function buildTextReceipt(receipt: ReceiptPrintable, logoKey?: string | n
   t.bold(true);
   line(`${bi('رقم الطلب', 'Order')} #${receipt.orderNumber}`);
   t.bold(false);
+  if (receipt.invoiceRef) line(`${bi('رقم الفاتورة', 'Invoice No')}: ${receipt.invoiceRef}`);
   if (receipt.metaLabel) line(receipt.metaLabel);
   if (receipt.platformName || receipt.platformInvoiceLast4) {
     t.bold(true).size(0, 1);

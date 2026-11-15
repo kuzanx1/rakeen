@@ -150,6 +150,9 @@ export interface ReceiptModel {
   pickupAt?: string | null;
   /** في إشعار الاسترجاع: رقمُ الطلب الذي استُرجع منه. */
   refundOfOrder?: string | null;
+  /** رقم الفاتورة الضريبية (orders.id): ما يتكرر أبداً، ورقم الطلب الكبير
+   *  يرجع ١ مع كل وردية. غائب = رقم الطلب نفسه هو الفريد. */
+  invoiceRef?: string | null;
   /** طلبُ تطبيق توصيل: اسمُ التطبيق وآخرُ ٤ أرقام من فاتورته. */
   platformName?: string | null;
   platformInvoiceLast4?: string | null;

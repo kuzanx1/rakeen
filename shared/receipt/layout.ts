@@ -343,6 +343,8 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
   if (th.sectionLabels) spacedText(bi('الطلب', 'ORDER'), sz(TYPE.sectionLabel), true);
   const metaSz = sz(TYPE.meta);
   if (receipt.cashierName) rowText('', bi('تمت بواسطة', 'Served by') + ': ' + receipt.cashierName, metaSz, false);
+  /* رقم الطلب يرجع ١ كل وردية، والفاتورة الضريبية تحتاج رقماً ما يتكرر. */
+  if (receipt.invoiceRef) rowText('', bi('رقم الفاتورة', 'Invoice No') + ': ' + receipt.invoiceRef, metaSz, false);
   if (receipt.metaLabel) rowText('', bi('نوع الطلب', 'Type') + ': ' + receipt.metaLabel, metaSz, false);
   if (receipt.pickupAt) rowText('', bi('وقت الاستلام', 'Pickup at') + ': ' + receipt.pickupAt, metaSz, true);
   /* رقمُ الطلب الأصليّ في إشعار الاسترجاع: الورقةُ تُسند إلى ما استُرجع

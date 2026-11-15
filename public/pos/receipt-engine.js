@@ -834,6 +834,7 @@ var RakeenReceiptEngine = (() => {
     if (th.sectionLabels) spacedText(bi("الطلب", "ORDER"), sz(TYPE.sectionLabel), true);
     const metaSz = sz(TYPE.meta);
     if (receipt.cashierName) rowText("", bi("تمت بواسطة", "Served by") + ": " + receipt.cashierName, metaSz, false);
+    if (receipt.invoiceRef) rowText("", bi("رقم الفاتورة", "Invoice No") + ": " + receipt.invoiceRef, metaSz, false);
     if (receipt.metaLabel) rowText("", bi("نوع الطلب", "Type") + ": " + receipt.metaLabel, metaSz, false);
     if (receipt.pickupAt) rowText("", bi("وقت الاستلام", "Pickup at") + ": " + receipt.pickupAt, metaSz, true);
     if (receipt.refundOfOrder) rowText("", bi("استرجاع من الطلب", "Refund of") + ": " + receipt.refundOfOrder, metaSz, true);

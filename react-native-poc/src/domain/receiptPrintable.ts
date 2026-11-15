@@ -48,6 +48,8 @@ export interface ReceiptPrintable {
   pickupAt?: string;
   /** رقمُ الطلب الذي استُرجع منه -- يُطبع في إشعار الاسترجاع وحده. */
   refundOfOrder?: string;
+  /** رقم الفاتورة الفريد (orders.id) لما رقم الطلب المطبوع يتكرر بين الورديات. */
+  invoiceRef?: string;
   platformName?: string;
   platformInvoiceLast4?: string;
   vatNumber: string;
@@ -195,6 +197,8 @@ export function toReceiptPrintable(data: ReceiptData): ReceiptPrintable {
     // server-assigned id yet, and "#null" would be actively misleading.
     // وبلا نت: الرقم المؤقت «م-7 (مؤقت)» ينادى به الزبون لين يرتفع.
     orderNumber: data.orderId != null ? `#${data.orderNo ?? data.orderId}` : data.offlineRef ? data.offlineRef : 'سيُحدَّد عند الاتصال',
+    // رقم الطلب يرجع ١ كل وردية؛ الفاتورة الضريبية تحمل رقماً ما يتكرر.
+    invoiceRef: data.orderId != null && data.orderNo != null ? String(data.orderId) : '',
     metaLabel: bilingualOrderKind(data.metaLabel ?? ''),
     pickupAt: data.pickupAt ?? '',
     refundOfOrder: data.refundOfOrder ?? '',

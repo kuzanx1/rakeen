@@ -1,4 +1,5 @@
 import * as kvStorage from '../infrastructure/mmkvStorage';
+import { currentOrderSeries } from './orderSeries';
 
 /**
  * رقمٌ مؤقت لطلبٍ انحفظ بلا نت: «م-7».
@@ -18,7 +19,8 @@ import * as kvStorage from '../infrastructure/mmkvStorage';
 /**
  * «OF01»، «OF02»… -- كان «م-1 (مؤقت)» ويطلع بالفاتورة مزحوماً وبلا ترتيب.
  * الحرفان يفرقونه عن رقم طلب حقيقي (#45)، والصفر يخلي الأرقام بنفس
- * العرض لين ٩٩. يبدأ من ١ كل يوم. (الويب: rkNextOfflineRef.)
+ * العرض لين ٩٩. يبدأ من ١ مع كل وردية مثل رقم الطلب (بلا وردية معروفة:
+ * كل يوم). (الويب: rkNextOfflineRef.)
  */
 export function formatOfflineRef(n: number): string {
   return 'OF' + String(n).padStart(2, '0');
@@ -29,6 +31,8 @@ const MAP_KEY = 'rakeen_offline_ref_map';
 const MAP_LIMIT = 300;
 
 function today(): string {
+  const series = currentOrderSeries();
+  if (series != null) return `shift-${series}`;
   const d = new Date();
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 }

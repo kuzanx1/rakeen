@@ -1,6 +1,9 @@
 import uuid from 'react-native-uuid';
 import { supabase } from '../infrastructure/supabaseClient';
 import { getItem, setItem } from '../infrastructure/mmkvStorage';
+import { currentOrderSeries } from './orderSeries';
+
+export { setOrderNumberSeries } from './orderSeries';
 
 /**
  * أرقام طلبات محجوزة لهذا الجهاز.
@@ -15,6 +18,11 @@ import { getItem, setItem } from '../infrastructure/mmkvStorage';
  * لكل منشأة عدّادها: ١، ٢، ٣… فما يتكرر بين جهازين ولا يقفز بمبيعات غيرها.
  * ولو ما فيه حجز (الخادم قديم، أو خلص المخزون بلا نت) يرجع البيع للمسار
  * القديم كما هو -- ما فيه حالة تتعطّل فيها الفاتورة.
+ *
+ * ورقم الطلب يرجع ١ مع كل وردية (لكل فرع عدّاده --
+ * 20261115120000_shift_order_numbers.sql): كل رقم محجوز يحمل وردية فرعه
+ * (s)، والجهاز يرمي أي رقم من وردية غير الحالية -- وإلا انطبع #43 من
+ * أمس وسط أرقام اليوم ١، ٢، ٣.
  *
  * بلا مؤقّت: يُعبّأ عند الدخول وبعد كل بيع، لا غير.
  * الويب: rkOrderNumberPool في public/pos/rakeen-pos.js -- نفس الأرقام.
@@ -39,8 +47,10 @@ export interface ReservedOrderNumber {
 
 interface Pool {
   branchId: number;
-  items: { u: string; id: number; no: number; at: number }[];
+  /** s: الوردية اللي ينتمي لها الرقم (غائب = خادم قبل التصفير، صالح دائماً). */
+  items: { u: string; id: number; no: number; at: number; s?: number }[];
 }
+
 
 let mem: Pool | null = null;
 let loaded = false;
@@ -109,7 +119,13 @@ async function load(branchId: number): Promise<Pool> {
   }
   const now = Date.now();
   if (!mem || mem.branchId !== branchId) mem = { branchId, items: [] };
-  mem.items = mem.items.filter(i => now - i.at < MAX_AGE_MS && Number.isFinite(i.id) && i.id > 0 && Number.isFinite(i.no) && i.no > 0);
+  mem.items = mem.items.filter(
+    i =>
+      now - i.at < MAX_AGE_MS &&
+      Number.isFinite(i.id) && i.id > 0 &&
+      Number.isFinite(i.no) && i.no > 0 &&
+      (i.s == null || currentOrderSeries() == null || i.s === currentOrderSeries()),
+  );
   return mem;
 }
 
@@ -151,7 +167,7 @@ export function refillOrderNumberPool(branchId: number): Promise<void> {
         }
         return;
       }
-      const rows = (data || []) as { r_order_no: number; r_order_id: number; r_client_order_uuid: string }[];
+      const rows = (data || []) as { r_order_no: number; r_order_id: number; r_client_order_uuid: string; r_series?: number | null }[];
       if (rows.length === 0) {
         // المنشأة ما تفعّلت (order_number_blocks_enabled): ساعة قبل السؤال مرة ثانية.
         unsupportedUntil = Date.now() + UNSUPPORTED_BACKOFF_MS;
@@ -167,8 +183,11 @@ export function refillOrderNumberPool(branchId: number): Promise<void> {
         for (const r of rows) {
           const id = Number(r.r_order_id);
           const no = Number(r.r_order_no);
+          const s = r.r_series != null && Number(r.r_series) > 0 ? Number(r.r_series) : undefined;
           if (!asked.has(r.r_client_order_uuid) || known.has(r.r_client_order_uuid) || !(id > 0) || !(no > 0)) continue;
-          p.items.push({ u: r.r_client_order_uuid, id, no, at: now });
+          // من وردية غير الحالية (انفتحت وردية والطلب بالطريق): ما يُحفظ.
+          if (s != null && currentOrderSeries() != null && s !== currentOrderSeries()) continue;
+          p.items.push({ u: r.r_client_order_uuid, id, no, at: now, s });
         }
         // الأقدم أولاً: الأرقام تطلع بترتيبها على الفواتير.
         p.items.sort((a, b) => a.no - b.no);

@@ -4336,7 +4336,11 @@ async function getQueuedOrders(){
    تنطبع «سيُحدَّد عند الاتصال» وما عند الكاشير شي ينادي به الزبون. فينطبع
    رقمٌ من الجهاز يبدأ من 1 كل يوم، ولما يرتفع الطلب يُحفظ الربط (م-7 ← #1234):
    تنبيهٌ لحظتها، وسجلّ الطلبات يكتب «كان م-7». */
-function rkOfflineRefToday(){ const d = new Date(); return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate(); }
+/* يرجع ١ مع كل وردية مثل رقم الطلب (بلا وردية: كل يوم). */
+function rkOfflineRefToday(){
+  if(typeof CURRENT_SHIFT !== 'undefined' && CURRENT_SHIFT && CURRENT_SHIFT.id) return 'shift-' + CURRENT_SHIFT.id;
+  const d = new Date(); return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+}
 function rkNextOfflineRef(){
   let n = 1;
   try {
@@ -4688,8 +4692,12 @@ async function registerTableOrder(){
    (supabase/migrations/20261114180000_business_order_numbers.sql).
    فتنطبع الفاتورة برقمها النهائي فوراً، والإرسال بالخلفية.
    ما فيه حجز (المنشأة ما تفعّلت، أو خلص بلا نت)؟ نفس المسار القديم بالضبط.
+   ورقم الطلب يرجع ١ مع كل وردية، لكل فرع عدّاده
+   (20261115120000_shift_order_numbers.sql): كل رقم يحمل ورديته (s)،
+   وما ليس من الوردية المفتوحة ينرمى.
    بلا مؤقّت: يُعبّأ عند الدخول ورجوع النت وبعد كل بيع.
    التطبيق: react-native-poc/src/application/orderNumberPool.ts */
+function rkPoolSeries(){ return (typeof CURRENT_SHIFT !== 'undefined' && CURRENT_SHIFT && Number(CURRENT_SHIFT.id) > 0) ? Number(CURRENT_SHIFT.id) : null; }
 const RK_POOL_KEY = 'rk_order_number_pool_v2';
 const RK_POOL_TARGET = 6, RK_POOL_REFILL_BELOW = 3;
 const RK_NUMBERS_ON_KEY = 'rk_order_numbers_on';
@@ -4726,7 +4734,9 @@ function rkPoolLoad(branchId){
   try { p = JSON.parse(localStorage.getItem(RK_POOL_KEY) || 'null'); } catch(_) { p = null; }
   if(!p || p.branchId !== branchId || !Array.isArray(p.items)) p = { branchId, items: [] };
   const now = Date.now();
-  p.items = p.items.filter(i => i && i.u && i.id > 0 && i.no > 0 && now - i.at < RK_POOL_MAX_AGE_MS);
+  const series = rkPoolSeries();
+  p.items = p.items.filter(i => i && i.u && i.id > 0 && i.no > 0 && now - i.at < RK_POOL_MAX_AGE_MS
+    && (i.s == null || series == null || i.s === series));
   return p;
 }
 function rkPoolSave(p){ try { localStorage.setItem(RK_POOL_KEY, JSON.stringify(p)); } catch(_) {} }
@@ -4759,8 +4769,11 @@ function rkRefillOrderNumberPool(branchId){
       const known = new Set(p.items.map(i => i.u));
       for(const r of (data || [])){
         const id = Number(r.r_order_id), no = Number(r.r_order_no);
+        const s = Number(r.r_series) > 0 ? Number(r.r_series) : undefined;
+        const cur = rkPoolSeries();
         if(!asked.has(r.r_client_order_uuid) || known.has(r.r_client_order_uuid) || !(id > 0) || !(no > 0)) continue;
-        p.items.push({ u: r.r_client_order_uuid, id, no, at: now });
+        if(s != null && cur != null && s !== cur) continue; // من وردية غير الحالية
+        p.items.push({ u: r.r_client_order_uuid, id, no, at: now, s });
       }
       p.items.sort((a, b) => a.no - b.no);
       rkPoolSave(p);
@@ -5732,6 +5745,8 @@ function buildLiveReceiptData(orderPayload, totals){
     // customer with zero way to reference this order; say so honestly
     // instead of silently dropping the line.
     orderNumber: orderPayload.orderId ? ('#' + rkNo(orderPayload.orderId)) : orderPayload.offlineRef ? orderPayload.offlineRef : 'سيُحدَّد عند الاتصال',
+    // رقم الطلب يرجع ١ كل وردية؛ الفاتورة الضريبية تحمل رقماً ما يتكرر (orders.id).
+    invoiceRef: (orderPayload.orderId && Number(rkNo(orderPayload.orderId)) !== Number(orderPayload.orderId)) ? String(orderPayload.orderId) : '',
     metaLabel: bilingualOrderKind((CHANNEL_LABELS[orderPayload.channel] || orderPayload.channel) + liveTableLabel),
     showLogo: DEVICE.printReceiptLogo !== false && !!RECEIPT_LOGO_URL, logoUrl: RECEIPT_LOGO_URL,
     cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
@@ -5826,6 +5841,7 @@ function buildHistoricalReceiptData(order, items){
     dateLabel: new Date(order.created_at).toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
     timestampISO: order.created_at, vatNumber: BUSINESS_VAT_NUMBER,
     orderNumber: '#' + (order.order_no || rkNo(order.id)),
+    invoiceRef: order.order_no ? String(order.id) : '',
     metaLabel: bilingualOrderKind((CHANNEL_LABELS[order.channel] || order.channel) + histTableLabel),
     // صاحب الطلب وملاحظته: الطلب الإلكتروني والتوصيل تكون الورقة فيهما
     // الشيء الوحيد الذي يربط الكيس بصاحبه.

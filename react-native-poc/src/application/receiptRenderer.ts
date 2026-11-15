@@ -286,6 +286,7 @@ export async function renderReceiptToEscPosBase64(
         metaLabel: receipt.metaLabel,
         pickupAt: receipt.pickupAt,
         refundOfOrder: receipt.refundOfOrder,
+        invoiceRef: receipt.invoiceRef,
         platformName: receipt.platformName,
         platformInvoiceLast4: receipt.platformInvoiceLast4,
         customerName: receipt.customerName,
