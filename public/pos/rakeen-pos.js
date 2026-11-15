@@ -956,7 +956,7 @@ function applyLang(){
   // would throw and silently abort everything below this line.
   try {
     const discountToggle = document.getElementById('discountToggle');
-    if(discountToggle && state.discountPct === 0) discountToggle.textContent = LANG === 'en' ? '+ Discount' : '+ خصم';
+    if(discountToggle && state.discountPct === 0 && !(state.discountFixed > 0)) discountToggle.textContent = LANG === 'en' ? '+ Discount' : '+ خصم';
   } catch {}
   const clearBtn = document.getElementById('clearOrderBtn');
   if(clearBtn && !clearBtn.classList.contains('armed')) clearBtn.textContent = t('إفراغ الطلب');
@@ -1185,7 +1185,7 @@ const DELIVERY_PLATFORMS = ['هنقرستيشن','جاهز','ذا شفز','ToYou
 /* ============ STATE ============ */
 let state = {
   activeCat: 'popular', searchQuery: '', showFavOnly:false,
-  cart: [], customer: null, discountPct: 0, discountReason: '',
+  cart: [], customer: null, discountPct: 0, discountFixed: 0, discountReason: '',
   activePaymentMethod: 'cash', cashAmount: 0,
   friendsSplitOpen: false, friendsSplitCount: null,
   pinEntry: '', pinTargetLength: 4,
@@ -1793,7 +1793,8 @@ function cartTotals(){
     return {subtotal: Number(r.subtotal), discount: Number(r.discount_amount), vat: Number(r.vat_amount), total: Number(r.total)};
   }
   const subtotal = state.cart.reduce((s,i)=> s + lineUnitPrice(i)*i.qty, 0);
-  const discount = subtotal * (state.discountPct/100);
+  // بمبلغ ثابت يغلب النسبة، وما يتعدّى المجموع (cartTotals في التطبيق).
+  const discount = state.discountFixed > 0 ? Math.min(Math.round(state.discountFixed * 100) / 100, subtotal) : subtotal * (state.discountPct/100);
   const afterDiscount = subtotal - discount;
   const rate = VAT_REGISTERED ? BUSINESS_VAT_RATE : 0;
   let vat, total;
@@ -2379,12 +2380,19 @@ function renderOrder(){
   const {subtotal, discount, vat, total} = cartTotals();
   let summaryHtml = `<div class="sum-row"><span>${t('عدد الأصناف')}</span><span class="mono">${state.cart.reduce((s,i)=>s+i.qty,0)}</span></div>
     <div class="sum-row"><span>${t('المجموع الفرعي')}</span>${rkMoney(subtotal)}</div>`;
-  if(discount > 0) summaryHtml += `<div class="sum-row discount"><span>${LANG==='en' ? `Discount (${state.discountPct}%)` : `خصم (${state.discountPct}٪)`}</span>${rkMoney(-discount)}</div>`;
+  if(discount > 0) summaryHtml += `<div class="sum-row discount"><span>${LANG==='en' ? `Discount (${rkDiscountLabel(true)})` : `خصم (${rkDiscountLabel()})`}</span>${rkMoney(-discount)}</div>`;
   summaryHtml += `<div class="sum-row"><span>${t('ضريبة القيمة المضافة')}${PRICES_INCLUDE_VAT ? ' ' + t('(شاملة ضمن الإجمالي)') : ''}</span>${rkMoney(vat)}</div>
     <div class="sum-row total"><span>${t('الإجمالي')}</span>${rkMoney(total)}</div>`;
   document.getElementById('orderSummary').innerHTML = summaryHtml;
   document.getElementById('payBtnAmount').innerHTML = rkMoney(total);
   const registerMode = state.selectedTableId && state.orderChannel === 'dine_in' && DINE_IN_PAY_TIMING === 'after';
+  // طلب طاولة يتسجّل عند الخادم (register_dine_in_order) وخصمه بالنسبة بس.
+  if(state.discountFixed > 0 && rkTableOrderSelected()){
+    state.discountFixed = 0; state.discountReason = '';
+    if(typeof syncDiscountToggleLabel === 'function') syncDiscountToggleLabel();
+    showToast('انشال الخصم بالمبلغ — طلب الطاولة ينخصم بالنسبة بس');
+    return renderOrder();
+  }
   document.getElementById('payBtnLabel').textContent = registerMode ? (state.selectedOrderId ? t('إضافة للطلب') : t('تسجيل الطلب')) : t('ادفع');
   payBtn.disabled = state.cart.length === 0;
 }
@@ -2435,12 +2443,21 @@ function rkSyncCustomerButton(){
  * لم يكن للصفّ القديم مكانٌ لهما أصلاً.
  */
 const PRESET_DISCOUNT_PCTS = [5, 10, 15, 20];
-let discountModalState = {pct: 0, customMode: false, customPct: '', reason: '', presetId: null};
+/** مبالغ جاهزة بالريال: «خصم ١٠ ريال من الفاتورة». */
+const PRESET_DISCOUNT_AMOUNTS = [5, 10, 20, 50];
+let discountModalState = {mode: 'pct', pct: 0, amount: 0, customMode: false, customPct: '', reason: '', presetId: null};
 const discountModal = document.getElementById('discountModal');
 
+/** «١٠٪» أو «١٠ ﷼» -- نفس النص بالزر والملخّص (discountLabel في التطبيق). */
+function rkDiscountLabel(en){
+  if(state.discountFixed > 0) return Number(state.discountFixed.toFixed(2)) + (en ? ' SAR' : ' ﷼');
+  return state.discountPct + (en ? '%' : '٪');
+}
+/** طلب طاولة يمرّ على register_dine_in_order (بعد الأكل وقبله): خصمه بالنسبة. */
+function rkTableOrderSelected(){ return !!(state.selectedTableId && state.orderChannel === 'dine_in'); }
 function syncDiscountToggleLabel(){
-  document.getElementById('discountToggle').textContent = state.discountPct > 0
-    ? (LANG === 'en' ? `Discount ${state.discountPct}% active` : `خصم ${state.discountPct}٪ مفعّل`)
+  document.getElementById('discountToggle').textContent = (state.discountPct > 0 || state.discountFixed > 0)
+    ? (LANG === 'en' ? `Discount ${rkDiscountLabel(true)} active` : `خصم ${rkDiscountLabel()} مفعّل`)
     : (LANG === 'en' ? '+ Discount' : '+ خصم');
 }
 
@@ -2456,24 +2473,59 @@ async function loadDiscountPresetsPos(){
   // قبل ترحيل 20260916090000 لا وجود للجدول -- قائمةٌ فارغة، فتظهر
   // النافذة بالنِّسَب وحدها بلا خطأ في وجه الكاشير.
   try {
-    const { data, error } = await window.supabaseClient
+    // amount عمود أحدث: قبل ما ينزل يرجع خطأ، فنسأل بدونه.
+    let res = await window.supabaseClient
+      .from('discount_presets').select('id, name, name_en, pct, amount')
+      .eq('active', true).order('sort_order').order('id');
+    if(res.error) res = await window.supabaseClient
       .from('discount_presets').select('id, name, name_en, pct')
       .eq('active', true).order('sort_order').order('id');
-    DISCOUNT_PRESETS_POS = error ? [] : (data || []);
+    DISCOUNT_PRESETS_POS = res.error ? [] : (res.data || []);
   } catch { DISCOUNT_PRESETS_POS = []; }
 }
 
 function discountPresetName(p){ return (LANG === 'en' && p.name_en) ? p.name_en : p.name; }
 
+/* كوبون يعطيه العميل للكاشير: check_coupon يتحقق ويرجّع الخصم، ويُطبَّق
+   خصماً عادياً سببه «كوبون CODE» -- ومنه ينعدّ الاستخدام في القاعدة لما
+   يوصل الطلب (20261115160000_discount_amount_and_coupons.sql).
+   التطبيق: couponService.ts. */
+const RK_COUPON_PREFIX = 'كوبون ';
+function rkNormalizeCoupon(v){ return toWesternDigits(String(v || '')).toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 20); }
+async function rkCheckCoupon(code, subtotal){
+  const clean = rkNormalizeCoupon(code);
+  const base = { ok: false, reason: '', code: clean, kind: 'pct', pct: 0, amount: 0, discount: 0 };
+  if(clean.length < 3) return { ...base, reason: 'اكتب كود الكوبون' };
+  try {
+    const { data, error } = await window.supabaseClient.rpc('check_coupon', { p_code: clean, p_subtotal: subtotal });
+    if(error) return { ...base, reason: /PGRST202|42883|could not find the function/i.test((error.code||'') + ' ' + (error.message||'')) ? 'الكوبونات لسا ما تفعّلت عندكم' : 'تعذّر التحقق — تأكد من النت' };
+    const r = Array.isArray(data) ? data[0] : data;
+    if(!r) return { ...base, reason: 'الكوبون غير صحيح' };
+    return { ok: r.r_ok === true, reason: r.r_reason || '', code: r.r_code || clean, kind: r.r_kind === 'amount' ? 'amount' : 'pct',
+      pct: Number(r.r_pct || 0), amount: Number(r.r_amount || 0), discount: Number(r.r_discount || 0) };
+  } catch(_) { return { ...base, reason: 'تعذّر التحقق — تأكد من النت' }; }
+}
+function rkCouponLabel(q){ return q.kind === 'amount' ? Number(q.amount.toFixed(2)) + ' ﷼' : q.pct + '٪'; }
+
 function openDiscountModal(){
-  const isPreset = PRESET_DISCOUNT_PCTS.includes(state.discountPct);
+  const fixed = state.discountFixed > 0;
+  const mode = fixed ? 'amount' : 'pct';
+  const cur = fixed ? state.discountFixed : state.discountPct;
+  const isPreset = (fixed ? PRESET_DISCOUNT_AMOUNTS : PRESET_DISCOUNT_PCTS).includes(cur);
   discountModalState = {
+    mode,
     pct: state.discountPct,
-    customMode: state.discountPct > 0 && !isPreset,
-    customPct: state.discountPct > 0 && !isPreset ? String(state.discountPct) : '',
+    amount: state.discountFixed || 0,
+    customMode: cur > 0 && !isPreset,
+    customPct: cur > 0 && !isPreset ? String(cur) : '',
     reason: state.discountReason || '',
     presetId: null,
+    couponText: '', quote: null, checking: false,
   };
+  if((state.discountReason || '').startsWith(RK_COUPON_PREFIX)){
+    discountModalState.mode = 'coupon';
+    discountModalState.couponText = state.discountReason.slice(RK_COUPON_PREFIX.length);
+  }
   renderDiscountModalBody();
   discountModal.classList.add('show');
   loadDiscountPresetsPos().then(renderDiscountModalBody);
@@ -2483,50 +2535,103 @@ document.getElementById('closeDiscountModal').addEventListener('click', ()=> dis
 discountModal.addEventListener('click', (e)=>{ if(e.target===discountModal) discountModal.classList.remove('show'); });
 
 function discountModalEffectivePct(){
+  if(discountModalState.mode !== 'pct') return 0;
   if(!discountModalState.customMode) return discountModalState.pct;
   // ١٠٠٪ خصمٌ وارد: ضيافة، أو تعويض شكوى، أو وجبة موظف تُسجَّل طلبًا.
   return Math.max(0, Math.min(100, parseInt(toWesternDigits(discountModalState.customPct), 10) || 0));
 }
+function discountModalEffectiveAmount(){
+  if(discountModalState.mode !== 'amount') return 0;
+  const v = discountModalState.customMode ? (parseFloat(toWesternDigits(discountModalState.customPct)) || 0) : discountModalState.amount;
+  return Math.max(0, Math.round(v * 100) / 100);
+}
+function discountModalCouponBlocked(){ const q = discountModalState.quote; return !!(q && q.ok && q.kind === 'amount' && rkTableOrderSelected()); }
+function discountModalConfirmText(){
+  const s = discountModalState;
+  if(s.mode === 'coupon') return s.quote && s.quote.ok && !discountModalCouponBlocked() ? `${t('تطبيق الكوبون')} — ${rkCouponLabel(s.quote)}` : t('تحقق من الكوبون أول');
+  if(s.mode === 'amount'){
+    const a = discountModalEffectiveAmount();
+    return a > 0 ? `${t('تطبيق الخصم')} — ${Number(a.toFixed(2))} ﷼` : t('اختر مبلغ');
+  }
+  const p = discountModalEffectivePct();
+  return p > 0 ? `${t('تطبيق الخصم')} — ${p}٪` : t('اختر نسبة');
+}
+function discountModalReady(){
+  const s = discountModalState;
+  if(s.mode === 'coupon') return !!(s.quote && s.quote.ok) && !discountModalCouponBlocked();
+  return s.mode === 'amount' ? discountModalEffectiveAmount() > 0 : discountModalEffectivePct() > 0;
+}
 
 function renderDiscountModalBody(){
   const s = discountModalState;
-  const effectivePct = discountModalEffectivePct();
+  const fixedAllowed = !rkTableOrderSelected();
+  if(!fixedAllowed && s.mode === 'amount'){ s.mode = 'pct'; s.customMode = false; s.customPct = ''; }
   const body = document.getElementById('discountModalBody');
+  const isAmt = pr => pr.amount != null && Number(pr.amount) > 0;
   const presetsHtml = DISCOUNT_PRESETS_POS.length ? `
     <label class="discount-reason-label">${t('خصومات جاهزة')}</label>
     <div class="discount-preset-list">
-      ${DISCOUNT_PRESETS_POS.map(pr => `<button class="discount-preset-card ${s.presetId===pr.id ? 'active' : ''}" data-preset="${pr.id}"><span class="discount-preset-pct mono">${Number(pr.pct)}٪</span><span class="discount-preset-name">${escapeHtml(discountPresetName(pr))}</span></button>`).join('')}
+      ${DISCOUNT_PRESETS_POS.map(pr => `<button class="discount-preset-card ${s.presetId===pr.id ? 'active' : ''}" data-preset="${pr.id}" ${isAmt(pr) && !fixedAllowed ? 'disabled' : ''}><span class="discount-preset-pct mono">${isAmt(pr) ? Number(Number(pr.amount).toFixed(2)) + ' ﷼' : Number(pr.pct) + '٪'}</span><span class="discount-preset-name">${escapeHtml(discountPresetName(pr))}</span></button>`).join('')}
     </div>
     <label class="discount-reason-label">${t('أو خصم مخصّص')}</label>` : '';
+  const chips = s.mode === 'amount' ? PRESET_DISCOUNT_AMOUNTS : PRESET_DISCOUNT_PCTS;
+  const cur = s.mode === 'amount' ? s.amount : s.pct;
   body.innerHTML = `
     ${presetsHtml}
-    <div class="discount-grid">
-      ${PRESET_DISCOUNT_PCTS.map(p => `<button class="discount-chip ${!s.customMode && s.pct===p && s.presetId===null ? 'active' : ''}" data-pct="${p}">${p}٪</button>`).join('')}
-      <button class="discount-chip ${s.customMode ? 'active' : ''}" id="discountCustomToggle">${t('نسبة أخرى')}</button>
+    <div class="discount-mode-row">
+      <button class="discount-mode-btn ${s.mode==='pct' ? 'active' : ''}" data-mode="pct">${t('نسبة ٪')}</button>
+      <button class="discount-mode-btn ${s.mode==='amount' ? 'active' : ''}" data-mode="amount" ${fixedAllowed ? '' : 'disabled'}>${t('مبلغ ﷼')}</button>
+      <button class="discount-mode-btn ${s.mode==='coupon' ? 'active' : ''}" data-mode="coupon">${t('كوبون')}</button>
     </div>
-    ${s.customMode ? `<input type="text" inputmode="numeric" class="discount-custom-input" id="discountCustomInput" placeholder="0-100" value="${escapeHtml(s.customPct)}">` : ''}
+    ${fixedAllowed || s.mode === 'coupon' ? '' : `<p class="discount-mode-note">${t('طلب الطاولة ينخصم بالنسبة بس.')}</p>`}
+    ${s.mode === 'coupon' ? `
+    <div class="discount-coupon-row">
+      <input type="text" class="discount-custom-input discount-coupon-input" id="discountCouponInput" placeholder="${t('كود الكوبون')}" autocomplete="off" autocapitalize="characters" value="${escapeHtml(s.couponText || '')}">
+      <button class="discount-coupon-check" id="discountCouponCheck" ${s.checking || (s.couponText||'').length < 3 ? 'disabled' : ''}>${s.checking ? '...' : t('تحقق')}</button>
+    </div>
+    ${s.quote ? `<p class="discount-coupon-result ${s.quote.ok && !discountModalCouponBlocked() ? 'ok' : 'bad'}">${s.quote.ok ? (discountModalCouponBlocked() ? t('كوبون بمبلغ — طلب الطاولة ينخصم بالنسبة بس') : '✓ ' + t('كوبون صالح') + ': ' + rkCouponLabel(s.quote)) : escapeHtml(s.quote.reason)}</p>` : ''}
+    ` : `
+    <div class="discount-grid">
+      ${chips.map(v => `<button class="discount-chip ${!s.customMode && cur===v && s.presetId===null ? 'active' : ''}" data-val="${v}">${v}${s.mode==='amount' ? ' ﷼' : '٪'}</button>`).join('')}
+      <button class="discount-chip ${s.customMode ? 'active' : ''}" id="discountCustomToggle">${s.mode==='amount' ? t('مبلغ آخر') : t('نسبة أخرى')}</button>
+    </div>
+    ${s.customMode ? `<input type="text" inputmode="${s.mode==='amount' ? 'decimal' : 'numeric'}" class="discount-custom-input" id="discountCustomInput" placeholder="${s.mode==='amount' ? t('المبلغ بالريال') : '0-100'}" value="${escapeHtml(s.customPct)}">` : ''}
     <label class="discount-reason-label">${t('سبب الخصم (اختياري)')}</label>
     <input type="text" class="discount-reason-input" id="discountReasonInput" placeholder="${t('مثال: عميل دائم، طلب فيه نقص...')}" value="${escapeHtml(s.reason)}">
-    <button class="confirm-pay-btn discount-confirm-btn" id="discountConfirmBtn" ${effectivePct<=0 ? 'disabled' : ''}>${effectivePct>0 ? `${t('تطبيق الخصم')} — ${effectivePct}٪` : t('اختر نسبة')}</button>
-    ${state.discountPct > 0 ? `<button class="discount-clear-link" id="discountClearBtn">${t('إلغاء الخصم')}</button>` : ''}
+    `}
+    <button class="confirm-pay-btn discount-confirm-btn" id="discountConfirmBtn" ${discountModalReady() ? '' : 'disabled'}>${discountModalConfirmText()}</button>
+    ${(state.discountPct > 0 || state.discountFixed > 0) ? `<button class="discount-clear-link" id="discountClearBtn">${t('إلغاء الخصم')}</button>` : ''}
   `;
-  /* القالب يملأ النسبة والسبب معًا -- والسبب يُكتب بالاسم العربي دائمًا
+  body.querySelectorAll('.discount-mode-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(btn.disabled || discountModalState.mode === btn.dataset.mode) return;
+      discountModalState.mode = btn.dataset.mode;
+      discountModalState.customMode = false;
+      discountModalState.customPct = '';
+      discountModalState.presetId = null;
+      renderDiscountModalBody();
+    });
+  });
+  /* القالب يملأ الخصم والسبب معًا -- والسبب يُكتب بالاسم العربي دائمًا
      مهما كانت لغة الشاشة، وإلا انقسم التقرير سطرين لحملةٍ واحدة. */
   body.querySelectorAll('.discount-preset-card').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const pr = DISCOUNT_PRESETS_POS.find(x=>x.id === parseInt(btn.dataset.preset, 10));
-      if(!pr) return;
+      if(!pr || btn.disabled) return;
       discountModalState.customMode = false;
-      discountModalState.pct = Number(pr.pct);
+      discountModalState.customPct = '';
+      if(isAmt(pr)){ discountModalState.mode = 'amount'; discountModalState.amount = Number(pr.amount); }
+      else { discountModalState.mode = 'pct'; discountModalState.pct = Number(pr.pct); }
       discountModalState.reason = pr.name;
       discountModalState.presetId = pr.id;
       renderDiscountModalBody();
     });
   });
-  body.querySelectorAll('.discount-chip[data-pct]').forEach(btn=>{
+  body.querySelectorAll('.discount-chip[data-val]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       discountModalState.customMode = false;
-      discountModalState.pct = parseInt(btn.dataset.pct, 10);
+      const v = parseFloat(btn.dataset.val);
+      if(discountModalState.mode === 'amount') discountModalState.amount = v; else discountModalState.pct = v;
       discountModalState.presetId = null;
       renderDiscountModalBody();
     });
@@ -2541,20 +2646,55 @@ function renderDiscountModalBody(){
   });
   const customInput = document.getElementById('discountCustomInput');
   if(customInput) customInput.addEventListener('input', (e)=>{
-    const digits = toWesternDigits(e.target.value).replace(/[^0-9]/g,'').slice(0,3);
-    discountModalState.customPct = parseInt(digits, 10) > 100 ? '100' : digits;
+    if(discountModalState.mode === 'amount'){
+      discountModalState.customPct = toWesternDigits(e.target.value).replace(/[^0-9.]/g,'').replace(/(\..*)\./g, '$1').slice(0,8);
+    } else {
+      const digits = toWesternDigits(e.target.value).replace(/[^0-9]/g,'').slice(0,3);
+      discountModalState.customPct = parseInt(digits, 10) > 100 ? '100' : digits;
+    }
     const confirmBtn = document.getElementById('discountConfirmBtn');
-    const p = discountModalEffectivePct();
-    confirmBtn.disabled = p<=0;
-    confirmBtn.textContent = p>0 ? `${t('تطبيق الخصم')} — ${p}٪` : t('اختر نسبة');
+    confirmBtn.disabled = !discountModalReady();
+    confirmBtn.textContent = discountModalConfirmText();
   });
-  document.getElementById('discountReasonInput').addEventListener('input', (e)=>{
+  const reasonInput = document.getElementById('discountReasonInput');
+  if(reasonInput) reasonInput.addEventListener('input', (e)=>{
     discountModalState.reason = e.target.value;
   });
+  const couponInput = document.getElementById('discountCouponInput');
+  const couponCheck = document.getElementById('discountCouponCheck');
+  const verifyCoupon = async ()=>{
+    if((discountModalState.couponText || '').length < 3 || discountModalState.checking) return;
+    discountModalState.checking = true; renderDiscountModalBody();
+    discountModalState.quote = await rkCheckCoupon(discountModalState.couponText, cartTotals().subtotal);
+    discountModalState.checking = false; renderDiscountModalBody();
+  };
+  if(couponInput){
+    couponInput.addEventListener('input', (e)=>{
+      const v = rkNormalizeCoupon(e.target.value);
+      if(e.target.value !== v) e.target.value = v;
+      discountModalState.couponText = v; discountModalState.quote = null;
+      if(couponCheck) couponCheck.disabled = v.length < 3;
+      const r = body.querySelector('.discount-coupon-result'); if(r) r.remove();
+      const cb = document.getElementById('discountConfirmBtn'); cb.disabled = true; cb.textContent = discountModalConfirmText();
+    });
+    couponInput.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') verifyCoupon(); });
+    if(!discountModalState.quote && !discountModalState.checking) setTimeout(()=>{ try { couponInput.focus(); } catch(_){} }, 30);
+  }
+  if(couponCheck) couponCheck.addEventListener('click', verifyCoupon);
   document.getElementById('discountConfirmBtn').addEventListener('click', ()=>{
-    const p = discountModalEffectivePct();
-    if(p<=0) return;
-    state.discountPct = p;
+    if(!discountModalReady()) return;
+    if(discountModalState.mode === 'coupon'){
+      const q = discountModalState.quote;
+      if(q.kind === 'amount'){ state.discountFixed = q.amount; state.discountPct = 0; }
+      else { state.discountPct = q.pct; state.discountFixed = 0; }
+      state.discountReason = RK_COUPON_PREFIX + q.code; // منه ينعدّ الاستخدام
+      renderOrder();
+      syncDiscountToggleLabel();
+      discountModal.classList.remove('show');
+      return;
+    }
+    if(discountModalState.mode === 'amount'){ state.discountFixed = discountModalEffectiveAmount(); state.discountPct = 0; }
+    else { state.discountPct = discountModalEffectivePct(); state.discountFixed = 0; }
     state.discountReason = discountModalState.reason.trim();
     renderOrder();
     syncDiscountToggleLabel();
@@ -2563,6 +2703,7 @@ function renderDiscountModalBody(){
   const clearBtn = document.getElementById('discountClearBtn');
   if(clearBtn) clearBtn.addEventListener('click', ()=>{
     state.discountPct = 0;
+    state.discountFixed = 0;
     state.discountReason = '';
     renderOrder();
     syncDiscountToggleLabel();
@@ -3229,7 +3370,7 @@ document.getElementById('clearOrderBtn').addEventListener('click', function(){
     // المكافأة تعود لصاحبها قبل أن تُفرغ السلة: بعدها لا يبقى ما
     // يقول إن في اليد رصيداً.
     rkReturnUnusedReward();
-    state.cart = []; state.discountPct = 0; state.discountReason = '';
+    state.cart = []; state.discountPct = 0; state.discountFixed = 0; state.discountReason = '';
     renderOrder();
     showToast('تم إفراغ الطلب');
   }
@@ -3409,7 +3550,7 @@ async function submitTableOrderRegistration(){
   }
   const savedLabel = isAppend ? 'تمت إضافة الأصناف للطلب' : 'تم تسجيل الطلب';
   showToast(savedLabel + (table ? ' — طاولة ' + table.number : '') + (orderId ? '' : ' (بدون اتصال — راح تتزامن تلقائيًا)'));
-  state.cart = []; state.customer = null; state.discountPct = 0; state.discountReason = '';
+  state.cart = []; state.customer = null; state.discountPct = 0; state.discountFixed = 0; state.discountReason = '';
   // الرصيد يسقط مع الطلب الذي صُرف فيه -- لا يُورَّث لطلب زبونٍ آخر.
   state.freeRewardCredit = 0; state.rewardArm = null;
   document.getElementById('discountToggle').textContent = '+ خصم';
@@ -4338,7 +4479,8 @@ async function getQueuedOrders(){
    تنبيهٌ لحظتها، وسجلّ الطلبات يكتب «كان م-7». */
 /* يرجع ١ مع كل وردية مثل رقم الطلب (بلا وردية: كل يوم). */
 function rkOfflineRefToday(){
-  if(typeof CURRENT_SHIFT !== 'undefined' && CURRENT_SHIFT && CURRENT_SHIFT.id) return 'shift-' + CURRENT_SHIFT.id;
+  const series = typeof rkPoolSeries === 'function' ? rkPoolSeries() : null;
+  if(series != null) return 'day-' + series;
   const d = new Date(); return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
 }
 function rkNextOfflineRef(){
@@ -4568,7 +4710,7 @@ function rkPaymentMethodFor(totals){
   if(covered && Number(totals.total) <= 0) return 'loyalty';
   // خصمٌ غطّى الفاتورة كاملةً ليس كاشًا بصفر: «٠٫٠٠ كاش» في السجلّ لا
   // يُعرف من أين جاء. نفس علّة استبدال النقاط، ونفس حلّها.
-  if(Number(state.discountPct) >= 100 && Number(totals.total) <= 0) return 'discount';
+  if((Number(state.discountPct) >= 100 || (state.discountFixed > 0 && Number(totals.subtotal) > 0 && Number(totals.discount) >= Number(totals.subtotal))) && Number(totals.total) <= 0) return 'discount';
   return state.activePaymentMethod;
 }
 
@@ -4601,7 +4743,7 @@ function buildOrderPayload(totals){
     customer_name: state.customer ? state.customer.name : null,
     customer_phone: state.customer ? state.customer.phone : null,
     customer_id: state.customer ? (state.customer.id || null) : null,
-    subtotal: totals.subtotal, discount_pct: state.discountPct, discount_amount: totals.discount,
+    subtotal: totals.subtotal, discount_pct: state.discountFixed > 0 ? 0 : state.discountPct, discount_amount: totals.discount,
     discount_reason: state.discountReason || null,
     vat_amount: totals.vat, total: totals.total,
     payment_method: rkPaymentMethodFor(totals),
@@ -4692,12 +4834,32 @@ async function registerTableOrder(){
    (supabase/migrations/20261114180000_business_order_numbers.sql).
    فتنطبع الفاتورة برقمها النهائي فوراً، والإرسال بالخلفية.
    ما فيه حجز (المنشأة ما تفعّلت، أو خلص بلا نت)؟ نفس المسار القديم بالضبط.
-   ورقم الطلب يرجع ١ مع كل وردية، لكل فرع عدّاده
-   (20261115120000_shift_order_numbers.sql): كل رقم يحمل ورديته (s)،
-   وما ليس من الوردية المفتوحة ينرمى.
+   ورقم الطلب يرجع ١ مع بداية كل يوم عمل، لكل فرع عدّاده
+   (20261115120000_shift_order_numbers.sql): كل رقم يحمل يوم عمله (s =
+   YYYYMMDD)، وما ليس من اليوم ينرمى. اليوم يقفل بساعة المحل (c من
+   r_day_cutoff) مو ١٢ الليل، وينحسب بلا نت -- مثل orderSeries.ts.
    بلا مؤقّت: يُعبّأ عند الدخول ورجوع النت وبعد كل بيع.
    التطبيق: react-native-poc/src/application/orderNumberPool.ts */
-function rkPoolSeries(){ return (typeof CURRENT_SHIFT !== 'undefined' && CURRENT_SHIFT && Number(CURRENT_SHIFT.id) > 0) ? Number(CURRENT_SHIFT.id) : null; }
+let rkDayCutoff = null;
+/** تاريخ يوم العمل YYYYMMDD -- نفس rk_business_day_key (الرياض UTC+3). */
+function rkBusinessDayKey(cutoff, at){
+  const d = new Date((at || Date.now()) + 3 * 3600000 - cutoff * 3600000);
+  return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
+}
+/** بداية يوم العمل (Date): قوائم «طلبات اليوم» تبدأ منها، مو ١٢ الليل.
+ *  مثل businessDayStartMs في التطبيق. */
+function rkBusinessDayStart(){
+  rkPoolSeries(); // يقرأ الساعة المحفوظة لو ما انقرت
+  if(rkDayCutoff == null){ const d = new Date(); d.setHours(0,0,0,0); return d; }
+  const shift = 3 * 3600000 - rkDayCutoff * 3600000;
+  return new Date(Math.floor((Date.now() + shift) / 86400000) * 86400000 - shift);
+}
+function rkPoolSeries(){
+  if(rkDayCutoff == null){
+    try { const c = (JSON.parse(localStorage.getItem('rk_order_number_pool_v2') || 'null') || {}).c; if(c != null && Number(c) >= 0) rkDayCutoff = Number(c); } catch(_) {}
+  }
+  return rkDayCutoff == null ? null : rkBusinessDayKey(rkDayCutoff);
+}
 const RK_POOL_KEY = 'rk_order_number_pool_v2';
 const RK_POOL_TARGET = 6, RK_POOL_REFILL_BELOW = 3;
 const RK_NUMBERS_ON_KEY = 'rk_order_numbers_on';
@@ -4733,6 +4895,7 @@ function rkPoolLoad(branchId){
   let p = null;
   try { p = JSON.parse(localStorage.getItem(RK_POOL_KEY) || 'null'); } catch(_) { p = null; }
   if(!p || p.branchId !== branchId || !Array.isArray(p.items)) p = { branchId, items: [] };
+  if(p.c != null && Number(p.c) >= 0) rkDayCutoff = Number(p.c);
   const now = Date.now();
   const series = rkPoolSeries();
   p.items = p.items.filter(i => i && i.u && i.id > 0 && i.no > 0 && now - i.at < RK_POOL_MAX_AGE_MS
@@ -4765,14 +4928,17 @@ function rkRefillOrderNumberPool(branchId){
       if(!data || data.length === 0){ rkPoolUnsupportedUntil = Date.now() + 60 * 60 * 1000; rkSetNumbersOn(false); return; } // المنشأة ما تفعّلت
       rkSetNumbersOn(true);
       const asked = new Set(uuids), now = Date.now();
+      const cutRow = data.find(r => r.r_day_cutoff != null);
+      if(cutRow) rkDayCutoff = Number(cutRow.r_day_cutoff);
       const p = rkPoolLoad(branchId);
+      if(cutRow) p.c = rkDayCutoff;
       const known = new Set(p.items.map(i => i.u));
       for(const r of (data || [])){
         const id = Number(r.r_order_id), no = Number(r.r_order_no);
         const s = Number(r.r_series) > 0 ? Number(r.r_series) : undefined;
         const cur = rkPoolSeries();
         if(!asked.has(r.r_client_order_uuid) || known.has(r.r_client_order_uuid) || !(id > 0) || !(no > 0)) continue;
-        if(s != null && cur != null && s !== cur) continue; // من وردية غير الحالية
+        if(s != null && cur != null && s !== cur) continue; // من يوم غير اليوم
         p.items.push({ u: r.r_client_order_uuid, id, no, at: now, s });
       }
       p.items.sort((a, b) => a.no - b.no);
@@ -4945,9 +5111,9 @@ async function checkLowStockAfterOrder(payload, thresholdPct){
 // once-per-day (per device) so hitting the target doesn't re-notify on every
 // order for the rest of the day
 async function checkSalesTargetAfterOrder(targetAmount){
-  const todayKey = 'rakeen_sales_target_notified_' + new Date().toISOString().slice(0,10);
+  const startToday = rkBusinessDayStart();
+  const todayKey = 'rakeen_sales_target_notified_' + startToday.toISOString().slice(0,13);
   if(localStorage.getItem(todayKey) === '1') return;
-  const startToday = new Date(); startToday.setHours(0,0,0,0);
   const { data: orders } = await window.supabaseClient.from('orders').select('total')
     .eq('business_id', DEVICE.businessId).gte('created_at', startToday.toISOString());
   const total = (orders||[]).reduce((s,o)=>s+Number(o.total),0);
@@ -6129,7 +6295,7 @@ async function completePayment(){
   const wasResumingOrder = !!state.resumingOrder;
   state.lastTransaction.receipt = receiptData;
   state.lastTransaction.kitchen = kitchenTicketWaitsForButton() ? kitchenData : null;
-  state.cart = []; state.customer = null; state.discountPct = 0; state.discountReason = '';
+  state.cart = []; state.customer = null; state.discountPct = 0; state.discountFixed = 0; state.discountReason = '';
   // الرصيد يسقط مع الطلب الذي صُرف فيه -- لا يُورَّث لطلب زبونٍ آخر.
   state.freeRewardCredit = 0; state.rewardArm = null;
   state.selectedTableId = null; state.selectedOrderId = null; state.resumingOrder = null;
@@ -8178,7 +8344,7 @@ function registerActiveDeliveryOrder(orderId, payload){
 }
 
 async function seedActiveDeliveryOrders(){
-  const startToday = new Date(); startToday.setHours(0,0,0,0);
+  const startToday = rkBusinessDayStart();
   // is('delivered_at', null) — not is('ready_at', null) — since a ready order
   // still belongs on this list (awaiting a delivered confirmation); only a
   // genuinely delivered order is done and should drop off.
@@ -8282,7 +8448,7 @@ async function markDeliveryOrderOutForDelivery(orderId){
 let ACTIVE_PICKUP_ORDERS = []; // [{id, createdAt, customerName, total, scheduledFor, scheduledByCustomer, readyAt}]
 
 async function seedActivePickupOrders(){
-  const startToday = new Date(); startToday.setHours(0,0,0,0);
+  const startToday = rkBusinessDayStart();
   const { data } = await window.supabaseClient
     .from('orders').select('id, order_no, total, created_at, customer_name, ready_at, scheduled_for, scheduled_by_customer, payment_method, payment_status')
     .eq('branch_id', DEVICE.branchId).eq('channel', 'pickup').eq('source', 'online').eq('status', 'completed').is('delivered_at', null)
@@ -8450,7 +8616,7 @@ function rkPagerRow(o){
 async function seedActivePagerOrders(){
   if(!PAGER_ENABLED) { ACTIVE_PAGER_ORDERS = []; return; }
   try {
-    const startToday = new Date(); startToday.setHours(0,0,0,0);
+    const startToday = rkBusinessDayStart();
     const { data, error } = await window.supabaseClient
       .from('orders').select('id, order_no, client_order_uuid, total, created_at, customer_name, channel, status, ready_at, delivered_at, pager_eta_at, pager_delayed_at, pager_seen_at, pager_ring_count')
       .eq('branch_id', DEVICE.branchId).not('pager_eta_at', 'is', null).is('delivered_at', null).eq('status', 'completed')
@@ -9062,6 +9228,7 @@ async function loadShiftData(){
     vatTotal += Number(o.vat_amount) || 0;
     const discPct = Math.round(Number(o.discount_pct) || 0);
     if(discPct > 0) discountCounts.set(discPct, (discountCounts.get(discPct) || 0) + 1);
+    else if(Number(o.discount_amount) > 0) discountCounts.set(0, (discountCounts.get(0) || 0) + 1); // بمبلغ ثابت
     // طلب من المتجر الإلكتروني دُفع بغير الكاش هو "دفع إلكتروني" -- لا
     // شبكةَ الصالة. الفصل بالمصدر لا بطريقة الدفع، لأن كليهما يصل
     // بـ'card' وحدها لا تفرّق بينهما.
@@ -9078,7 +9245,7 @@ async function loadShiftData(){
   const netSales = cashSales + cardSales + deliveryPlatformSales + onlineSales - refundsTotal;
   const discountBreakdown = Array.from(discountCounts.entries())
     .map(([pct, count]) => ({pct, count}))
-    .sort((a, b) => a.pct - b.pct);
+    .sort((a, b) => (a.pct || 1000) - (b.pct || 1000)); // «بالمبلغ» آخر شي
   return {
     ordersCount: orders.length,
     grossSales, discountsTotal, discountBreakdown, vatTotal, refundsTotal, refundsCount,
@@ -9708,6 +9875,9 @@ async function loadPosData(){
       // سؤال لحاله: قبل ما ينزل العمود يرجع خطأ وما يمسّ باقي هوية الفاتورة.
       window.supabaseClient.from('businesses').select('receipt_show_invoice_no').eq('id', businessId).single()
         .then(r => { if(!r.error && r.data) RECEIPT_SHOW_INVOICE_NO = r.data.receipt_show_invoice_no !== false; }, () => {});
+      // ساعة إقفال يوم العمل: «طلبات اليوم» وتصفير أرقام الطلبات (rkBusinessDayStart).
+      window.supabaseClient.from('businesses').select('day_cutoff_hour').eq('id', businessId).single()
+        .then(r => { if(!r.error && r.data && r.data.day_cutoff_hour != null) rkDayCutoff = Number(r.data.day_cutoff_hour) || 0; }, () => {});
       // وكذلك فاتورةُ الاسترجاع: من لم يُسأل يُفترض أنه يريد الأثر.
       RECEIPT_PRINT_REFUND = !(brandRes.data && brandRes.data.receipt_print_refund === false);
     } catch(_){ RECEIPT_LOGO_URL = ''; RECEIPT_TAGLINE = ''; RECEIPT_SHOW_NAME = true; RECEIPT_PRINT_REFUND = true; }

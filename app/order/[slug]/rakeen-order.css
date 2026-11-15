@@ -619,6 +619,15 @@ img{max-width:100%; display:block;}
 .om-checkout-total{text-align:center; padding:16px 0; background:var(--surf); border-radius:var(--r-lg); margin-bottom:16px;}
 .om-checkout-total-label{font-size:11px; font-weight:700; color:var(--muted);}
 .om-checkout-total-amount{font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:28px; margin-top:4px;}
+/* الكوبون: رابط صغير يفتح الخانة -- ما يزحم اللي ما عنده كوبون. */
+.om-checkout-coupon-line{margin-top:4px; font-size:12px; font-weight:800; color:var(--ink);}
+.om-coupon-toggle{background:none; border:0; padding:0; font-size:13px; font-weight:800; color:var(--ink); text-decoration:underline; text-underline-offset:3px; cursor:pointer;}
+.om-coupon-row{display:flex; gap:8px;}
+.om-coupon-row input{flex:1; min-width:0; letter-spacing:1px; text-transform:uppercase;}
+.om-coupon-row button{padding:0 18px; border-radius:var(--r-md, 12px); border:0; background:var(--brand); color:var(--brand-ink); font-weight:800; font-size:13.5px; cursor:pointer;}
+.om-coupon-row button:disabled{opacity:.5;}
+.om-coupon-msg{margin:8px 0 0; font-size:12.5px; font-weight:700; color:#c0392b;}
+.om-coupon-msg.ok{color:var(--ink);}
 .om-confirm-order-btn{width:100%; padding:16px; border-radius:var(--r-md); background:var(--brand); color:var(--brand-ink); font-weight:800; font-size:14.5px;}
 .om-confirm-order-btn:disabled{background:var(--line); color:var(--muted);}
 

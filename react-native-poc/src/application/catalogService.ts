@@ -1,6 +1,7 @@
 import * as kvStorage from '../infrastructure/mmkvStorage';
 import { measure } from '../infrastructure/perfLog';
 import { supabase } from '../infrastructure/supabaseClient';
+import { setDayCutoffHour } from './orderSeries';
 import { Category, Product, isServiceBusinessType } from '../domain/catalog';
 import { loadPlanFeatures, planHas } from './planService';
 import { ModifierDefinition, ModifierOptionStockMap } from '../domain/cart';
@@ -516,6 +517,13 @@ async function fetchReceiptBranding(businessId: number, branchId: number | null)
     if (!error && data) out.showInvoiceNo = data.receipt_show_invoice_no !== false;
   } catch {
     // يبقى مطبوعاً.
+  }
+  // ساعة إقفال يوم العمل: عليها «طلبات اليوم» وتصفير أرقام الطلبات (orderSeries.ts).
+  try {
+    const { data, error } = await supabase.from('businesses').select('day_cutoff_hour').eq('id', businessId).single();
+    if (!error && data) setDayCutoffHour(Number((data as { day_cutoff_hour?: number }).day_cutoff_hour ?? 0));
+  } catch {
+    // يبقى ١٢ الليل.
   }
   try {
     const { data } = await supabase

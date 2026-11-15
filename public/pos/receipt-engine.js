@@ -1048,7 +1048,7 @@ var RakeenReceiptEngine = (() => {
       for (const tier of report.discountBreakdown || []) {
         ctx.rowText(
           tier.count + " طلبات · orders",
-          "خصم " + tier.pct + "% · " + tier.pct + "% off",
+          tier.pct > 0 ? "خصم " + tier.pct + "% · " + tier.pct + "% off" : "خصم بمبلغ · Fixed amount",
           SHIFT.metaSmall,
           false
         );

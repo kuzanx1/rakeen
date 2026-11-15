@@ -35,6 +35,8 @@ export function useCart(
 ) {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [discountPct, setDiscountPct] = useState(0);
+  /** خصم بمبلغ ثابت (ريال)؛ ٠ = الخصم بالنسبة. واحد منهم بس يشتغل. */
+  const [discountFixed, setDiscountFixed] = useState(0);
   /** Optional free-text reason the cashier typed in when applying a
    *  discount -- e.g. "عميل دائم" or "طلب تالف جزئيًا". Never required
    *  (confirmed with the owner), so an empty string is a perfectly valid,
@@ -145,14 +147,15 @@ export function useCart(
   const clearCart = useCallback(() => {
     setCart([]);
     setDiscountPct(0);
+    setDiscountFixed(0);
     setDiscountReason('');
     setRewardArm(null);
     setFreeRewardCredit(0);
   }, []);
 
   const totals = useMemo(
-    () => cartTotals(cart, unitPriceOf, discountPct, vatRegistered, vatRate, pricesIncludeVat),
-    [cart, unitPriceOf, discountPct, vatRegistered, vatRate, pricesIncludeVat],
+    () => cartTotals(cart, unitPriceOf, discountPct, vatRegistered, vatRate, pricesIncludeVat, discountFixed),
+    [cart, unitPriceOf, discountPct, vatRegistered, vatRate, pricesIncludeVat, discountFixed],
   );
 
   return {
@@ -160,6 +163,8 @@ export function useCart(
     totals,
     discountPct,
     setDiscountPct,
+    discountFixed,
+    setDiscountFixed,
     discountReason,
     setDiscountReason,
     orderChannel,

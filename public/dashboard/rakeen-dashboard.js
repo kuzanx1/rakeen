@@ -98,6 +98,48 @@ let HOURLY_SALES = [
 ];
 const SALES_TARGET = 5200;
 
+/* ===== يوم العمل =====
+   «اليوم» في اللوحة كلها = يوم عمل المحل، مو اليوم بالتقويم. مقهى يداوم
+   من ٤ العصر لـ ٢ الفجر يومه يقفل ٤ الفجر: بيع الساعة ١ فجراً من ليلته،
+   والرقم ما يتصفر وهو شغّال. الحد businesses.day_cutoff_hour (الرياض) --
+   نفسه حدّ التقرير اليومي وأرقام الطلبات (rk_business_day_key). يتحدد
+   لحاله من دوام الفروع أو أوقات الطلبات (refresh_day_cutoff)، أو يثبّته
+   صاحب المحل من الإعدادات ← مطعمك ← «يوم العمل». */
+let DAY_CUTOFF = 0;
+let DAY_CUTOFF_AUTO = true;
+/** بداية يوم العمل اللي فيه اللحظة at (الحين لو ما انعطت). */
+function rkDayStart(at){
+  const now = at ? new Date(at) : new Date();
+  const s = new Date(now); s.setHours(DAY_CUTOFF, 0, 0, 0);
+  if(now < s) s.setDate(s.getDate() - 1);
+  return s;
+}
+/** ترتيب الساعة داخل يوم العمل: ساعة الإقفال = ٠، و١ فجراً تجي بعد ١١ الليل. */
+function rkBizHour(h){ return ((Number(h) - DAY_CUTOFF) % 24 + 24) % 24; }
+function rkDayCutoffLabel(h){
+  h = Number(h) || 0;
+  if(h === 0) return '١٢ منتصف الليل';
+  if(h === 12) return '١٢ الظهر';
+  const n = String(h > 12 ? h - 12 : h).replace(/[0-9]/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
+  return n + (h < 5 ? ' الفجر' : h < 12 ? ' الصبح' : ' العصر');
+}
+async function loadDayCutoff(force){
+  const sb = window.supabaseClient;
+  if(!sb || !CURRENT_PROFILE) return;
+  try {
+    const { data, error } = await sb.rpc('refresh_day_cutoff', { p_force: !!force });
+    if(!error && data != null) DAY_CUTOFF = Number(data) || 0;
+    else {
+      const { data: b } = await sb.from('businesses').select('day_cutoff_hour').eq('id', CURRENT_PROFILE.business_id).maybeSingle();
+      DAY_CUTOFF = Number(b && b.day_cutoff_hour) || 0;
+    }
+  } catch(_) { /* يبقى ١٢ الليل */ }
+  try {
+    const { data: a, error: e2 } = await sb.from('businesses').select('day_cutoff_auto').eq('id', CURRENT_PROFILE.business_id).maybeSingle();
+    if(!e2 && a) DAY_CUTOFF_AUTO = a.day_cutoff_auto !== false;
+  } catch(_) {}
+}
+
 const TODAY = (function(){
   const netSales = HOURLY_SALES.reduce((s,h)=>s+h.revenue, 0);
   const ordersCount = HOURLY_SALES.reduce((s,h)=>s+h.orders, 0);
@@ -379,7 +421,7 @@ let PAYMENT_BREAKDOWN = [
    (loadPaymentBreakdown, called from renderPhase1Screens post-login) */
 async function loadPaymentBreakdown(){
   const sb = window.supabaseClient;
-  const startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
+  const startOfDay = rkDayStart();
   // payment_status='paid' excludes a pay-after dine-in table still mid-meal
   // (order registered, not yet paid) from today's payment breakdown.
   const { data } = await sb.from('orders').select('total, payment_method, cash_amount')
@@ -482,7 +524,7 @@ function hmScreenOk(slug){
 /* مبيعات أمس من بداية اليوم لين نفس الساعة الحين -- المقارنة العادلة. */
 function hmYesterdaySoFar(){
   if(!Array.isArray(YESTERDAY_ORDERS)) return null;
-  const start = new Date(); start.setHours(0,0,0,0);
+  const start = rkDayStart();
   const yStart = new Date(start); yStart.setDate(yStart.getDate()-1);
   const cut = yStart.getTime() + (Date.now() - start.getTime());
   return YESTERDAY_ORDERS.reduce((s,o)=>{
@@ -495,14 +537,15 @@ function hmOrders(n){ n = Number(n) || 0; return n === 0 ? 'ولا طلب' : hmP
 
 /* ===== ١) يومك ===== */
 function hmHourBars(){
+  // المفاتيح بترتيب يوم العمل (rkBizHour): ١ فجراً بعد ١١ الليل، مو قبل ٨ الصبح.
   const today = {};
-  (HOURLY_SALES||[]).forEach(h=>{ today[Number(h.hour)] = Number(h.revenue)||0; });
+  (HOURLY_SALES||[]).forEach(h=>{ today[rkBizHour(h.hour)] = Number(h.revenue)||0; });
   // معدّل نفس الساعة في آخر ٦ أيام (اللي فيها بيع)
   const past = (WEEK_HOUR_GRID||[]).slice(0, -1).filter(d=>d.total > 0);
   const avg = {};
-  past.forEach(d=> Object.keys(d.hours||{}).forEach(h=>{ avg[h] = (avg[h]||0) + Number(d.hours[h].total||0); }));
+  past.forEach(d=> Object.keys(d.hours||{}).forEach(h=>{ const b = rkBizHour(h); avg[b] = (avg[b]||0) + Number(d.hours[h].total||0); }));
   Object.keys(avg).forEach(h=>{ avg[h] = avg[h] / past.length; });
-  const nowH = new Date().getHours();
+  const nowH = rkBizHour(new Date().getHours());
   const hrs = Object.keys(today).concat(Object.keys(avg)).map(Number);
   let lo = hrs.length ? Math.min.apply(null, hrs) : 8;
   let hi = hrs.length ? Math.max.apply(null, hrs) : 23;
@@ -512,8 +555,9 @@ function hmHourBars(){
   let cols = '';
   for(let h = lo; h <= hi; h++){
     const t = today[h] || 0, a = avg[h] || 0;
-    const lbl = (h - lo) % 3 === 0 || h === nowH ? fmtHour12(h) : '';
-    cols += '<div class="hm-col' + (h === nowH ? ' now' : '') + (h > nowH ? ' later' : '') + '" title="' + fmtHour12(h) + ' — اليوم ' + hmFmt(t) + '، معدّلك ' + hmFmt(a) + '">'
+    const realH = (h + DAY_CUTOFF) % 24;
+    const lbl = (h - lo) % 3 === 0 || h === nowH ? fmtHour12(realH) : '';
+    cols += '<div class="hm-col' + (h === nowH ? ' now' : '') + (h > nowH ? ' later' : '') + '" title="' + fmtHour12(realH) + ' — اليوم ' + hmFmt(t) + '، معدّلك ' + hmFmt(a) + '">'
       + '<div class="hm-col-bars"><i class="hm-avg" style="height:' + (a / max * 100).toFixed(1) + '%"></i><i class="hm-today" style="height:' + (t / max * 100).toFixed(1) + '%"></i></div>'
       + '<span>' + lbl + '</span></div>';
   }
@@ -527,7 +571,8 @@ function renderHomeHero(){
   // «أبو فيصل» / «عبد الله»: الاسم الأول كلمتين
   const words = (CURRENT_PROFILE && CURRENT_PROFILE.full_name ? String(CURRENT_PROFILE.full_name) : '').trim().split(/\s+/).filter(Boolean);
   const first = words.length > 1 && /^(أبو|ابو|أم|ام|عبد|بو)$/.test(words[0]) ? words[0] + ' ' + words[1] : (words[0] || '');
-  const dateStr = new Date().toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', {weekday:'long', day:'numeric', month:'long'});
+  // تاريخ يوم العمل: الساعة ١ فجراً بليلة الأحد لسا «الأحد».
+  const dateStr = rkDayStart().toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', {weekday:'long', day:'numeric', month:'long'});
   const sales = Number(TODAY.netSales) || 0;
   const ySoFar = hmYesterdaySoFar();
   let delta;
@@ -536,7 +581,8 @@ function renderHomeHero(){
     const up = pct >= 0;
     delta = '<div class="hm-delta ' + (up ? 'up' : 'down') + '"><b>' + (up ? '↑' : '↓') + ' ' + Math.abs(pct) + '٪</b><span>' + (up ? 'أكثر' : 'أقل') + ' من أمس لنفس الساعة</span><span class="hm-delta-y">أمس ' + hmMoney(ySoFar) + '</span></div>';
   } else if(sales === 0){
-    delta = '<div class="hm-delta idle"><b>●</b><span>أول طلب اليوم بانتظارك</span></div>';
+    const yAll = Number(YESTERDAY && YESTERDAY.netSales) || 0;
+    delta = '<div class="hm-delta idle"><b>●</b><span>أول طلب اليوم بانتظارك</span>' + (yAll > 0 ? '<span class="hm-delta-y">أمس ' + hmMoney(yAll) + '</span>' : '') + '</div>';
   } else {
     delta = '<div class="hm-delta up"><b>↑</b><span>أمس ما كان فيه بيع لنفس الساعة</span></div>';
   }
@@ -555,7 +601,7 @@ function renderHomeHero(){
     '<div class="hm-hero-main">'
       + '<div class="hm-hello">' + hello + (first ? '، ' + escapeHtml(first) : '') + '</div>'
       + '<div class="hm-date">' + dateStr + '<span class="hm-live"><i></i>مباشر</span></div>'
-      + '<div class="hm-label">مبيعات اليوم</div>'
+      + '<div class="hm-label">مبيعات اليوم' + (DAY_CUTOFF ? '<span class="hm-day-note" title="يوم عملك يبدأ ويقفل الساعة ' + rkDayCutoffLabel(DAY_CUTOFF) + ' — تغيّره من الإعدادات ← مطعمك"> · من ' + rkDayCutoffLabel(DAY_CUTOFF) + '</span>' : '') + '</div>'
       + '<div class="hm-big">' + hmMoney(sales) + '</div>'
       + delta
       + (ordersBtn ? '<div class="hm-actions">' + ordersBtn + '</div>' : '')
@@ -974,7 +1020,7 @@ const salesStatic = { day: null, yList: null, platforms: null, feeTiers: null };
 async function loadSalesRealData(opts){
   const sb = window.supabaseClient;
   const businessId = CURRENT_PROFILE.business_id;
-  const startToday = new Date(); startToday.setHours(0,0,0,0);
+  const startToday = rkDayStart();
   const startYesterday = new Date(startToday); startYesterday.setDate(startYesterday.getDate()-1);
   const reuseStatic = !!(opts && opts.live) && salesStatic.day === startToday.getTime();
   const none = Promise.resolve({ data: null });
@@ -1074,7 +1120,7 @@ async function loadSalesRealData(opts){
     bucket.revenue += Number(o.total);
     bucket.orders += 1;
   });
-  HOURLY_SALES = Object.values(byHour).sort((a,b)=>Number(a.hour)-Number(b.hour));
+  HOURLY_SALES = Object.values(byHour).sort((a,b)=>rkBizHour(a.hour)-rkBizHour(b.hour));
 }
 
 /* ============ Home screen 7-day trend — real day-by-day rollup, feeds the
@@ -1083,7 +1129,7 @@ const WEEKDAY_LABELS = ['الأحد','الاثنين','الثلاثاء','الأ
 async function loadWeekTrend(){
   const sb = window.supabaseClient;
   const businessId = CURRENT_PROFILE.business_id;
-  const startToday = new Date(); startToday.setHours(0,0,0,0);
+  const startToday = rkDayStart();
   const start7 = new Date(startToday); start7.setDate(start7.getDate()-6);
 
   // payment_status='paid' — see loadPaymentBreakdown's note above.
@@ -1117,12 +1163,12 @@ async function loadWeekTrend(){
    feeds it explicitly into the same render functions instead. */
 function salesRangeBounds(preset){
   const now = new Date();
-  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startToday = rkDayStart(now);
   const startTomorrow = new Date(startToday); startTomorrow.setDate(startTomorrow.getDate()+1);
   switch(preset){
     case 'yesterday': { const from = new Date(startToday); from.setDate(from.getDate()-1); return {from, to: startToday}; }
     case '7d': { const from = new Date(startToday); from.setDate(from.getDate()-6); return {from, to: startTomorrow}; }
-    case 'month': { const from = new Date(now.getFullYear(), now.getMonth(), 1); return {from, to: startTomorrow}; }
+    case 'month': { const from = new Date(startToday.getFullYear(), startToday.getMonth(), 1, DAY_CUTOFF); return {from, to: startTomorrow}; }
     case '30d': { const from = new Date(startToday); from.setDate(from.getDate()-29); return {from, to: startTomorrow}; }
     // Real calendar quarters for the current year — matches how ZATCA
     // actually periods a small business's VAT return (Q1 Jan-Mar, etc.),
@@ -1207,7 +1253,7 @@ async function loadSalesRangeData(from, to){
     const bucket = (byHour[hour] ||= {hour:String(hour), revenue:0, orders:0});
     bucket.revenue += Number(o.total); bucket.orders += 1;
   });
-  const hourly = Object.values(byHour).sort((a,b)=>Number(a.hour)-Number(b.hour));
+  const hourly = Object.values(byHour).sort((a,b)=>rkBizHour(a.hour)-rkBizHour(b.hour));
 
   let cash=0, card=0, deliveryPlatform=0;
   list.forEach(o=>{
@@ -1400,7 +1446,7 @@ function renderOrderStatusGrid(){
 function orderDateRangeCutoff(range){
   const now = new Date();
   switch(range){
-    case 'today': { const d = new Date(now); d.setHours(0,0,0,0); return d.toISOString(); }
+    case 'today': return rkDayStart(now).toISOString();
     case 'month': { const d = new Date(now.getFullYear(), now.getMonth(), 1); return d.toISOString(); }
     case '3m': { const d = new Date(now); d.setMonth(d.getMonth()-3); return d.toISOString(); }
     case '6m': { const d = new Date(now); d.setMonth(d.getMonth()-6); return d.toISOString(); }
@@ -1411,8 +1457,8 @@ function orderDateRangeCutoff(range){
 }
 
 function odDayLabel(iso){
-  const d = new Date(iso); const t = new Date(); t.setHours(0,0,0,0);
-  const day = new Date(d); day.setHours(0,0,0,0);
+  const d = new Date(iso); const t = rkDayStart(); t.setHours(0,0,0,0);
+  const day = rkDayStart(d); day.setHours(0,0,0,0);
   const diff = Math.round((t - day) / 86400000);
   if(diff === 0) return 'اليوم';
   if(diff === 1) return 'أمس';
@@ -4659,7 +4705,7 @@ function closeExpenseModal(){ document.getElementById('expenseModal').classList.
 // updated immediately.
 async function refreshTodayAccountingAfterExpenseChange(){
   const sb = window.supabaseClient;
-  const startToday = new Date(); startToday.setHours(0,0,0,0);
+  const startToday = rkDayStart();
   const { data: todayExpenses } = await sb.from('general_expenses')
     .select('amount').eq('business_id', CURRENT_PROFILE.business_id).gte('spent_at', startToday.toISOString());
   TODAY_GENERAL_EXPENSES_TOTAL = (todayExpenses||[]).reduce((s,e)=>s+Number(e.amount),0);
@@ -4959,7 +5005,7 @@ function acRender(){
   Promise.resolve().then(() => { acQueued = false; acRenderNow(); });
 }
 function acProfitOn(){ return typeof canViewProfit === 'function' ? canViewProfit() : true; }
-function acDayStart(){ const d = new Date(); d.setHours(0, 0, 0, 0); return d; }
+function acDayStart(){ return rkDayStart(); } // يوم العمل، مو ١٢ الليل
 function acMonthStart(back){ const d = acDayStart(); d.setDate(1); if(back) d.setMonth(d.getMonth() - back); return d; }
 function acDaysInMonth(){ const n = new Date(); return new Date(n.getFullYear(), n.getMonth() + 1, 0).getDate(); }
 function acExpTime(e){ return e.spentAt ? new Date(e.spentAt).getTime() : Date.now(); }
@@ -5335,7 +5381,7 @@ let STAFF_STATS = [];
 async function loadStaffStats(){
   const sb = window.supabaseClient;
   const businessId = CURRENT_PROFILE.business_id;
-  const startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
+  const startOfDay = rkDayStart();
   const [{data: staff}, {data: branches}, {data: orders}] = await Promise.all([
     sb.from('staff_members').select('id, branch_id, name, active').eq('business_id', businessId).order('name'),
     sb.from('branches').select('id, name').eq('business_id', businessId),
@@ -5376,7 +5422,7 @@ function renderAchievements(){}
 async function loadCustomersReal(){
   const sb = window.supabaseClient;
   const businessId = CURRENT_PROFILE.business_id;
-  const startToday = new Date(); startToday.setHours(0,0,0,0);
+  const startToday = rkDayStart();
 
   const [{data: customers}, {data: orders}, {data: business}] = await Promise.all([
     sb.from('customers').select('id, name, phone, created_at, public_token, loyalty_points, loyalty_visits, loyalty_free_rewards, loyalty_units').eq('business_id', businessId),
@@ -9147,6 +9193,7 @@ function subscribeToLiveSync(){
 }
 
 async function renderPhase1Screens(){
+  await loadDayCutoff();
   renderStockTable();
   renderWasteAndFoodCost();
   wireMenuScreen();
@@ -9887,23 +9934,14 @@ const DAY_CUTOFF_CHOICES = [
   {h:6,  label:'٦ صباحًا',       hint:'يعمل ٢٤ ساعة'},
 ];
 
-function dailyReportCutoffLabel(h){
-  const c = DAY_CUTOFF_CHOICES.find(x=>x.h === Number(h||0));
-  return c ? c.label : (h + ':00');
-}
+function dailyReportCutoffLabel(h){ return rkDayCutoffLabel(h); }
 
 function dailyReportConfigHtml(){
   const cutoff = Number(DAILY_REPORT_CONFIG.day_cutoff_hour || 0);
   return `
     <div class="rk-section" style="margin-bottom:16px;">
-      ${rkSectionHead('clock', 'وقت التقرير اليومي', 'التقرير يغطي يوم عملك كامل، لا اليوم بالتقويم — فحدّد متى يقفل مكانك')}
-      <div class="rk-field" style="max-width:340px; margin-bottom:6px;">
-        <label>يوم العمل يقفل الساعة</label>
-        <select id="dailyReportCutoffSelect">
-          ${DAY_CUTOFF_CHOICES.map(c=>`<option value="${c.h}" ${c.h===cutoff?'selected':''}>${c.label}${c.hint?' — '+c.hint:''}</option>`).join('')}
-        </select>
-      </div>
-      <p class="stock-qty-helper" style="margin-bottom:14px;" id="dailyReportCutoffHelper">${dailyReportCutoffHelperText(cutoff)}</p>
+      ${rkSectionHead('clock', 'وقت التقرير اليومي', 'التقرير يغطي يوم عملك كامل، لا اليوم بالتقويم')}
+      <p class="stock-qty-helper" style="margin-bottom:14px;">${dailyReportCutoffHelperText(cutoff)} <b>تغيّر ساعة يوم العمل من الإعدادات ← مطعمك ← «يوم العمل».</b></p>
 
       ${rkSectionHead('sliders', 'محتوى التقرير اليومي', 'اختر وش يظهر بالتقرير')}
       <div class="rk-check-grid" style="grid-template-columns:repeat(3, 1fr); margin-bottom:14px;">
@@ -10012,7 +10050,7 @@ function dailyDiscountsSectionHtml(d){
   return `
     <div class="panel-title">الخصومات</div>
     <div class="report-stat-row"><span>عدد الطلبات المخصومة</span><span class="mono">${d.discountOrders || 0}</span></div>
-    ${tiers.map(t=>`<div class="report-stat-row"><span>خصم ${t.pct}%</span><span class="mono">${t.count} طلب — ${Number(t.amount||0).toFixed(2)} ر.س</span></div>`).join('')}
+    ${tiers.map(t=>`<div class="report-stat-row"><span>${Number(t.pct) > 0 ? 'خصم ' + t.pct + '%' : 'خصم بمبلغ ثابت'}</span><span class="mono">${t.count} طلب — ${Number(t.amount||0).toFixed(2)} ر.س</span></div>`).join('')}
     <div class="report-stat-row total"><span>إجمالي الخصومات</span><span class="mono">${Number(d.discounts||0).toFixed(2)} ر.س</span></div>`;
 }
 
@@ -10312,7 +10350,7 @@ async function loadReportDetailRows(type, from, to){
     // كان له مكان قبل اليوم غير سطرٍ واحد داخل نافذة تفاصيل الطلب.
     const { data: orders } = await sb.from('orders')
       .select('id, order_no, created_at, discount_pct, discount_amount, discount_reason, shift_id')
-      .eq('business_id', businessId).gt('discount_pct', 0)
+      .eq('business_id', businessId).gt('discount_amount', 0) // بالنسبة وبالمبلغ الثابت
       .gte('created_at', from.toISOString()).lt('created_at', to.toISOString())
       .order('created_at', {ascending:false});
     const rows = orders || [];
@@ -10664,7 +10702,7 @@ function discountsReportCardsHtml(rows){
     const date = new Date(r.date).toLocaleString('ar-SA', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
     return `
     <div class="report-item-card">
-      <div class="ric-title">طلب #${r.id} — خصم ${r.pct}%</div>
+      <div class="ric-title">طلب #${r.id} — خصم ${r.pct > 0 ? r.pct + '%' : Number(r.amount).toFixed(2) + ' ر.س'}</div>
       <div class="ric-row"><span class="ric-label">الأصناف</span><span>${escapeHtml(r.products)}</span></div>
       <div class="ric-row"><span class="ric-label">الكاشير</span><span>${escapeHtml(r.cashier)}</span></div>
       <div class="ric-row"><span class="ric-label">التاريخ</span><span class="mono">${date}</span></div>
@@ -10750,7 +10788,7 @@ function discountsReportHtml(rows){
         ${rows.map(r=>{
           const date = new Date(r.date).toLocaleString('ar-SA', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
           return `<tr>
-            <td class="mono">#${r.id}</td><td class="mono">${r.pct}%</td><td>${escapeHtml(r.products)}</td>
+            <td class="mono">#${r.id}</td><td class="mono">${r.pct > 0 ? r.pct + '%' : 'مبلغ'}</td><td>${escapeHtml(r.products)}</td>
             <td>${escapeHtml(r.cashier)}</td><td>${r.reason ? escapeHtml(r.reason) : '—'}</td>
             <td class="mono">${r.amount.toFixed(2)}</td><td>${date}</td>
           </tr>`;
@@ -11277,10 +11315,10 @@ const AD_QS = [
     let cmp = '';
     if(y > 0){ const p = Math.round((sales - y) / y * 100); cmp = p >= 0 ? '<b class="ad-up">↑ ' + p + '٪</b> أكثر من أمس لنفس الساعة (أمس ' + hmMoney(y) + ')' : '<b class="ad-down">↓ ' + Math.abs(p) + '٪</b> أقل من أمس لنفس الساعة (أمس ' + hmMoney(y) + ')'; }
     else cmp = 'أمس ما كان فيه بيع لنفس الساعة.';
-    const byH = {}; (HOURLY_SALES || []).forEach(h => { byH[Number(h.hour)] = Number(h.revenue) || 0; });
-    const hs = Object.keys(byH).map(Number), nowH = new Date().getHours();
+    const byH = {}; (HOURLY_SALES || []).forEach(h => { byH[rkBizHour(h.hour)] = Number(h.revenue) || 0; });
+    const hs = Object.keys(byH).map(Number), nowH = rkBizHour(new Date().getHours());
     const lo = Math.min(nowH, ...hs), hi = Math.max(nowH, ...hs), bars = [];
-    for(let h = lo; h <= hi; h++) bars.push({ k: (h - lo) % 3 === 0 || h === nowH ? fmtHour12(h) : '', v: byH[h] || 0, title: fmtHour12(h) + ' — ' + hmFmt(byH[h] || 0) });
+    for(let h = lo; h <= hi; h++){ const rh = (h + DAY_CUTOFF) % 24; bars.push({ k: (h - lo) % 3 === 0 || h === nowH ? fmtHour12(rh) : '', v: byH[h] || 0, title: fmtHour12(rh) + ' — ' + hmFmt(byH[h] || 0) }); }
     return { big: hmMoney(sales), sub: hmOrders(n) + ' · متوسط الفاتورة ' + hmMoney(TODAY.avgTicket), body: cmp, viz: adBars(bars, nowH - lo),
       go: hmScreenOk('orders') ? { label: 'شوف الطلبات', screen: 'orders' } : null };
   } },
@@ -11490,6 +11528,186 @@ function adAsk(k){
   aiRender();
 })();
 
+/* ============ الكوبونات =========================================
+   كود يكتبه العميل بالمتجر أو يعطيه للكاشير: نسبة أو مبلغ، بحدّ أدنى
+   للطلب، وعدد مرات، وتاريخ انتهاء، ووين يشتغل. الاستخدام ينعدّ في القاعدة
+   من مكان واحد (zz_orders_record_coupon)، فالرقم هنا هو نفسه للعميلين.
+   (supabase/migrations/20261115160000_discount_amount_and_coupons.sql) */
+let COUPONS = [];
+let COUPONS_READY = true; // الجدول نزل بالقاعدة؟
+let editingCouponId = null;
+
+async function loadCoupons(){
+  if(!window.supabaseClient || !CURRENT_PROFILE) return;
+  const { data, error } = await window.supabaseClient.from('coupons')
+    .select('id, code, kind, pct, amount, min_order, max_uses, uses_count, expires_at, for_store, for_pos, active, created_at')
+    .eq('business_id', CURRENT_PROFILE.business_id).order('created_at', { ascending: false });
+  COUPONS_READY = !error;
+  COUPONS = error ? [] : (data || []);
+}
+function couponValueLabel(c){ return c.kind === 'amount' ? Number(Number(c.amount).toFixed(2)) + ' ﷼' : Number(c.pct) + '٪'; }
+function couponStatus(c){
+  if(!c.active) return { t: 'موقوف', cls: 'off' };
+  if(c.expires_at && new Date(c.expires_at) < new Date()) return { t: 'انتهى', cls: 'off' };
+  if(c.max_uses && c.uses_count >= c.max_uses) return { t: 'خلص', cls: 'off' };
+  return { t: 'شغّال', cls: 'on' };
+}
+function couponsPanelHtml(){
+  if(!COUPONS_READY) return `
+    <div class="rk-section" id="couponsSection">
+      ${rkSectionHead('tag', 'الكوبونات', 'كود خصم يكتبه عميلك بالمتجر أو يعطيه للكاشير')}
+      <div class="orders-empty">الكوبونات تحتاج تحديث القاعدة أول — كلّم الدعم.</div>
+    </div>`;
+  const rows = COUPONS.map(c => {
+    const st = couponStatus(c);
+    const where = c.for_store && c.for_pos ? 'المتجر والكاشير' : c.for_store ? 'المتجر بس' : 'الكاشير بس';
+    const bits = [where];
+    if(Number(c.min_order) > 0) bits.push('لطلب ' + Number(c.min_order) + ' ﷼ وفوق');
+    if(c.expires_at) bits.push('ينتهي ' + new Date(c.expires_at).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'short' }));
+    return `
+    <div class="disc-preset-row coupon-row ${st.cls === 'off' ? 'off' : ''}" data-id="${c.id}">
+      <div class="disc-preset-pct mono">${couponValueLabel(c)}</div>
+      <div class="disc-preset-names">
+        <div class="disc-preset-name"><span class="mono coupon-code" dir="ltr">${escapeHtml(c.code)}</span> <span class="st-chip ${st.cls === 'on' ? 'ok' : 'warn'}">${st.t}</span></div>
+        <div class="disc-preset-name-en">${escapeHtml(bits.join(' · '))} · استُخدم ${c.uses_count}${c.max_uses ? ' من ' + c.max_uses : ''} مرة</div>
+      </div>
+      <div class="disc-preset-actions">
+        <button class="rk-btn rk-btn-secondary rk-btn-sm coupon-toggle" data-id="${c.id}">${c.active ? 'إيقاف' : 'تشغيل'}</button>
+        <button class="rk-btn rk-btn-secondary rk-btn-sm coupon-edit" data-id="${c.id}">تعديل</button>
+        <button class="rk-btn rk-btn-secondary rk-btn-sm coupon-del" data-id="${c.id}">حذف</button>
+      </div>
+    </div>`;
+  }).join('');
+  return `
+    <div class="rk-section" id="couponsSection">
+      ${rkSectionHead('tag', 'الكوبونات', 'كود خصم يكتبه عميلك بالمتجر أو يعطيه للكاشير')}
+      <p class="stock-qty-helper" style="margin-bottom:16px;">
+        مثال: <b class="mono">RAMADAN10</b> = خصم ١٠٪. انشره بحساباتك، والعميل يكتبه وقت الطلب من متجرك، أو يقوله للكاشير وهو يضغط «+ خصم» ← «كوبون».
+        تشوف هنا كم مرة انستخدم كل كوبون.
+      </p>
+      <div class="disc-preset-list">${rows || '<div class="orders-empty">ما فيه كوبونات — سوّ أول واحد تحت.</div>'}</div>
+
+      <div class="rk-subcard" style="margin-top:16px;">
+        <div class="rk-subcard-title" id="couponFormTitle">كوبون جديد</div>
+        <div class="rk-grid-2" style="margin-top:12px;">
+          <div class="rk-field"><label>الكود ${helpIcon('حروف إنجليزية وأرقام، من ٣ إلى ٢٠. العميل يكتبه بالضبط، الحروف الصغيرة والكبيرة سواء.')}</label>
+            <input type="text" id="couponCode" maxlength="20" placeholder="RAMADAN10" dir="ltr" style="text-transform:uppercase; letter-spacing:1px;"></div>
+          <div class="rk-field"><label>نوع الخصم</label>
+            <select id="couponKind"><option value="pct">نسبة ٪ من الطلب</option><option value="amount">مبلغ ﷼ من الطلب</option></select></div>
+          <div class="rk-field"><label id="couponValueLabel">النسبة ٪</label>
+            <input type="number" id="couponValue" min="1" max="100" step="1" placeholder="10"></div>
+          <div class="rk-field"><label>أقل مبلغ للطلب ﷼ ${helpIcon('اتركه صفر لو الكوبون لأي طلب.')}</label>
+            <input type="number" id="couponMinOrder" min="0" step="1" placeholder="0"></div>
+          <div class="rk-field"><label>كم مرة ينستخدم؟ ${helpIcon('مجموع المرات لكل العملاء. اتركه فاضي لو بلا حد.')}</label>
+            <input type="number" id="couponMaxUses" min="1" step="1" placeholder="بلا حد"></div>
+          <div class="rk-field"><label>آخر يوم ${helpIcon('يشتغل لين نهاية هاليوم. اتركه فاضي لو بلا تاريخ.')}</label>
+            <input type="date" id="couponExpires"></div>
+        </div>
+        <div class="rk-check-grid" style="grid-template-columns:repeat(2, 1fr); margin-top:12px;">
+          ${rkCheck('id="couponForStore" checked', 'يشتغل بالمتجر الإلكتروني')}
+          ${rkCheck('id="couponForPos" checked', 'يشتغل بالكاشير')}
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+          <button class="rk-btn rk-btn-primary rk-btn-md" id="couponSave">حفظ الكوبون</button>
+          <button class="rk-btn rk-btn-secondary rk-btn-md hidden" id="couponCancel">إلغاء التعديل</button>
+        </div>
+      </div>
+    </div>`;
+}
+function wireCoupons(){
+  const $ = id => document.getElementById(id);
+  const saveBtn = $('couponSave');
+  if(!saveBtn) return;
+  const kindEl = $('couponKind'), valEl = $('couponValue'), codeEl = $('couponCode');
+  const syncKind = ()=>{
+    const amt = kindEl.value === 'amount';
+    $('couponValueLabel').textContent = amt ? 'المبلغ ﷼' : 'النسبة ٪';
+    valEl.max = amt ? '' : '100'; valEl.step = amt ? '0.5' : '1';
+  };
+  kindEl.addEventListener('change', syncKind);
+  codeEl.addEventListener('input', ()=>{
+    const v = toWesternDigits(codeEl.value).toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 20);
+    if(codeEl.value !== v) codeEl.value = v;
+  });
+  const reset = ()=>{
+    editingCouponId = null;
+    codeEl.value = ''; valEl.value = ''; $('couponMinOrder').value = ''; $('couponMaxUses').value = ''; $('couponExpires').value = '';
+    kindEl.value = 'pct'; syncKind(); $('couponForStore').checked = true; $('couponForPos').checked = true;
+    $('couponFormTitle').textContent = 'كوبون جديد'; $('couponCancel').classList.add('hidden');
+  };
+  $('couponCancel').addEventListener('click', reset);
+  saveBtn.addEventListener('click', async ()=>{
+    const code = codeEl.value.trim();
+    const kind = kindEl.value;
+    const v = parseFloat(valEl.value);
+    const forStore = $('couponForStore').checked, forPos = $('couponForPos').checked;
+    if(code.length < 3){ showToast('الكود لازم ٣ حروف أو أرقام على الأقل'); return; }
+    if(kind === 'pct' && !(v >= 1 && v <= 100)){ showToast('النسبة لازم بين ١ و١٠٠'); return; }
+    if(kind === 'amount' && !(v > 0)){ showToast('اكتب مبلغ الخصم'); return; }
+    if(!forStore && !forPos){ showToast('اختر وين يشتغل الكوبون: المتجر أو الكاشير'); return; }
+    const maxUses = parseInt($('couponMaxUses').value, 10);
+    const exp = $('couponExpires').value;
+    const payload = {
+      code, kind,
+      pct: kind === 'pct' ? Math.round(v) : null,
+      amount: kind === 'amount' ? Math.round(v * 100) / 100 : null,
+      min_order: Math.max(0, parseFloat($('couponMinOrder').value) || 0),
+      max_uses: maxUses > 0 ? maxUses : null,
+      // آخر يوم كامل بتوقيت الرياض
+      expires_at: exp ? new Date(exp + 'T23:59:59+03:00').toISOString() : null,
+      for_store: forStore, for_pos: forPos,
+    };
+    rkBtnLoading(saveBtn, true);
+    const sb = window.supabaseClient;
+    const { error } = editingCouponId
+      ? await sb.from('coupons').update(payload).eq('id', editingCouponId)
+      : await sb.from('coupons').insert({ ...payload, business_id: CURRENT_PROFILE.business_id });
+    if(error){
+      rkBtnLoading(saveBtn, false);
+      showToast(/coupons_business_code_key|duplicate/i.test(error.message || '') ? 'فيه كوبون بنفس الكود — اختر كود ثاني' : 'تعذر الحفظ: ' + error.message);
+      return;
+    }
+    logDashboardAudit((editingCouponId ? 'عدّل' : 'أضاف') + ' كوبون ' + code + ' (' + (kind === 'amount' ? payload.amount + ' ريال' : payload.pct + '%') + ')');
+    reset();
+    await loadCoupons();
+    renderPosSettings();
+  });
+  document.querySelectorAll('.coupon-edit').forEach(b => b.addEventListener('click', ()=>{
+    const c = COUPONS.find(x => x.id === parseInt(b.dataset.id, 10));
+    if(!c) return;
+    editingCouponId = c.id;
+    codeEl.value = c.code; kindEl.value = c.kind; syncKind();
+    valEl.value = c.kind === 'amount' ? Number(c.amount) : Number(c.pct);
+    $('couponMinOrder').value = Number(c.min_order) || '';
+    $('couponMaxUses').value = c.max_uses || '';
+    $('couponExpires').value = c.expires_at ? new Date(new Date(c.expires_at).getTime() + 3 * 3600000).toISOString().slice(0, 10) : '';
+    $('couponForStore').checked = !!c.for_store; $('couponForPos').checked = !!c.for_pos;
+    $('couponFormTitle').textContent = 'تعديل: ' + c.code; $('couponCancel').classList.remove('hidden');
+    codeEl.focus();
+  }));
+  document.querySelectorAll('.coupon-toggle').forEach(b => b.addEventListener('click', async ()=>{
+    const c = COUPONS.find(x => x.id === parseInt(b.dataset.id, 10));
+    if(!c) return;
+    const { error } = await window.supabaseClient.from('coupons').update({ active: !c.active }).eq('id', c.id);
+    if(error){ showToast('تعذر التعديل: ' + error.message); return; }
+    await loadCoupons(); renderPosSettings();
+  }));
+  document.querySelectorAll('.coupon-del').forEach(b => b.addEventListener('click', async ()=>{
+    const c = COUPONS.find(x => x.id === parseInt(b.dataset.id, 10));
+    if(!c) return;
+    const ok = await rkAsk({
+      title: 'حذف كوبون ' + c.code + '؟',
+      body: 'الطلبات اللي انخصمت فيه تبقى بخصمها زي ما هي. بس الكود ما راح يشتغل بعدين، وعدّاد استخدامه ينمسح. لو تبيه يوقف بس، اضغط «إيقاف» بدال الحذف.',
+      ok: 'احذفه', cancel: 'خلّه',
+    });
+    if(!ok) return;
+    const { error } = await window.supabaseClient.from('coupons').delete().eq('id', c.id);
+    if(error){ showToast('تعذر الحذف: ' + error.message); return; }
+    logDashboardAudit('حذف كوبون ' + c.code);
+    await loadCoupons(); renderPosSettings();
+  }));
+}
+
 /* ============ قوالب الخصم =====================================
    «خصم ٣٠٪» في تقريرٍ لا يقول إن كانت عروض اليوم الوطني أم ضيافةً أم
    تسويةَ شكوى. فيعرّف صاحب المطعم خصوماته بأسمائها، وتظهر للكاشير
@@ -11499,21 +11717,27 @@ function adAsk(k){
    والخصم المفتوح يبقى: قوالبُ بلا حرّيةٍ تعني كاشيرًا يختار أقربها
    ويكذب على التقرير. */
 let DISCOUNT_PRESETS = [];
+/** عمود amount (خصم بمبلغ ثابت) نزل بالقاعدة؟ قبله الخصم بالنسبة بس. */
+let DISCOUNT_PRESETS_HAVE_AMOUNT = false;
 
 async function loadDiscountPresets(){
   if(!window.supabaseClient || !CURRENT_PROFILE) return;
-  const { data, error } = await window.supabaseClient
-    .from('discount_presets')
-    .select('id, name, name_en, pct, active, sort_order')
-    .eq('business_id', CURRENT_PROFILE.business_id)
-    .order('sort_order').order('id');
-  DISCOUNT_PRESETS = error ? [] : (data || []);
+  const q = cols => window.supabaseClient.from('discount_presets').select(cols)
+    .eq('business_id', CURRENT_PROFILE.business_id).order('sort_order').order('id');
+  let res = await q('id, name, name_en, pct, amount, active, sort_order');
+  DISCOUNT_PRESETS_HAVE_AMOUNT = !res.error;
+  if(res.error) res = await q('id, name, name_en, pct, active, sort_order');
+  DISCOUNT_PRESETS = res.error ? [] : (res.data || []);
+}
+/** «٣٠٪» أو «١٠ ﷼». */
+function discPresetValueLabel(p){
+  return Number(p.amount) > 0 ? Number(Number(p.amount).toFixed(2)) + ' ﷼' : Number(p.pct) + '٪';
 }
 
 function discountPresetsPanelHtml(){
   const rows = DISCOUNT_PRESETS.map(p=>`
     <div class="disc-preset-row ${p.active ? '' : 'off'}" data-id="${p.id}">
-      <div class="disc-preset-pct mono">${Number(p.pct)}٪</div>
+      <div class="disc-preset-pct mono">${discPresetValueLabel(p)}</div>
       <div class="disc-preset-names">
         <div class="disc-preset-name">${escapeHtml(p.name)}</div>
         <div class="disc-preset-name-en">${p.name_en ? escapeHtml(p.name_en) : '<span class="disc-preset-missing">ما فيه اسم إنجليزي</span>'}</div>
@@ -11529,7 +11753,7 @@ function discountPresetsPanelHtml(){
     <div class="rk-section">
       ${rkSectionHead('award', 'خصومات جاهزة', 'عرّف خصوماتك بأسمائها — تطلع للكاشير زر واحد، وتطلع بالتقارير باسمها لا برقمها')}
       <p class="stock-qty-helper" style="margin-bottom:16px;">
-        مثال: «عروض اليوم الوطني ٣٠٪». الكاشير يضغطها فينكتب الاسم مع الطلب، وتقدر بعدين تعرف كم طلب راح على هالعرض بالضبط.
+        مثال: «عروض اليوم الوطني ٣٠٪» أو «خصم الموظفين ١٠ ﷼». الكاشير يضغطها فينكتب الاسم مع الطلب، وتقدر بعدين تعرف كم طلب راح على هالعرض بالضبط.
         والخصم المفتوح يبقى موجود للحالات اللي ما لها قالب.
       </p>
 
@@ -11542,7 +11766,12 @@ function discountPresetsPanelHtml(){
             <input type="text" id="discPresetName" placeholder="عروض اليوم الوطني"></div>
           <div class="rk-field"><label>الاسم بالإنجليزي ${helpIcon('يظهر للكاشير اللي مشغّل الإنجليزي. لو تركته فاضي بيشوف الاسم العربي.')}</label>
             <input type="text" id="discPresetNameEn" placeholder="National Day offer"></div>
-          <div class="rk-field"><label>النسبة ٪</label>
+          <div class="rk-field"><label>نوع الخصم</label>
+            <select id="discPresetKind">
+              <option value="pct">نسبة ٪ من الفاتورة</option>
+              <option value="amount">مبلغ ﷼ من الفاتورة</option>
+            </select></div>
+          <div class="rk-field"><label id="discPresetValueLabel">النسبة ٪</label>
             <input type="number" id="discPresetPct" min="1" max="100" step="1" placeholder="30"></div>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
@@ -11559,31 +11788,43 @@ function wireDiscountPresets(){
   const nameEl = document.getElementById('discPresetName');
   const nameEnEl = document.getElementById('discPresetNameEn');
   const pctEl = document.getElementById('discPresetPct');
+  const kindEl = document.getElementById('discPresetKind');
   const saveBtn = document.getElementById('discPresetSave');
   const cancelBtn = document.getElementById('discPresetCancel');
   if(!saveBtn) return;
+  const syncKind = ()=>{
+    const amt = kindEl.value === 'amount';
+    document.getElementById('discPresetValueLabel').textContent = amt ? 'المبلغ ﷼' : 'النسبة ٪';
+    pctEl.max = amt ? '' : '100'; pctEl.step = amt ? '0.5' : '1'; pctEl.placeholder = amt ? '10' : '30';
+  };
+  kindEl.addEventListener('change', syncKind);
 
   const resetForm = ()=>{
     editingPresetId = null;
-    nameEl.value = ''; nameEnEl.value = ''; pctEl.value = '';
+    nameEl.value = ''; nameEnEl.value = ''; pctEl.value = ''; kindEl.value = 'pct'; syncKind();
     document.getElementById('discPresetFormTitle').textContent = 'خصم جديد';
     cancelBtn.classList.add('hidden');
   };
 
   saveBtn.addEventListener('click', async ()=>{
     const name = nameEl.value.trim();
+    const isAmount = kindEl.value === 'amount';
     const pct = parseInt(pctEl.value, 10);
+    const amount = Math.round((parseFloat(pctEl.value) || 0) * 100) / 100;
     if(!name){ showToast('اكتب اسم الخصم'); return; }
-    if(!(pct > 0 && pct <= 100)){ showToast('النسبة لازم بين ١ و١٠٠'); return; }
+    if(isAmount && !(amount > 0)){ showToast('اكتب مبلغ الخصم بالريال'); return; }
+    if(!isAmount && !(pct > 0 && pct <= 100)){ showToast('النسبة لازم بين ١ و١٠٠'); return; }
+    if(isAmount && !DISCOUNT_PRESETS_HAVE_AMOUNT){ showToast('الخصم بالمبلغ يحتاج تحديث القاعدة أول — كلّم الدعم'); return; }
     rkBtnLoading(saveBtn, true);
-    const payload = { name, name_en: nameEnEl.value.trim() || null, pct };
+    const payload = { name, name_en: nameEnEl.value.trim() || null, pct: isAmount ? null : pct };
+    if(DISCOUNT_PRESETS_HAVE_AMOUNT) payload.amount = isAmount ? amount : null;
     const sb = window.supabaseClient;
     const { error } = editingPresetId
       ? await sb.from('discount_presets').update(payload).eq('id', editingPresetId)
       : await sb.from('discount_presets').insert({ ...payload, business_id: CURRENT_PROFILE.business_id,
           sort_order: DISCOUNT_PRESETS.length });
     if(error){ rkBtnLoading(saveBtn, false); showToast('تعذر الحفظ: ' + error.message); return; }
-    logDashboardAudit((editingPresetId ? 'عدّل' : 'أضاف') + ' خصمًا جاهزًا: ' + name + ' ' + pct + '%');
+    logDashboardAudit((editingPresetId ? 'عدّل' : 'أضاف') + ' خصمًا جاهزًا: ' + name + ' ' + (isAmount ? amount + ' ريال' : pct + '%'));
     resetForm();
     await loadDiscountPresets();
     renderPosSettings();
@@ -11595,7 +11836,9 @@ function wireDiscountPresets(){
     const p = DISCOUNT_PRESETS.find(x=>x.id === parseInt(b.dataset.id, 10));
     if(!p) return;
     editingPresetId = p.id;
-    nameEl.value = p.name; nameEnEl.value = p.name_en || ''; pctEl.value = p.pct;
+    nameEl.value = p.name; nameEnEl.value = p.name_en || '';
+    kindEl.value = Number(p.amount) > 0 ? 'amount' : 'pct'; syncKind();
+    pctEl.value = Number(p.amount) > 0 ? Number(p.amount) : p.pct;
     document.getElementById('discPresetFormTitle').textContent = 'تعديل: ' + p.name;
     cancelBtn.classList.remove('hidden');
     nameEl.focus();
@@ -13019,7 +13262,7 @@ const PS_TILES = [
   ['interface', 'sliders', 'بسّط شاشة الكاشير', 'أخفِ اللي ما تحتاجه'],
   ['pager', 'bell', 'بيجر ركين', 'نادِ عميلك على جواله'],
   ['kitchen', 'chef', 'شاشة المطبخ', 'متى ينتهي الطلب'],
-  ['discounts', 'percent', 'خصومات جاهزة', 'بضغطة من الكاشير'],
+  ['discounts', 'percent', 'الخصومات والكوبونات', 'خصومات جاهزة وأكواد خصم'],
   ['branches', 'shield', 'الأجهزة والأمان', 'رمز الجهاز وكلمة سر المدير'],
 ];
 /* البطاقات تنبني مرّة. الحالة تحت كل اسم تتحدّث بعد كل جلب. */
@@ -13106,7 +13349,7 @@ async function psOpenTab(tab){
   activePosSettingsTab = tab;
   // القوالب تُجلب عند فتح تبويبها لا عند إقلاع اللوحة: قائمةٌ تُفتح
   // مرّةً في الشهر لا تستحقّ نداءً في كل تسجيل دخول.
-  if(tab === 'discounts') await loadDiscountPresets();
+  if(tab === 'discounts') await Promise.all([loadDiscountPresets(), loadCoupons()]);
   await renderPosSettings();
 }
 
@@ -13513,7 +13756,7 @@ async function renderPosSettings(){
     tables: orderTypesIntro + dineInMasterPanel + tablesGatedContent,
     kitchen: kitchenPanel + autoReadyPanel,
     branches: managerPinPanel + branchSecurityPanelsHtml,
-    discounts: discountPresetsPanelHtml(),
+    discounts: discountPresetsPanelHtml() + couponsPanelHtml(),
     pager: activePosSettingsTab === 'pager' ? pagerSettingsTabHtml() : '',
   };
   panel.innerHTML = POS_SETTINGS_TABS_HTML[activePosSettingsTab] || POS_SETTINGS_TABS_HTML.tables;
@@ -13527,11 +13770,12 @@ async function renderPosSettings(){
       receipt: theme + (RECEIPT_LOGO_URL ? ' · بشعارك' : ' · بدون شعار'),
       interface: nHidden ? hmPlural(nHidden, 'شي واحد مخفي', 'شيئين مخفية', 'أشياء مخفية', 'شي مخفي') : 'كل شي ظاهر',
       kitchen: kMode === 'auto' ? 'ينتهي لحاله بعد ' + kMinutes + ' دقيقة' : 'الموظف يضغط «تم التجهيز»',
-      discounts: nPresets ? hmPlural(nPresets, 'خصم واحد جاهز', 'خصمين جاهزة', 'خصومات جاهزة', 'خصم جاهز') : '',
+      discounts: [nPresets ? hmPlural(nPresets, 'خصم واحد جاهز', 'خصمين جاهزين', 'خصومات جاهزة', 'خصم جاهز') : '',
+        COUPONS.length ? hmPlural(COUPONS.length, 'كوبون واحد', 'كوبونين', 'كوبونات', 'كوبون') : ''].filter(Boolean).join(' · '),
       branches: (branches||[]).length ? paired + ' من ' + (branches||[]).length + ' أجهزة مقترنة' + (POS_READINESS.managerPinSet ? '' : ' · بدون كلمة سر') : '',
     });
   }
-  if(activePosSettingsTab === 'discounts') wireDiscountPresets();
+  if(activePosSettingsTab === 'discounts'){ wireDiscountPresets(); wireCoupons(); }
   if(activePosSettingsTab === 'pager') wirePagerSettingsTab();
   posSnapshotSwitches();
   panel.addEventListener('change', posRefreshDirty);
@@ -14223,6 +14467,7 @@ const RK_ICON_PATHS = {
   zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 9 2"></polygon>',
   refreshCw: '<polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>',
   checkCircle: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 17.01"></polyline>',
+  tag: '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line>',
   award: '<circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>',
   globe: '<circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>',
   grid: '<rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect>',
@@ -14841,6 +15086,8 @@ function restaurantSettingsHtml(){
 
     <button class="rk2-btn lime st-save" id="settingsSaveBtn" type="button">احفظ التغييرات</button>
 
+    ${businessDaySettingsHtml()}
+
     <!-- بوابةُ الدفع انتقلت إلى المتجر الإلكتروني ← تبويب "بوابة الدفع". -->
     ${isServiceBusinessType(BUSINESS_TYPE) ? `
     <div class="rk-section" ${planAttr('booking_page')}>
@@ -14859,7 +15106,63 @@ function restaurantSettingsHtml(){
     </fieldset>
   `;
 }
+/* «يوم العمل» -- مكانه الوحيد. عليه «مبيعات اليوم» والتقارير والتقرير
+   اليومي وأرقام الطلبات (انظر rkDayStart). */
+function businessDayHelperText(auto, h){
+  const lbl = rkDayCutoffLabel(h);
+  const how = auto ? 'نحدده لحالنا من أوقات فروعك (الإعدادات ← فروعك)، ولو ما حطيتها من أوقات طلباتك بآخر ٤ أسابيع. ' : '';
+  if(!Number(h)) return how + 'يومك من ١٢ منتصف الليل إلى ١٢ منتصف الليل: «مبيعات اليوم» وأرقام الطلبات ترجع من جديد الساعة ١٢.';
+  return how + 'يومك من ' + lbl + ' إلى ' + lbl + ' اللي بعده: بيع الساعة ١ الفجر ينحسب على ليلته مو على بكرة، و«مبيعات اليوم» وأرقام الطلبات ترجع من جديد الساعة ' + lbl + '.';
+}
+function businessDaySettingsHtml(){
+  let opts = '<option value="auto"' + (DAY_CUTOFF_AUTO ? ' selected' : '') + '>تلقائي حسب دوامك — حالياً ' + rkDayCutoffLabel(DAY_CUTOFF) + '</option>';
+  for(let h = 0; h <= 11; h++){
+    opts += '<option value="' + h + '"' + (!DAY_CUTOFF_AUTO && h === DAY_CUTOFF ? ' selected' : '') + '>' + rkDayCutoffLabel(h) + (h === 0 ? ' — للي يقفل قبل ١٢ الليل' : h === 4 ? ' — للي يسهر لين ٢ الفجر' : '') + '</option>';
+  }
+  return `
+    <div class="rk-section" id="stBusinessDay">
+      ${rkSectionHead('clock', 'يوم العمل', 'متى يقفل يومك؟ عليه تنحسب «مبيعات اليوم» والتقارير وأرقام الطلبات')}
+      <div class="rk-field" style="max-width:380px; margin-bottom:6px;">
+        <label>يوم العمل يقفل الساعة</label>
+        <select id="settingsDayCutoff">${opts}</select>
+      </div>
+      <p class="stock-qty-helper" id="settingsDayCutoffHelper" style="margin-bottom:14px;">${businessDayHelperText(DAY_CUTOFF_AUTO, DAY_CUTOFF)}</p>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="settingsDayCutoffSaveBtn" type="button">احفظ يوم العمل</button>
+    </div>`;
+}
+function wireBusinessDaySettings(){
+  const sel = document.getElementById('settingsDayCutoff');
+  const btn = document.getElementById('settingsDayCutoffSaveBtn');
+  if(!sel || !btn) return;
+  sel.addEventListener('change', ()=>{
+    const help = document.getElementById('settingsDayCutoffHelper');
+    if(help) help.textContent = sel.value === 'auto' ? businessDayHelperText(true, DAY_CUTOFF) : businessDayHelperText(false, Number(sel.value));
+  });
+  btn.addEventListener('click', async ()=>{
+    const auto = sel.value === 'auto';
+    const update = auto ? { day_cutoff_auto: true } : { day_cutoff_auto: false, day_cutoff_hour: Number(sel.value) };
+    rkBtnLoading(btn, true);
+    try {
+      await updateCurrentBusiness(update);
+    } catch(err){
+      rkBtnLoading(btn, false);
+      const msg = err && err.message ? err.message : '';
+      showToast(/day_cutoff_auto/.test(msg) ? 'يوم العمل يحتاج تحديث القاعدة أول — كلّم الدعم' : 'تعذر الحفظ: ' + (msg || 'خطأ غير متوقع'));
+      return;
+    }
+    await loadDayCutoff(true);
+    if(DAILY_REPORT_CONFIG) DAILY_REPORT_CONFIG.day_cutoff_hour = DAY_CUTOFF;
+    rkBtnSuccess(btn, '✓ انحفظ — يومك يقفل ' + rkDayCutoffLabel(DAY_CUTOFF));
+    const help = document.getElementById('settingsDayCutoffHelper');
+    if(help) help.textContent = businessDayHelperText(DAY_CUTOFF_AUTO, DAY_CUTOFF);
+    try {
+      await loadPaymentBreakdown(); await loadSalesRealData(); recomputeAccounting(); await loadWeekTrend();
+      if(typeof renderHomeHero === 'function') renderHomeHero();
+    } catch(_) { /* الأرقام تتحدث مع أول تحديث للصفحة */ }
+  });
+}
 function wireRestaurantSettings(){
+  wireBusinessDaySettings();
   // بوابةُ الدفع لم تعد تُرسم هنا -- انتقلت إلى تبويبها في المتجر
   // الإلكتروني، وهي التي تُنادي wireGeideaPanel بنفسها.
   attachImageCropper('settingsLogoInput', { aspect: 1, outputWidth: 500, outputHeight: 500 });
@@ -21093,10 +21396,10 @@ function buildReportPayload(type){
     rows.forEach(r=>tiers.set(r.pct, (tiers.get(r.pct)||0)+1));
     return { ...base, stats: [
       {label:'عدد الطلبات المخصومة', value: String(rows.length)},
-      ...[...tiers.entries()].sort((a,b)=>b[0]-a[0]).map(([pct,count])=>({label:'خصم '+pct+'%', value: count+' طلب'})),
+      ...[...tiers.entries()].sort((a,b)=>b[0]-a[0]).map(([pct,count])=>({label: pct > 0 ? 'خصم '+pct+'%' : 'خصم بمبلغ ثابت', value: count+' طلب'})),
       {label:'إجمالي مبلغ الخصومات', value: total.toFixed(2)+' ر.س', total:true},
     ], table: { headers:['الطلب','النسبة','الأصناف','الكاشير','السبب','المبلغ','التاريخ'],
-      rows: rows.map(r=>['#'+r.id, r.pct+'%', r.products, r.cashier, r.reason || '—', r.amount.toFixed(2),
+      rows: rows.map(r=>['#'+r.id, r.pct > 0 ? r.pct+'%' : 'مبلغ', r.products, r.cashier, r.reason || '—', r.amount.toFixed(2),
         new Date(r.date).toLocaleString('ar-SA', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})]) } };
   }
   if(type === 'waste'){

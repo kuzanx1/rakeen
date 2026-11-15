@@ -32,7 +32,7 @@ const MAP_LIMIT = 300;
 
 function today(): string {
   const series = currentOrderSeries();
-  if (series != null) return `shift-${series}`;
+  if (series != null) return `day-${series}`;
   const d = new Date();
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 }

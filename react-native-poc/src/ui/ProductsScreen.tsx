@@ -43,7 +43,7 @@ import type { Shift } from '../domain/shift';
 import { useCart } from './useCart';
 import { getCachedPosBootstrap, hydratePosBootstrap, loadPosBootstrap, PosBootstrap } from '../application/posBootstrap';
 import ModifierModal from './ModifierModal';
-import DiscountModal from './DiscountModal';
+import DiscountModal, { discountLabel } from './DiscountModal';
 import PaymentModal from './PaymentModal';
 import { TrialBanner, TrialEndedModal, useTrialStatus } from './TrialNotice';
 import UpdateBanner from './UpdateBanner';
@@ -1047,6 +1047,11 @@ export default function ProductsScreen({
   const handleRegisterDineInOrder = async () => {
     if (cart.cart.length === 0 || !catalog) return;
     if (blockedByTrial()) return;
+    if (cart.discountFixed > 0) {
+      // register_dine_in_order يحسب الخصم بالنسبة (والجولات الجاية تنضاف عليه).
+      setSubmitStatus('طلب الطاولة ينخصم بالنسبة بس — غيّر الخصم لنسبة أو ألغه');
+      return;
+    }
     setSubmitting(true);
     setSubmitStatus('');
     try {
@@ -1862,7 +1867,9 @@ export default function ProductsScreen({
               onPress={() => setDiscountModalOpen(true)}
               activeOpacity={0.8}>
               <Text style={styles.discountToggleText}>
-                {cart.discountPct > 0 ? `خصم ${cart.discountPct}٪ مفعّل` : t('+ خصم')}
+                {cart.discountPct > 0 || cart.discountFixed > 0
+                  ? `خصم ${discountLabel(cart.discountPct, cart.discountFixed)} مفعّل`
+                  : t('+ خصم')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1907,7 +1914,7 @@ export default function ProductsScreen({
               // .sum-row.discount -- the label carries the percentage,
               // and the figure is NEGATIVE (`rkMoney(-discount)`).
               <View style={styles.totalsRow}>
-                <Text style={styles.totalsLabel}>{`خصم (${cart.discountPct}٪)`}</Text>
+                <Text style={styles.totalsLabel}>{`خصم (${discountLabel(cart.discountPct, cart.discountFixed)})`}</Text>
                 <Money value={-cart.totals.discount} size={11.5} color={colors.accentText} />
               </View>
             )}
@@ -2079,10 +2086,14 @@ export default function ProductsScreen({
       <DiscountModal
         visible={discountModalOpen}
         discountPct={cart.discountPct}
+        discountFixed={cart.discountFixed}
         discountReason={cart.discountReason}
+        fixedAllowed={!registerMode}
+        subtotal={cart.totals.subtotal}
         onClose={() => setDiscountModalOpen(false)}
-        onConfirm={(pct, reason) => {
-          cart.setDiscountPct(pct);
+        onConfirm={(pct, reason, fixed) => {
+          cart.setDiscountPct(fixed > 0 ? 0 : pct);
+          cart.setDiscountFixed(fixed > 0 ? fixed : 0);
           cart.setDiscountReason(reason);
         }}
       />

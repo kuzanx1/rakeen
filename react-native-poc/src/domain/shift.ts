@@ -64,7 +64,7 @@ export interface ShiftTotals {
   grossSales: number;
   discountsTotal: number;
   /** كم طلبًا خُصم بكل نسبة -- "خصم 50%: 10 طلبات" بدل رقمٍ واحدٍ مجمَّع.
-   *  مرتّبة تصاعديًا بالنسبة. طلبٌ بلا خصم (discount_pct = 0) لا يُحسب. */
+   *  مرتّبة تصاعديًا بالنسبة. pct = 0 = خصم بمبلغ ثابت، ويجي آخر شي. */
   discountBreakdown: { pct: number; count: number }[];
   vatTotal: number;
   refundsTotal: number;
@@ -129,6 +129,8 @@ export function computeShiftTotals(
     vatTotal += Number(o.vat_amount) || 0;
     const pct = Math.round(Number(o.discount_pct) || 0);
     if (pct > 0) discountCounts.set(pct, (discountCounts.get(pct) || 0) + 1);
+    // بمبلغ ثابت (١٠ ريال من الفاتورة): بلا نسبة، فينعدّ تحت ٠.
+    else if (Number(o.discount_amount) > 0) discountCounts.set(0, (discountCounts.get(0) || 0) + 1);
     // طلب من المتجر الإلكتروني دُفع بغير الكاش هو "دفع إلكتروني" لا شبكة
     // الصالة. الفصل بالمصدر لا بطريقة الدفع، فكلاهما يصل بـ'card'.
     if (o.source === 'online' && o.payment_method !== 'cash') {
@@ -174,7 +176,7 @@ export function computeShiftTotals(
     discountsTotal,
     discountBreakdown: Array.from(discountCounts.entries())
       .map(([pct, count]) => ({ pct, count }))
-      .sort((a, b) => a.pct - b.pct),
+      .sort((a, b) => (a.pct || 1000) - (b.pct || 1000)), // «بالمبلغ» آخر شي
     vatTotal,
     refundsTotal: refunds.total,
     refundsCount: refunds.count,

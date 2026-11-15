@@ -81,9 +81,10 @@ export function layoutShiftReport(input: ShiftLayoutInput): LayoutResult {
   if (on('discounts')) {
     ctx.rowText('-' + money(report.discountsTotal), 'الخصومات · Discounts', SHIFT.row, false);
     for (const tier of report.discountBreakdown || []) {
+      // pct = 0: خصم بمبلغ ثابت (١٠ ريال من الفاتورة) -- بلا نسبة.
       ctx.rowText(
         tier.count + ' طلبات · orders',
-        'خصم ' + tier.pct + '% · ' + tier.pct + '% off',
+        tier.pct > 0 ? 'خصم ' + tier.pct + '% · ' + tier.pct + '% off' : 'خصم بمبلغ · Fixed amount',
         SHIFT.metaSmall,
         false,
       );

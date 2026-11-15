@@ -369,7 +369,7 @@ export function buildOrderPayload(
     payment_method:
       ctx.total <= 0 && cart.some(i => i.isFreeReward || i.isPointsRedemption)
         ? 'loyalty'
-        : ctx.total <= 0 && ctx.discountPct >= 100
+        : ctx.total <= 0 && (ctx.discountPct >= 100 || (ctx.subtotal > 0 && ctx.discountAmount >= ctx.subtotal))
           ? 'discount'
           : paymentMethod,
     cash_amount: cashAmount,

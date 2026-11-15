@@ -306,9 +306,11 @@ export function cartTotals(
   vatRegistered: boolean,
   vatRate: number,
   pricesIncludeVat: boolean,
+  /** خصم بمبلغ ثابت (ريال) -- يغلب النسبة، وما يتعدّى المجموع. */
+  discountFixed: number = 0,
 ): CartTotals {
   const subtotal = lines.reduce((s, i) => s + unitPriceOf(i) * i.qty, 0);
-  const discount = subtotal * (discountPct / 100);
+  const discount = discountFixed > 0 ? Math.min(round2(discountFixed), subtotal) : subtotal * (discountPct / 100);
   const afterDiscount = subtotal - discount;
   const rate = vatRegistered ? vatRate : 0;
   let vat: number, total: number;

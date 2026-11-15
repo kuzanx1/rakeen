@@ -1453,8 +1453,29 @@ if (!window.__rakeenOrderBooted) {
   // RPC actually charges. Menu prices are VAT-inclusive by default (KSA
   // legal requirement) — the tax is derived from the sticker price, not
   // added on top of it.
+  /* الكوبون: check_store_coupon يعاين، و apply_order_coupon ينزّله على الطلب
+     بعد ما يتسجّل وقبل صفحة الدفع. الخصم على الأصناف بس، مو رسوم التوصيل --
+     نفس حساب الخادم. (20261115160000_discount_amount_and_coupons.sql) */
+  let appliedCoupon = null; // {code, kind, pct, amount}
+  // خانة الكوبون تطلع بس لمطعم عنده كوبون شغّال للمتجر (store_has_coupons).
+  // مرة وحدة بالزيارة؛ لو فشل النداء تختفي الخانة ولا يتعطّل الطلب.
+  let storeHasCoupons = null;
+  async function loadStoreHasCoupons() {
+    if (storeHasCoupons !== null) return;
+    try {
+      const { data, error } = await sb.rpc('store_has_coupons', { p_business_slug: SLUG });
+      storeHasCoupons = !error && data === true;
+    } catch { storeHasCoupons = false; }
+  }
+  function couponDiscountFor(subtotal) {
+    if (!appliedCoupon) return 0;
+    const d = appliedCoupon.kind === 'amount' ? Math.min(appliedCoupon.amount, subtotal) : round2(subtotal * appliedCoupon.pct / 100);
+    return Math.max(0, d);
+  }
   function cartTotals() {
-    const subtotal = CART.reduce((s, l) => s + l.unitPrice * l.qty, 0);
+    const gross = CART.reduce((s, l) => s + l.unitPrice * l.qty, 0);
+    const discount = couponDiscountFor(gross);
+    const subtotal = gross - discount;
     const deliveryFee = state.channel === 'delivery' ? Number(BUSINESS?.online_delivery_fee) || 0 : 0;
     const vatRegistered = BUSINESS?.vat_registered !== false;
     const rate = vatRegistered ? (Number(BUSINESS?.vat_rate) || 0.15) : 0;
@@ -1467,7 +1488,7 @@ if (!window.__rakeenOrderBooted) {
       vat = round2((subtotal + deliveryFee) * rate);
       total = subtotal + deliveryFee + vat;
     }
-    return { subtotal, deliveryFee, vat, total };
+    return { subtotal, deliveryFee, vat, total, gross, discount };
   }
   function renderCartBar() {
     const bar = document.getElementById('omCartBar');
@@ -1478,7 +1499,7 @@ if (!window.__rakeenOrderBooted) {
     document.getElementById('omCartTotal').textContent = formatPrice(cartTotals().total);
   }
   function cartRowsHtml() {
-    const { subtotal, deliveryFee, vat, total } = cartTotals();
+    const { deliveryFee, vat, total, gross: subtotal } = cartTotals();
     return CART.map(l => `
       <div class="om-cart-item" data-line="${l.lineId}">
         <div class="om-cart-item-info">
@@ -1585,7 +1606,7 @@ if (!window.__rakeenOrderBooted) {
 
   async function openCheckout() {
     document.getElementById('omCartOverlay').classList.remove('show');
-    await loadCodEnabled();
+    await Promise.all([loadCodEnabled(), loadStoreHasCoupons()]);
     // A store that turned cash off must not leave it preselected.
     const usable = getPaymentMethods().filter(m => m.enabled);
     if (usable.length === 0) {
@@ -1605,6 +1626,7 @@ if (!window.__rakeenOrderBooted) {
       return;
     }
     checkoutPaymentMethod = 'cash';
+    appliedCoupon = null; // السلة ممكن تغيّرت: يتحقق من جديد
     state.pickupTimeMode = 'asap';
     state.scheduledForTimeValue = null;
     state.asapTargetTime = new Date(Date.now() + PICKUP_PREP_MINUTES * 60000);
@@ -1615,7 +1637,8 @@ if (!window.__rakeenOrderBooted) {
     document.getElementById('omCheckoutBody').innerHTML = `
       <div class="om-checkout-total">
         <div class="om-checkout-total-label">الإجمالي${branch ? ' — ' + (state.channel === 'delivery' ? 'من فرع ' : 'استلام من ') + branch.name : ''}</div>
-        <div class="om-checkout-total-amount mono">${formatPrice(total)}</div>
+        <div class="om-checkout-total-amount mono" id="omCheckoutTotalAmount">${formatPrice(total)}</div>
+        <div class="om-checkout-coupon-line" id="omCouponLine" hidden></div>
       </div>
       ${BRANCHES.length > 1 ? `<button class="om-branch-switch-link" id="omSwitchBranchBtn" type="button">${state.channel === 'pickup' ? 'تغيير فرع الاستلام' : 'تغيير الفرع'}</button>` : ''}
       <div class="om-field"><label>رقم الجوال</label><input type="tel" id="omPhone" inputmode="tel" placeholder="05xxxxxxxx" maxlength="10" value="${identity.phone || ''}"></div>
@@ -1639,6 +1662,14 @@ if (!window.__rakeenOrderBooted) {
       ` : ''}
       ${state.channel === 'delivery' ? `<div class="om-field"><label>وجّه المندوب لموقعك (اختياري)</label><textarea id="omAddress" placeholder="مثال: بجانب صيدلية النهدي، عمارة بيضاء، الدور ٢"></textarea></div>` : ''}
       <div class="om-field"><label>ملاحظات (اختياري)</label><textarea id="omNote" placeholder="أي طلب خاص..."></textarea></div>
+      ${storeHasCoupons ? `<div class="om-field om-coupon-field">
+        <button type="button" class="om-coupon-toggle" id="omCouponToggle">عندك كوبون خصم؟</button>
+        <div class="om-coupon-row" id="omCouponRow" hidden>
+          <input type="text" id="omCouponInput" placeholder="اكتب الكود" autocomplete="off" autocapitalize="characters" dir="ltr" maxlength="20">
+          <button type="button" id="omCouponApply">تطبيق</button>
+        </div>
+        <p class="om-coupon-msg" id="omCouponMsg" hidden></p>
+      </div>` : ''}
       <div class="om-field">
         <label>طريقة الدفع</label>
         <div class="om-payment-methods">
@@ -1651,6 +1682,7 @@ if (!window.__rakeenOrderBooted) {
     `;
     if (state.channel === 'pickup') renderPickupTimeBlock();
     if (state.channel === 'delivery' && state.customerLat != null) renderPinBlock();
+    wireCouponField();
     document.getElementById('omConfirmOrderBtn').addEventListener('click', proceedToPhoneConfirm);
     document.getElementById('omPhone').addEventListener('input', (e) => {
       e.target.value = toWesternDigits(e.target.value).replace(/\D/g, '').slice(0, 10);
@@ -1667,6 +1699,51 @@ if (!window.__rakeenOrderBooted) {
       });
     });
     document.getElementById('omCheckoutOverlay').classList.add('show');
+  }
+
+  function renderCouponTotals() {
+    const { total, discount } = cartTotals();
+    document.getElementById('omCheckoutTotalAmount').textContent = formatPrice(total);
+    const line = document.getElementById('omCouponLine');
+    if (appliedCoupon && discount > 0) {
+      line.hidden = false;
+      line.textContent = 'كوبون ' + appliedCoupon.code + ': وفّرت ' + formatPrice(discount);
+    } else line.hidden = true;
+    renderCartBar();
+  }
+  function wireCouponField() {
+    const toggle = document.getElementById('omCouponToggle');
+    const row = document.getElementById('omCouponRow');
+    const input = document.getElementById('omCouponInput');
+    const btn = document.getElementById('omCouponApply');
+    const msg = document.getElementById('omCouponMsg');
+    if (!toggle) return;
+    const say = (text, ok) => { msg.hidden = !text; msg.textContent = text || ''; msg.classList.toggle('ok', !!ok); };
+    toggle.addEventListener('click', () => { row.hidden = false; toggle.hidden = true; input.focus(); });
+    input.addEventListener('input', () => {
+      const v = toWesternDigits(input.value).toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 20);
+      if (input.value !== v) input.value = v;
+      if (appliedCoupon) { appliedCoupon = null; renderCouponTotals(); }
+      say('');
+    });
+    const apply = async () => {
+      const code = input.value.trim();
+      if (code.length < 3) { say('اكتب كود الكوبون'); return; }
+      btn.disabled = true; btn.textContent = '...';
+      const gross = CART.reduce((s, l) => s + l.unitPrice * l.qty, 0);
+      let res = null;
+      try {
+        const { data, error } = await sb.rpc('check_store_coupon', { p_business_slug: SLUG, p_code: code, p_subtotal: gross });
+        res = error ? { r_ok: false, r_reason: 'تعذّر التحقق، حاول مرة ثانية' } : (Array.isArray(data) ? data[0] : data);
+      } catch { res = { r_ok: false, r_reason: 'تعذّر التحقق، حاول مرة ثانية' }; }
+      btn.disabled = false; btn.textContent = 'تطبيق';
+      if (!res || !res.r_ok) { appliedCoupon = null; renderCouponTotals(); say((res && res.r_reason) || 'الكوبون غير صحيح'); return; }
+      appliedCoupon = { code: res.r_code || code, kind: res.r_kind === 'amount' ? 'amount' : 'pct', pct: Number(res.r_pct || 0), amount: Number(res.r_amount || 0) };
+      renderCouponTotals();
+      say('✓ انطبق الكوبون — ' + (appliedCoupon.kind === 'amount' ? 'خصم ' + formatPrice(appliedCoupon.amount) : 'خصم ' + appliedCoupon.pct + '٪'), true);
+    };
+    btn.addEventListener('click', apply);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); apply(); } });
   }
 
   function confirmButtonLabel() {
@@ -1760,6 +1837,17 @@ if (!window.__rakeenOrderBooted) {
     }
     const result = Array.isArray(data) ? data[0] : data;
 
+    // الكوبون ينزل على الطلب قبل صفحة الدفع (مرة وحدة، وإعادة المحاولة آمنة).
+    if (appliedCoupon && result && result.order_id) {
+      try {
+        const { data: cp, error: cpErr } = await sb.rpc('apply_order_coupon', {
+          p_order_id: result.order_id, p_tracking_token: String(result.tracking_token), p_code: appliedCoupon.code,
+        });
+        const c = Array.isArray(cp) ? cp[0] : cp;
+        if (cpErr || !c || !c.r_ok) showToast('ما انطبق الكوبون' + (c && c.r_reason ? ': ' + c.r_reason : '') + ' — طلبك انرسل بسعره الكامل');
+      } catch { showToast('ما انطبق الكوبون — طلبك انرسل بسعره الكامل'); }
+    }
+
     if (checkoutPaymentMethod === 'card') {
       btn.textContent = 'جاري تحويلك لصفحة الدفع...';
       let sessionRes, sessionPayload;
@@ -1783,6 +1871,7 @@ if (!window.__rakeenOrderBooted) {
       saveIdentity(pendingOrder.name, pendingOrder.phone);
       try { localStorage.setItem(LS_LAST_ORDER_TOKEN, result.tracking_token); } catch {}
       CART = [];
+      appliedCoupon = null;
       saveCartToStorage();
       window.location.href = sessionPayload.redirectUrl; // Geidea's hosted checkout page
       return;

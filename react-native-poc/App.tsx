@@ -33,7 +33,7 @@ import { startPrintStation } from './src/application/printStationService';
 import { startCustomerDisplay, stopCustomerDisplay } from './src/application/customerDisplayService';
 import { resetInterruptedPrintJobsOnBoot } from './src/infrastructure/sqlitePrintQueue';
 import { enqueuePrintJob, warmPrintPath } from './src/application/printService';
-import { refillOrderNumberPool, setOrderNumberSeries } from './src/application/orderNumberPool';
+import { refillOrderNumberPool } from './src/application/orderNumberPool';
 import PrintQueueScreen from './src/ui/PrintQueueScreen';
 import PrinterSettingsScreen from './src/ui/PrinterSettingsScreen';
 import uuid from 'react-native-uuid';
@@ -751,9 +751,9 @@ function App(): React.JSX.Element {
 
   // أرقام طلبات محجوزة: تتعبّى عند الدخول، ورجوع النت، ورجوع التطبيق --
   // وبعد كل بيع (orderNumberPool.ts). بلا مؤقّت.
-  // ورقم الطلب يرجع ١ مع كل وردية: الأرقام المحجوزة من وردية سابقة تنرمى.
+  // ورقم الطلب يرجع ١ مع كل يوم عمل: الأرقام المحجوزة من يوم سابق تنرمى
+  // (orderSeries.ts). فتح الوردية يعبّي من جديد.
   useEffect(() => {
-    setOrderNumberSeries(shift?.id ?? null);
     if (!cashier || branchId == null || !online) return;
     void refillOrderNumberPool(branchId);
   }, [cashier, branchId, online, resumeTick, shift?.id]);

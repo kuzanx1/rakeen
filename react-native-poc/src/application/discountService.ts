@@ -16,22 +16,35 @@ export interface DiscountPreset {
   name: string;
   nameEn?: string | null;
   pct: number;
+  /** خصم بمبلغ ثابت (ريال) بدل النسبة -- null = بالنسبة. */
+  amount?: number | null;
 }
 
 export async function listDiscountPresets(): Promise<DiscountPreset[]> {
   // قبل ترحيل 20260916090000 لا وجود للجدول -- تُرجَع قائمةٌ فارغة
   // فتظهر النافذة بالنِّسَب وحدها، بلا خطأ في وجه الكاشير.
-  const { data, error } = await supabase
+  // amount عمود أحدث: قبل ما ينزل يرجع خطأ، فنسأل بدونه.
+  let res = await supabase
     .from('discount_presets')
-    .select('id, name, name_en, pct')
+    .select('id, name, name_en, pct, amount')
     .eq('active', true)
     .order('sort_order')
     .order('id');
+  if (res.error) {
+    res = (await supabase
+      .from('discount_presets')
+      .select('id, name, name_en, pct')
+      .eq('active', true)
+      .order('sort_order')
+      .order('id')) as typeof res;
+  }
+  const { data, error } = res;
   if (error || !data) return [];
-  return data.map(r => ({
+  return (data as Record<string, unknown>[]).map(r => ({
     id: Number(r.id),
     name: String(r.name),
     nameEn: r.name_en ? String(r.name_en) : null,
-    pct: Number(r.pct),
+    pct: Number(r.pct ?? 0),
+    amount: r.amount != null ? Number(r.amount) : null,
   }));
 }

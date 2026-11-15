@@ -1,4 +1,5 @@
 import { supabase, RAKEEN_API_BASE_URL } from '../infrastructure/supabaseClient';
+import { businessDayStartMs } from './orderSeries';
 import { subscribeToPostgresChanges } from '../infrastructure/realtimeChannel';
 import { getItem, setItem } from '../infrastructure/mmkvStorage';
 import { getPosDeviceId } from './displayScopeService';
@@ -390,8 +391,8 @@ export interface PagerOrder {
  */
 export async function listPagerOrders(branchId: number): Promise<PagerOrder[]> {
   if (!config.enabled) return [];
-  const startToday = new Date();
-  startToday.setHours(0, 0, 0, 0);
+  // يوم العمل، مو ١٢ الليل: بيجر الساعة ١١ الليل يبقى بعد ١٢.
+  const startToday = new Date(businessDayStartMs());
   const { data, error } = await supabase
     .from('orders')
     .select('id, order_no, total, created_at, customer_name, channel, ready_at, pager_eta_at, pager_delayed_at, pager_seen_at, pager_ring_count')

@@ -1,4 +1,5 @@
 import { supabase } from '../infrastructure/supabaseClient';
+import { businessDayStartMs } from './orderSeries';
 
 /**
  * Orders that are paid for but not yet in the customer's hands.
@@ -69,8 +70,8 @@ export function remainingPrepSeconds(order: ActiveOrder, now: number = Date.now(
  * start of today)`.
  */
 export async function listActiveOrders(branchId: number): Promise<ActiveOrder[]> {
-  const startToday = new Date();
-  startToday.setHours(0, 0, 0, 0);
+  // يوم العمل، مو ١٢ الليل (orderSeries.ts).
+  const startToday = new Date(businessDayStartMs());
   const onlineSince = new Date(startToday.getTime() - 3 * 24 * 60 * 60 * 1000);
 
   const { data } = await supabase

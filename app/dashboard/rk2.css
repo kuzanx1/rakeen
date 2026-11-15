@@ -166,6 +166,7 @@
 .hm-delta.up b{background:var(--lime); color:#111;}
 .hm-delta.down b{background:rgba(255,120,90,.16); color:#FF9C84;}
 .hm-delta.idle b{background:rgba(247,246,239,.1); color:var(--lime); font-size:9px; padding:6px 8px;}
+.hm-day-note{font-size:12.5px; font-weight:600; color:rgba(247,246,239,.45);}
 .hm-delta-y{font-size:12.5px; color:rgba(247,246,239,.45); padding-inline-start:10px; border-inline-start:1px solid rgba(247,246,239,.14);}
 .hm-delta .hm-money{font-weight:700; color:rgba(247,246,239,.7);}
 .hm-actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:26px;}

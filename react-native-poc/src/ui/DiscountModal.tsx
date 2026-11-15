@@ -9,6 +9,9 @@ import KeyboardLift from './KeyboardLift';
 import { useI18n } from './i18n';
 import { listDiscountPresets } from '../application/discountService';
 import type { DiscountPreset } from '../application/discountService';
+import { checkCoupon, COUPON_REASON_PREFIX, normalizeCouponCode } from '../application/couponService';
+import type { CouponQuote } from '../application/couponService';
+import { discountLabel } from '../domain/discount';
 
 /**
  * Replaces the old inline `.discount-panel` row (5 `flex:1` chips crammed
@@ -28,18 +31,33 @@ import type { DiscountPreset } from '../application/discountService';
  */
 
 const PRESET_PERCENTAGES = [5, 10, 15, 20];
+/** مبالغ جاهزة بالريال: «خصم ١٠ ريال من الفاتورة». */
+const PRESET_AMOUNTS = [5, 10, 20, 50];
+
+type Mode = 'pct' | 'amount' | 'coupon';
+
+export { discountLabel };
 
 export default function DiscountModal({
   visible,
   discountPct,
+  discountFixed,
   discountReason,
+  fixedAllowed = true,
+  subtotal = 0,
   onConfirm,
   onClose,
 }: {
   visible: boolean;
   discountPct: number;
+  /** خصم بمبلغ ثابت (ريال). ٠ = الخصم بالنسبة. */
+  discountFixed: number;
   discountReason: string;
-  onConfirm: (pct: number, reason: string) => void;
+  /** طلب طاولة يتسجّل قبل الدفع: الخادم يحسب خصمه بالنسبة فقط. */
+  fixedAllowed?: boolean;
+  /** مجموع الطلب قبل الخصم -- يتحقق عليه الكوبون (الحد الأدنى). */
+  subtotal?: number;
+  onConfirm: (pct: number, reason: string, fixed: number) => void;
   onClose: () => void;
 }) {
   const { colors } = useTheme();
@@ -47,55 +65,106 @@ export default function DiscountModal({
   const { t, lang } = useI18n();
   const [presets, setPresets] = useState<DiscountPreset[]>([]);
   const [pickedPresetId, setPickedPresetId] = useState<number | null>(null);
-  const isPreset = PRESET_PERCENTAGES.includes(discountPct);
-  const [customMode, setCustomMode] = useState(discountPct > 0 && !isPreset);
-  const [customPct, setCustomPct] = useState(discountPct > 0 && !isPreset ? String(discountPct) : '');
+  const [mode, setMode] = useState<Mode>(discountFixed > 0 ? 'amount' : 'pct');
+  const [customMode, setCustomMode] = useState(false);
+  const [customText, setCustomText] = useState('');
   const [pct, setPct] = useState(discountPct);
+  const [amount, setAmount] = useState(discountFixed);
   const [reason, setReason] = useState(discountReason);
+  const [couponText, setCouponText] = useState('');
+  const [quote, setQuote] = useState<CouponQuote | null>(null);
+  const [checking, setChecking] = useState(false);
 
   // Re-seed from the cart's current discount every time the modal opens --
   // not on every render, so typing isn't clobbered mid-edit.
   useEffect(() => {
     if (!visible) return;
-    const startsCustom = discountPct > 0 && !PRESET_PERCENTAGES.includes(discountPct);
+    const m: Mode = discountFixed > 0 ? 'amount' : 'pct';
+    const startsCustom =
+      m === 'amount' ? !PRESET_AMOUNTS.includes(discountFixed) : discountPct > 0 && !PRESET_PERCENTAGES.includes(discountPct);
+    setMode(m);
     setCustomMode(startsCustom);
-    setCustomPct(startsCustom ? String(discountPct) : '');
+    setCustomText(startsCustom ? String(m === 'amount' ? discountFixed : discountPct) : '');
     setPct(discountPct);
+    setAmount(discountFixed);
     setReason(discountReason);
     setPickedPresetId(null);
+    setCouponText(discountReason.startsWith(COUPON_REASON_PREFIX) ? discountReason.slice(COUPON_REASON_PREFIX.length) : '');
+    setQuote(null);
+    setChecking(false);
+    if (discountReason.startsWith(COUPON_REASON_PREFIX)) setMode('coupon');
     listDiscountPresets().then(setPresets).catch(() => setPresets([]));
-  }, [visible, discountPct, discountReason]);
+  }, [visible, discountPct, discountFixed, discountReason]);
 
   // ١٠٠٪ خصمٌ وارد: ضيافة، أو تعويض شكوى، أو وجبة موظف تُسجَّل طلبًا.
-  // كان السقف ٩٩ والحقل يقبل رقمين فقط، فيستحيل كتابتها أصلًا.
-  const effectivePct = customMode ? Math.max(0, Math.min(100, parseInt(toLatinDigits(customPct), 10) || 0)) : pct;
+  const customNum = parseFloat(toLatinDigits(customText).replace(/[^0-9.]/g, '')) || 0;
+  const effectivePct = mode === 'pct' ? (customMode ? Math.max(0, Math.min(100, Math.floor(customNum))) : pct) : 0;
+  const effectiveAmount = mode === 'amount' ? Math.max(0, Math.round((customMode ? customNum : amount) * 100) / 100) : 0;
+  const couponBlocked = quote?.ok && quote.kind === 'amount' && !fixedAllowed;
+  const ready =
+    mode === 'coupon' ? !!quote?.ok && !couponBlocked : mode === 'pct' ? effectivePct > 0 : effectiveAmount > 0;
 
-  const pickPreset = (p: number) => {
+  const verifyCoupon = async () => {
+    setChecking(true);
+    setQuote(await checkCoupon(couponText, subtotal));
+    setChecking(false);
+  };
+
+  const switchMode = (m: Mode) => {
+    if (m === 'amount' && !fixedAllowed) return;
+    setMode(m);
     setCustomMode(false);
-    setPct(p);
+    setCustomText('');
+    setPickedPresetId(null);
+  };
+
+  const pickChip = (v: number) => {
+    setCustomMode(false);
+    if (mode === 'pct') setPct(v);
+    else setAmount(v);
     setPickedPresetId(null);
   };
 
   const presetName = (p: DiscountPreset) => (lang === 'en' && p.nameEn ? p.nameEn : p.name);
 
-  /* القالب يملأ النسبة والسبب معًا -- والسبب يُكتب بالاسم العربي دائمًا
+  /* القالب يملأ الخصم والسبب معًا -- والسبب يُكتب بالاسم العربي دائمًا
      مهما كانت لغة الشاشة، وإلا انقسم التقرير سطرين لحملةٍ واحدة. */
   const pickNamedPreset = (preset: DiscountPreset) => {
+    if (preset.amount != null && preset.amount > 0) {
+      if (!fixedAllowed) return;
+      setMode('amount');
+      setAmount(preset.amount);
+    } else {
+      setMode('pct');
+      setPct(preset.pct);
+    }
     setCustomMode(false);
-    setPct(preset.pct);
     setReason(preset.name);
     setPickedPresetId(preset.id);
   };
 
   const confirm = () => {
-    onConfirm(effectivePct, reason.trim());
+    if (mode === 'coupon') {
+      if (!quote?.ok || couponBlocked) return;
+      // السبب «كوبون CODE» -- منه ينعدّ الاستخدام في القاعدة.
+      const why = COUPON_REASON_PREFIX + quote.code;
+      if (quote.kind === 'amount') onConfirm(0, why, quote.amount);
+      else onConfirm(quote.pct, why, 0);
+      onClose();
+      return;
+    }
+    if (mode === 'amount') onConfirm(0, reason.trim(), effectiveAmount);
+    else onConfirm(effectivePct, reason.trim(), 0);
     onClose();
   };
 
   const clear = () => {
-    onConfirm(0, '');
+    onConfirm(0, '', 0);
     onClose();
   };
+
+  const chips = mode === 'pct' ? PRESET_PERCENTAGES : PRESET_AMOUNTS;
+  const current = mode === 'pct' ? pct : amount;
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
@@ -115,13 +184,18 @@ export default function DiscountModal({
                 <View style={styles.presetList}>
                   {presets.map(pr => {
                     const on = pickedPresetId === pr.id;
+                    const isAmount = pr.amount != null && pr.amount > 0;
+                    const off = isAmount && !fixedAllowed;
                     return (
                       <TouchableOpacity
                         key={pr.id}
-                        style={[styles.presetCard, on && styles.presetCardOn]}
+                        style={[styles.presetCard, on && styles.presetCardOn, off && styles.disabled]}
                         onPress={() => pickNamedPreset(pr)}
+                        disabled={off}
                         activeOpacity={0.85}>
-                        <Text style={[styles.presetPct, on && styles.presetPctOn]}>{pr.pct}٪</Text>
+                        <Text style={[styles.presetPct, on && styles.presetPctOn]}>
+                          {isAmount ? discountLabel(0, pr.amount as number) : `${pr.pct}٪`}
+                        </Text>
                         <Text style={[styles.presetName, on && styles.presetNameOn]} numberOfLines={1}>
                           {presetName(pr)}
                         </Text>
@@ -133,39 +207,116 @@ export default function DiscountModal({
               </>
             )}
 
-            {/* Content-sized chips in a wrapping grid -- the actual fix:
-                no flex:1, no shared width to fight over. */}
+            {/* نسبة أو مبلغ: سؤال واحد واضح قبل الأرقام. */}
+            <View style={styles.modeRow}>
+              <TouchableOpacity
+                style={[styles.modeBtn, mode === 'pct' && styles.modeBtnOn]}
+                onPress={() => switchMode('pct')}
+                activeOpacity={0.85}>
+                <Text style={[styles.modeText, mode === 'pct' && styles.modeTextOn]}>{t('نسبة ٪')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modeBtn, mode === 'amount' && styles.modeBtnOn, !fixedAllowed && styles.disabled]}
+                onPress={() => switchMode('amount')}
+                disabled={!fixedAllowed}
+                activeOpacity={0.85}>
+                <Text style={[styles.modeText, mode === 'amount' && styles.modeTextOn]}>{t('مبلغ ﷼')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modeBtn, mode === 'coupon' && styles.modeBtnOn]}
+                onPress={() => setMode('coupon')}
+                activeOpacity={0.85}>
+                <Text style={[styles.modeText, mode === 'coupon' && styles.modeTextOn]}>{t('كوبون')}</Text>
+              </TouchableOpacity>
+            </View>
+            {!fixedAllowed && mode !== 'coupon' && (
+              <Text style={styles.modeNote}>{t('طلب الطاولة ينخصم بالنسبة بس.')}</Text>
+            )}
+
+            {mode === 'coupon' && (
+              <View style={styles.couponBox}>
+                <View style={styles.couponRow}>
+                  <TextInput
+                    style={[styles.customInput, styles.couponInput]}
+                    placeholder={t('كود الكوبون')}
+                    placeholderTextColor={colors.muted}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    value={couponText}
+                    onChangeText={v => {
+                      setCouponText(normalizeCouponCode(toLatinDigits(v)));
+                      setQuote(null);
+                    }}
+                    onSubmitEditing={verifyCoupon}
+                    autoFocus
+                  />
+                  <TouchableOpacity
+                    style={[styles.couponCheck, (checking || couponText.length < 3) && styles.disabled]}
+                    onPress={verifyCoupon}
+                    disabled={checking || couponText.length < 3}
+                    activeOpacity={0.85}>
+                    <Text style={styles.couponCheckText}>{checking ? '...' : t('تحقق')}</Text>
+                  </TouchableOpacity>
+                </View>
+                {quote && (
+                  <Text style={[styles.couponResult, quote.ok && !couponBlocked ? styles.couponOk : styles.couponBad]}>
+                    {quote.ok
+                      ? couponBlocked
+                        ? t('كوبون بمبلغ — طلب الطاولة ينخصم بالنسبة بس')
+                        : `✓ ${t('كوبون صالح')}: ${discountLabel(quote.kind === 'pct' ? quote.pct : 0, quote.kind === 'amount' ? quote.amount : 0)}`
+                      : quote.reason}
+                  </Text>
+                )}
+              </View>
+            )}
+
+            {mode !== 'coupon' && (
+            <>
+            {/* Content-sized chips in a wrapping grid -- no flex:1, no
+                shared width to fight over. */}
             <View style={styles.grid}>
-              {PRESET_PERCENTAGES.map(p => {
-                const active = !customMode && pct === p && pickedPresetId === null;
+              {chips.map(v => {
+                const active = !customMode && current === v && pickedPresetId === null;
                 return (
                   <TouchableOpacity
-                    key={p}
+                    key={v}
                     style={[styles.chip, active && styles.chipActive]}
-                    onPress={() => pickPreset(p)}
+                    onPress={() => pickChip(v)}
                     activeOpacity={0.8}>
-                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{p}٪</Text>
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                      {mode === 'pct' ? `${v}٪` : `${v} ﷼`}
+                    </Text>
                   </TouchableOpacity>
                 );
               })}
               <TouchableOpacity
                 style={[styles.chip, customMode && styles.chipActive]}
-                onPress={() => setCustomMode(true)}
+                onPress={() => {
+                  setCustomMode(true);
+                  setPickedPresetId(null);
+                }}
                 activeOpacity={0.8}>
-                <Text style={[styles.chipText, customMode && styles.chipTextActive]}>{t('نسبة أخرى')}</Text>
+                <Text style={[styles.chipText, customMode && styles.chipTextActive]}>
+                  {mode === 'pct' ? t('نسبة أخرى') : t('مبلغ آخر')}
+                </Text>
               </TouchableOpacity>
             </View>
 
             {customMode && (
               <TextInput
                 style={styles.customInput}
-                placeholder="0-100"
+                placeholder={mode === 'pct' ? '0-100' : t('المبلغ بالريال')}
                 placeholderTextColor={colors.muted}
-                keyboardType="number-pad"
-                value={customPct}
+                keyboardType={mode === 'pct' ? 'number-pad' : 'decimal-pad'}
+                value={customText}
                 onChangeText={v => {
-                  const digits = toLatinDigits(v).replace(/[^0-9]/g, '').slice(0, 3);
-                  setCustomPct(parseInt(digits, 10) > 100 ? '100' : digits);
+                  if (mode === 'pct') {
+                    const digits = toLatinDigits(v).replace(/[^0-9]/g, '').slice(0, 3);
+                    setCustomText(parseInt(digits, 10) > 100 ? '100' : digits);
+                  } else {
+                    const clean = toLatinDigits(v).replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1').slice(0, 8);
+                    setCustomText(clean);
+                  }
                 }}
                 autoFocus
               />
@@ -179,17 +330,27 @@ export default function DiscountModal({
               value={reason}
               onChangeText={setReason}
             />
+            </>
+            )}
 
-            <TouchableOpacity onPress={confirm} activeOpacity={0.85} disabled={effectivePct <= 0}>
-              <View style={[styles.confirm, effectivePct <= 0 && styles.confirmDisabled]}>
-                {effectivePct > 0 && <GradientFill gradient={gradients.payButton} radius={radii.md} />}
-                <Text style={[styles.confirmText, effectivePct <= 0 && styles.confirmTextDisabled]}>
-                  {effectivePct > 0 ? `${t('تطبيق الخصم')} — ${effectivePct}٪` : t('اختر نسبة')}
+            <TouchableOpacity onPress={confirm} activeOpacity={0.85} disabled={!ready}>
+              <View style={[styles.confirm, !ready && styles.confirmDisabled]}>
+                {ready && <GradientFill gradient={gradients.payButton} radius={radii.md} />}
+                <Text style={[styles.confirmText, !ready && styles.confirmTextDisabled]}>
+                  {mode === 'coupon'
+                    ? ready && quote
+                      ? `${t('تطبيق الكوبون')} — ${discountLabel(quote.kind === 'pct' ? quote.pct : 0, quote.kind === 'amount' ? quote.amount : 0)}`
+                      : t('تحقق من الكوبون أول')
+                    : ready
+                    ? `${t('تطبيق الخصم')} — ${discountLabel(effectivePct, effectiveAmount)}`
+                    : mode === 'pct'
+                      ? t('اختر نسبة')
+                      : t('اختر مبلغ')}
                 </Text>
               </View>
             </TouchableOpacity>
 
-            {discountPct > 0 && (
+            {(discountPct > 0 || discountFixed > 0) && (
               <TouchableOpacity onPress={clear} activeOpacity={0.8} style={styles.clearLink}>
                 <Text style={styles.clearLinkText}>{t('إلغاء الخصم')}</Text>
               </TouchableOpacity>
@@ -256,6 +417,27 @@ const useStyles = createStyles(colors =>
       justifyContent: 'center',
     },
     chipActive: { backgroundColor: colors.lime, borderColor: colors.lime },
+    modeRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+    modeBtn: {
+      flex: 1, paddingVertical: 12, borderRadius: radii.md, borderWidth: 1,
+      borderColor: colors.line, backgroundColor: colors.surf1, alignItems: 'center',
+    },
+    modeBtnOn: { backgroundColor: colors.graphite, borderColor: colors.graphite },
+    modeText: { fontFamily: fonts.sansBold, fontSize: 13.5, color: colors.text },
+    modeTextOn: { color: colors.lime },
+    modeNote: { fontFamily: fonts.sansMedium, fontSize: 11.5, color: colors.muted, marginBottom: 10 },
+    disabled: { opacity: 0.4 },
+    couponBox: { marginBottom: spacing[4] },
+    couponRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+    couponInput: { flex: 1, width: undefined, marginBottom: 0, letterSpacing: 1.5 },
+    couponCheck: {
+      paddingVertical: 14, paddingHorizontal: 18, borderRadius: radii.md,
+      backgroundColor: colors.graphite, alignItems: 'center', justifyContent: 'center',
+    },
+    couponCheckText: { fontFamily: fonts.sansBold, fontSize: 13.5, color: colors.lime },
+    couponResult: { fontFamily: fonts.sansBold, fontSize: 12.5, marginTop: 8 },
+    couponOk: { color: colors.accentText },
+    couponBad: { color: colors.danger },
     chipText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.text },
     chipTextActive: { color: colors.flagGreenDeep },
 

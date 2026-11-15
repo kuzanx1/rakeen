@@ -1,9 +1,7 @@
 import uuid from 'react-native-uuid';
 import { supabase } from '../infrastructure/supabaseClient';
 import { getItem, setItem } from '../infrastructure/mmkvStorage';
-import { currentOrderSeries } from './orderSeries';
-
-export { setOrderNumberSeries } from './orderSeries';
+import { currentOrderSeries, setDayCutoffHour } from './orderSeries';
 
 /**
  * أرقام طلبات محجوزة لهذا الجهاز.
@@ -19,10 +17,11 @@ export { setOrderNumberSeries } from './orderSeries';
  * ولو ما فيه حجز (الخادم قديم، أو خلص المخزون بلا نت) يرجع البيع للمسار
  * القديم كما هو -- ما فيه حالة تتعطّل فيها الفاتورة.
  *
- * ورقم الطلب يرجع ١ مع كل وردية (لكل فرع عدّاده --
- * 20261115120000_shift_order_numbers.sql): كل رقم محجوز يحمل وردية فرعه
- * (s)، والجهاز يرمي أي رقم من وردية غير الحالية -- وإلا انطبع #43 من
- * أمس وسط أرقام اليوم ١، ٢، ٣.
+ * ورقم الطلب يرجع ١ مع بداية كل يوم عمل (لكل فرع عدّاده --
+ * 20261115120000_shift_order_numbers.sql): كل رقم محجوز يحمل يوم عمله
+ * (s = YYYYMMDD)، والجهاز يرمي أي رقم من يوم غير اليوم -- وإلا انطبع #43
+ * من أمس وسط أرقام اليوم ١، ٢، ٣. اليوم يقفل بساعة المحل (c)، فينحسب
+ * بلا نت (orderSeries.ts).
  *
  * بلا مؤقّت: يُعبّأ عند الدخول وبعد كل بيع، لا غير.
  * الويب: rkOrderNumberPool في public/pos/rakeen-pos.js -- نفس الأرقام.
@@ -47,8 +46,10 @@ export interface ReservedOrderNumber {
 
 interface Pool {
   branchId: number;
-  /** s: الوردية اللي ينتمي لها الرقم (غائب = خادم قبل التصفير، صالح دائماً). */
+  /** s: يوم العمل اللي ينتمي له الرقم (غائب = خادم قبل التصفير، صالح دائماً). */
   items: { u: string; id: number; no: number; at: number; s?: number }[];
+  /** c: ساعة إقفال يوم العمل من الخادم (r_day_cutoff). */
+  c?: number;
 }
 
 
@@ -119,6 +120,7 @@ async function load(branchId: number): Promise<Pool> {
   }
   const now = Date.now();
   if (!mem || mem.branchId !== branchId) mem = { branchId, items: [] };
+  setDayCutoffHour(mem.c);
   mem.items = mem.items.filter(
     i =>
       now - i.at < MAX_AGE_MS &&
@@ -167,7 +169,7 @@ export function refillOrderNumberPool(branchId: number): Promise<void> {
         }
         return;
       }
-      const rows = (data || []) as { r_order_no: number; r_order_id: number; r_client_order_uuid: string; r_series?: number | null }[];
+      const rows = (data || []) as { r_order_no: number; r_order_id: number; r_client_order_uuid: string; r_series?: number | null; r_day_cutoff?: number | null }[];
       if (rows.length === 0) {
         // المنشأة ما تفعّلت (order_number_blocks_enabled): ساعة قبل السؤال مرة ثانية.
         unsupportedUntil = Date.now() + UNSUPPORTED_BACKOFF_MS;
@@ -177,15 +179,22 @@ export function refillOrderNumberPool(branchId: number): Promise<void> {
       await setNumbersOn(true);
       const asked = new Set(uuids);
       const now = Date.now();
+      let p0Cut: number | null = null;
       await serial(async () => {
+        const cut = rows.find(r => r.r_day_cutoff != null)?.r_day_cutoff;
+        if (cut != null) {
+          setDayCutoffHour(Number(cut));
+          p0Cut = Number(cut);
+        }
         const p = await load(branchId);
+        if (p0Cut != null) p.c = p0Cut;
         const known = new Set(p.items.map(i => i.u));
         for (const r of rows) {
           const id = Number(r.r_order_id);
           const no = Number(r.r_order_no);
           const s = r.r_series != null && Number(r.r_series) > 0 ? Number(r.r_series) : undefined;
           if (!asked.has(r.r_client_order_uuid) || known.has(r.r_client_order_uuid) || !(id > 0) || !(no > 0)) continue;
-          // من وردية غير الحالية (انفتحت وردية والطلب بالطريق): ما يُحفظ.
+          // من يوم غير اليوم (بدأ يوم جديد والطلب بالطريق): ما يُحفظ.
           if (s != null && currentOrderSeries() != null && s !== currentOrderSeries()) continue;
           p.items.push({ u: r.r_client_order_uuid, id, no, at: now, s });
         }
