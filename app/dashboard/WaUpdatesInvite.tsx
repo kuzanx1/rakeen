@@ -10,8 +10,10 @@ import "./wa-invite.css";
 // (نوافذ اللوحة .modal-overlay.show، أو تنبيه الاشتراك [data-rk-overlay]).
 // كل شي بالأحداث: نراقب data-stage على body بـ MutationObserver، بدون تكرار.
 
-// غيّر الرقم لإعادة إظهار النافذة للكل (حتى اللي أرسلوا أو تجاهلوا).
-const DONE_KEY = "rk-wa-invite-done-2";
+// «أرسل» أو «تجاهل» يُحفظ لجولة معيّنة. رقم الجولة من /api/wa-invite، ويرفعه
+// زر في /admin عشان النافذة ترجع للكل. الجولة 2 = المفتاح القديم نفسه.
+const BASE_ROUND = 2;
+let doneKey = `rk-wa-invite-done-${BASE_ROUND}`;
 const WA_NUMBER = "966557015282";
 const WA_DISPLAY = "055 701 5282";
 const WA_TEXT = "السلام عليكم، أبي توصلني تنبيهات وجديد ركين على الواتساب 🔔";
@@ -19,14 +21,14 @@ const DELAY_MS = 4000;
 
 function isDone() {
   try {
-    return localStorage.getItem(DONE_KEY) === "1";
+    return localStorage.getItem(doneKey) === "1";
   } catch {
     return false;
   }
 }
 function markDone() {
   try {
-    localStorage.setItem(DONE_KEY, "1");
+    localStorage.setItem(doneKey, "1");
   } catch {}
 }
 function otherOverlayOpen() {
@@ -49,9 +51,10 @@ export default function WaUpdatesInvite() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    if (isDone()) return;
     let timer = 0;
     let fired = false;
+    let cancelled = false;
+    let obs: MutationObserver | null = null;
     const tryOpen = () => {
       if (fired || isDone()) return;
       if (document.body.dataset.stage !== "dashboard") return;
@@ -61,19 +64,30 @@ export default function WaUpdatesInvite() {
       }
       fired = true;
       setOpen(true);
-      obs.disconnect();
+      obs?.disconnect();
     };
     const schedule = () => {
       if (fired) return;
       window.clearTimeout(timer);
       timer = window.setTimeout(tryOpen, DELAY_MS);
     };
-    // نسمع لتغيّر المرحلة (دخول اللوحة) ولفتح/قفل النوافذ الثانية.
-    const obs = new MutationObserver(schedule);
-    obs.observe(document.body, { attributes: true, attributeFilter: ["data-stage", "class"], childList: true, subtree: false });
-    schedule();
+    // نعرف رقم الجولة أول (مرة وحدة)، وبعدها نسمع لتغيّر المرحلة (دخول
+    // اللوحة) ولفتح/قفل النوافذ الثانية.
+    fetch("/api/wa-invite")
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((d: { round?: number } | null) => {
+        if (cancelled) return;
+        const round = Number(d?.round);
+        if (Number.isInteger(round) && round >= BASE_ROUND) doneKey = `rk-wa-invite-done-${round}`;
+        if (isDone()) return;
+        obs = new MutationObserver(schedule);
+        obs.observe(document.body, { attributes: true, attributeFilter: ["data-stage", "class"], childList: true, subtree: false });
+        schedule();
+      });
     return () => {
-      obs.disconnect();
+      cancelled = true;
+      obs?.disconnect();
       window.clearTimeout(timer);
     };
   }, []);

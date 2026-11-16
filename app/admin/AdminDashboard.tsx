@@ -10,6 +10,7 @@ import ContractsPanel from "./ContractsPanel";
 import QuotePanel from "./QuotePanel";
 import AddBusinessPanel from "./AddBusinessPanel";
 import LandingClientsPanel from "./LandingClientsPanel";
+import OverviewPanel from "./OverviewPanel";
 import { allowedFeatures, FeatureOverrides, PLANS, planByKey, SELLABLE_FEATURES } from "@/lib/plans";
 import type { FeatureKey } from "@/lib/contracts";
 
@@ -138,6 +139,39 @@ function draftFrom(b: Business): Draft {
   };
 }
 
+type AdminTab = "overview" | "businesses" | "whatsapp" | "broadcast" | "contracts" | "quotes" | "usage" | "audit" | "landing";
+const NAV: { label: string; items: { key: AdminTab; label: string; icon: string }[] }[] = [
+  {
+    label: "الرئيسية",
+    items: [
+      { key: "overview", label: "نظرة عامة", icon: "M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z" },
+      { key: "businesses", label: "المشتركين", icon: "M3 21V8l9-5 9 5v13M9 21v-7h6v7" },
+    ],
+  },
+  {
+    label: "المبيعات",
+    items: [
+      { key: "contracts", label: "العقود والدفعات", icon: "M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5" },
+      { key: "quotes", label: "عروض الأسعار", icon: "M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8zM7.5 7.5h.01" },
+      { key: "landing", label: "عملاء الهبوط", icon: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" },
+    ],
+  },
+  {
+    label: "التواصل",
+    items: [
+      { key: "whatsapp", label: "واتساب", icon: "M21 11.5a8.4 8.4 0 0 1-12.6 7.3L3 21l2.2-5.2A8.4 8.4 0 1 1 21 11.5z" },
+      { key: "broadcast", label: "رسائل واتساب", icon: "M22 2 11 13M22 2l-7 20-4-9-9-4z" },
+    ],
+  },
+  {
+    label: "النظام",
+    items: [
+      { key: "usage", label: "استهلاك البنية التحتية", icon: "M22 12h-4l-3 9L9 3l-3 9H2" },
+      { key: "audit", label: "سجل التدقيق", icon: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" },
+    ],
+  },
+];
+
 export default function AdminDashboard() {
   const [sb] = useState(() => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!));
   const [session, setSession] = useState<{ email: string; token: string } | null>(null);
@@ -161,7 +195,8 @@ export default function AdminDashboard() {
   const [mfaError, setMfaError] = useState<string | null>(null);
   const [mfaBusy, setMfaBusy] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<"businesses" | "whatsapp" | "broadcast" | "contracts" | "quotes" | "usage" | "audit" | "landing">("businesses");
+  const [activeTab, setActiveTab] = useState<AdminTab>("overview");
+  const [accOpen, setAccOpen] = useState(false);
   const [businesses, setBusinesses] = useState<Business[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -723,49 +758,82 @@ export default function AdminDashboard() {
     businesses?.filter((b) => !b.online_subscribed && b.online_order_free_limit > 0 && b.online_order_free_count / b.online_order_free_limit >= 0.8).length ?? 0;
   const pendingReviewCount = businesses?.filter((b) => b.verification_status === "pending").length ?? 0;
 
+  const tabTitle = NAV.flatMap((g) => g.items).find((i) => i.key === activeTab)?.label || "";
+  const accountActions = (
+    <>
+      <div className="ad-acc-mail">{session.email}</div>
+      {pushError && <div className="ad-err">{pushError}</div>}
+      <button type="button" className={pushEnabled ? "on" : ""} onClick={enableAdminPushNotifications} disabled={pushBusy || pushEnabled}>
+        {pushEnabled ? "✓ إشعارات الجوال مفعّلة" : pushBusy ? "جارٍ التفعيل..." : "فعّل إشعارات الجوال"}
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setShowPwForm((v) => !v);
+          setPwError(null);
+          setPwSuccess(false);
+          setAccOpen(false);
+        }}
+      >
+        تغيير كلمة المرور
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          sb.auth.signOut();
+          setSession(null);
+          setBusinesses(null);
+        }}
+      >
+        تسجيل خروج
+      </button>
+    </>
+  );
+
   return (
-    <div style={styles.page}>
-      <div style={styles.wrap}>
-        <div style={styles.hero}>
-          <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+    <div className="ad">
+      <aside className="ad-side">
+        <div className="ad-mtop">
+          <div className="ad-brand">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/rakeen-wordmark.png" alt="ركين" style={{ height: "34px" }} />
-            <div style={{ borderInlineStart: "1px solid rgba(251,250,245,0.18)", paddingInlineStart: "14px" }}>
-              <h1 style={styles.heroTitle}>لوحة الإدارة</h1>
-              <div style={{ fontSize: "11.5px", color: "rgba(251,250,245,0.55)", fontWeight: 600 }}>
-                {new Date().toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Riyadh" })}
-              </div>
-            </div>
+            <img src="/brand/rakeen-wordmark.png" alt="ركين" />
+            <span>لوحة الإدارة</span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-            {pushError && <span style={{ color: "#ffb4a6", fontSize: "12px", fontWeight: 600 }}>{pushError}</span>}
-            <button
-              style={{ ...styles.logoutBtn, ...(pushEnabled ? { background: "rgba(196,255,43,0.14)", color: "#C4FF2B", borderColor: "rgba(196,255,43,0.3)" } : {}) }}
-              onClick={enableAdminPushNotifications}
-              disabled={pushBusy || pushEnabled}
-            >
-              {pushEnabled ? "✓ الإشعارات مفعّلة" : pushBusy ? "جارٍ التفعيل..." : "فعّل إشعارات الجوال"}
-            </button>
-            <button
-              style={styles.logoutBtn}
-              onClick={() => {
-                setShowPwForm((v) => !v);
-                setPwError(null);
-                setPwSuccess(false);
-              }}
-            >
-              تغيير كلمة المرور
-            </button>
-            <button
-              style={styles.logoutBtn}
-              onClick={() => {
-                sb.auth.signOut();
-                setSession(null);
-                setBusinesses(null);
-              }}
-            >
-              تسجيل خروج
-            </button>
+          <button type="button" className="ad-mtop-acc" onClick={() => setAccOpen((v) => !v)} aria-expanded={accOpen}>
+            الحساب
+          </button>
+        </div>
+        <nav className="ad-nav" aria-label="أقسام لوحة الإدارة">
+          {NAV.map((g) => (
+            <div key={g.label} className="ad-group">
+              <div className="ad-group-label">{g.label}</div>
+              {g.items.map((it) => (
+                <button
+                  key={it.key}
+                  type="button"
+                  className={`ad-link${activeTab === it.key ? " on" : ""}`}
+                  aria-current={activeTab === it.key ? "page" : undefined}
+                  onClick={() => setActiveTab(it.key)}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d={it.icon} />
+                  </svg>
+                  {it.label}
+                  {it.key === "contracts" && pendingReceipts > 0 && <span className="ad-badge">{pendingReceipts}</span>}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+        <div className={`ad-acc${accOpen ? " mobile" : ""}`}>{accountActions}</div>
+      </aside>
+
+      <main className="ad-main">
+        <div className="ad-main-inner">
+        <div className="ad-pagehead">
+          <div>
+            <h1>{tabTitle}</h1>
+            <p>{new Date().toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Riyadh" })}</p>
           </div>
         </div>
 
@@ -787,30 +855,16 @@ export default function AdminDashboard() {
           </form>
         )}
 
-        <div style={styles.tabRow}>
-          {(
-            [
-              ["businesses", "المشتركين"],
-              ["contracts", "العقود والدفعات"],
-              ["quotes", "عروض الأسعار"],
-              ["whatsapp", "واتساب"],
-              ["broadcast", "رسائل واتساب"],
-              ["landing", "عملاء الهبوط"],
-              ["usage", "استهلاك البنية التحتية"],
-              ["audit", "سجل التدقيق"],
-            ] as const
-          ).map(([key, text]) => (
-            <button key={key} style={{ ...styles.tabBtn, ...(activeTab === key ? styles.tabBtnActive : {}) }} onClick={() => setActiveTab(key)}>
-              {text}
-              {key === "contracts" && pendingReceipts > 0 && (
-                <span style={{ marginInlineStart: "6px", background: "#E5533D", color: "#fff", borderRadius: "999px", padding: "1px 7px", fontSize: "11px", fontWeight: 800 }}>
-                  {pendingReceipts}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-
+        {activeTab === "overview" && (
+          <OverviewPanel
+            token={session.token}
+            onGoContracts={() => setActiveTab("contracts")}
+            onOpenBusiness={(id) => {
+              const b = businesses?.find((x) => x.id === id);
+              if (b) openDrawer(b);
+            }}
+          />
+        )}
         {activeTab === "whatsapp" && <WhatsAppAdminPanel token={session.token} />}
         {activeTab === "broadcast" && <BroadcastPanel token={session.token} />}
         {activeTab === "contracts" && <ContractsPanel token={session.token} />}
@@ -961,7 +1015,8 @@ export default function AdminDashboard() {
         </div>
         </>
         )}
-      </div>
+        </div>
+      </main>
 
       {selected && draft && (
         <div style={styles.overlay} onClick={closeDrawer}>
