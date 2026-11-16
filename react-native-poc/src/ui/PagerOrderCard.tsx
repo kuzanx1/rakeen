@@ -19,7 +19,8 @@ function modText(m: unknown): string {
 /**
  * بطاقة «بيجر ركين» في «جارية» -- نفس بطاقة الويب (renderPagerCard):
  *
- *   قبل الجاهزية   الرقم كبير، والوقت الباقي على الوعد، و«جاهز» و«+٥ د».
+ *   قبل الجاهزية   الرقم كبير، والوقت الباقي على الوعد، و«جاهز» و«+٥ د»،
+ *                  و«استلمه» لزبون واقف عند الكاشير (بلا رنّة).
  *   بعد الجاهزية   كم له ينتظر، و«رنّ ثاني» و«استلمه».
  *
  * الرقم أكبر ما في البطاقة: الكاشير ينادي به من بعيد لو الزبون ما فتح
@@ -161,6 +162,19 @@ export default function PagerOrderCard({
           </TouchableOpacity>}
         </View>
       )}
+      {!busy && !ready && (
+        // الزبون واقف عند الكاشير والطلب جاهز: يستلمه على طول بلا رنّة.
+        <TouchableOpacity
+          style={styles.quickDone}
+          onPress={() => onAction('collected')}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="الزبون عندك، سلّمه بدون ما يرن جواله">
+          <View style={[styles.btn, styles.btnQuickDone]}>
+            <Text style={styles.ghostText}>استلمه ✓</Text>
+          </View>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -193,6 +207,8 @@ const useStyles = createStyles((colors) =>
   timeText: { fontFamily: fonts.monoBold, fontSize: 12.5, color: colors.muted },
   timeTextStrong: { color: colors.text },
   row: { alignSelf: 'stretch', flexDirection: 'row', gap: 8, marginTop: 4 },
+  quickDone: { alignSelf: 'stretch' },
+  btnQuickDone: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: colors.lime },
   itemsToggle: { minHeight: 34, justifyContent: 'center', paddingHorizontal: 8 },
   itemsToggleText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accentText },
   items: { alignSelf: 'stretch', backgroundColor: colors.surf1, borderRadius: 12, padding: 10, gap: 4 },

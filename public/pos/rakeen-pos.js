@@ -8925,9 +8925,11 @@ function renderPagerCard(o){
     <button type="button" class="pager-items-btn">الأصناف ▾</button>
     <div class="pager-time mono ${state}">${label}</div>
     <div class="pager-btns">
-      <button class="pager-btn pager-ready-btn" data-pager-action="ready" data-order-id="${o.id}">جاهز</button>
+      <button class="pager-btn pager-ready-btn" data-pager-action="ready" data-order-id="${o.id}">جاهز — رنّ جواله</button>
       ${PAGER_SETTINGS.show_eta ? `<button class="pager-btn pager-delay-btn" data-pager-action="delay" data-order-id="${o.id}" title="أضف ٥ دقايق وبلّغ الزبون">+٥ د</button>` : ''}
     </div>
+    <!-- الزبون واقف عند الكاشير والطلب جاهز: يستلمه على طول بلا رنّة. -->
+    <div class="pager-btns"><button class="pager-btn pager-quick-done-btn" data-pager-action="collected" data-order-id="${o.id}" title="الزبون عندك؟ سلّمه بدون ما يرن جواله">استلمه ✓</button></div>
   </div>`;
 }
 
