@@ -73,11 +73,17 @@ platform :ios do
     # reality, and it stays right even if a build is uploaded from
     # somewhere else. initial_build_number covers the app having no builds
     # at all yet, where the action would otherwise raise.
-    build_number = latest_testflight_build_number(
+    # But a build uploaded minutes ago is not listed yet (Apple is still
+    # processing it), so two runs close together (#77 then #78, 9 min apart)
+    # both read the same number and the second upload is rejected. The
+    # workflow's run number is unique and only grows, so it is the floor:
+    # every run gets its own number even when TestFlight lags.
+    run_floor = ENV["GITHUB_RUN_NUMBER"].to_i + 100
+    build_number = [latest_testflight_build_number(
       api_key: api_key,
       app_identifier: "com.rakeen.pos",
       initial_build_number: 0,
-    ) + 1
+    ) + 1, run_floor].max
     UI.message("Archiving as build #{build_number}")
 
     build_app(
