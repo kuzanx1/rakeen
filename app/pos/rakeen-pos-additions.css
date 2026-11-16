@@ -1081,3 +1081,6 @@ body.kb-open .pos-auth-card:focus-within .pos-auth-title { font-size: 21px; marg
   #screen-more .more-item { padding: 18px 10px; }
 }
 #rkReportPin:not(:placeholder-shown) { letter-spacing: 6px; }
+/* الجوال: الشاشات تصير static (تمرير الصفحة)، فكانت تاخذ عرض محتواها بس
+   ويبقى شريط فاضي يسار «المزيد» و«الطلبات». الشاشة الظاهرة تملا العرض. */
+.screens > .screen.active { flex: 1 1 auto; min-width: 0; width: 100%; }
