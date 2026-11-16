@@ -3,7 +3,8 @@
 -- صاحب المحل: «عندي منتج معين أربطه بكوبون، يحط الكوبون المنتج يجي بالسلة
 -- لحاله ومجاني… ولازم يتسجل إنه طلع مجاني بالوردية أو بالتقارير».
 --
--- و«يقدر يضيف أكثر من منتج بكيفه».
+-- و«يقدر يضيف أكثر من منتج بكيفه»، و«أو العميل يختار وحدة من مجموعة منتجات».
+-- item_pick = 'all': كل المنتجات مجاناً · 'one': العميل يختار وحدة منها.
 --
 -- كيف: كوبون kind = 'item' مربوط بـ menu_item_ids (منتج أو أكثر، لين ١٠).
 -- check_coupon يرجّع المنتجات وأسعارها (r_items)، والكاشير يضيفها للسلة ويخصم
@@ -22,6 +23,9 @@ begin;
 set local lock_timeout = '5s';
 
 alter table public.coupons add column if not exists menu_item_ids bigint[] not null default '{}';
+alter table public.coupons add column if not exists item_pick text not null default 'all';
+alter table public.coupons drop constraint if exists coupons_item_pick_ck;
+alter table public.coupons add constraint coupons_item_pick_ck check (item_pick in ('all', 'one'));
 
 do $do$
 declare c text;
@@ -71,11 +75,12 @@ create trigger rk_coupon_item_same_business
   before insert or update on public.coupons
   for each row execute function public.rk_coupon_item_same_business();
 
--- الحساب نفسه + المنتجات (r_items: [{id, name, price}]). الخصم = مجموع أسعارها.
+-- الحساب نفسه + المنتجات (r_items: [{id, name, price}]). الخصم = مجموع أسعارها،
+-- أو (r_pick = 'one') سعر اللي يختاره العميل -- r_discount هنا = أغلاها، والكاشير يحسب.
 -- منتج انحذف أو انطفى ينشال من الهدية؛ لو ما بقى ولا واحد = مرفوض.
 drop function if exists public.rk_coupon_quote(bigint, text, numeric, text);
 create function public.rk_coupon_quote(p_business_id bigint, p_code text, p_subtotal numeric, p_where text)
-returns table (r_ok boolean, r_reason text, r_coupon_id bigint, r_code text, r_kind text, r_pct numeric, r_amount numeric, r_discount numeric, r_items jsonb)
+returns table (r_ok boolean, r_reason text, r_coupon_id bigint, r_code text, r_kind text, r_pct numeric, r_amount numeric, r_discount numeric, r_items jsonb, r_pick text)
 language plpgsql
 stable
 security definer
@@ -108,7 +113,7 @@ begin
   if c.kind = 'item' then
     select coalesce(jsonb_agg(jsonb_build_object('id', mi.id, 'name', mi.name, 'price', mi.price)
                               order by array_position(c.menu_item_ids, mi.id)), '[]'::jsonb),
-           coalesce(sum(mi.price), 0)
+           case when c.item_pick = 'one' then coalesce(max(mi.price), 0) else coalesce(sum(mi.price), 0) end
       into r_items, r_discount
       from menu_items mi
      where mi.id = any (c.menu_item_ids) and mi.business_id = p_business_id and mi.active;
@@ -116,6 +121,7 @@ begin
       r_ok := false; r_reason := 'منتجات الكوبون مو متوفرة'; return next; return;
     end if;
     r_amount := r_discount;
+    r_pick := c.item_pick;
     r_ok := true;
     return next; return;
   end if;
@@ -131,7 +137,7 @@ revoke all on function public.rk_coupon_quote(bigint, text, numeric, text) from 
 drop function if exists public.check_coupon(text, numeric);
 drop function if exists public.check_coupon(text, numeric, boolean);
 create function public.check_coupon(p_code text, p_subtotal numeric, p_items_ok boolean default false)
-returns table (r_ok boolean, r_reason text, r_code text, r_kind text, r_pct numeric, r_amount numeric, r_discount numeric, r_items jsonb)
+returns table (r_ok boolean, r_reason text, r_code text, r_kind text, r_pct numeric, r_amount numeric, r_discount numeric, r_items jsonb, r_pick text)
 language plpgsql
 stable
 security definer
@@ -149,7 +155,7 @@ begin
     return next; return;
   end if;
   r_ok := q.r_ok; r_reason := q.r_reason; r_code := q.r_code; r_kind := q.r_kind; r_pct := q.r_pct;
-  r_amount := q.r_amount; r_discount := q.r_discount; r_items := q.r_items;
+  r_amount := q.r_amount; r_discount := q.r_discount; r_items := q.r_items; r_pick := q.r_pick;
   return next;
 end
 $fn$;

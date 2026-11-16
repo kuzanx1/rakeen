@@ -1719,6 +1719,7 @@ button.mn-stat{cursor:pointer;}
 .rk2 .dc-edit .dc-f-item{display:none;}
 .rk2 .dc-edit[data-kind="item"] .dc-f-item{display:block;}
 .rk2 .dc-item-q{width:100%; margin-bottom:8px;}
+.rk2 .dc-f-pick{width:100%; margin-bottom:8px;}
 .dc-item-list{display:flex; flex-direction:column; gap:4px; max-height:220px; overflow:auto; padding:4px; border:1px solid var(--line); border-radius:12px; background:var(--surf1);}
 .dc-item-opt{display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:10px; cursor:pointer; font-weight:800; font-size:14px;}
 .dc-item-opt:hover{background:var(--surf2);}

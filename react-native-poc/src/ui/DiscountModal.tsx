@@ -85,6 +85,8 @@ export default function DiscountModal({
   const [couponText, setCouponText] = useState('');
   const [quote, setQuote] = useState<CouponQuote | null>(null);
   const [checking, setChecking] = useState(false);
+  // كوبون «يختار وحدة»: المنتج اللي اختاره العميل.
+  const [giftPick, setGiftPick] = useState<number | null>(null);
   const [rules, setRules] = useState<DiscountRules>(NO_DISCOUNT_RULES);
   const [reasonMissing, setReasonMissing] = useState(false);
   // رمز المدير طبقة «inline» داخل هالنافذة: نافذتين <Modal> مع بعض على iOS = تجمّد.
@@ -106,6 +108,7 @@ export default function DiscountModal({
     setPickedPresetId(null);
     setCouponText(couponCodeFromReason(discountReason));
     setQuote(null);
+    setGiftPick(null);
     setChecking(false);
     if (discountReason.startsWith(COUPON_REASON_PREFIX)) setMode('coupon');
     listDiscountPresets().then(setPresets).catch(() => setPresets([]));
@@ -119,10 +122,17 @@ export default function DiscountModal({
   const effectivePct = mode === 'pct' ? (customMode ? Math.max(0, Math.min(100, Math.floor(customNum))) : pct) : 0;
   const effectiveAmount = mode === 'amount' ? Math.max(0, Math.round((customMode ? customNum : amount) * 100) / 100) : 0;
   const couponBlocked = quote?.ok && quote.kind !== 'pct' && !fixedAllowed;
+  // المنتجات اللي تنضاف فعلاً: كلها، أو اللي اختاره العميل.
+  const giftItems = (q: CouponQuote) => (q.pick === 'one' ? q.items.filter(i => i.id === giftPick) : q.items);
   const couponValue = (q: CouponQuote) =>
-    q.kind === 'item' ? `${couponItemsLabel(q.items)} ${t('مجاناً')}` : discountLabel(q.kind === 'pct' ? q.pct : 0, q.kind === 'amount' ? q.amount : 0);
+    q.kind === 'item'
+      ? q.pick === 'one' && !giftItems(q).length
+        ? `${t('العميل يختار وحدة')}: ${q.items.map(i => i.name).join(' / ')}`
+        : `${couponItemsLabel(giftItems(q))} ${t('مجاناً')}`
+      : discountLabel(q.kind === 'pct' ? q.pct : 0, q.kind === 'amount' ? q.amount : 0);
+  const needsPick = !!quote?.ok && quote.kind === 'item' && quote.pick === 'one' && giftPick === null;
   const ready =
-    mode === 'coupon' ? !!quote?.ok && !couponBlocked : mode === 'pct' ? effectivePct > 0 : effectiveAmount > 0;
+    mode === 'coupon' ? !!quote?.ok && !couponBlocked && !needsPick : mode === 'pct' ? effectivePct > 0 : effectiveAmount > 0;
   // خصم كتبه الكاشير من عنده -- القواعد تنطبق عليه بس، مو على الجاهز والكوبون.
   const own = mode !== 'coupon' && pickedPresetId === null;
   const kind: 'pct' | 'amount' = mode === 'amount' ? 'amount' : 'pct';
@@ -132,6 +142,7 @@ export default function DiscountModal({
 
   const verifyCoupon = async () => {
     setChecking(true);
+    setGiftPick(null);
     setQuote(await checkCoupon(couponText, subtotal));
     setChecking(false);
   };
@@ -174,7 +185,9 @@ export default function DiscountModal({
       if (!quote?.ok || couponBlocked) return;
       // السبب «كوبون CODE» -- منه ينعدّ الاستخدام في القاعدة.
       const why = COUPON_REASON_PREFIX + quote.code;
-      if (quote.kind === 'item' && quote.items.length) onConfirm(0, why + COUPON_GIFT_MARK + couponItemsLabel(quote.items), quote.amount, { productIds: quote.items.map(i => i.id) });
+      const gifts = giftItems(quote);
+      if (quote.kind === 'item' && gifts.length)
+        onConfirm(0, why + COUPON_GIFT_MARK + couponItemsLabel(gifts), gifts.reduce((s, i) => s + i.price, 0), { productIds: gifts.map(i => i.id) });
       else if (quote.kind === 'amount') onConfirm(0, why, quote.amount);
       else onConfirm(quote.pct, why, 0);
       onClose();
@@ -306,6 +319,22 @@ export default function DiscountModal({
                       : quote.reason}
                   </Text>
                 )}
+                {quote?.ok && !couponBlocked && quote.kind === 'item' && quote.pick === 'one' && (
+                  <View style={[styles.grid, { marginTop: 10 }]}>
+                    {quote.items.map(i => {
+                      const on = giftPick === i.id;
+                      return (
+                        <TouchableOpacity
+                          key={i.id}
+                          style={[styles.chip, on && styles.chipActive]}
+                          onPress={() => setGiftPick(i.id)}
+                          activeOpacity={0.8}>
+                          <Text style={[styles.chipText, on && styles.chipTextActive]}>{i.name}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
               </View>
             )}
 
@@ -390,7 +419,9 @@ export default function DiscountModal({
                   {mode === 'coupon'
                     ? ready && quote
                       ? `${t('تطبيق الكوبون')} — ${couponValue(quote)}`
-                      : t('تحقق من الكوبون أول')
+                      : needsPick
+                        ? t('اختر المنتج اللي يبيه العميل')
+                        : t('تحقق من الكوبون أول')
                     : ready
                     ? `${t('تطبيق الخصم')} — ${discountLabel(effectivePct, effectiveAmount)}${overCap ? ` 🔒 ${t('بموافقة المدير')}` : ''}`
                     : mode === 'pct'

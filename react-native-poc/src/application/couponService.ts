@@ -11,6 +11,7 @@ import { supabase } from '../infrastructure/supabaseClient';
  * «منتجات مجانية» (kind = 'item'، 20261116180000_coupon_free_item.sql): الكوبون
  * يرجّع منتج أو أكثر بأسعارها، والكاشير يضيفها للسلة ويخصم مجموعها بسبب
  * «كوبون CODE · هدية: قهوة + كوكيز» -- فيطلع بالموازنة والتقارير إنها مجانية.
+ * أو (pick = 'one') العميل يختار وحدة منها، والخصم = سعرها.
  * الويب: rkCheckCoupon في public/pos/rakeen-pos.js.
  */
 export interface CouponQuote {
@@ -25,6 +26,8 @@ export interface CouponQuote {
   discount: number;
   /** منتجات مجانية: اللي تنضاف للسلة. */
   items: { id: number; name: string; price: number }[];
+  /** 'all': كلها مجاناً · 'one': العميل يختار وحدة منها. */
+  pick: 'all' | 'one';
 }
 
 /** «قهوة + كوكيز». */
@@ -47,7 +50,7 @@ export function normalizeCouponCode(v: string): string {
 
 export async function checkCoupon(code: string, subtotal: number): Promise<CouponQuote> {
   const clean = normalizeCouponCode(code);
-  const base: CouponQuote = { ok: false, reason: '', code: clean, kind: 'pct', pct: 0, amount: 0, discount: 0, items: [] };
+  const base: CouponQuote = { ok: false, reason: '', code: clean, kind: 'pct', pct: 0, amount: 0, discount: 0, items: [], pick: 'all' };
   if (clean.length < 3) return { ...base, reason: 'اكتب كود الكوبون' };
   try {
     // p_items_ok: هالجهاز يعرف يضيف المنتج المجاني. قاعدة قبل التحديث ما تعرفه.
@@ -78,6 +81,7 @@ export async function checkCoupon(code: string, subtotal: number): Promise<Coupo
             .map(i => ({ id: Number(i.id), name: String(i.name ?? ''), price: Number(i.price ?? 0) }))
             .filter(i => i.id > 0)
         : [],
+      pick: r.r_pick === 'one' ? 'one' : 'all',
     };
   } catch {
     return { ...base, reason: 'تعذّر التحقق — تأكد من النت' };

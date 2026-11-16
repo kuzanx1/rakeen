@@ -2565,7 +2565,7 @@ function rkSyncCouponGift(){
 function rkNormalizeCoupon(v){ return toWesternDigits(String(v || '')).toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 20); }
 async function rkCheckCoupon(code, subtotal){
   const clean = rkNormalizeCoupon(code);
-  const base = { ok: false, reason: '', code: clean, kind: 'pct', pct: 0, amount: 0, discount: 0, items: [] };
+  const base = { ok: false, reason: '', code: clean, kind: 'pct', pct: 0, amount: 0, discount: 0, items: [], pick: 'all' };
   if(clean.length < 3) return { ...base, reason: 'اكتب كود الكوبون' };
   try {
     // p_items_ok: الويب يعرف يضيف المنتج المجاني. قاعدة قبل التحديث ما تعرفه.
@@ -2577,11 +2577,15 @@ async function rkCheckCoupon(code, subtotal){
     if(!r) return { ...base, reason: 'الكوبون غير صحيح' };
     return { ok: r.r_ok === true, reason: r.r_reason || '', code: r.r_code || clean, kind: r.r_kind === 'amount' ? 'amount' : r.r_kind === 'item' ? 'item' : 'pct',
       pct: Number(r.r_pct || 0), amount: Number(r.r_amount || 0), discount: Number(r.r_discount || 0),
-      items: Array.isArray(r.r_items) ? r.r_items.map(i => ({ id: Number(i.id), name: String(i.name || ''), price: Number(i.price || 0) })).filter(i => i.id > 0) : [] };
+      items: Array.isArray(r.r_items) ? r.r_items.map(i => ({ id: Number(i.id), name: String(i.name || ''), price: Number(i.price || 0) })).filter(i => i.id > 0) : [],
+      pick: r.r_pick === 'one' ? 'one' : 'all' };
   } catch(_) { return { ...base, reason: 'تعذّر التحقق — تأكد من النت' }; }
 }
 function rkCouponItemsLabel(items){ return (items || []).map(i => i.name).join(' + '); }
-function rkCouponLabel(q){ return q.kind === 'item' ? rkCouponItemsLabel(q.items) + ' ' + t('مجاناً') : q.kind === 'amount' ? Number(q.amount.toFixed(2)) + ' ﷼' : q.pct + '٪'; }
+// كوبون «يختار وحدة» (pick = 'one'): اللي ينضاف = اللي اختاره العميل بس.
+function rkCouponGifts(q){ return q.pick === 'one' ? q.items.filter(i => i.id === discountModalState.giftPick) : q.items; }
+function rkCouponNeedsPick(){ const q = discountModalState.quote; return !!(q && q.ok && q.kind === 'item' && q.pick === 'one' && discountModalState.giftPick == null); }
+function rkCouponLabel(q){ return q.kind === 'item' ? (q.pick === 'one' && !rkCouponGifts(q).length ? t('العميل يختار وحدة') + ': ' + q.items.map(i => i.name).join(' / ') : rkCouponItemsLabel(rkCouponGifts(q)) + ' ' + t('مجاناً')) : q.kind === 'amount' ? Number(q.amount.toFixed(2)) + ' ﷼' : q.pct + '٪'; }
 
 function openDiscountModal(){
   const fixed = state.discountFixed > 0;
@@ -2596,7 +2600,7 @@ function openDiscountModal(){
     customPct: cur > 0 && !isPreset ? String(cur) : '',
     reason: state.discountReason || '',
     presetId: null,
-    couponText: '', quote: null, checking: false,
+    couponText: '', quote: null, checking: false, giftPick: null,
   };
   if((state.discountReason || '').startsWith(RK_COUPON_PREFIX)){
     discountModalState.mode = 'coupon';
@@ -2624,7 +2628,7 @@ function discountModalEffectiveAmount(){
 function discountModalCouponBlocked(){ const q = discountModalState.quote; return !!(q && q.ok && q.kind !== 'pct' && rkTableOrderSelected()); }
 function discountModalConfirmText(){
   const s = discountModalState;
-  if(s.mode === 'coupon') return s.quote && s.quote.ok && !discountModalCouponBlocked() ? `${t('تطبيق الكوبون')} — ${rkCouponLabel(s.quote)}` : t('تحقق من الكوبون أول');
+  if(s.mode === 'coupon') return rkCouponNeedsPick() ? t('اختر المنتج اللي يبيه العميل') : s.quote && s.quote.ok && !discountModalCouponBlocked() ? `${t('تطبيق الكوبون')} — ${rkCouponLabel(s.quote)}` : t('تحقق من الكوبون أول');
   const lock = discountModalOverCap() ? ' 🔒 ' + t('بموافقة المدير') : '';
   if(s.mode === 'amount'){
     const a = discountModalEffectiveAmount();
@@ -2635,7 +2639,7 @@ function discountModalConfirmText(){
 }
 function discountModalReady(){
   const s = discountModalState;
-  if(s.mode === 'coupon') return !!(s.quote && s.quote.ok) && !discountModalCouponBlocked();
+  if(s.mode === 'coupon') return !!(s.quote && s.quote.ok) && !discountModalCouponBlocked() && !rkCouponNeedsPick();
   return s.mode === 'amount' ? discountModalEffectiveAmount() > 0 : discountModalEffectivePct() > 0;
 }
 
@@ -2667,6 +2671,7 @@ function renderDiscountModalBody(){
       <button class="discount-coupon-check" id="discountCouponCheck" ${s.checking || (s.couponText||'').length < 3 ? 'disabled' : ''}>${s.checking ? '...' : t('تحقق')}</button>
     </div>
     ${s.quote ? `<p class="discount-coupon-result ${s.quote.ok && !discountModalCouponBlocked() ? 'ok' : 'bad'}">${s.quote.ok ? (discountModalCouponBlocked() ? t('كوبون بمبلغ — طلب الطاولة ينخصم بالنسبة بس') : '✓ ' + t('كوبون صالح') + ': ' + rkCouponLabel(s.quote)) : escapeHtml(s.quote.reason)}</p>` : ''}
+    ${s.quote && s.quote.ok && !discountModalCouponBlocked() && s.quote.kind === 'item' && s.quote.pick === 'one' ? `<div class="discount-grid discount-gift-pick">${s.quote.items.map(i => `<button class="discount-chip ${s.giftPick === i.id ? 'active' : ''}" data-gift="${i.id}">${escapeHtml(i.name)}</button>`).join('')}</div>` : ''}
     ` : `
     <div class="discount-grid">
       ${chips.map(v => `<button class="discount-chip ${!s.customMode && cur===v && s.presetId===null ? 'active' : ''}" data-val="${v}">${v}${s.mode==='amount' ? ' ﷼' : '٪'}</button>`).join('')}
@@ -2743,7 +2748,7 @@ function renderDiscountModalBody(){
   const couponCheck = document.getElementById('discountCouponCheck');
   const verifyCoupon = async ()=>{
     if((discountModalState.couponText || '').length < 3 || discountModalState.checking) return;
-    discountModalState.checking = true; renderDiscountModalBody();
+    discountModalState.checking = true; discountModalState.giftPick = null; renderDiscountModalBody();
     discountModalState.quote = await rkCheckCoupon(discountModalState.couponText, cartTotals().subtotal);
     discountModalState.checking = false; renderDiscountModalBody();
   };
@@ -2751,7 +2756,8 @@ function renderDiscountModalBody(){
     couponInput.addEventListener('input', (e)=>{
       const v = rkNormalizeCoupon(e.target.value);
       if(e.target.value !== v) e.target.value = v;
-      discountModalState.couponText = v; discountModalState.quote = null;
+      discountModalState.couponText = v; discountModalState.quote = null; discountModalState.giftPick = null;
+      const gp = body.querySelector('.discount-gift-pick'); if(gp) gp.remove();
       if(couponCheck) couponCheck.disabled = v.length < 3;
       const r = body.querySelector('.discount-coupon-result'); if(r) r.remove();
       const cb = document.getElementById('discountConfirmBtn'); cb.disabled = true; cb.textContent = discountModalConfirmText();
@@ -2760,6 +2766,7 @@ function renderDiscountModalBody(){
     if(!discountModalState.quote && !discountModalState.checking) setTimeout(()=>{ try { couponInput.focus(); } catch(_){} }, 30);
   }
   if(couponCheck) couponCheck.addEventListener('click', verifyCoupon);
+  body.querySelectorAll('[data-gift]').forEach(b => b.addEventListener('click', ()=>{ discountModalState.giftPick = Number(b.dataset.gift); renderDiscountModalBody(); }));
   document.getElementById('discountConfirmBtn').addEventListener('click', ()=>{
     if(!discountModalReady()) return;
     if(discountModalState.mode === 'coupon'){
@@ -2768,9 +2775,11 @@ function renderDiscountModalBody(){
       else { state.discountPct = q.pct; state.discountFixed = 0; }
       state.discountReason = RK_COUPON_PREFIX + q.code; // منه ينعدّ الاستخدام
       state.couponGiftIds = null;
-      if(q.kind === 'item' && q.items.length){
+      const gifts = q.kind === 'item' ? rkCouponGifts(q) : [];
+      if(gifts.length){
         // كل منتج بإعداداته الافتراضية، سطر عادي (مو مكافأة ولاء)، ومجموع أسعارها هو الخصم.
-        const products = q.items.map(it => PRODUCTS.find(p => p.id === it.id));
+        state.discountFixed = Math.round(gifts.reduce((s, i) => s + i.price, 0) * 100) / 100;
+        const products = gifts.map(it => PRODUCTS.find(p => p.id === it.id));
         if(products.some(p => !p)){ state.discountFixed = 0; state.discountReason = ''; showToast(t('منتج بالكوبون مو بقائمة الكاشير')); discountModal.classList.remove('show'); renderOrder(); syncDiscountToggleLabel(); return; }
         products.forEach(product => {
           const modDef = MODIFIER_PRODUCTS[product.id];
@@ -2778,7 +2787,7 @@ function renderDiscountModalBody(){
           const existing = state.cart.find(i => i.productId === product.id && configsEqual(i.config, config) && !i.isFreeReward && !i.isPointsRedemption);
           if(existing) existing.qty += 1; else state.cart.push({lineId: lineIdCounter++, productId: product.id, qty: 1, note: '', config});
         });
-        state.discountReason += RK_COUPON_GIFT_MARK + rkCouponItemsLabel(q.items);
+        state.discountReason += RK_COUPON_GIFT_MARK + rkCouponItemsLabel(gifts);
         state.couponGiftIds = products.map(p => p.id);
       }
       renderOrder();
