@@ -743,11 +743,11 @@ function App(): React.JSX.Element {
   // أرقام طلبات محجوزة: تتعبّى عند الدخول، ورجوع النت، ورجوع التطبيق --
   // وبعد كل بيع (orderNumberPool.ts). بلا مؤقّت.
   // ورقم الطلب يرجع ١ مع كل يوم عمل: الأرقام المحجوزة من يوم سابق تنرمى
-  // (orderSeries.ts). ووردية جديدة = أرقام جديدة من ١ أو من الرقم المختار.
+  // (orderSeries.ts). ووردية بأول رقم أكبر = المحجوز تحته ينرمى.
   useEffect(() => {
     if (!cashier || branchId == null || !online) return;
-    void syncOrderPoolShift(branchId, shift?.id ?? null);
-  }, [cashier, branchId, online, resumeTick, shift?.id]);
+    void syncOrderPoolShift(branchId, shift?.id ?? null, shift?.order_no_start ?? null);
+  }, [cashier, branchId, online, resumeTick, shift?.id, shift?.order_no_start]);
 
   // «جهاز الطباعة للفرع»: يطبع طلبات الأجهزة الثانية. يشتغل دائماً مع
   // الكاشير، والخدمة نفسها ما تسوي شي لين ينفعّل مفتاحه في إعدادات الطابعة.

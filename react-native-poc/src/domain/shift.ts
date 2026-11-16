@@ -20,6 +20,8 @@ export interface Shift {
   closing_cash: number | null;
   opened_at: string;
   closed_at: string | null;
+  /** أول رقم طلب اختاره فاتح الوردية (يرفع عدّاد اليوم بس). */
+  order_no_start?: number | null;
 }
 
 /** The paid-order fields the totals are derived from. */

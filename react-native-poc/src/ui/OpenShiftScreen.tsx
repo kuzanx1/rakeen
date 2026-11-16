@@ -133,7 +133,7 @@ export default function OpenShiftScreen({
           {numbersOn &&
             (editStart ? (
               <View style={styles.field}>
-                <Text style={styles.label}>أول رقم طلب بالوردية</Text>
+                <Text style={styles.label}>أول رقم طلب اليوم</Text>
                 <TextInput
                   style={[styles.input, styles.startInput]}
                   placeholder="1"
@@ -143,7 +143,7 @@ export default function OpenShiftScreen({
                   value={start}
                   onChangeText={t => setStart(toLatinDigits(t).replace(/[^0-9]/g, '').slice(0, 4))}
                 />
-                <Text style={styles.startHint}>أول فاتورة تطلع بهالرقم، والبعدها تكمّل منه</Text>
+                <Text style={styles.startHint}>الأرقام ترجع ١ كل يوم عمل. لو وصلت اليوم لرقم أكبر، تكمّل منه</Text>
               </View>
             ) : (
               <TouchableOpacity
@@ -154,7 +154,7 @@ export default function OpenShiftScreen({
                 accessibilityLabel="غيّر أول رقم طلب"
               >
                 <Text style={styles.startRowText}>
-                  {'أرقام الطلبات تبدأ من '}
+                  {'أرقام اليوم تبدأ من '}
                   <Text style={styles.startRowNo}>{`#${Number(start) || 1}`}</Text>
                 </Text>
                 <Text style={styles.startRowLink}>غيّر</Text>

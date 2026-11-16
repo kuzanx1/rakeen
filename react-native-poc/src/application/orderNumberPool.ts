@@ -23,10 +23,9 @@ import { currentOrderSeries, setDayCutoffHour } from './orderSeries';
  * من أمس وسط أرقام اليوم ١، ٢، ٣. اليوم يقفل بساعة المحل (c)، فينحسب
  * بلا نت (orderSeries.ts).
  *
- * ثم صار يرجع ١ مع كل فتح وردية (20261116140000): السلسلة = 10000000000 +
- * رقم الوردية، وصاحب المحل يختار أول رقم. الجهاز يحفظ وردية مخزونه (sh)
- * ولو تغيّرت الوردية يرمي المخزون ويحجز من جديد (syncOrderPoolShift)،
- * وأي رقم من سلسلة أقدم من آخر سلسلة شافها (ps) ينرمى.
+ * وصاحب المحل يختار «أول رقم» مع فتح الوردية (20261116140000): يرفع عدّاد
+ * اليوم بس. الجهاز يحفظ وردية مخزونه (sh)، ولو تغيّرت يرمي أي رقم محجوز
+ * أصغر من أول رقمها (syncOrderPoolShift) -- وإلا يكمّل بلا فراغات.
  *
  * بلا مؤقّت: يُعبّأ عند الدخول وبعد كل بيع، لا غير.
  * الويب: rkOrderNumberPool في public/pos/rakeen-pos.js -- نفس الأرقام.
@@ -57,22 +56,13 @@ interface Pool {
   c?: number;
   /** sh: الوردية اللي انحجز لها المخزون. */
   sh?: number | null;
-  /** ps: أحدث سلسلة رجعت من الخادم (الأكبر = الأحدث). */
-  ps?: number;
 }
 
-/** سلاسل الورديات تبدأ من هنا؛ اللي تحتها سلاسل أيام قديمة (YYYYMMDD). */
-const SHIFT_SERIES_BASE = 10000000000;
-
-function stillValid(p: Pool, s: number | undefined): boolean {
+/** رقم من يوم عمل غير اليوم ينرمى. */
+function stillValid(s: number | undefined): boolean {
   if (s == null) return true;
-  if (p.ps != null && s < p.ps) return false;
-  // سلسلة يوم (قبل ترحيل الورديات): تنرمى لو اليوم تغيّر.
-  if (s < SHIFT_SERIES_BASE) {
-    const cur = currentOrderSeries();
-    return cur == null || s === cur;
-  }
-  return true;
+  const cur = currentOrderSeries();
+  return cur == null || s === cur;
 }
 
 
@@ -149,7 +139,7 @@ async function load(branchId: number): Promise<Pool> {
       now - i.at < MAX_AGE_MS &&
       Number.isFinite(i.id) && i.id > 0 &&
       Number.isFinite(i.no) && i.no > 0 &&
-      stillValid(mem!, i.s),
+      stillValid(i.s),
   );
   return mem;
 }
@@ -176,15 +166,20 @@ export function takeReservedOrderNumber(branchId: number): Promise<ReservedOrder
 }
 
 /**
- * الوردية المفتوحة تغيّرت (انفتحت جديدة هنا أو من جهاز ثاني)؟ أرقام الوردية
- * السابقة تنرمى ويُحجز من جديد -- فأول فاتورة تطلع #١ (أو الرقم اللي
- * اختاره). نفس الوردية؟ تعبئة عادية بس.
+ * الوردية المفتوحة تغيّرت (انفتحت جديدة هنا أو من جهاز ثاني)؟ الأرقام تكمّل
+ * على نفس اليوم، إلا لو فاتحها اختار أول رقم أكبر (مثلاً المسائية من ٥٠٠):
+ * المحجوز تحته ينرمى، والخادم رفع العدّاد له.
  */
-export function syncOrderPoolShift(branchId: number, shiftId: number | null): Promise<void> {
+export function syncOrderPoolShift(
+  branchId: number,
+  shiftId: number | null,
+  orderNoStart?: number | null,
+): Promise<void> {
   return serial(async () => {
     const p = await load(branchId);
     if (shiftId != null && p.sh !== shiftId) {
-      p.items = [];
+      const min = Number(orderNoStart) > 1 ? Number(orderNoStart) : 1;
+      p.items = p.items.filter(i => i.no >= min);
       p.sh = shiftId;
       await save(p);
     }
@@ -233,13 +228,8 @@ export function refillOrderNumberPool(branchId: number): Promise<void> {
           const no = Number(r.r_order_no);
           const s = r.r_series != null && Number(r.r_series) > 0 ? Number(r.r_series) : undefined;
           if (!asked.has(r.r_client_order_uuid) || known.has(r.r_client_order_uuid) || !(id > 0) || !(no > 0)) continue;
-          // سلسلة أحدث من المخزون (انفتحت وردية): القديم كله ينرمى.
-          if (s != null && s >= SHIFT_SERIES_BASE && (p.ps == null || s > p.ps)) {
-            p.ps = s;
-            p.items = p.items.filter(i => i.s === s);
-          }
-          // من يوم/وردية سابقة (والطلب بالطريق): ما يُحفظ.
-          if (!stillValid(p, s)) continue;
+          // من يوم سابق (والطلب بالطريق): ما يُحفظ.
+          if (!stillValid(s)) continue;
           p.items.push({ u: r.r_client_order_uuid, id, no, at: now, s });
         }
         // الأقدم أولاً: الأرقام تطلع بترتيبها على الفواتير.

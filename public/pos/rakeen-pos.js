@@ -4952,15 +4952,11 @@ function rkRememberNo(id, no){
 function rkRememberRows(rows){ (rows || []).forEach(r => { if(r) rkRememberNo(r.id, r.order_no); }); }
 function rkNo(id){ const n = rkOrderNos().get(Number(id)); return n != null ? n : id; }
 const RK_POOL_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-/* ورقم الطلب صار يرجع ١ مع كل فتح وردية (20261116140000): السلسلة =
-   10000000000 + رقم الوردية، وأول رقم يختاره المحل. المخزون يحفظ ورديته (sh)
-   وأحدث سلسلة (ps)؛ وردية جديدة = يرمي القديم ويحجز من جديد. */
-const RK_SHIFT_SERIES_BASE = 10000000000;
+/* رقم الطلب يرجع ١ مع كل يوم عمل: رقم من يوم غير اليوم ينرمى. و«أول رقم»
+   مع فتح الوردية يرفع عدّاد اليوم بس (20261116140000). */
 function rkPoolValid(p, s){
   if(s == null) return true;
-  if(p.ps != null && s < p.ps) return false;
-  if(s < RK_SHIFT_SERIES_BASE){ const cur = rkPoolSeries(); return cur == null || s === cur; }
-  return true;
+  const cur = rkPoolSeries(); return cur == null || s === cur;
 }
 let rkPoolRefilling = null, rkPoolUnsupportedUntil = 0;
 function rkPoolLoad(branchId){
@@ -5011,8 +5007,7 @@ function rkRefillOrderNumberPool(branchId){
         const s = Number(r.r_series) > 0 ? Number(r.r_series) : undefined;
         if(!asked.has(r.r_client_order_uuid) || known.has(r.r_client_order_uuid) || !(id > 0) || !(no > 0)) continue;
         // سلسلة أحدث (انفتحت وردية): القديم كله ينرمى.
-        if(s != null && s >= RK_SHIFT_SERIES_BASE && (p.ps == null || s > p.ps)){ p.ps = s; p.items = p.items.filter(i => i.s === s); }
-        if(!rkPoolValid(p, s)) continue; // من يوم/وردية سابقة
+        if(!rkPoolValid(p, s)) continue; // من يوم سابق
         p.items.push({ u: r.r_client_order_uuid, id, no, at: now, s });
       }
       p.items.sort((a, b) => a.no - b.no);
@@ -5023,12 +5018,15 @@ function rkRefillOrderNumberPool(branchId){
   return rkPoolRefilling;
 }
 window.addEventListener('online', () => { if(typeof DEVICE !== 'undefined' && CURRENT_PROFILE) rkRefillOrderNumberPool(DEVICE.branchId); });
-/* الوردية تغيّرت (انفتحت هنا أو بجهاز ثاني)؟ أرقامها القديمة تنرمى ويُحجز من
-   جديد، فأول فاتورة تطلع #١ أو الرقم المختار. مثل syncOrderPoolShift بالتطبيق. */
-function rkSyncOrderPoolShift(branchId, shiftId){
+/* الوردية تغيّرت (انفتحت هنا أو بجهاز ثاني)؟ الأرقام تكمّل على نفس اليوم، إلا
+   لو فاتحها اختار أول رقم أكبر: المحجوز تحته ينرمى. مثل syncOrderPoolShift بالتطبيق. */
+function rkSyncOrderPoolShift(branchId, shiftId, orderNoStart){
   if(branchId == null) return null;
   const p = rkPoolLoad(branchId);
-  if(shiftId != null && p.sh !== shiftId){ p.items = []; p.sh = shiftId; rkPoolSave(p); }
+  if(shiftId != null && p.sh !== shiftId){
+    const min = Number(orderNoStart) > 1 ? Number(orderNoStart) : 1;
+    p.items = p.items.filter(i => i.no >= min); p.sh = shiftId; rkPoolSave(p);
+  }
   return rkRefillOrderNumberPool(branchId);
 }
 
@@ -11047,7 +11045,7 @@ function showStaleShiftScreen(shift){
   });
 }
 
-/* «أرقام الطلبات تبدأ من #N · غيّر» -- مطوي، وبس للمحل المفعّل له رقم خاص.
+/* «أرقام اليوم تبدأ من #N · غيّر» -- مطوي، وبس للمحل المفعّل له رقم خاص.
    الجهاز يتذكّر آخر رقم اختاره. التطبيق: OpenShiftScreen.tsx */
 const RK_ORDER_NO_START_KEY = 'rk_order_no_start';
 function rkSavedOrderNoStart(){
@@ -11065,12 +11063,12 @@ function rkRenderOrderNoStartRow(){
   box.dataset.on = '1';
   const n = rkSavedOrderNoStart();
   box.innerHTML = `<button type="button" class="rk-start-row" id="openShiftStartRow">
-      <span>أرقام الطلبات تبدأ من <b class="mono">#${n}</b></span><span class="rk-start-link">غيّر</span>
+      <span>أرقام اليوم تبدأ من <b class="mono">#${n}</b></span><span class="rk-start-link">غيّر</span>
     </button>
     <div class="pos-auth-field hidden" id="openShiftStartField">
-      <label>أول رقم طلب بالوردية</label>
+      <label>أول رقم طلب اليوم</label>
       <input type="text" id="openShiftStartInput" inputmode="numeric" maxlength="4" value="${n}" style="text-align:center;">
-      <div class="rk-start-hint">أول فاتورة تطلع بهالرقم، والبعدها تكمّل منه</div>
+      <div class="rk-start-hint">الأرقام ترجع ١ كل يوم عمل. لو وصلت اليوم لرقم أكبر، تكمّل منه</div>
     </div>`;
   document.getElementById('openShiftStartRow').addEventListener('click', ()=>{
     document.getElementById('openShiftStartRow').classList.add('hidden');
@@ -11565,7 +11563,7 @@ async function bootPos(){
     subscribeToTableChanges();
   }
   subscribeToShiftClosed();
-  rkSyncOrderPoolShift(DEVICE.branchId, CURRENT_SHIFT ? CURRENT_SHIFT.id : null);
+  rkSyncOrderPoolShift(DEVICE.branchId, CURRENT_SHIFT ? CURRENT_SHIFT.id : null, CURRENT_SHIFT ? CURRENT_SHIFT.order_no_start : null);
   subscribeToOrderReadyAlerts();
   subscribeToIncomingOnlineOrders();
   subscribeToOrdersLiveSync();

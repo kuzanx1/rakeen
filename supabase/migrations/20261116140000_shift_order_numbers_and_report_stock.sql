@@ -1,32 +1,34 @@
--- ١) رقم الطلب يرجع #١ مع كل فتح وردية، وصاحب المحل يختار أول رقم.
+-- ١) رقم الطلب يرجع #١ مع كل «يوم عمل» (حسب ساعة إقفال اليوم من دوام
+--    المحل)، وصاحب المحل يختار أول رقم، وبعد ٩٩٩٩ يرجع ١.
 -- ٢) إعدادات ورقة الموازنة من الكاشير (برمز المدير)، ومنها أصناف مخزون
 --    تنطبع «كم انباع منها بالوردية».
 --
--- قبل: السلسلة = يوم العمل (20261115120000_shift_order_numbers.sql)، فقفل
--- الوردية وفتحها بنفس اليوم يكمّل الأرقام. صاحب المحل: «مع كل إغلاق وردية
--- يعيد»، و«يبي يفتح الوردية وأول رقم طلب يبدأ من ٢٥… بكيفه، ٤ أرقام بس».
+-- الترقيم يبقى على يوم العمل (20261115120000_shift_order_numbers.sql):
+-- صاحب المحل اختاره بعد المقارنة، لأن محل بورديتين كان بيطلع عنده #١٢
+-- مرتين باليوم (المطبخ والبيجر والشكاوى). قفل الوردية وفتحها بنفس اليوم
+-- يكمّل الأرقام، ويرجع ١ أول وردية بيوم جديد.
 --
--- ليش آمن: للفرع وردية مفتوحة وحدة بس (الجهاز الثاني ينضم لها -- 23505)،
--- فما فيه جهازين بسلسلتين.
+-- أول رقم (shifts.order_no_start): العدّاد ما يرجع للوراء أبداً، فالرقم
+-- يرفعه بس: أول وردية باليوم تبدأ منه، ووردية ثانية بنفس اليوم برقم أكبر
+-- (مثلاً المسائية من ٥٠٠) تقفز له، وأصغر من اللي وصله اليوم = يكمّل عادي.
 --
--- السلسلة صارت = 10000000000 + رقم الوردية: أكبر دائماً من سلاسل الأيام
--- القديمة (YYYYMMDD)، فالعدّاد ما يرجع للوراء والجهاز يعرف إن السلسلة
--- تغيّرت (الأحدث = الأكبر). الفرق بين (الفرع، السلسلة، الرقم) يبقى فريد.
+-- بعد ٩٩٩٩ يرجع ١، ويتخطّى أي رقم انأخذ بنفس اليوم (الفريد = الفرع،
+-- السلسلة، الرقم)، فما يتكرر رقم باليوم.
 --
 -- التطبيق: orderNumberPool.ts + OpenShiftScreen.tsx · الويب: rkOrderNumberPool
 
 begin;
 set local lock_timeout = '5s';
 
--- ---------- أول رقم بالوردية ----------
+-- ---------- أول رقم ----------
 alter table public.shifts add column if not exists order_no_start int;
 alter table public.shifts drop constraint if exists shifts_order_no_start_chk;
 alter table public.shifts add constraint shifts_order_no_start_chk
   check (order_no_start is null or (order_no_start between 1 and 9999));
 comment on column public.shifts.order_no_start is
-  'أول رقم طلب بهالوردية (١–٩٩٩٩). null = ١.';
+  'أول رقم طلب يطلبه فاتح الوردية (١–٩٩٩٩). يرفع عدّاد اليوم بس، ما ينزّله.';
 
--- السلسلة الحالية للفرع = اللي بالعدّاد (فتح الوردية يغيّرها).
+-- السلسلة = تاريخ يوم العمل (مثل 20261115120000، بلا تغيير).
 create or replace function public.rk_branch_order_series(p_branch_id bigint)
 returns bigint
 language sql
@@ -34,45 +36,90 @@ stable
 security definer
 set search_path = public
 as $fn$
-  select coalesce((select c.series from branch_order_counters c where c.branch_id = p_branch_id), 10000000000);
+  select rk_business_day_key(b.business_id) from branches b where b.id = p_branch_id;
 $fn$;
 revoke all on function public.rk_branch_order_series(bigint) from public, anon, authenticated;
 
--- n رقم متتالي من عدّاد الفرع، على سلسلته الحالية. ما يتصفّر بالوقت: فتح
--- الوردية هو اللي يصفّره (الـ trigger تحت).
+-- n رقم متتالي من عدّاد الفرع. يوم جديد = من ١. بعد ٩٩٩٩ = من ١، ويتخطّى
+-- الأرقام المأخوذة بنفس اليوم (طلب أو حجز).
 create or replace function public.take_branch_order_nos(p_branch_id bigint, p_n int, out r_first bigint, out r_series bigint)
 language plpgsql
 security definer
 set search_path = public
 as $fn$
 declare
+  v_series bigint := rk_branch_order_series(p_branch_id);
   v_last bigint;
+  v_first bigint;
+  v_hit bigint;
+  v_tries int := 0;
 begin
-  insert into branch_order_counters as c (branch_id, series, last_no)
-  values (p_branch_id, 10000000000, p_n)
-  on conflict (branch_id) do update set last_no = c.last_no + p_n
-  returning c.last_no, c.series into v_last, r_series;
-  r_first := v_last - p_n + 1;
+  if p_n < 1 or p_n > 50 then
+    raise exception 'between 1 and 50 numbers per call';
+  end if;
+  insert into branch_order_counters (branch_id, series, last_no)
+  values (p_branch_id, v_series, 0)
+  on conflict (branch_id) do nothing;
+  select c.series, c.last_no into r_series, v_last
+    from branch_order_counters c where c.branch_id = p_branch_id
+     for update;
+  -- سلسلة أقدم (قُرئت قبل لحظة من بداية يوم جديد) ما ترجّع العدّاد للوراء.
+  if v_series > r_series then
+    r_series := v_series;
+    v_last := 0;
+  end if;
+  v_first := v_last + 1;
+  loop
+    if v_first + p_n - 1 > 9999 then
+      v_first := 1;
+    end if;
+    select max(t.n) into v_hit from (
+      select o.order_no as n from orders o
+       where o.branch_id = p_branch_id and o.order_series = r_series
+         and o.order_no between v_first and v_first + p_n - 1
+      union all
+      select x.order_no from order_no_reservations x
+       where x.branch_id = p_branch_id and x.series = r_series
+         and x.order_no between v_first and v_first + p_n - 1
+    ) t;
+    exit when v_hit is null;
+    v_first := v_hit + 1;
+    v_tries := v_tries + 1;
+    if v_tries > 500 then
+      raise exception 'ما فيه أرقام طلبات فاضية اليوم';
+    end if;
+  end loop;
+  update branch_order_counters
+     set series = r_series, last_no = v_first + p_n - 1
+   where branch_id = p_branch_id;
+  r_first := v_first;
 end
 $fn$;
 revoke all on function public.take_branch_order_nos(bigint, int) from public, anon, authenticated;
 
--- فتح وردية = سلسلة جديدة تبدأ من order_no_start (أو ١).
+-- فتح وردية بأول رقم: يرفع عدّاد اليوم له (ما ينزّله).
 create or replace function public.rk_shift_starts_order_numbers()
 returns trigger
 language plpgsql
 security definer
 set search_path = public
 as $fn$
+declare
+  v_series bigint;
 begin
+  if new.order_no_start is null or new.order_no_start <= 1 then
+    return new;
+  end if;
   if not exists (select 1 from order_number_blocks_enabled e where e.business_id = new.business_id) then
     return new;
   end if;
+  v_series := rk_branch_order_series(new.branch_id);
   insert into branch_order_counters as c (branch_id, series, last_no)
-  values (new.branch_id, 10000000000 + new.id, coalesce(new.order_no_start, 1) - 1)
+  values (new.branch_id, v_series, new.order_no_start - 1)
   on conflict (branch_id) do update
-    set series = excluded.series, last_no = excluded.last_no
-    where c.series < excluded.series;
+    set last_no = case when excluded.series > c.series then excluded.last_no
+                       else greatest(c.last_no, excluded.last_no) end,
+        series = greatest(c.series, excluded.series);
   return new;
 end
 $fn$;
