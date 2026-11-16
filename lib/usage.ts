@@ -1,7 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
 // Single source of truth for infrastructure usage checks, shared by the
-// weekly cron (app/api/cron/usage-check) and the live admin panel view
+// daily admin alerts cron (app/api/cron/admin-alerts) and the live admin panel view
 // (app/api/admin/usage) so the two never drift on limits or math. Exists
 // because the account already blew through Supabase's free Cached Egress
 // quota once without anyone noticing until the grace-period email arrived.

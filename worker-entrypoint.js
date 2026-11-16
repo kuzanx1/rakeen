@@ -172,10 +172,12 @@ export default {
     // both finish in seconds, and neither blocks the other (they're
     // dispatched together, not in sequence).
     const paths =
-      event.cron === "0 7 * * 1" ? ["/api/cron/usage-check"] :
+      // خانة الاثنين فاضية: تحذير الاستهلاك انتقل لـ admin-alerts اليومي.
+      // تبقى مسجّلة عشان ما تطيح على win-back (الخيار الأخير تحت).
+      event.cron === "0 7 * * 1" ? [] :
       event.cron === "0 * * * *" ? ["/api/cron/daily-report"] :
       event.cron === "*/2 * * * *" ? ["/api/cron/auto-ready-pickup", "/api/cron/wallet-push"] :
-      event.cron === "0 5 * * *" ? ["/api/cron/compliance-check"] :
+      event.cron === "0 5 * * *" ? ["/api/cron/compliance-check", "/api/cron/admin-alerts"] :
       ["/api/cron/win-back"];
     // والجسم يُقرأ، لا الترويسة وحدها.
     //

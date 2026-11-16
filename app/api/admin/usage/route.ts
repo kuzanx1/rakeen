@@ -6,7 +6,7 @@ import { checkDbRateLimit } from "@/lib/dbRateLimit";
 import { computeUsageReport } from "@/lib/usage";
 
 // Live read for the admin panel's "استهلاك البنية التحتية" tab — same
-// metrics and math as the weekly cron (app/api/cron/usage-check), just
+// metrics and math as the daily alerts cron (app/api/cron/admin-alerts), just
 // returned for display instead of gated behind the 70% push-alert
 // threshold. Same platform-admin allowlist auth as every other /api/admin
 // route (see app/api/admin/businesses/route.ts).
