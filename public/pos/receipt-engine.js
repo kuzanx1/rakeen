@@ -1030,7 +1030,7 @@ var RakeenReceiptEngine = (() => {
     const ctx = createContext({ width, line: SHIFT.line, measure });
     const opt = report.options || {};
     const on = (k) => opt[k] !== false;
-    const money = (n) => n.toFixed(2) + " " + currency;
+    const money = (n) => Number.isFinite(Number(n)) ? Number(n).toFixed(2) + " " + currency : "—";
     ctx.centerText(report.businessName || "ركين", SHIFT.businessName, true);
     if (report.branchName) ctx.centerText(report.branchName, SHIFT.branch, false);
     ctx.y += ctx.gap(SHIFT_SPACE.beforeTitle);

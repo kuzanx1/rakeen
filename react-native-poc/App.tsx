@@ -517,13 +517,17 @@ function App(): React.JSX.Element {
   const handleReprintLastClosing = useCallback(async () => {
     if (branchId == null) return;
     setStatusMessage('جاري البحث عن آخر موازنة...');
-    const report = await getLastClosingReport(branchId, businessName ?? '', branchName ?? '');
-    if (!report) {
-      setStatusMessage('ما فيه موازنة سابقة مسجلة لهذا الفرع');
-      return;
+    try {
+      const report = await getLastClosingReport(branchId, businessName ?? '', branchName ?? '');
+      if (!report) {
+        setStatusMessage('ما فيه موازنة سابقة مسجلة لهذا الفرع');
+        return;
+      }
+      await enqueuePrintJob('shiftReport', report as unknown as Record<string, unknown>);
+      setStatusMessage('تم إرسال آخر موازنة للطابعة');
+    } catch {
+      setStatusMessage('تعذّرت طباعة آخر موازنة — تحقق من الاتصال وجرّب مرة ثانية');
     }
-    await enqueuePrintJob('shiftReport', report as unknown as Record<string, unknown>);
-    setStatusMessage('تم إرسال آخر موازنة للطابعة');
   }, [branchId, businessName, branchName]);
 
   useEffect(() => {

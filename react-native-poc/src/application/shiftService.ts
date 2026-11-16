@@ -6,6 +6,7 @@ import { getItem, setItem } from '../infrastructure/mmkvStorage';
 import { computeShiftTotals, EMPTY_SHIFT_TOTALS } from '../domain/shift';
 import type { CashMovement, ClosingReport, Shift, ShiftOrderRow, ShiftTotals } from '../domain/shift';
 import { formatArabicDateTime } from '../domain/arabicDate';
+import { getShiftReportSettings } from './catalogService';
 
 /**
  * The shift lifecycle, ported from rakeen-pos.js's own (findOpenShift at
@@ -328,7 +329,7 @@ export async function closeShift(input: CloseShiftInput): Promise<{ ok: boolean;
     if (!closedBy) {
       return { ok: true, error: 'أُغلقت الوردية، لكن ما انحفظ تقرير الموازنة — سجّل الدخول وأعد الطباعة' };
     }
-    const { error: reportError } = await supabase.from('shift_closing_reports').insert({
+    const reportRow = {
       shift_id: input.shift.id,
       business_id: input.shift.business_id,
       branch_id: input.shift.branch_id,
@@ -340,7 +341,15 @@ export async function closeShift(input: CloseShiftInput): Promise<{ ok: boolean;
       cash_variance: input.report.cashVariance,
       card_total: input.report.cardTotal,
       delivery_platform_total: input.report.deliveryPlatformTotal,
-    });
+    };
+    // الورقة كاملة (report) عشان «طباعة آخر موازنة» تطبعها نفسها. قبل ترحيل
+    // 20261116120000 العمود ما يوجد: نحفظ بدونه بدل ما يضيع التقرير.
+    let { error: reportError } = await supabase
+      .from('shift_closing_reports')
+      .insert({ ...reportRow, report: input.report });
+    if (reportError && /report/.test(String(reportError.message || ''))) {
+      ({ error: reportError } = await supabase.from('shift_closing_reports').insert(reportRow));
+    }
     // الإدراج لا يرمي عند الفشل، فكان فشله يمرّ صامتاً: وردية مقفلة بلا
     // تقرير محفوظ، وزر «أعد طباعة آخر موازنة» يطبع موازنة الأمس.
     if (reportError) {
@@ -386,25 +395,68 @@ export async function getLastClosingReport(
   if (error || !data) return null;
 
   const row = data as Record<string, unknown>;
-  return {
-    businessName: businessName || 'ركين',
-    branchName: branchName || '',
-    dateLabel: formatArabicDateTime(new Date(String(row.created_at))),
-    // The source prints an em dash here: the report row records who closed
-    // it as a user id, not a display name.
-    staffName: '—',
+  // محفوظة كاملة وقت الإغلاق: تنطبع نفس الورقة بالضبط.
+  if (row.report && typeof row.report === 'object') {
+    return row.report as ClosingReport;
+  }
+
+  // تقرير قديم (قبل حفظ الورقة كاملة): الأعمدة فيها الأرقام الموقّعة بس،
+  // والورقة الحالية فيها أسطر أكثر (الإجمالي، الصافي، الافتتاحي...). كانت
+  // تُبنى ناقصة فيرمي المحرّك وما تطلع ورقة. الحين نحسب تفصيل الوردية من
+  // طلباتها بنفس دالة الإغلاق، والأرقام الموقّعة (المتوقع، المعدود، الفرق)
+  // تبقى من التقرير المحفوظ.
+  const signed = {
     ordersCount: Number(row.orders_count) || 0,
     salesTotal: Number(row.sales_total) || 0,
     cardTotal: Number(row.card_total) || 0,
     deliveryPlatformTotal: Number(row.delivery_platform_total) || 0,
-    // Not stored on the report row -- an older slip simply reprints
-    // without these two lines rather than inventing figures for them.
-    cashIn: 0,
-    cashOut: 0,
     cashExpected: Number(row.cash_expected) || 0,
     cashCounted: Number(row.cash_counted) || 0,
     cashVariance: Number(row.cash_variance) || 0,
   };
+  const base: ClosingReport = {
+    businessName: businessName || 'ركين',
+    branchName: branchName || '',
+    dateLabel: formatArabicDateTime(new Date(String(row.created_at))),
+    // The report row records who closed it as a user id, not a name.
+    staffName: '—',
+    cashIn: 0,
+    cashOut: 0,
+    ...signed,
+  };
+  try {
+    const { data: shiftRow } = await supabase
+      .from('shifts')
+      .select('id, business_id, branch_id, cashier_id, opening_cash, closing_cash, opened_at, closed_at')
+      .eq('id', Number(row.shift_id))
+      .maybeSingle();
+    if (!shiftRow) return base;
+    const shift = shiftRow as Shift;
+    const [t, settings] = await Promise.all([loadShiftTotals(shift), getShiftReportSettings(shift.business_id)]);
+    return {
+      ...base,
+      cashIn: t.cashInTotal,
+      cashOut: t.cashOutTotal,
+      grossSales: t.grossSales,
+      discountsTotal: t.discountsTotal,
+      discountBreakdown: t.discountBreakdown,
+      refundsTotal: t.refundsTotal,
+      refundsCount: t.refundsCount,
+      vatTotal: t.vatTotal,
+      netSales: t.netSales,
+      avgTicket: t.avgTicket,
+      openingCash: t.openingCash,
+      cashSales: t.cashSales,
+      onlineTotal: t.onlineTotal,
+      onlinePaymentsEnabled: settings.onlinePaymentsEnabled,
+      options: settings.options,
+      shiftStart: new Date(shift.opened_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+      ...signed,
+    };
+  } catch {
+    // بدون نت أو تعذّرت القراءة: الأرقام الموقّعة تنطبع، والباقي «—».
+    return base;
+  }
 }
 
 /**

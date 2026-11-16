@@ -9218,8 +9218,10 @@ function refreshDiagnosticsIfOpen(){
    auth flow below). cashTotal starts from the shift's real opening_cash so
    the closing wizard's "expected in drawer" figure accounts for the float,
    not just the day's cash sales. ============ */
-async function loadShiftData(){
-  if(!CURRENT_SHIFT) return {ordersCount:0, salesTotal:0, cashTotal:0, cardTotal:0, startTime:'--:--'};
+async function loadShiftData(shift){
+  // بدون وسيط = الوردية المفتوحة. «طباعة آخر موازنة» تمرّر وردية مقفلة.
+  const SH = shift || CURRENT_SHIFT;
+  if(!SH) return {ordersCount:0, salesTotal:0, cashTotal:0, cardTotal:0, startTime:'--:--'};
   // payment_status='paid' excludes a pay-after dine-in table that's still
   // mid-meal (order registered, nothing collected yet) — without this an
   // open tab's total would land in the drawer count before any money
@@ -9246,7 +9248,7 @@ async function loadShiftData(){
      خطأ، ومن ينادي يعرض «جرّب مرة ثانية» بدل أرقام ناقصة.
      (نظيرها في التطبيق: loadShiftTotals.) */
   const { data, error: ordersError } = await window.supabaseClient
-    .from('orders').select('total, subtotal, discount_pct, discount_amount, vat_amount, payment_method, cash_amount, source').eq('shift_id', CURRENT_SHIFT.id).eq('payment_status', 'paid');
+    .from('orders').select('total, subtotal, discount_pct, discount_amount, vat_amount, payment_method, cash_amount, source').eq('shift_id', SH.id).eq('payment_status', 'paid');
   if(ordersError) throw new Error('shift_totals_unreadable');
   const orders = data || [];
   /* إيداع وسحب الدرج. التطبيق يسجّلها (shift_cash_movements) ويحسبها، والويب
@@ -9255,7 +9257,7 @@ async function loadShiftData(){
   let cashInTotal = 0, cashOutTotal = 0;
   {
     const mv = await window.supabaseClient
-      .from('shift_cash_movements').select('direction, amount').eq('shift_id', CURRENT_SHIFT.id);
+      .from('shift_cash_movements').select('direction, amount').eq('shift_id', SH.id);
     const missing = mv.error && (mv.error.code === '42P01' || mv.error.code === 'PGRST205' || /does not exist|schema cache/i.test(mv.error.message || ''));
     if(mv.error && !missing) throw new Error('shift_totals_unreadable');
     (mv.data || []).forEach(m=>{
@@ -9268,7 +9270,7 @@ async function loadShiftData(){
   let refundsTotal = 0, refundsCount = 0;
   try {
     const { data: refunded } = await window.supabaseClient
-      .from('orders').select('refunded_amount').eq('refund_shift_id', CURRENT_SHIFT.id);
+      .from('orders').select('refunded_amount').eq('refund_shift_id', SH.id);
     (refunded || []).forEach(o=>{
       const amt = Number(o.refunded_amount) || 0;
       if(amt > 0){ refundsTotal += amt; refundsCount++; }
@@ -9312,16 +9314,16 @@ async function loadShiftData(){
     grossSales, discountsTotal, discountBreakdown, vatTotal, refundsTotal, refundsCount,
     netSales,
     avgTicket: orders.length ? netSales / orders.length : 0,
-    openingCash: Number(CURRENT_SHIFT.opening_cash) || 0,
+    openingCash: Number(SH.opening_cash) || 0,
     cashSales,
     onlineTotal: onlineSales,
     salesTotal: netSales,
     // الاسترجاع كاش دائماً، فهو سحبٌ من الدرج مهما كانت طريقة دفع البيع.
     cashInTotal, cashOutTotal,
-    cashTotal: Number(CURRENT_SHIFT.opening_cash) + cashSales + cashInTotal - cashOutTotal - refundsTotal,
+    cashTotal: Number(SH.opening_cash) + cashSales + cashInTotal - cashOutTotal - refundsTotal,
     cardTotal: cardSales,
     deliveryPlatformTotal: deliveryPlatformSales,
-    startTime: new Date(CURRENT_SHIFT.opened_at).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'})
+    startTime: new Date(SH.opened_at).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'})
   };
 }
 
@@ -9374,14 +9376,39 @@ async function reprintLastClosingReport(){
     .from('shift_closing_reports').select('*')
     .eq('branch_id', DEVICE.branchId).order('created_at', {ascending:false}).limit(1).maybeSingle();
   if(error || !data){ showToast('ما فيه موازنة سابقة مسجلة لهذا الفرع'); return; }
-  const report = {
-    businessName: DEVICE.businessName || 'ركين', branchName: DEVICE.branchName || '',
-    dateLabel: new Date(data.created_at).toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
-    staffName: '—',
-    ordersCount: data.orders_count, salesTotal: Number(data.sales_total),
-    cardTotal: Number(data.card_total), deliveryPlatformTotal: Number(data.delivery_platform_total),
-    cashExpected: Number(data.cash_expected), cashCounted: Number(data.cash_counted), cashVariance: Number(data.cash_variance)
-  };
+  let report;
+  if(data.report && typeof data.report === 'object'){
+    // محفوظة كاملة وقت الإغلاق: نفس الورقة بالضبط.
+    report = data.report;
+  } else {
+    /* تقرير قديم: الأعمدة فيها الأرقام الموقّعة بس، والورقة الحالية فيها أسطر
+       أكثر (الإجمالي، الصافي، الافتتاحي...). كانت تُبنى ناقصة فيرمي المحرّك
+       وما تطلع ورقة. نحسب تفصيل الوردية من طلباتها بنفس دالة الإغلاق،
+       والأرقام الموقّعة تبقى من التقرير. (نظيرها: getLastClosingReport بالتطبيق) */
+    const signed = {
+      ordersCount: Number(data.orders_count) || 0, salesTotal: Number(data.sales_total) || 0,
+      cardTotal: Number(data.card_total) || 0, deliveryPlatformTotal: Number(data.delivery_platform_total) || 0,
+      cashExpected: Number(data.cash_expected) || 0, cashCounted: Number(data.cash_counted) || 0, cashVariance: Number(data.cash_variance) || 0
+    };
+    report = Object.assign({
+      businessName: DEVICE.businessName || 'ركين', branchName: DEVICE.branchName || '',
+      dateLabel: new Date(data.created_at).toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
+      staffName: '—'
+    }, signed);
+    try {
+      const { data: sh } = await window.supabaseClient.from('shifts')
+        .select('id, opening_cash, opened_at').eq('id', data.shift_id).maybeSingle();
+      if(sh){
+        const t = await loadShiftData(sh);
+        Object.assign(report, {
+          grossSales: t.grossSales, discountsTotal: t.discountsTotal, discountBreakdown: t.discountBreakdown,
+          refundsTotal: t.refundsTotal, refundsCount: t.refundsCount, vatTotal: t.vatTotal, netSales: t.netSales,
+          avgTicket: t.avgTicket, openingCash: t.openingCash, cashSales: t.cashSales, onlineTotal: t.onlineTotal,
+          onlinePaymentsEnabled: ONLINE_PAYMENTS_ENABLED, options: SHIFT_REPORT_OPTIONS, shiftStart: t.startTime
+        }, signed);
+      }
+    } catch(_) { /* بدون نت: الأرقام الموقّعة تنطبع، والباقي «—» */ }
+  }
   showToast('جاري الطباعة...');
   const result = await sendShiftReportToPrinter(report);
   if(result.ok) showToast('تمت طباعة آخر موازنة');
@@ -9510,12 +9537,17 @@ function renderClosingWizard(){
             cashExpected: closingShiftData.cashTotal, cashCounted: counted, cashVariance: variance
           };
           const { data: { user } } = await window.supabaseClient.auth.getUser();
-          const reportIns = await window.supabaseClient.from('shift_closing_reports').insert({
+          const reportRow = {
             shift_id: CURRENT_SHIFT.id, business_id: DEVICE.businessId, branch_id: DEVICE.branchId,
             closed_by: user.id, orders_count: report.ordersCount, sales_total: report.salesTotal,
             cash_expected: report.cashExpected, cash_counted: report.cashCounted, cash_variance: report.cashVariance,
             card_total: report.cardTotal, delivery_platform_total: report.deliveryPlatformTotal
-          });
+          };
+          // الورقة كاملة (report) عشان «طباعة آخر موازنة» تطبعها نفسها. قبل
+          // ترحيل 20261116120000 العمود ما يوجد: نحفظ بدونه بدل ما يضيع التقرير.
+          let reportIns = await window.supabaseClient.from('shift_closing_reports').insert(Object.assign({ report }, reportRow));
+          if(reportIns && reportIns.error && /report/.test(String(reportIns.error.message || '')))
+            reportIns = await window.supabaseClient.from('shift_closing_reports').insert(reportRow);
           /* الإدراج لا يرمي عند الفشل، فكان يمرّ صامتاً: وردية مقفلة بلا تقرير
              محفوظ، و«أعد طباعة آخر موازنة» يطبع موازنة الأمس. الطباعة تمضي
              (الورقة بيد الكاشير)، ويُنتظر تأكيده قبل الخروج. */

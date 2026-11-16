@@ -61,7 +61,10 @@ export function layoutShiftReport(input: ShiftLayoutInput): LayoutResult {
   const ctx = createContext({ width, line: SHIFT.line, measure });
   const opt = report.options || {};
   const on = (k: string): boolean => opt[k] !== false;
-  const money = (n: number): string => n.toFixed(2) + ' ' + currency;
+  // رقمٌ غائب يُطبع «—» بدل ما يرمي: ورقةُ موازنةٍ محفوظة من قبل ما فيها
+  // كل الأسطر، وكان أي سطر ناقص يوقف الطباعة كلها بصمت («طباعة آخر
+  // موازنة» ما تشتغل). الأصل إن الورقة تنحفظ كاملة (report jsonb).
+  const money = (n: number): string => (Number.isFinite(Number(n)) ? Number(n).toFixed(2) + ' ' + currency : '—');
 
   ctx.centerText(report.businessName || 'ركين', SHIFT.businessName, true);
   if (report.branchName) ctx.centerText(report.branchName, SHIFT.branch, false);
