@@ -266,7 +266,7 @@ export default function BillingNotice() {
         )}
 
       {showAlert && hasCard && (
-        <div dir="rtl" style={overlay(940)}>
+        <div dir="rtl" data-rk-overlay="" style={overlay(940)}>
           <div style={{ ...card, maxWidth: 520, width: "100%", margin: 0, borderInlineStart: `5px solid ${accent}`, boxShadow: "0 30px 80px rgba(0,0,0,.45)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
               <span style={{ color: accent, fontWeight: 800, fontSize: 13, flex: 1 }}>تنبيه اشتراكك في ركين</span>
@@ -281,7 +281,7 @@ export default function BillingNotice() {
       )}
 
       {data.suspended && !paying && (
-        <div dir="rtl" style={{ ...overlay(980), background: "rgba(10,10,10,.92)" }}>
+        <div dir="rtl" data-rk-overlay="" style={{ ...overlay(980), background: "rgba(10,10,10,.92)" }}>
           <div style={{ ...card, maxWidth: 520, width: "100%", margin: 0, borderInlineStart: `5px solid ${C.danger}`, textAlign: "center" }}>
             <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>حسابك موقوف مؤقتاً</div>
             <div style={{ color: C.muted, fontSize: 14, lineHeight: 1.8, marginBottom: 16 }}>
@@ -302,7 +302,7 @@ export default function BillingNotice() {
       )}
 
       {paying && (
-        <div dir="rtl" onClick={() => !busy && setPaying(null)} style={overlay(1000)}>
+        <div dir="rtl" data-rk-overlay="" onClick={() => !busy && setPaying(null)} style={overlay(1000)}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", color: C.ink, borderRadius: 22, padding: 22, width: "100%", maxWidth: 440, fontSize: 14, lineHeight: 1.7, colorScheme: "light" }}>
             <div style={{ fontWeight: 800, fontSize: 17, marginBottom: 2 }}>سداد الدفعة {paying.seq}</div>
             <div style={{ color: "rgba(23,23,23,.6)", fontSize: 12.5, marginBottom: 12 }}>عقد {paying.contract_number} · تستحق {fmtDate(paying.due_date)}</div>

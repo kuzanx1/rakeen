@@ -10,6 +10,7 @@ import "./rk2.css";
 import { dashboardMarkup } from "./dashboard-markup";
 import BillingNotice from "./BillingNotice";
 import WhatsNew from "./WhatsNew";
+import WaUpdatesInvite from "./WaUpdatesInvite";
 import LinksStudio from "./LinksStudio";
 import QrStudio from "./QrStudio";
 
@@ -690,6 +691,7 @@ export default function DashboardPage() {
       <button type="button" className="rk-fab hidden" id="rkFab" aria-label="إجراء سريع" />
       <BillingNotice />
       <WhatsNew />
+      <WaUpdatesInvite />
       <LinksStudio />
       <QrStudio />
     </>
