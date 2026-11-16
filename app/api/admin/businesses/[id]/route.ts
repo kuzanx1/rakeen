@@ -161,10 +161,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const planRow = await admin.from("businesses").select("plan_tier, feature_overrides, allowed_features, branch_limit").eq("id", businessId).maybeSingle();
 
   let ownerEmail: string | null = null;
+  let ownerPhone: string | null = null;
   const ownerId = ownerProfile.data?.id as string | undefined;
   if (ownerId) {
     const { data: ownerUser } = await admin.auth.admin.getUserById(ownerId);
     ownerEmail = ownerUser?.user?.email ?? null;
+    const meta = (ownerUser?.user?.user_metadata || {}) as Record<string, unknown>;
+    ownerPhone = (typeof meta.phone === "string" && meta.phone) || ownerUser?.user?.phone || null;
   }
 
   return NextResponse.json({
@@ -172,6 +175,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     last_order_at: lastOrder.data?.created_at ?? null,
     owner_id: ownerId ?? null,
     owner_email: ownerEmail,
+    owner_phone: ownerPhone,
     branch_count: branchCount.count ?? 0,
     staff_count: staffCount.count ?? 0,
     ...(designRow.data || {}),

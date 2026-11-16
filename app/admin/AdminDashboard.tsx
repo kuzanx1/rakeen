@@ -62,6 +62,7 @@ type BusinessStats = {
   plans_ready?: boolean;
   plan_tier?: string | null;
   feature_overrides?: FeatureOverrides | null;
+  owner_phone?: string | null;
 };
 
 const BUSINESS_TYPE_LABELS: Record<string, string> = {
@@ -84,6 +85,15 @@ const BUSINESS_TYPE_LABELS: Record<string, string> = {
 // need the "new sector" callout below; only genuinely different-engine or
 // not-yet-built types do.
 const RESTAURANT_LIKE_TYPES = ["restaurant", "quick_service", "cafe", "cloud_kitchen"];
+// رقم سعودي محلي (05xxxxxxxx / 5xxxxxxxx / 00966...) إلى صيغة wa.me الدولية.
+function waNumber(phone: string): string {
+  let d = phone.replace(/\D/g, "");
+  if (d.startsWith("00")) d = d.slice(2);
+  if (d.startsWith("05") && d.length === 10) d = "966" + d.slice(1);
+  else if (d.startsWith("5") && d.length === 9) d = "966" + d;
+  return d;
+}
+
 const LOYALTY_THEME_LABELS: Record<string, string> = { classic: "كلاسيكي", minimal: "بسيط", bold: "جريء" };
 const LOYALTY_PATTERN_LABELS: Record<string, string> = {
   none: "بدون",
@@ -208,6 +218,7 @@ export default function AdminDashboard() {
   const [drawerError, setDrawerError] = useState<string | null>(null);
   const [stats, setStats] = useState<BusinessStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [bzTab, setBzTab] = useState<"overview" | "plan" | "account" | "design">("overview");
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [newOwnerEmail, setNewOwnerEmail] = useState("");
@@ -425,6 +436,7 @@ export default function AdminDashboard() {
 
   function openDrawer(b: Business) {
     setSelectedId(b.id);
+    setBzTab("overview");
     setDraft(draftFrom(b));
     setDrawerError(null);
     setStats(null);
@@ -1022,523 +1034,454 @@ export default function AdminDashboard() {
       </main>
 
       {selected && draft && (
-        <div style={styles.overlay} onClick={closeDrawer}>
-          <div style={styles.drawer} onClick={(e) => e.stopPropagation()}>
-            <div style={styles.drawerHeader}>
-              <h2 style={{ fontSize: "16px", fontWeight: 800 }}>
-                {selected.name} <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: "12px", color: "#7BAD0F" }}>معرف {selected.id}</span>
-              </h2>
-              <button style={styles.closeBtn} onClick={closeDrawer}>
-                ✕
-              </button>
-            </div>
-            <div style={styles.drawerBody}>
-              <div style={styles.section}>
-                <div style={styles.sectionLabel}>الاستخدام الفعلي</div>
-                {statsLoading ? (
-                  <p style={styles.hint}>جاري التحميل...</p>
-                ) : stats ? (
-                  <div style={styles.statsGrid}>
-                    <div style={styles.statMini}>
-                      <div style={styles.statMiniValue}>{stats.orders_count}</div>
-                      <div style={styles.statMiniLabel}>إجمالي الطلبات</div>
-                    </div>
-                    <div style={styles.statMini}>
-                      <div style={styles.statMiniValue}>{formatRelative(stats.last_order_at)}</div>
-                      <div style={styles.statMiniLabel}>آخر طلب</div>
-                    </div>
-                    <div style={styles.statMini}>
-                      <div style={styles.statMiniValue}>
-                        {stats.branch_count}/{selected.branch_limit}
-                      </div>
-                      <div style={styles.statMiniLabel}>الفروع</div>
-                    </div>
-                    <div style={styles.statMini}>
-                      <div style={styles.statMiniValue}>
-                        {stats.staff_count}/{selected.included_seats}
-                      </div>
-                      <div style={styles.statMiniLabel}>الموظفين</div>
-                    </div>
+        <div className="bz-overlay" onClick={closeDrawer}>
+          <div className="bz" role="dialog" aria-modal="true" aria-label={selected.name} onClick={(e) => e.stopPropagation()}>
+            <header className="bz-head">
+              <div className="bz-id">
+                {stats?.logo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img className="bz-logo" src={stats.logo_url} alt="" />
+                ) : (
+                  <span className="bz-logo bz-logo-letter">{Array.from(selected.name.trim())[0] || "؟"}</span>
+                )}
+                <div className="bz-id-text">
+                  <h2>{selected.name}</h2>
+                  <div className="bz-chips">
+                    <span className="bz-chip mono">#{selected.id}</span>
+                    {planByKey(stats?.plan_tier) && <span className="bz-chip lime">{planByKey(stats?.plan_tier)!.name}</span>}
+                    <span className={`bz-chip ${selected.online_subscribed ? "ok" : ""}`}>{selected.online_subscribed ? "مشترك" : "تجربة"}</span>
+                    {!selected.is_active && <span className="bz-chip bad">موقوف</span>}
+                    {selected.verification_status === "pending" && <span className="bz-chip warn">بانتظار التوثيق</span>}
+                    {selected.verification_status === "rejected" && <span className="bz-chip bad">مرفوض</span>}
                   </div>
-                ) : (
-                  <p style={styles.hint}>تعذر تحميل الإحصائيات</p>
-                )}
+                </div>
               </div>
+              <button type="button" className="bz-x" onClick={closeDrawer} aria-label="إغلاق">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+              <div className="bz-quick">
+                {stats?.owner_phone && (
+                  <a className="bz-qbtn lime" href={`https://wa.me/${waNumber(stats.owner_phone)}`} target="_blank" rel="noopener noreferrer">
+                    واتساب المالك
+                  </a>
+                )}
+                {selected.online_menu_slug && (
+                  <a className="bz-qbtn" href={`https://${selected.online_menu_slug}.rakeenapp.com`} target="_blank" rel="noopener noreferrer">
+                    المتجر
+                  </a>
+                )}
+                <span className="bz-owner">
+                  {selected.owner_name || "—"}
+                  {stats?.owner_email && <small>{stats.owner_email}</small>}
+                </span>
+              </div>
+              <nav className="bz-tabs" role="tablist">
+                {(
+                  [
+                    ["overview", "نظرة"],
+                    ["plan", "الباقة والمزايا"],
+                    ["account", "الحساب"],
+                    ["design", "التصميم"],
+                  ] as const
+                ).map(([k, label]) => (
+                  <button key={k} type="button" role="tab" aria-selected={bzTab === k} className={bzTab === k ? "on" : ""} onClick={() => setBzTab(k)}>
+                    {label}
+                  </button>
+                ))}
+              </nav>
+            </header>
 
-              <div style={styles.section}>
-                <div style={styles.sectionLabel}>الباقة والمزايا</div>
-                {!stats ? (
-                  <p style={styles.hint}>جاري التحميل...</p>
-                ) : !stats.plans_ready ? (
-                  <p style={styles.hint}>الباقات تحتاج تشغيل migration ‎20261015120000 في سوبابيس أولاً.</p>
-                ) : (
-                  <>
-                    <select
-                      style={{ ...styles.input, marginBottom: "10px" }}
-                      value={stats.plan_tier || ""}
-                      disabled={busyId === selected.id}
-                      onChange={(e) => savePlan(selected, { plan_tier: e.target.value || null })}
-                    >
-                      <option value="">بدون باقة (كل المزايا مسموحة)</option>
-                      {PLANS.map((p) => (
-                        <option key={p.key} value={p.key}>{p.name} · {p.monthly} ر.س شهريًا</option>
-                      ))}
-                    </select>
-                    {planByKey(stats.plan_tier) ? (
-                      (() => {
-                        const plan = planByKey(stats.plan_tier)!;
-                        const allowed = allowedFeatures(plan.key, stats.feature_overrides);
-                        return SELLABLE_FEATURES.map((f) => {
-                          const on = allowed.has(f.key);
-                          const inPlan = plan.features.includes(f.key);
-                          const note = on && !inPlan ? "أضفتها أنت" : !on && inPlan ? "قفلتها أنت" : on ? "من الباقة" : "خارج الباقة";
-                          const custom = on !== inPlan;
-                          return (
-                            <div key={f.key} style={styles.moduleRow}>
-                              <span style={{ fontSize: "12.5px" }}>
-                                {f.label}
-                                <span style={{ marginInlineStart: "6px", fontSize: "10.5px", fontWeight: 800, color: custom ? "#B0402C" : "#8a8375" }}>{note}</span>
-                              </span>
-                              <button
-                                style={{ ...styles.toggleBtn, background: on ? "#7BAD0F" : "#EDEADF", color: on ? "#fff" : "#171717" }}
-                                onClick={() => toggleFeature(selected, f.key)}
-                                disabled={busyId === selected.id}
-                              >
-                                {on ? "مسموحة ✓" : "مقفلة"}
-                              </button>
-                            </div>
-                          );
-                        });
-                      })()
-                    ) : (
-                      <p style={styles.hint}>بدون باقة: المطعم يقدر يستخدم كل المزايا. اختر له باقة عشان تتحكم فيها.</p>
+            <div className="bz-body">
+              {drawerError && <p className="bz-err">{drawerError}</p>}
+
+              {bzTab === "overview" && (
+                <>
+                  <section className="bz-stats">
+                    {(
+                      [
+                        ["إجمالي الطلبات", statsLoading || !stats ? "…" : stats.orders_count.toLocaleString("en-US")],
+                        ["آخر طلب", statsLoading || !stats ? "…" : formatRelative(stats.last_order_at)],
+                        ["الفروع", statsLoading || !stats ? "…" : `${stats.branch_count}/${selected.branch_limit}`],
+                        ["الموظفين", statsLoading || !stats ? "…" : `${stats.staff_count}/${selected.included_seats}`],
+                      ] as const
+                    ).map(([l, v]) => (
+                      <div key={l} className="bz-stat">
+                        <b>{v}</b>
+                        <span>{l}</span>
+                      </div>
+                    ))}
+                  </section>
+
+                  <section className="bz-card">
+                    <div className="bz-row">
+                      <div>
+                        <b>الاشتراك</b>
+                        <small>{selected.online_subscribed ? "مشترك، بدون حد للطلبات" : `في التجربة · استخدم ${selected.online_order_free_count} من ${selected.online_order_free_limit}`}</small>
+                      </div>
+                      <button type="button" role="switch" aria-checked={selected.online_subscribed} className="bz-sw" onClick={() => toggle(selected, "online_subscribed")} disabled={busyId === selected.id} aria-label="مشترك" />
+                    </div>
+                    {!selected.online_subscribed && (
+                      <div className="bz-meter" aria-hidden="true">
+                        <span style={{ width: `${Math.min(100, (selected.online_order_free_count / Math.max(1, selected.online_order_free_limit)) * 100)}%` }} />
+                      </div>
                     )}
-                    <p style={styles.hint}>الباقة تحدد وش يقدر المطعم يستخدم، وأنت تفك له أو تقفل أي ميزة. المقفل ينطفي تلقائيًا حتى لو حاول صاحب المطعم يشغّله.</p>
-                  </>
-                )}
-              </div>
+                    <div className="bz-row">
+                      <div>
+                        <b>المتجر الإلكتروني</b>
+                        <small>{selected.online_ordering_enabled ? "يستقبل طلبات" : "متوقف عن الطلبات"}</small>
+                      </div>
+                      <button type="button" role="switch" aria-checked={selected.online_ordering_enabled} className="bz-sw" onClick={() => toggle(selected, "online_ordering_enabled")} disabled={busyId === selected.id} aria-label="المتجر الإلكتروني" />
+                    </div>
+                  </section>
 
-              <div style={styles.section}>
-                <div style={styles.sectionLabel}>الوحدات المفعّلة</div>
-                <div style={styles.moduleRow}>
-                  <span>شاشة المطبخ</span>
-                  <button
-                    style={{ ...styles.toggleBtn, background: selected.kitchen_display_enabled ? "#7BAD0F" : "#EDEADF", color: selected.kitchen_display_enabled ? "#fff" : "#171717" }}
-                    onClick={() => toggle(selected, "kitchen_display_enabled")}
-                    disabled={busyId === selected.id}
-                  >
-                    {selected.kitchen_display_enabled ? "مفعّلة ✓" : "غير مفعّلة"}
-                  </button>
-                </div>
-                <div style={styles.moduleRow}>
-                  <span>المخزون والتكاليف</span>
-                  <button
-                    style={{ ...styles.toggleBtn, background: selected.inventory_enabled ? "#7BAD0F" : "#EDEADF", color: selected.inventory_enabled ? "#fff" : "#171717" }}
-                    onClick={() => toggle(selected, "inventory_enabled")}
-                    disabled={busyId === selected.id}
-                  >
-                    {selected.inventory_enabled ? "مفعّلة ✓" : "غير مفعّلة"}
-                  </button>
-                </div>
-                <div style={styles.moduleRow}>
-                  <span>نظام الولاء</span>
-                  <button
-                    style={{ ...styles.toggleBtn, background: selected.loyalty_enabled ? "#7BAD0F" : "#EDEADF", color: selected.loyalty_enabled ? "#fff" : "#171717" }}
-                    onClick={() => toggle(selected, "loyalty_enabled")}
-                    disabled={busyId === selected.id}
-                  >
-                    {selected.loyalty_enabled ? "مفعّل ✓" : "غير مفعّل"}
-                  </button>
-                </div>
-                <p style={styles.hint}>
-                  شاشة المطبخ والمخزون تُفعّل من ركين فقط. الولاء المطعم نفسه يقدر يشغّله من إعداداته أيضاً — هذا مفتاح احتياطي لك.
-                </p>
-              </div>
+                  <section className="bz-card">
+                    <h3>ملاحظاتك عن المطعم</h3>
+                    <textarea className="bz-input" rows={4} placeholder="مثال: قال راح يشترك الأسبوع الجاي..." value={draft.admin_notes} onChange={(e) => setDraft({ ...draft, admin_notes: e.target.value })} />
+                    <p className="bz-hint">خاصة فيك، المطعم ما يشوفها.</p>
+                  </section>
+                </>
+              )}
 
-              <div style={styles.section}>
-                <div style={styles.sectionLabel}>تصميم المتجر الإلكتروني</div>
-                {designError && <p style={styles.error}>{designError}</p>}
-
-                <p style={styles.designLabel}>الشعار</p>
-                <div style={styles.imageRow}>
-                  {stats?.logo_url && <img src={stats.logo_url} alt="" style={styles.imagePreview} />}
-                  <label style={styles.fileBtn}>
-                    {uploadingField === "logo_url" ? "جاري الرفع..." : "رفع شعار"}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      style={{ display: "none" }}
-                      disabled={uploadingField === "logo_url"}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) uploadDesignFile("logo_url", f);
-                        e.target.value = "";
-                      }}
-                    />
-                  </label>
-                </div>
-
-                <p style={styles.designLabel}>بانر المتجر</p>
-                <div style={styles.imageRow}>
-                  {stats?.online_banner_url && <img src={stats.online_banner_url} alt="" style={styles.imagePreview} />}
-                  <label style={styles.fileBtn}>
-                    {uploadingField === "online_banner_url" ? "جاري الرفع..." : "رفع بانر"}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      style={{ display: "none" }}
-                      disabled={uploadingField === "online_banner_url"}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) uploadDesignFile("online_banner_url", f);
-                        e.target.value = "";
-                      }}
-                    />
-                  </label>
-                  {stats?.online_banner_url && (
-                    <button style={styles.detailBtn} onClick={() => removeDesignImage("online_banner_url")} disabled={designSaving === "online_banner_url"}>
-                      إزالة
-                    </button>
+              {bzTab === "plan" && (
+                <>
+                  {!stats ? (
+                    <p className="bz-hint">جاري التحميل...</p>
+                  ) : !stats.plans_ready ? (
+                    <p className="bz-hint">الباقات تحتاج تشغيل migration ‎20261015120000 في سوبابيس أولاً.</p>
+                  ) : (
+                    <>
+                      <section className="bz-plans" role="radiogroup" aria-label="الباقة">
+                        {[{ key: "", name: "بدون باقة", monthly: 0 }, ...PLANS].map((p) => {
+                          const on = (stats.plan_tier || "") === p.key;
+                          return (
+                            <button
+                              key={p.key || "none"}
+                              type="button"
+                              role="radio"
+                              aria-checked={on}
+                              className={`bz-plan${on ? " on" : ""}`}
+                              disabled={busyId === selected.id}
+                              onClick={() => !on && savePlan(selected, { plan_tier: p.key || null })}
+                            >
+                              <b>{p.name}</b>
+                              <span>{p.key ? `${p.monthly} ر.س/شهر` : "كل المزايا مسموحة"}</span>
+                            </button>
+                          );
+                        })}
+                      </section>
+                      {planByKey(stats.plan_tier) ? (
+                        <section className="bz-card">
+                          <h3>المزايا</h3>
+                          {(() => {
+                            const plan = planByKey(stats.plan_tier)!;
+                            const allowed = allowedFeatures(plan.key, stats.feature_overrides);
+                            return SELLABLE_FEATURES.map((f) => {
+                              const on = allowed.has(f.key);
+                              const inPlan = plan.features.includes(f.key);
+                              const note = on && !inPlan ? "أضفتها أنت" : !on && inPlan ? "قفلتها أنت" : on ? "من الباقة" : "خارج الباقة";
+                              const custom = on !== inPlan;
+                              return (
+                                <div key={f.key} className="bz-row">
+                                  <div>
+                                    <b>{f.label}</b>
+                                    <small className={custom ? "bz-custom" : ""}>{note}</small>
+                                  </div>
+                                  <button type="button" role="switch" aria-checked={on} className="bz-sw" onClick={() => toggleFeature(selected, f.key)} disabled={busyId === selected.id} aria-label={f.label} />
+                                </div>
+                              );
+                            });
+                          })()}
+                          <p className="bz-hint">الباقة تحدد وش يقدر المطعم يستخدم، وأنت تفك له أو تقفل أي ميزة. المقفل ينطفي تلقائياً حتى لو حاول صاحب المطعم يشغّله.</p>
+                        </section>
+                      ) : (
+                        <p className="bz-hint">بدون باقة: المطعم يقدر يستخدم كل المزايا. اختر له باقة عشان تتحكم فيها.</p>
+                      )}
+                    </>
                   )}
-                </div>
 
-                <p style={styles.designLabel}>لون المتجر</p>
-                <input
-                  type="color"
-                  style={styles.colorInput}
-                  value={stats?.online_theme_color || "#C4FF2B"}
-                  onChange={(e) => saveDesignField("online_theme_color", e.target.value)}
-                  disabled={designSaving === "online_theme_color"}
-                />
-              </div>
+                  <section className="bz-card">
+                    <h3>الوحدات</h3>
+                    {(
+                      [
+                        ["kitchen_display_enabled", "شاشة المطبخ"],
+                        ["inventory_enabled", "المخزون والتكاليف"],
+                        ["loyalty_enabled", "نظام الولاء"],
+                      ] as const
+                    ).map(([k, label]) => (
+                      <div key={k} className="bz-row">
+                        <div>
+                          <b>{label}</b>
+                          <small>{selected[k] ? "مفعّلة" : "مقفلة"}</small>
+                        </div>
+                        <button type="button" role="switch" aria-checked={selected[k]} className="bz-sw" onClick={() => toggle(selected, k)} disabled={busyId === selected.id} aria-label={label} />
+                      </div>
+                    ))}
+                    <p className="bz-hint">شاشة المطبخ والمخزون تتفعّل من ركين بس. الولاء يقدر المطعم يشغّله من إعداداته، وهذا مفتاح احتياطي لك.</p>
+                  </section>
+                </>
+              )}
 
-              <div style={styles.section}>
-                <div style={styles.sectionLabel}>تصميم بطاقة الولاء</div>
-
-                <p style={styles.designLabel}>لون البطاقة</p>
-                <input
-                  type="color"
-                  style={styles.colorInput}
-                  value={stats?.loyalty_accent_color || "#C4FF2B"}
-                  onChange={(e) => saveDesignField("loyalty_accent_color", e.target.value)}
-                  disabled={designSaving === "loyalty_accent_color"}
-                />
-
-                <p style={styles.designLabel}>الطابع</p>
-                <select
-                  style={styles.input}
-                  value={stats?.loyalty_theme || "classic"}
-                  onChange={(e) => saveDesignField("loyalty_theme", e.target.value)}
-                  disabled={designSaving === "loyalty_theme"}
-                >
-                  {Object.entries(LOYALTY_THEME_LABELS).map(([k, label]) => (
-                    <option key={k} value={k}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-
-                <p style={styles.designLabel}>نقشة الخلفية</p>
-                <select
-                  style={styles.input}
-                  value={stats?.loyalty_pattern_style || "none"}
-                  onChange={(e) => saveDesignField("loyalty_pattern_style", e.target.value)}
-                  disabled={designSaving === "loyalty_pattern_style"}
-                >
-                  {Object.entries(LOYALTY_PATTERN_LABELS).map(([k, label]) => (
-                    <option key={k} value={k}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-
-                <p style={styles.designLabel}>الأيقونة</p>
-                <select
-                  style={styles.input}
-                  value={stats?.loyalty_icon_style || "generic"}
-                  onChange={(e) => saveDesignField("loyalty_icon_style", e.target.value)}
-                  disabled={designSaving === "loyalty_icon_style"}
-                >
-                  {Object.entries(LOYALTY_ICON_LABELS).map(([k, label]) => (
-                    <option key={k} value={k}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-
-                {stats?.loyalty_icon_style === "custom" && (
-                  <>
-                    <p style={styles.designLabel}>أيقونة مخصصة</p>
-                    <div style={styles.imageRow}>
-                      {stats?.loyalty_custom_icon_url && <img src={stats.loyalty_custom_icon_url} alt="" style={styles.imagePreview} />}
-                      <label style={styles.fileBtn}>
-                        {uploadingField === "loyalty_custom_icon_url" ? "جاري الرفع..." : "رفع أيقونة"}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          style={{ display: "none" }}
-                          disabled={uploadingField === "loyalty_custom_icon_url"}
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) uploadDesignFile("loyalty_custom_icon_url", f);
-                            e.target.value = "";
-                          }}
-                        />
+              {bzTab === "account" && (
+                <>
+                  <section className="bz-card">
+                    <h3>الحدود والتجديد</h3>
+                    <div className="bz-fields">
+                      <label>
+                        <span>حد الطلبات المجانية</span>
+                        <input className="bz-input" type="number" min={0} value={draft.online_order_free_limit} onChange={(e) => setDraft({ ...draft, online_order_free_limit: e.target.value })} />
+                        <small>استخدم {selected.online_order_free_count}</small>
+                      </label>
+                      <label>
+                        <span>حد الفروع</span>
+                        <input className="bz-input" type="number" min={1} value={draft.branch_limit} onChange={(e) => setDraft({ ...draft, branch_limit: e.target.value })} />
+                      </label>
+                      <label>
+                        <span>مقاعد الموظفين</span>
+                        <input className="bz-input" type="number" min={1} value={draft.included_seats} onChange={(e) => setDraft({ ...draft, included_seats: e.target.value })} />
+                      </label>
+                      <label>
+                        <span>تاريخ التجديد (تذكير لك)</span>
+                        <input className="bz-input" type="date" value={draft.subscription_expires_at} onChange={(e) => setDraft({ ...draft, subscription_expires_at: e.target.value })} />
                       </label>
                     </div>
-                  </>
-                )}
+                    <p className="bz-hint">التاريخ تذكير لك بس، ما يوقف شي تلقائياً.</p>
+                  </section>
 
-                <p style={styles.designLabel}>الشعار</p>
-                <div style={styles.imageRow}>
-                  {stats?.loyalty_logo_url && <img src={stats.loyalty_logo_url} alt="" style={styles.imagePreview} />}
-                  <label style={styles.fileBtn}>
-                    {uploadingField === "loyalty_logo_url" ? "جاري الرفع..." : "رفع شعار"}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      style={{ display: "none" }}
-                      disabled={uploadingField === "loyalty_logo_url"}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) uploadDesignFile("loyalty_logo_url", f);
-                        e.target.value = "";
-                      }}
-                    />
-                  </label>
-                </div>
+                  <section className="bz-card">
+                    <h3>التوثيق</h3>
+                    {selected.verification_status === "verified" && (
+                      <div className="bz-row">
+                        <div>
+                          <b className="bz-okt">موثّق ✓</b>
+                          <small>متجره يستقبل طلبات حقيقية</small>
+                        </div>
+                      </div>
+                    )}
+                    {selected.verification_status !== "verified" && (
+                      <>
+                        <p className="bz-hint" style={{ marginTop: 0 }}>
+                          {selected.verification_status === "pending"
+                            ? "حساب جديد بانتظار مراجعتك. متجره ما يستقبل طلبات حقيقية لين توثّقه."
+                            : "مرفوض. متجره متوقف عن استقبال الطلبات."}
+                        </p>
+                        <div className="bz-btns">
+                          <button type="button" className="bz-btn" onClick={() => setVerification(selected, "verified")} disabled={busyId === selected.id}>
+                            توثيق المطعم
+                          </button>
+                          {selected.verification_status === "pending" && (
+                            <button type="button" className="bz-btn danger" onClick={() => setVerification(selected, "rejected")} disabled={busyId === selected.id}>
+                              رفض
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </section>
 
-                <p style={styles.designLabel}>بانر البطاقة</p>
-                <div style={styles.imageRow}>
-                  {stats?.loyalty_banner_url && <img src={stats.loyalty_banner_url} alt="" style={styles.imagePreview} />}
-                  <label style={styles.fileBtn}>
-                    {uploadingField === "loyalty_banner_url" ? "جاري الرفع..." : "رفع بانر"}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      style={{ display: "none" }}
-                      disabled={uploadingField === "loyalty_banner_url"}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) uploadDesignFile("loyalty_banner_url", f);
-                        e.target.value = "";
-                      }}
-                    />
-                  </label>
-                  {stats?.loyalty_banner_url && (
-                    <button style={styles.detailBtn} onClick={() => removeDesignImage("loyalty_banner_url")} disabled={designSaving === "loyalty_banner_url"}>
-                      إزالة
-                    </button>
-                  )}
-                </div>
-                <p style={styles.hint}>هذي نفس بيانات التصميم اللي المطعم يعدلها من إعداداته — أي تعديل هنا يظهر له مباشرة.</p>
-              </div>
-
-              <div style={styles.section}>
-                <div style={styles.sectionLabel}>بيانات دخول صاحب المطعم</div>
-                <p style={styles.hint}>البريد الحالي: {statsLoading ? "..." : stats?.owner_email || "غير معروف"}</p>
-                <input
-                  style={styles.input}
-                  type="email"
-                  placeholder="بريد إلكتروني جديد (اختياري)"
-                  value={newOwnerEmail}
-                  onChange={(e) => setNewOwnerEmail(e.target.value)}
-                />
-                <input
-                  style={styles.input}
-                  type="text"
-                  placeholder="كلمة مرور جديدة (اختياري، ٦ أحرف على الأقل)"
-                  value={newOwnerPassword}
-                  onChange={(e) => setNewOwnerPassword(e.target.value)}
-                />
-                {credentialsError && <p style={styles.error}>{credentialsError}</p>}
-                {credentialsSuccess && <p style={{ ...styles.hint, color: "#7BAD0F", fontWeight: 700 }}>تم التحديث بنجاح ✓</p>}
-                <button
-                  style={{
-                    ...styles.suspendBtn,
-                    background: "#171717",
-                    color: "#C4FF2B",
-                    opacity: (newOwnerEmail.trim() || newOwnerPassword) && !credentialsBusy ? 1 : 0.5,
-                  }}
-                  onClick={updateOwnerCredentials}
-                  disabled={(!newOwnerEmail.trim() && !newOwnerPassword) || credentialsBusy}
-                >
-                  {credentialsBusy ? "جاري التحديث..." : "تحديث بيانات الدخول"}
-                </button>
-              </div>
-
-              <div style={styles.section}>
-                <div style={styles.sectionLabel}>حالة التوثيق</div>
-                {selected.verification_status === "pending" && (
-                  <>
-                    <p style={{ ...styles.hint, color: "#C9822C", fontWeight: 700, marginTop: 0 }}>
-                      حساب جديد بانتظار مراجعتك — متجره الإلكتروني ما يقدر يستقبل طلبات حقيقية لين توثّقه.
+                  <section className="bz-card">
+                    <h3>بيانات دخول صاحب المطعم</h3>
+                    <p className="bz-hint" style={{ marginTop: 0 }}>
+                      البريد الحالي: <b dir="ltr">{statsLoading ? "..." : stats?.owner_email || "غير معروف"}</b>
                     </p>
-                    <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
-                      <button
-                        style={{ ...styles.suspendBtn, marginTop: 0, background: "#7BAD0F", color: "#fff" }}
-                        onClick={() => setVerification(selected, "verified")}
-                        disabled={busyId === selected.id}
-                      >
-                        توثيق المطعم
-                      </button>
-                      <button
-                        style={{ ...styles.suspendBtn, marginTop: 0, background: "#FBEDEA", color: "#B0402C" }}
-                        onClick={() => setVerification(selected, "rejected")}
-                        disabled={busyId === selected.id}
-                      >
-                        رفض
+                    <div className="bz-fields">
+                      <label>
+                        <span>بريد جديد</span>
+                        <input className="bz-input" type="email" placeholder="اختياري" value={newOwnerEmail} onChange={(e) => setNewOwnerEmail(e.target.value)} />
+                      </label>
+                      <label>
+                        <span>كلمة مرور جديدة</span>
+                        <input className="bz-input" type="text" placeholder="اختياري، ٦ أحرف أو أكثر" value={newOwnerPassword} onChange={(e) => setNewOwnerPassword(e.target.value)} />
+                      </label>
+                    </div>
+                    {credentialsError && <p className="bz-err">{credentialsError}</p>}
+                    {credentialsSuccess && <p className="bz-ok">تم التحديث ✓</p>}
+                    <button type="button" className="bz-btn" onClick={updateOwnerCredentials} disabled={(!newOwnerEmail.trim() && !newOwnerPassword) || credentialsBusy}>
+                      {credentialsBusy ? "جاري التحديث..." : "تحديث بيانات الدخول"}
+                    </button>
+                  </section>
+
+                  <section className="bz-card bz-danger">
+                    <h3>حالة الحساب</h3>
+                    <div className="bz-row">
+                      <div>
+                        <b>{selected.is_active ? "الحساب شغّال" : "الحساب موقوف"}</b>
+                        <small>
+                          {selected.is_active
+                            ? "الإيقاف يقفل اللوحة والكاشير والمطبخ لكل فريق المطعم."
+                            : "فريق المطعم ما يقدر يدخل أي نظام."}
+                        </small>
+                      </div>
+                      <button type="button" className={`bz-btn ${selected.is_active ? "danger" : ""}`} onClick={() => toggleSuspend(selected)} disabled={busyId === selected.id}>
+                        {selected.is_active ? "إيقاف المطعم" : "إعادة التفعيل"}
                       </button>
                     </div>
-                  </>
-                )}
-                {selected.verification_status === "verified" && (
-                  <p style={{ ...styles.hint, color: "#4C7A0A", fontWeight: 700, marginTop: 0 }}>موثّق ✓</p>
-                )}
-                {selected.verification_status === "rejected" && (
-                  <>
-                    <p style={{ ...styles.hint, color: "#B0402C", fontWeight: 700, marginTop: 0 }}>مرفوض — متجره الإلكتروني متوقف عن استقبال طلبات.</p>
-                    <button
-                      style={{ ...styles.suspendBtn, background: "#7BAD0F", color: "#fff" }}
-                      onClick={() => setVerification(selected, "verified")}
-                      disabled={busyId === selected.id}
-                    >
-                      توثيق المطعم
-                    </button>
-                  </>
-                )}
-              </div>
-
-              <div style={styles.section}>
-                <div style={styles.sectionLabel}>حالة الحساب</div>
-                <button
-                  style={{
-                    ...styles.suspendBtn,
-                    background: selected.is_active ? "#FBEDEA" : "#7BAD0F",
-                    color: selected.is_active ? "#B0402C" : "#fff",
-                  }}
-                  onClick={() => toggleSuspend(selected)}
-                  disabled={busyId === selected.id}
-                >
-                  {selected.is_active ? "إيقاف المطعم بالكامل" : "إعادة تفعيل المطعم"}
-                </button>
-                <p style={styles.hint}>
-                  {selected.is_active
-                    ? "الإيقاف يقفل الدخول للوحة التحكم، الكاشير، والمطبخ بالكامل لكل فريق المطعم — مو بس المتجر الإلكتروني."
-                    : "المطعم موقوف حالياً — فريقه ما يقدر يدخل أي نظام."}
-                </p>
-              </div>
-
-              <div style={styles.section}>
-                <div style={styles.sectionLabel}>تاريخ انتهاء الاشتراك (اختياري)</div>
-                <input
-                  style={styles.input}
-                  type="date"
-                  value={draft.subscription_expires_at}
-                  onChange={(e) => setDraft({ ...draft, subscription_expires_at: e.target.value })}
-                />
-                <p style={styles.hint}>تذكير لك فقط — ما يوقف شي تلقائياً. حدد التاريخ اللي المفروض تتواصل معه للتجديد.</p>
-              </div>
-
-              <div style={styles.section}>
-                <div style={styles.sectionLabel}>حد الطلبات المجانية</div>
-                <input
-                  style={styles.input}
-                  type="number"
-                  min={0}
-                  value={draft.online_order_free_limit}
-                  onChange={(e) => setDraft({ ...draft, online_order_free_limit: e.target.value })}
-                />
-                <p style={styles.hint}>
-                  استخدم {selected.online_order_free_count} إلى الآن. ارفع الرقم لمنح طلبات إضافية مجانية (مكافأة أو تمديد تجربة).
-                </p>
-              </div>
-
-              <div style={styles.section}>
-                <div style={styles.sectionLabel}>حد الفروع</div>
-                <input
-                  style={styles.input}
-                  type="number"
-                  min={1}
-                  value={draft.branch_limit}
-                  onChange={(e) => setDraft({ ...draft, branch_limit: e.target.value })}
-                />
-              </div>
-
-              <div style={styles.section}>
-                <div style={styles.sectionLabel}>عدد مقاعد الموظفين</div>
-                <input
-                  style={styles.input}
-                  type="number"
-                  min={1}
-                  value={draft.included_seats}
-                  onChange={(e) => setDraft({ ...draft, included_seats: e.target.value })}
-                />
-              </div>
-
-              <div style={styles.section}>
-                <div style={styles.sectionLabel}>ملاحظات إدارية (خاصة بك فقط)</div>
-                <textarea
-                  style={styles.textarea}
-                  rows={4}
-                  placeholder="مثال: قال راح يشترك الأسبوع الجاي..."
-                  value={draft.admin_notes}
-                  onChange={(e) => setDraft({ ...draft, admin_notes: e.target.value })}
-                />
-              </div>
-
-              {drawerError && <p style={styles.error}>{drawerError}</p>}
-
-              <button style={{ ...styles.btn, opacity: savingDrawer ? 0.6 : 1 }} onClick={saveDrawer} disabled={savingDrawer}>
-                {savingDrawer ? "جاري الحفظ..." : "حفظ التعديلات"}
-              </button>
-
-              <div style={styles.dangerZone}>
-                <div style={styles.sectionLabel}>منطقة خطر</div>
-                {!showDeleteBox ? (
-                  <button style={styles.dangerLinkBtn} onClick={() => setShowDeleteBox(true)}>
-                    حذف المطعم نهائياً
-                  </button>
-                ) : (
-                  <div>
-                    <p style={styles.hint}>
-                      هذا يحذف المطعم وكل بياناته (طلبات، منيو، موظفين، عملاء...) نهائياً — ما يرجع بعدها. اكتب اسم المطعم بالضبط
-                      للتأكيد: <b>{selected.name}</b> (معرف الحساب <b>{selected.id}</b>)
-                    </p>
-                    <input
-                      style={styles.input}
-                      value={deleteConfirmText}
-                      onChange={(e) => setDeleteConfirmText(e.target.value)}
-                      placeholder={selected.name}
-                    />
-                    <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
-                      <button
-                        style={{
-                          ...styles.suspendBtn,
-                          marginTop: 0,
-                          background: "#B0402C",
-                          color: "#fff",
-                          opacity: deleteConfirmText === selected.name && !deleteBusy ? 1 : 0.5,
-                        }}
-                        onClick={deleteBusiness}
-                        disabled={deleteConfirmText !== selected.name || deleteBusy}
-                      >
-                        {deleteBusy ? "جاري الحذف..." : "تأكيد الحذف نهائياً"}
-                      </button>
-                      <button
-                        style={{ ...styles.detailBtn, flex: "0 0 auto" }}
-                        onClick={() => {
-                          setShowDeleteBox(false);
-                          setDeleteConfirmText("");
-                        }}
-                      >
-                        إلغاء
-                      </button>
+                    <div className="bz-del">
+                      {!showDeleteBox ? (
+                        <button type="button" className="bz-link-danger" onClick={() => setShowDeleteBox(true)}>
+                          حذف المطعم نهائياً
+                        </button>
+                      ) : (
+                        <>
+                          <p className="bz-hint" style={{ marginTop: 0 }}>
+                            يحذف المطعم وكل بياناته (طلبات، منيو، موظفين، عملاء) نهائياً، وما يرجع. اكتب اسم المطعم بالضبط للتأكيد: <b>{selected.name}</b>
+                          </p>
+                          <input className="bz-input" value={deleteConfirmText} onChange={(e) => setDeleteConfirmText(e.target.value)} placeholder={selected.name} />
+                          <div className="bz-btns">
+                            <button type="button" className="bz-btn danger" onClick={deleteBusiness} disabled={deleteConfirmText !== selected.name || deleteBusy}>
+                              {deleteBusy ? "جاري الحذف..." : "احذفه نهائياً"}
+                            </button>
+                            <button
+                              type="button"
+                              className="bz-btn ghost"
+                              onClick={() => {
+                                setShowDeleteBox(false);
+                                setDeleteConfirmText("");
+                              }}
+                            >
+                              تراجع
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
-                  </div>
-                )}
-              </div>
+                  </section>
+                </>
+              )}
+
+              {bzTab === "design" && (
+                <>
+                  {designError && <p className="bz-err">{designError}</p>}
+                  <section className="bz-card">
+                    <h3>المتجر الإلكتروني</h3>
+                    {(
+                      [
+                        ["logo_url", "الشعار", false],
+                        ["online_banner_url", "بانر المتجر", true],
+                      ] as const
+                    ).map(([field, label, removable]) => (
+                      <div key={field} className="bz-row">
+                        <div className="bz-imgrow">
+                          {stats?.[field] ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={stats[field] as string} alt="" className="bz-thumb" />
+                          ) : (
+                            <span className="bz-thumb empty" />
+                          )}
+                          <b>{label}</b>
+                        </div>
+                        <div className="bz-btns">
+                          <label className="bz-btn ghost">
+                            {uploadingField === field ? "جاري الرفع..." : stats?.[field] ? "تغيير" : "رفع"}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              hidden
+                              disabled={uploadingField === field}
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                if (f) uploadDesignFile(field, f);
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+                          {removable && stats?.[field] && (
+                            <button type="button" className="bz-btn ghost" onClick={() => removeDesignImage(field)} disabled={designSaving === field}>
+                              إزالة
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    <div className="bz-row">
+                      <b>لون المتجر</b>
+                      <input type="color" className="bz-color" value={stats?.online_theme_color || "#C4FF2B"} onChange={(e) => saveDesignField("online_theme_color", e.target.value)} disabled={designSaving === "online_theme_color"} />
+                    </div>
+                  </section>
+
+                  <section className="bz-card">
+                    <h3>بطاقة الولاء</h3>
+                    <div className="bz-row">
+                      <b>لون البطاقة</b>
+                      <input type="color" className="bz-color" value={stats?.loyalty_accent_color || "#C4FF2B"} onChange={(e) => saveDesignField("loyalty_accent_color", e.target.value)} disabled={designSaving === "loyalty_accent_color"} />
+                    </div>
+                    <div className="bz-fields">
+                      {(
+                        [
+                          ["loyalty_theme", "الطابع", LOYALTY_THEME_LABELS, "classic"],
+                          ["loyalty_pattern_style", "نقشة الخلفية", LOYALTY_PATTERN_LABELS, "none"],
+                          ["loyalty_icon_style", "الأيقونة", LOYALTY_ICON_LABELS, "generic"],
+                        ] as const
+                      ).map(([field, label, opts, def]) => (
+                        <label key={field}>
+                          <span>{label}</span>
+                          <select className="bz-input" value={(stats?.[field] as string) || def} onChange={(e) => saveDesignField(field, e.target.value)} disabled={designSaving === field}>
+                            {Object.entries(opts).map(([k, l]) => (
+                              <option key={k} value={k}>
+                                {l}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ))}
+                    </div>
+                    {(
+                      [
+                        ...(stats?.loyalty_icon_style === "custom" ? ([["loyalty_custom_icon_url", "أيقونة مخصصة", false]] as const) : []),
+                        ["loyalty_logo_url", "الشعار", false],
+                        ["loyalty_banner_url", "بانر البطاقة", true],
+                      ] as const
+                    ).map(([field, label, removable]) => (
+                      <div key={field} className="bz-row">
+                        <div className="bz-imgrow">
+                          {stats?.[field] ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={stats[field] as string} alt="" className="bz-thumb" />
+                          ) : (
+                            <span className="bz-thumb empty" />
+                          )}
+                          <b>{label}</b>
+                        </div>
+                        <div className="bz-btns">
+                          <label className="bz-btn ghost">
+                            {uploadingField === field ? "جاري الرفع..." : stats?.[field] ? "تغيير" : "رفع"}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              hidden
+                              disabled={uploadingField === field}
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                if (f) uploadDesignFile(field, f);
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+                          {removable && stats?.[field] && (
+                            <button type="button" className="bz-btn ghost" onClick={() => removeDesignImage(field)} disabled={designSaving === field}>
+                              إزالة
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    <p className="bz-hint">نفس التصميم اللي يعدّله المطعم من إعداداته، وأي تعديل هنا يظهر له على طول.</p>
+                  </section>
+                </>
+              )}
             </div>
+
+            {(bzTab === "overview" || bzTab === "account") && (
+              <footer className="bz-foot">
+                <button type="button" className="bz-btn ghost" onClick={closeDrawer}>
+                  إغلاق
+                </button>
+                <button type="button" className="bz-btn" onClick={saveDrawer} disabled={savingDrawer}>
+                  {savingDrawer ? "جاري الحفظ..." : "حفظ التعديلات"}
+                </button>
+              </footer>
+            )}
           </div>
         </div>
       )}
