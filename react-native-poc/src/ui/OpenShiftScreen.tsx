@@ -82,7 +82,7 @@ export default function OpenShiftScreen({
     if (numbersOn) {
       const n = Number(start || '1');
       if (!(Number.isInteger(n) && n >= 1 && n <= 9999)) {
-        setError('أول رقم طلب: من ١ إلى ٩٩٩٩');
+        setError('رقم أول فاتورة: من ١ إلى ٩٩٩٩');
         setEditStart(true);
         return;
       }
@@ -133,7 +133,7 @@ export default function OpenShiftScreen({
           {numbersOn &&
             (editStart ? (
               <View style={styles.field}>
-                <Text style={styles.label}>أول رقم طلب اليوم</Text>
+                <Text style={styles.label}>أول فاتورة اليوم تبدأ من رقم</Text>
                 <TextInput
                   style={[styles.input, styles.startInput]}
                   placeholder="1"
@@ -143,7 +143,7 @@ export default function OpenShiftScreen({
                   value={start}
                   onChangeText={t => setStart(toLatinDigits(t).replace(/[^0-9]/g, '').slice(0, 4))}
                 />
-                <Text style={styles.startHint}>الأرقام ترجع ١ كل يوم عمل. لو وصلت اليوم لرقم أكبر، تكمّل منه</Text>
+                <Text style={styles.startHint}>الفواتير ترجع ١ كل يوم. لو اليوم وصلت لرقم أكبر، تكمّل منه</Text>
               </View>
             ) : (
               <TouchableOpacity
@@ -151,10 +151,10 @@ export default function OpenShiftScreen({
                 activeOpacity={0.7}
                 style={styles.startRow}
                 accessibilityRole="button"
-                accessibilityLabel="غيّر أول رقم طلب"
+                accessibilityLabel="غيّر رقم أول فاتورة"
               >
                 <Text style={styles.startRowText}>
-                  {'أرقام اليوم تبدأ من '}
+                  {'فواتير اليوم تبدأ من '}
                   <Text style={styles.startRowNo}>{`#${Number(start) || 1}`}</Text>
                 </Text>
                 <Text style={styles.startRowLink}>غيّر</Text>

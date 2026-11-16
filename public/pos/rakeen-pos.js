@@ -11085,7 +11085,7 @@ function showStaleShiftScreen(shift){
   });
 }
 
-/* «أرقام اليوم تبدأ من #N · غيّر» -- مطوي، وبس للمحل المفعّل له رقم خاص.
+/* «فواتير اليوم تبدأ من #N · غيّر» -- مطوي، وبس للمحل المفعّل له رقم خاص.
    الجهاز يتذكّر آخر رقم اختاره. التطبيق: OpenShiftScreen.tsx */
 const RK_ORDER_NO_START_KEY = 'rk_order_no_start';
 function rkSavedOrderNoStart(){
@@ -11103,12 +11103,12 @@ function rkRenderOrderNoStartRow(){
   box.dataset.on = '1';
   const n = rkSavedOrderNoStart();
   box.innerHTML = `<button type="button" class="rk-start-row" id="openShiftStartRow">
-      <span>أرقام اليوم تبدأ من <b class="mono">#${n}</b></span><span class="rk-start-link">غيّر</span>
+      <span>فواتير اليوم تبدأ من <b class="mono">#${n}</b></span><span class="rk-start-link">غيّر</span>
     </button>
     <div class="pos-auth-field hidden" id="openShiftStartField">
-      <label>أول رقم طلب اليوم</label>
+      <label>أول فاتورة اليوم تبدأ من رقم</label>
       <input type="text" id="openShiftStartInput" inputmode="numeric" maxlength="4" value="${n}" style="text-align:center;">
-      <div class="rk-start-hint">الأرقام ترجع ١ كل يوم عمل. لو وصلت اليوم لرقم أكبر، تكمّل منه</div>
+      <div class="rk-start-hint">الفواتير ترجع ١ كل يوم. لو اليوم وصلت لرقم أكبر، تكمّل منه</div>
     </div>`;
   document.getElementById('openShiftStartRow').addEventListener('click', ()=>{
     document.getElementById('openShiftStartRow').classList.add('hidden');
@@ -11147,7 +11147,7 @@ document.getElementById('openShiftSubmitBtn').addEventListener('click', async ()
   if(!STAFF_PICKED_THIS_SESSION){ errEl.textContent = 'اختر اسم الموظف أول.'; errEl.style.display = 'block'; showStaffPick(); return; }
   const start = rkReadOrderNoStart();
   if(!start.ok){
-    errEl.textContent = 'أول رقم طلب: من ١ إلى ٩٩٩٩'; errEl.style.display = 'block';
+    errEl.textContent = 'رقم أول فاتورة: من ١ إلى ٩٩٩٩'; errEl.style.display = 'block';
     const r = document.getElementById('openShiftStartRow'); if(r) r.click();
     return;
   }
