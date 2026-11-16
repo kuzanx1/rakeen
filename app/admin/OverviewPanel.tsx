@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./admin-overview.css";
 
 // «نظرة عامة» — أول شاشة في /admin. كل الأرقام من /api/admin/overview.
@@ -120,9 +120,20 @@ function Spark({ data }: { data: number[] }) {
 }
 
 function TrendChart({ series, metric }: { series: Data["platform"]["series"]; metric: "orders" | "sales" }) {
-  const W = 720;
-  const H = 230;
-  const padL = 44;
+  // عرض الرسم = عرض مكانه بالبكسل (ResizeObserver)، فالنص ما يتمطّط على الجوال.
+  const box = useRef<HTMLDivElement>(null);
+  const [W, setW] = useState(720);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setW(Math.max(280, Math.round(e.contentRect.width))));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const narrow = W < 520;
+  const H = narrow ? 190 : 230;
+  const every = narrow ? 7 : 5;
+  const padL = narrow ? 34 : 44;
   const padB = 26;
   const padT = 12;
   const vals = series.map((s) => s[metric]);
@@ -134,7 +145,8 @@ function TrendChart({ series, metric }: { series: Data["platform"]["series"]; me
   const y = (v: number) => padT + (H - padT - padB) * (1 - v / max);
   const peak = vals.indexOf(rawMax);
   return (
-    <svg className="ao-chart" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label="الطلبات آخر ٣٠ يوم">
+    <div ref={box} className="ao-chart-box">
+    <svg className="ao-chart" viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label="الطلبات آخر ٣٠ يوم">
       {ticks.map((t) => (
         <g key={t}>
           <line x1={padL} x2={W} y1={y(t)} y2={y(t)} className="ao-grid" />
@@ -154,7 +166,7 @@ function TrendChart({ series, metric }: { series: Data["platform"]["series"]; me
             <rect x={x} y={top} width={bw} height={Math.max(0, H - padB - top)} rx={Math.min(4, bw / 2)} className={isToday ? "ao-bar today" : i === peak ? "ao-bar peak" : "ao-bar"}>
               <title>{`${fmtDay(s.day)}: ${n0(s.orders)} طلب · ${n0(s.sales)} ر.س`}</title>
             </rect>
-            {(i % 5 === 4 || isToday) && (
+            {(series.length - 1 - i) % every === 0 && (
               <text x={x + bw / 2} y={H - 8} className="ao-axis" textAnchor="middle">
                 {isToday ? "اليوم" : fmtDay(s.day)}
               </text>
@@ -163,6 +175,7 @@ function TrendChart({ series, metric }: { series: Data["platform"]["series"]; me
         );
       })}
     </svg>
+    </div>
   );
 }
 
@@ -557,7 +570,7 @@ export default function OverviewPanel({ token, onOpenBusiness, onGoContracts }: 
                 const wa = waLink(r.owner.phone);
                 return (
                   <tr key={r.id}>
-                    <td>
+                    <td className="ao-c-biz">
                       <div className="ao-biz">
                         <span className="ao-av">{Array.from(r.name.trim())[0] || "؟"}</span>
                         <div>
@@ -568,30 +581,30 @@ export default function OverviewPanel({ token, onOpenBusiness, onGoContracts }: 
                         </div>
                       </div>
                     </td>
-                    <td>
+                    <td className="ao-c-st">
                       <span className={`ao-pill ${st.cls}`} title={st.hint}>
                         {st.label}
                       </span>
                     </td>
-                    <td className="num">
+                    <td className="num" data-label="اليوم">
                       <b>{n0(r.today.orders)}</b>
                       <span className="ao-muted">{n0(r.today.sales)} ر.س</span>
                     </td>
-                    <td className="num">
+                    <td className="num" data-label="٧ أيام">
                       <b>{n0(r.d7.orders)}</b>
                       <span className="ao-muted">{n0(r.d7.sales)} ر.س</span>
                     </td>
-                    <td className="num">
+                    <td className="num" data-label="٣٠ يوم">
                       <b>{n0(r.d30.orders)}</b>
                       <span className="ao-muted">{n0(r.d30.sales)} ر.س</span>
                     </td>
-                    <td>
+                    <td className="ao-c-spark">
                       <Spark data={r.series} />
                     </td>
-                    <td>
+                    <td data-label="آخر طلب">
                       <span className="ao-nowrap">{ago(r.lastOrderAt)}</span>
                     </td>
-                    <td>
+                    <td className="ao-c-pay">
                       <div className="ao-paycell">
                         <span className={`ao-tag ${r.plan || "none"}`}>{r.plan ? PLAN_LABEL[r.plan] : r.subscribed ? "مشترك" : "تجربة"}</span>
                         {r.trial && r.trial.limit > 0 && (
@@ -613,7 +626,7 @@ export default function OverviewPanel({ token, onOpenBusiness, onGoContracts }: 
                         {r.payments?.pending ? <span className="ao-warn">إيصال ينتظرك</span> : null}
                       </div>
                     </td>
-                    <td>
+                    <td className="ao-c-act">
                       <div className="ao-actions">
                         {wa && (
                           <a className="ao-icon" href={wa} target="_blank" rel="noopener noreferrer" title="واتساب" aria-label={`واتساب ${r.name}`}>

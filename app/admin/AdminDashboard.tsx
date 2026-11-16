@@ -813,7 +813,10 @@ export default function AdminDashboard() {
                   type="button"
                   className={`ad-link${activeTab === it.key ? " on" : ""}`}
                   aria-current={activeTab === it.key ? "page" : undefined}
-                  onClick={() => setActiveTab(it.key)}
+                  onClick={(e) => {
+                    setActiveTab(it.key);
+                    e.currentTarget.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+                  }}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d={it.icon} />
@@ -924,8 +927,8 @@ export default function AdminDashboard() {
 
         {loadError && <p style={styles.error}>{loadError}</p>}
 
-        <div style={styles.tableWrap}>
-          <table style={styles.table}>
+        <div style={styles.tableWrap} className="ad-btable-wrap">
+          <table style={styles.table} className="ad-btable">
             <thead>
               <tr>
                 <th style={styles.th}>المطعم</th>
@@ -940,7 +943,7 @@ export default function AdminDashboard() {
             <tbody>
               {filtered.map((b) => (
                 <tr key={b.id} style={{ ...styles.tr, opacity: b.is_active ? 1 : 0.55 }}>
-                  <td style={styles.td}>
+                  <td style={styles.td} className="ad-c-biz">
                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                     <span style={styles.avatar}>{Array.from(b.name.trim())[0] || "؟"}</span>
                     <div>
@@ -962,8 +965,8 @@ export default function AdminDashboard() {
                     </div>
                     </div>
                   </td>
-                  <td style={styles.td}>{b.owner_name || "—"}</td>
-                  <td style={styles.td}>
+                  <td style={styles.td} data-label="المالك">{b.owner_name || "—"}</td>
+                  <td style={styles.td} data-label="الطلبات">
                     {b.total_orders == null ? (
                       "—"
                     ) : (
@@ -973,7 +976,7 @@ export default function AdminDashboard() {
                       </>
                     )}
                   </td>
-                  <td style={styles.td}>
+                  <td style={styles.td} data-label="التجربة">
                     <span
                       style={{
                         fontFamily: "'IBM Plex Mono',monospace",
@@ -984,7 +987,7 @@ export default function AdminDashboard() {
                       {b.online_order_free_count}/{b.online_order_free_limit}
                     </span>
                   </td>
-                  <td style={styles.td}>
+                  <td style={styles.td} data-label="الاشتراك">
                     <button
                       style={{ ...styles.toggleBtn, background: b.online_subscribed ? "#7BAD0F" : "#EDEADF", color: b.online_subscribed ? "#fff" : "#171717" }}
                       onClick={() => toggle(b, "online_subscribed")}
@@ -993,7 +996,7 @@ export default function AdminDashboard() {
                       {b.online_subscribed ? "مشترك ✓" : "غير مشترك"}
                     </button>
                   </td>
-                  <td style={styles.td}>
+                  <td style={styles.td} data-label="المتجر">
                     <button
                       style={{ ...styles.toggleBtn, background: b.online_ordering_enabled ? "#7BAD0F" : "#B0402C", color: "#fff" }}
                       onClick={() => toggle(b, "online_ordering_enabled")}
@@ -1002,7 +1005,7 @@ export default function AdminDashboard() {
                       {b.online_ordering_enabled ? "مفعّل" : "موقوف"}
                     </button>
                   </td>
-                  <td style={styles.td}>
+                  <td style={styles.td} className="ad-c-act">
                     <button style={styles.detailBtn} onClick={() => openDrawer(b)}>
                       تفاصيل
                     </button>
