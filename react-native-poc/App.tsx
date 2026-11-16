@@ -34,7 +34,7 @@ import { startPrintStation } from './src/application/printStationService';
 import { startCustomerDisplay, stopCustomerDisplay } from './src/application/customerDisplayService';
 import { resetInterruptedPrintJobsOnBoot } from './src/infrastructure/sqlitePrintQueue';
 import { enqueuePrintJob, warmPrintPath } from './src/application/printService';
-import { refillOrderNumberPool } from './src/application/orderNumberPool';
+import { syncOrderPoolShift } from './src/application/orderNumberPool';
 import PrintQueueScreen from './src/ui/PrintQueueScreen';
 import PrinterSettingsScreen from './src/ui/PrinterSettingsScreen';
 import uuid from 'react-native-uuid';
@@ -64,11 +64,12 @@ import { ShellProvider, TOPBAR_FALLBACK_HEIGHT, useShell } from './src/ui/shell'
 import { I18nProvider, useI18n } from './src/ui/i18n';
 import { ToastProvider, useToast } from './src/ui/Toast';
 import Topbar from './src/ui/Topbar';
-import ManagerPinModal from './src/ui/ManagerPinModal';
+import ClosingsScreen from './src/ui/ClosingsScreen';
+import ShiftReportSettingsScreen from './src/ui/ShiftReportSettingsScreen';
 import OpenShiftScreen from './src/ui/OpenShiftScreen';
 import StaffPickScreen from './src/ui/StaffPickScreen';
 import IncomingOrderModal from './src/ui/IncomingOrderModal';
-import { formatPickupAt } from './src/domain/arabicDate';
+import { formatArabicTime, formatPickupAt } from './src/domain/arabicDate';
 import {
   listPendingOnlineOrders,
   subscribeToIncomingOnlineOrders,
@@ -81,7 +82,7 @@ import { startIncomingOrderSound, stopIncomingOrderSound } from './src/applicati
 import { loadRememberedStaff, rememberStaff } from './src/application/staffService';
 import type { StaffMember } from './src/application/staffService';
 import { ShiftSummaryModal, CloseShiftModal } from './src/ui/ShiftModals';
-import { findOpenShift, subscribeToShiftClosed, readCachedOpenShift, getLastClosingReport, getBranchClosingTime } from './src/application/shiftService';
+import { findOpenShift, subscribeToShiftClosed, readCachedOpenShift, getBranchClosingTime } from './src/application/shiftService';
 import type { Shift } from './src/domain/shift';
 import { isShiftStale } from './src/domain/shift';
 import StaleShiftScreen from './src/ui/StaleShiftScreen';
@@ -167,6 +168,8 @@ type Screen =
   | { name: 'printQueue' }
   | { name: 'printerSettings' }
   | { name: 'diagnostics' }
+  | { name: 'closings' }
+  | { name: 'reportSettings' }
   | { name: 'orderHistory' }
   | { name: 'more' }
   | { name: 'products'; table: SelectedTableContext | null };
@@ -194,6 +197,8 @@ function screenToTab(screen: Screen): NavTab {
     case 'printQueue':
     case 'printerSettings':
     case 'diagnostics':
+    case 'closings':
+    case 'reportSettings':
     case 'more':
       return 'more';
     default:
@@ -223,6 +228,8 @@ function App(): React.JSX.Element {
         case 'printQueue':
         case 'printerSettings':
         case 'diagnostics':
+        case 'closings':
+        case 'reportSettings':
           setScreen({ name: 'more' });
           return true;
         case 'orderHistory':
@@ -281,7 +288,6 @@ function App(): React.JSX.Element {
     [setStatusMessage],
   );
   /** موافقة مدير -- openPinModal() in the source (rakeen-pos.js:5157). */
-  const [managerPinOpen, setManagerPinOpen] = useState(false);
   /** أيُّ شاشةِ عميلٍ تخصّ هذي النقطة -- يختارها الكاشير، لا المالك. */
   const [myDisplayOpen, setMyDisplayOpen] = useState(false);
 
@@ -509,26 +515,6 @@ function App(): React.JSX.Element {
   const [shiftSummaryOpen, setShiftSummaryOpen] = useState(false);
   const [closeShiftOpen, setCloseShiftOpen] = useState(false);
 
-  /**
-   * reprintLastClosingReport() (rakeen-pos.js:5445). No manager approval:
-   * the source's own reasoning is that this re-outputs data already
-   * produced and approved, rather than creating anything new.
-   */
-  const handleReprintLastClosing = useCallback(async () => {
-    if (branchId == null) return;
-    setStatusMessage('جاري البحث عن آخر موازنة...');
-    try {
-      const report = await getLastClosingReport(branchId, businessName ?? '', branchName ?? '');
-      if (!report) {
-        setStatusMessage('ما فيه موازنة سابقة مسجلة لهذا الفرع');
-        return;
-      }
-      await enqueuePrintJob('shiftReport', report as unknown as Record<string, unknown>);
-      setStatusMessage('تم إرسال آخر موازنة للطابعة');
-    } catch {
-      setStatusMessage('تعذّرت طباعة آخر موازنة — تحقق من الاتصال وجرّب مرة ثانية');
-    }
-  }, [branchId, businessName, branchName]);
 
   useEffect(() => {
     if (!cashier) return;
@@ -757,10 +743,10 @@ function App(): React.JSX.Element {
   // أرقام طلبات محجوزة: تتعبّى عند الدخول، ورجوع النت، ورجوع التطبيق --
   // وبعد كل بيع (orderNumberPool.ts). بلا مؤقّت.
   // ورقم الطلب يرجع ١ مع كل يوم عمل: الأرقام المحجوزة من يوم سابق تنرمى
-  // (orderSeries.ts). فتح الوردية يعبّي من جديد.
+  // (orderSeries.ts). ووردية جديدة = أرقام جديدة من ١ أو من الرقم المختار.
   useEffect(() => {
     if (!cashier || branchId == null || !online) return;
-    void refillOrderNumberPool(branchId);
+    void syncOrderPoolShift(branchId, shift?.id ?? null);
   }, [cashier, branchId, online, resumeTick, shift?.id]);
 
   // «جهاز الطباعة للفرع»: يطبع طلبات الأجهزة الثانية. يشتغل دائماً مع
@@ -928,6 +914,8 @@ function App(): React.JSX.Element {
       screen.name === 'printQueue' ||
       screen.name === 'printerSettings' ||
       screen.name === 'diagnostics' ||
+      screen.name === 'closings' ||
+      screen.name === 'reportSettings' ||
       (screen.name === 'orderHistory' && branchId != null)
     );
   // ومظهرُ التطبيق يُقرأ هنا ليتبعه شريطُ النظام.
@@ -1163,14 +1151,6 @@ function App(): React.JSX.Element {
         onToast={setStatusMessage}
       />
 
-      <ManagerPinModal
-        visible={managerPinOpen}
-        onApprove={() => {
-          setManagerPinOpen(false);
-          setStatusMessage('تمت موافقة المدير');
-        }}
-        onCancel={() => setManagerPinOpen(false)}
-      />
 
       <View style={[styles.screenArea, sideBySide && styles.screenAreaBehindBars]}>
         {/**
@@ -1218,7 +1198,6 @@ function App(): React.JSX.Element {
             // Both tiles land on the same place for the same reason the
             // source does it: the cashier has to pick WHICH order first.
             onOpenCompletedOrders={() => setScreen({ name: 'orderHistory' })}
-            onRequestManagerApproval={() => setManagerPinOpen(true)}
             onOpenMyDisplay={() => setMyDisplayOpen(true)}
             onOpenCashMovement={() => {
               if (!shift) {
@@ -1236,8 +1215,11 @@ function App(): React.JSX.Element {
               }
               setCloseShiftOpen(true);
             }}
-            onReprintLastClosing={handleReprintLastClosing}
+            onOpenClosings={() => setScreen({ name: 'closings' })}
+            onOpenReportSettings={() => setScreen({ name: 'reportSettings' })}
             drawerBusy={drawerBusy}
+            shiftOpenedAt={shift?.opened_at ?? null}
+            staffName={staffMember?.name ?? null}
           />
         ) : screen.name === 'printQueue' ? (
           <View style={styles.subScreen}>
@@ -1253,6 +1235,25 @@ function App(): React.JSX.Element {
           <View style={styles.subScreen}>
             <BackToMore onPress={() => setScreen({ name: 'more' })} />
             <DiagnosticsScreen />
+          </View>
+        ) : screen.name === 'closings' && branchId != null ? (
+          <View style={styles.subScreen}>
+            <BackToMore onPress={() => setScreen({ name: 'more' })} />
+            <ClosingsScreen
+              branchId={branchId}
+              businessName={businessName ?? ''}
+              branchName={branchName ?? ''}
+              onToast={setStatusMessage}
+            />
+          </View>
+        ) : screen.name === 'reportSettings' && cashier ? (
+          <View style={styles.subScreen}>
+            <BackToMore onPress={() => setScreen({ name: 'more' })} />
+            <ShiftReportSettingsScreen
+              businessId={cashier.business_id}
+              onToast={setStatusMessage}
+              onDone={() => setScreen({ name: 'more' })}
+            />
           </View>
         ) : screen.name === 'orderHistory' && branchId != null ? (
           <OrderHistoryScreen branchId={branchId} shiftId={shift?.id ?? null} />
@@ -1367,20 +1368,33 @@ function NavTabButton({
  * the camera. A tile that looks live and does nothing when a cashier taps
  * it mid-service is worse than one that is not there yet.
  */
+/**
+ * «المزيد» -- مرتّبة بأولوية الكاشير، مثل لوحة التحكم:
+ *
+ *  ١) بطاقة الوردية فوق: «وش وضعي؟» (مفتوحة من متى، ومع مين) و«وش أسوي
+ *     الحين؟» (ملخص / قفل الوردية) -- أهم شي بالصفحة صار أول شي.
+ *  ٢) «وقت الخدمة»: مربعات كبيرة للي ينضغط والزبون واقف.
+ *  ٣) «الموازنات» و«الطابعة والجهاز»: صفوف بعنوان وسطر يشرح.
+ *
+ * انشالت «موافقة مدير» (كانت تطلب الرمز وما توافق على شي)، و«طباعة آخر
+ * موازنة» صارت صفحة «الموازنات» كاملة. الويب: #screen-more بنفس الترتيب.
+ */
 function MoreScreen({
   onOpenPrintQueue,
   onOpenPrinterSettings,
   onOpenDiagnostics,
   onOpenDrawer,
   onOpenCompletedOrders,
-  onRequestManagerApproval,
   onOpenMyDisplay,
   onOpenCashMovement,
   onOpenWaste,
   onOpenShiftSummary,
   onCloseShift,
-  onReprintLastClosing,
+  onOpenClosings,
+  onOpenReportSettings,
   drawerBusy,
+  shiftOpenedAt,
+  staffName,
 }: {
   onOpenPrintQueue: () => void;
   onOpenPrinterSettings: () => void;
@@ -1389,16 +1403,18 @@ function MoreScreen({
   /** إعادة طباعة and استرجاع مبلغ both just send the cashier to
    *  the completed-orders list to pick the order (rakeen-pos.js:5158). */
   onOpenCompletedOrders: (purpose: 'reprint' | 'refund') => void;
-  onRequestManagerApproval: () => void;
-  /** Cash in/out of the drawer that is not a sale. */
   onOpenMyDisplay: () => void;
+  /** Cash in/out of the drawer that is not a sale. */
   onOpenCashMovement: () => void;
   /** الهدر يُسجَّل من الكاشير: من يقع الكوب من يده هو من يسجّله. */
   onOpenWaste: () => void;
   onOpenShiftSummary: () => void;
   onCloseShift: () => void;
-  onReprintLastClosing: () => void;
+  onOpenClosings: () => void;
+  onOpenReportSettings: () => void;
   drawerBusy: boolean;
+  shiftOpenedAt: string | null;
+  staffName: string | null;
 }) {
   const { colors } = useTheme();
   const styles = useStyles();
@@ -1410,11 +1426,36 @@ function MoreScreen({
   const ink = colors.accentText;
   const info = appInfo();
   const version = info ? `${info.versionName} (${info.versionCode})` : '';
+  const since = shiftOpenedAt ? formatArabicTime(new Date(shiftOpenedAt)) : '';
   return (
     <ScrollView style={styles.moreRoot} contentContainerStyle={[styles.moreScroll, inset]}>
-      <Text style={[styles.moreSectionLabel, styles.moreSectionLabelFirst]}>إجراءات سريعة — وقت الخدمة</Text>
+      {/* ١) وش وضعي؟ */}
+      <View style={styles.shiftCard}>
+        <View style={styles.shiftCardHead}>
+          <View style={[styles.shiftDot, !shiftOpenedAt && styles.shiftDotOff]} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.shiftCardTitle}>{shiftOpenedAt ? 'الوردية مفتوحة' : 'ما فيه وردية مفتوحة'}</Text>
+            {shiftOpenedAt ? (
+              <Text style={styles.shiftCardSub}>{`من ${since}${staffName ? ` · مع ${staffName}` : ''}`}</Text>
+            ) : null}
+          </View>
+        </View>
+        {shiftOpenedAt ? (
+          <View style={styles.shiftCardActions}>
+            <TouchableOpacity onPress={onOpenShiftSummary} activeOpacity={0.85} style={[styles.shiftBtn, styles.shiftBtnGhost]}>
+              <Text style={styles.shiftBtnGhostText}>ملخص الوردية</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onCloseShift} activeOpacity={0.85} style={[styles.shiftBtn, styles.shiftBtnMain]}>
+              <Text style={styles.shiftBtnMainText}>اقفل الوردية</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+      </View>
+
+      {/* ٢) وقت الخدمة */}
+      <Text style={styles.moreSectionLabel}>وقت الخدمة</Text>
       <View style={styles.moreGrid}>
-        <MoreTile label={drawerBusy ? 'جارٍ الفتح...' : 'فتح الدرج'} onPress={onOpenDrawer} disabled={drawerBusy}>
+        <MoreTile label={drawerBusy ? 'جارٍ الفتح...' : 'افتح الدرج'} onPress={onOpenDrawer} disabled={drawerBusy}>
           <Rect x={2} y={7} width={20} height={14} rx={2} stroke={ink} />
           <Path d="M2 7l4-4h12l4 4" stroke={ink} />
           <Line x1={12} y1={12} x2={12} y2={16} stroke={ink} />
@@ -1423,30 +1464,24 @@ function MoreScreen({
           <Path d="M12 1v22" stroke={ink} />
           <Path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke={ink} />
         </MoreTile>
+        <MoreTile label="استرجع مبلغ" onPress={() => onOpenCompletedOrders('refund')}>
+          <Polyline points="9 14 4 9 9 4" stroke={ink} />
+          <Path d="M20 20v-7a4 4 0 0 0-4-4H4" stroke={ink} />
+        </MoreTile>
+        <MoreTile label="اطبع فاتورة" onPress={() => onOpenCompletedOrders('reprint')}>
+          <Polyline points="6 9 6 2 18 2 18 9" stroke={ink} />
+          <Path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" stroke={ink} />
+          <Rect x={6} y={14} width={12} height={8} stroke={ink} />
+        </MoreTile>
         {/* الهدر يخصم من المخزون (عماد): يبان لكل الباقات، مقفول باسم الباقة */}
         <MoreTile
-          label={planHas('inventory') ? 'تسجيل هدر' : 'تسجيل هدر · عماد 🔒'}
+          label={planHas('inventory') ? 'سجّل هدر' : 'سجّل هدر · عماد 🔒'}
           onPress={planHas('inventory') ? onOpenWaste : () => planLockedAlert('عماد')}
         >
           <Path d="M3 6h18" stroke={ink} />
           <Path d="M8 6V4h8v2" stroke={ink} />
           <Path d="M5 6l1 14h12l1-14" stroke={ink} />
         </MoreTile>
-        <MoreTile label="استرجاع مبلغ" onPress={() => onOpenCompletedOrders('refund')}>
-          <Polyline points="9 14 4 9 9 4" stroke={ink} />
-          <Path d="M20 20v-7a4 4 0 0 0-4-4H4" stroke={ink} />
-        </MoreTile>
-        <MoreTile label="موافقة مدير" onPress={onRequestManagerApproval}>
-          <Rect x={3} y={11} width={18} height={11} rx={2} stroke={ink} />
-          <Path d="M7 11V7a5 5 0 0 1 10 0v4" stroke={ink} />
-        </MoreTile>
-        <MoreTile label="إعادة طباعة" onPress={() => onOpenCompletedOrders('reprint')}>
-          <Polyline points="6 9 6 2 18 2 18 9" stroke={ink} />
-          <Path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" stroke={ink} />
-          <Rect x={6} y={14} width={12} height={8} stroke={ink} />
-        </MoreTile>
-        {/* أيُّ شاشةٍ أمام هذا الكاشير -- بلا اختيارٍ يبثّ إلى شاشات
-            الفرع كلِّها، فيرى عدّةُ زبائن باركوداً واحداً. */}
         {/* شاشة العميل تعرض باركود الولاء (عماد): تبان مقفولة باسم الباقة */}
         <MoreTile
           label={planHas('loyalty') ? 'شاشة العميل' : 'شاشة العميل · عماد 🔒'}
@@ -1457,43 +1492,85 @@ function MoreScreen({
         </MoreTile>
       </View>
 
-      <Text style={styles.moreSectionLabel}>الوردية</Text>
-      <View style={styles.moreGrid}>
-        <MoreTile label="ملخص الوردية" onPress={onOpenShiftSummary}>
-          <Path d="M3 3v18h18" stroke={ink} />
-          <Path d="M18 17V9M13 17V5M8 17v-3" stroke={ink} />
-        </MoreTile>
-        <MoreTile label="إغلاق الوردية" onPress={onCloseShift}>
-          <Circle cx={12} cy={12} r={10} stroke={ink} />
-          <Polyline points="12 6 12 12 16 14" stroke={ink} />
-        </MoreTile>
-        <MoreTile label="طباعة آخر موازنة" onPress={onReprintLastClosing}>
-          <Polyline points="6 9 6 2 18 2 18 9" stroke={ink} />
-          <Path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" stroke={ink} />
-          <Rect x={6} y={14} width={12} height={8} stroke={ink} />
-        </MoreTile>
-        <MoreTile label="إعدادات الطباعة" onPress={onOpenPrinterSettings}>
+      {/* ٣) الموازنات */}
+      <Text style={styles.moreSectionLabel}>الموازنات</Text>
+      <View style={styles.linkGroup}>
+        <MoreLink title="الموازنات" hint="كل وردية انقفلت · اطبعها من جديد" onPress={onOpenClosings}>
+          <Path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke={ink} />
+          <Polyline points="14 2 14 8 20 8" stroke={ink} />
+          <Line x1={8} y1={13} x2={16} y2={13} stroke={ink} />
+          <Line x1={8} y1={17} x2={13} y2={17} stroke={ink} />
+        </MoreLink>
+        <MoreLink title="إعدادات الموازنة" hint="وش يطلع بالورقة · أصناف من المخزون" onPress={onOpenReportSettings} last>
+          <Line x1={4} y1={21} x2={4} y2={14} stroke={ink} />
+          <Line x1={4} y1={10} x2={4} y2={3} stroke={ink} />
+          <Line x1={12} y1={21} x2={12} y2={12} stroke={ink} />
+          <Line x1={12} y1={8} x2={12} y2={3} stroke={ink} />
+          <Line x1={20} y1={21} x2={20} y2={16} stroke={ink} />
+          <Line x1={20} y1={12} x2={20} y2={3} stroke={ink} />
+          <Line x1={1} y1={14} x2={7} y2={14} stroke={ink} />
+          <Line x1={9} y1={8} x2={15} y2={8} stroke={ink} />
+          <Line x1={17} y1={16} x2={23} y2={16} stroke={ink} />
+        </MoreLink>
+      </View>
+
+      {/* ٤) الطابعة والجهاز */}
+      <Text style={styles.moreSectionLabel}>الطابعة والجهاز</Text>
+      <View style={styles.linkGroup}>
+        <MoreLink title="إعدادات الطباعة" hint="الطابعة، الورق، وضوح الطباعة" onPress={onOpenPrinterSettings}>
           <Circle cx={12} cy={12} r={3} stroke={ink} />
-          <Path
-            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-            stroke={ink}
-          />
-        </MoreTile>
-        {/* Not one of the source's ten. Kept because the queue screen is
-            real and this is its only way in -- the PWA surfaces the same
-            information on the receipt screen instead. */}
-        <MoreTile label="قائمة الطباعة" onPress={onOpenPrintQueue}>
-          <Polyline points="6 9 6 2 18 2 18 9" stroke={ink} />
-          <Path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" stroke={ink} />
-          <Rect x={6} y={14} width={12} height={8} stroke={ink} />
-        </MoreTile>
-        <MoreTile label="تشخيص النظام" onPress={onOpenDiagnostics}>
+          <Path d="M12 1v3M12 20v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M1 12h3M20 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" stroke={ink} />
+        </MoreLink>
+        <MoreLink title="قائمة الطباعة" hint="اللي انطبع واللي علّق · أعد المعلّق" onPress={onOpenPrintQueue}>
+          <Line x1={8} y1={6} x2={21} y2={6} stroke={ink} />
+          <Line x1={8} y1={12} x2={21} y2={12} stroke={ink} />
+          <Line x1={8} y1={18} x2={21} y2={18} stroke={ink} />
+          <Line x1={3} y1={6} x2={3.01} y2={6} stroke={ink} />
+          <Line x1={3} y1={12} x2={3.01} y2={12} stroke={ink} />
+          <Line x1={3} y1={18} x2={3.01} y2={18} stroke={ink} />
+        </MoreLink>
+        <MoreLink title="تشخيص النظام" hint="النت، الطابعة، المزامنة — لو فيه مشكلة" onPress={onOpenDiagnostics} last>
           <Path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke={ink} />
-        </MoreTile>
+        </MoreLink>
       </View>
       {/* رقم النسخة: صغير وباهت آخر الصفحة -- عشان نعرف بنظرة إن الجهاز تحدّث. */}
       {version ? <Text style={styles.moreVersion}>{`ركين ${version}`}</Text> : null}
     </ScrollView>
+  );
+}
+
+/** صف بأيقونة وعنوان وسطر يشرح -- للي ما ينضغط وقت الزحمة. */
+function MoreLink({
+  title,
+  hint,
+  onPress,
+  last,
+  children,
+}: {
+  title: string;
+  hint: string;
+  onPress: () => void;
+  last?: boolean;
+  children: React.ReactNode;
+}) {
+  const { t } = useI18n();
+  const { colors } = useTheme();
+  const styles = useStyles();
+  return (
+    <TouchableOpacity style={[styles.linkRow, !last && styles.linkRowLine]} onPress={onPress} activeOpacity={0.75}>
+      <View style={styles.linkIcon}>
+        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          {children}
+        </Svg>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.linkTitle}>{t(title)}</Text>
+        <Text style={styles.linkHint}>{t(hint)}</Text>
+      </View>
+      <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+        <Polyline points="15 18 9 12 15 6" stroke={colors.muted} />
+      </Svg>
+    </TouchableOpacity>
   );
 }
 
@@ -1526,32 +1603,6 @@ function MoreTile({
           screen carries a label, and one of them being missed is exactly
           how a screen ends up half-English. */}
       <Text style={styles.moreItemText}>{t(label)}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function MoreRow({
-  label,
-  onPress,
-  disabled,
-  danger,
-  busy,
-  busyLabel,
-}: {
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-  danger?: boolean;
-  busy?: boolean;
-  busyLabel?: string;
-}) {
-  const { t } = useI18n();
-  const styles = useStyles();
-  return (
-    <TouchableOpacity style={styles.moreRow} onPress={onPress} disabled={disabled} activeOpacity={0.8}>
-      <Text style={[styles.moreRowText, danger && styles.moreRowTextDanger]}>
-        {busy && busyLabel ? t(busyLabel) : t(label)}
-      </Text>
     </TouchableOpacity>
   );
 }
@@ -1621,7 +1672,7 @@ const useStyles = createStyles(colors =>
     fontSize: 11,
     color: colors.muted,
     letterSpacing: 0.44,
-    marginTop: 20,
+    marginTop: 24,
     marginBottom: 12,
   },
   // .more-section-label:first-child
@@ -1648,9 +1699,33 @@ const useStyles = createStyles(colors =>
   moreItemDisabled: { opacity: 0.5 },
   // .more-item span
   moreItemText: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.text, textAlign: 'center' },
-  moreRow: { backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, padding: spacing[4], marginBottom: spacing[2] },
-  moreRowText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.text, textAlign: 'center' },
-  moreRowTextDanger: { color: colors.danger },
+  // بطاقة الوردية فوق «المزيد»
+  shiftCard: {
+    backgroundColor: colors.cardBg,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: 18,
+    gap: 16,
+  },
+  shiftCardHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  shiftDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.lime, borderWidth: 2, borderColor: colors.limeDeep },
+  shiftDotOff: { backgroundColor: colors.surf2, borderColor: colors.line },
+  shiftCardTitle: { fontFamily: fonts.sansBold, fontSize: 17, color: colors.text },
+  shiftCardSub: { fontFamily: fonts.sansMedium, fontSize: 13, color: colors.muted, marginTop: 2 },
+  shiftCardActions: { flexDirection: 'row', gap: 10 },
+  shiftBtn: { flex: 1, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  shiftBtnGhost: { backgroundColor: colors.surf1, borderWidth: 1, borderColor: colors.line },
+  shiftBtnGhostText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.text },
+  shiftBtnMain: { backgroundColor: colors.graphite },
+  shiftBtnMainText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.lime },
+  // صفوف «الموازنات» و«الطابعة والجهاز»
+  linkGroup: { backgroundColor: colors.cardBg, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 14 },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, minHeight: 64 },
+  linkRowLine: { borderBottomWidth: 1, borderBottomColor: colors.line },
+  linkIcon: { width: 38, height: 38, borderRadius: 11, backgroundColor: colors.surf1, alignItems: 'center', justifyContent: 'center' },
+  linkTitle: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.text },
+  linkHint: { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.muted, marginTop: 2 },
   moreDivider: { height: spacing[3] },
   }),
 );

@@ -47,6 +47,10 @@ export interface ShiftReportModel {
 
   /** ما يُخفيه صاحبُ المطعم من أقسام. الغيابُ يعني الإظهار. */
   options?: Record<string, boolean> | null;
+
+  /** أصناف مخزون اختارها صاحب المحل: كم انصرف منها بطلبات الوردية
+   *  (مثلاً «بوكس كبير: ٣٤»). من rk_shift_stock_usage. */
+  stockLines?: { name: string; unit?: string | null; used: number }[] | null;
 }
 
 export interface ShiftLayoutInput {
@@ -132,6 +136,18 @@ export function layoutShiftReport(input: ShiftLayoutInput): LayoutResult {
     ctx.rule(SHIFT_SPACE.afterRule);
     ctx.rowText(String(report.ordersCount), 'عدد الطلبات · Orders', SHIFT.counts, false);
     ctx.rowText(money(report.avgTicket), 'متوسط الفاتورة · Avg ticket', SHIFT.counts, false);
+  }
+
+  // من المخزون: كم بوكس/علبة انصرف بالوردية -- يطابق به اللي بالرف.
+  const stock = (report.stockLines || []).filter(l => l && l.name);
+  if (stock.length) {
+    ctx.rule(SHIFT_SPACE.afterRule);
+    ctx.centerText('من المخزون · Stock used', SHIFT.sectionLabel, true);
+    for (const l of stock) {
+      const n = Number(l.used) || 0;
+      const qty = (Math.round(n * 100) / 100).toString() + (l.unit ? ' ' + l.unit : '');
+      ctx.rowText(qty, l.name, SHIFT.row, false);
+    }
   }
 
   if (on('signatures')) {

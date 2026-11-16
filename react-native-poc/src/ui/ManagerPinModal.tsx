@@ -49,7 +49,8 @@ export default function ManagerPinModal({
 }: {
   visible: boolean;
   presentation?: PinPresentation;
-  onApprove: () => void;
+  /** الرمز نفسه لمن يحتاج يمرّره للخادم (إعدادات الموازنة). */
+  onApprove: (pin: string) => void;
   onCancel: () => void;
 }) {
   const { colors } = useTheme();
@@ -77,7 +78,7 @@ export default function ManagerPinModal({
     setChecking(false);
     setPin('');
     if (result === 'approved') {
-      onApprove();
+      onApprove(digits);
     } else if (result === 'incorrect') {
       setError('رمز خاطئ');
     } else if (result === 'not_configured') {

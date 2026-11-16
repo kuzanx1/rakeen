@@ -5,7 +5,7 @@ import { TouchableOpacity, SMALL_HIT_SLOP } from './tappable';
 import GradientFill from './GradientFill';
 import Money from './Money';
 import ManagerPinModal from './ManagerPinModal';
-import { loadShiftTotals, closeShift, countUnsyncedShiftOrders } from '../application/shiftService';
+import { loadShiftTotals, closeShift, countUnsyncedShiftOrders, getShiftStockUsage } from '../application/shiftService';
 import { listBranchStaff } from '../application/staffService';
 import type { StaffMember } from '../application/staffService';
 import { getShiftReportSettings } from '../application/catalogService';
@@ -280,6 +280,8 @@ export function CloseShiftModal({
     setPinOpen(false);
     setBusy(true);
     setError('');
+    // أصناف المخزون المختارة لورقة الموازنة (فاضي لو ما فيه).
+    const stockLines = await getShiftStockUsage(shift.id);
     const report: ClosingReport = {
       businessName: businessName || 'ركين',
       branchName,
@@ -310,6 +312,7 @@ export function CloseShiftModal({
       onlinePaymentsEnabled: reportSettings.onlinePaymentsEnabled,
       options: reportSettings.options,
       shiftStart: shiftStartLabel,
+      stockLines,
     };
     const result = await closeShift({
       shift,

@@ -570,6 +570,45 @@ export async function getShiftReportSettings(businessId: number): Promise<{
   }
 }
 
+/** أصناف المخزون اللي تنطبع بالموازنة (قراءة منفصلة: قبل ترحيل
+ *  20261116140000 العمود ما يوجد، وما يكسر باقي الإعدادات). */
+export async function getShiftReportStockItems(businessId: number): Promise<number[]> {
+  try {
+    const { data, error } = await supabase
+      .from('businesses')
+      .select('shift_report_stock_items')
+      .eq('id', businessId)
+      .single();
+    if (error || !data) return [];
+    return ((data.shift_report_stock_items as number[] | null) ?? []).map(Number);
+  } catch {
+    return [];
+  }
+}
+
+/** يحفظ إعدادات ورقة الموازنة من الكاشير. الرمز يتحقق منه الخادم. */
+export async function saveShiftReportSettings(
+  pin: string,
+  options: Record<string, boolean>,
+  stockItemIds: number[],
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { error } = await supabase.rpc('pos_set_shift_report_settings', {
+      p_pin: pin,
+      p_options: options,
+      p_stock_items: stockItemIds,
+    });
+    if (!error) return { ok: true };
+    const msg = String(error.message || '');
+    if (/PGRST202|could not find the function/i.test(`${error.code} ${msg}`)) {
+      return { ok: false, error: 'هالميزة تحتاج تحديث بسيط بالنظام. كلّم الدعم' };
+    }
+    return { ok: false, error: /[\u0600-\u06FF]/.test(msg) ? msg : 'تعذّر الحفظ — تحقق من الاتصال' };
+  } catch {
+    return { ok: false, error: 'تعذّر الحفظ — تحقق من الاتصال' };
+  }
+}
+
 export function subscribeToBusinessSettings(businessId: number, onChange: () => void): () => void {
   return subscribeToPostgresChanges(
     `pos-business-settings:${businessId}`,

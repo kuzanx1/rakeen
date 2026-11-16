@@ -4,7 +4,7 @@ import { sqliteOrderQueueStorage } from '../infrastructure/sqliteOrderQueue';
 import { syncQueuedOrdersNow } from './orderService';
 import { getItem, setItem } from '../infrastructure/mmkvStorage';
 import { computeShiftTotals, EMPTY_SHIFT_TOTALS } from '../domain/shift';
-import type { CashMovement, ClosingReport, Shift, ShiftOrderRow, ShiftTotals } from '../domain/shift';
+import type { CashMovement, ClosingReport, Shift, ShiftOrderRow, ShiftTotals, StockLine } from '../domain/shift';
 import { formatArabicDateTime } from '../domain/arabicDate';
 import { getShiftReportSettings } from './catalogService';
 
@@ -80,22 +80,27 @@ export interface OpenShiftInput {
    *  so this is the only column saying which human opened the drawer. */
   staffMemberId: number | null;
   openingCash: number;
+  /** أول رقم طلب بهالوردية (١–٩٩٩٩). null = ١. */
+  orderNoStart?: number | null;
 }
 
 export async function openShift(
   input: OpenShiftInput,
 ): Promise<{ shift: Shift | null; error: string | null; joined?: boolean }> {
-  const { data, error } = await supabase
-    .from('shifts')
-    .insert({
-      business_id: input.businessId,
-      branch_id: input.branchId,
-      cashier_id: input.cashierId,
-      staff_member_id: input.staffMemberId,
-      opening_cash: input.openingCash,
-    })
-    .select()
-    .single();
+  const row: Record<string, unknown> = {
+    business_id: input.businessId,
+    branch_id: input.branchId,
+    cashier_id: input.cashierId,
+    staff_member_id: input.staffMemberId,
+    opening_cash: input.openingCash,
+  };
+  const start = input.orderNoStart;
+  const withStart = start != null && start > 1 && start <= 9999 ? { ...row, order_no_start: Math.floor(start) } : row;
+  let { data, error } = await supabase.from('shifts').insert(withStart).select().single();
+  // قبل ترحيل 20261116140000 العمود ما يوجد: تنفتح الوردية بدون الرقم.
+  if (error && withStart !== row && /order_no_start/.test(String(error.message || ''))) {
+    ({ data, error } = await supabase.from('shifts').insert(row).select().single());
+  }
 
   if (error || !data) {
     /* 23505: للفرع وردية مفتوحة أصلاً -- فتحها جهاز ثانٍ قبل لحظة، أو
@@ -393,8 +398,72 @@ export async function getLastClosingReport(
     .limit(1)
     .maybeSingle();
   if (error || !data) return null;
+  return closingReportFromRow(data as Record<string, unknown>, businessName, branchName);
+}
 
-  const row = data as Record<string, unknown>;
+/** موازنات الفرع، الأحدث أول -- لصفحة «الموازنات». خفيفة: بدون الورقة. */
+export interface ClosingSummary {
+  id: number;
+  shiftId: number;
+  createdAt: string;
+  ordersCount: number;
+  salesTotal: number;
+  cashExpected: number;
+  cashCounted: number;
+  cashVariance: number;
+}
+
+export async function listClosingReports(branchId: number, limit = 30): Promise<ClosingSummary[]> {
+  const { data, error } = await supabase
+    .from('shift_closing_reports')
+    .select('id, shift_id, created_at, orders_count, sales_total, cash_expected, cash_counted, cash_variance')
+    .eq('branch_id', branchId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw new Error('تعذّرت قراءة الموازنات — تحقق من الاتصال');
+  return ((data || []) as Record<string, unknown>[]).map(r => ({
+    id: Number(r.id),
+    shiftId: Number(r.shift_id),
+    createdAt: String(r.created_at),
+    ordersCount: Number(r.orders_count) || 0,
+    salesTotal: Number(r.sales_total) || 0,
+    cashExpected: Number(r.cash_expected) || 0,
+    cashCounted: Number(r.cash_counted) || 0,
+    cashVariance: Number(r.cash_variance) || 0,
+  }));
+}
+
+/** ورقة موازنة بعينها (لإعادة طباعتها من «الموازنات»). */
+export async function getClosingReport(
+  id: number,
+  businessName: string,
+  branchName: string,
+): Promise<ClosingReport | null> {
+  const { data, error } = await supabase.from('shift_closing_reports').select('*').eq('id', id).maybeSingle();
+  if (error || !data) return null;
+  return closingReportFromRow(data as Record<string, unknown>, businessName, branchName);
+}
+
+/** كم انصرف من أصناف المخزون المختارة بطلبات الوردية. [] لو ما فيه أو قبل الترحيل. */
+export async function getShiftStockUsage(shiftId: number): Promise<StockLine[]> {
+  try {
+    const { data, error } = await supabase.rpc('rk_shift_stock_usage', { p_shift_id: shiftId });
+    if (error || !Array.isArray(data)) return [];
+    return (data as { name: string; unit: string | null; used: number | string }[]).map(r => ({
+      name: String(r.name),
+      unit: r.unit ?? null,
+      used: Number(r.used) || 0,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+async function closingReportFromRow(
+  row: Record<string, unknown>,
+  businessName: string,
+  branchName: string,
+): Promise<ClosingReport> {
   // محفوظة كاملة وقت الإغلاق: تنطبع نفس الورقة بالضبط.
   if (row.report && typeof row.report === 'object') {
     return row.report as ClosingReport;
@@ -432,7 +501,11 @@ export async function getLastClosingReport(
       .maybeSingle();
     if (!shiftRow) return base;
     const shift = shiftRow as Shift;
-    const [t, settings] = await Promise.all([loadShiftTotals(shift), getShiftReportSettings(shift.business_id)]);
+    const [t, settings, stockLines] = await Promise.all([
+      loadShiftTotals(shift),
+      getShiftReportSettings(shift.business_id),
+      getShiftStockUsage(shift.id),
+    ]);
     return {
       ...base,
       cashIn: t.cashInTotal,
@@ -451,6 +524,7 @@ export async function getLastClosingReport(
       onlinePaymentsEnabled: settings.onlinePaymentsEnabled,
       options: settings.options,
       shiftStart: new Date(shift.opened_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+      stockLines,
       ...signed,
     };
   } catch {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './Text';
 import { TouchableOpacity } from './tappable';
@@ -10,6 +10,11 @@ import { createStyles, fonts, gradients, useTheme } from './theme';
 import { authBaseStyles } from './authLook';
 import AuthLangButton from './AuthLangButton';
 import { toLatinDigits } from '../domain/digits';
+import { isNumbersOn } from '../application/orderNumberPool';
+import { getItem, setItem } from '../infrastructure/mmkvStorage';
+
+/** آخر «أول رقم» اختاره المحل: يتذكّره الجهاز للوردية الجاية. */
+const START_KEY = 'rk_order_no_start';
 
 /**
  * #posOpenShiftScreen (pos-markup.ts) -- the step between signing in and
@@ -45,6 +50,23 @@ export default function OpenShiftScreen({
   const kb = useKeyboardOpen();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // أرقام الطلبات تبدأ من… (بس للمحل اللي مفعّل له رقم خاص).
+  const [numbersOn, setNumbersOnState] = useState(false);
+  const [start, setStart] = useState('1');
+  const [editStart, setEditStart] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    isNumbersOn().then(v => alive && setNumbersOnState(v)).catch(() => {});
+    getItem(START_KEY)
+      .then(v => {
+        const n = Number(v);
+        if (alive && n >= 1 && n <= 9999) setStart(String(n));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const submit = async () => {
     const openingCash = parseFloat(cash);
@@ -56,9 +78,20 @@ export default function OpenShiftScreen({
       setError('اكتب رصيد افتتاحي صحيح.');
       return;
     }
+    let orderNoStart: number | null = null;
+    if (numbersOn) {
+      const n = Number(start || '1');
+      if (!(Number.isInteger(n) && n >= 1 && n <= 9999)) {
+        setError('أول رقم طلب: من ١ إلى ٩٩٩٩');
+        setEditStart(true);
+        return;
+      }
+      orderNoStart = n;
+      setItem(START_KEY, String(n)).catch(() => {});
+    }
     setBusy(true);
     try {
-      const result = await openShift({ businessId, branchId, cashierId, staffMemberId, openingCash });
+      const result = await openShift({ businessId, branchId, cashierId, staffMemberId, openingCash, orderNoStart });
       if (result.shift) onOpened(result.shift);
       else setError(result.error ?? 'تعذر بدء الوردية.');
     } finally {
@@ -97,6 +130,37 @@ export default function OpenShiftScreen({
             />
           </View>
 
+          {numbersOn &&
+            (editStart ? (
+              <View style={styles.field}>
+                <Text style={styles.label}>أول رقم طلب بالوردية</Text>
+                <TextInput
+                  style={[styles.input, styles.startInput]}
+                  placeholder="1"
+                  placeholderTextColor={colors.muted}
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  value={start}
+                  onChangeText={t => setStart(toLatinDigits(t).replace(/[^0-9]/g, '').slice(0, 4))}
+                />
+                <Text style={styles.startHint}>أول فاتورة تطلع بهالرقم، والبعدها تكمّل منه</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                onPress={() => setEditStart(true)}
+                activeOpacity={0.7}
+                style={styles.startRow}
+                accessibilityRole="button"
+                accessibilityLabel="غيّر أول رقم طلب"
+              >
+                <Text style={styles.startRowText}>
+                  {'أرقام الطلبات تبدأ من '}
+                  <Text style={styles.startRowNo}>{`#${Number(start) || 1}`}</Text>
+                </Text>
+                <Text style={styles.startRowLink}>غيّر</Text>
+              </TouchableOpacity>
+            ))}
+
           {!!error && <Text style={styles.error}>{error}</Text>}
 
           <TouchableOpacity onPress={submit} disabled={busy} activeOpacity={0.85} style={styles.submitWrap}>
@@ -132,5 +196,21 @@ const useStyles = createStyles((colors, shadows) =>
       textAlign: 'center',
       paddingHorizontal: 18,
     },
+    startInput: { height: 56, fontSize: 24 },
+    startHint: { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.muted, marginTop: 6, textAlign: 'center', alignSelf: 'stretch' },
+    startRow: {
+      alignSelf: 'stretch',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      backgroundColor: colors.surf1,
+      marginBottom: 12,
+    },
+    startRowText: { fontFamily: fonts.sansMedium, fontSize: 13, color: colors.muted },
+    startRowNo: { fontFamily: fonts.monoBold, color: colors.text },
+    startRowLink: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accentText },
   }),
 );

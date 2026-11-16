@@ -1448,6 +1448,7 @@ function switchBottomNavScreen(screenKey){
   document.getElementById('posApp').classList.toggle('home-active', screenKey === 'home');
   // refresh live data whenever a screen is (re)entered — never show stale state
   if(screenKey === 'orders') renderOrdersList();
+  if(screenKey === 'more') renderMoreShiftCard();
   if(screenKey === 'tables'){ if(isHotelBusiness()) renderHotelActiveTab(); else renderTables(); }
   // "Scan-first" mode (roadmap item 2): a retail cashier's default action is
   // scanning, not browsing — keep the barcode/search field focused so a
@@ -4951,6 +4952,16 @@ function rkRememberNo(id, no){
 function rkRememberRows(rows){ (rows || []).forEach(r => { if(r) rkRememberNo(r.id, r.order_no); }); }
 function rkNo(id){ const n = rkOrderNos().get(Number(id)); return n != null ? n : id; }
 const RK_POOL_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+/* ورقم الطلب صار يرجع ١ مع كل فتح وردية (20261116140000): السلسلة =
+   10000000000 + رقم الوردية، وأول رقم يختاره المحل. المخزون يحفظ ورديته (sh)
+   وأحدث سلسلة (ps)؛ وردية جديدة = يرمي القديم ويحجز من جديد. */
+const RK_SHIFT_SERIES_BASE = 10000000000;
+function rkPoolValid(p, s){
+  if(s == null) return true;
+  if(p.ps != null && s < p.ps) return false;
+  if(s < RK_SHIFT_SERIES_BASE){ const cur = rkPoolSeries(); return cur == null || s === cur; }
+  return true;
+}
 let rkPoolRefilling = null, rkPoolUnsupportedUntil = 0;
 function rkPoolLoad(branchId){
   let p = null;
@@ -4959,8 +4970,9 @@ function rkPoolLoad(branchId){
   if(p.c != null && Number(p.c) >= 0) rkDayCutoff = Number(p.c);
   const now = Date.now();
   const series = rkPoolSeries();
+  void series;
   p.items = p.items.filter(i => i && i.u && i.id > 0 && i.no > 0 && now - i.at < RK_POOL_MAX_AGE_MS
-    && (i.s == null || series == null || i.s === series));
+    && rkPoolValid(p, i.s));
   return p;
 }
 function rkPoolSave(p){ try { localStorage.setItem(RK_POOL_KEY, JSON.stringify(p)); } catch(_) {} }
@@ -4997,9 +5009,10 @@ function rkRefillOrderNumberPool(branchId){
       for(const r of (data || [])){
         const id = Number(r.r_order_id), no = Number(r.r_order_no);
         const s = Number(r.r_series) > 0 ? Number(r.r_series) : undefined;
-        const cur = rkPoolSeries();
         if(!asked.has(r.r_client_order_uuid) || known.has(r.r_client_order_uuid) || !(id > 0) || !(no > 0)) continue;
-        if(s != null && cur != null && s !== cur) continue; // من يوم غير اليوم
+        // سلسلة أحدث (انفتحت وردية): القديم كله ينرمى.
+        if(s != null && s >= RK_SHIFT_SERIES_BASE && (p.ps == null || s > p.ps)){ p.ps = s; p.items = p.items.filter(i => i.s === s); }
+        if(!rkPoolValid(p, s)) continue; // من يوم/وردية سابقة
         p.items.push({ u: r.r_client_order_uuid, id, no, at: now, s });
       }
       p.items.sort((a, b) => a.no - b.no);
@@ -5010,6 +5023,14 @@ function rkRefillOrderNumberPool(branchId){
   return rkPoolRefilling;
 }
 window.addEventListener('online', () => { if(typeof DEVICE !== 'undefined' && CURRENT_PROFILE) rkRefillOrderNumberPool(DEVICE.branchId); });
+/* الوردية تغيّرت (انفتحت هنا أو بجهاز ثاني)؟ أرقامها القديمة تنرمى ويُحجز من
+   جديد، فأول فاتورة تطلع #١ أو الرقم المختار. مثل syncOrderPoolShift بالتطبيق. */
+function rkSyncOrderPoolShift(branchId, shiftId){
+  if(branchId == null) return null;
+  const p = rkPoolLoad(branchId);
+  if(shiftId != null && p.sh !== shiftId){ p.items = []; p.sh = shiftId; rkPoolSave(p); }
+  return rkRefillOrderNumberPool(branchId);
+}
 
 async function submitOrder(totals){
   if(state.resumingOrder){
@@ -8952,31 +8973,75 @@ setInterval(()=>{
 // Completed for refund, since that's genuinely where both actions happen —
 // there's no separate refund/reprint flow to build here, Orders already
 // has it).
+const RK_ICON = {
+  drawer:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M2 7l4-4h12l4 4"/><line x1="12" y1="12" x2="12" y2="16"/></svg>',
+  cash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+  waste:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6l1 14h12l1-14"/></svg>',
+  refund:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>',
+  display:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>',
+  print:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
+  doc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>',
+  sliders:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>',
+  gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v3M12 20v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M1 12h3M20 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>',
+  pulse:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
+  chev:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>'
+};
+/* «المزيد» -- مرتّبة بأولوية الكاشير، نفس ترتيب التطبيق (MoreScreen في App.tsx):
+   ١) بطاقة الوردية: «وش وضعي؟» و«وش أسوي الحين؟» (ملخص / اقفل الوردية).
+   ٢) «وقت الخدمة»: مربعات للي ينضغط والزبون واقف.
+   ٣) «الموازنات» و«الطابعة والجهاز»: صفوف بعنوان وسطر يشرح.
+   انشالت «موافقة مدير» (كانت تطلب الرمز وما توافق على شي)، و«طباعة آخر
+   موازنة» صارت صفحة «الموازنات» كاملة. */
 const QUICK_ACTIONS = [
-  {id:'drawer', label:'فتح الدرج', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M2 7l4-4h12l4 4"/><line x1="12" y1="12" x2="12" y2="16"/></svg>'},
-  {id:'waste', label:'تسجيل هدر', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6l1 14h12l1-14"/></svg>'},
-  {id:'refund', label:'استرجاع مبلغ', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>'},
-  {id:'manager', label:'موافقة مدير', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'},
-  {id:'myDisplay', label:'شاشة العميل', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>'},
-  {id:'reprint', label:'إعادة طباعة', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>'},
+  {id:'drawer', label:'افتح الدرج', icon:RK_ICON.drawer},
+  {id:'refund', label:'استرجع مبلغ', icon:RK_ICON.refund},
+  {id:'reprint', label:'اطبع فاتورة', icon:RK_ICON.print},
+  {id:'waste', label:'سجّل هدر', icon:RK_ICON.waste},
+  {id:'myDisplay', label:'شاشة العميل', icon:RK_ICON.display},
 ];
-const SHIFT_ACTIONS = [
-  {id:'shiftSummary', label:'ملخص الوردية', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg>'},
-  {id:'closeShift', label:'إغلاق الوردية', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'},
-  {id:'reprintClosing', label:'طباعة آخر موازنة', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>'},
-  {id:'settings', label:'إعدادات الطباعة', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'},
-  {id:'diagnostics', label:'تشخيص النظام', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>'}
+const MORE_LINKS = [
+  { title:'الموازنات', items:[
+    {id:'closings', label:'الموازنات', hint:'كل وردية انقفلت · اطبعها من جديد', icon:RK_ICON.doc},
+    {id:'reportSettings', label:'إعدادات الموازنة', hint:'وش يطلع بالورقة · أصناف من المخزون', icon:RK_ICON.sliders},
+  ]},
+  { title:'الطابعة والجهاز', items:[
+    {id:'settings', label:'إعدادات الطباعة', hint:'الطابعة، الورق، وضوح الطباعة', icon:RK_ICON.gear},
+    {id:'diagnostics', label:'تشخيص النظام', hint:'النت، الطابعة، المزامنة — لو فيه مشكلة', icon:RK_ICON.pulse},
+  ]},
 ];
-document.getElementById('moreGridQuick').innerHTML = QUICK_ACTIONS.map(a=>`<button class="more-item" data-action="${a.id}">${a.icon}<span>${a.label}</span></button>`).join('');
-document.getElementById('moreGridShift').innerHTML = SHIFT_ACTIONS.map(a=>`<button class="more-item" data-action="${a.id}">${a.icon}<span>${a.label}</span></button>`).join('');
+(function buildMoreScreen(){
+  const root = document.querySelector('#screen-more .more-scroll');
+  root.innerHTML = `<div class="rk-shift-card" id="moreShiftCard"></div>
+    <div class="more-section-label">وقت الخدمة</div>
+    <div class="more-grid" id="moreGridQuick">${QUICK_ACTIONS.map(a=>`<button class="more-item" data-action="${a.id}">${a.icon}<span>${a.label}</span></button>`).join('')}</div>
+    ${MORE_LINKS.map(g=>`<div class="more-section-label">${g.title}</div>
+      <div class="rk-link-group">${g.items.map(i=>`<button class="rk-link-row" data-action="${i.id}">
+        <span class="rk-link-icon">${i.icon}</span>
+        <span class="rk-link-text"><b>${i.label}</b><small>${i.hint}</small></span>
+        <span class="rk-link-chev">${RK_ICON.chev}</span></button>`).join('')}</div>`).join('')}`;
+})();
+/* بطاقة الوردية: تنرسم كل ما انفتحت «المزيد» (الوردية تتغيّر). */
+function renderMoreShiftCard(){
+  const el = document.getElementById('moreShiftCard'); if(!el) return;
+  if(!CURRENT_SHIFT){
+    el.innerHTML = `<div class="rk-shift-head"><span class="rk-shift-dot off"></span><div><b>ما فيه وردية مفتوحة</b></div></div>`;
+    return;
+  }
+  const since = new Date(CURRENT_SHIFT.opened_at).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'});
+  const who = CURRENT_STAFF_MEMBER && CURRENT_STAFF_MEMBER.name ? ' · مع ' + escapeHtml(CURRENT_STAFF_MEMBER.name) : '';
+  el.innerHTML = `<div class="rk-shift-head"><span class="rk-shift-dot"></span><div><b>الوردية مفتوحة</b><small>من ${since}${who}</small></div></div>
+    <div class="rk-shift-actions">
+      <button class="rk-shift-btn ghost" data-action="shiftSummary">ملخص الوردية</button>
+      <button class="rk-shift-btn main" data-action="closeShift">اقفل الوردية</button>
+    </div>`;
+}
 
 function handleMoreAction(e){
-  const btn = e.target.closest('.more-item'); if(!btn) return;
+  const btn = e.target.closest('[data-action]'); if(!btn) return;
   const id = btn.dataset.action;
   if(posPlanLockedAction(id)) return;
   if(id === 'drawer') openCashDrawer();
   else if(id === 'waste') openWasteModal();
-  else if(id === 'manager') openPinModal();
   /* "مسح باركود" حُذف من "المزيد": كان يمسح بطاقةً ويُلصق صاحبَها بسلّةٍ
      قد تكون فارغة، والكاشير واقفٌ في شاشةٍ غير شاشة الطلب -- فلا يرى
      أثراً لما فعل. والمسحُ نفسُه باقٍ حيث يُفيد: داخل خطوة العميل، وفي
@@ -8991,11 +9056,133 @@ function handleMoreAction(e){
   else if(id === 'settings') resetModalStack(openPosSettingsModal);
   else if(id === 'shiftSummary') resetModalStack(openShiftSummary);
   else if(id === 'closeShift') resetModalStack(openClosingWizard);
-  else if(id === 'reprintClosing') reprintLastClosingReport();
+  else if(id === 'closings') resetModalStack(openClosingsList);
+  else if(id === 'reportSettings') resetModalStack(openShiftReportSettings);
   else if(id === 'diagnostics') resetModalStack(openDiagnosticsModal);
 }
-document.getElementById('moreGridQuick').addEventListener('click', handleMoreAction);
-document.getElementById('moreGridShift').addEventListener('click', handleMoreAction);
+document.querySelector('#screen-more .more-scroll').addEventListener('click', handleMoreAction);
+
+/* ============ «الموازنات» + «إعدادات الموازنة» -- نظير ClosingsScreen.tsx و ShiftReportSettingsScreen.tsx ============ */
+async function openClosingsList(){
+  document.getElementById('paymentModalTitle').textContent = 'الموازنات';
+  paymentModalBody.innerHTML = '<p class="pos-auth-sub">جاري التحميل...</p>';
+  document.getElementById('paymentModal').classList.add('show');
+  const { data, error } = await window.supabaseClient.from('shift_closing_reports')
+    .select('id, shift_id, created_at, orders_count, sales_total, cash_counted, cash_variance')
+    .eq('branch_id', DEVICE.branchId).order('created_at', {ascending:false}).limit(30);
+  if(error){
+    paymentModalBody.innerHTML = `<div class="rk-empty"><b>ما قدرنا نجيب الموازنات</b><p class="pos-auth-sub">تحقق من الاتصال وجرّب مرة ثانية.</p>
+      <button class="confirm-pay-btn" id="closingsRetryBtn">جرّب مرة ثانية</button></div>`;
+    document.getElementById('closingsRetryBtn').onclick = openClosingsList;
+    return;
+  }
+  if(!data || !data.length){
+    paymentModalBody.innerHTML = `<div class="rk-empty"><b>ما فيه موازنات للحين</b><p class="pos-auth-sub">أول ما تقفل وردية، موازنتها تطلع هنا وتقدر تطبعها متى ما بغيت.</p></div>`;
+    return;
+  }
+  paymentModalBody.innerHTML = `<p class="pos-auth-sub" style="margin:0 0 12px;">كل وردية انقفلت بالفرع. اضغط «اطبعها» وتطلع الورقة نفسها.</p>` +
+    data.map((r, i)=>{
+      const v = Math.round((Number(r.cash_variance) || 0) * 100) / 100;
+      const vCls = v === 0 ? 'ok' : Math.abs(v) < 5 ? 'warn' : 'bad';
+      const vTxt = v === 0 ? 'الدرج مضبوط' : v > 0 ? 'زيادة ' + v.toFixed(2) : 'نقص ' + Math.abs(v).toFixed(2);
+      const when = new Date(r.created_at).toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'});
+      return `<div class="rk-closing${i === 0 ? ' latest' : ''}">
+        <div class="rk-closing-top"><div><b>${when}</b>${i === 0 ? '<small>آخر موازنة</small>' : ''}</div>
+          <button class="rk-closing-print" data-closing="${Number(r.id)}">اطبعها</button></div>
+        <div class="rk-closing-stats">
+          <div><b class="mono">${Number(r.orders_count) || 0}</b><small>الطلبات</small></div>
+          <div><b class="mono">${(Number(r.sales_total) || 0).toFixed(2)}</b><small>المبيعات</small></div>
+          <div><b class="mono">${(Number(r.cash_counted) || 0).toFixed(2)}</b><small>بالدرج</small></div>
+        </div>
+        <div class="rk-closing-var ${vCls}">${vTxt}</div>
+      </div>`;
+    }).join('');
+  paymentModalBody.querySelectorAll('[data-closing]').forEach(b=>b.addEventListener('click', async ()=>{
+    b.disabled = true; b.textContent = '...';
+    try { await rkPrintClosingById(Number(b.dataset.closing)); } finally { b.disabled = false; b.textContent = 'اطبعها'; }
+  }));
+}
+
+const RK_REPORT_OPTIONS = [
+  { key:'discounts', title:'الخصومات', hint:'كم انخصم وتفصيل كل خصم' },
+  { key:'refunds', title:'المرتجعات', hint:'المبالغ اللي رجعت للزبائن' },
+  { key:'vat', title:'الضريبة', hint:'ضريبة القيمة المضافة' },
+  { key:'counts', title:'عدد الطلبات والمتوسط', hint:'كم طلب ومتوسط الفاتورة' },
+  { key:'signatures', title:'خانات التوقيع', hint:'توقيع الكاشير والمدير آخر الورقة' },
+];
+async function openShiftReportSettings(){
+  document.getElementById('paymentModalTitle').textContent = 'إعدادات الموازنة';
+  paymentModalBody.innerHTML = '<p class="pos-auth-sub">جاري التحميل...</p>';
+  document.getElementById('paymentModal').classList.add('show');
+  const hasStock = posPlanHas('inventory');
+  const sb = window.supabaseClient;
+  const [optRes, idsRes, stockRes] = await Promise.all([
+    sb.from('businesses').select('shift_report_options').eq('id', DEVICE.businessId).single().then(r=>r, ()=>({})),
+    sb.from('businesses').select('shift_report_stock_items').eq('id', DEVICE.businessId).single().then(r=>r, ()=>({})),
+    hasStock ? sb.from('stock_items').select('id, name, unit').order('name').then(r=>r, ()=>({})) : Promise.resolve({ data: [] }),
+  ]);
+  const opts = Object.assign({}, (optRes && optRes.data && optRes.data.shift_report_options) || SHIFT_REPORT_OPTIONS || {});
+  let picked = ((idsRes && idsRes.data && idsRes.data.shift_report_stock_items) || []).map(Number);
+  const stock = ((stockRes && stockRes.data) || []).map(r=>({ id:Number(r.id), name:String(r.name), unit:r.unit || '' }));
+  const isOn = k => opts[k] !== false;
+  const stockHtml = !hasStock
+    ? `<div class="rk-set-card"><p class="rk-set-note">تطلع بالورقة كم انصرف من أصناف المخزون (مثل البوكسات). متوفرة بباقة عماد 🔒</p></div>`
+    : !stock.length
+      ? `<div class="rk-set-card"><p class="rk-set-note">ما فيه أصناف بالمخزون للحين. أضفها من لوحة التحكم ← المخزون، وبعدها اخترها هنا.</p></div>`
+      : `<p class="rk-set-hint" id="rkStockHint"></p>
+         ${stock.length > 8 ? '<input type="text" class="rk-set-search" id="rkStockSearch" placeholder="دوّر صنف…">' : ''}
+         <div class="rk-chips" id="rkStockChips"></div>`;
+  paymentModalBody.innerHTML = `<p class="pos-auth-sub" style="margin:0;">اختر وش يطلع بورقة الموازنة لما تقفل الوردية.</p>
+    <div class="more-section-label">بالورقة</div>
+    <div class="rk-set-card">${RK_REPORT_OPTIONS.map(o=>`<label class="rk-set-row">
+      <span><b>${o.title}</b><small>${o.hint}</small></span>
+      <input type="checkbox" class="rk-switch" data-opt="${o.key}" ${isOn(o.key) ? 'checked' : ''}></label>`).join('')}</div>
+    <div class="more-section-label">من المخزون</div>
+    ${stockHtml}
+    <div class="more-section-label">رمز المدير</div>
+    <input type="password" class="rk-set-search" id="rkReportPin" inputmode="numeric" maxlength="8" placeholder="اكتب رمز المدير عشان تحفظ" autocomplete="off" style="text-align:center;">
+    <div class="pos-auth-error" id="rkReportErr" style="display:none;"></div>
+    <button class="confirm-pay-btn" id="rkReportSave" style="margin-top:12px;">احفظ</button>`;
+  const chips = document.getElementById('rkStockChips');
+  const drawChips = ()=>{
+    if(!chips) return;
+    const q = ((document.getElementById('rkStockSearch') || {}).value || '').trim();
+    const list = (q ? stock.filter(s=>s.name.includes(q)) : stock).slice().sort((a,b)=>Number(picked.includes(b.id)) - Number(picked.includes(a.id)));
+    chips.innerHTML = list.map(s=>`<button type="button" class="rk-chip${picked.includes(s.id) ? ' on' : ''}" data-stock="${s.id}">${picked.includes(s.id) ? '✓ ' : ''}${escapeHtml(s.name)}${s.unit ? ` <small>${escapeHtml(s.unit)}</small>` : ''}</button>`).join('');
+    document.getElementById('rkStockHint').textContent = picked.length ? `مختار ${picked.length} — تطلع بالورقة «كم انصرف بالوردية»` : 'اختر الأصناف اللي تبي تعرف كم انصرف منها بالوردية';
+  };
+  drawChips();
+  if(chips) chips.addEventListener('click', e=>{
+    const b = e.target.closest('[data-stock]'); if(!b) return;
+    const id = Number(b.dataset.stock);
+    if(picked.includes(id)) picked = picked.filter(x=>x !== id);
+    else if(picked.length >= 20){ showToast('أقصى شي ٢٠ صنف'); return; }
+    else picked.push(id);
+    drawChips();
+  });
+  const search = document.getElementById('rkStockSearch'); if(search) search.addEventListener('input', drawChips);
+  const pinEl = document.getElementById('rkReportPin');
+  pinEl.addEventListener('input', ()=>{ pinEl.value = toWesternDigits(pinEl.value).replace(/[^0-9]/g, ''); });
+  document.getElementById('rkReportSave').addEventListener('click', async ()=>{
+    const err = document.getElementById('rkReportErr'); err.style.display = 'none';
+    const pin = pinEl.value;
+    if(pin.length < 4){ err.textContent = 'اكتب رمز المدير'; err.style.display = 'block'; pinEl.focus(); return; }
+    paymentModalBody.querySelectorAll('[data-opt]').forEach(c=>{ opts[c.dataset.opt] = c.checked; });
+    const btn = document.getElementById('rkReportSave'); btn.disabled = true; btn.textContent = 'جاري الحفظ...';
+    const { error } = await sb.rpc('pos_set_shift_report_settings', { p_pin: pin, p_options: opts, p_stock_items: picked });
+    btn.disabled = false; btn.textContent = 'احفظ';
+    if(error){
+      const m = String(error.message || '');
+      err.textContent = /PGRST202|could not find the function/i.test((error.code || '') + ' ' + m) ? 'هالميزة تحتاج تحديث بسيط بالنظام. كلّم الدعم'
+        : /[؀-ۿ]/.test(m) ? m : 'تعذّر الحفظ — تحقق من الاتصال';
+      err.style.display = 'block';
+      return;
+    }
+    SHIFT_REPORT_OPTIONS = opts;
+    closePaymentModalNow();
+    showToast('انحفظت إعدادات الموازنة');
+  });
+}
 
 /* ============ Settings — real device/branch/session info, no fake config options ============ */
 function openPosSettingsModal(){
@@ -9370,12 +9557,30 @@ let closingCloserId = null, closingStaffList = [], closingCloserPickOpen = false
 // "open" session to return to). Reprints the most recent one for this
 // branch, whenever, no manager PIN needed — it's just re-outputting data
 // that was already produced and approved, not a new sensitive action.
+/* كم انصرف من أصناف المخزون المختارة بطلبات الوردية. [] لو ما فيه أو قبل
+   الترحيل. نظيرها: getShiftStockUsage بالتطبيق. */
+async function rkShiftStockUsage(shiftId){
+  try {
+    const { data, error } = await window.supabaseClient.rpc('rk_shift_stock_usage', { p_shift_id: shiftId });
+    if(error || !Array.isArray(data)) return [];
+    return data.map(r => ({ name: String(r.name), unit: r.unit || null, used: Number(r.used) || 0 }));
+  } catch(_) { return []; }
+}
 async function reprintLastClosingReport(){
   showToast('جاري البحث عن آخر موازنة...');
   const { data, error } = await window.supabaseClient
     .from('shift_closing_reports').select('*')
     .eq('branch_id', DEVICE.branchId).order('created_at', {ascending:false}).limit(1).maybeSingle();
   if(error || !data){ showToast('ما فيه موازنة سابقة مسجلة لهذا الفرع'); return; }
+  await rkPrintClosingRow(data);
+}
+async function rkPrintClosingById(id){
+  showToast('جاري تجهيز الموازنة...');
+  const { data, error } = await window.supabaseClient.from('shift_closing_reports').select('*').eq('id', id).maybeSingle();
+  if(error || !data){ showToast('ما لقيت هالموازنة — جرّب مرة ثانية'); return; }
+  await rkPrintClosingRow(data);
+}
+async function rkPrintClosingRow(data){
   let report;
   if(data.report && typeof data.report === 'object'){
     // محفوظة كاملة وقت الإغلاق: نفس الورقة بالضبط.
@@ -9399,7 +9604,8 @@ async function reprintLastClosingReport(){
       const { data: sh } = await window.supabaseClient.from('shifts')
         .select('id, opening_cash, opened_at').eq('id', data.shift_id).maybeSingle();
       if(sh){
-        const t = await loadShiftData(sh);
+        const [t, stockLines] = await Promise.all([loadShiftData(sh), rkShiftStockUsage(sh.id)]);
+        report.stockLines = stockLines;
         Object.assign(report, {
           grossSales: t.grossSales, discountsTotal: t.discountsTotal, discountBreakdown: t.discountBreakdown,
           refundsTotal: t.refundsTotal, refundsCount: t.refundsCount, vatTotal: t.vatTotal, netSales: t.netSales,
@@ -9411,7 +9617,7 @@ async function reprintLastClosingReport(){
   }
   showToast('جاري الطباعة...');
   const result = await sendShiftReportToPrinter(report);
-  if(result.ok) showToast('تمت طباعة آخر موازنة');
+  if(result.ok) showToast('راحت الموازنة للطابعة');
   else if(result.error === 'bridge_unavailable') showToast('افتح الكاشير من تطبيق APK المثبّت أولاً');
   else if(result.error === 'no_printer_configured') showToast('احفظ عنوان IP للطابعة أولاً');
   else showToast('تعذر الاتصال بالطابعة — تحقق من العنوان والشبكة');
@@ -9519,7 +9725,9 @@ function renderClosingWizard(){
             }).eq('id', CURRENT_SHIFT.id);
           if(error) throw error;
 
+          const stockLines = await rkShiftStockUsage(CURRENT_SHIFT.id);
           const report = {
+            stockLines,
             businessName: DEVICE.businessName || 'ركين', branchName: DEVICE.branchName || '',
             dateLabel: new Date().toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
             staffName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : 'بدون اسم',
@@ -10839,9 +11047,53 @@ function showStaleShiftScreen(shift){
   });
 }
 
+/* «أرقام الطلبات تبدأ من #N · غيّر» -- مطوي، وبس للمحل المفعّل له رقم خاص.
+   الجهاز يتذكّر آخر رقم اختاره. التطبيق: OpenShiftScreen.tsx */
+const RK_ORDER_NO_START_KEY = 'rk_order_no_start';
+function rkSavedOrderNoStart(){
+  try { const n = Number(localStorage.getItem(RK_ORDER_NO_START_KEY)); return n >= 1 && n <= 9999 ? n : 1; } catch(_) { return 1; }
+}
+function rkRenderOrderNoStartRow(){
+  const err = document.getElementById('openShiftError');
+  let box = document.getElementById('openShiftStartBox');
+  if(!box){
+    box = document.createElement('div');
+    box.id = 'openShiftStartBox';
+    err.parentNode.insertBefore(box, err);
+  }
+  if(!rkNumbersOn()){ box.innerHTML = ''; box.dataset.on = ''; return; }
+  box.dataset.on = '1';
+  const n = rkSavedOrderNoStart();
+  box.innerHTML = `<button type="button" class="rk-start-row" id="openShiftStartRow">
+      <span>أرقام الطلبات تبدأ من <b class="mono">#${n}</b></span><span class="rk-start-link">غيّر</span>
+    </button>
+    <div class="pos-auth-field hidden" id="openShiftStartField">
+      <label>أول رقم طلب بالوردية</label>
+      <input type="text" id="openShiftStartInput" inputmode="numeric" maxlength="4" value="${n}" style="text-align:center;">
+      <div class="rk-start-hint">أول فاتورة تطلع بهالرقم، والبعدها تكمّل منه</div>
+    </div>`;
+  document.getElementById('openShiftStartRow').addEventListener('click', ()=>{
+    document.getElementById('openShiftStartRow').classList.add('hidden');
+    document.getElementById('openShiftStartField').classList.remove('hidden');
+    const i = document.getElementById('openShiftStartInput'); i.focus(); i.select();
+  });
+  document.getElementById('openShiftStartInput').addEventListener('input', e=>{
+    e.target.value = toWesternDigits(e.target.value).replace(/[^0-9]/g, '').slice(0, 4);
+  });
+}
+function rkReadOrderNoStart(){
+  const box = document.getElementById('openShiftStartBox');
+  if(!box || box.dataset.on !== '1') return { ok: true, value: null };
+  const i = document.getElementById('openShiftStartInput');
+  const n = Number((i && i.value) || '1');
+  if(!(Number.isInteger(n) && n >= 1 && n <= 9999)) return { ok: false };
+  try { localStorage.setItem(RK_ORDER_NO_START_KEY, String(n)); } catch(_) {}
+  return { ok: true, value: n };
+}
 function showOpenShiftScreen(){
   document.getElementById('openShiftCashInput').value = '';
   document.getElementById('openShiftError').style.display = 'none';
+  rkRenderOrderNoStartRow();
   showAuthScreen('posOpenShiftScreen');
 }
 
@@ -10855,14 +11107,25 @@ document.getElementById('openShiftSubmitBtn').addEventListener('click', async ()
   // this is the belt behind it (STAFF_PICKED_THIS_SESSION also covers the
   // legitimate "branch has no staff yet → بدون اسم" path).
   if(!STAFF_PICKED_THIS_SESSION){ errEl.textContent = 'اختر اسم الموظف أول.'; errEl.style.display = 'block'; showStaffPick(); return; }
+  const start = rkReadOrderNoStart();
+  if(!start.ok){
+    errEl.textContent = 'أول رقم طلب: من ١ إلى ٩٩٩٩'; errEl.style.display = 'block';
+    const r = document.getElementById('openShiftStartRow'); if(r) r.click();
+    return;
+  }
   try {
-    const { data, error } = await window.supabaseClient.from('shifts').insert({
+    const row = {
       business_id: CURRENT_PROFILE.business_id,
       branch_id: DEVICE.branchId,
       cashier_id: CURRENT_PROFILE.id,
       staff_member_id: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.id : null,
       opening_cash: openingCash
-    }).select().single();
+    };
+    const withStart = start.value != null && start.value > 1 ? Object.assign({ order_no_start: start.value }, row) : row;
+    let { data, error } = await window.supabaseClient.from('shifts').insert(withStart).select().single();
+    // قبل ترحيل 20261116140000 العمود ما يوجد: تنفتح الوردية بدون الرقم.
+    if(error && withStart !== row && /order_no_start/.test(String(error.message || '')))
+      ({ data, error } = await window.supabaseClient.from('shifts').insert(row).select().single());
     if(error){
       /* 23505: للفرع وردية مفتوحة أصلاً -- فتحها جهاز ثانٍ قبل لحظة أو ضُغط
          الزر مرتين. هذا الجهاز ينضمّ لها، ورصيدها الافتتاحي ما كتبه من فتحها. */
@@ -11302,7 +11565,7 @@ async function bootPos(){
     subscribeToTableChanges();
   }
   subscribeToShiftClosed();
-  rkRefillOrderNumberPool(DEVICE.branchId);
+  rkSyncOrderPoolShift(DEVICE.branchId, CURRENT_SHIFT ? CURRENT_SHIFT.id : null);
   subscribeToOrderReadyAlerts();
   subscribeToIncomingOnlineOrders();
   subscribeToOrdersLiveSync();

@@ -1000,3 +1000,84 @@ body.kb-open .pos-auth-card:focus-within .pos-auth-title { font-size: 21px; marg
 .rk-pending-row[open] .rk-pending-toggle { opacity: .6; }
 .rk-pending-row ul { margin: 0 0 8px; padding-inline-start: 70px; font-size: 13.5px; line-height: 1.8; }
 .order-row-title .rk-was { color: var(--amber, #b7791f); font-weight: 800; margin-inline-start: 6px; }
+
+/* ── «المزيد» الجديد: بطاقة الوردية + صفوف بعنوان وسطر (نظير MoreScreen بالتطبيق) ── */
+.rk-shift-card { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--r-lg, 24px); padding: 18px; display: flex; flex-direction: column; gap: 16px; }
+.rk-shift-head { display: flex; align-items: center; gap: 12px; }
+.rk-shift-head b { display: block; font-size: 17px; font-weight: 800; }
+.rk-shift-head small { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
+.rk-shift-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--lime); border: 2px solid var(--lime-deep); flex: none; }
+.rk-shift-dot.off { background: var(--surf2); border-color: var(--line); }
+.rk-shift-actions { display: flex; gap: 10px; }
+.rk-shift-btn { flex: 1; height: 48px; border-radius: 14px; font-weight: 800; font-size: 14px; font-family: inherit; cursor: pointer; }
+.rk-shift-btn.ghost { background: var(--surf1); border: 1px solid var(--line); color: var(--text); }
+.rk-shift-btn.main { background: var(--graphite); border: 0; color: var(--lime); }
+[data-theme="dark"] .rk-shift-btn.main { background: var(--lime); color: var(--graphite); }
+#screen-more .more-section-label { margin-top: 24px; }
+.rk-link-group { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--r-lg, 24px); padding: 0 14px; }
+.rk-link-row { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 14px 0; background: none; border: 0; border-bottom: 1px solid var(--line); color: var(--text); font-family: inherit; text-align: start; cursor: pointer; }
+.rk-link-row:last-child { border-bottom: 0; }
+.rk-link-icon { width: 38px; height: 38px; border-radius: 11px; background: var(--surf1); display: inline-flex; align-items: center; justify-content: center; flex: none; color: var(--lime-deep); }
+[data-theme="dark"] .rk-link-icon { color: var(--lime); }
+.rk-link-icon svg { width: 20px; height: 20px; }
+.rk-link-text { flex: 1; min-width: 0; }
+.rk-link-text b { display: block; font-size: 15px; font-weight: 800; }
+.rk-link-text small { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.rk-link-chev { color: var(--muted); display: inline-flex; }
+
+/* ── أول رقم طلب بفتح الوردية ── */
+.rk-start-row { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 12px; background: var(--surf1); border: 0; color: var(--muted); font-family: inherit; font-size: 13px; margin-bottom: 12px; cursor: pointer; }
+.rk-start-row b { color: var(--text); }
+.rk-start-link { font-weight: 800; color: var(--lime-deep); }
+[data-theme="dark"] .rk-start-link { color: var(--lime); }
+.rk-start-hint { font-size: 12px; color: var(--muted); margin-top: 6px; text-align: center; }
+
+/* ── «الموازنات» ── */
+.rk-empty { text-align: center; padding: 24px 8px; }
+.rk-empty b { font-size: 16px; font-weight: 800; }
+.rk-empty .confirm-pay-btn { margin-top: 14px; }
+.rk-closing { background: var(--card-bg); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 12px; }
+.rk-closing.latest { border-color: var(--text); }
+.rk-closing-top { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
+.rk-closing-top b { font-size: 14px; font-weight: 800; display: block; }
+.rk-closing-top small { font-size: 11px; font-weight: 800; color: var(--lime-deep); }
+[data-theme="dark"] .rk-closing-top small { color: var(--lime); }
+.rk-closing-print { min-width: 84px; height: 40px; border-radius: 12px; background: var(--lime); color: var(--graphite); border: 0; font-weight: 800; font-size: 14px; font-family: inherit; cursor: pointer; }
+.rk-closing-print:disabled { opacity: .5; }
+.rk-closing-stats { display: flex; gap: 8px; }
+.rk-closing-stats div { flex: 1; background: var(--surf1); border-radius: 10px; padding: 10px 4px; text-align: center; }
+.rk-closing-stats b { display: block; font-size: 16px; }
+.rk-closing-stats small { font-size: 11px; color: var(--muted); }
+.rk-closing-var { font-size: 13px; font-weight: 800; }
+.rk-closing-var.ok { color: var(--lime-deep); }
+[data-theme="dark"] .rk-closing-var.ok { color: var(--lime); }
+.rk-closing-var.warn { color: var(--amber); }
+.rk-closing-var.bad { color: var(--danger); }
+
+/* ── «إعدادات الموازنة» ── */
+.rk-set-card { background: var(--card-bg); border: 1px solid var(--line); border-radius: 16px; padding: 0 16px; }
+.rk-set-row { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.rk-set-row:last-child { border-bottom: 0; }
+.rk-set-row > span { flex: 1; }
+.rk-set-row b { display: block; font-size: 15px; font-weight: 800; }
+.rk-set-row small { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.rk-set-note { font-size: 13px; color: var(--muted); padding: 16px 0; margin: 0; line-height: 1.6; }
+.rk-set-hint { font-size: 13px; margin: 0 0 10px; }
+.rk-set-search { width: 100%; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--card-bg); color: var(--text); padding: 0 14px; font-family: inherit; font-size: 15px; margin-bottom: 10px; box-sizing: border-box; }
+.rk-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.rk-chip { min-height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid var(--line); background: var(--card-bg); color: var(--text); font-weight: 800; font-size: 13px; font-family: inherit; cursor: pointer; }
+.rk-chip small { color: var(--muted); font-weight: 600; }
+.rk-chip.on { background: var(--lime); border-color: var(--lime); color: var(--graphite); }
+.rk-chip.on small { color: var(--graphite); }
+.rk-switch { appearance: none; -webkit-appearance: none; width: 46px; height: 28px; border-radius: 14px; background: var(--surf2); position: relative; cursor: pointer; flex: none; transition: background .15s; margin: 0; }
+.rk-switch::after { content: ''; position: absolute; top: 3px; inset-inline-start: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: inset-inline-start .15s; }
+.rk-switch:checked { background: var(--lime); }
+.rk-switch:checked::after { inset-inline-start: 21px; }
+@media (prefers-reduced-motion: reduce) { .rk-switch, .rk-switch::after { transition: none; } }
+/* الجوال: مربعان بالصف بدل واحد طويل، وهامش ١٦ */
+@media (max-width: 600px) {
+  #screen-more .more-scroll { padding-inline: 16px; }
+  #screen-more .more-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  #screen-more .more-item { padding: 18px 10px; }
+}
+#rkReportPin:not(:placeholder-shown) { letter-spacing: 6px; }

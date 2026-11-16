@@ -1085,6 +1085,16 @@ var RakeenReceiptEngine = (() => {
       ctx.rowText(String(report.ordersCount), "عدد الطلبات · Orders", SHIFT.counts, false);
       ctx.rowText(money(report.avgTicket), "متوسط الفاتورة · Avg ticket", SHIFT.counts, false);
     }
+    const stock = (report.stockLines || []).filter((l) => l && l.name);
+    if (stock.length) {
+      ctx.rule(SHIFT_SPACE.afterRule);
+      ctx.centerText("من المخزون · Stock used", SHIFT.sectionLabel, true);
+      for (const l of stock) {
+        const n = Number(l.used) || 0;
+        const qty = (Math.round(n * 100) / 100).toString() + (l.unit ? " " + l.unit : "");
+        ctx.rowText(qty, l.name, SHIFT.row, false);
+      }
+    }
     if (on("signatures")) {
       ctx.rule(SHIFT_SPACE.afterRule);
       ctx.y += ctx.gap(SHIFT_SPACE.aroundSignature);

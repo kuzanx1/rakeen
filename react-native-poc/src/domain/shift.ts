@@ -189,6 +189,12 @@ export function computeShiftTotals(
 }
 
 /** What the closing wizard compares and what gets filed as the report. */
+export interface StockLine {
+  name: string;
+  unit?: string | null;
+  used: number;
+}
+
 export interface ClosingReport {
   businessName: string;
   branchName: string;
@@ -216,6 +222,8 @@ export interface ClosingReport {
   shiftStart?: string;
   /** ما يظهر في الورقة وما لا يظهر. الغياب يعني أظهر. */
   options?: Record<string, boolean>;
+  /** أصناف مخزون اختارها صاحب المحل: كم انصرف منها بالوردية. */
+  stockLines?: StockLine[];
   /** Non-sale cash movements, printed as their own lines so the expected
    *  figure on the slip can be reconstructed by whoever reads it. */
   cashIn: number;
