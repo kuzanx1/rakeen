@@ -2300,6 +2300,7 @@ document.getElementById('opCancelTableBtn').addEventListener('click', async ()=>
   }
 });
 function renderOrder(){
+  rkSyncCouponGift();
   // الشريط والزرّ يتبعان السلة: حذفُ سطرٍ مجاني يُعيد رصيداً، والشريط
   // هو الذي يقول ذلك -- فلا يُحدَّث عند اختيار العميل وحده.
   rkMountCustomerButton();
@@ -2385,7 +2386,8 @@ function renderOrder(){
   const {subtotal, discount, vat, total} = cartTotals();
   let summaryHtml = `<div class="sum-row"><span>${t('عدد الأصناف')}</span><span class="mono">${state.cart.reduce((s,i)=>s+i.qty,0)}</span></div>
     <div class="sum-row"><span>${t('المجموع الفرعي')}</span>${rkMoney(subtotal)}</div>`;
-  if(discount > 0) summaryHtml += `<div class="sum-row discount"><span>${LANG==='en' ? `Discount (${rkDiscountLabel(true)})` : `خصم (${rkDiscountLabel()})`}</span>${rkMoney(-discount)}</div>`;
+  const giftName = rkCouponGiftName();
+  if(discount > 0) summaryHtml += `<div class="sum-row discount"><span>${giftName ? (LANG==='en' ? `Gift: ${escapeHtml(giftName)}` : `هدية: ${escapeHtml(giftName)}`) : LANG==='en' ? `Discount (${rkDiscountLabel(true)})` : `خصم (${rkDiscountLabel()})`}</span>${rkMoney(-discount)}</div>`;
   summaryHtml += `<div class="sum-row"><span>${t('ضريبة القيمة المضافة')}${PRICES_INCLUDE_VAT ? ' ' + t('(شاملة ضمن الإجمالي)') : ''}</span>${rkMoney(vat)}</div>
     <div class="sum-row total"><span>${t('الإجمالي')}</span>${rkMoney(total)}</div>`;
   document.getElementById('orderSummary').innerHTML = summaryHtml;
@@ -2460,8 +2462,16 @@ function rkDiscountLabel(en){
 }
 /** طلب طاولة يمرّ على register_dine_in_order (بعد الأكل وقبله): خصمه بالنسبة. */
 function rkTableOrderSelected(){ return !!(state.selectedTableId && state.orderChannel === 'dine_in'); }
+/* كوبون «منتج مجاني»: اسم الهدية من السبب («كوبون CODE · هدية: كوكيز» ← كوكيز). */
+function rkCouponGiftName(){
+  const r = String(state.discountReason || ''), i = r.indexOf(' · هدية: ');
+  return i >= 0 ? r.slice(i + ' · هدية: '.length) : '';
+}
 function syncDiscountToggleLabel(){
-  document.getElementById('discountToggle').textContent = (state.discountPct > 0 || state.discountFixed > 0)
+  const gift = rkCouponGiftName();
+  document.getElementById('discountToggle').textContent = gift && state.discountFixed > 0
+    ? (LANG === 'en' ? `🎁 ${gift} free` : `🎁 ${gift} مجاناً`)
+    : (state.discountPct > 0 || state.discountFixed > 0)
     ? (LANG === 'en' ? `Discount ${rkDiscountLabel(true)} active` : `خصم ${rkDiscountLabel()} مفعّل`)
     : (LANG === 'en' ? '+ Discount' : '+ خصم');
 }
@@ -2535,23 +2545,41 @@ function discountCapText(){
 /* كوبون يعطيه العميل للكاشير: check_coupon يتحقق ويرجّع الخصم، ويُطبَّق
    خصماً عادياً سببه «كوبون CODE» -- ومنه ينعدّ الاستخدام في القاعدة لما
    يوصل الطلب (20261115160000_discount_amount_and_coupons.sql).
-   التطبيق: couponService.ts. */
+   التطبيق: couponService.ts.
+   «منتج مجاني» (kind = 'item'، 20261116180000_coupon_free_item.sql): المنتج
+   ينضاف للسلة وسعره هو الخصم، والسبب «كوبون CODE · هدية: الاسم» -- يطلع
+   بالموازنة والتقارير. لو انشال المنتج، الخصم ينشال (rkSyncCouponGift). */
 const RK_COUPON_PREFIX = 'كوبون ';
+const RK_COUPON_GIFT_MARK = ' · هدية: ';
+function rkCouponCodeFromReason(r){ r = String(r || ''); return r.startsWith(RK_COUPON_PREFIX) ? r.slice(RK_COUPON_PREFIX.length).split(' ')[0] : ''; }
+/* المنتج المجاني انشال من السلة؟ الخصم ينشال معه. ينادى من renderOrder. */
+function rkSyncCouponGift(){
+  if(state.couponGiftId == null) return;
+  if(!String(state.discountReason || '').includes(RK_COUPON_GIFT_MARK)){ state.couponGiftId = null; return; }
+  if(!state.cart.some(i => i.productId === state.couponGiftId && !i.isFreeReward && !i.isPointsRedemption)){
+    state.discountPct = 0; state.discountFixed = 0; state.discountReason = ''; state.couponGiftId = null;
+    try { syncDiscountToggleLabel(); } catch(_) {}
+  }
+}
 function rkNormalizeCoupon(v){ return toWesternDigits(String(v || '')).toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 20); }
 async function rkCheckCoupon(code, subtotal){
   const clean = rkNormalizeCoupon(code);
-  const base = { ok: false, reason: '', code: clean, kind: 'pct', pct: 0, amount: 0, discount: 0 };
+  const base = { ok: false, reason: '', code: clean, kind: 'pct', pct: 0, amount: 0, discount: 0, itemId: null, itemName: '' };
   if(clean.length < 3) return { ...base, reason: 'اكتب كود الكوبون' };
   try {
-    const { data, error } = await window.supabaseClient.rpc('check_coupon', { p_code: clean, p_subtotal: subtotal });
+    // p_items_ok: الويب يعرف يضيف المنتج المجاني. قاعدة قبل التحديث ما تعرفه.
+    let { data, error } = await window.supabaseClient.rpc('check_coupon', { p_code: clean, p_subtotal: subtotal, p_items_ok: true });
+    if(error && /PGRST202|42883|could not find the function/i.test((error.code||'') + ' ' + (error.message||'')))
+      ({ data, error } = await window.supabaseClient.rpc('check_coupon', { p_code: clean, p_subtotal: subtotal }));
     if(error) return { ...base, reason: /PGRST202|42883|could not find the function/i.test((error.code||'') + ' ' + (error.message||'')) ? 'الكوبونات لسا ما تفعّلت عندكم' : 'تعذّر التحقق — تأكد من النت' };
     const r = Array.isArray(data) ? data[0] : data;
     if(!r) return { ...base, reason: 'الكوبون غير صحيح' };
-    return { ok: r.r_ok === true, reason: r.r_reason || '', code: r.r_code || clean, kind: r.r_kind === 'amount' ? 'amount' : 'pct',
-      pct: Number(r.r_pct || 0), amount: Number(r.r_amount || 0), discount: Number(r.r_discount || 0) };
+    return { ok: r.r_ok === true, reason: r.r_reason || '', code: r.r_code || clean, kind: r.r_kind === 'amount' ? 'amount' : r.r_kind === 'item' ? 'item' : 'pct',
+      pct: Number(r.r_pct || 0), amount: Number(r.r_amount || 0), discount: Number(r.r_discount || 0),
+      itemId: r.r_item_id != null ? Number(r.r_item_id) : null, itemName: r.r_item_name || '' };
   } catch(_) { return { ...base, reason: 'تعذّر التحقق — تأكد من النت' }; }
 }
-function rkCouponLabel(q){ return q.kind === 'amount' ? Number(q.amount.toFixed(2)) + ' ﷼' : q.pct + '٪'; }
+function rkCouponLabel(q){ return q.kind === 'item' ? q.itemName + ' ' + t('مجاناً') : q.kind === 'amount' ? Number(q.amount.toFixed(2)) + ' ﷼' : q.pct + '٪'; }
 
 function openDiscountModal(){
   const fixed = state.discountFixed > 0;
@@ -2570,7 +2598,7 @@ function openDiscountModal(){
   };
   if((state.discountReason || '').startsWith(RK_COUPON_PREFIX)){
     discountModalState.mode = 'coupon';
-    discountModalState.couponText = state.discountReason.slice(RK_COUPON_PREFIX.length);
+    discountModalState.couponText = rkCouponCodeFromReason(state.discountReason);
   }
   renderDiscountModalBody();
   discountModal.classList.add('show');
@@ -2591,7 +2619,7 @@ function discountModalEffectiveAmount(){
   const v = discountModalState.customMode ? (parseFloat(toWesternDigits(discountModalState.customPct)) || 0) : discountModalState.amount;
   return Math.max(0, Math.round(v * 100) / 100);
 }
-function discountModalCouponBlocked(){ const q = discountModalState.quote; return !!(q && q.ok && q.kind === 'amount' && rkTableOrderSelected()); }
+function discountModalCouponBlocked(){ const q = discountModalState.quote; return !!(q && q.ok && q.kind !== 'pct' && rkTableOrderSelected()); }
 function discountModalConfirmText(){
   const s = discountModalState;
   if(s.mode === 'coupon') return s.quote && s.quote.ok && !discountModalCouponBlocked() ? `${t('تطبيق الكوبون')} — ${rkCouponLabel(s.quote)}` : t('تحقق من الكوبون أول');
@@ -2734,9 +2762,21 @@ function renderDiscountModalBody(){
     if(!discountModalReady()) return;
     if(discountModalState.mode === 'coupon'){
       const q = discountModalState.quote;
-      if(q.kind === 'amount'){ state.discountFixed = q.amount; state.discountPct = 0; }
+      if(q.kind === 'amount' || q.kind === 'item'){ state.discountFixed = q.amount; state.discountPct = 0; }
       else { state.discountPct = q.pct; state.discountFixed = 0; }
       state.discountReason = RK_COUPON_PREFIX + q.code; // منه ينعدّ الاستخدام
+      state.couponGiftId = null;
+      if(q.kind === 'item' && q.itemId != null){
+        // المنتج بإعداداته الافتراضية، سطر عادي (مو مكافأة ولاء)، وسعره هو الخصم.
+        const product = PRODUCTS.find(p => p.id === q.itemId);
+        if(!product){ state.discountFixed = 0; state.discountReason = ''; showToast(t('المنتج حق الكوبون مو بالقائمة')); discountModal.classList.remove('show'); renderOrder(); syncDiscountToggleLabel(); return; }
+        const modDef = MODIFIER_PRODUCTS[product.id];
+        const config = !modDef ? null : modDef.isBox ? {selections:{}} : buildDefaultConfig(modDef);
+        const existing = state.cart.find(i => i.productId === product.id && configsEqual(i.config, config) && !i.isFreeReward && !i.isPointsRedemption);
+        if(existing) existing.qty += 1; else state.cart.push({lineId: lineIdCounter++, productId: product.id, qty: 1, note: '', config});
+        state.discountReason += RK_COUPON_GIFT_MARK + q.itemName;
+        state.couponGiftId = product.id;
+      }
       renderOrder();
       syncDiscountToggleLabel();
       discountModal.classList.remove('show');

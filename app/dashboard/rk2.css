@@ -1715,3 +1715,7 @@ button.mn-stat{cursor:pointer;}
 [data-theme="dark"] .nav-theme .icon-dark{display:none;}
 [data-theme="dark"] .nav-theme .icon-light{display:flex;}
 .sidebar.collapsed .nav-theme{display:none;}
+/* كوبون «منتج مجاني»: اختيار المنتج بدل خانة الرقم */
+.rk2 .dc-edit .dc-f-item{display:none;}
+.rk2 .dc-edit[data-kind="item"] .dc-f-item{display:block;}
+.rk2 .dc-edit[data-kind="item"] .dc-f-value{display:none;}

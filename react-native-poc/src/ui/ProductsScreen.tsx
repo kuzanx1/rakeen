@@ -44,6 +44,7 @@ import { useCart } from './useCart';
 import { getCachedPosBootstrap, hydratePosBootstrap, loadPosBootstrap, PosBootstrap } from '../application/posBootstrap';
 import ModifierModal from './ModifierModal';
 import DiscountModal, { discountLabel } from './DiscountModal';
+import { COUPON_GIFT_MARK } from '../application/couponService';
 import PaymentModal from './PaymentModal';
 import { TrialBanner, TrialEndedModal, useTrialStatus } from './TrialNotice';
 import UpdateBanner from './UpdateBanner';
@@ -387,6 +388,8 @@ export default function ProductsScreen({
 
   /** Opens DiscountModal -- replaces the old inline `.discount-panel` row. */
   const [discountModalOpen, setDiscountModalOpen] = useState(false);
+  /** المنتج المجاني من كوبون: لو انشال من السلة، الخصم ينشال معه. */
+  const [couponGiftId, setCouponGiftId] = useState<number | null>(null);
 
   /** Which line currently has its .oi-note-input revealed. The source
    *  tracks this in the DOM by toggling `.open` on that one input; a
@@ -639,6 +642,25 @@ export default function ProductsScreen({
     financial.pricesIncludeVat,
   );
 
+  // كوبون «منتج مجاني»: انشال المنتج من السلة (أو انمسحت بعد البيع)؟ الخصم
+  // ينشال معه، وإلا انخصم سعره من طلب ما فيه.
+  const { setDiscountFixed, setDiscountPct, setDiscountReason } = cart;
+  /** اسم الهدية من السبب («كوبون CODE · هدية: كوكيز» ← كوكيز). */
+  const giftIdx = cart.discountReason.indexOf(COUPON_GIFT_MARK);
+  const giftName = giftIdx >= 0 ? cart.discountReason.slice(giftIdx + COUPON_GIFT_MARK.length) : '';
+  useEffect(() => {
+    if (couponGiftId == null) return;
+    if (!cart.discountReason.includes(COUPON_GIFT_MARK)) {
+      setCouponGiftId(null);
+      return;
+    }
+    if (!cart.cart.some(l => l.productId === couponGiftId && !l.isFreeReward && !l.isPointsRedemption)) {
+      setDiscountFixed(0);
+      setDiscountPct(0);
+      setDiscountReason('');
+      setCouponGiftId(null);
+    }
+  }, [cart.cart, cart.discountReason, couponGiftId, setDiscountFixed, setDiscountPct, setDiscountReason]);
 
   /** #lastTxReprint. It used to be a toast and nothing more, as in the
    *  web cashier, so «إعادة طباعة» said «تمت» and printed nothing. The
@@ -1867,7 +1889,9 @@ export default function ProductsScreen({
               onPress={() => setDiscountModalOpen(true)}
               activeOpacity={0.8}>
               <Text style={styles.discountToggleText}>
-                {cart.discountPct > 0 || cart.discountFixed > 0
+                {giftName && cart.discountFixed > 0
+                  ? `🎁 ${giftName} مجاناً`
+                  : cart.discountPct > 0 || cart.discountFixed > 0
                   ? `خصم ${discountLabel(cart.discountPct, cart.discountFixed)} مفعّل`
                   : t('+ خصم')}
               </Text>
@@ -1914,7 +1938,7 @@ export default function ProductsScreen({
               // .sum-row.discount -- the label carries the percentage,
               // and the figure is NEGATIVE (`rkMoney(-discount)`).
               <View style={styles.totalsRow}>
-                <Text style={styles.totalsLabel}>{`خصم (${discountLabel(cart.discountPct, cart.discountFixed)})`}</Text>
+                <Text style={styles.totalsLabel}>{giftName ? `هدية: ${giftName}` : `خصم (${discountLabel(cart.discountPct, cart.discountFixed)})`}</Text>
                 <Money value={-cart.totals.discount} size={11.5} color={colors.accentText} />
               </View>
             )}
@@ -2091,10 +2115,19 @@ export default function ProductsScreen({
         fixedAllowed={!registerMode}
         subtotal={cart.totals.subtotal}
         onClose={() => setDiscountModalOpen(false)}
-        onConfirm={(pct, reason, fixed) => {
+        onConfirm={(pct, reason, fixed, gift) => {
           cart.setDiscountPct(fixed > 0 ? 0 : pct);
           cart.setDiscountFixed(fixed > 0 ? fixed : 0);
           cart.setDiscountReason(reason);
+          // كوبون «منتج مجاني»: المنتج ينضاف بإعداداته الافتراضية، وسعره هو الخصم.
+          if (gift) {
+            const modDef = catalog?.modifiersByProductId[gift.productId];
+            if (modDef) cart.addWithConfig(gift.productId, buildDefaultConfig(modDef), 1);
+            else cart.addProduct(gift.productId);
+            setCouponGiftId(gift.productId);
+          } else {
+            setCouponGiftId(null);
+          }
         }}
       />
     </View>

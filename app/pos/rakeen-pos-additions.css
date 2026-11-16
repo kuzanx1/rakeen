@@ -1026,7 +1026,7 @@ body.kb-open .pos-auth-card:focus-within .pos-auth-title { font-size: 21px; marg
 .rk-link-chev { color: var(--muted); display: inline-flex; }
 
 /* ── أول رقم طلب بفتح الوردية ── */
-.rk-start-row { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 12px; background: var(--surf1); border: 0; color: var(--muted); font-family: inherit; font-size: 13px; margin-bottom: 12px; cursor: pointer; }
+.rk-start-row { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 12px; background: var(--surf1); border: 0; color: var(--muted); font-family: inherit; font-size: 13px; margin-bottom: 12px; cursor: pointer; }
 .rk-start-row b { color: var(--text); }
 .rk-start-link { font-weight: 800; color: var(--lime-deep); }
 [data-theme="dark"] .rk-start-link { color: var(--lime); }

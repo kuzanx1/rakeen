@@ -9,7 +9,7 @@ import KeyboardLift from './KeyboardLift';
 import { useI18n } from './i18n';
 import { listDiscountPresets } from '../application/discountService';
 import type { DiscountPreset } from '../application/discountService';
-import { checkCoupon, COUPON_REASON_PREFIX, normalizeCouponCode } from '../application/couponService';
+import { checkCoupon, COUPON_GIFT_MARK, COUPON_REASON_PREFIX, couponCodeFromReason, normalizeCouponCode } from '../application/couponService';
 import type { CouponQuote } from '../application/couponService';
 import { discountLabel } from '../domain/discount';
 import ManagerPinModal from './ManagerPinModal';
@@ -67,7 +67,8 @@ export default function DiscountModal({
   fixedAllowed?: boolean;
   /** مجموع الطلب قبل الخصم -- يتحقق عليه الكوبون (الحد الأدنى). */
   subtotal?: number;
-  onConfirm: (pct: number, reason: string, fixed: number) => void;
+  /** gift: كوبون «منتج مجاني» -- المنتج ينضاف للسلة، والخصم = سعره. */
+  onConfirm: (pct: number, reason: string, fixed: number, gift?: { productId: number }) => void;
   onClose: () => void;
 }) {
   const { colors } = useTheme();
@@ -103,7 +104,7 @@ export default function DiscountModal({
     setAmount(discountFixed);
     setReason(discountReason);
     setPickedPresetId(null);
-    setCouponText(discountReason.startsWith(COUPON_REASON_PREFIX) ? discountReason.slice(COUPON_REASON_PREFIX.length) : '');
+    setCouponText(couponCodeFromReason(discountReason));
     setQuote(null);
     setChecking(false);
     if (discountReason.startsWith(COUPON_REASON_PREFIX)) setMode('coupon');
@@ -117,7 +118,9 @@ export default function DiscountModal({
   const customNum = parseFloat(toLatinDigits(customText).replace(/[^0-9.]/g, '')) || 0;
   const effectivePct = mode === 'pct' ? (customMode ? Math.max(0, Math.min(100, Math.floor(customNum))) : pct) : 0;
   const effectiveAmount = mode === 'amount' ? Math.max(0, Math.round((customMode ? customNum : amount) * 100) / 100) : 0;
-  const couponBlocked = quote?.ok && quote.kind === 'amount' && !fixedAllowed;
+  const couponBlocked = quote?.ok && quote.kind !== 'pct' && !fixedAllowed;
+  const couponValue = (q: CouponQuote) =>
+    q.kind === 'item' ? `${q.itemName} ${t('مجاناً')}` : discountLabel(q.kind === 'pct' ? q.pct : 0, q.kind === 'amount' ? q.amount : 0);
   const ready =
     mode === 'coupon' ? !!quote?.ok && !couponBlocked : mode === 'pct' ? effectivePct > 0 : effectiveAmount > 0;
   // خصم كتبه الكاشير من عنده -- القواعد تنطبق عليه بس، مو على الجاهز والكوبون.
@@ -171,7 +174,8 @@ export default function DiscountModal({
       if (!quote?.ok || couponBlocked) return;
       // السبب «كوبون CODE» -- منه ينعدّ الاستخدام في القاعدة.
       const why = COUPON_REASON_PREFIX + quote.code;
-      if (quote.kind === 'amount') onConfirm(0, why, quote.amount);
+      if (quote.kind === 'item' && quote.itemId != null) onConfirm(0, why + COUPON_GIFT_MARK + quote.itemName, quote.amount, { productId: quote.itemId });
+      else if (quote.kind === 'amount') onConfirm(0, why, quote.amount);
       else onConfirm(quote.pct, why, 0);
       onClose();
       return;
@@ -298,7 +302,7 @@ export default function DiscountModal({
                     {quote.ok
                       ? couponBlocked
                         ? t('كوبون بمبلغ — طلب الطاولة ينخصم بالنسبة بس')
-                        : `✓ ${t('كوبون صالح')}: ${discountLabel(quote.kind === 'pct' ? quote.pct : 0, quote.kind === 'amount' ? quote.amount : 0)}`
+                        : `✓ ${t('كوبون صالح')}: ${couponValue(quote)}`
                       : quote.reason}
                   </Text>
                 )}
@@ -385,7 +389,7 @@ export default function DiscountModal({
                 <Text style={[styles.confirmText, !ready && styles.confirmTextDisabled]}>
                   {mode === 'coupon'
                     ? ready && quote
-                      ? `${t('تطبيق الكوبون')} — ${discountLabel(quote.kind === 'pct' ? quote.pct : 0, quote.kind === 'amount' ? quote.amount : 0)}`
+                      ? `${t('تطبيق الكوبون')} — ${couponValue(quote)}`
                       : t('تحقق من الكوبون أول')
                     : ready
                     ? `${t('تطبيق الخصم')} — ${discountLabel(effectivePct, effectiveAmount)}${overCap ? ` 🔒 ${t('بموافقة المدير')}` : ''}`
