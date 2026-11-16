@@ -10,7 +10,8 @@ import "./wa-invite.css";
 // (نوافذ اللوحة .modal-overlay.show، أو تنبيه الاشتراك [data-rk-overlay]).
 // كل شي بالأحداث: نراقب data-stage على body بـ MutationObserver، بدون تكرار.
 
-const DONE_KEY = "rk-wa-invite-done";
+// غيّر الرقم لإعادة إظهار النافذة للكل (حتى اللي أرسلوا أو تجاهلوا).
+const DONE_KEY = "rk-wa-invite-done-2";
 const WA_NUMBER = "966557015282";
 const WA_DISPLAY = "055 701 5282";
 const WA_TEXT = "السلام عليكم، أبي توصلني تنبيهات وجديد ركين على الواتساب 🔔";
