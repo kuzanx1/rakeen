@@ -61,5 +61,6 @@ export function isOverDiscountCap(rules: DiscountRules, kind: 'pct' | 'amount', 
 /** السبب اللي ينحفظ مع الطلب بعد موافقة المدير. */
 export function approvedReason(reason: string): string {
   const r = reason.trim();
+  // i18n-ignore: السبب المحفوظ مع الطلب والمطبوع على الفاتورة
   return r ? `${r} (بموافقة المدير)` : 'بموافقة المدير';
 }

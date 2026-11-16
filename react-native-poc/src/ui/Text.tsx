@@ -57,6 +57,15 @@ function translateChildren(
 ): React.ReactNode {
   if (typeof children === 'string') return translateOne(children, t);
   if (Array.isArray(children)) {
+    // <Text>باقي {n} طلب</Text> reaches here as ['باقي ', 5, ' طلب'] --
+    // pieces no table can hold. When every child is plain text or a
+    // number, translate the sentence as one string (placeholder keys in
+    // i18n.tsx) before falling back to piece by piece.
+    if (children.length > 1 && children.every(c => typeof c === 'string' || typeof c === 'number')) {
+      const whole = children.join('');
+      const out = translateOne(whole, t);
+      if (out !== whole) return out;
+    }
     let changed = false;
     const next = children.map(child => {
       if (typeof child !== 'string') return child;

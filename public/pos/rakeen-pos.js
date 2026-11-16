@@ -668,6 +668,538 @@ const I18N_EN = {
   'لا يوجد طاولات لهذا الفرع.': 'No tables for this branch.',
   'لا يوجد طاولات متاحة للنقل إليها.': 'No tables available to move to.',
   'لا يمكن التراجع عن هذا. يتطلب موافقة المدير.': 'This cannot be undone. It needs manager approval.',
+  /* ── ما كان ناقص (نوفمبر ٢٠٢٦). tools/i18n-check/pwa-coverage.cjs يمنع النشر
+     لو انضاف نص عربي للشاشة بدون مقابل هنا. `{}` خانة: رقم أو اسم داخل الجملة. */
+  'منتج #{}': 'Product #{}',
+  'ريال': 'SAR',
+  'ع': 'ع',
+  'مكافأة مجانية': 'Free reward',
+  '{} د{}': '{} min{}',
+  'هذا الصنف مو ضمن أصناف المكافأة — انضاف بثمنه': 'This item is not a reward item — added at its price',
+  'اختر {} على الأقل': 'Choose at least {}',
+  'اختر واحد': 'Choose one',
+  'اختياري · حتى {}': 'Optional · up to {}',
+  '{} / {} اختيار': '{} / {} picks',
+  'اكمل باقي الاختيارات ({} متبقي)': 'Finish the remaining choices ({} left)',
+  'البوكس مكتمل — {} اختيار': 'Box complete — {} picks',
+  'ر.س': 'SAR',
+  'طاولة {}': 'Table {}',
+  'تذكرة المطبخ': 'Kitchen ticket',
+  'هدية: {}': 'Gift: {}',
+  'خصم ({})': 'Discount ({})',
+  '🎁 {} مجاناً': '🎁 {} free',
+  'خصم {} مفعّل': '{} discount on',
+  'كوبون': 'Coupon',
+  'اكتب كود الكوبون': 'Enter the coupon code',
+  'الكوبونات لسا ما تفعّلت عندكم': 'Coupons are not enabled for you yet',
+  'تعذّر التحقق — تأكد من النت': 'Could not verify — check the internet',
+  'الكوبون غير صحيح': 'Invalid coupon',
+  'العميل يختار وحدة': 'Customer picks one',
+  'مجاناً': 'Free',
+  'اختر المنتج اللي يبيه العميل': 'Choose the product the customer wants',
+  'تطبيق الكوبون': 'Apply coupon',
+  'تحقق من الكوبون أول': 'Check the coupon first',
+  'اختر مبلغ': 'Choose an amount',
+  'نسبة ٪': 'Percent %',
+  'مبلغ ﷼': 'Amount ﷼',
+  'طلب الطاولة ينخصم بالنسبة بس.': 'A table order can only take a percentage discount.',
+  'كود الكوبون': 'Coupon code',
+  'تحقق': 'Check',
+  'كوبون بمبلغ — طلب الطاولة ينخصم بالنسبة بس': 'An amount coupon — a table order can only take a percentage',
+  'كوبون صالح': 'Valid coupon',
+  'مبلغ آخر': 'Other amount',
+  'المبلغ بالريال': 'Amount in SAR',
+  'باقي رقم واحد': 'one digit left',
+  'باقي رقمين': 'two digits left',
+  'باقي {} أرقام': '{} digits left',
+  'أكمل رقم الجوال، {}.': 'Finish the phone number, {}.',
+  'اختر العميل من القائمة، أو امسح الاسم واضغط «تخطي».': 'Pick the customer from the list, or clear the name and tap “Skip”.',
+  'اضغط «حفظ» عشان يتسجّل الرقم، أو امسحه واضغط «تخطي».': 'Tap “Save” to record the number, or clear it and tap “Skip”.',
+  'أكثر من عميل بهذا الاسم. اختر واحد من القائمة.': 'More than one customer with this name. Pick one from the list.',
+  'الرقم مكتمل — ٨ أرقام بعد 05': 'Number complete — 8 digits after 05',
+  'باسم "{}"': 'Named "{}"',
+  'منتج واحد': 'One item',
+  'منتجين': 'Two items',
+  '{} منتجات': '{} items',
+  'عنده {} نقطة': 'Has {} points',
+  'شاشة العميل': 'Customer display',
+  'ما فيه شاشة عميل لهذا الفرع — تنضاف من لوحة التحكم.': 'No customer display for this branch — add one from the dashboard.',
+  'اختر الشاشة اللي قدّام زبونك — الباركود يطلع عليها هي بس.': 'Pick the screen facing your customer — the barcode shows only there.',
+  'شاشة عميل': 'Customer display',
+  'شاشتك': 'Yours',
+  'مربوطة بكاشير ثاني': 'Linked to another till',
+  'غير مربوطة': 'Unlinked',
+  'بلا ربط': 'No link',
+  'يبث لكل شاشات الفرع غير المربوطة': 'Broadcasts to every unlinked screen in the branch',
+  'تعذر الربط': 'Could not link',
+  'انفكّ الربط': 'Unlinked',
+  'تم الربط بهذي الشاشة': 'Linked to this screen',
+  'انتهت الفترة التجريبية — تواصل معنا عشان تكمل البيع': 'Your trial has ended — contact us to keep selling',
+  'باقي {} طلب في الفترة التجريبية': '{} trial orders left',
+  'انتهت الفترة التجريبية': 'Trial ended',
+  'تواصل معنا': 'Contact us',
+  'طاولة {} انشغلت للتو': 'Table {} was just taken',
+  'مدفوع بمكافأة الولاء': 'Paid with a loyalty reward',
+  '🎁 ما فيه مبلغ يُقبض — المكافأة انخصمت من رصيد العميل': '🎁 Nothing to collect — the reward came off the customer’s balance',
+  'اتركه فاضي لو ما أعطيته جهاز.': 'Leave empty if you did not hand them a pager.',
+  'شبكة': 'Card',
+  '{} ثانية متبقية': '{} seconds left',
+  'أكّد إنه صاحب البطاقة': 'Confirm they own the card',
+  'اختر طريقة — لازم وحدة منها': 'Pick a method — one is required',
+  'رمز مؤقّت يوصل جواله': 'A one-time code to their phone',
+  'الأقوى — يحتاج نت عنده': 'Strongest — needs internet on their side',
+  'امسح باركود بطاقته': 'Scan their card barcode',
+  'بدون نت — يحتاج كاميرا بالجهاز': 'No internet needed — needs a camera on this device',
+  'رقم البطاقة': 'Card number',
+  'وصله إشعار على جواله فيه أربعة أرقام': 'They got a notification on their phone with four digits',
+  'رقم بطاقته': 'Their card number',
+  'خلّه يفتح البطاقة ويقرأ الأحرف تحت الباركود': 'Ask them to open the card and read the characters under the barcode',
+  'هذي مو بطاقة نفس العميل — أو انتهت المهلة': 'This is not the same customer’s card — or it timed out',
+  'تعذر التأكيد بالبطاقة': 'Could not confirm with the card',
+  'الرمز غير صحيح': 'Incorrect code',
+  'الرقم ثمانية أحرف': 'The number is eight characters',
+  'ما عندك صلاحية': 'You do not have permission',
+  '{} — بقيت {} محاولات': '{} — {} attempts left',
+  'ما وصل تأكيد العميل — جرّب مرة ثانية': 'No confirmation from the customer — try again',
+  'هذا الصنف مو ضمن المكافآت': 'This item is not a reward item',
+  'كجم': 'kg',
+  'غرام': 'g',
+  'لتر': 'L',
+  'مل': 'ml',
+  'جهاز {} مع طلب ثاني الحين — اختر رقم غيره': 'Pager {} is with another order now — choose another number',
+  'رقم جوال العميل': 'Customer phone number',
+  'اعرض': 'Show',
+  'الأصناف': 'Items',
+  '· تعذّر الإرسال، يعيد المحاولة': '· could not send, retrying',
+  'بانتظار الإرسال ({})': 'Waiting to send ({})',
+  'انحفظت بهالجهاز وتنرسل لحالها أول ما يرجع النت — نادِ الزبون بالرقم اللي على فاتورته.': 'Saved on this device and sent automatically once the internet is back — call the customer by the number on their receipt.',
+  'بدون نت — هذي آخر قائمة محفوظة، وتتحدّث لحالها أول ما يرجع': 'Offline — this is the last saved list; it updates by itself once the internet is back',
+  'تعذر تحميل الطلبات — تحقق من النت': 'Could not load orders — check the internet',
+  'كان {}': 'Was {}',
+  'سبب الخصم: {}': 'Discount reason: {}',
+  'هذا الطلب مسترجع بالكامل': 'This order is fully refunded',
+  'وش ترجّع؟': 'What are you refunding?',
+  'اختر الأصناف — اللي تختاره يرجع للمخزون': 'Choose the items — what you choose goes back to stock',
+  'اختر الكل': 'Select all',
+  'استرجاع المختار': 'Refund selected',
+  '{} ريال': '{} SAR',
+  'هذي الفاتورة ما تقبل استرجاع': 'This receipt cannot be refunded',
+  'كل الأصناف المختارة مسترجَعة من قبل': 'All selected items were already refunded',
+  'تعذر الاسترجاع': 'Could not refund',
+  'الباقي من الفاتورة': 'Left on the receipt',
+  'اكتب مبلغ صحيح': 'Enter a valid amount',
+  'المبلغ أكبر من الباقي في الفاتورة': 'The amount is more than what is left on the receipt',
+  'مسترجع جزئياً': 'Partly refunded',
+  'منذ {} د': '{} min ago',
+  'تعذر التحديث': 'Could not update',
+  'إلغاء طلب طاولة {}؟': 'Cancel the order on table {}?',
+  'العنوان: {}': 'Address: {}',
+  'تعذر الحفظ': 'Could not save',
+  'رنّينا عليه قبل ثواني — طلب #{}': 'We rang them seconds ago — order #{}',
+  'انضاف التأجيل قبل ثواني — طلب #{}': 'The delay was added seconds ago — order #{}',
+  '🔔 رنّ جوال الزبون — طلب #{} جاهز': '🔔 Customer’s phone rang — order #{} is ready',
+  'طلب #{} جاهز — الزبون ما فتح البيجر، ناده برقمه': 'Order #{} is ready — the customer never opened the pager, call their number',
+  '🔔 رنّينا عليه مرة ثانية — طلب #{}': '🔔 We rang them again — order #{}',
+  '⏱ أضفنا {} دقايق وبلّغنا الزبون — طلب #{}': '⏱ Added {} minutes and told the customer — order #{}',
+  '✓ استلم طلبه — #{}': '✓ Collected — #{}',
+  '📱 متابع': '📱 Watching',
+  'ما فتحه': 'Not opened',
+  'الأصناف ▾': 'Items ▾',
+  '🔔 رنّ ثاني': '🔔 Ring again',
+  'استلمه ✓': 'Collected ✓',
+  'باقي {}': '{} left',
+  'متأخر {}': '{} late',
+  'جاهز — رنّ جواله': 'Ready — ring their phone',
+  '· أُجّل': '· delayed',
+  '+٥ د': '+5 min',
+  'افتح الدرج': 'Open drawer',
+  'استرجع مبلغ': 'Refund',
+  'اطبع فاتورة': 'Print a receipt',
+  'سجّل هدر': 'Record waste',
+  'الموازنات': 'Closings',
+  'كل وردية انقفلت · اطبعها من جديد': 'Every closed shift · print it again',
+  'إعدادات الموازنة': 'Closing settings',
+  'وش يطلع بالورقة · أصناف من المخزون': 'What prints on the slip · stock items',
+  'الطابعة والجهاز': 'Printer & device',
+  'الطابعة، الورق، وضوح الطباعة': 'Printer, paper, print clarity',
+  'النت، الطابعة، المزامنة — لو فيه مشكلة': 'Internet, printer, sync — if something is wrong',
+  'وقت الخدمة': 'During service',
+  '· مع {}': '· with {}',
+  'الوردية مفتوحة': 'Shift open',
+  'من {}{}': 'Since {}{}',
+  'اقفل الوردية': 'Close shift',
+  'ما قدرنا نجيب الموازنات': 'We could not load the closings',
+  'جرّب مرة ثانية': 'Try again',
+  'ما فيه موازنات للحين': 'No closings yet',
+  'أول ما تقفل وردية، موازنتها تطلع هنا وتقدر تطبعها متى ما بغيت.': 'Once you close a shift, its closing shows here and you can print it any time.',
+  'كل وردية انقفلت بالفرع. اضغط «اطبعها» وتطلع الورقة نفسها.': 'Every closed shift in the branch. Tap “Print” to get the same slip again.',
+  'الدرج مضبوط': 'Drawer balanced',
+  'زيادة {}': 'Over {}',
+  'نقص {}': 'Short {}',
+  'اطبعها': 'Print',
+  'المبيعات': 'Sales',
+  'بالدرج': 'In drawer',
+  'آخر موازنة': 'Latest closing',
+  'الخصومات': 'Discounts',
+  'كم انخصم وتفصيل كل خصم': 'How much was discounted, and each discount',
+  'المرتجعات': 'Refunds',
+  'المبالغ اللي رجعت للزبائن': 'Money returned to customers',
+  'عدد الطلبات والمتوسط': 'Order count and average',
+  'كم طلب ومتوسط الفاتورة': 'How many orders and the average receipt',
+  'خانات التوقيع': 'Signature lines',
+  'توقيع الكاشير والمدير آخر الورقة': 'Cashier and manager signatures at the bottom',
+  'تطلع بالورقة كم انصرف من أصناف المخزون (مثل البوكسات). متوفرة بباقة عماد 🔒': 'Print how much of each stock item was used (like boxes). Available on the Emad plan 🔒',
+  'ما فيه أصناف بالمخزون للحين. أضفها من لوحة التحكم ← المخزون، وبعدها اخترها هنا.': 'No stock items yet. Add them from the dashboard → Inventory, then choose them here.',
+  'دوّر صنف…': 'Search items…',
+  'اختر وش يطلع بورقة الموازنة لما تقفل الوردية.': 'Choose what prints on the closing slip when you close the shift.',
+  'بالورقة': 'On the slip',
+  'من المخزون': 'From stock',
+  'مختار {} — تطلع بالورقة «كم انصرف بالوردية»': '{} selected — the slip shows “used this shift”',
+  'اختر الأصناف اللي تبي تعرف كم انصرف منها بالوردية': 'Choose the items you want to track per shift',
+  'هالميزة تحتاج تحديث بسيط بالنظام. كلّم الدعم': 'This feature needs a small system update. Contact support',
+  'تعذّر الحفظ — تحقق من الاتصال': 'Could not save — check the connection',
+  'انحفظت إعدادات الموازنة': 'Closing settings saved',
+  'صنف تجريبي': 'Test item',
+  'الطباعة': 'Printing',
+  'إعادة محاولة الطباعات الفاشلة ({})': 'Retry failed prints ({})',
+  'إعادة محاولة الطلبات العالقة ({})': 'Retry stuck orders ({})',
+  'أُعيدت جدولة {} طباعة': '{} print(s) rescheduled',
+  'أُعيدت جدولة {} طلب': '{} order(s) rescheduled',
+  'من بداية الوردية — {}': 'Since the shift started — {}',
+  'ما قدرنا نقرأ مبيعات الوردية': 'We could not read the shift’s sales',
+  'تأكد من الإنترنت وجرّب مرة ثانية. ما نعرض أرقام ناقصة عشان ما تطلع الموازنة غلط.': 'Check the internet and try again. We do not show partial numbers so the closing is not wrong.',
+  'ما لقيت هالموازنة — جرّب مرة ثانية': 'Could not find that closing — try again',
+  'راحت الموازنة للطابعة': 'Closing sent to the printer',
+  'عجز {}': 'Short {}',
+  'يقفلها': 'Closing it',
+  '· تبديل': '·  Switch',
+  'عماد': 'Emad',
+  'صرح': 'Sarh',
+  'أساس': 'Asas',
+  'ساخن': 'Hot',
+  'بارد': 'Cold',
+  'الرمز (٤ أرقام)': 'PIN (4 digits)',
+  'أعد كتابة الرمز': 'Re-enter the PIN',
+  'تجنّب الرموز السهلة مثل 1234 و0000. تقدر تغيّره بعدين من لوحة التحكم ← الكاشير.': 'Avoid easy PINs like 1234 and 0000. You can change it later from the dashboard → Cashier.',
+  'حفظ الرمز وفتح الكاشير': 'Save PIN and open the till',
+  'الرمز لازم يكون ٤ أرقام.': 'The PIN must be 4 digits.',
+  'الرمزين مو متطابقين.': 'The two PINs do not match.',
+  'انتهت الجلسة — سجّل دخول مرة ثانية.': 'Session expired — sign in again.',
+  'تعذر حفظ الرمز.': 'Could not save the PIN.',
+  'تعذر الاتصال — جرّب مرة ثانية.': 'Could not connect — try again.',
+  'الفرع الرئيسي': 'Main branch',
+  'ما فيه فرع لهذا المطعم، وتعذر إنشاؤه — أضف فرع من لوحة التحكم ← الإعدادات ← الفروع.': 'This business has no branch and one could not be created — add a branch from the dashboard → Settings → Branches.',
+  'أدخل رمز فرع: {}': 'Enter the PIN for branch: {}',
+  'فواتير اليوم تبدأ من رقم': 'Today’s receipts start at number',
+  'غيّر': 'Change',
+  'أول فاتورة اليوم تبدأ من رقم': 'Today’s first receipt starts at number',
+  'الفواتير ترجع ١ كل يوم. لو اليوم وصلت لرقم أكبر، تكمّل منه': 'Receipts restart at 1 each day. If today already reached a higher number, it continues from there',
+  'رقم أول فاتورة: من ١ إلى ٩٩٩٩': 'First receipt number: 1 to 9999',
+  'تم قبول الطلب #{}': 'Order #{} accepted',
+  'تم رفض الطلب #{}': 'Order #{} rejected',
+  'خطأ غير معروف': 'Unknown error',
+  'انتهت مهلة الاتصال بالطابعة': 'The printer connection timed out',
+  'تعذر الوصول للطابعة — تأكد إنها شغّالة ومتصلة بنفس شبكة الواي فاي': 'Could not reach the printer — make sure it is on and on the same Wi-Fi network',
+  'مشكلة اتصال بالإنترنت': 'Internet connection problem',
+  'صلاحية الوصول مرفوضة': 'Access denied',
+  'الخدمة غير متاحة حاليًا': 'Service unavailable right now',
+  'صار خطأ تقني — جرّب مرة ثانية أو تواصل مع الدعم': 'A technical error happened — try again or contact support',
+  'Language / اللغة': 'Language / اللغة',
+  'رجع الاتصال — تتم مزامنة الطلبات': 'Back online — syncing orders',
+  'انقطع الاتصال — الطلبات تُحفظ وتتزامن تلقائيًا': 'Offline — orders are saved and sync automatically',
+  'أُضيف: {}': 'Added: {}',
+  'انضاف مجاناً 🎁': 'Added free 🎁',
+  'رجّعنا {} لمحفظة العميل': 'Returned {} to the customer’s wallet',
+  'رجّعنا {} لرصيده — اختر صنفاً غيره': 'Returned {} to their balance — choose another item',
+  'اختر: {}': 'Choose: {}',
+  'وصلت للحد الأقصى: {}': 'Maximum reached: {}',
+  'من لوحة التحكم: القائمة ← عدّل هذا المنتج ← تبويب "التكلفة والمخزون" ← حدد الأصناف المؤهلة (يحتاج أصناف مخزون مضافة الأول).': 'From the dashboard: Menu → edit this product → “Cost & stock” tab → choose the eligible items (needs stock items added first).',
+  'إلغاء طلب {}؟': 'Cancel the order on {}?',
+  'الزبائن لسا على {}؟': 'Are the customers still at {}?',
+  'تعذر الإلغاء': 'Could not cancel',
+  'تراجعنا عن طلب {} — بانتظار الطلب': 'Undid the order on {} — awaiting order',
+  'تم إلغاء طلب {} — بحاجة تنظيف': 'Order on {} cancelled — needs cleaning',
+  'تراجع عن {}؟': 'Undo {}?',
+  'تراجعنا — {} بانتظار الطلب': 'Undone — {} awaiting order',
+  'تم إفراغ {}': '{} cleared',
+  'انرسلت تذكرة المطبخ للطابعة': 'Kitchen ticket sent to the printer',
+  'مجاني': 'Free',
+  'انشال الخصم بالمبلغ — طلب الطاولة ينخصم بالنسبة بس': 'The amount discount was removed — a table order can only take a percentage',
+  'نادي الولاء مقفل من لوحة التحكم': 'The loyalty club is turned off in the dashboard',
+  '· هدية:': '· gift:',
+  'فوق {}{} {}': 'Above {}{} {}',
+  'منتج بالكوبون مو بقائمة الكاشير': 'A coupon product is not on the till menu',
+  '{} (بموافقة المدير)': '{} (manager approved)',
+  'رقم الجوال مطلوب': 'Phone number required',
+  'أو امسحه واضغط «تخطي».': 'or clear it and tap “Skip”.',
+  '{}{} بانتظار صنف': '{}{} waiting for an item',
+  'انخصمت من رصيده — اختر الصنف اللي بيصير مجاني': 'Taken from their balance — choose the item that becomes free',
+  'يقدر يستبدل {} — اضغط عشان يستبدل': 'Can redeem {} — tap to redeem',
+  'عنده {}{}': 'Has {}{}',
+  'اضغط عشان تصرفها': 'Tap to use it',
+  'اختر العميل أول': 'Choose the customer first',
+  '{} — {} نقطة': '{} — {} points',
+  'تمت إضافة المنتج مقابل نقاط الولاء': 'Item added for loyalty points',
+  'جهازك ما يدعم قراءة الباركود من الكاميرا (متاحة على Chrome/Edge بأجهزة أندرويد بس حاليًا) — استخدم البحث بالاسم أو الجوال بدالها.': 'Your device cannot read barcodes from the camera (only Chrome/Edge on Android for now) — search by name or phone instead.',
+  'تعذر الوصول للكاميرا.': 'Could not access the camera.',
+  'خلصت طلبات الفترة التجريبية — البيع يتوقف بعد {} ساعة. تواصل معنا': 'Trial orders are used up — selling stops in {} hours. Contact us',
+  'استخدمت {} طلب مجاني. تواصل معنا عشان تكمل البيع من الكاشير والمتجر. بياناتك وتقاريرك محفوظة كلها.': 'You used {} free orders. Contact us to keep selling from the till and the store. All your data and reports are kept.',
+  'تمت إضافة الأصناف للطلب': 'Items added to the order',
+  '— طاولة {}': '— Table {}',
+  '(بدون اتصال — راح تتزامن تلقائيًا)': '(offline — will sync automatically)',
+  'رقم جهاز النداء — اتركه فاضي لو ما أعطيته جهاز': 'Pager number — leave empty if you did not hand one out',
+  'الدفع بنقاط الولاء': 'Pay with loyalty points',
+  'جارٍ التحضير...': 'Preparing...',
+  'تعذر التحضير': 'Could not prepare',
+  'انتهت المهلة — ابدأ من جديد': 'Timed out — start again',
+  'ثمانية أحرف تحت الباركود — بدون نت ولا كاميرا': 'Eight characters under the barcode — no internet or camera needed',
+  'جارٍ إرسال الرمز لجوال {}...': 'Sending the code to {}...',
+  'اسأله عن الرمز': 'Ask them for the code',
+  '⚠ ما وصله شي — جرّب المسح أو رقم البطاقة': '⚠ Nothing reached them — try scanning or the card number',
+  'انتهت المهلة أو كثرت المحاولات — ابدأ من جديد': 'Timed out or too many attempts — start again',
+  'الرقم مو مطابق لبطاقته': 'The number does not match their card',
+  'غير صحيح': 'Incorrect',
+  'اضغط الصنف اللي بيصير مجاني من القائمة': 'Tap the item that will be free in the menu',
+  'ما حدّدت أصناف المكافأة بعد — حدّدها من لوحة التحكم.': 'Reward items are not set yet — set them in the dashboard.',
+  'اختر الصنف اللي بيصير مجاني': 'Choose the item that becomes free',
+  'ما فيه صنف بهذا الاسم.': 'No item by that name.',
+  'ما فيه رصيد مكافأة': 'No reward balance',
+  'انضاف مجاناً — كمّل باقي المبلغ {} ر.س': 'Added free — collect the remaining {} SAR',
+  'انضاف مجاناً — أضف طلبه أو اضغط ادفع لإتمام الطلب': 'Added free — add their order or tap Pay to finish',
+  'ما عنده مكافأة جاهزة': 'No reward ready',
+  'هذا الصنف مو ضمن أصناف المكافأة': 'This item is not a reward item',
+  'لازم تختار صنفاً من أصناف المكافأة': 'You must choose one of the reward items',
+  'الجهاز مو مربوط بمطعم': 'This device is not linked to a business',
+  'تعذر صرف المكافأة': 'Could not use the reward',
+  'الطلب المؤقت {} صار رقمه #': 'Temporary order {} is now #',
+  '⚠ تعذّرت مزامنة طلب بعد عدة محاولات — راجع "تشخيص النظام"': '⚠ An order failed to sync after several tries — check “System diagnostics”',
+  'مخزون منخفض': 'Low stock',
+  'مخزون {} نزل عن {}٪ — باقي {} {}.': '{} stock fell below {}% — {} {} left.',
+  'وصلت هدف المبيعات! 🎉': 'Sales target reached! 🎉',
+  'مبيعات اليوم وصلت {} ر.س.': 'Today’s sales reached {} SAR.',
+  'طلب جديد': 'New order',
+  'طلب جديد بقيمة {} ر.س.': 'New order worth {} SAR.',
+  'الطابعة غير معدّة': 'Printer not set up',
+  '⚠ فتح الدرج غير متاح بعد — يحتاج تطبيق iOS أصلي': '⚠ Opening the drawer is not available yet — needs the native iOS app',
+  '⚠ اضبط عنوان IP للطابعة أولًا من الإعدادات': '⚠ Set the printer IP address in settings first',
+  '⚠ تعذّر فتح الدرج — تحقق من الاتصال': '⚠ Could not open the drawer — check the connection',
+  'إعادة محاولة ({})...': 'Retrying ({})...',
+  'في تحديث جديد — يطبّق أول ما تخلص الطلب': 'An update is ready — it applies once you finish this order',
+  'تنبيه: تعذر ربط الطلب بحجز الفندق — راجع الحجز يدويًا': 'Note: could not link the order to the hotel booking — check the booking by hand',
+  'فاتورة المطبخ': 'Kitchen ticket',
+  'تنبيه: جلسة الدخول غير صالحة': 'Note: the sign-in session is not valid',
+  'تنبيه: ما فيه جلسة دخول لإرسال التنبيه': 'Note: no sign-in session to send the alert',
+  'تنبيه: فشل الإرسال ({})': 'Note: sending failed ({})',
+  'تم إرسال تنبيه ({}/{})': 'Alert sent ({}/{})',
+  'تنبيه: خطأ غير متوقع بالإرسال': 'Note: unexpected error while sending',
+  'جهز خلال {}': 'Ready within {}',
+  '— استلام {}': '— pickup {}',
+  '🛵 خرج للتوصيل — منذ {}': '🛵 Out for delivery — since {}',
+  'بانتظار التسليم — {}': 'Waiting for handover — {}',
+  'لم يُسجَّل جاهز بعد': 'Not marked ready yet',
+  'انطبعت على جهاز الطباعة': 'Printed on the print device',
+  'ما فيه طابعة على هالجهاز، وجهاز الطباعة ما رد': 'No printer on this device, and the print device did not answer',
+  'تعذرت الطباعة — تحقق من الطابعة': 'Could not print — check the printer',
+  '{} — طاولة {}': '{} — Table {}',
+  '{} · باقي {}': '{} · {} left',
+  'استُرجعت الفاتورة كاملة — {} ريال': 'Full receipt refunded — {} SAR',
+  'استُرجع {} ريال — باقي {}': 'Refunded {} SAR — {} left',
+  'استرجاع طلب': 'Order refund',
+  'تم استرجاع {} ر.س (طلب #{}).': 'Refunded {} SAR (order #{}).',
+  'ريال. اتركه فاضي لاسترجاع المبلغ كامل.': 'SAR. Leave empty to refund the full amount.',
+  'استرجاع {} ريال كاش من الدرج؟': 'Refund {} SAR cash from the drawer?',
+  'تم استرجاع {} ريال — باقي {}': 'Refunded {} SAR — {} left',
+  'تم استرجاع مبلغ الطلب كامل': 'The full order amount was refunded',
+  'تم استرجاع مبلغ {} ر.س (طلب #{}).': 'Refunded {} SAR (order #{}).',
+  'تعذر الاسترجاع: {}': 'Could not refund: {}',
+  'خطأ غير متوقع': 'Unexpected error',
+  'بدون قسم': 'No section',
+  '{} د': '{} min',
+  '{} متاحة من {}': '{} of {} free',
+  'حجز طاولة {}': 'Book table {}',
+  '{} — {} أشخاص — {}': '{} — {} people — {}',
+  'طاولة {} تحتاج تنظيف': 'Table {} needs cleaning',
+  'تبي تجلسهم فيها الحين؟': 'Seat them there now?',
+  'تعذر بدء الجلسة — تحقق من حالة الطاولة': 'Could not start the session — check the table status',
+  'طاولة {} — بانتظار الطلب': 'Table {} — awaiting order',
+  'إلغاء الحجز؟': 'Cancel the booking?',
+  'تم إلغاء الحجز': 'Booking cancelled',
+  'تسجيل طلب — طاولة {}': 'Take an order — Table {}',
+  'إفراغ طاولة {}؟': 'Clear table {}?',
+  'طاولة {} — تحتاج تنظيف': 'Table {} — needs cleaning',
+  'طاولة {} — قيد التقديم': 'Table {} — serving',
+  'تعذر تحميل الطلب': 'Could not load the order',
+  'طاولة {} — بانتظار الدفع': 'Table {} — awaiting payment',
+  'نقل طاولة {} — اختر الوجهة': 'Move table {} — choose where',
+  'تعذر النقل — تحقق من حالة الطاولة': 'Could not move — check the table status',
+  'تم النقل لطاولة {}': 'Moved to table {}',
+  'الزبائن لسا على طاولة {}؟': 'Are the customers still at table {}?',
+  'تراجعنا عن الطلب — بانتظار الطلب': 'Order undone — awaiting order',
+  'تم إلغاء الطلب — الطاولة بحاجة تنظيف': 'Order cancelled — the table needs cleaning',
+  'تعذر فتح الدفع لهذي الطاولة': 'Could not open payment for this table',
+  'تعذر تحميل تفاصيل الطلب': 'Could not load the order details',
+  'الدفع — طاولة {}': 'Payment — Table {}',
+  'تعذر تحديث حالة الطاولة': 'Could not update the table status',
+  'طاولة {} — جاهزة الآن': 'Table {} — ready now',
+  'طاولة {} — محجوزة': 'Table {} — reserved',
+  'تعذر بدء الجلسة': 'Could not start the session',
+  'تم إلغاء الحجز — الطاولة متاحة': 'Booking cancelled — the table is free',
+  'ما فيه نتائج لـ"{}".': 'No results for "{}".',
+  'بدء التفصيل': 'Start tailoring',
+  'بدء الخدمة': 'Start service',
+  '{} أشخاص': '{} people',
+  'يفضل {}': 'Prefers {}',
+  'تم بدء التفصيل': 'Tailoring started',
+  'تم بدء الخدمة — الفريق في الطريق': 'Service started — the team is on the way',
+  'تعذر البدء: {}': 'Could not start: {}',
+  'تم تجهيز الطلب — جاهز للاستلام': 'Order ready — ready for pickup',
+  'تعذر التحديث: {}': 'Could not update: {}',
+  'تم تسليم الطلب للعميل': 'Order handed to the customer',
+  'تذكير قبل يوم': 'Reminder a day before',
+  'تذكير قبل ساعتين': 'Reminder two hours before',
+  'تم تسجيل التذكير': 'Reminder recorded',
+  '— يفضل {}': '— prefers {}',
+  'تم التحديث': 'Updated',
+  'العميل ما حضر؟': 'Customer did not show up?',
+  'تم تسجيل عدم الحضور': 'No-show recorded',
+  'نوع غير معروف': 'Unknown type',
+  'غرفة {}': 'Room {}',
+  'وضعها متاحة': 'Set available',
+  'وضعها تحت الصيانة': 'Set under maintenance',
+  '{} → {} ({} ليالي)': '{} → {} ({} nights)',
+  'تسجيل وصول {} — اختر غرفة': 'Check in {} — choose a room',
+  'تعذر تسجيل الوصول: {}': 'Could not check in: {}',
+  'تم تسجيل الوصول — غرفة {}': 'Checked in — Room {}',
+  'تعذر إيجاد نوع الغرفة بقائمة المنتجات': 'Could not find the room type in the products list',
+  'تمت إضافة الإقامة للسلة — أكمل الدفع من الرئيسية': 'Stay added to the cart — finish payment from Home',
+  'حجز جديد': 'New booking',
+  '{} — {} ر.س/ليلة': '{} — {} SAR/night',
+  'تأكد إن تاريخ المغادرة بعد تاريخ الوصول.': 'Make sure check-out is after check-in.',
+  'تعذر التحقق من التوفر.': 'Could not check availability.',
+  'متاح {} غرفة بهذي التواريخ.': '{} room(s) available for these dates.',
+  'ما فيه غرف متاحة بهذي التواريخ.': 'No rooms available for these dates.',
+  'لازم تكتب اسم النزيل': 'Enter the guest name',
+  'تعذر إنشاء الحجز: {}': 'Could not create the booking: {}',
+  'تم إنشاء الحجز': 'Booking created',
+  'جلّس {} — اختر طاولة': 'Seat {} — choose a table',
+  'تعذر تجليس الطاولة — تحقق من حالتها': 'Could not seat the table — check its status',
+  'إضافة لقائمة الانتظار': 'Add to the waitlist',
+  'عربون مقترح: {}٪ من قيمة الطلب المتوقعة — يُحصّل يدويًا، ما فيه دفع أونلاين مربوط حاليًا.': 'Suggested deposit: {}% of the expected order — collected by hand; no online payment is linked yet.',
+  'جارٍ الحفظ...': 'Saving...',
+  'تم حجز الطاولة': 'Table booked',
+  'تمت الإضافة لقائمة الانتظار': 'Added to the waitlist',
+  'جاهز — استغرق {}': 'Ready — took {}',
+  'تم تسجيل الطلب جاهز': 'Order marked ready',
+  'افتح وردية أولاً عشان يتسجل المبلغ فيها': 'Open a shift first so the amount is recorded in it',
+  'تعذر تسجيل الطلب مُسلَّم': 'Could not mark the order delivered',
+  'تم التسليم واستلام المبلغ — طلب #{}': 'Delivered and paid — order #{}',
+  'تم تسليم الطلب #{}': 'Order #{} delivered',
+  'تعذر تسجيل خروج الطلب للتوصيل': 'Could not mark the order out for delivery',
+  'الطلب #{} خرج للتوصيل': 'Order #{} is out for delivery',
+  'بانتظار الاستلام — {}': 'Waiting for pickup — {}',
+  'استلام من الفرع': 'Pickup from the branch',
+  'استلام {}': 'Pickup {}',
+  'استلام الآن': 'Pickup now',
+  'تم تسجيل الطلب جاهز للاستلام': 'Order marked ready for pickup',
+  'تعذر الرنين': 'Could not ring',
+  'تعذر التأجيل': 'Could not delay',
+  'تعذر تسجيل الاستلام': 'Could not record the pickup',
+  '{} — تأكد من النت': '{} — check the internet',
+  'الزبون فاتح البيجر في جواله': 'The customer has the pager open on their phone',
+  'الزبون ما فتح البيجر': 'The customer has not opened the pager',
+  '📟 بيجر': '📟 Pager',
+  'ينتظر {}{}': 'Waiting {}{}',
+  '· رنّة {}{}': '· ring {}{}',
+  'الزبون عندك؟ سلّمه بدون ما يرن جواله': 'Customer in front of you? Hand it over without ringing their phone',
+  'أضف ٥ دقايق وبلّغ الزبون': 'Add 5 minutes and tell the customer',
+  '⏱ طلب #{} تأخر على الزبون — جهّزه أو أضف ٥ دقايق': '⏱ Order #{} is late for the customer — get it ready or add 5 minutes',
+  '⏱ طلب #{} تجاوز وقت التحضير — جهّزه': '⏱ Order #{} is past its prep time — get it ready',
+  'طلب #{} — باقي ٥ دقائق على وقت التجهيز': 'Order #{} — 5 minutes to the ready time',
+  'طلب #{} — انتهى وقت التجهيز المحدد': 'Order #{} — the ready time has passed',
+  'اختر الطلب اللي تبي تسترجعه': 'Choose the order to refund',
+  'اختر الطلب اللي تبي تعيد طباعته': 'Choose the order to reprint',
+  'تحقق من الاتصال وجرّب مرة ثانية.': 'Check the connection and try again.',
+  'اكتب رمز المدير عشان تحفظ': 'Enter the manager PIN to save',
+  'رمز المدير': 'Manager PIN',
+  'احفظ': 'Save',
+  'أقصى شي ٢٠ صنف': 'Up to 20 items',
+  'اكتب رمز المدير': 'Enter the manager PIN',
+  'جاري الحفظ...': 'Saving...',
+  'اتركه فارغ لو نفس طابعة الكاشير تطبع فاتورة المطبخ برضو. عبّيه فقط لو عندكم طابعة ثانية منفصلة (مثلاً بالمطبخ بالدور الأول وطابعة الكاشير بالدور الثاني) — لازم تكون على نفس شبكة الواي فاي.': 'Leave empty if the till printer also prints the kitchen ticket. Fill it only if you have a separate second printer (e.g. kitchen downstairs, till upstairs) — it must be on the same Wi-Fi network.',
+  'غير متصل': 'Not connected',
+  '✓ تطبيق الطباعة متاح': '✓ Print app available',
+  '⚠ افتح من تطبيق الكاشير المثبّت للطباعة': '⚠ Open from the installed till app to print',
+  'فاتورة العميل (مع السعر والضريبة ورمز QR)': 'Customer receipt (with price, VAT and QR code)',
+  'فاتورة المطبخ (الأصناف والملاحظات فقط، بدون أسعار)': 'Kitchen ticket (items and notes only, no prices)',
+  'الطابعة ما تقص الورق (فاتورة المطبخ بزر من الطلب)': 'The printer does not cut paper (kitchen ticket from a button on the order)',
+  'طباعة شعار الفاتورة أعلى فاتورة العميل': 'Print the logo at the top of the customer receipt',
+  'تم حفظ إعدادات الطابعة': 'Printer settings saved',
+  'جاري إرسال طباعة اختبار...': 'Sending a test print...',
+  'تمت طباعة الاختبار بنجاح': 'Test print succeeded',
+  'افتح الكاشير من تطبيق APK المثبّت أولاً': 'Open the till from the installed APK app first',
+  'احفظ عنوان IP للطابعة أولاً': 'Save the printer IP address first',
+  'تعذر الاتصال بالطابعة — تحقق من العنوان والشبكة': 'Could not connect to the printer — check the address and network',
+  'لم يحدث بعد': 'Not yet',
+  'قبل {} د': '{} min ago',
+  'قبل {} سا': '{} h ago',
+  'المشكلة: الإنترنت شغّال، لكن مزامنة البيانات ما تستجيب حاليًا.': 'Problem: the internet works, but data sync is not responding right now.',
+  'ملاحظة: الطباعة الفعلية على هذا الجهاز تحتاج تطبيق الكاشير المخصص — النسخة الحالية (عبر المتصفح) ما تدعمها بعد.': 'Note: real printing on this device needs the dedicated till app — the browser version does not support it yet.',
+  'المشكلة: بالطابعة نفسها — تأكد من اتصالها بالشبكة والطاقة وعنوان IP.': 'Problem: the printer itself — check its network, power and IP address.',
+  'مزامنة البيانات': 'Data sync',
+  '🔴 تعذر الاتصال': '🔴 Could not connect',
+  '⚪ ما تأكّدنا منها بعد': '⚪ Not checked yet',
+  '🟢 جاهزة': '🟢 Ready',
+  '🔴 غير جاهزة — تحتاج تطبيق الكاشير المخصص': '🔴 Not ready — needs the dedicated till app',
+  'عنوان IP للطابعة': 'Printer IP address',
+  '⚪ غير معدّة': '⚪ Not set up',
+  '🟢 جاهز': '🟢 Ready',
+  '⚪ غير جاهز بعد — يحتاج تطبيق الكاشير المخصص': '⚪ Not ready yet — needs the dedicated till app',
+  'طلبات عالقة (تحتاج تدخّل)': 'Stuck orders (need attention)',
+  'طباعات فاشلة نهائيًا': 'Prints that failed for good',
+  'جاري تجهيز الموازنة...': 'Preparing the closing...',
+  'بس تقرير الموازنة ما انحفظ في النظام. احتفظ بالورقة المطبوعة — ما تقدر تعيد طباعتها بعدين.': 'But the closing report was not saved in the system. Keep the printed slip — you cannot reprint it later.',
+  'فهمت': 'Got it',
+  'تمت طباعة تقرير الإغلاق': 'Closing report printed',
+  'متوفرة في باقة {} — اطلب الترقية من لوحة التحكم': 'Available on the {} plan — request the upgrade from the dashboard',
+  'كرسي': 'chair',
+  'كراسي': 'chairs',
+  'خدمة': 'Service',
+  'الحجوزات': 'Bookings',
+  'باي': 'bay',
+  'باياء': 'bays',
+  'خدمة غسيل': 'Wash service',
+  'غرفة': 'room',
+  'غرف': 'rooms',
+  'المواعيد': 'Appointments',
+  'طلب تفصيل': 'Tailoring order',
+  'نوع غرفة': 'Room type',
+  'الاستقبال': 'Reception',
+  'قيد الانتظار': 'Waiting',
+  'قيد التفصيل': 'Being tailored',
+  'قادم': 'Arriving',
+  'مسجّل دخول': 'Checked in',
+  'غادر': 'Checked out',
+  'لا يوجد اتصال — يعمل بمنيو محفوظ محليًا (آخر تحديث {} د)': 'No connection — using the menu saved on this device (updated {} min ago)',
+  'الغرف': 'Rooms',
+  'فرع «': 'Branch “',
+  '» ما له رمز بعد. اختر رمز من ٤ أرقام: يدخل فيه الكاشير على هذا الجهاز وكل جهاز بالفرع.': '” has no PIN yet. Choose a 4-digit PIN: cashiers use it to sign in on this device and every device in the branch.',
+  'تعذر الاتصال — تحقق من الإنترنت وجرّب مرة ثانية.': 'Could not connect — check the internet and try again.',
+  'جارٍ الدخول...': 'Signing in...',
+  'مرحبًا، {}': 'Hello, {}',
+  'آخر مرة': 'Last time',
+  'صار خطأ وإحنا نجهّز الكاشير — حاول مرة ثانية': 'Something went wrong while preparing the till — try again',
+  'لازم تقفلها قبل ما تبدأ اليوم — عشان جرد الدرج يطلع صحيح، ويكون لكل يوم تقريره.': 'Close it before starting today — so the drawer count is right and each day has its own report.',
+  'فُتحت': 'Opened',
+  'اقفل وردية {}': 'Close {}\'s shift',
+  'اختر اسم الموظف أول.': 'Choose the staff member first.',
+  'فيه وردية مفتوحة لهذا الفرع — انضمّيت لها': 'This branch has an open shift — you joined it',
+  'الوردية انقفلت من جهاز ثاني': 'The shift was closed on another device',
+  'لازم تبدأ وردية جديدة قبل لا تكمل البيع.': 'Start a new shift before you keep selling.',
+  'تمام': 'OK',
+  '✅ طلب #{} جاهز — سلّمه للعميل': '✅ Order #{} is ready — hand it to the customer',
+  'تعذر قبول الطلب: {}': 'Could not accept the order: {}',
+  'تعذر رفض الطلب: {}': 'Could not reject the order: {}',
+  'الحجز والطاولات': 'Bookings & tables',
 };
 
 /* ============ Generic translation pass ============
@@ -818,11 +1350,76 @@ const I18N_EN_NORM = (() => {
 const I18N_MEMO = new Map();
 function lookupEn(ar){
   if(I18N_MEMO.has(ar)) return I18N_MEMO.get(ar);
-  const hit = I18N_EN[ar] !== undefined ? I18N_EN[ar] : I18N_EN_NORM[normalizeArabic(ar)];
+  let hit = I18N_EN[ar] !== undefined ? I18N_EN[ar] : I18N_EN_NORM[normalizeArabic(ar)];
+  if(hit === undefined) hit = i18nMatchPattern(ar);
+  if(hit === undefined) hit = i18nMatchSegments(ar);
   I18N_MEMO.set(ar, hit);
   return hit;
 }
+/**
+ * جملٌ فيها رقم أو اسم -- نفس قاموس التطبيق (react-native-poc/src/ui/i18n.tsx).
+ *
+ * المفتاح فيه خانات: 'باقي {} طلب' ← '{} orders left'. البحثُ بالقيمة
+ * الكاملة لا يصيبه أبداً: على الشاشة «باقي ٥ طلب». فالإخفاقُ ينزل إلى
+ * مفاتيح الخانات، كلٌّ مُجمَّعٌ مرّةً إلى تعبيرٍ مثبّت الطرفين، وما التقطته
+ * الخانة يُترجَم هو أيضاً (يومٌ، حالة). والأطولُ نصّاً ثابتاً أولاً.
+ */
+const I18N_PH = /\{([a-zA-Z0-9_]*)\}/g;
+const I18N_PATTERNS = Object.keys(I18N_EN)
+  .filter(k => /\{[a-zA-Z0-9_]*\}/.test(k))
+  .map(k => {
+    const names = [];
+    let body = '', last = 0;
+    for(const m of k.matchAll(I18N_PH)){
+      body += k.slice(last, m.index).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(.+?)';
+      names.push(m[1]);
+      last = m.index + m[0].length;
+    }
+    body += k.slice(last).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return { re: new RegExp('^' + body + '$', 's'), names, en: I18N_EN[k], fixed: k.replace(I18N_PH, '').length };
+  })
+  .sort((a, b) => b.fixed - a.fixed);
+function i18nMatchPattern(ar){
+  const text = String(ar).trim();
+  if(!/[؀-ۿ]/.test(text)) return undefined;
+  for(const p of I18N_PATTERNS){
+    const m = p.re.exec(text);
+    if(!m) continue;
+    const values = m.slice(1);
+    let i = 0;
+    return p.en.replace(I18N_PH, (_all, name) => {
+      const idx = name ? p.names.indexOf(name) : i++;
+      const v = values[idx >= 0 ? idx : 0] ?? '';
+      const tv = lookupEn(v);
+      return tv !== undefined ? tv : v;
+    });
+  }
+  return undefined;
+}
+/* نصٌّ مركّبٌ في الكود («سفري · كاش»، «طاولة ٣ — بانتظار الطلب»): يُقسَم على
+   الفواصل اللي يكتبها الكود نفسه، ويُترجم كلُّ جزءٍ هو مفتاحٌ كامل، والباقي
+   يبقى كما هو -- فاسمُ صنفٍ لا تُترجَم كلمةٌ فيه أبداً. */
+const I18N_SEPARATORS = /( · | — | - | \| |، |: )/;
+function i18nMatchSegments(ar){
+  const parts = String(ar).split(I18N_SEPARATORS);
+  if(parts.length < 3) return undefined;
+  let hit = false;
+  const out = parts.map((p, i) => {
+    if(i % 2 === 1) return p === '، ' ? ', ' : p;
+    const core = p.trim();
+    if(!core) return p;
+    let en = I18N_EN[core] !== undefined ? I18N_EN[core] : I18N_EN_NORM[normalizeArabic(core)];
+    if(en === undefined) en = i18nMatchPattern(core);
+    if(en === undefined) return p;
+    hit = true;
+    return p.replace(core, en);
+  });
+  return hit ? out.join('') : undefined;
+}
 function t(ar){ return LANG === 'en' ? (lookupEn(ar) || ar) : ar; }
+// تاريخ ووقت الشاشة بلغة الجهاز. الورق (dateLabel وما يُطبع) يبقى 'ar-SA'
+// مكتوباً صراحةً -- الفاتورة عربية مهما كانت لغة الشاشة.
+function uiLocale(){ return LANG === 'en' ? 'en-GB' : 'ar-SA'; }
 
 // Real reported bug: every phone field's digit-strip used /\D/g, which in
 // JS only matches ASCII 0-9 — a customer typing on an Arabic keyboard
@@ -928,6 +1525,8 @@ function applyLang(){
   const langBtn = document.getElementById('langToggle');
   if(langBtn) langBtn.textContent = LANG === 'en' ? 'ع' : 'EN';
   document.querySelectorAll('.pos-auth-lang').forEach(b => { b.textContent = LANG === 'en' ? 'ع' : 'EN'; });
+  // الساعة تتحدّث كل ٣٠ ثانية -- بدون هذا تبقى عربية لين الدورة الجاية.
+  try { updateClock(); } catch {}
 
   // The generic pass first; the hand-written lines below stay because a few
   // of them carry real logic (the discount button's active state, the hold
@@ -1377,7 +1976,9 @@ document.addEventListener('wheel', (e)=>{
 
 function showToast(msg){
   const t = document.getElementById('toast');
-  document.getElementById('toastText').textContent = msg;
+  // التنبيه مستثنى من المترجم العام (.toast في I18N_SKIP) لأنه يُكتب
+  // بعد الرسم، فيُترجم هنا مرة وحدة.
+  document.getElementById('toastText').textContent = t(msg);
   t.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(()=> t.classList.remove('show'), 2200);
@@ -1385,7 +1986,7 @@ function showToast(msg){
 
 /* ============ Clock ============ */
 function updateClock(){
-  document.getElementById('clock').textContent = new Date().toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'});
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString(uiLocale(), {hour:'2-digit', minute:'2-digit'});
 }
 updateClock(); setInterval(updateClock, 30000);
 
@@ -6036,7 +6637,7 @@ function buildLiveReceiptData(orderPayload, totals){
   const liveTable = orderPayload.table_id ? (TABLES_CACHE || []).find(t => t.id === orderPayload.table_id) : null;
   const liveTableLabel = liveTable ? ' — طاولة ' + liveTable.number : '';
   return {
-    businessName: DEVICE.businessName || 'ركين', branchName: DEVICE.branchName || '',
+    businessName: DEVICE.businessName || 'ركين', branchName: DEVICE.branchName || '', // i18n-ignore: اسم يُطبع على الورق
     dateLabel: new Date().toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
     timestampISO: new Date().toISOString(), vatNumber: BUSINESS_VAT_NUMBER,
     // orderId can genuinely be missing here — still offline-queued, real id
@@ -6136,7 +6737,7 @@ function buildHistoricalReceiptData(order, items){
   });
   const histTableLabel = order.restaurant_tables ? ' — طاولة ' + order.restaurant_tables.number : '';
   return {
-    businessName: DEVICE.businessName || 'ركين', branchName: DEVICE.branchName || '',
+    businessName: DEVICE.businessName || 'ركين', branchName: DEVICE.branchName || '', // i18n-ignore: اسم يُطبع على الورق
     dateLabel: new Date(order.created_at).toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
     timestampISO: order.created_at, vatNumber: BUSINESS_VAT_NUMBER,
     orderNumber: '#' + (order.order_no || rkNo(order.id)),
@@ -6413,7 +7014,7 @@ async function completePayment(){
       .then(({error}) => { if(error) showToast('تنبيه: تعذر ربط الطلب بحجز الفندق — راجع الحجز يدويًا'); })
       .finally(() => { pendingHotelCheckoutBookingId = null; });
   }
-  state.lastTransaction = {total, time: new Date().toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'})};
+  state.lastTransaction = {total, time: new Date().toLocaleTimeString(uiLocale(), {hour:'2-digit', minute:'2-digit'})};
   // Snapshot everything the receipt still needs from the live cart/table
   // state, THEN clear that state and re-render the Home screen underneath
   // right now — not deferred to the 4s auto-timer or a "طلب جديد الآن" tap.
@@ -6487,8 +7088,8 @@ async function completePayment(){
             headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
             body: JSON.stringify({
               customerId: data.id,
-              title: 'نقاطك تحدّثت',
-              body: 'رصيدك الحين ' + Math.round(Number(data.loyalty_points)) + ' نقطة.'
+              title: 'نقاطك تحدّثت', // i18n-ignore: إشعار يوصل جوال الزبون
+              body: 'رصيدك الحين ' + Math.round(Number(data.loyalty_points)) + ' نقطة.' // i18n-ignore: إشعار يوصل جوال الزبون
             })
           });
           if(!res.ok){
@@ -6669,7 +7270,7 @@ async function rkPendingStripHtml(){
       const prod = (typeof PRODUCTS !== 'undefined' ? PRODUCTS : []).find(x => x.id === it.menu_item_id);
       return '<li>' + (Number(it.qty) || 1) + ' × ' + escapeHtml(prod ? prod.name : 'صنف') + '</li>';
     }).join('');
-    const when = p.queued_at ? new Date(p.queued_at).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'}) : '';
+    const when = p.queued_at ? new Date(p.queued_at).toLocaleTimeString(uiLocale(), {hour:'2-digit', minute:'2-digit'}) : '';
     return `<details class="rk-pending-row"><summary><b class="mono">${escapeHtml(label)}</b><span class="rk-pending-meta">${when}${p.customer_name ? ' · ' + escapeHtml(p.customer_name) : ''}${p.stuck ? ' · تعذّر الإرسال، يعيد المحاولة' : ''}</span>${rkMoney(Number(p.total) || 0)}<span class="rk-pending-toggle">الأصناف</span></summary><ul>${items || '<li>—</li>'}</ul></details>`;
   }).join('');
   return `<div class="rk-pending"><div class="rk-pending-title">بانتظار الإرسال (${list.length})</div><div class="rk-pending-hint">انحفظت بهالجهاز وتنرسل لحالها أول ما يرجع النت — نادِ الزبون بالرقم اللي على فاتورته.</div>${rows}</div>`;
@@ -6803,11 +7404,11 @@ async function renderOrdersListInner(){
     if(o.channel === 'delivery'){
       extra = ' — ' + (o.ready_at ? `جهز خلال ${formatMmSs(o.prep_duration_seconds||0)}` : (o.delivery_platforms ? o.delivery_platforms.name : 'توصيل'));
     } else if(o.channel === 'pickup' && o.scheduled_for){
-      extra = ' — استلام ' + new Date(o.scheduled_for).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'});
+      extra = ' — استلام ' + new Date(o.scheduled_for).toLocaleTimeString(uiLocale(), {hour:'2-digit', minute:'2-digit'});
     }
     return {
       id: '#' + rkNo(o.id) + (offlineRefs[String(o.id)] ? ' <span class="rk-was">كان ' + escapeHtml(offlineRefs[String(o.id)]) + '</span>' : ''), orderId: o.id,
-      meta: new Date(o.created_at).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}) + (o.customer_name ? ' — ' + escapeHtml(o.customer_name) : '') + escapeHtml(extra),
+      meta: new Date(o.created_at).toLocaleTimeString(uiLocale(),{hour:'2-digit',minute:'2-digit'}) + (o.customer_name ? ' — ' + escapeHtml(o.customer_name) : '') + escapeHtml(extra),
       total: Number(o.total)
     };
   });
@@ -6926,7 +7527,7 @@ async function openOrderDetail(orderId){
   const hasLocation = order.channel === 'delivery' && order.customer_lat != null && order.customer_lng != null;
   const mapsUrl = hasLocation ? `https://www.google.com/maps?q=${order.customer_lat},${order.customer_lng}` : null;
   const waPhone = (order.customer_phone || '').replace(/\D/g, '');
-  const waMessage = `مرحبًا ${order.customer_name || ''}! طلبك رقم #${rkNo(order.id)} جاري تجهيزه وراح يوصلك بأقرب وقت 🚴`;
+  const waMessage = `مرحبًا ${order.customer_name || ''}! طلبك رقم #${rkNo(order.id)} جاري تجهيزه وراح يوصلك بأقرب وقت 🚴`; // i18n-ignore: رسالة واتساب للزبون
   const waUrl = waPhone ? `https://wa.me/${waPhone.startsWith('966') ? waPhone : '966' + waPhone.replace(/^0/, '')}?text=${encodeURIComponent(waMessage)}` : null;
 
   body.innerHTML = `
@@ -7165,7 +7766,7 @@ function printRefundReceipt(orderId, picked, lines, amount){
       : [{ name: 'استرجاع مبلغ', nameEn: '', qty: 1,
            unitPrice: amount, lineTotal: amount, mods: [], note: '' }];
     attemptPrint({
-      businessName: DEVICE.businessName || 'ركين', branchName: DEVICE.branchName || '',
+      businessName: DEVICE.businessName || 'ركين', branchName: DEVICE.branchName || '', // i18n-ignore: اسم يُطبع على الورق
       dateLabel: new Date().toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
       timestampISO: new Date().toISOString(), vatNumber: BUSINESS_VAT_NUMBER,
       orderNumber: '#' + rkNo(orderId),
@@ -7215,7 +7816,7 @@ const PAYMENT_METHOD_LABELS_POS = {cash:'كاش', card:'بطاقة', split:'تق
    live in the "قائمة الانتظار" tab below, not on any individual card. ============ */
 const TABLE_STATUS_LABELS = {available:'متاحة', awaiting_order:'بانتظار الطلب', serving:'قيد التقديم', awaiting_payment:'بانتظار الدفع', cleaning:'تنظيف', reserved:'محجوزة'};
 function reservationTimeLabel(iso){
-  return new Date(iso).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});
+  return new Date(iso).toLocaleTimeString(uiLocale(),{hour:'2-digit',minute:'2-digit'});
 }
 function elapsedMinutesLabel(iso){
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -7714,7 +8315,7 @@ function renderWaitlistList(list, activeQuery){
     // actually informative instead of always repeating "الآن".
     const isAdvanceBooking = (new Date(r.reserved_for).getTime() - new Date(r.created_at).getTime()) > 5 * 60000;
     const telUrl = r.customer_phone ? `tel:${r.customer_phone}` : null;
-    const waUrl = r.customer_phone ? waPhoneUrl(r.customer_phone, `مرحبا ${r.customer_name}، طاولتك جاهزة الآن في ${DEVICE.branchName || ''}`) : null;
+    const waUrl = r.customer_phone ? waPhoneUrl(r.customer_phone, `مرحبا ${r.customer_name}، طاولتك جاهزة الآن في ${DEVICE.branchName || ''}`) : null; // i18n-ignore: رسالة واتساب للزبون
     // mobile_car_wash bookings have no physical resource to seat into
     // (hasNoPhysicalResource()) — a "الموقع" map link replaces the section
     // pill, and "بدء الخدمة" replaces "جلّسه" (dispatches the team via
@@ -7858,7 +8459,7 @@ async function renderReminders(){
 
   el.innerHTML = items.map((r, i) => {
     const service = PRODUCTS.find(p => p.id === r.service_id);
-    const waMessage = `مرحبا ${r.customer_name}، تذكير بموعدك${service ? ' (' + service.name + ')' : ''} الساعة ${reservationTimeLabel(r.reserved_for)}${DEVICE.branchName ? ' في ' + DEVICE.branchName : ''}.`;
+    const waMessage = `مرحبا ${r.customer_name}، تذكير بموعدك${service ? ' (' + service.name + ')' : ''} الساعة ${reservationTimeLabel(r.reserved_for)}${DEVICE.branchName ? ' في ' + DEVICE.branchName : ''}.`; // i18n-ignore: رسالة واتساب للزبون
     const waUrl = r.customer_phone ? waPhoneUrl(r.customer_phone, waMessage) : null;
     return `<div class="waitlist-card" data-idx="${i}">
       <div class="wl-card-top">
@@ -8047,7 +8648,7 @@ async function renderHotelBookingsList(){
 
   el.innerHTML = bookings.map(b => {
     const telUrl = b.guest_phone ? `tel:${b.guest_phone}` : null;
-    const waUrl = b.guest_phone ? waPhoneUrl(b.guest_phone, `مرحبا ${b.guest_name}، بخصوص حجزكم في ${DEVICE.branchName || ''}`) : null;
+    const waUrl = b.guest_phone ? waPhoneUrl(b.guest_phone, `مرحبا ${b.guest_name}، بخصوص حجزكم في ${DEVICE.branchName || ''}`) : null; // i18n-ignore: رسالة واتساب للنزيل
     const actionBtn = b.status === 'upcoming'
       ? `<button type="button" class="confirm-pay-btn wl-hotel-checkin-btn" data-id="${b.id}" style="width:auto; padding:8px 16px; font-size:12px; margin-inline-start:auto;">تسجيل الوصول</button>`
       : `<button type="button" class="confirm-pay-btn wl-hotel-checkout-btn" data-id="${b.id}" style="width:auto; padding:8px 16px; font-size:12px; margin-inline-start:auto;">تسجيل المغادرة</button>`;
@@ -9080,7 +9681,7 @@ function renderMoreShiftCard(){
     el.innerHTML = `<div class="rk-shift-head"><span class="rk-shift-dot off"></span><div><b>ما فيه وردية مفتوحة</b></div></div>`;
     return;
   }
-  const since = new Date(CURRENT_SHIFT.opened_at).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'});
+  const since = new Date(CURRENT_SHIFT.opened_at).toLocaleTimeString(uiLocale(), {hour:'2-digit', minute:'2-digit'});
   const who = CURRENT_STAFF_MEMBER && CURRENT_STAFF_MEMBER.name ? ' · مع ' + escapeHtml(CURRENT_STAFF_MEMBER.name) : '';
   el.innerHTML = `<div class="rk-shift-head"><span class="rk-shift-dot"></span><div><b>الوردية مفتوحة</b><small>من ${since}${who}</small></div></div>
     <div class="rk-shift-actions">
@@ -9138,7 +9739,7 @@ async function openClosingsList(){
       const v = Math.round((Number(r.cash_variance) || 0) * 100) / 100;
       const vCls = v === 0 ? 'ok' : Math.abs(v) < 5 ? 'warn' : 'bad';
       const vTxt = v === 0 ? 'الدرج مضبوط' : v > 0 ? 'زيادة ' + v.toFixed(2) : 'نقص ' + Math.abs(v).toFixed(2);
-      const when = new Date(r.created_at).toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'});
+      const when = new Date(r.created_at).toLocaleString(uiLocale(), {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'});
       return `<div class="rk-closing${i === 0 ? ' latest' : ''}">
         <div class="rk-closing-top"><div><b>${when}</b>${i === 0 ? '<small>آخر موازنة</small>' : ''}</div>
           <button class="rk-closing-print" data-closing="${Number(r.id)}">اطبعها</button></div>
@@ -9310,7 +9911,7 @@ function openPosSettingsModal(){
   document.getElementById('printerTestBtn').addEventListener('click', async ()=>{
     showToast('جاري إرسال طباعة اختبار...');
     const result = await sendToPrinter({
-      businessName: DEVICE.businessName || 'ركين', branchName: DEVICE.branchName || '',
+      businessName: DEVICE.businessName || 'ركين', branchName: DEVICE.branchName || '', // i18n-ignore: اسم يُطبع على الورق
       dateLabel: new Date().toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
       timestampISO: new Date().toISOString(), vatNumber: BUSINESS_VAT_NUMBER,
       orderNumber: '#0', metaLabel: 'طباعة اختبار',
@@ -9649,7 +10250,7 @@ async function rkPrintClosingRow(data){
       cashExpected: Number(data.cash_expected) || 0, cashCounted: Number(data.cash_counted) || 0, cashVariance: Number(data.cash_variance) || 0
     };
     report = Object.assign({
-      businessName: DEVICE.businessName || 'ركين', branchName: DEVICE.branchName || '',
+      businessName: DEVICE.businessName || 'ركين', branchName: DEVICE.branchName || '', // i18n-ignore: اسم يُطبع على الورق
       dateLabel: new Date(data.created_at).toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
       staffName: '—'
     }, signed);
@@ -9781,7 +10382,7 @@ function renderClosingWizard(){
           const stockLines = await rkShiftStockUsage(CURRENT_SHIFT.id);
           const report = {
             stockLines,
-            businessName: DEVICE.businessName || 'ركين', branchName: DEVICE.branchName || '',
+            businessName: DEVICE.businessName || 'ركين', branchName: DEVICE.branchName || '', // i18n-ignore: اسم يُطبع على الورق
             dateLabel: new Date().toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
             staffName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : 'بدون اسم',
             shiftStart: closingShiftData.startTime,
@@ -11066,9 +11667,9 @@ async function afterStaffReady(){
  */
 function showStaleShiftScreen(shift){
   const opened = new Date(shift.opened_at);
-  const when = opened.toLocaleDateString('ar-SA', {
+  const when = opened.toLocaleDateString(uiLocale(), {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  }) + ' — ' + opened.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+  }) + ' — ' + opened.toLocaleTimeString(uiLocale(), { hour: '2-digit', minute: '2-digit' });
 
   const host = document.getElementById('posStaleShiftScreen') || (()=>{
     const el = document.createElement('div');
@@ -11087,7 +11688,7 @@ function showStaleShiftScreen(shift){
         <span class="stale-shift-when-label">فُتحت</span>
         <span class="stale-shift-when-value">${escapeHtml(when)}</span>
       </div>
-      <button class="confirm-pay-btn" id="staleShiftCloseBtn">اقفل وردية ${escapeHtml(opened.toLocaleDateString('ar-SA', { weekday: 'long' }))}</button>
+      <button class="confirm-pay-btn" id="staleShiftCloseBtn">اقفل وردية ${escapeHtml(opened.toLocaleDateString(uiLocale(), { weekday: 'long' }))}</button>
     </div>`;
 
   RK_STALE_SHIFT_LOCK = shift;
@@ -11399,7 +12000,7 @@ async function rejectIncomingOrder(orderId, reason){
 // the cashier notices and doesn't treat it like a normal now-order.
 function pickupTimeNoteHtml(order){
   if(order.channel !== 'pickup' || !order.scheduled_for) return '';
-  const timeStr = new Date(order.scheduled_for).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'});
+  const timeStr = new Date(order.scheduled_for).toLocaleTimeString(uiLocale(), {hour:'2-digit', minute:'2-digit'});
   if(!order.scheduled_by_customer){
     return `<div class="receipt-detail-row"><span>وقت الاستلام</span><span class="mono">الآن</span></div>`;
   }

@@ -35,9 +35,9 @@ export function couponItemsLabel(items: { name: string }[]): string {
   return items.map(i => i.name).join(' + ');
 }
 
-export const COUPON_REASON_PREFIX = 'كوبون ';
+export const COUPON_REASON_PREFIX = 'كوبون '; // i18n-ignore: سبب الخصم المحفوظ مع الطلب، ويُقرأ منه الكود
 /** «كوبون CODE · هدية: برجر» -- منه يعرف إن الخصم منتج مجاني. */
-export const COUPON_GIFT_MARK = ' · هدية: ';
+export const COUPON_GIFT_MARK = ' · هدية: '; // i18n-ignore: جزء من السبب المحفوظ
 
 /** الكود من سبب الخصم («كوبون CODE …» ← CODE). */
 export function couponCodeFromReason(reason: string): string {

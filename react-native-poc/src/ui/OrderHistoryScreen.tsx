@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { getOfflineRefMap, onOfflineRefResolved } from '../application/offlineRefService';
-import { ActivityIndicator, FlatList, Modal, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import SheetBottomGap from './SheetBottomGap';
 import { profileToPrinterTarget, drawerKickCommandFor } from '../domain/printerProfile';
 import { openCashDrawer } from '../platform/cashDrawer';
-import { Text } from './Text';
+import { Text, TextInput } from './Text';
 import { Pressable, TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
 import {
@@ -27,7 +27,7 @@ import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { kitchenTicketByButton, shouldPrintCustomerReceipt, shouldPrintReceiptLogo } from '../domain/printerProfile';
 import type { KitchenTicketData, ReceiptData } from '../domain/receipt';
 import { planHas } from '../application/planService';
-import { useI18n } from './i18n';
+import { useI18n, uiLang } from './i18n';
 import { createStyles, fonts, gradients, Palette, radii, spacing, useTheme } from './theme';
 import { useShell } from './shell';
 import Svg, { Path, Polyline, Rect } from 'react-native-svg';
@@ -73,9 +73,9 @@ const CHANNEL_LABELS: Record<string, string> = { dine_in: 'محلي', pickup: '�
  * المحدد سطرٌ مستقل (pickupAtLabel): المطبخ يرتّب شغله عليه.
  */
 function orderMetaLabel(d: OrderHistoryDetail): string {
-  const table = d.tableNumber != null ? ` — طاولة ${d.tableNumber}` : '';
+  const table = d.tableNumber != null ? ` — طاولة ${d.tableNumber}` : ''; // i18n-ignore: يُطبع
   if (d.source !== 'online') return (CHANNEL_LABELS[d.channel] || d.channel) + table;
-  return 'طلب إلكتروني — ' + (d.channel === 'delivery' ? 'توصيل' : 'استلام') + table;
+  return 'طلب إلكتروني — ' + (d.channel === 'delivery' ? 'توصيل' : 'استلام') + table; // i18n-ignore: يُطبع
 }
 /** وقت الاستلام المحدد سطراً مستقلاً بخط بارز، واليوم معه لو مو نفس يوم الطلب. */
 function pickupAtLabel(d: OrderHistoryDetail): string | undefined {
@@ -663,7 +663,7 @@ export default function OrderHistoryScreen({
                   {offlineRefs[String(item.id)] ? <Text style={styles.rowWas}>{`  كان ${offlineRefs[String(item.id)]}`}</Text> : null}
                   {` — ${item.customerName || CHANNEL_LABELS[item.channel] || item.channel}`}
                 </Text>
-                <Text style={styles.rowMeta}>{formatArabicDateTimeShort(new Date(item.createdAt))}</Text>
+                <Text style={styles.rowMeta}>{formatArabicDateTimeShort(new Date(item.createdAt), uiLang())}</Text>
               </View>
               <Money value={item.total} size={14.5} />
             </TouchableOpacity>

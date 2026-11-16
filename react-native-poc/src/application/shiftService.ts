@@ -484,7 +484,7 @@ async function closingReportFromRow(
     cashVariance: Number(row.cash_variance) || 0,
   };
   const base: ClosingReport = {
-    businessName: businessName || 'ركين',
+    businessName: businessName || 'ركين', // i18n-ignore: اسم يُطبع على الموازنة
     branchName: branchName || '',
     dateLabel: formatArabicDateTime(new Date(String(row.created_at))),
     // The report row records who closed it as a user id, not a name.

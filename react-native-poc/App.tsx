@@ -52,7 +52,7 @@ import { loadPlanFeatures, planHas } from './src/application/planService';
 
 /** ميزة مو في الباقة: يقول وين تنفتح بدل ما يفتحها (مثل كاشير الويب). */
 function planLockedAlert(plan: string) {
-  Alert.alert(`متوفرة في باقة ${plan}`, 'اطلب الترقية من لوحة التحكم، وتنفتح لك على طول.');
+  Alert.alert(tr(`متوفرة في باقة ${plan}`), tr('اطلب الترقية من لوحة التحكم، وتنفتح لك على طول.'));
 }
 import { setNotifySoundEnabled } from './src/application/soundService';
 import DiagnosticsScreen from './src/ui/DiagnosticsScreen';
@@ -61,7 +61,7 @@ import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-
 import KeyboardLift from './src/ui/KeyboardLift';
 import { createStyles, fonts, radii, spacing, ThemeProvider, useTheme } from './src/ui/theme';
 import { ShellProvider, TOPBAR_FALLBACK_HEIGHT, useShell } from './src/ui/shell';
-import { I18nProvider, useI18n } from './src/ui/i18n';
+import { I18nProvider, useI18n, uiLang, tr } from './src/ui/i18n';
 import { ToastProvider, useToast } from './src/ui/Toast';
 import Topbar from './src/ui/Topbar';
 import ClosingsScreen from './src/ui/ClosingsScreen';
@@ -1426,7 +1426,7 @@ function MoreScreen({
   const ink = colors.accentText;
   const info = appInfo();
   const version = info ? `${info.versionName} (${info.versionCode})` : '';
-  const since = shiftOpenedAt ? formatArabicTime(new Date(shiftOpenedAt)) : '';
+  const since = shiftOpenedAt ? formatArabicTime(new Date(shiftOpenedAt), uiLang()) : '';
   return (
     <ScrollView style={styles.moreRoot} contentContainerStyle={[styles.moreScroll, inset]}>
       {/* ١) وش وضعي؟ */}

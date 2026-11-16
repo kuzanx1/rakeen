@@ -9,6 +9,7 @@ import { REJECT_REASONS } from '../application/incomingOrderService';
 import type { IncomingOrder } from '../application/incomingOrderService';
 import { createStyles, fonts, gradients, radii, useTheme } from './theme';
 import { formatPickupAt } from '../domain/arabicDate';
+import { uiLang } from './i18n';
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   cash: 'كاش',
   card: 'بطاقة',
@@ -66,7 +67,7 @@ export default function IncomingOrderModal({
     if (!order.scheduledByCustomer) return { label: 'وقت الاستلام', value: 'الآن', loud: false };
     return {
       label: 'وقت الاستلام',
-      value: formatPickupAt(order.scheduledFor),
+      value: formatPickupAt(order.scheduledFor, new Date(), uiLang()),
       loud: true,
     };
   })();

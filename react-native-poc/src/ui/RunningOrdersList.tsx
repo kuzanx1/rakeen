@@ -40,8 +40,9 @@ import type { PagerAction, PagerOrder } from '../application/pagerService';
 import PagerOrderCard from './PagerOrderCard';
 import { playAlertSound } from '../application/soundService';
 import type { OrderHistoryDetail } from '../application/orderHistoryService';
-import { formatArabicTime } from '../domain/arabicDate';
+import { formatPickupAt } from '../domain/arabicDate';
 import { createStyles, fonts, gradients, radii, useTheme } from './theme';
+import { uiLang } from './i18n';
 
 /**
  * "جارية" — orders that are paid for but not yet in the customer's hands.
@@ -66,8 +67,7 @@ const PAYMENT_LABELS: Record<string, string> = { cash: 'كاش', card: 'شبكة
 
 /** «٧:٣٠ م»، ومعه اسم اليوم لو مو اليوم. */
 function timeLabel(at: Date): string {
-  const today = at.toDateString() === new Date().toDateString();
-  return (today ? '' : at.toLocaleDateString('ar-SA', { weekday: 'long' }) + ' ') + formatArabicTime(at);
+  return formatPickupAt(at, new Date(), uiLang());
 }
 
 function modLabel(m: unknown): string {

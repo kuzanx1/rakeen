@@ -1128,7 +1128,7 @@ export default function ProductsScreen({
             lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
             branchName: device.branchName ?? undefined,
             createdAtISO: new Date().toISOString(),
-            metaLabel: CHANNEL_LABELS.dine_in + (selectedTable ? ` — طاولة ${selectedTable.number}` : ''),
+            metaLabel: CHANNEL_LABELS.dine_in + (selectedTable ? ` — طاولة ${selectedTable.number}` : ''), // i18n-ignore: يُطبع
           } satisfies KitchenTicketData).catch(() => {});
         }
         cart.clearCart();
@@ -1249,7 +1249,7 @@ export default function ProductsScreen({
               locationLine: profile?.locationLine || undefined,
               branchLabel: profile?.branchLabel || undefined,
               createdAtISO: new Date().toISOString(),
-              metaLabel: CHANNEL_LABELS.dine_in + (selectedTable ? ` — طاولة ${selectedTable.number}` : ''),
+              metaLabel: CHANNEL_LABELS.dine_in + (selectedTable ? ` — طاولة ${selectedTable.number}` : ''), // i18n-ignore: يُطبع
             } satisfies ReceiptData).catch(() => null);
           }
         } catch {

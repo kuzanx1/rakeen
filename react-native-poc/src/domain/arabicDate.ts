@@ -21,7 +21,17 @@
  * digits rather than showing nothing.
  */
 
-const AR_WEEKDAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+const AR_WEEKDAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']; // i18n-ignore: the Arabic fallback itself
+const EN_WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/**
+ * The screen's language. Every helper takes it, defaulting to Arabic, and
+ * only UI callers pass the cashier's choice -- receipts, kitchen tickets
+ * and close reports call without it and stay Arabic on paper whatever the
+ * screen is set to.
+ */
+export type DateLang = 'ar' | 'en';
+const locale = (lang: DateLang) => (lang === 'en' ? 'en-GB' : 'ar-SA');
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -38,10 +48,10 @@ function isValid(date: Date): boolean {
 }
 
 /** HH:MM -- the topbar clock, an order's time, a shift's opening time. */
-export function formatArabicTime(date: Date): string {
+export function formatArabicTime(date: Date, lang: DateLang = 'ar'): string {
   if (!isValid(date)) return '—';
   try {
-    return date.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString(locale(lang), { hour: '2-digit', minute: '2-digit' });
   } catch {
     return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
@@ -51,25 +61,25 @@ export function formatArabicTime(date: Date): string {
  * وقت الاستلام اللي حدده الزبون: الساعة، ومعها اسم اليوم لو مو نفس يوم
  * `relativeTo` (الافتراضي الحين). نفس النص على الكاشير والفاتورة والمطبخ.
  */
-export function formatPickupAt(iso: string | Date, relativeTo: Date = new Date()): string {
+export function formatPickupAt(iso: string | Date, relativeTo: Date = new Date(), lang: DateLang = 'ar'): string {
   const at = iso instanceof Date ? iso : new Date(iso);
   if (!isValid(at)) return '—';
-  if (at.toDateString() === relativeTo.toDateString()) return formatArabicTime(at);
+  if (at.toDateString() === relativeTo.toDateString()) return formatArabicTime(at, lang);
   let day = '';
   try {
-    day = at.toLocaleDateString('ar-SA', { weekday: 'long' }) + ' ';
+    day = at.toLocaleDateString(locale(lang), { weekday: 'long' }) + ' ';
   } catch {
-    day = '';
+    day = (lang === 'en' ? EN_WEEKDAYS : AR_WEEKDAYS)[at.getDay()] + ' ';
   }
-  return day + formatArabicTime(at);
+  return day + formatArabicTime(at, lang);
 }
 
 /** DD/MM/YYYY HH:MM in Arabic-Indic digits where the build can, by hand
  *  where it cannot. */
-export function formatArabicDateTime(date: Date): string {
+export function formatArabicDateTime(date: Date, lang: DateLang = 'ar'): string {
   if (!isValid(date)) return '—';
   try {
-    return date.toLocaleString('ar-SA', {
+    return date.toLocaleString(locale(lang), {
       hour: '2-digit',
       minute: '2-digit',
       day: '2-digit',
@@ -82,10 +92,10 @@ export function formatArabicDateTime(date: Date): string {
 }
 
 /** The locale's own default date+time layout. */
-export function formatArabicDateTimeShort(date: Date): string {
+export function formatArabicDateTimeShort(date: Date, lang: DateLang = 'ar'): string {
   if (!isValid(date)) return '—';
   try {
-    return date.toLocaleString('ar-SA');
+    return date.toLocaleString(locale(lang));
   } catch {
     return manualDateTime(date);
   }
@@ -99,10 +109,10 @@ export function formatArabicDateTimeShort(date: Date): string {
  * prepends the day name from a local table, keeping the sentence intact.
  * Only if that fails too does it fall back to the fully manual form.
  */
-export function formatArabicDateTimeWithWeekday(date: Date): string {
+export function formatArabicDateTimeWithWeekday(date: Date, lang: DateLang = 'ar'): string {
   if (!isValid(date)) return '—';
   try {
-    return date.toLocaleString('ar-SA', {
+    return date.toLocaleString(locale(lang), {
       weekday: 'long',
       day: '2-digit',
       month: '2-digit',
@@ -110,18 +120,18 @@ export function formatArabicDateTimeWithWeekday(date: Date): string {
       minute: '2-digit',
     });
   } catch {
-    const day = AR_WEEKDAYS[date.getDay()] ?? '';
+    const day = (lang === 'en' ? EN_WEEKDAYS : AR_WEEKDAYS)[date.getDay()] ?? '';
     try {
-      const rest = date.toLocaleString('ar-SA', {
+      const rest = date.toLocaleString(locale(lang), {
         day: '2-digit',
         month: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
       });
-      return day ? `${day}، ${rest}` : rest;
+      return day ? `${day}${lang === 'en' ? ', ' : '، '}${rest}` : rest;
     } catch {
       const rest = `${pad(date.getDate())}/${pad(date.getMonth() + 1)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-      return day ? `${day}، ${rest}` : rest;
+      return day ? `${day}${lang === 'en' ? ', ' : '، '}${rest}` : rest;
     }
   }
 }

@@ -231,6 +231,7 @@ export function builtInDisplayShowsCodes(): boolean {
  */
 export function showBarcodeOnBuiltInDisplay(url: string, message?: string): void {
   if (!brandOn || !/^https:\/\//i.test(url)) return;
+  // i18n-ignore: شاشة الزبون، مو شاشة الكاشير -- لغتها عربي
   codeOnCustomerDisplay(url, 'امسح الباركود', message || 'بجوالك، وتنضاف بطاقة الولاء حقتنا ويتجمّع لك', BARCODE_SECONDS);
 }
 

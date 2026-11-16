@@ -6,6 +6,7 @@ import { createStyles, fonts, radii, spacing, useTheme } from './theme';
 import { getClosingReport, listClosingReports, type ClosingSummary } from '../application/shiftService';
 import { enqueuePrintJob } from '../application/printService';
 import { formatArabicDateTime } from '../domain/arabicDate';
+import { uiLang } from './i18n';
 
 /**
  * «الموازنات» -- كل وردية انقفلت بالفرع، الأحدث أول، وكل وحدة تنطبع من جديد.
@@ -106,7 +107,7 @@ export default function ClosingsScreen({
           <View style={[styles.card, index === 0 && styles.cardLatest]}>
             <View style={styles.cardTop}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.cardDate}>{formatArabicDateTime(new Date(item.createdAt))}</Text>
+                <Text style={styles.cardDate}>{formatArabicDateTime(new Date(item.createdAt), uiLang())}</Text>
                 {index === 0 && <Text style={styles.latestTag}>آخر موازنة</Text>}
               </View>
               <TouchableOpacity

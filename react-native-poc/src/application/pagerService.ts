@@ -164,14 +164,14 @@ export function pagerUrl(uuid: string): string {
   return 'https://rakeenapp.com/p/' + pagerKey(uuid);
 }
 
-/** بلوك الفاتورة -- بيانات فقط، والراسم يبني الباركود. */
+/** بلوك الفاتورة -- بيانات فقط، والراسم يبني الباركود. i18n-ignore: كله ورق مطبوع. */
 export function pagerReceiptBlock(p: PagerEligibleInput, orderNo: number | null, dineInMode: 'simple' | 'tables'): ReceiptPagerData | null {
   if (!config.settings.receipt || !pagerEligible(p, dineInMode)) return null;
   return {
     url: pagerUrl(p.client_order_uuid!),
-    title: 'امسح وخلّ جوالك يناديك',
-    line: 'اجلس براحتك، أول ما يجهز طلبك يرن جوالك',
-    tag: orderNo != null ? `طلب ${orderNo}` : 'بيجر طلبك',
+    title: 'امسح وخلّ جوالك يناديك', // i18n-ignore: يُطبع
+    line: 'اجلس براحتك، أول ما يجهز طلبك يرن جوالك', // i18n-ignore: يُطبع
+    tag: orderNo != null ? `طلب ${orderNo}` : 'بيجر طلبك', // i18n-ignore: يُطبع
     wifi: config.settings.wifi || null,
   };
 }

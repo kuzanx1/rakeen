@@ -26,6 +26,7 @@ import { getPrintStationLastPrinted } from '../application/printStationService';
 import { formatArabicTime } from '../domain/arabicDate';
 import { hasCustomerDisplay } from '../platform/customerDisplay';
 import { startCustomerDisplay, customerDisplayLinked, DISPLAY_COLORS } from '../application/customerDisplayService';
+import { uiLang } from './i18n';
 
 const CUSTOMER_DISPLAY_OPTIONS: { key: 'mirror' | 'brand' | 'banner' | 'url'; label: string; hint: string }[] = [
   { key: 'mirror', label: 'نفس شاشة الكاشير', hint: 'الزبون يشوف نفس اللي تشوفه.' },
@@ -479,7 +480,7 @@ export default function PrinterSettingsScreen({
         </Text>
         {profile.printStation === true && stationLast && (
           <Text style={[styles.themeHint, { marginTop: 6 }]}>
-            آخر طلب انطبع من جهاز ثاني: #{stationLast.no ?? stationLast.id} — {formatArabicTime(new Date(stationLast.at))}
+            آخر طلب انطبع من جهاز ثاني: #{stationLast.no ?? stationLast.id} — {formatArabicTime(new Date(stationLast.at), uiLang())}
           </Text>
         )}
       </Section>

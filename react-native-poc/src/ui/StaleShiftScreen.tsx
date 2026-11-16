@@ -5,6 +5,7 @@ import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
 import { createStyles, fonts, gradients, radii } from './theme';
 import { formatArabicDateTimeWithWeekday } from '../domain/arabicDate';
+import { uiLang } from './i18n';
 
 /**
  * Shown when the open shift belongs to a trading day that has already
@@ -30,7 +31,7 @@ export default function StaleShiftScreen({
   onClose: () => void;
 }) {
   const styles = useStyles();
-  const label = formatArabicDateTimeWithWeekday(new Date(openedAt));
+  const label = formatArabicDateTimeWithWeekday(new Date(openedAt), uiLang());
 
   return (
     <View style={styles.screen}>

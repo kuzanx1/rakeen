@@ -97,7 +97,7 @@ export default function Topbar({
   }, []);
 
   // ar-SA gives the Arabic-Indic digits and م/ص suffix the source shows.
-  const clock = formatArabicTime(now);
+  const clock = formatArabicTime(now, lang);
 
   return (
     <View

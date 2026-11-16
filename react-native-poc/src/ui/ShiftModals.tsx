@@ -16,6 +16,7 @@ import { createStyles, fonts, gradients, radii, spacing, useTheme } from './them
 import { formatArabicTime, formatArabicDateTime } from '../domain/arabicDate';
 import { toLatinDigits } from '../domain/digits';
 import KeyboardLift from './KeyboardLift';
+import { uiLang } from './i18n';
 
 /**
  * openShiftSummary() (rakeen-pos.js:5421) and the closing wizard (:5467),
@@ -123,7 +124,7 @@ export function ShiftSummaryModal({
   const { totals, loading, failed, retry } = useShiftTotals(shift, visible);
 
   const startTime = shift
-    ? formatArabicTime(new Date(shift.opened_at))
+    ? formatArabicTime(new Date(shift.opened_at), uiLang())
     : '--:--';
 
   return (
@@ -283,7 +284,7 @@ export function CloseShiftModal({
     // أصناف المخزون المختارة لورقة الموازنة (فاضي لو ما فيه).
     const stockLines = await getShiftStockUsage(shift.id);
     const report: ClosingReport = {
-      businessName: businessName || 'ركين',
+      businessName: businessName || 'ركين', // i18n-ignore: يُطبع
       branchName,
       dateLabel: formatArabicDateTime(new Date()),
       staffName: staffName || 'بدون اسم',

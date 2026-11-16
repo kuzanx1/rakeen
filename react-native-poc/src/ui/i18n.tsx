@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { getItem, setItem } from '../infrastructure/mmkvStorage';
+import { I18N_EN_MORE } from './i18nMore';
 
 /**
  * The language toggle, ported from rakeen-pos.js:32-58.
@@ -24,7 +25,7 @@ import { getItem, setItem } from '../infrastructure/mmkvStorage';
  * translating them.
  */
 
-const I18N_EN: Record<string, string> = {
+const I18N_EN_BASE: Record<string, string> = {
   /* وحدات رصيد الولاء -- تتبع نظام المنشأة لا تُثبّت على «نقطة». */
   'زيارة': 'visit',
   'كوب': 'cup',
@@ -695,6 +696,14 @@ const I18N_EN: Record<string, string> = {
 };
 
 /**
+ * The whole table. i18nMore.ts holds the strings that were missing when
+ * __tests__/i18nCoverage.test.ts was written -- that test now fails on any
+ * Arabic text in the app with no entry here, so «حوّلت انقلش وفيه شي
+ * عربي» cannot come back one forgotten screen at a time.
+ */
+const I18N_EN: Record<string, string> = { ...I18N_EN_MORE, ...I18N_EN_BASE };
+
+/**
  * Fold the spelling differences that carry no meaning: the four written
  * forms of alef, final ya vs alef maqsura, ta marbuta vs ha, tatweel,
  * short vowels, and runs of whitespace.
@@ -736,9 +745,101 @@ const lookupMemo = new Map<string, string | undefined>();
 
 export function lookupEn(ar: string): string | undefined {
   if (lookupMemo.has(ar)) return lookupMemo.get(ar);
-  const hit = I18N_EN[ar] ?? I18N_EN_NORM[normalizeArabic(ar)];
+  const hit = I18N_EN[ar] ?? I18N_EN_NORM[normalizeArabic(ar)] ?? matchPattern(ar) ?? matchSegments(ar);
   lookupMemo.set(ar, hit);
   return hit;
+}
+
+/**
+ * Sentences with a number or a name inside.
+ *
+ * A key may hold placeholders -- 'باقي {n} طلب' -> 'Only {n} orders left'.
+ * Whole-value lookup can never hit those: the text on screen is «باقي ٥
+ * طلب», a string nobody can list in advance. So a miss falls through to
+ * the placeholder keys, each compiled once to an anchored regex. What a
+ * placeholder captured is itself looked up, so a weekday or a status
+ * inside a sentence turns English with it; numbers and names pass through.
+ *
+ * Still whole-value only: the pattern is anchored at both ends, so a key
+ * never rewrites part of a longer string.
+ */
+const PLACEHOLDER = /\{([a-zA-Z0-9_]*)\}/g;
+type Pattern = { re: RegExp; names: string[]; en: string; fixed: number };
+const PATTERNS: Pattern[] = Object.keys(I18N_EN)
+  .filter(k => /\{[a-zA-Z0-9_]*\}/.test(k))
+  .map(k => {
+    const names: string[] = [];
+    let body = '';
+    let last = 0;
+    for (const m of k.matchAll(PLACEHOLDER)) {
+      body += escapeRe(k.slice(last, m.index)) + '(.+?)';
+      names.push(m[1]);
+      last = (m.index ?? 0) + m[0].length;
+    }
+    body += escapeRe(k.slice(last));
+    return { re: new RegExp('^' + body + '$', 's'), names, en: I18N_EN[k], fixed: k.replace(PLACEHOLDER, '').length };
+  })
+  // The most specific key first: «باقي {n} طلب في الفترة التجريبية» must win
+  // over a shorter key that would also match the same sentence.
+  .sort((a, b) => b.fixed - a.fixed);
+
+function escapeRe(v: string): string {
+  return v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function matchPattern(ar: string): string | undefined {
+  const text = ar.trim();
+  if (!/[\u0600-\u06FF]/.test(text)) return undefined;
+  for (const p of PATTERNS) {
+    const m = p.re.exec(text);
+    if (!m) continue;
+    const values = m.slice(1);
+    let i = 0;
+    return p.en.replace(PLACEHOLDER, (_all, name: string) => {
+      const idx = name ? p.names.indexOf(name) : i++;
+      const v = values[idx >= 0 ? idx : 0] ?? '';
+      return lookupEn(v) ?? v;
+    });
+  }
+  return undefined;
+}
+
+/**
+ * A label glued together in code -- `${no} · ${channelLabel}`, «سفري —
+ * طاولة ٣» -- reaches <Text> as one string with Arabic from the table
+ * inside it. Split only on the separators the app itself writes (« · »,
+ * « — », «، », «: »), translate each piece that is a whole entry, and keep
+ * the rest as written. Pieces still have to be whole values, so a product
+ * name is never rewritten by a word inside it.
+ */
+const SEPARATORS = /( · | — | - | \| |، |: )/;
+function matchSegments(ar: string): string | undefined {
+  const parts = ar.split(SEPARATORS);
+  if (parts.length < 3) return undefined;
+  let hit = false;
+  const out = parts.map((p, i) => {
+    if (i % 2 === 1) return p === '، ' ? ', ' : p;
+    const core = p.trim();
+    if (!core) return p;
+    const en = I18N_EN[core] ?? I18N_EN_NORM[normalizeArabic(core)] ?? matchPattern(core);
+    if (en === undefined) return p;
+    hit = true;
+    return p.replace(core, en);
+  });
+  return hit ? out.join('') : undefined;
+}
+
+/** t() for code outside a component (Alert.alert, helpers). Reads the
+ *  language the provider last rendered with. */
+export function tr(ar: string): string {
+  return currentLang === 'en' ? lookupEn(ar) ?? ar : ar;
+}
+
+/** The UI language outside React -- for code that formats text before it
+ *  reaches a <Text> (dates). Set by the provider; Arabic until then. */
+let currentLang: 'ar' | 'en' = 'ar';
+export function uiLang(): 'ar' | 'en' {
+  return currentLang;
 }
 
 export type Lang = 'ar' | 'en';
@@ -778,6 +879,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  currentLang = lang;
   const value = useMemo<I18n>(
     () => ({ lang, t: (ar: string) => (lang === 'en' ? lookupEn(ar) || ar : ar), toggle }),
     [lang, toggle],

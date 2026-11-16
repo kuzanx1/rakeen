@@ -9,6 +9,7 @@ import { onOrderQueueChanged } from '../infrastructure/orderQueueEvents';
 import { catalogItemName } from '../application/catalogService';
 import { formatArabicTime } from '../domain/arabicDate';
 import type { OrderPayload, QueuedPayload } from '../domain/order';
+import { uiLang } from './i18n';
 
 /**
  * «بانتظار الإرسال» -- الطلبات اللي انحفظت بهالجهاز وما وصلت الخادم بعد.
@@ -85,7 +86,7 @@ export default function PendingOrdersStrip({ branchId }: { branchId: number }) {
               <Text style={styles.ref}>{r.label}</Text>
               <View style={styles.meta}>
                 <Text style={styles.metaText} numberOfLines={1}>
-                  {formatArabicTime(new Date(r.queuedAt))}
+                  {formatArabicTime(new Date(r.queuedAt), uiLang())}
                   {r.customer ? ` · ${r.customer}` : ''}
                   {r.stuck ? ' · تعذّر الإرسال، يعيد المحاولة' : ''}
                 </Text>
