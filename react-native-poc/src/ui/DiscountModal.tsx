@@ -9,7 +9,7 @@ import KeyboardLift from './KeyboardLift';
 import { useI18n } from './i18n';
 import { listDiscountPresets } from '../application/discountService';
 import type { DiscountPreset } from '../application/discountService';
-import { checkCoupon, COUPON_GIFT_MARK, COUPON_REASON_PREFIX, couponCodeFromReason, normalizeCouponCode } from '../application/couponService';
+import { checkCoupon, COUPON_GIFT_MARK, COUPON_REASON_PREFIX, couponCodeFromReason, couponItemsLabel, normalizeCouponCode } from '../application/couponService';
 import type { CouponQuote } from '../application/couponService';
 import { discountLabel } from '../domain/discount';
 import ManagerPinModal from './ManagerPinModal';
@@ -67,8 +67,8 @@ export default function DiscountModal({
   fixedAllowed?: boolean;
   /** مجموع الطلب قبل الخصم -- يتحقق عليه الكوبون (الحد الأدنى). */
   subtotal?: number;
-  /** gift: كوبون «منتج مجاني» -- المنتج ينضاف للسلة، والخصم = سعره. */
-  onConfirm: (pct: number, reason: string, fixed: number, gift?: { productId: number }) => void;
+  /** gift: كوبون «منتجات مجانية» -- تنضاف للسلة، والخصم = مجموع أسعارها. */
+  onConfirm: (pct: number, reason: string, fixed: number, gift?: { productIds: number[] }) => void;
   onClose: () => void;
 }) {
   const { colors } = useTheme();
@@ -120,7 +120,7 @@ export default function DiscountModal({
   const effectiveAmount = mode === 'amount' ? Math.max(0, Math.round((customMode ? customNum : amount) * 100) / 100) : 0;
   const couponBlocked = quote?.ok && quote.kind !== 'pct' && !fixedAllowed;
   const couponValue = (q: CouponQuote) =>
-    q.kind === 'item' ? `${q.itemName} ${t('مجاناً')}` : discountLabel(q.kind === 'pct' ? q.pct : 0, q.kind === 'amount' ? q.amount : 0);
+    q.kind === 'item' ? `${couponItemsLabel(q.items)} ${t('مجاناً')}` : discountLabel(q.kind === 'pct' ? q.pct : 0, q.kind === 'amount' ? q.amount : 0);
   const ready =
     mode === 'coupon' ? !!quote?.ok && !couponBlocked : mode === 'pct' ? effectivePct > 0 : effectiveAmount > 0;
   // خصم كتبه الكاشير من عنده -- القواعد تنطبق عليه بس، مو على الجاهز والكوبون.
@@ -174,7 +174,7 @@ export default function DiscountModal({
       if (!quote?.ok || couponBlocked) return;
       // السبب «كوبون CODE» -- منه ينعدّ الاستخدام في القاعدة.
       const why = COUPON_REASON_PREFIX + quote.code;
-      if (quote.kind === 'item' && quote.itemId != null) onConfirm(0, why + COUPON_GIFT_MARK + quote.itemName, quote.amount, { productId: quote.itemId });
+      if (quote.kind === 'item' && quote.items.length) onConfirm(0, why + COUPON_GIFT_MARK + couponItemsLabel(quote.items), quote.amount, { productIds: quote.items.map(i => i.id) });
       else if (quote.kind === 'amount') onConfirm(0, why, quote.amount);
       else onConfirm(quote.pct, why, 0);
       onClose();

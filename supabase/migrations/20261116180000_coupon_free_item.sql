@@ -1,24 +1,27 @@
--- كوبون «منتج مجاني»: الكاشير يكتب الكود، والمنتج ينضاف للسلة ومجاني.
+-- كوبون «منتجات مجانية»: الكاشير يكتب الكود، والمنتجات تنضاف للسلة مجاناً.
 --
 -- صاحب المحل: «عندي منتج معين أربطه بكوبون، يحط الكوبون المنتج يجي بالسلة
 -- لحاله ومجاني… ولازم يتسجل إنه طلع مجاني بالوردية أو بالتقارير».
 --
--- كيف: كوبون kind = 'item' مربوط بـ menu_item_id. check_coupon يرجّع المنتج
--- وسعره، والكاشير يضيفه للسلة ويخصم سعره خصماً عادياً سببه
--- «كوبون CODE · هدية: اسم المنتج». فيطلع بالخصومات بورقة الموازنة وبالتقارير
--- باسمه، والعدّاد ينعدّ من نفس الـ trigger (يقرأ الكود لين أول مسافة).
+-- و«يقدر يضيف أكثر من منتج بكيفه».
+--
+-- كيف: كوبون kind = 'item' مربوط بـ menu_item_ids (منتج أو أكثر، لين ١٠).
+-- check_coupon يرجّع المنتجات وأسعارها (r_items)، والكاشير يضيفها للسلة ويخصم
+-- مجموع أسعارها خصماً عادياً سببه «كوبون CODE · هدية: قهوة + كوكيز». فيطلع
+-- بالخصومات بورقة الموازنة وبالتقارير بأسمائها، والعدّاد ينعدّ من نفس
+-- الـ trigger (يقرأ الكود لين أول مسافة).
 --
 -- للكاشير بس (المتجر يطبّق الكوبون بعد ما ينرسل الطلب، فما يقدر يضيف منتج).
 -- الأجهزة القديمة ما تعرف 'item': check_coupon يرفضه لها إلا لو أرسلت
 -- p_items_ok = true، وإلا كانت بتطبّق خصم صفر وتعدّ استخدام.
 --
 -- التطبيق: couponService.ts + DiscountModal.tsx · الويب: rkCheckCoupon
--- اللوحة:  الإعدادات ← الكاشير ← «الخصومات والكوبونات» ← «منتج مجاني»
+-- اللوحة:  الإعدادات ← الكاشير ← «الخصومات والكوبونات» ← «منتجات مجانية»
 
 begin;
 set local lock_timeout = '5s';
 
-alter table public.coupons add column if not exists menu_item_id bigint references public.menu_items(id) on delete set null;
+alter table public.coupons add column if not exists menu_item_ids bigint[] not null default '{}';
 
 do $do$
 declare c text;
@@ -50,12 +53,15 @@ security definer
 set search_path = public
 as $fn$
 begin
-  if new.menu_item_id is not null
-     and not exists (select 1 from menu_items m where m.id = new.menu_item_id and m.business_id = new.business_id) then
+  if exists (select 1 from unnest(new.menu_item_ids) x(id)
+              where not exists (select 1 from menu_items m where m.id = x.id and m.business_id = new.business_id)) then
     raise exception 'المنتج مو من محلك';
   end if;
-  if new.kind = 'item' and new.menu_item_id is null and (tg_op = 'INSERT' or old.kind <> 'item') then
+  if new.kind = 'item' and coalesce(array_length(new.menu_item_ids, 1), 0) = 0 then
     raise exception 'اختر المنتج المجاني';
+  end if;
+  if coalesce(array_length(new.menu_item_ids, 1), 0) > 10 then
+    raise exception 'أقصى شي ١٠ منتجات بالكوبون';
   end if;
   return new;
 end
@@ -65,10 +71,11 @@ create trigger rk_coupon_item_same_business
   before insert or update on public.coupons
   for each row execute function public.rk_coupon_item_same_business();
 
--- الحساب نفسه + المنتج (r_item_id، r_item_name). منتج مجاني: الخصم = سعره.
+-- الحساب نفسه + المنتجات (r_items: [{id, name, price}]). الخصم = مجموع أسعارها.
+-- منتج انحذف أو انطفى ينشال من الهدية؛ لو ما بقى ولا واحد = مرفوض.
 drop function if exists public.rk_coupon_quote(bigint, text, numeric, text);
 create function public.rk_coupon_quote(p_business_id bigint, p_code text, p_subtotal numeric, p_where text)
-returns table (r_ok boolean, r_reason text, r_coupon_id bigint, r_code text, r_kind text, r_pct numeric, r_amount numeric, r_discount numeric, r_item_id bigint, r_item_name text)
+returns table (r_ok boolean, r_reason text, r_coupon_id bigint, r_code text, r_kind text, r_pct numeric, r_amount numeric, r_discount numeric, r_items jsonb)
 language plpgsql
 stable
 security definer
@@ -76,7 +83,6 @@ set search_path = public
 as $fn$
 declare
   c coupons%rowtype;
-  m record;
   v_code text := upper(trim(coalesce(p_code, '')));
 begin
   r_code := v_code;
@@ -100,14 +106,16 @@ begin
     r_ok := false; r_reason := 'الكوبون لطلب من ' || trim(to_char(c.min_order, 'FM999999990.##')) || ' ريال وفوق'; return next; return;
   end if;
   if c.kind = 'item' then
-    select mi.id, mi.name, mi.price into m
+    select coalesce(jsonb_agg(jsonb_build_object('id', mi.id, 'name', mi.name, 'price', mi.price)
+                              order by array_position(c.menu_item_ids, mi.id)), '[]'::jsonb),
+           coalesce(sum(mi.price), 0)
+      into r_items, r_discount
       from menu_items mi
-     where mi.id = c.menu_item_id and mi.business_id = p_business_id and mi.active;
-    if m.id is null then
-      r_ok := false; r_reason := 'المنتج حق الكوبون مو متوفر'; return next; return;
+     where mi.id = any (c.menu_item_ids) and mi.business_id = p_business_id and mi.active;
+    if jsonb_array_length(r_items) = 0 then
+      r_ok := false; r_reason := 'منتجات الكوبون مو متوفرة'; return next; return;
     end if;
-    r_item_id := m.id; r_item_name := m.name;
-    r_amount := m.price; r_discount := m.price;
+    r_amount := r_discount;
     r_ok := true;
     return next; return;
   end if;
@@ -123,7 +131,7 @@ revoke all on function public.rk_coupon_quote(bigint, text, numeric, text) from 
 drop function if exists public.check_coupon(text, numeric);
 drop function if exists public.check_coupon(text, numeric, boolean);
 create function public.check_coupon(p_code text, p_subtotal numeric, p_items_ok boolean default false)
-returns table (r_ok boolean, r_reason text, r_code text, r_kind text, r_pct numeric, r_amount numeric, r_discount numeric, r_item_id bigint, r_item_name text)
+returns table (r_ok boolean, r_reason text, r_code text, r_kind text, r_pct numeric, r_amount numeric, r_discount numeric, r_items jsonb)
 language plpgsql
 stable
 security definer
@@ -141,7 +149,7 @@ begin
     return next; return;
   end if;
   r_ok := q.r_ok; r_reason := q.r_reason; r_code := q.r_code; r_kind := q.r_kind; r_pct := q.r_pct;
-  r_amount := q.r_amount; r_discount := q.r_discount; r_item_id := q.r_item_id; r_item_name := q.r_item_name;
+  r_amount := q.r_amount; r_discount := q.r_discount; r_items := q.r_items;
   return next;
 end
 $fn$;

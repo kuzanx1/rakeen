@@ -8,9 +8,9 @@ import { supabase } from '../infrastructure/supabaseClient';
  * لما يوصل الطلب (trigger zz_orders_record_coupon) -- حتى لو انباع بلا نت.
  * (supabase/migrations/20261115160000_discount_amount_and_coupons.sql)
  *
- * «منتج مجاني» (kind = 'item'، 20261116180000_coupon_free_item.sql): الكوبون
- * يرجّع المنتج وسعره، والكاشير يضيفه للسلة ويخصم سعره بسبب
- * «كوبون CODE · هدية: الاسم» -- فيطلع بالموازنة والتقارير إنه طلع مجاني.
+ * «منتجات مجانية» (kind = 'item'، 20261116180000_coupon_free_item.sql): الكوبون
+ * يرجّع منتج أو أكثر بأسعارها، والكاشير يضيفها للسلة ويخصم مجموعها بسبب
+ * «كوبون CODE · هدية: قهوة + كوكيز» -- فيطلع بالموازنة والتقارير إنها مجانية.
  * الويب: rkCheckCoupon في public/pos/rakeen-pos.js.
  */
 export interface CouponQuote {
@@ -20,12 +20,16 @@ export interface CouponQuote {
   code: string;
   kind: 'pct' | 'amount' | 'item';
   pct: number;
-  /** منتج مجاني: سعره. */
+  /** منتجات مجانية: مجموع أسعارها. */
   amount: number;
   discount: number;
-  /** منتج مجاني: المنتج اللي ينضاف للسلة. */
-  itemId: number | null;
-  itemName: string;
+  /** منتجات مجانية: اللي تنضاف للسلة. */
+  items: { id: number; name: string; price: number }[];
+}
+
+/** «قهوة + كوكيز». */
+export function couponItemsLabel(items: { name: string }[]): string {
+  return items.map(i => i.name).join(' + ');
 }
 
 export const COUPON_REASON_PREFIX = 'كوبون ';
@@ -43,7 +47,7 @@ export function normalizeCouponCode(v: string): string {
 
 export async function checkCoupon(code: string, subtotal: number): Promise<CouponQuote> {
   const clean = normalizeCouponCode(code);
-  const base: CouponQuote = { ok: false, reason: '', code: clean, kind: 'pct', pct: 0, amount: 0, discount: 0, itemId: null, itemName: '' };
+  const base: CouponQuote = { ok: false, reason: '', code: clean, kind: 'pct', pct: 0, amount: 0, discount: 0, items: [] };
   if (clean.length < 3) return { ...base, reason: 'اكتب كود الكوبون' };
   try {
     // p_items_ok: هالجهاز يعرف يضيف المنتج المجاني. قاعدة قبل التحديث ما تعرفه.
@@ -69,8 +73,11 @@ export async function checkCoupon(code: string, subtotal: number): Promise<Coupo
       pct: Number(r.r_pct ?? 0),
       amount: Number(r.r_amount ?? 0),
       discount: Number(r.r_discount ?? 0),
-      itemId: r.r_item_id != null ? Number(r.r_item_id) : null,
-      itemName: String(r.r_item_name ?? ''),
+      items: Array.isArray(r.r_items)
+        ? (r.r_items as Record<string, unknown>[])
+            .map(i => ({ id: Number(i.id), name: String(i.name ?? ''), price: Number(i.price ?? 0) }))
+            .filter(i => i.id > 0)
+        : [],
     };
   } catch {
     return { ...base, reason: 'تعذّر التحقق — تأكد من النت' };

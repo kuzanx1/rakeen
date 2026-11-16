@@ -1718,4 +1718,15 @@ button.mn-stat{cursor:pointer;}
 /* كوبون «منتج مجاني»: اختيار المنتج بدل خانة الرقم */
 .rk2 .dc-edit .dc-f-item{display:none;}
 .rk2 .dc-edit[data-kind="item"] .dc-f-item{display:block;}
+.rk2 .dc-item-q{width:100%; margin-bottom:8px;}
+.dc-item-list{display:flex; flex-direction:column; gap:4px; max-height:220px; overflow:auto; padding:4px; border:1px solid var(--line); border-radius:12px; background:var(--surf1);}
+.dc-item-opt{display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:10px; cursor:pointer; font-weight:800; font-size:14px;}
+.dc-item-opt:hover{background:var(--surf2);}
+.dc-item-opt[hidden]{display:none;}
+.dc-item-opt input{width:18px; height:18px; accent-color:var(--lime-deep); flex-shrink:0; margin:0;}
+.dc-item-opt span{flex:1; min-width:0;}
+.dc-item-opt small{color:var(--muted); font-weight:700; direction:ltr; unicode-bidi:isolate;}
+.dc-item-opt:has(input:checked){background:color-mix(in srgb, var(--lime) 22%, var(--surf1));}
 .rk2 .dc-edit[data-kind="item"] .dc-f-value{display:none;}
+.rk2 .dc-item-opt input[type=checkbox]{width:18px !important; min-width:18px; height:18px !important; padding:0 !important; border:0; box-shadow:none;}
+.rk2 .dc-item-opt span{display:block; font-size:14px; font-weight:800; color:var(--text); margin:0;}

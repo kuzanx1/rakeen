@@ -11579,12 +11579,17 @@ let COUPONS_READY = true; // الجدول نزل بالقاعدة؟
    (supabase/migrations/20261116180000_coupon_free_item.sql) */
 let COUPONS_HAVE_ITEM = false;
 function dcItemName(id){ const m = (typeof MENU_ITEMS !== 'undefined' ? MENU_ITEMS : []).find(x => String(x.id) === String(id)); return m ? m.name : 'منتج محذوف'; }
+/* «قهوة + كوكيز» -- المنتجات المحذوفة ما تطلع. */
+function dcItemsLabel(ids){
+  const names = (ids || []).map(id => (typeof MENU_ITEMS !== 'undefined' ? MENU_ITEMS : []).find(x => String(x.id) === String(id))).filter(Boolean).map(m => m.name);
+  return names.length ? names.join(' + ') : 'منتج محذوف';
+}
 async function loadCoupons(){
   if(!window.supabaseClient || !CURRENT_PROFILE) return;
   const q = cols => window.supabaseClient.from('coupons').select(cols)
     .eq('business_id', CURRENT_PROFILE.business_id).order('created_at', { ascending: false });
   const cols = 'id, code, kind, pct, amount, min_order, max_uses, uses_count, expires_at, for_store, for_pos, active, created_at';
-  let { data, error } = await q(cols + ', menu_item_id');
+  let { data, error } = await q(cols + ', menu_item_ids');
   COUPONS_HAVE_ITEM = !error;
   if(error) ({ data, error } = await q(cols));
   COUPONS_READY = !error;
@@ -11784,7 +11789,7 @@ function dcCouponsHtml(){
     + hmEmpty('tag', 'الكوبونات تحتاج تحديث بسيط', 'كلّم الدعم ونفعّلها لك. الخصومات الجاهزة شغّالة الحين') + '</div>';
   const cards = COUPONS.map(c => {
     const s = couponStatus(c), open = dcOpen === 'c:' + c.id;
-    const bits = c.kind === 'item' ? ['مجاني: ' + dcItemName(c.menu_item_id), 'الكاشير بس'] : [dcWhere(c)];
+    const bits = c.kind === 'item' ? ['مجاني: ' + dcItemsLabel(c.menu_item_ids), 'الكاشير بس'] : [dcWhere(c)];
     if(Number(c.min_order) > 0) bits.push('لطلب ' + Number(c.min_order) + ' ﷼ وفوق');
     if(c.expires_at) bits.push((new Date(c.expires_at) < new Date() ? 'انتهى ' : 'لين ') + dcDate(c.expires_at));
     bits.push(c.uses_count ? 'استُخدم ' + c.uses_count + (c.max_uses ? ' من ' + c.max_uses : '') + ' مرة' : (c.max_uses ? 'لـ' + c.max_uses + ' مرة' : 'لسا ما انستخدم'));
@@ -11814,11 +11819,16 @@ function dcKindSeg(kind, withItem){
     + '<button type="button" data-dc-kind="amount" class="' + (kind === 'amount' ? 'active' : '') + '">مبلغ ﷼</button>'
     + (withItem ? '<button type="button" data-dc-kind="item" class="' + (kind === 'item' ? 'active' : '') + '">منتج مجاني</button>' : '') + '</div>';
 }
+/* المنتجات المجانية: اختيار منتج أو أكثر (لين ١٠) من قائمة فيها بحث. */
 function dcItemSelect(sel){
-  const items = (typeof MENU_ITEMS !== 'undefined' ? MENU_ITEMS : []).filter(m => m.active !== false || String(m.id) === String(sel));
-  return '<select class="dc-f-item" aria-label="المنتج المجاني"><option value="">اختر المنتج…</option>'
-    + items.map(m => '<option value="' + m.id + '"' + (String(m.id) === String(sel) ? ' selected' : '') + '>' + escapeHtml(m.name) + ' — ' + Number(m.price) + ' ﷼</option>').join('') + '</select>';
+  const picked = new Set((sel || []).map(String));
+  const items = (typeof MENU_ITEMS !== 'undefined' ? MENU_ITEMS : []).filter(m => m.active !== false || picked.has(String(m.id)));
+  return '<div class="dc-f-item" role="group" aria-label="المنتجات المجانية">'
+    + (items.length > 8 ? '<input type="search" class="dc-item-q" placeholder="دوّر منتج…" autocomplete="off">' : '')
+    + '<div class="dc-item-list">' + items.map(m => '<label class="dc-item-opt" data-name="' + escapeHtml(m.name) + '"><input type="checkbox" value="' + m.id + '"' + (picked.has(String(m.id)) ? ' checked' : '') + '>'
+      + '<span>' + escapeHtml(m.name) + '</span><small>' + Number(m.price) + ' ﷼</small></label>').join('') + '</div></div>';
 }
+function dcPickedItems(ed){ return [...ed.querySelectorAll('.dc-f-item input[type=checkbox]:checked')].map(i => parseInt(i.value, 10)).filter(n => n > 0); }
 function dcCouponEditorHtml(c, idea){
   const src = c || idea || {};
   const kind = c ? c.kind : (idea ? idea.kind : 'pct');
@@ -11834,7 +11844,7 @@ function dcCouponEditorHtml(c, idea){
     + '<div class="dc-fields">'
     + f('الكود', '<input type="text" class="dc-f-code" maxlength="20" dir="ltr" autocomplete="off" autocapitalize="characters" placeholder="WELCOME10" value="' + escapeHtml(src.code || '') + '">', 'حروف إنجليزي وأرقام')
     + f('الخصم', dcKindSeg(kind, COUPONS_HAVE_ITEM) + '<input type="number" class="dc-f-value" inputmode="decimal" min="0" step="0.5" value="' + v + '" placeholder="' + (kind === 'amount' ? '25' : '10') + '">'
-      + (COUPONS_HAVE_ITEM ? dcItemSelect(c ? c.menu_item_id : '') : ''), '')
+      + (COUPONS_HAVE_ITEM ? dcItemSelect(c ? c.menu_item_ids : []) : ''), '')
     + f('وين يشتغل؟', '<select class="dc-f-where"><option value="both"' + (where === 'both' ? ' selected' : '') + '>المتجر والكاشير</option><option value="store"' + (where === 'store' ? ' selected' : '') + '>المتجر الإلكتروني بس</option><option value="pos"' + (where === 'pos' ? ' selected' : '') + '>الكاشير بس</option></select>', '')
     + '</div>'
     + '<details class="dl-adv"' + (advOpen ? ' open' : '') + '><summary>حدود الكوبون (اختياري)</summary><div class="dc-fields">'
@@ -11906,9 +11916,9 @@ function dcSyncPreview(ed){
     const where = ed.querySelector('.dc-f-where')?.value;
     const min = parseFloat(ed.querySelector('.dc-f-min')?.value) || 0;
     const exp = ed.querySelector('.dc-f-exp')?.value;
-    const itemId = ed.querySelector('.dc-f-item')?.value;
+    const picked = dcPickedItems(ed);
     if(kind === 'item'){
-      pv.innerHTML = hmIc('info') + '<span>عميلك يقول الكود <b dir="ltr">' + escapeHtml(code) + '</b> للكاشير، و<b>' + (itemId ? escapeHtml(dcItemName(itemId)) : '…') + '</b> ينضاف لطلبه مجاناً'
+      pv.innerHTML = hmIc('info') + '<span>عميلك يقول الكود <b dir="ltr">' + escapeHtml(code) + '</b> للكاشير، و<b>' + (picked.length ? escapeHtml(dcItemsLabel(picked)) : '…') + '</b> ' + (picked.length > 1 ? 'تنضاف' : 'ينضاف') + ' لطلبه مجاناً'
         + (min > 0 ? ' (لو طلبه ' + dcN(min) + ' ﷼ وفوق)' : '') + (exp ? '، لين ' + dcDate(exp + 'T12:00:00+03:00') : '') + '.'
         + ' <small>يتسجّل بورقة الموازنة والتقارير إنه طلع هدية. للكاشير بس.</small></span>';
       return;
@@ -12081,7 +12091,7 @@ function dcShare(id){
   const c = COUPONS.find(x => String(x.id) === String(id)); if(!c) return;
   const url = c.for_store && typeof onlineMenuPublicUrl === 'function' && ONLINE_MENU_SLUG ? onlineMenuPublicUrl() : '';
   const msg = c.kind === 'item'
-    ? 'هدية لك منّا 🎁\nقل للكاشير الكود ' + c.code + ' وخذ ' + dcItemName(c.menu_item_id) + ' مجاناً'
+    ? 'هدية لك منّا 🎁\nقل للكاشير الكود ' + c.code + ' وخذ ' + dcItemsLabel(c.menu_item_ids) + ' مجاناً'
       + (Number(c.min_order) > 0 ? ' مع طلب من ' + Number(c.min_order) + ' ﷼ وفوق' : '')
       + (c.expires_at ? '\nلين ' + dcDate(c.expires_at) : '')
     : 'عندنا لكم كود خصم 🎁\n' + c.code + ' = خصم ' + couponValueLabel(c)
@@ -12103,8 +12113,10 @@ async function dcSave(key, btn){
   const sb = window.supabaseClient;
   if(kind === 'pct' && !(v >= 1 && v <= 100)){ showToast('النسبة لازم بين ١ و١٠٠'); ed.querySelector('.dc-f-value')?.focus(); return; }
   if(kind === 'amount' && !(v > 0)){ showToast('اكتب مبلغ الخصم'); ed.querySelector('.dc-f-value')?.focus(); return; }
-  const itemId = kind === 'item' ? parseInt(ed.querySelector('.dc-f-item')?.value, 10) : null;
-  if(kind === 'item' && !(itemId > 0)){ showToast('اختر المنتج المجاني'); ed.querySelector('.dc-f-item')?.focus(); return; }
+  // المحذوف من القائمة ما ينحفظ (القاعدة ترفض منتج مو موجود).
+  const itemIds = kind === 'item' ? dcPickedItems(ed).filter(id => MENU_ITEMS.some(m => m.id === id)) : [];
+  if(kind === 'item' && !itemIds.length){ showToast('اختر منتج واحد على الأقل'); ed.querySelector('.dc-f-item input')?.focus(); return; }
+  if(itemIds.length > 10){ showToast('أقصى شي ١٠ منتجات بالكوبون'); return; }
   let payload, table, label;
   if(isCoupon){
     const code = (ed.querySelector('.dc-f-code').value || '').trim();
@@ -12119,7 +12131,7 @@ async function dcSave(key, btn){
       max_uses: maxUses > 0 ? maxUses : null,
       expires_at: exp ? new Date(exp + 'T23:59:59+03:00').toISOString() : null, // آخر يوم كامل بتوقيت الرياض
       for_store: kind !== 'item' && where !== 'pos', for_pos: kind === 'item' || where !== 'store' };
-    if(COUPONS_HAVE_ITEM) payload.menu_item_id = kind === 'item' ? itemId : null;
+    if(COUPONS_HAVE_ITEM) payload.menu_item_ids = kind === 'item' ? itemIds : [];
     table = 'coupons'; label = 'كوبون ' + code;
   } else {
     const name = (ed.querySelector('.dc-f-name').value || '').trim();
@@ -12139,7 +12151,7 @@ async function dcSave(key, btn){
     showToast(/coupons_business_code_key|duplicate/i.test(error.message || '') ? 'فيه كوبون بنفس الكود — اختر كود ثاني' : 'تعذر الحفظ: ' + error.message);
     return;
   }
-  logDashboardAudit((isNew ? 'أضاف ' : 'عدّل ') + label + ' (' + (kind === 'item' ? 'هدية: ' + dcItemName(itemId) : kind === 'amount' ? Math.round(v * 100) / 100 + ' ريال' : Math.round(v) + '%') + ')');
+  logDashboardAudit((isNew ? 'أضاف ' : 'عدّل ') + label + ' (' + (kind === 'item' ? 'هدية: ' + dcItemsLabel(itemIds) : kind === 'amount' ? Math.round(v * 100) / 100 + ' ريال' : Math.round(v) + '%') + ')');
   showToast(isNew ? (isCoupon ? 'سوّينا الكوبون ✓ انشره لعملائك' : 'انضاف ✓ يطلع للكاشير الحين') : 'انحفظ ✓');
   dcOpen = null;
   await (isCoupon ? loadCoupons() : loadDiscountPresets());
@@ -12197,7 +12209,7 @@ async function dcDelete(key){
       return;
     }
     const kb = t.closest('[data-dc-kind]');
-    if(kb){ const ed = kb.closest('.dc-edit'); ed.dataset.kind = kb.dataset.dcKind; dcSyncPreview(ed); ed.querySelector(kb.dataset.dcKind === 'item' ? '.dc-f-item' : '.dc-f-value')?.focus(); return; }
+    if(kb){ const ed = kb.closest('.dc-edit'); ed.dataset.kind = kb.dataset.dcKind; dcSyncPreview(ed); ed.querySelector(kb.dataset.dcKind === 'item' ? '.dc-f-item input' : '.dc-f-value')?.focus(); return; }
     const ed = t.closest('[data-dc-edit]'); if(ed){ const k = ed.dataset.dcEdit; dcOpen = dcOpen === k ? null : k; dcRender(); if(dcOpen) dcFocus(dcOpen); return; }
     if(t.closest('[data-dc-cancel]')){ dcOpen = null; dcRender(); return; }
     const sv = t.closest('[data-dc-save]'); if(sv){ dcSave(sv.dataset.dcSave, sv); return; }
@@ -12217,6 +12229,11 @@ async function dcDelete(key){
     if(t.classList && t.classList.contains('dc-f-code')){
       const v = toWesternDigits(t.value).toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 20);
       if(t.value !== v) t.value = v;
+    }
+    if(t.classList && t.classList.contains('dc-item-q')){
+      const q = t.value.trim();
+      t.closest('.dc-f-item').querySelectorAll('.dc-item-opt').forEach(o => { o.hidden = !!q && (o.dataset.name || '').indexOf(q) < 0 && !o.querySelector('input').checked; });
+      return;
     }
     const ed = t.closest && t.closest('.dc-edit'); if(ed) dcSyncPreview(ed);
   });

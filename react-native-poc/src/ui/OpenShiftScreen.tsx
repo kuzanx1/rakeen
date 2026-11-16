@@ -154,7 +154,7 @@ export default function OpenShiftScreen({
                 accessibilityLabel="غيّر رقم أول فاتورة"
               >
                 <Text style={styles.startRowText}>
-                  {'فواتير اليوم تبدأ من '}
+                  {'فواتير اليوم تبدأ من رقم '}
                   <Text style={styles.startRowNo}>{`#${Number(start) || 1}`}</Text>
                 </Text>
                 <Text style={styles.startRowLink}>غيّر</Text>

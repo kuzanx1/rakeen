@@ -388,8 +388,8 @@ export default function ProductsScreen({
 
   /** Opens DiscountModal -- replaces the old inline `.discount-panel` row. */
   const [discountModalOpen, setDiscountModalOpen] = useState(false);
-  /** المنتج المجاني من كوبون: لو انشال من السلة، الخصم ينشال معه. */
-  const [couponGiftId, setCouponGiftId] = useState<number | null>(null);
+  /** المنتجات المجانية من كوبون: لو انشال واحد منها من السلة، الخصم ينشال. */
+  const [couponGiftIds, setCouponGiftIds] = useState<number[] | null>(null);
 
   /** Which line currently has its .oi-note-input revealed. The source
    *  tracks this in the DOM by toggling `.open` on that one input; a
@@ -649,18 +649,19 @@ export default function ProductsScreen({
   const giftIdx = cart.discountReason.indexOf(COUPON_GIFT_MARK);
   const giftName = giftIdx >= 0 ? cart.discountReason.slice(giftIdx + COUPON_GIFT_MARK.length) : '';
   useEffect(() => {
-    if (couponGiftId == null) return;
+    if (couponGiftIds == null) return;
     if (!cart.discountReason.includes(COUPON_GIFT_MARK)) {
-      setCouponGiftId(null);
+      setCouponGiftIds(null);
       return;
     }
-    if (!cart.cart.some(l => l.productId === couponGiftId && !l.isFreeReward && !l.isPointsRedemption)) {
+    const inCart = (id: number) => cart.cart.some(l => l.productId === id && !l.isFreeReward && !l.isPointsRedemption);
+    if (!couponGiftIds.every(inCart)) {
       setDiscountFixed(0);
       setDiscountPct(0);
       setDiscountReason('');
-      setCouponGiftId(null);
+      setCouponGiftIds(null);
     }
-  }, [cart.cart, cart.discountReason, couponGiftId, setDiscountFixed, setDiscountPct, setDiscountReason]);
+  }, [cart.cart, cart.discountReason, couponGiftIds, setDiscountFixed, setDiscountPct, setDiscountReason]);
 
   /** #lastTxReprint. It used to be a toast and nothing more, as in the
    *  web cashier, so «إعادة طباعة» said «تمت» and printed nothing. The
@@ -2116,17 +2117,24 @@ export default function ProductsScreen({
         subtotal={cart.totals.subtotal}
         onClose={() => setDiscountModalOpen(false)}
         onConfirm={(pct, reason, fixed, gift) => {
+          // منتج بالكوبون مخفي من الكاشير؟ لا نخصم سعر شي ما انضاف.
+          if (gift && gift.productIds.some(id => !productsById.get(id))) {
+            setSubmitStatus('🔴 منتج بالكوبون مو بقائمة الكاشير');
+            return;
+          }
           cart.setDiscountPct(fixed > 0 ? 0 : pct);
           cart.setDiscountFixed(fixed > 0 ? fixed : 0);
           cart.setDiscountReason(reason);
-          // كوبون «منتج مجاني»: المنتج ينضاف بإعداداته الافتراضية، وسعره هو الخصم.
+          // كوبون «منتجات مجانية»: كل منتج ينضاف بإعداداته الافتراضية، ومجموع أسعارها هو الخصم.
           if (gift) {
-            const modDef = catalog?.modifiersByProductId[gift.productId];
-            if (modDef) cart.addWithConfig(gift.productId, buildDefaultConfig(modDef), 1);
-            else cart.addProduct(gift.productId);
-            setCouponGiftId(gift.productId);
+            for (const id of gift.productIds) {
+              const modDef = catalog?.modifiersByProductId[id];
+              if (modDef) cart.addWithConfig(id, buildDefaultConfig(modDef), 1);
+              else cart.addProduct(id);
+            }
+            setCouponGiftIds(gift.productIds);
           } else {
-            setCouponGiftId(null);
+            setCouponGiftIds(null);
           }
         }}
       />
