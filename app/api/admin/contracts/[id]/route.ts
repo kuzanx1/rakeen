@@ -53,7 +53,7 @@ async function paymentAction(
   contractId: string,
   body: { action?: string; payment_id?: string; note?: string; amount?: unknown; due_date?: unknown }
 ): Promise<NextResponse> {
-  const { data: contract } = await admin.from("subscription_contracts").select("contract_number, status").eq("id", contractId).maybeSingle();
+  const { data: contract } = await admin.from("subscription_contracts").select("contract_number, status, business_id").eq("id", contractId).maybeSingle();
   if (!contract) return NextResponse.json({ error: "غير موجود" }, { status: 404 });
 
   if (body.action === "pay_add") {
@@ -82,6 +82,14 @@ async function paymentAction(
       .select("seq")
       .maybeSingle();
     if (error || !data) return NextResponse.json({ error: "تعذر تأكيد الدفعة (يمكن انأكدت قبل)" }, { status: 400 });
+    // A confirmed payment IS the subscription. «مشترك» used to be a separate
+    // hand toggle nobody remembered after approving the receipt, so a paying
+    // café stayed «تجربة» and its online store was about to hit the trial
+    // order cap (هيل كوفي, 337/350). Flip it here so the two cannot diverge.
+    if (contract.business_id) {
+      const { error: subErr } = await admin.from("businesses").update({ online_subscribed: true }).eq("id", contract.business_id);
+      if (subErr) console.error("pay_approve: could not mark business subscribed", contract.business_id, subErr);
+    }
     await logAdminAction(admin, email, "contract.payment_approve", contract.contract_number, "success", { seq: data.seq });
     return NextResponse.json({ ok: true });
   }
