@@ -187,6 +187,10 @@ export default function AdminDashboard() {
   const [session, setSession] = useState<{ email: string; token: string } | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
+  // Tells the boot watchdog in page.tsx that the JS bundle ran on this
+  // browser; without it the watchdog replaces the blank page with the
+  // reason (last error + browser version) after 12s.
+  useEffect(() => { (window as unknown as { __rkAdminReady?: boolean }).__rkAdminReady = true; }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
