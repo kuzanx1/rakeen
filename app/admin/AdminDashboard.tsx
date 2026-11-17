@@ -319,21 +319,51 @@ export default function AdminDashboard() {
   }
 
   useEffect(() => {
-    sb.auth.getSession().then(async ({ data }) => {
-      if (data.session) {
-        const { data: aalData } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
-        if (aalData?.currentLevel === "aal2") {
-          setSession({ email: data.session.user.email || "", token: data.session.access_token });
-        } else {
-          // A real (aal1-only) session exists but hasn't cleared step-up —
-          // e.g. a page reload mid-MFA-flow. Re-enter the challenge/enroll
-          // step instead of either granting access or forcing a fresh
-          // password entry.
-          await beginMfaFlow();
-        }
-      }
+    // Until this settles the page renders an empty screen. It used to end only
+    // on the happy path, so a saved session that failed to refresh (stale
+    // token on one browser, MFA call erroring) left that browser blank for
+    // good while the phone worked. Now every outcome ends on a usable screen:
+    // a failure drops the broken local session and shows the login form, and
+    // an auth call that never answers is cut off after 8s.
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
       setCheckingSession(false);
-    });
+    };
+    const giveUp = setTimeout(() => {
+      if (settled) return;
+      console.error("admin: session check did not answer in 8s");
+      sb.auth.signOut({ scope: "local" }).catch(() => {});
+      finish();
+    }, 8000);
+    (async () => {
+      try {
+        const { data, error } = await sb.auth.getSession();
+        if (error) throw error;
+        if (data.session) {
+          const { data: aalData, error: aalError } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+          if (aalError) throw aalError;
+          if (aalData?.currentLevel === "aal2") {
+            setSession({ email: data.session.user.email || "", token: data.session.access_token });
+          } else {
+            // A real (aal1-only) session exists but hasn't cleared step-up —
+            // e.g. a page reload mid-MFA-flow. Re-enter the challenge/enroll
+            // step instead of either granting access or forcing a fresh
+            // password entry.
+            await beginMfaFlow();
+          }
+        }
+      } catch (err) {
+        console.error("admin: saved session unusable, showing login", err);
+        await sb.auth.signOut({ scope: "local" }).catch(() => {});
+        setSession(null);
+      } finally {
+        clearTimeout(giveUp);
+        finish();
+      }
+    })();
+    return () => clearTimeout(giveUp);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sb]);
 
