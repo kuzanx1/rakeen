@@ -59,11 +59,27 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_CONTENT_BASE64: ${{ secrets.ASC_KEY_CONTENT_BASE64 }}
-        run: bundle exec fastlane beta
+        # Raw logs need a signed-in GitHub account to read; annotations do
+        # not. On failure, the error lines go out as ::error:: annotations so
+        # the reason is readable from the public API without logging in.
+        shell: bash
+        run: |
+          mkdir -p build
+          set +e
+          bundle exec fastlane beta 2>&1 | tee build/fastlane.txt
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            grep -iE "error|rejected|closed|invalid|failed" build/fastlane.txt | grep -v "^\s*$" | tail -15 | while IFS= read -r line; do
+              echo "::error::${line:0:900}"
+            done
+          fi
+          exit $status
 
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ios-testflight-release-log
-          path: react-native-poc/ios/build/*.txt
+          path: |
+            react-native-poc/ios/build/*.txt
+            ~/Library/Logs/gym/*.log

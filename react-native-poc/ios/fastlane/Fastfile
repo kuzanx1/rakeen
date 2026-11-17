@@ -86,6 +86,41 @@ platform :ios do
     ) + 1, run_floor].max
     UI.message("Archiving as build #{build_number}")
 
+    # Same self-correcting idea for the version (MARKETING_VERSION). Once
+    # Apple approves a version its "train" closes and every later upload
+    # under it is rejected -- after the full archive (#80, #81 on 1.5). The
+    # version used to be bumped by hand in the pbxproj and was forgotten.
+    # Now: take the pbxproj version, and if App Store Connect already has
+    # that version (or a higher one) approved/released, use the next minor
+    # above the highest closed one. Any API hiccup falls back to the
+    # pbxproj version, i.e. the old behaviour.
+    # Lanes may run from ios/ or ios/fastlane/ -- look in both.
+    pbx_path = ["RakeenPOC.xcodeproj/project.pbxproj", "../RakeenPOC.xcodeproj/project.pbxproj"].find { |p| File.exist?(p) }
+    marketing_version = pbx_path && File.read(pbx_path)[/MARKETING_VERSION = ([0-9.]+);/, 1]
+    begin
+      raise "no MARKETING_VERSION in the pbxproj" unless marketing_version
+      closed_states = %w[
+        PENDING_DEVELOPER_RELEASE PENDING_APPLE_RELEASE PROCESSING_FOR_APP_STORE READY_FOR_SALE
+        REPLACED_WITH_NEW_VERSION REMOVED_FROM_SALE DEVELOPER_REMOVED_FROM_SALE
+        ACCEPTED READY_FOR_DISTRIBUTION PROCESSING_FOR_DISTRIBUTION PENDING_APPLE_RELEASE
+      ]
+      app = Spaceship::ConnectAPI::App.find("com.rakeen.pos")
+      closed = app.get_app_store_versions(limit: 50).select do |v|
+        state = (v.respond_to?(:app_version_state) && v.app_version_state) || v.app_store_state
+        closed_states.include?(state.to_s)
+      end.map(&:version_string)
+      highest = closed.max_by { |s| Gem::Version.new(s) }
+      if highest && Gem::Version.new(marketing_version) <= Gem::Version.new(highest)
+        major, minor = highest.split(".").map(&:to_i)
+        bumped = "#{major}.#{minor.to_i + 1}"
+        UI.important("Version #{marketing_version} is closed on App Store Connect (highest approved: #{highest}) -- uploading as #{bumped}")
+        marketing_version = bumped
+      end
+    rescue StandardError => e
+      UI.important("Could not check App Store versions (#{e.class}: #{e.message}); keeping #{marketing_version}")
+    end
+    UI.message("Version #{marketing_version} (#{build_number})")
+
     build_app(
       workspace: "RakeenPOC.xcworkspace",
       scheme: "RakeenPOC",
@@ -107,7 +142,7 @@ platform :ios do
       # this lane already imported, or `xcodebuild archive` fails with
       # "No profiles for 'com.rakeen.pos' were found" even though the
       # right profile is sitting right there in ~/Library/MobileDevice.
-      xcargs: "DEVELOPMENT_TEAM=7ZZ8RKB973 CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=\"Apple Distribution\" PROVISIONING_PROFILE_SPECIFIER=#{profile_uuid} CURRENT_PROJECT_VERSION=#{build_number}",
+      xcargs: "DEVELOPMENT_TEAM=7ZZ8RKB973 CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=\"Apple Distribution\" PROVISIONING_PROFILE_SPECIFIER=#{profile_uuid} CURRENT_PROJECT_VERSION=#{build_number}#{marketing_version ? " MARKETING_VERSION=#{marketing_version}" : ""}",
     )
 
     upload_to_testflight(
