@@ -56,6 +56,7 @@ function planLockedAlert(plan: string) {
 }
 import { setNotifySoundEnabled } from './src/application/soundService';
 import DiagnosticsScreen from './src/ui/DiagnosticsScreen';
+import UiScaleScreen from './src/ui/UiScaleScreen';
 import OrderHistoryScreen from './src/ui/OrderHistoryScreen';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import KeyboardLift from './src/ui/KeyboardLift';
@@ -168,6 +169,7 @@ type Screen =
   | { name: 'printQueue' }
   | { name: 'printerSettings' }
   | { name: 'diagnostics' }
+  | { name: 'uiScale' }
   | { name: 'closings' }
   | { name: 'reportSettings' }
   | { name: 'orderHistory' }
@@ -197,6 +199,7 @@ function screenToTab(screen: Screen): NavTab {
     case 'printQueue':
     case 'printerSettings':
     case 'diagnostics':
+    case 'uiScale':
     case 'closings':
     case 'reportSettings':
     case 'more':
@@ -228,6 +231,7 @@ function App(): React.JSX.Element {
         case 'printQueue':
         case 'printerSettings':
         case 'diagnostics':
+        case 'uiScale':
         case 'closings':
         case 'reportSettings':
           setScreen({ name: 'more' });
@@ -927,6 +931,7 @@ function App(): React.JSX.Element {
       screen.name === 'printQueue' ||
       screen.name === 'printerSettings' ||
       screen.name === 'diagnostics' ||
+      screen.name === 'uiScale' ||
       screen.name === 'closings' ||
       screen.name === 'reportSettings' ||
       (screen.name === 'orderHistory' && branchId != null)
@@ -1207,6 +1212,7 @@ function App(): React.JSX.Element {
             onOpenPrintQueue={() => setScreen({ name: 'printQueue' })}
             onOpenPrinterSettings={() => setScreen({ name: 'printerSettings' })}
             onOpenDiagnostics={() => setScreen({ name: 'diagnostics' })}
+            onOpenUiScale={() => setScreen({ name: 'uiScale' })}
             onOpenDrawer={handleOpenDrawerManually}
             // Both tiles land on the same place for the same reason the
             // source does it: the cashier has to pick WHICH order first.
@@ -1248,6 +1254,11 @@ function App(): React.JSX.Element {
           <View style={styles.subScreen}>
             <BackToMore onPress={() => setScreen({ name: 'more' })} />
             <DiagnosticsScreen />
+          </View>
+        ) : screen.name === 'uiScale' ? (
+          <View style={styles.subScreen}>
+            <BackToMore onPress={() => setScreen({ name: 'more' })} />
+            <UiScaleScreen onToast={setStatusMessage} />
           </View>
         ) : screen.name === 'closings' && branchId != null ? (
           <View style={styles.subScreen}>
@@ -1396,6 +1407,7 @@ function MoreScreen({
   onOpenPrintQueue,
   onOpenPrinterSettings,
   onOpenDiagnostics,
+  onOpenUiScale,
   onOpenDrawer,
   onOpenCompletedOrders,
   onOpenMyDisplay,
@@ -1412,6 +1424,7 @@ function MoreScreen({
   onOpenPrintQueue: () => void;
   onOpenPrinterSettings: () => void;
   onOpenDiagnostics: () => void;
+  onOpenUiScale: () => void;
   onOpenDrawer: () => void;
   /** إعادة طباعة and استرجاع مبلغ both just send the cashier to
    *  the completed-orders list to pick the order (rakeen-pos.js:5158). */
@@ -1541,6 +1554,10 @@ function MoreScreen({
           <Line x1={3} y1={6} x2={3.01} y2={6} stroke={ink} />
           <Line x1={3} y1={12} x2={3.01} y2={12} stroke={ink} />
           <Line x1={3} y1={18} x2={3.01} y2={18} stroke={ink} />
+        </MoreLink>
+        <MoreLink title="حجم الواجهة" hint="كبّر المنتجات والأزرار والخطوط للشاشات الكبيرة" onPress={onOpenUiScale}>
+          <Rect x={3} y={3} width={18} height={18} rx={3} stroke={ink} />
+          <Path d="M9 15l6-6M10 9h5v5" stroke={ink} />
         </MoreLink>
         <MoreLink title="تشخيص النظام" hint="النت، الطابعة، المزامنة — لو فيه مشكلة" onPress={onOpenDiagnostics} last>
           <Path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke={ink} />

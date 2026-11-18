@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useMemo } from 'react';
 import { useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { layout } from './theme';
+import { layout, useTheme } from './theme';
 
 /**
  * The app-shell geometry every screen has to agree on, so that the
@@ -79,11 +79,14 @@ export function ShellProvider({
 }) {
   const { width } = useWindowDimensions();
   const { bottom: safeBottom } = useSafeAreaInsets();
+  // «حجم الواجهة»: السلة والشريط السفلي يكبرون مع باقي الواجهة.
+  const { scale } = useTheme();
   const value = useMemo<Shell>(() => {
     const sideBySide = width >= layout.sideBySideMinWidth;
-    const bottomNavHeight = layout.bottomNavHeight + safeBottom;
-    const orderPanelWidth =
-      width <= layout.narrowPanelMaxWidth ? layout.orderPanelWidthNarrow : layout.orderPanelWidth;
+    const bottomNavHeight = Math.round(layout.bottomNavHeight * scale) + safeBottom;
+    const orderPanelWidth = Math.round(
+      (width <= layout.narrowPanelMaxWidth ? layout.orderPanelWidthNarrow : layout.orderPanelWidth) * scale,
+    );
     return {
       sideBySide,
       homeActive,
@@ -93,7 +96,7 @@ export function ShellProvider({
       insetTop: sideBySide ? topbarHeight : 0,
       insetBottom: sideBySide ? bottomNavHeight : 0,
     };
-  }, [width, homeActive, topbarHeight, safeBottom]);
+  }, [width, homeActive, topbarHeight, safeBottom, scale]);
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;
 }
 

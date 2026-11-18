@@ -466,6 +466,7 @@ export default function ProductsScreen({
    */
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const { sideBySide, orderPanelWidth, insetTop, insetBottom } = useShell();
+  const { scale: uiScale } = useTheme();
   const isNarrow = !sideBySide;
 
   /**
@@ -513,14 +514,14 @@ export default function ProductsScreen({
   );
 
   const { gridColumns, gridTileWidth } = useMemo(() => {
-    const sidePadding = 20 * 2;
-    const gap = 10;
+    // «حجم الواجهة» يكبّر الأنماط (theme.ts)، فالحساب هنا يكبر معها
+    // وإلا طلعت الأعمدة أعرض من المساحة.
+    const sidePadding = 20 * 2 * uiScale;
+    const gap = 10 * uiScale;
     const available = isNarrow
       ? windowWidth - sidePadding
-      : windowWidth - layout.catSidebarWidth - orderPanelWidth - sidePadding;
-    // شاشة كاشير كبيرة (مساحة المنتجات فوق 700): مربعات أكبر بدل أعمدة
-    // أكثر، فالمنتج يبان من بعيد. على التابلت والجوال يبقى 128/122.
-    const minTile = isNarrow ? 122 : available >= 700 ? 158 : 128;
+      : windowWidth - layout.catSidebarWidth * uiScale - orderPanelWidth - sidePadding;
+    const minTile = (isNarrow ? 122 : 128) * uiScale;
     const columns = Math.max(1, Math.floor(available / minTile));
     /**
      * A real track width, not `flex: 1`.
@@ -537,7 +538,7 @@ export default function ProductsScreen({
      * subtracts `gap` before dividing the remainder into tracks.
      */
     return { gridColumns: columns, gridTileWidth: (available - gap * (columns - 1)) / columns };
-  }, [isNarrow, windowWidth, orderPanelWidth]);
+  }, [isNarrow, windowWidth, orderPanelWidth, uiScale]);
 
   useEffect(() => {
     // التنقّل يهدم هذه الشاشة ويبنيها، فكانت كل عودة إلى "الرئيسية"

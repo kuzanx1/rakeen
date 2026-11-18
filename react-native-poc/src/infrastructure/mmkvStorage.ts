@@ -42,6 +42,12 @@ export async function getItem(key: string): Promise<string | null> {
   return value === undefined ? null : value;
 }
 
+/** نفس getItem بس فوري -- للإعدادات اللي لازم تنقرأ قبل أول رسم. */
+export function getItemSync(key: string): string | null {
+  const value = storage.getString(key);
+  return value === undefined ? null : value;
+}
+
 export async function setItem(key: string, value: string): Promise<void> {
   storage.set(key, value);
 }

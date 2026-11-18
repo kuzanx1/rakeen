@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
+import { getItemSync, setItem } from '../infrastructure/mmkvStorage';
 
 /**
  * Design tokens ported verbatim from the PWA's own POS/Kitchen stylesheet
@@ -279,6 +280,68 @@ export interface Theme {
    *  (rakeen-pos.js:464-467). Session-only: the PWA persists nothing, so
    *  neither does this. */
   toggle: () => void;
+  /** «حجم الواجهة» (المزيد ← حجم الواجهة): 1 عادي. */
+  scale: number;
+  setScale: (scale: number) => void;
+}
+
+/**
+ * حجم الواجهة من داخل التطبيق.
+ *
+ * شاشات الكاشير الكبيرة (R10a، 15.6 إنش) تطلع فيها المنتجات والأزرار
+ * صغيرة. جرّبنا نغيّر كثافة أندرويد نفسها مرتين (1.33 و1.37) وفي
+ * المرتين مات اللمس على الجهاز الحقيقي. فهنا ما نلمس أندرويد أبداً:
+ * المقاسات نفسها (الخط، المسافات، الأزرار، المربعات) تنضرب في الحجم
+ * داخل createStyles، واللمس يبقى على الكثافة اللي يعرفها النظام.
+ * محفوظ لكل جهاز، والافتراضي عادي -- ما يتغيّر شي لأحد إلا لو اختاره.
+ */
+export const UI_SCALES: { value: number; label: string }[] = [
+  { value: 1, label: 'عادي' },
+  { value: 1.15, label: 'كبير' },
+  { value: 1.3, label: 'أكبر' },
+  { value: 1.45, label: 'أكبر جداً' },
+];
+const UI_SCALE_KEY = 'rk_ui_scale_v1';
+
+function readUiScale(): number {
+  try {
+    const v = parseFloat(getItemSync(UI_SCALE_KEY) || '1');
+    return UI_SCALES.some(s => s.value === v) ? v : 1;
+  } catch {
+    return 1;
+  }
+}
+
+/** المقاسات اللي تكبر. الحدود والشفافية والـflex تبقى. */
+const SCALED_KEYS = new Set([
+  'fontSize', 'lineHeight', 'letterSpacing',
+  'width', 'height', 'minWidth', 'minHeight', 'maxWidth', 'maxHeight',
+  'padding', 'paddingTop', 'paddingBottom', 'paddingLeft', 'paddingRight',
+  'paddingHorizontal', 'paddingVertical', 'paddingStart', 'paddingEnd',
+  'margin', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight',
+  'marginHorizontal', 'marginVertical', 'marginStart', 'marginEnd',
+  'gap', 'rowGap', 'columnGap',
+  'borderRadius', 'borderTopLeftRadius', 'borderTopRightRadius',
+  'borderBottomLeftRadius', 'borderBottomRightRadius',
+  'top', 'bottom', 'left', 'right', 'start', 'end',
+]);
+
+/** يكبّر أنماط ورقة كاملة. الأرقام بس؛ النسب المئوية والباقي كما هي. */
+export function scaleStyleSheet<T extends Record<string, unknown>>(sheet: T, scale: number): T {
+  if (scale === 1) return sheet;
+  const out: Record<string, unknown> = {};
+  for (const [name, style] of Object.entries(sheet)) {
+    if (!style || typeof style !== 'object' || Array.isArray(style)) {
+      out[name] = style;
+      continue;
+    }
+    const next: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(style as Record<string, unknown>)) {
+      next[k] = typeof v === 'number' && SCALED_KEYS.has(k) ? Math.round(v * scale * 2) / 2 : v;
+    }
+    out[name] = next;
+  }
+  return out as T;
 }
 
 const ThemeContext = createContext<Theme>({
@@ -286,18 +349,26 @@ const ThemeContext = createContext<Theme>({
   colors: LIGHT,
   shadows: SHADOWS_LIGHT,
   toggle: () => {},
+  scale: 1,
+  setScale: () => {},
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<ThemeMode>(MODE_DEFAULT);
+  const [scale, setScaleState] = useState<number>(readUiScale);
   const value = useMemo<Theme>(
     () => ({
       mode,
       colors: mode === 'light' ? LIGHT : DARK,
       shadows: mode === 'light' ? SHADOWS_LIGHT : SHADOWS_DARK,
       toggle: () => setMode(m => (m === 'light' ? 'dark' : 'light')),
+      scale,
+      setScale: (next: number) => {
+        setScaleState(next);
+        void setItem(UI_SCALE_KEY, String(next));
+      },
     }),
-    [mode],
+    [mode, scale],
   );
   return React.createElement(ThemeContext.Provider, { value }, children);
 }
@@ -321,15 +392,16 @@ export function useTheme(): Theme {
 export function createStyles<T extends Record<string, unknown>>(
   factory: (colors: Palette, shadows: Shadows) => T,
 ): () => T {
-  const cache = new Map<ThemeMode, T>();
+  const cache = new Map<string, T>();
   return function useStyles(): T {
-    const { mode, colors, shadows } = useTheme();
+    const { mode, colors, shadows, scale } = useTheme();
     return useMemo(() => {
-      const cached = cache.get(mode);
+      const key = mode + '|' + scale;
+      const cached = cache.get(key);
       if (cached) return cached;
-      const built = factory(colors, shadows);
-      cache.set(mode, built);
+      const built = scaleStyleSheet(factory(colors, shadows), scale);
+      cache.set(key, built);
       return built;
-    }, [mode, colors, shadows]);
+    }, [mode, colors, shadows, scale]);
   };
 }
