@@ -49,6 +49,15 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
+        <!-- طابعة USB: لما تنركّب يسأل النظام «تفتح ركين؟» مع «دائماً»،
+             ومعها يبقى الإذن للطابعة بعد ما تنفصل وترجع، بدل طلب إذن جديد
+             وسط الطباعة كل مرة. -->
+        <intent-filter>
+            <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+        </intent-filter>
+        <meta-data
+            android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+            android:resource="@xml/usb_printer_filter" />
       </activity>
     </application>
 </manifest>

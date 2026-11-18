@@ -46,16 +46,31 @@ class UsbPrinterTransport(private val context: Context) {
      *  not a vendor list. Present regardless of whether permission has
      *  been granted yet (enumeration itself needs no runtime permission on
      *  Android -- only actually OPENING a device does). */
-    fun scan(callback: (List<Device>) -> Unit) {
-        val printerDevices = manager().deviceList.values.filter { device ->
-            (0 until device.interfaceCount).any { i -> device.getInterface(i).interfaceClass == UsbConstants.USB_CLASS_PRINTER }
-        }
-        callback(printerDevices.map { Device(it.deviceId.toString(), it.productName ?: it.deviceName) })
+    private fun printerDevices(): List<UsbDevice> = manager().deviceList.values.filter { device ->
+        (0 until device.interfaceCount).any { i -> device.getInterface(i).interfaceClass == UsbConstants.USB_CLASS_PRINTER }
     }
 
-    private fun findDevice(deviceId: String): UsbDevice? {
-        val id = deviceId.toIntOrNull() ?: return null
-        return manager().deviceList.values.firstOrNull { it.deviceId == id }
+    // المعرّف المحفوظ = «الشركة:الموديل» (vendorId:productId)، ثابت للطابعة.
+    // كان deviceId، وأندرويد يعطيه رقم جديد كل ما الطابعة تنفصل وترجع (كثير
+    // منها تعيد USB بعد القص أو النوم)، فتطلع «ما لقينا الطابعة» ويحتاج
+    // الكاشير يختارها من جديد بعد كل فاتورة تقريباً.
+    private fun stableId(device: UsbDevice): String = "${device.vendorId}:${device.productId}"
+
+    fun scan(callback: (List<Device>) -> Unit) {
+        callback(printerDevices().map { Device(stableId(it), it.productName ?: it.deviceName) })
+    }
+
+    // يقبل المعرّف الجديد، والقديم (رقم deviceId) للأجهزة المحفوظة قبل 1.30.
+    // لو ما تطابق وفيه طابعة USB وحدة بس، هي المقصودة.
+    private fun findDevice(savedId: String): UsbDevice? {
+        val printers = printerDevices()
+        val match = if (savedId.contains(":")) {
+            printers.firstOrNull { stableId(it) == savedId }
+        } else {
+            val legacy = savedId.toIntOrNull()
+            printers.firstOrNull { it.deviceId == legacy }
+        }
+        return match ?: printers.singleOrNull()
     }
 
     private fun printerInterfaceAndEndpoint(device: UsbDevice): Pair<UsbInterface, UsbEndpoint>? {

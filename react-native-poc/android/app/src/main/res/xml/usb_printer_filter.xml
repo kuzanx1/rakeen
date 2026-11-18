@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- أي طابعة USB (فئة الطابعات القياسية 7)، بدون قائمة شركات. -->
+<resources>
+    <usb-device class="7" />
+</resources>
