@@ -172,7 +172,7 @@ const I18N_EN = {
   'إلغاء طلب الطاولة': 'Cancel table order',
 
   // Payment.
-  'الدفع': 'Payment', 'تخصيص المنتج': 'Customize item', 'إلغاء': 'Cancel',
+  'الدفع': 'Payment', 'تخصيص المنتج': 'Customize item', 'إلغاء': 'Cancel', 'حذف': 'Delete',
   'متصل': 'Online', '؟': '?',
 
   // Attribute-only strings.
