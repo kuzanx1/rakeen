@@ -1,11 +1,31 @@
-import React, { forwardRef } from 'react';
+import React, { createContext, forwardRef, useContext } from 'react';
 import {
+  StyleProp,
+  StyleSheet,
   Text as RNText,
   TextInput as RNTextInput,
   TextInputProps,
   TextProps,
+  TextStyle,
 } from 'react-native';
 import { useI18n } from './i18n';
+import { useTheme } from './theme';
+
+/**
+ * نص بدون fontSize ياخذ ١٤ الافتراضية من React Native -- وهذي ما تمر على
+ * createStyles، فكانت تبقى ١٤ والشاشة مكبّرة (أزرار «اختبار الاتصال»
+ * و«حفظ الإعدادات» طلعت صغيرة وسط صفحة كلها كبيرة). فالافتراضي هنا ١٤ ×
+ * المقاس. والنص المتداخل ما ياخذه: يرث مقاس أبوه مثل ما كان.
+ */
+const DEFAULT_FONT_SIZE = 14;
+const InsideText = createContext(false);
+
+function withScaledDefault<S extends StyleProp<TextStyle>>(style: S, scale: number): S | (S | TextStyle)[] {
+  if (scale === 1) return style;
+  const flat = StyleSheet.flatten(style) as TextStyle | undefined;
+  if (flat && flat.fontSize != null) return style;
+  return [{ fontSize: DEFAULT_FONT_SIZE * scale }, style];
+}
 
 /**
  * <Text> that translates its own content.
@@ -40,13 +60,19 @@ import { useI18n } from './i18n';
  * the behaviour a previous audit specifically asked for.
  */
 export const Text = forwardRef<React.ComponentRef<typeof RNText>, TextProps>(function Text(
-  { children, ...rest },
+  { children, style, ...rest },
   ref,
 ) {
   const { t } = useI18n();
+  const { scale } = useTheme();
+  const nested = useContext(InsideText);
+  const content = translateChildren(children, t);
+  // الـProvider بس لو فيه نص متداخل فعلاً -- النص العادي يبقى أبناؤه
+  // نفسهم (اختبارات تقرأ props.children مباشرة).
+  const hasElement = React.Children.toArray(content).some(c => React.isValidElement(c));
   return (
-    <RNText ref={ref} {...rest}>
-      {translateChildren(children, t)}
+    <RNText ref={ref} style={nested ? style : withScaledDefault(style, scale)} {...rest}>
+      {hasElement ? <InsideText.Provider value>{content}</InsideText.Provider> : content}
     </RNText>
   );
 });
@@ -108,12 +134,14 @@ function translateOne(value: string, t: (ar: string) => string): string {
 export const TextInput = forwardRef<
   React.ComponentRef<typeof RNTextInput>,
   TextInputProps
->(function TextInput({ placeholder, ...rest }, ref) {
+>(function TextInput({ placeholder, style, ...rest }, ref) {
   const { t } = useI18n();
+  const { scale } = useTheme();
   return (
     <RNTextInput
       ref={ref}
       placeholder={typeof placeholder === 'string' ? translateOne(placeholder, t) : placeholder}
+      style={withScaledDefault(style, scale)}
       {...rest}
     />
   );
