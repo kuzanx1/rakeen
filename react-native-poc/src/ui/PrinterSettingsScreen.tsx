@@ -252,7 +252,8 @@ export default function PrinterSettingsScreen({
           : `🔴 ${failureSentence(result.errorDetail)} (${where})`,
       );
     } catch (e) {
-      setTestResult('🔴 خطأ غير متوقع — جرّب مرة ثانية');
+      // نص الخطأ الحقيقي يطلع تحت، عشان صورة من العميل تكفي نعرف السبب.
+      setTestResult(`🔴 خطأ غير متوقع — جرّب مرة ثانية (${String((e as Error)?.message || e)})`);
     } finally {
       setTesting(false);
     }
@@ -308,14 +309,18 @@ export default function PrinterSettingsScreen({
         setTestPrintStatus('🟢 طلعت فاتورة الاختبار — الطابعة جاهزة.');
       } else if (job?.status === 'skipped_no_printer') {
         setTestPrintStatus('🔴 ما فيه طابعة محفوظة — أكمل الإعدادات فوق واحفظها.');
+      } else if (job?.last_error_detail && profile.transport !== 'network') {
+        // بلوتوث/USB: السبب الحقيقي (إذن مرفوض، الطابعة مفصولة...) أنفع
+        // من «على نفس الشبكة».
+        setTestPrintStatus(`🔴 ما طلعت الفاتورة — ${failureSentence(job.last_error_detail)}`);
       } else if (job?.status === 'failed') {
         setTestPrintStatus('🔴 ما طلعت الفاتورة — تأكد إن الطابعة شغالة وفيها ورق وعلى نفس الشبكة.');
       } else {
         // Still queued or retrying: not a failure yet, and not a success.
         setTestPrintStatus('الفاتورة بالانتظار — بتنطبع أول ما توصل الطابعة.');
       }
-    } catch {
-      setTestPrintStatus('🔴 تعذرت الطباعة — جرّب مرة ثانية.');
+    } catch (e) {
+      setTestPrintStatus(`🔴 تعذرت الطباعة — جرّب مرة ثانية. (${String((e as Error)?.message || e)})`);
     } finally {
       setPrintingTest(false);
     }
