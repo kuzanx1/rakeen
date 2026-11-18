@@ -23,6 +23,7 @@ class MainApplication : Application(), ReactApplication {
 
   override fun onCreate() {
     super.onCreate()
+    ScreenScale.apply(resources) // الشاشات الكبيرة: قبل ما React Native يقرأ المقاييس
     loadReactNative(this)
   }
 }
