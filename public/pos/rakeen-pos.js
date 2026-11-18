@@ -1440,6 +1440,21 @@ function uiLocale(){ return LANG === 'en' ? 'en-GB' : 'ar-SA'; }
  *
  * وبلا name_en يبقى العربيّ: اسمٌ لم يُكتب لا يُخترع.
  */
+/* منتج انضاف بعد ما انفتح الكاشير ما يكون في PRODUCTS (القائمة تنحمّل
+   مرة عند الفتح)، فكان يطلع «منتج #325» في تفاصيل الطلب والفاتورة وتذكرة
+   المطبخ. قبل أي عرض لأصناف طلب: rkFillNames يجيب أسماء الناقص من
+   menu_items، وrkFindProduct يدوّر في الاثنين. */
+const RK_EXTRA_PRODUCTS = new Map();
+async function rkFillNames(items){
+  const ids = [...new Set((items || []).map(i => i && i.menu_item_id).filter(id => id != null && !PRODUCTS.find(p => p.id === id) && !RK_EXTRA_PRODUCTS.has(id)))];
+  if(!ids.length) return;
+  try {
+    const { data } = await window.supabaseClient.from('menu_items').select('id, name, name_en').in('id', ids);
+    (data || []).forEach(m => RK_EXTRA_PRODUCTS.set(m.id, m));
+  } catch(e){ /* بدون شبكة يبقى «منتج #…» */ }
+}
+function rkFindProduct(id){ return PRODUCTS.find(p => p.id === id) || RK_EXTRA_PRODUCTS.get(id) || null; }
+
 function rkProductName(product, fallbackId){
   if(!product) return 'منتج #' + fallbackId;
   return (LANG === 'en' && product.name_en) ? product.name_en : product.name;
@@ -6797,7 +6812,7 @@ function sendToPrintStation(orderId, kind){
 
 function buildHistoricalReceiptData(order, items){
   const lineItems = (items || []).map(it=>{
-    const product = PRODUCTS.find(p=>p.id===it.menu_item_id);
+    const product = rkFindProduct(it.menu_item_id);
     return {
       name: product ? product.name : ('منتج #' + it.menu_item_id),
       nameEn: product ? (product.name_en || '') : '',
@@ -6848,7 +6863,7 @@ function kitchenTicketWaitsForButton(){
 
 function buildDbKitchenReceiptData(order, items){
   const mapped = (items || []).map(it=>{
-    const product = PRODUCTS.find(p=>p.id===it.menu_item_id);
+    const product = rkFindProduct(it.menu_item_id);
     return {
       name: product ? product.name : ('منتج #' + it.menu_item_id),
       nameEn: product ? (product.name_en || '') : '',
@@ -7585,11 +7600,12 @@ async function openOrderDetail(orderId){
     window.supabaseClient.from('orders').select('*, delivery_platforms(name), restaurant_tables!orders_table_id_fkey(number)').eq('id', orderId).single(),
     window.supabaseClient.from('order_items').select('*').eq('order_id', orderId)
   ]);
+  await rkFillNames(items);
   if(!order){ body.innerHTML = '<p class="pos-auth-sub">تعذر تحميل الطلب.</p>'; return; }
 
   const itemsHtml = (items||[]).map(it=>{
     const mods = (it.selected_modifiers||[]).map(m=>escapeHtml((LANG==='en' && m.textEn) ? m.textEn : m.text)).join('، ');
-    const product = PRODUCTS.find(p=>p.id===it.menu_item_id);
+    const product = rkFindProduct(it.menu_item_id);
     const name = escapeHtml(rkProductName(product, it.menu_item_id));
     return `<div class="receipt-detail-row"><span>${it.qty} × ${name}${mods ? ' (' + mods + ')' : ''}${it.note ? ' — ' + escapeHtml(it.note) : ''}</span>${rkMoney(Number(it.line_total))}</div>`;
   }).join('');
@@ -8263,6 +8279,7 @@ async function resumePaymentForTable(table){
     window.supabaseClient.from('orders').select('*').eq('id', orderId).maybeSingle(),
     window.supabaseClient.from('order_items').select('menu_item_id, qty, unit_price, line_total, selected_modifiers').eq('order_id', orderId)
   ]);
+  await rkFillNames(items);
   if(!order){ showToast('تعذر تحميل تفاصيل الطلب'); renderTables(); return; }
 
   rkRememberNo(order.id, order.order_no);
@@ -8270,7 +8287,7 @@ async function resumePaymentForTable(table){
     id: order.id, order_no: order.order_no != null ? order.order_no : null, table_id: order.table_id,
     subtotal: order.subtotal, discount_amount: order.discount_amount, vat_amount: order.vat_amount, total: order.total,
     items: (items||[]).map(it => {
-      const p = PRODUCTS.find(x=>x.id===it.menu_item_id);
+      const p = rkFindProduct(it.menu_item_id);
       return { name: p ? p.name : ('منتج #' + it.menu_item_id), nameEn: p ? (p.name_en || '') : '', qty: it.qty, unitPrice: Number(it.unit_price), lineTotal: Number(it.line_total), mods: (it.selected_modifiers||[]).map(m=>({text:m.text, textEn:m.textEn||undefined})) };
     })
   };
@@ -11973,6 +11990,7 @@ async function showNextIncomingOrder(){
     window.supabaseClient.from('orders').select('*').eq('id', orderId).maybeSingle(),
     window.supabaseClient.from('order_items').select('*').eq('order_id', orderId)
   ]);
+  await rkFillNames(items);
   if(!order || order.status !== 'pending'){
     // already handled from another device (or the order vanished) — drop and move on
     incomingOrderQueue.shift();
@@ -12016,6 +12034,7 @@ async function acceptIncomingOrder(orderId){
     window.supabaseClient.from('orders').select('*').eq('id', orderId).single(),
     window.supabaseClient.from('order_items').select('*').eq('order_id', orderId)
   ]);
+  await rkFillNames(items);
   // Kitchen ticket FIRST, then customer receipt SECOND — always, unconditionally
   // (not gated by the per-device DEVICE.printKitchenTicket/printCustomerReceipt
   // toggles that govern normal POS checkout auto-print). Both go through the
@@ -12084,7 +12103,7 @@ const INCOMING_ORDER_REJECT_REASONS = ['عدم توفر الصنف', 'المطع
 function renderIncomingOrderModal(order, items){
   const itemsHtml = items.map(it=>{
     const mods = (it.selected_modifiers||[]).map(m=>escapeHtml((LANG==='en' && m.textEn) ? m.textEn : m.text)).join('، ');
-    const product = PRODUCTS.find(p=>p.id===it.menu_item_id);
+    const product = rkFindProduct(it.menu_item_id);
     const name = escapeHtml(rkProductName(product, it.menu_item_id));
     return `<div class="receipt-detail-row"><span>${it.qty} × ${name}${mods ? ' (' + mods + ')' : ''}${it.note ? ' — ' + escapeHtml(it.note) : ''}</span>${rkMoney(Number(it.line_total))}</div>`;
   }).join('');

@@ -1580,6 +1580,19 @@ function rkRememberNo(id, no){ if(Number(id) > 0 && Number(no) > 0) rkOrderNos()
 function rkRememberRows(rows){ (rows || []).forEach(r => { if(r) rkRememberNo(r.id, r.order_no); }); }
 function rkNo(id){ const n = rkOrderNos().get(Number(id)); return n != null ? n : id; }
 
+/* منتج انضاف بعد ما انفتحت اللوحة ما يكون في MENU_ITEMS (تنحمّل مرة)،
+   فكان يطلع «منتج #325». rkFillMenuNames يجيب أسماء الناقص قبل العرض. */
+const RK_EXTRA_MENU = new Map();
+async function rkFillMenuNames(items){
+  const ids = [...new Set((items || []).map(i => i && i.menu_item_id).filter(id => id != null && !MENU_ITEMS.find(m => m.id === id) && !RK_EXTRA_MENU.has(id)))];
+  if(!ids.length) return;
+  try {
+    const { data } = await window.supabaseClient.from('menu_items').select('id, name, name_en').in('id', ids);
+    (data || []).forEach(m => RK_EXTRA_MENU.set(m.id, m));
+  } catch(e){ /* بدون شبكة يبقى «منتج #…» */ }
+}
+function rkFindMenuItem(id){ return MENU_ITEMS.find(m => m.id === id) || RK_EXTRA_MENU.get(id) || null; }
+
 async function openOrderDetailModal(orderId){
   const modal = document.getElementById('orderDetailModal');
   const body = document.getElementById('orderDetailModalBody');
@@ -1591,10 +1604,11 @@ async function openOrderDetailModal(orderId){
     window.supabaseClient.from('orders').select('*').eq('id', orderId).single(),
     window.supabaseClient.from('order_items').select('*').eq('order_id', orderId)
   ]);
+  await rkFillMenuNames(items);
   if(!order){ body.innerHTML = '<p class="od-dt-loading">ما قدرنا نجيب الطلب. جرّب مرة ثانية.</p>'; return; }
 
   const itemsHtml = (items||[]).map(it=>{
-    const product = MENU_ITEMS.find(m=>m.id===it.menu_item_id);
+    const product = rkFindMenuItem(it.menu_item_id);
     const name = escapeHtml(product ? product.name : ('منتج #' + it.menu_item_id));
     const mods = (it.selected_modifiers||[]).map(m=>escapeHtml(m.option_name || m.text)).filter(Boolean).join('، ');
     return '<div class="od-dt-item"><span class="od-dt-qty">' + it.qty + '×</span><span class="od-dt-name">' + name
@@ -10402,6 +10416,7 @@ async function loadReportDetailRows(type, from, to){
       // نفس الوصلة التي يستعملها تقرير "الوردية" لاسم الكاشير.
       shiftIds.length ? sb.from('shifts').select('id, opener:staff_members!shifts_staff_member_id_fkey(name)').in('id', shiftIds) : Promise.resolve({data:[]}),
     ]);
+    await rkFillMenuNames(items);
     const itemsByOrder = {};
     (items||[]).forEach(it=>{ (itemsByOrder[it.order_id] ||= []).push(it); });
     const staffByShift = {};
@@ -10409,7 +10424,7 @@ async function loadReportDetailRows(type, from, to){
     return rows.map(o=>{
       const its = itemsByOrder[o.id] || [];
       const productsLabel = its.map(it=>{
-        const product = MENU_ITEMS.find(m=>m.id===it.menu_item_id);
+        const product = rkFindMenuItem(it.menu_item_id);
         const name = product ? product.name : ('منتج #' + it.menu_item_id);
         return Number(it.qty) > 1 ? `${name} ×${it.qty}` : name;
       }).join('، ');
