@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { RAKEEN_UPDATES, type RakeenUpdate } from "@/app/dashboard/rakeen-updates";
+import { PLAN_GUIDE_POSTER, PLAN_GUIDE_WHATSAPP } from "@/app/dashboard/plan-guide";
 
 // «رسائل واتساب»: الأدمن يكتب الرسالة مرّة، ويختار المستلمين، وكل ضغطة
 // «إرسال» تفتح واتساب ويب عنده والرسالة جاهزة باسم المحل -- وهو يضغط Enter.
@@ -68,6 +69,11 @@ function copyPoster(png: Blob | Promise<Blob>): Promise<void> {
   return navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
 }
 const TEMPLATES = RAKEEN_UPDATES.filter((u): u is RakeenUpdate & { whatsapp: string } => !!u.whatsapp);
+// «دليل باقتك»: رسالة لكل باقة. اختيارها يحط فلتر المستلمين على نفس الباقة،
+// فما توصل رسالة صرح لمشترك أساس.
+const GUIDE_TEMPLATES = (["asas", "emad", "sarh"] as const).map((plan) => ({
+  id: `plan-guide-${plan}`, plan, title: `دليل باقة ${PLAN_NAME[plan]}`, whatsapp: PLAN_GUIDE_WHATSAPP[plan], poster: PLAN_GUIDE_POSTER[plan],
+}));
 
 function readJson<T>(key: string, fallback: T): T {
   try { const v = localStorage.getItem(key); return v ? (JSON.parse(v) as T) : fallback; } catch { return fallback; }
@@ -162,13 +168,26 @@ export default function BroadcastPanel({ token }: { token: string }) {
       <div style={S.card}>
         <label style={S.label} htmlFor="bcTpl">قالب جاهز</label>
         <select id="bcTpl" defaultValue="" onChange={(e) => {
+          const g = GUIDE_TEMPLATES.find((t) => t.id === e.target.value);
+          if (g) {
+            setMsg(g.whatsapp);
+            setPoster(g.poster);
+            setFilter(g.plan);
+            setCopied("");
+            return;
+          }
           const u = TEMPLATES.find((t) => t.id === e.target.value);
           setMsg(u ? u.whatsapp : "");
           setPoster(u?.poster || null);
           setCopied("");
         }} style={{ width: "100%", borderRadius: "10px", border: "1px solid rgba(17,17,17,.18)", padding: "10px 12px", fontSize: "14px", fontFamily: "inherit", marginBottom: "14px", background: "transparent", color: "inherit" }}>
           <option value="">رسالة من عندي</option>
-          {TEMPLATES.map((u) => <option key={u.id} value={u.id}>{u.date} — {u.title}</option>)}
+          <optgroup label="دليل الباقة (يختار مشتركي الباقة)">
+            {GUIDE_TEMPLATES.map((g) => <option key={g.id} value={g.id}>{g.title}</option>)}
+          </optgroup>
+          <optgroup label="جديد ركين">
+            {TEMPLATES.map((u) => <option key={u.id} value={u.id}>{u.date} — {u.title}</option>)}
+          </optgroup>
         </select>
         <label style={S.label} htmlFor="bcMsg">الرسالة</label>
         <textarea id="bcMsg" value={msg} onChange={(e) => setMsg(e.target.value)} rows={7}

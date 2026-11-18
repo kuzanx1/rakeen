@@ -2847,7 +2847,7 @@ export default function LandingPage() {
         <a className="close-cta reveal d1" href="/signup">{lang === "ar" ? "ابدأ مجانًا" : "Start free"}</a>
         <button className="close-plans-link reveal d1" id="closePlansToggle" onClick={() => document.getElementById("closePlansDetail")?.classList.toggle("show")}>{lang === "ar" ? "عرض الباقات" : "View plans"}</button>
         <div className="close-plans-detail" id="closePlansDetail">
-          <span className="close-plans-price"><b>149</b> {lang === "ar" ? "ر.س شهريًا — لفرعين" : "SAR/month — for 2 branches"}</span>
+          <span className="close-plans-price"><b>99</b> {lang === "ar" ? "ر.س شهريًا — لفرع واحد" : "SAR/month — for 1 branch"}</span>
           <span className="close-plans-note">{lang === "ar" ? "الأسعار تقديرية للتوضيح، وتُحدد نهائيًا حسب حجم مشروعك." : "Prices shown are illustrative — final pricing depends on the size of your business."}</span>
         </div>
         <div className="close-trust-row reveal d2">

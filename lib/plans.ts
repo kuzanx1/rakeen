@@ -66,8 +66,6 @@ export type Plan = {
   annual: number; // two months free
   includedBranches: number;
   // Each branch beyond the included ones costs half the plan's price.
-  extraBranchMonthly: number;
-  extraBranchAnnual: number;
   features: FeatureKey[];
   items: PlanItem[]; // only what this package adds over the one below it
 };
@@ -77,9 +75,9 @@ const EMAD: FeatureKey[] = [...ASAS, "kds", "inventory", "purchases_scan", "cost
 const SARH: FeatureKey[] = [...EMAD, "online_store", "booking_page", "multi_branch"];
 
 export const PLANS: Plan[] = [
-  { key: "asas", name: "أساس", tagline: "تبيع، وتطبع، وتقفل يومك", monthly: 99, annual: 990, includedBranches: 1, extraBranchMonthly: 49, extraBranchAnnual: 490, features: ASAS, items: ASAS_ITEMS },
-  { key: "emad", name: "عماد", tagline: "تعرف وش تكسب، والعميل يرجع لك", monthly: 179, annual: 1790, includedBranches: 1, extraBranchMonthly: 89, extraBranchAnnual: 890, features: EMAD, items: EMAD_ITEMS },
-  { key: "sarh", name: "صرح", tagline: "يطلبون منك مباشرة، وتكبر لأكثر من فرع", monthly: 279, annual: 2790, includedBranches: 2, extraBranchMonthly: 139, extraBranchAnnual: 1390, features: SARH, items: SARH_ITEMS },
+  { key: "asas", name: "أساس", tagline: "تبيع، وتطبع، وتقفل يومك", monthly: 99, annual: 990, includedBranches: 1, features: ASAS, items: ASAS_ITEMS },
+  { key: "emad", name: "عماد", tagline: "تعرف وش تكسب، والعميل يرجع لك", monthly: 179, annual: 1790, includedBranches: 1, features: EMAD, items: EMAD_ITEMS },
+  { key: "sarh", name: "صرح", tagline: "يطلبون منك مباشرة، وتكبر لأكثر من فرع", monthly: 279, annual: 2790, includedBranches: 1, features: SARH, items: SARH_ITEMS },
 ];
 
 export function planByKey(key: string | null | undefined): Plan | null {
@@ -106,13 +104,6 @@ export function allowedFeatures(planKey: string | null | undefined, overrides: F
     else if (v === false) set.delete(k);
   }
   return set;
-}
-
-export function planPrice(plan: Plan, period: "monthly" | "annual", extraBranches: number) {
-  const n = Math.max(0, Math.trunc(extraBranches) || 0);
-  const base = period === "annual" ? plan.annual : plan.monthly;
-  const perBranch = period === "annual" ? plan.extraBranchAnnual : plan.extraBranchMonthly;
-  return { base, perBranch, branches: n * perBranch, total: base + n * perBranch };
 }
 
 // The "included" section of a quote for a package. أساس lists its items in

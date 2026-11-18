@@ -98,3 +98,4 @@
 @media (prefers-reduced-motion:reduce){
   .rk-wn-hero,.rk-wn-overlay,.rk-wn-panel,.rk-wn-dot,.rk-wn-flash{animation:none;}
 }
+.rk-wn-guide-btn{margin-top:12px; font-size:12.5px; padding:7px 12px;}

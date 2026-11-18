@@ -8865,9 +8865,16 @@ async function loadBusinessData(){
   // يوجد بعد، وضمُّه للاستعلام الكبير أعلاه يُسقط بيانات المطعم كلها معه.
   // أي خطأ أو null = بلا باقة = كل الشاشات مسموحة.
   {
-    const { data: planRow, error: planErr } = await sb.from('businesses').select('allowed_features').eq('id', businessId).maybeSingle();
+    const { data: planRow, error: planErr } = await sb.from('businesses').select('allowed_features, plan_tier').eq('id', businessId).maybeSingle();
     PLAN_ALLOWED_FEATURES = (!planErr && planRow && Array.isArray(planRow.allowed_features)) ? new Set(planRow.allowed_features) : null;
     applyPlanHiding();
+    // «دليل باقتك» (app/dashboard/PlanGuide.tsx) يعرض مزايا الباقة: يقرأ
+    // الباقة ومزاياها من هنا. بلا باقة = تجربة = كل المزايا.
+    if(!planErr){
+      window.__rkPlanFeatures = PLAN_ALLOWED_FEATURES ? [...PLAN_ALLOWED_FEATURES] : null;
+      document.body.dataset.planTier = (planRow && planRow.plan_tier) || 'trial';
+      window.dispatchEvent(new Event('rk-plan-ready'));
+    }
   }
 
   STOCK_ITEM_ID_BY_NAME = {}; STOCK_ITEM_NAME_BY_ID = {};

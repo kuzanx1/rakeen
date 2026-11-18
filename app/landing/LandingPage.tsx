@@ -276,7 +276,6 @@ const T = {
       top: "الأشمل",
       count: (n: number) => `${n} ${n <= 10 ? "مزايا" : "ميزة"}`,
       branches: (n: number) => (n === 1 ? "فرع واحد" : n === 2 ? "فرعين" : `${n} فروع`),
-      extra: (p: string) => `+ ${p} لكل فرع زيادة`,
       everything: (name: string) => `كل اللي في ${name}، وفوقها:`,
       carry: (name: string, n: number) => `ومعها كل مزايا ${name} (${n} ميزة):`,
       choose: "ابدأ مجانًا",
@@ -295,7 +294,7 @@ const T = {
         { q: "لو انقطع النت؟", a: "الكاشير يكمل البيع ويحفظ الطلبات، ويرسلها لحاله أول ما يرجع الاتصال." },
         { q: "كيف التجربة المجانية؟", a: "كل المزايا مفتوحة لين ٣٥٠ طلب، الكاشير والمتجر مع بعض. لما توصل لها عندك يوم كامل تختار فيه باقتك." },
         { q: "أقدر أغيّر باقتي بعدين؟", a: "إيه، ترقّي أي وقت والمزايا تنفتح على طول." },
-        { q: "عندي أكثر من فرع؟", a: "الفرع الإضافي بنص سعر الباقة، وباقة صرح فيها فرعين وتقارير لكل فرع." },
+        { q: "عندي أكثر من فرع؟", a: "كل باقة فيها فرع واحد. وعندك أكثر من فرع؟ كلّمنا ونحدد لك سعر الفروع حسب عددها." },
       ],
     },
     close: { h: "مطعمك يستاهل نظام يشتغل عنه.", free: "أول ٣٥٠ طلب علينا. بدون دفع، وبدون عقد.", sub: "كلّمنا، نجهّز أصنافك وأسعارك، وتبدأ البيع خلال يوم.", cta: "ابدأ مجانًا", wa: "كلّمنا واتساب" },
@@ -411,7 +410,6 @@ const T = {
       top: "Everything",
       count: (n: number) => `${n} features`,
       branches: (n: number) => (n === 1 ? "1 branch" : `${n} branches`),
-      extra: (p: string) => `+ ${p} per extra branch`,
       everything: (name: string) => `Everything in ${name}, plus:`,
       carry: (name: string, n: number) => `And all ${n} features of ${name}:`,
       choose: "Start free",
@@ -430,7 +428,7 @@ const T = {
         { q: "What if the internet drops?", a: "The cashier keeps selling, saves the orders and sends them by itself once you're back online." },
         { q: "How does the free trial work?", a: "Every feature is open for 350 orders, cashier and store combined. When you reach it you get a full day to pick a plan." },
         { q: "Can I change plans later?", a: "Yes. Upgrade any time and the features open right away." },
-        { q: "More than one branch?", a: "An extra branch is half the plan price; Sarh includes two branches with per-branch reports." },
+        { q: "More than one branch?", a: "Every plan includes one branch. Have more? Talk to us and we'll price the extra branches for you." },
       ],
     },
     close: { h: "Your restaurant deserves a system that works for it.", free: "Your first 350 orders are on us. No payment, no contract.", sub: "Message us, we set up your items and prices, and you start selling within a day.", cta: "Start free", wa: "WhatsApp us" },
@@ -1770,7 +1768,6 @@ export default function LandingPage() {
           <div className="tiers">
             {PLANS.map((p, i) => {
               const price = period === "annual" ? p.annual : p.monthly;
-              const extra = period === "annual" ? p.extraBranchAnnual : p.extraBranchMonthly;
               const per = period === "annual" ? t.plans.perYear : t.plans.perMonth;
               const cls = ["tier", `tier-${p.key}`].join(" ");
               return (
@@ -1801,7 +1798,6 @@ export default function LandingPage() {
                     ) : (
                       <>{t.plans.branches(p.includedBranches)}</>
                     )}
-                    <span className="tier-extra">{t.plans.extra(num(extra))}</span>
                   </p>
                   <a href={START} target="_blank" rel="noopener noreferrer" className="btn tier-btn">
                     {t.plans.choose}

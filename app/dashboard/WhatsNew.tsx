@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { RAKEEN_UPDATES, type RakeenUpdate } from "./rakeen-updates";
+import PlanGuide, { openPlanGuide } from "./PlanGuide";
 import "./whats-new.css";
 
 // «جديد ركين» في اللوحة:
@@ -34,11 +35,11 @@ function fmtDate(iso: string) {
   return new Date(iso + "T12:00:00Z").toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 }
 // الشاشة متاحة لهذا الحساب؟ (القائمة الجانبية تخفي اللي ما له صلاحية)
-function screenAvailable(screen: string) {
+export function screenAvailable(screen: string) {
   const nav = document.querySelector<HTMLElement>(`.nav-item[data-screen="${screen}"]`);
   return !!nav && nav.offsetParent !== null && !nav.classList.contains("hidden");
 }
-function openCta(cta: NonNullable<RakeenUpdate["cta"]>) {
+export function openCta(cta: NonNullable<RakeenUpdate["cta"]>) {
   const nav = document.querySelector<HTMLElement>(`.nav-item[data-screen="${cta.screen}"]`);
   if (!nav) return;
   nav.click();
@@ -180,6 +181,7 @@ export default function WhatsNew() {
 
   return (
     <>
+      <PlanGuide homeEl={homeEl} />
       {btnEl &&
         createPortal(
           <button
@@ -250,6 +252,9 @@ export default function WhatsNew() {
                   <img src="/brand/rakeen-wordmark.png" alt="ركين" className="rk-wn-wm" />
                   <div className="rk-wn-panel-title">جديد ركين</div>
                   <div className="rk-wn-panel-sub">كل ميزة وتحسين ينزل، أول بأول</div>
+                  <button type="button" className="rk-wn-ghost rk-wn-guide-btn" onClick={() => { setOpen(false); openPlanGuide(); }}>
+                    📘 دليل باقتك: كل مزاياك وكيف تستخدمها
+                  </button>
                 </div>
                 <button type="button" className="rk-wn-x static" onClick={() => setOpen(false)} aria-label="إغلاق">
                   <Close />

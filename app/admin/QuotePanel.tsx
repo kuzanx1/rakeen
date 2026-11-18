@@ -5,7 +5,7 @@ import "../contract/contract.css";
 import QuoteDocument, { QUOTE_PHONE, QuoteProps } from "../contract/QuoteDocument";
 import { contractPdfBlob, downloadBlob } from "../contract/pdf";
 import { buildSchedule, DISCOUNT_PERIOD_OPTIONS, discountTermText, FeatureKey, formatSar, periodLabel } from "@/lib/contracts";
-import { PlanKey, PLANS, planByKey, planPrice, quoteIncluded, SELLABLE_FEATURES } from "@/lib/plans";
+import { PlanKey, PLANS, planByKey, quoteIncluded, SELLABLE_FEATURES } from "@/lib/plans";
 
 // Price quotes for prospects: people who haven't registered or subscribed
 // yet. Deliberately separate from ContractsPanel: no account to pick, no
@@ -35,6 +35,7 @@ export default function QuotePanel() {
     phone: "",
     plan: DEFAULT_PLAN.key as PlanKey | "custom",
     extra_branches: "0",
+    extra_branch_price: "",
     plan_name: `باقة ${DEFAULT_PLAN.name}`,
     billing_period: "monthly" as "monthly" | "annual",
     price: String(DEFAULT_PLAN.monthly),
@@ -53,11 +54,12 @@ export default function QuotePanel() {
   const setF = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   // A package fills in its name, price and features; anything can still be
-  // edited by hand, and "custom" keeps whatever was typed. Extra branches are
-  // priced by the package (half its price each), so they only apply to one.
+  // edited by hand, and "custom" keeps whatever was typed. Extra branches have
+  // no list price: the count and the per-branch price are typed per customer.
   const plan = form.plan === "custom" ? null : planByKey(form.plan);
   const extraBranches = plan ? Math.max(0, Math.min(50, Math.trunc(Number(form.extra_branches) || 0))) : 0;
-  const branchUnit = plan ? planPrice(plan, form.billing_period, 1).perBranch : 0;
+  // No list price for an extra branch: it is agreed per customer and typed here.
+  const branchUnit = plan ? Math.max(0, Number(form.extra_branch_price) || 0) : 0;
   const pickPlan = (key: PlanKey | "custom", period: "monthly" | "annual") =>
     setForm((f) => {
       const p = key === "custom" ? null : planByKey(key);
@@ -184,8 +186,14 @@ export default function QuotePanel() {
           <div><span style={label}>سعر الباقة لكل {annual ? "سنة" : "شهر"} (ر.س)</span><input style={input} inputMode="decimal" value={form.price} onChange={setF("price")} /></div>
           {plan && (
             <div>
-              <span style={label}>فروع إضافية ({formatSar(branchUnit)} للفرع {annual ? "سنويًا" : "شهريًا"})</span>
+              <span style={label}>فروع إضافية (عددها)</span>
               <input style={input} inputMode="numeric" value={form.extra_branches} onChange={setF("extra_branches")} />
+            </div>
+          )}
+          {plan && extraBranches > 0 && (
+            <div>
+              <span style={label}>سعر الفرع الإضافي {annual ? "سنويًا" : "شهريًا"} (ر.س)</span>
+              <input style={input} inputMode="decimal" value={form.extra_branch_price} onChange={setF("extra_branch_price")} placeholder="أنت تحدده" />
             </div>
           )}
           <div>
