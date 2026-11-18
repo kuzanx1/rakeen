@@ -213,7 +213,10 @@ function App(): React.JSX.Element {
   const { colors, mode, toggle } = useTheme();
   const { t } = useI18n();
   const styles = useStyles();
-  const { sideBySide, homeActive, orderPanelWidth, topbarHeight, bottomNavHeight } = useShell();
+  const { sideBySide, homeActive, orderPanelWidth, topbarHeight, bottomNavHeight, insetTop, insetBottom } = useShell();
+  // صفحات «المزيد» الفرعية: على الشاشة العريضة الشريطان فوقها (absolute)،
+  // فبدون هذا آخر الصفحة يختفي تحت الشريط السفلي -- وأوضح مع «حجم الواجهة».
+  const subScreenInset = sideBySide ? { paddingTop: insetTop, paddingBottom: insetBottom } : null;
   const setTopbarHeight = useSetTopbarHeight();
   const [cashier, setCashier] = useState<CashierProfile | null>(null);
   const [screen, setScreen] = useState<Screen>({ name: 'products', table: null });
@@ -1241,27 +1244,27 @@ function App(): React.JSX.Element {
             staffName={staffMember?.name ?? null}
           />
         ) : screen.name === 'printQueue' ? (
-          <View style={styles.subScreen}>
+          <View style={[styles.subScreen, subScreenInset]}>
             <BackToMore onPress={() => setScreen({ name: 'more' })} />
             <PrintQueueScreen />
           </View>
         ) : screen.name === 'printerSettings' ? (
-          <View style={styles.subScreen}>
+          <View style={[styles.subScreen, subScreenInset]}>
             <BackToMore onPress={() => setScreen({ name: 'more' })} />
             <PrinterSettingsScreen online={online} staffName={staffMember?.name ?? null} />
           </View>
         ) : screen.name === 'diagnostics' ? (
-          <View style={styles.subScreen}>
+          <View style={[styles.subScreen, subScreenInset]}>
             <BackToMore onPress={() => setScreen({ name: 'more' })} />
             <DiagnosticsScreen />
           </View>
         ) : screen.name === 'uiScale' ? (
-          <View style={styles.subScreen}>
+          <View style={[styles.subScreen, subScreenInset]}>
             <BackToMore onPress={() => setScreen({ name: 'more' })} />
             <UiScaleScreen onToast={setStatusMessage} />
           </View>
         ) : screen.name === 'closings' && branchId != null ? (
-          <View style={styles.subScreen}>
+          <View style={[styles.subScreen, subScreenInset]}>
             <BackToMore onPress={() => setScreen({ name: 'more' })} />
             <ClosingsScreen
               branchId={branchId}
@@ -1271,7 +1274,7 @@ function App(): React.JSX.Element {
             />
           </View>
         ) : screen.name === 'reportSettings' && cashier ? (
-          <View style={styles.subScreen}>
+          <View style={[styles.subScreen, subScreenInset]}>
             <BackToMore onPress={() => setScreen({ name: 'more' })} />
             <ShiftReportSettingsScreen
               businessId={cashier.business_id}
