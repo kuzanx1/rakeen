@@ -79,30 +79,48 @@ class UsbPrinterTransport(private val context: Context) {
      *  PendingIntent used with UsbManager.requestPermission() in some
      *  OEM builds, a real, documented platform nuance for this exact API,
      *  not a generic choice. */
-    private fun ensurePermission(device: UsbDevice, callback: (Boolean) -> Unit) {
+    // يرجّع null لو الإذن موجود، أو سبب الفشل: permission_denied (العميل
+    // رفض) أو permission_request_failed (ما قدرنا نطلب الإذن أصلاً).
+    //
+    // الـIntent لازم يكون صريح (setPackage): من Android 14 مع targetSdk 34+
+    // النظام يرمي IllegalArgumentException لـPendingIntent قابل للتعديل
+    // (FLAG_MUTABLE) بـIntent ضمني. كان يطلع للعميل «خطأ غير متوقع» في
+    // «اختبار الاتصال»، والطباعة نفسها ما تشتغل، على أي جهاز Android 14+.
+    private fun ensurePermission(device: UsbDevice, callback: (String?) -> Unit) {
         val usbManager = manager()
         if (usbManager.hasPermission(device)) {
-            callback(true)
+            callback(null)
             return
         }
+        var done = false
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(ctx: Context, intent: Intent) {
-                if (intent.action != ACTION_USB_PERMISSION) return
-                context.unregisterReceiver(this)
+                if (intent.action != ACTION_USB_PERMISSION || done) return
+                done = true
+                try { context.unregisterReceiver(this) } catch (e: Exception) { /* already gone */ }
                 val granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
-                callback(granted)
+                callback(if (granted) null else "permission_denied")
             }
         }
-        val filter = IntentFilter(ACTION_USB_PERMISSION)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            @Suppress("UnspecifiedRegisterReceiverFlag")
-            context.registerReceiver(receiver, filter)
+        try {
+            val filter = IntentFilter(ACTION_USB_PERMISSION)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                context.registerReceiver(receiver, filter)
+            }
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
+            val intent = Intent(ACTION_USB_PERMISSION).setPackage(context.packageName)
+            val permissionIntent = PendingIntent.getBroadcast(context, 0, intent, flags)
+            usbManager.requestPermission(device, permissionIntent)
+        } catch (e: Exception) {
+            if (!done) {
+                done = true
+                try { context.unregisterReceiver(receiver) } catch (x: Exception) { /* never registered */ }
+                callback("permission_request_failed")
+            }
         }
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
-        val permissionIntent = PendingIntent.getBroadcast(context, 0, Intent(ACTION_USB_PERMISSION), flags)
-        usbManager.requestPermission(device, permissionIntent)
     }
 
     fun send(deviceId: String, bytes: ByteArray, timeoutMs: Int, callback: (Boolean, String?) -> Unit) {
@@ -111,9 +129,9 @@ class UsbPrinterTransport(private val context: Context) {
             callback(false, "device_not_found")
             return
         }
-        ensurePermission(device) { granted ->
-            if (!granted) {
-                callback(false, "permission_denied")
+        ensurePermission(device) { permissionError ->
+            if (permissionError != null) {
+                callback(false, permissionError)
                 return@ensurePermission
             }
             Thread {
@@ -123,7 +141,7 @@ class UsbPrinterTransport(private val context: Context) {
                     return@Thread
                 }
                 val (intf, endpoint) = target
-                val connection: UsbDeviceConnection? = manager().openDevice(device)
+                val connection: UsbDeviceConnection? = try { manager().openDevice(device) } catch (e: Exception) { null }
                 if (connection == null) {
                     callback(false, "connection_failed")
                     return@Thread
@@ -133,12 +151,19 @@ class UsbPrinterTransport(private val context: Context) {
                         callback(false, "connection_failed")
                         return@Thread
                     }
-                    val sent = connection.bulkTransfer(endpoint, bytes, bytes.size, timeoutMs)
-                    if (sent >= 0) {
-                        callback(true, null)
-                    } else {
-                        callback(false, "connection_failed")
+                    // bulkTransfer يرسل 16KB كحد أقصى بالمرة على أجهزة كثيرة،
+                    // والفاتورة بالشعار أكبر من كذا: نرسلها على دفعات.
+                    var offset = 0
+                    var ok = true
+                    while (offset < bytes.size) {
+                        val len = minOf(16384, bytes.size - offset)
+                        val sent = connection.bulkTransfer(endpoint, bytes, offset, len, timeoutMs)
+                        if (sent <= 0) { ok = false; break }
+                        offset += sent
                     }
+                    callback(ok, if (ok) null else "connection_failed")
+                } catch (e: Exception) {
+                    callback(false, "connection_failed")
                 } finally {
                     try { connection.releaseInterface(intf) } catch (e: Exception) { /* best-effort cleanup */ }
                     connection.close()
@@ -154,12 +179,12 @@ class UsbPrinterTransport(private val context: Context) {
             return
         }
         val start = System.nanoTime()
-        ensurePermission(device) { granted ->
-            if (!granted) {
-                callback(false, null, "permission_denied")
+        ensurePermission(device) { permissionError ->
+            if (permissionError != null) {
+                callback(false, null, permissionError)
                 return@ensurePermission
             }
-            val connection = manager().openDevice(device)
+            val connection = try { manager().openDevice(device) } catch (e: Exception) { null }
             if (connection == null) {
                 callback(false, null, "connection_failed")
             } else {
