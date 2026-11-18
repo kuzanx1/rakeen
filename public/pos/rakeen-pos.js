@@ -173,6 +173,8 @@ const I18N_EN = {
 
   // Payment.
   'الدفع': 'Payment', 'تخصيص المنتج': 'Customize item', 'إلغاء': 'Cancel', 'حذف': 'Delete',
+  'ورقة المطبخ ما انطبعت: طابعة المطبخ ما ترد. شيّكها وأعد الطباعة من الطلبات': 'Kitchen ticket did not print: the kitchen printer is not answering. Check it and reprint from Orders',
+  'الفاتورة ما انطبعت: الطابعة ما ترد. شيّكها وأعد الطباعة من الطلبات': 'Receipt did not print: the printer is not answering. Check it and reprint from Orders',
   'متصل': 'Online', '؟': '?',
 
   // Attribute-only strings.
@@ -6643,15 +6645,31 @@ function clearActiveIfCurrent(job){
   if(cur && cur.id === job.id) activePrintJobByContentKey.delete(job.content_key);
 }
 
-let printQueueProcessing = false;
+/* طابور لكل طابعة (مثل التطبيق: printService.ts). كانت تمريرة واحدة
+   بالترتيب، فورقة مطبخ لطابعة ما ترد تحجز فاتورة الزبون وراها. ولو للمطبخ
+   طابعة مستقلة صار له مسار لحاله والفواتير بمسار، ويمشون مع بعض. والنداء
+   اللي يوصل أثناء تمريرة ينعاد بعدها -- كان ينرمى فينتظر ٢٠ ثانية. */
+const PRINT_LANE_FILTER = { all: () => true, main: j => j.type !== 'kitchen', kitchen: j => j.type === 'kitchen' };
+const printLaneBusy = { all: false, main: false, kitchen: false };
+const printLaneRerun = { all: false, main: false, kitchen: false };
+function kitchenHasOwnPrinter(){
+  if(!DEVICE.kitchenPrinterIp) return false;
+  return (DEVICE.kitchenPrinterIp + ':' + (DEVICE.kitchenPrinterPort || 9100)) !== ((DEVICE.printerIp || '') + ':' + (DEVICE.printerPort || 9100));
+}
 async function processPrintQueue(){
-  if(printQueueProcessing) return;
-  printQueueProcessing = true;
+  if(!kitchenHasOwnPrinter()) return runPrintLane('all');
+  if(printLaneBusy.all){ printLaneRerun.all = true; return; }
+  await Promise.all([runPrintLane('main'), runPrintLane('kitchen')]);
+}
+async function runPrintLane(lane){
+  if(printLaneBusy[lane]){ printLaneRerun[lane] = true; return; }
+  printLaneBusy[lane] = true;
   try {
     const jobs = await getAllPrintJobs();
     const now = Date.now();
     for(const job of jobs){
       if(job.status !== 'queued' && job.status !== 'retrying') continue;
+      if(!PRINT_LANE_FILTER[lane](job)) continue;
       if(job.next_retry_at && job.next_retry_at > now) continue; // still backing off
       job.status = 'printing';
       try { await putPrintJob(job); } catch (e) {}
@@ -6668,6 +6686,10 @@ async function processPrintQueue(){
         job.last_error = result.error || 'unknown_error';
         if(job.retry_count >= PRINT_MAX_RETRIES){
           job.status = 'failed';
+          // كانت تختفي بصمت والمطبخ ما يدري إن فيه طلب.
+          showToast(job.type === 'kitchen'
+            ? t('ورقة المطبخ ما انطبعت: طابعة المطبخ ما ترد. شيّكها وأعد الطباعة من الطلبات')
+            : t('الفاتورة ما انطبعت: الطابعة ما ترد. شيّكها وأعد الطباعة من الطلبات'));
         } else {
           job.status = 'retrying';
           job.next_retry_at = now + Math.min(2000 * Math.pow(2, job.retry_count), PRINT_MAX_BACKOFF_MS);
@@ -6681,7 +6703,8 @@ async function processPrintQueue(){
       // the rest of the queue.
     }
   } catch (e) { /* IndexedDB unavailable — nothing to process */ }
-  printQueueProcessing = false;
+  printLaneBusy[lane] = false;
+  if(printLaneRerun[lane]){ printLaneRerun[lane] = false; runPrintLane(lane); }
 }
 window.addEventListener('online', processPrintQueue);
 setInterval(processPrintQueue, 20000);

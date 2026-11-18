@@ -504,6 +504,8 @@ export const I18N_EN_MORE: Record<string, string> = {
   'طلب الطاولة ينخصم بالنسبة بس — غيّر الخصم لنسبة أو ألغه': 'A table order can only take a percentage — change the discount to a percentage or remove it',
   '+ عميل ولاء': '+ Loyalty customer',
   'حذف': 'Delete',
+  'ورقة المطبخ ما انطبعت: طابعة المطبخ ما ترد. شيّكها وأعد الطباعة من الطلبات': 'Kitchen ticket did not print: the kitchen printer is not answering. Check it and reprint from Orders',
+  'الفاتورة ما انطبعت: الطابعة ما ترد. شيّكها وأعد الطباعة من الطلبات': 'Receipt did not print: the printer is not answering. Check it and reprint from Orders',
   'ما انسمح للتطبيق يستخدم الطابعة — اضغط «اختبار الاتصال» مرة ثانية واختر «سماح».': 'The app was not allowed to use the printer — tap “Test connection” again and choose “Allow”.',
   'الجهاز ما عرض طلب إذن الطابعة — افصل سلك الطابعة وركّبه، وجرّب مرة ثانية.': 'The device did not show the printer permission prompt — unplug the printer cable, plug it back in and try again.',
   'الطابعة مو موصولة الحين — تأكد من السلك، واضغط «البحث عن الأجهزة» واخترها من جديد.': 'The printer is not connected — check the cable, tap “Search for devices” and pick it again.',

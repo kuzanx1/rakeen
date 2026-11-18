@@ -33,7 +33,7 @@ import { startPrintQueueAutoProcess } from './src/application/printQueueSchedule
 import { startPrintStation } from './src/application/printStationService';
 import { startCustomerDisplay, stopCustomerDisplay } from './src/application/customerDisplayService';
 import { resetInterruptedPrintJobsOnBoot } from './src/infrastructure/sqlitePrintQueue';
-import { enqueuePrintJob, warmPrintPath } from './src/application/printService';
+import { enqueuePrintJob, onPrintJobFailed, warmPrintPath } from './src/application/printService';
 import { syncOrderPoolShift } from './src/application/orderNumberPool';
 import PrintQueueScreen from './src/ui/PrintQueueScreen';
 import PrinterSettingsScreen from './src/ui/PrinterSettingsScreen';
@@ -285,6 +285,19 @@ function App(): React.JSX.Element {
   // طلبٌ انطبع بلا نت برقمٍ مؤقت ارتفع الآن: الكاشير يعرف رقمه الحقيقي.
   useEffect(
     () => onOfflineRefResolved((id, ref, no) => setStatusMessage(`الطلب المؤقت ${ref} صار رقمه #${no ?? id}`)),
+    [setStatusMessage],
+  );
+  // ورقة ما انطبعت بعد كل المحاولات: كانت تختفي بصمت، والمطبخ ما يدري
+  // إن فيه طلب. الكاشير يعرف فوراً ويعيد طباعتها من «الطلبات».
+  useEffect(
+    () =>
+      onPrintJobFailed(job =>
+        setStatusMessage(
+          job.type === 'kitchen'
+            ? 'ورقة المطبخ ما انطبعت: طابعة المطبخ ما ترد. شيّكها وأعد الطباعة من الطلبات'
+            : 'الفاتورة ما انطبعت: الطابعة ما ترد. شيّكها وأعد الطباعة من الطلبات',
+        ),
+      ),
     [setStatusMessage],
   );
   /** موافقة مدير -- openPinModal() in the source (rakeen-pos.js:5157). */

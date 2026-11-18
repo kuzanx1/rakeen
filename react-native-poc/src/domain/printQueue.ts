@@ -215,11 +215,14 @@ export async function processPrintQueue(
   storage: PrintQueueStorage,
   dispatch: (job: PrintJobRecord) => Promise<PrintDispatchResult>,
   now: number,
+  /** يمرّ على هذه المهام بس (طابور كل طابعة لحاله، انظر printService). */
+  include: (job: PrintJobRecord) => boolean = () => true,
 ): Promise<PrintQueueOutcome> {
   const outcome: PrintQueueOutcome = { anySucceeded: false, anyFailed: false, newlyFailed: [] };
   const jobs = await storage.getAll();
   for (const job of jobs) {
     if (job.status !== 'queued' && job.status !== 'retrying') continue;
+    if (!include(job)) continue;
     if (!isDueForPrintRetry(job, now)) continue;
 
     await storage.put({ ...job, status: 'printing' });

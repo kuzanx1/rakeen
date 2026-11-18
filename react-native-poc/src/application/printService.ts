@@ -66,8 +66,16 @@ function base64ByteLength(base64: string): number {
  * تؤخّر ظهور الخطأ الحقيقي للكاشير بلا فائدة.
  */
 function isPrinterBusy(errorDetail?: string | null): boolean {
-  return errorDetail === 'connection_refused' || errorDetail === 'connection_timeout';
+  // الرفض بس. المهلة (connection_timeout) معناها الطابعة ما ترد أصلاً
+  // (عنوان غلط، مطفية، الشبكة طايحة)، وكانت تتكرر هنا ٤ مرات × ٨ ثواني
+  // = ٣٨ ثانية لكل ورقة، والطابور كله واقف وراها. عند «كباب طارق» وقت
+  // الزحمة: طابعة المطبخ ما ردّت، فوقفت أوراق المطبخ وتأخرت فواتير الزباين
+  // وبان التطبيق كأنه معلّق. المهلة الحين محاولة وحدة، والإعادة للطابور.
+  return errorDetail === 'connection_refused';
 }
+
+/** بايتات كل ورقة بعد رسمها، عشان الإعادة ما ترسم من جديد. */
+const renderCache = new Map<string, string>();
 
 async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
   // كل رقم قيل عن أداء هذا المسار حتى الآن -- بما فيه كلامي -- كان
@@ -102,7 +110,12 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
   // وطابعاتنا كلها على الشبكة، فحجم الصورة لا يكلّف شيئاً يُذكر.
   //
   // ومسار النص باقٍ في المستودع باختباراته -- لم يعد أحد يطبع به.
-  const escPosBase64 =
+  // الصورة تنرسم مرة لكل ورقة، مو مع كل إعادة. الرسم على خيط JS نفسه،
+  // فطابعة ما ترد وقت الزحمة كانت تعيد رسم كل ورقة معلّقة مع كل محاولة
+  // -- عشرات الصور -- والكاشير يحس إن التطبيق علّق.
+  const renderKey = [job.id, profile?.paperWidthPx, profile?.rasterCommand, resolvePrintDarkness(profile)].join('|');
+  const cached = renderCache.get(renderKey);
+  const escPosBase64 = cached ?? (
     job.type === 'receipt'
       ? await renderReceiptToEscPosBase64(
           job.data as unknown as ReceiptData,
@@ -118,7 +131,12 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
         )
       : job.type === 'shiftReport'
         ? await renderShiftReportToEscPosBase64(job.data as unknown as ClosingReport, profile?.paperWidthPx, profile?.rasterCommand, timer, resolvePrintDarkness(profile))
-        : await renderKitchenTicketToEscPosBase64(job.data as unknown as KitchenTicketData, profile?.paperWidthPx, profile?.rasterCommand, timer, resolvePrintDarkness(profile));
+        : await renderKitchenTicketToEscPosBase64(job.data as unknown as KitchenTicketData, profile?.paperWidthPx, profile?.rasterCommand, timer, resolvePrintDarkness(profile)));
+  if (!cached && escPosBase64) {
+    renderCache.set(renderKey, escPosBase64);
+    // آخر ٤٠ ورقة بس -- اللي انطبعت تطلع من أول الخريطة.
+    while (renderCache.size > 40) renderCache.delete(renderCache.keys().next().value as string);
+  }
   const bytes = base64ByteLength(escPosBase64);
   timer.bytes(bytes);
   // An empty render is the one way this path could report a genuine
@@ -242,27 +260,59 @@ export async function enqueuePrintJob(type: PrintJobType, data: Record<string, u
   return job.id;
 }
 
-let processing = false;
-/** نداء وصل أثناء تمريرة جارية. يُعاد بعدها لا يُهمَل. */
-let rerunRequested = false;
+/**
+ * طابور لكل طابعة.
+ *
+ * كان تمريرة واحدة تمشي على المهام بالترتيب: ورقة مطبخ لطابعة ما ترد
+ * تحجز كل اللي وراها، ففاتورة الزبون (على طابعة ثانية شغّالة) تنتظر.
+ * الحين لو للمطبخ طابعة مستقلة، أوراقه في مسار لحاله، والفواتير في مسار،
+ * ويمشون مع بعض. ولو المطبخ على نفس الطابعة يبقى مسار واحد -- الطابعة
+ * تقبل اتصال واحد، والتوازي هناك يجيب رفض بلا فايدة.
+ */
+type Lane = 'all' | 'main' | 'kitchen';
+const laneBusy: Record<Lane, boolean> = { all: false, main: false, kitchen: false };
+/** نداء وصل أثناء تمريرة جارية في المسار. يُعاد بعدها لا يُهمَل. */
+const laneRerun: Record<Lane, boolean> = { all: false, main: false, kitchen: false };
+const LANE_FILTER: Record<Lane, (job: PrintJobRecord) => boolean> = {
+  all: () => true,
+  main: job => job.type !== 'kitchen',
+  kitchen: job => job.type === 'kitchen',
+};
 
-/** Same overlapping-run guard shape as orderService.ts's syncQueuedOrdersNow. */
-export async function processPrintQueueNow(): Promise<PrintQueueOutcome | null> {
+/** ورقة ما انطبعت بعد كل المحاولات -- كانت تختفي بصمت. */
+type PrintFailureListener = (job: PrintJobRecord) => void;
+const failureListeners = new Set<PrintFailureListener>();
+export function onPrintJobFailed(listener: PrintFailureListener): () => void {
+  failureListeners.add(listener);
+  return () => {
+    failureListeners.delete(listener);
+  };
+}
+
+async function kitchenHasOwnPrinter(): Promise<boolean> {
+  try {
+    const profile = await getPrinterProfile();
+    const kitchen = profileToKitchenPrinterTarget(profile);
+    const main = profileToPrinterTarget(profile);
+    return !!kitchen && !!main && describeTarget(kitchen) !== describeTarget(main);
+  } catch {
+    return false;
+  }
+}
+
+async function runLane(lane: Lane): Promise<PrintQueueOutcome | null> {
   // التطبيق يضيف تذكرة المطبخ أولاً والفاتورة ثانياً. فلو اكتفى الحارس
-  // بردّ النداء الثاني، لوجدت الفاتورة نفسها -- وهي الورقة التي ينتظرها
-  // الزبون -- تنتظر الدورة التالية بينما طُبعت تذكرتها. الحارس يمنع
-  // التداخل، ولا يجوز أن يُسقط عملاً.
-  if (processing) {
-    rerunRequested = true;
+  // بردّ النداء الثاني، لوجدت الفاتورة نفسها تنتظر الدورة التالية. الحارس
+  // يمنع التداخل، ولا يجوز أن يُسقط عملاً.
+  if (laneBusy[lane]) {
+    laneRerun[lane] = true;
     return null;
   }
-  processing = true;
+  laneBusy[lane] = true;
   try {
-    const outcome = await processPrintQueueAlgorithm(sqlitePrintQueueStorage, job => doDispatch(job), Date.now());
+    const outcome = await processPrintQueueAlgorithm(sqlitePrintQueueStorage, job => doDispatch(job), Date.now(), LANE_FILTER[lane]);
     // Clear dedupe entries for anything that just reached a terminal
-    // state, mirroring clearActiveIfCurrent -- only if it's still the
-    // SAME job id for that content key (a later genuine reprint
-    // shouldn't have its live entry wiped by a stale job resolving late).
+    // state -- only if it's still the SAME job id for that content key.
     const jobs = await sqlitePrintQueueStorage.getAll();
     for (const job of jobs) {
       if (job.status === 'printed' || job.status === 'skipped_no_printer' || job.status === 'failed') {
@@ -270,21 +320,43 @@ export async function processPrintQueueNow(): Promise<PrintQueueOutcome | null> 
           activeJobIdByContentKey.delete(job.contentKey);
         }
       }
+      if (outcome.newlyFailed.includes(job.id)) {
+        failureListeners.forEach(l => {
+          try {
+            l(job);
+          } catch {
+            // مستمع واحد ما يوقف الطابور.
+          }
+        });
+      }
     }
     // والمحاولة التالية في موعدها هي، لا في موعد الدورة.
-    //
-    // المهلة التصاعدية تقول "أعد بعد ثانيتين"، لكن لا شيء كان يوقظ
-    // الطابور قبل الدورة التالية، فتصير الثانيتان عشرين. جدولة اليقظة
-    // على موعد المهلة تجعل الرقم المكتوب هو الرقم الواقع.
     scheduleNextRetry(jobs);
     return outcome;
   } finally {
-    processing = false;
-    if (rerunRequested) {
-      rerunRequested = false;
-      void processPrintQueueNow();
+    laneBusy[lane] = false;
+    if (laneRerun[lane]) {
+      laneRerun[lane] = false;
+      void runLane(lane);
     }
   }
+}
+
+export async function processPrintQueueNow(): Promise<PrintQueueOutcome | null> {
+  if (!(await kitchenHasOwnPrinter())) return runLane('all');
+  // بُدّلت الطابعات وتمريرة المسار الواحد ما خلصت؟ تخلص أول، عشان ما
+  // تنطبع ورقة مرتين.
+  if (laneBusy.all) {
+    laneRerun.all = true;
+    return null;
+  }
+  const [a, b] = await Promise.all([runLane('main'), runLane('kitchen')]);
+  if (!a && !b) return null;
+  return {
+    anySucceeded: !!(a?.anySucceeded || b?.anySucceeded),
+    anyFailed: !!(a?.anyFailed || b?.anyFailed),
+    newlyFailed: [...(a?.newlyFailed ?? []), ...(b?.newlyFailed ?? [])],
+  };
 }
 
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
