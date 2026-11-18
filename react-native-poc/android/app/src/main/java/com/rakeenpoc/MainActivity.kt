@@ -1,5 +1,6 @@
 package com.rakeenpoc
 
+import android.content.Context
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -12,6 +13,12 @@ class MainActivity : ReactActivity() {
    * rendering of the component.
    */
   override fun getMainComponentName(): String = "RakeenPOC"
+
+  // الشاشات الكبيرة: نفس كثافة التطبيق (ScreenScale)، بالطريقة الرسمية.
+  override fun attachBaseContext(newBase: Context) {
+    super.attachBaseContext(newBase)
+    ScreenScale.overrideFor()?.let { applyOverrideConfiguration(it) }
+  }
 
   /**
    * Returns the instance of the [ReactActivityDelegate]. We use [DefaultReactActivityDelegate]
