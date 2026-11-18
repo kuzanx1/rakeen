@@ -138,12 +138,26 @@ class UsbPrinterTransport(private val context: Context) {
         }
     }
 
+    // بعد القص بعض الطابعات تختفي من USB ثانية أو ثانيتين وترجع. لو جت
+    // الفاتورة التالية في هالوقت، ننتظرها بدل ما نقول «ما لقينا الطابعة».
+    private fun awaitDevice(savedId: String, callback: (UsbDevice?) -> Unit) {
+        findDevice(savedId)?.let { callback(it); return }
+        Thread {
+            var found: UsbDevice? = null
+            val until = System.currentTimeMillis() + 4000
+            while (found == null && System.currentTimeMillis() < until) {
+                try { Thread.sleep(250) } catch (e: InterruptedException) { break }
+                found = findDevice(savedId)
+            }
+            callback(found)
+        }.start()
+    }
+
     fun send(deviceId: String, bytes: ByteArray, timeoutMs: Int, callback: (Boolean, String?) -> Unit) {
-        val device = findDevice(deviceId)
-        if (device == null) {
-            callback(false, "device_not_found")
-            return
-        }
+        awaitDevice(deviceId) { device -> if (device == null) callback(false, "device_not_found") else sendTo(device, bytes, timeoutMs, callback) }
+    }
+
+    private fun sendTo(device: UsbDevice, bytes: ByteArray, timeoutMs: Int, callback: (Boolean, String?) -> Unit) {
         ensurePermission(device) { permissionError ->
             if (permissionError != null) {
                 callback(false, permissionError)
@@ -188,12 +202,11 @@ class UsbPrinterTransport(private val context: Context) {
     }
 
     fun testConnection(deviceId: String, callback: (Boolean, Double?, String?) -> Unit) {
-        val device = findDevice(deviceId)
-        if (device == null) {
-            callback(false, null, "device_not_found")
-            return
-        }
         val start = System.nanoTime()
+        awaitDevice(deviceId) { device -> if (device == null) callback(false, null, "device_not_found") else testDevice(device, start, callback) }
+    }
+
+    private fun testDevice(device: UsbDevice, start: Long, callback: (Boolean, Double?, String?) -> Unit) {
         ensurePermission(device) { permissionError ->
             if (permissionError != null) {
                 callback(false, null, permissionError)
