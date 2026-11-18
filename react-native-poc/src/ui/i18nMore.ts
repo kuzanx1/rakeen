@@ -503,6 +503,7 @@ export const I18N_EN_MORE: Record<string, string> = {
   'مكافأة: {} — مجاناً': 'Reward: {} — free',
   'طلب الطاولة ينخصم بالنسبة بس — غيّر الخصم لنسبة أو ألغه': 'A table order can only take a percentage — change the discount to a percentage or remove it',
   '+ عميل ولاء': '+ Loyalty customer',
+  'حذف': 'Delete',
   '🎁 {} مجاناً': '🎁 {} free',
   'خصم {} مفعّل': '{} discount on',
   'عنده {} نقطة': 'Has {} points',

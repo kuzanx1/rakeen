@@ -2942,7 +2942,7 @@ function renderOrder(){
       return `<div class="order-item">
         <div class="oi-row">
           <div class="oi-qty">
-            <button class="qty-btn" data-action="dec" data-line="${i.lineId}">−</button>
+            <button class="qty-btn${i.qty===1?' qty-del':''}" data-action="dec" data-line="${i.lineId}">${i.qty===1?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg>':'−'}</button>
             <span class="qty-val">${i.qty}</span>
             <button class="qty-btn" data-action="inc" data-line="${i.lineId}">+</button>
           </div>
@@ -2951,7 +2951,7 @@ function renderOrder(){
             ${i.qty > 1 && !i.isPointsRedemption && !i.isFreeReward ? `<div class="oi-unit">${rkMoney(unitPrice)} / ${t('حبة')}</div>` : ''}
           </div>
           <div class="oi-total">${i.isPointsRedemption ? t('نقاط') : i.isFreeReward ? t('مجاني') : rkMoney(unitPrice*i.qty)}</div>
-          <button class="oi-remove" data-action="remove" data-line="${i.lineId}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          <button class="oi-remove" data-action="remove" data-line="${i.lineId}" aria-label="${t('حذف')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg></button>
         </div>
         ${configHtml}
         ${i.note

@@ -90,6 +90,17 @@ const CHANNEL_LABELS: Record<OrderChannel, string> = {
  * `lang` so a cashier working in English sees the English option names
  * they configured on the dashboard, not just the product name.
  */
+function TrashIcon({ size, color }: { size: number; color: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M4 7h16" />
+      <Path d="M10 11v6M14 11v6" />
+      <Path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
+      <Path d="M9 7V4h6v3" />
+    </Svg>
+  );
+}
+
 function cartLineToModLabels(
   item: CartLine,
   modifiersByProductId: Record<number, ModifierDefinition>,
@@ -1741,11 +1752,15 @@ export default function ProductsScreen({
                     <View style={styles.oiRow}>
                     {/* .oi-qty -- a surf1 pill wrapping the two buttons */}
                     <View style={styles.qtyControls}>
-                      <TouchableOpacity onPress={() => cart.changeQty(line.lineId, -1)} style={styles.qtyButton}>
-                        {/* U+2212 MINUS SIGN, as in the source markup --
-                            not a hyphen, which renders visibly shorter
-                            and sits off-centre against the "+". */}
-                        <Text style={styles.qtyButtonText}>{'−'}</Text>
+                      {/* عند الحبة الوحدة «−» يحذف المنتج، فيطلع سلة حمراء
+                          بدل الناقص عشان الكاشير يعرف إنه حذف. */}
+                      <TouchableOpacity onPress={() => cart.changeQty(line.lineId, -1)} style={styles.qtyButton} hitSlop={6}>
+                        {line.qty === 1 ? (
+                          <TrashIcon size={12} color={colors.danger} />
+                        ) : (
+                          // U+2212 MINUS SIGN, not a hyphen.
+                          <Text style={styles.qtyButtonText}>{'−'}</Text>
+                        )}
                       </TouchableOpacity>
                       <Text style={styles.qtyValue}>{line.qty}</Text>
                       <TouchableOpacity onPress={() => cart.changeQty(line.lineId, 1)} style={styles.qtyButton}>
@@ -1776,11 +1791,16 @@ export default function ProductsScreen({
                       <Money value={unitPrice * line.qty} size={12.5} style={styles.cartLineTotalBox} />
                     )}
                       {/* .oi-remove */}
-                      <TouchableOpacity onPress={() => cart.removeFromCart(line.lineId)} style={styles.cartLineRemove} hitSlop={6}>
-                        <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={colors.muted} strokeWidth={2} strokeLinecap="round">
-                          <Line x1={18} y1={6} x2={6} y2={18} />
-                          <Line x1={6} y1={6} x2={18} y2={18} />
-                        </Svg>
+                      {/* زر الحذف: كان ✕ رمادي ٢٠ بكسل يصعب الضغط عليه.
+                          الحين دائرة حمراء فاتحة ٣٢ بكسل بأيقونة سلة. */}
+                      <TouchableOpacity
+                        onPress={() => cart.removeFromCart(line.lineId)}
+                        style={styles.cartLineRemove}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('حذف')}
+                      >
+                        <TrashIcon size={15} color={colors.danger} />
                       </TouchableOpacity>
                     </View>
 
@@ -2740,7 +2760,15 @@ const useStyles = createStyles((colors, shadows) =>
   cartLineTotal: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.text, flexShrink: 0 },
   cartLineTotalBox: { flexShrink: 0 },
   // .oi-remove -- 20px, muted, 12px glyph
-  cartLineRemove: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  cartLineRemove: {
+    width: 32,
+    height: 32,
+    borderRadius: radii.full,
+    backgroundColor: `rgba(${colors.dangerRgb},0.12)`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
   // .oi-qty -- `gap:4px; flex-shrink:0; background:var(--surf1);
   // border-radius:var(--r-full); padding:2px`
   qtyControls: {
