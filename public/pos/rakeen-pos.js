@@ -2378,26 +2378,25 @@ function changeQty(lineId, delta){
   if(item.qty <= 0){ rkReclaimCredit(item); state.cart = state.cart.filter(i=>i.lineId!==lineId); }
   renderOrder();
 }
-/* سحب سطر السلة يمين أو يسار يطلع «حذف» أحمر، وسحبة طويلة تحذف.
-   نفس التطبيق (SwipeToDelete.tsx). اللمس بس، والتمرير العمودي يبقى. */
+/* سحب سطر السلة يمين أو يسار يحذفه على طول بدون تأكيد (طلب المالك)،
+   وسحبة قصيرة ترجع. نفس التطبيق (SwipeToDelete.tsx). اللمس بس، والتمرير
+   العمودي يبقى. */
 function rkCartSwipe(row){
   const content = row.querySelector('.oi-content');
-  const W = 84, FULL = 170;
-  let sx = 0, sy = 0, base = 0, dx = 0, mode = null;
+  const DELETE_AT = 80;
+  let sx = 0, sy = 0, dx = 0, mode = null;
   const set = (v, anim) => { content.style.transition = anim ? 'transform .18s ease-out' : 'none'; content.style.transform = v ? `translateX(${v}px)` : ''; };
   row.addEventListener('touchstart', e => { const p = e.touches[0]; sx = p.clientX; sy = p.clientY; dx = 0; mode = null; }, {passive:true});
   row.addEventListener('touchmove', e => {
     const p = e.touches[0]; const mx = p.clientX - sx, my = p.clientY - sy;
     if(!mode){ if(Math.abs(mx) > 12 && Math.abs(mx) > Math.abs(my) * 1.5) mode = 'x'; else if(Math.abs(my) > 12) mode = 'y'; }
     if(mode !== 'x') return;
-    e.preventDefault(); dx = mx; set(base + dx, false);
+    e.preventDefault(); dx = mx; set(dx, false);
   }, {passive:false});
   row.addEventListener('touchend', () => {
     if(mode !== 'x') return;
-    const pos = base + dx;
-    if(Math.abs(pos) >= FULL){ removeFromCart(parseInt(row.querySelector('[data-line]').dataset.line)); return; }
-    base = Math.abs(pos) > W / 2 ? Math.sign(pos) * W : 0;
-    set(base, true);
+    if(Math.abs(dx) >= DELETE_AT){ removeFromCart(parseInt(row.querySelector('[data-line]').dataset.line)); return; }
+    set(0, true);
   });
 }
 function removeFromCart(lineId){
@@ -2472,11 +2471,45 @@ function computeConfigPrice(product, config){
 let modifierState = {product:null, modDef:null, config:null, qty:1};
 const modifierModal = document.getElementById('modifierModal');
 
+/* عدد لكل إضافة: «5 كباب، 2 منها بدون بطاطس». ينحفظ في config تحت '__n'
+   كقائمة "optId:n" (مثل التطبيق: domain/cart.ts)، وبس لما العدد أقل من
+   الكمية. بدون عدد = الإضافة على الكل. للإضافات المجانية في مجموعة متعددة. */
+const RK_OPT_COUNTS = '__n';
+function rkOptionCount(config, optId){
+  const list = config && config[RK_OPT_COUNTS];
+  if(!Array.isArray(list)) return null;
+  for(const e of list){
+    const i = e.lastIndexOf(':');
+    if(i > 0 && e.slice(0, i) === String(optId)){ const n = parseInt(e.slice(i + 1), 10); return n > 0 ? n : null; }
+  }
+  return null;
+}
+function rkWithOptionCount(label, config, optId){
+  const n = rkOptionCount(config, optId);
+  return n ? label + ' ×' + n : label;
+}
+function rkOptionTakesCount(g, o){ return g.type === 'multiple' && !o.price; }
+function rkApplyOptionCounts(config, counts, qty, modDef){
+  const out = {...config}; delete out[RK_OPT_COUNTS];
+  const list = [];
+  modDef.groups.forEach(g=>{
+    const sel = config[g.id];
+    if(!Array.isArray(sel)) return;
+    sel.forEach(id=>{
+      const o = g.options.find(x=>x.id===id); const n = counts[id];
+      if(o && rkOptionTakesCount(g, o) && n && n < qty) list.push(id + ':' + n);
+    });
+  });
+  if(list.length) out[RK_OPT_COUNTS] = list;
+  return out;
+}
+
 function openModifierModal(product, modDef){
   modifierState = {
     product, modDef,
     config: modDef.isBox ? {selections:{}} : buildDefaultConfig(modDef),
-    qty: 1
+    qty: 1,
+    counts: {}
   };
   document.getElementById('modifierProductName').textContent = product.name;
   if(modDef.isBox) renderBoxBuilder();
@@ -2506,9 +2539,14 @@ function renderGroupModifiers(){
     }
     g.options.forEach(o=>{
       const isSel = selectedArr.includes(o.id);
-      html += `<button class="mod-chip ${isSel?'selected':''} ${o.critical?'critical':''}" data-group="${g.id}" data-opt="${o.id}" data-type="${g.type}">
+      const chip = `<button class="mod-chip ${isSel?'selected':''} ${o.critical?'critical':''}" data-group="${g.id}" data-opt="${o.id}" data-type="${g.type}">
         ${(LANG==='en' && o.nameEn) ? o.nameEn : o.name}${o.price?`<span class="mod-chip-price">${o.price>0?'+':''}${o.price}</span>`:''}
       </button>`;
+      // الكمية أكثر من ١: عدّاد جنب الإضافة المختارة، كم حبة عليها.
+      if(isSel && qty > 1 && rkOptionTakesCount(g, o)){
+        const n = Math.min(modifierState.counts[o.id] ?? qty, qty);
+        html += `<span class="mod-chip-wrap">${chip}<span class="mod-count"><button class="mqty-btn" data-cnt="-1" data-opt="${o.id}">−</button><span class="mono">${n}</span><button class="mqty-btn" data-cnt="1" data-opt="${o.id}">+</button></span></span>`;
+      } else html += chip;
     });
     html += `</div></div>`;
   });
@@ -2550,14 +2588,21 @@ function wireGroupModifierEvents(){
       renderGroupModifiers();
     });
   });
-  document.querySelectorAll('.mqty-btn').forEach(btn=>{
+  document.querySelectorAll('.mqty-btn[data-qdelta]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       modifierState.qty = Math.max(1, modifierState.qty + parseInt(btn.dataset.qdelta));
       renderGroupModifiers();
     });
   });
+  document.querySelectorAll('.mqty-btn[data-cnt]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.dataset.opt, q = modifierState.qty;
+      modifierState.counts[id] = Math.max(1, Math.min(q, (modifierState.counts[id] ?? q) + parseInt(btn.dataset.cnt)));
+      renderGroupModifiers();
+    });
+  });
   document.getElementById('modifierAddBtn').addEventListener('click', ()=>{
-    addToCartWithConfig(modifierState.product, modifierState.config, modifierState.qty);
+    addToCartWithConfig(modifierState.product, rkApplyOptionCounts(modifierState.config, modifierState.counts, modifierState.qty, modifierState.modDef), modifierState.qty);
     modifierModal.classList.remove('show');
     maybeShowUpsell(modifierState.product.id);
   });
@@ -2630,7 +2675,7 @@ function formatConfigLabels(productId, config){
       if(!optId) return;
       const opt = g.options.find(o=>o.id===optId);
       if(!opt) return;
-      labels.push({text: (LANG==='en' && opt.nameEn) ? opt.nameEn : opt.name, critical: !!opt.critical});
+      labels.push({text: rkWithOptionCount((LANG==='en' && opt.nameEn) ? opt.nameEn : opt.name, config, optId), critical: !!opt.critical});
     });
   });
   return labels;
@@ -2661,7 +2706,7 @@ function formatConfigLabelsBilingual(productId, config){
       if(!optId) return;
       const opt = g.options.find(o=>o.id===optId);
       if(!opt) return;
-      labels.push({text: opt.name, textEn: opt.nameEn || null});
+      labels.push({text: rkWithOptionCount(opt.name, config, optId), textEn: opt.nameEn ? rkWithOptionCount(opt.nameEn, config, optId) : null});
     });
   });
   return labels;
@@ -2962,7 +3007,7 @@ function renderOrder(){
         ? `<div class="oi-config">${configLabels.map(l=>`<span class="oi-config-tag ${l.critical?'critical':''}">${l.text}</span>`).join('')}</div>`
         : '';
       return `<div class="order-item">
-        <div class="oi-swipe-bg"><button class="oi-swipe-del" data-action="remove" data-line="${i.lineId}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg><span>${t('حذف')}</span></button><button class="oi-swipe-del" data-action="remove" data-line="${i.lineId}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg><span>${t('حذف')}</span></button></div>
+        <div class="oi-swipe-bg" aria-hidden="true"><span class="oi-swipe-del"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg><span>${t('حذف')}</span></span><span class="oi-swipe-del"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg><span>${t('حذف')}</span></span></div>
         <div class="oi-content">
         <div class="oi-row">
           <div class="oi-qty">
@@ -5417,7 +5462,8 @@ function computeLineStockDecrements(item){
         const link = MODIFIER_OPTION_STOCK[g.id+'_'+optId];
         if(link){
           const qtyInStockUnit = convertToUnit(link.qty, link.unit, STOCK_UNIT_BY_ID[link.stockItemId] || link.unit);
-          decrements.push({stock_item_id: link.stockItemId, qty: qtyInStockUnit * item.qty});
+          const units = Math.min(item.qty, rkOptionCount(item.config, optId) ?? item.qty); // «×2 من 5»
+          decrements.push({stock_item_id: link.stockItemId, qty: qtyInStockUnit * units});
         }
       });
     });

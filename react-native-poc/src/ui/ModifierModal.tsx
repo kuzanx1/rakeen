@@ -4,7 +4,7 @@ import SheetBottomGap from './SheetBottomGap';
 import { Text } from './Text';
 import { TouchableOpacity, SMALL_HIT_SLOP } from './tappable';
 import GradientFill from './GradientFill';
-import { ModifierDefinition, CartLineConfig, buildDefaultConfig } from '../domain/cart';
+import { ModifierDefinition, CartLineConfig, applyOptionCounts, buildDefaultConfig, optionTakesCount } from '../domain/cart';
 import type { BoxDefinition } from '../domain/cart';
 import Money from './Money';
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
@@ -50,6 +50,11 @@ export default function ModifierModal({
   const { t, lang } = useI18n();
   const [config, setConfig] = useState<CartLineConfig>(() => buildDefaultConfig(modDef) || {});
   const [qty, setQty] = useState(1);
+  // كم حبة من الكمية عليها الإضافة («5 كباب، 2 بدون بطاطس»). بدون رقم = الكل.
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const countOf = (optId: string) => Math.min(counts[optId] ?? qty, qty);
+  const bumpCount = (optId: string, delta: number) =>
+    setCounts(prev => ({ ...prev, [optId]: Math.max(1, Math.min(qty, (prev[optId] ?? qty) + delta)) }));
 
   /**
    * renderBoxBuilder() (rakeen-pos.js:902). A box is not a set of modifier
@@ -195,10 +200,11 @@ export default function ModifierModal({
                       group.type === 'single'
                         ? config[group.id] === opt.id
                         : Array.isArray(config[group.id]) && (config[group.id] as string[]).includes(opt.id);
+                    const counted = selected && qty > 1 && optionTakesCount(group, opt);
                     return (
+                      <View key={opt.id} style={[styles.chipWrap, selected && styles.chipSelected]}>
                       <TouchableOpacity
-                        key={opt.id}
-                        style={[styles.chip, selected && styles.chipSelected]}
+                        style={styles.chipTap}
                         onPress={() =>
                           group.type === 'single'
                             ? selectSingle(group.id, opt.id, group.required)
@@ -218,6 +224,18 @@ export default function ModifierModal({
                           </Text>
                         )}
                       </TouchableOpacity>
+                      {counted && (
+                        <View style={styles.chipCount}>
+                          <TouchableOpacity style={styles.chipCountBtn} hitSlop={SMALL_HIT_SLOP} onPress={() => bumpCount(opt.id, -1)}>
+                            <Text style={styles.qtyBtnText}>−</Text>
+                          </TouchableOpacity>
+                          <Text style={styles.chipCountValue}>{countOf(opt.id)}</Text>
+                          <TouchableOpacity style={styles.chipCountBtn} hitSlop={SMALL_HIT_SLOP} onPress={() => bumpCount(opt.id, 1)}>
+                            <Text style={styles.qtyBtnText}>+</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                      </View>
                     );
                   })}
                 </View>
@@ -273,7 +291,7 @@ export default function ModifierModal({
                 </Text>
               </View>
             ) : (
-              <TouchableOpacity style={styles.confirmWrap} onPress={() => onConfirm(config, qty)} activeOpacity={0.85}>
+              <TouchableOpacity style={styles.confirmWrap} onPress={() => onConfirm(applyOptionCounts(config, counts, qty, modDef), qty)} activeOpacity={0.85}>
                 <View style={styles.confirmButton}>
                   <GradientFill gradient={gradients.payButton} radius={radii.md} />
                   <Text style={styles.confirmText}>إضافة</Text>
@@ -354,6 +372,21 @@ const useStyles = createStyles(colors =>
     borderColor: colors.line,
     backgroundColor: colors.surf1,
   },
+  // الشريحة صارت حاوية: الاسم يضغط ويختار، والعدّاد جنبه لما الكمية أكثر من ١.
+  chipWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 42,
+    borderRadius: radii.full,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    backgroundColor: colors.surf1,
+    overflow: 'hidden',
+  },
+  chipTap: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 11, paddingHorizontal: 16 },
+  chipCount: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingEnd: 8 },
+  chipCountBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.surf2, alignItems: 'center', justifyContent: 'center' },
+  chipCountValue: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.text, minWidth: 14, textAlign: 'center' },
   chipSelected: { borderColor: colors.limeDeep, backgroundColor: `rgba(${colors.limeRgb},0.13)` },
   chipText: { fontFamily: fonts.sansBold, fontSize: 12.5, color: colors.text },
   // .mod-chip-price -- --lime-deep, overridden to --lime in dark

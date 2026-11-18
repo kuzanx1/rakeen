@@ -810,6 +810,11 @@ svg{display:block;}
 }
 .mod-chip.selected{border-color:var(--lime-deep); background:rgba(var(--lime-rgb), 0.13); color:var(--text);}
 .mod-chip.critical.selected{border-color:var(--amber);}
+/* إضافة مختارة والكمية أكثر من ١: الشريحة + عدّاد «كم حبة عليها» في إطار واحد. */
+.mod-chip-wrap{display:inline-flex; align-items:center; border-radius:var(--r-full); border:1.5px solid var(--lime-deep); background:rgba(var(--lime-rgb), 0.13);}
+.mod-chip-wrap .mod-chip{border:none; background:none;}
+.mod-count{display:flex; align-items:center; gap:6px; padding-inline-end:8px;}
+.mod-count .mono{font-weight:800; font-size:13px; min-width:14px; text-align:center;}
 .mod-chip-price{font-size:11px; font-weight:800; color:var(--lime-deep); direction:ltr; unicode-bidi:isolate;}
 [data-theme="dark"] .mod-chip-price{color:var(--lime);}
 .modifier-footer{display:flex; align-items:center; gap:12px; margin-top:8px; padding-top:18px; border-top:1px solid var(--line);}

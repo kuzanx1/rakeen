@@ -37,7 +37,7 @@ import { operationIdForOrder, buildOrderPayload, buildDineInRegisterPayload, bui
 import type { ReceiptData, KitchenTicketData, ReceiptLine, ReceiptLineMod } from '../domain/receipt';
 import type { Product } from '../domain/catalog';
 import { isRetailBusinessType } from '../domain/catalog';
-import { buildDefaultConfig, formatBoxLabels } from '../domain/cart';
+import { buildDefaultConfig, formatBoxLabels, withOptionCount } from '../domain/cart';
 import type { BoxDefinition, CartLine, ModifierDefinition, OrderChannel } from '../domain/cart';
 import type { CashierProfile } from '../domain/auth';
 import type { Shift } from '../domain/shift';
@@ -117,7 +117,7 @@ function cartLineToModLabels(
     const ids = Array.isArray(selected) ? selected : selected != null ? [selected] : [];
     for (const id of ids) {
       const option = group.options.find(o => o.id === id);
-      if (option) labels.push(displayName(option, lang));
+      if (option) labels.push(withOptionCount(displayName(option, lang), item.config, id));
     }
   }
   return labels;
@@ -146,7 +146,10 @@ function cartLineToModEntries(
     const ids = Array.isArray(selected) ? selected : selected != null ? [selected] : [];
     for (const id of ids) {
       const option = group.options.find(o => o.id === id);
-      if (option) entries.push({ text: option.name, textEn: option.nameEn || undefined });
+      if (option) entries.push({
+        text: withOptionCount(option.name, item.config, id),
+        textEn: option.nameEn ? withOptionCount(option.nameEn, item.config, id) : undefined,
+      });
     }
   }
   return entries;

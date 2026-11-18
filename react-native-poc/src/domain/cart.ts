@@ -109,7 +109,9 @@ export function computeLineStockDecrements(
       const link = optionStock[`${group.id}_${optId}`];
       if (!link) continue;
       const qtyInStockUnit = convertToUnit(link.qty, link.unit, stockUnitById[link.stockItemId] || link.unit);
-      decrements.push({ stock_item_id: link.stockItemId, qty: qtyInStockUnit * line.qty });
+      // «×2 من 5»: الإضافة على حبتين بس.
+      const units = Math.min(line.qty, optionCount(line.config, optId) ?? line.qty);
+      decrements.push({ stock_item_id: link.stockItemId, qty: qtyInStockUnit * units });
     }
   }
   return decrements;
@@ -211,6 +213,62 @@ export interface CartTotals {
   discount: number;
   vat: number;
   total: number;
+}
+
+/**
+ * عدد لكل إضافة: «5 كباب، 2 منها بدون بطاطس». ينحفظ داخل config نفسه تحت
+ * مفتاح ما يطابق أي مجموعة، كقائمة "optId:n" (يناسب نوع CartLineConfig)،
+ * فكل الكود اللي يمر على المجموعات ما يشوفه، والأسطر بعدد مختلف ما
+ * تندمج (configsEqual يقارن JSON). ينحفظ بس لما العدد أقل من الكمية؛
+ * بدون عدد = الإضافة على الكل زي قبل.
+ */
+export const OPTION_COUNTS_KEY = '__n';
+
+export function optionCount(config: CartLineConfig | null | undefined, optionId: string): number | null {
+  const list = config?.[OPTION_COUNTS_KEY];
+  if (!Array.isArray(list)) return null;
+  for (const entry of list) {
+    const i = entry.lastIndexOf(':');
+    if (i > 0 && entry.slice(0, i) === optionId) {
+      const n = parseInt(entry.slice(i + 1), 10);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    }
+  }
+  return null;
+}
+
+/** «بدون بطاطس» أو «بدون بطاطس ×2». */
+export function withOptionCount(label: string, config: CartLineConfig | null | undefined, optionId: string): string {
+  const n = optionCount(config, optionId);
+  return n ? `${label} ×${n}` : label;
+}
+
+/** الإضافات المجانية في مجموعة متعددة هي اللي ينفع لها عدد. */
+export function optionTakesCount(group: { type: string }, option: { price: number }): boolean {
+  return group.type === 'multiple' && !option.price;
+}
+
+/** يكتب العدّادات في config عند «إضافة»: المختار، المجاني، وأقل من الكمية. */
+export function applyOptionCounts(
+  config: CartLineConfig,
+  counts: Record<string, number>,
+  qty: number,
+  modDef: ModifierDefinition,
+): CartLineConfig {
+  const out: CartLineConfig = { ...config };
+  delete out[OPTION_COUNTS_KEY];
+  const list: string[] = [];
+  for (const g of modDef.groups) {
+    const sel = config[g.id];
+    if (!Array.isArray(sel)) continue;
+    for (const id of sel) {
+      const opt = g.options.find(o => o.id === id);
+      const n = counts[id];
+      if (opt && optionTakesCount(g, opt) && n && n < qty) list.push(`${id}:${n}`);
+    }
+  }
+  if (list.length) out[OPTION_COUNTS_KEY] = list;
+  return out;
 }
 
 export function configsEqual(a: CartLineConfig | null, b: CartLineConfig | null): boolean {

@@ -9,7 +9,7 @@
  */
 
 import uuid from 'react-native-uuid';
-import { CartLine, OrderChannel, ModifierDefinition, computeLineStockDecrements, computeLineBoxSelections, formatBoxLabels } from './cart';
+import { CartLine, OrderChannel, ModifierDefinition, computeLineStockDecrements, computeLineBoxSelections, formatBoxLabels, withOptionCount } from './cart';
 import type { ModifierOptionStockMap, StockDecrement, BoxSelectionPayload, BoxDefinition } from './cart';
 import type { Product } from './catalog';
 import type { PaymentMethod, PaymentState, DrawerState } from './payment';
@@ -255,7 +255,10 @@ export function formatConfigLabels(
       if (!optId) return;
       const opt = g.options.find(o => o.id === optId);
       if (!opt) return;
-      labels.push({ text: opt.name, textEn: opt.nameEn || undefined });
+      labels.push({
+        text: withOptionCount(opt.name, config, optId),
+        textEn: opt.nameEn ? withOptionCount(opt.nameEn, config, optId) : undefined,
+      });
     });
   });
   return labels;
