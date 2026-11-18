@@ -8,6 +8,7 @@ import Svg, { Circle, Line, Path, Polygon, Polyline } from 'react-native-svg';
 import { createStyles, fonts, gradients, layout, radii, spacing, useTheme } from './theme';
 import { CategoryIcon, iconForCategoryName } from './categoryIcons';
 import Money from './Money';
+import SwipeToDelete from './SwipeToDelete';
 import { useShell } from './shell';
 import { displayName, useI18n, type Lang } from './i18n';
 import { useToast } from './Toast';
@@ -1748,7 +1749,14 @@ export default function ProductsScreen({
                   // info, line total, remove.
                   // .order-item wraps .oi-row plus the config chips and
                   // the note affordances underneath it.
-                  <View key={line.lineId} style={styles.cartLine}>
+                  // سحب السطر يمين أو يسار يطلع «حذف»، وسحبة طويلة تحذف.
+                  <SwipeToDelete
+                    key={line.lineId}
+                    style={styles.cartLine}
+                    contentStyle={styles.cartLineContent}
+                    label={t('حذف')}
+                    onDelete={() => cart.removeFromCart(line.lineId)}
+                  >
                     <View style={styles.oiRow}>
                     {/* .oi-qty -- a surf1 pill wrapping the two buttons */}
                     <View style={styles.qtyControls}>
@@ -1866,7 +1874,7 @@ export default function ProductsScreen({
                         }}
                       />
                     )}
-                  </View>
+                  </SwipeToDelete>
                 );
               })
             )}
@@ -2703,10 +2711,10 @@ const useStyles = createStyles((colors, shadows) =>
   // Bumped from the source's original 8px: on a tablet the config chip and
   // note link sat close enough to the row above to read as pasted onto it.
   cartLine: {
-    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
   },
+  cartLineContent: { paddingVertical: 10 },
   // .oi-row -- `display:flex; align-items:center; gap:8px`
   oiRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
   // .oi-config -- `flex-wrap:wrap; gap:4px; margin-top:7px` (was 4px, same tablet-spacing pass)

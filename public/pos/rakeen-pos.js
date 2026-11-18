@@ -2378,6 +2378,28 @@ function changeQty(lineId, delta){
   if(item.qty <= 0){ rkReclaimCredit(item); state.cart = state.cart.filter(i=>i.lineId!==lineId); }
   renderOrder();
 }
+/* سحب سطر السلة يمين أو يسار يطلع «حذف» أحمر، وسحبة طويلة تحذف.
+   نفس التطبيق (SwipeToDelete.tsx). اللمس بس، والتمرير العمودي يبقى. */
+function rkCartSwipe(row){
+  const content = row.querySelector('.oi-content');
+  const W = 84, FULL = 170;
+  let sx = 0, sy = 0, base = 0, dx = 0, mode = null;
+  const set = (v, anim) => { content.style.transition = anim ? 'transform .18s ease-out' : 'none'; content.style.transform = v ? `translateX(${v}px)` : ''; };
+  row.addEventListener('touchstart', e => { const p = e.touches[0]; sx = p.clientX; sy = p.clientY; dx = 0; mode = null; }, {passive:true});
+  row.addEventListener('touchmove', e => {
+    const p = e.touches[0]; const mx = p.clientX - sx, my = p.clientY - sy;
+    if(!mode){ if(Math.abs(mx) > 12 && Math.abs(mx) > Math.abs(my) * 1.5) mode = 'x'; else if(Math.abs(my) > 12) mode = 'y'; }
+    if(mode !== 'x') return;
+    e.preventDefault(); dx = mx; set(base + dx, false);
+  }, {passive:false});
+  row.addEventListener('touchend', () => {
+    if(mode !== 'x') return;
+    const pos = base + dx;
+    if(Math.abs(pos) >= FULL){ removeFromCart(parseInt(row.querySelector('[data-line]').dataset.line)); return; }
+    base = Math.abs(pos) > W / 2 ? Math.sign(pos) * W : 0;
+    set(base, true);
+  });
+}
 function removeFromCart(lineId){
   rkReclaimCredit(state.cart.find(i=>i.lineId===lineId));
   state.cart = state.cart.filter(i=>i.lineId!==lineId);
@@ -2940,6 +2962,8 @@ function renderOrder(){
         ? `<div class="oi-config">${configLabels.map(l=>`<span class="oi-config-tag ${l.critical?'critical':''}">${l.text}</span>`).join('')}</div>`
         : '';
       return `<div class="order-item">
+        <div class="oi-swipe-bg"><button class="oi-swipe-del" data-action="remove" data-line="${i.lineId}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg><span>${t('حذف')}</span></button><button class="oi-swipe-del" data-action="remove" data-line="${i.lineId}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg><span>${t('حذف')}</span></button></div>
+        <div class="oi-content">
         <div class="oi-row">
           <div class="oi-qty">
             <button class="qty-btn${i.qty===1?' qty-del':''}" data-action="dec" data-line="${i.lineId}">${i.qty===1?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg>':'−'}</button>
@@ -2958,8 +2982,10 @@ function renderOrder(){
           ? `<div class="oi-note-text">📝 ${escapeHtml(i.note)}</div>`
           : `<button class="oi-note-link" data-action="note-open" data-line="${i.lineId}">${t('+ ملاحظة')}</button>`}
         <input type="text" class="oi-note-input" data-line="${i.lineId}" placeholder="بدون بصل، إضافي صوص..." value="${escapeHtml(i.note||'')}">
+        </div>
       </div>`;
     }).join('');
+    itemsEl.querySelectorAll('.order-item').forEach(rkCartSwipe);
 
     itemsEl.querySelectorAll('[data-action]').forEach(btn=>{
       const lineId = parseInt(btn.dataset.line);
