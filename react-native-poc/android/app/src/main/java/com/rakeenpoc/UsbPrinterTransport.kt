@@ -36,6 +36,18 @@ class UsbPrinterTransport(private val context: Context) {
 
     companion object {
         private const val ACTION_USB_PERMISSION = "com.rakeenpoc.USB_PERMISSION"
+
+        /**
+         * كل كلام مع طابعة USB يمشي هنا، واحد ورا الثاني.
+         *
+         * الطباعة ودرج الكاش كل واحد له نسخة من هذا الكلاس، وكل وحدة كانت
+         * تفتح الطابعة وتاخذ الواجهة بالقوة (claimInterface force=true) بخيط
+         * لحالها. بعد الدفع تنطبع ورقة المطبخ أول، وبنفس اللحظة ينفتح الدرج:
+         * الدرج يخطف الواجهة من نص ورقة المطبخ فتفشل، والفاتورة بعدها تطلع
+         * عادي. عند «كباب طارق» وقت الزحمة: «أوراق المطبخ وقفت وما يطلع إلا
+         * حقت الزباين». مشترك بين كل النسخ (companion)، فما يتزاحمون أبداً.
+         */
+        private val USB_IO = java.util.concurrent.Executors.newSingleThreadExecutor()
     }
 
     data class Device(val id: String, val name: String?)
@@ -163,22 +175,22 @@ class UsbPrinterTransport(private val context: Context) {
                 callback(false, permissionError)
                 return@ensurePermission
             }
-            Thread {
+            USB_IO.execute {
                 val target = printerInterfaceAndEndpoint(device)
                 if (target == null) {
                     callback(false, "no_bulk_out_endpoint")
-                    return@Thread
+                    return@execute
                 }
                 val (intf, endpoint) = target
                 val connection: UsbDeviceConnection? = try { manager().openDevice(device) } catch (e: Exception) { null }
                 if (connection == null) {
                     callback(false, "connection_failed")
-                    return@Thread
+                    return@execute
                 }
                 try {
                     if (!connection.claimInterface(intf, true)) {
                         callback(false, "connection_failed")
-                        return@Thread
+                        return@execute
                     }
                     // bulkTransfer يرسل 16KB كحد أقصى بالمرة على أجهزة كثيرة،
                     // والفاتورة بالشعار أكبر من كذا: نرسلها على دفعات.
@@ -197,7 +209,7 @@ class UsbPrinterTransport(private val context: Context) {
                     try { connection.releaseInterface(intf) } catch (e: Exception) { /* best-effort cleanup */ }
                     connection.close()
                 }
-            }.start()
+            }
         }
     }
 
@@ -212,13 +224,15 @@ class UsbPrinterTransport(private val context: Context) {
                 callback(false, null, permissionError)
                 return@ensurePermission
             }
-            val connection = try { manager().openDevice(device) } catch (e: Exception) { null }
-            if (connection == null) {
-                callback(false, null, "connection_failed")
-            } else {
-                val latencyMs = (System.nanoTime() - start) / 1_000_000.0
-                connection.close()
-                callback(true, latencyMs, null)
+            USB_IO.execute {
+                val connection = try { manager().openDevice(device) } catch (e: Exception) { null }
+                if (connection == null) {
+                    callback(false, null, "connection_failed")
+                } else {
+                    val latencyMs = (System.nanoTime() - start) / 1_000_000.0
+                    connection.close()
+                    callback(true, latencyMs, null)
+                }
             }
         }
     }

@@ -513,12 +513,14 @@ export default function ProductsScreen({
   );
 
   const { gridColumns, gridTileWidth } = useMemo(() => {
-    const minTile = isNarrow ? 122 : 128;
     const sidePadding = 20 * 2;
     const gap = 10;
     const available = isNarrow
       ? windowWidth - sidePadding
       : windowWidth - layout.catSidebarWidth - orderPanelWidth - sidePadding;
+    // شاشة كاشير كبيرة (مساحة المنتجات فوق 700): مربعات أكبر بدل أعمدة
+    // أكثر، فالمنتج يبان من بعيد. على التابلت والجوال يبقى 128/122.
+    const minTile = isNarrow ? 122 : available >= 700 ? 158 : 128;
     const columns = Math.max(1, Math.floor(available / minTile));
     /**
      * A real track width, not `flex: 1`.
