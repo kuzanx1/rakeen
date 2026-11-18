@@ -106,7 +106,8 @@ export default function UiScaleScreen({ onToast }: { onToast: (msg: string) => v
 /** نفس مقاسات مربع المنتج في ProductsScreen.tsx (productCard) بالحجم العادي. */
 const previewBase = (colors: Palette) =>
   StyleSheet.create({
-    tilesRow: { flexDirection: 'row', gap: 10 },
+    // تلتف على الجوال بدل ما تنقص من الجنب.
+    tilesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
     tile: {
       width: 128,
       backgroundColor: colors.cardBg,
