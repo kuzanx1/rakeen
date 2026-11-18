@@ -13234,6 +13234,7 @@ async function renderBranchesSettings(){
         }
         logDashboardAudit('عدّل أوقات الأيام لفرع');
         rkBtnSuccess(btn, '✓ تم الحفظ');
+        businessDayAfterHoursChange();
       } catch(err){
         rkBtnLoading(btn, false);
         showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
@@ -13277,6 +13278,7 @@ async function renderBranchesSettings(){
         if(error) throw error;
         logDashboardAudit('عدّل موقع فرع');
         rkBtnSuccess(saveBtn, '✓ انحفظ');
+        businessDayAfterHoursChange();
         saveBtn.classList.remove('st-pulse');
         const lat = latVal===''?null:parseFloat(latVal), lng = lngVal===''?null:parseFloat(lngVal);
         const sb = (ST_BRANCHES || []).find(x => String(x.id) === String(branchId));
@@ -15558,6 +15560,19 @@ async function businessDayApplied(){
     await loadPaymentBreakdown(); await loadSalesRealData(); recomputeAccounting(); await loadWeekTrend();
     if(typeof renderHomeHero === 'function') renderHomeHero();
   } catch(_) { /* الأرقام تتحدث مع أول تحديث للصفحة */ }
+}
+/** بعد تعديل دوام فرع: «تلقائي» يعيد الحساب فوراً. كان ينتظر ٢٠ ساعة من آخر
+    فحص، فمحل يحط دوامه (١٢:٣٠ الظهر لـ ٣ الفجر) يبقى يشوف «١٢ الليل». */
+async function businessDayAfterHoursChange(){
+  if(!DAY_CUTOFF_AUTO) return;
+  const before = DAY_CUTOFF;
+  await businessDayApplied();
+  const sel = document.getElementById('settingsDayCutoff');
+  const auto = sel && sel.querySelector('option[value="auto"]');
+  if(auto) auto.textContent = 'تلقائي من دوامك (الحين: ' + rkDayCutoffLabel(DAY_CUTOFF) + ')';
+  const help = document.getElementById('settingsDayCutoffHelper');
+  if(help && sel && sel.value === 'auto') help.innerHTML = businessDayHelperText(true, DAY_CUTOFF);
+  if(DAY_CUTOFF !== before) showToast('يوم العمل صار يخلص ' + rkDayCutoffLabel(DAY_CUTOFF) + ' حسب دوامك');
 }
 function wireRestaurantSettings(){
   wireBusinessDaySettings();
