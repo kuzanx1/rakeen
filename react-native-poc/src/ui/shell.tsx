@@ -82,10 +82,13 @@ export function ShellProvider({
   // «حجم الواجهة»: السلة والشريط السفلي يكبرون مع باقي الواجهة.
   const { scale } = useTheme();
   const value = useMemo<Shell>(() => {
-    const sideBySide = width >= layout.sideBySideMinWidth;
+    // نقاط الكسر بمقاس التصميم: الشاشة مقسومة على المقاس. R10a (١٩٢٠ ÷ ١.٥
+    // = ١٢٨٠) يأخذ نفس قرارات السنمي (١٢٨٠) بالضبط.
+    const designWidth = width / scale;
+    const sideBySide = designWidth >= layout.sideBySideMinWidth;
     const bottomNavHeight = Math.round(layout.bottomNavHeight * scale) + safeBottom;
     const orderPanelWidth = Math.round(
-      (width <= layout.narrowPanelMaxWidth ? layout.orderPanelWidthNarrow : layout.orderPanelWidth) * scale,
+      (designWidth <= layout.narrowPanelMaxWidth ? layout.orderPanelWidthNarrow : layout.orderPanelWidth) * scale,
     );
     return {
       sideBySide,

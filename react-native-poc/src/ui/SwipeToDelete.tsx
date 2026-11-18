@@ -1,7 +1,8 @@
 import React, { useMemo, useRef } from 'react';
 import { Animated, PanResponder, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import Svg from './ScaledSvg';
+import { Path } from 'react-native-svg';
 import { Text } from './Text';
 import { fonts, useTheme } from './theme';
 

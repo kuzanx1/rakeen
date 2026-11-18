@@ -1,5 +1,5 @@
 import { useWindowDimensions } from 'react-native';
-import { fonts } from './theme';
+import { fonts, scaleStyleSheet, useTheme } from './theme';
 
 /**
  * شاشات الدخول v2 -- نفس مقاسات "Auth screens v2" في
@@ -70,14 +70,12 @@ export function authBaseStyles(colors: any, shadows: any) {
  */
 export function useAuthFit() {
   const { width, height } = useWindowDimensions();
-  const short = height < 780;
-  const narrow = width < 560;
-  const key = short ? 64 : narrow ? 76 : 84;
-  return {
-    key,
-    keyFont: short ? 24 : narrow ? 26 : 28,
-    rowGap: short ? 10 : 16,
-    colGap: short ? 18 : narrow ? 20 : 22,
+  // نقاط الكسر بمقاس التصميم، والأرقام تكبر مع الشاشة (theme.ts autoScaleFor).
+  const { scale } = useTheme();
+  const short = height / scale < 780;
+  const narrow = width / scale < 560;
+  const key = (short ? 64 : narrow ? 76 : 84) * scale;
+  const boxes = scaleStyleSheet({
     card: short
       ? { paddingTop: 26, paddingBottom: 20 }
       : narrow
@@ -86,5 +84,12 @@ export function useAuthFit() {
     wordmark: short ? { marginBottom: 12 } : null,
     sub: short ? { marginBottom: 14 } : null,
     dots: short ? { marginBottom: 16 } : null,
+  }, scale);
+  return {
+    key,
+    keyFont: (short ? 24 : narrow ? 26 : 28) * scale,
+    rowGap: (short ? 10 : 16) * scale,
+    colGap: (short ? 18 : narrow ? 20 : 22) * scale,
+    ...boxes,
   };
 }

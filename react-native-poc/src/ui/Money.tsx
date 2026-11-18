@@ -47,7 +47,7 @@ export const RIYAL = '⃁';
 
 export default function Money({
   value,
-  size = 12,
+  size: baseSize = 12,
   color,
   style,
 }: {
@@ -57,8 +57,10 @@ export default function Money({
   color?: string;
   style?: StyleProp<ViewStyle>;
 }) {
-  const { colors } = useTheme();
+  const { colors, scale } = useTheme();
   const ink = color ?? colors.text;
+  // الأسعار تكبر مع باقي الواجهة (theme.ts autoScaleFor) -- كانت ثابتة.
+  const size = baseSize * scale;
 
   // `const n = Number(amount) || 0` -- NaN and undefined both collapse to
   // zero rather than printing "NaN" at a customer.

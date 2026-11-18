@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
-import { createStyles, fonts, Palette, radii, scaleStyleSheet, spacing, UI_SCALES, useTheme } from './theme';
+import { createStyles, effectiveScale, fonts, Palette, radii, scaleStyleSheet, spacing, UI_SCALES, useTheme } from './theme';
 
 /**
  * «حجم الواجهة» -- المزيد ← الطابعة والجهاز.
@@ -15,22 +15,27 @@ import { createStyles, fonts, Palette, radii, scaleStyleSheet, spacing, UI_SCALE
  * المختار قبل ما يتطبّق، فالكاشير يشوف النتيجة قبل ما تتغيّر الشاشة كلها.
  */
 export default function UiScaleScreen({ onToast }: { onToast: (msg: string) => void }) {
-  const { colors, scale, setScale } = useTheme();
+  const { colors, autoScale, userScale, setScale } = useTheme();
   const styles = useStyles();
-  const [picked, setPicked] = useState(scale);
-  const preview = useMemo(() => scaleStyleSheet(previewBase(colors), picked), [colors, picked]);
+  const [picked, setPicked] = useState(userScale);
+  // المعاينة بالمقاس اللي بيطلع فعلاً: التلقائي حق هذي الشاشة × الاختيار.
+  const preview = useMemo(
+    () => scaleStyleSheet(previewBase(colors), effectiveScale(autoScale, picked)),
+    [colors, autoScale, picked],
+  );
+  const scale = userScale;
 
   const apply = (value: number) => {
     setScale(value);
     setPicked(value);
-    onToast(value === 1 ? 'رجعت الواجهة لحجمها العادي' : 'تم تكبير الواجهة');
+    onToast(value === 1 ? 'رجعت الواجهة للحجم التلقائي' : 'تم تغيير حجم الواجهة');
   };
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.scroll}>
       <Text style={styles.title}>حجم الواجهة</Text>
       <Text style={styles.hint}>
-        كبّر المنتجات والأزرار والخطوط لو شاشة الجهاز كبيرة. يتحفظ لهذا الجهاز بس.
+        الواجهة تتظبط تلقائياً حسب شاشة الجهاز. لو تبيها أكبر أو أصغر اختر هنا -- يتحفظ لهذا الجهاز بس.
       </Text>
 
       <View style={styles.options}>
@@ -44,7 +49,7 @@ export default function UiScaleScreen({ onToast }: { onToast: (msg: string) => v
               style={[styles.option, on && styles.optionOn]}
             >
               <Text style={[styles.optionText, on && styles.optionTextOn]}>{s.label}</Text>
-              <Text style={[styles.optionPct, on && styles.optionTextOn]}>{`${Math.round(s.value * 100)}%`}</Text>
+              <Text style={[styles.optionPct, on && styles.optionTextOn]}>{`${Math.round(effectiveScale(autoScale, s.value) * 100)}%`}</Text>
             </TouchableOpacity>
           );
         })}
@@ -89,7 +94,7 @@ export default function UiScaleScreen({ onToast }: { onToast: (msg: string) => v
         </TouchableOpacity>
         {scale !== 1 ? (
           <TouchableOpacity onPress={() => apply(1)} activeOpacity={0.85} style={styles.resetBtn}>
-            <Text style={styles.resetText}>رجّعها للعادي</Text>
+            <Text style={styles.resetText}>رجّعها للتلقائي</Text>
           </TouchableOpacity>
         ) : null}
       </View>

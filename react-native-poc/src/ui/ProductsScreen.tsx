@@ -4,7 +4,8 @@ import { Text, TextInput } from './Text';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Pressable, TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
-import Svg, { Circle, Line, Path, Polygon, Polyline } from 'react-native-svg';
+import Svg from './ScaledSvg';
+import { Circle, Line, Path, Polygon, Polyline } from 'react-native-svg';
 import { createStyles, fonts, gradients, layout, radii, spacing, useTheme } from './theme';
 import { CategoryIcon, iconForCategoryName } from './categoryIcons';
 import Money from './Money';
@@ -2540,7 +2541,9 @@ const useStyles = createStyles((colors, shadows) =>
     ...shadows.sm,
   },
   // .product-icon -- `position:relative` so .product-price anchors to it
-  productIcon: { width: '100%', height: 72, borderRadius: radii.md, marginBottom: 7, position: 'relative' },
+  // نسبة ثابتة (١٠٦×٧٢ عند أصغر مربع) بدل ارتفاع ثابت: لو المربع عرض
+  // الصورة تطول معه وما تتمطط.
+  productIcon: { width: '100%', aspectRatio: 1.5, borderRadius: radii.md, marginBottom: 7, position: 'relative' },
   // .product-name
   // 12px at line-height 1.3 = 15.6, reserved for two lines.
   productName: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.text, lineHeight: 15.6, height: 31.2 },

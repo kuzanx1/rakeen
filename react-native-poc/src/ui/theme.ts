@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
+import { useWindowDimensions } from 'react-native';
 import { getItemSync, setItem } from '../infrastructure/mmkvStorage';
 
 /**
@@ -280,28 +281,53 @@ export interface Theme {
    *  (rakeen-pos.js:464-467). Session-only: the PWA persists nothing, so
    *  neither does this. */
   toggle: () => void;
-  /** «حجم الواجهة» (المزيد ← حجم الواجهة): 1 عادي. */
+  /** المقاس النهائي اللي تنضرب فيه كل الأنماط = تلقائي (حسب الشاشة) × اختيار الكاشير. */
   scale: number;
+  /** حسب الشاشة وحدها -- autoScaleFor. */
+  autoScale: number;
+  /** اختيار «حجم الواجهة» فوق التلقائي: 1 = تلقائي. */
+  userScale: number;
   setScale: (scale: number) => void;
 }
 
 /**
- * حجم الواجهة من داخل التطبيق.
+ * الواجهة تكبر وتصغر مع الشاشة -- أي جهاز.
  *
- * شاشات الكاشير الكبيرة (R10a، 15.6 إنش) تطلع فيها المنتجات والأزرار
- * صغيرة. جرّبنا نغيّر كثافة أندرويد نفسها مرتين (1.33 و1.37) وفي
- * المرتين مات اللمس على الجهاز الحقيقي. فهنا ما نلمس أندرويد أبداً:
- * المقاسات نفسها (الخط، المسافات، الأزرار، المربعات) تنضرب في الحجم
- * داخل createStyles، واللمس يبقى على الكثافة اللي يعرفها النظام.
- * محفوظ لكل جهاز، والافتراضي عادي -- ما يتغيّر شي لأحد إلا لو اختاره.
+ * التصميم مرسوم لشاشة أقصر ضلع فيها ٧٢٠ نقطة (السنمي بالعرض). كل شاشة
+ * ثانية تنضرب مقاساتها (الخط، المسافات، الأزرار، المربعات، الأيقونات،
+ * الأسعار) في نسبة ضلعها لـ٧٢٠: R10a (١٠٨٠) = ١٥٠٪ فتطلع نفس السنمي
+ * بالضبط بس أكبر، والجوال يصغر شوي (أدنى ٩٠٪ عشان الأزرار تبقى تنلمس).
+ *
+ * كله هنا في JS (createStyles + scaleStyleSheet). كثافة أندرويد نفسها ما
+ * تنلمس أبداً: غيّرناها مرتين (1.33 و1.37) وفي المرتين مات اللمس على
+ * R10a الحقيقي.
  */
+export const BASE_SHORT_SIDE = 720;
+const AUTO_MIN = 0.9;
+const AUTO_MAX = 1.5;
+const round05 = (v: number) => Math.round(v * 20) / 20;
+
+export function autoScaleFor(width: number, height: number): number {
+  const short = Math.min(width, height);
+  if (!(short > 0)) return 1;
+  return round05(Math.min(AUTO_MAX, Math.max(AUTO_MIN, short / BASE_SHORT_SIDE)));
+}
+
+/** المقاس النهائي: التلقائي × اختيار الكاشير، بحدود ما تكسر الشاشة. */
+export function effectiveScale(auto: number, user: number): number {
+  return round05(Math.min(1.8, Math.max(0.8, auto * user)));
+}
+
+/** «حجم الواجهة» (المزيد): تعديل فوق التلقائي، محفوظ لكل جهاز. */
 export const UI_SCALES: { value: number; label: string }[] = [
-  { value: 1, label: 'عادي' },
+  { value: 0.9, label: 'أصغر' },
+  { value: 1, label: 'تلقائي' },
   { value: 1.15, label: 'كبير' },
   { value: 1.3, label: 'أكبر' },
-  { value: 1.45, label: 'أكبر جداً' },
 ];
-const UI_SCALE_KEY = 'rk_ui_scale_v1';
+// v2: في 1.39/1.40 كان الاختيار هو الحجم كله، الحين فوق التلقائي --
+// مفتاح جديد عشان اللي اختار ١٣٠٪ هناك ما يصير ١٩٥٪ هنا.
+const UI_SCALE_KEY = 'rk_ui_scale_v2';
 
 function readUiScale(): number {
   try {
@@ -350,12 +376,17 @@ const ThemeContext = createContext<Theme>({
   shadows: SHADOWS_LIGHT,
   toggle: () => {},
   scale: 1,
+  autoScale: 1,
+  userScale: 1,
   setScale: () => {},
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<ThemeMode>(MODE_DEFAULT);
-  const [scale, setScaleState] = useState<number>(readUiScale);
+  const [userScale, setScaleState] = useState<number>(readUiScale);
+  const { width, height } = useWindowDimensions();
+  const autoScale = autoScaleFor(width, height);
+  const scale = effectiveScale(autoScale, userScale);
   const value = useMemo<Theme>(
     () => ({
       mode,
@@ -363,12 +394,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       shadows: mode === 'light' ? SHADOWS_LIGHT : SHADOWS_DARK,
       toggle: () => setMode(m => (m === 'light' ? 'dark' : 'light')),
       scale,
+      autoScale,
+      userScale,
       setScale: (next: number) => {
         setScaleState(next);
         void setItem(UI_SCALE_KEY, String(next));
       },
     }),
-    [mode, scale],
+    [mode, scale, autoScale, userScale],
   );
   return React.createElement(ThemeContext.Provider, { value }, children);
 }

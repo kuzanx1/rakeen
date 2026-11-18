@@ -16,7 +16,8 @@ import { ActivityIndicator, Alert, AppState, BackHandler, Platform, ScrollView, 
 import { Text, TextInput } from './src/ui/Text';
 import type { AppStateStatus } from 'react-native';
 import { TouchableOpacity } from './src/ui/tappable';
-import Svg, { Circle, Line, Path, Polyline, Rect } from 'react-native-svg';
+import Svg from './src/ui/ScaledSvg';
+import { Circle, Line, Path, Polyline, Rect } from 'react-native-svg';
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 import { Printer, printReceipt } from './src/platform/printer';
 import { CashDrawer, openCashDrawer } from './src/platform/cashDrawer';
@@ -182,10 +183,10 @@ type NavTab = 'home' | 'orders' | 'tables' | 'more';
  *  back on screen: only the tab bar, or Android's back button, which used
  *  to close the whole app. */
 function BackToMore({ onPress }: { onPress: () => void }) {
-  const { colors } = useTheme();
+  const { colors, scale } = useTheme();
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={{ alignSelf: 'flex-start', paddingHorizontal: spacing[4], paddingVertical: spacing[2] }}>
-      <Text style={{ fontFamily: fonts.sansBold, fontSize: 14, color: colors.text }}>› المزيد</Text>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={{ alignSelf: 'flex-start', paddingHorizontal: spacing[4] * scale, paddingVertical: spacing[2] * scale }}>
+      <Text style={{ fontFamily: fonts.sansBold, fontSize: 14 * scale, color: colors.text }}>› المزيد</Text>
     </TouchableOpacity>
   );
 }
@@ -1558,7 +1559,7 @@ function MoreScreen({
           <Line x1={3} y1={12} x2={3.01} y2={12} stroke={ink} />
           <Line x1={3} y1={18} x2={3.01} y2={18} stroke={ink} />
         </MoreLink>
-        <MoreLink title="حجم الواجهة" hint="كبّر المنتجات والأزرار والخطوط للشاشات الكبيرة" onPress={onOpenUiScale}>
+        <MoreLink title="حجم الواجهة" hint="كبّر أو صغّر المنتجات والأزرار والخطوط" onPress={onOpenUiScale}>
           <Rect x={3} y={3} width={18} height={18} rx={3} stroke={ink} />
           <Path d="M9 15l6-6M10 9h5v5" stroke={ink} />
         </MoreLink>

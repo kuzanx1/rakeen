@@ -1,5 +1,6 @@
 import React from 'react';
-import Svg, { Path, Circle, Line, SvgProps } from 'react-native-svg';
+import Svg from './ScaledSvg';
+import { Path, Circle, Line, SvgProps } from 'react-native-svg';
 
 /**
  * Real category icon set, ported path-for-path from public/pos/
