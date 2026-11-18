@@ -8,6 +8,7 @@ import BroadcastPanel from "./BroadcastPanel";
 import AuditLogPanel from "./AuditLogPanel";
 import ContractsPanel from "./ContractsPanel";
 import QuotePanel from "./QuotePanel";
+import OfferPanel from "./OfferPanel";
 import AddBusinessPanel from "./AddBusinessPanel";
 import LandingClientsPanel from "./LandingClientsPanel";
 import OverviewPanel from "./OverviewPanel";
@@ -149,7 +150,7 @@ function draftFrom(b: Business): Draft {
   };
 }
 
-type AdminTab = "overview" | "businesses" | "whatsapp" | "broadcast" | "contracts" | "quotes" | "usage" | "audit" | "landing";
+type AdminTab = "overview" | "businesses" | "whatsapp" | "broadcast" | "contracts" | "quotes" | "offer" | "usage" | "audit" | "landing";
 const NAV: { label: string; items: { key: AdminTab; label: string; icon: string }[] }[] = [
   {
     label: "الرئيسية",
@@ -163,6 +164,7 @@ const NAV: { label: string; items: { key: AdminTab; label: string; icon: string 
     items: [
       { key: "contracts", label: "العقود والدفعات", icon: "M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5" },
       { key: "quotes", label: "عروض الأسعار", icon: "M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8zM7.5 7.5h.01" },
+      { key: "offer", label: "عرض خاص", icon: "M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 1 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 1 0 0-5C13 2 12 7 12 7z" },
       { key: "landing", label: "عملاء الهبوط", icon: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" },
     ],
   },
@@ -918,6 +920,7 @@ export default function AdminDashboard() {
         {activeTab === "broadcast" && <BroadcastPanel token={session.token} />}
         {activeTab === "contracts" && <ContractsPanel token={session.token} />}
         {activeTab === "quotes" && <QuotePanel />}
+        {activeTab === "offer" && <OfferPanel />}
         {activeTab === "usage" && <UsagePanel token={session.token} />}
         {activeTab === "audit" && <AuditLogPanel token={session.token} />}
         {activeTab === "landing" && <LandingClientsPanel token={session.token} />}

@@ -65,7 +65,6 @@ export type Plan = {
   monthly: number;
   annual: number; // two months free
   includedBranches: number;
-  // Each branch beyond the included ones costs half the plan's price.
   features: FeatureKey[];
   items: PlanItem[]; // only what this package adds over the one below it
 };
