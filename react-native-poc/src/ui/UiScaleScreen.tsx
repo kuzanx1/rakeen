@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import { createStyles, effectiveScale, fonts, Palette, radii, scaleStyleSheet, spacing, UI_SCALES, useTheme } from './theme';
@@ -18,10 +18,11 @@ export default function UiScaleScreen({ onToast }: { onToast: (msg: string) => v
   const { colors, autoScale, userScale, setScale } = useTheme();
   const styles = useStyles();
   const [picked, setPicked] = useState(userScale);
+  const { height } = useWindowDimensions();
   // المعاينة بالمقاس اللي بيطلع فعلاً: التلقائي حق هذي الشاشة × الاختيار.
   const preview = useMemo(
-    () => scaleStyleSheet(previewBase(colors), effectiveScale(autoScale, picked)),
-    [colors, autoScale, picked],
+    () => scaleStyleSheet(previewBase(colors), effectiveScale(autoScale, picked, height)),
+    [colors, autoScale, picked, height],
   );
   const scale = userScale;
 
@@ -49,7 +50,7 @@ export default function UiScaleScreen({ onToast }: { onToast: (msg: string) => v
               style={[styles.option, on && styles.optionOn]}
             >
               <Text style={[styles.optionText, on && styles.optionTextOn]}>{s.label}</Text>
-              <Text style={[styles.optionPct, on && styles.optionTextOn]}>{`${Math.round(effectiveScale(autoScale, s.value) * 100)}%`}</Text>
+              <Text style={[styles.optionPct, on && styles.optionTextOn]}>{`${Math.round(effectiveScale(autoScale, s.value, height) * 100)}%`}</Text>
             </TouchableOpacity>
           );
         })}

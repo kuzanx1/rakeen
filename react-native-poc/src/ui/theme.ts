@@ -313,9 +313,19 @@ export function autoScaleFor(width: number, height: number): number {
   return round05(Math.min(AUTO_MAX, Math.max(AUTO_MIN, short / BASE_SHORT_SIDE)));
 }
 
+/**
+ * أقل ارتفاع (بمقاس التصميم) تبقى فيه كل صفحة تنعرض وتتمرّر. التكبير
+ * اليدوي ما ينزل الشاشة تحته: السلة فيها ذيل ثابت (المجاميع وزر الدفع)،
+ * ولو قصر الارتفاع أكثر انضغطت أسطر الطلب لين تختفي. ٦٠٠ = شاشات ٧ إنش
+ * اللي كان التطبيق شغال عليها قبل التكبير أصلاً.
+ */
+export const MIN_DESIGN_HEIGHT = 600;
+
 /** المقاس النهائي: التلقائي × اختيار الكاشير، بحدود ما تكسر الشاشة. */
-export function effectiveScale(auto: number, user: number): number {
-  return round05(Math.min(1.8, Math.max(0.8, auto * user)));
+export function effectiveScale(auto: number, user: number, height: number = Infinity): number {
+  // التكبير اليدوي يوقف عند الارتفاع الأدنى، بس ما يصغّر تحت التلقائي.
+  const roomCap = Math.max(auto, Math.floor((height / MIN_DESIGN_HEIGHT) * 20) / 20);
+  return round05(Math.min(1.8, Math.max(0.8, Math.min(auto * user, roomCap))));
 }
 
 /** «حجم الواجهة» (المزيد): تعديل فوق التلقائي، محفوظ لكل جهاز. */
@@ -386,7 +396,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [userScale, setScaleState] = useState<number>(readUiScale);
   const { width, height } = useWindowDimensions();
   const autoScale = autoScaleFor(width, height);
-  const scale = effectiveScale(autoScale, userScale);
+  const scale = effectiveScale(autoScale, userScale, height);
   const value = useMemo<Theme>(
     () => ({
       mode,

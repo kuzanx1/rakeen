@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from './Text';
 import { Pressable, TouchableOpacity } from './tappable';
 import { verifyManagerPin } from '../application/managerPinService';
@@ -91,6 +91,7 @@ export default function ManagerPinModal({
   const body = (
       <KeyboardLift style={presentation === 'inline' ? styles.overlayInline : styles.overlay}>
         <View style={styles.card}>
+          <ScrollView style={styles.cardScroll} contentContainerStyle={styles.cardContent} bounces={false}>
           <Text style={styles.title}>موافقة المدير مطلوبة</Text>
           <View style={styles.dotsRow}>
             {Array.from({ length: PIN_LENGTH }).map((_, i) => (
@@ -120,6 +121,7 @@ export default function ManagerPinModal({
           <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
             <Text style={styles.cancelText}>إلغاء</Text>
           </TouchableOpacity>
+          </ScrollView>
         </View>
       </KeyboardLift>
   );
@@ -142,7 +144,11 @@ const useStyles = createStyles(colors =>
   // نفس الشكل، لكن فوق محتوى نافذة قائمة بدل أن تكون نافذة جديدة.
   overlayInline: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.modalOverlay, justifyContent: 'center', alignItems: 'center' },
   // .pos-auth-card
-  card: { backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing[6], width: '80%', alignItems: 'center' },
+  // maxHeight + تمرير: لوحة الأرقام طويلة، وعلى شاشة قصيرة أو مكبّرة كان
+  // زر «إلغاء» يطلع برا الشاشة.
+  card: { backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, width: '80%', maxHeight: '94%', overflow: 'hidden' },
+  cardScroll: { flexGrow: 0 },
+  cardContent: { padding: spacing[6], alignItems: 'center' },
   title: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, marginBottom: spacing[4], textAlign: 'center' },
   // .pin-dots / .pin-dot
   dotsRow: { flexDirection: 'row', gap: 13, marginBottom: spacing[4] },

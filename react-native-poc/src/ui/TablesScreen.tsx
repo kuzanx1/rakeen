@@ -291,6 +291,7 @@ export default function TablesScreen({
         <Modal visible transparent animationType="fade" onRequestClose={closeSheet}>
           <View style={styles.sheetOverlay}>
             <View style={styles.sheet}>
+              <ScrollView style={styles.sheetScroll} bounces={false}>
               <Text style={styles.sheetTitle}>
                 طاولة {sheetTable.number} — {TABLE_STATUS_LABELS[sheetTable.status]}
               </Text>
@@ -346,6 +347,7 @@ export default function TablesScreen({
               )}
 
               <SheetButton label="إغلاق" muted onPress={closeSheet} />
+              </ScrollView>
             </View>
             {/* keeps the sheet above the system navigation bar (edge-to-edge Android) */}
             <SheetBottomGap />
@@ -357,6 +359,7 @@ export default function TablesScreen({
         <Modal visible transparent animationType="fade" onRequestClose={() => setMovePickerFor(null)}>
           <View style={styles.sheetOverlay}>
             <View style={styles.sheet}>
+              <ScrollView style={styles.sheetScroll} bounces={false}>
               <Text style={styles.sheetTitle}>نقل طاولة {movePickerFor.number} إلى:</Text>
               {tables
                 .filter(t => t.status === 'available' && t.id !== movePickerFor.id)
@@ -367,6 +370,7 @@ export default function TablesScreen({
                 <Text style={styles.empty}>لا يوجد طاولات متاحة للنقل إليها.</Text>
               )}
               <SheetButton label="إغلاق" muted onPress={() => setMovePickerFor(null)} />
+              </ScrollView>
             </View>
             {/* keeps the sheet above the system navigation bar (edge-to-edge Android) */}
             <SheetBottomGap />
@@ -378,11 +382,13 @@ export default function TablesScreen({
         <Modal visible transparent animationType="fade" onRequestClose={() => setCancelConfirmFor(null)}>
           <View style={styles.sheetOverlay}>
             <View style={styles.sheet}>
+              <ScrollView style={styles.sheetScroll} bounces={false}>
               <Text style={styles.sheetTitle}>إلغاء طلب طاولة {cancelConfirmFor.number}؟</Text>
               <Text style={styles.sheetNote}>لا يمكن التراجع عن هذا. يتطلب موافقة المدير.</Text>
               <SheetButton label="إلغاء الطلب — الطاولة لا تزال مشغولة" danger onPress={() => handleCancelOrder(cancelConfirmFor, true)} />
               <SheetButton label="إلغاء الطلب — إفراغ الطاولة" danger onPress={() => handleCancelOrder(cancelConfirmFor, false)} />
               <SheetButton label="تراجع" muted onPress={() => setCancelConfirmFor(null)} />
+              </ScrollView>
             </View>
             {/* keeps the sheet above the system navigation bar (edge-to-edge Android) */}
             <SheetBottomGap />
@@ -458,7 +464,10 @@ const useStyles = createStyles(colors =>
   empty: { fontFamily: fonts.sansSemiBold, textAlign: 'center', color: colors.muted, padding: spacing[6] },
   // .modal-overlay
   sheetOverlay: { flex: 1, backgroundColor: colors.modalOverlay, justifyContent: 'flex-end' },
-  sheet: { backgroundColor: colors.cardBg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing[5] },
+  // maxHeight + تمرير: «نقل طاولة» يعرض كل الطاولات الفاضية، ومع الشاشة
+  // المكبّرة أو فرع فيه طاولات كثير كان آخرها (وزر «إغلاق») يطلع برا الشاشة.
+  sheet: { backgroundColor: colors.cardBg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing[5], maxHeight: '85%' },
+  sheetScroll: { flexGrow: 0 },
   sheetTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, marginBottom: 6, textAlign: 'center' },
   sheetNote: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.muted, marginBottom: 14, textAlign: 'center' },
   // .pos-staff-btn reused as the generic sheet-action-button look

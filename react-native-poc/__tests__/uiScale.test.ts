@@ -3,7 +3,7 @@ jest.mock('../src/infrastructure/mmkvStorage', () => ({
   setItem: async () => {},
 }));
 
-import { autoScaleFor, effectiveScale, layout, scaleStyleSheet, UI_SCALES } from '../src/ui/theme';
+import { autoScaleFor, effectiveScale, layout, MIN_DESIGN_HEIGHT, scaleStyleSheet, UI_SCALES } from '../src/ui/theme';
 
 describe('scaleStyleSheet', () => {
   const sheet = {
@@ -96,5 +96,27 @@ describe('«حجم الواجهة» on top of automatic', () => {
     expect(effectiveScale(1.5, 1.3)).toBe(1.8);
     expect(effectiveScale(0.9, 0.9)).toBe(0.8);
     expect(effectiveScale(1, 1)).toBe(1);
+  });
+  it('manual enlarging stops at 600 of design height (SUNMI «أكبر» = 120%, R10a = 180%)', () => {
+    expect(effectiveScale(1, 1.3, 720)).toBe(1.2);
+    expect(effectiveScale(1.5, 1.3, 1080)).toBe(1.8);
+    expect(effectiveScale(1.1, 1.3, 800)).toBe(1.3);
+  });
+});
+
+/**
+ * Scrolling: every page, window and the cart's fixed footer are laid out for
+ * at least MIN_DESIGN_HEIGHT of height. No screen and no «حجم الواجهة» choice
+ * may leave less than that -- unless the screen itself is shorter, and then
+ * scaling must not make it any shorter than it already was.
+ */
+describe.each(SCREENS)('scroll room on $name', ({ w, h }) => {
+  it.each(UI_SCALES.map(s => [s.label, s.value]))('«%s» keeps enough height', (_l, user) => {
+    const auto = autoScaleFor(w, h);
+    const scale = effectiveScale(auto, user as number, h);
+    const designH = h / scale;
+    expect(designH).toBeGreaterThanOrEqual(Math.min(MIN_DESIGN_HEIGHT, h / auto) - 0.5);
+    // and a side-by-side screen never collapses into the phone layout by enlarging
+    if (w / auto >= layout.sideBySideMinWidth && h < w) expect(w / scale).toBeGreaterThanOrEqual(layout.sideBySideMinWidth);
   });
 });
