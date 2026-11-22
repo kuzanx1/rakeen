@@ -10,6 +10,7 @@ import {
   buildDefaultConfig,
   cartTotals,
   changeQty as changeQtyPure,
+  lineOptionsExtra,
   lineUnitPrice,
   removeFromCart as removeFromCartPure,
 } from '../domain/cart';
@@ -62,6 +63,17 @@ export function useCart(
       return lineUnitPrice(item, basePrice, modDef, orderChannel, deliveryPlatformId, platformPrices);
     },
     [productsById, modifiersByProductId, orderChannel, deliveryPlatformId, platformPrices],
+  );
+
+  /** فرقُ الإضافات بالعدد في السطر: «جبنة ×5» على ساندوتش واحد تزيد
+   *  أربع شرائح فوق الواحدة المحسوبة في سعر الوحدة. سطرُ النقاط صفرٌ
+   *  كسعره. */
+  const lineExtraOf = useCallback(
+    (item: CartLine) => {
+      if (item.isPointsRedemption) return 0;
+      return lineOptionsExtra(item.config, modifiersByProductId[item.productId], item.qty);
+    },
+    [modifiersByProductId],
   );
 
   /** Simple products (no modifier definition) always fast-add instantly --
@@ -154,8 +166,8 @@ export function useCart(
   }, []);
 
   const totals = useMemo(
-    () => cartTotals(cart, unitPriceOf, discountPct, vatRegistered, vatRate, pricesIncludeVat, discountFixed),
-    [cart, unitPriceOf, discountPct, vatRegistered, vatRate, pricesIncludeVat, discountFixed],
+    () => cartTotals(cart, unitPriceOf, discountPct, vatRegistered, vatRate, pricesIncludeVat, discountFixed, lineExtraOf),
+    [cart, unitPriceOf, discountPct, vatRegistered, vatRate, pricesIncludeVat, discountFixed, lineExtraOf],
   );
 
   return {
@@ -182,6 +194,7 @@ export function useCart(
     setLineNote,
     clearCart,
     unitPriceOf,
+    lineExtraOf,
     setDeliveryPlatformId,
     setPlatformPrices,
   };

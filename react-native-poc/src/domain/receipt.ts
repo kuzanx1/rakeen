@@ -25,6 +25,9 @@
 export interface ReceiptLineMod {
   text: string;
   textEn?: string | null;
+  /** ما كلّفت الإضافةُ في السطر (سعرها × عددها) -- تُطبع في عمود
+   *  الأسعار على الفاتورة. فارغةٌ للمجاني، وتذكرةُ المطبخ لا تقرأها. */
+  price?: number | null;
 }
 
 export interface ReceiptLine {
@@ -115,6 +118,8 @@ export interface ReceiptData {
    *  بارزين تحت رقم الطلب. */
   platformName?: string;
   platformInvoiceLast4?: string;
+  /** طلبُ جوال: الأربعةُ من جوال الزبون، لا من فاتورة تطبيق. */
+  phoneOrder?: boolean;
   /** Cash change due, when > 0 -- PWA's receipt.change. */
   change?: number;
   /** DEVICE.printerPaperWidth in px at ~203dpi (576=80mm, 384=58mm). */
@@ -149,6 +154,12 @@ export interface KitchenTicketData {
   branchName?: string;
   createdAtISO?: string;
   metaLabel?: string;
+  /** مصدرُ الطلب: اسمُ تطبيق التوصيل، أو «جوال» لطلبٍ جاء بالهاتف. */
+  platformName?: string;
+  /** آخرُ أربعة: من فاتورة التطبيق، أو من جوال الزبون. */
+  platformInvoiceLast4?: string;
+  /** طلبُ جوال: الأربعةُ من جوال الزبون، لا من فاتورة تطبيق. */
+  phoneOrder?: boolean;
   /** وقت الاستلام اللي حدده الزبون، نصاً جاهزاً. */
   pickupAt?: string;
   paperWidthPx?: number;
@@ -205,10 +216,25 @@ export function buildKitchenTicketEscPosBase64(data: KitchenTicketData): string 
   bytes.push(ESC, 0x40);
   textToBytes(bytes, 'KITCHEN TICKET');
   textToBytes(bytes, data.orderId != null ? `Order #${data.orderNo ?? data.orderId}` : 'Order (offline)');
+  // آخرُ ملاذ (رسمُ الصورة سقط): ولو بحروفٍ لاتينية، المصدرُ والأربعةُ
+  // يبقيان -- بهما يُسلَّم الطلب.
+  if (data.platformName) textToBytes(bytes, data.platformName);
+  if (data.platformInvoiceLast4) textToBytes(bytes, `Last 4: ${data.platformInvoiceLast4}`);
   if (data.tableNumber != null) textToBytes(bytes, `Table ${data.tableNumber}`);
   textToBytes(bytes, '------------------------');
   for (const line of data.lines) {
     textToBytes(bytes, `${line.qty} x ${line.name}`);
+    // الإضافاتُ والملاحظةُ هنا أيضاً، لا في الورقة المرسومة وحدَها.
+    //
+    // كان هذا الملاذُ يطبع الأصنافَ عارية: لو سقط رسمُ الصورة (خطٌّ لم
+    // يجهز، صورةٌ تعذّرت، ذاكرة) خرجت الورقةُ بلا إضافاتٍ ولا ملاحظة --
+    // والملاحظةُ هي الشيءُ الذي يُطبخ به. وحروفُ العربية تصير «?» في
+    // هذا المسار، لكن وجودَ السطر يقول للمطبخ إنّ في الصنف شرطاً
+    // فيسأل، وخلوُّه منه يقول إنْ لا شرط -- وهذا أسوأُ ما يُقال.
+    for (const m of line.mods || []) {
+      textToBytes(bytes, `  - ${typeof m === 'string' ? m : m.text}`);
+    }
+    if (line.note) textToBytes(bytes, `  * ${line.note}`);
   }
   bytes.push(0x0a, 0x0a, 0x0a);
   bytes.push(GS, 0x56, 0x00);

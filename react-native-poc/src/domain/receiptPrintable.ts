@@ -52,6 +52,8 @@ export interface ReceiptPrintable {
   invoiceRef?: string;
   platformName?: string;
   platformInvoiceLast4?: string;
+  /** طلبُ جوال: يُغيّر عنوانَ الأربعة على الورقة. */
+  phoneOrder?: boolean;
   vatNumber: string;
   items: ReceiptItemPrintable[];
   subtotal: number;
@@ -88,6 +90,12 @@ export interface KitchenTicketPrintable {
   branchName: string;
   dateLabel: string;
   metaLabel: string;
+  /** مصدرُ الطلب -- تطبيقُ التوصيل أو «جوال». */
+  platformName?: string;
+  /** آخرُ أربعةٍ: تأخذ الخطَّ الكبير مكان رقم الطلب حين تُوجد. */
+  platformInvoiceLast4?: string;
+  /** طلبُ جوال: يُغيّر عنوانَ الأربعة على الورقة. */
+  phoneOrder?: boolean;
   pickupAt?: string;
   items: KitchenTicketItemPrintable[];
   paperWidthPx: number;
@@ -166,6 +174,7 @@ const ORDER_KIND_BILINGUAL: Record<string, string> = {
   'بالمطعم': 'محلي · Dine-in',
   'سفري': 'سفري · Takeaway',
   'توصيل': 'توصيل · Delivery',
+  'جوال': 'جوال · Phone',
   'استلام': 'استلام · Pickup',
   'طلب إلكتروني': 'طلب إلكتروني · Online Order',
 };
@@ -204,6 +213,7 @@ export function toReceiptPrintable(data: ReceiptData): ReceiptPrintable {
     refundOfOrder: data.refundOfOrder ?? '',
     platformName: data.platformName ?? '',
     platformInvoiceLast4: data.platformInvoiceLast4 ?? '',
+    phoneOrder: data.phoneOrder === true,
     customerName: data.customerName ?? '',
     customerPhone: data.customerPhone ?? '',
     orderNote: data.orderNote ?? '',
@@ -234,6 +244,9 @@ export function toKitchenTicketPrintable(data: KitchenTicketData): KitchenTicket
     metaLabel: bilingualOrderKind(
       data.metaLabel ?? (data.tableNumber != null ? `طاولة ${data.tableNumber}` : ''),
     ),
+    platformName: data.platformName ?? '',
+    platformInvoiceLast4: data.platformInvoiceLast4 ?? '',
+    phoneOrder: data.phoneOrder === true,
     pickupAt: data.pickupAt ?? '',
     items: data.lines.map(line => ({
       name: line.name,

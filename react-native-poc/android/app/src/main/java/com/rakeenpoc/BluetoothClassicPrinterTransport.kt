@@ -164,7 +164,24 @@ class BluetoothClassicPrinterTransport(private val context: Context) {
         }
     }
 
-    fun send(macAddress: String, bytes: ByteArray, callback: (Boolean, String?) -> Unit) {
+    /**
+     * `onTiming` -- أين ذهبت ثواني الإرسال، مرحلةً مرحلة.
+     *
+     * كان الإرسال كله رقماً واحداً، فلا يُعرف منه أثُقلت الكتابةُ نفسها
+     * أم أن النوم بعدها هو الثمن. ولا يُغيَّر رقمٌ مبنيٌّ على ظنّ:
+     * DRAIN_BYTES_PER_MS تقديرٌ لسرعة التفريغ، وتقصيرُه بلا قياسٍ يقصّ
+     * ذيل الفاتورة. فهذه المؤقّتات تُحيط بالكود كما هو ولا تمسّه --
+     * لا تقدر أن تمنع ورقةً من الخروج، وتُنهي التخمين.
+     *
+     * وانتظارُ الدور منها: تذكرةُ المطبخ تقف خلف قفل الإرسال حتى تفرغ
+     * الفاتورة، وذلك الانتظار هو أكثر ما يراه صاحب المطعم.
+     */
+    fun send(
+        macAddress: String,
+        bytes: ByteArray,
+        onTiming: ((List<String>) -> Unit)? = null,
+        callback: (Boolean, String?) -> Unit,
+    ) {
         Thread {
             if (!hasConnectPermission()) {
                 callback(false, "permission_denied")
@@ -172,21 +189,30 @@ class BluetoothClassicPrinterTransport(private val context: Context) {
             }
             var ok = false
             var error: String? = null
+            val queuedAt = System.currentTimeMillis()
+            val trace = ArrayList<String>(4)
             synchronized(sendLock) {
+                trace.add("بلوتوث: انتظار الدور ${System.currentTimeMillis() - queuedAt} ms")
                 val socket = openSocket(macAddress)
                 if (socket == null) {
                     error = "device_not_found"
                 } else {
                     try {
+                        val connectAt = System.currentTimeMillis()
                         @Suppress("MissingPermission")
                         socket.connect()
+                        val writeAt = System.currentTimeMillis()
                         socket.outputStream.write(bytes)
                         socket.outputStream.flush()
+                        val drainAt = System.currentTimeMillis()
                         // flush() returns once the bytes are in the local
                         // Bluetooth buffer, not on the printer: closing now
                         // drops the tail of the job (a cut-off receipt). Give
                         // the link time to drain, sized to the job.
                         Thread.sleep(DRAIN_BASE_MS + bytes.size / DRAIN_BYTES_PER_MS)
+                        trace.add("بلوتوث: فتح الاتصال ${writeAt - connectAt} ms")
+                        trace.add("بلوتوث: كتابة ${bytes.size} بايت ${drainAt - writeAt} ms")
+                        trace.add("بلوتوث: انتظار التفريغ ${System.currentTimeMillis() - drainAt} ms")
                         ok = true
                     } catch (e: SecurityException) {
                         error = "permission_denied"
@@ -199,6 +225,8 @@ class BluetoothClassicPrinterTransport(private val context: Context) {
                     }
                 }
             }
+            // التقريرُ خارج القفل وفي حرزٍ: قياسٌ يفشل لا يُسقط طباعةً نجحت.
+            try { onTiming?.invoke(trace) } catch (e: Throwable) { /* القياس لا يُعطّل الورق */ }
             callback(ok, error)
         }.start()
     }

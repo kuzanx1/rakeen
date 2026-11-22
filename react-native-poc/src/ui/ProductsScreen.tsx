@@ -38,7 +38,7 @@ import { operationIdForOrder, buildOrderPayload, buildDineInRegisterPayload, bui
 import type { ReceiptData, KitchenTicketData, ReceiptLine, ReceiptLineMod } from '../domain/receipt';
 import type { Product } from '../domain/catalog';
 import { isRetailBusinessType } from '../domain/catalog';
-import { buildDefaultConfig, formatBoxLabels, withOptionCount } from '../domain/cart';
+import { buildDefaultConfig, formatBoxLabels, optionCount, round2, withOptionCount } from '../domain/cart';
 import type { BoxDefinition, CartLine, ModifierDefinition, OrderChannel } from '../domain/cart';
 import type { CashierProfile } from '../domain/auth';
 import type { Shift } from '../domain/shift';
@@ -49,6 +49,7 @@ import DiscountModal, { discountLabel } from './DiscountModal';
 import { COUPON_GIFT_MARK } from '../application/couponService';
 import PaymentModal from './PaymentModal';
 import { TrialBanner, TrialEndedModal, useTrialStatus } from './TrialNotice';
+import { RenewalCard, RenewalStrip, useRenewal } from './RenewalNotice';
 import UpdateBanner from './UpdateBanner';
 import { maybeAskForReview } from '../application/reviewService';
 import { isTrialLocked, refreshTrialStatus } from '../application/trialService';
@@ -69,6 +70,13 @@ import type { Customer, LoyaltySettings } from '../domain/customer';
 import { getLoyaltySettings } from '../application/customerService';
 import { formatArabicTime } from '../domain/arabicDate';
 import { loadPagerConfig, pagerReceiptBlock, pagerAfterCheckout, pagerHideOnNextOrder } from '../application/pagerService';
+import { ensureCustomerDisplay } from '../application/customerDisplayService';
+import {
+  PHONE_PLATFORM_LABEL,
+  defaultDeliverySourceId,
+  isPhonePlatform,
+  platformIdForServer,
+} from '../domain/phoneOrder';
 
 /** `.slice(0,8)` in renderProductGrid's popular branch. */
 const POPULAR_TAB_SIZE = 8;
@@ -76,7 +84,7 @@ const POPULAR_TAB_SIZE = 8;
 const CHANNEL_LABELS: Record<OrderChannel, string> = {
   dine_in: 'محلي',
   pickup: 'سفري',
-  delivery: 'تطبيقات التوصيل',
+  delivery: 'توصيل',
 };
 
 /** Feature Parity Pass (Real Receipt Rendering) -- turns a cart line's
@@ -150,6 +158,8 @@ function cartLineToModEntries(
       if (option) entries.push({
         text: withOptionCount(option.name, item.config, id),
         textEn: option.nameEn ? withOptionCount(option.nameEn, item.config, id) : undefined,
+        // ثمنُها في السطر: بلا عدّاد تقع على كل حبة. تذكرةُ المطبخ لا تقرأه.
+        price: round2((option.price || 0) * (optionCount(item.config, id) ?? item.qty)) || undefined,
       });
     }
   }
@@ -166,6 +176,8 @@ function cartToReceiptLines(
   productsById: Map<number, Product>,
   unitPriceOf: (item: CartLine) => number,
   modifiersByProductId: Record<number, ModifierDefinition> = {},
+  /** فرقُ الإضافات بالعدد -- صفرٌ لمن لا عدّاد فيه. */
+  lineExtraOf: (item: CartLine) => number = () => 0,
 ): ReceiptLine[] {
   return cart.map(item => {
     const product = productsById.get(item.productId);
@@ -184,7 +196,7 @@ function cartToReceiptLines(
       nameEn: product?.nameEn || undefined,
       qty: item.qty,
       unitPrice,
-      lineTotal: unitPrice * item.qty,
+      lineTotal: unitPrice * item.qty + lineExtraOf(item),
       mods: cartLineToModEntries(item, modifiersByProductId),
       note: item.note || undefined,
     };
@@ -383,6 +395,7 @@ export default function ProductsScreen({
     dineInEnabled: true,
     hideSearch: false,
     hideNotifBell: false,
+    phoneOrdersEnabled: true,
   });
 
   /**
@@ -575,6 +588,8 @@ export default function ProductsScreen({
     // بيجر ركين: إعداداته مستقلّة عن الإقلاع (قاعدةٌ قبل ملفه لا تُسقطه)،
     // ومحفوظة على الجهاز فيُطبع الباركود والجهاز بلا نت.
     loadPagerConfig(cashier.business_id).catch(() => {});
+    // شاشة الزبون: تبدأ مع البيع، لا مع حفظ الإعدادات (انظر الدالة).
+    void ensureCustomerDisplay();
 
     // `shown`: هل على الشاشة شيء حقيقي؟ من الذاكرة، أو من القرص، أو من الشبكة.
     let shown = false;
@@ -949,6 +964,7 @@ export default function ProductsScreen({
   // الفترة التجريبية (domain/trial.ts): بعد القفل طلب جديد ما يبدأ أصلاً.
   // دفع حساب طاولة مسجّلة من قبل مو طلب جديد، فيمشي.
   const trial = useTrialStatus();
+  const renewal = useRenewal();
   const [trialEndedOpen, setTrialEndedOpen] = useState(false);
   const blockedByTrial = () => {
     if (!isTrialLocked()) return false;
@@ -1020,14 +1036,19 @@ export default function ProductsScreen({
         ]);
         setDeliveryPlatforms(list);
         cart.setPlatformPrices(prices);
-        // renderPlatformButtons() preselects the first one, so a delivery
-        // order always names a platform even if the cashier never taps.
-        if (list.length > 0) setDeliveryPlatformId(prev => prev ?? list[0].id);
       } catch {
         // No platforms just means no picker; delivery still sells.
       }
     })();
   }, [cashier.business_id]);
+
+  // مصدرُ طلب التوصيل لا يبقى فارغاً: أوّلُ ما في الصفّ هو المختار --
+  // تطبيقاً كان، أو «جوال» حين لا تطبيقات (domain/phoneOrder).
+  useEffect(() => {
+    setDeliveryPlatformId(prev =>
+      defaultDeliverySourceId(deliveryPlatforms.map(p => p.id), flags.phoneOrdersEnabled, prev),
+    );
+  }, [deliveryPlatforms, flags.phoneOrdersEnabled]);
 
   // The cart prices a delivery line at the chosen app's own price.
   useEffect(() => {
@@ -1144,7 +1165,7 @@ export default function ProductsScreen({
             orderNo: result.orderNo ?? null,
             offlineRef: result.offlineRef,
             tableNumber: selectedTable?.number ?? null,
-            lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
+            lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId, cart.lineExtraOf),
             branchName: device.branchName ?? undefined,
             createdAtISO: new Date().toISOString(),
             metaLabel: CHANNEL_LABELS.dine_in + (selectedTable ? ` — طاولة ${selectedTable.number}` : ''), // i18n-ignore: يُطبع
@@ -1350,7 +1371,8 @@ export default function ProductsScreen({
         total: cart.totals.total,
         subtotal: cart.totals.subtotal,
         channel: cart.orderChannel,
-        deliveryPlatformId: cart.orderChannel === 'delivery' ? deliveryPlatformId : null,
+        // «جوال» ليس منصّةً فلا معرّف له -- يُعرف بقناته وآخرِ أربعة.
+        deliveryPlatformId: cart.orderChannel === 'delivery' ? platformIdForServer(deliveryPlatformId) : null,
         platformInvoiceLast4: cart.orderChannel === 'delivery' ? invoiceLast4 || null : null,
         // A table claimed inside the popup counts too, not just one the
         // cart was started from.
@@ -1397,14 +1419,24 @@ export default function ProductsScreen({
           // المطعم رغم إطفاء مفتاحه -- ثلاثةٌ من مصدرٍ واحد خاطئ.
           const profile = device.businessId != null ? await getReceiptBranding(device.businessId, device.branchId ?? null) : null;
           const printerProfileForReceipt = await getPrinterProfile();
-          const platformName = cart.orderChannel === 'delivery'
+          /**
+           * طلبُ الجوال نوعُه «جوال»، لا «توصيل» ومصدرُه جوال.
+           *
+           * صاحبُ المطعم: «الجوال غالباً شخصٌ طلب من جواله وجايٍ
+           * يستلم» -- فتسميتُه توصيلاً كذبٌ على الورق وفي اللوحة. فصار
+           * النوعُ نفسُه «جوال»، ولا يُكرَّر اسمُ المصدر تحته: كلمةٌ
+           * واحدة تكفي، والأربعةُ الكبيرةُ تحتها هي ما يُنادى به.
+           */
+          const phoneOrder = cart.orderChannel === 'delivery' && isPhonePlatform(deliveryPlatformId);
+          const kindLabel = phoneOrder ? PHONE_PLATFORM_LABEL : CHANNEL_LABELS[cart.orderChannel] || cart.orderChannel;
+          const platformName = cart.orderChannel === 'delivery' && !phoneOrder
             ? deliveryPlatforms.find((p) => p.id === deliveryPlatformId)?.name ?? ''
             : '';
           const customerReceipt = {
               orderId: outcome.orderId ?? null,
               orderNo: outcome.orderNo ?? null,
               offlineRef: outcome.offlineRef,
-              lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
+              lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId, cart.lineExtraOf),
               subtotal: cart.totals.subtotal,
               discount: cart.totals.discount,
               vat: cart.totals.vat,
@@ -1428,11 +1460,13 @@ export default function ProductsScreen({
               locationLine: profile?.locationLine || undefined,
               branchLabel: profile?.branchLabel || undefined,
               createdAtISO: new Date().toISOString(),
-              metaLabel: CHANNEL_LABELS[cart.orderChannel] || cart.orderChannel,
+              metaLabel: kindLabel,
               // طلب تطبيق توصيل: اسم التطبيق وآخر ٤ أرقام فاتورته بارزين
               // تحت رقم الطلب -- كانا يُكتبان في الدفع ولا يُطبعان.
               platformName: platformName || undefined,
               platformInvoiceLast4: cart.orderChannel === 'delivery' ? invoiceLast4 || undefined : undefined,
+              // وعنوانُ الأربعة يتبع المصدر: جوالُ الزبون، أو فاتورةُ التطبيق.
+              phoneOrder,
               // بيجر ركين: باركود يحوّل جوال الزبون جهاز نداء (null لو مطفأ أو لا ينطبق).
               pager: pagerReceiptBlock(payload, outcome.orderNo ?? outcome.orderId ?? null, service.dineInMode),
           } satisfies ReceiptData;
@@ -1474,10 +1508,14 @@ export default function ProductsScreen({
                 orderNo: outcome.orderNo ?? null,
                 offlineRef: outcome.offlineRef,
                 tableNumber: null,
-                lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId),
+                lines: cartToReceiptLines(cart.cart, productsById, cart.unitPriceOf, catalog.modifiersByProductId, cart.lineExtraOf),
                 branchName: device.branchName ?? undefined,
                 createdAtISO: new Date().toISOString(),
-                metaLabel: (CHANNEL_LABELS[cart.orderChannel] || cart.orderChannel) + (platformName ? ` — ${platformName}` : ''),
+                metaLabel: kindLabel,
+                // اسمُ المصدر وآخرُ أربعةٍ بخطٍّ كبير على ورقة المطبخ: هي
+                // ما يُنادى به الطلبُ عند التسليم، لا رقمُ الطلب.
+                platformName: platformName || undefined,
+                platformInvoiceLast4: (cart.orderChannel === 'delivery' ? invoiceLast4 : '') || undefined,
                 pagerNumber,
               } satisfies KitchenTicketData).catch(() => {});
             }
@@ -1502,6 +1540,31 @@ export default function ProductsScreen({
         // (:3269) -- the toggle's label AND its panel go back to rest.
         setDiscountModalOpen(false);
         setSelectedCustomer(null); // transaction fully settled -- start clean for the next customer
+        /**
+         * وآخرُ أربعةٍ تُمحى مع الطلب الذي كُتبت له.
+         *
+         * كانت تبقى في الحقل، فيفتح الكاشير طلبَ توصيلٍ ثانياً فيجدها
+         * مكتوبةً سلفاً وزرُّ التأكيد مُضاءً -- فيمضي. والنتيجة طلبٌ
+         * يحمل رقمَ فاتورةِ طلبٍ آخر: لا يُطابَق بكشف التطبيق عند
+         * الجرد، ولا يُعرف صاحبُه في طلب الجوال. وهي ليست إعداداً
+         * يُحفظ كالمنصّة، هي بيانُ هذا الطلب وحده.
+         */
+        setInvoiceLast4('');
+        /**
+         * ونوعُ الطلب يرجع لأصله كذلك.
+         *
+         * كان يبقى على آخر ما اختير، فيفتح الكاشير طلباً جديداً لزبونٍ
+         * واقفٍ أمامه ويجده «توصيل» -- اختيارَ الطلب الذي قبله. والنوعُ
+         * سؤالُ كلِّ طلبٍ، لا إعدادَ محلٍّ يُحفظ. (بلاغ صاحب المطعم،
+         * على السنمي.)
+         */
+        cart.setOrderChannel(flags.dineInEnabled ? 'dine_in' : 'pickup');
+        // ويرجع المصدرُ إلى أوّل الصفّ، لا إلى الفراغ: التصفيرُ إلى
+        // null كان يترك الطلبَ الثاني بلا مصدرٍ أصلاً، فيُحفظ «توصيل»
+        // عارياً ولا يُعرف من أين جاء.
+        setDeliveryPlatformId(
+          defaultDeliverySourceId(deliveryPlatforms.map(p => p.id), flags.phoneOrdersEnabled),
+        );
         return {
           ok: true,
           // "المدفوع" is what was handed over: the tendered cash, or simply
@@ -1552,9 +1615,11 @@ export default function ProductsScreen({
 
   return (
     <View style={styles.root}>
+      <RenewalStrip renewal={renewal} />
       <TrialBanner status={trial} />
       <UpdateBanner />
       <TrialEndedModal visible={trialEndedOpen} limit={trial?.limit ?? 350} onClose={() => setTrialEndedOpen(false)} />
+      <RenewalCard renewal={renewal} endInset={sideBySide ? orderPanelWidth : 0} />
       {selectedTable && (
         <View style={styles.tableBanner}>
           <Text style={styles.tableBannerText}>طاولة {selectedTable.number}</Text>
@@ -1803,7 +1868,7 @@ export default function ProductsScreen({
                     {line.isPointsRedemption ? (
                       <Text style={styles.cartLineTotal}>{t('نقاط')}</Text>
                     ) : (
-                      <Money value={unitPrice * line.qty} size={12.5} style={styles.cartLineTotalBox} />
+                      <Money value={unitPrice * line.qty + cart.lineExtraOf(line)} size={12.5} style={styles.cartLineTotalBox} />
                     )}
                       {/* .oi-remove */}
                       {/* زر الحذف: كان ✕ رمادي ٢٠ بكسل يصعب الضغط عليه.
@@ -1868,13 +1933,27 @@ export default function ProductsScreen({
                       <TextInput
                         style={styles.oiNoteInput}
                         value={noteDraft}
-                        onChangeText={setNoteDraft}
+                        // تُكتب في السلة مع كل حرف، لا حين يخرج المؤشر.
+                        //
+                        // أبلغ مطعمٌ (٢٠٢٦/١١/٢٠) أنّ الملاحظة تُطبع
+                        // أحياناً ولا تُطبع أحياناً. والسببُ أنها كانت
+                        // تُحفظ في onBlur وحده: الحقلُ داخل قائمة السلة
+                        // وزرُّ «الدفع» خارجها، وزرٌّ في أندرويد لا يأخذ
+                        // التركيز -- فلا يفقده الحقل، ولا يجري onBlur،
+                        // ويمضي الطلبُ بملاحظةٍ فارغة. ومن لمس شيئاً آخر
+                        // قبل الدفع (صنفاً، أو عدّاداً) أُغلقت لوحةُ
+                        // المفاتيح فحُفظت -- فطُبعت. هذا هو «أحياناً».
+                        //
+                        // والمسوّدةُ تبقى لعرض النصّ كما يُكتب: setLineNote
+                        // يقصّ الفراغَ الطرفيّ، فربطُ قيمة الحقل به يمنع
+                        // المسافةَ بين كلمتين.
+                        onChangeText={txt => {
+                          setNoteDraft(txt);
+                          cart.setLineNote(line.lineId, txt);
+                        }}
                         placeholder="بدون بصل، إضافي صوص..."
                         placeholderTextColor={colors.muted}
                         autoFocus
-                        // The source saves on BLUR, not on every keystroke.
-                        // RN's blur event carries only `target`, so the
-                        // value is held in a draft alongside the open id.
                         onBlur={() => {
                           cart.setLineNote(line.lineId, noteDraft);
                           setEditingNote(null);
@@ -2073,6 +2152,7 @@ export default function ProductsScreen({
         loyaltyEnabled={flags.loyaltyEnabled}
         branchId={cashier.branch_id ?? 0}
         dineInEnabled={flags.dineInEnabled}
+        phoneOrdersEnabled={flags.phoneOrdersEnabled}
         dineInMode={service.dineInMode}
         pagerEnabled={service.pagerEnabled}
         deliveryPlatforms={deliveryPlatforms}

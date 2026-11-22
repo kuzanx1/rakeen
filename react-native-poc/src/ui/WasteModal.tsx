@@ -111,7 +111,7 @@ export default function WasteModal({
       const out = await recordWaste(pickedStock.id, qtyNum, effectiveReason, unit);
       setBusy(false);
       if (!out.ok) { setError(out.error || t('تعذّر تسجيل الهدر')); return; }
-      onRecorded(`${t('انسجّل الهدر')} — ${pickedName}${out.cost ? ` (${out.cost.toFixed(2)} ${t('ر.س')})` : ''}`);
+      onRecorded(`${t('اتسجّل الهدر')} — ${pickedName}${out.cost ? ` (${out.cost.toFixed(2)} ${t('ر.س')})` : ''}`);
       onClose();
       return;
     }
@@ -125,14 +125,14 @@ export default function WasteModal({
     // صفرُ خصمٍ ليس خطأ -- منتجٌ بلا وصفة يُسجَّل هدره ولا يُنقص منه شيء.
     // ويُقال ذلك بدل أن يظنّ الكاشير أن المخزون نقص.
     onRecorded(out.deductedFromStock
-      ? `${t('انسجّل الهدر')} — ${pickedName}${out.cost ? ` (${out.cost.toFixed(2)} ${t('ر.س')})` : ''}`
-      : `${t('انسجّل الهدر')} — ${pickedName} · ${t('ما فيه وصفة مربوطة، فما انخصم من المخزون')}`);
+      ? `${t('اتسجّل الهدر')} — ${pickedName}${out.cost ? ` (${out.cost.toFixed(2)} ${t('ر.س')})` : ''}`
+      : `${t('اتسجّل الهدر')} — ${pickedName} · ${t('ما فيه وصفة مربوطة، فما انخصم من المخزون')}`);
     onClose();
   };
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <KeyboardLift style={styles.overlay}>
+      <KeyboardLift style={styles.overlay} onBackdropPress={onClose}>
         <View style={styles.card}>
           <View style={styles.head}>
             <Text style={styles.title}>{t('تسجيل هدر')}</Text>

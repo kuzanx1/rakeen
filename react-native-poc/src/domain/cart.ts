@@ -109,8 +109,9 @@ export function computeLineStockDecrements(
       const link = optionStock[`${group.id}_${optId}`];
       if (!link) continue;
       const qtyInStockUnit = convertToUnit(link.qty, link.unit, stockUnitById[link.stockItemId] || link.unit);
-      // «×2 من 5»: الإضافة على حبتين بس.
-      const units = Math.min(line.qty, optionCount(line.config, optId) ?? line.qty);
+      // العدد هو عدد الحبات فعلاً: «×2» شريحتا جبن تُخصمان، و«×5» خمس --
+      // ولو كانت الكمية واحداً. وبلا عدد: حبةٌ لكل وحدة، كما كان.
+      const units = optionCount(line.config, optId) ?? line.qty;
       decrements.push({ stock_item_id: link.stockItemId, qty: qtyInStockUnit * units });
     }
   }
@@ -243,12 +244,38 @@ export function withOptionCount(label: string, config: CartLineConfig | null | u
   return n ? `${label} ×${n}` : label;
 }
 
-/** الإضافات المجانية في مجموعة متعددة هي اللي ينفع لها عدد. */
-export function optionTakesCount(group: { type: string }, option: { price: number }): boolean {
-  return group.type === 'multiple' && !option.price;
+/** أقصى عدد للإضافة الواحدة في السطر -- سقفٌ للغلط لا للاستعمال. */
+export const MAX_OPTION_COUNT = 99;
+
+/**
+ * كل إضافة في مجموعة متعددة لها عدّاد -- والمجانية والمدفوعة سواء، لا
+ * يفترقان إلا في السعر.
+ *
+ * وكان هذا خطأً قبلُ: مُنع العدّاد عن المجانية حتى تزيد الكمية، بحجة أن
+ * «بدون بصل ×٣» على ساندوتشٍ واحد لا معنى له. لكن المجاني ليس «بدون»
+ * وحده: كتشبٌ مجاني يطلب منه الزبون ثلاثة أكياس على ساندوتشٍ واحد، فلا
+ * يُعَدّ ولا يَنقص المخزون ثلاثة. فالقاعدة واحدة، والسعر وحده هو الفرق.
+ *
+ * ومجموعة single (الحجم) لا عدّاد فيها: الصنف واحد، لا يُباع بحجمين معاً.
+ */
+export function optionTakesCount(group: { type: string }): boolean {
+  return group.type === 'multiple';
 }
 
-/** يكتب العدّادات في config عند «إضافة»: المختار، المجاني، وأقل من الكمية. */
+/** سقفُ العدّاد، واحدٌ للجميع. */
+export function maxOptionCount(): number {
+  return MAX_OPTION_COUNT;
+}
+
+/**
+ * يكتب العدّادات في config عند «إضافة»: المختار، في مجموعة متعددة،
+ * وعدده يخالف الكمية.
+ *
+ * «يخالف الكمية» لا «أقل منها»: العدد مطلقٌ لا نسبة. خمس شرائح جبن على
+ * ساندوتش واحد عددها ٥ والكمية ١، وشريحتان على خمسة ساندوتشات عددهما ٢.
+ * وما ساواها لا يُكتب، فالسطر القديم (إضافةٌ على كل حبة) يبقى كما كان
+ * بلا عدّاد ولا فرقِ سعر.
+ */
 export function applyOptionCounts(
   config: CartLineConfig,
   counts: Record<string, number>,
@@ -263,8 +290,8 @@ export function applyOptionCounts(
     if (!Array.isArray(sel)) continue;
     for (const id of sel) {
       const opt = g.options.find(o => o.id === id);
-      const n = counts[id];
-      if (opt && optionTakesCount(g, opt) && n && n < qty) list.push(`${id}:${n}`);
+      const n = counts[id] ? Math.min(counts[id], MAX_OPTION_COUNT) : counts[id];
+      if (opt && optionTakesCount(g) && n && n !== qty) list.push(`${id}:${n}`);
     }
   }
   if (list.length) out[OPTION_COUNTS_KEY] = list;
@@ -348,6 +375,44 @@ export function round2(n: number): number {
 }
 
 /**
+ * فرقُ الإضافات بالعدد: ما يُضاف إلى السطر فوق سعر الوحدة × الكمية.
+ *
+ * القاعدة التي يقوم عليها السطر كله: **كل حبة إضافة بسعرها**. خمس شرائح
+ * جبن بريالين = عشرة، سواء كانت على خمسة ساندوتشات أو على واحد. فمجموع
+ * السطر = سعر المنتج × الكمية + (سعر الإضافة × عددها).
+ *
+ * ولماذا فرقاً لا مجموعاً؟ لأن `unit_price` المخزّن في الفاتورة يحمل
+ * الإضافات أصلاً (حبةً لكل وحدة)، ويُقاس عليه غيرُه -- `compute_line_cost`
+ * يعرف «الحجم الكبير» بأن سعر الوحدة تجاوز سعر المنتج بالثلث. فلو جُعل
+ * سعر الوحدة = المجموع ÷ الكمية لانكسر ذلك، ولخرج سعرٌ كسري (١٠٫٤٠)
+ * على فاتورةٍ ضريبية. فيبقى سعر الوحدة كما هو، ويُحمل الفرق وحده في
+ * `modifiers_total` -- الخانة الموجودة في الجدول منذ أول يوم وقيمتها صفر.
+ *
+ * فالذي عدده = الكمية لا يُكتب له عدّاد أصلاً، وفرقُه صفر، وكل طلبٍ
+ * سابقٍ يبقى على حاله بالريال.
+ */
+export function lineOptionsExtra(
+  config: CartLineConfig | null,
+  modDef: ModifierDefinition | undefined,
+  qty: number,
+): number {
+  if (!modDef || !config || (modDef as unknown as { isBox?: boolean }).isBox) return 0;
+  let extra = 0;
+  for (const g of modDef.groups ?? []) {
+    const sel = config[g.id];
+    if (!Array.isArray(sel)) continue;
+    for (const optId of sel) {
+      const opt = g.options.find(o => o.id === optId);
+      if (!opt || !opt.price) continue;
+      const n = optionCount(config, optId);
+      if (n == null) continue;
+      extra += opt.price * (n - qty);
+    }
+  }
+  return round2(extra);
+}
+
+/**
  * Saudi Ministry of Commerce requires displayed menu prices to be
  * VAT-inclusive -- the tax is already baked into the product's price, not
  * added on top at checkout. `pricesIncludeVat` branches this exactly like
@@ -366,8 +431,11 @@ export function cartTotals(
   pricesIncludeVat: boolean,
   /** خصم بمبلغ ثابت (ريال) -- يغلب النسبة، وما يتعدّى المجموع. */
   discountFixed: number = 0,
+  /** فرقُ الإضافات بالعدد لكل سطر (lineOptionsExtra). صفرٌ لمن لا عدّاد
+   *  فيه -- وهو الأغلب -- فحذفُه يُبقي الحساب على ما كان. */
+  lineExtraOf: (item: CartLine) => number = () => 0,
 ): CartTotals {
-  const subtotal = lines.reduce((s, i) => s + unitPriceOf(i) * i.qty, 0);
+  const subtotal = lines.reduce((s, i) => s + unitPriceOf(i) * i.qty + lineExtraOf(i), 0);
   const discount = discountFixed > 0 ? Math.min(round2(discountFixed), subtotal) : subtotal * (discountPct / 100);
   const afterDiscount = subtotal - discount;
   const rate = vatRegistered ? vatRate : 0;

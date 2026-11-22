@@ -62,8 +62,11 @@ class RakeenPrinterModule(reactContext: ReactApplicationContext) :
                     resolveInvalidTarget(promise)
                     return
                 }
-                bluetoothTransport.send(bluetoothId, bytes) { ok, errorDetail ->
-                    resolvePrintResult(promise, ok, errorDetail)
+                // أزمنة مراحل البلوتوث تمرّ مع النتيجة، فتظهر في «قائمة
+                // الطباعة» مع بقية المراحل بلا شاشةٍ جديدة.
+                var btTrace: List<String>? = null
+                bluetoothTransport.send(bluetoothId, bytes, { t -> btTrace = t }) { ok, errorDetail ->
+                    resolvePrintResult(promise, ok, errorDetail, btTrace)
                 }
             }
             "usb" -> {
@@ -97,12 +100,17 @@ class RakeenPrinterModule(reactContext: ReactApplicationContext) :
         promise.resolve(result)
     }
 
-    private fun resolvePrintResult(promise: Promise, ok: Boolean, errorDetail: String?) {
+    private fun resolvePrintResult(promise: Promise, ok: Boolean, errorDetail: String?, trace: List<String>? = null) {
         val result = Arguments.createMap()
         result.putBoolean("ok", ok)
         if (errorDetail != null) {
             result.putString("error", if (errorDetail == "permission_denied") "PERMISSION_DENIED" else "PRINTER_CONNECTION_FAILED")
             result.putString("errorDetail", errorDetail)
+        }
+        if (trace != null && trace.isNotEmpty()) {
+            val arr = Arguments.createArray()
+            trace.forEach { arr.pushString(it) }
+            result.putArray("diagnostics", arr)
         }
         promise.resolve(result)
     }

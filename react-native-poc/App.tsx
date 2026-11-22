@@ -62,6 +62,7 @@ import OrderHistoryScreen from './src/ui/OrderHistoryScreen';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import KeyboardLift from './src/ui/KeyboardLift';
 import { createStyles, fonts, radii, spacing, ThemeProvider, useTheme } from './src/ui/theme';
+import { RenewalDot, useRenewal } from './src/ui/RenewalNotice';
 import { ShellProvider, TOPBAR_FALLBACK_HEIGHT, useShell } from './src/ui/shell';
 import { I18nProvider, useI18n, uiLang, tr } from './src/ui/i18n';
 import { ToastProvider, useToast } from './src/ui/Toast';
@@ -908,6 +909,7 @@ function App(): React.JSX.Element {
   }, [dineInMode, screen.name]);
 
   const activeTab = screenToTab(screen);
+  const renewal = useRenewal();
 
   // `.app.home-active` is what narrows the two bars, so the shell has to
   // know which tab is showing.
@@ -1331,6 +1333,7 @@ function App(): React.JSX.Element {
         <NavTabButton
           active={activeTab === 'more'}
           label={t('المزيد')}
+          badge={<RenewalDot renewal={renewal} />}
           onPress={() => setScreen({ name: 'more' })}
           icon={
             <>
@@ -1351,11 +1354,14 @@ function NavTabButton({
   active,
   label,
   icon,
+  badge,
   onPress,
 }: {
   active: boolean;
   label: string;
   icon: React.ReactNode;
+  /** شارة صغيرة فوق الأيقونة -- تذكير التجديد وحده يستعملها اليوم. */
+  badge?: React.ReactNode;
   onPress: () => void;
 }) {
   const { colors } = useTheme();
@@ -1368,6 +1374,7 @@ function NavTabButton({
         {icon}
       </Svg>
       <Text style={[styles.navTabLabel, { color: tint }]}>{label}</Text>
+      {badge}
     </TouchableOpacity>
   );
 }

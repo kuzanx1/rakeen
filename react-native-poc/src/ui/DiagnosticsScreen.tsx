@@ -4,6 +4,7 @@ import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import { getDiagnosticsSnapshot, retryStuckOrders, retryAllFailedPrintJobs, DiagnosticsSnapshot } from '../application/diagnosticsService';
 import { readErrors, readPerf } from '../infrastructure/perfLog';
+import { getRenewal, resetRenewalSeen } from '../application/renewalService';
 import ReceiptProofScreen from './ReceiptProofScreen';
 import { createStyles, fonts, Palette, radii, spacing, useTheme } from './theme';
 
@@ -93,6 +94,18 @@ export default function DiagnosticsScreen() {
     }
   };
 
+  const [renewal, setRenewal] = useState(getRenewal());
+  const handleResetRenewal = async () => {
+    setBusy(true);
+    try {
+      await resetRenewalSeen();
+      setRenewal(getRenewal());
+      setActionStatus('رجع التذكير — ارجع للرئيسية');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   /* تحلّ محلَّ هذه الشاشة لا تعلوها -- ولا نافذةَ منبثقة: نافذتان معاً
      على iOS تُجمّدان التطبيق بلا خطأ يُرى، وقد وقع. */
   if (proofOpen) return <ReceiptProofScreen onClose={() => setProofOpen(false)} />;
@@ -160,6 +173,21 @@ export default function DiagnosticsScreen() {
         />
       </Section>
 
+      {/* تذكير الاشتراك: الحالة كما يقولها الخادم، وزرٌّ يعيد عرضه.
+          البطاقةُ تظهر مرّةً في اليوم، فبلا هذا الزرّ لا تُجرَّب الحالاتُ
+          إلا واحدةً كلَّ يوم. */}
+      <Section title="تذكير الاشتراك">
+        <Row
+          label="حالة التجديد"
+          color={renewal ? UNKNOWN : OK}
+          value={renewal ? `${renewal.stage} · ${renewal.days} يوم` : '⚪ ما فيه تذكير'}
+          last
+        />
+        <TouchableOpacity style={styles.retryButton} onPress={handleResetRenewal} disabled={busy} activeOpacity={0.8}>
+          <Text style={styles.retryButtonText}>إعادة عرض تذكير الاشتراك</Text>
+        </TouchableOpacity>
+      </Section>
+
       <Section title="طلبات بانتظار المزامنة">
         <Row label="الطلبات المحفوظة على الجهاز" color={snapshot.queuedOrdersCount === 0 ? OK : UNKNOWN} value={String(snapshot.queuedOrdersCount)} />
         <Row label="طلبات متعلّقة تحتاج مراجعة" color={snapshot.stuckOrdersCount === 0 ? OK : BAD} value={String(snapshot.stuckOrdersCount)} last />
@@ -179,7 +207,7 @@ export default function DiagnosticsScreen() {
         */}
       <Section title="ما تأخّر (فوق ١٢٠ ملّي)">
         {perfRows.length === 0 ? (
-          <Row label="ما فيه شي بطيء انسجّل" color={OK} value="—" last />
+          <Row label="ما فيه شي بطيء اتسجّل" color={OK} value="—" last />
         ) : (
           perfRows.map((e, i) => (
             <Row
@@ -195,7 +223,7 @@ export default function DiagnosticsScreen() {
 
       <Section title="أخطاء غير متوقّعة">
         {errorRows.length === 0 ? (
-          <Row label="ما فيه أخطاء انسجّلت" color={OK} value="—" last />
+          <Row label="ما فيه أخطاء اتسجّلت" color={OK} value="—" last />
         ) : (
           errorRows.map((e, i) => (
             <Row

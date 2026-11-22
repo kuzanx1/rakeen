@@ -80,7 +80,7 @@ export default function CashMovementModal({
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <KeyboardLift style={styles.overlay}>
+      <KeyboardLift style={styles.overlay} onBackdropPress={onClose}>
         <View style={[styles.card, shadows.md]}>
           <View style={styles.head}>
             <Text style={styles.title}>حركة نقدية بالدرج</Text>

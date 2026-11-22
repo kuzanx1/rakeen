@@ -24,20 +24,28 @@ import { toLatinDigits } from '../domain/digits';
 import { planHas } from '../application/planService';
 import { getPrintStationLastPrinted } from '../application/printStationService';
 import { formatArabicTime } from '../domain/arabicDate';
-import { hasCustomerDisplay } from '../platform/customerDisplay';
+import { hasCustomerDisplay, listDeviceDisplays } from '../platform/customerDisplay';
 import { startCustomerDisplay, customerDisplayLinked, DISPLAY_COLORS } from '../application/customerDisplayService';
 import { uiLang } from './i18n';
 
-const CUSTOMER_DISPLAY_OPTIONS: { key: 'mirror' | 'brand' | 'banner' | 'url'; label: string; hint: string }[] = [
+const CUSTOMER_DISPLAY_OPTIONS: { key: 'mirror' | 'brand' | 'slides' | 'banner' | 'url'; label: string; hint: string }[] = [
   { key: 'mirror', label: 'نفس شاشة الكاشير', hint: 'الزبون يشوف نفس اللي تشوفه.' },
   {
     key: 'brand',
     label: 'اسم المطعم + باركود الولاء',
     hint: 'اسم المطعم في النص على لونه. وقت الدفع يطلع المبلغ المطلوب، و«اعرض الباركود» يطلع للزبون باركود الولاء دقيقة. وتقدر تثبّت باركود المنيو جنب الاسم.',
   },
+  {
+    key: 'slides',
+    label: 'منيو متحرك',
+    hint: 'منيو مطعمك يدور على الشاشة: قسمٌ كل سبع ثوانٍ بصوره وأسعاره، بترتيب أقسامك في لوحة ركين. ووقت الدفع يطلع المبلغ، وبعده الباركود والبيجر، ثم يرجع المنيو.',
+  },
   { key: 'banner', label: 'صورة المتجر', hint: 'صورة المتجر الإلكتروني (البانر) من لوحة ركين، تملأ الشاشة. لو ما فيه، يطلع الشعار.' },
   { key: 'url', label: 'صورة من رابط', hint: 'أي صورة لها رابط مباشر (عرض، إعلان، قائمة).' },
 ];
+/** الهويةُ والمنيو المتحرك واحدٌ عند الإعدادات: نفس اللون ونفس
+ *  صورة الاسم ونفس رمز الشاشة -- الفرق ما يُعرض وقت الانتظار. */
+const brandLike = (m: string) => m === 'brand' || m === 'slides';
 const displayModeOf = (m?: string) => (m === 'logo' || m === 'menu' ? 'brand' : m ?? 'mirror');
 
 const TRANSPORT_LABELS: Record<PrinterTransportKind, string> = {
@@ -133,9 +141,31 @@ export default function PrinterSettingsScreen({
   const [loading, setLoading] = useState(true);
   const [stationLast, setStationLast] = useState<{ id: number; no?: number | null; at: number } | null>(null);
   const [hasSecondScreen, setHasSecondScreen] = useState(false);
+  const [deviceDisplays, setDeviceDisplays] = useState<string[]>([]);
+  /**
+   * ما يقدر عليه هذا الجهاز فعلاً، لا قائمةٌ ثابتةٌ للمنصّات الثلاث.
+   *
+   * فـSUPPORTED_TRANSPORTS تعدّ الثلاثة دائماً، فكان «USB» يظهر قابلاً
+   * للضغط على الآيباد -- وiOS ما عنده منفذُ USB أصلاً (قيدُ آبل، لا
+   * نقصٌ عندنا) فيختاره الكاشير ثم يصطدم بـTRANSPORT_NOT_SUPPORTED.
+   * والجهازُ نفسُه يعلن ما يدعمه في getCapabilities().supportedTransports،
+   * فيُسأل هو بدل أن يُفترض.
+   *
+   * وسقوطُ النداء يُبقي القائمة الثابتة: خيارٌ يفشل بصدقٍ أهونُ من
+   * إعداداتِ طابعةٍ فارغةٍ على جهازٍ يطبع.
+   */
+  const [transports, setTransports] = useState<readonly PrinterTransportKind[]>(SUPPORTED_TRANSPORTS);
   useEffect(() => {
     getPrintStationLastPrinted().then(setStationLast).catch(() => {});
     hasCustomerDisplay().then(setHasSecondScreen).catch(() => {});
+    listDeviceDisplays().then(setDeviceDisplays).catch(() => {});
+    Printer?.getCapabilities()
+      .then(c => {
+        if (Array.isArray(c?.supportedTransports) && c.supportedTransports.length) {
+          setTransports(c.supportedTransports);
+        }
+      })
+      .catch(() => {});
   }, []);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -344,7 +374,7 @@ export default function PrinterSettingsScreen({
       await savePrinterProfile(withCapabilities);
       setSavedSnapshot(JSON.stringify(withCapabilities));
       const shown = await startCustomerDisplay(withCapabilities).catch(() => false);
-      const brand = displayModeOf(withCapabilities.customerDisplay) === 'brand';
+      const brand = brandLike(displayModeOf(withCapabilities.customerDisplay));
       setSaveStatus(
         !shown && hasSecondScreen
           ? '✅ انحفظ — بس ما لقينا الصورة (تأكد إنها مرفوعة في لوحة ركين أو إن الرابط صحيح)، فشاشة العميل باقية نفس الكاشير'
@@ -410,7 +440,7 @@ export default function PrinterSettingsScreen({
       <Section title="طريقة التوصيل">
         <View style={styles.row}>
           {(['network', 'bluetooth', 'usb'] as PrinterTransportKind[]).map(t => {
-            const supported = SUPPORTED_TRANSPORTS.includes(t);
+            const supported = transports.includes(t);
             const active = profile.transport === t;
             return (
               <TouchableOpacity
@@ -496,7 +526,7 @@ export default function PrinterSettingsScreen({
         )}
       </Section>
 
-      {/* شاشة العميل: أجهزة سنمي (أندرويد) بس -- الآيفون والآيباد ما فيهم شاشة قدام الزبون. */}
+      {/* شاشة العميل: الأجهزة ذات الشاشتين (أندرويد) -- الآيفون والآيباد ما فيهم شاشة قدام الزبون. */}
       {Platform.OS === 'android' && (
       <Section title="شاشة العميل">
         <Text style={styles.themeHint}>
@@ -504,6 +534,13 @@ export default function PrinterSettingsScreen({
             ? 'الشاشة الصغيرة اللي قدام الزبون. اختر وش يشوف فيها بدل شاشة الكاشير:'
             : 'ما لقينا شاشة عميل في هالجهاز. لو جهازك فيه شاشة قدام الزبون، تأكد إنها شغّالة وارجع لهالصفحة.'}
         </Text>
+        {/* شاشاتُ الجهاز كما يراها أندرويد: لو قال الجهاز «ما لقينا» وهو
+            ذو شاشتين، هالسطر يقول لنا وش فيه بالضبط بدل التخمين. */}
+        {!hasSecondScreen && deviceDisplays.length > 0 && (
+          <Text style={[styles.themeHint, { marginTop: 4 }]}>
+            {'شاشات الجهاز: ' + deviceDisplays.join(' | ')}
+          </Text>
+        )}
         <View style={[styles.row, { marginTop: 8 }]}>
           {CUSTOMER_DISPLAY_OPTIONS.map(opt => {
             const active = displayModeOf(profile.customerDisplay) === opt.key;
@@ -521,7 +558,7 @@ export default function PrinterSettingsScreen({
         <Text style={styles.themeHint}>
           {CUSTOMER_DISPLAY_OPTIONS.find(o => o.key === displayModeOf(profile.customerDisplay))?.hint}
         </Text>
-        {displayModeOf(profile.customerDisplay) === 'brand' && (
+        {brandLike(displayModeOf(profile.customerDisplay)) && (
           <>
             <FieldLabel>لون الخلفية</FieldLabel>
             <View style={styles.row}>
@@ -561,7 +598,7 @@ export default function PrinterSettingsScreen({
             <Text style={styles.themeHint}>باركود المنيو يطلع ثابت على الشاشة جنب اسم المطعم. فاضي = بدون باركود منيو.</Text>
           </>
         )}
-        {displayModeOf(profile.customerDisplay) === 'brand' && (
+        {brandLike(displayModeOf(profile.customerDisplay)) && (
           <>
             <FieldLabel>رمز الشاشة (8 حروف) — اختياري</FieldLabel>
             <TextInput

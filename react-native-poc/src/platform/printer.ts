@@ -142,8 +142,10 @@ export interface PrinterProfile {
    *  of the branch make (a phone at the customer, say), with this
    *  device's own printer and print options. application/printStationService. */
   printStation?: boolean;
-  /** شاشة العميل في سنمي: mirror (نفس الكاشير) / logo / banner / url. application/customerDisplayService. */
-  customerDisplay?: 'mirror' | 'brand' | 'banner' | 'url' | 'logo' | 'menu';
+  /** شاشة العميل في الأجهزة ذات الشاشتين: mirror (نفس الكاشير) / brand
+   *  (هوية المطعم) / slides (المنيو المتحرك) / banner / url.
+   *  logo وmenu اسمان قديمان لـbrand. application/customerDisplayService. */
+  customerDisplay?: 'mirror' | 'brand' | 'slides' | 'banner' | 'url' | 'logo' | 'menu';
   /** لون خلفية شاشة الهوية (hex) أو 'store' = لون المتجر في ركين. */
   customerDisplayColor?: string;
   /** صورة اسم المطعم (https) تطلع بدل الكتابة في الهوية. فاضي = الاسم كتابة. */

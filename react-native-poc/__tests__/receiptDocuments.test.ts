@@ -124,6 +124,43 @@ describe('تذكرة المطبخ', () => {
     expect(withPager.join('\n')).not.toContain('رقم الطلب');
   });
 
+  it('اسمُ التطبيق وآخرُ أربعةٍ على الورقة، والأربعةُ أكبرُ ما فيها', () => {
+    const out = layoutKitchenTicket({
+      ticket: ticket({ metaLabel: 'توصيل', platformName: 'كيتا', platformInvoiceLast4: '4421' }),
+      measure: stubMeasure, paperWidth: PAPER.mm80,
+    });
+    const ts = texts(out.ops);
+    const all = ts.map(t => t.text).join('\n');
+    expect(all).toContain('كيتا');
+    expect(all).toContain('آخر ٤ أرقام');
+    const four = ts.find(t => t.text === '4421');
+    expect(four).toBeTruthy();
+    // أكبرُ من اسم التطبيق ومن نوع الطلب: هي ما يُنادى به عند التسليم.
+    const platform = ts.find(t => t.text === 'كيتا');
+    expect(four!.size).toBeGreaterThan(platform!.size);
+    expect(platform!.size).toBeGreaterThan(KITCHEN.meta);
+    // ورقمُ الطلب باقٍ -- صغيراً -- فالورقةُ تُطابَق بالفاتورة.
+    expect(all).toContain('رقم الطلب · Order No: 1042');
+    const orderNo = ts.find(t => t.text.includes('Order No: 1042'));
+    expect(orderNo!.size).toBeLessThan(four!.size);
+  });
+
+  it('وجهازُ النداء -- إن وُجد -- يسبق الأربعة، فلا رقمان كبيران', () => {
+    const out = layoutKitchenTicket({
+      ticket: ticket({ pagerNumber: 17, platformName: 'جوال', platformInvoiceLast4: '7788' }),
+      measure: stubMeasure, paperWidth: PAPER.mm80,
+    });
+    const big = texts(out.ops).filter(t => t.size >= KITCHEN.pagerNumber).map(t => t.text);
+    expect(big).toEqual(['17']);
+  });
+
+  it('وبلا تطبيقٍ ولا أربعةٍ تبقى الورقةُ كما كانت -- رقمُ الطلب كبيراً', () => {
+    const out = layoutKitchenTicket({ ticket: ticket(), measure: stubMeasure, paperWidth: PAPER.mm80 });
+    const ts = texts(out.ops);
+    expect(ts.map(t => t.text).join('\n')).toContain('رقم الطلب · Order No');
+    expect(ts.find(t => t.text === '1042')!.size).toBe(KITCHEN.orderNumber);
+  });
+
   it('الإضافات مزاحة داخل الورقة لا خارجها', () => {
     const out = layoutKitchenTicket({
       ticket: ticket({ items: [kItem({ mods: ['بدون بصل وبدون مخلل وبدون طماطم مع صوص إضافي حار جداً على الجانب'] })] }),

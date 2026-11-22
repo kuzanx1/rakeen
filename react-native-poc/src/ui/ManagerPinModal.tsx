@@ -89,7 +89,7 @@ export default function ManagerPinModal({
   };
 
   const body = (
-      <KeyboardLift style={presentation === 'inline' ? styles.overlayInline : styles.overlay}>
+      <KeyboardLift style={presentation === 'inline' ? styles.overlayInline : styles.overlay} onBackdropPress={onCancel}>
         <View style={styles.card}>
           <ScrollView style={styles.cardScroll} contentContainerStyle={styles.cardContent} bounces={false}>
           <Text style={styles.title}>موافقة المدير مطلوبة</Text>

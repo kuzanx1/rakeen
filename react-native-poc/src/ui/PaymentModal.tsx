@@ -13,6 +13,15 @@ import type { OrderChannel } from '../domain/cart';
 import type { Customer } from '../domain/customer';
 import { searchCustomers } from '../application/customerService';
 import type { DeliveryPlatform } from '../application/catalogService';
+import { PHONE_PLATFORM_ID, PHONE_PLATFORM_LABEL, isPhonePlatform } from '../domain/phoneOrder';
+
+/** «جوال» في صفِّ التطبيقات -- زرٌّ لا صفَّ في قاعدة البيانات (domain/phoneOrder). */
+const PHONE_PLATFORM: DeliveryPlatform = {
+  id: PHONE_PLATFORM_ID,
+  name: PHONE_PLATFORM_LABEL,
+  logoUrl: null,
+  brandColor: '#2F6F4E',
+};
 import { isPagerNumberBusy } from '../application/catalogService';
 import { setOrderPager } from '../application/activeOrderService';
 import { normalisePhoneInput, isSaudiMobile, validateNewCustomerDraft, digitsLeftText, completePhoneText, isOverTypedPhoneTail, PHONE_FULL_TEXT } from '../domain/customer';
@@ -128,7 +137,13 @@ const CHANNELS: { id: OrderChannel; label: string; icon: React.ReactNode }[] = [
     ),
   },
   {
-    id: 'delivery', label: 'تطبيقات التوصيل',
+    /* «أخرى»، لا «توصيل».
+       كان «تطبيقات التوصيل» ثم «توصيل». وكلاهما يكذب اليوم: الصفُّ تحته
+       كيتا وجاهز و«جوال» -- وطلبُ الجوال غالباً يجيء صاحبُه فيستلمه
+       بنفسه، فليس توصيلاً أصلاً. فالزرُّ يقول «أخرى» -- أي ما ليس
+       محلياً ولا سفرياً -- والصفُّ تحته هو الذي يُسمّي المصدر.
+       (اختارَه صاحبُ المطعم، ٢٠٢٦/١١/٢٠.) */
+    id: 'delivery', label: 'أخرى',
     icon: (
       <>
         <Rect x={5} y={2} width={14} height={20} rx={2.5} />
@@ -167,6 +182,7 @@ export default function PaymentModal({
   pagerEnabled = false,
   onLoyaltySelected,
   deliveryPlatforms,
+  phoneOrdersEnabled,
   deliveryPlatformId,
   onDeliveryPlatformChange,
   invoiceLast4,
@@ -224,6 +240,8 @@ export default function PaymentModal({
   /** The branch's delivery apps. A delivery order that names none cannot
    *  be split by platform in the dashboard's reports. */
   deliveryPlatforms: DeliveryPlatform[];
+  /** businesses.phone_orders_enabled -- زرّ «جوال» في صفّ التطبيقات. */
+  phoneOrdersEnabled: boolean;
   deliveryPlatformId: number | null;
   onDeliveryPlatformChange: (id: number) => void;
   /** orders.platform_invoice_last4 -- required before a delivery order can
@@ -380,15 +398,9 @@ export default function PaymentModal({
   }, [phoneDraft, businessId, pushBarcode]);
 
 
-  // A cart can still be carrying `delivery` from before the last platform
-  // was removed, or from a build where the channel was always offered.
-  // Left alone it would show a channel row with nothing selected and then
-  // book the sale as platform-prepaid anyway, so it is moved to the first
-  // channel that is actually available.
-  useEffect(() => {
-    if (!visible || channel !== 'delivery' || deliveryPlatforms.length > 0) return;
-    onChannelChange(dineInEnabled ? 'dine_in' : 'pickup');
-  }, [visible, channel, deliveryPlatforms.length, dineInEnabled, onChannelChange]);
+  /* كان هنا ردٌّ عن قناة التوصيل لمّا لا منصّةَ للمنشأة: صفٌّ بلا أزرار،
+     وطلبٌ يُحسب مدفوعاً مسبقاً بلا فاتورة. و«جوال» أزال السبب -- الصفُّ
+     فيه زرٌّ دائماً، وهو زرٌّ يُدفع عنده نقداً أو شبكة. */
 
   useEffect(() => {
     if (!visible) return;
@@ -498,10 +510,10 @@ export default function PaymentModal({
   }, [query, step, businessId]);
 
   /** proceedFromCustomerStep() (:1288). */
-  const proceedToPayment = () => {
+  const proceedToPayment = (platformId: number | null = deliveryPlatformId) => {
     setFriendsOpen(false);
     setFriendsCount(null);
-    if (channel === 'delivery') {
+    if (channel === 'delivery' && !isPhonePlatform(platformId)) {
       setMethod('delivery_platform');
       setCashInput('');
     } else {
@@ -511,9 +523,9 @@ export default function PaymentModal({
     setStep('payment');
   };
 
-  const advanceToCustomer = () => {
+  const advanceToCustomer = (platformId: number | null = deliveryPlatformId) => {
     // `if(!LOYALTY_ENABLED){ proceedFromCustomerStep(); return; }`
-    if (!loyaltyEnabled) { proceedToPayment(); return; }
+    if (!loyaltyEnabled) { proceedToPayment(platformId); return; }
     /**
      * وطلبُ التوصيل لا يُسأل عن عميل ولاء.
      *
@@ -524,7 +536,7 @@ export default function PaymentModal({
      * والولاءُ نفسُه لا يصحّ عليها: النقاطُ لمن اشترى منّا، وهذا اشترى
      * من التطبيق.
      */
-    if (channel === 'delivery') { proceedToPayment(); return; }
+    if (channel === 'delivery') { proceedToPayment(platformId); return; }
     setStep('customer');
   };
 
@@ -556,7 +568,9 @@ export default function PaymentModal({
 
   const choosePlatform = (platformId: number) => {
     onDeliveryPlatformChange(platformId);
-    advanceToCustomer();
+    // المعرَّفُ يُمرَّر معه: setState لا يصل قبل السطر اللي بعده، ولو
+    // قرأناه من الحالة لمضى طلبُ الجوال في مسار «مدفوعٌ مسبقاً».
+    advanceToCustomer(platformId);
   };
 
   const advanceFromChannel = () => {
@@ -640,7 +654,7 @@ export default function PaymentModal({
     // roll back a completed payment.
     if (pager != null && outcome.orderId != null) {
       const saved = await setOrderPager(outcome.orderId, pager);
-      if (!saved.ok) setPagerError('انحفظ الطلب، بس ما انسجّل رقم الجهاز');
+      if (!saved.ok) setPagerError('انحفظ الطلب، بس ما اتسجّل رقم الجهاز');
     }
     // قبل setStep('success'): بعده تكون الخاصّيةُ قد فُرّغت.
     setSoldCustomerId(customer?.id ?? null);
@@ -712,14 +726,20 @@ export default function PaymentModal({
   const splitCard = Math.min(total, parseFloat(splitCardInput) || 0);
   const splitCash = Math.max(0, Number((total - splitCard).toFixed(2)));
   const validSplit = splitCard > 0 && splitCash > 0;
+  /**
+   * طلبُ الجوال: توصيلٌ في الصفّ، ودفعٌ عاديٌّ في الخزنة.
+   *
+   * فما كان «قناةُ التوصيل» تعنيه -- مدفوعٌ مسبقاً، لا تبويبَ دفعٍ ولا
+   * مبلغَ مستلَم -- صار يعني تطبيقاً بعينه، لا كلَّ ما جاء من بعيد.
+   */
+  const phoneOrder = channel === 'delivery' && isPhonePlatform(deliveryPlatformId);
+  const prepaidByApp = channel === 'delivery' && !phoneOrder;
+  /** الأربعةُ مطلوبةٌ في الحالتين: فاتورةُ التطبيق، أو جوالُ المتّصل. */
+  const needsLast4 = channel === 'delivery';
+  const tenderOk =
+    method === 'cash' ? cashAmount >= total : method === 'split' ? validSplit : true;
   const canConfirm =
-    channel === 'delivery'
-      ? /^\d{4}$/.test(invoiceLast4)
-      : method === 'cash'
-        ? cashAmount >= total
-        : method === 'split'
-          ? validSplit
-          : true;
+    needsLast4 && !/^\d{4}$/.test(invoiceLast4) ? false : prepaidByApp ? true : tenderOk;
 
   /**
    * DELIBERATE DIVERGENCE from the source, decided by the owner.
@@ -744,7 +764,9 @@ export default function PaymentModal({
    */
   const channels = CHANNELS.filter(c => {
     if (c.id === 'dine_in') return dineInEnabled;
-    if (c.id === 'delivery') return deliveryPlatforms.length > 0;
+    /* والتوصيلُ يُعرض ما دام فيه ما يُختار: تطبيقٌ واحدٌ على الأقل، أو
+       «جوال». ومطعمٌ بلا هذا ولا ذاك لا يُعرض له صفٌّ فارغ. */
+    if (c.id === 'delivery') return deliveryPlatforms.length > 0 || phoneOrdersEnabled;
     return true;
   });
 
@@ -1011,7 +1033,7 @@ export default function PaymentModal({
           one used 'height', which does nothing inside an edge-to-edge
           <Modal> (see KeyboardLift) -- the cash field and its confirm
           button stayed under the keyboard on Android only. */}
-      <KeyboardLift style={styles.overlay}>
+      <KeyboardLift style={styles.overlay} onBackdropPress={onCancel}>
         <View style={[styles.card, shadows.md]}>
           {/* .modal-head -- the back circle only exists above the first
               step, matching modalStepStack's own depth check.
@@ -1062,13 +1084,13 @@ export default function PaymentModal({
                     );
                   })}
                 </View>
-                {/* .platform-btn-row -- only for delivery, and only when
-                    the business actually has platforms configured. Without
-                    it every delivery order is filed with no platform and
-                    the dashboard cannot split sales by app. */}
-                {channel === 'delivery' && deliveryPlatforms.length > 0 && (
+                {/* .platform-btn-row -- من وين جا الطلب: تطبيقٌ من
+                    تطبيقات المنشأة، أو «جوال» لمن اتّصل. ولا يمضي
+                    الكاشير من هذي الخطوة إلا باختيارِ واحدٍ منها، فما
+                    عاد يُحفظ طلبُ توصيلٍ بلا مصدر. */}
+                {channel === 'delivery' && (
                   <View style={styles.platformRow}>
-                    {deliveryPlatforms.map(pf => {
+                    {(phoneOrdersEnabled ? [...deliveryPlatforms, PHONE_PLATFORM] : deliveryPlatforms).map(pf => {
                       const active = pf.id === deliveryPlatformId;
                       return (
                         <TouchableOpacity
@@ -1119,7 +1141,7 @@ export default function PaymentModal({
                 {!!claimError && <Text style={styles.error}>{claimError}</Text>}
                 {/* Skipping is allowed: dine-in without a table is a real,
                     supported case, not a mistake to block. */}
-                <TouchableOpacity onPress={advanceToCustomer} style={styles.textLink}>
+                <TouchableOpacity onPress={() => advanceToCustomer()} style={styles.textLink}>
                   <Text style={styles.textLinkText}>متابعة بدون طاولة</Text>
                 </TouchableOpacity>
               </>
@@ -1340,7 +1362,7 @@ export default function PaymentModal({
               <>
                 {/* A delivery order is already paid inside the platform's
                     own app, so it gets no tab strip at all (:1616). */}
-                {channel !== 'delivery' && !paidByReward && (
+                {!prepaidByApp && !paidByReward && (
                   <View style={styles.methodTabs}>
                     {methods.map(m => {
                       const active = method === m.id;
@@ -1369,7 +1391,7 @@ export default function PaymentModal({
                     <Text style={styles.dueLabel}>
                       {paidByReward
                         ? 'مدفوع بمكافأة الولاء'
-                        : channel === 'delivery'
+                        : prepaidByApp
                           ? 'مدفوع مسبقًا عبر التطبيق'
                           : 'المطلوب'}
                     </Text>
@@ -1381,7 +1403,7 @@ export default function PaymentModal({
                     </Text>
                   )}
 
-                  {method === 'cash' && channel !== 'delivery' && !paidByReward && (
+                  {method === 'cash' && !prepaidByApp && !paidByReward && (
                     <>
                       <View style={styles.payChips}>
                         {quickAmounts.map(v => {
@@ -1424,9 +1446,11 @@ export default function PaymentModal({
                     last four digits, which is what reconciles this order
                     against the platform's own statement -- and تأكيد الطلب
                     stays disabled until all four are entered. */}
-                {channel === 'delivery' && (
+                {needsLast4 && (
                   <View style={styles.splitInputs}>
-                    <Text style={styles.splitLabel}>آخر ٤ أرقام من فاتورة تطبيق التوصيل</Text>
+                    <Text style={styles.splitLabel}>
+                      {phoneOrder ? 'آخر ٤ أرقام من جوال الزبون' : 'آخر ٤ أرقام من فاتورة تطبيق التوصيل'}
+                    </Text>
                     <TextInput
                       style={styles.input}
                       placeholder="٠٠٠٠"
@@ -1538,7 +1562,7 @@ export default function PaymentModal({
                     <View style={styles.confirmButton}>
                       <GradientFill gradient={gradients.payButton} radius={radii.md} />
                       <Text style={styles.confirmText}>
-                        {channel === 'delivery' ? 'تأكيد الطلب' : method === 'split' ? 'تأكيد الدفع المقسّم' : 'تأكيد الدفع'}
+                        {prepaidByApp ? 'تأكيد الطلب' : method === 'split' ? 'تأكيد الدفع المقسّم' : 'تأكيد الدفع'}
                       </Text>
                     </View>
                   </TouchableOpacity>

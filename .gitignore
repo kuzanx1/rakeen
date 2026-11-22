@@ -61,3 +61,14 @@ ios/App/*.xcworkspace/xcuserdata/
 # فروقُ الانحدار البصريّ -- ناتجُ تشغيلٍ يُرفع مُرفَقاً في CI، لا يُلتزم.
 tools/receipt-visual/diff/
 tools/receipt-visual/.bench/
+
+# مفاتيحُ التوقيع. و keystore.properties مستثنىً أصلاً في
+# react-native-poc/.gitignore -- هذي تغطّي الامتدادات نفسَها أينما وقعت،
+# فملفُّ توقيعٍ في مجلّدٍ آخرَ لا يسقط من الاستثناء.
+*.keystore
+*.jks
+*.p12
+*.p8
+
+# مسوّداتُ العمل -- لقطاتٌ وسكربتاتُ تحقّقٍ لحظيّة، لا تُلتزم.
+scratchpad/

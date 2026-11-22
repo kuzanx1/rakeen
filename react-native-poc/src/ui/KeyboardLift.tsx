@@ -1,5 +1,5 @@
 import React from 'react';
-import { KeyboardAvoidingView, StyleProp, ViewStyle } from 'react-native';
+import { KeyboardAvoidingView, Pressable, StyleProp, StyleSheet, ViewStyle } from 'react-native';
 
 /**
  * يرفع محتوى النافذة فوق لوحة المفاتيح بدل أن تُدفن تحتها.
@@ -27,12 +27,28 @@ import { KeyboardAvoidingView, StyleProp, ViewStyle } from 'react-native';
 export default function KeyboardLift({
   style,
   children,
+  onBackdropPress,
 }: {
   style?: StyleProp<ViewStyle>;
   children: React.ReactNode;
+  /**
+   * الضغط على العتمة حول النافذة يقفلها -- ما يتوقّعه كل من استعمل
+   * جوالاً. وكان لا سبيل إلى الإغلاق إلا إصابة زر ✕ في زاويةٍ صغيرة،
+   * واليد ممتلئةٌ وقت الزحمة.
+   *
+   * والطبقةُ الملموسة تُرسم **قبل** المحتوى لا حوله: فالضغطة على
+   * النافذة نفسها تصلها هي، ولا تمرّ بحارسٍ يبتلعها. ولو لُفّ المحتوى
+   * بزرٍّ لاحتاج كلُّ ضغطٍ داخلَه إلى إيقاف تسلسل، وهو ما يكسر الحقول
+   * والقوائم بصمت.
+   *
+   * ولا تُمرَّر لنافذةٍ لا يجوز تجاوزها بضغطةٍ طائشة -- طلبٌ جديد
+   * ينتظر قبولاً أو رفضاً مثلاً.
+   */
+  onBackdropPress?: () => void;
 }) {
   return (
     <KeyboardAvoidingView style={style} behavior="padding">
+      {onBackdropPress ? <Pressable style={StyleSheet.absoluteFill} onPress={onBackdropPress} /> : null}
       {children}
     </KeyboardAvoidingView>
   );

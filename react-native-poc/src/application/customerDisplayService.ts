@@ -2,6 +2,7 @@ import { supabase, RAKEEN_API_BASE_URL } from '../infrastructure/supabaseClient'
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { getItem, setItem } from '../infrastructure/mmkvStorage';
 import { getDeviceConfig } from './authService';
+import { getCachedPosBootstrap, loadPosBootstrap } from './posBootstrap';
 import { pagerOnCustomerDisplay, hidePagerOnCustomerDisplay } from '../platform/customerDisplay';
 import { watchPagerOnDisplay } from './pagerService';
 import {
@@ -11,11 +12,13 @@ import {
   totalOnCustomerDisplay,
 } from '../platform/customerDisplay';
 import type { PrinterProfile } from '../platform/printer';
+import { buildSlidePages, SLIDE_SECONDS, type SlidePage } from '../domain/slides';
 
 /**
- * وش يطلع على شاشة العميل (الشاشة الصغيرة اللي قدام الزبون في سنمي).
+ * وش يطلع على شاشة العميل (الشاشة الصغيرة اللي قدام الزبون).
  *
  * - mirror: نفس شاشة الكاشير (اللي يسويه أندرويد لحاله).
+ * - slides: منيو المطعم يدور صفحاتٍ (domain/slides) على نفس هوية brand.
  * - brand: هوية المطعم -- اسم المطعم (كتابة أو صورة الاسم) في النص على لونه.
  *   وقت الدفع يطلع المبلغ المطلوب، ولما الكاشير يضغط «اعرض الباركود» يطلع
  *   باركود بطاقة الولاء (أو باركود المنيو) دقيقة ويرجع.
@@ -27,7 +30,8 @@ import type { PrinterProfile } from '../platform/printer';
  * من 8 حروف من لوحة ركين (المتجر الإلكتروني ← إعدادات المتجر ← شاشة
  * العميل ← «أضف شاشة»)، فما تغيّر شي في الخادم.
  */
-export type CustomerDisplayMode = 'mirror' | 'brand' | 'banner' | 'url';
+export type CustomerDisplayMode = 'mirror' | 'brand' | 'slides' | 'banner' | 'url';
+export { buildSlidePages, type SlidePage };
 
 /** ألوان جاهزة للخلفية. 'store' = لون المتجر في لوحة ركين. */
 export const DISPLAY_COLORS: { key: string; label: string; hex: string }[] = [
@@ -44,7 +48,7 @@ const BARCODE_SECONDS = 60;
 function modeOf(p: PrinterProfile | null | undefined): CustomerDisplayMode {
   const m = p?.customerDisplay as string | undefined;
   if (m === 'logo' || m === 'menu') return 'brand'; // أسماء قديمة ليوم واحد
-  return m === 'brand' || m === 'banner' || m === 'url' ? m : 'mirror';
+  return m === 'brand' || m === 'slides' || m === 'banner' || m === 'url' ? m : 'mirror';
 }
 
 /** لون واضح فوق الخلفية: كريمي على الغامق، وغامق على الفاتح. */
@@ -63,6 +67,8 @@ export interface BrandInfo {
   color: string;
   /** رابط المنيو الأونلاين: باركوده ثابت على شاشة الترحيب. فاضي = بدون. */
   menu?: string;
+  /** صفحات المنيو المتحرك. فاضية = شاشة الترحيب بالاسم. */
+  pages?: SlidePage[];
 }
 
 /** إعداد واجهة الهوية للشاشة (RakeenCustomerDisplayModule.kt). */
@@ -79,6 +85,7 @@ export function brandConfig(b: BrandInfo): string {
     soft: softHex,
     // النص نفسه، والجهاز يرسم الباركود.
     menuQr: b.menu && /^https:\/\//i.test(b.menu) ? b.menu : '',
+    ...(b.pages && b.pages.length > 0 ? { pages: b.pages, secs: SLIDE_SECONDS } : {}),
   });
 }
 
@@ -127,7 +134,36 @@ async function secretFor(code: string): Promise<string> {
   return d.secret;
 }
 
+/** منيو المطعم من نفس المصدر الذي يبيع منه الكاشير -- لا استعلامَ ثانٍ. */
+async function slidePages(): Promise<SlidePage[]> {
+  const device = await getDeviceConfig();
+  if (device.businessId == null) return [];
+  const boot = getCachedPosBootstrap(device.businessId) ?? (await loadPosBootstrap(device.businessId));
+  return buildSlidePages(boot.catalog.categories, boot.catalog.products);
+}
+
 let stopCurrent: (() => void) | null = null;
+let started = false;
+
+/**
+ * شاشة الزبون تبدأ مع شاشة البيع، لا مع صفحة الإعدادات.
+ *
+ * كانت لا تُستدعى إلا عند حفظ «الطابعة والجهاز»، فجهازٌ أُعيد تشغيله
+ * يرجع يكرّر شاشة الكاشير أمام الزبون حتى يفتح أحدٌ تلك الصفحة ويحفظ
+ * من جديد -- والمالك يظنّ الإعداد ضاع.
+ *
+ * ومرّةً واحدةً في عمر التطبيق: شاشة البيع تُبنى وتُهدم مع كل تبويب،
+ * والمنيو لا يُعاد من صفحته الأولى كلّما لمس الكاشير تبويباً.
+ */
+export async function ensureCustomerDisplay(): Promise<void> {
+  if (started) return;
+  started = true;
+  try {
+    await startCustomerDisplay();
+  } catch {
+    started = false;
+  }
+}
 // هوية المطعم معروضة؟ (المبلغ وباركود المنيو يطلعون عليها بس)
 let brandOn = false;
 let lastCodeOk = false;
@@ -142,6 +178,7 @@ export function customerDisplayLinked(): boolean {
  * ومع حفظ الإعدادات. يرجّع false لو المطلوب ما ينعرض (فترجع الشاشة نفس الكاشير).
  */
 export async function startCustomerDisplay(profile?: PrinterProfile | null): Promise<boolean> {
+  started = true;
   stopCurrent?.();
   stopCurrent = null;
   lastCodeOk = false;
@@ -171,12 +208,20 @@ export async function startCustomerDisplay(profile?: PrinterProfile | null): Pro
     return showOnCustomerDisplay('image', JSON.stringify({ url, fill: !!biz.banner }));
   }
 
-  // brand
+  // brand / slides -- الاثنان هويةٌ واحدة عند المحرّك، والفرق صفحات المنيو.
   const pick = p?.customerDisplayColor || DISPLAY_COLORS[0].key;
   const color = pick === 'store' ? (/^#[0-9a-f]{6}$/i.test(biz.theme) ? biz.theme : DISPLAY_COLORS[0].hex) : pick;
+  // منيو ما وصل (أول تشغيل بلا نت) يترك الشاشة على الهوية، لا فاضية.
+  const pages = mode === 'slides' ? await slidePages().catch(() => []) : [];
   const shown = await showOnCustomerDisplay(
     'brand',
-    brandConfig({ name: biz.name, logo: (p?.customerDisplayLogoUrl || '').trim(), color, menu: (p?.customerDisplayMenuUrl || '').trim() }),
+    brandConfig({
+      name: biz.name,
+      logo: (p?.customerDisplayLogoUrl || '').trim(),
+      color,
+      menu: (p?.customerDisplayMenuUrl || '').trim(),
+      pages,
+    }),
   );
   brandOn = shown;
 

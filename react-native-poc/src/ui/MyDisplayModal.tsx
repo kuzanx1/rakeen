@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import {
@@ -76,6 +76,8 @@ export default function MyDisplayModal({
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
+        {/* الضغط على العتمة يقفل، كـ✕ تماماً. */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={[styles.card, shadows.md]}>
           <View style={styles.head}>
             <Text style={styles.title}>شاشة العميل</Text>

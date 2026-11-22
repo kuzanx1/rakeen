@@ -289,6 +289,17 @@ export async function renderReceiptToEscPosBase64(
         invoiceRef: receipt.invoiceRef,
         platformName: receipt.platformName,
         platformInvoiceLast4: receipt.platformInvoiceLast4,
+        /**
+         * وعلامةُ الجوال معهما -- وإلّا كُتب على ورقةِ طلبٍ جاء بالهاتف
+         * «آخر ٤ أرقام فاتورة التطبيق».
+         *
+         * وهذا السطرُ هو العلّة بعينها: النموذجُ يُعاد بناؤه هنا حقلاً
+         * حقلاً، فحقلٌ جديدٌ يُنسى في هذي القائمة يسقط في آخر خطوة قبل
+         * الرسم -- وإن كان صحيحاً في الشاشة والطبقةِ الوسطى معاً. وهي
+         * نفسُ علّة `platform_invoice_last4: null` في بناء الحمولة.
+         * فيُحرس بـ tools/accounting-checks/receipt-fields.cjs.
+         */
+        phoneOrder: receipt.phoneOrder,
         customerName: receipt.customerName,
         customerPhone: receipt.customerPhone,
         items: receipt.items,

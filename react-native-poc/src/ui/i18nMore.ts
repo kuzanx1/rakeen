@@ -335,6 +335,12 @@ export const I18N_EN_MORE: Record<string, string> = {
   'اسم المطعم + باركود الولاء': 'Business name + loyalty barcode',
   'اسم المطعم في النص على لونه. وقت الدفع يطلع المبلغ المطلوب، و«اعرض الباركود» يطلع للزبون باركود الولاء دقيقة. وتقدر تثبّت باركود المنيو جنب الاسم.':
     'Your business name centred on its colour. At payment it shows the amount due, and “Show barcode” shows the customer the loyalty barcode for a minute. You can pin the menu barcode next to the name.',
+  'جوال': 'Phone',
+  'آخر ٤ أرقام من جوال الزبون': 'Last 4 digits of the customer’s mobile',
+  'منيو متحرك': 'Rotating menu',
+  'منيو مطعمك يدور على الشاشة: قسمٌ كل سبع ثوانٍ بصوره وأسعاره، بترتيب أقسامك في لوحة ركين. ووقت الدفع يطلع المبلغ، وبعده الباركود والبيجر، ثم يرجع المنيو.':
+    'Your menu cycles on the screen: one section every seven seconds with its photos and prices, in your dashboard’s own section order. At payment it shows the amount, then the barcode and the pager, then the menu returns.',
+  'شاشات الجهاز:': 'Device screens:',
   'صورة المتجر': 'Store image',
   'صورة المتجر الإلكتروني (البانر) من لوحة ركين، تملأ الشاشة. لو ما فيه، يطلع الشعار.':
     'Your online store banner from the Rakeen dashboard, full screen. If there is none, the logo shows.',
@@ -414,9 +420,9 @@ export const I18N_EN_MORE: Record<string, string> = {
   'إثبات الطباعة والقياس': 'Print proof & benchmark',
   'الطباعة': 'Printing',
   'آخر خطأ سحابة: {}': 'Last cloud error: {}',
-  'ما فيه شي بطيء انسجّل': 'Nothing slow recorded',
+  'ما فيه شي بطيء اتسجّل': 'Nothing slow recorded',
   'ما تأخّر (فوق ١٢٠ ملّي)': 'Slow (over 120 ms)',
-  'ما فيه أخطاء انسجّلت': 'No errors recorded',
+  'ما فيه أخطاء اتسجّلت': 'No errors recorded',
   'أخطاء غير متوقّعة': 'Unexpected errors',
   'إعادة محاولة الطباعات الفاشلة ({})': 'Retry failed prints ({})',
   'إعادة محاولة الطلبات العالقة ({})': 'Retry stuck orders ({})',
@@ -602,4 +608,33 @@ export const I18N_EN_MORE: Record<string, string> = {
   'طاولة {} — {}': 'Table {} — {}',
   'نقل طاولة {} إلى:': 'Move table {} to:',
   'إلغاء طلب طاولة {}؟': 'Cancel the order on table {}?',
+  /* ── تذكير تجديد الاشتراك (ui/RenewalNotice.tsx) — بلا ذكر مبلغ */
+  'اشتراكك يُجدَّد اليوم': 'Your subscription renews today',
+  'باقي يوم واحد على تجديد اشتراكك': 'Your subscription renews tomorrow',
+  'باقي يومين على تجديد اشتراكك': 'Your subscription renews in 2 days',
+  'باقي {n} أيام على تجديد اشتراكك': 'Your subscription renews in {n} days',
+  'تأخَّر تجديد اشتراكك': 'Your subscription renewal is overdue',
+  'انتهت مهلة تجديد اشتراكك': 'Your renewal grace period has ended',
+  'ما قبلنا إيصال التحويل — ارفع إيصال جديد': 'We could not accept your transfer receipt — please upload a new one',
+  'ادخل لوحة التحكم وارفع إيصال التحويل، عشان الخدمة تستمر بدون انقطاع.':
+    'Open the dashboard and upload your transfer receipt, so your service keeps running without interruption.',
+  'ارفع إيصال التحويل من لوحة التحكم اليوم، عشان ما تنقطع الخدمة.':
+    'Upload your transfer receipt from the dashboard today, so your service is not interrupted.',
+  'المهلة شغّالة الحين. ارفع إيصال التحويل من لوحة التحكم عشان ما يتوقف الكاشير.':
+    'Your grace period is running. Upload your transfer receipt from the dashboard so the cashier does not stop.',
+  'انتهت المهلة، والكاشير معرّض للإيقاف في أي وقت. ارفع إيصال التحويل من لوحة التحكم.':
+    'The grace period is over and the cashier may be paused at any time. Upload your transfer receipt from the dashboard.',
+  'ارفع إيصال التحويل مرّة ثانية من لوحة التحكم، أو كلّمنا لو فيه لبس.':
+    'Upload your transfer receipt again from the dashboard, or talk to us if something is unclear.',
+  /* شاشة التشخيص -- قسم تذكير الاشتراك */
+  'تذكير الاشتراك': 'Subscription reminder',
+  'حالة التجديد': 'Renewal state',
+  '⚪ ما فيه تذكير': '⚪ No reminder',
+  '{} · {} يوم': '{} · {} days',
+  'إعادة عرض تذكير الاشتراك': 'Show the subscription reminder again',
+  'رجع التذكير — ارجع للرئيسية': 'Reminder restored — go back to Home',
+  'افتح اللوحة': 'Open dashboard',
+  'افتح لوحة التحكم': 'Open dashboard',
+  'ذكَّرني بكرة': 'Remind me tomorrow',
+  'تمام': 'Got it',
 };

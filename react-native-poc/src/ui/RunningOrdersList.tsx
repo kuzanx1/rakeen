@@ -641,7 +641,7 @@ export function CancelOrderModal({
 
   return (
     <Modal visible={order != null} animationType="fade" transparent onRequestClose={onClose}>
-      <KeyboardLift style={styles.cOverlay}>
+      <KeyboardLift style={styles.cOverlay} onBackdropPress={onClose}>
         <View style={[styles.cCard, shadows.md]}>
           <ScrollView contentContainerStyle={styles.cBody} keyboardShouldPersistTaps="handled">
             <Text style={styles.cTitle}>إلغاء الطلب #{order?.orderNo ?? order?.id}</Text>

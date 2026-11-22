@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Linking, Modal, Platform, View } from 'react-native';
+import { Linking, Modal, View } from 'react-native';
 import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import { createStyles, fonts, radii, spacing } from './theme';
 import { TrialStatus, TRIAL_SUBSCRIBE_WA, trialNotice } from '../domain/trial';
+import { NO_PAYMENT_STEERING } from '../platform/storeRules';
 import { getTrialClockOffset, getTrialStatus, refreshTrialStatus, subscribeTrial } from '../application/trialService';
 
-/** iOS بلا رابط أو دعوة للاشتراك خارج التطبيق (App Store 3.1.1). */
-const CAN_CONTACT = Platform.OS !== 'ios';
+/** نسخ المتاجر بلا رابط أو دعوة للاشتراك خارج المتجر (src/platform/storeRules.ts). */
+const CAN_CONTACT = !NO_PAYMENT_STEERING;
 
 /** يتابع حالة التجربة: قراءة أول ما تنفتح الشاشة ثم كل 5 دقايق. */
 export function useTrialStatus(): TrialStatus | null {

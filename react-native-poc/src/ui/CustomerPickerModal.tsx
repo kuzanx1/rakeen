@@ -106,7 +106,7 @@ export default function CustomerPickerModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onCancel}>
-      <KeyboardLift style={styles.overlay}>
+      <KeyboardLift style={styles.overlay} onBackdropPress={onCancel}>
         <View style={styles.sheet}>
           {!showNewForm ? (
             <>

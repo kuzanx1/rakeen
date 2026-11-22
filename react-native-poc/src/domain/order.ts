@@ -9,7 +9,7 @@
  */
 
 import uuid from 'react-native-uuid';
-import { CartLine, OrderChannel, ModifierDefinition, computeLineStockDecrements, computeLineBoxSelections, formatBoxLabels, withOptionCount } from './cart';
+import { CartLine, OrderChannel, ModifierDefinition, computeLineStockDecrements, computeLineBoxSelections, formatBoxLabels, lineOptionsExtra, optionCount, round2, withOptionCount } from './cart';
 import type { ModifierOptionStockMap, StockDecrement, BoxSelectionPayload, BoxDefinition } from './cart';
 import type { Product } from './catalog';
 import type { PaymentMethod, PaymentState, DrawerState } from './payment';
@@ -45,7 +45,7 @@ export interface OrderItemPayload {
    *  has one -- independent of the cashier's screen language at sale
    *  time. Lets a reprint/refund of this exact order show both later,
    *  the same as the printed receipt does for the product name. */
-  selected_modifiers: { text: string; textEn?: string }[];
+  selected_modifiers: { text: string; textEn?: string; price?: number }[];
   /**
    * Stock drawn by this line's modifier EXTRAS -- "extra cheese" taking
    * 20g off the cheese in the store room.
@@ -238,16 +238,19 @@ export function buildDineInPayPayload(
   };
 }
 
+/** الاسمان وثمنُ الإضافة في السطر. `qty` كميةُ السطر، لأن الإضافة بلا
+ *  عدّاد تقع على كل حبة -- «طحينة» على خمسة أطباق خمسُ طحينات. */
 export function formatConfigLabels(
   config: CartLine['config'],
   modDef: ModifierDefinition | undefined,
-): { text: string; textEn?: string }[] {
+  qty: number = 1,
+): { text: string; textEn?: string; price?: number }[] {
   if (!modDef || !config) return [];
   // A box has no groups -- its labels come from the piece counts, so the
   // group loop below would produce nothing for one.
   const box = modDef as unknown as BoxDefinition;
   if (box.isBox) return formatBoxLabels(config, box).map(text => ({ text }));
-  const labels: { text: string; textEn?: string }[] = [];
+  const labels: { text: string; textEn?: string; price?: number }[] = [];
   modDef.groups.forEach(g => {
     const sel = config[g.id];
     const arr = Array.isArray(sel) ? sel : [sel];
@@ -255,9 +258,12 @@ export function formatConfigLabels(
       if (!optId) return;
       const opt = g.options.find(o => o.id === optId);
       if (!opt) return;
+      const units = optionCount(config, optId) ?? qty;
+      const amount = round2((opt.price || 0) * units);
       labels.push({
         text: withOptionCount(opt.name, config, optId),
         textEn: opt.nameEn ? withOptionCount(opt.nameEn, config, optId) : undefined,
+        price: amount || undefined,
       });
     });
   });
@@ -304,17 +310,24 @@ function buildItems(
   optionStock: ModifierOptionStockMap,
   stockUnitById: Record<number, string>,
 ): OrderItemPayload[] {
-  return cart.map(item => ({
+  return cart.map(item => {
+  // فرقُ الإضافات بالعدد (lineOptionsExtra): صفرٌ في كل سطرٍ بلا عدّاد،
+  // وهو الأغلب. يُخزَّن في modifiers_total -- خانتُه في الجدول -- فيبقى
+  // unit_price على معناه ويبقى مجموع السطر ريالاً صحيحاً بلا كسر.
+  const modifiersExtra = item.isPointsRedemption
+    ? 0
+    : lineOptionsExtra(item.config, modifiersByProductId[item.productId], item.qty);
+  return {
     // A service's virtual product id is always negative (see domain/catalog.ts) --
     // real menu_items ids are always positive. Same branch as the source.
     menu_item_id: item.productId < 0 ? null : item.productId,
     service_id: item.productId < 0 ? -item.productId : null,
     qty: item.qty,
     unit_price: unitPriceOf(item),
-    modifiers_total: 0,
-    line_total: unitPriceOf(item) * item.qty,
+    modifiers_total: modifiersExtra,
+    line_total: round2(unitPriceOf(item) * item.qty + modifiersExtra),
     note: item.note || null,
-    selected_modifiers: formatConfigLabels(item.config, modifiersByProductId[item.productId]),
+    selected_modifiers: formatConfigLabels(item.config, modifiersByProductId[item.productId], item.qty),
     stock_decrements: computeLineStockDecrements(
       item,
       modifiersByProductId[item.productId],
@@ -335,7 +348,8 @@ function buildItems(
     // مكافأةٌ خُصمت من رصيدها لا من النقاط: صفرٌ ولو كان الصنف نفسه
     // قابلاً للاستبدال بالنقاط.
     points_cost: item.isPointsRedemption && !item.isFreeReward ? productsById.get(item.productId)?.pointsRedeemPrice || 0 : 0,
-  }));
+  };
+  });
 }
 
 export function buildOrderPayload(
@@ -378,7 +392,21 @@ export function buildOrderPayload(
     cash_amount: cashAmount,
     channel: ctx.channel,
     delivery_platform_id: ctx.channel === 'delivery' ? ctx.deliveryPlatformId : null,
-    platform_invoice_last4: null,
+    /**
+     * آخرُ أربعة -- كانت `null` مكتوبةً هكذا، فلا تصل الخادمَ أبداً.
+     *
+     * والشاشةُ تجمعها وتمنع التأكيد قبلها، والسياقُ يحملها (:289)،
+     * والخادمُ يخزّنها -- ثم يُلقيها هذا السطرُ قبل الإرسال. فكلُّ طلبٍ
+     * خرج من التطبيق منذ أوّل يوم خرج بخانةٍ فارغة: لا رقمَ فاتورة
+     * كيتا، ولا آخرَ أربعةٍ من جوال المتّصل.
+     *
+     * ولم يُكتشف لأنّ كاشير الويب يرسلها صحيحةً منذ القديم، ولأنّ
+     * الحارسَ الذي كُتب لها (tools/accounting-checks/last4-reset.cjs)
+     * كان يفحص الشاشةَ -- طبقةَ الجمع -- لا الحمولةَ التي تُرسل.
+     * (كشفه صاحبُ المطعم: ١٦ طلباً في يومٍ واحد، ولا أربعةَ في واحدٍ
+     * منها -- ٢٠٢٦/١١/٢٠.)
+     */
+    platform_invoice_last4: ctx.channel === 'delivery' ? ctx.platformInvoiceLast4 || null : null,
     table_id: ctx.channel === 'dine_in' ? ctx.tableId : null,
     items: buildItems(cart, productsById, modifiersByProductId, unitPriceOf, ctx.optionStock, ctx.stockUnitById),
     payment_state: 'PAYMENT_PENDING',

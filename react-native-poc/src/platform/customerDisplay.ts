@@ -12,6 +12,8 @@ export type NativeDisplayMode = 'mirror' | 'brand' | 'image';
 
 interface CustomerDisplayAPI {
   hasDisplay(): Promise<boolean>;
+  /** سطرٌ لكل شاشةٍ يشوفها أندرويد في الجهاز (تشخيص للدعم). */
+  displays?(): Promise<string[]>;
   show(mode: NativeDisplayMode, content: string): Promise<boolean>;
   total(text: string): void;
   /** data = نص الباركود (رابط)، يُرسم QR على الجهاز. */
@@ -29,6 +31,15 @@ export async function hasCustomerDisplay(): Promise<boolean> {
     return Native ? await Native.hasDisplay() : false;
   } catch {
     return false;
+  }
+}
+
+/** شاشات الجهاز كما يراها أندرويد. فاضية = ما فيه وحدة. */
+export async function listDeviceDisplays(): Promise<string[]> {
+  try {
+    return Native?.displays ? await Native.displays() : [];
+  } catch {
+    return [];
   }
 }
 

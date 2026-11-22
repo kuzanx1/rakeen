@@ -27,6 +27,7 @@ import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { kitchenTicketByButton, shouldPrintCustomerReceipt, shouldPrintReceiptLogo } from '../domain/printerProfile';
 import type { KitchenTicketData, ReceiptData } from '../domain/receipt';
 import { planHas } from '../application/planService';
+import { PHONE_PLATFORM_LABEL, isPhoneOrderRow } from '../domain/phoneOrder';
 import { useI18n, uiLang } from './i18n';
 import { createStyles, fonts, gradients, Palette, radii, spacing, useTheme } from './theme';
 import { useShell } from './shell';
@@ -66,7 +67,7 @@ const STATUS_TABS: { value: OrdersTab; label: string }[] = [
   { value: 'refunded', label: 'مسترجعة' },
 ];
 
-const CHANNEL_LABELS: Record<string, string> = { dine_in: 'محلي', pickup: 'سفري', delivery: 'تطبيقات التوصيل' };
+const CHANNEL_LABELS: Record<string, string> = { dine_in: 'محلي', pickup: 'سفري', delivery: 'توصيل' };
 
 /**
  * سطر نوع الطلب على الفاتورة وتذكرة المطبخ عند إعادة الطباعة. الطلب
@@ -75,7 +76,7 @@ const CHANNEL_LABELS: Record<string, string> = { dine_in: 'محلي', pickup: '�
  */
 function orderMetaLabel(d: OrderHistoryDetail): string {
   const table = d.tableNumber != null ? ` — طاولة ${d.tableNumber}` : ''; // i18n-ignore: يُطبع
-  if (d.source !== 'online') return (CHANNEL_LABELS[d.channel] || d.channel) + table;
+  if (d.source !== 'online') return (isPhoneOrderRow(d) ? PHONE_PLATFORM_LABEL : CHANNEL_LABELS[d.channel] || d.channel) + table;
   return 'طلب إلكتروني — ' + (d.channel === 'delivery' ? 'توصيل' : 'استلام') + table; // i18n-ignore: يُطبع
 }
 /** وقت الاستلام المحدد سطراً مستقلاً بخط بارز، واليوم معه لو مو نفس يوم الطلب. */
@@ -351,8 +352,10 @@ export default function OrderHistoryScreen({
         createdAtISO: detail.createdAt,
         metaLabel: orderMetaLabel(detail),
         pickupAt: pickupAtLabel(detail),
-        platformName: detail.platformName || undefined,
+        platformName: (isPhoneOrderRow(detail) ? '' : detail.platformName) || undefined,
         platformInvoiceLast4: detail.platformInvoiceLast4 || undefined,
+        // وإعادةُ الطباعة تعرف طلبَ الجوال كما تعرفه الطباعةُ الأولى.
+        phoneOrder: isPhoneOrderRow(detail),
         customerName: detail.source === 'online' ? detail.customerName || undefined : undefined,
         customerPhone: detail.source === 'online' ? detail.customerPhone || undefined : undefined,
         orderNote: detail.source === 'online' ? detail.onlineNote || undefined : undefined,

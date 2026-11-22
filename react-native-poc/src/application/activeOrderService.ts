@@ -1,4 +1,5 @@
 import { supabase } from '../infrastructure/supabaseClient';
+import { platformLabelOf } from '../domain/phoneOrder';
 import { businessDayStartMs } from './orderSeries';
 
 /**
@@ -123,8 +124,22 @@ export async function listActiveOrders(branchId: number): Promise<ActiveOrder[]>
       channel: o.channel === 'delivery' ? 'delivery' : 'pickup',
       createdAt: new Date(o.created_at),
       total: Number(o.total),
+      // وطلبُ الجوال يُسمّى باسمه في شاشة الطلبات الجارية، لا «توصيل»
+      // مبهماً: الكاشير يعرف به أيَّ ورقةٍ ينتظر صاحبُها.
       platformName:
-        o.channel === 'delivery' ? (isOnline ? 'متجر المطعم' : platform?.name || 'توصيل') : null,
+        o.channel === 'delivery'
+          ? isOnline
+            ? 'متجر المطعم'
+            : platform?.name ||
+              platformLabelOf({
+                channel: 'delivery',
+                deliveryPlatformId: o.delivery_platform_id ?? null,
+                paymentMethod: o.payment_method ?? null,
+                source: o.source ?? null,
+                platformInvoiceLast4: o.platform_invoice_last4,
+              }) ||
+              'توصيل'
+          : null,
       platformId: o.delivery_platform_id != null ? Number(o.delivery_platform_id) : null,
       invoiceLast4: o.platform_invoice_last4 ?? null,
       isOnline,

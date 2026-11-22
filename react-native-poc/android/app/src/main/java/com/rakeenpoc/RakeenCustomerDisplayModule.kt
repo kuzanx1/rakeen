@@ -12,6 +12,7 @@ import android.hardware.display.DisplayManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.DisplayMetrics
 import android.util.TypedValue
 import android.view.Display
 import android.view.Gravity
@@ -22,6 +23,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -31,13 +33,19 @@ import com.facebook.react.bridge.UiThreadUtil
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
-import kotlin.concurrent.thread
+
 
 /**
- * شاشة العميل في أجهزة سنمي ذات الشاشتين.
+ * شاشة العميل في الأجهزة ذات الشاشتين (سنمي، رواء R10a، وغيرها).
+ *
+ * ما فيها شيءٌ خاصٌّ بسنمي: ولا سطرَ من مكتبة المصنّع. الشاشة الثانية
+ * في هذي الأجهزة شاشةُ أندرويدٍ عادية، يرسم عليها أيُّ تطبيقٍ بـ
+ * Presentation. ولهذا تنطفئ شاشةُ الزبون في أيِّ نظامٍ آخر لحظةَ يُقفل
+ * تطبيقه: هو كان يرسمها، لا الجهاز. ونحن نرسمها كذلك.
  *
  * أندرويد يكرر شاشة الكاشير على الشاشة الثانية ما دام ما فيه شي معروض
  * عليها -- فالزبون يشوف كل اللي يسويه الكاشير. Presentation (واجهة
@@ -68,14 +76,60 @@ class RakeenCustomerDisplayModule(private val ctx: ReactApplicationContext) :
         ctx.addLifecycleEventListener(this)
     }
 
+    /**
+     * الشاشة الثانية -- بتصنيف أندرويد أولاً، وإلا بأي شاشةٍ غير شاشة
+     * الكاشير.
+     *
+     * DISPLAY_CATEGORY_PRESENTATION لا يرجّع إلا الشاشات اللي عليها علم
+     * FLAG_PRESENTATION، وهو علمُ الشاشات «الخارجية». وفيه أجهزةٌ
+     * تعرّف شاشة الزبون شاشةً داخليةً بلا هذا العلم، فترجع القائمة
+     * فاضية ونحن نحسب الجهاز بشاشةٍ واحدة -- وأندرويد يشوف شاشتين.
+     * فإن ما جاء بالتصنيف شيء، ناخذ أيَّ شاشةٍ صالحةٍ شغّالةٍ غير
+     * الأولى. وعلى جهازٍ بشاشةٍ واحدة ما فيه غيرها، فيرجع null كما كان.
+     */
     private fun secondDisplay(): Display? {
         val dm = ctx.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-        return dm.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION).firstOrNull()
+        dm.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION).firstOrNull()?.let { return it }
+        // الشغّالة أولاً، وإلا فأيُّ شاشةٍ صالحة: فيه أجهزةٌ تقول عن
+        // شاشة الزبون «مطفية» ما دام ما فيه شيءٌ مرسومٌ عليها.
+        val others = dm.displays.filter { it.displayId != Display.DEFAULT_DISPLAY && it.isValid }
+        return others.firstOrNull { it.state != Display.STATE_OFF } ?: others.firstOrNull()
     }
 
     @ReactMethod
     fun hasDisplay(promise: Promise) {
         promise.resolve(secondDisplay() != null)
+    }
+
+    /**
+     * وش يشوف أندرويد من شاشاتٍ في هذا الجهاز -- سطرٌ لكل شاشة، يُعرض
+     * في «الطابعة والجهاز».
+     *
+     * جهاز العميل ما هو بيدنا، والسؤال «هل فيه شاشة زبون» ما يُجاب
+     * بالتخمين. هذا السطر يجي منه هو.
+     */
+    @ReactMethod
+    fun displays(promise: Promise) {
+        try {
+            val dm = ctx.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+            val tagged = dm.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION).map { it.displayId }.toSet()
+            val out = Arguments.createArray()
+            for (d in dm.displays) {
+                val m = DisplayMetrics()
+                @Suppress("DEPRECATION")
+                d.getMetrics(m)
+                val kind = when {
+                    d.displayId == Display.DEFAULT_DISPLAY -> "الكاشير"
+                    d.displayId in tagged -> "عرض"
+                    else -> "داخلية"
+                }
+                val off = if (d.state == Display.STATE_OFF) " (مطفية)" else ""
+                out.pushString("#${d.displayId} ${d.name} · ${m.widthPixels}×${m.heightPixels} · $kind$off")
+            }
+            promise.resolve(out)
+        } catch (e: Exception) {
+            promise.reject("displays_error", e.message, e)
+        }
     }
 
     @ReactMethod
@@ -160,6 +214,9 @@ class RakeenCustomerDisplayModule(private val ctx: ReactApplicationContext) :
 }
 
 /** باركود QR من نص، أسود على أبيض، مرسوم على الجهاز. */
+/** أكبرُ عددِ أصنافٍ في صفحةِ منيو -- صفّان من أربعة. */
+private const val MENU_MAX_PER_PAGE = 8
+
 private object Qr {
     fun bitmap(data: String, side: Int): Bitmap? = try {
         val m = QRCodeWriter().encode(data, BarcodeFormat.QR_CODE, side, side, mapOf(EncodeHintType.MARGIN to 1))
@@ -176,19 +233,48 @@ private object ImageCache {
     private val map = HashMap<String, Bitmap>()
     private val main = Handler(Looper.getMainLooper())
 
-    fun load(url: String, done: (Bitmap?) -> Unit) {
-        map[url]?.let { done(it); return }
-        thread {
+    /**
+     * ثلاثة عمّالٍ لا أكثر.
+     *
+     * كان كلُّ طلبِ صورةٍ يفتح خيطاً بنفسه، وهذا يكفي للشعار الواحد.
+     * ومنيو المطعم خمسون صورة: خمسون خيطاً تتزاحم على شبكةٍ واحدة في
+     * جهازٍ يبيع عليه كاشير. فصارت طابوراً من ثلاثة.
+     */
+    private val pool = java.util.concurrent.Executors.newFixedThreadPool(3) { r ->
+        Thread(r, "rk-img").apply { isDaemon = true; priority = Thread.MIN_PRIORITY }
+    }
+
+    /**
+     * maxPx: أكبرُ ضلعٍ نحتاجه فعلاً. صورُ المنتجات مرفوعةٌ بأحجامها
+     * الأصلية، وخمسون صورةً بحجمها الكامل في ذاكرة جهازٍ متواضعٍ تعني
+     * انهيار التطبيق على الكاشير. فتُصغَّر وهي تُفَكُّ، لا بعدها.
+     * صفر = كما هي (الشعار).
+     */
+    fun load(url: String, maxPx: Int = 0, done: (Bitmap?) -> Unit) {
+        val key = "$url@$maxPx"
+        map[key]?.let { done(it); return }
+        pool.execute {
             val bmp = try {
                 val c = URL(url).openConnection() as HttpURLConnection
                 c.connectTimeout = 8000
                 c.readTimeout = 8000
-                c.inputStream.use { BitmapFactory.decodeStream(it) }
+                val bytes = c.inputStream.use { it.readBytes() }
+                if (maxPx <= 0) {
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                } else {
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                    var s = 1
+                    while (bounds.outWidth / (s * 2) >= maxPx && bounds.outHeight / (s * 2) >= maxPx) s *= 2
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = s })
+                }
             } catch (_: Exception) {
+                null
+            } catch (_: OutOfMemoryError) {
                 null
             }
             main.post {
-                if (bmp != null) map[url] = bmp
+                if (bmp != null) map[key] = bmp
                 done(bmp)
             }
         }
@@ -232,6 +318,22 @@ class CustomerPresentation(
     private val handler = Handler(Looper.getMainLooper())
     private val hideRun = Runnable { hideCode() }
 
+    // المنيو المتحرك: صفحاتٌ جاهزةٌ تجي من التطبيق (كل صفحةٍ قسمٌ
+    // بأصنافه)، تتبدّل وحدها. فاضية = شاشة الترحيب كما كانت.
+    private val pages: JSONArray = cfg.optJSONArray("pages") ?: JSONArray()
+    private val pageSecs = (cfg.optDouble("secs", 7.0).takeIf { it > 1 } ?: 7.0).toLong()
+    private var pageIdx = 0
+    private var menuBold: Typeface? = null
+    private var menuRiyal: Typeface? = null
+    private var menuTitle: TextView? = null
+    private var menuGrid: LinearLayout? = null
+    private var menuDots: LinearLayout? = null
+    private var scrW = 0
+    private var scrH = 0
+    private val turnRun = Runnable { turnPage() }
+    // الشاشة انطوت؟ ما فيه تلاشٍ ينتهي فيعيد تشغيل الدورة من وراءها.
+    private var stopped = false
+
     private fun parse(s: String, def: Int): Int = try { if (s.isBlank()) def else Color.parseColor(s) } catch (_: Exception) { def }
 
     private fun font(name: String, fallback: Typeface): Typeface =
@@ -241,12 +343,19 @@ class CustomerPresentation(
         super.onCreate(savedInstanceState)
         val m = context.resources.displayMetrics
         unit = minOf(m.widthPixels, m.heightPixels) / 100f
+        scrW = m.widthPixels
+        scrH = m.heightPixels
         val root = FrameLayout(context)
         root.setBackgroundColor(if (mode == "image") Color.WHITE else bg)
         setContentView(root, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         if (mode == "image") buildImage(root) else buildBrand(root, m.widthPixels)
         built = true
         setTotal(pendingTotal)
+        try {
+            startMenu()
+        } catch (_: Exception) {
+            // منيو ما انرسم يترك الشاشة على هويتها، ما يسقط الكاشير.
+        }
     }
 
     private fun buildImage(root: FrameLayout) {
@@ -318,7 +427,11 @@ class CustomerPresentation(
         line.background = GradientDrawable().apply { setColor(ink); cornerRadius = unit; alpha = 110 }
         hello.addView(line, LinearLayout.LayoutParams((unit * 14).toInt(), (unit * 0.8f).toInt()).apply { topMargin = (unit * 5).toInt() })
         hello.addView(text("حيّاك الله", 6.4f, soft, bold), wrap().apply { topMargin = (unit * 3.5f).toInt() })
-        if (menuQr.isEmpty()) {
+        if (pages.length() > 0) {
+            // منيو المطعم يدور على الشاشة. الترحيب ما له مكان هنا:
+            // الصفحة نفسها فيها اسم القسم وأصنافه بصورها وأسعارها.
+            idle = buildMenu(bold, riyal)
+        } else if (menuQr.isEmpty()) {
             idle = hello
         } else {
             idle = LinearLayout(context)
@@ -396,6 +509,177 @@ class CustomerPresentation(
         pagerCard.visibility = View.GONE
         codeBox.visibility = View.GONE
         root.addView(codeBox, full)
+    }
+
+    /**
+     * المنيو المتحرك: عنوانُ القسم، وشبكةُ أصنافه، ونقاطٌ تقول أين نحن.
+     *
+     * صفحةٌ كلَّ سبع ثوانٍ، تذهب بتلاشٍ وتجيء بمثله -- الزبون ينظر إليها
+     * من بعيدٍ وهو واقف، فالقفزة تُفقده السطر.
+     *
+     * والصفحات تجيء جاهزةً من التطبيق: هو من يعرف منيو المطعم، وهنا
+     * رسمٌ فقط. ولا شبكةَ هنا إلا الصور، وهي مُصغَّرةٌ ومحفوظة.
+     */
+    private fun buildMenu(bold: Typeface, riyal: Typeface): LinearLayout {
+        menuBold = bold
+        menuRiyal = riyal
+        val col = LinearLayout(context)
+        col.orientation = LinearLayout.VERTICAL
+        col.gravity = Gravity.CENTER_HORIZONTAL
+        col.setPadding((unit * 3).toInt(), (unit * 2.6f).toInt(), (unit * 3).toInt(), (unit * 1.8f).toInt())
+
+        val t = text("", 6.2f, ink, bold)
+        t.maxLines = 1
+        menuTitle = t
+        col.addView(t, wrap())
+
+        val grid = LinearLayout(context)
+        grid.orientation = LinearLayout.VERTICAL
+        grid.gravity = Gravity.CENTER
+        menuGrid = grid
+        col.addView(grid, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+
+        val dots = LinearLayout(context)
+        dots.orientation = LinearLayout.HORIZONTAL
+        dots.gravity = Gravity.CENTER
+        menuDots = dots
+        col.addView(dots, wrap())
+        return col
+    }
+
+    /** الصفحة رقم [pageIdx] على الشبكة، وصورُ التي بعدها تُجلب سلفاً. */
+    private fun renderPage() {
+        val grid = menuGrid ?: return
+        val page = pages.optJSONObject(pageIdx) ?: return
+        val items = page.optJSONArray("i") ?: JSONArray()
+        menuTitle?.text = page.optString("t")
+
+        val n = minOf(items.length(), MENU_MAX_PER_PAGE)
+        val cols = if (n <= 4) maxOf(n, 1) else (n + 1) / 2
+        val rows = if (n <= 4) 1 else 2
+        val gap = (unit * 1.8f).toInt()
+        val pad = (unit * 3).toInt()
+        val cardW = ((scrW - pad * 2 - gap * (cols - 1)) / cols).coerceAtLeast((unit * 12).toInt())
+        // ارتفاعُ الشبكة الباقي بعد العنوان والنقاط، وبسقفٍ نسبةً للعرض
+        // حتى لا تتمدّد الصورة شريطاً في صفحةٍ فيها صنفان.
+        val free = scrH - (unit * 20).toInt()
+        val cardH = minOf(free / rows - gap, (cardW * 1.5f).toInt())
+
+        grid.removeAllViews()
+        var i = 0
+        for (r in 0 until rows) {
+            val row = LinearLayout(context)
+            row.orientation = LinearLayout.HORIZONTAL
+            row.gravity = Gravity.CENTER
+            row.layoutDirection = View.LAYOUT_DIRECTION_RTL
+            var any = false
+            for (c in 0 until cols) {
+                if (i >= n) break
+                val it = items.optJSONObject(i) ?: JSONObject()
+                val lp = LinearLayout.LayoutParams(cardW, cardH)
+                if (c > 0) lp.marginStart = gap
+                row.addView(card(it, cardW, cardH), lp)
+                any = true
+                i++
+            }
+            if (any) grid.addView(row, wrap().apply { if (r > 0) topMargin = gap })
+        }
+
+        val dots = menuDots
+        if (dots != null) {
+            dots.removeAllViews()
+            if (pages.length() in 2..16) {
+                for (p in 0 until pages.length()) {
+                    val d = View(context)
+                    val on = p == pageIdx
+                    d.background = GradientDrawable().apply { setColor(if (on) ink else soft); cornerRadius = unit }
+                    if (!on) d.alpha = 0.35f
+                    dots.addView(d, LinearLayout.LayoutParams((unit * if (on) 3.4f else 1.2f).toInt(), (unit * 1.2f).toInt()).apply {
+                        marginStart = (unit * 0.7f).toInt()
+                    })
+                }
+            }
+        }
+        prefetchPage(pageIdx + 1)
+    }
+
+    /** كرتُ صنف: صورته، واسمه، وسعره. وبلا صورة يكبر الاسم مكانها. */
+    private fun card(item: JSONObject, w: Int, h: Int): View {
+        val bold = menuBold ?: Typeface.DEFAULT_BOLD
+        val riyal = menuRiyal ?: Typeface.DEFAULT_BOLD
+        val box = LinearLayout(context)
+        box.orientation = LinearLayout.VERTICAL
+        box.gravity = Gravity.CENTER_HORIZONTAL
+        box.background = GradientDrawable().apply { setColor(cream); cornerRadius = unit * 2.4f }
+        box.clipToOutline = true
+        val p = (unit * 1.1f).toInt()
+        box.setPadding(p, p, p, p)
+
+        val url = item.optString("u")
+        val hasImg = url.startsWith("https://")
+        val imgH = if (hasImg) (h * 0.56f).toInt() else 0
+        if (hasImg) {
+            val img = ImageView(context)
+            img.scaleType = ImageView.ScaleType.CENTER_CROP
+            img.background = GradientDrawable().apply { setColor(Color.argb(18, 42, 13, 6)); cornerRadius = unit * 1.8f }
+            img.clipToOutline = true
+            box.addView(img, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, imgH))
+            ImageCache.load(url, maxOf(w, 160)) { b -> if (b != null) img.setImageBitmap(b) }
+        }
+
+        val name = text(item.optString("n"), if (hasImg) 3.5f else 4.6f, dark, bold)
+        name.maxLines = 2
+        name.ellipsize = android.text.TextUtils.TruncateAt.END
+        box.addView(name, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f).apply {
+            topMargin = (unit * 0.9f).toInt()
+        })
+
+        val price = LinearLayout(context)
+        price.orientation = LinearLayout.HORIZONTAL
+        price.gravity = Gravity.CENTER
+        price.layoutDirection = View.LAYOUT_DIRECTION_LTR
+        price.addView(text(item.optString("p"), 4.2f, bg, bold), wrap())
+        price.addView(text("⃁", 3.2f, bg, riyal), wrap().apply { leftMargin = (unit * 0.7f).toInt() })
+        box.addView(price, wrap())
+        return box
+    }
+
+    /** صورُ الصفحة الجاية تُحمَّل وهي ما زالت غائبة، فتجي ظاهرةً كاملة. */
+    private fun prefetchPage(index: Int) {
+        if (pages.length() == 0) return
+        val page = pages.optJSONObject(index % pages.length()) ?: return
+        val items = page.optJSONArray("i") ?: return
+        for (k in 0 until minOf(items.length(), MENU_MAX_PER_PAGE)) {
+            val u = items.optJSONObject(k)?.optString("u") ?: ""
+            if (u.startsWith("https://")) ImageCache.load(u, 320) { }
+        }
+    }
+
+    private fun startMenu() {
+        if (pages.length() == 0) return
+        renderPage()
+        if (pages.length() > 1) {
+            handler.removeCallbacks(turnRun)
+            handler.postDelayed(turnRun, pageSecs * 1000)
+        }
+    }
+
+    /** الصفحة الجاية: تلاشٍ، فتبديل، فظهور. */
+    private fun turnPage() {
+        val grid = menuGrid ?: return
+        if (stopped || pages.length() < 2) return
+        grid.animate().alpha(0f).setDuration(240).withEndAction {
+            if (stopped) return@withEndAction
+            pageIdx = (pageIdx + 1) % pages.length()
+            try {
+                renderPage()
+            } catch (_: Exception) {
+                // صفحةٌ ما انرسمت ما توقف الدورة: الجاية تجي.
+            }
+            menuTitle?.alpha = 1f
+            grid.animate().alpha(1f).setDuration(240).start()
+            handler.postDelayed(turnRun, pageSecs * 1000)
+        }.start()
     }
 
     /** بطاقة البيجر: شريطٌ بلون المحل فيه رقم الطلب، ثم الباركود على أبيض. */
@@ -524,10 +808,14 @@ class CustomerPresentation(
     }
 
     override fun onStop() {
+        stopped = true
+        menuGrid?.animate()?.cancel()
         handler.removeCallbacks(hideRun)
         handler.removeCallbacks(hidePagerRun)
+        handler.removeCallbacks(turnRun)
         barAnim?.cancel()
         pagerAnim?.cancel()
         super.onStop()
     }
 }
+

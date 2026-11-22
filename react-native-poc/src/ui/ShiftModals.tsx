@@ -84,7 +84,7 @@ function Shell({
   const { colors, shadows } = useTheme();
   const styles = useStyles();
   return (
-    <KeyboardLift style={styles.overlay}>
+    <KeyboardLift style={styles.overlay} onBackdropPress={onClose}>
       <View style={[styles.card, shadows.md]}>
         <View style={styles.head}>
           <Text style={styles.title}>{title}</Text>

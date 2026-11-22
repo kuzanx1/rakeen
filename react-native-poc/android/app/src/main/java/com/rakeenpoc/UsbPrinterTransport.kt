@@ -36,6 +36,7 @@ class UsbPrinterTransport(private val context: Context) {
 
     companion object {
         private const val ACTION_USB_PERMISSION = "com.rakeenpoc.USB_PERMISSION"
+        private const val LOG_TAG = "RakeenUsbPrinter"
 
         /**
          * كل كلام مع طابعة USB يمشي هنا، واحد ورا الثاني.
@@ -48,6 +49,122 @@ class UsbPrinterTransport(private val context: Context) {
          * حقت الزباين». مشترك بين كل النسخ (companion)، فما يتزاحمون أبداً.
          */
         private val USB_IO = java.util.concurrent.Executors.newSingleThreadExecutor()
+
+        /**
+         * الفاتورةُ صورةٌ واحدة: رأسٌ يقول «جاءك ١٠٨ آلاف بايت» ثم البايتات.
+         * وتُرسَل على دفعات، لأنّ bulkTransfer لا يحمل أكثر من ١٦ كيلو.
+         *
+         * وكان الانقطاعُ في دفعةٍ واحدة يكسر الحلقةَ ويُقفل الاتصال. والطابعةُ
+         * لا تدري أنّ شيئاً انقطع: عدّادُها يقول «باقٍ لي ستّون ألفاً»، فتنتظر.
+         * فتأتي ورقةُ الزبون التالي، فتبتلع منها ستّين ألفاً على أنّها بقيّةُ
+         * الصورة، ثم تقرأ ما بعدها حروفاً -- فتخرج الورقةُ المشفَّرة بلا قصّ،
+         * ملتصقةً بالتي قبلها لأنّ أمرَ القصّ كان في الجزء الذي لم يصل.
+         *
+         * فالعلاجُ طبقتان: لا نتخلّى عن دفعةٍ لأنّ الطابعة انشغلت لحظة
+         * (writeAll يُعيد المحاولة)، وإن تخلّينا قيّدنا الباقيَ ديناً
+         * وسدّدناه أصفاراً قبل الورقة التالية (settleDebt) -- فتُكمل الطابعةُ
+         * صورتَها اليتيمة على ورقٍ أبيض، ثم تبدأ الورقةُ الجديدةُ نظيفة.
+         */
+        /**
+         * ١٦ كيلو كما كانت قبل هذا الإصلاح، لا أقلّ.
+         *
+         * كنت نزّلتُها إلى ٤ كيلو بحجّة أنّ التعثّر يخسر أقلّ. وهي حجّةٌ
+         * باطلة: الدَّينُ هو كلُّ ما لم يُرسَل بعدُ من الفاتورة، لا الدفعةَ
+         * المتعثّرةَ وحدَها -- فحجمُ الدفعة لا يكاد يغيّر طولَ الشريط الأبيض.
+         *
+         * وما لا ينفع لا يُدفع ثمنُه: إبقاؤها كما كانت يجعل مسارَ النجاح
+         * مطابقاً لما يعمل اليوم عند المطاعم -- نفسُ عدد النداءات، ونفسُ
+         * أحجامها، ونفسُ البايتات. فلا يبقى في طريق الفاتورة السليمة
+         * شيءٌ جديدٌ البتّة سوى بحثٍ واحدٍ في خريطةٍ فارغة.
+         */
+        private const val CHUNK = 16384
+        private const val EMPTY_RETRIES = 3
+        private const val EMPTY_RETRY_SLEEP_MS = 120L
+
+        /** أطولُ فاتورةٍ معقولةٍ بالشعار والباركود. ما فوقها رقمٌ غلط، ولا
+         *  نُسدِّده ورقاً. */
+        private const val MAX_DEBT = 160 * 1024
+
+        /** بعدها نفترض أنّ الطابعة أُطفئت أو فُصلت، فما عادت تنتظر شيئاً:
+         *  نُسقط الدين بلا ورق، ونكتفي بالتصفير. */
+        private const val DEBT_TTL_MS = 120_000L
+
+        /** ما لم يصل الطابعةَ من ورقةٍ سابقة، لكلِّ طابعةٍ على حدة. */
+        private data class Debt(val bytes: Int, val at: Long)
+        private val debtBytes = java.util.concurrent.ConcurrentHashMap<String, Debt>()
+
+        /**
+         * يكتب الحمولةَ كلَّها، ويُعيد ما وصل فعلاً.
+         *
+         * وما نُعيد المحاولةَ إلا على **الصفر**. فـbulkTransfer يُرجع عدد ما
+         * أرسل، أو سالباً عند الخطأ أو انتهاء المهلة -- والسالبُ لا يقول كم
+         * خرج قبل أن يقف. فإعادةُ دفعةٍ خرج نصفُها تُكرّر ذلك النصف على
+         * الطابعة، وهو عينُ العطب الذي نُعالجه. أمّا الصفرُ فنجاحٌ بلا بيانات
+         * (هكذا توثّقه أندرويد)، وإعادتُه آمنة.
+         *
+         * فما نقدر عليه بأمانٍ هو ألّا نخسر البايتات، لا أن نُنقذ الورقة:
+         * إنقاذُها عند settleDebt.
+         */
+        private fun writeAll(
+            connection: UsbDeviceConnection,
+            endpoint: UsbEndpoint,
+            bytes: ByteArray,
+            timeoutMs: Int,
+        ): Int {
+            var offset = 0
+            while (offset < bytes.size) {
+                val len = minOf(CHUNK, bytes.size - offset)
+                var sent = try { connection.bulkTransfer(endpoint, bytes, offset, len, timeoutMs) } catch (e: Exception) { -1 }
+                var tries = 0
+                while (sent == 0 && tries < EMPTY_RETRIES) {
+                    tries++
+                    try { Thread.sleep(EMPTY_RETRY_SLEEP_MS * tries) } catch (e: InterruptedException) { return offset }
+                    sent = try { connection.bulkTransfer(endpoint, bytes, offset, len, timeoutMs) } catch (e: Exception) { -1 }
+                }
+                if (sent <= 0) return offset
+                offset += sent
+            }
+            return offset
+        }
+
+        /**
+         * يُسدِّد دَينَ الورقة المنقطعة: أصفاراً بعدد ما نقص، ثم تصفيرٌ وقصّ.
+         *
+         * والأصفارُ بيضاءُ في `GS v 0` (البتُّ المُشعَل هو الأسود)، فيخرج
+         * شريطُ ورقٍ أبيضَ ثم قصّ -- وهذا أرخصُ بكثيرٍ من خربشةٍ بيد زبون.
+         */
+        private fun settleDebt(
+            connection: UsbDeviceConnection,
+            endpoint: UsbEndpoint,
+            printerId: String,
+            timeoutMs: Int,
+        ): Boolean {
+            val debt = debtBytes.remove(printerId) ?: return true
+            val stale = System.currentTimeMillis() - debt.at > DEBT_TTL_MS
+            android.util.Log.w(LOG_TAG, "settling debt of ${debt.bytes} bytes (stale=$stale)")
+            // الأصفارُ آمنةٌ في الحالتين: إن كانت الطابعةُ تنتظر صورةً أكملتها
+            // بيضاء، وإن لم تكن فـNUL يُهمَل في وضع النصّ. لكنّنا لا نُنفق
+            // ورقاً على دَينٍ قديمٍ غالباً ما عاد له صاحب.
+            if (!stale && debt.bytes in 1..MAX_DEBT) {
+                val paid = writeAll(connection, endpoint, ByteArray(debt.bytes), timeoutMs)
+                if (paid < debt.bytes) {
+                    // ما زالت متعثّرة. نُعيد قيدَ ما بقي ولا نكتب فوقه فاتورةً
+                    // جديدة: الكتابةُ على طابعةٍ ما زالت تنتظر هي العطبُ نفسُه.
+                    debtBytes[printerId] = Debt(debt.bytes - paid, debt.at)
+                    return false
+                }
+            }
+            // ESC @ تصفير، ثم ذيلُ القصّ **نفسُه** الذي يُنهي به التطبيقُ كلَّ
+            // فاتورة (domain/escposRaster.ts): ثلاثُ تغذياتٍ ثم GS V 0.
+            //
+            // وكنت كتبتُ هنا GS V 66 (قصٌّ جزئيٌّ بتغذية) من حفظي. وهو أمرٌ
+            // لا تعرفه كلُّ طابعة، والتي لا تعرفه تطبع بايتاتِه حروفاً --
+            // أي عينُ العطب الذي نُعالجه، نصنعه بأيدينا في طريق الإنقاذ.
+            // فالقاعدةُ ألّا نُدخل على هذه الطابعة أمراً لم يُجرَّب عليها.
+            val reset = byteArrayOf(0x1b, 0x40, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00)
+            writeAll(connection, endpoint, reset, timeoutMs)
+            return true
+        }
     }
 
     data class Device(val id: String, val name: String?)
@@ -192,17 +309,27 @@ class UsbPrinterTransport(private val context: Context) {
                         callback(false, "connection_failed")
                         return@execute
                     }
-                    // bulkTransfer يرسل 16KB كحد أقصى بالمرة على أجهزة كثيرة،
-                    // والفاتورة بالشعار أكبر من كذا: نرسلها على دفعات.
-                    var offset = 0
-                    var ok = true
-                    while (offset < bytes.size) {
-                        val len = minOf(16384, bytes.size - offset)
-                        val sent = connection.bulkTransfer(endpoint, bytes, offset, len, timeoutMs)
-                        if (sent <= 0) { ok = false; break }
-                        offset += sent
+                    // دَينُ ورقةٍ سابقةٍ انقطعت: يُسدَّد قبل أيِّ شيءٍ جديد.
+                    if (!settleDebt(connection, endpoint, stableId(device), timeoutMs)) {
+                        callback(false, "connection_failed")
+                        return@execute
                     }
-                    callback(ok, if (ok) null else "connection_failed")
+
+                    val sentAll = writeAll(connection, endpoint, bytes, timeoutMs)
+                    if (sentAll < bytes.size) {
+                        // ما وصل كلُّه. الطابعةُ الآن واقفةٌ في منتصف أمر صورة،
+                        // تنتظر ما لم يصلها -- فنُقيّد الباقي ديناً ونسدّده أول
+                        // اتصالٍ قادم، قبل أن تبتلع به ورقةَ زبونٍ آخر.
+                        val owed = bytes.size - sentAll
+                        debtBytes[stableId(device)] = Debt(owed, System.currentTimeMillis())
+                        // العطلُ نادرٌ ولا يُستدعى بالطلب، فلو وقع عند مطعمٍ
+                        // بعيدٍ أردنا أثراً يُقرأ بـadb logcat بدل التخمين.
+                        android.util.Log.w(LOG_TAG, "truncated job: sent $sentAll of ${bytes.size}, owed $owed")
+                        callback(false, "connection_failed")
+                    } else {
+                        debtBytes.remove(stableId(device))
+                        callback(true, null)
+                    }
                 } catch (e: Exception) {
                     callback(false, "connection_failed")
                 } finally {

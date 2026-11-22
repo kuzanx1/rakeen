@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Modal, StyleSheet, View, ScrollView } from 'react-native';
+import { Modal, Pressable, StyleSheet, View, ScrollView } from 'react-native';
 import SheetBottomGap from './SheetBottomGap';
 import { Text } from './Text';
 import { TouchableOpacity, SMALL_HIT_SLOP } from './tappable';
 import GradientFill from './GradientFill';
-import { ModifierDefinition, CartLineConfig, applyOptionCounts, buildDefaultConfig, optionTakesCount } from '../domain/cart';
+import { ModifierDefinition, CartLineConfig, applyOptionCounts, buildDefaultConfig, maxOptionCount, optionTakesCount } from '../domain/cart';
 import type { BoxDefinition } from '../domain/cart';
 import Money from './Money';
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
@@ -50,11 +50,15 @@ export default function ModifierModal({
   const { t, lang } = useI18n();
   const [config, setConfig] = useState<CartLineConfig>(() => buildDefaultConfig(modDef) || {});
   const [qty, setQty] = useState(1);
-  // كم حبة من الكمية عليها الإضافة («5 كباب، 2 بدون بطاطس»). بدون رقم = الكل.
+  // عدد حبات الإضافة في السطر كله: «٥ كباب، ٢ بدون بطاطس»، و«ساندوتش
+  // واحد بـ٥ شرائح جبن». بدون رقم = حبةٌ لكل وحدة.
   const [counts, setCounts] = useState<Record<string, number>>({});
-  const countOf = (optId: string) => Math.min(counts[optId] ?? qty, qty);
+  const countOf = (optId: string) => Math.min(counts[optId] ?? qty, maxOptionCount());
   const bumpCount = (optId: string, delta: number) =>
-    setCounts(prev => ({ ...prev, [optId]: Math.max(1, Math.min(qty, (prev[optId] ?? qty) + delta)) }));
+    setCounts(prev => ({
+      ...prev,
+      [optId]: Math.max(1, Math.min(maxOptionCount(), (prev[optId] ?? qty) + delta)),
+    }));
 
   /**
    * renderBoxBuilder() (rakeen-pos.js:902). A box is not a set of modifier
@@ -121,6 +125,9 @@ export default function ModifierModal({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onCancel}>
       <View style={styles.overlay}>
+        {/* الضغط على العتمة فوق الورقة يقفلها، كـ✕ تماماً. ومرسومةٌ قبلها
+            لا حولها، فضغطةُ الخيار تصل الخيار نفسه. */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} />
         <View style={styles.sheet}>
           <View style={styles.head}>
             <Text style={styles.title}>{productName}</Text>
@@ -200,7 +207,7 @@ export default function ModifierModal({
                       group.type === 'single'
                         ? config[group.id] === opt.id
                         : Array.isArray(config[group.id]) && (config[group.id] as string[]).includes(opt.id);
-                    const counted = selected && qty > 1 && optionTakesCount(group, opt);
+                    const counted = selected && optionTakesCount(group);
                     return (
                       <View key={opt.id} style={[styles.chipWrap, selected && styles.chipSelected]}>
                       <TouchableOpacity

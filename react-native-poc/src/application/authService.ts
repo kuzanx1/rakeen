@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import * as kvStorage from '../infrastructure/mmkvStorage';
+import { NO_PAYMENT_STEERING } from '../platform/storeRules';
 import { supabase, RAKEEN_API_BASE_URL } from '../infrastructure/supabaseClient';
-import { Platform } from 'react-native';
 import { explainNetworkError } from '../domain/clockSanity';
 import {
   DeviceConfig,
@@ -115,9 +115,9 @@ export async function setBranchPin(
  * as the current web app already works (see rakeen-pos.js's own comment:
  * "الفرع أدناه هو الحساب الحقيقي").
  */
-/** نفس نص lib/accountSuspended.ts. آيفون بلا ذكر الدفع (App Store 3.1.1). */
+/** نفس نص lib/accountSuspended.ts. نسخ المتاجر بلا ذكر الدفع (storeRules). */
 export function accountSuspendedMessage(): string {
-  return Platform.OS === 'ios'
+  return NO_PAYMENT_STEERING
     ? 'هذا الحساب موقوف مؤقتاً. راجع صاحب المحل.'
     : 'حسابك موقوف مؤقتاً: توقف الكاشير بسبب اشتراك غير مسدد. تواصل مع دعم ركين عشان يرجع.';
 }

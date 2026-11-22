@@ -220,7 +220,7 @@ export default function DiscountModal({
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <KeyboardLift style={styles.overlay}>
+      <KeyboardLift style={styles.overlay} onBackdropPress={onClose}>
         <View style={styles.card}>
           <View style={styles.head}>
             <Text style={styles.title}>{t('الخصم')}</Text>

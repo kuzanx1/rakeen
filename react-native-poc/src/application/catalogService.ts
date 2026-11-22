@@ -208,6 +208,14 @@ export interface PosFeatureFlags {
   hideSearch: boolean;
   /** POS_HIDE_NOTIF_BELL */
   hideNotifBell: boolean;
+  /**
+   * businesses.phone_orders_enabled -- زرّ «جوال» في صفّ تطبيقات التوصيل.
+   *
+   * ويُقرأ من `select('*')` فلا يُضاف إلى قائمة الأعمدة الاحتياطية: لو
+   * ما كان العمودُ موجوداً بعدُ رجعت القيمةُ undefined، و`!== false`
+   * تجعلها مفعّلة -- فالميزةُ تبقى كما نزلت حتى يُشغَّل الملفّ.
+   */
+  phoneOrdersEnabled: boolean;
 }
 
 export async function getPosFeatureFlags(businessId: number): Promise<PosFeatureFlags> {
@@ -217,6 +225,7 @@ export async function getPosFeatureFlags(businessId: number): Promise<PosFeature
     dineInEnabled: data ? data.dine_in_enabled !== false : true,
     hideSearch: data ? data.pos_hide_search === true : false,
     hideNotifBell: data ? data.pos_hide_notif_bell === true : false,
+    phoneOrdersEnabled: data ? data.phone_orders_enabled !== false : true,
   };
 }
 

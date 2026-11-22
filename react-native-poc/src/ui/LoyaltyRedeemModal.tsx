@@ -140,7 +140,7 @@ export default function LoyaltyRedeemModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardLift style={styles.overlay}>
+      <KeyboardLift style={styles.overlay} onBackdropPress={onClose}>
         <View style={styles.sheet}>
           {phase === 'waiting' && (
             <View style={styles.waitBlock}>

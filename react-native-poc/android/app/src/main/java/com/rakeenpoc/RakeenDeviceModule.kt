@@ -15,6 +15,24 @@ class RakeenDeviceModule(reactContext: ReactApplicationContext) :
 
     override fun getName() = "RakeenDeviceModule"
 
+    /** Who installed the app: "com.android.vending" = Google Play, null =
+     *  sideloaded (rakeenapp.com/android). Play builds must not point users
+     *  to paying outside Play, like iOS (see src/platform/storeRules.ts). */
+    override fun getConstants(): Map<String, Any?> = mapOf("installer" to installer())
+
+    private fun installer(): String? = try {
+        val pm = reactApplicationContext.packageManager
+        val pkg = reactApplicationContext.packageName
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            pm.getInstallSourceInfo(pkg).installingPackageName
+        } else {
+            @Suppress("DEPRECATION")
+            pm.getInstallerPackageName(pkg)
+        }
+    } catch (e: Exception) {
+        null
+    }
+
     @ReactMethod
     fun getInfo(promise: Promise) {
         val result = Arguments.createMap()

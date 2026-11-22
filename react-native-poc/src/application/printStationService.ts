@@ -10,6 +10,7 @@ import { getDeviceConfig } from './authService';
 import { getReceiptBranding, getServiceSettings } from './catalogService';
 import { planHas } from './planService';
 import { isOwnOrder, isOwnPayment } from './ownOrders';
+import { PHONE_PLATFORM_LABEL, isPhoneOrderRow, platformLabelOf } from '../domain/phoneOrder';
 import { formatPickupAt } from '../domain/arabicDate';
 import NetInfo from '@react-native-community/netinfo';
 import { shouldTriggerSyncOnNetChange } from '../domain/sync';
@@ -25,7 +26,7 @@ import { shouldTriggerSyncOnNetChange } from '../domain/sync';
  * المرسل.
  *
  * - طلب جديد: تذكرة المطبخ (لو مفعّلة)، وفاتورة العميل لو انحسب مبلغه.
- * - طاولة انسجلت بدون دفع: تنتظر، وفاتورتها تنطبع لما تندفع.
+ * - طاولة اتسجلت بدون دفع: تنتظر، وفاتورتها تنطبع لما تندفع.
  * - طلبات هالجهاز نفسه (ownOrders) والطلبات الإلكترونية (لها مسار القبول)
  *   ما تنطبع هنا.
  * - رجوع الجهاز بعد انقطاع: يطبع اللي ما شافه، بس ما يطبع طلبات أقدم
@@ -80,11 +81,13 @@ export async function getPrintStationLastPrinted(): Promise<{ id: number; at: nu
   return (await loadState())?.lastPrinted ?? null;
 }
 
-const CHANNEL_LABELS: Record<string, string> = { dine_in: 'محلي', pickup: 'سفري', delivery: 'تطبيقات التوصيل' };
+const CHANNEL_LABELS: Record<string, string> = { dine_in: 'محلي', pickup: 'سفري', delivery: 'توصيل' };
 
 function metaLabelOf(d: OrderHistoryDetail): string {
   const table = d.tableNumber != null ? ` — طاولة ${d.tableNumber}` : '';
   if (d.source === 'online') return 'طلب إلكتروني — ' + (d.channel === 'delivery' ? 'توصيل' : 'استلام') + table;
+  // وطلبُ الجوال نوعُه «جوال»: صاحبُه غالباً يجيء فيستلمه بنفسه.
+  if (isPhoneOrderRow(d)) return PHONE_PLATFORM_LABEL + table;
   return (CHANNEL_LABELS[d.channel] || d.channel) + table;
 }
 
@@ -131,8 +134,9 @@ async function receiptFor(d: OrderHistoryDetail): Promise<ReceiptData> {
     createdAtISO: d.createdAt,
     metaLabel: metaLabelOf(d),
     pickupAt: pickupAtOf(d),
-    platformName: d.platformName || undefined,
+    platformName: (isPhoneOrderRow(d) ? '' : platformLabelOf(d)) || undefined,
     platformInvoiceLast4: d.platformInvoiceLast4 || undefined,
+    phoneOrder: isPhoneOrderRow(d),
     pagerNumber: d.pagerNumber ?? undefined,
     customerName: d.source === 'online' ? d.customerName || undefined : undefined,
     customerPhone: d.source === 'online' ? d.customerPhone || undefined : undefined,
@@ -149,7 +153,9 @@ async function kitchenFor(d: OrderHistoryDetail): Promise<KitchenTicketData> {
     lines: linesOf(d),
     branchName: device.branchName ?? undefined,
     createdAtISO: d.createdAt,
-    metaLabel: metaLabelOf(d) + (d.platformName ? ` — ${d.platformName}` : ''),
+    metaLabel: metaLabelOf(d),
+    platformName: (isPhoneOrderRow(d) ? '' : platformLabelOf(d)) || undefined,
+    platformInvoiceLast4: d.platformInvoiceLast4 || undefined,
     pickupAt: pickupAtOf(d),
     pagerNumber: d.pagerNumber ?? undefined,
   } satisfies KitchenTicketData;
