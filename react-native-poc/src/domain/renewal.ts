@@ -131,17 +131,24 @@ export function subscriptionPillKey(s: Subscription): string {
   }
 }
 
-/** الرقمُ الكبير: العددُ نفسُه، أو «اليوم» في يومِ الاستحقاق. */
-export function subscriptionBigKey(s: Subscription): string | null {
-  if (s.days === 0) return 'اليوم';
-  return null;
+/**
+ * الرقمُ الكبير -- بصيغةٍ عربيّةٍ صحيحةٍ لا «1 يوم».
+ *
+ * ومفتاحٌ لكلِّ صيغةٍ لا قالبٌ واحد: المثنّى في العربيّة كلمةٌ لا رقم،
+ * و«One day» في الإنجليزيّة ليست «1 days». والجدولُ يملك السبعةَ كلَّها
+ * فلا يبقى سطرٌ نصفُه مترجَم.
+ */
+export function subscriptionBigKey(s: Subscription): string {
+  const d = s.days;
+  if (d === 0) return 'اليوم';
+  if (d > 0) return d === 1 ? 'يوم واحد' : d === 2 ? 'يومان' : '{n} يوم';
+  return d === -1 ? 'يوم تأخير' : d === -2 ? 'يومان تأخير' : '{n} يوم تأخير';
 }
 
-/** السطرُ تحت الرقم، يُكمل قراءتَه: «24 يوم على التجديد». */
-export function subscriptionUnitKey(s: Subscription): string {
-  if (s.days === 0) return 'هو يوم التجديد';
-  if (s.days < 0) return 'يوم تأخير';
-  return 'يوم على التجديد';
+/** السطرُ الصغير تحته: متى، لا كم. */
+export function subscriptionWhenKey(s: Subscription): string {
+  if (s.days === 0) return 'موعد التجديد';
+  return s.days < 0 ? 'كان يوم التجديد' : 'يُجدَّد';
 }
 
 /** التاريخ كما يُقرأ: ١٥/١٢ من YYYY-MM-DD، بلا Intl وبلا Date. */

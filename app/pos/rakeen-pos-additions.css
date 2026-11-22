@@ -1016,32 +1016,18 @@ body.kb-open .pos-auth-card:focus-within .pos-auth-title { font-size: 21px; marg
 .rk-shift-btn.main { background: var(--graphite); border: 0; color: var(--lime); }
 [data-theme="dark"] .rk-shift-btn.main { background: var(--lime); color: var(--graphite); }
 
-/* عدّاد الاشتراك في «المزيد» -- من عائلة بطاقة الوردية فوقه، عشان أعلى
-   الشاشة يُقرأ بطاقتين لا بطاقةً وغريبة. ونفس أرقام التطبيق
-   (RenewalNotice.tsx sub*). */
-.rk-sub-card { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--r-lg, 24px); padding: 18px; display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+/* عدّاد الاشتراك في «المزيد» -- بطاقةٌ مصغّرة (اختيار المالك).
+   كانت بطاقةً كاملةً برقمٍ من ٤٤ بكسل، وحجمُها حجمُ بطاقة الوردية وليست
+   بأهميّتها: الورديةُ عملٌ يُفعل الآن، والاشتراكُ خبرٌ يُطمأنّ إليه.
+   ونفسُ أرقام التطبيق (RenewalNotice.tsx sub*). */
+.rk-sub-card { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--r-lg, 24px); padding: 15px 18px; margin-top: 12px; }
 .rk-sub-card[hidden] { display: none; }
-.rk-sub-head { display: flex; align-items: center; gap: 10px; }
-.rk-sub-head b { font-size: 17px; font-weight: 800; flex: 1; }
-/* نصُّ الشارة بلون النصّ لا بلون الحال: «ساري» ليمونيٌّ على ليمونيٍّ
-   باهتٍ لا يكاد يُقرأ على الفاتح (١٫٩:١)، والخلفيّةُ المصبوغةُ وحدَها
-   تكفي للدلالة. */
-.rk-sub-pill { border-radius: 99px; padding: 4px 10px; font-size: 11.5px; font-weight: 800; background: var(--surf1); color: var(--text); flex: none; }
-.rk-sub-pill-ok { background: rgba(var(--lime-rgb), .16); }
-.rk-sub-pill-soon { background: rgba(var(--amber-rgb), .16); }
-.rk-sub-pill-late { background: rgba(var(--danger-rgb), .14); }
-.rk-sub-pill-review { background: var(--surf2); }
-/* الرقم هو البطاقة: يُقرأ من مسافة ذراع بلا أن يُقرأ سطر. */
-.rk-sub-count { display: flex; align-items: flex-end; gap: 9px; }
-.rk-sub-big { font-size: 44px; font-weight: 800; line-height: 1; }
-.rk-sub-word { font-size: 30px; font-weight: 800; line-height: 1.1; }
-.rk-sub-count span { font-size: 14px; font-weight: 800; color: var(--text); padding-bottom: 3px; }
-.rk-sub-card small { font-size: 12.5px; color: var(--muted); }
-.rk-sub-go { margin-top: 4px; height: 46px; border-radius: 14px; font: inherit; font-size: 14px; font-weight: 800; background: var(--surf1); border: 1px solid var(--line); color: var(--text); cursor: pointer; }
-/* لون الحال: الليموني غامقٌ على الفاتح وفاتحٌ على الغامق -- نفس قاعدة
-   accentText في التطبيق، وإلا صار «ساري» غيرَ مقروء في أحد الوضعين. */
-/* والرقمُ الكبيرُ في حال «ساري» بلون النصّ كذلك: ٤٤ بكسل بتباين
-   ١٫٩:١ رقمٌ كبيرٌ لا يُقرأ. والهدوءُ هنا صحيح: ما فيه ما يُنبَّه له. */
+.rk-sub-row { display: flex; align-items: baseline; gap: 10px; }
+.rk-sub-row b { font-size: 16px; font-weight: 800; flex: 1; }
+.rk-sub-num { font-size: 21px; font-weight: 800; }
+.rk-sub-card small { display: block; font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+/* الليمونيُّ على الفاتح ١٫٩:١ -- رقمٌ لا يُقرأ. و«ساري» لا يحتاج لوناً
+   أصلاً: ما فيه ما يُنبَّه له. */
 .rk-sub-ok { color: var(--text); }
 .rk-sub-soon { color: var(--amber); }
 .rk-sub-late { color: var(--danger); }

@@ -78,11 +78,15 @@ const I18N_EN = {
   'تحت المراجعة': 'Under review',
   'ارفع إيصال جديد': 'Upload a new receipt',
   'اليوم': 'Today',
-  'هو يوم التجديد': 'is renewal day',
-  'يوم على التجديد': 'days to renewal',
-  'يوم تأخير': 'days overdue',
-  'يوم التجديد': 'Renewal day',
+  'يوم واحد': 'One day',
+  'يومان': '2 days',
+  '{n} يوم': '{n} days',
+  'يوم تأخير': '1 day late',
+  'يومان تأخير': '2 days late',
+  '{n} يوم تأخير': '{n} days late',
+  'يُجدَّد': 'Renews',
   'كان يوم التجديد': 'Renewal day was',
+  'موعد التجديد': 'Renewal is due',
   'افتح اللوحة': 'Open dashboard',
   'افتح لوحة التحكم': 'Open dashboard',
   'ذكَّرني بكرة': 'Remind me tomorrow',
@@ -11898,10 +11902,19 @@ function rkSubPill(s){
   if(tone === 'soon') return t('قريب');
   return t('ساري');
 }
-function rkSubUnit(s){
-  if(s.days === 0) return t('هو يوم التجديد');
-  if(s.days < 0) return t('يوم تأخير');
-  return t('يوم على التجديد');
+/* الرقمُ الكبير بصيغةٍ صحيحةٍ في اللغتين: المثنّى في العربيّة كلمةٌ لا
+   رقم، و«One day» ليست «1 days». ونفسُ المفاتيح في التطبيق
+   (src/domain/renewal.ts subscriptionBigKey). */
+function rkSubBig(s){
+  var d = s.days;
+  var key = d === 0 ? 'اليوم'
+    : d > 0 ? (d === 1 ? 'يوم واحد' : d === 2 ? 'يومان' : '{n} يوم')
+    : (d === -1 ? 'يوم تأخير' : d === -2 ? 'يومان تأخير' : '{n} يوم تأخير');
+  return t(key).replace('{n}', String(Math.abs(d)));
+}
+function rkSubWhen(s){
+  if(s.days === 0) return t('موعد التجديد');
+  return t(s.days < 0 ? 'كان يوم التجديد' : 'يُجدَّد');
 }
 /* ١٥/١٢ من YYYY-MM-DD: بلا Date وبلا منطقةٍ زمنيّةٍ تزحزح اليوم. */
 function rkSubDayMonth(d){
@@ -11909,27 +11922,20 @@ function rkSubDayMonth(d){
   return m ? m[3] + '/' + m[2] : String(d || '');
 }
 function renderMoreSubCard(){
-  const el = document.getElementById('moreSubCard');
+  var el = document.getElementById('moreSubCard');
   if(!el) return;
-  const s = RK_SUBSCRIPTION;
+  var s = RK_SUBSCRIPTION;
   /* ولا رقمَ يُخترع: بلا دفعةٍ مفتوحةٍ تختفي البطاقةُ كلُّها. */
   if(!s){ el.hidden = true; el.innerHTML = ''; return; }
-  const tone = rkSubTone(s);
-  const big = s.days === 0
-    ? '<b class="rk-sub-word rk-sub-' + tone + '">' + escapeHtml(t('اليوم')) + '</b>'
-    : '<b class="rk-sub-big rk-sub-' + tone + '">' + Math.abs(s.days) + '</b>';
+  var tone = rkSubTone(s);
+  var date = s.days === 0 ? '' : ' ' + rkSubDayMonth(s.date);
+  /* والحالُ يُلحق بالسطر الصغير لا بشارةٍ على حدة: شارةٌ في بطاقةٍ
+     ارتفاعُها ثمانون بكسلاً تزاحم العنوان، والكلمةُ تكفي. */
+  var state = tone === 'ok' ? '' : ' · ' + rkSubPill(s);
   el.hidden = false;
-  el.innerHTML = '<div class="rk-sub-head"><b>' + escapeHtml(t('اشتراكك')) + '</b>'
-    + '<span class="rk-sub-pill rk-sub-pill-' + tone + '">' + escapeHtml(rkSubPill(s)) + '</span></div>'
-    + '<div class="rk-sub-count">' + big + '<span>' + escapeHtml(rkSubUnit(s)) + '</span></div>'
-    /* ويومُ الاستحقاق لا يُعاد في يومه: الرقمُ الكبير قاله للتوّ. وبعد
-       فواته يُقال بصيغة الماضي، وإلا سُمّي «يوم التجديد» يومٌ مضى. */
-    + (s.days === 0 ? '' : '<small>' + escapeHtml(t(s.days < 0 ? 'كان يوم التجديد' : 'يوم التجديد')) + ' ' + escapeHtml(rkSubDayMonth(s.date)) + '</small>')
-    /* والزرُّ لا يظهر إلا إذا كان فيه ما يُفعل: زرٌّ دائمٌ لا لزومَ له
-       يصير جزءاً من الأثاث فلا يُرى يومَ يلزم. */
-    + (tone === 'ok' ? '' : '<button type="button" class="rk-sub-go">' + escapeHtml(t('افتح لوحة التحكم')) + '</button>');
-  const go = el.querySelector('.rk-sub-go');
-  if(go) go.addEventListener('click', ()=>{ window.open('/dashboard', '_blank', 'noopener'); });
+  el.innerHTML = '<div class="rk-sub-row"><b>' + escapeHtml(t('اشتراكك')) + '</b>'
+    + '<span class="rk-sub-num rk-sub-' + tone + '">' + escapeHtml(rkSubBig(s)) + '</span></div>'
+    + '<small>' + escapeHtml(rkSubWhen(s) + date + state) + '</small>';
 }
 /* RENEWAL-NOTICE:END */
 

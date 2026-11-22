@@ -3,7 +3,8 @@ import {
   subscriptionDayMonth,
   subscriptionPillKey,
   subscriptionTone,
-  subscriptionUnitKey,
+  subscriptionBigKey,
+  subscriptionWhenKey,
 } from '../src/domain/renewal';
 
 /**
@@ -44,10 +45,22 @@ describe('عدّاد الاشتراك', () => {
     expect(subscriptionPillKey(sub(30, 'rejected'))).toBe('ارفع إيصال جديد');
   });
 
-  it('السطرُ تحت الرقم يُكمل قراءتَه', () => {
-    expect(subscriptionUnitKey(sub(24))).toBe('يوم على التجديد');
-    expect(subscriptionUnitKey(sub(0))).toBe('هو يوم التجديد');
-    expect(subscriptionUnitKey(sub(-3))).toBe('يوم تأخير');
+  /* المثنّى في العربيّة كلمةٌ لا رقم، و«One day» ليست «1 days» -- فلكلِّ
+     صيغةٍ مفتاحُها، وإلا طلع «1 يوم» في وجه صاحب المطعم. */
+  it('الرقمُ الكبير بصيغةٍ صحيحةٍ في الطرفين', () => {
+    expect(subscriptionBigKey(sub(24))).toBe('{n} يوم');
+    expect(subscriptionBigKey(sub(2))).toBe('يومان');
+    expect(subscriptionBigKey(sub(1))).toBe('يوم واحد');
+    expect(subscriptionBigKey(sub(0))).toBe('اليوم');
+    expect(subscriptionBigKey(sub(-1))).toBe('يوم تأخير');
+    expect(subscriptionBigKey(sub(-2))).toBe('يومان تأخير');
+    expect(subscriptionBigKey(sub(-9))).toBe('{n} يوم تأخير');
+  });
+
+  it('والسطرُ الصغير يقول متى لا كم', () => {
+    expect(subscriptionWhenKey(sub(24))).toBe('يُجدَّد');
+    expect(subscriptionWhenKey(sub(0))).toBe('موعد التجديد');
+    expect(subscriptionWhenKey(sub(-3))).toBe('كان يوم التجديد');
   });
 
   it('التاريخُ يُقرأ بلا Date ولا منطقةٍ زمنيّةٍ تزحزح اليوم', () => {
