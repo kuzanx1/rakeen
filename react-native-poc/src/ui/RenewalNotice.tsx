@@ -7,14 +7,21 @@ import { useI18n } from './i18n';
 import { NO_PAYMENT_STEERING } from '../platform/storeRules';
 import {
   Renewal,
+  Subscription,
   fillDays,
   renewalBodyKey,
   renewalLoud,
   renewalTitleKey,
+  subscriptionBigKey,
+  subscriptionDayMonth,
+  subscriptionPillKey,
+  subscriptionTone,
+  subscriptionUnitKey,
 } from '../domain/renewal';
 import {
+  RenewalState,
   cardSeenToday,
-  getRenewal,
+  getRenewalState,
   loadCardDay,
   loadStripDay,
   markCardSeen,
@@ -41,10 +48,10 @@ const DASHBOARD_URL = 'https://rakeenapp.com/dashboard';
 /** نسخ المتاجر لا توجّه أحداً للدفع خارجها (src/platform/storeRules.ts). */
 const CAN_STEER = !NO_PAYMENT_STEERING;
 
-export function useRenewal(): Renewal | null {
-  const [renewal, setRenewal] = useState<Renewal | null>(getRenewal());
+function useRenewalState(): RenewalState {
+  const [state, setState] = useState<RenewalState>(getRenewalState());
   useEffect(() => {
-    const off = subscribeRenewal(setRenewal);
+    const off = subscribeRenewal(setState);
     loadCardDay();
     refreshRenewal();
     // بلا مؤقّت: نفس لحظات فحص الإيقاف -- الرجوع للواجهة يكفي، واليوم
@@ -57,7 +64,16 @@ export function useRenewal(): Renewal | null {
       sub.remove();
     };
   }, []);
-  return renewal;
+  return state;
+}
+
+export function useRenewal(): Renewal | null {
+  return useRenewalState().renewal;
+}
+
+/** عدّادُ «المزيد» -- نفسُ القراءة، بلا نافذةِ الستّةِ أيام. */
+export function useSubscription(): Subscription | null {
+  return useRenewalState().subscription;
 }
 
 function titleOf(renewal: Renewal, t: (s: string) => string): string {
@@ -218,12 +234,66 @@ export function RenewalCard({
   );
 }
 
+/**
+ * عدّادُ الاشتراك في «المزيد» -- دائمٌ، هادئ.
+ *
+ * «المفروض بالمزيد يكون عدّاد على الاشتراك وكم متبقّي» -- والمكانُ
+ * نفسُه هو نصفُ الجواب: شاشةُ «المزيد» يفتحها صاحبُ المطعم لا الكاشير
+ * في الزحمة، فالرقمُ يقف فيها دائماً بلا أن يقطع بيعاً ولا أن يراه
+ * زبون. والشارةُ تقول الحالَ بكلمةٍ واحدة، والزرُّ لا يظهر إلا إذا كان
+ * فيه ما يُفعل -- فبطاقةٌ فيها زرٌّ لا لزومَ له تصير جزءاً من الأثاث.
+ */
+export function SubscriptionCard({ subscription }: { subscription: Subscription | null }) {
+  const styles = useStyles();
+  const { t } = useI18n();
+  if (!subscription) return null;
+
+  const tone = subscriptionTone(subscription);
+  const bigKey = subscriptionBigKey(subscription);
+  const toneText = tone === 'late' ? styles.subLate : tone === 'soon' ? styles.subSoon : tone === 'review' ? styles.subReview : styles.subOk;
+  const pillTint = tone === 'late' ? styles.subPillLate : tone === 'soon' ? styles.subPillSoon : tone === 'review' ? styles.subPillReview : styles.subPillOk;
+
+  return (
+    <View style={styles.subCard}>
+      <View style={styles.subHead}>
+        <Text style={styles.subLabel}>{t('اشتراكك')}</Text>
+        <View style={[styles.subPill, pillTint]}>
+          <Text style={styles.subPillText}>{t(subscriptionPillKey(subscription))}</Text>
+        </View>
+      </View>
+
+      <View style={styles.subCount}>
+        {bigKey ? (
+          <Text style={[styles.subBigWord, toneText]}>{t(bigKey)}</Text>
+        ) : (
+          <Text style={[styles.subBig, toneText]}>{Math.abs(subscription.days)}</Text>
+        )}
+        <Text style={styles.subUnit}>{t(subscriptionUnitKey(subscription))}</Text>
+      </View>
+
+      {/* ويومُ الاستحقاق لا يُعاد في يومه: الرقمُ الكبير قاله للتوّ. وبعد
+          فواته يُقال بصيغة الماضي، وإلا سُمّي «يوم التجديد» يومٌ مضى. */}
+      {subscription.days === 0 ? null : (
+        <Text style={styles.subDate}>
+          {`${t(subscription.days < 0 ? 'كان يوم التجديد' : 'يوم التجديد')} ${subscriptionDayMonth(subscription.date)}`}
+        </Text>
+      )}
+
+      {CAN_STEER && tone !== 'ok' ? (
+        <TouchableOpacity style={styles.subGo} activeOpacity={0.85} onPress={() => Linking.openURL(DASHBOARD_URL)}>
+          <Text style={styles.subGoText}>{t('افتح لوحة التحكم')}</Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+}
+
 const INK = '#111410';
 const PAPER = '#FBFAF5';
 const LIME = '#C4FF2B';
 const AMBER = '#FFC24B';
 
-const useStyles = createStyles(() => ({
+const useStyles = createStyles(colors => ({
   // فوق الأيقونة وإلى طرفها، داخل مرساةٍ بحجمها (App.tsx navTabIcon).
   dot: {
     position: 'absolute' as const,
@@ -309,4 +379,50 @@ const useStyles = createStyles(() => ({
     alignItems: 'center' as const,
   },
   cardGhostText: { fontFamily: fonts.sansMedium, fontSize: 13, color: 'rgba(251,250,245,0.6)' },
+
+  // عدّادُ «المزيد»: من عائلةِ بطاقةِ الوردية فوقها (App.tsx shiftCard)،
+  // عشان أعلى الشاشة يُقرأ بطاقتين لا بطاقةً وغريبة.
+  subCard: {
+    backgroundColor: colors.cardBg,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: 18,
+    gap: 10,
+  },
+  subHead: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: spacing[2] },
+  subLabel: { fontFamily: fonts.sansBold, fontSize: 17, color: colors.text, flex: 1 },
+  subPill: { borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: colors.surf1 },
+  // نصُّ الشارة بلون النصّ لا بلون الحال: «ساري» ليمونيٌّ على ليمونيٍّ
+  // باهتٍ تباينُه ١٫٩:١ على الفاتح -- والخلفيّةُ المصبوغةُ تكفي للدلالة.
+  subPillText: { fontFamily: fonts.sansBold, fontSize: 11.5, color: colors.text },
+  subPillOk: { backgroundColor: 'rgba(196,255,43,0.16)' },
+  subPillSoon: { backgroundColor: `rgba(${colors.amberRgb},0.16)` },
+  subPillLate: { backgroundColor: `rgba(${colors.dangerRgb},0.14)` },
+  subPillReview: { backgroundColor: colors.surf2 },
+  // وكذلك الرقمُ الكبير في حال «ساري»: ٤٤ نقطةً بتباينٍ ضعيفٍ رقمٌ
+  // كبيرٌ لا يُقرأ. والهدوءُ هنا صحيح: ما فيه ما يُنبَّه له.
+  subOk: { color: colors.text },
+  // colors.amber هو نفسُه مقروءاً في الوضعين: غامقٌ على الفاتح وفاتحٌ
+  // على الغامق (theme.ts). وAMBER الثابتُ فوق للشريط الأسود وحدَه.
+  subSoon: { color: colors.amber },
+  subLate: { color: colors.danger },
+  subReview: { color: colors.muted },
+  // الرقمُ هو البطاقة: يُقرأ من مسافةِ ذراعٍ بلا أن يُقرأ سطر.
+  subCount: { flexDirection: 'row' as const, alignItems: 'flex-end' as const, gap: spacing[2] },
+  subBig: { fontFamily: fonts.sansBold, fontSize: 44, lineHeight: 48 },
+  subBigWord: { fontFamily: fonts.sansBold, fontSize: 30, lineHeight: 48 },
+  subUnit: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.text, paddingBottom: 7 },
+  subDate: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.muted },
+  subGo: {
+    marginTop: 4,
+    height: 46,
+    borderRadius: 14,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: colors.surf1,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  subGoText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.text },
 }));

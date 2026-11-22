@@ -62,7 +62,7 @@ import OrderHistoryScreen from './src/ui/OrderHistoryScreen';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import KeyboardLift from './src/ui/KeyboardLift';
 import { createStyles, fonts, radii, spacing, ThemeProvider, useTheme } from './src/ui/theme';
-import { RenewalDot, RenewalStrip, useRenewal } from './src/ui/RenewalNotice';
+import { RenewalDot, RenewalStrip, SubscriptionCard, useRenewal, useSubscription } from './src/ui/RenewalNotice';
 import { ShellProvider, TOPBAR_FALLBACK_HEIGHT, useShell } from './src/ui/shell';
 import { I18nProvider, useI18n, uiLang, tr } from './src/ui/i18n';
 import { ToastProvider, useToast } from './src/ui/Toast';
@@ -1181,7 +1181,26 @@ function App(): React.JSX.Element {
       />
 
 
-      <View style={[styles.screenArea, sideBySide && styles.screenAreaBehindBars]}>
+      {/**
+        * منطقةُ الشاشات تبدأ تحت شريط التذكير، لا من أعلى القشرة.
+        *
+        * فهي على اللوح مطلقةٌ بـ top:0 لتمتدّ خلف الرأس والتبويبات
+        * (screenAreaBehindBars)، وتُرسم بعد الشريط في الشجرة -- فكانت
+        * تُطليه كاملاً: الشريطُ يُحسب ويأخذ مكانه في العمود، ثم تأتي هي
+        * فوقه فلا يُرى منه شيء. وهذا بعينه ما رآه المالك على السُنمي:
+        * النقطةُ ظاهرةٌ (فالخادم ردّ) وأعلى الشاشة فاضٍ.
+        *
+        * وفي كاشير الويب لا يقع هذا: هناك `.screens` في السياق الطبيعيّ
+        * والرأسُ وحدَه مطلق، فيدفعها الشريطُ أمامه. فتُدفع هنا بنفس
+        * القدر بدل أن يُركَّب الشريطُ فوقها بـ zIndex -- إزاحةٌ لا
+        * تغطية، فعمودُ الطلب كذلك يبدأ تحته كما في الويب.
+        */}
+      <View
+        style={[
+          styles.screenArea,
+          sideBySide && styles.screenAreaBehindBars,
+          sideBySide && renewalStripHeight > 0 ? { top: renewalStripHeight } : null,
+        ]}>
         {/**
           * شاشةُ المنتجات تبقى مركّبةً وتُخفى، لا تُهدم وتُبنى.
           *
@@ -1463,6 +1482,15 @@ function MoreScreen({
   const { colors } = useTheme();
   const styles = useStyles();
   const { sideBySide, insetTop, insetBottom } = useShell();
+  /**
+   * عدّادُ الاشتراك يُقرأ هنا لا يُمرَّر من فوق.
+   *
+   * فهذي الشاشةُ تُركَّب حين تُفتح، وتركيبُها هو لحظةُ القراءة -- وهي
+   * حدثٌ حقيقيٌّ من المالك، لا استطلاعاً دوريّاً (قاعدة: event-driven،
+   * no polling). والخدمةُ وحدةٌ واحدة، فلا طلبَ ثانياً لو كان الرقمُ
+   * محمَّلاً أصلاً.
+   */
+  const subscription = useSubscription();
   // .more-scroll -- `padding:18px 24px 28px`, plus the bar clearances at
   // >=761px where both bars are out of normal flow.
   const inset = sideBySide ? { paddingTop: insetTop + 18, paddingBottom: 28 + insetBottom } : null;
@@ -1495,6 +1523,9 @@ function MoreScreen({
           </View>
         ) : null}
       </View>
+
+      {/* ١-ب) اشتراكك -- الرقمُ الذي سأل عنه المالك، ثابتٌ في مكانه */}
+      <SubscriptionCard subscription={subscription} />
 
       {/* ٢) وقت الخدمة */}
       <Text style={styles.moreSectionLabel}>وقت الخدمة</Text>

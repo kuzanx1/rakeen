@@ -1015,6 +1015,37 @@ body.kb-open .pos-auth-card:focus-within .pos-auth-title { font-size: 21px; marg
 .rk-shift-btn.ghost { background: var(--surf1); border: 1px solid var(--line); color: var(--text); }
 .rk-shift-btn.main { background: var(--graphite); border: 0; color: var(--lime); }
 [data-theme="dark"] .rk-shift-btn.main { background: var(--lime); color: var(--graphite); }
+
+/* عدّاد الاشتراك في «المزيد» -- من عائلة بطاقة الوردية فوقه، عشان أعلى
+   الشاشة يُقرأ بطاقتين لا بطاقةً وغريبة. ونفس أرقام التطبيق
+   (RenewalNotice.tsx sub*). */
+.rk-sub-card { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--r-lg, 24px); padding: 18px; display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.rk-sub-card[hidden] { display: none; }
+.rk-sub-head { display: flex; align-items: center; gap: 10px; }
+.rk-sub-head b { font-size: 17px; font-weight: 800; flex: 1; }
+/* نصُّ الشارة بلون النصّ لا بلون الحال: «ساري» ليمونيٌّ على ليمونيٍّ
+   باهتٍ لا يكاد يُقرأ على الفاتح (١٫٩:١)، والخلفيّةُ المصبوغةُ وحدَها
+   تكفي للدلالة. */
+.rk-sub-pill { border-radius: 99px; padding: 4px 10px; font-size: 11.5px; font-weight: 800; background: var(--surf1); color: var(--text); flex: none; }
+.rk-sub-pill-ok { background: rgba(var(--lime-rgb), .16); }
+.rk-sub-pill-soon { background: rgba(var(--amber-rgb), .16); }
+.rk-sub-pill-late { background: rgba(var(--danger-rgb), .14); }
+.rk-sub-pill-review { background: var(--surf2); }
+/* الرقم هو البطاقة: يُقرأ من مسافة ذراع بلا أن يُقرأ سطر. */
+.rk-sub-count { display: flex; align-items: flex-end; gap: 9px; }
+.rk-sub-big { font-size: 44px; font-weight: 800; line-height: 1; }
+.rk-sub-word { font-size: 30px; font-weight: 800; line-height: 1.1; }
+.rk-sub-count span { font-size: 14px; font-weight: 800; color: var(--text); padding-bottom: 3px; }
+.rk-sub-card small { font-size: 12.5px; color: var(--muted); }
+.rk-sub-go { margin-top: 4px; height: 46px; border-radius: 14px; font: inherit; font-size: 14px; font-weight: 800; background: var(--surf1); border: 1px solid var(--line); color: var(--text); cursor: pointer; }
+/* لون الحال: الليموني غامقٌ على الفاتح وفاتحٌ على الغامق -- نفس قاعدة
+   accentText في التطبيق، وإلا صار «ساري» غيرَ مقروء في أحد الوضعين. */
+/* والرقمُ الكبيرُ في حال «ساري» بلون النصّ كذلك: ٤٤ بكسل بتباين
+   ١٫٩:١ رقمٌ كبيرٌ لا يُقرأ. والهدوءُ هنا صحيح: ما فيه ما يُنبَّه له. */
+.rk-sub-ok { color: var(--text); }
+.rk-sub-soon { color: var(--amber); }
+.rk-sub-late { color: var(--danger); }
+.rk-sub-review { color: var(--muted); }
 #screen-more .more-section-label { margin-top: 24px; }
 .rk-link-group { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--r-lg, 24px); padding: 0 14px; }
 .rk-link-row { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 14px 0; background: none; border: 0; border-bottom: 1px solid var(--line); color: var(--text); font-family: inherit; text-align: start; cursor: pointer; }
@@ -1086,3 +1117,86 @@ body.kb-open .pos-auth-card:focus-within .pos-auth-title { font-size: 21px; marg
 /* الجوال: الشاشات تصير static (تمرير الصفحة)، فكانت تاخذ عرض محتواها بس
    ويبقى شريط فاضي يسار «المزيد» و«الطلبات». الشاشة الظاهرة تملا العرض. */
 .screens > .screen.active { flex: 1 1 auto; min-width: 0; width: 100%; }
+
+/* ===== تذكير تجديد الاشتراك (rakeen-pos.js RENEWAL-NOTICE) =====
+   نفس أحجام التطبيق وألوانه (react-native-poc/src/ui/RenewalNotice.tsx).
+   وقاعدة الوضع واحدة في الاثنين: لا يغطّي زرّ «ادفع» ولا سلّة الطلب. */
+
+/* النقطة على تبويب «المزيد» -- فوق الأيقونة لا عليها، فالأيقونة تبقى
+   مقروءة. و.nav-tab في rakeen-pos.css بلا position، فلو تُركت لعلّقت
+   النقطةَ على .app كلّها ولظهرت في زاوية الشاشة. */
+.nav-tab{position:relative;}
+.rk-renewal-dot{
+  position:absolute; inset-block-start:6px; inset-inline-end:calc(50% + 11px);
+  width:9px; height:9px; border-radius:99px; background:#FFC24B;
+  box-shadow:0 0 0 2px var(--bg); pointer-events:none;
+}
+
+/* الشريط -- أوّل أبناء .app، فهو يزيح الشاشة لا يغطّيها. */
+.rk-renewal-strip{
+  flex-shrink:0; display:flex; align-items:center; gap:14px;
+  padding:0 18px; height:40px; background:#111410; color:#FBFAF5;
+  box-shadow:inset 0 -2px 0 #FFC24B; z-index:25;
+}
+/* على ≥761 الرأسُ خارجُ السياق (position:absolute, top:0)، فلا يزيحه
+   شريطٌ قبله في الـDOM: يُزاح بنفسه بقدر ارتفاع الشريط، وإلا اختفى
+   الرأسُ كلُّه تحته. */
+@media (min-width:761px){
+  .app.rk-strip-on > .topbar{ top:40px; }
+}
+.rk-renewal-strip-dot{width:8px; height:8px; flex:none; border-radius:99px; background:#FFC24B;}
+.rk-renewal-strip b{font-weight:800; font-size:13.5px; flex:none;}
+.rk-renewal-strip span{
+  font-weight:500; font-size:12.5px; color:rgba(251,250,245,.6); flex:1;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.rk-renewal-strip-go{
+  border:0; border-radius:8px; padding:6px 13px; font:inherit; font-size:12.5px;
+  font-weight:800; background:#FFC24B; color:#0B0B0A; cursor:pointer; flex:none;
+}
+.rk-renewal-strip-x{
+  border:0; background:none; font:inherit; font-size:14px; font-weight:700;
+  color:rgba(251,250,245,.42); cursor:pointer; padding:4px 2px; flex:none;
+}
+
+/* البطاقة -- أسفل الوسط فوق شبكة المنتجات. وسلّة الطلب على الطرف
+   الآخر بعرض ثابت، فالبطاقة المحصورة في 440 لا تقترب منها. */
+.rk-renewal-card{
+  position:fixed; inset-block-end:88px; inset-inline-start:50%;
+  transform:translateX(50%); width:min(440px, calc(100vw - 32px));
+  background:#111410; color:#FBFAF5; border:1px solid rgba(196,255,43,.22);
+  border-radius:20px; padding:20px 22px 17px; z-index:500;
+  box-shadow:0 34px 70px -24px rgba(0,0,0,.55);
+}
+.rk-renewal-card-head{display:flex; align-items:flex-start; gap:10px;}
+.rk-renewal-card-head h3{margin:0; font-weight:900; font-size:16.5px; line-height:1.5; flex:1;}
+.rk-renewal-card-x{
+  border:0; background:none; font:inherit; font-size:15px; font-weight:700;
+  color:rgba(251,250,245,.36); cursor:pointer; padding:0 2px;
+}
+.rk-renewal-card p{
+  margin:8px 0 16px; font-size:13.5px; line-height:1.7; color:rgba(251,250,245,.68);
+}
+.rk-renewal-card-row{display:flex; gap:9px;}
+.rk-renewal-card-go{
+  flex:1; border:0; border-radius:12px; padding:12px; font:inherit; font-size:14px;
+  font-weight:800; background:#C4FF2B; color:#0B0B0A; cursor:pointer;
+}
+.rk-renewal-card-ghost{
+  border:1px solid rgba(251,250,245,.16); border-radius:12px; padding:12px 18px;
+  font:inherit; font-size:13px; font-weight:600; background:none;
+  color:rgba(251,250,245,.6); cursor:pointer;
+}
+
+/* على الجوال: الشريط يختصر، والبطاقة تمتدّ على العرض فوق شريط التبويبات. */
+@media (max-width: 720px){
+  .rk-renewal-strip{height:34px; gap:9px; padding:0 12px;}
+  .rk-renewal-strip b{font-size:12px;}
+  .rk-renewal-strip span{font-size:11px;}
+  .rk-renewal-strip-go{font-size:11px; padding:5px 9px;}
+  .rk-renewal-card{
+    left:12px; right:12px; transform:none;
+    width:auto; inset-block-end:80px; padding:17px 17px 15px; border-radius:17px;
+  }
+  .rk-renewal-card-head h3{font-size:15px;}
+}

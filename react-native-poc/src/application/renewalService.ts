@@ -1,6 +1,6 @@
 import { supabase, RAKEEN_API_BASE_URL } from '../infrastructure/supabaseClient';
 import { getItem, setItem, removeItem } from '../infrastructure/mmkvStorage';
-import { Renewal, riyadhDayKey } from '../domain/renewal';
+import { Renewal, Subscription, riyadhDayKey } from '../domain/renewal';
 
 /**
  * حالة التجديد كما يقولها الخادم، ومتى تُعرض البطاقة.
@@ -13,23 +13,37 @@ import { Renewal, riyadhDayKey } from '../domain/renewal';
 const CARD_DAY_KEY = 'rakeen_renewal_card_day';
 const STRIP_DAY_KEY = 'rakeen_renewal_strip_day';
 
-let current: Renewal | null = null;
+/**
+ * جوابان من قراءةٍ واحدة.
+ *
+ * `renewal` هو التذكيرُ المتدرّج: يسكت أكثرَ الشهر، ويظهر في آخر ستّةِ
+ * أيام. و`subscription` هو عدّادُ «المزيد»: كم باقٍ، دائماً، بلا
+ * نافذةٍ ولا مرحلة. والخادمُ يحسبهما من نفس صفوفِ الدفعات
+ * (lib/renewalStage.ts)، فلا يتناقضان على الشاشة.
+ */
+export interface RenewalState {
+  renewal: Renewal | null;
+  subscription: Subscription | null;
+}
+
+const EMPTY: RenewalState = { renewal: null, subscription: null };
+let current: RenewalState = EMPTY;
 let cardDay: string | null = null;
 /** قراءةٌ واحدةٌ للمفتاح مهما تعدّد من ينتظرها. */
 let cardDayLoad: Promise<void> | null = null;
 /** طلبٌ واحدٌ في الطريق: الشاشةُ وشريطُ التبويبات كلاهما ينادي refresh. */
 let inFlight: Promise<void> | null = null;
-const listeners = new Set<(r: Renewal | null) => void>();
+const listeners = new Set<(s: RenewalState) => void>();
 
 function emit() {
   listeners.forEach(fn => fn(current));
 }
 
-export function getRenewal(): Renewal | null {
+export function getRenewalState(): RenewalState {
   return current;
 }
 
-export function subscribeRenewal(fn: (r: Renewal | null) => void): () => void {
+export function subscribeRenewal(fn: (s: RenewalState) => void): () => void {
   listeners.add(fn);
   return () => {
     listeners.delete(fn);
@@ -63,10 +77,18 @@ async function doRefresh(): Promise<void> {
     if (!res.ok) return;
     const out = await res.json();
     if (!('renewal' in out)) return;
-    const next: Renewal | null =
+    const renewal: Renewal | null =
       out.renewal && typeof out.renewal.stage === 'string' && typeof out.renewal.days === 'number'
         ? { stage: out.renewal.stage, days: out.renewal.days }
         : null;
+    // نسخةٌ أقدمُ من الخادم لا ترسل العدّاد أصلاً: يُقرأ وحدَه، فغيابُه
+    // يُخفي بطاقةَ «المزيد» ولا يمسّ التذكير.
+    const s = out.subscription;
+    const subscription: Subscription | null =
+      s && typeof s.days === 'number' && typeof s.date === 'string'
+        ? { days: s.days, date: s.date, status: typeof s.status === 'string' ? s.status : 'due' }
+        : null;
+    const next: RenewalState = { renewal, subscription };
     const changed = JSON.stringify(next) !== JSON.stringify(current);
     current = next;
     if (changed) emit();
@@ -150,7 +172,7 @@ export async function resetRenewalSeen(): Promise<void> {
    * الممسوح، فلا يعود شيءٌ إلى الشاشة. وهذا ما رآه المالك على السُنمي:
    * النقطةُ وحدها -- لأنها لا تعتمد على أثرٍ أصلاً.
    */
-  if (current) current = { ...current };
+  current = { ...current, renewal: current.renewal ? { ...current.renewal } : null };
   emit();
 }
 

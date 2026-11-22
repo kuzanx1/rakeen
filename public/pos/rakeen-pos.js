@@ -52,6 +52,40 @@ function escapeHtml(value){
 let LANG = 'ar';
 try { LANG = localStorage.getItem('rakeen_pos_lang') || 'ar'; } catch {}
 const I18N_EN = {
+  /* تذكير تجديد الاشتراك (RENEWAL-NOTICE) — بلا ذكر مبلغ */
+  'اشتراكك يُجدَّد اليوم': 'Your subscription renews today',
+  'باقي يوم واحد على تجديد اشتراكك': 'Your subscription renews tomorrow',
+  'باقي يومين على تجديد اشتراكك': 'Your subscription renews in 2 days',
+  'باقي {n} أيام على تجديد اشتراكك': 'Your subscription renews in {n} days',
+  'تأخَّر تجديد اشتراكك': 'Your subscription renewal is overdue',
+  'انتهت مهلة تجديد اشتراكك': 'Your renewal grace period has ended',
+  'ما قبلنا إيصال التحويل — ارفع إيصال جديد': 'We could not accept your transfer receipt — please upload a new one',
+  'ادخل لوحة التحكم وارفع إيصال التحويل، عشان الخدمة تستمر بدون انقطاع.':
+    'Open the dashboard and upload your transfer receipt, so your service keeps running without interruption.',
+  'ارفع إيصال التحويل من لوحة التحكم اليوم، عشان ما تنقطع الخدمة.':
+    'Upload your transfer receipt from the dashboard today, so your service is not interrupted.',
+  'المهلة شغّالة الحين. ارفع إيصال التحويل من لوحة التحكم عشان ما يتوقف الكاشير.':
+    'Your grace period is running. Upload your transfer receipt from the dashboard so the cashier does not stop.',
+  'انتهت المهلة، والكاشير معرّض للإيقاف في أي وقت. ارفع إيصال التحويل من لوحة التحكم.':
+    'The grace period is over and the cashier may be paused at any time. Upload your transfer receipt from the dashboard.',
+  'ارفع إيصال التحويل مرّة ثانية من لوحة التحكم، أو كلّمنا لو فيه لبس.':
+    'Upload your transfer receipt again from the dashboard, or talk to us if something is unclear.',
+  /* عدّاد الاشتراك الدائم في «المزيد» */
+  'اشتراكك': 'Your subscription',
+  'ساري': 'Active',
+  'قريب': 'Due soon',
+  'متأخّر': 'Overdue',
+  'تحت المراجعة': 'Under review',
+  'ارفع إيصال جديد': 'Upload a new receipt',
+  'اليوم': 'Today',
+  'هو يوم التجديد': 'is renewal day',
+  'يوم على التجديد': 'days to renewal',
+  'يوم تأخير': 'days overdue',
+  'يوم التجديد': 'Renewal day',
+  'كان يوم التجديد': 'Renewal day was',
+  'افتح اللوحة': 'Open dashboard',
+  'افتح لوحة التحكم': 'Open dashboard',
+  'ذكَّرني بكرة': 'Remind me tomorrow',
   /* وحدات رصيد الولاء -- تتبع نظام المنشأة لا تُثبّت على «نقطة». */
   'زيارة': 'visit',
   'كوب': 'cup',
@@ -84,7 +118,7 @@ const I18N_EN = {
   'اكتب السبب': 'Type the reason',
   'تسجيل الهدر': 'Record waste',
   'جارٍ التسجيل...': 'Recording...',
-  'انسجّل الهدر': 'Waste recorded',
+  'اتسجّل الهدر': 'Waste recorded',
   'تعذّر تسجيل الهدر': 'Could not record the waste',
   'تسجيل الهدر يحتاج تحديث من لوحة التحكم': 'Waste recording needs an update from the dashboard',
   'ما فيه وصفة مربوطة، فما انخصم من المخزون': 'no recipe linked, so nothing was deducted from stock',
@@ -288,6 +322,9 @@ const I18N_EN = {
   'إجمالي الطلب — مدفوع مسبقًا عبر التطبيق': 'Order total — prepaid through the app',
   'آخر ٤ أرقام الفاتورة': 'Last 4 digits of the invoice',
   'آخر ٤ أرقام من فاتورة تطبيق التوصيل': 'Last 4 digits from the delivery app invoice',
+  'آخر ٤ أرقام من جوال الزبون': 'Last 4 digits of the customer’s mobile',
+  'أو بالجوال': 'or by phone',
+  'الطلب جاك بالجوال': 'The order came in by phone',
   'تمت العملية بنجاح': 'Done',
   'تخطي': 'Skip',
   'التالي': 'Next',
@@ -518,7 +555,7 @@ const I18N_EN = {
   'مسترجع': 'Refunded',
   'مسترجعة': 'Refunded',
   'جهاز النداء': 'Pager',
-  'انحفظ الطلب، بس ما انسجّل رقم الجهاز': 'The order was saved, but the pager number was not',
+  'انحفظ الطلب، بس ما اتسجّل رقم الجهاز': 'The order was saved, but the pager number was not',
   'جارٍ الاسترجاع...': 'Refunding...',
   'تعذر تحميل الطلبات — جرّب مرة ثانية': 'Could not load orders — try again',
   'تعذر تحميل الطلبات الجارية — تحقق من الاتصال.': 'Could not load open orders — check your connection.',
@@ -1516,6 +1553,7 @@ const ORDER_KIND_BILINGUAL = {
   'بالمطعم': 'محلي · Dine-in',
   'سفري': 'سفري · Takeaway',
   'توصيل': 'توصيل · Delivery',
+  'جوال': 'جوال · Phone',
   'استلام': 'استلام · Pickup',
   'طلب إلكتروني': 'طلب إلكتروني · Online Order'
 };
@@ -2066,7 +2104,7 @@ function switchBottomNavScreen(screenKey){
   document.getElementById('posApp').classList.toggle('home-active', screenKey === 'home');
   // refresh live data whenever a screen is (re)entered — never show stale state
   if(screenKey === 'orders') renderOrdersList();
-  if(screenKey === 'more') renderMoreShiftCard();
+  if(screenKey === 'more'){ renderMoreShiftCard(); renderMoreSubCard(); }
   if(screenKey === 'tables'){ if(isHotelBusiness()) renderHotelActiveTab(); else renderTables(); }
   // "Scan-first" mode (roadmap item 2): a retail cashier's default action is
   // scanning, not browsing — keep the barcode/search field focused so a
@@ -2095,10 +2133,18 @@ document.getElementById('bottomNav').addEventListener('click', (e)=>{
 // or, until one's uploaded, a colored-initial badge using its brand color —
 // looks intentional either way, becomes the real logo the moment it's set.
 function renderPlatformButtons(){
-  if(!state.deliveryPlatformId && DELIVERY_PLATFORMS_LIST.length) state.deliveryPlatformId = DELIVERY_PLATFORMS_LIST[0].id;
+  const rowItems = PHONE_ORDERS_ENABLED
+    ? DELIVERY_PLATFORMS_LIST.concat([{id: RK_PHONE_PLATFORM_ID, name: RK_PHONE_PLATFORM_LABEL, logo_url: '', brand_color: '#2F6F4E'}])
+    : DELIVERY_PLATFORMS_LIST;
+  // أوّلُ ما في الصفِّ هو المختار -- تطبيقاً كان أو «جوال».
+  //
+  // كان يُختار أوّلُ تطبيقٍ فقط، فمطعمٌ بلا تطبيقاتٍ يضغط «توصيل»
+  // ويدفع، فيُحفظ الطلبُ بلا مصدرٍ ولا آخرِ أربعة -- ويُقرأ في اللوحة
+  // «توصيل» عارياً. (بلاغ صاحب المطعم ٢٠٢٦/١١/٢٠، الطلب ٥٧.)
+  if(!state.deliveryPlatformId && rowItems.length) state.deliveryPlatformId = rowItems[0].id;
   const row = document.getElementById('channelPlatformRow');
   if(!row) return;
-  row.innerHTML = DELIVERY_PLATFORMS_LIST.map(p=>{
+  row.innerHTML = rowItems.map(p=>{
     const active = p.id === state.deliveryPlatformId;
     const badge = p.logo_url
       ? `<img src="${p.logo_url}" alt="">`
@@ -2436,7 +2482,7 @@ function cartTotals(){
     const r = state.resumingOrder;
     return {subtotal: Number(r.subtotal), discount: Number(r.discount_amount), vat: Number(r.vat_amount), total: Number(r.total)};
   }
-  const subtotal = state.cart.reduce((s,i)=> s + lineUnitPrice(i)*i.qty, 0);
+  const subtotal = state.cart.reduce((s,i)=> s + lineTotalPrice(i), 0);
   // بمبلغ ثابت يغلب النسبة، وما يتعدّى المجموع (cartTotals في التطبيق).
   const discount = state.discountFixed > 0 ? Math.min(Math.round(state.discountFixed * 100) / 100, subtotal) : subtotal * (state.discountPct/100);
   const afterDiscount = subtotal - discount;
@@ -2505,7 +2551,17 @@ function rkWithOptionCount(label, config, optId){
   const n = rkOptionCount(config, optId);
   return n ? label + ' ×' + n : label;
 }
-function rkOptionTakesCount(g, o){ return g.type === 'multiple' && !o.price; }
+/* كل إضافة في مجموعة متعددة لها عدّاد -- والمجانية والمدفوعة سواء، لا
+   يفترقان إلا في السعر. وكان هذا خطأً قبلُ: مُنع العدّاد عن المجانية حتى
+   تزيد الكمية، بحجة أن «بدون بصل ×٣» على ساندوتشٍ واحد لا معنى له. لكن
+   المجاني ليس «بدون» وحده: كتشبٌ مجاني يطلب منه الزبون ثلاثة أكياس على
+   ساندوتشٍ واحد، فلا يُعَدّ ولا ينقص المخزون ثلاثة. ومجموعة الحجم
+   (single) لا عدّاد فيها: الصنف لا يُباع بحجمين معاً.
+   (نظيرها في التطبيق: domain/cart.ts) */
+const RK_MAX_OPT_COUNT = 99;
+function rkOptionTakesCount(g){ return g.type === 'multiple'; }
+/* يُكتب العدد إذا خالف الكمية -- لا إذا قلّ عنها: العدد مطلقٌ لا نسبة.
+   وما ساواها لا عدّاد له، فالسطر القديم يبقى بلا فرقِ سعر. */
 function rkApplyOptionCounts(config, counts, qty, modDef){
   const out = {...config}; delete out[RK_OPT_COUNTS];
   const list = [];
@@ -2513,12 +2569,48 @@ function rkApplyOptionCounts(config, counts, qty, modDef){
     const sel = config[g.id];
     if(!Array.isArray(sel)) return;
     sel.forEach(id=>{
-      const o = g.options.find(x=>x.id===id); const n = counts[id];
-      if(o && rkOptionTakesCount(g, o) && n && n < qty) list.push(id + ':' + n);
+      const o = g.options.find(x=>x.id===id);
+      const n = counts[id] ? Math.min(counts[id], RK_MAX_OPT_COUNT) : counts[id];
+      if(o && rkOptionTakesCount(g) && n && n !== qty) list.push(id + ':' + n);
     });
   });
   if(list.length) out[RK_OPT_COUNTS] = list;
   return out;
+}
+/**
+ * فرقُ الإضافات بالعدد: ما يُضاف إلى السطر فوق سعر الوحدة × الكمية.
+ *
+ * القاعدة: كل حبة إضافة بسعرها. خمس شرائح جبن بريالين = عشرة، على خمسة
+ * ساندوتشات كانت أو على واحد. فمجموع السطر = سعر المنتج × الكمية +
+ * (سعر الإضافة × عددها).
+ *
+ * وفرقاً لا مجموعاً: unit_price المخزَّن في الفاتورة يحمل الإضافات أصلاً
+ * (حبةً لكل وحدة) ويُقاس عليه غيرُه (compute_line_cost يعرف «الحجم
+ * الكبير» بتجاوز سعر الوحدة سعرَ المنتج بالثلث)، ولو جُعل المجموع ÷
+ * الكمية لخرج سعرٌ كسري على فاتورةٍ ضريبية. فيبقى سعر الوحدة، ويُحمل
+ * الفرق وحده في modifiers_total.
+ */
+function lineOptionsExtra(item){
+  if(item.isPointsRedemption || item.isFreeReward) return 0;
+  const modDef = MODIFIER_PRODUCTS[item.productId];
+  if(!modDef || modDef.isBox || modDef.isMeal || !item.config) return 0;
+  let extra = 0;
+  (modDef.groups||[]).forEach(g=>{
+    const sel = item.config[g.id];
+    if(!Array.isArray(sel)) return;
+    sel.forEach(optId=>{
+      const o = g.options.find(x=>x.id===optId);
+      if(!o || !o.price) return;
+      const n = rkOptionCount(item.config, optId);
+      if(n == null) return;
+      extra += o.price * (n - item.qty);
+    });
+  });
+  return Math.round((extra + Number.EPSILON) * 100) / 100;
+}
+/* مجموع السطر بالريال: سعر الوحدة × الكمية + فرقُ الإضافات بالعدد. */
+function lineTotalPrice(item){
+  return Math.round((lineUnitPrice(item) * item.qty + lineOptionsExtra(item) + Number.EPSILON) * 100) / 100;
 }
 
 function openModifierModal(product, modDef){
@@ -2559,15 +2651,26 @@ function renderGroupModifiers(){
       const chip = `<button class="mod-chip ${isSel?'selected':''} ${o.critical?'critical':''}" data-group="${g.id}" data-opt="${o.id}" data-type="${g.type}">
         ${(LANG==='en' && o.nameEn) ? o.nameEn : o.name}${o.price?`<span class="mod-chip-price">${o.price>0?'+':''}${o.price}</span>`:''}
       </button>`;
-      // الكمية أكثر من ١: عدّاد جنب الإضافة المختارة، كم حبة عليها.
-      if(isSel && qty > 1 && rkOptionTakesCount(g, o)){
-        const n = Math.min(modifierState.counts[o.id] ?? qty, qty);
+      // عدّاد جنب الإضافة المختارة: كم حبة منها في السطر.
+      if(isSel && rkOptionTakesCount(g)){
+        const n = Math.min(modifierState.counts[o.id] ?? qty, RK_MAX_OPT_COUNT);
         html += `<span class="mod-chip-wrap">${chip}<span class="mod-count"><button class="mqty-btn" data-cnt="-1" data-opt="${o.id}">−</button><span class="mono">${n}</span><button class="mqty-btn" data-cnt="1" data-opt="${o.id}">+</button></span></span>`;
       } else html += chip;
     });
     html += `</div></div>`;
   });
   const unitPrice = computeConfigPrice(product, config);
+  // الزر يعرض ثمن ما سيُضاف فعلاً: الإضافة المعدودة بعددها، لا بالكمية.
+  const previewExtra = modDef.groups.reduce((sum, g)=>{
+    const sel = config[g.id];
+    if(!Array.isArray(sel)) return sum;
+    return sum + sel.reduce((s, optId)=>{
+      const o = g.options.find(x=>x.id===optId);
+      if(!o || !o.price || !rkOptionTakesCount(g)) return s;
+      const n = Math.min(modifierState.counts[optId] ?? qty, RK_MAX_OPT_COUNT);
+      return s + o.price * (n - qty);
+    }, 0);
+  }, 0);
   const unmetGroups = modDef.groups.filter(g=>{
     if(!g.required) return false;
     const sel = config[g.id];
@@ -2576,7 +2679,7 @@ function renderGroupModifiers(){
   });
   const addLabel = unmetGroups.length
     ? 'اختر: ' + ((LANG==='en' && unmetGroups[0].nameEn) ? unmetGroups[0].nameEn : unmetGroups[0].name)
-    : t('أضف') + ' — ' + rkMoney(unitPrice*qty);
+    : t('أضف') + ' — ' + rkMoney(unitPrice*qty + previewExtra);
   html += `<div class="modifier-footer">
     <div class="modifier-qty"><button class="mqty-btn" data-qdelta="-1">−</button><span class="mono" id="modifierQtyVal">${qty}</span><button class="mqty-btn" data-qdelta="1">+</button></div>
     <button class="modifier-add-btn" id="modifierAddBtn"${unmetGroups.length ? ' disabled' : ''}>${addLabel}</button>
@@ -2614,7 +2717,7 @@ function wireGroupModifierEvents(){
   document.querySelectorAll('.mqty-btn[data-cnt]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const id = btn.dataset.opt, q = modifierState.qty;
-      modifierState.counts[id] = Math.max(1, Math.min(q, (modifierState.counts[id] ?? q) + parseInt(btn.dataset.cnt)));
+      modifierState.counts[id] = Math.max(1, Math.min(RK_MAX_OPT_COUNT, (modifierState.counts[id] ?? q) + parseInt(btn.dataset.cnt)));
       renderGroupModifiers();
     });
   });
@@ -2707,7 +2810,10 @@ function formatConfigLabels(productId, config){
  * engine (shared/receipt/layout.ts, built into receipt-engine.js) joins
  * them as "text | textEn" the same way it already does for the item name.
  */
-function formatConfigLabelsBilingual(productId, config){
+/* الاسمان وثمنُ الإضافة: qty كميةُ السطر، لأن الإضافة بلا عدّاد تقع
+   على كل حبة -- «طحينة» على خمسة أطباق خمسُ طحينات. (نظيرها في
+   التطبيق: domain/order.ts) */
+function formatConfigLabelsBilingual(productId, config, qty){
   const modDef = MODIFIER_PRODUCTS[productId];
   if(!modDef || !config) return [];
   if(modDef.isBox){
@@ -2723,7 +2829,9 @@ function formatConfigLabelsBilingual(productId, config){
       if(!optId) return;
       const opt = g.options.find(o=>o.id===optId);
       if(!opt) return;
-      labels.push({text: rkWithOptionCount(opt.name, config, optId), textEn: opt.nameEn ? rkWithOptionCount(opt.nameEn, config, optId) : null});
+      const units = rkOptionCount(config, optId) ?? (qty || 1);
+      const amount = Math.round(((opt.price || 0) * units + Number.EPSILON) * 100) / 100;
+      labels.push({text: rkWithOptionCount(opt.name, config, optId), textEn: opt.nameEn ? rkWithOptionCount(opt.nameEn, config, optId) : null, price: amount || undefined});
     });
   });
   return labels;
@@ -2902,8 +3010,8 @@ async function saveWaste(){
   // صفرُ خصمٍ ليس خطأ -- منتجٌ بلا وصفة يُسجَّل هدره ولا يُنقص منه شيء،
   // ويُقال ذلك بدل أن يظنّ الكاشير أن المخزون نقص.
   showToast((isProduct && out.deductedFromStock === false)
-    ? t('انسجّل الهدر') + ' — ' + name + ' · ' + t('ما فيه وصفة مربوطة، فما انخصم من المخزون')
-    : t('انسجّل الهدر') + ' — ' + name + (cost ? ' (' + cost.toFixed(2) + ' ' + t('ر.س') + ')' : ''));
+    ? t('اتسجّل الهدر') + ' — ' + name + ' · ' + t('ما فيه وصفة مربوطة، فما انخصم من المخزون')
+    : t('اتسجّل الهدر') + ' — ' + name + (cost ? ' (' + cost.toFixed(2) + ' ' + t('ر.س') + ')' : ''));
 }
 
 /* ============ Smart upselling — configurable, max 2, one-tap, never blocking ============ */
@@ -3036,7 +3144,7 @@ function renderOrder(){
             <div class="oi-name">${escapeHtml(LANG === 'en' ? (p.nameEn || p.name) : p.name)}${(i.isPointsRedemption || i.isFreeReward)?' 🎁':''}</div>
             ${i.qty > 1 && !i.isPointsRedemption && !i.isFreeReward ? `<div class="oi-unit">${rkMoney(unitPrice)} / ${t('حبة')}</div>` : ''}
           </div>
-          <div class="oi-total">${i.isPointsRedemption ? t('نقاط') : i.isFreeReward ? t('مجاني') : rkMoney(unitPrice*i.qty)}</div>
+          <div class="oi-total">${i.isPointsRedemption ? t('نقاط') : i.isFreeReward ? t('مجاني') : rkMoney(lineTotalPrice(i))}</div>
           <button class="oi-remove" data-action="remove" data-line="${i.lineId}" aria-label="${t('حذف')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg></button>
         </div>
         ${configHtml}
@@ -3064,6 +3172,19 @@ function renderOrder(){
       });
     });
     itemsEl.querySelectorAll('.oi-note-input').forEach(input=>{
+      // مع كل حرف، لا حين يخرج المؤشر وحده.
+      //
+      // الحفظُ في blur وحده يضيّع الملاحظة في حالتين: أن يُعاد رسمُ
+      // السلة (renderOrder) والحقلُ مفتوحٌ فيُنتزع من الصفحة، وأن تُلمس
+      // الشاشةُ في جهازٍ لا يُرسل blur قبل النقر. ومن هنا كانت تُطبع
+      // أحياناً ولا تُطبع أحياناً. ولا renderOrder هنا: إعادةُ الرسم
+      // أثناء الكتابة تقتل الحقلَ الذي يُكتب فيه.
+      input.addEventListener('input', ()=>{
+        const lineId = parseInt(input.dataset.line);
+        const item = state.cart.find(i=>i.lineId===lineId);
+        // الفراغُ وحده ليس ملاحظة -- وإلّا طُبع سطرُ «ملاحظات:» فارغاً.
+        if(item) item.note = input.value.trim() ? input.value : '';
+      });
       input.addEventListener('blur', ()=>{
         const lineId = parseInt(input.dataset.line);
         const item = state.cart.find(i=>i.lineId===lineId);
@@ -3887,7 +4008,7 @@ function proceedFromCustomerStep(){
   const {total} = cartTotals();
   document.getElementById('paymentModalTitle').textContent = 'الدفع';
   state.friendsSplitOpen = false; state.friendsSplitCount = null;
-  if(state.orderChannel === 'delivery'){
+  if(rkPrepaidByApp()){
     state.activePaymentMethod = 'delivery_platform';
   } else {
     state.activePaymentMethod = 'cash'; state.cashAmount = total;
@@ -4403,8 +4524,8 @@ function renderChannelStep(){
   const platformNames = DELIVERY_PLATFORMS_LIST.map(p => p.name).filter(Boolean);
   const deliveryHint = platformNames.length
     // t() لا القالبُ الحرفيّ: أسماءُ التطبيقات لا تُترجم، وما حولها يُترجم.
-    ? t('الطلب جاك من') + ' ' + platformNames.slice(0, 2).join(' ' + t('أو') + ' ')
-    : t('الطلب جاك من تطبيق توصيل');
+    ? t('الطلب جاك من') + ' ' + platformNames.slice(0, 2).join(' ' + t('أو') + ' ') + (PHONE_ORDERS_ENABLED ? ' ' + t('أو بالجوال') : '')
+    : (PHONE_ORDERS_ENABLED ? t('الطلب جاك بالجوال') : t('الطلب جاك من تطبيق توصيل'));
 
   const channels = [
     // شوكةٌ وسكّين: دائرتان متراكزتان تُقرآن زرَّ تسجيلٍ لا صحناً.
@@ -4412,7 +4533,10 @@ function renderChannelStep(){
      icon:'<path d="M3 2v7a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6a2 2 0 0 0 2 2h3zm0 0v7"/>'},
     {id:'pickup', label:'سفري', hint:t('ياخذ طلبه ويطلع'),
      icon:'<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>'},
-    {id:'delivery', label:'تطبيقات التوصيل', hint:deliveryHint,
+    // «أخرى»، لا «توصيل»: الصفُّ تحته كيتا وجاهز و«جوال» -- وطلبُ
+    // الجوال غالباً يجيء صاحبُه فيستلمه بنفسه، فليس توصيلاً أصلاً.
+    // (اختارَه صاحبُ المطعم، ٢٠٢٦/١١/٢٠.)
+    {id:'delivery', label:'أخرى', hint:deliveryHint,
      icon:'<rect x="5" y="2" width="14" height="20" rx="2.5"/><line x1="10" y1="18.5" x2="14" y2="18.5"/>'}
   ].filter(c => {
     if(c.id === 'dine_in') return DINE_IN_ENABLED;
@@ -4425,7 +4549,9 @@ function renderChannelStep(){
     // takes that order through the online store, not this button.
     // Still shown for an order already saved as delivery, so reopening
     // one cannot strand it on a channel it can no longer display.
-    if(c.id === 'delivery') return DELIVERY_PLATFORMS_LIST.length > 0 || state.orderChannel === 'delivery';
+    // و«جوال» جعلها ذاتَ معنىً بلا تطبيقاتٍ أصلاً: يُدفع هنا لا هناك.
+    // فإن أُطفئ ولا تطبيقَ للمنشأة، ما بقي في الصفّ ما يُختار.
+    if(c.id === 'delivery') return DELIVERY_PLATFORMS_LIST.length > 0 || PHONE_ORDERS_ENABLED || state.orderChannel === 'delivery';
     return true;
   });
   let html = `<div class="channel-row" id="pmChannelRow">` + channels.map(c=>
@@ -4434,7 +4560,7 @@ function renderChannelStep(){
       <span class="channel-name">${c.label}</span>
     </button>`
   ).join('') + `</div>`;
-  html += `<div class="platform-btn-row ${state.orderChannel==='delivery' && DELIVERY_PLATFORMS_LIST.length ? '' : 'hidden'}" id="channelPlatformRow"></div>`;
+  html += `<div class="platform-btn-row ${state.orderChannel==='delivery' ? '' : 'hidden'}" id="channelPlatformRow"></div>`;
   paymentModalBody.innerHTML = html;
   renderPlatformButtons();
 
@@ -4447,11 +4573,10 @@ function renderChannelStep(){
     state.orderChannel = btn.dataset.channel;
     const platformRow = document.getElementById('channelPlatformRow');
     if(state.orderChannel === 'delivery'){
-      if(DELIVERY_PLATFORMS_LIST.length){
-        platformRow.classList.remove('hidden');
-        if(!state.deliveryPlatformId) state.deliveryPlatformId = DELIVERY_PLATFORMS_LIST[0].id;
-        renderPlatformButtons();
-      }
+      platformRow.classList.remove('hidden');
+      // الاختيارُ الافتراضيُّ في renderPlatformButtons وحدَه -- قاعدةٌ
+      // واحدةٌ لا اثنتان تفترقان (كانت هنا تتجاهل «جوال»).
+      renderPlatformButtons();
     } else {
       platformRow.classList.add('hidden');
       state.platformInvoiceLast4 = '';
@@ -4538,8 +4663,10 @@ function renderPaymentStep(){
   const {total} = cartTotals();
 
   // delivery orders are already paid by the customer inside the platform's
-  // own app — no cash/card tabs, just a confirmation before we log the order
-  if(state.orderChannel === 'delivery'){
+  // own app — no cash/card tabs, just a confirmation before we log the order.
+  // وطلبُ الجوال ليس منها: يُدفع عند الاستلام، فيمضي في المسار العاديّ
+  // ومعه حقلُ آخرِ أربعة.
+  if(rkPrepaidByApp()){
     const last4Valid = /^\d{4}$/.test(state.platformInvoiceLast4);
     let html = `<div class="due-display"><div class="due-label">إجمالي الطلب — مدفوع مسبقًا عبر التطبيق</div><div class="due-amount">${rkMoney(total)}</div></div>`;
     html += `<div class="pos-auth-field" style="margin-bottom:14px;">
@@ -4714,12 +4841,22 @@ function renderPaymentStep(){
     </div>`;
   }
 
+  // طلبُ الجوال: آخرُ أربعةٍ من جوال المتّصل -- بها يُسلَّم الطلب، وبها
+  // تُطبع ورقةُ المطبخ بخطٍّ كبير. ولا تأكيد قبلها.
+  if(rkPhoneOrder()){
+    html += `<div class="pos-auth-field" style="margin:4px 0 14px;">
+      <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px;">آخر ٤ أرقام من جوال الزبون</label>
+      <input type="text" id="phoneOrderLast4Input" maxlength="4" inputmode="numeric" placeholder="٠٠٠٠" value="${state.platformInvoiceLast4}" style="width:100%; text-align:center; font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:16px;">
+    </div>`;
+  }
+
   const cardNow = Math.min(total, state.splitCardAmount || 0);
-  const ready = state.activePaymentMethod === 'cash'
+  const tenderReady = state.activePaymentMethod === 'cash'
     ? (state.cashAmount || 0) >= total
     : state.activePaymentMethod === 'split'
       ? (cardNow > 0 && total - cardNow > 0)
       : true;
+  const ready = tenderReady && rkLast4Ok();
   html += `<button class="confirm-pay-btn" id="confirmPayBtn" ${ready?'':'disabled'}>${
     state.activePaymentMethod === 'split' ? 'تأكيد الدفع المقسّم' : 'تأكيد الدفع'}</button>`;
   paymentModalBody.innerHTML = html;
@@ -4739,6 +4876,15 @@ function renderPaymentStep(){
     renderPaymentStep();
   }));
   paymentModalBody.querySelectorAll('.qa-btn[data-amount]').forEach(btn=>btn.addEventListener('click', ()=>{ state.cashAmount = parseFloat(btn.dataset.amount); renderPaymentStep(); }));
+  const phoneLast4Input = document.getElementById('phoneOrderLast4Input');
+  if(phoneLast4Input) phoneLast4Input.addEventListener('input', (e)=>{
+    const digits = toWesternDigits(e.target.value).replace(/\D/g, '').slice(0, 4);
+    e.target.value = digits;
+    state.platformInvoiceLast4 = digits;
+    const btn = document.getElementById('confirmPayBtn');
+    // نفسُ شرطِ الرسم: ما استُلم كافٍ، والأربعةُ تمّت.
+    if(btn) btn.disabled = !(tenderReady && rkLast4Ok());
+  });
   // Cash/split inputs update state + the small bits of surrounding UI (change
   // amount, sibling input, confirm-button enabled state) DIRECTLY rather than
   // re-rendering the whole step on every keystroke — a full innerHTML rebuild
@@ -4757,13 +4903,13 @@ function renderPaymentStep(){
     paymentModalBody.querySelectorAll('.qa-btn[data-amount]').forEach(b=>
       b.classList.toggle('active', Number(b.dataset.amount) === state.cashAmount));
     const btn = document.getElementById('confirmPayBtn');
-    if(btn) btn.disabled = !(state.cashAmount >= total);
+    if(btn) btn.disabled = !(state.cashAmount >= total && rkLast4Ok());
   });
   const splitCardInput = document.getElementById('splitCardInput');
   const splitCashInput = document.getElementById('splitCashInput');
   function syncSplitConfirmBtn(cardAmt, cashAmt){
     const btn = document.getElementById('confirmPayBtn');
-    if(btn) btn.disabled = !(cardAmt > 0 && cashAmt > 0);
+    if(btn) btn.disabled = !(cardAmt > 0 && cashAmt > 0 && rkLast4Ok());
   }
   if(splitCardInput) splitCardInput.addEventListener('input', (e)=>{
     const v = Math.max(0, Math.min(total, parseFloat(e.target.value)||0));
@@ -5479,7 +5625,9 @@ function computeLineStockDecrements(item){
         const link = MODIFIER_OPTION_STOCK[g.id+'_'+optId];
         if(link){
           const qtyInStockUnit = convertToUnit(link.qty, link.unit, STOCK_UNIT_BY_ID[link.stockItemId] || link.unit);
-          const units = Math.min(item.qty, rkOptionCount(item.config, optId) ?? item.qty); // «×2 من 5»
+          // العدد هو عدد الحبات فعلاً: «×5» خمس شرائح جبن تُخصم ولو كانت
+          // الكمية واحداً. وبلا عدد: حبةٌ لكل وحدة، كما كان.
+          const units = rkOptionCount(item.config, optId) ?? item.qty;
           decrements.push({stock_item_id: link.stockItemId, qty: qtyInStockUnit * units});
         }
       });
@@ -5530,10 +5678,12 @@ function buildOrderPayload(totals){
     service_id: item.productId < 0 ? -item.productId : null,
     qty: item.qty,
     unit_price: lineUnitPrice(item),
-    modifiers_total: 0,
-    line_total: lineUnitPrice(item) * item.qty,
+    // فرقُ الإضافات بالعدد، لا صفرٌ دائماً: «جبنة ×5» على ساندوتشٍ واحد
+    // أربع شرائح فوق الواحدة المحسوبة في سعر الوحدة.
+    modifiers_total: lineOptionsExtra(item),
+    line_total: lineTotalPrice(item),
     note: item.note || null,
-    selected_modifiers: formatConfigLabelsBilingual(item.productId, item.config).map(l=>({text:l.text, textEn:l.textEn||undefined})),
+    selected_modifiers: formatConfigLabelsBilingual(item.productId, item.config, item.qty).map(l=>({text:l.text, textEn:l.textEn||undefined, price:l.price})),
     stock_decrements: computeLineStockDecrements(item),
     box_selections: computeLineBoxSelections(item),
     is_points_redemption: !!item.isPointsRedemption,
@@ -5560,7 +5710,7 @@ function buildOrderPayload(totals){
       : state.activePaymentMethod === 'split' ? Math.max(0, Number((totals.total - (state.splitCardAmount||0)).toFixed(2)))
       : null,
     channel: state.orderChannel || 'dine_in',
-    delivery_platform_id: state.orderChannel === 'delivery' ? (state.deliveryPlatformId || null) : null,
+    delivery_platform_id: state.orderChannel === 'delivery' ? rkPlatformIdForServer() : null,
     platform_invoice_last4: state.orderChannel === 'delivery' ? (state.platformInvoiceLast4 || null) : null,
     table_id: state.orderChannel === 'dine_in' ? (state.selectedTableId || null) : null,
     items
@@ -5582,8 +5732,8 @@ function buildDineInRegisterPayload(){
     menu_item_id: item.productId < 0 ? null : item.productId,
     service_id: item.productId < 0 ? -item.productId : null,
     qty: item.qty, unit_price: lineUnitPrice(item),
-    modifiers_total: 0, line_total: lineUnitPrice(item) * item.qty, note: item.note || null,
-    selected_modifiers: formatConfigLabelsBilingual(item.productId, item.config).map(l=>({text:l.text, textEn:l.textEn||undefined})),
+    modifiers_total: lineOptionsExtra(item), line_total: lineTotalPrice(item), note: item.note || null,
+    selected_modifiers: formatConfigLabelsBilingual(item.productId, item.config, item.qty).map(l=>({text:l.text, textEn:l.textEn||undefined, price:l.price})),
     stock_decrements: computeLineStockDecrements(item),
     box_selections: computeLineBoxSelections(item),
     // Was missing entirely on this path — a points-redeemed item added to a
@@ -6737,8 +6887,8 @@ function buildLiveReceiptData(orderPayload, totals){
     const unitPrice = lineUnitPrice(item);
     return {
       name: p ? p.name : '', nameEn: p ? (p.name_en || '') : '',
-      qty: item.qty, unitPrice, lineTotal: unitPrice * item.qty,
-      mods: formatConfigLabelsBilingual(item.productId, item.config).map(l=>({text:l.text, textEn:l.textEn||undefined})),
+      qty: item.qty, unitPrice, lineTotal: lineTotalPrice(item),
+      mods: formatConfigLabelsBilingual(item.productId, item.config, item.qty).map(l=>({text:l.text, textEn:l.textEn||undefined, price:l.price})),
       // الملاحظة صارت تُطبع للزبون أيضاً، بطلب صاحب المطعم -- كانت
       // تُمرَّر لتذكرة المطبخ وحدها.
       note: item.note || ''
@@ -6757,7 +6907,7 @@ function buildLiveReceiptData(orderPayload, totals){
     orderNumber: orderPayload.orderId ? ('#' + rkNo(orderPayload.orderId)) : orderPayload.offlineRef ? orderPayload.offlineRef : 'سيُحدَّد عند الاتصال',
     // رقم الطلب يرجع ١ كل وردية؛ الفاتورة الضريبية تحمل رقماً ما يتكرر (orders.id).
     invoiceRef: (RECEIPT_SHOW_INVOICE_NO && orderPayload.orderId && Number(rkNo(orderPayload.orderId)) !== Number(orderPayload.orderId)) ? String(orderPayload.orderId) : '',
-    metaLabel: bilingualOrderKind((CHANNEL_LABELS[orderPayload.channel] || orderPayload.channel) + liveTableLabel),
+    metaLabel: bilingualOrderKind(rkOrderKind() + liveTableLabel),
     showLogo: DEVICE.printReceiptLogo !== false && !!RECEIPT_LOGO_URL, logoUrl: RECEIPT_LOGO_URL,
     cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
     tagline: RECEIPT_TAGLINE,
@@ -6768,6 +6918,12 @@ function buildLiveReceiptData(orderPayload, totals){
     items, subtotal: totals.subtotal, discount: totals.discount, vat: totals.vat, total: totals.total,
     paymentMethodLabel: PAYMENT_METHOD_LABELS_POS[orderPayload.payment_method] || orderPayload.payment_method,
     change: orderPayload.payment_method === 'cash' ? Math.max(0, (state.cashAmount || 0) - totals.total) : 0,
+    // مصدرُ الطلب وآخرُ أربعة -- كانا في فاتورة التطبيق ولا في فاتورة
+    // الويب، والورقةُ واحدة.
+    platformName: rkPhoneOrder() ? '' : rkPlatformLabel(),
+    platformInvoiceLast4: state.orderChannel === 'delivery' ? (state.platformInvoiceLast4 || '') : '',
+    // وعنوانُ الأربعة يتبع المصدر: جوالُ الزبون، أو فاتورةُ التطبيق.
+    phoneOrder: rkPhoneOrder(),
     pagerBlock: rkPagerReceiptBlock(orderPayload)
   };
 }
@@ -6781,7 +6937,7 @@ function buildKitchenReceiptData(orderPayload){
     return {
       name: p ? p.name : '', nameEn: p ? (p.name_en || '') : '',
       qty: item.qty, note: item.note || '',
-      mods: formatConfigLabelsBilingual(item.productId, item.config).map(l=>({text:l.text, textEn:l.textEn||undefined}))
+      mods: formatConfigLabelsBilingual(item.productId, item.config, item.qty).map(l=>({text:l.text, textEn:l.textEn||undefined}))
     };
   });
   const tableLabel = orderPayload.tableNumber ? ' — طاولة ' + orderPayload.tableNumber : '';
@@ -6792,7 +6948,11 @@ function buildKitchenReceiptData(orderPayload){
     dateLabel: new Date().toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
     // رقم الطلب سطر قائم بذاته الآن، فلا يُطوى هنا داخل نص النوع.
     orderNumber: orderPayload.orderId ? '#' + rkNo(orderPayload.orderId) : (orderPayload.offlineRef || '—'),
-    metaLabel: bilingualOrderKind((CHANNEL_LABELS[orderPayload.channel] || orderPayload.channel) + tableLabel),
+    metaLabel: bilingualOrderKind(rkOrderKind() + tableLabel),
+    // اسمُ المصدر وآخرُ أربعةٍ بخطٍّ كبير: بهما يُسلَّم الطلب للسائق أو
+    // للمتّصل، لا برقم الطلب.
+    platformName: rkPhoneOrder() ? '' : rkPlatformLabel(),
+    platformInvoiceLast4: state.orderChannel === 'delivery' ? (state.platformInvoiceLast4 || '') : '',
     items,
     // Printed larger than anything else on the ticket: whoever finishes the
     // order reads it off this paper and types it into the base station, so
@@ -6852,7 +7012,7 @@ function buildHistoricalReceiptData(order, items){
     timestampISO: order.created_at, vatNumber: BUSINESS_VAT_NUMBER,
     orderNumber: '#' + (order.order_no || rkNo(order.id)),
     invoiceRef: (RECEIPT_SHOW_INVOICE_NO && order.order_no) ? String(order.id) : '',
-    metaLabel: bilingualOrderKind((CHANNEL_LABELS[order.channel] || order.channel) + histTableLabel),
+    metaLabel: bilingualOrderKind(rkOrderKind(order) + histTableLabel),
     // صاحب الطلب وملاحظته: الطلب الإلكتروني والتوصيل تكون الورقة فيهما
     // الشيء الوحيد الذي يربط الكيس بصاحبه.
     customerName: order.customer_name || '',
@@ -6868,6 +7028,11 @@ function buildHistoricalReceiptData(order, items){
     items: lineItems, subtotal: Number(order.subtotal), discount: Number(order.discount_amount || 0),
     vat: Number(order.vat_amount), total: Number(order.total),
     paymentMethodLabel: PAYMENT_METHOD_LABELS_POS[order.payment_method] || order.payment_method,
+    // والمصدرُ وآخرُ أربعة في إعادة الطباعة كما في الطباعة الأولى --
+    // كانا يسقطان منها، فتخرج الورقةُ المعادة بلا ما يُطابَق به الطلب.
+    platformName: rkIsPhoneOrderRow(order) ? '' : ((order.delivery_platforms && order.delivery_platforms.name) || ''),
+    platformInvoiceLast4: order.platform_invoice_last4 || '',
+    phoneOrder: rkIsPhoneOrderRow(order),
     change: 0
   };
 }
@@ -6901,7 +7066,10 @@ function buildDbKitchenReceiptData(order, items){
     cashierName: CURRENT_STAFF_MEMBER ? CURRENT_STAFF_MEMBER.name : '',
     dateLabel: new Date(order.created_at).toLocaleString('ar-SA', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'}),
     orderNumber: '#' + (order.order_no || rkNo(order.id)),
-    metaLabel: bilingualOrderKind(CHANNEL_LABELS[order.channel] || order.channel),
+    metaLabel: bilingualOrderKind(rkOrderKind(order)),
+    platformName: order.delivery_platforms ? order.delivery_platforms.name
+      : '',  // «جوال» صار نوعَ الطلب نفسَه (rkOrderKind)، فلا يُكرَّر مصدراً
+    platformInvoiceLast4: order.platform_invoice_last4 || '',
     items: mapped
   };
 }
@@ -7103,7 +7271,7 @@ async function completePayment(){
   if(pagerNum && orderPayload && orderPayload.orderId){
     window.supabaseClient.rpc('set_order_pager', {
       p_order_id: orderPayload.orderId, p_pager_number: pagerNum
-    }).then(({error})=>{ if(error) showToast('انحفظ الطلب، بس ما انسجّل رقم الجهاز'); });
+    }).then(({error})=>{ if(error) showToast('انحفظ الطلب، بس ما اتسجّل رقم الجهاز'); });
   }
   // Table-order paths (Flow A/D) now go through the same IndexedDB queue as
   // every other channel (see registerTableOrder/submitOrder and
@@ -7142,6 +7310,16 @@ async function completePayment(){
   state.cart = []; state.customer = null; state.discountPct = 0; state.discountFixed = 0; state.discountReason = '';
   // الرصيد يسقط مع الطلب الذي صُرف فيه -- لا يُورَّث لطلب زبونٍ آخر.
   state.freeRewardCredit = 0; state.rewardArm = null;
+  /* وآخرُ أربعةٍ كذلك: هي بيانُ هذا الطلب وحده، لا إعدادٌ يُحفظ. ولو
+     بقيت لوجدها الكاشير مكتوبةً في الطلب الذي بعده وزرُّ التأكيد
+     مضاءً، فمضى -- فحمل طلبُ كيتا رقمَ فاتورةِ طلبٍ آخر. */
+  state.platformInvoiceLast4 = '';
+  /* ونوعُ الطلب يرجع لأصله.
+     كان يبقى على آخر ما اختير، فيفتح الكاشير طلباً جديداً لزبونٍ واقفٍ
+     أمامه ويجده «توصيل» سلفاً -- اختيارُ الطلب الذي قبله. والنوعُ ليس
+     إعدادَ محلٍّ يُحفظ، هو سؤالُ كلِّ طلب. */
+  state.orderChannel = DINE_IN_ENABLED ? 'dine_in' : 'pickup';
+  state.deliveryPlatformId = null;
   state.selectedTableId = null; state.selectedOrderId = null; state.resumingOrder = null;
   document.getElementById('discountToggle').textContent = '+ خصم';
   updatePointsRedeemStrip();
@@ -7482,7 +7660,7 @@ async function renderOrdersListInner(){
   // the merge, just without that extra context).
   el.innerHTML = '<div class="list-empty">جارٍ التحميل...</div>';
   let completedQuery = window.supabaseClient
-    .from('orders').select('id, order_no, total, created_at, customer_name, channel, ready_at, prep_duration_seconds, platform_invoice_last4, scheduled_for, delivery_platforms(name)')
+    .from('orders').select('id, order_no, total, created_at, customer_name, channel, ready_at, prep_duration_seconds, platform_invoice_last4, payment_method, source, delivery_platform_id, scheduled_for, delivery_platforms(name)')
     .eq('branch_id', DEVICE.branchId);
   // والجزئيُّ مسترجَع: طلبٌ رُجّع صنفٌ منه حالتُه partially_refunded،
   // فلو سُئل عن 'refunded' وحدها لسقط من التبويب الذي بُني له.
@@ -7647,7 +7825,7 @@ async function openOrderDetail(orderId){
       <!-- t() صراحةً: "محلي — فيصل" عقدةُ نصٍّ واحدة، والمترجمُ العام
            يبحث عن السلسلة كاملةً في القاموس فلا يجدها -- فيبقى العنوانُ
            عربياً في واجهةٍ إنجليزية. واسمُ الموظّف لا يُترجَم بحال. -->
-      <h3>${escapeHtml(t(CHANNEL_LABELS[order.channel] || order.channel))}${order.customer_name ? ' — ' + escapeHtml(order.customer_name) : ''}</h3>
+      <h3>${escapeHtml(t(rkOrderKind(order)))}${order.customer_name ? ' — ' + escapeHtml(order.customer_name) : ''}</h3>
       <div class="receipt-total">${rkMoney(Number(order.total))}</div>
       ${pickupTimeNoteHtml(order)}
       ${order.channel === 'dine_in' && order.restaurant_tables ? `<div class="receipt-detail-row"><span>الطاولة</span><span class="mono">طاولة ${order.restaurant_tables.number}</span></div>` : ''}
@@ -7906,7 +8084,18 @@ function printRefundReceipt(orderId, picked, lines, amount){
 }
 
 const ORDER_STATUS_LABELS_POS = {pending:'بانتظار القبول', completed:'مكتمل', cancelled:'ملغى', refunded:'مسترجع', partially_refunded:'مسترجع جزئياً', rejected:'مرفوض'};
-const CHANNEL_LABELS = {dine_in:'محلي', pickup:'سفري', delivery:'تطبيقات التوصيل'};
+const CHANNEL_LABELS = {dine_in:'محلي', pickup:'سفري', delivery:'توصيل'};
+/**
+ * نوعُ الطلب كما يُقرأ ويُطبع -- و«جوال» نوعٌ قائمٌ بذاته.
+ *
+ * صاحبُ المطعم: «الجوال غالباً شخصٌ طلب من جواله وجايٍ يستلم»، فما
+ * يصحّ أن يُكتب عليه «توصيل». ويأخذ الصفَّ المحفوظ أو الحالةَ الحيّة.
+ */
+function rkOrderKind(o){
+  if(o && o.channel && rkIsPhoneOrderRow(o)) return RK_PHONE_PLATFORM_LABEL;
+  if(!o || !o.channel) return rkPhoneOrder() ? RK_PHONE_PLATFORM_LABEL : (CHANNEL_LABELS[state.orderChannel] || state.orderChannel);
+  return CHANNEL_LABELS[o.channel] || o.channel;
+}
 const PAYMENT_METHOD_LABELS_POS = {cash:'كاش', card:'بطاقة', split:'تقسيم دفع', delivery_platform:'مدفوع عبر التطبيق'};
 
 /* ============ TABLES screen — real restaurant_tables, grouped by owner-
@@ -8311,7 +8500,7 @@ async function resumePaymentForTable(table){
     subtotal: order.subtotal, discount_amount: order.discount_amount, vat_amount: order.vat_amount, total: order.total,
     items: (items||[]).map(it => {
       const p = rkFindProduct(it.menu_item_id);
-      return { name: p ? p.name : ('منتج #' + it.menu_item_id), nameEn: p ? (p.name_en || '') : '', qty: it.qty, unitPrice: Number(it.unit_price), lineTotal: Number(it.line_total), mods: (it.selected_modifiers||[]).map(m=>({text:m.text, textEn:m.textEn||undefined})) };
+      return { name: p ? p.name : ('منتج #' + it.menu_item_id), nameEn: p ? (p.name_en || '') : '', qty: it.qty, unitPrice: Number(it.unit_price), lineTotal: Number(it.line_total), mods: (it.selected_modifiers||[]).map(m=>({text:m.text, textEn:m.textEn||undefined, price:m.price})) };
     })
   };
   state.activePaymentMethod = 'cash';
@@ -9195,13 +9384,15 @@ async function seedActiveDeliveryOrders(){
   // still belongs on this list (awaiting a delivered confirmation); only a
   // genuinely delivered order is done and should drop off.
   const { data } = await window.supabaseClient
-    .from('orders').select('id, order_no, total, created_at, ready_at, out_for_delivery_at, delivery_platform_id, platform_invoice_last4, source, payment_method, payment_status, delivery_platforms(name)')
+    .from('orders').select('id, order_no, total, created_at, channel, ready_at, out_for_delivery_at, delivery_platform_id, platform_invoice_last4, source, payment_method, payment_status, delivery_platforms(name)')
     .eq('branch_id', DEVICE.branchId).eq('channel', 'delivery').is('delivered_at', null)
     .gte('created_at', startToday.toISOString()).order('created_at', {ascending:true});
   rkRememberRows(data);
   ACTIVE_DELIVERY_ORDERS = (data||[]).map(o=>({
     id: o.id, createdAt: new Date(o.created_at), platformId: o.delivery_platform_id,
-    platformName: o.source === 'online' ? 'متجر المطعم' : (o.delivery_platforms ? o.delivery_platforms.name : 'توصيل'),
+    platformName: o.source === 'online' ? 'متجر المطعم'
+      : (o.delivery_platforms ? o.delivery_platforms.name
+        : (rkIsPhoneOrderRow(o) ? RK_PHONE_PLATFORM_LABEL : 'توصيل')),
     total: Number(o.total), isOnline: o.source === 'online',
     isCod: o.payment_method === 'cash' && o.payment_status === 'unpaid',
     invoiceLast4: o.platform_invoice_last4, warnedAt5min: false, alertedExpired: false,
@@ -9778,6 +9969,7 @@ const MORE_LINKS = [
 (function buildMoreScreen(){
   const root = document.querySelector('#screen-more .more-scroll');
   root.innerHTML = `<div class="rk-shift-card" id="moreShiftCard"></div>
+    <div class="rk-sub-card" id="moreSubCard" hidden></div>
     <div class="more-section-label">وقت الخدمة</div>
     <div class="more-grid" id="moreGridQuick">${QUICK_ACTIONS.map(a=>`<button class="more-item" data-action="${a.id}">${a.icon}<span>${a.label}</span></button>`).join('')}</div>
     ${MORE_LINKS.map(g=>`<div class="more-section-label">${g.title}</div>
@@ -10640,6 +10832,45 @@ let BOX_ELIGIBLE_META = {};    // box_eligible_item row id -> {stockItemId, cost
 let MODIFIER_OPTION_STOCK = {}; // "groupId_optionId" -> {stockItemId, qty, unit}
 let STOCK_UNIT_BY_ID = {};      // stockItemId -> the stock item's own tracking unit (kg/g/liter/piece)
 let DELIVERY_PLATFORMS_LIST = []; // [{id, name}] — real delivery_platforms for this branch's business
+
+/**
+ * «جوال»: الطلبُ الذي جاء بالهاتف -- زرٌّ في صفِّ التطبيقات، لا منصّةً
+ * في قاعدة البيانات. (نظيرُه في التطبيق: src/domain/phoneOrder.ts، وفيه
+ * شرحُ لماذا يُحفظ هكذا: توصيلٌ بلا معرّفِ منصّةٍ ومعه آخرُ أربعة.)
+ */
+const RK_PHONE_PLATFORM_ID = -1;
+const RK_PHONE_PLATFORM_LABEL = 'جوال'; // i18n-ignore: اسمٌ يُطبع ويُعرض
+function rkPhoneOrder(){ return state.orderChannel === 'delivery' && state.deliveryPlatformId === RK_PHONE_PLATFORM_ID; }
+/** مدفوعٌ مسبقاً في تطبيق التوصيل -- طلبُ الجوال ليس منه، يُدفع هنا. */
+function rkPrepaidByApp(){ return state.orderChannel === 'delivery' && !rkPhoneOrder(); }
+function rkLast4Ok(){ return !rkPhoneOrder() || /^[0-9]{4}$/.test(state.platformInvoiceLast4 || ''); }
+/** اسمُ المصدر كما يُطبع: التطبيق، أو «جوال». */
+function rkPlatformLabel(){
+  if(state.orderChannel !== 'delivery') return '';
+  if(rkPhoneOrder()) return RK_PHONE_PLATFORM_LABEL;
+  const p = DELIVERY_PLATFORMS_LIST.find(x => x.id === state.deliveryPlatformId);
+  return p ? p.name : '';
+}
+/**
+ * طلبٌ محفوظ: هل هو طلبُ جوال؟ -- بالمال لا بآخرِ أربعة.
+ *
+ * طلبُ المنصّة مدفوعٌ في تطبيقها، فيُحفظ payment_method =
+ * 'delivery_platform' دائماً (وكذلك كان كلُّ طلب توصيلٍ قبل «جوال»).
+ * وطلبُ الجوال يُدفع هنا كاشاً أو شبكة. فما دُفع عندنا وما له منصّة
+ * ولا جاء من المتجر، جوال -- ولو لم تُكتب فيه الأربعة، وهي الحالةُ
+ * التي كانت تُقرأ «توصيل» عارياً (الطلب ٥٧، ٢٠٢٦/١١/٢٠).
+ */
+function rkIsPhoneOrderRow(o){
+  if(!o || o.channel !== 'delivery') return false;
+  if(o.delivery_platform_id != null) return false;
+  if(o.source === 'online') return false;
+  if(o.payment_method && o.payment_method !== 'delivery_platform') return true;
+  return !!o.platform_invoice_last4;
+}
+/** ما يُرسل للخادم: «جوال» بلا معرّف. */
+function rkPlatformIdForServer(){
+  return (state.deliveryPlatformId && state.deliveryPlatformId !== RK_PHONE_PLATFORM_ID) ? state.deliveryPlatformId : null;
+}
 let SERVICE_STAFF_BY_SERVICE = {}; // serviceId -> [staffMemberId,...] — empty array means "any active staff eligible" (see service_staff table comment)
 /* ============ الباقة ============
    allowed_features يحسبها trigger القاعدة من الباقة واستثناءات الأدمن (lib/plans.ts).
@@ -10700,6 +10931,7 @@ let ONLINE_PAYMENTS_ENABLED = false; // businesses.geidea_connected — صف "د
 let SHIFT_REPORT_OPTIONS = {};       // businesses.shift_report_options — ما يظهر في التقرير وما لا يظهر
 let RECEIPT_SHOW_NAME = true;   // businesses.receipt_show_name — هل يُطبع الاسم تحت الشعار
 let RECEIPT_SHOW_INVOICE_NO = true; // businesses.receipt_show_invoice_no — «رقم الفاتورة» تحت رقم الطلب
+let PHONE_ORDERS_ENABLED = true; // businesses.phone_orders_enabled — زرّ «جوال» في صفّ التطبيقات
 let RECEIPT_TAGLINE = '';       // businesses.receipt_tagline — سطر تحت الاسم
 /** businesses.receipt_print_refund — ورقةٌ تُثبت ما خرج من الدرج. */
 let RECEIPT_PRINT_REFUND = true;
@@ -10942,6 +11174,10 @@ async function loadPosData(){
       // سؤال لحاله: قبل ما ينزل العمود يرجع خطأ وما يمسّ باقي هوية الفاتورة.
       window.supabaseClient.from('businesses').select('receipt_show_invoice_no').eq('id', businessId).single()
         .then(r => { if(!r.error && r.data) RECEIPT_SHOW_INVOICE_NO = r.data.receipt_show_invoice_no !== false; }, () => {});
+      // استعلامٌ مستقلّ بنفس السبب: عمودٌ لم يُضَف بعد يُسقط الاستعلامَ
+      // كلَّه لو كان ضمن قائمة الإعدادات الكبيرة.
+      window.supabaseClient.from('businesses').select('phone_orders_enabled').eq('id', businessId).single()
+        .then(r => { if(!r.error && r.data) PHONE_ORDERS_ENABLED = r.data.phone_orders_enabled !== false; }, () => {});
       // ساعة إقفال يوم العمل: «طلبات اليوم» وتصفير أرقام الطلبات (rkBusinessDayStart).
       window.supabaseClient.from('businesses').select('day_cutoff_hour').eq('id', businessId).single()
         .then(r => { if(!r.error && r.data && r.data.day_cutoff_hour != null) rkDayCutoff = Number(r.data.day_cutoff_hour) || 0; }, () => {});
@@ -11519,6 +11755,184 @@ document.getElementById('posSwitchStaffBtn').addEventListener('click', ()=>{
   showStaffPick();
 });
 
+/* RENEWAL-NOTICE:START */
+/* تذكير تجديد الاشتراك -- نفس قواعد التطبيق حرفياً
+   (react-native-poc/src/domain/renewal.ts)، ونفس المسار يجيب الحالة
+   (/api/pos/account-status). والمبلغ لا يُذكر أبداً: الكاشير يقف قدّام
+   الزبائن والموظفين، وسعر اشتراك صاحب المطعم شأنه هو.
+
+   ثلاث قطع متدرّجة، وكلّها تحت قاعدة واحدة: البيع أولاً. لا شيء منها
+   يغطّي زرّ «ادفع» ولا سلّة الطلب.
+     • النقطة  -- تبقى على «المزيد» لين يُرفع الإيصال. بلا مقاطعة.
+     • البطاقة -- مرّة واحدة في اليوم.
+     • الشريط  -- آخر يومين فقط، أو إذا تأخّر التجديد أو رُفض الإيصال. */
+let RK_RENEWAL = null;
+let RK_SUBSCRIPTION = null;
+const RK_RENEWAL_DAY_KEY = 'rakeen_pos_renewal_card_day';
+
+function rkRenewalLoud(r){ return r.stage !== 'upcoming' || r.days <= 2; }
+
+function rkRenewalTitle(r){
+  if(r.stage === 'rejected') return t('ما قبلنا إيصال التحويل — ارفع إيصال جديد');
+  if(r.stage === 'grace') return t('تأخَّر تجديد اشتراكك');
+  if(r.stage === 'expired') return t('انتهت مهلة تجديد اشتراكك');
+  if(r.days <= 0) return t('اشتراكك يُجدَّد اليوم');
+  if(r.days === 1) return t('باقي يوم واحد على تجديد اشتراكك');
+  if(r.days === 2) return t('باقي يومين على تجديد اشتراكك');
+  return t('باقي {n} أيام على تجديد اشتراكك').replace('{n}', String(r.days));
+}
+
+function rkRenewalBody(r){
+  if(r.stage === 'rejected') return t('ارفع إيصال التحويل مرّة ثانية من لوحة التحكم، أو كلّمنا لو فيه لبس.');
+  if(r.stage === 'grace') return t('المهلة شغّالة الحين. ارفع إيصال التحويل من لوحة التحكم عشان ما يتوقف الكاشير.');
+  /* وهنا وحدها يُقال «معرّض للإيقاف»: الإيقاف بيدنا من اللوحة لا
+     بتوقيتٍ يمشي وحده. فالكاشير يشتغل بعد انتهاء المهلة كما كان، ولا
+     يقف حتى نوقفه -- فقول «توقفت الخدمة» كذبٌ يراه صاحب المطعم بعينه. */
+  if(r.stage === 'expired') return t('انتهت المهلة، والكاشير معرّض للإيقاف في أي وقت. ارفع إيصال التحويل من لوحة التحكم.');
+  return r.days <= 2
+    ? t('ارفع إيصال التحويل من لوحة التحكم اليوم، عشان ما تنقطع الخدمة.')
+    : t('ادخل لوحة التحكم وارفع إيصال التحويل، عشان الخدمة تستمر بدون انقطاع.');
+}
+
+/* مفتاح «مرّة في اليوم»: تاريخ الرياض لا تاريخ الجهاز. */
+function rkRiyadhDay(){ return new Date(Date.now() + 3*3600000).toISOString().slice(0,10); }
+
+function rkRenewalApply(r, sub){
+  RK_RENEWAL = r;
+  RK_SUBSCRIPTION = sub;
+  rkRenewalDot(r);
+  rkRenewalStrip(r);
+  rkRenewalCard(r);
+  renderMoreSubCard();
+}
+
+/* النقطة على تبويب «المزيد». */
+function rkRenewalDot(r){
+  const tab = document.querySelector('.nav-tab[data-screen="more"]');
+  if(!tab) return;
+  let dot = tab.querySelector('.rk-renewal-dot');
+  if(!r){ if(dot) dot.remove(); return; }
+  if(dot) return;
+  dot = document.createElement('span');
+  dot.className = 'rk-renewal-dot';
+  tab.appendChild(dot);
+}
+
+/* الشريط -- يزيح الشاشة ولا يغطّيها، أوّل أبناء #posApp. */
+function rkRenewalStrip(r){
+  const app = document.getElementById('posApp');
+  let el = document.getElementById('rkRenewalStrip');
+  let off = null;
+  try { off = localStorage.getItem('rakeen_pos_renewal_strip_day'); } catch(_){}
+  const show = r && rkRenewalLoud(r) && off !== rkRiyadhDay();
+  if(!show || !app){ if(el) el.remove(); app && app.classList.remove('rk-strip-on'); return; }
+  if(el){ el.children[1].textContent = rkRenewalTitle(r); el.children[2].textContent = rkRenewalBody(r); return; }
+  el = document.createElement('div');
+  el.id = 'rkRenewalStrip';
+  el.className = 'rk-renewal-strip';
+  el.innerHTML = '<i class="rk-renewal-strip-dot"></i><b></b><span></span>'
+    + '<button type="button" class="rk-renewal-strip-go"></button>'
+    + '<button type="button" class="rk-renewal-strip-x" aria-label="إغلاق">&#10005;</button>';
+  el.children[1].textContent = rkRenewalTitle(r);
+  el.children[2].textContent = rkRenewalBody(r);
+  el.children[3].textContent = t('افتح اللوحة');
+  el.children[3].addEventListener('click', ()=> window.open('/dashboard', '_blank', 'noopener'));
+  el.children[4].addEventListener('click', ()=>{
+    try { localStorage.setItem('rakeen_pos_renewal_strip_day', rkRiyadhDay()); } catch(_){}
+    el.remove();
+    app.classList.remove('rk-strip-on');
+  });
+  app.insertBefore(el, app.firstChild);
+  app.classList.add('rk-strip-on');
+}
+
+/* البطاقة -- مرّة في اليوم. وتُعلَّم مقروءةً لحظة ظهورها لا لحظة
+   إغلاقها: كاشير يُقفل الصفحة قبل أن يضغط شيئاً لا يُلاحَق بها كل مرّة. */
+function rkRenewalCard(r){
+  if(!r) { const old = document.getElementById('rkRenewalCard'); if(old) old.remove(); return; }
+  if(document.getElementById('rkRenewalCard')) return;
+  let seen = null;
+  try { seen = localStorage.getItem(RK_RENEWAL_DAY_KEY); } catch(_){}
+  if(seen === rkRiyadhDay()) return;
+  try { localStorage.setItem(RK_RENEWAL_DAY_KEY, rkRiyadhDay()); } catch(_){}
+
+  const el = document.createElement('div');
+  el.id = 'rkRenewalCard';
+  el.className = 'rk-renewal-card';
+  el.setAttribute('role', 'status');
+  el.innerHTML = '<div class="rk-renewal-card-head"><h3></h3>'
+    + '<button type="button" class="rk-renewal-card-x" aria-label="إغلاق">&#10005;</button></div>'
+    + '<p></p><div class="rk-renewal-card-row">'
+    + '<button type="button" class="rk-renewal-card-go"></button>'
+    + '<button type="button" class="rk-renewal-card-ghost"></button></div>';
+  const head = el.children[0];
+  head.children[0].textContent = rkRenewalTitle(r);
+  el.children[1].textContent = rkRenewalBody(r);
+  const row = el.children[2];
+  row.children[0].textContent = t('افتح لوحة التحكم');
+  row.children[1].textContent = t('ذكَّرني بكرة');
+  const close = ()=> el.remove();
+  head.children[1].addEventListener('click', close);
+  row.children[1].addEventListener('click', close);
+  row.children[0].addEventListener('click', ()=>{ window.open('/dashboard', '_blank', 'noopener'); close(); });
+  document.body.appendChild(el);
+}
+
+/* عدّادُ الاشتراك في «المزيد» -- دائمٌ لا يسكت، بخلاف الثلاثة فوق.
+   طلبُ المالك: «المفروض بالمزيد يكون عدّاد على الاشتراك وكم متبقّي».
+   والقواعدُ حرفياً نفسُها في التطبيق (src/domain/renewal.ts
+   subscription*)، والرقمُ من نفس المسار ومن نفس صفوفِ الدفعات
+   (lib/renewalStage.ts pickSubscription) -- فلا يقول جهازٌ غيرَ ما يقوله
+   الآخر. وبلا مبلغ، مثل كلِّ ما سبق. */
+function rkSubTone(s){
+  if(s.status === 'rejected') return 'late';
+  if(s.status === 'submitted') return 'review';
+  if(s.days < 0) return 'late';
+  if(s.days <= 6) return 'soon';
+  return 'ok';
+}
+function rkSubPill(s){
+  const tone = rkSubTone(s);
+  if(tone === 'late') return s.status === 'rejected' ? t('ارفع إيصال جديد') : t('متأخّر');
+  if(tone === 'review') return t('تحت المراجعة');
+  if(tone === 'soon') return t('قريب');
+  return t('ساري');
+}
+function rkSubUnit(s){
+  if(s.days === 0) return t('هو يوم التجديد');
+  if(s.days < 0) return t('يوم تأخير');
+  return t('يوم على التجديد');
+}
+/* ١٥/١٢ من YYYY-MM-DD: بلا Date وبلا منطقةٍ زمنيّةٍ تزحزح اليوم. */
+function rkSubDayMonth(d){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d || ''));
+  return m ? m[3] + '/' + m[2] : String(d || '');
+}
+function renderMoreSubCard(){
+  const el = document.getElementById('moreSubCard');
+  if(!el) return;
+  const s = RK_SUBSCRIPTION;
+  /* ولا رقمَ يُخترع: بلا دفعةٍ مفتوحةٍ تختفي البطاقةُ كلُّها. */
+  if(!s){ el.hidden = true; el.innerHTML = ''; return; }
+  const tone = rkSubTone(s);
+  const big = s.days === 0
+    ? '<b class="rk-sub-word rk-sub-' + tone + '">' + escapeHtml(t('اليوم')) + '</b>'
+    : '<b class="rk-sub-big rk-sub-' + tone + '">' + Math.abs(s.days) + '</b>';
+  el.hidden = false;
+  el.innerHTML = '<div class="rk-sub-head"><b>' + escapeHtml(t('اشتراكك')) + '</b>'
+    + '<span class="rk-sub-pill rk-sub-pill-' + tone + '">' + escapeHtml(rkSubPill(s)) + '</span></div>'
+    + '<div class="rk-sub-count">' + big + '<span>' + escapeHtml(rkSubUnit(s)) + '</span></div>'
+    /* ويومُ الاستحقاق لا يُعاد في يومه: الرقمُ الكبير قاله للتوّ. وبعد
+       فواته يُقال بصيغة الماضي، وإلا سُمّي «يوم التجديد» يومٌ مضى. */
+    + (s.days === 0 ? '' : '<small>' + escapeHtml(t(s.days < 0 ? 'كان يوم التجديد' : 'يوم التجديد')) + ' ' + escapeHtml(rkSubDayMonth(s.date)) + '</small>')
+    /* والزرُّ لا يظهر إلا إذا كان فيه ما يُفعل: زرٌّ دائمٌ لا لزومَ له
+       يصير جزءاً من الأثاث فلا يُرى يومَ يلزم. */
+    + (tone === 'ok' ? '' : '<button type="button" class="rk-sub-go">' + escapeHtml(t('افتح لوحة التحكم')) + '</button>');
+  const go = el.querySelector('.rk-sub-go');
+  if(go) go.addEventListener('click', ()=>{ window.open('/dashboard', '_blank', 'noopener'); });
+}
+/* RENEWAL-NOTICE:END */
+
 /* ACCOUNT-WATCH:START */
 // إيقاف المطعم من الأدمن يوصل الجهاز المفتوح بالحدث، بلا استعلام دوري:
 // لحظة الإيقاف، وعند الرجوع للصفحة، وعند عودة النت، وعند الإقلاع.
@@ -11546,7 +11960,11 @@ async function rkCheckAccount(){
     if(!session) return;
     const res = await fetch('/api/pos/account-status', { headers: { Authorization: 'Bearer ' + session.access_token } });
     if(!res.ok) return; // ما عرفنا: تبقى الشاشة على حالها ولا ينقفل أحد بالغلط
-    rkSetSuspendedScreen((await res.json()).suspended === true);
+    const out = await res.json();
+    rkSetSuspendedScreen(out.suspended === true);
+    // نفس لحظات فحص الإيقاف هي لحظات التذكير -- بلا استعلام دوريّ ثانٍ.
+    // وردٌّ قديم بلا الحقل لا يُطلع تذكيراً من العدم ولا يمحو واحداً قائماً.
+    if('renewal' in out) rkRenewalApply(out.renewal || null, 'subscription' in out ? (out.subscription || null) : RK_SUBSCRIPTION);
   } catch(_) { /* بلا نت */ }
 }
 function rkWatchAccount(businessId){
@@ -12133,7 +12551,7 @@ function renderIncomingOrderModal(order, items){
   const phoneDigits = (order.customer_phone || '').replace(/\D/g, '');
   const body = document.getElementById('incomingOrderModalBody');
   body.innerHTML = `
-    <div class="receipt-detail-row" style="border-bottom:none; font-weight:800;"><span>${escapeHtml(CHANNEL_LABELS[order.channel] || order.channel)}${order.customer_name ? ' — ' + escapeHtml(order.customer_name) : ''}</span><span></span></div>
+    <div class="receipt-detail-row" style="border-bottom:none; font-weight:800;"><span>${escapeHtml(rkOrderKind(order))}${order.customer_name ? ' — ' + escapeHtml(order.customer_name) : ''}</span><span></span></div>
     ${order.customer_phone ? `<a class="incoming-order-call" href="tel:${escapeHtml(phoneDigits)}">📞 ${escapeHtml(order.customer_phone)}</a>` : ''}
     <div class="receipt-detail-row"><span>طريقة الدفع</span><span class="mono">${escapeHtml(PAYMENT_METHOD_LABELS_POS[order.payment_method] || order.payment_method)}${order.payment_method === 'cash' ? ' — يُدفع عند الاستلام' : ''}</span></div>
     ${pickupTimeNoteHtml(order)}
@@ -12235,7 +12653,8 @@ function syncActiveDeliveryOrderFromRow(order){
   const platform = DELIVERY_PLATFORMS_LIST.find(p=>p.id === order.delivery_platform_id);
   ACTIVE_DELIVERY_ORDERS.push({
     id: order.id, createdAt: new Date(order.created_at), platformId: order.delivery_platform_id,
-    platformName: order.source === 'online' ? 'متجر المطعم' : (platform ? platform.name : 'توصيل'),
+    platformName: order.source === 'online' ? 'متجر المطعم'
+      : (platform ? platform.name : (rkIsPhoneOrderRow(order) ? RK_PHONE_PLATFORM_LABEL : 'توصيل')),
     total: Number(order.total), isOnline: order.source === 'online',
     invoiceLast4: order.platform_invoice_last4, warnedAt5min: false, alertedExpired: false,
     readyAt: order.ready_at ? new Date(order.ready_at) : null,

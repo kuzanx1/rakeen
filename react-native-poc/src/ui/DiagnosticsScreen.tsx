@@ -4,7 +4,7 @@ import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import { getDiagnosticsSnapshot, retryStuckOrders, retryAllFailedPrintJobs, DiagnosticsSnapshot } from '../application/diagnosticsService';
 import { readErrors, readPerf } from '../infrastructure/perfLog';
-import { cardSeenToday, getRenewal, loadCardDay, loadStripDay, resetRenewalSeen, stripClosedToday } from '../application/renewalService';
+import { cardSeenToday, getRenewalState, loadCardDay, loadStripDay, resetRenewalSeen, stripClosedToday } from '../application/renewalService';
 import ReceiptProofScreen from './ReceiptProofScreen';
 import { createStyles, fonts, Palette, radii, spacing, useTheme } from './theme';
 
@@ -94,7 +94,7 @@ export default function DiagnosticsScreen() {
     }
   };
 
-  const [renewal, setRenewal] = useState(getRenewal());
+  const [{ renewal, subscription }, setRenewal] = useState(getRenewalState());
   /* لماذا لا يظهر: الحالةُ وحدَها لا تكفي -- للبطاقة وللشريط مفتاحُ
      «عُرض اليوم». فيُقالان هنا، فيصير بلاغُ «ما طلع شي» رقماً لا ظنّاً. */
   const [seen, setSeen] = useState<{ card: boolean; strip: boolean } | null>(null);
@@ -110,7 +110,7 @@ export default function DiagnosticsScreen() {
     setBusy(true);
     try {
       await resetRenewalSeen();
-      setRenewal(getRenewal());
+      setRenewal(getRenewalState());
       await readSeen();
       setActionStatus('رجع التذكير — ارجع للرئيسية');
     } finally {
@@ -193,6 +193,13 @@ export default function DiagnosticsScreen() {
           label="حالة التجديد"
           color={renewal ? UNKNOWN : OK}
           value={renewal ? `${renewal.stage} · ${renewal.days} يوم` : '⚪ ما فيه تذكير'}
+        />
+        {/* العدّادُ الدائم في «المزيد» -- يُقال هنا كما يقوله الخادم،
+            فبلاغُ «العدّاد ما بان» يُفصل عن «الخادم ما ردّ». */}
+        <Row
+          label="عدّاد المزيد"
+          color={subscription ? OK : UNKNOWN}
+          value={subscription ? `${subscription.days} يوم · ${subscription.date} · ${subscription.status}` : '⚪ ما فيه دفعة مفتوحة'}
         />
         <Row
           label="البطاقة اليوم"
