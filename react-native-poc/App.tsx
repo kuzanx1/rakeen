@@ -1375,11 +1375,13 @@ function NavTabButton({
   const tint = active ? colors.accentText : colors.muted;
   return (
     <TouchableOpacity style={styles.navTab} onPress={onPress} activeOpacity={0.7}>
-      <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={tint} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-        {icon}
-      </Svg>
+      <View style={styles.navTabIcon}>
+        <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={tint} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          {icon}
+        </Svg>
+        {badge}
+      </View>
       <Text style={[styles.navTabLabel, { color: tint }]}>{label}</Text>
-      {badge}
     </TouchableOpacity>
   );
 }
@@ -1707,6 +1709,10 @@ const useStyles = createStyles(colors =>
   bottomNav: { height: 68, flexDirection: 'row', borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg },
   // .nav-tab
   navTab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5 },
+  // مرساةُ الشارة: بحجم الأيقونة تماماً، فتقع الشارةُ على طرفها لا على
+  // طرف التبويب -- و.navTab عرضُه flex:1 فيبلغ مئتين وخمسين بكسلاً على
+  // اللوح، فشارةٌ مثبّتةٌ على حافّته تطفو بعيداً عن الأيقونة في فراغ.
+  navTabIcon: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
   navTabLabel: { fontFamily: fonts.sansBold, fontSize: 10.5 },
   moreRoot: { flex: 1, backgroundColor: colors.canvas },
   // .more-scroll -- `padding:18px 24px 28px`

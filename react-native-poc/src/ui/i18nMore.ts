@@ -629,6 +629,12 @@ export const I18N_EN_MORE: Record<string, string> = {
   /* شاشة التشخيص -- قسم تذكير الاشتراك */
   'تذكير الاشتراك': 'Subscription reminder',
   'حالة التجديد': 'Renewal state',
+  'البطاقة اليوم': 'Card today',
+  '🟡 عُرضت — ما تتكرر اليوم': '🟡 Shown — will not repeat today',
+  '🟢 ما عُرضت': '🟢 Not shown yet',
+  'الشريط اليوم': 'Strip today',
+  '🟡 أُغلق — ما يرجع اليوم': '🟡 Dismissed — will not return today',
+  '🟢 ما أُغلق': '🟢 Not dismissed',
   '⚪ ما فيه تذكير': '⚪ No reminder',
   '{} · {} يوم': '{} · {} days',
   'إعادة عرض تذكير الاشتراك': 'Show the subscription reminder again',

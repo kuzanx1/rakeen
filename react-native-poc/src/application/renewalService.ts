@@ -141,6 +141,16 @@ export async function resetRenewalSeen(): Promise<void> {
   await removeItem(CARD_DAY_KEY).catch(() => {});
   await removeItem(STRIP_DAY_KEY).catch(() => {});
   await refreshRenewal();
+  /**
+   * نسخةٌ جديدةٌ من الكائن، لا الكائنُ نفسُه.
+   *
+   * فالبطاقةُ والشريطُ يقرآن «عُرض اليوم» في أثرٍ مفتاحُه هذا الكائن.
+   * والحالةُ لم تتغيّر -- ستةُ أيامٍ تبقى ستةً -- فيردّ refreshRenewal
+   * المرجعَ نفسَه، فلا يُعيد React تشغيلَ الأثر، فلا يُقرأ المفتاحُ
+   * الممسوح، فلا يعود شيءٌ إلى الشاشة. وهذا ما رآه المالك على السُنمي:
+   * النقطةُ وحدها -- لأنها لا تعتمد على أثرٍ أصلاً.
+   */
+  if (current) current = { ...current };
   emit();
 }
 

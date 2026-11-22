@@ -4,7 +4,7 @@ import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import { getDiagnosticsSnapshot, retryStuckOrders, retryAllFailedPrintJobs, DiagnosticsSnapshot } from '../application/diagnosticsService';
 import { readErrors, readPerf } from '../infrastructure/perfLog';
-import { getRenewal, resetRenewalSeen } from '../application/renewalService';
+import { cardSeenToday, getRenewal, loadCardDay, loadStripDay, resetRenewalSeen, stripClosedToday } from '../application/renewalService';
 import ReceiptProofScreen from './ReceiptProofScreen';
 import { createStyles, fonts, Palette, radii, spacing, useTheme } from './theme';
 
@@ -95,11 +95,23 @@ export default function DiagnosticsScreen() {
   };
 
   const [renewal, setRenewal] = useState(getRenewal());
+  /* لماذا لا يظهر: الحالةُ وحدَها لا تكفي -- للبطاقة وللشريط مفتاحُ
+     «عُرض اليوم». فيُقالان هنا، فيصير بلاغُ «ما طلع شي» رقماً لا ظنّاً. */
+  const [seen, setSeen] = useState<{ card: boolean; strip: boolean } | null>(null);
+  const readSeen = useCallback(async () => {
+    await Promise.all([loadCardDay(), loadStripDay()]);
+    setSeen({ card: cardSeenToday(Date.now()), strip: stripClosedToday(Date.now()) });
+  }, []);
+  useEffect(() => {
+    readSeen();
+  }, [readSeen]);
+
   const handleResetRenewal = async () => {
     setBusy(true);
     try {
       await resetRenewalSeen();
       setRenewal(getRenewal());
+      await readSeen();
       setActionStatus('رجع التذكير — ارجع للرئيسية');
     } finally {
       setBusy(false);
@@ -181,6 +193,16 @@ export default function DiagnosticsScreen() {
           label="حالة التجديد"
           color={renewal ? UNKNOWN : OK}
           value={renewal ? `${renewal.stage} · ${renewal.days} يوم` : '⚪ ما فيه تذكير'}
+        />
+        <Row
+          label="البطاقة اليوم"
+          color={seen && seen.card ? UNKNOWN : OK}
+          value={seen ? (seen.card ? '🟡 عُرضت — ما تتكرر اليوم' : '🟢 ما عُرضت') : '…'}
+        />
+        <Row
+          label="الشريط اليوم"
+          color={seen && seen.strip ? UNKNOWN : OK}
+          value={seen ? (seen.strip ? '🟡 أُغلق — ما يرجع اليوم' : '🟢 ما أُغلق') : '…'}
           last
         />
         <TouchableOpacity style={styles.retryButton} onPress={handleResetRenewal} disabled={busy} activeOpacity={0.8}>

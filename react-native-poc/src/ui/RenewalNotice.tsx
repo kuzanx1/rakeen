@@ -224,10 +224,11 @@ const LIME = '#C4FF2B';
 const AMBER = '#FFC24B';
 
 const useStyles = createStyles(() => ({
+  // فوق الأيقونة وإلى طرفها، داخل مرساةٍ بحجمها (App.tsx navTabIcon).
   dot: {
     position: 'absolute' as const,
-    top: 4,
-    start: 10,
+    top: -3,
+    end: -4,
     width: 9,
     height: 9,
     borderRadius: 99,
