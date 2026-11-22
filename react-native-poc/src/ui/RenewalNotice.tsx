@@ -72,13 +72,48 @@ export function RenewalDot({ renewal }: { renewal: Renewal | null }) {
 }
 
 /** الشريط -- آخر يومين فقط. */
-export function RenewalStrip({ renewal }: { renewal: Renewal | null }) {
+export function RenewalStrip({
+  renewal,
+  onHeight,
+}: {
+  renewal: Renewal | null;
+  /**
+   * ارتفاعُ الشريط إلى القشرة.
+   *
+   * فعلى اللوح يخرج شريطُ الرأس من السياق (position:absolute في App.tsx)
+   * ليمتدّ خلفَه عمودُ الطلب إلى أعلى الشاشة، فلا يُزيحه شيءٌ قبله في
+   * الشجرة. فيُعطى الرأسُ `top` بقدر هذا الارتفاع، وإلا رُسم الشريط
+   * تحته ولم يُرَ على الآيباد أصلاً -- وهو نفسُ ما وقع في كاشير الويب.
+   */
+  onHeight?: (h: number) => void;
+}) {
   const styles = useStyles();
   const { t } = useI18n();
-  const [closed, setClosed] = useState(false);
-  if (!renewal || !renewalLoud(renewal) || closed) return null;
+  /**
+   * يبدأ مغلقاً حتى تُقرأ «أُغلق اليوم» من التخزين.
+   *
+   * وتبديلُ التبويب في هذا التطبيق يفكّ الشاشة ويعيد تركيبها، فحالةٌ
+   * محلّيةٌ وحدَها تعني شريطاً يرجع مع كل رجوعٍ إلى «الرئيسية» -- وهو
+   * الإزعاجُ الذي قيل إنه لا يجوز.
+   */
+  const [closed, setClosed] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    loadStripDay().then(() => {
+      if (alive) setClosed(stripClosedToday(Date.now()));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [renewal]);
+
+  const hidden = !renewal || !renewalLoud(renewal) || closed;
+  useEffect(() => {
+    if (hidden) onHeight?.(0);
+  }, [hidden, onHeight]);
+  if (hidden) return null;
   return (
-    <View style={styles.strip}>
+    <View style={styles.strip} onLayout={e => onHeight?.(e.nativeEvent.layout.height)}>
       <View style={styles.stripDot} />
       <Text style={styles.stripTitle} numberOfLines={1}>
         {titleOf(renewal, t)}
@@ -109,7 +144,20 @@ export function RenewalStrip({ renewal }: { renewal: Renewal | null }) {
  * وتُعلَّم مقروءةً لحظة ظهورها لا لحظة إغلاقها: كاشير يُقفل التطبيق
  * قبل أن يضغط شيئاً لا يُلاحَق بالبطاقة نفسها كل مرّة يفتحه فيها.
  */
-export function RenewalCard({ renewal, endInset = 0 }: { renewal: Renewal | null; endInset?: number }) {
+export function RenewalCard({
+  renewal,
+  endInset = 0,
+  /**
+   * على اللوح تمتدّ الشاشة خلف الشريط السفلي ليصل عمودُ الطلب إلى
+   * الحافّة، فبطاقةٌ عند bottom:16 تقع خلف التبويبات ولا تُرى. تُزاح
+   * بقدر ما يحجبه الشريط (useShell().insetBottom).
+   */
+  bottomInset = 0,
+}: {
+  renewal: Renewal | null;
+  endInset?: number;
+  bottomInset?: number;
+}) {
   const styles = useStyles();
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -137,7 +185,7 @@ export function RenewalCard({ renewal, endInset = 0 }: { renewal: Renewal | null
   if (!renewal || !open) return null;
 
   return (
-    <View style={[styles.cardWrap, { end: endInset }]} pointerEvents="box-none">
+    <View style={[styles.cardWrap, { end: endInset, bottom: bottomInset + spacing[4] }]} pointerEvents="box-none">
       <View style={styles.card}>
         <View style={styles.cardHead}>
           <Text style={styles.cardTitle}>{titleOf(renewal, t)}</Text>

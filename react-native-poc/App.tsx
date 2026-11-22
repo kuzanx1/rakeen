@@ -62,7 +62,7 @@ import OrderHistoryScreen from './src/ui/OrderHistoryScreen';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import KeyboardLift from './src/ui/KeyboardLift';
 import { createStyles, fonts, radii, spacing, ThemeProvider, useTheme } from './src/ui/theme';
-import { RenewalDot, useRenewal } from './src/ui/RenewalNotice';
+import { RenewalDot, RenewalStrip, useRenewal } from './src/ui/RenewalNotice';
 import { ShellProvider, TOPBAR_FALLBACK_HEIGHT, useShell } from './src/ui/shell';
 import { I18nProvider, useI18n, uiLang, tr } from './src/ui/i18n';
 import { ToastProvider, useToast } from './src/ui/Toast';
@@ -910,6 +910,7 @@ function App(): React.JSX.Element {
 
   const activeTab = screenToTab(screen);
   const renewal = useRenewal();
+  const [renewalStripHeight, setRenewalStripHeight] = useState(0);
 
   // `.app.home-active` is what narrows the two bars, so the shell has to
   // know which tab is showing.
@@ -1068,8 +1069,12 @@ function App(): React.JSX.Element {
           can reach the true top and bottom edges; on Home they also stop
           short by the panel's width. Below that they are ordinary
           siblings, exactly as the source has them. */}
+      {/* شريط تذكير الاشتراك فوق كل شيء، وفي السياق لا خارجه: فهو
+          يزيح الشاشة ولا يغطّيها. وعلى اللوح يُزاح الرأسُ المطلق تحته
+          بقدر ارتفاعه، وإلا رُسم الشريط خلفه ولم يُرَ على الآيباد. */}
+      <RenewalStrip renewal={renewal} onHeight={setRenewalStripHeight} />
       <Topbar
-        style={sideBySide ? [styles.barAbsolute, { top: 0, end: homeActive ? orderPanelWidth : 0 }] : undefined}
+        style={sideBySide ? [styles.barAbsolute, { top: renewalStripHeight, end: homeActive ? orderPanelWidth : 0 }] : undefined}
         onLayout={setTopbarHeight}
         businessName={businessName}
         branchName={branchName}

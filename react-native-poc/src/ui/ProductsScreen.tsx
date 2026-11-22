@@ -49,7 +49,7 @@ import DiscountModal, { discountLabel } from './DiscountModal';
 import { COUPON_GIFT_MARK } from '../application/couponService';
 import PaymentModal from './PaymentModal';
 import { TrialBanner, TrialEndedModal, useTrialStatus } from './TrialNotice';
-import { RenewalCard, RenewalStrip, useRenewal } from './RenewalNotice';
+import { RenewalCard, useRenewal } from './RenewalNotice';
 import UpdateBanner from './UpdateBanner';
 import { maybeAskForReview } from '../application/reviewService';
 import { isTrialLocked, refreshTrialStatus } from '../application/trialService';
@@ -1615,11 +1615,10 @@ export default function ProductsScreen({
 
   return (
     <View style={styles.root}>
-      <RenewalStrip renewal={renewal} />
       <TrialBanner status={trial} />
       <UpdateBanner />
       <TrialEndedModal visible={trialEndedOpen} limit={trial?.limit ?? 350} onClose={() => setTrialEndedOpen(false)} />
-      <RenewalCard renewal={renewal} endInset={sideBySide ? orderPanelWidth : 0} />
+      <RenewalCard renewal={renewal} endInset={sideBySide ? orderPanelWidth : 0} bottomInset={insetBottom} />
       {selectedTable && (
         <View style={styles.tableBanner}>
           <Text style={styles.tableBannerText}>طاولة {selectedTable.number}</Text>
