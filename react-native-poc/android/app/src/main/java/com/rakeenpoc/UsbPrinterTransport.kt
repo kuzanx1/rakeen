@@ -102,29 +102,38 @@ class UsbPrinterTransport(private val context: Context) {
          * (فتحُ الدرج، أمرُ تهيئة) لا تُمسّ.
          */
         /**
-         * ٤٨ ك.ب/ث. وكانت ٢٤، وكان ذلك غلطاً صار يُرى على الورق.
+         * دفعةٌ أولى بسرعة الكابل، ثم تهدئةٌ **تحت** الورق.
          *
-         * حسبتُ ٢٤ لتبقى تحت أبطأ رأسٍ يُباع (٥٠ مم/ث = ٢٨٫٨ ك.ب/ث)،
-         * فيفرغ المخزونُ مع كلِّ سطر. والحسبةُ سليمةٌ وحدَها، لكنّها
-         * جعلت الكابلَ أبطأَ من الورق: صار الرأسُ ينتظرنا.
+         * القصّةُ في ثلاث نسخ: 1.67 أرسلت بلا حدٍّ فخرجت فواتيرُ مشفَّرة.
+         * و1.70 هدّأت إلى ٢٤ ك.ب/ث -- تحت أبطأ رأسٍ يُباع (٥٠ مم/ث =
+         * ٢٨٫٨ ك.ب/ث) -- فتوقّفت الخربشةُ وشكا المالك من البطء. ثم
+         * جرّبتُ ٤٨، وكان ذلك خطأً في الحساب لا في التقدير: ٤٨ **فوق**
+         * الورق، فالمتراكمُ في مخزون الطابعة ينمو مع كلِّ سطر، ويكبر مع
+         * طول الفاتورة بلا سقف -- ٣٢ ك.ب على فاتورة ١٣ سم، و٩١ على
+         * فاتورةِ ثلاثين صنفاً، و٢٥٩ على فاتورةِ مئة. وحسبتُ الأولى
+         * وحدَها وبنيتُ عليها.
          *
-         * والقياسُ من فيديو المالك («كباب طارق»، ٢٣ نوفمبر): الورقُ يخرج
-         * من الثانية ٤٫٠ إلى ٨٫٤ -- أربعُ ثوانٍ ونصفٌ لفاتورةٍ واحدة. وفي
-         * أوّل ثلاثة أرباع الثانية خرج ثُلثُ الورقة، ثم زحفت البقيّةُ
-         * بوتيرةٍ ثابتة: ذلك مخزونُ الطابعة يُفرَّغ بسرعة الرأس، ثم تصير
-         * السرعةُ سرعتَنا نحن. فالرأسُ أسرعُ منّا، لا العكس.
+         * فالحدُّ على **المتراكم** لا على السرعة:
+         *   • أوّلُ ١٦ ك.ب بسرعة الكابل -- يبدأ الورقُ فوراً، وهو ما
+         *     يراه الكاشير ويحكم به؛ والرأسُ يسحبها وهي تصل.
+         *   • وما بعدها ٢٧ ك.ب/ث، تحت أبطأ رأسٍ يُباع. فالمتراكمُ لا
+         *     يتجاوز الدفعةَ الأولى **مهما طالت الفاتورة**: ينزل مع كلِّ
+         *     سطرٍ بعدها، لا يصعد.
          *
-         * و٤٨ تُسلّم إيصالَ ٧٦ ك.ب في ١٫٦ ثانية، وورقُه الفيزيائيُّ ٢٫٢
-         * على أبطأ رأس -- فنحن تحت الورق مرّةً أخرى، لا فوقه. وأكثرُ ما
-         * يتراكم في مخزون الطابعة عند أبطأ رأسٍ ٣١ ك.ب، وهو دون مخزون
-         * طابعات ٨٠مم المعتادة.
+         * والثمنُ على فاتورة ٧٦ ك.ب: ٢٫٢ ثانيةٍ بدل ٣٫٣ في 1.70، مع بدءٍ
+         * فوريٍّ بدل زحفٍ من أوّل سطر. ولو كان رأسُ الطابعة أسرعَ من ٥٠
+         * مم/ث -- وأكثرُها كذلك -- فالورقُ نفسُه هو الحدُّ عندها لا نحن.
          *
          * وأمّا تتابعُ المهمّتين على طابعةٍ واحدة -- الفاتورةُ وتذكرةُ
-         * المطبخ في مسارٍ واحد (printService: runLane('all')) -- فلم يعد
-         * يُعالَج بإبطاء الكابل، إنّما بانتظارِ الورق بينهما: awaitPaper.
+         * المطبخ في مسارٍ واحد (printService: runLane('all')) -- فلا
+         * يُعالَج بإبطاء الكابل أصلاً، إنّما بانتظارِ الورق: awaitPaper.
          */
-        private const val PACED_BYTES_PER_SECOND = 48 * 1024
+        private const val PACED_BYTES_PER_SECOND = 27 * 1024
         private const val PACE_ABOVE_BYTES = 16 * 1024
+
+        /** الدفعةُ الأولى التي تمرّ بلا تهدئة. وهي سقفُ ما يتراكم في
+         *  مخزون الطابعة، فلا تُرفع إلا بقياسٍ من جهازٍ حقيقيّ. */
+        private const val BURST_BYTES = 16 * 1024
 
         /** ودفعاتٌ أصغرُ مع التهدئة: دفعةُ ١٦ ك.ب دفعةً واحدةً تملأ
          *  ذاكرةَ طابعةٍ صغيرةٍ قبل أن تبدأ التهدئةُ عملَها أصلاً. */
@@ -190,17 +199,19 @@ class UsbPrinterTransport(private val context: Context) {
         ): Int {
             var offset = 0
             val paced = bytes.size > PACE_ABOVE_BYTES
-            val startedAt = System.currentTimeMillis()
+            val startedAt = android.os.SystemClock.elapsedRealtime()
             while (offset < bytes.size) {
-                if (paced && offset > 0) {
-                    // كم كان يجب أن يمضي حتى هذا الحدّ لو مشينا بسرعة الورق.
-                    val owedMs = offset.toLong() * 1000L / PACED_BYTES_PER_SECOND
-                    val goneMs = System.currentTimeMillis() - startedAt
+                if (paced && offset > BURST_BYTES) {
+                    // الدفعةُ الأولى مرّت بسرعة الكابل، والرأسُ يسحبها.
+                    // فالحسابُ على ما بعدها وحدَه: كم كان يجب أن يمضي حتى
+                    // هذا الحدّ لو مشينا بسرعة الورق.
+                    val owedMs = (offset - BURST_BYTES).toLong() * 1000L / PACED_BYTES_PER_SECOND
+                    val goneMs = android.os.SystemClock.elapsedRealtime() - startedAt
                     if (owedMs > goneMs) {
                         try { Thread.sleep(owedMs - goneMs) } catch (e: InterruptedException) { return offset }
                     }
                 }
-                val len = minOf(if (paced) PACED_CHUNK else CHUNK, bytes.size - offset)
+                val len = minOf(if (paced && offset >= BURST_BYTES) PACED_CHUNK else CHUNK, bytes.size - offset)
                 var sent = try { connection.bulkTransfer(endpoint, bytes, offset, len, timeoutMs) } catch (e: Exception) { -1 }
                 var tries = 0
                 while (sent == 0 && tries < EMPTY_RETRIES) {
@@ -241,16 +252,36 @@ class UsbPrinterTransport(private val context: Context) {
             return rows
         }
 
-        /** زمنُ ورقِ هذه المهمّة على أبطأ رأس، صفرٌ لمهمّةٍ بلا صورة. */
+        /**
+         * زمنُ ورقِ هذه المهمّة، صفرٌ لأمرٍ صغيرٍ بلا ورقٍ (الدرج، التهيئة).
+         *
+         * وما كلُّ مهمّةٍ شرائحَ `GS v 0`: طابعةٌ قديمةٌ محفوظٌ لها الوضعُ
+         * الحديث (`GS 8 L`) تُنتج مهمّةً بلا رأسٍ نعرفه، فيرجع العدُّ
+         * صفراً -- ولو تركناه صفراً لسقط الانتظارُ كلُّه عن تلك الطابعة
+         * بالذات وهي أولى به. فمهمّةٌ كبيرةٌ بلا أسطرٍ نقرؤها تُقدَّر
+         * بحجمها: ٧٢ بايتاً للسطر على ٨٠مم.
+         *
+         * والسقفُ لأنّ رأساً تالفاً قد يقول ٦٥٥٣٥ سطراً في شريحةٍ واحدة،
+         * فيصير الانتظارُ دقيقتين. مترانِ ونصفٌ من الورق أطولُ من أيِّ
+         * فاتورةٍ حقيقيّة.
+         */
+        private const val MAX_PAPER_ROWS = 20_000
+        private const val BYTES_PER_ROW_GUESS = 72
+
         private fun paperMs(bytes: ByteArray): Long {
-            val rows = paperRows(bytes)
+            val counted = paperRows(bytes)
+            val rows = when {
+                counted > 0 -> minOf(counted, MAX_PAPER_ROWS)
+                bytes.size > PACE_ABOVE_BYTES -> minOf(bytes.size / BYTES_PER_ROW_GUESS, MAX_PAPER_ROWS)
+                else -> 0
+            }
             if (rows <= 0) return 0L
             return rows * 1000L / EST_ROWS_PER_SECOND + CUT_AND_FEED_MS
         }
 
         /** ينتظر ورقَ المهمّة السابقة على هذه الطابعة إن بقي منه شيء. */
         private fun awaitPaper(printerId: String) {
-            val left = (paperBusyUntil[printerId] ?: 0L) - System.currentTimeMillis()
+            val left = (paperBusyUntil[printerId] ?: 0L) - android.os.SystemClock.elapsedRealtime()
             if (left <= 0) return
             android.util.Log.i(LOG_TAG, "waiting ${minOf(left, MAX_PAPER_WAIT_MS)}ms for the previous ticket to finish")
             try { Thread.sleep(minOf(left, MAX_PAPER_WAIT_MS)) } catch (e: InterruptedException) { /* ننطلق */ }
@@ -269,7 +300,10 @@ class UsbPrinterTransport(private val context: Context) {
             timeoutMs: Int,
         ): Boolean {
             val debt = debtBytes.remove(printerId) ?: return true
-            val stale = System.currentTimeMillis() - debt.at > DEBT_TTL_MS
+            // بساعةٍ لا ترجع: ساعةُ الجهاز تُصحَّح من الشبكة فتقفز للوراء،
+            // وحينها يصير (الآن − وقتُ القيد) سالباً فلا يشيخ الدَّينُ أبداً
+            // ونظلّ نُنفق عليه ورقاً. وأجهزةُ سنمي معروفةٌ بساعةٍ ضالّة.
+            val stale = android.os.SystemClock.elapsedRealtime() - debt.at > DEBT_TTL_MS
             android.util.Log.w(LOG_TAG, "settling debt of ${debt.bytes} bytes (stale=$stale)")
             // الأصفارُ آمنةٌ في الحالتين: إن كانت الطابعةُ تنتظر صورةً أكملتها
             // بيضاء، وإن لم تكن فـNUL يُهمَل في وضع النصّ. لكنّنا لا نُنفق
@@ -402,8 +436,8 @@ class UsbPrinterTransport(private val context: Context) {
         findDevice(savedId)?.let { callback(it); return }
         Thread {
             var found: UsbDevice? = null
-            val until = System.currentTimeMillis() + 4000
-            while (found == null && System.currentTimeMillis() < until) {
+            val until = android.os.SystemClock.elapsedRealtime() + 4000
+            while (found == null && android.os.SystemClock.elapsedRealtime() < until) {
                 try { Thread.sleep(250) } catch (e: InterruptedException) { break }
                 found = findDevice(savedId)
             }
@@ -422,6 +456,21 @@ class UsbPrinterTransport(private val context: Context) {
                 return@ensurePermission
             }
             USB_IO.execute {
+                // ورقةٌ قبلها ما زالت تخرج: تُترك تُكمل، **قبل أن نفتح
+                // الطابعة**. وكان الانتظارُ بعد الفتح والاستيلاء على
+                // الواجهة، وهو أسوأُ موضعٍ له: بعضُ الطابعات تختفي من USB
+                // ثانيةً أو ثانيتين بعد القصّ وترجع (انظر awaitDevice)، فكنّا
+                // ننام ثلاثَ ثوانٍ ممسكين بمَقبضٍ يموت تحت أيدينا -- ثم تفشل
+                // الكتابةُ فيُقيَّد دَينٌ بحجم الورقة كلِّها. والآن يُفتح
+                // المَقبضُ بعد الانتظار، فجهازٌ غائبٌ يفشل نظيفاً بلا دَين.
+                //
+                // والترتيبُ لا يتغيّر: الخيطُ واحدٌ لكلِّ عمل USB.
+                //
+                // والأمرُ الصغيرُ بلا ورق (فتحُ الدرج، التهيئة) لا ينتظر
+                // شيئاً -- ليس صورةً تلتبس بصورة، وتأخيرُ الدرج يُرى على يد
+                // الكاشير.
+                val myPaperMs = paperMs(bytes)
+                if (myPaperMs > 0) awaitPaper(stableId(device))
                 val target = printerInterfaceAndEndpoint(device)
                 if (target == null) {
                     callback(false, "no_bulk_out_endpoint")
@@ -438,24 +487,20 @@ class UsbPrinterTransport(private val context: Context) {
                         callback(false, "connection_failed")
                         return@execute
                     }
-                    // ورقةٌ قبلها ما زالت تخرج: تُترك تُكمل. والمهامُّ الصغيرةُ
-                    // (الدرجُ، التهيئة) لا تنتظر شيئاً -- ليست صورةً تلتبس
-                    // بصورة، وتأخيرُ الدرج يُرى على يد الكاشير.
-                    if (bytes.size > PACE_ABOVE_BYTES) awaitPaper(stableId(device))
                     // دَينُ ورقةٍ سابقةٍ انقطعت: يُسدَّد قبل أيِّ شيءٍ جديد.
                     if (!settleDebt(connection, endpoint, stableId(device), timeoutMs)) {
                         callback(false, "connection_failed")
                         return@execute
                     }
 
-                    val writeStartedAt = System.currentTimeMillis()
+                    val writeStartedAt = android.os.SystemClock.elapsedRealtime()
                     val sentAll = writeAll(connection, endpoint, bytes, timeoutMs)
                     if (sentAll < bytes.size) {
                         // ما وصل كلُّه. الطابعةُ الآن واقفةٌ في منتصف أمر صورة،
                         // تنتظر ما لم يصلها -- فنُقيّد الباقي ديناً ونسدّده أول
                         // اتصالٍ قادم، قبل أن تبتلع به ورقةَ زبونٍ آخر.
                         val owed = bytes.size - sentAll
-                        debtBytes[stableId(device)] = Debt(owed, System.currentTimeMillis())
+                        debtBytes[stableId(device)] = Debt(owed, android.os.SystemClock.elapsedRealtime())
                         // العطلُ نادرٌ ولا يُستدعى بالطلب، فلو وقع عند مطعمٍ
                         // بعيدٍ أردنا أثراً يُقرأ بـadb logcat بدل التخمين.
                         android.util.Log.w(LOG_TAG, "truncated job: sent $sentAll of ${bytes.size}, owed $owed")
@@ -465,7 +510,16 @@ class UsbPrinterTransport(private val context: Context) {
                         debtBytes.remove(stableId(device))
                         // وصلت كلُّها، والطابعةُ الآن تطبعها: من هنا نحسب
                         // متى تفرغ، حتى لا تُركَب عليها ورقةٌ ثانية.
-                        paperBusyUntil[stableId(device)] = writeStartedAt + paperMs(bytes)
+                        //
+                        // والحسابُ من بدء الإرسال، لأنّ الورقَ يمشي ونحن
+                        // نُرسل. إلّا أن يكون الإرسالُ نفسُه تعثّر وطال
+                        // أكثرَ من الورق -- وذلك لا يقع إلا والطابعةُ
+                        // تدفعنا لأنّ مخزونَها امتلأ، وهي أحوجُ ما تكون
+                        // للمهلة حينئذٍ. فلا ننزل تحت تغذيةِ القصّ أبداً.
+                        paperBusyUntil[stableId(device)] = maxOf(
+                            writeStartedAt + myPaperMs,
+                            android.os.SystemClock.elapsedRealtime() + CUT_AND_FEED_MS,
+                        )
                         callback(true, null)
                     }
                 } catch (e: Exception) {
