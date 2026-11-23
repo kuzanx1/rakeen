@@ -81,6 +81,33 @@ class UsbPrinterTransport(private val context: Context) {
         private const val EMPTY_RETRIES = 3
         private const val EMPTY_RETRY_SLEEP_MS = 120L
 
+        /**
+         * بسرعةِ الورق لا بسرعةِ الكابل.
+         *
+         * قياسٌ من جهازِ مطعمٍ حقيقيّ («كباب طارق»، طابعة TA POS على USB):
+         * إيصالٌ حجمُه ٧٦٫٤ ك.ب خرج من التطبيق في **٦٧٠ ملّي ثانية** --
+         * أي ١١٤ ك.ب/ث. وذلك الإيصالُ طولُه على الورق ١٣ سنتيمتراً
+         * تقريباً (٧٨٢٧٢ ÷ ٧٢ بايتاً للسطر = ١٠٨٦ سطراً ÷ ٨ أسطر/مم)،
+         * ورأسٌ حراريٌّ يطبع ٥٠-٨٠ مم/ث يحتاج لها **ثانيتين**. فنحن
+         * نُسلّمها ورقَ ثانيتين في ثلثي ثانية.
+         *
+         * والطابعةُ تبتلع ما لا تطبع في ذاكرةٍ صغيرة، فإن امتلأت أسقطت
+         * بايتاتٍ بلا أن تقول شيئاً: وتقريرُ الإرسال عندنا يقول «نجح»
+         * و«محاولات: 0» -- وهو صادق، البايتاتُ خرجت من الكابل. ثم تنزاح
+         * الصورةُ من أوّل بايتٍ ضائع فتخرج الورقةُ ملطّخةً ثم رموزاً.
+         * وهذا يفسّر ما لم يفسّره التقطيعُ ولا الدَّين: لا انقطاعَ هنا،
+         * إنما فيضٌ.
+         *
+         * فيُهدَّأ الإرسالُ إلى ما يبتلعه الرأسُ فعلاً. والمهامُّ الصغيرة
+         * (فتحُ الدرج، أمرُ تهيئة) لا تُمسّ.
+         */
+        private const val PACED_BYTES_PER_SECOND = 32 * 1024
+        private const val PACE_ABOVE_BYTES = 16 * 1024
+
+        /** ودفعاتٌ أصغرُ مع التهدئة: دفعةُ ١٦ ك.ب دفعةً واحدةً تملأ
+         *  ذاكرةَ طابعةٍ صغيرةٍ قبل أن تبدأ التهدئةُ عملَها أصلاً. */
+        private const val PACED_CHUNK = 4096
+
         /** أطولُ فاتورةٍ معقولةٍ بالشعار والباركود. ما فوقها رقمٌ غلط، ولا
          *  نُسدِّده ورقاً. */
         private const val MAX_DEBT = 160 * 1024
@@ -112,8 +139,18 @@ class UsbPrinterTransport(private val context: Context) {
             timeoutMs: Int,
         ): Int {
             var offset = 0
+            val paced = bytes.size > PACE_ABOVE_BYTES
+            val startedAt = System.currentTimeMillis()
             while (offset < bytes.size) {
-                val len = minOf(CHUNK, bytes.size - offset)
+                if (paced && offset > 0) {
+                    // كم كان يجب أن يمضي حتى هذا الحدّ لو مشينا بسرعة الورق.
+                    val owedMs = offset.toLong() * 1000L / PACED_BYTES_PER_SECOND
+                    val goneMs = System.currentTimeMillis() - startedAt
+                    if (owedMs > goneMs) {
+                        try { Thread.sleep(owedMs - goneMs) } catch (e: InterruptedException) { return offset }
+                    }
+                }
+                val len = minOf(if (paced) PACED_CHUNK else CHUNK, bytes.size - offset)
                 var sent = try { connection.bulkTransfer(endpoint, bytes, offset, len, timeoutMs) } catch (e: Exception) { -1 }
                 var tries = 0
                 while (sent == 0 && tries < EMPTY_RETRIES) {

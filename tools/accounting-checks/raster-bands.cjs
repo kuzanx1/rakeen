@@ -96,6 +96,20 @@ for (const [w, h] of [[576, 1356], [576, 128], [576, 127], [576, 129], [384, 900
   if (tail.join(',') !== '10,10,10,29,86,0') fails.push(`${w}x${h}: الذيل ${tail.join(',')} والمفروض تغذية ثلاث وقصّ`);
 }
 
+/* ── والإرسالُ بسرعةِ الورق لا بسرعةِ الكابل ──────────────────
+   قياسٌ من «كباب طارق» على طابعة TA POS: إيصالُ ٧٦٫٤ ك.ب خرج في ٦٧٠
+   ملّي ثانية، وطولُه على الورق ١٣ سنتيمتراً -- أي ورقُ ثانيتين سُلِّم
+   في ثلثي ثانية. والطابعةُ تبتلع ما لا تطبع في ذاكرةٍ صغيرة، فإن
+   امتلأت أسقطت بايتاتٍ بلا أن تقول، فتنزاح الصورةُ وتخرج رموزاً --
+   والإرسالُ يقول «نجح» لأنّ البايتات خرجت من الكابل فعلاً. */
+const usb = fs.readFileSync(path.join(root, 'react-native-poc/android/app/src/main/java/com/rakeenpoc/UsbPrinterTransport.kt'), 'utf8');
+for (const need of ['PACED_BYTES_PER_SECOND', 'PACED_CHUNK', 'owedMs']) {
+  if (!usb.includes(need)) fails.push(`مسارُ USB بلا تهدئة (${need}) — يُغرق ذاكرةَ الطابعة`);
+}
+if (!/val paced = bytes\.size > PACE_ABOVE_BYTES/.test(usb)) {
+  fails.push('التهدئةُ ما تُحسب من حجم المهمّة — إمّا تُبطئ كلَّ أمرٍ صغير أو لا تشتغل');
+}
+
 /* والعميلان لا يفترقان: كاشير الويب يقطّع كذلك. */
 const web = fs.readFileSync(path.join(root, 'public/pos/rakeen-pos.js'), 'utf8');
 if (!/BAND_ROWS/.test(web)) fails.push('كاشير الويب ما يقطّع الصورة شرائح — يطبع هراءً عند أي انقطاع');
