@@ -258,7 +258,7 @@ export function SubscriptionCard({ subscription }: { subscription: Subscription 
   const date = subscription.days === 0 ? '' : ` ${subscriptionDayMonth(subscription.date)}`;
   // والحالُ يُلحق بالسطر الصغير لا بشارةٍ على حدة: شارةٌ في بطاقةٍ
   // ارتفاعُها ثمانون بكسلاً تزاحم العنوان، والكلمةُ تكفي.
-  const state = tone === 'ok' ? '' : ` · ${t(subscriptionPillKey(subscription))}`;
+  const state = tone === 'ok' ? '' : ` · ${t(subscriptionPillKey(subscription, CAN_STEER))}`;
 
   return (
     <View style={styles.subCard}>

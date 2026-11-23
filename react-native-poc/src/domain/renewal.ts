@@ -129,11 +129,20 @@ export function subscriptionTone(s: Subscription): SubscriptionTone {
   return 'ok';
 }
 
-/** الكلمةُ في الشارة. */
-export function subscriptionPillKey(s: Subscription): string {
+/**
+ * الكلمةُ في الشارة -- و`canSteer` هنا كما في `renewalBodyKey`.
+ *
+ * فـ«ارفع إيصال جديد» توجيهٌ إلى دفعٍ خارجَ المتجر، وقاعدةُ آبل 3.1.1
+ * تمنعه في نسخةِ المتجر (وكذلك بلاي): هناك تُقال الحالُ وتُسكت. وكاشيرُ
+ * الويب ليس نسخةَ متجرٍ أصلاً، فيمرّر true دائماً.
+ *
+ * وهذا سقط أوّلَ ما بُنيت البطاقة: الشريطُ والبطاقةُ الكبيرةُ كلاهما
+ * يمرّر CAN_STEER، وهذي وحدَها كانت تقول «ارفع إيصال جديد» على الآيباد.
+ */
+export function subscriptionPillKey(s: Subscription, canSteer = true): string {
   switch (subscriptionTone(s)) {
     case 'late':
-      return s.status === 'rejected' ? 'ارفع إيصال جديد' : 'متأخّر';
+      return s.status === 'rejected' && canSteer ? 'ارفع إيصال جديد' : 'متأخّر';
     case 'review':
       return 'تحت المراجعة';
     case 'soon':

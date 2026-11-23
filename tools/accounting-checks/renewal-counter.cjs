@@ -136,6 +136,12 @@ const tbl = fs.readFileSync(path.join(root, 'react-native-poc/src/ui/i18nMore.ts
 for (const key of ['{n} أيام', '{n} أيام تأخير']) {
   if (!tbl.includes(key)) fails.push(`جدولُ التطبيق ناقصه «${key}» — سطرٌ نصفُه مترجَم`);
 }
+/* وقاعدةُ المتجر تمرّ إلى شارةِ العدّاد كما تمرّ إلى نصِّ الشريط:
+   «ارفع إيصال جديد» توجيهٌ إلى دفعٍ خارجَ المتجر (آبل 3.1.1). */
+const notice = fs.readFileSync(path.join(root, 'react-native-poc/src/ui/RenewalNotice.tsx'), 'utf8');
+if (!/subscriptionPillKey\(subscription,\s*CAN_STEER\)/.test(notice)) {
+  fails.push('شارةُ العدّاد ما تمرّر CAN_STEER — «ارفع إيصال جديد» تطلع على الآيباد');
+}
 const more = fs.readFileSync(path.join(root, 'react-native-poc/App.tsx'), 'utf8');
 if (!more.includes('<SubscriptionCard')) fails.push('شاشة «المزيد» في التطبيق ما فيها بطاقة العدّاد');
 

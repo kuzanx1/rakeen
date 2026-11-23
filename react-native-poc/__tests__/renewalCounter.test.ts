@@ -46,6 +46,15 @@ describe('عدّاد الاشتراك', () => {
     expect(subscriptionPillKey(sub(30, 'rejected'))).toBe('ارفع إيصال جديد');
   });
 
+  /* وفي نسخةِ المتجر لا توجيهَ إلى دفعٍ خارجَه (آبل 3.1.1): تُقال
+     الحالُ وتُسكت، كما يفعل نصُّ الشريط أصلاً. */
+  it('«ارفع إيصال جديد» ما تظهر في نسخةِ المتجر', () => {
+    expect(subscriptionPillKey(sub(30, 'rejected'), false)).toBe('متأخّر');
+    expect(subscriptionPillKey(sub(-3), false)).toBe('متأخّر');
+    expect(subscriptionPillKey(sub(2, 'submitted'), false)).toBe('تحت المراجعة');
+    expect(subscriptionPillKey(sub(4), false)).toBe('قريب');
+  });
+
   /* المثنّى في العربيّة كلمةٌ لا رقم، والقلّةُ من ثلاثةٍ إلى عشرةٍ جمعٌ
      والكثرةُ بعدها مفردٌ، و«One day» ليست «1 days» -- فلكلِّ صيغةٍ
      مفتاحُها، وإلا طلع «1 يوم» ثم «5 يوم» في وجه صاحب المطعم. */
