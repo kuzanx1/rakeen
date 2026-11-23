@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { AppState, Linking, View } from 'react-native';
+import { AppState, View } from 'react-native';
 import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import { createStyles, fonts, radii, spacing } from './theme';
@@ -51,7 +51,14 @@ import {
  * السداد من لوحة الإدارة. (renewalService.ts: RenewalOff)
  */
 
-const DASHBOARD_URL = 'https://rakeenapp.com/dashboard';
+/**
+ * ولا زرَّ «افتح اللوحة» في التذكير.
+ *
+ * قرارُ المالك (٢٣ نوفمبر): «اللوحة خاصّة بالمدير وليس الكاشير». فزرٌّ
+ * يفتح لوحةَ التحكّم على جهازٍ يقف خلفه كاشيرٌ أمام الزبائن يفتح ما ليس
+ * له، ولا يُصلح شيئاً: الذي يرفع الإيصالَ هو المديرُ من جهازه. فالنصُّ
+ * يقول ما المطلوب، والزرُّ الوحيدُ يُخفي التذكيرَ لهذه الجلسة.
+ */
 /** نسخ المتاجر لا توجّه أحداً للدفع خارجها (src/platform/storeRules.ts). */
 const CAN_STEER = !NO_PAYMENT_STEERING;
 
@@ -138,13 +145,6 @@ export function RenewalStrip({
       <Text style={styles.stripBody} numberOfLines={1}>
         {t(renewalBodyKey(renewal, CAN_STEER))}
       </Text>
-      {CAN_STEER ? (
-        <TouchableOpacity
-          style={[styles.stripGo, renewalLate(renewal) && styles.stripGoLate]}
-          onPress={() => Linking.openURL(DASHBOARD_URL)}>
-          <Text style={[styles.stripGoText, renewalLate(renewal) && styles.stripGoTextLate]}>{t('افتح اللوحة')}</Text>
-        </TouchableOpacity>
-      ) : null}
       <TouchableOpacity
         style={styles.stripClose}
         onPress={dismissRenewalStrip}>
@@ -190,25 +190,9 @@ export function RenewalCard({
           </TouchableOpacity>
         </View>
         <Text style={styles.cardBody}>{t(renewalBodyKey(renewal, CAN_STEER))}</Text>
-        {CAN_STEER ? (
-          <View style={styles.cardRow}>
-            <TouchableOpacity
-              style={styles.cardGo}
-              onPress={() => {
-                Linking.openURL(DASHBOARD_URL);
-                close();
-              }}>
-              <Text style={styles.cardGoText}>{t('افتح لوحة التحكم')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.cardGhost} onPress={close}>
-              <Text style={styles.cardGhostText}>{t('ذكّرني بكرة')}</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <TouchableOpacity style={styles.cardGhostWide} onPress={close}>
-            <Text style={styles.cardGhostText}>{t('تمام')}</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity style={styles.cardGhostWide} onPress={close}>
+          <Text style={styles.cardGhostText}>{t('حسناً')}</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -289,8 +273,6 @@ const useStyles = createStyles(colors => ({
     borderBottomColor: AMBER,
   },
   stripLate: { backgroundColor: DANGER_BG, borderBottomColor: DANGER_LINE },
-  stripGoLate: { backgroundColor: PAPER },
-  stripGoTextLate: { color: DANGER_BG },
   stripDot: { width: 8, height: 8, borderRadius: 99, backgroundColor: AMBER },
   stripDotLate: { backgroundColor: PAPER },
   /* من السمة لا ثابتاً: النقطةُ تقع على شريطِ التبويبات، وخلفيّتُه
@@ -298,8 +280,6 @@ const useStyles = createStyles(colors => ({
   dotLate: { backgroundColor: colors.danger },
   stripTitle: { fontFamily: fonts.sansBold, fontSize: 13, color: PAPER, flexShrink: 0 },
   stripBody: { fontFamily: fonts.sansMedium, fontSize: 12, color: 'rgba(251,250,245,0.6)', flex: 1 },
-  stripGo: { backgroundColor: AMBER, borderRadius: radii.sm, paddingHorizontal: spacing[3], paddingVertical: 6 },
-  stripGoText: { fontFamily: fonts.sansBold, fontSize: 12, color: '#0B0B0A' },
   stripClose: { paddingHorizontal: spacing[1] },
   stripCloseText: { fontFamily: fonts.sansBold, fontSize: 14, color: 'rgba(251,250,245,0.42)' },
 
@@ -333,23 +313,6 @@ const useStyles = createStyles(colors => ({
     marginTop: spacing[2],
     marginBottom: spacing[4],
   },
-  cardRow: { flexDirection: 'row' as const, gap: spacing[2] },
-  cardGo: {
-    flex: 1,
-    backgroundColor: LIME,
-    borderRadius: radii.md,
-    paddingVertical: spacing[3],
-    alignItems: 'center' as const,
-  },
-  cardGoText: { fontFamily: fonts.sansBold, fontSize: 14, color: '#0B0B0A' },
-  cardGhost: {
-    borderRadius: radii.md,
-    paddingVertical: spacing[3],
-    paddingHorizontal: spacing[4],
-    borderWidth: 1,
-    borderColor: 'rgba(251,250,245,0.16)',
-    alignItems: 'center' as const,
-  },
   cardGhostWide: {
     borderRadius: radii.md,
     paddingVertical: spacing[3],
@@ -367,8 +330,9 @@ const useStyles = createStyles(colors => ({
    * الآن، والاشتراكُ خبرٌ يُطمأنّ إليه. فصار الرقمُ ٢١ نقطةً جنبَ
    * العنوان، والحالُ كلمةً في السطر الصغير، بلا زرٍّ ولا شارة.
    *
-   * والزرُّ لم يُفقد: ساعةَ يلزم فعلٌ يطلع الشريطُ والبطاقةُ فوق ومعهما
-   * «افتح لوحة التحكم» -- فلا داعي لزرٍّ ثالثٍ هنا طولَ الشهر.
+   * ولا زرَّ فيها أصلاً: ساعةَ يلزم فعلٌ يطلع الشريطُ والبطاقةُ فوق
+   * ويقولان ما المطلوب، ولا يفتح أيٌّ منهما لوحةَ التحكّم -- فهي للمدير
+   * لا للكاشير.
    */
   subCard: {
     backgroundColor: colors.cardBg,

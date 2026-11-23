@@ -29,8 +29,28 @@ const oldJob = (b: RgbaBuffer, cmd: 'modern' | 'legacy') =>
  * يُحرَس هنا هو ما يصل الطابعةَ من بكسلات: الشرائحُ تغيّر التغليفَ
  * لا الصورة.
  */
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+/** base64 → بايتات، بلا Buffer: هذا مشروعُ React Native لا Node. */
+function fromBase64(b64: string): Uint8Array {
+  const clean = b64.replace(/=+$/, '');
+  const out = new Uint8Array(Math.floor((clean.length * 6) / 8));
+  let bits = 0;
+  let acc = 0;
+  let at = 0;
+  for (const ch of clean) {
+    acc = (acc << 6) | B64.indexOf(ch);
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      out[at++] = (acc >> bits) & 0xff;
+    }
+  }
+  return out;
+}
+
 function unband(b64: string): string {
-  const job = Uint8Array.from(Buffer.from(b64, 'base64'));
+  const job = fromBase64(b64);
   const payload: number[] = [];
   let at = 2;
   let bpr = 0;
@@ -51,7 +71,7 @@ function unband(b64: string): string {
 
 /** عددُ شرائح GS v 0 في مهمّة. */
 function bandCount(b64: string): number {
-  const job = Uint8Array.from(Buffer.from(b64, 'base64'));
+  const job = fromBase64(b64);
   let n = 0;
   for (let i = 0; i + 2 < job.length; i++) {
     if (job[i] === 0x1d && job[i + 1] === 0x76 && job[i + 2] === 0x30) n++;

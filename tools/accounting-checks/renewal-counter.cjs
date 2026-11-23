@@ -138,6 +138,21 @@ const tbl = fs.readFileSync(path.join(root, 'react-native-poc/src/ui/i18nMore.ts
 for (const key of ['{n} أيام', '{n} أيام تأخير']) {
   if (!tbl.includes(key)) fails.push(`جدولُ التطبيق ناقصه «${key}» — سطرٌ نصفُه مترجَم`);
 }
+/* ── لا زرَّ لوحةِ تحكّمٍ في تذكير الكاشير ────────────────────
+   قرارُ المالك (٢٣ نوفمبر): «اللوحة خاصّة بالمدير وليس الكاشير». فزرٌّ
+   يفتحها على جهازٍ يقف خلفه كاشيرٌ أمام الزبائن يفتح ما ليس له، ولا
+   يُصلح شيئاً -- الذي يرفع الإيصالَ هو المديرُ من جهازه. */
+/* التعليقاتُ تُنزع: الشرحُ يذكر الزرَّ المنشال، وحارسٌ يقرأ الشرحَ
+   كأنه كودٌ يسقط على كلامٍ يقول الصواب. */
+const noticeCode = noticeSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+if (/rakeenapp\.com\/dashboard|افتح اللوحة|افتح لوحة التحكم/.test(noticeCode)) {
+  fails.push('تذكير التطبيق فيه زرُّ لوحةِ تحكّم — اللوحةُ للمدير لا للكاشير');
+}
+const stripBlock = web.slice(web.indexOf('function rkRenewalStrip'), web.indexOf('function renderMoreSubCard'));
+if (/rk-renewal-strip-go|rk-renewal-card-go|window\.open\('\/dashboard'/.test(stripBlock)) {
+  fails.push('تذكير الويب فيه زرُّ لوحةِ تحكّم — اللوحةُ للمدير لا للكاشير');
+}
+
 /* ── لا «مهلة» على الكاشير بعد أوّلِ يومِ تأخير ────────────────
    قرارُ المالك (٢٣ نوفمبر): الكلمةُ تُقرأ وعداً بأيامٍ آمنة، والإيقافُ
    بيدنا من اللوحة في أيِّ لحظة. فالنصُّ يقول إنّ الخدمةَ تنقطع ويطلب

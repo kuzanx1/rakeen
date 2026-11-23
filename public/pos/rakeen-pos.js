@@ -89,6 +89,8 @@ const I18N_EN = {
   'يُجدَّد': 'Renews',
   'كان يوم التجديد': 'Renewal day was',
   'موعد التجديد': 'Renewal is due',
+  'حسناً': 'OK',
+  'إخفاء': 'Hide',
   'افتح اللوحة': 'Open dashboard',
   'افتح لوحة التحكم': 'Open dashboard',
   'ذكَّرني بكرة': 'Remind me tomorrow',
@@ -11879,14 +11881,13 @@ function rkRenewalStrip(r){
   el = document.createElement('div');
   el.id = 'rkRenewalStrip';
   el.className = 'rk-renewal-strip' + (rkRenewalLate(r) ? ' is-late' : '');
+  /* ولا زرَّ «افتح اللوحة»: اللوحةُ للمدير لا للكاشير (قرار المالك،
+     ٢٣ نوفمبر). والنصُّ يقول ما المطلوب، والزرُّ الوحيدُ يُخفي. */
   el.innerHTML = '<i class="rk-renewal-strip-dot"></i><b></b><span></span>'
-    + '<button type="button" class="rk-renewal-strip-go"></button>'
-    + '<button type="button" class="rk-renewal-strip-x" aria-label="إغلاق">&#10005;</button>';
+    + '<button type="button" class="rk-renewal-strip-x" aria-label="إخفاء">&#10005;</button>';
   el.children[1].textContent = rkRenewalTitle(r);
   el.children[2].textContent = rkRenewalBody(r);
-  el.children[3].textContent = t('افتح اللوحة');
-  el.children[3].addEventListener('click', ()=> window.open('/dashboard', '_blank', 'noopener'));
-  el.children[4].addEventListener('click', ()=>{
+  el.children[3].addEventListener('click', ()=>{
     RK_RENEWAL_OFF.strip = true;
     el.remove();
     app.classList.remove('rk-strip-on');
@@ -11907,20 +11908,15 @@ function rkRenewalCard(r){
   el.className = 'rk-renewal-card';
   el.setAttribute('role', 'status');
   el.innerHTML = '<div class="rk-renewal-card-head"><h3></h3>'
-    + '<button type="button" class="rk-renewal-card-x" aria-label="إغلاق">&#10005;</button></div>'
-    + '<p></p><div class="rk-renewal-card-row">'
-    + '<button type="button" class="rk-renewal-card-go"></button>'
-    + '<button type="button" class="rk-renewal-card-ghost"></button></div>';
+    + '<button type="button" class="rk-renewal-card-x" aria-label="إخفاء">&#10005;</button></div>'
+    + '<p></p><button type="button" class="rk-renewal-card-ghost rk-renewal-card-wide"></button>';
   const head = el.children[0];
   head.children[0].textContent = rkRenewalTitle(r);
   el.children[1].textContent = rkRenewalBody(r);
-  const row = el.children[2];
-  row.children[0].textContent = t('افتح لوحة التحكم');
-  row.children[1].textContent = t('ذكَّرني بكرة');
   const close = ()=>{ RK_RENEWAL_OFF.card = true; el.remove(); };
+  el.children[2].textContent = t('حسناً');
   head.children[1].addEventListener('click', close);
-  row.children[1].addEventListener('click', close);
-  row.children[0].addEventListener('click', ()=>{ window.open('/dashboard', '_blank', 'noopener'); close(); });
+  el.children[2].addEventListener('click', close);
   document.body.appendChild(el);
 }
 

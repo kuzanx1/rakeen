@@ -661,6 +661,7 @@ export const I18N_EN_MORE: Record<string, string> = {
   '{} يوم · {} · {}': '{} days · {} · {}',
   'أظهر تذكير الاشتراك الآن': 'Show the subscription reminder now',
   'رجع التذكير — ارجع للرئيسية': 'Reminder restored — go back to Home',
+  'حسناً': 'OK',
   'افتح اللوحة': 'Open dashboard',
   'افتح لوحة التحكم': 'Open dashboard',
   'ذكَّرني بكرة': 'Remind me tomorrow',

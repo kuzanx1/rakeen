@@ -1137,17 +1137,12 @@ body.kb-open .pos-auth-card:focus-within .pos-auth-title { font-size: 21px; marg
    والأحمرُ «عدّى وما سدّدت». ونفسُ القاعدةِ في التطبيق. */
 .rk-renewal-strip.is-late{background:#A33A25; box-shadow:inset 0 -2px 0 #F0B3A4;}
 .rk-renewal-strip.is-late .rk-renewal-strip-dot{background:#FBFAF5;}
-.rk-renewal-strip.is-late .rk-renewal-strip-go{background:#FBFAF5; color:#A33A25;}
 .rk-renewal-dot.is-late{background:var(--danger);}
 .rk-renewal-strip-dot{width:8px; height:8px; flex:none; border-radius:99px; background:#FFC24B;}
 .rk-renewal-strip b{font-weight:800; font-size:13.5px; flex:none;}
 .rk-renewal-strip span{
   font-weight:500; font-size:12.5px; color:rgba(251,250,245,.6); flex:1;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-}
-.rk-renewal-strip-go{
-  border:0; border-radius:8px; padding:6px 13px; font:inherit; font-size:12.5px;
-  font-weight:800; background:#FFC24B; color:#0B0B0A; cursor:pointer; flex:none;
 }
 .rk-renewal-strip-x{
   border:0; background:none; font:inherit; font-size:14px; font-weight:700;
@@ -1172,23 +1167,20 @@ body.kb-open .pos-auth-card:focus-within .pos-auth-title { font-size: 21px; marg
 .rk-renewal-card p{
   margin:8px 0 16px; font-size:13.5px; line-height:1.7; color:rgba(251,250,245,.68);
 }
-.rk-renewal-card-row{display:flex; gap:9px;}
-.rk-renewal-card-go{
-  flex:1; border:0; border-radius:12px; padding:12px; font:inherit; font-size:14px;
-  font-weight:800; background:#C4FF2B; color:#0B0B0A; cursor:pointer;
-}
+/* زرٌّ واحدٌ يُخفي، ولا زرَّ يفتح لوحةَ التحكّم: اللوحةُ للمدير لا
+   للكاشير (قرار المالك، ٢٣ نوفمبر). */
 .rk-renewal-card-ghost{
   border:1px solid rgba(251,250,245,.16); border-radius:12px; padding:12px 18px;
   font:inherit; font-size:13px; font-weight:600; background:none;
   color:rgba(251,250,245,.6); cursor:pointer;
 }
+.rk-renewal-card-wide{display:block; width:100%; padding:12px;}
 
 /* على الجوال: الشريط يختصر، والبطاقة تمتدّ على العرض فوق شريط التبويبات. */
 @media (max-width: 720px){
   .rk-renewal-strip{height:34px; gap:9px; padding:0 12px;}
   .rk-renewal-strip b{font-size:12px;}
   .rk-renewal-strip span{font-size:11px;}
-  .rk-renewal-strip-go{font-size:11px; padding:5px 9px;}
   .rk-renewal-card{
     left:12px; right:12px; transform:none;
     width:auto; inset-block-end:80px; padding:17px 17px 15px; border-radius:17px;
