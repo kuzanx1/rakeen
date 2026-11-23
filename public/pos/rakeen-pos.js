@@ -11770,11 +11770,17 @@ document.getElementById('posSwitchStaffBtn').addEventListener('click', ()=>{
    ثلاث قطع متدرّجة، وكلّها تحت قاعدة واحدة: البيع أولاً. لا شيء منها
    يغطّي زرّ «ادفع» ولا سلّة الطلب.
      • النقطة  -- تبقى على «المزيد» لين يُرفع الإيصال. بلا مقاطعة.
-     • البطاقة -- مرّة واحدة في اليوم.
+     • البطاقة -- في كلِّ جلسة، لا مرّةً في اليوم.
      • الشريط  -- آخر يومين فقط، أو إذا تأخّر التجديد أو رُفض الإيصال. */
 let RK_RENEWAL = null;
 let RK_SUBSCRIPTION = null;
-const RK_RENEWAL_DAY_KEY = 'rakeen_pos_renewal_card_day';
+/* «شافها وسكّرها» -- لهذه الجلسة فقط، لا ليومٍ كامل.
+   قرارُ المالك (٢٣ نوفمبر): يقدر يشيلها من قدّامه، وما يقدر يخلّيها
+   ما تطلع له. فلا تُكتب في localStorage أصلاً: متغيّرٌ يموت مع
+   الصفحة، ويُمسح كذلك لمّا يرجع إلى التبويب -- ولا يختفي التذكيرُ
+   نهائيّاً إلا لمّا يتأكّد السدادُ من لوحة الإدارة، فيسكت الخادمُ
+   عنه. ونفسُ القاعدةِ في التطبيق (application/renewalService.ts). */
+let RK_RENEWAL_OFF = { card: false, strip: false };
 
 function rkRenewalLoud(r){ return r.stage !== 'upcoming' || r.days <= 2; }
 
@@ -11803,6 +11809,14 @@ function rkRenewalBody(r){
 /* مفتاح «مرّة في اليوم»: تاريخ الرياض لا تاريخ الجهاز. */
 function rkRiyadhDay(){ return new Date(Date.now() + 3*3600000).toISOString().slice(0,10); }
 
+/* والرجوعُ إلى التبويب جلسةٌ جديدة: يُمسح الإغلاقُ ويُعاد العرضُ بما
+   عندنا، بلا سؤالِ الخادم (وهو يُسأل عند فحصِ الإيقاف على كلِّ حال). */
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState !== 'visible') return;
+  RK_RENEWAL_OFF = { card: false, strip: false };
+  if(RK_RENEWAL) rkRenewalApply(RK_RENEWAL, RK_SUBSCRIPTION);
+});
+
 function rkRenewalApply(r, sub){
   RK_RENEWAL = r;
   RK_SUBSCRIPTION = sub;
@@ -11828,9 +11842,7 @@ function rkRenewalDot(r){
 function rkRenewalStrip(r){
   const app = document.getElementById('posApp');
   let el = document.getElementById('rkRenewalStrip');
-  let off = null;
-  try { off = localStorage.getItem('rakeen_pos_renewal_strip_day'); } catch(_){}
-  const show = r && rkRenewalLoud(r) && off !== rkRiyadhDay();
+  const show = r && rkRenewalLoud(r) && !RK_RENEWAL_OFF.strip;
   if(!show || !app){ if(el) el.remove(); app && app.classList.remove('rk-strip-on'); return; }
   if(el){ el.children[1].textContent = rkRenewalTitle(r); el.children[2].textContent = rkRenewalBody(r); return; }
   el = document.createElement('div');
@@ -11844,7 +11856,7 @@ function rkRenewalStrip(r){
   el.children[3].textContent = t('افتح اللوحة');
   el.children[3].addEventListener('click', ()=> window.open('/dashboard', '_blank', 'noopener'));
   el.children[4].addEventListener('click', ()=>{
-    try { localStorage.setItem('rakeen_pos_renewal_strip_day', rkRiyadhDay()); } catch(_){}
+    RK_RENEWAL_OFF.strip = true;
     el.remove();
     app.classList.remove('rk-strip-on');
   });
@@ -11852,15 +11864,12 @@ function rkRenewalStrip(r){
   app.classList.add('rk-strip-on');
 }
 
-/* البطاقة -- مرّة في اليوم. وتُعلَّم مقروءةً لحظة ظهورها لا لحظة
-   إغلاقها: كاشير يُقفل الصفحة قبل أن يضغط شيئاً لا يُلاحَق بها كل مرّة. */
+/* البطاقة -- في كلِّ جلسة. وزرُّ الإغلاق يشيلها من قدّامه الآن،
+   ويرجع التذكيرُ مع الجلسةِ القادمة. */
 function rkRenewalCard(r){
   if(!r) { const old = document.getElementById('rkRenewalCard'); if(old) old.remove(); return; }
   if(document.getElementById('rkRenewalCard')) return;
-  let seen = null;
-  try { seen = localStorage.getItem(RK_RENEWAL_DAY_KEY); } catch(_){}
-  if(seen === rkRiyadhDay()) return;
-  try { localStorage.setItem(RK_RENEWAL_DAY_KEY, rkRiyadhDay()); } catch(_){}
+  if(RK_RENEWAL_OFF.card) return;
 
   const el = document.createElement('div');
   el.id = 'rkRenewalCard';
@@ -11877,7 +11886,7 @@ function rkRenewalCard(r){
   const row = el.children[2];
   row.children[0].textContent = t('افتح لوحة التحكم');
   row.children[1].textContent = t('ذكَّرني بكرة');
-  const close = ()=> el.remove();
+  const close = ()=>{ RK_RENEWAL_OFF.card = true; el.remove(); };
   head.children[1].addEventListener('click', close);
   row.children[1].addEventListener('click', close);
   row.children[0].addEventListener('click', ()=>{ window.open('/dashboard', '_blank', 'noopener'); close(); });

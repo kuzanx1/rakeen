@@ -20,16 +20,16 @@ import {
   subscriptionWhenKey,
 } from '../domain/renewal';
 import {
+  RenewalOff,
   RenewalState,
-  cardSeenToday,
+  clearRenewalOff,
+  dismissRenewalCard,
+  dismissRenewalStrip,
+  getRenewalOff,
   getRenewalState,
-  loadCardDay,
-  loadStripDay,
-  markCardSeen,
-  markStripClosed,
   refreshRenewal,
-  stripClosedToday,
   subscribeRenewal,
+  subscribeRenewalOff,
 } from '../application/renewalService';
 
 /**
@@ -41,8 +41,13 @@ import {
  * والكاشير قد تكون عنده نافذة مفتوحة أصلاً لحظة ما يجي الدور على هذا.
  *
  *   • النقطة  -- تبقى على «المزيد» لين يُرفع الإيصال. بلا مقاطعة.
- *   • البطاقة -- مرّة واحدة في اليوم، أول ما تفتح الشاشة.
+ *   • البطاقة -- في كلِّ جلسة، لا مرّةً في اليوم.
  *   • الشريط  -- في آخر يومين فقط، أو إذا تأخّر التجديد أو رُفض الإيصال.
+ *
+ * والإغلاقُ يشيلها من قدّامه الآن، ولا يُسكتها إلى الغد: «لا يمديه
+ * يقفلها يعني إذا شافها فقط، لكن مو إنه يخلّيها ما تطلع له» -- فكلُّ
+ * عودةٍ للتطبيق من الخلفيّة تُرجعها، ولا تختفي نهائيّاً إلا بتأكيد
+ * السداد من لوحة الإدارة. (renewalService.ts: RenewalOff)
  */
 
 const DASHBOARD_URL = 'https://rakeenapp.com/dashboard';
@@ -52,20 +57,29 @@ const CAN_STEER = !NO_PAYMENT_STEERING;
 function useRenewalState(): RenewalState {
   const [state, setState] = useState<RenewalState>(getRenewalState());
   useEffect(() => {
-    const off = subscribeRenewal(setState);
-    loadCardDay();
+    const unsub = subscribeRenewal(setState);
     refreshRenewal();
     // بلا مؤقّت: نفس لحظات فحص الإيقاف -- الرجوع للواجهة يكفي، واليوم
     // الجديد يبدأ عند أول فتح على كل حال.
     const sub = AppState.addEventListener('change', s => {
-      if (s === 'active') refreshRenewal();
+      if (s !== 'active') return;
+      // عودةٌ من الخلفيّة = جلسةٌ جديدة: ما أُغلق يرجع.
+      clearRenewalOff();
+      refreshRenewal();
     });
     return () => {
-      off();
+      unsub();
       sub.remove();
     };
   }, []);
   return state;
+}
+
+/** ما أُغلق في هذي الجلسة -- مشتركٌ بين الشريط والبطاقة. */
+function useRenewalOff(): RenewalOff {
+  const [o, setO] = useState<RenewalOff>(getRenewalOff());
+  useEffect(() => subscribeRenewalOff(setO), []);
+  return o;
 }
 
 export function useRenewal(): Renewal | null {
@@ -106,24 +120,7 @@ export function RenewalStrip({
 }) {
   const styles = useStyles();
   const { t } = useI18n();
-  /**
-   * يبدأ مغلقاً حتى تُقرأ «أُغلق اليوم» من التخزين.
-   *
-   * وتبديلُ التبويب في هذا التطبيق يفكّ الشاشة ويعيد تركيبها، فحالةٌ
-   * محلّيةٌ وحدَها تعني شريطاً يرجع مع كل رجوعٍ إلى «الرئيسية» -- وهو
-   * الإزعاجُ الذي قيل إنه لا يجوز.
-   */
-  const [closed, setClosed] = useState(true);
-  useEffect(() => {
-    let alive = true;
-    loadStripDay().then(() => {
-      if (alive) setClosed(stripClosedToday(Date.now()));
-    });
-    return () => {
-      alive = false;
-    };
-  }, [renewal]);
-
+  const closed = useRenewalOff().strip;
   const hidden = !renewal || !renewalLoud(renewal) || closed;
   useEffect(() => {
     if (hidden) onHeight?.(0);
@@ -145,10 +142,7 @@ export function RenewalStrip({
       ) : null}
       <TouchableOpacity
         style={styles.stripClose}
-        onPress={() => {
-          setClosed(true);
-          markStripClosed(Date.now());
-        }}>
+        onPress={dismissRenewalStrip}>
         <Text style={styles.stripCloseText}>✕</Text>
       </TouchableOpacity>
     </View>
@@ -177,29 +171,9 @@ export function RenewalCard({
 }) {
   const styles = useStyles();
   const { t } = useI18n();
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (!renewal) {
-      setOpen(false);
-      return;
-    }
-    let alive = true;
-    // تُنتظر قراءةُ «عُرضت اليوم» قبل القرار: القراءةُ من التخزين غيرُ
-    // فوريّة، ولو سبقتها حالةُ التجديد لظهرت البطاقةُ مرّةً ثانيةً في
-    // يومٍ عُرضت فيه -- وهذا بالضبط ما يحوّل التذكير إلى إزعاج.
-    loadCardDay().then(() => {
-      if (!alive || cardSeenToday(Date.now())) return;
-      setOpen(true);
-      markCardSeen(Date.now());
-    });
-    return () => {
-      alive = false;
-    };
-  }, [renewal]);
-
-  const close = useCallback(() => setOpen(false), []);
-  if (!renewal || !open) return null;
+  const closed = useRenewalOff().card;
+  const close = useCallback(() => dismissRenewalCard(), []);
+  if (!renewal || closed) return null;
 
   return (
     <View style={[styles.cardWrap, { end: endInset, bottom: bottomInset + spacing[4] }]} pointerEvents="box-none">

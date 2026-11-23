@@ -136,6 +136,25 @@ const tbl = fs.readFileSync(path.join(root, 'react-native-poc/src/ui/i18nMore.ts
 for (const key of ['{n} أيام', '{n} أيام تأخير']) {
   if (!tbl.includes(key)) fails.push(`جدولُ التطبيق ناقصه «${key}» — سطرٌ نصفُه مترجَم`);
 }
+/* ── الإغلاقُ لجلسةٍ لا ليوم ──────────────────────────────────
+   قرارُ المالك (٢٣ نوفمبر): «لا يمديه يقفلها يعني إذا شافها فقط، لكن
+   مو إنه يخلّيها ما تطلع له». فكان الإغلاقُ يُكتب بمفتاحِ يومٍ في
+   التخزين، فضغطةٌ واحدةٌ تُسكت التذكيرَ إلى الغد. فلا مفتاحَ يومٍ
+   يرجع، ولا بدّ من مسحِ الإغلاقِ عند كلِّ عودةٍ إلى التطبيق. */
+const svcSrc = fs.readFileSync(path.join(root, 'react-native-poc/src/application/renewalService.ts'), 'utf8');
+for (const [who, src] of [['التطبيق', svcSrc], ['الويب', web]]) {
+  if (/renewal_(card|strip)_day/.test(src)) {
+    fails.push(`${who}: رجع مفتاحُ اليوم للتذكير — ضغطةٌ واحدةٌ تُسكته إلى الغد`);
+  }
+}
+const noticeSrc = fs.readFileSync(path.join(root, 'react-native-poc/src/ui/RenewalNotice.tsx'), 'utf8');
+if (!/clearRenewalOff\(\)/.test(noticeSrc)) {
+  fails.push('التطبيق: ما يُمسح الإغلاقُ عند العودة من الخلفيّة — التذكيرُ ما يرجع');
+}
+if (!/visibilitychange/.test(web) || !/RK_RENEWAL_OFF\s*=\s*\{\s*card:\s*false/.test(web)) {
+  fails.push('الويب: ما يُمسح الإغلاقُ عند الرجوع إلى التبويب');
+}
+
 /* وقاعدةُ المتجر تمرّ إلى شارةِ العدّاد كما تمرّ إلى نصِّ الشريط:
    «ارفع إيصال جديد» توجيهٌ إلى دفعٍ خارجَ المتجر (آبل 3.1.1). */
 const notice = fs.readFileSync(path.join(root, 'react-native-poc/src/ui/RenewalNotice.tsx'), 'utf8');

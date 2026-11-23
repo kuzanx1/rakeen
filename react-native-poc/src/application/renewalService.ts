@@ -1,6 +1,5 @@
 import { supabase, RAKEEN_API_BASE_URL } from '../infrastructure/supabaseClient';
-import { getItem, setItem, removeItem } from '../infrastructure/mmkvStorage';
-import { Renewal, Subscription, riyadhDayKey } from '../domain/renewal';
+import { Renewal, Subscription } from '../domain/renewal';
 
 /**
  * حالة التجديد كما يقولها الخادم، ومتى تُعرض البطاقة.
@@ -10,8 +9,6 @@ import { Renewal, Subscription, riyadhDayKey } from '../domain/renewal';
  * وعودة الشبكة. فإن لم يتغيّر شيء لم يُنادَ الخادم أصلاً.
  */
 
-const CARD_DAY_KEY = 'rakeen_renewal_card_day';
-const STRIP_DAY_KEY = 'rakeen_renewal_strip_day';
 
 /**
  * جوابان من قراءةٍ واحدة.
@@ -28,9 +25,58 @@ export interface RenewalState {
 
 const EMPTY: RenewalState = { renewal: null, subscription: null };
 let current: RenewalState = EMPTY;
-let cardDay: string | null = null;
-/** قراءةٌ واحدةٌ للمفتاح مهما تعدّد من ينتظرها. */
-let cardDayLoad: Promise<void> | null = null;
+
+/**
+ * «شافها وسكّرها» -- لهذه الجلسة فقط، لا ليومٍ كامل.
+ *
+ * قرارُ المالك (٢٣ نوفمبر): «لا يمديه يقفلها يعني إذا شافها فقط، لكن
+ * مو إنه يخلّيها ما تطلع له». فكان الإغلاقُ يُكتب في التخزين بمفتاح
+ * يومٍ (تقويم الرياض)، فضغطةٌ واحدةٌ تُسكت التذكيرَ إلى الغد -- وهذا
+ * بالضبط ما لا يريده. والآن متغيّرٌ في الذاكرة: يُمسح مع كلِّ عودةٍ
+ * للتطبيق من الخلفيّة ومع كلِّ تشغيل، ولا يختفي التذكيرُ نهائيّاً إلا
+ * لمّا يتأكّد السدادُ من لوحة الإدارة فيسكت الخادمُ عنه.
+ *
+ * وهو في الوحدة لا في المكوّن عمداً: تبديلُ التبويب يفكّ الشاشة
+ * ويعيد تركيبها (project_rn_pos_perf_findings)، فحالةٌ محلّيةٌ تعني
+ * شريطاً يرجع مع كلِّ رجوعٍ إلى «الرئيسية» -- وذاك إزعاجٌ بلا معنى،
+ * فهو لم يغادر التطبيقَ أصلاً.
+ */
+export interface RenewalOff {
+  card: boolean;
+  strip: boolean;
+}
+let off: RenewalOff = { card: false, strip: false };
+const offListeners = new Set<(o: RenewalOff) => void>();
+
+export function getRenewalOff(): RenewalOff {
+  return off;
+}
+
+export function subscribeRenewalOff(fn: (o: RenewalOff) => void): () => void {
+  offListeners.add(fn);
+  return () => {
+    offListeners.delete(fn);
+  };
+}
+
+/** كائنٌ جديدٌ في كلِّ مرّة: React يقارن بالمرجع. */
+function setOff(next: RenewalOff) {
+  off = next;
+  offListeners.forEach(fn => fn(off));
+}
+
+export function dismissRenewalCard(): void {
+  setOff({ ...off, card: true });
+}
+
+export function dismissRenewalStrip(): void {
+  setOff({ ...off, strip: true });
+}
+
+/** جلسةٌ جديدة: التذكيرُ يرجع. */
+export function clearRenewalOff(): void {
+  setOff({ card: false, strip: false });
+}
 /** طلبٌ واحدٌ في الطريق: الشاشةُ وشريطُ التبويبات كلاهما ينادي refresh. */
 let inFlight: Promise<void> | null = null;
 const listeners = new Set<(s: RenewalState) => void>();
@@ -97,91 +143,7 @@ async function doRefresh(): Promise<void> {
   }
 }
 
-/**
- * «ذكّرني بكرة» واليوم الواحد: نفس المفتاح، تاريخ الرياض.
- *
- * وتُنتظر قبل أي قرارٍ بعرض البطاقة: القراءةُ من التخزين غيرُ فوريّة،
- * ولو سبقتها حالةُ التجديد لظهرت البطاقةُ مرّةً ثانيةً في يومٍ عُرضت فيه.
- */
-export function loadCardDay(): Promise<void> {
-  if (!cardDayLoad) {
-    cardDayLoad = getItem(CARD_DAY_KEY)
-      .then(v => {
-        cardDay = v;
-      })
-      .catch(() => {
-        cardDay = null;
-      });
-  }
-  return cardDayLoad;
-}
-
-export function cardSeenToday(now: number): boolean {
-  return cardDay === riyadhDayKey(now);
-}
-
-/**
- * «أغلقتُ الشريط اليوم» -- في التخزين لا في حالة المكوّن.
- *
- * فتبديلُ التبويب في هذا التطبيق يفكّ الشاشة ويعيد تركيبها
- * (project_rn_pos_perf_findings)، فحالةٌ محلّيةٌ تعني شريطاً يرجع مع كل
- * رجوعٍ إلى «الرئيسية» -- وهذا هو الإزعاج بعينه.
- */
-let stripDay: string | null = null;
-let stripDayLoad: Promise<void> | null = null;
-
-export function loadStripDay(): Promise<void> {
-  if (!stripDayLoad) {
-    stripDayLoad = getItem(STRIP_DAY_KEY)
-      .then(v => {
-        stripDay = v;
-      })
-      .catch(() => {
-        stripDay = null;
-      });
-  }
-  return stripDayLoad;
-}
-
-export function stripClosedToday(now: number): boolean {
-  return stripDay === riyadhDayKey(now);
-}
-
-/**
- * يمسح «عُرضت اليوم» للبطاقة والشريط معاً، ويعيد القراءة من الخادم.
- *
- * موجودٌ لأجل التجربة: الحالاتُ السبع تُمشى واحدةً واحدةً على جهازٍ
- * حقيقيّ، والبطاقةُ تظهر مرّةً في اليوم -- فبلا هذا لا تُرى إلا أولُ
- * حالةٍ ثم يسكت كلُّ شيء إلى الغد. وهو في «التشخيص» لا في شاشةٍ يمرّ
- * عليها كاشير.
- */
 export async function resetRenewalSeen(): Promise<void> {
-  cardDay = null;
-  stripDay = null;
-  cardDayLoad = Promise.resolve();
-  stripDayLoad = Promise.resolve();
-  await removeItem(CARD_DAY_KEY).catch(() => {});
-  await removeItem(STRIP_DAY_KEY).catch(() => {});
+  clearRenewalOff();
   await refreshRenewal();
-  /**
-   * نسخةٌ جديدةٌ من الكائن، لا الكائنُ نفسُه.
-   *
-   * فالبطاقةُ والشريطُ يقرآن «عُرض اليوم» في أثرٍ مفتاحُه هذا الكائن.
-   * والحالةُ لم تتغيّر -- ستةُ أيامٍ تبقى ستةً -- فيردّ refreshRenewal
-   * المرجعَ نفسَه، فلا يُعيد React تشغيلَ الأثر، فلا يُقرأ المفتاحُ
-   * الممسوح، فلا يعود شيءٌ إلى الشاشة. وهذا ما رآه المالك على السُنمي:
-   * النقطةُ وحدها -- لأنها لا تعتمد على أثرٍ أصلاً.
-   */
-  current = { ...current, renewal: current.renewal ? { ...current.renewal } : null };
-  emit();
-}
-
-export async function markStripClosed(now: number): Promise<void> {
-  stripDay = riyadhDayKey(now);
-  await setItem(STRIP_DAY_KEY, stripDay).catch(() => {});
-}
-
-export async function markCardSeen(now: number): Promise<void> {
-  cardDay = riyadhDayKey(now);
-  await setItem(CARD_DAY_KEY, cardDay).catch(() => {});
 }

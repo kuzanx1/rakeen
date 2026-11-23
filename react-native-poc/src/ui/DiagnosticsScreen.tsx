@@ -4,7 +4,7 @@ import { Text } from './Text';
 import { TouchableOpacity } from './tappable';
 import { getDiagnosticsSnapshot, retryStuckOrders, retryAllFailedPrintJobs, DiagnosticsSnapshot } from '../application/diagnosticsService';
 import { readErrors, readPerf } from '../infrastructure/perfLog';
-import { cardSeenToday, getRenewalState, loadCardDay, loadStripDay, resetRenewalSeen, stripClosedToday } from '../application/renewalService';
+import { getRenewalOff, getRenewalState, resetRenewalSeen } from '../application/renewalService';
 import ReceiptProofScreen from './ReceiptProofScreen';
 import { createStyles, fonts, Palette, radii, spacing, useTheme } from './theme';
 
@@ -95,12 +95,11 @@ export default function DiagnosticsScreen() {
   };
 
   const [{ renewal, subscription }, setRenewal] = useState(getRenewalState());
-  /* لماذا لا يظهر: الحالةُ وحدَها لا تكفي -- للبطاقة وللشريط مفتاحُ
-     «عُرض اليوم». فيُقالان هنا، فيصير بلاغُ «ما طلع شي» رقماً لا ظنّاً. */
+  /* لماذا لا يظهر: الحالةُ وحدَها لا تكفي -- قد يكون أُغلق في هذي
+     الجلسة. فيُقال هنا، فيصير بلاغُ «ما طلع شي» رقماً لا ظنّاً. */
   const [seen, setSeen] = useState<{ card: boolean; strip: boolean } | null>(null);
   const readSeen = useCallback(async () => {
-    await Promise.all([loadCardDay(), loadStripDay()]);
-    setSeen({ card: cardSeenToday(Date.now()), strip: stripClosedToday(Date.now()) });
+    setSeen({ ...getRenewalOff() });
   }, []);
   useEffect(() => {
     readSeen();
@@ -202,18 +201,18 @@ export default function DiagnosticsScreen() {
           value={subscription ? `${subscription.days} يوم · ${subscription.date} · ${subscription.status}` : '⚪ لا دفعةَ مفتوحةً ولا عقدَ يُستنتَج منه'}
         />
         <Row
-          label="البطاقة اليوم"
+          label="البطاقة في هذي الجلسة"
           color={seen && seen.card ? UNKNOWN : OK}
-          value={seen ? (seen.card ? '🟡 عُرضت — ما تتكرر اليوم' : '🟢 ما عُرضت') : '…'}
+          value={seen ? (seen.card ? '🟡 أُغلقت — ترجع مع الجلسة القادمة' : '🟢 ما أُغلقت') : '…'}
         />
         <Row
-          label="الشريط اليوم"
+          label="الشريط في هذي الجلسة"
           color={seen && seen.strip ? UNKNOWN : OK}
-          value={seen ? (seen.strip ? '🟡 أُغلق — ما يرجع اليوم' : '🟢 ما أُغلق') : '…'}
+          value={seen ? (seen.strip ? '🟡 أُغلق — يرجع مع الجلسة القادمة' : '🟢 ما أُغلق') : '…'}
           last
         />
         <TouchableOpacity style={styles.retryButton} onPress={handleResetRenewal} disabled={busy} activeOpacity={0.8}>
-          <Text style={styles.retryButtonText}>إعادة عرض تذكير الاشتراك</Text>
+          <Text style={styles.retryButtonText}>أظهر تذكير الاشتراك الآن</Text>
         </TouchableOpacity>
       </Section>
 
