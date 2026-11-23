@@ -293,7 +293,9 @@ const useStyles = createStyles(colors => ({
   stripGoTextLate: { color: DANGER_BG },
   stripDot: { width: 8, height: 8, borderRadius: 99, backgroundColor: AMBER },
   stripDotLate: { backgroundColor: PAPER },
-  dotLate: { backgroundColor: DANGER_BG },
+  /* من السمة لا ثابتاً: النقطةُ تقع على شريطِ التبويبات، وخلفيّتُه
+     ورقيّةٌ في الفاتح وحِبريّةٌ في الداكن -- فلونٌ واحدٌ يضيع في أحدهما. */
+  dotLate: { backgroundColor: colors.danger },
   stripTitle: { fontFamily: fonts.sansBold, fontSize: 13, color: PAPER, flexShrink: 0 },
   stripBody: { fontFamily: fonts.sansMedium, fontSize: 12, color: 'rgba(251,250,245,0.6)', flex: 1 },
   stripGo: { backgroundColor: AMBER, borderRadius: radii.sm, paddingHorizontal: spacing[3], paddingVertical: 6 },
