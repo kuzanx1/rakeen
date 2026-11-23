@@ -656,7 +656,7 @@ export const I18N_EN_MORE: Record<string, string> = {
   '🟢 ما أُغلق': '🟢 Not dismissed',
   '⚪ ما فيه تذكير': '⚪ No reminder',
   'عدّاد المزيد': 'More-screen counter',
-  '⚪ ما فيه دفعة مفتوحة': '⚪ No open payment',
+  '⚪ لا دفعةَ مفتوحةً ولا عقدَ يُستنتَج منه': '⚪ No open payment and no contract to project from',
   '{} · {} يوم': '{} · {} days',
   '{} يوم · {} · {}': '{} days · {} · {}',
   'إعادة عرض تذكير الاشتراك': 'Show the subscription reminder again',
