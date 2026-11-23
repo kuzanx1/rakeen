@@ -504,7 +504,9 @@ class UsbPrinterTransport(private val context: Context) {
                         // العطلُ نادرٌ ولا يُستدعى بالطلب، فلو وقع عند مطعمٍ
                         // بعيدٍ أردنا أثراً يُقرأ بـadb logcat بدل التخمين.
                         android.util.Log.w(LOG_TAG, "truncated job: sent $sentAll of ${bytes.size}, owed $owed")
-                        paperBusyUntil.remove(stableId(device))
+                        // ولا يمسحُ دَينَ الورقِ إلّا من كان له ورق: مهمّةٌ
+                        // بلا ورقٍ انقطعت لا تُلغي موعدَ فراغِ فاتورةٍ قبلها.
+                        if (myPaperMs > 0) paperBusyUntil.remove(stableId(device))
                         callback(false, "connection_failed")
                     } else {
                         debtBytes.remove(stableId(device))
@@ -516,10 +518,19 @@ class UsbPrinterTransport(private val context: Context) {
                         // أكثرَ من الورق -- وذلك لا يقع إلا والطابعةُ
                         // تدفعنا لأنّ مخزونَها امتلأ، وهي أحوجُ ما تكون
                         // للمهلة حينئذٍ. فلا ننزل تحت تغذيةِ القصّ أبداً.
-                        paperBusyUntil[stableId(device)] = maxOf(
-                            writeStartedAt + myPaperMs,
-                            android.os.SystemClock.elapsedRealtime() + CUT_AND_FEED_MS,
-                        )
+                        //
+                        // ولا يُقيَّد هذا إلّا على مهمّةٍ تُخرج ورقاً. وكان
+                        // يُقيَّد على كلِّ مهمّةٍ ناجحة، ومنها فتحُ الدرج:
+                        // خمسةُ بايتاتٍ لا تُحرّك الورقَ شعرةً، ثم تُسجّل
+                        // ثلاثَ مئةِ ملّي ثانيةٍ «انشغالاً» تنتظرها الفاتورةُ
+                        // بعدها. والدرجُ يُفتح قبل كلِّ طباعةِ نقد، فكان
+                        // الزبونُ يدفع ثمنَها في كلِّ بيعةٍ نقديّة.
+                        if (myPaperMs > 0) {
+                            paperBusyUntil[stableId(device)] = maxOf(
+                                writeStartedAt + myPaperMs,
+                                android.os.SystemClock.elapsedRealtime() + CUT_AND_FEED_MS,
+                            )
+                        }
                         callback(true, null)
                     }
                 } catch (e: Exception) {
