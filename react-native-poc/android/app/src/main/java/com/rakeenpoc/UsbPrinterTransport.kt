@@ -102,29 +102,61 @@ class UsbPrinterTransport(private val context: Context) {
          * (فتحُ الدرج، أمرُ تهيئة) لا تُمسّ.
          */
         /**
-         * ٢٤ ك.ب/ث لا ٣٢: الهامشُ مقصود.
+         * ٤٨ ك.ب/ث. وكانت ٢٤، وكان ذلك غلطاً صار يُرى على الورق.
          *
-         * رأسٌ يطبع ٦٠ مم/ث يبتلع ٣٤٫٥ ك.ب/ث (٨ أسطر/مم × ٧٢ بايتاً
-         * للسطر)، وعند ٥٠ مم/ث يبتلع ٢٨٫٨. فـ٣٢ تقع فوق الأبطأ منهما:
-         * تُراكم تأخّراً بطيئاً على الورقة الطويلة بدل أن تُفرّغه.
-         * و٢٤ تحت أبطأ ما يُباع، فينزل المخزونُ مع كلِّ سطر.
+         * حسبتُ ٢٤ لتبقى تحت أبطأ رأسٍ يُباع (٥٠ مم/ث = ٢٨٫٨ ك.ب/ث)،
+         * فيفرغ المخزونُ مع كلِّ سطر. والحسبةُ سليمةٌ وحدَها، لكنّها
+         * جعلت الكابلَ أبطأَ من الورق: صار الرأسُ ينتظرنا.
          *
-         * والثمنُ ثانيةٌ واحدة: إيصالُ ٧٦ ك.ب يأخذ ٣٫٢ ثانيةً بدل ٢٫٤ --
-         * وزمنُ طباعتِه الفيزيائيُّ ٢٫٢ على كلِّ حال. والثمنُ الآخرُ ورقةٌ
-         * تالفةٌ أمام زبون، فالكفّةُ ليست متقاربة.
+         * والقياسُ من فيديو المالك («كباب طارق»، ٢٣ نوفمبر): الورقُ يخرج
+         * من الثانية ٤٫٠ إلى ٨٫٤ -- أربعُ ثوانٍ ونصفٌ لفاتورةٍ واحدة. وفي
+         * أوّل ثلاثة أرباع الثانية خرج ثُلثُ الورقة، ثم زحفت البقيّةُ
+         * بوتيرةٍ ثابتة: ذلك مخزونُ الطابعة يُفرَّغ بسرعة الرأس، ثم تصير
+         * السرعةُ سرعتَنا نحن. فالرأسُ أسرعُ منّا، لا العكس.
          *
-         * والحاجةُ إلى الهامشِ ظهرت من القراءة لا من التخمين: الفاتورةُ
-         * وتذكرةُ المطبخ تخرجان إلى **نفس الطابعة** في مسارٍ واحدٍ
-         * متتابع (printService: runLane('all') حين لا يكون للمطبخ طابعةٌ
-         * خاصّة)، بلا انتظارٍ بينهما -- فتتسلّم الطابعةُ ١٢٤ ك.ب في
-         * ثانيةٍ ونصف، وورقُها ثلاثُ ثوانٍ ونصف. وهذا هو العطبُ نفسُه.
+         * و٤٨ تُسلّم إيصالَ ٧٦ ك.ب في ١٫٦ ثانية، وورقُه الفيزيائيُّ ٢٫٢
+         * على أبطأ رأس -- فنحن تحت الورق مرّةً أخرى، لا فوقه. وأكثرُ ما
+         * يتراكم في مخزون الطابعة عند أبطأ رأسٍ ٣١ ك.ب، وهو دون مخزون
+         * طابعات ٨٠مم المعتادة.
+         *
+         * وأمّا تتابعُ المهمّتين على طابعةٍ واحدة -- الفاتورةُ وتذكرةُ
+         * المطبخ في مسارٍ واحد (printService: runLane('all')) -- فلم يعد
+         * يُعالَج بإبطاء الكابل، إنّما بانتظارِ الورق بينهما: awaitPaper.
          */
-        private const val PACED_BYTES_PER_SECOND = 24 * 1024
+        private const val PACED_BYTES_PER_SECOND = 48 * 1024
         private const val PACE_ABOVE_BYTES = 16 * 1024
 
         /** ودفعاتٌ أصغرُ مع التهدئة: دفعةُ ١٦ ك.ب دفعةً واحدةً تملأ
          *  ذاكرةَ طابعةٍ صغيرةٍ قبل أن تبدأ التهدئةُ عملَها أصلاً. */
-        private const val PACED_CHUNK = 4096
+        private const val PACED_CHUNK = 8192
+
+        /**
+         * انتظارُ الورق بين مهمّتين على الطابعة نفسها.
+         *
+         * الكتابةُ تنتهي والطابعةُ ما زالت تطبع: المخزونُ عندها مليء.
+         * فإن أتبعناها مهمّةً ثانيةً فوراً تراكم عليها مخزونُ الاثنتين
+         * معاً، وهناك يقع الفيض. والانتظارُ هنا لا يُكلّف الفاتورةَ
+         * المفردةَ شيئاً -- لا طابورَ قبلها -- ولا يُكلّف الدرجَ ولا
+         * أوامرَ التهيئة شيئاً، فهي دون حدِّ التهدئة أصلاً.
+         *
+         * والحسابُ من لحظة **بدء** الإرسال لا من نهايته: الطابعةُ تبدأ
+         * الطباعةَ مع أوّل بايتٍ يصلها، فورقُها يمشي ونحن نُرسل. ولو
+         * حسبناه من النهاية لانتظرنا مرّتين ورقاً واحداً -- وهذا يُبطئ
+         * الورقتين أكثرَ ممّا يشتكي منه المالك اليوم.
+         *
+         * والتقديرُ متحفّظ عمداً -- ٥٦ مم/ث × ٨ أسطر/مم = ٤٥٠ سطراً في
+         * الثانية -- لأنّ خطأه في الاتّجاهين ليس سواءً: تقديرٌ أطولُ من
+         * الحقيقة يؤخّر الورقةَ الثانيةَ ثلثَ ثانيةٍ لا يراها أحد،
+         * وتقديرٌ أقصرُ يُركِب ورقةً على ورقة -- وتلك هي الفاتورةُ
+         * المشفَّرةُ التي اشتكى منها المالك. والأسطرُ تُقرأ من رؤوس
+         * `GS v 0` نفسِها لا من حجم البايتات، فالرأسُ والذيلُ ليسا ورقاً.
+         */
+        private const val EST_ROWS_PER_SECOND = 450
+        private const val CUT_AND_FEED_MS = 300L
+        private const val MAX_PAPER_WAIT_MS = 3000L
+
+        /** متى تفرغ كلُّ طابعةٍ من ورقِ آخرِ ما أرسلناه، تقديراً. */
+        private val paperBusyUntil = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
         /** أطولُ فاتورةٍ معقولةٍ بالشعار والباركود. ما فوقها رقمٌ غلط، ولا
          *  نُسدِّده ورقاً. */
@@ -180,6 +212,48 @@ class UsbPrinterTransport(private val context: Context) {
                 offset += sent
             }
             return offset
+        }
+
+        /**
+         * كم سطرَ ورقٍ في هذه المهمّة: تُجمَع ارتفاعاتُ شرائح `GS v 0`.
+         *
+         * وما نثق بحجم البايتات: الرأسُ والذيلُ والأصفارُ ليست ورقاً،
+         * ومهمّةٌ بلا صورةٍ أصلاً (درجٌ، تهيئة) ورقُها صفر.
+         */
+        private fun paperRows(bytes: ByteArray): Int {
+            var rows = 0
+            var i = 0
+            while (i + 8 <= bytes.size) {
+                if (bytes[i] == 0x1d.toByte() && bytes[i + 1] == 0x76.toByte() && bytes[i + 2] == 0x30.toByte()) {
+                    val bpr = (bytes[i + 4].toInt() and 0xff) or ((bytes[i + 5].toInt() and 0xff) shl 8)
+                    val h = (bytes[i + 6].toInt() and 0xff) or ((bytes[i + 7].toInt() and 0xff) shl 8)
+                    // بالطويل: ٦٥٥٣٥ × ٦٥٥٣٥ يفيض على Int فيصير سالباً،
+                    // فيرجع المؤشّرُ للوراء ونلفّ إلى الأبد على رأسٍ تالف.
+                    val skip = 8L + bpr.toLong() * h.toLong()
+                    if (bpr > 0 && h > 0 && i + skip <= bytes.size) {
+                        rows += h
+                        i = (i + skip).toInt()
+                        continue
+                    }
+                }
+                i++
+            }
+            return rows
+        }
+
+        /** زمنُ ورقِ هذه المهمّة على أبطأ رأس، صفرٌ لمهمّةٍ بلا صورة. */
+        private fun paperMs(bytes: ByteArray): Long {
+            val rows = paperRows(bytes)
+            if (rows <= 0) return 0L
+            return rows * 1000L / EST_ROWS_PER_SECOND + CUT_AND_FEED_MS
+        }
+
+        /** ينتظر ورقَ المهمّة السابقة على هذه الطابعة إن بقي منه شيء. */
+        private fun awaitPaper(printerId: String) {
+            val left = (paperBusyUntil[printerId] ?: 0L) - System.currentTimeMillis()
+            if (left <= 0) return
+            android.util.Log.i(LOG_TAG, "waiting ${minOf(left, MAX_PAPER_WAIT_MS)}ms for the previous ticket to finish")
+            try { Thread.sleep(minOf(left, MAX_PAPER_WAIT_MS)) } catch (e: InterruptedException) { /* ننطلق */ }
         }
 
         /**
@@ -364,12 +438,17 @@ class UsbPrinterTransport(private val context: Context) {
                         callback(false, "connection_failed")
                         return@execute
                     }
+                    // ورقةٌ قبلها ما زالت تخرج: تُترك تُكمل. والمهامُّ الصغيرةُ
+                    // (الدرجُ، التهيئة) لا تنتظر شيئاً -- ليست صورةً تلتبس
+                    // بصورة، وتأخيرُ الدرج يُرى على يد الكاشير.
+                    if (bytes.size > PACE_ABOVE_BYTES) awaitPaper(stableId(device))
                     // دَينُ ورقةٍ سابقةٍ انقطعت: يُسدَّد قبل أيِّ شيءٍ جديد.
                     if (!settleDebt(connection, endpoint, stableId(device), timeoutMs)) {
                         callback(false, "connection_failed")
                         return@execute
                     }
 
+                    val writeStartedAt = System.currentTimeMillis()
                     val sentAll = writeAll(connection, endpoint, bytes, timeoutMs)
                     if (sentAll < bytes.size) {
                         // ما وصل كلُّه. الطابعةُ الآن واقفةٌ في منتصف أمر صورة،
@@ -380,9 +459,13 @@ class UsbPrinterTransport(private val context: Context) {
                         // العطلُ نادرٌ ولا يُستدعى بالطلب، فلو وقع عند مطعمٍ
                         // بعيدٍ أردنا أثراً يُقرأ بـadb logcat بدل التخمين.
                         android.util.Log.w(LOG_TAG, "truncated job: sent $sentAll of ${bytes.size}, owed $owed")
+                        paperBusyUntil.remove(stableId(device))
                         callback(false, "connection_failed")
                     } else {
                         debtBytes.remove(stableId(device))
+                        // وصلت كلُّها، والطابعةُ الآن تطبعها: من هنا نحسب
+                        // متى تفرغ، حتى لا تُركَب عليها ورقةٌ ثانية.
+                        paperBusyUntil[stableId(device)] = writeStartedAt + paperMs(bytes)
                         callback(true, null)
                     }
                 } catch (e: Exception) {

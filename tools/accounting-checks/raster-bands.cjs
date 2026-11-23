@@ -60,6 +60,37 @@ function parse(job) {
   return { bands, rows, tail: job.subarray(at) };
 }
 
+/**
+ * نفسُ خوارزميّة paperRows في UsbPrinterTransport.kt، حرفاً بحرف.
+ *
+ * عليها يقوم انتظارُ الورق بين الفاتورة وتذكرة المطبخ. ولو عدّت أسطراً
+ * أكثرَ ممّا في الورقة لانتظرنا بلا سبب، ولو أقلَّ لرُكِبت ورقةٌ على
+ * ورقة -- وهو العطبُ الأوّل. فتُجرَّب هنا على المهمّة الحقيقيّة نفسِها.
+ */
+function paperRowsLikeKotlin(job) {
+  let rows = 0;
+  let i = 0;
+  while (i + 8 <= job.length) {
+    if (job[i] === 0x1d && job[i + 1] === 0x76 && job[i + 2] === 0x30) {
+      const bpr = job[i + 4] | (job[i + 5] << 8);
+      const h = job[i + 6] | (job[i + 7] << 8);
+      const skip = 8 + bpr * h;
+      if (bpr > 0 && h > 0 && i + skip <= job.length) {
+        rows += h;
+        i += skip;
+        continue;
+      }
+    }
+    i++;
+  }
+  return rows;
+}
+
+/* ومهمّةٌ بلا صورة -- فتحُ الدرج -- ورقُها صفر، فلا تنتظر ولا يُنتظر لها. */
+if (paperRowsLikeKotlin(Buffer.from([0x1b, 0x40, 0x1b, 0x70, 0x00, 0x19, 0xfa])) !== 0) {
+  fails.push('أمرُ الدرج يُحسب ورقاً — يتأخّر الدرجُ بلا سبب');
+}
+
 for (const [w, h] of [[576, 1356], [576, 128], [576, 127], [576, 129], [384, 900], [576, 1]]) {
   const buf = buffer(w, h);
   const job = Buffer.from(rasterJobBase64(buf, undefined), 'base64');
@@ -94,6 +125,9 @@ for (const [w, h] of [[576, 1356], [576, 128], [576, 127], [576, 129], [384, 900
   if (bad >= 0) fails.push(`${w}x${h}: السطر ${bad} مُزاحٌ أو مختلف`);
   const tail = Array.from(got.tail);
   if (tail.join(',') !== '10,10,10,29,86,0') fails.push(`${w}x${h}: الذيل ${tail.join(',')} والمفروض تغذية ثلاث وقصّ`);
+  // وكم سطرَ ورقٍ تقول الطابعةُ عنها؟ بالضبط ارتفاعُ الصورة.
+  const counted = paperRowsLikeKotlin(job);
+  if (counted !== h) fails.push(`${w}x${h}: عدُّ أسطر الورق ${counted} والمفروض ${h} — انتظارُ الورق مبنيٌّ عليه`);
 }
 
 /* ── والإرسالُ بسرعةِ الورق لا بسرعةِ الكابل ──────────────────
@@ -108,6 +142,26 @@ for (const need of ['PACED_BYTES_PER_SECOND', 'PACED_CHUNK', 'owedMs']) {
 }
 if (!/val paced = bytes\.size > PACE_ABOVE_BYTES/.test(usb)) {
   fails.push('التهدئةُ ما تُحسب من حجم المهمّة — إمّا تُبطئ كلَّ أمرٍ صغير أو لا تشتغل');
+}
+
+/* ولا تنزل التهدئةُ تحت الورق. كانت ٢٤ ك.ب/ث -- حسبةً محافظةً على أبطأ
+   رأسٍ يُباع -- فصار الرأسُ ينتظر الكابل: الفاتورةُ تزحف أربعَ ثوانٍ
+   ونصفاً في فيديو المالك (٢٣ نوفمبر) بدل ثانيتين، وشكا العميل. فالحدُّ
+   الأدنى مكتوبٌ هنا حتى لا تُخفَّض ثانيةً بحسبةٍ تبدو حصيفة. */
+const rate = /PACED_BYTES_PER_SECOND = (\d+) \* 1024/.exec(usb);
+if (!rate) fails.push('ما عرفنا سرعةَ التهدئة — شكلُ الثابت تغيّر');
+else if (Number(rate[1]) < 48) fails.push(`التهدئة ${rate[1]} ك.ب/ث — تحت الورق، فالرأسُ ينتظر الكابل`);
+
+/* وتتابعُ الفاتورة وتذكرةِ المطبخ على طابعةٍ واحدة يُعالَج بانتظارِ
+   الورق بينهما، لا بإبطاء الكابل على الورقة المفردة. */
+for (const need of ['fun awaitPaper', 'fun paperRows', 'paperBusyUntil', 'EST_ROWS_PER_SECOND']) {
+  if (!usb.includes(need)) fails.push(`مسارُ USB بلا انتظارِ ورقٍ بين المهمّتين (${need})`);
+}
+if (!/if \(bytes\.size > PACE_ABOVE_BYTES\) awaitPaper/.test(usb)) {
+  fails.push('الانتظارُ ما يُستثنى منه الدرجُ والأوامرُ الصغيرة — يتأخّر الدرج');
+}
+if (!/paperBusyUntil\[stableId\(device\)\] = writeStartedAt \+ paperMs\(bytes\)/.test(usb)) {
+  fails.push('زمنُ الورق محسوبٌ من نهاية الإرسال لا من بدايته — انتظارٌ مضاعف');
 }
 
 /* والعميلان لا يفترقان: كاشير الويب يقطّع كذلك. */
