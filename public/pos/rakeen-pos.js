@@ -6597,13 +6597,109 @@ window.__androidPrintCallback = function(id, result){
  * ولا يُعاد إلا الرفض والمهلة: جسرٌ غائب أو طابعة غير مضبوطة لا يصلحهما
  * تكرار المحاولة، وإعادتهما تؤخّر ظهور الخطأ الحقيقي للكاشير.
  */
+/* ============ صحّةُ الطباعة ============
+   الرقمُ يصعد وحدَه، فلا نطلب من العميل صورةَ شاشة.
+
+   أمضينا ليلةً نخمّن سرعةَ طابعةٍ لا نملكها: ثلاثةُ أرقامِ تهدئةٍ
+   متعاقبةٍ كلُّها حسابٌ لا قياس، ولم نعرف خطأها إلّا من فيديوٍ صوّره
+   المالكُ بجوّاله. فبايتاتٌ على زمنٍ = سرعةُ الكابل فعلاً، وهي كلُّ ما
+   كان ينقصنا.
+
+   ولا صفٌّ لكلِّ فاتورة: يُجمَع هنا ويُرسل كلَّ خمسٍ وعشرين ورقةً وعند
+   أيِّ إخفاق. ولا مؤقّت -- قاعدةُ المالك: لا setInterval يسأل الخادم.
+
+   ونظيرُه حرفاً في التطبيق: src/application/printHealth.ts، وكلاهما
+   ينادي /api/pos/print-health نفسَه. */
+const rkPrintHealth = new Map();
+let rkPrintHealthSince = 0;
+let rkPrintHealthSending = false;
+const RK_PRINT_HEALTH_EVERY = 25;
+function rkPrintHealthRecord(target, result, bytesLen, ms){
+  try {
+    let b = rkPrintHealth.get(target);
+    if(!b){
+      if(rkPrintHealth.size >= 8) return;
+      b = { jobsOk:0, jobsFailed:0, transportMsSum:0, transportMsMax:0, bytesSum:0, lastError:null };
+      rkPrintHealth.set(target, b);
+    }
+    if(result && result.ok){
+      b.jobsOk++;
+      /* المجاميعُ من الناجحة وحدَها: ورقةٌ أخفقت لم تمرّ كلُّها على
+         الكابل، فبايتاتُها على زمنِها تُفسد المعدّل. */
+      b.bytesSum += bytesLen;
+      b.transportMsSum += ms;
+      if(ms > b.transportMsMax) b.transportMsMax = ms;
+    } else {
+      b.jobsFailed++;
+      b.lastError = String((result && result.error) || 'unknown').slice(0, 200);
+      rkPrintHealthFlush();
+      return;
+    }
+    if(++rkPrintHealthSince >= RK_PRINT_HEALTH_EVERY) rkPrintHealthFlush();
+  } catch(_) { /* قياسٌ لا يُعطّل طباعة */ }
+}
+/** يومُ العمل YYYY-MM-DD بساعةِ إقفال المحل، فورديةٌ تمتدّ للفجر لا تنقسم. */
+function rkPrintHealthDay(){
+  rkPoolSeries();
+  const k = rkBusinessDayKey(rkDayCutoff == null ? 0 : rkDayCutoff);
+  return Math.floor(k/10000) + '-' + String(Math.floor((k%10000)/100)).padStart(2,'0') + '-' + String(k%100).padStart(2,'0');
+}
+async function rkPrintHealthFlush(){
+  if(rkPrintHealthSending || rkPrintHealth.size === 0) return;
+  rkPrintHealthSending = true;
+  /* يُؤخذ ثم تُفرَّغ قبل الشبكة: ورقةٌ تُطبع أثناء الرفع تبدأ مجاميعَ
+     جديدةً ولا تُحسب مرّتين. وإن أخفق الرفعُ رُدَّت. */
+  const taken = Array.from(rkPrintHealth.entries());
+  rkPrintHealth.clear();
+  rkPrintHealthSince = 0;
+  try {
+    const { data: { session } } = await window.supabaseClient.auth.getSession();
+    if(!session) throw new Error('no_session');
+    const res = await fetch('/api/pos/print-health', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+      body: JSON.stringify({
+        branchId: DEVICE.branchId || null,
+        day: rkPrintHealthDay(),
+        deviceLabel: '',
+        appVersion: '',
+        client: 'web',
+        printers: taken.map(function(e){
+          const k = e[0], b = e[1];
+          return { printerKey: k, transportKind: 'network', jobsOk: b.jobsOk, jobsFailed: b.jobsFailed,
+                   truncations: 0, paced: false, transportMsSum: b.transportMsSum,
+                   transportMsMax: b.transportMsMax, bytesSum: b.bytesSum, lastError: b.lastError };
+        })
+      })
+    });
+    if(!res.ok) throw new Error('http_' + res.status);
+  } catch(_) {
+    for(let i = 0; i < taken.length; i++){
+      const k = taken[i][0], b = taken[i][1];
+      const cur = rkPrintHealth.get(k);
+      if(!cur){ if(rkPrintHealth.size < 8) rkPrintHealth.set(k, b); continue; }
+      cur.jobsOk += b.jobsOk; cur.jobsFailed += b.jobsFailed;
+      cur.transportMsSum += b.transportMsSum; cur.bytesSum += b.bytesSum;
+      if(b.transportMsMax > cur.transportMsMax) cur.transportMsMax = b.transportMsMax;
+      if(!cur.lastError) cur.lastError = b.lastError;
+    }
+  } finally {
+    rkPrintHealthSending = false;
+  }
+}
+
 const PRINT_BUSY_RETRY_MS = [400, 900, 1600];
 async function sendBytesToPrinter(bytes, ip, port){
+  const startedAt = Date.now();
   let result = await sendBytesOnce(bytes, ip, port);
   for(let i = 0; !result.ok && (result.error === 'timeout' || result.error === 'connection_refused') && i < PRINT_BUSY_RETRY_MS.length; i++){
     await new Promise(r=> setTimeout(r, PRINT_BUSY_RETRY_MS[i]));
     result = await sendBytesOnce(bytes, ip, port);
   }
+  /* الموضعُ الوحيدُ الذي يعرف الطابعةَ والحجمَ والزمنَ معاً -- كما في
+     doDispatch في التطبيق. ولا يُنتظر: الورقةُ خرجت. */
+  const target = (ip || DEVICE.printerIp || '') + ':' + (port || DEVICE.printerPort || 9100);
+  rkPrintHealthRecord(target, result, (bytes && bytes.length) || 0, Date.now() - startedAt);
   return result;
 }
 

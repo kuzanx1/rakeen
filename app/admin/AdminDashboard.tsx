@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import WhatsAppAdminPanel from "./WhatsAppAdminPanel";
 import UsagePanel from "./UsagePanel";
+import PrintHealthPanel from "./PrintHealthPanel";
 import BroadcastPanel from "./BroadcastPanel";
 import AuditLogPanel from "./AuditLogPanel";
 import ContractsPanel from "./ContractsPanel";
@@ -150,7 +151,7 @@ function draftFrom(b: Business): Draft {
   };
 }
 
-type AdminTab = "overview" | "businesses" | "whatsapp" | "broadcast" | "contracts" | "quotes" | "offer" | "usage" | "audit" | "landing";
+type AdminTab = "overview" | "businesses" | "whatsapp" | "broadcast" | "contracts" | "quotes" | "offer" | "usage" | "printHealth" | "audit" | "landing";
 const NAV: { label: string; items: { key: AdminTab; label: string; icon: string }[] }[] = [
   {
     label: "الرئيسية",
@@ -179,6 +180,7 @@ const NAV: { label: string; items: { key: AdminTab; label: string; icon: string 
     label: "النظام",
     items: [
       { key: "usage", label: "استهلاك البنية التحتية", icon: "M22 12h-4l-3 9L9 3l-3 9H2" },
+      { key: "printHealth", label: "صحة الطباعة", icon: "M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z" },
       { key: "audit", label: "سجل التدقيق", icon: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" },
     ],
   },
@@ -922,6 +924,7 @@ export default function AdminDashboard() {
         {activeTab === "quotes" && <QuotePanel />}
         {activeTab === "offer" && <OfferPanel />}
         {activeTab === "usage" && <UsagePanel token={session.token} />}
+        {activeTab === "printHealth" && <PrintHealthPanel token={session.token} />}
         {activeTab === "audit" && <AuditLogPanel token={session.token} />}
         {activeTab === "landing" && <LandingClientsPanel token={session.token} />}
 

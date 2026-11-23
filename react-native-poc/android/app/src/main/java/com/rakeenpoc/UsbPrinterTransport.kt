@@ -524,7 +524,13 @@ class UsbPrinterTransport(private val context: Context) {
                         // ولا يمسحُ دَينَ الورقِ إلّا من كان له ورق: مهمّةٌ
                         // بلا ورقٍ انقطعت لا تُلغي موعدَ فراغِ فاتورةٍ قبلها.
                         if (myPaperMs > 0) paperBusyUntil.remove(stableId(device))
-                        callback(false, "connection_failed")
+                        // وسببٌ خاصٌّ به، لا "connection_failed" العامّ: هذا
+                        // هو الحدثُ الذي يسبق الفواتيرَ المشفَّرة، وهو الذي
+                        // يُرفع إلى لوحةِ ركين (print_health_daily). ولو بقي
+                        // مخلوطاً بكلِّ عطبِ اتصالٍ لَما عرفنا من الأرقام
+                        // أيُّ طابعةٍ على وشك الخربشة وأيُّها كابلٌ مفكوك.
+                        // ولا يُعدُّ "مشغولة" (isPrinterBusy)، فمساره كما كان.
+                        callback(false, "truncated_write")
                     } else {
                         debtBytes.remove(stableId(device))
                         // وصلت كلُّها، والطابعةُ الآن تطبعها: من هنا نحسب

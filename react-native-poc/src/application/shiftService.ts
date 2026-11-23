@@ -7,6 +7,7 @@ import { computeShiftTotals, EMPTY_SHIFT_TOTALS } from '../domain/shift';
 import type { CashMovement, ClosingReport, Shift, ShiftOrderRow, ShiftTotals, StockLine } from '../domain/shift';
 import { formatArabicDateTime } from '../domain/arabicDate';
 import { getShiftReportSettings } from './catalogService';
+import { flushPrintHealth } from './printHealth';
 
 /**
  * The shift lifecycle, ported from rakeen-pos.js's own (findOpenShift at
@@ -310,6 +311,9 @@ export interface CloseShiftInput {
 const closingHere = new Set<number>();
 
 export async function closeShift(input: CloseShiftInput): Promise<{ ok: boolean; error: string | null }> {
+  // وصحّةُ طباعةِ الوردية تصعد معها -- وهذا آخرُ موضعٍ مضمونٍ في اليوم
+  // (الجهازُ قد يُطفأ بعده). لا يُنتظر، ولا يُعطّل إغلاقاً إن أخفق.
+  void flushPrintHealth();
   closingHere.add(input.shift.id);
   const { error: updateError } = await supabase
     .from('shifts')

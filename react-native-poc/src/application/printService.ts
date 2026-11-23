@@ -25,6 +25,7 @@ import {
 import type { ClosingReport } from '../domain/shift';
 import { getDeviceConfig } from './authService';
 import { getReceiptTheme, getReceiptBranding } from './catalogService';
+import { recordPrintOutcome } from './printHealth';
 
 /**
  * Checkpoint 10 (Print Queue) -- application-layer orchestration,
@@ -165,11 +166,29 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
   // فاتورة بلا سبب.
   const RETRY_DELAYS_MS = [400, 900, 1600];
   const send = () => printReceipt({ target, escPosBase64, timeoutMs: 8000 });
+  const beforeTransport = Date.now();
   let result = await timer.stage('transport', send);
   for (let attempt = 0; !result.ok && isPrinterBusy(result.errorDetail) && attempt < RETRY_DELAYS_MS.length; attempt++) {
     await new Promise<void>(resolve => { setTimeout(resolve, RETRY_DELAYS_MS[attempt]); });
     result = await timer.stage('transportRetry', send);
   }
+  /**
+   * والرقمُ يصعد وحدَه من هنا -- application/printHealth.ts.
+   *
+   * هذا هو الموضعُ الوحيدُ في العميلين الذي يعرف الثلاثةَ معاً: الطابعةَ
+   * التي طُبع عليها، وحجمَ ما أُرسل، وزمنَ الإرسال. وبايتاتٌ على زمنٍ هي
+   * سرعةُ الكابل فعلاً -- الرقمُ الذي خمّنتُه ثلاثَ مرّاتٍ خطأً هذه
+   * الليلة لأنّه لم يكن يصل أحداً.
+   *
+   * ولا يُنتظر ولا يرمي: الورقةُ خرجت، وهذا قياسٌ بعدها.
+   */
+  void recordPrintOutcome({
+    target: describeTarget(target),
+    ok: result.ok,
+    bytes,
+    transportMs: Date.now() - beforeTransport,
+    errorDetail: result.errorDetail,
+  });
   // الملخّص أولاً ثم أثر النقل: الترتيب هو ترتيب الحدوث، فمن يقرأ من
   // فوق لتحت يرى أين ذهب الوقت قبل أن يرى تفاصيل الاتصال.
   const diagnostics = [...timer.summary(), ...(result.diagnostics ?? [])];
