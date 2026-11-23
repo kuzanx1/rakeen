@@ -1133,6 +1133,12 @@ body.kb-open .pos-auth-card:focus-within .pos-auth-title { font-size: 21px; marg
 @media (min-width:761px){
   .app.rk-strip-on > .topbar{ top:40px; }
 }
+/* أحمرُ لا كهرمانيّ متى ما تأخّر: الكهرمانيُّ «قرّب موعدك»،
+   والأحمرُ «عدّى وما سدّدت». ونفسُ القاعدةِ في التطبيق. */
+.rk-renewal-strip.is-late{background:#A33A25; box-shadow:inset 0 -2px 0 #F0B3A4;}
+.rk-renewal-strip.is-late .rk-renewal-strip-dot{background:#FBFAF5;}
+.rk-renewal-strip.is-late .rk-renewal-strip-go{background:#FBFAF5; color:#A33A25;}
+.rk-renewal-dot.is-late{background:#E08A6A;}
 .rk-renewal-strip-dot{width:8px; height:8px; flex:none; border-radius:99px; background:#FFC24B;}
 .rk-renewal-strip b{font-weight:800; font-size:13.5px; flex:none;}
 .rk-renewal-strip span{

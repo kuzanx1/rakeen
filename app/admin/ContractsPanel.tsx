@@ -351,6 +351,19 @@ export default function ContractsPanel({ token }: { token: string }) {
   const allPays = (rows || []).filter((r) => r.status === "signed").map((r) => paySummary(r.payments || []));
   const reviewCount = allPays.reduce((s, x) => s + x.review, 0);
   const lateCount = allPays.reduce((s, x) => s + x.late, 0);
+  // المتأخّرون، واحداً واحداً، ومعهم زرُّ الإيقاف.
+  //
+  // الرقمُ وحدَه («دفعات متأخرة: ٣») يقول إنّ هناك مشكلةً ولا يقول عند
+  // مَن، فيُفتح العقدُ تلو العقد للبحث. وطلبُ المالك: يجيه أيُّ براندٍ
+  // عليه متأخّرات وكم يوماً تأخّر وزرٌّ يوقف كاشيره ولوحته في مكانٍ
+  // واحد. والإيقافُ هو نفسُه مفتاحُ «إيقاف المطعم بالكامل» -- لا مسارٌ
+  // ثانٍ له -- ويرجع وحدَه لحظةَ يُؤكَّد السداد (pay_approve في
+  // app/api/admin/contracts/[id]/route.ts).
+  const arrears = (rows || [])
+    .filter((r) => r.status === "signed")
+    .map((r) => ({ row: r, sum: paySummary(r.payments || []) }))
+    .filter((x) => x.sum.maxLate > 0)
+    .sort((a, b) => b.sum.maxLate - a.sum.maxLate);
 
   return (
     <div style={{ maxWidth: "980px" }}>
@@ -393,6 +406,36 @@ export default function ContractsPanel({ token }: { token: string }) {
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "14px" }}>
           {reviewCount > 0 && <span style={{ ...pill("#dbe8ff", "#1f4fa8"), cursor: "default" }}>إيصالات بانتظار موافقتك: {reviewCount}</span>}
           {lateCount > 0 && <span style={{ ...pill("#f1dcd7", C.danger), cursor: "default" }}>دفعات متأخرة: {lateCount}</span>}
+        </div>
+      )}
+
+      {arrears.length > 0 && (
+        <div style={{ border: `1px solid ${C.danger}`, borderRadius: "16px", padding: "12px 14px", marginBottom: "14px" }}>
+          <div style={{ fontWeight: 800, fontSize: "13px", color: C.danger, marginBottom: "8px" }}>متأخّرون عن السداد ({arrears.length})</div>
+          {arrears.map(({ row, sum }) => {
+            const acc = row.business_id ? accounts.find((a) => a.id === row.business_id) : null;
+            const name = acc?.name || row.account_name || row.business_name || row.prefill_business_name || row.contract_number;
+            return (
+              <div key={row.id} style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", padding: "7px 0", borderTop: `1px solid ${C.stone}` }}>
+                <span style={{ fontWeight: 800, fontSize: "12.5px" }}>{name}</span>
+                <span style={{ ...pill("#f1dcd7", C.danger), cursor: "default", padding: "4px 10px", fontSize: "10.5px" }}>
+                  متأخّر {sum.maxLate} يوم
+                </span>
+                {sum.late > 1 && <span style={{ fontSize: "11px", color: C.muted }}>{sum.late} دفعات</span>}
+                {sum.review > 0 && <span style={{ ...pill("#dbe8ff", "#1f4fa8"), cursor: "default", padding: "4px 10px", fontSize: "10.5px" }}>إيصال بانتظارك</span>}
+                <span style={{ flex: 1 }} />
+                <button style={pill(C.stone, C.ink)} onClick={() => openDetail(row.id)}>افتح العقد</button>
+                {acc && (
+                  acc.is_active
+                    ? <button style={pill(C.danger, "#fff")} disabled={busy} onClick={() => setAccountActive(acc.id, false)}>أوقف الكاشير واللوحة</button>
+                    : <button style={pill(C.ink, C.lime)} disabled={busy} onClick={() => setAccountActive(acc.id, true)}>موقوف — شغّله</button>
+                )}
+              </div>
+            );
+          })}
+          <p style={{ fontSize: "10.5px", color: C.muted, marginTop: "8px", marginBottom: 0 }}>
+            الإيقاف يوقف الكاشير ولوحة التحكم معاً في الحال، ويرجعان وحدهما أوّل ما تأكّد السداد.
+          </p>
         </div>
       )}
 

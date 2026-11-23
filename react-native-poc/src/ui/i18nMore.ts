@@ -614,16 +614,16 @@ export const I18N_EN_MORE: Record<string, string> = {
   'باقي يومين على تجديد اشتراكك': 'Your subscription renews in 2 days',
   'باقي {n} أيام على تجديد اشتراكك': 'Your subscription renews in {n} days',
   'تأخَّر تجديد اشتراكك': 'Your subscription renewal is overdue',
-  'انتهت مهلة تجديد اشتراكك': 'Your renewal grace period has ended',
+  'تأخّر اشتراكك — الخدمة معرّضة للإيقاف': 'Your subscription is overdue — service may be paused',
   'ما قبلنا إيصال التحويل — ارفع إيصال جديد': 'We could not accept your transfer receipt — please upload a new one',
   'ادخل لوحة التحكم وارفع إيصال التحويل، عشان الخدمة تستمر بدون انقطاع.':
     'Open the dashboard and upload your transfer receipt, so your service keeps running without interruption.',
   'ارفع إيصال التحويل من لوحة التحكم اليوم، عشان ما تنقطع الخدمة.':
     'Upload your transfer receipt from the dashboard today, so your service is not interrupted.',
-  'المهلة شغّالة الحين. ارفع إيصال التحويل من لوحة التحكم عشان ما يتوقف الكاشير.':
-    'Your grace period is running. Upload your transfer receipt from the dashboard so the cashier does not stop.',
-  'انتهت المهلة، والكاشير معرّض للإيقاف في أي وقت. ارفع إيصال التحويل من لوحة التحكم.':
-    'The grace period is over and the cashier may be paused at any time. Upload your transfer receipt from the dashboard.',
+  'الخدمة تنقطع إذا ما سدّدت. عجّل بالسداد وارفع الإيصال من لوحة التحكم.':
+    'Your service will be cut off if you do not pay. Please pay now and upload the receipt from the dashboard.',
+  'الكاشير ولوحة التحكم معرّضان للإيقاف في أي وقت. سدّد وارفع الإيصال الحين.':
+    'The cashier and the dashboard may be paused at any time. Pay now and upload the receipt.',
   'ارفع إيصال التحويل مرّة ثانية من لوحة التحكم، أو كلّمنا لو فيه لبس.':
     'Upload your transfer receipt again from the dashboard, or talk to us if something is unclear.',
   /* ── عدّاد الاشتراك الدائم في «المزيد» (ui/RenewalNotice.tsx) */

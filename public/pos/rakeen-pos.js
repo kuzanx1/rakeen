@@ -58,16 +58,16 @@ const I18N_EN = {
   'باقي يومين على تجديد اشتراكك': 'Your subscription renews in 2 days',
   'باقي {n} أيام على تجديد اشتراكك': 'Your subscription renews in {n} days',
   'تأخَّر تجديد اشتراكك': 'Your subscription renewal is overdue',
-  'انتهت مهلة تجديد اشتراكك': 'Your renewal grace period has ended',
+  'تأخّر اشتراكك — الخدمة معرّضة للإيقاف': 'Your subscription is overdue — service may be paused',
   'ما قبلنا إيصال التحويل — ارفع إيصال جديد': 'We could not accept your transfer receipt — please upload a new one',
   'ادخل لوحة التحكم وارفع إيصال التحويل، عشان الخدمة تستمر بدون انقطاع.':
     'Open the dashboard and upload your transfer receipt, so your service keeps running without interruption.',
   'ارفع إيصال التحويل من لوحة التحكم اليوم، عشان ما تنقطع الخدمة.':
     'Upload your transfer receipt from the dashboard today, so your service is not interrupted.',
-  'المهلة شغّالة الحين. ارفع إيصال التحويل من لوحة التحكم عشان ما يتوقف الكاشير.':
-    'Your grace period is running. Upload your transfer receipt from the dashboard so the cashier does not stop.',
-  'انتهت المهلة، والكاشير معرّض للإيقاف في أي وقت. ارفع إيصال التحويل من لوحة التحكم.':
-    'The grace period is over and the cashier may be paused at any time. Upload your transfer receipt from the dashboard.',
+  'الخدمة تنقطع إذا ما سدّدت. عجّل بالسداد وارفع الإيصال من لوحة التحكم.':
+    'Your service will be cut off if you do not pay. Please pay now and upload the receipt from the dashboard.',
+  'الكاشير ولوحة التحكم معرّضان للإيقاف في أي وقت. سدّد وارفع الإيصال الحين.':
+    'The cashier and the dashboard may be paused at any time. Pay now and upload the receipt.',
   'ارفع إيصال التحويل مرّة ثانية من لوحة التحكم، أو كلّمنا لو فيه لبس.':
     'Upload your transfer receipt again from the dashboard, or talk to us if something is unclear.',
   /* عدّاد الاشتراك الدائم في «المزيد» */
@@ -11783,11 +11783,13 @@ let RK_SUBSCRIPTION = null;
 let RK_RENEWAL_OFF = { card: false, strip: false };
 
 function rkRenewalLoud(r){ return r.stage !== 'upcoming' || r.days <= 2; }
+/* أحمرُ لا كهرمانيّ متى ما تأخّر فعلاً -- نفسُ renewalLate في التطبيق. */
+function rkRenewalLate(r){ return r.stage !== 'upcoming'; }
 
 function rkRenewalTitle(r){
   if(r.stage === 'rejected') return t('ما قبلنا إيصال التحويل — ارفع إيصال جديد');
   if(r.stage === 'grace') return t('تأخَّر تجديد اشتراكك');
-  if(r.stage === 'expired') return t('انتهت مهلة تجديد اشتراكك');
+  if(r.stage === 'expired') return t('تأخّر اشتراكك — الخدمة معرّضة للإيقاف');
   if(r.days <= 0) return t('اشتراكك يُجدَّد اليوم');
   if(r.days === 1) return t('باقي يوم واحد على تجديد اشتراكك');
   if(r.days === 2) return t('باقي يومين على تجديد اشتراكك');
@@ -11796,11 +11798,13 @@ function rkRenewalTitle(r){
 
 function rkRenewalBody(r){
   if(r.stage === 'rejected') return t('ارفع إيصال التحويل مرّة ثانية من لوحة التحكم، أو كلّمنا لو فيه لبس.');
-  if(r.stage === 'grace') return t('المهلة شغّالة الحين. ارفع إيصال التحويل من لوحة التحكم عشان ما يتوقف الكاشير.');
+  /* ولا تُذكر «مهلة» من أوّل يومِ تأخير -- قرارُ المالك: الإيقافُ بيدنا
+     في أيِّ لحظة، فكلمةُ «مهلة» وعدٌ بأيامٍ آمنةٍ غيرُ صحيح. */
+  if(r.stage === 'grace') return t('الخدمة تنقطع إذا ما سدّدت. عجّل بالسداد وارفع الإيصال من لوحة التحكم.');
   /* وهنا وحدها يُقال «معرّض للإيقاف»: الإيقاف بيدنا من اللوحة لا
      بتوقيتٍ يمشي وحده. فالكاشير يشتغل بعد انتهاء المهلة كما كان، ولا
      يقف حتى نوقفه -- فقول «توقفت الخدمة» كذبٌ يراه صاحب المطعم بعينه. */
-  if(r.stage === 'expired') return t('انتهت المهلة، والكاشير معرّض للإيقاف في أي وقت. ارفع إيصال التحويل من لوحة التحكم.');
+  if(r.stage === 'expired') return t('الكاشير ولوحة التحكم معرّضان للإيقاف في أي وقت. سدّد وارفع الإيصال الحين.');
   return r.days <= 2
     ? t('ارفع إيصال التحويل من لوحة التحكم اليوم، عشان ما تنقطع الخدمة.')
     : t('ادخل لوحة التحكم وارفع إيصال التحويل، عشان الخدمة تستمر بدون انقطاع.');
@@ -11829,10 +11833,11 @@ function rkRenewalDot(r){
   if(!tab) return;
   let dot = tab.querySelector('.rk-renewal-dot');
   if(!r){ if(dot) dot.remove(); return; }
-  if(dot) return;
-  dot = document.createElement('span');
-  dot.className = 'rk-renewal-dot';
-  tab.appendChild(dot);
+  if(!dot){
+    dot = document.createElement('span');
+    tab.appendChild(dot);
+  }
+  dot.className = 'rk-renewal-dot' + (rkRenewalLate(r) ? ' is-late' : '');
 }
 
 /* الشريط -- يزيح الشاشة ولا يغطّيها، أوّل أبناء #posApp. */
@@ -11841,10 +11846,15 @@ function rkRenewalStrip(r){
   let el = document.getElementById('rkRenewalStrip');
   const show = r && rkRenewalLoud(r) && !RK_RENEWAL_OFF.strip;
   if(!show || !app){ if(el) el.remove(); app && app.classList.remove('rk-strip-on'); return; }
-  if(el){ el.children[1].textContent = rkRenewalTitle(r); el.children[2].textContent = rkRenewalBody(r); return; }
+  if(el){
+    el.classList.toggle('is-late', rkRenewalLate(r));
+    el.children[1].textContent = rkRenewalTitle(r);
+    el.children[2].textContent = rkRenewalBody(r);
+    return;
+  }
   el = document.createElement('div');
   el.id = 'rkRenewalStrip';
-  el.className = 'rk-renewal-strip';
+  el.className = 'rk-renewal-strip' + (rkRenewalLate(r) ? ' is-late' : '');
   el.innerHTML = '<i class="rk-renewal-strip-dot"></i><b></b><span></span>'
     + '<button type="button" class="rk-renewal-strip-go"></button>'
     + '<button type="button" class="rk-renewal-strip-x" aria-label="إغلاق">&#10005;</button>';

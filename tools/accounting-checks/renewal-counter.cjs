@@ -127,6 +127,8 @@ if (!/neq\("status",\s*"paid"\)/.test(routeCode)) fails.push('مسار الكا�
 
 /* والعميلان كلاهما يقرؤه: ناقصٌ في أحدهما = ميزةٌ في جهازٍ وغائبةٌ في جهاز. */
 const web = fs.readFileSync(path.join(root, 'public/pos/rakeen-pos.js'), 'utf8');
+const css = fs.readFileSync(path.join(root, 'app/pos/rakeen-pos-additions.css'), 'utf8');
+const noticeSrc = fs.readFileSync(path.join(root, 'react-native-poc/src/ui/RenewalNotice.tsx'), 'utf8');
 for (const need of ['out.subscription', 'function rkSubTone', 'function renderMoreSubCard', 'moreSubCard', '{n} أيام', '{n} أيام تأخير']) {
   if (!web.includes(need)) fails.push(`كاشير الويب ناقصه ${need} — العدّاد في التطبيق وحده`);
 }
@@ -136,6 +138,25 @@ const tbl = fs.readFileSync(path.join(root, 'react-native-poc/src/ui/i18nMore.ts
 for (const key of ['{n} أيام', '{n} أيام تأخير']) {
   if (!tbl.includes(key)) fails.push(`جدولُ التطبيق ناقصه «${key}» — سطرٌ نصفُه مترجَم`);
 }
+/* ── لا «مهلة» على الكاشير بعد أوّلِ يومِ تأخير ────────────────
+   قرارُ المالك (٢٣ نوفمبر): الكلمةُ تُقرأ وعداً بأيامٍ آمنة، والإيقافُ
+   بيدنا من اللوحة في أيِّ لحظة. فالنصُّ يقول إنّ الخدمةَ تنقطع ويطلب
+   التعجيل، ولا يَعِد بشيء. والعدُّ الداخليُّ (GRACE_DAYS) يبقى كما هو:
+   هو الذي يفرّق شدّةَ النصّ، لكنه لا يُقال للمشترك.
+   (ولا يُفحص بكلمة «مهلة» وحدَها: في الكاشير «مهلة التأكيد» للرمز
+    المؤقّت، ولا علاقة لها بالاشتراك.) */
+const rnTexts = fs.readFileSync(path.join(root, 'react-native-poc/src/domain/renewal.ts'), 'utf8');
+const gone = ['انتهت مهلة تجديد اشتراكك', 'المهلة شغّالة الحين', 'انتهت المهلة، والكاشير'];
+const tbl2 = fs.readFileSync(path.join(root, 'react-native-poc/src/ui/i18nMore.ts'), 'utf8');
+for (const [who, ...srcs] of [['التطبيق', rnTexts, tbl2], ['الويب', web]]) {
+  for (const bad of gone) {
+    if (srcs.some(x => x.includes(bad))) fails.push(`${who}: رجع نصُّ «المهلة» إلى الكاشير -- «${bad}»`);
+  }
+}
+/* والأحمرُ عند التأخّر، في العميلين. */
+if (!/renewalLate/.test(rnTexts) || !/DANGER/.test(noticeSrc)) fails.push('التطبيق: ما فيه لونٌ أحمرُ للشريط عند التأخّر');
+if (!/rkRenewalLate/.test(web) || !/is-late/.test(css)) fails.push('الويب: ما فيه لونٌ أحمرُ للشريط عند التأخّر');
+
 /* ── الإغلاقُ لجلسةٍ لا ليوم ──────────────────────────────────
    قرارُ المالك (٢٣ نوفمبر): «لا يمديه يقفلها يعني إذا شافها فقط، لكن
    مو إنه يخلّيها ما تطلع له». فكان الإغلاقُ يُكتب بمفتاحِ يومٍ في
@@ -147,7 +168,6 @@ for (const [who, src] of [['التطبيق', svcSrc], ['الويب', web]]) {
     fails.push(`${who}: رجع مفتاحُ اليوم للتذكير — ضغطةٌ واحدةٌ تُسكته إلى الغد`);
   }
 }
-const noticeSrc = fs.readFileSync(path.join(root, 'react-native-poc/src/ui/RenewalNotice.tsx'), 'utf8');
 if (!/clearRenewalOff\(\)/.test(noticeSrc)) {
   fails.push('التطبيق: ما يُمسح الإغلاقُ عند العودة من الخلفيّة — التذكيرُ ما يرجع');
 }

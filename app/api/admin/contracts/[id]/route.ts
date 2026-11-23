@@ -3,6 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAdmin } from "@/lib/adminGuard";
 import { logAdminAction } from "@/lib/adminAuth";
 import { validateSchedule } from "@/lib/contracts";
+import { riyadhToday } from "@/lib/adminAlerts";
+import { notifyAccountStatusChanged } from "@/lib/accountSuspended";
 
 // One contract: full record (incl. signature + snapshot) with short-lived
 // signed URLs for its files, voiding, uploading a file (the generated
@@ -10,6 +12,46 @@ import { validateSchedule } from "@/lib/contracts";
 // its payments (confirm, reject a receipt, add a payment).
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * الحسابُ الموقوفُ يرجع وحدَه لحظةَ يُؤكَّد السداد.
+ *
+ * قرارُ المالك: «مجرد تأكيد السداد يشتغلون». وبلا هذا يبقى مطعمٌ سدَّد
+ * موقوفاً حتى يتذكّر أحدٌ أن يفتح له -- وهو أسوأُ ما يقع بعد السداد.
+ * فيُرجَع هنا لا في الواجهة، ليصحّ من أيِّ مسارٍ أُكِّدت منه الدفعة.
+ *
+ * وبشرطين: أن يكون موقوفاً فعلاً، وألّا تبقى عليه دفعةٌ أخرى عدّى
+ * موعدُها. فمن عليه شهران وسدّد واحداً يبقى موقوفاً.
+ *
+ * وما يميّز سببَ الإيقافِ شيءٌ في الجدول، فإيقافٌ لسببٍ آخرَ يرجع كذلك
+ * إن أُكِّدت له دفعة. مقصودٌ ومقبول: الإيقافُ بيدِ الأدمن في أيِّ لحظة،
+ * ولوحةُ العقود تُظهر الحالةَ أمامه فوراً.
+ */
+async function resumeIfSettled(admin: SupabaseClient, businessId: number, email: string): Promise<void> {
+  const { data: biz } = await admin.from("businesses").select("is_active").eq("id", businessId).maybeSingle();
+  if (!biz || biz.is_active !== false) return;
+
+  const { data: cs } = await admin.from("subscription_contracts").select("id").eq("business_id", businessId).eq("status", "signed");
+  const ids = (cs || []).map((c) => c.id);
+  if (!ids.length) return;
+
+  const { data: stillLate } = await admin
+    .from("contract_payments")
+    .select("id")
+    .in("contract_id", ids)
+    .in("status", ["due", "rejected"])
+    .lt("due_date", riyadhToday())
+    .limit(1);
+  if ((stillLate || []).length) return;
+
+  const { error } = await admin.from("businesses").update({ is_active: true }).eq("id", businessId);
+  if (error) {
+    console.error("resumeIfSettled: could not resume", businessId, error);
+    return;
+  }
+  await notifyAccountStatusChanged(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, businessId);
+  await logAdminAction(admin, email, "business.resume_after_payment", `business:${businessId}`, "success", {});
+}
 const MAX_UPLOAD = 15 * 1024 * 1024;
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -89,6 +131,7 @@ async function paymentAction(
     if (contract.business_id) {
       const { error: subErr } = await admin.from("businesses").update({ online_subscribed: true }).eq("id", contract.business_id);
       if (subErr) console.error("pay_approve: could not mark business subscribed", contract.business_id, subErr);
+      await resumeIfSettled(admin, Number(contract.business_id), email).catch((e) => console.error("pay_approve: resume failed", e));
     }
     await logAdminAction(admin, email, "contract.payment_approve", contract.contract_number, "success", { seq: data.seq });
     return NextResponse.json({ ok: true });

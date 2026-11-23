@@ -10,6 +10,7 @@ import {
   Subscription,
   fillDays,
   renewalBodyKey,
+  renewalLate,
   renewalLoud,
   renewalTitleKey,
   dirMark,
@@ -99,7 +100,7 @@ function titleOf(renewal: Renewal, t: (s: string) => string): string {
 export function RenewalDot({ renewal }: { renewal: Renewal | null }) {
   const styles = useStyles();
   if (!renewal) return null;
-  return <View style={styles.dot} pointerEvents="none" />;
+  return <View style={[styles.dot, renewalLate(renewal) && styles.dotLate]} pointerEvents="none" />;
 }
 
 /** الشريط -- آخر يومين فقط. */
@@ -127,8 +128,10 @@ export function RenewalStrip({
   }, [hidden, onHeight]);
   if (hidden) return null;
   return (
-    <View style={styles.strip} onLayout={e => onHeight?.(e.nativeEvent.layout.height)}>
-      <View style={styles.stripDot} />
+    <View
+      style={[styles.strip, renewalLate(renewal) && styles.stripLate]}
+      onLayout={e => onHeight?.(e.nativeEvent.layout.height)}>
+      <View style={[styles.stripDot, renewalLate(renewal) && styles.stripDotLate]} />
       <Text style={styles.stripTitle} numberOfLines={1}>
         {titleOf(renewal, t)}
       </Text>
@@ -136,8 +139,10 @@ export function RenewalStrip({
         {t(renewalBodyKey(renewal, CAN_STEER))}
       </Text>
       {CAN_STEER ? (
-        <TouchableOpacity style={styles.stripGo} onPress={() => Linking.openURL(DASHBOARD_URL)}>
-          <Text style={styles.stripGoText}>{t('افتح اللوحة')}</Text>
+        <TouchableOpacity
+          style={[styles.stripGo, renewalLate(renewal) && styles.stripGoLate]}
+          onPress={() => Linking.openURL(DASHBOARD_URL)}>
+          <Text style={[styles.stripGoText, renewalLate(renewal) && styles.stripGoTextLate]}>{t('افتح اللوحة')}</Text>
         </TouchableOpacity>
       ) : null}
       <TouchableOpacity
@@ -249,6 +254,16 @@ const INK = '#111410';
 const PAPER = '#FBFAF5';
 const LIME = '#C4FF2B';
 const AMBER = '#FFC24B';
+/**
+ * شريطٌ أحمرُ كامل، لا خطٌّ أحمرُ تحت شريطٍ أسود.
+ *
+ * قرارُ المالك: «إذا ما تسبب مشاكل المفروض الشريط يكون بالأحمر». وخطٌّ
+ * بعرضِ بكسلين تحت شريطٍ حِبريٍّ لا يُقرأ أحمرَ أصلاً -- رأيتُه في
+ * الصورة فغيّرتُه. والنصُّ ورقيٌّ على الأحمر (٥٫٦:١)، وزرُّ اللوحة
+ * ينقلب ورقيّاً بنصٍّ أحمر حتى لا يذوب الكهرمانيُّ في الأحمر.
+ */
+const DANGER_BG = '#A33A25';
+const DANGER_LINE = '#F0B3A4';
 
 const useStyles = createStyles(colors => ({
   // فوق الأيقونة وإلى طرفها، داخل مرساةٍ بحجمها (App.tsx navTabIcon).
@@ -273,7 +288,12 @@ const useStyles = createStyles(colors => ({
     borderBottomWidth: 2,
     borderBottomColor: AMBER,
   },
+  stripLate: { backgroundColor: DANGER_BG, borderBottomColor: DANGER_LINE },
+  stripGoLate: { backgroundColor: PAPER },
+  stripGoTextLate: { color: DANGER_BG },
   stripDot: { width: 8, height: 8, borderRadius: 99, backgroundColor: AMBER },
+  stripDotLate: { backgroundColor: PAPER },
+  dotLate: { backgroundColor: DANGER_BG },
   stripTitle: { fontFamily: fonts.sansBold, fontSize: 13, color: PAPER, flexShrink: 0 },
   stripBody: { fontFamily: fonts.sansMedium, fontSize: 12, color: 'rgba(251,250,245,0.6)', flex: 1 },
   stripGo: { backgroundColor: AMBER, borderRadius: radii.sm, paddingHorizontal: spacing[3], paddingVertical: 6 },
