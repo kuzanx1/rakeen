@@ -170,7 +170,7 @@ const I18N_EN = {
   '(شاملة ضمن الإجمالي)': '(included in total)', 'الإجمالي': 'Total', 'ادفع': 'Pay',
   'إفراغ الطلب': 'Clear order', '+ خصم': '+ Discount', 'إضافة للطلب': 'Add to order',
   'تسجيل الطلب': 'Register order', 'اضغط مرة ثانية للتأكيد': 'Tap again to confirm',
-  'حبة': 'item', 'نقاط': 'Points', 'آخر عملية': 'Last transaction', 'إعادة طباعة': 'Reprint',
+  'حبة': 'item', 'نقاط': 'Points', 'آخر عملية': 'Last transaction', 'إعادة طباعة': 'Reprint', 'فاتورة العميل': 'Customer receipt',
   '+ ملاحظة': '+ Note', 'أضف': 'Add',
   'فيه خيارات — اضغط مطولًا للتخصيص': 'Has options — hold to customize',
 
@@ -3115,8 +3115,11 @@ function renderOrder(){
     const lastTxHtml = state.lastTransaction
       ? `<div class="last-tx-card">
           <div class="last-tx-info"><span>${t('آخر عملية')}</span><span>${rkMoney(state.lastTransaction.total)} — ${state.lastTransaction.time}</span></div>
-          <button class="last-tx-reprint" id="lastTxReprint">${t('إعادة طباعة')}</button>
-          ${state.lastTransaction.kitchen ? `<button class="last-tx-reprint" id="lastTxKitchen">${t('تذكرة المطبخ')}</button>` : ''}
+          <span class="last-tx-hint">${t('إعادة طباعة')}</span>
+          <div class="last-tx-actions">
+            <button class="last-tx-reprint" id="lastTxReprint">${t('فاتورة العميل')}</button>
+            ${state.lastTransaction.kitchen ? `<button class="last-tx-reprint" id="lastTxKitchen">${t('تذكرة المطبخ')}</button>` : ''}
+          </div>
         </div>`
       : '';
     itemsEl.innerHTML = `<div class="order-empty">

@@ -1471,7 +1471,10 @@ export default function ProductsScreen({
               pager: pagerReceiptBlock(payload, outcome.orderNo ?? outcome.orderId ?? null, service.dineInMode),
           } satisfies ReceiptData;
           lastReceipt = customerReceipt;
-          if (kitchenTicketByButton(printerProfileForReceipt) && planHas('kds')) {
+          // تذكرةُ المطبخ تُحفظ لكلِّ من يطبعها، لا لوضعِ «ما تقصّ الورق» وحدَه:
+          // بطاقةُ «آخر عملية» هي أسرعُ طريقٍ لإعادةِ طباعةِ ورقةٍ ضاعت أو
+          // خرجت مشوّهةً، وكانت مقفولةً على وضعٍ واحدٍ بلا سبب.
+          if (printerProfileForReceipt?.printKitchenTicket === true && planHas('kds')) {
             lastKitchen = {
               orderId: outcome.orderId ?? null,
               orderNo: outcome.orderNo ?? null,
@@ -1799,14 +1802,20 @@ export default function ProductsScreen({
                         <Text style={styles.lastTxTime}> — {lastTransaction.time}</Text>
                       </View>
                     </View>
-                    <TouchableOpacity style={styles.lastTxReprint} onPress={handleReprintLast} activeOpacity={0.8}>
-                      <Text style={styles.lastTxReprintText}>{t('إعادة طباعة')}</Text>
-                    </TouchableOpacity>
-                    {!!lastTransaction.kitchen && (
-                      <TouchableOpacity style={styles.lastTxReprint} onPress={handleKitchenLast} activeOpacity={0.8}>
-                        <Text style={styles.lastTxReprintText}>{t('تذكرة المطبخ')}</Text>
+                    {/* زرّان متجاوران تحت عنوانٍ واحد، لا زرٌّ اسمُه «إعادة
+                        طباعة» وآخرُ اسمُه «تذكرة المطبخ»: الأوّلُ كان يبدو
+                        عامّاً وهو يطبع فاتورةَ العميل وحدَها. */}
+                    <Text style={styles.lastTxHint}>{t('إعادة طباعة')}</Text>
+                    <View style={styles.lastTxActions}>
+                      <TouchableOpacity style={styles.lastTxReprint} onPress={handleReprintLast} activeOpacity={0.8}>
+                        <Text style={styles.lastTxReprintText}>{t('فاتورة العميل')}</Text>
                       </TouchableOpacity>
-                    )}
+                      {!!lastTransaction.kitchen && (
+                        <TouchableOpacity style={styles.lastTxReprint} onPress={handleKitchenLast} activeOpacity={0.8}>
+                          <Text style={styles.lastTxReprintText}>{t('تذكرة المطبخ')}</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
                 )}
               </View>
@@ -2732,8 +2741,11 @@ const useStyles = createStyles((colors, shadows) =>
   // .last-tx-info's second span -- an rkMoney box followed by the time
   lastTxValue: { flexDirection: 'row', alignItems: 'baseline' },
   lastTxTime: { fontFamily: fonts.monoBold, fontSize: 11, color: colors.text },
+  lastTxHint: { fontFamily: fonts.sansBold, fontSize: 10.5, color: colors.muted },
+  lastTxActions: { flexDirection: 'row', gap: 8 },
   // .last-tx-reprint
   lastTxReprint: {
+    flex: 1,
     padding: 8,
     borderRadius: radii.sm,
     borderWidth: 1,

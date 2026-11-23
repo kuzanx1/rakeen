@@ -330,7 +330,11 @@ svg{display:block;}
 .last-tx-card{margin-top:6px; width:100%; padding:14px; border-radius:var(--r-md); background:var(--surf1); border:1px solid var(--line); display:flex; flex-direction:column; gap:8px;}
 .last-tx-info{display:flex; justify-content:space-between; font-size:11px; font-weight:700; color:var(--text);}
 .last-tx-info .mono{color:var(--text);}
-.last-tx-reprint{padding:8px; border-radius:var(--r-sm); border:1px solid var(--line); background:none; color:var(--muted); font-weight:700; font-size:11px;}
+/* زرّان متجاوران تحت عنوانٍ واحد: «إعادة طباعة» وحدَه كان يبدو
+   عامّاً وهو يطبع فاتورةَ العميل فقط. */
+.last-tx-hint{font-size:10.5px; font-weight:700; color:var(--muted); text-align:start;}
+.last-tx-actions{display:flex; gap:8px;}
+.last-tx-reprint{flex:1; padding:8px; border-radius:var(--r-sm); border:1px solid var(--line); background:none; color:var(--muted); font-weight:700; font-size:11px;}
 
 .order-item{position:relative; overflow:hidden; border-bottom:1px solid var(--line);}
 .oi-content{position:relative; padding:10px 0; background:var(--card-bg);}

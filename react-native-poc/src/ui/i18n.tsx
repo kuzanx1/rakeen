@@ -120,6 +120,7 @@ const I18N_EN_BASE: Record<string, string> = {
   'نقاط': 'Points',
   'آخر عملية': 'Last transaction',
   'إعادة طباعة': 'Reprint',
+  'فاتورة العميل': 'Customer receipt',
   '+ ملاحظة': '+ Note',
   'أضف': 'Add',
   'فيه خيارات — اضغط مطولًا للتخصيص': 'Has options — hold to customize',
