@@ -1022,9 +1022,12 @@ body.kb-open .pos-auth-card:focus-within .pos-auth-title { font-size: 21px; marg
    ونفسُ أرقام التطبيق (RenewalNotice.tsx sub*). */
 .rk-sub-card { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--r-lg, 24px); padding: 15px 18px; margin-top: 12px; }
 .rk-sub-card[hidden] { display: none; }
-.rk-sub-row { display: flex; align-items: baseline; gap: 10px; }
-.rk-sub-row b { font-size: 16px; font-weight: 800; flex: 1; }
-.rk-sub-num { font-size: 21px; font-weight: 800; }
+.rk-sub-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.rk-sub-row b { font-size: 16px; font-weight: 800; flex: 1 1 auto; white-space: nowrap; }
+/* والرقمُ لا ينكسر سطرين مهما ضاق العمود: «4 أيام تأخير» في عمودِ
+   ١٥٦ بكسل على الجوّال كانت تنكسر، فيصير الرقمُ فقرةً. يُقصُّ العنوانُ
+   قبلَه -- فالعنوانُ معروفٌ والرقمُ هو الخبر. */
+.rk-sub-num { font-size: 21px; font-weight: 800; white-space: nowrap; }
 .rk-sub-card small { display: block; font-size: 12.5px; color: var(--muted); margin-top: 3px; }
 /* الليمونيُّ على الفاتح ١٫٩:١ -- رقمٌ لا يُقرأ. و«ساري» لا يحتاج لوناً
    أصلاً: ما فيه ما يُنبَّه له. */

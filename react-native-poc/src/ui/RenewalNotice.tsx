@@ -12,6 +12,7 @@ import {
   renewalBodyKey,
   renewalLoud,
   renewalTitleKey,
+  dirMark,
   subscriptionBigKey,
   subscriptionDayMonth,
   subscriptionPillKey,
@@ -252,7 +253,7 @@ export function SubscriptionCard({ subscription }: { subscription: Subscription 
   const toneText =
     tone === 'late' ? styles.subLate : tone === 'soon' ? styles.subSoon : tone === 'review' ? styles.subReview : styles.subOk;
 
-  const big = fillDays(t(subscriptionBigKey(subscription)), Math.abs(subscription.days));
+  const big = dirMark(fillDays(t(subscriptionBigKey(subscription)), Math.abs(subscription.days)));
   const when = t(subscriptionWhenKey(subscription));
   const date = subscription.days === 0 ? '' : ` ${subscriptionDayMonth(subscription.date)}`;
   // والحالُ يُلحق بالسطر الصغير لا بشارةٍ على حدة: شارةٌ في بطاقةٍ
@@ -382,8 +383,11 @@ const useStyles = createStyles(colors => ({
     paddingHorizontal: 18,
     marginTop: 12,
   },
-  subRow: { flexDirection: 'row' as const, alignItems: 'baseline' as const, gap: spacing[2] },
-  subLabel: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, flex: 1 },
+  /* يلتفُّ سطرين في عمودٍ ضيّقٍ بدل أن ينكسرَ الرقمُ نصفين: «4 أيام
+     تأخير» في عمودِ ١٥٦ بكسل كانت تصير فقرةً، وقصُّ العنوانِ بدلَها
+     يُخفي «اشتراكك» كلَّها. ونفسُه في rakeen-pos-additions.css. */
+  subRow: { flexDirection: 'row' as const, alignItems: 'baseline' as const, gap: spacing[2], flexWrap: 'wrap' as const },
+  subLabel: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.text, flexGrow: 1, flexShrink: 0 },
   subNum: { fontFamily: fonts.sansBold, fontSize: 21 },
   subWhen: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.muted, marginTop: 3 },
   // الليمونيُّ على الفاتح ١٫٩:١ -- رقمٌ لا يُقرأ. و«ساري» لا يحتاج لوناً

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { checkRateLimit } from "@/lib/rateLimit";
-import { Renewal, Subscription, pickRenewal, pickSubscription } from "@/lib/renewalStage";
+import { Renewal, Subscription, pickRenewal, pickSubscription, projectSubscription } from "@/lib/renewalStage";
 
 // Asked by both cashiers only when a signed-in user's own profile came back
 // empty, to tell a suspended business from a real loading failure. Answers
@@ -29,15 +29,17 @@ const SILENT: Answer = { renewal: null, subscription: null };
 async function renewalFor(admin: SupabaseClient, businessId: number): Promise<Answer> {
   const { data: contracts } = await admin
     .from("subscription_contracts")
-    .select("id")
+    .select("id, start_date, billing_period")
     .eq("business_id", businessId)
-    .eq("status", "signed");
+    .eq("status", "signed")
+    .order("start_date");
   if (!contracts || !contracts.length) return SILENT;
+  const ids = contracts.map((c) => c.id);
 
   const { data: pays } = await admin
     .from("contract_payments")
     .select("due_date, status")
-    .in("contract_id", contracts.map((c) => c.id))
+    .in("contract_id", ids)
     .neq("status", "paid")
     .order("due_date")
     .limit(24);
@@ -50,7 +52,33 @@ async function renewalFor(admin: SupabaseClient, businessId: number): Promise<An
    * ما قد يراه صاحبُ المطعم على كاشيره.
    */
   const now = Date.now();
-  return { renewal: pickRenewal(pays || [], now), subscription: pickSubscription(pays || [], now) };
+  const open = pays || [];
+  const subscription = pickSubscription(open, now);
+  /**
+   * ولو ما بقي صفٌّ مفتوح، يُستنتَجُ الموعدُ من دورةِ العقد.
+   *
+   * وهذي قراءةٌ ثانيةٌ لا تُكلِّف شيئاً في الحالةِ الشائعة: لا تُنفَّذ
+   * إلا حين يكون الجدولُ قد انتهى -- وهو ما يصير للسنويِّ المسدِّدِ
+   * مقدَّماً لحظةَ تُؤكَّد دفعتُه الواحدة. والتذكيرُ (`renewal`) لا
+   * يُبنى على الاستنتاج أبداً: لا يُطلب إيصالٌ لدفعةٍ غيرِ موجودة.
+   */
+  if (subscription) return { renewal: pickRenewal(open, now), subscription };
+  const { data: last } = await admin
+    .from("contract_payments")
+    .select("due_date")
+    .in("contract_id", ids)
+    .order("due_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const cycle = contracts[contracts.length - 1];
+  return {
+    renewal: pickRenewal(open, now),
+    subscription: projectSubscription(
+      { start_date: String(cycle.start_date || ""), billing_period: String(cycle.billing_period || "") },
+      last?.due_date ? String(last.due_date) : null,
+      now,
+    ),
+  };
 }
 
 export async function GET(request: NextRequest) {

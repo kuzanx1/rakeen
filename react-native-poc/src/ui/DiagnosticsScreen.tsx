@@ -199,7 +199,7 @@ export default function DiagnosticsScreen() {
         <Row
           label="عدّاد المزيد"
           color={subscription ? OK : UNKNOWN}
-          value={subscription ? `${subscription.days} يوم · ${subscription.date} · ${subscription.status}` : '⚪ ما فيه دفعة مفتوحة'}
+          value={subscription ? `${subscription.days} يوم · ${subscription.date} · ${subscription.status}` : '⚪ لا دفعةَ مفتوحةً ولا عقدَ يُستنتَج منه'}
         />
         <Row
           label="البطاقة اليوم"

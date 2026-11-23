@@ -80,9 +80,11 @@ const I18N_EN = {
   'اليوم': 'Today',
   'يوم واحد': 'One day',
   'يومان': '2 days',
+  '{n} أيام': '{n} days',
   '{n} يوم': '{n} days',
   'يوم تأخير': '1 day late',
   'يومان تأخير': '2 days late',
+  '{n} أيام تأخير': '{n} days late',
   '{n} يوم تأخير': '{n} days late',
   'يُجدَّد': 'Renews',
   'كان يوم التجديد': 'Renewal day was',
@@ -11906,11 +11908,14 @@ function rkSubPill(s){
    رقم، و«One day» ليست «1 days». ونفسُ المفاتيح في التطبيق
    (src/domain/renewal.ts subscriptionBigKey). */
 function rkSubBig(s){
-  var d = s.days;
+  var d = s.days, n = Math.abs(d);
   var key = d === 0 ? 'اليوم'
-    : d > 0 ? (d === 1 ? 'يوم واحد' : d === 2 ? 'يومان' : '{n} يوم')
-    : (d === -1 ? 'يوم تأخير' : d === -2 ? 'يومان تأخير' : '{n} يوم تأخير');
-  return t(key).replace('{n}', String(Math.abs(d)));
+    : d > 0 ? (n === 1 ? 'يوم واحد' : n === 2 ? 'يومان' : n <= 10 ? '{n} أيام' : '{n} يوم')
+    : (n === 1 ? 'يوم تأخير' : n === 2 ? 'يومان تأخير' : n <= 10 ? '{n} أيام تأخير' : '{n} يوم تأخير');
+  /* «5 days» في قالبٍ عربيِّ الاتّجاه تُقرأ «days 5»، فعلامةُ اتّجاهٍ
+     قبلها -- نفسُ dirMark في التطبيق (src/domain/renewal.ts). */
+  var out = t(key).replace('{n}', String(n));
+  return /[A-Za-z]/.test(out) ? '\u200E' + out : out;
 }
 function rkSubWhen(s){
   if(s.days === 0) return t('موعد التجديد');

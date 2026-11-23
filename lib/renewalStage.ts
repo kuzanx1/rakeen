@@ -83,7 +83,79 @@ export function pickRenewal(payments: OpenPayment[], now: number): Renewal | nul
 export type Subscription = { days: number; date: string; status: string };
 
 export function pickSubscription(payments: OpenPayment[], now: number): Subscription | null {
-  const next = [...payments].sort((a, b) => a.due_date.localeCompare(b.due_date))[0];
+  /**
+   * والمسدَّدُ يُستثنى هنا كذلك، لا في السيكوال وحدَه.
+   *
+   * فالمسارُ لا يسحب الصفوفَ المسدَّدة أصلاً (`.neq("status","paid")`)،
+   * لكنّ `pickRenewal` فوق يشترط `status === "due"` بنفسه فلا يُطلِع
+   * تذكيراً لدفعةٍ مؤكَّدةٍ ولو وصلته، وهذا كان لا يشترط شيئاً: صفٌّ
+   * مسدَّدٌ عدّى موعدَه يُطلِع «3 أيام تأخير» بالأحمر لمن سدَّد فعلاً.
+   * فحمايةٌ واحدةٌ في سطرِ سيكوالٍ يحذفه أيُّ تعديلٍ غيرُ كافية.
+   */
+  const open = payments.filter((p) => p.status !== "paid");
+  const next = [...open].sort((a, b) => a.due_date.localeCompare(b.due_date))[0];
   if (!next) return null;
   return { days: daysUntil(next.due_date, now), date: next.due_date, status: next.status };
+}
+
+/**
+ * موعدُ التجديدِ المستنتَجُ من العقد، حين لا تبقى دفعةٌ مفتوحة.
+ *
+ * فالدفعاتُ تُضاف يدوياً من /admin، وجدولُ العقد قد يكون سطراً واحداً --
+ * وهذي حالُ السنويِّ المسدِّدِ مقدَّماً بالذات. فلحظةَ تُؤكَّد دفعتُه
+ * يصير في قاعدةِ البيانات صفرُ صفوفٍ مفتوحة، فيختفي العدّادُ كلُّه عن
+ * أكثرِ الناسِ استحقاقاً له. وطلبُ المالك كان «ثابت دايم».
+ *
+ * ولا تاريخَ انتهاءٍ للاشتراكِ في الجدولِ أصلاً: `subscription_contracts`
+ * فيه `billing_period` و`start_date` ولا `end_date`، و`expires_at` هو
+ * انتهاءُ رابطِ العرضِ لا الاشتراك. فالدورةُ تُحسب: من آخرِ دفعةٍ
+ * معروفةٍ (أو من بدايةِ العقدِ إن لم تكن) دورةً دورةً حتى يصير التاريخُ
+ * اليومَ أو بعدَه.
+ *
+ * وحالُها `projected` لا `due`: ليست ديناً مستحقّاً، إنما متى تدور
+ * الدورةُ القادمة. فالتذكيرُ لا يُبنى عليها أبداً -- لا إيصالَ يُرفع
+ * لدفعةٍ غيرِ موجودة -- والعدّادُ وحدَه يقرؤها.
+ */
+export type CycleContract = { start_date: string; billing_period: string };
+
+/** آخرُ يومٍ في شهرٍ ميلاديّ. */
+function monthDays(y: number, m: number): number {
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
+}
+
+/** دورةٌ واحدةٌ إلى الأمام، ويومُ الشهرِ يُثبَّت على آخرِه إن قَصُر (31 ← 28). */
+export function addCycle(isoDate: string, period: string): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  if (!m) return null;
+  let y = Number(m[1]);
+  let mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (period === "annual") y += 1;
+  else if (period === "monthly") {
+    mo += 1;
+    if (mo > 12) {
+      mo = 1;
+      y += 1;
+    }
+  } else return null;
+  const day = Math.min(d, monthDays(y, mo));
+  return `${String(y).padStart(4, "0")}-${String(mo).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+export function projectSubscription(
+  contract: CycleContract | null,
+  lastDueDate: string | null,
+  now: number,
+): Subscription | null {
+  if (!contract) return null;
+  let date = lastDueDate || contract.start_date;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  // دورةً دورةً حتى اليومَ أو بعدَه. والحدُّ حمايةٌ من عقدٍ قديمٍ بتاريخٍ غريب.
+  for (let i = 0; i < 600; i++) {
+    const next = addCycle(date, contract.billing_period);
+    if (!next) return null;
+    date = next;
+    if (daysUntil(date, now) >= 0) return { days: daysUntil(date, now), date, status: "projected" };
+  }
+  return null;
 }

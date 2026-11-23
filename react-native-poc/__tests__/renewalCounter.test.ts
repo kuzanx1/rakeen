@@ -3,6 +3,7 @@ import {
   subscriptionDayMonth,
   subscriptionPillKey,
   subscriptionTone,
+  fillDays,
   subscriptionBigKey,
   subscriptionWhenKey,
 } from '../src/domain/renewal';
@@ -45,16 +46,39 @@ describe('عدّاد الاشتراك', () => {
     expect(subscriptionPillKey(sub(30, 'rejected'))).toBe('ارفع إيصال جديد');
   });
 
-  /* المثنّى في العربيّة كلمةٌ لا رقم، و«One day» ليست «1 days» -- فلكلِّ
-     صيغةٍ مفتاحُها، وإلا طلع «1 يوم» في وجه صاحب المطعم. */
+  /* المثنّى في العربيّة كلمةٌ لا رقم، والقلّةُ من ثلاثةٍ إلى عشرةٍ جمعٌ
+     والكثرةُ بعدها مفردٌ، و«One day» ليست «1 days» -- فلكلِّ صيغةٍ
+     مفتاحُها، وإلا طلع «1 يوم» ثم «5 يوم» في وجه صاحب المطعم. */
   it('الرقمُ الكبير بصيغةٍ صحيحةٍ في الطرفين', () => {
     expect(subscriptionBigKey(sub(24))).toBe('{n} يوم');
+    expect(subscriptionBigKey(sub(11))).toBe('{n} يوم');
+    expect(subscriptionBigKey(sub(10))).toBe('{n} أيام');
+    expect(subscriptionBigKey(sub(3))).toBe('{n} أيام');
     expect(subscriptionBigKey(sub(2))).toBe('يومان');
     expect(subscriptionBigKey(sub(1))).toBe('يوم واحد');
     expect(subscriptionBigKey(sub(0))).toBe('اليوم');
     expect(subscriptionBigKey(sub(-1))).toBe('يوم تأخير');
     expect(subscriptionBigKey(sub(-2))).toBe('يومان تأخير');
-    expect(subscriptionBigKey(sub(-9))).toBe('{n} يوم تأخير');
+    expect(subscriptionBigKey(sub(-3))).toBe('{n} أيام تأخير');
+    expect(subscriptionBigKey(sub(-10))).toBe('{n} أيام تأخير');
+    expect(subscriptionBigKey(sub(-11))).toBe('{n} يوم تأخير');
+  });
+
+  /* وما يُعرض فعلاً بعد الترجمةِ والتعبئة: «5 أيام» لا «5 يوم»، فالغلطُ
+     النحويُّ لا يُرى في المفتاح، يُرى في السطرِ الذي يقرؤه المالك. */
+  it('والسطرُ المعروضُ نفسُه صحيح', () => {
+    expect(fillDays(subscriptionBigKey(sub(5)), 5)).toBe('5 أيام');
+    expect(fillDays(subscriptionBigKey(sub(-4)), 4)).toBe('4 أيام تأخير');
+    expect(fillDays(subscriptionBigKey(sub(15)), 15)).toBe('15 يوم');
+  });
+
+  /* والمستنتَجُ (status = projected) يُقرأ كأيِّ موعدٍ قادم: ليس ديناً
+     متأخّراً ولا تحت المراجعة، إنما متى تدور الدورةُ القادمة. */
+  it('الموعدُ المستنتَجُ من دورةِ العقد يُقرأ عادياً', () => {
+    expect(subscriptionTone(sub(98, 'projected'))).toBe('ok');
+    expect(subscriptionTone(sub(4, 'projected'))).toBe('soon');
+    expect(subscriptionWhenKey(sub(98, 'projected'))).toBe('يُجدَّد');
+    expect(subscriptionBigKey(sub(98, 'projected'))).toBe('{n} يوم');
   });
 
   it('والسطرُ الصغير يقول متى لا كم', () => {

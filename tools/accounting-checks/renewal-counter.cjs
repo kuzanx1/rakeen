@@ -24,7 +24,8 @@ function loadTs(rel) {
   return mod.exports;
 }
 
-const { pickRenewal, pickSubscription, NOTICE_DAYS, GRACE_DAYS } = loadTs('lib/renewalStage.ts');
+const { pickRenewal, pickSubscription, projectSubscription, addCycle, NOTICE_DAYS, GRACE_DAYS } = loadTs('lib/renewalStage.ts');
+const { subscriptionBigKey } = loadTs('react-native-poc/src/domain/renewal.ts');
 
 /** منتصفُ نهارِ الرياض في يومٍ ثابت -- حتى لا يصير الفحصُ رهنَ ساعةِ تشغيله. */
 const NOW = Date.parse('2026-11-23T09:00:00+03:00');
@@ -73,6 +74,46 @@ for (const hour of ['00:05', '08:00', '12:00', '23:55']) {
   if (!got || got.days !== 6) fails.push(`عدّاد: الساعة ${hour} تقول ${got && got.days} والمفروض ٦ طولَ اليوم`);
 }
 
+/* ── المسدَّدُ لا يُطلِع شيئاً، ومن جهتين ──────────────────────
+   المسارُ لا يسحب الصفوفَ المسدَّدة أصلاً، لكنّ حمايةً واحدةً في سطرِ
+   سيكوالٍ يحذفه أيُّ تعديلٍ غيرُ كافية: صفٌّ مسدَّدٌ عدّى موعدَه كان
+   يُطلِع بطاقةً حمراءَ تقول «3 أيام تأخير» لمن سدَّد فعلاً. */
+eq('عدّاد: صفٌّ مسدَّدٌ متأخّر لا يُطلِع شيئاً', pickSubscription([due(-3, 'paid')], NOW), null);
+eq('عدّاد: المسدَّدُ يُتجاوَزُ إلى المفتوح', pickSubscription([due(-3, 'paid'), due(20)], NOW), { days: 20, date: iso(20), status: 'due' });
+eq('تذكير: صفٌّ مسدَّدٌ متأخّر لا يُطلِع شيئاً', pickRenewal([due(-3, 'paid')], NOW), null);
+
+/* ── موعدُ التجديدِ المستنتَجُ حين ينتهي الجدول ──────────────────
+   الدفعاتُ تُضاف يدوياً، وجدولُ السنويِّ قد يكون سطراً واحداً: فلحظةَ
+   تُؤكَّد دفعتُه يصير صفرَ صفوفٍ مفتوحة، فيختفي العدّادُ عن أكثرِ
+   الناسِ استحقاقاً له -- وطلبُ المالك «ثابت دايم». */
+eq('استنتاج: سنويٌّ سُدِّد، الدورةُ القادمة', projectSubscription({ start_date: '2026-03-01', billing_period: 'annual' }, '2026-03-01', NOW), { days: 98, date: '2027-03-01', status: 'projected' });
+eq('استنتاج: شهريٌّ سُدِّد', projectSubscription({ start_date: '2026-01-20', billing_period: 'monthly' }, '2026-11-20', NOW), { days: 27, date: '2026-12-20', status: 'projected' });
+eq('استنتاج: بلا دفعاتٍ أصلاً، من بدايةِ العقد', projectSubscription({ start_date: '2026-11-01', billing_period: 'monthly' }, null, NOW), { days: 8, date: '2026-12-01', status: 'projected' });
+eq('استنتاج: دوراتٌ كثيرةٌ مضت لا تُخرج تاريخاً ماضياً', projectSubscription({ start_date: '2019-04-05', billing_period: 'monthly' }, null, NOW), { days: 12, date: '2026-12-05', status: 'projected' });
+eq('استنتاج: بلا عقد', projectSubscription(null, null, NOW), null);
+eq('استنتاج: دورةٌ غيرُ معروفة', projectSubscription({ start_date: '2026-03-01', billing_period: 'weekly' }, null, NOW), null);
+eq('استنتاج: تاريخٌ خربان', projectSubscription({ start_date: 'لا تاريخ', billing_period: 'annual' }, null, NOW), null);
+/* ويومُ الشهرِ يُثبَّت على آخرِه إن قَصُر، وإلا صار 31 فبراير. */
+eq('دورة: ٣١ يناير شهرياً', addCycle('2026-01-31', 'monthly'), '2026-02-28');
+eq('دورة: ديسمبر يقلب السنة', addCycle('2026-12-20', 'monthly'), '2027-01-20');
+eq('دورة: سنويّاً', addCycle('2026-03-01', 'annual'), '2027-03-01');
+/* والمستنتَجُ لا يكون متأخّراً أبداً: ليس ديناً، إنما متى تدور الدورة. */
+for (const start of ['2020-01-31', '2026-11-23', '2026-11-24', '2031-02-28']) {
+  for (const period of ['monthly', 'annual']) {
+    const got = projectSubscription({ start_date: start, billing_period: period }, null, NOW);
+    if (got && got.days < 0) fails.push(`استنتاج ${start}/${period}: طلع ${got.days} — المستنتَجُ لا يتأخّر`);
+  }
+}
+
+/* ── صيغةُ الأيام: «5 يوم» و«3 يوم تأخير» غلطٌ عربيّ ──────────
+   أوّلُ بناءٍ وقف عند المثنّى، فكان العدّادُ يناقض شريطَ التذكير على
+   نفس الشاشة: الشريطُ «باقي 5 أيام» والبطاقةُ تحته «5 يوم». */
+const forms = [[0, 'اليوم'], [1, 'يوم واحد'], [2, 'يومان'], [3, '{n} أيام'], [10, '{n} أيام'], [11, '{n} يوم'], [40, '{n} يوم'],
+               [-1, 'يوم تأخير'], [-2, 'يومان تأخير'], [-3, '{n} أيام تأخير'], [-10, '{n} أيام تأخير'], [-11, '{n} يوم تأخير']];
+for (const [d, want] of forms) {
+  eq(`صيغة ${d}`, subscriptionBigKey({ days: d, date: iso(d), status: 'due' }), want);
+}
+
 /* ── ما يراه العميلان: المبلغُ لا يعبر هذا الحدّ أبداً ───────── */
 const route = fs.readFileSync(path.join(root, 'app/api/pos/account-status/route.ts'), 'utf8');
 /* التعليقاتُ تُنزع أولاً: نصُّ المسار نفسُه يشرح أنه لا يرسل مبلغاً،
@@ -80,14 +121,21 @@ const route = fs.readFileSync(path.join(root, 'app/api/pos/account-status/route.
 const routeCode = route.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 if (/\bamount\b/.test(routeCode)) fails.push('مسار الكاشير يذكر amount — الكاشير يُقال له متى لا كم');
 if (!/pickSubscription/.test(route)) fails.push('مسار الكاشير ما يرسل العدّاد — بطاقةُ «المزيد» تختفي');
+if (!/projectSubscription\(/.test(routeCode)) fails.push('مسار الكاشير ما يستنتج الموعد — العدّادُ يختفي عن السنويِّ المسدِّد');
+/* والفلترُ في السيكوال هو الحمايةُ الأولى، وبعدَه فلترُ pickSubscription. */
+if (!/neq\("status",\s*"paid"\)/.test(routeCode)) fails.push('مسار الكاشير ما يستثني المسدَّد في السيكوال');
 
 /* والعميلان كلاهما يقرؤه: ناقصٌ في أحدهما = ميزةٌ في جهازٍ وغائبةٌ في جهاز. */
 const web = fs.readFileSync(path.join(root, 'public/pos/rakeen-pos.js'), 'utf8');
-for (const need of ['out.subscription', 'function rkSubTone', 'function renderMoreSubCard', 'moreSubCard']) {
+for (const need of ['out.subscription', 'function rkSubTone', 'function renderMoreSubCard', 'moreSubCard', '{n} أيام', '{n} أيام تأخير']) {
   if (!web.includes(need)) fails.push(`كاشير الويب ناقصه ${need} — العدّاد في التطبيق وحده`);
 }
 const svc = fs.readFileSync(path.join(root, 'react-native-poc/src/application/renewalService.ts'), 'utf8');
 if (!svc.includes('out.subscription')) fails.push('كاشير التطبيق ما يقرأ subscription من الردّ');
+const tbl = fs.readFileSync(path.join(root, 'react-native-poc/src/ui/i18nMore.ts'), 'utf8');
+for (const key of ['{n} أيام', '{n} أيام تأخير']) {
+  if (!tbl.includes(key)) fails.push(`جدولُ التطبيق ناقصه «${key}» — سطرٌ نصفُه مترجَم`);
+}
 const more = fs.readFileSync(path.join(root, 'react-native-poc/App.tsx'), 'utf8');
 if (!more.includes('<SubscriptionCard')) fails.push('شاشة «المزيد» في التطبيق ما فيها بطاقة العدّاد');
 
@@ -109,6 +157,8 @@ const rn = fs.readFileSync(path.join(root, 'react-native-poc/src/domain/renewal.
 for (const [who, src] of [['الويب', web], ['التطبيق', rn]]) {
   if (!/days\s*<=\s*6/.test(src)) fails.push(`حدُّ «قريب» في ${who} مو ٦ أيام — افترق العميلان عن lib/renewalStage.ts`);
   if (!/days\s*<\s*0/.test(src)) fails.push(`${who}: ما فيه حالةُ تأخّرٍ في العدّاد`);
+  /* و«5 days» في قالبٍ عربيِّ الاتّجاه تُقرأ «days 5» بلا علامةِ اتّجاه. */
+  if (!/u200E/.test(src)) fails.push(`${who}: بلا علامةِ اتّجاهٍ قبل الرقم — «5 days» تنقلب «days 5»`);
 }
 
 if (fails.length) {
