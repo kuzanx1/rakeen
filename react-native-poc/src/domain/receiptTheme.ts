@@ -56,7 +56,7 @@ const THEMES: Record<ReceiptThemeId, ReceiptTheme> = {
    */
   classic: {
     rule: 'solid', orderStyle: 'box', totalStyle: 'bold', itemStyle: 'columns', sectionLabels: false,
-    logoWidth: 0.30,
+    logoWidth: 0.42,
     id: 'classic',
     label: 'كلاسيكي',
     density: 1,
@@ -78,8 +78,8 @@ const THEMES: Record<ReceiptThemeId, ReceiptTheme> = {
     logoWidth: 0.24,
     id: 'compact',
     label: 'مضغوط — يوفّر ورق',
-    density: 0.68,
-    typeScale: 0.88,
+    density: 0.72,
+    typeScale: 0.94,
     showLogo: false,
     headerBand: false,
     boxedTotal: false,
@@ -95,7 +95,7 @@ const THEMES: Record<ReceiptThemeId, ReceiptTheme> = {
    */
   elegant: {
     rule: 'dotted', orderStyle: 'spaced', totalStyle: 'box', itemStyle: 'leaders', sectionLabels: true,
-    logoWidth: 0.34,
+    logoWidth: 0.44,
     id: 'elegant',
     label: 'أنيق',
     density: 1.15,
@@ -107,7 +107,7 @@ const THEMES: Record<ReceiptThemeId, ReceiptTheme> = {
   },
   signature: {
     rule: 'bar', orderStyle: 'invert', totalStyle: 'invert', itemStyle: 'columns', sectionLabels: true,
-    logoWidth: 0.52,
+    logoWidth: 0.56,
     // كان 'elegant' -- نسخةٌ لم يُبدَّل معرّفها. المفتاح صحيح فالثيم
     // يُرسم صحيحاً، لكن الحقل يكذب على كل من يقرؤه.
     id: 'signature',

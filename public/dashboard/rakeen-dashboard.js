@@ -1041,7 +1041,7 @@ async function loadSalesRealData(opts){
   // — its total isn't real revenue yet, so it shouldn't inflate today's (or
   // yesterday's) net sales before any money has actually been collected.
   const [{data: todayOrders}, {data: yesterdayOrders}] = await Promise.all([
-    sb.from('orders').select('id, total, subtotal, discount_amount, discount_reason, channel, delivery_platform_id, status, created_at').eq('business_id', businessId).gte('created_at', startToday.toISOString()).eq('payment_status', 'paid'),
+    sb.from('orders').select('id, total, subtotal, discount_amount, discount_reason, channel, delivery_platform_id, payment_method, source, platform_invoice_last4, status, created_at').eq('business_id', businessId).gte('created_at', startToday.toISOString()).eq('payment_status', 'paid'),
     reuseStatic ? none : sb.from('orders').select('total, created_at').eq('business_id', businessId).gte('created_at', startYesterday.toISOString()).lt('created_at', startToday.toISOString()).eq('payment_status', 'paid')
   ]);
   const todayList = todayOrders || [];
@@ -1121,7 +1121,9 @@ async function loadSalesRealData(opts){
 
   const byChannel = {};
   todayList.forEach(o=>{
-    const bucket = (byChannel[o.channel] ||= {name: ORDER_CHANNEL_TYPE_LABELS[o.channel]||o.channel, orders:0, revenue:0});
+    // «جوال» باب مستقل، لا مضمومٌ إلى التوصيل (odIsPhoneOrder).
+    const key = odIsPhoneOrder(o) ? 'phone' : o.channel;
+    const bucket = (byChannel[key] ||= {name: key === 'phone' ? 'جوال' : (ORDER_CHANNEL_TYPE_LABELS[o.channel]||o.channel), orders:0, revenue:0});
     bucket.orders += 1;
     bucket.revenue += Number(o.total);
   });
@@ -1201,7 +1203,7 @@ async function loadSalesRangeData(from, to){
   const sb = window.supabaseClient;
   const businessId = CURRENT_PROFILE.business_id;
   const { data: rangeOrders } = await sb.from('orders')
-    .select('id, total, subtotal, discount_amount, vat_amount, channel, delivery_platform_id, payment_method, cash_amount, status, payment_status, shift_id, created_at')
+    .select('id, total, subtotal, discount_amount, vat_amount, channel, delivery_platform_id, payment_method, source, platform_invoice_last4, cash_amount, status, payment_status, shift_id, created_at')
     .eq('business_id', businessId).gte('created_at', from.toISOString()).lt('created_at', to.toISOString());
   // A still-open pay-after dine-in tab (payment_status='unpaid') is excluded
   // the same way a non-completed order already is — its totals aren't final
@@ -1256,7 +1258,8 @@ async function loadSalesRangeData(from, to){
 
   const byChannel = {};
   list.forEach(o=>{
-    const bucket = (byChannel[o.channel] ||= {name: ORDER_CHANNEL_TYPE_LABELS[o.channel]||o.channel, orders:0, revenue:0});
+    const key = odIsPhoneOrder(o) ? 'phone' : o.channel;
+    const bucket = (byChannel[key] ||= {name: key === 'phone' ? 'جوال' : (ORDER_CHANNEL_TYPE_LABELS[o.channel]||o.channel), orders:0, revenue:0});
     bucket.orders += 1; bucket.revenue += Number(o.total);
   });
   const channelPerf = Object.values(byChannel).filter(c=>c.orders>0);
@@ -1417,11 +1420,35 @@ const OD_RANGE_PHRASE = {today:'اليوم', '7d':'آخر ٧ أيام', month:'�
 const ORDER_CHANNEL_TAG_META = {
   dine_in: {label:'داخل المطعم', icon:'home'},
   pickup: {label:'سفري', icon:'bag'},
-  delivery: {label:'توصيل', icon:'truck'}
+  delivery: {label:'توصيل', icon:'truck'},
+  /* «جوال» نوعٌ قائمٌ بذاته لا صفةٌ تحت «توصيل»: صاحبُ المطعم -- «الجوال
+     غالباً شخصٌ طلب من جواله وجايٍ يستلم»، فما يصحّ أن يُسمّى توصيلاً.
+     (٢٠٢٦/١١/٢٠) */
+  phone: {label:'جوال', icon:'phone'}
 };
-function orderChannelTagsHtml(channel, isOnline){
-  const meta = ORDER_CHANNEL_TAG_META[channel] || {label:channel, icon:'crosshair'};
-  return `<span class="order-channel-tag ${channel}">${rkIcon(meta.icon)}${meta.label}</span>`
+/**
+ * طلبُ الجوال في صفٍّ محفوظ -- بالمال لا بآخرِ أربعة.
+ *
+ * «جوال» ليس منصّةً في قاعدة البيانات (كاشير ركين، domain/phoneOrder.ts)،
+ * فيُعرف بما حوله: طلبُ المنصّة مدفوعٌ في تطبيقها فيُحفظ
+ * payment_method='delivery_platform' دائماً -- وكذلك كان كلُّ طلب توصيلٍ
+ * قبل «جوال»، فلا يلتبس بقديم -- وطلبُ الجوال يُدفع عندنا كاشاً أو شبكة.
+ *
+ * وكانت العلامةُ آخرَ أربعة وحدَها، فطلبٌ لم تُكتب فيه يُقرأ «توصيل»
+ * عارياً ولا يُعرف من أين جاء (الطلب ٥٧، ٢٠٢٦/١١/٢٠).
+ */
+function odIsPhoneOrder(o){
+  if(!o || o.channel !== 'delivery') return false;
+  if(o.delivery_platform_id != null) return false;
+  if(o.source === 'online') return false;
+  if(o.payment_method && o.payment_method !== 'delivery_platform') return true;
+  return !!o.platform_invoice_last4;
+}
+
+function orderChannelTagsHtml(channel, isOnline, isPhone){
+  const key = isPhone ? 'phone' : channel;
+  const meta = ORDER_CHANNEL_TAG_META[key] || {label:channel, icon:'crosshair'};
+  return `<span class="order-channel-tag ${key}">${rkIcon(meta.icon)}${meta.label}</span>`
     + (isOnline ? `<span class="order-online-tag">${rkIcon('globe')}إلكتروني</span>` : '');
 }
 function odStatusKey(s){ return s === 'partially_refunded' ? 'refunded' : s; }
@@ -1454,7 +1481,29 @@ function renderOrderStatusGrid(){
     + '<div class="od-chips" role="group" aria-label="رشّح بالحالة">' + chips.map(([k,l,n])=>
         '<button type="button" class="od-chip ' + k + (orderStatusFilter === k ? ' active' : '') + '" data-od-status="' + k + '"' + (k !== 'all' && !n ? ' disabled' : '') + '><i></i>' + l + ' <b>' + n + '</b></button>').join('') + '</div>'
     + (capped ? '<p class="od-cap">يطلع هنا آخر 500 طلب بهالفترة. للأرقام الكاملة شف «التقارير».</p>' : '')
+    + odPagerMissHtml()
     + '</div>';
+}
+
+/**
+ * «بيجرٌ ما انضغط عليه»: طلبٌ أُعطي بيجراً ثم خرج بلا «جاهز».
+ *
+ * الزرُّ يشتغل -- قيس عليه الطلباتِ التي ضُغطت، فأوقاتُها سليمة ورنّاتُها
+ * واصلة. لكنّ أكثرَ الطلبات تخرج بلا ضغطة، فلا يُرنّ جوالُ الزبون ولا
+ * يُعرف كم قعد التحضير، ولا يظهر ذلك في اللوحة البتّة -- يُكتشف صدفةً
+ * بعد شهر. (٢٠٢٦/١١/٢١: ٢١ من ٢٤ طلبَ سفريٍّ في ليلةٍ واحدة.)
+ *
+ * ولا يُعرض لمن لا بيجرَ عنده: صفرٌ من صفرٍ ليس خبراً.
+ */
+function odPagerMissHtml(){
+  const withPager = RECENT_ORDERS.filter(o => o.hasPager && o.status === 'completed');
+  if(!withPager.length) return '';
+  const missed = withPager.filter(o => !o.readyAt).length;
+  if(!missed) return '';
+  const pct = Math.round((missed / withPager.length) * 100);
+  return '<p class="od-pagermiss">' + hmIc('alert')
+    + '<span><b>' + missed + '</b> من ' + withPager.length + ' طلب بيجر (' + pct + '٪) خرجت بلا ضغطة «جاهز»'
+    + ' — ما رنّ جوال الزبون، وما اتسجّل وقت التجهيز.</span></p>';
 }
 
 function orderDateRangeCutoff(range){
@@ -1508,11 +1557,13 @@ function renderOrdersTable(){
       html += '<div class="od-day"><div class="od-day-head"><b>' + (o.createdAt ? odDayLabel(o.createdAt) : o.date) + '</b><span>' + hmOrders(dayTotals[k].n) + ' · ' + hmMoney(dayTotals[k].sum) + '</span></div>';
     }
     const st = odStatusKey(o.status);
-    const plat = o.platformName ? '<span class="od-plat">' + escapeHtml(o.platformName) + '</span>' : '';
+    const isPhone = o.platformName === 'جوال';
+    const plat = (o.platformName && !isPhone) ? '<span class="od-plat">' + escapeHtml(o.platformName) + '</span>' : '';
+    const last4 = o.last4 ? '<span class="od-plat od-last4 hm-num">…' + escapeHtml(String(o.last4)) + '</span>' : '';
     html += '<button type="button" class="od-row ' + st + '" data-order-id="' + o.id.replace('#','') + '">'
       + '<span class="od-dot" data-st="' + st + '"></span>'
       + '<span class="od-main"><span class="od-line1"><b class="hm-num">' + (o.no || o.id) + '</b><span class="od-time">' + o.time + '</span></span>'
-      + '<span class="od-line2">' + orderChannelTagsHtml(o.channel, o.isOnline) + plat
+      + '<span class="od-line2">' + orderChannelTagsHtml(o.channel, o.isOnline, isPhone) + plat + last4
       + (ORDER_SCREEN_BRANCHES.length > 1 && o.branchName ? '<span class="od-plat">' + escapeHtml(o.branchName) + '</span>' : '')
       + '<span class="od-sub">' + hmPlural(o.items, 'صنف واحد', 'صنفين', 'أصناف', 'صنف') + ' · ' + escapeHtml(o.payment || '') + '</span></span></span>'
       + '<span class="od-end">' + hmMoney(o.total, st !== 'completed' ? 'od-struck' : '')
@@ -1607,12 +1658,29 @@ async function openOrderDetailModal(orderId){
   await rkFillMenuNames(items);
   if(!order){ body.innerHTML = '<p class="od-dt-loading">ما قدرنا نجيب الطلب. جرّب مرة ثانية.</p>'; return; }
 
+  /* ومن سجّل الطلب يُسمّى باسمه: الوردية تُنسب لموظف، والطلبُ كذلك
+     (orders.staff_member_id). استعلامٌ واحدٌ صغير، ولا يجري إلا لطلبٍ
+     له موظف، ولا يمنع عرضَ الطلب لو فشل. */
+  let ODStaffName = '';
+  if(order.staff_member_id){
+    try {
+      const { data: stf } = await window.supabaseClient
+        .from('staff_members').select('name').eq('id', order.staff_member_id).maybeSingle();
+      ODStaffName = (stf && stf.name) || '';
+    } catch(_){ ODStaffName = ''; }
+  }
+
   const itemsHtml = (items||[]).map(it=>{
     const product = rkFindMenuItem(it.menu_item_id);
     const name = escapeHtml(product ? product.name : ('منتج #' + it.menu_item_id));
     const mods = (it.selected_modifiers||[]).map(m=>escapeHtml(m.option_name || m.text)).filter(Boolean).join('، ');
+    /* ملاحظةُ الصنف تُميَّز عن الإضافات، ولا تُخلط بها.
+       كانت تُطبع بنفس الشكل تحت الاسم، فتُقرأ إضافةً أخرى -- وهي الشيء
+       الوحيد الذي كتبه الكاشير بيده. (طلبُ صاحب المطعم: كلُّ ما يُكتب
+       على الطلب يظهر في اللوحة حرفياً، ٢٠٢٦/١١/٢٠.) */
     return '<div class="od-dt-item"><span class="od-dt-qty">' + it.qty + '×</span><span class="od-dt-name">' + name
-      + (mods ? '<small>' + mods + '</small>' : '') + (it.note ? '<small>' + escapeHtml(it.note) + '</small>' : '') + '</span>' + hmMoney(it.line_total) + '</div>';
+      + (mods ? '<small>' + mods + '</small>' : '')
+      + (it.note ? '<small class="od-dt-note">📝 ' + escapeHtml(it.note) + '</small>' : '') + '</span>' + hmMoney(it.line_total) + '</div>';
   }).join('');
 
   rkRememberNo(order.id, order.order_no);
@@ -1625,21 +1693,84 @@ async function openOrderDetailModal(orderId){
   const waUrl = waPhone ? `https://wa.me/${waPhone.startsWith('966') ? waPhone : '966' + waPhone.replace(/^0/, '')}?text=${encodeURIComponent(waMessage)}` : null;
   const st = odStatusKey(order.status);
   const branch = ORDER_SCREEN_BRANCHES.length > 1 ? (ORDER_SCREEN_BRANCHES.find(b=>b.id===order.branch_id)||{}).name : null;
-  const plat = order.delivery_platform_id ? ((ORDER_SCREEN_PLATFORMS.find(p=>p.id===order.delivery_platform_id)||{}).name || 'منصة محذوفة') : null;
+  /* مصدرُ الطلب: المنصّة، أو «جوال» (odIsPhoneOrder). */
+  const plat = order.delivery_platform_id
+    ? ((ORDER_SCREEN_PLATFORMS.find(p=>p.id===order.delivery_platform_id)||{}).name || 'منصة محذوفة')
+    : null;
   const info = [];
   if(order.customer_name) info.push(['العميل', escapeHtml(order.customer_name)]);
   if(order.customer_phone) info.push(['جواله', '<span class="hm-num">' + escapeHtml(order.customer_phone) + '</span>']);
   if(order.delivery_address) info.push(['العنوان', escapeHtml(order.delivery_address)]);
-  if(order.platform_invoice_last4) info.push(['فاتورة المنصة', '<span class="hm-num">…' + escapeHtml(String(order.platform_invoice_last4)) + '</span>']);
-  if(order.channel === 'delivery') info.push(['التجهيز', order.ready_at ? 'جهز خلال ' + Math.floor((order.prep_duration_seconds||0)/60) + 'د ' + ((order.prep_duration_seconds||0)%60) + 'ث' : 'قيد التجهيز']);
+  // وفي طلب الجوال هي آخرُ أربعةٍ من جوال الزبون، لا من فاتورة منصّة.
+  if(order.platform_invoice_last4) info.push([odIsPhoneOrder(order) ? 'آخر ٤ من جواله' : 'فاتورة المنصة', '<span class="hm-num">…' + escapeHtml(String(order.platform_invoice_last4)) + '</span>']);
+  if(order.channel === 'delivery' && !order.ready_at) info.push(['التجهيز', 'قيد التجهيز']);
+  /* وكلُّ ما كُتب على الطلب أو اختِير فيه يظهر هنا، لا بعضُه: جهازُ
+     النداء، ووقتُ الاستلام المحدَّد، ومن سجّله، وسببُ الرفض، والمبلغ
+     المسترجع. كانت كلُّها في قاعدة البيانات ولا تُعرض في اللوحة، فيُفتح
+     الطلبُ فلا يُقرأ منه إلا نصفُه. */
+  if(order.pager_number) info.push(['جهاز النداء', '<span class="hm-num">' + escapeHtml(String(order.pager_number)) + '</span>']);
+  if(order.scheduled_for) info.push(['وقت الاستلام المطلوب', new Date(order.scheduled_for).toLocaleString('ar-SA-u-nu-latn', { day:'numeric', month:'long', hour:'numeric', minute:'2-digit' })]);
+  if(ODStaffName) info.push(['سجّله', escapeHtml(ODStaffName)]);
+  if(order.rejection_reason) info.push(['سبب الرفض', escapeHtml(order.rejection_reason)]);
+  if(Number(order.refunded_amount) > 0) info.push(['المبلغ المسترجع', hmMoney(Number(order.refunded_amount))]);
+
+  /**
+   * مسارُ الطلب بالأوقات: متى تسجّل، ومتى جهز، ومتى خرج، ومتى تسلّمه.
+   *
+   * الأوقاتُ محفوظةٌ كلُّها منذ زمن ولا يُعرض منها شيء، فيُسأل «كم قعد
+   * الطلب؟» ولا جواب. وكلُّ خطوةٍ معها ما بينها وبين التي قبلها، لأنّ
+   * المدّةَ هي السؤال لا الساعة.
+   *
+   * و«تلقائي»: مطعمٌ مفعّلٌ عنده «الجهوزية التلقائية» تُختم طلباتُه
+   * جاهزةً ومسلَّمةً لحظةَ تسجيلها -- فثلاثةُ أوقاتٍ متطابقة. يُقال
+   * ذلك صراحةً، فلا يُقرأ أنّ المطبخ جهّزه في صفر ثانية.
+   */
+  const odClock = v => new Date(v).toLocaleTimeString('ar-SA-u-nu-latn', { hour:'numeric', minute:'2-digit' });
+  const odGap = (from, to) => {
+    const s = Math.round((new Date(to) - new Date(from)) / 1000);
+    if(s < 2) return 'تلقائي';
+    if(s < 60) return s + 'ث';
+    const m = Math.floor(s / 60);
+    return m < 60 ? m + 'د ' + (s % 60) + 'ث' : Math.floor(m / 60) + 'س ' + (m % 60) + 'د';
+  };
+  /* والمراحلُ تُعرض كلُّها -- ما وقع منها وما لم يقع.
+     كان المسارُ يُخفى حين لا يُسجَّل إلا وقتُ التسجيل، فيُفتح طلبُ سفريٍّ
+     فلا يُرى فيه شيء، ولا يُعرف: أوقعَ ولم يُسجَّل، أم لم يقع؟ فصارت
+     المرحلةُ غيرُ المسجَّلة تُكتب بـ«—» وتُقال علّتُها تحتها.
+     (بلاغ صاحب المطعم ٢٠٢٦/١١/٢١، الطلب ١٥٦.) */
+  const stages = order.channel === 'delivery'
+    ? [['تسجّل', order.created_at], ['جهز', order.ready_at], ['خرج مع المندوب', order.out_for_delivery_at], ['استلمه الزبون', order.delivered_at]]
+    : order.channel === 'pickup'
+      ? [['تسجّل', order.created_at], ['جهز', order.ready_at], ['استلمه الزبون', order.delivered_at]]
+      : [['تسجّل', order.created_at], ['جهز', order.ready_at]];
+  if(order.refunded_at) stages.push(['استُرجع', order.refunded_at]);
+  let odPrev = order.created_at;
+  const stageRows = stages.map(([label, at], i)=>{
+    if(!at) return '<div class="od-dt-tl none"><span>' + label + '</span><b>—</b></div>';
+    const gap = i === 0 ? '' : odGap(odPrev, at);
+    odPrev = at;
+    return '<div class="od-dt-tl"><span>' + label + '</span><b class="hm-num">' + odClock(at) + '</b>'
+      + (gap ? '<small>' + gap + '</small>' : '') + '</div>';
+  }).join('');
+  const missing = stages.some(([, at])=> !at);
+  const timelineHtml = '<div class="od-dt-box od-dt-timeline">' + stageRows
+    + (missing ? '<p class="od-dt-tlhint">' + (order.channel === 'dine_in'
+        ? 'الجهوزية تُسجَّل من شاشة المطبخ.'
+        : 'الجهوزية والاستلام يُسجَّلان من شاشة المطبخ أو من بيجر ركين.') + '</p>' : '')
+    + '</div>';
 
   body.innerHTML = '<div class="od-dt">'
     + '<div class="od-dt-hero ' + st + '"><div>' + hmMoney(order.total, 'od-dt-total')
     + '<div class="od-dt-when">' + new Date(order.created_at).toLocaleString('ar-SA-u-nu-latn', { weekday:'long', day:'numeric', month:'long', hour:'numeric', minute:'2-digit' }) + (branch ? ' · ' + escapeHtml(branch) : '') + '</div></div>'
     + '<span class="od-pill ' + st + '">' + (ORDER_STATUS_LABELS[order.status] || order.status) + '</span></div>'
-    + '<div class="od-dt-tags">' + orderChannelTagsHtml(order.channel, isOnline) + (plat ? '<span class="od-plat">' + escapeHtml(plat) + '</span>' : '')
+    + '<div class="od-dt-tags">' + orderChannelTagsHtml(order.channel, isOnline, odIsPhoneOrder(order)) + (plat ? '<span class="od-plat">' + escapeHtml(plat) + '</span>' : '')
     + '<span class="od-plat">' + escapeHtml(ORDER_PAYMENT_LABELS[order.payment_method] || order.payment_method || '') + '</span></div>'
     + (info.length ? '<div class="od-dt-box">' + info.map(([k,v])=>'<div class="od-dt-kv"><span>' + k + '</span><b>' + v + '</b></div>').join('') + '</div>' : '')
+    /* ملاحظةُ الطلب كاملةً، بنصّها. يكتبها الزبون في المتجر الإلكتروني
+       («بدون بصل، والجرس خربان») وتُطبع على ورقة المطبخ -- ولم تكن
+       تُعرض في اللوحة أبداً، فيقرأ صاحبُ المطعم طلباً ناقصاً. */
+    + (order.online_customer_note ? '<div class="od-dt-box od-dt-ordernote"><span>📝 ملاحظة الطلب</span><p>' + escapeHtml(order.online_customer_note) + '</p></div>' : '')
+    + timelineHtml
     + (hasLocation ? '<div class="od-dt-box od-dt-loc"><img src="/api/qr?data=' + encodeURIComponent(mapsUrl) + '" alt="باركود موقع العميل"><div><b>موقع العميل للمندوب</b><small>صوّره بجوال المندوب</small>'
       + '<a href="' + escapeHtml(mapsUrl) + '" target="_blank" rel="noopener" class="rk2-btn od-ghost sm">افتح بخرائط جوجل</a>'
       + (waUrl ? '<a href="' + escapeHtml(waUrl) + '" target="_blank" rel="noopener" class="rk2-btn sm od-wa">' + rkIcon('messageCircle') + 'طمّن العميل بواتساب</a>' : '') + '</div></div>' : '')
@@ -1833,7 +1964,7 @@ function renderOrdersByType(){
   if(!el) return;
   const by = {};
   RECENT_ORDERS.forEach(o=>{ (by[o.type] ||= {name:o.type, n:0}).n++; });
-  el.innerHTML = odBarsHtml(Object.values(by), 'store', 'كيف يطلبون؟', 'داخل المطعم وسفري وتوصيل');
+  el.innerHTML = odBarsHtml(Object.values(by), 'store', 'كيف يطلبون؟', 'داخل المطعم وسفري وتوصيل وجوال');
 }
 function renderOrdersBySource(){
   // المنصة الحقيقية من delivery_platform_id اللي يحطه الكاشير على كل طلب توصيل.
@@ -2049,7 +2180,7 @@ async function runStockAction(){
 
     showToast(siActiveAction==='receive' ? 'انضافت الكمية'
             : siActiveAction==='count'   ? 'تم الجرد'
-            : 'انسجّل الهدر');
+            : 'اتسجّل الهدر');
     siActiveAction = null; siActState = {};
     renderStockActionPanel();
     document.getElementById('siQtyOnHandView') && (document.getElementById('siQtyOnHandView').textContent =
@@ -4491,7 +4622,7 @@ async function saveInvoice(){
       if(nearDuplicate){
         const proceed = window.confirm(
           'فيه فاتورة مسجّلة من "' + bd.supplier + '" بنفس التاريخ وبإجمالي قريب جدًا من هذي (' + newTotal.toFixed(2) + ' ر.س) — ' +
-          'يمكن هذي نفس الفاتورة انسجّلت غلط مرتين. تبي تكمل الحفظ برضه؟'
+          'يمكن هذي نفس الفاتورة اتسجّلت غلط مرتين. تبي تكمل الحفظ برضه؟'
         );
         if(!proceed) return;
       }
@@ -4791,7 +4922,7 @@ async function saveExpense(){
     const at = (inserted && inserted.spent_at) || spentAt || new Date().toISOString();
     GENERAL_EXPENSES.unshift({id: inserted.id, category, amount, description, date: formatRelativeDate(at), spentAt: at});
     logDashboardAudit('سجّل مصروف عام: ' + description + ' (' + amount.toFixed(2) + ' ر.س)');
-    showToast('انسجّل المصروف ✓');
+    showToast('اتسجّل المصروف ✓');
     closeExpenseModal();
     acRender();
     refreshTodayAccountingAfterExpenseChange();
@@ -5241,7 +5372,7 @@ function acOverviewHtml(st){
     + line('−', 'المواد والتغليف', 'تكلفة كل اللي بعته' + (st.missing ? ' (' + mnN(st.missing) + ' بدون تكلفة)' : ''), a.cogs)
     + (a.deliveryPlatformCost > 0.005 ? line('−', 'عمولات التطبيقات', 'عمولة ورسوم كل منصة على طلبات اليوم', a.deliveryPlatformCost) : '')
     + line('=', 'مجمل ربحك', 'اللي بقى من البيع نفسه', a.grossProfit, 'ac-mid')
-    + ((a.wasteCost || 0) > 0.005 ? line('−', 'الهدر', 'كلفة اللي انسجّل هدره اليوم', a.wasteCost) : '')
+    + ((a.wasteCost || 0) > 0.005 ? line('−', 'الهدر', 'كلفة اللي اتسجّل هدره اليوم', a.wasteCost) : '')
     + line('−', 'المصاريف', FIXED_COSTS_SET ? 'الثابتة موزّعة على اليوم (' + acR(st.dailyFixed) + ')' + (TODAY_GENERAL_EXPENSES_TOTAL > 0 ? ' + مصاريف اليوم (' + acR(TODAY_GENERAL_EXPENSES_TOTAL) + ')' : '') : 'ما حدّدت مصاريفك الثابتة، فالرقم ناقص', a.opex)
     + line('=', a.netProfit < 0 ? 'خسارتك' : 'صافي ربحك', 'هذا الرقم نفسه في الرئيسية والتقارير', a.netProfit, 'ac-final' + (a.netProfit < 0 ? ' ac-lossrow' : ''))
     + '</div>' + more + '</div>';
@@ -5791,13 +5922,13 @@ async function openCustomerDetailModal(customerId){
 
   const seg = rfmScoreCustomer(c).segment;
   const { data: orders } = await window.supabaseClient.from('orders')
-    .select('id, created_at, channel, total, status')
+    .select('id, created_at, channel, total, status, payment_method, source, delivery_platform_id, platform_invoice_last4')
     .eq('customer_id', customerId).order('created_at', {ascending:false}).limit(20);
   const wa = cuWaUrl(c, seg.key);
 
   const ordersHtml = (orders||[]).length ? (orders||[]).map(o=>`
     <button type="button" class="cu-ord" data-order-id="${o.id}">
-      <span>${new Date(o.created_at).toLocaleDateString('ar-SA', {day:'numeric', month:'short'})} · ${orderChannelTagsHtml(o.channel, false)}${o.status!=='completed' ? ' <span class="order-status-tag '+o.status+'">'+(ORDER_STATUS_LABELS[o.status]||o.status)+'</span>' : ''}</span>
+      <span>${new Date(o.created_at).toLocaleDateString('ar-SA', {day:'numeric', month:'short'})} · ${orderChannelTagsHtml(o.channel, false, odIsPhoneOrder(o))}${o.status!=='completed' ? ' <span class="order-status-tag '+o.status+'">'+(ORDER_STATUS_LABELS[o.status]||o.status)+'</span>' : ''}</span>
       ${hmMoney(o.total)}
     </button>`).join('') : '<div class="hm-empty"><b>ما فيه طلبات له للحين</b><span>أول طلب بجواله يطلع هنا</span></div>';
 
@@ -6767,7 +6898,7 @@ async function openMemberDetailModal(customerId){
 
   const [{ data: orders }, { data: adjustments }] = await Promise.all([
     window.supabaseClient.from('orders')
-      .select('id, created_at, channel, total, status')
+      .select('id, created_at, channel, total, status, payment_method, source, delivery_platform_id, platform_invoice_last4')
       .eq('customer_id', customerId).order('created_at', {ascending:false}).limit(10),
     window.supabaseClient.from('loyalty_adjustments')
       .select('id, kind, delta, balance_after, rewards_granted, reason, created_at, profiles(full_name)')
@@ -6816,7 +6947,7 @@ async function openMemberDetailModal(customerId){
 
   const ordersHtml = (orders||[]).length ? orders.map(o=>`
     <div class="cpb-row" data-order-id="${o.id}" style="cursor:pointer;">
-      <span>${new Date(o.created_at).toLocaleDateString('ar-SA')} — ${orderChannelTagsHtml(o.channel, false)}${o.status!=='completed' ? ' <span class="order-status-tag '+o.status+'">'+(ORDER_STATUS_LABELS[o.status]||o.status)+'</span>' : ''}</span>
+      <span>${new Date(o.created_at).toLocaleDateString('ar-SA')} — ${orderChannelTagsHtml(o.channel, false, odIsPhoneOrder(o))}${o.status!=='completed' ? ' <span class="order-status-tag '+o.status+'">'+(ORDER_STATUS_LABELS[o.status]||o.status)+'</span>' : ''}</span>
       ${rkMoney(o.total)}
     </div>`).join('') : '<p class="stock-qty-helper">ما فيه طلبات مسجّلة بعد.</p>';
 
@@ -8820,6 +8951,10 @@ async function loadBusinessData(){
     RECEIPT_CUSTOM_MESSAGE = businessRes.data.receipt_custom_message || '';
     NOTIFY_SOUND_ENABLED = businessRes.data.notify_sound_enabled !== false;
     DINE_IN_ENABLED = businessRes.data.dine_in_enabled !== false;
+    // استعلامٌ مستقلّ: عمودٌ لم يُضَف بعد يُسقط الاستعلامَ الكبير كلَّه
+    // لو كان ضمنه، فتختفي إعداداتُ المطعم جميعاً.
+    sb.from('businesses').select('phone_orders_enabled').eq('id', businessId).single()
+      .then(r => { if(!r.error && r.data) PHONE_ORDERS_ENABLED = r.data.phone_orders_enabled !== false; }, () => {});
     ONLINE_ORDERING_ENABLED = businessRes.data.online_ordering_enabled === true;
     ONLINE_MENU_SLUG = businessRes.data.online_menu_slug || null;
     ONLINE_THEME_COLOR = businessRes.data.online_theme_color || '#C7FF4D';
@@ -9106,7 +9241,7 @@ async function loadOrdersAndTables(scope){
   const [{data: orders}, {data: tables}, {data: sections}, {data: biz}, {data: branches}, {data: platforms}] = await Promise.all([
     // order_items(count) embeds each order's line count in the same response,
     // instead of a second request that pulled every item row just to count them.
-    wantOrders ? sb.from('orders').select('id, order_no, created_at, channel, total, payment_method, status, source, branch_id, delivery_platform_id, order_items(count)').eq('business_id', businessId).gte('created_at', cutoff).order('created_at', {ascending:false}).limit(500) : none,
+    wantOrders ? sb.from('orders').select('id, order_no, created_at, channel, total, payment_method, status, source, branch_id, delivery_platform_id, platform_invoice_last4, pager_eta_at, ready_at, order_items(count)').eq('business_id', businessId).gte('created_at', cutoff).order('created_at', {ascending:false}).limit(500) : none,
     wantTables ? sb.from('restaurant_tables').select('id, number, status, active_order_id, section_id, branch_id, status_changed_at').eq('business_id', businessId).order('number') : none,
     full ? sb.from('table_sections').select('id, name, sort_order').eq('business_id', businessId).order('sort_order') : none,
     full ? sb.from('businesses').select('tables_turn_time_minutes').eq('id', businessId).single() : none,
@@ -9134,7 +9269,11 @@ async function loadOrdersAndTables(scope){
     date: formatRelativeDate(o.created_at),
     createdAt: o.created_at,
     time: new Date(o.created_at).toLocaleTimeString('ar-SA-u-nu-latn',{hour:'numeric',minute:'2-digit'}),
-    type: ORDER_CHANNEL_TYPE_LABELS[o.channel] || o.channel,
+    /* و«جوال» نوعٌ قائمٌ بذاته في «كيف يطلبون؟» كما هو في الشارة:
+       طلبٌ جاء بالهاتف وصاحبُه غالباً يجيء فيستلمه، فعدُّه توصيلاً
+       يضخّم التوصيل ويخفي الهاتف -- وهما بابان مختلفان في العمل.
+       (بلاغ صاحب المطعم ٢٠٢٦/١١/٢١.) */
+    type: odIsPhoneOrder(o) ? 'جوال' : (ORDER_CHANNEL_TYPE_LABELS[o.channel] || o.channel),
     channel: o.channel,
     isOnline: o.source === 'online',
     items: countByOrder[o.id] || 0,
@@ -9144,7 +9283,15 @@ async function loadOrdersAndTables(scope){
     branchId: o.branch_id,
     branchName: branchNameById[o.branch_id] || null,
     platformId: o.delivery_platform_id,
-    platformName: o.delivery_platform_id ? (platformNameById[o.delivery_platform_id] || 'منصة محذوفة') : null
+    platformName: o.delivery_platform_id
+      ? (platformNameById[o.delivery_platform_id] || 'منصة محذوفة')
+      : (odIsPhoneOrder(o) ? 'جوال' : null),
+    // آخرُ أربعة في السطر نفسِه، لا داخل الطلب وحدَه: بها يُعرف صاحبُ
+    // الطلب حين يُسأل عنه، فلا تُفتح الطلباتُ واحداً واحداً للبحث عنه.
+    last4: o.platform_invoice_last4 || null,
+    /* البيجر: أُعطي الزبونُ بيجراً، وهل ضُغط «جاهز»؟ */
+    hasPager: !!o.pager_eta_at,
+    readyAt: o.ready_at || null
   }));
 }
 
@@ -10783,7 +10930,7 @@ function wasteReportHtml(rows){
   const items = [...byItem.entries()].sort((a,b)=>b[1]-a[1]).slice(0, 8);
   return `
     <div class="panel-title">تقرير الهدر — ${REPORT_RANGE_LABEL}</div>
-    ${rows.length === 0 ? '<div class="orders-empty">ما انسجّل هدر بهالفترة — وهذا إما إن ما صار، أو إن أحد ما سجّله.</div>' : `
+    ${rows.length === 0 ? '<div class="orders-empty">ما اتسجّل هدر بهالفترة — وهذا إما إن ما صار، أو إن أحد ما سجّله.</div>' : `
     <div class="report-stat-row total"><span>إجمالي كلفة الهدر</span><span class="mono">${total.toFixed(2)} ر.س</span></div>
     <div class="report-stat-row"><span>عدد مرّات التسجيل</span><span class="mono">${rows.length}</span></div>
 
@@ -12388,16 +12535,16 @@ async function loadOnlineCodEnabled(){
  */
 const RECEIPT_THEMES = [
   { id: 'classic', label: 'كلاسيكي', desc: 'أعمدة وخطوط صلبة ورقم الطلب داخل صندوق — الشكل التقليدي المعروف.',
-    density:1,    typeScale:1,    showLogo:true, logoWidth:0.30, headerBand:false, boxedTotal:false, qrSize:110,
+    density:1,    typeScale:1,    showLogo:true, logoWidth:0.42, headerBand:false, boxedTotal:false, qrSize:110,
     rule:'solid', orderStyle:'box', totalStyle:'bold', itemStyle:'columns', sectionLabels:false },
   { id: 'compact', label: 'مضغوط', desc: 'أقصر ورقة ممكنة: بلا شعار ولا خطوط، والصنف وسعره على سطر واحد تصلهما نقاط. النصف تقريباً.',
-    density:0.68, typeScale:0.88, showLogo:false, logoWidth:0.24, headerBand:false, boxedTotal:false, qrSize:85,
+    density:0.72, typeScale:0.94, showLogo:false, logoWidth:0.24, headerBand:false, boxedTotal:false, qrSize:85,
     rule:'none', orderStyle:'plain', totalStyle:'plain', itemStyle:'leaders', sectionLabels:false },
   { id: 'elegant', label: 'أنيق', desc: 'هادئ ومتّسع: خطوط منقّطة، وعناوين أقسام بحروف متباعدة، ونقاط موصِلة — مظهر المطاعم الراقية.',
-    density:1.15, typeScale:1.04, showLogo:true, logoWidth:0.34, headerBand:true,  boxedTotal:true,  qrSize:110,
+    density:1.15, typeScale:1.04, showLogo:true, logoWidth:0.44, headerBand:true,  boxedTotal:true,  qrSize:110,
     rule:'dotted', orderStyle:'spaced', totalStyle:'box', itemStyle:'leaders', sectionLabels:true },
   { id: 'signature', label: 'فخم', desc: 'بيان: شعار كبير، ورقم الطلب والإجمالي أبيض على أسود، وأشرطة سوداء تفصل الأقسام.',
-    density:1.12, typeScale:1.02, showLogo:true, logoWidth:0.52, headerBand:false, boxedTotal:true,  qrSize:110,
+    density:1.12, typeScale:1.02, showLogo:true, logoWidth:0.56, headerBand:false, boxedTotal:true,  qrSize:110,
     rule:'bar', orderStyle:'invert', totalStyle:'invert', itemStyle:'columns', sectionLabels:true },
 ];
 function rkReceiptTheme(id){ return RECEIPT_THEMES.find(t=>t.id===id) || RECEIPT_THEMES[0]; }
@@ -13475,7 +13622,7 @@ function customerReceiptPreviewHtml(themeId){
       // ثم تباين ستّون يجعل النتيجة ثنائية: أسود أو أبيض بلا رمادي.
       // الحافة تقع عند إضاءة 163، أي عتبة المُرمِّز نفسها.
       (t.showLogo && RECEIPT_LOGO_URL)
-        ? '<div style="display:flex; justify-content:center; ' + mb(8) + '"><img src="' + RECEIPT_LOGO_URL + '" alt="" style="width:' + Math.round((t.logoWidth || 0.30) * 100) + '%; max-height:90px; object-fit:contain; filter:grayscale(1) brightness(0.797) contrast(60);"></div>'
+        ? '<div style="display:flex; justify-content:center; ' + mb(8) + '"><img src="' + RECEIPT_LOGO_URL + '" alt="" style="width:' + Math.round((t.logoWidth || 0.42) * 100) + '%; max-height:90px; object-fit:contain; filter:grayscale(1) brightness(0.797) contrast(60);"></div>'
         : '',
       // الاسم يُخفى فقط حين يوجد شعار -- بلا شعار هو الترويسة كلها.
       (RECEIPT_SHOW_NAME || !(t.showLogo && RECEIPT_LOGO_URL))
@@ -14860,6 +15007,10 @@ const RK_ICON_PATHS = {
   clock: '<circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>',
   users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>',
   truck: '<rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle>',
+  /* جهازُ جوال -- لشارة «جوال» في الطلبات. كان الاسم يُطلب ولا وجودَ له
+     في هذي الخريطة (نظيرُه في خرائطَ أخرى لا تخدم rkIcon)، فتخرج الشارة
+     بمربّعٍ فارغٍ قبل الكلمة. (بلاغ صاحب المطعم ٢٠٢٦/١١/٢٠.) */
+  phone: '<rect x="6" y="2" width="12" height="20" rx="2.5"></rect><line x1="10.5" y1="18.5" x2="13.5" y2="18.5"></line>',
   sliders: '<line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line>',
   trendingUp: '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline>',
   bell: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path>',
@@ -15345,7 +15496,8 @@ function rkCheck(inputAttrs, label){
   return `<label class="rk-check"><input type="checkbox" ${inputAttrs}><span class="rk-check-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span>${label}</span></label>`;
 }
 function rkIcon(name){
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${RK_ICON_PATHS[name]}</svg>`;
+  // اسمٌ ليس في الخريطة يُرسم فراغاً، لا كلمةَ undefined داخل الأيقونة.
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${RK_ICON_PATHS[name] || ''}</svg>`;
 }
 // Shared button feedback for the rk-btn system: a real spinner while the
 // request is in flight (no reflow — label goes transparent, width holds),
@@ -15449,6 +15601,10 @@ const rkPricesIncludeVatStatus = c => {
  * فذهب "محلي" كلّه معها وهو يريده. والطاولات تقررها البطاقة تحته لا
  * هو.
  */
+let PHONE_ORDERS_ENABLED = true; // businesses.phone_orders_enabled
+const rkPhoneOrdersStatus = c => c
+  ? {text:'زر «جوال» ظاهر في صفّ التوصيل بالكاشير', tone:'ok'}
+  : {text:'مخفي — تطبيقات التوصيل بس', tone:''};
 const rkDineInStatus = c => c
   ? {text:'زر «محلي» ظاهر بالكاشير', tone:'ok'}
   : {text:'«محلي» مخفي — الطلبات سفري وتوصيل فقط', tone:''};
@@ -15484,6 +15640,11 @@ function restaurantSettingsHtml(){
     <div class="rk-section" ${planAttr('tables_reservations')}>
       ${rkSectionHead('coffee', 'كيف تقدّم طلباتك؟', 'يحدد هل تطلع شاشة الطاولات في الكاشير')}
       ${rkSwitchRow('settingsDineInEnabled', DINE_IN_ENABLED, 'عندي صالة وطاولات (طلبات «محلي»)', 'طفّها لو مطعمك سحابي أو سفري وتوصيل بس.', rkDineInStatus)}
+    </div>
+
+    <div class="rk-section">
+      ${rkSectionHead('phone', 'طلبات الجوال', 'الطلب اللي يجيك باتصال')}
+      ${rkSwitchRow('settingsPhoneOrders', PHONE_ORDERS_ENABLED, 'أستقبل طلبات بالجوال', 'يطلع زر «جوال» جنب كيتا وهنقرستيشن في الكاشير. الطلب يُدفع كاش أو شبكة (مو مدفوع مسبقاً)، ومعه آخر ٤ أرقام من جوال الزبون — تنطبع بخط كبير في ورقة المطبخ عشان تعرف لمين الطلب. طفّها لو ما تستقبل طلبات بالهاتف.', rkPhoneOrdersStatus)}
     </div>
 
     ${businessDaySettingsHtml()}
@@ -15584,6 +15745,7 @@ function wireRestaurantSettings(){
   rkWireSwitchStatus('settingsVatRegistered', rkVatRegisteredStatus);
   rkWireSwitchStatus('settingsPricesIncludeVat', rkPricesIncludeVatStatus);
   rkWireSwitchStatus('settingsDineInEnabled', rkDineInStatus);
+  rkWireSwitchStatus('settingsPhoneOrders', rkPhoneOrdersStatus);
   rkWireSwitchStatus('settingsOnlineBookingEnabled', rkBookingStatus);
 
   const vatRegisteredCheckbox = document.getElementById('settingsVatRegistered');
@@ -15604,6 +15766,8 @@ function wireRestaurantSettings(){
     rkBtnLoading(btn, true);
     try {
       const dineInEnabled = document.getElementById('settingsDineInEnabled').checked;
+      const phoneOrdersEl = document.getElementById('settingsPhoneOrders');
+      const phoneOrders = phoneOrdersEl ? phoneOrdersEl.checked : PHONE_ORDERS_ENABLED;
       const pricesIncludeVat = document.getElementById('settingsPricesIncludeVat').checked;
       const updates = {
         name, vat_registered: vatRegistered,
@@ -15625,16 +15789,28 @@ function wireRestaurantSettings(){
         dayNote = 'يوم العمل يحتاج تحديث بسيط — كلّم الدعم';
       }
       if(dayUpd && !dayNote) await businessDayApplied();
+      /* «طلبات الجوال» في حفظةٍ مستقلّة -- وعمدًا.
+         لو كان ضمن الحفظة الكبيرة وما كان العمودُ مضافاً بعد، لسقطت
+         الحفظةُ كلُّها: اسمُ المطعم والضريبةُ والشعار، ولقال لصاحبه
+         «تعذّر الحفظ» بلا سبب. فيُحفظ وحده، وسقوطُه لا يمسّ غيره. */
+      let phoneNote = '';
+      try {
+        await updateCurrentBusiness({ phone_orders_enabled: phoneOrders });
+      } catch(err){
+        phoneNote = 'طلبات الجوال تحتاج تحديث بسيط — كلّم الدعم';
+      }
       RESTAURANT_INFO.name = name;
       VAT_REGISTERED = vatRegistered;
       BUSINESS_VAT_RATE = updates.vat_rate;
       BUSINESS_VAT_NUMBER = updates.vat_number || '';
       PRICES_INCLUDE_VAT = pricesIncludeVat;
       DINE_IN_ENABLED = dineInEnabled;
+      PHONE_ORDERS_ENABLED = phoneNote ? PHONE_ORDERS_ENABLED : phoneOrders;
       if(updates.logo_url) BUSINESS_LOGO_URL = updates.logo_url;
       logDashboardAudit('عدّل معلومات المطعم' + (dayUpd && !dayNote ? ' (يوم العمل يقفل ' + rkDayCutoffLabel(DAY_CUTOFF) + ')' : ''));
       rkBtnSuccess(btn, dayUpd && !dayNote ? '✓ انحفظ — يومك يقفل ' + rkDayCutoffLabel(DAY_CUTOFF) : '✓ تم الحفظ');
       if(dayNote) showToast(dayNote);
+      if(phoneNote) showToast(phoneNote);
       setTimeout(renderSettingsPanel, 1100);
     } catch(err){
       rkBtnLoading(btn, false);
@@ -29666,7 +29842,7 @@ function rkaAcctWaterfallText(){
   s += '• = مجمل الربح: ' + n(a.grossProfit) + ' ر.س\n';
   // بدونه لا تُجمع الأسطر إلى صافي الربح -- والملخّص النصّي يُقرأ
   // حسابًا لا عنوانًا، فسطرٌ ناقص فيه يعني أن الأرقام لا تنطبق.
-  s += '• − الهدر: ' + n(a.wasteCost || 0) + ' ر.س — كلفة اللي انسجّل هدره اليوم\n';
+  s += '• − الهدر: ' + n(a.wasteCost || 0) + ' ر.س — كلفة اللي اتسجّل هدره اليوم\n';
   s += '• − المصاريف التشغيلية: ' + n(a.opex) + ' ر.س — الثابتة الشهرية موزّعة على اليوم + مصاريف اليوم الإضافية (' + n(b.todayExpenses) + ' ر.س)\n';
   s += '• = صافي الربح: ' + rkaAcctFmt(Number(a.netProfit) || 0) + ' ر.س';
   const margin = (Number(a.netSales) > 0) ? (Number(a.netProfit) / Number(a.netSales) * 100) : 0;
