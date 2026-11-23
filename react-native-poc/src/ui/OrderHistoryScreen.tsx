@@ -24,7 +24,7 @@ import { enqueuePrintJob } from '../application/printService';
 import { getDeviceConfig } from '../application/authService';
 import { getReceiptBranding } from '../application/catalogService';
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
-import { kitchenTicketByButton, shouldPrintCustomerReceipt, shouldPrintReceiptLogo } from '../domain/printerProfile';
+import { shouldPrintCustomerReceipt, shouldPrintReceiptLogo } from '../domain/printerProfile';
 import type { KitchenTicketData, ReceiptData } from '../domain/receipt';
 import { planHas } from '../application/planService';
 import { PHONE_PLATFORM_LABEL, isPhoneOrderRow } from '../domain/phoneOrder';
@@ -225,14 +225,20 @@ export default function OrderHistoryScreen({
   const [reprintBusy, setReprintBusy] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [reprintStatus, setReprintStatus] = useState('');
-  /** «الطابعة ما تقص الورق» is on: the kitchen ticket left the order and
-   *  waits here, beside «إعادة طباعة». Read when an order opens, so a
-   *  change in the printer settings shows on the next order. */
+  /**
+   * زرُّ «تذكرة المطبخ» -- لكلِّ من يطبع تذاكرَ مطبخ، لا لوضعٍ واحد.
+   *
+   * كان مشروطاً بوضع «الطابعة ما تقص الورق» وحدَه (kitchenTicketByButton):
+   * فمن تُطبع تذكرتُه تلقائياً مع الطلب لا يجد طريقةً لإعادة طباعتها
+   * أبداً -- والورقةُ تضيع أو تخرج مشوّهةً أو يحتاجها المطبخُ مرّةً
+   * ثانية. لاحظه المالك عند مطعمٍ حقيقيّ: «ما في إعادة طباعة فاتورة
+   * المطبخ». فصار الشرطُ أن يكون المطعمُ يطبع تذاكرَ مطبخٍ أصلاً.
+   */
   const [kitchenButton, setKitchenButton] = useState(false);
   useEffect(() => {
     if (!detail) return;
     getPrinterProfile()
-      .then(p => setKitchenButton(kitchenTicketByButton(p) && planHas('kds')))
+      .then(p => setKitchenButton(p?.printKitchenTicket === true && planHas('kds')))
       .catch(() => setKitchenButton(false));
   }, [detail]);
 

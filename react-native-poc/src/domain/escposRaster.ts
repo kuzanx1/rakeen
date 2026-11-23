@@ -207,6 +207,49 @@ export function bytesToBase64Fast(bytes: Uint8Array): string {
 }
 
 /**
+ * ارتفاعُ الشريحة الواحدة بالأسطر.
+ *
+ * على ورق ٨٠مم (٧٢ بايتاً للسطر) = ٩٢١٦ بايتاً للشريحة -- أقلُّ من
+ * قطعةِ الإرسال على USB (١٦ ك.ب)، فتمرّ كلُّ شريحةٍ في دفعةٍ واحدة.
+ */
+const BAND_ROWS = 128;
+
+/**
+ * صورةٌ واحدةٌ تُرسَل شرائحَ، كلُّ شريحةٍ بأمرِ `GS v 0` خاصٍّ بها.
+ *
+ * فأمرٌ واحدٌ لمئةِ كيلوبايت يعني أنّ الطابعةَ تنتظر مئةَ كيلوبايتٍ
+ * بالضبط: إن انقطع الإرسالُ في منتصفها بقيت تبتلع كلَّ ما يأتي بعده
+ * كأنه بقيّةُ الصورة -- فتخرج فاتورةٌ «محيوسة» ثم مترُ ورقٍ رموزاً.
+ * وقع هذا عند مطعمٍ حقيقيٍّ على طابعة TA POS، ورآه المالكُ بعينه.
+ *
+ * وبالشرائح يبقى الضررُ محصوراً في شريحةٍ بطول سنتيمترٍ ونصف: رأسُ
+ * الشريحةِ التي بعدها يُعيد الطابعةَ إلى وضعِ الصورة من جديد. وهذا ما
+ * تفعله مكتباتُ ESC/POS المعروفة كلُّها (python-escpos تقطّع افتراضياً)،
+ * لا اجتهادٌ منّا.
+ *
+ * ولا فراغَ بين الشرائح: `GS v 0` يطبع ويدفع الورقَ بمقدار ارتفاعه
+ * بالضبط، فتلتحم الشريحةُ بالتي قبلها.
+ *
+ * ونفسُه حرفاً بحرفٍ في كاشير الويب (canvasToEscPosRaster).
+ */
+function bandedLegacyJob(head: number[], bitmap: Uint8Array, bytesPerRow: number, height: number, tail: number[]): Uint8Array {
+  const bands = Math.ceil(height / BAND_ROWS);
+  const job = new Uint8Array(head.length + bands * 8 + bitmap.length + tail.length);
+  let at = 0;
+  job.set(head, at);
+  at += head.length;
+  for (let y = 0; y < height; y += BAND_ROWS) {
+    const rows = Math.min(BAND_ROWS, height - y);
+    job.set([0x1d, 0x76, 0x30, 0x00, bytesPerRow & 0xff, (bytesPerRow >> 8) & 0xff, rows & 0xff, (rows >> 8) & 0xff], at);
+    at += 8;
+    job.set(bitmap.subarray(y * bytesPerRow, (y + rows) * bytesPerRow), at);
+    at += rows * bytesPerRow;
+  }
+  job.set(tail, at);
+  return job;
+}
+
+/**
  * مهمّة الطباعة كاملة (تهيئة + صورة + تغذية + قصّ) base64 جاهزاً للإرسال.
  *
  * مصفوفة بايتات واحدة من أولها لآخرها: لا number[] بمئة وثلاثين ألف
@@ -231,13 +274,10 @@ export function rasterJobBase64(buffer: RgbaBuffer, command: 'modern' | 'legacy'
     ];
     tail = [0x1d, 0x28, 0x4c, 0x02, 0x00, 0x30, 0x32, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00];
   } else {
-    head = [
-      0x1b, 0x40,
-      0x1d, 0x76, 0x30, 0x00,
-      bytesPerRow & 0xff, (bytesPerRow >> 8) & 0xff,
-      height & 0xff, (height >> 8) & 0xff,
-    ];
-    tail = [0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00];
+    // شرائحُ لا كتلةٌ واحدة -- انظر bandedLegacyJob.
+    return bytesToBase64Fast(
+      bandedLegacyJob([0x1b, 0x40], bitmap, bytesPerRow, height, [0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00]),
+    );
   }
   const job = new Uint8Array(head.length + bitmap.length + tail.length);
   job.set(head, 0);

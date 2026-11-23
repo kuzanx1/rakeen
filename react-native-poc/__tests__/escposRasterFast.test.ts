@@ -21,18 +21,65 @@ function fakeReceipt(width: number, height: number, opaque = true): RgbaBuffer {
 const oldJob = (b: RgbaBuffer, cmd: 'modern' | 'legacy') =>
   bytesToBase64([0x1b, 0x40, ...(cmd === 'modern' ? rgbaToEscPosRaster(b) : rgbaToEscPosRasterLegacy(b)), 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00]);
 
+/**
+ * يُعيد بناءَ المهمّة كما لو أُرسلت كتلةً واحدة.
+ *
+ * فالمهمّةُ تُرسَل اليوم شرائحَ (bandedLegacyJob)، والمقارنةُ بايتاً
+ * ببايتٍ مع المُرمِّز المرجعيِّ لا تصحّ إلا بعد لمِّ الشرائح. والذي
+ * يُحرَس هنا هو ما يصل الطابعةَ من بكسلات: الشرائحُ تغيّر التغليفَ
+ * لا الصورة.
+ */
+function unband(b64: string): string {
+  const job = Uint8Array.from(Buffer.from(b64, 'base64'));
+  const payload: number[] = [];
+  let at = 2;
+  let bpr = 0;
+  let rows = 0;
+  while (at + 8 <= job.length && job[at] === 0x1d && job[at + 1] === 0x76 && job[at + 2] === 0x30) {
+    bpr = job[at + 4] | (job[at + 5] << 8);
+    const n = job[at + 6] | (job[at + 7] << 8);
+    rows += n;
+    at += 8;
+    for (let i = 0; i < bpr * n; i++) payload.push(job[at + i]);
+    at += bpr * n;
+  }
+  const out: number[] = [job[0], job[1], 0x1d, 0x76, 0x30, 0x00, bpr & 0xff, (bpr >> 8) & 0xff, rows & 0xff, (rows >> 8) & 0xff];
+  for (const byte of payload) out.push(byte);
+  while (at < job.length) out.push(job[at++]);
+  return bytesToBase64(out);
+}
+
+/** عددُ شرائح GS v 0 في مهمّة. */
+function bandCount(b64: string): number {
+  const job = Uint8Array.from(Buffer.from(b64, 'base64'));
+  let n = 0;
+  for (let i = 0; i + 2 < job.length; i++) {
+    if (job[i] === 0x1d && job[i + 1] === 0x76 && job[i + 2] === 0x30) n++;
+  }
+  return n;
+}
+
 describe('fast raster job', () => {
   for (const [w, h] of [[576, 900], [384, 501], [577, 33], [8, 1]] as const) {
     for (const cmd of ['legacy', 'modern'] as const) {
       it(`matches the old encoder byte for byte — ${w}x${h} ${cmd}`, () => {
         const b = fakeReceipt(w, h);
-        expect(rasterJobBase64(b, cmd)).toBe(oldJob(b, cmd));
+        const got = rasterJobBase64(b, cmd);
+        expect(cmd === 'legacy' ? unband(got) : got).toBe(oldJob(b, cmd));
       });
     }
   }
   it('matches with partial alpha too', () => {
     const b = fakeReceipt(576, 300, false);
-    expect(rasterJobBase64(b, 'legacy')).toBe(oldJob(b, 'legacy'));
+    expect(unband(rasterJobBase64(b, 'legacy'))).toBe(oldJob(b, 'legacy'));
+  });
+
+  /* والتقطيعُ نفسُه محروس: كتلةٌ واحدةٌ من مئة كيلوبايتٍ هي التي تجعل
+     انقطاعاً واحداً يُخرج متر ورقٍ رموزاً. */
+  it('تُرسَل شرائحَ لا كتلةً واحدة', () => {
+    expect(bandCount(rasterJobBase64(fakeReceipt(576, 1356), 'legacy'))).toBe(Math.ceil(1356 / 128));
+    expect(bandCount(rasterJobBase64(fakeReceipt(576, 128), 'legacy'))).toBe(1);
+    expect(bandCount(rasterJobBase64(fakeReceipt(576, 129), 'legacy'))).toBe(2);
   });
   it('base64 handles every tail length', () => {
     for (let n = 0; n < 20; n++) {

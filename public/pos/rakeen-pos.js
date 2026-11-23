@@ -6451,10 +6451,23 @@ function canvasToEscPosRaster(canvas){
       }
     }
   }
-  const header = new Uint8Array([0x1D, 0x76, 0x30, 0x00, bytesPerRow & 0xFF, (bytesPerRow >> 8) & 0xFF, h & 0xFF, (h >> 8) & 0xFF]);
-  const out = new Uint8Array(header.length + raster.length);
-  out.set(header, 0);
-  out.set(raster, header.length);
+  /* شرائحُ لا كتلةٌ واحدة: أمرٌ واحدٌ لمئةِ كيلوبايت يعني أنّ الطابعةَ
+     تنتظر مئةَ كيلوبايتٍ بالضبط، فإن انقطع الإرسالُ في منتصفها ابتلعت
+     كلَّ ما بعده كأنه بقيّةُ الصورة -- فاتورةٌ «محيوسة» ثم مترُ ورقٍ
+     رموزاً. وقع عند مطعمٍ حقيقيٍّ على طابعة TA POS. وبالشرائح يبقى
+     الضررُ في شريحةٍ واحدة، ورأسُ التي بعدها يُعيد الطابعةَ إلى وضعِ
+     الصورة. ونفسُه في التطبيق (domain/escposRaster.ts bandedLegacyJob). */
+  const BAND_ROWS = 128;
+  const bands = Math.ceil(h / BAND_ROWS);
+  const out = new Uint8Array(bands * 8 + raster.length);
+  let at = 0;
+  for(let y = 0; y < h; y += BAND_ROWS){
+    const rows = Math.min(BAND_ROWS, h - y);
+    out.set([0x1D, 0x76, 0x30, 0x00, bytesPerRow & 0xFF, (bytesPerRow >> 8) & 0xFF, rows & 0xFF, (rows >> 8) & 0xFF], at);
+    at += 8;
+    out.set(raster.subarray(y * bytesPerRow, (y + rows) * bytesPerRow), at);
+    at += rows * bytesPerRow;
+  }
   return out;
 }
 
@@ -7055,6 +7068,17 @@ function kitchenTicketWaitsForButton(){
   return DEVICE.printKitchenTicket === true && DEVICE.kitchenTicketByButton === true && posPlanHas('kds');
 }
 
+/** زرُّ إعادةِ طباعةِ تذكرةِ المطبخ -- لكلِّ من يطبع تذاكرَ مطبخ.
+ *
+ *  وهو غيرُ kitchenTicketWaitsForButton: ذاك يقرّر هل تُحجب التذكرةُ
+ *  عند الدفع، وهذا يقرّر هل يستطيع أن يعيد طباعتها بعدين. وكانا
+ *  واحداً، فمن تُطبع تذكرتُه تلقائياً ما كان يجد طريقةً لإعادتها
+ *  أبداً -- والورقةُ تضيع أو تخرج مشوّهة. ونفسُه في التطبيق
+ *  (OrderHistoryScreen: printKitchenTicket === true). */
+function kitchenTicketReprintable(){
+  return DEVICE.printKitchenTicket === true && posPlanHas('kds');
+}
+
 function buildDbKitchenReceiptData(order, items){
   const mapped = (items || []).map(it=>{
     const product = rkFindProduct(it.menu_item_id);
@@ -7312,7 +7336,7 @@ async function completePayment(){
   const kitchenData = buildKitchenReceiptData(orderPayload);
   const wasResumingOrder = !!state.resumingOrder;
   state.lastTransaction.receipt = receiptData;
-  state.lastTransaction.kitchen = kitchenTicketWaitsForButton() ? kitchenData : null;
+  state.lastTransaction.kitchen = kitchenTicketReprintable() ? kitchenData : null;
   state.cart = []; state.customer = null; state.discountPct = 0; state.discountFixed = 0; state.discountReason = '';
   // الرصيد يسقط مع الطلب الذي صُرف فيه -- لا يُورَّث لطلب زبونٍ آخر.
   state.freeRewardCredit = 0; state.rewardArm = null;
@@ -7861,7 +7885,7 @@ async function openOrderDetail(orderId){
       ` : ''}
       <div class="receipt-actions">
         <button class="receipt-action-btn" id="reprintBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>إعادة طباعة</button>
-        ${kitchenTicketWaitsForButton() ? `<button class="receipt-action-btn" id="kitchenTicketBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z"/><path d="M6 17h12"/></svg>فاتورة المطبخ</button>` : ''}
+        ${kitchenTicketReprintable() ? `<button class="receipt-action-btn" id="kitchenTicketBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z"/><path d="M6 17h12"/></svg>فاتورة المطبخ</button>` : ''}
         ${(order.status === 'completed' || order.status === 'partially_refunded') ? `<button class="receipt-action-btn" id="refundOrderBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>استرجاع مبلغ</button>` : ''}
       </div>
     </div>
