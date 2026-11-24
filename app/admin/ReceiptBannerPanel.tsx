@@ -52,7 +52,7 @@ function Diamond({ color }: { color: string }) {
 const SPEECH = [BANNER_COPY.speech.head, BANNER_COPY.speech.body, BANNER_COPY.speech.tail];
 
 const CHOICES: Array<{ kind: Kind; label: string; desc: string; paper: string }> = [
-  { kind: "none", label: "إخفاء الميزة", desc: "لا شيء يُطبع في أي مطعم، ويختفي الاختيار من لوحاتهم.", paper: "—" },
+  { kind: "none", label: "إخفاء الميزة", desc: "تختفي من لوحات المطاعم، ولا يُطبع شيء في أي مكان.", paper: "—" },
   { kind: "shield", label: "١ · إطار", desc: "الأقصر ورقًا — سطران داخل إطار مزدوج.", paper: "٢٦ ملم" },
   { kind: "plain", label: "٢ · بلا خلفية", desc: "حبر على ورق، بين شريطَي سدو.", paper: "٣٣ ملم" },
   { kind: "invert", label: "٣ · خلفية سوداء", desc: "نفس النص، كتلة سوداء ونص أبيض.", paper: "٣٩ ملم" },
@@ -126,7 +126,7 @@ export default function ReceiptBannerPanel({ token }: { token: string }) {
       setKind(j.kind as Kind);
       setNote(j.kind === "none"
         ? "أُخفيت. لا شيء يُطبع في أي مطعم، واختفى الاختيار من لوحاتهم."
-        : "شُغّل. يظهر على فواتير كل مطعم لم يختر غيره، بعد تحديث الهوية على أجهزتهم.");
+        : "أُتيحت. تظهر الآن في لوحة كل مطعم، ولا تُطبع إلا على من يفعّلها بنفسه.");
     } catch {
       setError("تعذّر الوصول للخادم");
     } finally {
@@ -144,9 +144,10 @@ export default function ReceiptBannerPanel({ token }: { token: string }) {
       {kind && kind !== "none" && (
         <p style={{ color: "#6B6B6B", fontSize: 13, lineHeight: 1.8, background: "#F7F6F1", padding: "10px 14px", borderRadius: 8, marginBottom: 14 }}>
           {Object.keys(overrides).length === 0
-            ? "ولا مطعم غيّر اختيارك حتى الآن — كلهم يطبعون التصميم أعلاه."
-            : "غيّروا اختيارك: " + Object.entries(overrides)
-                .map(([k, n]) => (k === "none" ? "رفعوه عن فواتيرهم" : "اختاروا «" + (CHOICES.find(c => c.kind === k)?.label || k) + "»") + " — " + n)
+            ? "ولا مطعم فعّلها حتى الآن — ما يُطبع شيء على أي فاتورة."
+            : "فعّلوها: " + Object.entries(overrides)
+                .filter(([k]) => k !== "none")
+                .map(([k, n]) => "«" + (CHOICES.find(c => c.kind === k)?.label || k) + "» — " + n)
                 .join("، ") + "."}
         </p>
       )}
@@ -157,8 +158,9 @@ export default function ReceiptBannerPanel({ token }: { token: string }) {
         على الورق الحراري، ويضيق وحده على ورق ٥٨ ملم بدل أن يُقَصّ.
         {kind && kind !== "none" && <strong style={{ color: "#B0402C" }}> شغّال الآن.</strong>}
         <br />
-        وهذا الاختيار افتراض لا أمر: كل مطعم يقدر يغيّره أو يرفعه عن فواتيره من لوحته
-        (مطعمك ← الفاتورة ← «شريط الفاتورة»). و«إخفاء الميزة» وحده يغلب الجميع.
+        وهو اقتراح لا أمر: <strong>لا يُطبع على أي مطعم حتى يفعّله صاحبه بنفسه</strong> من
+        لوحته (مطعمك ← الفاتورة ← «شريط الفاتورة»)، وله أن يختار تصميماً غير المقترح.
+        و«إخفاء الميزة» وحده يغلب الجميع.
       </p>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 14, marginBottom: 20 }}>
@@ -202,7 +204,7 @@ export default function ReceiptBannerPanel({ token }: { token: string }) {
             cursor: pending === kind || busy ? "default" : "pointer",
           }}
         >
-          {busy ? "جاري الحفظ…" : pending === "none" ? "أخفِ الميزة بالكامل" : "شغّل هذا التصميم"}
+          {busy ? "جاري الحفظ…" : pending === "none" ? "أخفِ الميزة بالكامل" : "أتِح هذا التصميم للمطاعم"}
         </button>
         {meta.at && (
           <span style={{ fontSize: 13, color: "#6B6B6B" }}>

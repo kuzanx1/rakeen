@@ -12598,10 +12598,15 @@ async function loadReceiptBannerState(){
   return { platform, mine };
 }
 
-/** ما يُطبع على ورقة هذا المطعم الآن -- نفس قاعدة rk_receipt_banner(). */
+/**
+ * ما يُطبع على ورقة هذا المطعم الآن -- نفس قاعدة rk_receipt_banner().
+ *
+ * ولا شيءَ ما لم يُفعّله صاحبُه: اختيارُ ركين اقتراحٌ لا أمر، والورقةُ
+ * ورقتُهم. فمن لم يفتح هذي الشاشةَ قطّ تبقى فاتورتُه كما كانت.
+ */
 function receiptBannerEffective(){
   if(RECEIPT_BANNER_PLATFORM === 'none') return 'none';
-  return RECEIPT_BANNER_MINE || RECEIPT_BANNER_PLATFORM;
+  return RECEIPT_BANNER_MINE || 'none';
 }
 let DINE_IN_ENABLED = true;
 let ONLINE_ORDERING_ENABLED = false;
@@ -13736,10 +13741,11 @@ function branchWeeklyHoursHtml(branchId, rows){
 }
 
 /**
- * شريطُ الفاتورة -- اختيارُ المطعم نفسه.
+ * شريطُ الفاتورة -- يُفعّله صاحبُ المطعم بنفسه.
  *
- * والشاشةُ لا تُرسم إن أطفأت ركين الميزة: اختيارٌ لشيءٍ لا يُطبع عبثٌ
- * يملأ الإعدادات، ويترك في اللوحة بقايا مناسبةٍ انتهت.
+ * ولا يُطبع شيءٌ حتى يفعّله: فاتورتُه تبقى كما هي ما لم يدخل هنا
+ * ويختار. والشاشةُ لا تُرسم إن أخفت ركين الميزة: تفعيلٌ لشيءٍ لا
+ * يُطبع عبثٌ يملأ الإعدادات، ويترك في اللوحة بقايا مناسبةٍ انتهت.
  *
  * والمعاينةُ بخطّ العرض نفسِه وزخرفته (RkBannerDisplay) -- معاينةٌ بخطٍّ
  * آخر معاينةُ شيءٍ آخر، يختار المالكُ ما لم يره. وهي مصغَّرةٌ لا
@@ -13778,22 +13784,24 @@ function receiptBannerPickerHtml(){
     plain: `<div>${sadu('#121212', false)}${body('#121212', 17)}${sadu('#121212', true)}</div>`,
     invert: `<div style="background:#121212;padding:10px 9px;">${sadu('#fff', false)}${body('#fff', 17)}${sadu('#fff', true)}</div>`,
   };
-  const label = { none: 'ما أبيه على فواتيري', shield: 'إطار', plain: 'بلا خلفية', invert: 'خلفية سوداء' };
-  const note = { none: 'الفاتورة كما هي', shield: 'يأكل ٢٦ ملم من الورق', plain: 'يأكل ٣٣ ملم', invert: 'يأكل ٣٩ ملم' };
+  const label = { none: 'بدون — فاتورتي كما هي', shield: 'إطار', plain: 'بلا خلفية', invert: 'خلفية سوداء' };
+  const note = { none: 'الوضع الحالي، ما يُطبع شي', shield: 'يزيد الورق ٢٦ ملم', plain: 'يزيد الورق ٣٣ ملم', invert: 'يزيد الورق ٣٩ ملم' };
+  const suggested = RECEIPT_BANNER_PLATFORM;
   return `
     <div class="rk-section" style="margin-bottom:16px;">
-      ${rkSectionHead('fileText', 'شريط الفاتورة', 'يُطبع تحت شعار مطعمك وسطره التعريفي — اختر شكله أو ارفعه عن فواتيرك')}
+      ${rkSectionHead('fileText', 'شريط الفاتورة — ميزة جديدة', 'شريط وطني يُطبع تحت شعار مطعمك وسطره التعريفي. ما يُطبع إلا إذا فعّلته أنت')}
       <div class="rk-theme-cards">
         ${RECEIPT_BANNER_KINDS.map(k => `
           <button type="button" class="rk-theme-card ${k === cur ? 'selected' : ''}" data-receiptbanner="${k}" style="text-align:right;">
-            <span class="rk-theme-card-name">${label[k]}</span>
+            <span class="rk-theme-card-name">${label[k]}${k === suggested ? ' <span style="font-weight:700;font-size:10.5px;color:var(--lime-deep);">· مقترح من ركين</span>' : ''}</span>
             <span class="rk-theme-card-desc">${note[k]}</span>
             <div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 8px;margin-top:8px;min-height:92px;display:flex;flex-direction:column;justify-content:center;">${art[k]}</div>
           </button>`).join('')}
       </div>
-      <button class="rk-btn rk-btn-primary rk-btn-md" id="receiptBannerSaveBtn" style="margin-top:12px;">حفظ الشريط</button>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="receiptBannerSaveBtn" style="margin-top:12px;">فعّل على فواتيري</button>
       <p style="font-size:12px; color:var(--muted); line-height:1.8; margin-top:10px;">
-        يظهر على الفاتورة التالية بعد تحديث الجهاز لبيانات مطعمك — بلا تحديث للتطبيق.
+        ما يُطبع شي حتى تفعّله من هنا، وتقدر ترجعه إلى «بدون» في أي وقت.
+        ويظهر على الفاتورة التالية بعد تحديث الجهاز لبيانات مطعمك — بلا تحديث للتطبيق.
       </p>
     </div>`;
 }
@@ -14534,6 +14542,8 @@ async function renderPosSettings(){
     card.addEventListener('click', ()=>{
       pendingBanner = card.dataset.receiptbanner;
       document.querySelectorAll('[data-receiptbanner]').forEach(c=>c.classList.toggle('selected', c === card));
+      const b = document.getElementById('receiptBannerSaveBtn');
+      if(b) b.textContent = pendingBanner === 'none' ? 'لا تطبع شي على فواتيري' : 'فعّل على فواتيري';
     });
   });
 

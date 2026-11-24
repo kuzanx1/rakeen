@@ -18,7 +18,7 @@
 -- والمجاميعُ لا المعدّلات: المعدّلُ لا يُجمَع، والمجموعُ يُجمَع. فنحفظ
 -- مجموعَ الملّي ثانية ومجموعَ البايتات، ونقسم عند القراءة.
 
-create table print_health_daily (
+create table if not exists print_health_daily (
   id bigint generated always as identity primary key,
   business_id bigint not null references businesses(id) on delete cascade,
   branch_id bigint references branches(id) on delete set null,
@@ -55,11 +55,11 @@ create table print_health_daily (
 
 -- صفٌّ واحدٌ لكلِّ مفتاح. وcoalesce لأنّ null لا يساوي null في فهرسٍ
 -- فريد، فجهازٌ بلا فرعٍ كان سيُنشئ صفّاً جديداً مع كلِّ دفعة.
-create unique index print_health_daily_key_idx
+create unique index if not exists print_health_daily_key_idx
   on print_health_daily (business_id, coalesce(branch_id, 0), day, device_label, printer_key);
-create index print_health_daily_day_idx on print_health_daily (day desc);
+create index if not exists print_health_daily_day_idx on print_health_daily (day desc);
 -- للوحة ركين: «أرِني كلَّ طابعةٍ انقطع عليها إرسالٌ هذا الأسبوع».
-create index print_health_daily_trouble_idx on print_health_daily (day desc)
+create index if not exists print_health_daily_trouble_idx on print_health_daily (day desc)
   where truncations > 0 or jobs_failed > 0 or paced;
 
 alter table print_health_daily enable row level security;
@@ -67,6 +67,9 @@ alter table print_health_daily enable row level security;
 -- المنشأةُ تقرأ صحّةَ طابعاتها هي -- لشاشةِ التشخيص عندها، ولا تكتب:
 -- الكتابةُ كلُّها من المسار المشترك بمفتاح الخدمة، فلا يستطيع جهازٌ
 -- أن يكتب أرقامَ غيره ولا أن يزوّر أرقامَ نفسه.
+-- وتُسقَط أوّلاً لو كانت: الملفُّ يُشغَّل يدوياً، وتشغيلُه مرّتين
+-- لا يجوز أن يسقط بـ«موجودةٌ سلفاً».
+drop policy if exists print_health_daily_read_own on print_health_daily;
 create policy print_health_daily_read_own on print_health_daily for select
   using (business_id = current_business_id());
 

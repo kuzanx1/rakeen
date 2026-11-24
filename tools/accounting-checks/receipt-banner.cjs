@@ -14,6 +14,8 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.resolve(__dirname, '..', '..');
+let _bizDash = null;
+const bizDash0 = () => (_bizDash ??= fs.readFileSync(path.join(root, 'public/dashboard/rakeen-dashboard.js'), 'utf8'));
 
 /**
  * محارفُ ملفِّ خطٍّ -- من جدول cmap مباشرةً.
@@ -147,11 +149,20 @@ if (!/create or replace function public\.rk_receipt_banner\(\)/.test(perBiz)) {
 if (!/when p\.kind = 'none' then 'none'/.test(perBiz)) {
   fails.push('إخفاءُ ركين لا يغلب اختيارَ المطعم — مناسبةٌ تنتهي وتبقى تُطبع');
 }
+/* ولا تُطبع على أحدٍ بلا طلبه: مطعمٌ لم يفعّلها تبقى ورقتُه كما هي.
+   ولو عاد هذا السطرُ إلى p.kind لَطُبع الشريطُ على كلِّ مطعمٍ في
+   المنصّة لحظةَ إتاحته -- على ورقةٍ ليست لنا، وبلا أن يطلب أحد. */
+if (!/else coalesce\(nullif\(b\.receipt_banner, ''\), 'none'\)/.test(perBiz)) {
+  fails.push('الشريطُ يُطبع بلا تفعيلٍ من المطعم — الورقةُ ورقتُهم، ولا تُزاد إلّا بإذنهم');
+}
+if (!/return RECEIPT_BANNER_MINE \|\| 'none';/.test(bizDash0())) {
+  fails.push('لوحةُ المطعم تَعرض الشريطَ مُفعَّلاً وهو ليس كذلك');
+}
 if (!/rk_receipt_banner_platform/.test(perBiz)) {
   fails.push('لا دالّةَ تقرأ اختيارَ ركين وحده — لوحةُ المطعم لا تعرف أتَعرِض الشاشةَ أم لا');
 }
 
-const bizDash = read('public/dashboard/rakeen-dashboard.js');
+const bizDash = bizDash0();
 if (!bizDash.includes('data-receiptbanner')) fails.push('لوحةُ المطعم بلا شاشةِ اختيارٍ للشريط');
 if (!/updateCurrentBusiness\(\{ receipt_banner: pendingBanner \}\)/.test(bizDash)) {
   fails.push('لوحةُ المطعم تعرض الاختيارَ ولا تحفظه');
