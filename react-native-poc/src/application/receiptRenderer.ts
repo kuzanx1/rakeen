@@ -4,6 +4,7 @@ import { createReceiptSurface, loadRemoteImage } from '../platform/receiptCanvas
 import { loadReceiptTypefaces } from '../platform/receiptFonts';
 import { buildReceiptFontProvider, paintTextAnchored, measureTextWidthWeighted } from '../platform/receiptText';
 import { rasterJobBase64, RgbaBuffer, PrintDarkness, RasterRect } from '../domain/escposRaster';
+import type { BannerKind } from '../../../shared/receipt';
 import type { PrintTimer } from './printTiming';
 import { zatcaQrBase64 } from '../domain/zatca';
 import { buildQrMatrix } from '../domain/qrMatrix';
@@ -254,6 +255,7 @@ export async function renderReceiptToEscPosBase64(
   rasterCommand?: 'modern' | 'legacy',
   timer?: PrintTimer,
   darkness?: PrintDarkness,
+  banner?: BannerKind | null,
 ): Promise<string> {
   try {
     const receipt = toReceiptPrintable(printerPaperWidthPx != null ? { ...data, paperWidthPx: printerPaperWidthPx } : data);
@@ -323,6 +325,10 @@ export async function renderReceiptToEscPosBase64(
       // بيجر ركين: نفس بلوك الويب من نفس المحرّك، والباركود يُبنى هنا
       // من الرابط بلا شبكة (qrMatrix) -- فالفاتورة تطلع والجهاز أوفلاين.
       pager: receipt.pager ? { ...receipt.pager, qr: pagerQrGrid(receipt.pager.url) } : null,
+      // الشريطُ الوطنيّ المؤقّت -- قيمةُ المنصّة، تُقرأ عند الإرسال
+      // كالقالب تماماً: ورقةٌ في الطابور قبل الإطفاء تخرج بما استقرّ
+      // عليه الأمرُ حين بلغت الورق، لا حين وُضعت في الطابور.
+      banner: banner ?? 'none',
     });
 
     /* ارتفاعٌ محسوبٌ بالضبط قبل أن تُحجز اللوحة.

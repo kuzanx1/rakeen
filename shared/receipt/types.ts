@@ -14,6 +14,8 @@
  * يستطيع المنفّذُ أن يخطئ فيه أقلُّ ما يمكن.
  */
 
+import type { BannerKind } from './banner';
+
 export type Align = 'left' | 'center' | 'right';
 export type Dir = 'rtl' | 'ltr';
 /** العربيةُ والعناوين بـsans، والأرقامُ والمبالغُ بـmono لتصطفّ خاناتُها. */
@@ -120,6 +122,18 @@ export interface ImageSize {
 export interface ReceiptItemMod {
   text: string;
   textEn?: string | null;
+  /**
+   * ما كلّفت هذه الإضافةُ في السطر، بالريال -- سعرُها × عددها.
+   *
+   * كانت الإضافةُ تُطبع اسماً بلا ثمن، ومجموعُ السطر يحملها: فالزبون
+   * يدفع ستة ريالاتِ طحينةٍ لا يراها مكتوبةً في أي سطر، ولا يملك إلا
+   * أن يصدّق المجموع. وازداد الأمرُ بالعدّاد: «طحينة ×3» ثلاثةُ أضعافِ
+   * ما يظنّه من يقرأ اسماً مجرّداً.
+   *
+   * تُترك فارغةً للمجاني -- وطبعُ «0.00» تحت كل «بدون بصل» ضجيجٌ لا خبر.
+   * وتذكرةُ المطبخ لا تقرأ هذا الحقل أصلاً: لا مال فيها.
+   */
+  price?: number | null;
 }
 
 export interface ReceiptItem {
@@ -156,6 +170,15 @@ export interface ReceiptModel {
   /** طلبُ تطبيق توصيل: اسمُ التطبيق وآخرُ ٤ أرقام من فاتورته. */
   platformName?: string | null;
   platformInvoiceLast4?: string | null;
+  /**
+   * طلبُ جوال: فالأربعةُ من جوال الزبون لا من فاتورة تطبيق.
+   *
+   * ولا يُستنبط من الاسم: اسمُ المصدر يُترك فارغاً في طلب الجوال لأنّ
+   * نوعَ الطلب نفسَه صار يقول «جوال»، فلا شيءَ في النموذج يفرّق --
+   * فيُقال صراحةً. (أبلغ صاحبُ المطعم أنّ فاتورة العميل تكتب «آخر ٤
+   * أرقام فاتورة التطبيق» لطلبٍ جاء بالهاتف، ٢٠٢٦/١١/٢٠.)
+   */
+  phoneOrder?: boolean;
   customerName?: string | null;
   customerPhone?: string | null;
   items: ReceiptItem[];
@@ -210,6 +233,8 @@ export interface LayoutInput {
   currency: string;
   logo?: ImageSize | null;
   qr?: ImageSize | null;
+  /** الشريطُ الوطنيّ المؤقّت -- يُشغَّل من لوحة إدارة ركين (banner.ts). */
+  banner?: BannerKind | null;
 }
 
 export interface LayoutResult {

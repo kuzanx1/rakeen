@@ -36,6 +36,7 @@ var RakeenReceiptEngine = (() => {
   // receipt-engine-entry.js
   var receipt_engine_entry_exports = {};
   __export(receipt_engine_entry_exports, {
+    BANNER_KINDS: () => BANNER_KINDS,
     BORDER: () => BORDER,
     COLUMNS: () => COLUMNS,
     CSS_DPI: () => CSS_DPI,
@@ -66,6 +67,7 @@ var RakeenReceiptEngine = (() => {
     createContext: () => createContext,
     dotsFromCss: () => dotsFromCss,
     dotsFromMm: () => dotsFromMm,
+    isBannerKind: () => isBannerKind,
     layoutKitchenTicket: () => layoutKitchenTicket,
     layoutReceipt: () => layoutReceipt,
     layoutShiftReport: () => layoutShiftReport,
@@ -241,6 +243,31 @@ var RakeenReceiptEngine = (() => {
     dropY: 0.2,
     strokeDropY: 0.15
   };
+  var BANNER = {
+    /** فراغٌ قبله وبعده، بوحدة السطر. */
+    before: 0.55,
+    after: 0.5,
+    /** السطرُ الكبير. ودون اسمِ المنشأة (٣٠) عمداً: هو ضيفٌ لا صاحبُ دار. */
+    headSize: 24,
+    /** جسمُ النصّ، فوق السطر التعريفيّ (١٩) بقليلٍ ليُقرأ. */
+    bodySize: 18,
+    /** السطرُ الأخير. */
+    tailSize: 20,
+    subSize: 19,
+    /** فراغٌ بين أسطر الشريط. */
+    lineGap: 0.3,
+    /** ارتفاعُ سطرِ الجسم من حجمه -- العربيةُ تحتاج أكثرَ من اللاتينية. */
+    bodyLeading: 1.5,
+    /** حشوةُ الإطار وحشوةُ الكتلة السوداء. */
+    framePad: 0.5,
+    blockPad: 0.75,
+    /** سماكةُ الإطار. */
+    frame: 2,
+    /** الكتلةُ السوداء تضيق عن حافّة الورق بمقدار الحشوة هذه. */
+    blockInset: 0.35,
+    /** نسبةُ خطِّ الأساس من حجم الحرف -- نفسُ ما يستعمله صندوقُ الطلب. */
+    baseline: 0.78
+  };
   var LOGO = {
     /** سقفُ ارتفاعه من عرض الورق: شعارٌ طويل كان يبتلع نصف الورقة. */
     maxHeight: 0.4,
@@ -366,6 +393,9 @@ var RakeenReceiptEngine = (() => {
     date: 20,
     /** نوعُ الطلب: محلي، سفري، توصيل. */
     meta: 24,
+    /** مصدرُ الطلب على تذكرة المطبخ: كيتا، جاهز، «جوال». أكبرُ من نوع
+     *  الطلب لأنه هو ما يُبحث عنه في كومةِ أوراقٍ على الطاولة. */
+    platform: 30,
     /** الرقمُ الذي يُنادى به -- جهازُ النداء إن وُجد، وإلّا رقمُ الطلب.
      *  ولا يجتمعان: رقمان كبيران متجاوران يجعلان القارئَ يتردّد أيَّهما
      *  ينادي، وهو واقفٌ في زحام. */
@@ -375,8 +405,18 @@ var RakeenReceiptEngine = (() => {
     /** الصنفُ وكميتُه -- أكبرُ نصٍّ يُقرأ في العمل. كبّرناه (26→34، الإضافات
      *  18→24) لما اشتكى عمّال مطبخ «طارق» إنهم ما يقرونه من بعيد. */
     item: 34,
-    /** الإضافاتُ والملاحظات. */
+    /** الإضافات. */
     sub: 24,
+    /**
+     * ملاحظةُ الصنف -- أكبرُ من الإضافات، وبسماكة الاسم.
+     *
+     * طلبه مطعمٌ (٢٠٢٦/١١/٢٠): كانت بحجم الإضافات (٢٤) فتُقرأ كأنها
+     * واحدةٌ منها، وهي الوحيدةُ على الورقة التي تُغيّر التحضير. فرُفعت
+     * إلى ٣٢ -- دون الاسم (٣٤) بقليل، فلا تسبقه في العين، وفوق كل ما
+     * عداه فلا تُفوَّت. وتُرسم بـ bold (٨٠٠) لا medium: فـ medium هنا
+     * ٧٠٠ نفسُها -- وزنُ النصّ العاديّ -- فلا تمييزَ فيها.
+     */
+    note: 32,
     /** «طبعها» في الأسفل. */
     by: 18,
     /** «بالعافية عليكم». */
@@ -393,6 +433,8 @@ var RakeenReceiptEngine = (() => {
     afterRule: 0.6,
     itemLine: 0.9,
     subLine: 0.75,
+    /** سطرُ الملاحظة أطولُ حرفاً فيحتاج فسحةً أوسعَ قليلاً من الإضافة. */
+    noteLine: 0.95,
     afterItem: 0.3,
     beforeBy: 0.15,
     beforeBlessing: 0.35,
@@ -438,6 +480,94 @@ var RakeenReceiptEngine = (() => {
     c2x: 0.3,
     c2y: 0.62
   };
+
+  // shared/receipt/banner.ts
+  var BANNER_KINDS = ["none", "shield", "plain", "invert"];
+  function isBannerKind(v) {
+    return typeof v === "string" && BANNER_KINDS.includes(v);
+  }
+  var COPY = {
+    shield: {
+      head: "السعودية خط أحمر",
+      sub: "تذكّر شكلها فلا تنسى"
+    },
+    speech: {
+      head: "بالغوا بالدفاع عن وطنكم",
+      body: "فالوطن عقيدة وكرامة وعزة لا تساوم، ولا تسمحوا لحاقد أو خائن أن ينال من أمنكم أو يشكّك في ولائكم",
+      tail: "فالأوطان لا تحيا إلا بأبنائها"
+    }
+  };
+  function drawBanner(ctx, kind) {
+    if (kind === "none") return false;
+    ctx.y += ctx.gap(BANNER.before);
+    if (kind === "shield") drawShield(ctx);
+    else if (kind === "invert") drawInvert(ctx);
+    else drawPlain(ctx);
+    ctx.y += ctx.gap(BANNER.after);
+    return true;
+  }
+  function drawShield(ctx) {
+    const headSz = BANNER.headSize;
+    const subSz = BANNER.subSize;
+    const padIn = Math.round(ctx.line * BANNER.framePad);
+    const boxW = ctx.contentWidth;
+    const boxX = PAD;
+    const inner = padIn + headSz + Math.round(ctx.line * BANNER.lineGap) + subSz + padIn;
+    const top = ctx.y;
+    ctx.box(boxX, top, boxW, inner, BANNER.frame);
+    ctx.text(
+      COPY.shield.head,
+      ctx.width / 2,
+      headSz,
+      WEIGHT.bold,
+      "sans",
+      "center",
+      "rtl",
+      { at: top + padIn + headSz * BANNER.baseline }
+    );
+    ctx.text(
+      COPY.shield.sub,
+      ctx.width / 2,
+      subSz,
+      WEIGHT.regular,
+      "sans",
+      "center",
+      "rtl",
+      { at: top + padIn + headSz + Math.round(ctx.line * BANNER.lineGap) + subSz * BANNER.baseline }
+    );
+    ctx.y = top + inner;
+  }
+  function drawPlain(ctx) {
+    ctx.centerText(COPY.speech.head, BANNER.headSize, true);
+    ctx.y += ctx.gap(BANNER.lineGap);
+    for (const line of ctx.wrap(COPY.speech.body, BANNER.bodySize, WEIGHT.regular, "sans", ctx.contentWidth)) {
+      ctx.centerText(line, BANNER.bodySize, false);
+    }
+    ctx.y += ctx.gap(BANNER.lineGap);
+    ctx.centerText(COPY.speech.tail, BANNER.tailSize, true);
+  }
+  function drawInvert(ctx) {
+    const headSz = BANNER.headSize;
+    const bodySz = BANNER.bodySize;
+    const tailSz = BANNER.tailSize;
+    const padIn = Math.round(ctx.line * BANNER.blockPad);
+    const step = Math.round(ctx.line * BANNER.lineGap);
+    const body = ctx.wrap(COPY.speech.body, bodySz, WEIGHT.regular, "sans", ctx.contentWidth - padIn * 2);
+    const bodyStep = Math.round(bodySz * BANNER.bodyLeading);
+    const height = padIn + headSz + step + body.length * bodyStep + step + tailSz + padIn;
+    const top = ctx.y;
+    ctx.rect(PAD * BANNER.blockInset, top, ctx.width - PAD * BANNER.blockInset * 2, height, "ink");
+    let at = top + padIn + headSz * BANNER.baseline;
+    ctx.text(COPY.speech.head, ctx.width / 2, headSz, WEIGHT.bold, "sans", "center", "rtl", { color: "paper", at });
+    at += headSz * (1 - BANNER.baseline) + step + bodySz * BANNER.baseline;
+    for (const line of body) {
+      ctx.text(line, ctx.width / 2, bodySz, WEIGHT.regular, "sans", "center", "rtl", { color: "paper", at });
+      at += bodyStep;
+    }
+    at += step - bodyStep + bodySz * (1 - BANNER.baseline) + tailSz * BANNER.baseline;
+    ctx.text(COPY.speech.tail, ctx.width / 2, tailSz, WEIGHT.bold, "sans", "center", "rtl", { color: "paper", at });
+    ctx.y = top + height;
+  }
 
   // shared/receipt/context.ts
   var ARABIC = /[؀-ۿ]/;
@@ -590,8 +720,13 @@ var RakeenReceiptEngine = (() => {
     if (typeof m === "string") return m;
     return m.textEn ? m.text + " | " + m.textEn : m.text;
   }
+  function modPrice(m) {
+    if (typeof m === "string") return 0;
+    const n = Number(m.price);
+    return Number.isFinite(n) ? n : 0;
+  }
   function layoutReceipt(input) {
-    const { receipt, measure, paperWidth: width, currency, logo, qr } = input;
+    const { receipt, measure, paperWidth: width, currency, logo, qr, banner } = input;
     const th = themeTokens(input.theme);
     const ctx = createContext({ width, line: LINE, measure, density: th.density });
     const { ops, contentWidth, gap, text, rect, wrap, centerText, rowText, spacedText } = ctx;
@@ -767,6 +902,7 @@ var RakeenReceiptEngine = (() => {
     if (nameShown) centerText(receipt.businessName || "ركين", sz(TYPE.businessName), true);
     if (th.headerBand) divider();
     if (receipt.tagline) centerText(receipt.tagline, sz(TYPE.tagline), false);
+    if (banner) drawBanner(ctx, banner);
     const whereLine = [receipt.branchLabel, receipt.locationLine].filter(Boolean).join(" — ");
     if (whereLine) centerText(whereLine, sz(TYPE.where), false);
     else if (receipt.branchName) centerText(receipt.branchName, sz(TYPE.branchOnly), false);
@@ -827,7 +963,11 @@ var RakeenReceiptEngine = (() => {
         invertBar(receipt.platformName, sz(TYPE.orderInvert));
       }
       if (receipt.platformInvoiceLast4) {
-        centerText(bi("آخر ٤ أرقام فاتورة التطبيق", "App invoice"), sz(TYPE.meta), true);
+        centerText(
+          receipt.phoneOrder ? bi("آخر ٤ أرقام من جواله", "Customer phone") : bi("آخر ٤ أرقام فاتورة التطبيق", "App invoice"),
+          sz(TYPE.meta),
+          true
+        );
         spacedText(receipt.platformInvoiceLast4, sz(TYPE.orderSpacedNumber), true);
       }
       divider();
@@ -854,6 +994,11 @@ var RakeenReceiptEngine = (() => {
         leaderRow(shown, money(it.lineTotal), sz(TYPE.itemLeader), true);
         const subSz2 = sz(TYPE.itemSub);
         mods.forEach((m) => {
+          const amount = modPrice(m);
+          if (amount) {
+            leaderRow("— " + modText(m), money(amount), subSz2, false);
+            return;
+          }
           wrap("— " + modText(m), subSz2, WEIGHT.regular, "sans", contentWidth).forEach((line) => rowText("", line, subSz2, false));
         });
         if (it.note) {
@@ -874,8 +1019,13 @@ var RakeenReceiptEngine = (() => {
       text(money(it.lineTotal), PAD, numSz, WEIGHT.medium, "sans", "left", "ltr", { at: firstY });
       const subSz = sz(TYPE.itemSub);
       mods.forEach((m) => {
-        wrap("— " + modText(m), subSz, WEIGHT.regular, "sans", nameW).forEach((line) => {
+        const amount = modPrice(m);
+        wrap("— " + modText(m), subSz, WEIGHT.regular, "sans", nameW).forEach((line, i) => {
+          const atY = ctx.y;
           text(line, nameRight, subSz, WEIGHT.regular, "sans", "right", "rtl");
+          if (i === 0 && amount) {
+            text(money(amount), PAD, subSz, WEIGHT.regular, "sans", "left", "ltr", { at: atY });
+          }
           ctx.y += gap(SPACE.itemSubLine);
         });
       });
@@ -979,10 +1129,21 @@ var RakeenReceiptEngine = (() => {
       ctx.centerText("جهّزه الساعة · Ready at", KITCHEN.callLabel, false);
       ctx.centerText(ticket.pickupAt, Math.round(KITCHEN.meta * 1.5), true);
     }
+    if (ticket.platformName) {
+      ctx.y += ctx.gap(KITCHEN_SPACE.beforeCall);
+      ctx.centerText(ticket.platformName, KITCHEN.platform, true);
+    }
+    const last4 = ticket.platformInvoiceLast4 || "";
     ctx.y += ctx.gap(KITCHEN_SPACE.beforeCall);
     if (ticket.pagerNumber != null && ticket.pagerNumber !== "") {
       ctx.centerText("جهاز النداء · Pager", KITCHEN.callLabel, false);
       ctx.centerText(String(ticket.pagerNumber), KITCHEN.pagerNumber, true);
+    } else if (last4) {
+      ctx.centerText("آخر ٤ أرقام · Last 4", KITCHEN.callLabel, false);
+      ctx.centerText(last4, KITCHEN.pagerNumber, true);
+      if (ticket.orderNumber) {
+        ctx.centerText("رقم الطلب · Order No: " + ticket.orderNumber, KITCHEN.callLabel, false);
+      }
     } else {
       ctx.centerText("رقم الطلب · Order No", KITCHEN.callLabel, false);
       ctx.centerText(ticket.orderNumber || "—", KITCHEN.orderNumber, true);
@@ -1002,9 +1163,9 @@ var RakeenReceiptEngine = (() => {
         });
       }
       if (it.note) {
-        ctx.wrap("ملاحظات: " + it.note, KITCHEN.sub, WEIGHT.medium, "sans", ctx.contentWidth - KITCHEN.subIndent).forEach((l) => {
-          ctx.text(l, subRight, KITCHEN.sub, WEIGHT.medium, "sans", "right", "rtl");
-          ctx.y += ctx.gap(KITCHEN_SPACE.subLine);
+        ctx.wrap("ملاحظات: " + it.note, KITCHEN.note, WEIGHT.bold, "sans", ctx.contentWidth - KITCHEN.subIndent).forEach((l) => {
+          ctx.text(l, subRight, KITCHEN.note, WEIGHT.bold, "sans", "right", "rtl");
+          ctx.y += ctx.gap(KITCHEN_SPACE.noteLine);
         });
       }
       ctx.y += ctx.gap(KITCHEN_SPACE.afterItem);

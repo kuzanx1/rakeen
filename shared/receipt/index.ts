@@ -27,6 +27,8 @@ export type {
   Align, Dir, Family, Ink, DrawOp, TextOp, RectOp, DashOp, ImageOp, GlyphOp,
   Measurer, ImageSize, QrGrid, PagerBlock, ReceiptItem, ReceiptItemMod, ReceiptModel, LayoutInput, LayoutResult,
 } from './types';
+export { BANNER_KINDS, isBannerKind } from './banner';
+export type { BannerKind } from './banner';
 export { stubMeasure } from './stubMeasure';
 /* والحالاتُ المرجعيةُ ليست هنا قصداً (`./scenarios`).
    هي بياناتُ فحصٍ لا شيفرةُ طباعة، ولو صُدِّرت من المدخل لَحُزمت مع

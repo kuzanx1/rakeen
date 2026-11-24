@@ -1,3 +1,5 @@
+import { isBannerKind } from '../../../shared/receipt';
+import type { BannerKind } from '../../../shared/receipt';
 import * as kvStorage from '../infrastructure/mmkvStorage';
 import { measure } from '../infrastructure/perfLog';
 import { supabase } from '../infrastructure/supabaseClient';
@@ -406,6 +408,8 @@ export interface ReceiptBranding {
   showBusinessName: boolean;
   /** «رقم الفاتورة» الصغير تحت رقم الطلب (businesses.receipt_show_invoice_no). */
   showInvoiceNo: boolean;
+  /** الشريطُ الوطنيّ المؤقّت على مستوى المنصّة (rk_receipt_banner). */
+  banner: BannerKind;
   /** تُطبع فاتورة استرجاع بعد كل استرجاع. */
   printRefundReceipt: boolean;
   vatNumber: string;
@@ -416,7 +420,7 @@ export interface ReceiptBranding {
 
 const EMPTY_BRANDING: ReceiptBranding = {
   logoUrl: '', tagline: '', showBusinessName: true, showInvoiceNo: true, printRefundReceipt: true,
-  vatNumber: '', customMessage: '', locationLine: '', branchLabel: '',
+  vatNumber: '', customMessage: '', locationLine: '', branchLabel: '', banner: 'none',
 };
 
 /**
@@ -526,6 +530,23 @@ async function fetchReceiptBranding(businessId: number, branchId: number | null)
     if (!error && data) out.showInvoiceNo = data.receipt_show_invoice_no !== false;
   } catch {
     // يبقى مطبوعاً.
+  }
+  /**
+   * الشريطُ الوطنيّ: قيمةُ المنصّة كلِّها، لا هذه المنشأة.
+   *
+   * وسؤالٌ مستقلٌّ عمداً كما «رقم الفاتورة»: قبل أن ينزل الترحيلُ على
+   * القاعدة ترجع الدالّةُ خطأً، ولو كانت في السؤال الكبير لأسقطت معها
+   * الشعارَ والاسمَ والرقمَ الضريبيّ -- أي فاتورةً بلا هويّة.
+   *
+   * وتُحفظ مع بقيّة الهويّة في نفس المخزون، فالطباعةُ تعمل بلا إنترنت
+   * بآخر قيمةٍ وصلت. وإطفاؤها من اللوحة يصل الأجهزةَ مع أوّل تحديثٍ
+   * للهويّة، لا ببناءٍ جديد.
+   */
+  try {
+    const { data, error } = await supabase.rpc('rk_receipt_banner');
+    if (!error && isBannerKind(data)) out.banner = data;
+  } catch {
+    // يبقى بلا شريط.
   }
   // ساعة إقفال يوم العمل: عليها «طلبات اليوم» وتصفير أرقام الطلبات (orderSeries.ts).
   try {

@@ -25,6 +25,7 @@ import {
 import type { ClosingReport } from '../domain/shift';
 import { getDeviceConfig } from './authService';
 import { getReceiptTheme, getReceiptBranding } from './catalogService';
+import type { BannerKind } from '../../../shared/receipt';
 import { recordPrintOutcome } from './printHealth';
 
 /**
@@ -129,6 +130,7 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
           profile?.rasterCommand,
           timer,
           resolvePrintDarkness(profile),
+          await getReceiptBannerForPrinting(),
         )
       : job.type === 'shiftReport'
         ? await renderShiftReportToEscPosBase64(job.data as unknown as ClosingReport, profile?.paperWidthPx, profile?.rasterCommand, timer, resolvePrintDarkness(profile))
@@ -212,6 +214,17 @@ async function doDispatch(job: PrintJobRecord): Promise<PrintDispatchResult> {
  */
 /** The configured receipt theme, or 'classic'. Never throws -- a settings
  *  read must not be able to stop a receipt printing. */
+async function getReceiptBannerForPrinting(): Promise<BannerKind> {
+  try {
+    const device = await getDeviceConfig();
+    if (device.businessId == null) return 'none';
+    const branding = await getReceiptBranding(device.businessId, device.branchId ?? null);
+    return branding.banner || 'none';
+  } catch {
+    return 'none';
+  }
+}
+
 async function getReceiptThemeForPrinting(): Promise<string> {
   try {
     const device = await getDeviceConfig();

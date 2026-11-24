@@ -14,6 +14,7 @@
  * أو ورقاً أضيق، فهناك، لا في هذا الملفّ.
  */
 
+import { drawBanner } from './banner';
 import { createContext, leaderDots } from './context';
 import {
   BORDER, COLUMNS, DASH, INVERT_BAR, LINE, LOGO, ORDER_BOX, PAD,
@@ -35,10 +36,17 @@ export function modText(m: string | ReceiptItemMod): string {
   return m.textEn ? m.text + ' | ' + m.textEn : m.text;
 }
 
+/** ثمنُ الإضافة في السطر، أو صفرٌ للمجاني وللفواتير القديمة بلا ثمن. */
+export function modPrice(m: string | ReceiptItemMod): number {
+  if (typeof m === 'string') return 0;
+  const n = Number(m.price);
+  return Number.isFinite(n) ? n : 0;
+}
+
 const ARABIC = /[؀-ۿ]/;
 
 export function layoutReceipt(input: LayoutInput): LayoutResult {
-  const { receipt, measure, paperWidth: width, currency, logo, qr } = input;
+  const { receipt, measure, paperWidth: width, currency, logo, qr, banner } = input;
   const th = themeTokens(input.theme);
   /* بدائيّاتُ الرسم من السياق المشترك -- هي بعينها التي تبني تذكرةَ
      المطبخ وتقريرَ الوردية. وكانت لكلّ ورقةٍ نسختُها منها. */
@@ -265,6 +273,16 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
   if (th.headerBand) divider();
 
   if (receipt.tagline) centerText(receipt.tagline, sz(TYPE.tagline), false);
+
+  /**
+   * الشريطُ الوطنيّ -- تحت شعارِ المطعم وتحت سطره التعريفيّ.
+   *
+   * وموضعُه هنا مقصود: هويّةُ المطعم أوّلاً دائماً ثمّ الشريط، فهو ضيفٌ
+   * على ورقتهم. وهو فوق بيانات الفرع والرقم الضريبيّ لأنّ تلك بياناتُ
+   * المعاملة، وهذا ليس منها.
+   */
+  if (banner) drawBanner(ctx, banner);
+
   const whereLine = [receipt.branchLabel, receipt.locationLine].filter(Boolean).join(' — ');
   if (whereLine) centerText(whereLine, sz(TYPE.where), false);
   else if (receipt.branchName) centerText(receipt.branchName, sz(TYPE.branchOnly), false);
@@ -334,7 +352,13 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
       invertBar(receipt.platformName, sz(TYPE.orderInvert));
     }
     if (receipt.platformInvoiceLast4) {
-      centerText(bi('آخر ٤ أرقام فاتورة التطبيق', 'App invoice'), sz(TYPE.meta), true);
+      centerText(
+        receipt.phoneOrder
+          ? bi('آخر ٤ أرقام من جواله', 'Customer phone')
+          : bi('آخر ٤ أرقام فاتورة التطبيق', 'App invoice'),
+        sz(TYPE.meta),
+        true,
+      );
       spacedText(receipt.platformInvoiceLast4, sz(TYPE.orderSpacedNumber), true);
     }
     divider();
@@ -374,6 +398,10 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
          تمتدّ خارج الورقة فيُقصّ آخرُها عند الطبع. */
       const subSz = sz(TYPE.itemSub);
       mods.forEach(m => {
+        // الإضافةُ بثمنها تأخذ صفَّ القيادة نفسَه الذي يأخذه الصنف،
+        // فيقع ثمنُها تحت ثمنه في عمودٍ واحد.
+        const amount = modPrice(m);
+        if (amount) { leaderRow('— ' + modText(m), money(amount), subSz, false); return; }
         wrap('— ' + modText(m), subSz, WEIGHT.regular, 'sans', contentWidth)
           .forEach(line => rowText('', line, subSz, false));
       });
@@ -416,8 +444,15 @@ export function layoutReceipt(input: LayoutInput): LayoutResult {
     const subSz = sz(TYPE.itemSub);
     mods.forEach(m => {
       // داخل عمود الاسم لا بعرض الورقة: هي تابعةٌ للصنف فتُزاح معه.
-      wrap('— ' + modText(m), subSz, WEIGHT.regular, 'sans', nameW).forEach(line => {
+      // وثمنُها -- إن كان لها ثمن -- في عمود الأسعار نفسه على سطرها
+      // الأوّل، فتقرأ العينُ عموداً واحداً من الأرقام لا رقمين متفرّقين.
+      const amount = modPrice(m);
+      wrap('— ' + modText(m), subSz, WEIGHT.regular, 'sans', nameW).forEach((line, i) => {
+        const atY = ctx.y;
         text(line, nameRight, subSz, WEIGHT.regular, 'sans', 'right', 'rtl');
+        if (i === 0 && amount) {
+          text(money(amount), PAD, subSz, WEIGHT.regular, 'sans', 'left', 'ltr', { at: atY });
+        }
         ctx.y += gap(SPACE.itemSubLine);
       });
     });

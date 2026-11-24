@@ -94,8 +94,8 @@ android {
         applicationId "com.rakeen.pos"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 77
-        versionName "1.75"
+        versionCode 78
+        versionName "1.76"
     }
     // The APK is also downloaded directly (rakeenapp.com/android), not only
     // through a store that ships per-device splits. Stored uncompressed (the

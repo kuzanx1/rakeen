@@ -6188,6 +6188,10 @@ function updatePrinterStatusPill(){
    وكان قبلَ اليوم راسمَين اثنين، تُعدَّل الورقةُ في أحدهما ويبقى الآخر
    -- ولا شيءَ يشتكي: الورقةُ تُطبع، وإنّما تُطبع مختلفة. */
 let RECEIPT_THEME = 'classic';
+/* الشريطُ الوطنيّ المؤقّت: قيمةُ المنصّة كلِّها (rk_receipt_banner)،
+   تُطفأ بزرٍّ من لوحة إدارة ركين فتختفي من الورقة التالية هنا وفي
+   التطبيق معاً. ونفسُه في التطبيق: ReceiptBranding.banner. */
+let RECEIPT_BANNER = 'none';
 // businesses.pos_require_manager_pin_for_close. Governs the shift-close
 // gate ONLY — cancelling an order and refunding keep their own PIN, which
 // this setting was never about.
@@ -6336,6 +6340,7 @@ function renderReceiptCanvas(receipt, qrImage, logoImage){
     measure: measure,
     paperWidth: width,
     theme: RECEIPT_THEME,
+    banner: RECEIPT_BANNER,
     currency: RECEIPT_RIYAL,
     logo: sizeOf(logoImage),
     qr: sizeOf(qrImage),
@@ -11294,6 +11299,12 @@ async function loadPosData(){
       .select('receipt_theme, pos_require_manager_pin_for_close, dine_in_mode, pos_pager_enabled, kitchen_ticket_mode')
       .eq('id', businessId).single();
     RECEIPT_THEME = (themeRes.data && themeRes.data.receipt_theme) || 'classic';
+    /* سؤالٌ لحاله كما «رقم الفاتورة»: قبل نزول الترحيل ترجع الدالّةُ
+       خطأً، ولو كانت في السؤال الكبير لأسقطت معها القالبَ والهويّة. */
+    try {
+      const bnRes = await sb.rpc('rk_receipt_banner');
+      if (!bnRes.error && E.isBannerKind && E.isBannerKind(bnRes.data)) RECEIPT_BANNER = bnRes.data;
+    } catch(_) { /* يبقى بلا شريط */ }
     // هوية الفاتورة، في نفس الاستعلام المتسامح ولنفس سببه.
     try {
       const brandRes = await sb.from('businesses')
@@ -11348,7 +11359,7 @@ async function loadPosData(){
     // safe direction for a control over the cash drawer is ON.
     REQUIRE_MANAGER_PIN_FOR_CLOSE = !(themeRes.data && themeRes.data.pos_require_manager_pin_for_close === false);
   } catch(_){
-    RECEIPT_THEME = 'classic'; REQUIRE_MANAGER_PIN_FOR_CLOSE = true;
+    RECEIPT_THEME = 'classic'; RECEIPT_BANNER = 'none'; REQUIRE_MANAGER_PIN_FOR_CLOSE = true;
     DINE_IN_MODE = 'simple'; POS_PAGER_ENABLED = false; KITCHEN_TICKET_MODE = 'brief';
   }
   await loadPagerSettings(sb, businessId);
