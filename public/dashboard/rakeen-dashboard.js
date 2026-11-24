@@ -12570,6 +12570,39 @@ async function loadReceiptTheme(){
     return data.receipt_theme;
   } catch(_){ return 'classic'; }
 }
+
+/* ───── شريط الفاتورة: ما تختاره ركين، وما يختاره هذا المطعم ─────
+   والقيمتان تُجلبان لا واحدة: الأولى تقرّر أتُعرض الشاشة أصلاً (ميزة
+   أطفأتها ركين لا تُعرض على أحد)، والثانية هي اختيار المطعم نفسه.
+   NULL في عموده تعني «اتبع ركين» -- وهي حال كل مطعم لم يفتح الشاشة. */
+let RECEIPT_BANNER_PLATFORM = 'none';
+let RECEIPT_BANNER_MINE = null;
+const RECEIPT_BANNER_KINDS = ['none', 'shield', 'plain', 'invert'];
+
+async function loadReceiptBannerState(){
+  const sb = window.supabaseClient;
+  let platform = 'none', mine = null;
+  // استعلامان متسامحان: قبل نزول الترحيل يرجع كلٌّ منهما خطأً، ولو
+  // كانا في الاستعلام الكبير لأسقطا معهما شاشة الإعدادات كلها.
+  try {
+    const { data, error } = await sb.rpc('rk_receipt_banner_platform');
+    if(!error && typeof data === 'string') platform = data;
+  } catch(_){ /* الميزة غير منزّلة بعد */ }
+  if(platform !== 'none'){
+    try {
+      const { data, error } = await sb.from('businesses')
+        .select('receipt_banner').eq('id', CURRENT_PROFILE.business_id).single();
+      if(!error && data) mine = data.receipt_banner || null;
+    } catch(_){ /* العمود غير موجود بعد */ }
+  }
+  return { platform, mine };
+}
+
+/** ما يُطبع على ورقة هذا المطعم الآن -- نفس قاعدة rk_receipt_banner(). */
+function receiptBannerEffective(){
+  if(RECEIPT_BANNER_PLATFORM === 'none') return 'none';
+  return RECEIPT_BANNER_MINE || RECEIPT_BANNER_PLATFORM;
+}
 let DINE_IN_ENABLED = true;
 let ONLINE_ORDERING_ENABLED = false;
 let ONLINE_MENU_SLUG = null;
@@ -13702,6 +13735,69 @@ function branchWeeklyHoursHtml(branchId, rows){
   ].join('');
 }
 
+/**
+ * شريطُ الفاتورة -- اختيارُ المطعم نفسه.
+ *
+ * والشاشةُ لا تُرسم إن أطفأت ركين الميزة: اختيارٌ لشيءٍ لا يُطبع عبثٌ
+ * يملأ الإعدادات، ويترك في اللوحة بقايا مناسبةٍ انتهت.
+ *
+ * والمعاينةُ بخطّ العرض نفسِه وزخرفته (RkBannerDisplay) -- معاينةٌ بخطٍّ
+ * آخر معاينةُ شيءٍ آخر، يختار المالكُ ما لم يره. وهي مصغَّرةٌ لا
+ * بمقاس الورق: المقصودُ أن يعرف أيَّها اختار، لا أن يقيس.
+ */
+function receiptBannerPickerHtml(){
+  if(RECEIPT_BANNER_PLATFORM === 'none') return '';
+  const cur = receiptBannerEffective();
+  const speech = ['بالغوا بالدفاع عن وطنكم',
+                  'فالوطن عقيدة وكرامة وعزة لا تساوم، ولا تسمحوا لحاقد أو خائن أن ينال من أمنكم أو يشكّك في ولائكم',
+                  'فالأوطان لا تحيا إلا بأبنائها'];
+  const sadu = (ink, down) =>
+    `<div style="margin:4px 0;">${down ? `<div style="height:2px;background:${ink}"></div>` : ''}` +
+    `<div style="height:8px;background-image:linear-gradient(${down ? '45deg' : '135deg'},${ink} 50%,transparent 50%),` +
+    `linear-gradient(${down ? '-45deg' : '-135deg'},${ink} 50%,transparent 50%);` +
+    `background-size:16px 8px;background-position:${down ? 'top left' : 'bottom left'};background-repeat:repeat-x;"></div>` +
+    `${down ? '' : `<div style="height:2px;background:${ink}"></div>`}</div>`;
+  const diamond = ink =>
+    `<div style="display:flex;align-items:center;gap:6px;margin:5px 0;">` +
+    `<span style="flex:1;height:1px;background:${ink}"></span>` +
+    `<span style="width:6px;height:6px;background:${ink};transform:rotate(45deg)"></span>` +
+    `<span style="flex:1;height:1px;background:${ink}"></span></div>`;
+  const body = (ink, scale) => `
+    <div style="font-family:'RkBannerDisplay',serif;font-weight:900;font-size:${scale}px;line-height:1.3;color:${ink};text-align:center;">${speech[0]}</div>
+    <div style="font-family:'RkBannerDisplay',serif;font-weight:700;font-size:${Math.round(scale*0.56)}px;line-height:1.55;color:${ink};text-align:center;margin:3px 0;">${speech[1]}</div>
+    ${diamond(ink)}
+    <div style="font-family:'RkBannerDisplay',serif;font-weight:900;font-size:${Math.round(scale*0.68)}px;color:${ink};text-align:center;">${speech[2]}</div>`;
+  const art = {
+    none: '<div style="color:var(--muted);font-size:12px;text-align:center;padding:26px 0;">— ما يُطبع شيء —</div>',
+    shield: `<div style="border:3px solid #121212;padding:3px;">
+        <div style="border:1px solid #121212;padding:11px 9px;">
+          <div style="font-family:'RkBannerDisplay',serif;font-weight:900;font-size:19px;color:#121212;text-align:center;">السعودية خط أحمر</div>
+          ${diamond('#121212')}
+          <div style="font-family:'RkBannerDisplay',serif;font-weight:700;font-size:12px;color:#121212;text-align:center;">تذكّر شكلها فلا تنسى</div>
+        </div></div>`,
+    plain: `<div>${sadu('#121212', false)}${body('#121212', 17)}${sadu('#121212', true)}</div>`,
+    invert: `<div style="background:#121212;padding:10px 9px;">${sadu('#fff', false)}${body('#fff', 17)}${sadu('#fff', true)}</div>`,
+  };
+  const label = { none: 'ما أبيه على فواتيري', shield: 'إطار', plain: 'بلا خلفية', invert: 'خلفية سوداء' };
+  const note = { none: 'الفاتورة كما هي', shield: 'يأكل ٢٦ ملم من الورق', plain: 'يأكل ٣٣ ملم', invert: 'يأكل ٣٩ ملم' };
+  return `
+    <div class="rk-section" style="margin-bottom:16px;">
+      ${rkSectionHead('fileText', 'شريط الفاتورة', 'يُطبع تحت شعار مطعمك وسطره التعريفي — اختر شكله أو ارفعه عن فواتيرك')}
+      <div class="rk-theme-cards">
+        ${RECEIPT_BANNER_KINDS.map(k => `
+          <button type="button" class="rk-theme-card ${k === cur ? 'selected' : ''}" data-receiptbanner="${k}" style="text-align:right;">
+            <span class="rk-theme-card-name">${label[k]}</span>
+            <span class="rk-theme-card-desc">${note[k]}</span>
+            <div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 8px;margin-top:8px;min-height:92px;display:flex;flex-direction:column;justify-content:center;">${art[k]}</div>
+          </button>`).join('')}
+      </div>
+      <button class="rk-btn rk-btn-primary rk-btn-md" id="receiptBannerSaveBtn" style="margin-top:12px;">حفظ الشريط</button>
+      <p style="font-size:12px; color:var(--muted); line-height:1.8; margin-top:10px;">
+        يظهر على الفاتورة التالية بعد تحديث الجهاز لبيانات مطعمك — بلا تحديث للتطبيق.
+      </p>
+    </div>`;
+}
+
 function receiptPreviewHtml(){
   return `
     <div class="rk-section" style="margin-bottom:16px;">
@@ -13916,7 +14012,7 @@ async function renderPosSettings(){
   // تعتمد على الأخرى.
   const sb = window.supabaseClient;
   const bizId = CURRENT_PROFILE.business_id;
-  const [themeRes, svc, branchesRes, tablesRes, sectionsRes, kitchenRes, pinRes, tillRes] = await Promise.all([
+  const [themeRes, svc, branchesRes, tablesRes, sectionsRes, kitchenRes, pinRes, tillRes, bannerRes] = await Promise.all([
     loadReceiptTheme(),
     loadServiceSettings(),
     sb.from('branches').select('id, name').eq('business_id', bizId).order('id'),
@@ -13929,8 +14025,11 @@ async function renderPosSettings(){
     // جهاز كل فرع = حساب الكاشير المشترك الذي ينشئه provision-branch.
     // وجود الصف هو الاقتران، و created_at هو تاريخه.
     sb.from('profiles').select('branch_id, created_at').eq('business_id', bizId).eq('user_type', 'employee'),
+    loadReceiptBannerState(),
   ]);
   RECEIPT_THEME = themeRes;
+  RECEIPT_BANNER_PLATFORM = bannerRes.platform;
+  RECEIPT_BANNER_MINE = bannerRes.mine;
   DINE_IN_MODE = svc.mode;
   POS_PAGER_ENABLED = svc.pager;
   KITCHEN_TICKET_MODE = svc.kitchen;
@@ -14304,7 +14403,7 @@ async function renderPosSettings(){
     await loadPagerSettingsTab({ dine_in: autoReadyDineIn, pickup: autoReadyPickup }, !!(DINE_IN_ENABLED && DINE_IN_MODE === 'tables'));
   }
   const POS_SETTINGS_TABS_HTML = {
-    receipt: receiptPreviewHtml() + receiptBrandPanel + receiptMessagePanel + kitchenTicketPanel + shiftReportPanel,
+    receipt: receiptPreviewHtml() + receiptBannerPickerHtml() + receiptBrandPanel + receiptMessagePanel + kitchenTicketPanel + shiftReportPanel,
     interface: simplifyPanel,
     tables: orderTypesIntro + dineInMasterPanel + tablesGatedContent,
     kitchen: kitchenPanel + autoReadyPanel,
@@ -14426,6 +14525,40 @@ async function renderPosSettings(){
       const old = document.getElementById('rkReceiptPreviewCard');
       if(row && old) old.outerHTML = customerReceiptPreviewHtml(pendingTheme);
     });
+  });
+
+  /* شريط الفاتورة: الاختيار يُمسك محلياً حتى الحفظ، كاختيار الشكل --
+     فالخروج من الشاشة لا يغيّر ما يُطبع. */
+  let pendingBanner = receiptBannerEffective();
+  document.querySelectorAll('[data-receiptbanner]').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      pendingBanner = card.dataset.receiptbanner;
+      document.querySelectorAll('[data-receiptbanner]').forEach(c=>c.classList.toggle('selected', c === card));
+    });
+  });
+
+  const receiptBannerSaveBtn = document.getElementById('receiptBannerSaveBtn');
+  if(receiptBannerSaveBtn) receiptBannerSaveBtn.addEventListener('click', async ()=>{
+    if(!RECEIPT_BANNER_KINDS.includes(pendingBanner)){ showToast('تصميم غير معروف'); return; }
+    rkBtnLoading(receiptBannerSaveBtn, true);
+    try {
+      await updateCurrentBusiness({ receipt_banner: pendingBanner });
+      /* تُقرأ القيمة المستقرّة لا التي أُرسلت -- نفس درس «شكل الفاتورة»:
+         «تم الحفظ» على مجرّد عدم رمي خطأ أبقت مطعماً على شكلٍ لم يختره. */
+      const after = await loadReceiptBannerState();
+      RECEIPT_BANNER_PLATFORM = after.platform;
+      RECEIPT_BANNER_MINE = after.mine;
+      if(receiptBannerEffective() !== pendingBanner){
+        rkBtnLoading(receiptBannerSaveBtn, false);
+        showToast('لم يُحفظ الشريط — تأكد إن حسابك مالك هذا النشاط.');
+        return;
+      }
+      logDashboardAudit('غيّر شريط الفاتورة إلى: ' + pendingBanner);
+      rkBtnSuccess(receiptBannerSaveBtn, '✓ تم الحفظ');
+    } catch(err){
+      rkBtnLoading(receiptBannerSaveBtn, false);
+      showToast('تعذر الحفظ: ' + (err && err.message ? err.message : 'خطأ غير متوقع'));
+    }
   });
 
   const receiptThemeSaveBtn = document.getElementById('receiptThemeSaveBtn');

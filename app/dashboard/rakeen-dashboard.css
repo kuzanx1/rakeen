@@ -10,6 +10,10 @@
    font ships a glyph for it yet (added Unicode 17.0, Sept 2025). Any text
    node rendering that character MUST sit inside .rk-riyal or it shows as a
    tofu box on most devices. */
+/* خطُّ العرض -- معاينةُ شريط الفاتورة وحدها، بنفس الخطّ الذي يُطبع.
+   ومعاينةٌ بخطٍّ آخر معاينةُ شيءٍ آخر: يختار المالكُ ما لم يره. */
+@font-face{font-family:'RkBannerDisplay'; src:url('/fonts/thmanyah-serif-display/thmanyahserifdisplay-Black.woff2') format('woff2'); font-weight:900; font-display:swap;}
+@font-face{font-family:'RkBannerDisplay'; src:url('/fonts/thmanyah-serif-display/thmanyahserifdisplay-Bold.woff2') format('woff2'); font-weight:700; font-display:swap;}
 @font-face{font-family:'saudi_riyal'; src:url('/fonts/saudi-riyal/saudi_riyal.woff2') format('woff2'); font-weight:400; font-display:swap;}
 @font-face{font-family:'saudi_riyal'; src:url('/fonts/saudi-riyal/saudi_riyal_bold.woff2') format('woff2'); font-weight:700; font-display:swap;}
 
@@ -579,6 +583,8 @@ button{font-family:inherit; cursor:pointer;}
 .order-channel-tag.dine_in{background:var(--acc-ops-bg); color:var(--acc-ops);}
 .order-channel-tag.pickup{background:var(--acc-team-bg); color:var(--acc-team);}
 .order-channel-tag.delivery{background:var(--acc-res-bg); color:var(--acc-res);}
+/* «جوال» نوعٌ قائمٌ بذاته، وأخو التوصيل في الصفّ فيأخذ لونَه. */
+.order-channel-tag.phone{background:var(--acc-res-bg); color:var(--acc-res);}
 .order-online-tag{display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:800; padding:4px 9px; border-radius:var(--r-full); width:fit-content; background:color-mix(in srgb, var(--lime, #C4FF2B) 20%, transparent); color:var(--lime-deep, #7BAD0F);}
 .order-online-tag svg{width:11px; height:11px; flex-shrink:0;}
 .order-branch-note{font-size:10.5px; font-weight:600; color:var(--muted);}

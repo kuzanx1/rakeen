@@ -134,11 +134,41 @@ if (!read('react-native-poc/src/platform/receiptFonts.ts').includes('ThmanyahSer
   fails.push('التطبيقُ لا يحزم خطَّ العرض');
 }
 
-/* ٧) وله مُطفئ. */
+/* ٧) ولكلِّ مطعمٍ رأيٌ في ورقته -- وثلاثُ طبقاتٍ لا واحدة.
+      وأخطرُ ما في هذي الميزة أن يسقط الإخفاءُ العامّ: مناسبةٌ تنتهي،
+      وتُطفئها ركين، ويبقى مطعمٌ اختار تصميماً يطبعه شهراً بعدها. */
+const perBiz = read('supabase/migrations/20261125160000_receipt_banner_per_business.sql');
+if (!/alter table public\.businesses[\s\S]*?receipt_banner text/.test(perBiz)) {
+  fails.push('لا عمودَ receipt_banner في المنشأة — لا اختيارَ للمطعم');
+}
+if (!/create or replace function public\.rk_receipt_banner\(\)/.test(perBiz)) {
+  fails.push('rk_receipt_banner فقدت توقيعَها بلا وسائط — الكاشيران المشحونان ينادونها هكذا');
+}
+if (!/when p\.kind = 'none' then 'none'/.test(perBiz)) {
+  fails.push('إخفاءُ ركين لا يغلب اختيارَ المطعم — مناسبةٌ تنتهي وتبقى تُطبع');
+}
+if (!/rk_receipt_banner_platform/.test(perBiz)) {
+  fails.push('لا دالّةَ تقرأ اختيارَ ركين وحده — لوحةُ المطعم لا تعرف أتَعرِض الشاشةَ أم لا');
+}
+
+const bizDash = read('public/dashboard/rakeen-dashboard.js');
+if (!bizDash.includes('data-receiptbanner')) fails.push('لوحةُ المطعم بلا شاشةِ اختيارٍ للشريط');
+if (!/updateCurrentBusiness\(\{ receipt_banner: pendingBanner \}\)/.test(bizDash)) {
+  fails.push('لوحةُ المطعم تعرض الاختيارَ ولا تحفظه');
+}
+if (!/rk_receipt_banner_platform/.test(bizDash)) fails.push('لوحةُ المطعم لا تسأل عن اختيار ركين');
+if (!/if\(RECEIPT_BANNER_PLATFORM === 'none'\) return '';/.test(bizDash)) {
+  fails.push('شاشةُ المطعم تُعرض ولو أخفت ركين الميزة — اختيارٌ لشيءٍ لا يُطبع');
+}
+if (!/font-family:'RkBannerDisplay'/.test(read('app/dashboard/rakeen-dashboard.css'))) {
+  fails.push('معاينةُ لوحة المطعم بغير خطِّ الطباعة — يختار المالكُ ما لم يره');
+}
+
+/* ٨) وله مُطفئ. */
 const route = read('app/api/admin/receipt-banner/route.ts');
 if (!route.includes('"none"')) fails.push('مسارُ اللوحة لا يعرف «بلا شريط» — ميزةٌ مؤقّتةٌ بلا مُطفئ');
 const panel = read('app/admin/ReceiptBannerPanel.tsx');
-if (!panel.includes('أطفئ الشريط')) fails.push('لوحةُ الإدارة بلا زرِّ إطفاء');
+if (!panel.includes('أخفِ الميزة بالكامل')) fails.push('لوحةُ الإدارة بلا زرِّ إخفاءٍ كامل');
 const dash = read('app/admin/AdminDashboard.tsx');
 if (!dash.includes('ReceiptBannerPanel')) fails.push('الشاشةُ غيرُ موصولةٍ بلوحة الإدارة — لا طريقَ للإطفاء');
 

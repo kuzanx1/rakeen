@@ -52,7 +52,7 @@ function Diamond({ color }: { color: string }) {
 const SPEECH = [BANNER_COPY.speech.head, BANNER_COPY.speech.body, BANNER_COPY.speech.tail];
 
 const CHOICES: Array<{ kind: Kind; label: string; desc: string; paper: string }> = [
-  { kind: "none", label: "بلا شريط", desc: "الفاتورة كما هي — لا شيء يُطبع.", paper: "—" },
+  { kind: "none", label: "إخفاء الميزة", desc: "لا شيء يُطبع في أي مطعم، ويختفي الاختيار من لوحاتهم.", paper: "—" },
   { kind: "shield", label: "١ · إطار", desc: "الأقصر ورقًا — سطران داخل إطار مزدوج.", paper: "٢٦ ملم" },
   { kind: "plain", label: "٢ · بلا خلفية", desc: "حبر على ورق، بين شريطَي سدو.", paper: "٣٣ ملم" },
   { kind: "invert", label: "٣ · خلفية سوداء", desc: "نفس النص، كتلة سوداء ونص أبيض.", paper: "٣٩ ملم" },
@@ -94,6 +94,7 @@ export default function ReceiptBannerPanel({ token }: { token: string }) {
   const [kind, setKind] = useState<Kind | null>(null);
   const [pending, setPending] = useState<Kind | null>(null);
   const [meta, setMeta] = useState<{ at: string | null; by: string | null }>({ at: null, by: null });
+  const [overrides, setOverrides] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -106,6 +107,7 @@ export default function ReceiptBannerPanel({ token }: { token: string }) {
         setKind((j?.kind as Kind) || "none");
         setPending((j?.kind as Kind) || "none");
         setMeta({ at: j?.updatedAt ?? null, by: j?.updatedBy ?? null });
+        setOverrides((j?.overrides as Record<string, number>) || {});
       })
       .catch(() => setError("تعذّر الوصول للخادم"));
   }, [token]);
@@ -123,8 +125,8 @@ export default function ReceiptBannerPanel({ token }: { token: string }) {
       if (!res.ok) { setError(String(j?.error || "لم يُحفظ")); return; }
       setKind(j.kind as Kind);
       setNote(j.kind === "none"
-        ? "أُطفئ. يختفي من الفاتورة التالية في كل مطعم بعد تحديث الهوية على الجهاز."
-        : "شُغّل. يظهر على فواتير كل المطاعم بعد تحديث الهوية على أجهزتهم.");
+        ? "أُخفيت. لا شيء يُطبع في أي مطعم، واختفى الاختيار من لوحاتهم."
+        : "شُغّل. يظهر على فواتير كل مطعم لم يختر غيره، بعد تحديث الهوية على أجهزتهم.");
     } catch {
       setError("تعذّر الوصول للخادم");
     } finally {
@@ -139,11 +141,24 @@ export default function ReceiptBannerPanel({ token }: { token: string }) {
       {error && <p style={{ color: "#B0402C", background: "#FBEFEC", padding: "10px 14px", borderRadius: 8, marginBottom: 16 }}>{error}</p>}
       {note && <p style={{ color: "#4F7A1A", background: "#F1F7E8", padding: "10px 14px", borderRadius: 8, marginBottom: 16 }}>{note}</p>}
 
+      {kind && kind !== "none" && (
+        <p style={{ color: "#6B6B6B", fontSize: 13, lineHeight: 1.8, background: "#F7F6F1", padding: "10px 14px", borderRadius: 8, marginBottom: 14 }}>
+          {Object.keys(overrides).length === 0
+            ? "ولا مطعم غيّر اختيارك حتى الآن — كلهم يطبعون التصميم أعلاه."
+            : "غيّروا اختيارك: " + Object.entries(overrides)
+                .map(([k, n]) => (k === "none" ? "رفعوه عن فواتيرهم" : "اختاروا «" + (CHOICES.find(c => c.kind === k)?.label || k) + "»") + " — " + n)
+                .join("، ") + "."}
+        </p>
+      )}
+
       <p style={{ color: "#6B6B6B", fontSize: 14, lineHeight: 1.8, marginBottom: 18 }}>
         يُطبع تحت شعار المطعم وتحت سطره التعريفي، على فواتير كل المطاعم.
         مرسوم على مقاس الطابعة نفسه — خط عرض وزخرفة سدو — فيخرج حادًا
         على الورق الحراري، ويضيق وحده على ورق ٥٨ ملم بدل أن يُقَصّ.
         {kind && kind !== "none" && <strong style={{ color: "#B0402C" }}> شغّال الآن.</strong>}
+        <br />
+        وهذا الاختيار افتراض لا أمر: كل مطعم يقدر يغيّره أو يرفعه عن فواتيره من لوحته
+        (مطعمك ← الفاتورة ← «شريط الفاتورة»). و«إخفاء الميزة» وحده يغلب الجميع.
       </p>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 14, marginBottom: 20 }}>
@@ -187,7 +202,7 @@ export default function ReceiptBannerPanel({ token }: { token: string }) {
             cursor: pending === kind || busy ? "default" : "pointer",
           }}
         >
-          {busy ? "جاري الحفظ…" : pending === "none" ? "أطفئ الشريط" : "شغّل هذا التصميم"}
+          {busy ? "جاري الحفظ…" : pending === "none" ? "أخفِ الميزة بالكامل" : "شغّل هذا التصميم"}
         </button>
         {meta.at && (
           <span style={{ fontSize: 13, color: "#6B6B6B" }}>

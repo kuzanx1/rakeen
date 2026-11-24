@@ -57,7 +57,27 @@ export async function GET(request: NextRequest) {
   }
   const raw = (data?.value as { kind?: string } | null)?.kind;
   const kind: Kind = (KINDS as readonly string[]).includes(raw || "") ? (raw as Kind) : "none";
-  return NextResponse.json({ kind, updatedAt: data?.updated_at ?? null, updatedBy: data?.updated_by ?? null });
+
+  /**
+   * كم مطعماً خالف الاختيار -- والرقمُ ليس زينة.
+   *
+   * صار لكلِّ مطعمٍ أن يغيّر التصميمَ أو يرفعه عن ورقته، فاختيارُ ركين
+   * صار افتراضاً لا أمراً. ولوحةٌ تقول «شغّال» وحدها تكذب كذبةً صغيرة:
+   * قد يكون نصفُهم رفعه. فيُقال العددُ هنا.
+   */
+  const overrides: Record<string, number> = {};
+  const { data: rows } = await g.admin!
+    .from("businesses").select("receipt_banner").not("receipt_banner", "is", null);
+  for (const r of (rows || []) as Array<{ receipt_banner: string | null }>) {
+    const v = r.receipt_banner || "";
+    if (v) overrides[v] = (overrides[v] || 0) + 1;
+  }
+
+  return NextResponse.json({
+    kind, overrides,
+    updatedAt: data?.updated_at ?? null,
+    updatedBy: data?.updated_by ?? null,
+  });
 }
 
 export async function POST(request: NextRequest) {
