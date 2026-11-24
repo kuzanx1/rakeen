@@ -131,8 +131,13 @@ const RIYAL = '⃁';
 let fontProviderMemo: ReturnType<typeof buildReceiptFontProvider> | null = null;
 async function buildFontProviderReady() {
   if (fontProviderMemo) return fontProviderMemo;
-  const { regular, bold, riyalRegular, riyalBold, monoRegular, monoBold } = await loadReceiptTypefaces();
-  const provider = buildReceiptFontProvider(regular, bold, riyalRegular, riyalBold, monoRegular, monoBold);
+  const { regular, bold, riyalRegular, riyalBold, monoRegular, monoBold, displayBlack, displayBold } =
+    await loadReceiptTypefaces();
+  const provider = buildReceiptFontProvider(
+    regular, bold, riyalRegular, riyalBold, monoRegular, monoBold, displayBlack, displayBold,
+  );
+  /* وخطُّ العرضِ ليس شرطاً للحفظ: الشريطُ ميزةٌ مؤقّتةٌ تُطفأ بزرّ،
+     فلا يُعاد تحميلُ الستّةِ مع كلّ ورقةٍ لأنّ خطَّ زخرفةٍ لم يصل. */
   if (regular && bold && riyalRegular && riyalBold && monoRegular && monoBold) fontProviderMemo = provider;
   return provider;
 }

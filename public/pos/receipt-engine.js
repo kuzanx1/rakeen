@@ -36,6 +36,7 @@ var RakeenReceiptEngine = (() => {
   // receipt-engine-entry.js
   var receipt_engine_entry_exports = {};
   __export(receipt_engine_entry_exports, {
+    BANNER_COPY: () => BANNER_COPY,
     BANNER_KINDS: () => BANNER_KINDS,
     BORDER: () => BORDER,
     COLUMNS: () => COLUMNS,
@@ -246,27 +247,61 @@ var RakeenReceiptEngine = (() => {
   var BANNER = {
     /** فراغٌ قبله وبعده، بوحدة السطر. */
     before: 0.55,
-    after: 0.5,
-    /** السطرُ الكبير. ودون اسمِ المنشأة (٣٠) عمداً: هو ضيفٌ لا صاحبُ دار. */
-    headSize: 24,
-    /** جسمُ النصّ، فوق السطر التعريفيّ (١٩) بقليلٍ ليُقرأ. */
-    bodySize: 18,
+    after: 0.6,
+    /**
+     * سقفُ السطرِ الكبير على ورق ٨٠مم -- وسقفٌ لا مقاسٌ ثابت: يُنزل
+     * حتّى يستوي النصُّ في عرضِ الورقة، فلا يُقصّ على ٥٨مم ولا إن طال
+     * النصُّ يوماً.
+     */
+    headSize: 46,
+    /** هامشٌ يُترك على طرفَي السطر الكبير قبل القياس. */
+    fitInset: 8,
+    /** السطرُ الثاني في «إطار». */
+    subSize: 27,
+    /** جسمُ النصّ -- والأسوَدُ لا الرفيع: الرفيعُ يتفتّت على ٢٠٣ نقطة. */
+    bodySize: 23,
     /** السطرُ الأخير. */
-    tailSize: 20,
-    subSize: 19,
+    tailSize: 29,
     /** فراغٌ بين أسطر الشريط. */
     lineGap: 0.3,
+    /**
+     * ارتفاعُ صندوقِ السطر من حجم الحرف.
+     *
+     * وهو الذي يُحسب به الارتفاعُ ويُوضع به مركزُ النصّ معاً، فلا يفترق
+     * المقيسُ عن المرسوم: الكتلةُ السوداء تُرسم بمقاسٍ ثمّ يُكتب فوقها،
+     * فإن قاس أحدُهما غيرَ ما قاس الآخرُ خرج سطرٌ أبيضُ على ورقٍ أبيض --
+     * غائباً تماماً لا مزدحماً.
+     */
+    lineBox: 1.2,
     /** ارتفاعُ سطرِ الجسم من حجمه -- العربيةُ تحتاج أكثرَ من اللاتينية. */
     bodyLeading: 1.5,
     /** حشوةُ الإطار وحشوةُ الكتلة السوداء. */
-    framePad: 0.5,
-    blockPad: 0.75,
-    /** سماكةُ الإطار. */
-    frame: 2,
+    framePad: 0.62,
+    blockPad: 0.7,
+    /** سماكةُ الإطار الخارجيّ، ثمّ الفراغُ، ثمّ الخطُّ الداخليّ. */
+    frame: 3,
+    frameGap: 4,
+    frameInner: 1,
     /** الكتلةُ السوداء تضيق عن حافّة الورق بمقدار الحشوة هذه. */
     blockInset: 0.35,
     /** نسبةُ خطِّ الأساس من حجم الحرف -- نفسُ ما يستعمله صندوقُ الطلب. */
-    baseline: 0.78
+    baseline: 0.78,
+    /**
+     * ── شريطُ السدو ──
+     * مثلّثاتٌ على خطّ. وهو الزخرفةُ الوحيدةُ التي تُرسم بلا صورة: الطابعةُ
+     * لونان، والمثلّثُ المبنيُّ من صفوفِ نقاطٍ يخرج حادّاً بذاته -- لا
+     * حوافَّ مُنعَّمةً تسقط عند التحويل إلى لونين كما يسقط نصفُ صورةٍ
+     * رماديّة. وهي زخرفتُنا لا زخرفةُ أحد.
+     */
+    saduUnit: 8,
+    /** الخطُّ الصلبُ الذي تقف عليه المثلّثات. */
+    saduRule: 2,
+    /** فراغٌ بين الشريط والنصّ، بوحدة السطر. */
+    saduGap: 0.3,
+    /** فاصلٌ بين السطرين: خطٌّ رفيعٌ تتوسّطه ماسة. */
+    diamond: 5,
+    dividerRule: 1,
+    dividerGap: 11
   };
   var LOGO = {
     /** سقفُ ارتفاعه من عرض الورق: شعارٌ طويل كان يبتلع نصف الورقة. */
@@ -486,7 +521,7 @@ var RakeenReceiptEngine = (() => {
   function isBannerKind(v) {
     return typeof v === "string" && BANNER_KINDS.includes(v);
   }
-  var COPY = {
+  var BANNER_COPY = {
     shield: {
       head: "السعودية خط أحمر",
       sub: "تذكّر شكلها فلا تنسى"
@@ -506,66 +541,134 @@ var RakeenReceiptEngine = (() => {
     ctx.y += ctx.gap(BANNER.after);
     return true;
   }
+  function fitSize(ctx, text, max, weight, maxW) {
+    const room = maxW - BANNER.fitInset;
+    let size = max;
+    while (size > 12 && ctx.measure(text, size, weight, "display") > room) size -= 1;
+    return size;
+  }
+  function displayLine(ctx, text, size, weight, top, color) {
+    const box = Math.round(size * BANNER.lineBox);
+    ctx.text(text, ctx.width / 2, size, weight, "display", "center", "rtl", { color, at: top + box / 2 });
+    return box;
+  }
+  function saduBand(ctx, x, y, w, color, down) {
+    const u = BANNER.saduUnit;
+    const rule = BANNER.saduRule;
+    const base = u * 2;
+    const n = Math.floor(w / base);
+    if (n < 2) return 0;
+    const lead = x + Math.round((w - n * base) / 2);
+    const ruleY = down ? y : y + u;
+    ctx.rect(x, ruleY, w, rule, color);
+    for (let t = 0; t < n; t += 1) {
+      const cx = lead + t * base + u;
+      for (let row = 0; row < u; row += 1) {
+        const half = down ? u - row : row + 1;
+        const rowY = down ? y + rule + row : y + row;
+        ctx.rect(cx - half, rowY, half * 2, 1, color);
+      }
+    }
+    return u + rule;
+  }
+  function diamondRule(ctx, x, y, w, color) {
+    const k = BANNER.diamond;
+    const h = k * 2 + 1;
+    const cy = y + k;
+    const cx = x + w / 2;
+    const stop = k + BANNER.dividerGap;
+    const leftW = Math.round(cx - stop - x);
+    if (leftW > 0) ctx.rect(x, cy, leftW, BANNER.dividerRule, color);
+    const rightX = Math.round(cx + stop);
+    const rightW = x + w - rightX;
+    if (rightW > 0) ctx.rect(rightX, cy, rightW, BANNER.dividerRule, color);
+    for (let i = -k; i <= k; i += 1) {
+      const half = k - Math.abs(i);
+      ctx.rect(Math.round(cx - half), cy + i, half * 2 + 1, 1, color);
+    }
+    return h;
+  }
   function drawShield(ctx) {
-    const headSz = BANNER.headSize;
-    const subSz = BANNER.subSize;
-    const padIn = Math.round(ctx.line * BANNER.framePad);
+    const pad = Math.round(ctx.line * BANNER.framePad);
+    const frameW = BANNER.frame + BANNER.frameGap + BANNER.frameInner;
     const boxW = ctx.contentWidth;
     const boxX = PAD;
-    const inner = padIn + headSz + Math.round(ctx.line * BANNER.lineGap) + subSz + padIn;
+    const innerW = boxW - (frameW + pad) * 2;
+    const headSz = fitSize(ctx, BANNER_COPY.shield.head, BANNER.headSize, WEIGHT.bold, innerW);
+    const subSz = fitSize(ctx, BANNER_COPY.shield.sub, BANNER.subSize, WEIGHT.regular, innerW);
+    const headBox = Math.round(headSz * BANNER.lineBox);
+    const subBox = Math.round(subSz * BANNER.lineBox);
+    const divH = BANNER.diamond * 2 + 1;
+    const gap = Math.round(ctx.line * BANNER.lineGap);
+    const height = (frameW + pad) * 2 + headBox + gap + divH + gap + subBox;
     const top = ctx.y;
-    ctx.box(boxX, top, boxW, inner, BANNER.frame);
-    ctx.text(
-      COPY.shield.head,
-      ctx.width / 2,
-      headSz,
-      WEIGHT.bold,
-      "sans",
-      "center",
-      "rtl",
-      { at: top + padIn + headSz * BANNER.baseline }
+    ctx.box(boxX, top, boxW, height, BANNER.frame);
+    const inX = boxX + BANNER.frame + BANNER.frameGap;
+    const inY = top + BANNER.frame + BANNER.frameGap;
+    ctx.box(
+      inX,
+      inY,
+      boxW - (BANNER.frame + BANNER.frameGap) * 2,
+      height - (BANNER.frame + BANNER.frameGap) * 2,
+      BANNER.frameInner
     );
-    ctx.text(
-      COPY.shield.sub,
-      ctx.width / 2,
-      subSz,
-      WEIGHT.regular,
-      "sans",
-      "center",
-      "rtl",
-      { at: top + padIn + headSz + Math.round(ctx.line * BANNER.lineGap) + subSz * BANNER.baseline }
-    );
-    ctx.y = top + inner;
+    let at = top + frameW + pad;
+    at += displayLine(ctx, BANNER_COPY.shield.head, headSz, WEIGHT.bold, at, "ink");
+    at += gap;
+    at += diamondRule(ctx, boxX + frameW + pad, at, innerW, "ink");
+    at += gap;
+    displayLine(ctx, BANNER_COPY.shield.sub, subSz, WEIGHT.regular, at, "ink");
+    ctx.y = top + height;
   }
   function drawPlain(ctx) {
-    ctx.centerText(COPY.speech.head, BANNER.headSize, true);
-    ctx.y += ctx.gap(BANNER.lineGap);
-    for (const line of ctx.wrap(COPY.speech.body, BANNER.bodySize, WEIGHT.regular, "sans", ctx.contentWidth)) {
-      ctx.centerText(line, BANNER.bodySize, false);
+    const w = ctx.contentWidth;
+    const x = PAD;
+    const headSz = fitSize(ctx, BANNER_COPY.speech.head, BANNER.headSize, WEIGHT.bold, w);
+    const tailSz = fitSize(ctx, BANNER_COPY.speech.tail, BANNER.tailSize, WEIGHT.bold, w);
+    const gap = Math.round(ctx.line * BANNER.lineGap);
+    const saduGap = Math.round(ctx.line * BANNER.saduGap);
+    let at = ctx.y;
+    at += saduBand(ctx, x, at, w, "ink", false) + saduGap;
+    at += displayLine(ctx, BANNER_COPY.speech.head, headSz, WEIGHT.bold, at, "ink") + gap;
+    for (const line of ctx.wrap(BANNER_COPY.speech.body, BANNER.bodySize, WEIGHT.regular, "display", w)) {
+      at += displayLine(ctx, line, BANNER.bodySize, WEIGHT.regular, at, "ink");
     }
-    ctx.y += ctx.gap(BANNER.lineGap);
-    ctx.centerText(COPY.speech.tail, BANNER.tailSize, true);
+    at += gap;
+    at += diamondRule(ctx, x, at, w, "ink") + gap;
+    at += displayLine(ctx, BANNER_COPY.speech.tail, tailSz, WEIGHT.bold, at, "ink") + saduGap;
+    at += saduBand(ctx, x, at, w, "ink", true);
+    ctx.y = at;
   }
   function drawInvert(ctx) {
-    const headSz = BANNER.headSize;
-    const bodySz = BANNER.bodySize;
-    const tailSz = BANNER.tailSize;
-    const padIn = Math.round(ctx.line * BANNER.blockPad);
-    const step = Math.round(ctx.line * BANNER.lineGap);
-    const body = ctx.wrap(COPY.speech.body, bodySz, WEIGHT.regular, "sans", ctx.contentWidth - padIn * 2);
-    const bodyStep = Math.round(bodySz * BANNER.bodyLeading);
-    const height = padIn + headSz + step + body.length * bodyStep + step + tailSz + padIn;
+    const inset = Math.round(PAD * BANNER.blockInset);
+    const blockX = inset;
+    const blockW = ctx.width - inset * 2;
+    const pad = Math.round(ctx.line * BANNER.blockPad);
+    const innerX = blockX + pad;
+    const innerW = blockW - pad * 2;
+    const headSz = fitSize(ctx, BANNER_COPY.speech.head, BANNER.headSize, WEIGHT.bold, innerW);
+    const tailSz = fitSize(ctx, BANNER_COPY.speech.tail, BANNER.tailSize, WEIGHT.bold, innerW);
+    const body = ctx.wrap(BANNER_COPY.speech.body, BANNER.bodySize, WEIGHT.regular, "display", innerW);
+    const gap = Math.round(ctx.line * BANNER.lineGap);
+    const saduGap = Math.round(ctx.line * BANNER.saduGap);
+    const bandH = BANNER.saduUnit + BANNER.saduRule;
+    const headBox = Math.round(headSz * BANNER.lineBox);
+    const tailBox = Math.round(tailSz * BANNER.lineBox);
+    const bodyBox = Math.round(BANNER.bodySize * BANNER.lineBox);
+    const divH = BANNER.diamond * 2 + 1;
+    const height = pad * 2 + bandH + saduGap + headBox + gap + body.length * bodyBox + gap + divH + gap + tailBox + saduGap + bandH;
     const top = ctx.y;
-    ctx.rect(PAD * BANNER.blockInset, top, ctx.width - PAD * BANNER.blockInset * 2, height, "ink");
-    let at = top + padIn + headSz * BANNER.baseline;
-    ctx.text(COPY.speech.head, ctx.width / 2, headSz, WEIGHT.bold, "sans", "center", "rtl", { color: "paper", at });
-    at += headSz * (1 - BANNER.baseline) + step + bodySz * BANNER.baseline;
+    ctx.rect(blockX, top, blockW, height, "ink");
+    let at = top + pad;
+    at += saduBand(ctx, innerX, at, innerW, "paper", false) + saduGap;
+    at += displayLine(ctx, BANNER_COPY.speech.head, headSz, WEIGHT.bold, at, "paper") + gap;
     for (const line of body) {
-      ctx.text(line, ctx.width / 2, bodySz, WEIGHT.regular, "sans", "center", "rtl", { color: "paper", at });
-      at += bodyStep;
+      at += displayLine(ctx, line, BANNER.bodySize, WEIGHT.regular, at, "paper");
     }
-    at += step - bodyStep + bodySz * (1 - BANNER.baseline) + tailSz * BANNER.baseline;
-    ctx.text(COPY.speech.tail, ctx.width / 2, tailSz, WEIGHT.bold, "sans", "center", "rtl", { color: "paper", at });
+    at += gap;
+    at += diamondRule(ctx, innerX, at, innerW, "paper") + gap;
+    at += displayLine(ctx, BANNER_COPY.speech.tail, tailSz, WEIGHT.bold, at, "paper") + saduGap;
+    saduBand(ctx, innerX, at, innerW, "paper", true);
     ctx.y = top + height;
   }
 

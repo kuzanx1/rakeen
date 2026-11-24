@@ -18,8 +18,20 @@ import type { BannerKind } from './banner';
 
 export type Align = 'left' | 'center' | 'right';
 export type Dir = 'rtl' | 'ltr';
-/** العربيةُ والعناوين بـsans، والأرقامُ والمبالغُ بـmono لتصطفّ خاناتُها. */
-export type Family = 'sans' | 'mono';
+/**
+ * العربيةُ والعناوين بـsans، والأرقامُ والمبالغُ بـmono لتصطفّ خاناتُها.
+ *
+ * وdisplay خطُّ عرضٍ ثالث (Thmanyah Serif Display)، لشريطِ الفاتورة
+ * وحده. وهو عائلةٌ لا وزنٌ أثقل: الفخامةُ في شكلِ الحرف نفسِه -- في
+ * أطرافه وفي تفاوتِ سماكته -- لا في تغميقِ خطِّ النصّ. وما طلبه المالكُ
+ * هو هذا بعينه: «نفس الخط حق بالغوا بالدفاع عن وطنكم».
+ *
+ * ومحزومٌ مُجزَّأً على محارفِ الشريط وحدها (٥٨ك.ب للوزن) -- فأيُّ نصٍّ
+ * آخر يُكتب به يخرج مربّعاتٍ فارغة. يحرسه
+ * tools/accounting-checks/receipt-banner.cjs: يقرأ cmap الملفّ ويقابله
+ * بنصوصِ banner.ts محرفاً محرفاً.
+ */
+export type Family = 'sans' | 'mono' | 'display';
 /** الورقُ الحراريُّ لونان لا ثالث: محروقٌ أو لا. */
 export type Ink = 'ink' | 'paper';
 

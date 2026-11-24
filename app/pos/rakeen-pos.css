@@ -73,6 +73,12 @@ body{
    لا تقلب محرفاً بمفرده. */
 @font-face{font-family:'RakeenReceiptRiyal'; src:url('/fonts/saudi-riyal/SaudiRiyal-Regular.ttf') format('truetype'); font-weight:400 600; font-display:block;}
 @font-face{font-family:'RakeenReceiptRiyal'; src:url('/fonts/saudi-riyal/SaudiRiyal-Bold.ttf') format('truetype'); font-weight:700 900; font-display:block;}
+/* خطُّ العرض -- لشريطِ الفاتورة الوطنيّ وحدَه (shared/receipt/banner.ts).
+   وهو ملفُّ التطبيق بعينه، محزومٌ مُجزَّأً على محارفِ الشريط وحدها: ٥٨
+   ك.ب للوزن بدلاً من ١٧٠. فلا يُكتب به شيءٌ آخر -- وحارسُ النشر يقابل
+   cmap الملفِّ بنصوص الشريط محرفاً محرفاً. */
+@font-face{font-family:'RakeenReceiptDisplay'; src:url('/fonts/thmanyah-serif-display/ThmanyahSerifDisplay-Bold.ttf') format('truetype'); font-weight:400 700; font-display:block;}
+@font-face{font-family:'RakeenReceiptDisplay'; src:url('/fonts/thmanyah-serif-display/ThmanyahSerifDisplay-Black.ttf') format('truetype'); font-weight:701 900; font-display:block;}
 
 /* Self-hosted Saudi Riyal sign (U+20C1) — same webfont/character as the
    dashboard's rkMoney(), so a total here reads with the same real currency

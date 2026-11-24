@@ -6209,12 +6209,15 @@ let KITCHEN_TICKET_MODE = 'brief';
 
 /** الخطُّ كما يفهمه الكانفس. والمحرّكُ لا يعرف أسماءَ الخطوط ولا يحتاجها. */
 function receiptFontString(size, weight, family){
-  return family === 'mono'
-    /* وخطُّ الريال ثانياً في الترتيب لا أوّلاً: المتصفّحُ يلتمس كلَّ
-       محرفٍ في العائلات بالترتيب، فالعربيُّ من Tajawal و⃁ وحده منه --
-       وهو نفسُ ترتيب Skia في التطبيق. */
-    ? weight + ' ' + size + 'px "RakeenReceiptMono", "RakeenReceiptRiyal", monospace'
-    : weight + ' ' + size + 'px "RakeenReceipt", "RakeenReceiptRiyal", sans-serif';
+  /* وخطُّ الريال ثانياً في الترتيب لا أوّلاً: المتصفّحُ يلتمس كلَّ
+     محرفٍ في العائلات بالترتيب، فالعربيُّ من Tajawal و⃁ وحده منه --
+     وهو نفسُ ترتيب Skia في التطبيق. */
+  if(family === 'mono') return weight + ' ' + size + 'px "RakeenReceiptMono", "RakeenReceiptRiyal", monospace';
+  /* خطُّ العرض -- لشريطِ الفاتورة وحدَه (shared/receipt/banner.ts). وهو
+     محزومٌ مُجزَّأً على محارفِ الشريط، فخطُّ النصّ وراءَه لا بديلاً عنه:
+     حرفٌ ليس في الجزئية يأتي من Tajawal لا مربّعاً فارغاً. */
+  if(family === 'display') return weight + ' ' + size + 'px "RakeenReceiptDisplay", "RakeenReceipt", "RakeenReceiptRiyal", serif';
+  return weight + ' ' + size + 'px "RakeenReceipt", "RakeenReceiptRiyal", sans-serif';
 }
 
 /**
@@ -6302,6 +6305,18 @@ function paintReceiptOps(ctx, layout, images){
  * حروفٍ لا يجلب جزئيةَ العربية أصلاً.
  */
 let RECEIPT_FONTS_READY = null;
+/** محارفُ الشريط كلُّها -- من المحرّك، فلا تُنسخ نصوصُه هنا. */
+const RECEIPT_BANNER_SAMPLE = (function(){
+  try {
+    const c = window.RakeenReceiptEngine.BANNER_COPY;
+    return c.shield.head + ' ' + c.shield.sub + ' ' + c.speech.head + ' ' + c.speech.body + ' ' + c.speech.tail;
+  } catch(e){
+    /* ولا نصَّ احتياطياً هنا: نسخةٌ ثانيةٌ من نصّ الشريط تَبلى.
+       والخطُّ لا يحمل وحدةَ unicode-range، فيُجلب كاملاً بأيّ
+       نصّ -- والفارغُ يُجلب به كذلك. */
+    return '';
+  }
+})();
 function ensureReceiptFonts(){
   if(RECEIPT_FONTS_READY) return RECEIPT_FONTS_READY;
   const sample = 'أبجد هوز حطي كلمن سعفص قرشت ثخذ ضظغ 0123456789. ' + RECEIPT_RIYAL;
@@ -6310,6 +6325,9 @@ function ensureReceiptFonts(){
     wants.push(document.fonts.load(w + ' 40px "RakeenReceipt"', sample));
     wants.push(document.fonts.load(w + ' 40px "RakeenReceiptMono"', '0123456789.-+'));
     wants.push(document.fonts.load(w + ' 40px "RakeenReceiptRiyal"', RECEIPT_RIYAL));
+    /* وبنصِّ الشريط بعينه: خطُّ العرضِ محزومٌ مُجزَّأً عليه، وطلبُ خطٍّ
+       بحروفٍ ليست فيه لا يضمن جلبَه. والنصُّ من المحرّك لا منسوخاً. */
+    wants.push(document.fonts.load(w + ' 40px "RakeenReceiptDisplay"', RECEIPT_BANNER_SAMPLE));
   });
   // ولا يُوقف الطبعَ فشلُ التحميل: ورقةٌ بخطٍّ احتياطيّ خيرٌ من ورقةٍ
   // لم تُطبع. وإنّما يُنتظَر ما أمكن.

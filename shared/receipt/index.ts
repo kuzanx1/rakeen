@@ -27,7 +27,9 @@ export type {
   Align, Dir, Family, Ink, DrawOp, TextOp, RectOp, DashOp, ImageOp, GlyphOp,
   Measurer, ImageSize, QrGrid, PagerBlock, ReceiptItem, ReceiptItemMod, ReceiptModel, LayoutInput, LayoutResult,
 } from './types';
-export { BANNER_KINDS, isBannerKind } from './banner';
+/* وBANNER_COPY يُصدَّر: الكاشيرُ يحمّل خطَّ العرض بنصِّه الحقيقيّ،
+   ولوحةُ الإدارة تعاين به -- فلا يُنسخ النصُّ في ثلاثة مواضع. */
+export { BANNER_KINDS, BANNER_COPY, isBannerKind } from './banner';
 export type { BannerKind } from './banner';
 export { stubMeasure } from './stubMeasure';
 /* والحالاتُ المرجعيةُ ليست هنا قصداً (`./scenarios`).

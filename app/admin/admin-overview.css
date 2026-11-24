@@ -1,5 +1,8 @@
 /* لوحة إدارة ركين: القائمة الجانبية + «نظرة عامة». فاتحة وهادية، فحمي وليموني بس للتمييز. */
 @font-face{font-family:'RkDisplay'; src:url('/fonts/thmanyah-serif-display/thmanyahserifdisplay-Black.woff2') format('woff2'); font-weight:900; font-display:swap;}
+/* ووزنٌ ثانٍ لمعاينة شريط الفاتورة: الورقةُ تطبع بوزنَين -- الأسودُ
+   للسطر الكبير والثقيلُ للجسم -- فتعاينُ اللوحةُ بما يُطبع. */
+@font-face{font-family:'RkDisplay'; src:url('/fonts/thmanyah-serif-display/thmanyahserifdisplay-Bold.woff2') format('woff2'); font-weight:700; font-display:swap;}
 
 .ad{--ink:#171717; --paper:#FBFAF5; --bg:#F4F2EA; --card:#fff; --line:rgba(23,23,23,.07); --muted:#857f72; --lime:#C4FF2B; --lime-deep:#6E9E0A; --ok:#3F8A12; --warn:#B9761F; --bad:#B0402C;
   min-height:100dvh; background:var(--bg); color:var(--ink); color-scheme:light; font-family:'IBM Plex Sans Arabic',sans-serif; direction:rtl;
@@ -398,3 +401,20 @@ textarea.bz-input{resize:vertical; min-height:96px;}
   .bz-foot{padding:10px 16px calc(10px + env(safe-area-inset-bottom));}
   .bz-foot .bz-btn{flex:1;}
 }
+
+/* تسجيلاتُ /signup الجديدة — أعلى «نظرة عامة». */
+.ao-signups{border:1px solid rgba(110,156,10,.35); background:rgba(196,255,43,.07);
+  border-radius:16px; padding:14px 16px; margin-bottom:18px;}
+.ao-signups-h{display:flex; align-items:baseline; gap:10px; margin-bottom:10px;}
+.ao-signups-h b{font-size:15px; font-weight:800;}
+.ao-signups-h span{font-size:12.5px; opacity:.6;}
+.ao-signups ul{list-style:none; display:grid; gap:8px; margin:0; padding:0;}
+.ao-signups li{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between;
+  gap:10px; padding:10px 12px; border-radius:12px; background:rgba(0,0,0,.05);}
+.ao-signup-main{display:flex; align-items:baseline; gap:9px; min-width:0;}
+.ao-signup-main b{font-size:14.5px; font-weight:800;}
+.ao-signup-main span{font-size:13px; opacity:.7;}
+.ao-signup-meta{display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:12.5px; opacity:.78;}
+.ao-signup-meta a{font-weight:700; text-decoration:underline;}
+.ao-signup-meta .need{font-weight:800; color:#6E9C0A;}
+.ao-signup-meta .at{opacity:.55;}

@@ -27,6 +27,8 @@ const RECEIPT_FONT_FAMILY = 'RakeenReceiptArabic';
 const RIYAL_FONT_FAMILY = 'RakeenRiyal';
 /** عائلةُ المبالغ -- خاناتٌ ثابتةُ العرض فتصطفّ الفاصلةُ العشرية. */
 const MONO_FONT_FAMILY = 'RakeenReceiptMono';
+/** خطُّ العرض -- لشريطِ الفاتورة وحدَه. انظر receiptFonts.ts. */
+const DISPLAY_FONT_FAMILY = 'RakeenReceiptDisplay';
 
 export function buildReceiptFontProvider(
   regular: SkTypeface | null,
@@ -35,12 +37,16 @@ export function buildReceiptFontProvider(
   riyalBold?: SkTypeface | null,
   monoRegular?: SkTypeface | null,
   monoBold?: SkTypeface | null,
+  displayBlack?: SkTypeface | null,
+  displayBold?: SkTypeface | null,
 ): SkTypefaceFontProvider {
   const provider = Skia.TypefaceFontProvider.Make();
   if (riyalRegular) provider.registerFont(riyalRegular, RIYAL_FONT_FAMILY);
   if (riyalBold) provider.registerFont(riyalBold, RIYAL_FONT_FAMILY);
   if (monoRegular) provider.registerFont(monoRegular, MONO_FONT_FAMILY);
   if (monoBold) provider.registerFont(monoBold, MONO_FONT_FAMILY);
+  if (displayBold) provider.registerFont(displayBold, DISPLAY_FONT_FAMILY);
+  if (displayBlack) provider.registerFont(displayBlack, DISPLAY_FONT_FAMILY);
   // Both weights register under the SAME family name -- pushStyle's
   // fontStyle.weight below is what picks Regular vs. Bold at paint time,
   // matching how a real font family with multiple weights works.
@@ -195,11 +201,15 @@ export function measureAndWrapText(
  * الأولى التمسته في الثانية. فالمبالغُ تبدأ بالأحاديّ وتقع أرقامُها
  * فيه، والعربيُّ إن وقع في سطرٍ أحاديّ رجع إلى الخطّ العربيّ -- ولا
  * يخرج محرفٌ مربّعاً فارغاً.
+ *
+ * وخطُّ العرضِ محزومٌ مُجزَّأً على محارفِ الشريطِ وحدها، فخطُّ النصّ
+ * وراءَه لا بديلاً عنه: حرفٌ ليس في الجزئية يأتي من Tajawal -- أقبحَ
+ * ممّا أُريد، لا مربّعاً فارغاً بيد الزبون. والحارسُ يمنع أصلَ العطب.
  */
-function familiesFor(family?: 'sans' | 'mono'): string[] {
-  return family === 'mono'
-    ? [MONO_FONT_FAMILY, RECEIPT_FONT_FAMILY, RIYAL_FONT_FAMILY]
-    : [RECEIPT_FONT_FAMILY, RIYAL_FONT_FAMILY];
+function familiesFor(family?: 'sans' | 'mono' | 'display'): string[] {
+  if (family === 'mono') return [MONO_FONT_FAMILY, RECEIPT_FONT_FAMILY, RIYAL_FONT_FAMILY];
+  if (family === 'display') return [DISPLAY_FONT_FAMILY, RECEIPT_FONT_FAMILY, RIYAL_FONT_FAMILY];
+  return [RECEIPT_FONT_FAMILY, RIYAL_FONT_FAMILY];
 }
 
 export function paintTextAnchored(
@@ -215,7 +225,7 @@ export function paintTextAnchored(
     align: TextAlignment;
     direction: TextDir;
     /** 'mono' للمبالغ وحدها -- خاناتٌ ثابتةُ العرض فتصطفّ. */
-    family?: 'sans' | 'mono';
+    family?: 'sans' | 'mono' | 'display';
     color?: string;
     letterSpacing?: number;
   },
@@ -261,7 +271,7 @@ export function measureTextWidthWeighted(
   text: string,
   size: number,
   weight: number,
-  family?: 'sans' | 'mono',
+  family?: 'sans' | 'mono' | 'display',
 ): number {
   const builder = Skia.ParagraphBuilder.Make({ textDirection: TextDirection.RTL }, provider);
   builder.pushStyle({

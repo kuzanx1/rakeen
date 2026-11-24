@@ -14,6 +14,7 @@ import type { KitchenTicketModel } from './kitchenLayout';
 import type { ShiftReportModel } from './shiftLayout';
 import { PAPER } from './tokens';
 import type { ReceiptItem, ReceiptModel } from './types';
+import type { BannerKind } from './banner';
 
 const AR_LONG = 'قهوة مختصة إثيوبية يرغاتشيف مقطّرة على البارد مع حليب الشوفان والكراميل';
 const EN_LONG = 'Ethiopian Yirgacheffe Cold Brew With Oat Milk And Salted Caramel';
@@ -79,6 +80,19 @@ export const RECEIPT_SCENARIOS: Array<[string, ReceiptModel]> = [
   ['long-arabic', withTotals({ items: [item({ name: AR_LONG, nameEn: null, qty: 3, lineTotal: 54 })] })],
   ['mixed-ar-en', withTotals({ items: [item({ name: AR_LONG, nameEn: EN_LONG, qty: 2, lineTotal: 36 })] })],
   ['many-mods', withTotals({ items: [item({ mods: ['حليب شوفان', 'شوت إضافي', 'بدون سكر', 'ثلج قليل', 'كراميل مملّح'] })] })],
+  /* إضافاتٌ بأثمانها: المجانيُّ بلا رقم، والمعدودُ بثمنه كاملاً --
+     «طحينة ×3» ستةٌ لا اثنان. ومجموعُ السطر يساوي الصنفَ وإضافاته. */
+  ['priced-mods', withTotals({
+    items: [item({
+      name: 'حبة دجاج مع الرز', nameEn: 'Chicken & Rice', qty: 1, unitPrice: 45, lineTotal: 55,
+      mods: [
+        { text: 'طحينة ×3', price: 6 },
+        { text: 'سلطة', textEn: 'Salad', price: 4 },
+        { text: 'خبز ×2' },
+        { text: 'بدون بصل' },
+      ],
+    })],
+  })],
   ['long-notes', withTotals({
     items: [item({ note: 'اجعل القهوة ساخنة جداً وأضف الحليب على جانب الكوب بدون رغوة' })],
     orderNote: 'الطلب لشخصين، يرجى وضع كل مشروب في كيس منفصل مع مناديل إضافية',
@@ -97,6 +111,9 @@ export const RECEIPT_SCENARIOS: Array<[string, ReceiptModel]> = [
   ['pager', withTotals({ items: many(3), pagerBlock: PAGER_SPEC })],
   ['pager-wifi', withTotals({ items: many(3), pagerBlock: { ...PAGER_SPEC, wifi: 'Hebbiya-Guest' } })],
   ['delivery-app', withTotals({ metaLabel: 'توصيل', platformName: 'هنقرستيشن', platformInvoiceLast4: '4821', paymentMethodLabel: 'مدفوع عبر التطبيق' })],
+  /* طلبُ جوال: نوعُه «جوال» بلا اسمِ مصدرٍ تحته، وأربعتُه من جوال
+     الزبون -- لا من فاتورة تطبيق، وهو ما كانت الورقةُ تكتبه. */
+  ['phone-order', withTotals({ metaLabel: 'جوال', platformInvoiceLast4: '7788', phoneOrder: true, paymentMethodLabel: 'نقداً' })],
 ];
 
 export const THEME_IDS = ['classic', 'compact', 'elegant', 'signature'] as const;
@@ -129,6 +146,14 @@ export interface Scenario {
   model: ReceiptModel | KitchenTicketModel | ShiftReportModel;
   theme?: string;
   width?: number;
+  /**
+   * الشريطُ الوطنيّ -- يُصوَّر مع الفواتير لا بدلاً منها.
+   *
+   * وهو ميزةٌ مؤقّتةٌ تُطفأ بزرّ، فلا يدخل كلَّ الحالات: ثلاثُ أوراقٍ
+   * تكفي لتمسك ما يُمسك -- خطٌّ لم يُحمَّل، أو محرفٌ خرج مربّعاً فارغاً،
+   * أو كتلةٌ سوداءُ قُصَّت فضاع نصُّها الأبيض.
+   */
+  banner?: BannerKind;
 }
 
 /** كلُّ ما يُصوَّر ويُقارن -- في الويب وعلى الجهاز سواء. */
@@ -150,8 +175,33 @@ export function buildScenarios(): Scenario[] {
     model: withTotals({ items: many(3), pagerBlock: { ...PAGER_SPEC, wifi: 'Hebbiya-Guest' } }),
     theme: 'classic', width: PAPER.mm58,
   });
+  /* شريطُ الفاتورة: تصميمٌ لكلّ ورقة، وواحدٌ على ٥٨مم -- فالسطرُ
+     الكبيرُ يُقاس إلى عرضِ الورقة، فإن انكسر القياسُ قُصّ على الضيّق
+     وحده وبقي سليماً على العريض. */
+  /* والشاهدُ أوّلاً: ورقةٌ بالطلب نفسِه و«بلا شريط». فبها يُقاس ما
+     يأكله كلُّ تصميمٍ من ورق، وبها يُمسك أسوأُ عطبٍ ممكن في ميزةٍ
+     مؤقّتة -- أن يُطبع شريطٌ بعد إطفائه. */
+  out.push({
+    id: 'receipt-banner-none', doc: 'receipt',
+    model: withTotals({ items: many(2) }), theme: 'classic', banner: 'none',
+  });
+  for (const kind of ['shield', 'plain', 'invert'] as const) {
+    out.push({
+      id: `receipt-banner-${kind}`, doc: 'receipt',
+      model: withTotals({ items: many(2) }), theme: 'classic', banner: kind,
+    });
+  }
+  out.push({
+    id: 'receipt-banner-plain-58mm', doc: 'receipt',
+    model: withTotals({ items: many(2) }), theme: 'classic',
+    width: PAPER.mm58, banner: 'plain',
+  });
   out.push({ id: 'kitchen-full', doc: 'kitchen', model: KITCHEN_SCENARIO });
   out.push({ id: 'kitchen-pager', doc: 'kitchen', model: { ...KITCHEN_SCENARIO, pagerNumber: 17 } });
+  // طلبُ تطبيقٍ أو جوال: الاسمُ فوق، وآخرُ أربعةٍ بالخطّ الكبير مكان
+  // رقم الطلب -- وهو ما ينادي به السائقُ أو المتّصل.
+  out.push({ id: 'kitchen-platform', doc: 'kitchen', model: { ...KITCHEN_SCENARIO, metaLabel: 'توصيل', platformName: 'كيتا', platformInvoiceLast4: '4421' } });
+  out.push({ id: 'kitchen-phone', doc: 'kitchen', model: { ...KITCHEN_SCENARIO, metaLabel: 'توصيل', platformName: 'جوال', platformInvoiceLast4: '7788' } });
   out.push({ id: 'kitchen-58mm', doc: 'kitchen', model: KITCHEN_SCENARIO, width: PAPER.mm58 });
   out.push({ id: 'shift-full', doc: 'shift', model: SHIFT_SCENARIO });
   out.push({ id: 'shift-positive-variance', doc: 'shift', model: { ...SHIFT_SCENARIO, cashCounted: 2150, cashVariance: 13 } });

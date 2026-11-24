@@ -42,6 +42,23 @@ const RIYAL_BOLD_ASSET = require('../../assets/fonts/SaudiRiyal-Bold.ttf');
 const MONO_REGULAR_ASSET = require('../../assets/fonts/IBMPlexMono-Medium.ttf');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const MONO_BOLD_ASSET = require('../../assets/fonts/IBMPlexMono-SemiBold.ttf');
+/**
+ * خطُّ العرض -- لشريطِ الفاتورة وحدَه (shared/receipt/banner.ts).
+ *
+ * وهو عائلةٌ ثالثةٌ لا وزنٌ رابع: الفخامةُ في شكلِ الحرفِ نفسِه، في
+ * أطرافه وفي تفاوتِ سماكته، لا في تغميقِ خطّ النصّ. وTajawal خطُّ نصٍّ
+ * صالحٌ لما هو له، ولا يصير فخماً بتكبيره.
+ *
+ * ومحزومٌ مُجزَّأً على محارفِ الشريطِ وحدها -- ٥٨ك.ب للوزن بدلاً من
+ * ١٧٠. فأيُّ نصٍّ غيرِه يُكتب به يخرج مربّعاتٍ فارغة، ولذلك يقرأ
+ * حارسُ النشرِ cmap الملفَّ ويقابله بنصوص banner.ts محرفاً محرفاً
+ * (tools/accounting-checks/receipt-banner.cjs). ويُولَّد الملفُّ
+ * بـtools/fonts/subset-display.py من الأصلِ الكامل في public/fonts.
+ */
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const DISPLAY_BLACK_ASSET = require('../../assets/fonts/ThmanyahSerifDisplay-Black.ttf');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const DISPLAY_BOLD_ASSET = require('../../assets/fonts/ThmanyahSerifDisplay-Bold.ttf');
 
 let cachedRegular: SkTypeface | null = null;
 let cachedBold: SkTypeface | null = null;
@@ -49,6 +66,8 @@ let cachedRiyalRegular: SkTypeface | null = null;
 let cachedRiyalBold: SkTypeface | null = null;
 let cachedMonoRegular: SkTypeface | null = null;
 let cachedMonoBold: SkTypeface | null = null;
+let cachedDisplayBlack: SkTypeface | null = null;
+let cachedDisplayBold: SkTypeface | null = null;
 
 async function loadTypefaceFromAsset(asset: number): Promise<SkTypeface | null> {
   try {
@@ -80,6 +99,7 @@ export async function loadReceiptTypefaces(): Promise<{
   regular: SkTypeface | null; bold: SkTypeface | null;
   riyalRegular: SkTypeface | null; riyalBold: SkTypeface | null;
   monoRegular: SkTypeface | null; monoBold: SkTypeface | null;
+  displayBlack: SkTypeface | null; displayBold: SkTypeface | null;
 }> {
   if (!cachedRegular) cachedRegular = await loadTypefaceFromAsset(REGULAR_ASSET);
   if (!cachedBold) cachedBold = await loadTypefaceFromAsset(BOLD_ASSET);
@@ -87,10 +107,13 @@ export async function loadReceiptTypefaces(): Promise<{
   if (!cachedRiyalBold) cachedRiyalBold = await loadTypefaceFromAsset(RIYAL_BOLD_ASSET);
   if (!cachedMonoRegular) cachedMonoRegular = await loadTypefaceFromAsset(MONO_REGULAR_ASSET);
   if (!cachedMonoBold) cachedMonoBold = await loadTypefaceFromAsset(MONO_BOLD_ASSET);
+  if (!cachedDisplayBlack) cachedDisplayBlack = await loadTypefaceFromAsset(DISPLAY_BLACK_ASSET);
+  if (!cachedDisplayBold) cachedDisplayBold = await loadTypefaceFromAsset(DISPLAY_BOLD_ASSET);
   return {
     regular: cachedRegular, bold: cachedBold,
     riyalRegular: cachedRiyalRegular, riyalBold: cachedRiyalBold,
     monoRegular: cachedMonoRegular, monoBold: cachedMonoBold,
+    displayBlack: cachedDisplayBlack, displayBold: cachedDisplayBold,
   };
 }
 
