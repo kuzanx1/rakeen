@@ -13740,6 +13740,9 @@ function branchWeeklyHoursHtml(branchId, rows){
   ].join('');
 }
 
+/** ملفُّ معاينةِ الرسمة -- اسمُه يحمل بصمتَها، فلا تفترق عمّا يُطبع. */
+const RECEIPT_BANNER_ART = '/dashboard/banner-art-b8319e27.png';
+
 /**
  * شريطُ الفاتورة -- يُفعّله صاحبُ المطعم بنفسه.
  *
@@ -13747,62 +13750,112 @@ function branchWeeklyHoursHtml(branchId, rows){
  * ويختار. والشاشةُ لا تُرسم إن أخفت ركين الميزة: تفعيلٌ لشيءٍ لا
  * يُطبع عبثٌ يملأ الإعدادات، ويترك في اللوحة بقايا مناسبةٍ انتهت.
  *
- * والمعاينةُ بخطّ العرض نفسِه وزخرفته (RkBannerDisplay) -- معاينةٌ بخطٍّ
- * آخر معاينةُ شيءٍ آخر، يختار المالكُ ما لم يره. وهي مصغَّرةٌ لا
- * بمقاس الورق: المقصودُ أن يعرف أيَّها اختار، لا أن يقيس.
+ * والمعاينةُ على شكلِ ورقتِه هو -- بشعاره وباسمه وسطره التعريفيّ، وما
+ * تحت الشريط من بياناتٍ كما تُطبع. فيرى **أين يقع** لا الشريطَ وحدَه
+ * معلّقاً في فراغ: مكانُه من الورقة نصفُ القرار.
  */
-function receiptBannerPickerHtml(){
-  if(RECEIPT_BANNER_PLATFORM === 'none') return '';
-  const cur = receiptBannerEffective();
+function receiptBannerArtHtml(kind, baseInk, scale){
+  /* و«خلفية سوداء» حبرُها أبيضُ دائماً: الكتلةُ سوداءُ أيّاً كان ما
+     حولها، فلونُ النصِّ منها لا من مُناديها. وكان يُمرَّر الأسودُ
+     فتخرج كتلةٌ صمّاءُ بلا سطرٍ واحد -- أسوأُ عطبٍ ممكن: لا خطأ، ولا
+     فراغ، إنّما سوادٌ يبدو مقصوداً. */
+  const ink = kind === 'invert' ? '#fff' : baseInk;
   const speech = ['بالغوا بالدفاع عن وطنكم',
                   'فالوطن عقيدة وكرامة وعزة لا تساوم، ولا تسمحوا لحاقد أو خائن أن ينال من أمنكم أو يشكّك في ولائكم',
                   'فالأوطان لا تحيا إلا بأبنائها'];
-  const sadu = (ink, down) =>
-    `<div style="margin:4px 0;">${down ? `<div style="height:2px;background:${ink}"></div>` : ''}` +
-    `<div style="height:8px;background-image:linear-gradient(${down ? '45deg' : '135deg'},${ink} 50%,transparent 50%),` +
-    `linear-gradient(${down ? '-45deg' : '-135deg'},${ink} 50%,transparent 50%);` +
-    `background-size:16px 8px;background-position:${down ? 'top left' : 'bottom left'};background-repeat:repeat-x;"></div>` +
-    `${down ? '' : `<div style="height:2px;background:${ink}"></div>`}</div>`;
-  const diamond = ink =>
-    `<div style="display:flex;align-items:center;gap:6px;margin:5px 0;">` +
-    `<span style="flex:1;height:1px;background:${ink}"></span>` +
-    `<span style="width:6px;height:6px;background:${ink};transform:rotate(45deg)"></span>` +
-    `<span style="flex:1;height:1px;background:${ink}"></span></div>`;
-  const body = (ink, scale) => `
-    <div style="font-family:'RkBannerDisplay',serif;font-weight:900;font-size:${scale}px;line-height:1.3;color:${ink};text-align:center;">${speech[0]}</div>
-    <div style="font-family:'RkBannerDisplay',serif;font-weight:700;font-size:${Math.round(scale*0.56)}px;line-height:1.55;color:${ink};text-align:center;margin:3px 0;">${speech[1]}</div>
-    ${diamond(ink)}
-    <div style="font-family:'RkBannerDisplay',serif;font-weight:900;font-size:${Math.round(scale*0.68)}px;color:${ink};text-align:center;">${speech[2]}</div>`;
-  const art = {
-    none: '<div style="color:var(--muted);font-size:12px;text-align:center;padding:26px 0;">— ما يُطبع شيء —</div>',
-    shield: `<div style="border:3px solid #121212;padding:3px;">
-        <div style="border:1px solid #121212;padding:11px 9px;">
-          <div style="font-family:'RkBannerDisplay',serif;font-weight:900;font-size:19px;color:#121212;text-align:center;">السعودية خط أحمر</div>
-          ${diamond('#121212')}
-          <div style="font-family:'RkBannerDisplay',serif;font-weight:700;font-size:12px;color:#121212;text-align:center;">تذكّر شكلها فلا تنسى</div>
-        </div></div>`,
-    plain: `<div>${sadu('#121212', false)}${body('#121212', 17)}${sadu('#121212', true)}</div>`,
-    invert: `<div style="background:#121212;padding:10px 9px;">${sadu('#fff', false)}${body('#fff', 17)}${sadu('#fff', true)}</div>`,
-  };
-  const label = { none: 'بدون — فاتورتي كما هي', shield: 'إطار', plain: 'بلا خلفية', invert: 'خلفية سوداء' };
-  const note = { none: 'الوضع الحالي، ما يُطبع شي', shield: 'يزيد الورق ٢٦ ملم', plain: 'يزيد الورق ٣٣ ملم', invert: 'يزيد الورق ٣٩ ملم' };
+  const S = n => Math.max(8, Math.round(n * scale));
+  const sadu = down =>
+    '<div style="margin:4px 0;">' + (down ? '<div style="height:2px;background:' + ink + '"></div>' : '')
+    + '<div style="height:' + Math.max(5, Math.round(8*scale)) + 'px;background-image:linear-gradient(' + (down ? '45deg' : '135deg') + ',' + ink + ' 50%,transparent 50%),'
+    + 'linear-gradient(' + (down ? '-45deg' : '-135deg') + ',' + ink + ' 50%,transparent 50%);'
+    + 'background-size:' + Math.max(10, Math.round(16*scale)) + 'px ' + Math.max(5, Math.round(8*scale)) + 'px;background-position:' + (down ? 'top left' : 'bottom left') + ';background-repeat:repeat-x;"></div>'
+    + (down ? '' : '<div style="height:2px;background:' + ink + '"></div>') + '</div>';
+  const diamond = '<div style="display:flex;align-items:center;gap:6px;margin:5px 0;">'
+    + '<span style="flex:1;height:1px;background:' + ink + '"></span>'
+    + '<span style="width:6px;height:6px;background:' + ink + ';transform:rotate(45deg)"></span>'
+    + '<span style="flex:1;height:1px;background:' + ink + '"></span></div>';
+  const line = (txt, px, black) => '<div style="font-family:RkBannerDisplay,serif;font-weight:' + (black ? 900 : 700)
+    + ';font-size:' + px + 'px;line-height:1.3;color:' + ink + ';text-align:center;">' + txt + '</div>';
+
+  if(kind === 'shield'){
+    /* والرسمةُ بالقناع لا بالصورة: ملفُّها أسودُ شفّاف، فلو عُرض كما هو
+       لبقي أسودَ لو احتاجه التصميمُ أبيض. والقناعُ يصبغه بلون الحبر. */
+    const heli = '<div style="display:flex;justify-content:center;margin-bottom:6px;">'
+      + '<div style="width:' + S(74) + 'px;height:' + S(101) + 'px;background:' + ink + ';'
+      + '-webkit-mask:url(' + RECEIPT_BANNER_ART + ') center/contain no-repeat;'
+      + 'mask:url(' + RECEIPT_BANNER_ART + ') center/contain no-repeat;"></div></div>';
+    return '<div style="border:3px solid ' + ink + ';padding:3px;">'
+      + '<div style="border:1px solid ' + ink + ';padding:' + S(11) + 'px ' + S(9) + 'px;">'
+      + heli + line('السعودية خط أحمر', S(19), true) + diamond + line('تذكّر شكلها فلا تنسى', S(12), false)
+      + '</div></div>';
+  }
+  const body = line(speech[0], S(19), true)
+    + '<div style="font-family:RkBannerDisplay,serif;font-weight:700;font-size:' + S(11) + 'px;line-height:1.6;color:' + ink + ';text-align:center;margin:3px 0;">' + speech[1] + '</div>'
+    + diamond + line(speech[2], S(13), true);
+  if(kind === 'invert'){
+    return '<div style="background:#121212;padding:' + S(10) + 'px ' + S(9) + 'px;">' + sadu(false) + body + sadu(true) + '</div>';
+  }
+  return '<div>' + sadu(false) + body + sadu(true) + '</div>';
+}
+
+/** ورقةٌ مصغّرة: ترويسةُ مطعمه، ثمّ الشريط، ثمّ ما تحته كما يُطبع. */
+function receiptBannerPreviewHtml(kind){
+  const nameHtml = '<div style="text-align:center;font-weight:800;font-size:15px;">' + escapeHtml(RESTAURANT_INFO.name || 'مطعمك') + '</div>';
+  const logoHtml = RECEIPT_LOGO_URL
+    ? '<div style="display:flex;justify-content:center;margin-bottom:8px;"><img src="' + RECEIPT_LOGO_URL + '" alt="" style="width:42%;max-height:70px;object-fit:contain;filter:grayscale(1) brightness(0.797) contrast(60);"></div>'
+    : '';
+  return [
+    '<div id="rkBannerReceiptCard" style="flex:1;min-width:230px;max-width:290px;background:#fff;color:#111;border-radius:10px;padding:16px;font-family:IBM Plex Sans Arabic,sans-serif;border:1px solid var(--line);">',
+      logoHtml,
+      (RECEIPT_SHOW_NAME || !RECEIPT_LOGO_URL) ? nameHtml : '',
+      RECEIPT_TAGLINE ? '<div style="text-align:center;font-size:11.5px;color:#444;margin-top:5px;">' + escapeHtml(RECEIPT_TAGLINE) + '</div>' : '',
+      '<div style="margin:12px 0;">' + (kind === 'none'
+        ? '<div style="border:1px dashed #ccc;border-radius:6px;padding:14px 8px;text-align:center;font-size:11.5px;color:#999;">— ما يُطبع شي هنا —</div>'
+        : receiptBannerArtHtml(kind, '#121212', 1)) + '</div>',
+      '<div style="text-align:center;font-size:11px;color:#777;">الفرع الرئيسي</div>',
+      '<div style="text-align:center;font-weight:800;font-size:11.5px;color:#777;margin-top:6px;">فاتورة ضريبية مبسطة</div>',
+      '<div style="border:1.5px solid #ddd;border-radius:3px;padding:6px 4px;margin:10px 18% 0;text-align:center;color:#aaa;">',
+        '<div style="font-size:9.5px;">رقم الطلب</div><div style="font-weight:800;font-size:19px;font-family:monospace;">#58</div>',
+      '</div>',
+      '<div style="border-top:1px solid #eee;margin:12px 0;"></div>',
+      '<div style="display:flex;justify-content:space-between;font-size:11px;color:#bbb;"><span>صنف ١</span><span>١٢٫٠٠</span></div>',
+      '<div style="display:flex;justify-content:space-between;font-size:11px;color:#bbb;margin-top:4px;"><span>صنف ٢</span><span>٢٤٫٠٠</span></div>',
+      '<div style="text-align:center;font-size:9.5px;color:#ccc;margin-top:10px;">— بقية الفاتورة كما هي —</div>',
+    '</div>'
+  ].join('');
+}
+
+function receiptBannerPickerHtml(){
+  if(RECEIPT_BANNER_PLATFORM === 'none') return '';
+  const cur = receiptBannerEffective();
+  const label = { none: 'بدون — فاتورتي كما هي', shield: 'إطار ورسمة', plain: 'بلا خلفية', invert: 'خلفية سوداء' };
+  const note = { none: 'الوضع الحالي، ما يُطبع شي', shield: 'يزيد الورق ٥٣ ملم', plain: 'يزيد الورق ٣٣ ملم', invert: 'يزيد الورق ٣٩ ملم' };
   const suggested = RECEIPT_BANNER_PLATFORM;
   return `
     <div class="rk-section" style="margin-bottom:16px;">
       ${rkSectionHead('fileText', 'شريط الفاتورة — ميزة جديدة', 'شريط وطني يُطبع تحت شعار مطعمك وسطره التعريفي. ما يُطبع إلا إذا فعّلته أنت')}
-      <div class="rk-theme-cards">
-        ${RECEIPT_BANNER_KINDS.map(k => `
-          <button type="button" class="rk-theme-card ${k === cur ? 'selected' : ''}" data-receiptbanner="${k}" style="text-align:right;">
-            <span class="rk-theme-card-name">${label[k]}${k === suggested ? ' <span style="font-weight:700;font-size:10.5px;color:var(--lime-deep);">· مقترح من ركين</span>' : ''}</span>
-            <span class="rk-theme-card-desc">${note[k]}</span>
-            <div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 8px;margin-top:8px;min-height:92px;display:flex;flex-direction:column;justify-content:center;">${art[k]}</div>
-          </button>`).join('')}
+      <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;">
+        <div style="flex:2; min-width:260px;">
+          <div class="rk-theme-cards">
+            ${RECEIPT_BANNER_KINDS.map(k => `
+              <button type="button" class="rk-theme-card ${k === cur ? 'selected' : ''}" data-receiptbanner="${k}" style="text-align:right;">
+                <span class="rk-theme-card-name">${label[k]}${k === suggested ? ' <span style="font-weight:700;font-size:10.5px;color:var(--lime-deep);">· مقترح من ركين</span>' : ''}</span>
+                <span class="rk-theme-card-desc">${note[k]}</span>
+                <div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px 7px;margin-top:8px;min-height:86px;display:flex;flex-direction:column;justify-content:center;">
+                  ${k === 'none'
+                    ? '<div style="color:var(--muted);font-size:12px;text-align:center;">— ما يُطبع شي —</div>'
+                    : receiptBannerArtHtml(k, '#121212', 0.72)}
+                </div>
+              </button>`).join('')}
+          </div>
+          <button class="rk-btn rk-btn-primary rk-btn-md" id="receiptBannerSaveBtn" style="margin-top:12px;">${cur === 'none' ? 'فعّل على فواتيري' : 'احفظ الاختيار'}</button>
+          <p style="font-size:12px; color:var(--muted); line-height:1.8; margin-top:10px;">
+            ما يُطبع شي حتى تفعّله من هنا، وتقدر ترجعه إلى «بدون» في أي وقت.
+            ويظهر على الفاتورة التالية بعد تحديث الجهاز لبيانات مطعمك — بلا تحديث للتطبيق.
+          </p>
+        </div>
+        ${receiptBannerPreviewHtml(cur)}
       </div>
-      <button class="rk-btn rk-btn-primary rk-btn-md" id="receiptBannerSaveBtn" style="margin-top:12px;">فعّل على فواتيري</button>
-      <p style="font-size:12px; color:var(--muted); line-height:1.8; margin-top:10px;">
-        ما يُطبع شي حتى تفعّله من هنا، وتقدر ترجعه إلى «بدون» في أي وقت.
-        ويظهر على الفاتورة التالية بعد تحديث الجهاز لبيانات مطعمك — بلا تحديث للتطبيق.
-      </p>
     </div>`;
 }
 
@@ -14544,6 +14597,10 @@ async function renderPosSettings(){
       document.querySelectorAll('[data-receiptbanner]').forEach(c=>c.classList.toggle('selected', c === card));
       const b = document.getElementById('receiptBannerSaveBtn');
       if(b) b.textContent = pendingBanner === 'none' ? 'لا تطبع شي على فواتيري' : 'فعّل على فواتيري';
+      /* والورقةُ تُعاد رسمُها مع كلِّ ضغطة: يرى أين يقع الشريطُ من
+         فاتورته قبل أن يحفظ، لا بعد أن يطبع. */
+      const card2 = document.getElementById('rkBannerReceiptCard');
+      if(card2) card2.outerHTML = receiptBannerPreviewHtml(pendingBanner);
     });
   });
 

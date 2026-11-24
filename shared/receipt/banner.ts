@@ -37,6 +37,8 @@
  */
 
 import type { LayoutContext } from './context';
+import { APACHE } from './art';
+import type { Art } from './art';
 import { BANNER, PAD, WEIGHT } from './tokens';
 import type { Ink } from './types';
 
@@ -149,6 +151,33 @@ function saduBand(ctx: LayoutContext, x: number, y: number, w: number, color: In
   return u + rule;
 }
 
+/**
+ * رسمةٌ من بِتّاتها -- مستطيلاتٌ بعرض مقاطعها السوداء.
+ *
+ * ولا صورةَ تُحمَّل ولا عمليةَ رسمٍ جديدة: المقاطعُ تصير `rect` كغيرها،
+ * فما يعرف أن يرسم فاتورةً يعرف أن يرسم هذه. وقد حُوّلت إلى لونين في
+ * الأداة لا هنا (tools/receipt-art/build.mjs)، فتخرج على ورقة التطبيق
+ * كما تخرج على ورقة الويب -- نقطةً نقطة، بلا عتبةٍ تختلف بين منفّذٍ
+ * وآخر.
+ */
+function drawArt(ctx: LayoutContext, art: Art, x: number, y: number, color: Ink): void {
+  const rows = art.runs.split(';');
+  let prev = '';
+  for (let r = 0; r < rows.length; r += 1) {
+    const row = rows[r] === '-' ? prev : rows[r];
+    prev = row;
+    let at = 0;
+    let ink = false;
+    for (const part of row.split(',')) {
+      const n = parseInt(part, 36);
+      if (!(n >= 0)) continue;
+      if (ink && n > 0) ctx.rect(x + at, y + r, n, 1, color);
+      at += n;
+      ink = !ink;
+    }
+  }
+}
+
 /** فاصلٌ بين السطرين: خطٌّ رفيعٌ تتوسّطه ماسة. يُعيد ارتفاعَه. */
 function diamondRule(ctx: LayoutContext, x: number, y: number, w: number, color: Ink): number {
   const k = BANNER.diamond;
@@ -173,10 +202,14 @@ function diamondRule(ctx: LayoutContext, x: number, y: number, w: number, color:
 /* ───────────────────────── التصاميمُ الثلاثة ───────────────────────── */
 
 /**
- * ١: إطارٌ مزدوجٌ وسطرٌ كبير.
+ * ١: إطارٌ مزدوجٌ ورسمةٌ وسطرٌ كبير.
  *
  * والإطارُ خطّان لا خطّ: سميكٌ خارجاً ورفيعٌ داخلاً بفراغٍ بينهما -- وهو
  * ما يفصل «محاطٌ بخطّ» عن «مُؤطَّر». والفرقُ ثلاثُ نقاطٍ من ورق.
+ *
+ * والرسمةُ فوق السطر لا بجانبه: صورةُ ظلٍّ تُقرأ لحظةً قبل أن يُقرأ
+ * الحرف، فهي المدخلُ لا الحاشية. وهي أغلى ما في التصاميم ورقاً --
+ * خمسةٌ وعشرون مِلّيمتراً وحدَها -- ولذلك لم تدخل الثلاثةَ كلَّها.
  */
 function drawShield(ctx: LayoutContext): void {
   const pad = Math.round(ctx.line * BANNER.framePad);
@@ -191,8 +224,13 @@ function drawShield(ctx: LayoutContext): void {
   const subBox = Math.round(subSz * BANNER.lineBox);
   const divH = BANNER.diamond * 2 + 1;
   const gap = Math.round(ctx.line * BANNER.lineGap);
+  /* ولا تتجاوز الرسمةُ عرضَ ما بداخل الإطار: على ورق ٥٨مم تضيق
+     المساحةُ فتُقصّ الريشُ من طرفيه -- وطائرةٌ مقصوصةُ الريش أسوأُ
+     من لا طائرة. ولا تُكبَّر فوق مقاسها المولَّد. */
+  const artW = Math.min(APACHE.w, innerW);
+  const artH = artW === APACHE.w ? APACHE.h : Math.round((APACHE.h * artW) / APACHE.w);
 
-  const height = (frameW + pad) * 2 + headBox + gap + divH + gap + subBox;
+  const height = (frameW + pad) * 2 + artH + gap + headBox + gap + divH + gap + subBox;
   const top = ctx.y;
 
   ctx.box(boxX, top, boxW, height, BANNER.frame);
@@ -202,6 +240,8 @@ function drawShield(ctx: LayoutContext): void {
     height - (BANNER.frame + BANNER.frameGap) * 2, BANNER.frameInner);
 
   let at = top + frameW + pad;
+  drawArt(ctx, APACHE, Math.round(ctx.width / 2 - artW / 2), at, 'ink');
+  at += artH + gap;
   at += displayLine(ctx, BANNER_COPY.shield.head, headSz, WEIGHT.bold, at, 'ink');
   at += gap;
   at += diamondRule(ctx, boxX + frameW + pad, at, innerW, 'ink');

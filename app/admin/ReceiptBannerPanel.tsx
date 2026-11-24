@@ -18,6 +18,9 @@ import { BANNER_COPY } from "@/shared/receipt/banner";
 
 type Kind = "none" | "shield" | "plain" | "invert";
 
+/** رسمةُ الشريط للمعاينة -- اسمُها يحمل بصمةَ ما يُطبع (shared/receipt/art.ts). */
+const BANNER_ART = "/dashboard/banner-art-b8319e27.png";
+
 /** شريطُ السدو كما يُطبع: مثلّثاتٌ على خطّ، بالـCSS هنا وبالنقاط هناك. */
 function Sadu({ color, down }: { color: string; down?: boolean }) {
   const teeth = {
@@ -53,7 +56,7 @@ const SPEECH = [BANNER_COPY.speech.head, BANNER_COPY.speech.body, BANNER_COPY.sp
 
 const CHOICES: Array<{ kind: Kind; label: string; desc: string; paper: string }> = [
   { kind: "none", label: "إخفاء الميزة", desc: "تختفي من لوحات المطاعم، ولا يُطبع شيء في أي مكان.", paper: "—" },
-  { kind: "shield", label: "١ · إطار", desc: "الأقصر ورقًا — سطران داخل إطار مزدوج.", paper: "٢٦ ملم" },
+  { kind: "shield", label: "١ · إطار ورسمة", desc: "مروحية فوق السطر، داخل إطار مزدوج.", paper: "٥٣ ملم" },
   { kind: "plain", label: "٢ · بلا خلفية", desc: "حبر على ورق، بين شريطَي سدو.", paper: "٣٣ ملم" },
   { kind: "invert", label: "٣ · خلفية سوداء", desc: "نفس النص، كتلة سوداء ونص أبيض.", paper: "٣٩ ملم" },
 ];
@@ -71,6 +74,17 @@ function Preview({ kind }: { kind: Kind }) {
     return (
       <div style={{ border: `3px solid ${ink}`, padding: 3 }}>
         <div style={{ border: `1px solid ${ink}`, padding: "12px 10px" }}>
+          {/* قناعٌ لا صورة: الملفُّ أسودُ شفّاف، والقناعُ يصبغه بلون الحبر.
+              واسمُه يحمل بصمةَ المقاطع المطبوعة، فلا تفترق المعاينةُ عن الورق. */}
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 7 }}>
+            <div style={{
+              width: 66, height: 90, background: ink,
+              WebkitMaskImage: `url(${BANNER_ART})`, maskImage: `url(${BANNER_ART})`,
+              WebkitMaskSize: "contain", maskSize: "contain",
+              WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat",
+              WebkitMaskPosition: "center", maskPosition: "center",
+            }} />
+          </div>
           <div style={{ ...head, fontSize: 21, lineHeight: 1.25 }}>{BANNER_COPY.shield.head}</div>
           <Diamond color={ink} />
           <div style={{ ...body, fontSize: 13 }}>{BANNER_COPY.shield.sub}</div>

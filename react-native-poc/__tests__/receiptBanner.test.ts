@@ -115,6 +115,29 @@ describe('شريط الفاتورة', () => {
     expect(head!.y).toBeLessThan(branch!.y);
   });
 
+  /**
+   * الرسمةُ تُرسم فعلاً، وداخلَ إطارها.
+   *
+   * ومقاطعُها نصٌّ في المحرّك: حرفٌ يسقط منه، أو مقاسٌ يخالفه، فتخرج
+   * نصفَ طائرةٍ أو تمتدَّ خارجَ الإطار. ولا شيءَ في الاختبارات الأخرى
+   * يمسك ذلك -- الورقةُ تخرج، وإنّما تخرج مشوّهة.
+   */
+  it('«إطار»: الرسمةُ مرسومةٌ داخل إطارها', () => {
+    for (const width of [PAPER.mm80, PAPER.mm58]) {
+      const ops = lay('shield', width).ops;
+      const strokes = ops.filter((o): o is RectOp => o.op === 'rect' && o.h === 1 && o.color === 'ink');
+      // مئاتُ المقاطع -- لا سطرٌ ولا سطران.
+      expect(strokes.length).toBeGreaterThan(300);
+      const left = Math.min(...strokes.map(r => r.x));
+      const right = Math.max(...strokes.map(r => r.x + r.w));
+      expect(left).toBeGreaterThan(0);
+      expect(right).toBeLessThan(width);
+      // وفوق السطر الكبير لا تحته.
+      const head = displayTexts(ops)[0];
+      expect(Math.min(...strokes.map(r => r.y))).toBeLessThan(head.y);
+    }
+  });
+
   it('نصُّ الشريط مصدرُه المحرّك، فيصل الورقةَ كما هو', () => {
     const drawn = displayTexts(lay('shield').ops).map(t => t.text);
     expect(drawn).toContain(BANNER_COPY.shield.head);
@@ -134,7 +157,10 @@ describe('شريط الفاتورة', () => {
   it.each(KINDS)('«%s»: ما يأكله من ورقٍ معلومٌ ومحدود', (kind) => {
     const extra = lay(kind).height - lay('none').height;
     expect(extra).toBeGreaterThan(8 * 18);
-    // وسقفٌ مقصود: خمسةُ سنتيمترات من ورقٍ لشريطٍ ضيفٍ على ورقة المطعم كثير.
-    expect(extra).toBeLessThan(8 * 50);
+    /* وسقفٌ مقصود. وقد بلغه «إطار» حين دخلته الرسمةُ (٥٣مم) فرُفع إلى
+       ستّة، لا لأنّ السقفَ خطأ بل لأنّ الرسمةَ قرارٌ اتُّخذ وقِيس:
+       خمسةٌ وعشرون مِلّيمتراً منها وحدَها. والسقفُ يمسك النموَّ الذي لم
+       يقرّره أحد -- سطرٌ يُزاد، وحشوةٌ تكبر، وورقةٌ تطول بلا أن يُلاحَظ. */
+    expect(extra).toBeLessThan(8 * 60);
   });
 });

@@ -175,7 +175,37 @@ if (!/font-family:'RkBannerDisplay'/.test(read('app/dashboard/rakeen-dashboard.c
   fails.push('معاينةُ لوحة المطعم بغير خطِّ الطباعة — يختار المالكُ ما لم يره');
 }
 
-/* ٨) وله مُطفئ. */
+/* ٨) والرسمةُ: مُولَّدةٌ من مصدرها، ومعاينتُها هي هي.
+      وأخطرُ ما فيها أن تفترق المعاينةُ عن الورق بصمت: يختار المالكُ
+      مروحيةً ويطبع غيرَها -- أو يطبع فراغاً لأنّ الملفَّ لم يُولَّد.
+      فاسمُ ملفِّ المعاينة يحمل بصمةَ المقاطع المطبوعة، وتُقابَل هنا. */
+const art = read('shared/receipt/art.ts');
+const artHash = (art.match(/hash: '([0-9a-f]{8})'/) || [])[1];
+if (!artHash) fails.push('رسمةُ الشريط بلا بصمة — أعد توليدها بـ node tools/receipt-art/build.mjs');
+else {
+  const file = `public/dashboard/banner-art-${artHash}.png`;
+  if (!fs.existsSync(path.join(root, file))) {
+    fails.push(`معاينةُ الرسمة مفقودة (${file}) — شغّل node tools/receipt-art/build.mjs`);
+  }
+  for (const [where, src] of [['لوحة المطعم', bizDash0()], ['لوحة ركين', read('app/admin/ReceiptBannerPanel.tsx')]]) {
+    if (!src.includes(`banner-art-${artHash}.png`)) {
+      fails.push(`${where}: معاينةُ الرسمة من ملفٍّ غيرِ المطبوع — البصمةُ ${artHash}`);
+    }
+  }
+}
+if (!/drawArt\(ctx, APACHE/.test(banner)) fails.push('التصميمُ الأوّل بلا رسمة');
+if (!/w: \d+,/.test(art) || !/h: \d+,/.test(art)) fails.push('رسمةُ الشريط بلا مقاس');
+
+/* ٩) والمعاينةُ على شكل الورقة لا الشريطَ وحدَه: مكانُه من الفاتورة
+      نصفُ القرار، ومن رآه معلّقاً في فراغٍ اختار على غير بيّنة. */
+if (!/function receiptBannerPreviewHtml\(/.test(bizDash0())) {
+  fails.push('لوحةُ المطعم تعرض الشريطَ بلا ورقةٍ حوله');
+}
+if (!/receiptBannerPreviewHtml\(pendingBanner\)/.test(bizDash0())) {
+  fails.push('معاينةُ الورقة لا تتغيّر مع الاختيار');
+}
+
+/* ١٠) وله مُطفئ. */
 const route = read('app/api/admin/receipt-banner/route.ts');
 if (!route.includes('"none"')) fails.push('مسارُ اللوحة لا يعرف «بلا شريط» — ميزةٌ مؤقّتةٌ بلا مُطفئ');
 const panel = read('app/admin/ReceiptBannerPanel.tsx');
