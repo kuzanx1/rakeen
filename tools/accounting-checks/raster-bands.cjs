@@ -17,11 +17,17 @@ const ts = require('typescript');
 const root = path.resolve(__dirname, '..', '..');
 const fails = [];
 
+/* ويعرف استيرادَ المشترك: المرمِّزُ صار في shared/receipt/raster.ts،
+   يناديه العميلان. فيُحمَّل كما يُحمَّل غيرُه، لا يُنسخ هنا. */
 function loadTs(rel) {
   const src = fs.readFileSync(path.join(root, rel), 'utf8');
   const js = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
   const mod = { exports: {} };
-  new Function('exports', 'require', 'module', js)(mod.exports, require, mod);
+  const req = (id) => {
+    if (id.includes('shared/receipt/')) return loadTs('shared/receipt/' + id.split('shared/receipt/')[1] + '.ts');
+    return require(id);
+  };
+  new Function('exports', 'require', 'module', js)(mod.exports, req, mod);
   return mod.exports;
 }
 
@@ -47,17 +53,39 @@ function parse(job) {
   let at = 2;
   const bands = [];
   const rows = [];
-  while (at + 8 <= job.length && job[at] === 0x1d && job[at + 1] === 0x76 && job[at + 2] === 0x30) {
+  /* ودفعاتُ البياض (`ESC J n`) تُعاد أسطراً بيضاء: ما يصل الطابعةَ من
+     صورةٍ هو هو، وإنّما لم تُرسَل أصفارُه على الوصل. فالمقارنةُ بالأصل
+     تبقى بايتاً ببايت. (shared/receipt/raster.ts) */
+  let feeds = 0;
+  let pendingBlank = 0;
+  while (at < job.length) {
+    if (at + 3 <= job.length && job[at] === 0x1b && job[at + 1] === 0x4a) {
+      pendingBlank += job[at + 2];
+      feeds += 1;
+      at += 3;
+      continue;
+    }
+    if (!(at + 8 <= job.length && job[at] === 0x1d && job[at + 1] === 0x76 && job[at + 2] === 0x30)) break;
     const bpr = job[at + 4] | (job[at + 5] << 8);
     const h = job[at + 6] | (job[at + 7] << 8);
     at += 8;
     const need = bpr * h;
     if (at + need > job.length) return { error: 'شريحةٌ أطولُ من المهمّة' };
+    if (pendingBlank > 0) {
+      bands.push({ bpr, h: pendingBlank, blank: true });
+      rows.push(new Uint8Array(bpr * pendingBlank));
+      pendingBlank = 0;
+    }
     bands.push({ bpr, h });
     rows.push(job.subarray(at, at + need));
     at += need;
   }
-  return { bands, rows, tail: job.subarray(at) };
+  if (pendingBlank > 0 && bands.length) {
+    const bpr = bands[0].bpr;
+    bands.push({ bpr, h: pendingBlank, blank: true });
+    rows.push(new Uint8Array(bpr * pendingBlank));
+  }
+  return { bands, rows, feeds, tail: job.subarray(at) };
 }
 
 /**
@@ -103,8 +131,12 @@ for (const [w, h] of [[576, 1356], [576, 128], [576, 127], [576, 129], [384, 900
   const totalRows = got.bands.reduce((s, b) => s + b.h, 0);
   if (totalRows !== h) fails.push(`${w}x${h}: مجموع أسطر الشرائح ${totalRows} والمفروض ${h}`);
   if (got.bands.some((b) => b.bpr !== bpr)) fails.push(`${w}x${h}: شريحةٌ بعرضٍ غير ${bpr}`);
-  if (got.bands.some((b, i) => i < got.bands.length - 1 && b.h !== 128)) fails.push(`${w}x${h}: شريحةٌ وسطى ليست ١٢٨ سطراً`);
-  if (got.bands.length !== Math.ceil(h / 128)) fails.push(`${w}x${h}: عدد الشرائح ${got.bands.length} والمفروض ${Math.ceil(h / 128)}`);
+  /* الشرائحُ تُقطَّع عند البياض أيضاً، فلا عددَ ثابتٌ يُقاس عليه.
+     والمحروسُ ما يحمي فعلاً: ألّا تطولَ شريحةٌ عن الحدّ (فيتّسع ضررُ
+     الانقطاع)، وألّا تُرسَل الصورةُ كتلةً واحدة. */
+  if (got.bands.some((b) => !b.blank && b.h > 128)) fails.push(`${w}x${h}: شريحةٌ أطولُ من ١٢٨ سطراً — ضررُ الانقطاع يتّسع`);
+  if (got.bands.some((b) => b.h <= 0)) fails.push(`${w}x${h}: شريحةٌ بلا أسطر`);
+  if (h > 128 && got.bands.filter((b) => !b.blank).length < 2) fails.push(`${w}x${h}: الصورةُ كتلةٌ واحدة`);
   // والبايتات نفسُها: الشرائحُ مجتمعةً = الصورةُ كما لو أُرسلت كتلةً واحدة.
   const joined = Buffer.concat(got.rows.map((r) => Buffer.from(r)));
   if (joined.length !== bpr * h) fails.push(`${w}x${h}: البايتات ${joined.length} والمفروض ${bpr * h}`);
@@ -211,9 +243,41 @@ if (/System\.currentTimeMillis/.test(usb)) {
   fails.push('ساعةُ الحائط في مسار USB — قفزةٌ للوراء تُجمّد الدَّين أو تُطيل الانتظار');
 }
 
-/* والعميلان لا يفترقان: كاشير الويب يقطّع كذلك. */
+/* والعميلان لا يفترقان -- ولا بنسختين متشابهتين، إنّما بالمرمِّز نفسِه.
+   كان لكلٍّ منهما نسخةٌ من التقطيع، فتُصلَح واحدةٌ وتبقى الأخرى. */
 const web = fs.readFileSync(path.join(root, 'public/pos/rakeen-pos.js'), 'utf8');
-if (!/BAND_ROWS/.test(web)) fails.push('كاشير الويب ما يقطّع الصورة شرائح — يطبع هراءً عند أي انقطاع');
+if (!/RakeenReceiptEngine\.bandRaster\(raster, bytesPerRow, h\)/.test(web)) {
+  fails.push('كاشير الويب لا ينادي مرمِّزَ المحرّك — نسختان تفترقان، أو صورةٌ بلا شرائح');
+}
+if (/BAND_ROWS\s*=\s*128/.test(web)) {
+  fails.push('نسخةٌ من التقطيع عادت إلى كاشير الويب — المرمِّزُ في shared/receipt/raster.ts وحدَه');
+}
+const engine = fs.readFileSync(path.join(root, 'public/pos/receipt-engine.js'), 'utf8');
+for (const need of ['bandRaster', 'rasterChunks']) {
+  if (!engine.includes(need)) fails.push(`محرّكُ الويب المبنيّ بلا ${need} — شغّل npm run receipt:build`);
+}
+
+/* ودفعُ البياض: نصفُ الورقة أسطرٌ بيضاء، وإرسالُها أصفاراً هو نصفُ
+   زمنِ الإرسال ونصفُ نافذةِ الانقطاع. فإن عادت تُرسَل، عاد البطء. */
+const rasterTs = fs.readFileSync(path.join(root, 'shared/receipt/raster.ts'), 'utf8');
+if (!/0x1b; out\[at \+ 1\] = 0x4a/.test(rasterTs)) {
+  fails.push('البياضُ يُرسَل أصفاراً لا يُدفع بـESC J — نصفُ البايتات بلا حبر');
+}
+{
+  /* ويُقاس المكسبُ لا يُفترض: صفحةٌ نصفُها بياضٌ يجب أن تنكمش فعلاً. */
+  const { bandRaster } = loadTs('shared/receipt/raster.ts');
+  const bpr = 72;
+  const height = 800;
+  const bm = new Uint8Array(bpr * height);
+  for (let y = 0; y < height; y += 1) {
+    if (y % 20 >= 9) continue;
+    for (let i = 0; i < bpr; i += 1) bm[y * bpr + i] = 0xa5;
+  }
+  const got = bandRaster(bm, bpr, height).length;
+  if (got > bm.length * 0.7) {
+    fails.push(`دفعُ البياض بلا أثر: ${got} بايتاً من ${bm.length} — راجِع MIN_FEED_ROWS`);
+  }
+}
 
 if (fails.length) {
   console.error('✗ شرائح الصورة:');

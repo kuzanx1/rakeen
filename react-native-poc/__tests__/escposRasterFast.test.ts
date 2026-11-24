@@ -55,13 +55,32 @@ function unband(b64: string): string {
   let at = 2;
   let bpr = 0;
   let rows = 0;
-  while (at + 8 <= job.length && job[at] === 0x1d && job[at + 1] === 0x76 && job[at + 2] === 0x30) {
+  // ودفعاتُ البياض (`ESC J n`) تُعاد أسطراً بيضاء: الصورةُ التي تصل
+  // الطابعةَ هي هي، وإنّما لم تُرسَل أصفارُها على الوصل.
+  // (shared/receipt/raster.ts، ويحرسه __tests__/escposBlankFeed.test.ts.)
+  const pending: number[] = [];
+  while (at < job.length) {
+    if (at + 3 <= job.length && job[at] === 0x1b && job[at + 1] === 0x4a) {
+      pending.push(job[at + 2]);
+      at += 3;
+      continue;
+    }
+    if (!(at + 8 <= job.length && job[at] === 0x1d && job[at + 1] === 0x76 && job[at + 2] === 0x30)) break;
     bpr = job[at + 4] | (job[at + 5] << 8);
     const n = job[at + 6] | (job[at + 7] << 8);
+    for (const blank of pending) {
+      rows += blank;
+      for (let i = 0; i < bpr * blank; i++) payload.push(0);
+    }
+    pending.length = 0;
     rows += n;
     at += 8;
     for (let i = 0; i < bpr * n; i++) payload.push(job[at + i]);
     at += bpr * n;
+  }
+  for (const blank of pending) {
+    rows += blank;
+    for (let i = 0; i < bpr * blank; i++) payload.push(0);
   }
   const out: number[] = [job[0], job[1], 0x1d, 0x76, 0x30, 0x00, bpr & 0xff, (bpr >> 8) & 0xff, rows & 0xff, (rows >> 8) & 0xff];
   for (const byte of payload) out.push(byte);
@@ -97,9 +116,25 @@ describe('fast raster job', () => {
   /* والتقطيعُ نفسُه محروس: كتلةٌ واحدةٌ من مئة كيلوبايتٍ هي التي تجعل
      انقطاعاً واحداً يُخرج متر ورقٍ رموزاً. */
   it('تُرسَل شرائحَ لا كتلةً واحدة', () => {
-    expect(bandCount(rasterJobBase64(fakeReceipt(576, 1356), 'legacy'))).toBe(Math.ceil(1356 / 128));
-    expect(bandCount(rasterJobBase64(fakeReceipt(576, 128), 'legacy'))).toBe(1);
-    expect(bandCount(rasterJobBase64(fakeReceipt(576, 129), 'legacy'))).toBe(2);
+    /* والعددُ لم يعد ارتفاعاً ÷ ١٢٨: الصورةُ تُقطَّع عند البياض أيضاً،
+       فتصير الشرائحُ أكثرَ وأقصر -- والضررُ عند الانقطاع أصغر. والذي
+       يُحرَس هو ألّا تُرسَل كتلةً واحدة، وألّا تطول شريحةٌ عن الحدّ. */
+    for (const h of [1356, 128, 129, 900]) {
+      const job = fromBase64(rasterJobBase64(fakeReceipt(576, h), 'legacy'));
+      let bands = 0;
+      let at = 2;
+      while (at < job.length) {
+        if (at + 3 <= job.length && job[at] === 0x1b && job[at + 1] === 0x4a) { at += 3; continue; }
+        if (!(at + 8 <= job.length && job[at] === 0x1d && job[at + 1] === 0x76 && job[at + 2] === 0x30)) break;
+        const bpr = job[at + 4] | (job[at + 5] << 8);
+        const n = job[at + 6] | (job[at + 7] << 8);
+        expect(n).toBeGreaterThan(0);
+        expect(n).toBeLessThanOrEqual(128);
+        bands += 1;
+        at += 8 + bpr * n;
+      }
+      expect(bands).toBeGreaterThanOrEqual(Math.ceil(h / 128));
+    }
   });
   it('base64 handles every tail length', () => {
     for (let n = 0; n < 20; n++) {

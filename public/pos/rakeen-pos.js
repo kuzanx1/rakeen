@@ -6479,23 +6479,11 @@ function canvasToEscPosRaster(canvas){
       }
     }
   }
-  /* شرائحُ لا كتلةٌ واحدة: أمرٌ واحدٌ لمئةِ كيلوبايت يعني أنّ الطابعةَ
-     تنتظر مئةَ كيلوبايتٍ بالضبط، فإن انقطع الإرسالُ في منتصفها ابتلعت
-     كلَّ ما بعده كأنه بقيّةُ الصورة -- فاتورةٌ «محيوسة» ثم مترُ ورقٍ
-     رموزاً. وقع عند مطعمٍ حقيقيٍّ على طابعة TA POS. وبالشرائح يبقى
-     الضررُ في شريحةٍ واحدة، ورأسُ التي بعدها يُعيد الطابعةَ إلى وضعِ
-     الصورة. ونفسُه في التطبيق (domain/escposRaster.ts bandedLegacyJob). */
-  const BAND_ROWS = 128;
-  const bands = Math.ceil(h / BAND_ROWS);
-  const out = new Uint8Array(bands * 8 + raster.length);
-  let at = 0;
-  for(let y = 0; y < h; y += BAND_ROWS){
-    const rows = Math.min(BAND_ROWS, h - y);
-    out.set([0x1D, 0x76, 0x30, 0x00, bytesPerRow & 0xFF, (bytesPerRow >> 8) & 0xFF, rows & 0xFF, (rows >> 8) & 0xFF], at);
-    at += 8;
-    out.set(raster.subarray(y * bytesPerRow, (y + rows) * bytesPerRow), at);
-    at += rows * bytesPerRow;
-  }
+  /* شرائحُ لا كتلةٌ واحدة، وبياضٌ يُدفع لا يُرسَل.
+     والاثنان في المحرّك المشترك (shared/receipt/raster.ts) لا هنا:
+     كان لكلِّ عميلٍ نسخةٌ من الترميز، فتُصلَح واحدةٌ وتبقى الأخرى --
+     وهما ورقتان لمطعمٍ واحد. */
+  const out = window.RakeenReceiptEngine.bandRaster(raster, bytesPerRow, h);
   return out;
 }
 

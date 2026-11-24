@@ -33,6 +33,8 @@
  * printing, not a cure. The band loop is gone.
  */
 
+import { bandRaster } from '../../../shared/receipt/raster';
+
 export interface RgbaBuffer {
   width: number;
   height: number;
@@ -207,45 +209,19 @@ export function bytesToBase64Fast(bytes: Uint8Array): string {
 }
 
 /**
- * ارتفاعُ الشريحة الواحدة بالأسطر.
+ * شرائحُ الصورة ودفعاتُ البياض -- من المصدر المشترك.
  *
- * على ورق ٨٠مم (٧٢ بايتاً للسطر) = ٩٢١٦ بايتاً للشريحة -- أقلُّ من
- * قطعةِ الإرسال على USB (١٦ ك.ب)، فتمرّ كلُّ شريحةٍ في دفعةٍ واحدة.
- */
-const BAND_ROWS = 128;
-
-/**
- * صورةٌ واحدةٌ تُرسَل شرائحَ، كلُّ شريحةٍ بأمرِ `GS v 0` خاصٍّ بها.
- *
- * فأمرٌ واحدٌ لمئةِ كيلوبايت يعني أنّ الطابعةَ تنتظر مئةَ كيلوبايتٍ
- * بالضبط: إن انقطع الإرسالُ في منتصفها بقيت تبتلع كلَّ ما يأتي بعده
- * كأنه بقيّةُ الصورة -- فتخرج فاتورةٌ «محيوسة» ثم مترُ ورقٍ رموزاً.
- * وقع هذا عند مطعمٍ حقيقيٍّ على طابعة TA POS، ورآه المالكُ بعينه.
- *
- * وبالشرائح يبقى الضررُ محصوراً في شريحةٍ بطول سنتيمترٍ ونصف: رأسُ
- * الشريحةِ التي بعدها يُعيد الطابعةَ إلى وضعِ الصورة من جديد. وهذا ما
- * تفعله مكتباتُ ESC/POS المعروفة كلُّها (python-escpos تقطّع افتراضياً)،
- * لا اجتهادٌ منّا.
- *
- * ولا فراغَ بين الشرائح: `GS v 0` يطبع ويدفع الورقَ بمقدار ارتفاعه
- * بالضبط، فتلتحم الشريحةُ بالتي قبلها.
- *
- * ونفسُه حرفاً بحرفٍ في كاشير الويب (canvasToEscPosRaster).
+ * كان هذا الملفُّ يحمل نسختَه ونظيرُه في كاشير الويب نسختَه، فتُصلَح
+ * واحدةٌ وتبقى الأخرى -- وهما ورقتان لمطعمٍ واحد. وهو الآن في
+ * `shared/receipt/raster.ts` مرّةً واحدة، يناديه العميلان: بايتاتٌ
+ * أقلُّ على الوصل بلا أن تتغيّر نقطةٌ على الورق.
  */
 function bandedLegacyJob(head: number[], bitmap: Uint8Array, bytesPerRow: number, height: number, tail: number[]): Uint8Array {
-  const bands = Math.ceil(height / BAND_ROWS);
-  const job = new Uint8Array(head.length + bands * 8 + bitmap.length + tail.length);
-  let at = 0;
-  job.set(head, at);
-  at += head.length;
-  for (let y = 0; y < height; y += BAND_ROWS) {
-    const rows = Math.min(BAND_ROWS, height - y);
-    job.set([0x1d, 0x76, 0x30, 0x00, bytesPerRow & 0xff, (bytesPerRow >> 8) & 0xff, rows & 0xff, (rows >> 8) & 0xff], at);
-    at += 8;
-    job.set(bitmap.subarray(y * bytesPerRow, (y + rows) * bytesPerRow), at);
-    at += rows * bytesPerRow;
-  }
-  job.set(tail, at);
+  const image = bandRaster(bitmap, bytesPerRow, height);
+  const job = new Uint8Array(head.length + image.length + tail.length);
+  job.set(head, 0);
+  job.set(image, head.length);
+  job.set(tail, head.length + image.length);
   return job;
 }
 

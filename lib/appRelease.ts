@@ -8,7 +8,7 @@
  * الثلاثة هنا مع versionCode/versionName في android/app/build.gradle، وانشر.
  */
 export const ANDROID_RELEASE = {
-  versionName: "1.78",
-  versionCode: 80,
-  apkKey: "apps/rakeen-android-1.78-20261124.apk",
+  versionName: "1.79",
+  versionCode: 81,
+  apkKey: "apps/rakeen-android-1.79-20261125.apk",
 } as const;

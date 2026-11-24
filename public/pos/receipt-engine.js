@@ -36,6 +36,7 @@ var RakeenReceiptEngine = (() => {
   // receipt-engine-entry.js
   var receipt_engine_entry_exports = {};
   __export(receipt_engine_entry_exports, {
+    BAND_ROWS: () => BAND_ROWS,
     BANNER_COPY: () => BANNER_COPY,
     BANNER_KINDS: () => BANNER_KINDS,
     BORDER: () => BORDER,
@@ -50,6 +51,7 @@ var RakeenReceiptEngine = (() => {
     LARGE_TYPE_ABOVE: () => LARGE_TYPE_ABOVE,
     LINE: () => LINE,
     LOGO: () => LOGO,
+    MIN_FEED_ROWS: () => MIN_FEED_ROWS,
     ORDER_BOX: () => ORDER_BOX,
     PAD: () => PAD,
     PAGER: () => PAGER,
@@ -64,6 +66,7 @@ var RakeenReceiptEngine = (() => {
     TRACKING: () => TRACKING,
     TYPE: () => TYPE,
     WEIGHT: () => WEIGHT,
+    bandRaster: () => bandRaster,
     bi: () => bi,
     createContext: () => createContext,
     dotsFromCss: () => dotsFromCss,
@@ -74,6 +77,7 @@ var RakeenReceiptEngine = (() => {
     layoutShiftReport: () => layoutShiftReport,
     leaderDots: () => leaderDots,
     qrGrid: () => qrGrid,
+    rasterChunks: () => rasterChunks,
     stubMeasure: () => stubMeasure,
     themeTokens: () => themeTokens
   });
@@ -1398,6 +1402,85 @@ var RakeenReceiptEngine = (() => {
     }
     ctx.y += PAD;
     return { width, height: Math.ceil(ctx.y), ops: ctx.ops };
+  }
+
+  // shared/receipt/raster.ts
+  var BAND_ROWS = 128;
+  var MIN_FEED_ROWS = 4;
+  var MAX_FEED = 255;
+  function rowIsBlank(bitmap, bytesPerRow, y) {
+    const at = y * bytesPerRow;
+    for (let i = 0; i < bytesPerRow; i += 1) {
+      if (bitmap[at + i] !== 0) return false;
+    }
+    return true;
+  }
+  function rasterChunks(bitmap, bytesPerRow, height) {
+    const out = [];
+    let y = 0;
+    while (y < height) {
+      if (rowIsBlank(bitmap, bytesPerRow, y)) {
+        let run2 = 1;
+        while (y + run2 < height && rowIsBlank(bitmap, bytesPerRow, y + run2)) run2 += 1;
+        if (run2 >= MIN_FEED_ROWS) {
+          let left2 = run2;
+          while (left2 > 0) {
+            const take = Math.min(left2, MAX_FEED);
+            out.push({ ink: false, y: y + (run2 - left2), rows: take });
+            left2 -= take;
+          }
+          y += run2;
+          continue;
+        }
+      }
+      let run = 0;
+      while (y + run < height) {
+        if (rowIsBlank(bitmap, bytesPerRow, y + run)) {
+          let blank = 1;
+          while (y + run + blank < height && rowIsBlank(bitmap, bytesPerRow, y + run + blank)) blank += 1;
+          if (blank >= MIN_FEED_ROWS) break;
+          run += blank;
+          continue;
+        }
+        run += 1;
+      }
+      let left = run;
+      while (left > 0) {
+        const take = Math.min(left, BAND_ROWS);
+        out.push({ ink: true, y: y + (run - left), rows: take });
+        left -= take;
+      }
+      y += run;
+    }
+    return out;
+  }
+  function bandRaster(bitmap, bytesPerRow, height) {
+    const chunks = rasterChunks(bitmap, bytesPerRow, height);
+    let size = 0;
+    for (const c of chunks) size += c.ink ? 8 + c.rows * bytesPerRow : 3;
+    const out = new Uint8Array(size);
+    let at = 0;
+    for (const c of chunks) {
+      if (c.ink) {
+        out[at] = 29;
+        out[at + 1] = 118;
+        out[at + 2] = 48;
+        out[at + 3] = 0;
+        out[at + 4] = bytesPerRow & 255;
+        out[at + 5] = bytesPerRow >> 8 & 255;
+        out[at + 6] = c.rows & 255;
+        out[at + 7] = c.rows >> 8 & 255;
+        at += 8;
+        out.set(bitmap.subarray(c.y * bytesPerRow, (c.y + c.rows) * bytesPerRow), at);
+        at += c.rows * bytesPerRow;
+      } else {
+        out[at] = 27;
+        out[at + 1] = 74;
+        out[at + 2] = c.rows & 255;
+        at += 3;
+      }
+    }
+    return out;
   }
 
   // shared/receipt/stubMeasure.ts

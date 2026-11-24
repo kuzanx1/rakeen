@@ -181,6 +181,22 @@ class UsbPrinterTransport(private val context: Context) {
          * **مع** التهدئة لا يقول إنّ السرعةَ صارت آمنة.
          */
         private val pacedPrinters = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+        /**
+         * أوراقٌ متتاليةٌ نجحت على طابعةٍ مهدّأة، فتُرفع عنها التهدئة.
+         *
+         * وكانت تلتصق إلى إقفال التطبيق: كابلٌ انزحزح لحظةً فانقطع إرسالٌ
+         * واحد، فتبقى الطابعةُ على ٢٧ ك.ب/ث بقيّةَ اليوم كلِّه -- عقوبةٌ
+         * دائمةٌ على عارضٍ عابر. رآها صاحبُ مطعمٍ «كانت سريعةً ثمّ صارت
+         * بطيئة»، ولم يتغيّر عنده شيء.
+         *
+         * وخمسٌ لا واحدة: ورقةٌ واحدةٌ ناجحةٌ لا تُثبت أنّ الوصلَ تعافى،
+         * إنّما أنّ هذي الورقةَ مرّت. وخمسٌ متتالياتٌ بحجمِ ورقٍ كاملٍ
+         * تكفي -- وإن انقطع واحدٌ بينها عاد العدُّ من الصفر وبقيت
+         * التهدئة.
+         */
+        private const val UNPACE_AFTER_CLEAN_JOBS = 5
+        private val cleanSincePaced = java.util.concurrent.ConcurrentHashMap<String, Int>()
         private const val RECOVERY_BYTES_PER_SECOND = 27 * 1024
         private const val RECOVERY_CHUNK = 8192
 
@@ -240,7 +256,18 @@ class UsbPrinterTransport(private val context: Context) {
         private fun paperRows(bytes: ByteArray): Int {
             var rows = 0
             var i = 0
-            while (i + 8 <= bytes.size) {
+            while (i < bytes.size) {
+                // `ESC J n`: ادفع n نقطة. صارت الصورةُ تدفع بياضَها بهذا
+                // بدل إرسالِ أصفارٍ (shared/receipt/raster.ts)، فلو لم
+                // تُعَدَّ هنا لَقصُرَ تقديرُ زمنِ الورق إلى النصف -- وركبت
+                // ورقةٌ على ورقةٍ في مخزنٍ واحد، وهو العطبُ الذي أُصلح
+                // في ١٫٧٢ بالانتظار.
+                if (i + 3 <= bytes.size && bytes[i] == 0x1b.toByte() && bytes[i + 1] == 0x4a.toByte()) {
+                    rows += bytes[i + 2].toInt() and 0xff
+                    i += 3
+                    continue
+                }
+                if (i + 8 > bytes.size) { i++; continue }
                 if (bytes[i] == 0x1d.toByte() && bytes[i + 1] == 0x76.toByte() && bytes[i + 2] == 0x30.toByte()) {
                     val bpr = (bytes[i + 4].toInt() and 0xff) or ((bytes[i + 5].toInt() and 0xff) shl 8)
                     val h = (bytes[i + 6].toInt() and 0xff) or ((bytes[i + 7].toInt() and 0xff) shl 8)
@@ -518,8 +545,9 @@ class UsbPrinterTransport(private val context: Context) {
                         // وهذه هي العلامة. هذه الطابعةُ أرَتنا بنفسها أنّ
                         // الإرسالَ ينقطع عليها، فتُهدَّأ هي وحدَها من الآن --
                         // لا كلُّ طابعةٍ عند كلِّ مطعمٍ احتياطاً.
+                        cleanSincePaced[stableId(device)] = 0
                         if (pacedPrinters.add(stableId(device))) {
-                            android.util.Log.w(LOG_TAG, "pacing this printer from now on (${RECOVERY_BYTES_PER_SECOND / 1024} KB/s)")
+                            android.util.Log.w(LOG_TAG, "pacing this printer (${RECOVERY_BYTES_PER_SECOND / 1024} KB/s) until $UNPACE_AFTER_CLEAN_JOBS clean papers")
                         }
                         // ولا يمسحُ دَينَ الورقِ إلّا من كان له ورق: مهمّةٌ
                         // بلا ورقٍ انقطعت لا تُلغي موعدَ فراغِ فاتورةٍ قبلها.
@@ -533,6 +561,19 @@ class UsbPrinterTransport(private val context: Context) {
                         callback(false, "truncated_write")
                     } else {
                         debtBytes.remove(stableId(device))
+                        // ورقةٌ كاملةٌ نجحت: تُحسب للتعافي. وأوامرُ الدرجِ
+                        // والتهيئةِ لا تُحسب -- بايتاتٌ قليلةٌ تمرّ على أسوأ
+                        // وصل، فلو عُدَّت لَرُفعت التهدئةُ بلا دليل.
+                        if (myPaperMs > 0 && pacedPrinters.contains(stableId(device))) {
+                            val clean = (cleanSincePaced[stableId(device)] ?: 0) + 1
+                            if (clean >= UNPACE_AFTER_CLEAN_JOBS) {
+                                pacedPrinters.remove(stableId(device))
+                                cleanSincePaced.remove(stableId(device))
+                                android.util.Log.i(LOG_TAG, "lifting pacing: $clean clean papers in a row")
+                            } else {
+                                cleanSincePaced[stableId(device)] = clean
+                            }
+                        }
                         // وصلت كلُّها، والطابعةُ الآن تطبعها: من هنا نحسب
                         // متى تفرغ، حتى لا تُركَب عليها ورقةٌ ثانية.
                         //

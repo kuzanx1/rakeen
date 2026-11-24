@@ -31,6 +31,9 @@ export type {
    ولوحةُ الإدارة تعاين به -- فلا يُنسخ النصُّ في ثلاثة مواضع. */
 export { BANNER_KINDS, BANNER_COPY, isBannerKind } from './banner';
 export type { BannerKind } from './banner';
+/* ترميزُ الصورة إلى ESC/POS: شرائحُ حبرٍ ودفعاتُ بياض. كان في كلِّ
+   عميلٍ نسخةٌ منه، فصار هنا مرّةً -- وما يُصلَح فيه يصل الورقتين. */
+export { bandRaster, rasterChunks, BAND_ROWS, MIN_FEED_ROWS } from './raster';
 export { stubMeasure } from './stubMeasure';
 /* والحالاتُ المرجعيةُ ليست هنا قصداً (`./scenarios`).
    هي بياناتُ فحصٍ لا شيفرةُ طباعة، ولو صُدِّرت من المدخل لَحُزمت مع
