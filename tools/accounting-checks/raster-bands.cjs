@@ -53,17 +53,13 @@ function parse(job) {
   let at = 2;
   const bands = [];
   const rows = [];
-  /* ودفعاتُ البياض (`ESC J n`) تُعاد أسطراً بيضاء: ما يصل الطابعةَ من
-     صورةٍ هو هو، وإنّما لم تُرسَل أصفارُه على الوصل. فالمقارنةُ بالأصل
-     تبقى بايتاً ببايت. (shared/receipt/raster.ts) */
-  let feeds = 0;
-  let pendingBlank = 0;
+  /* ولا أمرَ داخل الصورة غيرُ `GS v 0`. جُرّب في ١٫٧٩ أن يُستبدل
+     البياضُ بـ`ESC J n` توفيراً للبايتات، فسقط الدفعُ على طابعة EZPOS
+     وخرجت فاتورةُ «كباب طارق» مضغوطةً والكلامُ ملتصق. وبياناتُ الصورة
+     وحدَها ما لا رأيَ للطابعة فيه. */
   while (at < job.length) {
     if (at + 3 <= job.length && job[at] === 0x1b && job[at + 1] === 0x4a) {
-      pendingBlank += job[at + 2];
-      feeds += 1;
-      at += 3;
-      continue;
+      return { error: 'أمرُ تغذيةٍ (ESC J) داخل الصورة — الورقةُ تخرج مضغوطةً على طابعةٍ لا تُنفّذه' };
     }
     if (!(at + 8 <= job.length && job[at] === 0x1d && job[at + 1] === 0x76 && job[at + 2] === 0x30)) break;
     const bpr = job[at + 4] | (job[at + 5] << 8);
@@ -71,21 +67,11 @@ function parse(job) {
     at += 8;
     const need = bpr * h;
     if (at + need > job.length) return { error: 'شريحةٌ أطولُ من المهمّة' };
-    if (pendingBlank > 0) {
-      bands.push({ bpr, h: pendingBlank, blank: true });
-      rows.push(new Uint8Array(bpr * pendingBlank));
-      pendingBlank = 0;
-    }
     bands.push({ bpr, h });
     rows.push(job.subarray(at, at + need));
     at += need;
   }
-  if (pendingBlank > 0 && bands.length) {
-    const bpr = bands[0].bpr;
-    bands.push({ bpr, h: pendingBlank, blank: true });
-    rows.push(new Uint8Array(bpr * pendingBlank));
-  }
-  return { bands, rows, feeds, tail: job.subarray(at) };
+  return { bands, rows, tail: job.subarray(at) };
 }
 
 /**
@@ -134,9 +120,9 @@ for (const [w, h] of [[576, 1356], [576, 128], [576, 127], [576, 129], [384, 900
   /* الشرائحُ تُقطَّع عند البياض أيضاً، فلا عددَ ثابتٌ يُقاس عليه.
      والمحروسُ ما يحمي فعلاً: ألّا تطولَ شريحةٌ عن الحدّ (فيتّسع ضررُ
      الانقطاع)، وألّا تُرسَل الصورةُ كتلةً واحدة. */
-  if (got.bands.some((b) => !b.blank && b.h > 128)) fails.push(`${w}x${h}: شريحةٌ أطولُ من ١٢٨ سطراً — ضررُ الانقطاع يتّسع`);
+  if (got.bands.some((b) => b.h > 128)) fails.push(`${w}x${h}: شريحةٌ أطولُ من ١٢٨ سطراً — ضررُ الانقطاع يتّسع`);
   if (got.bands.some((b) => b.h <= 0)) fails.push(`${w}x${h}: شريحةٌ بلا أسطر`);
-  if (h > 128 && got.bands.filter((b) => !b.blank).length < 2) fails.push(`${w}x${h}: الصورةُ كتلةٌ واحدة`);
+  if (h > 128 && got.bands.length < 2) fails.push(`${w}x${h}: الصورةُ كتلةٌ واحدة`);
   // والبايتات نفسُها: الشرائحُ مجتمعةً = الصورةُ كما لو أُرسلت كتلةً واحدة.
   const joined = Buffer.concat(got.rows.map((r) => Buffer.from(r)));
   if (joined.length !== bpr * h) fails.push(`${w}x${h}: البايتات ${joined.length} والمفروض ${bpr * h}`);
@@ -257,14 +243,24 @@ for (const need of ['bandRaster', 'rasterChunks']) {
   if (!engine.includes(need)) fails.push(`محرّكُ الويب المبنيّ بلا ${need} — شغّل npm run receipt:build`);
 }
 
-/* ودفعُ البياض: نصفُ الورقة أسطرٌ بيضاء، وإرسالُها أصفاراً هو نصفُ
-   زمنِ الإرسال ونصفُ نافذةِ الانقطاع. فإن عادت تُرسَل، عاد البطء. */
+/* ولا يعود البياضُ يُستبدل بأمرِ تغذية.
+
+   جُرّب في ١٫٧٩: `ESC J n` بدل اثنين وسبعين بايتاً للسطر الأبيض،
+   فانكمشت الفاتورةُ من ٨٧ ك.ب إلى ٥٧. والمكسبُ حقيقيّ -- لكنّ مقدارَ
+   ما يدفعه `ESC J n` هو n × وحدةِ الحركة الرأسيّة، وهي تختلف بين
+   الطابعات، ومنها ما لا يُنفّذ الأمرَ أصلاً. فعلى EZPOS عند «كباب
+   طارق» سقط الدفعُ كلُّه والتصقت الشرائح: فاتورةٌ مضغوطةٌ والكلامُ
+   قريبٌ من بعضه -- وهو ما يحرّمه شرطُ المالك نصّاً.
+
+   ولم يكشفه اختبارٌ لأنّ الاختبارَ كان يفكّ الناتجَ على نفس
+   الافتراض. فمن أراد المكسبَ فليأتِ بورقٍ من طابعةِ مطعم. */
 const rasterTs = fs.readFileSync(path.join(root, 'shared/receipt/raster.ts'), 'utf8');
-if (!/0x1b; out\[at \+ 1\] = 0x4a/.test(rasterTs)) {
-  fails.push('البياضُ يُرسَل أصفاراً لا يُدفع بـESC J — نصفُ البايتات بلا حبر');
+if (/0x4a/.test(rasterTs)) {
+  fails.push('أمرُ تغذيةٍ (ESC J) عاد إلى المرمِّز — الورقةُ تخرج مضغوطةً على طابعةٍ لا تُنفّذه');
 }
 {
-  /* ويُقاس المكسبُ لا يُفترض: صفحةٌ نصفُها بياضٌ يجب أن تنكمش فعلاً. */
+  /* والحجمُ يقول الشيءَ نفسَه: الصورةُ كاملةً + رأسٌ لكلِّ شريحة، لا
+     بايتَ أقلّ. فنقصانُه يعني أنّ أسطراً لم تُرسَل. */
   const { bandRaster } = loadTs('shared/receipt/raster.ts');
   const bpr = 72;
   const height = 800;
@@ -274,8 +270,9 @@ if (!/0x1b; out\[at \+ 1\] = 0x4a/.test(rasterTs)) {
     for (let i = 0; i < bpr; i += 1) bm[y * bpr + i] = 0xa5;
   }
   const got = bandRaster(bm, bpr, height).length;
-  if (got > bm.length * 0.7) {
-    fails.push(`دفعُ البياض بلا أثر: ${got} بايتاً من ${bm.length} — راجِع MIN_FEED_ROWS`);
+  const want = bm.length + Math.ceil(height / 128) * 8;
+  if (got !== want) {
+    fails.push(`الصورةُ ${got} بايتاً والمفروض ${want} — أسطرٌ لم تُرسَل، فالورقةُ تنضغط`);
   }
 }
 

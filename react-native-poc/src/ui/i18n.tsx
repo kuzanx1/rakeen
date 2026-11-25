@@ -692,6 +692,7 @@ const I18N_EN_BASE: Record<string, string> = {
   'فيه شيء ثاني ماسك الطابعة — أقفل أي تطبيق طباعة ثاني، ولو ما نفع أقفل ركين وافتحه.': 'Something else is holding the printer — close any other printing app; if that does not help, close Rakeen and open it again.',
   'الطابعة واقفة في نص فاتورة قبلها — افصل سلكها وركّبه عشان ترجع لأولها.': 'The printer is stuck mid-way through an earlier receipt — unplug its cable and plug it back in to reset it.',
   'انقطع الاتصال وهي ترسل — تأكد من السلك ومن كهرباء الطابعة.': 'The connection dropped while sending — check the cable and the printer power.',
+  'انقطع الإرسال في نص الفاتورة — جرّب كيبل USB ثاني وأقصر، وخلّ الطابعة على كهربا مستقلة مو على الجهاز.': 'The transfer was cut off mid-receipt — try another, shorter USB cable, and give the printer its own power supply instead of the tablet.',
   'نفس طابعة الكاشير': 'Same as the till printer',
   'عنوان طابعة المطبخ في الشبكة': 'Kitchen printer address on the network',
   'تذاكر المطبخ بتطلع على نفس طابعة الكاشير.': 'Kitchen tickets print on the till printer.',
