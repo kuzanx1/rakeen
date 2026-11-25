@@ -22,24 +22,35 @@ function expect(name, got, want) {
   if (!ok) fails++;
 }
 
-// ══ ١) شلّال المحاسبة المرسوم (renderWaterfall) ══
+// ══ ١) «من كل ١٠٠ ريال بعتها» -- الشريط المرسوم (acFlowHtml) ══
+//
+// كان هنا شلّالُ renderWaterfall بأسطرِ cls:'neg'. وأُعيدت كتابةُ شاشة
+// المحاسبة، فصار renderWaterfall سطراً واحداً ينادي acRender، وحلّ
+// محلَّ الشلّال شريطُ acFlowHtml.
+//
+// ولم يقل الحارسُ ذلك: مرساتُه لم تُوجد، فأرجع indexOf أوّلَ `const
+// steps` في الملفّ كلِّه -- قائمةَ مهامِّ الترحيب -- فانفجر بـ«st is not
+// defined». حارسٌ ينفجر أهونُ من حارسٍ يفحص كوداً آخرَ ويمرّ، وكلاهما
+// عطب. فصارت كلُّ مرساةٍ تُفحَص وتُسمّى.
 {
-  const i = src.indexOf('  const steps = [', src.indexOf('function renderWaterfall(){'));
-  const j = src.indexOf('  ];', i) + 4;
-  const stepsSrc = src.slice(i, j);
-  const steps = new Function('a', stepsSrc + '; return steps;')(A);
+  const at = src.indexOf('function acFlowHtml(');
+  const i = at < 0 ? -1 : src.indexOf('  const parts = [', at);
+  const j = i < 0 ? -1 : src.indexOf('  const base', i);
+  if (at < 0 || i < 0 || j < 0) {
+    console.log('✗ ما وجدنا parts داخل acFlowHtml — الشاشةُ أُعيدت كتابتُها، حدِّث هذا الحارس');
+    fails++;
+  } else {
+    const parts = new Function('a', src.slice(i, j) + '; return parts;')(A);
+    console.log('   أسطر الشريط: ' + parts.map(p => p.k).join(' | '));
 
-  const labels = steps.map(s => s.label);
-  console.log('   أسطر الشلّال: ' + labels.join(' | '));
-
-  // كل ما هو neg يُطرح، وما هو pos/final علامةُ مرحلة
-  const negs = steps.filter(s => s.cls === 'neg').reduce((t, s) => t + (-s.amount), 0);
-  const final = steps.find(s => s.cls === 'final');
-  // الإيراد − (الخصومات + الضريبة + COGS + التوصيل + الهدر + المصاريف)
-  expect('شلّال المحاسبة يجمع إلى صافي الربح', A.revenue - negs, final.amount);
-  expect('وفيه سطر الهدر', steps.some(s => s.label === 'الهدر') ? 1 : 0, 1);
-  expect('وقيمة سطر الهدر صحيحة',
-    -(steps.find(s => s.label === 'الهدر') || { amount: 0 }).amount, A.wasteCost);
+    // كلُّ ريالٍ من صافي المبيعات له مكانٌ في الشريط: مواد وضريبة
+    // وعمولات وهدر ومصاريف وربح. ونقصُ واحدٍ منها يعني ريالاً يختفي
+    // من شريطٍ يقول لصاحب المطعم «وين راح كل ريال».
+    expect('الشريط يجمع إلى صافي المبيعات', parts.reduce((t, p) => t + p.v, 0), A.netSales);
+    expect('وفيه سطر الهدر', parts.some(p => p.k === 'الهدر') ? 1 : 0, 1);
+    expect('وقيمة سطر الهدر صحيحة', (parts.find(p => p.k === 'الهدر') || { v: 0 }).v, A.wasteCost);
+    expect('وربحك هو صافي الربح', (parts.find(p => p.k === 'ربحك') || { v: 0 }).v, A.netProfit);
+  }
 }
 
 // ══ ٢) الملخّص المالي المعروض (financialReportHtml) ══
