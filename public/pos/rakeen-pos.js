@@ -329,6 +329,10 @@ const I18N_EN = {
   'توصيل — مدفوع عبر التطبيق': 'Delivery — paid through the app',
   'إجمالي الطلب — مدفوع مسبقًا عبر التطبيق': 'Order total — prepaid through the app',
   'آخر ٤ أرقام الفاتورة': 'Last 4 digits of the invoice',
+  'جوال': 'Phone',
+  'آخر أرقام فاتورة التطبيق': 'Last digits of the app invoice',
+  'آخر أرقام جوال الزبون': 'Last digits of the customer phone',
+  '— اختياري، حتى ٤': '— optional, up to 4',
   'آخر ٤ أرقام من فاتورة تطبيق التوصيل': 'Last 4 digits from the delivery app invoice',
   'آخر ٤ أرقام من جوال الزبون': 'Last 4 digits of the customer’s mobile',
   'أو بالجوال': 'or by phone',
@@ -4538,6 +4542,12 @@ function renderChannelStep(){
     ? t('الطلب جاك من') + ' ' + platformNames.slice(0, 2).join(' ' + t('أو') + ' ') + (PHONE_ORDERS_ENABLED ? ' ' + t('أو بالجوال') : '')
     : (PHONE_ORDERS_ENABLED ? t('الطلب جاك بالجوال') : t('الطلب جاك من تطبيق توصيل'));
 
+  /* ولا تطبيقَ ولا سبب: مطعمٌ يستقبل بالجوال وحدَه لا يُقال له «أخرى»
+     ثمّ يُفتح له صفٌّ فيه خيارٌ واحد. يُقال له «جوال» ويمضي.
+     و«أخرى» تبقى حين يكون معه تطبيقٌ واحدٌ على الأقلّ، فهناك يصحّ
+     السؤال: من أيّها جاء؟ (طلبُ المالك، ٢٠٢٦/١١/٢٥.) */
+  const phoneOnly = DELIVERY_PLATFORMS_LIST.length === 0 && PHONE_ORDERS_ENABLED;
+
   const channels = [
     // شوكةٌ وسكّين: دائرتان متراكزتان تُقرآن زرَّ تسجيلٍ لا صحناً.
     {id:'dine_in', label:'محلي', hint:t('ياكل عندك في المحل'),
@@ -4547,7 +4557,7 @@ function renderChannelStep(){
     // «أخرى»، لا «توصيل»: الصفُّ تحته كيتا وجاهز و«جوال» -- وطلبُ
     // الجوال غالباً يجيء صاحبُه فيستلمه بنفسه، فليس توصيلاً أصلاً.
     // (اختارَه صاحبُ المطعم، ٢٠٢٦/١١/٢٠.)
-    {id:'delivery', label:'أخرى', hint:deliveryHint,
+    {id:'delivery', label: phoneOnly ? 'جوال' : 'أخرى', hint:deliveryHint,
      icon:'<rect x="5" y="2" width="14" height="20" rx="2.5"/><line x1="10" y1="18.5" x2="14" y2="18.5"/>'}
   ].filter(c => {
     if(c.id === 'dine_in') return DINE_IN_ENABLED;
@@ -4571,7 +4581,9 @@ function renderChannelStep(){
       <span class="channel-name">${c.label}</span>
     </button>`
   ).join('') + `</div>`;
-  html += `<div class="platform-btn-row ${state.orderChannel==='delivery' ? '' : 'hidden'}" id="channelPlatformRow"></div>`;
+  /* والصفُّ يبقى في الصفحة ليضبط renderPlatformButtons اختيارَه، لكنّه
+     لا يُعرض على خيارٍ واحد: زرٌّ وحيدٌ يُضغط ليختار نفسَه عبث. */
+  html += `<div class="platform-btn-row ${state.orderChannel==='delivery' && !phoneOnly ? '' : 'hidden'}" id="channelPlatformRow"></div>`;
   paymentModalBody.innerHTML = html;
   renderPlatformButtons();
 
@@ -4583,10 +4595,14 @@ function renderChannelStep(){
     btn.classList.add('active');
     state.orderChannel = btn.dataset.channel;
     const platformRow = document.getElementById('channelPlatformRow');
-    if(state.orderChannel === 'delivery'){
+    if(state.orderChannel === 'delivery' && !phoneOnly){
       platformRow.classList.remove('hidden');
       // الاختيارُ الافتراضيُّ في renderPlatformButtons وحدَه -- قاعدةٌ
       // واحدةٌ لا اثنتان تفترقان (كانت هنا تتجاهل «جوال»).
+      renderPlatformButtons();
+    } else if(state.orderChannel === 'delivery'){
+      // «جوال» بلا صفٍّ: تُضبط المنصّةُ هنا، وإلّا حُفظ الطلبُ بلا مصدر.
+      platformRow.classList.add('hidden');
       renderPlatformButtons();
     } else {
       platformRow.classList.add('hidden');
@@ -4605,7 +4621,9 @@ function renderChannelStep(){
     // sale gets booked against. Advancing on the channel tap would answer
     // it silently with whichever platform sorts first, so delivery waits
     // and the platform tap is what moves on.
-    if(state.orderChannel !== 'delivery') advanceFromChannelStep();
+    /* و«جوال» وحدَها تمضي بضغطةِ القناة: السؤالُ الثاني (من أيّ تطبيق؟)
+       لا وجودَ له هنا، فانتظارُ جوابِه يُعلّق الخطوة. */
+    if(state.orderChannel !== 'delivery' || phoneOnly) advanceFromChannelStep();
   });
 }
 
@@ -4678,20 +4696,18 @@ function renderPaymentStep(){
   // وطلبُ الجوال ليس منها: يُدفع عند الاستلام، فيمضي في المسار العاديّ
   // ومعه حقلُ آخرِ أربعة.
   if(rkPrepaidByApp()){
-    const last4Valid = /^\d{4}$/.test(state.platformInvoiceLast4);
     let html = `<div class="due-display"><div class="due-label">إجمالي الطلب — مدفوع مسبقًا عبر التطبيق</div><div class="due-amount">${rkMoney(total)}</div></div>`;
     html += `<div class="pos-auth-field" style="margin-bottom:14px;">
-      <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px;">آخر ٤ أرقام من فاتورة تطبيق التوصيل</label>
+      <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px;">آخر أرقام فاتورة التطبيق <span style="font-weight:600; color:var(--muted);">— اختياري، حتى ٤</span></label>
       <input type="text" id="deliveryInvoiceLast4Input" maxlength="4" inputmode="numeric" placeholder="٠٠٠٠" value="${state.platformInvoiceLast4}" style="width:100%; text-align:center; font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:16px;">
     </div>`;
-    html += `<button class="confirm-pay-btn" id="confirmPayBtn" ${last4Valid?'':'disabled'}>تأكيد الطلب</button>`;
+    html += `<button class="confirm-pay-btn" id="confirmPayBtn">تأكيد الطلب</button>`;
     paymentModalBody.innerHTML = html;
     document.getElementById('confirmPayBtn').addEventListener('click', completePayment);
     document.getElementById('deliveryInvoiceLast4Input').addEventListener('input', (e)=>{
       const digits = e.target.value.replace(/\D/g, '').slice(0, 4);
       e.target.value = digits;
       state.platformInvoiceLast4 = digits;
-      document.getElementById('confirmPayBtn').disabled = !/^\d{4}$/.test(digits);
     });
     return;
   }
@@ -4856,7 +4872,7 @@ function renderPaymentStep(){
   // تُطبع ورقةُ المطبخ بخطٍّ كبير. ولا تأكيد قبلها.
   if(rkPhoneOrder()){
     html += `<div class="pos-auth-field" style="margin:4px 0 14px;">
-      <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px;">آخر ٤ أرقام من جوال الزبون</label>
+      <label style="display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px;">آخر أرقام جوال الزبون <span style="font-weight:600; color:var(--muted);">— اختياري، حتى ٤</span></label>
       <input type="text" id="phoneOrderLast4Input" maxlength="4" inputmode="numeric" placeholder="٠٠٠٠" value="${state.platformInvoiceLast4}" style="width:100%; text-align:center; font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:16px;">
     </div>`;
   }
@@ -10985,7 +11001,17 @@ const RK_PHONE_PLATFORM_LABEL = 'جوال'; // i18n-ignore: اسمٌ يُطبع 
 function rkPhoneOrder(){ return state.orderChannel === 'delivery' && state.deliveryPlatformId === RK_PHONE_PLATFORM_ID; }
 /** مدفوعٌ مسبقاً في تطبيق التوصيل -- طلبُ الجوال ليس منه، يُدفع هنا. */
 function rkPrepaidByApp(){ return state.orderChannel === 'delivery' && !rkPhoneOrder(); }
-function rkLast4Ok(){ return !rkPhoneOrder() || /^[0-9]{4}$/.test(state.platformInvoiceLast4 || ''); }
+/**
+ * آخرُ أربعةٍ لم تعد شرطاً.
+ *
+ * كانت تمنع التأكيد حتى تُكتب أربعةُ أرقامٍ كاملة، فكاشيرٌ لم يسمع
+ * إلّا رقمين يقف -- أو يكتب أربعةً من عنده ليمضي، وهذا أسوأُ من
+ * لا شيء: رقمٌ مخترَعٌ يُسلَّم به طلبٌ لغير صاحبه. فصارت تُقبل
+ * فارغةً، ومن رقمٍ إلى أربعة. (طلبُ المالك، ٢٠٢٦/١١/٢٥.)
+ *
+ * والحدُّ الأعلى باقٍ أربعةً في الحقل نفسِه (maxlength وقصُّ الإدخال).
+ */
+function rkLast4Ok(){ return true; }
 /** اسمُ المصدر كما يُطبع: التطبيق، أو «جوال». */
 function rkPlatformLabel(){
   if(state.orderChannel !== 'delivery') return '';

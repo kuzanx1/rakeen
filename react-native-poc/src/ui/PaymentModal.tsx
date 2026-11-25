@@ -143,7 +143,7 @@ const CHANNELS: { id: OrderChannel; label: string; icon: React.ReactNode }[] = [
        بنفسه، فليس توصيلاً أصلاً. فالزرُّ يقول «أخرى» -- أي ما ليس
        محلياً ولا سفرياً -- والصفُّ تحته هو الذي يُسمّي المصدر.
        (اختارَه صاحبُ المطعم، ٢٠٢٦/١١/٢٠.) */
-    id: 'delivery', label: 'أخرى',
+    id: 'delivery', label: 'أخرى',  // يصير «جوال» بلا تطبيقات -- انظر channels أدناه
     icon: (
       <>
         <Rect x={5} y={2} width={14} height={20} rx={2.5} />
@@ -561,7 +561,12 @@ export default function PaymentModal({
     // would answer it silently with whichever platform happens to be
     // first, and that platform is what the sale is booked against. So
     // delivery stays put and the platform tap is what moves on.
-    if (id === 'delivery') return;
+    if (id === 'delivery') {
+      // ولا سؤالَ ثانيَ بلا تطبيقات: «جوال» هي المصدرُ وحدَها، فتُضبط
+      // هنا ويمضي -- وإلّا وقفت الخطوةُ تنتظر جواباً لا يُسأل.
+      if (phoneOnly) advanceToCustomer(PHONE_PLATFORM.id);
+      return;
+    }
     if (needsTable(id)) setStep('tablePicker');
     else advanceToCustomer();
   };
@@ -734,12 +739,20 @@ export default function PaymentModal({
    */
   const phoneOrder = channel === 'delivery' && isPhonePlatform(deliveryPlatformId);
   const prepaidByApp = channel === 'delivery' && !phoneOrder;
-  /** الأربعةُ مطلوبةٌ في الحالتين: فاتورةُ التطبيق، أو جوالُ المتّصل. */
+  /**
+   * الحقلُ يُعرض في الحالتين (فاتورةُ التطبيق، أو جوالُ المتّصل)،
+   * ولا يمنع التأكيد.
+   *
+   * كان يمنعه حتى تُكتب أربعةٌ كاملة، فكاشيرٌ لم يسمع إلّا رقمين يقف
+   * -- أو يخترع أربعةً ليمضي، وهذا أسوأُ من لا شيء: رقمٌ مخترَعٌ
+   * يُسلَّم به طلبٌ لغير صاحبه. فصار من رقمٍ إلى أربعة، أو فارغاً.
+   * (طلبُ المالك، ٢٠٢٦/١١/٢٥.)
+   */
   const needsLast4 = channel === 'delivery';
   const tenderOk =
     method === 'cash' ? cashAmount >= total : method === 'split' ? validSplit : true;
   const canConfirm =
-    needsLast4 && !/^\d{4}$/.test(invoiceLast4) ? false : prepaidByApp ? true : tenderOk;
+    prepaidByApp ? true : tenderOk;
 
   /**
    * DELIBERATE DIVERGENCE from the source, decided by the owner.
@@ -762,6 +775,11 @@ export default function PaymentModal({
    * already priced and invoiced. So with no platform configured there is
    * nothing this channel can correctly record, and it is hidden.
    */
+  /* ولا تطبيقَ ولا سبب: مطعمٌ يستقبل بالجوال وحدَه لا يُقال له «أخرى»
+     ثمّ يُفتح له صفٌّ فيه خيارٌ واحد. يُقال له «جوال» ويمضي. و«أخرى»
+     تبقى حين يكون معه تطبيقٌ واحدٌ على الأقلّ، فهناك يصحّ السؤال:
+     من أيّها جاء؟ (طلبُ المالك، ٢٠٢٦/١١/٢٥. ونظيرُه في كاشير الويب.) */
+  const phoneOnly = deliveryPlatforms.length === 0 && phoneOrdersEnabled;
   const channels = CHANNELS.filter(c => {
     if (c.id === 'dine_in') return dineInEnabled;
     /* والتوصيلُ يُعرض ما دام فيه ما يُختار: تطبيقٌ واحدٌ على الأقل، أو
@@ -1079,7 +1097,7 @@ export default function PaymentModal({
                             {c.icon}
                           </Svg>
                         </View>
-                        <Text style={[styles.channelBtnText, active && styles.channelBtnTextActive]}>{c.label}</Text>
+                        <Text style={[styles.channelBtnText, active && styles.channelBtnTextActive]}>{c.id === 'delivery' && phoneOnly ? 'جوال' : c.label}</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -1088,7 +1106,7 @@ export default function PaymentModal({
                     تطبيقات المنشأة، أو «جوال» لمن اتّصل. ولا يمضي
                     الكاشير من هذي الخطوة إلا باختيارِ واحدٍ منها، فما
                     عاد يُحفظ طلبُ توصيلٍ بلا مصدر. */}
-                {channel === 'delivery' && (
+                {channel === 'delivery' && !phoneOnly && (
                   <View style={styles.platformRow}>
                     {(phoneOrdersEnabled ? [...deliveryPlatforms, PHONE_PLATFORM] : deliveryPlatforms).map(pf => {
                       const active = pf.id === deliveryPlatformId;
@@ -1444,12 +1462,12 @@ export default function PaymentModal({
                     tender screen: the customer already paid inside the
                     platform's app. What it needs instead is the invoice's
                     last four digits, which is what reconciles this order
-                    against the platform's own statement -- and تأكيد الطلب
-                    stays disabled until all four are entered. */}
+                    against the platform's own statement. وهي اختيارية:
+                    رقمان يكفيان، والفارغُ يمضي. */}
                 {needsLast4 && (
                   <View style={styles.splitInputs}>
                     <Text style={styles.splitLabel}>
-                      {phoneOrder ? 'آخر ٤ أرقام من جوال الزبون' : 'آخر ٤ أرقام من فاتورة تطبيق التوصيل'}
+                      {(phoneOrder ? 'آخر أرقام جوال الزبون' : 'آخر أرقام فاتورة التطبيق') + ' — اختياري، حتى ٤'}
                     </Text>
                     <TextInput
                       style={styles.input}

@@ -112,6 +112,45 @@ if (/platform_invoice_last4 \? RK_PHONE_PLATFORM_LABEL/.test(web)) {
   }
 }
 
+/* ── آخرُ أربعةٍ اختياريّة، وسقفُها أربعة ──
+   كانت تمنع التأكيد حتى تُكتب أربعةٌ كاملة. فكاشيرٌ لم يسمع إلّا
+   رقمين يقف -- أو يخترع أربعةً ليمضي، وهذا أسوأ: رقمٌ مخترَعٌ
+   يُسلَّم به طلبٌ لغير صاحبه. والعودةُ إليها في عميلٍ دون الآخر لا
+   تُرى: الورقةُ تخرج، وإنّما يقف كاشيرٌ واحدٌ في فرعٍ واحد. */
+{
+  const webPos = read('public/pos/rakeen-pos.js');
+  const pay = read('react-native-poc/src/ui/PaymentModal.tsx');
+  if (!/function rkLast4Ok\(\)\s*\{\s*return true; \}/.test(webPos)) {
+    fails.push('كاشيرُ الويب يشترط أربعةَ أرقامٍ لتأكيد الطلب');
+  }
+  if (/last4Valid\s*\?/.test(webPos) || /confirmPayBtn'\)\.disabled/.test(webPos)) {
+    fails.push('كاشيرُ الويب يُعطّل زرَّ التأكيد على آخر أربعة');
+  }
+  if (/needsLast4 && !\/\^\\d\{4\}\$\//.test(pay)) {
+    fails.push('التطبيقُ يشترط أربعةَ أرقامٍ لتأكيد الطلب');
+  }
+  // والسقفُ باقٍ: أربعةٌ حدّاً أعلى في العميلين.
+  if (!/maxlength="4"/.test(webPos)) fails.push('كاشيرُ الويب بلا سقفٍ لآخر أربعة');
+  if (!/maxLength=\{4\}/.test(pay)) fails.push('التطبيقُ بلا سقفٍ لآخر أربعة');
+
+  /* ── «جوال» قناةٌ باسمها حين لا تطبيقَ للمنشأة ──
+     مطعمٌ يستقبل بالجوال وحدَه لا يُقال له «أخرى» ثمّ يُفتح له صفٌّ
+     فيه خيارٌ واحد. وإن سقط التمريرُ في عميلٍ وقف الكاشيرُ ينتظر
+     جواباً لا يُسأل: خطوةٌ لا تمضي، وبيعةٌ لا تُحفظ. */
+  for (const [who, src, needle] of [
+    ['كاشير الويب', webPos, /const phoneOnly = DELIVERY_PLATFORMS_LIST\.length === 0 && PHONE_ORDERS_ENABLED;/],
+    ['التطبيق', pay, /const phoneOnly = deliveryPlatforms\.length === 0 && phoneOrdersEnabled;/],
+  ]) {
+    if (!needle.test(src)) fails.push(`${who}: «جوال» ما صارت قناةً باسمها بلا تطبيقات`);
+  }
+  if (!/state\.orderChannel !== 'delivery' \|\| phoneOnly/.test(webPos)) {
+    fails.push('كاشيرُ الويب يقف عند «جوال» ينتظر اختيارَ تطبيقٍ لا وجودَ له');
+  }
+  if (!/if \(phoneOnly\) advanceToCustomer\(PHONE_PLATFORM\.id\);/.test(pay)) {
+    fails.push('التطبيقُ يقف عند «جوال» ينتظر اختيارَ تطبيقٍ لا وجودَ له');
+  }
+}
+
 if (fails.length) {
   process.stdout.write(Buffer.from('✗ ' + fails.join('\n✗ ') + '\n', 'utf8'));
   process.exit(1);
