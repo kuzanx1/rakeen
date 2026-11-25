@@ -85,6 +85,34 @@ if (!/failureSentence\(item\.last_error_detail/.test(queue)) {
   fails.push('«قائمة الطباعة» تعرض الرمزَ بلا جملةٍ تقول ما يُفعل');
 }
 
+/* ── الدَّينُ الذي لا يُسدَّد لا يقفل المطعم ──
+   كان السدادُ يُعاد إلى ما لا نهاية: كتابةٌ كبيرةٌ من الأصفار على طابعةٍ
+   أثبتت للتوّ أنّها لا تحتمل كتابةً كبيرة. فتسقط، ويسقط معها كلُّ ما
+   بعدها حتى يشيخ الدَّينُ بعد دقيقتين. وقد وقع: ثلاثون محاولةً ولا
+   واحدةٌ نجحت. فاخترنا «لا ورقةَ مشوّهة» فخرجنا بـ«لا ورقةَ أبداً». */
+{
+  const m = kt.match(/MAX_SETTLE_TRIES = (\d+)/);
+  if (!m) {
+    fails.push('ما فيه MAX_SETTLE_TRIES -- دَينٌ لا يُسدَّد يقفل الطابور بلا حدّ');
+  } else if (!(Number(m[1]) >= 1 && Number(m[1]) <= 3)) {
+    fails.push(`MAX_SETTLE_TRIES = ${m[1]} -- خارج الحدّ (١–٣)`);
+  }
+  if (!/settleFails\.remove\(printerId\)/.test(kt)) {
+    fails.push('عدّادُ السداد ما يُمحى -- طابعةٌ تعافت تبقى محسوبةً على عثرتها');
+  }
+  if (!/settleFails\.remove\(stableId\(dev\)\)/.test(kt)) {
+    fails.push('ورقةٌ نجحت ما تمحو عدّادَ السداد');
+  }
+  // والتصفيرُ القياسيُّ لا يُنادى إلّا حيث كنّا نفشل فشلاً تامّاً:
+  // طريقٌ يعمل اليوم لا يُدخَل عليه أمرٌ لم يُجرَّب على طابعةٍ حقيقيّة.
+  if (!/private fun softReset\(/.test(kt)) {
+    fails.push('ما فيه softReset -- لا مخرجَ من نصفِ صورةٍ إلّا بالورق');
+  }
+  if ((kt.match(/softReset\(/g) || []).length !== 2) {
+    fails.push('softReset يُنادى من غير موضعِ الاستسلام -- مسارٌ يعمل دخله أمرٌ لم يُجرَّب');
+  }
+}
+
 if (fails.length) {
   process.stdout.write(Buffer.from('✗ ' + fails.join('\n✗ ') + '\n', 'utf8'));
   process.exit(1);

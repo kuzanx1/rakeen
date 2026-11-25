@@ -161,6 +161,25 @@ class UsbPrinterTransport(private val context: Context) {
         private val debtBytes = java.util.concurrent.ConcurrentHashMap<String, Debt>()
 
         /**
+         * كم مرّةً تعثّر سدادُ هذا الدَّين على التوالي.
+         *
+         * والدَّينُ يُسدَّد بكتابةِ أصفارٍ بعددِ ما نقص -- وهي كتابةٌ كبيرةٌ
+         * على طابعةٍ أثبتت للتوّ أنّها لا تحتمل كتابةً كبيرة. فإن تعثّر
+         * السدادُ رجعنا بعطبٍ وسقطت الورقة، ثمّ تأتي التالية فتصطدم بنفس
+         * الدَّين فتسقط -- وهكذا حتى يشيخ الدَّينُ بعد دقيقتين.
+         *
+         * وهذا ما وقع فعلاً: ثلاثون محاولةً، **ولا واحدةٌ نجحت**، وخمسُ
+         * انقطاعاتٍ بينها. مطعمٌ لا يطبع شيئاً، لأنّنا اخترنا «لا تخرج
+         * ورقةٌ مشوّهة» فخرجنا بـ«لا تخرج ورقةٌ أبداً».
+         *
+         * فبعد محاولتين متتاليتين نُسقط الدَّين ونمضي. وقد تخرج ورقةٌ
+         * واحدةٌ مشوّهةٌ يُعيد الكاشيرُ طباعتَها -- وهي أهونُ بما لا يُقاس
+         * من طابورٍ كامل لا يخرج منه شيء.
+         */
+        private const val MAX_SETTLE_TRIES = 2
+        private val settleFails = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+        /**
          * تهدئةٌ تُستحقّ، لا تهدئةٌ احتياطيّة.
          *
          * التهدئةُ المسبقةُ كانت تدفع ثمنَها كلُّ طابعةٍ عند كلِّ مطعم،
@@ -326,6 +345,25 @@ class UsbPrinterTransport(private val context: Context) {
         }
 
         /**
+         * SOFT_RESET من معيار صنف الطابعات (USB Printer Class، bRequest 2):
+         * «يُفرغ كلَّ المخازن ويُعيد أنبوبَي الإرسال إلى حالتهما الأولى».
+         *
+         * وهو الطريقُ الوحيدُ لإخراج طابعةٍ من نصفِ صورةٍ بلا ورق: الأصفارُ
+         * تُخرجها لأنّ الطابعةَ تعدّها بياناتِ صورة، فتمشي بها الورقة.
+         * وهذا أمرُ تحكّمٍ لا يمرّ على مَجرى البيانات أصلاً.
+         *
+         * ولا يُنادى إلّا حيث كنّا نفشل فشلاً تامّاً من قبل، فلا يمسّ
+         * طريقاً يعمل اليوم. وطابعةٌ لا تدعمه تُرجع سالباً، ونمضي.
+         */
+        private fun softReset(connection: UsbDeviceConnection, intfNumber: Int): Boolean {
+            val rc = try {
+                connection.controlTransfer(0x21, 2, 0, intfNumber, null, 0, 1000)
+            } catch (e: Exception) { -1 }
+            android.util.Log.i(LOG_TAG, "printer class soft reset -> $rc")
+            return rc >= 0
+        }
+
+        /**
          * يُسدِّد دَينَ الورقة المنقطعة: أصفاراً بعدد ما نقص، ثم تصفيرٌ وقصّ.
          *
          * والأصفارُ بيضاءُ في `GS v 0` (البتُّ المُشعَل هو الأسود)، فيخرج
@@ -336,6 +374,7 @@ class UsbPrinterTransport(private val context: Context) {
             endpoint: UsbEndpoint,
             printerId: String,
             timeoutMs: Int,
+            intfNumber: Int,
         ): Boolean {
             val debt = debtBytes.remove(printerId) ?: return true
             // بساعةٍ لا ترجع: ساعةُ الجهاز تُصحَّح من الشبكة فتقفز للوراء،
@@ -349,12 +388,23 @@ class UsbPrinterTransport(private val context: Context) {
             if (!stale && debt.bytes in 1..MAX_DEBT) {
                 val paid = writeAll(connection, endpoint, ByteArray(debt.bytes), timeoutMs, printerId)
                 if (paid < debt.bytes) {
-                    // ما زالت متعثّرة. نُعيد قيدَ ما بقي ولا نكتب فوقه فاتورةً
-                    // جديدة: الكتابةُ على طابعةٍ ما زالت تنتظر هي العطبُ نفسُه.
-                    debtBytes[printerId] = Debt(debt.bytes - paid, debt.at)
-                    return false
+                    val tries = (settleFails[printerId] ?: 0) + 1
+                    if (tries < MAX_SETTLE_TRIES) {
+                        // ما زالت متعثّرة. نُعيد قيدَ ما بقي ولا نكتب فوقه
+                        // فاتورةً جديدة: الكتابةُ على طابعةٍ ما زالت تنتظر
+                        // هي العطبُ نفسُه.
+                        settleFails[printerId] = tries
+                        debtBytes[printerId] = Debt(debt.bytes - paid, debt.at)
+                        return false
+                    }
+                    // ومحاولتان تكفيان. بعدهما الإصرارُ على السداد يقفل
+                    // الطابعةَ على المطعم كلِّه، والدَّينُ الذي لا يُسدَّد
+                    // ليس أولى من فاتورةٍ تخرج.
+                    android.util.Log.w(LOG_TAG, "giving up on debt after $tries tries; resetting")
+                    softReset(connection, intfNumber)
                 }
             }
+            settleFails.remove(printerId)
             // ESC @ تصفير، ثم ذيلُ القصّ **نفسُه** الذي يُنهي به التطبيقُ كلَّ
             // فاتورة (domain/escposRaster.ts): ثلاثُ تغذياتٍ ثم GS V 0.
             //
@@ -595,7 +645,7 @@ class UsbPrinterTransport(private val context: Context) {
                         return@execute
                     }
                     // دَينُ ورقةٍ سابقةٍ انقطعت: يُسدَّد قبل أيِّ شيءٍ جديد.
-                    if (!settleDebt(conn, endpoint, stableId(dev), timeoutMs)) {
+                    if (!settleDebt(conn, endpoint, stableId(dev), timeoutMs, intf.id)) {
                         callback(false, "usb_debt_unsettled")
                         return@execute
                     }
@@ -630,6 +680,7 @@ class UsbPrinterTransport(private val context: Context) {
                         callback(false, "truncated_write")
                     } else {
                         debtBytes.remove(stableId(dev))
+                        settleFails.remove(stableId(dev))
                         // ورقةٌ كاملةٌ نجحت: تُحسب للتعافي. وأوامرُ الدرجِ
                         // والتهيئةِ لا تُحسب -- بايتاتٌ قليلةٌ تمرّ على أسوأ
                         // وصل، فلو عُدَّت لَرُفعت التهدئةُ بلا دليل.
