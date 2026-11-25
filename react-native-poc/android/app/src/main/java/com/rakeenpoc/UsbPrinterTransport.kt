@@ -468,6 +468,46 @@ class UsbPrinterTransport(private val context: Context) {
         }
     }
 
+    /**
+     * نفسُ الطابعة بمَقبضٍ جديد: تُعاد المحاولةُ بدل الفشل من أوّل مرّة.
+     *
+     * openDevice يرجع null والطابعةُ موجودةٌ في التعداد. وأشهرُ سببٍ لهذا
+     * أنّها أعادت التعداد على الناقل للتوّ (قصٌّ، أو هبوطُ طاقةٍ لحظيّ،
+     * أو سلكٌ نُكز): الكائنُ القديم صار مَقبضاً ميتاً، وhasPermission
+     * قد يبقى صادقاً عليه فلا يُسأل الإذنُ من جديد. فكنّا نفشل في تسع
+     * ملّي ثانية ونعيد المحاولة على نفس المَقبض الميت -- خمسَ مرّاتٍ ثمّ
+     * «فشل»، والطابعةُ سليمةٌ أمام الكاشير.
+     *
+     * والصبرُ هنا هو عينُ ما في awaitDevice، نُعطيه للفتح كما أعطيناه
+     * للوجود: ثلاثُ وقفاتٍ لا تتجاوز ثانيةً ونصفاً، وعلى مسار الفشل
+     * وحدَه -- الطريقُ الناجحُ لا يدفع منها شيئاً.
+     *
+     * وإن سقط الإذنُ مع التعداد رجعنا بـusb_permission_lost: الإعادةُ
+     * التاليةُ تمرّ على ensurePermission من أوّله فيظهر طلبُ النظام.
+     */
+    private data class Reopened(val device: UsbDevice, val connection: UsbDeviceConnection)
+
+    private val REOPEN_WAITS_MS = longArrayOf(150, 400, 900)
+
+    private fun reopen(savedId: String): Pair<Reopened?, String> {
+        var detail = "usb_open_failed"
+        for (wait in REOPEN_WAITS_MS) {
+            try { Thread.sleep(wait) } catch (e: InterruptedException) { return null to detail }
+            val fresh = findDevice(savedId) ?: continue
+            if (!manager().hasPermission(fresh)) {
+                // لا يُطلب الإذنُ من خيطِ الـUSB: الطلبُ حوارٌ ينتظر الكاشير.
+                detail = "usb_permission_lost"
+                continue
+            }
+            val connection = try { manager().openDevice(fresh) } catch (e: Exception) { null }
+            if (connection != null) {
+                android.util.Log.i(LOG_TAG, "reopened after ${wait}ms")
+                return Reopened(fresh, connection) to detail
+            }
+        }
+        return null to detail
+    }
+
     // بعد القص بعض الطابعات تختفي من USB ثانية أو ثانيتين وترجع. لو جت
     // الفاتورة التالية في هالوقت، ننتظرها بدل ما نقول «ما لقينا الطابعة».
     private fun awaitDevice(savedId: String, callback: (UsbDevice?) -> Unit) {
@@ -509,49 +549,78 @@ class UsbPrinterTransport(private val context: Context) {
                 // الكاشير.
                 val myPaperMs = paperMs(bytes)
                 if (myPaperMs > 0) awaitPaper(stableId(device))
-                val target = printerInterfaceAndEndpoint(device)
+                // وما كان "connection_failed" واحداً يبتلع أربعةَ أسباب:
+                // مَقبضٌ لا يُفتح، وواجهةٌ لا تُستولى، ودَينُ ورقةٍ لم
+                // يُسدَّد، وعطبٌ أثناء الكتابة. وهي في اللوحة كلمةٌ واحدة،
+                // فلا يُعرف أيُّها وقع عند مطعمٍ بعيدٍ إلّا بالتخمين --
+                // وقد خمّنتُ. فصار لكلٍّ اسمُه، ويصعد إلى print_health.
+                var dev = device
+                // وغيابُ المَنفذِ حالٌ دائمة، لا إعادةَ تعداد: يُقال في
+                // حينه بلا أن ننام ثانيةً ونصفاً على ما لن يتغيّر.
+                var target = printerInterfaceAndEndpoint(dev)
                 if (target == null) {
                     callback(false, "no_bulk_out_endpoint")
                     return@execute
                 }
-                val (intf, endpoint) = target
-                val connection: UsbDeviceConnection? = try { manager().openDevice(device) } catch (e: Exception) { null }
+                var connection: UsbDeviceConnection? =
+                    try { manager().openDevice(dev) } catch (e: Exception) { null }
                 if (connection == null) {
-                    callback(false, "connection_failed")
+                    val (reopened, why) = reopen(stableId(dev))
+                    if (reopened == null) {
+                        callback(false, why)
+                        return@execute
+                    }
+                    dev = reopened.device
+                    connection = reopened.connection
+                    target = printerInterfaceAndEndpoint(dev)
+                    if (target == null) {
+                        connection.close()
+                        callback(false, "no_bulk_out_endpoint")
+                        return@execute
+                    }
+                }
+                val resolved = target
+                if (resolved == null || connection == null) {
+                    connection?.close()
+                    callback(false, "no_bulk_out_endpoint")
                     return@execute
                 }
+                val conn = connection
+                val (intf, endpoint) = resolved
                 try {
-                    if (!connection.claimInterface(intf, true)) {
-                        callback(false, "connection_failed")
+                    if (!conn.claimInterface(intf, true)) {
+                        // الواجهةُ بيدِ غيرنا: سائقُ النظام، أو نسخةٌ أخرى
+                        // من التطبيق، أو مَقبضٌ لم يُغلق عند عطبٍ سابق.
+                        callback(false, "usb_claim_failed")
                         return@execute
                     }
                     // دَينُ ورقةٍ سابقةٍ انقطعت: يُسدَّد قبل أيِّ شيءٍ جديد.
-                    if (!settleDebt(connection, endpoint, stableId(device), timeoutMs)) {
-                        callback(false, "connection_failed")
+                    if (!settleDebt(conn, endpoint, stableId(dev), timeoutMs)) {
+                        callback(false, "usb_debt_unsettled")
                         return@execute
                     }
 
                     val writeStartedAt = android.os.SystemClock.elapsedRealtime()
-                    val sentAll = writeAll(connection, endpoint, bytes, timeoutMs, stableId(device))
+                    val sentAll = writeAll(conn, endpoint, bytes, timeoutMs, stableId(dev))
                     if (sentAll < bytes.size) {
                         // ما وصل كلُّه. الطابعةُ الآن واقفةٌ في منتصف أمر صورة،
                         // تنتظر ما لم يصلها -- فنُقيّد الباقي ديناً ونسدّده أول
                         // اتصالٍ قادم، قبل أن تبتلع به ورقةَ زبونٍ آخر.
                         val owed = bytes.size - sentAll
-                        debtBytes[stableId(device)] = Debt(owed, android.os.SystemClock.elapsedRealtime())
+                        debtBytes[stableId(dev)] = Debt(owed, android.os.SystemClock.elapsedRealtime())
                         // العطلُ نادرٌ ولا يُستدعى بالطلب، فلو وقع عند مطعمٍ
                         // بعيدٍ أردنا أثراً يُقرأ بـadb logcat بدل التخمين.
                         android.util.Log.w(LOG_TAG, "truncated job: sent $sentAll of ${bytes.size}, owed $owed")
                         // وهذه هي العلامة. هذه الطابعةُ أرَتنا بنفسها أنّ
                         // الإرسالَ ينقطع عليها، فتُهدَّأ هي وحدَها من الآن --
                         // لا كلُّ طابعةٍ عند كلِّ مطعمٍ احتياطاً.
-                        cleanSincePaced[stableId(device)] = 0
-                        if (pacedPrinters.add(stableId(device))) {
+                        cleanSincePaced[stableId(dev)] = 0
+                        if (pacedPrinters.add(stableId(dev))) {
                             android.util.Log.w(LOG_TAG, "pacing this printer (${RECOVERY_BYTES_PER_SECOND / 1024} KB/s) until $UNPACE_AFTER_CLEAN_JOBS clean papers")
                         }
                         // ولا يمسحُ دَينَ الورقِ إلّا من كان له ورق: مهمّةٌ
                         // بلا ورقٍ انقطعت لا تُلغي موعدَ فراغِ فاتورةٍ قبلها.
-                        if (myPaperMs > 0) paperBusyUntil.remove(stableId(device))
+                        if (myPaperMs > 0) paperBusyUntil.remove(stableId(dev))
                         // وسببٌ خاصٌّ به، لا "connection_failed" العامّ: هذا
                         // هو الحدثُ الذي يسبق الفواتيرَ المشفَّرة، وهو الذي
                         // يُرفع إلى لوحةِ ركين (print_health_daily). ولو بقي
@@ -560,18 +629,18 @@ class UsbPrinterTransport(private val context: Context) {
                         // ولا يُعدُّ "مشغولة" (isPrinterBusy)، فمساره كما كان.
                         callback(false, "truncated_write")
                     } else {
-                        debtBytes.remove(stableId(device))
+                        debtBytes.remove(stableId(dev))
                         // ورقةٌ كاملةٌ نجحت: تُحسب للتعافي. وأوامرُ الدرجِ
                         // والتهيئةِ لا تُحسب -- بايتاتٌ قليلةٌ تمرّ على أسوأ
                         // وصل، فلو عُدَّت لَرُفعت التهدئةُ بلا دليل.
-                        if (myPaperMs > 0 && pacedPrinters.contains(stableId(device))) {
-                            val clean = (cleanSincePaced[stableId(device)] ?: 0) + 1
+                        if (myPaperMs > 0 && pacedPrinters.contains(stableId(dev))) {
+                            val clean = (cleanSincePaced[stableId(dev)] ?: 0) + 1
                             if (clean >= UNPACE_AFTER_CLEAN_JOBS) {
-                                pacedPrinters.remove(stableId(device))
-                                cleanSincePaced.remove(stableId(device))
+                                pacedPrinters.remove(stableId(dev))
+                                cleanSincePaced.remove(stableId(dev))
                                 android.util.Log.i(LOG_TAG, "lifting pacing: $clean clean papers in a row")
                             } else {
-                                cleanSincePaced[stableId(device)] = clean
+                                cleanSincePaced[stableId(dev)] = clean
                             }
                         }
                         // وصلت كلُّها، والطابعةُ الآن تطبعها: من هنا نحسب
@@ -590,7 +659,7 @@ class UsbPrinterTransport(private val context: Context) {
                         // بعدها. والدرجُ يُفتح قبل كلِّ طباعةِ نقد، فكان
                         // الزبونُ يدفع ثمنَها في كلِّ بيعةٍ نقديّة.
                         if (myPaperMs > 0) {
-                            paperBusyUntil[stableId(device)] = maxOf(
+                            paperBusyUntil[stableId(dev)] = maxOf(
                                 writeStartedAt + myPaperMs,
                                 android.os.SystemClock.elapsedRealtime() + CUT_AND_FEED_MS,
                             )
@@ -598,10 +667,12 @@ class UsbPrinterTransport(private val context: Context) {
                         callback(true, null)
                     }
                 } catch (e: Exception) {
-                    callback(false, "connection_failed")
+                    // ويُكتب نصُّه: عطبٌ لا يُقرأ لا يُصلَّح.
+                    android.util.Log.w(LOG_TAG, "usb io error: ${e.message}")
+                    callback(false, "usb_io_error")
                 } finally {
-                    try { connection.releaseInterface(intf) } catch (e: Exception) { /* best-effort cleanup */ }
-                    connection.close()
+                    try { conn.releaseInterface(intf) } catch (e: Exception) { /* best-effort cleanup */ }
+                    conn.close()
                 }
             }
         }
@@ -621,7 +692,7 @@ class UsbPrinterTransport(private val context: Context) {
             USB_IO.execute {
                 val connection = try { manager().openDevice(device) } catch (e: Exception) { null }
                 if (connection == null) {
-                    callback(false, null, "connection_failed")
+                    callback(false, null, "usb_open_failed")
                 } else {
                     val latencyMs = (System.nanoTime() - start) / 1_000_000.0
                     connection.close()

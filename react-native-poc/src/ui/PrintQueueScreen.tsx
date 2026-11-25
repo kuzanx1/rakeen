@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
 import { Text } from './Text';
+import { failureSentence } from '../domain/printerFailure';
 import { TouchableOpacity } from './tappable';
 import { listPrintJobs, retryPrintJob, retryAllFailedPrintJobs } from '../application/printService';
 import { PrintJobRecord, PrintJobStatus } from '../domain/printQueue';
@@ -112,10 +113,16 @@ export default function PrintQueueScreen() {
               </View>
             </View>
             {!!item.last_error && (
-              <Text style={styles.errorText}>
-                {item.last_error}
-                {item.last_error_detail ? ` (${item.last_error_detail})` : ''}
-              </Text>
+              <>
+                {/* الرمزُ يبقى -- صورةٌ منه تكفينا للتشخيص عن بُعد --
+                    وتحته جملةٌ تقول لصاحب المطعم ما يفعله. وكان الرمزُ
+                    وحدَه، فيُصوَّر ويُرسل ولا يُفهم منه شيء. */}
+                <Text style={styles.errorText}>
+                  {item.last_error}
+                  {item.last_error_detail ? ` (${item.last_error_detail})` : ''}
+                </Text>
+                <Text style={styles.errorHint}>{failureSentence(item.last_error_detail || undefined)}</Text>
+              </>
             )}
             {/* What the attempt actually did. A "تمت الطباعة" badge on its
                 own says only that the transport reported success -- this
@@ -183,6 +190,7 @@ const useStyles = createStyles(colors =>
   statusBadge: { borderRadius: radii.sm, paddingHorizontal: 8, paddingVertical: 3 },
   statusBadgeText: { fontFamily: fonts.sansBold, fontSize: 11 },
   errorText: { fontFamily: fonts.sansSemiBold, fontSize: 11, color: colors.danger, marginBottom: 4 },
+  errorHint: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.text, marginBottom: 6, lineHeight: 18 },
   meta: { fontFamily: fonts.sansSemiBold, fontSize: 11, color: colors.muted, marginBottom: spacing[2] },
   // Monospaced so a host:port and a byte count stay readable, and LTR so
   // "192.168.100.6:9100" is not reordered by the RTL paragraph direction.

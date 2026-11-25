@@ -195,7 +195,7 @@ if (/PACED_BYTES_PER_SECOND|BURST_BYTES|PACED_CHUNK/.test(usb)) {
 if (!/val paced = bytes\.size > PAPER_JOB_BYTES && pacedPrinters\.contains\(printerId\)/.test(inWriteAll)) {
   fails.push('شرطُ التهدئة ليس «طابعةٌ انقطع عليها إرسال» — إمّا البطءُ عاد للكلّ أو الشبكةُ سقطت');
 }
-if (!/pacedPrinters\.add\(stableId\(device\)\)/.test(usb)) {
+if (!/pacedPrinters\.add\(stableId\(dev\)\)/.test(usb)) {
   fails.push('لا شيءَ يُهدّئ طابعةً انقطع عليها الإرسال — بلا شبكةِ أمانٍ ولا نملك طابعةً نُجرّب عليها');
 }
 const atTrunc = usb.indexOf('if (sentAll < bytes.size)');
@@ -221,18 +221,18 @@ if (!/val myPaperMs = paperMs\(bytes\)\s*\n\s*if \(myPaperMs > 0\) awaitPaper/.t
 }
 /* والانتظارُ قبل فتح الطابعة: بعضُها يختفي من USB بعد القصّ ويرجع، فنومٌ
    ونحن ممسكون بالمَقبض يعني مَقبضاً ميّتاً ثم دَيناً بحجم الورقة كلِّها. */
-const atWait = usb.indexOf('if (myPaperMs > 0) awaitPaper');
-const atOpen = usb.indexOf('manager().openDevice(device)');
+const atWait = usb.indexOf('if (myPaperMs > 0) awaitPaper(stableId(device))');
+const atOpen = usb.indexOf('manager().openDevice(dev)');
 if (atWait < 0 || atOpen < 0 || atWait > atOpen) {
   fails.push('الانتظارُ بعد فتح الطابعة لا قبلَه — المَقبضُ يموت أثناء النوم');
 }
-if (!/paperBusyUntil\[stableId\(device\)\] = maxOf\(/.test(usb)) {
+if (!/paperBusyUntil\[stableId\(dev\)\] = maxOf\(/.test(usb)) {
   fails.push('زمنُ الورق بلا حدٍّ أدنى — إرسالٌ متعثّرٌ يُسقط الانتظارَ وقت الحاجة إليه');
 }
 /* ولا يُقيَّد انشغالُ ورقٍ على مهمّةٍ لا تُخرج ورقاً. فتحُ الدرج خمسةُ
    بايتاتٍ لا تُحرّك الورقَ، وكان يُسجّل ٣٠٠ملّي ثانيةٍ تنتظرها الفاتورةُ
    بعده -- والدرجُ يُفتح قبل كلِّ بيعةٍ نقديّة، فالثمنُ على كلّ زبون. */
-if (!/if \(myPaperMs > 0\) \{\s*\n\s*paperBusyUntil\[stableId\(device\)\] = maxOf\(/.test(usb)) {
+if (!/if \(myPaperMs > 0\) \{\s*\n\s*paperBusyUntil\[stableId\(dev\)\] = maxOf\(/.test(usb)) {
   fails.push('فتحُ الدرج يُسجّل انشغالَ ورقٍ — كلُّ بيعةٍ نقديّة تنتظر ٣٠٠ملّي ثانيةٍ بلا ورق');
 }
 if (!/if \(myPaperMs > 0\) paperBusyUntil\.remove\(/.test(usb)) {

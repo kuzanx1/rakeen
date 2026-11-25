@@ -23,6 +23,7 @@ import {
 import type { PrinterProfile, PrinterTransportKind, DiscoveredDevice, PrinterTarget } from '../platform/printer';
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
 import { toLatinDigits } from '../domain/digits';
+import { failureSentence } from '../domain/printerFailure';
 import { planHas } from '../application/planService';
 import { getPrintStationLastPrinted } from '../application/printStationService';
 import { formatArabicTime } from '../domain/arabicDate';
@@ -121,28 +122,6 @@ function describeSavedTarget(t: PrinterTarget): string {
  * حتى حين تكون الطابعة قد ردّت بالفعل ورفضت المنفذ. كل جملة هنا تنتهي
  * بالإجراء الذي يخصّ سببها، لا بفحص عام.
  */
-function failureSentence(detail?: string): string {
-  switch (detail) {
-    case 'connection_refused':
-      return 'الطابعة ردّت لكن رفضت هذا المنفذ — الرقم غلط. المعتاد 9100، والرقم الصحيح مكتوب في تقرير الشبكة اللي تطبعه الطابعة نفسها.';
-    case 'permission_denied_local_network':
-      return 'النظام مانع التطبيق من الشبكة المحلية — من إعدادات الجهاز: ركين ← فعّل «الشبكة المحلية».';
-    case 'host_unreachable':
-      return 'العنوان مو على شبكتك — تأكد إن الجهاز والطابعة على نفس الراوتر.';
-    case 'connection_timeout':
-      return 'ما رد أحد على هذا العنوان — تأكد إن الطابعة مشغّلة وموصولة، وإن ما فيه تطبيق ثاني ماسك الطابعة.';
-    case 'invalid_port':
-      return 'رقم المنفذ غير صالح.';
-    case 'permission_denied':
-      return 'ما انسمح للتطبيق يستخدم الطابعة — اضغط «اختبار الاتصال» مرة ثانية واختر «سماح».';
-    case 'permission_request_failed':
-      return 'الجهاز ما عرض طلب إذن الطابعة — افصل سلك الطابعة وركّبه، وجرّب مرة ثانية.';
-    case 'device_not_found':
-      return 'الطابعة مو موصولة الحين — تأكد من السلك، واضغط «البحث عن الأجهزة» واخترها من جديد.';
-    default:
-      return 'ما قدرنا نوصل للطابعة — تأكد إنها مشغّلة وعلى نفس الشبكة.';
-  }
-}
 
 export default function PrinterSettingsScreen({
   online,
