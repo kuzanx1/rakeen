@@ -1176,7 +1176,7 @@ const I18N_EN = {
   'أقصى شي ٢٠ صنف': 'Up to 20 items',
   'اكتب رمز المدير': 'Enter the manager PIN',
   'جاري الحفظ...': 'Saving...',
-  'اتركه فارغ لو نفس طابعة الكاشير تطبع فاتورة المطبخ برضو. عبّيه فقط لو عندكم طابعة ثانية منفصلة (مثلاً بالمطبخ بالدور الأول وطابعة الكاشير بالدور الثاني) — لازم تكون على نفس شبكة الواي فاي.': 'Leave empty if the till printer also prints the kitchen ticket. Fill it only if you have a separate second printer (e.g. kitchen downstairs, till upstairs) — it must be on the same Wi-Fi network.',
+  'اتركه فارغ لو نفس طابعة الكاشير تطبع فاتورة المطبخ برضو. عبّيه فقط لو عندكم طابعة ثانية منفصلة (مثلاً بالمطبخ بالدور الأول وطابعة الكاشير بالدور الثاني) — لازم تكون على نفس شبكة الواي فاي. ولو طابعة المطبخ بلوتوث أو USB، اختارها من تطبيق ركين (المتصفح ما يوصل لها).': 'Leave empty if the till printer also prints the kitchen ticket. Fill it only if you have a separate second printer (e.g. kitchen downstairs, till upstairs) — it must be on the same Wi-Fi network. If the kitchen printer is Bluetooth or USB, pick it in the Rakeen app (the browser cannot reach it).',
   'غير متصل': 'Not connected',
   '✓ تطبيق الطباعة متاح': '✓ Print app available',
   '⚠ افتح من تطبيق الكاشير المثبّت للطباعة': '⚠ Open from the installed till app to print',
@@ -10341,7 +10341,7 @@ function openPosSettingsModal(){
         <input type="text" id="kitchenPrinterIpInput" placeholder="عنوان الطابعة — مثال: 192.168.1.51" value="${DEVICE.kitchenPrinterIp || ''}" style="flex:2;">
         <input type="number" id="kitchenPrinterPortInput" placeholder="9100" value="${DEVICE.kitchenPrinterPort || ''}" style="flex:1;">
       </div>
-      <p class="stock-qty-helper" style="margin-top:6px;">اتركه فارغ لو نفس طابعة الكاشير تطبع فاتورة المطبخ برضو. عبّيه فقط لو عندكم طابعة ثانية منفصلة (مثلاً بالمطبخ بالدور الأول وطابعة الكاشير بالدور الثاني) — لازم تكون على نفس شبكة الواي فاي.</p>
+      <p class="stock-qty-helper" style="margin-top:6px;">اتركه فارغ لو نفس طابعة الكاشير تطبع فاتورة المطبخ برضو. عبّيه فقط لو عندكم طابعة ثانية منفصلة (مثلاً بالمطبخ بالدور الأول وطابعة الكاشير بالدور الثاني) — لازم تكون على نفس شبكة الواي فاي. ولو طابعة المطبخ بلوتوث أو USB، اختارها من تطبيق ركين (المتصفح ما يوصل لها).</p>
     </div>
     <div style="display:flex; gap:8px; margin-top:10px;">
       <button class="confirm-pay-btn" id="printerSaveBtn" style="flex:1;">حفظ إعدادات الطابعة</button>

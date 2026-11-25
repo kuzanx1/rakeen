@@ -17,6 +17,8 @@ import {
   PAPER_WIDTH_PRESETS,
   SUPPORTED_TRANSPORTS,
   profileToPrinterTarget,
+  profileToKitchenPrinterTarget,
+  kitchenPrinterGaps,
 } from '../domain/printerProfile';
 import type { PrinterProfile, PrinterTransportKind, DiscoveredDevice, PrinterTarget } from '../platform/printer';
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
@@ -53,6 +55,22 @@ const TRANSPORT_LABELS: Record<PrinterTransportKind, string> = {
   bluetooth: 'بلوتوث',
   usb: 'سلك USB',
 };
+
+/**
+ * طابعةُ المطبخ: «نفس طابعة الكاشير» أوّلاً لأنّها حالُ أكثرهم،
+ * ثمّ الثلاثةُ نفسُها المتاحةُ للرئيسية. وكانت الشبكةَ وحدَها.
+ */
+const KITCHEN_OPTIONS: { key: 'same' | PrinterTransportKind; label: string }[] = [
+  { key: 'same', label: 'نفس طابعة الكاشير' },
+  { key: 'network', label: 'شبكة الواي فاي' },
+  { key: 'bluetooth', label: 'بلوتوث' },
+  { key: 'usb', label: 'سلك USB' },
+];
+
+/** ما يُعرض مختاراً. وملفٌّ محفوظٌ قبل اليوم بلا kitchenTransport
+ *  وفيه عنوانٌ = شبكة، كما يقرؤه profileToKitchenPrinterTarget. */
+const kitchenKindOf = (p: PrinterProfile): 'same' | PrinterTransportKind =>
+  p.kitchenTransport ?? ((p.kitchenHost || '').trim() ? 'network' : 'same');
 
 /** The same labels for the sentence that names where printing actually
  *  goes -- so a cashier is never shown the internal word 'network'. */
@@ -178,6 +196,12 @@ export default function PrinterSettingsScreen({
   const [saveStatus, setSaveStatus] = useState('');
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState<{ devices: DiscoveredDevice[]; error?: string } | null>(null);
+  /** لوحان يبحثان عن أجهزة: الرئيسيةُ والمطبخ. ولولا هذا لظهرت
+   *  نتيجةُ بحثٍ واحدةٍ تحت الاثنين، فيختار الكاشيرُ جهازاً للمطبخ
+   *  من قائمةٍ فتحها للرئيسية -- وتذهب التذكرةُ حيث لا يقصد. */
+  const [scanSlot, setScanSlot] = useState<'main' | 'kitchen'>('main');
+  const [testingKitchen, setTestingKitchen] = useState(false);
+  const [kitchenTestResult, setKitchenTestResult] = useState('');
   /**
    * What is actually PERSISTED, kept beside the editable form.
    *
@@ -217,6 +241,8 @@ export default function PrinterSettingsScreen({
   }, []);
 
   const validation = validatePrinterProfile(profile);
+  const kitchenKind = kitchenKindOf(profile);
+  const kitchenGaps = kitchenPrinterGaps(profile);
   const savedTarget = savedSnapshot
     ? profileToPrinterTarget(JSON.parse(savedSnapshot) as PrinterProfile)
     : null;
@@ -229,7 +255,8 @@ export default function PrinterSettingsScreen({
   /** Feature Parity Pass -- Bluetooth/USB. Real device discovery -- never
    *  a text field for typing a MAC/UUID/device id, so a profile can only
    *  ever point at a device this scan actually found. */
-  const handleScanDevices = async (transport: 'bluetooth' | 'usb') => {
+  const handleScanDevices = async (transport: 'bluetooth' | 'usb', slot: 'main' | 'kitchen' = 'main') => {
+    setScanSlot(slot);
     setScanning(true);
     setScanResult(null);
     try {
@@ -246,13 +273,59 @@ export default function PrinterSettingsScreen({
     }
   };
 
-  const selectDevice = (transport: 'bluetooth' | 'usb', device: DiscoveredDevice) => {
-    if (transport === 'bluetooth') {
+  const selectDevice = (transport: 'bluetooth' | 'usb', device: DiscoveredDevice, slot: 'main' | 'kitchen' = 'main') => {
+    if (slot === 'kitchen') {
+      if (transport === 'bluetooth') {
+        update({ kitchenBluetoothId: device.id, kitchenBluetoothName: device.name ?? undefined });
+      } else {
+        update({ kitchenUsbAccessoryId: device.id, kitchenUsbAccessoryName: device.name ?? undefined });
+      }
+    } else if (transport === 'bluetooth') {
       update({ bluetoothId: device.id, bluetoothName: device.name ?? undefined });
     } else {
       update({ usbAccessoryId: device.id, usbAccessoryName: device.name ?? undefined });
     }
     setScanResult(null);
+  };
+
+  /**
+   * اختبارُ طابعة المطبخ وحدَها.
+   *
+   * ولولاه لا يُعرف أنّ المطبخ مضبوطٌ إلّا بطلبٍ حقيقيٍّ في ذروةٍ --
+   * وإن كان ناقصاً خرجت تذكرتُه على طابعة الكاشير بلا صوتٍ ينبّه.
+   * فيقول هنا صراحةً إلى أين ستذهب.
+   */
+  const handleTestKitchen = async () => {
+    setTestingKitchen(true);
+    setKitchenTestResult('');
+    try {
+      if (!Printer) {
+        setKitchenTestResult('🔴 الطباعة غير متاحة على هذا الجهاز');
+        return;
+      }
+      const kitchen = profileToKitchenPrinterTarget(profile);
+      const main = profileToPrinterTarget(profile);
+      if (!kitchen) {
+        setKitchenTestResult('🔴 أكمل إعدادات الطابعة فوق أولًا');
+        return;
+      }
+      const own = !!main && JSON.stringify(kitchen) !== JSON.stringify(main);
+      const result = await Printer.testConnection(kitchen);
+      const where = kitchen.transport === 'network' ? kitchen.host : TRANSPORT_SENTENCE[kitchen.transport];
+      if (!own) {
+        setKitchenTestResult('🟡 تذاكر المطبخ بتطلع على نفس طابعة الكاشير — ما فيه طابعة مطبخ مكتملة.');
+        return;
+      }
+      setKitchenTestResult(
+        result.reachable
+          ? `🟢 وصلنا لطابعة المطبخ (${where}).`
+          : `🔴 ${failureSentence(result.errorDetail)} (${where})`,
+      );
+    } catch (e) {
+      setKitchenTestResult(`🔴 خطأ غير متوقع — جرّب مرة ثانية (${String((e as Error)?.message || e)})`);
+    } finally {
+      setTestingKitchen(false);
+    }
   };
 
   const handleTestConnection = async () => {
@@ -483,10 +556,10 @@ export default function PrinterSettingsScreen({
             transport={profile.transport}
             selectedId={profile.transport === 'bluetooth' ? profile.bluetoothId : profile.usbAccessoryId}
             selectedName={profile.transport === 'bluetooth' ? profile.bluetoothName : profile.usbAccessoryName}
-            scanning={scanning}
-            scanResult={scanResult}
-            onScan={() => handleScanDevices(profile.transport as 'bluetooth' | 'usb')}
-            onSelect={device => selectDevice(profile.transport as 'bluetooth' | 'usb', device)}
+            scanning={scanning && scanSlot === 'main'}
+            scanResult={scanSlot === 'main' ? scanResult : null}
+            onScan={() => handleScanDevices(profile.transport as 'bluetooth' | 'usb', 'main')}
+            onSelect={device => selectDevice(profile.transport as 'bluetooth' | 'usb', device, 'main')}
           />
         )}
       </Section>
@@ -656,24 +729,95 @@ export default function PrinterSettingsScreen({
         />
         {profile.printKitchenTicket === true && planHas('kds') && (
           <>
-            <FieldLabel>عنوان طابعة المطبخ (اتركه فارغ لو نفس طابعة الكاشير تطبع للمطبخ)</FieldLabel>
-            <TextInput
-              style={styles.input}
-              placeholderTextColor={colors.muted}
-              value={profile.kitchenHost || ''}
-              onChangeText={t => update({ kitchenHost: toLatinDigits(t) })}
-              placeholder="192.168.1.51"
-              autoCapitalize="none"
-            />
-            <FieldLabel>منفذ طابعة المطبخ</FieldLabel>
-            <TextInput
-              style={styles.input}
-              placeholderTextColor={colors.muted}
-              value={profile.kitchenPort != null ? String(profile.kitchenPort) : ''}
-              onChangeText={t => { const v = toLatinDigits(t); update({ kitchenPort: v ? parseInt(v, 10) : undefined }); }}
-              placeholder="9100"
-              keyboardType="number-pad"
-            />
+            <FieldLabel>طابعة المطبخ</FieldLabel>
+            <View style={styles.row}>
+              {KITCHEN_OPTIONS.map(opt => {
+                const supported = opt.key === 'same' || transports.includes(opt.key);
+                const active = kitchenKind === opt.key;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[styles.transportOption, active && styles.transportOptionActive, !supported && styles.transportOptionDisabled]}
+                    disabled={!supported}
+                    onPress={() => update(
+                      /* وتبديلُ الطريقة يمحو ما قبلها: عنوانٌ قديمٌ باقٍ
+                         تحت اختيارِ بلوتوثٍ يرجع يعمل لو رجع للشبكة بلا
+                         أن يُدرى -- وطابعةٌ مهجورةٌ تطبع تذاكرَ الليلة. */
+                      opt.key === 'same'
+                        ? { kitchenTransport: undefined, kitchenHost: undefined, kitchenPort: undefined, kitchenBluetoothId: undefined, kitchenBluetoothName: undefined, kitchenUsbAccessoryId: undefined, kitchenUsbAccessoryName: undefined }
+                        : opt.key === 'network'
+                          ? { kitchenTransport: 'network', kitchenBluetoothId: undefined, kitchenBluetoothName: undefined, kitchenUsbAccessoryId: undefined, kitchenUsbAccessoryName: undefined }
+                          : opt.key === 'bluetooth'
+                            ? { kitchenTransport: 'bluetooth', kitchenHost: undefined, kitchenPort: undefined, kitchenUsbAccessoryId: undefined, kitchenUsbAccessoryName: undefined }
+                            : { kitchenTransport: 'usb', kitchenHost: undefined, kitchenPort: undefined, kitchenBluetoothId: undefined, kitchenBluetoothName: undefined },
+                    )}
+                    activeOpacity={0.8}>
+                    <Text style={[styles.transportOptionText, active && styles.transportOptionTextActive, !supported && styles.transportOptionTextDisabled]}>{opt.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {kitchenKind === 'same' && (
+              <Text style={styles.subtitle}>تذاكر المطبخ بتطلع على نفس طابعة الكاشير.</Text>
+            )}
+
+            {kitchenKind === 'network' && (
+              <>
+                <FieldLabel>عنوان طابعة المطبخ في الشبكة</FieldLabel>
+                <TextInput
+                  style={styles.input}
+                  placeholderTextColor={colors.muted}
+                  value={profile.kitchenHost || ''}
+                  onChangeText={t => update({ kitchenHost: toLatinDigits(t) })}
+                  placeholder="192.168.1.51"
+                  autoCapitalize="none"
+                />
+                <FieldLabel>منفذ طابعة المطبخ</FieldLabel>
+                <TextInput
+                  style={styles.input}
+                  placeholderTextColor={colors.muted}
+                  value={profile.kitchenPort != null ? String(profile.kitchenPort) : ''}
+                  onChangeText={t => { const v = toLatinDigits(t); update({ kitchenPort: v ? parseInt(v, 10) : undefined }); }}
+                  placeholder="9100"
+                  keyboardType="number-pad"
+                />
+              </>
+            )}
+
+            {(kitchenKind === 'bluetooth' || kitchenKind === 'usb') && (
+              <DeviceScanSection
+                transport={kitchenKind}
+                selectedId={kitchenKind === 'bluetooth' ? profile.kitchenBluetoothId : profile.kitchenUsbAccessoryId}
+                selectedName={kitchenKind === 'bluetooth' ? profile.kitchenBluetoothName : profile.kitchenUsbAccessoryName}
+                scanning={scanning && scanSlot === 'kitchen'}
+                scanResult={scanSlot === 'kitchen' ? scanResult : null}
+                onScan={() => handleScanDevices(kitchenKind, 'kitchen')}
+                onSelect={device => selectDevice(kitchenKind, device, 'kitchen')}
+              />
+            )}
+
+            {/* ناقصُ الإعداد لا يمنع الحفظ ولا يُسكت فاتورةَ الزبون --
+                يُقال فقط إلى أين ستذهب التذكرة فعلاً. */}
+            {kitchenGaps.length > 0 && (
+              <View style={styles.errorBox}>
+                {kitchenGaps.map((g, i) => (
+                  <Text key={i} style={styles.errorText}>• {g}</Text>
+                ))}
+                <Text style={styles.errorText}>
+                  لين تكمله، تذاكر المطبخ بتطلع على طابعة الكاشير.
+                </Text>
+              </View>
+            )}
+
+            {kitchenKind !== 'same' && (
+              <>
+                <TouchableOpacity style={styles.testButton} onPress={handleTestKitchen} disabled={testingKitchen} activeOpacity={0.8}>
+                  <Text style={styles.testButtonText}>{testingKitchen ? 'جارٍ الاختبار...' : 'اختبار طابعة المطبخ'}</Text>
+                </TouchableOpacity>
+                {!!kitchenTestResult && <Text style={styles.testResult}>{kitchenTestResult}</Text>}
+              </>
+            )}
           </>
         )}
       </Section>

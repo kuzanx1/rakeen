@@ -158,11 +158,25 @@ export interface PrinterProfile {
   /** A separate kitchen printer target -- ported from the PWA's real
    *  DEVICE.kitchenPrinterIp/kitchenPrinterPort, which itself falls back
    *  to the main printerIp/printerPort when left blank (some kitchens
-   *  share one printer with the counter, some don't). Network-only,
-   *  same as the main target -- no separate transport kind, since
-   *  bluetooth/usb have no real implementation for either target. */
+   *  share one printer with the counter, some don't).
+   *
+   *  وكان القيدُ «شبكةً فقط»، منقولاً مع الحقل من كاشير الويب -- وهو
+   *  هناك قيدُ المتصفّح نفسِه: جسرُه لا يعرف إلّا IP. أمّا التطبيق فله
+   *  بلوتوثٌ وUSB حقيقيّان للطابعة الرئيسية منذ Feature Parity Pass،
+   *  فبقاءُ المطبخ على العنوان وحدَه كان أثراً لا سبباً: مطعمٌ طابعتُه
+   *  الرئيسية USB ومطبخُه بلوتوث (منفذُ USB واحدٌ في الجهاز) لا يملك
+   *  طريقاً لاختيار الثانية. (٢٠٢٦/١١/٢٥.)
+   *
+   *  وغيابُ kitchenTransport يعني «كما كان»: العنوانُ والمنفذُ إن
+   *  كُتبا، وإلّا طابعةُ الكاشير -- فملفٌّ محفوظٌ قبل اليوم لا يتغيّر
+   *  سلوكُه بحرف. */
+  kitchenTransport?: PrinterTransportKind;
   kitchenHost?: string;
   kitchenPort?: number;
+  kitchenBluetoothId?: string;
+  kitchenBluetoothName?: string;
+  kitchenUsbAccessoryId?: string;
+  kitchenUsbAccessoryName?: string;
 }
 
 export interface PrintJob {

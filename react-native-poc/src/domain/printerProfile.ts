@@ -112,18 +112,67 @@ export function profileToPrinterTarget(profile: PrinterProfile | null): PrinterT
  * The kitchen ticket's own print target -- ported from the PWA's real
  * sendKitchenTicketToPrinter() fallback (`ip || DEVICE.printerIp`,
  * `port || DEVICE.printerPort`): a kitchen printer is only a REAL
- * override when both a host and port are explicitly set; otherwise
- * kitchen tickets go to the same target the customer receipt does
- * (one physical printer serving both, the common small-shop setup).
+ * override when it is fully configured; otherwise kitchen tickets go
+ * to the same target the customer receipt does (one physical printer
+ * serving both, the common small-shop setup).
  * Same "never fabricate a target" honesty as profileToPrinterTarget --
  * returns null when even the main target isn't valid.
+ *
+ * والثلاثةُ هنا كما هي للرئيسية: شبكةٌ وبلوتوثٌ وUSB. وكانت الشبكةَ
+ * وحدَها (platform/printer.ts).
+ *
+ * وناقصُ الإعداد يرجع إلى طابعة الكاشير، لا إلى العدم: تذكرةٌ تُطبع
+ * على الورقة الخطأ يراها الطبّاخُ ويشتكي، وتذكرةٌ لا تُطبع أصلاً لا
+ * يراها أحدٌ حتى يضيع الطلب. وهذا هو سلوكُ العنوانِ الفارغ اليوم.
  */
 export function profileToKitchenPrinterTarget(profile: PrinterProfile | null): PrinterTarget | null {
   if (!profile) return null;
+  const kind = profile.kitchenTransport;
+  if (kind === 'bluetooth') {
+    if (profile.kitchenBluetoothId && profile.kitchenBluetoothId.trim()) {
+      return { transport: 'bluetooth', bluetoothId: profile.kitchenBluetoothId };
+    }
+    return profileToPrinterTarget(profile);
+  }
+  if (kind === 'usb') {
+    if (profile.kitchenUsbAccessoryId && profile.kitchenUsbAccessoryId.trim()) {
+      return { transport: 'usb', usbAccessoryId: profile.kitchenUsbAccessoryId };
+    }
+    return profileToPrinterTarget(profile);
+  }
+  // غيابُ kitchenTransport = ملفٌّ محفوظٌ قبل هذا، فالقاعدةُ القديمة
+  // بحرفها: العنوانُ والمنفذُ معاً، وإلّا طابعةُ الكاشير.
   if (profile.kitchenHost && profile.kitchenHost.trim() && profile.kitchenPort != null) {
     return { transport: 'network', host: profile.kitchenHost, port: profile.kitchenPort };
   }
   return profileToPrinterTarget(profile);
+}
+
+/**
+ * ما ينقص إعدادَ طابعة المطبخ، إن كانت مُفردة. قائمةٌ للعرض فقط.
+ *
+ * ولا تدخل validatePrinterProfile: تلك يُبطل بطلانُها هدفَ الطابعة
+ * الرئيسية كلَّه (profileToPrinterTarget يرجع null)، فنصفُ إعدادٍ
+ * لمطبخٍ كان يُسكت فاتورةَ الزبون أيضاً -- عطبٌ أكبرُ من الذي يُبلَّغ
+ * عنه. فهذه تُعرض في الشاشة، والطباعةُ تمضي على طابعة الكاشير.
+ */
+export function kitchenPrinterGaps(profile: PrinterProfile | null): string[] {
+  if (!profile) return [];
+  const gaps: string[] = [];
+  if (profile.kitchenTransport === 'network') {
+    if (!profile.kitchenHost || !profile.kitchenHost.trim()) gaps.push('اكتب عنوان طابعة المطبخ في الشبكة.');
+    if (profile.kitchenPort == null) gaps.push('اكتب منفذ طابعة المطبخ.');
+    else if (!Number.isInteger(profile.kitchenPort) || profile.kitchenPort < 1 || profile.kitchenPort > 65535) {
+      gaps.push('منفذ طابعة المطبخ يجب أن يكون بين ١ و ٦٥٥٣٥.');
+    }
+  }
+  if (profile.kitchenTransport === 'bluetooth' && !(profile.kitchenBluetoothId || '').trim()) {
+    gaps.push('ابحث عن أجهزة البلوتوث واختر طابعة المطبخ.');
+  }
+  if (profile.kitchenTransport === 'usb' && !(profile.kitchenUsbAccessoryId || '').trim()) {
+    gaps.push('ابحث عن الأجهزة الموصولة واختر طابعة المطبخ.');
+  }
+  return gaps;
 }
 
 /** Same defaults as the PWA's real DEVICE toggles -- customer receipt
