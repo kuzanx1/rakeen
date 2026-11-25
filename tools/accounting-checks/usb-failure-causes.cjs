@@ -22,6 +22,7 @@ const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
 const kt = read('react-native-poc/android/app/src/main/java/com/rakeenpoc/UsbPrinterTransport.kt');
 const screen = read('react-native-poc/src/domain/printerFailure.ts');
 const queue = read('react-native-poc/src/ui/PrintQueueScreen.tsx');
+const settings = read('react-native-poc/src/ui/PrinterSettingsScreen.tsx');
 
 const CAUSES = [
   'usb_open_failed',
@@ -110,6 +111,34 @@ if (!/failureSentence\(item\.last_error_detail/.test(queue)) {
   }
   if ((kt.match(/softReset\(/g) || []).length !== 2) {
     fails.push('softReset يُنادى من غير موضعِ الاستسلام -- مسارٌ يعمل دخله أمرٌ لم يُجرَّب');
+  }
+}
+
+/* ── إذنُ «الأجهزة القريبة» يُطلب، لا يُفحص فقط ──
+   من أندرويد ١٢ صار BLUETOOTH_SCAN/CONNECT إذنَ تشغيلٍ مرفوضاً حتى
+   يُطلب، والطبقةُ الأصليّة تفحصه فقط. فبلا طلبٍ هنا يضغط الكاشير
+   «البحث عن الأجهزة» فترجع قائمةٌ فارغة -- ولا حتى الطابعة المقترنة
+   تظهر، لأنّ قراءة المقترنات نفسَها تحتاج الإذن. وميزةٌ لا تُستعمل
+   أسوأُ من ميزةٍ لم تُبنَ: هذه تبدو معطّلةً بلا سبب. */
+{
+  if (!/PermissionsAndroid\.requestMultiple\(/.test(settings)) {
+    fails.push('ما فيه طلبٌ لإذن الأجهزة القريبة -- بحثُ البلوتوث يرجع فارغاً دائماً');
+  }
+  for (const perm of ['BLUETOOTH_SCAN', 'BLUETOOTH_CONNECT', 'ACCESS_FINE_LOCATION']) {
+    if (!settings.includes(`PERMISSIONS.${perm}`)) {
+      fails.push(`${perm} ما يُطلب -- أجهزةٌ لا تظهر على إصدارٍ من أندرويد`);
+    }
+  }
+  if (!/await ensureNearbyPermission\(\)/.test(settings)) {
+    fails.push('الإذنُ ما يُطلب قبل البحث');
+  }
+  // والرمزُ الإنجليزيُّ لا يُعرض وحدَه: «خطأ: permission_denied» لا
+  // يقول لكاشيرٍ عربيٍّ شيئاً، والحلُّ خارج التطبيق أصلاً.
+  if (/خطأ: \{scanResult\.error\}/.test(settings)) {
+    fails.push('الشاشةُ ترجع تعرض رمزَ فشلِ البحث بلا جملة');
+  }
+  if (!/scanFailureSentence\(scanResult\.error\)/.test(settings)) {
+    fails.push('ما فيه جملةٌ لفشل البحث');
   }
 }
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, PermissionsAndroid, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './Text';
 import { TouchableOpacity } from './tappable';
 import GradientFill from './GradientFill';
@@ -23,7 +23,7 @@ import {
 import type { PrinterProfile, PrinterTransportKind, DiscoveredDevice, PrinterTarget } from '../platform/printer';
 import { createStyles, fonts, gradients, radii, spacing, useTheme } from './theme';
 import { toLatinDigits } from '../domain/digits';
-import { failureSentence } from '../domain/printerFailure';
+import { failureSentence, scanFailureSentence, noDevicesSentence } from '../domain/printerFailure';
 import { planHas } from '../application/planService';
 import { getPrintStationLastPrinted } from '../application/printStationService';
 import { formatArabicTime } from '../domain/arabicDate';
@@ -234,10 +234,43 @@ export default function PrinterSettingsScreen({
   /** Feature Parity Pass -- Bluetooth/USB. Real device discovery -- never
    *  a text field for typing a MAC/UUID/device id, so a profile can only
    *  ever point at a device this scan actually found. */
+  /**
+   * إذنُ «الأجهزة القريبة»، يُطلب قبل البحث لا بعده.
+   *
+   * ومن أندرويد ١٢ صار BLUETOOTH_SCAN/CONNECT إذناً يُطلب وقت التشغيل،
+   * مرفوضاً حتى يُطلب. ولم يكن أحدٌ يطلبه: الطبقةُ الأصليّة تفحصه فقط
+   * (BluetoothClassicPrinterTransport.hasConnectPermission). فيضغط
+   * الكاشيرُ «البحث عن الأجهزة» فترجع قائمةٌ فارغةٌ و«permission_denied»
+   * -- ولا طريقَ من داخل التطبيق إلى الحلّ أصلاً، ولا حتى الطابعةُ
+   * المقترنةُ تظهر، لأنّ قراءةَ المقترنات نفسَها تحتاج الإذن.
+   *
+   * وقبل أندرويد ١٢ الاكتشافُ يحتاج الموقع، وهو ما لم يُطلب كذلك.
+   */
+  const ensureNearbyPermission = async (): Promise<boolean> => {
+    if (Platform.OS !== 'android') return true;
+    const api = typeof Platform.Version === 'number' ? Platform.Version : parseInt(String(Platform.Version), 10);
+    const wanted =
+      api >= 31
+        ? [PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN, PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT]
+        : [PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION];
+    try {
+      const granted = await PermissionsAndroid.requestMultiple(wanted);
+      return wanted.every(k => granted[k] === PermissionsAndroid.RESULTS.GRANTED);
+    } catch {
+      // سقوطُ الطلب لا يمنع البحث: الطبقةُ الأصليّة تقول الحقيقةَ بعدها.
+      return true;
+    }
+  };
+
   const handleScanDevices = async (transport: 'bluetooth' | 'usb', slot: 'main' | 'kitchen' = 'main') => {
     setScanSlot(slot);
     setScanning(true);
     setScanResult(null);
+    if (transport === 'bluetooth' && !(await ensureNearbyPermission())) {
+      setScanResult({ devices: [], error: 'permission_denied' });
+      setScanning(false);
+      return;
+    }
     try {
       if (!Printer) {
         setScanResult({ devices: [], error: 'الطباعة غير متاحة على هذا الجهاز' });
@@ -960,9 +993,9 @@ function DeviceScanSection({
       <TouchableOpacity style={styles.scanButton} onPress={onScan} disabled={scanning} activeOpacity={0.8}>
         <Text style={styles.scanButtonText}>{scanning ? 'جارٍ البحث...' : 'البحث عن الأجهزة'}</Text>
       </TouchableOpacity>
-      {scanResult?.error && <Text style={styles.errorText}>خطأ: {scanResult.error}</Text>}
+      {scanResult?.error && <Text style={styles.errorText}>{scanFailureSentence(scanResult.error)}</Text>}
       {scanResult && !scanResult.error && scanResult.devices.length === 0 && (
-        <Text style={styles.selectedDeviceText}>لم يتم العثور على أجهزة.</Text>
+        <Text style={styles.selectedDeviceText}>{noDevicesSentence(transport)}</Text>
       )}
       {scanResult?.devices.map(device => (
         <TouchableOpacity key={device.id} style={styles.deviceRow} onPress={() => onSelect(device)} activeOpacity={0.8}>
