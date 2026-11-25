@@ -2,7 +2,7 @@ import uuid from 'react-native-uuid';
 import { sqlitePrintQueueStorage } from '../infrastructure/sqlitePrintQueue';
 import { getPrinterProfile } from '../infrastructure/printerProfileStore';
 import { PrintTimer } from './printTiming';
-import { profileToPrinterTarget, profileToKitchenPrinterTarget, resolvePrintDarkness, shouldPrintReceiptLogo } from '../domain/printerProfile';
+import { profileToPrinterTarget, profileToKitchenPrinterTarget, printersAreProvablySeparate, resolvePrintDarkness, shouldPrintReceiptLogo } from '../domain/printerProfile';
 import { printReceipt } from '../platform/printer';
 import type { PrinterTarget } from '../platform/printer';
 import {
@@ -321,12 +321,34 @@ export function onPrintJobFailed(listener: PrintFailureListener): () => void {
   };
 }
 
-async function kitchenHasOwnPrinter(): Promise<boolean> {
+/**
+ * طابعتان مختلفتان **بيقين**، لا بالاسم.
+ *
+ * كان الشرطَ أن يختلف وصفُ الهدفين نصّاً. وهذا يقيس الاسمَ لا الجهاز:
+ * أكثرُ الطابعاتِ الحراريّة فيها USB **وإيثرنت معاً**، فطابعةٌ واحدةٌ
+ * موصولةٌ بالسلك ومُعطاةٌ عنواناً على الشبكة تظهر لنا هدفَين مختلفَين
+ * (`USB 19267:14384` و`192.168.8.250:9100`) وهي جهازٌ واحد.
+ *
+ * فنُرسل الورقتين **في نفس اللحظة** إلى نفس الرأس من مدخلَين، فتتداخل
+ * بايتاتُ التذكرة داخل صورة الفاتورة: التذكرةُ تخرج، والفاتورةُ تُبتلع
+ * بلا عطبٍ يُسجَّل -- لأنّ بايتاتها خرجت من الكابل فعلاً. وهذا بعينه ما
+ * وقع عند «كباب طارق» يوم شبكوا طابعة المطبخ: «تذكرة المطبخ تطبع
+ * وفاتورة العميل لا»، وزرُّ إعادة الطباعة يُخرجها لأنّه يُرسلها وحدَها.
+ *
+ * ولا سبيل إلى أن نسأل طابعةً: هل أنتِ هي؟ فالاختلافُ لا يُعدّ يقيناً
+ * إلّا حين يكون المدخلُ واحداً والعنوانُ مختلفاً -- طابعتا شبكةٍ
+ * بعنوانَين، أو طابعتا USB بمعرّفَين. أمّا مدخلان مختلفان فقد يكونان
+ * بابَين لجهازٍ واحد، فتُرسَل الورقتان واحدةً بعد الأخرى.
+ *
+ * وثمنُه ثانيةٌ أو ثانيتان على تذكرة المطبخ. وفاتورةُ زبونٍ لا تخرج
+ * أغلى من ذلك بما لا يُقاس.
+ */
+async function kitchenIsProvablySeparate(): Promise<boolean> {
   try {
     const profile = await getPrinterProfile();
     const kitchen = profileToKitchenPrinterTarget(profile);
     const main = profileToPrinterTarget(profile);
-    return !!kitchen && !!main && describeTarget(kitchen) !== describeTarget(main);
+    return printersAreProvablySeparate(main, kitchen, describeTarget);
   } catch {
     return false;
   }
@@ -375,7 +397,7 @@ async function runLane(lane: Lane): Promise<PrintQueueOutcome | null> {
 }
 
 export async function processPrintQueueNow(): Promise<PrintQueueOutcome | null> {
-  if (!(await kitchenHasOwnPrinter())) return runLane('all');
+  if (!(await kitchenIsProvablySeparate())) return runLane('all');
   // بُدّلت الطابعات وتمريرة المسار الواحد ما خلصت؟ تخلص أول، عشان ما
   // تنطبع ورقة مرتين.
   if (laneBusy.all) {

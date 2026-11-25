@@ -182,6 +182,31 @@ export function kitchenPrinterGaps(profile: PrinterProfile | null): string[] {
  *  `undefined`, which these helpers resolve to the same defaults the
  *  PWA itself would for a fresh DEVICE object -- never a silent
  *  behavior change for an existing installation. */
+/**
+ * هل الطابعتان مختلفتان **بيقين**؟ (وليس بالاسم)
+ *
+ * أكثرُ الطابعاتِ الحراريّة فيها USB **وإيثرنت معاً**. فطابعةٌ واحدةٌ
+ * موصولةٌ بالسلك ومُعطاةٌ عنواناً على الشبكة تظهر هدفَين مختلفَين
+ * نصّاً -- `USB 19267:14384` و`192.168.8.250:9100` -- وهي جهازٌ واحد.
+ *
+ * ومن ظنّهما اثنتين أرسل الورقتين معاً إلى رأسٍ واحدٍ من مدخلَين،
+ * فتتداخل بايتاتُ تذكرة المطبخ داخل صورة الفاتورة: التذكرةُ تخرج،
+ * والفاتورةُ تُبتلع **بلا عطبٍ يُسجَّل** -- بايتاتها خرجت من الكابل
+ * فعلاً، فالتطبيق يقول «نجحت» ولا ورق. وقع عند «كباب طارق».
+ *
+ * فاليقينُ لا يكون إلّا بمدخلٍ واحدٍ وعنوانَين: شبكتان بعنوانَين، أو
+ * USBان بمعرّفَين. ومدخلان مختلفان قد يكونان بابَين لجهازٍ واحد.
+ */
+export function printersAreProvablySeparate(
+  main: PrinterTarget | null,
+  kitchen: PrinterTarget | null,
+  describe: (t: PrinterTarget) => string,
+): boolean {
+  if (!main || !kitchen) return false;
+  if (main.transport !== kitchen.transport) return false;
+  return describe(main) !== describe(kitchen);
+}
+
 export function shouldPrintCustomerReceipt(profile: PrinterProfile | null): boolean {
   return profile?.printCustomerReceipt !== false;
 }
