@@ -34,6 +34,13 @@ import android.os.Build
  */
 class UsbPrinterTransport(private val context: Context) {
 
+    init {
+        // للدَّين قرصٌ يحفظه، والقرصُ يحتاج سياقاً. وسياقُ التطبيق لا
+        // سياقُ الشاشة: الدَّينُ يعيش أطولَ من أيِّ شاشة.
+        if (appContext == null) appContext = context.applicationContext
+    }
+
+
     companion object {
         private const val ACTION_USB_PERMISSION = "com.rakeenpoc.USB_PERMISSION"
         private const val LOG_TAG = "RakeenUsbPrinter"
@@ -152,13 +159,50 @@ class UsbPrinterTransport(private val context: Context) {
          *  نُسدِّده ورقاً. */
         private const val MAX_DEBT = 160 * 1024
 
-        /** بعدها نفترض أنّ الطابعة أُطفئت أو فُصلت، فما عادت تنتظر شيئاً:
-         *  نُسقط الدين بلا ورق، ونكتفي بالتصفير. */
-        private const val DEBT_TTL_MS = 120_000L
+        /**
+         * ما لم يصل الطابعةَ من ورقةٍ سابقة -- **على القرص، لا في الذاكرة.**
+         *
+         * كان في الذاكرة وحدَها وبعمرٍ دقيقتين، وفيهما بابان ترجع منهما
+         * الفاتورةُ المحيوسة:
+         *
+         *   ١) انقطعت ورقة، ثمّ أُقفل التطبيق أو أُعيد تشغيل اللوح. فيضيع
+         *      القيد، والطابعةُ ما زالت واقفةً في نصّ صورةٍ تنتظر -- فتبتلع
+         *      أوّلَ فاتورةٍ بعدها.
+         *   ٢) انقطعت ورقةٌ آخرَ الليل. وفي الصباح شاخ الدَّينُ فلم يُسدَّد،
+         *      واكتُفي بـESC @ -- والطابعةُ الواقفةُ في نصّ صورةٍ تبتلع
+         *      ESC @ نفسَه بكسلَين ولا تراه أمراً.
+         *
+         * فصار يُكتب على القرص، ويُسدَّد مهما طال عمرُه. وثمنُ ذلك ورقةٌ
+         * بيضاءُ تخرج مرّةً إن كانت الطابعةُ قد أُطفئت فعلاً ولم تعد تنتظر
+         * -- وهي أهونُ بما لا يُقاس من فاتورةٍ محيوسةٍ أمام زبون. وقاعدةُ
+         * المالك: شكلُ الفاتورة لا يُمسّ.
+         */
+        private const val DEBT_PREFS = "rk_print_debt"
+        @Volatile private var appContext: Context? = null
+        private val debtBytes = java.util.concurrent.ConcurrentHashMap<String, Int>()
 
-        /** ما لم يصل الطابعةَ من ورقةٍ سابقة، لكلِّ طابعةٍ على حدة. */
-        private data class Debt(val bytes: Int, val at: Long)
-        private val debtBytes = java.util.concurrent.ConcurrentHashMap<String, Debt>()
+        private fun debtPrefs(): android.content.SharedPreferences? =
+            try { appContext?.getSharedPreferences(DEBT_PREFS, Context.MODE_PRIVATE) } catch (e: Exception) { null }
+
+        /** يُقيَّد في الذاكرة وعلى القرص معاً. */
+        private fun recordDebt(printerId: String, owed: Int) {
+            debtBytes[printerId] = owed
+            try { debtPrefs()?.edit()?.putInt(printerId, owed)?.apply() } catch (e: Exception) { }
+        }
+
+        /** يُؤخذ ويُمحى. والأكبرُ من الاثنين: قيدُ القرصِ قد يسبق قيدَ
+         *  الذاكرة إن كان التطبيقُ قد أُعيد فتحُه بينهما. */
+        private fun takeDebt(printerId: String): Int {
+            val mem = debtBytes.remove(printerId) ?: 0
+            val disk = try { debtPrefs()?.getInt(printerId, 0) ?: 0 } catch (e: Exception) { 0 }
+            if (disk > 0) try { debtPrefs()?.edit()?.remove(printerId)?.apply() } catch (e: Exception) { }
+            return maxOf(mem, disk)
+        }
+
+        private fun clearDebt(printerId: String) {
+            debtBytes.remove(printerId)
+            try { debtPrefs()?.edit()?.remove(printerId)?.apply() } catch (e: Exception) { }
+        }
 
         /**
          * كم مرّةً تعثّر سدادُ هذا الدَّين على التوالي.
@@ -357,25 +401,22 @@ class UsbPrinterTransport(private val context: Context) {
             timeoutMs: Int,
             intfNumber: Int,
         ): Boolean {
-            val debt = debtBytes.remove(printerId) ?: return true
-            // بساعةٍ لا ترجع: ساعةُ الجهاز تُصحَّح من الشبكة فتقفز للوراء،
-            // وحينها يصير (الآن − وقتُ القيد) سالباً فلا يشيخ الدَّينُ أبداً
-            // ونظلّ نُنفق عليه ورقاً. وأجهزةُ سنمي معروفةٌ بساعةٍ ضالّة.
-            val stale = android.os.SystemClock.elapsedRealtime() - debt.at > DEBT_TTL_MS
-            android.util.Log.w(LOG_TAG, "settling debt of ${debt.bytes} bytes (stale=$stale)")
+            val owed = takeDebt(printerId)
+            if (owed <= 0) return true
+            android.util.Log.w(LOG_TAG, "settling debt of $owed bytes")
             // الأصفارُ آمنةٌ في الحالتين: إن كانت الطابعةُ تنتظر صورةً أكملتها
-            // بيضاء، وإن لم تكن فـNUL يُهمَل في وضع النصّ. لكنّنا لا نُنفق
-            // ورقاً على دَينٍ قديمٍ غالباً ما عاد له صاحب.
-            if (!stale && debt.bytes in 1..MAX_DEBT) {
-                val paid = writeAll(connection, endpoint, ByteArray(debt.bytes), timeoutMs)
-                if (paid < debt.bytes) {
+            // بيضاء، وإن لم تكن فـNUL يُهمَل في وضع النصّ. فلا عمرَ للدَّين:
+            // طابعةٌ تنتظر لا تنسى بمرور الوقت، وانتظارُها هو عينُ الحوسة.
+            if (owed in 1..MAX_DEBT) {
+                val paid = writeAll(connection, endpoint, ByteArray(owed), timeoutMs)
+                if (paid < owed) {
                     val tries = (settleFails[printerId] ?: 0) + 1
                     if (tries < MAX_SETTLE_TRIES) {
                         // ما زالت متعثّرة. نُعيد قيدَ ما بقي ولا نكتب فوقه
                         // فاتورةً جديدة: الكتابةُ على طابعةٍ ما زالت تنتظر
                         // هي العطبُ نفسُه.
                         settleFails[printerId] = tries
-                        debtBytes[printerId] = Debt(debt.bytes - paid, debt.at)
+                        recordDebt(printerId, owed - paid)
                         return false
                     }
                     // ومحاولتان تكفيان. بعدهما الإصرارُ على السداد يقفل
@@ -638,7 +679,7 @@ class UsbPrinterTransport(private val context: Context) {
                         // تنتظر ما لم يصلها -- فنُقيّد الباقي ديناً ونسدّده أول
                         // اتصالٍ قادم، قبل أن تبتلع به ورقةَ زبونٍ آخر.
                         val owed = bytes.size - sentAll
-                        debtBytes[stableId(dev)] = Debt(owed, android.os.SystemClock.elapsedRealtime())
+                        recordDebt(stableId(dev), owed)
                         // العطلُ نادرٌ ولا يُستدعى بالطلب، فلو وقع عند مطعمٍ
                         // بعيدٍ أردنا أثراً يُقرأ بـadb logcat بدل التخمين.
                         android.util.Log.w(LOG_TAG, "truncated job: sent $sentAll of ${bytes.size}, owed $owed")
@@ -653,7 +694,7 @@ class UsbPrinterTransport(private val context: Context) {
                         // ولا يُعدُّ "مشغولة" (isPrinterBusy)، فمساره كما كان.
                         callback(false, "truncated_write")
                     } else {
-                        debtBytes.remove(stableId(dev))
+                        clearDebt(stableId(dev))
                         settleFails.remove(stableId(dev))
                         // وصلت كلُّها، والطابعةُ الآن تطبعها: من هنا نحسب
                         // متى تفرغ، حتى لا تُركَب عليها ورقةٌ ثانية.

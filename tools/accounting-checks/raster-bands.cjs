@@ -191,8 +191,18 @@ if (!/val len = minOf\(CHUNK, bytes\.size - offset\)/.test(inWriteAll)) {
 if (!/settleDebt\(conn, endpoint, stableId\(dev\), timeoutMs, intf\.id\)/.test(usb)) {
   fails.push('دَينُ الورقة لم يعد يُسدَّد قبل الإرسال — فاتورةُ الزبون التالي تُبتلع');
 }
-if (!/debtBytes\[stableId\(dev\)\] = Debt\(owed,/.test(usb)) {
+if (!/recordDebt\(stableId\(dev\), owed\)/.test(usb)) {
   fails.push('الانقطاعُ لم يعد يُقيَّد ديناً — ما يحمي الورقةَ التاليةَ سقط');
+}
+/* والقيدُ على القرص لا في الذاكرة وحدَها: إقفالُ التطبيق بين الانقطاع
+   والفاتورة التالية كان يُضيّعه، والطابعةُ الواقفةُ في نصّ صورةٍ تبتلع
+   ما بعده -- وهي الفاتورةُ المحيوسة بعينها. */
+if (!/putInt\(printerId, owed\)/.test(usb) || !/getSharedPreferences\(DEBT_PREFS/.test(usb)) {
+  fails.push('الدَّينُ لم يعد يُحفظ على القرص — يضيع بإقفال التطبيق وترجع الحوسة');
+}
+/* ولا عمرَ له: طابعةٌ تنتظر لا تنسى بمرور الوقت. */
+if (/DEBT_TTL_MS|stale/.test(usb)) {
+  fails.push('عادت شيخوخةُ الدَّين — دَينٌ لا يُسدَّد يترك الطابعةَ واقفةً في نصّ صورة');
 }
 
 /* وبساعةٍ لا ترجع: تصحيحُ الساعة للوراء يُجمّد الدَّينَ ويُطيل الانتظار. */
