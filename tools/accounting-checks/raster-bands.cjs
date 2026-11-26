@@ -155,75 +155,46 @@ for (const [w, h] of [[576, 1356], [576, 128], [576, 127], [576, 129], [384, 900
    امتلأت أسقطت بايتاتٍ بلا أن تقول، فتنزاح الصورةُ وتخرج رموزاً --
    والإرسالُ يقول «نجح» لأنّ البايتات خرجت من الكابل فعلاً. */
 const usb = fs.readFileSync(path.join(root, 'react-native-poc/android/app/src/main/java/com/rakeenpoc/UsbPrinterTransport.kt'), 'utf8');
-/* ولا تهدئةَ هنا، ولا يجوز أن تُعاد بلا قياس.
+/* ولا تهدئةَ في مسار USB. حُذفت في ١٫٨٧ بعد أن قِيست، ولا تعود بتخمين.
 
-   كانت من 1.69 إلى 1.73 على مقدّمةٍ باطلة: «الطابعةُ تُسقط بايتاتٍ بصمت
-   إن امتلأت ذاكرتُها». وهذا لا يقع على USB -- ضبطُ التدفّق في البروتوكول،
-   فالطابعةُ ترفض ما لا تقدر عليه وbulkTransfer يحتبس. وثمنُها كان بطءاً
-   حقيقياً: رأسُ طابعةِ المطعم يبتلع ٤٢-٦٦ ك.ب/ث (محسوبةً من فيديو المالك:
-   ١٦٦٫٧ ك.ب في ٤٫٠ ثوانٍ على 1.66 مقابل ٨٫٤ على تهدئةِ ٢٤)، وتهدئةُ ٢٧
-   كانت تُجوّعه بين ٥٤٪ و١٤٣٪.
+   الفكرة كانت: طابعةٌ انقطع عليها إرسالٌ تُبطَّأ إلى ٢٧ ك.ب/ث حتى تنجح
+   خمسُ أوراق -- على افتراضِ أنّ السرعةَ تقطع الإرسال. والافتراضُ باطلٌ
+   على USB: ضبطُ التدفّق في البروتوكول، فالطابعةُ توقفنا بنفسها.
 
-   فمن أعادها فعليه أن يقيس رأسَ الطابعة أوّلاً ويكتب الرقمَ المقيس هنا.
-   والفواتيرُ المشفَّرةُ تحرسها الثلاثُ أدناه، لا السرعة. */
+   والقياسُ من «كباب طارق»: طابعتان **مهدَّأتان**، إحداهما انقطعت ٢٨ من
+   ٦٠ والأخرى ٤ من ١٩٤، وفاتورةٌ فشلت أربعَ محاولاتٍ وهي مكبوحةٌ على ٢٥
+   ك.ب/ث. فلا انقطاعَ واحدٌ مُنع. وثمنُها: ١٤٫٢ مم لكلِّ دفعةٍ ثم وقفة،
+   فخمسَ عشرةَ وقفةً في الورقة، و٤٫٤٦ ثانيةٍ بدل أقلَّ من واحدة -- رآها
+   المالكُ بعينه «تطلع على دفعات».
+
+   ومن أعادها فعليه قياسٌ يقول إنّها منعت انقطاعاً، لا افتراضٌ يقول إنّها
+   قد تمنعه. */
 const atWriteAll = usb.indexOf('private fun writeAll');
-const afterWriteAll = usb.indexOf('\n        private fun ', atWriteAll + 1);
+const afterWriteAll = usb.indexOf(String.fromCharCode(10) + '        private fun ', atWriteAll + 1);
 if (atWriteAll < 0 || afterWriteAll < 0) fails.push('ما وجدنا writeAll — شكلُ الملفّ تغيّر');
 const inWriteAll = atWriteAll < 0 ? '' : usb.slice(atWriteAll, afterWriteAll < 0 ? usb.length : afterWriteAll);
-if (/PACED_BYTES_PER_SECOND|BURST_BYTES|PACED_CHUNK/.test(usb)) {
-  fails.push('التهدئةُ المسبقةُ عادت إلى مسار USB — إن كان بقياسٍ من طابعةٍ حقيقيّة فحدِّث هذا الحارس، وإلّا فهي البطءُ نفسُه');
+for (const name of ['PACED_BYTES_PER_SECOND', 'BURST_BYTES', 'PACED_CHUNK', 'RECOVERY_BYTES_PER_SECOND', 'RECOVERY_CHUNK', 'pacedPrinters', 'UNPACE_AFTER_CLEAN_JOBS', 'cleanSincePaced']) {
+  if (usb.includes(name)) fails.push(`التهدئةُ عادت إلى مسار USB (${name}) — إن كان بقياسٍ من طابعةٍ حقيقيّة فحدِّث هذا الحارس، وإلّا فهي البطءُ والتهنيقُ نفسُهما`);
+}
+/* والدفعةُ بحجمِ الكابل، لا بحجمِ فرملة. */
+if (!/val len = minOf\(CHUNK, bytes\.size - offset\)/.test(inWriteAll)) {
+  fails.push('حجمُ الدفعة في writeAll ليس CHUNK وحدَه — فرملةٌ دخلت من باب حجم الدفعة');
+}
+/* ولا نومَ داخل حلقة الكتابة إلّا على ردِّ الصفر (إعادةُ محاولةٍ آمنة). */
+{
+  const sleeps = (inWriteAll.match(/Thread\.sleep/g) || []).length;
+  if (sleeps > 1) fails.push(`${sleeps} مواضعِ نومٍ في writeAll — واحدةٌ فقط مشروعة (ردُّ الصفر)، والبقيّةُ تهدئةٌ بثوبٍ آخر`);
 }
 
-/* والتهدئةُ تُستحقّ ولا تُفترض: شرطُها أن تكون الطابعةُ قد انقطع عليها
-   إرسالٌ قبلُ. فلا يجوز أن يصير الشرطُ عامّاً (فيعود البطءُ لكلِّ مطعم)
-   ولا أن تزول الشبكةُ كلُّها (فلا يبقى لنا ما نفعله إن انقطعت الطباعةُ
-   عند مطعمٍ لا نملك طابعتَه). */
-if (!/val paced = bytes\.size > PAPER_JOB_BYTES && pacedPrinters\.contains\(printerId\)/.test(inWriteAll)) {
-  fails.push('شرطُ التهدئة ليس «طابعةٌ انقطع عليها إرسال» — إمّا البطءُ عاد للكلّ أو الشبكةُ سقطت');
+/* وما يحمي الورقةَ فعلاً يبقى: دَينُ الورقة يُنهي صورةً انقطعت قبل أن
+   تبتلع فاتورةَ الزبون الذي بعده. وشرائحُ ١٢٨ سطراً تحصر الضرر. */
+if (!/settleDebt\(conn, endpoint, stableId\(dev\), timeoutMs, intf\.id\)/.test(usb)) {
+  fails.push('دَينُ الورقة لم يعد يُسدَّد قبل الإرسال — فاتورةُ الزبون التالي تُبتلع');
 }
-if (!/pacedPrinters\.add\(stableId\(dev\)\)/.test(usb)) {
-  fails.push('لا شيءَ يُهدّئ طابعةً انقطع عليها الإرسال — بلا شبكةِ أمانٍ ولا نملك طابعةً نُجرّب عليها');
-}
-const atTrunc = usb.indexOf('if (sentAll < bytes.size)');
-const atAdd = usb.indexOf('pacedPrinters.add(');
-if (atTrunc < 0 || atAdd < 0 || atAdd < atTrunc) {
-  fails.push('التهدئةُ تُستحقّ من غير الانقطاع — العلامةُ الوحيدةُ التي نراها هي إرسالٌ انقطع');
-}
-/* والنومُ الوحيدُ المسموحُ في writeAll هو إعادةُ الدفعةِ الصفريّة
-   (EMPTY_RETRY_SLEEP_MS) وتهدئةُ المستحقّة (owedMs): الأولى انتظارُ طابعةٍ لم تقبل شيئاً، لا تهدئةُ
-   مَن قبلت. وأيُّ نومٍ غيرُه تهدئةٌ بلا اسم. */
-const sleeps = inWriteAll.match(/Thread\.sleep\(([^)]*)\)/g) || [];
-for (const s of sleeps) {
-  if (!s.includes('EMPTY_RETRY_SLEEP_MS') && !s.includes('owedMs - goneMs')) fails.push(`نومٌ غيرُ معروفٍ في writeAll (${s}) — تهدئةٌ بلا اسم`);
+if (!/debtBytes\[stableId\(dev\)\] = Debt\(owed,/.test(usb)) {
+  fails.push('الانقطاعُ لم يعد يُقيَّد ديناً — ما يحمي الورقةَ التاليةَ سقط');
 }
 
-/* وتتابعُ الفاتورة وتذكرةِ المطبخ على طابعةٍ واحدة يُعالَج بانتظارِ
-   الورق بينهما، لا بإبطاء الكابل على الورقة المفردة. */
-for (const need of ['fun awaitPaper', 'fun paperRows', 'paperBusyUntil', 'EST_ROWS_PER_SECOND', 'MAX_PAPER_ROWS']) {
-  if (!usb.includes(need)) fails.push(`مسارُ USB بلا انتظارِ ورقٍ بين المهمّتين (${need})`);
-}
-if (!/val myPaperMs = paperMs\(bytes\)\s*\n\s*if \(myPaperMs > 0\) awaitPaper/.test(usb)) {
-  fails.push('الانتظارُ يُقاس بحجم البايتات لا بالورق — إمّا يتأخّر الدرجُ أو تسقط الحمايةُ عن تذكرةٍ قصيرة');
-}
-/* والانتظارُ قبل فتح الطابعة: بعضُها يختفي من USB بعد القصّ ويرجع، فنومٌ
-   ونحن ممسكون بالمَقبض يعني مَقبضاً ميّتاً ثم دَيناً بحجم الورقة كلِّها. */
-const atWait = usb.indexOf('if (myPaperMs > 0) awaitPaper(stableId(device))');
-const atOpen = usb.indexOf('manager().openDevice(dev)');
-if (atWait < 0 || atOpen < 0 || atWait > atOpen) {
-  fails.push('الانتظارُ بعد فتح الطابعة لا قبلَه — المَقبضُ يموت أثناء النوم');
-}
-if (!/paperBusyUntil\[stableId\(dev\)\] = maxOf\(/.test(usb)) {
-  fails.push('زمنُ الورق بلا حدٍّ أدنى — إرسالٌ متعثّرٌ يُسقط الانتظارَ وقت الحاجة إليه');
-}
-/* ولا يُقيَّد انشغالُ ورقٍ على مهمّةٍ لا تُخرج ورقاً. فتحُ الدرج خمسةُ
-   بايتاتٍ لا تُحرّك الورقَ، وكان يُسجّل ٣٠٠ملّي ثانيةٍ تنتظرها الفاتورةُ
-   بعده -- والدرجُ يُفتح قبل كلِّ بيعةٍ نقديّة، فالثمنُ على كلّ زبون. */
-if (!/if \(myPaperMs > 0\) \{\s*\n\s*paperBusyUntil\[stableId\(dev\)\] = maxOf\(/.test(usb)) {
-  fails.push('فتحُ الدرج يُسجّل انشغالَ ورقٍ — كلُّ بيعةٍ نقديّة تنتظر ٣٠٠ملّي ثانيةٍ بلا ورق');
-}
-if (!/if \(myPaperMs > 0\) paperBusyUntil\.remove\(/.test(usb)) {
-  fails.push('مهمّةٌ بلا ورقٍ انقطعت فمسحت موعدَ فراغِ الفاتورة قبلها');
-}
 /* وبساعةٍ لا ترجع: تصحيحُ الساعة للوراء يُجمّد الدَّينَ ويُطيل الانتظار. */
 if (/System\.currentTimeMillis/.test(usb)) {
   fails.push('ساعةُ الحائط في مسار USB — قفزةٌ للوراء تُجمّد الدَّين أو تُطيل الانتظار');

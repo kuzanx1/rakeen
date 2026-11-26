@@ -180,44 +180,36 @@ class UsbPrinterTransport(private val context: Context) {
         private val settleFails = java.util.concurrent.ConcurrentHashMap<String, Int>()
 
         /**
-         * تهدئةٌ تُستحقّ، لا تهدئةٌ احتياطيّة.
+         * ولا تهدئةَ هنا. حُذفت في ١٫٨٧ بعد أن قِيست.
          *
-         * التهدئةُ المسبقةُ كانت تدفع ثمنَها كلُّ طابعةٍ عند كلِّ مطعم،
-         * وثمنُها نصفُ السرعة، في مقابلِ عطبٍ لم يقع إلا عند طابعةٍ واحدة.
-         * وهذا يقلب الترتيب: نُرسل بسرعة الكابل، فإن أرَت طابعةٌ **بنفسها**
-         * العلامةَ التي تسبق الفواتيرَ المشفَّرة -- إرسالٌ انقطع في منتصفه،
-         * وهي العلامةُ الوحيدةُ التي نقدر على رؤيتها -- هُدّئت هي وحدَها
-         * بعد ذلك.
+         * كانت الفكرة: طابعةٌ انقطع عليها إرسالٌ مرّةً تُبطَّأ إلى ٢٧
+         * ك.ب/ث حتى تنجح خمسُ أوراق -- على افتراضِ أنّ السرعةَ هي التي
+         * تقطع الإرسال. والافتراضُ باطلٌ على USB أصلاً: ضبطُ التدفّق في
+         * البروتوكول، فالطابعةُ توقفنا بنفسها ولا تُسقط بايتاً بصمت.
          *
-         * فالمطعمُ الذي لا تنقطع عليه الطباعةُ لا يدفع شيئاً أبداً، والذي
-         * تنقطع عليه يُهدَّأ في اللحظة -- بلا بناءٍ جديد، وبلا مراجعةِ
-         * متجر، وبلا أن ينتظر أحدٌ منّا شيئاً. وهو ما نحتاجه بالضبط
-         * لأنّنا لا نملك طابعةَ USB نُجرّب عليها قبل النشر.
+         * ثم قِيس الثمنُ والفائدةُ عند «كباب طارق»:
          *
-         * وتبقى العلامةُ ما بقي التطبيقُ مفتوحاً: إن كان الانقطاعُ عارضاً
-         * (كابلٌ نُكز) أزالته إعادةُ فتح التطبيق، وإن كان في الطابعة نفسِها
-         * بقيت مُهدَّأةً طوالَ الوردية. ولا تُزال بنجاحٍ واحدٍ بعدها: النجاحُ
-         * **مع** التهدئة لا يقول إنّ السرعةَ صارت آمنة.
+         *   الفائدة -- طابعتان **مهدَّأتان**: إحداهما انقطعت ٢٨ مرّةً من
+         *   ٦٠، والأخرى ٤ من ١٩٤، وفاتورةٌ واحدةٌ فشلت أربعَ محاولاتٍ
+         *   متتاليةٍ وهي مكبوحةٌ على ٢٥ ك.ب/ث. فالتهدئةُ لم تمنع انقطاعاً
+         *   واحداً يُحتجّ به.
+         *
+         *   الثمن -- ٨١٩٢ بايتاً لكلِّ دفعة = ١٤٫٢ مم من الورق، ثم وقفة.
+         *   ففاتورتُهم تخرج على **خمس عشرة وقفة**، في ٤٫٤٦ ثانيةٍ بدل
+         *   أقلَّ من واحدة. والمالكُ رآها بعينه: «تطلع على دفعات كأنّ
+         *   فيه تقطيع».
+         *
+         * فالبطءُ والتهنيقُ مقيسان، والحمايةُ غيرُ موجودة. وما يحمي
+         * الورقةَ فعلاً باقٍ كما هو: دَينُ الورقة (settleDebt) يُنهي صورةً
+         * انقطعت قبل أن تبتلع فاتورةَ الزبون الذي بعده، وتقطيعُ الصورة
+         * إلى شرائحَ ١٢٨ سطراً يحصر ضررَ أيِّ انقطاعٍ في سنتيمترٍ ونصف.
+         *
+         * والسببُ الحقيقيُّ للانقطاع مادّيّ -- كابلٌ أو كهرباءٌ أو منفذ --
+         * وإبطاءُ الإرسال لا يمسّ منه شيئاً، إنّما يُبطئ كلَّ مطعم.
+         *
+         * ومن أرادها ثانيةً فعليه أن يأتي بقياسٍ يقول إنّها منعت انقطاعاً،
+         * لا بافتراضٍ يقول إنّها قد تمنعه.
          */
-        private val pacedPrinters = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
-
-        /**
-         * أوراقٌ متتاليةٌ نجحت على طابعةٍ مهدّأة، فتُرفع عنها التهدئة.
-         *
-         * وكانت تلتصق إلى إقفال التطبيق: كابلٌ انزحزح لحظةً فانقطع إرسالٌ
-         * واحد، فتبقى الطابعةُ على ٢٧ ك.ب/ث بقيّةَ اليوم كلِّه -- عقوبةٌ
-         * دائمةٌ على عارضٍ عابر. رآها صاحبُ مطعمٍ «كانت سريعةً ثمّ صارت
-         * بطيئة»، ولم يتغيّر عنده شيء.
-         *
-         * وخمسٌ لا واحدة: ورقةٌ واحدةٌ ناجحةٌ لا تُثبت أنّ الوصلَ تعافى،
-         * إنّما أنّ هذي الورقةَ مرّت. وخمسٌ متتالياتٌ بحجمِ ورقٍ كاملٍ
-         * تكفي -- وإن انقطع واحدٌ بينها عاد العدُّ من الصفر وبقيت
-         * التهدئة.
-         */
-        private const val UNPACE_AFTER_CLEAN_JOBS = 5
-        private val cleanSincePaced = java.util.concurrent.ConcurrentHashMap<String, Int>()
-        private const val RECOVERY_BYTES_PER_SECOND = 27 * 1024
-        private const val RECOVERY_CHUNK = 8192
 
         /**
          * يكتب الحمولةَ كلَّها، ويُعيد ما وصل فعلاً.
@@ -236,23 +228,12 @@ class UsbPrinterTransport(private val context: Context) {
             endpoint: UsbEndpoint,
             bytes: ByteArray,
             timeoutMs: Int,
-            printerId: String,
         ): Int {
             var offset = 0
-            // بسرعةِ الكابل، وضبطُ التدفّق على الطابعة: ترفض ما لا تقدر
-            // عليه فنحتبس، ولا تُسقط بايتاً بصمت. (انظر أعلاه.) إلّا طابعةً
-            // انقطع عليها إرسالٌ قبلُ، فتلك تُهدَّأ هي وحدَها.
-            val paced = bytes.size > PAPER_JOB_BYTES && pacedPrinters.contains(printerId)
-            val startedAt = android.os.SystemClock.elapsedRealtime()
+            // بسرعةِ الكابل. وضبطُ التدفّق على الطابعة: ترفض ما لا تقدر
+            // عليه فنحتبس، ولا تُسقط بايتاً بصمت. (انظر أعلاه.)
             while (offset < bytes.size) {
-                if (paced && offset > 0) {
-                    val owedMs = offset.toLong() * 1000L / RECOVERY_BYTES_PER_SECOND
-                    val goneMs = android.os.SystemClock.elapsedRealtime() - startedAt
-                    if (owedMs > goneMs) {
-                        try { Thread.sleep(owedMs - goneMs) } catch (e: InterruptedException) { return offset }
-                    }
-                }
-                val len = minOf(if (paced) RECOVERY_CHUNK else CHUNK, bytes.size - offset)
+                val len = minOf(CHUNK, bytes.size - offset)
                 var sent = try { connection.bulkTransfer(endpoint, bytes, offset, len, timeoutMs) } catch (e: Exception) { -1 }
                 var tries = 0
                 while (sent == 0 && tries < EMPTY_RETRIES) {
@@ -386,7 +367,7 @@ class UsbPrinterTransport(private val context: Context) {
             // بيضاء، وإن لم تكن فـNUL يُهمَل في وضع النصّ. لكنّنا لا نُنفق
             // ورقاً على دَينٍ قديمٍ غالباً ما عاد له صاحب.
             if (!stale && debt.bytes in 1..MAX_DEBT) {
-                val paid = writeAll(connection, endpoint, ByteArray(debt.bytes), timeoutMs, printerId)
+                val paid = writeAll(connection, endpoint, ByteArray(debt.bytes), timeoutMs)
                 if (paid < debt.bytes) {
                     val tries = (settleFails[printerId] ?: 0) + 1
                     if (tries < MAX_SETTLE_TRIES) {
@@ -413,7 +394,7 @@ class UsbPrinterTransport(private val context: Context) {
             // أي عينُ العطب الذي نُعالجه، نصنعه بأيدينا في طريق الإنقاذ.
             // فالقاعدةُ ألّا نُدخل على هذه الطابعة أمراً لم يُجرَّب عليها.
             val reset = byteArrayOf(0x1b, 0x40, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00)
-            writeAll(connection, endpoint, reset, timeoutMs, printerId)
+            writeAll(connection, endpoint, reset, timeoutMs)
             return true
         }
     }
@@ -651,7 +632,7 @@ class UsbPrinterTransport(private val context: Context) {
                     }
 
                     val writeStartedAt = android.os.SystemClock.elapsedRealtime()
-                    val sentAll = writeAll(conn, endpoint, bytes, timeoutMs, stableId(dev))
+                    val sentAll = writeAll(conn, endpoint, bytes, timeoutMs)
                     if (sentAll < bytes.size) {
                         // ما وصل كلُّه. الطابعةُ الآن واقفةٌ في منتصف أمر صورة،
                         // تنتظر ما لم يصلها -- فنُقيّد الباقي ديناً ونسدّده أول
@@ -661,13 +642,6 @@ class UsbPrinterTransport(private val context: Context) {
                         // العطلُ نادرٌ ولا يُستدعى بالطلب، فلو وقع عند مطعمٍ
                         // بعيدٍ أردنا أثراً يُقرأ بـadb logcat بدل التخمين.
                         android.util.Log.w(LOG_TAG, "truncated job: sent $sentAll of ${bytes.size}, owed $owed")
-                        // وهذه هي العلامة. هذه الطابعةُ أرَتنا بنفسها أنّ
-                        // الإرسالَ ينقطع عليها، فتُهدَّأ هي وحدَها من الآن --
-                        // لا كلُّ طابعةٍ عند كلِّ مطعمٍ احتياطاً.
-                        cleanSincePaced[stableId(dev)] = 0
-                        if (pacedPrinters.add(stableId(dev))) {
-                            android.util.Log.w(LOG_TAG, "pacing this printer (${RECOVERY_BYTES_PER_SECOND / 1024} KB/s) until $UNPACE_AFTER_CLEAN_JOBS clean papers")
-                        }
                         // ولا يمسحُ دَينَ الورقِ إلّا من كان له ورق: مهمّةٌ
                         // بلا ورقٍ انقطعت لا تُلغي موعدَ فراغِ فاتورةٍ قبلها.
                         if (myPaperMs > 0) paperBusyUntil.remove(stableId(dev))
@@ -681,19 +655,6 @@ class UsbPrinterTransport(private val context: Context) {
                     } else {
                         debtBytes.remove(stableId(dev))
                         settleFails.remove(stableId(dev))
-                        // ورقةٌ كاملةٌ نجحت: تُحسب للتعافي. وأوامرُ الدرجِ
-                        // والتهيئةِ لا تُحسب -- بايتاتٌ قليلةٌ تمرّ على أسوأ
-                        // وصل، فلو عُدَّت لَرُفعت التهدئةُ بلا دليل.
-                        if (myPaperMs > 0 && pacedPrinters.contains(stableId(dev))) {
-                            val clean = (cleanSincePaced[stableId(dev)] ?: 0) + 1
-                            if (clean >= UNPACE_AFTER_CLEAN_JOBS) {
-                                pacedPrinters.remove(stableId(dev))
-                                cleanSincePaced.remove(stableId(dev))
-                                android.util.Log.i(LOG_TAG, "lifting pacing: $clean clean papers in a row")
-                            } else {
-                                cleanSincePaced[stableId(dev)] = clean
-                            }
-                        }
                         // وصلت كلُّها، والطابعةُ الآن تطبعها: من هنا نحسب
                         // متى تفرغ، حتى لا تُركَب عليها ورقةٌ ثانية.
                         //

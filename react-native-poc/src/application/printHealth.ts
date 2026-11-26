@@ -155,7 +155,10 @@ export async function flushPrintHealth(): Promise<void> {
           jobsOk: b.jobsOk,
           jobsFailed: b.jobsFailed,
           truncations: b.truncations,
-          // التهدئةُ تُستحقّ بالانقطاع، فوقوعُه هو وقوعُها.
+          // ولا تهدئةَ بعد ١٫٨٧ (UsbPrinterTransport.kt: حُذفت بعد أن
+          // قِيست فلم تمنع انقطاعاً). والعمودُ يبقى بمعناه الباقي: هل
+          // انقطع على هذي الطابعة إرسالٌ اليوم. ولم يُغيَّر اسمُه لأنّ
+          // تغييرَه يقطع صفوفَ الأيّام السابقة عن قارئها.
           paced: b.truncations > 0,
           transportMsSum: b.transportMsSum,
           transportMsMax: b.transportMsMax,
